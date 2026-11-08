@@ -73,6 +73,11 @@ invocations matched during a bounded tail, with no new invocation,
 interruption or abandonment substituted for completion. The tail adds no
 instructions to the movie's measure. An unresolved comparison still fails
 where it did before; closure in another movie cannot cancel it.
+An `idle-closed` record similarly certifies only the counted prefix of an
+exact idle pass that finishes in the tail. Its instruction address, length,
+kind and owners must match this file's counts; another pass or movie cannot
+cancel it. The producer preserves the pass's identity across interrupts and
+certifies it only when the ordinary idle-pass accounting takes it back.
 """
 
 import argparse
@@ -113,6 +118,7 @@ REFUSAL = re.compile(r"^refusal ([0-9A-F]{6}) (\w+) (\d+) (\S+)$")
 STATE = re.compile(r"^state ([0-9A-F]{6}) (\w+) (.*)$")
 OPEN = re.compile(r"^open ([0-9A-F]{6}) (\d+) (\S+)$")
 CLOSED = re.compile(r"^closed ([0-9A-F]{6}) (\d+) (\S+)$")
+IDLE_CLOSED = re.compile(INSN.pattern.replace("^insn ", "^idle-closed "))
 
 
 def canonical(addr):
@@ -172,6 +178,7 @@ class Measure:
         self.states = collections.defaultdict(list)
         self.open = collections.Counter()       # (port, name) -> instructions under its unfinished comparison
         self.completed = collections.Counter()  # cutoff comparisons matched in a bounded tail
+        self.idle_completed = collections.Counter()  # exact cutoff idle prefixes completed in the tail
         self.bad = []
         self.files = 0
 
@@ -179,14 +186,18 @@ class Measure:
         self.files += 1
         run = path.parent.name + "/" + path.stem
         opened, closed = collections.Counter(), collections.Counter()
+        instructions, idle_closed = collections.Counter(), collections.Counter()
         for line in path.read_text(errors="replace").splitlines():
-            m = INSN.match(line)
+            m = INSN.match(line) or IDLE_CLOSED.match(line)
             if m:
                 kind, pc, length, count, routine, port = m.groups()
                 pc = canonical(int(pc, 16))
                 port = "-" if port == "-" else fmt(int(port, 16))
-                self.insns[(kind, pc, cut_out(routine_text(routine), pc), port)] += int(count)
-                self.length[pc] = max(self.length.get(pc, 0), int(length))
+                key = (kind, pc, cut_out(routine_text(routine), pc), port, int(length))
+                if line.startswith("idle-closed "):
+                    idle_closed[key] += int(count)
+                else:
+                    instructions[key] += int(count)
                 continue
             m = EVENT.match(line)
             if m:
@@ -217,6 +228,16 @@ class Measure:
                 state = "%s (%s)" % (state, run)
                 if state not in self.states[key]:
                     self.states[key].append(state)
+        for key, count in idle_closed.items():
+            if count > instructions[key]:
+                self.bad.append("%s: idle completion exceeds this run's instruction count: %s" % (run, fmt(key[1])))
+            else:
+                instructions[key] -= count
+                self.idle_completed[key[:-1]] += count
+        for key, count in instructions.items():
+            if count:
+                self.insns[key[:-1]] += count
+                self.length[key[1]] = max(self.length.get(key[1], 0), key[-1])
         for key, count in closed.items():
             if count > opened[key]:
                 self.bad.append("%s: closed comparison exceeds this run's open count: %s" % (run, key[0]))
@@ -272,6 +293,8 @@ def totals_line(m):
         kib(nbytes), ninsns, parts, sum(m.open.values()))
     if m.completed:
         summary += "; %d cutoff instructions compared in bounded tails" % sum(m.completed.values())
+    if m.idle_completed:
+        summary += "; %d cutoff idle instructions certified in bounded tails" % sum(m.idle_completed.values())
     return summary
 
 

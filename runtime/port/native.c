@@ -503,13 +503,18 @@ RcTiming rc_timing = { .limit = UINT32_MAX };
 
 uint64_t native_generated_instructions(void) { return generated_executed; }
 
-/* By address; hand-written entries before generated ones at the same address. */
+/* By address; hand-written entries before generated ones at the same address.
+ * A retained registry row precedes its held alias on the address path, so
+ * shadow comparisons and old saves keep the registered entry's identity.
+ * Named holds select their continuations from held_rows instead. */
 static int entry_cmp(const void *a, const void *b)
 {
     const NativeEntry *p = a, *q = b;
     if (p->addr != q->addr)
         return p->addr < q->addr ? -1 : 1;
-    return (int)p->generated - (int)q->generated;
+    if (p->generated != q->generated)
+        return (int)p->generated - (int)q->generated;
+    return (int)(p->hold != 0) - (int)(q->hold != 0);
 }
 
 /* The estimates kept for routines with no entry (native_keep_estimates). */
@@ -3044,12 +3049,28 @@ static void drop_the_dropped(NativeRuntime *rt, Snes *s)
     }
 }
 
+/* Whether the held wait `wait` has a continuation at `pc`: the rest of a
+ * caller the wait returns to, which goes on as the wait's own. */
+static bool the_wait_goes_on_at(const NativeRuntime *rt, uint8_t wait, uint32_t pc)
+{
+    for (int k = 0; k < rt->nheld_rows; k++) {
+        const NativeEntry *e = &rt->table[rt->held_rows[k]];
+        if (e->hold == wait && e->addr == pc)
+            return true;
+    }
+    return false;
+}
+
 /* ON: one pass of an idle entry, run on the machine as it stands: the time
  * to the next point the wait can end if it goes round, else its exit pass.
  * A held wait's continuation that goes round holds the wait again; `held`
  * says it ran because the machine named the wait, which the census counts
- * apart from an entry the machine reached. */
-static int32_t run_idle(Snes *s, const NativeEntry *e, uint32_t pc, bool held)
+ * apart from an entry the machine reached. One that leaves the wait for a
+ * caller's rest that is a continuation of the same wait (the field's main
+ * loop, back from its wait for the next frame) keeps the wait named there,
+ * with the S it returns with, so that after the exit pass the runtime goes on
+ * with that continuation by the wait's number. */
+static int32_t run_idle(NativeRuntime *rt, Snes *s, const NativeEntry *e, uint32_t pc, bool held)
 {
     if (held && native_census_hooks.held)
         native_census_hooks.held(native_census_hooks.ctx, s, e);
@@ -3066,6 +3087,10 @@ static int32_t run_idle(Snes *s, const NativeEntry *e, uint32_t pc, bool held)
             s->held_wait_s = s->cpu.s;
         }
         return (int32_t)(e->idle_clocks ? e->idle_clocks : until_interrupt(s, snes_clocks_to_next_poll_change(s)));
+    }
+    if (e->hold && the_wait_goes_on_at(rt, e->hold, cpu_pc24(&s->cpu))) {
+        s->held_wait = e->hold;
+        s->held_wait_s = s->cpu.s;
     }
     return e->idle_clocks ? 0 : IDLE_EXIT_CLOCKS;
 }
@@ -3152,7 +3177,7 @@ static bool go_on_in_the_held_wait(NativeRuntime *rt, Snes *s, uint32_t pc, int3
             st->skipped++;
             continue;
         }
-        *result = e->idle ? run_idle(s, e, pc, true) : start_port(rt, s, e, true);
+        *result = e->idle ? run_idle(rt, s, e, pc, true) : start_port(rt, s, e, true);
         return true;
     }
     return false;
@@ -3302,11 +3327,14 @@ static int32_t intercept(void *ctx, Snes *s)
          * check every enclosing segment, not only the innermost. Aliases of
          * the same C entry at the same stack depth are the same invocation
          * too (field_enter's second entry after its opening prologue).
+         * A wrapper may name a distinct entry into its inline body explicitly
+         * (shadow_body), so the wrappers needn't dispatch on the machine PC.
          * Comparing that body again would nest a comparison per iteration. */
         if (rt->mode == NATIVE_SHADOW && rt->nactive > 0) {
             for (int i = rt->nactive - 1; i >= 0; i--) {
                 const Active *in = &rt->active[i];
-                if (in->entry->fn == e->fn && in->phase == PH_SEGMENT && in->entry_s == s->cpu.s)
+                if ((in->entry->fn == e->fn || in->entry->shadow_body == e->fn) &&
+                    in->phase == PH_SEGMENT && in->entry_s == s->cpu.s)
                     return -1;
             }
         }
@@ -3349,7 +3377,7 @@ static int32_t intercept(void *ctx, Snes *s)
                  * and none turned it away */
                 return -1;
             }
-            return run_idle(s, e, pc, false);
+            return run_idle(rt, s, e, pc, false);
         }
 
         if (rt->nactive == MAX_ACTIVE) {
@@ -3701,13 +3729,19 @@ void native_call_poison_reset(void)
     poisoning = false;
 }
 
-void native_sync(Snes *s)
+void native_sync_boundary(Snes *s)
 {
     Job *j = current_job;
-    if (!j || j->m != s || !active_runtime || active_runtime->mode != NATIVE_ON || !s->bus.clocks)
+    if (!j || j->m != s || !active_runtime || active_runtime->mode != NATIVE_ON)
         return;
     j->state = JOB_SYNCING;
     fiber_switch(fiber_main());
+}
+
+void native_sync(Snes *s)
+{
+    if (s->bus.clocks)
+        native_sync_boundary(s);
 }
 
 void native_await_latch(Snes *s)

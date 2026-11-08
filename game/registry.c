@@ -350,7 +350,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC05709, .name = "field_start_the_objects", .fn = field_start_the_objects, NEEDS_M8_X16_BINARY,
       .cost_milli = 5440, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = field_objects_can_start },
     { .addr = 0xC00B38, .name = "field_screen_on_wait_for_vblank_loop", .fn = field_screen_on_wait_for_vblank_loop,
-      NEEDS_M8, .idle = true, .guard = field_display_bank_is_io },
+      NEEDS_M8, .idle = true, .guard = field_display_bank_is_io, .hold = HOLD_FIELD_SCREEN },
     { .addr = 0xC00B3D, .name = "field_turn_the_handlers_on", .fn = field_turn_the_handlers_on, NEEDS_M8_X16,
       .cost_milli = 5059, .dont_care = DC_A | DC_N | DC_Z, .guard = field_display_bank_is_io },
     { .addr = 0xC029F7, .name = "field_build_the_window_frame", .fn = field_build_the_window_frame_entry, NEEDS_M8_X16,
@@ -2336,7 +2336,8 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC00B75, .name = "field_install_irq", .fn = field_install_irq,
       NEEDS_M8_X16, .cost_milli = 3500, .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_D, .guard = field_bank_low_ram },
     { .addr = 0xC0EA63, .name = "field_nmi", .fn = field_nmi, .cost_milli = 4818 },
-    { .addr = 0xC0EC71, .name = "field_wait_for_frame_loop", .fn = field_wait_for_frame_loop, NEEDS_M8, .idle = true, .guard = field_bank_low_ram },
+    { .addr = 0xC0EC71, .name = "field_wait_for_frame_loop", .fn = field_wait_for_frame_loop, NEEDS_M8, .idle = true,
+      .idle_return_span = 6, .guard = field_bank_low_ram },
     { .addr = 0xC03B71, .name = "field_change_location_wait_for_vblank_loop",
       .fn = field_change_location_wait_for_vblank_loop, NEEDS_M8, .idle = true, .guard = field_display_bank_is_io },
     { .addr = 0xC03B76, .name = "event_go_now_in_the_dark", .fn = event_go_now_in_the_dark, NEEDS_M8_X16,
@@ -2529,8 +2530,8 @@ const NativeEntry game_natives[] = {
       NEEDS_M8_X16, .cost_milli = 2589, .guard = field_on_page_bank_zero },
     { .addr = 0xC000BA, .name = "field_wait_for_the_next_frame", .fn = field_wait_for_the_next_frame, NEEDS_M8_X16,
       .cost_milli = 3669, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_page_bank_zero },
-    { .addr = 0xC000BD, .name = "field_main_loop_goes_round", .fn = field_main_loop_goes_round, NEEDS_M8_X16,
-      .cost_milli = 1000 },
+    { .addr = 0xC000BD, .name = "field_main_loop_goes_round", .fn = field_next_frame, .shadow_body = field_frame, NEEDS_M8_X16,
+      .cost_milli = 1000, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C },
     { .addr = 0xC00CC0, .name = "field_start_again", .fn = field_start_again, NEEDS_M8_X16, .cost_milli = 1000 },
     { .addr = 0xC03FD6, .name = "field_start_the_scene", .fn = field_start_the_scene, NEEDS_M8_X16, .cost_milli = 15370,
       .guard = field_on_page },
@@ -4690,6 +4691,31 @@ const NativeEntry game_held_waits[] = {
     { .addr = 0xC2250D, .name = "overworld_halt", .fn = overworld_halt_entry, NEEDS_M8_X16_BINARY,
       .cost_milli = 3000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .hold = HOLD_OVERWORLD_HALT, .retired = true, .guard = overworld_main_loop_runs },
+    /* the field's wait for the next frame: its pass, for every routine that
+     * waits there, which returns to the caller's rest once the vblank handler
+     * has taken the frame (a data bank reaching low RAM); and the main loop's
+     * rest, a continuation of the same wait where the wait returns into the
+     * loop (the field's page, the data bank 0): its next pass from the head or
+     * after the requests, and the wait again. Each declares what the pass
+     * doesn't read from there, as the loop's stop at its head and the walk's
+     * call do. */
+    { .addr = 0xC0EC71, .name = "field_waits_for_the_frame", .fn = field_wait_for_frame_loop, NEEDS_M8, .idle = true,
+      .idle_return_span = 6,
+      .hold = HOLD_FIELD_FRAME, .guard = field_bank_low_ram },
+    { .addr = 0xC00097, .name = "field_first_frame", .fn = field_frame, NEEDS_M8_X16, .cost_milli = 1402,
+      .hold = HOLD_FIELD_FRAME, .guard = field_on_page_bank_zero },
+    { .addr = 0xC000BD, .name = "field_next_frame", .fn = field_next_frame, NEEDS_M8_X16, .cost_milli = 1000,
+      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .hold = HOLD_FIELD_FRAME, .guard = field_on_page_bank_zero },
+    { .addr = 0xC000A7, .name = "field_next_frame_from_the_walk", .fn = field_frame_goes_on_with_the_walk, NEEDS_M8_X16,
+      .cost_milli = 2249, .hold = HOLD_FIELD_FRAME,
+      .guard = field_on_page_bank_zero },
+    /* The setup also calls this wait directly through the timing service;
+     * its retained idle row names the wait on that first address entry. */
+    { .addr = 0xC00B38, .name = "field_waits_to_show_the_picture", .fn = field_screen_on_wait_for_vblank_loop,
+      NEEDS_M8, .idle = true, .guard = field_display_bank_is_io, .hold = HOLD_FIELD_SCREEN },
+    { .addr = 0xC00B3D, .name = "field_picture_starts", .fn = field_turn_the_handlers_on, NEEDS_M8_X16,
+      .cost_milli = 5059, .dont_care = DC_A | DC_N | DC_Z, .guard = field_display_bank_is_io,
+      .hold = HOLD_FIELD_SCREEN },
 };
 const int game_held_wait_count = (int)(sizeof game_held_waits / sizeof game_held_waits[0]);
 

@@ -37,7 +37,14 @@ bool field_effects_refreshed(GameState *g);
 void field_walk_a_frame(Snes *s);
 void field_finish_frame(Snes *s);
 void field_wait_for_the_next_frame(Snes *s);
-void field_main_loop_goes_round(Snes *s);
+/* The wait for the next frame, a held wait (holds.h, HOLD_FIELD_FRAME): the
+ * port that starts it stops in its loop ($C0:EC71), whose idle passes
+ * (field/frame.c) return to the caller once the vblank handler has taken the
+ * frame. Where the caller is the main loop, its rest is a continuation of the
+ * wait: the next pass from the loop's head ($C0:00BD) or from the walk
+ * ($C0:00A7, after a request that ended in the wait), and the wait again.
+ * The address entries stay registered for shadow comparisons and old saves. */
+void field_next_frame(Snes *s);
 /* The field starting again on a fresh stack for a new location, and ending
  * for a scene: the one an event command asked for, or the field's close's. */
 void field_start_again(Snes *s);

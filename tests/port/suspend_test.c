@@ -603,6 +603,128 @@ static void named_hold_case(void)
     free(rom);
 }
 
+/* A shared wait returns into a caller that is another continuation of the
+ * same hold. Unlike a loop that stays at its head, the return changes S. */
+static void returning_hold_look(Snes *s)
+{
+    uint8_t flag = m_read8(s, FRAME_FLAG);
+    m_set_a8(s, flag);
+    m_set_nz8(s, flag);
+    if (flag)
+        m_rts(s);
+}
+
+static void returning_hold_frame(Snes *s)
+{
+    m_write8(s, FRAMES_DONE, (uint8_t)(m_read8(s, FRAMES_DONE) + 1));
+    m_push16(s, 0x8204);
+    hold_start(s);
+}
+
+static void returning_hold_first_frame(Snes *s) { returning_hold_frame(s); }
+
+static void returning_hold_bad_frame(Snes *s)
+{
+    m_write8(s, FRAMES_DONE, (uint8_t)(m_read8(s, FRAMES_DONE) + 1));
+    returning_hold_frame(s);
+}
+
+static void returning_hold_case(void)
+{
+    static const Code code[] = {
+        { 0x8000, { 0x78, 0x18, 0xFB, 0xC2, 0x10, 0xE2, 0x20, 0xA2, 0xFF, 0x01, 0x9A,
+                    0xA9, 0x80, 0x8D, 0x00, 0x42, 0x4C, 0x00, 0x82 }, 19 },
+        { 0x8100, { 0x64, 0x60, 0xA5, 0x60, 0xF0, 0xFC, 0x60 }, 7 },
+        { 0x8200, { 0xE6, 0x70, 0x20, 0x00, 0x81, 0x80, 0xF9 }, 7 },
+        { 0x8600, { 0xE6, 0x60, 0xE6, 0x40, 0x40 }, 5 },
+    };
+    const NativeEntry table[] = {
+        { .addr = 0x008200, .name = "first_frame", .fn = returning_hold_first_frame, .cost_milli = 1000 },
+        { .addr = MAIN_LOOP_HEAD, .name = "shared_wait", .fn = returning_hold_look,
+          .idle = true, .hold = HOLD_TEST_LOOP },
+        { .addr = 0x008205, .name = "next_frame", .fn = returning_hold_frame,
+          .cost_milli = 1000, .hold = HOLD_TEST_LOOP },
+        { .addr = 0x008205, .name = "registered_frame", .fn = returning_hold_frame,
+          .shadow_body = returning_hold_first_frame, .cost_milli = 1000 },
+    };
+    uint8_t *rom = make_rom(code, sizeof code / sizeof code[0], 0x8600);
+    Snes *s = machine(rom);
+    NativeRuntime *rt = native_create(table, 4, NATIVE_ON);
+    native_attach(rt, s);
+    native_census_hooks = (NativeCensusHooks){ .entered = on_look_entered, .held = on_look_held };
+    looks_entered = looks_held = 0;
+    int waiting = suspended_frame_ends(s, rt, 20);
+    CHECK(!waiting && looks_entered == 0 && s->bus.wram[FRAMES_DONE] >= 18 &&
+              native_stats_named(rt, "registered_frame")->calls == 0,
+          "returning hold: suspended %d, entered %d, frames %u", waiting, looks_entered,
+          s->bus.wram[FRAMES_DONE]);
+    size_t len;
+    uint8_t *state = snes_state_write(s, &len);
+    run_frames(s, 30);
+    Snes *copy = machine(rom);
+    char err[200] = "";
+    CHECK(state && snes_state_read(copy, state, len, err, sizeof err) == 0, "returning hold load: %s", err);
+    NativeRuntime *fresh = native_create(table, 4, NATIVE_ON);
+    native_attach(fresh, copy);
+    run_frames(copy, 30);
+    CHECK(!memcmp(s->bus.wram, copy->bus.wram, sizeof s->bus.wram) && s->master == copy->master &&
+              !memcmp(&s->cpu, &copy->cpu, offsetof(Cpu, bus)) && looks_entered == 0 &&
+              native_stats_named(fresh, "registered_frame")->calls == 0,
+          "returning hold: loaded state diverged or entered a continuation by address");
+    native_census_hooks = (NativeCensusHooks){ 0 };
+    native_destroy(fresh);
+    native_destroy(rt);
+    free(state);
+    free(copy);
+    free(s);
+
+    /* The address path must use the retained row even though its alias was
+     * supplied first. The distinct first-pass wrapper is compared once:
+     * thereafter its work is inside the returning pass's comparison. */
+    s = machine(rom);
+    rt = native_create(table, 4, NATIVE_SHADOW);
+    native_attach(rt, s);
+    run_frames(s, 20);
+    CHECK(native_stats_named(rt, "registered_frame")->matched >= 18 &&
+              native_stats_named(rt, "first_frame")->calls == 1 &&
+              native_stats_named(rt, "next_frame")->calls == 0 && !native_failed(rt),
+          "returning hold: the retained row did not own matching address-path comparisons");
+    native_destroy(rt);
+    free(s);
+
+    /* Naming an inline body only removes the overlapping comparison. The
+     * retained wrapper must still detect a wrong effect in that body. */
+    NativeEntry bad[4];
+    memcpy(bad, table, sizeof bad);
+    bad[3].fn = returning_hold_bad_frame;
+    s = machine(rom);
+    rt = native_create(bad, 4, NATIVE_SHADOW);
+    native_attach(rt, s);
+    run_frames(s, 4);
+    CHECK(native_stats_named(rt, "registered_frame")->mismatched > 0 && native_failed(rt),
+          "returning hold: inline body escaped the retained wrapper's comparison");
+    native_destroy(rt);
+    free(s);
+
+    /* Naming a wait must not bypass a continuation's P contract. This one
+     * requires decimal mode, while the program runs in binary mode: its
+     * retained address entry must take every return instead. */
+    NativeEntry guarded[4];
+    memcpy(guarded, table, sizeof guarded);
+    guarded[2].p_mask = CPU_FLAG_D;
+    guarded[2].p_value = CPU_FLAG_D;
+    s = machine(rom);
+    rt = native_create(guarded, 4, NATIVE_ON);
+    native_attach(rt, s);
+    run_frames(s, 20);
+    CHECK(native_stats_named(rt, "next_frame")->skipped >= 18 &&
+              native_stats_named(rt, "registered_frame")->calls >= 18 && !native_failed(rt),
+          "returning hold bypassed the continuation's decimal-mode contract");
+    native_destroy(rt);
+    free(s);
+    free(rom);
+}
+
 /* The boot's two beam waits must leave one blank before entering the next
  * line. The title's music wait must remain suspended until the audio side
  * supplies a playing-track mask, even when no interrupt is enabled. */
@@ -627,6 +749,62 @@ static void start_probe_music(void *ctx, Snes *s)
     (void)ctx;
     if (s->frame)
         s->apu.cpu_out[3] = 1;
+}
+
+/* An empty backedge still consumes a dispatch step and polls interrupts.
+ * Calling its next pass inline must preserve that boundary even though no
+ * accesses have accrued for native_sync to pay. */
+static void boundary_frame(Snes *s)
+{
+    m_write8(s, FRAMES_DONE, (uint8_t)(m_read8(s, FRAMES_DONE) + 1));
+    m_stop_at(s, 0x008205, 0);
+}
+
+static void boundary_backedge(Snes *s) { m_stop_at(s, 0x008200, 0); }
+
+static void boundary_direct(Snes *s)
+{
+    m_jump_to(s, 0x008200);
+    native_sync_boundary(s);
+    boundary_frame(s);
+}
+
+static void empty_boundary_case(void)
+{
+    static const Code code[] = {
+        { 0x8000, { 0x78, 0x18, 0xFB, 0xC2, 0x10, 0xE2, 0x20, 0xA2, 0xFF, 0x01, 0x9A,
+                    0xA9, 0x80, 0x8D, 0x00, 0x42, 0x4C, 0x00, 0x82 }, 19 },
+        { 0x8200, { 0xE6, 0x70, 0x4C, 0x05, 0x82, 0x80, 0xF9 }, 7 },
+        { 0x8600, { 0xE6, 0x40, 0x40 }, 3 },
+    };
+    NativeEntry entries[] = {
+        { .addr = 0x008200, .name = "frame", .fn = boundary_frame, .cost_milli = 1000 },
+        { .addr = 0x008205, .name = "backedge", .fn = boundary_backedge, .cost_milli = 1000 },
+    };
+    uint8_t *rom = make_rom(code, sizeof code / sizeof code[0], 0x8600);
+    Snes *reference = machine(rom), *direct = machine(rom);
+    NativeRuntime *before = native_create(entries, 2, NATIVE_ON);
+    entries[1].fn = boundary_direct;
+    NativeRuntime *after = native_create(entries, 2, NATIVE_ON);
+    native_attach(before, reference);
+    native_attach(after, direct);
+    for (int frame = 0; frame < 8; frame++) {
+        snes_run_frame(reference, 0);
+        snes_run_frame(direct, 0);
+        CHECK(reference->master == direct->master &&
+                  !memcmp(reference->bus.wram, direct->bus.wram, sizeof reference->bus.wram) &&
+                  !memcmp(&reference->cpu, &direct->cpu, offsetof(Cpu, bus)),
+              "empty boundary changed frame %d, master %llu/%llu, passes %u/%u", frame,
+              (unsigned long long)reference->master, (unsigned long long)direct->master,
+              reference->bus.wram[FRAMES_DONE], direct->bus.wram[FRAMES_DONE]);
+    }
+    CHECK(reference->bus.wram[0x40] >= 7 && !native_failed(before) && !native_failed(after),
+          "empty boundary did not preserve the vblank interrupts");
+    native_destroy(after);
+    native_destroy(before);
+    free(direct);
+    free(reference);
+    free(rom);
 }
 
 static void scene_wait_case(void)
@@ -670,6 +848,8 @@ int main(void)
     menu_answer_case();
     held_wait_case();
     named_hold_case();
+    returning_hold_case();
+    empty_boundary_case();
     scene_wait_case();
     if (failures)
         printf("%d failure(s)\n", failures);

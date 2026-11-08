@@ -2587,18 +2587,14 @@ rest waits, is [PLAN.md](PLAN.md).
   `$7E:31B0`, which only waits, now waits where its callers stand:
   `tm_wait_frame`, `NATIVE_WAKE_VBLANK`, which these could use once they
   are a port's call rather than an idle entry); the idle entries on flags a handler clears
-  (`field_wait_for_frame_loop`, `menu_wait_for_frame_loop`,
+  (`menu_wait_for_frame_loop`,
   `menu_wait_ready_loop`, `battle_wait_window_slide_loop`,
   `battle_wait_graphics_loaded_loop`, `scene_race_wait_for_tilemap_upload_loop`).
-  The time warp's wait before it turns its picture on
-  (`$FD:EADA`) waits where its port stands in the shipping mode
-  (`NATIVE_WAKE_VBLANK_FLAG`); the field's (`$C0:0B38`), reached through
-  `tm_wait_frame_then_enable` the same way, is still the original's
-  routine. Ports that called the modes' wait routines call
+  Ports that called the modes' wait routines call
   `tm_wait_frame` (`field_wait_frame`, `battle_wait_frame`). The battle's
   wait routines are ports whose loops give the processor up through
   `tm_wait_for_handlers` (`battle/wait.c`; PLATFORM.md, "Timing without a
-  beam, as built"), and the field's, the sprite-object mode's and the
+  beam, as built"), and the sprite-object mode's and the
   menus' frame waits, which the main thread is in at nearly every frame's
   end, through `tm_wait_for_handlers_held`, leaving the shipping mode's
   waiting to their idle entries (docs/MOVIES.md, "Suspended routines and
@@ -3043,6 +3039,37 @@ comparisons.
   is an intentional early stop: require an explicit count of full returns.
   Separate the dispatchers' ordinary and interrupted timing paths before they are
   recalibrated again.
+- **The field's callers beyond its named waits.** The frame and picture
+  waits are held (REIMPLEMENTATION.md, "The field's held waits"), with all
+  registry rows retained. Fades, battle returns and event commands can
+  still suspend their caller over the shared frame wait; give those callers
+  explicit continuations as their teardown needs them. In the four-movie
+  measurement, 406 calls/returns still enter `$C0:EC60`'s setup by address,
+  and 25 timing-service calls enter `$C0:0B38` before naming its wait.
+  Remove those caller-side machine dependencies during teardown while
+  preserving arbitrary callers' returns and save/load behavior. Preserve
+  empty dispatch boundaries too (`native_sync_boundary`): settling only
+  accrued accesses skips the driver's minimum step and interrupt poll.
+  Three battle movies also retain 21 instructions under the returning
+  field pass's open comparison, the documented `open C0:00BD` allowance;
+  the field still waits inside that caller for the battle to finish.
+  Loose-RAM fuzzing of the whole pass with `--with-registry` also needs
+  follow-up: from the `field` recipe's frame-11,400 state, seed 1, 2,000
+  trials, `--d 0100 --db 00`, `field_main_loop_goes_round` matches 1,363,
+  mismatches at trials 113, 260 and 1396, and skips 634 call-outs past the
+  budget. All three trials also fail through the existing `field_frame`
+  path (which additionally fails trial 1744); the first two differ in A's
+  high byte, the third also in object cells. Both runs reach out-of-range
+  character names, event scripts and line-effect tables. Determine the
+  accepted state invariants and fix the responsible callees/guards; the
+  coherent-field continuation recipe is not evidence for arbitrary RAM.
+  The sampled gate also interrupts 1,586 returning field passes, 1 first
+  pass and 28 frame-wait setups; those are not successful comparisons.
+  Keep their caller and object/script states in scope when closing this
+  fuzzing gap. The two `$C0:0B38` rows (`field_screen_on_wait_for_vblank_loop`
+  and its held alias `field_waits_to_show_the_picture`) both carry a hold and
+  compare equal in `runtime/port/native.c`'s sort: give it a tie-breaker so
+  which one the census names doesn't depend on `qsort`'s order.
 - **What the field's unreached review left.** The `unreached_party_shares`
   recipe fills sharers only up to `$16` where the guard takes up to `$25`: extend
   it to `$24` so the whole accepted range of the sprite-block owner table is
@@ -3568,12 +3595,10 @@ list, by kind, is what `game/` still asks of one.
   the existing drawable-row check restores the predecessor's 0/24 compared.
   The sprite builder's own entry still accepts those states and calls out
   per draw; retiring that fallback needs its entry guard and callers changed
-  together. The field/battle/overworld loop backedges also need an iterative
+  together. The battle loop backedges also need an iterative
   continuation with a comparison boundary: shadow waits resume their C call,
   so directly chaining every backedge would recurse across frames.
-  The field pass's wait boundary also lets the replay driver restore a
-  suspended frame; retain it until that continuation is represented outside
-  the C stack. Tile-copy completion also retains its stop before frame
+  Tile-copy completion also retains its stop before frame
   completion: pending interrupts from the tile send must run before
   `field_frame_pending` is incremented. Retiring this stop needs an explicit
   runtime interrupt-delivery boundary, not only a timing scope.
@@ -3611,12 +3636,12 @@ list, by kind, is what `game/` still asks of one.
   handle, as `TIMED_AS` (charge.h) has, whose host half is a no-op.
   The field, battle, overworld, event and controller now use `TIMED_AS`
   for ordinary timing scopes. Battle's three `NATIVE_TIME_AS_SIBLING`
-  scopes still need a state-based API that preserves sibling accounting.
+  scopes and the field's returning-pass scope still need a state-based API
+  that preserves sibling accounting.
 - **Waits on the beam.** `tm_snes_video_status`, the SNES backend's read of
   the beam's status, from the idle entries' passes (`field/frame.c`,
-  `scene/boot.c`); and the 19 wait loops the census still sees
-  passed on the machine (379 M passes: the menus' ready loop `$C2:81CA` and
-  the field's frame wait `$C0:EC71` the most), each wanting the timing
+  `scene/boot.c`); and the remaining wait loops passed on the machine,
+  especially the menus' ready loop `$C2:81CA`, each wanting the timing
   service's wait ("Timing without a beam", above).
 - **Code run from RAM.** 29 of the entries the machine enters are code in work
   RAM: the scene program, decompressed to `$7E:3000` and run there (its

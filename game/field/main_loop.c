@@ -47,6 +47,7 @@
 #include "field/walk.h"
 
 #include "charge.h"
+#include "holds.h"
 #include "original_effects.h"
 #include "core/console.h"
 #include "core/program.h"
@@ -374,7 +375,7 @@ void field_enter(Snes *s)
     display_leaves_the_machine_dark(s);
     s->cpu.d = FIELD_PAGE;
     if (enter_the_location(state_of(s), m_platform(s), &on_the_machine, s))
-        m_stop_at(s, MAIN_LOOP, THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW);
+        m_hold_at(s, MAIN_LOOP, THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW, HOLD_FIELD_FRAME);
 }
 
 /* The guard: a location the game keeps, its number in the word's low bits
@@ -654,53 +655,54 @@ static FieldPass pass_step_on_the_machine(void *ctx, PassStep step)
     return goes_on(back);
 }
 
-static void pass_on_the_machine_from(Snes *s, PassStep first)
+/* On the machine the pass ends in the wait for the next frame, held at its
+ * loop rather than waited in: a pass still running over the frame's end would
+ * be a native routine held over every frame, which a machine copy can only
+ * rebuild by replaying input (ct_drive, docs/MOVIES.md). Where the machine
+ * came to the pass by its address, the pass stops at the wait, an entry of its
+ * own; the held wait's continuation calls it (field_next_frame). */
+static bool pass_on_the_machine_from(Snes *s, PassStep first)
 {
-    if (run_the_pass_from(state_of(s), first, pass_step_on_the_machine, s) == FIELD_PASS_GOES_ON)
+    return run_the_pass_from(state_of(s), first, pass_step_on_the_machine, s) == FIELD_PASS_GOES_ON;
+}
+
+static void pass_then_stop_at_the_wait(Snes *s, PassStep first)
+{
+    if (pass_on_the_machine_from(s, first))
         m_stop_at(s, WAIT_FOR_THE_NEXT_FRAME, READS_THE_OVERFLOW);
 }
 
-/* On the machine the pass stops at the wait rather than calling it: the
- * wait spans the frame's end, and a pass still running there would be a
- * native routine held over every frame, which a machine copy can only
- * rebuild by replaying input (ct_drive, docs/MOVIES.md). The wait is an
- * entry of its own, and sets A for the next pass itself. */
-void field_frame(Snes *s) { pass_on_the_machine_from(s, PAUSE_AND_MENUS_STEP); }
+// $C0:0097
+void field_frame(Snes *s) { pass_then_stop_at_the_wait(s, PAUSE_AND_MENUS_STEP); }
 
 /* The pass going on after a step whose routine came back to it itself: a
  * request answered over frames, which ends by jumping to the frame's wait
  * that returns to the pass, or a step the original ran. */
 // $C0:00A4
-void field_frame_goes_on_with_the_requests(Snes *s) { pass_on_the_machine_from(s, REQUESTS_STEP); }
+void field_frame_goes_on_with_the_requests(Snes *s) { pass_then_stop_at_the_wait(s, REQUESTS_STEP); }
 // $C0:00A7
-void field_frame_goes_on_with_the_walk(Snes *s) { pass_on_the_machine_from(s, WALK_STEP); }
+void field_frame_goes_on_with_the_walk(Snes *s) { pass_then_stop_at_the_wait(s, WALK_STEP); }
 // $C0:00AA
-void field_frame_goes_on_with_confirm(Snes *s) { pass_on_the_machine_from(s, CONFIRM_STEP); }
+void field_frame_goes_on_with_confirm(Snes *s) { pass_then_stop_at_the_wait(s, CONFIRM_STEP); }
 // $C0:00AD
-void field_frame_goes_on_with_the_dialog_window(Snes *s) { pass_on_the_machine_from(s, DIALOG_WINDOW_STEP); }
+void field_frame_goes_on_with_the_dialog_window(Snes *s) { pass_then_stop_at_the_wait(s, DIALOG_WINDOW_STEP); }
 // $C0:00B1
-void field_frame_goes_on_with_the_screen_effect(Snes *s) { pass_on_the_machine_from(s, SCREEN_EFFECT_STEP); }
+void field_frame_goes_on_with_the_screen_effect(Snes *s) { pass_then_stop_at_the_wait(s, SCREEN_EFFECT_STEP); }
 // $C0:00B4
-void field_frame_goes_on_with_the_script_layers(Snes *s) { pass_on_the_machine_from(s, SCRIPT_LAYERS_STEP); }
+void field_frame_goes_on_with_the_script_layers(Snes *s) { pass_then_stop_at_the_wait(s, SCRIPT_LAYERS_STEP); }
 // $C0:00B7
-void field_frame_goes_on_with_the_frame_work(Snes *s) { pass_on_the_machine_from(s, FRAME_WORK_STEP); }
+void field_frame_goes_on_with_the_frame_work(Snes *s) { pass_then_stop_at_the_wait(s, FRAME_WORK_STEP); }
 
 // $C0:00BA
-/* The main loop's wait for the next frame (field_finish_frame), and once the
- * vblank has taken the frame the loop's next pass; in the shipping mode the
- * wait stops at the loop it waits in, which returns to the next pass itself.
+/* The main loop's wait for the next frame (field_finish_frame), held at its
+ * loop: the loop goes round in the wait's continuation (field_next_frame).
  * Nothing the pass leaves but A's high byte and the overflow is read after it
  * (the entry's set). */
 void field_wait_for_the_next_frame(Snes *s)
 {
-    if (field_run_or_hand_over(s, WAIT_FOR_THE_NEXT_FRAME, FIELD_FRAME_WAIT, READS_THE_OVERFLOW, field_finish_frame,
-                               page(s)))
-        field_main_loop_goes_round(s);
+    (void)field_run_or_hand_over(s, WAIT_FOR_THE_NEXT_FRAME, FIELD_FRAME_WAIT, READS_THE_OVERFLOW, field_finish_frame,
+                                 page(s));
 }
-
-// $C0:00BD
-/* Back from the wait, the main loop goes round. */
-void field_main_loop_goes_round(Snes *s) { m_stop_at(s, MAIN_LOOP, THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW); }
 
 // $C0:00DE
 /* The effects refreshed for the next frame: the line effects' tables built
@@ -914,25 +916,81 @@ void field_close_into_the_scene(Snes *s)
     m_stop_at_own(s, SCENE_ENGINE, THE_SCENE_READS_A);
 }
 
-/* The frame done, the main loop waits for the vblank handler to take it.
- * The wait is the one the field is in at nearly every frame's end, so a
- * saved machine has to hold it: the shipping mode leaves it to the loop's
- * idle entry (field/frame.c), which goes on as this does, and the port stops
- * at the loop (tm_wait_for_handlers_held). The loop reads the count into A's
- * low byte each pass; the high byte its callers may read is the count's, as
- * the original leaves it (field/leaves.c). */
+/* ---- The wait for the next frame, held ---------------------------------------------------------- */
+
+/* The frame done, the field waits for the vblank handler to take it. The
+ * main thread rests there at nearly every frame's end on a map, so it is a
+ * held wait (holds.h, HOLD_FIELD_FRAME; docs/RUNTIME.md, "Held waits"): the
+ * port stops in the wait's loop ($C0:EC71) with the call's return on the
+ * stack and nothing suspended, in every mode. Its passes are the loop's idle
+ * continuation (field_wait_for_frame_loop, field/frame.c), whichever routine
+ * called the wait, and once the frame is taken it returns to the caller's
+ * rest:
+ * - the main loop's, whose next pass is a continuation of the same wait
+ *   (field_next_frame), which the runtime goes on with by the wait's number;
+ * - a port that goes on after the wait (a fade's frames, a request answered
+ *   over frames, an event command's frame), which called it through the
+ *   machine and is suspended over it: the return goes back into that call.
+ * The loop reads the count into A's low byte each pass; the high byte its
+ * callers may read is the count's, as the original leaves it
+ * (field/leaves.c). */
 enum { THE_LOOP_LOADS_A_LOW = DC_AL | DC_N | DC_Z };
 
+// $C0:EC60
 void field_finish_frame(Snes *s)
 {
     GameState *g = state_of(s);
     finish_frame(g);
     m_sep(s, CPU_FLAG_M);
     s->cpu.a = field_frame_wait_leaves_a(g);
-    while (field_frame_pending(g))
-        if (!tm_wait_for_handlers_held(m_platform(s), PF_LOOP_HELD(FIELD_FRAME_WAIT_LOOP, FIELD_FRAME_WAIT_RETURN, THE_LOOP_LOADS_A_LOW)))
-            return;
-    m_set_a8(s, 0);   /* the count the loop read last, taken */
-    m_set_nz8(s, 0);
-    m_rts(s);
+    m_hold_at(s, FIELD_FRAME_WAIT_LOOP, THE_LOOP_LOADS_A_LOW, HOLD_FIELD_FRAME);
+}
+
+/* The wait at the pass's end, as the machine's stop at it went on: the
+ * entry's contract checked where it is called (its widths and guard), the
+ * stop made where they refuse. The pass's time passes first, as it did at the
+ * stop: a vblank that comes during the pass is taken before the frame is
+ * marked finished, and the frame waits for the next one, as the original's
+ * would. */
+static void wait_for_the_next_frame_after_the_pass(Snes *s)
+{
+    m_jump_to(s, WAIT_FOR_THE_NEXT_FRAME);
+    tm_sync(m_platform(s));
+    const NativeEntry *e = native_hand_entry_at(s, WAIT_FOR_THE_NEXT_FRAME);
+    if (!e || e->fn != field_wait_for_the_next_frame) {
+        m_stop_at(s, WAIT_FOR_THE_NEXT_FRAME, READS_THE_OVERFLOW);
+        return;
+    }
+    TIMED_AS(state_of(s), WAIT_FOR_THE_NEXT_FRAME, field_wait_for_the_next_frame(s));
+}
+
+/* A pass from `from` on, estimated and measured as the sibling entry the
+ * machine came to before the wait was held. Its error still belongs to the
+ * field pass, including its inlined screen effects, not to the backedge. */
+static void pass_then_wait(Snes *s, PassStep from, uint32_t timed_as)
+{
+    bool goes_on = false;
+    NATIVE_TIME_AS_SIBLING(s, timed_as, goes_on = pass_on_the_machine_from(s, from));
+    if (goes_on)
+        wait_for_the_next_frame_after_the_pass(s);
+}
+
+// $C0:00BD (back from the wait), with $C0:0097
+/* The vblank handler has taken the frame and the wait has returned into the
+ * main loop: the loop goes round, its next pass and the wait for the next
+ * frame, held again. A continuation of the held wait (holds.h). The loop goes
+ * round to its head first, keeping the empty backedge's dispatch boundary:
+ * the driver advances its minimum step and polls interrupts before the pass
+ * reads the frame's presses, as at the machine's stop there. An ordinary
+ * time sync skips this boundary because the backedge made no accesses. */
+void field_next_frame(Snes *s)
+{
+    m_jump_to(s, MAIN_LOOP);
+    native_sync_boundary(s);
+    const NativeEntry *e = native_hand_entry_at(s, MAIN_LOOP);
+    if (!e || e->fn != field_frame) {
+        m_stop_at(s, MAIN_LOOP, THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW);
+        return;
+    }
+    pass_then_wait(s, PAUSE_AND_MENUS_STEP, MAIN_LOOP);
 }

@@ -76,6 +76,7 @@ typedef struct Refusal {
 
 typedef struct Pass {
     bool open;
+    uint64_t identity; /* one observed pass, preserved while an interrupt holds it aside */
     uint32_t head;
     uint16_t s;
     int n;
@@ -96,6 +97,13 @@ struct Fallbacks {
         bool completed;
     } ending[MAX_FRAMES];
     int nending;
+    struct {
+        Pass prefix;
+        uint8_t lengths[PASS_MAX];
+        bool completed;
+    } ending_idle[PASSES_ASIDE + 1];
+    int nending_idle;
+    uint64_t pass_serial;
     Snes *s;
     const NativeRuntime *rt;    /* the runtime observed */
     Frame frames[MAX_FRAMES];
@@ -431,6 +439,11 @@ static void interrupt_the_abandoned(Fallbacks *f, uint16_t sp)
  * (a port waiting through the loop): its wait is no work hidden under it. */
 static void take_the_pass_back_as_the_port_s(Fallbacks *f)
 {
+    /* Only this exact pass can certify the prefix frozen at the movie's
+     * cutoff. A later pass at the same PC and S cannot substitute for it. */
+    for (int i = 0; i < f->nending_idle; i++)
+        if (f->ending_idle[i].prefix.identity == f->pass.identity)
+            f->ending_idle[i].completed = true;
     for (int i = 0; i < f->pass.n; i++) {
         const uint32_t *k = f->pass.keys[i];
         Count *c = slot(f->slots, f->cap, k[0], k[1], k[2], k[3]);
@@ -470,6 +483,16 @@ static bool returned_as_the_port(const Pass *p)
         if (p->keys[i][0] < p->head || p->keys[i][0] >= p->head + p->span)
             return false;
     return true;
+}
+
+/* A runtime handoff can happen after the return and before the next
+ * instruction hook. Preserve the same return proof that hook would take,
+ * before discarding the pass's tracking for the new owner. */
+static void leave_idle_pass(Fallbacks *f, uint16_t sp)
+{
+    if (f->pass.open && sp > f->pass.s && returned_as_the_port(&f->pass))
+        take_the_pass_back_as_the_port_s(f);
+    f->pass.open = false;
 }
 
 /* SHADOW: an interrupt cuts the pass of a wait loop: it is kept aside, and
@@ -667,7 +690,7 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
 {
     /* Observe completion before the caller starts another invocation of the
      * same routine later in this frame. Frame-boundary sampling misses it. */
-    if (f->nending)
+    if (f->nending || f->nending_idle)
         (void)fallbacks_end_pending(f);
     const Snes *s = f->s;
     uint16_t sp = s->cpu.s;
@@ -781,7 +804,7 @@ static void on_refused(void *ctx, Snes *s, const NativeEntry *e, const char *why
     Fallbacks *f = ctx;
     uint16_t sp = s->cpu.s;
     uint32_t pc = cpu_pc24(&s->cpu);
-    f->pass.open = false;
+    leave_idle_pass(f, sp);
     leave_finished(f, sp);
     const Frame *top = &f->frames[f->depth - 1];
     /* asked again at the same call (a generated block that stopped before its
@@ -831,7 +854,7 @@ static void on_skipped(void *ctx, Snes *s, const NativeEntry *e)
 {
     Fallbacks *f = ctx;
     uint16_t sp = s->cpu.s;
-    f->pass.open = false;
+    leave_idle_pass(f, sp);
     leave_finished(f, sp);
     enter(f, (Frame){ .kind = SKIPPED, .routine = cpu_pc24(&s->cpu), .port = e->addr, .floor = sp });
     f->pending = false;
@@ -842,7 +865,7 @@ static void on_called_out(void *ctx, Snes *s, const NativeEntry *e, uint32_t tar
 {
     Fallbacks *f = ctx;
     uint16_t sp = s->cpu.s;
-    f->pass.open = false;
+    leave_idle_pass(f, sp);
     leave_finished(f, sp);
     enter(f, (Frame){ .kind = HANDBACK, .call_out = true, .routine = target, .port = e->addr, .floor = sp });
     f->pending = false;
@@ -854,7 +877,7 @@ static void on_stopped(void *ctx, Snes *s, const NativeEntry *e, uint16_t entry_
     Fallbacks *f = ctx;
     uint16_t sp = s->cpu.s;
     uint32_t pc = cpu_pc24(&s->cpu);
-    f->pass.open = false;
+    leave_idle_pass(f, sp);
     leave_covered(f, e);
     leave_finished(f, sp);
     f->pending = false;
@@ -913,8 +936,7 @@ static void on_entered(void *ctx, Snes *s, const NativeEntry *e)
 static void on_parked(void *ctx, Snes *s, const NativeEntry *e)
 {
     Fallbacks *f = ctx;
-    (void)s;
-    f->pass.open = false;
+    leave_idle_pass(f, s->cpu.s);
     f->pending = false;
     if (f->shadow)
         leave_covered(f, e);
@@ -961,6 +983,7 @@ static void on_idle(void *ctx, Snes *s, const NativeEntry *e)
         f->pass.nbody = 0;
     }
     f->pass.open = true;
+    f->pass.identity = ++f->pass_serial;
     f->pass.head = pc;
     f->pass.s = s->cpu.s;
     f->pass.n = 0;
@@ -986,7 +1009,7 @@ static void on_finished(void *ctx, const NativeEntry *e)
     f->given_up.entry = NULL;
     if (abandoned)
         return;
-    f->pass.open = false;
+    leave_idle_pass(f, f->s->cpu.s);
     leave_covered(f, e);
 }
 
@@ -1012,11 +1035,29 @@ void fallbacks_attach(Fallbacks *f, NativeRuntime *rt, bool shadow)
 
 /* ---- the report --------------------------------------------------------------------- */
 
+static void keep_cutoff_idle_pass(Fallbacks *f, const Pass *pass)
+{
+    if (!pass->open || !pass->n)
+        return;
+    int at = f->nending_idle++;
+    f->ending_idle[at].prefix = *pass;
+    f->ending_idle[at].completed = false;
+    for (int i = 0; i < pass->n; i++) {
+        const uint32_t *k = pass->keys[i];
+        f->ending_idle[at].lengths[i] = slot(f->slots, f->cap, k[0], k[1], k[2], k[3])->len;
+    }
+}
+
 void fallbacks_end_begin(Fallbacks *f)
 {
     f->nending = 0;
+    f->nending_idle = 0;
     if (!f->shadow)
         return;
+    keep_cutoff_idle_pass(f, &f->pass);
+    for (int i = 0; i < PASSES_ASIDE; i++)
+        if (f->aside[i].serial)
+            keep_cutoff_idle_pass(f, &f->aside[i].pass);
     for (int i = 1; i < f->depth; i++) {
         const Frame *frame = &f->frames[i];
         if (frame->kind != COVERED || !frame->name || !frame->hidden)
@@ -1048,6 +1089,8 @@ void fallbacks_end_begin(Fallbacks *f)
 bool fallbacks_end_pending(Fallbacks *f)
 {
     bool pending = false;
+    for (int i = 0; i < f->nending_idle; i++)
+        pending |= !f->ending_idle[i].completed;
     for (int i = 0; i < f->nending; i++) {
         const NativeStats *st = f->ending[i].stats;
         if (!f->ending[i].completed && st && !native_compares(f->rt, f->ending[i].port) &&
@@ -1061,6 +1104,8 @@ bool fallbacks_end_pending(Fallbacks *f)
     return pending;
 }
 
+static void put_addr(FILE *out, uint32_t a);
+
 int fallbacks_end_write(const Fallbacks *f, const char *path)
 {
     FILE *out = fopen(path, "a");
@@ -1070,6 +1115,23 @@ int fallbacks_end_write(const Fallbacks *f, const char *path)
         if (f->ending[i].completed)
             fprintf(out, "closed %06X %llu %s\n", (unsigned)f->ending[i].port,
                     (unsigned long long)f->ending[i].hidden, f->ending[i].name);
+    for (int i = 0; i < f->nending_idle; i++) {
+        if (!f->ending_idle[i].completed)
+            continue;
+        const Pass *pass = &f->ending_idle[i].prefix;
+        for (int j = 0; j < pass->n; j++) {
+            const uint32_t *k = pass->keys[j];
+            fprintf(out, "idle-closed %s %06X %u 1 ", kind_names[k[1]], (unsigned)k[0],
+                    (unsigned)f->ending_idle[i].lengths[j]);
+            put_addr(out, k[2]);
+            fputc(' ', out);
+            if (k[3] == NO_PORT)
+                fputc('-', out);
+            else
+                put_addr(out, k[3]);
+            fputc('\n', out);
+        }
+    }
     return fclose(out) == 0 ? 0 : -1;
 }
 

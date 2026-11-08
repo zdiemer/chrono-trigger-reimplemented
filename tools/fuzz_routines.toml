@@ -6267,8 +6267,10 @@ why = "any state: the frame's count and the wait's flag, to where it waits"
 name = "field_main_loop_goes_round"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00"]
-why = "any state: the loop goes round"
+args = ["--d", "0100", "--db", "00", "--with-registry", "--keep", "7E0000-7FFFFF",
+        "--fill", "7E0152-7E0152=00,01,FF"]
+iterations = 2000
+why = "the resident field's object/script graph kept coherent, registers and flags random, frame pending clear, set or wrapping: the registry exercises the whole pass to the named wait rather than only its refusal stop; loose RAM findings shared with field_frame are recorded in TODO.md"
 
 [[routine]]
 name = "field_start_again"

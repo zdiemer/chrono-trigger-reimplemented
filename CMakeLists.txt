@@ -518,7 +518,8 @@ target_link_libraries(ct_native PRIVATE ct_state_host ct_platform_native ct_trac
 add_executable(file_store_test tests/frontend/file_store_test.c)
 add_executable(state_test tests/port/state_test.c)
 target_link_libraries(state_test PRIVATE ct_runtime)
-add_executable(shadow_test tests/port/shadow_test.c)
+add_executable(shadow_test tests/port/shadow_test.c dev/fallbacks.c dev/misses.c runtime/port/generated_table_stub.c)
+target_include_directories(shadow_test PRIVATE dev)
 target_link_libraries(shadow_test PRIVATE ct_runtime)
 # How the shipping mode pays a port's time around interrupts (runtime/port/native.c).
 add_executable(debt_test tests/port/debt_test.c)

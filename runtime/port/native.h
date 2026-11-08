@@ -50,6 +50,12 @@ typedef struct NativeEntry {
     uint32_t addr;          /* 24-bit entry address */
     const char *name;
     NativeFn fn;
+    /* A second entry into the body this wrapper compares inline. SHADOW
+     * treats it like an alias of fn while this entry's segment is active
+     * at the same stack depth, rather than nesting an overlapping comparison.
+     * Calls with their own stack frame and independent entries still compare.
+     * This permits distinct wrappers without asking the machine for its PC. */
+    NativeFn shadow_body;
     uint8_t p_mask;         /* entry precondition on P: (p & p_mask) == p_value */
     uint8_t p_value;
     /* ON-mode time cost: the time the native routine's DMA transfers took, as
@@ -621,6 +627,12 @@ void native_jump_call_dc(Snes *s, uint32_t site, uint32_t target, uint32_t retur
  * had; the SPC700 reading the ports in that gap sees a half-written message. No
  * effect in SHADOW mode or outside the runtime. */
 void native_sync(Snes *s);
+
+/* Keep the dispatch boundary a direct continuation replaces, even when the
+ * preceding wrapper made no accesses. Unlike native_sync, this yields an
+ * empty stretch too: the driver polls interrupts and advances its minimum
+ * step just as it did at the stop. No effect in SHADOW or outside the runtime. */
+void native_sync_boundary(Snes *s);
 
 /* For native routines that read the beam's position (a budget of work by the
  * line the picture has reached): call it after latching the counters ($2137)

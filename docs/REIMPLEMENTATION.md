@@ -3146,6 +3146,16 @@ their original counts and ratchet failures; the tail's mismatches still fail
 the shadow run. Comparison statistics and instruction diagnostics include
 the tail; saved-game, trace and fallback counts retain the movie's cutoff.
 
+The tail also finishes an idle pass cut short by the last frame. Each pass
+has an identity preserved while an interrupt holds it aside. Only that
+pass reaching its head again, or completing through its declared idle
+return span, can certify its counted prefix with `idle-closed` records.
+The reader subtracts only matching instruction addresses, lengths, kinds
+and owners in the same movie's file; it rejects excess or cross-movie
+credits. An abandoned pass, an exit outside the span, or a later pass at
+the same address and stack does not certify the prefix. The raw cutoff
+counts stay in the file, and the tail contributes no new instructions.
+
 `battle-black-tyrano` ends during scene teardown and field loading: 20
 instructions under `scene_program_restart` and 44,292 under `decompress`
 were previously reported as new or increased open fallbacks. Both comparisons
@@ -3928,6 +3938,155 @@ in strict mode and `ct_native` (whose world map, `overworld_runs`, is the
 same C), the vblank check over the shipping mode's video writes, and the
 frame-by-frame equality with the shipping mode before the teardown measured
 above.
+
+### The field's held waits
+
+The field's waits are named before its teardown; every registry row stays.
+`HOLD_FIELD_FRAME` holds the shared frame wait at `$C0:EC71`, and
+`HOLD_FIELD_SCREEN` the picture's startup wait at `$C0:0B38`. The first
+frame is held too, the main loop's full entry contract is checked before
+its direct call, and the retained `field_main_loop_goes_round` compares
+the same next-pass implementation as the held continuation. Its registry
+row names `field_frame` as its `shadow_body`: shadow mode recognizes the
+head reached at the same stack depth inside a returning pass as part of
+that comparison. The two entries keep distinct wrappers, without reading
+the PC to tell them apart; independently entered frames still compare.
+Its don't-care
+set is the loop head's existing set:
+A's high byte and overflow remain live. The runtime preserves a hold across
+an idle return into another of that wait's continuations, with the new S;
+address lookup prefers retained rows over their held aliases.
+
+**One frame wait, not one per caller.** The return already on the emulated
+stack identifies who waited. The idle pass only reads the pending-frame
+byte and returns when the vblank handler has taken it. Two return addresses
+are main-loop continuations: `$C0:00BD`, the next complete pass, and
+`$C0:00A7`, the walk after a request. Other returns resume their caller as
+before. The four movies below exercise the full loop, requests, fades,
+menus, an event party regroup and a battle return. Their census keeps the
+same 406 machine calls/returns into the wait's setup (`$C0:EC60`); its
+2.18 million polling passes, and the main-loop passes, no longer enter by
+address. A fade or event command waiting through a call-out can still be
+suspended; the held wait does not invent a continuation for that caller.
+
+**Timing and contracts.** Before calling the loop head or its frame-end
+wait directly, the caller keeps the preceding dispatch boundary and
+checks `native_hand_entry_at`, including the full P mask, widths, page,
+bank and code guard. Refusal stops at the original entry. Inline work keeps
+the original entries' estimates; no estimate changes. The next-pass wrapper
+uses `NATIVE_TIME_AS_SIBLING` for the field pass: its timing error belongs to
+`field_frame`, including the inlined screen effects, rather than the loop
+backedge. This changes report ownership only. In the Death Peak movie its
+110,607-clock worst stretch remains covered by `field_frame`'s existing
+exception; no exception is added for the wrapper.
+The walk continuation uses its retained wrapper and cost without an extra
+continuation charge. The screen wait keeps the existing vblank predicate
+and idle exit time; its handler-enable continuation keeps the original
+width and I/O-bank contract.
+
+The backedge makes no accesses: `tm_sync` alone would skip its empty
+stretch, losing the driver's minimum step and interrupt poll at the old
+stop. `native_sync_boundary` yields even that empty stretch; the frame-end
+wait still uses `tm_sync` to settle the pass's work. Without the empty
+boundary, `attract-demo` first diverged from main at frame 2,727 and its
+second demo cycle later slipped four frames. Keeping it restores the first
+5,000 frames byte for byte and all 22,500 frames' existing strict outcome
+expectations, without changing their exceptions. `suspend_test` also
+compares an empty backedge with its direct continuation for eight frames,
+including the vblank interrupts, with no ROM.
+The full demo trace has no divergence outside the stack page, including
+every framebuffer hash. Its first remaining difference, frame 5,843, is
+two bytes at `$7E:06F8` and `$7E:06FA` below both runs' S (`$06FD`); both
+are waiting at `$C0:EC71` with P `$20`. These are stack residue left by the
+different dispatch paths. The four field traces below remain entirely equal.
+
+**Measured against main (`bfd75c49`).** Shipping mode over `field-floor-switch` (3,501
+frames), `field-factory-switch` (8,387), `field-northern-ruins-switch`
+(3,811) and `field-12kbc-1f4` (2,953):
+
+| Census measure | Before | Held waits |
+|---|---:|---:|
+| `$C0:0097`, machine entries | 4,132 | 0 |
+| `$C0:00BD`, machine entries | 4,114 | 0 |
+| `$C0:EC71`, machine polling passes | 2,182,034 | 0 |
+| `$C0:0B38`, machine entries/passes | 6,723 | 25 |
+| All machine entries | 3,525,734 | 1,324,628 |
+
+The named frame wait runs 2,182,293 idle passes, 4,114 complete-loop
+continuations, 18 first passes and 2 request continuations. Screen startup
+has 6,698 held idle passes and 25 handler-enable continuations; its 25
+remaining address entries are the timing service's initial calls.
+`tools/trace.py diff --framebuffer` finds no divergence over all 18,652
+frames in WRAM, VRAM, SRAM, CGRAM, OAM or the framebuffer hashes.
+At floor-switch frame 2,800, `ct_drive` saves at
+`$C0:EC71` with wait 5 named and nothing suspended. A slot reload and a
+fresh process loading the file reach frame 3,000 with every state field and
+the PNG identical to uninterrupted play; replayed, inexact and lost loads
+all stay zero. `suspend_test` covers the returned stack depth, save/load and
+the retained row's shadow comparison independently of the ROM, including
+a deliberately wrong inline body that must fail that comparison.
+
+The floor-switch shadow run compares 682 returning passes, 4 first passes
+and 779 frame-wait setups, all matching and none interrupted. Fuzz seed 1
+compares the frame-wait setup on 5,000 arbitrary states, all matching.
+With the registry available, the loop's recipe preserves the resident
+field's object/script graph and randomizes registers, flags and the wait
+byte (clear, set and wrapping): 2,000 matches, no skips or mismatches.
+Loose-RAM trials reach existing field-pass failures too (TODO.md); they are
+not counted as successful validation. Wrong-page and wrong-bank refusal
+trials with the registry compare 1,000 each, all matching. The final 34
+focused Python checks for fallback accounting, gate integration, the port
+subset and platform access pass, as do `suspend_test`, `state_test`,
+`shadow_test`, `debt_test` and `time_parts_test`.
+
+The 37-movie sampled shadow gate is clean: 147,080 returning passes,
+221 first passes and 153,854 wait setups compare, all matching. Another
+1,586 returning passes, 1 first pass and 28 wait setups are interrupted;
+those calls are not comparisons, and the coherent-state fuzz recipe does
+not close the loose-RAM follow-up in TODO.md. The sampled timing check
+passes with the existing exceptions and unchanged estimates.
+
+The complete sampled gate with `-j 1 --evidence`, without long routes,
+ends `suite OK`: all 37 movies pass both strict and native outcome ratchets,
+and the evidence stage passes its 84 library replays. Shipping fallbacks
+and real-play guard refusals are zero. The existing outcome differences
+remain covered by their unchanged ratchets; this does not claim that every
+native outcome equals the reference.
+
+**Fallback accounting.** Both idle rows declare the return span
+`$C0:EC71-$C0:EC76`, so the measure recognizes the final pass as the idle
+port's work, just as it recognizes the passes that keep waiting. Movie
+cutoff prefixes are not waived: the bounded tail certifies only
+the exact idle passes it completes ("A movie ending inside a comparison",
+above). `shadow_test` checks loop and return completions, an interrupted
+pass, an exit outside the return span, and a later pass that cannot close
+an earlier one. The reader and gate integration tests pass (24 tests).
+Runtime handoffs settle an already-completed idle return before discarding
+its tracking, as the next instruction hook would: Golem Twins' game-over
+replay exposed that ordering. Six targeted shadow replays pass the fallback
+ratchet without idle allowances; floor-switch and save-point certify their
+partial prefixes in one extra frame.
+Over the complete sample, 28 cutoff idle instructions are certified; the
+fallback ratchet reports no new or increased routine after those certificates.
+The unreached-path audit replays its recipes and passes for 463 entries over
+the 84-movie inventory. Its existing location-error argument keeps the same
+guard and six bytes: only `field_enter`'s source fingerprint is refreshed,
+with the reason that a successful entry now names the frame hold.
+
+Three movies end inside a battle called by the field pass: `battle-menu-buttons`,
+`battle-magus` and `late-omen-terramutant`. Their field comparisons remain
+open after the bounded 120-frame tail. Restoring only the old backedge
+wrapper for those replays measures 6 instructions each under `field_frame`;
+the returning wrapper measures the same work plus its backedge, 7 each.
+`fallback_baseline.txt` therefore keeps 21 unresolved instructions under
+`open C0:00BD`, with that reason. The old `open C0:0097` allowance awaits
+the batched library update; it is not pruned on this sample. Shipping-mode
+fallbacks over the sample and its two fast routes are zero.
+
+`tools/machine_joints.py`: registered entries remain 2,136; held
+continuations 7 to 13; emulated-stack returns 994 to 993; stops 97 to 99
+(the two direct-call refusal paths); all other measures unchanged, including
+1,844 scaffolding writes. This is preparation for teardown, not retirement.
 
 ### The scene program's teardown
 
