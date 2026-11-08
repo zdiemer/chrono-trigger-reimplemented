@@ -701,7 +701,7 @@ const NativeEntry game_natives[] = {
       .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = battle_effect_drain_ready },
     { .addr = 0xC1D3F4, .name = "battle_effect_restore_showing_hp", .fn = battle_effect_restore_showing_hp, NEEDS_M8_X16_BINARY, .cost_milli = 3000,
       .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = battle_effect_restore_showing_hp_ready },
-    { .addr = 0xC1D431, .name = "battle_effect_hit_repeatedly", .fn = battle_effect_hit_repeatedly, NEEDS_M8_X16_BINARY, .cost_milli = 54554,
+    { .addr = 0xC1D431, .name = "battle_effect_hit_repeatedly", .fn = battle_effect_hit_repeatedly, NEEDS_M8_X16_BINARY, .cost_milli = 3000,
       .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = battle_effect_hit_repeatedly_ready },
     { .addr = 0xC1D490, .name = "battle_effect_item_restore", .fn = battle_effect_item_restore, NEEDS_M8_X16_BINARY, .cost_milli = 27078,
       .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = battle_effect_item_restore_ready },

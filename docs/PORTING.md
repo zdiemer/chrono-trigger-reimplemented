@@ -564,6 +564,15 @@ self-check to run before reporting done, and the worktree rules a wave needs.
    scalar can't may need an entry in `tools/timing_exceptions.txt`, with the
    reason its error doesn't reach the budget the limit stands for.
 
+   A fit dominated by interrupted calls must also preserve complete calls'
+   worst cases. The repeated-hit effect's interrupted fit raised its rate
+   from 3000 to 54554 and put two complete Spekkio calls up to 88,609 clocks
+   off. Keeping its earlier rate and the nested hit's 45460 avoids shifting
+   that residual onto short calls. Separate those paths before fitting their
+   shared rates again; a smaller aggregate drift alone is not validation.
+   The fresh complete calls both match, with worst error 44,891 clocks,
+   within the 50,468-clock limit.
+
    A port that runs other routines' work as C instead of calling out to them
    (a dispatcher running its handlers, a routine inlining its subroutines)
    spends its time on whichever of them ran, which one scalar can't fit.
