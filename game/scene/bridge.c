@@ -8,6 +8,7 @@
 #include "scene/race.h"
 
 #include "charge.h"
+#include "holds.h"
 #include "original_effects.h"
 #include "platform/audio.h"
 #include "platform/timing.h"
@@ -59,6 +60,10 @@ void scene_bridge_scale_picture(Snes *s, Racer r, bool row_nudge)
     m_push16(s, (uint16_t)(call + JSR_LENGTH - 1));
     if (!call_the_scaler(s, RACE_SCALER_CALL, row_nudge))
         return;
+    if (m_runs_retired_as_c(s)) {
+        m_hold_at(s, 0x7E5211, DC_A | DC_X | DC_Y | DC_N | DC_Z, HOLD_SCENE_RACE_UPLOAD);
+        return;
+    }
     /* The two racers use this wait at the same stack depth. The shadow wait
      * service cannot yet distinguish Johnny's wait from Crono's already
      * satisfied one; keep this boundary until it can (docs/TODO.md). */
@@ -90,7 +95,12 @@ enum { JSR_SIZE_HERE = 3 };
 void scene_bridge_unpack(Snes *s, uint32_t site, uint16_t resource)
 {
     s->cpu.x = resource;
-    m_jsr_dc(s, site, SCENE_UNPACK, SCENE_UNPACK_IGNORES);
+    if (m_runs_retired_as_c(s))
+        (void)scene_run(s, site, SCENE_UNPACK, SCENE_UNPACK_IGNORES, scene_unpack_resource);
+    else
+        /* The still-gated caller keeps the unpacker's comparison boundary;
+         * its existing timing allowance belongs to that resource load. */
+        m_jsr_dc(s, site, SCENE_UNPACK, SCENE_UNPACK_IGNORES);
 }
 
 void scene_bridge_take_the_first_script_step(Snes *s, uint32_t site, uint16_t y, uint8_t kept_bank)
@@ -98,7 +108,7 @@ void scene_bridge_take_the_first_script_step(Snes *s, uint32_t site, uint16_t y,
     m_push8(s, kept_bank);
     m_set_flag(s, CPU_FLAG_M, false);
     s->cpu.y = y;
-    m_jsr_dc(s, site, SCENE_FIRST_STEP, SCENE_FIRST_STEP_IGNORES);
+    (void)scene_run(s, site, SCENE_FIRST_STEP, SCENE_FIRST_STEP_IGNORES, scene_run_channel_0_script);
     s->cpu.db = m_pull8(s);
 }
 
@@ -166,7 +176,7 @@ bool scene_accept_continuation(Snes *s, uint32_t at, void (*entry)(Snes *))
 {
     m_jump_to(s, at);
     const NativeEntry *e = native_continuation_entry_at(s, at);
-    if (e && e->fn == entry)
+    if (entry && e && e->fn == entry)
         return true;
     m_stop_at_own(s, at, 0);
     return false;

@@ -327,9 +327,17 @@ static bool run_task_list(Snes *s, SceneTaskList list)
     bool vblank = list == SCENE_VBLANK_TASKS;
     m_set_flag(s, CPU_FLAG_M, vblank);
     s->cpu.a = 0x0000;
-    m_jsl_dc(s, vblank ? 0xC308F7 : 0xC30938, vblank ? 0x7E39BE : 0x7E398A,
-             DC_X | DC_N | DC_Z | (vblank ? DC_A : 0));
-    return can_continue(s);
+    /* A comparison synchronizes the whole list at its original call. In
+     * shipping play the list is a checked C call; it never enters through
+     * the machine. Keep the comparison boundary until the scene retires. */
+    if (!m_runs_retired_as_c(s)) {
+        m_jsl_dc(s, vblank ? 0xC308F7 : 0xC30938, vblank ? 0x7E39BE : 0x7E398A,
+                 DC_X | DC_N | DC_Z | (vblank ? DC_A : 0));
+        return can_continue(s);
+    }
+    return scene_run_long(s, vblank ? 0xC308F7 : 0xC30938, vblank ? 0x7E39BE : 0x7E398A,
+                          DC_X | DC_N | DC_Z | (vblank ? DC_A : 0),
+                          vblank ? scene_run_vblank_tasks : scene_run_frame_tasks) && can_continue(s);
 }
 
 /* The program's send of the command in the sound command buffer ($7E:377A). */
@@ -439,8 +447,8 @@ static bool send_song(Snes *s)
 enum { SEND_SONG_RETURN = 0x08C0 };
 
 // $C3:08B3
-/* The NMI handler: the registers saved, the frame's work (a call-out, so that
- * its own entry is compared on its own), a changed song sent, and back. */
+/* The NMI handler: save the interrupted context, call the frame's work
+ * under its entry contract, send a changed song, and return. */
 void scene_nmi(Snes *s)
 {
     Cpu *c = &s->cpu;
@@ -451,7 +459,12 @@ void scene_nmi(Snes *s)
     m_push16(s, c->d);
     m_push8(s, c->db);
 
-    m_jsl(s, 0xC308BA, 0xC308D0);
+    if (m_runs_retired_as_c(s)) {
+        if (!scene_run_long(s, 0xC308BA, 0xC308D0, 0, scene_frame_work_entry))
+            return;
+    } else {
+        m_jsl(s, 0xC308BA, 0xC308D0);
+    }
     if (!can_continue(s))
         return;
 
@@ -654,7 +667,7 @@ static const struct {
     SceneTaskInC run;
 } machine_tasks[] = {
     /* the scripts' channels' first steps and the vblank list's uploads */
-    { 0x7E3176, NULL, nothing_this_frame },   /* a lone return: the original's on the machine */
+    { 0x7E3176, NULL, nothing_this_frame },
     { 0x7E3749, scene_run_channel_0_script, channel_0_turn },
     { 0x7E3754, scene_run_channel_1_script, channel_1_turn },
     { 0x7E3843, scene_clear_sprite_table, hide_every_sprite },
@@ -819,6 +832,16 @@ static bool runs(Snes *s, const SceneTaskPort *port)
  * original's, called through the machine. */
 static TaskEnd run_task(Snes *s, SceneTaskList list, unsigned slot, SceneTask task)
 {
+    /* The program uses its empty routine as a task too. Its only instruction
+     * returns unchanged; retain the list's argument and saved-context result
+     * without handing that return to the interpreter. A different code image
+     * still takes the ordinary checked dispatch below. */
+    if (task == SCENE_PASS_NOTHING && snes_bus_peek(&s->bus, PROGRAM_BANK | task) == 0x60) {
+        m_set_nz16(s, task);
+        as_the_list_calls(s, list, task);
+        s->cpu.x = (uint16_t)(slot * 2);
+        return task_goes_on();
+    }
     const SceneTaskPort *port = port_of(task, list);
     if (!runs(s, port))
         return run_the_original_task(s, list, slot, task);

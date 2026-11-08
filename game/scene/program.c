@@ -292,11 +292,8 @@ void scene_program_starts_on_the_machine(Snes *s)
 
 /* The routines a pass calls as C (main_loop_pass, below), each with the entry
  * whose registry row is its contract: the widths and arithmetic it is called
- * with, and its guard. Not the race's scaling: between its racers it waits for
- * the last one's tiles to be sent, inside the routine ($7E:5211), a wait the
- * machine can neither hold nor wait out where a port stands yet, so its call
- * stays the original's, and the race's entries take it (docs/TODO.md, "The
- * race's scaling from the scene program's main loop"). */
+ * with, and its guard. The race uses a called machine form because its
+ * upload wait holds the caller's frame between racers. */
 static const struct {
     ScenePass call;
     void (*entry)(Snes *s);
@@ -309,6 +306,25 @@ enum { PASS_ENTRY_COUNT = sizeof PASS_ENTRIES / sizeof PASS_ENTRIES[0] };
 
 static bool main_loop_pass(GameState *g, Platform *pf);
 
+/* Keep the race's return frame for its held upload wait. As with the old
+ * call-out, the frame belongs to the caller's time, and the scaling's work
+ * is settled at its own rate before returning or handing off the wait. */
+static bool race_scaling_on_the_machine(Snes *s)
+{
+    uint16_t stack = s->cpu.s;
+    uint32_t routine = PROGRAM_BANK | SCENE_PASS_RACE_SCALING;
+    m_push16(s, (uint16_t)(MAIN_LOOP + 2));
+    if (!scene_accept_continuation(s, routine, scene_race_scale_pictures_entry))
+        return false;
+    GameState *g = state_of(s);
+    charge_settle(g);
+    TIMED_AS(g, routine, {
+        scene_race_scale_pictures_entry(s);
+        charge_settle(g);
+    });
+    return m_came_back(s, MAIN_LOOP + 3, stack);
+}
+
 /* The pass's call: as C where the routine's contract takes the state, as the
  * registry would run it; where it turns the state away, the call the original
  * makes. False where that call didn't come back. */
@@ -318,6 +334,8 @@ static bool pass_on_the_machine(Snes *s)
     uint16_t call = scene_main_loop_call(g);
     if (call == SCENE_PASS_NOTHING)
         return true;
+    if (call == SCENE_PASS_RACE_SCALING)
+        return race_scaling_on_the_machine(s);
     for (unsigned n = 0; n < PASS_ENTRY_COUNT; n++) {
         if (PASS_ENTRIES[n].call != call)
             continue;
@@ -390,6 +408,15 @@ void scene_program_next_pass(Snes *s)
 {
     if (!pass_on_the_machine(s))
         return;
+    scene_program_finishes_pass(s);
+}
+
+// $7E:3026
+/* A scaling pass has returned, possibly after a held upload wait. Finish
+ * this pass before choosing the next one, so the scene's end is observed at
+ * the same boundary as an immediate return. */
+void scene_program_finishes_pass(Snes *s)
+{
     if (scene_program_over(state_of(s))) {
         end_on_the_machine(s);
         return;
@@ -424,6 +451,8 @@ static bool nothing_to_do(Snes *s)
 }
 
 bool scene_program_passes(Snes *s) { return loop_present(s) && !nothing_to_do(s); }
+
+bool scene_program_pass_finished(Snes *s) { return loop_present(s); }
 
 bool scene_program_waits_for_the_frame(Snes *s) { return loop_present(s) && nothing_to_do(s); }
 

@@ -21,7 +21,7 @@ from tools.disasm.closure import reached_code
 from tools.disasm.cpu import decode
 from tools import unreached_fuzz
 
-SUBSYSTEMS = ('attract', 'core', 'warp', 'overworld', 'event', 'field')
+SUBSYSTEMS = ('attract', 'core', 'warp', 'overworld', 'event', 'field', 'scene')
 # Subsystems inventoried ahead of their teardown. Bytes no comparison or
 # reviewed argument covers yet are recorded as `open` rows rather than refused,
 # so the ledger names exactly what is left (docs/REIMPLEMENTATION.md, "The code

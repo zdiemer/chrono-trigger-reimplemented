@@ -3939,6 +3939,15 @@ const NativeEntry game_held_waits[] = {
       .hold = HOLD_SCENE_MAIN_LOOP, .retired = true, .guard = scene_program_passes },
     { .addr = 0x7E3023, .name = "scene_program_waits", .fn = scene_program_waits, NEEDS_M16, .idle = true,
       .hold = HOLD_SCENE_MAIN_LOOP, .retired = true, .guard = scene_program_waits_for_the_frame },
+    { .addr = 0x7E3026, .name = "scene_program_finishes_pass", .fn = scene_program_finishes_pass, NEEDS_M16,
+      .cost_milli = 3125, .hold = HOLD_SCENE_MAIN_LOOP, .retired = true, .guard = scene_program_pass_finished },
+    /* The race's upload wait keeps its caller frame, without a suspended
+     * port. Its exit gathers the picture and calls that caller directly. */
+    { .addr = 0x7E5211, .name = "scene_race_waits_for_upload", .fn = scene_race_wait_for_tilemap_upload_loop, NEEDS_M16,
+      .idle = true, .hold = HOLD_SCENE_RACE_UPLOAD, .retired = true, .guard = scene_race_wait_for_tilemap_upload_present },
+    { .addr = 0x7E5215, .name = "scene_race_upload_finished", .fn = scene_race_upload_finished, NEEDS_M16_X16,
+      .cost_milli = 5204, .dont_care = DC_X | DC_Y | DC_N | DC_Z,
+      .hold = HOLD_SCENE_RACE_UPLOAD, .retired = true, .guard = scene_race_gather_scaled_present },
     /* the time warp's main loop, its gate retired (the shipping mode only): its
      * next frame, once the vblank handler has taken the last, and its idle
      * pass before (the warp's page, D = $0500) */

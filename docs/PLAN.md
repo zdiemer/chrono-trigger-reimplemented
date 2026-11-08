@@ -164,9 +164,9 @@ retired. In order:
    each needing its unreached code checked and its recorded outcomes over the
    library first ("The code no movie reaches", "Validation after the teardown").
    The rest of the scene engine (its setups, frame's work and scenes' routines,
-   `game/scene/`) beside them, the race's scaling first called as C from the
-   program's main loop (TODO.md, "The race's scaling from the scene program's
-   main loop").
+   `game/scene/`) beside them, with its checked C hand-offs and held race
+   upload wait prepared (REIMPLEMENTATION.md, "The scene engine's
+   continuation boundaries").
 2. **`ct_native`'s time model** alongside, so the native program plays as the
    original does: the loads and the battle's setup it charges wrongly first.
 
@@ -711,16 +711,17 @@ taking the gate down needs, before it and after it.
      (REIMPLEMENTATION.md, "The scene program's teardown"): a boundary a
      comparison couldn't cross (the first frame's carry into the loop) goes
      with the comparison, and a retired loop that calls still-gated routines
-     calls each as C under its registry row's contract, and through the
-     machine where its C waits at a point the machine can't wait in place.
+     calls each as C under its registry row's contract. The race's scaling
+     now holds its upload wait with saveable caller frames rather than
+     leaving a scaling invocation suspended across the wait.
   4. **Last, the machine leaves the product.** When no subsystem is under
      the gate, `game/registry.c`, the intercept, the entry macros and
      `runtime/`'s emulator are deleted from what ships; `ct_play` is
      `ct_native`.
 
 - **The code no movie reaches, checked before its subsystem retires.**
-  Extend `tools/unreached.py` to the remaining 65816 subsystems: battle,
-  menu and scene. Compare the full library's coverage with their
+  Extend `tools/unreached.py` to the remaining 65816 subsystems: battle
+  and menu. Compare the full library's coverage with their
   ported live reach, then fuzz the missing paths against the original before
   retiring their gates. Every remaining byte needs a passing comparison or
   an explicit safety argument in the ledger, with its retirement obligations

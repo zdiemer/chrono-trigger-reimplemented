@@ -2827,55 +2827,17 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Scene continuation boundaries
 
-- **Scene teardown preconditions.** The initial inventory of the remaining
-  scene engine has 272 registry rows. Burndown reports all of its code ported
-  (24.7 KiB of scene-program code, 3.4 KiB of scene data routines and 2.6 KiB
-  of engine code), but the conservative walk against the existing 84-movie
-  coverage union finds 3,823 unexecuted bytes in 67 entries. All 67 have
-  recipes in `tools/fuzz_routines.toml`; replay them with matched coverage,
-  then close the remaining paths before removing their comparisons. The
-  scene is not yet in `tools/unreached.py`'s audited subsystems.
-  Census over `attract-demo`, `title-start` and `events-jetbike-race-won`
-  enters 15 scene rows by the machine, 55,452 times (36,880 calls, 11,451
-  stops, 2,544 returns, 4,577 wait passes); 92 scene entries run only as C.
-  The whole run enters 84 rows 316,513 times, with 814 entries only as C.
-  The console stub stops at `scene_nmi` 11,435 times; that handler calls
-  `scene_frame_work` as often, and the frame calls each task list 11,455
-  times. Make these checked C hand-offs. The race's 635 scaling calls,
-  1,270 gathering returns and 635 returns after each racer need a held
-  upload wait with a checked continuation for each caller. The remaining
-  calls are the curtain jump/sweep, unpacker, sound send and first script
-  step; the boot has 16 stops and four returns from its external callers.
-  The program's loop already runs through its held continuations
-  (4,479,233 idle passes and 651 working passes), with no machine entry at
-  its head or first frame. This confirms that `game/attract/`'s earlier
-  obstacle was closed by the scene-program teardown, not left to the
-  interpreter. Preserve that boundary through the race conversion.
-  The existing full-library shipping movie and route fallback artifacts
-  identify the empty task at `$7E:3176` (1,312 returns). The reference
-  artifacts additionally contain eight instructions in the race's upload
-  wait and gathering tail (`$7E:5211`, `$5213`, `$521D`, `$5220`); those
-  are not shipping fallbacks. Make the empty task a checked call and the
-  race's wait a held continuation; a zero-percent burndown alone does not
-  establish that no original code runs.
-  The source baseline from `tools/machine_joints.py` is 1,689 registry rows,
-  69 held continuations, 917 stack returns, 91 stops, six call-outs, three
-  registry lookups, eight machine time tags, 24 register escapes and 1,587
-  scaffolding writes. Within `game/scene/` itself: 171 stack returns, ten
-  stops, one registry lookup, six machine time tags, 16 register escapes,
-  320 video calls and 203 scaffolding writes. Keep the menus' and battle's scene interfaces until
-  those callers retire, and check their scratch readers before deletion.
-  Replacement observations are the protected identities in
-  `tools/outcomes_baseline.txt`, not the excepted differences. In both strict
-  and native modes, `attract-demo` protects the saved game and places 0-5;
-  `title-start` protects the saved game, pictures 1/1800 and places 0-2;
-  `events-jetbike-race-won` protects the saved game, save RAM, pictures
-  1/900/1200/2700/3000/3300/3600/7500/8083 and places 0-6;
-  `events-epoch-lavos` protects save RAM, pictures 1/1800/2100/2400/4200
-  and places 0-4 (strict additionally protects its saved game and place 5);
-  `endings-beyond-time` protects pictures 1/1800/2100/2400/3900/4200 and
-  places 0-4. Each mode's additional picture identities remain protected
-  too. The race, Epoch and ending routes must also run on the native shape.
+- **Retire the remaining scene comparisons.** The continuation preparation
+  removes machine entries in the attract, title and winning-race census;
+  the scene ledger now accounts for its unreached paths. Remove the scene's
+  registry rows and unneeded wrappers, keep contracts at the remaining
+  machine boundaries and retain every retired time estimate. Check scratch
+  readers in other subsystems before deleting scaffolding. Preserve the
+  ledger's input domains and source-backed proofs. Run the protected movies
+  and the relevant native-shape routes; REIMPLEMENTATION.md, "The scene
+  engine's continuation boundaries", records the preparation and its
+  observations. The initial inventory is in
+  history/scene-teardown-preconditions.md.
 
 - **Scene divisor search outside its terminating domain.** The entry at
   `$C3:0E29` refuses a dividend, initial quotient and limit for which none
@@ -2918,21 +2880,6 @@ rest waits, is [PLAN.md](PLAN.md).
   bytes as text and differ in VRAM/OAM; boot now refuses those states before
   mutation. Valid page indices and all sixteen modes are fuzzed separately.
 
-- **The race's scaling from the scene program's main loop.** The program is
-  retired (REIMPLEMENTATION.md, "The scene program's teardown"), and its main
-  loop's pass calls the endings', the Epoch's and the turned map's routines as
-  C, but the race's (`$7E:51D1`) as the original calls it, through the
-  machine: between its racers the routine waits for the last racer's tiles to
-  be sent (`$7E:5211`), and its C (`scene_race_scale_pictures`, which
-  `ct_native` runs) waits there with `tm_wait_frame`, which on the machine
-  calls the address it is given as a routine. `$7E:5211` isn't one, so as C
-  on the machine the race went wrong at once (tried: the attract demo's race
-  desynchronized at frame 8,360). An in-place wait on the race's pending
-  tiles (the kind the warp's screen wait uses, `NATIVE_WAKE_VBLANK_FLAG`), or
-  the race's routine held as a wait of its own, would let the pass call it as
-  C; until then the pass's call stays out over the race's waits, a frame end
-  with a routine suspended.
-
 - **What the retired scene program still leaves to the cartridge.** Its
   start goes on as C only while what it calls comes back to it. Three paths
   return to the program's first frame (`$7E:300D`) through the machine, where
@@ -2942,10 +2889,7 @@ rest waits, is [PLAN.md](PLAN.md).
   a mode with no setup port, called through the program's table. None is
   reached over the gate's sample (the census enters `$7E:300D` 0 times), but
   each wants the first frame as a continuation of its own, or the setups'
-  stops made calls. Likewise the main loop's pass, where the race's scaling
-  call (the original's, above) doesn't come back to it (`m_came_back` false),
-  doesn't hold the wait again, and the machine goes on in the cartridge's
-  loop. And the fallback baseline's `7E:----` line was set over the gate's
+  stops made calls. The fallback baseline's `7E:----` line was set over the gate's
   sample at the teardown: the batched library run takes the library's count.
 
 - **Two scene interpreter handbacks retain machine contracts.** All seven

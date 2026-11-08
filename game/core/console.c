@@ -25,6 +25,7 @@
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
+#include "scene/scene.h"
 #include "warp/warp.h"
 
 enum {
@@ -78,6 +79,11 @@ static const struct {
     { MENU_OBJECT_VBLANK_HANDLER, menu_object_nmi },
     { FIELD_VBLANK_HANDLER, field_nmi },
     { FIELD_LINE_HANDLER, field_irq },
+    { SCENE_FRAME_HANDLER, scene_nmi },
+    { SCENE_HANDLER_WHILE_WORKING, scene_nmi_while_working },
+    { SCENE_BOOT_VBLANK, scene_boot_nmi },
+    { SCENE_BOOT_LINE, scene_boot_line_irq },
+    { 0xC30945, scene_line_irq_ack },
 };
 enum { CALLED_HANDLERS = sizeof called_handlers / sizeof called_handlers[0] };
 

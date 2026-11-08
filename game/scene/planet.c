@@ -419,8 +419,8 @@ static TaskEnd wait_for_a_button_with(GameState *g, Platform *pf, void (*send)(v
 
 static void send_on_the_machine(void *ctx, Platform *pf)
 {
-    (void)ctx;
-    au_driver_call(pf, PF_CALL(0x7E63E5, SCENE_SEND), THE_SEND_READS_Y);
+    (void)pf;
+    (void)scene_run(ctx, 0x7E63E5, SCENE_SEND, THE_SEND_READS_Y, scene_send_sound_command);
 }
 
 void scene_wait_for_a_button_to_restart_entry(Snes *s)

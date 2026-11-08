@@ -26,6 +26,7 @@
 #include "scene/race.h"
 
 #include "charge.h"
+#include "holds.h"
 #include "cpu_io.h"
 #include "original_effects.h"
 #include "port/machine.h"
@@ -338,4 +339,26 @@ void scene_race_gather_scaled(Snes *s)
     s->cpu.db = m_pull8(s);
     s->cpu.a = PICTURE_GATHERED;
     m_rts(s);
+}
+
+// $7E:5215
+/* The upload is finished. The saved caller tells which racer's request to
+ * mark gathered, then either starts Johnny's picture or returns to the
+ * scene loop. Each continuation keeps its own contract and calibrated rate.
+ * No C invocation survives the held upload wait. */
+void scene_race_upload_finished(Snes *s)
+{
+    scene_race_gather_scaled(s);
+    uint32_t next = cpu_pc24(&s->cpu);
+    void (*resume)(Snes *) = next == 0x7E51DF ? scene_race_scale_after_crono :
+                            next == 0x7E51F0 ? scene_race_scale_after_johnny : NULL;
+    if (!scene_accept_continuation(s, next, resume))
+        return;
+    charge_settle(state_of(s));
+    TIMED_AS(state_of(s), next, {
+        resume(s);
+        charge_settle(state_of(s));
+    });
+    if (cpu_pc24(&s->cpu) == 0x7E3026)
+        m_hold_at(s, 0x7E3026, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z, HOLD_SCENE_MAIN_LOOP);
 }

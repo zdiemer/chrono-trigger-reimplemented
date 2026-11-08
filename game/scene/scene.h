@@ -1004,6 +1004,8 @@ void scene_stops_the_display(Platform *pf);
  * ended the scene, and the idle pass with nothing to call. */
 void scene_program_starts_on_the_machine(Snes *s);
 void scene_program_next_pass(Snes *s);
+void scene_program_finishes_pass(Snes *s);
+bool scene_program_pass_finished(Snes *s);
 bool scene_program_passes(Snes *s);
 void scene_program_waits(Snes *s);
 bool scene_program_waits_for_the_frame(Snes *s);
@@ -1397,6 +1399,7 @@ void scene_race_scale_after_crono(Snes *s);
 void scene_race_scale_after_johnny(Snes *s);
 bool scene_race_gather_scaled_present(Snes *s);
 void scene_race_gather_scaled(Snes *s);
+void scene_race_upload_finished(Snes *s);
 
 /* scene/race_rules.c (the program in RAM) */
 bool scene_race_ride_present(Snes *s);

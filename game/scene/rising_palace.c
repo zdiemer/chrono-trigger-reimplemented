@@ -648,7 +648,7 @@ static bool sweep_the_curtain_with(GameState *g, Platform *pf, bool (*step)(void
 
 static bool curtain_step_on_the_machine(void *ctx)
 {
-    m_jsl_dc(ctx, 0x7E6844, CURTAIN_STEP, CURTAIN_IGNORES);
+    (void)scene_run_long(ctx, 0x7E6844, CURTAIN_STEP, CURTAIN_IGNORES, scene_sweep_the_curtain);
     return true;
 }
 
