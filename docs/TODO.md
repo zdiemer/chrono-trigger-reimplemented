@@ -3040,6 +3040,10 @@ comparisons.
   character names, event scripts and line-effect tables. Determine the
   accepted state invariants and fix the responsible callees/guards; the
   coherent-field continuation recipe is not evidence for arbitrary RAM.
+  The sampled gate also interrupts 1,586 returning field passes, 1 first
+  pass and 28 frame-wait setups; those are not successful comparisons.
+  Keep their caller and object/script states in scope when closing this
+  fuzzing gap.
 - **What the field's unreached review left.** The `unreached_party_shares`
   recipe fills sharers only up to `$16` where the guard takes up to `$25`: extend
   it to `$24` so the whole accepted range of the sprite-block owner table is

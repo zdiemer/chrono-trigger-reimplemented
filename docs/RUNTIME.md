@@ -777,8 +777,8 @@ Now the continuation is named (`runtime/port/native.h`, `native_hold`;
   wait. The runtime keeps the wait named there with the returned stack
   pointer, pays the idle exit's time, then checks the next continuation's
   full contract before running it. A return anywhere else leaves the hold.
-  Retained registry rows precede held aliases in address lookup, so shadow
-  mode and old saves keep the original comparison's identity on every host.
+  Address lookup prefers rows without a hold over held aliases, preserving
+  the comparison identity of retained routines in shadow mode and old saves.
 - The two fields are saved with the machine, so a `ct_drive` base, a slot or a
   quick save taken in the wait names it, and a fresh runtime goes on in it.
 - The original's address is still honoured, and this is the only place the
@@ -874,13 +874,16 @@ both are continuations of the same wait. The first pass at `$C0:0097` is
 named by the field's entry. Other return addresses go back to their own
 callers, including a suspended fade, event command or battle return. The
 wait itself has no suspended C frame; those callers can still have one.
+The idle rows declare their six-byte span through the return, so the
+fallback measure recognizes the exit pass as work the idle port performs.
 One ID is sufficient because the saved stack already identifies the caller:
 no caller-specific state or pointer is stored in the hold.
-The returning wrapper's registry row names the loop head's `shadow_body`,
+The returning wrapper's registry row names the loop-head wrapper as its `shadow_body`,
 so a shadow comparison of the returning pass does not nest another
 comparison of the same pass at the same stack depth. Each entry has its own
-wrapper; independent calls still compare. Its sibling timing scope assigns the pass's error to the field
-pass, preserving both its estimate and the backedge's separate measurement.
+wrapper; independent calls still compare. Its sibling timing scope assigns
+the pass's error to the field pass, preserving the estimates for both the
+pass and the backedge.
 The runtime's guard still decides whether a named continuation
 applies; `suspend_test` exercises a decimal-mode refusal after an idle return.
 

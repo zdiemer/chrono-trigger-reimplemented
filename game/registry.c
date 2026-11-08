@@ -2336,7 +2336,8 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC00B75, .name = "field_install_irq", .fn = field_install_irq,
       NEEDS_M8_X16, .cost_milli = 3500, .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_D, .guard = field_bank_low_ram },
     { .addr = 0xC0EA63, .name = "field_nmi", .fn = field_nmi, .cost_milli = 4818 },
-    { .addr = 0xC0EC71, .name = "field_wait_for_frame_loop", .fn = field_wait_for_frame_loop, NEEDS_M8, .idle = true, .guard = field_bank_low_ram },
+    { .addr = 0xC0EC71, .name = "field_wait_for_frame_loop", .fn = field_wait_for_frame_loop, NEEDS_M8, .idle = true,
+      .idle_return_span = 6, .guard = field_bank_low_ram },
     { .addr = 0xC03B71, .name = "field_change_location_wait_for_vblank_loop",
       .fn = field_change_location_wait_for_vblank_loop, NEEDS_M8, .idle = true, .guard = field_display_bank_is_io },
     { .addr = 0xC03B76, .name = "event_go_now_in_the_dark", .fn = event_go_now_in_the_dark, NEEDS_M8_X16,
@@ -4699,6 +4700,7 @@ const NativeEntry game_held_waits[] = {
      * doesn't read from there, as the loop's stop at its head and the walk's
      * call do. */
     { .addr = 0xC0EC71, .name = "field_waits_for_the_frame", .fn = field_wait_for_frame_loop, NEEDS_M8, .idle = true,
+      .idle_return_span = 6,
       .hold = HOLD_FIELD_FRAME, .guard = field_bank_low_ram },
     { .addr = 0xC00097, .name = "field_first_frame", .fn = field_frame, NEEDS_M8_X16, .cost_milli = 1402,
       .hold = HOLD_FIELD_FRAME, .guard = field_on_page_bank_zero },

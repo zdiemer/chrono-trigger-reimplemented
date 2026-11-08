@@ -3974,7 +3974,7 @@ continuation charge. The screen wait keeps the existing vblank predicate
 and idle exit time; its handler-enable continuation keeps the original
 width and I/O-bank contract.
 
-**Measured against main.** Shipping mode over `field-floor-switch` (3,501
+**Measured against main (`bfd75c49`).** Shipping mode over `field-floor-switch` (3,501
 frames), `field-factory-switch` (8,387), `field-northern-ruins-switch`
 (3,811) and `field-12kbc-1f4` (2,953):
 
@@ -3990,8 +3990,9 @@ The named frame wait runs 2,182,293 idle passes, 4,114 complete-loop
 continuations, 18 first passes and 2 request continuations. Screen startup
 has 6,698 held idle passes and 25 handler-enable continuations; its 25
 remaining address entries are the timing service's initial calls.
-`tools/trace.py diff` finds no divergence over all 18,652 frames in WRAM,
-VRAM, SRAM, CGRAM or OAM. At floor-switch frame 2,800, `ct_drive` saves at
+`tools/trace.py diff --framebuffer` finds no divergence over all 18,652
+frames in WRAM, VRAM, SRAM, CGRAM, OAM or the framebuffer hashes.
+At floor-switch frame 2,800, `ct_drive` saves at
 `$C0:EC71` with wait 5 named and nothing suspended. A slot reload and a
 fresh process loading the file reach frame 3,000 with every state field and
 the PNG identical to uninterrupted play; replayed, inexact and lost loads
@@ -4006,8 +4007,30 @@ With the registry available, the loop's recipe preserves the resident
 field's object/script graph and randomizes registers, flags and the wait
 byte (clear, set and wrapping): 2,000 matches, no skips or mismatches.
 Loose-RAM trials reach existing field-pass failures too (TODO.md); they are
-not counted as successful validation. The 546 Python tests pass (10 skip),
-as do `suspend_test`, `state_test`, `shadow_test` and `debt_test`.
+not counted as successful validation. Wrong-page and wrong-bank refusal
+trials with the registry compare 1,000 each, all matching. The 546 Python
+tests pass (10 skip), as do `suspend_test`, `state_test`, `shadow_test`,
+`debt_test` and `time_parts_test`.
+
+The 37-movie sampled shadow gate is clean: 147,062 returning passes,
+221 first passes and 153,836 wait setups compare, all matching. Another
+1,586 returning passes, 1 first pass and 28 wait setups are interrupted;
+those calls are not comparisons, and the coherent-state fuzz recipe does
+not close the loose-RAM follow-up in TODO.md. The sampled timing check
+passes with the existing exceptions and unchanged estimates.
+
+**Fallback accounting.** Both idle rows declare the return span
+`$C0:EC71-$C0:EC76`, so the measure recognizes the final pass as the idle
+port's work, just as it recognizes the passes that keep waiting. Three
+movies end inside a battle called by the field pass: `battle-menu-buttons`,
+`battle-magus` and `late-omen-terramutant`. Their field comparisons remain
+open after the bounded 120-frame tail. Restoring only the old backedge
+wrapper for those replays measures 6 instructions each under `field_frame`;
+the returning wrapper measures the same work plus its backedge, 7 each.
+`fallback_baseline.txt` therefore keeps 21 unresolved instructions under
+`open C0:00BD`, with that reason. The old `open C0:0097` allowance awaits
+the batched library update; it is not pruned on this sample. Shipping-mode
+fallbacks over the sample and its two fast routes are zero.
 
 `tools/machine_joints.py`: registered entries remain 2,136; held
 continuations 7 to 13; emulated-stack returns 994 to 993; stops 97 to 99
