@@ -4022,8 +4022,8 @@ trials with the registry compare 1,000 each, all matching. The 546 Python
 tests pass (10 skip), as do `suspend_test`, `state_test`, `shadow_test`,
 `debt_test` and `time_parts_test`.
 
-The 37-movie sampled shadow gate is clean: 147,062 returning passes,
-221 first passes and 153,836 wait setups compare, all matching. Another
+The 37-movie sampled shadow gate is clean: 147,080 returning passes,
+221 first passes and 153,854 wait setups compare, all matching. Another
 1,586 returning passes, 1 first pass and 28 wait setups are interrupted;
 those calls are not comparisons, and the coherent-state fuzz recipe does
 not close the loose-RAM follow-up in TODO.md. The sampled timing check
@@ -4042,6 +4042,12 @@ its tracking, as the next instruction hook would: Golem Twins' game-over
 replay exposed that ordering. Six targeted shadow replays pass the fallback
 ratchet without idle allowances; floor-switch and save-point certify their
 partial prefixes in one extra frame.
+Over the complete sample, 28 cutoff idle instructions are certified; the
+fallback ratchet reports no new or increased routine after those certificates.
+The unreached-path audit replays its recipes and passes for 463 entries over
+the 84-movie inventory. Its existing location-error argument keeps the same
+guard and six bytes: only `field_enter`'s source fingerprint is refreshed,
+with the reason that a successful entry now names the frame hold.
 
 Three movies end inside a battle called by the field pass: `battle-menu-buttons`,
 `battle-magus` and `late-omen-terramutant`. Their field comparisons remain

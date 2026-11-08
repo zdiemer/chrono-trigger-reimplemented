@@ -594,9 +594,8 @@ taking the gate down needs, before it and after it.
   their host backend are built, the field's budgets, the menus' task switch
   and the battle's wait routines are ports, and no port reads the beam's
   status. What is left is in TODO.md, "Timing without a beam": the waits
-  still made on the machine (the field's `$C0:EC60` the largest, which needs
-  a wait a machine copy can hold before it takes the battle's shape; the
-  line handlers wait for their line through `tm_wait_line_drawn`), the host
+  still made on the machine (the line handlers wait for their line through
+  `tm_wait_line_drawn`), caller-side bridges into held waits, the host
   backend's other services, and the bodies of the menus' tasks the
   coroutines (`core/tasks.c`) don't run yet (TODO.md, "The menus' tasks with
   no body as C").
