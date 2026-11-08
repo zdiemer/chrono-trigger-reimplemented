@@ -5,17 +5,14 @@ deliberately loose: every choice is a coin flip around a threshold, so the route
 runner's backtracking (campaign.Run.fight) can retry a losing fight with other
 choices instead of needing a policy that is right the first time.
 
-Item indices are computed from the inventory, tech indices from the in-battle
-tech list, so a policy never assumes a fixed menu layout.
+Item indices and available counts come from the battle item list, tech indices
+from the in-battle tech list, so a policy never assumes a fixed menu layout.
 """
 from . import addresses as A
 
 # Consumables, in inventory order ($BD-$C7).
 TONIC, MID_TONIC, FULL_TONIC, ETHER, MID_ETHER, FULL_ETHER, ELIXIR, HYPER_ETHER, MEGA_ELIXIR, HEAL, REVIVE = \
     range(0xBD, 0xC8)
-
-# Items the battle item list shows; it skips the rest of the inventory.
-BATTLE_USABLE = set(range(0xBD, 0xC8)) | {0xCA, 0xCB, 0xCC}
 
 # Tech list entries per character id, as index and MP cost:
 #   revive, heal_all, heal_one, all (hit every enemy), one (hit one enemy)
@@ -33,14 +30,11 @@ CHARACTER_TECHS = {
 
 
 def item_index(inventory, item):
-    """Where `item` sits in the battle item list, or None when there is none."""
+    """The menu row holding an available `item`, or None when there is none."""
     items, counts = inventory
-    index = 0
     for slot in range(len(items)):
-        if items[slot] in BATTLE_USABLE and counts[slot] > 0:
-            if items[slot] == item:
-                return index
-            index += 1
+        if items[slot] == item and counts[slot] > 0:
+            return slot
     return None
 
 
