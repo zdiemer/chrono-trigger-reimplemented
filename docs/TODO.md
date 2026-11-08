@@ -3048,7 +3048,10 @@ comparisons.
   The sampled gate also interrupts 1,586 returning field passes, 1 first
   pass and 28 frame-wait setups; those are not successful comparisons.
   Keep their caller and object/script states in scope when closing this
-  fuzzing gap.
+  fuzzing gap. The two `$C0:0B38` rows (`field_screen_on_wait_for_vblank_loop`
+  and its held alias `field_waits_to_show_the_picture`) both carry a hold and
+  compare equal in `runtime/port/native.c`'s sort: give it a tie-breaker so
+  which one the census names doesn't depend on `qsort`'s order.
 - **What the field's unreached review left.** The `unreached_party_shares`
   recipe fills sharers only up to `$16` where the guard takes up to `$25`: extend
   it to `$24` so the whole accepted range of the sprite-block owner table is
