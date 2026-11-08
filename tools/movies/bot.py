@@ -81,8 +81,13 @@ class Bot:
         return self.state
 
     def inventory(self):
-        return (self.machine.peek(A.INVENTORY_ITEMS, A.INVENTORY_SIZE),
-                self.machine.peek(A.INVENTORY_COUNTS, A.INVENTORY_SIZE))
+        """Item ids and available counts in battle menu order, including empty rows.
+
+        The bag's counts stay unchanged until the fight ends. The battle list
+        also accounts for items reserved by commands still waiting to execute.
+        """
+        records = self.machine.peek(A.BATTLE_ITEM_LIST, A.BATTLE_ITEM_LIST_SIZE * A.BATTLE_ITEM_RECORD_SIZE)
+        return records[0::A.BATTLE_ITEM_RECORD_SIZE], records[3::A.BATTLE_ITEM_RECORD_SIZE]
 
     def menu_ready(self):
         return self.state.menu_open()

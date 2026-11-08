@@ -291,7 +291,13 @@ without replaying the hour before it. Delete the checkpoints to start over.
   `$5E30 + slot * $80` the stats) and verifies every step: press, then wait for
   the value that should change. `policies.py` decides the action from the state
   — revive, heal, the strongest tech the MP allows, otherwise attack — with
-  every threshold jittered, so retries differ.
+  every threshold jittered, so retries differ. Item choices read the live
+  battle list at `$7E:1580`: its five-byte records hold the item and available
+  count, including reservations for queued commands. The bag's counts stay
+  unchanged until the fight ends. Empty and exhausted records keep their menu
+  rows, so the bot neither selects an exhausted item nor shifts later choices
+  into its row. The [telepod route investigation](history/telepod-route-items.md)
+  measures the stale-count failure that exposed this distinction.
 - **Backtracking.** Every command menu is a checkpoint. A party wipe reloads one
   of the last few, reseeds the policy and re-rolls a small random delay before
   acting (which shifts the fight's timing, so the retry plays out differently).
