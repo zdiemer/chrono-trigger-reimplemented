@@ -27,6 +27,10 @@ enum {
     HOLD_FIELD_FRAME = 5,
     /* the field picture waiting for vblank before its handlers turn on */
     HOLD_FIELD_SCREEN = 6,
+    /* an event's immediate location change, after its vblank wait */
+    HOLD_FIELD_LOCATION = 7,
+    /* a script's restart, once the picture reaches vblank */
+    HOLD_FIELD_RESTART = 8,
 };
 
 #endif

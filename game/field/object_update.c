@@ -130,19 +130,6 @@ void object_out_of_rows(GameState *g, FieldObject obj)
  * that has objects keeps the row at $C5. */
 static void leave_joined_row(GameState *g, unsigned row) { original_cell8(g, 0xC5, (uint8_t)(row * 2)); }
 
-/* For the original's memory and shadow mode: taking an object out of the
- * middle of its row, the original links "the object after it" back to the
- * one before even when there is none after. A none link names a slot past
- * the 64, and that slot's link back is the byte of the next table, the
- * in-view flag of slot (link - $80) / 2, usually the first object's, which it
- * overwrites with the link before (object.h, OVERWRITTEN_BY_A_LINK). Shadow
- * mode compares the byte and the view reads it; a build without the
- * original's memory has no such byte. */
-static void leave_stray_in_view_write(GameState *g, FieldLink none_after, FieldLink before)
-{
-    set_field_object_in_view(g, (unsigned)(field_linked_object(none_after) - FIELD_OBJECTS), field_link_byte(before));
-}
-
 // $C0:A98A
 /* Take the object out of its row: the objects either side of it are linked
  * to each other. */
@@ -166,7 +153,7 @@ void object_leave_row(GameState *g, FieldObject obj)
     if (field_link_is_object(after))
         set_previous_in_row(g, field_linked_object(after), before);
     else
-        ORIGINAL_EFFECT(leave_stray_in_view_write(g, after, before));
+        object_apply_row_tail_visibility(g, after, before);
     object_out_of_rows(g, obj);
     mark_out_of_rows(g, obj, field_no_link());
 }

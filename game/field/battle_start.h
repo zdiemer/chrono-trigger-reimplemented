@@ -26,4 +26,6 @@ void field_after_battle(Snes *s);
 bool field_can_take_up_after_battle(Snes *s);
 enum { FIELD_BATTLE_BEGINS_ENTRY = 0xC0024C, FIELD_AFTER_BATTLE_ENTRY = 0xC00283 };
 
+void field_no_battle_returns(Snes *s);
+
 #endif

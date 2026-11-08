@@ -3939,6 +3939,147 @@ same C), the vblank check over the shipping mode's video writes, and the
 frame-by-frame equality with the shipping mode before the teardown measured
 above.
 
+### The field's callers and held continuations
+
+The console's interrupt stubs call `field_nmi` and `field_irq` directly,
+through the same contract check as the sprite-object handler. The check
+sees the handler's PC and the interrupted stack, and keeps every registry
+precondition; a refusal stops at the handler's original entry. The queued
+script turns likewise call `event_run_object_script` directly, with the
+call's return pushed before its full contract is checked. A turn that
+changes location or enters a battle can leave without returning; its caller
+does not continue the queue in that case. Both calls keep their existing
+calibrated time tags. A former call-out settles its caller's time after the
+call frame is pushed, and its callee's time before resuming the caller;
+those stack accesses remain charged to the caller. These hand-offs preceded
+the events' retirement below; the field's comparison rows remain for its
+separate teardown.
+
+The fades, menu returns, tile-copy stages, battle returns, scene close and
+ripple now resume from named held continuations. Picture startup returns
+through its held caller at `$C0:28A4`, and immediate location changes and
+restarts use `HOLD_FIELD_LOCATION` and `HOLD_FIELD_RESTART`. Changing location
+resets the stack, ends the old comparison, then starts the new field as a
+held continuation with `field_enter`'s full contract. None of these waits
+keeps its field caller suspended across a frame. Battle and menu tasks still
+keep their own machine interfaces. The runtime indexes all held rows instead
+of silently keeping only sixteen; `suspend_test` checks saving and restoring
+a wait after more than sixteen preceding held rows.
+
+On the same six movies and 39,953 frames as the initial inventory, the census
+falls from 96 machine-entered entries / 1,928,243 calls to 85 / 1,807,034.
+Events fall from 3 / 81,903 to **zero**. Field falls from 20 / 150,357 to
+12 / 111,049; its remaining entries are ordinary calls and the retained
+mode interfaces, not wait-loop passes. The shared wait's setup `$C0:EC60`,
+screen startup `$C0:0B38` and location wait `$C0:3B71` have zero machine
+entries. All protected identities hold in the sampled movies plus
+`events-luccas-mother`, in strict and native modes. The changed existing
+outcome exceptions carry their attribution and retain every protected match.
+
+The reference fallback ledger records two changes of comparison owner.
+The race win movie's four known wait/gather instructions are now attributed
+to `scene_boot`; three battle movies each leave their battle-call instruction
+under `field_requested_battle_starts`, still open after the 120-frame tail.
+These were already the race's unported cutoff and the returning field
+pass's open stretch. Shipping runs still execute zero original instructions.
+The old library-wide rows remain until the batched ledger update.
+
+A row-tail removal's effect on visibility is game state, not scaffolding.
+During Lara's rescue it leaves object zero present to collision and script
+conditions but excluded from normal object updates. `ObjectView` names this
+state `PRESENT_WITHOUT_UPDATES`; `object_apply_row_tail_visibility` owns the
+storage rule. A predecessor of object zero clears visibility instead, and
+other admitted end markers select other objects. A subsequent ordinary
+visibility update replaces the state. The write remains byte-exact for the
+callers still compared, and now survives the build without scaffolding.
+`field_test`, linked against that build and requiring no ROM, covers these
+cases and removal from the middle of a row without a visibility change.
+The original six-movie inventory is in history/field-teardown.md. This is
+preparation for the field's retirement: its byte-exact comparisons still apply.
+
+### The events' teardown
+
+The held-continuation preparation also closes the screen effects' unreached
+paths: nine cases of 200 matched trials cover all 283 bytes previously
+claimed by two whole-call close/ripple recipes. Each begins at its own held
+boundary. The settling counter and circle center survive those boundaries
+as state. The recipes keep the line-effects selector within its existing
+guard's three layouts; a selector beyond that table runs unrelated original
+code and reads registers the valid layouts leave dead.
+
+The empty-battle return at `$C0:0281` has 150 matched trials (50 refused by
+its existing guard), and the stored-place fade at `$C0:02E8` has 200. With
+the after-battle entry's 913 matches, those held-boundary proofs preserve
+all 60 bytes claimed by the previous whole-call recipes. The full fresh
+unreached check still covers 213 entries and the 84-movie library union.
+Its replay selects 70 cited recipes and 23 additional plain recipes; the
+restart idle wait's five bytes retain their reviewed timing-escape argument.
+
+The event interpreter's 250 registry rows have retired, including the
+confirm-button operation in `event/contact.c`. Its ordinary opcode rows
+call C operations; their individual machine wrappers and the unused talk,
+touch and single-member-return wrappers are deleted. The field calls the
+engine and remaining command bridges as C, including the empty-battle
+regrouping. That regrouping's return is held through the field's battle
+decision or scene close, preserving a saveable frame boundary.
+
+The 46 retained machine forms serve the still-gated field: its location
+setup and restoration call the openings and map script, the frame calls
+object turns and the confirm button, the menu return restarts an object's
+script, and battle setup/restoration call party regrouping. The interpreter
+calls the command and screen forms while inside those field comparisons.
+`event/machine_forms.c` lists each full contract (including the exact
+decimal-mode mask); refusal reports a broken contract before leaving the
+machine at the original entry. These are called forms, not dispatch rows.
+The forms retain the register and scratch effects those enclosing field
+comparisons still observe. Their leaves go with the field's retirement;
+the menus' wave-phase alias in event scratch must still keep its write.
+
+The unreached ledger's bounds remain checked: word comparisons admit seven
+operators, byte comparisons eight; all six say/ask forms require a nonzero
+text-table bank; object, party, script and graphics-allocation bounds remain
+contracts. Unknown opcodes and graphics-bank overflow report explicit
+failures instead of delegating to original diagnostics. `event_contract_test`
+checks operand bounds and the retained machine forms' widths, decimal mode,
+page, bank, emulation mode and object index without a ROM.
+
+`game/time_tags.c` retains every calibrated rate. The fallback measure
+excludes the original event code only in reference play; shipping still
+counts it. The burndown uses the same 19 owned runs (14,416 bytes), and the
+unreached measure keeps retired entries as ownership boundaries. Census
+dispatch counts and `machine_joints.py` exclude these time-only rows.
+
+Against the audit's 2,136 registry entries and 13 held continuations,
+`machine_joints.py` now counts 1,886 and 69 respectively; stack returns fall
+from 993 to 991 and scaffolding writes from 1,844 to 1,837. The six protected
+movies' preparation census entered no event routine through the machine,
+down from three entries and 81,903 entries by address in the audit.
+
+The sampled gate with evidence passes all 37 movies and both fast routes.
+The extra Lara movie also passes the strict and native outcome checks.
+
+The replacement evidence was recorded before retirement. The protected
+movies and identities below are from `tools/outcomes_baseline.txt`; picture
+identities are completed frame numbers and places are the ordered visit
+indices. Strict and native retain their own matches. Existing exceptions
+describe the other outcomes and do not weaken these identities.
+
+| Movie | Mode | Game / SRAM | Pictures | Places |
+|---|---|---|---|---|
+| field-floor-switch | strict | end/end | 1, 1800, 2100, 2400, 2700, 3000, 3300, 3501 | 0–4 |
+| field-floor-switch | native | end/end | 1, 1800, 2100, 2400, 3000, 3300, 3501 | 0–4 |
+| field-factory-switch | strict | end/end | 1, 1800, 2100, 2400, 2700, 3000, 3300, 3600, 3900, 7800, 8100 | 0–5 |
+| field-factory-switch | native | end/end | 1, 1800, 2100, 2400, 2700, 3000, 3300, 7200 | 0–5 |
+| field-northern-ruins-switch | strict | end/end | 1, 1800, 2100, 2400, 2700, 3000, 3300, 3600, 3811 | 0–5 |
+| field-northern-ruins-switch | native | end/end | 1, 1800, 2100, 2400, 2700, 3000, 3600 | 0–5 |
+| field-12kbc-1f4 | strict | end/end | 1, 1800, 2100, 2400, 2700, 2953 | 0–5 |
+| field-12kbc-1f4 | native | end/end | 1, 1800, 2100, 2400, 2700 | 0–5 |
+| events-end-of-time-gate | strict | end/end | 1, 1800, 2100, 2400, 2700, 3000, 3600, 3900, 4500 | 0–4 |
+| events-end-of-time-gate | native | —/end | 1, 1800, 2100, 2400 | 0–3 |
+| events-luccas-mother | strict | end/end | 1, 1800, 2100, 2400, 2700, 3000, 3300, 3600, 3900, 4200, 4500, 4800, 9300, 9600, 9900, 10200, 10500, 10800, 11100, 11400, 11700, 12000, 12600, 12900, 13200, 13500, 13800, 14100, 14400, 14700, 15000, 15300, 15600, 15701 | 0–12 |
+| events-luccas-mother | native | end/end | 1, 1800, 2100, 2400, 4200, 8400, 8700, 9000, 9300, 9900, 10500, 10800, 11100, 11400, 11700, 12000, 12300, 12600, 12900, 13200, 13500, 14400, 14700, 15000, 15300 | 0–12 |
+
+
 ### The field's held waits
 
 The field's waits are named before its teardown; every registry row stays.
@@ -4612,10 +4753,10 @@ calls or jumps are listed by entry and address and fail the inventory.
 
 The inventory covers the subsystems still under the gate that a teardown
 is next for, and keeps the rows of those that retired until their callers
-do: 463 entries now (core 11, event 250, field 202), using the 84-movie
+do: 213 entries now (core 11, field 202), using the 84-movie
 coverage union of the library's shadow runs (the movie inputs agree with
 the checkout supplying it). Optional hand recordings are outside that
-standard library. The data, warp and overworld subsystems left it with
+standard library. The data, warp, overworld and event subsystems left it with
 their teardowns, and attract has no rows since its main loop's passes
 became a held wait's continuations (RUNTIME.md, "Held waits"). Taking the
 union anew moved one event row with its reach unchanged:
@@ -4629,9 +4770,12 @@ subsystem's rows don't change another's.
 | Subsystem | Bytes no movie executes | Executed in matched fuzz trials | Reviewed safety argument | Open |
 |---|--:|--:|--:|--:|
 | core | 11 | 7 | 4 | 0 |
-| event | 1,490 | 1,418 | 72 | 0 |
 | field | 2,229 | 2,137 | 92 | 0 |
-| Total | 3,730 | 3,562 | 168 | 0 |
+| Total | 2,240 | 2,144 | 96 | 0 |
+
+Before the events retired, their 250 entries accounted for another 1,490
+unreached bytes: 1,418 executed in matched fuzz trials and 72 supported by
+reviewed safety arguments. Their contracts now retain those preconditions.
 
 **The field, inventoried ahead of its teardown.** The field joined the audit
 before its paths were all checked, so the ledger takes a fourth kind of

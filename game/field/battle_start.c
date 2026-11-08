@@ -390,7 +390,8 @@ enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 static bool back_together_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
-    return bridge_call(s, 0xC0027E, PARTY_BACK_TOGETHER, READS_NOTHING, on_the_field_page(s, false));
+    return field_run_called(s, 0xC0027E, PARTY_BACK_TOGETHER, READS_NOTHING,
+                            event_party_back_together, on_the_field_page(s, false));
 }
 
 /* The field's page, 8-bit A and 16-bit index registers. The carry says
@@ -440,4 +441,12 @@ bool field_battle_can_begin(Snes *s)
     bool ok = battle_fits(state_of(s));
     vars_peek(false);
     return ok;
+}
+
+// $C0:0281
+/* The regrouping's held frame is over: no enemy was found. */
+void field_no_battle_returns(Snes *s)
+{
+    m_set_flag(s, CPU_FLAG_C, true);
+    field_return_to_waiting_caller(s);
 }

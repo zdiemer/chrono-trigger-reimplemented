@@ -21,6 +21,9 @@
 #include "event/engine.h"
 #include "event/calls.h"
 #include "event/party.h"
+#include "core/program.h"
+#include "field/bridge.h"
+#include "field/main_loop.h"
 #include "field/palettes.h"
 #include "event/variables.h"
 #include "field/field.h"
@@ -851,12 +854,7 @@ void member_back_to_the_leader(GameState *g, FieldObject member)
 
 /* Its entry: the field's routine after a battle ($C0:034B) names the member
  * in the cell the leader's contact is kept in, with 8-bit index registers. */
-void event_member_back_to_the_leader(Snes *s)
-{
-    GameState *g = state_of(s);
-    member_back_to_the_leader(g, field_linked_object(field_link_stored(field_leader_contact(g))));
-    m_rts(s);
-}
+
 
 /* For the original: it names each member it sends back in the cell the
  * leader's contact is kept in, which the walk sets again before it reads
@@ -874,6 +872,13 @@ static void leave_member_named(GameState *g, FieldObject member)
  * where it stands sends nobody. */
 void party_back_together(GameState *g)
 {
+    vars_peek(true);
+    bool fits = party_can_come_back_together(g);
+    vars_peek(false);
+    if (!fits) {
+        program_breaks_a_contract(g, 0xC0034B, "the returning party names invalid objects or script levels");
+        return;
+    }
     if (battle_terms(g, BATTLE_TERMS_PARTY_STAYS_PUT)) {
         set_variable_byte(g, GATHERING_COUNT, PARTY_ALL_GATHERED);
         return;
@@ -900,7 +905,7 @@ void event_party_back_together(Snes *s)
 {
     party_back_together(state_of(s));
     m_rep(s, CPU_FLAG_X);
-    m_stop_at(s, 0xC000EB, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
+    field_hands_over_to(s, 0xC000EB, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, field_walk_a_frame);
 }
 
 /* Its guard: on the field's page; the members there are objects the tables
@@ -930,18 +935,7 @@ bool event_party_back_can_run(Snes *s)
 /* Its guard: the member is an object the tables hold, as the game keeps it
  * (the original adds its whole word to the place's offset), at a level the
  * places hold. */
-bool event_member_can_go_back(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    uint8_t member = field_leader_contact(g);
-    bool ok = field_names_object(member) && field_leader_contact_high(g) == 0 &&
-              event_object_call_state_level(g, field_linked_object(field_link_stored(member))) < EVENT_LEVELS;
-    vars_peek(false);
-    return ok;
-}
+
 
 /* The regrouping's guard: the party's places hold objects the tables do, as
  * the game keeps them (the original adds each one's whole word to a place's

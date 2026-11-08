@@ -233,7 +233,7 @@ where recalibration and baseline updates come from; "every movie" below is every
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**0 of 316 files is left on the backlog**: the last, `data/decompress.c`, is
+**0 of 317 files is left on the backlog**: the last, `data/decompress.c`, is
 rewritten (the unpacker as a function of the game's state, which the native
 program calls), and `tools/portstyle_baseline.txt` lists none. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
@@ -726,6 +726,8 @@ taking the gate down needs, before it and after it.
   in TODO.md. The sampled gate checks the full-library ledger; it cannot
   establish absence from movies it does not run. The events and the field
   are covered, the field with no byte `open`, so its teardown waits on none.
+  Retire the field and retain the menu/battle mode
+  interfaces (REIMPLEMENTATION.md, "The field's callers and held continuations").
 - **The game's state as C, not a work-RAM image.** Even `ct_native` keeps the
   game's state as the 128 KiB byte image the accessors read and write, which
   is the original's memory layout carried into the product. When a subsystem

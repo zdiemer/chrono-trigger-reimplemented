@@ -67,7 +67,7 @@ def recipes():
             parent_args = merge_args(parent_args, config['profile'][case['profile']]['args'])
         recipe = dict(parent, variant=case['variant'],
                       args=merge_args(parent_args, case.get('args', [])), why=case['why'])
-        for key in ('iterations', 'state', 'seed'):
+        for key in ('iterations', 'state', 'seed', 'at'):
             if key in case:
                 recipe[key] = case[key]
         key = label(recipe)

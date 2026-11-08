@@ -1,3 +1,4 @@
+#include "core/program.h"
 /* The leader meeting the map's objects: the player pressing the confirm
  * button, which talks to the object before the leader and opens the chest
  * before it (event/chests.c), and the leader walking into an object, which
@@ -287,32 +288,7 @@ ChestGift press_confirm(GameState *g)
     return open_the_chest_before_the_leader(g);
 }
 
-/* ---- The entries --------------------------------------------------------------------- */
-
-/* The field's talk ($C0:1AD7) and event $B0's touch call them with 8-bit
- * index registers, the object the leader is up against one; they leave Y and
- * the overflow as event/leaves.h works them out. */
-static void leave_talk_registers(Snes *s, bool called)
-{
-    m_set_flag(s, CPU_FLAG_V, event_place_worked_out_overflow(called, m_flag(s, CPU_FLAG_V)));
-}
-
-static void leave_touch_registers(Snes *s, Touch t, bool looked_to_push)
-{
-    s->cpu.y = event_touch_y(state_of(s), looked_to_push, s->cpu.y);
-    m_set_flag(s, CPU_FLAG_V, event_place_worked_out_overflow(t.touched || t.pushed, m_flag(s, CPU_FLAG_V)));
-}
-
-void event_talk_to_contact(Snes *s)
-{
-    GameState *g = state_of(s);
-    vars_peek(true);
-    bool calls = object_takes_a_call_now(g, contact(g), TALK_LEVEL);
-    vars_peek(false);
-    talk_to_the_leaders_contact(g);
-    ORIGINAL_EFFECT(leave_talk_registers(s, calls));
-    m_rts(s);
-}
+/* ---- The confirm button, called by the still-gated field ----------------------------- */
 
 /* A chest's gift goes to the party: the item into its inventory, or the gold
  * to its own (battle/inventory.h), each timed as the battle's routine that
@@ -331,8 +307,17 @@ static void give_the_gift(GameState *g, ChestGift gift)
  * worked it out. */
 static void leave_overflow(Snes *s) { m_set_flag(s, CPU_FLAG_V, event_overflow_left(m_flag(s, CPU_FLAG_V))); }
 
+static bool confirm_fits(const GameState *g);
+
 void field_confirm_pressed(GameState *g)
 {
+    vars_peek(true);
+    bool fits = confirm_fits(g);
+    vars_peek(false);
+    if (!fits) {
+        program_breaks_a_contract(g, 0xC01AAC, "the confirm button names an invalid contact or chest");
+        return;
+    }
     ChestGift gift = press_confirm(g);
     if (gift.kind != GIFT_NOTHING)
         give_the_gift(g, gift);
@@ -349,17 +334,7 @@ void field_press_confirm(Snes *s)
     m_rts(s);
 }
 
-void event_touch_contact(Snes *s)
-{
-    GameState *g = state_of(s);
-    vars_peek(true);
-    Touch t = leaders_touch(g);
-    bool looks = leader_looks_to_push(g, t.touched);
-    vars_peek(false);
-    touch_what_the_leader_met(g);
-    ORIGINAL_EFFECT(leave_touch_registers(s, t, looks));
-    m_rts(s);
-}
+
 
 /* The guards: the object is one the tables hold, as the game keeps it (the
  * original adds its whole word to a place's offset), and runs at one of the
@@ -374,15 +349,7 @@ static bool names_a_contact(const GameState *g, FieldLink object, uint8_t high)
 
 static bool contact_is_one(const GameState *g) { return names_a_contact(g, leader_contact(g), field_leader_contact_high(g)); }
 
-bool event_contact_is_one(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    bool ok = contact_is_one(state_of(s));
-    vars_peek(false);
-    return ok;
-}
+
 
 bool event_touch_is_ours(const GameState *g)
 {
@@ -398,15 +365,7 @@ bool event_touch_is_ours(const GameState *g)
     return !beyond.there || tile_on_the_map(beyond.tile);
 }
 
-bool event_touch_can_run(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    bool ok = event_touch_is_ours(state_of(s));
-    vars_peek(false);
-    return ok;
-}
+
 
 /* The confirm button's: what a press reads is the game's where it goes on
  * past the pad. The leader is an object the tables hold or nobody (the

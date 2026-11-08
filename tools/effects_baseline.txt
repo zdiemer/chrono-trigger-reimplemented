@@ -9,7 +9,6 @@
 # after the line -- is how the list empties. A new finding is answered the same
 # way before it merges: a line added here says why.
 
-run field_update_objects field_object_in_view # gap: events-luccas-mother reads $7E:0F00 after object_leave_row's none-link write (984 reads from frame 12470); the row tail's previous link aliases object 0's in-view flag, which object_view distinguishes from zero. The movie and native-shape end checks pass, but native storage still needs a decision on this alias and its intermediate drawing (TODO.md, "What only the original's memory has, past the object tables").
 
 game/battle/animation.c posing battle_work[20] battle_work
 game/battle/animation.c posing battle_work[21] battle_work
@@ -166,6 +165,8 @@ game/field/object.c object_sprite_priorities field_object_sprite_priority field_
 game/field/object_view.c object_view field_object_in_view field_object_in_view
 game/field/object_view.c object_view_past_the_tables field_object_in_view field_object_in_view # reads the bytes past the in-view flags (a slot past the tables); the stray write takes a slot within them
 game/field/screen_effects.c curtain_sweeping scene_curtain_sweep scene_circle_center_x # the curtain's state, which bank $C3's sweep (still the original's) and event $FF set plainly; the circle's scaffolding there is the cells' other use
+game/field/screen_effects.c draw_the_ripple scene_circle_center_x scene_circle_center_x # the held ripple reads only the low byte initialized plainly by ripple_circle_opens; scene/circle.c writes that same byte back unchanged and only clears the high byte, which this reader discards. The held-ripple fuzz cases preserve arbitrary saved centers across the frame boundary.
+game/field/screen_effects.c draw_the_ripple scene_circle_center_y scene_circle_center_y # the held ripple reads only the low byte initialized plainly by ripple_circle_opens; scene/circle.c writes that same byte back unchanged and only clears the high byte, which this reader discards. The held-ripple fuzz cases preserve arbitrary saved centers across the frame boundary.
 game/scene/curtain.c scene_curtain_stepped scene_curtain_table scene_circle_center_y # the step's guard's state half: the curtain's table, which every sweep's start writes plainly before it (the field's screen_curtain_drawn, the race's set_up_curtain, the palace's finish_the_palace); the circle's scaffolding there is the cells' other use, and no circle is drawn while a curtain sweeps
 game/scene/curtain.c scene_curtain_stepped scene_curtain_table_bank scene_circle_radius # as the line above
 game/field/sprites.c record_byte field_sprite_records_byte field_sprite_records

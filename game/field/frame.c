@@ -2,9 +2,11 @@
 #include "field/field.h"
 #include "core/console.h"
 #include "core/display.h"
+#include "holds.h"
 
 #include "platform/timing.h"
 #include "port/machine.h"
+#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -88,4 +90,5 @@ void field_turn_the_handlers_on(Snes *s)
     tm_set_line(pf, PF_AT(0xC00B47), FIELD_PICTURE_LAST_LINE);
     m_set_flag(s, CPU_FLAG_I, false);
     m_rts(s);
+    native_hold(s, HOLD_FIELD_SCREEN);
 }

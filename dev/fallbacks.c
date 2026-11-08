@@ -686,6 +686,40 @@ static bool the_cartridges_scene_program(const Fallbacks *f, uint32_t pc)
     return h == 0x2B0A967642BA802Bull;
 }
 
+/* Events retired their comparison. Only reference play may execute these
+ * owned runs; shipping still counts every original instruction as fallback. */
+static bool the_cartridges_events(const Fallbacks *f, uint32_t pc)
+{
+    static const struct { uint32_t first, last; } runs[] = {
+        { 0xC0034B, 0xC0038E },
+        { 0xC01AAC, 0xC01ADE },
+        { 0xC01CFC, 0xC01D55 },
+        { 0xC01D5E, 0xC01E91 },
+        { 0xC01E9A, 0xC01F23 },
+        { 0xC02E67, 0xC0305C },
+        { 0xC03154, 0xC03B70 },
+        { 0xC03B76, 0xC03FD5 },
+        { 0xC04000, 0xC0400D },
+        { 0xC04036, 0xC04180 },
+        { 0xC04191, 0xC054AF },
+        { 0xC054B6, 0xC05613 },
+        { 0xC058DE, 0xC05928 },
+        { 0xC0595C, 0xC059D8 },
+        { 0xC05A93, 0xC05B62 },
+        { 0xC05B8D, 0xC05B94 },
+        { 0xC05C90, 0xC05CC6 },
+        { 0xC05F6E, 0xC06466 },
+        { 0xC06487, 0xC06D2E },
+};
+    if (!f->shadow)
+        return false;
+    pc |= 0x800000;
+    for (unsigned i = 0; i < sizeof runs / sizeof runs[0]; i++)
+        if (pc >= runs[i].first && pc <= runs[i].last)
+            return true;
+    return false;
+}
+
 void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
 {
     /* Observe completion before the caller starts another invocation of the
@@ -724,7 +758,7 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
         if (f->pass.open)
             f->pass.hidden++;
     }
-    if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc) && !the_cartridges_decompressor(f, pc) &&
+    if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc) && !the_cartridges_events(f, pc) && !the_cartridges_decompressor(f, pc) &&
         !the_cartridges_warp(f, pc) && !the_cartridges_overworld(f, pc) && !the_cartridges_scene_program(f, pc)) {
         bool m8 = e || (p & CPU_FLAG_M), x8 = e || (p & CPU_FLAG_X);
         add(f, pc, eff.kind, routine, eff.port, (uint8_t)misses_instruction_length(op, m8, x8));

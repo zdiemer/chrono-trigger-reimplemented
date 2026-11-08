@@ -138,6 +138,7 @@ STOPS = ("m_stop_dont_care", "m_stop_at", "m_stop_at_own")
 # The menus' task loops' waits (game/menu/bridge.h) are stops at their site
 # declaring the named set the wait reads.
 STOP_DELEGATES = {"menu_go_on_in": (1, 3), "m_hold_at": (1, 2), "m_hold_at_own": (1, 2),
+                  "field_hands_over_to": (1, 2), "field_hold_finished_frame": ("0xC0EC60", 1),
                   "menu_wait_in_the_task_loop": (1, "MENU_TASK_WAIT_READS_NOTHING"),
                   "menu_wait_frames_in_the_task_loop": (1, "MENU_TASK_WAIT_READS_THE_FRAMES")}
 # A held wait's origin, PF_LOOP_HELD(head, exit, set): a stop at head.
@@ -157,7 +158,7 @@ HELD_WAITS = ("PF_LOOP_HELD",)
 # forms with what the original keeps across the call (battle_run_dc_under, battle_run_long_dc_under,
 # battle_wait_under, battle_wait_frames_under) take the same arguments first.
 DELEGATES = ("bridge_call", "bridge_call_long", "field_run", "field_run_long", "field_run_holding", "field_run_on_page",
-             "bridge_call_on_page", "field_run_or_hand_over",
+             "bridge_call_on_page", "field_run_or_hand_over", "field_run_called",
              "battle_call",
              "battle_call_long", "battle_run_dc", "battle_run_long_dc", "menu_call", "menu_call_long", "menu_call_returning",
              "menu_call_jumped", "menu_yield", "menu_run_or_call", "field_wait_frame", "battle_wait_frame", "battle_wait_frames",
@@ -178,11 +179,13 @@ FIXED_DELEGATES = {
 # A step asked for by a port, called (s, site, step, set): a call-out to the
 # steps' dispatch at site declaring set where the dispatch's guard refuses, and
 # the step run as C under the dispatch's frame otherwise (game/battle/steps.c).
-TARGET_DELEGATES = {"battle_take_step": "BATTLE_STEP"}
+TARGET_DELEGATES = {"battle_take_step": "BATTLE_STEP", "field_hold_next_frame": "0xC0EC60"}
 BRIDGES = {
+    "game/event/bridge.c": ("event_call_bridge",),
     "game/field/bridge.c": ("bridge_call", "bridge_call_long", "bridge_back", "field_run", "field_run_long",
                             "field_run_holding", "field_run_on_page", "bridge_call_on_page", "field_run_or_hand_over",
-                            "run_entry", "field_wait_frame"),
+                            "run_entry", "field_wait_frame", "field_run_called", "field_hold_next_frame",
+                            "field_hands_over_to", "field_hold_finished_frame"),
     "game/battle/bridge.c": ("battle_call", "battle_call_long", "battle_back", "run_entry", "battle_run_dc", "battle_run_long_dc",
                              "battle_stop_after_call",
                              "battle_wait_frame", "battle_wait_frames", "battle_wait_line",
@@ -1011,10 +1014,11 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
                     nodes = [parse(call.args[1]), parse(call.args[2])]
                 elif call.name in STOP_DELEGATES:
                     at, dc = STOP_DELEGATES[call.name]
-                    last = max(at, dc) if isinstance(dc, int) else at
+                    last = max(v for v in (at, dc) if isinstance(v, int))
                     if len(call.args) <= last:
                         raise Unreadable(f"{call.name} takes {last + 1} arguments")
-                    nodes = [parse(call.args[at]), parse(call.args[dc]) if isinstance(dc, int) else parse(dc)]
+                    nodes = [parse(call.args[at]) if isinstance(at, int) else parse(at),
+                             parse(call.args[dc]) if isinstance(dc, int) else parse(dc)]
                 elif call.name == "au_driver_call":
                     origin = parse(call.args[1])
                     if origin[0] != "call" or origin[1] != "PF_CALL":
@@ -1036,7 +1040,8 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
                 elif call.name in TARGET_DELEGATES:
                     if len(call.args) != 4:
                         raise Unreadable(f"{call.name} takes (s, site, step, dont_care)")
-                    nodes = [parse(call.args[1]), parse(TARGET_DELEGATES[call.name]), parse(call.args[3])]
+                    dc = 2 if call.name == "field_hold_next_frame" else 3
+                    nodes = [parse(call.args[1]), parse(TARGET_DELEGATES[call.name]), parse(call.args[dc])]
                 else:
                     nodes = [parse(a) for a in call.args[1:4]]
                 try:
@@ -1054,7 +1059,9 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
             for v, _ in vals:
                 if call.name in STOPS or call.name in STOP_DELEGATES or call.name in HELD_WAITS:
                     decls.append(Decl("stop", src.path, src.line(call.offset), f.name if f else None, v[1] & 0xFFFF,
-                                      at=v[0] & 0xFFFFFF, own=call.name in ("m_stop_at_own", "m_hold_at_own"), offset=call.offset))
+                                      at=v[0] & 0xFFFFFF,
+                                      own=call.name in ("m_stop_at_own", "m_hold_at_own", "field_hands_over_to",
+                                                        "field_hold_finished_frame"), offset=call.offset))
                 else:
                     decls.append(Decl("call", src.path, src.line(call.offset), f.name if f else None, v[2] & 0xFFFF,
                                       site=v[0] & 0xFFFFFF, target=None if v[1] is None else v[1] & 0xFFFFFF,

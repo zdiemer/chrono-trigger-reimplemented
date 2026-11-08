@@ -669,7 +669,7 @@ static bool pass_on_the_machine_from(Snes *s, PassStep first)
 static void pass_then_stop_at_the_wait(Snes *s, PassStep first)
 {
     if (pass_on_the_machine_from(s, first))
-        m_stop_at(s, WAIT_FOR_THE_NEXT_FRAME, READS_THE_OVERFLOW);
+        m_hold_at(s, WAIT_FOR_THE_NEXT_FRAME, READS_THE_OVERFLOW, HOLD_FIELD_FRAME);
 }
 
 // $C0:0097
@@ -822,7 +822,7 @@ static bool refreshed_on_the_machine(void *ctx)
 static bool waited_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
-    TIMED_AS(state_of(s), FIELD_FRAME_WAIT, field_finish_frame(s));
+    field_hold_finished_frame(s, 0);
     return false;
 }
 

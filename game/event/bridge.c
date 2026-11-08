@@ -4,6 +4,8 @@
 #include "charge.h"
 #include "event/bridge.h"
 #include "event/engine.h"
+#include "event/machine_forms.h"
+#include "core/program.h"
 #include "event/event_data.h"
 #include "port/native.h"
 #include "field/parts.h"
@@ -66,10 +68,9 @@ static EventBridge bridge_of(uint8_t opcode)
  * the field keeps them; the original reaches them through D, the data bank and
  * the object's doubled slot in an index register. So a command is the same
  * routine only when the game enters it the way it always does: D on the field
- * page ($0100), a data bank whose low half is low RAM and I/O and whose high
- * half the $C0 tables (bank $00 or $80), and what event_runs_here asks of the
- * state. Any other call is the original's (a guard that turned calls away
- * shows as a drop in the entry's shadow count). The state is looked at
+ * page ($0100), data bank $00, and what event_runs_here asks of the
+ * state. The retired forms assert these conditions before a direct call;
+ * a failed contract is reported at the original entry. The state is looked at
  * without the machine's time (port/vars_ram.h, vars_peek). */
 
 static bool machine_as_the_engine_keeps_it(const Snes *s)
@@ -110,22 +111,16 @@ bool event_has_objects(Snes *s)
 
 /* ---- The commands' entries --------------------------------------------------------------- */
 
-void event_command_entry(Snes *s, uint8_t opcode)
-{
-    const EventOpcode *row = event_opcode(opcode);
-    uint16_t at = event_command_offset(s);
-    EventLeaves left = event_leaves_of(s);
-    EventStep st = event_perform_leaving(state_of(s), m_platform(s), row, at, &left);
-    ORIGINAL_EFFECT(event_hand_back(s, &left));
-    event_return(s, st);
-}
-
 bool event_call_bridge(Snes *s, uint32_t site, uint32_t routine, EventBridge bridge)
 {
     uint16_t s_before = s->cpu.s;
     m_push16(s, (uint16_t)(site + 2));
     s->cpu.pb = (uint8_t)(routine >> 16);
     s->cpu.pc = (uint16_t)routine;
+    if (!event_machine_form_takes(s, bridge)) {
+        m_stop_at_own(s, routine, 0);
+        return false;
+    }
     TIMED_AS(state_of(s), routine, bridge(s));
     return s->cpu.s == s_before && s->cpu.pb == (uint8_t)(site >> 16) && s->cpu.pc == (uint16_t)(site + JSR_SIZE);
 }
@@ -167,20 +162,6 @@ static bool back(OnTheMachine *m, BridgeMachine as)
     return bridge_back(m->s, dispatch_return[m->dispatch], as);
 }
 
-/* A command the port doesn't run: the original's handler, from its table. */
-static bool through_the_table(OnTheMachine *m, uint16_t at, EventStep *st)
-{
-    Snes *s = m->s;
-    uint8_t opcode = script_byte(state_of(s), at);
-    BridgeMachine as = event_machine(s, false);
-    enter_as_the_table_does(s, opcode, at);
-    m_jsr(s, dispatch_site[m->dispatch], HANDLERS_BANK | command_handler(state_of(s), opcode));
-    if (!back(m, as))
-        return false;
-    *st = (EventStep){ s->cpu.x, m_flag(s, CPU_FLAG_C) };
-    return true;
-}
-
 /* A command by its row: its operation as C, or its bridge on the machine. */
 static bool run_on_the_machine(void *ctx, uint16_t at, EventStep *st)
 {
@@ -189,8 +170,11 @@ static bool run_on_the_machine(void *ctx, uint16_t at, EventStep *st)
     GameState *g = state_of(s);
     uint8_t opcode = script_byte(g, at);
     const EventOpcode *row = event_opcode(opcode);
-    if (!row || !takes(s, row, at))
-        return through_the_table(m, at, st);
+    if (!row || !takes(s, row, at)) {
+        program_breaks_a_contract(g, HANDLERS_BANK | command_handler(g, opcode),
+                                 row ? "an event command outside its contract" : "an invalid event opcode");
+        return false;
+    }
     uint32_t handler = handler_of(s, opcode);
     if (!row->run) {
         BridgeMachine as = event_machine(s, false);
@@ -216,6 +200,7 @@ static bool bank_reaches_low_ram(void *ctx) { return m_bank_reaches_low_ram(((On
  * object's) in X as its loop has it there. */
 static void hand_over(Snes *s, uint16_t x, uint32_t where, uint16_t dont_care)
 {
+    program_breaks_a_contract(state_of(s), where, "an event turn left its script or machine contract");
     s->cpu.x = x;
     m_stop_at_own(s, where, dont_care);
 }

@@ -96,6 +96,7 @@ add_library(ct_game STATIC
   game/event/contact.c
   game/event/dialog.c
   game/event/engine.c
+  game/event/machine_forms.c
   game/event/entries.c
   game/event/facing.c
   game/event/flow.c
@@ -555,6 +556,12 @@ target_include_directories(assets_test PRIVATE frontend game)
 add_executable(vars_test tests/port/vars_test.c)
 target_include_directories(vars_test PRIVATE game)
 target_link_libraries(vars_test PRIVATE ct_vars_checked ct_runtime)
+
+# Field visibility must survive with all comparison scaffolding removed.
+add_executable(event_contract_test tests/port/event_contract_test.c)
+target_link_libraries(event_contract_test PRIVATE ct_game_native_shape ct_vars_checked ct_runtime)
+add_executable(field_test tests/port/field_test.c)
+target_link_libraries(field_test PRIVATE ct_game_native_shape ct_vars_checked ct_runtime)
 
 # Instruction translation (tools/generate, docs/GENERATED.md), with C generated into
 # the build tree for every opcode and context: sst_generated_runner runs it on the

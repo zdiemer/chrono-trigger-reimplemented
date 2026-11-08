@@ -17,4 +17,12 @@ void field_hold_party_if_defeated(Snes *s);
  * where it went no further. */
 bool field_taken_up_after_battle(GameState *g, Platform *pf);
 
+/* Continuations of the field's held frame waits. */
+void field_game_over_waits_for_a_button(Snes *s);
+void field_game_over_fades(Snes *s);
+void field_return_to_kept_place_fades(Snes *s);
+void field_restores_its_picture(Snes *s);
+void field_restores_its_script(Snes *s);
+void field_finishes_restoring(Snes *s);
+
 #endif

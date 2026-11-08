@@ -62,7 +62,7 @@ static ObjectView view_of(uint8_t stored)
 {
     if (stored & IN_VIEW_BIT)
         return IN_VIEW;
-    return stored == OUT_OF_VIEW_BYTE ? OUT_OF_VIEW : OVERWRITTEN_BY_A_LINK;
+    return stored == OUT_OF_VIEW_BYTE ? OUT_OF_VIEW : PRESENT_WITHOUT_UPDATES;
 }
 
 ObjectView object_view(const GameState *g, FieldObject obj) { return view_of(field_object_in_view(g, obj)); }
@@ -75,6 +75,19 @@ ObjectView object_view_past_the_tables(const GameState *g, FieldObject slot)
 void object_set_in_view(GameState *g, FieldObject obj, bool in_view)
 {
     set_field_object_in_view(g, obj, in_view ? IN_VIEW_BYTE : OUT_OF_VIEW_BYTE);
+}
+
+/* Removing a row's tail also changes another object's visibility. This
+ * happens to object zero during Lara's rescue: it stops updating, while
+ * contact, scripts and sprite selection still regard it as present. When
+ * the predecessor is object zero it becomes wholly out of view instead.
+ * Preserve this observable rule independently of the old adjacent tables:
+ * the end marker selects the affected object, and the predecessor supplies
+ * its stored visibility. A normal visibility update replaces it again. */
+void object_apply_row_tail_visibility(GameState *g, FieldLink end, FieldLink predecessor)
+{
+    FieldObject affected = (FieldObject)(field_linked_object(end) - FIELD_OBJECTS);
+    set_field_object_in_view(g, affected, field_link_byte(predecessor));
 }
 
 /* ---- The screen ------------------------------------------------------------------------------ */

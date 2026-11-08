@@ -1,6 +1,6 @@
 /* Where the event script language (event/script.h) meets the original's
- * machine: the registered entries of the engine and of the commands, the
- * guards, the translation to and from the original's registers, and what the
+ * machine: the engine and command forms the still-gated field calls, their
+ * checked contracts and translation to and from registers, and what the
  * bridges -- the commands that still call out to the original's code -- share.
  * Nothing outside this file, event/bridge.c and the bridges takes a `Snes *`;
  * a build without the original's engine replaces them. The bridges call the
@@ -31,9 +31,7 @@
  * handler's calling convention. event/event.h lists them (EVENT_BRIDGES). */
 typedef void (*EventBridge)(Snes *s);
 
-/* The registered entry of an opcode's row, and its guard: the port runs the
- * command at Y by its row and returns as the original does. */
-void event_command_entry(Snes *s, uint8_t opcode);
+/* The state half of a retained command form's contract. */
 bool event_command_accepts(Snes *s, uint8_t opcode);
 
 /* Call a bridge of this subsystem as the original's JSR at `site` calls the

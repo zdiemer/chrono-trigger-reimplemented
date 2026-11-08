@@ -1,16 +1,5 @@
-/* The registered entries of the commands (event/event.h), and their guards,
- * for the callers that reach a handler by its address -- the original's own
- * loop that starts a character's script, its opening up to its first zero
- * byte ($C0:597D), and
- * ct_fuzz, which exercises each alone. An operation's entry runs the command
- * by its row, as the engine does; a bridge is its own entry. Either way the
- * guard is the row's. */
+/* Contracts of the machine forms the still-gated field calls as C. */
 #include "event/bridge.h"
-
-#define EVENT_DEFINE_ENTRY(name, opcode)                                          \
-    void name(Snes *s) { event_command_entry(s, opcode); }                      \
-    bool name##_accepts(Snes *s) { return event_command_accepts(s, opcode); }
-EVENT_ENTRIES(EVENT_DEFINE_ENTRY)
 
 #define EVENT_DEFINE_GUARD(name, opcode) \
     bool name##_accepts(Snes *s) { return event_command_accepts(s, opcode); }

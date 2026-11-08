@@ -132,7 +132,7 @@ static bool unpack(void *ctx, FieldSpriteRecord r, SetKind kind)
     (void)unpack_stream(g);
     if (graphics_unpacked(g))
         return true;
-    program_needs_the_machine(g, set_calls[kind].too_far, "a set of sprite graphics past the bank's end, which stops the game");
+    program_breaks_a_contract(g, set_calls[kind].too_far, "a set of sprite graphics past the bank's end, which stops the game");
     return false;
 }
 
@@ -175,6 +175,7 @@ static bool unpack_on_the_machine(void *ctx, FieldSpriteRecord r, SetKind kind)
     (void)unpack_stream_called(g, false);
     if (graphics_unpacked(g))
         return true;
+    program_breaks_a_contract(g, set_calls[kind].too_far, "sprite graphics exceed their bank");
     m_stop_at(s, set_calls[kind].too_far, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
     return false;
 }

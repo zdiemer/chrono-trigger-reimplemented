@@ -25,4 +25,20 @@ bool field_requests_can_run(Snes *s);
 bool field_requests_can_be_answered(const GameState *g);
 enum { FIELD_HANDLE_REQUESTS_ENTRY = 0xC00C76 };
 
+/* Continuations of the field's held frame waits. */
+void field_tile_copy_recentres(Snes *s);
+void field_tile_copy_sends_layers(Snes *s);
+void field_tile_copy_finishes_bg1(Snes *s);
+void field_tile_copy_finishes_bg2(Snes *s);
+void field_tile_copy_finishes_bg3(Snes *s);
+void field_tile_copy_returns(Snes *s);
+void field_tile_copy_sends_second_layer(Snes *s);
+void field_tile_copy_restores_first_layer(Snes *s);
+void field_tile_copy_finishes_both_layers(Snes *s);
+void field_requested_battle_finishes(Snes *s);
+void field_requested_battle_returns(Snes *s);
+void field_requested_battle_starts(Snes *s);
+
+void field_requested_battle_decided(Snes *s);
+
 #endif

@@ -120,6 +120,11 @@ bool bridge_call_on_page(Snes *s, uint32_t site, uint32_t routine, uint16_t dont
  * (platform/timing.h), from the JSR at `site` to the original's wait
  * `routine` ($C0:EC60). True if it came back as `m`, as bridge_call. */
 bool field_wait_frame(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, BridgeMachine m);
+/* For callers with a named continuation after the frame wait. */
+bool field_hold_next_frame(Snes *s, uint32_t site, uint16_t dont_care, BridgeMachine m);
+void field_return_to_waiting_caller(Snes *s);
+void field_hold_finished_frame(Snes *s, uint16_t dont_care);
+void field_hands_over_to(Snes *s, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
 
 /* After a call made some other way (a service's call-out, a sibling bridge
  * called as the original's JSR calls it), returning to `returns_to`: the
@@ -175,5 +180,8 @@ bool field_current_object_io_bank(Snes *s);
 bool field_on_layers_page(Snes *s);
 bool field_on_layers_page_low_bank(Snes *s);
 bool field_on_layers_page_io_bank(Snes *s);
+
+bool field_run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
+                       BridgeMachine m);
 
 #endif

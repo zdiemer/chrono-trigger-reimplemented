@@ -204,6 +204,17 @@ class UnreachedTest(unittest.TestCase):
         self.assertFalse(f.covers({'name': 'caller'}, 'callee'))
         self.assertTrue(f.covers({'name': 'caller', 'covers': ['callee']}, 'callee'))
 
+    def test_held_continuation_recipe_keeps_its_owner_and_entry(self):
+        (self.root / 'tools').mkdir()
+        (self.root / 'tools/unreached_cases.toml').write_text(
+            '[[case]]\nbase="owner"\nvariant="held"\nat="C01234"\nwhy="resume"\n')
+        with patch.object(f, 'ROOT', self.root), patch.object(
+                f.fuzz_compare, 'load', return_value=({}, [dict(name='owner', args=[])])):
+            _, recipes = f.recipes()
+        recipe = recipes['owner:held']
+        self.assertEqual(recipe['at'], 'C01234')
+        self.assertTrue(f.covers(recipe, 'owner'))
+
     def test_restart_only_stop_does_not_hide_screen_dispatch(self):
         # Synthetic instructions at the real regression's addresses. The
         # original dispatch serves curtain, ripple and restart; only restart

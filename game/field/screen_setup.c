@@ -407,16 +407,25 @@ static bool set_the_screen_up(Snes *s)
                    page(s)))
         return false;
     put_up_the_window(g, pf);
-    if (!field_run_table_step(s, 0xC028A1, ready_the_line_effects))
-        return false;
-    tm_wait_frame_then_enable(pf, PF_CALL_DC(0xC028A1, SCREEN_ON, READS_NOTHING), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD,
-                              FIELD_PICTURE_LAST_LINE);
-    if (!bridge_back(s, 0xC028A4, page(s)) || !field_wait_frame(s, 0xC028A4, FRAME_WAIT, READS_NOTHING, page(s)))
-        return false;
+    return field_run_or_hand_over(s, 0xC028A1, 0xC00B28, READS_NOTHING, field_ready_the_picture, page(s));
+}
+
+// $C0:28A4
+/* The picture's handlers are on. Send its first complete frame before the
+ * fade starts, leaving the main thread saveable at the shared frame wait. */
+void field_picture_waits_for_its_first_frame(Snes *s)
+{
+    (void)field_hold_next_frame(s, 0xC028A4, READS_NOTHING, page(s));
+}
+
+// $C0:28A7
+void field_picture_is_ready(Snes *s)
+{
+    GameState *g = state_of(s);
     uint8_t dark = field_setting_1e(g);
     m_set_a8(s, dark);
     m_set_nz8(s, dark);
-    return true;
+    field_return_to_waiting_caller(s);
 }
 
 void field_set_the_screen_up(Snes *s)
@@ -663,7 +672,7 @@ static bool work_on_the_machine(void *ctx, FadeInKind kind)
 static bool wait_on_the_machine(void *ctx, FadeInKind kind)
 {
     Snes *s = ctx;
-    return field_wait_frame(s, fade_in_sites[kind].wait, FRAME_WAIT, READS_NOTHING, page(s));
+    return field_hold_next_frame(s, fade_in_sites[kind].wait, READS_NOTHING, page(s));
 }
 
 /* A is left the last brightness, or the dark setting, which the callers'
@@ -683,3 +692,61 @@ static void fade_in_on_the_machine(Snes *s, FadeInKind kind)
 void field_fade_in_entry(Snes *s) { fade_in_on_the_machine(s, WITH_THE_FRAMES_WORK); }
 
 void field_fade_in_after_a_menu_entry(Snes *s) { fade_in_on_the_machine(s, WITH_THE_EFFECTS_ONLY); }
+
+/* A fade has no private working state between frames: its brightness and
+ * the location's dark setting determine the next step. Returning also
+ * keeps the caller's continuation named, across the setup and fade calls. */
+static void finish_brightening(Snes *s, uint8_t shown)
+{
+    GameState *g = state_of(s);
+    set_field_setting_1e(g, 0);
+    start_play_clock(g);
+    m_set_a8(s, shown);
+    m_set_nz8(s, shown);
+    field_return_to_waiting_caller(s);
+}
+
+static void brighten_one_frame(Snes *s, FadeInKind kind)
+{
+    GameState *g = state_of(s);
+    set_field_brightness(g, (uint8_t)(field_brightness(g) + 1));
+    uint8_t control = field_player_control(g);
+    hand_the_party_to_the_player(g, false);
+    if (!walk_on_the_machine(s, kind, control))
+        return;
+    set_field_player_control(g, control);
+    if (work_on_the_machine(s, kind))
+        (void)wait_on_the_machine(s, kind);
+}
+
+static void picture_ready_to_brighten(Snes *s, FadeInKind kind, bool brighten, uint8_t shown)
+{
+    if (brighten)
+        brighten_one_frame(s, kind);
+    else
+        finish_brightening(s, shown);
+}
+
+static void picture_brightened_a_frame(Snes *s, FadeInKind kind)
+{
+    uint8_t shown = field_brightness(state_of(s));
+    if (still_brightening(shown))
+        brighten_one_frame(s, kind);
+    else
+        finish_brightening(s, shown);
+}
+
+// $C0:284B
+void field_picture_begins_brightening(Snes *s)
+{
+    picture_ready_to_brighten(s, WITH_THE_FRAMES_WORK, m_flag(s, CPU_FLAG_Z), (uint8_t)s->cpu.a);
+}
+// $C0:2827
+void field_menu_picture_begins_brightening(Snes *s)
+{
+    picture_ready_to_brighten(s, WITH_THE_EFFECTS_ONLY, m_flag(s, CPU_FLAG_Z), (uint8_t)s->cpu.a);
+}
+// $C0:2860
+void field_picture_brightened(Snes *s) { picture_brightened_a_frame(s, WITH_THE_FRAMES_WORK); }
+// $C0:283C
+void field_menu_picture_brightened(Snes *s) { picture_brightened_a_frame(s, WITH_THE_EFFECTS_ONLY); }
