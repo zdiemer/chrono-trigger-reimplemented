@@ -3029,7 +3029,9 @@ comparisons.
   measurement, 406 calls/returns still enter `$C0:EC60`'s setup by address,
   and 25 timing-service calls enter `$C0:0B38` before naming its wait.
   Remove those caller-side machine dependencies during teardown while
-  preserving arbitrary callers' returns and save/load behavior.
+  preserving arbitrary callers' returns and save/load behavior. Preserve
+  empty dispatch boundaries too (`native_sync_boundary`): settling only
+  accrued accesses skips the driver's minimum step and interrupt poll.
   Three battle movies also retain 21 instructions under the returning
   field pass's open comparison, the documented `open C0:00BD` allowance;
   the field still waits inside that caller for the battle to finish.

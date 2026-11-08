@@ -628,6 +628,12 @@ void native_jump_call_dc(Snes *s, uint32_t site, uint32_t target, uint32_t retur
  * effect in SHADOW mode or outside the runtime. */
 void native_sync(Snes *s);
 
+/* Keep the dispatch boundary a direct continuation replaces, even when the
+ * preceding wrapper made no accesses. Unlike native_sync, this yields an
+ * empty stretch too: the driver polls interrupts and advances its minimum
+ * step just as it did at the stop. No effect in SHADOW or outside the runtime. */
+void native_sync_boundary(Snes *s);
+
 /* For native routines that read the beam's position (a budget of work by the
  * line the picture has reached): call it after latching the counters ($2137)
  * and before reading them. In SHADOW mode the routine runs on a copy of the

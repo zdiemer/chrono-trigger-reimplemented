@@ -3717,13 +3717,19 @@ void native_call_poison_reset(void)
     poisoning = false;
 }
 
-void native_sync(Snes *s)
+void native_sync_boundary(Snes *s)
 {
     Job *j = current_job;
-    if (!j || j->m != s || !active_runtime || active_runtime->mode != NATIVE_ON || !s->bus.clocks)
+    if (!j || j->m != s || !active_runtime || active_runtime->mode != NATIVE_ON)
         return;
     j->state = JOB_SYNCING;
     fiber_switch(fiber_main());
+}
+
+void native_sync(Snes *s)
+{
+    if (s->bus.clocks)
+        native_sync_boundary(s);
 }
 
 void native_await_latch(Snes *s)

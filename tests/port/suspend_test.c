@@ -745,6 +745,62 @@ static void start_probe_music(void *ctx, Snes *s)
         s->apu.cpu_out[3] = 1;
 }
 
+/* An empty backedge still consumes a dispatch step and polls interrupts.
+ * Calling its next pass inline must preserve that boundary even though no
+ * accesses have accrued for native_sync to pay. */
+static void boundary_frame(Snes *s)
+{
+    m_write8(s, FRAMES_DONE, (uint8_t)(m_read8(s, FRAMES_DONE) + 1));
+    m_stop_at(s, 0x008205, 0);
+}
+
+static void boundary_backedge(Snes *s) { m_stop_at(s, 0x008200, 0); }
+
+static void boundary_direct(Snes *s)
+{
+    m_jump_to(s, 0x008200);
+    native_sync_boundary(s);
+    boundary_frame(s);
+}
+
+static void empty_boundary_case(void)
+{
+    static const Code code[] = {
+        { 0x8000, { 0x78, 0x18, 0xFB, 0xC2, 0x10, 0xE2, 0x20, 0xA2, 0xFF, 0x01, 0x9A,
+                    0xA9, 0x80, 0x8D, 0x00, 0x42, 0x4C, 0x00, 0x82 }, 19 },
+        { 0x8200, { 0xE6, 0x70, 0x4C, 0x05, 0x82, 0x80, 0xF9 }, 7 },
+        { 0x8600, { 0xE6, 0x40, 0x40 }, 3 },
+    };
+    NativeEntry entries[] = {
+        { .addr = 0x008200, .name = "frame", .fn = boundary_frame, .cost_milli = 1000 },
+        { .addr = 0x008205, .name = "backedge", .fn = boundary_backedge, .cost_milli = 1000 },
+    };
+    uint8_t *rom = make_rom(code, sizeof code / sizeof code[0], 0x8600);
+    Snes *reference = machine(rom), *direct = machine(rom);
+    NativeRuntime *before = native_create(entries, 2, NATIVE_ON);
+    entries[1].fn = boundary_direct;
+    NativeRuntime *after = native_create(entries, 2, NATIVE_ON);
+    native_attach(before, reference);
+    native_attach(after, direct);
+    for (int frame = 0; frame < 8; frame++) {
+        snes_run_frame(reference, 0);
+        snes_run_frame(direct, 0);
+        CHECK(reference->master == direct->master &&
+                  !memcmp(reference->bus.wram, direct->bus.wram, sizeof reference->bus.wram) &&
+                  !memcmp(&reference->cpu, &direct->cpu, offsetof(Cpu, bus)),
+              "empty boundary changed frame %d, master %llu/%llu, passes %u/%u", frame,
+              (unsigned long long)reference->master, (unsigned long long)direct->master,
+              reference->bus.wram[FRAMES_DONE], direct->bus.wram[FRAMES_DONE]);
+    }
+    CHECK(reference->bus.wram[0x40] >= 7 && !native_failed(before) && !native_failed(after),
+          "empty boundary did not preserve the vblank interrupts");
+    native_destroy(after);
+    native_destroy(before);
+    free(direct);
+    free(reference);
+    free(rom);
+}
+
 static void scene_wait_case(void)
 {
     static const Code code[] = {
@@ -786,6 +842,7 @@ int main(void)
     held_wait_case();
     named_hold_case();
     returning_hold_case();
+    empty_boundary_case();
     scene_wait_case();
     if (failures)
         printf("%d failure(s)\n", failures);

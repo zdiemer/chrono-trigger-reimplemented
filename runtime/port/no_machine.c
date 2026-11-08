@@ -120,6 +120,7 @@ void native_poison_sibling_return(Snes *s, const NativeEntry *e) { (void)s, (voi
 /* ---- A port's time, as the machine estimates it ------------------------------------------------ */
 
 int native_time_as(Snes *s, uint32_t routine) { (void)s, (void)routine; no_machine("native_time_as"); }
+void native_sync_boundary(Snes *s) { (void)s; no_machine("native_sync_boundary"); }
 int native_time_as_sibling(Snes *s, uint32_t routine) { (void)s, (void)routine; no_machine("native_time_as_sibling"); }
 void native_time_end(Snes *s, int was) { (void)s, (void)was; no_machine("native_time_end"); }
 uint32_t native_uncounted_begin(Snes *s) { (void)s; no_machine("native_uncounted_begin"); }

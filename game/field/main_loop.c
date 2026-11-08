@@ -979,12 +979,14 @@ static void pass_then_wait(Snes *s, PassStep from, uint32_t timed_as)
 /* The vblank handler has taken the frame and the wait has returned into the
  * main loop: the loop goes round, its next pass and the wait for the next
  * frame, held again. A continuation of the held wait (holds.h). The loop goes
- * round to its head first, where an interrupt that has come is taken before
- * the pass reads the frame's presses, as at the machine's stop there. */
+ * round to its head first, keeping the empty backedge's dispatch boundary:
+ * the driver advances its minimum step and polls interrupts before the pass
+ * reads the frame's presses, as at the machine's stop there. An ordinary
+ * time sync skips this boundary because the backedge made no accesses. */
 void field_next_frame(Snes *s)
 {
     m_jump_to(s, MAIN_LOOP);
-    tm_sync(m_platform(s));
+    native_sync_boundary(s);
     const NativeEntry *e = native_hand_entry_at(s, MAIN_LOOP);
     if (!e || e->fn != field_frame) {
         m_stop_at(s, MAIN_LOOP, THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW);

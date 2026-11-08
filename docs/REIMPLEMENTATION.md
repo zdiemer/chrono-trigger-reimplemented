@@ -3970,7 +3970,7 @@ address. A fade or event command waiting through a call-out can still be
 suspended; the held wait does not invent a continuation for that caller.
 
 **Timing and contracts.** Before calling the loop head or its frame-end
-wait directly, the caller pays the preceding stretch with `tm_sync` and
+wait directly, the caller keeps the preceding dispatch boundary and
 checks `native_hand_entry_at`, including the full P mask, widths, page,
 bank and code guard. Refusal stops at the original entry. Inline work keeps
 the original entries' estimates; no estimate changes. The next-pass wrapper
@@ -3983,6 +3983,22 @@ The walk continuation uses its retained wrapper and cost without an extra
 continuation charge. The screen wait keeps the existing vblank predicate
 and idle exit time; its handler-enable continuation keeps the original
 width and I/O-bank contract.
+
+The backedge makes no accesses: `tm_sync` alone would skip its empty
+stretch, losing the driver's minimum step and interrupt poll at the old
+stop. `native_sync_boundary` yields even that empty stretch; the frame-end
+wait still uses `tm_sync` to settle the pass's work. Without the empty
+boundary, `attract-demo` first diverged from main at frame 2,727 and its
+second demo cycle later slipped four frames. Keeping it restores the first
+5,000 frames byte for byte and all 22,500 frames' existing strict outcome
+expectations, without changing their exceptions. `suspend_test` also
+compares an empty backedge with its direct continuation for eight frames,
+including the vblank interrupts, with no ROM.
+The full demo trace has no divergence outside the stack page, including
+every framebuffer hash. Its first remaining difference, frame 5,843, is
+two bytes at `$7E:06F8` and `$7E:06FA` below both runs' S (`$06FD`); both
+are waiting at `$C0:EC71` with P `$20`. These are stack residue left by the
+different dispatch paths. The four field traces below remain entirely equal.
 
 **Measured against main (`bfd75c49`).** Shipping mode over `field-floor-switch` (3,501
 frames), `field-factory-switch` (8,387), `field-northern-ruins-switch`

@@ -887,6 +887,11 @@ comparison of the same pass at the same stack depth. Each entry has its own
 wrapper; independent calls still compare. Its sibling timing scope assigns
 the pass's error to the field pass, preserving the estimates for both the
 pass and the backedge.
+The backedge preserves its dispatch boundary with `native_sync_boundary`,
+which yields in shipping mode even when no accesses accrued. The driver's
+minimum step and interrupt poll at the old stop still occur before the
+next pass. `tm_sync` instead skips empty stretches; it is sufficient at
+the frame-end wait, after the pass's work. Shadow mode has no extra yield.
 The runtime's guard still decides whether a named continuation
 applies; `suspend_test` exercises a decimal-mode refusal after an idle return.
 
