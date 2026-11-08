@@ -5,8 +5,3 @@
 # on one, is a new fallback, and needs its reason. An `open PORT` line is what the original ran
 # under that port's comparisons still open when a run ended, which hides it from the rest.
 7E:3176 1312 1  # handback by scene_run_vblank_tasks (scene program (RAM)): the program's empty routine a vblank task list calls; seeded over the gate's sample and the long routes
-C0:3002 1140 37  # refused by event_cmd_walk_with_the_party (field engine, events): a gap in tools/refusal_allowlist.txt (TODO.md, "Refusals in real play"); seeded over the gate's sample and the long routes
-C0:A2CE 1980 75  # refused by field_second_member_follows (field engine, events): a gap in tools/refusal_allowlist.txt (TODO.md, "Refusals in real play"); seeded over the gate's sample and the long routes
-C1:5FDE 66 70  # refused by script_face (battle): a gap in tools/refusal_allowlist.txt (TODO.md, "Refusals in real play"); seeded over the gate's sample and the long routes
-C1:75CC 18 11  # refused by script_face (battle): a gap in tools/refusal_allowlist.txt (TODO.md, "Refusals in real play"); seeded over the gate's sample and the long routes
-C1:7639 14 17  # refused by script_face (battle): a gap in tools/refusal_allowlist.txt (TODO.md, "Refusals in real play"); seeded over the gate's sample and the long routes

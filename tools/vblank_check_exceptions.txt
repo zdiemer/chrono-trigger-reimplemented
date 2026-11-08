@@ -22,8 +22,6 @@ scene_program_next_pass display lines the scene program's end, run as C at the m
 scene_program_next_pass hdma-enable lines per-line effects end with the blank above, at line 37 or 38 instead of 38, once a scene
 warp_go_dark display lines the time warp's end blanks the picture from line 10 instead of 11, once a warp, after the last frame's work: mid-picture in the original too, and the frame before it is estimated
 warp_go_dark hdma-enable lines the warp's line effects end with the blank above, at line 10 instead of 11, once a warp
-warp_end display visible the same blank at the warp's end, run as C from the end's entry (warp/warp.c): on line 11 of the frame the flickering trip ends on, as the original's on line 11 (endings-bucket-lavos), the shipping mode's trip ending a frame sooner, whose vblank the check pairs it with; not the trips' starts' estimates, which their calibration measured exact (their own work is a store between two calls timed as their routines), so the frame is the trip's frames' estimates' to find
-warp_end hdma-enable visible the warp's line effects ending with that blank, on line 11 as the original's
 
 # The battle's line interrupt taken late while the battle's frame work runs with
 # interrupts masked (P.I set) past line 211: the reference does the same in the

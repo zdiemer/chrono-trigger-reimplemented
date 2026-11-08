@@ -191,20 +191,32 @@ rest waits, is [PLAN.md](PLAN.md).
     the window and bounds at their rates), so the handlers' time isn't taken
     out twice. A dispatcher's own value is ill-conditioned this way; it moves
     only its own few clocks.
-  - *Two entries the interrupted calibration would break.* At the values
-    their interrupted calls imply, `battle_share_experience` (21758 to
-    347796) puts a plain call 51,942 clocks off (the `worst` limit is 50,468)
-    and `scene_ending_start_mode7_picture` (10452 to 166947) a vblank one
-    81,358 off: their own clocks are a sliver beside their parts, and their
-    calls' paths differ. They keep their values; the batched calibration over
-    the library will meet the same.
-  - *A long route to check.* A `--long-routes` gate of the branch that added
-    the interrupted measurement and the DMA step (with the sound waits'
-    handlers, since backed out, and before the two values above were put
-    back) had 55 of 56 routes reach
-    their outcome in the shipping mode; it was stopped when the gate policy
-    changed, before it named the one that didn't. The batch's long routes
-    will.
+  - *The ending picture dispatcher's calibration.* Fitting
+    `scene_ending_start_mode7_picture` (10452 to 166947) puts a vblank call
+    81,358 clocks off: its own clocks are a sliver beside its parts, and its
+    calls' paths differ. It keeps its value; separate the paths before
+    changing that rate.
+  - *The experience-sharing dispatcher's calibration.* Its ordinary and
+    interrupted paths need separate estimates. The batched fit over 120
+    stretches assigns 132501 to its small own share; a fresh Ozzie's Fort
+    replay then puts an ordinary call 59,116 clocks off, beyond the 50,468
+    limit (Flea and Slash also exceed it). It retains 21758 with a drift
+    exception while its parts use their fitted rates.
+  - *Short and ordinary hits need separate estimates.* The repeated-hit
+    interrupted fit in `45483053` raised its rate from 3000 to 54554, pushing
+    two complete Spekkio calls up to 88,609 clocks off. Retain 3000 and the
+    nested hit's 45460; fitting the latter's ordinary calls at 48677 still
+    overcharges the repeated effect's short path. Split the estimates before
+    removing the hit's drift exception.
+    The member-tech dispatcher's mixed effects have the same problem:
+    refitting its own share at 31178 after retaining those rates creates
+    a 63,323-clock complete-call outlier. Keep 17772 until its effect kinds
+    can be measured separately.
+  - *The race's row estimates exceed their caller's time.* Across 1700
+    interrupted stretches of `scene_race_scale_after_crono`, the calibrated
+    row and copy parts alone exceed the measured original time. Its own
+    rate is already 1; the remaining +3.64% needs a model of the differing
+    row work, not a negative rate for the caller.
 - **Charge the endings' swept window by its lines.** `scene_ending_sweep_window`
   (`$7E:9A0C`, `game/scene/endings.c`) carries one calibrated `cost_milli`,
   but the original's time follows the window's lines and corners as it sweeps
@@ -3073,12 +3085,8 @@ comparisons.
   (`game_kept_estimates`) are frozen, measured by no timing gate or
   calibration; `re/ram.toml` still cites the deleted `warp_on_its_page`.
 - **What the map scroll's review left.** `menu_run_sprite_script` underestimates
-  the frames that only run a sprite script inline; fixing it retires the
-  `overworld_dactyl vblank-tail` exception. The three timing exceptions the
-  strip split dropped, and the rates it moved (the dactyl, the Epoch, the leader,
-  `menu_run_object_script`), were judged on the 35 movies that scroll the map:
-  the next batched `--all-movies` run confirms them. Its re-recorded outcome
-  lines no longer say whether a protected match was lost; say so.
+  the frames that only run a sprite script inline. Its older re-recorded
+  outcome lines no longer say whether a protected match was lost; say so.
 
 - **The `dc-evidence:` notes' cited counts are stale.** The notes name how many
   calls their `ct_fuzz --poison-dc` run made, and the current runs make more
@@ -3290,13 +3298,15 @@ list, by kind, is what `game/` still asks of one.
     original's time (`--port-timing oracle --port-horizon interrupts`) the
     drifting movies end as the reference's (`tools/drift.py` shows it per
     movie, with where each parts and the milestone that moved).
-  - *Dialog presses.* In `events-ocean-palace-lavos` the presses through
-    Schala's and Magus's lines in the Mammon Machine's room land on other
-    frames from about frame 18000, one short, and the run waits on a line
-    until the next press: strict mode and `ct_native` reach Zeal's fall
-    about 4,750 frames late, and `ct_native` ends in the reference's own black
-    stretch before the Last Village (`tools/native_dark_exceptions.txt`, whose
-    line comes out with this).
+    The diagnostic tool must also report failed exits: the ledger's fresh
+    original-timed end-state proofs match game and save RAM while reporting
+    sound-queue overruns. State agreement is evidence about that state,
+    not a passing run; keep the fault visible in the diagnostic verdict.
+  - *Dialog presses.* In `events-ocean-palace-lavos`, recorded presses still
+    land on different dialog states. After the whole-library rate fit, the
+    native replay misses the reference's Mammon Machine room visit (`$19F`
+    at frame 16965). Follow the first shifted dialog before adjusting the
+    later scene's timing.
 
   Meanwhile drive the long movies' native runs by their routes (`ct_drive`'s
   scripts react to the game's state, MOVIES.md) rather than recorded presses,

@@ -4145,17 +4145,33 @@ New movies or missing records fail closed. The suite
 runs both recorded checks after strict and native checks, and clears their
 old artifacts before a run, so skipping a producer cannot pass on stale data.
 
-The ledger records the whole library, 84 movies (2,289,640 frames): the gate's
-37 first, the other 47 from the batched library run of `92026499`. Strict mode
-passes its ratchet on all 84 and native mode on all 84, with these protected
-observations (after that run's drift-only calibration; `battle-ozzies-fort`'s
-native row was recorded after it, once the chest messages it reads joined the
-asset catalogue):
+The ledger records the whole library, 84 movies (2,289,640 frames). The
+batched run of `bfd75c49` supplies the reference observations, unchanged
+from the earlier ledger. Its hand-port observations are replaced per movie
+by the ledger branch's fresh targeted and sampled runs. Reasons on changed
+exception rows identify their source and any formerly protected identities
+that moved outside tolerance. The preceding measurement and the regression
+diagnoses are in [the ledger history](history/library-ledgers.md).
 
 | Mode | Saved game / save RAM matches (movies) | Picture match / drift / differ (checkpoints) | Place match / drift / differ (visits) |
 |---|---|---|---|
-| Strict | 42 / 80 of 84 | 1,062 / 178 / 6,508 | 436 / 163 / 271 |
-| Native | 36 / 72 of 84 | 583 / 97 / 7,068 | 93 / 461 / 330 |
+| Strict | 40 / 77 of 84 | 1,093 / 160 / 6,495 | 436 / 178 / 256 |
+| Native | 35 / 69 of 84 | 612 / 147 / 6,989 | 89 / 475 / 316 |
+
+The batch fits 74 drifted rates, plus the planet setup whose small call
+count does not qualify for the drift check. The repeated-hit effect's rate
+returns to 3000 after an interrupted fit broke its complete calls. It
+retains the hit's rate because its ordinary and short paths need separate
+estimates, and the member-tech dispatcher's rate because its mixed effects
+create a complete-call outlier when fitted together. The experience-sharing
+and ending picture dispatchers also keep their rates: fitting their small
+own shares after subtracting their parts creates ordinary-call and vblank
+timing outliers respectively.
+Scene setup exceptions describe loading with the display blanked; the
+planet's rate no longer waits for this batch. Both `warp_end` video
+exceptions disappear from the full library's observations. All 56 long
+routes in the batch reach their outcomes. Branch validation uses the
+sample and fresh targeted movies, with one worker per tool.
 
 No movie matches every kind in either mode. These are existing debts,
 explicitly reasoned per movie, not a claim of harmless pixel changes.
