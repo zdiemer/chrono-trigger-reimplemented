@@ -191,7 +191,7 @@ static void take_the_interrupts(GameState *g)
 
 /* Where the field's entry and its main loop start; the loop reads A's high
  * byte and the overflow as the last pass, or the field's entry, left them. */
-enum { ENTER = 0xC0005D, MAIN_LOOP = 0xC00097, WAIT_FOR_THE_NEXT_FRAME = 0xC000BA, GOES_ON_WITH_THE_WALK = 0xC000A7 };
+enum { ENTER = 0xC0005D, MAIN_LOOP = 0xC00097, WAIT_FOR_THE_NEXT_FRAME = 0xC000BA };
 enum { THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
 /* For shadow mode: the sound driver's start is called with the field's
@@ -375,7 +375,7 @@ void field_enter(Snes *s)
     display_leaves_the_machine_dark(s);
     s->cpu.d = FIELD_PAGE;
     if (enter_the_location(state_of(s), m_platform(s), &on_the_machine, s))
-        m_stop_at(s, MAIN_LOOP, THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW);
+        m_hold_at(s, MAIN_LOOP, THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW, HOLD_FIELD_FRAME);
 }
 
 /* The guard: a location the game keeps, its number in the word's low bits
@@ -705,7 +705,7 @@ void field_wait_for_the_next_frame(Snes *s)
 
 // $C0:00BD
 /* Back from the wait, the main loop goes round. */
-void field_main_loop_goes_round(Snes *s) { m_stop_at(s, MAIN_LOOP, THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW); }
+void field_main_loop_goes_round(Snes *s) { field_next_frame(s); }
 
 // $C0:00DE
 /* The effects refreshed for the next frame: the line effects' tables built
@@ -957,13 +957,13 @@ void field_finish_frame(Snes *s)
  * would. */
 static void wait_for_the_next_frame_after_the_pass(Snes *s)
 {
+    m_jump_to(s, WAIT_FOR_THE_NEXT_FRAME);
+    tm_sync(m_platform(s));
     const NativeEntry *e = native_hand_entry_at(s, WAIT_FOR_THE_NEXT_FRAME);
     if (!e || e->fn != field_wait_for_the_next_frame) {
         m_stop_at(s, WAIT_FOR_THE_NEXT_FRAME, READS_THE_OVERFLOW);
         return;
     }
-    m_jump_to(s, WAIT_FOR_THE_NEXT_FRAME);
-    tm_sync(m_platform(s));
     TIMED_AS(state_of(s), WAIT_FOR_THE_NEXT_FRAME, field_wait_for_the_next_frame(s));
 }
 
@@ -987,15 +987,10 @@ void field_next_frame(Snes *s)
 {
     m_jump_to(s, MAIN_LOOP);
     tm_sync(m_platform(s));
+    const NativeEntry *e = native_hand_entry_at(s, MAIN_LOOP);
+    if (!e || e->fn != field_frame) {
+        m_stop_at(s, MAIN_LOOP, THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW);
+        return;
+    }
     pass_then_wait(s, PAUSE_AND_MENUS_STEP, MAIN_LOOP);
 }
-
-// $C0:00A7
-/* The same where a request answered over frames ended in the wait, which
- * returns into the pass after the requests. */
-void field_next_frame_from_the_walk(Snes *s) { pass_then_wait(s, WALK_STEP, GOES_ON_WITH_THE_WALK); }
-
-/* For shadow mode, which takes the held wait's continuations as entries:
- * the loop's going round as an entry of its own only where the continuation
- * there refuses. */
-bool field_main_loop_goes_round_alone(Snes *s) { return !field_on_page_bank_zero(s); }

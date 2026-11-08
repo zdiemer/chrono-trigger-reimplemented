@@ -6267,8 +6267,9 @@ why = "any state: the frame's count and the wait's flag, to where it waits"
 name = "field_main_loop_goes_round"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00"]
-why = "any state: the loop goes round"
+args = ["--d", "0100", "--db", "00", "--with-registry"]
+iterations = 2000
+why = "the field's page and bank: the registry lets the guarded continuation run a whole pass to the named frame wait, rather than only compare its refusal stop at the loop head"
 
 [[routine]]
 name = "field_start_again"

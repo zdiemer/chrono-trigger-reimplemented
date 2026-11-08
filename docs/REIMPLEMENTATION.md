@@ -3929,6 +3929,70 @@ same C), the vblank check over the shipping mode's video writes, and the
 frame-by-frame equality with the shipping mode before the teardown measured
 above.
 
+### The field's held waits
+
+The field's waits are named before its teardown; every registry row stays.
+`HOLD_FIELD_FRAME` holds the shared frame wait at `$C0:EC71`, and
+`HOLD_FIELD_SCREEN` the picture's startup wait at `$C0:0B38`. The first
+frame is held too, the main loop's full entry contract is checked before
+its direct call, and the retained `field_main_loop_goes_round` compares
+the same next-pass implementation as the held continuation. Its don't-care
+set is the loop head's existing set:
+A's high byte and overflow remain live. The runtime preserves a hold across
+an idle return into another of that wait's continuations, with the new S;
+address lookup prefers retained rows over their held aliases.
+
+**One frame wait, not one per caller.** The return already on the emulated
+stack identifies who waited. The idle pass only reads the pending-frame
+byte and returns when the vblank handler has taken it. Two return addresses
+are main-loop continuations: `$C0:00BD`, the next complete pass, and
+`$C0:00A7`, the walk after a request. Other returns resume their caller as
+before. The four movies below exercise the full loop, requests, fades,
+menus, an event party regroup and a battle return. Their census keeps the
+same 406 machine calls/returns into the wait's setup (`$C0:EC60`); its
+2.18 million polling passes, and the main-loop passes, no longer enter by
+address. A fade or event command waiting through a call-out can still be
+suspended; the held wait does not invent a continuation for that caller.
+
+**Timing and contracts.** Before calling the loop head or its frame-end
+wait directly, the caller pays the preceding stretch with `tm_sync` and
+checks `native_hand_entry_at`, including the full P mask, widths, page,
+bank and code guard. Refusal stops at the original entry. Inline work keeps
+the original entries' estimates through `TIMED_AS`; no estimate changes.
+The walk continuation uses its retained wrapper and cost without an extra
+continuation charge. The screen wait keeps the existing vblank predicate
+and idle exit time; its handler-enable continuation keeps the original
+width and I/O-bank contract.
+
+**Measured against main.** Shipping mode over `field-floor-switch` (3,501
+frames), `field-factory-switch` (8,387), `field-northern-ruins-switch`
+(3,811) and `field-12kbc-1f4` (2,953):
+
+| Census measure | Before | Held waits |
+|---|---:|---:|
+| `$C0:0097`, machine entries | 4,132 | 0 |
+| `$C0:00BD`, machine entries | 4,114 | 0 |
+| `$C0:EC71`, machine polling passes | 2,182,034 | 0 |
+| `$C0:0B38`, machine entries/passes | 6,723 | 25 |
+| All machine entries | 3,525,734 | 1,324,628 |
+
+The named frame wait runs 2,182,293 idle passes, 4,114 complete-loop
+continuations, 18 first passes and 2 request continuations. Screen startup
+has 6,698 held idle passes and 25 handler-enable continuations; its 25
+remaining address entries are the timing service's initial calls.
+`tools/trace.py diff` finds no divergence over all 18,652 frames in WRAM,
+VRAM, SRAM, CGRAM or OAM. At floor-switch frame 2,800, `ct_drive` saves at
+`$C0:EC71` with wait 5 named and nothing suspended. A slot reload and a
+fresh process loading the file reach frame 3,000 with every state field and
+the PNG identical to uninterrupted play; replayed, inexact and lost loads
+all stay zero. `suspend_test` covers the returned stack depth, save/load and
+the retained row's shadow comparison independently of the ROM.
+
+`tools/machine_joints.py`: registered entries remain 2,136; held
+continuations 7 to 13; emulated-stack returns 994 to 993; stops 97 to 99
+(the two direct-call refusal paths); all other measures unchanged, including
+1,844 scaffolding writes. This is preparation for teardown, not retirement.
+
 ### The scene program's teardown
 
 The sixth subsystem off the gate: the gate no longer compares the scene

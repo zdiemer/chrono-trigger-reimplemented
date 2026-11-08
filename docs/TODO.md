@@ -3025,6 +3025,15 @@ comparisons.
 
 ## The native program
 
+- **The field's callers beyond its named waits.** The frame and picture
+  waits are held (REIMPLEMENTATION.md, "The field's held waits"), with all
+  registry rows retained. Fades, battle returns and event commands can
+  still suspend their caller over the shared frame wait; give those callers
+  explicit continuations as their teardown needs them. In the four-movie
+  measurement, 406 calls/returns still enter `$C0:EC60`'s setup by address,
+  and 25 timing-service calls enter `$C0:0B38` before naming its wait.
+  Remove those caller-side machine dependencies during teardown while
+  preserving arbitrary callers' returns and save/load behavior.
 - **What the field's unreached review left.** The `unreached_party_shares`
   recipe fills sharers only up to `$16` where the guard takes up to `$25`: extend
   it to `$24` so the whole accepted range of the sprite-block owner table is

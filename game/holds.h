@@ -25,6 +25,8 @@ enum {
      * every frame on a map, from the main loop and from every routine of the
      * field's that waits a frame (game/field/main_loop.c) */
     HOLD_FIELD_FRAME = 5,
+    /* the field picture waiting for vblank before its handlers turn on */
+    HOLD_FIELD_SCREEN = 6,
 };
 
 #endif

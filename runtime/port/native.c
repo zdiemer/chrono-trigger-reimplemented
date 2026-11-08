@@ -501,13 +501,18 @@ RcTiming rc_timing = { .limit = UINT32_MAX };
 
 uint64_t native_generated_instructions(void) { return generated_executed; }
 
-/* By address; hand-written entries before generated ones at the same address. */
+/* By address; hand-written entries before generated ones at the same address.
+ * A retained registry row precedes its held alias on the address path, so
+ * shadow comparisons and old saves keep the registered entry's identity.
+ * Named holds select their continuations from held_rows instead. */
 static int entry_cmp(const void *a, const void *b)
 {
     const NativeEntry *p = a, *q = b;
     if (p->addr != q->addr)
         return p->addr < q->addr ? -1 : 1;
-    return (int)p->generated - (int)q->generated;
+    if (p->generated != q->generated)
+        return (int)p->generated - (int)q->generated;
+    return (int)(p->hold != 0) - (int)(q->hold != 0);
 }
 
 /* The estimates kept for routines with no entry (native_keep_estimates). */

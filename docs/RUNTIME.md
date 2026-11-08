@@ -773,6 +773,12 @@ Now the continuation is named (`runtime/port/native.h`, `native_hold`;
   `m_hold_at`. Where the PC isn't the head or none of them applies (its code
   isn't in place), the main thread has left the wait: it stops being named,
   and the machine goes on by the address path.
+- An idle continuation can return into another continuation of the same
+  wait. The runtime keeps the wait named there with the returned stack
+  pointer, pays the idle exit's time, then checks the next continuation's
+  full contract before running it. A return anywhere else leaves the hold.
+  Retained registry rows precede held aliases in address lookup, so shadow
+  mode and old saves keep the original comparison's identity on every host.
 - The two fields are saved with the machine, so a `ct_drive` base, a slot or a
   quick save taken in the wait names it, and a fresh runtime goes on in it.
 - The original's address is still honoured, and this is the only place the
@@ -858,6 +864,29 @@ CGRAM, OAM, save RAM); on `field-65m-bc-dactyl` the machine's wait-loop
 passes went from 377,674 to 214,949, the other 162,393 now the held wait's.
 The overworld then retired the gate, and its three continuations are
 `.retired` (REIMPLEMENTATION.md, "The overworld's teardown").
+
+The field uses one shared frame wait (`HOLD_FIELD_FRAME`, `$C0:EC71`),
+including callers outside its main loop. `$C0:EC60` finishes the frame and
+holds at the polling loop, with that call's return still on the stack.
+The idle pass returns normally when vblank takes the frame. Returns to
+`$C0:00BD` start the next main-loop pass; `$C0:00A7` resumes after a request;
+both are continuations of the same wait. The first pass at `$C0:0097` is
+named by the field's entry. Other return addresses go back to their own
+callers, including a suspended fade, event command or battle return. The
+wait itself has no suspended C frame; those callers can still have one.
+One ID is sufficient because the saved stack already identifies the caller:
+no caller-specific state or pointer is stored in the hold.
+
+The picture's startup has a separate wait (`HOLD_FIELD_SCREEN`, `$C0:0B38`):
+its idle pass and the handler-enable tail at `$C0:0B3D`. The picture's
+preparation names it; a direct timing-service call enters the retained idle
+row once, which names it from then on. Neither wait retires registry rows.
+The census, trace identity and save/load evidence are in REIMPLEMENTATION.md,
+"The field's held waits". A save at floor-switch frame 2,800 names wait 5
+at `$C0:EC71`, with no routine suspended; slot and fresh-process reloads
+play 200 more frames with every saved state field and the picture identical,
+without replaying input. `suspend_test` also checks an idle return into a
+held continuation at a different stack depth and its fresh-runtime reload.
 
 ## ZSNES save states
 
