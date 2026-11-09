@@ -2995,6 +2995,9 @@ comparisons.
   suspensions; nesting the next task in the previous task's C chain changes
   its return boundary.
 
+  The shared fade start and resume also cover the original's fade-out calls;
+  its enclosing C callers still park and need the remaining held returns.
+
   Burndown rounds every battle/menu bank to 0% left; that is not proof of
   zero fallback. The existing batched shipping report has no battle fallback
   and 28 original menu instructions in `battle-r-series`, in the fade/task

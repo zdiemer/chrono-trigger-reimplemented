@@ -29,7 +29,14 @@ from tools import evidence_cache, fuzz_compare  # noqa: E402
 # program's start, setup, first frame, clear and hand-back had their cases here
 # until the program retired the gate (docs/REIMPLEMENTATION.md, "The scene
 # program's teardown"): none is an entry now.
-CASES = ()
+# Held menu continuations can reach a comparison already claimed by their
+# parent task; the battle frame dispatch likewise sits inside the battle loop.
+# Run each independently so every selected call reaches its own comparison.
+CASES = (
+    ("menu_description_task_finished", "menus-sweep", 6424, (), ("menu_description_task_finished",)),
+    ("menu_fade_resumes", "menus-sweep", 6424, (), ("menu_fade_resumes",)),
+    ("battle_frame_dispatch", "battle-menu-buttons", 5086, ("battle_nmi", "battle_nmi_alternate"), ()),
+)
 
 # The unpacker retired into this loader in 03ba3f61, making every measured
 # call cross an interrupt. Counter notifications let its complete result be

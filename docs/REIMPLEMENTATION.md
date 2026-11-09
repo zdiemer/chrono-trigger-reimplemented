@@ -4280,7 +4280,15 @@ frame and their task's completion. The setting description's handoff into
 its value keeps the setting task's calibrated rate. Fade-out and the menu
 screen sequences still have parked callers to remove. The fade's new loop
 continuation can also start independently in shadow play; its full-brightness
-return leaves the clamp's value and flags, preserving that comparison.
+return leaves the clamp's value and flags, preserving that comparison. The
+shared start and resume entries admit both fade directions: fade-out's black
+step preserves the byte sum and hands its caller through the final frame
+wait. The Ocean Palace replay compares both directions without mismatches or
+guard refusals. Parent stretches still claim many continuation comparisons;
+`uncompared_evidence.py` independently compares all 34 description completions
+and 21 fade resumptions in `menus-sweep`, and all 1,485 battle frame dispatches
+in `battle-menu-buttons` with their interrupt parents excluded. These cases
+run in the gate; the uncompared ledger names this evidence.
 
 The shipping census on `battle-menu-buttons`, `menus-sweep` and `menus-epoch`
 changes from 87 machine-entered entries and 3,455,625 calls in all to 42

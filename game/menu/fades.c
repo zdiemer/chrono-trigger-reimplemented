@@ -243,16 +243,22 @@ void menu_fade_in_task_entry(Snes *s)
 }
 
 // $C2:83FB
-/* The fade-in task advances once, then leaves its next return on the task
+/* Either fade advances once, then leaves its next return on the task
  * stack. No suspended C call needs to survive the displayed frame. */
-void menu_fade_in_resumes(Snes *s)
+void menu_fade_resumes(Snes *s)
 {
     GameState *g = state_of(s);
-    Fade f = fade_step(g, (int8_t)menu_fade_step(g));
+    int8_t step = (int8_t)menu_fade_step(g);
+    Fade f = fade_step(g, step);
     if (f.end == FADE_NEXT_FRAME) {
         m_set_a8(s, menu_fade_frames(g));
         (void)menu_run_called(s, BETWEEN_THE_STEPS, WAIT_FRAMES,
                               THE_WAITS_IGNORE_THE_FLAGS, menu_task_waits_frames);
+        return;
+    }
+    if (f.end == FADE_AT_BLACK) {
+        leave_the_step_s_sum(s, f.last_from, step);
+        menu_go_on_in(s, MENU_TASK_WAITS_A_FRAME, menu_task_waits_a_frame, THE_LAST_KEEPS_ALL);
         return;
     }
     /* The full-brightness return is also reached independently by shadow
@@ -273,19 +279,24 @@ void menu_fade_in_begins(Snes *s)
 {
     menu_set_widths(s, true, false);
     m_set_a8(s, FADE_IN_STEP);
-    (void)menu_run_called(s, 0xC283C4, 0xC283D0, 0, menu_fade_in_starts);
+    (void)menu_run_called(s, 0xC283C4, 0xC283D0, 0, menu_fade_starts);
 }
 
 // $C2:83D0
-void menu_fade_in_starts(Snes *s)
+void menu_fade_starts(Snes *s)
 {
-    leave_the_fade(state_of(s), FADE_IN_STEP);
-    menu_fade_in_resumes(s);
+    leave_the_fade(state_of(s), (int8_t)s->cpu.a);
+    menu_fade_resumes(s);
 }
 
-bool menu_fade_in_can_start(Snes *s)
+static bool fade_step_is_supported(uint8_t step)
 {
-    return menu_on_page_low_ram(s) && (uint8_t)s->cpu.a == FADE_IN_STEP;
+    return step == FADE_IN_STEP || step == (uint8_t)FADE_OUT_STEP;
+}
+
+bool menu_fade_can_start(Snes *s)
+{
+    return menu_on_page_low_ram(s) && fade_step_is_supported((uint8_t)s->cpu.a);
 }
 
 // $C2:83C7
@@ -294,13 +305,13 @@ void menu_fade_in_finishes(Snes *s)
     menu_go_on_in(s, THE_TASK_ENDS, menu_task_ends, ENDING_READS_NOTHING);
 }
 
-bool menu_fade_in_can_resume(Snes *s)
+bool menu_fade_can_resume(Snes *s)
 {
     if (!menu_on_page_low_ram(s))
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool ready = menu_fade_step(g) == FADE_IN_STEP && menu_fade_frames(g) == FRAMES_A_STEP;
+    bool ready = fade_step_is_supported(menu_fade_step(g)) && menu_fade_frames(g) == FRAMES_A_STEP;
     vars_peek(false);
     return ready;
 }
