@@ -183,6 +183,8 @@ jobs:
         run: build/ci/field_test
       - name: event_contract_test
         run: build/ci/event_contract_test
+      - name: scene_contract_test
+        run: build/ci/scene_contract_test
       - name: bindings_test
         run: build/ci/bindings_test
       - name: assets_test

@@ -5,9 +5,8 @@
  * `scene` page), and through a data bank that reaches low RAM. The original's
  * code reaches the same cells relative to D and the data bank, so it is only
  * the same routine when those are what the game always enters it with; these
- * are the registry guards that say so, and a call under any other machine
- * falls back to the original. The movies never make one (a guard that turned
- * a call away shows as a drop in its shadow count). */
+ * are the contracts checked by the called machine forms. A refusal reports
+ * a broken contract and leaves the original boundary intact. */
 #include "scene/scene.h"
 
 #include "port/machine.h"
@@ -29,8 +28,6 @@ bool scene_on_program_page(Snes *s)
     return scene_program_page_of(m_direct_page(s), &page);
 }
 
-bool scene_on_program_page_io_bank(Snes *s) { return scene_on_program_page(s) && m_bank_reaches_io(s); }
-
 /* The sequence channel whose page is at `d`. */
 bool scene_channel_at(uint16_t d, SceneChannel *ch)
 {
@@ -47,12 +44,3 @@ bool scene_on_channel_page(Snes *s)
     SceneChannel ch;
     return scene_channel_at(m_direct_page(s), &ch);
 }
-
-/* The page an entry's caller has D on, which its guard has checked is one. */
-SceneProgramPage scene_program_page_at_entry(const Snes *s)
-{
-    SceneProgramPage page = scene_program_own();
-    scene_program_page_of(m_direct_page(s), &page);
-    return page;
-}
-

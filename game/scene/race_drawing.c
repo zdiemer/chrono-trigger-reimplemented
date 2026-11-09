@@ -17,7 +17,6 @@
 
 #include "charge.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "platform/input.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -41,7 +40,6 @@ static void draw_list(GameState *g, uint16_t list) { TIMED_AS(g, 0xC30D0E, scene
 static void draw_clipped_list(GameState *g, uint16_t list) { TIMED_AS(g, 0xC30D5E, scene_draw_sprite_list(g, list, true)); }
 
 /* ---- The racers' pictures --------------------------------------------------------------------- */
-
 
 /* The racers' sprite lists, in the program's data. */
 enum { CRONO_SPRITES = (uint16_t)0x7E531B, JOHNNY_SPRITES = (uint16_t)0x7E535C };
@@ -225,11 +223,6 @@ static void draw_marker(GameState *g, Platform *pf, Racer r, uint16_t length)
  * length times its own high byte (the original stores the length as a word).
  * The panel's numbers then use the divider, whose remainder shares the
  * product's register. */
-static void leave_multiplier(GameState *g, uint16_t length, bool markers, Racer last)
-{
-    hw_set_multiplicand(g, (uint8_t)length);
-    hw_multiply_by(g, markers ? marker_far(g, last) : (uint8_t)(length >> 8));
-}
 
 /* The boosts Crono has left, from the panel's right leftward; the last is
  * shown ready while no boost is on. */
@@ -270,8 +263,8 @@ static void draw_number(GameState *g, uint16_t value)
     while (shown > 1 && digits[shown - 1] == 0)
         shown--;
     set_scene_number_digits(g, 0, (uint8_t)(shown + 1));
-    ORIGINAL_EFFECT(hw_set_dividend(g, (uint16_t)(value % 100)));
-    ORIGINAL_EFFECT(hw_divide_by_word(g, 10));
+    charge_legacy_io_accesses(g, 2);
+    charge_legacy_io_accesses(g, 2);
     draw_list(g, NUMBER_LIST);
 }
 
@@ -355,7 +348,8 @@ static void draw(GameState *g, Platform *pf)
         draw_marker(g, pf, nearer, length);
         draw_marker(g, pf, farther, length);
     }
-    ORIGINAL_EFFECT(leave_multiplier(g, length, panel, farther));
+    charge_legacy_accesses(g, panel ? 4 : 0);
+    charge_legacy_io_accesses(g, 4);
     if (panel)
         draw_panel(g);
     draw_racer(g, nearer, pose);
@@ -366,18 +360,20 @@ static void draw(GameState *g, Platform *pf)
  * after it: the pose; the first cell Crono's picture's place where one was
  * asked for (`crono_asked`), else the score shown, where the panel is; the
  * second the distance to go's high word, where the panel shows it. */
-static void leave_working_cells(GameState *g, bool crono_asked)
+static void charge_racer_drawing_temporaries(GameState *g, bool crono_asked)
 {
-    SceneProgramPage own = scene_program_own();
-    unsigned pose = pose_of(g);
-    set_scene_call_race_pose(g, own, (uint16_t)(pose * 2));
+    uint32_t mark = charge_uncounted_begin(g);
     bool panel = panel_shown(g);
-    if (panel && scene_race_stage(g) == RACE_RUNNING)
-        set_scene_call_second(g, own, (uint16_t)(distance_to_go(g) >> 16));
-    if (crono_asked)
-        set_scene_call_first(g, own, (uint16_t)(crono_frame(pose, race_camera(g, RACE_ANIMATION)) * 2));
-    else if (panel)
-        set_scene_call_first(g, own, scene_race_score(g) >> 1);
+    unsigned accesses = 7; /* two pose inputs, pose word stored, panel flag */
+    if (panel) {
+        accesses += 2;
+        if (scene_race_stage(g) == RACE_RUNNING)
+            accesses += 6; /* distance read and remaining-distance word */
+    }
+    if (crono_asked || panel)
+        accesses += 4; /* animation or score read and frame word stored */
+    charge_uncounted_end(g, mark);
+    charge_legacy_accesses(g, accesses);
 }
 
 /* ---- Entry ------------------------------------------------------------------------------------- */
@@ -429,28 +425,15 @@ TaskEnd scene_race_draw(GameState *g, Platform *pf, unsigned slot)
 /* What the drawing leaves in A and Y, which the list's code hands on: the
  * last sprite routine's, from the farther racer's list or, out of sight, its
  * mark; Y the next free sprite, where anything was drawn. */
-static void leave_registers(Snes *s, bool crono_first)
-{
-    GameState *g = state_of(s);
-    Racer last = crono_first ? RACER_JOHNNY : RACER_CRONO;
-    vars_peek(true);
-    uint16_t out = scene_race_racers_out_of_sight(g, last);
-    s->cpu.a = out != 0 ? out : scene_clipped_list_leaves_a(g, racer_sprites[last], racer_sprites[last]);
-    bool drew = panel_shown(g) || out == 0 || scene_race_racers_out_of_sight(g, (Racer)(1 - last)) == 0;
-    if (drew)
-        s->cpu.y = scene_sprite_index(g);
-    vars_peek(false);
-}
 
 /* A frame task entered with 16-bit A and the carry clear (the list's own
  * compare, for any slot but the first: the pose's sum takes it in). */
 void scene_race_draw_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    bool crono_first = crono_nearer(g);
+    charge_legacy_accesses(g, 4);
     bool crono_asked = scene_race_picture_requests_state(g, RACER_CRONO) != PICTURE_WAITING;
     draw(g, m_platform(s));
-    ORIGINAL_EFFECT(leave_working_cells(g, crono_asked));
-    ORIGINAL_EFFECT(leave_registers(s, crono_first));
+    charge_racer_drawing_temporaries(g, crono_asked);
     m_rts(s);
 }

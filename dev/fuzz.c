@@ -262,6 +262,10 @@ static void stop_at_call(uint32_t site, uint32_t target, uint16_t dont_care)
 
 static void notify_counters(Snes *s)
 {
+    if (stop_options->vblank_at && cpu_pc24(&s->cpu) == stop_options->vblank_at) {
+        s->bus.in_vblank = true;
+        s->bus.nmi_flag = true;
+    }
     for (unsigned i = 0; i < stop_options->nticks; i++)
         if (cpu_pc24(&s->cpu) == stop_options->ticks[i].pc) {
             uint32_t at = stop_options->ticks[i].address;
@@ -566,6 +570,10 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
         if (o->line_handler) {
             m->bus.irq_flag = true;
             m->bus.in_hblank = true;
+        }
+        if (o->vblank_at) {
+            m->bus.in_vblank = false;
+            m->bus.nmi_flag = false;
         }
         /* The guard looks at the machine as the routine is entered, the return
          * address pushed: a guard that reads work RAM can read the stack. */

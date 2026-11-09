@@ -158,12 +158,12 @@ HELD_WAITS = ("PF_LOOP_HELD",)
 # forms with what the original keeps across the call (battle_run_dc_under, battle_run_long_dc_under,
 # battle_wait_under, battle_wait_frames_under) take the same arguments first.
 DELEGATES = ("bridge_call", "bridge_call_long", "field_run", "field_run_long", "field_run_holding", "field_run_on_page",
-             "bridge_call_on_page", "field_run_or_hand_over", "field_run_called",
+             "bridge_call_on_page", "field_run_or_hand_over", "field_run_called", "field_run_long_called",
              "battle_call",
              "battle_call_long", "battle_run_dc", "battle_run_long_dc", "menu_call", "menu_call_long", "menu_call_returning",
              "menu_call_jumped", "menu_yield", "menu_run_or_call", "field_wait_frame", "battle_wait_frame", "battle_wait_frames",
              "battle_wait_line", "battle_run_dc_under", "battle_run_long_dc_under", "battle_wait_under", "battle_wait_frames_under",
-             "scene_run", "scene_run_long")
+             "scene_run", "scene_run_long", "scene_run_called", "scene_run_long_called")
 # Calls of a single routine, called (s, site, ...): the routine and the set
 # are these constants (game/battle/wait.h, game/battle/bridge.h), and the call
 # takes this many arguments, what follows the site being its own.
@@ -184,7 +184,7 @@ BRIDGES = {
     "game/event/bridge.c": ("event_call_bridge",),
     "game/field/bridge.c": ("bridge_call", "bridge_call_long", "bridge_back", "field_run", "field_run_long",
                             "field_run_holding", "field_run_on_page", "bridge_call_on_page", "field_run_or_hand_over",
-                            "run_entry", "field_wait_frame", "field_run_called", "field_hold_next_frame",
+                            "run_entry", "field_wait_frame", "field_run_called", "field_run_long_called", "field_hold_next_frame",
                             "field_hands_over_to", "field_hold_finished_frame"),
     "game/battle/bridge.c": ("battle_call", "battle_call_long", "battle_back", "run_entry", "battle_run_dc", "battle_run_long_dc",
                              "battle_stop_after_call",
@@ -197,7 +197,7 @@ BRIDGES = {
     "game/battle/sound.c": ("battle_play_a_sound_from",),
     "game/menu/bridge.c": ("menu_call", "menu_call_long", "menu_call_returning", "menu_call_jumped", "menu_back",
                            "menu_yield", "menu_wait_a_frame_from", "run", "menu_run_or_call", "menu_go_on_in"),
-    "game/scene/bridge.c": ("scene_run", "scene_run_long", "run_entry", "scene_bridge_unpack",
+    "game/scene/bridge.c": ("scene_run", "scene_run_long", "scene_run_called", "scene_run_long_called", "run_entry", "scene_bridge_unpack",
                             "scene_bridge_take_the_first_script_step", "scene_bridge_first_script_step"),
     "game/menu/tasks.c": ("wait_on", "wait_in_the_loop", "menu_wait_in_the_task_loop", "menu_wait_frames_in_the_task_loop"),
     "game/menu/fades.c": ("fade_from", "menu_fade_out_from"),

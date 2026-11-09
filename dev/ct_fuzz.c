@@ -5,7 +5,7 @@
  *           [--iterations N] [--seed S] [--long | --interrupt | --jump] [--line-handler] [--budget N]
  *           [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... [--range A|X|Y=lo-hi]...
  *           [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback]
- *           [--decimal] [--poison-dc] [--details N]
+ *           [--decimal] [--poison-dc] [--details N] [--vblank-at PC] [--buttons HHHH]
  *
  * Each iteration starts from the base state (or power-on), randomizes A, X, Y,
  * the N V Z C flags and all of work RAM except the stack page, applies the
@@ -96,6 +96,9 @@
  * --tick-at PC=WRAM increments a WRAM byte before that interpreted PC on
  * both machines; repeat it for several notifications. This models an external counter notification for a wait;
  * it does not run interrupts, objects or a video frame.
+ * --vblank-at PC starts outside vblank and begins it at an interpreted wait
+ * head, without running a handler. --buttons sets the first controller's already
+ * latched sample. Both fixtures are identical on the original and native sides.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -199,6 +202,7 @@ int main(int argc, char **argv)
     const char *rom_path = NULL, *state_path = NULL, *routine = NULL;
     const char *coverage_path = NULL;
     bool apu_loopback = false, with_registry = false;
+    int buttons = -1;
     int data_bank = -1, direct_page = -1, stack = -1, m_width = 0, x_width = 0;
     FuzzOptions o;
     bool decimal = false;
@@ -244,6 +248,20 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--load-state")) state_path = v;
         else if (!strcmp(a, "--routine")) routine = v;
         else if (!strcmp(a, "--coverage")) coverage_path = v;
+        else if (!strcmp(a, "--vblank-at")) {
+            unsigned pc;
+            char extra;
+            if (sscanf(v, "%x%c", &pc, &extra) != 1 || !pc || pc > 0xFFFFFF)
+                goto usage;
+            o.vblank_at = pc;
+        }
+        else if (!strcmp(a, "--buttons")) {
+            unsigned sample;
+            char extra;
+            if (sscanf(v, "%x%c", &sample, &extra) != 1 || sample > 0xFFFF)
+                goto usage;
+            buttons = (int)sample;
+        }
         else if (!strcmp(a, "--tick-at")) {
             unsigned pc, address;
             char extra;
@@ -316,6 +334,8 @@ int main(int argc, char **argv)
         return 1;
     }
     base.cpu.e = false;
+    if (buttons >= 0)
+        base.bus.joy[0] = (uint16_t)buttons;
     if (data_bank >= 0)
         base.cpu.db = (uint8_t)data_bank;
     if (direct_page >= 0)
@@ -382,7 +402,7 @@ usage:
                     "[--seed S] [--long | --interrupt | --jump] [--line-handler] [--budget N] [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... "
                     "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
                     "  [--stop-at-call BBAAAA]... [--with-registry]\n"
-                    "  [--decimal] [--details N] [--coverage out.txt] [--tick-at PC=WRAM]...\n"
+                    "  [--decimal] [--details N] [--coverage out.txt] [--tick-at PC=WRAM]... [--vblank-at PC] [--buttons HHHH]\n"
                     "  AREA: BBAAAA-BBAAAA, or [BBAAAA]+OFF,COUNT at the pointer in a cell ([X], [Y] or [D]: in a "
                     "register; BB:[...]: in bank BB)\n");
     return 2;

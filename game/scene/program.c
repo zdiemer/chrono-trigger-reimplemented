@@ -21,17 +21,15 @@
  * The same sequence runs twice here: with no machine under it (scene_runs, the
  * program from the boot to its end), and on the machine in the shipping mode,
  * where the boot starts it, the main loop is a held wait whose passes are the
- * runtime's continuations, and the setups and the frame's work are entries
- * still under the gate. The program itself is off the gate
- * (docs/REIMPLEMENTATION.md, "The scene program's teardown"): elsewhere the
- * cartridge's program runs, compared with nothing.
+ * runtime's continuations. Setups, frame work and scene routines are checked
+ * C calls, all retired from byte-exact comparison (docs/REIMPLEMENTATION.md,
+ * "The scene engine's teardown").
  *
  * All of it is the program's code, in work RAM, where other code and data are
  * at other times, so its contracts check a hash of its code. */
 #include "scene/scene.h"
 
 #include "charge.h"
-#include "original_effects.h"
 #include "core/console.h"
 #include "core/program.h"
 #include "field/main_loop.h"
@@ -83,10 +81,8 @@ static void start_from_the_first_screen(GameState *g, Platform *pf)
  * (scene/title.c), the palace rising (scene/rising_palace.c), Lavos falling
  * to the planet (scene/lavos_falls.c), the Epoch's dive (scene/epoch_dive.c),
  * the planet's (scene/planet.c), the shared endings' (scene/endings.c)
- * and the staff roll's, fast and slow (scene/staff_roll.c), are C;
- * the attract sequence's other scenes, and the ones no movie reaches, are
- * still the original's, called by the routine the program's own table names
- * for the mode. */
+ * and the staff roll's, fast and slow (scene/staff_roll.c). All sixteen
+ * modes have C setups, including the ones no movie reaches. */
 enum { SCENE_MODE_BITS = 0x1F, SCENE_MODES = 16, PROGRAM_BANK = 0x7E0000 };
 
 /* The setups' routines, by which their time is reckoned. */
@@ -137,20 +133,13 @@ static void enter_as_the_dispatch_does(Snes *s, uint8_t mode)
     m_set_flag(s, CPU_FLAG_C, false);
 }
 
-/* The dispatch's call, whose return the setups run under; a scene whose
- * setup is the original's is a call of the routine the program's own table
- * names for its mode. */
+/* The dispatch's return frame, retained across a setup's held wait. */
 enum { SETUP_DISPATCH = 0x7E300A, THE_SETUPS_MAY_READ_ANYTHING = 0 };
 
 static void first_frame_on_the_machine(Snes *s);
 
-/* The scene's setup as C where it is a port and the program's code for it is
- * the code the port stands for, then its first frame. Every setup still
- * calls the original's code (the unpacker's decompressor, a script's first
- * step, the sound driver), whose calls the original makes with the dispatch's
- * return under them, so the setup runs with it there, as the stack is at
- * those calls. The title holds its song wait as C when its contract accepts
- * it, then returns through this frame to the first frame ($7E:300D). */
+/* Run the selected setup under the dispatch's return frame. The title's
+ * held song wait retains that frame and resumes at the first frame. */
 static void set_the_scene_up(Snes *s)
 {
     uint8_t mode = scene_flags(state_of(s)) & SCENE_MODE_BITS;
@@ -271,12 +260,8 @@ static bool start_takes(Snes *s)
 }
 
 // $7E:3000
-/* The scene program is off the byte-exact gate (docs/REIMPLEMENTATION.md,
- * "The scene program's teardown"): where the hand ports play, the boot starts
- * it as C, timed as the program's start, and the setups and the frame's work
- * it calls are entries still under the gate, called as the registry has them.
- * A start outside the program's contract, which the game never makes, is a
- * contract broken, and the cartridge's program starts instead. */
+/* Start the retired C program at its checked boundary. Invalid callers
+ * report a broken contract and stop at the original entry. */
 void scene_program_starts_on_the_machine(Snes *s)
 {
     m_jump_to(s, PROGRAM_START);
@@ -290,13 +275,9 @@ void scene_program_starts_on_the_machine(Snes *s)
 
 /* ---- The main loop, on the machine ------------------------------------------------------------ */
 
-/* The routines a pass calls as C (main_loop_pass, below), each with the entry
- * whose registry row is its contract: the widths and arithmetic it is called
- * with, and its guard. Not the race's scaling: between its racers it waits for
- * the last one's tiles to be sent, inside the routine ($7E:5211), a wait the
- * machine can neither hold nor wait out where a port stands yet, so its call
- * stays the original's, and the race's entries take it (docs/TODO.md, "The
- * race's scaling from the scene program's main loop"). */
+/* The routines a pass calls as C (main_loop_pass, below), each checked
+ * against its widths, arithmetic mode, page, bank and code image. The race uses a called machine form because its
+ * upload wait holds the caller's frame between racers. */
 static const struct {
     ScenePass call;
     void (*entry)(Snes *s);
@@ -309,28 +290,51 @@ enum { PASS_ENTRY_COUNT = sizeof PASS_ENTRIES / sizeof PASS_ENTRIES[0] };
 
 static bool main_loop_pass(GameState *g, Platform *pf);
 
-/* The pass's call: as C where the routine's contract takes the state, as the
- * registry would run it; where it turns the state away, the call the original
- * makes. False where that call didn't come back. */
+/* Keep the race's return frame for its held upload wait. As with the old
+ * call-out, the frame belongs to the caller's time, and the scaling's work
+ * is settled at its own rate before returning or handing off the wait. */
+static bool race_scaling_on_the_machine(Snes *s)
+{
+    uint16_t stack = s->cpu.s;
+    uint32_t routine = PROGRAM_BANK | SCENE_PASS_RACE_SCALING;
+    m_push16(s, (uint16_t)(MAIN_LOOP + 2));
+    if (!scene_accept_continuation(s, routine, scene_race_scale_pictures_entry))
+        return false;
+    GameState *g = state_of(s);
+    charge_settle(g);
+    TIMED_AS(g, routine, {
+        scene_race_scale_pictures_entry(s);
+        charge_settle(g);
+    });
+    return m_came_back(s, MAIN_LOOP + 3, stack);
+}
+
+/* Run the pass's checked C operation. False when it holds a wait or reports
+ * a broken contract at the original call boundary. */
 static bool pass_on_the_machine(Snes *s)
 {
     GameState *g = state_of(s);
     uint16_t call = scene_main_loop_call(g);
     if (call == SCENE_PASS_NOTHING)
         return true;
+    if (call == SCENE_PASS_RACE_SCALING)
+        return race_scaling_on_the_machine(s);
     for (unsigned n = 0; n < PASS_ENTRY_COUNT; n++) {
         if (PASS_ENTRIES[n].call != call)
             continue;
         const NativeEntry *e = native_hand_entry_at(s, PROGRAM_BANK | call);
-        if (!e || e->fn != PASS_ENTRIES[n].entry)
+        if ((!e || e->fn != PASS_ENTRIES[n].entry) && !scene_machine_form_takes(s, PASS_ENTRIES[n].entry))
             break;
         if (!main_loop_pass(g, m_platform(s)))
             program_breaks_a_contract(g, PROGRAM_BANK | call, "a scene's main loop call its guard took and its C didn't");
         return true;
     }
-    uint16_t stack = s->cpu.s;
-    m_jsr(s, MAIN_LOOP, PROGRAM_BANK | call);
-    return m_came_back(s, MAIN_LOOP + 3, stack);
+    program_breaks_a_contract(g, PROGRAM_BANK | call, "a scene main-loop call outside its contract");
+    scene_bridge_enter(s, MAIN_LOOP);
+    /* No C target is permitted: the common boundary leaves every register
+     * live and stops at the rejected call's entry with its frame intact. */
+    (void)scene_accept_continuation(s, PROGRAM_BANK | call, NULL);
+    return false;
 }
 
 /* The program's end ($7E:302A, and its hand-back $7E:303B): its code in
@@ -390,6 +394,15 @@ void scene_program_next_pass(Snes *s)
 {
     if (!pass_on_the_machine(s))
         return;
+    scene_program_finishes_pass(s);
+}
+
+// $7E:3026
+/* A scaling pass has returned, possibly after a held upload wait. Finish
+ * this pass before choosing the next one, so the scene's end is observed at
+ * the same boundary as an immediate return. */
+void scene_program_finishes_pass(Snes *s)
+{
     if (scene_program_over(state_of(s))) {
         end_on_the_machine(s);
         return;
@@ -424,6 +437,8 @@ static bool nothing_to_do(Snes *s)
 }
 
 bool scene_program_passes(Snes *s) { return loop_present(s) && !nothing_to_do(s); }
+
+bool scene_program_pass_finished(Snes *s) { return loop_present(s); }
 
 bool scene_program_waits_for_the_frame(Snes *s) { return loop_present(s) && nothing_to_do(s); }
 
