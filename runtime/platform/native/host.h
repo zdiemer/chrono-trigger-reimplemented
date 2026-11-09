@@ -85,11 +85,11 @@ typedef struct {
     /* What the line handler changed of the display and the line effects
      * (where the field, the battles and the scenes end their picture: the
      * rest blanked, the line effects off), or a vid_raster_display at a line:
-     * the picture from line `below_from` down this frame, and the whole of it
+     * the picture from each change's own line down this frame, and the whole of it
      * from the next frame on, until a call sets it again. Taken as the whole
      * frame's, the picture's end would blank all of it, and its line effects
      * (the layers' and windows' settings line by line) would be lost above. */
-    uint16_t below_from;         /* 0: nothing changed below a line this frame */
+    uint16_t display_from, effects_from; /* independent first lines for the two changes */
     bool below_display, below_line_effects;
     VidDisplay display_below;
     uint8_t line_effects_below;

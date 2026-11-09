@@ -38,8 +38,10 @@ void vid_host_stop(Platform *pf)
     pf->video.observer = NULL;
 }
 
-/* The lines above what the line handler changed show the frame's display and
- * line effects, the rest the changes. */
+/* The host frame model folds the handlers' uploads into this picture.
+ * Display and effect-enable changes retain their explicit raster boundaries.
+ * Moving uploads below the line handler changes recorded native outcomes;
+ * that timing-model change is tracked separately in docs/TODO.md. */
 const VidFrame *vid_host_picture(Platform *pf)
 {
     VidHost *v = &pf->video;
@@ -48,12 +50,10 @@ const VidFrame *vid_host_picture(Platform *pf)
     vid_obs_enable_line_effects(ob, v->line_effects);
     vid_obs_frame_start(ob);
     for (uint16_t line = 0; line <= VID_HOST_LAST_LINE; line++) {
-        if (v->below_from && line == v->below_from) {
-            if (v->below_display)
-                vid_obs_display(ob, &v->display_below);
-            if (v->below_line_effects)
-                vid_obs_enable_line_effects(ob, v->line_effects_below);
-        }
+        if (v->below_display && line == v->display_from)
+            vid_obs_display(ob, &v->display_below);
+        if (v->below_line_effects && line == v->effects_from)
+            vid_obs_enable_line_effects(ob, v->line_effects_below);
         vid_obs_line(ob, line);
     }
     return vid_obs_frame(ob);
@@ -62,6 +62,8 @@ const VidFrame *vid_host_picture(Platform *pf)
 void vid_host_frame_begins(Platform *pf)
 {
     VidHost *v = &pf->video;
+    if (v->observer)
+        vid_obs_frame_end(v->observer);
     if (v->below_display) {
         v->display = v->display_below;
         vid_obs_display(v->observer, &v->display);
@@ -70,7 +72,7 @@ void vid_host_frame_begins(Platform *pf)
         v->line_effects = v->line_effects_below;
         vid_obs_enable_line_effects(v->observer, v->line_effects);
     }
-    v->below_from = 0;
+    v->display_from = v->effects_from = 0;
     v->below_display = v->below_line_effects = false;
 }
 
@@ -85,22 +87,13 @@ static uint16_t below_the_line_handler(const Platform *pf)
     return pf->timing.part == TM_HOST_IN_LINE ? (uint16_t)(pf->timing.line + 1) : 0;
 }
 
-/* Whether a change from line `from` is one below a line of the picture (not
- * its top, nor past its end); the first such line the frame's changes start
- * from. */
-static bool from_a_line(Platform *pf, uint16_t from)
-{
-    if (from == 0 || from > VID_HOST_LAST_LINE)
-        return false;
-    if (!pf->video.below_from || from < pf->video.below_from)
-        pf->video.below_from = from;
-    return true;
-}
-
 static void display_from(Platform *pf, uint16_t from, const VidDisplay *d)
 {
     VidHost *v = &pf->video;
-    if (from_a_line(pf, from)) {
+    /* Past the picture's last line, the change belongs to the next frame.
+     * It must not blank the picture which has already been drawn. */
+    if (from) {
+        v->display_from = from;
         v->below_display = true;
         v->display_below = *d;
         return;
@@ -206,7 +199,9 @@ void vid_enable_line_effects(Platform *pf, PfOrigin o, uint8_t slots)
 {
     (void)o;
     VidHost *v = &pf->video;
-    if (from_a_line(pf, below_the_line_handler(pf))) {
+    uint16_t from = below_the_line_handler(pf);
+    if (from) {
+        v->effects_from = from;
         v->below_line_effects = true;
         v->line_effects_below = slots;
         return;

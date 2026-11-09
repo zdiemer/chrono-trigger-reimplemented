@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "platform/native/render.h"
+#include "platform/observe.h"
 #include "platform/snes/decode.h"
 
 enum { KINDS = 32, EXAMPLES = 3, PIXELS = VID_RENDER_WIDTH * VID_RENDER_HEIGHT };
@@ -21,6 +22,8 @@ struct PxCheck {
     Snes *s;
     const Renderer *ref;
     VidDecoder *dec;
+    VidObserver *obs;
+    bool seeded;
     VidRenderer *vr;
     uint32_t *pixels;                 /* the native renderer's frame */
     uint64_t frames, equal, diff_lines, diff_pixels;
@@ -36,15 +39,33 @@ struct PxCheck {
     int kind_count;
 };
 
-PxCheck *px_check_create(Snes *s, const Renderer *reference)
+static uint8_t peek(void *ctx, uint32_t addr) { return snes_bus_peek(&((Snes *)ctx)->bus, addr); }
+
+PxCheck *px_check_create(Snes *s, const Renderer *reference, bool services)
 {
     PxCheck *pc = calloc(1, sizeof *pc);
     pc->s = s;
     pc->ref = reference;
-    pc->dec = vid_decoder_create();
+    pc->dec = services ? NULL : vid_decoder_create();
+    if (services) {
+        pc->obs = vid_obs_create(peek, s);
+        vid_observer = pc->obs;
+    }
     pc->vr = vid_render_create();
     pc->pixels = malloc(sizeof *pc->pixels * PIXELS);
     return pc;
+}
+
+void px_check_frame_top(PxCheck *pc)
+{
+    if (!pc->obs)
+        return;
+    if (!pc->seeded) {
+        const Ppu *p = &pc->s->ppu;
+        vid_obs_seed_memory(pc->obs, p->vram, p->cgram, p->oam);
+        pc->seeded = true;
+    }
+    vid_obs_frame_start(pc->obs);
 }
 
 static KindRow *row_for(PxCheck *pc, const char *kind)
@@ -165,16 +186,21 @@ void px_check_line(PxCheck *pc, uint16_t line)
         if (!pc->obsel_line && p->reg[0x01] != pc->obsel_seen)
             pc->obsel_line = line;
     }
-    vid_decode_line(pc->dec, p, line);
+    if (pc->dec)
+        vid_decode_line(pc->dec, p, line);
+    if (pc->obs)
+        vid_obs_line(pc->obs, line);
     if (line != VID_RENDER_HEIGHT)
         return;
 
-    const VidFrame *f = vid_decoder_frame(pc->dec);
+    const VidFrame *f = pc->obs ? vid_obs_frame(pc->obs) : vid_decoder_frame(pc->dec);
     VidRenderFlags flags;
     vid_render_frame(pc->vr, f, pc->pixels, &flags);
     if (flags.range_over != p->range_over || flags.time_over != p->time_over)
         pc->flag_diffs++;
     compare(pc, f);
+    if (pc->obs)
+        vid_obs_frame_end(pc->obs);
 }
 
 uint64_t px_check_frames(const PxCheck *pc) { return pc->frames; }
@@ -188,6 +214,7 @@ static int kind_order(const void *pa, const void *pb)
 
 int px_check_write(PxCheck *pc, const char *path, FILE *summary)
 {
+    fprintf(summary, "px-check source: %s\n", pc->obs ? "service calls" : "PPU decoder");
     qsort(pc->kinds, (size_t)pc->kind_count, sizeof pc->kinds[0], kind_order);
     fprintf(summary, "px-check: %llu of %llu frames identical (%.4f%%), %llu differing lines, %llu pixels\n",
             (unsigned long long)pc->equal, (unsigned long long)pc->frames,
@@ -196,9 +223,13 @@ int px_check_write(PxCheck *pc, const char *path, FILE *summary)
     if (pc->flag_diffs)
         fprintf(summary, "  range-over/time-over differ on %llu frames\n", (unsigned long long)pc->flag_diffs);
     int vram_peak, cgram_peak, sprite_peak;
-    vid_decoder_snapshot_peak(pc->dec, &vram_peak, &cgram_peak, &sprite_peak);
+    if (pc->obs)
+        vid_obs_snapshot_peak(pc->obs, &vram_peak, &cgram_peak, &sprite_peak);
+    else
+        vid_decoder_snapshot_peak(pc->dec, &vram_peak, &cgram_peak, &sprite_peak);
+    uint32_t lost = pc->dec ? vid_decoder_snapshots_lost(pc->dec) : 0;
     fprintf(summary, "  mid-frame snapshots: at most %d VRAM, %d CGRAM, %d sprite sets in a frame, %u lost\n",
-            vram_peak, cgram_peak, sprite_peak, vid_decoder_snapshots_lost(pc->dec));
+            vram_peak, cgram_peak, sprite_peak, lost);
     VidRenderStats st;
     vid_render_get_stats(pc->vr, &st);
     fprintf(summary, "  native renderer: %llu spans, %llu lines drawn, %llu kept, %llu blank (%.1f%% drawn)\n",
@@ -215,9 +246,10 @@ int px_check_write(PxCheck *pc, const char *path, FILE *summary)
     if (!f)
         return -1;
     fprintf(f, "# ct_dev --px-check: the native renderer's frame against render.c's, at 256x224\n");
+    fprintf(f, "# source: %s\n", pc->obs ? "service calls" : "PPU decoder");
     fprintf(f, "# %llu of %llu frames identical; %llu differing lines, %llu pixels; %u snapshots lost\n",
             (unsigned long long)pc->equal, (unsigned long long)pc->frames, (unsigned long long)pc->diff_lines,
-            (unsigned long long)pc->diff_pixels, vid_decoder_snapshots_lost(pc->dec));
+            (unsigned long long)pc->diff_pixels, lost);
     for (int i = 0; i < pc->kind_count; i++) {
         fprintf(f, "\n%s: %llu frames, %llu lines, %llu pixels, first at frame %u\n", pc->kinds[i].kind,
                 (unsigned long long)pc->kinds[i].frames, (unsigned long long)pc->kinds[i].lines,
@@ -234,6 +266,9 @@ void px_check_destroy(PxCheck *pc)
         return;
     vid_render_destroy(pc->vr);
     vid_decoder_destroy(pc->dec);
+    if (vid_observer == pc->obs)
+        vid_observer = NULL;
+    vid_obs_destroy(pc->obs);
     free(pc->pixels);
     free(pc);
 }

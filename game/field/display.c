@@ -26,6 +26,7 @@
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
+#include "wram.h"
 
 /* Where the sprite table and the layers' tile maps are, as the transfers'
  * sources. */
@@ -202,14 +203,12 @@ static void vram_transfer(const GameState *g, Platform *pf)
 // $C0:2DF1
 /* Clear the memory a screen transition describes (field_transfer's source
  * and size): the Mode 7 matrix set to 0 makes the PPU's product 0, and a
- * transfer from that register copies it over the memory. The transfer reads
- * a register rather than writing one, so it goes through the SNES-only
- * escape; only the two matrix values it leaves behind are video state. */
-static void fill_memory(Platform *pf, uint32_t from, uint16_t bytes)
+ * transfer from that register copies it over the memory. Only the two matrix
+ * values it leaves behind are video state; the buffer clear is memory work. */
+static void fill_memory(GameState *g, Platform *pf, uint32_t from, uint16_t bytes)
 {
     vid_set_mode7(pf, PF_AT(0xC02DF3), &(VidMode7){ .a = 0, .b = 0 }, VID_M7_MATRIX_AB);
-    const VidSnesTransfer t = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = from, .size = bytes };
-    vid_snes_copy(pf, PF_AT(0xC02E01), &t);
+    wram_clear(g, PF_AT(0xC02E01), from, bytes ? bytes : 0x10000u);
 }
 
 /* The field describes a clear as it does a transfer, and the clear can reach
@@ -218,7 +217,7 @@ void field_clear_memory(GameState *g, Platform *pf, uint32_t from, uint16_t byte
 {
     set_field_transfer_source(g, from);
     set_field_transfer_size(g, bytes);
-    fill_memory(pf, from, bytes);
+    fill_memory(g, pf, from, bytes);
 }
 
 void field_describe_transfer(GameState *g, FieldTransfer t)

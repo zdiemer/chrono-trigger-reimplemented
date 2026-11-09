@@ -43,7 +43,14 @@ struct VidObserver {
     ObsSlot slot[8];
     uint8_t enabled_slots;
 
-    bool palette_dirty;
+    bool palette_dirty, vram_dirty, sprites_dirty;
+    bool recording;
+    /* Lazily allocated, reused between frames. At most one version per
+     * emitted span is needed, even if a send changes thousands of bytes. */
+    uint8_t *vram_snap[VID_MAX_SPANS];
+    uint16_t *cgram_snap[VID_MAX_SPANS];
+    VidSpriteSet *sprite_snap[VID_MAX_SPANS];
+    unsigned vram_used, cgram_used, sprites_used;
     uint32_t unmodelled;
     VidFrame frame;
 };
@@ -51,6 +58,8 @@ struct VidObserver {
 VidObserver *vid_obs_create(uint8_t (*read)(void *ctx, uint32_t addr), void *ctx)
 {
     VidObserver *ob = calloc(1, sizeof *ob);
+    if (!ob)
+        abort();
     ob->read = read;
     ob->ctx = ctx;
     ob->port.step = 1;
@@ -61,11 +70,102 @@ VidObserver *vid_obs_create(uint8_t (*read)(void *ctx, uint32_t addr), void *ctx
     return ob;
 }
 
-void vid_obs_destroy(VidObserver *ob) { free(ob); }
+void vid_obs_destroy(VidObserver *ob)
+{
+    if (!ob)
+        return;
+    for (unsigned i = 0; i < VID_MAX_SPANS; i++) {
+        free(ob->vram_snap[i]);
+        free(ob->cgram_snap[i]);
+        free(ob->sprite_snap[i]);
+    }
+    free(ob);
+}
+
+/* A call may change memory after earlier lines have already seen it. Keep
+ * those lines' contents before the first write, without consulting a PPU. */
+static void keep_vram(VidObserver *ob)
+{
+    if (!ob->recording || ob->vram_dirty)
+        return;
+    ob->vram_dirty = true;
+    bool need = false;
+    for (unsigned i = 0; i < ob->frame.span_count; i++)
+        need |= !ob->frame.spans[i].vram && !ob->frame.spans[i].state.display.blank;
+    if (!need)
+        return;
+    uint8_t **slot = &ob->vram_snap[ob->vram_used++];
+    if (!*slot)
+        *slot = malloc(sizeof ob->vram);
+    if (!*slot)
+        abort();
+    memcpy(*slot, ob->vram, sizeof ob->vram);
+    for (unsigned i = 0; i < ob->frame.span_count; i++)
+        if (!ob->frame.spans[i].vram)
+            ob->frame.spans[i].vram = *slot;
+}
+
+static void keep_palette(VidObserver *ob)
+{
+    if (!ob->recording || ob->palette_dirty)
+        return;
+    ob->palette_dirty = true;
+    bool need = false;
+    for (unsigned i = 0; i < ob->frame.span_count; i++)
+        need |= !ob->frame.spans[i].cgram;
+    if (!need)
+        return;
+    uint16_t **slot = &ob->cgram_snap[ob->cgram_used++];
+    if (!*slot)
+        *slot = malloc(sizeof ob->cgram);
+    if (!*slot)
+        abort();
+    memcpy(*slot, ob->cgram, sizeof ob->cgram);
+    for (unsigned i = 0; i < ob->frame.span_count; i++)
+        if (!ob->frame.spans[i].cgram)
+            ob->frame.spans[i].cgram = *slot;
+}
+
+static void keep_sprites(VidObserver *ob)
+{
+    if (ob->sprites_dirty)
+        return;
+    ob->sprites_dirty = true;
+    if (!ob->recording)
+        return;
+    bool need = false;
+    for (unsigned i = 0; i < ob->frame.span_count; i++) {
+        const VidSpan *sp = &ob->frame.spans[i];
+        need |= !sp->sprites && !sp->state.display.blank &&
+                ((sp->state.main_layers | sp->state.sub_layers) & VID_OBJ_BIT);
+    }
+    if (!need)
+        return;
+    VidSpriteSet **slot = &ob->sprite_snap[ob->sprites_used++];
+    if (!*slot)
+        *slot = malloc(sizeof **slot);
+    if (!*slot)
+        abort();
+    memcpy((*slot)->sprites, ob->frame.sprites, sizeof ob->frame.sprites);
+    (*slot)->first_sprite = ob->frame.first_sprite;
+    for (unsigned i = 0; i < ob->frame.span_count; i++)
+        if (!ob->frame.spans[i].sprites)
+            ob->frame.spans[i].sprites = *slot;
+}
 
 uint32_t vid_obs_unmodelled(const VidObserver *ob) { return ob->unmodelled; }
 
 const VidFrame *vid_obs_frame(const VidObserver *ob) { return &ob->frame; }
+
+void vid_obs_snapshot_peak(const VidObserver *ob, int *vram, int *cgram, int *sprites)
+{
+    *vram = *cgram = *sprites = 0;
+    for (unsigned i = 0; i < VID_MAX_SPANS; i++) {
+        *vram += ob->vram_snap[i] != NULL;
+        *cgram += ob->cgram_snap[i] != NULL;
+        *sprites += ob->sprite_snap[i] != NULL;
+    }
+}
 
 void vid_obs_seed_memory(VidObserver *ob, const uint8_t *vram, const uint16_t *cgram, const uint8_t *oam)
 {
@@ -105,6 +205,7 @@ static uint8_t data_byte(const VidObserver *ob, PfData src, uint32_t i)
 
 static void vram_put(VidObserver *ob, bool high, uint8_t v)
 {
+    keep_vram(ob);
     ob->vram[(uint16_t)((vram_mapped(ob) << 1) + (high ? 1 : 0))] = v;
     if (ob->port.after_high == high)
         ob->vram_addr = (uint16_t)(ob->vram_addr + ob->port.step);
@@ -116,6 +217,7 @@ static void cgram_put(VidObserver *ob, uint8_t v)
     if (!ob->cg_second) {
         ob->cg_latch = v;
     } else {
+        keep_palette(ob);
         ob->cgram[ob->cg_addr++] = (uint16_t)((v & 0x7F) << 8 | ob->cg_latch);
         ob->palette_dirty = true;
     }
@@ -124,6 +226,7 @@ static void cgram_put(VidObserver *ob, uint8_t v)
 
 static void oam_put(VidObserver *ob, uint8_t v)
 {
+    keep_sprites(ob);
     if (ob->oam_addr & 0x200) {
         ob->oam[0x200 + (ob->oam_addr & 0x1F)] = v;
     } else if (!(ob->oam_addr & 1)) {
@@ -341,6 +444,7 @@ void vid_obs_palette_address(VidObserver *ob, uint8_t first)
 
 void vid_obs_oam_address(VidObserver *ob, uint16_t word_addr, bool priority_rotation)
 {
+    keep_sprites(ob);
     ob->oam_addr = (uint16_t)((word_addr & 0x1FF) << 1);
     ob->oam_first_sprite = priority_rotation ? (uint8_t)((ob->oam_addr >> 2) & 0x7F) : 0;
 }
@@ -383,6 +487,7 @@ void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t
 {
     if (count == 0)
         return;
+    keep_palette(ob);
     uint8_t at = first;
     for (uint16_t i = 0; i < count; i++) {
         uint8_t lo = data_byte(ob, src, 2u * i);
@@ -394,6 +499,7 @@ void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t
 
 void vid_obs_upload_oam(VidObserver *ob, PfData oam)
 {
+    keep_sprites(ob);
     for (uint32_t i = 0; i < sizeof ob->oam; i++)
         ob->oam[i] = data_byte(ob, oam, i);
 }
@@ -716,8 +822,14 @@ static void decode_sprites(VidObserver *ob)
 void vid_obs_frame_start(VidObserver *ob)
 {
     ob->frame.span_count = 0;
+    ob->vram_used = ob->cgram_used = ob->sprites_used = 0;
+    ob->recording = true;
+    ob->palette_dirty = ob->vram_dirty = false;
+    ob->sprites_dirty = true;
     effects_init(ob);
 }
+
+void vid_obs_frame_end(VidObserver *ob) { ob->recording = false; }
 
 void vid_obs_line(VidObserver *ob, uint16_t line)
 {
@@ -725,19 +837,23 @@ void vid_obs_line(VidObserver *ob, uint16_t line)
         effects_line(ob);
         return;
     }
-    if (line == 1) {
+    if (ob->sprites_dirty) {
         decode_sprites(ob);
         ob->frame.first_sprite = ob->oam_first_sprite;
     }
     VidSpan *last = ob->frame.span_count ? &ob->frame.spans[ob->frame.span_count - 1] : NULL;
-    if (!last || ob->palette_dirty || memcmp(&last->state, &ob->state, sizeof ob->state) != 0) {
+    if (!last || ob->palette_dirty || ob->vram_dirty || ob->sprites_dirty ||
+        memcmp(&last->state, &ob->state, sizeof ob->state) != 0) {
         if (ob->frame.span_count < VID_MAX_SPANS) {
             VidSpan *sp = &ob->frame.spans[ob->frame.span_count++];
             sp->line = line;
             sp->palette_changed = ob->palette_dirty;
             sp->state = ob->state;
+            sp->vram = NULL;
+            sp->cgram = NULL;
+            sp->sprites = NULL;
         }
-        ob->palette_dirty = false;
+        ob->palette_dirty = ob->vram_dirty = ob->sprites_dirty = false;
     }
     effects_line(ob);
 }

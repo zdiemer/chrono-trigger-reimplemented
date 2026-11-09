@@ -2,8 +2,8 @@
  * per-line effects and uploads into VRAM, CGRAM and OAM.
  *
  * Commands, not diffs: every setter acts when called. The SNES backend performs
- * the register writes the original made at that point; a native backend would
- * fold them into retained state and render at the end of the frame.
+ * the register writes the original made at that point; the native backend
+ * folds them into retained state and renders at the end of the frame.
  *
  * Game shadows stay game state in SNES format (the field's $0BD9 window bytes,
  * the battle's $C861); the *_decode helpers turn such a byte into the structure

@@ -157,6 +157,8 @@ jobs:
         run: build/ci/fiber_test
       - name: timing_test
         run: build/ci/timing_test
+      - name: video_test
+        run: build/ci/video_test
       - name: native_time_test
         run: build/ci/native_time_test
       - name: unpack_time_test

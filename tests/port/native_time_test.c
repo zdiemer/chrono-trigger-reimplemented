@@ -5,9 +5,11 @@
 
 #include "charge.h"
 #include "cpu_io.h"
+#include "platform/time_model.h"
 #include "port/state_host.h"
 #include "port/time_rates.h"
 #include "rom.h"
+#include "wram.h"
 
 const TimeRate time_rates[] = { { 0xC01234, 1500 }, { 0xC01235, 2500 } };
 const unsigned time_rate_count = 2;
@@ -42,8 +44,36 @@ static void work(GameState *g)
     state_host_game_access(g, 8); /* restored untagged scope */
 }
 
+/* A transition clear wraps within its bank and costs the transfer's time,
+ * not the caller's calibrated per-access rate. Zero bytes is no operation. */
+static void transition_clear(void)
+{
+    GameState *g = state_host_create(NULL);
+    CHECK(g);
+    if (!g)
+        return;
+    int was = charge_time_as_begin(g, 0xC01235);
+    state_host_write8(g, 0x7EFFFF, 0x12);
+    state_host_write8(g, 0x7E0000, 0x34);
+    state_host_write8(g, 0x7F0000, 0x56);
+    wram_clear(g, PF_AT(0), 0x7EFFFF, 2);
+    CHECK(state_host_read8(g, 0x7EFFFF) == 0 && state_host_read8(g, 0x7E0000) == 0);
+    CHECK(state_host_read8(g, 0x7F0000) == 0x56);
+    CHECK(state_host_take_owed(g) == time_of_transfer(2));
+    wram_clear(g, PF_AT(0), 0x7F0000, 0);
+    CHECK(state_host_read8(g, 0x7F0000) == 0x56 && state_host_take_owed(g) == 0);
+    state_host_write8(g, 0x7E8000, 0x78);
+    wram_clear(g, PF_AT(0), 0x7EFFFF, 0x10000u);
+    CHECK(state_host_read8(g, 0x7EFFFF) == 0 && state_host_read8(g, 0x7E8000) == 0 && state_host_read8(g, 0x7E0000) == 0);
+    CHECK(state_host_read8(g, 0x7F0000) == 0x56);
+    CHECK(state_host_take_owed(g) == time_of_transfer(0x10000u));
+    charge_time_as_end(g, was);
+    state_host_destroy(g);
+}
+
 int main(void)
 {
+    transition_clear();
     GameState *plain = state_host_create(NULL), *reported = state_host_create(NULL);
     if (!plain || !reported || !state_host_record_time(reported))
         return 1;
