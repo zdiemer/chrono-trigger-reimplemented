@@ -956,6 +956,13 @@ that relationship in the recipe. The battle condition table's two aliases
 of `always` each compare 1,564 admitted trials with no mismatches; their
 436 guard refusals contribute no coverage. The coverage records the alias
 actually executed, not the registered address.
+
+`--apu-fade-complete` keeps the command acknowledgement loopback but reports
+zero on the music-fade status port. This supplies a completed sound-worker
+request to a waiting caller; it does not test the sound driver or the fade's
+duration. The battle defeat caller compares 2,000 trials through its frame
+wait and up to the battlefield change with this fixture, without mismatches
+or skipped trials.
 This does not run vblank, the objects, audio or a video frame; use it only
 where the counter notification is the dependency under test. Up to 64
 `--keep`/`--fill` areas can describe a trial's state.

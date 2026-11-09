@@ -132,9 +132,12 @@ static uint8_t *read_file(const char *path, size_t *len)
 
 /* --apu-loopback: the SNES's APU read hook, answering with the CPU's own
  * writes. */
+static bool apu_fade_complete;
 static uint8_t apu_loopback_read(void *ctx, uint8_t port)
 {
     Snes *s = ctx;
+    if (apu_fade_complete && (port & 3) == 1)
+        return 0;
     return s->apu.cpu_in[port & 3];
 }
 
@@ -234,6 +237,10 @@ int main(int argc, char **argv)
         }
         if (!strcmp(a, "--apu-loopback")) {
             apu_loopback = true;
+            continue;
+        }
+        if (!strcmp(a, "--apu-fade-complete")) {
+            apu_loopback = apu_fade_complete = true;
             continue;
         }
         if (!strcmp(a, "--poison-dc")) {
@@ -421,7 +428,7 @@ usage:
                     "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
                     "  [--stop-at-call BBAAAA]... [--with-registry]\n"
                     "  [--decimal] [--details N] [--coverage out.txt] [--tick-at PC=WRAM]... [--clear-at PC=WRAM]...\n"
-                    "  [--vblank-at PC] [--buttons HHHH] [--compare-entry BBAAAA]\n"
+                    "  [--vblank-at PC] [--buttons HHHH] [--compare-entry BBAAAA] [--apu-fade-complete]\n"
                     "  AREA: BBAAAA-BBAAAA, or [BBAAAA]+OFF,COUNT at the pointer in a cell ([X], [Y] or [D]: in a "
                     "register; BB:[...]: in bank BB)\n");
     return 2;

@@ -25,7 +25,7 @@ def label(recipe):
 def merge_args(base, extra):
     out = list(base)
     pairs = iter(extra)
-    flags = {'--long', '--interrupt', '--jump', '--line-handler', '--apu-loopback', '--poison-dc'}
+    flags = {'--long', '--interrupt', '--jump', '--line-handler', '--apu-loopback', '--apu-fade-complete', '--poison-dc'}
     for option in pairs:
         if option in flags:
             if option not in out:
