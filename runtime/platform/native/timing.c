@@ -5,11 +5,13 @@
  * "Timing without a beam"): the handlers it enables run once a frame, in
  * order, and never preempt the main thread; the acknowledges say "pending"
  * inside their own handler; a wait for the next frame yields to the driver; a
- * budget has time for all its work; a wait for a line has nothing to wait
+ * budget takes the work charged so far toward its deadline; a wait for a line has nothing to wait
  * for, the frame being drawn whole; and what looked random from the beam's
  * position comes from a generator the driver seeds. */
 #include "platform/native/host.h"
 #include "platform/time_model.h"
+
+static uint32_t sum(uint32_t a, uint32_t b) { return b > UINT32_MAX - a ? UINT32_MAX : a + b; }
 
 /* ---- The frame ----------------------------------------------------------------------------- */
 
@@ -47,7 +49,8 @@ void tm_host_frame(Platform *pf)
     /* what the handlers did since the main thread last ran, the line
      * handler's and the vblank's, is the frame's own time, not the main
      * thread's: it is what the frame leaves the main thread less */
-    t->handlers = t->program.owed ? t->program.owed(t->program.ctx) : 0;
+    t->handlers = sum(t->handler_charges, t->program.owed ? t->program.owed(t->program.ctx) : 0);
+    t->handler_charges = 0;
     if (t->lagging) {
         t->lagging--;
         t->lag_frames++;
@@ -72,12 +75,14 @@ uint32_t tm_host_frames(const Platform *pf) { return pf->timing.frame; }
 
 /* ---- The frame-level time model ------------------------------------------------------------ */
 
-static uint32_t sum(uint32_t a, uint32_t b) { return b > UINT32_MAX - a ? UINT32_MAX : a + b; }
 
 void tm_host_charge(Platform *pf, uint32_t clocks)
 {
     TmHost *t = &pf->timing;
-    t->owed = sum(t->owed, clocks);
+    if (t->part == TM_HOST_IN_VBLANK || t->part == TM_HOST_IN_LINE)
+        t->handler_charges = sum(t->handler_charges, clocks);
+    else
+        t->owed = sum(t->owed, clocks);
 }
 
 uint32_t tm_host_lag_frames(const Platform *pf) { return pf->timing.lag_frames; }
@@ -225,8 +230,20 @@ void tm_wait_frame_then_enable(Platform *pf, PfOrigin o, uint8_t sources, uint16
 
 bool tm_frame_time_left(Platform *pf, PfOrigin o, uint16_t line)
 {
-    (void)pf; (void)o; (void)line;
-    return true;
+    (void)o;
+    TmHost *t = &pf->timing;
+    if (t->part != TM_HOST_IN_MAIN || line >= TIME_BUDGET_REOPENS_LINE)
+        return true;
+    take_the_games_account(t);
+    uint32_t elapsed = sum(t->owed, t->handlers);
+    /* A load that already fills a frame must yield before doing more queued
+     * work. Within this frame, follow the game's allowed window: it opens
+     * at line 240, wraps through frame start, and closes at the given line.
+     * NMI starts our frame at 225; it is not the window's opening. */
+    if (elapsed >= TIME_FRAME_CLOCKS)
+        return false;
+    uint32_t phase = (TIME_VBLANK_LINE + elapsed / TIME_LINE_CLOCKS) % TIME_FRAME_LINES;
+    return phase >= TIME_BUDGET_REOPENS_LINE || phase < line;
 }
 
 void tm_wait_line(Platform *pf, PfOrigin o, uint16_t line) { (void)pf; (void)o; (void)line; }

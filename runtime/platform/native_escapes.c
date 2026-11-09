@@ -6,6 +6,7 @@
  * it does; the rest it counts, keeping the first site for the driver's
  * report (docs/TODO.md, "The native program"). */
 #include "platform/native/host.h"
+#include "platform/time_model.h"
 
 /* What a host makes of an escape it has no meaning for: nothing, counted, and
  * the first site kept for the driver's report. */
@@ -33,6 +34,11 @@ static bool into_vram_by_its_data(const VidSnesTransfer *t)
 void vid_snes_copy(Platform *pf, PfOrigin o, const VidSnesTransfer *t)
 {
     VidHost *v = &pf->video;
+    /* The observer moves bytes without a bus. A supported transfer still
+     * occupies the main thread at DMA's rate, including a RAM clear. */
+    if (pf->timing.part == TM_HOST_IN_MAIN &&
+        (into_vram_by_its_data(t) || t->dest == VID_SNES_WRAM_DATA || t->dest == VID_SNES_MULTIPLIER_PRODUCT))
+        tm_host_charge(pf, time_of_transfer(t->size ? t->size : 0x10000u));
     if (into_vram_by_its_data(t)) {
         if (t->port)
             vid_obs_vram_port(v->observer, t->port);

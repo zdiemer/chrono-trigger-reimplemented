@@ -21,7 +21,11 @@
 #include <stdint.h>
 
 enum {
-    TIME_FRAME_CLOCKS = 357368,   /* a frame: 262 lines of 1364 master clocks */
+    TIME_FRAME_LINES = 262,
+    TIME_LINE_CLOCKS = 1364,
+    TIME_VBLANK_LINE = 225,      /* the driver's frame starts when the original takes NMI */
+    TIME_BUDGET_REOPENS_LINE = 240, /* the field's budget predicate, later than NMI */
+    TIME_FRAME_CLOCKS = TIME_FRAME_LINES * TIME_LINE_CLOCKS,
     TIME_MASTER_HZ = 21477272,
     TIME_SPC_HZ = 1024000         /* the sound processor's cycles */
 };
@@ -96,28 +100,10 @@ static inline uint32_t time_of_sound_command(uint8_t command, uint32_t sent, uin
     return base + sent * (playing ? TIME_SOUND_BYTE_PLAYING : TIME_SOUND_BYTE) + moved * TIME_SOUND_BYTE_MOVED;
 }
 
-/* ---- Loads --------------------------------------------------------------------------------
- *
- * What a load spends its frames on, as the game's work charges it (charge.h)
- * and the video service sends it. A frame's own work is taken to fit its
- * frame: only these are charged.
- *
- * - The unpacker ($C3:0002), most of a load's work. Its charge counts the
- *   accesses the original makes to its own cells as it goes (where the port
- *   keeps locals), which follow the stream: its segments, control bytes,
- *   references and items. Over new-game's 60 streams the original took
- *   29.0 M clocks (the shadow run's totals for decompress_direct, which
- *   every stream goes through) for 451,831 accesses charged: 64 an access,
- *   the whole of its time.
- * - The other charges are a frame's work, not a load's: nothing.
- * - A send to video memory from the main thread (in vblank the handlers'
- *   sends are the frame's own): TIME_DMA_BYTE a byte, DMA's rate. */
-enum { TIME_UNPACKER = 0xC30002, TIME_UNPACK_ACCESS = 64, TIME_DMA_BYTE = 8 };
-
-static inline uint32_t time_of_charge(uint32_t routine, uint32_t accesses)
-{
-    return routine == TIME_UNPACKER ? accesses * TIME_UNPACK_ACCESS : 0;
-}
+/* A transfer from the main thread, at DMA's byte rate. Unpacking and other
+ * game work use their calibrated rates in the state backend. Transfers in
+ * handlers remain the frame's own work. */
+enum { TIME_DMA_BYTE = 8 };
 
 static inline uint32_t time_of_transfer(uint32_t bytes) { return bytes * TIME_DMA_BYTE; }
 

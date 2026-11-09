@@ -431,8 +431,8 @@ static QueueDrawn draw_queued_frames(GameState *g, Platform *pf, DrawFrame draw,
         FrameDrawing drawn = draw(ctx, front.first, front.alone);
         if (drawn == FRAME_DRAWING_WENT_ELSEWHERE)
             return DRAWING_WENT_ELSEWHERE;
-        /* the original asks again until the beam ends the frame's time; a
-         * host's time doesn't run out, so the frame's drawing ends here */
+        /* A held frame needs the next handler pass before trying again;
+         * repeating it here would do no work to advance the host's budget. */
         if (drawn == FRAME_HELD_TO_THE_NEXT)
             return QUEUE_OUT_OF_TIME;
         if (drawn == FRAME_WHOLE)

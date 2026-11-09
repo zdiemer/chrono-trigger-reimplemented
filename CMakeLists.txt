@@ -490,24 +490,28 @@ target_link_libraries(tasks_test PRIVATE ct_platform_native)
 # is no_machine.c, the list of what game/ still asks of one (docs/TODO.md,
 # "The native program").
 # The game's work is timed at the rates the machine calibrated (runtime/port/time_rates.h):
-# the registry's and the time tags' cost_milli, written as a table at build time, so the
+# the registry's, time tags' and retired entries' cost_milli, written as a table at build time, so the
 # program keeps no registry and the rates are always the last calibration's.
 find_package(Python3 3.11 COMPONENTS Interpreter)
 set(CT_TIME_RATES ${CMAKE_CURRENT_BINARY_DIR}/time_rates.c)
 if(Python3_Interpreter_FOUND)
   add_custom_command(OUTPUT ${CT_TIME_RATES}
-    COMMAND ${Python3_EXECUTABLE} tools/time_rates.py game/registry.c game/time_tags.c -o ${CT_TIME_RATES}
+    COMMAND ${Python3_EXECUTABLE} tools/time_rates.py game/registry.c game/time_tags.c runtime/port/retired_time_rates.h -o ${CT_TIME_RATES}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    DEPENDS tools/time_rates.py game/registry.c game/time_tags.c
+    DEPENDS tools/time_rates.py game/registry.c game/time_tags.c runtime/port/retired_time_rates.h
     COMMENT "Writing the calibrated rates for the native program")
 else()
-  message(WARNING "No Python 3.11: ct_native is built with no rates, its ports' own work untimed")
-  file(WRITE ${CT_TIME_RATES} "#include \"port/time_rates.h\"\nconst TimeRate time_rates[] = { { 0, 0 } };\nconst unsigned time_rate_count = 0;\n")
+  message(WARNING "No Python 3.11: ct_native keeps only the retired rates; other ports' own work is untimed")
+  file(WRITE ${CT_TIME_RATES} "#include \"port/time_rates.h\"\n#include \"port/retired_time_rates.h\"\n#define RATE(addr, name, cost) { addr, cost },\nconst TimeRate time_rates[] = { CT_RETIRED_TIME_RATES(RATE) };\nconst unsigned time_rate_count = sizeof time_rates / sizeof time_rates[0];\n")
 endif()
 add_library(ct_state_host STATIC runtime/port/vars_ram.c runtime/port/state_host.c runtime/port/rom_host.c ${CT_TIME_RATES})
 target_compile_definitions(ct_state_host PRIVATE CT_VARS_HOST CT_WITHOUT_ORIGINAL_EFFECTS)
 target_include_directories(ct_state_host PUBLIC game)
 target_link_libraries(ct_state_host PUBLIC ct_platform_native)
+add_executable(native_time_test tests/port/native_time_test.c runtime/port/state_host.c)
+target_include_directories(native_time_test PRIVATE game runtime)
+add_executable(unpack_time_test tests/port/unpack_time_test.c game/data/decompress.c)
+target_link_libraries(unpack_time_test PRIVATE ct_state_host)
 set(CT_NATIVE_GAME_SOURCES ${CT_GAME_SOURCES})
 # What the machine alone runs: the registry (docs/PLAN.md, "The native program, and the
 # registry taken down").

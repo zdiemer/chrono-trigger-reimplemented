@@ -2061,16 +2061,16 @@ compares what it compared before):
 | `tm_reset_beam_latch` | Nothing |
 | `tm_sync` | Nothing; its one user, the sound driver's port I/O, goes with the SPC700 port |
 | *new* `tm_wait_frame(pf, o)` | Yields the main thread to the driver. SNES backend: a call-out to the mode's wait routine, whose loop is an idle entry (the API sketch above) |
-| *new* `bool tm_frame_time_left(pf, o, line)` | True: a host has time for all of it. SNES backend: latch and read the vertical counter as `$C0:5A46` does, true while it is above `line` or at line 240 or later |
+| *new* `bool tm_frame_time_left(pf, o, line)` | Uses the native work account to follow the game's budget window. SNES backend: latch and read the vertical counter as `$C0:5A46` does, true before `line` or at line 240 or later |
 | *new* `tm_wait_line(pf, o, line)` | Returns. SNES backend: `$CD:3B82`'s loops |
 | *new* `TmEntropy tm_entropy(pf, o, width)` | Four values of noise, bytes or words, from a host generator the driver seeds, so a replay reproduces them. SNES backend: latch and read the counters as `$C3:02DD` does, a byte or a word at a time (history/reimplementation-chunks.md, "Phase 3, the scene program: the star field, the captions and the random numbers") |
 | `bool tm_odd_frame(pf, o)` | The driver's frame count, odd or even. SNES backend: the original's 16-bit read of `$213E`-`$213F`, the field's bit 7 of the high byte, the word kept for scaffolding (`tm_snes_odd_frame_read`; added with the staff roll, REIMPLEMENTATION.md, "Phase 3, the scene program: the staff roll") |
 | *new* `bool in_ready(pf, o)` (input) | True. SNES backend: `$4212` bit 0 clear |
 
-`tm_frame_time_left` is a budget, not a model of one. A SNES ROM compiled from
-the ports (target 3) needs it more than the original did, since compiled C is
-slower, and a GBA build may want a deterministic stand-in (a count of objects
-per frame) behind the same call; neither changes the game code.
+`tm_frame_time_left` expresses a work budget. The native backend uses the
+calibrated work account; a SNES ROM compiled from the ports can use the
+actual beam, and another target can use its own deterministic budget behind
+the same call. None requires changing the game code.
 
 ### The rewrites
 
@@ -2079,7 +2079,7 @@ without a beam", tracks them):
 
 | Routine | Now | Becomes |
 |---|---|---|
-| The event scheduler `$C0:5A46` | generated, beam budget | run the due object scripts while `tm_frame_time_left(pf, o, limit)`; natively, all of them every frame |
+| The event scheduler `$C0:5A46` | generated, beam budget | run due object scripts while `tm_frame_time_left(pf, o, limit)`; leave the rest queued for the next frame |
 | The sprite frame queue `$C0:CA76` | generated, beam budget | the same over the animation queue, with its script-set limit |
 | `$C3:02DD` for `$C3:01E4` | generated | the stir as game code (`scene_draw_random`, ported for the star field), over `tm_entropy` |
 | The races `$C0:3B71` and `$C0:4181`; the waits before a mode enables its vblank handler, the field's `$C0:0B38` and the time warp's `$FD:EADA` (both reached through `tm_wait_frame_then_enable` now); the generated flag waits `$CD:044A`, `$CD:3E55`, `$CF:FCFB`; every idle entry on a flag a handler clears | idle entries, or generated | `tm_wait_frame` |
@@ -2149,6 +2149,14 @@ frame-level time model"). A song's start sits out what is owed first
 driver counts what is left of its echo's wait from where it stands: the wait
 a song starts runs through the work after it, as the original's does
 (SOUND.md, "The port as built").
+The field's script and drawing budgets use that same account. The native
+frame starts at NMI's line 225; the game's budget predicate reopens at 240,
+wraps through line zero and closes at the requested line. Queries take
+pending game work once and include handler work. A load that already fills
+a frame yields before taking more queued work. This is a deterministic
+estimate, with no emulated CPU or beam and no host clock. `timing_test`
+checks both window boundaries, repeated queries, renewed budgets after a
+wait and the handlers' share.
 `ct_native` (PLAYING.md, "The native program") links it with the whole of
 `game/` and runs the program (`core/program.c`'s main thread and handlers),
 so far through the boot and the field's first start; `ct_play` still runs on
@@ -2280,8 +2288,8 @@ no port does. `$CD:3B82`'s three loops were idle entries too, until
 original's code running in place of hand ports fell from 311.4 million
 instructions to 199.0 million; over the shipping mode's movies and the long
 routes, from 1,752 million to 431 million (the routes' long stretches in the
-field and the menus). The routes reach their outcomes with the budgets drained as a host
-drains them (`ct_drive --drain-budgets`, `$CT_DRIVE_DRAIN_BUDGETS` for
+field and the menus). The routes also reach their outcomes with the budget
+checks disabled (`ct_drive --drain-budgets`, `$CT_DRIVE_DRAIN_BUDGETS` for
 `tools/movies/route_check.py`). The battle's waits took the reference play
 (35 movies by then) from 60.3 million instructions to 36.2 million; the
 battle's frame work's own from 19.9 million to 1.8 million.
@@ -2295,9 +2303,9 @@ battle's frame work's own from 19.9 million to 1.8 million.
   plan.
 - **Beam budgets.** `$C0:5A46` and `$C0:CA76` stop at a scanline, so how many
   objects update and how many sprite frames get built per frame depends on CPU
-  speed. Settled ("Timing without a beam, as built"): the budget is
-  `tm_frame_time_left`, which a host answers with "all of it", and the routes
-  reach their outcomes with the budgets drained so.
+  speed. `tm_frame_time_left` preserves those deadlines through the native
+  work account ("Timing without a beam, as built"). Estimate errors can still
+  move a turn across a deadline; native outcome checks measure that effect.
 - **Real-time battles and frame shifts.** Any backend that changes how long
   something takes (the C sound driver's uploads, no beam) moves input relative to game
   state, which changes fights. Validation past P1 compares end states and
