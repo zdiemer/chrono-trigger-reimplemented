@@ -28,7 +28,6 @@
 #include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/vram.h"
-#include "original_effects.h"
 #include "vars.h"
 
 static bool cursor_moved(const GameState *g) { return menu_cursor_index(g) != menu_cursor_frame_start(g); }
@@ -79,14 +78,14 @@ bool menu_show_shop_item_panel_with(GameState *g, Platform *pf, const ShopSteps 
     bool usable = false;
     uint16_t left_by_the_last = 0;
     for (; menu_shop_panel_member(g, m, &usable); m++) {
-        ORIGINAL_EFFECT(left_by_the_last = (uint16_t)(menu_status_record_character(g) * 0x40));
+        charge_machine_accesses(g, 1);
         if (usable) {
             TIMED_AS(g, 0xC2916E, menu_work_out_figures(g));
-            ORIGINAL_EFFECT(left_by_the_last = hw_dividend(g));
+            (void)0;
         }
         menu_shop_panel_member_shown(g, m);
     }
-    ORIGINAL_EFFECT(menu_shop_leave_panel_done(g, m));
+    charge_machine_accesses(g, 4);
     n->note(ctx, SHOP_NOTE_PANEL_DONE, left_by_the_last);
     return true;
 }
@@ -555,7 +554,7 @@ static void note(void *ctx, ShopNote note, uint32_t value) { (void)ctx, (void)no
 
 static bool not_taken(ShopContext *c, uint32_t routine)
 {
-    program_needs_the_machine(c->game, routine, "a shop the port doesn't take");
+    program_breaks_a_contract(c->game, routine, "a shop the port doesn't take");
     return false;
 }
 

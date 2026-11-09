@@ -40,7 +40,6 @@
 #include "menu/vram.h"
 #include "menu/typeset.h"
 #include "menu/windows.h"
-#include "original_effects.h"
 #include "platform/audio.h"
 #include "port/native.h"
 
@@ -71,15 +70,6 @@ static const MenuWindowSize SLOT_WINDOW = { 24, 4 }, SLOT_BOX = { 4, 4 };
  * after a slot's row is drawn in the slot's. */
 enum { DESIGN_BITS = 7 };
 
-/* What the rows' drawing leaves in the drawing's cells: the box's size in
- * the operands, and the cells the box's frame and inside leave. */
-static void leave_box(GameState *g, uint16_t box, MenuWindowStyle style)
-{
-    set_menu_window_operands(g, 4, SLOT_BOX.columns);
-    set_menu_window_operands(g, 5, SLOT_BOX.rows);
-    menu_leave_window_cells(g, box, SLOT_BOX, style);
-}
-
 static void draw_slot_window_itself(GameState *g, uint16_t at, MenuWindowStyle style)
 {
     menu_draw_window_frame(g, at, SLOT_WINDOW, style);
@@ -106,7 +96,7 @@ static void draw_slot_window(GameState *g, uint8_t slot)
     set_menu_window_place(g, box);
     TIMED_AS(g, 0xC2EDF6, menu_draw_window_frame(g, box, SLOT_BOX, style));
     TIMED_AS(g, 0xC2EE7F, menu_fill_window_inside(g, box, SLOT_BOX, style));
-    ORIGINAL_EFFECT(leave_box(g, box, style));
+    charge_machine_accesses(g, 30);
     set_menu_window_design(g, (uint8_t)(game_settings(g, 1) & DESIGN_BITS));
 }
 
@@ -116,13 +106,6 @@ static void draw_slot_window(GameState *g, uint8_t slot)
 static void keep_next_label_tile(GameState *g, uint8_t first)
 {
     set_menu_graphic_first_tile(g, (uint16_t)((menu_graphic_first_tile(g) & 0xFF00) | first));
-}
-
-/* For the original's code and shadow mode: it draws each row from the
- * drawing origin, which it leaves past the last. */
-static void leave_rows_drawn(GameState *g)
-{
-    set_menu_draw_origin(g, (uint16_t)(SLOT_ROWS_AT + MENU_SAVE_SLOTS * WINDOW_ROW_BYTES));
 }
 
 // $C2:D10D, $C2:D131
@@ -142,7 +125,7 @@ void menu_draw_slot_rows(GameState *g)
     /* it counts the slots in the slot shown's cell, which it leaves past the
      * last: no slot shown until the screen picks one */
     set_menu_save_slot_shown(g, MENU_SAVE_SLOTS);
-    ORIGINAL_EFFECT(leave_rows_drawn(g));
+    charge_machine_accesses(g, 2);
 }
 
 /* The screen's windows and the slots' rows, as the load screen and the save
@@ -513,7 +496,7 @@ bool menu_erase_slot_with(GameState *g, Platform *pf, const LoadScreenSteps *n, 
     if (!n->empty_label(ctx) || !n->wait_a_frame(ctx))
         return false;
     MenuUpload label = menu_slot_label_upload(slot);
-    ORIGINAL_EFFECT(label.spare = menu_save_summary_byte(g, MENU_LABEL_RECORD_BYTES));
+    charge_machine_accesses(g, 1);
     TIMED_AS(g, 0xC2838E, menu_queue_upload(g, label));
     TIMED_AS(g, 0xC2D32C, menu_redraw_slot_window(g, slot));
     n->note(ctx, LOAD_NOTE_ERASED, 0);
@@ -616,7 +599,7 @@ static bool tick(void *ctx, LoadScreenPlace at)
 static bool takes(GameState *g, bool ok, uint32_t routine, const char *what)
 {
     if (!ok)
-        program_needs_the_machine(g, routine, what);
+        program_breaks_a_contract(g, routine, what);
     return ok;
 }
 

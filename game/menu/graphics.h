@@ -19,9 +19,4 @@ void menu_load_window_design(GameState *g);
 /* What the graphics leave on the machine, for a caller that runs them as C. */
 void menu_leave_graphics_built(Snes *s);
 
-void menu_build_graphics_entry(Snes *s);
-void menu_load_window_design_entry(Snes *s);
-bool menu_graphics_are_buildable(Snes *s);
-bool menu_window_design_is_loadable(Snes *s);
-
 #endif

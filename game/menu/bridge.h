@@ -1,9 +1,5 @@
-/* Where the menus proper meet the original's registers: the call the entry
- * wrappers and the bridges around call-outs make to the original's code, the
- * run of a sibling entry as the original's JSR reaches it, and the frame of
- * the original's routines a bridge stands in for. This, the entry wrappers at
- * the end of each file and the bridges they name, is the machine-aware code
- * of the menus proper; a build without the original's engine replaces it.
+/* Checked C calls, held task switches and the remaining machine-facing
+ * register conventions shared by the menus.
  *
  * The menus proper run on their page (D = $0000) with the data bank on work
  * RAM ($7E), reaching the tilemaps and tables above $2000 through it; unlike
@@ -28,7 +24,7 @@ enum { MENU_PAGE = 0x0000, MENU_DATA_BANK = 0x7E };
 /* A call's return is the instruction after it. */
 enum { MENU_JSR_SIZE = 3, MENU_JSL_SIZE = 4 };
 
-/* ---- Calling the original's code ------------------------------------------------------ */
+/* ---- Compatibility calls and held task switches --------------------------------------- */
 
 /* Call the original's routine from the JSR (JSL) at `site`, declaring what it
  * doesn't read of the registers (checked by tools/dontcare_check.py, which
@@ -37,7 +33,6 @@ enum { MENU_JSR_SIZE = 3, MENU_JSL_SIZE = 4 };
  * at the call's return, and the original carries on from the callee's
  * machine. */
 bool menu_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
-bool menu_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
 
 /* The running task's wait for the next frame (or for frames), a call to the
  * task switch `routine` from the JSR at `site`: the next task goes on, and
@@ -70,35 +65,37 @@ void menu_wait_in_the_task_loop(Snes *s, uint32_t site, bool widths_its_own);
 void menu_wait_frames_in_the_task_loop(Snes *s, uint32_t site, uint8_t frames, bool widths_its_own);
 
 /* The same for a routine that comes back with widths of its own. */
-bool menu_call_returning(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, bool a8, bool x8);
 
 /* The same for a routine the original reaches by a jump through a pointer at
  * `site` it reads at run time (a JMP (abs)), with a return the code before
  * the jump pushed (a PER): the callee returns to `returns_to`, which is where
  * the port goes on, or stops. */
-bool menu_call_jumped(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint32_t returns_to);
 
-/* The machine a bridge expects back after a call made some other way (a
- * service's call-out, a sibling run as its JSR reaches it), noted before it. */
 typedef struct {
     bool a8, x8;
     uint16_t page;
     uint8_t bank;
 } MenuMachine;
 
-MenuMachine menu_machine_now(const Snes *s);
+MenuMachine menu_machine(const Snes *s);
 
 /* The same test as menu_call's, after such a call returning to `returns_to`,
  * and the same stop. */
 bool menu_back(Snes *s, uint32_t returns_to, MenuMachine m);
+/* A missing named form reports a contract failure at its constructed call. */
+void menu_refuse_call(Snes *s, uint32_t returns_to, uint32_t routine, bool far);
 
-/* Run a sibling port's registered entry as the original's JSR at `site` calls
+/* Run a sibling port's checked legacy adapter as the original's JSR at `site` calls
  * `routine`: the return address pushed as the call pushes it, so that the
  * entry's own call-outs meet the original's where it makes them, and its time
  * counted as the routine's own. True if it came back to the call's return with
  * the machine it was called with; otherwise it stopped where the original
  * carries on, or the port stops at the return. For a machine-shaped sibling:
  * one whose work is C on the game's state is called as C. */
+/* Inline work keeps an uncharged, saveable frame; check before using its state. */
+bool menu_begin_inline_call(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
+void menu_end_inline_call(Snes *s, uint32_t site);
+
 bool menu_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
 
 /* Replace a call-out with a checked C call, settling time at its call and
@@ -123,7 +120,7 @@ bool menu_run_long_any_widths(Snes *s, uint32_t site, uint32_t routine, void (*e
  * jump (menu_call_jumped), with its return to `returns_to` pushed before it. */
 bool menu_run_jumped(Snes *s, uint32_t returns_to, uint32_t routine, void (*entry)(Snes *));
 
-/* Whether the registered entry or retired service takes this machine state.
+/* Whether the checked legacy adapter or retired service takes this machine state.
  * Calls also check after pushing their frame and setting the callee's PC;
  * the fuzzer supplies the same contracts outside the runtime. */
 bool menu_runs_as_port(Snes *s, uint32_t routine, void (*entry)(Snes *));
@@ -154,30 +151,15 @@ void menu_set_widths(Snes *s, bool a8, bool x8);
 void menu_save_p(Snes *s);
 void menu_restore_p(Snes *s);
 
-/* The flags the original's code leaves, where they are saved on the stack
- * under a call-out (a routine's P, pushed as it starts) and compared there:
- * those of a comparison of `a` with `b`, of a test of `v`'s bits against the
- * accumulator's `a` (N and V from `v`), and of a load of `v`. The carry and the
- * overflow are left alone where the operation doesn't set them. Scaffolding
- * (ORIGINAL_EFFECT). */
-void menu_leave_compare(Snes *s, uint8_t a, uint8_t b);
-void menu_leave_bit_test(Snes *s, uint8_t a, uint8_t v);
+/* Set the load flags preserved across a task switch or read by a checked
+ * continuation. Carry and overflow remain unchanged. */
 void menu_leave_load(Snes *s, uint8_t v);
-
-/* ... and A's high byte clear, as the save code's loads leave it. */
-void menu_leave_a_high_byte_clear(Snes *s);
 
 /* ---- The cursor kept on a list (menu/lists.c) ------------------------------------------ */
 
-/* Its entry ($C2:EA53), and what the original leaves the code after it,
- * which branches on it (scaffolding). */
-void menu_keep_the_cursor_on_the_list_entry(Snes *s);
-void menu_leave_cursor_kept_on_the_list(Snes *s);
-/* A screen's step keeping it as C, timed as the original's, and leaving what
- * the original leaves. */
-void menu_step_keeps_the_cursor_on_the_list(Snes *s);
+void menu_charge_cursor_kept_on_the_list(Snes *s);
 
-/* ---- The guards (registry .guard) ------------------------------------------------------ */
+/* ---- The machine contracts ------------------------------------------------------ */
 
 /* On the menus' page; and with the data bank on work RAM's as well. */
 bool menu_on_page(Snes *s);

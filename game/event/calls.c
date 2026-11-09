@@ -22,7 +22,6 @@
 #include "cpu_io.h"
 #include "event/calls.h"
 #include "charge.h"
-#include "field/menu_compat.h"
 #include "field/scratch.h"
 #include "event/script.h"
 
@@ -44,19 +43,16 @@ typedef uint16_t Place;   /* an entry of event_saved_positions */
 
 /* The offset of an object's place at a level among the places, which the
  * original works out in a scratch cell. */
-static uint16_t event_place_offset(FieldObject object, uint8_t level)
-{
-    return (uint16_t)(level * BYTES_PER_LEVEL + field_object_offset(object));
-}
+
 
 static Place place_of(FieldObject object, uint8_t level) { return (Place)(level * OBJECTS_PER_LEVEL + object); }
 
 /* ... and the calls keep its offset in a scratch cell. */
 static Place place_found(GameState *g, FieldObject object, uint8_t level)
 {
-    charge_legacy_accesses(g, 1); /* the offset byte not shared with the menu */
+    charge_legacy_accesses(g, 1); /* the low offset byte */
     charge_legacy_io_accesses(g, 4); /* level multiplication */
-    ORIGINAL_EFFECT(field_leaves_menu_wave_low(g, (uint8_t)(event_place_offset(object, level) >> 8)));
+    charge_legacy_accesses(g, 1);
     return place_of(object, level);
 }
 
@@ -91,8 +87,8 @@ uint16_t object_function_start(const GameState *g, FieldObject object, uint8_t f
 /* A call keeps where the target's functions are as it looks one up. */
 static uint16_t function_start(GameState *g, FieldObject object, uint8_t function)
 {
-    charge_legacy_accesses(g, 1); /* the table byte not shared with the menu */
-    ORIGINAL_EFFECT(field_leaves_menu_wave_high(g, (uint8_t)function_table(object)));
+    charge_legacy_accesses(g, 1); /* the high table byte */
+    charge_legacy_accesses(g, 1);
     return object_function_start(g, object, function);
 }
 

@@ -69,9 +69,6 @@ static inline void menu_start_task(GameState *g, unsigned task, uint16_t start)
  * them takes another turn ($C2:8255, menu/frame.c). */
 enum { MENU_TASKS = 8 };
 void menu_stop_tasks(GameState *g, uint8_t tasks);
-void menu_stop_tasks_entry(Snes *s);
-
-
 /* menu/tasks.c: a task waits a frame or some frames, or ends, and the next
  * goes on; the frame's turns from the first task; the menus' first wait; and
  * the turns of the main task and the cursor's, the tasks that run all the

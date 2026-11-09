@@ -17,13 +17,11 @@
  * Every line outside the circle is closed: left 1, right 0, nothing inside.
  *
  * The original keeps its loop state in cells high on the decompressor's page;
- * the port keeps it in locals and leaves the cells as the original leaves them,
- * for shadow mode (the cells are other code's scratch too, which writes them
- * before it reads them). */
+ * the port keeps it in locals. The retired menu callers need only the window
+ * table; the discarded scratch writes retain their timing charges. */
 #include "scene/scene.h"
 
 #include "charge.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -75,12 +73,7 @@ static void close_lines(GameState *g, const Circle *c, int first_line, int lines
  * Nothing reads them as lines; they are written as the original writes them. */
 enum { SPILL_BYTES = 3 };
 
-static void spill_past_table(GameState *g, const Circle *c)
-{
-    wram_fill16(g, in_table(c, line_at(c, LINES)), 1, CLOSED_LINE);
-    wram_fill8(g, in_table(c, (uint16_t)(line_at(c, LINES) + LINE_BYTES)), 1, (uint8_t)CLOSED_LINE);
-    charge_block_move(g, SPILL_BYTES);
-}
+
 
 /* ---- The outline ---------------------------------------------------------------------------- */
 
@@ -140,11 +133,8 @@ static int16_t decision_step(const Octant *o, int near_right)
     return (int16_t)(4 * dx + 10 + (dx < 0 ? 1 : 0) + (dx == -1 || dx == -2 ? 1 : 0));
 }
 
-/* Draw the upper half, stepping toward the diagonal. Returns where it ended:
- * the near line, its x and y and the decision value there, which the lower
- * half starts from (the cells the original leaves hold the mode, not the
- * decision: leave_cells). */
-static Octant draw_upper_half(GameState *g, const Circle *c)
+/* Draw the upper half, stepping toward the diagonal. */
+static void draw_upper_half(GameState *g, const Circle *c)
 {
     Octant o = { c->radius, 0, (int16_t)(2 - 2 * c->radius), c->center_row, true };
     for (;;) {
@@ -158,7 +148,7 @@ static Octant draw_upper_half(GameState *g, const Circle *c)
         o.decision = (int16_t)(o.decision + step);
         o.first = false;
         if (o.x < o.y++)
-            return o;
+            return;
     }
 }
 
@@ -175,33 +165,11 @@ static void draw_lower_half(GameState *g, const Circle *c, int lines, int step)
     }
 }
 
-/* The original's cells as it leaves them: the last count it kept (a block
- * move's count, or the lower half's lines run down), the mode (or, with a
- * radius of 0, the cell as it was), the near line's address, and half the
- * center line's. */
-static void leave_cells(GameState *g, const Circle *c, uint16_t count, uint8_t mode, const Octant *o)
-{
-    set_scene_circle_count(g, count);
-    if (c->radius == 0)
-        return;
-    set_scene_circle_decision(g, mode);
-    set_scene_circle_row(g, o->near_row);
-    set_scene_circle_center_row_half(g, (uint16_t)(c->center_row >> 1));
-}
 
-/* The center and the radius are bytes in word cells, which the original reads
- * as words with their high halves cleared; the callers write only the bytes, so
- * nothing reads the high halves but the original clearing them again. */
-static void leave_center_and_radius_as_bytes(GameState *g, const Circle *c)
-{
-    set_scene_circle_center_x(g, (uint16_t)c->center_x);
-    set_scene_circle_center_y(g, (uint16_t)c->center_y);
-    set_scene_circle_radius(g, (uint16_t)c->radius);
-}
 
-/* The byte counts the original's cells keep for a run of closed lines: its
- * block move's count. */
-static uint16_t closing_count(int lines) { return (uint16_t)(lines * LINE_BYTES - 3); }
+
+
+
 
 // $C3:0077
 static void draw_circle(GameState *g, uint8_t mode)
@@ -210,17 +178,17 @@ static void draw_circle(GameState *g, uint8_t mode)
                  (int16_t)(scene_circle_radius(g) & 0xFF),
                  (scene_circle_table_bank(g) & 1) ? SCENE_UPPER_WORK_RAM : SCENE_LOWER_WORK_RAM, scene_circle_table(g), 0 };
     c.center_row = line_at(&c, c.center_y);
-    ORIGINAL_EFFECT(leave_center_and_radius_as_bytes(g, &c));
+    charge_machine_accesses(g, 6);
 
     if (c.radius == 0) {
         close_lines(g, &c, 0, LINES);
-        ORIGINAL_EFFECT(spill_past_table(g, &c));
-        ORIGINAL_EFFECT(leave_cells(g, &c, (uint16_t)(LINES * LINE_BYTES), mode, NULL));
+        charge_machine_accesses(g, SPILL_BYTES);
+        charge_block_move(g, SPILL_BYTES);
+        charge_machine_accesses(g, 2);
         return;
     }
 
-    Octant o = draw_upper_half(g, &c);
-    uint16_t count = (uint16_t)(c.radius + 1);   /* what the original's count ends as */
+    draw_upper_half(g, &c);
     int height;
     switch (mode & ~SCENE_CIRCLE_KEEPS_OUTSIDE) {
     case SCENE_CIRCLE_ROUND:
@@ -232,10 +200,10 @@ static void draw_circle(GameState *g, uint8_t mode)
         height = c.radius / 2;
         break;
     default:
-        ORIGINAL_EFFECT(leave_cells(g, &c, count, mode, &o));
+        charge_machine_accesses(g, 8);
         return;
     }
-    count = 0;
+
 
     if (!(mode & SCENE_CIRCLE_KEEPS_OUTSIDE)) {
         /* close the lines below the circle, from its last line on; with only
@@ -244,7 +212,7 @@ static void draw_circle(GameState *g, uint8_t mode)
         int bottom = height + c.center_y;
         if (bottom < LAST_OPEN_BOTTOM) {
             close_lines(g, &c, bottom, LINES - bottom);
-            count = closing_count(LINES - bottom);
+
         }
         /* and the lines above it; with a single line above, the original's
          * count for it would run the block move through the whole bank, and it
@@ -252,10 +220,10 @@ static void draw_circle(GameState *g, uint8_t mode)
         int top = c.center_y - c.radius;
         if (top > 1) {
             close_lines(g, &c, 0, top);
-            count = closing_count(top);
+
         }
     }
-    ORIGINAL_EFFECT(leave_cells(g, &c, count, mode, &o));
+    charge_machine_accesses(g, 8);
 }
 
 /* The iris as a C call, for the menus' sprite objects, which draw one. */

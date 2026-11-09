@@ -21,6 +21,7 @@
  * - the game: the scene's objects' sprite scripts, a location to go to,
  *   marks in the screens' own tables, sounds and songs, a routine the script
  *   names. */
+#include "charge.h"
 #include "menu/script.h"
 
 #include "cpu_io.h"
@@ -28,7 +29,6 @@
 #include "menu/screen_objects.h"
 #include "menu/sprites.h"
 #include "menu/vram.h"
-#include "original_effects.h"
 #include "overworld/places.h"
 #include "vars.h"
 #include "wram.h"
@@ -438,14 +438,6 @@ static uint16_t map_tile(const GameState *g, uint8_t plane, uint8_t column, uint
     return (uint16_t)(menu_plane_map(g, (uint8_t)(plane - 1)) + column + row * MAP_ROW_BYTES);
 }
 
-/* What reaching a tile leaves in the multiplier: the row, and its row's
- * offset. */
-static void leave_multiplied(GameState *g, uint8_t row)
-{
-    hw_set_multiplicand(g, row);
-    (void)hw_multiply_by(g, MAP_ROW_BYTES);
-}
-
 // $C2:116B
 /* Put a map tile on a plane: the tile's byte at a column and row of the
  * plane's map. */
@@ -454,8 +446,8 @@ static ScriptFlow set_map_tile(GameState *g, MenuObject self, uint8_t plane, uin
 {
     (void)self;
     uint16_t at = map_tile(g, plane, column, row);
-    ORIGINAL_EFFECT(leave_multiplied(g, row));
-    ORIGINAL_EFFECT(set_menu_object_scratch_pointer(g, (uint32_t)MAP_BANK << 16 | at));
+    charge_machine_io_accesses(g, 4);
+    charge_machine_accesses(g, 3);
     wram_write8(g, (uint32_t)MAP_BANK << 16 | at, value);
     return next_command();
 }
@@ -464,20 +456,11 @@ SCRIPT_OPERATION(set_map_tile, plane, column, row, value)
 /* The copy runs through the first plane's map or the second's. */
 static uint8_t first_or_second(uint8_t plane) { return plane == 1 ? 1 : 2; }
 
-/* What the copy leaves: the tiles across in the first cell and both counts
- * run out, the two places a row past the last, the multiplier on the last
- * place's row, and the work RAM port past the last row it wrote. */
-static void leave_copied(GameState *g, uint16_t from, uint16_t to, uint8_t to_row, uint8_t columns, unsigned rows)
+static void charge_copied(GameState *g, uint16_t from, uint16_t to, uint8_t to_row, uint8_t columns, unsigned rows)
 {
-    unsigned across = columns ? columns : 256;
-    uint32_t port = ((uint32_t)MAP_BANK << 16) + (uint16_t)(to + (rows - 1) * MAP_ROW_BYTES) + across;
-    set_menu_object_scratch_columns(g, columns);
-    set_menu_object_scratch_rows_left(g, 0);
-    set_menu_object_scratch_columns_left(g, 0);
-    set_menu_object_scratch_pointer(g, (uint32_t)MAP_BANK << 16 | (uint16_t)(from + rows * MAP_ROW_BYTES));
-    set_menu_object_scratch_second_pointer(g, (uint32_t)MAP_BANK << 16 | (uint16_t)(to + rows * MAP_ROW_BYTES));
-    leave_multiplied(g, to_row);
-    hw_port_seek(g, (uint16_t)port, (uint8_t)(port >> 16));
+    (void)from, (void)to, (void)to_row, (void)columns, (void)rows;
+    charge_machine_accesses(g, 9);
+    charge_machine_io_accesses(g, 7);
 }
 
 // $C2:1B2F
@@ -499,7 +482,7 @@ static ScriptFlow copy_map_tiles(GameState *g, MenuObject self, uint8_t from_pla
         for (unsigned i = 0; i < across; i++)
             wram_write8(g, dest + i, wram_read8(g, source + i));
     }
-    ORIGINAL_EFFECT(leave_copied(g, from, to, row, columns, down));
+    charge_copied(g, from, to, row, columns, down);
     return next_command();
 }
 SCRIPT_OPERATION(copy_map_tiles, from_plane, from_column, from_row, plane, column, row, columns, rows)
@@ -524,10 +507,10 @@ static ScriptFlow show_tile_group(GameState *g, MenuObject self, uint8_t plane, 
                                + in_its_screen);
     if (across & TILEMAP_COLUMNS)
         vram = (uint16_t)(vram + TILEMAP_SCREEN_WORDS);
-    ORIGINAL_EFFECT(set_menu_object_scratch_group_column(g, across));
-    ORIGINAL_EFFECT(set_menu_object_scratch_group_screen_column(g, in_its_screen));
-    ORIGINAL_EFFECT(set_menu_object_scratch_pointer_address(g, source));
-    ORIGINAL_EFFECT(set_menu_object_scratch_second_pointer_address(g, vram));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
     const MenuObjectUpload rows[2] = {
         { (uint32_t)MAP_BANK << 16 | source, vram, GROUP_ROW_BYTES, MENU_PORT_WORD_BY_WORD },
         { (uint32_t)MAP_BANK << 16 | (uint16_t)(source + GROUP_ROW_BYTES), (uint16_t)(vram + TILEMAP_COLUMNS),
@@ -568,7 +551,7 @@ static ScriptFlow set_scene_script(GameState *g, MenuObject self, uint16_t scene
 {
     enum { EXTRA_OBJECT = 7, EXTRA_SLOT = 3, PARTY = 3 };
     (void)self;
-    ORIGINAL_EFFECT(set_menu_object_scratch_scene_script(g, scene_script));
+    charge_machine_accesses(g, 2);
     if (member == EXTRA_OBJECT) {
         set_menu_member_scripts(g, EXTRA_SLOT, scene_script);
         return next_command();
@@ -617,8 +600,8 @@ static ScriptFlow mark_entry(GameState *g, MenuObject self, uint8_t table, uint8
     enum { MARK = 0x80 };
     (void)self;
     uint32_t at = (uint32_t)MAP_BANK << 16 | table_entry(table, entry);
-    ORIGINAL_EFFECT(set_menu_object_scratch_entry(g, entry));
-    ORIGINAL_EFFECT(set_menu_object_scratch_pointer(g, at));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 3);
     uint8_t was = wram_read8(g, at);
     wram_write8(g, at, mark ? (uint8_t)(was | MARK) : (uint8_t)(was & ~MARK));
     return next_command();

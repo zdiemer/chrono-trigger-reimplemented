@@ -16,7 +16,6 @@
 #include "holds.h"
 #include "core/input.h"
 #include "menu/bridge.h"
-#include "original_effects.h"
 #include "overworld/music.h"
 #include "platform/audio.h"
 #include "platform/timing.h"
@@ -151,17 +150,6 @@ void menu_wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t fra
     TIMED_AS(g, 0xC20454, (void)wait_frames_sending_the_sound(g, pf, frames, &in_the_program, &c, &sent));
 }
 
-/* For shadow mode and the original's code, should it carry on from the wait:
- * the count on the stack under the frame's calls, as the original keeps it. */
-static bool a_frame_left_on_the_machine(void *ctx, uint16_t left)
-{
-    Snes *s = ctx;
-    ORIGINAL_EFFECT(m_push16(s, left));
-    return menu_call(s, 0xC20455, FRAME_WAIT, WAITS_READ_NOTHING);
-}
-
-static void frame_done_on_the_machine(void *ctx) { ORIGINAL_EFFECT((void)m_pull16((Snes *)ctx)); }
-
 /* The countdown lives on the saveable machine stack while the display
  * advances. Its caller's return stays beneath it, without a suspended port. */
 static void wait_one_counted_frame(Snes *s, uint16_t left)
@@ -184,15 +172,10 @@ void menu_counted_frame_finished(Snes *s)
     uint16_t left = (uint16_t)(m_pull16(s) - 1);
     s->cpu.x = left;
     if (left) {
-        if (m_runs_retired_as_c(s)) {
-            wait_one_counted_frame(s, left);
-            return;
-        }
-        if (a_frame_left_on_the_machine(s, left))
-            m_stop_at(s, 0xC20458, DC_AL | DC_N | DC_Z);
+        wait_one_counted_frame(s, left);
         return;
     }
-    ORIGINAL_EFFECT(m_set_a8(s, sent ? MAILBOX_MARKED_BUSY : MAILBOX_READ_EMPTY));
+    (void)0;
     s->cpu.x = 0;
     m_set_nz16(s, 0);
     m_rts(s);
@@ -201,18 +184,7 @@ void menu_counted_frame_finished(Snes *s)
 
 void menu_wait_frames_sending_the_sound_entry(Snes *s)
 {
-    if (m_runs_retired_as_c(s)) {
-        wait_one_counted_frame(s, s->cpu.x);
-        return;
-    }
-    static const FramesLeft on_the_machine = { a_frame_left_on_the_machine, frame_done_on_the_machine };
-    bool sent = false;
-    if (!wait_frames_sending_the_sound(state_of(s), m_platform(s), s->cpu.x, &on_the_machine, s, &sent))
-        return;
-    ORIGINAL_EFFECT(m_set_a8(s, sent ? MAILBOX_MARKED_BUSY : MAILBOX_READ_EMPTY));
-    s->cpu.x = 0;
-    m_set_nz16(s, 0);
-    m_rts(s);
+    wait_one_counted_frame(s, s->cpu.x);
 }
 
 // $C2:81CA (in the menus' loop, $C2:81B6)
@@ -229,28 +201,15 @@ void menu_wait_ready_loop(Snes *s)
 bool menu_frame_wait_on_page(Snes *s) { return m_direct_page(s) == 0x0000; }
 bool menu_ready_wait_reaches_low_ram(Snes *s) { return m_bank_reaches_low_ram(s); }
 
-/* ---- Stopping the tasks ------------------------------------------------------------------------- */
-
-/* For the original's code and shadow mode: it shifts the bits out of the
- * menus' first cell as it goes. */
-static void leave_bits_shifted_out(GameState *g) { set_menu_scratch_tasks_left(g, 0); }
-
-// $C2:8255
 void menu_stop_tasks(GameState *g, uint8_t tasks)
 {
     for (unsigned task = 0; task < MENU_TASKS; task++)
         if (tasks >> task & 1)
             set_menu_tasks_state(g, task, 0);
-    ORIGINAL_EFFECT(leave_bits_shifted_out(g));
+    charge_machine_accesses(g, 1);
 }
 
 // $C2:8255
-void menu_stop_tasks_entry(Snes *s)
-{
-    uint8_t tasks = (uint8_t)s->cpu.a;
-    menu_stop_tasks(state_of(s), tasks);
-    m_rts(s);
-}
 
 /* ---- The frame's input, from another bank ------------------------------------------------------- */
 

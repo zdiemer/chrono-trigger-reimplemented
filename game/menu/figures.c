@@ -28,7 +28,6 @@
 #include "menu/members.h"
 #include "menu/menu_data.h"
 #include "menu/party.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
@@ -160,34 +159,21 @@ static uint8_t held_to_a_byte(unsigned v) { return v > MOST ? MOST : (uint8_t)v;
  * the divider. */
 enum { PAST_THE_WEAPON = 0xFF };
 
-static void leave_boosts_shifted(GameState *g)
+static void charge_divided(GameState *g, Fighting how, uint8_t weapon_attack, const uint8_t *figures, AttackSum a)
 {
+    (void)weapon_attack, (void)figures, (void)a;
+    charge_machine_accesses(g, 1 + (how == FISTS ? 0 : 2));
     for (unsigned i = MENU_EQUIPMENT_SLOTS; i-- > 0;) {
         uint8_t boost = item_amount(g, worn(g, slots_last_first[i]));
-        if (boost == NO_BOOST)
-            continue;
-        set_menu_scratch_figures_weapon_part(g, (uint16_t)(boost_of(g, boost).amount << 8));
-        return;
+        if (boost != NO_BOOST) {
+            charge_machine_rom_accesses(g, 2);
+            charge_machine_accesses(g, 2);
+            break;
+        }
     }
+    charge_machine_io_accesses(g, how == AIMS ? 3 : 7);
 }
 
-static void leave_divided(GameState *g, Fighting how, uint8_t weapon_attack, const uint8_t *figures, AttackSum a)
-{
-    set_menu_figures_slot(g, PAST_THE_WEAPON);
-    leave_boosts_shifted(g);
-    if (how == WIELDS)
-        set_menu_scratch_figures_weapon_part(g, (uint16_t)(weapon_attack * WEAPON_SHARE));
-    else if (how == AIMS)
-        set_menu_scratch_figures_weapon_part(g, weapon_attack);
-    if (how != AIMS) {
-        hw_set_multiplicand(g, how == WIELDS ? POWER_SHARE : FIST_POWER_SHARE);
-        (void)hw_multiply_by(g, figures[POWER]);
-    }
-    hw_set_dividend(g, a.sum);
-    hw_divide_by(g, a.by);
-}
-
-// $C2:916E
 void menu_work_out_figures(GameState *g)
 {
     uint16_t greatest_hp = 0;
@@ -208,7 +194,7 @@ void menu_work_out_figures(GameState *g)
     AttackSum a = attack_sum(g, how, e.attack, figures);
     set_menu_figures_worked_out(g, DEFENCE, held_to_a_byte((unsigned)figures[STAMINA] + e.defence));
     set_menu_figures_worked_out(g, ATTACK, held_to_a_byte(a.sum / a.by));
-    ORIGINAL_EFFECT(leave_divided(g, how, e.attack, figures, a));
+    charge_divided(g, how, e.attack, figures, a);
 }
 
 /* An accessory that doubles evade, which the menus count as they write the
@@ -222,7 +208,6 @@ void menu_work_out_figures_shown(GameState *g)
         set_menu_figures_worked_out(g, EVADE, (uint8_t)(menu_figures_worked_out(g, EVADE) << 1));
 }
 
-// $C2:9137
 void menu_note_member_figures(GameState *g)
 {
     menu_work_out_figures_shown(g);
@@ -237,14 +222,13 @@ void menu_note_member_figures(GameState *g)
     charge_block_move(g, 2 * (MENU_FIGURES_WORKED_OUT_COUNT + 2));
 }
 
-// $C2:99B2
 void menu_note_everyones_figures(GameState *g)
 {
     for (uint8_t character = 0; character < CHARACTER_RECORDS_COUNT; character++) {
         (void)menu_load_character(g, character);
         TIMED_AS(g, 0xC29137, menu_note_member_figures(g));
     }
-    ORIGINAL_EFFECT(set_menu_scratch_characters_noted(g, CHARACTER_RECORDS_COUNT));
+    charge_machine_accesses(g, 2);
 }
 
 /* ---- The party's items set aside ------------------------------------------------------------ */
@@ -254,7 +238,6 @@ enum { PLACES = 0x100, INVENTORY_BYTES = 2 * PLACES };
 
 static bool story_holds_the_items(const GameState *g) { return menu_story_items(g, 1) != 0; }
 
-// $C2:90FC
 void menu_set_items_aside(GameState *g)
 {
     if (!story_holds_the_items(g))
@@ -264,7 +247,6 @@ void menu_set_items_aside(GameState *g)
     charge_block_move(g, INVENTORY_BYTES + PLACES);
 }
 
-// $C2:9121
 void menu_put_items_back(GameState *g)
 {
     if (!story_holds_the_items(g))
@@ -273,69 +255,17 @@ void menu_put_items_back(GameState *g)
     charge_block_move(g, INVENTORY_BYTES);
 }
 
-/* ---- The entries ------------------------------------------------------------------------------ */
-
-/* What the working out hands back in A: the divider's, as the attack's sum
- * and quotient leave it (the sum's high byte, the quotient's). Written
- * back, A is what the block moves of the figures leave it; and once every
- * character's are, the count of characters. */
-static void leave_a_divided(Snes *s)
-{
-    GameState *g = state_of(s);
-    s->cpu.a = (uint16_t)((hw_dividend(g) & 0xFF00) | hw_quotient(g) >> 8);
-}
-
-static void leave_a(Snes *s, uint16_t a) { s->cpu.a = a; }
-
 enum { BLOCK_MOVED = 0xFFFF };
 
 // $C2:916E
-void menu_work_out_figures_entry(Snes *s)
-{
-    menu_work_out_figures(state_of(s));
-    ORIGINAL_EFFECT(leave_a_divided(s));
-    m_rts(s);
-}
 
 // $C2:9137
-void menu_note_member_figures_entry(Snes *s)
-{
-    menu_note_member_figures(state_of(s));
-    ORIGINAL_EFFECT(leave_a(s, BLOCK_MOVED));
-    m_rts(s);
-}
 
 // $C2:99B2
-void menu_note_everyones_figures_entry(Snes *s)
-{
-    menu_note_everyones_figures(state_of(s));
-    ORIGINAL_EFFECT(leave_a(s, CHARACTER_RECORDS_COUNT));
-    m_rts(s);
-}
-
-/* The setting aside and the putting back leave A as their block moves do,
- * or as the story's word reads where it holds nothing. */
-static void leave_set_aside_or_not(Snes *s)
-{
-    GameState *g = state_of(s);
-    s->cpu.a = story_holds_the_items(g) ? BLOCK_MOVED : menu_story_items(g, 1);
-}
 
 // $C2:90FC
-void menu_set_items_aside_entry(Snes *s)
-{
-    menu_set_items_aside(state_of(s));
-    ORIGINAL_EFFECT(leave_set_aside_or_not(s));
-    m_rts(s);
-}
 
 // $C2:9121
-void menu_put_items_back_entry(Snes *s)
-{
-    menu_put_items_back(state_of(s));
-    ORIGINAL_EFFECT(leave_set_aside_or_not(s));
-    m_rts(s);
-}
 
 /* The working out runs on the menus' page with the data bank on work RAM's,
  * for a loaded record whose weapon, armour and helmet have a power in the
@@ -394,18 +324,6 @@ bool menu_figures_are_workable(Snes *s)
     return ok;
 }
 
-/* ... and writing them back, for a member loaded from a character's
- * record. */
-bool menu_member_figures_are_notable(Snes *s)
-{
-    if (!menu_figures_are_workable(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_member_record_is_a_characters(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
 /* Every character's: the characters' records hold the game's equipment. */
 bool menu_everyones_figures_can_be_noted(const GameState *g)
 {
@@ -417,15 +335,5 @@ bool menu_everyones_figures_can_be_noted(const GameState *g)
             ok = an_item_of_the_games(item, (MenuItemCategory)slot);
         }
     }
-    return ok;
-}
-
-bool menu_everyones_figures_are_notable(Snes *s)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_everyones_figures_can_be_noted(state_of(s));
-    vars_peek(false);
     return ok;
 }

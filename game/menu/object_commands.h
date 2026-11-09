@@ -54,4 +54,7 @@ void menu_object_lay_out_scene_pattern(Snes *s);
 bool menu_object_scene_edge_is_readable(Snes *s);
 void menu_object_place_on_scene_edge(Snes *s);
 
+void menu_load_omen_graphics_entry(Snes *s);
+void menu_load_omen_palette_entry(Snes *s);
+
 #endif

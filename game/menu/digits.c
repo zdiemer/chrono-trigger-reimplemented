@@ -15,11 +15,11 @@
  * The tiles are sixteen-colour ones (32 bytes: two pairs of bitplanes, a row
  * a byte of each plane); the four-colour digits fill the first pair, and what
  * the tiles' last pair held before is left as it was. */
+#include "charge.h"
 #include "menu/digits.h"
 
 #include "menu/bridge.h"
 #include "menu/menu_data.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "ram.h"
 #include "vars.h"
@@ -91,18 +91,6 @@ static void blank_first_start(GameState *g)
  * out, and the last font byte as far as it shifted it. */
 enum { PIXELS_SHIFTED = 5 };
 
-static void leave_number_tiles_built(GameState *g)
-{
-    for (unsigned hundreds = 0; hundreds < HUNDREDS; hundreds++)
-        for (unsigned at = 0; at < MENU_DIGIT_BYTES; at++)
-            set_menu_hundreds_digits_byte(g, hundreds * MENU_DIGIT_BYTES + at, hundreds_byte(g, hundreds, at));
-    set_menu_scratch_number_tiles_digit(g, HUNDREDS * MENU_DIGIT_BYTES);
-    set_menu_scratch_number_tiles_bytes_left(g, 0);
-    set_menu_scratch_number_tiles_pixels(g, (uint8_t)(menu_small_digit_byte(g, MENU_DIGITS - 1, PLANES_BYTES - 1) << PIXELS_SHIFTED));
-    set_menu_scratch_number_tiles_hundreds_byte(g, HUNDREDS * MENU_DIGIT_BYTES);
-    set_menu_scratch_number_tiles_blocks_left(g, 0);
-}
-
 // $FF:F548
 void menu_build_number_tiles(GameState *g)
 {
@@ -113,7 +101,7 @@ void menu_build_number_tiles(GameState *g)
         for (unsigned tens = 0; tens < MENU_DIGITS; tens++)
             put_number_start(g, hundreds, tens);
     blank_first_start(g);
-    ORIGINAL_EFFECT(leave_number_tiles_built(g));
+    (charge_machine_accesses(g, 54), charge_machine_rom_accesses(g, 33));
 }
 
 /* ---- The amounts' digits ---------------------------------------------------------------------- */
@@ -131,48 +119,10 @@ static void build_amount_digit(GameState *g, unsigned digit)
     }
 }
 
-/* What the original leaves: where the tile after the last would be, and the
- * row count run out. */
-static void leave_amount_digits_built(GameState *g)
-{
-    set_menu_scratch_amount_digit_at(g, (uint16_t)(RAM_ABS(RAM_MENU_AMOUNT_DIGIT_TILES) + MENU_DIGITS * MENU_AMOUNT_DIGIT_TILES_BYTES));
-    set_menu_scratch_amount_digit_rows_left(g, 0);
-}
-
 // $FF:F7D9
 void menu_build_amount_digits(GameState *g)
 {
     for (unsigned digit = 0; digit < MENU_DIGITS; digit++)
         build_amount_digit(g, digit);
-    ORIGINAL_EFFECT(leave_amount_digits_built(g));
-}
-
-/* ---- The registered entries ------------------------------------------------------------------- */
-
-/* Both move the digits in with a block move, which leaves the data bank on
- * work RAM's; the guards ask for it there already. */
-void menu_build_number_tiles_entry(Snes *s)
-{
-    menu_build_number_tiles(state_of(s));
-    m_rtl(s);
-}
-
-void menu_build_amount_digits_entry(Snes *s)
-{
-    menu_build_amount_digits(state_of(s));
-    m_rtl(s);
-}
-
-/* The number tiles start from the menus' zero word, which is 0 whenever the
- * menus run. */
-bool menu_digits_are_buildable(Snes *s) { return menu_on_page_work_ram(s); }
-
-bool menu_number_tiles_are_buildable(Snes *s)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_zero(state_of(s)) == 0;
-    vars_peek(false);
-    return ok;
+    charge_machine_accesses(g, 3);
 }

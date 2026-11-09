@@ -66,7 +66,6 @@
 #include "field/parts.h"
 #include "menu/party.h"
 #include "warp/warp.h"
-#include "menu/party_leaves.h"
 #include "menu/saves.h"
 #include "overworld/main_loop.h"
 #include "platform/timing.h"

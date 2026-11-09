@@ -57,7 +57,6 @@ void menu_shop_hold_a_cursor_on_the_tabs(GameState *g);
 void menu_shop_start_panel(GameState *g);
 bool menu_shop_panel_member(GameState *g, unsigned member, bool *usable);
 void menu_shop_panel_member_shown(GameState *g, unsigned member);
-void menu_shop_leave_panel_done(GameState *g, unsigned members);
 
 /* ---- The tabs ----------------------------------------------------------------------------------- */
 
@@ -337,9 +336,7 @@ void menu_open_shop_entry(Snes *s);
 void menu_set_up_shop(Snes *s);
 void menu_show_shop_item_panel(Snes *s);
 void menu_choose_shop_tab_entry(Snes *s);
-void menu_frame_shop_list(Snes *s);
 void menu_open_goods_list(Snes *s);
-void menu_list_for_sale(Snes *s);
 void menu_open_for_sale_list(Snes *s);
 void menu_choose_goods_entry(Snes *s);
 void menu_choose_for_sale_entry(Snes *s);
@@ -352,13 +349,6 @@ void menu_show_shop_member_slots(Snes *s);
 void menu_switch_shop_member(Snes *s);
 void menu_choose_shop_slot_entry(Snes *s);
 void menu_choose_shop_equipment_entry(Snes *s);
-void menu_frame_shop_quantity(Snes *s);
-void menu_describe_nothing(Snes *s);
-void menu_go_down_to_shop_members(Snes *s);
-void menu_try_on_shop_equipment(Snes *s);
-void menu_compare_shop_figures(Snes *s);
-void menu_mark_shop_slot(Snes *s);
-
 bool menu_shop_opens(Snes *s);
 bool menu_shop_sets_up(Snes *s);
 bool menu_shop_tabs_step_runs(Snes *s);
@@ -366,12 +356,10 @@ bool menu_shop_buying_step_runs(Snes *s);
 bool menu_shop_selling_step_runs(Snes *s);
 bool menu_shop_quantity_step_runs(Snes *s);
 bool menu_shop_list_opens(Snes *s);
-bool menu_shop_list_frames(Snes *s);
 bool menu_shop_panel_shows(Snes *s);
 bool menu_shop_members_step_runs(Snes *s);
 bool menu_shop_slots_step_runs(Snes *s);
 bool menu_shop_equipping_runs(Snes *s);
 bool menu_shop_member_opens(Snes *s);
-bool menu_shop_goes_down(Snes *s);
 
 #endif

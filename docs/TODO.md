@@ -2842,14 +2842,6 @@ rest waits, is [PLAN.md](PLAN.md).
   Audit `game/scene/` for these remnants and remove only what no remaining
   code or contract uses.
 
-- **Remove the remaining menu compatibility scratch after the menus retire.**
-  The scene engine retains five `ORIGINAL_EFFECT` sites in `circle.c` and
-  four in `curtain.c`, because gated menu callers still compare their iris
-  and curtain work. Keep the called machine forms' contracts until their
-  callers no longer need the legacy stack/register interface. The input
-  domains and unreached proofs are recorded in REIMPLEMENTATION.md,
-  "The scene engine's teardown", and history/scene-unreached.tsv.
-
 - **The time warp's set-up is owed with a port suspended.** The trip's
   set-up draws the light a pixel at a time, about 110 frames of the
   original's time with the screen dark, which the shipping mode charges to
@@ -2869,10 +2861,9 @@ independent shadow return in these runs. Message typing and clearing still
 compare; add an isolated comparison for the pause itself. This is recorded
 in `uncompared_baseline.txt`.
 
-The two Ocean Palace movies also expose comparison coverage gaps:
-`menu_object_cmd_scroll_map` abandons 1669 of 3132 calls (1463 matched), and
-`battle_dispatch_expired_timers` has 310 of 615 calls interrupted (305 matched).
-Neither mismatches. Their narrowed sample crosses the uncompared check's 50%
+The two Ocean Palace movies expose a battle comparison gap:
+`battle_dispatch_expired_timers` has 310 of 615 calls interrupted (305 matched),
+with no mismatch. Their narrowed sample crosses the uncompared check's 50%
 threshold; `tools/uncompared_baseline.txt` records it. Establish comparisons
 covering those missing stretches before treating these samples as full evidence.
 
@@ -2897,93 +2888,42 @@ comparisons.
 
 ## The native program
 
-- **Battle and menu teardown preconditions.** Retire their wrappers and rows
-  only after the unreached obligations and state readers below are resolved.
-  The held boundaries and checked interrupt handoffs are described in
-  REIMPLEMENTATION.md, "Battle and menu held boundaries". Close the task work
-  parked at yields in the remaining menu screen sequences, and the
-  remaining overworld calls into menu services. The scheduler's starts,
-  resumptions, description typing and fade-in have
-  held continuations, and the field no longer remains suspended across menu
-  mode. Preserve the root task
-  boundaries and comparison checkpoints while removing those remaining
-  suspensions; nesting the next task in the previous task's C chain changes
-  its return boundary.
+- **Battle teardown preconditions.** Close the battle's unreached inventory
+  before removing its registry rows. Against the existing 84-movie coverage
+  union, 13,556 battle bytes in 289 entries lack movie coverage. The discovery
+  union of older clean recipes and reviewed exclusions leaves 1,070 bytes in
+  60 entries open; those old runs guide fixtures, not retirement evidence.
+  `battle_call_enemies_in` still needs a plain recipe. Replay the completed
+  recipe set against the final source, enroll the matched coverage and
+  reviewed exclusions, and preserve their bounds/resource assumptions.
 
-  Preserve the full contracts and timing ownership when replacing the
-  remaining by-address calls. A bounded loading operation can still settle
-  time across a frame; distinguish that from a loop retaining its caller
-  for a whole displayed screen when auditing the suspension report.
+  Preserve the complete sprite/frame/output bounds, startup-built OAM lookup,
+  animation resource banks and text language/stack separation. A guard refusal
+  or an interpreted call-out supplies no C execution evidence. Keep the
+  existing reviewed restrictions in `unreached_safe.toml` when guards become
+  assertions. The scene helpers' provisional estimates still need a movie
+  measurement; this branch does not recalibrate from a sample.
 
-  Burndown rounds every battle/menu bank to 0% left; that is not proof of
-  zero fallback. The existing batched shipping report has no battle fallback
-  and 28 original menu instructions in `battle-r-series`, in the fade/task
-  continuation. Fresh shipping runs of `battle-r-series` and `menu` on this
-  branch and its saved pre-change binary both execute zero original
-  instructions. Check shared-state readers before deleting scratch writes,
-  including ports outside these two subsystems; no generated entry in the
-  census alone does not establish that state precondition.
-
-  The conservative inventory against the existing 84-movie coverage union
-  measures 13,556 battle bytes in 289 entries and 5,277 menu bytes in 157
-  entries that no movie executes. Menus are enrolled in the committed
-  unreached ledger with no open bytes; battle is not yet enrolled.
-  `unreached.py --subsystem battle --subsystem
-  menu --coverage-dir <library-coverage>` reproduces this inventory without
-  changing the ledger's checked scope. Its audit follows declared task-switch
-  targets as ownership boundaries and does not mistake a pushed relative
-  return for a branch. Replay the existing recipes, close their uncovered
-  arms, and preserve the resulting preconditions as contracts. One battle
-  entry still lacks a plain recipe: `battle_call_enemies_in` (42 bytes).
-
-  The discovery union of 638 clean recipes and the reviewed exclusions
-  leaves 1,070 battle bytes in 60 entries and no menu bytes open.
-  Older battle runs in this union guide the remaining cases; they are not
-  fresh retirement evidence. Replay battle's completed recipes against the
-  final tree. The menu ledger records fresh comparisons and reviewed
-  exclusions; preserve their preconditions while retiring its entries.
-  Preserve the complete sprite/frame/output bounds, startup-built OAM
-  lookup, graphics resource banks, equipment page's name bounds, and text
-  language and stack separation when their guards retire. The original
-  random-OAM fixture is wholly refused; its valid-lookup counterpart is
-  execution evidence. Do not count a refusal or interpreted call-out as
-  evidence for a C implementation. The new scene helpers
-  retain provisional estimates until a movie measures them. Record battle's
-  reviewed exclusions and matched recipes before its subsystem retires.
-
-  `unreached_safe.toml` records eighteen further reviewed exclusions: zero map
-  selectors, an exchange with no selectable row, fixed hex-glyph and sprite
-  assignment encodings, the empty name caught by the earlier duplicate
-  check, hits whose guard excludes stealing, the two damage-formula bodies
-  bypassed for every byte selector, a restore modifier absent
-  from the fixed parameter table, the battle tail's disabled debug arm,
-  a hanging wedge's necessarily flat top, and the stopping spiral's
-  single-mover restriction, random-target branches no fixed aim record
-  selects, the fixed switch disabling debug frame advance, the bounded
-  closing-window slide, controls that leave before a left wrap, and the
-  exchange layout's unreachable load.
-  Preserve their cited bounds and resource
-  assumptions as contracts. These arguments are not execution coverage;
-  enroll battle's with its matched recipes only after its inventory closes.
-
-  The bucket-Lavos native-shape route protects the previously regressed
-  battle backedges. The native-shape telepod-Lavos ending phase also reaches
-  the ending after the core fight; this does not validate the subsequent
-  full developer-room tour.
+  Turn the remaining battle call-outs and startup returns into checked C
+  handoffs, retaining full contracts and timing ownership. The main pass,
+  graphics and window waits have held continuations. Remove the three field
+  music/line-effect compatibility entries when their battle callers become C.
+  Nine menu glyph/typesetter `ORIGINAL_EFFECT` sites remain solely for
+  battle's message comparisons; remove them after checking all battle readers.
+  The protected battle outcome identities are listed in REIMPLEMENTATION.md,
+  "The menus' teardown". Run the bucket-Lavos and telepod-Lavos fight/ending
+  phases with the native-shape driver after changing these battle backedges;
+  the ending phase does not claim the subsequent full developer-room tour.
 
 - **What the field and events' teardown review left.** Remove the three
   `tools/uncompared_baseline.txt` rows for `field_nmi`, `field_irq` and
   `field_walk_a_frame`, whose comparisons retired with the field. Update
   `game/event/entries.c` and `bridge.h`'s comments, which still describe the field
   as gated. Remove the empty control-flow blocks the scaffolding's deletion left
-  in `game/field/map.c` and `game/event/party.c`.
-- **The field's remaining mode interfaces.** Remove the five retired dispatch
-  entries when their callers no longer need them: boot's `field_first_start`,
-  the menus/overworld/scene/warp `field_enter`, and battle's two music calls
-  and line-effect fallback. The menu wave handler still reads the two scratch
-  bytes preserved by `field/menu_compat.h`; remove those writes with the menus.
-  The still-gated ending-window task also compares the rasterizer's scratch;
-  remove the low-RAM-table compatibility writes with that scene task.
+  in `game/field/map.c`.
+- **The field's remaining mode interfaces.** Remove the four retired dispatch
+  entries when their callers no longer need them: boot's `field_first_start`
+  and battle's two music calls and line-effect fallback.
   The sprite/menu chain also retains the screen setup's Y and overflow
   calling convention. The legacy-only work estimates replace counted
   temporary accesses; remove that backing with the legacy driver.
@@ -3128,25 +3068,6 @@ comparisons.
   not exercise `ct_native`'s headless-only build. Add a configuration with
   SDL2 and pkg-config discovery disabled, `CT_ROM` empty and `CT_WERROR=ON`.
 
-- **The menus' remaining machine boundaries.** The 21 assigned bridge and
-  support files retain 22 stops: scheduler switches and held waits, reset and
-  mode boundaries, invalid script dispatch, comparison checkpoints and guard
-  fallbacks. The script bridge's near/far fallback covers unknown or refused
-  targets and the two
-  curtain routines. Inlining the latter moved the scene RNG's accepted
-  shared-scratch reads onto `menu_run_object_script` (496 reads in the attract
-  run); retire that scene dependency with its effects evidence before joining
-  those boundaries. Selected routine wrappers still supply register results
-  and nested checkpoints. `menu_mode_enter` documents the nested shadow
-  ownership that prevents simply joining the mode entry. The NMI entry must
-  retain the work's checkpoint: joining it matches the outer entry but
-  abandons all 51,429 nested work comparisons in the sampled gate. Teach the
-  registry to account for that coverage before joining this boundary; no
-  comparison exception was added. The two work-RAM transfers in
-  `menu/display.c` need a memory service preserving the gate's
-  SNES transfer effects. Registered return wrappers remain until their
-  registry entries and original callers retire together. See
-  REIMPLEMENTATION.md, "The menus' machine joints".
 
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").
@@ -3481,32 +3402,13 @@ list, by kind, is what `game/` still asks of one.
   with zero mismatches or guard refusals, and strict mode
   (`--native on --generated off --no-interpreter strict`)
   completes all 15701 frames with the reference saved game and save RAM.
-- **What the menus the player opens still hand the machine.** The main
-  menu's steps and its four panels, and the steps `menu.ctm` reaches of the
-  equipment (its opening, the member choice and pointing), the items (the
-  opening, the commands, the list and the sort), the techs (the opening, the
-  member list laid out, the member choice and the moves among the members)
-  and the settings (the opening, the options, an option taken) run as C
-  (docs/history/reimplementation-chunks.md, "The native program through the
-  main menu"); the save screens and the party exchange do too
-  (history/reimplementation-chunks.md, "The native program from a cartridge save"), and so
-  do the rest of the equipment's, the items', the techs', the settings' and
-  the gate's exchange's steps (history/reimplementation-chunks.md, "The native program
-  through the menus the player opens"), and the shops' (history/reimplementation-chunks.md,
-  "The native program through the shops"); where one of them meets what has
-  no C yet, `program_needs_the_machine` stops the program there and says
-  which: an item tried on with the menus' zero word not 0 (`$C2:A5C3`; the
-  menus clear it as they open and never write it, and the original marks the
-  figures from its place in a table), and a shop whose state a step's entry's
-  guard turns away ("a shop the port doesn't take", menu/shop_steps.c).
 - **The menus' steps' notes carry machine work.** In the items', the techs'
   and the settings' sequences (menu/item_screen.c, tech_screen.c,
   settings_screen.c) a note is where the machine both leaves the original's
   flags and saves or restores P and sets the widths the original's code has
   at that point (the opening's set-up, the pointing, an option's handler).
-  Splitting the second out as the subroutine it is on the machine (a step
-  callback for the set-up, as the main menu's panels are) would leave the
-  notes scaffolding only.
+  Split these live calling-convention operations from the timing-only notes,
+  then remove the notes when the legacy driver's time backing is replaced.
 - **What the battle still hands the machine as the program runs it.** The
   battle runs as C from the field's request to the field taken up after it
   (REIMPLEMENTATION.md, "The native program through the battle"), each C

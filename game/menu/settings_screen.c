@@ -43,7 +43,6 @@
 #include "menu/tiles.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- The settings' cells ------------------------------------------------------------------------ */
@@ -175,7 +174,7 @@ static void draw_boxes(GameState *g)
 {
     for (unsigned box = 0; box < MENU_SETTINGS_BOXES; box++)
         put_box(g, menu_settings_box_place(g, (uint8_t)box), box_ticked(g, box) != menu_settings_box_ticked_for_off(g, (uint8_t)box));
-    ORIGINAL_EFFECT(set_menu_scratch_settings_boxes_left(g, 0xFFFF));
+    charge_machine_accesses(g, 2);
 }
 
 /* ---- The meters and the gauge --------------------------------------------------------------------- */
@@ -201,7 +200,7 @@ static void show_meters(GameState *g)
     (void)show_meter(g, MESSAGE_SPEED_METER, menu_setting_message_speed(g));
     uint16_t lit = show_meter(g, DESIGN_METER, menu_window_design(g));
     set_menu_draw_origin(g, lit); /* the drawing goes on from the last tile lit */
-    ORIGINAL_EFFECT(set_menu_scratch_settings_meter_cells(g, (uint16_t)(menu_window_design(g) | menu_setting_keep_battle_command(g) << 8)));
+    charge_machine_accesses(g, 4);
 }
 
 // $C2:C495
@@ -212,7 +211,7 @@ static void show_gauge(GameState *g)
     uint16_t lit = (uint16_t)(GAUGE_ROW + layout * GAUGE_CHOICE_TILES * TILE_BYTES);
     TIMED_AS(g, 0xC2ECAC, menu_colour_row_pair(g, lit, GAUGE_CHOICE_TILES, LIT));
     set_menu_draw_origin(g, lit);
-    ORIGINAL_EFFECT(set_menu_scratch_settings_gauge_offset(g, (uint16_t)(layout * TILE_BYTES)));
+    charge_machine_accesses(g, 2);
 }
 
 /* ---- The buttons -------------------------------------------------------------------------------- */
@@ -267,7 +266,7 @@ static void draw_button_rows(GameState *g)
         put_tile(g, (uint16_t)(at + ARROW_AT), ROW_BLANK);
         put_tile(g, (uint16_t)(at + CHANGE_AT), ROW_BLANK);
     }
-    ORIGINAL_EFFECT(set_menu_scratch_settings_rows_drawn(g, ROWS_ASSIGNMENTS));
+    charge_machine_accesses(g, 2);
 }
 
 void menu_settings_use_buttons(GameState *g)
@@ -286,13 +285,10 @@ static bool row_changes(const GameState *g, unsigned row, unsigned cursor_row)
     return menu_settings_buttons(g, row) != before;
 }
 
-/* The original compares the rows with a copy of the player's own buttons
- * whose cursor's row it marks, which nothing reads after. */
-static void leave_buttons_before(GameState *g, unsigned cursor_row)
+static void charge_buttons_before(GameState *g, unsigned cursor_row)
 {
-    for (unsigned i = 0; i < CHANGE_MARKS; i++)
-        set_menu_settings_buttons_before(g, i, own_button_assignments(g, i));
-    set_menu_settings_buttons_before(g, cursor_row, NO_BUTTON_KEPT);
+    (void)cursor_row;
+    charge_machine_accesses(g, 2 * CHANGE_MARKS + 1);
     charge_block_move(g, CHANGE_MARKS);
 }
 
@@ -300,16 +296,16 @@ static void leave_buttons_before(GameState *g, unsigned cursor_row)
 /* The rows' changes: the arrow and the new button where a row is changing. */
 static void show_row_changes(GameState *g, unsigned cursor_row)
 {
-    ORIGINAL_EFFECT(leave_buttons_before(g, cursor_row));
+    charge_buttons_before(g, cursor_row);
     for (unsigned row = 0; row < ROWS_ASSIGNMENTS; row++) {
         uint16_t at = row_place(g, row);
         bool changes = row_changes(g, row, cursor_row);
         put_tile(g, (uint16_t)(at + ARROW_AT), changes ? CHANGE_ARROW : NO_CHANGE);
         put_tile(g, (uint16_t)(at + CHANGE_AT), changes ? menu_button_glyph_of(g, menu_settings_buttons(g, row)) : NO_CHANGE);
     }
-    ORIGINAL_EFFECT(set_menu_scratch_settings_rows_left(g, 0xFFFF));
-    ORIGINAL_EFFECT(set_menu_scratch_settings_row_button(g, menu_settings_buttons(g, 0)));
-    ORIGINAL_EFFECT(set_menu_scratch_settings_row_mark(g, row_changes(g, 0, cursor_row) ? CHANGE_ARROW : NO_CHANGE));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 3 + (cursor_row != 0));
 }
 
 static void copy_own_to_rows(GameState *g)
@@ -340,11 +336,12 @@ static void swap_stray_places(GameState *g, unsigned assignment, uint8_t button,
     }
 }
 
-static void leave_conflicts(GameState *g, unsigned assignment)
+static void charge_conflicts(GameState *g, unsigned assignment)
 {
     unsigned count = menu_settings_conflicts_count(g, assignment);
-    for (unsigned i = 0; i < count && i < MENU_SETTINGS_CONFLICTS_COUNT; i++)
-        set_menu_settings_conflicts(g, i, menu_settings_conflict(g, assignment, i));
+    unsigned copied = count < MENU_SETTINGS_CONFLICTS_COUNT ? count : MENU_SETTINGS_CONFLICTS_COUNT;
+    charge_machine_accesses(g, copied);
+    charge_machine_rom_accesses(g, copied);
     charge_block_move(g, count);
 }
 
@@ -365,9 +362,9 @@ static unsigned give_button(GameState *g, unsigned row, uint8_t button, unsigned
             swapped = other;
         }
     }
-    ORIGINAL_EFFECT(leave_conflicts(g, row));
+    charge_conflicts(g, row);
     swap_stray_places(g, row, button, replacement);
-    ORIGINAL_EFFECT(set_menu_scratch_settings_conflicts_last(g, (uint16_t)(count - 1)));
+    charge_machine_accesses(g, 2);
     return swapped;
 }
 
@@ -1002,7 +999,7 @@ static bool take_the_option(void *ctx)
 {
     SettingsContext *c = ctx;
     if (!menu_settings_option_can_be_taken(c->game)) {
-        program_needs_the_machine(c->game, 0xC2BFD4, "a setting the port doesn't take");
+        program_breaks_a_contract(c->game, 0xC2BFD4, "a setting the port doesn't take");
         return false;
     }
     bool back = false;
@@ -1094,7 +1091,7 @@ static bool step(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(con
                  bool (*run)(GameState *, Platform *, const SettingsSteps *, void *))
 {
     if (!takes(g)) {
-        program_needs_the_machine(g, routine, "a settings screen the port doesn't take");
+        program_breaks_a_contract(g, routine, "a settings screen the port doesn't take");
         return false;
     }
     SettingsContext c = { g, pf };

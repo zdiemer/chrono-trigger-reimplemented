@@ -469,7 +469,7 @@ static inline uint8_t menu_sprite_script_byte(const GameState *g, uint32_t at) {
 static inline uint8_t menu_sprite_group_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
 
 /* The address in bank C2 of each object script command's handler ($C2:0F91),
- * which names the command's time and its registered entry. */
+ * which names the command's time and its checked legacy adapter. */
 static inline uint16_t menu_script_handler(const GameState *g, uint8_t opcode)
 {
     return rom_read16(g, 0xC20F91u + 2u * opcode);

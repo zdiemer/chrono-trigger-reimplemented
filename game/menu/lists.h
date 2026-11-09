@@ -55,13 +55,6 @@ void menu_start_list_slide(GameState *g);
 void menu_slide_list_a_frame(GameState *g);
 void menu_put_the_list_bands_back(GameState *g);
 
-/* Their entries ($C2:EB9B; $C2:EB1F, which then waits for the next frame),
- * and their guards. */
-void menu_start_list_slide_entry(Snes *s);
-void menu_slide_list_a_frame_entry(Snes *s);
-bool menu_list_slide_is_startable(Snes *s);
-bool menu_list_slide_frame_is_showable(Snes *s);
-
 /* A scrolling list's frame ($C2:EA81): the list laid out for its paging, its
  * cursor and its scroll bar, `places` places, `rows` of them in view at once,
  * and the bar's thumb moving over `track` lines (menu_frame_the_list, below).
@@ -69,9 +62,6 @@ bool menu_list_slide_frame_is_showable(Snes *s);
  * leave them, and the bridges that run it as C leave the registers as it
  * does. */
 void menu_frame_the_list(GameState *g, uint8_t places, uint8_t rows, uint16_t track);
-void menu_frame_the_list_entry(Snes *s);
-void menu_leave_the_list_framed(Snes *s, uint8_t places);
-bool menu_list_frame_is_layable(Snes *s);
 
 /* A scrolling list paged with the shoulder assignments, its first row at
  * `top`: back a page or on a page, its rows as its frame laid them out
@@ -84,9 +74,5 @@ uint8_t menu_turn_page(GameState *g, uint8_t top);
 bool menu_page_turns(const GameState *g, uint8_t top);
 /* The prospective first row, before committing the page and cursor move. */
 uint8_t menu_page_destination(const GameState *g, uint8_t top);
-
-/* Its entry ($C2:93BF): the first row in menu_paging_top, the answer in A
- * $FF where a page turned. */
-void menu_turn_page_entry(Snes *s);
 
 #endif

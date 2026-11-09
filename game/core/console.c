@@ -24,6 +24,7 @@
 #include "field/field.h"
 #include "field/display.h"
 #include "menu/display.h"
+#include "menu/machine_forms.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
@@ -132,7 +133,8 @@ static void take_interrupt(Snes *s, ProgramStub stub)
         bool compare = called_handlers[i].compared_at_entry && !m_runs_retired_as_c(s);
         const NativeEntry *e = native_continuation_entry_at(s, stub.handler);
         if (!compare && ((e && e->fn == called_handlers[i].run) ||
-                        (m_runs_retired_as_c(s) && (field_machine_form_takes(s, called_handlers[i].run) ||
+                        (m_runs_retired_as_c(s) && (menu_machine_form_takes(s, stub.handler, called_handlers[i].run) ||
+                                                  field_machine_form_takes(s, called_handlers[i].run) ||
                                                   scene_machine_form_takes(s, called_handlers[i].run))))) {
             /* Battle used to start at a separate dispatch boundary. Its
              * handler must see the stub's time already passed, especially

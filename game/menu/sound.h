@@ -62,7 +62,8 @@ void menu_play_the_gate_song(GameState *g, Platform *pf);
 /* The entries. */
 void menu_switch_to_the_gate_song_entry(Snes *s);
 void menu_play_the_gate_song_entry(Snes *s);
-void menu_wait_for_menu_music_playing_loop(Snes *s);
 void menu_switch_back_to_the_field_song_entry(Snes *s);
+
+void menu_wait_for_menu_music_playing_loop(Snes *s);
 
 #endif

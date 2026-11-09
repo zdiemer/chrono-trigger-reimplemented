@@ -801,9 +801,10 @@ void set_event_source_pointer(GameState *g, uint32_t v);
 uint32_t event_target_pointer(const GameState *g);
 void set_event_target_pointer(GameState *g, uint32_t v);
 
-/* The original field/event scratch cells, $D9-$E6. Their reconstruction has retired except for
- * the menus' wave phase at $E2-$E3, read by $C2:77C7. Named state aliases in this range, such as
- * field_scene_to_start, remain ordinary game state [14 bytes, one at a time] */
+/* The original field/event scratch cells, $D9-$E6. Their reconstruction has retired. The menus
+ * own their wave phase at $E2-$E3; field and event temporaries no longer seed it. Named state
+ * aliases in this range, such as field_scene_to_start, remain ordinary game state [14 bytes, one
+ * at a time] */
 enum { EVENT_SCRATCH_BYTES = 14 };
 uint8_t event_scratch_byte(const GameState *g, unsigned at);
 void set_event_scratch_byte(GameState *g, unsigned at, uint8_t v);

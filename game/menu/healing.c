@@ -31,7 +31,6 @@
 #include "menu/sprites.h"
 #include "menu/text.h"
 #include "menu/vram.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
@@ -54,28 +53,6 @@ enum { NOT_A_NUMBER = 0x8000 };
 enum { FIXED = 0x80, POWER_BITS = 0x7F, FIXED_FACTOR_BITS = 0x0F, DRAWN_FACTOR_BITS = 0x1F, TAKEN = 0x80,
        ALL_OF_IT = 0x40 };
 
-/* For the original's code and shadow mode: it counts the members it heals
- * down in the menus' first cell. */
-static void leave_members_healed(GameState *g) { set_menu_scratch_restoring_members_left(g, 0); }
-
-/* ... and the amounts worked out, which it keeps on the menus' page. */
-static void leave_amounts(GameState *g, const uint16_t amounts[DRAWS])
-{
-    for (unsigned i = 0; i < DRAWS; i++)
-        set_menu_heal_amounts(g, i, amounts[i]);
-}
-
-/* ... and for a draw, the random bytes and the base it keeps in the menus'
- * first cells, and the multiplier as the last draw leaves it. */
-static void leave_draws(GameState *g, uint8_t from, uint16_t base, uint8_t share_of, uint8_t last_drawn)
-{
-    for (unsigned i = 0; i < DRAWS; i++)
-        set_menu_scratch_heal_drawn_byte(g, i, menu_random_byte(g, (unsigned)from + i));
-    set_menu_scratch_heal_base(g, base);
-    hw_set_multiplicand(g, share_of);
-    (void)hw_multiply_by(g, last_drawn);
-}
-
 // $C2:8ECC
 static void work_out_amounts(GameState *g, uint16_t amounts[DRAWS])
 {
@@ -84,8 +61,8 @@ static void work_out_amounts(GameState *g, uint16_t amounts[DRAWS])
         uint16_t amount = (uint16_t)((power & POWER_BITS) * (factor & FIXED_FACTOR_BITS));
         for (unsigned i = 0; i < DRAWS; i++)
             amounts[i] = amount;
-        ORIGINAL_EFFECT(hw_set_multiplicand(g, power & POWER_BITS));
-        ORIGINAL_EFFECT((void)hw_multiply_by(g, factor & FIXED_FACTOR_BITS));
+        charge_machine_io_accesses(g, 1);
+        charge_machine_io_accesses(g, 3);
         return;
     }
     uint16_t base = (uint16_t)(power * (factor & DRAWN_FACTOR_BITS));
@@ -96,7 +73,7 @@ static void work_out_amounts(GameState *g, uint16_t amounts[DRAWS])
         uint16_t amount = (uint16_t)(base + (share_of * last_drawn >> 8));
         amounts[i] = (factor & TAKEN) ? (uint16_t)-amount : amount;
     }
-    ORIGINAL_EFFECT(leave_draws(g, from, base, share_of, last_drawn));
+    (charge_machine_accesses(g, 8), charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, 6));
 }
 
 /* A member's HP or MP given an amount, up to `greatest`; the amount given is
@@ -132,7 +109,7 @@ void menu_heal(GameState *g)
         set_menu_heal_shown(g, i, NO_AMOUNT);
     uint16_t amounts[DRAWS];
     work_out_amounts(g, amounts);
-    ORIGINAL_EFFECT(leave_amounts(g, amounts));
+    charge_machine_accesses(g, 12);
     bool every = (menu_use_effect(g) & MENU_USE_FOR_EVERY_MEMBER) != 0;
     unsigned first = every ? 0 : menu_use_member(g), members = every ? menu_active_members(g) : 1;
     for (unsigned member = first; member < first + members; member++) {
@@ -143,7 +120,7 @@ void menu_heal(GameState *g)
      * and leaves that one past the last, which the screen after it reads
      * (the techs screen keeps its high byte as it works on another) */
     menu_work_on_member(g, (uint8_t)(first + members));
-    ORIGINAL_EFFECT(leave_members_healed(g));
+    charge_machine_accesses(g, 1);
 }
 
 /* ---- The numbers rising ---------------------------------------------------------------------- */
@@ -184,14 +161,6 @@ static uint16_t to_digits(GameState *g, uint16_t amount, MenuAmountKind kind)
     return (uint16_t)digits;
 }
 
-/* For the original's code and shadow mode: the listed members counted,
- * doubled, and the last member's numbers. */
-static void leave_ready(GameState *g, unsigned listed, unsigned numbers)
-{
-    set_menu_scratch_amounts_listed_at(g, (uint16_t)(2 * listed));
-    set_menu_scratch_member_amounts(g, (uint16_t)numbers);
-}
-
 // $C2:8F6C (up to its task's start)
 void menu_ready_the_amounts(GameState *g)
 {
@@ -214,7 +183,7 @@ void menu_ready_the_amounts(GameState *g)
             continue;
         TIMED_AS(g, 0xC28820, (void)menu_load_member(g, member));
         uint8_t record = menu_status_record_character(g);
-        ORIGINAL_EFFECT(menu_leave_record_found(g, record));
+        (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4));
         set_menu_amounts_places_y(g, listed, menu_record_y(g, record));
         set_menu_amounts_places_x(g, listed, (uint8_t)menu_record_x(g, record));
         listed++;
@@ -225,7 +194,7 @@ void menu_ready_the_amounts(GameState *g)
      * that one past the last, the whole argument a word, which the screen
      * after it reads (the techs screen keeps its high byte) */
     menu_work_on_member_only(g, menu_active_members(g));
-    ORIGINAL_EFFECT(leave_ready(g, listed, numbers));
+    charge_machine_accesses(g, 4);
 }
 
 /* A number's digits as sprites, from its highest: a leading zero is no
@@ -385,7 +354,7 @@ static const HealingSteps healing_in_c;
 
 static bool not_taken(GameState *g, uint32_t routine, const char *what)
 {
-    program_needs_the_machine(g, routine, what);
+    program_breaks_a_contract(g, routine, what);
     return false;
 }
 

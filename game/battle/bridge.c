@@ -2,6 +2,7 @@
  * code the wrappers and bridges share (battle/bridge.h). */
 #include "charge.h"
 #include "battle/bridge.h"
+#include "menu/machine_forms.h"
 
 #include "battle/battle.h"
 #include "core/machine_forms.h"
@@ -111,7 +112,7 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
      * guard and preconditions holding; otherwise the call is a real one, and
      * the runtime runs whatever the registry has for the state it meets */
     const NativeEntry *e = native_hand_entry(s);
-    bool retired = (!e || e->fn != entry) && core_machine_form_takes(s, entry);
+    bool retired = (!e || e->fn != entry) && (core_machine_form_takes(s, entry) || menu_machine_form_takes(s, routine, entry));
     if ((!e || e->fn != entry) && !retired) {
         if (replaces_call_out) {
             m_stop_at(s, routine, dont_care);

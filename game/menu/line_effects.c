@@ -23,7 +23,6 @@
 #include "menu/menu_data.h"
 #include "menu/object.h"
 #include "menu/object_commands.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
@@ -140,7 +139,7 @@ static void set_up_circle(GameState *g, MenuObject o, uint16_t table, bool as_wo
         set_scene_circle_center_y(g, y);
         set_scene_circle_radius(g, radius);
         set_scene_circle_table_bank(g, LINE_TABLE_BANK);
-        ORIGINAL_EFFECT(set_menu_circle_bank_high(g, 0));
+        charge_machine_accesses(g, 1);
     } else {
         set_scene_circle_center_x(g, (uint16_t)((scene_circle_center_x(g) & 0xFF00) | (uint8_t)x));
         set_scene_circle_center_y(g, (uint16_t)((scene_circle_center_y(g) & 0xFF00) | (uint8_t)y));
@@ -148,19 +147,6 @@ static void set_up_circle(GameState *g, MenuObject o, uint16_t table, bool as_wo
         set_scene_circle_table_bank(g, LINE_TABLE_BANK);
     }
     scene_circle_draw(g, mode);
-}
-
-/* The squashed iris's working addresses, for the original's cells: where its
- * copies stood when they had run. */
-static void leave_squashed_cells(GameState *g, uint16_t table, uint16_t centre, uint16_t half)
-{
-    uint16_t centre_at = (uint16_t)line_address(table, centre);
-    set_menu_object_scratch_iris_lines_left(g, 0);
-    set_menu_object_scratch_iris_half(g, half);
-    set_menu_object_scratch_iris_upper_from(g, (uint16_t)(centre_at - 4));
-    set_menu_object_scratch_iris_upper_to(g, (uint16_t)(centre_at - 2));
-    set_menu_object_scratch_iris_lower_from(g, (uint16_t)(centre_at + 2));
-    set_menu_object_scratch_iris_lower_to(g, centre_at);
 }
 
 // $C6:E368, $C6:E391
@@ -186,7 +172,7 @@ static void squashed_iris(GameState *g, MenuObject o, uint8_t slot)
         set_line_value(g, table, (uint16_t)(centre + n), line_value(g, table, (uint16_t)(centre + 1 + 2 * n)));
     for (uint16_t n = half; n <= 2 * half; n++)
         set_line_value(g, table, (uint16_t)(centre + n), CLOSED_LINE);
-    ORIGINAL_EFFECT(leave_squashed_cells(g, table, centre, half));
+    charge_machine_accesses(g, 12);
 }
 
 /* A run of lines all set to one value, from `at` on. The original fills them
@@ -230,15 +216,15 @@ static void capsule_iris(GameState *g, MenuObject o, uint8_t slot)
         /* Both edges of every line at the object's X, whose low byte the
          * original repeats over both. */
         uint8_t x = (uint8_t)menu_pixel(place.x);
-        ORIGINAL_EFFECT(set_menu_object_scratch_iris_centre(g, stretch));
+        charge_machine_accesses(g, 2);
         fill_lines(g, (uint16_t)line_address(table, menu_pixel(place.y)), stretch, window_edges(x, x));
         return;
     }
     uint16_t centre_at = capsule_centre_at(table, menu_pixel(place.y));
     for (uint16_t n = 0; n < radius; n++)
         set_value_at(g, (uint16_t)(centre_at + 2 * (stretch + n)), value_at(g, (uint16_t)(centre_at - 2 * n)));
-    ORIGINAL_EFFECT(set_menu_object_scratch_iris_centre(g, centre_at));
-    ORIGINAL_EFFECT(set_menu_object_scratch_iris_lines_left(g, 0));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
     fill_lines(g, (uint16_t)(centre_at + 2), (uint16_t)(stretch - 1), value_at(g, centre_at));
 }
 
@@ -392,8 +378,8 @@ static bool ripple_the_first_plane(GameState *g, MenuObject o)
     for (uint16_t line = 0; line < MENU_LINE_TABLE_LINES; line++, step += RIPPLE_LINE_STEP)
         set_line_value(g, table, line, (uint16_t)(scroll + ripple_push(g, step)));
     set_menu_object_slots_phase(g, o, (uint16_t)(phase + RIPPLE_FRAME_STEP));
-    ORIGINAL_EFFECT(set_menu_object_scratch_ripple_phase(g, step));
-    ORIGINAL_EFFECT(hw_port_seek(g, (uint16_t)line_address(table, MENU_LINE_TABLE_LINES), LINE_TABLE_BANK));
+    charge_machine_accesses(g, 2);
+    charge_machine_io_accesses(g, 3);
     return phase > 0xFFFF - RIPPLE_FRAME_STEP;
 }
 
@@ -488,6 +474,7 @@ static void show_the_curtain(GameState *g, MenuObject o)
 
 /* A step of it: the scene engine's step (its stir takes the caller's X, the
  * object), and the half it sent shown. */
+// $C6:E27E
 static void step_the_curtain(GameState *g, Platform *pf, MenuObject o, uint16_t salt)
 {
     TIMED_AS(g, 0xC301E4, scene_curtain_step(g, pf, salt));
@@ -502,9 +489,19 @@ static void start_the_curtain(GameState *g, Platform *pf, MenuObject o)
     step_the_curtain(g, pf, o, menu_object_current(g));
 }
 
-/* Back, A has the second half's address as the last add left it, in 16-bit A,
- * with its flags, and X the object; the start leaves Y the object's table,
- * which it loaded. */
+/* The slot can start, the object's table fits the curtain's, and the stir's
+ * cells are reached through a data bank on low RAM. */
+static bool curtain_takes(const GameState *g, MenuObject o)
+{
+    return scene_curtain_table_fits(LINE_TABLE_BANK, menu_object_slots_curtain_table(g, o));
+}
+
+static bool curtain_step_takes(const GameState *g, MenuObject o)
+{
+    (void)o;
+    return scene_curtain_table_fits(scene_curtain_table_bank(g), scene_curtain_table(g));
+}
+
 static void as_the_curtain_leaves_it(Snes *s, MenuObject o)
 {
     GameState *g = state_of(s);
@@ -528,9 +525,6 @@ void menu_object_start_curtain(Snes *s)
     m_rtl(s);
 }
 
-// $C6:E27E
-/* A frame's step of a curtain the object started; the stir takes X as the
- * caller has it. */
 void menu_object_step_curtain(Snes *s)
 {
     GameState *g = state_of(s);
@@ -538,19 +532,6 @@ void menu_object_step_curtain(Snes *s)
     step_the_curtain(g, m_platform(s), o, s->cpu.x);
     as_the_curtain_leaves_it(s, o);
     m_rtl(s);
-}
-
-/* The slot can start, the object's table fits the curtain's, and the stir's
- * cells are reached through a data bank on low RAM. */
-static bool curtain_takes(const GameState *g, MenuObject o)
-{
-    return scene_curtain_table_fits(LINE_TABLE_BANK, menu_object_slots_curtain_table(g, o));
-}
-
-static bool curtain_step_takes(const GameState *g, MenuObject o)
-{
-    (void)o;
-    return scene_curtain_table_fits(scene_curtain_table_bank(g), scene_curtain_table(g));
 }
 
 bool menu_curtain_can_start(Snes *s)
@@ -790,13 +771,6 @@ static void start_scene_wave(GameState *g, Platform *pf, MenuObject self, SceneW
     charge_block_move(g, bytes - 1);
 }
 
-static void leave_scene_wave_work(GameState *g, uint16_t output, uint8_t magnitude, uint8_t amplitude)
-{
-    set_menu_object_scratch_scene_wave_output(g, in_line_bank(output));
-    hw_set_multiplicand(g, magnitude);
-    (void)hw_multiply_by(g, amplitude);
-}
-
 // $C2:7CD8, $C2:7D5E
 static void advance_scene_wave(GameState *g, MenuObject self, SceneWave wave)
 {
@@ -816,7 +790,7 @@ static void advance_scene_wave(GameState *g, MenuObject self, SceneWave wave)
     int16_t sample = (int16_t)((uint16_t)magnitude * amplitude >> 8);
     uint16_t output = (uint16_t)(to + retained);
     set_value_at(g, output, (uint16_t)(sine < 0 ? -sample : sample));
-    ORIGINAL_EFFECT(leave_scene_wave_work(g, output, magnitude, amplitude));
+    (charge_machine_accesses(g, 3), charge_machine_io_accesses(g, 4));
 }
 
 static void start_scene_wave_on_the_machine(Snes *s, SceneWave wave)
@@ -912,9 +886,9 @@ static void start_scene_gray_ramp(GameState *g, Platform *pf)
     }
     wram_fill8(g, in_line_bank(at), MENU_LINE_TABLE_LINES, scene_gray(0));
     charge_block_move(g, 2u * (MENU_LINE_TABLE_LINES - 1) + SHADES * (LINES_PER_SHADE - 1));
-    ORIGINAL_EFFECT(set_menu_object_scratch_scene_gray_shade(g, scene_gray(0)));
-    ORIGINAL_EFFECT(set_menu_object_scratch_scene_gray_remaining(g, 0));
-    ORIGINAL_EFFECT(set_menu_object_scratch_scene_gray_position(g, at));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
 }
 
 enum { SCENE_GRAY_BAND_BYTES = 48 };
@@ -930,7 +904,7 @@ static void paint_scene_gray_band(GameState *g, uint16_t first)
         for (unsigned line = 0; line < lines; line++)
             wram_write8(g, 0x7E0000u | (at++ & 0x1FFFFu), scene_gray((uint8_t)shade));
     }
-    ORIGINAL_EFFECT(hw_port_seek(g, (uint16_t)at, (uint8_t)(at >> 16)));
+    charge_machine_io_accesses(g, 3);
 }
 
 // $C6:E170

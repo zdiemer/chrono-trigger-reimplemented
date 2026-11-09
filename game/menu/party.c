@@ -11,7 +11,6 @@
 #include "menu/saves.h"
 #include "menu/sprites.h"
 #include "menu/techs.h"
-#include "original_effects.h"
 #include "ram.h"
 #include "vars.h"
 
@@ -221,27 +220,12 @@ static void put_in_slot(GameState *g, uint8_t character, unsigned slot, uint8_t 
  * (the looked-up category's, a word). */
 enum { RECORD_BYTES = 0x50 };
 
-static void leave_equipping(GameState *g, uint8_t character, uint8_t item, uint8_t how_many)
-{
-    set_menu_item_operand_quantity(g, how_many);
-    set_menu_service_item(g, item);
-    hw_set_multiplicand(g, character);
-    (void)hw_multiply_by(g, RECORD_BYTES);
-}
-
-static void leave_record_found(GameState *g, uint8_t character)
-{
-    set_menu_service_record_at(g, (uint16_t)(RAM_ABS(RAM_CHARACTER_RECORDS) + character * RECORD_BYTES));
-}
-
-static void leave_slots_counted(GameState *g) { set_menu_item_category(g, MENU_EQUIPMENT_SLOTS); }
-
 // $C2:8DA7
 static void strip(GameState *g, uint8_t character)
 {
     for (unsigned slot = character == AYLA ? MENU_ARMOUR : MENU_WEAPONS; slot < MENU_EQUIPMENT_SLOTS; slot++)
         put_in_slot(g, character, slot, slots_nothing[slot]);
-    ORIGINAL_EFFECT(leave_slots_counted(g));
+    charge_machine_accesses(g, 2);
 }
 
 bool party_can_equip(const GameState *g, uint8_t item)
@@ -253,20 +237,20 @@ bool party_can_equip(const GameState *g, uint8_t item)
 void party_equip(GameState *g, uint8_t character, uint8_t item)
 {
     enum { ONE = 1 };
-    ORIGINAL_EFFECT(leave_equipping(g, character, item, ONE));
+    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4));
     if (item == MENU_NO_WEAPON) {
-        ORIGINAL_EFFECT(leave_record_found(g, character));
+        charge_machine_accesses(g, 2);
         strip(g, character);
     } else {
         MenuItemPlace p;
         TIMED_AS(g, 0xC28881, p = menu_item_place(g, item));
         if (p.category >= MENU_EQUIPMENT_SLOTS)
             return;
-        ORIGINAL_EFFECT(leave_record_found(g, character));
+        charge_machine_accesses(g, 2);
         uint8_t was = worn(g, character, p.category);
-        ORIGINAL_EFFECT(set_menu_item_operand(g, was));
+        charge_machine_accesses(g, 1);
         TIMED_AS(g, 0xC28791, (void)menu_add_items(g, was, ONE));
-        ORIGINAL_EFFECT(set_menu_item_operand(g, item));
+        charge_machine_accesses(g, 1);
         put_in_slot(g, character, p.category, item);
         TIMED_AS(g, 0xC287D5, (void)menu_take_items(g, item, ONE));
     }

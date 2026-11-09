@@ -32,8 +32,6 @@
 #include "menu/bridge.h"
 #include "menu/menu_data.h"
 #include "menu/party.h"
-#include "menu/party_leaves.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
@@ -80,7 +78,6 @@ uint16_t saves_slot_on_the_bus(const GameState *g, uint8_t slot) { return menu_s
 
 static uint16_t game_of(const GameState *g, uint8_t slot) { return saves_game_in_memory(saves_slot_on_the_bus(g, slot)); }
 
-// $FF:F9C4
 SavedGameCheck saves_check_slot(GameState *g, Platform *pf, uint8_t slot)
 {
     if (slot_mark(pf, slot) != SAVED_GAME_MARK)
@@ -120,28 +117,8 @@ static void load_run(GameState *g, Platform *pf, uint16_t from, uint32_t to, uin
  * the table, and the stub as the last move left it. */
 enum { BLOCK_MOVE_OPCODE = 0x54, RETURN_OPCODE = 0x6B };
 
-static void leave_block_move(GameState *g, uint8_t to_bank, uint8_t from_bank)
-{
-    set_menu_block_move_stub(g, (uint32_t)BLOCK_MOVE_OPCODE | (uint32_t)to_bank << 8 | (uint32_t)from_bank << 16
-                                    | (uint32_t)RETURN_OPCODE << 24);
-}
-
-static void leave_saved_runs_table(GameState *g)
-{
-    for (unsigned i = 0; i < MENU_SAVED_RUNS * MENU_SAVED_RUN_BYTES; i++)
-        set_menu_save_region_table_byte(g, i, menu_saved_runs_byte(g, i));
-}
-
-static void leave_carried_runs_table(GameState *g)
-{
-    for (unsigned i = 0; i < MENU_CARRIED_RUNS * MENU_CARRIED_RUN_BYTES; i++)
-        set_menu_save_region_table_byte(g, i, menu_carried_runs_byte(g, i));
-}
-
 /* Save memory's bank, as the block move stub names it. */
 enum { SAVE_MEMORY_BANK = 0x30 };
-
-static uint8_t bank_of(uint32_t at) { return (uint8_t)(at >> 16); }
 
 /* ---- Saving --------------------------------------------------------------------------------- */
 
@@ -162,14 +139,6 @@ static void count_on_the_cartridge(GameState *g, Platform *pf)
         sv_write8(pf, PF_AT(0xFFFA75), SAVES_TIMES_FINISHED, (uint8_t)(counted + 1));
 }
 
-static void leave_saved(GameState *g, uint16_t on_the_bus)
-{
-    leave_saved_runs_table(g);
-    leave_block_move(g, SAVE_MEMORY_BANK, bank_of(menu_saved_run(g, MENU_SAVED_RUNS - 1).at));
-    set_menu_scratch_sum_from(g, on_the_bus);
-}
-
-// $FF:F9FB
 /* Save the game into the slot: the game goes on in it from now on, counts a
  * save, and is copied in; the slot is marked with its sum, and noted as the
  * one saved last. */
@@ -189,20 +158,9 @@ void saves_save_game(GameState *g, Platform *pf, uint8_t slot)
     put_saved_word(pf, PF_AT(0xFFFA5F), (uint16_t)(SAVES_SLOT_MARKS + 2 * slot), SAVED_GAME_MARK);
     sv_write8(pf, PF_AT(0xFFFA67), SAVES_LAST_SLOT, slot);
     count_on_the_cartridge(g, pf);
-    ORIGINAL_EFFECT(leave_saved(g, on_the_bus));
+    (charge_machine_accesses(g, 46), charge_machine_rom_accesses(g, 45));
 }
 
-/* ---- Loading -------------------------------------------------------------------------------- */
-
-static void leave_loaded(GameState *g)
-{
-    uint32_t last = menu_saved_run(g, MENU_SAVED_RUNS - 1).at;
-    leave_saved_runs_table(g);
-    leave_block_move(g, bank_of(last), SAVE_MEMORY_BANK);
-    set_menu_scratch_run_at(g, (uint16_t)last);
-}
-
-// $FF:FAA3
 /* Load the slot's game: every run of work RAM it holds, back where it was. */
 void saves_load_game(GameState *g, Platform *pf, uint8_t slot)
 {
@@ -214,7 +172,7 @@ void saves_load_game(GameState *g, Platform *pf, uint8_t slot)
         load_run(g, pf, from, run.at, run.bytes);
         from = (uint16_t)(from + run.bytes);
     }
-    ORIGINAL_EFFECT(leave_loaded(g));
+    (charge_machine_accesses(g, 46), charge_machine_rom_accesses(g, 45));
 }
 
 /* ---- A New Game+ ---------------------------------------------------------------------------- */
@@ -222,14 +180,6 @@ void saves_load_game(GameState *g, Platform *pf, uint8_t slot)
 /* Where in a saved game the characters whose locked techs have been unlocked
  * are (party_techs_unlocked, in the story's memory's run). */
 enum { SAVED_TECHS_UNLOCKED = 0x7E3 };
-
-static void leave_carried_over(GameState *g)
-{
-    uint32_t last = menu_carried_run(g, MENU_CARRIED_RUNS - 1).at;
-    leave_carried_runs_table(g);
-    leave_block_move(g, bank_of(last), SAVE_MEMORY_BANK);
-    set_menu_scratch_run_at(g, (uint16_t)last);
-}
 
 /* What a New Game+ takes over from the game it carries on from. */
 static void take_over_from(GameState *g, Platform *pf, uint8_t slot)
@@ -240,7 +190,7 @@ static void take_over_from(GameState *g, Platform *pf, uint8_t slot)
         MenuCarriedRun run = menu_carried_run(g, i);
         load_run(g, pf, (uint16_t)(game + run.from), run.at, run.bytes);
     }
-    ORIGINAL_EFFECT(leave_carried_over(g));
+    (charge_machine_accesses(g, 20), charge_machine_rom_accesses(g, 21));
     set_party_techs_unlocked(g, sv_read8(pf, PF_AT(0xFFFB3F), (uint16_t)(game + SAVED_TECHS_UNLOCKED)));
 }
 
@@ -275,21 +225,11 @@ static unsigned equipment_put_back(uint8_t character) { return character == AYLA
  * clock's. Nothing reads the answer from the cell. */
 enum { ANSWER_HELD = 0x0000, ANSWER_NONE = 0x8080, ANSWER_SPOILT = 0x4040 };
 
-static uint16_t check_answer(SavedGameCheck check)
-{
-    return check == SAVED_GAME_HELD ? ANSWER_HELD : check == SAVED_GAME_NONE ? ANSWER_NONE : ANSWER_SPOILT;
-}
-
-static void leave_check_answer(GameState *g, SaveCheckPage page, SavedGameCheck check)
-{
-    set_save_check_answer(g, page, check_answer(check));
-}
-
 SavedGameCheck saves_check_slot_noting(GameState *g, Platform *pf, SaveCheckPage page, uint8_t slot)
 {
     SavedGameCheck check = saves_check_slot(g, pf, slot);
     set_save_check_game_at(g, page, saves_slot_on_the_bus(g, slot));
-    ORIGINAL_EFFECT(leave_check_answer(g, page, check));
+    charge_machine_accesses(g, 2);
     return check;
 }
 
@@ -364,79 +304,18 @@ SavesAtPowerOn saves_power_on(GameState *g, Platform *pf)
     return SAVES_NOTHING_SAVED;
 }
 
-/* ---- The registered entries ----------------------------------------------------------------- */
-
 // $FF:F9C4
-/* The check runs on its caller's page: the slot is read from there, and the
- * slot's place and the answer left there. */
-void menu_check_save_slot(Snes *s)
-{
-    GameState *g = state_of(s);
-    SaveCheckPage page;
-    (void)save_check_page_of(m_direct_page(s), &page);
-    SavedGameCheck check = saves_check_slot_noting(g, m_platform(s), page, save_check_slot(g, page));
-    s->cpu.a = check_answer(check);
-    m_rtl(s);
-}
 
 // $FF:F9FB
-void menu_save_game(Snes *s)
-{
-    GameState *g = state_of(s);
-    saves_save_game(g, m_platform(s), menu_save_slot_shown(g));
-    m_rtl(s);
-}
 
 // $FF:FAA3
-/* The load comes back with A's high byte clear, which the menus' exit
- * carries on. */
-
-void menu_load_game(Snes *s)
-{
-    GameState *g = state_of(s);
-    saves_load_game(g, m_platform(s), menu_save_slot_shown(g));
-    ORIGINAL_EFFECT(menu_leave_a_high_byte_clear(s));
-    m_rtl(s);
-}
-
-/* What the original leaves as it starts on a character: the multiplier with
- * the character's starting record's place worked out, and the place in its
- * cells. */
-static void leave_record_place(GameState *g, uint8_t character)
-{
-    uint16_t place = (uint16_t)(character * MENU_STARTING_RECORD_BYTES);
-    hw_set_multiplicand(g, character);
-    (void)hw_multiply_by(g, MENU_STARTING_RECORD_BYTES);
-    set_menu_starting_record_at(g, MENU_ITEM_TABLES_BANK | place);
-}
-
-/* ... and as each piece of equipment is put on: the character and the place
- * in its equipment. */
-static void leave_equipping(GameState *g, uint8_t character, uint16_t which)
-{
-    set_menu_scratch_carried_character(g, character);
-    set_menu_scratch_carried_slot(g, which);
-}
 
 /* ... and once every character has its equipment: both counts run out (the
  * place's count a word, run out in its low byte). */
 enum { RUN_OUT = 0xFF };
 
-static void leave_everyone_equipped(GameState *g)
-{
-    set_menu_scratch_carried_character(g, RUN_OUT);
-    set_menu_scratch_carried_slot(g, RUN_OUT);
-}
-
 /* The menus' services, whose time the equipping's and the filling's is. */
 enum { MENUS_SERVICES = 0xC28004 };
-
-/* For the original's code and shadow mode: the fillings' calls keep what the
- * service before left in the registers they take their arguments from. */
-static PartyServiceCall called_as_left(GameState *g, PartyService before)
-{
-    return party_service_called(g, (uint8_t)party_service_y(g, before), (uint8_t)party_service_x(before));
-}
 
 // $FF:FAED
 /* A New Game+ carries on from the finished game in a slot: what it takes
@@ -448,56 +327,32 @@ void saves_carry_over(GameState *g, Platform *pf, uint8_t slot)
 {
     take_over_from(g, pf, slot);
     for (int character = CHARACTER_RECORDS_COUNT - 1; character >= 0; character--) {
-        ORIGINAL_EFFECT(leave_record_place(g, (uint8_t)character));
+        (charge_machine_accesses(g, 3), charge_machine_io_accesses(g, 4));
         for (int which = (int)equipment_put_back((uint8_t)character) - 1; which >= 0; which--) {
             uint8_t item = menu_starting_record_byte(g, (uint8_t)character, menu_starting_equipment_place(g, (unsigned)which));
-            ORIGINAL_EFFECT(leave_equipping(g, (uint8_t)character, (uint16_t)which));
-            PartyServiceCall call = { 0 };
-            ORIGINAL_EFFECT(call = party_service_called(g, (uint8_t)character, item));
+            charge_machine_accesses(g, 3);
+            charge_machine_accesses(g, 11);
             TIMED_AS(g, MENUS_SERVICES, (party_equip(g, (uint8_t)character, item), party_wear_it_shows(g)));
-            ORIGINAL_EFFECT(party_service_answered(g, SERVICE_EQUIP, &call));
+            charge_machine_accesses(g, 4);
         }
     }
-    ORIGINAL_EFFECT(leave_everyone_equipped(g));
-    PartyServiceCall call = { 0 };
-    ORIGINAL_EFFECT(call = called_as_left(g, SERVICE_EQUIP));
+    charge_machine_accesses(g, 3);
+    (charge_machine_accesses(g, 18), charge_machine_rom_accesses(g, 7));
     TIMED_AS(g, MENUS_SERVICES, (party_fill_hp(g), party_wear_it_shows(g)));
-    ORIGINAL_EFFECT(party_service_answered(g, SERVICE_FILL_HP, &call));
-    ORIGINAL_EFFECT(call = called_as_left(g, SERVICE_FILL_HP));
+    charge_machine_accesses(g, 2);
+    (charge_machine_accesses(g, 18), charge_machine_rom_accesses(g, 7));
     TIMED_AS(g, MENUS_SERVICES, (party_fill_mp(g), party_wear_it_shows(g)));
-    ORIGINAL_EFFECT(party_service_answered(g, SERVICE_FILL_MP, &call));
+    charge_machine_accesses(g, 2);
     leave_key_items_behind(g);
     note_carried_over(g);
 }
-
-/* The load comes back with A as the last service leaves it: its answer, 0,
- * a word. */
-static void leave_a_clear(Snes *s) { s->cpu.a = 0; }
 
 void menu_load_carried_over(Snes *s)
 {
     GameState *g = state_of(s);
     saves_carry_over(g, m_platform(s), menu_save_slot_shown(g));
-    ORIGINAL_EFFECT(leave_a_clear(s));
+    (void)0;
     m_rtl(s);
-}
-
-// $C2:956E
-/* A new game's state, as the menus' opening and the load screen start one:
- * the block moves that set it up leave A, X and Y past their ends. */
-void menu_leave_new_game_set_up(Snes *s)
-{
-    enum { MOVED = 0xFFFF, CURSORS_END = 0x2C98, CURSORS_END_DESTINATION = 0x2C9A };
-    s->cpu.a = MOVED;
-    s->cpu.x = m_x8(s) ? (uint8_t)CURSORS_END : CURSORS_END;
-    s->cpu.y = m_x8(s) ? (uint8_t)CURSORS_END_DESTINATION : CURSORS_END_DESTINATION;
-}
-
-void menu_start_a_new_game(Snes *s)
-{
-    saves_start_a_new_game(state_of(s));
-    ORIGINAL_EFFECT(menu_leave_new_game_set_up(s));
-    m_rts(s);
 }
 
 // $C2:8D6A
@@ -506,51 +361,10 @@ void menu_start_a_new_game(Snes *s)
  * or start the game leave it, which the dispatcher hands on. */
 enum { BLOCK_MOVED_HIGH = 0xFF00 };
 
-void menu_power_on(Snes *s)
-{
-    SavesAtPowerOn start = saves_power_on(state_of(s), m_platform(s));
-    menu_set_widths(s, true, true);
-    s->cpu.a = (uint16_t)(BLOCK_MOVED_HIGH | (uint8_t)start);
-    m_rts(s);
-}
-
-/* ---- The guards ----------------------------------------------------------------------------- */
-
-/* The check runs on one of the two pages it is called on, for one of the
- * three slots. */
-bool menu_save_slot_is_checkable(Snes *s)
-{
-    SaveCheckPage page;
-    if (!save_check_page_of(m_direct_page(s), &page))
-        return false;
-    vars_peek(true);
-    bool ok = save_check_slot(state_of(s), page) < MENU_SAVE_SLOTS;
-    vars_peek(false);
-    return ok;
-}
-
-/* The power-on looks at the slots on the clock's page, and starts a new
- * game through the data bank on work RAM's. */
-bool menu_power_on_runs(Snes *s)
-{
-    SaveCheckPage page;
-    return save_check_page_of(m_direct_page(s), &page) && page == SAVE_CHECK_CLOCK && menu_new_game_can_start(s);
-}
-
 /* The save and the loads run on the menus' page with the data bank on work
  * RAM's, for one of the three slots; they start their table of runs from the
  * menus' zero word, which is 0 whenever the menus run. */
 bool menu_save_code_can_run(const GameState *g) { return menu_save_slot_shown(g) < MENU_SAVE_SLOTS && menu_zero(g) == 0; }
-
-bool menu_save_code_runs(Snes *s)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_save_code_can_run(state_of(s));
-    vars_peek(false);
-    return ok;
-}
 
 /* A New Game+ runs as the save code does, with the active party's members
  * characters, as the services that put their equipment back read them. */
@@ -565,7 +379,3 @@ bool menu_carry_over_runs(Snes *s)
     vars_peek(false);
     return ok;
 }
-
-/* A new game's state is set up through the data bank, on work RAM's. */
-bool menu_new_game_can_start(Snes *s) { return s->cpu.db == MENU_DATA_BANK; }
-

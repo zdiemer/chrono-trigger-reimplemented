@@ -308,7 +308,4 @@ ScriptEnd menu_run_script(GameState *g, MenuObject self, const ScriptRunner *r, 
 /* Where the script goes on from the command at `at` after `flow`. */
 uint32_t menu_script_follow(const ScriptOpcode *row, uint32_t at, ScriptFlow flow);
 
-/* A runner with nothing between the interpreter and the commands. */
-ScriptFlow menu_script_run_directly(GameState *g, const ScriptServices *services, MenuObject self, uint32_t at);
-
 #endif

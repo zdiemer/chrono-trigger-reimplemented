@@ -29,7 +29,6 @@
 #include "menu/handlers.h"
 #include "menu/menu_data.h"
 #include "menu/object.h"
-#include "original_effects.h"
 #include "overworld/overworld_data.h"
 #include "wram.h"
 #include "port/machine.h"
@@ -143,18 +142,6 @@ static int16_t jolt_along(int16_t share, uint8_t size)
     return share < 0 ? (int16_t)-moved : moved;
 }
 
-/* The original works the jolt out in scratch cells and the CPU's multiplier,
- * and leaves them: the direction and the size, and the multiplier holding the
- * second axis's product. */
-static void leave_jolt(GameState *g, uint8_t angle, uint8_t size)
-{
-    set_menu_object_scratch_jolt_angle(g, angle);
-    set_menu_object_scratch_jolt_size(g, size);
-    int16_t s = menu_object_sine(g, angle);
-    hw_set_multiplicand(g, (uint8_t)(s < 0 ? -s : s));
-    hw_multiply_by(g, size);
-}
-
 // $C6:E6D0
 /* The object jumps a random distance in a random direction: one of the
  * menus' random bytes picks the direction, the next how far, up to 31 pixels
@@ -165,7 +152,7 @@ static void jolt(GameState *g, MenuObject o)
     uint8_t size = next_random(g) & (JOLT_SIZES - 1);
     set_menu_object_slots_x_pixel(g, o, (uint16_t)(menu_object_slots_x_pixel(g, o) + jolt_along(menu_object_cosine(g, angle), size)));
     set_menu_object_slots_y_pixel(g, o, (uint16_t)(menu_object_slots_y_pixel(g, o) + jolt_along(menu_object_sine(g, angle), size)));
-    ORIGINAL_EFFECT(leave_jolt(g, angle, size));
+    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, angle == QUARTER_TURN || angle == THREE_QUARTER_TURN ? 0 : 1));
 }
 
 /* ---- objects put on the map at random ----------------------------------------------------------- */
@@ -180,14 +167,6 @@ static uint16_t under_the_view(const GameState *g)
     return (uint16_t)((menu_map_row(g, 1) + UNDER_THE_VIEW) * MAP_TILE_PIXELS);
 }
 
-/* The byte the placing leaves in the mode's cells: the random offset across. */
-static void leave_offset(GameState *g, uint8_t offset)
-{
-    enum { OFFSET = 0x08 };
-    set_menu_object_scratch_bytes_byte(g, OFFSET, offset);
-    set_menu_object_scratch_bytes_byte(g, OFFSET + 1, 0);
-}
-
 // $C2:754D
 /* Put the object just under the view, somewhere across its middle half. */
 enum { MIDDLE_HALF = 0x7F, QUARTER_IN = 0x40 };
@@ -195,7 +174,7 @@ enum { MIDDLE_HALF = 0x7F, QUARTER_IN = 0x40 };
 static void place_under_the_view(GameState *g, MenuObject o)
 {
     uint8_t offset = next_random(g) & MIDDLE_HALF;
-    ORIGINAL_EFFECT(leave_offset(g, offset));
+    charge_machine_accesses(g, 2);
     set_menu_object_slots_x_pixel(g, o, (uint16_t)(menu_map_column(g, 1) * MAP_TILE_PIXELS + offset + QUARTER_IN));
     set_menu_object_slots_y_pixel(g, o, under_the_view(g));
 }
@@ -208,7 +187,7 @@ enum { STRETCH_START = 0x178 };
 static void place_under_the_stretch(GameState *g, MenuObject o)
 {
     uint8_t offset = next_random(g);
-    ORIGINAL_EFFECT(leave_offset(g, offset));
+    charge_machine_accesses(g, 2);
     set_menu_object_slots_x_pixel(g, o, (uint16_t)(STRETCH_START + offset));
     set_menu_object_slots_y_pixel(g, o, under_the_view(g));
 }
@@ -223,14 +202,6 @@ static void give_random_velocity(GameState *g, MenuObject o)
     menu_object_set_velocity(g, o, (MenuPlace){ menu_scene_velocity_x(g, pick), menu_scene_velocity_y(g, pick) });
 }
 
-/* The original scales the random byte with the CPU's multiplier, and
- * leaves it holding the product. */
-static void leave_scaled(GameState *g, uint8_t random, uint8_t by)
-{
-    hw_set_multiplicand(g, random);
-    (void)hw_multiply_by(g, by);
-}
-
 // $C2:79E0
 /* Move the object a random step to the right, up to 48 pixels: a random
  * byte scaled to 48 256ths of itself, rounded to the nearest pixel. */
@@ -241,7 +212,7 @@ static void step_right_at_random(GameState *g, MenuObject o)
     uint8_t random = next_random(g);
     uint16_t scaled = (uint16_t)(random * STEP_SCALE);
     uint8_t step = (uint8_t)((scaled >> 8) + ((scaled & HALF_A_PIXEL) ? 1 : 0));
-    ORIGINAL_EFFECT(leave_scaled(g, random, STEP_SCALE));
+    charge_machine_io_accesses(g, 4);
     set_menu_object_slots_x_pixel(g, o, (uint16_t)(menu_object_slots_x_pixel(g, o) + step));
 }
 
@@ -271,19 +242,11 @@ static void place_in_the_stretch(GameState *g, MenuObject o, Stretch at)
  * which a column the map holds (view_is_on_the_map) never puts out. */
 enum { DOWN_FROM = 0x60, DOWN_RANDOM = 0x3F };
 
-static void leave_offsets(GameState *g, uint8_t across, uint8_t down)
-{
-    enum { DOWN_OFFSET = 0x0A };
-    leave_offset(g, across);
-    set_menu_object_scratch_bytes_byte(g, DOWN_OFFSET, down);
-    set_menu_object_scratch_bytes_byte(g, DOWN_OFFSET + 1, 0);
-}
-
 static void place_about_the_view(GameState *g, MenuObject o)
 {
     uint8_t across = next_random(g) & MIDDLE_HALF;
     uint8_t down = next_random(g) & DOWN_RANDOM;
-    ORIGINAL_EFFECT(leave_offsets(g, across, down));
+    charge_machine_accesses(g, 4);
     set_menu_object_slots_x_pixel(g, o, (uint16_t)(menu_map_column(g, 1) * MAP_TILE_PIXELS + across + QUARTER_IN));
     set_menu_object_slots_y_pixel(g, o, (uint16_t)(DOWN_FROM + down));
 }
@@ -482,14 +445,6 @@ bool menu_object_scene_edge_is_readable(Snes *s)
     return fits;
 }
 
-static void leave_scene_edge_work(GameState *g, uint8_t choose_side, uint16_t offset, uint8_t random, uint8_t height)
-{
-    set_menu_object_scratch_answer(g, choose_side);
-    set_menu_object_scratch_scene_edge_offset(g, offset);
-    hw_set_multiplicand(g, random);
-    (void)hw_multiply_by(g, height);
-}
-
 // $C6:E101
 /* Scatter an object onto either edge of the scene's window. The random
  * pair chooses the line and side independently; its second byte comes
@@ -506,7 +461,7 @@ static void place_on_scene_edge(GameState *g, MenuObject self)
     set_menu_object_slots_y_pixel(g, self, y);
     uint16_t edges = wram_read16(g, at);
     set_menu_object_slots_x_pixel(g, self, (choose_side & 0x80) ? (uint8_t)(edges >> 8) : (uint8_t)edges);
-    ORIGINAL_EFFECT(leave_scene_edge_work(g, choose_side, offset, random, height));
+    (charge_machine_accesses(g, 3), charge_machine_io_accesses(g, 4));
 }
 
 // $C6:E101
@@ -829,7 +784,7 @@ static uint32_t name_scene_resource(GameState *g, MenuSceneResource kind, uint8_
  * resource's number times three in X and the pointer's bank over its high
  * byte in A, as the original looks the stream up, and N and Z as the
  * decompressor's last pull, of the data bank, sets them. */
-static void load_scene_resource(Snes *s, MenuSceneResource kind, uint8_t number, uint32_t buffer)
+static void load_scene_resource(Snes *s, MenuSceneResource kind, uint8_t number, uint32_t buffer, bool far)
 {
     GameState *g = state_of(s);
     uint32_t stream = name_scene_resource(g, kind, number, buffer);
@@ -837,7 +792,10 @@ static void load_scene_resource(Snes *s, MenuSceneResource kind, uint8_t number,
     s->cpu.a = (uint16_t)((stream & 0xFF00) | (uint8_t)(stream >> 16));
     s->cpu.x = (uint16_t)(number * MENU_SCENE_POINTER_BYTES);
     m_set_nz8(s, s->cpu.db);
-    m_rtl(s);
+    if (far)
+        m_rtl(s);
+    else
+        m_rts(s);
 }
 
 /* Where the pictures go: the graphics to the Mode 7 plane's buffer, the
@@ -850,28 +808,44 @@ enum { SHARED_GRAPHICS = 2, SHARED_PALETTE = 1, SECOND_GRAPHICS = 13, SECOND_PAL
 /* The Mode 7 graphics most of the world maps' scenes share. */
 void menu_object_load_mode7_graphics(Snes *s)
 {
-    load_scene_resource(s, MENU_SCENE_GRAPHICS, SHARED_GRAPHICS, MODE7_GRAPHICS_BUFFER);
+    load_scene_resource(s, MENU_SCENE_GRAPHICS, SHARED_GRAPHICS, MODE7_GRAPHICS_BUFFER, true);
 }
 
 // $C6:E04D
 /* And their colours. */
 void menu_object_load_mode7_palette(Snes *s)
 {
-    load_scene_resource(s, MENU_SCENE_PALETTES, SHARED_PALETTE, MODE7_PALETTE_BUFFER);
+    load_scene_resource(s, MENU_SCENE_PALETTES, SHARED_PALETTE, MODE7_PALETTE_BUFFER, true);
 }
 
 // $C6:E64A
 /* The Mode 7 graphics one world map's scene shows after the shared ones. */
 void menu_object_load_second_mode7_graphics(Snes *s)
 {
-    load_scene_resource(s, MENU_SCENE_GRAPHICS, SECOND_GRAPHICS, MODE7_GRAPHICS_BUFFER);
+    load_scene_resource(s, MENU_SCENE_GRAPHICS, SECOND_GRAPHICS, MODE7_GRAPHICS_BUFFER, true);
 }
 
 // $C6:E66F
 /* And their colours. */
 void menu_object_load_second_mode7_palette(Snes *s)
 {
-    load_scene_resource(s, MENU_SCENE_PALETTES, SECOND_PALETTE, MODE7_PALETTE_BUFFER);
+    load_scene_resource(s, MENU_SCENE_PALETTES, SECOND_PALETTE, MODE7_PALETTE_BUFFER, true);
+}
+
+/* The rising Black Omen scene uses the same streams as the world map's
+ * setup, but loads them on demand before its sprite and palette uploads. */
+enum { OMEN_GRAPHICS = 3, OMEN_SCENE_PALETTE = 18, OMEN_PALETTE_BUFFER = 0x7EC600 };
+
+// $C2:7B5A
+void menu_load_omen_graphics_entry(Snes *s)
+{
+    load_scene_resource(s, MENU_SCENE_GRAPHICS, OMEN_GRAPHICS, MODE7_GRAPHICS_BUFFER, false);
+}
+
+// $C2:7B9F
+void menu_load_omen_palette_entry(Snes *s)
+{
+    load_scene_resource(s, MENU_SCENE_PALETTES, OMEN_SCENE_PALETTE, OMEN_PALETTE_BUFFER, false);
 }
 
 /* The scene selects a resource by its pointer-table byte offset. Validate
@@ -987,7 +961,6 @@ void menu_object_lay_out_scene_pattern(Snes *s)
     m_rts(s);
 }
 
-
 /* ---- As C ----------------------------------------------------------------------------------- */
 
 /* The routines as the program calls them from a script (menu/handlers.h): the
@@ -1050,6 +1023,8 @@ ROUTINE(keep_second_scene_result)
         (void)unpack_stream(g);                                                      \
         return true;                                                                 \
     }
+PICTURE(omen_graphics, MENU_SCENE_GRAPHICS, OMEN_GRAPHICS, MODE7_GRAPHICS_BUFFER)
+PICTURE(omen_palette, MENU_SCENE_PALETTES, OMEN_SCENE_PALETTE, OMEN_PALETTE_BUFFER)
 PICTURE(shared_graphics, MENU_SCENE_GRAPHICS, SHARED_GRAPHICS, MODE7_GRAPHICS_BUFFER)
 PICTURE(shared_palette, MENU_SCENE_PALETTES, SHARED_PALETTE, MODE7_PALETTE_BUFFER)
 PICTURE(second_graphics, MENU_SCENE_GRAPHICS, SECOND_GRAPHICS, MODE7_GRAPHICS_BUFFER)
@@ -1064,6 +1039,8 @@ static bool clear_all_of_vram_routine(GameState *g, Platform *pf, MenuObject sel
 }
 
 MENU_SCRIPT_ROUTINES(menu_scene_routines,
+    { 0xC27B5A, "the Black Omen graphics", NULL, omen_graphics_routine },
+    { 0xC27B9F, "the Black Omen scene colours", NULL, omen_palette_routine },
     { 0xC6E101, "an object placed on a window edge", scene_edge_is_readable, place_on_scene_edge_routine },
     { 0xC27AFC, "load scene map graphics", scene_map_graphics_fit, load_scene_map_graphics_routine },
     { 0xC27B20, "load scene top layer", scene_top_layer_fits, load_scene_top_layer_routine },

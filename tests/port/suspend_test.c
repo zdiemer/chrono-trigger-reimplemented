@@ -58,6 +58,8 @@
 #include "core/input.h"
 #include "core/machine_forms.h"
 #include "menu/bridge.h"
+#include "menu/object.h"
+#include "menu/script_call.h"
 #include "overworld/entries.h"
 #include "port/machine.h"
 #include "port/native.h"
@@ -998,7 +1000,7 @@ static void menu_contract_case(void)
                                 .guard = menu_contract_guard };
     uint8_t *rom = make_rom(tasks_code, sizeof tasks_code / sizeof tasks_code[0], 0x8000);
     native_direct_contracts(&callee, 1);
-    for (unsigned form = 0; form < 3; form++) {
+    for (unsigned form = 0; form < 4; form++) {
         for (unsigned invalid = 0; invalid < 8; invalid++) {
             Snes *s = machine(rom);
             s->cpu.e = invalid == 1;
@@ -1016,8 +1018,15 @@ static void menu_contract_case(void)
                 back = menu_run(s, YIELD_SITE, SWITCH, menu_contract_callee);
             else if (form == 1)
                 back = menu_run_checked(s, YIELD_SITE, SWITCH, DC_A, menu_contract_callee);
-            else
+            else if (form == 2)
                 back = menu_run_or_call(s, YIELD_SITE, SWITCH, DC_A, menu_contract_callee);
+            else {
+                back = menu_begin_inline_call(s, YIELD_SITE, SWITCH, menu_contract_callee);
+                if (back) {
+                    menu_contract_calls++;
+                    menu_end_inline_call(s, YIELD_SITE);
+                }
+            }
             CHECK(back == (invalid == 0) && menu_contract_calls == (invalid == 0),
                   "menu call form %u, invalid %u: returned %d, called %u", form, invalid, back, menu_contract_calls);
             CHECK(cpu_pc24(&s->cpu) == (invalid ? SWITCH : YIELD_SITE + 3) &&
@@ -1072,9 +1081,46 @@ static void menu_world_case(void)
     free(rom);
 }
 
+/* A world-map walker calls the interpreter directly. Its real contract
+ * accepts either accumulator width and rejects bad machine and object state
+ * before the first command can run, preserving the refused call frame. */
+static void menu_script_contract_case(void)
+{
+    uint8_t *rom = make_rom(tasks_code, sizeof tasks_code / sizeof tasks_code[0], 0x8000);
+    for (unsigned invalid = 0; invalid < 10; invalid++) {
+        Snes *s = machine(rom);
+        GameState *g = state_of(s);
+        s->cpu.e = invalid == 2;
+        s->cpu.p = invalid == 1 ? 0 : CPU_FLAG_M;
+        if (invalid == 3) s->cpu.p |= CPU_FLAG_D;
+        if (invalid == 4) s->cpu.p |= CPU_FLAG_X;
+        s->cpu.d = invalid == 5 ? 0x100 : 0;
+        s->cpu.db = invalid == 6 ? 0x40 : 0x7E;
+        s->cpu.s = A_TOP;
+        menu_object_make_running(g, 0);
+        set_menu_object_slots_script(g, 0, invalid == 8 ? 0x400000 : 0x7F1000);
+        set_menu_sprite_draw_list_first(g, 0xB500);
+        set_menu_sprite_free_list_first(g, invalid == 9 ? 0 : 0xB000);
+        set_menu_sprite_nodes_prev(g, 0, 0xB504);
+        set_menu_sprite_nodes_next(g, 0, 0xB504);
+        m_write8(s, 0x7F1000, 0x52); /* the script ends this object */
+        if (invalid == 7) set_menu_object_current(g, 1);
+        ScriptEnd end = menu_run_object_script_from(s, 0xC2378B);
+        bool accepted = invalid < 2;
+        CHECK(end == (accepted ? SCRIPT_DONE : SCRIPT_GAVE_BACK),
+              "world script contract case %u returned %u", invalid, (unsigned)end);
+        CHECK(cpu_pc24(&s->cpu) == (accepted ? 0xC2378E : 0xC20F63) &&
+              s->cpu.s == (accepted ? A_TOP : A_TOP - 2),
+              "world script contract case %u lost its return frame", invalid);
+        free(s);
+    }
+    free(rom);
+}
+
 int main(void)
 {
     menu_contract_case();
+    menu_script_contract_case();
     menu_world_case();
     tasks_case("a yield, shipping mode", NATIVE_ON, RUN_THROUGH);
     tasks_case("a yield, shadow mode", NATIVE_SHADOW, RUN_THROUGH);

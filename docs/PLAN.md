@@ -73,7 +73,7 @@ in place of the ports: the native coverage.
 | SPC700 sound driver | reimplemented in C, its commands calls rather than uploads (SOUND.md), and the only driver anything of ours plays: `ct_play`, `ct_drive`, `ct_native` and every `ct_dev` run of the hand ports from power-on; the voices play through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md), or with `--mixer dsp` the S-DSP. The gate no longer compares it with the original: its checks are its own (`sound_test`'s digest on a made-up cartridge, `ct_sound_fuzz`'s in `tools/sound_golden.txt`, the host's faults in every run). The cartridge's driver, and its CPU half in bank `$C7`, run only in the reference play, as the console runs the cartridge (REIMPLEMENTATION.md, "The sound driver's teardown") | the original and the S-DSP deleted |
 | Video fed by service calls | `ct_native` direct; dev/player retain the SNES backend; 23 escape occurrences | retire the remaining battle/menu/scene escapes |
 | How far `ct_native` gets, with no emulator under it (PLAYING.md, "The native program") | no stop: the boot, the field and the title's scene as C, the attract demo's field, its first world map as C (the menus' sprite-object mode, `$C2:0000`: the setup, the loop, the vblank handler, the objects and their scripts) and the field after it with its screen effects as C (the curtain, the field's close into a scene, the ripple), the scene it closes into (the credits' page, `$7E:6B04`) and the field after it, its battle as C (`$C0:188C`: the field's setup for it, bank `$C1`'s mode, its handlers, its turns, and the field taken up again), and on through its next world map (the layer's shimmer as C, `$C2:7759`) into the jet bike race's scene as C (`$7E:3B48`, its setup and its tasks), the rising palace's after it (`$7E:671F`), and round to the title again: 200,000 frames without stopping; with `new-game.ctm`'s presses, the movie to its end: the menus a script asks for after the title, Crono's naming, the opening's world map and Crono's house; with `fair.ctm`'s, on across the world map on foot into Leene Square, the fair, to the movie's end; with `fair-companion.ctm`'s, the movie to its end; with `gato-battle.ctm`'s, Gato's battle as C and the movie to its end; with `menu.ctm`'s, the main menu the player opens as C (its panels, and the equipment's, items', techs' and settings' screens as far as the movie goes into them) and the movie to its end; started in a story scene (`--scene`), Lavos falling, the Epoch's dive, the Beyond Time ending's and the reunion's scenes and the staff roll each to its end; the whole of `game/` linked, every service with a host backend; over the library (84 movies), 84 to their end showing a picture, 27 of them ending as the reference play does (`native_check.py`, the batched run of `bfd75c49` with fresh branch replacements) | every movie to its end, as strict mode does |
-| The machine's joints in `game/` (`tools/machine_joints.py`, source sites after merging the scene, menu, loop and sound work) | 2,213 registered entries; 1,014 returns through the emulated stack; 91 stops at original addresses; 8 call-outs and 3 registry lookups between ports; 9 time tags that take the machine; 24 register escapes; 546 video calls; 2,063 scaffolding writes. What `ct_native` links: no registered entries, all other counts the same. The sound teardown removed 9 entries, 5 returns, 2 stops and 29 scaffolding writes; the data teardown 2 entries, 1 return and 3 scaffolding writes; core's services' 39 entries, 10 returns and 1 scaffolding write; the scene and loop continuations remove further machine boundaries | 0: the registry, the wrappers and the scaffolding gone with the gate, subsystem by subsystem |
+| The machine's joints in `game/` (`tools/machine_joints.py`, after the menu retirement) | 843 ordinary registry entries and 138 held continuations; 712 returns through the emulated stack; 103 stops at original addresses; 5 call-outs and 3 registry lookups between ports; 8 time tags that take the machine; 23 register escapes; 538 video calls, all with host backends; 760 scaffolding writes. `ct_native` links neither registry kind; the other source counts are shared | 0: the registry, wrappers and scaffolding gone with the gate, subsystem by subsystem |
 | How the game is entered | the emulated CPU walks the ROM from its reset vector and finds each port by address in `game/registry.c`. Census (`tools/census.py`, shipping mode with the C sound driver as `ct_play` plays it, 84 movies): 264 entries entered by the machine, 42.0 M times (vector 3.6 M, a port's call-out 25.5 M, its stop 9.6 M, its return 3.2 M, a task's yield 30 K; none from the original's code), and 17 wait loops still passed on the machine 767 M times; 1,368 entries run only as C. None of it is the sound driver's: before the game's side of it became calls, 266 entries, 44.9 M times, the commands at `$C7:0004` 25.5 K of them and the boot 100, and 16 entries the machine came back to from them. Main's post-teardown census, before this merge (not rerun here): 267 entries entered by the machine and 17 wait loops (284 in all), 42.0 M times outside the waits (call-out 25.5 M, stop 9.6 M, vector 3.6 M, return 3.2 M, yield 30 K) and the waits 764 M; 1,366 run only as C, the two less the time tags `$C7:0004` and `$C7:0000` that went with their rows; nothing of bank `$C7` | `main()` boots the game and callers call ports; census 0; no registry, wrappers or emulator linked (Phase 4a, "The native program") |
 
 **Burndown overstates how native the game is.** It counts a port's whole
@@ -151,12 +151,12 @@ a process budget.
 original code in place of a hand port in the shipping mode, so the order is no
 longer picked by native coverage but by what each subsystem's teardown needs
 (Phase 4a, "The native program, and the registry taken down", step 3). Sound,
-data, core's services, the time warp, the overworld and the scene engine are
-retired. In order:
+data, core's services, the time warp, the overworld, the scene engine,
+field, events and menus are retired. In order:
 
-1. **The field and the events, then the battle and the menus**: the largest,
-   each needing its unreached code checked and its recorded outcomes over the
-   library first ("The code no movie reaches", "Validation after the teardown").
+1. **The battle**: close its remaining unreached-ledger gaps, retain the
+   protected recorded outcomes, and replace its remaining machine calls
+   ("The code no movie reaches", "Validation after the teardown").
 2. **`ct_native`'s time model** alongside, so the native program plays as the
    original does: the loads and the battle's setup it charges wrongly first.
 
@@ -223,7 +223,7 @@ where recalibration and baseline updates come from; "every movie" below is every
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**0 of 318 files is left on the backlog**: the last, `data/decompress.c`, is
+**0 of 319 files is left on the backlog**: the last, `data/decompress.c`, is
 rewritten (the unpacker as a function of the game's state, which the native
 program calls), and `tools/portstyle_baseline.txt` lists none. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
@@ -451,7 +451,9 @@ steps' routines the dispatch (`$C1:0003`, `battle/steps.c`) still calls out to
 and the frame waits (`$C1:007E`, the timing service's; TODO.md, "What an
 action's showing left at its edge").
 
-**`$C2`: the menus.** In: the Epoch's two Mode 7 screens, the object scripts'
+**`$C2`: the menus** have retired their byte-exact gate. Checked C calls and
+held task/frame continuations retain the legacy driver's contracts; nine
+glyph/typesetter scaffolding sites remain for battle's comparisons. In: the Epoch's two Mode 7 screens, the object scripts'
 instruction set and the map they scroll, the load screen, the window command
 language, the cursor and sounds, the typesetter, the menus' opening, the
 characters in the records, the records' task, the frame's input, the
@@ -482,8 +484,9 @@ The dactyls' flight over the 65,000,000 B.C. map is C too (history/reimplementat
 
 **`$C0`: the field and events** have retired their byte-exact gate. Their
 ordinary operations run as C, with held continuations for the legacy
-driver's frame boundaries. Five uncompared field entries remain for boot,
-mode reentry and battle callers; the menus retain their wave-phase alias.
+driver's frame boundaries. Four uncompared field entries remain for boot
+and battle callers. The menu teardown removes mode reentry's dispatch row
+and the wave-phase compatibility writes.
 REIMPLEMENTATION.md, "The field's teardown" and "The events' teardown",
 name the retained interfaces and protected outcomes. The next work here is
 removing those interfaces with their callers, not adding ports.
@@ -695,21 +698,18 @@ already built are described in PLATFORM.md.
      scene engine is retired too: its checked machine forms keep contracts
      at the legacy driver and gated menu boundaries, with no ordinary
      scene registry rows (REIMPLEMENTATION.md, "The scene engine's teardown").
-     Battle and menus are next: close their unreached obligations and shared
-     state readers, then retire the menu services before the battle callers.
-     Their named waits, task transfers and field returns preserve saveable
-     frame boundaries. Close the remaining by-address service calls and
-     parked task continuations (REIMPLEMENTATION.md,
-     "Battle and menu held boundaries"; TODO.md, "Battle and menu teardown
-     preconditions").
+     Battle is next: close its remaining unreached obligations, preserve the
+     message renderer's shared-state contract, and retire its checked rows.
+     Its main-pass boundaries and graphics/window waits are held already
+     (REIMPLEMENTATION.md, "Battle and menu held boundaries"; TODO.md,
+     "Battle teardown preconditions").
   4. **Last, the machine leaves the product.** When no subsystem is under
      the gate, `game/registry.c`, the intercept, the entry macros and
      `runtime/`'s emulator are deleted from what ships; `ct_play` is
      `ct_native`.
 
 - **The code no movie reaches, checked before its subsystem retires.**
-  Extend `tools/unreached.py` to the remaining 65816 subsystems: battle
-  and menu. Compare the full library's coverage with their
+  Extend `tools/unreached.py` to the remaining 65816 subsystem: battle. Compare the full library's coverage with their
   ported live reach, then fuzz the missing paths against the original before
   retiring their gates. Every remaining byte needs a passing comparison or
   an explicit safety argument in the ledger, with its retirement obligations

@@ -221,11 +221,12 @@ class TimingGateTest(unittest.TestCase):
 
     def test_time_tags_in_game_name_hand_ports(self):
         """Every literal address a port attributes time to (native_time_as,
-        NATIVE_TIME_AS) has a hand port registered there; shadow mode reports
-        the rest (computed ones) as it meets them."""
+        NATIVE_TIME_AS) has a registered or retired time tag; shadow mode
+        reports the rest (computed ones) as it meets them."""
         root = pathlib.Path(__file__).resolve().parents[1]
-        registry = (root / "game/registry.c").read_text()
-        registered = {int(a, 16) for a in re.findall(r"\b0x([0-9A-Fa-f]{6})\b", registry)}
+        timing_rows = ((root / "game/registry.c").read_text()
+                       + (root / "game/time_tags.c").read_text())
+        registered = {int(a, 16) for a in re.findall(r"\.addr\s*=\s*0x([0-9A-Fa-f]{6})\b", timing_rows)}
         tags = []
         for path in sorted((root / "game").rglob("*.c")):
             for m in re.finditer(r"(?:native_time_as|NATIVE_TIME_AS)\(\s*\w+\s*,\s*0x([0-9A-Fa-f]{6})\s*[,)]",

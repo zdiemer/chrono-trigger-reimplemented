@@ -47,6 +47,13 @@ void charge_legacy_io_accesses(GameState *g, uint32_t accesses);
  * cartridge speed. No table bytes are read or retained. */
 void charge_legacy_rom_accesses(GameState *g, uint32_t accesses);
 
+/* Comparison-only accesses that the native program never performed. Keep
+ * their calibrated cost on the machine after deleting the temporary cells;
+ * the host keeps its existing estimate of the actual C operation. */
+void charge_machine_accesses(GameState *g, uint32_t accesses);
+void charge_machine_io_accesses(GameState *g, uint32_t accesses);
+void charge_machine_rom_accesses(GameState *g, uint32_t accesses);
+
 /* The time of the game's block move moving `bytes` bytes: what the original
  * spends where a port fills or copies with wram_fill8, wram_fill16 or
  * wram_copy (wram.h), which take none of the port's own time. */

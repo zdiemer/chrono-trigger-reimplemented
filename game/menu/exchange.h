@@ -159,7 +159,7 @@ typedef enum {
     EXCHANGE_ON_THE_GATE_S_RECORD, EXCHANGE_OFF_THE_GATE_S_RECORD, EXCHANGE_SWIRL_BEGINS, EXCHANGE_SWIRL_ENDS,
 } ExchangeSlideFrame;
 
-/* The routines the gate's screen's opening runs (each a registered entry,
+/* The routines the gate's screen's opening runs (each a checked legacy adapter,
  * run on the machine where the original calls it). */
 typedef enum {
     EXCHANGE_SWITCHES_TO_THE_GATE_SONG, /* $C2:CB8B */
@@ -258,8 +258,6 @@ void menu_choose_second_to_exchange_entry(Snes *s);
 void menu_open_exchange_at_the_gate_entry(Snes *s);
 void menu_choose_first_at_the_gate_entry(Snes *s);
 void menu_show_exchange_panel_entry(Snes *s);
-void menu_put_exchange_panel_away(Snes *s);
-
 bool menu_exchange_opens(Snes *s);
 bool menu_exchange_lays_out(Snes *s);
 bool menu_exchange_cursor_moves(Snes *s);

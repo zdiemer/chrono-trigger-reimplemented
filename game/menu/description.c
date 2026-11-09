@@ -32,7 +32,6 @@
 #include "menu/menu_data.h"
 #include "menu/typeset.h"
 #include "menu/vram.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
@@ -93,15 +92,6 @@ static void clear_the_row(GameState *g)
 /* The text's tiles, in work RAM's bank as the screen set it. */
 static void set_the_text_in(GameState *g, uint16_t at) { set_menu_text_tiles(g, (menu_text_tiles(g) & 0xFF0000u) | at); }
 
-/* For the original's code and shadow mode: it clears the counts beside the
- * glyphs sent and the line's laying, writing each as a word. */
-static void leave_counts_cleared_as_words(GameState *g, bool glyphs_too)
-{
-    set_menu_description_laid_to_pad(g, 0);
-    if (glyphs_too)
-        set_menu_description_glyphs_sent_pad(g, 0);
-}
-
 static void begin_line(GameState *g, LineTiles t)
 {
     set_menu_graphic_first_tile(g, t.first_tile);
@@ -131,7 +121,7 @@ static void begin_the_next_line(GameState *g)
  * reads. */
 static void send(GameState *g, MenuUpload u)
 {
-    ORIGINAL_EFFECT(u.spare = menu_built_upload_spare(g));
+    charge_machine_accesses(g, 1);
     TIMED_AS(g, 0xC2838E, menu_queue_upload(g, u));
 }
 
@@ -144,14 +134,6 @@ static MenuUpload line_tiles(const GameState *g)
 static MenuUpload the_row(const GameState *g)
 {
     return (MenuUpload){ menu_description_row_vram(g), WORK_RAM | row_start(g), menu_description_row_bytes(g), 0 };
-}
-
-/* For the original's code and shadow mode: how far it counted the line's
- * tiles in its first cells. */
-static void leave_tiles_counted(GameState *g, uint8_t reached, uint8_t laid)
-{
-    set_menu_scratch_typed_tiles(g, reached);
-    set_menu_scratch_laid_tiles(g, laid);
 }
 
 /* The tiles the pen has reached into since they were last laid, laid on
@@ -172,10 +154,9 @@ static void lay_the_new_tiles(GameState *g)
         at = (uint16_t)(at + TILE_BYTES);
     }
     set_menu_description_laid_to(g, pen);
-    ORIGINAL_EFFECT(leave_tiles_counted(g, reached, laid));
+    charge_machine_accesses(g, 4);
 }
 
-// $C2:FAE9
 /* The line's tiles and their laying only where it has new glyphs; the row
  * every frame. */
 void menu_send_the_typing(GameState *g)
@@ -187,7 +168,7 @@ void menu_send_the_typing(GameState *g)
         lay_the_new_tiles(g);
     }
     send(g, the_row(g));
-    ORIGINAL_EFFECT(menu_leave_built_upload(g, the_row(g)));
+    charge_machine_accesses(g, 13);
 }
 
 /* A frame of typing: as many glyphs as the pace allows set and sent, a
@@ -212,7 +193,6 @@ bool menu_description_shows_another(const GameState *g, uint8_t which)
     return (menu_description_stale(g) & STALE) || which != menu_description_item(g);
 }
 
-// $C2:FA49
 /* The row cleared, the first line begun, and the typing's task started;
  * the typesetter starts on the text at once. */
 void menu_start_typing(GameState *g)
@@ -223,7 +203,7 @@ void menu_start_typing(GameState *g)
     set_menu_description_line_from(g, 0);
     clear_the_row(g);
     begin_line(g, FIRST_LINE);
-    ORIGINAL_EFFECT(leave_counts_cleared_as_words(g, false));
+    charge_machine_accesses(g, 1);
     menu_start_task(g, MENU_DESCRIPTION_TASK, TYPE_A_DESCRIPTION);
     TIMED_AS(g, 0xC257DF, menu_text_start(g));
 }
@@ -239,7 +219,6 @@ void menu_describe(GameState *g, uint8_t which, uint32_t texts, uint16_t row_vra
     TIMED_AS(g, 0xC2FA49, menu_start_typing(g));
 }
 
-// $C2:F2F3
 void menu_describe_item(GameState *g, uint8_t item)
 {
     if (!menu_description_shows_another(g, item))
@@ -249,7 +228,6 @@ void menu_describe_item(GameState *g, uint8_t item)
     menu_describe(g, item, MENU_ITEM_DESCRIPTIONS, ITEM_ROW_VRAM);
 }
 
-// $C2:F943
 /* Another option: the row cleared and the option typed, then its value. The
  * same option, once the typing is done: the value's place cleared on both
  * of its tile rows from where it starts to the line's end (at least a
@@ -296,7 +274,7 @@ static void begin_the_setting(GameState *g)
     set_menu_description_glyphs_sent(g, 0);
     set_menu_description_line_from(g, 0);
     begin_line(g, FIRST_LINE);
-    ORIGINAL_EFFECT(leave_counts_cleared_as_words(g, true));
+    charge_machine_accesses(g, 2);
     TIMED_AS(g, 0xC257DF, menu_text_start(g));
 }
 
@@ -308,7 +286,7 @@ static void begin_the_value(GameState *g)
     set_menu_description_glyphs_sent(g, 0);
     set_menu_description_line(g, (uint16_t)(menu_description_value_line(g) + menu_description_value_tile(g) * TILE_BYTES));
     begin_line(g, VALUE_LINE);
-    ORIGINAL_EFFECT(leave_counts_cleared_as_words(g, true));
+    charge_machine_accesses(g, 2);
     TIMED_AS(g, 0xC257DF, menu_text_start(g));
 }
 
@@ -373,7 +351,7 @@ static bool type(void *ctx, uint32_t site)
     (void)site;
     GameState *g = ctx;
     if (!typing_goes_on(g)) {
-        program_needs_the_machine(g, 0xC2FAA8, "a description the port doesn't type");
+        program_breaks_a_contract(g, 0xC2FAA8, "a description the port doesn't type");
         return false;
     }
     bool typed = false;
@@ -385,7 +363,7 @@ static void typing_task(GameState *g, TypingTask task)
 {
     static const uint32_t starts[] = { 0xC2FA9F, 0xC2F9B2, 0xC2FA06 };
     if (!typing_task_can_start(g, task)) {
-        program_needs_the_machine(g, starts[task], "a typing task the port doesn't start");
+        program_breaks_a_contract(g, starts[task], "a typing task the port doesn't start");
         return;
     }
     (void)typing_task_with(g, task, type, g);
@@ -416,48 +394,11 @@ void menu_type_the_value_task(GameState *g, Platform *pf)
 enum { END_OF_A_TASK = 0xC28216 };
 enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
-// $C2:F2F3
-void menu_describe_item_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t item = (uint8_t)s->cpu.a;
-    bool another = menu_description_shows_another(g, item);
-    menu_describe_item(g, item);
-    if (another)
-        ORIGINAL_EFFECT(menu_leave_typing_started(s));
-    m_rts(s);
-}
-
-/* The naming screen can fade immediately after starting a description.
- * Its task wait preserves the typesetter's string-table index. */
-void menu_leave_typing_started(Snes *s)
-{
-    s->cpu.a = 0;
-    s->cpu.y = (uint16_t)(2u * menu_text_string(state_of(s)));
-}
-
 // $C2:FA49
-void menu_start_typing_entry(Snes *s)
-{
-    menu_start_typing(state_of(s));
-    ORIGINAL_EFFECT(menu_leave_typing_started(s));
-    m_rts(s);
-}
 
 // $C2:F943
-void menu_describe_setting_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_describe_setting(g, menu_settings_described_option(g), menu_settings_description(g));
-    m_rts(s);
-}
 
 // $C2:FAE9
-void menu_send_the_typing_entry(Snes *s)
-{
-    menu_send_the_typing(state_of(s));
-    m_rts(s);
-}
 
 static bool wait_on_the_machine(void *ctx) { return menu_wait_a_frame_from(ctx, 0xC2FAA5); }
 
@@ -515,13 +456,13 @@ void menu_typing_task_finished(Snes *s)
 void menu_setting_text_finished(Snes *s)
 {
     note_where_the_value_goes(state_of(s));
+    m_jump_to(s, 0xC2FA06);
     if (!menu_runs_as_port(s, 0xC2FA06, menu_type_the_value_task_entry)) {
         m_stop_at(s, 0xC2FA06, READS_NOTHING);
         return;
     }
     /* The setting task falls through into the value phase. Its setup keeps
      * the setting task's rate, as it did inside typing_task_with. */
-    m_jump_to(s, 0xC2FA06);
     menu_type_the_value_task_entry(s);
 }
 
@@ -553,33 +494,6 @@ static bool guarded(Snes *s, bool (*ok)(const GameState *g))
     vars_peek(false);
     return fine;
 }
-
-static bool item_row_fits(const GameState *g)
-{
-    (void)g;
-    return true;
-}
-
-bool menu_item_is_describable(Snes *s) { return guarded(s, item_row_fits) && menu_text_is_startable(s); }
-
-bool menu_typing_can_start(Snes *s) { return guarded(s, row_fits) && menu_text_is_startable(s); }
-
-/* The value's line is cleared from where the option's text ended, a whole
- * number of tiles along it. */
-static bool setting_fits(const GameState *g) { return menu_description_line_from(g) % TILE_BYTES == 0; }
-
-bool menu_setting_is_describable(Snes *s) { return guarded(s, setting_fits); }
-
-/* Laying the tiles: the pen reached past the tiles laid wherever the line
- * has new glyphs (the typesetter moves it on with each). */
-static bool sending_fits(const GameState *g)
-{
-    if (!laying_fits(g) || menu_text_line_glyphs(g) == menu_description_glyphs_sent(g))
-        return laying_fits(g);
-    return (menu_text_reading_pen(g) + TILE_PIXELS - 1) / TILE_PIXELS > menu_description_laid_to(g) / TILE_PIXELS;
-}
-
-bool menu_typing_can_be_sent(Snes *s) { return guarded(s, sending_fits); }
 
 static bool typing_goes_on(const GameState *g) { return laying_fits(g) && menu_text_can_carry_on(g); }
 

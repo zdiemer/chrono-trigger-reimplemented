@@ -11,6 +11,7 @@
  * (menu/display.c). The brightness is the low four bits of the menus'
  * display setting; a fade out that reaches black waits a last frame before
  * it hands the screen on, so that the black is shown. */
+#include "charge.h"
 #include "menu/fades.h"
 
 #include "holds.h"
@@ -18,8 +19,6 @@
 #include "port/native.h"
 #include "port/vars_ram.h"
 #include "menu/menu.h"
-#include "original_effects.h"
-#include "original_frame.h"
 #include "port/machine.h"
 #include "vars.h"
 
@@ -116,7 +115,7 @@ static Fade fade_out(GameState *g, FadeWait between, void *ctx, bool called)
 {
     Fade f;
     if (called)
-        IN_THE_ORIGINALS_FRAME(g, ORIGINAL_RETURN_BYTES, f = fade(g, FADE_OUT_STEP, between, ctx));
+        f = fade(g, FADE_OUT_STEP, between, ctx);
     else
         f = fade(g, FADE_OUT_STEP, between, ctx);
     return f;
@@ -130,7 +129,7 @@ static bool fade_in_task(GameState *g, FadeWait first_frame, FadeWait between, v
     if (!first_frame(ctx))
         return false;
     Fade f;
-    IN_THE_ORIGINALS_FRAME(g, ORIGINAL_RETURN_BYTES, f = fade(g, FADE_IN_STEP, between, ctx));
+    f = fade(g, FADE_IN_STEP, between, ctx);
     return f.end == FADE_DONE;
 }
 
@@ -199,21 +198,10 @@ enum { FADE_IN_TASK = 0, FADE_IN_TASK_START = MENU_FADE_IN_TASK_START };
 // $C2:83B2
 void menu_start_the_fade_in(GameState *g) { menu_start_task(g, FADE_IN_TASK, FADE_IN_TASK_START); }
 
-/* What the task's start leaves the screen's step it ends: 16-bit registers,
- * the record's state and countdown in A, and the task's place in X with the
- * flags of its load. */
-static void leave_the_task_started(Snes *s)
-{
-    menu_set_widths(s, false, false);
-    s->cpu.a = MENU_TASK_STARTING | 1 << 8;
-    s->cpu.x = FADE_IN_TASK;
-    m_set_nz16(s, FADE_IN_TASK);
-}
-
 void menu_start_the_fade_in_entry(Snes *s)
 {
     menu_start_the_fade_in(state_of(s));
-    ORIGINAL_EFFECT(leave_the_task_started(s));
+    (void)0;
     m_rts(s);
 }
 

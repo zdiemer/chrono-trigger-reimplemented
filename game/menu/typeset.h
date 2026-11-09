@@ -67,9 +67,7 @@ bool menu_text_can_start(const GameState *g);
 /* The entries, and their guards. */
 void menu_text_start_entry(Snes *s);
 void menu_text_go_on_entry(Snes *s);
-void menu_set_label_entry(Snes *s);
 bool menu_text_is_startable(Snes *s);
 bool menu_text_can_go_on(Snes *s);
-bool menu_label_is_settable(Snes *s);
 
 #endif

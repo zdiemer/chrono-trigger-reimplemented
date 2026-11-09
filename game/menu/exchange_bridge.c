@@ -37,7 +37,6 @@
 #include "menu/sound.h"
 #include "menu/sprites.h"
 #include "menu/vram.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
@@ -90,18 +89,8 @@ static const struct {
     [EXCHANGE_AT_THE_GATE_SONG_WAIT] = { 0xC2C7D0, KEEP_WIDTHS, KEEP_WIDTHS },
 };
 
-static void leave_choosing_started(Snes *s);
-static void leave_input_tested(Snes *s);
-static void leave_row_tested(Snes *s);
-static void leave_swapped(Snes *s);
-static void leave_cursor_compared(Snes *s);
-static void leave_refused(Snes *s);
-static void leave_scroll_started(Snes *s, bool back);
-static void leave_bar_worked_out(Snes *s);
-static void leave_slide_called(Snes *s);
-static void leave_gate_sprite_record(Snes *s);
-static void leave_panel_picked(Snes *s);
-static void leave_step_counted(Snes *s);
+static void charge_scroll_started(Snes *s, bool back);
+static void charge_bar_worked_out(Snes *s);
 
 /* ---- What the sequences ask of the menus, on the machine ----------------------------------------- */
 
@@ -139,7 +128,7 @@ enum { GATE_RECORD_PAGE = 0x19C0 };
 static bool gate_sprite(void *ctx)
 {
     Snes *s = machine(ctx);
-    ORIGINAL_EFFECT(leave_gate_sprite_record(s));
+    (void)0;
     return menu_run(s, 0xC2CAB0, LOAD_A_RECORD_SPRITE, menu_load_record_sprite);
 }
 
@@ -175,17 +164,17 @@ static void slide(void *ctx, ExchangeSlideFrame frame)
     case EXCHANGE_SLIDE_BEGINS_ON: {
         bool back = frame == EXCHANGE_SLIDE_BEGINS_BACK;
         m_push16(s, 0xC816 + MENU_JSR_SIZE - 1);
-        ORIGINAL_EFFECT(leave_scroll_started(s, back));
+        charge_scroll_started(s, back);
         menu_save_p(s);
         menu_set_widths(s, false, false);
         m_push16(s, (uint16_t)((back ? 0xC883 : 0xC8B5) + MENU_JSR_SIZE - 1));
-        ORIGINAL_EFFECT(leave_slide_called(s));
+        (void)0;
         menu_save_p(s);
         break;
     }
     case EXCHANGE_SLIDE_ENDED:
         menu_set_widths(s, false, false);
-        ORIGINAL_EFFECT(menu_leave_a_high_byte_clear(s));
+        (void)0;
         break;
     case EXCHANGE_SLIDE_LEFT:
         menu_restore_p(s);
@@ -197,7 +186,7 @@ static void slide(void *ctx, ExchangeSlideFrame frame)
      * $C2:C9F7 with the panel's P saved) keeps the direct page on the stack
      * as it moves it to the record. */
     case EXCHANGE_ON_THE_GATE_S_RECORD:
-        ORIGINAL_EFFECT(leave_panel_picked(s));
+        charge_machine_accesses(state_of(s), 1);
         menu_save_p(s);
         m_push16(s, 0xC9F7 + MENU_JSR_SIZE - 1);
         m_push16(s, s->cpu.d);
@@ -229,16 +218,16 @@ static void note(void *ctx, ExchangeNote n)
 {
     Snes *s = machine(ctx);
     switch (n) {
-    case EXCHANGE_NOTE_REFUSED: ORIGINAL_EFFECT(leave_refused(s)); break;
-    case EXCHANGE_NOTE_CHOOSING_STARTED: ORIGINAL_EFFECT(leave_choosing_started(s)); break;
-    case EXCHANGE_NOTE_BAR_WORKED_OUT: ORIGINAL_EFFECT(leave_bar_worked_out(s)); break;
-    case EXCHANGE_NOTE_SCREEN_SHOWN: ORIGINAL_EFFECT(menu_leave_queued_upload(s, MENU_UPLOAD_BACK_LAYER)); break;
-    case EXCHANGE_NOTE_INPUT_TESTED: ORIGINAL_EFFECT(leave_input_tested(s)); break;
-    case EXCHANGE_NOTE_ROW_TESTED: ORIGINAL_EFFECT(leave_row_tested(s)); break;
-    case EXCHANGE_NOTE_SWAPPED: ORIGINAL_EFFECT(leave_swapped(s)); break;
-    case EXCHANGE_NOTE_CURSOR_COMPARED: ORIGINAL_EFFECT(leave_cursor_compared(s)); break;
-    case EXCHANGE_NOTE_STEP_COUNTED: ORIGINAL_EFFECT(leave_step_counted(s)); break;
-    case EXCHANGE_NOTE_SWIRL_SHOWN: ORIGINAL_EFFECT(menu_leave_queued_upload(s, MENU_UPLOAD_TEXT_LAYER_WHOLE)); break;
+    case EXCHANGE_NOTE_REFUSED: charge_machine_accesses(state_of(s), 6); break;
+    case EXCHANGE_NOTE_CHOOSING_STARTED: charge_machine_accesses(state_of(s), 4); break;
+    case EXCHANGE_NOTE_BAR_WORKED_OUT: charge_bar_worked_out(s); break;
+    case EXCHANGE_NOTE_SCREEN_SHOWN: (void)0; break;
+    case EXCHANGE_NOTE_INPUT_TESTED: charge_machine_accesses(state_of(s), 1); break;
+    case EXCHANGE_NOTE_ROW_TESTED: charge_machine_accesses(state_of(s), 1); break;
+    case EXCHANGE_NOTE_SWAPPED: charge_machine_accesses(state_of(s), 1); break;
+    case EXCHANGE_NOTE_CURSOR_COMPARED: charge_machine_accesses(state_of(s), 3); break;
+    case EXCHANGE_NOTE_STEP_COUNTED: charge_machine_accesses(state_of(s), 1); break;
+    case EXCHANGE_NOTE_SWIRL_SHOWN: (void)0; break;
     }
 }
 
@@ -283,7 +272,7 @@ void menu_move_the_exchange_cursor(Snes *s)
     if (!run(s, menu_move_the_exchange_cursor_with))
         return;
     menu_restore_p(s);
-    ORIGINAL_EFFECT(menu_leave_queued_upload(s, MENU_UPLOAD_WINDOW_LINES));
+    (void)0;
     m_rts(s);
 }
 
@@ -327,75 +316,10 @@ void menu_show_exchange_panel_entry(Snes *s)
     m_rts(s);
 }
 
-// $C2:CAE6
-void menu_put_exchange_panel_away(Snes *s)
-{
-    menu_exchange_panel_put_away(state_of(s));
-    m_rts(s);
-}
-
 /* ---- The gate's screen ---------------------------------------------------------------------------- */
 
 // $C2:C7AC
 void menu_open_exchange_at_the_gate_entry(Snes *s) { step(s, menu_open_exchange_at_the_gate_with); }
-
-/* ---- What the original's instructions leave (scaffolding) --------------------------------------- */
-
-/* The count of those free: the two counts added (the overflow of the add)
- * and compared with two (the carry); then the step counted on (N and Z). */
-static void leave_counted(Snes *s)
-{
-    const GameState *g = state_of(s);
-    uint8_t active = menu_exchange_active_free(g), reserve = menu_exchange_reserve_count(g);
-    uint8_t sum = (uint8_t)(active + reserve);
-    m_set_flag(s, CPU_FLAG_V, ((active ^ sum) & (reserve ^ sum) & 0x80) != 0);
-    m_set_flag(s, CPU_FLAG_C, sum >= 2);
-    menu_leave_load(s, menu_screen_step(g));
-}
-
-/* The refusal: the sum in A, X on the cursor kept. */
-static void leave_refused(Snes *s)
-{
-    const GameState *g = state_of(s);
-    leave_counted(s);
-    m_set_a8(s, (uint8_t)(menu_exchange_active_free(g) + menu_exchange_reserve_count(g)));
-    s->cpu.x = menu_exchange_cursor_kept(g);
-}
-
-/* The choosing started: nobody chosen ($FF loaded), X on the cursor's
- * row. */
-static void leave_choosing_started(Snes *s)
-{
-    leave_counted(s);
-    m_set_a8(s, 0xFF);
-    s->cpu.x = menu_cursor_index(state_of(s));
-}
-
-/* The input tested: the buttons' choose and go back bits. */
-static void leave_input_tested(Snes *s) { menu_leave_bit_test(s, (uint8_t)s->cpu.a, menu_cursor_buttons(state_of(s))); }
-
-/* The row under the cursor tested for someone who stays. */
-static void leave_row_tested(Snes *s) { menu_leave_bit_test(s, (uint8_t)s->cpu.a, menu_exchange_on_cursor(state_of(s))); }
-
-/* The swap: the flags of the second's row loaded, which it keeps round its
- * work; the members' standing, which ends it, leaves A's high byte clear. */
-static void leave_swapped(Snes *s)
-{
-    menu_leave_load(s, menu_exchange_on_cursor(state_of(s)));
-    menu_leave_a_high_byte_clear(s);
-}
-
-/* The cursor's place as the frame began, compared with where it is. */
-static void leave_cursor_compared(Snes *s)
-{
-    const GameState *g = state_of(s);
-    m_set_a8(s, menu_cursor_frame_start(g));
-    menu_leave_compare(s, menu_cursor_frame_start(g), menu_cursor_index(g));
-}
-
-/* The overflow of an 8-bit add or subtraction the original makes. */
-static bool add_overflows(uint8_t a, uint8_t b, uint8_t sum) { return ((a ^ sum) & (b ^ sum) & 0x80) != 0; }
-static bool subtraction_overflows(uint8_t a, uint8_t b, uint8_t difference) { return ((a ^ b) & (a ^ difference) & 0x80) != 0; }
 
 /* The scroll's P: a load of the second cursor's offset; scrolling back, the
  * carry its compare of the reserve's count with five left, set; scrolling
@@ -403,59 +327,17 @@ static bool subtraction_overflows(uint8_t a, uint8_t b, uint8_t difference) { re
  * that didn't pass. */
 enum { BACK_OFFSET = 0xD0, ON_OFFSET = 0x30, ROWS_BUT_THE_LAST = EXCHANGE_RESERVE_SHOWN - 1 };
 
-static void leave_scroll_started(Snes *s, bool back)
+static void charge_scroll_started(Snes *s, bool back)
 {
-    menu_leave_load(s, back ? BACK_OFFSET : ON_OFFSET);
-    m_set_flag(s, CPU_FLAG_C, back);
-    if (!back) {
-        uint8_t count = menu_exchange_reserve_count(state_of(s));
-        m_set_flag(s, CPU_FLAG_V, subtraction_overflows(count, ROWS_BUT_THE_LAST, (uint8_t)(count - ROWS_BUT_THE_LAST)));
-    }
+    if (!back)
+        charge_machine_accesses(state_of(s), 1);
 }
 
-/* Before the screen's first move: a load of the dimmed colours' place (N
- * set), the carry and the overflow of the scroll bar's sums -- the reserve's
- * count less four, or where there is a bar, the thumb's place worked out as
- * its top row doubled plus the same doubled again. */
-static void leave_bar_worked_out(Snes *s)
+static void charge_bar_worked_out(Snes *s)
 {
-    const GameState *g = state_of(s);
-    uint8_t count = menu_exchange_reserve_count(g);
-    uint8_t past = (uint8_t)(count - EXCHANGE_RESERVE_SHOWN);
-    bool carry = count >= EXCHANGE_RESERVE_SHOWN;
-    bool overflow = subtraction_overflows(count, EXCHANGE_RESERVE_SHOWN, past);
-    if (count > EXCHANGE_RESERVE_SHOWN) {
-        uint8_t twice = (uint8_t)(2 * menu_reserve_top(g)), four_times = (uint8_t)(2 * twice);
-        unsigned sum = four_times + twice + ((twice & 0x80) != 0);
-        carry = sum > 0xFF;
-        overflow = add_overflows(four_times, twice, (uint8_t)sum);
-    }
-    m_set_flag(s, CPU_FLAG_N, true);
-    m_set_flag(s, CPU_FLAG_Z, false);
-    m_set_flag(s, CPU_FLAG_C, carry);
-    m_set_flag(s, CPU_FLAG_V, overflow);
-}
-
-/* The slide's P: a load of the place the row coming in is drawn at, a
- * word neither zero nor negative. */
-static void leave_slide_called(Snes *s)
-{
-    m_set_flag(s, CPU_FLAG_N, false);
-    m_set_flag(s, CPU_FLAG_Z, false);
-}
-
-/* The step counted on. */
-static void leave_step_counted(Snes *s) { menu_leave_load(s, menu_screen_step(state_of(s))); }
-
-/* The panel's window routine picked by the layout's panel bit, loaded. */
-static void leave_panel_picked(Snes *s) { menu_leave_load(s, (uint8_t)(menu_exchange_layout(state_of(s)) & 0x02)); }
-
-/* The record's place loaded as a word, its Y and X: neither zero nor
- * negative. */
-static void leave_gate_sprite_record(Snes *s)
-{
-    m_set_flag(s, CPU_FLAG_N, false);
-    m_set_flag(s, CPU_FLAG_Z, false);
+    GameState *g = state_of(s);
+    if (menu_exchange_reserve_count(g) > EXCHANGE_RESERVE_SHOWN)
+        charge_machine_accesses(g, 1);
 }
 
 /* ---- The guards ---------------------------------------------------------------------------------- */

@@ -42,7 +42,6 @@
 #include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/object.h"
-#include "original_effects.h"
 #include "platform/video.h"
 #include "port/machine.h"
 #include "port/native.h"
@@ -127,23 +126,10 @@ static void draw_map_tile(GameState *g, Plane p, unsigned column, unsigned row, 
 enum { FIRST_TILE = 1 };
 static const VidVramPort after_high = { .step = 1, .after_high = true };
 
-/* What drawing leaves in the mode's cells: the last tile's palettes, the
- * picture's place past its end, the rows' and columns' counts at their ends,
- * the last group record and the two maps a whole map on. */
-static void leave_drawn(GameState *g, Plane land, Plane over)
+static void charge_drawn(GameState *g, Plane land, Plane over)
 {
-    enum { TOP_PALETTE = 0x00, BOTTOM_PALETTE = 0x01, PICTURE_AT = 0x05, PICTURE_BANK = 0x07, ROWS = 0x08,
-           COLUMNS = 0x0A, RECORD = 0x0E };
-    MapTile last = last_map_tile(g, over);
-    menu_object_leave_cell8(g, TOP_PALETTE, menu_map_palette(last.top));
-    menu_object_leave_cell8(g, BOTTOM_PALETTE, menu_map_palette(last.bottom));
-    menu_object_leave_cell16(g, PICTURE_AT, (uint16_t)(RAM_MENU_WORLD_PICTURE + MENU_WORLD_PICTURE_COUNT));
-    menu_object_leave_cell8(g, PICTURE_BANK, (uint8_t)(RAM_MENU_WORLD_PICTURE >> 16));
-    menu_object_leave_cell16(g, ROWS, MENU_MAP_ROWS);
-    menu_object_leave_cell16(g, COLUMNS, MENU_MAP_COLUMNS);
-    menu_object_leave_cell16(g, RECORD, last.record);
-    set_menu_object_scratch_world_land_map(g, (uint16_t)(land.map + MENU_MAP_ROWS * MENU_MAP_COLUMNS));
-    set_menu_object_scratch_world_over_map(g, (uint16_t)(over.map + MENU_MAP_ROWS * MENU_MAP_COLUMNS));
+    (void)land, (void)over;
+    charge_machine_accesses(g, 20);
 }
 
 // $C6:E7FA, $C6:E8C7
@@ -163,7 +149,7 @@ static void draw_the_world(GameState *g, Platform *pf, Plane land, Plane over)
     }
     vid_send_vram_half(pf, PF_AT(0xC6E898), FIRST_TILE * MENU_MODE7_TILE_PIXELS, PF_GAME(RAM_MENU_WORLD_PICTURE),
                        MENU_WORLD_PICTURE_COUNT, VID_VRAM_HIGH_BYTES, &after_high);
-    ORIGINAL_EFFECT(leave_drawn(g, land, over));
+    charge_drawn(g, land, over);
 }
 
 /* ---- the turn ------------------------------------------------------------------------------ */
@@ -250,30 +236,11 @@ typedef struct {
     uint16_t cos_zoomed;
 } Worked;
 
-static void leave_worked(GameState *g, MenuObject o, const Worked *w)
+static void charge_worked(GameState *g, MenuObject o, const Worked *w)
 {
-    enum { SIZES = 0x00, REACH = 0x0A, MOVED_X = 0x0C, MOVED_Y = 0x0E, SIGNS = 0x10, PAIRS_LEFT = 0x12,
-           TABLE_AT = 0x13, STEP = 0x16 };
-    const int16_t m[4] = { w->middle.a, w->middle.b, w->middle.c, w->middle.d };
-    uint16_t signs = 0;
-    for (unsigned i = 0; i < 4; i++) {
-        menu_object_leave_cell16(g, SIZES + 2 * i, size_of(m[i]));
-        signs |= (uint16_t)((m[i] < 0) << i);
-    }
-    uint16_t past_the_pairs = (uint16_t)(menu_line_values(SLOT_A, tables_drawn_into(g)) - (uint16_t)RAM_MENU_SLOT2_LINE_VALUES
-                                         + 2 * MENU_LINE_TABLE_LINES);
-    menu_object_leave_cell16(g, REACH, (uint16_t)(w->reach | menu_object_slots_world_reach_high(g, o) << 8));
-    menu_object_leave_cell16(g, MOVED_X, (uint16_t)w->moved_x);
-    menu_object_leave_cell16(g, MOVED_Y, (uint16_t)w->moved_y);
-    menu_object_leave_cell16(g, SIGNS, signs);
-    menu_object_leave_cell8(g, PAIRS_LEFT, 0);
-    menu_object_leave_cell16(g, TABLE_AT, past_the_pairs);
-    menu_object_leave_cell16(g, STEP, w->step);
-    hw_set_dividend(g, w->cos_zoomed);
-    hw_divide_by(g, w->distance_down);
-    /* after the divider, whose remainder the product's register shares */
-    hw_set_multiplicand(g, w->reach);
-    (void)hw_multiply_by(g, (uint8_t)(size_of(w->middle.d) >> 8));
+    (void)o, (void)w;
+    charge_machine_accesses(g, 23);
+    charge_machine_io_accesses(g, 7);
 }
 
 // $C6:E9F5, $C6:EDE1
@@ -314,7 +281,7 @@ static void turn_a_frame(GameState *g, MenuObject o)
     set_menu_object_shadows_bg1_scroll_y(g, (uint16_t)(centre_y - SCREEN_BOTTOM));
 
     set_menu_object_scratch_world_turn_handed_on(g, menu_object_slots_world_turn(g, o));
-    ORIGINAL_EFFECT(leave_worked(g, o, &w));
+    charge_worked(g, o, &w);
 }
 
 /* How the turn starts: unturned, at the zoom, distances, pivot and reach the

@@ -23,6 +23,9 @@
 #include "port/no_machine.h"
 #include "snes/bus.h"
 
+/* No standalone machine-call comparison tool is attached to this program. */
+void (*native_call_stop)(uint32_t site, uint32_t target, uint16_t dont_care);
+
 static void (*report_failure)(void *ctx, const char *routine);
 static void *report_ctx;
 

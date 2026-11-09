@@ -41,8 +41,6 @@ void menu_equip_dim_colours(GameState *g, unsigned first);
 enum { MENU_EQUIP_SLOTS = 4 };
 void menu_list_what_fits(GameState *g);
 bool menu_list_what_fits_can_be_made(const GameState *g);
-void menu_list_what_fits_entry(Snes *s);
-bool menu_list_what_fits_runs(Snes *s);
 
 /* ---- Choosing a member ------------------------------------------------------------------------ */
 
@@ -206,7 +204,6 @@ void menu_equip_set_list_bar(GameState *g);
  * party has more members to reach than the list's three rows. */
 void menu_equip_show_the_member_bar(GameState *g);
 void menu_equip_draw_list(GameState *g);
-uint16_t menu_equip_list_end(void);
 void menu_equip_draw_list_row(GameState *g, uint16_t at);
 void menu_equip_open_the_list(GameState *g);
 void menu_equip_settle_the_list(GameState *g);
@@ -263,8 +260,7 @@ typedef enum {
     EQUIPMENT_AT_THE_MEMBERS_SLID,  /* ... and at rest */
 } EquipmentPlace;
 
-/* The routines the steps go on to and come back from (each a registered
- * entry, run on the machine where the original calls it). */
+/* The operations a screen step calls and returns from. */
 typedef enum {
     EQUIPMENT_SLIDES_MEMBERS,              /* the member list slid by a member ($C2:9D5B) */
     EQUIPMENT_SLIDES_THE_MEMBER_ROWS_UP,   /* its rows' slide ($C2:9DAF) */
@@ -352,7 +348,6 @@ bool menu_equip_members_can_slide(const GameState *g);
 bool menu_equip_can_point_at_a_slot(const GameState *g);
 bool menu_equip_members_can_come_back(const GameState *g);
 bool menu_equip_list_can_open(const GameState *g);
-bool menu_equip_list_can_be_drawn(const GameState *g);
 bool menu_equip_list_can_be_made(const GameState *g);
 bool menu_equip_list_can_slide(const GameState *g);
 bool menu_equip_list_can_be_pointed_along(const GameState *g);
@@ -384,11 +379,7 @@ void menu_point_at_equipment_slot(Snes *s);
 void menu_switch_equipment_member_entry(Snes *s);
 void menu_choose_equipment_item_entry(Snes *s);
 void menu_point_along_equipment_list_entry(Snes *s);
-void menu_move_equipment_list_rows(Snes *s);
-void menu_forget_weapon(Snes *s);
 void menu_show_equipment_panel(Snes *s);
-void menu_dim_panel_colours(Snes *s);
-void menu_show_panel_colours(Snes *s);
 void menu_back_to_equipment_members(Snes *s);
 void menu_open_equipment_list(Snes *s);
 void menu_redraw_equipment_list(Snes *s);
@@ -398,24 +389,12 @@ void menu_slide_equipment_list_out(Snes *s);
 void menu_back_to_equipment_slots(Snes *s);
 void menu_open_slots_window(Snes *s);
 void menu_close_slots_window(Snes *s);
-void menu_show_member_slots(Snes *s);
-void menu_take_equipment_slot(Snes *s);
-void menu_mark_equipment_slots(Snes *s);
-void menu_draw_equipment_list(Snes *s);
-void menu_draw_equipment_list_row(Snes *s);
-void menu_draw_equipped_items(Snes *s);
-
 bool menu_equipment_members_come_back(Snes *s);
 bool menu_equipment_list_opens(Snes *s);
-bool menu_equipment_list_is_drawable(Snes *s);
 bool menu_equipment_list_can_be_made(Snes *s);
-bool menu_equipment_list_row_is_drawable(Snes *s);
 bool menu_equipment_list_slides(Snes *s);
 bool menu_equipment_slots_come_back(Snes *s);
 bool menu_equipment_slots_window_slides(Snes *s);
-bool menu_equipment_slots_are_showable(Snes *s);
-bool menu_equipment_slots_are_markable(Snes *s);
-bool menu_equipped_items_are_drawable(Snes *s);
 
 bool menu_equipment_opens(Snes *s);
 bool menu_equipment_sets_up(Snes *s);
@@ -428,10 +407,7 @@ bool menu_equipment_slot_is_pointable(Snes *s);
 bool menu_equipment_member_switches(Snes *s);
 bool menu_equipment_item_step_runs(Snes *s);
 bool menu_equipment_list_is_pointable(Snes *s);
-bool menu_equipment_list_rows_move(Snes *s);
-bool menu_equipment_weapon_is_forgettable(Snes *s);
 bool menu_equipment_panel_shows(Snes *s);
-bool menu_panel_colours_dim(Snes *s);
 bool menu_panel_colours_show(Snes *s);
 
 /* For the entries' leaves (scaffolding): whether the list's opening starts

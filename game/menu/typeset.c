@@ -228,7 +228,6 @@ static void insert_name_at(GameState *g, uint16_t place)
     set_menu_text_reading_insert_left(g, glyphs_before(g, at, NAME_END, NAME_GLYPHS));
 }
 
-
 /* An item's or a tech's name ($CC:0B5E, $CC:15C4, eleven bytes a name, an
  * icon first where it has one) up to its first space; an enemy's all eleven.
  * The original finds a name with the multiplier, which it leaves so. */
@@ -484,7 +483,6 @@ void menu_text_go_on(GameState *g) { set_glyphs(g, menu_text_budget(g)); }
 
 /* ---- The menus' labels ----------------------------------------------------------------------- */
 
-// $C2:F90C
 /* A label of the menus' table: set a line at a time, each line's glyphs
  * $400 bytes below the line before, until the string ends or a line fills
  * its 32 glyphs. The tiles are in work RAM's bank, the lines from the tiles'
@@ -563,17 +561,11 @@ static Piece piece_at(const GameState *g, uint32_t at)
     return p;
 }
 
-/* ---- The entries ------------------------------------------------------------------------- */
-
-/* The start and a call come back with A clear, which their callers read;
- * nothing reads what they leave in X and Y. */
-static void leave_a_clear(Snes *s) { s->cpu.a = 0; }
-
 // $C2:57DF
 void menu_text_start_entry(Snes *s)
 {
     menu_text_start(state_of(s));
-    ORIGINAL_EFFECT(leave_a_clear(s));
+    (void)0;
     m_rtl(s);
 }
 
@@ -581,17 +573,11 @@ void menu_text_start_entry(Snes *s)
 void menu_text_go_on_entry(Snes *s)
 {
     menu_text_go_on(state_of(s));
-    ORIGINAL_EFFECT(leave_a_clear(s));
+    (void)0;
     m_rtl(s);
 }
 
 // $C2:F90C
-void menu_set_label_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    (void)menu_set_label(g, menu_text_strings(g), menu_text_string(g), menu_load_destination(g));
-    m_rts(s);
-}
 
 /* ---- The guards -------------------------------------------------------------------------- */
 
@@ -721,12 +707,3 @@ bool menu_text_can_be_typed(const GameState *g, uint32_t strings, uint8_t string
 }
 
 bool menu_text_can_carry_on(const GameState *g) { return can_go_on(g); }
-
-bool menu_label_is_settable(Snes *s)
-{
-    const GameState *g = state_of(s);
-    vars_peek(true);
-    bool ok = menu_label_can_be_set(g, menu_text_strings(g), menu_text_string(g), menu_load_destination(g));
-    vars_peek(false);
-    return ok;
-}

@@ -557,9 +557,9 @@
 /* The 24-bit pointer events $4A-$4D write through [3 bytes] */
 #define RAM_EVENT_TARGET_POINTER 0x7E01D0u
 #define RAM_EVENT_TARGET_POINTER_DP 0xD0u    /* page field */
-/* The original field/event scratch cells, $D9-$E6. Their reconstruction has retired except for
- * the menus' wave phase at $E2-$E3, read by $C2:77C7. Named state aliases in this range, such as
- * field_scene_to_start, remain ordinary game state [14 bytes] */
+/* The original field/event scratch cells, $D9-$E6. Their reconstruction has retired. The menus
+ * own their wave phase at $E2-$E3; field and event temporaries no longer seed it. Named state
+ * aliases in this range, such as field_scene_to_start, remain ordinary game state [14 bytes] */
 #define RAM_EVENT_SCRATCH 0x7E01D9u
 #define RAM_EVENT_SCRATCH_DP 0xD9u           /* page field */
 /* The original event $FE's searchlight scratch: coordinates left, the last start, frames and

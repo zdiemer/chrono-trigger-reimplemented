@@ -25,12 +25,4 @@ void menu_colour_row_pair(GameState *g, uint16_t at, uint32_t tiles, uint8_t att
  * the block. */
 void menu_recolour_block(GameState *g, uint16_t at, uint32_t rows, uint32_t tiles, uint8_t colour);
 
-void menu_draw_large_portrait(Snes *s);
-void menu_set_row_pair_attribute(Snes *s);
-void menu_recolour_rows(Snes *s);
-
-bool menu_large_portrait_is_drawable(Snes *s);
-bool menu_row_pair_is_colourable(Snes *s);
-bool menu_rows_are_colourable(Snes *s);
-
 #endif

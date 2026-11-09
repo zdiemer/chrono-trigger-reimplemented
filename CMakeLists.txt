@@ -153,6 +153,7 @@ add_library(ct_game STATIC
   game/field/sprites.c
   game/field/window_shape.c
   game/menu/bridge.c
+  game/menu/machine_forms.c
   game/menu/cursor.c
   game/menu/description.c
   game/menu/digits.c

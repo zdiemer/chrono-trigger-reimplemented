@@ -1,21 +1,11 @@
-/* Saving the game on the original's machine: the save screens' steps'
- * answers, their entries and their guards (game/menu/saving.c is saving, and
- * its sequences).
- *
- * The sequences are saving.c's, run here with the machine's answers to what
- * they ask: the panel, the cursor's tick and the summary's reading back are
- * each the menus' own entry, run as the original's JSR reaches it
- * (menu_run); a frame's wait is the task switch's, from the original's call
- * at each place; the saved sound is a call out to the driver. The save runs
- * inside the original's frame for it, its last wait a jump the original
- * makes to the task switch, so the task goes on from it into the save's
- * caller. The fade in, the leaving of the menus, the main menu and a save
- * point's jump into saving in the slot are C continuations. Before
- * each call a sequence leaves the flags the original's own tests left
- * (scaffolding, at the notes). */
+/* Save-screen sequences on the machine-facing C path. The panel, cursor
+ * and summary use checked calls; task waits retain real return frames so
+ * a save can be suspended and resumed at a frame boundary. The state
+ * operations and sequence definitions live in saving.c. */
 #include "menu/saving.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/display.h"
@@ -26,8 +16,6 @@
 #include "menu/menu_data.h"
 #include "menu/save_screen.h"
 #include "menu/vram.h"
-#include "original_effects.h"
-#include "original_frame.h"
 #include "platform/audio.h"
 #include "port/machine.h"
 #include "port/native.h"
@@ -73,38 +61,9 @@ static const struct {
     [SAVING_AT_THE_SAVE_WRITTEN] = { 0xC2CF55, false },
 };
 
-/* ---- What the original's tests leave (scaffolding) ----------------------------------------------- */
+/* The save confirmation uses the same answer code as the screen. */
 
 enum { ANSWER_YES = 3 };
-
-/* What the steps' last loads leave in the flags they come back with. */
-static void leave_the_step(Snes *s) { menu_leave_load(s, menu_screen_step(state_of(s))); }
-
-/* The question put up or away: its window list's upload queued, then the
- * step's load. */
-static void leave_question_changed(Snes *s)
-{
-    menu_leave_queued_upload(s, MENU_UPLOAD_BACK_LAYER);
-    leave_the_step(s);
-}
-
-static void leave_answer_compared(Snes *s) { menu_leave_compare(s, menu_cursor_index(state_of(s)), ANSWER_YES); }
-
-static void leave_answer_moved(Snes *s)
-{
-    const GameState *g = state_of(s);
-    menu_leave_compare(s, menu_cursor_index(g), menu_cursor_frame_start(g));
-}
-
-static void leave_moved_among(Snes *s, uint8_t was) { menu_leave_compare(s, menu_cursor_index(state_of(s)), was); }
-
-/* The slot saved in shown, and the upload's registers left as its queueing
- * leaves them. */
-static void leave_slot_saved_shown(Snes *s)
-{
-    menu_leave_queued_upload(s, MENU_UPLOAD_CHAPTER_LABELS);
-    m_set_nz16(s, MENU_UPLOAD_CHAPTER_LABELS);
-}
 
 /* ---- What the sequences ask of the menus, on the machine ----------------------------------------- */
 
@@ -140,20 +99,34 @@ static bool save_up_to_the_last_wait(Snes *s)
     return menu_save_the_game_with(state_of(s), m_platform(s), &menu_saving_on_the_machine, &m);
 }
 
-/* The save, from its JSR at the place: as C where its port runs, inside the
- * original's frame for it, with the last wait returning to the call's
- * return; otherwise the original's, which reads A's high byte as its call to
- * the driver does. True where it came back, frames later. */
+/* The save keeps a real return frame while its tasks can yield. The old
+ * comparison-only frame had no charged accesses; creating and removing
+ * these saveable bytes retains that time. Its retired entry's contract
+ * required binary arithmetic, 8-bit A, 16-bit indexes, the menu page/bank
+ * and a drawable save slot, with no code-image guard. */
 static bool save(void *ctx, SavingPlace at)
 {
     Snes *s = machine(ctx);
     uint32_t site = places[at].site;
-    if (!menu_runs_as_port(s, SAVE_THE_GAME, menu_save_the_game))
-        return menu_call(s, site, SAVE_THE_GAME, READS_A_HIGH);
+    uint32_t before = native_uncounted_begin(s);
+    m_push16(s, (uint16_t)(site + MENU_JSR_SIZE - 1));
+    m_jump_to(s, SAVE_THE_GAME);
+    bool takes = !s->cpu.e && (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D)) == CPU_FLAG_M &&
+                 menu_slot_can_be_saved_in(s);
+    native_uncounted_end(s, before);
+    if (!takes) {
+        program_breaks_a_contract(state_of(s), SAVE_THE_GAME, "a save outside its slot contract");
+        m_stop_at(s, SAVE_THE_GAME, READS_A_HIGH);
+        return false;
+    }
     bool saved = false;
-    TIMED_AS(state_of(s), SAVE_THE_GAME,
-                   IN_THE_ORIGINALS_FRAME(state_of(s), ORIGINAL_RETURN_BYTES, saved = save_up_to_the_last_wait(s)));
-    return saved && menu_yield(s, site, MENU_TASK_WAITS_A_FRAME, THE_WAIT_KEEPS_ALL_BUT_A);
+    TIMED_AS(state_of(s), SAVE_THE_GAME, saved = save_up_to_the_last_wait(s));
+    if (!saved)
+        return false;
+    before = native_uncounted_begin(s);
+    (void)m_pull16(s);
+    native_uncounted_end(s, before);
+    return menu_yield(s, site, MENU_TASK_WAITS_A_FRAME, THE_WAIT_KEEPS_ALL_BUT_A);
 }
 
 /* The sound is a call out to the driver, which must come back to the
@@ -161,8 +134,8 @@ static bool save(void *ctx, SavingPlace at)
 static bool saved_sound(void *ctx)
 {
     Snes *s = machine(ctx);
-    MenuMachine m = menu_machine_now(s);
-    ORIGINAL_EFFECT(m_set_a8(s, AU_CENTRE));
+    MenuMachine m = menu_machine(s);
+    (void)0;
     menu_send_the_saved_sound(m_platform(s));
     return menu_back(s, 0xC2CF4A, m);
 }
@@ -172,7 +145,7 @@ static bool summary_read_back(void *ctx) { return menu_run(machine(ctx), 0xC2CF5
 static void show_the_slot_saved_now(Snes *s)
 {
     menu_show_the_slot_saved_now(state_of(s));
-    ORIGINAL_EFFECT(leave_slot_saved_shown(s));
+    (void)0;
 }
 
 static bool show_the_slot_saved(void *ctx)
@@ -184,18 +157,19 @@ static bool show_the_slot_saved(void *ctx)
 
 static void note(void *ctx, SavingNote n, uint8_t value)
 {
+    (void)value;
     Snes *s = machine(ctx);
     switch (n) {
     /* the refusal's test's flags, which the tick saves */
-    case SAVING_NOTE_NOT_REFUSED: ORIGINAL_EFFECT(menu_leave_load(s, 0)); break;
-    case SAVING_NOTE_LAID_OUT: ORIGINAL_EFFECT(leave_the_step(s)); break;
+    case SAVING_NOTE_NOT_REFUSED: (void)0; break;
+    case SAVING_NOTE_LAID_OUT: charge_machine_accesses(state_of(s), 1); break;
     /* the slot's test's flags, which the tick saves */
-    case SAVING_NOTE_SLOT_HOLDS: ORIGINAL_EFFECT(menu_leave_load(s, value)); break;
+    case SAVING_NOTE_SLOT_HOLDS: (void)0; break;
     case SAVING_NOTE_QUESTION_ASKED:
-    case SAVING_NOTE_QUESTION_PUT_AWAY: ORIGINAL_EFFECT(leave_question_changed(s)); break;
-    case SAVING_NOTE_ANSWER_COMPARED: ORIGINAL_EFFECT(leave_answer_compared(s)); break;
-    case SAVING_NOTE_ANSWER_MOVED: ORIGINAL_EFFECT(leave_answer_moved(s)); break;
-    case SAVING_NOTE_MOVED_AMONG: ORIGINAL_EFFECT(leave_moved_among(s, value)); break;
+    case SAVING_NOTE_QUESTION_PUT_AWAY: charge_machine_accesses(state_of(s), 1); break;
+    case SAVING_NOTE_ANSWER_COMPARED: charge_machine_accesses(state_of(s), 1); break;
+    case SAVING_NOTE_ANSWER_MOVED: charge_machine_accesses(state_of(s), 2); break;
+    case SAVING_NOTE_MOVED_AMONG: charge_machine_accesses(state_of(s), 1); break;
     }
 }
 
@@ -219,7 +193,7 @@ static bool ends(void *ctx, SavingEnd end)
     case SAVING_BUZZES:
         /* The refusal returns to the main menu's first step before the
          * buzzer saves the flags on the task's stack. */
-        ORIGINAL_EFFECT(leave_the_step(s));
+        charge_machine_accesses(state_of(s), 1);
         TIMED_AS(state_of(s), REFUSAL_SOUND, menu_play_refusal_sound(s));
         break;
     }
@@ -251,20 +225,6 @@ void menu_show_save_panel_entry(Snes *s)
     m_rts(s);
 }
 
-// $C2:D0DB
-void menu_put_save_panel_away(Snes *s)
-{
-    menu_put_save_panel_away_now(state_of(s));
-    m_rts(s);
-}
-
-// $C2:D0E5
-void menu_lay_out_save_screen_entry(Snes *s)
-{
-    menu_lay_out_save_screen(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
 // $C2:D4F8
 void menu_open_save_screen_entry(Snes *s) { step(s, menu_open_save_screen_with); }
 
@@ -286,21 +246,6 @@ void menu_close_the_question_on_a_button_entry(Snes *s) { step(s, menu_close_the
 // $C2:CF0A
 void menu_save_in_the_slot(Snes *s) { step(s, menu_save_in_the_slot_with); }
 
-// $C2:CF37
-void menu_save_the_game(Snes *s)
-{
-    if (save_up_to_the_last_wait(s))
-        m_stop_at_own(s, MENU_TASK_WAITS_A_FRAME, THE_WAIT_KEEPS_ALL_BUT_A);
-}
-
-// $C2:CF21
-/* After the save: the slot saved in shown. */
-void menu_show_the_slot_saved(Snes *s)
-{
-    show_the_slot_saved_now(s);
-    m_rts(s);
-}
-
 /* ---- The guards ---------------------------------------------------------------------------------- */
 
 static bool peek(Snes *s, bool (*test)(const GameState *))
@@ -319,9 +264,4 @@ bool menu_save_panel_shows(Snes *s) { return peek(s, menu_save_panel_can_show); 
  * work RAM's: what saving in it, and drawing its window, take. */
 bool menu_slot_can_be_saved_in(Snes *s) { return peek(s, menu_slot_can_be_saved); }
 
-/* ... and a slot saved in shown: its window's palette change counted too. */
-bool menu_slot_saved_shows(Snes *s) { return menu_slot_can_be_saved_in(s) && menu_slot_window_is_drawable(s); }
-
 bool menu_saving_opens(Snes *s) { return peek(s, menu_saving_can_open); }
-
-bool menu_save_screen_lays_out(Snes *s) { return peek(s, menu_save_screen_can_lay_out); }

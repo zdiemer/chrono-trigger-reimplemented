@@ -43,7 +43,6 @@
 #include "menu/text.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "original_effects.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -244,17 +243,13 @@ static void lay_out_window_lines(GameState *g)
  * cells keep the bits it shifted out and how far it counted. */
 enum { NAME_BYTES = 6, CHARACTERS_BITS = 8, FIRST_CHARACTER_BIT = 0x80 };
 
-static void leave_users_counted(GameState *g, uint8_t users)
+static void charge_users_counted(GameState *g, uint8_t users)
 {
-    hw_set_multiplicand(g, NAME_BYTES);
-    uint8_t counted = 0;
-    for (uint8_t character = 0, rest = users; rest; character++, rest = (uint8_t)(rest << 1))
-        if (rest & FIRST_CHARACTER_BIT)
-            (void)hw_multiply_by(g, character);
-    for (uint8_t rest = users; rest; rest = (uint8_t)(rest << 1))
-        counted++;
-    set_menu_scratch_users_bits(g, 0);
-    set_menu_scratch_users_counted(g, counted);
+    unsigned count = 0;
+    for (uint8_t rest = users; rest; rest &= (uint8_t)(rest - 1))
+        count++;
+    charge_machine_accesses(g, 2);
+    charge_machine_io_accesses(g, 1 + 3 * count);
 }
 
 // $C2:AEB6
@@ -272,7 +267,7 @@ static void list_users(GameState *g, uint8_t item)
             listed++;
         }
     charge_block_move(g, MENU_ITEM_USERS_NAMES_COUNT * NAME_BYTES + listed * NAME_BYTES);
-    ORIGINAL_EFFECT(leave_users_counted(g, users));
+    charge_users_counted(g, users);
 }
 
 /* The item's attack or defence, and its label from the category's: the
@@ -363,7 +358,7 @@ void menu_items_sort(GameState *g)
     for (unsigned i = 0; i < CLEARED_LIST_PLACES; i++)
         set_menu_list_items(g, CLEARED_LIST_FROM + i, 0);
     charge_block_move(g, 2 * MENU_SORT_HELD_COUNT + CLEARED_LIST_PLACES);
-    ORIGINAL_EFFECT(set_menu_scratch_save_member(g, 0));
+    charge_machine_accesses(g, 2);
     for (unsigned at = 0; at < PLACES; at++) {
         uint8_t item = inventory_items_unchecked(g, at);
         if (item == NO_ITEM)
@@ -515,18 +510,12 @@ enum { NAME_SETTINGS = 0x0B, COUNT_FORMAT = 0x11, LABEL_SETTINGS = 0x09, LABEL_T
 enum { BLANK_ROW_SETTINGS = 0x18, USABLE_ATTRIBUTE = 0x08 };
 enum { FIRST_ROW_AT = 0x2F4A };
 
-static void leave_row_drawn(GameState *g, uint8_t item, uint8_t count)
-{
-    set_menu_item_row_item(g, item);
-    set_menu_item_row_count(g, count);
-}
-
 // $C2:AE65, $C2:AE75, $C2:B04B
 void menu_items_draw_row(GameState *g, uint16_t at, uint8_t row)
 {
     uint8_t place = place_of_row(g, row);
     uint8_t item = inventory_items(g, place), count = inventory_counts(g, place);
-    ORIGINAL_EFFECT(leave_row_drawn(g, item, count));
+    charge_machine_accesses(g, 2);
     if (usable_from_the_menu(g, item))
         set_menu_text_attribute(g, (uint8_t)(menu_text_attribute(g) | USABLE_ATTRIBUTE));
     if (item == NO_ITEM) {
@@ -706,17 +695,11 @@ static const Chance CHANCE_OUTCOMES[CHANCES] = {
     { MENU_USE_RESTORES_HP, 1, HP_STRENGTH, true },
 };
 
-static void leave_chance_drawn(GameState *g, uint8_t random)
-{
-    hw_set_multiplicand(g, CHANCE_SCALE);
-    (void)hw_multiply_by(g, random);
-}
-
 // $C2:B10D
 void menu_items_draw_a_chance(GameState *g)
 {
     uint8_t random = menu_random_byte(g, menu_frame_counter(g));
-    ORIGINAL_EFFECT(leave_chance_drawn(g, random));
+    charge_machine_io_accesses(g, 4);
     uint8_t drawn = (uint8_t)((CHANCE_SCALE * random) >> 8);
     unsigned outcome = 0;
     while (outcome < CHANCES - 1 && drawn >= menu_chance_limit(g, outcome))
@@ -782,14 +765,6 @@ void menu_items_open_member_window(GameState *g, Platform *pf)
 enum { MEMBER_ROWS_AT = 0x3580, MEMBER_ROW_BYTES = 0x140, MEMBER_ROW_LIST = 0xBE0E };
 enum { HURT_ANIMATION = 0x12, STANDING = 0, RECORD_BYTES = 0x40 };
 
-/* The record of the character a member row shows: the original works out
- * its offset from the first ($C2:F626) with the multiplier. */
-static void leave_record_found(GameState *g, uint8_t character)
-{
-    hw_set_multiplicand(g, character);
-    set_menu_record_offset(g, hw_multiply_by(g, RECORD_BYTES));
-}
-
 void menu_items_draw_members(GameState *g, Platform *pf)
 {
     set_menu_fill_tile(g, 0);
@@ -804,7 +779,7 @@ void menu_items_draw_members(GameState *g, Platform *pf)
         TIMED_AS(g, 0xC2A1EF, menu_note_member_face_and_hp(g));
         menu_draw_windows(g, pf, MEMBER_ROW_LIST);
         uint8_t character = menu_status_record_bytes_byte(g, 0);
-        ORIGINAL_EFFECT(leave_record_found(g, character));
+        (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4));
         MenuSpritePlace place = menu_member_sprite_place(g, member);
         set_menu_record_y(g, character, place.y);
         set_menu_record_x(g, character, (uint16_t)((menu_record_x(g, character) & 0xFF00) | place.x));
@@ -935,19 +910,11 @@ void menu_items_raise_the_figure(GameState *g)
 /* An item used by chance draws its next use's outcome as one is used. */
 enum { CHANCE_ITEM = 0xC9 };
 
-/* For the original's code and shadow mode: the item and how many the
- * inventory's take is handed in the menus' cells. */
-static void leave_one_to_take(GameState *g, uint8_t item)
-{
-    set_menu_item_operand_quantity(g, 1);
-    set_menu_item_operand(g, item);
-}
-
 // $C2:B31C
 void menu_items_use_one(GameState *g)
 {
     uint8_t item = inventory_items(g, menu_item_picked(g));
-    ORIGINAL_EFFECT(leave_one_to_take(g, item));
+    charge_machine_accesses(g, 2);
     if (item == CHANCE_ITEM)
         menu_items_draw_a_chance(g);
     TIMED_AS(g, 0xC287D5, (void)menu_take_items(g, item, 1));
@@ -1480,7 +1447,7 @@ static bool describe(void *ctx)
 {
     ItemScreenContext *c = ctx;
     if (!menu_items_can_point_along_the_list(c->game)) {
-        program_needs_the_machine(c->game, 0xC2AD2E, "an items list the port doesn't take");
+        program_breaks_a_contract(c->game, 0xC2AD2E, "an items list the port doesn't take");
         return false;
     }
     TIMED_AS(c->game, 0xC2AD2E, menu_items_describe_the_cursors_item(c->game));
@@ -1514,10 +1481,9 @@ static bool refuse(void *ctx, ItemsPlace at)
 
 static void registers_at(void *ctx, ItemsPlace at) { (void)ctx, (void)at; }
 
-
 static bool not_taken(ItemScreenContext *c, uint32_t routine)
 {
-    program_needs_the_machine(c->game, routine, "an item's use the port doesn't take");
+    program_breaks_a_contract(c->game, routine, "an item's use the port doesn't take");
     return false;
 }
 
@@ -1577,7 +1543,7 @@ static bool step(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(con
                  bool (*run)(GameState *, Platform *, const ItemsSteps *, void *))
 {
     if (!takes(g)) {
-        program_needs_the_machine(g, routine, "an items screen the port doesn't take");
+        program_breaks_a_contract(g, routine, "an items screen the port doesn't take");
         return false;
     }
     ItemScreenContext c = { g, pf };

@@ -17,7 +17,6 @@
 #include "menu/bridge.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
-#include "original_effects.h"
 #include "overworld/setup.h"
 #include "platform/video.h"
 #include "port/machine.h"
@@ -59,13 +58,6 @@ static void load_swirl_colours(GameState *g)
  * where the row after the sixth would go. */
 enum { ROW_BYTES = MAP_TILES * 2 };
 
-static void leave_swirl_laid_out(GameState *g)
-{
-    set_menu_scratch_gate_row(g, 2 * MENU_GATE_ROWS);
-    set_menu_scratch_gate_row_at(g, (uint16_t)(RAM_ABS(RAM_MENU_GATE_TILEMAP) + MENU_GATE_ROWS * ROW_BYTES));
-    set_menu_scratch_gate_rows_left(g, 0);
-}
-
 // $FF:F677
 /* Once the swirl's graphics are unpacked: its tilemap, its colours, and the
  * layer's scroll. */
@@ -74,7 +66,7 @@ void menu_draw_gate_swirl(GameState *g)
     set_menu_scroll_y(g, SWIRL_LAYER, SWIRL_START_Y);
     lay_out_swirl(g);
     load_swirl_colours(g);
-    ORIGINAL_EFFECT(leave_swirl_laid_out(g));
+    charge_machine_accesses(g, 6);
 }
 
 /* ---- Turning it ------------------------------------------------------------------------------- */
@@ -97,7 +89,6 @@ static uint16_t top_band_nudge(uint8_t frames) { return (frames & COUNT_TOP_BIT)
  * original steps it. */
 static uint16_t stepped_low_byte(uint16_t scroll, int by) { return (uint16_t)((scroll & 0xFF00) | (uint8_t)(scroll + by)); }
 
-// $FF:F716
 void menu_turn_gate_swirl(GameState *g)
 {
     uint8_t phase = (uint8_t)(menu_gate_screen_state(g, PHASE) + 1), frames = (uint8_t)(menu_gate_screen_state(g, FRAMES) + 1);
@@ -113,7 +104,7 @@ void menu_turn_gate_swirl(GameState *g)
         uint16_t wave = menu_gate_wave(g, phase % PHASE_STEPS + BAND_STEP * band);
         set_menu_gate_swirl(g, band, (uint16_t)(wave + across + (band == 0 ? top_band_nudge(frames) : 0)));
     }
-    ORIGINAL_EFFECT(set_menu_scratch_gate_across(g, across));
+    charge_machine_accesses(g, 2);
 }
 
 /* ---- Starting it ------------------------------------------------------------------------------ */
@@ -136,7 +127,7 @@ static void set_up_gate_screen(GameState *g)
         set_menu_gate_screen_state(g, GATE_SCREEN_COUNTS + i, menu_gate_screen_setup(g, i));
 }
 
-/* ---- The registered entries ------------------------------------------------------------------- */
+/* ---- The checked legacy adapters ------------------------------------------------------------------- */
 
 /* The swirl's graphics go where the menus unpack graphics before they send
  * them to VRAM. */
@@ -167,15 +158,6 @@ void menu_draw_gate_screen_entry(Snes *s)
 }
 
 // $FF:F716
-/* Entered with either width of A, which it puts back; it comes back with the
- * last band's scroll in A, whose high byte the screen's task carries on. */
-void menu_turn_gate_swirl_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_turn_gate_swirl(g);
-    s->cpu.a = menu_gate_swirl(g, BANDS - 1);
-    m_rtl(s);
-}
 
 // $C2:CE9D
 /* BG3's tilemap moved, the screen's counts from zero, its frame task
@@ -225,7 +207,7 @@ void menu_gate_screen_task(GameState *g, Platform *pf)
         turn_the_swirl(g);
         menu_task_waits(g, FRAMES_A_TURN);
     }
-    program_needs_the_machine(g, 0xC2CECE, "a gate's swirl the port doesn't turn");
+    program_breaks_a_contract(g, 0xC2CECE, "a gate's swirl the port doesn't turn");
 }
 
 void menu_run_the_gate_screen_task(Snes *s)

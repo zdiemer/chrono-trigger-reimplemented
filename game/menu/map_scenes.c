@@ -11,7 +11,6 @@
 #include "menu/handlers.h"
 #include "menu/map.h"
 #include "menu/objects.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -32,12 +31,6 @@ static uint16_t into_view(uint16_t at, uint16_t scroll, uint16_t round)
     return (uint16_t)(from < 0 ? from + round : from);
 }
 
-static void leave_measured(GameState *g, uint16_t across, uint16_t down)
-{
-    set_menu_object_scratch_view_across(g, across);
-    set_menu_object_scratch_view_down(g, down);
-}
-
 // $C2:78A1
 /* Whether the running object is in view of the map's second plane. */
 bool menu_scene_object_in_view(GameState *g)
@@ -45,7 +38,7 @@ bool menu_scene_object_in_view(GameState *g)
     MenuObject self = menu_object_running(g);
     uint16_t across = into_view(menu_object_slots_x_pixel(g, self), menu_object_shadows_bg2_scroll_x(g), MENU_MAP_WIDTH);
     uint16_t down = into_view(menu_object_slots_y_pixel(g, self), menu_object_shadows_bg2_scroll_y(g), MENU_MAP_HEIGHT);
-    ORIGINAL_EFFECT(leave_measured(g, across, down));
+    charge_machine_accesses(g, 4);
     return across < VIEW_WIDTH + 2 * MARGIN && down < VIEW_HEIGHT + MARGIN + MARGIN_BELOW;
 }
 
@@ -61,8 +54,8 @@ void menu_scene_drift_the_map(GameState *g, MenuObject self)
     set_menu_object_slots_drift_count(g, self, count);
     if (count & EVERY_FOURTH)
         return;
-    ORIGINAL_EFFECT(set_menu_object_scratch_plane(g, FIRST_PLANE));
-    ORIGINAL_EFFECT(set_menu_object_scratch_step(g, A_TILE));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     TIMED_AS(g, 0xC20568, menu_map_scroll(g, FIRST_PLANE, MENU_ACROSS, A_TILE));
 }
 
@@ -75,21 +68,6 @@ void menu_scene_drift_the_map(GameState *g, MenuObject self)
  * answer it too. */
 void menu_scene_note_the_epoch_s_arrival(GameState *g) { set_story_epoch_arrivals(g, menu_object_scratch_answer(g)); }
 
-/* ---- The entries ------------------------------------------------------------------------------- */
-
-/* The routine leaves the running object's slot in X and the carry of its
- * last comparison (set out of view). The script's call command goes on to
- * its length, 3, and the interpreter after it reads neither (it loads X
- * again and clears the carry for the next command), but liveness follows
- * the interpreter's branch for a length of 0, which the call commands never
- * return, and keeps them live there: they are left for shadow mode's
- * comparison at the command's return. */
-static void leave_in_view(Snes *s, bool in_view)
-{
-    s->cpu.x = menu_object_current(state_of(s));
-    m_set_flag(s, CPU_FLAG_C, !in_view);
-}
-
 // $C2:78A1
 /* The answer goes to the mode's first cell, which the script tests next. */
 void menu_scene_object_in_view_entry(Snes *s)
@@ -97,7 +75,7 @@ void menu_scene_object_in_view_entry(Snes *s)
     GameState *g = state_of(s);
     bool in_view = menu_scene_object_in_view(g);
     set_menu_object_scratch_answer(g, in_view);
-    ORIGINAL_EFFECT(leave_in_view(s, in_view));
+    charge_machine_accesses(g, 2);
     m_rts(s);
 }
 

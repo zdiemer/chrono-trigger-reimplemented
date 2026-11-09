@@ -32,7 +32,6 @@
 #include "menu/tiles.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* The shop's window lists: the members' window as the cursor comes down
@@ -52,15 +51,6 @@ enum { EQUIPPED_AT = 0x3664, SLOTS_AT = 0x3624 };
 enum { STRIPS_AT = SHOP_MEMBER_STRIPS_AT, STRIP_BYTES = SHOP_MEMBER_STRIP_BYTES, STRIP_ROWS = 2, STRIP_TILES = 4, ALL_STRIPS_TILES = 0x1C };
 enum { BRIGHT = 0x00, DIMMED = 0x10 };
 
-/* For the original's code and shadow mode: the strip's colouring takes its
- * member, tiles and colour from the menus' first cells. */
-static void leave_strip_coloured(GameState *g, unsigned member, uint8_t tiles, uint8_t colour)
-{
-    set_menu_scratch_strip_member(g, (uint16_t)member);
-    set_menu_scratch_strip_tiles(g, tiles);
-    set_menu_scratch_strip_colour(g, colour);
-}
-
 // $C2:E058
 static void colour_strip(GameState *g, unsigned member, uint8_t tiles, uint8_t colour)
 {
@@ -71,17 +61,6 @@ static void colour_strip(GameState *g, unsigned member, uint8_t tiles, uint8_t c
 static void put_sprite_colours(GameState *g, uint8_t character, uint8_t colour)
 {
     TIMED_AS(g, 0xFFF628, menu_put_character_colours(g, character, colour != BRIGHT));
-}
-
-/* For the original's code and shadow mode: where its loop over the members
- * left its cells. */
-static void leave_members_coloured(GameState *g, unsigned members, uint8_t tiles, uint8_t colour)
-{
-    set_menu_shop_work(g, (uint16_t)members);
-    set_menu_scratch_strip_tiles(g, tiles);
-    set_menu_scratch_strip_colour(g, colour);
-    set_menu_scratch_strips_colour_kept(g, colour);
-    set_menu_scratch_colours_character(g, menu_shop_members(g, members - 1));
 }
 
 // $C2:E072
@@ -98,7 +77,7 @@ static void colour_the_members(GameState *g, uint8_t tiles, uint8_t colour)
         put_sprite_colours(g, menu_shop_members(g, member), c);
         member++;
     } while (member < reachable);
-    ORIGINAL_EFFECT(leave_members_coloured(g, member, tiles, colour));
+    charge_machine_accesses(g, 7);
 }
 
 /* ---- Down to the members ------------------------------------------------------------------------- */
@@ -118,16 +97,16 @@ void menu_shop_go_down_to_the_members(GameState *g, Platform *pf)
     while (!(menu_shop_members(g, member) & END_OF_THE_MEMBERS)) {
         put_sprite_colours(g, menu_shop_members(g, member), DIMMED);
         colour_strip(g, member, STRIP_TILES, DIMMED);
-        ORIGINAL_EFFECT(leave_strip_coloured(g, member, STRIP_TILES, DIMMED));
+        charge_machine_accesses(g, 4);
         any = true;
         member = (uint8_t)(member + 1);
         if (member >= menu_shop_member_count(g))
             break;
     }
     (void)any;
-    ORIGINAL_EFFECT(set_menu_scratch_strips_member(g, (uint16_t)member));
-    ORIGINAL_EFFECT(set_menu_scratch_strip_tiles(g, STRIP_TILES));
-    ORIGINAL_EFFECT(set_menu_scratch_strip_colour(g, DIMMED));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     menu_draw_windows(g, pf, MEMBERS_WINDOW);
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
 }
@@ -151,7 +130,7 @@ void menu_shop_back_up_to_the_tabs(GameState *g, Platform *pf)
 {
     TIMED_AS(g, 0xC2F5A7, menu_load_character_colours(g));
     colour_strip(g, 0, ALL_STRIPS_TILES, BRIGHT);
-    ORIGINAL_EFFECT(leave_strip_coloured(g, 0, ALL_STRIPS_TILES, BRIGHT));
+    charge_machine_accesses(g, 4);
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
     set_menu_shop_member_cursor(g, menu_cursor_index(g));
     set_menu_cursor_index(g, menu_shop_tab_cursor(g));
@@ -297,7 +276,6 @@ void menu_shop_compare_figures(GameState *g, Platform *pf)
     menu_draw_windows(g, pf, FIGURES_WINDOW);
     TIMED_AS(g, 0xC2F2F3, menu_describe_item(g, menu_item_operand(g)));
 }
-
 
 // $C2:E162
 /* The item on the cursor tried on in the slot. */

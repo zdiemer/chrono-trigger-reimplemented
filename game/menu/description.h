@@ -41,17 +41,6 @@ void menu_describe_setting(GameState *g, uint8_t option, uint8_t value_text);
  * laid on the row as far as the pen got. */
 void menu_send_the_typing(GameState *g);
 
-/* The entries ($C2:F2F3, $C2:FA49, $C2:F943, $C2:FAE9; the typing's task,
- * $C2:FA9F, $C2:F9B2 and $C2:FA06 its three starts, and $C2:FAA8 the typing
- * itself), and their guards. */
-void menu_describe_item_entry(Snes *s);
-
-/* For the original's code and shadow mode: starting the typing leaves A
- * clear (the text's start, $C2:57DF, loads nothing over it). */
-void menu_leave_typing_started(Snes *s);
-void menu_start_typing_entry(Snes *s);
-void menu_describe_setting_entry(Snes *s);
-void menu_send_the_typing_entry(Snes *s);
 /* The typing's three tasks, by their starts, as C (menu/tasks.c's
  * coroutines): a description, a setting's option and value, a value. */
 enum { MENU_TYPE_A_DESCRIPTION = 0xFA9F, MENU_TYPE_A_SETTING = 0xF9B2, MENU_TYPE_A_VALUE = 0xFA06 };
@@ -65,10 +54,6 @@ void menu_type_the_description(Snes *s);
 /* Held returns after the typing, keeping the task's phase in game state. */
 void menu_typing_task_finished(Snes *s);
 void menu_setting_text_finished(Snes *s);
-bool menu_item_is_describable(Snes *s);
-bool menu_typing_can_start(Snes *s);
-bool menu_setting_is_describable(Snes *s);
-bool menu_typing_can_be_sent(Snes *s);
 bool menu_typing_can_go_on(Snes *s);
 bool menu_setting_typing_can_start(Snes *s);
 bool menu_value_typing_can_start(Snes *s);

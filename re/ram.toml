@@ -4734,8 +4734,8 @@ addr = "7E:01D9"
 page = "field"
 size = 14
 subsystem = "event"
-meaning = "The original field/event scratch cells, $D9-$E6. Their reconstruction has retired except for the menus' wave phase at $E2-$E3, read by $C2:77C7. Named state aliases in this range, such as field_scene_to_start, remain ordinary game state"
-source = "game/field/menu_compat.h; game/event/calls.c; game/field/tile_copy.c; docs/REIMPLEMENTATION.md, the field's teardown"
+meaning = "The original field/event scratch cells, $D9-$E6. Their reconstruction has retired. The menus own their wave phase at $E2-$E3; field and event temporaries no longer seed it. Named state aliases in this range, such as field_scene_to_start, remain ordinary game state"
+source = "game/menu/top_layer.c; docs/REIMPLEMENTATION.md, the menus' teardown"
 
 [[var]]
 name = "field_scene_to_start"

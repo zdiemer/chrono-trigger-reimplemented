@@ -12,6 +12,7 @@
  * menu/wave.c. While the mode holds its objects still, none of these moves.
  *
  * Each is an object's handler, never done. */
+#include "charge.h"
 #include "menu/top_layer.h"
 
 #include "menu/handlers.h"
@@ -20,7 +21,6 @@
 #include "menu/object.h"
 #include "menu/screen_objects.h"
 #include "overworld/overworld.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
@@ -131,20 +131,6 @@ static int16_t sine(const GameState *g, uint16_t phase)
     return step >= HALF_TURN ? (int16_t)-size : size;
 }
 
-/* What drawing the wave leaves in the mode's cells: its last value, and the
- * phase past it; and where its values are, long. */
-static void leave_wave_drawn(GameState *g, int16_t last, uint16_t phase)
-{
-    enum { VALUE = 0x08, PHASE = 0x0A, VALUES_AT = 0x10 };
-    set_menu_object_scratch_bytes_byte(g, VALUE, (uint8_t)last);
-    set_menu_object_scratch_bytes_byte(g, VALUE + 1, (uint8_t)((uint16_t)last >> 8));
-    set_menu_object_scratch_bytes_byte(g, PHASE, (uint8_t)phase);
-    set_menu_object_scratch_bytes_byte(g, PHASE + 1, (uint8_t)(phase >> 8));
-    set_menu_object_scratch_bytes_byte(g, VALUES_AT, (uint8_t)wave_first());
-    set_menu_object_scratch_bytes_byte(g, VALUES_AT + 1, (uint8_t)(wave_first() >> 8));
-    set_menu_object_scratch_bytes_byte(g, VALUES_AT + 2, (uint8_t)(RAM_MENU_TOP_LAYER_WAVE_LINES >> 16));
-}
-
 // $C2:7652
 /* A wave down the layer's lines, redrawn every frame a step on from the
  * last: each line pair's scroll across is the layer's, and a quarter of a
@@ -180,7 +166,7 @@ static bool wave(GameState *g, Platform *pf, MenuObject o)
     }
     for (unsigned pair = 0; pair < WAVE_PAIRS; pair++)
         set_menu_top_layer_wave_lines(g, WAVE_PAIRS + pair, menu_top_layer_wave_lines(g, pair));
-    ORIGINAL_EFFECT(leave_wave_drawn(g, last, phase));
+    charge_machine_accesses(g, 7);
     return true;
 }
 

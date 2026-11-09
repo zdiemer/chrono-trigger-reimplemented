@@ -46,7 +46,6 @@
 #include "menu/text.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* Which of its steps the shop's task runs next frame. */
@@ -101,17 +100,10 @@ static Quotient divide(uint32_t n, uint16_t d)
     return (Quotient){ n / d, (uint16_t)(n % d) };
 }
 
-/* The division leaves the quotient's three bytes over the bits it shifted
- * out of the spare byte below them, and the remainder; its dividend and
- * divisor are its caller's cells. */
-static void leave_division(GameState *g, uint32_t n, uint16_t d, Quotient q)
+static void charge_division(GameState *g, uint32_t n, uint16_t d, Quotient q)
 {
-    uint8_t spare = (uint8_t)menu_shop_quotient(g);
-    set_menu_scratch_shop_divided(g, (uint16_t)n);
-    set_menu_scratch_shop_divided_high(g, (uint8_t)(n >> 16));
-    set_menu_scratch_shop_divisor(g, d);
-    set_menu_shop_quotient(g, (q.quotient & 0xFFFFFF) | (uint32_t)(uint8_t)(spare << 1) << 24);
-    set_menu_shop_remainder(g, d == 0 ? n : q.remainder);
+    (void)n, (void)d, (void)q;
+    charge_machine_accesses(g, 17);
 }
 
 /* How many of the item on the cursor the party can take: the quotient, at
@@ -140,7 +132,7 @@ static bool affordable(GameState *g)
     uint16_t price = menu_shop_prices(g, menu_item_operand(g));
     start_on_one(g, price);
     Quotient q = divide(gold(g), price);
-    ORIGINAL_EFFECT(leave_division(g, gold(g), price, q));
+    charge_division(g, gold(g), price, q);
     return take_at_most(g, q.quotient);
 }
 
@@ -159,7 +151,7 @@ static bool sellable(GameState *g)
     start_on_one(g, price);
     uint32_t room = MOST_GOLD - gold(g);
     Quotient q = divide(room, price);
-    ORIGINAL_EFFECT(leave_division(g, room, price, q));
+    charge_division(g, room, price, q);
     return take_at_most(g, q.quotient);
 }
 
@@ -195,23 +187,12 @@ static uint16_t scaled(uint16_t price, uint16_t scale)
     return rounded ? rounded : 1;
 }
 
-/* The original multiplies with the multiplier a byte at a time into cells,
- * which it leaves with the multiplier's last operands. */
-static void leave_scaling(GameState *g, unsigned priced, uint16_t price, uint16_t scale)
+static void charge_scaling(GameState *g, unsigned priced, uint16_t price, uint16_t scale)
 {
-    enum { SCALE_BYTES = 2 };
-    set_menu_shop_work(g, (uint16_t)priced);
-    set_menu_scratch_shop_multiplicand_bytes(g, SCALE_BYTES);
-    set_menu_scratch_shop_multiplicand(g, scale);
-    if (priced == 0)
-        return;
-    set_menu_scratch_shop_multiplier(g, price);
-    uint32_t product = (uint32_t)price * scale;
-    if (!(product >> 24) && (product & 0xFF))
-        product = (product & 0xFF0000FFu) | ((((product >> 8) + 1) & 0xFFFF) << 8);
-    set_menu_shop_product(g, product);
-    hw_set_multiplicand(g, (uint8_t)(price >> 8));
-    (void)hw_multiply_by(g, (uint8_t)(scale >> 8));
+    (void)price, (void)scale;
+    charge_machine_accesses(g, 5 + (priced != 0 ? 6 : 0));
+    if (priced != 0)
+        charge_machine_io_accesses(g, 4);
 }
 
 // $C2:DB9F
@@ -224,7 +205,7 @@ static void price_the_goods(GameState *g)
         price = menu_item_prices(g, item);
         set_menu_shop_prices(g, item, scaled(price, scale));
     }
-    ORIGINAL_EFFECT(leave_scaling(g, priced, price, scale));
+    charge_scaling(g, priced, price, scale);
 }
 
 // $C2:DCDA
@@ -262,7 +243,7 @@ static void list_the_members(GameState *g)
     uint8_t last = (uint8_t)(SHOP_FIRST_MEMBER + menu_members_reachable(g) - 1);
     set_menu_cursor_places_left(g, SHOP_FIRST_MEMBER, last);
     set_menu_cursor_places_right(g, last, SHOP_FIRST_MEMBER);
-    ORIGINAL_EFFECT(set_menu_scratch_shop_last_reachable(g, (uint8_t)((menu_members_reachable(g) - 1) << 1)));
+    charge_machine_accesses(g, 3);
 }
 
 static bool a_member(const GameState *g, unsigned m) { return !(menu_shop_members(g, m) & NO_MEMBER); }
@@ -273,15 +254,14 @@ enum { RECORD_BYTES = 0x40, RECORDS = 8 };
 
 static unsigned record_of(GameState *g, uint8_t character)
 {
-    ORIGINAL_EFFECT(hw_set_multiplicand(g, character));
-    ORIGINAL_EFFECT(set_menu_record_offset(g, hw_multiply_by(g, RECORD_BYTES)));
+    charge_machine_io_accesses(g, 1);
+    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 3));
     return character;
 }
 
 /* A sprite record's poses here: standing, and cheering for an item it
  * could use. */
 enum { NO_SPRITE = 0xFF, STANDING = 0x00, CHEERING = 0x0B };
-
 
 /* The members' strips along the window (shop.h): an icon of the kind of
  * weapon each uses over its figures. */
@@ -326,7 +306,7 @@ static void stand_the_members(GameState *g)
         put_tile_number(g, (uint16_t)(at + ROW_BYTES), FIGURES_ICON);
     }
     set_menu_screen_argument(g, (uint16_t)((menu_screen_argument(g) & 0xFF00) | m)); /* the members placed */
-    ORIGINAL_EFFECT(set_menu_scratch_shop_members_placed(g, (uint16_t)m));
+    charge_machine_accesses(g, 2);
 }
 
 /* Every character's sprite standing again. */
@@ -337,7 +317,7 @@ static void stand_everyone(GameState *g)
 {
     for (unsigned c = LAST_CHARACTER + 1; c-- > 0;)
         set_menu_record_animation(g, record_of(g, (uint8_t)c), STANDING);
-    ORIGINAL_EFFECT(set_menu_scratch_shop_characters_left(g, 0xFF));
+    charge_machine_accesses(g, 1);
 }
 
 static bool can_use(GameState *g, uint8_t item)
@@ -354,15 +334,18 @@ static uint8_t slot_place(const GameState *g, uint8_t category) { return menu_ca
  * $50 bytes, and leaves the slot and a byte of the party's in its cells. */
 enum { CHARACTER_RECORD_BYTES = 0x50 };
 
-static void leave_worn_counted(GameState *g, uint8_t slot)
+static void charge_worn_counted(GameState *g, uint8_t slot)
 {
+    (void)slot;
     unsigned last = 0;
     while (last + 1 < MENU_MEMBER_WEARS_ITEM_COUNT && a_member(g, last + 1))
         last++;
-    hw_set_multiplicand(g, CHARACTER_RECORD_BYTES);
-    if (a_member(g, 0))
-        (void)hw_multiply_by(g, menu_shop_members(g, last));
-    set_menu_scratch_shop_slot_doubled(g, slot);
+    charge_machine_accesses(g, 1);
+    charge_machine_io_accesses(g, 1);
+    if (a_member(g, 0)) {
+        charge_machine_accesses(g, 1);
+        charge_machine_io_accesses(g, 3);
+    }
 }
 
 // $C2:8900
@@ -377,9 +360,9 @@ static void count_the_item_worn(GameState *g, uint8_t item, uint8_t category)
         worn = (uint8_t)(worn + wears);
     }
     set_menu_item_worn_count(g, worn);
-    ORIGINAL_EFFECT(leave_worn_counted(g, slot));
-    ORIGINAL_EFFECT(set_menu_scratch_shop_slot_high(g, 0));
-    ORIGINAL_EFFECT(set_menu_scratch_shop_spare_count(g, party_characters_joined(g)));
+    charge_worn_counted(g, slot);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 2);
 }
 
 /* The two figures the members' window shows: the record's attack and
@@ -400,10 +383,10 @@ static void draw_figure(GameState *g, uint16_t at, uint8_t with, uint8_t before)
     put_tile_attribute(g, (uint16_t)(at + LAST_DIGITS_AT), colour);
     put_tile_number(g, (uint16_t)(at + FIGURE_TILE_AT), (uint8_t)(TENS_TILES + with / 10));
     put_tile_number(g, (uint16_t)(at + LAST_DIGITS_AT), (uint8_t)(with % 100 + (with < 10 ? ONE_DIGIT_TILES : 0)));
-    ORIGINAL_EFFECT(set_menu_scratch_shop_figure_with(g, with));
-    ORIGINAL_EFFECT(set_menu_scratch_shop_figure_before(g, before));
-    ORIGINAL_EFFECT(hw_set_dividend(g, with));
-    ORIGINAL_EFFECT(hw_divide_by(g, 100));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
+    charge_machine_io_accesses(g, 2);
+    charge_machine_io_accesses(g, 1);
 }
 
 /* A member who has the item on is marked over its icon. */
@@ -427,16 +410,6 @@ static void show_member_figures(GameState *g, unsigned m, uint8_t strip)
 enum { MARKS_TILES = 28, MARK_BLANK = 0x2000, OWNED_AT = 0x3192, OWNED_TAIL_AT = 0x3194, WORN_AT = 0x3254 };
 enum { OWNED_FORMAT = 0x11, WORN_FORMAT = 0x01 };
 
-// $C2:DD7C
-/* For the original's code and shadow mode: the panel leaves the item's
- * category where the figures' working out counts its slots, a word over the
- * first stat's boost. */
-static void leave_category_for_the_figures(GameState *g)
-{
-    set_menu_figures_slot(g, (uint8_t)menu_item_category(g));
-    set_menu_figures_boosts(g, 0, (uint8_t)(menu_item_category(g) >> 8));
-}
-
 void menu_shop_start_panel(GameState *g)
 {
     for (unsigned i = 0; i < MARKS_TILES; i++)
@@ -448,8 +421,8 @@ void menu_shop_start_panel(GameState *g)
     uint8_t item = menu_item_operand(g);
     MenuItemPlace p = menu_item_place(g, item);
     count_the_item_worn(g, item, p.category);
-    ORIGINAL_EFFECT(leave_category_for_the_figures(g));
-    ORIGINAL_EFFECT(set_menu_shop_work(g, slot_place(g, p.category)));
+    charge_machine_accesses(g, 6);
+    (charge_machine_accesses(g, 2), charge_machine_rom_accesses(g, 1));
     if (item != 0) {
         (void)menu_draw_number_value(g, menu_item_operand_count(g), OWNED_FORMAT, OWNED_AT);
         (void)menu_draw_number_value(g, menu_item_worn_count(g), WORN_FORMAT, WORN_AT);
@@ -488,12 +461,6 @@ bool menu_shop_panel_member(GameState *g, unsigned m, bool *usable)
 }
 
 void menu_shop_panel_member_shown(GameState *g, unsigned m) { show_member_figures(g, m, (uint8_t)(m * MEMBER_STRIP_BYTES)); }
-
-/* For the original's code and shadow mode: the panel's loop leaves its
- * count of members as the member worked on and where it got to along the
- * window as the drawing origin; both are set again before anything reads
- * them. */
-void menu_shop_leave_panel_done(GameState *g, unsigned members) { at_panel_member(g, members); }
 
 /* ---- Opening ------------------------------------------------------------------------------------ */
 
@@ -689,7 +656,7 @@ void menu_shop_draw_rows(GameState *g, bool selling)
 {
     for (unsigned row = 0; row < SHOP_LIST_ROWS; row++)
         draw_list_row(g, selling, (uint8_t)row, (uint16_t)(LIST_ROWS_AT + row * LIST_ROW_BYTES));
-    ORIGINAL_EFFECT(set_menu_shop_work(g, SHOP_LIST_ROWS));
+    charge_machine_accesses(g, 2);
     set_menu_draw_origin(g, INCOMING_ROW_AT);
 }
 
@@ -857,7 +824,7 @@ bool menu_shop_list_slide_brings_a_row(GameState *g, bool selling)
     if (!menu_list_scrolls_a_row(g))
         return false;
     uint8_t last = (uint8_t)(listed_count(g, selling) - 2);
-    ORIGINAL_EFFECT(set_menu_scratch_shop_last_place(g, last));
+    charge_machine_accesses(g, 1);
     return (uint8_t)(menu_cursor_index(g) + list_top(g, selling) - 1) < last;
 }
 
@@ -879,7 +846,7 @@ void menu_shop_bring_in_a_row(GameState *g, bool selling)
     uint8_t top = list_top(g, selling);
     set_list_top(g, selling, menu_pushed(g, MENU_PUSHED_DOWN) ? (uint8_t)(top + 1) : (uint8_t)(top - 1));
     set_menu_scroll_bar_thumb(g, list_top(g, selling));
-    ORIGINAL_EFFECT(set_menu_shop_work(g, menu_cursor_index(g)));
+    charge_machine_accesses(g, 3);
     set_menu_draw_origin(g, INCOMING_ROW_AT);
     draw_list_row(g, selling, menu_cursor_index(g), INCOMING_ROW_AT);
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
@@ -917,25 +884,10 @@ static void copy_tiles(GameState *g, uint16_t from, uint16_t to, unsigned tiles)
         set_menu_front_tilemap(g, tile_index(to) + i, menu_front_tilemap(g, tile_index(from) + i));
 }
 
-/* The original copies the rows with a block move a tile row at a time,
- * walking its source and destination along in cells it leaves. */
-static void leave_rows_moved(GameState *g, bool up)
-{
-    if (up) {
-        uint16_t from = (uint16_t)(LIST_WINDOW_AT - ROW_BYTES + LIST_WINDOW_TILES * TILE_BYTES - 1);
-        set_menu_scratch_shop_rows_from(g, from);
-        set_menu_scratch_shop_rows_to(g, (uint16_t)(from + TWO_TILE_ROWS));
-    } else {
-        set_menu_scratch_shop_rows_from(g, (uint16_t)(LIST_WINDOW_AT + TWO_TILE_ROWS + LIST_TILE_ROWS * ROW_BYTES));
-        set_menu_scratch_shop_rows_to(g, (uint16_t)(LIST_WINDOW_AT + LIST_TILE_ROWS * ROW_BYTES));
-    }
-    set_menu_scratch_shop_rows_left(g, 0);
-}
-
 // $C2:D995
 static void move_the_rows(GameState *g, bool up)
 {
-    ORIGINAL_EFFECT(leave_rows_moved(g, up));
+    charge_machine_accesses(g, 5);
     if (!up) {
         for (unsigned r = 0; r < LIST_TILE_ROWS; r++) {
             uint16_t to = (uint16_t)(LIST_WINDOW_AT + r * ROW_BYTES);
@@ -1003,7 +955,7 @@ bool menu_shop_room_to_buy(GameState *g)
 {
     set_menu_cursor_index(g, menu_shop_buy_row(g));
     uint8_t held = menu_shop_held_and_worn(g);
-    ORIGINAL_EFFECT(set_menu_scratch_shop_held(g, held));
+    charge_machine_accesses(g, 1);
     if (held > A_COUNT_OF_ITEMS - 1)
         return false;
     set_menu_item_operand_count(g, (uint8_t)(A_COUNT_OF_ITEMS - held));
@@ -1069,40 +1021,20 @@ ShopQuantityChoice menu_shop_choose_quantity(const GameState *g)
 /* The cursor holds on the quantity against the pushes, which change it. */
 void menu_shop_hold_the_quantity(GameState *g) { set_menu_cursor_held(g, 0xFF); }
 
-/* The total moves with the quantity: `step` more or less of the price,
- * 24 bits. The original multiplies the price (negative to take it off) a
- * byte at a time, and leaves its operands and product. */
-static void leave_step_priced(GameState *g, uint8_t step, uint32_t price)
-{
-    set_menu_scratch_shop_step(g, step);
-    set_menu_scratch_shop_multiplicand(g, (uint16_t)price);
-    set_menu_scratch_shop_multiplicand_high(g, (uint8_t)(price >> 16));
-    set_menu_shop_product(g, (uint32_t)step * price);
-    hw_set_multiplicand(g, step);
-    (void)hw_multiply_by(g, (uint8_t)(price >> 16));
-}
-
 static void price_the_step(GameState *g, uint8_t step, bool less)
 {
     uint32_t price = menu_shop_unit_price(g);
     if (less)
         price = (0x1000000 - price) & 0xFFFFFF;
-    ORIGINAL_EFFECT(leave_step_priced(g, step, price));
+    (charge_machine_accesses(g, 9), charge_machine_io_accesses(g, 4));
     set_menu_shop_total(g, (total(g) + step * price) & 0xFFFFFF);
 }
 
-/* For the original's code and shadow mode: a push left or right steps the
- * quantity by one, which it notes in its step's cell first. */
-static void leave_a_step_of_one(GameState *g, MenuCursorDirection way)
+static void charge_a_step_of_one(GameState *g, MenuCursorDirection way)
 {
     if (way == MENU_CURSOR_WENT_RIGHT || way == MENU_CURSOR_WENT_LEFT)
-        set_menu_scratch_shop_step(g, 1);
+        charge_machine_accesses(g, 1);
 }
-
-/* For the original's code and shadow mode: it keeps the quantity before the
- * push in the panel's place cell, which closing the window sets again
- * before anything reads it. */
-static void leave_quantity_before(GameState *g, uint8_t quantity) { set_menu_shop_place_shown(g, quantity); }
 
 /* The quantity's change by a push: right one more, left one fewer, up ten
  * more and down ten fewer, never below one nor up to the limit (ten more
@@ -1164,16 +1096,16 @@ bool menu_shop_change_quantity(GameState *g, Platform *pf)
 {
     enum { WORDS_OF_THE_PRICE = 3 };
     menu_shop_hold_the_quantity(g);
-    ORIGINAL_EFFECT(set_menu_scratch_shop_multiplicand(g, menu_shop_unit_price(g)));
-    ORIGINAL_EFFECT(set_menu_scratch_shop_multiplicand_high(g, 0));
-    ORIGINAL_EFFECT(set_menu_scratch_shop_multiplicand_bytes(g, WORDS_OF_THE_PRICE));
+    charge_machine_accesses(g, 4);
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
     uint8_t way = menu_cursor_direction(g);
     if (way & MENU_CURSOR_NOT_PUSHED)
         return false;
     uint8_t before = menu_item_operand_quantity(g);
-    ORIGINAL_EFFECT(leave_quantity_before(g, before));
+    charge_machine_accesses(g, 1);
     step_the_quantity(g, (MenuCursorDirection)way);
-    ORIGINAL_EFFECT(leave_a_step_of_one(g, (MenuCursorDirection)way));
+    charge_a_step_of_one(g, (MenuCursorDirection)way);
     menu_draw_windows(g, pf, QUANTITY_WINDOWS);
     menu_queue_fixed_upload(g, UPLOAD_QUANTITY);
     return menu_item_operand_quantity(g) != before;
@@ -1206,7 +1138,7 @@ static void close_the_quantity(GameState *g)
         set_menu_row_line_values_past(g, band, 0);
     charge_block_move(g, 2 * QUANTITY_BANDS);
     set_menu_shop_place_shown(g, NO_PLACE_SHOWN);
-    ORIGINAL_EFFECT(set_menu_shop_place_shown_past(g, 0xFF));
+    charge_machine_accesses(g, 1);
     (void)menu_draw_number_value(g, gold(g), GOLD_FORMAT, GOLD_AT);
     menu_queue_fixed_upload(g, UPLOAD_LINE_TABLES);
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
@@ -1257,7 +1189,7 @@ void menu_shop_back_on_the_tabs(GameState *g, Platform *pf)
     menu_draw_windows(g, pf, TABS_WINDOWS);
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
     set_menu_tasks_state(g, MENU_SCROLL_BAR_TASK, TASK_STOPPED);
-    ORIGINAL_EFFECT(set_menu_scratch_tasks_to_stop(g, 0));
+    charge_machine_accesses(g, 1);
     set_menu_tasks_state(g, MENU_HELD_CURSORS_TASK, TASK_WAITING);
     go_to_step(g, SHOP_ON_THE_TABS);
 }

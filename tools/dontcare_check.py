@@ -196,7 +196,7 @@ BRIDGES = {
     # a sibling run as C, or the original's call declaring nothing where its preconditions fail
     "game/battle/sound.c": ("battle_play_a_sound_from",),
     "game/menu/bridge.c": ("menu_call", "menu_call_long", "menu_call_returning", "menu_call_jumped", "menu_back",
-                           "menu_yield", "menu_wait_a_frame_from", "run", "run_called", "menu_run_or_call", "menu_run_called", "menu_run_long_called", "menu_run_checked", "menu_go_on_in", "menu_continue"),
+                           "menu_yield", "menu_wait_a_frame_from", "run", "run_called", "menu_run_or_call", "menu_run_called", "menu_run_long_called", "menu_run_checked", "menu_go_on_in", "menu_continue", "menu_begin_inline_call", "menu_refuse_call"),
     "game/scene/bridge.c": ("scene_run", "scene_run_long", "scene_run_called", "scene_run_long_called", "run_entry", "scene_bridge_unpack",
                             "scene_bridge_take_the_first_script_step", "scene_bridge_first_script_step"),
     "game/field/main_loop.c": ("field_enter_after_mode",),

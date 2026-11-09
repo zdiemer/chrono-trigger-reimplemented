@@ -13,10 +13,9 @@
  * The menus' main task (menu/tasks.c) runs the screen's step once a frame
  * and then waits for the next frame, for as long as the menus are open; this
  * file is how it finds and runs the step. The steps are found through a C
- * table by screen; those that are hand ports run as C where the runtime would run them
- * for the original's call (their guards hold), and the original's routine
- * runs, called through the machine, where a step's guard turns the state
- * away. */
+ * table by screen and called as C after checking their complete contracts.
+ * A rejected state reports the broken contract at the original boundary.
+ */
 #include "menu/menu.h"
 
 #include "charge.h"
@@ -33,7 +32,6 @@
 #include "menu/settings_screen.h"
 #include "menu/shop.h"
 #include "menu/tech_screen.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
@@ -175,25 +173,8 @@ static void enter_as_the_lookup_does(Snes *s, uint16_t routine)
     s->cpu.a = routine;
 }
 
-/* For shadow mode and the original's routines a guard hands a step to: what
- * else the lookup leaves, which no step's port reads -- the screen's and the
- * step's offsets into the tables in X and Y, the flags of the address's load
- * and of the screen's doubling, and the cells it looks the step up through,
- * the screen's list of steps and the routine it jumps through. */
-static void leave_the_lookup(Snes *s, uint16_t routine)
-{
-    GameState *g = state_of(s);
-    s->cpu.x = (uint16_t)(running_screen(g) * 2);
-    s->cpu.y = (uint16_t)(menu_screen_step(g) * 2);
-    m_set_nz16(s, routine);
-    m_set_flag(s, CPU_FLAG_C, false);
-    set_menu_screen_steps_at(g, (uint32_t)MENU_STEP_LISTS_BANK << 16 | menu_screen_step_list(g, (uint8_t)running_screen(g)));
-    set_menu_scratch_step_routine(g, routine);
-}
-
 /* What the original's steps read of the registers the lookup leaves them:
  * all of them, as far as liveness can tell. */
-enum { THE_STEPS_READ_EVERYTHING = 0 };
 
 /* Run the step as the original's jump reaches it: as C where its port runs,
  * timed as the step's own, and otherwise as the original's routine. True if
@@ -204,13 +185,14 @@ static bool run_the_step(Snes *s, const Step *step)
 {
     uint32_t routine = MENUS_BANK | step->routine;
     enter_as_the_lookup_does(s, step->routine);
-    ORIGINAL_EFFECT(leave_the_lookup(s, step->routine));
-    if (step->port && menu_runs_as_port(s, routine, step->port)) {
+    (charge_machine_accesses(state_of(s), 8), charge_machine_rom_accesses(state_of(s), 2));
+    if (step->port) {
         bool back = false;
         NATIVE_TIME_AS_SIBLING(s, routine, back = menu_run_jumped(s, THE_LOOP_S_WAIT, routine, step->port));
         return back;
     }
-    return menu_call_jumped(s, THE_JUMP_TO_THE_STEP, routine, THE_STEPS_READ_EVERYTHING, THE_LOOP_S_WAIT);
+    menu_refuse_call(s, THE_LOOP_S_WAIT, routine, false);
+    return false;
 }
 
 // $C2:826F
@@ -221,7 +203,7 @@ bool menu_run_the_screen_step(GameState *g, Platform *pf)
 {
     const Step *step = running_step(g);
     if (!step || !step->run) {
-        program_needs_the_machine(g, step ? MENUS_BANK | step->routine : THE_JUMP_TO_THE_STEP,
+        program_breaks_a_contract(g, step ? MENUS_BANK | step->routine : THE_JUMP_TO_THE_STEP,
                                   "a menu screen's step only the machine runs");
         return false;
     }

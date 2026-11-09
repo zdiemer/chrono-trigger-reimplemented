@@ -242,7 +242,7 @@ typedef enum {
     ITEMS_AT_A_SLIDE_FRAME,       /* ... a frame of the slide */
 } ItemsPlace;
 
-/* The routines an item's use goes on to (each a registered entry, run on
+/* The routines an item's use goes on to (each a checked legacy adapter, run on
  * the machine where the original calls it). */
 typedef enum {
     ITEMS_USES_THE_ITEM,                   /* $C2:B0AB */
@@ -367,7 +367,6 @@ void menu_close_item_users_entry(Snes *s);
 void menu_point_at_listed_item(Snes *s);
 void menu_describe_listed_item(Snes *s);
 void menu_show_items_panel(Snes *s);
-void menu_put_items_panel_away(Snes *s);
 void menu_use_item(Snes *s);
 void menu_use_restoring_item(Snes *s);
 void menu_use_item_by_chance(Snes *s);
@@ -378,11 +377,6 @@ void menu_point_at_tab_member(Snes *s);
 void menu_look_at_tab_member(Snes *s);
 void menu_raise_figure(Snes *s);
 void menu_use_one_more(Snes *s);
-void menu_draw_item_rows(Snes *s);
-void menu_draw_item_row(Snes *s);
-void menu_sort_party_items(Snes *s);
-void menu_show_item_users(Snes *s);
-
 bool menu_items_screen_opens(Snes *s);
 bool menu_item_command_step_runs(Snes *s);
 bool menu_item_list_step_runs(Snes *s);
@@ -392,15 +386,10 @@ bool menu_item_users_step_runs(Snes *s);
 bool menu_listed_item_is_pointable(Snes *s);
 bool menu_items_panel_shows(Snes *s);
 bool menu_items_panel_goes(Snes *s);
-bool menu_item_is_usable(Snes *s);
 bool menu_item_use_runs(Snes *s);
 bool menu_member_window_opens(Snes *s);
 bool menu_tab_member_is_pointable(Snes *s);
 bool menu_figure_is_raisable(Snes *s);
 bool menu_one_more_is_usable(Snes *s);
-bool menu_item_rows_are_drawable(Snes *s);
-bool menu_item_row_is_drawable(Snes *s);
-bool menu_party_items_are_sortable(Snes *s);
-bool menu_item_users_are_showable(Snes *s);
 
 #endif

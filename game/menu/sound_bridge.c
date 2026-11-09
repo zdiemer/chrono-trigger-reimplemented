@@ -11,12 +11,13 @@
  * without letting a frame go by: it is an idle loop here
  * (menu_wait_for_menu_music_playing_loop), and the time it takes is the
  * driver's to start the song (docs/TODO.md). */
+#include "charge.h"
 #include "menu/sound.h"
 
 #include "menu/bridge.h"
+#include "holds.h"
 #include "menu/fades.h"
 #include "menu/menu.h"
-#include "original_effects.h"
 #include "platform/audio.h"
 #include "port/machine.h"
 #include "port/native.h"
@@ -34,23 +35,15 @@ enum {
 
 static bool send_at(Snes *s, uint32_t jsl, AudioCommand c)
 {
-    MenuMachine m = menu_machine_now(s);
+    MenuMachine m = menu_machine(s);
     au_command(m_platform(s), PF_CALL_DC(jsl, SOUND_DRIVER, READS_A_HIGH), c);
     return menu_back(s, jsl + MENU_JSL_SIZE, m);
-}
-
-/* For the original's code and shadow mode: the steps and the volume of a
- * fade, which it hands its sending in the menus' first cells. */
-static void leave_fade(GameState *g, AudioCommand fade)
-{
-    set_menu_scratch_song_steps(g, fade.p1);
-    set_menu_scratch_song_volume(g, fade.p2);
 }
 
 /* A fade sent from the fade's routine, called at `call`. */
 static bool send_fade(Snes *s, uint32_t call, AudioCommand fade)
 {
-    ORIGINAL_EFFECT(leave_fade(state_of(s), fade));
+    charge_machine_accesses(state_of(s), 2);
     m_push16(s, (uint16_t)(call + MENU_JSR_SIZE - 1));
     if (!send_at(s, SEND_THE_FADE, fade))
         return false;
@@ -62,7 +55,7 @@ static bool send_fade(Snes *s, uint32_t call, AudioCommand fade)
  * at `call`. */
 static bool send_song_and_fade(Snes *s, uint32_t call, AudioCommand song, AudioCommand fade)
 {
-    ORIGINAL_EFFECT(leave_fade(state_of(s), fade));
+    charge_machine_accesses(state_of(s), 2);
     m_push16(s, (uint16_t)(call + MENU_JSR_SIZE - 1));
     if (!send_at(s, SEND_THE_SONG, song) || !send_at(s, SEND_THE_FADE, fade))
         return false;
@@ -70,19 +63,11 @@ static bool send_song_and_fade(Snes *s, uint32_t call, AudioCommand song, AudioC
     return true;
 }
 
-/* The task that starts the gate's song (menu_start_task). */
-/* For the original's code and shadow mode: the flags its tests leave, which
- * its caller keeps on the stack as it draws the panel -- the song compared
- * with the gate's where that is the one playing, otherwise a load of
- * something other than zero (the story's note, or the task's slot). */
-static void leave_song_decided(Snes *s)
+static void charge_song_decided(Snes *s)
 {
-    const GameState *g = state_of(s);
-    bool already = !(story_game_notes(g) & MENU_PLACE_SONG_PLAYS_ON) && menu_exchange_song_before(g) == MENU_GATE_SONG;
-    m_set_flag(s, CPU_FLAG_N, false);
-    m_set_flag(s, CPU_FLAG_Z, already);
-    if (already)
-        m_set_flag(s, CPU_FLAG_C, true);
+    GameState *g = state_of(s);
+    if (!(story_game_notes(g) & MENU_PLACE_SONG_PLAYS_ON))
+        charge_machine_accesses(g, 1);
 }
 
 /* Where the original calls the fade's and the song's routines from. */
@@ -118,11 +103,11 @@ static bool screen_faded_out_on_the_machine(void *ctx) { return menu_fade_out_fr
 /* The wait for the song to be playing is an idle loop of its own. */
 static bool music_waited_for_on_the_machine(void *ctx)
 {
-    m_stop_at(ctx, MUSIC_PLAYING_WAIT, READS_NOTHING);
+    m_hold_at(ctx, MUSIC_PLAYING_WAIT, READS_NOTHING, HOLD_MENU_TASKS);
     return false;
 }
 
-static void decided_on_the_machine(void *ctx) { ORIGINAL_EFFECT(leave_song_decided(ctx)); }
+static void decided_on_the_machine(void *ctx) { charge_song_decided(ctx); }
 
 static const GateSongSteps on_the_machine = {
     sent_on_the_machine, song_and_fade_sent_on_the_machine, wait_on_the_machine, registers_on_the_machine,
@@ -154,7 +139,11 @@ void menu_switch_back_to_the_field_song_entry(Snes *s)
  * sound processor's port here without letting a frame go by, so how long it
  * waits is how long the driver takes to start the song: a wait on the
  * sound processor's timing (docs/TODO.md). Idle entry, one pass. */
+
+// $C2:CBE0
+/* Waiting for the sound driver is a saveable task boundary. */
 void menu_wait_for_menu_music_playing_loop(Snes *s)
 {
-    m_stop_at(s, au_music_playing(m_platform(s), PF_AT(0xC2CBE0)) != 0 ? TASK_ENDS : MUSIC_PLAYING_WAIT, 0);
+    uint32_t next = au_music_playing(m_platform(s), PF_AT(0xC2CBE0)) != 0 ? TASK_ENDS : MUSIC_PLAYING_WAIT;
+    m_hold_at_own(s, next, 0, HOLD_MENU_TASKS);
 }

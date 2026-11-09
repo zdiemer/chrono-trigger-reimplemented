@@ -28,7 +28,6 @@
 #include "menu/settings_screen.h"
 #include "menu/tech_screen.h"
 #include "menu/vram.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
@@ -97,61 +96,11 @@ static void set_widths(Snes *s, Widths w)
         menu_set_widths(s, w == A8_X16, false);
 }
 
-/* ---- What the original's tests leave (scaffolding) ----------------------------------------------- */
-
-/* It picks the panel by the option doubled, in A and X, which the panel
- * saves the flags of as it starts. */
-static void leave_option_doubled(Snes *s, uint8_t option)
-{
-    s->cpu.a = (uint16_t)(2 * option);
-    s->cpu.x = (uint16_t)(2 * option);
-    menu_leave_load(s, (uint8_t)(2 * option));
-    m_set_flag(s, CPU_FLAG_C, false);
-}
-
-/* What putting a panel away leaves: the panel's pick, then the queue's
- * registers. */
-static void leave_panel_put_away(Snes *s, uint8_t option)
-{
-    leave_option_doubled(s, option);
-    menu_leave_queued_upload(s, MENU_UPLOAD_BACK_LAYER);
-}
-
 /* Opening, the techs' member list's row folded into its first three: a
  * compare of the row with three (the row and the list's scroll added, which
  * sets the overflow), and a load of none where it doesn't fit. The row and
  * scroll are noted before the menu opens. */
 enum { MEMBER_ROWS = 3 };
-
-static void note_techs_row(MainMenuOnTheMachine *m)
-{
-    const GameState *g = state_of(m->s);
-    vars_peek(true);
-    m->techs_row = menu_tech_member_row(g);
-    m->techs_scroll = menu_setting_keep_menu_cursors(g) ? menu_tech_member_scroll(g) : 0;
-    vars_peek(false);
-}
-
-static void leave_techs_row_folded(const MainMenuOnTheMachine *m)
-{
-    Snes *s = m->s;
-    uint8_t row = m->techs_row, scroll = m->techs_scroll;
-    uint8_t member = (uint8_t)(row + scroll);
-    m_set_flag(s, CPU_FLAG_V, ((row ^ member) & (scroll ^ member) & 0x80) != 0);
-    menu_leave_compare(s, member, MEMBER_ROWS);
-    if (member >= MEMBER_ROWS)
-        menu_leave_load(s, 0);
-}
-
-/* Moving, a compare of the cursor with the option it was on, the go-back
- * button tested, and a load of the panels' tasks. */
-static void leave_moved(Snes *s, uint8_t from)
-{
-    const GameState *g = state_of(s);
-    menu_leave_compare(s, menu_cursor_index(g), from);
-    m_set_flag(s, CPU_FLAG_V, (menu_cursor_buttons(g) & MENU_GO_BACK) != 0);
-    menu_leave_load(s, MENU_PANELS_TASKS);
-}
 
 /* ---- What the sequences ask of the menus, on the machine ----------------------------------------- */
 
@@ -193,15 +142,15 @@ static void note(void *ctx, MainMenuNote n, uint8_t value)
     Snes *s = m->s;
     (void)value;
     switch (n) {
-    case MAIN_MENU_NOTE_OPENING: ORIGINAL_EFFECT(note_techs_row(m)); break;
-    case MAIN_MENU_NOTE_TECHS_ROW_FOLDED: ORIGINAL_EFFECT(leave_techs_row_folded(m)); break;
-    case MAIN_MENU_NOTE_MOVED_FROM: ORIGINAL_EFFECT(leave_moved(s, value)); break;
-    case MAIN_MENU_NOTE_OPTION_PICKED: ORIGINAL_EFFECT(leave_option_doubled(s, value)); break;
-    case MAIN_MENU_NOTE_DRAWN: ORIGINAL_EFFECT(menu_leave_a_high_byte_set(s)); break;
-    case MAIN_MENU_NOTE_PANEL_PUT_AWAY: ORIGINAL_EFFECT(leave_panel_put_away(s, value)); break;
-    case MAIN_MENU_NOTE_EQUIPMENT_TESTED: ORIGINAL_EFFECT(menu_leave_equipment_panel_tested(s, value)); break;
-    case MAIN_MENU_NOTE_TECHS_MEMBER_CHOSEN: ORIGINAL_EFFECT(menu_leave_techs_panel_member_chosen(s, value)); break;
-    case MAIN_MENU_NOTE_SETTINGS_FRAMED: ORIGINAL_EFFECT(menu_leave_settings_panel_frame(s)); break;
+    case MAIN_MENU_NOTE_OPENING: (void)0; break;
+    case MAIN_MENU_NOTE_TECHS_ROW_FOLDED: (void)0; break;
+    case MAIN_MENU_NOTE_MOVED_FROM: charge_machine_accesses(state_of(s), 2); break;
+    case MAIN_MENU_NOTE_OPTION_PICKED: (void)0; break;
+    case MAIN_MENU_NOTE_DRAWN: (void)0; break;
+    case MAIN_MENU_NOTE_PANEL_PUT_AWAY: (void)0; break;
+    case MAIN_MENU_NOTE_EQUIPMENT_TESTED: charge_machine_accesses(state_of(s), 1); break;
+    case MAIN_MENU_NOTE_TECHS_MEMBER_CHOSEN: menu_charge_techs_panel_member_chosen(s, value); break;
+    case MAIN_MENU_NOTE_SETTINGS_FRAMED: (void)0; break;
     }
 }
 
@@ -251,32 +200,6 @@ void menu_show_main_menu_panel(Snes *s)
     if (!menu_show_main_menu_panel_with(state_of(s), m_platform(s), &menu_main_menu_on_the_machine, &m))
         return;
     menu_restore_p(s);
-    m_rts(s);
-}
-
-// $C2:9B71
-void menu_put_main_menu_panel_away_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t option = menu_main_menu_option(g);
-    (void)option;
-    menu_put_main_menu_panel_away(g, m_platform(s));
-    ORIGINAL_EFFECT(leave_panel_put_away(s, option));
-    m_rts(s);
-}
-
-// $C2:9AAD
-void menu_draw_main_menu_backdrop_entry(Snes *s)
-{
-    menu_draw_main_menu_backdrop(state_of(s));
-    m_rts(s);
-}
-
-// $C2:9B8F
-void menu_draw_main_menu_entry(Snes *s)
-{
-    menu_draw_main_menu(state_of(s), m_platform(s));
-    ORIGINAL_EFFECT(menu_leave_a_high_byte_set(s));
     m_rts(s);
 }
 

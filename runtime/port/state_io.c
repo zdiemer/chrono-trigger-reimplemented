@@ -112,6 +112,21 @@ void charge_legacy_accesses(GameState *g, uint32_t accesses)
     state_snes(g)->bus.clocks += accesses * ACCESS_CLOCKS;
 }
 
+void charge_machine_accesses(GameState *g, uint32_t accesses)
+{
+    charge_legacy_accesses(g, accesses);
+}
+
+void charge_machine_io_accesses(GameState *g, uint32_t accesses)
+{
+    charge_legacy_io_accesses(g, accesses);
+}
+
+void charge_machine_rom_accesses(GameState *g, uint32_t accesses)
+{
+    charge_legacy_rom_accesses(g, accesses);
+}
+
 void charge_legacy_io_accesses(GameState *g, uint32_t accesses)
 {
     enum { IO_ACCESS_CLOCKS = 6 };

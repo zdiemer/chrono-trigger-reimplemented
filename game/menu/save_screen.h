@@ -37,25 +37,20 @@ void menu_read_slot_summary(Snes *s);
 bool menu_slot_summary_read_back(GameState *g, Platform *pf);
 void menu_read_design_and_chapter(Snes *s);
 void menu_draw_chapter_label(Snes *s);
-void menu_draw_empty_label_entry(Snes *s);
 /* The empty slot's label drawn in the place of the slot shown's, as C;
  * false where the program went no further. */
 bool menu_draw_empty_label(GameState *g);
 void menu_draw_slot_name(Snes *s);
-void menu_load_slot_rows_effect(Snes *s);
-void menu_draw_member_portrait(Snes *s);
-void menu_draw_save_slot(Snes *s);
 void menu_show_save_slot(Snes *s);
 void menu_move_among_the_slots(Snes *s);
 
-bool menu_slot_rows_effect_is_loadable(Snes *s);
 bool menu_save_slots_are_readable(Snes *s);
 bool menu_slot_labels_are_drawable(Snes *s);
 bool menu_chapter_label_is_drawable(Snes *s);
 bool menu_slot_summary_is_readable(Snes *s);
-bool menu_portrait_is_drawable(Snes *s);
-bool menu_save_slot_is_drawable(Snes *s);
 bool menu_save_slots_are_showable(Snes *s);
 bool menu_slot_under_the_cursor_is_showable(Snes *s);
+
+void menu_draw_empty_label_entry(Snes *s);
 
 #endif

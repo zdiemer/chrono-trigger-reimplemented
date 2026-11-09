@@ -629,6 +629,11 @@ static bool a_fade_frame_on_the_machine(void *ctx, uint16_t left)
 {
     Snes *s = ctx;
     m_push16(s, left);
+    if (m_runs_retired_as_c(s)) {
+        if (menu_run_called(s, 0xC22465, 0xC20346, READS_NOTHING | DC_DB, menu_wait_for_frame))
+            native_hold(s, HOLD_MENU_FRAME);
+        return false;
+    }
     bool back = menu_call(s, 0xC22465, 0xC20346, READS_NOTHING | DC_DB);
     (void)m_pull16(s);
     return back;
@@ -768,6 +773,40 @@ static void after_the_pass(Snes *s, Pass p)
 }
 
 static Loop on_the_machine_loop(Snes *s) { return (Loop){ state_of(s), m_platform(s), &on_the_machine, s }; }
+
+// $C2:2468
+/* The map's exit fade keeps its remaining frames on the saveable stack.
+ * Its exit record stays selected while the fade disables party movement.
+ * The entry already charged the record read; resuming only retrieves it. */
+void overworld_exit_fade_finished(Snes *s)
+{
+    uint16_t left = (uint16_t)(m_pull16(s) - 1);
+    s->cpu.x = left;
+    if (left) {
+        (void)a_fade_frame_on_the_machine(s, left);
+        return;
+    }
+    Loop l = on_the_machine_loop(s);
+    vars_peek(true);
+    ExitTo to = overworld_exit_here(l.game);
+    vars_peek(false);
+    interrupts(&l, 0xC2246D, false);
+    overworld_leave_for(l.game, to.location, to.arrival, to.x, to.y);
+    after_the_pass(s, leave_the_world_map(&l));
+}
+
+bool overworld_exit_fade_can_resume(Snes *s)
+{
+    if (!overworld_loop_accepts_machine(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool valid = overworld_mode(g) == OVERWORLD_ENTERING_A_PLACE && overworld_exit_here_is_in_range(g);
+    vars_peek(false);
+    uint16_t left = m_read16(s, (uint16_t)(s->cpu.s + 1));
+    return valid && left >= 1 && left <= 0x12;
+}
+
 
 /* The loop runs on the mode's page with the data bank on low RAM, an 8-bit
  * accumulator, 16-bit index registers and binary arithmetic. */

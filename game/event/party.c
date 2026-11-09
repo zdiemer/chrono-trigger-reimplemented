@@ -30,7 +30,6 @@
 #include "field/party.h"
 #include "menu/items.h"
 #include "menu/party.h"
-#include "menu/party_leaves.h"
 #include "port/native.h"
 
 /* ---- Someone to walk up to or ask after -------------------------------------------------- */
@@ -152,14 +151,6 @@ static void fill_with(GameState *g, bool hp, bool mp)
     }
 }
 
-/* For the original's code and shadow mode, the menus keep the command's
- * offset past its opcode and the X of the dispatch, the second call what the
- * first left. */
-typedef struct {
-    Snes *s;
-    PartyServiceCall call;
-} FillOnTheMachine;
-
 static void fill(Snes *s, bool hp, bool mp)
 {
     GameState *g = state_of(s);
@@ -190,36 +181,33 @@ static EventStep after_asking(const GameState *g, uint16_t at, bool there)
 
 /* The original keeps where the command's character operand ends, and hands
  * it the menus as X. */
-static void ask_after_character(Snes *s, uint8_t opcode, PartyService service, unsigned places)
+static void ask_after_character(Snes *s, uint8_t opcode, unsigned places)
 {
-    (void)service;
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
     uint8_t character = event_command_of(s, opcode).character;
     bool there = false;
     TIMED_AS(g, MENUS_SERVICES, there = among_the_record(g, character, places));
-    if (!there) {
-    }
     event_return(s, after_asking(g, at, there));
 }
 
 // $C0:38E8
 /* Whether a character is in the active party. */
-void event_cmd_if_in_the_active_party(Snes *s) { ask_after_character(s, 0xD2, SERVICE_IS_ACTIVE, PARTY_ACTIVE_PLACES); }
+void event_cmd_if_in_the_active_party(Snes *s) { ask_after_character(s, 0xD2, PARTY_ACTIVE_PLACES); }
 
 // $C0:388D
 /* Whether a character has been recruited, active or in reserve. */
-void event_cmd_if_recruited(Snes *s) { ask_after_character(s, 0xCF, SERVICE_IS_RECRUITED, PARTY_RECORD_PLACES); }
+void event_cmd_if_recruited(Snes *s) { ask_after_character(s, 0xCF, PARTY_RECORD_PLACES); }
 
 /* A change to the record ($D0, $D1): the script goes on with the carry the
  * command was entered with, which the menus keep. */
-static void change_the_record(Snes *s, uint8_t opcode, PartyService service)
+static void change_the_record(Snes *s, uint8_t opcode, bool recruits)
 {
     enum { LENGTH = 2 };
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
     uint8_t character = event_command_of(s, opcode).character;
-    if (service == SERVICE_RECRUIT)
+    if (recruits)
         TIMED_AS(g, MENUS_SERVICES, ((void)party_recruit(g, character), shown(g)));
     else
         TIMED_AS(g, MENUS_SERVICES, ((void)party_dismiss(g, character), shown(g)));
@@ -228,11 +216,11 @@ static void change_the_record(Snes *s, uint8_t opcode, PartyService service)
 
 // $C0:38BE
 /* A character is recruited into the reserve, unless already recruited. */
-void event_cmd_recruit(Snes *s) { change_the_record(s, 0xD0, SERVICE_RECRUIT); }
+void event_cmd_recruit(Snes *s) { change_the_record(s, 0xD0, true); }
 
 // $C0:38D3
 /* A character is dismissed from the party's record. */
-void event_cmd_dismiss(Snes *s) { change_the_record(s, 0xD1, SERVICE_DISMISS); }
+void event_cmd_dismiss(Snes *s) { change_the_record(s, 0xD1, false); }
 
 // $C0:37F9
 /* A variable learns how many of an item the party holds. The original

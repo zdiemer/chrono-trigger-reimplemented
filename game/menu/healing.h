@@ -90,11 +90,10 @@ bool menu_amounts_can_show(const GameState *g);
 bool menu_amounts_kind_can_rise(const GameState *g);
 enum { MENU_RAISE_AMOUNTS_TASK_START = 0x9016 };
 
-/* The registered entries ($C2:8F55, $C2:8F6C, $C2:8E2D, the task $C2:9016
+/* The checked legacy adapters ($C2:8F55, $C2:8F6C, $C2:8E2D, the task $C2:9016
  * and a kind's rise $C2:9047) and their guards. */
 void menu_heal_and_show_entry(Snes *s);
 void menu_show_amounts_entry(Snes *s);
-void menu_heal_entry(Snes *s);
 void menu_raise_amounts(Snes *s);
 void menu_raise_amount_kind(Snes *s);
 bool menu_healing_runs(Snes *s);

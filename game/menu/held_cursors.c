@@ -23,7 +23,6 @@
 #include "charge.h"
 #include "menu/bridge.h"
 #include "menu/menu.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -90,7 +89,6 @@ static void put_sprite(GameState *g, unsigned sprite, uint16_t tile_and_attribut
     set_oam_buffer_attributes(g, sprite, (uint8_t)(tile_and_attributes >> 8));
 }
 
-// $C2:8A98
 void menu_hold_a_cursor(GameState *g)
 {
     set_menu_held_cursor_blink(g, FAST_BLINK);
@@ -124,7 +122,6 @@ static bool blink_bit(GameState *g)
  * places 0-9; its held cursor is a sprite of its own. */
 enum { LIST_ROWS = 10, LIST_CURSOR_SPRITE = 0x2020 };
 
-// $C2:89E4
 /* Held on the picked item's row, with no slide under way. */
 void menu_hold_the_cursor_on_the_list(GameState *g)
 {
@@ -154,15 +151,6 @@ void menu_draw_the_cursor_held_on_the_list(GameState *g)
  * bottom, has no cursor. */
 enum { ACTIVE_PLACES = 3, RESERVE_ROW_LINES = 48, SHOWN_ABOVE_THE_TOP = 16, LINES = 0x100 };
 
-/* For the original's code and shadow mode: it works the lines out with the
- * multiplier, which it leaves holding them. */
-static void leave_rows_multiplied(GameState *g, uint8_t rows)
-{
-    hw_set_multiplicand(g, RESERVE_ROW_LINES);
-    (void)hw_multiply_by(g, rows);
-}
-
-// $C2:8A31
 /* Held on the member picked first, looking like the player's cursor. */
 void menu_hold_the_cursor_on_a_member(GameState *g)
 {
@@ -184,7 +172,7 @@ void menu_draw_the_cursor_held_on_a_member(GameState *g)
     uint8_t y = (uint8_t)(menu_cursor_places_y(g, place) - 1);
     if (place >= ACTIVE_PLACES) {
         int scrolled = (int8_t)(menu_held_reserve_top(g) - menu_reserve_top(g));
-        ORIGINAL_EFFECT(leave_rows_multiplied(g, (uint8_t)scrolled));
+        charge_machine_io_accesses(g, 4);
         int line = y + scrolled * RESERVE_ROW_LINES;
         if (line >= LINES || line < -SHOWN_ABOVE_THE_TOP)
             return;
@@ -194,25 +182,12 @@ void menu_draw_the_cursor_held_on_a_member(GameState *g)
     put_sprite(g, FIRST_HELD_CURSOR, menu_held_cursor_sprite(g));
 }
 
-// $C2:8AD5
 void menu_put_cursors_on_every_member(GameState *g)
 {
     menu_start_task(g, MENU_HELD_CURSORS_TASK, DRAW_THE_MEMBERS_CURSORS);
     for (unsigned i = 0; i < MEMBERS_CURSORS; i++)
         set_menu_cursor_blinks(g, i, members_blinks_start[i]);
     set_menu_cursors_out(g, MEMBERS_CURSORS_START_OUT);
-}
-
-/* For the original's code and shadow mode: where its loop over the members
- * got to in the menus' first cells -- the bits of those out it had left, the
- * members left (none), the next member's place -- with its sprite's place
- * past the last. */
-static void leave_members_drawn(GameState *g)
-{
-    uint8_t members = menu_active_members(g);
-    set_menu_scratch_cursors_out_left(g, (uint16_t)(menu_cursors_out(g) >> members));
-    set_menu_scratch_cursors_left(g, 0);
-    set_menu_scratch_cursor_place(g, (uint16_t)(menu_held_cursor(g) + members));
 }
 
 // $C2:8AFD (with $C2:8B85)
@@ -232,10 +207,9 @@ void menu_draw_cursors_on_every_member(GameState *g)
     for (unsigned member = 0; member < menu_active_members(g); member++)
         if (!(out >> member & 1))
             draw_member_cursor_at(g, FIRST_HELD_CURSOR + member, (uint8_t)(menu_held_cursor(g) + member));
-    ORIGINAL_EFFECT(leave_members_drawn(g));
+    charge_machine_accesses(g, 8);
 }
 
-// $C2:8B93
 void menu_start_the_scroll_bar(GameState *g)
 {
     set_menu_scroll_bar_hidden(g, 0);
@@ -273,17 +247,6 @@ static bool blink_lit(GameState *g)
     return (menu_scroll_bar_blink(g) & LIT) != 0;
 }
 
-/* What placing the arrows leaves: their places in the menus' first cells,
- * and the multiplier as it worked the thumb's line out, a byte of the step at
- * a time. */
-static void leave_the_arrows_placed(GameState *g, uint8_t x, uint8_t y)
-{
-    uint8_t lower = (uint8_t)(y + ARROW_LINES);
-    set_menu_scratch_scroll_arrows_at(g, (uint32_t)x | (uint32_t)y << 8 | (uint32_t)x << 16 | (uint32_t)lower << 24);
-    hw_set_multiplicand(g, menu_scroll_bar_thumb(g));
-    (void)hw_multiply_by(g, (uint8_t)(menu_scroll_bar_step(g) >> 8));
-}
-
 // $C2:8BB8
 /* A frame of the bar: the arrows' blink turns; lit, each arrow is placed
  * where it shows, at the thumb's line. */
@@ -293,7 +256,7 @@ void menu_draw_the_scroll_bar(GameState *g)
         if (menu_scroll_bar_hidden(g))
             return;
         uint8_t x = (uint8_t)menu_scroll_bar_place(g), y = (uint8_t)thumb_line(g);
-        ORIGINAL_EFFECT(leave_the_arrows_placed(g, x, y));
+        (charge_machine_accesses(g, 7), charge_machine_io_accesses(g, 4));
         uint8_t thumb = menu_scroll_bar_thumb(g), span = menu_scroll_bar_span(g);
         if (span == 0)
             return;
@@ -318,58 +281,19 @@ bool menu_scroll_bar_can_be_drawn(const GameState *g)
     return thumb_line(g) < LINES;
 }
 
-/* ---- The entries ------------------------------------------------------------------------------- */
-
 // $C2:8A98
-void menu_hold_a_cursor_entry(Snes *s)
-{
-    menu_hold_a_cursor(state_of(s));
-    m_rts(s);
-}
 
 // $C2:8ABA
-void menu_draw_the_held_cursor_entry(Snes *s)
-{
-    menu_draw_the_held_cursor(state_of(s));
-    m_rts(s);
-}
 
 // $C2:8AD5
-void menu_put_cursors_on_every_member_entry(Snes *s)
-{
-    menu_put_cursors_on_every_member(state_of(s));
-    m_rts(s);
-}
 
 // $C2:8AFD
-void menu_draw_cursors_on_every_member_entry(Snes *s)
-{
-    menu_draw_cursors_on_every_member(state_of(s));
-    m_rts(s);
-}
 
 // $C2:89E4
-/* It leaves 16-bit registers. */
-void menu_hold_the_cursor_on_the_list_entry(Snes *s)
-{
-    menu_hold_the_cursor_on_the_list(state_of(s));
-    menu_set_widths(s, false, false);
-    m_rts(s);
-}
 
 // $C2:89FA
-void menu_draw_the_cursor_held_on_the_list_entry(Snes *s)
-{
-    menu_draw_the_cursor_held_on_the_list(state_of(s));
-    m_rts(s);
-}
 
 // $C2:8A31
-void menu_hold_the_cursor_on_a_member_entry(Snes *s)
-{
-    menu_hold_the_cursor_on_a_member(state_of(s));
-    m_rts(s);
-}
 
 /* ---- Their tasks -------------------------------------------------------------------------------- */
 
@@ -414,11 +338,6 @@ void menu_run_the_members_cursors_task(Snes *s)
 }
 
 // $C2:8B93
-void menu_start_the_scroll_bar_entry(Snes *s)
-{
-    menu_start_the_scroll_bar(state_of(s));
-    m_rts(s);
-}
 
 bool menu_scroll_bar_is_drawable(Snes *s)
 {
