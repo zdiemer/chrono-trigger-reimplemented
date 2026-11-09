@@ -149,3 +149,32 @@ early arrival falls from 394 to 344 frames. The outcome observations are
 386 match / 243 drift / 1,377 differ. The 47 native movies outside the sample
 still need the batched library run; none of these measurements is a
 whole-library recalibration.
+
+## Validation and the next timing comparison
+
+The combined changes build with `CT_WERROR=ON`. The Python suite passes
+565 tests with ten skips. The native-account and unpacker regressions,
+platform timing, state, shadow, debt, timing parts, suspension, tasks and
+unpacking tests pass; the unpacking test includes 2,000 random streams.
+
+The final sampled suite with `--evidence` ends `suite OK`
+(`build/gate-final.log`). All 37 shadow runs are clean, the 7,200-frame
+trace comparison is identical, and the timing gate passes 1,160 entries
+and 125,453,996 stretches with the existing 47 exceptions. Both fast
+routes pass in the default and scaffolding-free builds; the latter also
+finishes all 37 movies. Strict mode remains at 27 reference endings and
+236 of 293 places on time. The native program confirms 22 reference
+endings and 211 places, with all 37 runs finishing and showing. Both
+outcome ratchets pass. The declaration evidence passes all 84 movies,
+39 from the verified cache and 45 newly made. No whole-library native
+outcome or aggregate drift calibration is inferred from those proofs.
+
+The final tag report also narrows the next investigation. Save-slot
+movement's 55,556 native tags include 54,838 in Beyond Time and Death Peak,
+where the reference never enters that menu step. In the three reference
+save-menu runs, the counts agree exactly. The scaler's native count is per
+sampled row, while the old machine entry draws a whole bitmap. Neither
+whole-movie call ratio establishes a rate error. TODO names the divergent
+menu runs and the native object-handler guard whose sprite-list inspection
+is charged while the machine guard's is excluded. Those changes wait for
+the menu and scene teardowns.

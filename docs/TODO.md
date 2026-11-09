@@ -3102,16 +3102,34 @@ list, by kind, is what `game/` still asks of one.
     earlier per-routine comparison against the shadow runs' estimates
     (the tags' work in `ct_native` against the parts' and entries' estimates
     over the sample) names next, worst first:
-    - *Tagged more often than the original calls.* `menu_move_among_the_slots`
-      (`$C2:CFA2`, 51,975 tagged stretches against 718 calls, 24 times the
-      machine's estimate), `scene_sample_bitmap_row` (`$C3:034A`, 59,013
-      against 5,160, three times), `menu_reset_sprites` (`$C2:E92D`, 1.4
-      times): a tag around a loop the original runs as one call, or a call
-      made where the original's isn't.
+    - *Menu work after playback diverges.* The current sample tags
+      `menu_move_among_the_slots` (`$C2:CFA2`) 55,556 times against 718
+      reference calls. Beyond Time contributes 51,896 and Death Peak 2,942,
+      where neither reference enters that save-menu step. The three matching
+      menu runs call it 300, 214 and 204 times in both modes. Likewise,
+      `menu_reset_sprites` (`$C2:E92D`) runs 145,789 times against 50,561;
+      Beyond Time alone contributes 79,258 against 697. Follow the first
+      divergent input before changing the tags in `saving.c::ends` or
+      `tasks.c::cursor_task_turn`; their whole-movie excess is not evidence
+      that the cost of one call is wrong.
+    - *The scaler's timing scopes.* `scene_sample_bitmap_row` (`$C3:034A`)
+      has 45,697 native row tags across the two jetbike movies and attract
+      demo, against 2,284 calls in those movies' older shadow reports
+      (5,160 calls across the full sample). `scaler.c::scale_row` tags each
+      newly sampled source row; the machine entry draws a whole bitmap. Compare the same
+      bitmap's accesses and the shadow report's attributed parts after the
+      scene teardown before changing this tag. Scope counts alone do not
+      establish overcharging.
     - *The menus' object-handler checks.* The menus' object handler
       (`menu_run_objects`, `$C2:051D`) reads
-      23 times the machine's: handler time, off the frame the main thread
-      has, so it moves only how much of the frame is left (at most half).
+      23 times the machine's in the earlier comparison. In
+      `objects.c::turn`, `h->takes` runs under the parent timing tag;
+      `handlers.c::script_takes` reaches `menu_sprite_list_is_sound` through
+      `menu_object_script_can_run`. The machine's `menu_object_script_runs`
+      excludes those reads with `vars_peek`. After the menu teardown, keep
+      the complete guard but exclude its inspection from the native work
+      account, then measure the same frames in both modes. This is handler
+      time, reducing the main thread's share (at most half a frame).
     - *Short.* The power-on to the title's place (`$1B1` at frame 49 against
       51, strict mode 49) and the load screen's setup (the menus' frame count
       starting at 1720 against 1722; `battle-ozzies-fort` leaves the menus
