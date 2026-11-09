@@ -222,7 +222,19 @@ static const struct {
     [ITEMS_USES_ONE_MORE_TAB] = { 0xC2B245, 0xC2B31C, menu_use_one_more },
 };
 
-static bool run_on_the_machine(void *ctx, ItemsRoutine r) { return menu_run(ctx, RUNS[r].site, RUNS[r].routine, RUNS[r].entry); }
+static bool run_on_the_machine(void *ctx, ItemsRoutine r)
+{
+    /* Closing a member window leaves word-wide registers; the item-use
+     * dispatcher restores its saved widths after the handler returns. */
+    switch (r) {
+    case ITEMS_USES_A_RESTORING_ITEM:
+    case ITEMS_USES_AN_ITEM_BY_CHANCE:
+    case ITEMS_RESTS_THE_PARTY:
+    case ITEMS_USES_A_TAB:
+        return menu_run_any_widths(ctx, RUNS[r].site, RUNS[r].routine, RUNS[r].entry);
+    default: return menu_run(ctx, RUNS[r].site, RUNS[r].routine, RUNS[r].entry);
+    }
+}
 
 static const ItemsSteps on_the_machine = {
     read_cursor_on_the_machine,    read_cursor_held_on_the_machine,

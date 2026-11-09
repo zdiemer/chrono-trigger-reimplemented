@@ -4446,7 +4446,11 @@ tabs. They compare 23,951 trials; the other 2,049 are guard refusals and
 contribute no coverage. Complete slides exposed a row counter whose high
 byte the original clears; the standing-members helper now writes the
 whole counter word. Closing the item window also restores its original
-16-bit register widths. The scheduler fixtures supply upload completion
+16-bit register widths. Its dispatcher accepts that changed width before
+restoring its saved flags; otherwise the full screen task stops prematurely
+at the handler's return and compares dead accumulator contents. The
+`menus-field-menu` shadow replay checks that complete return path. The
+scheduler fixtures supply upload completion
 and input notifications without claiming interrupt or video coverage;
 the recipe merger preserves distinct notifications at the same wait.
 These cases leave 48 menu bytes in 12 entries open in the discovery
