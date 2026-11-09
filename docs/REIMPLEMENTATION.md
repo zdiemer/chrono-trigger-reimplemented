@@ -4398,7 +4398,7 @@ call-declaration and callback changes pass 56 liveness and portability tests.
 The task, timing, suspension, field, event-contract and scene-contract C
 tests pass too.
 The sampled gate with `--evidence -j 2` ends in `suite OK` in
-`build/scene-gate-contracts.log`: 37 clean shadow movies, identical 7200-frame
+`build/scene-gate-review.log`: 37 clean shadow movies, identical 7200-frame
 new-game traces, timing and video checks passing, zero shipping fallback
 instructions and zero real-play refusals. All 37 movies finish in strict,
 native and native-shape modes; both outcome ratchets protect every sampled
