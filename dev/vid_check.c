@@ -97,6 +97,7 @@ void vid_check_line(VidCheck *vc, uint16_t line)
         note(vc, &d);
     else
         vc->equal++;
+    vid_obs_frame_end(vc->obs);
 }
 
 static int kind_order(const void *pa, const void *pb)

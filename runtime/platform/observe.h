@@ -24,12 +24,20 @@ void vid_obs_destroy(VidObserver *ob);
 /* A frame is about to start: the per-line effect slots reload their tables.
  * The host calls it at line 0, before vid_obs_line(). */
 void vid_obs_frame_start(VidObserver *ob);
+/* The consumer has finished with the frame. Subsequent uploads need not
+ * preserve its spans; frame_start begins the next capture. */
+void vid_obs_frame_end(VidObserver *ob);
 /* The beam has reached `line` (0-224), before that line's per-line effects are
  * applied. The frame is complete after line 224. */
 void vid_obs_line(VidObserver *ob, uint16_t line);
 
-/* The frame the calls built, valid from line 224 until the next line 0. */
+/* The frame the calls built, complete at line 224 and valid until frame_end
+ * or the next frame_start. Uploads before the consumer finishes preserve it. */
 const VidFrame *vid_obs_frame(const VidObserver *ob);
+
+/* Peak retained versions per frame; storage is allocated as needed and reused.
+ * There is room for a distinct version at every emitted span. */
+void vid_obs_snapshot_peak(const VidObserver *ob, int *vram, int *cgram, int *sprites);
 
 /* Start from a state the observer didn't build, so that a subsystem can be
  * checked from the frame it takes over: everything the calls before it left is

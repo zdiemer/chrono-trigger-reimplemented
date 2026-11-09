@@ -9,7 +9,7 @@
  *          [--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--generated off|on|only]
  *          [--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback]
  *          [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] [--vid-check-from N]
- *          [--px-check [out.txt]] [--spc-coverage out.txt] [--dsp-log out.txt] [--timing-report]
+ *          [--px-check [out.txt]] [--px-check-services] [--spc-coverage out.txt] [--dsp-log out.txt] [--timing-report]
  *          [--page-report] [--event-reads out.txt] [--mixer dsp|native|check]
  *          [--scaffold-reads [original]] [--fallbacks out.txt] [--census out.txt]
  *          [--as-port BBAAAA[,BBAAAA...]] [--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC]
@@ -70,6 +70,8 @@
  * (platform/native/render.h), from the VidFrame the decoder builds, and compares
  * it with render.c's pixel for pixel (dev/px_check.h, docs/PLATFORM.md P3). It
  * works in any --native mode, and a run with a differing frame exits 1.
+ * --px-check-services draws the service-built frame instead; it needs
+ * --native on with hand ports and cannot share the observer with --vid-check.
  * --no-interpreter strict|fallback (with --native on) runs the system loop the
  * way a player built without the interpreter does (docs/GENERATED.md, "Without the
  * interpreter"): interrupt entry, WAI and STP without the interpreter, and an
@@ -259,6 +261,8 @@ static void on_frame_top(void *ctx, Snes *snes)
     (void)snes;
     if (vid_check)
         vid_check_frame_top(vid_check);
+    if (px_check)
+        px_check_frame_top(px_check);
 }
 
 /* Whether anything reads the framebuffer: a trace (its hash), screenshots or
@@ -578,6 +582,7 @@ int main(int argc, char **argv)
     const char *spc_coverage_path = NULL, *dsp_log_path = NULL, *event_reads_path = NULL;
     const char *fallbacks_path = NULL, *census_path = NULL, *asset_reads_path = NULL, *assets_path = NULL;
     bool want_vid_check = false, want_px_check = false;
+    bool px_services = false;
     long vid_check_from = 0;
     long start_frame = -1;
     NativeMode native_mode = NATIVE_OFF;
@@ -623,6 +628,10 @@ int main(int argc, char **argv)
         }
         if (!strcmp(a, "--vid-check") && (!v || v[0] == '-')) {
             want_vid_check = true;
+            continue;
+        }
+        if (!strcmp(a, "--px-check-services")) {
+            want_px_check = px_services = true;
             continue;
         }
         if (!strcmp(a, "--px-check") && (!v || v[0] == '-')) {
@@ -752,7 +761,7 @@ int main(int argc, char **argv)
                         "[--timing-report] [--page-report] [--event-reads out.txt] "
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
                         "[--mixer dsp|native|check] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
-                        "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads [original]] [--fallbacks out.txt] [--finish-fallbacks N] [--census out.txt] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
+                        "[--vid-check-from N] [--px-check [out.txt]] [--px-check-services] [--scaffold-reads [original]] [--fallbacks out.txt] [--finish-fallbacks N] [--census out.txt] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
                         "[--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC] [--index-check BBAAAA]... "
                         "[--asset-reads out.txt] [--assets pack] [--locations] [--outcomes] [--state-trace out.cttr]\n");
         return 2;
@@ -889,13 +898,17 @@ int main(int argc, char **argv)
         cov.seen = calloc((size_t)1 << (COVERAGE_BITS - 3), 1);
     if (calls_path)
         cov.calls = calloc((size_t)1 << CALL_SET_BITS, sizeof *cov.calls);
+    if (px_services && (want_vid_check || native_mode != NATIVE_ON || generated_only)) {
+        fprintf(stderr, "--px-check-services needs --native on with hand ports, without --vid-check\n");
+        return 2;
+    }
     if (want_vid_check) {
         if (native_mode != NATIVE_ON)
             fprintf(stderr, "warning: --vid-check needs --native on; the ports' calls are what it observes\n");
         vid_check = vid_check_create(&snes, (uint32_t)(vid_check_from > 0 ? vid_check_from : 0));
     }
     if (want_px_check)
-        px_check = px_check_create(&snes, &renderer);
+        px_check = px_check_create(&snes, &renderer, px_services);
     if (io_log_path)
         io_log = io_log_create(&snes);
     if (misses_path)

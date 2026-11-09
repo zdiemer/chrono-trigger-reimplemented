@@ -13,6 +13,8 @@ import pathlib
 import re
 import unittest
 
+from tools.machine_joints import missing_video_backends
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 NATIVE = ROOT / "runtime" / "platform" / "native"
 
@@ -47,6 +49,9 @@ FORBIDDEN_NAMES = ("Ppu", "Snes", "snes_(?!extra)", "ppu_", "render_line", "Rend
 
 
 class TestNativeRenderer(unittest.TestCase):
+    def test_services_have_host_backends(self):
+        self.assertEqual(missing_video_backends(), set())
+
     def sources(self):
         files = sorted(NATIVE.glob("*.c")) + sorted(NATIVE.glob("*.h"))
         self.assertTrue(files, "no sources in runtime/platform/native")

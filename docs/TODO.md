@@ -2062,12 +2062,43 @@ rest waits, is [PLAN.md](PLAN.md).
   `VidScreen` doesn't express; it is a run of setters with values, which is
   enough until a partial screen is wanted elsewhere.
 
-- **P3's leftover is not a leftover**: the renderer is fed by decoding PPU
-  register writes, so the register file is still in the shipping path. Feeding
-  it `vid_*` calls instead is what "no emulation backend" needs, and it is
-  scheduled with the audio in PLAN.md, "Phase 4a". **P4** (widescreen) and
-  **P5** (GBA feasibility) follow it in Phase 4b; P0-P3 are otherwise done but
-  for the leftovers below.
+- **Video escapes after the retired subsystems.** The ordinary service calls
+  have host implementations; `ct_native` renders their retained frame directly
+  (PLATFORM.md, "Video from service calls, as built"). The remaining work is
+  in battle and menus through their teardowns, and in the scene's follow-up
+  work (its merged teardown did not remove these escapes).
+  Do not replace their machine contracts by a narrower call before checking
+  the descriptor's full domain and the state left for callers. The 23
+  `machine_joints.py` occurrences are the 22 calls below plus a comment in
+  `scene/screen.c`; none is in field, events, overworld, warp or core.
+
+  | File | Calls/sites | What the service needs |
+  |---|---|---|
+  | `battle/uploads.c` | `$CD:09CE`, `$CF:E33B` (2) | Preserve the palette sender's data-bank behavior and stray RAM writes until their contract retires; decode the queued transfer's destination/mode into a typed upload, with the full guard retained. |
+  | `menu/display.c` | `$C2:9526`, `$C2:954B` (2) | Memory clear/copy, including source-bank and work-port wrapping, cursor state and transfer time. The field's `wram_clear` is the precedent, but these use the work RAM port, not the multiplier. |
+  | `menu/script.c` | `script_byte` register writer and its `vid_snes_takes_register` guard (2) | Decode script object-configuration commands to `VidObjConfig`; keep refusal of every other register address. |
+  | `scene/race.c` | `$7E:3D41`, `$7E:876E`, `$7E:4671` (3) | VRAM read-back with its initial read/step; a continued low-byte plane upload; a low-byte column upload with stride. |
+  | `scene/rising_palace.c` | `$7E:672C`, `$7E:674D` (2) | Plain memory clear retaining the matrix state; VRAM map read-back with the original initial read/step. |
+  | `scene/screen.c` | `$7E:30B6`, `$7E:30D2`/`$7E:30E6`, `$7E:3850` (3) | Two work-buffer clears and a sprite-buffer fill with the multiplier's value; separate memory work from the matrix values that remain video state. |
+  | `scene/screen.c` | `$7E:38EA`, `$7E:38E3` (2) | Typed transfers decoded from scene descriptors, including their byte/word patterns and zero-length convention. |
+  | `scene/screen.c` | `scene_clear_buffer`, `scene_blank_past_the_plane` (2) | Memory clears at `$7E:3C22`, `$7E:3C3E`, `$7E:3E71`, `$7E:7B98`; continued low-byte fills at `$7E:5476`, `$7E:85B2`. |
+  | `scene/title.c` | `$7E:59DD`, `$7E:5AEB` (2) | Name the first fill's source explicitly instead of continuing an old DMA channel; continued low-byte plane fill for the second. |
+  | `scene/staff_roll.c` | `$7E:90BD`, caller's `$7E:8DA9`/`$7E:8F77` (2) | Low-byte tile fill and high-byte priority fill with explicit start, stride and repeated value. |
+
+  The native compatibility file models memory fills and copies and some
+  data-described VRAM transfers, and counts unsupported escapes. Its existing
+  behavior is not a replacement for those contracts. Add targeted service-fed
+  pixel checks for each teardown. The register decoder remains the default
+  `ct_dev --px-check` source; `--px-check-services` selects the direct source.
+- **Native uploads at the line boundary.** The host frame model currently
+  folds both handlers' uploads into the whole picture. A trial before the
+  calibrated native timing merge captured lines above the line handler before
+  running it: 14 sampled movies' recorded native pictures changed and the
+  matching `field-floor-switch` checkpoint at frame 3000 was lost.
+  Reconcile animated tiles and switch redraws with
+  the frame model before changing that order; do not merely re-record those
+  exceptions. The service observer already retains per-span memory when its
+  caller captures at an actual boundary, as the service-fed pixel check does.
 - **Mode 2's column offsets have no encoder.** `rising_palace.c`'s
   `OFFSET_FOR_BG1 = 0x2000` is the SNES's bit in an offset-per-tile entry
   saying which layer the offset moves; a `vid_*` encoder for an entry (the
@@ -2078,29 +2109,23 @@ rest waits, is [PLAN.md](PLAN.md).
   (`$7E:3D41`); a `vid_*` read-back (or a copy within VRAM) would take both
   off the SNES-only escape. `ct_native`, which runs both scenes as C now,
   counts them as escapes and leaves the work RAM they read into as it was.
-- **The gates the event engine opens write their own registers.**
-  `saves/events-end-of-time-gate` is the one movie `--vid-check` is not close on
-  (3863 of 5599; PLATFORM.md, "P2 as built"): from frame 3864 its gate screen
-  drives the Mode 7 matrix, the screen mode and the brightness itself, and none
-  of that code is ported, so nothing tells the observer. It is a different
-  screen from the Epoch's time dial (`menu/epoch.c`), which agrees on every frame.
-  Porting the event's version is what closes it.
-- **The attract demo's scenes write their own registers.** `attract-demo`
-  agrees on 9379 of 22499 frames under `--vid-check` (PLATFORM.md, "P2 as
-  built"): the scene program's modes 1 and 3 (`$7E:66DD`-`$7E:6CAB`,
-  unported) write VRAM, the tile maps' bases, the mode and window 1 from
+- **Recheck the attract demo after the scene teardown.** The earlier
+  `attract-demo` measurement agreed on 9379 of 22499 frames under
+  `--vid-check` (PLATFORM.md, "P2 as built"): the then-unported scene
+  program's modes 1 and 3 (`$7E:66DD`-`$7E:6CAB`) wrote VRAM, the tile
+  maps' bases, the mode and window 1 from
   frames 2789 and 8953, and on two of its world maps BG2's horizontal scroll
   (from 2266, on `$1F5`) and window 1's right edge (from 5492, on `$1F7`)
-  change where no call says so; which code writes the last two isn't known yet. With the
-  event's gate, these are what stand between P2 and a library that agrees from
-  power-on.
-- **P3 leftovers** (PLATFORM.md, "P3 as built"): the observer doesn't fill in
-  the per-span memory pointers the decoder now does, which it needs before the
-  renderer can be fed by service calls rather than registers. The native
-  renderer is a wash against `render.c` rather than faster (the milestone's 81%
+  changed where no call said so. Repeat the service-fed pixel check after
+  replacing the scene escapes above, and locate any remaining writers of
+  those two world-map settings. The event gate now passes its service-fed
+  pixel check; the old attract measurement does not establish the merged
+  scene teardown's result.
+- **Renderer performance.** The native renderer was a wash against `render.c`
+  rather than faster (the milestone's 81%
   figure predated `render.c`'s line cache), so the speed case for it is still
-  unmade; what remains to win is the decoder, which a call-fed build wouldn't
-  run at all.
+  unmade. Measure the service-fed path separately from the register decoder;
+  pixel identity establishes correctness, not a speed improvement.
 - **Host backends beyond SDL**, none of them scoped as milestones yet. Game code
   reaches the host only through the platform services, so each is a backend
   behind an existing API rather than a change to `game/`:
@@ -2109,8 +2134,8 @@ rest waits, is [PLAN.md](PLAN.md).
     conformance harness. What it implements is SNES compositing, not arbitrary
     geometry: per-line state (`VidSpan`) makes a frame scanline-shaped rather
     than a few quads, and the colour math has to stay integer to keep
-    pixel-identity as the test oracle. It wants feeding from the observer rather
-    than the decoder, so it waits on the P2 and P3 leftovers above.
+    pixel-identity as the test oracle. It can consume the service-built spans;
+    the remaining SNES-specific transfers above still need explicit meanings.
   - **Audio.** Output is already SDL2's audio device, which covers WASAPI,
     CoreAudio and ALSA/PipeWire, so another output layer buys little. The real
     item is a check of the C driver over what the game really sends: the
@@ -3503,10 +3528,7 @@ list, by kind, is what `game/` still asks of one.
   tests/test_platform_lint.py's list) are transfers into VRAM programmed from
   the game's tables, which only the SNES's channel settings say the meaning
   of: the host counts them and the driver reports the first.
-  In the assigned field/battle files, three escapes remain. The field's
-  clear uses the multiplier's zero result as a DMA source; a plain RAM fill
-  loses the channel/PPU state checked by shadow mode, so it needs a backend
-  memory-clear service. Battle's bank-dependent palette send intentionally
+  In the assigned battle files, two escapes remain. Battle's bank-dependent palette send intentionally
   writes stray RAM and delays the palette; those writes need named state
   before replacing the escape. The pending window transfer's only writer
   requests VRAM words, but the entry accepts arbitrary destination/mode
@@ -3515,10 +3537,7 @@ list, by kind, is what `game/` still asks of one.
   in `ct_native` without stopping, but report 2/4/4 video escapes, first at
   `$7E:5AEB`; wind and ascent finish blanked, return showing. These fixed-input
   runs do not establish the route outcomes under the host's different timing.
-- **What the host backends don't do yet.** Video keeps the picture's state
-  in the observer and draws nothing: the host video backend proper is the
-  driver calling `vid_host_picture` and a renderer drawing the `VidFrame`
-  (`ct_dev --px-check`'s, pixel for pixel as `render.c`). Audio mixes the
+- **What the host backends don't do yet.** Audio mixes the
   voices and throws the frames away; `au_driver_call`, the scene's call into
   the original's send to the sound processor, ends the program (it comes only
   from wrappers). The native player (`frontend/sound_native.c`) repeats
@@ -3555,19 +3574,11 @@ list, by kind, is what `game/` still asks of one.
     a field on `SceneScriptRoutine`.
 - **What the native picture's review left** (the line handlers' end of the
   picture, `runtime/platform/native/video.c`, `tools/native_check.py`):
-  - A line handler at line 224 or past puts `below_from` beyond
-    `VID_HOST_LAST_LINE`, and `from_a_line` then takes the change as the whole
-    frame's at once, where it should hold only from the next frame's top.
-  - The display's and the line effects' changes share one `below_from`: made
-    on different lines, both apply from the earlier.
   - The dark check judges only a movie's end and never against the reference
     play: a reference that rightly ends 10 s on black would fail for good, and
     a long dark stretch mid-movie is reported but passes.
   - `native_check --check` doesn't hold "stopped" to a baseline, so a movie
     that starts stopping earlier in `ct_native` passes; a ratchet would.
-  - "What the host backends don't do yet", above, and docs/PLAN.md's "The
-    host video backend draws nothing yet" predate `ct_native` drawing its
-    picture.
   - `scene_boot_line_irq_blank`, the boot's machine wrapper, still calls
     `vid_set_display` where its C path now calls `vid_raster_display`.
 
@@ -3821,9 +3832,8 @@ waits on M5 rather than on a backend.
   the map, an item list) drawn by the frontend from game state, which can read
   it by name from the RAM map (`re/ram.toml`, `game/ram.h`); or a
   *second game screen* in the DS sense, which needs the video service to carry
-  more than one frame and the game to decide what goes where. Either way it wants
-  P3's leftover first (the observer doesn't fill in the per-span memory pointers),
-  since a frontend-fed screen is the same call-fed rendering widescreen needs.
+  more than one frame and the game to decide what goes where. Both can use
+  the service-built spans (PLATFORM.md, "Video from service calls, as built").
   Native resolution is far above 256x224, so it also meets P4's questions about
   what lives outside the original screen.
 - **DS and PlayStation content in the original.** The Dimensional Vortex, the

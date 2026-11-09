@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include "state.h"
+#include "platform/platform.h"
 
 uint8_t wram_read8(const GameState *g, uint32_t at);
 uint16_t wram_read16(const GameState *g, uint32_t at);
@@ -32,5 +33,12 @@ void wram_write16(GameState *g, uint32_t at, uint16_t v);
 void wram_fill8(GameState *g, uint32_t at, uint32_t bytes, uint8_t v);
 void wram_fill16(GameState *g, uint32_t at, uint32_t words, uint16_t v);
 void wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes);
+
+/* Clear a transition's buffer, wrapping within its bank. The SNES backing
+ * retains the transfer at `o` (and its elapsed time); the caller has set
+ * the shared Mode 7 multiplier to zero. The host clears the buffer and keeps
+ * the transfer's elapsed time in the state's work account.
+ * Unlike the old transfer descriptor, bytes is a count: 65536 is a full bank. */
+void wram_clear(GameState *g, PfOrigin o, uint32_t at, uint32_t bytes);
 
 #endif

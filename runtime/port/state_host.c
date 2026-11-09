@@ -7,6 +7,7 @@
 #include "core/program.h"
 #include "cpu_io.h"
 #include "original_frame.h"
+#include "platform/time_model.h"
 #include "port/time_rates.h"
 #include "rom.h"
 #include "wram.h"
@@ -229,6 +230,19 @@ void hw_port_leave_spill(GameState *g, uint8_t low) { (void)g, (void)low; }
 /* ---- Work RAM the game locates at run time (wram.h) ------------------------------------------ */
 
 static uint32_t in_bank(uint32_t at, uint32_t offset) { return (at & 0xFF0000u) | (uint16_t)(at + offset); }
+
+static void owe(GameState *g, uint32_t clocks);
+
+void wram_clear(GameState *g, PfOrigin o, uint32_t at, uint32_t bytes)
+{
+    (void)o;
+    if (!bytes)
+        return;
+    /* Clearing a transition's buffer still occupies its transfer time.
+     * Keep it in the state's account, independent of the active port's rate. */
+    owe(g, time_of_transfer(bytes));
+    wram_fill8(g, at, bytes, 0);
+}
 
 void wram_fill8(GameState *g, uint32_t at, uint32_t bytes, uint8_t v)
 {
