@@ -2090,6 +2090,10 @@ rest waits, is [PLAN.md](PLAN.md).
   behavior is not a replacement for those contracts. Add targeted service-fed
   pixel checks for each teardown. The register decoder remains the default
   `ct_dev --px-check` source; `--px-check-services` selects the direct source.
+- **`video_test` checks snapshots, not pixels, for retained changes.** Its
+  retained tile and sprite cases (`tests/port/video_test.c`) assert on the
+  observer's snapshots; add assertions on the rendered pixels, so a renderer
+  that ignores a retained change fails without a movie.
 - **Native uploads at the line boundary.** The host frame model currently
   folds both handlers' uploads into the whole picture. A trial before the
   calibrated native timing merge captured lines above the line handler before
