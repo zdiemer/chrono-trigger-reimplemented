@@ -159,6 +159,7 @@ static void go_back_into(Snes *s, unsigned task)
     uint16_t place = menu_tasks_stack(g, task);
     s->cpu.a = (uint16_t)((place & 0xFF00) | menu_tasks_step(g, task));
     m_switch_back(s, place);
+    native_hold(s, HOLD_MENU_TASKS);
 }
 
 /* Where the game's tasks start (the menus' screen, the cursor's sprite, a
@@ -193,7 +194,7 @@ static void start(Snes *s, const TaskTurn *turn)
     m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
     for (unsigned i = 0; i < TASK_STARTS_KNOWN; i++)
         if (task_starts_known[i] == at)
-            m_stop_at(s, (uint32_t)MENUS_BANK << 16 | task_starts_known[i], A_START_READS_ITS_PAGE);
+            m_hold_at(s, (uint32_t)MENUS_BANK << 16 | task_starts_known[i], A_START_READS_ITS_PAGE, HOLD_MENU_TASKS);
 }
 
 /* For shadow mode: the bytes the original's way onto the menus' page leaves

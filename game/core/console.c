@@ -115,9 +115,14 @@ static void take_interrupt(Snes *s, ProgramStub stub)
         bool compare = called_handlers[i].compared_at_entry && !m_runs_retired_as_c(s);
         const NativeEntry *e = native_continuation_entry_at(s, stub.handler);
         if (!compare && ((e && e->fn == called_handlers[i].run) ||
-                        (m_runs_retired_as_c(s) && field_machine_form_takes(s, called_handlers[i].run))))
+                        (m_runs_retired_as_c(s) && field_machine_form_takes(s, called_handlers[i].run)))) {
+            /* Battle used to start at a separate dispatch boundary. Its
+             * handler must see the stub's time already passed, especially
+             * when the main thread has just asked for a frame update. */
+            if (called_handlers[i].compared_at_entry)
+                charge_settle(state_of(s));
             TIMED_AS(state_of(s), stub.handler, called_handlers[i].run(s));
-        else
+        } else
             m_stop_at(s, called_handlers[i].handler, 0);
         return;
     }

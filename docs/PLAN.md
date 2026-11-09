@@ -715,8 +715,9 @@ taking the gate down needs, before it and after it.
      machine where its C waits at a point the machine can't wait in place.
      Battle and menus are next: close their unreached obligations and shared
      state readers, then retire the menu services before the battle callers.
-     Their named waits preserve saveable frame boundaries; the scheduler's
-     task-stack transfers still need C continuations (REIMPLEMENTATION.md,
+     Their named waits, task transfers and field returns preserve saveable
+     frame boundaries. Close the remaining by-address service calls and
+     parked task continuations (REIMPLEMENTATION.md,
      "Battle and menu held boundaries"; TODO.md, "Battle and menu teardown
      preconditions").
   4. **Last, the machine leaves the product.** When no subsystem is under

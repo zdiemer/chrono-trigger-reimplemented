@@ -20,6 +20,7 @@
 #include "charge.h"
 #include "core/program.h"
 #include "cpu_io.h"
+#include "holds.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/fades.h"
@@ -352,6 +353,7 @@ void menu_mode_return(Snes *s)
     m_set_nz16(s, s->cpu.d);
     m_set_flag(s, CPU_FLAG_I, true);
     m_rtl(s);
+    native_hold(s, HOLD_FIELD_FRAME);
 }
 
 // $C2:832F

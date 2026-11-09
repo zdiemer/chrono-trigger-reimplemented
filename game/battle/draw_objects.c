@@ -676,9 +676,25 @@ bool battle_drawing_combatant(Snes *s) { return battle_sprite_page_ready(s) && p
 
 /* The frame's own routines set A before they use it, whatever the caller
  * left there. */
-bool battle_drawing_combatant_frame(Snes *s) { return battle_sprite_page(s) && peek(s, combatant_frame_fits); }
+bool battle_drawing_combatant_frame(Snes *s)
+{
+    if (!battle_sprite_page(s))
+        return false;
+    vars_peek(true);
+    bool fits = combatant_frame_fits(state_of(s));
+    vars_peek(false);
+    return fits;
+}
 
-bool battle_drawing_afterimage_frame(Snes *s) { return battle_sprite_page(s) && peek(s, afterimage_fits); }
+bool battle_drawing_afterimage_frame(Snes *s)
+{
+    if (!battle_sprite_page(s))
+        return false;
+    vars_peek(true);
+    bool fits = afterimage_fits(state_of(s));
+    vars_peek(false);
+    return fits;
+}
 
 bool battle_drawing_combatant_in_x(Snes *s)
 {

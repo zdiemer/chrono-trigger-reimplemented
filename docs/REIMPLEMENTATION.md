@@ -4246,21 +4246,31 @@ guard; a refusal stops at the original handler. The menus' separate NMI
 work checkpoint remains registered. Battle's handlers still enter through
 their registry rows in shadow mode, so their own interrupt comparisons
 finish at the RTI; the console's direct calls are the shipping path.
+Before each battle handler, the stub's accumulated time passes at the old
+dispatch boundary. Without that settlement the attract demo first changes
+its battle frame request at frame 7,041 and later reaches a location one
+frame early. With it, all five trace regions agree for 10,300 frames and
+the full 22,500-frame strict outcome signature holds without changing its
+recorded exception.
 
 The upload wait uses the menus' own stack. Its higher stack pointer does
 not mean that the field's caller was unwound: the runtime preserves a
-call-out already marked away by its stack-switch tracking. That caller is
-still suspended until the menus return, so this inner hold alone does not
-provide a save base inside every menu. The field's return and the tasks'
-parked continuations must become held continuations too before retirement.
+call-out already marked away by its stack-switch tracking. The field now
+hands menu mode over as a checked C call and leaves its call chain. Three
+held return continuations restore it after the main menu, Start menu or a
+script's menu, keeping the former caller's calibrated rate. Task starts and
+resumptions are also held continuations, each retaining its complete gated
+contract and estimate. They begin as separate roots after the scheduler
+selects a stack; nesting one task inside another would change the return
+boundary. Task work parked at a yield still needs its own continuation.
 
 The shipping census on `battle-menu-buttons`, `menus-sweep` and `menus-epoch`
-changes from 87 machine-entered entries and 3,455,625 calls in all to 74
-and 124,216. Wait-loop passes fall from 3,315,508 to zero; entries run only
-as C rise from 835 to 838. Held continuations run 7,750,841 times across 34
+changes from 87 machine-entered entries and 3,455,625 calls in all to 58
+and 106,798. Wait-loop passes fall from 3,315,508 to zero; entries run only
+as C rise from 835 to 838. Held continuations run 7,768,256 times across 50
 entries. This is a control-flow change, not retirement: `machine_joints.py`
 still counts 1,689 registry rows and 917 emulated returns. Held rows rise
-from 69 to 79; explicit stops from 91 to 93 because the two menu waits now
+from 69 to 104; explicit stops from 91 to 93 because the two menu waits now
 name their holds. The six call-outs and three registry lookups remain.
 
 The precondition audit also fixes two menu defects without narrowing their
@@ -4284,15 +4294,20 @@ reports an accessor outside its range. These complete-range bounds must
 survive as contracts when their guards retire.
 
 Shipping traces before and after these changes are identical in all five
-memory regions over the three census movies' 20,310 frames. `suspend_test`
+memory regions over the three census movies' 20,310 frames. The main-menu
+and shop returns also agree over `menu` and `menus-shop-inn`'s 18,602 frames.
+`suspend_test`
 passes its held-continuation and save/load cases. The native-shape
 `bucket_lavos` route reaches the Good Night ending at frame 168,290; its five
 loads away from a base replay exactly, with none differing or lost.
 Reloading each of its seven checkpoints twice and running another 120 frames
 also gives identical work RAM; all eight required replays are exact.
-Eight menu checkpoints from `menus-sweep` also replay exactly, with one or
-two routines still suspended at each checkpoint: these validate replay,
-not new save bases. Fresh shipping runs of `menu` and `battle-r-series`
+Eight menu checkpoints from `menus-sweep` also reload exactly. Frames 1,800,
+2,100 and 2,400 have no suspended routine and need no replay; the five later
+checkpoints still have one or two, and all five replays are exact. The
+native-shape telepod-Lavos ending phase reaches frame 148,888 after the core
+fight; the full developer-room tour is outside that phase's evidence.
+Fresh shipping runs of `menu` and `battle-r-series`
 execute zero original instructions both before and after the changes.
 The unreached inventory and the remaining task-stack work are in TODO.md,
 "Battle and menu teardown preconditions". No entry, guard, scratch cell or

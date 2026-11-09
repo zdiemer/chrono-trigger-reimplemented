@@ -158,7 +158,7 @@ HELD_WAITS = ("PF_LOOP_HELD",)
 # forms with what the original keeps across the call (battle_run_dc_under, battle_run_long_dc_under,
 # battle_wait_under, battle_wait_frames_under) take the same arguments first.
 DELEGATES = ("bridge_call", "bridge_call_long", "field_run", "field_run_long", "field_run_holding", "field_run_on_page",
-             "bridge_call_on_page", "field_run_or_hand_over", "field_run_called",
+             "bridge_call_on_page", "field_run_or_hand_over", "field_run_called", "field_run_long_called",
              "battle_call",
              "battle_call_long", "battle_run_dc", "battle_run_long_dc", "menu_call", "menu_call_long", "menu_call_returning",
              "menu_call_jumped", "menu_yield", "menu_run_or_call", "field_wait_frame", "battle_wait_frame", "battle_wait_frames",
@@ -184,7 +184,7 @@ BRIDGES = {
     "game/event/bridge.c": ("event_call_bridge",),
     "game/field/bridge.c": ("bridge_call", "bridge_call_long", "bridge_back", "field_run", "field_run_long",
                             "field_run_holding", "field_run_on_page", "bridge_call_on_page", "field_run_or_hand_over",
-                            "run_entry", "field_wait_frame", "field_run_called", "field_hold_next_frame",
+                            "run_entry", "field_wait_frame", "field_run_called", "field_run_long_called", "field_hold_next_frame",
                             "field_hands_over_to", "field_hold_finished_frame"),
     "game/battle/bridge.c": ("battle_call", "battle_call_long", "battle_back", "run_entry", "battle_run_dc", "battle_run_long_dc",
                              "battle_stop_after_call",

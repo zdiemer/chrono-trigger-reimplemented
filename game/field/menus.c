@@ -26,8 +26,9 @@
  * builder, the Start assignment, the party's return and the leader's walk
  * through field_run, which runs each under the frame the original's call
  * pushes and calls out where the entry's guard would turn the state away. The
- * frame wait, the menus, the field's setup and its fade in are the original's
- * routines, called out to from the original's own calls. The palette
+ * frame wait and the menus hand off to held continuations: no field port
+ * stays suspended while a menu uses its own stack. Its three return sites
+ * restore the field and enter the fade in. The palette
  * animation, through the original's jump at $FD:FFF7 to it
  * (PALETTE_ANIMATION), runs as C under its call too (core/machine_forms.c). */
 #include "field/menus.h"
@@ -219,10 +220,8 @@ static void take_the_interrupts_back(GameState *g)
 // $C0:19C7 (the menu button's is $C0:195E)
 /* From the menus on: the field set up again and the party brought back, and
  * faded in. */
-static bool menu_and_back(GameState *g, const StopSteps *steps, void *ctx, FieldStop by)
+static bool back_from_menu(GameState *g, const StopSteps *steps, void *ctx, FieldStop by)
 {
-    if (!steps->menus(ctx, by, openings[by].menu, openings[by].argument))
-        return false;
     steps->dark(ctx);
     take_the_interrupts_back(g);
     if (!steps->set_up(ctx, by) || !steps->party_back(ctx, by))
@@ -233,6 +232,11 @@ static bool menu_and_back(GameState *g, const StopSteps *steps, void *ctx, Field
         return false;
     start_play_clock(g);
     return true;
+}
+
+static bool menu_and_back(GameState *g, const StopSteps *steps, void *ctx, FieldStop by)
+{
+    return steps->menus(ctx, by, openings[by].menu, openings[by].argument) && back_from_menu(g, steps, ctx, by);
 }
 
 // $C0:193E (the menu button's), $C0:19A7 (the Start assignment's)
@@ -270,6 +274,18 @@ static ScriptMenu script_menu(const GameState *g)
     return (ScriptMenu){ .menu = (asked & ODD) ? MENU_MODE_0 : MENU_MODE_6 };
 }
 
+/* Restore the field after a script's menu. The fade returns to the main
+ * loop, so there is no suspended menu-opening call to resume. */
+static MenuReturn back_from_script_menu(GameState *g, const StopSteps *steps, void *ctx)
+{
+    steps->dark(ctx);
+    take_the_interrupts_back(g);
+    if (!steps->set_up(ctx, OPENED_BY_SCRIPT) || !steps->sprites(ctx, OPENED_BY_SCRIPT))
+        return MENU_WENT_ELSEWHERE;
+    script_menu_shown(g);
+    return steps->fade_in(ctx, OPENED_BY_SCRIPT) ? MENU_BACK_IN_THE_LOOP : MENU_WENT_ELSEWHERE;
+}
+
 // $C0:0CC7
 /* The menu a script asked for: the field fades out a step a frame as the
  * leader walks on without the player's control (so it stands) and the
@@ -296,12 +312,7 @@ static MenuReturn open_script_menu(GameState *g, const StopSteps *steps, void *c
         return menu_and_back(g, steps, ctx, OPENED_BY_START) ? MENU_BACK_IN_THE_PASS : MENU_WENT_ELSEWHERE;
     if (!steps->menus(ctx, OPENED_BY_SCRIPT, asked.menu, asked.argument))
         return MENU_WENT_ELSEWHERE;
-    steps->dark(ctx);
-    take_the_interrupts_back(g);
-    if (!steps->set_up(ctx, OPENED_BY_SCRIPT) || !steps->sprites(ctx, OPENED_BY_SCRIPT))
-        return MENU_WENT_ELSEWHERE;
-    script_menu_shown(g);
-    return steps->fade_in(ctx, OPENED_BY_SCRIPT) ? MENU_BACK_IN_THE_LOOP : MENU_WENT_ELSEWHERE;
+    return back_from_script_menu(g, steps, ctx);
 }
 
 /* ---- The party after a menu ------------------------------------------------------------------- */
@@ -663,7 +674,8 @@ static bool menus_on_the_machine(void *ctx, FieldStop stop, FieldMenu menu, Menu
     s->cpu.a = (uint16_t)menu;
     m_set_flag(s, CPU_FLAG_N, false);
     m_set_flag(s, CPU_FLAG_Z, menu == MENU_MODE_0);
-    return bridge_call_long(s, sites[stop].menus, MENUS, READS_THE_MODE, on_the_field_page(s, false));
+    return field_run_long_called(s, sites[stop].menus, MENUS, READS_THE_MODE, menu_mode_enter,
+                                 on_the_field_page(s, false));
 }
 
 static bool set_up_on_the_machine(void *ctx, FieldStop stop)
@@ -737,6 +749,28 @@ void field_press_start(Snes *s)
         m_set_flag(s, CPU_FLAG_V, field_story_test_overflow(g));
     if (press_start_with(g, &on_the_machine, s))
         m_rts(s);
+}
+
+// $C0:1964
+/* The main menu has released its stack. Restore the field from its kept
+ * state and continue the interrupted pass after the fade. */
+void field_back_from_the_main_menu(Snes *s)
+{
+    if (back_from_menu(state_of(s), &on_the_machine, s, OPENED_BY_MENU_BUTTON))
+        field_return_to_waiting_caller(s);
+}
+
+// $C0:19D2
+void field_back_from_the_start_menu(Snes *s)
+{
+    if (back_from_menu(state_of(s), &on_the_machine, s, OPENED_BY_START))
+        field_return_to_waiting_caller(s);
+}
+
+// $C0:0D1C
+void field_back_from_a_script_menu(Snes *s)
+{
+    (void)back_from_script_menu(state_of(s), &on_the_machine, s);
 }
 
 // $C0:1981, $C0:19FF

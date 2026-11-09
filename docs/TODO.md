@@ -2984,17 +2984,15 @@ comparisons.
 - **Battle and menu teardown preconditions.** Retire their wrappers and rows
   only after the unreached obligations and state readers below are resolved.
   The held boundaries and checked interrupt handoffs are described in
-  REIMPLEMENTATION.md, "Battle and menu held boundaries". The menus' task
-  starts and resumptions still transfer through the machine. The field's
-  call into menu mode also remains suspended on its original stack while
-  the menu scheduler holds its separate stack; turn that return into a
-  continuation before claiming save bases throughout a menu. Simply chaining
-  `start` through `menu_go_on_in` crosses the task stack's return boundary:
-  `menus-sweep` reports scheduler and task comparisons returning before the
-  next native wait, and the shipping trace first differs at frame 1,723 in
-  the cursor task's stack bytes `$7E:0AFD-$7E:0AFE`. Preserve the scheduler's
-  comparison checkpoints while making its task transfers resumable C
-  continuations; the failed chaining experiment is not in the implementation.
+  REIMPLEMENTATION.md, "Battle and menu held boundaries". Close the remaining
+  by-address calls from the menu NMI work and battle frame dispatch, and the
+  task work parked at yields. The scheduler's starts and resumptions have
+  held continuations, and the field no longer remains suspended across menu
+  mode. Menu checkpoints at frames 1,800, 2,100 and 2,400 now have no suspended
+  routine; later checkpoints still have one or two. Preserve the root task
+  boundaries and comparison checkpoints while removing those remaining
+  suspensions; nesting the next task in the previous task's C chain changes
+  its return boundary.
 
   Burndown rounds every battle/menu bank to 0% left; that is not proof of
   zero fallback. The existing batched shipping report has no battle fallback
@@ -3025,7 +3023,11 @@ comparisons.
   and afterimages when their guards retire. Close the remaining failures in
   `battle_load_item_animation`, `battle_send_vram_and_wait`, `menu_draw_text`,
   `menu_epoch_build_map` and `menu_load_record_sprite`; the last appears only
-  in the longer run (3 mismatches out of 2,000). Some recipes leave the
+  in the longer run (3 mismatches out of 2,000). All three use set 2, sprite
+  `$CE`: its 23,776 unpacked bytes wrap from the second record's `$B800`
+  destination into low RAM and the machine stack. Establish the output
+  storage bound as a contract rather than excluding that sprite by number.
+  Some recipes leave the
   original running at a call-out or use invalid asset/state combinations;
   distinguish fixture constraints from defects and preserve every resulting
   precondition. The object-script dispatcher's conservative reach includes
@@ -3041,8 +3043,9 @@ comparisons.
   Extend the teardown's witness table to battle wins, losses, techs and
   rewards and the menus' save, shop and new-game-plus paths before retirement.
   The bucket-Lavos native-shape route protects the previously regressed
-  battle backedges. Main's route-bot fix for live consumable counts is now
-  merged; run the telepod-Lavos route with the native-shape driver too.
+  battle backedges. The native-shape telepod-Lavos ending phase also reaches
+  the ending after the core fight; this does not validate the subsequent
+  full developer-room tour.
 
 - **What the field and events' teardown review left.** Remove the three
   `tools/uncompared_baseline.txt` rows for `field_nmi`, `field_irq` and

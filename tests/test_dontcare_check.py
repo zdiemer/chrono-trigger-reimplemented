@@ -226,6 +226,7 @@ void waits(Snes *s) { field_hold_next_frame(s, 0xC08003, DC_X, machine(s)); }
 void finishes(Snes *s) { field_hold_finished_frame(s, DC_Y); }
 void continues(Snes *s) { field_hands_over_to(s, 0xC08020, DC_X, next); }
 void calls(Snes *s) { field_run_called(s, 0xC08003, 0xC08020, DC_Y, next, machine(s)); }
+void calls_long(Snes *s) { field_run_long_called(s, 0xC08003, 0xC28000, DC_X, next, machine(s)); }
 """)
         headers = [dc.Source("runtime/port/native.h", NATIVE_H)]
         declarations, found = dc.declarations([port], dc.Evaluator([port], headers))
@@ -234,7 +235,8 @@ void calls(Snes *s) { field_run_called(s, 0xC08003, 0xC08020, DC_Y, next, machin
                          [("call", 0, 0xC08003, 0xC0EC60, dc._lv.X),
                           ("stop", 0xC0EC60, 0, 0, dc._lv.Y),
                           ("stop", 0xC08020, 0, 0, dc._lv.X),
-                          ("call", 0, 0xC08003, 0xC08020, dc._lv.Y)])
+                          ("call", 0, 0xC08003, 0xC08020, dc._lv.Y),
+                          ("call", 0, 0xC08003, 0xC28000, dc._lv.X)])
 
     def test_waits_of_one_routine(self):
         """A wait called (s, site) declares its routine's call with the
