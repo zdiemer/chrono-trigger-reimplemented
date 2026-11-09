@@ -4243,7 +4243,10 @@ The console now calls the menus' NMI entry and all three battle interrupt
 handlers through its checked C table. `native_continuation_entry_at` checks
 the full entry contract before the call, including arithmetic mode and the
 guard; a refusal stops at the original handler. The menus' separate NMI
-work checkpoint remains registered. Battle's handlers still enter through
+work checkpoint remains registered in shadow mode; shipping calls it from
+the NMI entry after settling that entry's work. Its frame upload and input
+calls also check the complete callee contract after pushing the call frame.
+Battle's handlers still enter through
 their registry rows in shadow mode, so their own interrupt comparisons
 finish at the RTI; the console's direct calls are the shipping path.
 Before each battle handler, the stub's accumulated time passes at the old
@@ -4252,6 +4255,16 @@ its battle frame request at frame 7,041 and later reaches a location one
 frame early. With it, all five trace regions agree for 10,300 frames and
 the full 22,500-frame strict outcome signature holds without changing its
 recorded exception.
+
+The battle frame update now calls its eight object services through a C
+table: party colours, effect slots, scripted movement, anchors, trails,
+numbers, formation and drawing. Six more frame-work call sites directly
+call input, button repeat, the HP gradient and palette pausing. Their
+bridges settle work at the former call-out boundaries, check the full
+callee contract on the pushed frame, and stop at the original entry on a
+refusal. The caller's work and callee's work keep their own calibrated
+rates. The menu display's four call-through-machine findings leave the
+smell baseline; no allowance is added.
 
 The upload wait uses the menus' own stack. Its higher stack pointer does
 not mean that the field's caller was unwound: the runtime preserves a
@@ -4265,13 +4278,18 @@ selects a stack; nesting one task inside another would change the return
 boundary. Task work parked at a yield still needs its own continuation.
 
 The shipping census on `battle-menu-buttons`, `menus-sweep` and `menus-epoch`
-changes from 87 machine-entered entries and 3,455,625 calls in all to 58
-and 106,798. Wait-loop passes fall from 3,315,508 to zero; entries run only
-as C rise from 835 to 838. Held continuations run 7,768,256 times across 50
+changes from 87 machine-entered entries and 3,455,625 calls in all to 47
+and 74,509. Wait-loop passes fall from 3,315,508 to zero; entries run only
+as C rise from 835 to 849. Held continuations run 7,768,256 times across 50
 entries. This is a control-flow change, not retirement: `machine_joints.py`
 still counts 1,689 registry rows and 917 emulated returns. Held rows rise
-from 69 to 104; explicit stops from 91 to 93 because the two menu waits now
-name their holds. The six call-outs and three registry lookups remain.
+from 69 to 104; explicit stops from 91 to 95 because the two menu waits now
+name their holds and the new direct-call bridges stop on contract refusal.
+The six call-outs and three registry lookups remain. Before/after shipping
+traces on these three movies agree in all five regions for 20,310 frames,
+including the new frame calls; 49 focused Python tests and the static
+don't-care, port-style and port-smell checks pass. The preceding resource
+contract step passes the sampled gate, including its 84 evidence replays.
 
 The precondition audit also fixes two menu defects without narrowing their
 fuzz recipes. A refused save restores the main-menu step's flags before the

@@ -238,6 +238,33 @@ void calls_long(Snes *s) { field_run_long_called(s, 0xC08003, 0xC28000, DC_X, ne
                           ("call", 0, 0xC08003, 0xC08020, dc._lv.Y),
                           ("call", 0, 0xC08003, 0xC28000, dc._lv.X)])
 
+    def test_menu_checked_call(self):
+        port = dc.Source("game/port.c", """
+void uploads(Snes *s) { menu_run_called(s, 0xC2843F, 0xC285D6, DC_Y, upload); }
+""")
+        bridge = dc.Source("game/menu/bridge.c", """
+bool menu_run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
+{ m_stop_at(s, routine, dont_care); return false; }
+""")
+        headers = [dc.Source("runtime/port/native.h", NATIVE_H)]
+        sources = [port, bridge]
+        declarations, found = dc.declarations(sources, dc.Evaluator(sources, headers))
+        self.assertEqual(found, [])
+        self.assertEqual([(d.kind, d.at, d.site, d.target, d.dont_care) for d in declarations],
+                         [("call", 0, 0xC2843F, 0xC285D6, dc._lv.Y)])
+
+    def test_battle_checked_calls(self):
+        port = dc.Source("game/port.c", """
+void draws(Snes *s) { battle_run_called(s, 0xCFE778, 0xCFE83A, DC_Y, draw); }
+void reads(Snes *s) { battle_run_long_called(s, 0xCD09C6, 0xC28002, DC_X, input); }
+""")
+        headers = [dc.Source("runtime/port/native.h", NATIVE_H)]
+        declarations, found = dc.declarations([port], dc.Evaluator([port], headers))
+        self.assertEqual(found, [])
+        self.assertEqual([(d.kind, d.at, d.site, d.target, d.dont_care) for d in declarations],
+                         [("call", 0, 0xCFE778, 0xCFE83A, dc._lv.Y),
+                          ("call", 0, 0xCD09C6, 0xC28002, dc._lv.X)])
+
     def test_waits_of_one_routine(self):
         """A wait called (s, site) declares its routine's call with the
         routine and the set its header names, and the battle's forms with what

@@ -75,6 +75,12 @@ bool menu_call_jumped(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
  * which pushes its bank too. */
 typedef enum { BY_JSR, BY_JSL } CallKind;
 
+/* A sibling has returned only after unwinding its call frame to the caller. */
+static bool returned_to_call(const Snes *s, uint16_t stack, uint32_t returns_to)
+{
+    return stack_pointer(s) == stack && s->cpu.pb == (uint8_t)(returns_to >> 16) && s->cpu.pc == (uint16_t)returns_to;
+}
+
 static bool run(Snes *s, uint32_t returns_to, uint32_t routine, void (*entry)(Snes *), bool any_widths, CallKind kind)
 {
     MenuMachine m = menu_machine_now(s);
@@ -85,12 +91,34 @@ static bool run(Snes *s, uint32_t returns_to, uint32_t routine, void (*entry)(Sn
     s->cpu.pb = (uint8_t)(routine >> 16);
     s->cpu.pc = (uint16_t)routine;
     TIMED_AS(state_of(s), routine, entry(s));
-    bool returned = stack_pointer(s) == stack && s->cpu.pb == (uint8_t)(returns_to >> 16) && s->cpu.pc == (uint16_t)returns_to;
+    bool returned = returned_to_call(s, stack, returns_to);
     if (any_widths) {
         m.a8 = m_m8(s);
         m.x8 = m_x8(s);
     }
     return returned && menu_back(s, returns_to, m);
+}
+
+/* A former call-out keeps the same call frame and time boundaries. Check
+ * the full entry contract after pushing the frame; a refusal leaves the
+ * original entry ready for the runtime instead of running an unchecked C call. */
+bool menu_run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
+{
+    uint16_t stack = stack_pointer(s);
+    uint32_t returns_to = site + MENU_JSR_SIZE;
+    m_push16(s, (uint16_t)(returns_to - 1));
+    m_jump_to(s, routine);
+    charge_settle(state_of(s));
+    const NativeEntry *e = native_continuation_entry_at(s, routine);
+    if (!e || e->fn != entry) {
+        m_stop_at(s, routine, dont_care);
+        return false;
+    }
+    TIMED_AS(state_of(s), routine, entry(s));
+    bool returned = returned_to_call(s, stack, returns_to);
+    if (returned)
+        charge_settle(state_of(s));
+    return returned;
 }
 
 bool menu_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *))

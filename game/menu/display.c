@@ -511,10 +511,14 @@ void menu_nmi_enter(Snes *s)
 {
     set_menu_interrupted_stack(state_of(s), m_enter_handler_stack(s, HANDLER_STACK));
     s->cpu.d = MENUS_PAGE;
-    /* Joining the work here matches the outer NMI entry, but abandons every
-     * nested menu_nmi_work comparison. Keep its checkpoint until the registry
-     * can account for that coverage without losing the per-entry check. */
-    m_stop_at(s, 0xC2842A, DC_N | DC_Z | DC_C);
+    /* Keep the work's own comparison checkpoint in shadow mode. Shipping
+     * hands it the interrupt directly, after settling the entry's work. */
+    if (!m_runs_retired_as_c(s)) {
+        m_stop_at(s, 0xC2842A, DC_N | DC_Z | DC_C);
+        return;
+    }
+    charge_settle(state_of(s));
+    menu_go_on_in(s, 0xC2842A, menu_nmi_work, DC_N | DC_Z | DC_C);
 }
 
 /* The vblank's two calls, run as C or on the machine (below): the frame's
@@ -596,7 +600,8 @@ void menu_line(GameState *g, Platform *pf) { (void)g, (void)pf; }
 static bool frame_sent_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
-    m_jsr_dc(s, 0xC2843F, 0xC285D6, NOTHING_READ);
+    if (!menu_run_called(s, 0xC2843F, 0xC285D6, NOTHING_READ, menu_vblank_upload))
+        return false;
     if (back_as_the_menus_run(s, MENUS_PAGE))
         return true;
     m_stop_dont_care(s, 0xC28442, 0);
@@ -606,7 +611,8 @@ static bool frame_sent_on_the_machine(void *ctx)
 static bool input_taken_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
-    m_jsr_dc(s, 0xC2844D, 0xC28473, INPUT_IGNORES);
+    if (!menu_run_called(s, 0xC2844D, 0xC28473, INPUT_IGNORES, menu_take_frame_input))
+        return false;
     if (back_as_the_menus_run(s, MENUS_PAGE))
         return true;
     m_stop_dont_care(s, 0xC28450, 0);

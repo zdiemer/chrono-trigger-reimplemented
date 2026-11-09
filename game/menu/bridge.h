@@ -100,6 +100,11 @@ bool menu_back(Snes *s, uint32_t returns_to, MenuMachine m);
  * one whose work is C on the game's state is called as C. */
 bool menu_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
 
+/* Replace a call-out with a checked C call, settling time at its call and
+ * return. False means the call left its C chain; true means it returned to
+ * the original return address. The caller checks its returned convention. */
+bool menu_run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
+
 /* The same for a sibling the original reaches with a JSL. */
 bool menu_run_long(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
 

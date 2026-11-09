@@ -14,12 +14,11 @@
  * colors that blink, cycle and rotate, the frame counts, a demo battle's
  * exit, the party running away while L and R are held, and the effects,
  * paths and objects (battle/effect_paths.c, battle/object_motion.c,
- * battle/draw_objects.c), which are still reached as the original's calls.
+ * battle/draw_objects.c).
  *
- * Most of the frame work's steps are other routines, many still the
- * original's, so the frame work and the frame update are bridges: they run
- * the ported steps as C and call the rest where the original does, on the
- * battle's page and data bank. */
+ * The steps call those services as C. Their machine adapters preserve the
+ * call contracts and time boundaries while their callers remain under the
+ * byte-exact gate; the native program uses the state/platform operations. */
 #include "battle/frame.h"
 
 #include "battle/battle.h"
@@ -30,6 +29,7 @@
 #include "battle/screen_script.h"
 #include "core/input.h"
 #include "core/palette.h"
+#include "menu/menu.h"
 #include "platform/timing.h"
 #include "battle/program.h"
 #include "battle/screen.h"
@@ -443,18 +443,19 @@ static UpdateEnds update_the_frame(GameState *g, Platform *pf, bool (*call)(void
     return UPDATE_DONE;
 }
 
-/* On the machine the object work is called from the original's calls; its
- * callees read nothing of the registers but A's high byte, which is 0 here
- * as the original's frame count leaves it. */
+/* The checked C calls retain their original call frames. Their callees
+ * read nothing of the registers but A's high byte, which is 0 here as the
+ * frame count leaves it. */
 enum { OBJECT_WORK_IGNORES = DC_X | DC_Y | DC_FLAGS | DC_AL };
 
 static const struct {
     uint32_t site, routine;
+    void (*entry)(Snes *);
 } object_work[UPDATE_KEEP_THE_ATTRIBUTES] = {
-    [UPDATE_PARTY_COLORS] = { 0xCFE5A7, 0xCFE7D7 }, [UPDATE_EFFECT_SLOTS] = { 0xCFE748, 0xCFEFAF },
-    [UPDATE_SCRIPTED_MOVES] = { 0xCFE750, 0xCFEC78 }, [UPDATE_ANCHORS] = { 0xCFE753, 0xCFECC2 },
-    [UPDATE_TRAILS] = { 0xCFE756, 0xCFED18 }, [UPDATE_NUMBERS] = { 0xCFE759, 0xCFE781 },
-    [UPDATE_FORMATION] = { 0xCFE761, 0xCFF9D3 }, [UPDATE_DRAW_OBJECTS] = { 0xCFE778, 0xCFE83A },
+    [UPDATE_PARTY_COLORS] = { 0xCFE5A7, 0xCFE7D7, battle_cycle_party_colors_entry }, [UPDATE_EFFECT_SLOTS] = { 0xCFE748, 0xCFEFAF, battle_step_effect_slots_entry },
+    [UPDATE_SCRIPTED_MOVES] = { 0xCFE750, 0xCFEC78, battle_step_scripted_moves_entry }, [UPDATE_ANCHORS] = { 0xCFE753, 0xCFECC2, battle_update_anchors_entry },
+    [UPDATE_TRAILS] = { 0xCFE756, 0xCFED18, battle_record_trails_entry }, [UPDATE_NUMBERS] = { 0xCFE759, 0xCFE781, battle_raise_numbers_entry },
+    [UPDATE_FORMATION] = { 0xCFE761, 0xCFF9D3, battle_place_formation_entry }, [UPDATE_DRAW_OBJECTS] = { 0xCFE778, 0xCFE83A, battle_draw_objects },
 };
 
 static bool update_on_the_machine(void *ctx, UpdateCall call)
@@ -466,7 +467,7 @@ static bool update_on_the_machine(void *ctx, UpdateCall call)
         m_push8(s, battle_effect_sprite_attributes(state_of(s)));
         return true;
     case UPDATE_ATTRIBUTES_BACK: (void)m_pull8(s); return true;
-    default: return battle_call(s, object_work[call].site, object_work[call].routine, OBJECT_WORK_IGNORES);
+    default: return battle_run_called(s, object_work[call].site, object_work[call].routine, OBJECT_WORK_IGNORES, object_work[call].entry);
     }
 }
 
@@ -594,14 +595,14 @@ static bool work_on_the_machine(void *ctx, WorkCall call)
     switch (call) {
     case WORK_SLIDE_FIRST: return battle_run(s, 0xCD08F5, 0xCD05B2, battle_step_window_slide);
     case WORK_SLIDE_SECOND: return battle_run(s, 0xCD08F8, 0xCD05B2, battle_step_window_slide);
-    case WORK_READ_PAUSED: return battle_call_long(s, 0xCD091A, 0xC28002, READS_Y);
-    case WORK_REPEAT_PAUSED: return battle_call(s, 0xCD091E, 0xCD0340, READS_NOTHING);
+    case WORK_READ_PAUSED: return battle_run_long_called(s, 0xCD091A, 0xC28002, READS_Y, menu_take_the_frames_input);
+    case WORK_REPEAT_PAUSED: return battle_run_called(s, 0xCD091E, 0xCD0340, READS_NOTHING, battle_update_button_repeat_entry);
     case WORK_SCROLL: return battle_scroll_the_layers(s);
     case WORK_SHAKE: return shake_on_the_machine(s);
     case WORK_GRADIENT:
         /* the step takes A's high byte along, which the ripple leaves clear */
         s->cpu.a = 0;
-        return battle_call_long(s, 0xCD0985, 0xD1EA4B, READS_A_HIGH);
+        return battle_run_long_called(s, 0xCD0985, 0xD1EA4B, READS_A_HIGH, battle_step_hp_gradient_entry);
     case WORK_HIDE_SPRITES:
         TIMED_AS(state_of(s), 0xCEF066, battle_hide_sprites(state_of(s)));
         s->cpu.a = BATTLE_PAGE;   /* as the original's clearing leaves it */
@@ -610,10 +611,10 @@ static bool work_on_the_machine(void *ctx, WorkCall call)
     case WORK_WAIT_FOR_THE_LINE:
         return battle_wait_line(s, 0xCD09AC, 0xCD3B82, DC_X | DC_Y | DC_FLAGS | DC_AH | DC_DB, LINE_TO_WAIT_FOR);
     case WORK_SCREEN_SCRIPTS: return battle_run(s, 0xCD09AF, 0xCD1609, battle_run_screen_scripts);
-    case WORK_PAUSE_PALETTES: return battle_call_long(s, 0xCD09BB, 0xD1F426, READS_NOTHING);
+    case WORK_PAUSE_PALETTES: return battle_run_long_called(s, 0xCD09BB, 0xD1F426, READS_NOTHING, battle_pause_palette_animation_entry);
     case WORK_ANIMATE_PALETTES: return battle_run_long_dc(s, 0xCD09BF, 0xFDFFF7, READS_NOTHING, palette_animate);
-    case WORK_READ: return battle_call_long(s, 0xCD09C6, 0xC28002, READS_Y);
-    default: return battle_call(s, 0xCD09CA, 0xCD0340, READS_NOTHING);
+    case WORK_READ: return battle_run_long_called(s, 0xCD09C6, 0xC28002, READS_Y, menu_take_the_frames_input);
+    default: return battle_run_called(s, 0xCD09CA, 0xCD0340, READS_NOTHING, battle_update_button_repeat_entry);
     }
 }
 

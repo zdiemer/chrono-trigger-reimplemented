@@ -2984,9 +2984,9 @@ comparisons.
 - **Battle and menu teardown preconditions.** Retire their wrappers and rows
   only after the unreached obligations and state readers below are resolved.
   The held boundaries and checked interrupt handoffs are described in
-  REIMPLEMENTATION.md, "Battle and menu held boundaries". Close the remaining
-  by-address calls from the menu NMI work and battle frame dispatch, and the
-  task work parked at yields. The scheduler's starts and resumptions have
+  REIMPLEMENTATION.md, "Battle and menu held boundaries". Close the task work
+  parked at yields and the remaining battle/overworld calls into frame and
+  script services. The scheduler's starts and resumptions have
   held continuations, and the field no longer remains suspended across menu
   mode. Menu checkpoints at frames 1,800, 2,100 and 2,400 now have no suspended
   routine; later checkpoints still have one or two. Preserve the root task

@@ -96,7 +96,7 @@ static bool came_back_from(Snes *s, uint32_t returns_to, uint16_t page, ComesBac
 }
 
 static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
-                      bool long_call, ComesBack how)
+                      bool long_call, ComesBack how, bool replaces_call_out)
 {
     uint16_t page = m_direct_page(s), stack = s->cpu.s;
     uint32_t returns_to = site + (long_call ? BATTLE_JSL_SIZE : BATTLE_JSR_SIZE);
@@ -105,12 +105,18 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     m_push16(s, (uint16_t)(returns_to - 1));
     s->cpu.pb = (uint8_t)(routine >> 16);
     s->cpu.pc = (uint16_t)routine;
+    if (replaces_call_out)
+        charge_settle(state_of(s));
     /* the sibling runs as C only where the runtime would run it there, its
      * guard and preconditions holding; otherwise the call is a real one, and
      * the runtime runs whatever the registry has for the state it meets */
     const NativeEntry *e = native_hand_entry(s);
     bool retired = (!e || e->fn != entry) && core_machine_form_takes(s, entry);
     if ((!e || e->fn != entry) && !retired) {
+        if (replaces_call_out) {
+            m_stop_at(s, routine, dont_care);
+            return false;
+        }
         /* a real call, which goes on only on the page it was made on: one
          * that comes back on another stops at its return */
         s->cpu.s = stack;
@@ -120,6 +126,8 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     bool returned = s->cpu.s == stack && s->cpu.pb == (uint8_t)(returns_to >> 16) && s->cpu.pc == (uint16_t)returns_to;
     if (returned && !retired)
         native_poison_sibling_return(s, e);
+    if (replaces_call_out && returned)
+        charge_settle(state_of(s));
     return returned && came_back_from(s, returns_to, page, how);
 }
 
@@ -128,27 +136,40 @@ void battle_pull_the_return(Snes *s) { m_pull16(s); }
 
 bool battle_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *))
 {
-    return run_entry(s, site, routine, 0, entry, false, BACK_ON_THE_PAGE);
+    return run_entry(s, site, routine, 0, entry, false, BACK_ON_THE_PAGE, false);
 }
 
 bool battle_run_long(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *))
 {
-    return run_entry(s, site, routine, 0, entry, true, BACK_ON_THE_PAGE);
+    return run_entry(s, site, routine, 0, entry, true, BACK_ON_THE_PAGE, false);
 }
 
 bool battle_run_dc(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
 {
-    return run_entry(s, site, routine, dont_care, entry, false, BACK_ON_THE_PAGE);
+    return run_entry(s, site, routine, dont_care, entry, false, BACK_ON_THE_PAGE, false);
 }
 
 bool battle_run_long_dc(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
 {
-    return run_entry(s, site, routine, dont_care, entry, true, BACK_ON_THE_PAGE);
+    return run_entry(s, site, routine, dont_care, entry, true, BACK_ON_THE_PAGE, false);
 }
 
 bool battle_run_long_to_any_page(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *))
 {
-    return run_entry(s, site, routine, 0, entry, true, BACK_ON_ANY_PAGE);
+    return run_entry(s, site, routine, 0, entry, true, BACK_ON_ANY_PAGE, false);
+}
+
+/* The frame dispatcher used to yield to the machine at these calls. Its
+ * work and its callee's keep their separate time boundaries, and refusal
+ * leaves the pushed call at the original entry. */
+bool battle_run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
+{
+    return run_entry(s, site, routine, dont_care, entry, false, BACK_ON_THE_PAGE, true);
+}
+
+bool battle_run_long_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
+{
+    return run_entry(s, site, routine, dont_care, entry, true, BACK_ON_THE_PAGE, true);
 }
 
 bool battle_widths_m8_x16(const Snes *s) { return !s->cpu.e && m_m8(s) && !m_x8(s); }

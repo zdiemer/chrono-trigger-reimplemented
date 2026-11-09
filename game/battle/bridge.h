@@ -109,6 +109,11 @@ void battle_pull_the_return(Snes *s);
 bool battle_run_dc(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
 bool battle_run_long_dc(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
 
+/* Former call-outs, checked after their call frame is pushed. They settle
+ * the caller and callee separately and stop at the original entry on refusal. */
+bool battle_run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
+bool battle_run_long_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
+
 /* battle_run_long for a sibling that comes back on a page and data bank of
  * its own, which the caller puts right after the call (the field's music
  * after a battle, field/sounds.c): true if it came back to the call's return
