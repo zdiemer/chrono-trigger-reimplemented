@@ -1018,7 +1018,7 @@ why = "The complete call-in turn sets the helper's tech-number cell from the sam
 base = "battle_effect_hit"
 variant = "unreached_damage_formulas"
 args = ["--fill", "7EAE4D-7EAE4D=30", "--fill", "7EAEEB-7EAEEB=09,0A"]
-why = "Damage formulas nine and ten always land, isolating their arithmetic from the random hit tests."
+why = "Formula selectors nine and ten take the weapon fallback, with both landing tests bypassed. The original's later 9/10 bodies are unreachable; the reviewed exclusion records why."
 
 [[case]]
 base = "battle_effect_hit"

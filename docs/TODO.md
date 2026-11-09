@@ -2905,7 +2905,7 @@ comparisons.
   entry still lacks a plain recipe: `battle_call_enemies_in` (42 bytes).
 
   The discovery union of 612 clean recipes and the reviewed exclusions
-  leaves 1,252 battle bytes in 60 entries and 109 menu bytes in 22 entries.
+  leaves 1,070 battle bytes in 60 entries and 109 menu bytes in 22 entries.
   Older runs in this union guide the remaining cases; they are not fresh
   retirement evidence. Replay the completed recipes against the final tree.
   Preserve the complete sprite/frame/output bounds, startup-built OAM
@@ -2918,10 +2918,11 @@ comparisons.
   retain provisional estimates until a movie measures them. Record the reviewed exclusions and
   matched recipes in the unreached ledger before either subsystem retires.
 
-  `unreached_safe.toml` records fourteen further reviewed exclusions: zero map
+  `unreached_safe.toml` records fifteen further reviewed exclusions: zero map
   selectors, an exchange with no selectable row, fixed hex-glyph and sprite
   assignment encodings, the empty name caught by the earlier duplicate
-  check, hits whose guard excludes stealing, a restore modifier absent
+  check, hits whose guard excludes stealing, the two damage-formula bodies
+  bypassed for every byte selector, a restore modifier absent
   from the fixed parameter table, the battle tail's disabled debug arm,
   a hanging wedge's necessarily flat top, and the stopping spiral's
   single-mover restriction, and random-target branches no fixed aim record

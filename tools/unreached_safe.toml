@@ -223,3 +223,9 @@ name = "battle_nmi"
 runs = "D1E84B-D1E879"
 depends = ["game/battle/nmi.c:take_frame_advance", "game/battle/screen_data.h:battle_debug_frame_advance"]
 why = "These are the R/L debug frame-advance controls behind the fixed USA cartridge switch at $CD:3FFF, which is zero. The C handler retains the operation and its switch check. Recheck this exclusion if the debug setting becomes editable; the ordinary Start pause is separate and requires execution evidence."
+
+[[safe]]
+name = "battle_effect_hit"
+runs = "C1E4BB-C1E510,C1E515-C1E574"
+depends = ["game/battle/effect_amounts.c:damage_worked_out", "game/battle/effect_amounts.c:formula", "game/battle/effect_amounts.c:FORMULA_LEFT_AS_IT_IS", "game/battle/effect_work.c:hit_target"]
+why = "Only formula selector 8 reaches the original's later tests for selectors 9 and 10: its equality branch skips the weapon formula to those tests with A still 8, so both fail. Every other selector not already handled runs the weapon formula and jumps past both bodies. These two bodies are unreachable from the hit entry for every byte selector, independently of the cartridge's records. Preserve selector 8's unchanged quotient and the weapon fallback for selectors outside 1 through 8. The directed 9/10 fixture compares that fallback, not these dead bodies."
