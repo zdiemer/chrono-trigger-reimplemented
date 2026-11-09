@@ -67,7 +67,7 @@ static void unpack_the_letters_on_the_machine(void *ctx)
     Snes *s = ctx;
     scene_bridge_enter(s, LOADER_CALL);
     s->cpu.x = LETTERS;
-    (void)scene_run(s, 0x7E6C3F, UNPACK, UNPACK_IGNORES, scene_unpack_resource);
+    (void)scene_run_called(s, 0x7E6C3F, UNPACK, UNPACK_IGNORES, scene_unpack_resource);
     scene_bridge_leave(s);
 }
 

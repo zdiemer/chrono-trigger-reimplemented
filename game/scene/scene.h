@@ -985,8 +985,10 @@ enum { SCENE_Y_PAST_THE_WORKING_PALETTE = 0x2400, SCENE_Y_PAST_THE_ANIMATIONS_SL
  * back to the call's return with the stack as it was; otherwise it stopped,
  * and the original carries on from where it did. */
 bool scene_run(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
+bool scene_run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
 bool scene_accept_continuation(Snes *s, uint32_t at, void (*entry)(Snes *));
 bool scene_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
+bool scene_run_long_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
 
 
 /* scene/program.c: the scene program as C, for a program with no machine

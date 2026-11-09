@@ -4288,6 +4288,18 @@ retired decompressor's existing estimation error. Inlining those boundaries
 into the enclosing comparisons produced two Beyond Time state differences
 and moved the unpacker's 333,201-clock error into its caller. Restoring the
 comparison boundaries clears the state differences without a new exception.
+The console likewise leaves the NMI's shadow entry isolated: inlining it
+made every NMI comparison abandoned. Shipping calls settle the caller after
+pushing the return frame and the callee before returning, just as the old
+call-outs did. In particular, settling the field's curtain call before its
+return-frame push advances the attract transition four frames and loses
+protected picture 10500 and place 25; settling after the push restores both.
+The held race wait changes only unprotected picture observations in
+`attract-demo` and `events-jetbike-race-won`. An A/B replay restoring only
+the old race hand-off reproduces their previous picture digests; their
+complete saved-game, save-RAM and place observations are identical.
+The two existing picture exceptions record that measured change, while
+every protected picture identity remains required.
 
 Over `attract-demo`, `title-start` and `events-jetbike-race-won`, the initial
 census entered 15 scene rows by the machine 55,452 times: 36,880 calls,

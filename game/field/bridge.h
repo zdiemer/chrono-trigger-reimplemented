@@ -78,6 +78,8 @@ bool bridge_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
 bool field_run(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *), BridgeMachine m);
 bool field_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
                     BridgeMachine m);
+bool field_run_long_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
+                           BridgeMachine m);
 
 /* field_run for a call made from the bottom of the field's stack (the main
  * loop's steps): where the registry wouldn't run `entry`, the port makes the

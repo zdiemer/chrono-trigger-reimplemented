@@ -108,6 +108,17 @@ static void take_interrupt(Snes *s, ProgramStub stub)
     for (unsigned i = 0; i < CALLED_HANDLERS; i++) {
         if (called_handlers[i].handler != stub.handler)
             continue;
+        bool scene_handler = called_handlers[i].run == scene_nmi ||
+                             called_handlers[i].run == scene_nmi_while_working ||
+                             called_handlers[i].run == scene_boot_nmi ||
+                             called_handlers[i].run == scene_boot_line_irq ||
+                             called_handlers[i].run == scene_line_irq_ack;
+        if (scene_handler && !m_runs_retired_as_c(s)) {
+            m_stop_at(s, called_handlers[i].handler, 0);
+            return;
+        }
+        if (scene_handler)
+            charge_settle(state_of(s));
         const NativeEntry *e = native_continuation_entry_at(s, stub.handler);
         if ((e && e->fn == called_handlers[i].run) ||
             (m_runs_retired_as_c(s) && field_machine_form_takes(s, called_handlers[i].run)))

@@ -140,6 +140,12 @@ bool field_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care
     return run_entry(s, site, routine, dont_care, entry, m, true, false, false);
 }
 
+bool field_run_long_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
+                           BridgeMachine m)
+{
+    return run_entry(s, site, routine, dont_care, entry, m, true, true, true);
+}
+
 bool field_run_holding(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
                        BridgeMachine m, uint8_t held)
 {

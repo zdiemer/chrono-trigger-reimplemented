@@ -775,8 +775,8 @@ static bool sweep_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
     s->cpu.x = CURTAIN_INDEX;
-    return field_run_long(s, 0xC022FA, CURTAIN_SWEEP, CURTAIN_READS_X, scene_curtain_jump,
-                          on_the_field_page(s, false));
+    return field_run_long_called(s, 0xC022FA, CURTAIN_SWEEP, CURTAIN_READS_X, scene_curtain_jump,
+                                 on_the_field_page(s, false));
 }
 
 static bool draw_bg1_on_the_machine(void *ctx, Moment at)

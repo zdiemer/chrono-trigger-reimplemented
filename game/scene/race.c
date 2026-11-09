@@ -161,7 +161,7 @@ enum { UNPACK = 0x7E3691, UNPACK_IGNORES = DC_A | DC_Y | DC_N | DC_Z | DC_C };
 static void unpack(Snes *s, uint32_t site, uint16_t resource)
 {
     s->cpu.x = resource;
-    (void)scene_run(s, site, UNPACK, UNPACK_IGNORES, scene_unpack_resource);
+    (void)scene_run_called(s, site, UNPACK, UNPACK_IGNORES, scene_unpack_resource);
 }
 
 /* While the setup works on the racers' pictures the program keeps the data
@@ -197,7 +197,7 @@ static void first_script_step(Snes *s)
     m_set_flag(s, CPU_FLAG_M, false);
     s->cpu.y = DIVISORS_CLEARED_TO;
     m_set_flag(s, CPU_FLAG_V, false);
-    (void)scene_run(s, FIRST_STEP_CALL, CHANNEL_0_STEP, FIRST_STEP_IGNORES, scene_run_channel_0_script);
+    (void)scene_run_called(s, FIRST_STEP_CALL, CHANNEL_0_STEP, FIRST_STEP_IGNORES, scene_run_channel_0_script);
     on_page(s, m_direct_page(s), m_pull8(s));
 }
 
@@ -727,7 +727,7 @@ static bool sweep_curtain_with(GameState *g, Platform *pf, bool (*step)(void *ct
 
 static bool curtain_step_on_the_machine(void *ctx)
 {
-    (void)scene_run_long(ctx, 0x7E3D72, CURTAIN_STEP, CURTAIN_IGNORES, scene_curtain_jump);
+    (void)scene_run_long_called(ctx, 0x7E3D72, CURTAIN_STEP, CURTAIN_IGNORES, scene_curtain_jump);
     return true;
 }
 
@@ -988,7 +988,7 @@ void race_sound_on_the_machine(void *ctx, GameState *g, Platform *pf, RaceSound 
     Snes *s = ctx;
     bool a_8bit = m_flag(s, CPU_FLAG_M);
     m_set_flag(s, CPU_FLAG_M, true);
-    (void)scene_run(s, race_sounds[sound].site, SCENE_SEND, DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C,
+    (void)scene_run_called(s, race_sounds[sound].site, SCENE_SEND, DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C,
                     scene_send_sound_command);
     m_set_flag(s, CPU_FLAG_M, a_8bit);
 }

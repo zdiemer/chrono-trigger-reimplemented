@@ -436,7 +436,7 @@ static void send_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
     m_set_flag(s, CPU_FLAG_M, true);
-    (void)scene_run(s, 0x7E8EB2, SCENE_SEND, SEND_IGNORES, scene_send_sound_command);
+    (void)scene_run_called(s, 0x7E8EB2, SCENE_SEND, SEND_IGNORES, scene_send_sound_command);
 }
 
 static void scatter_on_the_machine(void *ctx)

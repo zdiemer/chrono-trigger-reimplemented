@@ -335,7 +335,7 @@ static bool run_task_list(Snes *s, SceneTaskList list)
                  DC_X | DC_N | DC_Z | (vblank ? DC_A : 0));
         return can_continue(s);
     }
-    return scene_run_long(s, vblank ? 0xC308F7 : 0xC30938, vblank ? 0x7E39BE : 0x7E398A,
+    return scene_run_long_called(s, vblank ? 0xC308F7 : 0xC30938, vblank ? 0x7E39BE : 0x7E398A,
                           DC_X | DC_N | DC_Z | (vblank ? DC_A : 0),
                           vblank ? scene_run_vblank_tasks : scene_run_frame_tasks) && can_continue(s);
 }
@@ -460,7 +460,7 @@ void scene_nmi(Snes *s)
     m_push8(s, c->db);
 
     if (m_runs_retired_as_c(s)) {
-        if (!scene_run_long(s, 0xC308BA, 0xC308D0, 0, scene_frame_work_entry))
+        if (!scene_run_long_called(s, 0xC308BA, 0xC308D0, 0, scene_frame_work_entry))
             return;
     } else {
         m_jsl(s, 0xC308BA, 0xC308D0);
