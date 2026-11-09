@@ -3553,6 +3553,8 @@ const NativeEntry game_held_waits[] = {
     { .addr = 0xC2250D, .name = "overworld_halt", .fn = overworld_halt_entry, NEEDS_M8_X16_BINARY,
       .cost_milli = 3000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .hold = HOLD_OVERWORLD_HALT, .retired = true, .guard = overworld_main_loop_runs },
+    { .addr = 0xC22556, .name = "overworld_back_from_the_menus", .fn = overworld_back_from_the_menus, NEEDS_M8_X16_BINARY,
+      .cost_milli = 1, .hold = HOLD_OVERWORLD_FRAME, .retired = true, .guard = overworld_main_loop_runs },
     /* the field's wait for the next frame: its pass, for every routine that
      * waits there, which returns to the caller's rest once the vblank handler
      * has taken the frame (a data bank reaching low RAM); and the main loop's

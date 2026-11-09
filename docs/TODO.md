@@ -2876,11 +2876,13 @@ comparisons.
   remaining overworld calls into menu services. The scheduler's starts,
   resumptions, description typing and fade-in have
   held continuations, and the field no longer remains suspended across menu
-  mode. Menu checkpoints at frames 1,800, 2,100 and 2,400 now have no suspended
-  routine; later checkpoints still have one or two. Preserve the root task
+  mode. Preserve the root task
   boundaries and comparison checkpoints while removing those remaining
   suspensions; nesting the next task in the previous task's C chain changes
   its return boundary.
+
+  Item-use waits at menu frames 3,000 and 3,900 still suspend their caller;
+  turn those sequences into held continuations.
 
   The shared fade start and resume also cover the original's fade-out calls;
   its enclosing C callers still park and need the remaining held returns.

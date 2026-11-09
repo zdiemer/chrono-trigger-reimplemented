@@ -353,7 +353,7 @@ void menu_mode_return(Snes *s)
     m_set_nz16(s, s->cpu.d);
     m_set_flag(s, CPU_FLAG_I, true);
     m_rtl(s);
-    native_hold(s, HOLD_FIELD_FRAME);
+    native_hold(s, s->cpu.pb == 0xC2 && s->cpu.pc == 0x2556 ? HOLD_OVERWORLD_FRAME : HOLD_FIELD_FRAME);
 }
 
 // $C2:832F

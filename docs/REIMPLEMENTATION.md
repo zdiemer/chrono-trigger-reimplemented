@@ -4386,6 +4386,21 @@ step.
 
 ### Battle and menu precondition repairs
 
+The overworld's menu call also keeps its return as a held continuation.
+The runtime report exposed the previous screen-long suspension as
+`overworld_next_frame` waiting for `$C2:8000` to return to `$C2:2556`.
+Its checked long call now ends at the menu hand-off, and the menu's return
+selects the overworld hold. Native-shape checkpoints at frames 4,800, 5,400
+and 6,000 of `menus-sweep` have no suspended caller. Eight save/reload
+checks replay identically; the two item-use checkpoints at 3,000 and 3,900
+still require exact replay from a prior base. Before/after traces remain
+identical in every region for `menus-sweep` (6,424 frames), `menus-epoch`
+(8,800) and `battle-menu-buttons` (5,086).
+Across those three movies the machine-entered census falls from 37 entries
+and 48,214 calls to 36 and 48,213; entries called only as C rise from 860
+to 861. The source adds one held continuation, without retiring an ordinary
+row. These counts include the merged scene teardown.
+
 The object-script audit found 22 scene helpers absent from its C tables.
 They now implement the iris and scroll patterns, horizontal and vertical
 waves, grayscale bands, scene graphics, object acceleration and scene
@@ -4422,6 +4437,21 @@ rejects 829; a structured hexadecimal fixture compares all 2,000. Negative
 script branches, duplicate and blank names, post-sound continuations and
 gold subtraction wrap have additional directed recipes. These are
 precondition repairs under the existing gate, not a retirement.
+
+The scene-helper input audit parses all eight object-script scenes without
+errors. Both graphics-loader callers set the resource offset immediately
+before each load; scene 6 writes its answer immediately before each result
+is kept. Scene 3 supplies the edge height and all three table-pointer bytes
+before its edge call, and scene 4 initializes the gray-band offset before
+moving it. Scene 6 initializes the wave's slot fields before advancing it.
+These ordinary script writes replace the menu scratch aliases; the effects
+ledger names their script sites individually. Its other new entries are
+read-only equipment preflights and object velocity initialized by the object
+mode and script. No scaffolding write was promoted merely to silence the
+alias reports. The initial validation has 37 clean shadow movies, identical
+new-game traces and passing timing, but its full gate was stopped after the
+Python suite exposed these 27 unaudited aliases (its only failure in 565
+tests). That run is not a passing gate.
 
 ### The scene program's teardown
 

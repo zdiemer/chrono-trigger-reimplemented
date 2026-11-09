@@ -31,6 +31,7 @@ bool overworld_main_loop_runs(Snes *s);
  * its code don't. */
 void overworld_wait_for_the_next_frame_on_the_machine(Snes *s);
 void overworld_next_frame(Snes *s);
+void overworld_back_from_the_menus(Snes *s);
 void overworld_waits_for_the_frame(Snes *s);
 bool overworld_frame_counted(Snes *s);
 bool overworld_frame_not_counted(Snes *s);

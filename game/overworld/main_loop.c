@@ -671,7 +671,7 @@ static Pass menus_on_the_machine(void *ctx, OverworldMode mode)
     m_set_flag(s, CPU_FLAG_N, false);
     m_set_flag(s, CPU_FLAG_Z, false);
     m_set_flag(s, CPU_FLAG_C, true);
-    if (!menu_call_long(s, 0xC22552, 0xC28000, DC_AH | DC_Y | DC_C))
+    if (!menu_run_long_called(s, 0xC22552, 0xC28000, DC_AH | DC_Y | DC_C, menu_mode_enter))
         return PASS_STOPS;
     if (!overworld_loop_accepts_machine(s)) {
         program_breaks_a_contract(state_of(s), BACK_FROM_THE_MENUS, "the menus back to the world map outside its contract");
@@ -822,4 +822,12 @@ static Pass come_back_to_the_map_s_screen(Snes *s)
     Pass p = PASS_STOPS;
     TIMED_AS(state_of(s), 0xC2255A, p = come_back_from_the_menus(&l));
     return p;
+}
+
+// $C2:2556
+/* The menus kept the caller's machine frame while their tasks ran. Restore
+ * the map from that frame without keeping its opening pass suspended. */
+void overworld_back_from_the_menus(Snes *s)
+{
+    after_the_pass(s, come_back_to_the_map_s_screen(s));
 }

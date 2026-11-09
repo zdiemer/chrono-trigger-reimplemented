@@ -736,6 +736,9 @@ A state still can't hold a native routine suspended in a call-out
 ([PORTING.md](PORTING.md)), which is why `ct_play` waits for none to be before
 a quick save. What it does hold is which held wait the main thread rests in
 (`snes.held_wait`, `snes.held_wait_s`; below).
+The native report lists suspended and parked callers with their wait target, return and
+stack depth, so a stale save boundary can be traced to the caller that still
+needs a held continuation.
 
 ## Held waits
 

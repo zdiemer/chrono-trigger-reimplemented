@@ -4003,6 +4003,18 @@ void native_report(const NativeRuntime *rt, FILE *out)
     }
     if (rt->nactive)
         fprintf(out, "  %d routine(s) still in progress\n", rt->nactive);
+    for (int i = 0; i < rt->nactive; i++) {
+        const Active *a = &rt->active[i];
+        if (!a->job)
+            continue;
+        fprintf(out, "  suspended %06X %s: waiting at %06X, return %06X, stack %04X\n",
+                a->entry->addr, a->entry->name, a->job->call_target, a->job->call_ret, a->job->call_s_after);
+    }
+    for (int i = 0; i < rt->nparked; i++) {
+        const Active *a = &rt->parked[i].a;
+        fprintf(out, "  parked %06X %s: waiting at %06X, return %06X, stack %04X\n",
+                a->entry->addr, a->entry->name, a->job->call_target, a->job->call_ret, a->job->call_s_after);
+    }
     for (int i = 0; i < rt->nactive; i++)
         if (rt->active[i].failed_passes)
             fprintf(out, "  mismatch %06X %s: %s (still waiting for a pass that matches when the run ended)\n",
