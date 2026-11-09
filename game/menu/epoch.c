@@ -1816,10 +1816,12 @@ void menu_epoch_time_dial_screen(Snes *s)
 // $C2:63BD
 void menu_epoch_map_frame_finished(Snes *s)
 {
-    if (menu_mode(state_of(s)) == MAP_VIEW_MODE)
-        (void)wait_a_frame_on_the_machine(s, THE_MAP_VIEW);
-    else
-        (void)wait_frames_on_the_machine(s, MAP_VIEW_CLOSING);
+    if (menu_mode(state_of(s)) == MAP_VIEW_MODE) {
+        if (wait_a_frame_on_the_machine(s, THE_MAP_VIEW))
+            m_stop_at(s, 0xC263BD, 0);
+    } else if (wait_frames_on_the_machine(s, MAP_VIEW_CLOSING)) {
+        m_stop_at(s, 0xC263CA, 0);
+    }
 }
 
 // $C2:63CA
@@ -1833,18 +1835,21 @@ void menu_epoch_map_finished(Snes *s)
 // $C2:6A9C
 void menu_epoch_dial_opened(Snes *s)
 {
-    (void)wait_a_frame_on_the_machine(s, THE_TIME_DIAL);
+    if (wait_a_frame_on_the_machine(s, THE_TIME_DIAL))
+        m_stop_at(s, 0xC26A9F, 0);
 }
 
 // $C2:6A9F
 void menu_epoch_dial_frame_finished(Snes *s)
 {
     if (menu_mode(state_of(s)) == DIAL_MODE) {
-        (void)wait_a_frame_on_the_machine(s, THE_TIME_DIAL);
+        if (wait_a_frame_on_the_machine(s, THE_TIME_DIAL))
+            m_stop_at(s, 0xC26A9F, 0);
         return;
     }
     start_a_script_with(state_of(s), DIAL_ENDING_SCRIPT, &screen_steps_on_the_machine, s);
-    (void)wait_frames_on_the_machine(s, DIAL_CLOSING);
+    if (wait_frames_on_the_machine(s, DIAL_CLOSING))
+        m_stop_at(s, 0xC26AB4, 0);
 }
 
 // $C2:6AB4

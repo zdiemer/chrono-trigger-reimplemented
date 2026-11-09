@@ -38,6 +38,10 @@ CASES = (
     ("menu_fade_starts", "menus-sweep", 6424, (), ("menu_fade_starts",)),
     ("menu_tonic_member_choice_continues", "menus-field-menu", 10600, (), ("menu_tonic_member_choice_continues",)),
     ("menu_tab_member_choice_continues", "menus-sweep", 6424, (), ("menu_tab_member_choice_continues",)),
+    ("menu_epoch_map_frame_finished", "menus-epoch", 8800, (), ("menu_epoch_map_frame_finished",)),
+    ("menu_epoch_dial_opened", "menus-epoch", 8800, (), ("menu_epoch_dial_opened",)),
+    ("menu_epoch_dial_frame_finished", "menus-epoch", 8800, (), ("menu_epoch_dial_frame_finished",)),
+    ("menu_counted_frame_finished", "menus-epoch", 8800, (), ("menu_counted_frame_finished",)),
     ("battle_frame_dispatch", "battle-menu-buttons", 5086, ("battle_nmi", "battle_nmi_alternate"), ()),
 )
 

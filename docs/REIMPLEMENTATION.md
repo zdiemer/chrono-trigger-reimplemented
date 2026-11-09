@@ -4315,12 +4315,20 @@ not a screen loop; its replay is exact too. The runtime's suspension report
 now distinguishes that settlement from a call-out, instead of displaying
 the job's stale call-out target. The suspension, state, shadow and timing
 unit tests pass, and liveness finds no invalid return or call declaration.
-The counted continuation's standalone shadow comparison ends before it
-pops the saved count: that pop crosses its entry stack level, which the
-comparison engine treats as a return. The whole-wait entry still compares
-the complete countdown. Focused replays of `menus-sweep`, `menus-epoch`,
-`events-epoch-lavos` and `field-65m-bc-dactyl-flight` compare all 18 whole
-waits with no mismatch; their continuation mailbox stretches also match.
+The counted continuation declares the two saved countdown bytes above its
+return frame (`pulls = 2`). Shadow mode can then compare each countdown
+step through its next wait: popping that word is not a return, and no
+countdown instruction is handed back to the original. The whole-wait entry
+also compares the complete countdown. The Epoch continuations declare their
+stops at the next frame or closing wait, so each comparison includes the
+screen work on both sides of the wait.
+The isolated `menus-epoch` comparisons cover all 234 countdown steps, 165
+map waits, and 876 calls to each dial continuation, with no mismatch or
+interruption. The gate repeats these isolated comparisons because the
+enclosing screen and countdown routines claim their combined-run comparison
+points. At the countdown's next step, only the mailbox load's overwritten
+low accumulator and N/Z flags are left out; its actual return still compares
+the whole result. Four focused shadow movies have no countdown handback.
 The map-to-menu HDMA writes now belong to `overworld_menu_fade_finished`.
 Their two shipping lines remain 53 and 161, against reference lines 54 and
 159 in `field-65m-bc-dactyl-flight` and `menus-sweep`. The existing video

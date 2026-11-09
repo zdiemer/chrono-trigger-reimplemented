@@ -3513,7 +3513,7 @@ const NativeEntry game_held_waits[] = {
       .guard = menu_frame_wait_on_page, .dont_care = DC_X | DC_Y | DC_N | DC_Z | DC_C,
       .hold = HOLD_MENU_FRAME },
     { .addr = 0xC20458, .name = "menu_counted_frame_finished", .fn = menu_counted_frame_finished, NEEDS_M8_X16,
-      .cost_milli = 3092, .guard = menu_on_page_low_ram, .hold = HOLD_MENU_FRAME },
+      .cost_milli = 3092, .guard = menu_on_page_low_ram, .pulls = 2, .hold = HOLD_MENU_FRAME },
     { .addr = 0xC263BD, .name = "menu_epoch_map_frame_finished", .fn = menu_epoch_map_frame_finished, NEEDS_M8_X16,
       .cost_milli = 4560, .guard = menu_map_page_is_menu, .hold = HOLD_MENU_FRAME, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xC263CA, .name = "menu_epoch_map_finished", .fn = menu_epoch_map_finished, NEEDS_M8_X16,
