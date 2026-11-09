@@ -948,7 +948,7 @@ matters. Past the end of a data area, indexed reads reach I/O space, where open
 bus holds the last byte on the data bus. The interpreter's instruction fetches
 set it and native code doesn't, so those reads differ in ways real game data
 never exercises. `--range` limits a register (script offsets, for example), and
-`--keep` leaves a WRAM range as it is in the base state. `--fill BBAAAA-BBAAAA=lo-hi` gives a WRAM range random bytes within limits, for example a pointer's bank byte in script operands.
+`--keep` leaves a RAM range as it is in the base state. `--fill BBAAAA-BBAAAA=lo-hi` gives it random bytes within limits, for example a pointer's bank byte in script operands. Areas include work RAM and the HiROM cartridge-save mirrors (`$20-$3F` and `$A0-$BF`, `$6000-$7FFF`); ROM and device registers are not written. A marked slot with a synthetic body and an incorrect checksum can therefore compare the menus' spoiled-save answer. Fills and ties use the same save-memory mapping, without changing the base state.
 
 An area need not be every byte of its range, nor a fill a range of bytes:
 

@@ -465,6 +465,16 @@ int main(void)
     CHECK(r.matched == 200, "assumes_tied with the tie, filled after it: matched %lu mismatched %lu", r.matched,
           r.mismatched);
 
+    /* A save-RAM fill can supply a tied work-RAM input through a mirror.
+     * The wrong port succeeds only if both fixture writes and reads work. */
+    o = options(200);
+    CHECK(fuzz_parse_area("306010-306010=5A", false, &o.areas[o.nareas++]), "fill cartridge save RAM");
+    CHECK(fuzz_parse_area("7E0040-7E0040=5A", false, &o.areas[o.nareas++]), "fill matching work RAM");
+    CHECK(fuzz_parse_area("7E0042-7E0042=@B06010", false, &o.areas[o.nareas++]), "read save RAM through its mirror");
+    r = run(12, &o, log, sizeof log);
+    CHECK(r.matched == 200 && r.mismatched == 0, "save fill and mirrored tie: matched %lu", r.matched);
+    CHECK(base.bus.sram[0x10] != 0x5A, "a fixture does not change the base save");
+
     /* Areas. */
     FuzzArea a;
     CHECK(fuzz_parse_area("7F:[7E006D]-8,10=00-0F", false, &a) && a.base == FUZZ_AT_CELL && a.pointer == 0x7E006D &&

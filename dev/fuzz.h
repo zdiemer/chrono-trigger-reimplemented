@@ -15,7 +15,7 @@
 #define FUZZ_MAX_STOP_CALLS 12
 #define FUZZ_MAX_TICKS 8
 
-/* A range of work RAM the fuzzer sets: from the base state (keep) or random
+/* A range of work RAM or cartridge save RAM the fuzzer sets: from the base state (keep) or random
  * bytes from lo to hi (fill). Absolute, lo_addr-hi_addr as 24-bit bus
  * addresses; or relative to a pointer the state holds: `count` bytes at the
  * 16-bit pointer in the work RAM cell `pointer` (or in X, Y or D), plus

@@ -144,17 +144,33 @@ static long wram_index(uint32_t addr)
     return -1;
 }
 
+/* Only RAM is writable by a fixture: ROM and device registers stay intact.
+ * These are the cartridge save mirrors in the HiROM system banks. */
+static long sram_index(uint32_t addr)
+{
+    uint8_t bank = (uint8_t)(addr >> 16);
+    uint16_t a = (uint16_t)addr;
+    if (!(bank & 0x40) && (bank & 0x7F) >= 0x20 && a >= 0x6000 && a < 0x8000)
+        return (long)((a - 0x6000) % SNES_SRAM_SIZE);
+    return -1;
+}
+
 static void put_byte(Snes *m, uint32_t addr, uint8_t v)
 {
     long i = wram_index(addr);
     if (i >= 0)
-        m->bus.wram[i] = v;   /* not work RAM: nothing to set */
+        m->bus.wram[i] = v;
+    else if ((i = sram_index(addr)) >= 0)
+        m->bus.sram[i] = v;
 }
 
 static uint8_t get_byte(const Snes *m, uint32_t addr)
 {
     long i = wram_index(addr);
-    return i < 0 ? 0 : m->bus.wram[i];
+    if (i >= 0)
+        return m->bus.wram[i];
+    i = sram_index(addr);
+    return i < 0 ? 0 : m->bus.sram[i];
 }
 
 /* The element of `f` that starts at `addr`, the n-th: `room` bytes of it are
