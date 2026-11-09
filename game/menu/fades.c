@@ -255,6 +255,13 @@ void menu_fade_in_resumes(Snes *s)
                               THE_WAITS_IGNORE_THE_FLAGS, menu_task_waits_frames);
         return;
     }
+    /* The full-brightness return is also reached independently by shadow
+     * play. Its caller sees full brightness and the successful clamp. */
+    m_set_a8(s, FULL_BRIGHTNESS);
+    m_set_flag(s, CPU_FLAG_N, false);
+    m_set_flag(s, CPU_FLAG_V, false);
+    m_set_flag(s, CPU_FLAG_Z, true);
+    m_set_flag(s, CPU_FLAG_C, true);
     m_rts(s);
     native_hold(s, HOLD_MENU_TASKS);
 }

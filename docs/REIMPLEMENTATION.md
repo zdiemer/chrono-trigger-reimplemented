@@ -4278,7 +4278,9 @@ selects a stack; nesting one task inside another would change the return
 boundary. Description typing and fade-in now have continuations for each
 frame and their task's completion. The setting description's handoff into
 its value keeps the setting task's calibrated rate. Fade-out and the menu
-screen sequences still have parked callers to remove.
+screen sequences still have parked callers to remove. The fade's new loop
+continuation can also start independently in shadow play; its full-brightness
+return leaves the clamp's value and flags, preserving that comparison.
 
 The shipping census on `battle-menu-buttons`, `menus-sweep` and `menus-epoch`
 changes from 87 machine-entered entries and 3,455,625 calls in all to 42
