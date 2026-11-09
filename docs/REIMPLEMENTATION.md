@@ -4301,7 +4301,7 @@ frame. A refusal leaves the original callee entry and its pushed frame.
 The three focused movies' census now reports 27 machine-entered entries,
 46,597 calls, 870 entries called only as C, and 75 held boundaries with
 7,770,582 passes. There are still no CPU wait-loop passes. The source has
-1,439 ordinary entries, 135 held rows, 881 machine returns, 98 stops and
+1,439 ordinary entries, 135 held rows, 881 machine returns, 99 stops and
 1,398 scaffolding sites.
 
 Against the preceding build, all 20,310 frames retain their pictures and
@@ -4315,6 +4315,12 @@ not a screen loop; its replay is exact too. The runtime's suspension report
 now distinguishes that settlement from a call-out, instead of displaying
 the job's stale call-out target. The suspension, state, shadow and timing
 unit tests pass, and liveness finds no invalid return or call declaration.
+The counted continuation's standalone shadow comparison ends before it
+pops the saved count: that pop crosses its entry stack level, which the
+comparison engine treats as a return. The whole-wait entry still compares
+the complete countdown. Focused replays of `menus-sweep`, `menus-epoch`,
+`events-epoch-lavos` and `field-65m-bc-dactyl-flight` compare all 18 whole
+waits with no mismatch; their continuation mailbox stretches also match.
 
 Eight native-shape `menus-sweep` checkpoints (frames 1,800, 2,100, 2,400,
 3,000, 3,900, 4,800, 5,400 and 6,000) now save without a suspended routine

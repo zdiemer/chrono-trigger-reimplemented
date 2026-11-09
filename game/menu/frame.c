@@ -181,6 +181,14 @@ void menu_counted_frame_finished(Snes *s)
         au_command(m_platform(s), PF_CALL_DC(0xC20462, 0xC70004, DRIVER_IGNORES), waiting);
         overworld_waiting_sound_sent(g);
     }
+    if (!m_runs_retired_as_c(s)) {
+        /* The saved countdown is above this entry's return frame. Compare
+         * the mailbox work before popping it; the original whole-wait
+         * entry still compares the countdown and all of its frames. */
+        m_set_a8(s, sent ? MAILBOX_MARKED_BUSY : MAILBOX_READ_EMPTY);
+        m_stop_at(s, 0xC20469, DC_X | DC_N | DC_Z);
+        return;
+    }
     uint16_t left = (uint16_t)(m_pull16(s) - 1);
     s->cpu.x = left;
     if (left) {
