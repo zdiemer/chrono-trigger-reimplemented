@@ -2921,11 +2921,13 @@ comparisons.
   estimates until a movie measures them. Record the reviewed exclusions and
   matched recipes in the unreached ledger before either subsystem retires.
 
-  `unreached_safe.toml` records ten further reviewed exclusions: zero map
+  `unreached_safe.toml` records twelve further reviewed exclusions: zero map
   selectors, an exchange with no selectable row, fixed hex-glyph and sprite
   assignment encodings, the empty name caught by the earlier duplicate
   check, hits whose guard excludes stealing, a restore modifier absent
-  from the fixed parameter table, and the battle tail's disabled debug arm.
+  from the fixed parameter table, the battle tail's disabled debug arm,
+  a hanging wedge's necessarily flat top, and the stopping spiral's
+  single-mover restriction.
   Preserve their cited bounds and resource
   assumptions as contracts. These arguments are not execution coverage;
   enroll them with the matched recipes only after the inventory closes.

@@ -199,3 +199,15 @@ name = "battle_main_loop_tail"
 runs = "C1834B-C18352,C18356-C183AD"
 depends = ["game/battle/main_loop.c:battle_pass_ends_plainly", "game/battle/main_loop.c:debugging_switch_on", "game/battle/main_loop.c:end_pass", "game/battle/rules_data.h:battle_debugging_switch"]
 why = "The original's debug-controller check and forced battle-ending arm require a nonzero cartridge debugging switch. battle_pass_ends_plainly refuses that switch before entry; the native battle loop also checks it before end_pass. Preserve this exclusion as a contract on retirement, including if the resource becomes editable. These debug-only instructions are not claimed to execute."
+
+[[safe]]
+name = "battle_screen_script_hang_wedge"
+runs = "CD39AB-CD3A32,CD3A7B-CD3AB9,CD3AEE-CD3B0E"
+depends = ["game/battle/screen_shapes.c:hang_wedge", "game/battle/screen_triangles.c:right_angle", "game/battle/screen_triangles.c:screen_hang_window_triangle", "game/battle/screen_triangles.c:sides_of"]
+why = "The wedge replaces its third corner with the intersection of the lower corner's column and the upper corner's row. Sorting therefore always gives two equal top rows, even when both original rows are equal. The conservative walk's non-flat-top setup and second slope stretch cannot run: the flat-top setup makes both stretch ends equal. Preserve this constructed right-angle geometry; this is not an exclusion for general triangle drawing."
+
+[[safe]]
+name = "script_spiral_for_stopping"
+runs = "C16B04-C16B06,C16B9D-C16C43,C16C46-C16C53"
+depends = ["game/battle/script_moves.c:script_move_opcodes", "game/battle/script_moves.c:spiral_for", "game/battle/script_language.c:needs_met", "game/battle/script_language.c:script_channel_running", "game/battle/script_language.h:NEEDS_ONE_MOVER"]
+why = "The stopping spiral's opcode requires NEEDS_ONE_MOVER, which excludes the other-targets channel before dispatch. These bytes are that channel's list loop and the branch to it. Preserve the channel restriction as a contract; the non-stopping spiral's separately compared list operation does not make this stopping variant's list path supported."
