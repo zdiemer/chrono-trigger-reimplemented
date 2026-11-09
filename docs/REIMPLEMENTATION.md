@@ -4289,6 +4289,14 @@ width, page, bank and binary-mode contracts still apply. Three held-choice
 fixtures compare 6,000 dispatches at the attack or targeting boundary,
 including memory and all live inputs, with zero mismatches.
 
+The isolated boundary cases also retain two index preconditions. Targeting
+checks both the full tech-member table offset and the byte-wrapped offset
+it actually reads: 1,562 admitted area-placement trials match, and 438
+invalid member records refuse before indexing character slots. Choosing
+one enemy rejects the aggregate chooser's completed-search sentinel, eight;
+2,000 sentinel trials refuse and 2,000 valid script selections match.
+These strengthen the guards without admitting new machine states.
+
 The counted frame wait also exposed a shadow-runtime boundary ambiguity:
 a handler can wake one wait, after which direct C calls reach the next
 wait at the same address and stack depth before the original executes

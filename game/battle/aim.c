@@ -911,6 +911,12 @@ static bool members_fit(const GameState *g, uint8_t tech)
         uint8_t member = tech_member(g, t.members, part);
         if ((part == 0 || member != NO_MEMBER) && member >= BATTLE_CHARACTER_SLOT_COUNT)
             return false;
+        /* Targeting loads the members through a byte-sized table offset.
+         * Keep the full-record contract too, but check the members it will
+         * actually index when that offset wraps. */
+        member = tech_member_at(g, (uint8_t)(t.members * TECH_MEMBERS), part);
+        if ((part == 0 || member != NO_MEMBER) && member >= BATTLE_CHARACTER_SLOT_COUNT)
+            return false;
     }
     return true;
 }

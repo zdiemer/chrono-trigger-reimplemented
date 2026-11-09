@@ -623,13 +623,16 @@ bool battle_enemy_choosing_ready(Snes *s)
     return battle_on_page_a_high_clear(s) && ready;
 }
 
-/* The choosing of one enemy starts with no pair of conditions under way, as
+/* Choosing one enemy needs an actual enemy slot; the sentinel after all
+ * eight is only meaningful to the aggregate chooser's completed search.
+ * The choosing starts with no pair of conditions under way, as
  * the choosing of them all leaves it: one under way would take the end marker
  * of a block of one condition for a second. */
 bool battle_enemy_first_block_ready(Snes *s)
 {
     vars_peek(true);
-    bool none_under_way = battle_condition_pair(state_of(s)) == PAIR_NONE;
+    bool none_under_way = battle_condition_pair(state_of(s)) == PAIR_NONE
+                          && battle_enemy_turn(state_of(s)) < BATTLE_ENEMIES;
     vars_peek(false);
     return battle_enemy_choosing_ready(s) && none_under_way;
 }
