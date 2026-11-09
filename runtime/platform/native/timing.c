@@ -5,7 +5,7 @@
  * "Timing without a beam"): the handlers it enables run once a frame, in
  * order, and never preempt the main thread; the acknowledges say "pending"
  * inside their own handler; a wait for the next frame yields to the driver; a
- * budget has time for all its work; a wait for a line has nothing to wait
+ * budget takes the work charged so far toward its deadline; a wait for a line has nothing to wait
  * for, the frame being drawn whole; and what looked random from the beam's
  * position comes from a generator the driver seeds. */
 #include "platform/native/host.h"
@@ -230,8 +230,20 @@ void tm_wait_frame_then_enable(Platform *pf, PfOrigin o, uint8_t sources, uint16
 
 bool tm_frame_time_left(Platform *pf, PfOrigin o, uint16_t line)
 {
-    (void)pf; (void)o; (void)line;
-    return true;
+    (void)o;
+    TmHost *t = &pf->timing;
+    if (t->part != TM_HOST_IN_MAIN || line >= TIME_BUDGET_REOPENS_LINE)
+        return true;
+    take_the_games_account(t);
+    uint32_t elapsed = sum(t->owed, t->handlers);
+    /* A load that already fills a frame must yield before doing more queued
+     * work. Within this frame, follow the game's allowed window: it opens
+     * at line 240, wraps through frame start, and closes at the given line.
+     * NMI starts our frame at 225; it is not the window's opening. */
+    if (elapsed >= TIME_FRAME_CLOCKS)
+        return false;
+    uint32_t phase = (TIME_VBLANK_LINE + elapsed / TIME_LINE_CLOCKS) % TIME_FRAME_LINES;
+    return phase >= TIME_BUDGET_REOPENS_LINE || phase < line;
 }
 
 void tm_wait_line(Platform *pf, PfOrigin o, uint16_t line) { (void)pf; (void)o; (void)line; }

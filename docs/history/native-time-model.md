@@ -100,3 +100,19 @@ The transfer regression covers the supported RAM clear, RAM copy and VRAM
 upload, including zero as a 64 KiB length. Three such transfers take four
 lag frames; the old backend took none. The sample's outcome observations
 are 368 match / 216 drift / 1,422 differ after the re-recording.
+
+## Letting the field defer work at its deadlines
+
+The native budget used to answer true unconditionally. It now takes the
+pending work account and follows the original predicate's window: NMI at
+225, reopening at 240, then the requested limit after frame wrap. The tests
+check the one-clock boundaries, repeated queries without double charging,
+handler costs, renewal after a wait and a load that spans a whole frame.
+
+The sample goes from 20 to 21 reference endings; places remain 210 of 293.
+The End of Time menu now matches both saved game and SRAM. The save-point
+movie still matches the saved game but changes 389 SRAM bytes, an explicitly
+reviewed loss of its SRAM protection while load timing remains incomplete.
+The attract demo's worst early arrival grows from 308 to 394 frames; all
+50 places remain in order. The new outcome observations are 377 match /
+214 drift / 1,415 differ. These mixed effects remain visible in the ledger.

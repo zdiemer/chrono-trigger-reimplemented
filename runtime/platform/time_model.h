@@ -21,7 +21,11 @@
 #include <stdint.h>
 
 enum {
-    TIME_FRAME_CLOCKS = 357368,   /* a frame: 262 lines of 1364 master clocks */
+    TIME_FRAME_LINES = 262,
+    TIME_LINE_CLOCKS = 1364,
+    TIME_VBLANK_LINE = 225,      /* the driver's frame starts when the original takes NMI */
+    TIME_BUDGET_REOPENS_LINE = 240, /* the field's budget predicate, later than NMI */
+    TIME_FRAME_CLOCKS = TIME_FRAME_LINES * TIME_LINE_CLOCKS,
     TIME_MASTER_HZ = 21477272,
     TIME_SPC_HZ = 1024000         /* the sound processor's cycles */
 };

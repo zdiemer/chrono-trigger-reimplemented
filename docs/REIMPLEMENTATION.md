@@ -1137,6 +1137,12 @@ as main-thread debt while the main thread sits out a load. The regression
 test gives each handler an eighth of a frame during a two-frame load;
 the next half-frame of main work fits, without a spurious third lag frame.
 
+The field's script and sprite queues also consult this account through
+`tm_frame_time_left`. The frame starts at NMI's line 225, while the game's
+allowed window opens at 240, wraps through zero and closes at its requested
+line. Work that fills a frame makes the queue yield before more turns run.
+The estimate supplies the elapsed work; no CPU or beam runs underneath it.
+
 Before the work was timed, the frames owed went to the nearest, half a frame
 standing for the work nothing counted. Counting the work at one mean rate (40
 clocks an access) was tried then: the attract demo kept to the reference far
@@ -1184,16 +1190,16 @@ places. On `a7d8a04d`, before and after keeping the retired operations' work:
 | Native sample | Ends as reference | Places on time |
 |---|---:|---:|
 | Before | 17/37 | 209/293 |
-| Native access and transfer accounting | 20/37 | 210/293 |
+| Native access, transfer and frame-budget accounting | 21/37 | 210/293 |
 
-All 37 runs end showing. Fair rescue and Terramutant now match the saved game,
-and the save-point movie matches SRAM. The attract demo visits all 50
-reference places in order, with its worst early arrival reduced from 360
-frames to 308. Beyond Time still misses its ending and its changed replay
-no longer matches SRAM; that protection and changed picture checkpoints
+All 37 runs end showing. Fair rescue, Terramutant and the End of Time menu
+now match the saved game. The attract demo visits all 50 reference places
+in order but is up to 394 frames early (360 before). Beyond Time still
+misses its ending, and its changed replay and the save-point movie no longer
+match SRAM; those protections and changed picture checkpoints
 were explicitly re-recorded with reasons in the timing history and outcome
-ledger. Native recorded outcomes are 368 matching, 216 within tolerance and
-1,422 differing observations.
+ledger. Native recorded outcomes are 377 matching, 214 within tolerance and
+1,415 differing observations.
 `native_time_test` checks the accounting; enabling the diagnostic report
 preserves every sampled outcome artifact. The machine's estimate is unchanged.
 

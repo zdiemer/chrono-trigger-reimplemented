@@ -3096,9 +3096,9 @@ list, by kind, is what `game/` still asks of one.
 
   - *Where the game's work is still timed short or long.* `ct_native` times
     the game's own work at the routines' calibrated rates (REIMPLEMENTATION.md,
-    "The frame-level time model"); the sample ends 20 of 37 movies as the
+    "The frame-level time model"); the sample ends 21 of 37 movies as the
     reference does and enters 210 of 293 places on time. The attract demo
-    visits all 50 places in order but is up to 308 frames early. What the
+    visits all 50 places in order but is up to 394 frames early. What the
     earlier per-routine comparison against the shadow runs' estimates
     (the tags' work in `ct_native` against the parts' and entries' estimates
     over the sample) names next, worst first:
@@ -3128,6 +3128,9 @@ list, by kind, is what `game/` still asks of one.
     rather than 29,845 and changes 4,189 SRAM bytes. Follow the first shifted
     battle input after the battle and menu teardowns; the aggregate native
     improvement does not establish this movie's outcome.
+    The save-point movie still matches the saved game with native frame
+    budgets but changes 389 SRAM bytes; revisit its save after correcting
+    load timing, before treating that operation as equivalent.
     The restored legacy access and transfer charges need the next batched library run on
     the 47 unsampled movies, especially `battle-ozzies-fort`, `battle-mud-imp`,
     `events-cyrus` and `battle-golem-twins`; no library-wide rate fit was made.

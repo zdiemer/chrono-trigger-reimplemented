@@ -309,6 +309,39 @@ static void dma_main(Platform *p, void *ctx)
     }
 }
 
+/* The game's budget reopens after NMI, at line 240, and closes after the
+ * frame wraps. Pending game work and service work share this account. */
+static unsigned budget_checks;
+static void budget_main(Platform *p, void *ctx)
+{
+    (void)ctx;
+    enum { OPENS = (240 - 225) * 1364, CLOSES = (262 - 225 + 72) * 1364 };
+    tm_enable_interrupts(p, PF_AT(0), TM_INT_VBLANK | TM_INT_LINE);
+    CHECK(!tm_frame_time_left(p, PF_AT(0), 72), "NMI has not reopened the field budget");
+    CHECK(!tm_frame_time_left(p, PF_AT(0), 225), "line 225 is not an unlimited budget");
+    CHECK(tm_frame_time_left(p, PF_AT(0), 240), "line 240 leaves the budget open");
+    tm_host_charge(p, OPENS - 1);
+    CHECK(!tm_frame_time_left(p, PF_AT(0), 72), "one clock before the window opens");
+    tm_host_charge(p, 1);
+    CHECK(tm_frame_time_left(p, PF_AT(0), 72), "the window opens at line 240");
+    game_owes = CLOSES - OPENS - 1;
+    CHECK(tm_frame_time_left(p, PF_AT(0), 72), "one clock remains before the deadline");
+    CHECK(tm_frame_time_left(p, PF_AT(0), 72), "reading the account twice does not charge it twice");
+    tm_host_charge(p, 1);
+    CHECK(!tm_frame_time_left(p, PF_AT(0), 72), "the deadline ends this frame's script turns");
+    budget_checks++;
+    tm_wait_frame(p, PF_AT(0));
+    CHECK(tm_frame_time_left(p, PF_AT(0), 72), "waiting renews the main thread's budget");
+    CHECK(!tm_frame_time_left(p, PF_AT(0), 0), "handlers consume the earliest deadline");
+    tm_host_charge(p, CLOSES - TIME_FRAME_CLOCKS / 4);
+    CHECK(!tm_frame_time_left(p, PF_AT(0), 72), "handler service work counts toward the deadline");
+    tm_host_charge(p, TIME_FRAME_CLOCKS);
+    CHECK(!tm_frame_time_left(p, PF_AT(0), 72), "a load must yield before another frame's queued work");
+    budget_checks++;
+    for (;;)
+        tm_wait_frame(p, PF_AT(0));
+}
+
 static Platform pf;
 
 int main(void)
@@ -488,6 +521,14 @@ int main(void)
           "encoded zero length transfers all 64 KiB (%u reads, %u writes)", dma_reads, dma_writes);
     CHECK(vid_host_picture(&transfers)->vram[0] == 0x5A, "the timed VRAM transfer writes its data");
     vid_host_stop(&transfers);
+
+    static Platform budget;
+    TmHostProgram budgets = { budget_main, charging_handler, charging_handler, NULL, lagging_owed, NULL, NULL };
+    game_owes = 0;
+    tm_host_start(&budget, &budgets, 1);
+    tm_host_frame(&budget);
+    tm_host_frame(&budget);
+    CHECK(budget_checks == 2, "both frame budgets checked (%u)", budget_checks);
 
     printf("timing_test: %s\n", failures ? "FAILED" : "ok");
     return failures != 0;
