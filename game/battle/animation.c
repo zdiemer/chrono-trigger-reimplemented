@@ -648,10 +648,27 @@ static bool animation_frames_fit(GameState *g)
     uint8_t phase = battle_frame_phase(g);
     if (phase >= GROUPS)
         return true;
+    /* Showing a frame updates only the low byte; the original's graphics
+     * builder indexes its object with the full word. */
+    if (battle_graphics_object(g) & 0xFF00)
+        return false;
     unsigned first = groups[phase].first_slot, end = first + groups[phase].size;
     for (unsigned slot = first; slot < end; slot++) {
         if (!battle_slot_present(g, slot))
             continue;
+        if (phase != THE_PARTY && battle_enemy_frame_delay(g, slot - BATTLE_FIRST_ENEMY) == 1) {
+            unsigned enemy = slot - BATTLE_FIRST_ENEMY;
+            uint8_t frame = battle_enemy_frame(g, enemy);
+            uint8_t next = (uint8_t)(frame + 1);
+            if (next == ENEMY_FRAMES)
+                next = 0;
+            /* The list is shared by all enemies. Preserve byte wrapping,
+             * but neither the displayed frame nor its successor may read
+             * beyond that table. A zero delay can select frame zero. */
+            if (list_place(enemy, frame) >= BATTLE_ENEMY_FRAME_DELAYS_COUNT
+                || list_place(enemy, next) >= BATTLE_ENEMY_FRAME_DELAYS_COUNT)
+                return false;
+        }
         bool builds = phase == THE_PARTY ? battle_object_builds_graphics(g, slot)
                                          : enemy_frame_built(g, slot - BATTLE_FIRST_ENEMY);
         if (builds && !battle_object_graphics_known(g, slot))

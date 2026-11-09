@@ -3818,6 +3818,12 @@ one enemy rejects the aggregate chooser's completed-search sentinel, eight;
 2,000 sentinel trials refuse and 2,000 valid script selections match.
 These strengthen the guards without admitting new machine states.
 
+Animation frame selection also checks both delay-list indexes when a frame
+expires, including the byte wrap of the next frame. The graphics object's
+high byte must be clear: the original updates only its low byte before a
+builder reads the word. The last enemy group's fixture admits 1,682 matching
+trials and refuses 318 invalid states before either access.
+
 The counted frame wait also exposed a shadow-runtime boundary ambiguity:
 a handler can wake one wait, after which direct C calls reach the next
 wait at the same address and stack depth before the original executes
