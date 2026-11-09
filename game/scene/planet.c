@@ -26,7 +26,6 @@
 
 #include "charge.h"
 #include "core/program.h"
-#include "original_effects.h"
 #include "platform/audio.h"
 #include "port/machine.h"
 #include "port/native.h"
@@ -87,33 +86,21 @@ static void step_the_colours(GameState *g)
     charge_as(g, 0x7E6439, (uint32_t)WORKING_CELL_BYTES_A_COLOUR * colours);
 }
 
-/* For the original's code and shadow mode: what its step leaves in its
- * working cells, its last colour's parts and nothing left to count. */
-static void leave_the_step_s_cells(GameState *g)
-{
-    unsigned last = scene_planet_fade_colours(g) - 1u;
-    uint16_t target = wram_read16(g, colour_at(scene_planet_fade_toward(g), last));
-    uint16_t stepped = wram_read16(g, colour_at(scene_planet_fade_palette(g), last));
-    set_scene_planet_fade_target_part(g, target & BLUE.bits);
-    set_scene_planet_fade_stepped_parts(g, stepped & (RED.bits | GREEN.bits));
-    set_scene_planet_fade_colours_left(g, 0);
-}
-
-/* For the frame list: whether this frame's step was taken, which decides what
- * the task leaves in the registers and can't be told from the colours after
- * (scaffolding). */
+/* The legacy task boundary accounts for different work when a palette step
+ * was due. Remember the branch without reconstructing its scratch cells. */
 static bool colours_stepped;
 
 // $7E:6439
 static TaskEnd step_the_planet_s_colours_task(GameState *g, Platform *pf)
 {
     (void)pf;
-    ORIGINAL_EFFECT(colours_stepped = false);
+    colours_stepped = false;
     if (!step_is_due(g) || scene_planet_fade_steps(g) == 0)
         return task_goes_on();
     set_scene_planet_fade_steps(g, (uint8_t)(scene_planet_fade_steps(g) - 1));
     step_the_colours(g);
-    ORIGINAL_EFFECT((leave_the_step_s_cells(g), colours_stepped = true));
+    charge_legacy_accesses(g, 16);
+    colours_stepped = true;
     return task_goes_on();
 }
 
@@ -140,7 +127,7 @@ void scene_step_the_colours_toward(GameState *g, SceneColourStep step)
     set_scene_planet_fade_toward(g, step.toward);
     set_scene_planet_fade_palette(g, step.palette);
     set_scene_planet_fade_steps(g, step.steps);
-    ORIGINAL_EFFECT(set_scene_planet_fade_steps_high(g, 0));
+    charge_legacy_accesses(g, 1);
     set_scene_planet_fade_colours(g, step.colours);
 }
 
@@ -174,9 +161,8 @@ static void put_the_star_anew(GameState *g, unsigned star)
     set_scene_twinkles_ticks(g, star, TICKS_A_FRAME);
 }
 
-/* For the frame list: what the last star to twinkle or be put anew this frame
- * did, which decides what the task leaves in Y and can't be told from the
- * stars after (scaffolding). */
+/* The legacy list's return and estimate depend on whether its final visible
+ * star was drawn or renewed. No work-RAM scratch is needed for that choice. */
 typedef enum { NO_STAR_TWINKLED, STAR_TWINKLED, STAR_PUT_ANEW } StarFrame;
 static StarFrame last_star_frame;
 
@@ -216,19 +202,19 @@ static void twinkle_a_star(GameState *g, unsigned star)
         set_scene_twinkles_frames_left(g, star, frames_left);
         if (frames_left == 0) {
             put_the_star_anew(g, star);
-            ORIGINAL_EFFECT(last_star_frame = STAR_PUT_ANEW);
+            last_star_frame = STAR_PUT_ANEW;
             return;
         }
     }
     draw_the_twinkle(g, star);
-    ORIGINAL_EFFECT(last_star_frame = STAR_TWINKLED);
+    last_star_frame = STAR_TWINKLED;
 }
 
 // $7E:65DD
 static TaskEnd twinkle_the_stars_task(GameState *g, Platform *pf)
 {
     (void)pf;
-    ORIGINAL_EFFECT(last_star_frame = NO_STAR_TWINKLED);
+    last_star_frame = NO_STAR_TWINKLED;
     scene_draw_lists_at(g, 0, 0);
     for (unsigned star = 0; star < TWINKLES; star++)
         twinkle_a_star(g, star);
@@ -275,7 +261,7 @@ static void fade_toward(GameState *g, uint16_t colours)
 {
     set_scene_planet_fade_toward(g, (uint16_t)(colours + FROM_THE_32ND));
     set_scene_planet_fade_steps(g, FADE_STEPS);
-    ORIGINAL_EFFECT(set_scene_planet_fade_steps_high(g, 0));   /* the original sets the steps as a word */
+    charge_legacy_accesses(g, 1);   /* the original sets the steps as a word */
 }
 
 // $7E:63FE, $7E:6403
@@ -331,37 +317,6 @@ const SceneScriptRoutine scene_planet_routines[] = {
                                                 scene_fade_the_planet_out_slowly_present, false },
 };
 const unsigned scene_planet_routine_count = sizeof scene_planet_routines / sizeof scene_planet_routines[0];
-
-#if ORIGINAL_EFFECTS
-/* The fades leave A as their last load: the colours' count, or the slow
- * fade's period, whose high byte is the steps' word's. */
-static uint16_t leaves_the_count(uint16_t called_with)
-{
-    (void)called_with;
-    return FADED_COLOURS;
-}
-static uint16_t leaves_the_period(uint16_t called_with)
-{
-    (void)called_with;
-    return SLOW_FADE_PERIOD;
-}
-
-const SceneRoutineLeaves scene_planet_routine_leaves[] = {
-    [SCENE_ROW_FADE_THE_PLANET_THROUGH] = { leaves_the_count, NULL },
-    [SCENE_ROW_FADE_THE_PLANET_OUT] = { leaves_the_count, NULL },
-    [SCENE_ROW_FADE_THE_PLANET_OUT_SLOWLY] = { leaves_the_period, NULL },
-};
-#endif
-
-void scene_fade_the_planet_through(Snes *s)
-{
-    scene_script_routine_alone(s, &scene_planet_routines[SCENE_ROW_FADE_THE_PLANET_THROUGH]);
-}
-void scene_fade_the_planet_out(Snes *s) { scene_script_routine_alone(s, &scene_planet_routines[SCENE_ROW_FADE_THE_PLANET_OUT]); }
-void scene_fade_the_planet_out_slowly(Snes *s)
-{
-    scene_script_routine_alone(s, &scene_planet_routines[SCENE_ROW_FADE_THE_PLANET_OUT_SLOWLY]);
-}
 
 /* ---- The end of the scene ------------------------------------------------------------------------ */
 
@@ -427,7 +382,6 @@ void scene_wait_for_a_button_to_restart_entry(Snes *s)
 {
     TaskEnd end = wait_for_a_button_with(state_of(s), m_platform(s), send_on_the_machine, s);
     if (end.outcome == TASK_GOES_ON) {
-        ORIGINAL_EFFECT(s->cpu.a = 0);   /* the controller's load */
         m_set_nz16(s, 0);
         m_rts(s);
         return;
@@ -578,16 +532,11 @@ static void load_the_graphics(GameState *g, Platform *pf, const PlanetSetUpSteps
 
 /* The original clears the call cells' second byte as it loads the colours,
  * which nothing the setup runs after it reads. */
-static void clear_the_call_cells_second_byte(GameState *g)
-{
-    SceneProgramPage scene = scene_program_own();
-    set_scene_call_first(g, scene, (uint16_t)(scene_call_first(g, scene) & 0x00FF));
-}
 
 static void load_the_colours(GameState *g, const PlanetSetUpSteps *steps, void *ctx)
 {
     set_decompress_dest(g, COLOURS_AT);
-    ORIGINAL_EFFECT(clear_the_call_cells_second_byte(g));
+    charge_legacy_accesses(g, 4);
     steps->unpack(ctx, UNPACK_COLOURS);
     unpack_at(g, LAST_COLOURS);
     steps->unpack(ctx, UNPACK_LAST_COLOURS);
@@ -671,14 +620,7 @@ bool scene_planet_set_up_scene(Snes *s)
     };
     if (!set_up_the_planet_with(state_of(s), m_platform(s), &on_the_machine, s))
         return false;
-    ORIGINAL_EFFECT(s->cpu.y = SCENE_Y_PAST_THE_ANIMATIONS_SLOTS);
     return true;
-}
-
-void scene_planet_set_up_entry(Snes *s)
-{
-    if (scene_planet_set_up_scene(s))
-        m_rts(s);
 }
 
 /* ---- As C ---- */
@@ -743,9 +685,6 @@ const SceneTaskPort scene_planet_tasks[] = {
 const unsigned scene_planet_task_count = sizeof scene_planet_tasks / sizeof scene_planet_tasks[0];
 
 /* ---- Entries -------------------------------------------------------------------------------- */
-
-void scene_step_the_planet_s_colours(Snes *s) { scene_task_alone(s, &scene_planet_tasks[ROW_STEP_THE_COLOURS]); }
-void scene_twinkle_the_stars(Snes *s) { scene_task_alone(s, &scene_planet_tasks[ROW_TWINKLE]); }
 
 /* Called by the setup with 8-bit A; it leaves the loop's end in X and A, the
  * hiding's word in Y, as the original's last loads do, and the overflow its

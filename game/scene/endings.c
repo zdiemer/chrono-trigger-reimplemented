@@ -51,7 +51,6 @@
 #include "cpu_io.h"
 #include "field/field.h"
 #include "field/scratch.h"
-#include "original_effects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
@@ -63,7 +62,6 @@
 
 /* The scene's mode, as the program's mode table took it (race.h's mask). */
 static SceneMode ending_mode(const GameState *g) { return (SceneMode)(scene_flags(g) & SCENE_MODE); }
-
 
 /* Channel 1's registers, as the scripts move the zooming picture with them:
  * its zoom, and the point it is drawn round. Channel 0's: the frame of its
@@ -298,7 +296,7 @@ void scene_send_letters_widened(GameState *g, Platform *pf)
             vid_write_vram(pf, PF_AT(0x7E66C8), 0);
     }
     /* the original reads the tiles through the work RAM port */
-    ORIGINAL_EFFECT(hw_port_seek_address(g, (uint16_t)(from + LETTER_TILES * TILE_2BPP_BYTES)));
+    charge_legacy_io_accesses(g, 2);
 }
 
 /* Past the plane's name table (which the two halves leave VRAM's address at
@@ -322,8 +320,8 @@ static void lay_out_mosaic(GameState *g)
     }
     /* the original reads the numbers through the work RAM port and counts them
      * down in a word of the second bank */
-    ORIGINAL_EFFECT(hw_port_seek_address(g, (uint16_t)(MOSAIC_NUMBERS + MOSAIC_TILES)));
-    ORIGINAL_EFFECT(wram_write16(g, MOSAIC_COUNTER, 0));
+    charge_legacy_io_accesses(g, 2);
+    charge_legacy_accesses(g, 2);
     charge_block_move(g, MOSAIC_TILES * MOSAIC_TILE_BYTES);
 }
 
@@ -614,15 +612,8 @@ enum { SCALER_OUTPUT_AS_FULL = 0x0A00 };
  * one, at color 128. */
 enum { PICTURE_COLORS = 55, PICTURE_PALETTE = 128 };
 
-
 /* The mirroring's working values, as the original leaves them in the second
  * bank's first words (the scaler's picture, which writes over them). */
-static void leave_mirroring(GameState *g, uint16_t last_run)
-{
-    set_scene_race_picture(g, 0, MIRROR_LAST);
-    set_scene_race_picture(g, 1, last_run);
-    set_scene_race_picture(g, 2, 0);
-}
 
 static void mirror_picture_frames(GameState *g)
 {
@@ -632,8 +623,8 @@ static void mirror_picture_frames(GameState *g)
         to = scene_mirror_rows(g, to, (uint32_t)SCENE_UPPER_WORK_RAM << 16 | run, MIRROR_LAST, RUN_ROWS);
         run = (uint16_t)(run - RUN_BYTES);
     }
-    ORIGINAL_EFFECT(leave_mirroring(g, run));
-    ORIGINAL_EFFECT(hw_port_seek(g, (uint16_t)to, 1));
+    charge_legacy_accesses(g, 6);
+    charge_legacy_io_accesses(g, 3);
 }
 
 /* What the picture's loading leaves for the scene: the scaler's output full,
@@ -672,13 +663,14 @@ static void start_picture(GameState *g, Platform *pf, uint32_t effects_site)
  * color math past it. */
 static void load_new_ground(GameState *g, Platform *pf, SceneProgramPage page, const EndingSteps *steps, void *ctx)
 {
+    (void)page;
     scene_use_loaded_palette(g);
     set_scene_plane_far_color_math(g, FAR_COLOR_MATH);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     steps->unpack(ctx, UNPACK_NEW_GROUND);
     scene_double_plane_rows(g);
     /* the original counts the rows down in its page's first cell */
-    ORIGINAL_EFFECT(set_scene_call_first(g, page, 0));
+    charge_legacy_accesses(g, 2);
     vid_start_vram_uploads(pf, PF_AT(0x7E87B8), SCENE_VRAM_LOW_BYTES);
     vid_set_vram_address(pf, PF_AT(0x7E87BB), 0x0000);
     vid_set_mode7(pf, PF_AT(0x7E87C1), &(VidMode7){ .outside = VID_M7_WRAP }, VID_M7_SELECT);
@@ -779,13 +771,6 @@ enum { MAP_SIDE = 32, BLOCK_SIDE = 4 };
 /* The original writes the map a word at a time through the work RAM port, the
  * word's low byte through the address before the port's -- the sound CPU's
  * port 3, which it mirrors -- and leaves its counts at 0 in the scene's cells. */
-static void leave_pattern_written(GameState *g, uint32_t end)
-{
-    hw_port_seek_address(g, (uint16_t)end);
-    hw_port_leave_spill(g, 0);
-    SceneProgramPage own = scene_program_own();
-    set_scene_call_first(g, own, scene_call_first(g, own) & 0xFF00);
-}
 
 // $7E:8D24
 static void write_pattern_map(GameState *g)
@@ -798,7 +783,8 @@ static void write_pattern_map(GameState *g)
             at += 2;
         }
     }
-    ORIGINAL_EFFECT(leave_pattern_written(g, at));
+    charge_legacy_accesses(g, 4);
+    charge_legacy_io_accesses(g, 3);
     /* the rows' count, run down to 0 in the scene's second cell, which the next
      * frame's controller read takes for the buttons held before */
     SceneProgramPage own = scene_program_own();
@@ -1082,7 +1068,7 @@ static void unpack_on_the_machine(void *ctx, EndingUnpack which)
 
 /* The Mode 7 picture's tiles' loop leaves the overflow of its last move on
  * (to $2B00: none), which the unpacker after it reads. */
-static void tiles_expanded_on_the_machine(void *ctx) { ORIGINAL_EFFECT(m_set_flag(ctx, CPU_FLAG_V, false)); }
+static void tiles_expanded_on_the_machine(void *ctx) { (void)ctx; }
 
 /* The steering script's first step, under the program's bank. It reads Y and
  * the overflow: Y as the picture script's start left it, the overflow clear, as
@@ -1151,8 +1137,7 @@ static void expand_packed_pixels(GameState *g, Platform *pf, unsigned bytes)
         vid_write_vram_byte(pf, PF_AT(0x7E3551), true, pair & 15);
         vid_write_vram_byte(pf, PF_AT(0x7E3558), true, pair >> 4);
     }
-    ORIGINAL_EFFECT(hw_port_seek(g, (uint16_t)(SCENE_UNPACK_BUFFER + bytes),
-                                 (uint8_t)((SCENE_UNPACK_BUFFER + bytes) >> 16)));
+    charge_legacy_io_accesses(g, 3);
 }
 
 /* Each layer's map occupies the beginning of a 32 by 32 tilemap; the rest
@@ -1313,8 +1298,8 @@ static void set_the_last_colours(GameState *g, Platform *pf, uint8_t channel)
     (void)set_last_colors(g, scene_program_channel(channel));
 }
 
-/* The native program's rows alone: on the machine each runs as its own
- * registered entry, which takes the original's unpacker as calls of it. */
+/* Resource-loading script operations. The shipping runtime calls their
+ * checked machine forms, with the same C unpacker and resource callbacks. */
 const SceneScriptRoutine scene_ending_loading_routines[] = {
     { SCENE_ROUTINE_LOAD_THE_PANORAMA, load_the_panorama, scene_ending_load_panorama_present, false },
     { SCENE_ROUTINE_SHOW_THE_LAYERED_PANORAMA, show_the_layered_panorama, scene_ending_layer_panorama_present, false },
@@ -1446,81 +1431,7 @@ const SceneScriptRoutine scene_ending_routines[] = {
 };
 const unsigned scene_ending_routine_count = sizeof scene_ending_routines / sizeof scene_ending_routines[0];
 
-#if ORIGINAL_EFFECTS
-/* What each leaves in A, as its last load left it: the empty routine's
- * address, the move's count run out, the colors' count, the fades' kind in A's
- * low byte; Y, past the colors the move took; and the captions' place down
- * in A's low byte. */
-enum { NOTHING_EACH_PASS_LEFT = SCENE_PASS_NOTHING, MOVE_DONE = 0xFFFF, FADE_KIND = 0x50 };
-
-static uint16_t leaves_the_empty_routine(uint16_t called_with)
-{
-    (void)called_with;
-    return NOTHING_EACH_PASS_LEFT;
-}
-
-static uint16_t leaves_the_move_done(uint16_t called_with)
-{
-    (void)called_with;
-    return MOVE_DONE;
-}
-
-static uint16_t leaves_the_colors_count(uint16_t called_with)
-{
-    (void)called_with;
-    return STEPPED_COLORS;
-}
-
-static uint16_t leaves_a_as_called(uint16_t called_with) { return called_with; }
-static uint16_t leaves_the_fade_kind(uint16_t called_with) { return (uint16_t)((called_with & 0xFF00) | FADE_KIND); }
-
-static void leaves_y_past_the_colors(Snes *s) { s->cpu.y = (uint16_t)(WORKING_PALETTE_PAGE + GROUND_COLORS_MOVED); }
-static void leaves_the_place_down(Snes *s)
-{
-    s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | scene_ending_captions_y(state_of(s)));
-}
-
-const SceneRoutineLeaves scene_ending_routine_leaves[] = {
-    [SCENE_ROW_STOP_THE_PICTURE] = { leaves_the_empty_routine, NULL },
-    [SCENE_ROW_STEP_TOWARD_THE_FIRST] = { leaves_the_colors_count, NULL },
-    [SCENE_ROW_STEP_TOWARD_THE_SECOND] = { leaves_the_colors_count, NULL },
-    [SCENE_ROW_STEP_TOWARD_THE_THIRD] = { leaves_the_colors_count, NULL },
-    [SCENE_ROW_SHOW_THE_FIRST_LATER_COLORS] = { leaves_the_move_done, leaves_y_past_the_colors },
-    [SCENE_ROW_PLACE_THE_CAPTIONS] = { leaves_a_as_called, leaves_the_place_down },
-    [SCENE_ROW_FADE_THE_SPRITES_OUT] = { leaves_a_as_called, NULL },
-    [SCENE_ROW_FADE_THE_FIRST_LAYER_COLORS_OUT] = { leaves_the_fade_kind, NULL },
-    [SCENE_ROW_FADE_MORE_LAYER_COLORS_OUT] = { leaves_the_fade_kind, NULL },
-};
-#endif
-
 /* Their entries, for a caller that reaches one by its address. */
-void scene_stop_the_picture(Snes *s) { scene_script_routine_alone(s, &scene_ending_routines[SCENE_ROW_STOP_THE_PICTURE]); }
-void scene_step_the_ground_toward_the_first(Snes *s)
-{
-    scene_script_routine_alone(s, &scene_ending_routines[SCENE_ROW_STEP_TOWARD_THE_FIRST]);
-}
-void scene_step_the_ground_toward_the_second(Snes *s)
-{
-    scene_script_routine_alone(s, &scene_ending_routines[SCENE_ROW_STEP_TOWARD_THE_SECOND]);
-}
-void scene_step_the_ground_toward_the_third(Snes *s)
-{
-    scene_script_routine_alone(s, &scene_ending_routines[SCENE_ROW_STEP_TOWARD_THE_THIRD]);
-}
-void scene_show_the_ground_s_first_later_colors(Snes *s)
-{
-    scene_script_routine_alone(s, &scene_ending_routines[SCENE_ROW_SHOW_THE_FIRST_LATER_COLORS]);
-}
-void scene_place_the_captions(Snes *s) { scene_script_routine_alone(s, &scene_ending_routines[SCENE_ROW_PLACE_THE_CAPTIONS]); }
-void scene_fade_the_sprites_out(Snes *s) { scene_script_routine_alone(s, &scene_ending_routines[SCENE_ROW_FADE_THE_SPRITES_OUT]); }
-void scene_fade_the_first_layer_colors_out(Snes *s)
-{
-    scene_script_routine_alone(s, &scene_ending_routines[SCENE_ROW_FADE_THE_FIRST_LAYER_COLORS_OUT]);
-}
-void scene_fade_more_layer_colors_out(Snes *s)
-{
-    scene_script_routine_alone(s, &scene_ending_routines[SCENE_ROW_FADE_MORE_LAYER_COLORS_OUT]);
-}
 
 /* Their guards: their code, which the scripts' bank reaches. */
 bool scene_stop_the_picture_present(Snes *s) { return m_code_matches(s, 0x7E96FB, 0x07, 0x1FA3E0828B2A5344ull); }
@@ -1859,23 +1770,15 @@ bool scene_ending_set_up_present(Snes *s)
  * the per-line effects' setup leaves, clear. */
 /* The setup leaves Y past the per-line effects' descriptors, where their
  * setup stopped reading, which the frame's first vblank tasks may read. */
-static void leave_y_past_the_descriptors(Snes *s, uint16_t end) { s->cpu.y = end; }
 
 bool scene_ending_set_up_scene(Snes *s)
 {
-    uint16_t descriptors_end = set_up_ending_with(state_of(s), m_platform(s), &on_the_machine, s);
-    ORIGINAL_EFFECT(leave_y_past_the_descriptors(s, descriptors_end));
+    (void)set_up_ending_with(state_of(s), m_platform(s), &on_the_machine, s);
     s->cpu.db = 0x00;
     s->cpu.d = 0x0000;
     m_set_flag(s, CPU_FLAG_V, false);
     s->cpu.p |= CPU_FLAG_M;
     return true;
-}
-
-void scene_ending_set_up_entry(Snes *s)
-{
-    scene_ending_set_up_scene(s);
-    m_rts(s);
 }
 
 /* The scripts' routines run on the calling channel's page; the two that load
@@ -1919,17 +1822,6 @@ bool scene_expand_packed_pixels_present(Snes *s)
     return m_code_matches(s, 0x7E353C, 0x23, 0xCFEA6C8DC831C682ull);
 }
 
-void scene_expand_packed_pixels_entry(Snes *s)
-{
-    unsigned bytes = s->cpu.y ? s->cpu.y : 0x10000;
-    expand_packed_pixels(state_of(s), m_platform(s), bytes);
-    ORIGINAL_EFFECT(s->cpu.a = (s->cpu.a & 0xFF00) |
-                              (wram_read8(state_of(s), packed_pixel_address(bytes - 1)) >> 4));
-    ORIGINAL_EFFECT(s->cpu.y = 0);
-    s->cpu.p |= CPU_FLAG_M;
-    m_rts(s);
-}
-
 static bool panorama_helpers_present(Snes *s)
 {
     return shared_pieces_present(s) &&
@@ -1951,8 +1843,6 @@ bool scene_ending_load_panorama_present(Snes *s)
 void scene_ending_load_panorama(Snes *s)
 {
     load_the_panorama(state_of(s), m_platform(s), 0);
-    ORIGINAL_EFFECT(s->cpu.y = 0x900D);
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, false));
     s->cpu.db = SCENE_LOWER_WORK_RAM;
     s->cpu.p &= (uint8_t)~CPU_FLAG_M;
     m_rts(s);
@@ -1968,8 +1858,6 @@ bool scene_ending_layer_panorama_present(Snes *s)
 void scene_ending_layer_panorama(Snes *s)
 {
     show_the_layered_panorama(state_of(s), m_platform(s), 0);
-    ORIGINAL_EFFECT(s->cpu.y = 0x9022);
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, false));
     s->cpu.db = SCENE_LOWER_WORK_RAM;
     s->cpu.p &= (uint8_t)~CPU_FLAG_M;
     m_rts(s);
@@ -1996,11 +1884,6 @@ static SceneProgramPage calling_page(Snes *s)
 
 /* What the picture's routines leave: Y where the last copy of its colors
  * ended, and the overflow of the mirroring's last step back a run, clear. */
-static void leave_picture_loaded(Snes *s, uint16_t copied_to)
-{
-    s->cpu.y = copied_to;
-    m_set_flag(s, CPU_FLAG_V, false);
-}
 
 /* The script routines' entries: 16-bit A; back with the page and the bank
  * they kept. */
@@ -2008,8 +1891,7 @@ void scene_ending_load_picture(Snes *s)
 {
     SceneProgramPage page = calling_page(s);
     begin_script_routine(s);
-    uint16_t copied_to = load_the_picture_with(state_of(s), m_platform(s), page, &on_the_machine, s);
-    ORIGINAL_EFFECT(leave_picture_loaded(s, copied_to));
+    (void)load_the_picture_with(state_of(s), m_platform(s), page, &on_the_machine, s);
     end_script_routine(s);
 }
 
@@ -2017,8 +1899,7 @@ void scene_ending_load_ground_and_picture(Snes *s)
 {
     SceneProgramPage page = calling_page(s);
     begin_script_routine(s);
-    uint16_t copied_to = load_the_ground_and_picture_with(state_of(s), m_platform(s), page, &on_the_machine, s);
-    ORIGINAL_EFFECT(leave_picture_loaded(s, copied_to));
+    (void)load_the_ground_and_picture_with(state_of(s), m_platform(s), page, &on_the_machine, s);
     end_script_routine(s);
 }
 
@@ -2036,7 +1917,6 @@ void scene_ending_start_stars(Snes *s)
     begin_script_routine(s);
     s->cpu.d = 0x0000;
     start_stars_with(state_of(s), m_platform(s), &on_the_machine, s);
-    ORIGINAL_EFFECT(s->cpu.y = PAST_THE_WORKING_PALETTE);
     end_script_routine(s);
 }
 
@@ -2054,7 +1934,6 @@ void scene_ending_start_mode7_picture(Snes *s)
     begin_script_routine(s);
     s->cpu.d = 0x0000;
     start_mode7_picture_with(state_of(s), m_platform(s), &on_the_machine, s);
-    ORIGINAL_EFFECT(s->cpu.y = PAST_THE_WORKING_PALETTE);
     end_script_routine(s);
 }
 
@@ -2071,8 +1950,7 @@ enum { PAST_THE_FRAME_TASKS = 0x0920 + FRAME_TASK_SLOTS * 2 };
 void scene_ending_prepare_credits(Snes *s)
 {
     begin_script_routine(s);
-    bool credits = prepare_credits_with(state_of(s), m_platform(s), &on_the_machine, s);
-    ORIGINAL_EFFECT(s->cpu.y = credits ? 0 : PAST_THE_FRAME_TASKS);
+    (void)prepare_credits_with(state_of(s), m_platform(s), &on_the_machine, s);
     end_script_routine(s);
 }
 
@@ -2086,8 +1964,7 @@ void scene_ending_set_last_colors(Snes *s)
 {
     SceneProgramPage page = calling_page(s);
     begin_script_routine(s);
-    uint16_t blackened_to = set_last_colors(state_of(s), page);
-    ORIGINAL_EFFECT(s->cpu.y = blackened_to);
+    (void)set_last_colors(state_of(s), page);
     end_script_routine(s);
 }
 
@@ -2151,18 +2028,12 @@ bool scene_show_the_mosaic_present(Snes *s)
 
 /* What the task leaves: A as the list of large sprites leaves it, and Y the
  * next free sprite. */
-static void leave_the_mosaic_drawn(Snes *s, uint16_t list)
-{
-    GameState *g = state_of(s);
-    s->cpu.a = scene_large_list_leaves_a(g, list);
-    s->cpu.y = scene_sprite_index(g);
-}
 
 /* A frame task, with 16-bit A. */
 void scene_show_the_mosaic_entry(Snes *s)
 {
     uint16_t list = show_the_mosaic(state_of(s));
-    ORIGINAL_EFFECT(leave_the_mosaic_drawn(s, list));
+    { scene_charge_large_list_result(state_of(s), list); charge_legacy_accesses(state_of(s), 2); };
     m_rts(s);
 }
 
@@ -2227,23 +2098,18 @@ bool scene_ending_sweep_window_present(Snes *s)
 /* A frame task, entered with 16-bit A. Back, A's high byte is the right
  * side's top corner's (the last the original loaded), or 0 where the sweep
  * is over, and Y where the rider's list or the window's drawing left it. */
-static void leave_the_sweep_s_y(Snes *s, const GameState *g, bool rider_drawn)
-{
-    s->cpu.y = rider_drawn ? scene_sprite_index(g) : field_window_shape_leaves_y(g);
-}
 
 void scene_ending_sweep_window_entry(Snes *s)
 {
     GameState *g = state_of(s);
     bool rider_drawn = scene_ending_window_left(g) != 0;
     Sweep sweep = sweep_the_window(g, m_platform(s));
-    ORIGINAL_EFFECT(leave_the_sweep_s_y(s, g, rider_drawn));
+    charge_legacy_accesses(g, rider_drawn ? 2 : 6);
     if (sweep == SWEEP_OVER) {
-        ORIGINAL_EFFECT(s->cpu.a = 0);
         scene_finish_task(s, SCENE_FRAME_TASKS, task_is_done());
         return;
     }
-    ORIGINAL_EFFECT(s->cpu.a = scene_ending_window_corners(g, RIGHT_TOP));
+    charge_legacy_accesses(g, 2);
     s->cpu.p |= CPU_FLAG_M;
     m_rts(s);
 }
@@ -2270,20 +2136,13 @@ bool scene_ending_place_picture_present(Snes *s)
 /* What the placing leaves for the lists' code: A as the clipped list leaves
  * it, from the list's address, and Y the next free sprite. Its scratch: half
  * the reach, in the scene's product cell. */
-static void leave_picture_placed(Snes *s, uint16_t list)
-{
-    GameState *g = state_of(s);
-    SceneProgramPage own = scene_program_own();
-    set_scene_call_fraction(g, own, (uint16_t)((scene_call_fraction(g, own) & 0xFF00) | (uint8_t)scene_ending_picture_half(g) >> 1));
-    s->cpu.a = scene_clipped_list_leaves_a(g, list, list);
-    s->cpu.y = scene_sprite_index(g);
-}
 
 /* A frame task, and a vblank task (8-bit A); back with 16-bit A. */
 void scene_ending_place_picture_entry(Snes *s)
 {
     uint16_t list = place_picture(state_of(s));
-    ORIGINAL_EFFECT(leave_picture_placed(s, list));
+    charge_legacy_accesses(state_of(s), 8);
+    scene_charge_clipped_list_result(state_of(s), list);
     s->cpu.p &= (uint8_t)~CPU_FLAG_M;
     m_rts(s);
 }
@@ -2303,7 +2162,7 @@ void scene_ending_draw_the_end_entry(Snes *s)
     GameState *g = state_of(s);
     draw_the_end(g);
     s->cpu.y = scene_sprite_index(g);
-    ORIGINAL_EFFECT(s->cpu.a = scene_clipped_list_leaves_a(g, THE_END, THE_END));
+    scene_charge_clipped_list_result(g, THE_END);
     m_rts(s);
 }
 
@@ -2317,8 +2176,7 @@ bool scene_ending_pick_picture_frame_present(Snes *s)
  * the frame's place, which the lists' code hands on. */
 void scene_ending_pick_picture_frame_entry(Snes *s)
 {
-    uint16_t source = pick_picture_frame(state_of(s));
-    ORIGINAL_EFFECT(s->cpu.a = source);
+    (void)pick_picture_frame(state_of(s));
     m_rts(s);
 }
 
@@ -2373,10 +2231,6 @@ bool scene_ending_scale_picture(GameState *g, Platform *pf)
 
 /* The divide's dividend, as the original leaves it in the scene's first cell:
  * shifted out to its high byte's place, the caller's carry brought in. */
-static void leave_dividend(Snes *s)
-{
-    set_scene_call_first(state_of(s), scene_program_own(), (uint16_t)((uint16_t)(EIGHT << 8) | (m_flag(s, CPU_FLAG_C) ? 0x80 : 0)));
-}
 
 /* The main loop's call each pass, with 16-bit A. Wait for the last picture
  * to be sent before scaling and gathering the next one through the C bridge. */
@@ -2387,7 +2241,7 @@ void scene_ending_scale_picture_entry(Snes *s)
         m_rts(s);
         return;
     }
-    ORIGINAL_EFFECT(leave_dividend(s));
+    charge_legacy_accesses(state_of(s), 2);
     scene_bridge_scale_scene_picture(s, SCALING_THE_ENDING_PICTURE);
 }
 

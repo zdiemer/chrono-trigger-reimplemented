@@ -23,7 +23,6 @@
 
 #include "field/bridge.h"
 #include "field/scratch.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -49,69 +48,9 @@ static Point corner(const GameState *g, unsigned c)
     return (Point){ field_window_shape_corners_x(g, c), field_window_shape_corners_y(g, c) };
 }
 
-/* The ending-window task is still byte-exact. Its call to the retired
- * rasterizer includes these cells in the enclosing comparison. The field's
- * own tables need none of them; this compatibility write goes with the
- * scene task's gate. */
-static void original_shape_cell8(GameState *g, uint8_t cell, uint8_t v)
-{
-    if (cell >= 0xF0)
-        set_field_window_shape_steps_byte(g, (unsigned)(cell - 0xF0), v);
-    else
-        set_field_window_shape_edge_byte(g, (unsigned)(cell - 0x53), v);
-}
-
-static void original_shape_cell16(GameState *g, uint8_t cell, uint16_t v)
-{
-    original_shape_cell8(g, cell, (uint8_t)v);
-    original_shape_cell8(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
-}
-
-/* The last sloped edge drawn, as the original leaves it in its cells (field/
- * scratch.h, "What a wrapper can't work out"): its width, height and the
- * error its stepping ended on. Written only by record_sloped_edge, read only
- * by leave_for_original. */
-static struct {
-    bool sloped;
-    uint16_t width, error;
-    uint8_t height;
-} shape_leaves;
-
-static void record_sloped_edge(uint16_t width, uint8_t height, uint16_t error)
-{
-    shape_leaves.sloped = true;
-    shape_leaves.width = width;
-    shape_leaves.height = height;
-    shape_leaves.error = error;
-}
-
-/* The original steps through the edges from a jump table of its own code;
- * where the right side is still to come, $F6 holds the step that looks for
- * it, the edge routine at $C3:0F35. */
-enum { STEP_FIND_RIGHT_SIDE = 0x0F35 };
-
-/* For the original's code and shadow mode (field/scratch.h): the last edge
- * drawn, upper end first ($53-$5A, a word each); the fill's length ($F0) and
- * no edges left ($F4); whether the right side was still to come ($F6); and
- * the last sloped edge's lines left, width, height and error ($F2, $F8, $FA,
- * $FC). */
-static void leave_for_original(GameState *g, Edge last, uint16_t fill_length, bool right_side_found)
-{
-    original_shape_cell16(g, 0x53, last.from.x);
-    original_shape_cell16(g, 0x55, last.from.y);
-    original_shape_cell16(g, 0x57, last.to.x);
-    original_shape_cell16(g, 0x59, last.to.y);
-    original_shape_cell16(g, 0xF0, fill_length);
-    original_shape_cell16(g, 0xF4, 0);
-    original_shape_cell16(g, 0xF6, right_side_found ? 0 : STEP_FIND_RIGHT_SIDE);
-    original_shape_cell8(g, 0xFB, 0);
-    if (shape_leaves.sloped) {
-        original_shape_cell8(g, 0xF2, 0);
-        original_shape_cell16(g, 0xF8, shape_leaves.width);
-        original_shape_cell8(g, 0xFA, shape_leaves.height);
-        original_shape_cell16(g, 0xFC, shape_leaves.error);
-    }
-}
+/* A sloped edge used six additional scratch accesses in the old
+ * estimate. Retain that work without retaining the edge's scratch values. */
+static bool drew_sloped_edge;
 
 /* ---- The rasterizer ----------------------------------------------------------------------- */
 
@@ -163,7 +102,7 @@ static void draw_sloped_edge(GameState *g, Column column, Edge e)
         wram_write8(g, (uint32_t)column.bank << 16 | at, (uint8_t)x);
         at = (uint16_t)(at + LINE_BYTES);
     }
-    ORIGINAL_EFFECT(record_sloped_edge((uint16_t)width, (uint8_t)height, (uint16_t)error));
+    drew_sloped_edge = true;
 }
 
 /* An edge, upper end first (a level edge as it comes). Returns it as drawn. */
@@ -250,7 +189,7 @@ static void rasterize_quad(GameState *g)
     }
     uint16_t fill_length = empty_outside_lines(g, column, top, right_start);
     if (column.bank == FILL_BANK)
-        ORIGINAL_EFFECT(leave_for_original(g, last, fill_length, right_side_found));
+        charge_legacy_accesses(g, drew_sloped_edge ? 21 : 15);
     (void)last;
     (void)fill_length;
 }
@@ -297,7 +236,7 @@ void field_draw_window_shape(GameState *g)
         program_breaks_a_contract(g, 0xC30EFA, "window shape outside its table");
         return;
     }
-    ORIGINAL_EFFECT(shape_leaves.sloped = false);
+    drew_sloped_edge = false;
     rasterize_quad(g);
 }
 

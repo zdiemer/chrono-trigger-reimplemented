@@ -20,7 +20,6 @@
 #include "core/program.h"
 
 #include "charge.h"
-#include "original_effects.h"
 #include "platform/input.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -97,7 +96,7 @@ static void follow_finish(GameState *g)
     set_scene_race_bg3_scroll_x(g, (uint16_t)((quarter >> 1) + quarter + (quarter & 1)));
     /* the program works the three eighths out in its first cell, which the
      * next routine to use the cells writes over */
-    ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), quarter));
+    charge_legacy_accesses(g, 2);
 }
 
 /* ---- The horizon ------------------------------------------------------------------------------ */
@@ -181,7 +180,6 @@ enum { HIGHEST = 0x7F, LOWEST = 0x60 };
 
 static bool odd_frame(const GameState *g) { return scene_frame_counter(g) & 1; }
 
-
 static void raise_camera(GameState *g, int16_t by)
 {
     set_race_camera(g, CAMERA_DISTANCE, (uint16_t)(race_camera(g, CAMERA_DISTANCE) + by));
@@ -205,8 +203,8 @@ static void turn_camera(GameState *g)
         set_scene_race_turning(g, 1, other_way);
         /* the program sums the turn in channel 0's first two cells, which the
          * camera's next multiply writes over */
-        ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_channel(0), one_way >> TURNING_SHIFT));
-        ORIGINAL_EFFECT(set_scene_call_second(g, scene_program_channel(0), other_way >> TURNING_SHIFT));
+        charge_legacy_accesses(g, 2);
+        charge_legacy_accesses(g, 2);
         set_race_camera(g, CAMERA_ANGLE, (uint16_t)(race_camera(g, CAMERA_ANGLE) + (one_way >> TURNING_SHIFT) -
                                                    (other_way >> TURNING_SHIFT)));
     }
@@ -225,16 +223,6 @@ static void turn_camera(GameState *g)
  * frame and the height before it ran: the height where it tried a step, the
  * frame count halved where A waited for the odd frame, the controller where
  * neither button was acted on. */
-static uint16_t left_by_height_control(PadBits pad, uint16_t frame, uint16_t height)
-{
-    if ((pad & IN_BUTTON_X) && (frame & 1))
-        return height;
-    if (!(pad & IN_BUTTON_A))
-        return pad;
-    if (!(frame & 1))
-        return frame >> 1;
-    return height;
-}
 
 /* ---- After Crono's finish ------------------------------------------------------------------- */
 
@@ -271,7 +259,7 @@ static bool settle_camera(GameState *g)
 static void keep_controller(GameState *g)
 {
     PadBits now = scene_joypad(g);
-    ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), now));
+    charge_legacy_accesses(g, 2);
     set_scene_joypad(g, scene_race_buttons_before(g));
     set_scene_race_buttons_before(g, scene_race_buttons(g));
     set_scene_race_buttons(g, now);
@@ -341,16 +329,6 @@ const SceneScriptRoutine scene_race_routines[] = {
     { SCENE_ROUTINE_PICK_THE_RACE_S_OPENING, pick_opening, scene_race_pick_opening_present, false },
 };
 const unsigned scene_race_routine_count = sizeof scene_race_routines / sizeof scene_race_routines[0];
-
-#if ORIGINAL_EFFECTS
-/* The pick leaves the opening it picked in A: the calling channel's script. */
-static uint16_t leaves_a_as_called(uint16_t called_with) { return called_with; }
-static void leaves_the_opening(Snes *s) { s->cpu.a = scene_channels_script(state_of(s), scene_program_page_at_entry(s).index); }
-
-const SceneRoutineLeaves scene_race_routine_leaves[] = {
-    { leaves_a_as_called, leaves_the_opening },
-};
-#endif
 
 /* ---- The tasks as C ---------------------------------------------------------------------------
  *
@@ -439,17 +417,15 @@ TaskEnd scene_race_check_perspective(GameState *g, Platform *pf, unsigned slot)
 void scene_race_settle_camera_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    uint16_t distance_before = race_camera(g, CAMERA_DISTANCE);
-    uint16_t frame = scene_frame_counter(g);
-    bool settled = settle_camera(g);
-    ORIGINAL_EFFECT(s->cpu.a = settled ? distance_before : (uint16_t)(frame >> 2));
+    charge_legacy_accesses(g, 4);
+    (void)settle_camera(g);
     m_rts(s);
 }
 
 void scene_race_move_along_entry(Snes *s)
 {
     scene_race_move_along(state_of(s), m_platform(s), 0);
-    ORIGINAL_EFFECT(s->cpu.a = scene_race_center_y(state_of(s)));
+    charge_legacy_accesses(state_of(s), 2);
     m_rts(s);
 }
 
@@ -457,16 +433,8 @@ void scene_race_keep_controller_entry(Snes *s)
 {
     GameState *g = state_of(s);
     scene_race_keep_controller(g, m_platform(s), 0);
-    ORIGINAL_EFFECT(s->cpu.a = scene_race_buttons(g));
+    charge_legacy_accesses(g, 2);
     m_rts(s);
-}
-
-static void leave_camera_checked(Snes *s, bool rebuilt)
-{
-    if (rebuilt)
-        scene_leave_perspective_registers(s, 0);
-    else
-        s->cpu.a = race_camera(state_of(s), CAMERA_LINES_PAIRED);
 }
 
 /* A changed camera rebuilds the perspective in C; the guard has checked
@@ -477,17 +445,15 @@ void scene_race_check_perspective_entry(Snes *s)
     bool rebuilt = camera_changed(g);
     if (rebuilt)
         TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, 0));
-    ORIGINAL_EFFECT(leave_camera_checked(s, rebuilt));
+    if (rebuilt) scene_charge_perspective_result(state_of(s), 0); else charge_legacy_accesses(state_of(s), 2);
     m_rts(s);
 }
 
 void scene_race_turn_camera_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    PadBits pad = scene_race_buttons(g);
-    uint16_t frame = scene_frame_counter(g), height = race_camera(g, CAMERA_HEIGHT);
+    charge_legacy_accesses(g, 6);
     scene_race_turn_camera(g, m_platform(s), 0);
-    ORIGINAL_EFFECT(s->cpu.a = left_by_height_control(pad, frame, height));
     m_rts(s);
 }
 
@@ -495,7 +461,7 @@ void scene_race_aim_camera_entry(Snes *s)
 {
     GameState *g = state_of(s);
     scene_race_aim_camera(g, m_platform(s), 0);
-    ORIGINAL_EFFECT(s->cpu.a = scene_race_bg2_scroll_x(g));
+    charge_legacy_accesses(g, 2);
     m_rts(s);
 }
 
@@ -513,6 +479,3 @@ void scene_race_set_horizon_entry(Snes *s)
     scene_race_set_horizon(state_of(s), m_platform(s), 0);
     m_rts(s);
 }
-
-/* The script's call: what it leaves in X isn't read. */
-void scene_race_pick_opening(Snes *s) { scene_script_routine_alone(s, &scene_race_routines[0]); }

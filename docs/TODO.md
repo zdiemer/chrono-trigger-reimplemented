@@ -2827,43 +2827,13 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Scene continuation boundaries
 
-- **Retire the remaining scene comparisons.** The continuation preparation
-  removes machine entries in the attract, title and winning-race census;
-  the scene ledger now accounts for its unreached paths. Remove the scene's
-  registry rows and unneeded wrappers, keep contracts at the remaining
-  machine boundaries and retain every retired time estimate. Check scratch
-  readers in other subsystems before deleting scaffolding. Preserve the
-  ledger's input domains and source-backed proofs. Run the protected movies
-  and the relevant native-shape routes; REIMPLEMENTATION.md, "The scene
-  engine's continuation boundaries", records the preparation and its
-  observations. The initial inventory is in
-  history/scene-teardown-preconditions.md.
-
-- **Scene divisor search outside its terminating domain.** The entry at
-  `$C3:0E29` refuses a dividend, initial quotient and limit for which none
-  of its 256 divisors succeeds. The original loops forever there; seed-1
-  fuzz rejects one of 2,000 cases. Real-play guards must remain zero.
-
-- **Perspective guards outside the visible geometry.** Random race and
-  flight horizons can request lines outside the 224-line tables. Their
-  camera-check entries now refuse those inputs before saving the camera,
-  instead of stopping after changing it. Unchanged cameras and flat flight
-  views remain accepted; bounded and unchanged fixtures compare fully.
-
-- **Bitmap requests outside the scaler's bank.** Whole-picture entry guards
-  reject requests whose later rows cross the bank, before changing any
-  output. The broad start fixture rejects 1,966/2,000 random states; seven
-  more exceed the fuzz budget. Bounded whole pictures compare fully. The caller bridges preflight
-  their fixed-size picture requests before setup.
-
-- **The race upload wait has two caller instances.** After the bitmap is
-  drawn in C, `scene_bridge_scale_picture` still stops at `$7E:5211`.
-  Continuing both racers through `tm_wait_for_handlers` makes shadow mode
-  compare Johnny's wait against Crono's earlier satisfied wait: the same
-  address and stack depth, with different live caller return addresses.
-  Race-won reports `WRAM[001F] original 04 native 03`; bounded individual
-  racer pictures pass. The wait needs caller-instance matching before this
-  boundary can leave. The Epoch and ending gathering paths need no such wait.
+- **Remove the remaining menu compatibility scratch after the menus retire.**
+  The scene engine retains five `ORIGINAL_EFFECT` sites in `circle.c` and
+  four in `curtain.c`, because gated menu callers still compare their iris
+  and curtain work. Keep the called machine forms' contracts until their
+  callers no longer need the legacy stack/register interface. The input
+  domains and unreached proofs are recorded in REIMPLEMENTATION.md,
+  "The scene engine's teardown", and history/scene-unreached.tsv.
 
 - **The time warp's set-up is owed with a port suspended.** The trip's
   set-up draws the light a pixel at a time, about 110 frames of the
@@ -2875,70 +2845,7 @@ rest waits, is [PLAN.md](PLAN.md).
   A held wait at the screen's wait, the set-up's time paid as its
   continuation's, would give them one.
 
-- **Boot credit pages outside the five-page table.** The page index at
-  `$0382` survives startup. Random values above five read unrelated program
-  bytes as text and differ in VRAM/OAM; boot now refuses those states before
-  mutation. Valid page indices and all sixteen modes are fuzzed separately.
-
-- **What the retired scene program still leaves to the cartridge.** Its
-  start goes on as C only while what it calls comes back to it. Three paths
-  return to the program's first frame (`$7E:300D`) through the machine, where
-  the cartridge's first frame and loop then run, the loop's head found by
-  address: a setup whose port stops on the machine (`set_the_scene_up`, `done`
-  false), the title's song wait not coming back to the dispatch's return, and
-  a mode with no setup port, called through the program's table. None is
-  reached over the gate's sample (the census enters `$7E:300D` 0 times), but
-  each wants the first frame as a continuation of its own, or the setups'
-  stops made calls. The fallback baseline's `7E:----` line was set over the gate's
-  sample at the teardown: the batched library run takes the library's count.
-
-- **Two scene interpreter handbacks retain machine contracts.** All seven
-  store/task/video command families have C implementations, but the dispatch
-  handback remains for stores outside low RAM, unsupported video encodings,
-  and task searches without the terminating word. These need explicit bus
-  services or validation of an entire script turn before mutation. The
-  `$C3:0C5C` handback covers arbitrary script callees returning with a page,
-  bank or width/mode context the typed channel interpreter cannot use.
-  Sound commands now continue directly because their interface preserves
-  that context; arbitrary callees still need a declared return contract.
-
 ## Shadow comparison gaps
-
-The broad `scene_program_start` fuzz fixture has 11 VRAM mismatches in 384
-comparisons, with 16 call-out budget skips, identical in the pre-review and
-review builds at seed 1 (400 iterations, modes 0-15). Isolate the setup mode
-and its VRAM-read state; the first reported differences are in the copied
-map at VRAM 0004 and 6018. The focused title refusal fixture and narrowed
-startup movies pass. This pre-existing failure is not a successful fuzz
-receipt and must remain separate from the 29 clean review fixtures.
-
-The scene series still needs a complete passing sampled-gate receipt after
-its final corrections. Its one full run passed all 37 shadow movies and
-56 shipping/native-shape routes, but ended with timing, fallback,
-uncompared, effects and evidence failures. The first four now pass focused
-checks or an audit of that run's logs. The evidence runner's corrected
-process budget passes all 84 movies, ending `dc_evidence: OK`. These checks
-do not constitute a fresh complete gate.
-
-The scene's whole-picture scalers need comparisons that survive interrupts.
-In the 37-movie scene sample, both race-picture entries have all 1,142 calls
-interrupted; each bitmap start, row and sampling entry has 4,310 interrupted
-comparisons. The bitmap entries still have matching comparisons (1,846 at
-the start and row, 850 at the sampler). Bounded isolated fuzzing compares
-6,000 race pictures and 8,027 bitmap cases without a mismatch, but does not
-close this movie coverage gap. The review's race-won replay independently
-compares all 3,524 NMI handlers and 3,524 frame-work calls; this checks the
-interrupt work, but not its interaction with native bitmap work interrupted
-mid-picture. Add resumable comparison checkpoints or a synchronized interrupt
-replay before removing the five bitmap/race exemptions. Keep that distinction
-when extending the race upload-wait comparison described above.
-
-Held sound waits have independent shadow comparisons with interrupts
-enabled: the attract opening compares the complete music wait and ten retry
-sends. Their combined-run exemptions remain because enclosing C loops own
-the waits (the time warp's are no longer compared: REIMPLEMENTATION.md,
-"The time warp's teardown"). The merge coordinator runs
-the sampled gate after these review fixes; it was not rerun in this review.
 
 The early-boss shadow runs also expose a comparison gap in the held-message
 path: `battle_pause_on_the_message` has 168 calls, all abandoned, when run

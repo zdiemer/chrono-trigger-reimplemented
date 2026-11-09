@@ -4077,17 +4077,15 @@ its enclosing byte comparison. Screen startup also leaves Y and overflow
 where the still-gated sprite and menu callers expect them.
 
 The field's scratch reconstruction and `event/leaves.c` are deleted except
-for two interfaces still under their callers' gates. The menus' wave-phase
+for the menu interface still under its callers' gate. The menus' wave-phase
 alias at `$7E:01E2-$7E:01E3` is isolated in
 `field/menu_compat.h`: event calls leave the place/table bytes, the party
 movement dispatch leaves its operand byte, and tile/property copying
 clears the appropriate bytes. Each writes only the live alias, preserving
 the neighbouring bytes. The menu wave handler at `$C2:77C7` reads that
-phase; those writes remain until the menus retire. The scene ending's
-window task (`$7E:9A0C`) includes the rasterizer's last-edge and fill scratch
-in its byte comparison. `field/window_shape.c` retains those writes only
-for the scene's low-RAM table, until that task retires; the field's own
-window tables do not write them. `$7E:0F00` is instead
+phase; those writes remain until the menus retire. The scene teardown
+removes `field/window_shape.c`'s last-edge and fill scratch, formerly kept
+for the ending window task's enclosing comparison. `$7E:0F00` is instead
 real object-view state, as the preceding held-continuation section explains
 and `field_test` checks, including the last object slot and middle removal.
 
@@ -4234,8 +4232,8 @@ The scene program's start, clear, first screen, first frame, main loop and
 end run outside the byte-exact gate. `game/attract/` is folded into
 `game/scene/program.c`; `scene_runs` supplies the same operations to the
 native program. The retired ranges are `$7E:3000-$7E:3175` and
-`$7E:3177-$7E:31BE`. The boot, setups, frame work, tasks and scripts remain
-under comparison until the rest of the scene engine retires.
+`$7E:3177-$7E:31BE`. The rest of the engine is retired below; the original program
+still supplies reference play.
 
 The shipping boot calls `scene_program_starts_on_the_machine` under its
 code, mode and width contract. Startup clears the work RAM, restores sound,
@@ -4263,65 +4261,95 @@ per-entry accounting are in
 `history/scene-program-teardown.md`; the current scene boundary census is
 below.
 
-### The scene engine's continuation boundaries
+### The scene engine's teardown
 
-The race's main-loop scaling call now runs as C. `HOLD_SCENE_RACE_UPLOAD`
-holds `$7E:5211` with the saved racer and main-loop return frames, so no
-scaling invocation remains suspended while the previous tilemap uploads.
-Once that upload finishes, `$7E:5215` gathers the picture, calls the checked
-Crono or Johnny continuation, and either starts the next racer or holds
-the completed main-loop pass at `$7E:3026`. Gathering and both racer
-continuations retain their calibrated rates; settled work stays at the
-operation's own rate. The checked boundaries retain decimal mode, widths,
-page, bank and code-image guards.
+The remaining scene engine is off the byte-exact gate: boot, all sixteen
+setups, interrupt/frame work, task lists, scripts, arithmetic, drawing,
+race scaling and each scene's routines. Its 272 ordinary registry rows
+are gone. Their calibrated time tags remain in `game/time_tags.c`.
+`scene_runs` uses the same game operations without a machine; the legacy
+driver calls checked C forms at its console, field and held-wait boundaries.
+Those forms preserve the old P masks (including decimal mode), widths,
+pages, banks and code-image guards as broken-contract checks. A refusal
+stops at the original entry with the return frame intact. Unknown setup,
+main-loop and script callees also report a broken contract.
 
-The console calls scene interrupt handlers directly. The NMI calls frame
-work, which calls both task lists; setup unpacking, first script steps,
-sound sends and curtain calls also use their checked C forms. The field's
-scene boot and curtain hand-offs use the same contracts. The empty task
-recognizes its unchanged return image and preserves the list's argument
-and saved-context result without executing the original return.
-These are shipping-mode hand-offs. While the scene comparisons remain,
-shadow mode keeps the frame, task-list and unpacker call boundaries: the
-lists synchronize their frame's work there, and the resource load owns the
-retired decompressor's existing estimation error. Inlining those boundaries
-into the enclosing comparisons produced two Beyond Time state differences
-and moved the unpacker's 333,201-clock error into its caller. Restoring the
-comparison boundaries clears the state differences without a new exception.
-The console likewise leaves the NMI's shadow entry isolated: inlining it
-made every NMI comparison abandoned. Shipping calls settle the caller after
-pushing the return frame and the callee before returning, just as the old
-call-outs did. In particular, settling the field's curtain call before its
-return-frame push advances the attract transition four frames and loses
-protected picture 10500 and place 25; settling after the push restores both.
-The held race wait changes only unprotected picture observations in
-`attract-demo` and `events-jetbike-race-won`. An A/B replay restoring only
-the old race hand-off reproduces their previous picture digests; their
-complete saved-game, save-RAM and place observations are identical.
-The two existing picture exceptions record that measured change, while
-every protected picture identity remains required.
+The race's main-loop call runs as C. `HOLD_SCENE_RACE_UPLOAD` retains the
+racer and main-loop return frames at `$7E:5211`; the upload continuation
+gathers the picture, continues the correct racer and holds the completed
+pass at `$7E:3026`. No scaling invocation stays suspended across the wait.
+The main loop and title's music wait likewise retain their held boundaries.
+The console calls scene NMI/IRQ handlers, the NMI calls frame work, and
+frame work calls both task lists. Resource loads and script first steps
+are direct C calls. The eight ending-loading script routines also have
+named checked calls; none depends on a registry lookup by its address.
+The empty task validates its return image and completes in C.
 
-Over `attract-demo`, `title-start` and `events-jetbike-race-won`, the initial
-census entered 15 scene rows by the machine 55,452 times: 36,880 calls,
-11,451 stops, 2,544 returns and 4,577 wait passes. The prepared continuations
-reduce all of those scene entries to zero. Across all subsystems the same
-movies go from 84 machine-entered rows and 316,513 entries to 69 and
-261,029, with C-only rows increasing from 814 to 827. The race holds 4,556
-upload passes, gathers 1,270 pictures and completes 635 scaling passes.
-A race save/load comparison replays one frame exactly and produces
-identical work RAM after the next 60 frames, with no lost or inexact state.
+Before retirement, burndown reported no unported scene code. The shipping
+fallback audit identified the empty task as the remaining original return;
+the checked empty-task call removes it. Scene code executes from a shared
+RAM overlay: the code-image contracts distinguish it from other programs,
+and no generated scene operation runs in shipping play. Reference/shadow
+execution remains the original program, which can of course touch its
+state; it is no longer a source of per-entry scene comparisons. The fallback
+measure and burndown classify 67 runs (27,920 bytes) as retired, including
+the perspective loop's 29-byte pairing tail reached through its patched
+branch (the original-image ownership walk misses that edge). Shipping
+fallback accounting still counts those addresses, so
+retirement cannot hide original code re-entered in real play.
 
-The conservative scene inventory has 272 rows and 3,823 bytes absent from
-the existing 84-movie coverage union. Fresh ordinary and targeted fuzz
-comparisons cover 3,807 bytes. Three source-backed proofs cover the other
-16: the logo's nonnegative scaled magnitude, the figure draw's impossible
-compare fallthrough, and the staff roll's palette copier selecting only
-the lower bank. The ledger retains these preconditions for retirement.
-Input fixtures compare Start and reset chords, and a supplied vblank edge
-lets the turning-map setup compare its post-upload work. Shared race
-movement evidence names the same boost, drift and bump operations used by
-both ride and coast; interpreted callees alone supply no coverage evidence.
+The conservative 84-movie inventory had 3,823 unreached bytes in 67 scene
+entries. Fresh ordinary and targeted fuzz comparisons cover 3,807; three
+source-backed proofs cover the remaining 16: the logo's nonnegative scaled
+magnitude, the figure draw's impossible compare fallthrough, and the staff
+roll palette copier's lower-bank destination. The archived ledger,
+`history/scene-unreached.tsv`, keeps all 272 entries, the coverage manifest,
+recipes and proofs. The C contracts retain the terminating divisor-search
+domain, bounded perspective geometry, bitmap bank limits, credit-page
+index and script operand domains. Arithmetic operations also report a
+broken contract for excluded products, divisors and orbit sizes.
 
+Scene-only scratch reconstruction is deleted, including the field
+rasterizer's scene-only last-edge scratch. Arithmetic cells consumed by
+later random draws remain actual state. The planet tasks' branch choices
+remain ordinary C bookkeeping because their return convention and timing
+use them. Nine scaffolding sites remain: five in `scene/circle.c` and four
+in `scene/curtain.c`, for the still-gated menu iris and curtain callers.
+The menus' teardown removes these. Called machine forms remain where
+the legacy runtime or gated callers need the stack/register interface;
+they are not dispatchable registry entries. Held rows remain retired
+continuations until the legacy driver leaves the product.
+
+Removed scratch accesses retain their RAM/I/O/cartridge charges at each
+operation's unchanged estimate. Former call-outs settle the caller after
+pushing the return frame and the callee before returning. Moving that
+settlement before the field curtain's push advances the attract transition
+four frames and loses protected picture 10500 and place 25. The held race
+wait changes eight unprotected neighbouring picture observations across
+attract and race-won; an A/B replay restoring only the old race hand-off
+reproduces the previous digests. Saved-game, save-RAM and place observations
+are identical. The two existing picture exceptions record that evidence;
+no protected identity is relaxed. The effects baseline renames the same
+curtain entropy read from its former scene wrapper to `field_next_frame`:
+the underlying low-RAM alias is still written by the gated menu NMI.
+
+The initial attract/title/winning-race census found 15 scene rows entered
+by the machine 55,452 times: 36,880 calls, 11,451 stops, 2,544 returns and
+4,577 wait passes. The prepared calls reduce these scene entries to zero;
+Epoch and Beyond Time also have none. A race save/load replay produces
+one exact frame and identical work RAM 60 frames later, without lost or
+inexact state. Full before/after counts and validation receipts accompany
+the retirement's gate evidence; the earlier inventory and continuation
+experiments are in `history/scene-teardown-preconditions.md`.
+
+At this retirement, source joints change from 1,689 to 1,417 ordinary
+registry entries, 69 to 72 held continuations, 917 to 854 stack returns,
+91 to 93 stops (including checked refusal and held boundaries), and
+1,587 to 1,390 scaffolding sites. Call-outs remain six, registry lookups
+three, machine time tags eight and register escapes 24; video calls fall
+from 544 to 537. Within `game/scene/`, stack returns fall from 171 to 108
+and scaffolding sites from 203 to nine. These are source counts, not a
+claim that the legacy runtime no longer needs its machine.
 
 Replacement observations are the protected identities in
 `tools/outcomes_baseline.txt`, not the excepted differences. In both strict
@@ -4333,7 +4361,8 @@ and native modes, `attract-demo` protects the saved game and places 0-5;
 and places 0-4 (strict additionally protects its saved game and place 5);
 `endings-beyond-time` protects pictures 1/1800/2100/2400/3900/4200 and
 places 0-4. Each mode's additional picture identities remain protected
-too. The race, Epoch and ending routes must also run on the native shape.
+too. The native-shape routes exercise the late ending separately; these early
+ending picture matches alone do not protect the staff roll.
 
 
 ### Recorded outcomes

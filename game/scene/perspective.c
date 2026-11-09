@@ -28,12 +28,12 @@
  * The program keeps the camera's products in its own code (the loop's
  * immediate operands), the table each sign goes to in its stores' operands, and
  * the loop's step and end as instructions; those that the scene sets are
- * variables in re/ram.toml, and those only the loop reads are left as it leaves
- * them, as scaffolding. */
+ * variables in re/ram.toml. The C uses local geometry; only the cost of the
+ * former scratch accesses remains in its estimate. */
+#include "charge.h"
 #include "scene/race.h"
 
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
@@ -238,30 +238,15 @@ static Turned turned_camera(GameState *g, SceneChannel ch)
     return t;
 }
 
-/* The loop's operands and the divider as the original leaves them: the
- * products in its loads, the branch over the cosine's negation, the stores'
- * tables, and the divider dividing the sine's product by the last distance
- * (stored as a word, its high byte in the next register) with the cosine's
- * product loaded for a line after it. The dive's view from outside reads the
- * curve through the work RAM port, its first distance and then the next after
- * every line, and leaves the port past what it read. */
-enum { BRANCH_INTO_NEGATION = 0x0080, BRANCH_PAST_NEGATION = 0x0480 };
-enum { B_ENTRIES = 0xF0FE, C_ENTRIES = 0xF484 };
-
-static void leave_loop_operands(GameState *g, const Turned *t, const PlaneLines *l, uint16_t last_distance)
+/* Keep the calibrated work for the camera products and divider setup,
+ * including the outside view's initial curve seek, without rebuilding them. */
+static void charge_perspective_temporaries(GameState *g)
 {
-    set_scene_perspective_along_product(g, t->along);
-    set_scene_perspective_across_product(g, t->across);
-    set_scene_perspective_cosine_sign(g, t->along_negative ? BRANCH_INTO_NEGATION : BRANCH_PAST_NEGATION);
-    set_scene_perspective_across_entries(g, t->across_negative ? C_ENTRIES : B_ENTRIES);
-    set_scene_perspective_against_entries(g, t->across_negative ? B_ENTRIES : C_ENTRIES);
-    hw_set_dividend(g, t->across);
-    hw_divide_by_word(g, last_distance);
-    hw_set_dividend(g, t->along);
-    if (start_routine(g) == START_SHELL_FROM_OUTSIDE) {
-        unsigned read = 1 + (l->step.way == DISTANCE_ALONG_THE_CURVE ? (unsigned)(l->end - l->first) : 0);
-        hw_port_seek(g, (uint16_t)(RAM_SCENE_SHELL_CURVE + read), RAM_SCENE_SHELL_CURVE >> 16);
-    }
+    uint32_t mark = charge_uncounted_begin(g);
+    bool outside = start_routine(g) == START_SHELL_FROM_OUTSIDE;
+    charge_uncounted_end(g, mark);
+    charge_legacy_accesses(g, 12); /* five words stored, start routine read */
+    charge_legacy_io_accesses(g, outside ? 9 : 6);
 }
 
 /* The distance of the line (or pair) after `line`, which was at `distance`. */
@@ -281,17 +266,16 @@ void scene_build_perspective(GameState *g, SceneChannel ch)
     PlaneLines l = next_lines(g, ch);
     start_lines(g, ch, &l);
     unsigned lines_each = l.step.way == DISTANCE_PAIRED ? 2 : 1;
-    uint16_t distance = l.distance, last_distance = distance;
+    uint16_t distance = l.distance;
     for (int16_t line = l.first; line < l.end; line = (int16_t)(line + lines_each)) {
         uint16_t along = over_distance(t.along, distance), across = over_distance(t.across, distance);
         along = t.along_negative ? (uint16_t)-along : along;
         across = t.across_negative ? (uint16_t)-across : across;
         for (unsigned i = 0; i < lines_each; i++)
             set_line(g, (int16_t)(line + i), along, across);
-        last_distance = distance;
         distance = next_distance(g, &l, line, distance);
     }
-    ORIGINAL_EFFECT(leave_loop_operands(g, &t, &l, last_distance));
+    charge_perspective_temporaries(g);
 }
 
 /* ---- The camera it was built for ------------------------------------------------------------- */
@@ -430,45 +414,25 @@ bool scene_perspective_as_ported(Snes *s, uint16_t d)
     return known;
 }
 
-bool scene_build_perspective_present(Snes *s) { return scene_perspective_as_ported(s, m_direct_page(s)); }
-
-/* What the original leaves, from the state after: Y at the end of the tables,
- * X the distance after the last line's (along the curve, the curve's next,
- * which A holds too), else A the last entry it stored (the sine's negated, or
- * the copy's last), the loop's last compare in the flags but V, which the
- * cosine of the turn left, the direct page on the CPU's registers and the
- * data bank its own. */
-void scene_leave_perspective_registers(Snes *s, SceneChannel ch)
+/* The former result-register reconstruction read the line description,
+ * one final matrix entry and the turn. Keep that time without rebuilding
+ * register values or reading the discarded scratch operands. */
+void scene_charge_perspective_result(GameState *g, SceneChannel ch)
 {
-    GameState *g = state_of(s);
-    PlaneLines l = lines_built(g, ch);
-    unsigned lines = (unsigned)(l.end - l.first), last = (unsigned)(l.end - 1);
-    bool sine_stored_last_in_b = l.step.way != DISTANCE_PAIRED && scene_perspective_against_entries(g) == B_ENTRIES;
-    if (l.step.way == DISTANCE_ALONG_THE_CURVE) {
-        s->cpu.x = scene_shell_curve(g, lines);
-        s->cpu.a = s->cpu.x;
-    } else {
-        int steps = l.step.way == DISTANCE_PAIRED ? (int)lines / 2 : (int)lines;
-        s->cpu.x = (uint16_t)(l.distance + steps * l.step.step);
-        s->cpu.a = sine_stored_last_in_b ? scene_plane_matrix_top_row_b(g, last) : scene_plane_matrix_bottom_row_c(g, last);
+    uint32_t mark = charge_uncounted_begin(g);
+    PlaneLines lines = lines_built(g, ch);
+    unsigned accesses = 14; /* line description and final turn */
+    switch (start_routine(g)) {
+    case START_RACE:
+        accesses += 2 + (plane_register(g, ch, SCENE_PLANE_LINES_PAIRED) ? 2 : 0);
+        break;
+    case START_SHELL_FROM_OUTSIDE: accesses++; break;
+    case START_SHELL_FROM_THE_COCKPIT: accesses += shell_above_built_last(g) ? 0 : 2; break;
+    case START_ENDING: break;
     }
-    s->cpu.y = (uint16_t)(l.end * LINE_BYTES);
-    uint16_t turn = plane_register(g, ch, SCENE_PLANE_TURN);
-    m_set_flag(s, CPU_FLAG_V, scene_quarter_turn_on_overflows(turn));
-    m_set_flag(s, CPU_FLAG_N, false);
-    m_set_flag(s, CPU_FLAG_Z, true);
-    m_set_flag(s, CPU_FLAG_C, true);
-    s->cpu.d = CPU_REGISTERS_PAGE;
-    s->cpu.db = SCENE_LOWER_WORK_RAM;
-}
-
-/* Entered by a jump from the race's camera check, an ending's or the dive's,
- * 16-bit, on the channel's page. */
-void scene_build_perspective_entry(Snes *s)
-{
-    SceneChannel ch = 0;
-    scene_channel_at(m_direct_page(s), &ch);
-    scene_build_perspective(state_of(s), ch);
-    ORIGINAL_EFFECT(scene_leave_perspective_registers(s, ch));
-    m_rts(s);
+    if (lines.step.way != DISTANCE_PAIRED)
+        accesses += 2;
+    accesses += lines.step.way == DISTANCE_ALONG_THE_CURVE ? 1 : 2;
+    charge_uncounted_end(g, mark);
+    charge_legacy_accesses(g, accesses);
 }

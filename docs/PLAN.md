@@ -157,16 +157,12 @@ a process budget.
 original code in place of a hand port in the shipping mode, so the order is no
 longer picked by native coverage but by what each subsystem's teardown needs
 (Phase 4a, "The native program, and the registry taken down", step 3). Sound,
-data, core's services, the time warp, the overworld and the scene program are
+data, core's services, the time warp, the overworld and the scene engine are
 retired. In order:
 
 1. **The field and the events, then the battle and the menus**: the largest,
    each needing its unreached code checked and its recorded outcomes over the
    library first ("The code no movie reaches", "Validation after the teardown").
-   The rest of the scene engine (its setups, frame's work and scenes' routines,
-   `game/scene/`) beside them, with its checked C hand-offs and held race
-   upload wait prepared (REIMPLEMENTATION.md, "The scene engine's
-   continuation boundaries").
 2. **`ct_native`'s time model** alongside, so the native program plays as the
    original does: the loads and the battle's setup it charges wrongly first.
 
@@ -233,7 +229,7 @@ where recalibration and baseline updates come from; "every movie" below is every
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**0 of 317 files is left on the backlog**: the last, `data/decompress.c`, is
+**0 of 318 files is left on the backlog**: the last, `data/decompress.c`, is
 rewritten (the unpacker as a function of the game's state, which the native
 program calls), and `tools/portstyle_baseline.txt` lists none. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
@@ -713,7 +709,10 @@ taking the gate down needs, before it and after it.
      with the comparison, and a retired loop that calls still-gated routines
      calls each as C under its registry row's contract. The race's scaling
      now holds its upload wait with saveable caller frames rather than
-     leaving a scaling invocation suspended across the wait.
+     leaving a scaling invocation suspended across the wait. The remaining
+     scene engine is retired too: its checked machine forms keep contracts
+     at the legacy driver and gated menu boundaries, with no ordinary
+     scene registry rows (REIMPLEMENTATION.md, "The scene engine's teardown").
   4. **Last, the machine leaves the product.** When no subsystem is under
      the gate, `game/registry.c`, the intercept, the entry macros and
      `runtime/`'s emulator are deleted from what ships; `ct_play` is

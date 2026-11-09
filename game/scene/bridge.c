@@ -1,15 +1,13 @@
 /* Scenes: where the ports meet the scene program's calling conventions.
  *
- * A port whose work goes on in the original's code -- a loop that runs over
- * frames, entered as a routine the port's own original would have called --
- * leaves the machine as the original does at that point: the frames of the
- * calls it has inlined on the stack, the registers the code there reads. Those
- * mechanics are here, apart from the ports' logic (scene/scene.h). */
+ * Checked C calls and held waits retain the legacy caller frames and return
+ * conventions while the shipping runtime still uses the machine. Those
+ * mechanics are here, apart from the game operations (scene/scene.h). */
 #include "scene/race.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "holds.h"
-#include "original_effects.h"
 #include "platform/audio.h"
 #include "platform/timing.h"
 #include "port/machine.h"
@@ -150,7 +148,6 @@ void scene_start_song(Platform *pf, uint8_t song)
 
 /* ---- The setups' loading and stars ------------------------------------------------------------- */
 
-
 /* The stars scattered at random ($7E:5777), as a setup has them scattered:
  * their first draw from what the setup's call before left in A and the carry,
  * which it hands on unexamined; the overflow the last draw leaves is the
@@ -162,7 +159,6 @@ void scene_bridge_scatter_stars(Snes *s, uint16_t left_in_a)
     GameState *g = state_of(s);
     SceneDraw first = scene_draw_from(left_in_a, m_flag(s, CPU_FLAG_C), TM_ENTROPY_BYTES);
     TIMED_AS(g, SCATTER_STARS, scene_scatter_stars(g, m_platform(s), first));
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, scene_random_last_overflow()));
 }
 
 /* ---- A sibling run as C ------------------------------------------------------------------------ */
@@ -176,16 +172,16 @@ bool scene_accept_continuation(Snes *s, uint32_t at, void (*entry)(Snes *))
 {
     m_jump_to(s, at);
     const NativeEntry *e = native_continuation_entry_at(s, at);
-    if (entry && e && e->fn == entry)
+    if ((entry && e && e->fn == entry) ||
+        (m_runs_retired_as_c(s) && scene_machine_form_takes(s, entry)))
         return true;
     m_stop_at_own(s, at, 0);
     return false;
 }
 
-/* The call pushes its return address, under which the sibling runs as C,
- * timed as its routine, where the registry would run it there; anywhere else
- * (no port, or its guard or widths turn the state away) the call is a real
- * one, with the don't-care set it declares. */
+/* The call retains its return frame and calibrated time. Shipping calls
+ * enforce the retired contracts; the reference path keeps the original
+ * call and its comparison declarations for enclosing gated callers. */
 static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
                       bool long_call, bool replaces_call_out)
 {
@@ -199,7 +195,13 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     if (replaces_call_out)
         charge_settle(state_of(s));
     const NativeEntry *e = entry ? native_hand_entry(s) : NULL;
-    if (!e || e->fn != entry) {
+    if ((!e || e->fn != entry) && !(m_runs_retired_as_c(s) && scene_machine_form_takes(s, entry))) {
+        if (m_runs_retired_as_c(s)) {
+            if (!entry)
+                program_breaks_a_contract(state_of(s), routine, "a scene call outside its C table");
+            m_stop_at_own(s, routine, 0);
+            return false;
+        }
         s->cpu.s = stack;
         if (long_call)
             m_jsl_dc(s, site, routine, dont_care);

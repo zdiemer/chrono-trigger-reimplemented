@@ -35,7 +35,6 @@
 
 #include "charge.h"
 #include "core/program.h"
-#include "original_effects.h"
 #include "platform/audio.h"
 #include "platform/video.h"
 #include "port/machine.h"
@@ -483,18 +482,6 @@ static void set_widths16(Snes *s) { s->cpu.p &= (uint8_t)~(CPU_FLAG_M | CPU_FLAG
  * and the byte after it. What is left there is the last command's. */
 enum { CHANNEL_PAGES = 0x0A00, CHANNEL_PAGE_BYTES = 0x100 };
 
-static uint16_t kept_word(const Command *c, const ScriptRow *row)
-{
-    if (row->kind == KIND_SET || row->kind == KIND_ADD)
-        return (uint16_t)(CHANNEL_PAGES + c->ch * CHANNEL_PAGE_BYTES + 2 * low_nibble(c));
-    return operand16(c, 0);
-}
-
-static void keep_word(const Command *c, const ScriptRow *row)
-{
-    set_scene_call_script_scratch(c->g, scene_program_channel(c->ch), kept_word(c, row));
-}
-
 /* The flags. What reads them is the program's code after a sequence run, not
  * the scripts: the attract and title programs run their channels at $7E:54B4
  * and go straight on to $7E:5777, whose $7E:3443 calls the random number mixer
@@ -524,42 +511,8 @@ typedef struct {
     uint16_t value, limit;
 } Before;
 
-static Before before(const Command *c, const ScriptRow *row)
-{
-    switch (row->kind) {
-    case KIND_ADD: return (Before){ scene_channel_register(c->g, c->ch, low_nibble(c)), 0 };
-    case KIND_LOOP: return (Before){ loop_counter(c->g, c->ch, low_nibble(c)), operand16(c, 1) };
-    default: return (Before){ 0, 0 };
-    }
-}
-
-static bool overflows16(uint16_t a, uint16_t b, uint16_t sum) { return ((a ^ sum) & (b ^ sum) & 0x8000) != 0; }
-
 /* A loop's step past the command when it is done, (at + 1) + 4. */
 enum { LOOP_STEP = 4 };
-
-static void note_flags(Snes *s, const Command *c, const ScriptRow *row, Before before)
-{
-    uint16_t was = before.value, limit = before.limit;
-    bool carry = false, overflow = m_flag(s, CPU_FLAG_V);
-    if (row->kind == KIND_ADD) {
-        uint16_t now = scene_channel_register(c->g, c->ch, low_nibble(c));
-        carry = now < was;
-        overflow = overflows16(was, (uint16_t)(now - was), now);
-    } else if (row->kind == KIND_LOOP) {
-        uint16_t step_from = (uint16_t)(c->at + 1);
-        if (loop_done(was, limit)) {
-            carry = (uint32_t)step_from + LOOP_STEP > 0xFFFF;
-            overflow = overflows16(step_from, LOOP_STEP, (uint16_t)(step_from + LOOP_STEP));
-        } else {
-            carry = was != 0 && was >= limit;
-        }
-    } else if (row->kind == KIND_SET || row->kind == KIND_VIDEO) {
-        overflow = false;
-    }
-    m_set_flag(s, CPU_FLAG_C, carry);
-    m_set_flag(s, CPU_FLAG_V, overflow);
-}
 
 /* Where the interpreter runs as the port has it: native mode, 16-bit index
  * registers, binary adds, the scripts' data bank and D on a channel's page. */
@@ -587,14 +540,6 @@ static const struct {
                        { scene_staff_roll_routines, &scene_staff_roll_routine_count },
                        { scene_turn_routines, &scene_turn_routine_count } };
 
-#if ORIGINAL_EFFECTS
-/* What they leave, in tables parallel to theirs. */
-static const SceneRoutineLeaves *const routine_leaves[] = { scene_title_routine_leaves, scene_lavos_routine_leaves,
-                                                             scene_dive_routine_leaves, scene_planet_routine_leaves,
-                                                             scene_race_routine_leaves, scene_ending_routine_leaves,
-                                                             scene_staff_roll_routine_leaves, scene_turn_routine_leaves };
-#endif
-
 static const SceneScriptRoutine *routine_port(uint16_t routine)
 {
     for (unsigned t = 0; t < sizeof routine_tables / sizeof routine_tables[0]; t++)
@@ -612,34 +557,6 @@ enum { PROGRAM_DATA_BANK = 0x7E };
 
 /* The registers a routine leaves, from its row of the leaves' tables, for A
  * from the A it was called with. */
-static void leave_the_registers(Snes *s, const SceneScriptRoutine *r, uint16_t called_with)
-{
-#if ORIGINAL_EFFECTS
-    for (unsigned t = 0; t < sizeof routine_tables / sizeof routine_tables[0]; t++)
-        for (unsigned n = 0; n < *routine_tables[t].count; n++)
-            if (&routine_tables[t].routines[n] == r) {
-                const SceneRoutineLeaves *l = &routine_leaves[t][n];
-                s->cpu.a = l->a(called_with);
-                if (l->rest)
-                    l->rest(s);
-                return;
-            }
-#else
-    (void)s;
-    (void)r;
-    (void)called_with;
-#endif
-}
-
-void scene_script_routine_alone(Snes *s, const SceneScriptRoutine *r)
-{
-    r->run(state_of(s), m_platform(s), scene_program_page_at_entry(s).index);
-    ORIGINAL_EFFECT(leave_the_registers(s, r, s->cpu.a));
-    if (r->leaves_the_program_bank)
-        s->cpu.db = PROGRAM_DATA_BANK;
-    s->cpu.p &= (uint8_t)~CPU_FLAG_M;
-    m_rts(s);
-}
 
 /* The call reads the routine's address from the scene's own page, where the
  * interpreter puts it ($7E:37F3), and calls it with A the same. */
@@ -662,7 +579,6 @@ static bool call_the_ported_routine(Snes *s, SceneChannel ch, uint16_t routine)
     GameState *g = state_of(s);
     keep_the_routine_called(g, routine);
     NATIVE_TIME_AS(s, PROGRAM_BANK | routine, r->run(g, m_platform(s), ch));
-    ORIGINAL_EFFECT(leave_the_registers(s, r, routine));
     if (r->leaves_the_program_bank)
         s->cpu.db = PROGRAM_BANK >> 16;
     set_widths16(s);
@@ -716,12 +632,29 @@ static void send_sound(Snes *s)
  * routines read of the rest is theirs, so the call declares nothing. */
 enum { THE_CALL_THROUGH_THE_CELL = 0x7E37F6, THE_ROUTINES_READ_ANYTHING = 0 };
 
+/* Resource-loading script calls keep their unpacker callbacks and stack
+ * boundaries until the console's held program is an ordinary C driver. */
+static void (*loading_routine(uint16_t routine))(Snes *)
+{
+    switch (routine) {
+    case SCENE_ROUTINE_LOAD_THE_PANORAMA: return scene_ending_load_panorama;
+    case SCENE_ROUTINE_SHOW_THE_LAYERED_PANORAMA: return scene_ending_layer_panorama;
+    case SCENE_ROUTINE_LOAD_THE_GROUND_AND_PICTURE: return scene_ending_load_ground_and_picture;
+    case SCENE_ROUTINE_LOAD_THE_PICTURE: return scene_ending_load_picture;
+    case SCENE_ROUTINE_START_THE_STARS: return scene_ending_start_stars;
+    case SCENE_ROUTINE_START_THE_MODE7_PICTURE: return scene_ending_start_mode7_picture;
+    case SCENE_ROUTINE_PREPARE_THE_CREDITS: return scene_ending_prepare_credits;
+    case SCENE_ROUTINE_SET_THE_LAST_COLOURS: return scene_ending_set_last_colors;
+    default: return NULL;
+    }
+}
+
 void scene_call_the_scripts_routine(Snes *s)
 {
     uint16_t routine = scene_call_called_routine(state_of(s), scene_program_own());
     s->cpu.x = 0;
     m_set_nz16(s, 0);
-    if (scene_run(s, THE_CALL_THROUGH_THE_CELL, PROGRAM_BANK | routine, THE_ROUTINES_READ_ANYTHING, NULL))
+    if (scene_run_called(s, THE_CALL_THROUGH_THE_CELL, PROGRAM_BANK | routine, THE_ROUTINES_READ_ANYTHING, loading_routine(routine)))
         m_rtl(s);
 }
 
@@ -759,8 +692,9 @@ static const uint8_t handler_of[16] = { [0x1] = 0, [0x2] = 1, [0x7] = 2, [0x8] =
 static void hand_over(Snes *s, const Command *c, const ScriptRow *row)
 {
     unsigned n = low_nibble(c);
+    program_breaks_a_contract(c->g, handlers[handler_of[n]], "a scene command outside its operand domain");
     uint16_t index = (uint16_t)(2 * n);
-    ORIGINAL_EFFECT(keep_word(c, row));
+    charge_legacy_accesses(c->g, row->kind == KIND_SET || row->kind == KIND_ADD ? 2 : 4);
     set_script(c->g, c->ch, after(c, 1));
     set_widths16(s);
     s->cpu.a = index;
@@ -835,11 +769,10 @@ static RunEnd run(Snes *s, SceneChannel ch)
             hand_over(s, &c, row);
             return RUN_STOPPED;
         }
-        ORIGINAL_EFFECT(keep_word(&c, row));
-        Before was = { 0, 0 };
-        ORIGINAL_EFFECT(was = before(&c, row));
+        charge_legacy_accesses(c.g, row->kind == KIND_SET || row->kind == KIND_ADD ? 2 : 4);
+        charge_legacy_accesses(c.g, row->kind == KIND_ADD ? 2 : row->kind == KIND_LOOP ? 4 : 0);
         ScriptFlow flow = run_command(&c, row);
-        ORIGINAL_EFFECT(note_flags(s, &c, row, was));
+        charge_legacy_accesses(c.g, row->kind == KIND_ADD ? 2 : 0);
         switch (flow.kind) {
         case GO_ON:
             continue;
@@ -876,69 +809,17 @@ static RunEnd run(Snes *s, SceneChannel ch)
 /* Standalone entries into the store, task and video command families. The
  * interpreter has already consumed the opcode, so these share the same
  * decoded operations and then continue the channel's turn. */
-static Command dispatched_command(Snes *s, uint8_t opcode)
-{
-    SceneChannel ch = 0;
-    machine_as_expected(s, &ch);
-    GameState *g = state_of(s);
-    return (Command){ g, m_platform(s), ch, (uint16_t)(script(g, ch) - 1), opcode };
-}
-
-static bool command_entry_present(Snes *s, uint8_t opcode)
-{
-    SceneChannel ch;
-    if (!machine_as_expected(s, &ch))
-        return false;
-    vars_peek(true);
-    Command c = dispatched_command(s, opcode);
-    const ScriptRow *row = row_of(opcode);
-    bool takes = !row->takes || row->takes(&c, row);
-    vars_peek(false);
-    return takes;
-}
-
-static void command_entry(Snes *s, uint8_t opcode)
-{
-    Command c = dispatched_command(s, opcode);
-    const ScriptRow *row = row_of(opcode);
-    (void)row->run(&c, row);
-    if (row->kind == KIND_VIDEO) {
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_set_flag(s, CPU_FLAG_V, false);
-    }
-    RunEnd end;
-    TIMED_AS(c.g, 0xC30AFF, end = run(s, c.ch));
-    if (end == RUN_STOPPED)
-        return;
-    m_set_flag(s, CPU_FLAG_M, false);
-    m_rts(s);
-}
 
 // $C3:0C19, $C3:0C41
-bool scene_script_store_byte_present(Snes *s) { return command_entry_present(s, 0xA1); }
-void scene_script_store_byte_entry(Snes *s) { command_entry(s, 0xA1); }
-bool scene_script_store_word_present(Snes *s) { return command_entry_present(s, 0xA2); }
-void scene_script_store_word_entry(Snes *s) { command_entry(s, 0xA2); }
 
 // $C3:0BCC, $C3:0BC4, $C3:0BBC, $C3:0BAB
-bool scene_script_remove_vblank_present(Snes *s) { return command_entry_present(s, 0xA7); }
-void scene_script_remove_vblank_entry(Snes *s) { command_entry(s, 0xA7); }
-bool scene_script_add_vblank_present(Snes *s) { return command_entry_present(s, 0xA8); }
-void scene_script_add_vblank_entry(Snes *s) { command_entry(s, 0xA8); }
-bool scene_script_remove_frame_present(Snes *s) { return command_entry_present(s, 0xA9); }
-void scene_script_remove_frame_entry(Snes *s) { command_entry(s, 0xA9); }
-bool scene_script_add_frame_present(Snes *s) { return command_entry_present(s, 0xAA); }
-void scene_script_add_frame_entry(Snes *s) { command_entry(s, 0xAA); }
 
 // $C3:0C5F
-bool scene_script_video_present(Snes *s) { return command_entry_present(s, 0xAB); }
-void scene_script_video_entry(Snes *s) { command_entry(s, 0xAB); }
 
 /* ---- A channel's turn as C, with no machine ---------------------------------------------------- */
 
-/* The routines whose rows are the native program's alone (scene/endings.c):
- * they call the original's code (the unpacker), which the interpreter's call
- * can't run inline on the machine, where their registered entries run them. */
+/* The native program uses resource callbacks for ending loads; the legacy
+ * runtime selects the corresponding checked machine forms above. */
 static const SceneScriptRoutine *routine_in_c(uint16_t routine)
 {
     const SceneScriptRoutine *r = routine_port(routine);
@@ -1032,11 +913,6 @@ bool scene_sequence_bank_is_scripts(Snes *s)
 }
 
 /* The wait reads the script through the data bank, on the channel D is on. */
-bool scene_sequence_waits_on_channel(Snes *s)
-{
-    SceneChannel ch;
-    return s->cpu.db == SCRIPT_BANK && scene_channel_at(s->cpu.d, &ch);
-}
 
 /* ---- The wait for the music ------------------------------------------------------------------ */
 
@@ -1046,30 +922,13 @@ bool scene_sequence_waits_on_channel(Snes *s)
  * The store command's own path runs through here too, inside a run shadow
  * mode compares, where the run's comparison takes the original's call-outs
  * first (settle_nested, runtime/port/native.c) and this one goes uncompared. */
-void scene_sequence_goes_on_after_the_wait(Snes *s)
-{
-    GameState *g = state_of(s);
-    SceneChannel ch = 0;
-    machine_as_expected(s, &ch);
-    set_script(g, ch, (uint16_t)(script(g, ch) + 1));
-    if (run(s, ch) == RUN_STOPPED)
-        return;
-    s->cpu.p &= (uint8_t)~CPU_FLAG_M;
-    m_rts(s);
-}
 
 // $C3:0B02
 /* The interpreter's own return to its caller, where a turn that went on after
  * a wait comes back to. */
-void scene_sequence_returns(Snes *s) { m_rtl(s); }
 
 /* The interpreter's run is the routine under its JSR at $C3:0AFF, whose
  * return is the interpreter's own RTL ($C3:0B02). */
-static void return_from_the_interpreter(Snes *s)
-{
-    m_rts(s);
-    m_rtl(s);
-}
 
 // $C3:0C2A
 /* One pass of the wait: the music's progress (scene/sound.c) against the level
@@ -1077,30 +936,6 @@ static void return_from_the_interpreter(Snes *s)
  * the script stays on the command and the channel's turn ends, back to the
  * interpreter's caller. Idle entry: A is what the original compared last, and
  * the flags its compare's. */
-void scene_script_wait_for_sound(Snes *s)
-{
-    GameState *g = state_of(s);
-    SceneChannel ch = 0;
-    scene_channel_at(s->cpu.d, &ch);   /* the guard has checked it is */
-    s->cpu.p |= CPU_FLAG_M;
-    MusicStatus music = scene_music_status(m_platform(s));
-    uint8_t level = script_byte(g, script(g, ch));
-    uint8_t compared = music.steady ? scene_music_progress(music) : music.first;
-    uint8_t against = music.steady ? level : music.second;
-    m_set_a8(s, compared);
-    m_set_flag(s, CPU_FLAG_C, compared >= against);
-    m_set_nz8(s, (uint8_t)(compared - against));
-    if (!music.steady)
-        return;
-    if (scene_music_reached(music, level)) {
-        s->cpu.pc = 0x0C28;
-        return;
-    }
-    s->cpu.p &= (uint8_t)~CPU_FLAG_M;
-    set_script(g, ch, (uint16_t)(script(g, ch) - 1));
-    m_set_nz16(s, script(g, ch));
-    return_from_the_interpreter(s);
-}
 
 /* ---- A channel's script started from the program ------------------------------------------------ */
 
@@ -1128,6 +963,5 @@ void scene_run_channel_1_script(Snes *s) { run_from_the_program(s, 1, 0x7E375A);
 /* Where a channel's run comes back to the program after the interpreter
  * stopped in the middle of it (the wait for the music, which returns there
  * frames later): the program's return to the step's caller. */
-void scene_channel_script_comes_back(Snes *s) { m_rts(s); }
 
 bool scene_channel_script_start_present(Snes *s) { return m_code_matches(s, 0x7E3749, 22, 0xB1CDD688B2BFDC2Aull); }

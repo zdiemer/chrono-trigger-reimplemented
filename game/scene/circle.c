@@ -280,20 +280,3 @@ bool scene_circle_table_clear_of_the_cells(const GameState *g)
     return upper || !ranges_meet((uint16_t)(table - REACH_BEFORE), REACH_BEFORE + REACH_AFTER, CIRCLE_CELLS,
                                  CIRCLE_CELLS_END - CIRCLE_CELLS);
 }
-
-bool scene_circle_table_is_clear(Snes *s)
-{
-    vars_peek(true);
-    bool clear = scene_circle_table_clear_of_the_cells(state_of(s));
-    vars_peek(false);
-    return clear;
-}
-
-/* The mode in A's low byte. Every register comes back as it was, the flags
- * too except N and Z, which the last pull (PLB) sets from the data bank. */
-void scene_draw_circle(Snes *s)
-{
-    draw_circle(state_of(s), (uint8_t)s->cpu.a);
-    m_set_nz8(s, s->cpu.db);
-    m_rtl(s);
-}

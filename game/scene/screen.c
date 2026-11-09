@@ -27,7 +27,6 @@
 #include "charge.h"
 #include "core/palette.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "platform/audio.h"
 #include "platform/timing.h"
 #include "platform/video.h"
@@ -130,11 +129,6 @@ static void upload_sprites(GameState *g, Platform *pf)
 }
 
 /* Nothing it leaves in the registers is read. */
-void scene_upload_sprites(Snes *s)
-{
-    upload_sprites(state_of(s), m_platform(s));
-    m_rts(s);
-}
 
 // $7E:380B
 /* The vblank task that sends the frame's sprites: the frame's last group of
@@ -153,8 +147,6 @@ static TaskLeftovers finish_sprites_leaves(const GameState *g, TaskEnd end)
     (void)end;
     return (TaskLeftovers){ 0 };
 }
-
-void scene_finish_and_upload_sprites(Snes *s) { scene_task_alone(s, &scene_screen_tasks[ROW_FINISH_SPRITES]); }
 
 /* The task's call of the group's end, and the upload after it. */
 bool scene_finish_and_upload_sprites_present(Snes *s)
@@ -214,12 +206,6 @@ enum { MULTIPLIER_READ_BACK = 0x4242 };
 
 static void keep_the_multiplier_s_word(GameState *g, uint16_t kept) { scene_leave_for_the_draws(g, kept, TM_ENTROPY_WORDS); }
 
-static void put_the_multiplier_back(GameState *g, uint16_t kept)
-{
-    hw_set_multiplicand(g, (uint8_t)kept);
-    (void)hw_multiply_by(g, (uint8_t)(kept >> 8));
-}
-
 // $7E:37FA
 /* A frame task: the palettes animate a frame (core/palette.c, through bank
  * $FD's jump to them), where every slot holds an animation the port takes,
@@ -232,7 +218,7 @@ static TaskEnd animate_the_palettes_task(GameState *g, Platform *pf)
     if (!animated)
         return task_goes_on();
     keep_the_multiplier_s_word(g, MULTIPLIER_READ_BACK);
-    ORIGINAL_EFFECT(put_the_multiplier_back(g, MULTIPLIER_READ_BACK));
+    charge_legacy_io_accesses(g, 4);
     return task_goes_on();
 }
 
@@ -251,31 +237,17 @@ static TaskLeftovers animate_the_palettes_leaves(const GameState *g, TaskEnd end
  * with the data bank on work RAM's, where the word the routine keeps aside is
  * two bytes of the program's own code, put back as they were; the copy stays
  * in the channel's call cell. */
-static void keep_the_code_under_the_multiplier(GameState *g, SceneChannel ch)
-{
-    set_scene_call_first(g, scene_program_channel(ch), scene_code_under_the_multiplier(g));
-}
 
 void scene_animate_the_palettes_for(GameState *g, SceneChannel ch)
 {
+    (void)ch;
     bool animated = false;
     TIMED_AS(g, 0xFDFFF7, animated = palette_animated(g));
     if (animated)
-        ORIGINAL_EFFECT(keep_the_code_under_the_multiplier(g, ch));
+        charge_legacy_accesses(g, 4);
 }
 
 /* As a frame task, or called by a channel's sequence (above). */
-void scene_animate_the_palettes(Snes *s)
-{
-    SceneChannel ch;
-    if (!scene_channel_at(m_direct_page(s), &ch)) {
-        scene_task_alone(s, &scene_screen_tasks[ROW_ANIMATE_PALETTES]);
-        return;
-    }
-    scene_animate_the_palettes_for(state_of(s), ch);
-    scene_leave_task_registers(s, &scene_screen_tasks[ROW_ANIMATE_PALETTES], task_goes_on());
-    m_rts(s);
-}
 
 /* The task's code, and the animations' room in their slots (core/palette.c):
  * a frame task on the scene's page through the I/O bank, or a channel's
@@ -401,12 +373,6 @@ static TaskLeftovers darken_and_end_leaves(const GameState *g, TaskEnd end)
     return fade_leaves(SCENE_TASK_DARKEN_AND_END);
 }
 
-void scene_brighten(Snes *s) { scene_task_alone(s, &scene_screen_tasks[ROW_BRIGHTEN]); }
-void scene_darken(Snes *s) { scene_task_alone(s, &scene_screen_tasks[ROW_DARKEN]); }
-void scene_fade_the_music_out(Snes *s) { scene_task_alone(s, &scene_screen_tasks[ROW_MUSIC_FADES]); }
-void scene_darken_in_silence_and_end(Snes *s) { scene_task_alone(s, &scene_screen_tasks[ROW_DARKEN_IN_SILENCE_AND_END]); }
-void scene_darken_and_end(Snes *s) { scene_task_alone(s, &scene_screen_tasks[ROW_DARKEN_AND_END]); }
-
 /* Each one's code; the cells and the sound buffer are reached through the data
  * bank. */
 bool scene_brighten_present(Snes *s) { return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E347A, 0x1B, 0x4B223E782CD157AAull); }
@@ -513,11 +479,6 @@ void scene_send_unpacked(const GameState *g, Platform *pf)
 }
 
 /* Returns with RTL; nothing it leaves in the registers is read. */
-void scene_transfer(Snes *s)
-{
-    scene_send_unpacked(state_of(s), m_platform(s));
-    m_rtl(s);
-}
 
 /* ---- Resources copied as they are, and the palette made current ------------------------------ */
 
@@ -534,7 +495,8 @@ uint8_t scene_unpacked_bank(const GameState *g)
  * count over in its page's first cell, which keeps it. */
 void scene_copy_resource_to(GameState *g, SceneProgramPage page, unsigned resource, uint16_t to, uint16_t bytes)
 {
-    ORIGINAL_EFFECT(set_scene_call_first(g, page, bytes));
+    (void)page;
+    charge_legacy_accesses(g, 2);
     scene_copy_resource_bytes(g, scene_unpacked_bank(g), scene_resource_offset(g, resource), to, bytes);
     charge_block_move(g, bytes);
 }
@@ -558,7 +520,7 @@ void scene_widen_the_plane_map(GameState *g)
          * tile and moves it on over the other 63, one byte on. */
         charge_block_move(g, UNPACKED_ROW_BYTES + (UNPACKED_ROW_BYTES - 1));
     }
-    ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), 0));
+    charge_legacy_accesses(g, 2);
 }
 
 // $7E:90A7
@@ -585,22 +547,6 @@ void scene_use_loaded_palette(GameState *g)
 /* As the program's code calls it, with 16-bit index registers: back with
  * 8-bit A, and A, X and Y as the block move and its count's step on leave
  * them, past the palettes. */
-static void leave_the_palette_copied(Snes *s)
-{
-    s->cpu.a = 0;
-    s->cpu.x = (uint16_t)(LOADED_PALETTE + PALETTE_BYTES);
-    s->cpu.y = (uint16_t)(WORKING_PALETTE + PALETTE_BYTES);
-}
-
-void scene_use_loaded_palette_entry(Snes *s)
-{
-    scene_use_loaded_palette(state_of(s));
-    ORIGINAL_EFFECT(leave_the_palette_copied(s));
-    s->cpu.p |= CPU_FLAG_M;
-    m_rts(s);
-}
-
-bool scene_use_loaded_palette_present(Snes *s) { return m_code_matches(s, 0x7E38AF, 0x14, 0xD31DAC893D4743DCull); }
 
 /* ---- Per-line effects from descriptors --------------------------------------------------- */
 
@@ -679,23 +625,3 @@ uint16_t scene_set_up_line_effects(const GameState *g, Platform *pf, uint16_t at
 }
 
 /* The overflow of stepping past a descriptor, which the program reads after. */
-static bool overflows_stepping_past(uint16_t at)
-{
-    uint16_t next = (uint16_t)(at + DESCRIPTOR_BYTES);
-    return (~(at ^ DESCRIPTOR_BYTES) & (at ^ next) & 0x8000) != 0;
-}
-
-/* Y is the table, and back it is where the descriptors end, with the overflow
- * of the last step past one (as it was when there is none). The routine works
- * with the direct page on the DMA registers and the data bank $7E, and puts both
- * back. */
-void scene_setup_line_effects(Snes *s)
-{
-    uint16_t start = s->cpu.y;
-    uint16_t end = scene_set_up_line_effects(state_of(s), m_platform(s), start);
-    if (end != start)
-        m_set_flag(s, CPU_FLAG_V, overflows_stepping_past((uint16_t)(end - DESCRIPTOR_BYTES)));
-    s->cpu.y = end;
-    s->cpu.p |= CPU_FLAG_M;
-    m_rts(s);
-}

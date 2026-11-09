@@ -246,6 +246,7 @@ add_library(ct_game STATIC
   game/warp/warp.c
   game/scene/boot.c
   game/scene/bridge.c
+  game/scene/machine_forms.c
   game/scene/circle.c
   game/scene/curtain.c
   game/scene/plane.c

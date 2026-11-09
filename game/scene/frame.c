@@ -31,7 +31,6 @@
 #include "core/console.h"
 #include "core/input.h"
 #include "core/program.h"
-#include "original_effects.h"
 #include "platform/audio.h"
 #include "platform/input.h"
 #include "platform/timing.h"
@@ -135,46 +134,6 @@ bool scene_script_can_replace_task(const GameState *g, SceneTaskList list, Scene
 {
     return scene_task_listed(g, list, from) || word_past_the_list(g, list, from) != 0;
 }
-
-/* The four script services differ only in which list they edit and whether
- * the requested task replaces an empty slot or is removed. */
-typedef enum { REMOVE_FRAME, REMOVE_VBLANK, ADD_FRAME, ADD_VBLANK } TaskEdit;
-static const struct {
-    SceneTaskList list;
-    bool adding;
-} task_edits[] = {
-    { SCENE_FRAME_TASKS, false }, { SCENE_VBLANK_TASKS, false },
-    { SCENE_FRAME_TASKS, true }, { SCENE_VBLANK_TASKS, true },
-};
-
-static bool task_edit_present(Snes *s, TaskEdit edit)
-{
-    if (s->cpu.db != SCENE_LOWER_WORK_RAM)
-        return false;
-    vars_peek(true);
-    bool found = scene_script_can_replace_task(state_of(s), task_edits[edit].list,
-                                               task_edits[edit].adding ? NO_TASK : s->cpu.x);
-    vars_peek(false);
-    return found;
-}
-
-static void edit_task_entry(Snes *s, TaskEdit edit)
-{
-    SceneTask from = task_edits[edit].adding ? NO_TASK : s->cpu.x;
-    SceneTask to = task_edits[edit].adding ? s->cpu.x : NO_TASK;
-    (void)scene_script_replace_task(state_of(s), task_edits[edit].list, from, to);
-    m_rts(s);
-}
-
-// $C3:0CB8, $C3:0CCD, $C3:0CE2, $C3:0CF8
-bool scene_script_remove_frame_task_present(Snes *s) { return task_edit_present(s, REMOVE_FRAME); }
-void scene_script_remove_frame_task_entry(Snes *s) { edit_task_entry(s, REMOVE_FRAME); }
-bool scene_script_remove_vblank_task_present(Snes *s) { return task_edit_present(s, REMOVE_VBLANK); }
-void scene_script_remove_vblank_task_entry(Snes *s) { edit_task_entry(s, REMOVE_VBLANK); }
-bool scene_script_add_frame_task_present(Snes *s) { return task_edit_present(s, ADD_FRAME); }
-void scene_script_add_frame_task_entry(Snes *s) { edit_task_entry(s, ADD_FRAME); }
-bool scene_script_add_vblank_task_present(Snes *s) { return task_edit_present(s, ADD_VBLANK); }
-void scene_script_add_vblank_task_entry(Snes *s) { edit_task_entry(s, ADD_VBLANK); }
 
 // $C3:0CE2, $C3:0CF8
 bool scene_add_task(GameState *g, SceneTaskList list, SceneTask task) { return replace_task(g, list, NO_TASK, task); }
@@ -388,14 +347,13 @@ static bool frame_work(Snes *s)
             return false;
     }
     after_vblank_tasks(g, pf);
-    ORIGINAL_EFFECT(s->cpu.y = PAST_THE_COPY);
     m_set_flag(s, CPU_FLAG_M, true);
 
     if (!scene_run(s, 0xC3091F, 0xC30A8E, DC_A | DC_X | DC_N | DC_Z, scene_read_controller_entry))
         return false;
     if (is_paused(g)) {
         dim_for_pause(g, pf);
-        ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_C, scene_brightness(g) & 1));   /* the halving's */
+        charge_legacy_accesses(g, 1);   /* the halving's */
         s->cpu.a &= 0x00FF;   /* the pause word's high byte, 0 */
     } else {
         if (!run_task_list(s, SCENE_FRAME_TASKS))
@@ -561,14 +519,6 @@ static void leave_y(Snes *s, TaskLeftovers l)
 {
     if (l.y_set)
         s->cpu.y = l.y;
-}
-
-static void leave_a(Snes *s, TaskLeftovers l, TaskEnd end)
-{
-    if (end.outcome == TASK_HANDS_OVER)
-        s->cpu.a = end.next;
-    else if (l.a_set)
-        s->cpu.a = l.a_high_as_called ? (uint16_t)((s->cpu.a & 0xFF00) | (l.a & 0x00FF)) : l.a;
 }
 
 /* A list's loop calls a task from its own code (the frame list's at
@@ -854,7 +804,6 @@ static TaskEnd run_task(Snes *s, SceneTaskList list, unsigned slot, SceneTask ta
         scene_bridge_enter(s, list == SCENE_VBLANK_TASKS ? VBLANK_TASK_CALL : FRAME_TASK_CALL);
         m_set_flag(s, CPU_FLAG_M, true);
     }
-    ORIGINAL_EFFECT(as_the_list_calls(s, list, task));
     NATIVE_TIME_AS(s, PROGRAM_BANK | task, end = port->run(g, m_platform(s)));
     if (port->calls_out) {
         scene_bridge_leave(s);
@@ -862,7 +811,6 @@ static TaskEnd run_task(Snes *s, SceneTaskList list, unsigned slot, SceneTask ta
     }
     TaskLeftovers l = port->leaves(g, end);
     leave_y(s, l);
-    ORIGINAL_EFFECT(leave_a(s, l, end));
     end_the_task(g, list, slot, end);
     s->cpu.x = index;
     return end;
@@ -925,38 +873,6 @@ void scene_finish_task(Snes *s, SceneTaskList list, TaskEnd end)
 void scene_finish_remove_frame_task_entry(Snes *s) { scene_finish_task(s, SCENE_FRAME_TASKS, task_is_done()); }
 void scene_finish_replace_frame_task_entry(Snes *s) { scene_finish_task(s, SCENE_FRAME_TASKS, task_hands_over(s->cpu.x)); }
 void scene_finish_remove_vblank_task_entry(Snes *s) { scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done()); }
-
-/* The registers a task leaves as it ends, as its row's leftovers work them
- * out: Y, A (scaffolding), A's width and the overflow. */
-void scene_leave_task_registers(Snes *s, const SceneTaskPort *port, TaskEnd end)
-{
-    TaskLeftovers l = port->leaves(state_of(s), end);
-    leave_y(s, l);
-    ORIGINAL_EFFECT(leave_a(s, l, (TaskEnd){ end.outcome == TASK_HANDS_OVER ? TASK_GOES_ON : end.outcome, NO_TASK }));
-    if (l.a_8bit)
-        m_set_flag(s, CPU_FLAG_M, true);
-    if (l.overflow_clear)
-        m_set_flag(s, CPU_FLAG_V, false);
-}
-
-/* A task reached by its address, alone: its frame as the list runs it, and
- * back to the list as the original's would come back -- returning, or done
- * through the list's exit that empties its slot, or that hands it over, which
- * read A's high byte and Y (the exits put P back as the list saved it). */
-
-void scene_task_alone(Snes *s, const SceneTaskPort *port)
-{
-    GameState *g = state_of(s);
-    if (port->calls_out)
-        m_set_flag(s, CPU_FLAG_M, true);
-    TaskEnd end = port->run(g, m_platform(s));
-    scene_leave_task_registers(s, port, end);
-    if (end.outcome == TASK_GOES_ON) {
-        m_rts(s);
-    } else {
-        scene_finish_task(s, port->list, end);
-    }
-}
 
 /* ---- The frame as C, with no machine ------------------------------------------------------------ */
 
@@ -1046,15 +962,3 @@ void scene_run_frame_tasks(Snes *s) { run_tasks_on_the_machine(s, SCENE_FRAME_TA
 void scene_run_vblank_tasks(Snes *s) { run_tasks_on_the_machine(s, SCENE_VBLANK_TASKS); }
 
 // $7E:399B, $7E:39D2
-/* A list going on after a task it called came back to it itself, frames
- * later (a channel's script that waited for the music, scene/script.c): the
- * frames the list kept under the call unwound, the slot's among them, and the
- * list's tasks after it. */
-static void go_on_after_the_task(Snes *s, SceneTaskList list)
-{
-    unwind_the_task_s_frames(s);
-    run_tasks_from(s, list, s->cpu.x / 2u + 1u);
-}
-
-void scene_frame_tasks_go_on(Snes *s) { go_on_after_the_task(s, SCENE_FRAME_TASKS); }
-void scene_vblank_tasks_go_on(Snes *s) { go_on_after_the_task(s, SCENE_VBLANK_TASKS); }

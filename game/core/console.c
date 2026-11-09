@@ -121,7 +121,8 @@ static void take_interrupt(Snes *s, ProgramStub stub)
             charge_settle(state_of(s));
         const NativeEntry *e = native_continuation_entry_at(s, stub.handler);
         if ((e && e->fn == called_handlers[i].run) ||
-            (m_runs_retired_as_c(s) && field_machine_form_takes(s, called_handlers[i].run)))
+            (m_runs_retired_as_c(s) && (field_machine_form_takes(s, called_handlers[i].run) ||
+                                       scene_machine_form_takes(s, called_handlers[i].run))))
             TIMED_AS(state_of(s), stub.handler, called_handlers[i].run(s));
         else
             m_stop_at(s, called_handlers[i].handler, 0);

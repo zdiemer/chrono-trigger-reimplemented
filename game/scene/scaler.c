@@ -28,7 +28,6 @@
 
 #include "charge.h"
 #include "core/program.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -95,13 +94,6 @@ static void pack_planes(GameState *g, uint16_t planes, const uint8_t pixels[GROU
  * sample, and shifts each plane out of them: the scratch ends with each pixel
  * shifted down a nibble and the last sample's second byte, and its count of
  * pairs run down to 0. */
-static void leave_samples(GameState *g, const uint8_t pixels[GROUP], uint8_t last_second_byte)
-{
-    for (unsigned i = 0; i < GROUP; i++)
-        set_scene_bitplane_scratch_byte(g, i, (uint8_t)(pixels[i] >> PLANES));
-    set_scene_bitplane_scratch_byte(g, GROUP, last_second_byte);
-    set_scene_scaler_pair_counter(g, 0);
-}
 
 /* Where a group of eight samples falls along its source row, each a step on
  * from the last (in PIXEL_UNITS), the first from `last`. A bitmap stretched so
@@ -141,7 +133,7 @@ static void sample_row(GameState *g, uint16_t source, bool row_moved_on)
         pack_planes(g, planes, pixels);
         planes = (uint16_t)(planes + PLANES);
     }
-    ORIGINAL_EFFECT(leave_samples(g, pixels, wram_read8(g, in_scaler_bank(source, (uint16_t)(position / PIXEL_UNITS + 1)))));
+    charge_legacy_accesses(g, GROUP + 4);
 }
 
 /* The row the same as the last one: its 32 bytes copied. */
@@ -316,20 +308,6 @@ static bool bitmap_on_its_page(Snes *s, bool starts)
 }
 
 bool scene_scaler_in_its_bank(Snes *s) { return bitmap_on_its_page(s, false); }
-bool scene_scaler_starts_in_its_bank(Snes *s) { return bitmap_on_its_page(s, true); }
-
-bool scene_sampler_in_its_bank(Snes *s)
-{
-    if ((uint32_t)s->cpu.a + SAMPLES_REACH > POSITIONS || !bitmap_on_its_page(s, false))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    uint32_t rows = scene_scaler_rows_left(g) ? scene_scaler_rows_left(g) : POSITIONS;
-    uint32_t end = scene_scaler_output(g) + rows * ROW_BYTES +
-                   (uint32_t)scene_scaler_pairs(g) * GROUPS_PER_PAIR * PLANES;
-    vars_peek(false);
-    return end <= POSITIONS;
-}
 
 /* The flags the original leaves where the bitmap ends: those of its measure of
  * the leftover, the previous end less this one's (less the borrow). */
@@ -359,25 +337,5 @@ void scene_scale_bitmap_row(Snes *s)
 
 // $C3:0307
 /* A bitmap starts with the row accumulator at 0; its rows are the loop's. */
-void scene_scale_bitmap(Snes *s)
-{
-    set_scene_scaler_row_position(state_of(s), 0);
-    TIMED_AS(state_of(s), ROW_LOOP, scene_scale_bitmap_row(s));
-}
 
 // $C3:034A
-/* A newly selected source row, then the rest of the bitmap. Separating this
- * entry lets expensive planar packing keep its own rate while row reuse
- * and the leftover clear use the ordinary block-copy rate. */
-void scene_sample_bitmap_row(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint16_t source = s->cpu.a;
-    set_scene_scaler_source_row(g, source);
-    sample_row(g, source, m_flag(s, CPU_FLAG_C));
-    TIMED_AS(g, ROW_LOOP, {
-        next_output_row(g);
-        m_set_flag(s, CPU_FLAG_C, scene_scaler_output(g) < ROW_BYTES);
-        scene_scale_bitmap_row(s);
-    });
-}

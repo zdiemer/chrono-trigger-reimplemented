@@ -25,9 +25,6 @@ game/menu/cursor.c                           return-address-pushed    3
 game/menu/display.c                          sibling-through-machine  4
 game/menu/epoch.c                            enum-types-nothing       1
 game/menu/epoch.c                            sibling-through-machine  7
-game/scene/frame.c                           flag-note-in-logic       1
 game/scene/frame.c                           return-address-pushed    2
-game/scene/frame.c                           sibling-through-machine  1
-game/scene/script.c                          flag-note-in-logic       1  # the interpreter's one derivation per command, from its row and the state before it
 game/scene/script.c                          return-address-pushed    1
 re/ram.toml                                  stale-provenance         20

@@ -34,7 +34,6 @@
 #include "charge.h"
 #include "core/palette.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "platform/audio.h"
 #include "platform/timing.h"
 #include "platform/video.h"
@@ -102,7 +101,7 @@ static void write_next_line(GameState *g)
             set_scene_credits_row_byte(g, tile++, letter_tile(code));
     }
     /* the original writes the letters through the work RAM port */
-    ORIGINAL_EFFECT(hw_port_seek(g, (uint16_t)(CREDITS_ROW + tile), 0));
+    charge_legacy_io_accesses(g, 3);
     if (code == END_OF_CREDITS) {
         set_scene_credits_over(g, (uint8_t)(scene_credits_over(g) + 1));
         scene_remove_task(g, SCENE_VBLANK_TASKS, CREDITS_UPLOAD_TASK);
@@ -231,7 +230,6 @@ static const StaffRollGraphics staff_roll_graphics[] = {
 /* The program's call that unpacks each, beside the table. */
 static const uint32_t staff_roll_graphics_unpacked_at[] = { 0x7E8EF4, 0x7E8F04, 0x7E8F14, 0x7E8F2A };
 enum { STAFF_ROLL_GRAPHICS = sizeof staff_roll_graphics / sizeof staff_roll_graphics[0] };
-
 
 /* Colors copied as they are out of the program's resources (by their number
  * in the list), sixteen at a time: the picture's palette (BG palette 1), and
@@ -584,18 +582,6 @@ bool scene_slow_staff_roll_set_up_scene(Snes *s)
     return set_up_on_the_machine(s, STAFF_ROLL_SLOW);
 }
 
-void scene_staff_roll_set_up_entry(Snes *s)
-{
-    scene_staff_roll_set_up_scene(s);
-    m_rts(s);
-}
-
-void scene_slow_staff_roll_set_up_entry(Snes *s)
-{
-    scene_slow_staff_roll_set_up_scene(s);
-    m_rts(s);
-}
-
 /* The roll and its scroll run on the scene's page with the data bank on the
  * registers, from the frame's list. A line must fit its row: the guard reads
  * the next line as the roll will, to its end or the credits', within the
@@ -659,19 +645,8 @@ enum { SCROLL_THE_CREDITS = 0x7E9ED6, };
  * block move, and the data bank the move's, 0. */
 enum { PAST_THE_ROW = 0x1434 };
 
-static void leave_line_written(Snes *s)
-{
-    s->cpu.y = PAST_THE_ROW;
-    s->cpu.db = 0x00;
-}
-
 /* At the credits' end, A is the upload as the list's search leaves it, with
  * 8-bit A. */
-static void leave_credits_over(Snes *s)
-{
-    s->cpu.a = CREDITS_UPLOAD_TASK;
-    s->cpu.p |= CPU_FLAG_M;
-}
 
 /* A frame task, entered with 16-bit A: the line, then on to the scroll, or
  * at the credits' end out through the list's exit. Which, the state says: the
@@ -679,17 +654,14 @@ static void leave_credits_over(Snes *s)
 void scene_roll_credits_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    uint16_t text = scene_credits_text(g);
+    charge_legacy_accesses(g, 2);
     uint8_t over = scene_credits_over(g);
     write_next_line(g);
     if (scene_credits_over(g) != over) {
-        ORIGINAL_EFFECT(leave_line_written(s));
-        ORIGINAL_EFFECT(leave_credits_over(s));
         scene_finish_task(s, SCENE_FRAME_TASKS, task_is_done());
         return;
     }
-    if (scene_credits_text(g) != text)
-        ORIGINAL_EFFECT(leave_line_written(s));
+    charge_legacy_accesses(g, 2);
     if (scene_accept_continuation(s, SCROLL_THE_CREDITS, scene_scroll_credits_entry))
         TIMED_AS(g, SCROLL_THE_CREDITS, scene_scroll_credits_entry(s));
 }
@@ -701,10 +673,12 @@ void scene_roll_credits_entry(Snes *s)
  * send enters the sound driver, and the driver saves A (the NMI's restore then
  * overwrites it). Both the roll's continuation and the standalone scroll
  * entry derive that byte here. */
-static void leave_scroll(Snes *s)
+static void charge_credits_scroll_result(GameState *g)
 {
-    const GameState *g = state_of(s);
-    s->cpu.a = roll_fast(g) ? scene_credits_scroll(g) : (uint16_t)(tm_snes_odd_frame_read() << 1);
+    uint32_t mark = charge_uncounted_begin(g);
+    bool fast = roll_fast(g);
+    charge_uncounted_end(g, mark);
+    charge_legacy_accesses(g, fast ? 3 : 1);
 }
 
 /* The slow roll asks for the frame's parity. */
@@ -713,7 +687,7 @@ void scene_scroll_credits_entry(Snes *s)
     GameState *g = state_of(s);
     bool odd = !roll_fast(g) && tm_odd_frame(m_platform(s), PF_AT(0x7E9EDF));
     scroll_credits(g, odd);
-    ORIGINAL_EFFECT(leave_scroll(s));
+    charge_credits_scroll_result(state_of(s));
     m_rts(s);
 }
 
@@ -753,23 +727,9 @@ bool scene_credits_test_present(Snes *s)
     return scene_on_channel_page(s) && m_bank_reaches_low_ram(s) && m_code_matches(s, 0x7E996F, 0x0E, 0x34341D9D63782078ull);
 }
 
-void scene_go_on_after_the_credits(Snes *s)
-{
-    SceneChannel ch = 0;
-    scene_channel_at(m_direct_page(s), &ch);
-    go_on_after_the_credits(state_of(s), ch);
-    m_rts(s);
-}
-
 bool scene_fade_in_the_picture_present(Snes *s)
 {
     return m_bank_reaches_low_ram(s) && m_code_matches(s, 0x7E9FA9, 0x1F, 0x9E4DB4B69E6159DAull);
-}
-
-void scene_fade_in_the_picture(Snes *s)
-{
-    fade_in_the_picture(state_of(s));
-    m_rts(s);
 }
 
 /* ---- As C ------------------------------------------------------------------------------------------ */
@@ -795,12 +755,6 @@ const SceneScriptRoutine scene_staff_roll_routines[] = {
     { SCENE_ROUTINE_FADE_IN_THE_PICTURE, fade_in_the_picture_routine, scene_fade_in_the_picture_present, false },
 };
 const unsigned scene_staff_roll_routine_count = sizeof scene_staff_roll_routines / sizeof scene_staff_roll_routines[0];
-
-#if ORIGINAL_EFFECTS
-static uint16_t leaves_a_as_called(uint16_t called_with) { return called_with; }
-
-const SceneRoutineLeaves scene_staff_roll_routine_leaves[] = { { leaves_a_as_called, NULL }, { leaves_a_as_called, NULL } };
-#endif
 
 /* The roll's tasks, for a program with no machine (each a column of
  * scene/frame.c's table): the roll writes its line and scrolls, done at the

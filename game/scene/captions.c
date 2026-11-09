@@ -13,9 +13,9 @@
  * text that set a place began (scene_caption_line_x/_y), and the pen is left
  * where the scenes' sprite lists take their offset. */
 #include "scene/scene.h"
+#include "charge.h"
 
 #include "core/palette.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -224,8 +224,7 @@ void scene_draw_caption_entry(Snes *s)
     GameState *g = state_of(s);
     s->cpu.x = draw_caption(g, s->cpu.x);
     s->cpu.db = 0x00;
-    ORIGINAL_EFFECT(s->cpu.y = scene_sprite_index(g));
-    ORIGINAL_EFFECT(s->cpu.a = TEXT_END);
+    charge_legacy_accesses(g, 2);
     m_rts(s);
 }
 
@@ -269,31 +268,24 @@ TaskEnd scene_turn_captions(GameState *g, Platform *pf, unsigned slot)
  * with a caption drawn, Y is the next free sprite entry. */
 enum { FADE_KIND_AS_STORED = 0x0050 };
 
-static void leave_turn(Snes *s, CaptionTurn turn, uint16_t phase_before)
-{
-    const GameState *g = state_of(s);
-    switch (turn) {
-    case CAPTIONS_ALL_SHOWN: s->cpu.a = 0; return;
-    case GAP_GOES_ON: s->cpu.a = (uint16_t)(phase_before >> 1); return;
-    case CAPTION_FADES_IN: s->cpu.a = FADE_KIND_AS_STORED; return;
-    case CAPTION_WAITS: s->cpu.a = scene_brightness(g) & FULL_BRIGHTNESS; break;
-    case CAPTION_STAYS: s->cpu.a = scene_ending_caption_countdown(g); break;
-    case CAPTION_FADES_OUT: s->cpu.a = FADE_KIND_AS_STORED; break;
-    case CAPTION_GOES:
-    case CAPTIONS_OVER: s->cpu.a = scene_ending_caption_gap(g); break;
-    }
-    s->cpu.y = scene_sprite_index(g);
-}
-
 /* A frame task, entered with 16-bit A. */
 void scene_turn_captions_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    uint16_t phase_before = scene_ending_caption_phase(g);
+    charge_legacy_accesses(g, 2);
     CaptionTurn turn = turn_captions(g);
     if (turn != CAPTIONS_ALL_SHOWN && turn != GAP_GOES_ON && turn != CAPTION_FADES_IN)
         s->cpu.db = 0x00;   /* as the caption's drawing goes back */
-    ORIGINAL_EFFECT(leave_turn(s, turn, phase_before));
+    {
+        unsigned accesses = 0;
+        switch (turn) {
+        case CAPTION_WAITS: accesses = 3; break;
+        case CAPTION_STAYS: case CAPTION_GOES: case CAPTIONS_OVER: accesses = 4; break;
+        case CAPTION_FADES_OUT: accesses = 2; break;
+        default: break;
+        }
+        charge_legacy_accesses(state_of(s), accesses);
+    };
     if (turn == CAPTIONS_OVER) {
         scene_finish_task(s, SCENE_FRAME_TASKS, task_is_done());
         return;

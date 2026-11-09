@@ -4,7 +4,7 @@
  * lines its per-line effects leave in mode 7, with flat layers (the sky, the
  * scenery) above it in mode 1. The program sets the race up from its mode
  * table: its graphics unpacked from the program's resources and sent to VRAM
- * (the unpacker is still the original's, a call-out per resource), the racers'
+ * through the C unpacker and resource callbacks, the racers'
  * pictures arranged for the scaler, its work buffers cleared, its per-line
  * effects, the bikes at the start, the scripts its two channels run, and the
  * flat layers. Then every frame it moves the camera (the plane's rotation
@@ -16,8 +16,8 @@
  * the driver to take them. Without its panel (the attract sequence's) the race
  * ends behind a curtain.
  *
- * Only `events-jetbike-race` reaches any of it. It is the scene program's
- * code, in work RAM, so every entry is guarded by a hash of its code. What the
+ * The attract sequence and the playable races use these operations. Their
+ * machine forms check the scene program's code image in work RAM. What the
  * race does each frame -- the bikes, the camera, the drawing -- is in
  * race_rules.c, race_camera.c, race_projection.c and race_drawing.c (race.h). */
 #include "scene/race.h"
@@ -28,10 +28,8 @@
 #include "port/vars_ram.h"
 #include "charge.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "vars.h"
 #include "wram.h"
-
 
 /* The VRAM port a word at a time for the tilemaps, the low byte alone for the
  * plane's name table (the low half of every VRAM word), and a row of that table
@@ -385,7 +383,7 @@ static void place_crono_blocks(GameState *g)
     for (unsigned i = 0; i < CRONO_BLOCKS; i++)
         place_block(g, CRONO_PICTURES_SECOND + crono_block_of[i] * BLOCK_BYTES,
                     (uint32_t)SCENE_UPPER_WORK_RAM << 16 | crono_blocks[i]);
-    ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), 0));
+    charge_legacy_accesses(g, 2);
 }
 
 // $7E:3ED3
@@ -408,9 +406,6 @@ uint32_t scene_mirror_rows(GameState *g, uint32_t to, uint32_t from, uint16_t la
  * count of runs, both at the start of the unpack buffer. */
 enum { MIRROR_LAST = SCENE_UNPACK_BUFFER, MIRROR_RUNS = SCENE_UNPACK_BUFFER + 2 };
 enum { MIRROR_RUN_ROWS = 8 };
-
-static void leave_mirror_last(GameState *g, uint16_t last) { wram_write16(g, MIRROR_LAST, last); }
-static void leave_mirror_runs(GameState *g, uint8_t runs) { wram_write8(g, MIRROR_RUNS, runs); }
 
 /* Johnny's pictures, mirrored from Crono's. */
 enum { FIRST_LAST = 0x20, CRONO_FIRST_ROWS = 72, CRONO_SECOND_ROWS = 48, CRONO_COPY_ROWS = 72 };
@@ -450,13 +445,13 @@ static bool load_racers_pictures(GameState *g, RaceCalls call, void *ctx)
     charge_block_move(g, CRONO_PICTURES_COPY_BYTES);
     place_crono_blocks(g);
     mirror_crono(g);
-    ORIGINAL_EFFECT(leave_mirror_last(g, THIRD_LAST));
-    ORIGINAL_EFFECT(hw_port_seek(g, AFTER_CRONO_MIRRORED, PORT_SECOND_BANK));
+    charge_legacy_accesses(g, 2);
+    charge_legacy_io_accesses(g, 3);
     if (!call(ctx, RACE_UNPACK_HOLDING, THIRD_UNPACKED, THIRD_RESOURCE))
         return false;
     scene_mirror_rows(g, MIRRORED_THIRD, CRONO_PICTURES_SECOND, THIRD_LAST, THIRD_RUNS * MIRROR_RUN_ROWS);
-    ORIGINAL_EFFECT(leave_mirror_runs(g, 0));
-    ORIGINAL_EFFECT(hw_port_seek_address(g, AFTER_THIRD_MIRRORED));
+    charge_legacy_accesses(g, 1);
+    charge_legacy_io_accesses(g, 2);
     return true;
 }
 
@@ -643,32 +638,16 @@ bool scene_race_set_up_present(Snes *s)
  * clear, which the program reads. */
 /* The setup leaves Y as the matrix code's writer left it, which the frame's
  * first vblank tasks may read. */
-static void leave_y_as_the_writer_does(Snes *s) { s->cpu.y = scene_matrix_writer_leaves_y(); }
 
 bool scene_race_set_up_scene(Snes *s)
 {
     if (!set_up_the_race(state_of(s), m_platform(s), race_on_the_machine, s))
         return false;
-    ORIGINAL_EFFECT(leave_y_as_the_writer_does(s));
     s->cpu.d = 0x0000;
     s->cpu.db = 0x00;
     m_set_flag(s, CPU_FLAG_V, false);
     s->cpu.p |= CPU_FLAG_M;
     return true;
-}
-
-void scene_race_set_up_entry(Snes *s)
-{
-    scene_race_set_up_scene(s);
-    m_rts(s);
-}
-
-bool scene_race_upload_plane_present(Snes *s) { return m_code_matches(s, 0x7E8752, 32, 0xE25F56B609E8320Eull); }
-
-void scene_race_upload_plane(Snes *s)
-{
-    scene_upload_plane_half(m_platform(s));
-    m_rts(s);
 }
 
 /* ---- The curtain ----------------------------------------------------------------------------- */
@@ -703,16 +682,6 @@ enum { CURTAIN_STEP = 0xC3000E, CURTAIN_IGNORES = DC_A | DC_Y | DC_N | DC_V | DC
 
 /* What the task leaves: 8-bit A the steps halved, X the table, the carry the
  * step's oddness. */
-static void leave_curtain_registers(Snes *s)
-{
-    const GameState *g = state_of(s);
-    uint8_t steps = scene_curtain_steps(g);
-    s->cpu.p |= CPU_FLAG_M;
-    m_set_a8(s, (uint8_t)(steps >> 1));
-    s->cpu.x = curtain_table(g);
-    m_set_flag(s, CPU_FLAG_C, steps & 1);
-    m_set_nz16(s, s->cpu.x);
-}
 
 /* A frame of the sweep: the curtain's step, by `step`, then the window's
  * edges shown from the table it filled. False where the step went no
@@ -734,7 +703,7 @@ static bool curtain_step_on_the_machine(void *ctx)
 void scene_race_sweep_curtain_entry(Snes *s)
 {
     sweep_curtain_with(state_of(s), m_platform(s), curtain_step_on_the_machine, s);
-    ORIGINAL_EFFECT(leave_curtain_registers(s));
+    charge_legacy_accesses(state_of(s), 2);
     m_rts(s);
 }
 
@@ -911,12 +880,6 @@ void race_upload_road_strip(Platform *pf)
     vid_send_vram(pf, PF_AT(0x7E5287), ROAD_STRIP_VRAM, PF_GAME(ROAD_STRIP), ROAD_STRIP_BYTES, SCENE_VRAM_WHOLE_WORDS);
 }
 
-void scene_race_upload_strip(Snes *s)
-{
-    race_upload_road_strip(m_platform(s));
-    m_rts(s);
-}
-
 bool scene_race_wait_for_tilemap_upload_present(Snes *s)
 {
     return scene_on_scene_page(s) && m_code_matches(s, 0x7E5211, 4, 0x19A0BC775B1B7057ull);
@@ -1000,4 +963,3 @@ void race_sound(void *ctx, GameState *g, Platform *pf, RaceSound sound)
     (void)sound;
     scene_sends_the_command(g, pf);
 }
-

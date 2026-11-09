@@ -4,6 +4,7 @@
 #include "core/machine_forms.h"
 #include "event/machine_forms.h"
 #include "field/machine_forms.h"
+#include "scene/scene.h"
 #include "field/bridge.h"
 #include "field/field_data.h"
 #include "field/main_loop.h"
@@ -44,7 +45,7 @@ void field_hands_over_to(Snes *s, uint32_t routine, uint16_t dont_care, void (*e
 {
     m_jump_to(s, routine);
     const NativeEntry *e = native_hand_entry_at(s, routine);
-    if ((!e || e->fn != entry) && !event_machine_form_takes(s, entry) && !field_machine_form_takes(s, entry)) {
+    if ((!e || e->fn != entry) && !event_machine_form_takes(s, entry) && !field_machine_form_takes(s, entry) && !scene_machine_form_takes(s, entry)) {
         m_stop_at_own(s, routine, dont_care);
         return;
     }
@@ -88,7 +89,7 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
      * runs whatever the registry has for the state it meets */
     const NativeEntry *e = native_hand_entry(s);
     if ((!e || e->fn != entry) && !core_machine_form_takes(s, entry)
-        && !event_machine_form_takes(s, entry) && !field_machine_form_takes(s, entry)) {
+        && !event_machine_form_takes(s, entry) && !field_machine_form_takes(s, entry) && !scene_machine_form_takes(s, entry)) {
         if (hand_over) {
             /* the call made, its return address pushed: the original goes on
              * from the sibling's entry */
