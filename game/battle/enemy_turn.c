@@ -702,8 +702,8 @@ static bool turn_on_the_machine(void *ctx, TurnCall call)
     }
     case TURN_EFFECT:
         if (battle_action_kind(g) == ACTION_TECH)
-            return battle_run(s, 0xC18E15, 0xC1D7C4, battle_work_out_enemy_tech);
-        return battle_run(s, 0xC18E10, 0xC1D8D1, battle_work_out_enemy_attack);
+            return battle_run_dc(s, 0xC18E15, 0xC1D7C4, DC_A | DC_X | DC_Y | DC_FLAGS, battle_work_out_enemy_tech);
+        return battle_run_dc(s, 0xC18E10, 0xC1D8D1, DC_A | DC_X | DC_Y | DC_FLAGS, battle_work_out_enemy_attack);
     case TURN_SHOW_THE_EFFECT:
         /* the test of the actor's statuses leaves A's high byte clear */
         s->cpu.a &= 0x00FF;

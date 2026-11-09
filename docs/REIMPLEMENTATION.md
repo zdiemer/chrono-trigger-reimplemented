@@ -3810,6 +3810,12 @@ width, page, bank and binary-mode contracts still apply. Three held-choice
 fixtures compare 6,000 dispatches at the attack or targeting boundary,
 including memory and all live inputs, with zero mismatches.
 
+Enemy attack and tech work likewise take their arguments from game state.
+Their call sites declare the dead registers and flags while preserving the
+full machine contracts. The missing-target fixture compares 2,000 choices
+through the attack boundary, with zero mismatches; liveness reports no
+findings for these declarations.
+
 The isolated boundary cases also retain two index preconditions. Targeting
 checks both the full tech-member table offset and the byte-wrapped offset
 it actually reads: 1,562 admitted area-placement trials match, and 438
