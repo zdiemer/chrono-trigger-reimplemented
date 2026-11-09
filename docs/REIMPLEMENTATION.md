@@ -4259,6 +4259,33 @@ the original rows still own the shadow comparisons. A boundary settles and
 returns exactly as it did before, rather than keeping a whole screen or
 battle suspended inside one port.
 
+Menu task yields call the scheduler as C in shipping mode. The caller
+settles its preceding work, checks the scheduler's full contract on the
+pushed call frame, and charges the switch to its existing estimate.
+`native_park_after_task_switch` then parks that caller until its task
+resumes; the next task or upload wait is already held. No callback or C
+stack is added to the saved machine. Menu mode entry, object-mode entry,
+typing-task completion and the return to the field also use checked C
+handoffs at their existing timing boundaries. Shadow mode keeps their
+comparison checkpoints until retirement.
+`suspend_test` checks yield/resume, dropped and restarted tasks, save/reload,
+and an interrupt pending before the switch records its wait. Its direct
+menu-call cases reject decimal mode, wrong widths, emulation mode, page,
+bank and guard failures, and verify that the guard sees the callee's PC
+and constructed call frame. A shipping-mode case calls the retired
+overworld's sign-label clearing service through the menu bridge and checks
+its work and return, without a registry row. The input service's checked
+form retains its retired row's native-mode-only contract; its wrapper
+establishes its own widths, page and bank. The liveness checker follows both new handoff
+helpers; its 48 parser tests pass.
+The field's first held boundary declares its own dead registers, so a
+closing menu's return contract cannot hide state the field pass reads.
+The map-to-menu display write remains on line 130 versus the reference's
+132 in `field-65m-bc-dactyl-flight`. Joining the mode entry changes its
+I/O report owner from `menu_mode_start` to `overworld_menu_fade_finished`;
+its existing video exception moves with that owner, with the site, count
+and lines unchanged.
+
 The console now calls the menus' NMI entry and all three battle interrupt
 handlers through its checked C table. `native_continuation_entry_at` checks
 the full entry contract before the call, including arithmetic mode and the

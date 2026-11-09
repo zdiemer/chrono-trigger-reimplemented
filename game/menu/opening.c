@@ -280,7 +280,7 @@ static bool call_on_the_machine(void *ctx, OpeningCall call)
 {
     Snes *s = ctx;
     switch (call) {
-    case OPENING_SCREEN: menu_set_widths(s, false, false); return menu_call(s, 0xC280F0, 0xC2940D, SETUP_IGNORES);
+    case OPENING_SCREEN: menu_set_widths(s, false, false); return menu_run_called(s, 0xC280F0, 0xC2940D, SETUP_IGNORES, menu_init_video);
     case OPENING_SAVE_SLOTS: return menu_run(s, 0xC28127, 0xC2D156, menu_read_save_slots);
     case OPENING_UPLOADS: return menu_run(s, 0xC2812D, 0xC28663, menu_upload_vram_queue);
     case OPENING_RECORDS: return menu_run(s, 0xC28136, 0xC2F3CA, menu_load_record_sprites);

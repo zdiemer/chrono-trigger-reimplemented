@@ -19,6 +19,7 @@
  * to the machine, so the play stays the original's. */
 #include "core/machine_forms.h"
 
+#include "core/input.h"
 #include "core/palette.h"
 #include "core/program.h"
 #include "core/tile_animation.h"
@@ -43,6 +44,15 @@ static const struct {
 
 bool core_machine_form_takes(Snes *s, void (*entry)(Snes *))
 {
+    /* The input wrapper saves its caller's convention and establishes its
+     * own. Its retired row required native mode but imposed no P mask,
+     * page, bank or code-image restriction. */
+    if (entry == input_update) {
+        if (!s->cpu.e)
+            return true;
+        program_breaks_a_contract(state_of(s), 0xC284D2, "input work outside native mode");
+        return false;
+    }
     for (unsigned i = 0; i < sizeof FORMS / sizeof FORMS[0]; i++) {
         if (FORMS[i].entry != entry)
             continue;

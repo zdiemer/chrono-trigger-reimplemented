@@ -3624,6 +3624,23 @@ void native_yield_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_cal
     call_out(s, site, target, long_call, dont_care, false, goes_on);
 }
 
+void native_park_after_task_switch(Snes *s, uint32_t returns_to, uint16_t stack,
+                                  uint16_t dont_care, NativeGoesOn goes_on)
+{
+    Job *j = current_job;
+    if (!j || j->m != s || !active_runtime || active_runtime->mode != NATIVE_ON)
+        return;
+    j->state = JOB_CALLING;
+    j->call_target = cpu_pc24(&s->cpu);
+    j->call_ret = returns_to;
+    j->call_s_after = stack;
+    j->call_dont_care = dont_care;
+    j->call_waits = false;
+    j->call_yields = true;
+    j->goes_on = goes_on;
+    fiber_switch(fiber_main());
+}
+
 void native_jump_call_dc(Snes *s, uint32_t site, uint32_t target, uint32_t returns_to, uint16_t dont_care)
 {
     call_out_returning(s, site, target, returns_to, false, dont_care, false, NULL);

@@ -494,7 +494,7 @@ static bool type_on_the_machine(void *ctx, uint32_t site)
 static void typing_task_on_the_machine(Snes *s, TypingTask task)
 {
     if (typing_task_with(state_of(s), task, type_on_the_machine, s))
-        m_stop_at(s, END_OF_A_TASK, READS_NOTHING);
+        menu_continue(s, END_OF_A_TASK, menu_task_ends, READS_NOTHING);
 }
 
 void menu_type_the_description_task_entry(Snes *s) { typing_task_on_the_machine(s, TYPE_THE_DESCRIPTION); }

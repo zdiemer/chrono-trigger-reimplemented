@@ -76,6 +76,12 @@ void native_yield_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_cal
     (void)s, (void)site, (void)target, (void)long_call, (void)dont_care, (void)goes_on;
     no_machine_call("native_yield_call_dc", site, target);
 }
+void native_park_after_task_switch(Snes *s, uint32_t returns_to, uint16_t stack,
+                                  uint16_t dont_care, NativeGoesOn goes_on)
+{
+    (void)s, (void)returns_to, (void)stack, (void)dont_care, (void)goes_on;
+    no_machine("native_park_after_task_switch");
+}
 void native_jump_call_dc(Snes *s, uint32_t site, uint32_t target, uint32_t returns_to, uint16_t dont_care)
 {
     (void)s, (void)site, (void)target, (void)returns_to, (void)dont_care;

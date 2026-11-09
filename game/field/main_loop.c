@@ -30,6 +30,8 @@
  * the native program calls their state/platform operations directly. Battle
  * and menu hand-offs retain their still-gated interfaces. */
 #include "field/main_loop.h"
+#include "menu/bridge.h"
+#include "menu/display.h"
 #include "scene/scene.h"
 #include "field/machine_forms.h"
 #include "field/dialog_window.h"
@@ -366,8 +368,25 @@ static bool enter_step_on_the_machine(void *ctx, EnterStep step)
 /* What the menus' mode reads of the registers is the data bank alone. */
 static bool to_the_world_map_on_the_machine(void *ctx)
 {
-    m_stop_at(ctx, WORLD_MAP, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D);
+    menu_continue(ctx, WORLD_MAP, menu_object_mode_start, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D);
     return false;
+}
+
+/* A mode hands back to the field at its original dispatch boundary. */
+void field_enter_after_mode(Snes *s, uint16_t dont_care)
+{
+    enum { FIELD_ENTRY = 0xC00000 };
+    if (!m_runs_retired_as_c(s)) {
+        m_stop_at(s, FIELD_ENTRY, dont_care);
+        return;
+    }
+    m_jump_to(s, FIELD_ENTRY);
+    native_sync_boundary(s);
+    if (!field_machine_form_takes(s, field_enter)) {
+        m_stop_at(s, FIELD_ENTRY, dont_care);
+        return;
+    }
+    NATIVE_TIME_AS_SIBLING(s, FIELD_ENTRY, field_enter(s));
 }
 
 void field_enter(Snes *s)
@@ -376,7 +395,7 @@ void field_enter(Snes *s)
     display_leaves_the_machine_dark(s);
     s->cpu.d = FIELD_PAGE;
     if (enter_the_location(state_of(s), m_platform(s), &on_the_machine, s))
-        m_hold_at(s, MAIN_LOOP, THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW, HOLD_FIELD_FRAME);
+        m_hold_at_own(s, MAIN_LOOP, THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW, HOLD_FIELD_FRAME);
 }
 
 /* The guard: a location the game keeps, its number in the word's low bits

@@ -616,6 +616,13 @@ void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uin
 typedef bool (*NativeGoesOn)(Snes *s, uint16_t s_after);
 void native_yield_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care,
                           NativeGoesOn goes_on);
+/* A shipping-mode task has called its scheduler as C and switched stacks.
+ * Park its caller until that task resumes at returns_to with its pre-call
+ * stack. The caller settles its preceding time before calling the scheduler;
+ * the scheduler's time is paid where it left the next task. No call frame is
+ * pushed here. Outside a shipping-mode port this does nothing. */
+void native_park_after_task_switch(Snes *s, uint32_t returns_to, uint16_t stack,
+                                  uint16_t dont_care, NativeGoesOn goes_on);
 /* The same for a call the original makes as a jump through a pointer at
  * `site` (a JMP (abs) whose target it reads at run time), with the return
  * the code before the jump pushed (a PER): the callee returns to `returns_to`,

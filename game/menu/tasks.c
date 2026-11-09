@@ -440,13 +440,9 @@ static void leave_the_task_s_stack_below_uncompared(Snes *s)
  * which reads `reads` of the registers; the frames' wait reads A. */
 static void wait_on(Snes *s, uint32_t site, uint32_t wait, void (*entry)(Snes *), uint16_t reads, bool widths_its_own)
 {
-    if (menu_runs_as_port(s, wait, entry)) {
-        leave_the_kept_index_registers_uncompared(s, reads, widths_its_own);
-        leave_the_task_s_stack_below_uncompared(s);
-        menu_run(s, site, wait, entry);
-    } else {
-        m_stop_at(s, site, reads);
-    }
+    leave_the_kept_index_registers_uncompared(s, reads, widths_its_own);
+    leave_the_task_s_stack_below_uncompared(s);
+    (void)menu_run_checked(s, site, wait, reads, entry);
 }
 
 static void wait_in_the_loop(Snes *s, uint32_t site, bool widths_its_own)

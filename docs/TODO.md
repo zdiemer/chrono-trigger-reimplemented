@@ -2990,8 +2990,7 @@ comparisons.
   The held adapters and called machine forms remain until the legacy driver
   gives way to the native program. REIMPLEMENTATION.md lists each caller.
 
-- **What the batched library ledger's review left.** `suspend_test` has no case of an
-  interrupt pending at a task's yield entry, the new `switch_pending` branch.
+- **What the batched library ledger's review left.**
   `tools/uncompared_evidence.py` counts a matched trial as complete even when it
   is an intentional early stop: require an explicit count of full returns.
   Separate the dispatchers' ordinary and interrupted timing paths before they are

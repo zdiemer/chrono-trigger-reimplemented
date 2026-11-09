@@ -42,9 +42,10 @@ bool menu_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care
 /* The running task's wait for the next frame (or for frames), a call to the
  * task switch `routine` from the JSR at `site`: the next task goes on, and
  * this one from the call's return when its turn comes again, frames later.
- * The port waits parked across the other tasks' turns (native_yield_call_dc,
- * the tasks' own answer to whether it can still go on, menu_task_goes_on_from)
- * and goes on with them; true as menu_call's. Where the task never goes on
+ * Shipping calls the checked scheduler as C and parks after its switch;
+ * shadow mode compares a native_yield_call_dc. The tasks' own answer to
+ * whether a parked caller can still go on is menu_task_goes_on_from. The port
+ * resumes with its task; true as menu_call's. Where the task never goes on
  * (stopped or started afresh, or the menus closed), the runtime drops the
  * port, as the original's routine never finishes either. */
 bool menu_yield(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
@@ -122,18 +123,13 @@ bool menu_run_long_any_widths(Snes *s, uint32_t site, uint32_t routine, void (*e
  * jump (menu_call_jumped), with its return to `returns_to` pushed before it. */
 bool menu_run_jumped(Snes *s, uint32_t returns_to, uint32_t routine, void (*entry)(Snes *));
 
-/* Whether the runtime would run `entry`, a sibling's registered entry at
- * `routine`, for the original's call to it made now: its precondition and its
- * guard hold, and the run hasn't left it out. A bridge that runs the sibling
- * with menu_run asks this first, and where it wouldn't, the call is made (or
- * the bridge stops at it), so the original runs whatever the runtime would
- * have. Outside the runtime (ct_fuzz) it never would. */
+/* Whether the registered entry or retired service takes this machine state.
+ * Calls also check after pushing their frame and setting the callee's PC;
+ * the fuzzer supplies the same contracts outside the runtime. */
 bool menu_runs_as_port(Snes *s, uint32_t routine, void (*entry)(Snes *));
 
-/* A sibling run as menu_run_any_widths runs it where the runtime would run it
- * (menu_runs_as_port), and otherwise the original's call to it from the JSR at
- * `site`, declaring what it doesn't read of the registers: either way the
- * widths it comes back with stand, and true as menu_back's. */
+/* A checked sibling call accepting the widths it returns. A refusal leaves
+ * the constructed call frame at the original entry and returns false. */
 bool menu_run_or_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
 
 /* The original jumps to a sibling's routine, which never comes back: its
@@ -141,6 +137,10 @@ bool menu_run_or_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
  * timed as its own; otherwise the port stops there, declaring what the
  * routine doesn't read, for the original to run it. */
 void menu_go_on_in(Snes *s, uint32_t routine, void (*entry)(Snes *), uint16_t dont_care);
+
+/* Hand a former stop to a checked C continuation in shipping mode, keeping
+ * the dispatch boundary. Shadow mode still compares at the original stop. */
+void menu_continue(Snes *s, uint32_t routine, void (*entry)(Snes *), uint16_t dont_care);
 
 /* ---- The frame of the routines a bridge stands in for ------------------------------- */
 

@@ -3,12 +3,27 @@
 #include "menu/bridge.h"
 
 #include "charge.h"
+#include "core/machine_forms.h"
+#include "event/machine_forms.h"
+#include "field/machine_forms.h"
+#include "overworld/entries.h"
+#include "scene/scene.h"
 #include "menu/menu.h"
 #include "port/native.h"
 
 /* The machine's state a call's check and the guards look at. */
 static uint8_t data_bank(const Snes *s) { return s->cpu.db; }
 static uint16_t stack_pointer(const Snes *s) { return s->cpu.s; }
+
+/* Retired services retain the same contracts at their checked C forms. */
+static bool call_is_taken(Snes *s, uint32_t routine, void (*entry)(Snes *))
+{
+    const NativeEntry *e = native_continuation_entry_at(s, routine);
+    return (e && e->fn == entry) || core_machine_form_takes(s, entry) ||
+           event_machine_form_takes(s, entry) || field_machine_form_takes(s, entry) ||
+           scene_machine_form_takes(s, entry) ||
+           (entry && overworld_machine_form(s, routine) == entry);
+}
 
 MenuMachine menu_machine_now(const Snes *s)
 {
@@ -38,8 +53,24 @@ bool menu_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
 bool menu_yield(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
 {
     MenuMachine m = menu_machine_now(s);
-    native_yield_call_dc(s, site, routine, false, dont_care, menu_task_goes_on_from);
-    return menu_back(s, site + MENU_JSR_SIZE, m);
+    if (!m_runs_retired_as_c(s)) {
+        native_yield_call_dc(s, site, routine, false, dont_care, menu_task_goes_on_from);
+        return menu_back(s, site + MENU_JSR_SIZE, m);
+    }
+    void (*entry)(Snes *) = routine == MENU_TASK_WAITS_A_FRAME ? menu_task_waits_a_frame :
+                            routine == MENU_TASK_WAITS_FRAMES ? menu_task_waits_frames : NULL;
+    uint16_t stack = stack_pointer(s);
+    uint32_t returns_to = site + MENU_JSR_SIZE;
+    m_push16(s, (uint16_t)(returns_to - 1));
+    m_jump_to(s, routine);
+    native_sync_boundary(s);
+    if (!entry || !call_is_taken(s, routine, entry)) {
+        m_stop_at(s, routine, dont_care);
+        return false;
+    }
+    NATIVE_TIME_AS_SIBLING(s, routine, entry(s));
+    native_park_after_task_switch(s, returns_to, stack, dont_care, menu_task_goes_on_from);
+    return menu_back(s, returns_to, m);
 }
 
 bool menu_wait_a_frame_from(Snes *s, uint32_t site)
@@ -88,8 +119,11 @@ static bool run(Snes *s, uint32_t returns_to, uint32_t routine, void (*entry)(Sn
     if (kind == BY_JSL)
         m_push8(s, (uint8_t)(returns_to >> 16));
     m_push16(s, (uint16_t)(returns_to - 1));
-    s->cpu.pb = (uint8_t)(routine >> 16);
-    s->cpu.pc = (uint16_t)routine;
+    m_jump_to(s, routine);
+    if (!call_is_taken(s, routine, entry)) {
+        m_stop_at(s, routine, 0);
+        return false;
+    }
     TIMED_AS(state_of(s), routine, entry(s));
     bool returned = returned_to_call(s, stack, returns_to);
     if (any_widths) {
@@ -113,8 +147,7 @@ static bool run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_c
     m_jump_to(s, routine);
     if (settles)
         charge_settle(state_of(s));
-    const NativeEntry *e = native_continuation_entry_at(s, routine);
-    if (!e || e->fn != entry) {
+    if (!call_is_taken(s, routine, entry)) {
         m_stop_at(s, routine, dont_care);
         return false;
     }
@@ -174,16 +207,14 @@ bool menu_run_jumped(Snes *s, uint32_t returns_to, uint32_t routine, void (*entr
 
 bool menu_runs_as_port(Snes *s, uint32_t routine, void (*entry)(Snes *))
 {
-    const NativeEntry *e = native_hand_entry_at(s, routine);
-    return e && e->fn == entry;
+    return call_is_taken(s, routine, entry);
 }
 
 bool menu_run_or_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
 {
-    if (menu_runs_as_port(s, routine, entry))
-        return menu_run_any_widths(s, site, routine, entry);
     MenuMachine m = menu_machine_now(s);
-    m_jsr_dc(s, site, routine, dont_care);
+    if (!menu_run_checked(s, site, routine, dont_care, entry))
+        return false;
     m.a8 = m_m8(s);
     m.x8 = m_x8(s);
     return menu_back(s, site + MENU_JSR_SIZE, m);
@@ -191,13 +222,28 @@ bool menu_run_or_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
 
 void menu_go_on_in(Snes *s, uint32_t routine, void (*entry)(Snes *), uint16_t dont_care)
 {
+    m_jump_to(s, routine);
     if (!menu_runs_as_port(s, routine, entry)) {
         m_stop_at(s, routine, dont_care);
         return;
     }
-    s->cpu.pb = (uint8_t)(routine >> 16);
-    s->cpu.pc = (uint16_t)routine;
     TIMED_AS(state_of(s), routine, entry(s));
+}
+
+/* A former stop keeps its dispatch boundary and callee's timing owner. */
+void menu_continue(Snes *s, uint32_t routine, void (*entry)(Snes *), uint16_t dont_care)
+{
+    if (!m_runs_retired_as_c(s)) {
+        m_stop_at(s, routine, dont_care);
+        return;
+    }
+    m_jump_to(s, routine);
+    native_sync_boundary(s);
+    if (!call_is_taken(s, routine, entry)) {
+        m_stop_at(s, routine, dont_care);
+        return;
+    }
+    NATIVE_TIME_AS_SIBLING(s, routine, entry(s));
 }
 
 void menu_set_widths(Snes *s, bool a8, bool x8)

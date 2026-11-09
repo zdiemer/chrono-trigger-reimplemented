@@ -18,6 +18,7 @@
 #include "menu/display.h"
 
 #include "charge.h"
+#include "field/main_loop.h"
 #include "core/program.h"
 #include "cpu_io.h"
 #include "holds.h"
@@ -202,7 +203,10 @@ enum { MENU_MODE_START = 0xC2800E, THE_START_READS_ALL = 0 };
  * would be made inside this entry's comparison, and shadow mode hands them to
  * the start's, which the original reaches nested in it: every movie
  * mismatched so (chunk 11's review fixes). */
-void menu_mode_enter(Snes *s) { m_stop_at(s, MENU_MODE_START, THE_START_READS_ALL); }
+void menu_mode_enter(Snes *s)
+{
+    menu_continue(s, MENU_MODE_START, menu_mode_start, THE_START_READS_ALL);
+}
 
 /* The blanks the mode's start, its return and its starting the game again
  * make, each from the original's own sites. */
@@ -363,7 +367,7 @@ void menu_mode_restart(Snes *s)
 {
     blank_and_stop(m_platform(s), restart_sites);
     s->cpu.s = BOOT_STACK;
-    m_stop_at(s, 0xC00000, 0);
+    field_enter_after_mode(s, 0);
 }
 
 /* Closing the menus, from whichever screen closes them: every task stopped

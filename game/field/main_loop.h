@@ -22,6 +22,8 @@ void field_power_on(GameState *g, Platform *pf);
  * a step is the machine's yet, the program going no further there. */
 bool field_enter_the_location(GameState *g, Platform *pf);
 void field_enter(Snes *s);
+/* Checked continuation from a closing mode, retaining its dispatch boundary. */
+void field_enter_after_mode(Snes *s, uint16_t dont_care);
 void field_frame(Snes *s);
 void field_frame_goes_on_with_the_requests(Snes *s);
 void field_frame_goes_on_with_the_walk(Snes *s);

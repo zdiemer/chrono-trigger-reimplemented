@@ -740,6 +740,15 @@ The native report lists suspended and parked callers with their wait target, ret
 stack depth, so a stale save boundary can be traced to the caller that still
 needs a held continuation.
 
+A task whose scheduler runs as C can park after the switch with
+`native_park_after_task_switch`. Its caller first settles its time and runs
+the checked scheduler, which selects the next task or held wait. Parking
+records the yielding task's return and pre-call stack; resumption, dropping
+and saving use the same rules as a machine-dispatched yield. The scheduler's
+time is paid where it left the next task. No additional saved-state field
+is needed. `suspend_test` covers both paths, including an interrupt pending
+at the yield, a restarted task, and loading a parked save into either mode.
+
 ## Held waits
 
 A main loop's frame end is a wait the main thread rests in while the vblank

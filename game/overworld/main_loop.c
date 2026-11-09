@@ -32,6 +32,7 @@
 #include "overworld/main_loop.h"
 
 #include "charge.h"
+#include "field/main_loop.h"
 #include "holds.h"
 #include "core/program.h"
 #include "menu/bridge.h"
@@ -747,7 +748,7 @@ enum {
 };
 
 /* The field's start, which the world map leaves for, and the halt. */
-enum { THE_FIELD = 0xC00000, HALT = 0xC2250D };
+enum { HALT = 0xC2250D };
 
 void overworld_wait_for_the_next_frame_on_the_machine(Snes *s)
 {
@@ -760,7 +761,7 @@ static void after_the_pass(Snes *s, Pass p)
 {
     switch (p) {
     case PASS_GOES_ON: overworld_wait_for_the_next_frame_on_the_machine(s); break;
-    case PASS_LEAVES: m_stop_at(s, THE_FIELD, READS_NOTHING); break;
+    case PASS_LEAVES: field_enter_after_mode(s, READS_NOTHING); break;
     case PASS_HALTS: m_hold_at_own(s, HALT, READS_NOTHING, HOLD_OVERWORLD_HALT); break;
     default: break;
     }
