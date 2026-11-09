@@ -43,7 +43,6 @@
 #include "core/palette.h"
 #include "core/program.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
@@ -431,8 +430,6 @@ static void flicker_the_lights(GameState *g, SceneDraw called_with, uint16_t slo
  * leaves past the right needle's sprites. */
 enum { NEEDLES_END = 0x8122, WORK_RAM_PORT_BANK = SCENE_LOWER_WORK_RAM };
 
-static void leave_the_port_past_the_needles(GameState *g) { hw_port_seek(g, NEEDLES_END, WORK_RAM_PORT_BANK); }
-
 /* The line effects' tables run Mode 7 and the shell's scroll and color math
  * from the top of the view down to the panel's top line: two entries of 84
  * and 83 lines, then the lines from 167 on. The panel below is BG1, scrolled
@@ -662,25 +659,28 @@ static const struct {
 };
 
 typedef struct {
-    void (*unpack)(void *ctx, DiveUnpack which);
+    bool (*unpack)(void *ctx, DiveUnpack which);
     bool (*first_step)(void *ctx);
     bool (*draw_and_scale_once)(void *ctx);
 } DiveSetUpSteps;
 
-static void load_the_shell(GameState *g, Platform *pf, const DiveSetUpSteps *steps, void *ctx)
+static bool load_the_shell(GameState *g, Platform *pf, const DiveSetUpSteps *steps, void *ctx)
 {
     vid_set_vram_address(pf, PF_AT(0x7E78E4), SHELL_PIXELS_VRAM);
     vid_start_vram_uploads(pf, PF_AT(0x7E78E9), SCENE_VRAM_WHOLE_WORDS);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    steps->unpack(ctx, UNPACK_SHELL_PIXELS);
+    if (!steps->unpack(ctx, UNPACK_SHELL_PIXELS))
+        return false;
     scene_choose_transfer(g, scene_pixels_into_high_bytes);
     scene_send_unpacked_by(g, pf, scene_pixels_into_high_bytes);
-    steps->unpack(ctx, UNPACK_SHELL_MAP);
+    if (!steps->unpack(ctx, UNPACK_SHELL_MAP))
+        return false;
     scene_double_plane_rows(g);
     vid_set_vram_address(pf, PF_AT(0x7E790F), SHELL_MAP_VRAM);
     vid_start_vram_uploads(pf, PF_AT(0x7E7913), SCENE_VRAM_LOW_BYTES);
     for (unsigned half = 0; half < 2; half++)
         scene_send_from(g, pf, SCENE_TRANSFER_BYTES, VID_SNES_VRAM_DATA_LOW, SCENE_PLANE_MAP, PLANE_HALF_BYTES);
+    return true;
 }
 
 /* The colors: the scene's, colors 80 to 111 of them copied into the sprites'
@@ -689,10 +689,11 @@ static void load_the_shell(GameState *g, Platform *pf, const DiveSetUpSteps *ste
  * running. */
 enum { COPIED_FROM = 0x50, COPIED_TO = 0xA0, COPIED_COLOURS = 0x20, PALE_CYAN = 0x6F69 };
 
-static void load_the_colours(GameState *g, const DiveSetUpSteps *steps, void *ctx)
+static bool load_the_colours(GameState *g, const DiveSetUpSteps *steps, void *ctx)
 {
     set_decompress_dest(g, DIVE_COLOURS_AT);
-    steps->unpack(ctx, UNPACK_DIVE_COLOURS);
+    if (!steps->unpack(ctx, UNPACK_DIVE_COLOURS))
+        return false;
     for (unsigned n = 0; n < COPIED_COLOURS; n++)
         set_palette_base(g, COPIED_TO + n, palette_base(g, COPIED_FROM + n));
     charge_block_move(g, 2 * COPIED_COLOURS);
@@ -700,6 +701,7 @@ static void load_the_colours(GameState *g, const DiveSetUpSteps *steps, void *ct
     set_palette_base(g, 0, PALE_CYAN);
     scene_use_loaded_palette(g);
     TIMED_AS(g, 0xFDE275, palette_stop_animations(g));
+    return true;
 }
 
 /* The shell's curve seen from outside: each screen line's distance onto the
@@ -746,7 +748,7 @@ static void lay_out_the_panel(GameState *g, Platform *pf)
         for (unsigned n = HALF_ROW; n-- > 0;)
             vid_write_vram(pf, PF_AT(0x7E7B3D), (uint16_t)(wram_read8(g, attributes++) << 8 | (uint8_t)(first + n)));
     }
-    ORIGINAL_EFFECT(hw_port_seek_address(g, (uint16_t)attributes));
+    charge_legacy_io_accesses(g, 2);
     vid_start_vram_uploads(pf, PF_AT(0x7E7B55), SCENE_VRAM_LOW_BYTES);
     vid_set_vram_address(pf, PF_AT(0x7E7B5B), PANEL_MIDDLE);
     for (unsigned n = 0; n < MIDDLE_TILES; n++)
@@ -758,25 +760,13 @@ static void lay_out_the_panel(GameState *g, Platform *pf)
 
 /* What the original leaves in the scene's cells as it makes the curve: the
  * last half step of the sine, and its count of lines run down. */
-static void leave_the_curve_s_cells(GameState *g)
-{
-    SceneProgramPage scene = scene_program_own();
-    set_scene_call_dive_curve_step(g, scene, (uint8_t)(scene_sine_magnitude(g, (uint16_t)((CURVE_LINES - 1) * CURVE_STEP)) >> 1));
-    set_scene_call_dive_curve_lines_left(g, scene, 0);
-}
 
 /* The program writes the fog through the work RAM port, which it leaves past
  * the falling band. */
 enum { FOG_END = 0xE050 };
 
-static void leave_the_port_past_the_fog(GameState *g) { hw_port_seek(g, FOG_END, SCENE_LOWER_WORK_RAM); }
-
 /* The panel's tiles count up in the scene's first cell, which ends past the
  * last row. */
-static void leave_the_panel_s_count(GameState *g)
-{
-    set_scene_call_dive_panel_tile(g, scene_program_own(), (uint8_t)(PANEL_FIRST_TILE + PANEL_ROWS * HALF_ROW));
-}
 
 /* The scaled picture's output in the second bank cleared, and where the
  * scaler's last output ended. */
@@ -786,7 +776,7 @@ enum { SCALER_OUTPUT = 0x7F0200, SCALER_OUTPUT_BYTES = 0x0800, SCALER_OUTPUT_END
 /* The rest of the scene's pieces: the trail's circle's table, the Epoch's
  * first frame of animation to take at once, the shell's curve and the fog,
  * the sprites' tiles and the panel's map. */
-static void make_the_pieces(GameState *g, Platform *pf, const DiveSetUpSteps *steps, void *ctx)
+static bool make_the_pieces(GameState *g, Platform *pf, const DiveSetUpSteps *steps, void *ctx)
 {
     set_scene_scaler_output_end(g, SCALER_OUTPUT_END);
     set_scene_circle_table(g, TRAIL_CIRCLE);
@@ -794,24 +784,29 @@ static void make_the_pieces(GameState *g, Platform *pf, const DiveSetUpSteps *st
     set_scene_dive_epoch_frames_left(g, TAKE_THE_NEXT_FRAME);
     set_epoch_frame(g, BEFORE_THE_FIRST_FRAME);
     make_the_curve(g);
-    ORIGINAL_EFFECT(leave_the_curve_s_cells(g));
+    charge_legacy_accesses(g, 2);
+    charge_legacy_rom_accesses(g, 1);
     make_the_fog(g);
-    ORIGINAL_EFFECT(leave_the_port_past_the_fog(g));
+    charge_legacy_io_accesses(g, 3);
 
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    steps->unpack(ctx, UNPACK_SPRITE_TILES);
+    if (!steps->unpack(ctx, UNPACK_SPRITE_TILES))
+        return false;
     vid_start_vram_uploads(pf, PF_AT(0x7E7AE3), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E7AE9), SPRITE_TILES_VRAM);
     scene_choose_transfer(g, scene_whole_words);
     scene_send_unpacked_by(g, pf, scene_whole_words);
-    steps->unpack(ctx, UNPACK_MORE_SPRITE_TILES);
+    if (!steps->unpack(ctx, UNPACK_MORE_SPRITE_TILES))
+        return false;
     vid_set_vram_address(pf, PF_AT(0x7E7B03), MORE_SPRITE_TILES_VRAM);
     scene_send_unpacked_by(g, pf, scene_whole_words);
-    steps->unpack(ctx, UNPACK_PANEL_MAP);
+    if (!steps->unpack(ctx, UNPACK_PANEL_MAP))
+        return false;
     vid_set_vram_address(pf, PF_AT(0x7E7B13), PANEL_MAP_VRAM);
     lay_out_the_panel(g, pf);
-    ORIGINAL_EFFECT(leave_the_panel_s_count(g));
+    charge_legacy_accesses(g, 1);
     scene_clear_buffer(pf, SCALER_OUTPUT, SCALER_OUTPUT_BYTES, 0x7E7B98);
+    return true;
 }
 
 /* The Epoch's bitmap, and the routine that regroups its scaled picture into
@@ -819,11 +814,13 @@ static void make_the_pieces(GameState *g, Platform *pf, const DiveSetUpSteps *st
  * second bank into the tilemap buffer. */
 enum { MATRIX_DESTINATION = 0x0C00, MATRIX_SOURCE = 0x0200 };
 
-static void load_the_epoch(GameState *g, const DiveSetUpSteps *steps, void *ctx)
+static bool load_the_epoch(GameState *g, const DiveSetUpSteps *steps, void *ctx)
 {
     set_decompress_dest(g, EPOCH_BITMAP_AT);
-    steps->unpack(ctx, UNPACK_EPOCH_PICTURE);
+    if (!steps->unpack(ctx, UNPACK_EPOCH_PICTURE))
+        return false;
     TIMED_AS(g, 0xC309E9, scene_write_matrix_code_for(g, MATRIX_DESTINATION, MATRIX_SOURCE));
+    return true;
 }
 
 /* The two channels' scripts: channel 0's moves the camera, channel 1's runs
@@ -865,10 +862,14 @@ static void set_up_the_screen(Platform *pf)
  * it passes once scales none yet. False where a step went no further. */
 static bool set_up_the_dive_with(GameState *g, Platform *pf, const DiveSetUpSteps *steps, void *ctx)
 {
-    load_the_shell(g, pf, steps, ctx);
-    load_the_colours(g, steps, ctx);
-    make_the_pieces(g, pf, steps, ctx);
-    load_the_epoch(g, steps, ctx);
+    if (!load_the_shell(g, pf, steps, ctx))
+        return false;
+    if (!load_the_colours(g, steps, ctx))
+        return false;
+    if (!make_the_pieces(g, pf, steps, ctx))
+        return false;
+    if (!load_the_epoch(g, steps, ctx))
+        return false;
     set_scene_channels_script(g, SCENE_CAMERA_CHANNEL, CAMERA_SCRIPT);
     if (!steps->first_step(ctx))
         return false;
@@ -896,16 +897,18 @@ static bool in_the_pieces(DiveUnpack which)
     return which == UNPACK_SPRITE_TILES || which == UNPACK_MORE_SPRITE_TILES || which == UNPACK_PANEL_MAP;
 }
 
-static void unpack_on_the_machine(void *ctx, DiveUnpack which)
+static bool unpack_on_the_machine(void *ctx, DiveUnpack which)
 {
     Snes *s = ctx;
     if (which == UNPACK_EPOCH_PICTURE)
         s->cpu.d = PIECES_LEAVE_THE_PAGE;
     if (in_the_pieces(which))
         scene_bridge_enter(s, PIECES_CALL);
-    scene_bridge_unpack(s, dive_unpacks[which].site, dive_unpacks[which].resource);
+    if (!scene_bridge_unpack(s, dive_unpacks[which].site, dive_unpacks[which].resource))
+        return false;
     if (in_the_pieces(which))
         scene_bridge_leave(s);
+    return true;
 }
 
 /* The matrix code's writer works on the scene's page, through bank 0; the
@@ -918,8 +921,7 @@ static bool first_step_on_the_machine(void *ctx)
     s->cpu.d = 0x0000;
     s->cpu.db = 0x00;
     m_set_flag(s, CPU_FLAG_X | CPU_FLAG_V, false);
-    scene_bridge_take_the_first_script_step(s, 0x7E79AA, scene_matrix_writer_leaves_y(), s->cpu.db);
-    return true;
+    return scene_bridge_take_the_first_script_step(s, 0x7E79AA, scene_matrix_writer_leaves_y(), s->cpu.db);
 }
 
 /* The Epoch's drawing and the main loop's call, through their entries where
@@ -943,10 +945,11 @@ typedef struct {
     Platform *pf;
 } DiveInC;
 
-static void unpack_the_resource(void *ctx, DiveUnpack which)
+static bool unpack_the_resource(void *ctx, DiveUnpack which)
 {
     DiveInC *c = ctx;
     TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, dive_unpacks[which].resource));
+    return true;
 }
 
 static bool turn_the_camera_channel(void *ctx)
@@ -980,7 +983,6 @@ bool scene_dive_set_up(GameState *g, Platform *pf)
     return set_up_the_dive_with(g, pf, &in_the_program, &c);
 }
 
-
 /* ---- Entries ---------------------------------------------------------------------------------- */
 
 /* The routines the scripts call, as C (scene/script.c). */
@@ -993,53 +995,12 @@ const SceneScriptRoutine scene_dive_routines[] = {
 };
 const unsigned scene_dive_routine_count = sizeof scene_dive_routines / sizeof scene_dive_routines[0];
 
-#if ORIGINAL_EFFECTS
-/* The views' switches copy their list with a block move, which leaves A past
- * its count and Y past the tasks it copied. */
-enum { BLOCK_MOVE_DONE = 0xFFFF, TASK_BYTES = 2 };
-
-static uint16_t leaves_the_move_done(uint16_t called_with)
-{
-    (void)called_with;
-    return BLOCK_MOVE_DONE;
-}
-
-static void leaves_y_past_the_outside_tasks(Snes *s) { s->cpu.y = (uint16_t)(RAM_SCENE_TASKS + OUTSIDE_TASKS * TASK_BYTES); }
-static void leaves_y_past_the_cockpit_tasks(Snes *s) { s->cpu.y = (uint16_t)(RAM_SCENE_TASKS + COCKPIT_TASKS * TASK_BYTES); }
-
-/* The fades leave A and Y as the animations leave them, past their slots, and
- * the overflow clear. */
-static uint16_t leaves_the_animations(uint16_t called_with)
-{
-    (void)called_with;
-    return palette_animations_leave();
-}
-
-static void leaves_the_animations_registers(Snes *s)
-{
-    s->cpu.y = palette_animations_leave();
-    m_set_flag(s, CPU_FLAG_V, false);
-}
-
-const SceneRoutineLeaves scene_dive_routine_leaves[] = {
-    [SCENE_ROW_LOOK_FROM_OUTSIDE] = { leaves_the_move_done, leaves_y_past_the_outside_tasks },
-    [SCENE_ROW_LOOK_FROM_THE_COCKPIT] = { leaves_the_move_done, leaves_y_past_the_cockpit_tasks },
-    [SCENE_ROW_FADE_THE_SHELL_IN] = { leaves_the_animations, leaves_the_animations_registers },
-    [SCENE_ROW_WHITE_OUT] = { leaves_the_animations, leaves_the_animations_registers },
-};
-#endif
-
-void scene_look_from_outside(Snes *s) { scene_script_routine_alone(s, &scene_dive_routines[SCENE_ROW_LOOK_FROM_OUTSIDE]); }
-void scene_look_from_the_cockpit(Snes *s) { scene_script_routine_alone(s, &scene_dive_routines[SCENE_ROW_LOOK_FROM_THE_COCKPIT]); }
-void scene_fade_the_shell_in(Snes *s) { scene_script_routine_alone(s, &scene_dive_routines[SCENE_ROW_FADE_THE_SHELL_IN]); }
-void scene_white_out(Snes *s) { scene_script_routine_alone(s, &scene_dive_routines[SCENE_ROW_WHITE_OUT]); }
-
 /* The frame's tasks, 16-bit, each leaving A as its last load left it. */
 void scene_pass_the_shell_across_entry(Snes *s)
 {
     GameState *g = state_of(s);
     pass_the_shell(g, ACROSS);
-    ORIGINAL_EFFECT(s->cpu.a = camera(g, ACROSS.centre));
+    charge_legacy_accesses(g, 2);
     m_rts(s);
 }
 
@@ -1047,7 +1008,7 @@ void scene_pass_the_shell_down_entry(Snes *s)
 {
     GameState *g = state_of(s);
     pass_the_shell(g, DOWN);
-    ORIGINAL_EFFECT(s->cpu.a = camera(g, DOWN.centre));
+    charge_legacy_accesses(g, 2);
     m_rts(s);
 }
 
@@ -1055,7 +1016,7 @@ void scene_let_the_shell_fall_away_entry(Snes *s)
 {
     GameState *g = state_of(s);
     let_the_shell_fall_away(g);
-    ORIGINAL_EFFECT(s->cpu.a = camera(g, SCENE_PLANE_Y));
+    charge_legacy_accesses(g, 2);
     m_rts(s);
 }
 
@@ -1064,14 +1025,6 @@ void scene_let_the_shell_fall_away_entry(Snes *s)
  * saved camera changes. */
 enum { BUILD_PERSPECTIVE = 0x7E357B, CAMERA_PAGE = 0x0A00 };
 
-static void leave_the_shell_checked(Snes *s, const GameState *g, bool built)
-{
-    if (built)
-        scene_leave_perspective_registers(s, SCENE_CAMERA_CHANNEL);
-    else
-        s->cpu.a = camera(g, SCENE_PLANE_SHELL_FRAMES);
-}
-
 void scene_check_the_shell_entry(Snes *s)
 {
     GameState *g = state_of(s);
@@ -1079,7 +1032,7 @@ void scene_check_the_shell_entry(Snes *s)
     s->cpu.d = CAMERA_PAGE;
     if (moved)
         TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, SCENE_CAMERA_CHANNEL));
-    ORIGINAL_EFFECT(leave_the_shell_checked(s, g, moved));
+    if (moved) scene_charge_perspective_result(g, SCENE_CAMERA_CHANNEL); else charge_legacy_accesses(g, 2);
     m_rts(s);
 }
 
@@ -1089,7 +1042,7 @@ void scene_scale_the_epoch_entry(Snes *s)
 {
     GameState *g = state_of(s);
     if (!hand_the_epoch_to_the_scaler(g)) {
-        ORIGINAL_EFFECT(m_lda16(s, scene_dive_picture_waiting(g)));
+        charge_legacy_accesses(g, 1);
         m_rts(s);
         return;
     }
@@ -1103,7 +1056,6 @@ void scene_gather_the_epoch(Snes *s)
     GameState *g = state_of(s);
     gather_the_epoch(g);
     s->cpu.db = m_pull8(s);
-    ORIGINAL_EFFECT(m_lda16(s, PICTURE_WAITING));
     m_rts(s);
 }
 
@@ -1121,8 +1073,8 @@ void scene_draw_the_epoch_entry(Snes *s)
     GameState *g = state_of(s);
     draw_the_epoch(g);
     s->cpu.y = scene_sprite_index(g);
-    ORIGINAL_EFFECT(s->cpu.a = scene_clipped_list_leaves_a(g, EPOCH_LIST, EPOCH_LIST));
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, scene_clipped_list_leaves_overflow(g, EPOCH_LIST)));
+    scene_charge_clipped_list_result(g, EPOCH_LIST);
+    scene_charge_clipped_list_result(g, EPOCH_LIST);
     m_rts(s);
 }
 
@@ -1130,7 +1082,7 @@ void scene_size_the_trail_entry(Snes *s)
 {
     GameState *g = state_of(s);
     size_the_trail(g);
-    ORIGINAL_EFFECT(s->cpu.a = epoch(g, TRAIL_RADIUS));
+    charge_legacy_accesses(g, 2);
     m_rts(s);
 }
 
@@ -1141,7 +1093,7 @@ void scene_draw_the_trail_entry(Snes *s)
     GameState *g = state_of(s);
     draw_the_trail(g);
     unsigned lines = 2u * (epoch(g, TRAIL_RADIUS) + 1u);
-    ORIGINAL_EFFECT(s->cpu.a = (uint16_t)lines ? scene_dive_trail_edges(g, lines - 1) : 0);
+    charge_legacy_accesses(g, (uint16_t)lines ? 2 : 0);
     s->cpu.y = 0;
     s->cpu.p &= (uint8_t)~CPU_FLAG_M;
     m_rts(s);
@@ -1153,7 +1105,13 @@ void scene_fly_the_epoch_on_entry(Snes *s)
     GameState *g = state_of(s);
     fly_the_epoch_on(g);
     s->cpu.y = scene_sprite_index(g);
-    ORIGINAL_EFFECT(s->cpu.a = scene_signed_list_leaves_a(g, current_list(g)));
+    {
+        uint32_t mark = charge_uncounted_begin(g);
+        uint16_t list = current_list(g);
+        charge_uncounted_end(g, mark);
+        charge_legacy_accesses(g, 4);
+        scene_charge_signed_list_result(g, list);
+    };
     m_rts(s);
 }
 
@@ -1164,7 +1122,7 @@ void scene_shake_the_cockpit_entry(Snes *s)
     GameState *g = state_of(s);
     shake_the_cockpit(g, m_platform(s), s->cpu.x);
     s->cpu.y = scene_sprite_index(g);
-    ORIGINAL_EFFECT(s->cpu.a = scene_signed_list_leaves_a(g, RIM));
+    scene_charge_signed_list_result(g, RIM);
     m_rts(s);
 }
 
@@ -1175,8 +1133,8 @@ void scene_flicker_the_lights_entry(Snes *s)
 {
     GameState *g = state_of(s);
     flicker_the_lights(g, scene_draw_from(s->cpu.a, m_flag(s, CPU_FLAG_C), TM_ENTROPY_WORDS), s->cpu.x);
-    ORIGINAL_EFFECT(leave_the_port_past_the_needles(g));
-    ORIGINAL_EFFECT(s->cpu.a = scene_dive_lights_y(g, RIGHT_NEEDLE + NEEDLE_SPRITES - 1));
+    charge_legacy_io_accesses(g, 3);
+    charge_legacy_accesses(g, 1);
     s->cpu.p |= CPU_FLAG_M;
     m_rts(s);
 }
@@ -1186,7 +1144,7 @@ void scene_follow_the_panel_entry(Snes *s)
 {
     GameState *g = state_of(s);
     follow_the_panel(g);
-    ORIGINAL_EFFECT(s->cpu.a = scene_dive_panel_scroll_x(g));
+    charge_legacy_accesses(g, 2);
     s->cpu.p &= (uint8_t)~CPU_FLAG_M;
     m_rts(s);
 }
@@ -1199,11 +1157,9 @@ void scene_open_the_light_entry(Snes *s)
     bool restarted = open_the_light(g, m_platform(s));
     s->cpu.p |= CPU_FLAG_M;
     if (restarted) {
-        ORIGINAL_EFFECT(s->cpu.a = LIGHT_PAST_THE_DARK);
         s->cpu.p &= (uint8_t)~CPU_FLAG_M;
     } else {
-        ORIGINAL_EFFECT(s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) |
-                                              (above_before == DARK_LEFT ? scene_dive_light_rising_from(g) : above_before)));
+        charge_legacy_accesses(g, above_before == DARK_LEFT ? 1 : 0);
     }
     m_rts(s);
 }
@@ -1224,12 +1180,6 @@ bool scene_dive_set_up_scene(Snes *s)
     s->cpu.db = 0x00;
     s->cpu.p |= CPU_FLAG_M;
     return true;
-}
-
-void scene_dive_set_up_entry(Snes *s)
-{
-    if (scene_dive_set_up_scene(s))
-        m_rts(s);
 }
 
 /* The one-off vblank tasks take themselves off their list through its exit,
@@ -1384,7 +1334,6 @@ TaskEnd scene_let_the_shell_fall_away(GameState *g, Platform *pf, unsigned slot)
     let_the_shell_fall_away(g);
     return task_goes_on();
 }
-
 
 TaskEnd scene_check_the_shell(GameState *g, Platform *pf, unsigned slot)
 {

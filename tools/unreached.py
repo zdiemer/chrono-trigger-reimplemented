@@ -21,7 +21,7 @@ from tools.disasm.closure import reached_code
 from tools.disasm.cpu import decode
 from tools import unreached_fuzz
 
-SUBSYSTEMS = ('attract', 'core', 'warp', 'overworld', 'event', 'field')
+SUBSYSTEMS = ('attract', 'core', 'warp', 'overworld', 'event', 'field', 'scene')
 # Subsystems inventoried ahead of their teardown. Bytes no comparison or
 # reviewed argument covers yet are recorded as `open` rows rather than refused,
 # so the ledger names exactly what is left (docs/REIMPLEMENTATION.md, "The code
@@ -34,7 +34,7 @@ OPEN_REASON = {}
 # Subsystems whose gate has retired while rows of theirs stay in the ledger for
 # their still-gated callers. A teardown adds its subsystem here and takes it out
 # of OPEN; `--check` fails while it has an open row.
-RETIRED = ('core', 'event', 'field')
+RETIRED = ('core', 'event', 'field', 'scene')
 # Entries outside SUBSYSTEMS that an audited dispatch hands its work to, so the
 # whole dispatch is accounted (name: why). The screen command's restart wait,
 # field_restart_wait_for_vblank_loop, was one until the field joined the audit.

@@ -14,7 +14,6 @@
  * are sent. */
 #include "scene/scene.h"
 
-#include "original_effects.h"
 #include "platform/video.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -75,14 +74,12 @@ enum { CAMERA_PAGE = 0x0A00 };
 void scene_send_the_flat_plane_entry(Snes *s)
 {
     scene_send_the_flat_plane(state_of(s), m_platform(s));
-    ORIGINAL_EFFECT(s->cpu.d = CAMERA_PAGE);
     m_rts(s);
 }
 
 void scene_send_the_plane_s_place_entry(Snes *s)
 {
     scene_send_the_plane_s_place(state_of(s), m_platform(s));
-    ORIGINAL_EFFECT(s->cpu.d = CAMERA_PAGE);
     m_rts(s);
 }
 

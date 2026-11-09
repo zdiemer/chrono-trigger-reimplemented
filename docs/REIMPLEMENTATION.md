@@ -4077,17 +4077,15 @@ its enclosing byte comparison. Screen startup also leaves Y and overflow
 where the still-gated sprite and menu callers expect them.
 
 The field's scratch reconstruction and `event/leaves.c` are deleted except
-for two interfaces still under their callers' gates. The menus' wave-phase
+for the menu interface still under its callers' gate. The menus' wave-phase
 alias at `$7E:01E2-$7E:01E3` is isolated in
 `field/menu_compat.h`: event calls leave the place/table bytes, the party
 movement dispatch leaves its operand byte, and tile/property copying
 clears the appropriate bytes. Each writes only the live alias, preserving
 the neighbouring bytes. The menu wave handler at `$C2:77C7` reads that
-phase; those writes remain until the menus retire. The scene ending's
-window task (`$7E:9A0C`) includes the rasterizer's last-edge and fill scratch
-in its byte comparison. `field/window_shape.c` retains those writes only
-for the scene's low-RAM table, until that task retires; the field's own
-window tables do not write them. `$7E:0F00` is instead
+phase; those writes remain until the menus retire. The scene teardown
+removes `field/window_shape.c`'s last-edge and fill scratch, formerly kept
+for the ending window task's enclosing comparison. `$7E:0F00` is instead
 real object-view state, as the preceding held-continuation section explains
 and `field_test` checks, including the last object slot and middle removal.
 
@@ -4427,145 +4425,190 @@ precondition repairs under the existing gate, not a retirement.
 
 ### The scene program's teardown
 
-The sixth subsystem off the gate: the gate no longer compares the scene
-program's own code, the code the game decompresses to `$7E:3000` for every
-scene (`$7E:3000-$7E:3175` and `$7E:3177-$7E:31BE`): its start, its work RAM's
-clear, the first screen it sets up, the sound put back to normal, the first frame's wait, its main loop and
-its end. `game/attract/`, which held the main loop, is folded into
-`game/scene/program.c`, where the loop's C for a program with no machine
-(`scene_runs`) already was. What the program calls stays under the gate: the
-boot (`$C3:0000`), the setups, the frame's work, the scenes' routines the loop
-calls, the tasks and the scripts (the rest of `game/scene/`).
+The scene program's start, clear, first screen, first frame, main loop and
+end run outside the byte-exact gate. `game/attract/` is folded into
+`game/scene/program.c`; `scene_runs` supplies the same operations to the
+native program. The retired ranges are `$7E:3000-$7E:3175` and
+`$7E:3177-$7E:31BE`. The rest of the engine is retired below; the original program
+still supplies reference play.
 
-**What blocked it, and how each closed.**
-- *The interrupted wait's carry hand-off.* Joining the start and the loop
-  under the comparison met a carry the first frame's interrupt left live
-  across the wait, which shadow mode compared with the original's. With the
-  program retired no comparison crosses that boundary: shadow mode's
-  reference play runs the cartridge's program from the boot's stop at
-  `$7E:3000` (which declares A, X, Y, N, Z and the carry unread; liveness has
-  the overflow read), and in the shipping mode the loop's continuations read
-  the game's state, not the flags.
-- *The scalings as C.* The loop's pass calls the endings' picture
-  (`$7E:8930`), the Epoch's (`$7E:8278`) and the turned map (`$7E:7441`) as C,
-  each under its registry row's contract (`native_hand_entry_at`: widths,
-  arithmetic, guard), and the original's call where the contract turns the
-  state away. Not the race's: its routine waits for the last racer's tiles
-  between its racers (`$7E:5211`), a wait the machine can't yet wait out where
-  a port stands, so its call stays the original's (tried as C, the attract
-  demo's race went wrong at once; TODO.md, "The race's scaling from the scene
-  program's main loop").
-- *The restart by return.* The pass that finds the scene over ends the
-  program as C -- the display stopped, the sound put back to normal, the game
-  handed back to the field's start -- where the old pass stopped at `$7E:302A`
-  for its entry: the machine enters the end 0 times, against 22 (4 by the
-  pass's stop, 18 by the idle pass's return) over the five movies below.
+The shipping boot calls `scene_program_starts_on_the_machine` under its
+code, mode and width contract. Startup clears the work RAM, restores sound,
+sets up the selected scene and takes the first frame, then holds
+`HOLD_SCENE_MAIN_LOOP`. The two loop continuations perform an idle pass or
+call the scene's scaling/map operation. A finished scene stops its display,
+restores sound and hands back to the field. Reference and shadow play run
+the cartridge's program from the boot's stop at `$7E:3000`; no comparison
+crosses the first frame's interrupt and its live carry. Invalid contracts
+report `program_breaks_a_contract` before stopping at the original boundary.
 
-**The preconditions, and how each was shown.**
-- *Fully ported, no original code for it in real play.* The burndown left
-  none of it unported; the shipping fallback baseline has no line of it (its
-  `7E:3176` line is the empty routine the scenes' task lists call, which
-  stays theirs).
-- *No generated code touches its state.* The calls on record (the library's
-  `--calls` logs) into its routines come only from the program itself: the
-  start's own routine (`$7E:3000` to `$7E:3063`), the sound routine from the
-  start and the end (`$7E:30F3`, `$7E:3038`), the frame wait from the first
-  frame (`$7E:3010`). It owns no work RAM of its own: its cells are the
-  scene's.
-- *Its unreached rows covered.* Its one row (the frame pass's) held 0 bytes.
-- *Its recorded outcomes cover the movies that protect it.* `attract-demo`,
-  `title-start`, `events-epoch-lavos`, `events-jetbike-race`,
-  `events-jetbike-race-won` and `endings-beyond-time` are in the gate's
-  sample, with `game`, `sram`, `places` and `pictures` in strict mode and
-  `ct_native`; every scene starts and ends through the program, and the
-  start's modes, the loop's calls and the end are what those movies' scenes
-  exercise.
+The retired operations retain their calibrated estimates in
+`game_kept_estimates`: start 10,929, clear 6,782, first screen 3,889, sound
+4,325 and end 1; a working loop pass uses 3,125. Each called scene operation
+keeps its own estimate and full entry contract. A held wait ends the C
+invocation, keeping the machine state and named continuation in saves.
+The race's additional held boundary is described below.
 
-**Deleted.** Every row the program had in `game_natives` (eleven: the start,
-its going on after the clear and after the sound, the setup's entry, the first
-frame, the frame wait's end, the work RAM's clear, the first screen
-(`scene_init_video`, `$7E:30F9`, which only the start calls), the sound put
-back to normal, the end and the hand-back), their wrappers and guards
-(`scene_setup_present`, `scene_after_work_ram_clear_present`,
-`scene_frame_wait_present`, `scene_clear_work_ram_present`,
-`scene_sound_back_to_normal_present`, `scene_program_restart_present`,
-`scene_init_video_present`), the
-scaffolding (the clear's DMA page left in A's high byte, twice), and
-`game/attract/`; the main loop's two continuations are new rows of
-`game_held_waits`, `.retired`. Its rows in `docs/ports.tsv` (15),
-`tools/fuzz_routines.toml` (18), `tools/uncompared_baseline.txt` (7) and the
-isolated comparisons of `tools/uncompared_evidence.py` (6),
-`tools/timing_exceptions.txt` (2), `tools/unreached_baseline.txt` (1),
-`tools/portsmell_baseline.txt` (1) and `tools/fallback_baseline.txt` (2).
+The program was fully ported before retirement. Recorded calls into its
+routines came from the program itself, its only unreached row held zero
+bytes, and it owned no state separate from the scene engine. Recorded
+outcomes in strict and native modes protect the attract sequence, title,
+race, Epoch dive and Beyond Time ending. Its earlier measurements and
+per-entry accounting are in
+`history/scene-program-teardown.md`; the current scene boundary census is
+below.
 
-**What calls it now.** In the shipping mode (`m_runs_retired_as_c`):
-- the boot (`scene/boot.c`, still gated) calls
-  `scene_program_starts_on_the_machine`: the program's contract (8-bit A,
-  16-bit index registers, its code in place, a mode the table has), then the
-  start as C, timed as the start was (`NATIVE_TIME_AS_SIBLING`): the clear,
-  the sound put back to normal (the C the scenes' tasks already send their
-  commands with), the first screen, the setup (its port's C where its guard
-  takes the state, its original otherwise) and the first frame, which holds
-  the loop's wait;
-- the held wait's continuations make every pass: `scene_program_waits`, the
-  idle pass with nothing to call, and `scene_program_next_pass`, the call and,
-  once a script has ended the scene, the end.
+### The scene engine's teardown
 
-Elsewhere the boot stops at the program's start and the cartridge's program
-runs, compared with nothing; the fallback measure doesn't count it there
-(`dev/fallbacks.c`, `the_cartridges_scene_program`, while the loop's code is
-in place), and the burndown leaves its runs out (`RETIRED_RUNS`).
+The remaining scene engine is off the byte-exact gate: boot, all sixteen
+setups, interrupt/frame work, task lists, scripts, arithmetic, drawing,
+race scaling and each scene's routines. Its 272 ordinary registry rows
+are gone. Their calibrated time tags remain in `game/time_tags.c`.
+`scene_runs` uses the same game operations without a machine; the legacy
+driver calls checked C forms at its console, field and held-wait boundaries.
+Those forms preserve the old P masks (including decimal mode), widths,
+pages, banks and code-image guards as broken-contract checks. A refusal
+stops at the original entry with the return frame intact. Unknown setup,
+main-loop and script callees also report a broken contract.
+Setup, unpacking, first-script-step, curtain and sound callbacks propagate a
+failed call through their C callers before any return-frame cleanup or later
+game work. `scene_contract_test` exercises rejected widths, decimal mode and
+code images on synthetic state, including a failed credit-page loader,
+ending setup and planet restart sound: the rejected PC and stacked return
+addresses survive, and the page and task list do not advance. The ending
+setup test retains its dispatch frame beneath the rejected unpacker's frame
+and checks that failure reaches the dispatcher before register cleanup.
 
-**The guards are contracts.** The start's and the end's (the end's code in
-place, 16-bit index registers, the field's location a number) are checked
-where they run, and a state that breaks one is `program_breaks_a_contract` and goes
-to the original. The continuations keep theirs, the runtime's contract for
-running them: the loop's call and test in place on the scene's page, and
-whether there is anything to do.
+The race's main-loop call runs as C. `HOLD_SCENE_RACE_UPLOAD` retains the
+racer and main-loop return frames at `$7E:5211`; the upload continuation
+gathers the picture, continues the correct racer and holds the completed
+pass at `$7E:3026`. No scaling invocation stays suspended across the wait.
+The main loop and title's music wait likewise retain their held boundaries.
+The console calls scene NMI/IRQ handlers, the NMI calls frame work, and
+frame work calls both task lists. Resource loads and script first steps
+are direct C calls. The eight ending-loading script routines also have
+named checked calls; none depends on a registry lookup by its address.
+The empty task validates its return image and completes in C.
 
-**Its time.** The routines whose rows went keep their calibrated estimates
-(`game_kept_estimates`: the start 10,929, the clear 6,782, the first
-screen 3,889, the sound 4,325, the end 1), which the C names; the pass keeps the frame pass's (3,125). In
-shadow mode the setups, which the start ran inline, are their own entries
-now, called by the cartridge's dispatch: the title's declares what its return
-leaves unread (A, X, N, Z, carry), and four setups' loading stretches with the
-display blanked, which `scene_program_start`'s exception covered (its worst,
-190,868 clocks, is the planet's), carry it themselves. In the shipping mode
-title-start plays as before, frame for frame (`tools/trace.py diff`: work RAM
-but for the stack below S, VRAM, CGRAM, OAM, save RAM, the picture). The pass
-reads the routine to call through its accessor, as the original's call reads
-its operand, where the old pass peeked it uncounted, and the Epoch's scaling
-is C without the original's call around it: a few clocks a pass, which move
-where a scaling meets the frame's interrupt, and the scenes' random draws stir
-in the beam's position, so the movies with a scaling part from the old
-shipping mode during it (attract-demo for 44 frames of its race, from frame
-8,707; events-jetbike-race-won from the race, frame 4,400, and
-events-epoch-lavos from the dive, frame 5,554, to their ends) and three movies' strict pictures were
-re-recorded, every game, save RAM and place kept (`tools/outcomes_exceptions.txt`).
+Before retirement, burndown reported no unported scene code. The shipping
+fallback audit identified the empty task as the remaining original return;
+the checked empty-task call removes it. Scene code executes from a shared
+RAM overlay: the code-image contracts distinguish it from other programs,
+and no generated scene operation runs in shipping play. Reference/shadow
+execution remains the original program, which can of course touch its
+state; it is no longer a source of per-entry scene comparisons. The fallback
+measure and burndown classify 67 runs (27,930 bytes) as retired, including
+the perspective loop's 39-byte curve-step and pairing tails reached through
+its patched branches (the original-image ownership walk misses those edges). Shipping
+fallback accounting still counts those addresses, so
+retirement cannot hide original code re-entered in real play.
 
-**The measures.** Census over attract-demo, title-start, events-epoch-lavos,
-events-jetbike-race-won and endings-beyond-time (shipping mode): the machine
-entered the program's end 22 times before (4 by the pass's stop, 18 by the
-idle pass's return) and 0 now, and the Epoch's scaling 94,866 times (the
-pass's call through the machine) and 0 now, C inside the pass; the race's
-scaling is still the pass's call, 632 times. Entries the machine enters 119
-to 117, 10,131,646 times to 10,038,425; the held wait's runs 6,308,175 idle
-and 95,499 passes before, 6,308,157 and 89,591 now. Frame ends with a routine
-suspended, attract-demo driven a frame at a time in `ct_drive --native on`:
-6,690 of 22,500 in 87 runs (the longest 717) before and after, the race's
-calls among them. `tools/machine_joints.py`: registered entries 2,147 to
-2,137, held waits' continuations 7 to 7, returns through the emulated stack
-1,000 to 995, stops 95 to 97 (the boot's stop at the program's start, which
-the bridge's continuation made before, and the start's and the end's on a
-broken contract), scaffolding writes 2,009 to 2,007. `tools/burndown.py`:
-bank `$7E`'s code 25.1K to 24.7K, its entries 240 to 230.
+The conservative 84-movie inventory had 3,823 unreached bytes in 67 scene
+entries. Fresh ordinary and targeted fuzz comparisons cover 3,807; three
+source-backed proofs cover the remaining 16: the logo's nonnegative scaled
+magnitude, the figure draw's impossible compare fallthrough, and the staff
+roll palette copier's lower-bank destination. The archived ledger,
+`history/scene-unreached.tsv`, keeps all 272 entries, the coverage manifest,
+recipes and proofs. The C contracts retain the terminating divisor-search
+domain, bounded perspective geometry, bitmap bank limits, credit-page
+index and script operand domains. Arithmetic operations also report a
+broken contract for excluded products, divisors and orbit sizes.
 
-**What replaces the comparison.** The protecting movies' recorded outcomes,
-in strict mode and `ct_native` (whose scenes, `scene_runs`, are the same C),
-the vblank check over the shipping mode's video writes (the end's blank lands
-at line 37 or 38 where the reference's is at 38, as it landed at 39 or 40
-before), and title-start's frame-by-frame equality with the shipping mode
-before the teardown.
+Scene-only scratch reconstruction is deleted, including the field
+rasterizer's scene-only last-edge scratch. Arithmetic cells consumed by
+later random draws remain actual state. The planet tasks' branch choices
+remain ordinary C bookkeeping because their return convention and timing
+use them. Nine scaffolding sites remain: five in `scene/circle.c` and four
+in `scene/curtain.c`, for the still-gated menu iris and curtain callers.
+The menus' teardown removes these. Called machine forms remain where
+the legacy runtime or gated callers need the stack/register interface;
+they are not dispatchable registry entries. Held rows remain retired
+continuations until the legacy driver leaves the product.
+
+Removed scratch accesses retain their RAM/I/O/cartridge charges at each
+operation's unchanged estimate. The divisor search's former hardware-poll
+charge stays specific to the legacy machine: the native program never charged
+those comparison-only polls. Charging them there adds lag frames in the race;
+restoring that distinction reproduces all three native race movies' existing
+outcome identities without changing their exceptions. Former call-outs settle the caller after
+pushing the return frame and the callee before returning. These helpers keep
+the call's liveness declaration and target; `dontcare_check.py` recognizes
+them at each call site. Moving the settlement before the field curtain's
+push advances the attract transition
+four frames and loses protected picture 10500 and place 25. The held race
+wait changes eight unprotected neighbouring picture observations across
+attract and race-won; an A/B replay restoring only the old race hand-off
+reproduces the previous digests. Saved-game, save-RAM and place observations
+are identical. The two existing picture exceptions record that evidence;
+no protected identity is relaxed. The effects baseline renames the same
+curtain entropy read from its former scene wrapper to `field_next_frame`:
+the underlying low-RAM alias is still written by the gated menu NMI.
+
+The held race's completed pass has two video-line exceptions, for display
+blanking and line-effect shutdown. In `attract-demo`, they occur at frames
+8750 and 19909 (affected lines 83 and 168), after the curtain has closed.
+A pre-write audit finds all 672 curtain-table bytes zero, the window covering
+all shown layers and a black backdrop; rendering that PPU state produces
+zero lit pixels at both endings. Disabling the line effect leaves the closed
+window in place until the immediate forced blank. These line shifts therefore
+change no picture pixels. The calibrated rates are unchanged; no caller
+receives a timing exception.
+
+The initial attract/title/winning-race census found 15 scene rows entered
+by the machine 55,452 times: 36,880 calls, 11,451 stops, 2,544 returns and
+4,577 wait passes. The prepared calls reduce these scene entries to zero;
+Epoch and Beyond Time also have none. The final three-movie census has
+69 machine-entered rows and 261,061 entries across all subsystems, against
+84 and 316,513 before; 827 entries run only as C, against 814 before.
+Its scene holds make 4,479,262 idle passes, 651 working passes, 4,556 upload
+wait passes, 1,270 gathers and 635 completed scaling passes.
+A race save/load replay produces
+one exact frame and identical work RAM 60 frames later, without lost or
+inexact state. Full before/after counts and validation receipts accompany
+the retirement's gate evidence; the earlier inventory and continuation
+experiments are in `history/scene-teardown-preconditions.md`.
+
+At this retirement, source joints change from 1,689 to 1,417 ordinary
+registry entries, 69 to 72 held continuations, 917 to 854 stack returns,
+91 to 93 stops (including checked refusal and held boundaries), and
+1,587 to 1,390 scaffolding sites. Call-outs remain six, registry lookups
+three, machine time tags eight and register escapes 24; video calls fall
+from 544 to 537. Within `game/scene/`, stack returns fall from 171 to 108
+and scaffolding sites from 203 to nine. These are source counts, not a
+claim that the legacy runtime no longer needs its machine.
+
+Replacement observations are the protected identities in
+`tools/outcomes_baseline.txt`, not the excepted differences. In both strict
+and native modes, `attract-demo` protects the saved game and places 0-5;
+`title-start` protects the saved game, pictures 1/1800 and places 0-2;
+`events-jetbike-race-won` protects the saved game, save RAM, pictures
+1/900/1200/2700/3000/3300/3600/7500/8083 and places 0-6;
+`events-epoch-lavos` protects save RAM, pictures 1/1800/2100/2400/4200
+and places 0-4 (strict additionally protects its saved game and place 5);
+`endings-beyond-time` protects pictures 1/1800/2100/2400/3900/4200 and
+places 0-4. Each mode's additional picture identities remain protected
+too. The native-shape routes exercise the late ending separately; these early
+ending picture matches alone do not protect the staff roll.
+
+The warning-as-error build and 561 Python tests pass (ten skips); the later
+call-declaration and callback changes pass 56 liveness and portability tests.
+The task, timing, suspension, field, event-contract and scene-contract C
+tests pass too.
+The sampled gate with `--evidence -j 2` ends in `suite OK` in
+`build/scene-gate-review.log`: 37 clean shadow movies, identical 7200-frame
+new-game traces, timing and video checks passing, zero shipping fallback
+instructions and zero real-play refusals. All 37 movies finish in strict,
+native and native-shape modes; both outcome ratchets protect every sampled
+movie, and both fast routes pass with scaffolding compiled out. The evidence
+check makes all 84 receipts afresh and passes. This run uses neither
+`--long-routes` nor `--all-movies`.
+Manual native-shape routes reach Epoch through Lavos's shell at frame 7757,
+the telepod's Dream Project ending at 169000, and Beyond Time at 109071.
+The latter two runs retain 46 and 2307 exact snapshot replays respectively,
+with none lost or different and no sound-host faults. Their receipts are
+`build/scene-shape-routes-final.log`; the saved-game and checkpoint guards
+remain the route scripts' own.
+
 
 ### Recorded outcomes
 

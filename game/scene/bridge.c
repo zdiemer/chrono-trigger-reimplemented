@@ -1,14 +1,13 @@
 /* Scenes: where the ports meet the scene program's calling conventions.
  *
- * A port whose work goes on in the original's code -- a loop that runs over
- * frames, entered as a routine the port's own original would have called --
- * leaves the machine as the original does at that point: the frames of the
- * calls it has inlined on the stack, the registers the code there reads. Those
- * mechanics are here, apart from the ports' logic (scene/scene.h). */
+ * Checked C calls and held waits retain the legacy caller frames and return
+ * conventions while the shipping runtime still uses the machine. Those
+ * mechanics are here, apart from the game operations (scene/scene.h). */
 #include "scene/race.h"
 
 #include "charge.h"
-#include "original_effects.h"
+#include "core/program.h"
+#include "holds.h"
 #include "platform/audio.h"
 #include "platform/timing.h"
 #include "port/machine.h"
@@ -59,6 +58,10 @@ void scene_bridge_scale_picture(Snes *s, Racer r, bool row_nudge)
     m_push16(s, (uint16_t)(call + JSR_LENGTH - 1));
     if (!call_the_scaler(s, RACE_SCALER_CALL, row_nudge))
         return;
+    if (m_runs_retired_as_c(s)) {
+        m_hold_at(s, 0x7E5211, DC_A | DC_X | DC_Y | DC_N | DC_Z, HOLD_SCENE_RACE_UPLOAD);
+        return;
+    }
     /* The two racers use this wait at the same stack depth. The shadow wait
      * service cannot yet distinguish Johnny's wait from Crono's already
      * satisfied one; keep this boundary until it can (docs/TODO.md). */
@@ -87,19 +90,27 @@ enum { JSR_SIZE_HERE = 3 };
 
 /* ---- The program's unpacker and a script's first step ----------------------------------------- */
 
-void scene_bridge_unpack(Snes *s, uint32_t site, uint16_t resource)
+bool scene_bridge_unpack(Snes *s, uint32_t site, uint16_t resource)
 {
     s->cpu.x = resource;
+    if (m_runs_retired_as_c(s))
+        return scene_run_called(s, site, SCENE_UNPACK, SCENE_UNPACK_IGNORES, scene_unpack_resource);
+    /* The still-gated caller keeps the unpacker's comparison boundary;
+     * its existing timing allowance belongs to that resource load. */
+    uint16_t stack = s->cpu.s;
     m_jsr_dc(s, site, SCENE_UNPACK, SCENE_UNPACK_IGNORES);
+    return m_came_back(s, site + JSR_SIZE_HERE, stack);
 }
 
-void scene_bridge_take_the_first_script_step(Snes *s, uint32_t site, uint16_t y, uint8_t kept_bank)
+bool scene_bridge_take_the_first_script_step(Snes *s, uint32_t site, uint16_t y, uint8_t kept_bank)
 {
     m_push8(s, kept_bank);
     m_set_flag(s, CPU_FLAG_M, false);
     s->cpu.y = y;
-    m_jsr_dc(s, site, SCENE_FIRST_STEP, SCENE_FIRST_STEP_IGNORES);
+    if (!scene_run_called(s, site, SCENE_FIRST_STEP, SCENE_FIRST_STEP_IGNORES, scene_run_channel_0_script))
+        return false;
     s->cpu.db = m_pull8(s);
+    return true;
 }
 
 void scene_bridge_back_on_the_scene_s_page(Snes *s)
@@ -108,10 +119,12 @@ void scene_bridge_back_on_the_scene_s_page(Snes *s)
     s->cpu.d = SCENE_PAGE;
 }
 
-void scene_bridge_first_script_step(Snes *s, uint32_t site, uint16_t y)
+bool scene_bridge_first_script_step(Snes *s, uint32_t site, uint16_t y)
 {
-    scene_bridge_take_the_first_script_step(s, site, y, s->cpu.db);
+    if (!scene_bridge_take_the_first_script_step(s, site, y, s->cpu.db))
+        return false;
     scene_bridge_back_on_the_scene_s_page(s);
+    return true;
 }
 
 void scene_bridge_enter(Snes *s, uint32_t call) { m_push16(s, (uint16_t)(call + JSR_SIZE_HERE - 1)); }
@@ -140,7 +153,6 @@ void scene_start_song(Platform *pf, uint8_t song)
 
 /* ---- The setups' loading and stars ------------------------------------------------------------- */
 
-
 /* The stars scattered at random ($7E:5777), as a setup has them scattered:
  * their first draw from what the setup's call before left in A and the carry,
  * which it hands on unexamined; the overflow the last draw leaves is the
@@ -152,7 +164,6 @@ void scene_bridge_scatter_stars(Snes *s, uint16_t left_in_a)
     GameState *g = state_of(s);
     SceneDraw first = scene_draw_from(left_in_a, m_flag(s, CPU_FLAG_C), TM_ENTROPY_BYTES);
     TIMED_AS(g, SCATTER_STARS, scene_scatter_stars(g, m_platform(s), first));
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, scene_random_last_overflow()));
 }
 
 /* ---- A sibling run as C ------------------------------------------------------------------------ */
@@ -166,18 +177,18 @@ bool scene_accept_continuation(Snes *s, uint32_t at, void (*entry)(Snes *))
 {
     m_jump_to(s, at);
     const NativeEntry *e = native_continuation_entry_at(s, at);
-    if (e && e->fn == entry)
+    if ((entry && e && e->fn == entry) ||
+        (m_runs_retired_as_c(s) && scene_machine_form_takes(s, entry)))
         return true;
     m_stop_at_own(s, at, 0);
     return false;
 }
 
-/* The call pushes its return address, under which the sibling runs as C,
- * timed as its routine, where the registry would run it there; anywhere else
- * (no port, or its guard or widths turn the state away) the call is a real
- * one, with the don't-care set it declares. */
+/* The call retains its return frame and calibrated time. Shipping calls
+ * enforce the retired contracts; the reference path keeps the original
+ * call and its comparison declarations for enclosing gated callers. */
 static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
-                      bool long_call)
+                      bool long_call, bool replaces_call_out)
 {
     uint16_t stack = s->cpu.s;
     uint32_t returns_to = site + (long_call ? JSL_SIZE_HERE : JSR_SIZE_HERE);
@@ -186,8 +197,16 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     m_push16(s, (uint16_t)(returns_to - 1));
     s->cpu.pb = (uint8_t)(routine >> 16);
     s->cpu.pc = (uint16_t)routine;
+    if (replaces_call_out)
+        charge_settle(state_of(s));
     const NativeEntry *e = entry ? native_hand_entry(s) : NULL;
-    if (!e || e->fn != entry) {
+    if ((!e || e->fn != entry) && !(m_runs_retired_as_c(s) && scene_machine_form_takes(s, entry))) {
+        if (m_runs_retired_as_c(s)) {
+            if (!entry)
+                program_breaks_a_contract(state_of(s), routine, "a scene call outside its C table");
+            m_stop_at_own(s, routine, 0);
+            return false;
+        }
         s->cpu.s = stack;
         if (long_call)
             m_jsl_dc(s, site, routine, dont_care);
@@ -196,15 +215,30 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
         return m_came_back(s, returns_to, stack);
     }
     NATIVE_TIME_AS(s, routine, entry(s));
-    return m_came_back(s, returns_to, stack);
+    bool returned = m_came_back(s, returns_to, stack);
+    if (replaces_call_out && returned)
+        charge_settle(state_of(s));
+    return returned;
 }
 
 bool scene_run(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
 {
-    return run_entry(s, site, routine, dont_care, entry, false);
+    return run_entry(s, site, routine, dont_care, entry, false, false);
 }
 
 bool scene_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
 {
-    return run_entry(s, site, routine, dont_care, entry, true);
+    return run_entry(s, site, routine, dont_care, entry, true, false);
+}
+
+/* A former machine call settled the caller before dispatch and the callee
+ * before returning. Keep those boundaries when the call becomes C. */
+bool scene_run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
+{
+    return run_entry(s, site, routine, dont_care, entry, false, true);
+}
+
+bool scene_run_long_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
+{
+    return run_entry(s, site, routine, dont_care, entry, true, true);
 }

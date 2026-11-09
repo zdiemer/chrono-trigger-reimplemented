@@ -31,14 +31,12 @@
 #include "charge.h"
 #include "core/palette.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "platform/audio.h"
 #include "platform/video.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
-
 
 /* The rows of this file's tasks (below), which their entries run. */
 enum TitleTaskRow { ROW_SWING_PENDULUM, ROW_MOVE_LOGO, ROW_DRAW_THE_CLOCK, ROW_DRAW_THE_HANDS, ROW_DRAW_THE_COPYRIGHT, ROW_SLIDE_THE_NAME, ROW_COUNT_THE_WAIT_DOWN, ROW_WATCH_FOR_A_BUTTON, ROW_RIPPLE, ROW_CALM_THE_RIPPLE, ROW_PLACE_PENDULUM, ROW_UPLOAD_RIPPLE };
@@ -88,33 +86,10 @@ enum { TILE_ROWS = 8, TILE_PIXELS = 8, TILE_PLANES = 4, ROW_BYTES = 2 };
 enum { SCRATCH_FIRST = 0x003B, SCRATCH_END = 0x0040, LOW_RAM_END = 0x2000 };
 
 /* The tile's `bytes` from `tile` clear of the cells from `first` to `end`. */
-static bool apart(uint16_t tile, uint16_t bytes, uint16_t first, uint16_t end)
-{
-    return (uint16_t)(first - tile) >= bytes && (uint16_t)(tile - first) >= end - first;
-}
-
-static bool in_low_ram(uint16_t tile, uint16_t bytes) { return (uint32_t)tile + bytes <= LOW_RAM_END; }
-
-bool scene_title_expand_plane_tile_present(Snes *s)
-{
-    if (!scene_on_scene_page(s) || !m_code_matches(s, 0x7E5E54, 164, 0xEE4E5864DAEE75ACull))
-        return false;
-    if (!m_bank_reaches_low_ram(s))
-        return true;
-    uint16_t tile = s->cpu.x, bytes = scene_plane_tile_bytes(TILE_PLANES);
-    return in_low_ram(tile, bytes) && apart(tile, bytes, SCRATCH_FIRST, SCRATCH_END);
-}
 
 /* The scratch the original unpacks each row in, as it leaves it: every bit
  * shifted out of the planes; and the four-plane form's row count, run down,
  * which it keeps after the planes. */
-static void leave_scratch_empty(GameState *g, unsigned planes)
-{
-    for (unsigned i = 0; i < planes; i++)
-        set_scene_bitplane_scratch_byte(g, i, 0);
-    if (planes == TILE_PLANES)
-        set_scene_bitplane_scratch_byte(g, TILE_PLANES, 0);
-}
 
 /* The two forms of the expansion, by the program's routine that does each:
  * the title's tiles of four planes and the endings' of eight. */
@@ -154,7 +129,7 @@ void scene_expand_plane_tile(GameState *g, Platform *pf, uint8_t bank, uint16_t 
             vid_write_vram_byte(pf, PF_AT(expansion_of(planes)->site), true, color);
         }
     }
-    ORIGINAL_EFFECT(leave_scratch_empty(g, planes));
+    charge_legacy_accesses(g, planes + (planes == TILE_PLANES));
     /* The eight-plane form counts its rows in the bitmap scaler's cell, which
      * the scaler reads before it writes: the count run out stays there. */
     if (planes == SCENE_MOST_PLANES)
@@ -163,18 +138,8 @@ void scene_expand_plane_tile(GameState *g, Platform *pf, uint8_t bank, uint16_t 
 
 /* X is the tile, in the data bank; back, it is where the tile's first pair
  * of planes ends, which the original's loop over the tiles moves on from. */
-static void expand_at_x(Snes *s, unsigned planes)
-{
-    uint16_t tile = s->cpu.x;
-    scene_expand_plane_tile(state_of(s), m_platform(s), s->cpu.db, tile, planes);
-    s->cpu.x = (uint16_t)(tile + SCENE_PLANE_PAIR_BYTES);
-    m_rts(s);
-}
-
-void scene_title_expand_plane_tile(Snes *s) { expand_at_x(s, TILE_PLANES); }
 
 // $7E:5EF8
-void scene_ending_expand_wide_tile(Snes *s) { expand_at_x(s, SCENE_MOST_PLANES); }
 
 // $7E:5E3C
 /* A picture's tiles in the second bank, `count` of them from `first`, each
@@ -198,68 +163,18 @@ uint16_t scene_expand_tiles(GameState *g, Platform *pf, uint16_t first, uint16_t
  * runs it as the program's code, with the count of tiles in Y. */
 enum { LOOP_TILES = 0x0200 };
 
-static const TileExpansion *expansion_called(const GameState *g)
-{
-    uint16_t routine = scene_plane_tiles_expander(g);
-    return routine == eight_planes.routine ? &eight_planes : routine == four_planes.routine ? &four_planes : NULL;
-}
-
-static uint16_t expand_the_tiles(GameState *g, Platform *pf, uint16_t tiles)
-{
-    uint16_t step = (uint16_t)(SCENE_PLANE_PAIR_BYTES + scene_plane_tiles_stride(g));
-    return scene_expand_tiles(g, pf, LOOP_TILES, tiles, expansion_called(g)->planes, step);
-}
-
 /* Y the count; back with A and X past the last tile, Y run down to 0, 8-bit
  * A, the data bank 0 (the byte under the second bank's, which the loop
  * pushed to set it) and the overflow clear. */
-void scene_expand_the_plane_tiles(Snes *s)
-{
-    uint16_t past = expand_the_tiles(state_of(s), m_platform(s), s->cpu.y);
-    s->cpu.x = past;
-    ORIGINAL_EFFECT(s->cpu.a = past);
-    s->cpu.y = 0;
-    s->cpu.db = 0x00;
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, false));   /* the last move on's, which nothing overflows */
-    s->cpu.p |= CPU_FLAG_M;
-    m_rts(s);
-}
 
 /* The loop's code but for its call's target and its stride, which the scenes
  * write; a target that is one of the two expansions, whose code is there; a
  * count of tiles that stays in the bank (a tile is at most 64 bytes). */
 enum { MOST_TILE_BYTES = 0x40, BANK_BYTES = 0x10000 };
 
-bool scene_expand_the_plane_tiles_present(Snes *s)
-{
-    if (!scene_on_scene_page(s) || !m_code_matches(s, 0x7E5E3C, 0x8, 0x7884FAF582D62CB5ull) ||
-        !m_code_matches(s, 0x7E5E46, 0x4, 0x93DABED1891C9B81ull) || !m_code_matches(s, 0x7E5E4B, 0x1, 0xAF63BD4C8601B7DFull) ||
-        !m_code_matches(s, 0x7E5E4C, 0x8, 0x7065FB25F8D6B1D1ull))
-        return false;
-    vars_peek(true);
-    const TileExpansion *e = expansion_called(state_of(s));
-    unsigned reach = LOOP_TILES + (unsigned)s->cpu.y * MOST_TILE_BYTES;
-    vars_peek(false);
-    bool known = e == &four_planes   ? m_code_matches(s, 0x7E5E54, 164, 0xEE4E5864DAEE75ACull)
-                 : e == &eight_planes ? m_code_matches(s, 0x7E5EF8, 0x106, 0x1C904F691D855A78ull)
-                                      : false;
-    return known && s->cpu.y != 0 && reach <= BANK_BYTES;
-}
-
 /* The eight-plane form keeps its row count apart, in the scaler's cell, and
  * reads its tile's sixty-four bytes: the same tile over neither. */
 enum { WIDE_ROWS_CELL = 0x0031, WIDE_SCRATCH_END = 0x0043 };
-
-bool scene_ending_expand_wide_tile_present(Snes *s)
-{
-    if (!scene_on_scene_page(s) || !m_code_matches(s, 0x7E5EF8, 0x106, 0x1C904F691D855A78ull))
-        return false;
-    if (!m_bank_reaches_low_ram(s))
-        return true;
-    uint16_t tile = s->cpu.x, bytes = scene_plane_tile_bytes(SCENE_MOST_PLANES);
-    return in_low_ram(tile, bytes) && apart(tile, bytes, WIDE_ROWS_CELL, WIDE_ROWS_CELL + 1)
-           && apart(tile, bytes, SCRATCH_FIRST, WIDE_SCRATCH_END);
-}
 
 /* ---- The plane's name table ----------------------------------------------------------------- */
 
@@ -299,19 +214,12 @@ void scene_load_plane_map(GameState *g, Platform *pf, uint8_t picture_bank)
                                 .size = REST_OF_PLANE_BYTES };
     vid_snes_copy(pf, PF_AT(0x7E5AEB), &t);
     /* the port, where the original's reads of the picture leave it */
-    ORIGINAL_EFFECT(hw_port_seek_address(g, (uint16_t)(PICTURE_TILES + PICTURE_BYTES)));
+    charge_legacy_io_accesses(g, 2);
 }
 
 /* The original reads the picture through the work RAM port, setting its
  * address and not its bank: the picture is in the bank the loader left the
  * port in. A comes back with the transfer's start in its low byte. */
-void scene_title_load_plane_map(Snes *s)
-{
-    uint8_t picture_bank = (s->bus.wram_port_addr & 0x10000) ? SCENE_UPPER_WORK_RAM : SCENE_LOWER_WORK_RAM;
-    scene_load_plane_map(state_of(s), m_platform(s), picture_bank);
-    m_set_a8(s, 0x80);
-    m_rts(s);
-}
 
 /* ---- The pendulum ------------------------------------------------------------------------------- */
 
@@ -374,8 +282,6 @@ static TaskEnd place_pendulum_task(GameState *g, Platform *pf)
     return task_goes_on();
 }
 
-void scene_title_place_pendulum(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_PLACE_PENDULUM]); }
-
 /* ---- What the title's frame tasks leave -------------------------------------------------------------- */
 
 /* A frame task leaves A as its last load or store had it, which the frame's
@@ -436,7 +342,7 @@ static void swing_the_pendulum(GameState *g)
     set_scene_mode7_matrix_d(g, across);
     set_scene_mode7_matrix_b(g, down);
     set_scene_mode7_matrix_c(g, (uint16_t)-down);
-    uint32_t reciprocal = scene_divide32(g, own, ZOOM_ONE, zoom, scene_sine_second_half(turn));
+    uint32_t reciprocal = scene_divide32(g, own, ZOOM_ONE, zoom);
     set_scene_channel_register(g, TITLE_CHANNEL, BG1_SCROLL_Y, (uint16_t)(reciprocal - SCROLL_TOP));
     uint16_t swing = (uint16_t)(scene_title_pendulum_swing(g) - 1);
     set_scene_title_pendulum_swing(g, swing ? swing : NARROWEST);
@@ -455,8 +361,6 @@ static TaskLeftovers swing_pendulum_leaves(const GameState *g, TaskEnd end)
     (void)end;
     return leaves_a(scene_channel_register(g, TITLE_CHANNEL, BG1_SCROLL_Y));
 }
-
-void scene_title_swing_pendulum(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_SWING_PENDULUM]); }
 
 /* The program's multiply comes out as the product for every operand the
  * pendulum gives it, but for the byte after the product, which carries into
@@ -557,8 +461,6 @@ static TaskLeftovers move_logo_leaves(const GameState *g, TaskEnd end)
     return leaves_a(scene_title_logo_y(g));
 }
 
-void scene_title_move_logo(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_MOVE_LOGO]); }
-
 /* The task, the sine's lookup and the multiply; the multiply comes out as the
  * product for the sweep's two, with the byte after the product carried into
  * each in turn. */
@@ -599,8 +501,6 @@ static void start_ripple(GameState *g, Platform *pf, SceneChannel channel)
 
 static void start_ripple_on(GameState *g, Platform *pf, uint8_t channel) { start_ripple(g, pf, channel); }
 
-void scene_title_start_ripple(Snes *s) { scene_script_routine_alone(s, &scene_title_routines[SCENE_ROW_START_RIPPLE]); }
-
 /* ---- The sprites' colors fading -------------------------------------------------------------------- */
 
 /* The scripts' two fades of the title's sprite colors, in the palette
@@ -630,16 +530,6 @@ static void untint_sprite_palette_3(GameState *g, Platform *pf, uint8_t channel)
     (void)pf;
     (void)channel;
     palette_start_fade_to_white(g, TITLE_FADE_SLOT, palette_3_untints);
-}
-
-void scene_title_darken_sprite_palette_4(Snes *s)
-{
-    scene_script_routine_alone(s, &scene_title_routines[SCENE_ROW_DARKEN_SPRITE_PALETTE_4]);
-}
-
-void scene_title_untint_sprite_palette_3(Snes *s)
-{
-    scene_script_routine_alone(s, &scene_title_routines[SCENE_ROW_UNTINT_SPRITE_PALETTE_3]);
 }
 
 /* Their code: they set the data bank to the first bank's themselves. */
@@ -711,8 +601,6 @@ static TaskLeftovers ripple_leaves(const GameState *g, TaskEnd end)
     return leaves_a(column_offset(g, 0));
 }
 
-void scene_title_ripple_columns(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_RIPPLE]); }
-
 /* The ripple calms: every 32 frames its height drops by one, and at none the
  * task is done. */
 enum { CALMS_EVERY = 0x1F };
@@ -734,8 +622,6 @@ static TaskLeftovers calm_the_ripple_leaves(const GameState *g, TaskEnd end)
     (void)end;
     return leaves_a(scene_frame_counter(g) & CALMS_EVERY);
 }
-
-void scene_title_calm_the_ripple(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_CALM_THE_RIPPLE]); }
 
 bool scene_title_calm_the_ripple_present(Snes *s)
 {
@@ -779,8 +665,6 @@ static TaskEnd upload_ripple_task(GameState *g, Platform *pf)
     upload_ripple(g, pf);
     return task_goes_on();
 }
-
-void scene_title_upload_ripple(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_UPLOAD_RIPPLE]); }
 
 /* ---- The setup ---------------------------------------------------------------------------------- */
 
@@ -857,12 +741,9 @@ enum { LOGO_HIGHLIGHT = 0xF1, WHITE = 0xFFFF };
 enum { FIRST_SCRIPT = 0x5B05, CHANNEL_0_CALL = 0x7E5A0A, CHANNEL_0_STEP = 0x7E3749, PAST_THE_WORKING_PALETTE = 0x2400 };
 enum { THE_STEP_READS_Y = DC_A | DC_X | DC_N | DC_Z };
 
-static void leave_y_past_the_palette(Snes *s) { s->cpu.y = PAST_THE_WORKING_PALETTE; }
-
 /* The palette animations' stop leaves Y past their last slot, which the
  * song's call to the driver reads. */
 enum { PAST_THE_ANIMATIONS_SLOTS = 0x0090 };
-static void leave_y_past_the_slots(Snes *s) { s->cpu.y = PAST_THE_ANIMATIONS_SLOTS; }
 
 static bool run_the_first_script(Snes *s)
 {
@@ -871,7 +752,6 @@ static bool run_the_first_script(Snes *s)
     m_push16(s, page);
     m_push8(s, bank);
     m_set_flag(s, CPU_FLAG_M, false);
-    ORIGINAL_EFFECT(leave_y_past_the_palette(s));
     if (!scene_run(s, CHANNEL_0_CALL, CHANNEL_0_STEP, THE_STEP_READS_Y, scene_run_channel_0_script))
         return false;
     s->cpu.db = m_pull8(s);
@@ -886,7 +766,6 @@ enum { FULL_BRIGHTNESS = 0x0F, FADE_EVERY_FRAME = 1 };
 /* What the pendulum's screen leaves in A's high byte, written through a
  * direct page on the register block: the song's call hands it on to the
  * program's first frame. */
-static void leave_a_on_the_registers_page(Snes *s) { s->cpu.a = (uint16_t)(M_DP_PPU | (s->cpu.a & 0x00FF)); }
 
 /* The name table's transfer leaves the VRAM port's setting for whole words in
  * A, which the fill takes as its own. */
@@ -944,11 +823,9 @@ bool scene_title_set_up_scene(Snes *s)
     set_scene_fade_period(g, FADE_EVERY_FRAME);
     set_scene_fade_countdown(g, FADE_EVERY_FRAME);
     TIMED_AS(g, 0xFDFFEE, palette_stop_animations(g));
-    ORIGINAL_EFFECT(leave_y_past_the_slots(s));
     set_scene_song(g, TITLE_SONG);
     set_scene_song_playing(g, TITLE_SONG);
     m_set_flag(s, CPU_FLAG_M, true);
-    ORIGINAL_EFFECT(leave_a_on_the_registers_page(s));
     scene_bridge_start_song(s, SONG_CALL, TITLE_SONG);
     return true;
 }
@@ -1023,12 +900,6 @@ void scene_title_wait_for_its_song(Snes *s)
         TIMED_AS(state_of(s), MUSIC_WAIT, scene_wait_for_music_loop(s));
 }
 
-void scene_title_set_up_entry(Snes *s)
-{
-    if (scene_title_set_up_scene(s))
-        scene_title_wait_for_its_song(s);
-}
-
 /* The setup's code, and the program's routines it runs inline: the
  * decompressor's destination set, the plane's tiles' loop, the palette made
  * current, the song started, the transfer, the plane's name table, BG1's
@@ -1091,8 +962,6 @@ static TaskLeftovers draw_the_clock_leaves(const GameState *g, TaskEnd end)
     return leaves_a_and_the_next_free_entry(g, CLOCK_LOWER);
 }
 
-void scene_title_draw_the_clock(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_DRAW_THE_CLOCK]); }
-
 /* The clock's hands, where the clock settles. */
 enum { HANDS = 0x61B4, HANDS_X = 0x3A, HANDS_Y = 0x64 };
 
@@ -1109,8 +978,6 @@ static TaskLeftovers draw_the_hands_leaves(const GameState *g, TaskEnd end)
     (void)end;
     return leaves_a_and_the_next_free_entry(g, HANDS);
 }
-
-void scene_title_draw_the_hands(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_DRAW_THE_HANDS]); }
 
 /* The copyright line, in two lists. */
 enum { COPYRIGHT_Y = 0xD0, COPYRIGHT_LEFT = 0x6186, COPYRIGHT_LEFT_X = 0x78, COPYRIGHT_RIGHT = 0x61A7,
@@ -1130,8 +997,6 @@ static TaskLeftovers draw_the_copyright_leaves(const GameState *g, TaskEnd end)
     (void)end;
     return leaves_a_and_the_next_free_entry(g, COPYRIGHT_RIGHT);
 }
-
-void scene_title_draw_the_copyright(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_DRAW_THE_COPYRIGHT]); }
 
 /* The rest of the name, five sprite groups that slide right out from behind
  * the clock as the title settles, each at its own pace (sixteenths of a pixel
@@ -1168,8 +1033,6 @@ static TaskLeftovers slide_the_name_leaves(const GameState *g, TaskEnd end)
     (void)end;
     return leaves_a_and_the_next_free_entry(g, slides[SLIDES - 1].list);
 }
-
-void scene_title_slide_the_name(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_SLIDE_THE_NAME]); }
 
 /* ---- The title's wait for a button ----------------------------------------------------------------- */
 
@@ -1209,8 +1072,6 @@ static TaskLeftovers count_the_wait_down_leaves(const GameState *g, TaskEnd end)
     }
     return leaves_a_and_the_next_free_entry(g, scene_title_wait(g));
 }
-
-void scene_title_count_the_wait_down(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_COUNT_THE_WAIT_DOWN]); }
 
 /* The watch for a button: once the title takes buttons, and none has been
  * taken yet, any button ends the title -- the music fades out (scene/screen.c's
@@ -1252,8 +1113,6 @@ static TaskLeftovers watch_for_a_button_leaves(const GameState *g, TaskEnd end)
     l.a_8bit = true;   /* the started flag, stored a byte */
     return l;
 }
-
-void scene_title_watch_for_a_button(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_WATCH_FOR_A_BUTTON]); }
 
 /* ---- The guards ------------------------------------------------------------------------------------- */
 
@@ -1348,30 +1207,3 @@ const SceneScriptRoutine scene_title_routines[] = {
                                             scene_title_untint_sprite_palette_3_present, true },
 };
 const unsigned scene_title_routine_count = sizeof scene_title_routines / sizeof scene_title_routines[0];
-
-#if ORIGINAL_EFFECTS
-/* The ripple's start leaves the scroll it stored; the fades store their slot
- * a byte at a time, the last byte stored over the high byte A came with. */
-static uint16_t start_ripple_leaves(uint16_t called_with)
-{
-    (void)called_with;
-    return (uint16_t)RIPPLE_BG1_SCROLL_Y;
-}
-
-static uint16_t darken_sprite_palette_4_leaves(uint16_t called_with)
-{
-    return (uint16_t)((called_with & 0xFF00) | palette_4_darkens.to_level);
-}
-
-static uint16_t untint_sprite_palette_3_leaves(uint16_t called_with)
-{
-    return (uint16_t)((called_with & 0xFF00) | palette_3_untints.to_level);
-}
-
-const SceneRoutineLeaves scene_title_routine_leaves[] = {
-    [SCENE_ROW_START_RIPPLE] = { start_ripple_leaves, NULL },
-    [SCENE_ROW_DARKEN_SPRITE_PALETTE_4] = { darken_sprite_palette_4_leaves, NULL },
-    [SCENE_ROW_UNTINT_SPRITE_PALETTE_3] = { untint_sprite_palette_3_leaves, NULL },
-};
-#endif
-

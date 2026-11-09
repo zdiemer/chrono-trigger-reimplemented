@@ -160,32 +160,12 @@ void scene_boot_line_irq(Snes *s)
  * reads as the load's last operand byte, 0. The load sets N, and the test of
  * hblank Z. */
 enum { STATUS_BITS = TM_SNES_IN_VBLANK | TM_SNES_IN_HBLANK | TM_SNES_JOYPAD_BUSY };
-static void load_status(Snes *s, uint8_t status)
-{
-    m_set_a8(s, status & STATUS_BITS);
-    m_set_flag(s, CPU_FLAG_N, status & TM_SNES_IN_VBLANK);
-    m_set_flag(s, CPU_FLAG_Z, !(status & TM_SNES_IN_HBLANK));
-}
 
 // $C3:0530
 /* One pass of the wait for the current hblank to end. Idle entry. */
-void scene_boot_line_irq_wait_hblank_end_loop(Snes *s)
-{
-    uint8_t status = tm_snes_video_status(m_platform(s), PF_AT(0xC30530));
-    load_status(s, status);
-    if (!(status & TM_SNES_IN_HBLANK))
-        s->cpu.pc = 0x0538;
-}
 
 // $C3:0538
 /* One pass of the wait for the next hblank to start. Idle entry. */
-void scene_boot_line_irq_wait_hblank_loop(Snes *s)
-{
-    uint8_t status = tm_snes_video_status(m_platform(s), PF_AT(0xC30538));
-    load_status(s, status);
-    if (status & TM_SNES_IN_HBLANK)
-        s->cpu.pc = 0x0540;
-}
 
 /* The line interrupt as C: acknowledged, and the rest of the picture blank
  * below the line it came on (a host has no beam to wait for the hblank on, so
@@ -208,7 +188,6 @@ void scene_boot_line_irq_blank(Snes *s)
 
 /* ---- Resources copied as they are ------------------------------------------------------------ */
 
-
 // $C3:099C, $C3:09A0
 /* `count` bytes of a resource in bank $FE from `from` to `to`, a byte at a time
  * forward. */
@@ -220,20 +199,10 @@ void scene_copy_resource_bytes(GameState *g, uint8_t bank, uint16_t from, uint16
 
 /* A + 1 bytes from X in bank $FE to Y; of what the block move leaves, the
  * callers read only Y, past the bytes. */
-static void copy_resource_entry(Snes *s, uint8_t bank)
-{
-    uint16_t from = s->cpu.x, to = s->cpu.y;
-    uint32_t count = (uint32_t)s->cpu.a + 1;
-    scene_copy_resource_bytes(state_of(s), bank, from, to, count);
-    s->cpu.y = (uint16_t)(to + count);
-    m_rtl(s);
-}
 
 /* A resource into the first bank of work RAM. */
-void scene_copy_resource(Snes *s) { copy_resource_entry(s, SCENE_LOWER_WORK_RAM); }
 
 /* A resource into the second bank of work RAM. */
-void scene_copy_resource_to_upper_ram(Snes *s) { copy_resource_entry(s, SCENE_UPPER_WORK_RAM); }
 
 /* ---- Resources unpacked ------------------------------------------------------------------------ */
 

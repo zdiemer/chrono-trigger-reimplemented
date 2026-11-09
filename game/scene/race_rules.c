@@ -26,9 +26,9 @@
  * the touching band a unit wider, a bumped bike a unit farther. Each rule has
  * one term for its unit, and "The units the motion hands on" works each one
  * out, from the values the step before it used. */
+#include "charge.h"
 #include "scene/race.h"
 
-#include "original_effects.h"
 #include "platform/audio.h"
 #include "platform/input.h"
 #include "port/machine.h"
@@ -77,7 +77,8 @@ static bool at_least(uint16_t a, uint16_t b) { return (int16_t)(a - b) >= 0; }
  * that read counts as newly pressed and repeating. */
 static void leave_working_cells(GameState *g, uint16_t first, uint16_t second)
 {
-    ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), first));
+    (void)first;
+    charge_legacy_accesses(g, 2);
     set_scene_call_second(g, scene_program_own(), second);
 }
 
@@ -362,7 +363,7 @@ static uint16_t overlap(const GameState *g, Racer pushing, Racer pushed, const B
 static void bump_across(GameState *g, Racer pushing, Racer pushed, const BumpAcrossUnits *u)
 {
     uint16_t by = overlap(g, pushing, pushed, u);
-    ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), by));
+    charge_legacy_accesses(g, 2);
     uint16_t crono = lane(g, RACER_CRONO), johnny = lane(g, RACER_JOHNNY);
     if (pushing == RACER_CRONO) {
         set_scene_race_racers_lane(g, RACER_CRONO, (uint16_t)(crono - by - !u->into_crono));
@@ -1015,13 +1016,14 @@ static bool drain_score(GameState *g)
  * sounds it sends go through the step it is passed (race.h, RaceSends). */
 
 /* The bikes' sounds, then their motion. */
-static void move_and_sound(GameState *g, Platform *pf, BikeSounds sounds, RaceSends send, void *ctx)
+static bool move_and_sound(GameState *g, Platform *pf, BikeSounds sounds, RaceSends send, void *ctx)
 {
-    if (sounds.bumped && !race_song_sending(g))
-        race_send_sound(g, pf, RACE_BUMP_SOUND, send, ctx);
+    if (sounds.bumped && !race_song_sending(g) && !race_send_sound(g, pf, RACE_BUMP_SOUND, send, ctx))
+        return false;
     if (sounds.running && !race_song_sending(g))
         race_send_engine_pitch(g, pf);
     move_bikes(g);
+    return true;
 }
 
 /* The race while it runs: Crono's win hands the slot to his coast, Johnny's
@@ -1034,7 +1036,8 @@ static TaskEnd ride_with(GameState *g, Platform *pf, RaceSends send, void *ctx)
     case RIDE_JOHNNY_WON: return task_is_done();
     case RIDE_ON: break;
     }
-    move_and_sound(g, pf, sounds, send, ctx);
+    if (!move_and_sound(g, pf, sounds, send, ctx))
+        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
     return task_goes_on();
 }
 
@@ -1042,7 +1045,8 @@ static TaskEnd ride_with(GameState *g, Platform *pf, RaceSends send, void *ctx)
 static TaskEnd coast_with(GameState *g, Platform *pf, RaceSends send, void *ctx)
 {
     coast(g);
-    move_and_sound(g, pf, ride_bikes(g), send, ctx);
+    if (!move_and_sound(g, pf, ride_bikes(g), send, ctx))
+        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
     return task_goes_on();
 }
 
@@ -1058,8 +1062,8 @@ static TaskEnd wait_to_leave_with(GameState *g, Platform *pf, RaceSends send, vo
 {
     if (!begin_ending(g))
         return task_goes_on();
-    if (!race_song_sending(g))
-        race_send_sound(g, pf, RACE_LEAVING_SOUND, send, ctx);
+    if (!race_song_sending(g) && !race_send_sound(g, pf, RACE_LEAVING_SOUND, send, ctx))
+        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
     count_down_to_end(g);
     return task_hands_over(TASK_LEAVE);
 }
@@ -1140,7 +1144,6 @@ bool scene_race_ride_present(Snes *s) { return on_scene(s) && ride_code_present(
 
 /* The tail sends the pitch straight to the sound driver's ports through the
  * data bank. */
-bool scene_race_pitch_and_move_present(Snes *s) { return m_bank_reaches_io(s) && scene_race_ride_present(s); }
 
 /* The coast's compares carry the demo's finish lanes as operands
  * (scene_race_finish_lanes), which the hash leaves out. */
@@ -1221,20 +1224,10 @@ static void hand_slot_to(Snes *s, uint16_t task)
 }
 
 /* What the frame's motion leaves in A: Johnny's lane, the last it worked out. */
-static void leave_last_lane(Snes *s) { s->cpu.a = lane(state_of(s), RACER_JOHNNY); }
 
 // $7E:4BD2
 /* The ride's tail, where the original's own code comes to it in a frame the
  * bikes run: the engine's pitch to the sound driver, then the bikes' motion. */
-void scene_race_pitch_and_move(Snes *s)
-{
-    GameState *g = state_of(s);
-    race_send_engine_pitch(g, m_platform(s));
-    move_bikes(g);
-    ORIGINAL_EFFECT(leave_last_lane(s));
-    s->cpu.p &= (uint8_t)~CPU_FLAG_M;
-    m_rts(s);
-}
 
 /* The bikes' tasks, as the list's code takes them back: the slot handed on,
  * the task off the list (Johnny's win, with A's high byte his script's), or on
@@ -1242,13 +1235,14 @@ void scene_race_pitch_and_move(Snes *s)
 static void leave_the_ride(Snes *s, TaskEnd end)
 {
     switch (end.outcome) {
+    case TASK_LEFT_TO_THE_ORIGINAL: return;
     case TASK_HANDS_OVER: hand_slot_to(s, end.next); return;
     case TASK_IS_DONE:
         s->cpu.a = JOHNNY_WON_SCRIPT;
         scene_finish_task(s, SCENE_FRAME_TASKS, task_is_done());
         return;
     default:
-        ORIGINAL_EFFECT(leave_last_lane(s));
+        charge_legacy_accesses(state_of(s), 2);
         m_rts(s);
         return;
     }
@@ -1285,6 +1279,8 @@ void scene_race_wait_to_leave_entry(Snes *s)
 {
     m_set_flag(s, CPU_FLAG_M, true);
     TaskEnd end = wait_to_leave_with(state_of(s), m_platform(s), race_sound_on_the_machine, s);
+    if (end.outcome == TASK_LEFT_TO_THE_ORIGINAL)
+        return;
     if (end.outcome == TASK_HANDS_OVER) {
         hand_slot_to(s, end.next);
         return;
@@ -1304,14 +1300,13 @@ void scene_race_drain_score_entry(Snes *s)
 {
     GameState *g = state_of(s);
     uint16_t frame = scene_frame_counter(g) & (DRAIN_EVERY - 1);
-    uint16_t before = scene_race_score(g);
+    charge_legacy_accesses(g, 2);
     TaskEnd end = drain_score_task(g);
     if (end.outcome == TASK_IS_DONE) {
-        ORIGINAL_EFFECT(s->cpu.a = (uint16_t)(before - LAST_DRAIN));   /* the last subtraction tried */
         scene_finish_task(s, SCENE_FRAME_TASKS, task_is_done());
         return;
     }
-    ORIGINAL_EFFECT(s->cpu.a = frame != 0 ? frame : scene_race_score(g));
+    charge_legacy_accesses(g, frame ? 0 : 2);
     m_rts(s);
 }
 

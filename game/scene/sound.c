@@ -80,7 +80,6 @@ static uint8_t send_sound_command(const GameState *g, Platform *pf)
 }
 
 /* The driver echoes a command on port 0 once it has taken it. */
-static uint8_t echo(Platform *pf) { return au_driver_read(pf, PF_AT(0x7E379B), 0); }
 
 /* How many passes the echo wait makes before it sends the command again. */
 enum { ECHO_PASSES = 0x0400 };
@@ -88,10 +87,6 @@ enum { ECHO_PASSES = 0x0400 };
 static uint8_t send_and_wait_for_the_echo(GameState *g, Platform *pf);
 
 /* A retry enters with the same buffered command and waits for acceptance. */
-void scene_send_sound_command_again(Snes *s)
-{
-    scene_send_sound_command(s);
-}
 
 // $7E:377E
 /* Send the scene's buffered command and wait until the driver accepts it,
@@ -126,22 +121,6 @@ void scene_send_sound_command_long(Snes *s)
 /* One pass of the echo wait: on to the return at $7E:37A5 when the driver
  * echoes the command, or after the passes run out to $7E:37A3, which sends it
  * again. Idle entry, 8-bit A and 16-bit X. */
-void scene_wait_sound_command_echo_loop(Snes *s)
-{
-    uint8_t command = (uint8_t)s->cpu.a;
-    uint8_t echoed = echo(m_platform(s));
-    m_set_flag(s, CPU_FLAG_C, command >= echoed);
-    m_set_nz8(s, (uint8_t)(command - echoed));
-    if (command == echoed) {
-        m_rts(s);
-        return;
-    }
-    uint16_t passes = (uint16_t)(s->cpu.x - 1);
-    s->cpu.x = passes;
-    m_set_nz16(s, passes);
-    if (passes == 0)
-        s->cpu.pc = 0x3780;
-}
 
 /* ---- The sound put back to normal ------------------------------------------------------------ */
 

@@ -702,6 +702,96 @@ static bool the_cartridges_scene_program(const Fallbacks *f, uint32_t pc)
     return h == 0x2B0A967642BA802Bull;
 }
 
+/* The scene engine's owned code in reference play. Work RAM is accepted
+ * only while it contains the scene program; shipping counts every original
+ * instruction, including the task lists' former empty return. */
+static bool the_cartridges_scene(const Fallbacks *f, uint32_t pc)
+{
+    static const struct { uint32_t first, last; } runs[] = {
+        { 0x7E3176, 0x7E3176 },
+        { 0x7E31BF, 0x7E3208 },
+        { 0x7E32E2, 0x7E340C },
+        { 0x7E3443, 0x7E3509 },
+        { 0x7E350E, 0x7E355E },
+        { 0x7E357B, 0x7E363B },
+        /* Perspective reaches its curve step and pairing tail through patched branches. */
+        { 0x7E3662, 0x7E3688 },
+        { 0x7E3691, 0x7E3708 },
+        { 0x7E3749, 0x7E390A },
+        { 0x7E3934, 0x7E39E7 },
+        { 0x7E39F5, 0x7E3A7C },
+        { 0x7E3A92, 0x7E3D44 },
+        { 0x7E3D72, 0x7E3F13 },
+        { 0x7E3F59, 0x7E3F65 },
+        { 0x7E416D, 0x7E41A5 },
+        { 0x7E424D, 0x7E4318 },
+        { 0x7E4339, 0x7E451E },
+        { 0x7E45B0, 0x7E4771 },
+        { 0x7E4788, 0x7E51B0 },
+        { 0x7E51D1, 0x7E528A },
+        { 0x7E53BB, 0x7E5529 },
+        { 0x7E55F9, 0x7E5603 },
+        { 0x7E5640, 0x7E56FC },
+        { 0x7E5777, 0x7E58F7 },
+        { 0x7E5978, 0x7E5B04 },
+        { 0x7E5B99, 0x7E5D5C },
+        { 0x7E5D71, 0x7E603E },
+        { 0x7E6212, 0x7E633C },
+        { 0x7E63D5, 0x7E663F },
+        { 0x7E66B0, 0x7E685D },
+        { 0x7E69AF, 0x7E6CAB },
+        { 0x7E6E42, 0x7E7156 },
+        { 0x7E7193, 0x7E71A4 },
+        { 0x7E7286, 0x7E729B },
+        { 0x7E72FF, 0x7E7353 },
+        { 0x7E737E, 0x7E7641 },
+        { 0x7E7649, 0x7E771C },
+        { 0x7E7721, 0x7E78A7 },
+        { 0x7E78AB, 0x7E7B9B },
+        { 0x7E7BF2, 0x7E7C2F },
+        { 0x7E7ED1, 0x7E7EDB },
+        { 0x7E7EE8, 0x7E80E0 },
+        { 0x7E81C4, 0x7E81FA },
+        { 0x7E8205, 0x7E82AF },
+        { 0x7E82D1, 0x7E838A },
+        { 0x7E8538, 0x7E88B8 },
+        { 0x7E891B, 0x7E8FE9 },
+        { 0x7E9080, 0x7E90CE },
+        { 0x7E96FB, 0x7E970E },
+        { 0x7E9897, 0x7E9C4D },
+        { 0x7E9C58, 0x7E9D24 },
+        { 0x7E9D45, 0x7E9DB1 },
+        { 0x7E9DBC, 0x7E9E79 },
+        { 0x7E9E7B, 0x7EA00B },
+        { 0x7EA03D, 0x7EA08F },
+        { 0x7EA092, 0x7EA098 },
+        { 0x7EB574, 0x7EC994 },
+        { 0xC30000, 0xC30001 },
+        { 0xC30008, 0xC3000A },
+        { 0xC3000E, 0xC30010 },
+        { 0xC30014, 0xC30556 },
+        { 0xC308B3, 0xC30944 },
+        { 0xC3094C, 0xC309D8 },
+        { 0xC309E9, 0xC30B73 },
+        { 0xC30B95, 0xC30BEE },
+        { 0xC30C19, 0xC30DF2 },
+        { 0xC30E29, 0xC30E35 },
+    };
+    if (!f->shadow)
+        return false;
+    if ((pc >> 16) == 0x7E) {
+        /* The already-retired loop supplies the same code-image check. */
+        if (!the_cartridges_scene_program(f, 0x7E3023))
+            return false;
+    } else {
+        pc |= 0x800000;
+    }
+    for (unsigned i = 0; i < sizeof runs / sizeof runs[0]; i++)
+        if (pc >= runs[i].first && pc <= runs[i].last)
+            return true;
+    return false;
+}
+
 /* Events retired their comparison. Only reference play may execute these
  * owned runs; shipping still counts every original instruction as fallback. */
 static bool the_cartridges_events(const Fallbacks *f, uint32_t pc)
@@ -829,7 +919,7 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
             f->pass.hidden++;
     }
     if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc) && !the_cartridges_field(f, pc) && !the_cartridges_events(f, pc) && !the_cartridges_decompressor(f, pc) &&
-        !the_cartridges_animations(f, pc) && !the_cartridges_warp(f, pc) && !the_cartridges_overworld(f, pc) && !the_cartridges_scene_program(f, pc)) {
+        !the_cartridges_animations(f, pc) && !the_cartridges_warp(f, pc) && !the_cartridges_overworld(f, pc) && !the_cartridges_scene_program(f, pc) && !the_cartridges_scene(f, pc)) {
         bool m8 = e || (p & CPU_FLAG_M), x8 = e || (p & CPU_FLAG_X);
         add(f, pc, eff.kind, routine, eff.port, (uint8_t)misses_instruction_length(op, m8, x8));
         f->by_kind[eff.kind]++;

@@ -128,10 +128,10 @@ enum {
  * race's own call (race_sound_on_the_machine, its context the Snes), as C
  * the send's port (race_sound, no context). */
 typedef enum { RACE_BUMP_SOUND, RACE_LEAVING_SOUND } RaceSound;
-typedef void (*RaceSends)(void *ctx, GameState *g, Platform *pf, RaceSound sound);
-void race_send_sound(GameState *g, Platform *pf, RaceSound sound, RaceSends send, void *ctx);
-void race_sound_on_the_machine(void *ctx, GameState *g, Platform *pf, RaceSound sound);
-void race_sound(void *ctx, GameState *g, Platform *pf, RaceSound sound);
+typedef bool (*RaceSends)(void *ctx, GameState *g, Platform *pf, RaceSound sound);
+bool race_send_sound(GameState *g, Platform *pf, RaceSound sound, RaceSends send, void *ctx);
+bool race_sound_on_the_machine(void *ctx, GameState *g, Platform *pf, RaceSound sound);
+bool race_sound(void *ctx, GameState *g, Platform *pf, RaceSound sound);
 void race_send_engine_pitch(const GameState *g, Platform *pf);
 void race_upload_road_strip(Platform *pf);
 

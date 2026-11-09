@@ -68,6 +68,9 @@ typedef struct FuzzOptions {
      * applied on both machines. This models the notification, not a handler. */
     struct { uint32_t pc, address; } ticks[FUZZ_MAX_TICKS];
     unsigned nticks;
+    /* Begin vblank at this interpreted wait head on both machines, after
+     * starting outside vblank. No interrupt handler or frame work runs. */
+    uint32_t vblank_at;
     unsigned long iterations;
     uint64_t seed;
     bool long_call, interrupt;

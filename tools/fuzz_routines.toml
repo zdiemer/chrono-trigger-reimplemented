@@ -228,6 +228,7 @@ name = "scene_boot_nmi"
 subsystem = "scene"
 state = "attract"
 args = ["--interrupt"]
+why = "The boot's acknowledgement handler with an interrupt return frame and randomized saved registers."
 
 [[routine]]
 name = "scene_boot_line_irq"
@@ -241,18 +242,21 @@ name = "scene_boot_line_irq_wait_hblank_end_loop"
 subsystem = "scene"
 state = "attract"
 args = []
+why = "One idle pass from the recorded beam state, with randomized registers and RAM; no time or handler is simulated."
 
 [[routine]]
 name = "scene_boot_line_irq_wait_hblank_loop"
 subsystem = "scene"
 state = "attract"
 args = []
+why = "One idle pass or its exit from the recorded beam state, under the entry's accumulator-width contract."
 
 [[routine]]
 name = "scene_boot_line_irq_blank"
 subsystem = "scene"
 state = "attract"
 args = []
+why = "The line-handler tail's blanking and stack return, compared with randomized registers and the recorded machine's stack context."
 
 # ---- scene: the program at $7E:3000 (guarded by a hash of its code) ------------------------------
 
@@ -410,6 +414,7 @@ name = "scene_wait_sound_command_echo_loop"
 subsystem = "scene"
 state = "attract"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
+why = "The program image kept for the guard and the I/O bank selected; audio writes are echoed so a retry can complete."
 
 [[routine]]
 name = "scene_race_pitch_and_move"
@@ -622,6 +627,7 @@ at = "7E:5C98"
 subsystem = "scene"
 state = "attract"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--s", "06D0", "--fill", "7E06D1-7E06D9=00-00", "--fill", "7E06D3-7E06D3=00,01,40,41", "--fill", "7E06D4-7E06D4=00,02,04,06,08,0A,0C,0E", "--fill", "7E0942-7E096F=00-00"]
+why = "Randomized logo timer and arithmetic inputs on the scene page, with a valid task caller frame and empty remaining tasks when the logo lands."
 
 [[routine]]
 name = "scene_title_start_ripple"

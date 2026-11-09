@@ -25,10 +25,10 @@
  * original's do; the stars' places, and through them the stir, depend on it.
  * What the draws are salted with is what the original has at hand: the
  * task's slot, or what the code before it left. */
+#include "charge.h"
 #include "scene/scene.h"
 
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "platform/timing.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -43,7 +43,6 @@ enum { MIDDLE_ACROSS = 0x80, MIDDLE_DOWN = 0x70, NEAREST = 0x80 };
 /* The stars' sprites: sixteen sizes from tile $60, the nearest, the eight
  * nearest drawn in front of the layers and the rest behind them. */
 enum { FIRST_STAR_TILE = 0x60, FIRST_FAR_TILE = 0x68, STAR_BEHIND = 0x02, STAR_IN_FRONT = 0x32 };
-
 
 static uint16_t field_register(const GameState *g, unsigned reg) { return scene_channel_register(g, SCENE_STAR_FIELD_CHANNEL, reg); }
 static int8_t field_speed(const GameState *g) { return (int8_t)field_register(g, SCENE_STAR_FIELD_SPEED); }
@@ -285,16 +284,8 @@ bool scene_stars_scatter_code_present(Snes *s)
     return stir_present(s) && m_code_matches(s, 0x7E5777, 0x24, 0x9BECCE6703C0853Aull);
 }
 
-bool scene_stars_scatter_present(Snes *s) { return m_bank_reaches_io(s) && scene_stars_scatter_code_present(s); }
-
 /* Entered with 8-bit A: the first draw starts from A and the carry; back, the
  * overflow is the last draw's. */
-void scene_stars_scatter(Snes *s)
-{
-    scene_scatter_stars(state_of(s), m_platform(s), scene_draw_from(s->cpu.a, m_flag(s, CPU_FLAG_C), TM_ENTROPY_BYTES));
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, scene_random_last_overflow()));
-    m_rts(s);
-}
 
 /* The flight's code, but for the branch the staff roll patches, which must be
  * one of the two the port knows; and its entries' place in the table. */
@@ -346,23 +337,14 @@ bool scene_stars_fly_after_captions_present(Snes *s)
  * place down as the divider took it (its size), where the frame's work may
  * read it after the last task; the divider and a cell of the scene's page
  * hold the last star's division. */
-static void leave_flight(Snes *s, const Flight *f)
-{
-    GameState *g = state_of(s);
-    uint8_t size = (uint8_t)(f->last_down < 0 ? -f->last_down : f->last_down);
-    s->cpu.y = STARS * STAR_BYTES;
-    s->cpu.a = (uint16_t)(size << 8 | (s->cpu.a & 0xFF));
-    set_scene_stars_last_distance(g, f->last_distance);
-    hw_set_dividend(g, (uint16_t)(size << 8));
-    hw_divide_by(g, f->last_distance);
-}
 
 /* The flight, the first star's sums starting with `spilled`, and `salt`
  * salting the draws. */
 static void fly(Snes *s, bool spilled, uint16_t salt)
 {
-    Flight f = fly_stars(state_of(s), m_platform(s), spilled, salt);
-    ORIGINAL_EFFECT(leave_flight(s, &f));
+    (void)fly_stars(state_of(s), m_platform(s), spilled, salt);
+    charge_legacy_accesses(state_of(s), 1);
+    charge_legacy_io_accesses(state_of(s), 3);
     m_set_flag(s, CPU_FLAG_M, true);
     m_rts(s);
 }
@@ -427,9 +409,18 @@ void scene_stars_keep_drifting_entry(Snes *s)
 {
     GameState *g = state_of(s);
     keep_drifting(g, m_platform(s), called_with(s));
-    uint16_t moving = first_motion(g);
+    uint32_t mark = charge_uncounted_begin(g);
+    unsigned accesses = 0;
+    for (unsigned i = 0; i < DRIFTS; i++) {
+        accesses += 2;
+        if (field_register(g, drift_register[i])) {
+            accesses += 2;
+            break;
+        }
+    }
+    charge_uncounted_end(g, mark);
+    charge_legacy_accesses(g, accesses);
     keep_the_field_moving(g);
-    ORIGINAL_EFFECT(s->cpu.a = moving);   /* the motion it found moving, or 0 */
     m_rts(s);
 }
 

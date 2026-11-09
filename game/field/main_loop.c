@@ -30,6 +30,7 @@
  * the native program calls their state/platform operations directly. Battle
  * and menu hand-offs retain their still-gated interfaces. */
 #include "field/main_loop.h"
+#include "scene/scene.h"
 #include "field/machine_forms.h"
 #include "field/dialog_window.h"
 #include "field/field.h"
@@ -880,8 +881,10 @@ static void start_the_scene(Snes *s, uint8_t scene)
         m_stop_at_own(s, SHORTEST_WARP, THE_SCENE_READS_A);
     else if (scene > SCENE_SHORTEST_WARP)
         m_stop_at_own(s, FLICKERING_WARP, THE_SCENE_READS_A);
-    else
-        m_stop_at_own(s, SCENE_ENGINE, THE_SCENE_READS_A);
+    else {
+        charge_settle(state_of(s));
+        field_hands_over_to(s, SCENE_ENGINE, THE_SCENE_READS_A, scene_boot);
+    }
 }
 
 /* As C: the scene the field ends into, the scene engine's or a time gate's
@@ -914,7 +917,8 @@ void field_closed_into_the_scene(GameState *g) { program_goes_on_to_a_scene(g, S
 void field_close_into_the_scene(Snes *s)
 {
     hand_over_the_scene(s, SCENE_FIELD_CLOSES_INTO);
-    m_stop_at_own(s, SCENE_ENGINE, THE_SCENE_READS_A);
+    charge_settle(state_of(s));
+    field_hands_over_to(s, SCENE_ENGINE, THE_SCENE_READS_A, scene_boot);
 }
 
 /* ---- The wait for the next frame, held ---------------------------------------------------------- */

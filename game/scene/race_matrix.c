@@ -26,8 +26,8 @@
 #include "scene/race.h"
 
 #include "charge.h"
+#include "holds.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
@@ -63,14 +63,6 @@ typedef struct {
 /* The offsets as the generator leaves them in the scene's cells, the
  * destination's page moved on past the last; nothing reads them again but the
  * row step (below). */
-static void leave_offsets(GameState *g, const Offsets *o, uint16_t destination)
-{
-    SceneProgramPage scene = scene_program_own();
-    set_scene_call_matrix_table_offset(g, scene, o->table);
-    set_scene_call_matrix_tile_step(g, scene, o->tile);
-    set_scene_call_matrix_plane_pair_step(g, scene, o->plane_pair);
-    set_scene_call_matrix_destination(g, scene, destination);
-}
 
 // $C3:09E9
 /* Write the routine: pairs store from the page in `destination` on, and load
@@ -116,7 +108,7 @@ static void write_matrix_code(GameState *g, uint16_t destination, uint16_t sourc
      * the program's next signed multiply adds into its product
      * (scene/math.c): the step as the loop leaves it is game state. */
     set_scene_call_matrix_row_step(g, scene, o.row);
-    ORIGINAL_EFFECT(leave_offsets(g, &o, (uint16_t)((destination & 0x00FF) | page << 8)));
+    charge_legacy_accesses(g, 8);
 }
 
 /* The scenes' setups have it written into its place in the program
@@ -134,15 +126,6 @@ uint16_t scene_matrix_writer_leaves_y(void) { return STRIPS * 2; }
  * address, Y the source base. The routine sets the direct page and the data
  * bank to 0 itself, and the overflow is its last sum's, the tile step's 28 + 4,
  * which is clear. */
-void scene_write_matrix_code(Snes *s)
-{
-    write_matrix_code(state_of(s), s->cpu.x, s->cpu.y);
-    s->cpu.d = 0x0000;
-    s->cpu.db = 0x00;
-    m_set_flag(s, CPU_FLAG_V, false);
-    s->cpu.p |= CPU_FLAG_M;
-    m_rtl(s);
-}
 
 /* ---- The regrouping --------------------------------------------------------------------------- */
 
@@ -189,11 +172,6 @@ void scene_gather_picture_into_tiles(GameState *g)
 
 /* Entered with 16-bit A. The routine moves the direct page as it goes, which
  * its callers put back; nothing it leaves in the registers is read. */
-void scene_gather_picture(Snes *s)
-{
-    scene_gather_picture_into_tiles(state_of(s));
-    m_rts(s);
-}
 
 /* ---- The main loop's scaling ------------------------------------------------------------------- */
 
@@ -338,4 +316,26 @@ void scene_race_gather_scaled(Snes *s)
     s->cpu.db = m_pull8(s);
     s->cpu.a = PICTURE_GATHERED;
     m_rts(s);
+}
+
+// $7E:5215
+/* The upload is finished. The saved caller tells which racer's request to
+ * mark gathered, then either starts Johnny's picture or returns to the
+ * scene loop. Each continuation keeps its own contract and calibrated rate.
+ * No C invocation survives the held upload wait. */
+void scene_race_upload_finished(Snes *s)
+{
+    scene_race_gather_scaled(s);
+    uint32_t next = cpu_pc24(&s->cpu);
+    void (*resume)(Snes *) = next == 0x7E51DF ? scene_race_scale_after_crono :
+                            next == 0x7E51F0 ? scene_race_scale_after_johnny : NULL;
+    if (!scene_accept_continuation(s, next, resume))
+        return;
+    charge_settle(state_of(s));
+    TIMED_AS(state_of(s), next, {
+        resume(s);
+        charge_settle(state_of(s));
+    });
+    if (cpu_pc24(&s->cpu) == 0x7E3026)
+        m_hold_at(s, 0x7E3026, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z, HOLD_SCENE_MAIN_LOOP);
 }

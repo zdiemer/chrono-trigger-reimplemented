@@ -30,7 +30,6 @@
 
 #include "charge.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "platform/video.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -62,13 +61,15 @@ static const uint16_t letter_colors[] = { 0x0000, 0x77BD, 0x4631, 0x1CE7 };
  * call, as shadow mode pairs the call with the original's. */
 enum { UNPACK = 0x7E3691, UNPACK_IGNORES = DC_A | DC_Y | DC_N | DC_Z | DC_C, LOADER_CALL = 0x7E6B0A };
 
-static void unpack_the_letters_on_the_machine(void *ctx)
+static bool unpack_the_letters_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
     scene_bridge_enter(s, LOADER_CALL);
     s->cpu.x = LETTERS;
-    m_jsr_dc(s, 0x7E6C3F, UNPACK, UNPACK_IGNORES);
+    if (!scene_run_called(s, 0x7E6C3F, UNPACK, UNPACK_IGNORES, scene_unpack_resource))
+        return false;
     scene_bridge_leave(s);
+    return true;
 }
 
 // $7E:6BF9
@@ -109,7 +110,7 @@ static void widen_letters(GameState *g, Platform *pf, uint16_t vram, uint32_t fr
         for (unsigned row = 0; row < TILE_ROWS; row++)
             vid_write_vram(pf, PF_AT(0x7E66C8), 0x0000);
     }
-    ORIGINAL_EFFECT(hw_port_seek_address(g, at));
+    charge_legacy_io_accesses(g, 2);
 }
 
 /* ---- The page ---------------------------------------------------------------------------------- */
@@ -201,7 +202,7 @@ static void write_the_jobs(GameState *g, Platform *pf, uint16_t at)
 /* The fades' pace: a step every frame. */
 enum { FADE_EVERY_FRAME = 1 };
 
-static void leave_the_text_read(GameState *g, uint16_t page);
+static void charge_page_text_scan(GameState *g, uint16_t page);
 
 // $7E:6B04
 /* The page's setup, from the program's mode table (mode 1): the letters'
@@ -213,10 +214,11 @@ static void leave_the_text_read(GameState *g, uint16_t page);
  * they use it, and leaves it there; and it points the sprite table's port at
  * its start before the jobs, as the first job's sprite does (scaffolding: the
  * port's address is compared). */
-static void set_up_the_page(GameState *g, Platform *pf, void (*unpack)(void *ctx), void *ctx)
+static bool set_up_the_page(GameState *g, Platform *pf, bool (*unpack)(void *ctx), void *ctx)
 {
     start_loading_the_letters(g, pf, LETTERS_AS_THEY_ARE_VRAM);
-    unpack(ctx);
+    if (!unpack(ctx))
+        return false;
     send_the_letters_as_they_are(g, pf);
     set_decompress_dest(g, NARROW_LETTERS);
     widen_letters(g, pf, WIDE_LETTERS_VRAM, NARROW_LETTERS, NARROW_LETTER_TILES);
@@ -225,9 +227,9 @@ static void set_up_the_page(GameState *g, Platform *pf, void (*unpack)(void *ctx
     hide_the_sprites(pf);
     uint16_t page = next_page(g);
     write_the_names(g, pf, page_list(g, PAGE_NAMES, page));
-    ORIGINAL_EFFECT(vid_set_oam_address(pf, PF_AT(0x7E6BBB), 0x0000, false));
+    charge_legacy_io_accesses(g, 2);
     write_the_jobs(g, pf, page_list(g, PAGE_JOBS, page));
-    ORIGINAL_EFFECT(leave_the_text_read(g, page));
+    charge_page_text_scan(g, page);
 
     vid_set_screens(pf, PF_AT(0x7E6BC5), VID_BG1_BIT | VID_OBJ_BIT, 0, VID_SCREEN_MAIN);
     vid_set_bg_map(pf, PF_AT(0x7E6BCA), VID_BG1, &names_bg);
@@ -236,15 +238,19 @@ static void set_up_the_page(GameState *g, Platform *pf, void (*unpack)(void *ctx
     set_scene_fade_countdown(g, FADE_EVERY_FRAME);
     scene_add_task(g, SCENE_FRAME_TASKS, SCENE_TASK_BRIGHTEN);
     scene_add_task(g, SCENE_FRAME_TASKS, SCENE_TASK_SHOW_THE_CREDITS_PAGE);
+    return true;
 }
 
 /* As C, the letters unpacked by the unpacker as C. */
-static void unpack_the_letters(void *ctx) { TIMED_AS((GameState *)ctx, UNPACK, scene_unpacks(ctx, LETTERS)); }
+static bool unpack_the_letters(void *ctx)
+{
+    TIMED_AS((GameState *)ctx, UNPACK, scene_unpacks(ctx, LETTERS));
+    return true;
+}
 
 bool scene_credit_pages_set_up(GameState *g, Platform *pf)
 {
-    set_up_the_page(g, pf, unpack_the_letters, g);
-    return true;
+    return set_up_the_page(g, pf, unpack_the_letters, g);
 }
 
 /* ---- The page's task --------------------------------------------------------------------------- */
@@ -324,9 +330,19 @@ static ListRead read_through(const GameState *g, uint16_t at)
 
 /* The original reads the page's text through the work RAM port, which it
  * leaves past the jobs' list. */
-static void leave_the_text_read(GameState *g, uint16_t page)
+static void charge_page_text_scan(GameState *g, uint16_t page)
 {
-    hw_port_seek(g, read_through(g, page_list(g, PAGE_JOBS, page)).end, SCENE_LOWER_WORK_RAM);
+    uint32_t mark = charge_uncounted_begin(g);
+    uint16_t at = page_list(g, PAGE_JOBS, page);
+    unsigned accesses = 3; /* list pointer and final terminator */
+    while (text_byte(g, at++) != END_OF_LIST) {
+        accesses++;
+        at++; /* the result scan skipped the vertical coordinate */
+        do { accesses++; } while (text_byte(g, at++) != END_OF_ENTRY);
+    }
+    charge_uncounted_end(g, mark);
+    charge_legacy_accesses(g, accesses);
+    charge_legacy_io_accesses(g, 3);
 }
 
 static bool subtraction_overflows(uint8_t a, uint8_t b) { return ((a ^ b) & (a ^ (uint8_t)(a - b)) & 0x80) != 0; }
@@ -352,7 +368,8 @@ static bool last_letter_overflowed(const GameState *g, uint16_t page)
 bool scene_credit_pages_set_up_scene(Snes *s)
 {
     GameState *g = state_of(s);
-    set_up_the_page(g, m_platform(s), unpack_the_letters_on_the_machine, s);
+    if (!set_up_the_page(g, m_platform(s), unpack_the_letters_on_the_machine, s))
+        return false;
     s->cpu.d = M_DP_PPU;
     s->cpu.db = 0x00;
     s->cpu.p |= CPU_FLAG_M;
@@ -361,17 +378,8 @@ bool scene_credit_pages_set_up_scene(Snes *s)
     return true;
 }
 
-void scene_credit_pages_set_up_entry(Snes *s)
-{
-    scene_credit_pages_set_up_scene(s);
-    m_rts(s);
-}
-
 /* The task's code; the cells are the scene's page's. */
 static bool show_the_page_present(Snes *s)
 {
     return scene_on_scene_page(s) && m_code_matches(s, 0x7E6BE5, 0x14, 0xF8DD5396B960AE74ull);
 }
-
-void scene_show_the_credits_page(Snes *s) { scene_task_alone(s, &scene_credit_pages_tasks[ROW_SHOW_THE_PAGE]); }
-bool scene_show_the_credits_page_present(Snes *s) { return show_the_page_present(s); }

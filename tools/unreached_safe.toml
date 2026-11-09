@@ -7,6 +7,24 @@
 # review; edits elsewhere in the same files do not.
 
 [[safe]]
+name = "scene_staff_roll_set_up"
+runs = "7E36B9-7E36C1"
+depends = ["game/scene/staff_roll.c:copy_colors", "game/scene/screen.c:scene_copy_resource_to"]
+why = "These bytes are the shared resource copier's upper-bank arm. Every copy owned by the staff-roll setup is a palette copy through copy_colors, which clears all but the low byte of decompress_dest before the call. Its destination bank is therefore the lower bank for every admitted input. Preserve that palette destination selection at retirement; this does not claim the general copier cannot copy to the upper bank."
+
+[[safe]]
+name = "scene_title_move_logo"
+runs = "7E5CF7-7E5CFA"
+depends = ["game/scene/title.c:sweep_the_logo", "game/scene/math.c:scene_multiply16", "game/scene/math.c:scene_sine"]
+why = "The downward sweep multiplies a byte-sized sine magnitude by 195. Even with the multiply's incoming extra 256, the product is at most 49981, so its middle word is at most 195 and cannot be negative. The original's conditional negation is unreachable; keep the unsigned magnitude and byte-sized sine table semantics when retiring the task."
+
+[[safe]]
+name = "scene_draw_figure_pose"
+runs = "7E7061-7E7063"
+depends = ["game/scene/turning.c:scene_draw_figure_pose"]
+why = "The original compares the figure X coordinate with 0100, branches on the subtraction's negative flag, then branches on carry set. A carry-clear subtraction has X below 0100 and a result FF00..FFFF, so it already took the negative branch. No 16-bit X reaches these three fallthrough bytes. The C operation retains the original high-X treatment rather than inventing a visible branch here."
+
+[[safe]]
 name = "field_restart_wait_for_vblank_loop"
 runs = "C04181-C04185"
 depends = ["game/field/frame.c:wait_for_vblank_pass", "game/event/screen.c:event_screen_dispatch", "game/event/screen.c:restart_on_the_machine", "game/event/screen.c:screen_commands"]

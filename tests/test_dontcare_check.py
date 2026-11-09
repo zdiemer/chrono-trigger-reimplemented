@@ -220,6 +220,22 @@ void carries(Snes *s) { bridge_call(s, 0xC08003, 0xC08020, DC_Y, bridge_machine_
         self.assertNotIn(dc.BRIDGE_FILE, text)
         self.assertEqual(counts["calls"], 2)
 
+    def test_settled_calls_keep_the_callees_live_inputs(self):
+        lv, opcode_at = liveness()
+        registry = dc.Source("game/registry.c", REGISTRY)
+        headers = [dc.Source("runtime/port/native.h", NATIVE_H)]
+        for helper in ("field_run_long_called", "scene_run_called", "scene_run_long_called"):
+            with self.subTest(helper=helper):
+                port = dc.Source("game/port.c", f"""
+void calls(Snes *s) {{ {helper}(s, 0xC08003, 0xC08020, DC_X, next); }}
+void carries(Snes *s) {{ {helper}(s, 0xC08003, 0xC08020, DC_Y, next); }}
+""")
+                found, _, counts = dc.run_sources([registry, port], headers, lv, opcode_at)
+                text = "\n".join(f.text() for f in found)
+                self.assertIn("declares DC_X,", text)
+                self.assertNotIn("declares DC_Y", text)
+                self.assertEqual(counts["calls"], 2)
+
     def test_field_held_calls(self):
         port = dc.Source("game/port.c", """
 void waits(Snes *s) { field_hold_next_frame(s, 0xC08003, DC_X, machine(s)); }

@@ -6,6 +6,9 @@
 # discharge another owner's bytes only here, never merely because an
 # interpreted call-out happened to visit that address on both machines.
 [shared]
+# race_rules.c: ride_bikes, boost, drift_all and bump are the same operations
+# in ride_with and coast_with; the inventory assigns their shared bytes to coast.
+scene_race_coast = ["scene_race_ride"]
 # flow.c's word operators use the same comparison helpers as its byte entry.
 event_cmd_if_compares = ["event_cmd_if_compares_word", "event_cmd_if_compares_variable_word"]
 # screen.c: the per-effect entries are machine bridges over run_screen_command,
@@ -21,6 +24,134 @@ event_screen_ripple = ["event_cmd_screen_command"]
 # them and takes no evidence from them, and fails on any other failing recipe
 # (or on one of these passing). The bytes they would cover stay open.
 [failing]
+
+[[case]]
+base = "scene_race_ride:bump"
+variant = "unreached_boost_and_bumps"
+args = ["--fill", "7E00A8-7E00A9=0011,0012,0021,0022", "--fill", "7E004A-7E004B=7000", "--fill", "7E004C-7E004D=0000", "--fill", "7E00BA-7E00BB=0000", "--fill", "7E00A0-7E00A1=0000", "--fill", "7E009A-7E009B=0001", "--fill", "7E0006-7E0007=8000", "--fill", "7E008C-7E008D=0210", "--fill", "7E008E-7E008F=0001", "--fill", "7E0073-7E0074=6000", "--fill", "7E0053-7E0054=0000", "--fill", "7E0078-7E0079=0000"]
+why = "Touching bikes approach from each diagonal, with a fresh boost at high speed and Johnny's steering drift at its cap. The boost, drift and bump operations are shared with the coast."
+
+[[case]]
+base = "scene_turn_set_up"
+variant = "unreached_after_upload"
+remove = ["--stop-at-call"]
+args = ["--vblank-at", "7E31B7"]
+why = "Supply the vblank edge after the wait has observed its end, comparing the setup's windows, layers and final radii as well as its preparation."
+
+[[case]]
+base = "scene_read_controller"
+variant = "unreached_start"
+args = ["--buttons", "1000", "--fill", "7E0394-7E0395=0000", "--fill", "7E0390-7E0391=0001"]
+why = "A newly pressed Start sample with pausing enabled reaches both pause and unpause, including their sound commands."
+
+[[case]]
+base = "scene_read_controller"
+variant = "unreached_reset_chord"
+args = ["--buttons", "3030", "--fill", "7E0396-7E0396=00", "--stop-at-call", "FDC000"]
+why = "The reset chord with reset enabled reaches the console reset handoff, bounded before unrelated boot work."
+
+[[case]]
+base = "scene_script_store_word"
+variant = "unreached_register_copy"
+args = ["--fill", "7EB605-7EB605=20", "--fill", "7EB606-7EB606=00-0F", "--fill", "7EB607-7EB607=AC"]
+why = "After storing the word, copy another channel register before ending the turn; the interpreter's shared register-copy arm belongs to this entry in the inventory."
+
+[[case]]
+base = "scene_draw_signed_sprite_list"
+variant = "unreached_large"
+args = ["--range", "A=B600-B600", "--fill", "7EB600-7EB600=02", "--fill", "7EB601-7EB604=00", "--fill", "7EB602-7EB602=10", "--fill", "7E0011-7E0012=0000", "--fill", "7E0013-7E0014=0900"]
+why = "A synthetic one-sprite list explicitly requests a large sprite, with a valid empty output cursor and a visible position."
+
+[[case]]
+base = "scene_race_ride:finish"
+variant = "unreached_prizes"
+args = ["--fill", "7E0069-7E006A=0612,00F6,09A4,07D0,0FA0,1770,00DE,01BC,029A", "--fill", "7E0053-7E0054=0008", "--fill", "7E0078-7E0079=0007", "--fill", "7E0384-7E0384=00,01", "--fill", "7E0920-7E093F=0000", "--fill", "7E0920-7E0921=4339"]
+why = "Crono's winning score includes 777, straights, round scores and repeated digits, in playable and attract races."
+
+[[case]]
+base = "scene_race_coast"
+variant = "unreached_centre"
+args = ["--fill", "7E004E-7E004F=1000,2000,4000,4001,6000,7000", "--fill", "7E0073-7E0074=1000,2000,4000,6000,7000", "--fill", "7E00B2-7E00B3=0000,0001,00FF", "--fill", "7E0384-7E0384=00,01", "--fill", "7E0388-7E0388=00", "--fill", "7E00BE-7E00BF=0000", "--fill", "7E0006-7E0007=0080", "--fill", "7E0920-7E093F=0000"]
+why = "The finishing lanes and the centre are whole-word positions; exercise the last margin tick and both playable and attract coasts."
+
+[[case]]
+base = "scene_step_turn_mosaic"
+variant = "unreached_expired"
+args = ["--fill", "7E004A-7E004A=01"]
+why = "The mosaic countdown expires on this frame, reloads its period and advances the size modulo eight."
+
+[[case]]
+base = "scene_show_turn_mosaic"
+variant = "unreached_random_size"
+args = ["--fill", "7E0008-7E0009=0000,0004,0008", "--fill", "7E004C-7E004C=FF"]
+why = "A frame eligible to choose a different random mosaic size, with the ordinary size branch disabled."
+
+[[case]]
+base = "scene_offset_angle"
+variant = "unreached_axis"
+args = ["--range", "X=0000-0001", "--range", "Y=0000-FFFF"]
+why = "Offsets on or immediately beside the vertical axis take the explicit quarter-turn answers instead of the divider."
+
+[[case]]
+base = "scene_race_wait_to_leave"
+variant = "unreached_button"
+args = ["--fill", "7E0002-7E0003=0001,0080,1000", "--fill", "7E0350-7E0350=00", "--fill", "7E0388-7E0388=00,01"]
+why = "A pressed button with the curtain still open starts the exit, with and without a song transfer suppressing its sound."
+
+[[case]]
+base = "scene_race_leave"
+variant = "unreached_last_tick"
+args = ["--fill", "7E0399-7E039A=0001,0002"]
+why = "The last and penultimate countdown ticks, including the increment that ends the scene."
+
+[[case]]
+base = "scene_race_place_bikes"
+variant = "unreached_finished_lean"
+args = ["--fill", "7E00B0-7E00B1=0001,0002", "--fill", "7E0044-7E0045=0001", "--fill", "7E1444-7E1445=0000"]
+why = "A finished race with the camera offset active uses the finishing lean for both projected bikes."
+
+[[case]]
+base = "scene_stars_keep_drifting"
+variant = "unreached_stopped"
+args = ["--fill", "7E0B00-7E0B05=0000", "--fill", "7E0058-7E005D=0002"]
+why = "A stationary star field with all three motions zero and its drift timers still running starts moving at the minimum speed."
+
+[[case]]
+base = "scene_ending_set_up"
+variant = "unreached_mosaic"
+args = ["--fill", "7E0384-7E0384=0A,2A", "--fill", "7E0940-7E095F=0000"]
+why = "Mode ten with room on the vblank task list loads the mosaic and selects its caption and scene scripts."
+
+[[case]]
+base = "scene_update_turn_figures"
+variant = "unreached_pose_hold"
+args = ["--fill", "7E005E-7E00A1:16=0000", "--fill", "7E0065-7E00A8:16=0000", "--fill", "7E0062-7E00A4:16=02"]
+why = "Unchanged animations and facings with a pose delay still running take the pose-holding arm for each figure."
+
+[[case]]
+base = "scene_roll_credits"
+variant = "unreached_padding"
+args = ["--fill", "7E004A-7E004B=B600", "--fill", "7EB600-7EB602=00", "--fill", "7EB603-7EB603=2F", "--fill", "7E00AD-7E00AE=0001"]
+why = "A synthetic credits row containing a padding marker and its two skipped bytes, followed by the end-of-line marker."
+
+[[case]]
+base = "scene_wait_for_a_button_to_restart"
+variant = "unreached_after_sound"
+remove = ["--stop-at-call"]
+args = ["--apu-loopback", "--fill", "7E0002-7E0003=0001,1000"]
+why = "The restart button's sound is answered, allowing the task to install the fade and hand over to the countdown."
+
+[[case]]
+base = "scene_count_down_to_the_restart:reset"
+variant = "unreached_reset"
+args = ["--stop-at-call", "FDC000"]
+why = "The final tick reaches the reset transfer; stop at the boot instead of running an unrelated new game."
+
+[[case]]
+base = "scene_wait_sound_command_echo_loop"
+variant = "unreached_retry"
+args = ["--range", "X=0001-0001"]
+why = "An unacknowledged command on the final poll returns to the send for another attempt."
 
 [[case]]
 base = "event_cmd_screen_command"
