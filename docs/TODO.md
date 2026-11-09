@@ -2897,8 +2897,9 @@ comparisons.
 
   The conservative inventory against the existing 84-movie coverage union
   measures 13,556 battle bytes in 289 entries and 5,277 menu bytes in 157
-  entries that no movie executes. Neither subsystem is yet enrolled in the
-  committed unreached ledger. `unreached.py --subsystem battle --subsystem
+  entries that no movie executes. Menus are enrolled in the committed
+  unreached ledger with no open bytes; battle is not yet enrolled.
+  `unreached.py --subsystem battle --subsystem
   menu --coverage-dir <library-coverage>` reproduces this inventory without
   changing the ledger's checked scope. Its audit follows declared task-switch
   targets as ownership boundaries and does not mistake a pushed relative
@@ -2908,16 +2909,18 @@ comparisons.
 
   The discovery union of 638 clean recipes and the reviewed exclusions
   leaves 1,070 battle bytes in 60 entries and no menu bytes open.
-  Older runs in this union guide the remaining cases; they are not fresh
-  retirement evidence. Replay the completed recipes against the final tree.
+  Older battle runs in this union guide the remaining cases; they are not
+  fresh retirement evidence. Replay battle's completed recipes against the
+  final tree. The menu ledger records fresh comparisons and reviewed
+  exclusions; preserve their preconditions while retiring its entries.
   Preserve the complete sprite/frame/output bounds, startup-built OAM
   lookup, graphics resource banks, equipment page's name bounds, and text
   language and stack separation when their guards retire. The original
   random-OAM fixture is wholly refused; its valid-lookup counterpart is
   execution evidence. Do not count a refusal or interpreted call-out as
   evidence for a C implementation. The new scene helpers
-  retain provisional estimates until a movie measures them. Record the reviewed exclusions and
-  matched recipes in the unreached ledger before either subsystem retires.
+  retain provisional estimates until a movie measures them. Record battle's
+  reviewed exclusions and matched recipes before its subsystem retires.
 
   `unreached_safe.toml` records eighteen further reviewed exclusions: zero map
   selectors, an exchange with no selectable row, fixed hex-glyph and sprite
@@ -2932,7 +2935,7 @@ comparisons.
   exchange layout's unreachable load.
   Preserve their cited bounds and resource
   assumptions as contracts. These arguments are not execution coverage;
-  enroll them with the matched recipes only after the inventory closes.
+  enroll battle's with its matched recipes only after its inventory closes.
 
   The bucket-Lavos native-shape route protects the previously regressed
   battle backedges. The native-shape telepod-Lavos ending phase also reaches

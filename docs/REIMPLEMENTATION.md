@@ -4517,8 +4517,18 @@ cover eleven bytes: the closing window cannot reach its middle-band
 decrement within its guarded 24 frames; a left push leaves the controls
 screen before its shared button operation; and both values of the
 exchange layout branch past a dead load. The discovery inventory now has
-no menu byte open. The final retirement ledger still requires a fresh
-replay of the accumulated recipes.
+no menu byte open. A fresh replay of 257 menu recipes now compares 411,605
+trials with zero mismatches or loops. The other 100,895 trials are skipped
+(98,847 by guards) and supply no coverage. Two directed cases close gaps
+that the older discovery union had covered incidentally: choosing a new
+game when all three save slots are occupied, and continuing an inventory
+search past a matching item with zero quantity. The checked ledger enrolls
+595 menu entries, including 177 with 5,277 bytes absent from the existing
+84-movie coverage union. Fresh matched recipes and eleven reviewed
+exclusion rows cover every such byte; no open allowance is added. The
+ledger's recipe identities, trial counts and proof dependencies remain the
+preconditions for the subsequent retirement, not a claim that it has
+already happened.
 
 The new-game-row fixture also reaches the load screen's final switch to
 the boot stack. The fuzzer now tracks popped bytes across task switches,

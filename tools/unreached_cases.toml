@@ -735,6 +735,20 @@ iterations = 2000
 why = "Continue past the sound command with the base APU loopback, comparing the remainder of this cursor step up to its next frame wait; preserve the base state and resource bounds."
 
 [[case]]
+base = "menu_choose_on_load_screen"
+variant = "unreached_all_slots_used"
+args = ["--fill", "7E0068-7E0068=02", "--fill", "7E0D17-7E0D17=02", "--fill", "7E00F0-7E00F5=00", "--fill", "7E00F0-7E00F0=80", "--fill", "7E2993-7E2993=80", "--fill", "7E2994-7E2994=08", "--fill", "7E0D83-7E0D83=00", "--fill", "7E0054-7E0054=03", "--fill", "7E0D49-7E0D4B=01", "--apu-loopback", "--stop-at-call", "C70004", "--fill", "7E0D76-7E0D76=02"]
+iterations = 2000
+why = "Choose a new game with all three save slots occupied. The cursor sound is still cooling down, so compare at the output-setting sound call after the search falls back to slot one."
+
+[[case]]
+base = "menu_party_services"
+variant = "unreached_empty_item_match"
+args = ["--range", "A=000C-000C", "--range", "X=0001-0001", "--fill", "7E2400-7E2401=01", "--fill", "7E2500-7E2500=00", "--fill", "7E2501-7E2501=01-63"]
+iterations = 2000
+why = "Count an item whose first matching inventory slot has zero quantity and whose next slot holds some. The search must reload the item and continue after the empty match."
+
+[[case]]
 base = "menu_party_services"
 variant = "unreached_replace_third"
 args = ["--range", "A=0001-0001", "--range", "Y=0003-0006", "--fill", "7E2980-7E2980=00", "--fill", "7E2981-7E2981=01", "--fill", "7E2982-7E2982=02"]
