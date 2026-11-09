@@ -139,3 +139,63 @@ name = "menu_slide_list_a_frame"
 runs = "C2EB3D-C2EB4E,C2EB5C-C2EB65"
 depends = ["game/menu/lists.c:still_within_the_first_band", "game/menu/lists.c:menu_list_slide_frame_is_showable", "game/menu/lists.c:menu_slide_list_a_frame"]
 why = "These paths advance or retreat to another source band after scrolling at least a full band. The frame guard explicitly requires the moved amount to remain within the first band, including its asymmetric negative comparison; the menu slides less than a row between rebuilding its list. Preserve that bound as an assertion when retiring the guard. The excluded whole-band crossing is not claimed to be implemented or fuzz-executed."
+
+[[safe]]
+name = "menu_map_scroll_x"
+runs = "C2059B-C2059C"
+depends = ["game/menu/map.c:menu_map_can_scroll", "game/menu/map.c:menu_map_scroll_x_runs"]
+why = "The original's self-branch for a zero plane selector. menu_map_can_scroll admits only selectors 1 and 2; this infinite loop is outside the entry contract, not an executed path. Preserve the selector bound as an assertion on retirement."
+
+[[safe]]
+name = "menu_map_scroll_y"
+runs = "C2069F-C206A0"
+depends = ["game/menu/map.c:menu_map_can_scroll", "game/menu/map.c:menu_map_scroll_y_runs"]
+why = "The original's self-branch for a zero plane selector. menu_map_can_scroll admits only selectors 1 and 2; this infinite loop is outside the entry contract, not an executed path. Preserve the selector bound as an assertion on retirement."
+
+[[safe]]
+name = "menu_map_redraw"
+runs = "C209D5-C209D7,C20A6A-C20A6B"
+depends = ["game/menu/map.c:menu_map_redraw_runs", "game/menu/map.c:named_plane"]
+why = "The original jumps to a self-branch when the masked plane selector is zero. menu_map_redraw_runs explicitly refuses zero. Preserve this precondition as an assertion; the excluded infinite loop is not claimed to execute."
+
+[[safe]]
+name = "menu_move_the_exchange_cursor"
+runs = "C2C821-C2C826"
+depends = ["game/menu/exchange.c:exchange_is_sound", "game/menu/exchange.c:menu_exchange_cursor_can_move"]
+why = "The original sets cursor zero and chooses the back action when both the active free count and reserve count are zero. exchange_is_sound requires their bitwise OR to be nonzero, so the cursor entry refuses this branch. Preserve that bound as an assertion on retirement."
+
+[[safe]]
+name = "menu_text_go_on"
+runs = "C25CD6-C25CDE,C25CF5-C25CFD"
+depends = ["game/menu/typeset.c:hex_digits", "game/menu/menu_data.h:menu_hex_digit_glyph"]
+why = "Both branches encode a hexadecimal digit as a two-byte glyph only when its fixed table word is at least $0100. All 16 words in the USA cartridge's hex-glyph table at $C2:5D03 have zero high bytes. The nibble index is masked to 0-15. Recheck the glyph encoding and this argument if that resource becomes editable."
+
+[[safe]]
+name = "menu_load_record_sprite"
+runs = "C2F47E-C2F480,C2F4D7-C2F4D9,C2F501-C2F504"
+depends = ["game/menu/sprites.c:load_record_sprite", "game/menu/sprites.c:sprite_graphics_fit", "game/menu/sprites.c:assignment_place", "game/menu/menu_data.h:menu_sprite_set_place", "game/menu/menu_data.h:menu_sprite_animation_frames_table", "game/menu/menu_data.h:MENU_SPRITE_BANK", "game/menu/menu_data.h:MENU_SPRITE_ASSIGNMENT_BYTES", "game/menu/menu_data.h:menu_sprite_table_word"]
+why = "The three branches handle no graphics ($FF), an empty animation span, or the alternate-colour bit. Exhaustive inspection of all 256 sprite indices in each of the three fixed assignment sets finds none of those cases; sprite_graphics_fit refuses any other set. The C loader retains all three operations. Recheck if the assignment or animation tables become editable."
+
+[[safe]]
+name = "menu_accept_the_name"
+runs = "C2E37B-C2E37E"
+depends = ["game/menu/naming.c:menu_naming_keep_the_name", "game/menu/naming.c:someone_has_it", "game/menu/naming.c:same_name", "game/menu/naming.c:menu_naming_keeps_the_named_ones_record", "game/menu/naming.c:menu_naming_is_whole"]
+why = "The separate empty-name rejection cannot follow a successful duplicate check: accepting first clears the named character's first letter, and same_name regards two leading terminators as equal. A trimmed empty name therefore matches that cleared record and is refused by the earlier check. The guard requires the saved record pointer to be the named character's record. Preserve that relationship on retirement; the space-glyph trial executes the earlier refusal and trimming."
+
+[[safe]]
+name = "battle_effect_hit"
+runs = "C1D34C-C1D34E,C1E9E2-C1E9E9,C1EA02-C1EA6D,C1FDC3-C1FDC6,FDB655-FDB67E,FDB6CB-FDB731"
+depends = ["game/battle/effect_work.c:effect_kind_ported", "game/battle/effect_work.c:kind_ready", "game/battle/effect_work.c:hit_target", "game/battle/effect_data.h:EFFECT_STEALS"]
+why = "The conservative hit walk follows its steal call and the steal helper into item delivery. effect_kind_ported refuses EFFECT_STEALS for both hit kinds, so no admitted hit reaches that call or these helper bytes. The independent steal kind remains an implemented operation with its own comparisons; this argument applies only to the hit owner. Preserve the no-steal hit contract as an assertion at retirement."
+
+[[safe]]
+name = "battle_effect_hit"
+runs = "C1F03C-C1F072"
+depends = ["game/battle/effect_modifiers.c:restore_or_cure", "game/battle/effect_modifiers.c:decode", "game/battle/effect_data.h:modifier_record", "game/battle/effect_modifiers.c:MOD_RESTORE_OR_CURE"]
+why = "The full-HP branch of the restore-or-cure modifier requires parameter bit 7. Exhaustive inspection of the fixed USA cartridge table across all 256 byte-sized modifier numbers finds only two records selecting this modifier, neither with that bit. The C operation retains the branch; recheck the argument if modifier resources become editable."
+
+[[safe]]
+name = "battle_main_loop_tail"
+runs = "C1834B-C18352,C18356-C183AD"
+depends = ["game/battle/main_loop.c:battle_pass_ends_plainly", "game/battle/main_loop.c:debugging_switch_on", "game/battle/main_loop.c:end_pass", "game/battle/rules_data.h:battle_debugging_switch"]
+why = "The original's debug-controller check and forced battle-ending arm require a nonzero cartridge debugging switch. battle_pass_ends_plainly refuses that switch before entry; the native battle loop also checks it before end_pass. Preserve this exclusion as a contract on retirement, including if the resource becomes editable. These debug-only instructions are not claimed to execute."
