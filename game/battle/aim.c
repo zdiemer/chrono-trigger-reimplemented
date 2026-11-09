@@ -861,7 +861,10 @@ static bool show_on_the_machine(void *ctx, uint8_t showing)
 {
     Snes *s = ctx;
     s->cpu.a = showing;
-    return battle_run_dc(s, SHOWING_CALL, SHOWING, DC_X | DC_Y | DC_FLAGS, battle_start_action_showing);
+    /* The admitted one-rule search advances its byte cursor from 1 to 4
+     * before selecting the no-target animation, leaving overflow clear. */
+    m_set_flag(s, CPU_FLAG_V, false);
+    return battle_run_dc(s, SHOWING_CALL, SHOWING, DC_X | DC_Y | DC_N | DC_Z | DC_C, battle_start_action_showing);
 }
 
 /* A's high byte goes back clear, as the original's last loads leave it, but

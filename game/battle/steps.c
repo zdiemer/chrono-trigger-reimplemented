@@ -67,7 +67,14 @@ static bool run_the_step(Snes *s, BattleStep step, BattleFrame kept)
     m_set_a8(s, (uint8_t)(step << 1));
     s->cpu.x = s->cpu.a;
     bool ran;
-    if (STEPS[step].entry)
+    if (step == BATTLE_STEP_SET_UP) {
+        /* This was a call-out: keeping the dispatch's registers is still
+         * dispatch work, settled before setup starts at its own rate. */
+        battle_keep(s, kept);
+        ran = battle_run_called(s, 0xC1004A, STEPS[step].routine, STEPS[step].dont_care, STEPS[step].entry);
+        if (ran)
+            battle_stop_keeping(s, kept);
+    } else if (STEPS[step].entry)
         NATIVE_TIME_AS_SIBLING(s, STEPS[step].routine,
                                ran = battle_run_dc_under(s, 0xC1004A, STEPS[step].routine, STEPS[step].dont_care,
                                                          STEPS[step].entry, kept));

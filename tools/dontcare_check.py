@@ -137,7 +137,7 @@ STOPS = ("m_stop_dont_care", "m_stop_at", "m_stop_at_own")
 # runtime wouldn't run it; read as a stop, its arguments at these places.
 # The menus' task loops' waits (game/menu/bridge.h) are stops at their site
 # declaring the named set the wait reads.
-STOP_DELEGATES = {"menu_go_on_in": (1, 3), "menu_continue": (1, 3), "m_hold_at": (1, 2), "m_hold_at_own": (1, 2),
+STOP_DELEGATES = {"menu_go_on_in": (1, 3), "menu_continue": (1, 3), "battle_continue": (1, 3), "m_hold_at": (1, 2), "m_hold_at_own": (1, 2),
                   "field_hands_over_to": (1, 2), "field_enter_after_mode": ("0xC00000", 1), "field_hold_finished_frame": ("0xC0EC60", 1),
                   "menu_wait_in_the_task_loop": (1, "MENU_TASK_WAIT_READS_NOTHING"),
                   "menu_wait_frames_in_the_task_loop": (1, "MENU_TASK_WAIT_READS_THE_FRAMES")}
@@ -187,7 +187,7 @@ BRIDGES = {
                             "run_entry", "field_wait_frame", "field_run_called", "field_run_long_called", "field_hold_next_frame",
                             "field_hands_over_to", "field_hold_finished_frame"),
     "game/battle/bridge.c": ("battle_call", "battle_call_long", "battle_back", "run_entry", "battle_run_dc", "battle_run_long_dc",
-                             "battle_stop_after_call",
+                             "battle_stop_after_call", "battle_continue",
                              "battle_wait_frame", "battle_wait_frames", "battle_wait_line",
                              "battle_run_under", "battle_run_dc_under", "battle_run_long_dc_under", "battle_wait_under",
                              "battle_wait_frames_under", "battle_send_and_wait"),

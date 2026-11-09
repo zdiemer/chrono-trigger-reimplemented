@@ -4285,6 +4285,22 @@ advances. `suspend_test` covers two such calls with work spanning an
 interrupt between them, and still rejects a wrong write after the second
 wait. The ending's previously failing wait replays without mismatches.
 
+The fallback measure keeps an idle pass open across a compared helper:
+the window-slide wait calls its status helper on every pass. A refused,
+unported or handed-back helper still ends that accounting. The graphics
+wait declares its eight-byte return span, and the window wait its six-byte
+span to the checked opening entry, so the first completed pass is covered
+as well. `shadow_test` checks both one-pass and repeated helper waits and
+keeps an unported helper visible.
+
+Setup's former call-out settles the scheduler's kept-register writes at
+the scheduler's rate before entering setup at its own rate. Charging those
+writes as setup changed the protected Golem Twins game-over picture at
+frame 4,800; restoring the boundary recovers that picture and its complete
+outcome fingerprint, without a timing exception. The no-target animation
+handoff likewise keeps the one-rule cursor advance's clear overflow flag;
+6,000 trials cover its one-, two- and three-member input fixtures.
+
 Menu task yields call the scheduler as C after constructing the return
 frame and checking its complete contract. `native_park_after_task_switch`
 parks the caller until its task resumes; the next task is already held.

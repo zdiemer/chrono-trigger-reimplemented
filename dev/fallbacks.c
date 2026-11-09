@@ -1083,6 +1083,11 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
         enter(f, (Frame){ .kind = f->eff.kind, .routine = pc, .port = f->eff.port, .floor = sp });
     f->pending = false;
 
+    /* A checked helper may belong to an idle pass, but an unported helper
+     * does not become covered merely because its caller loops afterward. */
+    if (f->pass.open && sp < f->pass.s && f->frames[f->depth - 1].kind != COVERED)
+        f->pass.open = false;
+
     /* A wait loop's pass ends where its routine returns past the loop's level:
      * left open, the next pass through the same head took back whatever ran
      * between (the routine's tail, its caller's next work). */
@@ -1291,10 +1296,12 @@ static void take_over(Fallbacks *f, uint32_t pc, uint16_t sp, bool nested)
     after_an_rti(f, sp);
     /* the wait over: the loop left to the port at its exit, or returned from
      * as its idle entry returns, to a port */
-    if (f->pass.open && (ran_only_the_loop(&f->pass) || reached_idle_exit(&f->pass, pc, sp)
+    bool idle_helper = f->pass.open && sp < f->pass.s;
+    if (!idle_helper && f->pass.open && (ran_only_the_loop(&f->pass) || reached_idle_exit(&f->pass, pc, sp)
                          || (sp > f->pass.s && returned_as_the_port(&f->pass))))
         take_the_pass_back_as_the_port_s(f);
-    f->pass.open = false;
+    if (!idle_helper)
+        f->pass.open = false;
     leave_finished(f, sp);
     int kept = handler_away(f, sp);
     while (f->depth > kept && !f->frames[f->depth - 1].held && f->frames[f->depth - 1].start <= sp &&
@@ -1394,7 +1401,10 @@ static void on_finished(void *ctx, const NativeEntry *e)
     f->given_up.entry = NULL;
     if (abandoned)
         return;
-    leave_idle_pass(f, f->s->cpu.s);
+    /* A compared helper returning to the idle loop leaves that pass open.
+     * A refusal, call-out or stop still discards it at its own handoff. */
+    if (!f->pass.open || f->s->cpu.s > f->pass.s)
+        leave_idle_pass(f, f->s->cpu.s);
     leave_covered(f, e);
 }
 
