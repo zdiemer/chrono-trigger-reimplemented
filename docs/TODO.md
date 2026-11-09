@@ -2904,8 +2904,8 @@ comparisons.
   arms, and preserve the resulting preconditions as contracts. One battle
   entry still lacks a plain recipe: `battle_call_enemies_in` (42 bytes).
 
-  The discovery union of 612 clean recipes and the reviewed exclusions
-  leaves 1,070 battle bytes in 60 entries and 109 menu bytes in 22 entries.
+  The discovery union of 625 clean recipes and the reviewed exclusions
+  leaves 1,070 battle bytes in 60 entries and 48 menu bytes in 12 entries.
   Older runs in this union guide the remaining cases; they are not fresh
   retirement evidence. Replay the completed recipes against the final tree.
   Preserve the complete sprite/frame/output bounds, startup-built OAM
@@ -2913,8 +2913,8 @@ comparisons.
   language and stack separation when their guards retire. The original
   random-OAM fixture is wholly refused; its valid-lookup counterpart is
   execution evidence. Do not count a refusal or interpreted call-out as
-  evidence for a C implementation. The remaining menu gaps include complete
-  exchange slides and refusal and continuation paths. The new scene helpers
+  evidence for a C implementation. The remaining menu gaps include equipment
+  comparisons, tech selection, and save and menu continuation paths. The new scene helpers
   retain provisional estimates until a movie measures them. Record the reviewed exclusions and
   matched recipes in the unreached ledger before either subsystem retires.
 

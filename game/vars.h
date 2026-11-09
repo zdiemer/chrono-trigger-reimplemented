@@ -3419,7 +3419,8 @@ void set_menu_scratch_mode_rows_left(GameState *g, uint16_t v);
  * last (the members' animations' loop at $FF) */
 uint8_t menu_scratch_exchange_row(const GameState *g);
 void set_menu_scratch_exchange_row(GameState *g, uint8_t v);
-/* The same as a word, as the dimming of who stays counts its rows ($C2:CC4F) */
+/* The same as a word, as the dimming of who stays counts its rows ($C2:CC4F), or the standing
+ * members' loop leaves it after clearing its high byte ($C2:CDE3) */
 uint16_t menu_scratch_exchange_rows_looked_at(const GameState *g);
 void set_menu_scratch_exchange_rows_looked_at(GameState *g, uint16_t v);
 /* The party exchange: a row's place on the tilemap ($C2:C784), its column in the low byte and

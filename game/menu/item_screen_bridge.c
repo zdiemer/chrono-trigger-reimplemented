@@ -172,7 +172,11 @@ static void note_on_the_machine(void *ctx, ItemsNote note, uint8_t value)
     case ITEMS_NOTE_USE_FOUND: ORIGINAL_EFFECT(leave_use_found(s)); break;
     case ITEMS_NOTE_MEMBER_CHOICE_STARTED: ORIGINAL_EFFECT(leave_member_choice_started(s, (ItemUseKind)value)); break;
     case ITEMS_NOTE_HELP_LOADED: ORIGINAL_EFFECT(leave_load(s, menu_use_helps(state_of(s)))); break;
-    case ITEMS_NOTE_HELD_CURSOR_STOPPED: ORIGINAL_EFFECT(menu_leave_load(s, HELD_CURSOR_TASK)); break;
+    case ITEMS_NOTE_HELD_CURSOR_STOPPED:
+        ORIGINAL_EFFECT(menu_leave_load(s, HELD_CURSOR_TASK));
+        /* Clearing the closed window returns with word-wide registers. */
+        menu_set_widths(s, false, false);
+        break;
     case ITEMS_NOTE_FIGURES_NOTED: ORIGINAL_EFFECT(leave_figures_noted(s)); break;
     case ITEMS_NOTE_MEMBER_COMPARED: ORIGINAL_EFFECT(menu_leave_compare(s, menu_use_member(state_of(s)), value)); break;
     case ITEMS_NOTE_MEMBER_LOOKED_AT: ORIGINAL_EFFECT(leave_member_looked_at(s)); break;

@@ -205,6 +205,12 @@ class UnreachedTest(unittest.TestCase):
         self.assertFalse(f.covers({'name': 'caller'}, 'callee'))
         self.assertTrue(f.covers({'name': 'caller', 'covers': ['callee']}, 'callee'))
 
+    def test_recipe_keeps_distinct_notifications_without_doubling_one(self):
+        ready = ['--tick-at', 'C281CA=7E0D01']
+        pressed = ['--tick-at', 'C281CA=7E00F0']
+        self.assertEqual(f.merge_args(ready, pressed), ready + pressed)
+        self.assertEqual(f.merge_args(ready + pressed, ready), ready + pressed)
+
     def test_ledger_requires_an_uncovered_owners_plain_recipe(self):
         with self.assertRaisesRegex(ValueError, 'ledger recipes missing: owner'):
             f.ledger_recipes(['port\tfield\tC01234\towner\thash\t2'], {})

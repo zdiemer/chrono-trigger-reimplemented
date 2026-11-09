@@ -4434,10 +4434,24 @@ compare all 2,000 trials. All forty-two cases are preserved in
 `tools/unreached_cases.toml`; the ordinary aim and music-fade-loop entries
 also have recipes. These close discovery gaps, but the accumulated old
 results are not fresh retirement evidence.
-The corrected call declarations have zero liveness findings, and all 24
+The corrected call declarations have zero liveness findings, and the
 unreached-ledger unit tests pass. The preceding guard-time/menu-return
 commit passes the sampled gate with 84 fresh evidence replays; this step
 also runs the sampled gate before any registry retirement.
+
+Thirteen further fixtures complete the exchange's six-frame slides,
+move off empty exchange columns, refuse empty lists and unaffordable techs,
+draw hurt members, cap merged item stacks and refuse unusable tonics and
+tabs. They compare 23,951 trials; the other 2,049 are guard refusals and
+contribute no coverage. Complete slides exposed a row counter whose high
+byte the original clears; the standing-members helper now writes the
+whole counter word. Closing the item window also restores its original
+16-bit register widths. The scheduler fixtures supply upload completion
+and input notifications without claiming interrupt or video coverage;
+the recipe merger preserves distinct notifications at the same wait.
+These cases leave 48 menu bytes in 12 entries open in the discovery
+inventory. The final retirement ledger still requires a fresh replay of
+the accumulated recipes.
 
 The outcome witnesses below are in the sampled gate. Each names a picture
 and an ordered-place identity protected in both strict and native play;

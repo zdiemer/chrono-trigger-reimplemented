@@ -2311,7 +2311,7 @@
 #define RAM_MENU_SCRATCH_GRID_LETTERS_LEFT 0x7E0000u /* The same: the letters of the row still to write, none once done */
 #define RAM_MENU_SCRATCH_MODE_ROWS_LEFT 0x7E0000u /* The battle mode's screen copying its rows ($C2:E576): the rows still to copy, none once done */
 #define RAM_MENU_SCRATCH_EXCHANGE_ROW 0x7E0000u /* The party exchange's loops over its rows and the party's places: where they are, left past the last (the members' animations' loop at $FF) */
-#define RAM_MENU_SCRATCH_EXCHANGE_ROWS_LOOKED_AT 0x7E0000u /* The same as a word, as the dimming of who stays counts its rows ($C2:CC4F) */
+#define RAM_MENU_SCRATCH_EXCHANGE_ROWS_LOOKED_AT 0x7E0000u /* The same as a word, as the dimming of who stays counts its rows ($C2:CC4F), or the standing members' loop leaves it after clearing its high byte ($C2:CDE3) */
 #define RAM_MENU_SCRATCH_EXCHANGE_TILES 0x7E0000u /* The party exchange: a row's place on the tilemap ($C2:C784), its column in the low byte and its tile row in the high */
 #define RAM_MENU_SCRATCH_EXCHANGE_PLACE_OFFSET 0x7E0002u /* The party exchange: the place its members' sprites stand at, as an offset into the places' tables, left past the last ($C2:CDE3) */
 #define RAM_MENU_SCRATCH_EXCHANGE_DIMMED_TILES 0x7E0002u /* The dimming of who stays: a row's tiles across in the low byte, the dimmed attribute in the high */

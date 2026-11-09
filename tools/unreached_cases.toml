@@ -1196,3 +1196,103 @@ base = "battle_nmi"
 variant = "unreached_pause_press"
 args = ["--keep", "7E0000-7FFFFF", "--buttons", "1000", "--fill", "7E007E-7E007E=01", "--fill", "7E007F-7E007F=00", "--fill", "7ECD02-7ECD02=01", "--fill", "7ECD03-7ECD03=00", "--fill", "7ECD27-7ECD27=00", "--fill", "7ECE16-7ECE16=00"]
 why = "Start is freshly held in a paused ordinary battle, with the coherent captured display state, no demo flag and no pause prohibition. Compare the unpause and latch rather than rejecting random frame-work state."
+
+[[case]]
+base = "menu_move_the_exchange_cursor:unreached_after_sound"
+variant = "unreached_complete_slide_up"
+args = ["--s", "0A7F", "--tick-at", "C281CA=7E0D01", "--fill", "7E006E-7E006E=08", "--fill", "7E00B0-7E00EF=00", "--fill", "7E0DA8-7E0DA8=00", "--fill", "7E0080-7E0080=01", "--fill", "7E0F00-7E0F00=FF", "--fill", "7E005A-7E005A=88", "--fill", "7E0054-7E0054=03"]
+why = "Complete the reserve's six-frame slide with only its task active; supply upload-completion notifications at the scheduler wait. This compares the final slide cleanup without claiming interrupt or video coverage."
+iterations = 2000
+remove = ["--stop-at-call"]
+
+[[case]]
+base = "menu_move_the_exchange_cursor:unreached_after_sound"
+variant = "unreached_complete_slide_down"
+args = ["--s", "0A7F", "--tick-at", "C281CA=7E0D01", "--fill", "7E006E-7E006E=08", "--fill", "7E00B0-7E00EF=00", "--fill", "7E0DA8-7E0DA8=00", "--fill", "7E0080-7E0080=01", "--fill", "7E0F00-7E0F00=FF", "--fill", "7E005A-7E005A=84", "--fill", "7E0054-7E0054=06"]
+why = "Complete the reserve's six-frame slide with only its task active; supply upload-completion notifications at the scheduler wait. This compares the final slide cleanup without claiming interrupt or video coverage."
+iterations = 2000
+remove = ["--stop-at-call"]
+
+[[case]]
+base = "menu_move_the_exchange_cursor:unreached_after_sound"
+variant = "unreached_no_active_free"
+args = ["--fill", "7E0F02-7E0F02=40", "--fill", "7E0F03-7E0F03=41", "--fill", "7E0F04-7E0F04=42", "--fill", "7E0F0B-7E0F0B=00", "--fill", "7E0054-7E0054=00", "--fill", "7E005A-7E005A=01,02", "--fill", "7E0080-7E0080=00"]
+why = "All active members are story-kept; a horizontal move from that column finds a free reserve member."
+iterations = 2000
+
+[[case]]
+base = "menu_move_the_exchange_cursor:unreached_after_sound"
+variant = "unreached_empty_reserve"
+args = ["--fill", "7E0F05-7E0F0A=80", "--fill", "7E0F0C-7E0F0C=00", "--fill", "7E0054-7E0054=03", "--fill", "7E005A-7E005A=01,02", "--fill", "7E0080-7E0080=00"]
+why = "The reserve column is empty; a horizontal move from it finds a free active member."
+iterations = 2000
+
+[[case]]
+base = "menu_choose_shop_slot"
+variant = "unreached_empty_goods"
+args = ["--fill", "7E0FC6-7E0FC6=00", "--fill", "7E0068-7E0068=02", "--fill", "7E0D17-7E0D17=02", "--fill", "7E00F0-7E00F5=00", "--fill", "7E00F0-7E00F0=80", "--fill", "7E2993-7E2993=80", "--fill", "7E2994-7E2994=08", "--fill", "7E0D83-7E0D83=00"]
+why = "Confirm an empty choice list, retaining the base resource bounds; compare the refusal and its return."
+iterations = 2000
+remove = ["--stop-at-call"]
+
+[[case]]
+base = "menu_choose_tech_member"
+variant = "unreached_no_learned_techs"
+args = ["--fill", "7E0F49-7E0F49=00", "--fill", "7E0068-7E0068=02", "--fill", "7E0D17-7E0D17=02", "--fill", "7E00F0-7E00F5=00", "--fill", "7E00F0-7E00F0=80", "--fill", "7E2993-7E2993=80", "--fill", "7E2994-7E2994=08", "--fill", "7E0D83-7E0D83=00"]
+why = "Confirm an empty choice list, retaining the base resource bounds; compare the refusal and its return."
+iterations = 2000
+remove = ["--stop-at-call"]
+
+[[case]]
+base = "menu_point_at_tech_target"
+variant = "unreached_short_of_mp"
+args = ["--fill", "7E2607-7E27E7:50=0000", "--fill", "7E0F4F-7E0F4F=FF"]
+why = "The selected user has zero MP and a nonzero cost, so the target cannot benefit from the tech."
+iterations = 2000
+
+[[case]]
+base = "menu_choose_tech_target"
+variant = "unreached_refuses_without_mp"
+args = ["--fill", "7E0068-7E0068=02", "--fill", "7E0D17-7E0D17=02", "--fill", "7E00F0-7E00F5=00", "--fill", "7E00F0-7E00F0=80", "--fill", "7E2993-7E2993=80", "--fill", "7E2994-7E2994=08", "--fill", "7E0D83-7E0D83=00", "--fill", "7E2607-7E27E7:50=0000", "--fill", "7E0F4F-7E0F4F=FF"]
+why = "Confirm a target when the user has zero MP; compare the refusal without entering the casting wait."
+iterations = 2000
+remove = ["--stop-at-call"]
+
+[[case]]
+base = "menu_sort_party_items"
+variant = "unreached_quantity_cap"
+args = ["--fill", "7E2400-7E24F1=00", "--fill", "7E2400-7E2401=01", "--fill", "7E2500-7E25F1=00", "--fill", "7E2500-7E2501=40"]
+why = "Two stacks of the same item total 128; sorting merges them and clamps the count to 99."
+iterations = 2000
+
+[[case]]
+base = "menu_open_member_window"
+variant = "unreached_hurt_members"
+args = ["--s", "0A7F", "--tick-at", "C281CA=7E0D01", "--fill", "7E006E-7E006E=08", "--fill", "7E00B0-7E00EF=00", "--fill", "7E2603-7E27E3:50=0000"]
+why = "Open the complete window with zero-HP members, supplying upload-completion notifications at the scheduler wait to reach their hurt animations."
+iterations = 2000
+remove = ["--stop-at-call"]
+
+[[case]]
+base = "menu_open_tech_targets"
+variant = "unreached_hurt_members"
+args = ["--s", "0A7F", "--tick-at", "C281CA=7E0D01", "--fill", "7E006E-7E006E=08", "--fill", "7E00B0-7E00EF=00", "--fill", "7E2603-7E27E3:50=0000"]
+why = "Open the complete window with zero-HP members, supplying upload-completion notifications at the scheduler wait to reach their hurt animations."
+iterations = 2000
+remove = ["--stop-at-call"]
+
+[[case]]
+base = "menu_use_restoring_item"
+variant = "unreached_full_mp_refusal"
+args = ["--s", "0A7F", "--tick-at", "C281CA=7E0D01", "--tick-at", "C281CA=7E00F0", "--fill", "7E0068-7E0068=02", "--fill", "7E0D17-7E0D17=02", "--fill", "7E00F0-7E00F5=00", "--fill", "7E00F0-7E00F0=80", "--fill", "7E2993-7E2993=80", "--fill", "7E2994-7E2994=08", "--fill", "7E0D83-7E0D83=00", "--fill", "7E006E-7E006E=08", "--fill", "7E00B0-7E00EF=00", "--fill", "7E00F0-7E00F0=7D", "--fill", "7E0DBD-7E0DBD=40", "--fill", "7E2607-7E27E7:50=0001", "--fill", "7E2609-7E27E9:50=0001"]
+why = "All members have full MP. Scheduler notifications advance the pressed sample through confirm and then back, comparing a refused tonic and the closed member window."
+iterations = 2000
+remove = ["--stop-at-call"]
+
+[[case]]
+base = "menu_use_tab"
+variant = "unreached_capped_figure_refusal"
+args = ["--s", "0A7F", "--tick-at", "C281CA=7E0D01", "--tick-at", "C281CA=7E00F0", "--fill", "7E0068-7E0068=02", "--fill", "7E0D17-7E0D17=02", "--fill", "7E00F0-7E00F5=00", "--fill", "7E00F0-7E00F0=80", "--fill", "7E2993-7E2993=80", "--fill", "7E2994-7E2994=08", "--fill", "7E0D83-7E0D83=00", "--fill", "7E006E-7E006E=08", "--fill", "7E00B0-7E00EF=00", "--fill", "7E00F0-7E00F0=7D", "--fill", "7E260B-7E27EB:50=FF", "--fill", "7E260C-7E27EC:50=FF", "--fill", "7E260D-7E27ED:50=FF", "--fill", "7E260E-7E27EE:50=FF", "--fill", "7E260F-7E27EF:50=FF", "--fill", "7E2610-7E27F0:50=FF", "--fill", "7E2611-7E27F1:50=FF", "--fill", "7E2612-7E27F2:50=FF", "--fill", "7E2613-7E27F3:50=FF", "--fill", "7E2614-7E27F4:50=FF", "--fill", "7E2615-7E27F5:50=FF", "--fill", "7E2616-7E27F6:50=FF"]
+why = "All tab-affected figures are above their caps. Scheduler notifications advance the pressed sample through confirm and then back, comparing the refusal and the closed member window."
+iterations = 2000
+remove = ["--stop-at-call"]

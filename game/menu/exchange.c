@@ -212,7 +212,7 @@ static void stand_the_member(GameState *g, uint8_t r, unsigned place)
  * and their place. */
 static void leave_stood(GameState *g, unsigned r, unsigned place)
 {
-    set_menu_scratch_exchange_row(g, (uint8_t)r);
+    set_menu_scratch_exchange_rows_looked_at(g, (uint8_t)r);
     set_menu_scratch_exchange_place_offset(g, place_offset(place));
 }
 

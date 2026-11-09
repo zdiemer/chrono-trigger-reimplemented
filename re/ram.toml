@@ -9005,7 +9005,7 @@ source = "game/menu/save_screen.c, game/menu/sprites.c, game/menu/tasks.c"
   name = "exchange_rows_looked_at"
   offset = 0
   size = 2
-  meaning = "The same as a word, as the dimming of who stays counts its rows ($C2:CC4F)"
+  meaning = "The same as a word, as the dimming of who stays counts its rows ($C2:CC4F), or the standing members' loop leaves it after clearing its high byte ($C2:CDE3)"
   [[var.field]]
   name = "exchange_tiles"
   offset = 0
