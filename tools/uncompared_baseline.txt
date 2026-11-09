@@ -3,64 +3,6 @@
 # suite) fails on one this file doesn't list. The lines without a reason are the entries past
 # the limit when the check came in: the backlog, each to be given its reason or compared.
 
-battle_apply_damage  # the narrowed battle-rust-tyrano replay interrupts 67 of 123 calls (54.5%); the other 56 compare cleanly, none is abandoned
-battle_build_battlefield_map
-battle_build_bitmap_shapes
-battle_decode_tile_row  # Crono trial recordings: 645 of 1284 row decodes cross an interrupt (50.2%), none abandoned; the remaining 639 compare with zero mismatches
-battle_pause_on_the_message  # Crono trial hand run: all 116 held-message pauses are abandoned with no independent shadow return; the pause runs as C inside battle_show_a_battle_message and needs an isolated comparison (docs/TODO.md, Shadow comparisons in trial recordings)
-battle_carry_out_member_action
-battle_change_battlefield
-battle_clear_battlefield_map
-battle_click_cursor
-battle_dissolve_an_enemy  # run as C by the beaten enemies' pass (battle_see_to_the_beaten_enemies, an enemy's dissolve rule), whose stretch compares it; battle-motherbrain and battle-r-series take it past 100 calls
-battle_dispatch_expired_timers  # Ocean Palace pair: 310 of 615 comparisons interrupted, 305 matched, none mismatched; comparison coverage gap tracked in docs/TODO.md, "Refusals in real play"
-battle_draw_menu_window
-battle_load_effect_graphics  # 03ba3f61 retired the unpacker into this entry: all 102 library calls cross interrupts; uncompared_evidence.py compares 2048 complete randomized loads (six effects, both transfer sizes), zero mismatches or skips, using both wait-counter notifications
-battle_effect_hit
-battle_effect_item_restore  # interrupts leave 99 of 195 item-restoration stretches to the original; the other 96 calls compare and match, with the lair's healing taking the interrupted share just past half; also fuzzed alone with the existing constraints, zero mismatches
-battle_enemy_message_turn  # run as C by the expired timers' dispatch (battle_dispatch_expired_timers) as the Lavos Core's turns come, whose stretch compares it; fuzzed alone
-battle_enemy_set_stats_then_tech_turn  # run as C by the expired timers' dispatch (battle_dispatch_expired_timers) as the Lavos Core's turns come, whose stretch compares it; fuzzed alone
-battle_enemy_takes_turn
-battle_enemy_tech_body
-battle_enemy_tech_turn
-battle_frame_dispatch  # the interrupt parent claims the comparison first; uncompared_evidence.py excludes both battle NMI parents in battle-menu-buttons and independently compares all 1485 dispatches
-battle_frame_update
-battle_frame_work
-battle_give_turn
-battle_hp_loss_timer_ran_out
-battle_let_the_screen_settle  # its loop's head is the entry: the original comes round to it on every pass inside the boss's end, whose stretch compares it; fuzzed alone up to its first wait
-battle_load_action_animation
-battle_load_attack_animation
-battle_load_battlefield
-battle_load_effect_tile_rows
-battle_load_item_animation  # loaded as C inside a battle's step (battle_run_a_step), whose stretch compares it, as the attack's and the tech's loads are; the items the Black Tyrano's and the Guardian's fights use take it past half; fuzzed alone
-battle_load_second_effect_tile_rows
-battle_load_tech_animation
-battle_member_attacks
-battle_play_a_sound  # run as C by the window's opening and the battle's messages (battle_run), whose stretches compare it; called by the original's code, it is compared
-battle_put_the_battlefield_back  # run as C by the frame wait's tail and the display's close (battle_run), whose stretches compare it; fuzzed alone up to its first wait
-battle_run_a_step  # run as C by the ports that ask for steps (battle_take_step: the main loop's, a member's action called off, the party standing down, the knocked-out enemies seen to), whose stretches compare it; called by the original's code, it is compared, and fuzzed alone at each step's call
-battle_run_scripts
-battle_see_off_an_enemy  # run as C by the beaten enemies' pass (battle_see_off_the_beaten_enemies), whose stretch compares it; battle-motherbrain and battle-r-series take it past 100 calls
-battle_see_off_the_beaten_enemies  # run as C by the beaten enemies' pass (battle_see_to_the_beaten_enemies), whose stretch compares it; the 20 of 117 calls made alone are compared; battle-motherbrain and battle-r-series take it past 100 calls
-battle_see_to_the_beaten_enemies  # run as C by the battle's steps (battle_run_a_step) as enemies fall, whose stretch compares it; the 20 of 117 calls made alone are compared; battle-motherbrain and battle-r-series take it past 100 calls
-battle_set_out_the_message  # run as C by the battle's own and an enemy's message (battle_run), whose stretches compare it; fuzzed alone up to its first wait
-battle_set_up_double_techs
-battle_setup_display
-battle_show_a_battle_message  # run as C by the battle's own messages (running away, an item taken, the rewards), whose stretches compare it; battle-motherbrain and battle-r-series take it past 100 calls
-battle_show_action
-battle_show_an_enemy_message  # run as C by the enemies' turns (battle_run_long), whose stretches compare it; fuzzed alone up to setting the message out
-battle_start_action_showing
-battle_strike_the_poses  # run as C by the party's poses at a fight's end (battle_strike_the_poses_as_their_own), whose stretch compares it; battle-motherbrain and battle-r-series take it past 100 calls
-battle_turn_comes  # run as C by the step dispatch as a member's turn comes (battle_run_a_step, from the timers' dispatch), whose stretch compares it; fuzzed alone
-battle_use_item  # interrupts leave 128 of 254 item-workout stretches to the original; the other 126 calls compare and match, with the lair's item use taking the interrupted share just past half; also fuzzed alone with the existing constraints, zero mismatches
-battle_wait_for_the_handler  # run as C by the frame work's wait for the next frame (battle_run), whose stretch compares it; called on its own, it is compared
-battle_wait_for_the_next_frame  # run as C by the waits for some frames and the transfer (battle_run), whose stretches compare it; called on its own, it is compared
-battle_wait_for_the_small_handler  # run as C by the battle's close's waits (battle/closing.c, battle_run), whose stretches compare it; the second batch of movies' battles take it past 100 calls; fuzzed alone
-battle_wait_some_frames  # its own loop comes back to its entry, each pass inside the stretch its first call stands for, which compares them
-battle_wait_step  # run as C by the battle's steps' dispatch (battle_run_a_step, battle_run_dc_under), whose stretches compare it; fuzzed alone up to its first wait
-battle_work_out_enemy_tech  # a long work-out an interrupt falls in, which leaves the call to the original (127 of Spekkio's 133 in battle-tech-sweep-spekkio); the rest are compared, and it is fuzzed alone
-battle_work_out_member_tech
 event_cmd_cast_npc
 event_cmd_fade_music
 event_cmd_play_effect
@@ -105,23 +47,7 @@ field_start_the_battle_song  # second movie batch: 100.0% of 136 calls uncompare
 field_return_from_battle  # second movie batch: 100.0% of 128 calls uncompared (0 interrupted, 128 abandoned), abandoned as above
 field_bring_the_music_back  # second movie batch: 100.0% of 129 calls uncompared (0 interrupted, 129 abandoned), abandoned as above
 field_battle_begins  # second movie batch: 100.0% of 136 calls uncompared (136 interrupted, 0 abandoned), interrupted as above
-battle_victory  # second movie batch: 100.0% of 120 calls uncompared (0 interrupted, 120 abandoned), abandoned as above
-battle_start_from_field  # second movie batch: 100.0% of 136 calls uncompared (136 interrupted, 0 abandoned), interrupted as above
-battle_start_fight  # second movie batch: 100.0% of 136 calls uncompared (136 interrupted, 0 abandoned), interrupted as above
-battle_setup_state  # second movie batch: 100.0% of 136 calls uncompared (136 interrupted, 0 abandoned), interrupted as above
-battle_setup_graphics  # second movie batch: 100.0% of 136 calls uncompared (136 interrupted, 0 abandoned), interrupted as above
-battle_set_up  # second movie batch: 100.0% of 136 calls uncompared (136 interrupted, 0 abandoned), interrupted as above
-battle_set_the_screen_up_for_the_field  # second movie batch: 100.0% of 136 calls uncompared (0 interrupted, 136 abandoned), abandoned as above
-battle_set_the_screen_up  # second movie batch: 100.0% of 136 calls uncompared (0 interrupted, 136 abandoned), abandoned as above
-battle_open_the_window  # second movie batch: 100.0% of 136 calls uncompared (0 interrupted, 136 abandoned), abandoned as above
-battle_main_loop_start  # second movie batch: 100.0% of 136 calls uncompared (136 interrupted, 0 abandoned), interrupted as above
-battle_close_the_window  # second movie batch: 100.0% of 129 calls uncompared (0 interrupted, 129 abandoned), abandoned as above
-battle_close_the_display  # second movie batch: 100.0% of 129 calls uncompared (0 interrupted, 129 abandoned), abandoned as above
 field_after_battle  # second movie batch: 99.2% of 129 calls uncompared (128 interrupted, 0 abandoned), interrupted as above
-battle_build_item_list  # second movie batch: 89.0% of 136 calls uncompared (121 interrupted, 0 abandoned), interrupted as above
-battle_show_the_rewards  # second movie batch: 76.7% of 120 calls uncompared (0 interrupted, 92 abandoned), abandoned as above
-battle_work_out_enemy_attack  # second movie batch: 73.3% of 135 calls uncompared (99 interrupted, 0 abandoned), interrupted as above
-battle_clear_the_turn_work  # second movie batch: 52.9% of 136 calls uncompared (72 interrupted, 0 abandoned), interrupted as above
 field_start_the_objects  # second movie batch: 52.8% of 829 calls uncompared (0 interrupted, 438 abandoned), abandoned as above
 event_run_init_scripts  # second movie batch: 52.8% of 829 calls uncompared (0 interrupted, 438 abandoned), abandoned as above
 

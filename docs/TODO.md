@@ -1050,7 +1050,7 @@ rest waits, is [PLAN.md](PLAN.md).
     past a table's 87 bytes when the band's half height or a wave part's line
     count is out of the game's range: the guards want the window's largest
     half and the parts' largest counts. The same case reaches
-    `field_rebuild_the_line_effects` through `battle_nmi_alternate`; retain
+    `field_rebuild_line_effects` through `battle_nmi_alternate`; retain
     that caller when testing the bounds;
   - the event engine reads the script past its buffer (`$C0:5A93`,
     `$C0:58DE`): the opcode byte before the command's guard, and an opening's
@@ -2595,17 +2595,6 @@ upload already has a timing exception; the Twins exercise 306 of that upload's
 stretches over 1024 clocks. The vblank check finds no moved writes. The caller
 now has a documented `vblank-tail` exception too; retain this sample when
 improving the upload's timing, rather than moving the caller's calibrated mean.
-
-The two Crono trial movies raise four entries past the uncompared-call
-threshold, recorded with reasons in `tools/uncompared_baseline.txt`:
-`battle_pause_on_the_message` abandons all 116 independent comparisons of
-its held-message pause inside `battle_show_a_battle_message`; it needs an
-isolated comparison. Interrupts cut short 266 of 314
-`field_draw_bg1_at_the_load` calls, 132 of 180 `field_draw_bg2_at_the_load`
-calls and 645 of 1284 `battle_decode_tile_row` calls. Their remaining
-48, 48 and 639 comparisons respectively have zero mismatches. The
-interrupted stretches are a validation gap, not additional successful
-comparisons.
 
 ## The native program
 

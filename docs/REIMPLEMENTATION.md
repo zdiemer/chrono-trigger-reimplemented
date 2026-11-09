@@ -4810,6 +4810,11 @@ the 89 retired owned runs (103,130 bytes) as retired, while shipping still
 counts every original instruction. Census and machine-joint reports retain
 the held continuations explicitly.
 
+The isolated frame-dispatch comparison and effect-loader comparisons retire
+with their entries, as do battle's uncompared-call allowances. Their recipes
+and pre-retirement evidence remain in the precondition commit; they are no
+longer runnable comparison entries in the retired build.
+
 The protected outcomes are the battle witnesses in "The menus' teardown":
 `battle-menu-buttons` (commands/targets, picture 3300, place 4),
 `battle-guardian` (Bits/victory, picture 6000, place 6), `battle-magus`
