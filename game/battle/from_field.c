@@ -382,8 +382,7 @@ void battle_return_to_field(Snes *s)
     if (go_back_to_the_field(state_of(s), &on_the_machine, s)) {
         m_return_to_caller_long(s);
         /* The field's caller resumes after the battle's saved registers. */
-        if (s->cpu.pb == 0xC0 && s->cpu.pc == 0x18AB)
-            native_hold(s, HOLD_FIELD_FRAME);
+        native_hold_return(s, HOLD_FIELD_FRAME);
     }
 }
 

@@ -765,6 +765,10 @@ bool native_wait_loop_held(Snes *s, uint32_t head, uint32_t exit, int32_t wake, 
  * suspended allows -- names it too. Nothing in the other modes, where the
  * stop is an ordinary stop. A port calls it through m_hold_at. */
 void native_hold(Snes *s, uint8_t wait);
+/* After a return, hold only if the caller resumes at a continuation of
+ * this wait. The runtime owns that boundary lookup; the callee need not
+ * identify a particular caller by its machine address. */
+void native_hold_return(Snes *s, uint8_t wait);
 /* Whether native_wait_call waits where the port stands rather than making the
  * call (ON mode, in a port the runtime runs): a caller whose wait routine
  * also does something before it waits (puts a value on a port) does that

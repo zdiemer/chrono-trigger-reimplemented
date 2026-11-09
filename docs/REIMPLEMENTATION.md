@@ -4258,6 +4258,11 @@ Battle startup and its return to the field also use checked C handoffs.
 The setup scheduler keeps its registers on the saved stack; after the
 graphics and window waits, a held continuation restores them and resumes
 the main loop. Battle's final return resumes the field's held request.
+The runtime's `native_hold_return` finds the caller's held continuation by
+wait and return boundary. The opening and final-return adapters therefore
+need no caller-address tests. An unrelated return or another wait remains
+unheld; the continuation's complete contract is checked when it resumes.
+The named-hold suspension tests cover both refusals, frame saves and replay.
 Frame waits, VRAM send-and-wait and menu-row drawing call their guarded
 entries directly, preserving the call-out's settling boundaries. The
 three-movie census (`menus-sweep`, `menus-epoch`, `battle-menu-buttons`)

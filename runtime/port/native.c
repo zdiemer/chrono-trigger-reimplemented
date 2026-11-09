@@ -3765,6 +3765,12 @@ void native_hold(Snes *s, uint8_t wait)
     s->held_wait_s = s->cpu.s;
 }
 
+void native_hold_return(Snes *s, uint8_t wait)
+{
+    if (active_runtime && the_wait_goes_on_at(active_runtime, wait, cpu_pc24(&s->cpu)))
+        native_hold(s, wait);
+}
+
 void native_call_poison_reset(void)
 {
     poisoning = false;

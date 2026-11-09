@@ -300,8 +300,7 @@ void battle_party_faces_the_enemies(Snes *s)
     if (battle_strike_the_poses_as_their_own(s)) {
         m_rts(s);
         /* Setup resumes through the scheduler's saved-register frame. */
-        if (s->cpu.pb == 0xC1 && s->cpu.pc == 0x004D)
-            native_hold(s, HOLD_BATTLE_WINDOW);
+        native_hold_return(s, HOLD_BATTLE_WINDOW);
     }
 }
 

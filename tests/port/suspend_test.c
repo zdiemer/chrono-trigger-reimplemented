@@ -587,7 +587,18 @@ static const Code hold_code[] = {
 static void hold_start(Snes *s)
 {
     m_write8(s, FRAME_FLAG, 0);
-    m_hold_at(s, MAIN_LOOP_HEAD, DC_A | DC_FLAGS, HOLD_TEST_LOOP);
+    m_stop_at(s, MAIN_LOOP_HEAD, DC_A | DC_FLAGS);
+    native_hold_return(s, HOLD_TEST_LOOP);
+}
+
+static void hold_first_start(Snes *s)
+{
+    native_hold_return(s, HOLD_TEST_LOOP);
+    CHECK(s->held_wait == 0, "an unrelated return address named a held continuation");
+    m_stop_at(s, MAIN_LOOP_HEAD, DC_A | DC_FLAGS);
+    native_hold_return(s, HOLD_TEST_LOOP + 1);
+    CHECK(s->held_wait == 0, "a return named a continuation of another wait");
+    hold_start(s);
 }
 
 /* One look of the loop: the frame's work where the handler has asked for it.
@@ -608,7 +619,7 @@ static NativeRuntime *hold_runtime(NativeMode mode)
     /* The live loop sorts after twenty unused holds, beyond the former
      * fixed limit of sixteen continuations. */
     static NativeEntry table[22];
-    table[0] = (NativeEntry){ .addr = 0x008100, .name = "hold_start", .fn = hold_start, .p_mask = 0x30,
+    table[0] = (NativeEntry){ .addr = 0x008100, .name = "hold_start", .fn = hold_first_start, .p_mask = 0x30,
                               .p_value = P_M8_X16, .cost_milli = 1000 };
     table[1] = (NativeEntry){ .addr = MAIN_LOOP_HEAD, .name = "hold_look", .fn = hold_look, .p_mask = 0x20,
                               .p_value = 0x20, .idle = true, .hold = HOLD_TEST_LOOP };

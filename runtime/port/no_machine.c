@@ -109,6 +109,7 @@ void native_own_dont_care_at_stop(Snes *s, uint32_t at, uint16_t dont_care)
     no_machine("native_own_dont_care_at_stop");
 }
 void native_hold(Snes *s, uint8_t wait) { (void)s, (void)wait; no_machine("native_hold"); }
+void native_hold_return(Snes *s, uint8_t wait) { (void)s, (void)wait; no_machine("native_hold_return"); }
 bool native_runs_retired_as_c(const Snes *s)
 {
     (void)s;
