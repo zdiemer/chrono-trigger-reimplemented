@@ -4321,6 +4321,11 @@ comparison engine treats as a return. The whole-wait entry still compares
 the complete countdown. Focused replays of `menus-sweep`, `menus-epoch`,
 `events-epoch-lavos` and `field-65m-bc-dactyl-flight` compare all 18 whole
 waits with no mismatch; their continuation mailbox stretches also match.
+The map-to-menu HDMA writes now belong to `overworld_menu_fade_finished`.
+Their two shipping lines remain 53 and 161, against reference lines 54 and
+159 in `field-65m-bc-dactyl-flight` and `menus-sweep`. The existing video
+exception moves from `overworld_next_frame` to that continuation with the
+same sites, counts and lines; the held wait introduces no further allowance.
 
 Eight native-shape `menus-sweep` checkpoints (frames 1,800, 2,100, 2,400,
 3,000, 3,900, 4,800, 5,400 and 6,000) now save without a suspended routine
