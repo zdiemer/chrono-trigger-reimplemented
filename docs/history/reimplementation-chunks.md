@@ -9080,8 +9080,8 @@ million.
 
 ## Phase 4a, the native frame: the field's first start with nothing interpreted (`$C0:7084`, `$C0:7F7E`, `$C0:56D4`-`$C0:5D6D`, `$C0:595C`, `$C0:00BA`-`$C0:00BE`, `$C0:0CC0`, `$C0:3FD6`, `$C0:2643`, `$FD:DE98`-`$FD:E021`, `$FD:FFEE`-`$FD:FFFF`)
 
-The first chunk of the native frame's stream (PLAN.md, Phase 4a, "The native
-frame"), after the field's stream's time warp (history file, "Phase 3, field
+The first chunk of the native frame's stream (the plan's native frame item, since
+finished), after the field's stream's time warp (history file, "Phase 3, field
 graphics: the time warp").
 
 **How it was chosen.** By the strict player: `ct_play --generated off
@@ -13233,7 +13233,8 @@ driver, as `ct_play --interpreted stop` runs it) goes on from frame 3449 to
 frame 3779, and stops at `$CD:0000`, the jump stub into the battle screen's
 setup, as the attract's battle starts; over 20,000 frames the interpreted
 list falls from 513 addresses to 204, none the field's or bank `$FD`'s
-(PLAN.md, "The native frame"). The fallback measure's reference play went
+(the plan's native frame item, since
+finished). The fallback measure's reference play went
 from 23.24 M instructions to 22.83 M (the turns' work 0.24 M, the staging 0.15
 M); the shipping mode's over the movies from 57.04 M to 56.88 M, every movie
 that reaches the new entries lower. Over the routes it went from 10.24 M to

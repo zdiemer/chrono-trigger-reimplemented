@@ -1185,7 +1185,9 @@ rest waits, is [PLAN.md](PLAN.md).
   address (name the block in the map).
 
 - **What the attract refusals' review left.** Name the wrapped camera-gap
-  arithmetic in `race_projection.c` for the bike positions it computes.
+  arithmetic in `race_projection.c` for the bike positions it computes, and
+  drop `horizon_gap`'s `keep_divisor(g, last_divisor(g))`, which writes back
+  what the cell already holds.
   Establish readers for `perspective.c`'s line-above-screen cells before
   moving storage; the `$7F` cells need `reuses` in the map. `native.c` sorts
   same-address entries with unstable `qsort`: break ties by table index or

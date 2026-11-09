@@ -571,4 +571,3 @@ the sign-refresh cells, and the warp continuations do not change the circle
 builder or its radius selection. Each refreshed row records that review;
 the merge gate replays the unchanged fuzz byte obligations against the new
 implementation fingerprints.
-
