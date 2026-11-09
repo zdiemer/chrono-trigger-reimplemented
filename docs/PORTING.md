@@ -947,6 +947,15 @@ After the unpacker's teardown made all 102 library calls cross interrupts,
 `uncompared_evidence.py` supplies two seeds of 1,024 complete comparisons
 instead, requiring zero skips as well as zero mismatches. The sampled gate
 runs them for the Beyond Time ending; `--evidence` always runs them.
+
+`--compare-entry BBAAAA` compares a reviewed original alias against the
+named routine's C implementation. It retains that routine's complete guard,
+register contract and comparison rules; only the entry address changes.
+Use it when several original bodies implement one C operation, and identify
+that relationship in the recipe. The battle condition table's two aliases
+of `always` each compare 1,564 admitted trials with no mismatches; their
+436 guard refusals contribute no coverage. The coverage records the alias
+actually executed, not the registered address.
 This does not run vblank, the objects, audio or a video frame; use it only
 where the counter notification is the dependency under test. Up to 64
 `--keep`/`--fill` areas can describe a trial's state.

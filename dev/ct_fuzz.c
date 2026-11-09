@@ -204,6 +204,7 @@ int main(int argc, char **argv)
     const char *rom_path = NULL, *state_path = NULL, *routine = NULL;
     const char *coverage_path = NULL;
     bool apu_loopback = false, with_registry = false;
+    uint32_t compare_entry = 0;
     int buttons = -1;
     int data_bank = -1, direct_page = -1, stack = -1, m_width = 0, x_width = 0;
     FuzzOptions o;
@@ -250,6 +251,13 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--load-state")) state_path = v;
         else if (!strcmp(a, "--routine")) routine = v;
         else if (!strcmp(a, "--coverage")) coverage_path = v;
+        else if (!strcmp(a, "--compare-entry")) {
+            unsigned pc;
+            char extra;
+            if (sscanf(v, "%x%c", &pc, &extra) != 1 || !pc || pc > 0xFFFFFF)
+                goto usage;
+            compare_entry = pc;
+        }
         else if (!strcmp(a, "--vblank-at")) {
             unsigned pc;
             char extra;
@@ -318,6 +326,13 @@ int main(int argc, char **argv)
     if (!e) {
         fprintf(stderr, "no routine %s\n", routine);
         return 2;
+    }
+    /* Compare a reviewed original alias with the same C implementation.
+     * All of the registered entry's guards and preconditions still apply. */
+    NativeEntry compared = *e;
+    if (compare_entry) {
+        compared.addr = compare_entry;
+        e = &compared;
     }
 
     size_t rom_len;
@@ -406,7 +421,7 @@ usage:
                     "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
                     "  [--stop-at-call BBAAAA]... [--with-registry]\n"
                     "  [--decimal] [--details N] [--coverage out.txt] [--tick-at PC=WRAM]... [--clear-at PC=WRAM]...\n"
-                    "  [--vblank-at PC] [--buttons HHHH]\n"
+                    "  [--vblank-at PC] [--buttons HHHH] [--compare-entry BBAAAA]\n"
                     "  AREA: BBAAAA-BBAAAA, or [BBAAAA]+OFF,COUNT at the pointer in a cell ([X], [Y] or [D]: in a "
                     "register; BB:[...]: in bank BB)\n");
     return 2;
