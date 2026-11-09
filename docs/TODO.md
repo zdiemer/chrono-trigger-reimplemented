@@ -276,15 +276,6 @@ rest waits, is [PLAN.md](PLAN.md).
   other frame. Shadow mode compares the runtime with itself; the oracle's
   traces of the Beyond Time ending would show it.
 
-- **The race's pictures' mirroring has no entry of its own** (`$7E:3ECD`,
-  which runs `$7E:3ED3` twice, and `$7E:3EB7`). The race's setup does it as
-  C (`scene/race.c`, `mirror_crono`, `scene_mirror_rows`), so the shipping mode
-  never runs them; but the reference play sets the attract demo's race up
-  inside a stretch whose comparison is set aside (`$7E:3ECD`-`$7E:3F13`), and
-  there the original runs them: 0.13 M of the reference play's instructions
-  over the 42 movies (`$7E:3ED3` 98,672 of them; tools/fallback_baseline.txt).
-  Register them as entries with `scene_mirror_rows` behind them, and the
-  reference play compares them there instead.
 - **The attract sequence's credit pages mismatch in fuzzing.** Fuzzing the
   scene program's start (`scene_program_start`, `scene_setup_and_first_frame`,
   seed 1, tools/fuzz_routines.toml) mismatches 11 and 39 of 375 states, all of
@@ -379,10 +370,9 @@ rest waits, is [PLAN.md](PLAN.md).
   `92026499` measures +2.92%, probably the curtain sweep's own drift in the
   stretch. Re-measure and rewrite the reason.
 - **What the whole-library fixes' review left** (not blocking):
-  - The uncompared baseline's scene lines aren't tied to the
-    evidence that clears them on an ordinary run: `endings-bucket-lavos` is
-    checked only under `--evidence`, and `tools/uncompared_evidence.py`'s
-    `compared()` reads only the first row for a name.
+  - `tools/uncompared_evidence.py`'s `compared()` reads only the first row
+    for a name; aggregate duplicate names when judging the remaining
+    subsystems' isolated comparisons.
   - `dev/fallbacks.c`: a nested or yielded invocation can certify the outer
     one and cancel its open count; count each invocation by its own frame.
   - `ct_dev`: a halt during the comparison tail doesn't set the exit code.
@@ -1243,26 +1233,14 @@ rest waits, is [PLAN.md](PLAN.md).
   named as a period; `program.c`'s title special case is a mode test where
   the table wants a column, and `MODE_ENDING_TOO`/`MODE_ENDING_AGAIN` don't
   say what differs.
-- **What the boot path's review left** (none rated translation): the
-  setups still run under the dispatch's return (`scene/program.c`,
-  `scene_bridge_enter`), because each calls the original's code (a script's
-  first step, the sound driver) and shadow mode pairs those calls by the
-  stack they are made at, and the title's ends in the original's wait for its
-  song (`$7E:5AAA`); with the wait as C the frame goes. The title's setup still makes its unpacks and
-  first script step as calls through the machine to ports (`scene_run`), and
-  `run_the_first_script` keeps D and DB on the machine stack; the race's does
-  the same (`m_jsr_dc`). `math.c`'s
-  `scene_divide32` takes a carry only a leftover uses, and
-  `scene_sine_second_half` exports a carry; `tile_animation.c` threads
+- **What the boot path's review left** (none rated translation):
+  `tile_animation.c` threads
   `LoadLeft` through `load_slot` for scaffolding; `location.c`'s built-in
   command copies by raw offsets and its script loading sits in the `Snes *`
   entry; `title.c`'s guards re-run the logic to predict exact multiplies;
   `scene_unpack_resource`'s timing reason blames the unpacker's error, which
   is 6% on its own line, where the worst is 82% of the mean (give the worst
-  call's size). The task lists' runner still calls a task it has no C for
-  through the machine, and finds one that is done by where it stopped
-  (`run_the_original_task`): the race's and the endings' tasks are entries
-  of their own, not rows yet.
+  call's size).
 
 - **What the time warp's review left** (none rated translation):
   `WarpKind` carries ROM columns (`frame_entry`, `window_site`) beside the
@@ -2827,31 +2805,25 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Scene continuation boundaries
 
-- **Scene divisor search outside its terminating domain.** The entry at
-  `$C3:0E29` refuses a dividend, initial quotient and limit for which none
-  of its 256 divisors succeeds. The original loops forever there; seed-1
-  fuzz rejects one of 2,000 cases. Real-play guards must remain zero.
+- **Clean the retired scene entries from the uncompared ledger.**
+  `tools/uncompared_baseline.txt` still lists obsolete scene comparisons,
+  including `scene_race_scale_pictures` and the bitmap routines. Reconcile
+  those rows with the retirement and retain any evidence still needed by
+  the held continuations.
 
-- **Perspective guards outside the visible geometry.** Random race and
-  flight horizons can request lines outside the 224-line tables. Their
-  camera-check entries now refuse those inputs before saving the camera,
-  instead of stopping after changing it. Unchanged cameras and flat flight
-  views remain accepted; bounded and unchanged fixtures compare fully.
+- **Remove orphaned scene wrapper comments and constants.** Deleted entry
+  wrappers left their explanatory comments and constants behind, including
+  `boot.c`'s `STATUS_BITS` and the `$C3:0530`/`$C3:0538` wait-entry comments.
+  Audit `game/scene/` for these remnants and remove only what no remaining
+  code or contract uses.
 
-- **Bitmap requests outside the scaler's bank.** Whole-picture entry guards
-  reject requests whose later rows cross the bank, before changing any
-  output. The broad start fixture rejects 1,966/2,000 random states; seven
-  more exceed the fuzz budget. Bounded whole pictures compare fully. The caller bridges preflight
-  their fixed-size picture requests before setup.
-
-- **The race upload wait has two caller instances.** After the bitmap is
-  drawn in C, `scene_bridge_scale_picture` still stops at `$7E:5211`.
-  Continuing both racers through `tm_wait_for_handlers` makes shadow mode
-  compare Johnny's wait against Crono's earlier satisfied wait: the same
-  address and stack depth, with different live caller return addresses.
-  Race-won reports `WRAM[001F] original 04 native 03`; bounded individual
-  racer pictures pass. The wait needs caller-instance matching before this
-  boundary can leave. The Epoch and ending gathering paths need no such wait.
+- **Remove the remaining menu compatibility scratch after the menus retire.**
+  The scene engine retains five `ORIGINAL_EFFECT` sites in `circle.c` and
+  four in `curtain.c`, because gated menu callers still compare their iris
+  and curtain work. Keep the called machine forms' contracts until their
+  callers no longer need the legacy stack/register interface. The input
+  domains and unreached proofs are recorded in REIMPLEMENTATION.md,
+  "The scene engine's teardown", and history/scene-unreached.tsv.
 
 - **The time warp's set-up is owed with a port suspended.** The trip's
   set-up draws the light a pixel at a time, about 110 frames of the
@@ -2863,88 +2835,7 @@ rest waits, is [PLAN.md](PLAN.md).
   A held wait at the screen's wait, the set-up's time paid as its
   continuation's, would give them one.
 
-- **Boot credit pages outside the five-page table.** The page index at
-  `$0382` survives startup. Random values above five read unrelated program
-  bytes as text and differ in VRAM/OAM; boot now refuses those states before
-  mutation. Valid page indices and all sixteen modes are fuzzed separately.
-
-- **The race's scaling from the scene program's main loop.** The program is
-  retired (REIMPLEMENTATION.md, "The scene program's teardown"), and its main
-  loop's pass calls the endings', the Epoch's and the turned map's routines as
-  C, but the race's (`$7E:51D1`) as the original calls it, through the
-  machine: between its racers the routine waits for the last racer's tiles to
-  be sent (`$7E:5211`), and its C (`scene_race_scale_pictures`, which
-  `ct_native` runs) waits there with `tm_wait_frame`, which on the machine
-  calls the address it is given as a routine. `$7E:5211` isn't one, so as C
-  on the machine the race went wrong at once (tried: the attract demo's race
-  desynchronized at frame 8,360). An in-place wait on the race's pending
-  tiles (the kind the warp's screen wait uses, `NATIVE_WAKE_VBLANK_FLAG`), or
-  the race's routine held as a wait of its own, would let the pass call it as
-  C; until then the pass's call stays out over the race's waits, a frame end
-  with a routine suspended.
-
-- **What the retired scene program still leaves to the cartridge.** Its
-  start goes on as C only while what it calls comes back to it. Three paths
-  return to the program's first frame (`$7E:300D`) through the machine, where
-  the cartridge's first frame and loop then run, the loop's head found by
-  address: a setup whose port stops on the machine (`set_the_scene_up`, `done`
-  false), the title's song wait not coming back to the dispatch's return, and
-  a mode with no setup port, called through the program's table. None is
-  reached over the gate's sample (the census enters `$7E:300D` 0 times), but
-  each wants the first frame as a continuation of its own, or the setups'
-  stops made calls. Likewise the main loop's pass, where the race's scaling
-  call (the original's, above) doesn't come back to it (`m_came_back` false),
-  doesn't hold the wait again, and the machine goes on in the cartridge's
-  loop. And the fallback baseline's `7E:----` line was set over the gate's
-  sample at the teardown: the batched library run takes the library's count.
-
-- **Two scene interpreter handbacks retain machine contracts.** All seven
-  store/task/video command families have C implementations, but the dispatch
-  handback remains for stores outside low RAM, unsupported video encodings,
-  and task searches without the terminating word. These need explicit bus
-  services or validation of an entire script turn before mutation. The
-  `$C3:0C5C` handback covers arbitrary script callees returning with a page,
-  bank or width/mode context the typed channel interpreter cannot use.
-  Sound commands now continue directly because their interface preserves
-  that context; arbitrary callees still need a declared return contract.
-
 ## Shadow comparison gaps
-
-The broad `scene_program_start` fuzz fixture has 11 VRAM mismatches in 384
-comparisons, with 16 call-out budget skips, identical in the pre-review and
-review builds at seed 1 (400 iterations, modes 0-15). Isolate the setup mode
-and its VRAM-read state; the first reported differences are in the copied
-map at VRAM 0004 and 6018. The focused title refusal fixture and narrowed
-startup movies pass. This pre-existing failure is not a successful fuzz
-receipt and must remain separate from the 29 clean review fixtures.
-
-The scene series still needs a complete passing sampled-gate receipt after
-its final corrections. Its one full run passed all 37 shadow movies and
-56 shipping/native-shape routes, but ended with timing, fallback,
-uncompared, effects and evidence failures. The first four now pass focused
-checks or an audit of that run's logs. The evidence runner's corrected
-process budget passes all 84 movies, ending `dc_evidence: OK`. These checks
-do not constitute a fresh complete gate.
-
-The scene's whole-picture scalers need comparisons that survive interrupts.
-In the 37-movie scene sample, both race-picture entries have all 1,142 calls
-interrupted; each bitmap start, row and sampling entry has 4,310 interrupted
-comparisons. The bitmap entries still have matching comparisons (1,846 at
-the start and row, 850 at the sampler). Bounded isolated fuzzing compares
-6,000 race pictures and 8,027 bitmap cases without a mismatch, but does not
-close this movie coverage gap. The review's race-won replay independently
-compares all 3,524 NMI handlers and 3,524 frame-work calls; this checks the
-interrupt work, but not its interaction with native bitmap work interrupted
-mid-picture. Add resumable comparison checkpoints or a synchronized interrupt
-replay before removing the five bitmap/race exemptions. Keep that distinction
-when extending the race upload-wait comparison described above.
-
-Held sound waits have independent shadow comparisons with interrupts
-enabled: the attract opening compares the complete music wait and ten retry
-sends. Their combined-run exemptions remain because enclosing C loops own
-the waits (the time warp's are no longer compared: REIMPLEMENTATION.md,
-"The time warp's teardown"). The merge coordinator runs
-the sampled gate after these review fixes; it was not rerun in this review.
 
 The early-boss shadow runs also expose a comparison gap in the held-message
 path: `battle_pause_on_the_message` has 168 calls, all abandoned, when run
@@ -3418,7 +3309,7 @@ list, by kind, is what `game/` still asks of one.
   warp's handlers; a handler the table doesn't name is still an entry on the
   machine's stack (it saves the interrupted registers, moves the page and the
   data bank, calls out).
-- **What the scene program still hands the machine as the program runs it.**
+- **The scene program's remaining host interfaces.**
   Every mode's setup a recording reaches is C (`scene/program.c`'s
   `c_setups`), and so are the story scenes' tasks, the scripts' routines and
   the main loop's scalings (history/reimplementation-chunks.md, "The native
@@ -3435,8 +3326,9 @@ list, by kind, is what `game/` still asks of one.
   blanked (`$7E:5476`, `$7E:5AEB`) and the credits' map blanked (`$7E:90BD`)
   are `vid_snes_copy` escapes the host counts: a send of one byte of each
   VRAM word, from a cursor or a fixed byte, which the video service has no
-  call for yet. The census (REIMPLEMENTATION.md, "The census") counts the
-  rest: 259 entries the machine still enters, 21.1 M times over the library.
+  call for yet. The scene teardown's census finds no ordinary scene entry
+  entered by the machine; these host gaps are separate from its retired
+  byte-exact comparisons.
 - **A meaningful native run of mode 5.** Its setup, map and figure animation
   are C and every new entry passes fuzzing. No known story path starts it.
   A forced start directly after boot reaches the figure task at frame 41,
@@ -4170,17 +4062,8 @@ waits on M5 rather than on a backend.
   line holds it to), so make it a checked precondition of `unpack_stream`, a
   native failure where a stream isn't the cartridge's, as a retired
   subsystem's guards are assertions.
-- **The race's and the endings' setups call through the machine.** The
-  program's unpacker by resource (`$7E:3691`) and a channel's first script
-  step (`$7E:3749`) are ports now (`scene/boot.c`, `scene/script.c`), which
-  the title's setup runs as C (`scene_run`), but the race's and the endings'
-  setups still make them calls on the machine (`m_jsr_dc`), which the registry
-  answers with the ports, and the race's curtain step the same
-  (`$C3:000E`, scene/curtain.c). Run them as C
-  and recalibrate the setups' time; then the setup's machine (the frames and
-  the data bank and direct page it keeps on the stack around them,
-  `scene/bridge.c`) can come down. The setup's mirroring of the racers'
-  pictures runs long loops of its own, which is why it carries timing
+- **Separate the setups' mirroring time.** The race setup's mirroring of the
+  racers' pictures runs long loops of its own, which is why it carries timing
   exceptions; the arrangers (`$7E:3EB7`, `$7E:3ED3`, the latter the ending's
   too) timed as their own routines would fit it better.
 
@@ -4239,21 +4122,13 @@ waits on M5 rather than on a backend.
   `work_out_the_turn_task`: `set_scene_turn_matrix(g, 0..3, ...)`): the four
   entries want names (which is the cosine, which the sine and its negation),
   in the RAM map or an enum, as the turn's position and centre have theirs.
-- **The palace's curtain calls its step through the machine**
-  (`rising_palace.c`, `scene_sweep_the_palace_curtain`): `$C3:01E4` is the
-  registered `scene_sweep_the_curtain`, reached with `m_jsl_dc` so that its
-  comparison stays its own, and `CURTAIN_STEP` is defined again in
-  `curtain.c` (`scene_curtain_jump`). One definition in `scene.h`, and the
-  call as C once the step no longer needs a comparison of its own.
+- **Share the curtain step's identity.** `CURTAIN_STEP` for `$C3:01E4` is
+  defined in both `rising_palace.c` and `curtain.c`; one definition in
+  `scene.h` would keep the timing and checked call sites together.
 - **The credit pages read byte cells through word accessors**
   (`credit_pages.c`: `next_page`'s `scene_credits_page(g) & 0x00FF`,
   `write_the_jobs`'s `scene_sprite_offset_x(g) & 0xFF00`): narrow the
   declarations in `re/ram.toml` so the masks leave the port.
-- **`scene_find_divisor` on a bank that isn't low RAM.** Its limit is read
-  through the data bank, and its guard now leaves the rare call whose data bank
-  doesn't reach low RAM (one in some runs of `events-jetbike-race`) to the
-  original, since the cell it reads there isn't the scene's. Which caller makes
-  it, and what that cell is, isn't known.
 - **The RAM map can't say two variables alias.** `ram_map.py check` rejects
   overlap inside a subsystem, but the ROM overlaps: the map planes' last column
   word is the first plane's row word (`$7E:00E7`), which had to be modelled as

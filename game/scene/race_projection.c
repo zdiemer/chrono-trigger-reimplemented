@@ -25,10 +25,10 @@
  * the placing hands on" works them out from the values the sums before used.
  * The sums whose carry is the same wherever the horizon is above the plane's
  * top are plain arithmetic, and the entry's guard keeps the horizon there. */
+#include "charge.h"
 #include "scene/race.h"
 
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -199,11 +199,6 @@ static uint16_t size_at(const GameState *g, uint16_t line)
 
 /* The divider as the program leaves it: the height divided by the line, stored
  * as a word, its high byte in the next register. */
-static void leave_divider(GameState *g, uint16_t line)
-{
-    hw_set_dividend(g, (uint16_t)(camera_height(g) << 8));
-    hw_divide_by_word(g, line);
-}
 
 /* Half the size, but no less than $40: what the picture's height and width are
  * worked out over. */
@@ -419,15 +414,6 @@ static void hand_over_working_cells(GameState *g, Racer last, uint16_t gap)
     set_scene_call_race_gap(g, own(), gap);
 }
 
-/* The distance the last bike placed was looked up at, which the program
- * leaves in Y: the frame task after the placing, the drawing, hands Y on where
- * it draws nothing (scene_race_draw), and the task list passes it to the next. */
-static struct {
-    uint8_t distance;
-} last_lookup;
-
-static void note_lookup(uint16_t distance) { last_lookup.distance = (uint8_t)distance; }
-
 /* A bike right at the camera (nothing of it ahead) has no distance to look a
  * divisor up for, and stands where the bike placed before it this frame does
  * (the guard turns away a first bike at the camera). Returns the horizon's gap
@@ -443,12 +429,12 @@ static uint16_t place_one(GameState *g, Places p, Racer r)
         keep_divisor(g, divisor);
     } else {
         uint16_t distance = distance_of(g, at.down, u);
-        ORIGINAL_EFFECT(note_lookup(distance));
         divisor = divisor_for(g, distance);
     }
     uint16_t gap = horizon_gap(g, at_the_camera && u.farther);
     uint16_t line = line_at(g, divisor, gap);
-    ORIGINAL_EFFECT(leave_divider(g, line));
+    charge_legacy_accesses(g, 2);
+    charge_legacy_io_accesses(g, 4);
     if (r == RACER_CRONO)
         place_crono(g, at, line, gap);
     else
@@ -570,16 +556,9 @@ TaskEnd scene_race_place_bikes(GameState *g, Platform *pf, unsigned slot)
  * last bike's last edge (Crono's right, Johnny's bottom; Johnny's mark where he
  * is gone and would have come last), Y the distance the last bike placed was
  * looked up at. */
-static void leave_registers(Snes *s, Racer would_be_last)
+static void charge_bike_result(GameState *g, Racer last)
 {
-    GameState *g = state_of(s);
-    if (would_be_last == RACER_JOHNNY && !johnny_shown(g))
-        s->cpu.a = scene_race_johnny_gone(g);
-    else if (would_be_last == RACER_CRONO)
-        s->cpu.a = scene_race_racers_right(g, RACER_CRONO);
-    else
-        s->cpu.a = scene_race_racers_bottom(g, RACER_JOHNNY);
-    s->cpu.y = last_lookup.distance;
+    charge_legacy_accesses(g, last == RACER_JOHNNY ? 4 : 2);
 }
 
 /* A frame task entered with 16-bit A and index registers and the carry clear
@@ -589,6 +568,6 @@ void scene_race_place_bikes_entry(Snes *s)
     GameState *g = state_of(s);
     Racer would_be_last = second_placed(places_of(g));
     place_bikes(g);
-    ORIGINAL_EFFECT(leave_registers(s, would_be_last));
+    charge_bike_result(state_of(s), would_be_last);
     m_rts(s);
 }

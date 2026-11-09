@@ -157,16 +157,12 @@ a process budget.
 original code in place of a hand port in the shipping mode, so the order is no
 longer picked by native coverage but by what each subsystem's teardown needs
 (Phase 4a, "The native program, and the registry taken down", step 3). Sound,
-data, core's services, the time warp, the overworld and the scene program are
+data, core's services, the time warp, the overworld and the scene engine are
 retired. In order:
 
 1. **The field and the events, then the battle and the menus**: the largest,
    each needing its unreached code checked and its recorded outcomes over the
    library first ("The code no movie reaches", "Validation after the teardown").
-   The rest of the scene engine (its setups, frame's work and scenes' routines,
-   `game/scene/`) beside them, the race's scaling first called as C from the
-   program's main loop (TODO.md, "The race's scaling from the scene program's
-   main loop").
 2. **`ct_native`'s time model** alongside, so the native program plays as the
    original does: the loads and the battle's setup it charges wrongly first.
 
@@ -233,7 +229,7 @@ where recalibration and baseline updates come from; "every movie" below is every
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**0 of 317 files is left on the backlog**: the last, `data/decompress.c`, is
+**0 of 318 files is left on the backlog**: the last, `data/decompress.c`, is
 rewritten (the unpacker as a function of the game's state, which the native
 program calls), and `tools/portstyle_baseline.txt` lists none. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
@@ -533,12 +529,11 @@ dive (modes 4 and 6; history file, chunks 9 and 10). The attract sequence's two 
 palace rising"). The remaining panorama (`$7E:8A01`-`$7E:8B51`), turning
 map and animated figures are now C, validated by differential fuzzing;
 the sampled movies do not reach those unused modes. Both scene subsystems
-report 0% left. The static walk still lists 29 bytes at `$7E:366C`, already
-implemented by the paired perspective builder, because it misses the
-patched branch. **Next** are the five scene/warp stop boundaries described
-in TODO: shared race-wait instances, interrupted main-loop carry, warp
-HDMA shutdown timing, and two interpreter handbacks for unsupported
-command data or changed calling context.
+report 0% left. Their registry comparisons have retired; the ownership
+measure includes the perspective builder's curve-step and paired-line tails
+reached through patched branches. The remaining scene work is the menu
+compatibility interface and the retained input domains described in
+TODO's "Scene continuation boundaries".
 
 **What `$FD` has left** after wave 1 (docs/history/reimplementation-waves.md, "Phase 3,
 wave 1: bank `$FD`"), the time warp (`game/warp/`) and the location's
@@ -711,16 +706,20 @@ taking the gate down needs, before it and after it.
      (REIMPLEMENTATION.md, "The scene program's teardown"): a boundary a
      comparison couldn't cross (the first frame's carry into the loop) goes
      with the comparison, and a retired loop that calls still-gated routines
-     calls each as C under its registry row's contract, and through the
-     machine where its C waits at a point the machine can't wait in place.
+     calls each as C under its registry row's contract. The race's scaling
+     now holds its upload wait with saveable caller frames rather than
+     leaving a scaling invocation suspended across the wait. The remaining
+     scene engine is retired too: its checked machine forms keep contracts
+     at the legacy driver and gated menu boundaries, with no ordinary
+     scene registry rows (REIMPLEMENTATION.md, "The scene engine's teardown").
   4. **Last, the machine leaves the product.** When no subsystem is under
      the gate, `game/registry.c`, the intercept, the entry macros and
      `runtime/`'s emulator are deleted from what ships; `ct_play` is
      `ct_native`.
 
 - **The code no movie reaches, checked before its subsystem retires.**
-  Extend `tools/unreached.py` to the remaining 65816 subsystems: battle,
-  menu and scene. Compare the full library's coverage with their
+  Extend `tools/unreached.py` to the remaining 65816 subsystems: battle
+  and menu. Compare the full library's coverage with their
   ported live reach, then fuzz the missing paths against the original before
   retiring their gates. Every remaining byte needs a passing comparison or
   an explicit safety argument in the ledger, with its retirement obligations

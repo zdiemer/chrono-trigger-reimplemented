@@ -34,7 +34,6 @@
 #include "scene/race.h"
 
 #include "charge.h"
-#include "original_effects.h"
 #include "platform/video.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -61,7 +60,7 @@ static void orbit(GameState *g)
 {
     uint16_t twice = (uint16_t)(scene_frame_counter(g) << 1);
     uint16_t size = scene_ending_orbit_size(g);
-    ORIGINAL_EFFECT(set_scene_call_orbit_frame(g, scene_program_own(), twice));
+    charge_legacy_accesses(g, 2);
     set_scene_ending_orbit_x(g, (uint16_t)scene_scale_by_256ths(g, scene_program_own(), scene_sine(g, (uint16_t)(twice << 1)), size));
     set_scene_ending_orbit_y(g, (uint16_t)scene_scale_by_256ths(g, scene_program_own(), scene_cosine(g, twice), size));
 }
@@ -120,11 +119,6 @@ enum { VIEW_CENTRE_ACROSS = 0x80, VIEW_CENTRE_DOWN = 0xE0 };
 
 /* For shadow mode: the camera's distance turned, across and down, which the
  * original keeps beside the view on its way to it. */
-static void leave_the_distance_turned(GameState *g, uint16_t across, uint16_t down)
-{
-    set_scene_flight_view_turned_x(g, across);
-    set_scene_flight_view_turned_y(g, down);
-}
 
 // $7E:9AF3
 /* In the vblank: the camera stays as far behind as the Epoch's script says,
@@ -137,7 +131,7 @@ static void place_the_view(GameState *g)
     set_camera(g, FLIGHT_DISTANCE, distance);
     uint16_t down = scaled_through_signed_multiply(g, page, scene_cosine(g, turn), distance);
     uint16_t across = scaled_through_signed_multiply(g, page, scene_sine(g, turn), distance);
-    ORIGINAL_EFFECT(leave_the_distance_turned(g, across, down));
+    charge_legacy_accesses(g, 4);
     uint16_t x = (uint16_t)(camera(g, SCENE_PLANE_X) + across), y = (uint16_t)(camera(g, SCENE_PLANE_Y) + down);
     set_scene_flight_view_x(g, x);
     set_scene_flight_view_centre_x(g, (uint16_t)(x + VIEW_CENTRE_ACROSS));
@@ -351,24 +345,12 @@ static void step_the_burst(GameState *g, unsigned firework)
  * routine's spare bytes, which the fireworks write last. */
 enum { SPARE_AS_LOADED = 0xE0A9 };
 
-static void leave_the_list_routine(GameState *g)
-{
-    set_scene_call_kept_list_clip(g, scene_program_own(), scene_large_list_clip(g));
-    set_scene_large_list_spare(g, SPARE_AS_LOADED);
-}
-
 /* For the original's code and shadow mode: the original hands a firework's
  * place to the list routine as two words read from the places, which leave
  * their high bytes in the scene's offset -- across, the firework's Y over its
  * X, and down, the byte after its Y (the next firework's X, or for the last
  * the byte past the places). Only the low bytes place the sprites; the last
  * firework's words are the ones that stay. */
-static void leave_the_offset_as_words(GameState *g)
-{
-    unsigned last = FIREWORKS - 1;
-    uint8_t x = scene_fireworks_x(g, last), y = scene_fireworks_y(g, last);
-    scene_draw_lists_at(g, (uint16_t)(x | y << 8), (uint16_t)(y | scene_fireworks_x_unchecked(g, FIREWORKS) << 8));
-}
 
 // $7E:9BF9
 /* The fireworks burst: each a frame on in its burst, drawn where it bursts as
@@ -380,8 +362,8 @@ static void burst_the_fireworks(GameState *g)
         scene_draw_lists_at(g, scene_fireworks_x(g, firework), scene_fireworks_y(g, firework));
         TIMED_AS(g, 0x7EA03D, scene_draw_large_sprite_list(g, burst_frame(g, firework_frame(g, firework)).list, LIST_KEEPS_EVERY_SPRITE));
     }
-    ORIGINAL_EFFECT(leave_the_offset_as_words(g));
-    ORIGINAL_EFFECT(leave_the_list_routine(g));
+    charge_legacy_accesses(g, 7);
+    charge_legacy_accesses(g, 6);
 }
 
 /* The two fireworks' places over the square. */
@@ -440,7 +422,7 @@ void scene_keep_the_orbit_entry(Snes *s)
 {
     GameState *g = state_of(s);
     orbit(g);
-    ORIGINAL_EFFECT(s->cpu.a = scene_ending_orbit_y(g));
+    charge_legacy_accesses(g, 2);
     m_rts(s);
 }
 
@@ -448,7 +430,7 @@ void scene_pass_the_map_entry(Snes *s)
 {
     GameState *g = state_of(s);
     pass_the_map(g);
-    ORIGINAL_EFFECT(s->cpu.a = camera(g, SCENE_PLANE_Y));
+    charge_legacy_accesses(g, 2);
     m_rts(s);
 }
 
@@ -457,21 +439,13 @@ void scene_pass_the_map_entry(Snes *s)
  * page; the entry guard checks its lines before the saved camera changes. */
 enum { BUILD_PERSPECTIVE = 0x7E357B, CAMERA_PAGE = 0x0A00 };
 
-static void leave_the_view_checked(Snes *s, const GameState *g, bool perspective_built)
-{
-    if (perspective_built)
-        scene_leave_perspective_registers(s, SCENE_CAMERA_CHANNEL);
-    else
-        s->cpu.a = plane_flat(g) ? camera(g, SCENE_PLANE_C) : camera(g, SCENE_PLANE_TOP);
-}
-
 void scene_check_the_flight_view_entry(Snes *s)
 {
     GameState *g = state_of(s);
     bool rebuild = update_the_view(g);
     if (rebuild)
         TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, SCENE_CAMERA_CHANNEL));
-    ORIGINAL_EFFECT(leave_the_view_checked(s, g, rebuild));
+    if (rebuild) scene_charge_perspective_result(g, SCENE_CAMERA_CHANNEL); else charge_legacy_accesses(g, 4);
     m_rts(s);
 }
 
@@ -503,7 +477,7 @@ void scene_circle_the_epoch_entry(Snes *s)
 {
     GameState *g = state_of(s);
     circle_the_epoch(g);
-    ORIGINAL_EFFECT(s->cpu.a = scene_ending_picture_source(g));
+    charge_legacy_accesses(g, 2);
     m_rts(s);
 }
 
@@ -511,24 +485,19 @@ void scene_sway_the_epoch_entry(Snes *s)
 {
     GameState *g = state_of(s);
     sway_the_epoch(g);
-    ORIGINAL_EFFECT(s->cpu.a = epoch(g, EPOCH_ZOOM));
+    charge_legacy_accesses(g, 2);
     m_rts(s);
 }
 
 /* Off the eighth frame A holds the frame counter's place in the eight; on
  * it, the last color the swap took, the scene's own color 14 as it was, which
  * is color 46 now. */
-static void leave_the_lights(Snes *s, const GameState *g)
-{
-    s->cpu.a = lights_twinkle_now(g) ? palette_base(g, lights[LIGHT_PAIRS - 1].other)
-                                     : (uint16_t)(scene_frame_counter(g) & EVERY_EIGHTH_FRAME);
-}
 
 void scene_twinkle_the_lights_entry(Snes *s)
 {
     GameState *g = state_of(s);
     twinkle_the_lights(g);
-    ORIGINAL_EFFECT(leave_the_lights(s, g));
+    charge_legacy_accesses(g, 4);
     m_rts(s);
 }
 
@@ -536,7 +505,7 @@ void scene_turn_back_and_twinkle_entry(Snes *s)
 {
     GameState *g = state_of(s);
     turn_back_and_twinkle(g);
-    ORIGINAL_EFFECT(leave_the_lights(s, g));
+    charge_legacy_accesses(g, 4);
     m_rts(s);
 }
 
@@ -546,17 +515,11 @@ void scene_burst_the_fireworks_entry(Snes *s)
     GameState *g = state_of(s);
     burst_the_fireworks(g);
     s->cpu.y = scene_sprite_index(g);
-    ORIGINAL_EFFECT(s->cpu.a = SPARE_AS_LOADED);
     m_rts(s);
 }
 
 /* Called by the shared setup with 8-bit A, which it comes back with; the
  * setup reads none of the registers it leaves. */
-void scene_set_the_fireworks_up_entry(Snes *s)
-{
-    scene_set_the_fireworks_up(state_of(s));
-    m_rts(s);
-}
 
 void scene_send_the_picture_entry(Snes *s)
 {

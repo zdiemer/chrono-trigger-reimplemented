@@ -920,6 +920,14 @@ base-state inputs and C sources/headers in `game/`, `runtime/` and `dev/`;
 changed implementation code requires fresh evidence. States and coverage
 remain build artifacts.
 
+`--buttons HHHH` fixes the first controller's already latched sample on both
+machines; it can reach a pause toggle or reset chord without depending on the
+movie's last buttons. `--vblank-at PC` starts both outside vblank and begins
+vblank at the specified interpreted wait head. It supplies one beam edge,
+not an interrupt or a sequence of frames, so a setup's upload can return and
+its remaining work can be compared. The scene controller and turning-map
+setup use these fixtures.
+
 For an interpreted wait on an externally updated byte, `--tick-at
 PC=WRAM` increments that WRAM byte before each execution of PC on both
 machines (including the port's interpreted call-outs). For example,

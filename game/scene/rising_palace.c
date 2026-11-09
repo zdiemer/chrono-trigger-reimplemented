@@ -32,7 +32,6 @@
 #include "core/palette.h"
 #include "core/program.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "platform/video.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -86,22 +85,6 @@ static MapSample rounded_map_sample(const MapTransform *t, unsigned row, unsigne
 
 /* The original's local positions, exhausted counts, patched steps, and the
  * multiplication used to address the last sampled tile. None drive C work. */
-static void leave_map_sampling(GameState *g, MapSample sample, const MapTransform *t)
-{
-    set_scene_map_sampling_work(g, 0, sample.row.down);
-    set_scene_map_sampling_work(g, 1, sample.row.across);
-    set_scene_map_sampling_work(g, 2, 0);
-    set_scene_map_sampling_work(g, 3, 0);
-    set_scene_map_sampling_work(g, 4, sample.point.across);
-    set_scene_map_sampling_work(g, 5, sample.point.down);
-    set_scene_map_row_down_step(g, t->row_step.down);
-    set_scene_map_row_across_step(g, t->row_step.across);
-    set_scene_map_column_down_step(g, t->column_step.down);
-    set_scene_map_column_across_step(g, t->column_step.across);
-    hw_set_multiplicand(g, MAP_ROW_BYTES);
-    (void)hw_multiply_by(g, (uint8_t)(sample.point.down >> 8));
-    hw_set_dividend(g, (uint16_t)((hw_dividend(g) & 0xFF00) | (uint8_t)sample.point.down));
-}
 
 // $7E:7441
 /* Sample the source map along the turn's rows and columns. Across is in
@@ -131,7 +114,8 @@ bool scene_turn_map(GameState *g)
         }
     }
     set_scene_map_pending_count(g, (uint16_t)(scene_map_pending_count(g) + 1));
-    ORIGINAL_EFFECT(leave_map_sampling(g, sample, &transform));
+    charge_legacy_accesses(g, 20);
+    charge_legacy_io_accesses(g, 6);
     return true;
 }
 
@@ -317,17 +301,13 @@ static int16_t scaled(int16_t trig, uint8_t quarter_scale)
 /* The original multiplies on the Mode 7 matrix's registers, which it leaves
  * with the sine's magnitude and the scale (scaffolding: mode 2 draws none of
  * it, and the next scene that turns a map sets them again). */
-static void leave_the_multiplier(Platform *pf, int16_t sine, uint8_t quarter_scale)
-{
-    vid_set_mode7(pf, PF_AT(0x7E7409), &(VidMode7){ .a = (int16_t)(sine < 0 ? -sine : sine) }, VID_M7_MATRIX_A);
-    vid_set_mode7(pf, PF_AT(0x7E7415), &(VidMode7){ .b = (int16_t)(quarter_scale << 8 | quarter_scale) }, VID_M7_MATRIX_B);
-}
 
 // $7E:73C6
 /* The turn's matrix from channel 0's angle and scale, and the point it turns
  * about and where it is placed, both channel 0's registers 1 and 2. */
 static TaskEnd work_out_the_turn_task(GameState *g, Platform *pf)
 {
+    (void)pf;
     uint16_t angle = scene_channel_register(g, TURN_CHANNEL, TURN_ANGLE);
     uint8_t quarter_scale = (uint8_t)((uint8_t)scene_channel_register(g, TURN_CHANNEL, TURN_SCALE) >> 2);
     int16_t cosine = scaled(scene_cosine(g, angle), quarter_scale);
@@ -341,7 +321,8 @@ static TaskEnd work_out_the_turn_task(GameState *g, Platform *pf)
     set_scene_turn_center(g, 0, x);
     set_scene_turn_position(g, 1, y);
     set_scene_turn_center(g, 1, y);
-    ORIGINAL_EFFECT(leave_the_multiplier(pf, scene_sine(g, angle), quarter_scale));
+    charge_legacy_rom_accesses(g, 1);
+    charge_legacy_io_accesses(g, 4);
     return task_goes_on();
 }
 
@@ -413,7 +394,7 @@ static TaskEnd ripple_the_palace_task(GameState *g, Platform *pf)
         ridge = (uint16_t)(ridge - strength);
         set_scene_palace_column_offsets(g, column, column_offset(ridge));
     }
-    ORIGINAL_EFFECT(set_scene_call_ripple_offset(g, scene_program_own(), ridge));
+    charge_legacy_accesses(g, 2);
     set_scene_palace_ripple_scroll(g, (uint16_t)(scene_palace_ripple_scroll(g) + strength));
     uint16_t sea = scene_channel_register(g, PALACE_CHANNEL, SEA_SCROLL);
     set_scene_palace_sea_scroll(g, (uint16_t)(sea >> 2));
@@ -540,9 +521,9 @@ const unsigned scene_palace_task_count = sizeof scene_palace_tasks / sizeof scen
 /* The scripts' first step: channel 0's, which runs the first command of
  * channel 1's too. It reads Y -- the setup's load of channel 1's script -- and
  * the overflow as the dispatch left it. */
-static void take_the_scripts_first_step(Snes *s)
+static bool take_the_scripts_first_step(Snes *s)
 {
-    scene_bridge_first_script_step(s, 0x7E6792, scene_channels_script(state_of(s), PALACE_CHANNEL));
+    return scene_bridge_first_script_step(s, 0x7E6792, scene_channels_script(state_of(s), PALACE_CHANNEL));
 }
 
 /* The setup: the scene started, the scripts' first step by `first_step`,
@@ -558,8 +539,7 @@ static bool set_up_the_palace_with(GameState *g, Platform *pf, bool (*first_step
 
 static bool first_step_on_the_machine(void *ctx)
 {
-    take_the_scripts_first_step(ctx);
-    return true;
+    return take_the_scripts_first_step(ctx);
 }
 
 /* Entered with 8-bit A. Back, the direct page is the scene's, the data bank
@@ -567,16 +547,11 @@ static bool first_step_on_the_machine(void *ctx)
  * the frame's work reads. */
 bool scene_palace_set_up_scene(Snes *s)
 {
-    set_up_the_palace_with(state_of(s), m_platform(s), first_step_on_the_machine, s);
+    if (!set_up_the_palace_with(state_of(s), m_platform(s), first_step_on_the_machine, s))
+        return false;
     s->cpu.y = palette_animations_leave();
     m_set_flag(s, CPU_FLAG_V, false);
     return true;
-}
-
-void scene_palace_set_up_entry(Snes *s)
-{
-    scene_palace_set_up_scene(s);
-    m_rts(s);
 }
 
 /* As C (scene/program.c's setups with no machine): channel 0's turn, which
@@ -599,15 +574,6 @@ bool scene_palace_set_up(GameState *g, Platform *pf)
     PalaceInC c = { g, pf };
     return set_up_the_palace_with(g, pf, turn_the_first_channel, &c);
 }
-
-void scene_work_out_the_turn(Snes *s) { scene_task_alone(s, &scene_palace_tasks[ROW_WORK_OUT_THE_TURN]); }
-void scene_shimmer_the_palace(Snes *s) { scene_task_alone(s, &scene_palace_tasks[ROW_SHIMMER]); }
-void scene_ripple_the_palace(Snes *s) { scene_task_alone(s, &scene_palace_tasks[ROW_RIPPLE]); }
-void scene_darken_the_palace(Snes *s) { scene_task_alone(s, &scene_palace_tasks[ROW_DARKEN]); }
-void scene_whiten_the_palace(Snes *s) { scene_task_alone(s, &scene_palace_tasks[ROW_WHITEN]); }
-void scene_clear_the_palace(Snes *s) { scene_task_alone(s, &scene_palace_tasks[ROW_CLEAR]); }
-void scene_send_the_palace_offsets(Snes *s) { scene_task_alone(s, &scene_palace_tasks[ROW_SEND_THE_OFFSETS]); }
-void scene_send_the_map(Snes *s) { scene_task_alone(s, &scene_palace_tasks[ROW_SEND_THE_MAP]); }
 
 /* ---- The curtain ------------------------------------------------------------------------------- */
 
@@ -648,15 +614,15 @@ static bool sweep_the_curtain_with(GameState *g, Platform *pf, bool (*step)(void
 
 static bool curtain_step_on_the_machine(void *ctx)
 {
-    m_jsl_dc(ctx, 0x7E6844, CURTAIN_STEP, CURTAIN_IGNORES);
-    return true;
+    return scene_run_long_called(ctx, 0x7E6844, CURTAIN_STEP, CURTAIN_IGNORES, scene_sweep_the_curtain);
 }
 
 /* Back in 8-bit A, as the original returns: its caller may read the width
  * before it sets it again. Nothing else it leaves is read. */
 void scene_sweep_the_palace_curtain_entry(Snes *s)
 {
-    sweep_the_curtain_with(state_of(s), m_platform(s), curtain_step_on_the_machine, s);
+    if (!sweep_the_curtain_with(state_of(s), m_platform(s), curtain_step_on_the_machine, s))
+        return;
     s->cpu.p |= CPU_FLAG_M;
     m_rts(s);
 }
@@ -757,7 +723,6 @@ bool scene_turn_map_present(Snes *s)
 void scene_turn_map_entry(Snes *s)
 {
     (void)scene_turn_map(state_of(s));
-    ORIGINAL_EFFECT(s->cpu.y = (uint16_t)(MAP_BUFFER + scene_turned_map_rows(state_of(s)) * MAP_ROW_BYTES));
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_C, false));
+    charge_legacy_accesses(state_of(s), 1);
     m_rts(s);
 }

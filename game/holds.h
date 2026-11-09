@@ -31,6 +31,9 @@ enum {
     HOLD_FIELD_LOCATION = 7,
     /* a script's restart, once the picture reaches vblank */
     HOLD_FIELD_RESTART = 8,
+    /* the race's previous tilemap upload, between scaling and gathering a
+     * racer's next picture; the caller's return identifies the racer */
+    HOLD_SCENE_RACE_UPLOAD = 9,
 };
 
 #endif

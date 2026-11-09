@@ -6,7 +6,6 @@
 #include "charge.h"
 #include "core/program.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
@@ -29,36 +28,8 @@ static uint8_t mirrored_bits(uint8_t bits)
     return (uint8_t)(bits << 4 | bits >> 4);
 }
 
-static void leave_pose_source(GameState *g, uint32_t source, uint16_t past)
-{
-    set_scene_figure_source(g, (uint16_t)past);
-    set_scene_figure_source_bank(g, (uint8_t)(source >> 16));
-}
-
 /* The old loader's patched source and work-port cursor are observable to the
  * oracle, although the C loader uses neither to find or copy a tile. */
-static void leave_pose_copy(GameState *g, uint32_t poses, uint16_t past, uint32_t graphics, uint16_t destination, int last_mirrored)
-{
-    leave_pose_source(g, poses, past);
-    set_scene_figure_copy_base(g, (uint16_t)graphics);
-    set_scene_figure_mirror_base(g, (uint16_t)graphics);
-    set_scene_figure_copy_bank(g, (uint8_t)(graphics >> 16));
-    set_scene_figure_mirror_bank(g, (uint8_t)(graphics >> 16));
-    uint16_t port = destination;
-    if (last_mirrored >= 0) {
-        uint16_t tile = (uint16_t)(destination + last_mirrored * TILE_BYTES);
-        set_scene_call_first(g, scene_program_own(), tile);
-        port = (uint16_t)(tile + TILE_BYTES);
-    }
-    hw_port_seek(g, port, 0);
-}
-
-static void leave_pose_draw(GameState *g, unsigned character, uint32_t poses, uint16_t offsets)
-{
-    leave_pose_source(g, poses, offsets);
-    set_scene_figure_source_after_bank(g, scene_figure_pose_table_extra(g, character));
-    set_scene_call_first(g, scene_program_own(), (uint16_t)(scene_call_first(g, scene_program_own()) & 0xFF00));
-}
 
 // $7E:6E42, $7E:6E9E
 /* Assemble one pose. Source tile indices wrap within their graphics bank;
@@ -84,7 +55,8 @@ void scene_load_figure_pose(GameState *g, unsigned character, uint16_t pose_offs
         if (mirrored)
             last_mirrored = (int)tile;
     }
-    ORIGINAL_EFFECT(leave_pose_copy(g, poses, pose, graphics, destination, last_mirrored));
+    charge_legacy_accesses(g, 9 + (last_mirrored >= 0 ? 2 : 0));
+    charge_legacy_io_accesses(g, 3);
 }
 
 // $7E:701E
@@ -108,7 +80,7 @@ void scene_draw_figure_pose(GameState *g, unsigned character, uint16_t pose_offs
             set_scene_sprite_high_pointer(g, (uint16_t)(scene_sprite_high_pointer(g) + 1));
     }
     set_scene_sprite_index(g, (uint16_t)(first + FIGURE_SPRITES * 4));
-    ORIGINAL_EFFECT(leave_pose_draw(g, character, poses, (uint16_t)offsets));
+    charge_legacy_accesses(g, 9);
 }
 
 /* ---- The figures and their animations -------------------------------------------------------- */
@@ -126,17 +98,10 @@ static uint8_t magnitude_byte(int value)
     return (uint8_t)(byte < 0 ? -byte : byte);
 }
 
-static void leave_figure_origin(GameState *g, Platform *pf, int16_t x, int16_t y)
-{
-    set_scene_call_product(g, scene_program_own(), (uint16_t)y | (uint32_t)(uint16_t)x << 16);
-    uint8_t magnitude = magnitude_byte(x);
-    vid_set_mode7(pf, PF_AT(0x7E7687), &(VidMode7){ .a = magnitude }, VID_M7_MATRIX_A);
-    vid_set_mode7(pf, PF_AT(0x7E768D), &(VidMode7){ .b = (int16_t)(magnitude * 0x101) }, VID_M7_MATRIX_B);
-}
-
 // $7E:7649
 static void find_figure_origin(GameState *g, Platform *pf, unsigned figure)
 {
+    (void)pf;
     int16_t x = (int16_t)(scene_turn_figures_x(g, figure) - TURN_CENTER_X);
     int16_t y = (int16_t)(scene_turn_figures_y(g, figure) - TURN_CENTER_Y);
     set_scene_turn_figures_angle(g, figure, scene_offset_angle(g, x, y));
@@ -144,7 +109,8 @@ static void find_figure_origin(GameState *g, Platform *pf, unsigned figure)
     uint32_t area = (uint16_t)(across * (int8_t)across) + (uint32_t)(uint16_t)(down * (int8_t)down);
     unsigned radius = scene_radius_from_area(g, (area & 0xFFFF) + (area >> 16));
     set_scene_turn_figures_radius(g, figure, (uint8_t)radius);
-    ORIGINAL_EFFECT(leave_figure_origin(g, pf, x, y));
+    charge_legacy_accesses(g, 4);
+    charge_legacy_io_accesses(g, 4);
 }
 
 // $7E:74F5, $7E:762E
@@ -197,17 +163,10 @@ static uint8_t orbit_coordinate(GameState *g, uint16_t angle, int8_t radius, uns
     return (uint8_t)((product >> 8) + center + scene_sine_second_half(angle));
 }
 
-static void leave_orbit_multiplier(GameState *g, Platform *pf, unsigned figure)
-{
-    uint16_t angle = (uint16_t)(scene_turn_orbit(g) + scene_turn_figures_angle(g, figure));
-    uint8_t radius = scene_turn_figures_radius(g, figure);
-    vid_set_mode7(pf, PF_AT(0x7E7704), &(VidMode7){ .a = scene_sine(g, angle) }, VID_M7_MATRIX_A);
-    vid_set_mode7(pf, PF_AT(0x7E770D), &(VidMode7){ .b = (int16_t)(radius * 0x101) }, VID_M7_MATRIX_B);
-}
-
 // $7E:76A5, $7E:76BC
 TaskEnd scene_orbit_turn_figures(GameState *g, Platform *pf, unsigned slot)
 {
+    (void)pf;
     (void)slot;
     uint16_t orbit = (uint16_t)(scene_turn_orbit(g) + scene_channel_register(g, 1, 2));
     set_scene_turn_orbit(g, orbit);
@@ -219,16 +178,10 @@ TaskEnd scene_orbit_turn_figures(GameState *g, Platform *pf, unsigned slot)
         set_scene_turn_figures_x(g, figure, orbit_coordinate(g, (uint16_t)(angle + SCENE_QUARTER_TURN), radius, TURN_CENTER_X));
         set_scene_turn_figures_y(g, figure, orbit_coordinate(g, angle, radius, TURN_CENTER_Y));
     }
-    ORIGINAL_EFFECT(leave_orbit_multiplier(g, pf, PARTY_FIGURES - 1));
+    charge_legacy_accesses(g, 5);
+    charge_legacy_rom_accesses(g, 1);
+    charge_legacy_io_accesses(g, 4);
     return task_goes_on();
-}
-
-static void leave_animation_choice(GameState *g, uint16_t frames, uint16_t delays, uint16_t animation, uint16_t half)
-{
-    SceneProgramPage page = scene_program_own();
-    set_scene_call_second(g, page, animation);
-    set_scene_call_product(g, page, delays | (uint32_t)frames << 16);
-    set_scene_call_quotient(g, page, (half >> 1) | (uint32_t)half << 16);
 }
 
 // $7E:77E7
@@ -245,7 +198,7 @@ static void restart_figure_animation(GameState *g, unsigned figure)
     set_scene_turn_figures_delays(g, figure, delays);
     set_scene_turn_figures_active_animation(g, figure, scene_turn_figures_animation(g, figure));
     set_scene_turn_figures_active_facing(g, figure, (uint8_t)facing);
-    ORIGINAL_EFFECT(leave_animation_choice(g, frames, delays, animation, half));
+    charge_legacy_accesses(g, 10);
 }
 
 static bool animation_changed(const GameState *g, unsigned figure)
@@ -305,12 +258,12 @@ TaskEnd scene_update_turn_figures(GameState *g, Platform *pf, unsigned slot)
         left--;
     }
     set_scene_turn_next_upload(g, (uint16_t)(next * FIGURE_RECORD_BYTES));
-    ORIGINAL_EFFECT(set_scene_turn_search_left(g, (uint16_t)left));
+    charge_legacy_accesses(g, 2);
     for (unsigned figure = 0; figure < FIGURES; figure++) {
         uint16_t appearance = scene_turn_figures_appearance(g, figure);
         scene_draw_lists_at(g, scene_turn_figures_x(g, figure), scene_turn_figures_y(g, figure));
-        ORIGINAL_EFFECT(set_scene_figure_sprite_appearance(g, appearance));
-        ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), (uint16_t)figure_character(g, figure)));
+        charge_legacy_accesses(g, 2);
+        charge_legacy_accesses(g, 4);
         scene_draw_figure_pose(g, figure_character(g, figure),
                                (uint16_t)(scene_turn_figures_loaded_pose(g, figure) * POSE_RECORD_BYTES), appearance);
         animate_figure(g, figure);
@@ -536,10 +489,13 @@ static bool turn_scripts_on_machine(void *context)
 {
     Snes *s = context;
     s->cpu.a = 0x7157;
-    scene_bridge_first_script_step(s, 0x7E70CE, 0x1C00);
+    if (!scene_bridge_first_script_step(s, 0x7E70CE, 0x1C00))
+        return false;
     m_push8(s, 0);
     m_set_flag(s, CPU_FLAG_M, false);
     bool done = scene_run(s, 0x7E70D1, 0x7E3754, SCENE_FIRST_STEP_IGNORES, scene_run_channel_1_script);
+    if (!done)
+        return false;
     s->cpu.db = m_pull8(s);
     scene_bridge_back_on_the_scene_s_page(s);
     return done;
@@ -557,19 +513,8 @@ bool scene_turn_set_up_scene(Snes *s)
     return true;
 }
 
-void scene_turn_set_up_entry(Snes *s)
-{
-    (void)scene_turn_set_up_scene(s);
-    m_rts(s);
-}
-
 /* The standalone drawing entries take table byte offsets. The scene's own
  * callers supply one of the seven characters and a whole pose record. */
-static bool figure_arguments(Snes *s)
-{
-    return scene_on_scene_page_io_bank(s) && s->cpu.x <= 18 && s->cpu.x % 3 == 0 &&
-           s->cpu.a <= 255 * POSE_RECORD_BYTES && s->cpu.a % POSE_RECORD_BYTES == 0;
-}
 
 /* Every mode-5 entry uses the same unpacked program. The copy operands and
  * the first sprite's appearance are writable, so only their surrounding
@@ -598,21 +543,6 @@ static bool turning_code_present(Snes *s)
 bool scene_turn_program_present(Snes *s) { return scene_on_scene_page_io_bank(s) && turning_code_present(s); }
 bool scene_turn_set_up_present(Snes *s) { return s->cpu.d == 0 && s->cpu.db == 0 && turning_code_present(s); }
 
-bool scene_load_figure_pose_present(Snes *s)
-{
-    return figure_arguments(s) && s->cpu.y >= 0x1000 && s->cpu.y <= 0x1E00 && turning_code_present(s);
-}
-
-bool scene_draw_figure_pose_present(Snes *s)
-{
-    if (!figure_arguments(s) || !turning_code_present(s))
-        return false;
-    vars_peek(true);
-    bool fits = scene_sprites_fit(state_of(s), FIGURE_SPRITES) && (scene_sprite_index(state_of(s)) & 3) == 0;
-    vars_peek(false);
-    return fits;
-}
-
 bool scene_update_turn_figures_present(Snes *s)
 {
     if (!scene_turn_program_present(s))
@@ -631,29 +561,6 @@ bool scene_update_turn_figures_present(Snes *s)
 bool scene_pick_turn_sequence_present(Snes *s)
 {
     return (scene_on_channel_page(s) && s->cpu.db == SCENE_LOWER_WORK_RAM) && turning_code_present(s);
-}
-
-void scene_load_figure_pose_entry(Snes *s)
-{
-    scene_load_figure_pose(state_of(s), s->cpu.x / 3, s->cpu.a, s->cpu.y);
-    s->cpu.db = 0;
-    m_rts(s);
-}
-
-void scene_draw_figure_pose_entry(Snes *s)
-{
-    scene_draw_figure_pose(state_of(s), s->cpu.x / 3, s->cpu.a, scene_figure_sprite_appearance(state_of(s)));
-    s->cpu.y = FIGURE_SPRITES * 2;
-    m_rts(s);
-}
-
-void scene_start_turn_figures_entry(Snes *s)
-{
-    start_figures(state_of(s), m_platform(s));
-    s->cpu.d = 0;
-    m_set_flag(s, CPU_FLAG_M, true);
-    m_set_flag(s, CPU_FLAG_V, false);
-    m_rts(s);
 }
 
 void scene_spread_turn_figures_entry(Snes *s)
@@ -747,17 +654,3 @@ const SceneScriptRoutine scene_turn_routines[] = {
     { 0x7286, pick_turn_sequence, scene_pick_turn_sequence_present, false },
 };
 const unsigned scene_turn_routine_count = sizeof scene_turn_routines / sizeof scene_turn_routines[0];
-
-#if ORIGINAL_EFFECTS
-static uint16_t sequence_called_with(uint16_t called_with) { return called_with; }
-static void sequence_leaves(Snes *s)
-{
-    GameState *g = state_of(s);
-    s->cpu.a = scene_turn_pick_sequence(g) ? scene_channels_script(g, 0) : 0;
-    if (scene_turn_pick_sequence(g))
-        s->cpu.x = scene_random_byte(g, scene_random_step(g)) & 6;
-}
-const SceneRoutineLeaves scene_turn_routine_leaves[] = { { sequence_called_with, sequence_leaves } };
-#endif
-
-void scene_pick_turn_sequence_entry(Snes *s) { scene_script_routine_alone(s, &scene_turn_routines[0]); }

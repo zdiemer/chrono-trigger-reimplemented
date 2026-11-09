@@ -32,9 +32,9 @@
  * original latched, so it compares everything the stars do with their
  * numbers. A host's noise comes from a generator its driver seeds, so a replay
  * draws the same stars. */
+#include "charge.h"
 #include "scene/scene.h"
 
-#include "original_effects.h"
 #include "platform/timing.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -70,24 +70,6 @@ static uint32_t stir_in(DrawWidth w, uint32_t sum, uint32_t value)
 
 /* Taking a value away is adding its complement. */
 static uint32_t stir_out(DrawWidth w, uint32_t sum, uint32_t value) { return stir_in(w, sum, ~value); }
-
-static bool is_negative(DrawWidth w, uint32_t v) { return (v & (w.spill >> 1)) != 0; }
-
-/* Whether the last draw's final step, taking the beam away, gave a result of
- * the wrong sign. The original leaves it in the processor's flags, where the
- * scatter's callers hand it back to the scripts' interpreter, which may read
- * it (tools/v_readers.py); the stars don't. Scaffolding: recorded on the way,
- * read only by the wrappers that leave it. */
-static bool last_draw_overflowed;
-
-bool scene_random_last_overflow(void) { return last_draw_overflowed; }
-
-/* Taking `away` from `from` gave `left` with the wrong sign: the two signs
- * differed and the result's isn't `from`'s. */
-static bool sign_lost(DrawWidth w, uint32_t from, uint32_t away, uint32_t left)
-{
-    return is_negative(w, from) != is_negative(w, away) && is_negative(w, left) != is_negative(w, from);
-}
 
 /* A draw up to its noise: the sum so far, and the seed it made. */
 typedef struct {
@@ -133,11 +115,9 @@ static SceneDraw stir_in_the_noise(GameState *g, Stir st, TmEntropy noise)
     sum = stir_in(w, sum, scene_call_stirred(g, scene));
     sum ^= scene_call_second(g, scene) & w.number;
     sum = stir_in(w, sum, (uint16_t)scene_call_product(g, scene));
-    uint32_t before = sum & w.number;
     sum = stir_out(w, sum, noise.value[3]);
 
     set_scene_random_seed(g, (uint16_t)(st.seed_kept | (sum & w.number)));
-    ORIGINAL_EFFECT(last_draw_overflowed = sign_lost(w, before, noise.value[3], sum));
     return sum;
 }
 
@@ -192,39 +172,3 @@ SceneDraw scene_draw_random_off_the_palette(GameState *g, SceneDraw last, uint16
  * number drawn back in A with the spilled bit in the carry. A byte draw
  * leaves A's high byte as it was. The flags the stir's last step leaves are
  * worked out from the number drawn; its overflow is the draw's own record. */
-static void draw_for_the_program(Snes *s, PfOrigin o)
-{
-    TmEntropyWidth width = m_flag(s, CPU_FLAG_M) ? TM_ENTROPY_BYTES : TM_ENTROPY_WORDS;
-    DrawWidth w = draw_width(width);
-    SceneDraw last = scene_draw_from(s->cpu.a, m_flag(s, CPU_FLAG_C), width);
-    SceneDraw d = s->cpu.db == SCENE_LOWER_WORK_RAM ? scene_draw_random_off_the_palette(state_of(s), last, s->cpu.x, width)
-                                                    : scene_draw_random(state_of(s), m_platform(s), o, last, s->cpu.x, width);
-    uint16_t number = (uint16_t)(d & w.number);
-    s->cpu.a = width == TM_ENTROPY_WORDS ? number : (uint16_t)((s->cpu.a & 0xFF00) | number);
-    m_set_flag(s, CPU_FLAG_C, (d & w.spill) != 0);
-    m_set_flag(s, CPU_FLAG_N, is_negative(w, d));
-    m_set_flag(s, CPU_FLAG_Z, number == 0);
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, last_draw_overflowed));
-}
-
-/* The stir reads its seed, the frame counter and the scene's call cells in
- * low RAM, and the beam's counters, through the data bank: one that reaches
- * the registers, or work RAM's. */
-bool scene_draw_random_present(Snes *s) { return m_bank_reaches_low_ram(s); }
-
-bool scene_program_draw_random_present(Snes *s)
-{
-    return m_bank_reaches_low_ram(s) && m_code_matches(s, 0x7E3443, 0x5, 0x5E005F3C3E12B1C5ull);
-}
-
-void scene_draw_random_entry(Snes *s)
-{
-    draw_for_the_program(s, PF_AT(0xC302DD));
-    m_rtl(s);
-}
-
-void scene_program_draw_random(Snes *s)
-{
-    draw_for_the_program(s, PF_AT(0x7E3443));
-    m_rts(s);
-}
