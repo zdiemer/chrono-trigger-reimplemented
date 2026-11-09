@@ -25,7 +25,6 @@
 #include "battle/rewards_work.h"
 #include "battle/setup.h"
 #include "charge.h"
-#include "original_effects.h"
 
 /* ---- Experience -------------------------------------------------------------------------- */
 
@@ -82,7 +81,7 @@ bool rewards_reach_level(GameState *g, Grower who, uint8_t member, uint16_t *pot
         set_battle_reward_flags(g, battle_reward_flags(g) | REWARD_EXPERIENCE);
         if (grower_level(g, who) >= TOP_LEVEL) {
             *pot = 0;
-            ORIGINAL_EFFECT(set_battle_growth_no_level(g, NO_LEVEL));
+            charge_machine_accesses(g, 1);
             return false;
         }
         uint16_t left = record_word(g, who, STAT_EXPERIENCE_LEFT);
@@ -101,10 +100,9 @@ bool rewards_reach_level(GameState *g, Grower who, uint8_t member, uint16_t *pot
     }
     if (grower_level(g, who) >= TOP_LEVEL)
         set_record_word(g, who, STAT_EXPERIENCE_LEFT, 0);
-    ORIGINAL_EFFECT(set_battle_growth_no_level(g, reached ? LEVEL_REACHED : NO_LEVEL));
+    charge_machine_accesses(g, 1);
     return reached;
 }
-
 
 /* The first of the character's steps that goes up to the level. */
 static uint8_t growth_step_for(const GameState *g, uint8_t character, uint8_t level,
@@ -120,8 +118,11 @@ static uint8_t growth_step_for(const GameState *g, uint8_t character, uint8_t le
  * leaves the place and its count of the steps' bytes behind. */
 static void leave_step_found(GameState *g, uint8_t character, uint8_t step)
 {
-    ORIGINAL_EFFECT(battle_leave_word(g, WORK_BLOCK_AT, growth_step_place(character, step)));
-    ORIGINAL_EFFECT(battle_leave_word(g, WORK_LISTED_AT, (uint8_t)(step * GROWTH_STEP_BYTES)));
+
+    (void)character;
+    (void)step;
+        charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
 }
 
 // $C1:F871
@@ -184,7 +185,7 @@ static void grow_stats(GameState *g, Grower who)
     uint8_t character = grower_character(g, who);
     /* the original finds the rates by multiplying, and keeps their place */
     TIMED_AS(g, MULTIPLY_WORDS, battle_leave_multiply(g, character, STAT_GROWTH_RATES));
-    ORIGINAL_EFFECT(set_battle_growth_rates_place(g, stat_growth_rates_place(character)));
+    charge_machine_accesses(g, 2);
     for (unsigned n = 0; n < sizeof stats_grown / sizeof stats_grown[0]; n++)
         set_record_byte(g, who, STAT_BASE_STATS + stats_grown[n].stat, grown_stat(g, who, character, stats_grown[n].rate));
     for (unsigned stat = 0; stat < STATS; stat++)
@@ -212,11 +213,11 @@ void rewards_level_up(GameState *g, Grower who, uint8_t member, uint16_t *pot)
  * members' blocks after it. */
 static void leave_record_growing(GameState *g, Grower who)
 {
-    ORIGINAL_EFFECT(set_battle_growth_record_places(g, 0, grower_place(who)));
+    charge_machine_accesses(g, 2);
     if (who.in_reserve)
         return;
     for (unsigned n = 1; n < BATTLE_GROWTH_RECORD_PLACES_COUNT; n++)
-        ORIGINAL_EFFECT(set_battle_growth_record_places(g, n, grower_place(grower_member((uint8_t)((who.who + n) % BATTLE_PARTY_SIZE)))));
+        charge_machine_accesses(g, 2);
 }
 
 // $C1:F93E
@@ -280,8 +281,8 @@ void rewards_share_with_reserve(GameState *g)
         leave_record_growing(g, grower_in_reserve(last));
     /* the original shifts the joined bits through a cell of its own as it
      * counts the characters in another */
-    ORIGINAL_EFFECT(set_battle_reserve_bits(g, (uint8_t)(party_characters_joined(g) << SETUP_CHARACTERS)));
-    ORIGINAL_EFFECT(battle_leave_word(g, WORK_KNOWN_AT, SETUP_CHARACTERS));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
 }
 
 /* ---- Gold instead ------------------------------------------------------------------------ */

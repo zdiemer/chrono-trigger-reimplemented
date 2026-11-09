@@ -11,11 +11,11 @@
  * The orbit moves the layer round a center on three sines at once: a circle
  * of its own, a bob up and down and a sway across, at their own speeds, the
  * sizes from a table of two orbits, or widening as the orbit goes on. */
+#include "charge.h"
 #include "battle/screen_script.h"
 
 #include "battle/screen_data.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 
 /* ---- The animation positions ------------------------------------------------------------ */
 
@@ -130,18 +130,12 @@ enum { FASTEST = 0xFFFF, SWING_START = 0x0000FFFF };
 
 static uint16_t divided(uint16_t n, uint8_t d) { return d ? (uint16_t)(n / d) : 0xFFFF; }
 
-static void leave_division(GameState *g, uint8_t frames)
-{
-    hw_set_dividend(g, FASTEST);
-    hw_divide_by(g, frames);
-}
-
 // $CD:1AEB
 /* Set the layer swinging down from where it is, slowing over `frames` frames
  * (screen_motion.c swings it). */
 static ScreenFlow start_swing(GameState *g, ScreenChannel channel, uint8_t frames)
 {
-    ORIGINAL_EFFECT(leave_division(g, frames));
+    charge_machine_io_accesses(g, 3);
     set_battle_screen_layer_swing_rising(g, channel, 0);
     set_battle_screen_swing_speed(g, channel, FASTEST);
     set_battle_screen_swing_position(g, channel, SWING_START);
@@ -204,20 +198,6 @@ typedef struct {
 /* The orbit's phases move on by these each step. */
 enum { CIRCLE_SPEED = 2, BOB_SPEED = 5, SWAY_SPEED = 6 };
 
-static void leave_orbit(GameState *g, const OrbitSizes *o, uint8_t across, uint8_t down, uint8_t circle_x,
-                        uint8_t circle_y, ScreenChannel channel)
-{
-    screen_leave_cell(g, 0x45, circle_x);
-    screen_leave_cell(g, 0x47, circle_y);
-    screen_leave_cell(g, 0x49, o->circle_across);
-    screen_leave_cell(g, 0x4A, o->circle_down);
-    screen_leave_cell(g, 0x4B, o->sway);
-    screen_leave_cell(g, 0x4C, o->bob);
-    screen_leave_cell(g, 0x4D, across);
-    screen_leave_cell(g, 0x4E, down);
-    screen_leave_sine_product(g, battle_screen_orbit_bob(g, channel), o->bob);
-}
-
 // $CD:1CD5
 /* Move the layer a step along its orbit about a center. */
 static void orbit_layer(GameState *g, ScreenChannel channel, const OrbitSizes *o, uint8_t across, uint8_t down)
@@ -232,7 +212,7 @@ static void orbit_layer(GameState *g, ScreenChannel channel, const OrbitSizes *o
     uint8_t circle_y = screen_signed_sine(g, circle, o->circle_down);
     show_point(g, channel, (uint8_t)(screen_signed_cosine(g, sway, o->sway) + across + circle_x),
                (uint8_t)(screen_signed_sine(g, bob, o->bob) + down + circle_y));
-    ORIGINAL_EFFECT(leave_orbit(g, o, across, down, circle_x, circle_y, channel));
+    (charge_machine_accesses(g, 9), charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, 1));
 }
 
 static OrbitSizes orbit_sizes(const GameState *g, uint8_t orbit)

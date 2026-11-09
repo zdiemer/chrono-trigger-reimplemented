@@ -13,11 +13,11 @@
  * background that cycles its colors), and counts the kinds of enemy in the
  * fight for the window, which lists up to three kinds by name
  * (battle/setup_names.c). */
+#include "charge.h"
 #include "battle/battle.h"
 #include "battle/setup.h"
 
 #include "battle/setup_data.h"
-#include "original_effects.h"
 #include "vars.h"
 
 enum { TILE_PIXELS = 16, ENEMY_RECORD_BYTES = 12 };
@@ -207,14 +207,6 @@ static bool counts_as_kind(const GameState *g, unsigned enemy)
     return battle_slot_present(g, slot) && !(battle_object_hidden(g, slot) & STARTS_HIDDEN);
 }
 
-static void leave_kinds(GameState *g, const uint16_t counts[SETUP_ENEMY_KINDS], uint8_t kinds)
-{
-    for (unsigned kind = 0; kind < SETUP_ENEMY_KINDS; kind++)
-        setup_leave_word(g, (uint8_t)(0x80 + 2 * kind), counts[kind]);
-    setup_leave_word(g, 0x86, (uint16_t)(2 * kinds));
-    setup_leave_word(g, 0x88, BATTLE_ENEMIES);
-}
-
 // $CC:ECB2
 static void count_kinds(GameState *g)
 {
@@ -235,7 +227,7 @@ static void count_kinds(GameState *g)
     }
     for (unsigned kind = 0; kind < SETUP_ENEMY_KINDS; kind++)
         set_battle_enemy_kind_counts(g, kind, (uint8_t)counts[kind]);
-    ORIGINAL_EFFECT(leave_kinds(g, counts, kinds));
+    charge_machine_accesses(g, 2 * SETUP_ENEMY_KINDS + 4);
 }
 
 /* Whether the enemies are ones the game makes, as the setup counts on: their
@@ -266,21 +258,27 @@ bool setup_enemies_are_real(const GameState *g)
 /* What the original leaves in its working cells from the last enemy it set
  * up, of what the kinds' count after it doesn't write over: its number, its
  * animation set and where its delay lists' next set starts. */
-static void leave_last_enemy(GameState *g)
-{
-    int last = BATTLE_ENEMIES;
-    while (last-- > 0 && !record_has_enemy(g, record_of(g, (uint8_t)last)))
-        ;
-    if (last < 0)
-        return;
-    uint16_t number = battle_enemy_numbers(g, (unsigned)last);
-    uint8_t set = setup_enemy_header(g, number).animation_set;
-    setup_leave_word(g, 0x8A, setup_delay_lists(g, next_animation_at(set)));
-    setup_leave_word(g, 0x8C, number);
-    setup_leave_word(g, 0x8E, set);
-}
 
 // $CC:EA33
+/* Preserve the machine estimate for removed comparison accesses.
+ * Inspect the branch without charging those reads to either backend. */
+static void charge_last_enemy(GameState *g)
+{
+    uint32_t charge_mark = charge_uncounted_begin(g);
+    unsigned examined = 0;
+    bool found = false;
+    for (unsigned enemy = BATTLE_ENEMIES; enemy-- > 0;) {
+        examined++;
+        if (record_has_enemy(g, record_of(g, (uint8_t)enemy))) {
+            found = true;
+            break;
+        }
+    }
+    charge_uncounted_end(g, charge_mark);
+    charge_machine_accesses(g, 2 * examined + (found ? 8 : 0));
+    charge_machine_rom_accesses(g, examined + (found ? 10 : 0));
+}
+
 void setup_enemies(GameState *g)
 {
     keep_start_positions(g);
@@ -289,7 +287,7 @@ void setup_enemies(GameState *g)
         if (record_has_enemy(g, record))
             set_up_enemy(g, enemy, record);
     }
-    ORIGINAL_EFFECT(leave_last_enemy(g));
+    charge_last_enemy(g);
     if (battle_formation(g))
         place_formation(g);
     take_rules(g);

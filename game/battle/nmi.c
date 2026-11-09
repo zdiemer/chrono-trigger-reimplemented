@@ -25,7 +25,6 @@
 #include "charge.h"
 #include "core/tile_animation.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "platform/input.h"
 #include "platform/timing.h"
 #include "platform/video.h"
@@ -118,21 +117,6 @@ static void take_frame_advance(GameState *g, Platform *pf)
 /* The multiplier's or divider's operands, set again after the handler's own
  * callees used it: the divider's while the interrupted code has it busy,
  * otherwise the multiplier's. */
-static void restore_math_operands(GameState *g)
-{
-    if (battle_divider_busy(g)) {
-        hw_set_dividend(g, (uint16_t)(battle_divider_operands(g, 0) | battle_divider_operands(g, 1) << 8));
-        hw_divide_by(g, battle_divider_operands(g, 2));
-    } else {
-        hw_set_multiplicand(g, battle_multiplier_operands(g, 0));
-        (void)hw_multiply_by(g, battle_multiplier_operands(g, 1));
-    }
-}
-
-static uint8_t last_math_operand(const GameState *g)
-{
-    return battle_divider_busy(g) ? battle_divider_operands(g, 2) : battle_multiplier_operands(g, 1);
-}
 
 /* The direct page's bottom bytes, which the frame work uses as scratch, are
  * moved aside around it. */
@@ -162,6 +146,17 @@ typedef struct {
  * unless paused the game's per-frame work and the frame count; then pause and
  * frame advance, and the battle's waits for the frame are released. False
  * where a call went no further. */
+/* Preserve the machine estimate for removed comparison accesses.
+ * Inspect the branch without charging those reads to either backend. */
+static void charge_math_restoration(GameState *g)
+{
+    uint32_t charge_mark = charge_uncounted_begin(g);
+    bool dividing = battle_divider_busy(g) != 0;
+    charge_uncounted_end(g, charge_mark);
+    charge_machine_accesses(g, dividing ? 4 : 3);
+    charge_machine_io_accesses(g, dividing ? 3 : 4);
+}
+
 static bool take_the_vblank(GameState *g, Platform *pf, const VblankCalls *calls, void *ctx)
 {
     vid_enable_line_effects(pf, PF_AT(0xD1E78A), 0);
@@ -184,7 +179,7 @@ static bool take_the_vblank(GameState *g, Platform *pf, const VblankCalls *calls
         count_frame(g);
     }
     take_pause(g, pf);
-    ORIGINAL_EFFECT(restore_math_operands(g));
+    charge_math_restoration(g);
     take_frame_advance(g, pf);
     calls->put_the_scratch_back(ctx);
     set_battle_interrupt_busy(g, 0);
@@ -266,15 +261,6 @@ void battle_nmi(Snes *s)
 }
 
 /* It leaves A 8-bit, the last operand it set. */
-void battle_restore_math_operands(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t last = last_math_operand(g);
-    ORIGINAL_EFFECT(restore_math_operands(g));
-    m_set_a8(s, last);
-    m_set_nz8(s, last);
-    m_rtl(s);
-}
 
 /* ---- The line handler ------------------------------------------------------------------- */
 
@@ -307,12 +293,6 @@ static void apply_the_alternate_frame(GameState *g)
     }
 }
 
-void battle_apply_alternate_frame(Snes *s)
-{
-    apply_the_alternate_frame(state_of(s));
-    m_rts(s);
-}
-
 /* The line handler's start: the handler marked busy, the line interrupt
  * acknowledged (NMI and auto-joypad kept on) and the line effects off; the
  * line let be drawn and the rest of the frame blanked. */
@@ -339,7 +319,7 @@ static bool take_the_line(GameState *g, Platform *pf, bool (*tile_animation_uplo
         TIMED_AS(g, 0xD1FE4C, apply_the_alternate_frame(g));
     else if (!battle_paused(g) && !tile_animation_uploads(ctx))
         return false;
-    ORIGINAL_EFFECT(restore_math_operands(g));
+    charge_math_restoration(g);
     set_battle_interrupt_busy(g, 0);
     return true;
 }

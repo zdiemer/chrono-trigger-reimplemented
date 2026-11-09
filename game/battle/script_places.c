@@ -20,6 +20,7 @@
  *
  * The original works out a place in the battle's first work cells; what it
  * leaves there is scaffolding, each kind's in its own leaves helper. */
+#include "charge.h"
 #include "battle/script_language.h"
 
 #include "battle/arith.h"
@@ -29,7 +30,6 @@
 #include "battle/script_data.h"
 #include "battle/sprite_data.h"
 #include "battle/window.h"
-#include "original_effects.h"
 #include "ram.h"
 #include "vars.h"
 
@@ -91,11 +91,6 @@ static void found_at_words(GameState *g, uint16_t x, uint16_t y)
     set_battle_position_found_y_high(g, (uint8_t)(y >> 8));
 }
 
-static BattlePoint last_found(const GameState *g)
-{
-    return (BattlePoint){ battle_position_found_x(g), battle_position_found_y(g) };
-}
-
 /* ---- The kinds of place ------------------------------------------------------------------ */
 
 /* The kinds of place. A script names a place by a byte: each kind is a run of
@@ -145,6 +140,11 @@ enum { PLACE_RUNS = sizeof place_runs / sizeof place_runs[0] };
  * channel $80's subject stands: past the subjects (script_place_known). */
 enum { PLACE_KIND_BITS = 0x7F };
 
+static BattlePoint last_found(const GameState *g)
+{
+    return (BattlePoint){ battle_position_found_x(g), battle_position_found_y(g) };
+}
+
 static Place decode_place(uint8_t place)
 {
     uint8_t picked = place & PLACE_KIND_BITS;
@@ -161,49 +161,13 @@ enum { THE_ANCHOR = 0, MIDDLE = 0x80, OUT_ALONG = 24, QUARTER_TURN = 0x40, EIGHT
  * along-the-heading's subject and steps, and the blend's weights and ends. */
 enum { LEFT_FIRST = 0x00, LEFT_SECOND = 0x02, LEFT_THIRD = 0x04, LEFT_FOURTH = 0x06, LEFT_FIFTH = 0x08, LEFT_SIXTH = 0x0A };
 
-static void leave_halfway(GameState *g, uint16_t x, uint16_t y, BattlePoint b)
-{
-    script_leave_word(g, LEFT_FIRST, x);
-    script_leave_word(g, LEFT_SECOND, y);
-    script_leave_word(g, LEFT_THIRD, b.x);
-    script_leave_word(g, LEFT_FOURTH, b.y);
-}
-
-static void leave_center(GameState *g, uint16_t x, uint16_t y, BattlePoint b, BattlePoint c)
-{
-    leave_halfway(g, x, y, b);
-    script_leave_word(g, LEFT_FIFTH, c.x);
-    script_leave_word(g, LEFT_SIXTH, c.y);
-}
-
-static void leave_blend(GameState *g, PlaceWeights w, uint16_t y, uint8_t first_y, uint8_t second_y)
-{
-    script_leave(g, LEFT_FIRST, w.first);
-    script_leave(g, LEFT_FIRST + 1, w.second);
-    script_leave_word(g, LEFT_SECOND, y);
-    script_leave(g, LEFT_THIRD, first_y);
-    script_leave(g, LEFT_THIRD + 1, second_y);
-}
-
 /* The radius goes to the sine's multiply in its operand cell. */
-static void leave_along(GameState *g, uint8_t mover, int8_t dy, int8_t dx, bool words)
-{
-    script_leave_word(g, LEFT_FIRST, mover);
-    script_leave(g, LEFT_SECOND, (uint8_t)dy);
-    if (words) {
-        script_leave(g, LEFT_SECOND + 1, 0);
-        script_leave_word(g, LEFT_THIRD, (uint8_t)dx);
-    } else {
-        script_leave(g, LEFT_SECOND + 1, (uint8_t)dx);
-    }
-    set_battle_multiply_factors(g, 1, OUT_ALONG);
-}
 
 /* Halfway between two points, in words (no carry lost). */
 static BattlePoint halfway(GameState *g, BattlePoint a, BattlePoint b)
 {
     uint16_t x = (uint16_t)((a.x + b.x) >> 1), y = (uint16_t)((a.y + b.y) >> 1);
-    ORIGINAL_EFFECT(leave_halfway(g, x, y, b));
+    charge_machine_accesses(g, 8);
     return (BattlePoint){ (uint8_t)x, (uint8_t)y };
 }
 
@@ -212,8 +176,8 @@ static BattlePoint halfway(GameState *g, BattlePoint a, BattlePoint b)
  * too; the game sees that, so it is kept. */
 static BattlePoint amid(GameState *g, BattlePoint a, BattlePoint b, BattlePoint c)
 {
-    uint16_t xs = (uint16_t)(a.x + b.x + c.x), ys = (uint16_t)(a.y + b.y + c.y);
-    ORIGINAL_EFFECT(leave_center(g, xs, ys, b, c));
+    uint16_t xs = (uint16_t)(a.x + b.x + c.x);
+    charge_machine_accesses(g, 12);
     uint8_t x = (uint8_t)battle_divide_by(g, xs, 3).quotient;
     uint8_t y = (uint8_t)battle_divide_by(g, xs, 3).quotient;
     return (BattlePoint){ x, y };
@@ -230,7 +194,7 @@ static BattlePoint part_way(GameState *g, BattlePoint a, BattlePoint b, uint8_t 
 {
     PlaceWeights w = battle_place_weights(g, weights);
     uint16_t x = weighed(g, a.x, b.x, w), y = weighed(g, a.y, b.y, w);
-    ORIGINAL_EFFECT(leave_blend(g, w, y, a.y, b.y));
+    charge_machine_accesses(g, 6);
     return (BattlePoint){ (uint8_t)x, (uint8_t)y };
 }
 
@@ -245,14 +209,14 @@ static void out_along_the_heading(GameState *g)
         uint8_t slot = subject(g, channel);
         uint8_t angle = slot < BATTLE_EFFECT_ANGLE_COUNT ? battle_effect_angle(g, slot) : battle_effect_angle_unchecked(g, slot);
         int8_t dy = battle_along(g, angle, OUT_ALONG), dx = battle_along(g, (uint8_t)(angle + QUARTER_TURN), OUT_ALONG);
-        ORIGINAL_EFFECT(leave_along(g, slot, dy, dx, false));
+        charge_machine_accesses(g, 5);
         found_at(g, (BattlePoint){ (uint8_t)(combatant_x(g, slot) + dx), (uint8_t)(combatant_y(g, slot) + dy) });
         return;
     }
     uint8_t anchor = (uint8_t)(channel - FIRST_EFFECT_CHANNEL);
     uint8_t angle = battle_effect_angle(g, FIRST_ANCHOR_MOVER + anchor);
     int8_t dy = battle_along(g, angle, OUT_ALONG), dx = battle_along(g, (uint8_t)(angle + QUARTER_TURN), OUT_ALONG);
-    ORIGINAL_EFFECT(leave_along(g, anchor, dy, dx, true));
+    charge_machine_accesses(g, 7);
     found_at_words(g, (uint16_t)(anchor_x(g, anchor) + (uint8_t)dx), (uint16_t)(anchor_y(g, anchor) + (uint8_t)dy));
 }
 
@@ -392,13 +356,14 @@ static uint8_t facing_toward(GameState *g, BattlePoint from, BattlePoint to)
  * no way to face: the original's facings run on into its places, so the
  * code finds where the subject it numbers stands, as the place code
  * would, and the one turned keeps the way found last. */
+
+// $C1:75CC
 static uint8_t no_way_found(GameState *g, uint8_t facing)
 {
     found_at(g, standing(g, subject(g, facing)));
     return battle_facing_found(g);
 }
 
-// $C1:75CC
 uint8_t script_find_facing(GameState *g, uint8_t facing, BattlePoint from)
 {
     uint8_t found;
@@ -434,7 +399,7 @@ enum { LEFT_PLACE = 0x00 };
 
 static ScriptFlow point_off_place(GameState *g, uint8_t place, uint8_t x, uint8_t y)
 {
-    ORIGINAL_EFFECT(script_leave(g, LEFT_PLACE, place));
+    charge_machine_accesses(g, 1);
     BattlePoint p = script_find_place(g, place);
     set_script_point(g, (BattlePoint){ (uint8_t)(p.x + x), (uint8_t)(p.y + y) });
     return SCRIPT_NEXT;
@@ -453,7 +418,7 @@ static ScriptFlow point_at_the_mover(GameState *g, ScriptChannel channel)
         set_script_point(g, anchor_point(g, script_effect(g)));
     } else {
         uint8_t slot = subject(g, channel.channel);
-        ORIGINAL_EFFECT(script_leave_word(g, LEFT_SUBJECT, slot));
+        charge_machine_accesses(g, 2);
         set_script_point(g, standing(g, slot));
     }
     return SCRIPT_NEXT_FRAME;
@@ -486,25 +451,8 @@ SCRIPT_OPERATION(slot_follows_place, slot, followed)
  * its work cells, and the facing code. */
 enum { LEFT_STANDING = 0x00, LEFT_TURNING = 0x02, LEFT_FACING = 0x0E };
 
-static void leave_turned(GameState *g, BattlePoint at, bool a_combatant, uint8_t slot, uint8_t facing)
-{
-    script_leave(g, LEFT_STANDING, at.x);
-    script_leave(g, LEFT_STANDING + 1, at.y);
-    if (a_combatant)
-        script_leave_word(g, LEFT_TURNING, slot);
-    script_leave(g, LEFT_FACING, facing);
-}
-
 /* Of the combatants turned, the original's cells keep the last: where it
  * stands and which it is (nothing, if none was). */
-static void leave_last_turned(GameState *g, ScriptChannel channel, unsigned turned, uint8_t facing)
-{
-    uint8_t last = 0;
-    if (turned == 0 || !script_each_combatant(g, channel, turned - 1, &last))
-        leave_turned(g, (BattlePoint){ 0, 0 }, true, 0, facing);
-    else
-        leave_turned(g, standing(g, last), true, last, facing);
-}
 
 // $C1:5FDE
 /* What the channel moves turns the way a facing code names: its combatant,
@@ -516,14 +464,14 @@ static ScriptFlow face(GameState *g, ScriptChannel channel, uint8_t facing)
         uint8_t anchor = script_effect(g);
         BattlePoint at = anchor_point(g, anchor);
         set_battle_anchor_facing(g, anchor, script_find_facing(g, facing, at));
-        ORIGINAL_EFFECT(leave_turned(g, at, false, anchor, facing));
+        charge_machine_accesses(g, 3);
         return SCRIPT_NEXT_FRAME;
     }
     uint8_t slot;
     unsigned turned = 0;
     for (; script_each_combatant(g, channel, turned, &slot); turned++)
         set_battle_object_facing(g, slot, script_find_facing(g, facing, standing(g, slot)));
-    ORIGINAL_EFFECT(leave_last_turned(g, channel, turned, facing));
+    charge_machine_accesses(g, 5 + (turned ? 3 : 0));
     return SCRIPT_NEXT_FRAME;
 }
 SCRIPT_OPERATION(face, channel, facing)
@@ -574,7 +522,7 @@ enum { LEFT_HEADING = 0x00 };
 static ScriptFlow take_heading(GameState *g, ScriptChannel channel, uint8_t named)
 {
     uint8_t heading = named_heading(g, named);
-    ORIGINAL_EFFECT(script_leave(g, LEFT_HEADING, heading));
+    charge_machine_accesses(g, 1);
     turn_movers(g, channel, HEADINGS_LIST_FROM, heading, false);
     return SCRIPT_NEXT;
 }
@@ -583,17 +531,11 @@ SCRIPT_OPERATION(take_heading, channel, named)
 // $C1:60E6
 /* The movers head from one place toward another (the place toward is found
  * first, and kept while the other is). */
-static void keep_heading_ends(GameState *g, uint8_t place, BattlePoint to)
-{
-    set_battle_heading_from_place(g, place);
-    set_battle_heading_to_x(g, to.x);
-    set_battle_heading_to_y(g, to.y);
-}
 
 static ScriptFlow heading_between(GameState *g, ScriptChannel channel, uint8_t place, uint8_t toward)
 {
     BattlePoint to = script_find_place(g, toward);
-    ORIGINAL_EFFECT(keep_heading_ends(g, place, to));
+    charge_machine_accesses(g, 3);
     BattlePoint from = script_find_place(g, place);
     turn_movers(g, channel, HEADINGS_LIST_FROM, battle_direction(g, from, to), false);
     return SCRIPT_NEXT;
@@ -604,7 +546,7 @@ SCRIPT_OPERATION(heading_between, channel, place, toward)
 /* The movers' headings turn by an amount. */
 static ScriptFlow turn_heading(GameState *g, ScriptChannel channel, uint8_t amount)
 {
-    ORIGINAL_EFFECT(script_leave(g, LEFT_HEADING, amount));
+    charge_machine_accesses(g, 1);
     turn_movers(g, channel, HEADINGS_LIST_FROM, amount, true);
     return SCRIPT_NEXT;
 }
@@ -614,7 +556,7 @@ SCRIPT_OPERATION(turn_heading, channel, amount)
 /* The movers head a given way. */
 static ScriptFlow set_heading(GameState *g, ScriptChannel channel, uint8_t heading)
 {
-    ORIGINAL_EFFECT(script_leave(g, LEFT_HEADING, heading));
+    charge_machine_accesses(g, 1);
     turn_movers(g, channel, OTHER_TARGETS_START, heading, false);
     return SCRIPT_NEXT_FRAME;
 }

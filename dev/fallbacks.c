@@ -1067,6 +1067,110 @@ static bool the_cartridges_menus(const Fallbacks *f, uint32_t pc)
     return false;
 }
 
+/* Only reference play may execute battle's retired owned runs.
+ * Shipping still counts every original instruction as fallback. */
+static bool the_cartridges_battle(const Fallbacks *f, uint32_t pc)
+{
+    static const struct { uint32_t first, last; } runs[] = {
+        { 0xC00002, 0xC00004 },
+        { 0xC10000, 0xC10014 },
+        { 0xC10018, 0xC10050 },
+        { 0xC10065, 0xC1006A },
+        { 0xC1006D, 0xC10BB4 },
+        { 0xC10BB6, 0xC115B5 },
+        { 0xC115C8, 0xC11FE9 },
+        { 0xC1203A, 0xC12327 },
+        { 0xC12329, 0xC12D80 },
+        { 0xC12D9F, 0xC12F1E },
+        { 0xC12F22, 0xC13215 },
+        { 0xC13234, 0xC1375F },
+        { 0xC13772, 0xC14EF5 },
+        { 0xC14EF7, 0xC15F56 },
+        { 0xC15F59, 0xC15F87 },
+        { 0xC15F8A, 0xC16C43 },
+        { 0xC16C46, 0xC179A0 },
+        { 0xC17C2B, 0xC17C3C },
+        { 0xC18000, 0xC1995E },
+        { 0xC19960, 0xC1AE0C },
+        { 0xC1AE13, 0xC1AED2 },
+        { 0xC1AEFD, 0xC1B70C },
+        { 0xC1B70E, 0xC1B80C },
+        { 0xC1B961, 0xC1BC61 },
+        { 0xC1BCE0, 0xC1BF80 },
+        { 0xC1BFA4, 0xC1C099 },
+        { 0xC1C1B2, 0xC1C730 },
+        { 0xC1C732, 0xC1C95B },
+        { 0xC1C96A, 0xC1CE35 },
+        { 0xC1CE3A, 0xC1CF50 },
+        { 0xC1CF69, 0xC1CFBD },
+        { 0xC1CFC2, 0xC1D125 },
+        { 0xC1D132, 0xC1D19F },
+        { 0xC1D1A4, 0xC1D1CE },
+        { 0xC1D1D3, 0xC1D506 },
+        { 0xC1D508, 0xC1D9D6 },
+        { 0xC1DA37, 0xC1E07A },
+        { 0xC1E09E, 0xC1E894 },
+        { 0xC1E89B, 0xC1E8E0 },
+        { 0xC1E8E2, 0xC1EA9B },
+        { 0xC1EA9D, 0xC1EB48 },
+        { 0xC1EB68, 0xC1EFD2 },
+        { 0xC1F036, 0xC1F9E9 },
+        { 0xC1F9EB, 0xC1FA60 },
+        { 0xC1FA8B, 0xC1FDD2 },
+        { 0xCCE000, 0xCCE28F },
+        { 0xCCE2E4, 0xCCF382 },
+        { 0xCD0000, 0xCD000E },
+        { 0xCD0012, 0xCD001D },
+        { 0xCD0021, 0xCD019C },
+        { 0xCD01A5, 0xCD0214 },
+        { 0xCD0235, 0xCD05FE },
+        { 0xCD0607, 0xCD06B1 },
+        { 0xCD06B4, 0xCD06BB },
+        { 0xCD06C4, 0xCD0C82 },
+        { 0xCD0C89, 0xCD1218 },
+        { 0xCD1221, 0xCD12FF },
+        { 0xCD1314, 0xCD13D3 },
+        { 0xCD13DC, 0xCD13E5 },
+        { 0xCD13EE, 0xCD16B4 },
+        { 0xCD17A9, 0xCD1C5A },
+        { 0xCD1C63, 0xCD26AF },
+        { 0xCD26C0, 0xCD2960 },
+        { 0xCD2969, 0xCD29A1 },
+        { 0xCD29AA, 0xCD2A41 },
+        { 0xCD2A4A, 0xCD2A50 },
+        { 0xCD2A8B, 0xCD2DE9 },
+        { 0xCD2DFA, 0xCD319D },
+        { 0xCD31AA, 0xCD38A9 },
+        { 0xCD38B2, 0xCD3E20 },
+        { 0xCD3E3B, 0xCD3F9D },
+        { 0xCEE000, 0xCEE08D },
+        { 0xCEE18E, 0xCEE1C6 },
+        { 0xCEE293, 0xCEEF10 },
+        { 0xCEF066, 0xCEF0E5 },
+        { 0xCFE300, 0xCFF01D },
+        { 0xCFF03E, 0xCFF9F6 },
+        { 0xCFF9FB, 0xCFFE84 },
+        { 0xD1E70A, 0xD1E9EE },
+        { 0xD1EA01, 0xD1EA20 },
+        { 0xD1EA4B, 0xD1EC5E },
+        { 0xD1ECF3, 0xD1EE98 },
+        { 0xD1EEA5, 0xD1F685 },
+        { 0xD1F692, 0xD1F69B },
+        { 0xD1F6B4, 0xD1FBD1 },
+        { 0xD1FBDA, 0xD1FEF3 },
+        { 0xFDA8A5, 0xFDAF8A },
+        { 0xFDAFD7, 0xFDB67E },
+        { 0xFDB6CB, 0xFDB956 },
+    };
+    if (!f->shadow)
+        return false;
+    pc |= 0x800000;
+    for (unsigned i = 0; i < sizeof runs / sizeof runs[0]; i++)
+        if (pc >= runs[i].first && pc <= runs[i].last)
+            return true;
+    return false;
+}
+
 void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
 {
     /* Observe completion before the caller starts another invocation of the
@@ -1110,7 +1214,7 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
         if (f->pass.open)
             f->pass.hidden++;
     }
-    if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc) && !the_cartridges_menu_services(f, pc) && !the_cartridges_menus(f, pc) && !the_cartridges_field(f, pc) && !the_cartridges_events(f, pc) && !the_cartridges_decompressor(f, pc) &&
+    if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc) && !the_cartridges_menu_services(f, pc) && !the_cartridges_battle(f, pc) && !the_cartridges_menus(f, pc) && !the_cartridges_field(f, pc) && !the_cartridges_events(f, pc) && !the_cartridges_decompressor(f, pc) &&
         !the_cartridges_animations(f, pc) && !the_cartridges_warp(f, pc) && !the_cartridges_overworld(f, pc) && !the_cartridges_scene_program(f, pc) && !the_cartridges_scene(f, pc)) {
         bool m8 = e || (p & CPU_FLAG_M), x8 = e || (p & CPU_FLAG_X);
         add(f, pc, eff.kind, routine, eff.port, (uint8_t)misses_instruction_length(op, m8, x8));

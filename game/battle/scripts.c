@@ -241,7 +241,7 @@ static bool command_elsewhere(void *ctx, uint8_t command, const ScriptOpcode *ro
     if (runs == THE_OPERATION_RAN)
         return true;
     if (runs != RUN_THE_BRIDGE)
-        return battle_needs_the_machine(g, handler_of(g, command), "an animation script's command the port doesn't run");
+        return battle_contract_broken(g, handler_of(g, command), "an animation script's command the port doesn't run");
     ScriptCommand decoded = script_decode(g, row);
     TIMED_AS(g, handler_of(g, command), script_play_the_sound(g, c->pf, command, &decoded));
     script_move_on(g, row, SCRIPT_NEXT);

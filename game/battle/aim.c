@@ -47,7 +47,6 @@
 #include "battle/random.h"
 #include "battle/rules_data.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "port/native.h"
 #include "vars.h"
 
@@ -206,13 +205,14 @@ static bool partners_can_act(const GameState *g)
 /* The enemy an enemy's tech brings in with it (its first further target).
  * The original tests it a second time where the second further target's test
  * belongs, and never looks at that one. */
+
+/* ---- The action's aim --------------------------------------------------------------------------- */
+
 static bool enemy_brought_in_can_act(const GameState *g)
 {
     uint8_t first = battle_action_further_targets(g, 0);
     return first == NO_TARGET || can_take_part(g, first);
 }
-
-/* ---- The action's aim --------------------------------------------------------------------------- */
 
 static bool actor_in_party(const GameState *g) { return battle_actor(g) < BATTLE_PARTY_SIZE; }
 
@@ -278,6 +278,42 @@ static uint8_t chosen_target(const GameState *g) { return standing_in_for(g, bat
 
 /* Everyone in the fight from `first` up to `end`, as the targets (`first`
  * looked at whatever `end` is); false where nobody is. */
+
+/* A side: the actor's own, or the other. The area is said to be among the
+ * party's places where the actor is a party member, for both: the original
+ * sets it so whichever side the mode takes. `party_end` is where the party's
+ * places end, which a roll can set. */
+
+// $C1:C82D
+/* The chosen foe, the first candidate the caller named: where it has left the
+ * fight, another drawn at random from those in it (in a demo battle, the
+ * first enemy in it, so that the demo plays the same), which becomes the
+ * chosen one. False where the actor's foes are all out. */
+
+/* A target taken by a roll, which isn't random: the original draws a number
+ * and then takes as the roll the number of the action's tech members'
+ * record, which its lookup at the start of the aim left where the draw puts
+ * its cell back as it found it, so each item that aims this way rolls the
+ * same every time. By the roll: a foe, the actor's side, a foe, the other
+ * side, or nothing. The actor's side taken this way ends the party's places
+ * at a byte of the buttons the player holds (the repeating ones' low byte,
+ * or their high). The original also leaves the row's number and a target
+ * byte in its cells (leave_aim_cells). */
+enum { ROLL_LIMIT = 100, REPEATING_BUTTONS = 2 };
+
+struct RollRow {
+    uint8_t below;
+    bool foe, own_side, high_buttons;
+    uint8_t left_target, left_row;
+};
+
+static const RollRow ROLLS[] = {
+    { 8, true, false, false, 0xFF, 1 },
+    { 12, false, true, false, 0, 2 },
+    { 18, true, false, true, 0xFF, 3 },
+    { 20, false, false, true, 0, 4 },
+};
+
 static bool take_everyone(GameState *g, uint8_t first, uint8_t end)
 {
     uint8_t count = 0, slot = first;
@@ -291,10 +327,6 @@ static bool take_everyone(GameState *g, uint8_t first, uint8_t end)
     return true;
 }
 
-/* A side: the actor's own, or the other. The area is said to be among the
- * party's places where the actor is a party member, for both: the original
- * sets it so whichever side the mode takes. `party_end` is where the party's
- * places end, which a roll can set. */
 static bool take_side(GameState *g, Aiming *a, bool own_side, uint8_t party_end)
 {
     bool party = actor_in_party(g);
@@ -302,11 +334,6 @@ static bool take_side(GameState *g, Aiming *a, bool own_side, uint8_t party_end)
     return own_side == party ? take_everyone(g, 0, party_end) : take_everyone(g, BATTLE_FIRST_ENEMY, BATTLE_COMBATANTS);
 }
 
-// $C1:C82D
-/* The chosen foe, the first candidate the caller named: where it has left the
- * fight, another drawn at random from those in it (in a demo battle, the
- * first enemy in it, so that the demo plays the same), which becomes the
- * chosen one. False where the actor's foes are all out. */
 static bool take_foe(GameState *g, Aiming *a)
 {
     bool party = actor_in_party(g);
@@ -333,39 +360,23 @@ static bool take_foe(GameState *g, Aiming *a)
     return true;
 }
 
-/* A target taken by a roll, which isn't random: the original draws a number
- * and then takes as the roll the number of the action's tech members'
- * record, which its lookup at the start of the aim left where the draw puts
- * its cell back as it found it, so each item that aims this way rolls the
- * same every time. By the roll: a foe, the actor's side, a foe, the other
- * side, or nothing. The actor's side taken this way ends the party's places
- * at a byte of the buttons the player holds (the repeating ones' low byte,
- * or their high). The original also leaves the row's number and a target
- * byte in its cells (leave_aim_cells). */
-enum { ROLL_LIMIT = 100, REPEATING_BUTTONS = 2 };
-
-struct RollRow {
-    uint8_t below;
-    bool foe, own_side, high_buttons;
-    uint8_t left_target, left_row;
-};
-
-static const RollRow ROLLS[] = {
-    { 8, true, false, false, 0xFF, 1 },
-    { 12, false, true, false, 0, 2 },
-    { 18, true, false, true, 0xFF, 3 },
-    { 20, false, false, true, 0, 4 },
-};
-
 static uint8_t buttons_byte(const GameState *g, bool high)
 {
     uint16_t buttons = input_mapped(g, REPEATING_BUTTONS);
     return (uint8_t)(high ? buttons >> 8 : buttons);
 }
 
+/* *done: the foe is the whole aim, with nothing after it. */
+
+/* A revive's target, which must be knocked out; an enemy one must not be in
+ * reserve, which the original asks of the enemies' table by the target's
+ * battle slot, as if it were its enemy number, reading past the eight for the
+ * last three. */
+
+/* Step 2. False where the action comes to nothing; *done where it is aimed
+ * with nothing more to do. */
 static uint8_t the_roll(const GameState *g) { return party_tech(g, battle_action_detail(g)).members; }
 
-/* *done: the foe is the whole aim, with nothing after it. */
 static bool take_by_roll(GameState *g, Aiming *a, bool *done)
 {
     TIMED_AS(g, 0xC1AF22, (void)battle_random(g, 0, ROLL_LIMIT));
@@ -385,10 +396,6 @@ static bool take_by_roll(GameState *g, Aiming *a, bool *done)
     return false;
 }
 
-/* A revive's target, which must be knocked out; an enemy one must not be in
- * reserve, which the original asks of the enemies' table by the target's
- * battle slot, as if it were its enemy number, reading past the eight for the
- * last three. */
 static bool fallen_in_reserve(const GameState *g, uint8_t slot)
 {
     uint8_t standing = slot < BATTLE_ENEMY_STANDING_COUNT ? battle_enemy_standing(g, slot) : battle_enemy_standing_unchecked(g, slot);
@@ -428,8 +435,6 @@ static bool take_whole_party(GameState *g)
     return true;
 }
 
-/* Step 2. False where the action comes to nothing; *done where it is aimed
- * with nothing more to do. */
 static bool take_by_mode(GameState *g, Aiming *a, bool *done)
 {
     switch (a->row.take) {
@@ -481,17 +486,17 @@ static const AreaPlacing PLACINGS[AREA_PLACINGS] = {
     { false, ANCHOR_ACTOR, ANCHOR_CHOSEN, true, true },        /* from the actor toward the target */
 };
 
+// $C1:C74C
+/* The party places of a party tech's members, which the original looks up
+ * again with the tech's members (its multiply entered with the carry clear)
+ * and leaves for the effect as the further targets. An enemy's tech has none:
+ * its rules are placed without them. */
 static bool placing_needs_members(const AreaPlacing *p)
 {
     return p->side_is_first_member || p->centre == ANCHOR_FIRST_MEMBER || p->centre == ANCHOR_SECOND_MEMBER
            || p->toward == ANCHOR_FIRST_MEMBER || p->toward == ANCHOR_SECOND_MEMBER;
 }
 
-// $C1:C74C
-/* The party places of a party tech's members, which the original looks up
- * again with the tech's members (its multiply entered with the carry clear)
- * and leaves for the effect as the further targets. An enemy's tech has none:
- * its rules are placed without them. */
 static Anchors gather_anchors(GameState *g)
 {
     Anchors a = { 0, 0, 0, battle_first_candidate(g), battle_actor(g) };
@@ -557,20 +562,16 @@ static void leave_aim_cells(GameState *g, const Aiming *a)
     if (!a->records_read)
         return;
     bool members = a->gathered && battle_actor(g) < BATTLE_PARTY_SIZE;
-    uint8_t bound = a->placed   ? (uint8_t)(a->rule.placing | (a->rule.searches_for_target ? AREA_RULE_TOP_BIT : 0))
-                    : members   ? a->anchors.third_member
-                    : a->rolled ? a->roll_buttons
-                                : BATTLE_PARTY_SIZE;
-    ORIGINAL_EFFECT(battle_leave_word(g, LEFT_BOUND, bound));
-    ORIGINAL_EFFECT(battle_leave_word(g, LEFT_ENEMIES_END, BATTLE_COMBATANTS));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
     battle_keep_byte(g, LEFT_SIDE, a->among_party);
     if (a->gathered)
-        ORIGINAL_EFFECT(battle_leave_byte(g, LEFT_RULES_OR_ACTOR, a->anchors.actor));
+        charge_machine_accesses(g, 1);
     else if (!a->item)
-        ORIGINAL_EFFECT(battle_leave_byte(g, LEFT_RULES_OR_ACTOR, a->aim.area));
+        charge_machine_accesses(g, 1);
     battle_keep_byte(g, LEFT_MODE_OR_FIRST, members ? a->anchors.first_member : a->aim.mode);
     if (members)
-        ORIGINAL_EFFECT(battle_leave_byte(g, LEFT_SECOND, a->anchors.second_member));
+        charge_machine_accesses(g, 1);
     if (a->gathered)
         battle_keep_byte(g, LEFT_TARGET, a->anchors.chosen);
     else if (a->rolled)
@@ -588,17 +589,23 @@ static void leave_aim_cells(GameState *g, const Aiming *a)
  * high byte the rule's search flag takes. */
 static void leave_rule_reached(GameState *g, uint16_t rules, uint8_t rule, uint8_t left)
 {
-    ORIGINAL_EFFECT(battle_leave_byte(g, LEFT_ENEMIES_END, (uint8_t)(1 + rule * AREA_RULE_BYTES)));
-    ORIGINAL_EFFECT(battle_leave_byte(g, LEFT_RULE, rule));
-    ORIGINAL_EFFECT(battle_leave_byte(g, LEFT_RULES_LEFT, left));
-    ORIGINAL_EFFECT(set_battle_aim_rules(g, (uint16_t)(rules & 0x00FF)));
+
+    (void)left;
+    (void)rule;
+    (void)rules;
+        charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 2);
 }
 
 static void leave_rules_placed(GameState *g, uint8_t count)
 {
-    ORIGINAL_EFFECT(battle_leave_byte(g, LEFT_ENEMIES_END, (uint8_t)(1 + count * AREA_RULE_BYTES)));
-    ORIGINAL_EFFECT(battle_leave_byte(g, LEFT_RULE, count));
-    ORIGINAL_EFFECT(battle_leave_byte(g, LEFT_RULES_LEFT, 0));
+
+    (void)count;
+        charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
 }
 
 /* The set's one rule's area, placed for the area search, which keeps it in
@@ -714,6 +721,9 @@ static void drop_those_out(GameState *g)
 
 /* The targets counted up to the first place with none; false where every
  * place has one. */
+
+/* The targets settled after the area rules: false where the action comes to
+ * nothing. */
 static bool count_targets(GameState *g)
 {
     set_battle_action_target_count(g, 0);
@@ -725,8 +735,6 @@ static bool count_targets(GameState *g)
     return false;
 }
 
-/* The targets settled after the area rules: false where the action comes to
- * nothing. */
 static bool settle_targets(GameState *g, Finish finish)
 {
     if (finish == FINISH_AREA_AND_CHOSEN)
@@ -749,7 +757,7 @@ static void place_the_area(GameState *g, Aiming *a)
 {
     a->rules = area_rules_place(g, a->aim.area);
     a->rule_count = area_rule_count(g, a->rules);
-    ORIGINAL_EFFECT(set_battle_aim_rules(g, a->rules));
+    charge_machine_accesses(g, 2);
     a->anchors = gather_anchors(g);
     a->gathered = true;
     if (a->rule_count == 0)
@@ -764,25 +772,26 @@ static void place_the_area(GameState *g, Aiming *a)
  * carry (`carry`), which it leaves in a cell. */
 static AimProgress aim_up_to_the_area(GameState *g, Aiming *a, bool carry)
 {
-    set_battle_action_came_to_nothing(g, 0);
+
+    (void)carry;     set_battle_action_came_to_nothing(g, 0);
     effect_take_tech_members(g, battle_action_detail(g));
-    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, carry));
+    charge_machine_accesses(g, 1);
     a->aim = action_aim(g);
     a->row = aim_row(a->aim.mode);
     if (!can_be_made(g, a))
         return CAME_TO_NOTHING;
     /* a roll's way leaves its finish before it rolls; every other leaves
        none until it has taken its targets */
-    ORIGINAL_EFFECT(set_battle_aim_finish(g, a->row.take == TAKE_BY_ROLL ? a->row.left : 0));
+    charge_machine_accesses(g, 1);
     bool done = false;
     if (!take_by_mode(g, a, &done))
         return CAME_TO_NOTHING;
-    ORIGINAL_EFFECT(set_battle_aim_finish(g, a->row.left));
+    charge_machine_accesses(g, 1);
     if (done)
         return AIMED;
     if (a->row.finish == FINISH_FIRST_IS_CHOSEN)
         set_target(g, 0, chosen_target(g));
-    ORIGINAL_EFFECT(battle_leave_byte(g, LEFT_RULE, 0));
+    charge_machine_accesses(g, 1);
     if (a->aim.area == NO_AREA)
         return AIMED;
     place_the_area(g, a);
@@ -825,8 +834,7 @@ static void search_the_area(GameState *g, const Aiming *a)
     leave_rule_reached(g, a->rules, 0, 1);
     TIMED_AS(g, 0xC1C741, search_area(g, a->rule.shape, &a->asked));
     take_finds(g);
-    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, battle_area_search_carry(a->rule.shape, a->asked.among_party,
-                                                                            a->asked.centre, a->asked.toward)));
+    charge_machine_accesses(g, 1);
 }
 
 // $C1:C1DD
@@ -888,6 +896,7 @@ void battle_aim_action_entry(Snes *s)
  * party members. A roll for the actor's side bounded by more buttons than
  * the party has places reads past them; the ROM's items never roll that, and
  * an enemy never rolls. */
+
 static bool rules_fit(const GameState *g, uint8_t area, bool party)
 {
     if (area == NO_AREA)
@@ -978,13 +987,6 @@ bool battle_aim_action_ready(Snes *s)
 /* The area search for the shape the targeting's rule names and the area its
  * caller hands it in cells (battle_aim_rule_shape, battle_area_search): the
  * shape noted beside the area, then the battle's step 7 on the two. */
-void battle_search_area(Snes *s)
-{
-    GameState *g = state_of(s);
-    set_battle_area_shape(g, battle_aim_rule_shape(g));
-    TIMED_AS(state_of(s), 0xC11FDD, battle_search_the_noted_area(s));
-    m_rts(s);
-}
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 
@@ -1006,7 +1008,7 @@ static bool show_the_aimed_action(void *ctx, uint8_t showing)
 bool battle_aim_action(GameState *g, Platform *pf, bool carry)
 {
     if (!aim_fits(g))
-        return battle_needs_the_machine(g, 0xC1C1DD, "an action's aim the port doesn't make");
+        return battle_contract_broken(g, 0xC1C1DD, "an action's aim the port doesn't make");
     AimContext c = { g, pf };
     return aim_the_action(g, carry, show_the_aimed_action, &c) != AIM_STOPPED;
 }

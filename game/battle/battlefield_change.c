@@ -34,7 +34,6 @@
 #include "battle/screen.h"
 #include "battle/wait.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "platform/video.h"
 #include "vars.h"
 
@@ -146,8 +145,6 @@ enum { GRADIENT_FADE_FRAMES = 31, LAYER_FADE_FRAMES = 15 };
 enum { NO_BLOCK = 0xFF, NO_SOURCE = 0xFFFF, BANDS_DIMMEST = 0x1F };
 enum { TILE_SET_HIGH_BIT = 0x40, LEFT_TILE_SET = 0x53 };
 
-static uint16_t layout_word(BattlefieldLayout l) { return (uint16_t)(l.kept | l.rows << 8); }
-
 static uint16_t tile_set_of(BattlefieldLayout l)
 {
     return (uint16_t)(l.tile_set | ((l.strips & TILE_SET_HIGH_BIT) ? 0x100 : 0));
@@ -163,15 +160,15 @@ static uint16_t take_the_look_and_layout(GameState *g, uint16_t battlefield)
         set_battle_screen_background_colors(g, which, look.color_sets[which]);
     set_battle_block_uploaded_row(g, NO_BLOCK);
     set_battle_block_uploaded_source(g, NO_SOURCE);
-    ORIGINAL_EFFECT(set_battle_block_uploaded_pad(g, NO_BLOCK));
+    charge_machine_accesses(g, 1);
     BattlefieldLayout l = battlefield_layout(g, battlefield);
     set_battle_battlefield_layout_strips(g, l.strips);
     set_battle_battlefield_layout_tile_set(g, l.tile_set);
     set_battle_battlefield_layout_map(g, l.first_strip);
     set_battle_battlefield_layout_kept(g, l.kept);
     set_battle_battlefield_layout_rows(g, l.rows);
-    ORIGINAL_EFFECT(set_battle_screen_channels_layout_word(g, 0, layout_word(l)));
-    ORIGINAL_EFFECT(set_battle_battlefield_kept_word(g, layout_word(l)));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
     screen_leave_word(g, LEFT_TILE_SET, tile_set_of(l));
     set_battle_band_fade(g, BANDS_DIMMEST);
     return tile_set_of(l);
@@ -240,7 +237,6 @@ static void decode_tile_set(GameState *g, uint16_t set)
 {
     uint16_t descriptors = (uint16_t)(DESCRIPTORS_AT + set * SET_DESCRIPTOR_BYTES);
     bool flipped_any = false, mirrored_any = false;
-    uint16_t flipped_row = 0;
     for (unsigned tile = 0; tile < SET_TILES; tile++) {
         uint16_t descriptor = battlefield_tile_descriptor(g, (uint16_t)(descriptors + tile * DESCRIPTOR_BYTES));
         uint32_t graphics = (uint32_t)(descriptor & TILE_GRAPHICS) * GRAPHICS_UNIT;
@@ -248,7 +244,7 @@ static void decode_tile_set(GameState *g, uint16_t set)
         for (unsigned b = 0; b < TILE_BYTES; b++)
             set_battle_decoded_tiles(g, at + b, battlefield_tile_graphics_byte(g, graphics + b));
         if (descriptor & FLIPPED) {
-            flipped_row = flip_tile(g, at);
+            flip_tile(g, at);
             flipped_any = true;
         }
         if (descriptor & MIRRORED) {
@@ -258,9 +254,9 @@ static void decode_tile_set(GameState *g, uint16_t set)
     }
     screen_leave_word(g, LEFT_DESCRIPTORS, (uint16_t)(descriptors + SET_TILES * DESCRIPTOR_BYTES));
     screen_leave_cell(g, LEFT_DESCRIPTOR_BANK, DESCRIPTOR_BANK);
-    ORIGINAL_EFFECT(screen_leave_word(g, LEFT_TILES_LEFT, 0));
+    charge_machine_accesses(g, 2);
     if (flipped_any)
-        ORIGINAL_EFFECT(screen_leave_word(g, LEFT_FLIPPED_ROW, flipped_row));
+        charge_machine_accesses(g, 2);
     if (mirrored_any)
         screen_leave_cell(g, LEFT_MIRROR_ROWS, 0);
 }
@@ -384,31 +380,17 @@ enum { LEFT_STRIP_AT = 0x53, LEFT_STRIP_BANK = 0x55, LEFT_BUFFER_AT = 0x57, LEFT
        LEFT_TILE = 0x67, LEFT_PLACE = 0x69, LEFT_SHEET_COLUMN = 0x6B, LEFT_ROWS_LEFT = 0x6D, LEFT_FLIPS = 0x6F,
        LEFT_ATTRIBUTES = 0x71, LEFT_TILE_SET_AT = 0x73, LEFT_PALETTE = 0x75 };
 
-static void leave_the_builder_counts(GameState *g, const MapBuilder *b, uint16_t tile_set, uint8_t rows)
-{
-    screen_leave_cell(g, LEFT_CELLS, b->cells);
-    screen_leave_word(g, LEFT_COLUMN_AND_ROW, (uint16_t)(rows << 8));
-    if (b->built_any) {
-        screen_leave_cell(g, LEFT_TILE, b->last_tile);
-        screen_leave_word(g, LEFT_PLACE, b->last_place);
-        screen_leave_cell(g, LEFT_SHEET_COLUMN, (uint8_t)((b->last_tile & SHEET_COLUMN) * 2));
-        screen_leave_cell(g, LEFT_PALETTE, b->last_palette);
-    }
-    screen_leave_cell(g, LEFT_ROWS_LEFT, 0);
-    screen_leave_word(g, LEFT_FLIPS, 0);
-    screen_leave_cell(g, LEFT_ATTRIBUTES, IN_FRONT_PALETTE_6);
-    screen_leave_word(g, LEFT_TILE_SET_AT, tile_set);
-}
-
 static void leave_the_builder(GameState *g, const MapBuilder *b, uint16_t tile_set, uint8_t strips, uint8_t rows)
 {
-    screen_leave_word(g, LEFT_STRIP_AT, b->at);
+
+    (void)rows;
+    (void)tile_set;     screen_leave_word(g, LEFT_STRIP_AT, b->at);
     screen_leave_cell(g, LEFT_STRIP_BANK, (uint8_t)(BATTLEFIELD_STRIP_BANK >> 16));
     screen_leave_word(g, LEFT_BUFFER_AT, (uint16_t)(MAP_BUFFER + strips * STRIP_PLACES * 2));
     screen_leave_cell(g, LEFT_BUFFER_BANK, WORK_RAM_BANK);
     screen_leave_cell(g, LEFT_CELLS_LEFT, b->cells_left);
     screen_leave_word(g, LEFT_CELLS_READ, b->cells_read);
-    ORIGINAL_EFFECT(leave_the_builder_counts(g, b, tile_set, rows));
+    charge_machine_accesses(g, b->built_any ? 14 : 9);
 }
 
 /* Put a tile in its place of the map: the strip's 256 places, sixteen a row. */
@@ -522,7 +504,7 @@ static bool load_the_tile_sets(GameState *g, uint16_t tile_set, FieldCalls call,
         return false;
     for (uint8_t set = 0; set < LAYER_SETS; set++) {
         uint16_t of_set = (uint16_t)(tile_set + set * 2);
-        ORIGINAL_EFFECT(set_battle_tile_rows_next(g, set));
+        charge_machine_accesses(g, 1);
         if (!keep(call, ctx, of_set))
             return false;
         TIMED_AS(g, 0xCD11E4, decode_tile_set(g, of_set));
@@ -534,7 +516,7 @@ static bool load_the_tile_sets(GameState *g, uint16_t tile_set, FieldCalls call,
         if (!drop(call, ctx))
             return false;
     }
-    ORIGINAL_EFFECT(set_battle_tile_rows_next(g, LAYER_SETS));
+    charge_machine_accesses(g, 1);
     return true;
 }
 
@@ -577,21 +559,21 @@ static bool load_effect_tile_rows(GameState *g, uint8_t first_row_set, uint8_t f
                                   FieldCalls call, void *ctx)
 {
     uint8_t end = (uint8_t)(first_slot + slots);
-    ORIGINAL_EFFECT(set_battle_tile_rows_next(g, first_row_set));
-    ORIGINAL_EFFECT(set_battle_tile_rows_slot(g, first_slot));
-    ORIGINAL_EFFECT(set_battle_tile_rows_end(g, end));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     if (!next_frame(call, ctx, FIELD_ROWS_FRAME))
         return false;
     for (uint8_t slot = first_slot; slot != end; slot++) {
         uint8_t row_set = (uint8_t)(first_row_set + (slot - first_slot));
-        ORIGINAL_EFFECT(set_battle_tile_rows_next(g, row_set));
-        ORIGINAL_EFFECT(set_battle_tile_rows_slot(g, slot));
+        charge_machine_accesses(g, 1);
+        charge_machine_accesses(g, 1);
         TIMED_AS(g, 0xCD1368, battle_decode_tiles(g, row_set, ROW_TILES));
         if (!send(call, ctx, FIELD_ROWS_SENT, DECODE_BUFFER, effect_tile_rows_vram(g, slot), ROW_BYTES))
             return false;
     }
-    ORIGINAL_EFFECT(set_battle_tile_rows_next(g, (uint8_t)(first_row_set + slots)));
-    ORIGINAL_EFFECT(set_battle_tile_rows_slot(g, end));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     return true;
 }
 
@@ -706,7 +688,7 @@ static bool load_and_run_it(void *ctx, uint16_t battlefield)
 {
     BattlefieldChangeContext *c = ctx;
     if (!fits(c->game, battlefield))
-        return battle_needs_the_machine(c->game, 0xCD0EBD, "a battlefield whose layout the port doesn't build");
+        return battle_contract_broken(c->game, 0xCD0EBD, "a battlefield whose layout the port doesn't build");
     bool done = false;
     TIMED_AS(c->game, 0xCD0EBD, done = load_the_battlefield(c->game, battlefield, change_a_part, ctx));
     return done;
@@ -715,7 +697,7 @@ static bool load_and_run_it(void *ctx, uint16_t battlefield)
 bool battle_change_battlefield(GameState *g, Platform *pf, uint16_t battlefield)
 {
     if (!fits(g, battlefield))
-        return battle_needs_the_machine(g, 0xCD0018, "a battlefield whose layout the port doesn't build");
+        return battle_contract_broken(g, 0xCD0018, "a battlefield whose layout the port doesn't build");
     BattlefieldChangeContext c = { g, pf };
     return change_the_battlefield(g, load_and_run_it, &c, battlefield);
 }
@@ -738,13 +720,6 @@ void battle_change_battlefield_entry(Snes *s)
         return;
     s->cpu.a = 0;
     m_rtl(s);
-}
-
-void battle_fade_old_battlefield_layer(Snes *s)
-{
-    fade_the_old_layer_out(state_of(s));
-    s->cpu.a = 0;
-    m_rts(s);
 }
 
 /* The battlefield comes in X. */
@@ -773,26 +748,6 @@ void battle_load_second_effect_tile_rows_entry(Snes *s)
 
 /* The pieces, each as the original's routine: the tile set in X, which the
  * decoding of a set and the map's building take; each leaves A clear. */
-void battle_decode_battlefield_tile_set(Snes *s)
-{
-    decode_tile_set(state_of(s), s->cpu.x);
-    s->cpu.a = 0;
-    m_rts(s);
-}
-
-void battle_clear_battlefield_map(Snes *s)
-{
-    clear_the_map(state_of(s));
-    s->cpu.a = 0;
-    m_rts(s);
-}
-
-void battle_build_battlefield_map(Snes *s)
-{
-    build_the_map(state_of(s), s->cpu.x);
-    s->cpu.a = 0;
-    m_rts(s);
-}
 
 /* ---- The guards ------------------------------------------------------------------------------- */
 
@@ -805,15 +760,6 @@ static bool layout_fits(uint8_t strips, uint8_t rows)
 {
     strips &= STRIPS;
     return strips != 0 && strips <= MOST_STRIPS && rows != 0 && rows <= MOST_ROWS;
-}
-
-bool battle_battlefield_map_fits(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool fits = layout_fits(battle_battlefield_layout_strips(g), battle_battlefield_layout_rows(g));
-    vars_peek(false);
-    return battle_on_page(s) && fits;
 }
 
 /* A battlefield that keeps BG3 still builds no map; any other's layout, as

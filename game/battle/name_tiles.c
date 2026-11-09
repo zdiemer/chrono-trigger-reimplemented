@@ -7,11 +7,7 @@
  * the names it shows once, as it starts (setup.c), and for the techs and
  * items each time their lists are laid out (menu_lists.c).
  *
- * The original makes them in its name buffer (battle_name_buffer): the text
- * goes in, it copies the text out (battle_name_converted) and writes the two
- * rows over it. Here the rows are computed from the text; what the buffer is
- * left holding is scaffolding, except at the registered entry, whose
- * original callers read the rows there. */
+ * Each conversion returns the two rows directly from the supplied text. */
 #include "battle/choosing.h"
 
 #include <string.h>
@@ -47,37 +43,4 @@ NameTiles battle_name_tiles(const uint8_t text[NAME_TILES])
         }
     }
     return tiles;
-}
-
-/* The buffer's first row is the text as it is there, past what the caller
- * put in as well: the original copies all sixteen bytes out. */
-void battle_leave_name_buffer(GameState *g, const uint8_t text[NAME_TILES], const NameTiles *tiles)
-{
-    for (unsigned i = 0; i < NAME_TILES; i++) {
-        set_battle_name_converted(g, i, text[i]);
-        set_battle_name_buffer(g, i, tiles->glyphs[i]);
-        set_battle_name_buffer(g, NAME_TILES + i, tiles->marks[i]);
-    }
-}
-
-/* ---- The entry ---------------------------------------------------------------------------------- */
-
-/* The name in the buffer, its rows put back there for the original's
- * callers. It leaves X at the name's end and A, its high byte clear, holding
- * what it last loaded: the end's zero, or for a name of all sixteen the last
- * mark it wrote. */
-void battle_convert_name(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t text[NAME_TILES];
-    unsigned length = 0;
-    for (unsigned i = 0; i < NAME_TILES; i++)
-        text[i] = battle_name_buffer(g, i);
-    while (length < NAME_TILES && text[length] != NAME_END)
-        length++;
-    NameTiles tiles = battle_name_tiles(text);
-    battle_leave_name_buffer(g, text, &tiles);
-    s->cpu.x = (uint16_t)length;
-    s->cpu.a = length < NAME_TILES ? NAME_END : tiles.marks[NAME_TILES - 1];
-    m_rts(s);
 }

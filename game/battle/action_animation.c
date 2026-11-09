@@ -30,7 +30,6 @@
 #include "data/decompress.h"
 #include "battle/positions.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* What the action shows (battle_action_type): nothing, an attack, a tech or
@@ -50,13 +49,6 @@ typedef struct {
 
 /* The attack's search for the way leaves its two points in the first work
  * cells, as the original asks with them there. */
-static void leave_the_way_asked(GameState *g, BattlePoint from, BattlePoint to)
-{
-    set_battle_work(g, 0, from.x);
-    set_battle_work(g, 1, from.y);
-    set_battle_work(g, 2, to.x);
-    set_battle_work(g, 3, to.y);
-}
 
 // $C1:49FF
 /* A party member's attack is shown up close where the member gets to its
@@ -77,10 +69,10 @@ static bool attacks_up_close(GameState *g, uint8_t member)
     set_battle_object_facing(g, member, battle_facing_of_direction(g, direction));
     bool close = within;
     if (battle_character_walks_up(g, party_members(g, member)) || within) {
-        ORIGINAL_EFFECT(leave_the_way_asked(g, from, to));
+        charge_machine_accesses(g, 4);
         TIMED_AS(g, 0xC14A71, close = battle_find_way(g, from, to));
     }
-    ORIGINAL_EFFECT(set_battle_attack_up_close(g, close));
+    charge_machine_accesses(g, 1);
     return close;
 }
 
@@ -156,15 +148,6 @@ static uint16_t channels_counted(uint16_t channels)
 /* The original walks a half's channels out of the first work cells, the
  * second half's left in the next two, and clears the battle's note of the
  * second half as it passes over the first's scripts. */
-static void leave_the_channels_walked(GameState *g, uint16_t second_half_channels, bool second_half)
-{
-    set_battle_work(g, 0, 0);
-    set_battle_work(g, 1, 0);
-    set_battle_work(g, 2, (uint8_t)second_half_channels);
-    set_battle_work(g, 3, (uint8_t)(second_half_channels >> 8));
-    if (second_half)
-        set_battle_animation_second_set(g, battle_animation_second_set(g) & 0xFF00);
-}
 
 // $C1:4455
 /* The script set's channels start: those its first half marks, each with
@@ -185,7 +168,7 @@ static void start_the_scripts(GameState *g, uint8_t bank, uint16_t set, bool sec
         start_channel(g, channel, bank, battle_script_set_script(g, bank, script));
         script = (uint16_t)(script + 2);
     }
-    ORIGINAL_EFFECT(leave_the_channels_walked(g, second_channels, second_half));
+    charge_machine_accesses(g, second_half ? 8 : 4);
 }
 
 /* ---- The animation's cells -------------------------------------------------------------- */
@@ -193,24 +176,6 @@ static void start_the_scripts(GameState *g, uint8_t bank, uint16_t set, bool sec
 /* The palette animation and the effects' records are what the rest of the
  * battle reads of the animation (battle/sprites.c); the rest the original
  * keeps in cells only the loading reads. */
-static void leave_the_animation(GameState *g, ActionAnimation parts, uint16_t scripts_at, uint16_t tiles_at)
-{
-    set_battle_animation_scripts(g, parts.scripts);
-    set_battle_animation_scripts_at(g, scripts_at);
-    set_battle_animation_graphics(g, parts.graphics);
-    set_battle_animation_second_graphics(g, parts.second_graphics);
-    set_battle_animation_background(g, parts.background);
-    set_battle_animation_tiles(g, parts.tiles);
-    set_battle_animation_tiles_at(g, tiles_at);
-    set_battle_animation_palette(g, parts.palette);
-    set_battle_animation_records(g, parts.records);
-}
-
-static void leave_no_animation(GameState *g)
-{
-    leave_the_animation(g, (ActionAnimation){ .background = ANIMATION_NO_BACKGROUND }, 0, 0);
-    set_battle_animation_cleared(g, 0);
-}
 
 /* What the loading goes on with over the frames: the parts and where the
  * sprite tiles are. */
@@ -226,7 +191,7 @@ static LoadedAnimation start_the_animation(GameState *g, ChosenAnimation chosen,
     uint16_t scripts_at = battle_script_set_at(g, chosen.keeper, parts.scripts);
     set_battle_palette_anim_frames(g, battle_animation_palette_frames(g, chosen.keeper, parts.palette));
     set_battle_effect_records(g, battle_animation_records_place(g, chosen.keeper, parts.records));
-    ORIGINAL_EFFECT(leave_the_animation(g, parts, scripts_at, tiles_at));
+    charge_machine_accesses(g, 11);
     start_the_scripts(g, battle_script_set_bank(chosen.keeper), scripts_at, second_half);
     return (LoadedAnimation){ parts, tiles_at };
 }
@@ -236,12 +201,6 @@ static LoadedAnimation start_the_animation(GameState *g, ChosenAnimation chosen,
 /* Effect sprite sets 32-47 hold a sprite each, at their anchor: the effects'
  * one-sprite shapes, in the battle's sprite priority. */
 enum { FIRST_ONE_SPRITE_SET = 32, ONE_SPRITE_SETS = 16, ONE_SPRITE_SETS_START = 0x1800, ONE_SPRITE_SET_BYTES = 8 };
-
-static void leave_the_sets_counted(GameState *g)
-{
-    set_battle_work(g, 0, ONE_SPRITE_SETS);
-    set_battle_work(g, 1, 0);
-}
 
 static void set_up_one_sprite_effects(GameState *g)
 {
@@ -254,7 +213,7 @@ static void set_up_one_sprite_effects(GameState *g)
                                       battle_one_sprite_attributes(g, shape) | battle_sprite_attributes(g));
         set_battle_bitmap_counts(g, FIRST_ONE_SPRITE_SET + shape, 1);
     }
-    ORIGINAL_EFFECT(leave_the_sets_counted(g));
+    charge_machine_accesses(g, 2);
 }
 
 /* ---- Loading over the frames ---------------------------------------------------------------- */
@@ -347,7 +306,7 @@ static void forget_the_animation(GameState *g)
 {
     set_battle_palette_anim_frames(g, 0);
     set_battle_effect_records(g, 0);
-    ORIGINAL_EFFECT(leave_no_animation(g));
+    charge_machine_accesses(g, 12);
 }
 
 static ShowingKind showing_kind(const GameState *g)
@@ -498,13 +457,6 @@ void battle_load_action_animation_entry(Snes *s)
 
 /* Whether a party member's attack is shown up close, for the original's
  * call; it leaves A's high byte clear, as the way's search does. */
-void battle_attack_up_close_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    (void)attacks_up_close(g, battle_action_actor(g));
-    s->cpu.a = 0;
-    m_rts(s);
-}
 
 /* The guards. The loaders index the ROM's tables with A's high byte along,
  * clear as the showing has it; the actor is a combatant, and a party member's
@@ -537,15 +489,6 @@ bool battle_attack_animation_ready(Snes *s)
     return battle_on_page_a_high_clear(s) && fits;
 }
 
-bool battle_attack_up_close_ready(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool fits = battle_slot_is_party(battle_action_actor(g)) && target_fits(g);
-    vars_peek(false);
-    return battle_on_page(s) && fits;
-}
-
 /* Each kind's loading with its guard's state half: the actor a combatant,
  * and a party member's attack a target to face. */
 static bool load_by_kind(void *ctx, ShowingKind kind)
@@ -553,7 +496,7 @@ static bool load_by_kind(void *ctx, ShowingKind kind)
     AnimationLoadContext *c = ctx;
     GameState *g = c->game;
     if (!actor_fits(g) || (kind == SHOWS_AN_ATTACK && !target_fits(g)))
-        return battle_needs_the_machine(g, loaders[kind].routine, "an animation the port doesn't load");
+        return battle_contract_broken(g, loaders[kind].routine, "an animation the port doesn't load");
     bool done = false;
     TIMED_AS(g, loaders[kind].routine,
              done = load_the_animation(g, start_the_animation(g, chosen_for(g, kind), second_half_asked(g)), load_a_piece, ctx));

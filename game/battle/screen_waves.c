@@ -8,12 +8,12 @@
  * frames, so the picture ripples; or a sway, the top half of the screen one
  * way and the bottom the other, by an amount that builds up. The finer mode
  * gives BG3 an entry for every line pair of the whole screen. */
+#include "charge.h"
 #include "battle/screen_script.h"
 
 #include "battle/frame.h"
 #include "battle/screen_data.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 
 enum { LINE_OFFSET_LAYERS = 3, BG1 = 0, BG3 = 2 };
 
@@ -29,17 +29,6 @@ static void set_offset(GameState *g, unsigned entry, uint16_t across)
 }
 
 /* In the fight with the first of the battle's rules, BG1 keeps still. */
-
-
-static void leave_wave(GameState *g, uint8_t amplitude, uint8_t every, uint8_t speed, bool fine, uint8_t last_phase)
-{
-    screen_leave_cell(g, 0x45, amplitude);
-    screen_leave_cell(g, 0x47, every);
-    if (fine)
-        screen_leave_cell(g, 0x49, speed);
-    hw_set_multiplicand(g, battle_sine_magnitude(g, last_phase));
-    hw_multiply_by(g, amplitude);
-}
 
 // $CD:253B
 /* Wave the lines of the layers named (BG1, BG2 and BG3 by the operand's top
@@ -62,7 +51,7 @@ static ScreenFlow wave_lines(GameState *g, uint8_t layers, uint8_t every, uint8_
         set_battle_line_scroll_layers(g, layer, (layers >> layer) & 1);
     if ((battle_enemy_rule(g) & BATTLE_RULE_NUMBER) == BATTLE_THE_FIRST_RULE)
         set_battle_line_scroll_layers(g, BG1, 0);
-    ORIGINAL_EFFECT(leave_wave(g, amplitude, every, speed, fine, (uint8_t)(phase - step)));
+    (charge_machine_accesses(g, fine ? 3 : 2), charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, 1));
     return screen_on();
 }
 SCREEN_OPERATION(wave_lines, layers, every, amplitude, speed, fine)
@@ -91,7 +80,7 @@ static ScreenFlow sway_lines(GameState *g, uint8_t value)
         set_battle_line_scroll_offsets_down(g, HALF_THE_ENTRIES + entry, 0);
     }
     screen_leave_for_the_drift(g, sway);
-    ORIGINAL_EFFECT(screen_leave_word(g, 0x47, (uint16_t)-sway));
+    charge_machine_accesses(g, 2);
     return screen_on();
 }
 SCREEN_OPERATION(sway_lines, value)

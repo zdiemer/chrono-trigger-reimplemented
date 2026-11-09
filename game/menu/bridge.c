@@ -1,3 +1,4 @@
+#include "battle/machine_forms.h"
 /* Checked calls between the menus and other C services. Call frames keep
  * held tasks saveable; each callee retains its complete machine contract. */
 #include "menu/bridge.h"
@@ -23,7 +24,7 @@ static bool call_is_taken(Snes *s, uint32_t routine, void (*entry)(Snes *))
     const NativeEntry *e = native_continuation_entry_at(s, routine);
     return (e && e->fn == entry) || menu_machine_form_takes(s, routine, entry) || core_machine_form_takes(s, entry) ||
            event_machine_form_takes(s, entry) || field_machine_form_takes(s, entry) ||
-           scene_machine_form_takes(s, entry) ||
+           scene_machine_form_takes(s, entry) || battle_machine_form_takes(s, routine, entry) ||
            (entry && overworld_machine_form(s, routine) == entry);
 }
 

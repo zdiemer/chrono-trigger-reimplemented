@@ -284,6 +284,7 @@ add_library(ct_game STATIC
   game/battle/arith.c
   game/battle/battlefield.c
   game/battle/bridge.c
+  game/battle/machine_forms.c
   game/battle/buttons.c
   game/battle/combatants.c
   game/battle/damage.c

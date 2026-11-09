@@ -21,7 +21,6 @@
 #include "battle/targets.h"
 #include "battle/timers.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "port/native.h"
 #include "vars.h"
 #include "wram.h"
@@ -47,6 +46,7 @@ static uint8_t stats_byte_at(const GameState *g, uint32_t at)
         return battle_stats_block_byte(g, block, at % BATTLE_STAT_BLOCK_BYTES);
     return wram_read8(g, stray_stats_place(g, at));
 }
+
 static void set_stats_byte_at(GameState *g, uint32_t at, uint8_t v)
 {
     unsigned block = at / BATTLE_STAT_BLOCK_BYTES;
@@ -269,6 +269,17 @@ static bool enemy_in_reserve(const GameState *g, unsigned slot)
 /* A party member knocked out drops the choice bit 4 of its action record
  * marks; the original makes a call there that does nothing, having named the
  * member the actor first, which stays. */
+
+/* The original reaches a member's action record through its place, which it
+ * leaves in a cell (battle.h, BATTLE_MEMBER_CELL). */
+
+/* An enemy leaving the fight is beaten, where it hadn't been counted beaten
+ * already and wasn't waiting in reserve. */
+
+/* A combatant that comes back once when knocked out (bit 7 of its stat
+ * block's revival byte, used up as it does). */
+enum { COMES_BACK = 0x80 };
+
 static void drop_choice(GameState *g, unsigned member)
 {
     uint8_t flags = battle_member_actions_choice_flags(g, member);
@@ -278,15 +289,6 @@ static void drop_choice(GameState *g, unsigned member)
     set_battle_member_actions_choice_flags(g, member, flags & (uint8_t)~CHOICE_HELD);
 }
 
-/* The original reaches a member's action record through its place, which it
- * leaves in a cell (battle.h, BATTLE_MEMBER_CELL). */
-static void leave_record_place(GameState *g, unsigned member)
-{
-    battle_leave_word(g, BATTLE_MEMBER_CELL, battle_member_record_place(g, (uint8_t)member));
-}
-
-/* An enemy leaving the fight is beaten, where it hadn't been counted beaten
- * already and wasn't waiting in reserve. */
 static void count_enemy_beaten(GameState *g, unsigned enemy)
 {
     if (battle_enemy_beaten_counted(g, enemy) || (battle_enemy_standing(g, enemy) & ENEMY_IN_RESERVE))
@@ -295,16 +297,18 @@ static void count_enemy_beaten(GameState *g, unsigned enemy)
     set_battle_enemy_beaten_any(g, true);
 }
 
-/* A combatant that comes back once when knocked out (bit 7 of its stat
- * block's revival byte, used up as it does). */
-enum { COMES_BACK = 0x80 };
-
 bool combatant_comes_back(const GameState *g, unsigned slot) { return (battle_stats_revival(g, slot) & COMES_BACK) != 0; }
 
 /* The combatant leaves the fight, knocked out or taken off: out of the fight
  * with its turn timer stopped and its statuses and low HP gone. An enemy is
  * beaten; a party member's gauge starts over from its turn wait -- unless it
  * comes back. */
+
+// $C1:B279
+/* The combatant's part of the turn's update: in a filled slot it is back in
+ * the fight, standing (its knocked-out bit cleared), with its turn timer
+ * running, and the party isn't defeated; then an enemy in reserve is taken off
+ * the battlefield again, and a combatant with no HP is knocked out. */
 static UpdateEnd leave_fight(GameState *g, unsigned slot)
 {
     battle_stop_timer(g, BATTLE_TIMER_TURN, slot);
@@ -315,7 +319,7 @@ static UpdateEnd leave_fight(GameState *g, unsigned slot)
         count_enemy_beaten(g, slot - BATTLE_FIRST_ENEMY);
         return UPDATED;
     }
-    ORIGINAL_EFFECT(leave_record_place(g, slot));
+    (charge_machine_accesses(g, 2), charge_machine_rom_accesses(g, 2));
     drop_choice(g, slot);
     if (combatant_comes_back(g, slot))
         return COMES_BACK_ONCE;
@@ -326,11 +330,6 @@ static UpdateEnd leave_fight(GameState *g, unsigned slot)
     return UPDATED;
 }
 
-// $C1:B279
-/* The combatant's part of the turn's update: in a filled slot it is back in
- * the fight, standing (its knocked-out bit cleared), with its turn timer
- * running, and the party isn't defeated; then an enemy in reserve is taken off
- * the battlefield again, and a combatant with no HP is knocked out. */
 UpdateEnd combatant_update(GameState *g, unsigned slot)
 {
     uint8_t id = battle_combatant_id(g, slot);
@@ -406,17 +405,6 @@ void combatants_after_update(GameState *g)
 static unsigned combatant_in_x(Snes *s) { return battle_slot_of_stat_block(s->cpu.x); }
 
 // $C1:B093
-void battle_update_low_hp_flag(Snes *s)
-{
-    combatant_note_low_hp(state_of(s), combatant_in_x(s));
-    m_rts(s);
-}
-
-void battle_update_status_flags(Snes *s)
-{
-    combatant_follow_statuses(state_of(s), combatant_in_x(s));
-    m_rts(s);
-}
 
 /* ---- A member coming back -------------------------------------------------------------- */
 
@@ -497,7 +485,7 @@ void battle_update_combatant(Snes *s)
 static bool update_all_combatants(GameState *g, bool (*coming_back)(void *ctx, unsigned slot), void *ctx)
 {
     for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++) {
-        ORIGINAL_EFFECT(set_battle_combatant_updating(g, (uint8_t)slot));
+        charge_machine_accesses(g, 1);
         if (combatant_update_comes_back(g, slot)) {
             if (!coming_back(ctx, slot))
                 return false;
@@ -506,7 +494,7 @@ static bool update_all_combatants(GameState *g, bool (*coming_back)(void *ctx, u
         }
         combatant_after_update(g, slot);
     }
-    ORIGINAL_EFFECT(set_battle_combatant_updating(g, BATTLE_COMBATANTS));
+    charge_machine_accesses(g, 1);
     combatants_after_update(g);
     return true;
 }
@@ -543,7 +531,7 @@ static bool comeback_with_no_port(void *ctx, unsigned slot)
     UpdateEnd update = UPDATED;
     TIMED_AS(g, 0xC1B279, update = combatant_update(g, slot));
     if (update == COMES_BACK_ONCE)
-        return battle_needs_the_machine(g, 0xC1B316, "a member coming back, shown");
+        return battle_contract_broken(g, 0xC1B316, "a member coming back, shown");
     return true;
 }
 

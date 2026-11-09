@@ -81,7 +81,7 @@ void battle_setup_state(GameState *g)
     setup_party_objects(g);
     setup_enemies(g);
     convert_enemy_names(g, &last);
-    ORIGINAL_EFFECT(setup_leave_name_buffer(g, last.text, last.enemy, &last.tiles));
+    charge_machine_accesses(g, 3 * NAME_TILES);
 }
 
 void battle_setup_state_entry(Snes *s)

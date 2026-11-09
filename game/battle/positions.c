@@ -9,7 +9,6 @@
 #include "battle/entries.h"
 #include "battle/sprite_data.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "wram.h"
 #include "vars.h"
 
@@ -26,12 +25,6 @@ enum {
     LEFT_STEP = 0x0C,        /* how far down and across a walk's step reaches ($8C, $8E) */
 };
 
-static void leave_work_word(GameState *g, unsigned at, uint16_t v)
-{
-    set_battle_work(g, at, (uint8_t)v);
-    set_battle_work(g, at + 1, (uint8_t)(v >> 8));
-}
-
 /* ---- Reach ------------------------------------------------------------------------------ */
 
 /* How far apart two coordinates are, made positive. */
@@ -44,8 +37,8 @@ static uint16_t distance_squared(GameState *g, BattlePoint a, BattlePoint b)
     uint8_t dx = apart(a.x, b.x), dy = apart(a.y, b.y);
     uint16_t dx_squared = battle_multiply(g, dx, dx);
     uint16_t sum = (uint16_t)(dx_squared + battle_multiply(g, dy, dy));
-    ORIGINAL_EFFECT(leave_work_word(g, LEFT_FIRST, dy));
-    ORIGINAL_EFFECT(leave_work_word(g, LEFT_SECOND, dx_squared));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
     set_battle_product(g, sum); /* the reach tests' callers take their carry from it */
     return sum;
 }
@@ -120,13 +113,13 @@ static void find_extreme(GameState *g, uint8_t searcher, uint8_t first, uint8_t 
         if (extreme == NEAREST ? best >= distance : distance >= best) {
             best = distance;
             set_battle_target_found(g, slot);
-            ORIGINAL_EFFECT(set_battle_target_found_high(g, 0));
+            charge_machine_accesses(g, 1);
         }
     }
-    ORIGINAL_EFFECT(leave_work_word(g, LEFT_THIRD, slot));
-    ORIGINAL_EFFECT(leave_work_word(g, LEFT_BEST, best));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
     if (leave_out_self)
-        ORIGINAL_EFFECT(set_battle_work(g, LEFT_SEARCHER, searcher));
+        charge_machine_accesses(g, 1);
 }
 
 /* ---- Where a combatant stands ------------------------------------------------------------- */
@@ -160,9 +153,9 @@ static uint16_t nearer_to_third(GameState *g, uint8_t searcher, uint8_t other, u
     uint16_t to_third = (uint16_t)(third_across + square(g, apart_wrapping(at.y, t.y)));
     int16_t difference = (int16_t)(uint16_t)(to_third - to_searcher);
     uint16_t measure = (uint16_t)(difference < 0 ? -difference : difference);
-    ORIGINAL_EFFECT(leave_work_word(g, LEFT_FIRST, (uint16_t)(measure >> 8)));
-    ORIGINAL_EFFECT(leave_work_word(g, LEFT_SECOND, to_searcher));
-    ORIGINAL_EFFECT(leave_work_word(g, LEFT_THIRD, third_across));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
     return measure;
 }
 
@@ -201,15 +194,15 @@ static bool walk(GameState *g, uint8_t searcher, uint8_t other, bool keep_clear)
 {
     BattlePoint start = standing(g, searcher);
     uint8_t angle = battle_direction(g, start, standing(g, other));
-    ORIGINAL_EFFECT(set_battle_work(g, LEFT_START, start.x));
-    ORIGINAL_EFFECT(set_battle_work(g, LEFT_START + 1, start.y));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     uint8_t reach_left = 0;
     bool held;
     for (;;) {
         uint8_t radius = (uint8_t)(reach_left + battle_orbit_radius(g, searcher));
         int8_t down = battle_along(g, angle, radius), across = battle_along(g, (uint8_t)(angle + QUARTER_TURN), radius);
-        ORIGINAL_EFFECT(set_battle_work(g, LEFT_STEP, (uint8_t)down));
-        ORIGINAL_EFFECT(set_battle_work(g, LEFT_STEP + 2, (uint8_t)across));
+        charge_machine_accesses(g, 1);
+        charge_machine_accesses(g, 1);
         BattlePoint step = { (uint8_t)(start.x + across), (uint8_t)(start.y + down) };
         set_battle_bounds_y(g, searcher, step.y);
         set_battle_bounds_x(g, searcher, step.x);
@@ -219,7 +212,7 @@ static bool walk(GameState *g, uint8_t searcher, uint8_t other, bool keep_clear)
             break;
         }
         reach_left = apart(stray.y, step.y);
-        ORIGINAL_EFFECT(leave_work_word(g, LEFT_FIRST, searcher));
+        charge_machine_accesses(g, 2);
         battle_update_bounds(g, searcher);
         set_battle_search_through_marked(g, false);
         if (battle_grid_stops(g, searcher) || (keep_clear && battle_box_overlaps(g, searcher) != OVERLAPS_NOBODY)) {
@@ -353,11 +346,11 @@ bool battle_grid_stops(GameState *g, uint8_t slot)
             stops = (cell & CELL_BLOCKS) || (!through_marked && (cell & CELL_MARKED));
         } while (!stops && (uint8_t)(++column + left) < right);
     } while (!stops && ++row < bottom);
-    ORIGINAL_EFFECT(set_battle_work(g, LEFT_SECOND, row));
-    ORIGINAL_EFFECT(set_battle_work(g, LEFT_SECOND + 1, left));
-    ORIGINAL_EFFECT(set_battle_work(g, LEFT_THIRD, bottom));
-    ORIGINAL_EFFECT(set_battle_work(g, LEFT_THIRD + 1, right));
-    ORIGINAL_EFFECT(set_battle_work(g, LEFT_BEST, column));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     return stops;
 }
 
@@ -440,7 +433,6 @@ uint8_t battle_direction(GameState *g, BattlePoint from, BattlePoint to)
 }
 
 /* The radius goes to the multiply as a word, its high byte 0. */
-static void leave_radius_word(GameState *g) { set_battle_long_multiply(g, 1, 0); }
 
 // $C1:01F9
 int8_t battle_along(GameState *g, uint8_t angle, uint8_t radius)
@@ -448,7 +440,7 @@ int8_t battle_along(GameState *g, uint8_t angle, uint8_t radius)
     uint8_t magnitude = battle_sine_magnitude(g, angle);
     uint16_t sine = (uint16_t)(angle & HALF_TURN ? -magnitude : magnitude);
     int8_t along = (int8_t)(uint8_t)(battle_multiply_long(g, radius, sine) >> 8);
-    ORIGINAL_EFFECT(leave_radius_word(g));
+    charge_machine_accesses(g, 1);
     return along;
 }
 
@@ -523,108 +515,20 @@ void battle_search_for_target(Snes *s)
     m_rts(s);
 }
 
-static void search_kind_entry(Snes *s, SearchKind kind)
-{
-    GameState *g = state_of(s);
-    SearchAnswer a = battle_search_kind(g, kind, searcher_of(g), battle_search_other(g), battle_search_third(g));
-    leave_search_registers(s, kind, a);
-    m_rts(s);
-}
-
-void battle_search_nearest_member(Snes *s) { search_kind_entry(s, SEARCH_NEAREST_MEMBER); }
-void battle_search_farthest_member(Snes *s) { search_kind_entry(s, SEARCH_FARTHEST_MEMBER); }
-void battle_search_nearest_other_enemy(Snes *s) { search_kind_entry(s, SEARCH_NEAREST_OTHER_ENEMY); }
-void battle_search_farthest_enemy(Snes *s) { search_kind_entry(s, SEARCH_FARTHEST_ENEMY); }
-void battle_search_within_reach(Snes *s) { search_kind_entry(s, SEARCH_WITHIN_REACH); }
-void battle_search_level(Snes *s) { search_kind_entry(s, SEARCH_LEVEL); }
-void battle_search_other_below(Snes *s) { search_kind_entry(s, SEARCH_OTHER_BELOW); }
-void battle_search_other_to_the_right(Snes *s) { search_kind_entry(s, SEARCH_OTHER_TO_THE_RIGHT); }
-void battle_search_walk(Snes *s) { search_kind_entry(s, SEARCH_WALK); }
-void battle_search_in_lower_half(Snes *s) { search_kind_entry(s, SEARCH_IN_LOWER_HALF); }
-void battle_search_in_upper_half(Snes *s) { search_kind_entry(s, SEARCH_IN_UPPER_HALF); }
-void battle_search_at_right_edge(Snes *s) { search_kind_entry(s, SEARCH_AT_RIGHT_EDGE); }
-void battle_search_at_left_edge(Snes *s) { search_kind_entry(s, SEARCH_AT_LEFT_EDGE); }
-void battle_search_nearer_to_third(Snes *s) { search_kind_entry(s, SEARCH_NEARER_TO_THIRD); }
-void battle_search_within_wide_reach(Snes *s) { search_kind_entry(s, SEARCH_WITHIN_WIDE_REACH); }
-
 /* The reach tests the enemies' animation effects make take the two
  * combatants in X and Y, and leave the answer in A. */
-static void reach_entry(Snes *s, uint16_t reach)
-{
-    GameState *g = state_of(s);
-    battle_within_reach(g, (uint8_t)s->cpu.x, (uint8_t)s->cpu.y, reach);
-    s->cpu.a = battle_search_failed(g);
-    m_set_flag(s, CPU_FLAG_C, battle_product(g) >= reach);
-    m_rts(s);
-}
-
-void battle_within_long_reach(Snes *s) { reach_entry(s, REACH_LONG); }
-void battle_within_search_reach(Snes *s) { reach_entry(s, REACH_SEARCH); }
-void battle_within_far_reach(Snes *s) { reach_entry(s, REACH_FAR); }
-void battle_touching(Snes *s) { reach_entry(s, REACH_TOUCHING); }
-void battle_within_near_reach(Snes *s) { reach_entry(s, REACH_NEAR); }
 
 /* The grid's and the boxes' tests take the combatant in a word at $80, and
  * say what they found in A and its sign. */
-static uint8_t combatant_in_work(const GameState *g) { return battle_work(g, LEFT_FIRST); }
-
-void battle_grid_stops_combatant(Snes *s)
-{
-    GameState *g = state_of(s);
-    bool stops = battle_grid_stops(g, combatant_in_work(g));
-    s->cpu.a = stops ? 0x00FF : 0;
-    m_set_nz8(s, (uint8_t)s->cpu.a);
-    m_rts(s);
-}
 
 enum { MEETS_MEMBER = 0x80, MEETS_ENEMY = 0x81 };
-
-void battle_box_meets_another(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t slot = combatant_in_work(g);
-    Overlap o = battle_box_overlaps(g, slot);
-    s->cpu.a = o == OVERLAPS_NOBODY ? 0 : o == OVERLAPS_MEMBER ? MEETS_MEMBER : MEETS_ENEMY;
-    s->cpu.x = slot;
-    m_set_nz8(s, (uint8_t)s->cpu.a);
-    m_rts(s);
-}
 
 /* The direction takes its two points in its cells and leaves the angle in A,
  * the table's place in X, and the carry of turning the quarter's angle
  * round. */
-static bool direction_carry(BattlePoint from, BattlePoint to, uint8_t quarter_angle)
-{
-    bool right = from.x < to.x, below = from.y < to.y;
-    if (right)
-        return below ? false : quarter_angle == 0;
-    return below ? quarter_angle <= HALF_TURN : quarter_angle >= HALF_TURN;
-}
-
-void battle_direction_between(Snes *s)
-{
-    GameState *g = state_of(s);
-    BattlePoint from = { battle_direction_cells(g, 0), battle_direction_cells(g, 1) };
-    BattlePoint to = { battle_direction_cells(g, 2), battle_direction_cells(g, 3) };
-    uint8_t angle = battle_direction(g, from, to);
-    uint8_t across = apart(from.x, to.x), down = apart(from.y, to.y);
-    s->cpu.a = angle;
-    s->cpu.x = battle_arctangent_index(across, down);
-    m_set_flag(s, CPU_FLAG_C, direction_carry(from, to, battle_arctangent(g, across, down)));
-    m_rts(s);
-}
 
 /* The distance along an axis takes the angle in A and the radius in its
  * multiply cell, and leaves the multiplier's first product in X. */
-void battle_distance_along(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t angle = (uint8_t)s->cpu.a, radius = battle_multiply_factors(g, 1);
-    int8_t along = battle_along(g, angle, radius);
-    s->cpu.a = (uint8_t)along;
-    s->cpu.x = leftover_index(g, radius, angle);
-    m_rts(s);
-}
 
 /* ---- The guards ------------------------------------------------------------------------- */
 
@@ -643,17 +547,3 @@ bool battle_search_ready(Snes *s)
 /* The enemies' animation effects measure a combatant against the box past
  * the combatants', where they put the effect. */
 enum { EFFECT_BOX = 11 };
-
-bool battle_reach_test_ready(Snes *s)
-{
-    return battle_on_page(s) && battle_names_combatant(s->cpu.x) && s->cpu.y <= EFFECT_BOX;
-}
-
-bool battle_combatant_in_work_ready(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool named = battle_work(g, LEFT_FIRST + 1) == 0 && battle_names_combatant(battle_work(g, LEFT_FIRST));
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && named;
-}

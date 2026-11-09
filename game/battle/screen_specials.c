@@ -17,7 +17,6 @@
 #include "battle/screen_lines.h"
 #include "charge.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "platform/video.h"
 
 /* ---- The bands of light ------------------------------------------------------------------------ */
@@ -51,12 +50,6 @@ static uint8_t band_intensity(unsigned band, uint8_t fade)
 
 /* What laying the bands leaves in the cells: the bands' lines, the fade, and
  * the last band's level. */
-static void leave_bands(GameState *g, uint8_t lines, uint8_t fade)
-{
-    screen_leave_cell(g, 0x45, lines);
-    screen_leave_cell(g, 0x47, fade);
-    screen_leave_cell(g, 0x49, band_intensity(BANDS - 1, fade));
-}
 
 // $CD:2D51
 static void lay_bands_of_light(GameState *g, uint8_t lines)
@@ -67,7 +60,7 @@ static void lay_bands_of_light(GameState *g, uint8_t lines)
     for (unsigned band = 0; band < BANDS; band++)
         for (BandTable t = BLUE_BANDS; t < BAND_TABLES; t++)
             set_band(g, t, band, lines, band_intensity(band, fade));
-    ORIGINAL_EFFECT(leave_bands(g, lines, fade));
+    charge_machine_accesses(g, 3);
 }
 
 // $CD:2D4A
@@ -221,11 +214,6 @@ enum { NUDGE_WAVE_HEIGHT = 12, NUDGE_WAVE_STEP = 4, NUDGES = 0x100 };
 
 /* The original multiplies the wave's height by each step's sine: the
  * multiplier is left with the last. */
-static void leave_last_nudge(GameState *g)
-{
-    hw_set_multiplicand(g, NUDGE_WAVE_HEIGHT);
-    hw_multiply_by(g, battle_sine_magnitude(g, (uint8_t)((NUDGES - 1) * NUDGE_WAVE_STEP)));
-}
 
 // $CD:2B69
 /* Effect 12: lay the window lines' nudges out as a wave. */
@@ -234,7 +222,7 @@ static void lay_out_the_nudge_wave(GameState *g, ScreenChannel channel)
     (void)channel;
     for (unsigned n = 0; n < NUDGES; n++)
         set_battle_window_line_deltas(g, n, screen_scaled_sine(g, (uint8_t)(n * NUDGE_WAVE_STEP), NUDGE_WAVE_HEIGHT));
-    ORIGINAL_EFFECT(leave_last_nudge(g));
+    (charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, 1));
 }
 
 // $CD:2B64
@@ -348,11 +336,6 @@ static void move_sprite(GameState *g, unsigned to, unsigned from)
 }
 
 /* What the effect leaves in the cells: the layer's place across and down. */
-static void leave_layer_place(GameState *g, uint16_t across, uint16_t down)
-{
-    screen_leave_word(g, 0x45, across);
-    screen_leave_word(g, 0x47, down);
-}
 
 // $CD:2BFC
 /* Effect 9: show the effect's first sixteen sprites in front of the rest. */
@@ -374,7 +357,7 @@ static void show_effect_sprites_in_front(GameState *g, ScreenChannel channel)
     }
     for (unsigned b = 0; b < HIGH_BYTES_SHOWN; b++)
         set_oam_high_table_byte(g, FIRST_HIGH + b, LARGE_SPRITES_BYTE);
-    ORIGINAL_EFFECT(leave_layer_place(g, across, down));
+    charge_machine_accesses(g, 4);
 }
 
 /* ---- Colors, objects and signals ---------------------------------------------------------------- */
@@ -521,34 +504,3 @@ SCREEN_OPCODES(screen_special_opcodes,
 /* An effect entered as the command's handler jumps to it: its number doubled
  * in X (the doubling leaves the carry clear, which the window lines' nudge
  * starts its chain of sums with), running a channel. */
-static bool names_an_effect(Snes *s, SpecialEffect *effect)
-{
-    if (s->cpu.x % 2 || s->cpu.x / 2 >= SPECIAL_EFFECTS)
-        return false;
-    *effect = (SpecialEffect)(s->cpu.x / 2);
-    return true;
-}
-
-bool battle_special_effect_ready(Snes *s)
-{
-    SpecialEffect effect = SPECIAL_EFFECTS;
-    if (!battle_on_page_a_high_clear(s) || m_flag(s, CPU_FLAG_C) || !names_an_effect(s, &effect))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool on_a_channel = battle_screen_channel(g) % SCREEN_CHANNEL_RECORD_BYTES == 0
-                        && screen_running_channel(g) < SCREEN_CHANNELS;
-    ScreenCommand c = { .special = effect };
-    bool ready = on_a_channel && is_one_of_the_effects(g, &c);
-    vars_peek(false);
-    return ready;
-}
-
-void battle_screen_special_effect(Snes *s)
-{
-    GameState *g = state_of(s);
-    SpecialEffect effect = (SpecialEffect)(s->cpu.x / 2);
-    special_effects[effect].operation(g, screen_running_channel(g));
-    s->cpu.a = 0;
-    m_rts(s);
-}

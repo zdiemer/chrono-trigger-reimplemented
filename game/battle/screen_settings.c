@@ -16,11 +16,11 @@
  * animations, asks the frame wait for a sound and an effect's graphics, and
  * sets the frame work's switches for the sprites, the line wait, palette
  * animation and the HP gradient. */
+#include "charge.h"
 #include "battle/screen_script.h"
 
 #include "battle/frame.h"
 #include "battle/screen_data.h"
-#include "original_effects.h"
 
 /* ---- The screen's layers ------------------------------------------------------------------ */
 
@@ -98,9 +98,9 @@ static ScreenFlow change_mosaic(GameState *g, uint8_t layers, uint8_t by, bool s
     if (changed > LARGEST_BLOCKS)
         changed = smaller ? 0 : LARGEST_BLOCKS;
     set_battle_mosaic(g, (uint8_t)(changed << 4 | layers));
-    ORIGINAL_EFFECT(screen_leave_cell(g, 0x45, layers));
-    ORIGINAL_EFFECT(screen_leave_cell(g, 0x47, by));
-    ORIGINAL_EFFECT(screen_leave_cell(g, 0x49, smaller ? (uint8_t)(blocks - by) : (uint8_t)(blocks + by)));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     return screen_on();
 }
 SCREEN_OPERATION(change_mosaic, layers, by, smaller)
@@ -170,7 +170,7 @@ static ScreenFlow change_fixed_color(GameState *g, uint8_t value, uint8_t amount
     if (intensity & FIXED_CHANNELS)
         intensity = (amount & 0x80) ? 0 : FIXED_INTENSITY;
     set_battle_fixed_color(g, (uint8_t)(channels | intensity));
-    ORIGINAL_EFFECT(screen_leave_cell(g, 0x45, intensity));
+    charge_machine_accesses(g, 1);
     return screen_on();
 }
 SCREEN_OPERATION(change_fixed_color, value, amount)
@@ -268,6 +268,7 @@ enum { FIRST_SCRIPT_SLOT = 4, SLOT_BYTES = 12 };
 // $CD:29E3
 /* Start a palette animation in one of the slots from 4: its kind and fade
  * channels, its colors, its levels, its step, delay and period. */
+
 static ScreenFlow start_palette_animation(GameState *g, uint8_t kind, uint8_t mode, uint8_t first, uint8_t count,
                                           uint8_t level, uint8_t target, uint8_t step, uint8_t slot, uint8_t delay,
                                           uint8_t period)
@@ -282,10 +283,11 @@ static ScreenFlow start_palette_animation(GameState *g, uint8_t kind, uint8_t mo
     set_palette_animations_step(g, s, step);
     set_palette_animations_period(g, s, period);
     set_palette_animations_delay(g, s, delay);
-    ORIGINAL_EFFECT(screen_leave_cell(g, 0x45, (uint8_t)(kind | mode)));
-    ORIGINAL_EFFECT(screen_leave_cell(g, 0x47, (uint8_t)(step | slot)));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     return screen_on();
 }
+
 static ScreenFlow start_palette_animation_command(GameState *g, const ScreenCommand *c)
 {
     return start_palette_animation(g, c->kind, c->mode, c->first, c->count, c->level, c->target, c->step, c->slot,

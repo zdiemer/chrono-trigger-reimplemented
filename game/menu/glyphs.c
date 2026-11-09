@@ -1,3 +1,4 @@
+#include "charge.h"
 /* The dialog and the menus: drawing a glyph of the proportional font into the
  * text's tiles.
  *
@@ -26,7 +27,6 @@
 
 #include "menu/menu.h"
 #include "menu/menu_data.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -120,37 +120,13 @@ static uint32_t glyph_byte_place(Tiles t, uint32_t first, uint8_t byte)
     return (first + down) & 0xFFFFFFu;
 }
 
-/* ---- What the original leaves behind ----------------------------------------------------- */
 
-/* The part of a line the original shifts into its own cell for the pen's
- * tile, when the line reaches a third tile (menu_glyph_spill). */
-static void leave_spill(GameState *g, Pen p, uint16_t pixels)
-{
-    uint16_t spill = reaches_a_third_tile(p.offset) ? (uint16_t)(pixels >> (p.offset + TILE_WIDTH)) : 0;
-    set_menu_glyph_spill(g, spill);
-}
 
-/* The drawer's own cells as its loops leave them: past the last byte, the
- * line pairs counted out, and the pointer a tile row and a line further on. */
-static void leave_glyph_drawn(GameState *g, Tiles t, uint32_t first)
-{
-    set_menu_glyph_byte(g, GLYPH_BYTES);
-    set_menu_glyph_lines_left(g, 0);
-    set_menu_glyph_dest(g, glyph_byte_place(t, first, GLYPH_BYTES));
-}
 
-/* The cells the original's setter ($C2:5DC4) hands the drawer the glyph and
- * the pen in, and a step of its arithmetic. */
-static void leave_glyph_set_up(GameState *g, uint16_t glyph, uint8_t pen_x)
-{
-    Glyph gl = glyph_numbered(glyph);
-    set_menu_glyph_number(g, (uint8_t)glyph);
-    set_menu_glyph_pen_offset(g, (uint16_t)(pen_x % TILE_WIDTH));
-    set_menu_glyph_pen_column(g, (uint16_t)((pen_x & ~(TILE_WIDTH - 1)) >> 2));
-    set_menu_glyph_font_step(g, (uint16_t)((glyph >> 1) * TILE_WIDTH));
-    set_menu_glyph_left_pixels(g, gl.left);
-    set_menu_glyph_right_pixels(g, gl.right);
-}
+
+
+
+
 
 /* ---- Drawing ----------------------------------------------------------------------------- */
 
@@ -161,8 +137,8 @@ static void draw_glyph_from(GameState *g, Tiles t, Glyph glyph, Pen p, uint32_t 
         pixels = glyph_pixels(g, glyph, byte);
         put_pixels(g, t, glyph_byte_place(t, first, byte), p, pixels);
     }
-    ORIGINAL_EFFECT(leave_spill(g, p, pixels));
-    ORIGINAL_EFFECT(leave_glyph_drawn(g, t, first));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 5);
 }
 
 // $C2:5DC4 (the glyph and the pen worked out), $C2:5E36, $C2:5F07
@@ -171,7 +147,7 @@ static void draw_glyph_from(GameState *g, Tiles t, Glyph glyph, Pen p, uint32_t 
 void menu_put_glyph(GameState *g, uint16_t glyph, uint8_t pen_x, uint32_t line, MenuTextTiles kind)
 {
     uint32_t first = (line & 0xFF0000u) | (uint16_t)(line + LINES_DOWN_THE_ROW);
-    ORIGINAL_EFFECT(leave_glyph_set_up(g, glyph, pen_x));
+    charge_machine_accesses(g, 13);
     draw_glyph_from(g, tiles_of(kind), glyph_numbered(glyph), pen_at(pen_x), first);
 }
 

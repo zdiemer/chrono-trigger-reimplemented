@@ -44,10 +44,6 @@ typedef struct {
 
 NameTiles battle_name_tiles(const uint8_t text[NAME_TILES]);
 
-/* The original converts a name in battle_name_buffer and leaves the buffer
- * so; what it leaves there, for shadow mode (called in ORIGINAL_EFFECT):
- * the text it was given, `text`, and its tiles. */
-void battle_leave_name_buffer(GameState *g, const uint8_t text[NAME_TILES], const NameTiles *tiles);
 
 /* ---- The lists (menu_lists.c) ------------------------------------------------------------------ */
 

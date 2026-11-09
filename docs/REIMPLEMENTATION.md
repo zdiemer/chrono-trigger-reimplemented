@@ -3598,17 +3598,13 @@ checked form and leaves on the held location continuation with a fresh stack.
 Interrupts call the field handlers from the console stub under their original
 contracts.
 
-The five retained dispatch entries are:
+Boot retains one field dispatch entry:
 
 | Entry | Caller that still needs it |
 |---|---|
 | `field_first_start`, `$C0:000E` | `console_boot` stops at the title/first-start boundary. |
-| `field_enter`, `$C0:0000` | `menu_mode_restart` and the retired overworld's `after_the_pass` stop here; the retired scene program and warp select this continuation under its contract. |
-| `field_rebuild_the_line_effects`, `$C0:0005` | The still-gated battle closing handler's fallback at `$D1:F4E2`. Its ordinary path already calls the C operation. |
-| `field_start_the_battle_song`, `$C0:0008` | Battle screen setup's long call at `$D1:F405`. |
-| `field_bring_the_music_back`, `$C0:000B` | Battle closing's music restoration at `$CD:043E`, including its original page/bank return convention. |
 
-The 90 called machine forms in `field/machine_forms.c` retain the exact P
+The called machine forms in `field/machine_forms.c` retain the exact P
 masks, including decimal mode, and the original page, bank and state
 contracts. Invalid calls report a broken contract before stopping at the
 original entry. The forms and held adapters still translate the legacy
@@ -3895,7 +3891,7 @@ remain ordinary checked C functions, with held rows only where the driver
 needs a saveable boundary. `menu/machine_forms.c` holds their contracts,
 not a dispatch registry. The field's `field_enter` compatibility row also
 leaves: its menu and world-map callers use the checked C entry. Field boot
-and battle's three field interfaces remain for their respective callers.
+remains for its caller; the battle teardown removes its three field interfaces.
 
 Before retirement, the full-library coverage inventory enrolled all 595
 entries, including 177 with 5,277 bytes absent from the existing 84-movie
@@ -3925,10 +3921,9 @@ seeding the menu wave phase are removed; the phase belongs to the menu
 object mode. Scene circle and curtain comparison-only temporaries leave
 with their last menu comparisons.
 
-Nine `ORIGINAL_EFFECT` sites remain in `glyphs.c` and `typeset.c` because
-battle's still-gated message routines compare their results. The battle
-teardown removes these nine. No other menu temporary is retained for a
-byte comparison. The old party service dispatcher and its field header
+The battle teardown removes the last nine `ORIGINAL_EFFECT` sites in
+`glyphs.c` and `typeset.c`, formerly kept for its message comparisons. No
+menu temporary remains for a byte comparison. The old party service dispatcher and its field header
 are deleted; field and event callers already use the party operations.
 
 Retired entries keep their calibrated `cost_milli` in `time_tags.c`.
@@ -4761,3 +4756,65 @@ The no-ROM unreached and burndown tests check the ledger machinery. The
 sampled gate with `--evidence` rechecks the complete ledger and its current
 recipes; long routes run on main once per relevant merge batch. New coverage
 or recalibration records come from a verified whole-library run.
+
+### The battle's teardown
+
+The battle's 827 ordinary comparison entries leave the registry. Uncalled
+entry wrappers, including the command macros, are deleted; callers use the
+ordinary C operations. The legacy driver still calls 289 machine forms,
+whose complete P masks (including decimal mode), page, bank and image/state
+guards are checked in `battle/machine_forms.c`. Failure reports a broken
+contract and stops at the original entry. These are called adapters, not
+address dispatch. Eleven battle held continuations retain saveable frame
+boundaries: the main loop and frame/message waits return control to the
+driver rather than leaving a port suspended across a screen. The driver's
+remaining adapters leave when it gives way to the native program.
+
+The field's two music compatibility entries and line-effect fallback leave
+with their battle callers. Music calls the field's ordinary functions;
+the legacy battle bridge retains the caller context needed by its audio
+service and the full former contracts. Line-effect rebuilding asserts its
+state and width contract. Only boot's `field_first_start` compatibility row
+remains for the field.
+
+Before retirement the 84-movie coverage union left 13,556 bytes in 289
+battle entries outside movie coverage. A fresh replay of 484 recipes ran
+968,000 trials: 779,466 matched, zero mismatched, and 188,534 skipped
+(169,309 guard refusals). Skips and interpreted call-outs supply no C
+coverage. Matched execution plus the reviewed resource/control-flow proofs
+closed every byte; the canonical ledger passed for 838 entries and 84
+movies before its battle rows were removed. The precondition commit keeps
+the recipes, coverage counts and hashed proofs. Sprite/output bounds,
+animation resource banks and frame indexes, startup-built OAM lookup,
+target/action table bounds, and text language/stack separation remain
+contracts. The enemy chooser's individually callable operation also keeps
+the stricter slot/block contract its deleted wrapper enforced.
+
+All 725 battle `ORIGINAL_EFFECT` sites and the nine remaining menu sites
+are deleted. The reader audit checked our ports as well as the original:
+wrapper scratch becomes C arguments, and live targeting, action, animation
+and field state remains ordinary state. The provisional action-record
+pointer left by targeting remains live, including its reused low byte;
+retirement does not substitute the earlier cached tech number. Native-shape
+Lavos routes reach both the bucket's Good Night ending and the telepod's
+ending phase, exercising victory, field return and the long defeat/ending
+work without scaffolding. This does not claim the subsequent developer-room
+tour.
+
+Every retired entry keeps its calibrated rate in `time_tags.c`; deleted
+temporary accesses retain their machine work charges, with no new host
+charge. Direct call-outs keep their settling boundaries and the callee's
+time ownership. No estimate is recalibrated from the sample and no timing
+exception is added. Burndown and the reference fallback measure classify
+the 89 retired owned runs (103,130 bytes) as retired, while shipping still
+counts every original instruction. Census and machine-joint reports retain
+the held continuations explicitly.
+
+The protected outcomes are the battle witnesses in "The menus' teardown":
+`battle-menu-buttons` (commands/targets, picture 3300, place 4),
+`battle-guardian` (Bits/victory, picture 6000, place 6), `battle-magus`
+(items, dual tech, barriers, KO/revival, picture 9000, place 5), and
+`battle-lavos-gameover` (defeat/game over, picture 5400, place 7), in both
+strict and native modes. The table there records the exact protected
+saved-game and SRAM end kinds in each mode, alongside the five menu service
+witnesses; existing outcome exceptions do not erase those matches.

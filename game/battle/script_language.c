@@ -98,6 +98,23 @@ bool script_over_the_direct_page(const GameState *g)
 /* A list of combatants from `first`, ended in reach (and with one, if asked). */
 enum { LIST_MOST = 16 };
 
+/* The original reads the channel's effect as a word. */
+
+/* A combatant's battle slot for a combatant channel; on the other targets'
+ * channels a list with a first target, from the list's own start and from the
+ * shadows', each a combatant; on an effect channel, one of the effects. */
+
+/* A combatant channel whose subject is nobody. */
+
+/* The colors change the other targets on every channel from the fourth on (an
+ * effect channel's included), look for a flashed enemy from the rotation's
+ * start, and copy the cycled background colors from the one the rule names to
+ * the last background color. */
+
+/* The screen effect's command gives at least one setting (the original
+ * copies 256 for none), and names one of the effects there are. */
+
+/* A place or a facing the command names is one of the original's. */
 static bool list_of_combatants(const GameState *g, unsigned first, bool needs_one)
 {
     for (unsigned at = first; at < first + LIST_MOST; at++) {
@@ -110,15 +127,11 @@ static bool list_of_combatants(const GameState *g, unsigned first, bool needs_on
     return false;
 }
 
-/* The original reads the channel's effect as a word. */
 static bool effect_in_range(const GameState *g)
 {
     return battle_script_effect(g) < BATTLE_EFFECTS && battle_script_effect_high(g) == 0;
 }
 
-/* A combatant's battle slot for a combatant channel; on the other targets'
- * channels a list with a first target, from the list's own start and from the
- * shadows', each a combatant; on an effect channel, one of the effects. */
 static bool subjects_in_range(const GameState *g)
 {
     ScriptChannel ch = script_channel_running(g);
@@ -131,25 +144,18 @@ static bool subjects_in_range(const GameState *g)
     return list_of_combatants(g, OTHER_TARGETS_START, true) && list_of_combatants(g, SHADOW_LIST_START, false);
 }
 
-/* A combatant channel whose subject is nobody. */
 static bool on_a_channel_for_nobody(const GameState *g)
 {
     ScriptChannel ch = script_channel_running(g);
     return ch.kind == SCRIPT_ONE_COMBATANT && script_combatant(g, ch) == SCRIPT_NOBODY;
 }
 
-/* The colors change the other targets on every channel from the fourth on (an
- * effect channel's included), look for a flashed enemy from the rotation's
- * start, and copy the cycled background colors from the one the rule names to
- * the last background color. */
 static bool colors_in_range(const GameState *g)
 {
     return subjects_in_range(g) && list_of_combatants(g, ROTATION_LIST_START, false)
            && list_of_combatants(g, OTHER_TARGETS_START, false) && battle_background_cycle(g) < BACKGROUND_COLORS;
 }
 
-/* The screen effect's command gives at least one setting (the original
- * copies 256 for none), and names one of the effects there are. */
 static bool a_screen_effect(const GameState *g)
 {
     uint8_t first = script_operand(g, 1);
@@ -173,7 +179,6 @@ static bool needs_met(const GameState *g, const ScriptOpcode *row)
     }
 }
 
-/* A place or a facing the command names is one of the original's. */
 static bool names_known_places(const GameState *g, const ScriptOpcode *row)
 {
     if (row->place.kind == ARG_NONE && row->toward.kind == ARG_NONE && row->facing.kind == ARG_NONE)

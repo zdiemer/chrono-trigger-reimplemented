@@ -55,9 +55,6 @@ enum { BATTLE_SLIDE_STILL = 0, BATTLE_SLIDE_STARTING_IN = 0xFF, BATTLE_SLIDE_OUT
 void battle_start_the_slide(GameState *g, uint8_t slide);
 // $CD:0534
 static inline bool battle_window_sliding(const GameState *g) { return battle_window_slide_frames(g) != 0; }
-void battle_window_is_sliding(Snes *s);
-void battle_show_the_defeat(Snes *s);
-
 /* ---- scroll.c ------------------------------------------------------------------------------ */
 
 /* How the layers are scrolled: steady, or BG3 where screen script channel 0
@@ -97,7 +94,6 @@ void battle_send_palette(Platform *pf);
 /* The VRAM transfer a routine queued for the next frame, if one is. */
 void battle_send_queued_transfer(GameState *g, Platform *pf);
 void battle_send_vram_and_wait(Snes *s);
-void battle_send_vram_and_wait_long(Snes *s);
 /* A block of tiles a routine asked for, and half of a battle message's tiles
  * (or of the VRAM they go to, cleared). */
 void battle_send_block_and_message_tiles(GameState *g, Platform *pf);
@@ -188,12 +184,6 @@ void battle_take_the_start_settings(GameState *g);
 bool battle_frame_dispatch_ready(Snes *s);
 bool battle_frame_work_ready(Snes *s);
 bool battle_frame_update_ready(Snes *s);
-bool battle_scroll_mode_is_one(Snes *s);
-bool battle_vblank_uploads_ready(Snes *s);
-bool battle_block_upload_ready(Snes *s);
-bool battle_queued_transfer_ready(Snes *s);
-bool battle_vram_transfer_ready(Snes *s);
-bool battle_tile_rows_ready(Snes *s);
 
 /* ---- As C (frame.c, display.c) ---------------------------------------------------------------- */
 

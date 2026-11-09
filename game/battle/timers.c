@@ -13,7 +13,6 @@
 #include "battle/status_timers.h"
 #include "charge.h"
 #include "holds.h"
-#include "original_effects.h"
 #include "vars.h"
 
 enum { TIMER_RUNNING = 0x01, TIMER_RUN_OUT = 0x80, TIMER_STOPPED = 0 };
@@ -129,8 +128,8 @@ void battle_count_timers_down(GameState *g)
                 run_out(g, kind, slot);
         }
     }
-    ORIGINAL_EFFECT(set_battle_timer_tick_slot(g, 0));
-    ORIGINAL_EFFECT(set_battle_timer_tick_timer(g, BATTLE_TIMER_KINDS * BATTLE_COMBATANTS));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
 }
 
 /* The combatant at a place in the order the timers are looked for in. A
@@ -199,14 +198,6 @@ void battle_timer_seen_to(GameState *g, BattleTimer kind)
 
 /* What the search leaves in its cells: the kind after the last (a word), the
  * battle slot it looked at last, and the due bit shifted past kind 12. */
-static void leave_search_cells(GameState *g, uint8_t last_slot)
-{
-    set_battle_low_scratch(g, 0, BATTLE_TIMER_KINDS);
-    set_battle_low_scratch(g, 1, 0);
-    set_battle_low_scratch(g, 2, last_slot);
-    set_battle_low_scratch(g, 3, 0);
-    set_battle_timer_kind_bit(g, 0);
-}
 
 // $C1:8290
 /* The party's turn timers go on their gauges. Then, on the passes that look,
@@ -236,7 +227,7 @@ void battle_find_run_out_timers(GameState *g, bool look)
             }
         }
     }
-    ORIGINAL_EFFECT(leave_search_cells(g, slot));
+    charge_machine_accesses(g, 6);
 }
 
 /* ---- The entries ------------------------------------------------------------------------ */
@@ -269,13 +260,13 @@ static bool run_due_handlers(GameState *g, const DueCalls *calls, void *ctx)
 {
     calls->handlers_begin(ctx);
     for (unsigned kind = 0; kind < BATTLE_TIMER_KINDS; kind++) {
-        ORIGINAL_EFFECT(set_battle_timer_kind_bit(g, due_bit(kind)));
+        charge_machine_accesses(g, 2);
         if (!(battle_timer_kinds_due(g) & due_bit(kind)))
             continue;
         if (!calls->see_to(ctx, (BattleTimer)kind))
             return false;
     }
-    ORIGINAL_EFFECT(set_battle_timer_kind_bit(g, 0));
+    charge_machine_accesses(g, 2);
     return true;
 }
 

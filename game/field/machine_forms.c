@@ -114,8 +114,6 @@ static const struct {
     { field_start_location_song, 0xC01B53, CPU_FLAG_M | CPU_FLAG_X, CPU_FLAG_M, field_on_page_bank_zero },
     { field_play_the_switch_sound_entry, 0xC01B90, CPU_FLAG_M | CPU_FLAG_X, CPU_FLAG_M, field_sound_at_the_leader_can_play },
     { field_play_the_chest_sound_entry, 0xC01BA7, CPU_FLAG_M | CPU_FLAG_X, CPU_FLAG_M, field_sound_at_the_leader_can_play },
-    { field_start_the_battle_song_entry, 0xC00008, CPU_FLAG_M | CPU_FLAG_X, CPU_FLAG_M, NULL },
-    { field_bring_the_music_back_entry, 0xC0000B, CPU_FLAG_M | CPU_FLAG_X, CPU_FLAG_M, NULL },
     { field_load_the_credits_letters_entry, 0xC06E27, CPU_FLAG_M | CPU_FLAG_X, CPU_FLAG_M, field_on_page_bank_zero },
     { field_load_tile_looks_entry, 0xC009DD, CPU_FLAG_M | CPU_FLAG_X, CPU_FLAG_M, field_on_page_bank_zero },
     { field_battle_begins, 0xC0024C, CPU_FLAG_M | CPU_FLAG_X, CPU_FLAG_M, field_battle_can_begin },

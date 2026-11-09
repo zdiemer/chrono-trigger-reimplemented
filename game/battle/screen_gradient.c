@@ -12,9 +12,8 @@
  * The rows are background rows 5-7, colors 1-14 of each. Each takes the
  * gradient from its own point, which a phase picks and the frame work turns
  * (battle/frame.c), in one direction or the other. */
+#include "charge.h"
 #include "battle/screen.h"
-
-#include "original_effects.h"
 
 /* ---- The gradient's colors ------------------------------------------------------------------ */
 
@@ -53,11 +52,6 @@ static uint16_t step_toward(uint16_t color, uint16_t target)
 
 /* The original compares each channel through a cell, and leaves the last
  * color's blue there over the high byte of its green. */
-static void leave_last_target(GameState *g, uint16_t target)
-{
-    screen_leave_cell(g, 0x45, (uint8_t)((target & BLUE) >> 8));
-    screen_leave_cell(g, 0x46, (uint8_t)((target & GREEN) >> 8));
-}
 
 /* ---- The HP level -------------------------------------------------------------------------- */
 
@@ -68,11 +62,6 @@ enum { LEVELS = 8, EIGHTHS = 8, FIRST_ENEMY = 3, LEVEL_SET = 0x80, FADE_FRAMES =
 
 /* The original counts the thresholds in two cells: the one it stopped at and
  * the eighth. */
-static void leave_thresholds(GameState *g, uint16_t eighth, uint8_t level)
-{
-    screen_leave_word(g, 0x45, (uint16_t)(eighth * level));
-    screen_leave_word(g, 0x47, eighth);
-}
 
 static uint8_t enemy_hp_level(GameState *g)
 {
@@ -80,7 +69,7 @@ static uint8_t enemy_hp_level(GameState *g)
     uint8_t level = 1;
     while (level < LEVELS && hp >= (uint16_t)(eighth * level))
         level++;
-    ORIGINAL_EFFECT(leave_thresholds(g, eighth, level));
+    charge_machine_accesses(g, 4);
     return level;
 }
 
@@ -149,7 +138,7 @@ static void fade_a_step(GameState *g)
         target = gradient_set_color(g, level, i);
         set_fading_color(g, i, step_toward(fading_color(g, i), target));
     }
-    ORIGINAL_EFFECT(leave_last_target(g, target));
+    charge_machine_accesses(g, 2);
     uint8_t left = (uint8_t)(battle_gradient_fade_frames(g) - 1);
     set_battle_gradient_fade_frames(g, left);
     if (left == 0)
@@ -213,12 +202,6 @@ bool battle_gradient_page(Snes *s)
  * and its start (A) within the repeat. */
 enum { ROW_BYTES = 2 * ROW_COLORS };
 
-bool battle_gradient_row_is_one(Snes *s)
-{
-    return battle_screen_page_a_clear(s) && s->cpu.y % ROW_BYTES == 0 && s->cpu.y / ROW_BYTES < GRADIENT_ROWS
-           && (uint8_t)s->cpu.a <= GRADIENT_COLORS;
-}
-
 void battle_step_hp_gradient_entry(Snes *s)
 {
     battle_step_hp_gradient(state_of(s));
@@ -227,26 +210,3 @@ void battle_step_hp_gradient_entry(Snes *s)
 }
 
 void battle_start_gradient_phase(GameState *g) { set_battle_gradient_phase(g, starting_phase(g)); }
-
-void battle_find_gradient_phase(Snes *s)
-{
-    battle_start_gradient_phase(state_of(s));
-    m_rts(s);
-}
-
-/* The turn comes in the cell $45, and the start goes back in A. */
-void battle_gradient_row_rotation(Snes *s)
-{
-    GameState *g = state_of(s);
-    m_set_a8(s, row_start(g, screen_cell(g, 0x45)));
-    m_rts(s);
-}
-
-void battle_write_gradient_row(Snes *s)
-{
-    GameState *g = state_of(s);
-    show_gradient_row(g, s->cpu.y / ROW_BYTES, (uint8_t)s->cpu.a);
-    screen_leave_for_the_drift(g, 0);
-    s->cpu.a = 0;
-    m_rts(s);
-}

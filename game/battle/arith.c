@@ -1,12 +1,12 @@
 /* Battle: the arithmetic the battle's code shares (battle/arith.h), and the
  * original's two bit-serial routines for numbers wider than the multiplier and
  * divider take, which only the original's code calls. */
+#include "charge.h"
 #include "battle/arith.h"
 
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- Through the multiplier and the divider ------------------------------------------------ */
@@ -27,8 +27,8 @@ static void leave_multiplier(GameState *g, uint8_t a, uint8_t b)
 {
     set_battle_multiplier_operands(g, 0, a);
     set_battle_multiplier_operands(g, 1, b);
-    ORIGINAL_EFFECT(hw_set_multiplicand(g, a));
-    ORIGINAL_EFFECT(hw_multiply_by(g, b));
+    charge_machine_io_accesses(g, 1);
+    charge_machine_io_accesses(g, 3);
 }
 
 static void leave_multiply(GameState *g, uint8_t a, uint8_t b, uint16_t product)
@@ -77,8 +77,8 @@ static void leave_divide(GameState *g, uint16_t dividend, uint8_t divisor, Battl
     set_battle_divider_operands(g, 0, (uint8_t)dividend);
     set_battle_divider_operands(g, 1, (uint8_t)(dividend >> 8));
     set_battle_divider_operands(g, 2, divisor);
-    ORIGINAL_EFFECT(hw_set_dividend(g, dividend));
-    ORIGINAL_EFFECT(hw_divide_by(g, divisor));
+    charge_machine_io_accesses(g, 2);
+    charge_machine_io_accesses(g, 1);
     set_battle_divider_busy(g, 0);
 }
 
@@ -121,11 +121,10 @@ static void leave_word_product(GameState *g, uint16_t a, uint32_t product)
 {
     set_wide_word(g, FIRST, a);
     set_battle_wide_math(g, SECOND + 1, 0);
-    ORIGINAL_EFFECT(set_battle_wide_math(g, SECOND, 0));
+    charge_machine_accesses(g, 1);
     set_wide_word(g, RESULT_LOW, (uint16_t)product);
 }
 
-void battle_leave_multiply_carry(GameState *g, bool carry) { set_battle_wide_math(g, SECOND, carry); }
 
 uint32_t battle_multiply_words(GameState *g, uint16_t a, uint16_t b)
 {
@@ -217,62 +216,13 @@ BattleLongQuotient battle_divide_long(GameState *g, uint32_t dividend, uint16_t 
 
 /* Each takes its numbers from its cells, as the original's callers hand them,
  * and leaves A as the original's last TDC leaves it: the battle's page. */
-void battle_multiply_8x8(Snes *s)
-{
-    GameState *g = state_of(s);
-    battle_multiply(g, battle_multiply_factors(g, 0), battle_multiply_factors(g, 1));
-    s->cpu.a = BATTLE_PAGE;
-    m_rts(s);
-}
 
 /* It leaves the product by the word's low byte in X. */
-void battle_multiply_8x16(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t a = battle_long_multiply(g, LONG_FACTOR);
-    uint16_t b = (uint16_t)(battle_long_multiply(g, LONG_OTHER) | battle_long_multiply(g, LONG_OTHER + 1) << 8);
-    battle_multiply_long(g, a, b);
-    s->cpu.x = (uint16_t)(a * (uint8_t)b);
-    s->cpu.a = BATTLE_PAGE;
-    m_rts(s);
-}
-
-void battle_multiply_16x16(Snes *s)
-{
-    GameState *g = state_of(s);
-    battle_multiply_words(g, wide_word(g, FIRST), wide_word(g, SECOND));
-    /* the carry its caller came in with, which the caller's next division can
-     * take as its divisor */
-    battle_leave_multiply_carry(g, m_flag(s, CPU_FLAG_C));
-    s->cpu.a = BATTLE_PAGE;
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
-}
 
 /* It shifts the dividend out through its cells, the quotient's top fifteen
  * bits coming in behind it (the next one is lost) and the caller's carry in at
  * the top; its flags come back as they were. */
-void battle_divide(Snes *s)
-{
-    GameState *g = state_of(s);
-    /* the caller's carry picks the high word the division leaves */
-    if (m_flag(s, CPU_FLAG_C))
-        battle_divide_leftover_marked(g, wide_word(g, FIRST), wide_word(g, SECOND));
-    else
-        battle_divide_leftover(g, wide_word(g, FIRST), wide_word(g, SECOND));
-    s->cpu.a = BATTLE_PAGE;
-    m_rts(s);
-}
 
 /* The bit-serial division loses the remainder's top bit when the divisor has
  * its own set: the game divides by less. */
 enum { LARGEST_DIVISOR = 0x8000 };
-
-bool battle_divide_is_exact(Snes *s)
-{
-    vars_peek(true);
-    uint16_t divisor = wide_word(state_of(s), SECOND);
-    vars_peek(false);
-    return battle_page(s) && divisor <= LARGEST_DIVISOR;
-}

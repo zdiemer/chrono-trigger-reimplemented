@@ -34,7 +34,7 @@ OPEN_REASON = {}
 # Subsystems whose gate has retired while rows of theirs stay in the ledger for
 # their still-gated callers. A teardown adds its subsystem here and takes it out
 # of OPEN; `--check` fails while it has an open row.
-RETIRED = ('core', 'event', 'field', 'scene', 'menu')
+RETIRED = ('core', 'event', 'field', 'scene', 'menu', 'battle')
 # Entries outside SUBSYSTEMS that an audited dispatch hands its work to, so the
 # whole dispatch is accounted (name: why). The screen command's restart wait,
 # field_restart_wait_for_vblank_loop, was one until the field joined the audit.

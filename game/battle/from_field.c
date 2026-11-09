@@ -27,7 +27,6 @@
 #include "charge.h"
 #include "core/program.h"
 #include "battle/setup_data.h"
-#include "original_effects.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -71,7 +70,7 @@ enum { ENTRY_MARK = 0x0F };
 static void before_the_screen(GameState *g)
 {
     set_battle_frame_pending(g, 0);
-    ORIGINAL_EFFECT(set_battle_frame_pending_next(g, 0));
+    charge_machine_accesses(g, 1);
     set_battle_transfer_pending(g, 0);
     set_battle_graphics_load_step(g, 0);
     set_battle_alternate_frame(g, (battle_setup_flags(g) & SETUP_ALTERNATE_ARRANGEMENT) != 0);
@@ -85,8 +84,8 @@ static void take_in_the_fight(GameState *g)
     set_battle_sprite_attributes(g, (uint8_t)((battle_setup_flags(g) & SETUP_SPRITES_HIGHER) | SPRITES_PRIORITY));
     uint8_t rules = story_party_rules(g);
     uint8_t some_sit_out = rules & RULES_SOME_SIT_OUT;
-    ORIGINAL_EFFECT(set_battle_entry_mark(g, ENTRY_MARK));
-    ORIGINAL_EFFECT(set_battle_some_sit_out(g, some_sit_out));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     if (!some_sit_out)
         return;
     for (unsigned member = BATTLE_PARTY_SIZE; member-- > 0;)
@@ -119,11 +118,6 @@ static void restore_member_colors(GameState *g)
 
 /* The original counts the members down in its first cell, which it leaves
  * past the first. */
-static void leave_member_count(GameState *g)
-{
-    set_battle_work(g, 0, 0xFF);
-    set_battle_work(g, 1, 0);
-}
 
 /* Where each one stood, in 16-pixel tiles and the pixels into the tile, with
  * the frame it showed: the field stands the party and the enemies there. */
@@ -183,7 +177,7 @@ static void remember_cursors(GameState *g)
 static void hand_back_to_the_field(GameState *g)
 {
     restore_member_colors(g);
-    ORIGINAL_EFFECT(leave_member_count(g));
+    charge_machine_accesses(g, 2);
     keep_party_places(g);
     remember_cursors(g);
 }
@@ -290,9 +284,9 @@ typedef struct {
     Platform *pf;
 } FightContext;
 
-bool battle_needs_the_machine(GameState *g, uint32_t routine, const char *what)
+bool battle_contract_broken(GameState *g, uint32_t routine, const char *what)
 {
-    program_needs_the_machine(g, routine, what);
+    program_breaks_a_contract(g, routine, what);
     return false;
 }
 
@@ -327,7 +321,7 @@ bool battle_fought(GameState *g, Platform *pf)
     if (!come_in_from_the_field(g, screen_set_up, &c) || !battle_main_loop_runs(g, pf))
         return false;
     if (!party_as_the_game_has_it(g))
-        return battle_needs_the_machine(g, RETURN_TO_THE_FIELD, "a battle's end with a party the port doesn't hand back");
+        return battle_contract_broken(g, RETURN_TO_THE_FIELD, "a battle's end with a party the port doesn't hand back");
     return go_back_to_the_field(g, &in_the_program, &c);
 }
 

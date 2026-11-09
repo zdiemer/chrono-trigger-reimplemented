@@ -86,7 +86,7 @@ typedef struct {
  * (a number, an offset) moves where they are found, as in the original. */
 
 /* A choosing for `enemy`, with no pair under way and nothing failed. */
-ScriptChoosing enemy_choosing(const GameState *g, uint8_t enemy);
+ScriptChoosing enemy_choosing(GameState *g, uint8_t enemy);
 
 /* The original keeps a choosing in its cells (battle_enemy_turn,
  * battle_script_place, battle_block_start, battle_script_actions_place,

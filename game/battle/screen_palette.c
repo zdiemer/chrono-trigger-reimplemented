@@ -230,45 +230,7 @@ SCREEN_OPCODES(screen_palette_opcodes,
 bool battle_screen_page(Snes *s) { return battle_on_page(s); }
 bool battle_screen_page_a_clear(Snes *s) { return battle_on_page_a_high_clear(s); }
 
-void battle_screen_swap_palette_rows(Snes *s)
-{
-    GameState *g = state_of(s);
-    swap_sprite_palettes(g);
-    screen_command_took(g, 0);
-    screen_command_done(s);
-}
-
-void battle_screen_whiten_palette(Snes *s)
-{
-    screen_whiten_scene(state_of(s));
-    screen_command_done(s);
-}
-
-void battle_screen_whiten_high_rows(Snes *s)
-{
-    screen_whiten_high_sprite_palettes(state_of(s));
-    screen_command_done(s);
-}
-
-void battle_screen_move_rows_up(Snes *s)
-{
-    screen_move_band_up(state_of(s));
-    screen_command_done(s);
-}
-
-void battle_screen_move_rows_down(Snes *s)
-{
-    screen_move_band_down(state_of(s));
-    screen_command_done(s);
-}
-
 void battle_keep_palette_kinds(GameState *g) { keep_kinds(g); }
-
-void battle_save_palette_kinds(Snes *s)
-{
-    keep_kinds(state_of(s));
-    m_rts(s);
-}
 
 void battle_pause_palette_animation_entry(Snes *s)
 {

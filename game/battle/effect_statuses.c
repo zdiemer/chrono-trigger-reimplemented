@@ -5,6 +5,7 @@
  * $1D, and the bits of the first three it shrugs off from $22. A status that
  * lasts starts its timer (battle/timers.h) at the length the combatant has for
  * it (battle_timer_lengths). */
+#include "charge.h"
 #include "battle/effect_parts.h"
 
 #include "battle/combatant.h"
@@ -133,7 +134,7 @@ Inflicted effect_inflict_status(GameState *g, uint16_t which, uint8_t bits)
     } else if (kind == LAST_STATUS_BYTE) {
         give_bits(g, which, bits);
     }
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_1, 0));
+    charge_machine_accesses(g, 1);
     return outcome;
 }
 
@@ -148,7 +149,7 @@ void effect_status_chance(GameState *g, uint8_t chance, uint8_t bits)
     effect_leave_last_worked_byte(g, drawn);
     if (chance < drawn)
         return;
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_1, 1));
+    charge_machine_accesses(g, 1);
     effect_inflict_status(g, 1, bits);
     uint8_t weapon_modifier = effect_actor_stat(g, STAT_WEAPON_MODIFIER);
     if (weapon_modifier == NO_WEAPON_MODIFIER)

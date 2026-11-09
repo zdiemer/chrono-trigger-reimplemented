@@ -10,11 +10,11 @@
  * moves them); and the command waits until they have risen before the script
  * moves on. The digits are the number sprites' own tiles, their zeros in
  * front left out; a miss is two tiles of its own. */
+#include "charge.h"
 #include "battle/window.h"
 
 #include "battle/script_language.h"
 #include "battle/window_data.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- A combatant's number -------------------------------------------------------------- */
@@ -60,15 +60,6 @@ static unsigned blanks_in_front(SpriteDigits d)
 /* The original turns the number into digits in the window's digit buffer
  * ($CF:FDAD), leaving it holding the ones less ten, and writes a miss's
  * tiles there with a blank before them too. */
-static void leave_number_digits(GameState *g, uint8_t kind, uint16_t n, SpriteDigits d)
-{
-    if (kind == MISS)
-        set_battle_digits(g, 0, SPRITE_DIGIT_ZERO);
-    else
-        set_battle_number(g, (uint16_t)(n % 10 - 10));
-    for (unsigned place = 0; place < DIGIT_SPRITES; place++)
-        set_battle_digits(g, BATTLE_DIGIT_THOUSANDS + place, d.tile[place]);
-}
 
 /* A combatant's four sprites, and the bits of each in its high table byte:
  * all past the screen's edge until a digit shows. */
@@ -83,20 +74,6 @@ typedef struct {
  * count of blanks); a word it clears; where the number stands. */
 enum { RECORD_PLACE = 0x80, SPRITE_PLACE = 0x82, HIGH_BITS = 0x84, ATTRIBUTES = 0x8C, OFFSETS = 0x8E,
        CLEARED = 0x92, PLACE = 0x94, RECORD_BYTES = 4, SPRITE_BYTES = 4 };
-
-static void leave_drawn_cells(GameState *g, unsigned blanks, uint8_t high_bits)
-{
-    battle_leave_work8(g, HIGH_BITS, high_bits);
-    for (unsigned place = 0; place < DIGIT_SPRITES; place++)
-        battle_leave_work8(g, (uint8_t)(OFFSETS + place), battle_digit_sprite_offset(g, blanks, place));
-}
-
-static void leave_combatant_cells(GameState *g, NumberPlace at, uint8_t attributes)
-{
-    battle_leave_work8(g, ATTRIBUTES, attributes);
-    battle_leave_work8(g, PLACE, at.x);
-    battle_leave_work8(g, (uint8_t)(PLACE + 1), at.y);
-}
 
 /* Show a combatant's number: the digits after the blanks in front, each
  * where its offset puts it. */
@@ -114,7 +91,7 @@ static void show_number(GameState *g, unsigned slot, NumberPlace at, SpriteDigit
     }
     set_battle_number_sprite_high(g, slot, high_bits);
     set_battle_prepared_sprites_on(g, slot, 1);
-    ORIGINAL_EFFECT(leave_drawn_cells(g, blanks, high_bits));
+    (charge_machine_accesses(g, 1 + DIGIT_SPRITES), charge_machine_rom_accesses(g, DIGIT_SPRITES));
 }
 
 static NumberPlace number_place(const GameState *g, unsigned slot)
@@ -136,19 +113,19 @@ static void show_numbers(GameState *g, unsigned set)
         NumberPlace at = number_place(g, slot);
         uint8_t kind = battle_number_records_kind(g, first + slot);
         uint8_t attributes = in_second_palette(kind) ? SECOND_PALETTE_ATTRIBUTES : NUMBER_ATTRIBUTES;
-        ORIGINAL_EFFECT(leave_combatant_cells(g, at, attributes));
+        charge_machine_accesses(g, 3);
         if (kind == NO_NUMBER)
             continue;
         if (kind != MISS && rises_the_second_way(kind))
             set_battle_number_rise_alt(g, slot, 1);
         uint16_t n = battle_number_records_value(g, first + slot);
         SpriteDigits d = kind == MISS ? miss_digits() : number_digits(g, n);
-        ORIGINAL_EFFECT(leave_number_digits(g, kind, n, d));
+        charge_machine_accesses(g, DIGIT_SPRITES + (kind == MISS ? 1 : 2));
         show_number(g, slot, at, d, attributes);
     }
-    ORIGINAL_EFFECT(battle_leave_work16(g, RECORD_PLACE, (uint16_t)(RECORD_BYTES * (first + BATTLE_COMBATANTS))));
-    ORIGINAL_EFFECT(battle_leave_work16(g, SPRITE_PLACE, (uint16_t)(SPRITE_BYTES * DIGIT_SPRITES * BATTLE_COMBATANTS)));
-    ORIGINAL_EFFECT(battle_leave_work16(g, CLEARED, 0));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
     set_battle_numbers_row(g, 0);
     set_battle_numbers_rising(g, 1);
 }

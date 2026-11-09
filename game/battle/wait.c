@@ -145,7 +145,7 @@ static bool type_a_letter(void *ctx)
 {
     GameState *g = ((FrameWaitContext *)ctx)->game;
     if (!battle_message_typing_fits(g))
-        return battle_needs_the_machine(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, "a message the menus' text code doesn't go on from");
+        return battle_contract_broken(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, "a message the menus' text code doesn't go on from");
     TIMED_AS(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, battle_type_the_message(g));
     return true;
 }

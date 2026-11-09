@@ -32,7 +32,6 @@
 #include "battle/program.h"
 #include "charge.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "platform/input.h"
 #include "platform/timing.h"
 #include "port/native.h"
@@ -293,7 +292,7 @@ static ScreenFlow change_variable(GameState *g, uint8_t variable, bool clear, ui
         return screen_on();
     }
     set_variable_value(g, variable, (uint8_t)(variable_value(g, variable) + amount));
-    ORIGINAL_EFFECT(screen_leave_cell(g, 0x45, amount));
+    charge_machine_accesses(g, 1);
     return screen_on();
 }
 SCREEN_OPERATION(change_variable, variable, clear, amount)
@@ -430,18 +429,6 @@ static void enter_as_the_dispatch_does(Snes *s, uint8_t opcode)
  * original reads its product as a word, and the controller's low byte (as the
  * console last read it) comes along as the word's high byte. Every command
  * that draws a triangle at its size leaves it. */
-static void leave_the_sizing(Snes *s, const ScreenCommand *c)
-{
-    GameState *g = state_of(s);
-    uint8_t shape = c->shape & 1, size = battle_shape_size(g, shape);
-    uint8_t down = battle_shape_center_y(g, shape);
-    uint8_t last = battle_shape_corners(g, (2 * 2 + 1) * 2 + shape);
-    uint8_t moved = (uint8_t)((uint8_t)(last >= down ? last - down : down - last) * size >> 8);
-    uint16_t word = last >= down
-                        ? (uint16_t)((in_read_low(m_platform(s), PF_AT(0xCD2162), 0) << 8 | moved) + down)
-                        : (uint16_t)(down - moved);
-    screen_leave_word(g, 0x4B, word);
-}
 
 static bool draws_a_sized_triangle(uint8_t opcode)
 {
@@ -454,11 +441,6 @@ static bool draws_a_sized_triangle(uint8_t opcode)
 
 /* What the original's handler leaves of the machine beside what its
  * operation does. */
-static void leave_the_machine(Snes *s, uint8_t opcode, const ScreenCommand *c)
-{
-    if (draws_a_sized_triangle(opcode))
-        leave_the_sizing(s, c);
-}
 
 // $CD:16A6
 /* Run a command: its operation, timed as the original's handler; or, where
@@ -491,6 +473,20 @@ static CommandRun run_command(GameState *g, uint8_t opcode, ScreenChannel channe
 
 /* On the machine: the original's handler from the dispatch's call, or the
  * bridge. False where the original's code carried on from a call-out. */
+/* Preserve the machine estimate for removed comparison accesses.
+ * Inspect the branch without charging those reads to either backend. */
+static void charge_triangle_sizing(GameState *g, uint8_t opcode, const ScreenCommand *c)
+{
+    if (!draws_a_sized_triangle(opcode))
+        return;
+    uint32_t charge_mark = charge_uncounted_begin(g);
+    uint8_t shape = c->shape & 1;
+    bool reads_controller = battle_shape_corners(g, (2 * 2 + 1) * 2 + shape) >= battle_shape_center_y(g, shape);
+    charge_uncounted_end(g, charge_mark);
+    charge_machine_accesses(g, 5);
+    charge_machine_io_accesses(g, reads_controller ? 1 : 0);
+}
+
 static bool run_command_on_the_machine(Snes *s, uint8_t opcode, ScreenChannel channel)
 {
     ScreenCommand c;
@@ -503,7 +499,7 @@ static bool run_command_on_the_machine(Snes *s, uint8_t opcode, ScreenChannel ch
         return battle_call(s, 0xCD16AF, handler_of(opcode), DC_V);
     case COMMAND_BRIDGED: return row->bridge(s, &c);
     default:
-        ORIGINAL_EFFECT(leave_the_machine(s, opcode, &c));
+        charge_triangle_sizing(state_of(s), opcode, &c);
         s->cpu.a = 0;
         return true;
     }
@@ -754,12 +750,6 @@ void battle_run_screen_scripts(Snes *s)
 }
 
 /* It leaves A's high byte clear for its callers. */
-void battle_start_battlefield_scripts_entry(Snes *s)
-{
-    battle_start_battlefield_scripts(state_of(s));
-    s->cpu.a = 0;
-    m_rts(s);
-}
 
 /* The channel's offset in X, which the original keeps on the stack while the
  * channel's commands run and hands back. */
@@ -783,29 +773,14 @@ void battle_run_screen_command(Snes *s)
     m_rts(s);
 }
 
-static void run_entered(Snes *s, uint8_t opcode)
-{
-    GameState *g = state_of(s);
-    const ScreenOpcode *row = screen_opcode(opcode);
-    ScreenCommand c = decode(g, row, screen_running_channel(g), screen_place(g));
-    ScreenFlow flow = row->operation(g, &c);
-    finish_command(g, row, &c, flow);
-    ORIGINAL_EFFECT(leave_the_machine(s, opcode, &c));
-    s->cpu.a = 0;
-    m_rts(s);
-}
-
 /* A command whose operation is C, entered as its handler: the command found
  * from its table's index in X, its operands at the place. */
-void battle_screen_command(Snes *s) { run_entered(s, (uint8_t)(FIRST_COMMAND + (uint8_t)s->cpu.x / 2)); }
 
 /* The triangle drawn at its size, entered as its handler from the dispatch or
  * from a model's command, whose original goes on into the triangle's code
  * once it has placed the corners: either way the triangle the command's
  * operand numbers (draw_model, screen_shapes.c, does the same in C). */
 enum { DRAW_TRIANGLE = 0xAE };
-
-void battle_screen_draw_triangle(Snes *s) { run_entered(s, DRAW_TRIANGLE); }
 
 /* The guards. Every entry runs on the battle's page with the data bank $7E
  * and A's high byte clear, as the original's runner leaves them; a channel is
@@ -831,32 +806,7 @@ bool battle_screen_dispatch_ready(Snes *s)
            && opcode <= LAST_COMMAND;
 }
 
-static bool command_runs_here(const GameState *g, const ScreenOpcode *row)
-{
-    if (!row || !on_a_channel(g, battle_screen_channel(g)))
-        return false;
-    ScreenCommand c = decode(g, row, screen_running_channel(g), screen_place(g));
-    return runs_here(g, row, &c) && !row->bridge;
-}
-
-bool battle_screen_command_ready(Snes *s)
-{
-    vars_peek(true);
-    uint16_t index = s->cpu.x;
-    uint8_t opcode = (uint8_t)(FIRST_COMMAND + index / 2);
-    bool ready = index < 2 * COMMANDS && index % 2 == 0 && command_runs_here(state_of(s), screen_opcode(opcode));
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && m_flag(s, CPU_FLAG_C) && ready;
-}
-
 /* The triangle reads neither the index nor the carry it is entered with. */
-bool battle_screen_triangle_ready(Snes *s)
-{
-    vars_peek(true);
-    bool ready = command_runs_here(state_of(s), screen_opcode(DRAW_TRIANGLE));
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && ready;
-}
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 
@@ -867,6 +817,7 @@ typedef struct {
 
 /* A command the port runs, or the program goes no further at its handler.
  * The one bridge is the wait for a line, the timing service's own. */
+
 static bool run_a_command(void *ctx, uint8_t opcode, ScreenChannel channel)
 {
     ScreenScriptsContext *a = ctx;
@@ -880,7 +831,7 @@ static bool run_a_command(void *ctx, uint8_t opcode, ScreenChannel channel)
         return true;
     }
     if (run != COMMAND_RAN)
-        return battle_needs_the_machine(g, handler_of(opcode), "a screen script's command the port doesn't run");
+        return battle_contract_broken(g, handler_of(opcode), "a screen script's command the port doesn't run");
     return true;
 }
 
@@ -892,7 +843,7 @@ static bool step_a_channel(void *ctx, ScreenChannel channel, uint16_t ended)
     ChannelStep step = CHANNEL_STOPPED;
     TIMED_AS(g, 0xCD1654, step = step_channel(g, channel, run_a_command, a));
     if (step == CHANNEL_BYTE_PAST_THE_LANGUAGE || step == CHANNEL_COMMAND_PAST_ITS_TABLE)
-        return battle_needs_the_machine(g, 0xCD1654, "a screen script's byte past the language");
+        return battle_contract_broken(g, 0xCD1654, "a screen script's byte past the language");
     return step == CHANNEL_STEPPED;
 }
 

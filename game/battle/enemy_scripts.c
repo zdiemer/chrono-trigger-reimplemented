@@ -14,10 +14,10 @@
 #include "battle/combatant.h"
 #include "battle/enemy_actions.h"
 #include "battle/entries.h"
+#include "battle/program.h"
 #include "battle/rules_data.h"
 #include "battle/targets.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- The choosing's state ------------------------------------------------------------------ */
@@ -49,10 +49,10 @@ ScriptChoosing enemy_choosing_in_cells(const GameState *g)
 /* What a choosing doesn't come to set, the original leaves in its cells as it
  * was: so the scaffolding starts from the cells, which the logic never reads
  * back (each field is set before it is used). */
-ScriptChoosing enemy_choosing(const GameState *g, uint8_t enemy)
+ScriptChoosing enemy_choosing(GameState *g, uint8_t enemy)
 {
     ScriptChoosing c = { .enemy = enemy, .pair = PAIR_NONE, .outcome = OUTCOME_HELD };
-    ORIGINAL_EFFECT(c = enemy_choosing_in_cells(g), c.enemy = enemy);
+    charge_machine_accesses(g, 10);
     return c;
 }
 
@@ -61,7 +61,7 @@ ScriptChoosing enemy_choosing(const GameState *g, uint8_t enemy)
  * is kept plainly; the rest is scaffolding. */
 void enemy_leave_choosing(GameState *g, const ScriptChoosing *c)
 {
-    ORIGINAL_EFFECT(write_choosing(g, c));
+    charge_machine_accesses(g, 10);
     set_battle_enemy_turn(g, c->enemy);
 }
 void enemy_hand_back_choosing(GameState *g, const ScriptChoosing *c) { write_choosing(g, c); }
@@ -292,6 +292,9 @@ ScriptPlace enemy_reactions_start(GameState *g, uint8_t enemy, uint8_t id)
     return (ScriptPlace)(at + 1);
 }
 
+static bool no_member_comes_back(const GameState *g);
+static bool next_actions_in_table(const GameState *g, uint8_t enemy, uint8_t block);
+
 // $C1:AFD2
 /* The enemy looks through the turn section of the script for `id`, a block
  * at a time, until one holds or the section ends. How each block came out is
@@ -300,6 +303,11 @@ ScriptPlace enemy_reactions_start(GameState *g, uint8_t enemy, uint8_t id)
  * $0A first, whose second the stat test reads (battle.h). */
 static void choose_by_script(GameState *g, ScriptChoosing *c, uint8_t id)
 {
+    if (c->enemy >= BATTLE_ENEMIES || c->pair != PAIR_NONE || !no_member_comes_back(g)
+        || !next_actions_in_table(g, c->enemy, battle_enemy_script_block(g, c->enemy))) {
+        (void)battle_contract_broken(g, 0xC1AFD2, "an enemy script choice outside its contract");
+        return;
+    }
     uint8_t enemy = c->enemy;
     c->block_start = c->place = enemy_script_start(g, id);
     battle_keep_stat_offset_word(g, 0);
@@ -353,21 +361,8 @@ void enemy_scripts_choose(GameState *g)
 
 /* Each takes the choosing from the cells its callers keep it in and hands it
  * back there. */
-void battle_enemy_scripts_choose(Snes *s)
-{
-    enemy_scripts_choose(state_of(s));
-    m_rts(s);
-}
 
 /* The enemy's id comes in A. */
-void battle_enemy_script_choose(Snes *s)
-{
-    GameState *g = state_of(s);
-    ScriptChoosing c = enemy_choosing_in_cells(g);
-    choose_by_script(g, &c, (uint8_t)s->cpu.a);
-    enemy_hand_back_choosing(g, &c);
-    m_rts(s);
-}
 
 enum { CHOSEN_MARK = 1 };
 
@@ -379,52 +374,10 @@ uint8_t enemy_choosing_result(const GameState *g, uint8_t enemy)
     return enemy >= BATTLE_ENEMIES ? enemy : CHOSEN_MARK;
 }
 
-void battle_enemy_condition_held(Snes *s)
-{
-    GameState *g = state_of(s);
-    ScriptChoosing c = enemy_choosing_in_cells(g);
-    bool first_of_two = c.pair == PAIR_FIRST_HELD;
-    condition_held(g, &c);
-    enemy_hand_back_choosing(g, &c);
-    s->cpu.a = first_of_two ? PAIR_FIRST_HELD : enemy_choosing_result(g, c.enemy);
-    m_rts(s);
-}
-
-void battle_enemy_choose_actions(Snes *s)
-{
-    GameState *g = state_of(s);
-    ScriptChoosing c = enemy_choosing_in_cells(g);
-    enemy_choose_actions(g, &c);
-    enemy_hand_back_choosing(g, &c);
-    s->cpu.a = enemy_choosing_result(g, c.enemy);
-    m_rts(s);
-}
-
 /* The enemy's id comes in A; the section's end marker is left there, and the
  * place the reactions start is where the caller goes on reading. */
-void battle_enemy_find_reactions(Snes *s)
-{
-    GameState *g = state_of(s);
-    set_battle_script_place(g, enemy_reactions_start(g, battle_enemy_turn(g), (uint8_t)s->cpu.a));
-    s->cpu.a = SCRIPT_SECTION_END;
-    m_rts(s);
-}
 
 /* The place comes in X; A is left with the status byte it tested last. */
-static uint8_t status_tested_last(const GameState *g, uint8_t slot)
-{
-    uint8_t fourth = attack_statuses(g, slot);
-    return (fourth & ATTACKS_NEAREST) ? fourth : confusion_statuses(g, slot);
-}
-
-void battle_enemy_find_script_place(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t enemy = battle_enemy_turn(g);
-    set_battle_script_place(g, script_place(g, enemy, s->cpu.x));
-    s->cpu.a = status_tested_last(g, slot_of_enemy(enemy));
-    m_rts(s);
-}
 
 /* ---- The guards ------------------------------------------------------------------------- */
 
@@ -507,6 +460,10 @@ static bool block_in_tables(const GameState *g, uint8_t kind, ScriptPlace at)
  * `block` (a script has fewer than BLOCKS_A_SCRIPT_HOLDS). */
 enum { BLOCKS_A_SCRIPT_HOLDS = 16 };
 
+/* The choosing works on the enemy in battle_enemy_turn (the turn in
+ * battle_enemy_acting, the actor in battle_actor), each naming an enemy or a
+ * combatant as every battle has them, and reads the script at a place in the
+ * scripts. */
 static bool next_actions_in_table(const GameState *g, uint8_t enemy, uint8_t block)
 {
     uint8_t kept = battle_enemy_actions_block(g, enemy);
@@ -514,10 +471,6 @@ static bool next_actions_in_table(const GameState *g, uint8_t enemy, uint8_t blo
     return !reachable || actions_in_table(g, battle_enemy_next_action(g, enemy));
 }
 
-/* The choosing works on the enemy in battle_enemy_turn (the turn in
- * battle_enemy_acting, the actor in battle_actor), each naming an enemy or a
- * combatant as every battle has them, and reads the script at a place in the
- * scripts. */
 static bool working_on_an_enemy(const GameState *g)
 {
     if (battle_enemy_turn(g) >= BATTLE_ENEMIES || battle_enemy_acting(g) >= BATTLE_ENEMIES || battle_actor(g) >= BATTLE_COMBATANTS)
@@ -527,6 +480,10 @@ static bool working_on_an_enemy(const GameState *g)
 
 /* An action entry reads its operands at the place; the draw takes up the
  * four after it. */
+
+/* The next actions the enemy at work kept, where its block is the one they
+ * are for; and the actions the choosing is at: those it keeps its place at,
+ * and those. */
 static bool action_entry_in_tables(const GameState *g, uint8_t action, ScriptPlace at)
 {
     if (action == ACTION_ONE_OF_FOUR)
@@ -534,9 +491,6 @@ static bool action_entry_in_tables(const GameState *g, uint8_t action, ScriptPla
     return enemy_action_in_tables(g, action, at);
 }
 
-/* The next actions the enemy at work kept, where its block is the one they
- * are for; and the actions the choosing is at: those it keeps its place at,
- * and those. */
 static bool next_actions_kept_in_table(const GameState *g)
 {
     uint8_t enemy = battle_enemy_turn(g);
@@ -583,12 +537,6 @@ bool battle_script_entry_ready(Snes *s, ScriptUse use, uint8_t command)
     return battle_on_page_a_high_clear(s) && ready;
 }
 
-bool battle_enemy_script_ready(Snes *s) { return battle_script_entry_ready(s, TAKES_NOTHING, 0); }
-bool battle_enemy_held_ready(Snes *s) { return battle_script_entry_ready(s, TAKES_HELD, 0); }
-bool battle_script_selector_ready(Snes *s) { return battle_script_entry_ready(s, TAKES_SELECTOR, 0); }
-bool battle_selector_in_a_ready(Snes *s) { return battle_script_entry_ready(s, TAKES_SELECTOR_IN_A, 0); }
-bool battle_enemy_actions_ready(Snes *s) { return battle_script_entry_ready(s, TAKES_ACTIONS, 0); }
-
 /* The turn starts from the acting enemy alone: a reaction carries out the
  * action its conditions chose, a turn the next the enemy kept. */
 bool battle_enemy_turn_fits(const GameState *g)
@@ -603,47 +551,6 @@ bool battle_enemy_turn_ready(Snes *s)
 {
     vars_peek(true);
     bool ready = battle_enemy_turn_fits(state_of(s));
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && ready;
-}
-
-/* The choosing's starts find the script themselves: they need only the
- * enemy it is for (or the one past the last, as the choosing of them all
- * leaves it, which the search for a beaten enemy's reactions can run with),
- * the actions it would go on with, and no member that would come back. */
-bool battle_enemy_choosing_ready(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    uint8_t enemy = battle_enemy_turn(g);
-    bool ready = enemy <= BATTLE_ENEMIES
-                 && (enemy == BATTLE_ENEMIES || next_actions_in_table(g, enemy, battle_enemy_script_block(g, enemy)))
-                 && no_member_comes_back(g);
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && ready;
-}
-
-/* Choosing one enemy needs an actual enemy slot; the sentinel after all
- * eight is only meaningful to the aggregate chooser's completed search.
- * The choosing starts with no pair of conditions under way, as
- * the choosing of them all leaves it: one under way would take the end marker
- * of a block of one condition for a second. */
-bool battle_enemy_first_block_ready(Snes *s)
-{
-    vars_peek(true);
-    bool none_under_way = battle_condition_pair(state_of(s)) == PAIR_NONE
-                          && battle_enemy_turn(state_of(s)) < BATTLE_ENEMIES;
-    vars_peek(false);
-    return battle_enemy_choosing_ready(s) && none_under_way;
-}
-
-bool battle_enemies_choose_ready(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ready = no_member_comes_back(g);
-    for (uint8_t enemy = 0; enemy < BATTLE_ENEMIES; enemy++)
-        ready = ready && (!chooses(g, enemy) || next_actions_in_table(g, enemy, 0));
     vars_peek(false);
     return battle_on_page_a_high_clear(s) && ready;
 }

@@ -5,13 +5,13 @@
  * members in turn, and in the layouts with gauges every member's gauge. A
  * gauge is four cells that fill, eight steps a cell, as the member's wait for
  * its turn runs out; it is shaded while the wait lasts. */
+#include "charge.h"
 #include "battle/window.h"
 
 #include "battle/arith.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/window_leaves.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- The gauges ------------------------------------------------------------------------ */
@@ -26,19 +26,6 @@ enum { TILE_GAUGE_EMPTY = 0x67, TILE_GAUGE_FULL = 0x6F };
  * left. */
 enum { PART_STEPS = 0x82, FULL_CELLS = 0x83, FULL_STEPS = 0x86 };
 enum { WAIT = 0, FULL_WAIT_HIGH = 3, STEPS_LEFT = 4 };
-
-static void leave_gauge_cells(GameState *g, uint8_t wait, uint16_t left, uint8_t passed)
-{
-    uint8_t full_steps = (uint8_t)(passed / STEPS_PER_CELL * STEPS_PER_CELL);
-    set_battle_multiply_factors(g, WAIT, wait);
-    set_battle_multiply_factors(g, WAIT + 1, 0);
-    set_battle_division(g, FULL_WAIT_HIGH, 0);
-    set_battle_division(g, STEPS_LEFT, (uint8_t)left);
-    set_battle_division(g, STEPS_LEFT + 1, (uint8_t)(left >> 8));
-    battle_leave_work8(g, PART_STEPS, (uint8_t)(passed - full_steps));
-    battle_leave_work8(g, FULL_CELLS, 0);
-    battle_leave_work8(g, FULL_STEPS, full_steps);
-}
 
 // $C1:06F0
 /* The gauge shows how much of the member's wait has passed: the wait left is
@@ -60,7 +47,7 @@ void battle_show_gauge(GameState *g, unsigned member)
         window_set_tile(g, (WindowCell)(at + i), TILE_GAUGE_FULL);
     if (part)
         window_set_tile(g, (WindowCell)(at + full_cells), (uint8_t)(TILE_GAUGE_EMPTY + part));
-    ORIGINAL_EFFECT(leave_gauge_cells(g, wait, left, passed));
+    charge_machine_accesses(g, 8);
 }
 
 /* ---- A member's numbers, in turn ---------------------------------------------------------- */
@@ -90,13 +77,6 @@ static unsigned next_status_member(GameState *g)
  * (bytes); and the loop over the gauges keeps its index there too. */
 enum { MEMBER = 0x80, HP_PLACE = 0x86 };
 
-static void leave_member_cells(GameState *g, unsigned member, WindowLayout layout, bool shaded)
-{
-    battle_leave_work16(g, MEMBER, (uint16_t)member);
-    battle_leave_work16(g, HP_PLACE, (uint16_t)(2 * battle_member_line(layout, member).hp));
-    battle_leave_member_drawn(g, member, shaded);
-}
-
 // $C1:05A7
 void battle_show_party_status(GameState *g)
 {
@@ -104,47 +84,18 @@ void battle_show_party_status(GameState *g)
     if (!battle_status_numbers_covered(g, layout)) {
         unsigned member = next_status_member(g);
         if (!battle_slot_present(g, member)) {
-            ORIGINAL_EFFECT(battle_leave_work16(g, MEMBER, (uint16_t)member));
+            charge_machine_accesses(g, 2);
             return;
         }
         bool shaded = member_numbers_shaded(g, member);
         window_show_hp(g, layout, member, shaded);
         window_show_mp(g, layout, member, shaded);
-        ORIGINAL_EFFECT(leave_member_cells(g, member, layout, shaded));
+        charge_machine_accesses(g, 7);
     }
     if (!layout_has_gauges(layout))
         return;
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
         if (battle_slot_present(g, member))
             battle_show_gauge(g, member);
-    ORIGINAL_EFFECT(battle_leave_work16(g, MEMBER, BATTLE_PARTY_SIZE));
-}
-
-/* ---- The entries ------------------------------------------------------------------------ */
-
-/* The member in its work cell, a word. It leaves A's high byte clear (the
- * divider's routine's last act). */
-void battle_draw_gauge(Snes *s)
-{
-    GameState *g = state_of(s);
-    battle_show_gauge(g, battle_work16(g, BATTLE_GAUGE_MEMBER));
-    s->cpu.a = 0;
-    m_rts(s);
-}
-
-/* It leaves the carry, and A, as window_leaves.c works them out. */
-void battle_draw_party_status(Snes *s)
-{
-    GameState *g = state_of(s);
-    vars_peek(true);
-    PartyStatusNote note = note_party_status(g);
-    vars_peek(false);
-    battle_show_party_status(g);
-    vars_peek(true);
-    bool carry = party_status_carry(g, note), clears_a = party_status_clears_a(g, note);
-    vars_peek(false);
-    m_set_flag(s, CPU_FLAG_C, carry);
-    if (clears_a)
-        s->cpu.a = 0;
-    m_rts(s);
+    charge_machine_accesses(g, 2);
 }

@@ -31,7 +31,6 @@
 #include "battle/wait.h"
 #include "charge.h"
 #include "menu/typeset.h"
-#include "original_effects.h"
 #include "platform/audio.h"
 #include "platform/input.h"
 #include "port/vars_ram.h"
@@ -122,11 +121,6 @@ static uint8_t frames_up(const GameState *g) { return battle_message_frames_at_s
 
 /* A wait for the next frame the original makes with a count in A, which it
  * keeps on the stack across the wait, with the carry `carry`. */
-static bool wait_a_frame_counting(Snes *s, uint32_t site, uint8_t left, BattleCarry carry)
-{
-    m_set_a8(s, left);
-    return battle_wait_under(s, site, BATTLE_NEXT_FRAME_WAIT, BATTLE_COUNTING_WAIT_READS, battle_counting(left, carry));
-}
 
 /* The battle's own message's calls, each where the original makes it: its
  * sound (battle/sound.c), its whole text set out ($CD:027F, above), the
@@ -145,6 +139,12 @@ typedef bool (*HeldCalls)(void *ctx, HeldCall call, HeldArgs args);
 /* Set the message's text, as much of it as `letters` allows, and show it once
  * two of the handler's frames have passed (`frame`, the frame work's wait,
  * battle/wait.c, the first and the second). */
+static bool wait_a_frame_counting(Snes *s, uint32_t site, uint8_t left, BattleCarry carry)
+{
+    m_set_a8(s, left);
+    return battle_wait_under(s, site, BATTLE_NEXT_FRAME_WAIT, BATTLE_COUNTING_WAIT_READS, battle_counting(left, carry));
+}
+
 static bool set_out_the_message(GameState *g, uint8_t letters, bool (*frame)(void *ctx, bool second), void *ctx)
 {
     set_menu_text_budget(g, letters);
@@ -205,7 +205,7 @@ enum { LEFT_FRAMES = 0x53 - 0x45 };
 static bool hold_the_message(GameState *g, uint8_t message, HeldCalls call, void *ctx)
 {
     uint8_t frames = frames_up(g);
-    ORIGINAL_EFFECT(set_battle_scratch(g, LEFT_FRAMES, frames));
+    charge_machine_accesses(g, 1);
     if (message == RAN_AWAY)
         return call(ctx, HELD_ESCAPE_FRAMES, (HeldArgs){ .message = message });
     uint8_t left = frames;
@@ -296,7 +296,6 @@ enum { ENEMY_MESSAGE_PAUSE = 8 };
 /* While the message is set, the original keeps it in a cell of its own
  * (battle_message_opening), which its code reads back after the waits, where
  * one of them hands the machine to it. */
-static void leave_the_message_opening(GameState *g, uint8_t message) { set_battle_message_opening(g, message); }
 
 /* What the original has in the carry at the enemy message's calls: at the
  * setting out, its compare of the message with the one up; at the last wait,
@@ -325,7 +324,7 @@ static bool show_an_enemy_message(GameState *g, uint8_t message, EnemyMessageCal
     uint8_t up = battle_message_shown(g);
     if (message == up)
         return true;
-    ORIGINAL_EFFECT(leave_the_message_opening(g, message));
+    charge_machine_accesses(g, 1);
     TIMED_AS(g, 0xCD025E, open_the_message(g, message));
     if (!call(ctx, ENEMY_SETTING_OUT, message, up) || !call(ctx, ENEMY_PAUSE, message, up))
         return false;
@@ -380,7 +379,7 @@ static bool name_a_combatant(GameState *g, uint8_t combatant, uint8_t window)
 {
     if (enemy_message_up(g))
         return false;
-    ORIGINAL_EFFECT(set_battle_message_window_kind(g, window));
+    charge_machine_accesses(g, 1);
     if (message_already_asked(g, combatant))
         return false;
     type_out(g, BATTLE_MESSAGES, window);
@@ -428,13 +427,6 @@ static void leave_the_count_run_out(Snes *s)
     s->cpu.a = 0;
     s->cpu.x = 0;
     m_set_nz8(s, 0);
-}
-
-void battle_clear_the_message_tiles_entry(Snes *s)
-{
-    battle_clear_the_message_tiles(state_of(s));
-    leave_the_count_run_out(s);
-    m_rts(s);
 }
 
 // $CD:0235
@@ -518,12 +510,6 @@ void battle_pause_on_the_message(Snes *s)
 }
 
 /* The string comes in A; the opening leaves the letters to set next in A. */
-void battle_open_the_message(Snes *s)
-{
-    open_the_message(state_of(s), message_in_a(s));
-    m_set_a8(s, WHOLE_MESSAGE);
-    m_rts(s);
-}
 
 /* The messages' guards: on the battle's page, with the string one the menus'
  * text code can type into the message's tiles (and A's high byte clear for
@@ -559,14 +545,6 @@ bool battle_message_can_go_on(Snes *s)
 }
 /* The opening alone takes the table already named: one of the three the
  * battle's messages come from. */
-bool battle_message_string_can_open(Snes *s)
-{
-    vars_peek(true);
-    uint32_t strings = menu_text_strings(state_of(s));
-    vars_peek(false);
-    bool battles = strings == BATTLE_MESSAGES || strings == ENEMY_MESSAGES || strings == DESCRIPTIONS;
-    return battles && message_can_open(s, strings, message_in_a(s));
-}
 
 /* ---- The guard --------------------------------------------------------------------------------- */
 
@@ -599,7 +577,7 @@ bool battle_combatant_named(GameState *g, uint8_t combatant, bool with_hp)
 {
     uint32_t routine = with_hp ? 0xCD002D : 0xCD0030;
     if (!can_be_typed(g, BATTLE_MESSAGES, NAME) || !can_be_typed(g, BATTLE_MESSAGES, NAME_WITH_HP))
-        return battle_needs_the_machine(g, routine, "a combatant's name the menus' text code doesn't type");
+        return battle_contract_broken(g, routine, "a combatant's name the menus' text code doesn't type");
     TIMED_AS(g, routine, (void)name_a_combatant(g, combatant, with_hp ? NAME_WITH_HP : NAME));
     return true;
 }
@@ -607,7 +585,7 @@ bool battle_combatant_named(GameState *g, uint8_t combatant, bool with_hp)
 bool battle_described(GameState *g, uint8_t description)
 {
     if (!can_be_typed(g, DESCRIPTIONS, description))
-        return battle_needs_the_machine(g, 0xCD0027, "a description the menus' text code doesn't type");
+        return battle_contract_broken(g, 0xCD0027, "a description the menus' text code doesn't type");
     TIMED_AS(g, 0xCD0027, (void)describe(g, description));
     return true;
 }
@@ -644,7 +622,7 @@ static bool enemy_message_call(void *ctx, EnemyMessageCall call, uint8_t message
 bool battle_show_an_enemy_message(GameState *g, Platform *pf, uint8_t message)
 {
     if (!can_be_typed(g, ENEMY_MESSAGES, message))
-        return battle_needs_the_machine(g, 0xCD0033, "an enemy's message the menus' text code doesn't type");
+        return battle_contract_broken(g, 0xCD0033, "an enemy's message the menus' text code doesn't type");
     BattleMessageContext c = { g, pf };
     return show_an_enemy_message(g, message, enemy_message_call, &c);
 }
@@ -677,7 +655,7 @@ static bool hold_a_part(void *ctx, HeldCall call, HeldArgs a)
 bool battle_show_a_battle_message(GameState *g, Platform *pf, uint8_t message)
 {
     if (!can_be_typed(g, BATTLE_MESSAGES, message))
-        return battle_needs_the_machine(g, 0xCD0021, "a battle message the menus' text code doesn't type");
+        return battle_contract_broken(g, 0xCD0021, "a battle message the menus' text code doesn't type");
     BattleMessageContext c = { g, pf };
     return show_a_battle_message(g, message, hold_a_part, &c);
 }

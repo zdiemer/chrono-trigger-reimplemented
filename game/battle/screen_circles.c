@@ -23,7 +23,6 @@
 #include "battle/screen_lines.h"
 #include "charge.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "ram.h"
 
 /* ---- The scripts' variables the circles follow ------------------------------------------------- */
@@ -277,6 +276,7 @@ static RowRun flattened_run(uint8_t radius, uint8_t line)
  * it, and at the bottom a row for every two lines its unclipped bottom passes
  * the battlefield's (the original measures the bottom from the circle's line,
  * not from where the top was cut). */
+
 static RowRun tall_run(uint8_t radius, uint8_t line)
 {
     RowRun run = { MIDDLE_ROW - radius, MIDDLE_ROW + radius, line - 2 * radius };
@@ -340,14 +340,6 @@ static void lay_run_into_the_table(GameState *g, Window w, CircleKind kind, RowR
  * first eighth's half widths out into a list (ended by a 0), and the rows in
  * the battle page's cells $45-$52, and leaves them there; it writes the rows
  * below the middle through the work RAM port. */
-static void leave_rows(GameState *g, const CircleRows *r, uint8_t column, CircleKind kind, unsigned below)
-{
-    for (unsigned y = 0; y <= r->first_eighth_rows; y++)
-        set_battle_circle_widths(g, y, r->widths[y]);
-    screen_leave_cell(g, 0x4D, column);
-    screen_leave_cell(g, 0x51, is_wide(kind) ? (uint8_t)(r->half[r->rows - 1] * 2) : (uint8_t)r->first_eighth_rows);
-    hw_port_seek(g, (uint16_t)(RAM_BATTLE_CIRCLE_EDGES + (MIDDLE_ROW + below) * sizeof(Edges)), RAM_BATTLE_CIRCLE_EDGES >> 16);
-}
 
 /* Where the original's copy jumps into its unrolled run: six bytes a row
  * back from its end. */
@@ -361,23 +353,6 @@ static int unclipped_top(CircleKind kind, uint8_t radius, uint8_t line)
 /* ... and of laying the run into the table: the run's first row and its top
  * line, the circle's line, how far the top was cut where it was (in rows),
  * and where the copy started or the run ended. */
-static void leave_run(GameState *g, CircleKind kind, Window w, RowRun run, uint8_t radius, uint8_t line)
-{
-    int top = unclipped_top(kind, radius, line);
-    unsigned rows = (unsigned)(run.end - run.first);
-    uint16_t window_offset = (uint16_t)(w * sizeof(Edges));
-    screen_leave_word(g, 0x47, line);
-    screen_leave_word(g, 0x49, (uint16_t)run.first);
-    screen_leave_word(g, 0x4F, (uint16_t)run.top);
-    if (top < 0)
-        screen_leave_word(g, 0x51, (uint16_t)(is_tall(kind) ? -top / 2 : -top));
-    bool copied = !is_tall(kind) && (rows || !is_flattened_below(kind));
-    screen_leave_word(g, 0x45, copied ? (uint16_t)(run.first * sizeof(Edges)) : window_offset);
-    screen_leave_word(g, 0x4B, copied ? (uint16_t)(UNROLLED_COPY_END - UNROLLED_LINE_BYTES * rows)
-                                      : (uint16_t)(run.end * sizeof(Edges)));
-    if (kind == CIRCLE_HUNG_FROM_THE_TOP)
-        screen_leave_word(g, 0x45, (uint16_t)(line * LINE_BYTES + window_offset));
-}
 
 /* ---- Drawing --------------------------------------------------------------------------------- */
 
@@ -416,19 +391,19 @@ enum { DRAW_CIRCLE = 0xCD2FB7, ACCESSES_A_ROW = 32 };
 static ScreenFlow draw_circle(GameState *g, uint8_t circle)
 {
     uint8_t radius = battle_screen_circle_radius(g, circle);
-    ORIGINAL_EFFECT(set_battle_circle_drawn(g, circle));
+    charge_machine_accesses(g, 1);
     if (!rows_radius(radius))
         return screen_on();
     CircleKind kind = (CircleKind)battle_screen_circle_kind(g, circle);
     uint8_t column = battle_screen_circle_x(g, circle), line = battle_screen_circle_y(g, circle);
     Window w = circle ? WINDOW_2 : WINDOW_1;
     CircleRows rows = rows_of(rows_radius(radius));
-    unsigned below = lay_rows_out(g, &rows, column, kind);
+    lay_rows_out(g, &rows, column, kind);
     charge_as(g, DRAW_CIRCLE, ACCESSES_A_ROW * rows.rows);
     RowRun run = run_of(kind, radius, line);
     lay_run_into_the_table(g, w, kind, run, line);
-    ORIGINAL_EFFECT(leave_rows(g, &rows, column, kind, below));
-    ORIGINAL_EFFECT(leave_run(g, kind, w, run, radius, line));
+    (charge_machine_accesses(g, rows.first_eighth_rows + 3), charge_machine_io_accesses(g, 3));
+    charge_machine_accesses(g, 10 + (unclipped_top(kind, radius, line) < 0 ? 2 : 0) + (kind == CIRCLE_HUNG_FROM_THE_TOP ? 2 : 0));
     return screen_on();
 }
 SCREEN_OPERATION(draw_circle, circle)
@@ -455,11 +430,6 @@ static bool circle_can_be_drawn(const GameState *g, const ScreenCommand *c)
 enum { LARGEST_SQUARE = MIDDLE_ROW };
 
 /* An empty square still leaves its row's edges and column in its cells. */
-static void leave_no_square(GameState *g, Edges row, uint8_t column)
-{
-    screen_leave_word(g, 0x45, row);
-    screen_leave_cell(g, 0x49, column);
-}
 
 // $CD:1F53
 /* Draw a square into the coming frame's window table: as wide as a circle
@@ -472,7 +442,7 @@ static ScreenFlow draw_square(GameState *g, uint8_t circle)
     uint8_t half = battle_screen_circle_radius(g, circle), column = battle_screen_circle_x(g, circle);
     Edges row = row_about(column, half);
     if (!half) {
-        ORIGINAL_EFFECT(leave_no_square(g, row, column));
+        charge_machine_accesses(g, 3);
         return screen_on();
     }
     for (unsigned i = 0; i < half; i++) {
@@ -482,8 +452,8 @@ static ScreenFlow draw_square(GameState *g, uint8_t circle)
     uint8_t radius = battle_screen_circle_radius(g, 0), line = battle_screen_circle_y(g, 0);
     RowRun run = round_run(radius, line);
     lay_run_into_the_table(g, WINDOW_1, CIRCLE_ROUND, run, line);
-    ORIGINAL_EFFECT(set_battle_circle_drawn(g, 0));
-    ORIGINAL_EFFECT(leave_run(g, CIRCLE_ROUND, WINDOW_1, run, radius, line));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 10 + (unclipped_top(CIRCLE_ROUND, radius, line) < 0 ? 2 : 0));
     return screen_on();
 }
 SCREEN_OPERATION(draw_square, circle)
@@ -526,33 +496,3 @@ typedef struct {
     TableLine line;
     Window w;
 } CopiedRun;
-
-static bool copied_run(const Snes *s, CopiedRun *r)
-{
-    const GameState *g = state_of((Snes *)s);
-    uint16_t start = screen_cell_word(g, 0x4B), to = s->cpu.x, from = s->cpu.y;
-    unsigned table_byte = (uint16_t)(to - RAM_BATTLE_WINDOW_LINES), worked_byte = (uint16_t)(from - RAM_BATTLE_CIRCLE_EDGES);
-    unsigned back = (uint16_t)(UNROLLED_COPY_END - start);
-    if (back % UNROLLED_LINE_BYTES || back / UNROLLED_LINE_BYTES > UNROLLED_LINES || table_byte % 2 || worked_byte % 2)
-        return false;
-    *r = (CopiedRun){ worked_byte / 2, back / UNROLLED_LINE_BYTES, (TableLine)(table_byte / LINE_BYTES),
-                      table_byte % LINE_BYTES ? WINDOW_2 : WINDOW_1 };
-    return r->line + r->rows <= TABLE_LINES && r->first + r->rows <= BATTLE_CIRCLE_EDGES_COUNT;
-}
-
-bool battle_circle_run_fits(Snes *s)
-{
-    CopiedRun r = { 0, 0, 0, WINDOW_1 };
-    vars_peek(true);
-    bool fits = copied_run(s, &r);
-    vars_peek(false);
-    return m_direct_page(s) == BATTLE_PAGE && s->cpu.db == BATTLE_DATA_BANK && fits;
-}
-
-void battle_copy_circle_lines(Snes *s)
-{
-    CopiedRun r = { 0, 0, 0, WINDOW_1 };
-    copied_run(s, &r);
-    copy_circle_lines(state_of(s), r.first, r.line, r.w, r.rows);
-    m_rtl(s);
-}

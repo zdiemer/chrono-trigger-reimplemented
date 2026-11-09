@@ -13,10 +13,10 @@
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
+#include "battle/machine_forms.h"
 #include "battle/program.h"
 #include "battle/steps.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
 
@@ -53,7 +53,6 @@ enum { STEP_COUNT = sizeof STEPS / sizeof STEPS[0] };
 
 /* The dispatch's last pull, the asker's accumulator, leaves its zero and
  * negative. */
-static void leave_the_last_pull(Snes *s, BattleFrame kept) { m_set_nz8(s, kept.kept[0]); }
 
 /* Run a step as the dispatch's table lookup has it: the step's routine finds
  * the table's index, the step doubled, in the accumulator's low byte and in X,
@@ -83,7 +82,7 @@ static bool run_the_step(Snes *s, BattleStep step, BattleFrame kept)
     if (!ran)
         return false;
     battle_give_the_registers_back(s, kept);
-    ORIGINAL_EFFECT(leave_the_last_pull(s, kept));
+    (void)0;
     return true;
 }
 
@@ -138,14 +137,11 @@ static void leave_the_kept_index_registers_uncompared(Snes *s, uint16_t dont_car
         native_stack_dont_care(s, (uint16_t)(top - KEPT_Y_BELOW), KEPT_REGISTER_BYTES);
 }
 
-/* Whether the runtime would run the dispatch's hand port for the original's
- * call made now: its precondition and guard hold, and the run hasn't
- * left it out. Outside the runtime (ct_fuzz) it wouldn't, and the call is
- * made. */
+/* The retained calling form checks the dispatcher contract independently
+ * of the comparison registry. */
 static bool runs_the_dispatch_here(Snes *s)
 {
-    const NativeEntry *e = native_hand_entry_at(s, BATTLE_STEP);
-    return e && e->fn == battle_run_a_step;
+    return battle_machine_form_takes(s, BATTLE_STEP, battle_run_a_step);
 }
 
 bool battle_take_step(Snes *s, uint32_t site, BattleStep step, uint16_t dont_care)
@@ -173,7 +169,7 @@ bool battle_take_step(Snes *s, uint32_t site, BattleStep step, uint16_t dont_car
 bool battle_step_taken(GameState *g, Platform *pf, BattleStep step)
 {
     if ((unsigned)step >= STEP_COUNT || !STEPS[step].run)
-        return battle_needs_the_machine(g, (unsigned)step < STEP_COUNT ? STEPS[step].routine : BATTLE_STEP, "a battle step");
+        return battle_contract_broken(g, (unsigned)step < STEP_COUNT ? STEPS[step].routine : BATTLE_STEP, "a battle step");
     bool done = false;
     TIMED_AS(g, STEPS[step].routine, done = STEPS[step].run(g, pf));
     return done;

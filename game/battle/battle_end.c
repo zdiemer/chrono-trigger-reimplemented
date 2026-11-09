@@ -12,6 +12,7 @@
  *
  * The main loop (battle/main_loop.c) runs these at the battle's end, each where
  * the original calls its routine. */
+#include "charge.h"
 #include "battle/battle_end.h"
 
 #include "battle/arith.h"
@@ -20,7 +21,6 @@
 #include "battle/combatant.h"
 #include "battle/effect_parts.h"
 #include "battle/entries.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- The party ------------------------------------------------------------------------------ */
@@ -37,7 +37,6 @@ static void leave_last_member_acting(GameState *g)
 
 /* The member it counted in a cell, left at the party's size once it is done. */
 enum { MEMBER_COUNTED_AT = 0x16 };
-static void leave_members_counted(GameState *g) { battle_leave_word(g, MEMBER_COUNTED_AT, BATTLE_PARTY_SIZE); }
 
 /* The block's bytes past the four status bytes the clearing takes too: what
  * the member shrugs off and ignores, the next byte, and the statuses it keeps
@@ -61,7 +60,7 @@ void battle_clear_party_statuses(GameState *g)
         set_battle_member_revive_marks(g, member, 0);
     }
     leave_last_member_acting(g);
-    ORIGINAL_EFFECT(leave_members_counted(g));
+    charge_machine_accesses(g, 2);
 }
 
 // $C1:EAE8
@@ -71,7 +70,7 @@ void battle_stand_party_up(GameState *g)
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         set_battle_stats_condition(g, member, 0);
     leave_last_member_acting(g);
-    ORIGINAL_EFFECT(leave_members_counted(g));
+    charge_machine_accesses(g, 2);
 }
 
 /* A character's record is a stat block's first $50 bytes. */
@@ -97,11 +96,6 @@ static void copy_past_the_records(GameState *g, uint8_t member, uint8_t characte
 /* Where the copy ended, in the record and in the block, as the original's
  * cells keep them. */
 enum { RECORD_END_AT = 0x02, BLOCK_END_AT = 0x04 };
-static void leave_copy_ends(GameState *g, uint8_t member, uint8_t character)
-{
-    battle_leave_word(g, RECORD_END_AT, (uint16_t)(character * RECORD_BYTES + RECORD_BYTES));
-    battle_leave_word(g, BLOCK_END_AT, (uint16_t)(member * BATTLE_STAT_BLOCK_BYTES + RECORD_BYTES));
-}
 
 // $C1:B442
 /* Each member's stat block is kept in its character's record. */
@@ -117,7 +111,7 @@ void battle_keep_party_records(GameState *g)
             keep_record(g, member, character);
         else
             copy_past_the_records(g, member, character);
-        ORIGINAL_EFFECT(leave_copy_ends(g, member, character));
+        charge_machine_accesses(g, 4);
     }
     /* its count of the members, kept in the cell the clock modifier reads */
     battle_keep_word(g, 0, BATTLE_PARTY_SIZE);
@@ -175,52 +169,3 @@ void battle_note_beaten_enemies(GameState *g)
  * the party's count or the enemies' table's end, the loop's last compare's
  * carry, and a clear A where the original clears it. */
 enum { PLACEMENT_BYTES = 12 };
-
-void battle_clear_party_statuses_entry(Snes *s)
-{
-    battle_clear_party_statuses(state_of(s));
-    s->cpu.a = BATTLE_PARTY_SIZE;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
-}
-
-void battle_stand_party_up_entry(Snes *s)
-{
-    battle_stand_party_up(state_of(s));
-    m_rts(s);
-}
-
-void battle_keep_party_records_entry(Snes *s)
-{
-    battle_keep_party_records(state_of(s));
-    m_rts(s);
-}
-
-void battle_take_enemies_away_entry(Snes *s)
-{
-    battle_take_enemies_away(state_of(s));
-    s->cpu.a = BATTLE_ENEMIES * PLACEMENT_BYTES;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
-}
-
-void battle_keep_standing_enemies_entry(Snes *s)
-{
-    battle_keep_standing_enemies(state_of(s));
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
-}
-
-void battle_count_enemies_out_entry(Snes *s)
-{
-    battle_count_enemies_out(state_of(s));
-    s->cpu.a = 0;
-    m_rtl(s);
-}
-
-void battle_note_beaten_enemies_entry(Snes *s)
-{
-    battle_note_beaten_enemies(state_of(s));
-    s->cpu.a = 0;
-    m_rtl(s);
-}

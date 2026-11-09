@@ -11,7 +11,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "original_effects.h"
 #include "state.h"
 #include "vars.h"
 
@@ -193,9 +192,7 @@ static inline uint8_t combatant_y(const GameState *g, unsigned slot)
 
 /* ---- The direct page's working cells (battle_low_scratch) --------------------------------- */
 
-/* The battle's code works in the direct page's first cells. What a port
- * leaves there for the original's code or for shadow mode alone is
- * scaffolding, written with these through ORIGINAL_EFFECT. */
+/* Shared input cells still read by the battle's called adapters. */
 static inline void battle_leave_byte(GameState *g, unsigned at, uint8_t v) { set_battle_low_scratch(g, at, v); }
 static inline void battle_leave_word(GameState *g, unsigned at, uint16_t v)
 {

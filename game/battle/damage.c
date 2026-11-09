@@ -19,7 +19,6 @@
 #include "battle/entries.h"
 #include "battle/random.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "vars.h"
 
 // $FD:ACFD
@@ -72,14 +71,6 @@ enum { PERCENT = 100, DROPS_IN_A_HUNDRED = 90 };
  * enemies and the item in its first cells. */
 enum { LEFT_ENEMY = 0x04, LEFT_PLACE = 0x06, LEFT_ITEM = 0x10, LEFT_FELLED = 0x0E };
 
-static void leave_the_spoils_cells(GameState *g, uint8_t slot, uint16_t place, uint8_t item)
-{
-    battle_leave_word(g, LEFT_ENEMY, (uint16_t)(slot - BATTLE_FIRST_ENEMY));
-    battle_leave_word(g, LEFT_PLACE, place);
-    if (item != NO_ITEM)
-        battle_leave_byte(g, LEFT_ITEM, item);
-}
-
 /* The felled enemy as the spoils find it. What the player gets from the
  * quirk this keeps: where the byte after the felled enemy's cell ($0E, read
  * as a word with it) is left set, the enemy gives the experience, gold, tech
@@ -128,7 +119,7 @@ static void take_the_spoils(GameState *g, uint8_t slot)
         set_battle_tech_points_won_high(g, (uint8_t)(battle_tech_points_won_high(g) + 1));
     set_battle_tech_points_won_low(g, (uint16_t)points);
     uint8_t item = spoils.items.dropped;
-    ORIGINAL_EFFECT(leave_the_spoils_cells(g, slot, place, item));
+    charge_machine_accesses(g, item != NO_ITEM ? 5 : 4);
     if (item == NO_ITEM)
         return;
     if (item == spoils.items.charm) {
@@ -203,7 +194,7 @@ static void bring_down(GameState *g, unsigned slot)
 {
     if (!combatant_knocked_out(g, slot) && battle_combatant_fighting(g, slot) != COMBATANT_NONE) {
         if (!battle_slot_is_party(slot)) {
-            ORIGINAL_EFFECT(battle_leave_byte(g, LEFT_FELLED, (uint8_t)slot));
+            charge_machine_accesses(g, 1);
             TIMED_AS(g, 0xFDABA2, take_the_spoils(g, (uint8_t)slot));
         }
         set_battle_stats_condition(g, slot, battle_stats_condition(g, slot) | CONDITION_KNOCKED_OUT);
@@ -239,60 +230,4 @@ void battle_apply_damage(GameState *g)
         set_battle_stats_mp(g, slot, held_to(mp, battle_stats_max_mp(g, slot)));
     }
     TIMED_AS(g, 0xFDACFD, battle_clear_damage_table(g));
-}
-
-/* ---- The entries -------------------------------------------------------------------------------- */
-
-/* The clearings leave A 0 and the carry of their loop's last compare, set,
- * which their callers read; the hits' landing ends with the table's
- * clearing, and so leaves the same. */
-static void leave_cleared(Snes *s)
-{
-    s->cpu.a = 0;
-    m_set_flag(s, CPU_FLAG_C, true);
-}
-
-void battle_clear_damage(Snes *s)
-{
-    battle_clear_damage_table(state_of(s));
-    leave_cleared(s);
-    m_rtl(s);
-}
-
-void battle_clear_numbers(Snes *s)
-{
-    battle_clear_numbers_shown(state_of(s));
-    leave_cleared(s);
-    m_rtl(s);
-}
-
-void battle_apply_damage_entry(Snes *s)
-{
-    battle_apply_damage(state_of(s));
-    leave_cleared(s);
-    m_rts(s);
-}
-
-void battle_drop_missed_targets_entry(Snes *s)
-{
-    battle_drop_missed_targets(state_of(s));
-    m_rts(s);
-}
-
-/* A felled enemy's spoils, for the enemy the original names in its cell. */
-void battle_take_the_spoils(Snes *s)
-{
-    GameState *g = state_of(s);
-    take_the_spoils(g, battle_low_scratch(g, LEFT_FELLED));
-    m_rtl(s);
-}
-
-bool battle_spoils_ready(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    uint8_t slot = battle_low_scratch(g, LEFT_FELLED);
-    bool fits = battle_names_combatant(slot) && !battle_slot_is_party(slot);
-    vars_peek(false);
-    return battle_on_page(s) && fits;
 }

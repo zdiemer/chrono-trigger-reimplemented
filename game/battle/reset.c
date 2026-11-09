@@ -139,9 +139,3 @@ void battle_reset_objects(GameState *g)
     reset_trails(g);
     reset_palettes_and_numbers(g);
 }
-
-void battle_reset_object_state(Snes *s)
-{
-    battle_reset_objects(state_of(s));
-    m_rtl(s);
-}

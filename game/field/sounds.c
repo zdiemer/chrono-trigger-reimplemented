@@ -16,8 +16,7 @@
  *
  * Everything goes through the audio service's commands to the driver. The
  * original runs the battle's two on the field's page with the data bank $00,
- * which its calls to the driver see; their entries set those up and put the
- * caller's back. */
+ * which the legacy battle caller establishes before the ordinary C call. */
 #include "field/sounds.h"
 
 #include "battle/battle.h"
@@ -146,40 +145,6 @@ void field_play_the_chest_sound_entry(Snes *s)
 {
     field_play_the_chest_sound(state_of(s), m_platform(s));
     m_rts(s);
-}
-
-/* The battle's two run on the field's page with the data bank $00, keeping
- * the caller's on the stack, and with A $0100, as the original's setting of
- * the page leaves it: the driver's calls see all three. */
-static void onto_the_fields_page(Snes *s)
-{
-    m_push8(s, s->cpu.db);
-    m_push16(s, s->cpu.d);
-    s->cpu.a = FIELD_PAGE;
-    s->cpu.d = FIELD_PAGE;
-    s->cpu.db = 0x00;
-}
-
-void field_start_the_battle_song_entry(Snes *s)
-{
-    onto_the_fields_page(s);
-    field_start_the_battle_song(state_of(s), m_platform(s));
-    s->cpu.d = m_pull16(s);
-    s->cpu.db = m_pull8(s);
-    m_rtl(s);
-}
-
-/* The original takes the bank back before the page, so each comes back from
- * the other's bytes: the bank is the caller's page's low byte, and the page
- * the caller's bank over its page's high byte. Both callers put theirs back
- * after the call. */
-void field_bring_the_music_back_entry(Snes *s)
-{
-    onto_the_fields_page(s);
-    field_bring_the_music_back(state_of(s), m_platform(s));
-    s->cpu.db = m_pull8(s);
-    s->cpu.d = m_pull16(s);
-    m_rtl(s);
 }
 
 /* The switch's and the chest's guard: on the field's page with the data bank

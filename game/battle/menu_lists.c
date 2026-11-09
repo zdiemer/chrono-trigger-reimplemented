@@ -15,6 +15,7 @@
  * Laying out works in the original's direct-page cells, and converts names in
  * its name buffer; their final values are left as scaffolding at the end of
  * each (the leave_* functions). */
+#include "charge.h"
 #include "battle/choosing.h"
 
 #include <string.h>
@@ -24,7 +25,6 @@
 #include "battle/entries.h"
 #include "battle/setup_data.h"
 #include "battle/window_data.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- The tech list ------------------------------------------------------------------------------- */
@@ -112,37 +112,9 @@ static uint8_t list_start(const GameState *g) { return setup_member_tech_list_st
 enum { CELL_AT = 0x80, CELL_TILEMAP_AT = 0x82, CELL_SCROLL = 0x86, CELL_ROWS_LEFT = 0x87, CELL_ROWS_DONE = 0x88,
        CELL_ID = 0x8E, CELL_ID_TIMES_FOUR = 0x90, ROW_BYTES = 0x80 };
 
-static void leave_tech_list_cells(GameState *g, uint8_t start, uint8_t scroll)
-{
-    set_battle_product(g, (uint16_t)((battle_product(g) & 0xFF00) | start));
-    battle_leave_work16(g, CELL_AT, (uint8_t)(start + scroll + ROWS_LAID_OUT));
-    battle_leave_work16(g, CELL_TILEMAP_AT, ROWS_LAID_OUT * ROW_BYTES);
-    battle_leave_work8(g, CELL_SCROLL, scroll);
-    battle_leave_work8(g, CELL_ROWS_LEFT, 0);
-    battle_leave_work16(g, CELL_ROWS_DONE, (uint8_t)(scroll + ROWS_LAID_OUT));
-}
-
 /* The buffer holds what the last row put there: a tech's name converted, a
  * heading's tiles over blanks, or blanks; the converted text is the last
  * tech's. */
-static void leave_tech_list_buffer(GameState *g, uint8_t last_entry, int last_tech)
-{
-    if (last_tech >= 0) {
-        uint8_t text[NAME_TILES];
-        tech_name_text(g, (uint8_t)last_tech, text);
-        NameTiles name = battle_name_tiles(text);
-        battle_leave_name_buffer(g, text, &name);
-        battle_leave_work16(g, CELL_ID, (uint8_t)last_tech);
-        battle_leave_work8(g, CELL_ID_TIMES_FOUR + 1, (uint8_t)((4 * last_tech) >> 8));
-    }
-    if (is_tech(last_entry))
-        return;
-    for (unsigned i = 0; i < BATTLE_NAME_BUFFER_COUNT; i++)
-        set_battle_name_buffer(g, i, TILE_BLANK);
-    if (last_entry == DOUBLE_TECHS_HEADING || last_entry == TRIPLE_TECHS_HEADING)
-        for (unsigned i = 0; i < BATTLE_TECH_HEADING_TILES; i++)
-            set_battle_name_buffer(g, i, battle_tech_heading_tile(g, last_entry == TRIPLE_TECHS_HEADING, i));
-}
 
 // $C1:0A88, $C1:0B0B
 void battle_lay_out_tech_list(GameState *g)
@@ -157,8 +129,8 @@ void battle_lay_out_tech_list(GameState *g)
         if (is_tech(entry))
             last_tech = entry;
     }
-    ORIGINAL_EFFECT(leave_tech_list_cells(g, start, scroll));
-    ORIGINAL_EFFECT(leave_tech_list_buffer(g, entry, last_tech));
+    charge_machine_accesses(g, 12);
+    (charge_machine_accesses(g, (last_tech >= 0 ? 3 * NAME_TILES + 3 : 0) + (is_tech(entry) ? 0 : BATTLE_NAME_BUFFER_COUNT + ((entry == DOUBLE_TECHS_HEADING || entry == TRIPLE_TECHS_HEADING) ? BATTLE_TECH_HEADING_TILES : 0))), charge_machine_rom_accesses(g, (last_tech >= 0 ? BATTLE_NAME_CHARACTERS : 0) + ((entry == DOUBLE_TECHS_HEADING || entry == TRIPLE_TECHS_HEADING) ? BATTLE_TECH_HEADING_TILES : 0)));
     /* The last tech's id times four stays in the cell a jump to the script's
      * point takes its lift from (battle.h). */
     if (last_tech >= 0)
@@ -171,7 +143,7 @@ void battle_mark_tech_rows(GameState *g)
     uint8_t start = list_start(g);
     for (unsigned i = 0; i < TECHS_A_MEMBER; i++)
         set_battle_tech_rows_selectable(g, i, is_tech(battle_tech_list_ids(g, start + i)));
-    ORIGINAL_EFFECT(battle_leave_work8(g, CELL_AT, 0));
+    charge_machine_accesses(g, 1);
 }
 
 /* ---- The item list ------------------------------------------------------------------------------- */
@@ -240,34 +212,6 @@ enum { CELL_RECORD_AT = 0x80, CELL_WINDOW_AT = 0x82, CELL_ITEM = 0x84, CELL_ROW 
  * name in without blanking the buffer first, so the text it copies out has,
  * past the name's end, what the buffer held: blanks after an item converted
  * before it in the same list, else what the last conversion left. */
-static void leave_item_list_buffer(GameState *g, int last_item, unsigned listed)
-{
-    if (last_item < 0)
-        return;
-    uint8_t text[NAME_TILES];
-    for (unsigned i = 0; i < NAME_TILES; i++)
-        text[i] = listed > 1 ? TILE_BLANK : battle_name_buffer(g, i);
-    for (unsigned i = 0; i < BATTLE_NAME_CHARACTERS; i++)
-        text[i] = battle_item_name_char(g, (uint8_t)last_item, NAME_ICON + i);
-    text[BATTLE_NAME_CHARACTERS] = NAME_END;
-    NameTiles name = battle_name_tiles(text);
-    battle_leave_name_buffer(g, text, &name);
-}
-
-static void leave_item_list_cells(GameState *g, uint8_t top, uint8_t member, int last_item, uint8_t attributes)
-{
-    battle_leave_work16(g, CELL_MEMBER, member);
-    battle_leave_work16(g, CELL_RECORD_AT, (uint16_t)((top + ITEM_ROWS) * ITEM_LIST_RECORD_BYTES));
-    battle_leave_work16(g, CELL_WINDOW_AT, ITEM_ROWS * ROW_BYTES);
-    battle_leave_work16(g, CELL_ROW, ITEM_ROWS);
-    if (last_item < 0) {
-        battle_leave_work16(g, CELL_ITEM, top);
-        return;
-    }
-    battle_leave_work16(g, CELL_ITEM, (uint16_t)last_item);
-    battle_leave_work16(g, CELL_ITEM_TIMES_FOUR, (uint16_t)(4 * last_item));
-    battle_leave_work8(g, CELL_ATTRIBUTES, attributes);
-}
 
 // $C1:095D, $C1:09B0
 void battle_lay_out_item_list(GameState *g, uint8_t top)
@@ -288,69 +232,6 @@ void battle_lay_out_item_list(GameState *g, uint8_t top)
         last_item = battle_item_list_item(g, record);
         rows_listed++;
     }
-    ORIGINAL_EFFECT(leave_item_list_cells(g, top, member, last_item, attributes));
-    ORIGINAL_EFFECT(leave_item_list_buffer(g, last_item, rows_listed));
-}
-
-/* ---- The entries --------------------------------------------------------------------------------- */
-
-/* They work for the member whose menu is open; an item list from the top the
- * original's caller hands over in a cell. What they leave in the registers no
- * caller reads (the registry's dont_care). */
-void battle_lay_out_tech_list_entry(Snes *s)
-{
-    battle_lay_out_tech_list(state_of(s));
-    m_rts(s);
-}
-
-/* The top the original's callers hand the item list in its first cell (a
- * byte: it clears the one after itself). */
-static uint8_t item_list_top_handed(const GameState *g) { return (uint8_t)battle_work16(g, CELL_RECORD_AT); }
-
-/* The item list leaves A's high byte clear and the carry of its last
- * row's count. */
-void battle_lay_out_item_list_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    battle_lay_out_item_list(g, item_list_top_handed(g));
-    s->cpu.a &= 0x00FF;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
-}
-
-/* The lists as the layouts take them on trust: the member choosing one of the
- * three, its list's entries inside the lists, and an item list's rows inside
- * its records. The tech list's layout finds the member's list, and the item
- * list leaves the member, with the whole of A, whose high byte is clear
- * wherever the menu runs; the rows' marking clears it itself. */
-bool battle_tech_list_ready(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    uint8_t member = battle_menu_member(g);
-    bool fits = member < BATTLE_PARTY_SIZE
-                && setup_member_tech_list_start(g, member) + battle_tech_scroll(g, member) + ROWS_LAID_OUT
-                       <= BATTLE_TECH_LIST_IDS_COUNT;
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && fits;
-}
-
-bool battle_tech_rows_ready(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    uint8_t member = battle_menu_member(g);
-    bool fits = member < BATTLE_PARTY_SIZE
-                && setup_member_tech_list_start(g, member) + TECHS_A_MEMBER <= BATTLE_TECH_LIST_IDS_COUNT;
-    vars_peek(false);
-    return battle_on_page(s) && fits;
-}
-
-bool battle_item_list_ready(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool fits = item_list_top_handed(g) + ITEM_ROWS <= BATTLE_ITEM_LIST_COUNT;
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && fits;
+    charge_machine_accesses(g, last_item < 0 ? 10 : 13);
+    (charge_machine_accesses(g, last_item >= 0 ? 3 * NAME_TILES + (rows_listed > 1 ? 0 : NAME_TILES) : 0), charge_machine_rom_accesses(g, last_item >= 0 ? BATTLE_NAME_CHARACTERS : 0));
 }

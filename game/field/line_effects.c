@@ -809,21 +809,6 @@ uint8_t field_rebuild_line_effects(GameState *g, Platform *pf)
     return field_line_effect_enable(g);
 }
 
-/* The still-gated battle handler's fallback at $D1:F4E2. */
-void field_rebuild_the_line_effects(Snes *s)
-{
-    m_set_a8(s, field_rebuild_line_effects(state_of(s), m_platform(s)));
-    m_rtl(s);
-}
-
-bool field_line_effects_can_be_rebuilt(Snes *s)
-{
-    vars_peek(true);
-    bool ok = field_line_effects_can_be_built(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
 /* The original reaches the transfer registers through the direct page, which
  * it loads through A and restores; X keeps the last table it programmed. */
 void field_setup_line_effects(Snes *s)

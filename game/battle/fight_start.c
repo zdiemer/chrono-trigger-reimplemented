@@ -33,6 +33,7 @@
  * or, where a member's accessory boosts it, the boost's amount
  * (battle/member_stats.c), and $0E the stats' spare table or the boosts'
  * (battle/member_stats.c, battle/fight_party.c). */
+#include "charge.h"
 #include "battle/fight.h"
 
 #include "battle/battle.h"
@@ -41,7 +42,6 @@
 #include "battle/party_records.h"
 #include "battle/rules_data.h"
 #include "battle/timers.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- What the start clears ---------------------------------------------------------------------- */
@@ -84,7 +84,7 @@ static void clear_timer_order(GameState *g)
 {
     set_battle_foe_kept(g, 0);
     for (unsigned n = 0; n < BATTLE_FIGHT_START_SPARES_COUNT; n++)
-        ORIGINAL_EFFECT(set_battle_fight_start_spares(g, n, 0));
+        charge_machine_accesses(g, 1);
     set_battle_timer_kind_bit(g, 0);
     set_battle_timer_kinds_due(g, 0);
     for (unsigned kind = 0; kind < BATTLE_TIMER_KINDS; kind++)
@@ -110,22 +110,13 @@ enum { NO_SPARE_TURN = 3 };
 
 /* Six words of the direct page's cells the turns' work leaves behind
  * (scaffolding). */
-static void clear_work_cells(GameState *g)
-{
-    battle_leave_word(g, 0x16, 0);
-    battle_leave_word(g, 0x18, 0);
-    battle_leave_word(g, 0x1A, 0);
-    battle_leave_word(g, 0x1C, 0);
-    battle_leave_word(g, 0x1E, 0);
-    battle_leave_word(g, 0x20, 0);
-}
 
 void fight_clear_turn_state(GameState *g)
 {
-    ORIGINAL_EFFECT(clear_work_cells(g));
+    charge_machine_accesses(g, 12);
     set_battle_action_running(g, 0);
     set_battle_action_state(g, 0);
-    ORIGINAL_EFFECT(set_battle_enemy_turn_spare(g, 0));
+    charge_machine_accesses(g, 1);
     set_battle_candidate_count(g, 0);
     set_battle_action_hit_enemy(g, 0);
     set_battle_action_hit_party(g, 0);
@@ -150,7 +141,7 @@ void fight_clear_turn_state(GameState *g)
         set_battle_candidates(g, slot, COMBATANT_NONE);
     set_battle_condition_target(g, COMBATANT_NONE);
     for (unsigned n = 0; n < BATTLE_CONDITION_TARGET_SPARES_COUNT; n++)
-        ORIGINAL_EFFECT(set_battle_condition_target_spares(g, n, COMBATANT_NONE));
+        charge_machine_accesses(g, 1);
     set_battle_enemy_beaten_any(g, 0);
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
         set_battle_enemy_action_chosen(g, enemy, 0);
@@ -206,12 +197,6 @@ enum { RECORDS_TAKEN = sizeof records_taken / sizeof records_taken[0] };
 /* The original hands each copy its three numbers in the cells; only the last
  * copy's survive the start, which later work reads as it finds them
  * (above). */
-static void hand_over_record(GameState *g, unsigned n)
-{
-    battle_leave_word(g, WORN_AT, records_taken[n].worn_at);
-    battle_leave_word(g, COPY_TO_AT, records_taken[n].copy_to);
-    battle_leave_word(g, BYTES_AT, records_taken[n].bytes);
-}
 
 static void keep_last_record_handed_over(GameState *g)
 {
@@ -226,7 +211,7 @@ void battle_start_fight(GameState *g)
     fight_list_combatants(g);
     for (uint8_t enemy = 0; enemy < battle_enemy_count(g); enemy++)
         fight_load_enemy(g, enemy);
-    ORIGINAL_EFFECT(battle_leave_word(g, COUNTING_AT, battle_enemy_count(g)));
+    charge_machine_accesses(g, 3);
     fight_note_enemy_families(g);
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         fight_take_member_record(g, member);
@@ -240,7 +225,7 @@ void battle_start_fight(GameState *g)
 
     battle_blank_tech_records(g);
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
-        ORIGINAL_EFFECT(battle_leave_word(g, TECHS_MEMBER_AT, member));
+        charge_machine_accesses(g, 2);
         battle_set_up_single_techs(g, member);
         battle_set_up_double_techs(g, member);
         battle_find_triple_tech(g, member);
@@ -253,18 +238,18 @@ void battle_start_fight(GameState *g)
     clear_timer_order(g);
 
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
-        ORIGINAL_EFFECT(battle_leave_word(g, COUNTING_AT, member));
+        charge_machine_accesses(g, 2);
         battle_equip_member(g, member);
     }
     for (unsigned n = 0; n < RECORDS_TAKEN; n++) {
-        ORIGINAL_EFFECT(hand_over_record(g, n));
+        charge_machine_accesses(g, 6);
         battle_take_equipment_records(g, records_taken[n].worn_at, records_taken[n].copy_to, records_taken[n].bytes);
     }
     keep_last_record_handed_over(g);
-    ORIGINAL_EFFECT(set_battle_fight_start_mark(g, 0));
+    charge_machine_accesses(g, 1);
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         fight_add_up_member_stats(g, member);
-    ORIGINAL_EFFECT(battle_leave_word(g, ADDING_UP_AT, BATTLE_PARTY_SIZE * 2));
+    charge_machine_accesses(g, 2);
 
     fight_clear_timers(g);
     fight_set_timer_lengths(g);

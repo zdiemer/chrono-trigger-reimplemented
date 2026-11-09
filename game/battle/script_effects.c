@@ -5,12 +5,12 @@
  * These act on the channel's effect (battle_script_effect) whatever the
  * channel, all but the anchor's following, which only an effect channel
  * changes (battle/script_language.h). */
+#include "charge.h"
 #include "battle/script_language.h"
 
 #include "battle/arith.h"
 #include "battle/battle.h"
 #include "battle/effects.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- Anchors --------------------------------------------------------------------------- */
@@ -79,7 +79,7 @@ static ScriptFlow effect_shown(GameState *g, bool on)
 {
     uint8_t effect = script_effect(g);
     if (on) {
-        ORIGINAL_EFFECT(script_leave(g, LEFT_SHOWING_FOR_A_WAIT, false));
+        charge_machine_accesses(g, 1);
         show_effect(g, effect);
     } else {
         set_battle_effect_shown(g, effect, 0);
@@ -96,17 +96,11 @@ SCRIPT_OPERATION(effect_shown, on)
  * effect's row. */
 enum { RECORD_EFFECT_BITS = 0x3F, LEFT_COMBATANT = 0x00, LEFT_SIDE = 0x0E };
 
-static void leave_drawn_with(GameState *g, uint8_t combatant, EffectSide side)
-{
-    script_leave(g, LEFT_COMBATANT, combatant);
-    script_leave(g, LEFT_SIDE, side);
-}
-
 static ScriptFlow effect_drawn_with(GameState *g, uint8_t named, EffectSide side)
 {
     uint8_t effect = script_effect(g);
     uint8_t combatant = named < BATTLE_SCRIPT_SUBJECTS_COUNT ? battle_script_subjects(g, named) : battle_script_subjects_unchecked(g, named);
-    ORIGINAL_EFFECT(leave_drawn_with(g, combatant, side));
+    charge_machine_accesses(g, 2);
     set_battle_anchor_facing_record(g, effect, combatant);
     uint8_t record = (uint8_t)(battle_multiply(g, effect, BATTLE_COMBATANTS) + combatant);
     uint8_t value = (uint8_t)((effect & RECORD_EFFECT_BITS) | side);

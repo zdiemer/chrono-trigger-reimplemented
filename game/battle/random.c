@@ -1,4 +1,5 @@
 /* Battle: the battle's random numbers (battle/random.h). */
+#include "charge.h"
 #include "battle/random.h"
 
 #include "battle/arith.h"
@@ -6,7 +7,6 @@
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/rules_data.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* The two positions in the table. */
@@ -42,7 +42,7 @@ static uint8_t over_range(GameState *g, uint8_t number, uint8_t width)
 // $C1:AF22, $C1:AF79
 static uint8_t draw(GameState *g, Position p, uint8_t lowest, uint8_t limit)
 {
-    ORIGINAL_EFFECT(set_battle_random_lowest(g, lowest));
+    charge_machine_accesses(g, 1);
     if (lowest == NO_DRAW)
         return limit;
     /* the limit is kept plainly: a party tech's test of whether it stops after
@@ -75,30 +75,5 @@ uint8_t battle_random_other(GameState *g, uint8_t lowest, uint8_t limit)
  * inside, which clears their high bytes, and saves and puts back the long
  * division's quotient cell around its division, leaving that word in X. The
  * carry is its last compare's, or the add of the lowest number's. */
-static bool draw_carry(const GameState *g, uint8_t lowest, uint8_t limit, uint8_t drawn)
-{
-    if (lowest == NO_DRAW)
-        return true;
-    if (battle_is_demo(g))
-        return false;
-    if (limit == 0 || limit == lowest || (uint8_t)(limit - lowest) == WHOLE_TABLE)
-        return true;
-    return (uint8_t)(drawn - lowest) + lowest > 0xFF;
-}
 
 enum { QUOTIENT_CELL = 4 };
-
-static void draw_entry(Snes *s, Position p)
-{
-    GameState *g = state_of(s);
-    uint8_t lowest = (uint8_t)s->cpu.x, limit = (uint8_t)s->cpu.a;
-    uint8_t drawn = draw(g, p, lowest, limit);
-    m_set_a8(s, drawn);
-    s->cpu.x = (uint16_t)(battle_wide_math(g, QUOTIENT_CELL) | battle_wide_math(g, QUOTIENT_CELL + 1) << 8);
-    s->cpu.y &= 0x00FF;
-    m_set_flag(s, CPU_FLAG_C, draw_carry(g, lowest, limit, drawn));
-    m_rts(s);
-}
-
-void battle_draw_random(Snes *s) { draw_entry(s, OWN_POSITION); }
-void battle_draw_random_other(Snes *s) { draw_entry(s, OTHER_POSITION); }

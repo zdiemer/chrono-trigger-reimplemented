@@ -108,7 +108,6 @@ static inline bool battle_sprite_graphics_storage(uint32_t source)
     return bank == 0x7F || bank >= 0xC0 || (bank >= 0x40 && bank <= 0x7D);
 }
 
-
 /* The bytes of one frame's tile list, by the object's graphics kind
  * ($CC:F40A): its tile descriptors, then its part offsets, of which there are
  * as many bytes as $CC:F4FC gives. */

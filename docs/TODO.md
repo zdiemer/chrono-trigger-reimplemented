@@ -2609,39 +2609,14 @@ comparisons.
 
 ## The native program
 
-- **Battle retirement.** Remove the comparison registry after preserving the
-  checked preconditions in ordinary C. The 84-movie coverage union leaves
-  13,556 battle bytes in 289 entries outside movie coverage. The ledger now
-  covers all of them: 484 freshly replayed recipes produced 779,466 matched
-  trials, zero mismatches and 188,534 skips, with reviewed resource and control
-  flow exclusions for the remaining bytes. Skips supply no evidence.
-  `unreached --record --check` passes for 838 entries across 84 movies.
-
-  Preserve the complete sprite/frame/output bounds, startup-built OAM lookup,
-  animation resource banks and text language/stack separation. A guard refusal
-  or an interpreted call-out supplies no C execution evidence. Keep the
-  existing reviewed restrictions in `unreached_safe.toml` when guards become
-  assertions. The scene helpers' provisional estimates still need a movie
-  measurement; this branch does not recalibrate from a sample.
-
-  Remove the three field
-  music/line-effect compatibility entries when their battle callers become C.
-  Nine menu glyph/typesetter `ORIGINAL_EFFECT` sites remain solely for
-  battle's message comparisons; remove them after checking all battle readers.
-  The protected battle outcome identities are listed in REIMPLEMENTATION.md,
-  "The menus' teardown". Run the bucket-Lavos and telepod-Lavos fight/ending
-  phases with the native-shape driver after changing these battle backedges;
-  the ending phase does not claim the subsequent full developer-room tour.
-
 - **What the field and events' teardown review left.** Remove the three
   `tools/uncompared_baseline.txt` rows for `field_nmi`, `field_irq` and
   `field_walk_a_frame`, whose comparisons retired with the field. Update
   `game/event/entries.c` and `bridge.h`'s comments, which still describe the field
   as gated. Remove the empty control-flow blocks the scaffolding's deletion left
   in `game/field/map.c`.
-- **The field's remaining mode interfaces.** Remove the four retired dispatch
-  entries when their callers no longer need them: boot's `field_first_start`
-  and battle's two music calls and line-effect fallback.
+- **The field's remaining mode interfaces.** Remove boot's retired dispatch
+  entry `field_first_start` when its caller no longer needs it.
   The sprite/menu chain also retains the screen setup's Y and overflow
   calling convention. The legacy-only work estimates replace counted
   temporary accesses; remove that backing with the legacy driver.

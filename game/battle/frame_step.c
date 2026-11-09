@@ -71,6 +71,9 @@ static bool take_the_menu_turn(GameState *g, MenuTurnPlace place, StepCalls call
 
 /* The menu's turn between two steps of another wait: the frame's queued
  * uploads wait while it goes. */
+
+// $C1:10FA
+/* The frame step: the menu's turn, then the frame work's tail. */
 static bool menu_turn_between_steps(GameState *g, MenuTurnPlace place, StepCalls call, void *ctx)
 {
     if (!menu_turn_due(g))
@@ -79,8 +82,6 @@ static bool menu_turn_between_steps(GameState *g, MenuTurnPlace place, StepCalls
     return take_the_menu_turn(g, place, call, ctx);
 }
 
-// $C1:10FA
-/* The frame step: the menu's turn, then the frame work's tail. */
 static bool frame_step(GameState *g, StepCalls call, void *ctx)
 {
     return menu_turn_between_steps(g, TURN_IN_THE_FRAME_STEP, call, ctx) && call(ctx, STEP_FRAME_STEP_TAIL);
@@ -193,7 +194,7 @@ static bool step_a_part(void *ctx, StepCall call)
     case STEP_SECOND_FRAME: TIMED_AS(g, FRAME_WAIT, done = battle_wait_for_frame(g, c->pf)); return done;
     case STEP_ANIMATE:
         if (!battle_animations_fit(g))
-            return battle_needs_the_machine(g, ANIMATIONS, "the combatants' animation outside its look or frame buffers");
+            return battle_contract_broken(g, ANIMATIONS, "the combatants' animation outside its look or frame buffers");
         TIMED_AS(g, ANIMATIONS, battle_step_combatants(g));
         return true;
     case STEP_FIRST_EFFECTS:
@@ -212,7 +213,7 @@ static bool step_a_part(void *ctx, StepCall call)
 bool battle_menu_turn(GameState *g, Platform *pf)
 {
     if (!frame_step_fits(g))
-        return battle_needs_the_machine(g, BATTLE_MENU_TURN_ENTRY, "a menu queue the port doesn't take");
+        return battle_contract_broken(g, BATTLE_MENU_TURN_ENTRY, "a menu queue the port doesn't take");
     FrameStepContext c = { g, pf };
     return menu_turn(g, step_a_part, &c);
 }
@@ -220,7 +221,7 @@ bool battle_menu_turn(GameState *g, Platform *pf)
 bool battle_frame_stepped(GameState *g, Platform *pf)
 {
     if (!frame_step_fits(g))
-        return battle_needs_the_machine(g, 0xC110FA, "a menu queue the port doesn't take");
+        return battle_contract_broken(g, 0xC110FA, "a menu queue the port doesn't take");
     FrameStepContext c = { g, pf };
     return frame_step(g, step_a_part, &c);
 }
@@ -228,7 +229,7 @@ bool battle_frame_stepped(GameState *g, Platform *pf)
 bool battle_waits_a_frame(GameState *g, Platform *pf)
 {
     if (!frame_step_fits(g))
-        return battle_needs_the_machine(g, WAIT_STEP, "a menu queue the port doesn't take");
+        return battle_contract_broken(g, WAIT_STEP, "a menu queue the port doesn't take");
     FrameStepContext c = { g, pf };
     return wait_step(g, step_a_part, &c);
 }
@@ -335,13 +336,6 @@ void battle_wait_step(Snes *s)
 /* The guards: on the battle's page, A's high byte clear where the turn is
  * due (the original takes it along into the member's index), and their
  * state half. */
-bool battle_menu_queue_ready(Snes *s)
-{
-    vars_peek(true);
-    bool fits = queue_holds_a_member(state_of(s));
-    vars_peek(false);
-    return battle_on_page(s) && (s->cpu.a & 0xFF00) == 0 && fits;
-}
 
 bool battle_frame_step_ready(Snes *s)
 {

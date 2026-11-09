@@ -18,7 +18,6 @@ void battle_play_the_script_sound_entry(Snes *s);
 /* A sound a screen script asked for, played once ($CD:3B5F). */
 void battle_play_the_script_sound(GameState *g, Platform *pf);
 enum { BATTLE_SCRIPT_SOUND_ENTRY = 0xCD3B5F };
-void battle_play_a_sound_entry(Snes *s);
 /* A sound effect played, panned where the caller says ($CD:3B71). */
 void battle_play_a_sound(Platform *pf, uint8_t effect, uint8_t pan);
 enum { BATTLE_PLAY_A_SOUND_ENTRY = 0xCD3B71 };
@@ -31,6 +30,4 @@ enum { BATTLE_PLAY_A_SOUND_ENTRY = 0xCD3B71 };
  * registers as the original's routine does: the pan in A's low byte and in X.
  * False where the call stopped and the original has the machine. */
 bool battle_play_a_sound_from(Snes *s, uint32_t site, uint8_t effect, uint8_t pan, BattleFrame kept);
-void battle_wait_music_fade_loop(Snes *s);
-
 #endif

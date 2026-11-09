@@ -35,7 +35,6 @@
 #include "battle/wait.h"
 #include "battle/window.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
@@ -62,22 +61,29 @@ static unsigned pose_at(unsigned member, unsigned frame) { return member * POSE_
  * one's row of the tables. */
 enum { MEMBER_CELL = 0x80, COPY_CELL = 0x82, ROW_CELL = 0x84 };
 
-static void leave_the_loading(GameState *g)
-{
-    battle_leave_work16(g, MEMBER_CELL, BATTLE_PARTY_SIZE);
-    for (unsigned member = BATTLE_PARTY_SIZE; member-- > 0;)
-        if (battle_slot_present(g, member)) {
-            battle_leave_work8(g, COPY_CELL, 0);
-            battle_leave_work16(g, ROW_CELL, (uint16_t)pose_at(member, 0));
-            return;
-        }
-}
-
 // $C1:35DD
 /* Each member's pose, from the animation the battle gave it
  * (battle_party_scene_animation) in its lists; the members' first frames a
  * step apart. The last member's lists stay in the animation scheduler's
  * first entry, as a member's frame step keeps them. */
+/* Preserve the machine estimate for removed comparison accesses.
+ * Inspect the branch without charging those reads to either backend. */
+static void charge_pose_loading(GameState *g)
+{
+    uint32_t charge_mark = charge_uncounted_begin(g);
+    unsigned reads = 0;
+    bool found = false;
+    for (unsigned member = BATTLE_PARTY_SIZE; member-- > 0;) {
+        reads++;
+        if (battle_slot_present(g, member)) {
+            found = true;
+            break;
+        }
+    }
+    charge_uncounted_end(g, charge_mark);
+    charge_machine_accesses(g, 2 + reads + (found ? 3 : 0));
+}
+
 static void load_the_poses(GameState *g)
 {
     for (unsigned at = 0; at < BATTLE_PARTY_POSE_DELAYS_COUNT; at++)
@@ -100,7 +106,7 @@ static void load_the_poses(GameState *g)
     }
     if (any)
         battle_keep_member_lists(g, frames_at, times_at);
-    ORIGINAL_EFFECT(leave_the_loading(g));
+    charge_pose_loading(g);
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++) {
         set_battle_party_pose_countdown(g, member, (uint8_t)(member + 1));
         set_battle_party_pose_frame(g, member, BEFORE_THE_FIRST_FRAME);
@@ -135,7 +141,7 @@ static void step_a_member(GameState *g, uint8_t member)
     if (frame == POSE_FRAMES)
         return;
     /* the original finds the frame's place in the tables through a work cell */
-    ORIGINAL_EFFECT(battle_leave_work8(g, MEMBER_CELL, frame));
+    charge_machine_accesses(g, 1);
     uint8_t time = battle_party_pose_delays(g, pose_at(member, frame));
     set_battle_party_pose_countdown(g, member, time);
     if (time == 0)
@@ -161,7 +167,7 @@ static bool step_the_poses(GameState *g)
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         if (takes_its_pose(g, member))
             step_a_member(g, member);
-    ORIGINAL_EFFECT(set_battle_party_pose_member(g, BATTLE_PARTY_SIZE));
+    charge_machine_accesses(g, 2);
     set_battle_frame_phase(g, NO_PHASE);
     set_battle_queued_uploads_on(g, 0);
     return true;
@@ -170,17 +176,6 @@ static bool step_the_poses(GameState *g)
 /* A member's frame steps on from its eight only where its time runs out
  * there, which, a member holding its last frame for 255 steps, never comes
  * in the poses' 32. */
-static bool poses_keep_to_their_frames(const GameState *g)
-{
-    for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++) {
-        uint8_t frame = battle_party_pose_frame(g, member);
-        if (frame != BEFORE_THE_FIRST_FRAME && frame > POSE_FRAMES)
-            return false;
-        if (frame == POSE_FRAMES && battle_party_pose_countdown(g, member) == 1)
-            return false;
-    }
-    return true;
-}
 
 /* ---- The poses' frames -------------------------------------------------------------------- */
 
@@ -200,21 +195,21 @@ typedef bool (*PoseCalls)(void *ctx, PoseCall call);
  * channels' (battle_party_poses_frames_left), which shadow mode compares at
  * each frame's wait; no channel runs during the poses, and nothing else
  * reads it. */
-static void leave_the_frames_left(GameState *g, uint8_t left) { set_battle_party_poses_frames_left(g, left); }
 
 // $C1:35DD
 /* The poses as a whole: loaded, then 64 frames of the battle's, each the
  * frame waited for, the frame work's tail, and the poses' step. */
+
 static bool strike_the_poses(GameState *g, PoseCalls call, void *ctx)
 {
     load_the_poses(g);
     for (uint8_t left = POSES_FRAMES; left > 0; left--) {
-        ORIGINAL_EFFECT(leave_the_frames_left(g, left));
+        charge_machine_accesses(g, 1);
         if (!call(ctx, POSES_FRAME) || !call(ctx, POSES_TAIL))
             return false;
         TIMED_AS(g, 0xC1369A, (void)step_the_poses(g));
     }
-    ORIGINAL_EFFECT(leave_the_frames_left(g, 0));
+    charge_machine_accesses(g, 1);
     set_battle_queued_uploads_on(g, 0);
     set_battle_frame_phase(g, NO_PHASE);
     return true;
@@ -264,7 +259,7 @@ static bool see_the_fight_off(GameState *g, PoseCalls call, void *ctx)
         set_battle_enemy_drifting(g, enemy, 0);
     for (unsigned slot = BATTLE_PARTY_SIZE; slot-- > 0;)
         battle_take_off_the_look(g, slot);
-    ORIGINAL_EFFECT(battle_leave_work16(g, LOOK_SLOT_CELL, 0x00FF));
+    charge_machine_accesses(g, 2);
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         set_battle_step_member(g, member);
         TIMED_AS(g, 0xC11BAA, battle_call_off_the_menu(g, member));
@@ -341,7 +336,7 @@ static bool pose_call(void *ctx, PoseCall call)
 bool battle_party_strikes_its_poses(GameState *g, Platform *pf)
 {
     if (!poses_fit(g))
-        return battle_needs_the_machine(g, 0xC135DD, "poses on graphics the builders don't know");
+        return battle_contract_broken(g, 0xC135DD, "poses on graphics the builders don't know");
     PartyPosesContext c = { g, pf };
     return pose_call(&c, POSES_STRUCK);
 }
@@ -349,7 +344,7 @@ bool battle_party_strikes_its_poses(GameState *g, Platform *pf)
 bool battle_wins_the_fight(GameState *g, Platform *pf)
 {
     if (!poses_fit(g) || !battle_pose_looks_fit(g))
-        return battle_needs_the_machine(g, 0xC1356D, "a victory with looks or graphics the port doesn't take");
+        return battle_contract_broken(g, 0xC1356D, "a victory with looks or graphics the port doesn't take");
     PartyPosesContext c = { g, pf };
     return win(g, pose_call, &c);
 }
@@ -357,7 +352,7 @@ bool battle_wins_the_fight(GameState *g, Platform *pf)
 bool battle_loses_the_fight(GameState *g, Platform *pf)
 {
     if (!poses_fit(g))
-        return battle_needs_the_machine(g, 0xC1354D, "a defeat with graphics the port doesn't take");
+        return battle_contract_broken(g, 0xC1354D, "a defeat with graphics the port doesn't take");
     PartyPosesContext c = { g, pf };
     return lose(g, pose_call, &c);
 }
@@ -446,23 +441,10 @@ void battle_defeat_step(Snes *s)
 }
 
 // $C1:35DD
-void battle_strike_the_poses_entry(Snes *s)
-{
-    if (battle_strike_the_poses(s))
-        m_rts(s);
-}
 
 // $C1:369A
 /* A frame that steps the poses leaves A's high byte clear and the carry of
  * its last count, set; one that sends leaves them as they came. */
-void battle_step_the_poses_entry(Snes *s)
-{
-    if (step_the_poses(state_of(s))) {
-        s->cpu.a &= 0x00FF;
-        m_set_flag(s, CPU_FLAG_C, true);
-    }
-    m_rts(s);
-}
 
 /* The guards: on the battle's page, and their state halves; a step of the
  * poses with the members' frames as the poses keep them. */
@@ -480,14 +462,6 @@ bool battle_victory_ready(Snes *s)
 {
     vars_peek(true);
     bool ok = battle_pose_looks_fit(state_of(s));
-    vars_peek(false);
-    return battle_poses_ready(s) && ok;
-}
-
-bool battle_poses_step_ready(Snes *s)
-{
-    vars_peek(true);
-    bool ok = poses_keep_to_their_frames(state_of(s));
     vars_peek(false);
     return battle_poses_ready(s) && ok;
 }

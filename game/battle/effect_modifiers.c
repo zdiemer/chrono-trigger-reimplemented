@@ -104,7 +104,7 @@ bool effect_modifier_is_charm_chance(const GameState *g, uint8_t modifier)
 static void critical_hit(GameState *g, uint8_t times)
 {
     uint8_t rate = effect_actor_stat(g, STAT_CRITICAL_RATE);
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_4, rate));
+    charge_machine_accesses(g, 1);
     if (battle_random_other(g, 0, PERCENT) > rate)
         return;
     set_amount(g, effect_times(g, amount(g), times));
@@ -177,15 +177,15 @@ static void by_the_clock(GameState *g, Platform *pf)
 static bool charm_chance(GameState *g, uint8_t percent)
 {
     bool comes = battle_random(g, 0, PERCENT) < percent;
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_3, comes ? 1 : 0));
+    charge_machine_accesses(g, 1);
     return comes;
 }
 
 /* A status of the first status byte given the target. */
 static void give_status(GameState *g, uint8_t bits)
 {
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_1, 1));
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_2, bits));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     effect_inflict_status(g, 1, bits);
 }
 
@@ -195,9 +195,9 @@ static void give_status(GameState *g, uint8_t bits)
  * bits. */
 static void random_status(GameState *g)
 {
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_3, PERCENT));
+    charge_machine_accesses(g, 1);
     uint8_t drawn = battle_random(g, 0, PERCENT + 1);
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_3, drawn));
+    charge_machine_accesses(g, 1);
     uint8_t bits = drawn < 0x28   ? STATUS_CONFUSED
                    : drawn < 0x41 ? STATUS_STOP
                    : drawn < 0x5A ? STATUS_ASLEEP
@@ -210,8 +210,8 @@ static void random_status(GameState *g)
 /* Four in five, against a target of the families named, the statuses. */
 static void status_against_family(GameState *g, uint8_t families, uint8_t statuses)
 {
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_1, 0));
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_2, 0));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
     if (chance_comes(g, 0x50) && (effect_target_stat(g, STAT_FAMILY) & families))
         give_status(g, statuses);
 }
@@ -219,8 +219,8 @@ static void status_against_family(GameState *g, uint8_t families, uint8_t status
 // $C1:EEF7
 static void status_by_chance(GameState *g, uint8_t percent, uint8_t statuses)
 {
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_1, 0));
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_2, 0));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
     if (chance_comes(g, percent))
         give_status(g, statuses);
 }
@@ -306,7 +306,7 @@ static void halve_hp(GameState *g, uint8_t percent)
 /* Bits of a stat of the target's taken away, or given. */
 static void take_stat_bits(GameState *g, uint8_t stat, uint8_t bits)
 {
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_5, (uint8_t)~bits));
+    charge_machine_accesses(g, 1);
     set_effect_target_stat(g, stat, effect_target_stat(g, stat) & (uint8_t)~bits);
 }
 
@@ -440,9 +440,9 @@ static Modifier take_modifier(GameState *g)
     uint8_t number = battle_effect_modifier(g);
     effect_times(g, number, 3);
     ModifierRecord r = modifier_record(g, number);
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_4, r.first));
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_5, r.second));
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_6, r.routine));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     return decode(r);
 }
 
@@ -464,8 +464,8 @@ void effect_apply_modifiers(GameState *g, Platform *pf)
         apply_modifier(g, pf);
     if (battle_effect_flags(g, 1) & EFFECT_WITH_WEAPON_MODIFIER) {
         uint8_t on = effect_actor_stat(g, STAT_WEAPON_MODIFIER_ON), weapons = effect_actor_stat(g, STAT_WEAPON_MODIFIER);
-        ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_5, on));
-        ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_6, weapons));
+        charge_machine_accesses(g, 2);
+        charge_machine_accesses(g, 2);
         set_battle_effect_modifier(g, weapons);
         if (on & WEAPON_MODIFIER_ON)
             apply_modifier(g, pf);

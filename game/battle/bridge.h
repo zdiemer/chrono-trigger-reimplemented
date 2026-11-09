@@ -1,18 +1,9 @@
-/* Where the battle's routines meet the original's registers: the guards every
- * entry runs under, and the call the entry wrappers and the bridges around
- * call-outs make to the original's code. This, the entry wrappers at the end
- * of each file and the bridges they name, is the machine-aware code in
- * game/battle/; a build without the original's engine replaces it.
- *
- * The ports name the battle's cells through game/vars.h, which knows them where
- * the battle keeps them; the original reaches them through its direct page
- * (the battle's, D = $0000, or the sprite drawers', $1D00) and through its data
- * bank ($7E, so that absolute addresses reach the battle's tables above
- * $2000), and a combatant through its battle slot or its stat block's offset
- * in an index register. So a port is the same routine only where the game
- * enters it the way it always does, and each entry's guard says which of these
- * it assumes. Any other call is the original's; a guard that turned away a
- * call shows as a drop in the entry's shadow count. */
+/* Battle contracts and called adapters for the legacy driver. Game logic
+ * uses typed state; these adapters translate its callers' registers, page,
+ * bank and stack frames. Checked C handoffs retain the former contracts,
+ * including decimal mode and code-image assumptions, and stop at the
+ * original entry if the caller breaks one. Held continuations keep frame
+ * boundaries saveable until the driver gives way to the native program. */
 #ifndef CT_GAME_BATTLE_BRIDGE_H
 #define CT_GAME_BATTLE_BRIDGE_H
 
@@ -29,6 +20,11 @@ enum { BATTLE_PAGE = 0x0000, BATTLE_SPRITE_PAGE = 0x1D00, BATTLE_DATA_BANK = 0x7
 
 /* A call's return is the instruction after it. */
 enum { BATTLE_JSR_SIZE = 3, BATTLE_JSL_SIZE = 4 };
+
+/* Field music called from the legacy battle driver, retaining its caller
+ * frame for a rejected contract and for audio-service interruptions. */
+bool battle_field_music_on_the_machine(Snes *s, uint32_t site, bool restore);
+void battle_refuse_long_call(Snes *s, uint32_t site, uint32_t routine);
 
 /* ---- Calling the original's code ------------------------------------------------------ */
 
@@ -213,7 +209,8 @@ bool battle_sprite_bank_ready(Snes *s);
 
 /* On the battle's page with the data bank at $7E, and X names a stat block;
  * and Y the combatant whose stat block X names. */
-bool battle_on_page_stat_block_x(Snes *s);
 bool battle_on_page_combatant_xy(Snes *s);
+
+bool battle_on_page_stat_block_x(Snes *s);
 
 #endif

@@ -25,8 +25,6 @@ enum { FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY = 0xC00005 };
 void field_line_effects_ready(GameState *g, Platform *pf);
 void field_line_effects_build(GameState *g);
 
-void field_rebuild_the_line_effects(Snes *s);
-bool field_line_effects_can_be_rebuilt(Snes *s);
 void field_setup_line_effects(Snes *s);
 void field_init_line_effect_values(Snes *s);
 void field_build_line_effect_tables(Snes *s);

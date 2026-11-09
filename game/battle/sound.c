@@ -93,13 +93,6 @@ void battle_play_a_sound(Platform *pf, uint8_t effect, uint8_t pan)
 
 /* The effect comes in A and its pan in X; the pan is left in A, as the
  * script's sound leaves it. */
-void battle_play_a_sound_entry(Snes *s)
-{
-    uint8_t pan = (uint8_t)s->cpu.x;
-    battle_play_a_sound(m_platform(s), (uint8_t)s->cpu.a, pan);
-    m_set_a8(s, pan);
-    m_rts(s);
-}
 
 bool battle_play_a_sound_from(Snes *s, uint32_t site, uint8_t effect, uint8_t pan, BattleFrame kept)
 {
@@ -126,19 +119,4 @@ void battle_play_the_script_sound_entry(Snes *s)
     battle_play_the_script_sound(g, m_platform(s));
     leave_the_pan(s, g, asked);
     m_rts(s);
-}
-
-/* ---- The fade's waits ------------------------------------------------------------------ */
-
-/* One pass of the wait for the fade to run out before a defeat's song on the
- * screen effects' battlefield (in $CD:0D93, the original's still; the others
- * are battle/closing.c's): on to the song once it has, else back to the
- * loop's call of a frame's wait. The status tested is left in A. */
-// $CD:0D9C
-void battle_wait_music_fade_loop(Snes *s)
-{
-    uint8_t left = au_music_fade_left(m_platform(s), PF_AT(0xCD0D9C));
-    m_set_a8(s, left);
-    m_set_nz8(s, left);
-    s->cpu.pc = left != 0 ? 0x0D99 : 0x0DA2;
 }

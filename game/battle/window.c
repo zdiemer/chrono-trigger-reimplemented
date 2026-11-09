@@ -13,6 +13,7 @@
  * frames tilemap, and the member whose menu is open has its name plain and its
  * command cursor drawn. While an action is aimed at a party member, the
  * window marks that member's name instead. */
+#include "charge.h"
 #include "battle/window.h"
 
 #include "battle/bridge.h"
@@ -20,7 +21,6 @@
 #include "battle/entries.h"
 #include "battle/window_data.h"
 #include "battle/window_leaves.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- The layouts ------------------------------------------------------------------------ */
@@ -123,20 +123,9 @@ static void show_name_plain(GameState *g, WindowLayout layout, unsigned member)
     }
 }
 
-void battle_leave_member_drawn(GameState *g, unsigned member, bool shaded)
-{
-    set_battle_current_stat_block(g, (uint16_t)(member * BATTLE_STAT_BLOCK_BYTES));
-    set_battle_digit_highlight(g, shaded);
-}
 
 /* The name's tiles, counted down in a work cell. */
 enum { NAME_COUNT = 0x8E };
-
-static void leave_member_cells(GameState *g, unsigned member, bool shaded)
-{
-    battle_leave_work8(g, NAME_COUNT, 0);
-    battle_leave_member_drawn(g, member, shaded);
-}
 
 // $C1:0311
 /* A member's line: its name, its HP (then its maximum in the first layout),
@@ -159,7 +148,7 @@ static void draw_member_line(GameState *g, WindowLayout layout, unsigned member)
         window_put(g, (WindowCell)(line.gauge + 1 + GAUGE_CELLS), TILE_GAUGE_RIGHT, TEXT_PLAIN);
         battle_show_gauge(g, member);
     }
-    ORIGINAL_EFFECT(leave_member_cells(g, member, shaded));
+    charge_machine_accesses(g, 4);
 }
 
 /* ---- The window's lists ------------------------------------------------------------------ */
@@ -194,15 +183,6 @@ static void put_enemy_name(GameState *g, WindowCell at, unsigned kind)
  * index, the next line's place (bytes), and the tiles left of a name. */
 enum { LIST_INDEX = 0x80, LIST_PLACE = 0x84, TILEMAP_BYTES_PER_CELL = 2 };
 
-static void leave_enemy_list_cells(GameState *g, unsigned shown)
-{
-    battle_leave_work16(g, LIST_INDEX, ENEMY_KINDS);
-    battle_leave_work16(g, LIST_PLACE,
-                        (uint16_t)(TILEMAP_BYTES_PER_CELL * window_cell(FIRST_LINE_ROW + LINE_ROWS * shown, ENEMY_NAME_COLUMN)));
-    if (shown)
-        battle_leave_work8(g, NAME_COUNT, 0);
-}
-
 static void list_enemy_kinds(GameState *g)
 {
     unsigned shown = 0;
@@ -212,7 +192,7 @@ static void list_enemy_kinds(GameState *g)
         put_enemy_name(g, window_cell(FIRST_LINE_ROW + LINE_ROWS * shown, ENEMY_NAME_COLUMN), kind);
         shown++;
     }
-    ORIGINAL_EFFECT(leave_enemy_list_cells(g, shown));
+    charge_machine_accesses(g, shown ? 5 : 4);
 }
 
 /* ---- The command windows --------------------------------------------------------------- */
@@ -247,13 +227,6 @@ static bool offers_combos(const GameState *g, unsigned member)
  * the next row's place (bytes), and the loop over the slots keeps its index. */
 enum { COUNTERS = 0x80, ROW_PLACE = 0x82, SLOT_INDEX = 0x86 };
 
-static void leave_command_window_cells(GameState *g, unsigned member)
-{
-    battle_leave_work16(g, COUNTERS, 0);
-    battle_leave_work16(g, ROW_PLACE,
-                        (uint16_t)(TILEMAP_BYTES_PER_CELL * command_window_cell(member, COMMAND_WINDOW_ROWS, 0)));
-}
-
 // $C1:0785
 static void put_command_window(GameState *g, unsigned member)
 {
@@ -262,7 +235,7 @@ static void put_command_window(GameState *g, unsigned member)
         for (unsigned column = 0; column < COMMAND_WINDOW_COLUMNS; column++)
             window_put(g, command_window_cell(member, row, column),
                        battle_command_window_tile(g, combo, row * COMMAND_WINDOW_COLUMNS + column), TEXT_PLAIN);
-    ORIGINAL_EFFECT(leave_command_window_cells(g, member));
+    charge_machine_accesses(g, 4);
 }
 
 /* The frames tilemap's cells: the frames are drawn by slot, a window beside a
@@ -276,21 +249,14 @@ static void put_frame_cell(GameState *g, WindowCell cell, unsigned from)
 /* The same, and whether it leaves the border out. */
 enum { LEAVES_BORDER_OUT = 0x84 };
 
-static void leave_frame_cells(GameState *g, WindowCell first)
-{
-    battle_leave_work16(g, COUNTERS, 0);
-    battle_leave_work16(g, ROW_PLACE, (uint16_t)(TILEMAP_BYTES_PER_CELL * (first + COMMAND_WINDOW_ROWS * WINDOW_COLUMNS)));
-}
-
 // $C1:0929
 static void put_frame(GameState *g, unsigned slot, bool beside_another)
 {
     unsigned first_column = beside_another ? 1 : 0;
-    WindowCell first = window_cell(0, COMMAND_WINDOW_STEP * slot + first_column);
     for (unsigned row = 0; row < COMMAND_WINDOW_ROWS; row++)
         for (unsigned column = first_column; column < COMMAND_WINDOW_COLUMNS; column++)
             put_frame_cell(g, window_cell(row, COMMAND_WINDOW_STEP * slot + column), row * COMMAND_WINDOW_COLUMNS + column);
-    ORIGINAL_EFFECT(leave_frame_cells(g, first));
+    charge_machine_accesses(g, 4);
 }
 
 // $C1:081E
@@ -305,7 +271,7 @@ static void put_frames(GameState *g)
     }
     /* The original notes a border left out for the third slot's frame last,
      * and clears it after the second's. */
-    ORIGINAL_EFFECT(battle_leave_work8(g, LEAVES_BORDER_OUT, menu_slot_has_member(g, 2) && last_beside));
+    charge_machine_accesses(g, 2);
 }
 
 /* ---- The command cursor ----------------------------------------------------------------- */
@@ -323,13 +289,6 @@ void window_put_cursor(GameState *g, WindowCell cell)
 /* Where the original works out the windows' places: a third of the member's
  * window's offset (bytes), on its way to the whole, and then the whole of the
  * slot's where it draws the cursor. */
-static void leave_cursor_cells(GameState *g, unsigned member, unsigned slot, bool redrawn)
-{
-    if (redrawn)
-        battle_leave_work16(g, MEMBER_CELLS, (uint16_t)(TILEMAP_BYTES_PER_CELL * COMMAND_WINDOW_STEP * slot));
-    else
-        battle_leave_work8(g, MEMBER_CELLS, (uint8_t)(TILEMAP_BYTES_PER_CELL * COMMAND_WINDOW_STEP * member / 3));
-}
 
 // $C1:0872
 /* The member whose menu is open loses the command window's cursor column, the
@@ -351,7 +310,7 @@ void battle_redraw_command_cursor(GameState *g)
         window_put_cursor(g, command_window_cell(slot, CURSOR_ROWS_PER_COMMAND * command, 0));
     }
     set_battle_member_cells_redraw(g, 0);
-    ORIGINAL_EFFECT(leave_cursor_cells(g, member, slot, redraw));
+    charge_machine_accesses(g, redraw ? 2 : 1);
 }
 
 /* The first menu slot with a member, which becomes the menu's when its own
@@ -377,7 +336,7 @@ static void show_command_windows(GameState *g, WindowLayout layout)
     for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++)
         if (menu_slot_has_member(g, slot))
             put_command_window(g, battle_menu_slot_members(g, slot));
-    ORIGINAL_EFFECT(battle_leave_work16(g, SLOT_INDEX, BATTLE_PARTY_SIZE));
+    charge_machine_accesses(g, 2);
     put_frames(g);
     show_name_plain(g, layout, member);
     /* The cursor is asked for as the menu asks for it, by counting the flag up. */
@@ -482,13 +441,6 @@ bool battle_window_ready(Snes *s)
 }
 
 /* The gauge's member, in its work cell, a party member. */
-bool battle_window_member_ready(Snes *s)
-{
-    vars_peek(true);
-    bool ready = battle_on_page(s) && battle_work16(state_of(s), BATTLE_GAUGE_MEMBER) < BATTLE_PARTY_SIZE;
-    vars_peek(false);
-    return ready;
-}
 
 /* The party status and the cursors carry A's high byte into their indexes
  * (the member's, the target's), as the original does: the game's is clear. */

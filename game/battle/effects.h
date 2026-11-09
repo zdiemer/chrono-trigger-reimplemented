@@ -154,7 +154,5 @@ bool battle_effect_handler_ready(Snes *s);
 bool battle_effect_paths_ready(Snes *s);
 /* ... and the effect loop's cells naming a combatant or an anchor, as the loop
  * sets them for a path's routine. */
-bool battle_path_cells_name_combatant(Snes *s);
-bool battle_path_cells_name_anchor(Snes *s);
 
 #endif

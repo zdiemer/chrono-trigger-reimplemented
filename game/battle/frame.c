@@ -37,7 +37,6 @@
 #include "battle/sound.h"
 #include "field/field.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "platform/input.h"
 #include "platform/video.h"
 #include "port/native.h"
@@ -290,15 +289,6 @@ enum { ROTATED_SPRITE_COLORS = 128 + 16 * 4 + 1, SPRITE_COLORS_ROTATED = 12, PAL
 
 /* The original works the rotation in the effect loops' cells: the color it
  * last kept, the moves it counted down, and where the last run started. */
-static void leave_rotation_cells(GameState *g, uint16_t kept, uint16_t start)
-{
-    set_battle_effect_cells(g, 0, (uint8_t)kept);
-    set_battle_effect_cells(g, 1, (uint8_t)(kept >> 8));
-    set_battle_effect_cells(g, 2, 0);
-    set_battle_effect_cells(g, 3, 0);
-    set_battle_effect_cells(g, 4, (uint8_t)start);
-    set_battle_effect_cells(g, 5, (uint8_t)(start >> 8));
-}
 
 static void rotate_the_colors(GameState *g)
 {
@@ -309,7 +299,7 @@ static void rotate_the_colors(GameState *g)
     if (left)
         return;
     rotate_colors_up(g, ROTATED_SPRITE_COLORS, SPRITE_COLORS_ROTATED);
-    uint16_t kept = palette_working(g, ROTATED_SPRITE_COLORS);
+    charge_legacy_accesses(g, 2);
     if (battle_background_cycle_on(g)) {
         uint8_t cycle = battle_background_cycle(g);
         unsigned palette = cycle >> 4, first = cycle & 0x0F;
@@ -321,12 +311,12 @@ static void rotate_the_colors(GameState *g)
             rotate_colors_up(g, next * PALETTE_COLORS + 1, PALETTE_COLORS - 1);
             next++;
         } while (next < BACKGROUND_PALETTES);
-        kept = palette_working(g, (next - 1) * PALETTE_COLORS + 1);
-        ORIGINAL_EFFECT(leave_rotation_cells(g, kept, (uint16_t)((next * PALETTE_COLORS + PALETTE_COLORS - 1) * 2)));
+        charge_legacy_accesses(g, 2);
+        charge_machine_accesses(g, 6);
         return;
     }
-    ORIGINAL_EFFECT(set_battle_effect_cells(g, 0, (uint8_t)kept));
-    ORIGINAL_EFFECT(set_battle_effect_cells(g, 1, (uint8_t)(kept >> 8)));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
 }
 
 /* A demo battle ends on any button: the screen fades out, and the game goes
@@ -641,12 +631,6 @@ void battle_keep_animations_off_the_cycle(GameState *g)
     }
 }
 
-void battle_keep_animations_off_the_cycle_entry(Snes *s)
-{
-    battle_keep_animations_off_the_cycle(state_of(s));
-    m_rts(s);
-}
-
 /* ---- The frame wait's tail ---------------------------------------------------------------- */
 
 /* The tail's calls: the script's sound and the pause's turn
@@ -733,21 +717,8 @@ void battle_step_window_slide(Snes *s)
     m_rts(s);
 }
 
-void battle_step_gradient_phase(Snes *s)
-{
-    battle_turn_the_gradient(state_of(s));
-    m_rts(s);
-}
-
 /* It runs on the battle's page, which it leaves in A, with 16-bit index
  * registers. */
-void battle_clear_oam_buffer(Snes *s)
-{
-    battle_hide_sprites(state_of(s));
-    s->cpu.a = BATTLE_PAGE;
-    m_rep(s, CPU_FLAG_X);
-    m_rtl(s);
-}
 
 void battle_frame_update(Snes *s)
 {
@@ -836,7 +807,7 @@ bool battle_frame_dispatched(GameState *g, Platform *pf)
 {
     uint8_t mode = battle_mode(g);
     if (mode >= FRAME_MODES || !frame_work_takes(g))
-        return battle_needs_the_machine(g, FRAME_DISPATCH, "the battle's frame work in a state the port doesn't take");
+        return battle_contract_broken(g, FRAME_DISPATCH, "the battle's frame work in a state the port doesn't take");
     bool done = false;
     if (mode == 0)
         TIMED_AS(g, frame_work_of[mode].routine, done = battle_display_set_up(g, pf));
@@ -861,7 +832,7 @@ static bool update_a_part(void *ctx, UpdateCall call)
     case UPDATE_PARTY_COLORS: TIMED_AS(g, object_work[call].routine, battle_cycle_party_colors(g)); return true;
     case UPDATE_EFFECT_SLOTS:
         if (!battle_effect_paths_known(g))
-            return battle_needs_the_machine(g, object_work[call].routine, "an effect's path of a kind the port doesn't know");
+            return battle_contract_broken(g, object_work[call].routine, "an effect's path of a kind the port doesn't know");
         TIMED_AS(g, object_work[call].routine, battle_step_effect_slots(g));
         return true;
     case UPDATE_SCRIPTED_MOVES: TIMED_AS(g, object_work[call].routine, battle_step_scripted_moves(g)); return true;
@@ -885,7 +856,7 @@ static bool read_the_input(BattleFrameContext *c)
     bool read = false;
     TIMED_AS(c->game, FRAMES_INPUT, read = input_take_frame(c->game, c->pf));
     if (!read)
-        return battle_needs_the_machine(c->game, FRAMES_INPUT, "the controller not read, or the reset buttons held");
+        return battle_contract_broken(c->game, FRAMES_INPUT, "the controller not read, or the reset buttons held");
     return true;
 }
 
@@ -905,17 +876,17 @@ static bool work_a_part(void *ctx, WorkCall call)
     case WORK_SHAKE: TIMED_AS(g, 0xCD0B51, battle_shake_screen(g)); return true;
     case WORK_GRADIENT:
         if (!battle_hp_gradient_steps(g))
-            return battle_needs_the_machine(g, HP_GRADIENT, "an HP gradient's phase out of range");
+            return battle_contract_broken(g, HP_GRADIENT, "an HP gradient's phase out of range");
         TIMED_AS(g, HP_GRADIENT, battle_step_hp_gradient(g));
         return true;
     case WORK_HIDE_SPRITES: TIMED_AS(g, 0xCEF066, battle_hide_sprites(g)); return true;
     case WORK_UPDATE: {
         if (!rotation_in_range(g))
-            return battle_needs_the_machine(g, FRAME_UPDATE, "a background colors' rotation the port doesn't make");
+            return battle_contract_broken(g, FRAME_UPDATE, "a background colors' rotation the port doesn't make");
         UpdateEnds ends = UPDATE_STOPPED;
         TIMED_AS(g, FRAME_UPDATE, ends = update_the_frame(g, c->pf, update_a_part, c));
         if (ends == UPDATE_DEMO_ENDS)
-            return battle_needs_the_machine(g, DEMO_LEAVES, "a demo battle's end");
+            return battle_contract_broken(g, DEMO_LEAVES, "a demo battle's end");
         return ends == UPDATE_DONE;
     }
     case WORK_WAIT_FOR_THE_LINE:
@@ -953,10 +924,10 @@ static bool finish_a_part(void *ctx, TailCall call)
         TIMED_AS(g, 0xCD0453, done = battle_put_the_battlefield_back(g, c->pf));
         return done;
     }
-    case TAIL_EFFECT_GRAPHICS: return battle_needs_the_machine(g, 0xD1ECF3, "an effect's graphics loaded");
+    case TAIL_EFFECT_GRAPHICS: return battle_contract_broken(g, 0xD1ECF3, "an effect's graphics loaded");
     default:
         if (!battle_message_typing_fits(g))
-            return battle_needs_the_machine(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, "a message the menus' text code doesn't go on from");
+            return battle_contract_broken(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, "a message the menus' text code doesn't go on from");
         TIMED_AS(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, battle_type_the_message(g));
         return true;
     }

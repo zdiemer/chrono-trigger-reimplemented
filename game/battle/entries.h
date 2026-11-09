@@ -1,4 +1,4 @@
-/* Battle mode: the registered entries, as the runtime calls them (game/registry.c). */
+/* Battle mode: ordinary operations and checked adapters for the legacy driver. */
 #ifndef CT_GAME_BATTLE_ENTRIES_H
 #define CT_GAME_BATTLE_ENTRIES_H
 
@@ -30,193 +30,12 @@ void battle_find_the_noted_area(Snes *s);
  * enemy_conditions.c, enemy_actions.c, enemy_turn.c, and main_loop.c's
  * beaten enemies. */
 /* battle/random.c */
-void battle_draw_random(Snes *s);
-void battle_draw_random_other(Snes *s);
-
 /* battle/positions.c */
 void battle_search_for_target(Snes *s);
-void battle_search_nearest_member(Snes *s);
-void battle_search_farthest_member(Snes *s);
-void battle_search_nearest_other_enemy(Snes *s);
-void battle_search_farthest_enemy(Snes *s);
-void battle_search_within_reach(Snes *s);
-void battle_search_level(Snes *s);
-void battle_search_other_below(Snes *s);
-void battle_search_other_to_the_right(Snes *s);
-void battle_search_walk(Snes *s);
-void battle_search_in_lower_half(Snes *s);
-void battle_search_in_upper_half(Snes *s);
-void battle_search_at_right_edge(Snes *s);
-void battle_search_at_left_edge(Snes *s);
-void battle_search_nearer_to_third(Snes *s);
-void battle_search_within_wide_reach(Snes *s);
-void battle_within_long_reach(Snes *s);
-void battle_within_search_reach(Snes *s);
-void battle_within_far_reach(Snes *s);
-void battle_touching(Snes *s);
-void battle_within_near_reach(Snes *s);
-void battle_grid_stops_combatant(Snes *s);
-void battle_box_meets_another(Snes *s);
-void battle_direction_between(Snes *s);
-void battle_distance_along(Snes *s);
-
 /* battle/targets.c */
-void battle_select_party(Snes *s);
-void battle_select_nobody(Snes *s);
-void battle_select_everyone(Snes *s);
-void battle_select_itself(Snes *s);
-void battle_select_last_to_act_on_it(Snes *s);
-void battle_select_random_member(Snes *s);
-void battle_select_nearest_member(Snes *s);
-void battle_select_farthest_member(Snes *s);
-void battle_select_weakest_member(Snes *s);
-void battle_select_members_by_condition(Snes *s);
-void battle_select_members_by_status_1(Snes *s);
-void battle_select_members_by_status_2(Snes *s);
-void battle_select_members_by_status_3(Snes *s);
-void battle_select_members_by_status_4(Snes *s);
-void battle_select_members_with_02(Snes *s);
-void battle_select_members_with_80(Snes *s);
-void battle_select_members_with_04(Snes *s);
-void battle_select_members_with_04_of_4(Snes *s);
-void battle_select_members_with_40_of_4(Snes *s);
-void battle_select_members_with_10_of_3(Snes *s);
-void battle_select_members_with_08_of_1(Snes *s);
-void battle_select_other_enemies(Snes *s);
-void battle_select_enemies(Snes *s);
-void battle_select_nearest_other_enemy(Snes *s);
-void battle_select_farthest_enemy(Snes *s);
-void battle_select_weakest_enemy(Snes *s);
-void battle_select_other_enemies_by_condition(Snes *s);
-void battle_select_enemies_by_condition(Snes *s);
-void battle_select_other_enemies_by_status_1(Snes *s);
-void battle_select_enemies_by_status_1(Snes *s);
-void battle_select_other_enemies_by_status_2(Snes *s);
-void battle_select_enemies_by_status_2(Snes *s);
-void battle_select_other_enemies_with_02(Snes *s);
-void battle_select_other_enemies_with_80(Snes *s);
-void battle_select_other_enemies_with_04(Snes *s);
-void battle_select_other_enemies_with_40_of_4(Snes *s);
-void battle_select_other_enemies_with_02_of_condition(Snes *s);
-void battle_select_other_enemies_with_01_of_19(Snes *s);
-void battle_select_weakest_other_enemy(Snes *s);
-void battle_select_slot_3(Snes *s);
-void battle_select_slot_4(Snes *s);
-void battle_select_slot_5(Snes *s);
-void battle_select_slot_6(Snes *s);
-void battle_select_slot_7(Snes *s);
-void battle_select_slot_8(Snes *s);
-void battle_select_slot_9(Snes *s);
-void battle_select_slot_10(Snes *s);
-void battle_select_reserve_enemy(Snes *s);
-void battle_select_slot_0(Snes *s);
-void battle_select_slot_1(Snes *s);
-void battle_select_slot_2(Snes *s);
-void battle_select_slot_3_again(Snes *s);
-void battle_select_slot_4_again(Snes *s);
-void battle_select_slot_5_again(Snes *s);
-void battle_select_slot_6_again(Snes *s);
-void battle_select_strongest_member(Snes *s);
-void battle_select_other_enemy_at_random(Snes *s);
-void battle_select_from_script(Snes *s);
-void battle_select_by(Snes *s);
-void battle_clear_candidates_entry(Snes *s);
-void battle_mark_first_target_entry(Snes *s);
-void battle_mark_other_targets_entry(Snes *s);
-
 /* battle/enemy_scripts.c */
-void battle_enemy_scripts_choose(Snes *s);
-void battle_enemy_script_choose(Snes *s);
-void battle_enemy_condition_held(Snes *s);
-void battle_enemy_choose_actions(Snes *s);
-void battle_enemy_find_reactions(Snes *s);
-void battle_enemy_find_script_place(Snes *s);
-
 /* battle/enemy_conditions.c */
-void battle_condition_always(Snes *s);
-bool battle_condition_always_ready(Snes *s);
-void battle_condition_at_half_hp(Snes *s);
-bool battle_condition_at_half_hp_ready(Snes *s);
-void battle_condition_with_status(Snes *s);
-bool battle_condition_with_status_ready(Snes *s);
-void battle_condition_is_enemy(Snes *s);
-bool battle_condition_is_enemy_ready(Snes *s);
-void battle_condition_enemy_present(Snes *s);
-bool battle_condition_enemy_present_ready(Snes *s);
-void battle_condition_enemies_at_most(Snes *s);
-bool battle_condition_enemies_at_most_ready(Snes *s);
-void battle_condition_frames_at_least(Snes *s);
-bool battle_condition_frames_at_least_ready(Snes *s);
-void battle_condition_count_compared(Snes *s);
-bool battle_condition_count_compared_ready(Snes *s);
-void battle_condition_at_most_hp(Snes *s);
-bool battle_condition_at_most_hp_ready(Snes *s);
-void battle_condition_stat_at_least(Snes *s);
-bool battle_condition_stat_at_least_ready(Snes *s);
-void battle_condition_stat_bits(Snes *s);
-bool battle_condition_stat_bits_ready(Snes *s);
-void battle_condition_stat_at_most(Snes *s);
-bool battle_condition_stat_at_most_ready(Snes *s);
-void battle_condition_within_reach(Snes *s);
-bool battle_condition_within_reach_ready(Snes *s);
-void battle_condition_level_with(Snes *s);
-bool battle_condition_level_with_ready(Snes *s);
-void battle_condition_stands_beside(Snes *s);
-bool battle_condition_stands_beside_ready(Snes *s);
-void battle_condition_could_walk_to(Snes *s);
-bool battle_condition_could_walk_to_ready(Snes *s);
-void battle_condition_stands_in(Snes *s);
-bool battle_condition_stands_in_ready(Snes *s);
-void battle_condition_acted_on_by(Snes *s);
-bool battle_condition_acted_on_by_ready(Snes *s);
-void battle_condition_acted_on_by_this(Snes *s);
-bool battle_condition_acted_on_by_this_ready(Snes *s);
-void battle_condition_acted_bit(Snes *s);
-bool battle_condition_acted_bit_ready(Snes *s);
-void battle_condition_acted_on_by_member(Snes *s);
-bool battle_condition_acted_on_by_member_ready(Snes *s);
-void battle_condition_acted_with_elements(Snes *s);
-bool battle_condition_acted_with_elements_ready(Snes *s);
-void battle_condition_chance(Snes *s);
-bool battle_condition_chance_ready(Snes *s);
-void battle_condition_stat_is(Snes *s);
-bool battle_condition_stat_is_ready(Snes *s);
-void battle_condition_other_kind_present(Snes *s);
-bool battle_condition_other_kind_present_ready(Snes *s);
-void battle_condition_members_at_most(Snes *s);
-bool battle_condition_members_at_most_ready(Snes *s);
-void battle_condition_is_party_member(Snes *s);
-bool battle_condition_is_party_member_ready(Snes *s);
-void battle_condition_three_on_out(Snes *s);
-bool battle_condition_three_on_out_ready(Snes *s);
-void battle_condition_chooses_but_fails(Snes *s);
-bool battle_condition_chooses_but_fails_ready(Snes *s);
-void battle_condition_within_wide_reach(Snes *s);
-bool battle_condition_within_wide_reach_ready(Snes *s);
-void battle_condition_was_beaten(Snes *s);
-bool battle_condition_was_beaten_ready(Snes *s);
-void battle_condition_stands_apart(Snes *s);
-bool battle_condition_stands_apart_ready(Snes *s);
-void battle_condition_turn_wait(Snes *s);
-bool battle_condition_turn_wait_ready(Snes *s);
-
 /* battle/enemy_actions.c */
-void battle_enemy_choose_pose(Snes *s);
-bool battle_enemy_choose_pose_ready(Snes *s);
-void battle_enemy_choose_aim(Snes *s);
-bool battle_enemy_choose_aim_ready(Snes *s);
-void battle_enemy_draw_one_of_four(Snes *s);
-bool battle_enemy_draw_one_of_four_ready(Snes *s);
-void battle_enemy_forgive_block(Snes *s);
-bool battle_enemy_forgive_block_ready(Snes *s);
-void battle_enemy_note_number(Snes *s);
-bool battle_enemy_note_number_ready(Snes *s);
-void battle_enemy_need_beaten(Snes *s);
-bool battle_enemy_need_beaten_ready(Snes *s);
-void battle_enemy_record_action(Snes *s);
-void battle_enemy_note_actor_bits(Snes *s);
-void battle_enemy_pose_kind(Snes *s);
-
 /* battle/enemy_turn.c */
 void battle_enemy_takes_turn_entry(Snes *s);
 /* An enemy's turn ($C1:8CF9), as C. */
@@ -240,44 +59,17 @@ void battle_work_out_enemy_attack(Snes *s);
 bool battle_enemy_action_worked_out(const GameState *g, bool tech);
 void battle_work_out_enemy_action(GameState *g, Platform *pf, bool tech);
 bool battle_work_out_enemy_attack_ready(Snes *s);
-void battle_effect_restore(Snes *s);
-bool battle_effect_restore_ready(Snes *s);
-void battle_effect_cure(Snes *s);
-bool battle_effect_cure_ready(Snes *s);
-void battle_effect_inflict(Snes *s);
-bool battle_effect_inflict_ready(Snes *s);
-void battle_effect_hit(Snes *s);
-bool battle_effect_hit_ready(Snes *s);
-void battle_effect_drain(Snes *s);
-bool battle_effect_drain_ready(Snes *s);
-void battle_effect_steal(Snes *s);
-bool battle_effect_steal_ready(Snes *s);
 /* The carry a kind's work hands back: set after the note of what acted on the
  * target, clear after the restoring that shows the actor's HP, the losing of
  * a condition's bit and the kinds that do nothing (whose jump shifts the
  * kind's number, clearing it). */
 bool battle_kind_leaves_carry(uint8_t kind);
-void battle_effect_restore_showing_hp(Snes *s);
-bool battle_effect_restore_showing_hp_ready(Snes *s);
-void battle_effect_hit_repeatedly(Snes *s);
-bool battle_effect_hit_repeatedly_ready(Snes *s);
-void battle_effect_item_restore(Snes *s);
-bool battle_effect_item_restore_ready(Snes *s);
-void battle_effect_item_cure(Snes *s);
-bool battle_effect_item_cure_ready(Snes *s);
-void battle_effect_item_status(Snes *s);
-bool battle_effect_item_status_ready(Snes *s);
-void battle_effect_lose_condition_bit(Snes *s);
-bool battle_effect_lose_condition_bit_ready(Snes *s);
-void battle_note_enemy_tech(Snes *s);
-void battle_note_enemy_attack(Snes *s);
 /* battle/aim.c: whom a tech or an item aims at, and its call to the area
  * search. */
 void battle_aim_action_entry(Snes *s);
 /* The action aimed ($C1:C1DD), from the carry its caller leaves, as C. */
 bool battle_aim_action(GameState *g, Platform *pf, bool carry);
 bool battle_aim_action_ready(Snes *s);
-void battle_search_area(Snes *s);
 /* battle/member_turn.c: a party member's chosen action carried out, its
  * attack, the end of its turn, and the battle's step for a called-off
  * action. */
@@ -295,8 +87,6 @@ void battle_end_member_turn_entry(Snes *s);
 bool battle_end_member_turn(GameState *g);
 bool battle_end_member_turn_ready(Snes *s);
 void battle_member_called_off_step(Snes *s);
-void battle_members_wait_after_tech(Snes *s);
-bool battle_members_wait_after_tech_ready(Snes *s);
 /* battle/party_work.c: a party member's tech, or its attack, worked out, and
  * the item it uses. battle/inventory.c: an item added to the inventory. */
 void battle_work_out_member_tech_entry(Snes *s);
@@ -308,73 +98,14 @@ void battle_use_item_entry(Snes *s);
 bool battle_use_item_ready(Snes *s);
 void battle_add_to_inventory(Snes *s);
 bool battle_add_to_inventory_ready(Snes *s);
-void battle_inventory_holds_entry(Snes *s);
-bool battle_inventory_holds_ready(Snes *s);
-void battle_inventory_take_entry(Snes *s);
-bool battle_inventory_take_ready(Snes *s);
-void battle_gold_covers_entry(Snes *s);
 void battle_give_gold_entry(Snes *s);
-void battle_take_gold_entry(Snes *s);
-void battle_party_request(Snes *s);
-bool battle_party_request_ready(Snes *s);
-void battle_build_item_list(Snes *s);
-void battle_list_item(Snes *s);
-bool battle_list_item_ready(Snes *s);
-void battle_pass_empty_place(Snes *s);
 /* battle/member_stats.c */
-void battle_set_up_member_stats(Snes *s);
-bool battle_set_up_member_stats_ready(Snes *s);
-void battle_apply_stat_boost(Snes *s);
-bool battle_apply_stat_boost_ready(Snes *s);
-void battle_add_affinities(Snes *s);
-bool battle_add_affinities_ready(Snes *s);
-void battle_item_record_place(Snes *s);
-bool battle_item_record_place_ready(Snes *s);
-void battle_copy_equipment_records(Snes *s);
-bool battle_copy_equipment_records_ready(Snes *s);
 /* battle/tech_records.c */
-void battle_set_up_triple_tech(Snes *s);
-bool battle_set_up_triple_tech_ready(Snes *s);
-void battle_set_double_tech_cost(Snes *s);
-bool battle_set_double_tech_cost_ready(Snes *s);
-void battle_set_triple_tech_cost(Snes *s);
-bool battle_set_triple_tech_cost_ready(Snes *s);
-bool battle_set_up_member_techs_ready(Snes *s);
-void battle_set_up_single_techs_entry(Snes *s);
-void battle_set_up_double_techs_entry(Snes *s);
-void battle_blank_tech_records_entry(Snes *s);
 /* battle/fight_entries.c */
 bool battle_start_fight_ready(Snes *s);
 void battle_start_fight_entry(Snes *s);
-void fight_load_demo_party_entry(Snes *s);
-void fight_start_demo_characters_entry(Snes *s);
-bool fight_list_combatants_ready(Snes *s);
-void fight_list_combatants_entry(Snes *s);
 bool fight_load_enemy_ready(Snes *s);
 void fight_load_enemy_entry(Snes *s);
-bool fight_clear_enemy_block_ready(Snes *s);
-void fight_clear_enemy_block_entry(Snes *s);
-void fight_note_enemy_families_entry(Snes *s);
-bool fight_member_in_y_ready(Snes *s);
-void fight_take_member_record_entry(Snes *s);
-bool fight_aylas_fists_ready(Snes *s);
-void fight_aylas_fists_entry(Snes *s);
-bool fight_set_up_affinities_ready(Snes *s);
-void fight_set_up_affinities_entry(Snes *s);
-void fight_note_accessories_entry(Snes *s);
-void fight_note_weapons_entry(Snes *s);
-void fight_clear_timers_entry(Snes *s);
-void fight_set_timer_lengths_entry(Snes *s);
-bool fight_set_first_turns_ready(Snes *s);
-void fight_set_first_turns_entry(Snes *s);
-void fight_apply_accessory_effects_entry(Snes *s);
-bool fight_raise_critical_rate_ready(Snes *s);
-void fight_raise_critical_rate_entry(Snes *s);
-void fight_clear_turn_state_entry(Snes *s);
-void fight_apply_member_bonuses_entry(Snes *s);
-void fight_number_places_entry(Snes *s);
-void fight_ward_off_confusion_entry(Snes *s);
-
 /* battle/scripts.c: the script commands whose operations are C, each at its
  * handler's address */
 bool script_end_ready(Snes *s);
@@ -447,7 +178,6 @@ bool script_flash_off_ready(Snes *s);
 bool script_rotate_colors_ready(Snes *s);
 bool script_blink_ready(Snes *s);
 /* battle/script_walk.c */
-void battle_find_the_way(Snes *s);
 bool script_line_to_coordinates_ready(Snes *s);
 bool script_line_to_the_point_ready(Snes *s);
 bool script_line_to_a_place_ready(Snes *s);
@@ -504,30 +234,7 @@ void battle_script_command_entry(Snes *s);
 void battle_turn_experience_to_gold_entry(Snes *s);
 bool battle_share_experience_ready(Snes *s);
 void battle_share_experience_entry(Snes *s);
-bool rewards_gain_experience_ready(Snes *s);
-void rewards_gain_experience_entry(Snes *s);
-bool rewards_level_up_ready(Snes *s);
-void rewards_level_up_entry(Snes *s);
-bool rewards_reach_level_ready(Snes *s);
-void rewards_reach_level_entry(Snes *s);
-bool rewards_grow_hp_and_mp_ready(Snes *s);
-void rewards_grow_hp_and_mp_entry(Snes *s);
-bool rewards_share_with_reserve_ready(Snes *s);
-void rewards_share_with_reserve_entry(Snes *s);
-bool rewards_learn_techs_ready(Snes *s);
-void rewards_learn_techs_entry(Snes *s);
-void rewards_sort_combination_members_entry(Snes *s);
-bool rewards_count_tech_points_ready(Snes *s);
-void rewards_count_tech_points_entry(Snes *s);
-bool rewards_reach_next_tech_ready(Snes *s);
-void rewards_reach_next_tech_entry(Snes *s);
-bool rewards_learn_single_tech_ready(Snes *s);
-void rewards_learn_single_tech_entry(Snes *s);
-bool rewards_learn_combination_techs_ready(Snes *s);
-void rewards_learn_combination_techs_entry(Snes *s);
 void battle_put_items_back_entry(Snes *s);
-bool battle_return_chosen_item_ready(Snes *s);
-void battle_return_chosen_item_entry(Snes *s);
 void battle_enemy_pose_turn(Snes *s);
 bool battle_enemy_pose_turn_ready(Snes *s);
 void battle_enemy_attack_turn(Snes *s);
@@ -584,65 +291,23 @@ typedef enum {
     TAKES_ACTIONS,       /* the actions the choosing is at */
 } ScriptUse;
 bool battle_script_entry_ready(Snes *s, ScriptUse use, uint8_t command);
-bool battle_enemy_script_ready(Snes *s);
-bool battle_enemy_first_block_ready(Snes *s);
-bool battle_enemy_held_ready(Snes *s);
-bool battle_script_selector_ready(Snes *s);
-bool battle_selector_in_a_ready(Snes *s);
 uint8_t battle_selector_in_a(const Snes *s);
-bool battle_enemy_actions_ready(Snes *s);
 bool battle_enemy_turn_ready(Snes *s);
-bool battle_candidates_ready(Snes *s);
-bool battle_enemy_choosing_ready(Snes *s);
-bool battle_enemies_choose_ready(Snes *s);
 bool battle_search_ready(Snes *s);
-bool battle_reach_test_ready(Snes *s);
-bool battle_combatant_in_work_ready(Snes *s);
 
 /* battle/wait.c: battle/wait.h; battle/message.c: battle/message.h */
 
 /* battle/battlefield.c, menu_window.c, damage.c, reset.c */
-void battle_mark_object_grid(Snes *s);
-void battle_reset_window_frames(Snes *s);
-void battle_clear_damage(Snes *s);
-void battle_clear_numbers(Snes *s);
-void battle_reset_object_state(Snes *s);
-
 /* battle/display.c */
 void battle_setup_display(Snes *s);
-void battle_setup_window_hdma(Snes *s);
-void battle_load_graphics(Snes *s);
-void battle_load_line_arrangement(Snes *s);
-void battle_step_ripple(Snes *s);
 void battle_nmi_alternate(Snes *s);
-void battle_slide_split_in(Snes *s);
-void battle_slide_split_out(Snes *s);
-
 /* battle/frame.c */
-void battle_keep_animations_off_the_cycle_entry(Snes *s);
-
 /* battle/scroll.c */
-void battle_update_scroll_dispatch(Snes *s);
-void battle_update_scroll_tables(Snes *s);
-void battle_update_scroll_tables_bg3_moving(Snes *s);
-void battle_update_scroll_tables_line_wave(Snes *s);
-void battle_update_scroll_tables_finer_line_wave(Snes *s);
-void battle_update_screen_shake(Snes *s);
-
 /* battle/uploads.c */
 void battle_upload_palette(Snes *s);
-void battle_vram_transfer(Snes *s);
-void battle_flush_vram_transfer(Snes *s);
-void battle_upload_alternating_vram(Snes *s);
-void battle_upload_tile_rows(Snes *s);
-void battle_upload_vram(Snes *s);
 void battle_request_window_rows(Snes *s);
 void battle_request_saved_window_rows(Snes *s);
-void battle_request_lower_window_rows(Snes *s);
-
 /* battle/stats.c */
-void battle_update_low_hp_flag(Snes *s);
-void battle_update_status_flags(Snes *s);
 void battle_update_all_combatants_entry(Snes *s);
 /* Every combatant updated for the turn ($C1:B223), as C: false where a
  * member's coming back went no further. */
@@ -650,8 +315,6 @@ bool battle_update_all_combatants(GameState *g);
 void battle_update_combatant(Snes *s);
 
 /* battle/tiles.c */
-void battle_decode_tile_row(Snes *s);
-bool battle_decodes_tile_row(Snes *s);
 
 /* battle/battlefield_change.c */
 void battle_change_battlefield_entry(Snes *s);
@@ -661,22 +324,16 @@ void battle_change_battlefield_entry(Snes *s);
 bool battle_change_battlefield(GameState *g, Platform *pf, uint16_t battlefield);
 bool battle_load_effect_tile_rows(GameState *g, Platform *pf, uint8_t first_row_set, bool second);
 void battle_load_battlefield(Snes *s);
-void battle_fade_old_battlefield_layer(Snes *s);
-void battle_decode_battlefield_tile_set(Snes *s);
-void battle_clear_battlefield_map(Snes *s);
-void battle_build_battlefield_map(Snes *s);
 void battle_load_effect_tile_rows_entry(Snes *s);
 void battle_load_second_effect_tile_rows_entry(Snes *s);
 bool battle_changed_battlefield_fits(Snes *s);
 bool battle_battlefield_fits(Snes *s);
-bool battle_battlefield_map_fits(Snes *s);
 
 /* battle/beaten_enemies.c */
 void battle_see_to_the_beaten_enemies_entry(Snes *s);
 void battle_see_off_the_beaten_enemies(Snes *s);
 void battle_see_off_an_enemy(Snes *s);
 void battle_dissolve_an_enemy(Snes *s);
-void battle_dissolve_a_step(Snes *s);
 void battle_change_battlefield_as_an_enemy_leaves(Snes *s);
 bool battle_seeing_off_the_beaten(Snes *s);
 bool battle_seeing_off(Snes *s);
@@ -684,12 +341,6 @@ bool battle_dissolving(Snes *s);
 
 /* battle/battlefield_restore.c */
 void battle_put_the_battlefield_back_entry(Snes *s);
-void battle_take_the_start_settings_long(Snes *s);
-void battle_take_back_the_start_screen(Snes *s);
-void battle_fade_battlefield_layer_back_in(Snes *s);
-void battle_has_a_layer_of_its_own(Snes *s);
-void battle_restore_kept_colors_entry(Snes *s);
-
 /* battle/closing.c */
 void battle_close_the_display(Snes *s);
 void battle_open_the_window(Snes *s);
@@ -700,10 +351,7 @@ void battle_let_the_screen_settle(Snes *s);
 void battle_change_to_the_battlefield(Snes *s);
 
 /* battle/animation.c */
-void battle_step_combatant_animations(Snes *s);
 bool battle_steps_animations(Snes *s);
-void battle_choose_status_pose(Snes *s);
-bool battle_poses_combatant(Snes *s);
 void battle_step_enemy_effects(Snes *s);
 
 /* battle/rewards_messages.c */
@@ -715,14 +363,6 @@ bool battle_experience_can_be_shared(const GameState *g);
 bool battle_rewards_can_be_shown(Snes *s);
 
 /* battle/battle_end.c: the battle's end's bookkeeping */
-void battle_clear_party_statuses_entry(Snes *s);
-void battle_stand_party_up_entry(Snes *s);
-void battle_keep_party_records_entry(Snes *s);
-void battle_take_enemies_away_entry(Snes *s);
-void battle_keep_standing_enemies_entry(Snes *s);
-void battle_count_enemies_out_entry(Snes *s);
-void battle_note_beaten_enemies_entry(Snes *s);
-
 /* battle/party_turns.c */
 void battle_member_status_turn_entry(Snes *s);
 bool battle_member_status_turn_ready(Snes *s);
@@ -733,33 +373,11 @@ bool battle_party_counters_ready(Snes *s);
 void battle_call_off_waiting_combination_entry(Snes *s);
 void battle_call_off_waiting_member_entry(Snes *s);
 bool battle_call_off_waiting_member_ready(Snes *s);
-void battle_call_off_combination_entry(Snes *s);
 void battle_see_to_knocked_out_enemies_entry(Snes *s);
 bool battle_see_to_knocked_out_enemies_ready(Snes *s);
-void battle_demo_party_ready_entry(Snes *s);
-void battle_demo_next_turn_entry(Snes *s);
 void battle_party_stands_down_entry(Snes *s);
 
 /* battle/enemy_movement.c: each movement's routine, $C1:3772-$C1:4021 */
-void battle_enemy_waits_for_target(Snes *s);
-bool battle_enemy_waits_for_target_ready(Snes *s);
-void battle_enemy_approaches(Snes *s);
-bool battle_enemy_approaches_ready(Snes *s);
-void battle_enemy_charges(Snes *s);
-bool battle_enemy_charges_ready(Snes *s);
-void battle_enemy_lines_up(Snes *s);
-bool battle_enemy_lines_up_ready(Snes *s);
-void battle_enemy_keeps_distance(Snes *s);
-bool battle_enemy_keeps_distance_ready(Snes *s);
-void battle_enemy_circles(Snes *s);
-bool battle_enemy_circles_ready(Snes *s);
-void battle_enemy_weaves(Snes *s);
-bool battle_enemy_weaves_ready(Snes *s);
-void battle_enemy_marches(Snes *s);
-bool battle_enemy_marches_ready(Snes *s);
-void battle_enemy_makes_for_the_middle(Snes *s);
-bool battle_enemy_makes_for_the_middle_ready(Snes *s);
-
 /* battle/timers.c */
 void battle_tick_timers(Snes *s);
 void battle_dispatch_expired_timers(Snes *s);
@@ -807,13 +425,9 @@ void battle_play_out_the_defeat_end(Snes *s);
 void battle_set_up_after_the_graphics(Snes *s);
 bool battle_combatants_graphics_known(Snes *s);
 void battle_start_the_frame_work(GameState *g);
-void battle_start_the_frame_work_entry(Snes *s);
 void battle_set_the_screen_up_for_the_field(Snes *s);
 
 /* battle/effect_animation.c */
-void battle_animate_effects(Snes *s);
-void battle_take_effect_frame(Snes *s);
-bool battle_names_stepping_effect(Snes *s);
 
 /* battle/effect_paths.c */
 void battle_step_effect_slots_entry(Snes *s);
@@ -823,36 +437,10 @@ void battle_step_effect_slots_entry(Snes *s);
 void battle_step_effect_slots(GameState *g);
 bool battle_effect_paths_known(const GameState *g);
 bool battle_objects_drawn(GameState *g);
-void battle_step_orbits(Snes *s);
 void battle_place_formation_entry(Snes *s);
 void battle_place_formation(GameState *g);
-void battle_points_are_close(Snes *s);
-void battle_sine_scale(Snes *s);
-void battle_multiply_scale(Snes *s);
-void battle_chase_angle(Snes *s);
-void battle_effect_combatant_line(Snes *s);
-void battle_effect_combatant_jump(Snes *s);
-void battle_effect_combatant_spiral(Snes *s);
-void battle_effect_combatant_orbit(Snes *s);
-void battle_effect_combatant_jump_to_target(Snes *s);
-void battle_effect_combatant_orbit_flat(Snes *s);
-void battle_effect_flicker(Snes *s);
-void battle_effect_flicker_step(Snes *s);
-void battle_effect_combatant_chase(Snes *s);
-void battle_effect_anchor_line(Snes *s);
-void battle_effect_anchor_jump(Snes *s);
-void battle_effect_anchor_spiral(Snes *s);
-void battle_effect_anchor_orbit(Snes *s);
-void battle_effect_anchor_jump_to_target(Snes *s);
-void battle_effect_anchor_orbit_facing(Snes *s);
-void battle_effect_anchor_chase(Snes *s);
-
 /* battle/objects.c */
-void battle_update_object_bounds(Snes *s);
 void battle_update_all_object_bounds(Snes *s);
-bool battle_names_bounds_object(Snes *s);
-void battle_find_due_animation(Snes *s);
-bool battle_scheduler_in_place(Snes *s);
 void battle_update_animation_positions_entry(Snes *s);
 /* The places the scripts follow worked out ($C1:4212), as C. */
 bool battle_update_animation_positions(GameState *g, Platform *pf);
@@ -861,8 +449,6 @@ bool battle_update_animation_positions(GameState *g, Platform *pf);
 void battle_frame_dispatch(Snes *s);
 void battle_frame_work(Snes *s);
 void battle_step_window_slide(Snes *s);
-void battle_step_gradient_phase(Snes *s);
-void battle_clear_oam_buffer(Snes *s);
 void battle_frame_update(Snes *s);
 void battle_frame_wait_tail(Snes *s);
 void battle_scroll_map_layers(Snes *s);
@@ -872,8 +458,6 @@ enum { BATTLE_SCROLL_MAP_LAYERS_ENTRY = 0xCD0C89 };
 
 /* battle/nmi.c */
 void battle_nmi(Snes *s);
-void battle_restore_math_operands(Snes *s);
-void battle_apply_alternate_frame(Snes *s);
 void battle_irq(Snes *s);
 
 /* battle/scripts.c */
@@ -885,24 +469,7 @@ bool battle_script_channel_in_y(Snes *s);
 
 /* battle/draw_objects.c */
 void battle_draw_objects(Snes *s);
-void battle_draw_shadow(Snes *s);
-void battle_draw_afterimages(Snes *s);
-void battle_draw_combatant(Snes *s);
-void battle_draw_afterimage(Snes *s);
-void battle_copy_frame_tiles(Snes *s);
-void battle_draw_in_front(Snes *s);
-void battle_draw_marker(Snes *s);
-void battle_draw_numbers(Snes *s);
-void battle_draw_behind(Snes *s);
-void battle_draw_effect(Snes *s);
 bool battle_draw_pass_ready(Snes *s);
-bool battle_drawing_combatant(Snes *s);
-bool battle_drawing_combatant_frame(Snes *s);
-bool battle_drawing_afterimage_frame(Snes *s);
-bool battle_drawing_combatant_in_x(Snes *s);
-bool battle_drawing_combatant_x_and_cell(Snes *s);
-bool battle_drawing_effect_record(Snes *s);
-bool battle_tile_copy_in_buffers(Snes *s);
 
 /* battle/object_motion.c */
 void battle_raise_numbers_entry(Snes *s);
@@ -917,11 +484,6 @@ void battle_cycle_party_colors_entry(Snes *s);
 void battle_cycle_party_colors(GameState *g);
 
 /* battle/sprites.c */
-void battle_build_object_graphics(Snes *s);
-void battle_build_object_graphics_checked(Snes *s);
-bool battle_builds_known_object(Snes *s);
-void battle_step_object_palettes(Snes *s);
-void battle_index_effect_animations(Snes *s);
 void battle_build_bitmap_shapes_entry(Snes *s);
 /* Up to four of the bitmap shapes, a frame on ($C1:4943), as C. */
 bool battle_build_bitmap_shapes(GameState *g, Platform *pf);
@@ -929,16 +491,10 @@ bool battle_build_bitmap_shapes(GameState *g, Platform *pf);
 /* battle/window.c, battle/status.c, battle/digits.c, battle/menu_window.c,
  * battle/numbers.c: the windows and the numbers, and the guard they run under */
 bool battle_window_ready(Snes *s);
-bool battle_window_member_ready(Snes *s);
 bool battle_window_ready_a_clear(Snes *s);
 bool battle_menu_window_ready(Snes *s);
 bool battle_menu_window_ready_a_clear(Snes *s);
 void battle_draw_window(Snes *s);
-void battle_draw_gauge(Snes *s);
-void battle_draw_party_status(Snes *s);
-void battle_number_to_digits(Snes *s);
-void battle_number_to_2_digits(Snes *s);
-void battle_blank_leading_zeros(Snes *s);
 void battle_draw_menu_window(Snes *s);
 void battle_place_menu_cursors(Snes *s);
 void battle_update_combo_members_entry(Snes *s);
@@ -949,36 +505,19 @@ bool battle_update_combo_members(GameState *g, Platform *pf);
  * menu_bridge.c: the player choosing (battle/choosing.h). */
 void battle_take_menu_input(Snes *s);
 bool battle_take_menu_input_ready(Snes *s);
-void battle_frame_member_choosing_entry(Snes *s);
-void battle_note_menu_stat_block_entry(Snes *s);
-bool battle_note_menu_stat_block_ready(Snes *s);
-void battle_lay_out_tech_list_entry(Snes *s);
-bool battle_tech_list_ready(Snes *s);
-void battle_mark_tech_rows_entry(Snes *s);
-bool battle_tech_rows_ready(Snes *s);
-void battle_lay_out_item_list_entry(Snes *s);
-bool battle_item_list_ready(Snes *s);
-void battle_convert_name(Snes *s);
-void battle_choose_targets_entry(Snes *s);
-bool battle_choose_targets_ready(Snes *s);
 
 /* battle/action_showing.c, battle/action_animation.c, battle/frame_step.c:
  * an action shown, its animation loaded, and the battle's own frame */
 void battle_show_action_entry(Snes *s);
 bool battle_show_action_ready(Snes *s);
-void battle_forget_poses_entry(Snes *s);
-void battle_list_the_showing_entry(Snes *s);
-void battle_find_the_members_falling_entry(Snes *s);
 void battle_load_action_animation_entry(Snes *s);
 /* The action's animation loaded ($C1:4310), as C. */
 bool battle_load_action_animation(GameState *g, Platform *pf);
 void battle_load_attack_animation(Snes *s);
 void battle_load_tech_animation(Snes *s);
 void battle_load_item_animation(Snes *s);
-void battle_attack_up_close_entry(Snes *s);
 bool battle_animation_loading_ready(Snes *s);
 bool battle_attack_animation_ready(Snes *s);
-bool battle_attack_up_close_ready(Snes *s);
 void battle_frame_step(Snes *s);
 void battle_menu_turn_long(Snes *s);
 void battle_wait_step(Snes *s);
@@ -986,20 +525,15 @@ void battle_wait_step(Snes *s);
 void battle_run_a_step(Snes *s);
 void battle_step_returns(Snes *s);
 bool battle_step_is_known(Snes *s);
-void battle_next_member_takes_the_menu_entry(Snes *s);
-bool battle_menu_queue_ready(Snes *s);
 /* The battle's steps 1 and 2 (battle/menu_line.c): a member's turn comes and
  * it joins the line for the menu; a member's action is called off. */
 void battle_turn_comes_step(Snes *s);
 /* The party's poses (battle/party_poses.c): as a whole, a frame's step,
  * and the battle's steps 8 and 9, the victory and the defeat, that end in
  * them; the poses from a routine that goes on into them. */
-void battle_strike_the_poses_entry(Snes *s);
-void battle_step_the_poses_entry(Snes *s);
 void battle_victory_step(Snes *s);
 void battle_defeat_step(Snes *s);
 bool battle_poses_ready(Snes *s);
-bool battle_poses_step_ready(Snes *s);
 bool battle_victory_ready(Snes *s);
 bool battle_strike_the_poses(Snes *s);
 bool battle_strike_the_poses_as_their_own(Snes *s);
@@ -1013,26 +547,13 @@ bool battle_called_off_ready(Snes *s);
 bool battle_frame_step_ready(Snes *s);
 
 /* battle/pose_looks.c: what a pose shows, and the poses' round */
-void battle_go_round_the_poses_entry(Snes *s);
-bool battle_poses_round_ready(Snes *s);
-void battle_show_pose_look_entry(Snes *s);
-bool battle_pose_look_ready(Snes *s);
 
 /* battle/damage.c: the hits landing, and a felled enemy's spoils */
-void battle_apply_damage_entry(Snes *s);
-void battle_drop_missed_targets_entry(Snes *s);
-void battle_take_the_spoils(Snes *s);
-bool battle_spoils_ready(Snes *s);
 
 /* battle/arith.c, battle/buttons.c */
-void battle_multiply_8x8(Snes *s);
-void battle_multiply_8x16(Snes *s);
-void battle_divide(Snes *s);
 void battle_update_button_repeat_entry(Snes *s);
 /* The controller's held buttons turned into the menus', with their repeat
  * ($CD:0340). */
 void battle_update_button_repeat(GameState *g);
-void battle_multiply_16x16(Snes *s);
-bool battle_divide_is_exact(Snes *s);
 
 #endif

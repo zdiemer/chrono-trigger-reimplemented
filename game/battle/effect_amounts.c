@@ -7,6 +7,7 @@
  * made is divided whole. Where a leftover moves a result the game shows, the
  * port keeps it and says so (the evasion's level bonus, the defence's
  * quarters, formula 8). */
+#include "charge.h"
 #include "battle/effect_parts.h"
 
 #include "battle/combatant.h"
@@ -81,10 +82,6 @@ enum { ACTOR_NUMBER_PLACE_CELL = 0x10 };
 
 /* A record made after a number's place is found is made with the carry of
  * the place's add, which the multiply leaves in its cell (scaffolding). */
-static void leave_number_place_carry(GameState *g, uint8_t place, uint8_t slot)
-{
-    battle_leave_multiply_carry(g, place < (uint8_t)(slot * ENTRY_BYTES));
-}
 
 // $C1:E89F
 uint8_t effect_target_number(GameState *g)
@@ -98,7 +95,7 @@ uint8_t effect_target_number(GameState *g)
 static uint8_t actor_number_place(GameState *g)
 {
     uint8_t place = number_place(g, actor(g), true);
-    ORIGINAL_EFFECT(battle_leave_word(g, ACTOR_NUMBER_PLACE_CELL, place));
+    charge_machine_accesses(g, 2);
     return place;
 }
 
@@ -145,12 +142,12 @@ enum { MISSED_BY_ATTACKER = 0x80, DODGED = 0x40 };
 void effect_missed(GameState *g, uint8_t misses, bool dodged)
 {
     uint8_t mark = (uint8_t)(misses & (dodged ? DODGED : MISSED_BY_ATTACKER));
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_3, mark));
+    charge_machine_accesses(g, 1);
     uint8_t place = effect_target_number(g);
     set_number_kind(g, place, NUMBER_MISS);
     set_number_value(g, place, 0);
     effect_record_damage(g, effect_target(g), DAMAGE_MISSED);
-    ORIGINAL_EFFECT(leave_number_place_carry(g, place, effect_target(g)));
+    charge_machine_accesses(g, 2);
     if (mark)
         set_battle_action_extra(g, battle_action_extra(g) | ACTION_MISSED);
 }
@@ -166,7 +163,7 @@ static void status_amount(GameState *g, uint8_t slot, uint16_t amount, uint8_t n
     uint8_t place = effect_target_number(g);
     set_effect_number(g, place, amount, number);
     effect_record_damage(g, slot, marks);
-    ORIGINAL_EFFECT(leave_number_place_carry(g, place, slot));
+    charge_machine_accesses(g, 1);
 }
 
 void effect_show_status_damage(GameState *g, uint8_t slot, uint16_t damage)
@@ -220,7 +217,7 @@ static uint16_t restoration(GameState *g, uint8_t power, uint16_t base, uint8_t 
 static void restored(GameState *g, uint8_t slot, uint16_t amount, uint8_t marks, uint8_t number)
 {
     keep_amount_worked(g, amount);
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x04, number));
+    charge_machine_accesses(g, 1);
     set_battle_effect_amount(g, amount);
     effect_record_damage(g, slot, marks);
     set_effect_number(g, effect_target_number(g), amount, number);
@@ -258,7 +255,7 @@ void effect_drain(GameState *g, Drain what, uint8_t share)
 {
     uint16_t most = effect_target_stat_word(g, (uint16_t)(what + MOST_OFFSET));
     uint16_t base = effect_over(g, effect_times(g, most, share), 0x14).quotient;
-    ORIGINAL_EFFECT(leave_working_word(g, base));
+    charge_machine_accesses(g, 2);
     uint8_t limit = (uint8_t)(effect_over(g, base, 0x0A).quotient + 3);
     uint8_t drawn = battle_random(g, 0, limit);
     uint16_t amount = (uint16_t)(drawn + base);
@@ -281,7 +278,7 @@ void effect_drain(GameState *g, Drain what, uint8_t share)
     set_battle_effect_amount(g, amount);
     effect_record_damage(g, effect_target(g), what == DRAIN_HP ? DAMAGE_PLAIN : DAMAGE_TO_MP);
     /* the last record is made with the carry of the compare before it, set */
-    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, true));
+    charge_machine_accesses(g, 1);
     set_number_kind_word(g, loses, what == DRAIN_HP ? NUMBER_DAMAGE : NUMBER_MP_DAMAGE);
     set_number_kind_word(g, gains, what == DRAIN_HP ? NUMBER_HP_RESTORED : NUMBER_MP_RESTORED);
     effect_wake_target(g);
@@ -327,9 +324,9 @@ void effect_wake_target(GameState *g)
 bool effect_turned_away(GameState *g, uint8_t kinds)
 {
     uint8_t kind = effect_target_stat(g, STAT_KIND);
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_2, kind));
+    charge_machine_accesses(g, 2);
     bool away = effect_target(g) >= BATTLE_FIRST_ENEMY && (kinds & kind);
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_1, away ? 1 : 0));
+    charge_machine_accesses(g, 2);
     return away;
 }
 
@@ -394,14 +391,14 @@ static uint16_t evasion_of(GameState *g, uint16_t evasion)
                 evasion = twentieths_and_one(g, (uint8_t)evasion, 0x0A);
         }
     }
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_2, evasion));
+    charge_machine_accesses(g, 2);
     uint8_t own = effect_actor_stat(g, STAT_LEVEL), theirs = effect_target_stat(g, STAT_LEVEL);
     if (own < theirs)
         return evasion;
     uint8_t bonus = level_bonus(g, (uint8_t)(own - theirs));
     if (bonus + (uint8_t)evasion > 0xFF) {
         evasion = (uint16_t)((evasion & 0xFF00) | 0xFF);
-        ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_2, 0xFF));
+        charge_machine_accesses(g, 1);
     }
     return evasion;
 }
@@ -415,23 +412,23 @@ enum { SURE_AIM = 0x63, SURE_EVASION = 0x64, PERCENT = 100 };
 bool effect_lands(GameState *g, uint8_t aim_stat, uint8_t evasion_stat)
 {
     uint8_t aim = effect_actor_stat(g, aim_stat), evade = effect_target_stat(g, evasion_stat);
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_1, aim));
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_2, evade));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
     uint16_t aimed = aim_of(g, aim);
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_1, aimed));
+    charge_machine_accesses(g, 2);
     uint16_t evasion = evasion_of(g, evade);
     uint8_t a = (uint8_t)aimed, e = (uint8_t)evasion;
     if (a >= e) {
         a = SURE_AIM;
         e = SURE_EVASION;
-        ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_1, a));
-        ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_2, e));
+        charge_machine_accesses(g, 1);
+        charge_machine_accesses(g, 1);
     }
     uint16_t chance = effect_over(g, effect_times(g, a, PERCENT), e).quotient;
     uint8_t drawn = battle_random(g, 0, PERCENT);
     bool lands = (uint8_t)chance >= drawn;
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_1, (uint16_t)((chance & 0xFF00) | (lands ? 1 : 0))));
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_2, drawn));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 1);
     set_battle_effect_hit_test(g, 0);
     return lands;
 }
@@ -447,7 +444,7 @@ static uint8_t about_three_tenths(GameState *g, uint8_t stat)
 {
     battle_keep_word(g, BATTLE_NUMBER_TESTED, stat);
     uint8_t share = (uint8_t)((stat * 77u) >> 8);
-    ORIGINAL_EFFECT(leave_working_word(g, share));
+    charge_machine_accesses(g, 2);
     return share;
 }
 
@@ -455,7 +452,7 @@ static uint8_t about_a_fifth(GameState *g, uint8_t stat)
 {
     battle_keep_word(g, BATTLE_NUMBER_TESTED, (uint16_t)(stat >> 2));
     uint8_t share = (uint8_t)((stat * 205u) >> 10);
-    ORIGINAL_EFFECT(leave_working_word(g, share));
+    charge_machine_accesses(g, 2);
     return share;
 }
 
@@ -463,7 +460,7 @@ uint16_t effect_about_a_tenth(GameState *g, uint16_t v)
 {
     battle_keep_word(g, BATTLE_NUMBER_TESTED, (uint16_t)(v >> 10));
     uint16_t share = (uint16_t)((v >> 3) - (v >> 6) - (v >> 7) - (v >> 10));
-    ORIGINAL_EFFECT(leave_working_word(g, share));
+    charge_machine_accesses(g, 2);
     return share;
 }
 
@@ -493,9 +490,9 @@ static uint16_t formula(GameState *g, uint8_t kind, uint8_t power)
         uint16_t power_part = weighted(g, STAT_POWER, 0x0C);
         battle_keep_stat_offset_word(g, power_part);
         uint16_t sum = (uint16_t)(weighted(g, STAT_WEAPON_ATTACK, 5) + power_part);
-        ORIGINAL_EFFECT(leave_working_word(g, sum));
+        charge_machine_accesses(g, 2);
         uint16_t damage = powered(g, power, sum, 0x12);
-        ORIGINAL_EFFECT(leave_working_word(g, damage));
+        charge_machine_accesses(g, 2);
         uint8_t third = (uint8_t)effect_over(g, effect_actor_stat(g, STAT_POWER), 3).quotient;
         draw_variance(g, third, 1);
         battle_set_wide_math_quotient(g, damage);
@@ -506,7 +503,7 @@ static uint16_t formula(GameState *g, uint8_t kind, uint8_t power)
         uint16_t hit_part = weighted(g, STAT_HIT, 8);
         battle_keep_stat_offset_word(g, hit_part);
         uint16_t sum = (uint16_t)(weighted(g, STAT_WEAPON_ATTACK, 8) + hit_part);
-        ORIGINAL_EFFECT(leave_working_word(g, sum));
+        charge_machine_accesses(g, 2);
         uint16_t damage = powered(g, power, sum, 0x12);
         draw_variance(g, about_three_tenths(g, effect_actor_stat(g, STAT_HIT)), 1);
         return damage;
@@ -536,9 +533,9 @@ static uint16_t formula(GameState *g, uint8_t kind, uint8_t power)
         uint8_t level = effect_actor_stat(g, STAT_LEVEL);
         uint16_t fifth = effect_over(g, effect_times(g, level, level), 5).quotient;
         uint16_t sum = (uint16_t)(fifth + power_part);
-        ORIGINAL_EFFECT(leave_working_word(g, sum));
+        charge_machine_accesses(g, 2);
         uint16_t damage = powered(g, power, sum, 0x14);
-        ORIGINAL_EFFECT(leave_working_word(g, damage));
+        charge_machine_accesses(g, 2);
         uint8_t third = (uint8_t)effect_over(g, level, 3).quotient;
         draw_variance(g, third, 1);
         battle_set_wide_math_quotient(g, damage);
@@ -559,7 +556,7 @@ static uint16_t formula(GameState *g, uint8_t kind, uint8_t power)
         uint16_t other = (uint16_t)(combatant_stat_byte_at_block(g, battle_effect_other_block(g), STAT_WEAPON_ATTACK)
                                     | combatant_stat_byte_at_block(g, battle_effect_other_block(g), STAT_WEAPON_ATTACK + 1) << 8);
         uint16_t sum = (uint16_t)((strength << 1) + other);
-        ORIGINAL_EFFECT(leave_working_word(g, sum));
+        charge_machine_accesses(g, 2);
         uint16_t damage = powered(g, power, sum, 0x12);
         draw_variance(g, about_three_tenths(g, strength), 1);
         return damage;
@@ -571,7 +568,7 @@ static uint16_t formula(GameState *g, uint8_t kind, uint8_t power)
         unsigned which = elements & 0x80 ? 0 : elements & 0x40 ? 1 : elements & 0x20 ? 2 : 3;
         uint16_t place = (uint16_t)(effect_actor_stat_word(g, (uint16_t)(STAT_ELEMENT_AFFINITY + which)) + battle_effect_other_block(g));
         uint16_t attack = (uint16_t)((place & 0xFF00) | combatant_stat_byte_at_block(g, place, STAT_WEAPON_ATTACK));
-        ORIGINAL_EFFECT(leave_working_word(g, attack));
+        charge_machine_accesses(g, 2);
         uint16_t damage = powered(g, power, attack, 0x12);
         draw_variance(g, about_three_tenths(g, effect_actor_stat(g, STAT_POWER)), 1);
         return damage;
@@ -607,7 +604,7 @@ static uint16_t damage_worked_out(GameState *g, uint8_t kind, uint8_t power)
         if (own & STATUS_CONFUSED)
             damage = effect_over(g, damage, 4).quotient;
     }
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_1, damage));
+    charge_machine_accesses(g, 2);
     battle_keep_stat_offset_word(g, 0);
     return damage;
 }
@@ -626,7 +623,7 @@ static uint8_t defence_of(GameState *g, uint8_t named, uint8_t quarters)
     } else if (named == DEFENCE_STAT_TIMES) {
         defence = effect_over(g, effect_times(g, effect_target_stat(g, named), 5), 2).quotient;
     }
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_2, defence));
+    charge_machine_accesses(g, 2);
     uint8_t statuses = effect_target_stat(g, STAT_STATUS_1);
     effect_leave_last_worked_byte(g, statuses);
     if (statuses & (STATUS_STOP | STATUS_ASLEEP)) {
@@ -649,14 +646,14 @@ static uint8_t defence_of(GameState *g, uint8_t named, uint8_t quarters)
     }
     if ((defence & 0x8000) || defence >= 0xFF)
         defence = 0xFF;
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_2, defence));
+    charge_machine_accesses(g, 2);
     return (uint8_t)defence;
 }
 
 HitAmounts effect_hit_amounts(GameState *g, const EffectRecord *e)
 {
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_1, e->damage.formula));
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_2, e->damage.defence_stat));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
     uint16_t damage = damage_worked_out(g, e->damage.formula, e->power);
     uint8_t defence = defence_of(g, e->damage.defence_stat, battle_effect_flags(g, 1) & EFFECT_DEFENCE_QUARTERS);
     return (HitAmounts){ damage, defence };
@@ -736,7 +733,7 @@ void effect_apply_hit(GameState *g, Platform *pf, HitAmounts hit)
     uint8_t variance = battle_damage_variance(g);
     uint16_t amount = (uint16_t)(share + variance);
     set_battle_effect_amount(g, amount ? amount : 1);
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_1, 0));
+    charge_machine_accesses(g, 2);
     effect_apply_modifiers(g, pf);
     uint8_t guards = (uint8_t)(effect_target_stat(g, STAT_STATUS_4) | effect_target_stat(g, STAT_KEPT_STATUS_4));
     effect_leave_last_worked_byte(g, guards);
@@ -748,7 +745,7 @@ void effect_apply_hit(GameState *g, Platform *pf, HitAmounts hit)
     if (battle_action_state(g) & ABSORBED) {
         effect_record_damage(g, effect_listed_target(g), DAMAGE_HEALS);
         /* made with the carry of the compare with 9999 */
-        ORIGINAL_EFFECT(battle_leave_multiply_carry(g, most));
+        charge_machine_accesses(g, 1);
         set_number_kind(g, place, NUMBER_HP_RESTORED);
         set_battle_action_state(g, battle_action_state(g) & (uint8_t)~ABSORBED);
         set_battle_effect_amount(g, (uint16_t)-battle_effect_amount(g));

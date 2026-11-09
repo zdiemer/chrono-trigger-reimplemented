@@ -5,9 +5,8 @@
  * end on the main thread, its frames paced by its own vblank and line
  * handlers, which the program's table sends the interrupts to. Each is the
  * same sequence the machine's entries run, with its calls on the battle's
- * other routines made as C; where one is still only the machine's, or its
- * guard turns the state away, the program goes no further there
- * (program_needs_the_machine). */
+ * other routines made as C; a broken state contract stops the program there
+ * (program_breaks_a_contract). */
 #ifndef CT_GAME_BATTLE_PROGRAM_H
 #define CT_GAME_BATTLE_PROGRAM_H
 
@@ -28,8 +27,7 @@ void battle_vblank(GameState *g, Platform *pf);
 void battle_line(GameState *g, Platform *pf);
 void battle_closing_vblank(GameState *g, Platform *pf);
 
-/* The program going no further at `routine`, which only the machine runs
- * yet or whose guard turns the state away: false, for the caller to pass on. */
-bool battle_needs_the_machine(GameState *g, uint32_t routine, const char *what);
+/* Report a broken state contract: false, for the caller to pass on. */
+bool battle_contract_broken(GameState *g, uint32_t routine, const char *what);
 
 #endif

@@ -1,5 +1,9 @@
-/* The guards the battle's entries run under, and the call to the original's
- * code the wrappers and bridges share (battle/bridge.h). */
+#include "field/machine_forms.h"
+#include "field/sounds.h"
+#include "field/bridge.h"
+#include "core/program.h"
+#include "battle/machine_forms.h"
+/* Checked battle handoffs and the legacy driver's calling conventions. */
 #include "battle/frame.h"
 #include "charge.h"
 #include "battle/bridge.h"
@@ -9,7 +13,6 @@
 #include "battle/wait.h"
 #include "battle/entries.h"
 #include "core/machine_forms.h"
-#include "original_effects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/native.h"
@@ -24,6 +27,46 @@ static bool binary_m8_x16(const Snes *s) { return !s->cpu.e && m_m8(s) && !m_x8(
 static bool came_back(const Snes *s, uint16_t page, uint8_t bank)
 {
     return binary_m8_x16(s) && m_direct_page(s) == page && data_bank(s) == bank;
+}
+
+bool battle_field_music_on_the_machine(Snes *s, uint32_t site, bool restore)
+{
+    uint32_t routine = restore ? FIELD_MUSIC_BACK_ENTRY : FIELD_BATTLE_SONG_ENTRY;
+    m_push8(s, (uint8_t)(site >> 16));
+    m_push16(s, (uint16_t)(site + BATTLE_JSL_SIZE - 1));
+    m_jump_to(s, routine);
+    /* Both former rows required native mode, M=8 and X=16, with no
+     * decimal, page, bank or instruction-image restriction. */
+    if (s->cpu.e || (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M) {
+        program_breaks_a_contract(state_of(s), routine, "field music outside its contract");
+        m_stop_at(s, routine, 0);
+        return false;
+    }
+    m_push8(s, s->cpu.db);
+    m_push16(s, s->cpu.d);
+    s->cpu.a = FIELD_PAGE;
+    s->cpu.d = FIELD_PAGE;
+    s->cpu.db = 0;
+    if (restore) {
+        TIMED_AS(state_of(s), routine, field_bring_the_music_back(state_of(s), m_platform(s)));
+        /* The caller restores its own context after the original's crossed
+         * pulls; preserve that continuation for the legacy driver. */
+        s->cpu.db = m_pull8(s);
+        s->cpu.d = m_pull16(s);
+    } else {
+        TIMED_AS(state_of(s), routine, field_start_the_battle_song(state_of(s), m_platform(s)));
+        s->cpu.d = m_pull16(s);
+        s->cpu.db = m_pull8(s);
+    }
+    m_rtl(s);
+    return true;
+}
+
+void battle_refuse_long_call(Snes *s, uint32_t site, uint32_t routine)
+{
+    m_push8(s, (uint8_t)(site >> 16));
+    m_push16(s, (uint16_t)(site + BATTLE_JSL_SIZE - 1));
+    m_stop_at(s, routine, 0);
 }
 
 bool battle_back(Snes *s, uint32_t returns_to, uint16_t page, uint8_t bank)
@@ -51,7 +94,7 @@ bool battle_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
 }
 
 /* The timing service's named battle waits, called with their original
- * frames and full registry contracts while the battle is still gated. */
+ * frames and complete contracts in the legacy driver. */
 static void (*frame_wait_entry(uint32_t routine))(Snes *)
 {
     switch (routine) {
@@ -105,14 +148,13 @@ bool battle_send_and_wait(Snes *s, uint32_t site, uint32_t from, uint16_t vram, 
 
 /* For the original's code: its wait for a line keeps the line in the first
  * of the battle's scratch cells. */
-static void leave_the_line(GameState *g, uint8_t line) { set_battle_scratch(g, 0, line); }
 
 bool battle_wait_line(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint8_t line)
 {
     uint16_t page = m_direct_page(s);
     uint8_t bank = data_bank(s);
     tm_wait_line(m_platform(s), PF_CALL_DC(site, routine, dont_care), line);
-    ORIGINAL_EFFECT(leave_the_line(state_of(s), line));
+    charge_machine_accesses(state_of(s), 1);
     return battle_back(s, site + BATTLE_JSR_SIZE, page, bank);
 }
 
@@ -140,22 +182,16 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     s->cpu.pc = (uint16_t)routine;
     if (replaces_call_out)
         charge_settle(state_of(s));
-    /* the sibling runs as C only where the runtime would run it there, its
-     * guard and preconditions holding; otherwise the call is a real one, and
-     * the runtime runs whatever the registry has for the state it meets */
+    /* Check the sibling at its constructed call frame, preserving the
+     * original entry and frame if its contract is broken. */
     if (native_call_stop)
         native_call_stop(site, routine, dont_care);
     const NativeEntry *e = native_continuation_entry_at(s, routine);
-    bool retired = (!e || e->fn != entry) && (core_machine_form_takes(s, entry) || menu_machine_form_takes(s, routine, entry));
+    bool retired = (!e || e->fn != entry) && (core_machine_form_takes(s, entry) || menu_machine_form_takes(s, routine, entry) || battle_machine_form_takes(s, routine, entry) || field_machine_form_takes(s, entry));
     if ((!e || e->fn != entry) && !retired) {
-        if (replaces_call_out) {
-            m_stop_at(s, routine, dont_care);
-            return false;
-        }
-        /* a real call, which goes on only on the page it was made on: one
-         * that comes back on another stops at its return */
-        s->cpu.s = stack;
-        return long_call ? battle_call_long(s, site, routine, dont_care) : battle_call(s, site, routine, dont_care);
+        /* Keep the constructed call at its original entry on refusal. */
+        m_stop_at(s, routine, dont_care);
+        return false;
     }
     TIMED_AS(state_of(s), routine, entry(s));
     bool returned = s->cpu.s == stack && s->cpu.pb == (uint8_t)(returns_to >> 16) && s->cpu.pc == (uint16_t)returns_to;
@@ -176,7 +212,7 @@ void battle_continue(Snes *s, uint32_t routine, void (*entry)(Snes *), uint16_t 
     m_jump_to(s, routine);
     native_sync_boundary(s);
     const NativeEntry *e = native_continuation_entry_at(s, routine);
-    if (!e || e->fn != entry) {
+    if ((!e || e->fn != entry) && !battle_machine_form_takes(s, routine, entry)) {
         m_stop_at(s, routine, dont_care);
         return;
     }
@@ -322,6 +358,7 @@ bool battle_sprite_page_ready(Snes *s) { return battle_sprite_page(s) && a_high_
 bool battle_sprite_bank_ready(Snes *s) { return data_bank(s) == BATTLE_DATA_BANK && a_high_clear(s); }
 
 bool battle_on_page_stat_block_x(Snes *s) { return battle_on_page(s) && battle_names_stat_block(index_x(s)); }
+
 bool battle_on_page_combatant_xy(Snes *s)
 {
     return battle_on_page_stat_block_x(s) && index_y(s) == battle_slot_of_stat_block(index_x(s));

@@ -19,7 +19,6 @@
 /* The accessory that makes its wearer's steals three times as likely to land. */
 enum { THIEFS_ACCESSORY = 0xA5 };
 
-
 /* The original hands the outcome back in the cell it took the chance in
  * ($16), and the item taken in $06, where the member's turn reads it to name
  * in its message (battle.h, kept plainly). */
@@ -28,13 +27,14 @@ enum { ENEMY_PLACE_CELL = 0x0C };
 /* How the steal came out, kept for the member's turn (battle_steal_outcome)
  * and handed back: a miss and nothing to take as themselves; an item taken as
  * its giving left it, and 0 handed back. */
+
 static StealOutcome came_out(GameState *g, StealOutcome outcome)
 {
     uint8_t kept = outcome == STEAL_MISSED    ? STEAL_OUTCOME_MISSED
                    : outcome == STEAL_NOTHING ? STEAL_OUTCOME_NOTHING
                                               : battle_steal_outcome(g);
     set_battle_steal_outcome(g, kept);
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_1, outcome == STEAL_TOOK ? 0 : kept));
+    charge_machine_accesses(g, 1);
     return outcome;
 }
 
@@ -76,17 +76,17 @@ static void give_stolen(GameState *g, uint8_t item)
     battle_keep_word(g, BATTLE_CLOCK_READS, 0);
     battle_keep_word(g, BATTLE_NUMBER_TESTED, 0);
     battle_keep_stat_offset_word(g, 0);
-    ORIGINAL_EFFECT(battle_leave_word(g, RECORD_PLACE_CELL, 0));
+    charge_machine_accesses(g, 2);
     uint8_t thief = battle_actor(g);
-    uint16_t record = effect_times(g, thief, KEPT_ITEM_BYTES);
+    effect_times(g, thief, KEPT_ITEM_BYTES);
     /* entered with the carry the item's test left, set */
-    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, true));
-    ORIGINAL_EFFECT(battle_leave_word(g, THIEF_RECORD_CELL, record));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 2);
     set_battle_action_came_to_nothing(g, 0);
     if (item >= FIRST_RECORDED_ITEM) {
         uint8_t past = (uint8_t)(item - FIRST_RECORDED_ITEM);
         battle_keep_stat_offset_word(g, past);
-        ORIGINAL_EFFECT(battle_leave_word(g, RECORD_PLACE_CELL, (uint8_t)(past * ITEM_RECORD_BYTES)));
+        charge_machine_accesses(g, 2);
         uint8_t flags = item_record_flags(g, item);
         if (flags & ITEM_KEPT_APART) {
             battle_member_keep_item(g, thief, item, item_record_detail(g, item), (uint8_t)(flags & ~ITEM_KEPT_APART));
@@ -108,7 +108,7 @@ StealOutcome effect_steal(GameState *g, uint8_t chance)
     if (drawn > chance)
         return came_out(g, STEAL_MISSED);
     uint8_t target = battle_effect_target(g);
-    ORIGINAL_EFFECT(battle_leave_word(g, ENEMY_PLACE_CELL, target));
+    charge_machine_accesses(g, 2);
     uint8_t enemy = combatant_id(g, target);
     battle_keep_stat_offset_word(g, effect_times(g, enemy, 7));
     bool charm = effect_charm_comes(g);

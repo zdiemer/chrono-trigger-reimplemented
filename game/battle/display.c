@@ -148,20 +148,6 @@ void battle_slide_the_split(GameState *g, bool out)
     move_run_values(g, BG3_SCROLL_TABLE, 2, LINE_VALUE_BYTES * step);
 }
 
-void battle_slide_split_in(Snes *s)
-{
-    battle_slide_the_split(state_of(s), false);
-    s->cpu.a = 0;
-    m_rts(s);
-}
-
-void battle_slide_split_out(Snes *s)
-{
-    battle_slide_the_split(state_of(s), true);
-    s->cpu.a = 0;
-    m_rts(s);
-}
-
 /* ---- The background's ripple ------------------------------------------------------------- */
 
 /* BG2's scroll on a rippling background's lines (battle_background_ripple)
@@ -353,12 +339,6 @@ void battle_setup_display(Snes *s)
     m_rts(s);
 }
 
-void battle_load_graphics(Snes *s)
-{
-    load_the_next_step(state_of(s), m_platform(s));
-    m_rtl(s);
-}
-
 void battle_leave_arrangement_registers(Snes *s)
 {
     s->cpu.a = 0;
@@ -367,27 +347,6 @@ void battle_leave_arrangement_registers(Snes *s)
 
 /* The arrangement in A; the carry comes back as the arrangement's top bit,
  * which the original's indexing shifts out. */
-void battle_load_line_arrangement(Snes *s)
-{
-    uint8_t arrangement = (uint8_t)s->cpu.a;
-    battle_arrange_line_effects(state_of(s), arrangement);
-    battle_leave_arrangement_registers(s);
-    m_set_flag(s, CPU_FLAG_C, arrangement & 0x80);
-    m_rtl(s);
-}
-
-void battle_step_ripple(Snes *s)
-{
-    battle_ripple_background(state_of(s));
-    s->cpu.a = 0;
-    m_rtl(s);
-}
-
-void battle_setup_window_hdma(Snes *s)
-{
-    battle_show_window_table(state_of(s), m_platform(s));
-    m_rts(s);
-}
 
 /* The closing handler's calls: the palette sent (battle_send_palette's
  * routine, $CD:09CE), the field's line effects rebuilt for the picture the
@@ -430,8 +389,11 @@ static bool rebuild_the_fields_line_effects(Snes *s)
     vars_peek(true);
     bool builds = field_line_effects_can_be_built(g);
     vars_peek(false);
-    if (!builds || !battle_binary_m8_x16(s))
-        return battle_call_long(s, 0xD1F4E2, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY, 0);
+    if (!builds || !battle_binary_m8_x16(s)) {
+        (void)battle_contract_broken(g, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY, "field line effects outside their contract");
+        battle_refuse_long_call(s, 0xD1F4E2, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY);
+        return false;
+    }
     uint8_t effects;
     TIMED_AS(g, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY, effects = field_rebuild_line_effects(g, m_platform(s)));
     m_set_a8(s, effects);
@@ -490,7 +452,7 @@ static bool closing_vblank_call(void *ctx, ClosingVblankCall call)
     case CLOSING_PALETTE: TIMED_AS(g, 0xCD09CE, battle_send_palette(c->pf)); return true;
     case CLOSING_LINE_EFFECTS: {
         if (!field_line_effects_can_be_built(g))
-            return battle_needs_the_machine(g, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY, "line effects the port doesn't build");
+            return battle_contract_broken(g, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY, "line effects the port doesn't build");
         uint8_t effects;
         TIMED_AS(g, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY, effects = field_rebuild_line_effects(g, c->pf));
         vid_enable_line_effects(c->pf, PF_AT(0xD1F4E6), effects);

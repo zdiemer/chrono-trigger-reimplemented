@@ -35,6 +35,7 @@
  * approach comes, whether the enemy goes over the grid's marked cells and
  * through the other combatants, the distance it keeps, the size of its
  * circle or its loop, a march's direction. */
+#include "charge.h"
 #include "battle/animation.h"
 
 #include "battle/animation_data.h"
@@ -43,7 +44,6 @@
 #include "battle/combatant.h"
 #include "battle/entries.h"
 #include "battle/positions.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* A step is eight pixels; headings are in 256ths of a turn, 0 to the right
@@ -106,18 +106,6 @@ static void face_heading(GameState *g, unsigned enemy, uint8_t heading)
  * them out with; and once a movement is done, the combatant whose box it
  * looked at, a word. */
 enum { LEFT_LOOKED_AT = 0x00, LEFT_DOWN = 0x0C, LEFT_ACROSS = 0x0E };
-static void leave_step(GameState *g, Step s)
-{
-    set_battle_work(g, LEFT_DOWN, (uint8_t)s.down);
-    set_battle_work(g, LEFT_ACROSS, (uint8_t)s.across);
-    set_battle_multiply_factors(g, 1, STEP_LENGTH);
-}
-
-static void leave_looked_at(GameState *g, unsigned slot)
-{
-    set_battle_work(g, LEFT_LOOKED_AT, (uint8_t)slot);
-    set_battle_work(g, LEFT_LOOKED_AT + 1, 0);
-}
 
 /* Whether the enemy's way is blocked where the step would take it: by the
  * grid, or by another combatant's box unless it passes through them (and
@@ -185,7 +173,7 @@ static Step head_for(GameState *g, unsigned enemy, uint8_t heading)
     keep_heading(g, enemy, heading);
     Step step = step_along(g, heading, STEP_LENGTH);
     face_heading(g, enemy, heading);
-    ORIGINAL_EFFECT(leave_step(g, step));
+    charge_machine_accesses(g, 3);
     return step;
 }
 
@@ -285,7 +273,7 @@ static void charge(GameState *g, unsigned enemy)
         stop_to_act(g, enemy);
     /* with its way free the original adds the enemies' first slot to the slot
      * the boxes' test handed back, not to the enemy, and leaves that */
-    ORIGINAL_EFFECT(leave_looked_at(g, blocked ? slot_of(enemy) : slot_of(enemy) + BATTLE_FIRST_ENEMY));
+    charge_machine_accesses(g, 2);
 }
 
 /* ---- Lining up ($C1:3959) ---------------------------------------------------------------- */
@@ -326,6 +314,14 @@ static SpotSide side_of_spot(BattlePoint at, BattlePoint spot)
 
 /* Whether the enemy stands short of the spot, between it and its target, as
  * the heading's quarter has the spot from the target. */
+
+/* What the original leaves of the test: the spot's down, the test down, and
+ * the heading's quarter. */
+enum { LEFT_SPOT_Y = 0x02, LEFT_ABOVE = 0x03, LEFT_QUARTER = 0x04 };
+
+/* The spot `distance` from the target on the enemy's side, kept; and the
+ * heading to it from where the enemy stands: away from the target while the
+ * enemy is short of it, back toward it beyond. */
 static bool short_of_spot(SpotSide side, uint8_t heading)
 {
     switch (heading >> 6) {
@@ -336,19 +332,6 @@ static bool short_of_spot(SpotSide side, uint8_t heading)
     }
 }
 
-/* What the original leaves of the test: the spot's down, the test down, and
- * the heading's quarter. */
-enum { LEFT_SPOT_Y = 0x02, LEFT_ABOVE = 0x03, LEFT_QUARTER = 0x04 };
-static void leave_spot_test(GameState *g, BattlePoint spot, bool above, uint8_t heading)
-{
-    set_battle_work(g, LEFT_SPOT_Y, spot.y);
-    set_battle_work(g, LEFT_ABOVE, above ? 0xFF : 0x00);
-    set_battle_work(g, LEFT_QUARTER, (uint8_t)(heading >> 6));
-}
-
-/* The spot `distance` from the target on the enemy's side, kept; and the
- * heading to it from where the enemy stands: away from the target while the
- * enemy is short of it, back toward it beyond. */
 static uint8_t heading_for_spot(GameState *g, unsigned enemy, uint8_t distance)
 {
     BattlePoint at = standing(g, slot_of(enemy)), target = standing(g, target_of(g, enemy));
@@ -358,7 +341,7 @@ static uint8_t heading_for_spot(GameState *g, unsigned enemy, uint8_t distance)
     set_battle_enemy_spot_x(g, enemy, spot.x);
     set_battle_enemy_spot_y(g, enemy, spot.y);
     SpotSide side = side_of_spot(at, spot);
-    ORIGINAL_EFFECT(leave_spot_test(g, spot, side.above, away));
+    charge_machine_accesses(g, 3);
     return short_of_spot(side, away) ? away : (uint8_t)(away + HALF_TURN);
 }
 
@@ -371,18 +354,13 @@ static BattlePoint spot_of(const GameState *g, unsigned enemy)
  * place it writes into the table's next row: past the table, into the cells
  * after it. */
 enum { SPOT_BOX_ROW = 11 };
-static void leave_spot_box(GameState *g, BattlePoint spot)
-{
-    set_battle_bounds_y_unchecked(g, SPOT_BOX_ROW, spot.y);
-    set_battle_bounds_x_unchecked(g, SPOT_BOX_ROW, spot.x);
-}
 
 /* Whether the enemy's box, where its last look left it, is within `reach` of
  * its spot. */
 static bool at_spot(GameState *g, unsigned enemy, uint16_t reach)
 {
     BattlePoint spot = spot_of(g, enemy);
-    ORIGINAL_EFFECT(leave_spot_box(g, spot));
+    charge_machine_accesses(g, 2);
     return battle_box_within_reach_of(g, (uint8_t)slot_of(enemy), spot, reach);
 }
 
@@ -500,7 +478,7 @@ static BattlePoint next_on_loop(GameState *g, unsigned enemy, bool small)
     uint8_t angle = (uint8_t)(battle_enemy_weave_angle(g, enemy) + (back ? -WEAVE_STEP : WEAVE_STEP));
     set_battle_enemy_weave_angle(g, enemy, angle);
     uint8_t height = small ? WEAVE_SMALL_HEIGHT : WEAVE_HEIGHT;
-    ORIGINAL_EFFECT(set_battle_weave_height(g, height));
+    charge_machine_accesses(g, 1);
     int8_t down = battle_along(g, angle, height);
     int8_t across = battle_along(g, (uint8_t)(angle + QUARTER_TURN), (uint8_t)(height + WEAVE_WIDER_BY));
     BattlePoint home = { battle_enemy_weave_home_x(g, enemy), battle_enemy_weave_home_y(g, enemy) };
@@ -532,7 +510,7 @@ static void weave(GameState *g, unsigned enemy, uint8_t animation)
         return;
     }
     uint8_t jump = small ? WEAVE_SMALL_JUMP : WEAVE_JUMP;
-    ORIGINAL_EFFECT(set_battle_work(g, LEFT_JUMP, jump));
+    charge_machine_accesses(g, 1);
     bool back = battle_enemy_weave_back(g, enemy);
     uint8_t angle = battle_enemy_weave_angle(g, enemy);
     set_battle_enemy_weave_angle(g, enemy, (uint8_t)(back ? angle + jump : angle - jump));
@@ -621,45 +599,5 @@ void battle_move_enemy(GameState *g, unsigned enemy, EnemyMovement movement, uin
     default: return;
     }
     if (movement != MOVEMENT_WAIT_FOR_TARGET)
-        ORIGINAL_EFFECT(leave_looked_at(g, slot_of(enemy)));
+        charge_machine_accesses(g, 2);
 }
-
-/* ---- The entries ------------------------------------------------------------------------- */
-
-/* Each movement's routine entered by itself, as the original's table calls it:
- * the enemy in battle_effect_enemy, the animation in battle_effect_kind, and A's
- * high byte clear, as the movements' loop leaves it (the original finds the
- * target's place by the whole of A). It takes only the animations that name
- * its movement, as the table does, and an enemy with a target to go by where
- * the movement needs one. */
-static bool entry_ready(Snes *s, EnemyMovement movement)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    unsigned enemy = battle_effect_enemy(g);
-    bool fits = enemy < BATTLE_ENEMIES && battle_enemy_animation_effect(g, battle_effect_kind(g)) == movement
-                && (!battle_enemy_movement_needs_target(movement) || battle_names_combatant(target_of(g, enemy)));
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && fits;
-}
-
-static void entry(Snes *s, EnemyMovement movement)
-{
-    GameState *g = state_of(s);
-    battle_move_enemy(g, battle_effect_enemy(g), movement, battle_effect_kind(g));
-    m_rts(s);
-}
-
-#define MOVEMENT_ENTRY(name, movement)                                 \
-    bool name##_ready(Snes *s) { return entry_ready(s, movement); } \
-    void name(Snes *s) { entry(s, movement); }
-
-MOVEMENT_ENTRY(battle_enemy_waits_for_target, MOVEMENT_WAIT_FOR_TARGET)
-MOVEMENT_ENTRY(battle_enemy_approaches, MOVEMENT_APPROACH)
-MOVEMENT_ENTRY(battle_enemy_charges, MOVEMENT_CHARGE)
-MOVEMENT_ENTRY(battle_enemy_lines_up, MOVEMENT_LINE_UP)
-MOVEMENT_ENTRY(battle_enemy_keeps_distance, MOVEMENT_KEEP_DISTANCE)
-MOVEMENT_ENTRY(battle_enemy_circles, MOVEMENT_CIRCLE)
-MOVEMENT_ENTRY(battle_enemy_weaves, MOVEMENT_WEAVE)
-MOVEMENT_ENTRY(battle_enemy_marches, MOVEMENT_MARCH)
-MOVEMENT_ENTRY(battle_enemy_makes_for_the_middle, MOVEMENT_TO_THE_MIDDLE)
