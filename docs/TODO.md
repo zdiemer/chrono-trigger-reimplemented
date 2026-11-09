@@ -2908,8 +2908,10 @@ comparisons.
   entries lack a plain recipe: `battle_wait_music_fade_loop` (9 bytes),
   `battle_aim_action` (447) and `battle_call_enemies_in` (42).
 
-  The resource repairs and directed fixtures leave 2,547 battle bytes in
-  72 entries and 269 menu bytes in 45 entries after 566 clean recipes.
+  The discovery union of 576 clean recipes and the reviewed exclusions
+  leaves 1,640 battle bytes in 69 entries and 145 menu bytes in 31 entries.
+  Older runs in this union guide the remaining cases; they are not fresh
+  retirement evidence. Replay the completed recipes against the final tree.
   Preserve the complete sprite/frame/output bounds, startup-built OAM
   lookup, graphics resource banks, equipment page's name bounds, and text
   language and stack separation when their guards retire. The original
@@ -2921,13 +2923,14 @@ comparisons.
   estimates until a movie measures them. Record the reviewed exclusions and
   matched recipes in the unreached ledger before either subsystem retires.
 
-  `unreached_safe.toml` records twelve further reviewed exclusions: zero map
+  `unreached_safe.toml` records thirteen further reviewed exclusions: zero map
   selectors, an exchange with no selectable row, fixed hex-glyph and sprite
   assignment encodings, the empty name caught by the earlier duplicate
   check, hits whose guard excludes stealing, a restore modifier absent
   from the fixed parameter table, the battle tail's disabled debug arm,
   a hanging wedge's necessarily flat top, and the stopping spiral's
-  single-mover restriction.
+  single-mover restriction, and random-target branches no fixed aim record
+  selects.
   Preserve their cited bounds and resource
   assumptions as contracts. These arguments are not execution coverage;
   enroll them with the matched recipes only after the inventory closes.

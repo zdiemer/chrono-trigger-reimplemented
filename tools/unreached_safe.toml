@@ -211,3 +211,9 @@ name = "script_spiral_for_stopping"
 runs = "C16B04-C16B06,C16B9D-C16C43,C16C46-C16C53"
 depends = ["game/battle/script_moves.c:script_move_opcodes", "game/battle/script_moves.c:spiral_for", "game/battle/script_language.c:needs_met", "game/battle/script_language.c:script_channel_running", "game/battle/script_language.h:NEEDS_ONE_MOVER"]
 why = "The stopping spiral's opcode requires NEEDS_ONE_MOVER, which excludes the other-targets channel before dispatch. These bytes are that channel's list loop and the branch to it. Preserve the channel restriction as a contract; the non-stopping spiral's separately compared list operation does not make this stopping variant's list path supported."
+
+[[safe]]
+name = "battle_aim_action"
+runs = "C1C4A0-C1C4E7"
+depends = ["game/battle/aim.c:aim_fits", "game/battle/aim.c:roll_fits", "game/battle/aim.c:take_by_roll", "game/battle/aim.c:the_roll", "game/battle/aim.c:ROLLS", "game/battle/aim_data.h:party_tech_aim", "game/battle/aim_data.h:item_aim_mode", "game/battle/effect_data.h:party_tech", "game/battle/effect_data.h:party_tech_place", "game/battle/effect_data.h:PARTY_TECH_BYTES"]
+why = "The later random-target arms require a roll selector of at least 8. Enumerating all 256 party-tech details and both encodings of every 7-bit item finds that every fixed record with aim mode 9 has a selector at most 6. Enemy mode-9 actions are excluded by roll_fits. The original reads this selector from the party-tech record, not the random result. Preserve that resource relationship and recheck if aim or tech records become editable; the C operation retains the later arms."
