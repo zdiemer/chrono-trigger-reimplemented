@@ -62,6 +62,7 @@ typedef struct {
     uint32_t frame;         /* frames run */
     uint32_t entropy;       /* tm_entropy's generator */
     uint32_t owed;          /* the original's time charged to the main thread since it last waited (master clocks) */
+    uint32_t handler_charges; /* service work in the line/vblank handlers, taken with their accesses */
     uint32_t handlers;      /* the handlers' time in the frame the main thread runs in (master clocks) */
     uint32_t lagging;       /* frames the main thread sits out, its wait lasting through them */
     uint32_t lag_frames;    /* ... in all */
@@ -107,8 +108,8 @@ typedef struct {
  * driver calls as C (`send`); the scenes write commands to the ports and read
  * the driver's answers there; and while the game waits on a port, the
  * driver's time passes (`pass`, in the SPC700's cycles). The boot and the
- * commands answer the time the original's uploads took, which the main
- * thread is charged (tm_host_charge). With no player the sound is silent and
+ * commands answer the time the original's uploads took, charged to the
+ * caller's share of the frame (tm_host_charge). With no player the sound is silent and
  * its ports read 0. */
 typedef struct {
     void *ctx;
@@ -160,9 +161,11 @@ uint16_t tm_host_picture_lines(const Platform *pf);
 /* Frames run so far. */
 uint32_t tm_host_frames(const Platform *pf);
 /* The frame-level time model (platform/time_model.h): the original's time,
- * in master clocks, for work the main thread did another way (the sound
+ * in master clocks, for work the caller did another way (the sound
  * driver's uploads, a load's sends to video memory), beside the game's own
- * work its state keeps. Where it waits for the next frame having filled whole
+ * work its state keeps. A handler's charge belongs to that frame's handler
+ * budget, including on lag frames; it never builds up main-thread debt.
+ * Where the main thread waits for the next frame having filled whole
  * frames (a frame's time less the handlers'), the wait lasts as many more:
  * lag frames, in which the handlers run and the main thread doesn't, as the
  * original's frames went by while it worked. What is left fits in the frame,

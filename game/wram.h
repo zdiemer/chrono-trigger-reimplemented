@@ -36,7 +36,8 @@ void wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes);
 
 /* Clear a transition's buffer, wrapping within its bank. The SNES backing
  * retains the transfer at `o` (and its elapsed time); the caller has set
- * the shared Mode 7 multiplier to zero. The host simply clears the buffer.
+ * the shared Mode 7 multiplier to zero. The host clears the buffer and keeps
+ * the transfer's elapsed time in the state's work account.
  * Unlike the old transfer descriptor, bytes is a count: 65536 is a full bank. */
 void wram_clear(GameState *g, PfOrigin o, uint32_t at, uint32_t bytes);
 

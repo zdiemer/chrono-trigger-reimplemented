@@ -17,6 +17,7 @@
 #include "port/vars_ram.h"
 #include "port/rom_reads.h"
 #include "platform/video.h"
+#include "port/retired_time_rates.h"
 
 enum { WRMPYA = 0x004202, WRMPYB = 0x004203, WRDIVL = 0x004204, WRDIVB = 0x004206, RDDIV = 0x004214, RDMPY = 0x004216 };
 enum { WMDATA = 0x002180, WMADDL = 0x002181, WMADDB = 0x002183, WMDATA_LESS_ONE = 0x00217F };
@@ -131,8 +132,9 @@ void charge_block_move(GameState *g, uint32_t bytes) { charge_as(g, BLOCK_MOVE, 
 static const struct {
     uint32_t routine, cost_milli;
 } retired_rates[] = {
-    { 0xC30002, 4060 },   /* the unpacker: decompress, the data subsystem's teardown */
-    { 0xC30557, 4057 },   /* and decompress_direct, as the scene engine calls it */
+#define RETIRED_RATE(addr, name, cost) { addr, cost },
+    CT_RETIRED_TIME_RATES(RETIRED_RATE)
+#undef RETIRED_RATE
 };
 
 uint32_t charge_retired_begin(GameState *g) { return native_uncounted_begin(state_snes(g)); }

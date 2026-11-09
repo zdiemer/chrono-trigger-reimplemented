@@ -47,7 +47,7 @@ events-cyrus 18
 events-death-peak-ascent 5
 events-death-peak-wind 5
 events-death-peak 4
-events-end-of-time-gate 4
+events-end-of-time-gate 5 # Native retired-work accounting restores the final reference visit within 30 frames.
 events-epoch-lavos 5
 events-fair-clone 6
 events-fair-rescue 7
@@ -60,7 +60,7 @@ events-keepers-dome 6
 events-luccas-mother 13
 events-magic-cave 7
 events-magus-joins 7
-events-ocean-palace-lavos 7
+events-ocean-palace-lavos 8 # Native DMA transfer time restores another reference visit within 30 frames.
 events-prison-escape 7
 events-proto-dome 9
 events-sun-stone 20

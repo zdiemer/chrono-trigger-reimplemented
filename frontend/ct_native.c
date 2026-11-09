@@ -37,6 +37,7 @@
  * the loop, the files and the report are its, as frontend/headless.c's are
  * the player's. */
 #include <errno.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -363,7 +364,7 @@ static void usage(FILE *out)
 {
     fprintf(out, "usage: ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]\n"
                  "                 [--headless | --window] [--scale N] [--fullscreen] [--mute]\n"
-                 "                 [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--lag-log] [--outcomes] [--scene flags[,song]]...\n"
+                 "                 [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--lag-log] [--timing-report] [--outcomes] [--scene flags[,song]]...\n"
                  "--frames selects headless unless --window is given; --headless defaults to 600 frames.\n"
                  "Window play writes cartridge saves; headless runs only read them. No quick save/load.\n");
 #ifdef CT_HAVE_SDL
@@ -397,7 +398,7 @@ int main(int argc, char **argv)
     bindings_set("F5 = None", bind_error, sizeof bind_error);
     bindings_set("F7 = None", bind_error, sizeof bind_error);
 #endif
-    bool locations = false, outcomes = false, lag_log = false;
+    bool locations = false, outcomes = false, lag_log = false, timing_report = false;
     unsigned scenes = 0;
     uint8_t scene[STATE_HOST_FIRST_SCENES], song[STATE_HOST_FIRST_SCENES];
     for (int i = 1; i < argc; i++) {
@@ -418,6 +419,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--end-state") && v) end_state = v, i++;
         else if (!strcmp(a, "--locations")) locations = true;
         else if (!strcmp(a, "--lag-log")) lag_log = true;
+        else if (!strcmp(a, "--timing-report")) timing_report = true;
         else if (!strcmp(a, "--outcomes")) outcomes = true;
         else if (!strcmp(a, "--scene") && v && scenes < STATE_HOST_FIRST_SCENES && scene_and_song(v, &scene[scenes], &song[scenes]))
             scenes++, i++;
@@ -477,7 +479,7 @@ int main(int argc, char **argv)
     }
     GameState *g = state_host_create(sram);
     static Platform pf;
-    if (!g) {
+    if (!g || (timing_report && !state_host_record_time(g))) {
         fprintf(stderr, "ct_native: out of memory\n");
         return 2;
     }
@@ -553,6 +555,17 @@ int main(int argc, char **argv)
     vid_render_destroy(picture.renderer);
     sound_native_destroy(sound);
     vid_host_stop(&pf);
+    if (timing_report) {
+        unsigned count;
+        const StateHostTime *times = state_host_time(g, &count);
+        for (unsigned k = 0; k < count; k++) {
+            const StateHostTime *t = &times[k];
+            if (t->tags || t->bus_clocks || t->charged_clocks)
+                fprintf(stderr, "native time: %06X tags %" PRIu64 " bus %" PRIu64
+                        " charged %" PRIu64 " milli %" PRIu64 "\n",
+                        (unsigned)t->routine, t->tags, t->bus_clocks, t->charged_clocks, t->milli_clocks);
+        }
+    }
     state_host_destroy(g);
     free(sram);
     if (movie_path)
