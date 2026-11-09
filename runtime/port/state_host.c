@@ -38,6 +38,8 @@ struct GameState {
     const char *stopped_what;
     uint32_t owed;            /* the original's time charged since the timing backend last took it (master clocks) */
     uint32_t rate;            /* the cost_milli the game's accesses are timed at now (charge_time_as_begin); 0, none */
+    unsigned timed;           /* index in time_rates, or time_rate_count for untagged work */
+    StateHostTime *time;      /* optional diagnostic totals; never used to schedule work */
     unsigned uncounted;       /* nested stretches whose accesses aren't the game's own time */
     uint64_t work_milli;      /* the game's own accesses' time since it was last taken (master clocks x 1000) */
 };
@@ -47,6 +49,7 @@ GameState *state_host_create(const uint8_t *sram)
     GameState *g = calloc(1, sizeof *g);
     if (!g)
         return NULL;
+    g->timed = time_rate_count;
     /* work RAM as the reference emulator powers it on, which the game reads
      * where its own clear at power-on leaves it as it was (the menus' records
      * of a party not yet joined): a run starts where the reference plays do */
@@ -56,7 +59,12 @@ GameState *state_host_create(const uint8_t *sram)
     return g;
 }
 
-void state_host_destroy(GameState *g) { free(g); }
+void state_host_destroy(GameState *g)
+{
+    if (g)
+        free(g->time);
+    free(g);
+}
 
 uint8_t *state_host_sram(GameState *g) { return g->sram; }
 
@@ -247,7 +255,7 @@ void wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes)
  * lag frames of the whole frames it fills, and drops the handlers' at the
  * main thread's start of a frame, keeping it as the frame's own. */
 
-static uint32_t rate_of(uint32_t routine)
+static unsigned rate_index(uint32_t routine)
 {
     routine &= 0xFFFFFF;
     unsigned lo = 0, hi = time_rate_count;
@@ -258,7 +266,36 @@ static uint32_t rate_of(uint32_t routine)
         else
             hi = mid;
     }
-    return lo < time_rate_count && time_rates[lo].routine == routine ? time_rates[lo].cost_milli : 0;
+    return lo < time_rate_count && time_rates[lo].routine == routine ? lo : time_rate_count;
+}
+
+bool state_host_record_time(GameState *g)
+{
+    if (g->time)
+        return true;
+    g->time = calloc(time_rate_count + 2u, sizeof *g->time);
+    if (!g->time)
+        return false;
+    for (unsigned i = 0; i < time_rate_count; i++)
+        g->time[i].routine = time_rates[i].routine;
+    g->time[time_rate_count + 1].routine = TIME_UNPACKER;
+    return true;
+}
+
+const StateHostTime *state_host_time(const GameState *g, unsigned *count)
+{
+    *count = g->time ? time_rate_count + 2u : 0;
+    return g->time;
+}
+
+static void record_work(GameState *g, unsigned index, uint32_t bus, uint32_t charged, uint64_t milli)
+{
+    if (g->time) {
+        StateHostTime *t = &g->time[index];
+        t->bus_clocks += bus;
+        t->charged_clocks += charged;
+        t->milli_clocks += milli;
+    }
 }
 
 static void owe(GameState *g, uint32_t clocks)
@@ -269,8 +306,11 @@ static void owe(GameState *g, uint32_t clocks)
 void state_host_game_access(const GameState *g, uint32_t clocks)
 {
     GameState *m = (GameState *)g;   /* the account is the backing's own, not the game's state */
-    if (!m->uncounted)
-        m->work_milli += (uint64_t)clocks * m->rate;
+    if (!m->uncounted) {
+        uint64_t milli = (uint64_t)clocks * m->rate;
+        m->work_milli += milli;
+        record_work(m, m->timed, clocks, 0, milli);
+    }
 }
 
 /* The block move stub's routine ($7E:9690), whose rate a byte moved is
@@ -280,30 +320,33 @@ enum { BLOCK_MOVE = 0x7E9690, ACCESS_CLOCKS = 8, ACCESSES_PER_BYTE_MOVED = 2 };
 void charge_as(GameState *g, uint32_t routine, uint32_t accesses)
 {
     if (routine == TIME_UNPACKER) {
-        owe(g, time_of_charge(routine, accesses));
+        uint32_t clocks = time_of_charge(routine, accesses);
+        owe(g, clocks);
+        record_work(g, time_rate_count + 1, 0, accesses * ACCESS_CLOCKS, (uint64_t)clocks * 1000);
         return;
     }
-    uint32_t rate = rate_of(routine);
-    g->work_milli += (uint64_t)accesses * ACCESS_CLOCKS * (rate ? rate : g->rate);
+    unsigned index = rate_index(routine);
+    uint32_t rate = index < time_rate_count ? time_rates[index].cost_milli : 0;
+    uint64_t milli = (uint64_t)accesses * ACCESS_CLOCKS * (rate ? rate : g->rate);
+    g->work_milli += milli;
+    record_work(g, rate ? index : g->timed, 0, accesses * ACCESS_CLOCKS, milli);
 }
 
 void charge_block_move(GameState *g, uint32_t bytes) { charge_as(g, BLOCK_MOVE, bytes * ACCESSES_PER_BYTE_MOVED); }
 
 void charge_legacy_io_accesses(GameState *g, uint32_t accesses)
 {
-    (void)g;
-    (void)accesses;
+    state_host_game_access(g, accesses * 6u);
 }
 
 void charge_legacy_rom_accesses(GameState *g, uint32_t accesses)
 {
-    (void)g;
-    (void)accesses;
+    state_host_game_access(g, accesses * 6u);
 }
 
 void charge_legacy_accesses(GameState *g, uint32_t accesses)
 {
-    (void)g, (void)accesses;
+    state_host_game_access(g, accesses * ACCESS_CLOCKS);
 }
 
 uint32_t state_host_take_owed(GameState *g)
@@ -347,14 +390,23 @@ void charge_uncounted_end(GameState *g, uint32_t mark)
  * machine leaves an attribution to no hand port with the port's own. */
 int charge_time_as_begin(GameState *g, uint32_t routine)
 {
-    int was = (int)g->rate;
-    uint32_t rate = rate_of(routine);
-    if (rate)
+    int was = (int)g->timed;
+    unsigned index = rate_index(routine);
+    uint32_t rate = index < time_rate_count ? time_rates[index].cost_milli : 0;
+    if (rate) {
         g->rate = rate;
+        g->timed = index;
+    }
+    if (g->time)
+        g->time[index].tags++;
     return was;
 }
 
-void charge_time_as_end(GameState *g, int was) { g->rate = (uint32_t)was; }
+void charge_time_as_end(GameState *g, int was)
+{
+    g->timed = (unsigned)was;
+    g->rate = g->timed < time_rate_count ? time_rates[g->timed].cost_milli : 0;
+}
 void original_frame_enter(GameState *g, uint16_t bytes) { (void)g, (void)bytes; }
 void original_frame_leave(GameState *g, uint16_t bytes) { (void)g, (void)bytes; }
 

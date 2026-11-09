@@ -1,7 +1,7 @@
 # Protected outcome matches: movie/mode kind identities (end, picture frame, place index).
 # --update adds matches, never drops one; temporal drift counts as a match.
 attract-demo/native game end
-attract-demo/native pictures 1 1800 2100 11100 19200
+attract-demo/native pictures 1 1800 2100 11100 # Native legacy work charged at its calibrated rate; checkpoint frames 19200 move outside tolerance (reason in outcomes_exceptions.txt).
 attract-demo/native places 0 1 2 3 4 5
 attract-demo/native sram
 attract-demo/strict game end
@@ -81,7 +81,7 @@ battle-golem-twins/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 420
 battle-golem-twins/strict places 0 1 2 3 4
 battle-golem-twins/strict sram
 battle-guardian/native game
-battle-guardian/native pictures 1 1800 2100 2400 2700 3600 4200 4800 5400 5700 6000
+battle-guardian/native pictures 1 1800 2100 2400 2700 3300 3600 4200 4800 5400 # Native legacy work charged at its calibrated rate; checkpoint frames 5700,6000 move outside tolerance (reason in outcomes_exceptions.txt).
 battle-guardian/native places 0 1 2 3 4 5 6
 battle-guardian/native sram end
 battle-guardian/strict game
@@ -97,7 +97,7 @@ battle-heckran/strict pictures 1 1800 2100 2400 2700 3000 3300
 battle-heckran/strict places 0 1 2 3 4
 battle-heckran/strict sram end
 battle-lavos-gameover/native game end
-battle-lavos-gameover/native pictures 1 1800 2100 2400 3600 4800 5100 5400 15300 15600 15900 16192
+battle-lavos-gameover/native pictures 1 1800 2100 2400 3600 4200 4500 4800 5100 5400 15300 15600 15900 16192 # Native legacy work charged at its calibrated rate; newly matching identities protected.
 battle-lavos-gameover/native places 0 1 2 3 4 5 6 7
 battle-lavos-gameover/native sram end
 battle-lavos-gameover/strict game
@@ -121,7 +121,7 @@ battle-magus/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 7500 7800
 battle-magus/strict places 0 1 2 3 4 5
 battle-magus/strict sram end
 battle-menu-buttons/native game end
-battle-menu-buttons/native pictures 1 1800 2100 2400 3000 3300
+battle-menu-buttons/native pictures 1 1800 2100 2400 3300 # Native legacy work charged at its calibrated rate; checkpoint frames 3000 move outside tolerance (reason in outcomes_exceptions.txt).
 battle-menu-buttons/native places 0 1 2 3 4
 battle-menu-buttons/native sram end
 battle-menu-buttons/strict game end
@@ -227,7 +227,7 @@ battle-zombor/strict sram end
 endings-beyond-time/native game
 endings-beyond-time/native pictures 1 1800 2100 2400 3900 4200 4800
 endings-beyond-time/native places 0 1 2 3 4
-endings-beyond-time/native sram
+endings-beyond-time/native sram end # Native legacy work charged at its calibrated rate; newly matching identities protected.
 endings-beyond-time/strict game
 endings-beyond-time/strict pictures 1 1800 2100 2400 2700 3900 4200 4500 5100
 endings-beyond-time/strict places 0 1 2 3 4
@@ -320,8 +320,8 @@ events-fair-clone/strict game
 events-fair-clone/strict pictures 1 1800 2100 2400 2700 3000 3600 3900 4200 4500 5100
 events-fair-clone/strict places 0 1 2 3 4 5
 events-fair-clone/strict sram end
-events-fair-rescue/native game
-events-fair-rescue/native pictures 1 1800 2100 2400 4500
+events-fair-rescue/native game end # Native legacy work charged at its calibrated rate; newly matching identities protected.
+events-fair-rescue/native pictures 1 1800 2100 2400 3900 4500 # Native legacy work charged at its calibrated rate; newly matching identities protected.
 events-fair-rescue/native places 0 1 2 3 4 5 6
 events-fair-rescue/native sram end
 events-fair-rescue/strict game end
@@ -361,7 +361,7 @@ events-jetbike-race-won/strict pictures 1 900 1200 1800 2700 3000 3300 3600 3900
 events-jetbike-race-won/strict places 0 1 2 3 4 5 6
 events-jetbike-race-won/strict sram end
 events-jetbike-race/native game end
-events-jetbike-race/native pictures 1 1800 2100 2400 3000 3300 3600 5400 5700 8700
+events-jetbike-race/native pictures 1 1800 2100 2400 3000 3300 3600 3900 5400 5700 8700 # Native legacy work charged at its calibrated rate; newly matching identities protected.
 events-jetbike-race/native places 0 1 2 3 4 5 6
 events-jetbike-race/native sram end
 events-jetbike-race/strict game end
@@ -401,7 +401,7 @@ events-magus-joins/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 450
 events-magus-joins/strict places 0 1 2 3 4 5 6
 events-magus-joins/strict sram end
 events-ocean-palace-lavos/native game
-events-ocean-palace-lavos/native pictures 1 1800 2100 2400 3600 4200 4800 7800 8100 9600
+events-ocean-palace-lavos/native pictures 1 1800 2100 2400 3600 4200 4800 9600 # Native legacy work charged at its calibrated rate; checkpoint frames 7800,8100 move outside tolerance (reason in outcomes_exceptions.txt).
 events-ocean-palace-lavos/native places 0 1 2 3 4 5 6
 events-ocean-palace-lavos/native sram end
 events-ocean-palace-lavos/strict game
@@ -593,7 +593,7 @@ menu/strict pictures 1 1800 2100 2400 3300 3600 3900 4200 4500 4800 5100 5400 57
 menu/strict places 0 1 2 3 4 5
 menu/strict sram end
 menus-end-of-time/native game
-menus-end-of-time/native pictures 1 1800 2100 2400 2700
+menus-end-of-time/native pictures 1 1800 2100 2400 2700 3000 3300 # Native legacy work charged at its calibrated rate; newly matching identities protected.
 menus-end-of-time/native places 0 1 2 3 4 5
 menus-end-of-time/native sram
 menus-end-of-time/strict game end
@@ -625,9 +625,9 @@ menus-new-game-plus/strict pictures 1 1800 2100 2400 2700 3000 3116
 menus-new-game-plus/strict places 0 1 2 3
 menus-new-game-plus/strict sram end
 menus-save-point/native game end
-menus-save-point/native pictures 1 1800 2100 2400
+menus-save-point/native pictures 1 1800 2100 2400 2700 3000 # Native legacy work charged at its calibrated rate; newly matching identities protected.
 menus-save-point/native places 0 1 2 3
-menus-save-point/native sram
+menus-save-point/native sram end # Native legacy work charged at its calibrated rate; newly matching identities protected.
 menus-save-point/strict game end
 menus-save-point/strict pictures 1 1800 2100 2400 2700 3000
 menus-save-point/strict places 0 1 2 3

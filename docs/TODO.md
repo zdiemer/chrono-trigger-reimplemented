@@ -3096,9 +3096,10 @@ list, by kind, is what `game/` still asks of one.
 
   - *Where the game's work is still timed short or long.* `ct_native` times
     the game's own work at the routines' calibrated rates (REIMPLEMENTATION.md,
-    "The frame-level time model"); over the gate's sample the attract demo
-    ends 211 frames behind the reference (1,229 before), strict mode about as
-    far. What the per-routine comparison against the shadow runs' estimates
+    "The frame-level time model"); the sample ends 19 of 37 movies as the
+    reference does and enters 209 of 293 places on time. The attract demo
+    visits all 50 places in order but is up to 320 frames early. What the
+    earlier per-routine comparison against the shadow runs' estimates
     (the tags' work in `ct_native` against the parts' and entries' estimates
     over the sample) names next, worst first:
     - *Tagged more often than the original calls.* `menu_move_among_the_slots`
@@ -3107,21 +3108,24 @@ list, by kind, is what `game/` still asks of one.
       against 5,160, three times), `menu_reset_sprites` (`$C2:E92D`, 1.4
       times): a tag around a loop the original runs as one call, or a call
       made where the original's isn't.
-    - *Guards read as work.* The event engine's C path now looks under
-      `vars_peek` as its machine path does; the field's frame still reads
-      what only the machine's guards read, 1.8 to 7 times the machine's bus
-      clocks a call (`field_finish_frame` `$C0:EC60`, `field_queue_due_turns`
-      `$C0:59D9`, `field_build_line_effect_tables` `$FD:C2C1`), small beside a
-      frame. The menus' object handler (`menu_run_objects`, `$C2:051D`) reads
+    - *The menus' object-handler checks.* The menus' object handler
+      (`menu_run_objects`, `$C2:051D`) reads
       23 times the machine's: handler time, off the frame the main thread
       has, so it moves only how much of the frame is left (at most half).
     - *Short.* The power-on to the title's place (`$1B1` at frame 48 against
       51, strict mode 49) and the load screen's setup (the menus' frame count
       starting at 1720 against 1722; `battle-ozzies-fort` leaves the menus
       with `frames_at_leaving` `$1E` against `$1C`).
-    The same comparison with the battle's setup entries measured only by
-    their interrupted stretches (batch 2's `--interrupted` calibration) is
-    the next to make, once the shadow runs print those stretches' totals.
+    Compare native setup work with the interrupted stretches the shadow
+    reports now print. Over the sample, `battle_set_up` measures 78.96 frames
+    of work against 78.99 estimated, so its machine calibration is not the
+    first suspect. `ct_native --timing-report` now separates each tag's own
+    accesses and charges; shadow parent and child measurements overlap and
+    must not be summed as elapsed work. The unpacker's flat charge still
+    needs comparison across streams with different amounts of copied output.
+    The restored legacy access charges need the next batched library run on
+    the 47 unsampled movies, especially `battle-ozzies-fort`, `battle-mud-imp`,
+    `events-cyrus` and `battle-golem-twins`; no library-wide rate fit was made.
   - *The handlers' share of an upload.* The sound driver's upload time is
     the wall's under a light vblank handler; under the menus' busy one the
     original's song loads in about twice the frames, and a battle's song,
@@ -3216,8 +3220,7 @@ list, by kind, is what `game/` still asks of one.
   delay at once, so the sound runs ahead of the frames charged for it. Sound
   commands a handler issues (`native/audio.c`) are charged to the main
   thread's debt (the handlers' work and charges kept by the game's state are
-  the frame's own now). `runtime/platform/time_model.h` ends
-  without a newline.
+  the frame's own now).
 
 - **Cyrus's fixed movie ends blanked in `ct_native`.** `events-cyrus`
   (ctsave14 slot 1, 39872 frames) consumes all its inputs without a reported

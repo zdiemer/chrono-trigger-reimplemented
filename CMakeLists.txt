@@ -508,6 +508,8 @@ add_library(ct_state_host STATIC runtime/port/vars_ram.c runtime/port/state_host
 target_compile_definitions(ct_state_host PRIVATE CT_VARS_HOST CT_WITHOUT_ORIGINAL_EFFECTS)
 target_include_directories(ct_state_host PUBLIC game)
 target_link_libraries(ct_state_host PUBLIC ct_platform_native)
+add_executable(native_time_test tests/port/native_time_test.c runtime/port/state_host.c)
+target_include_directories(native_time_test PRIVATE game runtime)
 set(CT_NATIVE_GAME_SOURCES ${CT_GAME_SOURCES})
 # What the machine alone runs: the registry (docs/PLAN.md, "The native program, and the
 # registry taken down").

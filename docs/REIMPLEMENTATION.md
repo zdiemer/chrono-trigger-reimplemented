@@ -1107,6 +1107,16 @@ estimate of its parts, 5.17 M clocks), and the model charged 2.4, its sends
 and sound alone; it charges 14.5 now, and `battle-ozzies-fort`'s battles start
 from a random number two from the reference's where they started twenty off.
 
+Retired operations also keep their `charge_legacy_*` work in the native
+account. These counts replace accesses removed with the old scratch cells;
+the calibrated rate still includes that work. Work RAM costs eight bus
+clocks per access, I/O and FastROM six, at the active tag's rate, with
+uncounted stretches still excluded. No scratch cell is reconstructed and
+the machine's estimate is unchanged. `native_time_test` checks the account,
+nested tags, unknown tags, excluded work and fractional clocks. The optional
+`ct_native --timing-report` exposes per-tag work without changing it
+(PLAYING.md).
+
 **What a lag frame is computed from.** The host timing backend
 (`platform/native/timing.c`) keeps what the main thread owes since it last
 waited (`tm_host_charge`, and the game's state's account through
@@ -1160,47 +1170,32 @@ answer the boot's and each command's time through the hooks (`Apu.host_boot`,
 `host_command`; `AuHost.boot`, `command`). A song held while the echo settles
 loads at the wait's end, which isn't charged.
 
-**Measured.** The places a run enters, by frame, against the reference play's
-(`tools/places.py`; `ct_dev --locations` and `ct_native --locations`, the
-suite's shadow runs keeping the reference's): how many of the reference's
-places a run enters within 30 frames of the reference's frame, among those it
-enters in the reference's order. Over the 53 library movies (460 places):
+**Measured.** `tools/native_check.py` compares saved game and SRAM with
+reference plays, and counts reference places entered in order within 30
+frames (`tools/places.py`). The gate sample has 37 movies and 293 reference
+places. On `a7d8a04d`, before and after keeping the retired operations' work:
 
-| | `ct_native`, places on time | strict mode, movies ending as the reference's |
-|---|---|---|
-| Before | 240 | 34 |
-| The sound driver's time | 294 | 37 (339 places on time) |
-| And loads (`ct_native` only) | 299 | |
+| Native sample | Ends as reference | Places on time |
+|---|---:|---:|
+| Before | 17/37 | 209/293 |
+| Legacy work charged at the existing rates | 19/37 | 209/293 |
 
-Timing the game's own work was measured over the gate's 37-movie sample
-(`tools/native_check.py --movies ...`, against the suite's shadow runs): 194 of
-the reference's 293 places entered on time before, 209 after; the places
-entered within 5 frames of the reference's, 148 before and 196 after; and the
-attract demo, whose places are the game's own time, 1,229 frames behind the
-reference at its end before and 211 after. Movies ending as the
-reference's: 18 of 36 compared before, 18 of 37 after (`events-fair-rescue`,
-`late-omen-terramutant` and `menus-shop-inn` among those that now do,
-`menus-end-of-time` and `battle-magus` among those that now drift). The new
-time took `late-omen-battles` into a battle where an enemy waits for its
-target to move with none in sight, which the program's C path refused
-though the movement's entry takes it (`battle_enemy_movement_needs_target`
-now says the waiting movement goes on with none); it now reaches its end.
-The native outcomes were re-recorded with it (`tools/outcomes_exceptions.txt`,
-each line's reason naming the change); the protections lost leave
-`tools/outcomes_baseline.txt` (the end state of `menus-end-of-time`, the save
-RAM of `events-death-peak`, a place of `events-ocean-palace-lavos` and
-checkpoint pictures in eight movies, each a run whose places keep to the
-reference's within the window but whose frames moved), and the matches
-gained join it; `tools/places_baseline.txt` takes the counts the change
-brings (none lower).
+All 37 runs end showing. Fair rescue's saved game and the save-point movie's
+SRAM now match; Beyond Time also gains an SRAM match while its saved game
+still differs. The attract demo visits all 50 reference places in order,
+with its worst early arrival reduced from 360 frames to 320. No saved-state
+or place protection is lost; six picture checkpoints moved beyond tolerance
+and were deliberately re-recorded with reasons. Native recorded outcomes
+are 366 matching, 215 within tolerance and 1,429 differing observations.
+`native_time_test` checks the accounting; enabling the diagnostic report
+preserves every sampled outcome artifact. The machine's estimate is unchanged.
 
-Strict mode's three, `battle-magus`, `battle-tyrano-lair-walls` and
-`field-factory-switch`, now end as the reference's, and none ends worse; in
-`ct_native` the title shows 3 frames early where it showed 26 early, and
-`gato-battle` enters 10 of its 11 places on time where it entered 9.
-`tools/native_check.py --check` holds `ct_native` to it, a ratchet on
-`tools/places_baseline.txt`, and `tools/strict_check.py` reports it for strict
-mode.
+The sample does not establish the effect on the other 47 library movies.
+The next batched run must measure them, particularly the loads and battle
+starts in Ozzie's Fort, Mud Imp, Cyrus and the Ocean Palace Twins. Neither
+rates nor whole-library baselines were recalibrated here. Earlier model
+measurements and the per-change account are in
+[the timing history](history/native-time-model.md).
 
 ## Cleanup into hand ports (M5)
 

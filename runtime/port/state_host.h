@@ -55,6 +55,17 @@ uint32_t state_host_take_owed(GameState *g);
  * timed at the rate of the routine its work is timed as. */
 void state_host_game_access(const GameState *g, uint32_t clocks);
 
+/* Optional accounting for ct_native --timing-report. Access clocks (actual
+ * and legacy replacements) and charge_as clocks are kept separately;
+ * milli_clocks is their calibrated time before
+ * the frame scheduler rounds it. The untagged row has routine 0. */
+typedef struct {
+    uint32_t routine;
+    uint64_t tags, bus_clocks, charged_clocks, milli_clocks;
+} StateHostTime;
+bool state_host_record_time(GameState *g);
+const StateHostTime *state_host_time(const GameState *g, unsigned *count);
+
 /* The most scenes a driver starts the game in, one after another (program_starts_in_a_scene). */
 enum { STATE_HOST_FIRST_SCENES = 4 };
 

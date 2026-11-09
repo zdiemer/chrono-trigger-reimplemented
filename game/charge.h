@@ -35,9 +35,8 @@ void charge_as(GameState *g, uint32_t routine, uint32_t accesses);
 /* Work formerly counted through a retired port's temporary memory accesses
  * on the legacy machine. Keep its calibrated beam-budget estimate without
  * reconstructing those cells, at the current operation's rate. The native
- * program never counted these
- * accesses (its build omitted the comparison scaffolding), so its backing
- * keeps the native estimate unchanged. */
+ * program charges the same work: removing comparison scaffolding must not
+ * remove work from the calibrated estimate. */
 void charge_legacy_accesses(GameState *g, uint32_t accesses);
 
 /* The same estimate for former multiplier or upload-cursor accesses,
@@ -84,8 +83,8 @@ void charge_uncounted_end(GameState *g, uint32_t mark);
  * build's pace but for the scaffolding's own time. Without it the statement's
  * accesses went at the rate of the port around it, and a New Game+'s start,
  * at the menus' ports' rates, took 58 frames where it takes 14 (history/reimplementation-chunks.md,
- * "The refusals in real play, retired"). A build with no machine has no time
- * to charge: its backing of these does nothing. */
+ * "The refusals in real play, retired"). A build with no machine uses the
+ * same calibrated rate in its frame-level time model. */
 int charge_time_as_begin(GameState *g, uint32_t routine);
 void charge_time_as_end(GameState *g, int was);
 #define TIMED_AS(g, routine, statement)                           \
