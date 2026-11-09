@@ -794,7 +794,8 @@ void native_wait_time(Snes *s, uint32_t clocks);
  * that runs a sibling as C where the original's call reached it through the
  * machine (the battle's steps, battle/steps.c): a stretch (the part of a call
  * between call-outs) more than half of whose bus clocks were spent inside
- * such a scope is the sibling's in the timing report, its errors and its
+ * such scopes for the same sibling at the same depth is the sibling's in
+ * the timing report, its errors and its
  * calibration, not the running port's, whose own clocks in it are a part of
  * it at the running port's value. So a sibling that waits for frames (an
  * action's showing) is measured on its stretches as the original's call of

@@ -118,6 +118,7 @@ static void handler3(Snes *s)
 
 static uint32_t handler1_tag = 0x008200;
 static bool sibling_run;
+static bool repeated_sibling;
 
 static void dispatcher(Snes *s)
 {
@@ -125,7 +126,10 @@ static void dispatcher(Snes *s)
     s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | a);
     if (a)
         NATIVE_TIME_AS(s, handler1_tag, handler1_work(s, a));
-    else if (sibling_run) {
+    else if (repeated_sibling) {
+        for (unsigned k = 0; k < 2; k++)
+            NATIVE_TIME_AS_SIBLING(s, 0x008300, handler2_work(s));
+    } else if (sibling_run) {
         m_push16(s, SECOND_CALL + 2);   /* the return the original's JSR pushes, under handler 3's calls */
         NATIVE_TIME_AS_SIBLING(s, HANDLER3, handler3_work(s));
         m_pull16(s);
@@ -153,6 +157,11 @@ static void run(int frames, char *out, size_t n)
     rom[0xFFFC] = 0x00, rom[0xFFFD] = 0x80;
     if (sibling_run)
         rom[SECOND_CALL + 2] = HANDLER3 >> 8;
+    if (repeated_sibling) {
+        /* JSR $8300 : JSR $8300 : RTS, two separate calls in one stretch. */
+        static const uint8_t twice[] = { 0x20, 0x00, 0x83, 0x20, 0x00, 0x83, 0x60 };
+        memcpy(rom + SECOND_CALL, twice, sizeof twice);
+    }
     static Snes s;
     snes_init(&s, rom, sizeof rom);
     s.interpreter = cpu_step;
@@ -241,6 +250,18 @@ int main(void)
           "handler 3 has %llu stretches over %llu dispatches:\n%s", h3_stretches, dispatched, report);
     CHECK(field(report, "\n  008400 handler3", "part 008100 dispatcher native-bus ") != ~0ull,
           "the dispatcher's clocks in handler 3's stretches are a part of them:\n%s", report);
+
+    /* Neither call alone owns half the stretch. Together the two copies
+     * are its work, so their error and calibration belong to handler 2. */
+    sibling_run = false;
+    repeated_sibling = true;
+    run(20, report, sizeof report);
+    dispatched = field(report, "008100 dispatcher", "calls ");
+    d_stretches = field(report, "008100 dispatcher", "stretches ");
+    CHECK(dispatched > 100 && d_stretches + 2 >= dispatched / 2 && d_stretches <= dispatched / 2 + 2,
+          "only handler 1's dispatches stay the dispatcher's: %llu of %llu:\n%s", d_stretches, dispatched, report);
+    CHECK(field(report, "\n  008300 handler2", "part 008100 dispatcher native-bus ") != ~0ull,
+          "the repeated sibling owns the dispatcher's surrounding clocks:\n%s", report);
 
     if (failures)
         printf("%d failure(s)\n", failures);

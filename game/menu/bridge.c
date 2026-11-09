@@ -118,7 +118,14 @@ static bool run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_c
         m_stop_at(s, routine, dont_care);
         return false;
     }
-    TIMED_AS(state_of(s), routine, entry(s));
+    /* A former call-out's stretches still belong to the callee. In
+     * particular, loading a screen keeps the unpacker's error with the
+     * loading service instead of charging it to the screen around it. */
+    if (settles) {
+        NATIVE_TIME_AS_SIBLING(s, routine, entry(s));
+    } else {
+        TIMED_AS(state_of(s), routine, entry(s));
+    }
     bool returned = returned_to_call(s, stack, returns_to);
     if (returned && settles)
         charge_settle(state_of(s));

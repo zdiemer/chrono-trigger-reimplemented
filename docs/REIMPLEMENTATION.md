@@ -911,7 +911,8 @@ estimated with, in the report and in `on` mode's charge.
 A sibling that a port runs as C where the original's call reached it through
 the machine is measured on its own stretches too, not inside its caller's
 (`native_time_as_sibling`, `runtime/port/native.h`): a stretch more than half
-of whose bus clocks were spent in such a run is the sibling's in the report,
+of whose bus clocks were spent in such runs of the same sibling at the same
+scope depth is the sibling's in the report,
 its errors and its calibration, with the caller's own few clocks a part of it
 at the caller's value. The battle's steps showed why. Once the dispatch
 (`$C1:0003`) was a port running the frame's work and an action's showing as C,
@@ -4406,6 +4407,17 @@ The unreached inventory and the remaining task-stack work are in TODO.md,
 "Battle and menu teardown preconditions". No entry, guard, scratch cell or
 fallback exemption has been retired on the strength of this control-flow
 step.
+
+The menus' checked replacements for call-outs retain the callee's timing
+ownership as well as its rate. The Epoch dial loads three streams in one
+comparison stretch: those disjoint calls count together as the stream
+loader's work, while nested depths stay separate to avoid counting a
+child twice. Otherwise the loader's existing decompression error moved to
+the screen and graphics setup around it. No estimate or exception changes.
+`time_parts_test` checks repeated sibling calls on a synthetic program;
+it, `shadow_test` and `suspend_test` pass. Focused shadow runs of
+`menus-epoch`, `events-epoch-lavos` and `menus-new-game-plus` match and have
+no unexcepted timing maxima.
 
 ### Battle and menu precondition repairs
 

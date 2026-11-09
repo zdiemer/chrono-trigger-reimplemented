@@ -645,7 +645,7 @@ static void part_flush(Job *j)
 }
 
 /* Whose stretch a stretch of a port is in the timing report: the routine of
- * the innermost sibling's run (native_time_as_sibling) that held more than
+ * the innermost sibling's runs (native_time_as_sibling) that held more than
  * half of its bus clocks, where that is a hand port's entry other than the
  * running one, else the running port's own (-1). A sibling run as C where the
  * original's call reached it through the machine has stretches that are its
@@ -654,13 +654,20 @@ static void part_flush(Job *j)
  * clocks of the call round them. They are measured as the sibling's, so
  * that its calibration and its worst stretches are its own, as the
  * original's call of it is, rather than the caller's few clocks taking up
- * the sibling's error. */
+ * the sibling's error. Several calls to the same sibling at the same scope
+ * depth are disjoint work and count together: a screen loading three streams
+ * is still mostly the loader's work. Different depths never add together,
+ * since a parent's clocks include its child's. */
 static int stretch_owner(const Job *j)
 {
     int owner = -1, depth = -1;
     for (int r = 0; r < j->nrun_clocks; r++) {
         const RunClocks *run = &j->run_clocks[r];
-        if ((uint64_t)run->bus * 2 > j->stretch_bus && run->depth > depth && run->idx >= 0 && active_runtime
+        uint64_t bus = 0;
+        for (int k = 0; k < j->nrun_clocks; k++)
+            if (j->run_clocks[k].idx == run->idx && j->run_clocks[k].depth == run->depth)
+                bus += j->run_clocks[k].bus;
+        if (bus * 2 > j->stretch_bus && run->depth > depth && run->idx >= 0 && active_runtime
             && &active_runtime->table[run->idx] != j->entry) {
             owner = run->idx;
             depth = run->depth;
