@@ -2891,9 +2891,9 @@ comparisons.
 - **Battle teardown preconditions.** Close the battle's unreached inventory
   before removing its registry rows. Against the existing 84-movie coverage
   union, 13,556 battle bytes in 289 entries lack movie coverage. The discovery
-  union of older clean recipes and reviewed exclusions leaves 1,070 bytes in
-  60 entries open; those old runs guide fixtures, not retirement evidence.
-  `battle_call_enemies_in` still needs a plain recipe. Replay the completed
+  union of older clean recipes and reviewed exclusions leaves 705 bytes in
+  45 entries open; those old runs guide fixtures, not retirement evidence.
+  Enroll the tested `battle_call_enemies_in` plain recipe. Replay the completed
   recipe set against the final source, enroll the matched coverage and
   reviewed exclusions, and preserve their bounds/resource assumptions.
 
@@ -2904,9 +2904,7 @@ comparisons.
   assertions. The scene helpers' provisional estimates still need a movie
   measurement; this branch does not recalibrate from a sample.
 
-  Turn the remaining battle call-outs and startup returns into checked C
-  handoffs, retaining full contracts and timing ownership. The main pass,
-  graphics and window waits have held continuations. Remove the three field
+  Remove the three field
   music/line-effect compatibility entries when their battle callers become C.
   Nine menu glyph/typesetter `ORIGINAL_EFFECT` sites remain solely for
   battle's message comparisons; remove them after checking all battle readers.

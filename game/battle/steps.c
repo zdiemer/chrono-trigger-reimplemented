@@ -9,6 +9,7 @@
  * the middle of its own work. The steps are found through a C table; those
  * that are hand ports are run as the original's call reaches them
  * (battle_run), the others are still the original's. */
+#include "holds.h"
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
@@ -29,16 +30,15 @@ enum { STEP_READS_A_AND_OVERFLOW = DC_X | DC_Y | DC_N | DC_Z, STEP_READS_A = STE
 
 /* The routine of each step, its hand port where the dispatch runs it on the
  * machine, what it doesn't read of what the dispatch hands it, and the step
- * as C. The setup is called on the machine as the original's routine, whose
- * ports (battle/opening.c) go on over frames from the waits they stop at,
- * which a call there can't hold. */
+ * as C. Setup leaves saveable waits; its return continuation restores the
+ * scheduler's kept registers before resuming the main loop. */
 static const struct {
     uint32_t routine;
     void (*entry)(Snes *);
     uint16_t dont_care;
     bool (*run)(GameState *g, Platform *pf);
 } STEPS[] = {
-    [BATTLE_STEP_SET_UP] = { 0xC10023, NULL, STEP_READS_A, battle_set_up_runs },
+    [BATTLE_STEP_SET_UP] = { 0xC10023, battle_set_up, STEP_READS_A, battle_set_up_runs },
     [BATTLE_STEP_OPEN_MENU] = { 0xC11B19, battle_turn_comes_step, STEP_READS_A, battle_turn_comes },
     [BATTLE_STEP_CALLED_OFF] = { 0xC11BAA, battle_called_off_step, STEP_READS_A, battle_menu_called_off },
     [BATTLE_STEP_NEXT_FRAME] = { 0xC1106E, battle_wait_step, STEP_READS_A_AND_OVERFLOW, battle_waits_a_frame },
@@ -78,6 +78,20 @@ static bool run_the_step(Snes *s, BattleStep step, BattleFrame kept)
     battle_give_the_registers_back(s, kept);
     ORIGINAL_EFFECT(leave_the_last_pull(s, kept));
     return true;
+}
+
+// $C1:004D
+/* Setup's held waits discard the C stack. Restore the scheduler's saved
+ * values from its call frame, then resume its caller at a held boundary. */
+void battle_step_returns(Snes *s)
+{
+    s->cpu.y = m_pull16(s);
+    s->cpu.x = m_pull16(s);
+    uint8_t a = m_pull8(s);
+    m_set_a8(s, a);
+    m_set_nz8(s, a);
+    m_rts(s);
+    native_hold(s, HOLD_BATTLE_PASS);
 }
 
 // $C1:0003

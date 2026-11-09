@@ -297,8 +297,12 @@ void battle_set_the_screen_up_for_the_field(Snes *s)
 void battle_party_faces_the_enemies(Snes *s)
 {
     open_the_battle(state_of(s));
-    if (battle_strike_the_poses_as_their_own(s))
+    if (battle_strike_the_poses_as_their_own(s)) {
         m_rts(s);
+        /* Setup resumes through the scheduler's saved-register frame. */
+        if (s->cpu.pb == 0xC1 && s->cpu.pc == 0x004D)
+            native_hold(s, HOLD_BATTLE_WINDOW);
+    }
 }
 
 /* On the battle's page with A's high byte clear, as the setup comes; the

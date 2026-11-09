@@ -198,8 +198,8 @@ static bool step_a_part(void *ctx, StepCall call)
         return true;
     case STEP_FIRST_EFFECTS:
     case STEP_SECOND_EFFECTS: TIMED_AS(g, ENEMY_EFFECTS, done = battle_enemy_effects_stepped(g, c->pf)); return done;
-    case STEP_REFUSAL_CLEARED:
-    case STEP_REFUSAL_SAID: return battle_needs_the_machine(g, DESCRIBE, "the message line's description");
+    case STEP_REFUSAL_CLEARED: return battle_described(g, MESSAGE_CLEARED);
+    case STEP_REFUSAL_SAID: return battle_described(g, MESSAGE_CANT_ESCAPE);
     default: break;
     }
     switch ((MenuPart)((call - STEP_MENU_PART) % MENU_PARTS)) {

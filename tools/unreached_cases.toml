@@ -1401,3 +1401,25 @@ args = ["--fill", "7E0F00-7E0F17=FF", "--fill", "7E0F30-7E0F47=00", "--fill", "7
 why = "Choose a learned single tech that heals the party, open the target window and place a cursor on every member."
 iterations = 2000
 remove = ["--stop-at-call"]
+
+[[case]]
+base = "battle_aim_action:areas"
+variant = "unreached_empty_area_1_members"
+args = ["--stop-at-call", "C1AC57", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EB1BE-7EB1C4=00", "--fill", "7EB1BF-7EB1BF=01", "--fill", "7EB1C0-7EB1C0=02", "--fill", "7EB2EA-7EB2EA=00", "--fill", "7EB2EB-7EB2EB=01", "--fill", "7EB2EC-7EB2EC=02", "--fill", "7EAEFF-7EAF09=FF", "--fill", "7EB18C-7EB18C=1F", "--fill", "7EB2EB-7EB2EB=FF", "--fill", "7EB2EC-7EB2EC=FF"]
+why = "A valid area tech finds nobody in the fight and selects its one-, two-, or three-member no-target animation; compare the state at the real showing call."
+iterations = 2000
+
+[[case]]
+base = "battle_aim_action:areas"
+variant = "unreached_empty_area_2_members"
+args = ["--stop-at-call", "C1AC57", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EB1BE-7EB1C4=00", "--fill", "7EB1BF-7EB1BF=01", "--fill", "7EB1C0-7EB1C0=02", "--fill", "7EB2EA-7EB2EA=00", "--fill", "7EB2EB-7EB2EB=01", "--fill", "7EB2EC-7EB2EC=02", "--fill", "7EAEFF-7EAF09=FF", "--fill", "7EB18C-7EB18C=1F", "--fill", "7EB2EB-7EB2EB=01", "--fill", "7EB2EC-7EB2EC=FF"]
+why = "A valid area tech finds nobody in the fight and selects its one-, two-, or three-member no-target animation; compare the state at the real showing call."
+iterations = 2000
+
+[[case]]
+base = "battle_aim_action:areas"
+variant = "unreached_empty_area_3_members"
+args = ["--stop-at-call", "C1AC57", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EB1BE-7EB1C4=00", "--fill", "7EB1BF-7EB1BF=01", "--fill", "7EB1C0-7EB1C0=02", "--fill", "7EB2EA-7EB2EA=00", "--fill", "7EB2EB-7EB2EB=01", "--fill", "7EB2EC-7EB2EC=02", "--fill", "7EAEFF-7EAF09=FF", "--fill", "7EB18C-7EB18C=1F", "--fill", "7EB2EB-7EB2EB=01", "--fill", "7EB2EC-7EB2EC=02"]
+why = "A valid area tech finds nobody in the fight and selects its one-, two-, or three-member no-target animation; compare the state at the real showing call."
+iterations = 2000
+

@@ -984,6 +984,7 @@ void battle_menu_turn_long(Snes *s);
 void battle_wait_step(Snes *s);
 /* $C1:0003: a battle step by its number (battle/steps.c), and its guard. */
 void battle_run_a_step(Snes *s);
+void battle_step_returns(Snes *s);
 bool battle_step_is_known(Snes *s);
 void battle_next_member_takes_the_menu_entry(Snes *s);
 bool battle_menu_queue_ready(Snes *s);

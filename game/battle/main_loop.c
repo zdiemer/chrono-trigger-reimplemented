@@ -269,6 +269,8 @@ static void put_demo_back(GameState *g)
  * for the field, or on to the loop's next stretch. */
 typedef enum { LOOP_STOPPED, LOOP_LEFT, LOOP_TO_THE_HEAD, LOOP_TO_THE_TIMERS, LOOP_TO_THE_REST, LOOP_NOT_OURS } LoopGoesOn;
 
+static LoopGoesOn finish_battle_start(GameState *g);
+
 // $C1:8000
 /* Start the battle, then on to the loop's head at $C1:8120. No battle is set
  * up without enemies, or with more than there are places for: the original's
@@ -283,6 +285,12 @@ static LoopGoesOn start_battle(GameState *g, LoopCalls call, void *ctx)
     set_demo_aside(g);
     if (!call(ctx, CALL_SET_UP, 0))
         return LOOP_STOPPED;
+    return finish_battle_start(g);
+}
+
+// $C1:8030
+static LoopGoesOn finish_battle_start(GameState *g)
+{
     if (battle_enemy_count(g) == 0 || battle_enemy_count(g) > BATTLE_ENEMIES)
         return LOOP_NOT_OURS;
     list_combatants_for_the_order(g);
@@ -1274,7 +1282,7 @@ static void go_on_on_the_machine(Snes *s, LoopGoesOn on)
     switch (on) {
     case LOOP_LEFT:
         s->cpu.a &= 0x00FF;
-        m_stop_at(s, RETURN_TO_THE_FIELD, DC_X | DC_Y | DC_FLAGS | DC_AL);
+        battle_continue(s, RETURN_TO_THE_FIELD, battle_return_to_field, DC_X | DC_Y | DC_FLAGS | DC_AL);
         return;
     case LOOP_TO_THE_HEAD: m_hold_at(s, LOOP_HEAD, LOOP_HEAD_DEAD, HOLD_BATTLE_PASS); return;
     case LOOP_TO_THE_TIMERS:
@@ -1310,6 +1318,8 @@ void battle_give_turn(Snes *s)
     if (take_turns(state_of(s), call_on_the_machine, s))
         m_rts(s);
 }
+
+void battle_main_loop_after_setup(Snes *s) { go_on_on_the_machine(s, finish_battle_start(state_of(s))); }
 
 void battle_main_loop_start(Snes *s) { go_on_on_the_machine(s, start_battle(state_of(s), call_on_the_machine, s)); }
 

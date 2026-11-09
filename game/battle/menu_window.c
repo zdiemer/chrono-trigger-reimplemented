@@ -521,7 +521,7 @@ static bool window_call_on_the_machine(void *ctx, WindowCall call, uint8_t tech,
     switch (call) {
     case WINDOW_ROWS:
         m_set_flag(s, CPU_FLAG_C, carry);
-        return battle_call_long(s, 0xC10C79, 0xCFFD02, CALLEE_READS_NOTHING);
+        return battle_run_long_called(s, 0xC10C79, 0xCFFD02, CALLEE_READS_NOTHING, battle_request_window_rows);
     case WINDOW_DESCRIPTION:
         m_set_flag(s, CPU_FLAG_C, carry);
         s->cpu.a = tech;
@@ -531,7 +531,7 @@ static bool window_call_on_the_machine(void *ctx, WindowCall call, uint8_t tech,
             s->cpu.a = TECH_LIST_LAID_OUT_A;
             m_set_flag(s, CPU_FLAG_C, carry);
         }
-        return battle_call_long(s, 0xC10E99, 0xCFFD36, CALLEE_READS_NOTHING);
+        return battle_run_long_called(s, 0xC10E99, 0xCFFD36, CALLEE_READS_NOTHING, battle_request_saved_window_rows);
     }
 }
 

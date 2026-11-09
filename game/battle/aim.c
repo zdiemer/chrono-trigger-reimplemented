@@ -861,7 +861,7 @@ static bool show_on_the_machine(void *ctx, uint8_t showing)
 {
     Snes *s = ctx;
     s->cpu.a = showing;
-    return battle_run(s, SHOWING_CALL, SHOWING, battle_start_action_showing);
+    return battle_run_dc(s, SHOWING_CALL, SHOWING, DC_X | DC_Y | DC_FLAGS, battle_start_action_showing);
 }
 
 /* A's high byte goes back clear, as the original's last loads leave it, but

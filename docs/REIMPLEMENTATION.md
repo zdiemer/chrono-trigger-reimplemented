@@ -4254,6 +4254,19 @@ saved machine, rather than suspending a C invocation for a whole screen.
 Battle's graphics/window waits and five main-pass boundaries use the same
 mechanism while its byte comparisons remain active.
 
+Battle startup and its return to the field also use checked C handoffs.
+The setup scheduler keeps its registers on the saved stack; after the
+graphics and window waits, a held continuation restores them and resumes
+the main loop. Battle's final return resumes the field's held request.
+Frame waits, VRAM send-and-wait and menu-row drawing call their guarded
+entries directly, preserving the call-out's settling boundaries. The
+three-movie census (`menus-sweep`, `menus-epoch`, `battle-menu-buttons`)
+falls from 19 machine-entered entries to seven, none in battle, with
+44,643 machine calls and 888 entries reached only as C. All three strict
+outcome ratchets pass. Thirty-one native-shape save/replay checks across
+battle startup and its first menus reproduce WRAM and SRAM after 120
+frames, with no inexact, lost or mismatched suspended-call replay.
+
 Menu task yields call the scheduler as C after constructing the return
 frame and checking its complete contract. `native_park_after_task_switch`
 parks the caller until its task resumes; the next task is already held.

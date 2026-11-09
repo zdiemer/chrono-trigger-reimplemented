@@ -15,6 +15,7 @@
  * there again), the menu cursors the settings remember, and every character
  * with some HP. It waits for its last graphics uploads to go out first, and
  * hides the sprites the field doesn't draw over. */
+#include "holds.h"
 #include "battle/animation.h"
 #include "battle/battle.h"
 #include "battle/bridge.h"
@@ -355,7 +356,7 @@ void battle_start_from_field(Snes *s)
     m_save_caller_registers(s);
     on_the_battle(s);
     if (come_in_from_the_field(state_of(s), screen_set_up_on_the_machine, s))
-        m_stop_at(s, MAIN_LOOP, READS_NOTHING);
+        battle_continue(s, MAIN_LOOP, battle_main_loop_start, READS_NOTHING);
 }
 
 /* Each last frame waited for from its own call; the display closed with A's
@@ -378,8 +379,12 @@ static bool display_closed_on_the_machine(void *ctx)
 void battle_return_to_field(Snes *s)
 {
     static const WayOutCalls on_the_machine = { frame_passes_on_the_machine, display_closed_on_the_machine };
-    if (go_back_to_the_field(state_of(s), &on_the_machine, s))
+    if (go_back_to_the_field(state_of(s), &on_the_machine, s)) {
         m_return_to_caller_long(s);
+        /* The field's caller resumes after the battle's saved registers. */
+        if (s->cpu.pb == 0xC0 && s->cpu.pc == 0x18AB)
+            native_hold(s, HOLD_FIELD_FRAME);
+    }
 }
 
 /* The way back finds the party as the game has it, and A's high byte clear

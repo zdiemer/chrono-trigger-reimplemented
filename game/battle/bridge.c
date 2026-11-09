@@ -1,10 +1,13 @@
 /* The guards the battle's entries run under, and the call to the original's
  * code the wrappers and bridges share (battle/bridge.h). */
+#include "battle/frame.h"
 #include "charge.h"
 #include "battle/bridge.h"
 #include "menu/machine_forms.h"
 
 #include "battle/battle.h"
+#include "battle/wait.h"
+#include "battle/entries.h"
 #include "core/machine_forms.h"
 #include "original_effects.h"
 #include "platform/timing.h"
@@ -47,8 +50,25 @@ bool battle_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     return battle_back(s, site + BATTLE_JSL_SIZE, page, bank);
 }
 
+/* The timing service's named battle waits, called with their original
+ * frames and full registry contracts while the battle is still gated. */
+static void (*frame_wait_entry(uint32_t routine))(Snes *)
+{
+    switch (routine) {
+    case 0xC1007E: return battle_wait_for_frame_entry;
+    case 0xCFFCFB: return battle_wait_for_a_last_frame_entry;
+    case 0xCD3E7D: return battle_wait_for_the_handler_entry;
+    case 0xCD3E75: return battle_wait_for_the_next_frame_entry;
+    case 0xCD044A: return battle_wait_for_the_small_handler_entry;
+    default: return NULL;
+    }
+}
+
 bool battle_wait_frame(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
 {
+    void (*entry)(Snes *) = frame_wait_entry(routine);
+    if (m_runs_retired_as_c(s) && entry)
+        return battle_run_called(s, site, routine, dont_care, entry);
     uint16_t page = m_direct_page(s);
     uint8_t bank = data_bank(s);
     tm_wait_frame(m_platform(s), PF_CALL_DC(site, routine, dont_care));
@@ -57,6 +77,10 @@ bool battle_wait_frame(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_c
 
 bool battle_wait_frames(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint8_t frames)
 {
+    if (m_runs_retired_as_c(s) && routine == 0xCD3E3B) {
+        m_set_a8(s, frames);
+        return battle_run_called(s, site, routine, dont_care, battle_wait_some_frames_entry);
+    }
     uint16_t page = m_direct_page(s);
     uint8_t bank = data_bank(s);
     tm_wait_frames(m_platform(s), PF_CALL_DC(site, routine, dont_care), frames);
@@ -65,6 +89,14 @@ bool battle_wait_frames(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_
 
 bool battle_send_and_wait(Snes *s, uint32_t site, uint32_t from, uint16_t vram, uint16_t bytes)
 {
+    if (m_runs_retired_as_c(s)) {
+        /* The video service's arguments, before the sender's full contract. */
+        m_write16(s, (uint16_t)(m_direct_page(s) + 0x53), bytes);
+        s->cpu.a = (uint8_t)(from >> 16);
+        s->cpu.x = (uint16_t)from;
+        s->cpu.y = vram;
+        return battle_run_called(s, site, BATTLE_SEND, BATTLE_SEND_READS, battle_send_vram_and_wait);
+    }
     uint16_t page = m_direct_page(s);
     uint8_t bank = data_bank(s);
     vid_send_vram_and_wait(m_platform(s), PF_CALL_DC(site, BATTLE_SEND, BATTLE_SEND_READS), vram, PF_GAME(from), bytes);
@@ -111,7 +143,9 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     /* the sibling runs as C only where the runtime would run it there, its
      * guard and preconditions holding; otherwise the call is a real one, and
      * the runtime runs whatever the registry has for the state it meets */
-    const NativeEntry *e = native_hand_entry(s);
+    if (native_call_stop)
+        native_call_stop(site, routine, dont_care);
+    const NativeEntry *e = native_continuation_entry_at(s, routine);
     bool retired = (!e || e->fn != entry) && (core_machine_form_takes(s, entry) || menu_machine_form_takes(s, routine, entry));
     if ((!e || e->fn != entry) && !retired) {
         if (replaces_call_out) {
@@ -130,6 +164,23 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     if (replaces_call_out && returned)
         charge_settle(state_of(s));
     return returned && came_back_from(s, returns_to, page, how);
+}
+
+/* A former stop keeps the dispatch boundary and the callee's full contract. */
+void battle_continue(Snes *s, uint32_t routine, void (*entry)(Snes *), uint16_t dont_care)
+{
+    if (!m_runs_retired_as_c(s)) {
+        m_stop_at(s, routine, dont_care);
+        return;
+    }
+    m_jump_to(s, routine);
+    native_sync_boundary(s);
+    const NativeEntry *e = native_continuation_entry_at(s, routine);
+    if (!e || e->fn != entry) {
+        m_stop_at(s, routine, dont_care);
+        return;
+    }
+    NATIVE_TIME_AS_SIBLING(s, routine, entry(s));
 }
 
 void battle_push_the_return(Snes *s, uint32_t site) { m_push16(s, (uint16_t)(site + BATTLE_JSR_SIZE - 1)); }

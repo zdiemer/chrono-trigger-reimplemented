@@ -39,6 +39,8 @@ enum { BATTLE_JSR_SIZE = 3, BATTLE_JSL_SIZE = 4 };
  * callee must hand those back for the port to go on. True if it did;
  * otherwise the port stops at the call's return, and the original carries on
  * from the callee's machine. */
+void battle_continue(Snes *s, uint32_t routine, void (*entry)(Snes *), uint16_t dont_care);
+
 bool battle_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
 bool battle_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
 
