@@ -247,3 +247,141 @@ name = "menu_choose_second_to_exchange"
 runs = "C2CD79-C2CD7A"
 depends = ["game/menu/exchange.c:list_the_party", "game/menu/exchange.c:active_party_alone", "game/menu/exchange.c:menu_exchange_choose_the_second"]
 why = "After loading the layout byte, the original branches away when it is nonzero and immediately branches past these two bytes when it is zero. Nothing changes the flags between those branches. The conservative walk includes this dead load, but no value of the layout reaches it from relisting the exchanged party. Preserve the layout's two-way choice; the kept-member mark in the preceding active-party loop is separate and remains implemented."
+
+[[safe]]
+name = "battle_upload_vram"
+runs = "CFE56F-CFE573"
+depends = ["game/battle/uploads.c:count_down_to_reupload", "game/battle/uploads.c:send_queued_upload", "game/battle/frame_data.h:battle_queued_transfer"]
+why = "The countdown reuploads only queued slot zero. Its second transfer has nonzero size in the fixed USA resource, so this zero-size early exit cannot run. Other slots may have no second transfer and retain that behavior. Preserve the slot-zero selection and recheck if the transfer resource becomes editable."
+
+[[safe]]
+name = "battle_setup_state"
+runs = "CCEC8C-CCEC8F"
+depends = ["game/battle/setup_enemies.c:take_rules", "game/battle/setup_data.h:setup_rule", "game/battle/setup_data.h:setup_rule_enemy"]
+why = "None of the ten records before the fixed USA enemy-rule table's terminator supplies rule four. The branch that records a mirror rule therefore cannot run for any enemy identifier. Preserve the resource relationship and recheck if these records become editable; the C implementation still supports a mirror rule."
+
+[[safe]]
+name = "battle_effect_inflict"
+runs = "C1D2C0-C1D2CC"
+depends = ["game/battle/effect_statuses.c:effect_inflict_status", "game/battle/effect_work.c:inflict_on_target"]
+why = "The original tests its status helper's argument cell for 128 after the helper returns. That helper leaves 255 for no status, one when the first status byte is shrugged off, and zero on every other return; its shrug marker 128 is written to a different cell. The tested value is impossible for every byte-sized status selector. Preserve the separate shrug marker and ordinary status outcome; do not turn a shrugged first-byte status into an action miss."
+
+[[safe]]
+name = "battle_aim_action"
+runs = "C1C5E2-C1C5E5,C1C5F6-C1C5FA,C1C656-C1C658,C1C736-C1C740"
+depends = ["game/battle/aim.c:rules_fit", "game/battle/aim.c:aim_fits", "game/battle/aim.c:place_the_area", "game/battle/aim_data.h:area_rule"]
+why = "rules_fit admits at most one area rule and rejects the placing byte's target-search flag. The flagged setup and target-search call cannot run, and the backedge after decrementing a nonzero rule count requires at least two rules. Preserve both restrictions as contracts on retirement; the C operation implements the admitted single area search."
+
+[[safe]]
+name = "battle_aim_action"
+runs = "C1C53C-C1C541,C1C7D1-C1C7E6"
+depends = ["game/battle/aim.c:rules_fit", "game/battle/aim.c:aim_fits", "game/battle/aim.c:members_fit", "game/battle/aim.c:AIM_MODES", "game/battle/aim.c:PLACINGS", "game/battle/aim_data.h:party_tech_aim", "game/battle/aim_data.h:enemy_tech_aim", "game/battle/aim_data.h:item_aim_mode", "game/battle/aim_data.h:area_rules_place", "game/battle/aim_data.h:area_rule"]
+why = "Enumeration of every byte-sized party/enemy tech and every 7-bit item in the fixed USA resources finds no admitted mode $0A and no admitted area placing 3. The latter would aim from the chosen target toward the second member on the first member's side. Preserve the resource and guard relationship and recheck if these records become editable; both generic C operations remain implemented."
+
+[[safe]]
+name = "battle_aim_action"
+runs = "C1C3D3-C1C3D5"
+depends = ["game/battle/aim.c:take_whole_party", "game/battle/aim.c:take_by_mode", "game/battle/battle.h:BATTLE_PARTY_SIZE"]
+why = "The whole-party mode always lists three party places, increments its count to three and then branches past this failure jump. The count cannot be zero. Preserve the fixed three-place semantics of this action; other modes can still fail to find a target."
+
+[[safe]]
+name = "battle_show_action"
+runs = "C1406A-C14073,C1407A-C14083,C1408A-C1408F"
+depends = ["game/battle/action_showing.c:apply_the_animation_switch", "game/battle/action_animation_data.h:battle_animation_switch"]
+why = "The three fixed USA cartridge animation-debug switches are all zero. These branches force every animation to be critical, missed, or ordinary only when a corresponding switch is nonzero. The C operation retains all three modes; recheck this argument if the switches become editable."
+
+[[safe]]
+name = "battle_effect_restore"
+runs = "C1DB16-C1DB26"
+depends = ["game/battle/effect_amounts.c:effect_heal", "game/battle/effect_amounts.c:restoration", "game/battle/effect_parts.h:effect_times", "game/battle/effect_parts.h:effect_over", "game/battle/effect_work.c:leave_numbers", "game/battle/arith.c:battle_multiply_words", "game/battle/arith.c:battle_divide_leftover"]
+why = "The MP restoration's random addition requires a remainder after dividing ten times its byte-sized multiplier by ten. That product is at most 2,550, cannot wrap a word, and always divides exactly. The all-MP multiplier takes an earlier branch. Preserve the integer MP formula; the HP restoration's distinct random addition remains reachable."
+
+[[safe]]
+name = "script_play_and_wait_marked"
+runs = "C157E1-C15805"
+depends = ["game/battle/script_poses.c:script_pose_opcodes", "game/battle/script_language.c:needs_met", "game/battle/script_language.h:NEEDS_A_COMBATANT_CHANNEL"]
+why = "The marked animation command is restricted to combatant channels. Its original effect-channel branch, selected at channel 8 or above, restarts an animation and treats the second operand as another command; the C language's NEEDS_A_COMBATANT_CHANNEL explicitly excludes it. Preserve that restriction when the standalone guard retires; this is not execution evidence."
+
+[[safe]]
+name = "battle_start_fight"
+runs = "C1FCE7-C1FCE9"
+depends = ["game/battle/fight_party.c:fight_add_up_member_stats", "game/battle/fight_party.c:keep_sum_cells", "game/battle/equipment_data.h:equipment_bank_byte"]
+why = "The final attack addition zero-extends the byte-sized power (or hit) and the stray equipment-bank byte into words, then adds them with 16-bit A and carry clear. Their sum is at most 510, so the word carry cannot set and this saturation load cannot run. Preserve the original byte-truncated attack formula; this argument does not exclude the separate reachable defence saturation."
+
+[[safe]]
+name = "rewards_reach_level"
+runs = "C1F82D-C1F832"
+depends = ["game/battle/rewards_levels.c:rewards_reach_level", "game/battle/rewards_work.h:TOP_LEVEL"]
+why = "The only path to the post-increment level clamp first returns when the current level is at least 99. Incrementing an admitted remaining byte level reaches at most 99, so the branch that clamps a value above 99 cannot run. Preserve the early top-level return and one-level increment; this is a control-flow proof, not fuzz execution evidence."
+
+[[safe]]
+name = "battle_members_wait_after_tech"
+runs = "C1BE25-C1BE26"
+depends = ["game/battle/member_turn.c:member_waits_after_tech", "game/battle/member_turn.c:wait_divisor", "game/battle/arith.c:leave_word_product", "game/battle/arith.c:divide_long"]
+why = "The first member's wait below 255 enters the multiply with carry clear from its compare with 255. The multiply shifts its divisor cell to zero. The original then loads ten into X without storing it into that divisor cell, so division returns a zero quotient. Adding zero with carry clear to a byte cannot overflow; the first member's saturation load is unreachable. Preserve the first member's zero-divisor behavior separately from the other members' division by ten."
+
+[[safe]]
+name = "battle_frame_work"
+runs = "CD090D-CD0911"
+depends = ["game/battle/frame.c:paused_brightness", "game/battle/screen_data.h:battle_debug_frame_advance"]
+why = "The fixed USA cartridge's frame-advance switch is zero, so the paused display always selects half brightness and cannot take the debug branch that keeps full brightness. Preserve the resource relationship and recheck if the switch becomes editable; the C operation still implements both settings."
+
+[[safe]]
+name = "battle_work_out_enemy_tech"
+runs = "C1D7F7-C1D7FB,C1D864-C1D873,C1D8A8-C1D8A9,C1D8C1-C1D8C3"
+depends = ["game/battle/effect_data.h:action_record_place", "game/battle/effect_data.h:action_record", "game/battle/effect_work.c:start_work", "game/battle/effect_work.c:take_effect", "game/battle/effect_work.c:effect_work_out_enemy_action"]
+why = "Every one of the fixed USA resource's 256 byte-indexed enemy tech records has its action flags clear. None can mark an action sure, stop its remaining work on a miss, or add successive hits. The action state is cleared before the flags are copied, so the sure-effect branch has no retained flag either. Preserve the resource relationship and recheck if these records become editable; the C operations retain all three behaviors."
+
+[[safe]]
+name = "battle_screen_script_ripple_windows"
+runs = "CD20B6-CD20C5"
+depends = ["game/battle/screen_window.c:wave_at", "game/battle/screen_window.c:ripple_windows"]
+why = "The second wave multiplies an unsigned byte magnitude by 15 and takes the high byte, giving a magnitude from zero to 14. Its signed wave plus 32 is therefore between 18 and 46, always nonnegative as a signed byte. The original's sign-extension branch cannot run, independently of the sine resource's contents or the base height added afterward. Preserve the depth and offset relationship; this is an arithmetic proof, not execution evidence."
+
+[[safe]]
+name = "battle_screen_script_turn_cut"
+runs = "CD316C-CD317A"
+depends = ["game/battle/screen_divide.c:cut_line_at", "game/battle/screen_divide.c:turn_cut"]
+why = "Before measuring its cut, the command compares the endpoints' unsigned y coordinates and exchanges the full points when the first is lower. The first y is therefore never greater than the second; the helper's descending-y branch cannot run from this entry. Preserve the endpoint ordering in cut_line_at; this does not exclude the reachable leftward-x branch."
+
+[[safe]]
+name = "battle_aim_action"
+runs = "C1C2EC-C1C2EE"
+depends = ["game/battle/aim.c:enemy_brought_in_can_act", "game/battle/aim.c:can_be_made"]
+why = "The enemy action tests its first further target twice. A none target already branches to targeting before either participation test; neither test changes the target. The second none-target branch cannot run. Preserve the original repeated-first-target behavior: this is not permission to test the second further target instead."
+
+[[safe]]
+name = "battle_work_out_member_tech"
+runs = "C1D63C-C1D63E"
+depends = ["game/battle/party_work.c:members_in_party", "game/battle/party_work.c:parts_ported", "game/battle/party_work.c:effect_work_out_member_tech"]
+why = "Every real tech member must map to a party slot below three under members_in_party. A none member must map to the none sentinel and returns before this compare. Effect work does not change character-to-party-slot mappings, so a performer at this branch cannot be an enemy. Preserve both member mapping preconditions as contracts on retirement."
+
+[[safe]]
+name = "battle_condition_acted_on_by_member"
+runs = "C19589-C1958E"
+depends = ["game/battle/enemy_conditions.c:acted_on_by_member"]
+why = "The whole-party negated branch compares the same unchanged nibble first with one, then with two, leaving on either inequality. No value equals both, so the third comparison with five and the following failure branch are unreachable. Preserve the original whole-party behavior rather than correcting its contradictory tests."
+
+[[safe]]
+name = "battle_work_out_enemy_tech"
+runs = "C1D370-C1D370"
+depends = ["game/battle/effect_data.h:action_record", "game/battle/effect_data.h:effect_record_byte", "game/battle/effect_work.c:effect_run_kind", "game/battle/effect_work.c:effect_work_out_enemy_action"]
+why = "All 256 fixed USA enemy tech records select no effect or an effect of kind zero, two, three, five or seven. No-operation kind four is never selected, so its standalone return cannot run from enemy tech work. Preserve this resource relationship and recheck if tech or effect records become editable; the generic C dispatcher retains the case. The repeated-hit return is covered separately through the shared C dispatcher in member tech work."
+
+[[safe]]
+name = "battle_effect_hit"
+runs = "C1DE46-C1DE48"
+depends = ["game/battle/effect_amounts.c:effect_apply_hit", "game/battle/effect_amounts.c:guarded_against"]
+why = "The hit clamps its amount to 9999 before testing absorption or the target HP. The surviving-target path neither changes the amount nor calls another routine before its second clamp; that second clamp cannot store a smaller amount. Preserve the first clamp before either branch."
+
+[[safe]]
+name = "battle_effect_hit"
+runs = "C1F1AB-C1F1AC"
+depends = ["game/battle/effect_modifiers.c:death"]
+why = "The death modifier checks that its remaining target word is nonzero before searching its sixteen bits from the top bit down. A nonzero word must intersect one of those bits, so the exhausted-search branch is unreachable. Preserve the nonzero check and the full sixteen-bit search."
+
+[[safe]]
+name = "battle_enemy_script_choose"
+runs = "C1AFF1-C1AFF5,C1B00E-C1B023"
+depends = ["game/battle/enemy_scripts.c:choose_by_script", "game/battle/enemy_scripts.c:action_to_choose", "game/battle/enemy_scripts.c:start_block_actions", "game/battle/enemy_scripts.c:choose_from", "game/battle/enemy_scripts.c:enemy_script_next_block", "game/battle/rules_data.h:enemy_script_start", "game/battle/rules_data.h:enemy_script_byte", "game/battle/enemy_conditions.c:conditions", "game/battle/enemy_actions.c:choose_pose"]
+why = "The fixed USA turn sections have apparent paired conditions only beyond script 127's first four blocks. Its second block is unconditional and begins with a pose, which holds without a target. Only a retained next action for that same block can bypass the pose and fail. After such a failure, the third block either holds its pose or fails without changing the retained block; the fourth is unconditional, starts at an end marker, and cannot reuse the second block's retained action. Choosing that marker leaves the freshly initialized held outcome unchanged, ending the search before any pair. Preserve both the block-identity check and the marker's held outcome; recheck if resources or selection semantics change. The resumed-tech/no-party fixtures compare the second path rather than assuming the first pose always runs."

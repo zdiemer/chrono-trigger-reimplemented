@@ -19,6 +19,15 @@ event_screen_cover_right = ["event_cmd_screen_command"]
 event_screen_cover_left = ["event_cmd_screen_command"]
 event_screen_end_field = ["event_cmd_screen_command"]
 event_screen_ripple = ["event_cmd_screen_command"]
+# The turn and effect work call effect_amounts.c's battle_restart_turn_wait
+# directly. The condition table also maps its two always aliases to the
+# same condition operation; the alias recipes compare those original bodies.
+battle_give_turn = ["battle_work_out_member_tech", "battle_condition_always"]
+# Both kinds of tech work call effect_work.c's effect_add_up_hits directly.
+battle_work_out_enemy_tech = ["battle_work_out_member_tech"]
+# The defeat's closing loop in closing.c owns the frame call before testing
+# the fade; sound.c's former one-pass entry stops at that call boundary.
+battle_wait_music_fade_loop = ["battle_play_out_the_defeat_end"]
 
 # Recipes known to fail today, each with why: `unreached.py --record` reports
 # them and takes no evidence from them, and fails on any other failing recipe

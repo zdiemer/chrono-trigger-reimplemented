@@ -21605,3 +21605,1248 @@ state = "battle"
 args = ["--jump"]
 iterations = 2000
 why = "One pass of the defeat screen fade-status branch with the captured sound state."
+
+[[routine]]
+name = "battle_aim_action"
+variant = "unreached_actor_area_placement"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=03", "--fill", "7EAEFF-7EAF09=00", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=00", "--fill", "7E0006-7E0007=93EE", "--fill", "7E93EF-7E93EF=20", "--fill", "7EB18C-7EB18C=A4,AF,D0,F1,FC", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EB1BF-7EB1BF=01", "--fill", "7EB1C0-7EB1C0=02", "--fill", "7EB2EA-7EB2EA=00", "--fill", "7EB2EB-7EB2EB=01", "--fill", "7EB2EC-7EB2EC=02", "--fill", "7E2989-7E2989=00"]
+iterations = 2000
+why = "Existing byte-indexed tech records place an area around the acting combatant; all target slots remain in the fight."
+
+[[routine]]
+name = "battle_aim_action"
+variant = "unreached_area_anchors_before_animation"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=03", "--fill", "7EAEFF-7EAF09=00", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=00", "--fill", "7E0006-7E0007=93EE", "--fill", "7E93EF-7E93EF=20", "--fill", "7EB18C-7EB18C=89,A7,A8", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EB1BF-7EB1BF=01", "--fill", "7EB1C0-7EB1C0=02", "--fill", "7EB2EA-7EB2EA=00", "--fill", "7EB2EB-7EB2EB=01", "--fill", "7EB2EC-7EB2EC=02", "--stop-at-call", "C1AC57"]
+iterations = 2000
+why = "Compare the uncommon admitted area placements before the no-target animation can enter a frame wait."
+
+[[routine]]
+name = "battle_aim_action"
+variant = "unreached_blocked_partner"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=00", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00,01,02", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=04", "--fill", "7EAE97-7EAE98=03", "--fill", "7EB18C-7EB18C=00-FF", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7E5FCA-7E5FCA=80"]
+iterations = 2000
+why = "A standing actor tries an enemy tech whose brought-in partner is knocked out, reaching the partner refusal independently of the actor check."
+
+[[routine]]
+name = "battle_aim_action"
+variant = "unreached_blocked_third_member"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=00", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00,01,02", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=01", "--fill", "7E0006-7E0007=93F5", "--fill", "7E93EF-7E93EF=20", "--fill", "7EB18C-7EB18C=00-74", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EB1BE-7EB1BE=00", "--fill", "7EB1BF-7EB1BF=01", "--fill", "7EB2EB-7EB2EB=01", "--fill", "7EB2EC-7EB2EC=00", "--fill", "7E5E4A-7E5E4A=80", "--fill", "7E93F6-7E93F6=20"]
+iterations = 2000
+why = "The acting second party slot is healthy but the third tech member maps to a knocked-out first slot; the second member is present and healthy so the third member is checked."
+
+[[routine]]
+name = "battle_aim_action"
+variant = "unreached_empty_area_actual_2_members"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=FF", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=00", "--fill", "7E0006-7E0007=93EE", "--fill", "7E93EF-7E93EF=20", "--fill", "7EB18C-7EB18C=3B,3C,3E,40,47,48,49,52,53,54,56,5A,64", "--stop-at-call", "C1AC57", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EB1BF-7EB1BF=01", "--fill", "7EB1C0-7EB1C0=02", "--fill", "7EB2EA-7EB2EA=00", "--fill", "7EB2EB-7EB2EB=FF", "--fill", "7EB2EC-7EB2EC=FF"]
+iterations = 2000
+why = "Area tech records supply 2 actual members, replacing the caller workspace, and find nobody; compare at the real showing call."
+
+[[routine]]
+name = "battle_aim_action"
+variant = "unreached_empty_area_actual_3_members"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=FF", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=00", "--fill", "7E0006-7E0007=93EE", "--fill", "7E93EF-7E93EF=20", "--fill", "7EB18C-7EB18C=6A", "--stop-at-call", "C1AC57", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EB1BF-7EB1BF=01", "--fill", "7EB1C0-7EB1C0=02", "--fill", "7EB2EA-7EB2EA=00", "--fill", "7EB2EB-7EB2EB=FF", "--fill", "7EB2EC-7EB2EC=FF"]
+iterations = 2000
+why = "Area tech records supply 3 actual members, replacing the caller workspace, and find nobody; compare at the real showing call."
+
+[[routine]]
+name = "battle_aim_action"
+variant = "unreached_empty_rule_set"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=00", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=00", "--fill", "7E0006-7E0007=93EE", "--fill", "7E93EF-7E93EF=20", "--fill", "7EB18C-7EB18C=DE", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EB1BF-7EB1BF=01", "--fill", "7EB1C0-7EB1C0=02", "--fill", "7EB2EA-7EB2EA=00", "--fill", "7EB2EB-7EB2EB=01", "--fill", "7EB2EC-7EB2EC=02", "--fill", "7E99C0-7E99C1=0000"]
+iterations = 2000
+why = "An admitted extended tech names a nonzero area whose rule count is zero, leaving the caller's existing finds unchanged."
+
+[[routine]]
+name = "battle_aim_action"
+variant = "unreached_enemy_without_additional_members"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=00,FF", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00,01,02,FF", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=03-0A", "--fill", "7EAE97-7EAE98=FF", "--fill", "7EB18C-7EB18C=00-FF"]
+iterations = 2000
+why = "An enemy tech has no first or second additional member; compare the branch that skips their ability checks."
+
+[[routine]]
+name = "battle_aim_action"
+variant = "unreached_enemy_without_further_target"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=00,FF", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=03-0A", "--fill", "7EAE97-7EAE98=FF", "--fill", "7EB18C-7EB18C=00-FF", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EB1BF-7EB1BF=01", "--fill", "7EB1C0-7EB1C0=02", "--fill", "7EB2EA-7EB2EA=00", "--fill", "7EB2EB-7EB2EB=01", "--fill", "7EB2EC-7EB2EC=02"]
+iterations = 2000
+why = "An enemy can act and has no further target, so the second partner check is bypassed."
+
+[[routine]]
+name = "battle_aim_action"
+variant = "unreached_extended_tech_modes"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=00", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00,01,02", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=00", "--fill", "7E0006-7E0007=93EE", "--fill", "7E93EF-7E93EF=20", "--fill", "7EB18C-7EB18C=7A,7B,89,97,A7,A8,B8", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E53-7E6353:80=00"]
+iterations = 2000
+why = "Exercise admitted high-byte tech details, including whole-party targeting and area placements absent from the normal tech-number fixture."
+
+[[routine]]
+name = "battle_aim_action"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=00,FF", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00,01,02,FF", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=00", "--fill", "7E0006-7E0007=93EE", "--fill", "7E93EF-7E93EF=20", "--fill", "7EB18C-7EB18C=00-74", "--fill", "7E2989-7E2989=00"]
+iterations = 2000
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+
+[[routine]]
+name = "battle_aim_action"
+variant = "unreached_partner_status_four_1"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=00,FF", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=00", "--fill", "7E0006-7E0007=93EE", "--fill", "7E93EF-7E93EF=20", "--fill", "7EB18C-7EB18C=00-74", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EB1BF-7EB1BF=01", "--fill", "7EB1C0-7EB1C0=02", "--fill", "7EB2EA-7EB2EA=00", "--fill", "7EB2EB-7EB2EB=01", "--fill", "7EB2EC-7EB2EC=02", "--fill", "7E5ECE-7E5ECE=80"]
+iterations = 2000
+why = "A healthy actor and otherwise healthy partners isolate the status-four restriction on this partner."
+
+[[routine]]
+name = "battle_aim_action"
+variant = "unreached_partner_status_four_2"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=00,FF", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=00", "--fill", "7E0006-7E0007=93EE", "--fill", "7E93EF-7E93EF=20", "--fill", "7EB18C-7EB18C=00-74", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EB1BF-7EB1BF=01", "--fill", "7EB1C0-7EB1C0=02", "--fill", "7EB2EA-7EB2EA=00", "--fill", "7EB2EB-7EB2EB=01", "--fill", "7EB2EC-7EB2EC=02", "--fill", "7E5F4E-7E5F4E=80"]
+iterations = 2000
+why = "A healthy actor and otherwise healthy partners isolate the status-four restriction on this partner."
+
+[[routine]]
+name = "battle_aim_action"
+variant = "unreached_whole_party_items"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=00", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00,01,02", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=02", "--fill", "7E0006-7E0007=93FC", "--fill", "7E93FD-7E93FD=40", "--fill", "7E000C-7E000D=0000", "--fill", "7EB18C-7EB18C=44,65,67", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E53-7E6353:80=00"]
+iterations = 2000
+why = "Aim whole-party items while the actor is able to act. These item numbers select the fixed whole-party mode omitted from the earlier item range."
+
+[[routine]]
+name = "battle_call_enemies_in"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=03", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--long", "--fill", "7EAF0D-7EAF14=00", "--fill", "7EAF02-7EAF09=FF", "--fill", "7EAF15-7EAF1C=00", "--fill", "7EB1D2-7EB1D3=8D1E", "--fill", "7E0012-7E0013=0000"]
+why = "The coherent base call-in script exercises the first HP restoration choice, complementing the second and third choices."
+iterations = 2000
+variant = "unreached_called_hp_1"
+
+[[routine]]
+name = "battle_call_enemies_in"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=03", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--long", "--fill", "7EAF0D-7EAF14=00", "--fill", "7EAF02-7EAF09=FF", "--fill", "7EAF15-7EAF1C=00", "--fill", "7EB1D2-7EB1D3=8D70", "--fill", "7E0012-7E0013=0000"]
+why = "Bring the beaten enemies back with the HP choice selected by the last changed stat offset, preserving the original helper convention."
+iterations = 2000
+variant = "unreached_called_hp_2"
+
+[[routine]]
+name = "battle_call_enemies_in"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=03", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--long", "--fill", "7EAF0D-7EAF14=00", "--fill", "7EAF02-7EAF09=FF", "--fill", "7EAF15-7EAF1C=00", "--fill", "7EB1D2-7EB1D3=9031", "--fill", "7E0012-7E0013=000F"]
+why = "Bring the beaten enemies back with the HP choice selected by the last changed stat offset, preserving the original helper convention."
+iterations = 2000
+variant = "unreached_called_hp_3"
+
+[[routine]]
+name = "battle_carry_out_member_action"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E001B-7E001B=00", "--fill", "7E93EE-7E93FC:7=40", "--fill", "7E93EF-7E93FD:7=90", "--fill", "7E93F0-7E93FE:7=01", "--fill", "7E93F1-7E93FF:7=03", "--fill", "7E93F3-7E9401:7=FF", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EB2EA-7EB2EA=00-06", "--fill", "7EB18B-7EB18B=00-02", "--fill", "7EB3F4-7EB3F4=00-02", "--fill", "7E93F4-7E9402:7=01", "--fill", "7E5E4A-7E5F4A:80=00", "--fill", "7E5E4B-7E5F4B:80=00", "--fill", "7E5E4C-7E5F4C:80=00", "--fill", "7E5E4D-7E5F4D:80=00", "--fill", "7E5E4E-7E5F4E:80=00", "--fill", "7EA0D1-7EA0D3=00", "--stop-at-call", "C1BFAA", "--stop-at-call", "C1C1DD", "--stop-at-call", "C1AC57"]
+iterations = 2000
+why = "An able waiting member carries a held action choice without combination partners; compare through dispatch to its first callee, including all memory and that callee's live inputs."
+variant = "unreached_held_attack"
+
+[[routine]]
+name = "battle_carry_out_member_action"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E001B-7E001B=00", "--fill", "7E93EE-7E93FC:7=40", "--fill", "7E93EF-7E93FD:7=10", "--fill", "7E93F0-7E93FE:7=01", "--fill", "7E93F1-7E93FF:7=03", "--fill", "7E93F3-7E9401:7=FF", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EB2EA-7EB2EA=00-06", "--fill", "7EB18B-7EB18B=00-02", "--fill", "7EB3F4-7EB3F4=00-02", "--fill", "7E93F4-7E9402:7=01", "--stop-at-call", "C1BFAA", "--stop-at-call", "C1C1DD", "--stop-at-call", "C1AC57", "--fill", "7E5E4A-7E5F4A:80=00", "--fill", "7E5E4B-7E5F4B:80=00", "--fill", "7E5E4C-7E5F4C:80=00", "--fill", "7E5E4D-7E5F4D:80=00", "--fill", "7E5E4E-7E5F4E:80=00", "--fill", "7EA0D1-7EA0D3=00"]
+iterations = 2000
+why = "An able waiting member carries a held choice, with no combination partners; the choice dispatch is compared before its action callee."
+variant = "unreached_held_held"
+
+[[routine]]
+name = "battle_carry_out_member_action"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E001B-7E001B=00", "--fill", "7E93EE-7E93FC:7=40", "--fill", "7E93EF-7E93FD:7=50", "--fill", "7E93F0-7E93FE:7=01", "--fill", "7E93F1-7E93FF:7=03", "--fill", "7E93F3-7E9401:7=FF", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EB2EA-7EB2EA=00-06", "--fill", "7EB18B-7EB18B=00-02", "--fill", "7EB3F4-7EB3F4=00-02", "--fill", "7E93F4-7E9402:7=01", "--fill", "7E5E4A-7E5F4A:80=00", "--fill", "7E5E4B-7E5F4B:80=00", "--fill", "7E5E4C-7E5F4C:80=00", "--fill", "7E5E4D-7E5F4D:80=00", "--fill", "7E5E4E-7E5F4E:80=00", "--fill", "7EA0D1-7EA0D3=00", "--stop-at-call", "C1BFAA", "--stop-at-call", "C1C1DD", "--stop-at-call", "C1AC57"]
+iterations = 2000
+why = "An able waiting member carries a held action choice without combination partners; compare through dispatch to its first callee, including all memory and that callee's live inputs."
+variant = "unreached_held_item"
+
+[[routine]]
+name = "battle_carry_out_member_action"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E001B-7E001B=00", "--fill", "7E93EE-7E93FC:7=40", "--fill", "7E93EF-7E93FD:7=30", "--fill", "7E93F0-7E93FE:7=01", "--fill", "7E93F1-7E93FF:7=03", "--fill", "7E93F3-7E9401:7=FF", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EB2EA-7EB2EA=00-06", "--fill", "7EB18B-7EB18B=00-02", "--fill", "7EB3F4-7EB3F4=00-02", "--fill", "7E93F4-7E9402:7=01", "--fill", "7E5E4A-7E5F4A:80=00", "--fill", "7E5E4B-7E5F4B:80=00", "--fill", "7E5E4C-7E5F4C:80=00", "--fill", "7E5E4D-7E5F4D:80=00", "--fill", "7E5E4E-7E5F4E:80=00", "--fill", "7EA0D1-7EA0D3=00", "--stop-at-call", "C1BFAA", "--stop-at-call", "C1C1DD", "--stop-at-call", "C1AC57"]
+iterations = 2000
+why = "An able waiting member carries a held action choice without combination partners; compare through dispatch to its first callee, including all memory and that callee's live inputs."
+variant = "unreached_held_tech"
+
+[[routine]]
+name = "battle_carry_out_member_action"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E001B-7E001B=00", "--fill", "7E93EE-7E93FC:7=40", "--fill", "7E93EF-7E93FD:7=30", "--fill", "7E93F0-7E93FE:7=01", "--fill", "7E93F1-7E93FF:7=03", "--fill", "7E93F3-7E9401:7=FF", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EB2EA-7EB2EA=00-06", "--fill", "7EB18B-7EB18B=00-02", "--fill", "7EB3F4-7EB3F4=00-02", "--fill", "7E93F4-7E9402:7=00,02", "--fill", "7E5E4A-7E5F4A:80=00", "--fill", "7E5E4B-7E5F4B:80=00", "--fill", "7E5E4C-7E5F4C:80=00", "--fill", "7E5E4D-7E5F4D:80=00", "--fill", "7E5E4E-7E5F4E:80=00", "--fill", "7EA0D1-7EA0D3=00", "--stop-at-call", "C1BFAA", "--stop-at-call", "C1C1DD", "--stop-at-call", "C1AC57"]
+iterations = 2000
+why = "A held tech choice with neither accepted tech command ends its turn instead of aiming."
+variant = "unreached_held_tech_no_command"
+
+[[routine]]
+name = "battle_carry_out_member_action"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E001B-7E001B=00", "--fill", "7E93EE-7E93FC:7=40", "--fill", "7E93EF-7E93FD:7=50", "--fill", "7E93F0-7E93FE:7=01", "--fill", "7E93F1-7E93FF:7=00", "--fill", "7E93F3-7E9401:7=FF", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EB2EA-7EB2EA=00-06", "--fill", "7EB18B-7EB18B=00-02", "--fill", "7EB3F4-7EB3F4=00-02", "--fill", "7E93F4-7E9402:7=BC", "--fill", "7E5E4A-7E5F4A:80=00", "--fill", "7E5E4B-7E5F4B:80=00", "--fill", "7E5E4C-7E5F4C:80=00", "--fill", "7E5E4D-7E5F4D:80=00", "--fill", "7E5E4E-7E5F4E:80=00", "--fill", "7EA0D1-7EA0D3=00", "--keep", "7E0000-7FFFFF", "--fill", "7ECD02-7ECD02=00", "--clear-at", "C10080=7E009E", "--clear-at", "CD3E81=7ECA20", "--clear-at", "CD3E81=7ECA26", "--tick-at", "C10080=7E007C", "--clear-at", "C10080=7EA012", "--clear-at", "CD3E81=7E5D9B", "--tick-at", "C10080=7E9876", "--apu-loopback", "--fill", "7EAF0A-7EAF0C=00,01,02"]
+iterations = 2000
+why = "Compare the caller through its return with explicit frame and animation completion notifications on both machines. Worker execution is not credited by these signals."
+variant = "unreached_item_animation_completed"
+
+[[routine]]
+name = "battle_carry_out_member_action"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E001B-7E001B=00", "--fill", "7E93EE-7E93FC:7=40,C0,00,40", "--fill", "7E93EF-7E93FD:7=80,40,20,10,00,80,20", "--fill", "7E93F0-7E93FE:7=01,03,02", "--fill", "7E93F1-7E93FF:7=03,04,05,06,07,08,09,0A,00,01,02", "--fill", "7E93F3-7E9401:7=FF,FF,F0,F1,F2,10,12,20,21", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EB2EA-7EB2EA=00-06", "--fill", "7EB18B-7EB18B=00-02", "--fill", "7EB3F4-7EB3F4=00-02", "--fill", "7E93F4-7E9402:7=00-FF", "--fill", "7E2989-7E2989=00"]
+iterations = 2000
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+
+[[routine]]
+name = "battle_carry_out_member_action"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E001B-7E001B=00", "--fill", "7E93EE-7E93FC:7=40", "--fill", "7E93EF-7E93FD:7=30", "--fill", "7E93F0-7E93FE:7=01", "--fill", "7E93F1-7E93FF:7=03", "--fill", "7E93F3-7E9401:7=FF", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EB2EA-7EB2EA=00-06", "--fill", "7EB18B-7EB18B=00-02", "--fill", "7EB3F4-7EB3F4=00-02", "--fill", "7E93F4-7E9402:7=2D,51", "--fill", "7E5E4A-7E5F4A:80=00", "--fill", "7E5E4B-7E5F4B:80=00", "--fill", "7E5E4C-7E5F4C:80=00", "--fill", "7E5E4D-7E5F4D:80=00", "--fill", "7E5E4E-7E5F4E:80=00", "--fill", "7EA0D1-7EA0D3=00", "--keep", "7E0000-7FFFFF", "--fill", "7ECD02-7ECD02=00", "--clear-at", "C10080=7E009E", "--clear-at", "CD3E81=7ECA20", "--clear-at", "CD3E81=7ECA26", "--tick-at", "C10080=7E007C", "--clear-at", "C10080=7EA012", "--clear-at", "CD3E81=7E5D9B", "--tick-at", "C10080=7E9876", "--apu-loopback", "--fill", "7E5E34-7E5F34:80=FFFF", "--fill", "7EAE5D-7EAE64=00"]
+iterations = 2000
+why = "The targeted enemies have neither an item nor a charm left; complete the showing and compare the no-item message."
+variant = "unreached_steal_nothing_completed"
+
+[[routine]]
+name = "battle_carry_out_member_action"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E001B-7E001B=00", "--fill", "7E93EE-7E93FC:7=40", "--fill", "7E93EF-7E93FD:7=30", "--fill", "7E93F0-7E93FE:7=01", "--fill", "7E93F1-7E93FF:7=03", "--fill", "7E93F3-7E9401:7=FF", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EB2EA-7EB2EA=00-06", "--fill", "7EB18B-7EB18B=00-02", "--fill", "7EB3F4-7EB3F4=00-02", "--fill", "7E93F4-7E9402:7=2D,51", "--fill", "7E5E4A-7E5F4A:80=00", "--fill", "7E5E4B-7E5F4B:80=00", "--fill", "7E5E4C-7E5F4C:80=00", "--fill", "7E5E4D-7E5F4D:80=00", "--fill", "7E5E4E-7E5F4E:80=00", "--fill", "7EA0D1-7EA0D3=00", "--keep", "7E0000-7FFFFF", "--fill", "7ECD02-7ECD02=00", "--clear-at", "C10080=7E009E", "--clear-at", "CD3E81=7ECA20", "--clear-at", "CD3E81=7ECA26", "--tick-at", "C10080=7E007C", "--clear-at", "C10080=7EA012", "--clear-at", "CD3E81=7E5D9B", "--tick-at", "C10080=7E9876", "--apu-loopback", "--fill", "7E5E34-7E5F34:80=FFFF"]
+iterations = 2000
+why = "A steal tech has enough MP; compare its caller through showing the stolen item or the no-item message."
+variant = "unreached_steal_showing_completed"
+
+[[routine]]
+name = "battle_carry_out_member_action"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E001B-7E001B=00", "--fill", "7E93EE-7E93FC:7=40", "--fill", "7E93EF-7E93FD:7=30", "--fill", "7E93F0-7E93FE:7=01", "--fill", "7E93F1-7E93FF:7=03", "--fill", "7E93F3-7E9401:7=FF", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EB2EA-7EB2EA=00-06", "--fill", "7EB18B-7EB18B=00-02", "--fill", "7EB3F4-7EB3F4=00-02", "--fill", "7E93F4-7E9402:7=00-7F", "--fill", "7E5E4A-7E5F4A:80=00", "--fill", "7E5E4B-7E5F4B:80=00", "--fill", "7E5E4C-7E5F4C:80=00", "--fill", "7E5E4D-7E5F4D:80=00", "--fill", "7E5E4E-7E5F4E:80=00", "--fill", "7EA0D1-7EA0D3=00", "--keep", "7E0000-7FFFFF", "--fill", "7ECD02-7ECD02=00", "--clear-at", "C10080=7E009E", "--clear-at", "CD3E81=7ECA20", "--clear-at", "CD3E81=7ECA26", "--tick-at", "C10080=7E007C", "--clear-at", "C10080=7EA012", "--clear-at", "CD3E81=7E5D9B", "--tick-at", "C10080=7E9876", "--apu-loopback"]
+iterations = 2000
+why = "Compare the caller through its return with explicit frame and animation completion notifications on both machines. Worker execution is not credited by these signals."
+variant = "unreached_tech_animation_completed"
+
+[[routine]]
+name = "battle_change_battlefield_as_an_enemy_leaves"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7ECD02-7ECD02=00-00", "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B", "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2", "--fill", "7E2989-7E2989=00"]
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+iterations = 2000
+
+[[routine]]
+name = "battle_change_battlefield_as_an_enemy_leaves"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--fill", "7ECD02-7ECD02=00", "--fill", "7E5D9B-7E5D9B=01", "--keep", "7E0000-7FFFFF", "--clear-at", "C10080=7E009E", "--clear-at", "CD3E81=7ECA20", "--clear-at", "CD3E81=7ECA26", "--tick-at", "C10080=7E007C", "--clear-at", "C10080=7EA012", "--clear-at", "CD3E81=7E5D9B", "--apu-loopback", "--stop-at-call", "CD0EBD"]
+why = "An earlier screen script finishes at the next frame before the enemy changes the battlefield."
+variant = "unreached_previous_screen_completed"
+
+[[routine]]
+name = "battle_choose_targets"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-02", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02", "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-00", "--fill", "7E95DB-7E95DB=00-02", "--fill", "7E9551-7E95D1=00-13", "--fill", "7E95EB-7E95ED=00-11", "--fill", "7E9609-7E9609=01-01", "--fill", "7EA862-7EA862=00-00", "--fill", "7EA02A-7EA02C=00-14", "--fill", "7E9614-7E9614=00", "--fill", "7E99C0-7E99CB=03", "--fill", "7E9EE7-7E9EE7=FF,F0,F1,F2,10,20,21,12,01,02", "--fill", "7E9F36-7E9F37=00-00", "--fill", "7E99D8-7E99D8=00-02", "--fill", "7E1D0C-7E1D16=00-FF", "--fill", "7E1D23-7E1D2D=00-FF", "--fill", "7E2980-7E2982=00-06", "--fill", "7E96F5-7E96FF=01", "--fill", "7EA0A8-7EA0B2=00-01", "--fill", "7EA09B-7EA0A5=00", "--fill", "7E9FF7-7E9FFF=00", "--fill", "7E960D-7E960D=01,02,0B,0C,0D,0E,0F,12,1A", "--apu-loopback", "--fill", "7E00EE-7E00EF=0200"]
+iterations = 2000
+why = "A backwards target cursor move starts at the first slot and wraps to the final slot of a nonempty candidate list."
+variant = "unreached_previous_target_wraps"
+
+[[routine]]
+name = "battle_close_the_display"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--keep", "7E0000-7FFFFF", "--clear-at", "C10080=7E009E", "--clear-at", "CD3E81=7ECA20", "--clear-at", "CD3E81=7ECA26", "--apu-loopback", "--fill", "7E2A21-7E2A21=01", "--clear-at", "CD3E81=7E5D9B", "--clear-at", "CD3E81=7ECA1F", "--clear-at", "CD3E81=7EA013", "--fill", "7F01EC-7F01EC=01", "--stop-at-call", "CD0D93"]
+why = "Complete asynchronous screen and window requests at the frame notification. This compares the waiting caller, not the workers."
+variant = "unreached_defeat_workers_close"
+iterations = 2000
+
+[[routine]]
+name = "battle_close_the_display"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7ECA26-7ECA26=00-00", "--fill", "7ECD02-7ECD02=00-00", "--stop-at-call", "CD3E7D", "--stop-at-call", "CD3E75", "--stop-at-call", "CD3E3B", "--stop-at-call", "CD044A", "--stop-at-call", "CD3ED2", "--stop-at-call", "CD0453", "--stop-at-call", "CD039E", "--stop-at-call", "CD0516", "--fill", "7E2989-7E2989=00"]
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+iterations = 2000
+
+[[routine]]
+name = "battle_condition_acted_on_by_member"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--fill", "7E2989-7E2989=00"]
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+iterations = 2000
+
+[[routine]]
+name = "battle_condition_always"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--compare-entry", "C195D6"]
+why = "The condition table aliases this always condition to the same C operation; compare the alias itself under the unchanged full entry contract."
+variant = "unreached_alias_c195d6"
+
+[[routine]]
+name = "battle_condition_always"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--compare-entry", "C19652"]
+why = "The condition table aliases this always condition to the same C operation; compare the alias itself under the unchanged full entry contract."
+variant = "unreached_alias_c19652"
+
+[[routine]]
+name = "battle_condition_frames_at_least"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--fill", "7EB1D2-7EB1D3=8D08", "--fill", "7E96F1-7E96F4=00000000"]
+why = "At the script's zero-frame threshold, both high clock bytes equal the threshold, so the final low-byte comparison is executed."
+variant = "unreached_clock_low_byte"
+iterations = 2000
+
+[[routine]]
+name = "battle_condition_is_party_member"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--fill", "7EB1D2-7EB1D3=B546", "--fill", "7EAF0A-7EAF0A=00", "--fill", "7EAEFF-7EAEFF=FF", "--fill", "7E5E4A-7E5F4A:80=00"]
+why = "A selector names the first party slot by identity even though it is absent; the condition requires it to be in the fight."
+variant = "unreached_absent_party_identity"
+iterations = 2000
+
+[[routine]]
+name = "battle_copy_frame_tiles"
+at = "CF:EB94"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "1D00", "--db", "7E", "--range", "X=11B0-11B0", "--range", "Y=0700-0700", "--fill", "7E1DCD-7E1DCE=0004,0005,0007"]
+why = "Copy four, five and seven tile groups with enough source and destination space, reaching each early return absent from the movie union."
+variant = "unreached_short_group_returns"
+iterations = 2000
+
+[[routine]]
+name = "battle_draw_afterimage"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "1D00", "--db", "7E", "--keep", "7E0000-7FFFFF", "--fill", "7E1DC5-7E1DC6=000C", "--fill", "7E1DC9-7E1DCA=0000", "--fill", "7E1D34-7E1D35=80-FF"]
+why = "A recorded battle keeps its startup-built OAM lookup and valid output span while the trail high bytes are negative."
+variant = "unreached_negative_trail_steps"
+iterations = 2000
+
+[[routine]]
+name = "battle_draw_afterimage"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "1D00", "--db", "7E", "--fill", "7E1DC5-7E1DC5=0C-16", "--fill", "7E1DC6-7E1DC6=00-00", "--fill", "7E1DCA-7E1DCA=00-01", "--fill", "7E2989-7E2989=00"]
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+iterations = 2000
+
+[[routine]]
+name = "battle_draw_menu_window"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-03", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02", "--fill", "7EA0FF-7EA100=0000", "--fill", "7EA86B-7EA86B=00-01", "--fill", "7EA62D-7EA62D=00-02", "--fill", "7E95DB-7E95DB=01", "--fill", "7E9551-7E95D1=00-13", "--fill", "7E95EB-7E95ED=00-11", "--fill", "7EA099-7EA099=00", "--fill", "7EA0D1-7EA0D3=00", "--fill", "7E1A80-7E1C23=FF", "--fill", "7E1A80-7E1C1D:7=74", "--fill", "7E94D0-7E9550=00", "--fill", "7E1C48-7E1C48=00,42"]
+iterations = 2000
+why = "The tech page checks the tech requiring Frog's sword, with affordable costs, no unavailable partners, and the sword present or absent."
+variant = "unreached_frog_sword_requirement"
+
+[[routine]]
+name = "battle_draw_party_status"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-03", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02", "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-01", "--fill", "7EA62D-7EA62D=00-02", "--fill", "7EA09A-7EA09A=00", "--fill", "7E9F20-7E9F20=01"]
+why = "An open party menu with its status display held skips the normal status update and reaches the existing redraw tail."
+variant = "unreached_status_held"
+iterations = 2000
+
+[[routine]]
+name = "battle_draw_window"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-03", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00", "--fill", "7EA6D9-7EA6DB=FF", "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00", "--fill", "7EA62D-7EA62D=00-02", "--fill", "7EA6DA-7EA6DA=01", "--fill", "7EA6DE-7EA6DE=01", "--fill", "7E95DB-7E95DB=00"]
+why = "The selected command slot is empty but the next slot holds a member; redraw chooses the first occupied slot."
+variant = "unreached_empty_selected_slot"
+iterations = 2000
+
+[[routine]]
+name = "battle_effect_combatant_chase"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=03-03", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=06-06", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=0C-0C", "--fill", "7E00CB-7E00CB=00-00", "--fill", "7E2989-7E2989=00"]
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+iterations = 2000
+
+[[routine]]
+name = "battle_effect_combatant_chase"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=03-03", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=06-06", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=0C-0C", "--fill", "7E00CB-7E00CB=00-00", "--fill", "7EAC24-7EAC36=00", "--fill", "7EAC37-7EAC49=00", "--fill", "7EA324-7EA336=01-04"]
+why = "A chase turns forward by a small finite step without yet reaching its target heading."
+variant = "unreached_partial_forward_turn"
+
+[[routine]]
+name = "battle_effect_combatant_jump_to_target"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=03-03", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=06-06", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=0C-0C", "--fill", "7E00CB-7E00CB=00-00", "--fill", "7E2989-7E2989=00"]
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+iterations = 2000
+
+[[routine]]
+name = "battle_effect_combatant_jump_to_target"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=03-03", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=06-06", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=0C-0C", "--fill", "7E00CB-7E00CB=00-00", "--fill", "7EA9E4-7EA9E5=0001", "--fill", "7EAB03-7EAB03=01", "--fill", "7E1D0F-7E1D0F=80", "--fill", "7E1D26-7E1D26=80", "--fill", "7EA386-7EA386=80", "--fill", "7EA399-7EA399=80"]
+why = "A falling homing jump already in its second stage lands exactly on its target."
+variant = "unreached_second_landing"
+
+[[routine]]
+name = "battle_effect_hit"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7EAD9B-7EAD9B=00-03", "--fill", "7EB2C7-7EB2C7=00-02", "--fill", "7EB2CC-7EB2CC=41,43,5C,5D,61,65,C7", "--fill", "7E5E73-7E6373:80=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7EAE4D-7EAE4D=30", "--fill", "7EAE4E-7EAE4E=00", "--fill", "7EAE9B-7EAE9B=80"]
+iterations = 5000
+why = "Exercise the no-operation modifier records omitted from the original fixture whitelist."
+variant = "unreached_noop_modifier"
+
+[[routine]]
+name = "battle_effect_hit"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7EAD9B-7EAD9B=00-03", "--fill", "7EB2C7-7EB2C7=00-02", "--fill", "7EB2CC-7EB2CC=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7E5E73-7E6373:80=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7E2989-7E2989=00"]
+iterations = 2000
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+
+[[routine]]
+name = "battle_effect_inflict"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7EAD9B-7EAD9B=00-03", "--fill", "7EB2C7-7EB2C7=00-02", "--fill", "7EB2CC-7EB2CC=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7E5E73-7E6373:80=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7EAE4D-7EAE4D=00", "--fill", "7EAEEB-7EAEEB=00", "--fill", "7EAEEC-7EAEEC=01", "--fill", "7E5E66-7E6366:80=00", "--fill", "7EAEE7-7EAEE7=01", "--fill", "7EAEE8-7EAEE8=01"]
+iterations = 2000
+why = "A zero base chance and zero actor magic permit status misses instead of the random record usually guaranteeing a hit."
+variant = "unreached_low_status_chance"
+
+[[routine]]
+name = "battle_effect_inflict"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7EAD9B-7EAD9B=00-03", "--fill", "7EB2C7-7EB2C7=00-02", "--fill", "7EB2CC-7EB2CC=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7E5E73-7E6373:80=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7E2989-7E2989=00"]
+iterations = 2000
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+
+[[routine]]
+name = "battle_effect_inflict"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7EAD9B-7EAD9B=00-03", "--fill", "7EB2C7-7EB2C7=00-02", "--fill", "7EB2CC-7EB2CC=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7E5E73-7E6373:80=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7EAE4D-7EAE4D=20", "--fill", "7EAEE7-7EAEE7=02", "--fill", "7EAEE8-7EAEE8=00,01,40,80,C0", "--fill", "7E5E51-7E6351:80=00"]
+iterations = 2000
+why = "A sure effect gives the second status byte, whose timer dispatch tests its high bits but starts no status timer."
+variant = "unreached_second_status_byte"
+
+[[routine]]
+name = "battle_effect_inflict"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7EAD9B-7EAD9B=00-03", "--fill", "7EB2C7-7EB2C7=00-02", "--fill", "7EB2CC-7EB2CC=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7E5E73-7E6373:80=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7EAE4D-7EAE4D=00", "--fill", "7EAEEB-7EAEEB=00", "--fill", "7EAEEC-7EAEEC=01", "--fill", "7E5E66-7E6366:80=00", "--fill", "7EAEE7-7EAEE7=01", "--fill", "7EAEE8-7EAEE8=01", "--fill", "7E2989-7E2989=00"]
+iterations = 2000
+why = "A non-demo random roll can miss the zero-chance status; demo mode always draws the lower endpoint."
+variant = "unreached_status_misses_outside_demo"
+
+[[routine]]
+name = "battle_enemy_add_to_stats_then_tech_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--fill", "7E2989-7E2989=00"]
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+iterations = 2000
+
+[[routine]]
+name = "battle_enemy_add_to_stats_then_tech_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--keep", "7E0000-7FFFFF", "--fill", "7ECD02-7ECD02=00", "--clear-at", "C10080=7E009E", "--clear-at", "CD3E81=7ECA20", "--clear-at", "CD3E81=7ECA26", "--tick-at", "C10080=7E007C", "--clear-at", "C10080=7EA012", "--clear-at", "CD3E81=7E5D9B", "--tick-at", "C10080=7E9876", "--apu-loopback"]
+why = "Compare the caller through its return with explicit frame and animation completion notifications on both machines. Worker execution is not credited by these signals."
+variant = "unreached_stats_animation_completed"
+
+[[routine]]
+name = "battle_enemy_bring_back_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=03", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--apu-loopback", "--fill", "7EB1D2-7EB1D3=9039", "--fill", "7EAF0D-7EAF14=00", "--fill", "7EAF02-7EAF09=FF", "--fill", "7EAF15-7EAF1C=00", "--fill", "7E5E4A-7E5F4A:80=00"]
+why = "Bring the beaten formation back through the real enemy loader, then apply the script's HP restoration choice."
+variant = "unreached_revived_one_hp"
+iterations = 2000
+
+[[routine]]
+name = "battle_enemy_bring_back_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=03", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--apu-loopback", "--fill", "7EB1D2-7EB1D3=8F3E", "--fill", "7EAF0D-7EAF14=00", "--fill", "7EAF02-7EAF09=FF", "--fill", "7EAF15-7EAF1C=00", "--fill", "7E5E4A-7E5F4A:80=00"]
+why = "Bring the beaten formation back through the real enemy loader, then apply the script's HP restoration choice."
+variant = "unreached_revived_quarter_hp"
+iterations = 2000
+
+[[routine]]
+name = "battle_enemy_change_into_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00", "--fill", "7EAEC8-7EAEC8=00", "--fill", "7EB18B-7EB18B=03", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--fill", "7EB1D2-7EB1D3=8D0C", "--fill", "7EAF0D-7EAF14=00", "--fill", "7EAF0E-7EAF0E=01", "--fill", "7EAF03-7EAF03=FF", "--fill", "7EAF16-7EAF16=80", "--fill", "7EAE71-7EAE71=04", "--fill", "7E5E4A-7E5F4A:80=00"]
+why = "The acting enemy changes into a matching reserve enemy in its own formation place, requesting the real arrival loader."
+variant = "unreached_reserve_enemy_arrives"
+iterations = 2000
+
+[[routine]]
+name = "battle_enemy_script_choose"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00", "--fill", "7EB18B-7EB18B=03", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--fill", "7EB1CF-7EB1CF=00", "--fill", "7EAEC8-7EAEC8=00", "--fill", "7EAEFF-7EAF09=FF", "--fill", "7EAF0D-7EAF14=FF", "--fill", "7EB242-7EB249=FF", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EAEC6-7EAEC6=01-08", "--fill", "7E9873-7E9873=00-0A", "--fill", "7EB263-7EB26A=00", "--fill", "7EB26B-7EB272=FF"]
+why = "An initialized enemy count and retained target remain within their combatant bounds, and the chooser starts a fresh script block rather than a random retained action."
+variant = "unreached_choose_without_targets_in_battle"
+iterations = 2000
+
+[[routine]]
+name = "battle_enemy_script_choose"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=007F-007F", "--keep", "7E0000-7FFFFF", "--fill", "7E2989-7E2989=00", "--fill", "7EB1CF-7EB1CF=00", "--fill", "7EB26B-7EB272=FF", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4D-7E634D:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E4F-7E634F:80=00", "--fill", "7E5E50-7E6350:80=00", "--fill", "7E5E51-7E6351:80=00", "--fill", "7E5E52-7E6352:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EB252-7EB252=00", "--fill", "7EAEC8-7EAEC8=00", "--fill", "7EAEC6-7EAEC6=01-08", "--fill", "7E9873-7E9873=00-0A", "--fill", "7EB18B-7EB18B=03", "--fill", "7EB254-7EB25B=00-FF", "--fill", "7E5E30-7E6350=00"]
+why = "The long paired-block script with varying counters and cleared actor statistics reaches later conditions."
+variant = "unreached_late_paired_blocks"
+iterations = 2000
+
+[[routine]]
+name = "battle_enemy_script_choose"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--keep", "7E0000-7FFFFF", "--fill", "7E2989-7E2989=00", "--fill", "7EB1CF-7EB1CF=00", "--fill", "7EB26B-7EB272=FF", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4D-7E634D:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E4F-7E634F:80=00", "--fill", "7E5E50-7E6350:80=00", "--fill", "7E5E51-7E6351:80=00", "--fill", "7E5E52-7E6352:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EB252-7EB252=00", "--fill", "7EAEC8-7EAEC8=00", "--fill", "7EAEC6-7EAEC6=01-08", "--fill", "7E9873-7E9873=00-0A", "--fill", "7EB18B-7EB18B=03"]
+why = "A recorded battle tests every enemy script identifier without status overrides, with initialized target bounds and no retained action block."
+variant = "unreached_paired_coherent_script"
+iterations = 2000
+
+[[routine]]
+name = "battle_enemy_script_choose"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=007F-007F", "--keep", "7E0000-7FFFFF", "--fill", "7E2989-7E2989=00", "--fill", "7EB1CF-7EB1CF=00", "--fill", "7EB26B-7EB272=FF", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4D-7E634D:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E4F-7E634F:80=00", "--fill", "7E5E50-7E6350:80=00", "--fill", "7E5E51-7E6351:80=00", "--fill", "7E5E52-7E6352:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EB252-7EB252=00", "--fill", "7EAEC8-7EAEC8=00", "--fill", "7EAEC6-7EAEC6=01-08", "--fill", "7E9873-7E9873=00-0A", "--fill", "7EB18B-7EB18B=03", "--fill", "7EAF24-7EAF24=00", "--fill", "7EB254-7EB25B=00-FF", "--fill", "7EB18E-7EB1BD=00-FF", "--fill", "7E5E30-7E6350=00"]
+why = "Vary condition counters and reaction records for every script identifier, with actors unable to satisfy health conditions."
+variant = "unreached_paired_script_conditions"
+iterations = 2000
+
+[[routine]]
+name = "battle_enemy_script_choose"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=007F-007F", "--keep", "7E0000-7FFFFF", "--fill", "7E2989-7E2989=00", "--fill", "7EB1CF-7EB1CF=00", "--fill", "7EB26B-7EB272=01", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4D-7E634D:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E4F-7E634F:80=00", "--fill", "7E5E50-7E6350:80=00", "--fill", "7E5E51-7E6351:80=00", "--fill", "7E5E52-7E6352:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EB252-7EB252=00", "--fill", "7EAEC8-7EAEC8=00", "--fill", "7EAEC6-7EAEC6=08", "--fill", "7E9873-7E9873=00-0A", "--fill", "7EB18B-7EB18B=03", "--fill", "7EAF24-7EAF24=00", "--fill", "7EB254-7EB25B=00-FF", "--fill", "7EB18E-7EB1BD=00-FF", "--fill", "7E5E30-7E6350=00", "--fill", "7EB1D4-7EB1E2:2=A3F2", "--fill", "7EB1E4-7EB1F2:2=A3EE", "--fill", "7EAF02-7EAF09=0F", "--fill", "7EAEFF-7EAF01=FF", "--fill", "7E0024-7E0024=01", "--fill", "7EB263-7EB26A=00", "--fill", "7EB2C0-7EB2C0=00", "--fill", "7E5E30-7E6330:80=0001", "--fill", "7E5E32-7E6332:80=0001", "--fill", "7E5E4A-7E634A:80=00"]
+why = "Vary the later blocks health conditions after the resumed random-party tech finds nobody."
+variant = "unreached_resumed_health_0001"
+iterations = 2000
+
+[[routine]]
+name = "battle_enemy_script_choose"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=007F-007F", "--keep", "7E0000-7FFFFF", "--fill", "7E2989-7E2989=00", "--fill", "7EB1CF-7EB1CF=00", "--fill", "7EB26B-7EB272=01", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4D-7E634D:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E4F-7E634F:80=00", "--fill", "7E5E50-7E6350:80=00", "--fill", "7E5E51-7E6351:80=00", "--fill", "7E5E52-7E6352:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EB252-7EB252=00", "--fill", "7EAEC8-7EAEC8=00", "--fill", "7EAEC6-7EAEC6=08", "--fill", "7E9873-7E9873=00-0A", "--fill", "7EB18B-7EB18B=03", "--fill", "7EAF24-7EAF24=00", "--fill", "7EB254-7EB25B=00-FF", "--fill", "7EB18E-7EB1BD=00-FF", "--fill", "7E5E30-7E6350=00", "--fill", "7EB1D4-7EB1E2:2=A3F2", "--fill", "7EB1E4-7EB1F2:2=A3EE", "--fill", "7EAF02-7EAF09=0F", "--fill", "7EAEFF-7EAF01=FF", "--fill", "7E0024-7E0024=01", "--fill", "7EB263-7EB26A=00", "--fill", "7EB2C0-7EB2C0=00", "--fill", "7E5E30-7E6330:80=FFFF", "--fill", "7E5E32-7E6332:80=0001", "--fill", "7E5E4A-7E634A:80=00"]
+why = "Vary the later blocks health conditions after the resumed random-party tech finds nobody."
+variant = "unreached_resumed_health_ffff"
+iterations = 2000
+
+[[routine]]
+name = "battle_enemy_script_choose"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=007F-007F", "--keep", "7E0000-7FFFFF", "--fill", "7E2989-7E2989=00", "--fill", "7EB1CF-7EB1CF=00", "--fill", "7EB26B-7EB272=01", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E4D-7E634D:80=00", "--fill", "7E5E4E-7E634E:80=00", "--fill", "7E5E4F-7E634F:80=00", "--fill", "7E5E50-7E6350:80=00", "--fill", "7E5E51-7E6351:80=00", "--fill", "7E5E52-7E6352:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EB252-7EB252=00", "--fill", "7EAEC8-7EAEC8=00", "--fill", "7EAEC6-7EAEC6=08", "--fill", "7E9873-7E9873=00-0A", "--fill", "7EB18B-7EB18B=03", "--fill", "7EAF24-7EAF24=00", "--fill", "7EB254-7EB25B=00-FF", "--fill", "7EB18E-7EB1BD=00-FF", "--fill", "7E5E30-7E6350=00", "--fill", "7EB1D4-7EB1E2:2=A3F2", "--fill", "7EB1E4-7EB1F2:2=A3EE", "--fill", "7EAF02-7EAF09=0F", "--fill", "7EAEFF-7EAF01=FF", "--fill", "7E0024-7E0024=01", "--fill", "7EB263-7EB26A=00", "--fill", "7EB2C0-7EB2C0=00"]
+why = "Resume the unconditional block at its tech with no party target, rather than assuming its first pose is always selected."
+variant = "unreached_resumed_tech_without_party"
+iterations = 2000
+
+[[routine]]
+name = "battle_enemy_takes_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--fill", "7EB2C0-7EB2C0=00", "--fill", "7EB26B-7EB26B=00", "--fill", "7EB1D4-7EB1D5=8D12", "--fill", "7EB1E4-7EB1E5=8D12"]
+iterations = 2000
+why = "The retained action and selected block agree at an existing end marker, so the enemy ends its turn without dispatching an action."
+variant = "unreached_action_list_ended"
+
+[[routine]]
+name = "battle_enemy_takes_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--fill", "7E2989-7E2989=00"]
+iterations = 2000
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+
+[[routine]]
+name = "battle_enemy_takes_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00", "--fill", "7EAEC8-7EAEC8=00", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--fill", "7EB2C0-7EB2C0=00", "--fill", "7EB26B-7EB26B=00", "--fill", "7EB1D4-7EB1D5=8D0D", "--fill", "7EB1E4-7EB1E5=8D0D", "--fill", "7E5E15-7E5E1C=FF", "--fill", "7EAEFF-7EAF01=00,FF", "--fill", "7E2989-7E2989=00", "--stop-at-call", "C1AC57", "--stop-at-call", "C1BF46", "--stop-at-call", "C1D7C4", "--stop-at-call", "C1D8D1"]
+iterations = 5000
+why = "Compare missing-target recovery through the effect call, whose inputs come from game state."
+variant = "unreached_target_draw_before_work"
+
+[[routine]]
+name = "battle_frame_update"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--buttons", "1000", "--fill", "7E2989-7E2989=20", "--fill", "7EBB00-7EBB00=02-0F", "--fill", "7EA097-7EA097=00"]
+why = "A latched button starts the demo fade while brightness remains above its return-to-title boundary."
+variant = "unreached_demo_button_exit"
+iterations = 2000
+
+[[routine]]
+name = "battle_frame_work"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "00", "--range", "A=0000-00FF", "--fill", "7ECA92-7ECA92=00-03", "--fill", "7E00A0-7E00A0=00-00", "--fill", "7ECA26-7ECA26=00-00", "--fill", "7E007C-7E007D=0000", "--fill", "7ECD02-7ECD02=00", "--fill", "7ECA1E-7ECA1E=00", "--fill", "7ECA21-7ECA21=01", "--fill", "7E00EC-7E00EC=00"]
+why = "On an even unpaused frame with no slide, the requested window arrangement differs from the displayed arrangement. Compare through the complete callee sequence."
+variant = "unreached_changed_window_arrangement"
+iterations = 2000
+
+[[routine]]
+name = "battle_frame_work"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "00", "--range", "A=0000-00FF", "--fill", "7ECA92-7ECA92=00-03", "--fill", "7E00A0-7E00A0=00-00", "--fill", "7ECA26-7ECA26=00-00", "--fill", "7E2989-7E2989=00"]
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+iterations = 2000
+
+[[routine]]
+name = "battle_give_turn"
+at = "C1:8461"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=01-0B", "--fill", "7EB185-7EB185=00-0B", "--fill", "7EB2C0-7EB2C0=01", "--fill", "7EB3B7-7EB3B7=03", "--fill", "7E5FCB-7E5FCB=04", "--keep", "7E0000-7FFFFF", "--fill", "7ECD02-7ECD02=00", "--clear-at", "C10080=7E009E", "--clear-at", "CD3E81=7ECA20", "--clear-at", "CD3E81=7ECA26", "--tick-at", "C10080=7E007C", "--clear-at", "C10080=7EA012", "--clear-at", "CD3E81=7E5D9B", "--tick-at", "C10080=7E9876", "--apu-loopback", "--fill", "7EB18B-7EB18B=03", "--fill", "7E2989-7E2989=00", "--fill", "7E0027-7E0027=00"]
+iterations = 5000
+why = "The acting enemy remains the actor through the update, so its confusion suppresses reactions."
+variant = "unreached_confused_acting_enemy"
+
+[[routine]]
+name = "battle_give_turn"
+at = "C1:8461"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB163-7EB16D=03", "--fill", "7EAEC7-7EAEC7=01-0B", "--fill", "7EB185-7EB185=01", "--fill", "7EB2C0-7EB2C0=01", "--fill", "7EB3B7-7EB3B7=03", "--fill", "7E5FCB-7E5FCB=04", "--keep", "7E0000-7FFFFF", "--fill", "7ECD02-7ECD02=00", "--clear-at", "C10080=7E009E", "--clear-at", "CD3E81=7ECA20", "--clear-at", "CD3E81=7ECA26", "--tick-at", "C10080=7E007C", "--clear-at", "C10080=7EA012", "--clear-at", "CD3E81=7E5D9B", "--tick-at", "C10080=7E9876", "--apu-loopback", "--fill", "7EB18B-7EB18B=03", "--fill", "7E2989-7E2989=00", "--fill", "7E0027-7E0027=01", "--fill", "7EB179-7EB184=01", "--fill", "7EB03A-7EB03A=81", "--fill", "7EB03D-7EB03D=81", "--fill", "7EB1D4-7EB1D5=8D0D", "--fill", "7EB1E4-7EB1E5=8D0D", "--fill", "7E5E15-7E5E1C=04", "--fill", "7E5E0A-7E5E11=01", "--fill", "7EB25C-7EB263=00", "--fill", "7EB26B-7EB272=00", "--fill", "7EAFAB-7EAFB5=00", "--fill", "7EAF02-7EAF09=00", "--fill", "7EB24A-7EB251=00", "--fill", "7E9829-7E9830=01"]
+iterations = 5000
+why = "The confused acting enemy has a due turn and a held script action, so its attack runs before reactions are considered."
+variant = "unreached_confused_due_enemy"
+
+[[routine]]
+name = "battle_give_turn"
+at = "C1:8461"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB163-7EB16D=03", "--fill", "7EAEC7-7EAEC7=01-0B", "--fill", "7EB185-7EB185=00-0B", "--fill", "7EB2C0-7EB2C0=01", "--fill", "7EB3B7-7EB3B7=03", "--fill", "7E5FCB-7E5FCB=04", "--keep", "7E0000-7FFFFF", "--fill", "7ECD02-7ECD02=00", "--clear-at", "C10080=7E009E", "--clear-at", "CD3E81=7ECA20", "--clear-at", "CD3E81=7ECA26", "--tick-at", "C10080=7E007C", "--clear-at", "C10080=7EA012", "--clear-at", "CD3E81=7E5D9B", "--tick-at", "C10080=7E9876", "--apu-loopback", "--fill", "7EB18B-7EB18B=03", "--fill", "7E2989-7E2989=00", "--fill", "7E0027-7E0027=01", "--fill", "7EB179-7EB184=01", "--fill", "7EB03A-7EB03A=81", "--fill", "7EB03D-7EB03D=81", "--fill", "7EB1D4-7EB1D5=8D0D", "--fill", "7EB1E4-7EB1E5=8D0D", "--fill", "7E5E15-7E5E1C=04", "--fill", "7E5E0A-7E5E11=01", "--fill", "7EB25C-7EB263=00", "--fill", "7EB26B-7EB272=00"]
+iterations = 5000
+why = "An enemy with a queued attack targets another enemy while confused, then skips reactions to its own action."
+variant = "unreached_confused_enemy_attacks_enemy"
+
+[[routine]]
+name = "battle_give_turn"
+at = "C1:8461"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=01-0B", "--fill", "7EB185-7EB185=00-0B", "--fill", "7EB2C0-7EB2C0=01", "--fill", "7EB3B7-7EB3B7=03", "--fill", "7E5FCB-7E5FCB=04"]
+iterations = 5000
+why = "A confused enemy cannot start the reaction search."
+variant = "unreached_confused_enemy_reaction"
+
+[[routine]]
+name = "battle_give_turn"
+at = "C1:8461"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=01-0B", "--fill", "7EB185-7EB185=00-0B", "--fill", "7EB2C0-7EB2C0=01", "--fill", "7EB3B7-7EB3B7=03", "--fill", "7E5FCB-7E5FCB=04", "--keep", "7E0000-7FFFFF", "--fill", "7ECD02-7ECD02=00", "--clear-at", "C10080=7E009E", "--clear-at", "CD3E81=7ECA20", "--clear-at", "CD3E81=7ECA26", "--tick-at", "C10080=7E007C", "--clear-at", "C10080=7EA012", "--clear-at", "CD3E81=7E5D9B", "--tick-at", "C10080=7E9876", "--apu-loopback"]
+iterations = 5000
+why = "Compare the caller through its return with explicit frame and animation completion notifications on both machines. Worker execution is not credited by these signals."
+variant = "unreached_confused_reaction_completed"
+
+[[routine]]
+name = "battle_give_turn"
+at = "C1:8461"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=01-0B", "--fill", "7EB185-7EB185=00-0B", "--fill", "7E2989-7E2989=00"]
+iterations = 2000
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+
+[[routine]]
+name = "battle_member_status_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "Y=0003-000A", "--range", "X=0000-0000", "--fill", "7EAD8E-7EAD8E=03-0A", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7E5E4E-7E5E4E=80"]
+iterations = 2000
+why = "The standalone contract admits every combatant in Y. A nonparty combatant with the driven-to-fight status takes the branch that records its turn without choosing a party attack."
+variant = "unreached_enemy_driven_status"
+
+[[routine]]
+name = "battle_members_wait_after_tech"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2EA-7EB2EA=00", "--fill", "7EB2EB-7EB2EC=00,01,02,03,04,05,06,FF", "--fill", "7EB1BE-7EB1C4=00", "--fill", "7EB18C-7EB18C=39-47", "--fill", "7EB2EB-7EB2EB=01", "--fill", "7EB2EC-7EB2EC=FF", "--fill", "7EB1BF-7EB1BF=01", "--fill", "7EB158-7EB15A=F0", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E53-7E6353:80=00", "--fill", "7EAFAB-7EAFAD=F0-FF"]
+iterations = 2000
+why = "The partner recovery gauge, rather than the independent turn timer, is near its byte limit when the tech adds recovery."
+variant = "unreached_partner_recovery_overflow"
+
+[[routine]]
+name = "battle_members_wait_after_tech"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2EA-7EB2EA=00", "--fill", "7EB2EB-7EB2EC=00,01,02,03,04,05,06,FF", "--fill", "7EB1BE-7EB1C4=00", "--fill", "7EB18C-7EB18C=39-47", "--fill", "7EB2EB-7EB2EB=01", "--fill", "7EB2EC-7EB2EC=FF", "--fill", "7EB1BF-7EB1BF=01", "--fill", "7EB158-7EB15A=F0", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4C-7E634C:80=00", "--fill", "7E5E53-7E6353:80=00"]
+iterations = 2000
+why = "The second tech member has a long turn wait and a positive fractional recovery cost; unlike the first member, its divisor is ten and the added delay saturates."
+variant = "unreached_partner_wait_saturation"
+
+[[routine]]
+name = "battle_members_wait_after_tech"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2EA-7EB2EA=00", "--fill", "7EB2EB-7EB2EC=FF", "--fill", "7EB1BE-7EB1C4=00", "--fill", "7EB18C-7EB18C=00-7F", "--fill", "7EAFAB-7EAFAD=F0-FF"]
+iterations = 2000
+why = "The sole acting member already has almost a full wait counter, so a positive recovery delay reaches the byte saturation branch."
+variant = "unreached_wait_saturation"
+
+[[routine]]
+name = "battle_mp_regain_timer_ran_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=0B", "--fill", "7E2989-7E2989=00"]
+iterations = 2000
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+
+[[routine]]
+name = "battle_mp_regain_timer_ran_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=0B", "--keep", "7E0000-7FFFFF", "--fill", "7ECD02-7ECD02=00", "--clear-at", "C10080=7E009E", "--clear-at", "CD3E81=7ECA20", "--clear-at", "CD3E81=7ECA26", "--tick-at", "C10080=7E007C", "--clear-at", "C10080=7EA012", "--clear-at", "CD3E81=7E5D9B", "--tick-at", "C10080=7E9876", "--apu-loopback"]
+iterations = 5000
+why = "Compare the caller through its return with explicit frame and animation completion notifications on both machines. Worker execution is not credited by these signals."
+variant = "unreached_regain_animation_completed"
+
+[[routine]]
+name = "battle_mp_regain_timer_ran_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=00", "--fill", "7EB163-7EB16D=00", "--fill", "7EAEC7-7EAEC7=0B", "--keep", "7E0000-7FFFFF", "--fill", "7ECD02-7ECD02=00", "--clear-at", "C10080=7E009E", "--clear-at", "CD3E81=7ECA20", "--clear-at", "CD3E81=7ECA26", "--tick-at", "C10080=7E007C", "--clear-at", "C10080=7EA012", "--clear-at", "CD3E81=7E5D9B", "--tick-at", "C10080=7E9876", "--apu-loopback", "--fill", "7EB0A8-7EB0A8=01", "--fill", "7E5E4A-7E5E4A=00", "--fill", "7E5E4E-7E5E4E=20", "--fill", "7E5E53-7E5E53=20"]
+iterations = 5000
+why = "The first combatant completes its tenth magic regain interval and its status-number animation."
+variant = "unreached_regain_showing_completed"
+
+[[routine]]
+name = "battle_party_counters"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7EB3B9-7EB3B9=01", "--fill", "7EB3AC-7EB3AE=00,01,02,FF", "--fill", "7E0022-7E0022=03-0A", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7EB3AC-7EB3AC=00", "--fill", "7EB3AD-7EB3AE=FF", "--fill", "7E0022-7E0023=0003", "--fill", "7E5E4A-7E634A:80=00", "--fill", "7E5E4B-7E634B:80=00", "--fill", "7E5E78-7E5E78=40", "--fill", "7E5E7A-7E5E7A=80", "--fill", "7E5E7B-7E5E7B=64"]
+iterations = 2000
+why = "A healthy first member is hit by the fourth combatant; its accessory guarantees an immediate counterattack, exercising the counter call and the defeated-attacker test."
+variant = "unreached_guaranteed_counterattack"
+
+[[routine]]
+name = "battle_place_menu_cursors"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-03", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=FF", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02", "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-00", "--fill", "7E95DB-7E95DB=00-02", "--fill", "7E9609-7E9609=01", "--fill", "7E9613-7E9613=00"]
+iterations = 2000
+why = "The target cursor list has no first or second target and returns without drawing a target cursor."
+variant = "unreached_empty_target_list"
+
+[[routine]]
+name = "battle_place_menu_cursors"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-03", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=FF", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02", "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-00", "--fill", "7E95DB-7E95DB=00", "--fill", "7E9609-7E9609=01", "--fill", "7E9613-7E9613=00", "--fill", "7EA62D-7EA62D=03", "--fill", "7EAF0D-7EAF0D=00-FF", "--fill", "7E9608-7E9608=00"]
+iterations = 10000
+why = "A lone enemy on the command page covers every name-visibility resource record."
+variant = "unreached_hidden_enemy_name"
+
+[[routine]]
+name = "battle_place_menu_cursors"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-03", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02", "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-00", "--fill", "7E95DB-7E95DB=02", "--fill", "7E9609-7E9609=00", "--fill", "7E95E6-7E95E6=FA", "--fill", "7E9920-7E9920=00"]
+iterations = 2000
+why = "At the final item page the upper arrow remains and the lower arrow is blank."
+variant = "unreached_item_list_end_arrows"
+
+[[routine]]
+name = "battle_place_menu_cursors"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-03", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=FF", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02", "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-00", "--fill", "7E95DB-7E95DB=01", "--fill", "7E9609-7E9609=01", "--fill", "7E9613-7E9613=00", "--fill", "7EA62D-7EA62D=00", "--fill", "7E960A-7E960A=01", "--fill", "7E9608-7E9608=01", "--fill", "7E00EC-7E00EC=01", "--fill", "7E1D0C-7E1D0C=9C-E0"]
+iterations = 2000
+why = "A moved lone party target crosses the frame-switch threshold, with only the first target cursor present."
+variant = "unreached_lower_target_frame"
+
+[[routine]]
+name = "battle_place_menu_cursors"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-03", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02", "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-00", "--fill", "7E95DB-7E95DB=00-02", "--fill", "7E2989-7E2989=00"]
+iterations = 2000
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+
+[[routine]]
+name = "battle_place_menu_cursors"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-03", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=FF", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02", "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-00", "--fill", "7E95DB-7E95DB=01", "--fill", "7E9609-7E9609=01", "--fill", "7E9613-7E9613=00", "--fill", "7EA62D-7EA62D=00", "--fill", "7E960A-7E960A=01", "--fill", "7E9608-7E9608=01", "--fill", "7E00EC-7E00EC=00", "--fill", "7E1D0C-7E1D0C=00-2C"]
+iterations = 2000
+why = "A moved lone party target crosses the frame-switch threshold, with only the first target cursor present."
+variant = "unreached_upper_target_frame"
+
+[[routine]]
+name = "battle_play_out_the_defeat_end"
+at = "CD:0D93"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=00", "--keep", "7E0000-7FFFFF", "--clear-at", "C10080=7E009E", "--clear-at", "CD3E81=7ECA20", "--clear-at", "CD3E81=7ECA26", "--tick-at", "C10080=7E007C", "--clear-at", "C10080=7EA012", "--clear-at", "CD3E81=7E5D9B", "--apu-loopback", "--tick-at", "CD3E81=7E007C", "--apu-fade-complete", "--stop-at-call", "CD0D62"]
+iterations = 2000
+why = "The sound worker acknowledges the fade and reports it complete. Compare the caller through its explicit frame wait and then stop at the battlefield change; this is not evidence for the sound worker."
+variant = "unreached_defeat_sound_completed"
+
+[[routine]]
+name = "battle_screen_script_center_triangle_on_its_corners"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=005A-005A", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=AD-AD", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01", "--fill", "7ECAEA-7ECAF5=00-FF"]
+why = "Independently varied triangle coordinates reach signed median crossings and the large-intercept scaling paths under the existing divider contract."
+variant = "unreached_broad_triangle_corners"
+iterations = 2000
+
+[[routine]]
+name = "battle_screen_script_center_triangle_on_its_corners"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=005A-005A", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=AD-AD", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00", "--fill", "7ECAEA-7ECAEA=7F", "--fill", "7ECAEC-7ECAEC=FD", "--fill", "7ECAEE-7ECAEE=7E", "--fill", "7ECAF0-7ECAF0=00", "--fill", "7ECAF2-7ECAF2=81", "--fill", "7ECAF4-7ECAF4=FE"]
+why = "Synthetic corner coordinates put the two median slopes on opposite sides of the signed crossing branch."
+variant = "unreached_triangle_full_intercept"
+iterations = 2000
+
+[[routine]]
+name = "battle_screen_script_center_triangle_on_its_corners"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=005A-005A", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=AD-AD", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00", "--fill", "7ECAEA-7ECAEA=FD", "--fill", "7ECAEC-7ECAEC=FF", "--fill", "7ECAEE-7ECAEE=FF", "--fill", "7ECAF0-7ECAF0=BF", "--fill", "7ECAF2-7ECAF2=FA", "--fill", "7ECAF4-7ECAF4=81"]
+why = "Synthetic corner coordinates put the two median slopes on opposite sides of the signed crossing branch."
+variant = "unreached_triangle_negative_slope"
+iterations = 2000
+
+[[routine]]
+name = "battle_send_vram_and_wait"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=007E-007E", "--fill", "7ECA26-7ECA26=00-01", "--fill", "7ECD02-7ECD02=00-00", "--fill", "7ECA20-7ECA20=FE-FF", "--stop-at-call", "CD3E75", "--fill", "7E2989-7E2989=00"]
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+iterations = 2000
+
+[[routine]]
+name = "battle_send_vram_and_wait"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=007E-007E", "--keep", "7E0000-7FFFFF", "--range", "X=7000-7000", "--range", "Y=0000-0000", "--fill", "7ECA26-7ECA26=FE", "--fill", "7ECA20-7ECA20=FE", "--fill", "7ECD02-7ECD02=00", "--fill", "7E0053-7E0054=0001", "--clear-at", "C10080=7E009E", "--clear-at", "CD3E81=7ECA20", "--clear-at", "CD3E81=7ECA26", "--apu-loopback"]
+why = "A recorded battle has an earlier queued transfer pending. External completion flags let the caller finish that wait, queue its own byte and finish; the fixture does not claim to run the interrupt or upload work."
+variant = "unreached_pending_transfer_finishes"
+iterations = 2000
+
+[[routine]]
+name = "battle_setup_state"
+at = "CC:E2E4"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E2980-7E2982=00-06", "--fill", "7E96F8-7E96FF=00-00", "--fill", "7EAA63-7EAA63=00-00", "--fill", "7E2C7C-7E2C97=00-09", "--fill", "7E29C5-7E29C5=00-00", "--fill", "7E29D1-7E29D1=00-00", "--fill", "7E29DD-7E29DD=00-00", "--fill", "7E29E9-7E29E9=80-FF", "--fill", "7E29F5-7E29F5=80-FF", "--fill", "7E2A01-7E2A01=80-FF", "--fill", "7E2A0D-7E2A0D=80-FF", "--fill", "7E2A19-7E2A19=80-FF", "--fill", "7E2989-7E2989=00"]
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+iterations = 2000
+
+[[routine]]
+name = "battle_show_the_defeat"
+subsystem = "battle"
+state = "field"
+iterations = 2000
+args = ["--d", "0000", "--db", "7E", "--stop-at-call", "CD0D62", "--fill", "7E2989-7E2989=00"]
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+
+[[routine]]
+name = "battle_show_the_defeat"
+subsystem = "battle"
+state = "field"
+iterations = 2000
+args = ["--d", "0000", "--db", "7E", "--keep", "7E0000-7FFFFF", "--clear-at", "C10080=7E009E", "--clear-at", "CD3E81=7ECA20", "--clear-at", "CD3E81=7ECA26", "--apu-loopback", "--clear-at", "CD3E81=7E5D9B", "--clear-at", "CD3E81=7ECA1F", "--clear-at", "CD3E81=7EA013", "--fill", "7F01EC-7F01EC=01", "--fill", "7ECD02-7ECD02=00"]
+why = "An unpaused recorded battle completes the defeat battlefield requests."
+variant = "unreached_unpaused_defeat"
+
+[[routine]]
+name = "battle_sit_out_the_pause"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=FF", "--fill", "7ECA20-7ECA20=FE", "--tick-at", "CD3E5B=7ECA20", "--tick-at", "CD3E5B=7ECD02", "--vblank-at", "CD3E5B"]
+why = "Release the paused battle at its paused-frame wait and compare the clock and sound resuming; the notification does not claim interrupt execution."
+variant = "unreached_pause_released"
+iterations = 2000
+
+[[routine]]
+name = "battle_step_combatant_animations"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00A4-7E00A4=03", "--fill", "7E967A-7E967A=00", "--fill", "7E1C57-7E1CDA=C0-FE", "--fill", "7E967C-7E9686=00-04", "--fill", "7E992B-7E992B=00", "--fill", "7E992C-7E992C=01", "--fill", "7E969C-7E96A3=00-03", "--fill", "7E9694-7E969B=02", "--fill", "7E96F5-7E96FF=00"]
+iterations = 5000
+why = "The last group preserves its held ordering with valid frame cursors and no present combatant needing an upload."
+variant = "unreached_last_group_legal_frames"
+
+[[routine]]
+name = "battle_step_combatant_animations"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00A4-7E00A4=00-00", "--fill", "7E967A-7E967A=00-00", "--fill", "7E1C57-7E1CDA=C0-FE", "--fill", "7E967C-7E9686=00-04", "--fill", "7E2989-7E2989=00"]
+iterations = 2000
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+
+[[routine]]
+name = "battle_step_combatant_animations"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00A4-7E00A4=04-FF", "--fill", "7E967A-7E967A=04-FF", "--fill", "7E1C57-7E1CDA=C0-FE", "--fill", "7E967C-7E9686=00-04"]
+iterations = 5000
+why = "A phase past the four animation groups does no group work."
+variant = "unreached_past_enemy_groups"
+
+[[routine]]
+name = "battle_take_menu_input"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--apu-loopback", "--keep", "7E0000-7FFFFF", "--fill", "7E95DB-7E95DB=02", "--fill", "7E9609-7E9609=01", "--fill", "7E00EE-7E00EF=0080", "--fill", "7EA0D5-7EA0D5=00"]
+iterations = 2000
+why = "Confirm an item target with command memory disabled, then clear the remembered item row and page."
+variant = "unreached_consume_item_without_memory"
+
+[[routine]]
+name = "battle_take_menu_input"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-02", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02", "--fill", "7EA0FF-7EA100=0000", "--fill", "7EA86B-7EA86B=00-00", "--fill", "7E95DB-7E95DB=02", "--fill", "7E9551-7E95D1=00-13", "--fill", "7E95EB-7E95ED=00-11", "--fill", "7E9609-7E9609=00", "--fill", "7EA862-7EA862=00-00", "--fill", "7EA02A-7EA02C=00-14", "--fill", "7E9614-7E9614=00-0A", "--apu-loopback", "--fill", "7E00EE-7E00EF=8000", "--fill", "7EA0D5-7EA0D5=00"]
+iterations = 2000
+why = "Confirm an empty item selection; the menu clears its target choice instead of entering target selection."
+variant = "unreached_empty_item_selection"
+
+[[routine]]
+name = "battle_take_menu_input"
+variant = "unreached_item_memory_reset"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-02", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02", "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-00", "--fill", "7E95DB-7E95DB=02", "--fill", "7E9551-7E95D1=00-13", "--fill", "7E95EB-7E95ED=00-11", "--fill", "7E9609-7E9609=01-01", "--fill", "7EA862-7EA862=00-00", "--fill", "7EA02A-7EA02C=00-14", "--fill", "7E9614-7E9614=00-0A", "--fill", "7E99C0-7E99CB=00,01,02,03,04,05,06,07,08,09,0A,FF", "--fill", "7E9EE7-7E9EE7=FF,F0,F1,F2,10,20,21,12,01,02", "--fill", "7E9F36-7E9F37=00-00", "--fill", "7E99D8-7E99D8=00-02", "--apu-loopback", "--fill", "7E00EE-7E00EF=0080", "--fill", "7EA0D5-7EA0D5=00", "--fill", "7E9613-7E9613=00", "--fill", "7EAEFF-7EAF09=00"]
+iterations = 5000
+why = "Confirm an item using the targeted-input contract, clearing its remembered list position."
+
+[[routine]]
+name = "battle_take_menu_input"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-02", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00", "--fill", "7EA6D9-7EA6DB=00,01,02", "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-00", "--fill", "7E95DB-7E95DB=02", "--fill", "7E9551-7E95D1=00-13", "--fill", "7E95EB-7E95ED=00-11", "--fill", "7E9609-7E9609=00-00", "--fill", "7EA862-7EA862=00-00", "--fill", "7EA02A-7EA02C=00-14", "--fill", "7E9614-7E9614=00-0A", "--apu-loopback", "--fill", "7E95E6-7E95E6=00-02", "--fill", "7E00EE-7E00EF=0010"]
+iterations = 2000
+why = "Page the item list at its boundary, retaining a valid party menu and exercising the bounded three-row scroll."
+variant = "unreached_item_page_first"
+
+[[routine]]
+name = "battle_take_menu_input"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-02", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00", "--fill", "7EA6D9-7EA6DB=00,01,02", "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-00", "--fill", "7E95DB-7E95DB=02", "--fill", "7E9551-7E95D1=00-13", "--fill", "7E95EB-7E95ED=00-11", "--fill", "7E9609-7E9609=00-00", "--fill", "7EA862-7EA862=00-00", "--fill", "7EA02A-7EA02C=00-14", "--fill", "7E9614-7E9614=00-0A", "--apu-loopback", "--fill", "7E95E6-7E95E6=F7-FA", "--fill", "7E00EE-7E00EF=0020"]
+iterations = 2000
+why = "Page the item list at its boundary, retaining a valid party menu and exercising the bounded three-row scroll."
+variant = "unreached_item_page_last"
+
+[[routine]]
+name = "battle_take_menu_input"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-02", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02", "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-00", "--fill", "7E95DB-7E95DB=00-02", "--fill", "7E9551-7E95D1=00-13", "--fill", "7E95EB-7E95ED=00-11", "--fill", "7E9609-7E9609=00-00", "--fill", "7EA862-7EA862=00-00", "--fill", "7EA02A-7EA02C=00-14", "--fill", "7E9614-7E9614=00-0A", "--apu-loopback", "--fill", "7E2989-7E2989=00"]
+iterations = 2000
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+
+[[routine]]
+name = "battle_take_the_spoils"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E000E-7E000E=03-0A", "--fill", "7E000E-7E000F=0003", "--fill", "7EB2DB-7EB2DC=FFFF", "--fill", "7EAF0D-7EAF0D=01-FF"]
+why = "Add a felled enemy's experience to a full low word, carrying into the accumulated experience high byte."
+variant = "unreached_experience_carry"
+iterations = 2000
+
+[[routine]]
+name = "battle_update_combatant"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "X=0000-0500/80", "--range", "Y=0000-000A", "--fill", "7E2989-7E2989=00"]
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+iterations = 2000
+
+[[routine]]
+name = "battle_update_combatant"
+variant = "unreached_revival_animation_completed"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "X=0000-0000", "--range", "Y=0000-0000", "--fill", "7ECD02-7ECD02=00", "--fill", "7EAF0A-7EAF0C=00-02", "--fill", "7E5E30-7E5E31=0000", "--fill", "7E5E4F-7E5E4F=80", "--keep", "7E0000-7FFFFF", "--clear-at", "C10080=7E009E", "--clear-at", "CD3E81=7ECA20", "--clear-at", "CD3E81=7ECA26", "--tick-at", "C10080=7E007C", "--clear-at", "C10080=7EA012", "--clear-at", "CD3E81=7E5D9B", "--apu-loopback", "--tick-at", "C10080=7E9876"]
+why = "The animation completion signal arrives at the common frame wait on both machines. This validates the revival caller through its return, not the animation worker."
+
+[[routine]]
+name = "battle_update_scroll_tables_finer_line_wave"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7ECC95-7ECC96=0000"]
+why = "Keep the finer wave mode but do not apply its offsets to BG3; the extended BG3 rows use the layer scroll unchanged."
+variant = "unreached_bg3_without_offsets"
+iterations = 2000
+
+[[routine]]
+name = "battle_upload_vram"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E2989-7E2989=00"]
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+iterations = 2000
+
+[[routine]]
+name = "battle_victory"
+at = "C1:356D"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--keep", "7E0000-7FFFFF", "--tick-at", "C10080=7E009E", "--tick-at", "CD3E81=7ECA20", "--fill", "7E2989-7E2989=00", "--fill", "7EA09B-7EA09D=01", "--fill", "7E009E-7E009E=FE", "--fill", "7ECD02-7ECD02=00", "--fill", "7E967A-7E967B=0000"]
+iterations = 2000
+why = "A coherent recorded battle closes its menus and assigns absent members no victory animation; frame-completion counters are notified identically on both machines."
+variant = "unreached_stable_absent_members"
+
+[[routine]]
+name = "battle_wait_music_fade_loop"
+subsystem = "battle"
+state = "battle"
+args = ["--jump", "--fill", "7E2989-7E2989=00"]
+iterations = 2000
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+
+[[routine]]
+name = "battle_wait_step"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E95D6-7E95D6=00,01,02,80,FF", "--stop-at-call", "C1007E", "--fill", "7EA10E-7EA10E=00", "--fill", "7E99CF-7E99D0=0001", "--fill", "7E2989-7E2989=80", "--fill", "7E99D1-7E99D1=00"]
+iterations = 2000
+why = "L and R are first held in an inescapable battle; both message calls run before the frame wait."
+variant = "unreached_cannot_escape_message"
+
+[[routine]]
+name = "battle_work_out_enemy_attack"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7E5E73-7E6373:80=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7EB18C-7EB18C=00-FF"]
+iterations = 2000
+why = "Exercise the full byte-sized attack index admitted by the existing guard, including records reached beyond the nominal attack table; refused effects provide no evidence."
+variant = "unreached_extended_attack_records"
+
+[[routine]]
+name = "battle_work_out_enemy_tech"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7E5E73-7E6373:80=00,01,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F", "--fill", "7EB18C-7EB18C=00-FF", "--fill", "7E2989-7E2989=00"]
+iterations = 2000
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+
+[[routine]]
+name = "battle_work_out_member_tech"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7E5E73-7E6373:80=00,01,02,03,08,09,0A,0B,0C,0D,0E,0F,10,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F,63", "--fill", "7EB18C-7EB18C=00-7F", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EA0D1-7EA0D3=00,00,00,01", "--fill", "7EAE92-7EAE92=00", "--fill", "7EAECC-7EAECC=03,04,05,06,07,08,09,0A,FF", "--fill", "7EB3C9-7EB3C9=00,80", "--fill", "7EAEFF-7EAF01=00", "--fill", "7EAF02-7EAF09=FF"]
+iterations = 2000
+why = "A party action with no enemy in the fight ends before selecting its enemy target."
+variant = "unreached_enemies_all_absent"
+
+[[routine]]
+name = "battle_work_out_member_tech"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7E5E73-7E6373:80=00,01,02,03,08,09,0A,0B,0C,0D,0E,0F,10,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F,63", "--fill", "7EB18C-7EB18C=00-7F", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EA0D1-7EA0D3=00,00,00,01", "--fill", "7EAE92-7EAE92=01,02", "--fill", "7EAECC-7EAECC=03,04,05,06,07,08,09,0A,FF", "--fill", "7EB3C9-7EB3C9=00,80", "--fill", "7E2989-7E2989=00"]
+iterations = 2000
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+
+[[routine]]
+name = "battle_work_out_member_tech"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7E5E73-7E6373:80=00,01,02,03,08,09,0A,0B,0C,0D,0E,0F,10,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F,63", "--fill", "7EB18C-7EB18C=00-FF", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EA0D1-7EA0D3=00,00,00,01", "--fill", "7EAE92-7EAE92=01,02", "--fill", "7EAECC-7EAECC=03,04,05,06,07,08,09,0A,FF", "--fill", "7EB3C9-7EB3C9=00,80", "--fill", "7EB2BD-7EB2BD=FF", "--fill", "7EAE80-7EAE80=80"]
+iterations = 2000
+why = "A tech with an absent part member uses the original none-character lookup, constrained to the guard's none sentinel; real members remain in party slots."
+variant = "unreached_performer_missing"
+
+[[routine]]
+name = "script_chase_to_coordinates"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000", "--fill", "7E9895-7E9895=13", "--fill", "7EA010-7EA011=0000", "--fill", "7EA00E-7EA00E=00", "--fill", "7EA014-7EA01F=00", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00", "--fill", "7EA337-7EA349=00", "--fill", "7EA19D-7EA1A7=00", "--fill", "7EA1E0-7EA1E7=00", "--fill", "7EA018-7EA018=03", "--fill", "7EA019-7EA019=04", "--fill", "7EA01A-7EA01F=FF", "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF000-7EF000=13", "--fill", "7EF001-7EF002=00", "--fill", "7EF003-7EF003=FF"]
+iterations = 8000
+why = "A synthetic command selects its own heading and starts each mover in a finite, terminated target list."
+variant = "unreached_explicit_heading_0"
+
+[[routine]]
+name = "script_chase_to_coordinates"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000", "--fill", "7E9895-7E9895=13", "--fill", "7EA010-7EA011=0004", "--fill", "7EA00E-7EA00E=10", "--fill", "7EA014-7EA01F=00", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00", "--fill", "7EA337-7EA349=00", "--fill", "7EA19D-7EA1A7=00", "--fill", "7EA1E0-7EA1E7=00", "--fill", "7EA018-7EA018=03", "--fill", "7EA019-7EA019=04", "--fill", "7EA01A-7EA01F=FF", "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF000-7EF000=13", "--fill", "7EF001-7EF002=00", "--fill", "7EF003-7EF003=FF"]
+iterations = 8000
+why = "A synthetic command selects its own heading and starts each mover in a finite, terminated target list."
+variant = "unreached_explicit_heading_4"
+
+[[routine]]
+name = "script_chase_to_coordinates"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000", "--fill", "7E9895-7E9895=13", "--fill", "7EA010-7EA011=0004", "--fill", "7EA00E-7EA00E=10", "--fill", "7EA014-7EA01F=00", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00", "--fill", "7EA337-7EA349=01", "--fill", "7EA19D-7EA1A7=01", "--fill", "7EA1E0-7EA1E7=00", "--fill", "7EA018-7EA018=03", "--fill", "7EA019-7EA019=04", "--fill", "7EA01A-7EA01F=FF", "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF000-7EF000=13", "--fill", "7EF001-7EF002=00", "--fill", "7EF003-7EF003=FF"]
+iterations = 8000
+why = "Every path in the other-target list is complete, so the command advances."
+variant = "unreached_group_paths_finished"
+
+[[routine]]
+name = "script_chase_to_coordinates"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000", "--fill", "7E9895-7E9895=13", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F", "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C", "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00", "--fill", "7EA337-7EA349=00,01", "--fill", "7EA19D-7EA1A7=00,00,01", "--fill", "7EA1E0-7EA1E7=00,00,01", "--fill", "7E2989-7E2989=00"]
+iterations = 2000
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+
+[[routine]]
+name = "script_chase_to_coordinates"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000", "--fill", "7E9895-7E9895=13", "--fill", "7EA010-7EA011=0000", "--fill", "7EA00E-7EA00E=00", "--fill", "7EA014-7EA01F=00", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00", "--fill", "7EA337-7EA349=00", "--fill", "7EA19D-7EA1A7=00", "--fill", "7EA1E0-7EA1E7=00", "--fill", "7EA018-7EA018=03", "--fill", "7EA019-7EA019=04", "--fill", "7EA01A-7EA01F=FF", "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF000-7EF000=13", "--fill", "7EF001-7EF002=00", "--fill", "7EF003-7EF003=FF", "--fill", "7EF001-7EF001=FF"]
+iterations = 8000
+why = "The chase heading operand is the first byte after the command; none selects each mover's own heading."
+variant = "unreached_own_chase_heading_0"
+
+[[routine]]
+name = "script_chase_to_coordinates"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000", "--fill", "7E9895-7E9895=13", "--fill", "7EA010-7EA011=0004", "--fill", "7EA00E-7EA00E=10", "--fill", "7EA014-7EA01F=00", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00", "--fill", "7EA337-7EA349=00", "--fill", "7EA19D-7EA1A7=00", "--fill", "7EA1E0-7EA1E7=00", "--fill", "7EA018-7EA018=03", "--fill", "7EA019-7EA019=04", "--fill", "7EA01A-7EA01F=FF", "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF000-7EF000=13", "--fill", "7EF001-7EF002=00", "--fill", "7EF003-7EF003=FF", "--fill", "7EF001-7EF001=FF"]
+iterations = 8000
+why = "The chase heading operand is the first byte after the command; none selects each mover's own heading."
+variant = "unreached_own_chase_heading_4"
+
+[[routine]]
+name = "script_line_to_a_place"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000", "--fill", "7E9895-7E9895=12", "--fill", "7EA010-7EA011=0000", "--fill", "7EA00E-7EA00E=00", "--fill", "7EA014-7EA01F=00", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00", "--fill", "7EA337-7EA349=00", "--fill", "7EA19D-7EA1A7=00", "--fill", "7EA1E0-7EA1E7=00", "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF000-7EF000=12", "--fill", "7EF001-7EF001=09,0A,13,14,15,16,17,39,3A,3F,40", "--fill", "7E1D0C-7E1D16=00,01,FE,FF", "--fill", "7E1D23-7E1D2D=00,01,FE,FF", "--fill", "7E9713-7E971D=80,7F", "--fill", "7EA34A-7EA354=00-FF"]
+iterations = 2000
+why = "A coherent combatant channel exercises cursor clamping, performer midpoints and the point along the mover heading, with positions at both byte edges."
+variant = "unreached_directed_places"
+
+[[routine]]
+name = "script_orbit_a_place"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000", "--fill", "7E9895-7E9895=C0", "--fill", "7EA010-7EA011=0000", "--fill", "7EA00E-7EA00E=00", "--fill", "7EA014-7EA01F=00", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00", "--fill", "7EA337-7EA349=00", "--fill", "7EA19D-7EA1A7=00", "--fill", "7EA1E0-7EA1E7=00", "--fill", "7EA018-7EA018=03", "--fill", "7EA019-7EA019=04", "--fill", "7EA01A-7EA01F=FF", "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF000-7EF000=C0", "--fill", "7EF001-7EF001=00", "--fill", "7EF002-7EF002=08", "--fill", "7EF003-7EF003=FF", "--fill", "7EF004-7EF004=01"]
+iterations = 8000
+why = "A synthetic command selects its own heading and starts each mover in a finite, terminated target list."
+variant = "unreached_explicit_heading_0"
+
+[[routine]]
+name = "script_orbit_a_place"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000", "--fill", "7E9895-7E9895=C0", "--fill", "7EA010-7EA011=0004", "--fill", "7EA00E-7EA00E=10", "--fill", "7EA014-7EA01F=00", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00", "--fill", "7EA337-7EA349=00", "--fill", "7EA19D-7EA1A7=00", "--fill", "7EA1E0-7EA1E7=00", "--fill", "7EA018-7EA018=03", "--fill", "7EA019-7EA019=04", "--fill", "7EA01A-7EA01F=FF", "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF000-7EF000=C0", "--fill", "7EF001-7EF001=00", "--fill", "7EF002-7EF002=08", "--fill", "7EF003-7EF003=FF", "--fill", "7EF004-7EF004=01"]
+iterations = 8000
+why = "A synthetic command selects its own heading and starts each mover in a finite, terminated target list."
+variant = "unreached_explicit_heading_4"
+
+[[routine]]
+name = "script_orbit_a_place"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000", "--fill", "7E9895-7E9895=C0", "--fill", "7EA010-7EA011=0004", "--fill", "7EA00E-7EA00E=10", "--fill", "7EA014-7EA01F=00", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00", "--fill", "7EA337-7EA349=01", "--fill", "7EA19D-7EA1A7=01", "--fill", "7EA1E0-7EA1E7=00", "--fill", "7EA018-7EA018=03", "--fill", "7EA019-7EA019=04", "--fill", "7EA01A-7EA01F=FF", "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF000-7EF000=C0", "--fill", "7EF001-7EF001=00", "--fill", "7EF002-7EF002=08", "--fill", "7EF003-7EF003=FF", "--fill", "7EF004-7EF004=01"]
+iterations = 8000
+why = "Every path in the other-target list is complete, so the command advances."
+variant = "unreached_group_paths_finished"
+
+[[routine]]
+name = "script_orbit_a_place"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000", "--fill", "7E9895-7E9895=C0", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F", "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C", "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00", "--fill", "7EA337-7EA349=00,01", "--fill", "7EA19D-7EA1A7=00,00,01", "--fill", "7EA1E0-7EA1E7=00,00,01", "--fill", "7E2989-7E2989=00"]
+iterations = 2000
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"
+
+[[routine]]
+name = "script_play_and_wait_marked"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000", "--fill", "7E9895-7E9895=26", "--fill", "7EA010-7EA011=0004", "--fill", "7EA00E-7EA00E=10", "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00", "--fill", "7EA124-7EA12E=00", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02", "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF", "--fill", "7EA018-7EA018=03", "--fill", "7EA019-7EA019=04", "--fill", "7EA01A-7EA01F=FF", "--fill", "7EA150-7EA15A=01"]
+iterations = 2000
+why = "The other-targets channel has two marked targets whose animations have both ended, followed by the list terminator; compare advancing past the final target."
+variant = "unreached_all_targets_finished"
+
+[[routine]]
+name = "script_spiral_for"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000", "--fill", "7E9895-7E9895=A8", "--fill", "7EA010-7EA011=0004", "--fill", "7EA00E-7EA00E=10", "--fill", "7EA014-7EA01F=00", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00", "--fill", "7EA337-7EA349=00", "--fill", "7EA19D-7EA1A7=00", "--fill", "7EA1E0-7EA1E7=00", "--fill", "7EA018-7EA018=03", "--fill", "7EA019-7EA019=04", "--fill", "7EA01A-7EA01F=FF", "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF000-7EF000=A8", "--fill", "7EF001-7EF001=01"]
+iterations = 8000
+why = "A synthetic command selects its own heading and starts each mover in a finite, terminated target list."
+variant = "unreached_explicit_heading_4"
+
+[[routine]]
+name = "script_spiral_for"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000", "--fill", "7E9895-7E9895=A8", "--fill", "7EA010-7EA011=0004", "--fill", "7EA00E-7EA00E=10", "--fill", "7EA014-7EA01F=00", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00", "--fill", "7EA337-7EA349=01", "--fill", "7EA19D-7EA1A7=01", "--fill", "7EA1E0-7EA1E7=00", "--fill", "7EA018-7EA018=03", "--fill", "7EA019-7EA019=04", "--fill", "7EA01A-7EA01F=FF", "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF000-7EF000=A8", "--fill", "7EF001-7EF001=01"]
+iterations = 8000
+why = "Every path in the other-target list is complete, so the command advances."
+variant = "unreached_group_paths_finished"
+
+[[routine]]
+name = "script_spiral_for"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000", "--fill", "7E9895-7E9895=A8", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F", "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C", "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00", "--fill", "7EA337-7EA349=00,01", "--fill", "7EA19D-7EA1A7=00,00,01", "--fill", "7EA1E0-7EA1E7=00,00,01", "--fill", "7E2989-7E2989=00"]
+iterations = 2000
+why = "The ordinary battle mode permits random choices suppressed by the demo fixture, under the existing entry guard."
+variant = "unreached_outside_demo"

@@ -2609,14 +2609,13 @@ comparisons.
 
 ## The native program
 
-- **Battle teardown preconditions.** Close the battle's unreached inventory
-  before removing its registry rows. Against the existing 84-movie coverage
-  union, 13,556 battle bytes in 289 entries lack movie coverage. The discovery
-  union of older clean recipes and reviewed exclusions leaves 705 bytes in
-  45 entries open; those old runs guide fixtures, not retirement evidence.
-  Enroll the tested `battle_call_enemies_in` plain recipe. Replay the completed
-  recipe set against the final source, enroll the matched coverage and
-  reviewed exclusions, and preserve their bounds/resource assumptions.
+- **Battle retirement.** Remove the comparison registry after preserving the
+  checked preconditions in ordinary C. The 84-movie coverage union leaves
+  13,556 battle bytes in 289 entries outside movie coverage. The ledger now
+  covers all of them: 484 freshly replayed recipes produced 779,466 matched
+  trials, zero mismatches and 188,534 skips, with reviewed resource and control
+  flow exclusions for the remaining bytes. Skips supply no evidence.
+  `unreached --record --check` passes for 838 entries across 84 movies.
 
   Preserve the complete sprite/frame/output bounds, startup-built OAM lookup,
   animation resource banks and text language/stack separation. A guard refusal
