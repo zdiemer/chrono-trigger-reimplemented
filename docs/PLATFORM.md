@@ -1780,8 +1780,7 @@ host memory work, with the original transfer preserved in the SNES state
 backing. The native state account keeps the clear's transfer time, preserving
 the calibrated native time model merged from main; `native_time_test` checks
 the charge, bank wrapping, full-bank clears and zero-length calls. The Mode 7
-matrix values that the clear leaves are still explicit
-video state.
+matrix values that the clear leaves are still explicit video state.
 
 **Pixel evidence.** `ct_dev --native on --px-check-services` renders the
 service-built frame against `render.c`; `--px-check out.txt` optionally saves
@@ -1800,19 +1799,22 @@ cannot share the global observer with `--vid-check` or run on shadow clones.
 The native sample's 37 movies reach their ends showing a picture, and all 37
 pass the existing recorded-outcome ratchet. The host frame order is retained;
 these results do not claim that its existing timing drift has disappeared.
+The sampled gate with `--evidence -j 1`, without long routes, finishes with
+`suite OK`: 37 clean shadow movies, both fast routes reaching their outcomes,
+and both the strict and native recorded-outcome ratchets passing 37/37.
 
 The synthetic `video_test` checks actual rendered palette changes, retained
 tile and sprite versions, a palette change on every line, reuse next frame,
 independent raster changes, and the host frame model's folding of handler
-uploads into its completed picture.
-It needs no ROM and runs in CI. The warning-as-error build, `video_test`, `timing_test`
-and `field_test` pass.
+uploads into its completed picture. It needs no ROM and runs in CI. The
+warning-as-error build, `video_test`, `timing_test`, `native_time_test`,
+`unpack_time_test` and `field_test` pass.
 
 `machine_joints.py` measured 24 to 23 register-escape occurrences in `game/`,
 and 544 to 537 video-call occurrences (including inline value helpers): this
 change removes one escape, and the merged scene teardown removes seven video
-call occurrences. The new `video calls without host backend` row is zero: every ordinary declared
-video service has a host definition. That is a presence check, not proof of
+call occurrences. The new `video calls without host backend` row is zero:
+every ordinary declared video service has a host definition. That is a presence check, not proof of
 complete behavior; the remaining escape sites and their required meanings
 are in TODO.md, "Video escapes after the retired subsystems". No exception
 or baseline was added for this work.
