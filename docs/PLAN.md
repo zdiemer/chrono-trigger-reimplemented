@@ -529,12 +529,11 @@ dive (modes 4 and 6; history file, chunks 9 and 10). The attract sequence's two 
 palace rising"). The remaining panorama (`$7E:8A01`-`$7E:8B51`), turning
 map and animated figures are now C, validated by differential fuzzing;
 the sampled movies do not reach those unused modes. Both scene subsystems
-report 0% left. The static walk still lists 29 bytes at `$7E:366C`, already
-implemented by the paired perspective builder, because it misses the
-patched branch. **Next** are the five scene/warp stop boundaries described
-in TODO: shared race-wait instances, interrupted main-loop carry, warp
-HDMA shutdown timing, and two interpreter handbacks for unsupported
-command data or changed calling context.
+report 0% left. Their registry comparisons have retired; the ownership
+measure includes the perspective builder's curve-step and paired-line tails
+reached through patched branches. The remaining scene work is the menu
+compatibility interface and the retained input domains described in
+TODO's "Scene continuation boundaries".
 
 **What `$FD` has left** after wave 1 (docs/history/reimplementation-waves.md, "Phase 3,
 wave 1: bank `$FD`"), the time warp (`game/warp/`) and the location's

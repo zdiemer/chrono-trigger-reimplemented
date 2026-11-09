@@ -276,15 +276,6 @@ rest waits, is [PLAN.md](PLAN.md).
   other frame. Shadow mode compares the runtime with itself; the oracle's
   traces of the Beyond Time ending would show it.
 
-- **The race's pictures' mirroring has no entry of its own** (`$7E:3ECD`,
-  which runs `$7E:3ED3` twice, and `$7E:3EB7`). The race's setup does it as
-  C (`scene/race.c`, `mirror_crono`, `scene_mirror_rows`), so the shipping mode
-  never runs them; but the reference play sets the attract demo's race up
-  inside a stretch whose comparison is set aside (`$7E:3ECD`-`$7E:3F13`), and
-  there the original runs them: 0.13 M of the reference play's instructions
-  over the 42 movies (`$7E:3ED3` 98,672 of them; tools/fallback_baseline.txt).
-  Register them as entries with `scene_mirror_rows` behind them, and the
-  reference play compares them there instead.
 - **The attract sequence's credit pages mismatch in fuzzing.** Fuzzing the
   scene program's start (`scene_program_start`, `scene_setup_and_first_frame`,
   seed 1, tools/fuzz_routines.toml) mismatches 11 and 39 of 375 states, all of
@@ -379,10 +370,9 @@ rest waits, is [PLAN.md](PLAN.md).
   `92026499` measures +2.92%, probably the curtain sweep's own drift in the
   stretch. Re-measure and rewrite the reason.
 - **What the whole-library fixes' review left** (not blocking):
-  - The uncompared baseline's scene lines aren't tied to the
-    evidence that clears them on an ordinary run: `endings-bucket-lavos` is
-    checked only under `--evidence`, and `tools/uncompared_evidence.py`'s
-    `compared()` reads only the first row for a name.
+  - `tools/uncompared_evidence.py`'s `compared()` reads only the first row
+    for a name; aggregate duplicate names when judging the remaining
+    subsystems' isolated comparisons.
   - `dev/fallbacks.c`: a nested or yielded invocation can certify the outer
     one and cancel its open count; count each invocation by its own frame.
   - `ct_dev`: a halt during the comparison tail doesn't set the exit code.
@@ -3307,7 +3297,7 @@ list, by kind, is what `game/` still asks of one.
   warp's handlers; a handler the table doesn't name is still an entry on the
   machine's stack (it saves the interrupted registers, moves the page and the
   data bank, calls out).
-- **What the scene program still hands the machine as the program runs it.**
+- **The scene program's remaining host interfaces.**
   Every mode's setup a recording reaches is C (`scene/program.c`'s
   `c_setups`), and so are the story scenes' tasks, the scripts' routines and
   the main loop's scalings (history/reimplementation-chunks.md, "The native
@@ -3324,8 +3314,9 @@ list, by kind, is what `game/` still asks of one.
   blanked (`$7E:5476`, `$7E:5AEB`) and the credits' map blanked (`$7E:90BD`)
   are `vid_snes_copy` escapes the host counts: a send of one byte of each
   VRAM word, from a cursor or a fixed byte, which the video service has no
-  call for yet. The census (REIMPLEMENTATION.md, "The census") counts the
-  rest: 259 entries the machine still enters, 21.1 M times over the library.
+  call for yet. The scene teardown's census finds no ordinary scene entry
+  entered by the machine; these host gaps are separate from its retired
+  byte-exact comparisons.
 - **A meaningful native run of mode 5.** Its setup, map and figure animation
   are C and every new entry passes fuzzing. No known story path starts it.
   A forced start directly after boot reaches the figure task at frame 41,
