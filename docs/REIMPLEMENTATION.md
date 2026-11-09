@@ -4322,8 +4322,10 @@ continuations until the legacy driver leaves the product.
 
 Removed scratch accesses retain their RAM/I/O/cartridge charges at each
 operation's unchanged estimate. Former call-outs settle the caller after
-pushing the return frame and the callee before returning. Moving that
-settlement before the field curtain's push advances the attract transition
+pushing the return frame and the callee before returning. These helpers keep
+the call's liveness declaration and target; `dontcare_check.py` recognizes
+them at each call site. Moving the settlement before the field curtain's
+push advances the attract transition
 four frames and loses protected picture 10500 and place 25. The held race
 wait changes eight unprotected neighbouring picture observations across
 attract and race-won; an A/B replay restoring only the old race hand-off
