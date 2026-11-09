@@ -16,6 +16,7 @@
 #include "port/native.h"
 #include "port/vars_ram.h"
 #include "port/rom_reads.h"
+#include "platform/video.h"
 
 enum { WRMPYA = 0x004202, WRMPYB = 0x004203, WRDIVL = 0x004204, WRDIVB = 0x004206, RDDIV = 0x004214, RDMPY = 0x004216 };
 enum { WMDATA = 0x002180, WMADDL = 0x002181, WMADDB = 0x002183, WMDATA_LESS_ONE = 0x00217F };
@@ -158,6 +159,14 @@ void original_frame_enter(GameState *g, uint16_t bytes) { native_frame_enter(sta
 void original_frame_leave(GameState *g, uint16_t bytes) { native_frame_leave(state_snes(g), bytes); }
 
 static uint32_t in_bank(uint32_t at, uint32_t offset) { return (at & 0xFF0000u) | (uint16_t)(at + offset); }
+
+void wram_clear(GameState *g, PfOrigin o, uint32_t at, uint32_t bytes)
+{
+    if (!bytes)
+        return;
+    const VidSnesTransfer t = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = at, .size = (uint16_t)bytes };
+    vid_snes_copy(m_platform(state_snes(g)), o, &t);
+}
 
 void wram_fill8(GameState *g, uint32_t at, uint32_t bytes, uint8_t v)
 {

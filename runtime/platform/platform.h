@@ -8,7 +8,7 @@
  * original code made at that point, through the bus, and the functions are
  * static inline, so a call costs what the direct writes cost. A build defining
  * CT_PLATFORM_EXTERN gets plain declarations instead, for a backend compiled
- * elsewhere (none exists yet).
+ * elsewhere (runtime/platform/native/ is the host backend).
  */
 #ifndef CT_PLATFORM_PLATFORM_H
 #define CT_PLATFORM_PLATFORM_H

@@ -31,6 +31,10 @@ void vid_obs_line(VidObserver *ob, uint16_t line);
 /* The frame the calls built, valid from line 224 until the next line 0. */
 const VidFrame *vid_obs_frame(const VidObserver *ob);
 
+/* Peak retained versions per frame; storage is allocated as needed and reused.
+ * There is room for a distinct version at every emitted span. */
+void vid_obs_snapshot_peak(const VidObserver *ob, int *vram, int *cgram, int *sprites);
+
 /* Start from a state the observer didn't build, so that a subsystem can be
  * checked from the frame it takes over: everything the calls before it left is
  * taken as given. Call it at a line 0, before vid_obs_line(). */

@@ -208,6 +208,12 @@ void hw_port_leave_spill(GameState *g, uint8_t low) { (void)g, (void)low; }
 
 static uint32_t in_bank(uint32_t at, uint32_t offset) { return (at & 0xFF0000u) | (uint16_t)(at + offset); }
 
+void wram_clear(GameState *g, PfOrigin o, uint32_t at, uint32_t bytes)
+{
+    (void)o;
+    wram_fill8(g, at, bytes, 0);
+}
+
 void wram_fill8(GameState *g, uint32_t at, uint32_t bytes, uint8_t v)
 {
     for (uint32_t i = 0; i < bytes; i++)

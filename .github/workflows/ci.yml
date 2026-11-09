@@ -157,6 +157,8 @@ jobs:
         run: build/ci/fiber_test
       - name: timing_test
         run: build/ci/timing_test
+      - name: video_test
+        run: build/ci/video_test
       - name: tasks_test
         run: build/ci/tasks_test
       - name: state_test

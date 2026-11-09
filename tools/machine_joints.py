@@ -37,7 +37,8 @@ JOINTS = [
     ("siblings found in the registry", r"\bnative_hand_entry\(", "the sibling called as C"),
     ("time tags that take the machine", r"\bNATIVE_TIME_AS\(", "a tag with no machine"),
     ("register escapes", r"\bvid_snes_\w+\(|\bau_voices_snes_register\(", "a service call"),
-    ("video service calls", r"\bvid_(?!snes_)\w+\(", "one host video backend, not per call"),
+    ("video service calls", r"\bvid_(?!snes_)\w+\(", "inventory, including inline value helpers"),
+    ("video calls without host backend", None, "the named service implemented on the host"),
     ("scaffolding writes", r"\bORIGINAL_EFFECT\(", "its subsystem retiring the gate"),
 ]
 
@@ -54,6 +55,21 @@ def native_left_out():
 
 def sources():
     return sorted(p for p in GAME.rglob("*") if p.suffix in (".c", ".h"))
+
+
+def missing_video_backends():
+    """Public service declarations without a definition in the host backend.
+
+    Inline encoders are already portable, and the explicitly SNES escapes
+    have their own row. This measures implementation presence, not pixels.
+    """
+    header = (ROOT / "runtime/platform/video.h").read_text(encoding="utf-8")
+    declared = set(re.findall(r"PF_API\s+\w+\s+(vid_(?!snes_)\w+)\(", header))
+    native = "\n".join(p.read_text(encoding="utf-8")
+                       for p in (ROOT / "runtime/platform/native").glob("*.c"))
+    native = re.sub(r"/\*.*?\*/|//[^\n]*", "", native, flags=re.S)
+    implemented = set(re.findall(r"\b(vid_\w+)\([^;{}]*\)\s*\{", native))
+    return declared - implemented
 
 
 def registry_entries():
@@ -76,10 +92,16 @@ def held_wait_rows():
 def count(per_file):
     totals = collections.Counter()
     by_file = collections.defaultdict(collections.Counter)
+    missing_video = missing_video_backends()
     for path in sources():
         if path.name == "registry.c":
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
+        missing = sum(len(re.findall(r"\b" + name + r"\(", text)) for name in missing_video)
+        if missing:
+            name = "video calls without host backend"
+            totals[name] += missing
+            by_file[path.relative_to(ROOT).as_posix()][name] += missing
         for name, pattern, _ in JOINTS:
             if pattern is None:
                 continue

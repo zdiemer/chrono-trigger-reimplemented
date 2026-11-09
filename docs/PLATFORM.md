@@ -1743,12 +1743,63 @@ calls wouldn't run at all.
 The unit tests (including the platform lint and the new renderer lint) pass and
 the build is warning-free with `-DCT_WERROR=ON`.
 
-**What is left.** The native renderer draws the frame the *decoder* builds. The
-frame the *observer* builds from service calls is the same object, so the
-renderer will take it as soon as P2 finishes and every register writer is behind
-the API; until then `--vid-check` is what says how far that is. The observer
-does not fill in the per-span memory pointers, which it will need for the same
-reason the decoder does.
+#### Video from service calls, as built
+
+`ct_native` binds `runtime/platform/native/video.c`: its `vid_*` calls update
+the retained state in `observe.c`, and `frontend/ct_native.c` draws
+`vid_host_picture` with `vid_render_frame`. Tiles, maps, palettes, sprites,
+layers, windows and line effects reach that state without a PPU register
+file. This binding already existed when the service-fed pixel check was added;
+the older plan's claim that the host drew nothing was stale.
+
+The retained frame now preserves the memory each span saw. Before an upload
+changes memory used by emitted spans, the observer keeps their VRAM, palette
+or sprite set. Later spans see the new contents. Snapshots are allocated on
+demand and reused, with capacity for every emitted span, rather than dropping
+changes after a small fixed pool fills. The host's line-handler changes to
+brightness and effect enables have independent start lines; a change after
+line 224 takes effect next frame without blanking the current picture.
+
+**The backend seam.** `CT_PLATFORM_EXTERN` selects the host implementation
+for all of `ct_native`, including the still-gated battle, menu and scene
+code. Their SNES escapes remain in `native_escapes.c`, where unsupported
+operations are counted. They have no hidden PPU in this executable. In
+`ct_dev`, shadow mode and `ct_play`, the inline SNES backend still performs
+the exact register writes, so battle, menus and scene keep their existing
+validation path. Retired field, event, overworld, warp and core calls use
+the same service interface with no register file in the native build. Their
+last escape, the field's transition buffer clear, is now `wram_clear`: plain
+host memory work, with the original transfer preserved in the SNES state
+backing. The Mode 7 matrix values that the clear leaves are still explicit
+video state.
+
+**Pixel evidence.** `ct_dev --native on --px-check-services` renders the
+service-built frame against `render.c`; `--px-check out.txt` optionally saves
+details. It seeds only power-on video memory, never decoded PPU state, and
+does not create a register decoder. Ordinary `--px-check` retains the PPU
+decoder comparison for reference and generated-only runs. The service check
+cannot share the global observer with `--vid-check` or run on shadow clones.
+
+| Movie | Service-fed frames | Differing pixels |
+|---|---:|---:|
+| `field` | 11402 | 0 |
+| `events-keepers-dome` (overworld into field) | 5001 | 0 |
+| `events-end-of-time-gate` (warp and arrival) | 5601 | 0 |
+| `menus-epoch` (Mode 7 and world map) | 8805 | 0 |
+
+The synthetic `video_test` checks actual rendered palette changes, retained
+tile and sprite versions, a palette change on every line, reuse next frame,
+and independent raster changes including the last-line boundary. It needs no
+ROM and runs in CI. The warning-as-error build, `video_test`, `timing_test`
+and `field_test` pass.
+
+`machine_joints.py` measured 24 to 23 register-escape occurrences in `game/`,
+and 544 to 544 video-call occurrences (including inline value helpers). The
+new `video calls without host backend` row is zero: every ordinary declared
+video service has a host definition. That is a presence check, not proof of
+complete behavior; the remaining escape sites and their required meanings
+are in TODO.md, "Video escapes after the retired subsystems". No exception
+or baseline was added for this work.
 
 ### P4: widescreen
 
