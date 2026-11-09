@@ -4450,7 +4450,10 @@ whole counter word. Closing the item window also restores its original
 restoring its saved flags; otherwise the full screen task stops prematurely
 at the handler's return and compares dead accumulator contents. The
 `menus-field-menu` shadow replay checks that complete return path. The
-scheduler fixtures supply upload completion
+enclosing task owns all 208 tonic-continuation comparison points in that
+movie; the isolated gate replay compares all 208 independently, with no
+interruption or mismatch.
+The scheduler fixtures supply upload completion
 and input notifications without claiming interrupt or video coverage;
 the recipe merger preserves distinct notifications at the same wait.
 These cases leave 48 menu bytes in 12 entries open in the discovery

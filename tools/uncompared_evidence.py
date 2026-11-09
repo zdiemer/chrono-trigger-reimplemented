@@ -36,6 +36,7 @@ CASES = (
     ("menu_description_task_finished", "menus-sweep", 6424, (), ("menu_description_task_finished",)),
     ("menu_fade_resumes", "menus-sweep", 6424, (), ("menu_fade_resumes",)),
     ("menu_fade_starts", "menus-sweep", 6424, (), ("menu_fade_starts",)),
+    ("menu_tonic_member_choice_continues", "menus-field-menu", 10600, (), ("menu_tonic_member_choice_continues",)),
     ("battle_frame_dispatch", "battle-menu-buttons", 5086, ("battle_nmi", "battle_nmi_alternate"), ()),
 )
 
