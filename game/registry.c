@@ -1839,7 +1839,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC00B4E, .name = "display_blank_and_stop_interrupts", .fn = display_blank_and_stop_interrupts,
       NEEDS_M8, .cost_milli = 5750, .dont_care = DC_X | DC_N | DC_Z | DC_C | DC_AL },
     { .addr = 0xC284F9, .name = "input_wait_for_controller", .fn = input_wait_for_controller,
-      NEEDS_M8_X16, .idle = true, .guard = input_controller_wait_ready },
+      NEEDS_M8_X16, .idle = true, .idle_exit_span = 5, .guard = input_controller_wait_ready },
     { .addr = 0xC284FE, .name = "input_take_ready_controller", .fn = input_take_ready_controller,
       NEEDS_M8_X16, .cost_milli = 5568, .guard = input_controller_page_ready,
       .dont_care = DC_A | DC_X | DC_Y | DC_FLAGS },

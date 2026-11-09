@@ -83,6 +83,7 @@ typedef struct Pass {
     uint32_t keys[PASS_MAX][4];
     uint64_t hidden;   /* of it, run under a comparison (a port waiting through the loop) */
     uint8_t span;      /* its idle entry's leaving pass's bytes, to its return (NativeEntry.idle_return_span) */
+    uint8_t exit_span; /* bytes before the checked exit entry, at the same stack */
     uint32_t body[PASS_MAX];   /* the addresses of the latest pass that went round at this head */
     int nbody;
 } Pass;
@@ -480,14 +481,23 @@ static bool ran_only_the_loop(const Pass *p)
 
 /* SHADOW: the pass that left the wait returned having run nothing but its
  * idle entry's own bytes, the loop's and its return's: the port's pass. */
-static bool returned_as_the_port(const Pass *p)
+static bool ran_inside_span(const Pass *p, uint8_t span)
 {
-    if (!p->span || !p->n)
+    if (!span || !p->n)
         return false;
     for (int i = 0; i < p->n; i++)
-        if (p->keys[i][0] < p->head || p->keys[i][0] >= p->head + p->span)
+        if (p->keys[i][0] < p->head || p->keys[i][0] >= p->head + span)
             return false;
     return true;
+}
+
+static bool returned_as_the_port(const Pass *p) { return ran_inside_span(p, p->span); }
+
+/* Even the first pass is the idle port's when it reaches its declared
+ * checked exit without changing stack or executing anything outside it. */
+static bool reached_idle_exit(const Pass *p, uint32_t pc, uint16_t sp)
+{
+    return sp == p->s && pc == p->head + p->exit_span && ran_inside_span(p, p->exit_span);
 }
 
 /* A runtime handoff can happen after the return and before the next
@@ -1275,11 +1285,14 @@ static bool still_compared(const Fallbacks *f, const Frame *frame)
  * routine's path, the field's pass going on from a step) is compared nested
  * in it, and once it is set aside the enclosing comparison goes on covering
  * what the original runs, until the runtime says it is over. */
-static void take_over(Fallbacks *f, uint16_t sp, bool nested)
+static void take_over(Fallbacks *f, uint32_t pc, uint16_t sp, bool nested)
 {
+    /* A checked exit can be the first dispatch after an interpreted RTI. */
+    after_an_rti(f, sp);
     /* the wait over: the loop left to the port at its exit, or returned from
      * as its idle entry returns, to a port */
-    if (f->pass.open && (ran_only_the_loop(&f->pass) || (sp > f->pass.s && returned_as_the_port(&f->pass))))
+    if (f->pass.open && (ran_only_the_loop(&f->pass) || reached_idle_exit(&f->pass, pc, sp)
+                         || (sp > f->pass.s && returned_as_the_port(&f->pass))))
         take_the_pass_back_as_the_port_s(f);
     f->pass.open = false;
     leave_finished(f, sp);
@@ -1295,7 +1308,7 @@ static void on_entered(void *ctx, Snes *s, const NativeEntry *e)
 {
     Fallbacks *f = ctx;
     uint16_t sp = s->cpu.s;
-    take_over(f, sp, true);
+    take_over(f, cpu_pc24(&s->cpu), sp, true);
     if (f->shadow)
         enter(f, (Frame){ .kind = COVERED, .held = e->interrupt, .routine = cpu_pc24(&s->cpu), .port = e->addr,
                           .floor = sp, .name = e->name, .entry = e });
@@ -1328,7 +1341,7 @@ static void on_resumed(void *ctx, Snes *s, const NativeEntry *e, uint16_t entry_
         if (f->frames[i].kind == COVERED && f->frames[i].port == e->addr && f->frames[i].name)
             return;   /* its stretch is still there */
     uint16_t level = f->after_a_call && sp == f->callee_s ? f->last_s : sp;
-    take_over(f, sp, false);
+    take_over(f, cpu_pc24(&s->cpu), sp, false);
     if (f->shadow)
         enter(f, (Frame){ .kind = COVERED, .routine = e->addr, .port = e->addr, .floor = entry_s, .start = level,
                           .name = e->name, .entry = e });
@@ -1360,6 +1373,7 @@ static void on_idle(void *ctx, Snes *s, const NativeEntry *e)
     f->pass.n = 0;
     f->pass.hidden = 0;
     f->pass.span = e->idle_return_span;
+    f->pass.exit_span = e->idle_exit_span;
 }
 
 /* SHADOW: the runtime gives a comparison up under a handler that moved the

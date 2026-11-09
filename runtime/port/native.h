@@ -83,6 +83,12 @@ typedef struct NativeEntry {
      * loop) leaves it counted. Where it is 0, the pass that leaves stays
      * counted unless a port takes over at the loop's exit. */
     uint8_t idle_return_span;
+    /* A wait whose exit is another checked port: bytes from its head up to
+     * that entry. A first pass may already find the wait finished, without
+     * a previous backedge to establish its body. The fallback measure can
+     * certify that pass only at this exact exit and stack, with every
+     * instruction inside the declared span. */
+    uint8_t idle_exit_span;
     /* A held wait's continuation (native_hold): nonzero, the number of the
      * wait it goes on from. In ON mode, where the machine names that wait
      * (Snes.held_wait) and S is the one the main thread rests with, the

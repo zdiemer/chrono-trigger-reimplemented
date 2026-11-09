@@ -4341,7 +4341,16 @@ The same reference-only classification includes the previously retired
 core input services and RAM block-copy stub, whose comparisons were
 formerly enclosed by menu entries. The controller wait and ready sample
 remain gated; the copy stub is recognized only with its instruction image
-intact. The nine isolated menu-continuation comparisons leave with their
+intact. The controller idle row declares its five-byte span to the checked
+sample entry. The fallback measure certifies even a first pass that finds
+the controller ready, only at that exact exit and unchanged stack, with
+every executed instruction inside the span. Previously it required an
+observed backedge, so removing the enclosing menu comparisons exposed
+474,356 instructions of this already-ported wait in the sample. An interrupt
+return restores the saved pass before checking its exit. Synthetic checks
+cover the first pass, an interrupted pass, missing and incorrect spans, and
+an excursion outside the span; the latter three remain counted.
+The nine isolated menu-continuation comparisons leave with their
 gate. The curtain's two menu residue-read allowances also leave: its live
 input is now `menu_effect_noise`, set by object setup and drawing and read
 under the scene frame-counter alias. Emptying the sprite list initializes it
