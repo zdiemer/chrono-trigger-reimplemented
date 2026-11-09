@@ -540,23 +540,14 @@ short, starting with D and DB where only interrupts reach.
 
 ## Phase 4a: what still runs on emulation
 
-Seven things stand between a finished `game/` and a native build with nothing
-under it. None of them is optional for target 1. The first three were found
-by an audit; the fourth is the program itself; the last three are what
-taking the gate down needs, before it and after it.
+The remaining work between a finished `game/` and a native build with nothing
+under it is below. None is optional for target 1; the host service backends
+already built are described in PLATFORM.md.
 
 - **Remaining video escapes.** Battle, menus and scene must replace their
   SNES-specific transfers with named services as their gates retire. TODO.md
   lists each site and the contract it needs. The service-fed host renderer
   and its pixel check are described in PLATFORM.md.
-- **Host backends for the other four services.** The seam is right -- each of
-  `video.h`, `audio.h`, `timing.h`, `input.h` and `save.h` picks its backend
-  with `#ifdef CT_PLATFORM_SNES` -- but **only one backend exists**, and it
-  writes SNES registers. That backend is not waste: compiled for real hardware
-  it is what target 3 runs on. What is missing is the host side of four of
-  them. Input and save are small (`in_host_set` and `frontend/player.c` already
-  carry the host's half). Audio is the native mixer (PLATFORM.md), which
-  already makes the sound from the voices with no S-DSP.
 - **The native frame.** The power-on path and the interrupts' entries are
   hand ports (`core/console.c`; history/reimplementation-chunks.md, "Phase 3, field and events: the
   console's start and the field's frame"), and so is everything the library's

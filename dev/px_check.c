@@ -199,6 +199,8 @@ void px_check_line(PxCheck *pc, uint16_t line)
     if (flags.range_over != p->range_over || flags.time_over != p->time_over)
         pc->flag_diffs++;
     compare(pc, f);
+    if (pc->obs)
+        vid_obs_frame_end(pc->obs);
 }
 
 uint64_t px_check_frames(const PxCheck *pc) { return pc->frames; }

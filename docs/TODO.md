@@ -2065,7 +2065,8 @@ rest waits, is [PLAN.md](PLAN.md).
 - **Video escapes after the retired subsystems.** The ordinary service calls
   have host implementations; `ct_native` renders their retained frame directly
   (PLATFORM.md, "Video from service calls, as built"). The remaining work is
-  in the three subsystems whose SNES validation backend stays through teardown.
+  in battle and menus through their teardowns, and in the scene's follow-up
+  work (its merged teardown did not remove these escapes).
   Do not replace their machine contracts by a narrower call before checking
   the descriptor's full domain and the state left for callers. The 23
   `machine_joints.py` occurrences are the 22 calls below plus a comment in
@@ -3791,9 +3792,8 @@ waits on M5 rather than on a backend.
   the map, an item list) drawn by the frontend from game state, which can read
   it by name from the RAM map (`re/ram.toml`, `game/ram.h`); or a
   *second game screen* in the DS sense, which needs the video service to carry
-  more than one frame and the game to decide what goes where. Either way it wants
-  P3's leftover first (the observer doesn't fill in the per-span memory pointers),
-  since a frontend-fed screen is the same call-fed rendering widescreen needs.
+  more than one frame and the game to decide what goes where. Both can use
+  the service-built spans (PLATFORM.md, "Video from service calls, as built").
   Native resolution is far above 256x224, so it also meets P4's questions about
   what lives outside the original screen.
 - **DS and PlayStation content in the original.** The Dimensional Vortex, the

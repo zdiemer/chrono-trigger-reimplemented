@@ -825,6 +825,8 @@ void vid_obs_frame_start(VidObserver *ob)
     effects_init(ob);
 }
 
+void vid_obs_frame_end(VidObserver *ob) { ob->recording = false; }
+
 void vid_obs_line(VidObserver *ob, uint16_t line)
 {
     if (line == 0) {
@@ -849,8 +851,6 @@ void vid_obs_line(VidObserver *ob, uint16_t line)
         }
         ob->palette_dirty = ob->vram_dirty = ob->sprites_dirty = false;
     }
-    if (line == 224)
-        ob->recording = false;
     effects_line(ob);
 }
 

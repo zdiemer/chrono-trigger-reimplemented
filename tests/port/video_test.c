@@ -39,6 +39,7 @@ static void raster_changes(void)
     f = vid_host_picture(&pf);
     CHECK(line_state(f, 1)->display.blank);
 
+    vid_host_frame_begins(&pf);
     pf.timing.part = TM_HOST_IDLE;
     vid_set_display(&pf, PF_AT(0), &(VidDisplay){ .brightness = 15 });
     vid_set_line_slot(&pf, PF_AT(0), 0,
@@ -53,6 +54,62 @@ static void raster_changes(void)
     /* The effect is still enabled after the raster display change. Sharing
      * its start line with the later disable would leave brightness at 7. */
     CHECK(line_state(f, 31)->display.brightness == 15);
+    vid_host_stop(&pf);
+}
+
+static void picture_main(Platform *pf, void *ctx)
+{
+    const uint16_t *line = ctx;
+    vid_set_display(pf, PF_AT(0), &(VidDisplay){ .brightness = 15 });
+    vid_set_screens(pf, PF_AT(0), VID_OBJ_BIT, 0, VID_SCREEN_MAIN);
+    vid_set_palette_color(pf, PF_AT(0), 0, 31);
+    vid_set_sprite(pf, PF_AT(0), 0, &(VidSprite){ .x = 12, .y = 200 });
+    tm_set_line(pf, PF_AT(0), *line);
+    tm_enable_interrupts(pf, PF_AT(0), TM_INT_LINE);
+    for (;;)
+        tm_wait_frame(pf, PF_AT(0));
+}
+
+static void picture_line(Platform *pf, void *ctx)
+{
+    (void)ctx;
+    vid_set_palette_color(pf, PF_AT(0), 0, 31 << 5);
+    vid_start_vram_uploads(pf, PF_AT(0), VID_VRAM_WORD_PORT);
+    vid_set_vram_address(pf, PF_AT(0), 0);
+    vid_write_vram(pf, PF_AT(0), 0x1234);
+    vid_set_sprite(pf, PF_AT(0), 0, &(VidSprite){ .x = 77, .y = 200 });
+}
+
+/* Exercise the real host frame driver, not just observer calls: uploads in
+ * a handler must not recolor or replace tiles/sprites on earlier lines. */
+static void handler_uploads(uint16_t line)
+{
+    Platform pf = {0};
+    vid_host_start(&pf, NULL, NULL, NULL);
+    TmHostProgram program = { .main_thread = picture_main, .line = picture_line, .ctx = &line };
+    tm_host_start(&pf, &program, 1);
+    tm_host_frame(&pf);
+    const VidFrame *f = vid_host_picture(&pf);
+    CHECK(f->spans[0].cgram && f->spans[0].cgram[0] == 31);
+    CHECK(f->spans[0].vram && f->spans[0].vram[0] == 0);
+    CHECK(f->spans[0].sprites && f->spans[0].sprites->sprites[0].x == 12);
+    CHECK(f->cgram[0] == (31 << 5) && f->vram[0] == 0x34);
+
+    VidRenderer *r = vid_render_create();
+    uint32_t *pixels = calloc(VID_RENDER_WIDTH * VID_RENDER_HEIGHT, sizeof *pixels);
+    vid_render_frame(r, f, pixels, NULL);
+    CHECK(pixels[0] == vid_render_rgb565_to_xrgb8888(vid_render_color(31, 15)));
+    uint16_t last_color = line >= VID_HOST_LAST_LINE ? 31 : 31 << 5;
+    CHECK(pixels[(VID_RENDER_HEIGHT - 1) * VID_RENDER_WIDTH] ==
+          vid_render_rgb565_to_xrgb8888(vid_render_color(last_color, 15)));
+
+    tm_host_frame(&pf);
+    f = vid_host_picture(&pf);
+    vid_render_frame(r, f, pixels, NULL);
+    CHECK(pixels[0] == vid_render_rgb565_to_xrgb8888(vid_render_color(31 << 5, 15)));
+    free(pixels);
+    vid_render_destroy(r);
+    fiber_destroy(pf.timing.main);
     vid_host_stop(&pf);
 }
 
@@ -115,6 +172,8 @@ int main(void)
 {
     changing_picture();
     raster_changes();
+    handler_uploads(99);
+    handler_uploads(VID_HOST_LAST_LINE);
     printf("video_test: %d failures\n", failures);
     return failures != 0;
 }

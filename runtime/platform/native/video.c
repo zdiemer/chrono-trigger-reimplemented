@@ -27,6 +27,7 @@ void vid_host_start(Platform *pf, uint8_t (*read)(void *ctx, uint32_t addr),
     VidHost *v = &pf->video;
     vid_obs_destroy(v->observer);
     v->observer = vid_obs_create(read, ctx);
+    v->picture_started = false;
     v->read = read;
     v->write = write;
     v->ctx = ctx;
@@ -38,28 +39,47 @@ void vid_host_stop(Platform *pf)
     pf->video.observer = NULL;
 }
 
-/* The lines above what the line handler changed show the frame's display and
- * line effects, the rest the changes. */
-const VidFrame *vid_host_picture(Platform *pf)
+/* Capture only up to a boundary the program has reached. In particular the
+ * line handler's uploads belong below its line, not to the earlier picture. */
+static void capture_through(Platform *pf, uint16_t last)
 {
     VidHost *v = &pf->video;
     VidObserver *ob = v->observer;
-    vid_obs_display(ob, &v->display);
-    vid_obs_enable_line_effects(ob, v->line_effects);
-    vid_obs_frame_start(ob);
-    for (uint16_t line = 0; line <= VID_HOST_LAST_LINE; line++) {
+    if (!ob)
+        return;
+    if (!v->picture_started) {
+        vid_obs_display(ob, &v->display);
+        vid_obs_enable_line_effects(ob, v->line_effects);
+        vid_obs_frame_start(ob);
+        v->next_line = 0;
+        v->picture_started = true;
+    }
+    if (last > VID_HOST_LAST_LINE)
+        last = VID_HOST_LAST_LINE;
+    for (; v->next_line <= last; v->next_line++) {
+        uint16_t line = v->next_line;
         if (v->below_display && line == v->display_from)
             vid_obs_display(ob, &v->display_below);
         if (v->below_line_effects && line == v->effects_from)
             vid_obs_enable_line_effects(ob, v->line_effects_below);
         vid_obs_line(ob, line);
     }
-    return vid_obs_frame(ob);
+}
+
+void vid_host_before_line(Platform *pf) { capture_through(pf, pf->timing.line); }
+
+const VidFrame *vid_host_picture(Platform *pf)
+{
+    capture_through(pf, VID_HOST_LAST_LINE);
+    return vid_obs_frame(pf->video.observer);
 }
 
 void vid_host_frame_begins(Platform *pf)
 {
     VidHost *v = &pf->video;
+    if (v->observer)
+        vid_obs_frame_end(v->observer);
+    v->picture_started = false;
     if (v->below_display) {
         v->display = v->display_below;
         vid_obs_display(v->observer, &v->display);
