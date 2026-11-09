@@ -1430,3 +1430,10 @@ variant = "unreached_idle_commands"
 args = ["--fill", "7E993A-7E993A=01", "--fill", "7E95D6-7E95D9=00,01,02,FF", "--fill", "7EA6D9-7EA6DB=00,01,02", "--fill", "7EA6DD-7EA6DD=00", "--fill", "7E95DB-7E95DB=00", "--fill", "7E9609-7E9609=00", "--fill", "7E00EE-7E00EF=0000", "--fill", "7EA62D-7EA632=FF"]
 why = "The menu takes an idle command-page turn, with no target cursors replacing the input frame carry."
 iterations = 2000
+
+[[case]]
+base = "battle_menu_turn:unreached_idle_commands"
+variant = "unreached_next_member_commands"
+args = ["--fill", "7E00EE-7E00EF=0001", "--fill", "7EA6DD-7EA6DD=00,01,02", "--fill", "7EA6D9-7EA6DB=00,01,02", "--fill", "7EA0D4-7EA0D4=00,01"]
+why = "The command page advances to the next occupied member slot, preserving the wraparound compare through unchanged cursors."
+iterations = 2000

@@ -4271,6 +4271,10 @@ the input operation's ordinary C helper does not update CPU flags, while
 the enclosing menu turn still compares that return when cursor placement
 leaves it unchanged. The Guardian movie and 2,000 idle-turn trials match
 with this compatibility write; it does not add counted accesses.
+Advancing to another member similarly preserves the slot wraparound's
+compare. Black Omen's two battles and escape match after that return is
+kept, as do 2,000 trials covering all three slots with command memory on
+and off.
 
 Menu task yields call the scheduler as C after constructing the return
 frame and checking its complete contract. `native_park_after_task_switch`

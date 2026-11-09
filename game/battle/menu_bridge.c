@@ -167,13 +167,24 @@ void battle_take_menu_input(Snes *s)
      * frame operation is ordinary C, but the still-gated menu turn compares
      * this flag when cursor placement leaves it unchanged. */
     vars_peek(true);
-    bool idle_command = !menu_nobody(battle_menu_member(g)) && !battle_targeting(g)
-                        && battle_menu_page(g) == PAGE_COMMANDS && !battle_menu_buttons(g);
+    Buttons buttons = battle_menu_buttons(g);
+    bool command_page = !menu_nobody(battle_menu_member(g)) && !battle_targeting(g)
+                        && battle_menu_page(g) == PAGE_COMMANDS;
+    bool idle_command = command_page && !buttons;
+    bool next_member = command_page && (buttons & BUTTON_RIGHT)
+                       && !(buttons & (BUTTON_LEFT | BUTTON_UP | BUTTON_DOWN))
+                       && !(battle_remembers_commands(g) && (buttons & BUTTON_X));
     vars_peek(false);
     BattleMenuMachine m = battle_menu_machine(s, false);
     battle_menu_frame(g, battle_menu_buttons(g), &m.host);
     if (idle_command)
         m_set_flag(s, CPU_FLAG_C, true);
+    if (next_member) {
+        /* Advancing the member slot leaves the compare at its wraparound. */
+        vars_peek(true);
+        m_set_flag(s, CPU_FLAG_C, battle_menu_slot(g) == 0);
+        vars_peek(false);
+    }
     if (!m.stopped)
         m_rts(s);
 }
