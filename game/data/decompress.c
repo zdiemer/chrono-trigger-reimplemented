@@ -88,12 +88,11 @@ static void copy_run(Output *out, Reference r)
     hw_port_seek_address(out->g, out->at);
 }
 
-/* The unpacking's time is as it was while it had entries, so the plays that
- * pin the ports' pace (the strict and native recorded outcomes) don't move
- * (charge.h, charge_retired): the port's own accesses at the rate of the
+/* The unpacking keeps the rates its entries were calibrated at (charge.h,
+ * charge_retired): the port's own accesses at the rate of the
  * entry it was reached through, and the accesses the original makes besides
- * at the jump's entry's, as its charge was made; with no machine, the time
- * model's price of the latter alone (platform/time_model.h). The original reads the stream
+ * at the jump's entry's, as its charge was made. Both backends use those
+ * retained rates. The original reads the stream
  * and writes the output as the port does, but keeps its place, its bits and
  * its counts in its direct page's cells, reading and writing them at each
  * step where the port keeps them in locals. Those accesses, by what

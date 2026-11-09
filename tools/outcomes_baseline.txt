@@ -1,7 +1,7 @@
 # Protected outcome matches: movie/mode kind identities (end, picture frame, place index).
 # --update adds matches, never drops one; temporal drift counts as a match.
 attract-demo/native game end
-attract-demo/native pictures 1 1800 2100 11100 19200
+attract-demo/native pictures 1 1800 2100 11100 19200 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 4 match, 1 drift, 71 differ. Checkpoint frames moved outside tolerance: 7500,20100.
 attract-demo/native places 0 1 2 3 4 5
 attract-demo/native sram
 attract-demo/strict game end
@@ -65,7 +65,7 @@ battle-giga-gaia/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 
 battle-giga-gaia/strict places 0 1 2 3 4 5
 battle-giga-gaia/strict sram end
 battle-golem-twins-gameover/native game end
-battle-golem-twins-gameover/native pictures 1 1800 2100 2400 3900 4200 4500 4800 12300
+battle-golem-twins-gameover/native pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 4500 4800 12300 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 7 match, 6 drift, 32 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
 battle-golem-twins-gameover/native places 0 1 2 3 4 5 6
 battle-golem-twins-gameover/native sram end
 battle-golem-twins-gameover/strict game end
@@ -81,7 +81,7 @@ battle-golem-twins/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 420
 battle-golem-twins/strict places 0 1 2 3 4
 battle-golem-twins/strict sram
 battle-guardian/native game
-battle-guardian/native pictures 1 1800 2100 2400 2700 3600 4200 4800 5400 5700 6000
+battle-guardian/native pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 4500 4800 5100 5400 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 5 match, 9 drift, 73 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
 battle-guardian/native places 0 1 2 3 4 5 6
 battle-guardian/native sram end
 battle-guardian/strict game
@@ -97,7 +97,7 @@ battle-heckran/strict pictures 1 1800 2100 2400 2700 3000 3300
 battle-heckran/strict places 0 1 2 3 4
 battle-heckran/strict sram end
 battle-lavos-gameover/native game end
-battle-lavos-gameover/native pictures 1 1800 2100 2400 3600 4800 5100 5400 15300 15600 15900 16192
+battle-lavos-gameover/native pictures 1 1800 2100 2400 3600 3900 4200 4500 4800 5100 5400 15300 15600 15900 16192 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 13 match, 2 drift, 40 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
 battle-lavos-gameover/native places 0 1 2 3 4 5 6 7
 battle-lavos-gameover/native sram end
 battle-lavos-gameover/strict game
@@ -112,8 +112,8 @@ battle-magus-north-cape/strict game
 battle-magus-north-cape/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4500 4800 5100 5400 5700
 battle-magus-north-cape/strict places 0 1 2 3 4 5 6
 battle-magus-north-cape/strict sram
-battle-magus/native game
-battle-magus/native pictures 1 1800 2100 2400 2700 3300 7500 9000
+battle-magus/native game end # Native field queues follow the original line-240-to-deadline window using their work account; 1 match, 0 drift, 0 differ.; Native field work stops at its frame deadline; newly matching identities protected.
+battle-magus/native pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 7500 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 8 match, 2 drift, 51 differ. Checkpoint frames moved outside tolerance: 9000.; Native retired-work and RAM-port accounting; newly matching identities protected.
 battle-magus/native places 0 1 2 3 4 5
 battle-magus/native sram end
 battle-magus/strict game end
@@ -121,7 +121,7 @@ battle-magus/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 7500 7800
 battle-magus/strict places 0 1 2 3 4 5
 battle-magus/strict sram end
 battle-menu-buttons/native game end
-battle-menu-buttons/native pictures 1 1800 2100 2400 3000 3300
+battle-menu-buttons/native pictures 1 1800 2100 2400 3000 # Native field queues follow the original line-240-to-deadline window using their work account; 4 match, 1 drift, 13 differ. Checkpoint frames moved outside tolerance: 3300.; Native field work stops at its frame deadline; newly matching identities protected.
 battle-menu-buttons/native places 0 1 2 3 4
 battle-menu-buttons/native sram end
 battle-menu-buttons/strict game end
@@ -200,8 +200,8 @@ battle-tech-sweep/strict game
 battle-tech-sweep/strict pictures 1 1800 2100 2400 2700 3600 3900 4200
 battle-tech-sweep/strict places 0 1 2 3 4
 battle-tech-sweep/strict sram
-battle-tyrano-lair-walls/native game end
-battle-tyrano-lair-walls/native pictures 1 1800 2100 2400 2700 3000 3300 3900 4500 7800 8042
+battle-tyrano-lair-walls/native game # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 0 match, 0 drift, 1 differ. The walkway is entered at frame 3696 versus 3697 before and 3703 in reference; shifted battle inputs leave 44 differing saved-game bytes in inventory, character progression and cursors, while SRAM matches and all five places stay on time; follow-up deferred until battle and menu teardown.
+battle-tyrano-lair-walls/native pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 8 match, 1 drift, 19 differ. Checkpoint frames moved outside tolerance: 4500,7800,8042.; Native retired-work and RAM-port accounting; newly matching identities protected.
 battle-tyrano-lair-walls/native places 0 1 2 3 4
 battle-tyrano-lair-walls/native sram end
 battle-tyrano-lair-walls/strict game
@@ -227,7 +227,7 @@ battle-zombor/strict sram end
 endings-beyond-time/native game
 endings-beyond-time/native pictures 1 1800 2100 2400 3900 4200 4800
 endings-beyond-time/native places 0 1 2 3 4
-endings-beyond-time/native sram
+endings-beyond-time/native sram # Native DMA clears, work RAM copies and data-driven VRAM uploads use their transfer byte rate; 0 match, 0 drift, 1 differ. The replay still misses the ending and returns to the load screen at frame 13039 instead of 29845, changing 4189 SRAM bytes; recorded as a changed outcome, not ending completion; follow the shifted battle inputs after teardown.
 endings-beyond-time/strict game
 endings-beyond-time/strict pictures 1 1800 2100 2400 2700 3900 4200 4500 5100
 endings-beyond-time/strict places 0 1 2 3 4
@@ -289,23 +289,23 @@ events-death-peak-wind/strict pictures 1 1800 2100 2400 3000 3300 3600 4500
 events-death-peak-wind/strict places 0 1 2 3 4 5
 events-death-peak-wind/strict sram end
 events-death-peak/native game
-events-death-peak/native pictures 1 1800 2100 2400
+events-death-peak/native pictures 1 1800 2100 2400 2700 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 4 match, 1 drift, 76 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
 events-death-peak/native places 0 1 2 3
 events-death-peak/native sram
 events-death-peak/strict game
 events-death-peak/strict pictures 1 1800 2100 2400 2700 3000 3300
 events-death-peak/strict places 0 1 2 3
 events-death-peak/strict sram
-events-end-of-time-gate/native game
-events-end-of-time-gate/native pictures 1 1800 2100 2400
-events-end-of-time-gate/native places 0 1 2 3
+events-end-of-time-gate/native game end # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 1 match, 0 drift, 0 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
+events-end-of-time-gate/native pictures 1 1800 2100 2400 3900 4500 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 6 match, 0 drift, 14 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
+events-end-of-time-gate/native places 0 1 2 3 4 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 2 match, 3 drift, 0 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
 events-end-of-time-gate/native sram end
 events-end-of-time-gate/strict game end
 events-end-of-time-gate/strict pictures 1 1800 2100 2400 2700 3000 3600 3900 4500
 events-end-of-time-gate/strict places 0 1 2 3 4
 events-end-of-time-gate/strict sram end
 events-epoch-lavos/native game
-events-epoch-lavos/native pictures 1 1800 2100 2400 4200
+events-epoch-lavos/native pictures 1 1800 2100 2400 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 4 match, 0 drift, 23 differ. Checkpoint frames moved outside tolerance: 4200.
 events-epoch-lavos/native places 0 1 2 3 4
 events-epoch-lavos/native sram end
 events-epoch-lavos/strict game end
@@ -320,8 +320,8 @@ events-fair-clone/strict game
 events-fair-clone/strict pictures 1 1800 2100 2400 2700 3000 3600 3900 4200 4500 5100
 events-fair-clone/strict places 0 1 2 3 4 5
 events-fair-clone/strict sram end
-events-fair-rescue/native game
-events-fair-rescue/native pictures 1 1800 2100 2400 4500
+events-fair-rescue/native game end # Native legacy work charged at its calibrated rate; newly matching identities protected.
+events-fair-rescue/native pictures 1 1800 2100 2400 3900 4200 4500 7681 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 5 match, 3 drift, 19 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
 events-fair-rescue/native places 0 1 2 3 4 5 6
 events-fair-rescue/native sram end
 events-fair-rescue/strict game end
@@ -353,7 +353,7 @@ events-fionas-forest/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 4500 4
 events-fionas-forest/strict places 0 1 2 3 4 5 6 7 8 9
 events-fionas-forest/strict sram end
 events-jetbike-race-won/native game end
-events-jetbike-race-won/native pictures 1 900 1200 1500 2700 3000 3300 3600 7500 8083
+events-jetbike-race-won/native pictures 1 900 1200 1500 1800 2700 3000 3300 3600 3900 7500 8083 # Native field queues follow the original line-240-to-deadline window using their work account; 9 match, 3 drift, 16 differ.; Native field work stops at its frame deadline; newly matching identities protected.
 events-jetbike-race-won/native places 0 1 2 3 4 5 6
 events-jetbike-race-won/native sram end
 events-jetbike-race-won/strict game end
@@ -361,7 +361,7 @@ events-jetbike-race-won/strict pictures 1 900 1200 1800 2700 3000 3300 3600 3900
 events-jetbike-race-won/strict places 0 1 2 3 4 5 6
 events-jetbike-race-won/strict sram end
 events-jetbike-race/native game end
-events-jetbike-race/native pictures 1 1800 2100 2400 3000 3300 3600 5400 5700 8700
+events-jetbike-race/native pictures 1 1800 2100 2400 3000 3300 3600 3900 5100 5400 5700 9000 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 6 match, 6 drift, 21 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
 events-jetbike-race/native places 0 1 2 3 4 5 6
 events-jetbike-race/native sram end
 events-jetbike-race/strict game end
@@ -401,8 +401,8 @@ events-magus-joins/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 450
 events-magus-joins/strict places 0 1 2 3 4 5 6
 events-magus-joins/strict sram end
 events-ocean-palace-lavos/native game
-events-ocean-palace-lavos/native pictures 1 1800 2100 2400 3600 4200 4800 7800 8100 9600
-events-ocean-palace-lavos/native places 0 1 2 3 4 5 6
+events-ocean-palace-lavos/native pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 4800 9600 17100 25200 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 8 match, 6 drift, 89 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
+events-ocean-palace-lavos/native places 0 1 2 3 4 5 6 8 # Native DMA clears, work RAM copies and data-driven VRAM uploads use their transfer byte rate; 1 match, 7 drift, 11 differ.; Native DMA transfers charged at eight clocks per byte; newly matching identities protected.
 events-ocean-palace-lavos/native sram end
 events-ocean-palace-lavos/strict game
 events-ocean-palace-lavos/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 4500 4800 5100 5400 5700 6000 6300 6600 6900 7200 7500 7800 8100 9600 17100 25200
@@ -489,7 +489,7 @@ field-12kbc-after-the-fall/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 
 field-12kbc-after-the-fall/strict places 0 1 2 3 4 5 6
 field-12kbc-after-the-fall/strict sram end
 field-65m-bc-dactyl-flight/native game end
-field-65m-bc-dactyl-flight/native pictures 1 1800 2100 2400 3300 3600 3992
+field-65m-bc-dactyl-flight/native pictures 1 1800 2100 2400 2700 3300 3600 3900 3992 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 7 match, 2 drift, 6 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
 field-65m-bc-dactyl-flight/native places 0 1 2 3
 field-65m-bc-dactyl-flight/native sram end
 field-65m-bc-dactyl-flight/strict game end
@@ -497,7 +497,7 @@ field-65m-bc-dactyl-flight/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 
 field-65m-bc-dactyl-flight/strict places 0 1 2 3
 field-65m-bc-dactyl-flight/strict sram end
 field-65m-bc-dactyl/native game end
-field-65m-bc-dactyl/native pictures 1 1800 2100 2400 2810
+field-65m-bc-dactyl/native pictures 1 1800 2100 2400 2700 2810 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 6 match, 0 drift, 5 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
 field-65m-bc-dactyl/native places 0 1 2 3
 field-65m-bc-dactyl/native sram end
 field-65m-bc-dactyl/strict game end
@@ -513,7 +513,7 @@ field-65m-bc/strict pictures 1 1800 2100 2400 2700
 field-65m-bc/strict places 0 1 2 3 4 5
 field-65m-bc/strict sram end
 field-factory-switch/native game end
-field-factory-switch/native pictures 1 1800 2100 2400 2700 3000 3300 7200
+field-factory-switch/native pictures 1 1800 2100 2400 2700 3000 3300 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 7 match, 0 drift, 22 differ. Checkpoint frames moved outside tolerance: 7200.
 field-factory-switch/native places 0 1 2 3 4 5
 field-factory-switch/native sram end
 field-factory-switch/strict game end
@@ -529,7 +529,7 @@ field-floor-switch/strict pictures 1 1800 2100 2400 2700 3000 3300 3501
 field-floor-switch/strict places 0 1 2 3 4
 field-floor-switch/strict sram end
 field-northern-ruins-switch/native game end
-field-northern-ruins-switch/native pictures 1 1800 2100 2400 2700 3000 3600
+field-northern-ruins-switch/native pictures 1 1800 2100 2400 2700 3000 3300 3600 3811 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 8 match, 1 drift, 5 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
 field-northern-ruins-switch/native places 0 1 2 3 4 5
 field-northern-ruins-switch/native sram end
 field-northern-ruins-switch/strict game end
@@ -537,7 +537,7 @@ field-northern-ruins-switch/strict pictures 1 1800 2100 2400 2700 3000 3300 3600
 field-northern-ruins-switch/strict places 0 1 2 3 4 5
 field-northern-ruins-switch/strict sram end
 field/native game end
-field/native pictures 1 1800 2100 2400 5100 5400 5700 6000 6900 7500 7800 11100 11400
+field/native pictures 1 1800 2100 2400 5100 5400 5700 6000 6600 6900 7200 7500 7800 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 10 match, 3 drift, 26 differ. Checkpoint frames moved outside tolerance: 11100,11400.; Native retired-work and RAM-port accounting; newly matching identities protected.
 field/native places 0 1 2 3 4 5 6 7
 field/native sram
 field/strict game end
@@ -568,8 +568,8 @@ late-omen-battles/strict game
 late-omen-battles/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 4500 4800 5100 7800
 late-omen-battles/strict places 0 1 2 3 4 5
 late-omen-battles/strict sram end
-late-omen-terramutant/native game
-late-omen-terramutant/native pictures 1 1800 2100 2400 2700 3000 3300 3600 3900
+late-omen-terramutant/native game end # Native DMA clears, work RAM copies and data-driven VRAM uploads use their transfer byte rate; 1 match, 0 drift, 0 differ.; Native DMA transfers charged at eight clocks per byte; newly matching identities protected.
+late-omen-terramutant/native pictures 1 1800 2100 2400 2700 3000 3300 3900 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 7 match, 1 drift, 53 differ. Checkpoint frames moved outside tolerance: 3600.
 late-omen-terramutant/native places 0 1 2 3
 late-omen-terramutant/native sram end
 late-omen-terramutant/strict game
@@ -585,17 +585,17 @@ late-omen-zeal/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4500 51
 late-omen-zeal/strict places 0 1 2 3 4
 late-omen-zeal/strict sram end
 menu/native game end
-menu/native pictures 1 1800 2100 2400 5100 5400 5700 6000 6900 7500 7800 8100 8400 8700 8900
+menu/native pictures 1 1800 2100 2400 5100 5400 5700 6000 6600 6900 7200 7500 7800 8100 8400 8700 8900 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 15 match, 2 drift, 14 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
 menu/native places 0 1 2 3 4 5
 menu/native sram
 menu/strict game end
 menu/strict pictures 1 1800 2100 2400 3300 3600 3900 4200 4500 4800 5100 5400 5700 6000 6300 6600 6900 7200 7500 7800 8100 8400 8700 8900
 menu/strict places 0 1 2 3 4 5
 menu/strict sram end
-menus-end-of-time/native game
-menus-end-of-time/native pictures 1 1800 2100 2400 2700
+menus-end-of-time/native game end # Native field queues follow the original line-240-to-deadline window using their work account; 1 match, 0 drift, 0 differ.; Native field work stops at its frame deadline; newly matching identities protected.
+menus-end-of-time/native pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 5700 6600 6900 7200 7500 8100 8400 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 12 match, 4 drift, 15 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
 menus-end-of-time/native places 0 1 2 3 4 5
-menus-end-of-time/native sram
+menus-end-of-time/native sram end # Native field queues follow the original line-240-to-deadline window using their work account; 1 match, 0 drift, 0 differ.; Native field work stops at its frame deadline; newly matching identities protected.
 menus-end-of-time/strict game end
 menus-end-of-time/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 4500 5700 6600 6900 7200 7500 7800 8100 8400
 menus-end-of-time/strict places 0 1 2 3 4 5
@@ -625,9 +625,9 @@ menus-new-game-plus/strict pictures 1 1800 2100 2400 2700 3000 3116
 menus-new-game-plus/strict places 0 1 2 3
 menus-new-game-plus/strict sram end
 menus-save-point/native game end
-menus-save-point/native pictures 1 1800 2100 2400
+menus-save-point/native pictures 1 1800 2100 2400 2700 3000 3270 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 5 match, 2 drift, 5 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
 menus-save-point/native places 0 1 2 3
-menus-save-point/native sram
+menus-save-point/native sram end # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 1 match, 0 drift, 0 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
 menus-save-point/strict game end
 menus-save-point/strict pictures 1 1800 2100 2400 2700 3000
 menus-save-point/strict places 0 1 2 3
@@ -641,7 +641,7 @@ menus-shop-equip/strict pictures 1 300 2700 3000 3300 3600 3900 4200 4500 4800 5
 menus-shop-equip/strict places 0 1 2 3 4 5 6 7
 menus-shop-equip/strict sram end
 menus-shop-inn/native game end
-menus-shop-inn/native pictures 1 1800 2100 2400 2700 4200 4500 4800 5100 5400 5700 6000 6300 6900 7200 7500 7800 8100 9000
+menus-shop-inn/native pictures 1 1800 2100 2400 2700 4200 4500 4800 5100 5400 5700 6000 6300 6600 6900 7200 7500 7800 8100 9000 9600 9702 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 18 match, 4 drift, 12 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
 menus-shop-inn/native places 0 1 2 3 4 5 6 7 8
 menus-shop-inn/native sram end
 menus-shop-inn/strict game
@@ -657,7 +657,7 @@ menus-sweep/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 4500 
 menus-sweep/strict places 0 1 2 3
 menus-sweep/strict sram end
 new-game/native game end
-new-game/native pictures 1 1800 2100 2400 5100 5400 5700 6000 6900
+new-game/native pictures 1 1800 2100 2400 5100 5400 5700 6000 6600 6900 7200 # Native retired operations use actual stream, output and RAM-port accesses plus replacement work at their retained machine rates; 9 match, 2 drift, 14 differ.; Native retired-work and RAM-port accounting; newly matching identities protected.
 new-game/native places 0 1 2 3 4 5
 new-game/native sram
 new-game/strict game end

@@ -258,6 +258,91 @@ static void setting_up_main(Platform *p, void *ctx)
     }
 }
 
+/* Handler service charges during a load must not accumulate as work for the
+ * main thread to sit out after it resumes. Each handler takes an eighth of
+ * a frame; the main thread's next half-frame still fits alongside them. */
+static unsigned charged_main_calls;
+
+static void charging_handler(Platform *p, void *ctx)
+{
+    (void)ctx;
+    tm_host_charge(p, TIME_FRAME_CLOCKS / 8);
+}
+
+static void beside_charges_main(Platform *p, void *ctx)
+{
+    (void)ctx;
+    tm_enable_interrupts(p, PF_AT(0), TM_INT_VBLANK | TM_INT_LINE);
+    for (;;) {
+        if (charged_main_calls == 0)
+            tm_host_charge(p, 2 * TIME_FRAME_CLOCKS);
+        else if (charged_main_calls == 1)
+            tm_host_charge(p, TIME_FRAME_CLOCKS / 2);
+        charged_main_calls++;
+        tm_wait_frame(p, PF_AT(0));
+    }
+}
+
+
+/* Supported native escapes bypass the emulated bus, but their transfers
+ * still take time. A zero length means a full 64 KiB transfer. */
+static unsigned dma_main_calls;
+static uint32_t dma_reads, dma_writes;
+static uint8_t dma_read(void *ctx, uint32_t at) { (void)ctx; (void)at; dma_reads++; return 0x5A; }
+static void dma_write(void *ctx, uint32_t at, uint8_t v) { (void)ctx; (void)at; (void)v; dma_writes++; }
+static void dma_main(Platform *p, void *ctx)
+{
+    (void)ctx;
+    for (;;) {
+        if (!dma_main_calls) {
+            VidSnesTransfer transfer = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = 0x7E0000, .size = 0 };
+            vid_snes_copy(p, PF_AT(0), &transfer);
+            transfer.dest = VID_SNES_WRAM_DATA;
+            vid_snes_copy(p, PF_AT(0), &transfer);
+            transfer.dest = VID_SNES_VRAM_DATA_LOW;
+            transfer.target_reg = VID_SNES_VRAM_ADDRESS;
+            transfer.mode_from_data = true;
+            transfer.mode = 1;
+            vid_snes_copy(p, PF_AT(0), &transfer);
+        }
+        dma_main_calls++;
+        tm_wait_frame(p, PF_AT(0));
+    }
+}
+
+/* The game's budget reopens after NMI, at line 240, and closes after the
+ * frame wraps. Pending game work and service work share this account. */
+static unsigned budget_checks;
+static void budget_main(Platform *p, void *ctx)
+{
+    (void)ctx;
+    enum { OPENS = (240 - 225) * 1364, CLOSES = (262 - 225 + 72) * 1364 };
+    tm_enable_interrupts(p, PF_AT(0), TM_INT_VBLANK | TM_INT_LINE);
+    CHECK(!tm_frame_time_left(p, PF_AT(0), 72), "NMI has not reopened the field budget");
+    CHECK(!tm_frame_time_left(p, PF_AT(0), 225), "line 225 is not an unlimited budget");
+    CHECK(tm_frame_time_left(p, PF_AT(0), 240), "line 240 leaves the budget open");
+    tm_host_charge(p, OPENS - 1);
+    CHECK(!tm_frame_time_left(p, PF_AT(0), 72), "one clock before the window opens");
+    tm_host_charge(p, 1);
+    CHECK(tm_frame_time_left(p, PF_AT(0), 72), "the window opens at line 240");
+    game_owes = CLOSES - OPENS - 1;
+    CHECK(tm_frame_time_left(p, PF_AT(0), 72), "one clock remains before the deadline");
+    CHECK(tm_frame_time_left(p, PF_AT(0), 72), "reading the account twice does not charge it twice");
+    tm_host_charge(p, 1);
+    CHECK(!tm_frame_time_left(p, PF_AT(0), 72), "the deadline ends this frame's script turns");
+    budget_checks++;
+    tm_wait_frame(p, PF_AT(0));
+    CHECK(tm_frame_time_left(p, PF_AT(0), 72), "waiting renews the main thread's budget");
+    CHECK(!tm_frame_time_left(p, PF_AT(0), 0), "handlers consume the earliest deadline");
+    tm_host_charge(p, CLOSES - TIME_FRAME_CLOCKS / 4);
+    CHECK(!tm_frame_time_left(p, PF_AT(0), 72), "handler service work counts toward the deadline");
+    tm_host_charge(p, TIME_FRAME_CLOCKS);
+    CHECK(!tm_frame_time_left(p, PF_AT(0), 72), "a load must yield before another frame's queued work");
+    budget_checks++;
+    for (;;)
+        tm_wait_frame(p, PF_AT(0));
+}
+
 static Platform pf;
 
 /* The scene's horizontal BG2 wave changes one coordinate on each line.
@@ -460,6 +545,36 @@ int main(void)
     }
     order[order_len] = 0;
     CHECK(strcmp(order, "M||e|VM|") == 0, "the setup's frames pass before the handler is on: %s", order);
+
+    static Platform charges;
+    TmHostProgram charged = { beside_charges_main, charging_handler, charging_handler, NULL, NULL, NULL, NULL };
+    tm_host_start(&charges, &charged, 1);
+    for (unsigned frame = 0; frame < 6; frame++)
+        tm_host_frame(&charges);
+    CHECK(charged_main_calls == 4, "handler charges leave four main-thread passes (%u)", charged_main_calls);
+    CHECK(tm_host_lag_frames(&charges) == 2, "only the load causes lag (%u)", tm_host_lag_frames(&charges));
+
+
+    static Platform transfers;
+    vid_host_start(&transfers, dma_read, dma_write, NULL);
+    TmHostProgram dma = { dma_main, NULL, NULL, NULL, NULL, NULL, NULL };
+    tm_host_start(&transfers, &dma, 1);
+    for (unsigned frame = 0; frame < 6; frame++)
+        tm_host_frame(&transfers);
+    CHECK(dma_main_calls == 2 && tm_host_lag_frames(&transfers) == 4,
+          "three 64 KiB transfers fill four lag frames (%u calls, %u lag)", dma_main_calls, tm_host_lag_frames(&transfers));
+    CHECK(dma_reads == 2 * 0x10000u && dma_writes == 2 * 0x10000u,
+          "encoded zero length transfers all 64 KiB (%u reads, %u writes)", dma_reads, dma_writes);
+    CHECK(vid_host_picture(&transfers)->vram[0] == 0x5A, "the timed VRAM transfer writes its data");
+    vid_host_stop(&transfers);
+
+    static Platform budget;
+    TmHostProgram budgets = { budget_main, charging_handler, charging_handler, NULL, lagging_owed, NULL, NULL };
+    game_owes = 0;
+    tm_host_start(&budget, &budgets, 1);
+    tm_host_frame(&budget);
+    tm_host_frame(&budget);
+    CHECK(budget_checks == 2, "both frame budgets checked (%u)", budget_checks);
 
     printf("timing_test: %s\n", failures ? "FAILED" : "ok");
     return failures != 0;

@@ -605,6 +605,17 @@ place the run enters, with its frame, as `ct_dev --locations` does for the
 reference play, and `tools/places.py` sets the two side by side; `--end-state`
 writes work RAM and save RAM at the end, as `ct_dev --end-state` does.
 
+`--timing-report` reports each routine's number of timed spans, access bus
+clocks (including legacy replacements), `charge_as` bus clocks and resulting time in thousandths of a
+master clock. It also reports untagged work (routine zero) and the unpacker's
+separate charge. Accounting is optional and does not change the run.
+`native_check.py --timing-report --logs DIR` collects it over selected movies.
+These are work totals, including handlers; they are not elapsed frames or
+counts of machine calls. A retired operation can charge separate spans for
+its own accesses and the original work it replaced.
+Shadow reports measure overlapping parent and child calls, so their totals
+must not simply be added when comparing them with this report.
+
 Each frame's picture is drawn by the native renderer
 (`runtime/platform/native/render.c`) from the video service's state, and the
 run ends saying whether it is showing and the longest stretch it was black

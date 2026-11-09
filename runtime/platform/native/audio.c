@@ -48,7 +48,8 @@ size_t au_take_samples(Platform *pf, int16_t *out, size_t max_frames)
 
 bool au_driver_hosted(Platform *pf) { return playing(pf); }
 
-/* The time the original's uploads took is the main thread's to sit out. A
+/* The time the original's uploads took belongs to the caller: a handler's
+ * share of its frame, or the main thread's work to sit out. A
  * song's start comes after what the main thread owes so far, as the
  * original's CPU half reached the ports after that work: the player counts
  * what is left of the echo's wait from there (SNES backend: native_sync). */

@@ -12,7 +12,7 @@
  * scaffolding, which must play the routes as the default build does) keeps
  * the original's pace with them, and a build with no machine times the game's
  * work with them (runtime/port/state_host.c: the charges at the routines'
- * calibrated rates, as here, the unpacker's at the time model's price). The
+ * calibrated rates, including those kept after entries retire). The
  * unpacker's (data/decompress.c), whose original spends half its time on its
  * direct page's cells, is charge_retired, since its entry retired. An
  * uncounted stretch (charge_uncounted_begin) is plain for the same reason:
@@ -35,9 +35,8 @@ void charge_as(GameState *g, uint32_t routine, uint32_t accesses);
 /* Work formerly counted through a retired port's temporary memory accesses
  * on the legacy machine. Keep its calibrated beam-budget estimate without
  * reconstructing those cells, at the current operation's rate. The native
- * program never counted these
- * accesses (its build omitted the comparison scaffolding), so its backing
- * keeps the native estimate unchanged. */
+ * program charges the same work: removing comparison scaffolding must not
+ * remove work from the calibrated estimate. */
 void charge_legacy_accesses(GameState *g, uint32_t accesses);
 
 /* The same estimate for former multiplier or upload-cursor accesses,
@@ -56,10 +55,9 @@ void charge_block_move(GameState *g, uint32_t bytes);
 /* The time of the work a retired routine does -- one whose entry left the
  * registry with its subsystem's gate (the unpacker, data/decompress.c) --
  * from charge_retired_begin to charge_retired_end, with `accesses` more
- * charged as charge_as charges them. On the machine, the port's own accesses
+ * charged as charge_as charges them. Both backends time the port's own accesses
  * and the charged ones at the rate the routine's entry was calibrated at when
- * it retired, as its estimate was made while it had one; with no machine,
- * the time model's price of the charged ones (platform/time_model.h). Not
+ * it retired, as its estimate was made while it had one. Not
  * scaffolding: it is the routine's whole time. */
 uint32_t charge_retired_begin(GameState *g);
 void charge_retired_end(GameState *g, uint32_t mark, uint32_t routine, uint32_t accesses);
@@ -84,8 +82,8 @@ void charge_uncounted_end(GameState *g, uint32_t mark);
  * build's pace but for the scaffolding's own time. Without it the statement's
  * accesses went at the rate of the port around it, and a New Game+'s start,
  * at the menus' ports' rates, took 58 frames where it takes 14 (history/reimplementation-chunks.md,
- * "The refusals in real play, retired"). A build with no machine has no time
- * to charge: its backing of these does nothing. */
+ * "The refusals in real play, retired"). A build with no machine uses the
+ * same calibrated rate in its frame-level time model. */
 int charge_time_as_begin(GameState *g, uint32_t routine);
 void charge_time_as_end(GameState *g, int was);
 #define TIMED_AS(g, routine, statement)                           \

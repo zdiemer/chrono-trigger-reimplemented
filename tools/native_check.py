@@ -152,6 +152,7 @@ def main():
     ap.add_argument("-j", "--jobs", type=int, default=2)
     ap.add_argument("--logs", type=pathlib.Path, help="keep each run's stderr, with the places it went, as <movie>.log")
     ap.add_argument("--outcomes", type=pathlib.Path, help="write digest artifacts for outcomes.py")
+    ap.add_argument("--timing-report", action="store_true", help="include per-routine native time in --logs")
     ap.add_argument("--reference", type=pathlib.Path,
                     help="the reference end states, end-<movie>.bin (the suite's shadow runs write them)")
     ap.add_argument("--check", action="store_true",
@@ -166,13 +167,15 @@ def main():
     if args.logs:
         args.logs.mkdir(parents=True, exist_ok=True)
     extra = ["--assets", str(args.assets)] if args.assets else []
+    if args.timing_report:
+        extra += ["--timing-report"]
     saves = saves_by_sum()
     saved, names = SavedGame(args.rom), ram_names()
     with tempfile.TemporaryDirectory(prefix="native-") as scratch:
         work = pathlib.Path(scratch)
         if not args.assets:
             # one pack for every run, imported by the first
-            extra = ["--assets", str(work / "ct.assets")]
+            extra += ["--assets", str(work / "ct.assets")]
             run_native(args.ct_native.resolve(), args.rom, rows[0][1], 1, None, extra)
 
         def one(row):

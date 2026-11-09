@@ -1090,12 +1090,15 @@ cartridge (`rom_host.c`), save RAM through the save service
 (`TmHostProgram.accessed`) -- at the bus clocks it takes on the machine (8, 6
 for the cartridge's), and times them at the `cost_milli` of the routine the
 work is tagged as (`TIMED_AS`, `NATIVE_TIME_AS`: `charge_time_as_begin`), the
-rate the machine calibrated for it. The rates are the registry's and the time
-tags' (`game/time_tags.c`), which the build writes as a table
+rate the machine calibrated for it. The rates are the registry's, the time
+tags' (`game/time_tags.c`) and the retired entries'
+(`runtime/port/retired_time_rates.h`), which the build writes as a table
 (`tools/time_rates.py`, `runtime/port/time_rates.h`), so the program keeps no
 registry and always has the last calibration's. A charge is made as on the
 machine: at its routine's rate, the accesses it stands for left out
-(`charge_uncounted_begin`), the unpacker at the price below. For that the
+(`charge_uncounted_begin`). A retired operation collects its own access
+clocks and its explicit replacement work, then applies its retained rate;
+nested excluded work remains excluded. For that the
 charges are plain, not scaffolding (`game/charge.h`): 171 of them were in
 `ORIGINAL_EFFECT`, so the build with no scaffolding had none, and the
 native-shape build ran without them too. What isn't the game's work takes
@@ -1107,6 +1110,24 @@ handlers' (below). The menus' load screen shows what this brings: its setup
 estimate of its parts, 5.17 M clocks), and the model charged 2.4, its sends
 and sound alone; it charges 14.5 now, and `battle-ozzies-fort`'s battles start
 from a random number two from the reference's where they started twenty off.
+
+Retired operations also keep their `charge_legacy_*` work in the native
+account. These counts replace accesses removed with the old scratch cells;
+the calibrated rate still includes that work. Work RAM costs eight bus
+clocks per access, I/O and FastROM six, at the active tag's rate, with
+uncounted stretches still excluded. No scratch cell is reconstructed and
+the machine's estimate is unchanged. `native_time_test` checks the account,
+nested tags, unknown tags, excluded work and fractional clocks. The optional
+`ct_native --timing-report` exposes per-tag work without changing it
+(PLAYING.md).
+
+The unpacker uses this same mechanism. Its stream reads, work RAM copies
+and RAM-port reads, writes and cursor operations contribute their access
+clocks before the retained rate is applied. A flat price per command could
+not distinguish short and long copied runs; `unpack_time_test` now proves
+that distinction with synthetic streams and verifies their output bytes.
+The retained rates are shared with the machine backend, whose values and
+estimate remain unchanged. The no-Python build also retains those rates.
 
 **What a lag frame is computed from.** The host timing backend
 (`platform/native/timing.c`) keeps what the main thread owes since it last
@@ -1121,6 +1142,18 @@ worked; what is left fits in the frame and goes. Where the handlers change
 it was done with: the menus' setup runs with the vblank handler off, and its
 fourteen frames pass with it off, as the original's, before the handler that
 counts the menus' frames comes on. `timing_test` holds the arithmetic.
+
+Service work requested by a vblank or line handler, including sound
+commands, stays with that frame's handler account. It does not accumulate
+as main-thread debt while the main thread sits out a load. The regression
+test gives each handler an eighth of a frame during a two-frame load;
+the next half-frame of main work fits, without a spurious third lag frame.
+
+The field's script and sprite queues also consult this account through
+`tm_frame_time_left`. The frame starts at NMI's line 225, while the game's
+allowed window opens at 240, wraps through zero and closes at its requested
+line. Work that fills a frame makes the queue yield before more turns run.
+The estimate supplies the elapsed work; no CPU or beam runs underneath it.
 
 Before the work was timed, the frames owed went to the nearest, half a frame
 standing for the work nothing counted. Counting the work at one mean rate (40
@@ -1141,8 +1174,8 @@ numbers in `time_model.h` with how):
 | A song's start | 95,000, plus 405 a byte loaded and 380 a byte the sound processor moves | 70 songs in eight movies: about 94 echoes of tables and the command itself, then three bytes a message with the music stopped (400 to 425 a byte under a light handler) |
 | Command `$70`'s effects, `$71`'s sample | 750 a byte | uploaded with the music playing, the sound processor answering between its ticks |
 | A song's start while the echo's buffer settles | what is left of the wait, counted after the time the port owes so far has passed (`native_sync`, `tm_host_sit_out_owed`) | the original's song waits on the ports for it; the driver's wait runs through the CPU's work after the last song, which reaches the ports only after that work |
-| The unpacker (`$C3:0002`), in `ct_native` | 64 a charged access | its charge counts the accesses the original makes to its own cells, which follow the stream; its whole time over new-game's 60 streams (29.0 M clocks in the shadow run) against those accesses |
-| A send to video memory from the main thread, in `ct_native` | 8 a byte | DMA's rate; the handlers' sends are the frame's own |
+| The unpacker, in `ct_native` | Its actual and replacement access clocks at the retained rate | `retired_time_rates.h`: 4.060 for `$C3:0002`, 4.057 for `$C3:0557`, the same values used by the machine backend |
+| A transfer from the main thread, in `ct_native` | 8 a byte | DMA's rate, including RAM clears and copies and data-driven VRAM uploads through the supported native escapes; the handlers' sends are the frame's own |
 | The game's own work, in `ct_native` | 8 a memory access (6 the cartridge's), at the tagged routine's `cost_milli` | the machine's estimate of a port, its rates the registry's and the time tags' as last calibrated; a charge at its routine's rate |
 
 The sound's are the wall's time under a light vblank handler, and the machine
@@ -1161,47 +1194,35 @@ answer the boot's and each command's time through the hooks (`Apu.host_boot`,
 `host_command`; `AuHost.boot`, `command`). A song held while the echo settles
 loads at the wait's end, which isn't charged.
 
-**Measured.** The places a run enters, by frame, against the reference play's
-(`tools/places.py`; `ct_dev --locations` and `ct_native --locations`, the
-suite's shadow runs keeping the reference's): how many of the reference's
-places a run enters within 30 frames of the reference's frame, among those it
-enters in the reference's order. Over the 53 library movies (460 places):
+**Measured.** `tools/native_check.py` compares saved game and SRAM with
+reference plays, and counts reference places entered in order within 30
+frames (`tools/places.py`). The gate sample has 37 movies and 293 reference
+places. On `a7d8a04d`, before and after keeping the retired operations' work:
 
-| | `ct_native`, places on time | strict mode, movies ending as the reference's |
-|---|---|---|
-| Before | 240 | 34 |
-| The sound driver's time | 294 | 37 (339 places on time) |
-| And loads (`ct_native` only) | 299 | |
+| Native sample | Ends as reference | Places on time |
+|---|---:|---:|
+| Before | 17/37 | 209/293 |
+| Native access, transfer, frame-budget and retired-work accounting | 22/37 | 211/293 |
 
-Timing the game's own work was measured over the gate's 37-movie sample
-(`tools/native_check.py --movies ...`, against the suite's shadow runs): 194 of
-the reference's 293 places entered on time before, 209 after; the places
-entered within 5 frames of the reference's, 148 before and 196 after; and the
-attract demo, whose places are the game's own time, 1,229 frames behind the
-reference at its end before and 211 after. Movies ending as the
-reference's: 18 of 36 compared before, 18 of 37 after (`events-fair-rescue`,
-`late-omen-terramutant` and `menus-shop-inn` among those that now do,
-`menus-end-of-time` and `battle-magus` among those that now drift). The new
-time took `late-omen-battles` into a battle where an enemy waits for its
-target to move with none in sight, which the program's C path refused
-though the movement's entry takes it (`battle_enemy_movement_needs_target`
-now says the waiting movement goes on with none); it now reaches its end.
-The native outcomes were re-recorded with it (`tools/outcomes_exceptions.txt`,
-each line's reason naming the change); the protections lost leave
-`tools/outcomes_baseline.txt` (the end state of `menus-end-of-time`, the save
-RAM of `events-death-peak`, a place of `events-ocean-palace-lavos` and
-checkpoint pictures in eight movies, each a run whose places keep to the
-reference's within the window but whose frames moved), and the matches
-gained join it; `tools/places_baseline.txt` takes the counts the change
-brings (none lower).
+All 37 runs end showing. Fair rescue, Magus, Terramutant, the End of Time
+gate and menu, and the save-point movie match their end states. The attract
+demo visits all 50 reference places in order and is up to 344 frames early
+(360 before). Beyond Time still misses its ending and its SRAM differs;
+Tyrano Lair Walls no longer matches the saved game. Those two protections
+and changed picture checkpoints
+were explicitly re-recorded with reasons in the timing history and outcome
+ledger. Native recorded outcomes are 386 matching, 243 within tolerance and
+1,377 differing observations. These are mixed timing effects, not proof of
+equivalence for the two changed states; their follow-ups remain in TODO.
+`native_time_test` checks the accounting; enabling the diagnostic report
+preserves every sampled outcome artifact. The machine's estimate is unchanged.
 
-Strict mode's three, `battle-magus`, `battle-tyrano-lair-walls` and
-`field-factory-switch`, now end as the reference's, and none ends worse; in
-`ct_native` the title shows 3 frames early where it showed 26 early, and
-`gato-battle` enters 10 of its 11 places on time where it entered 9.
-`tools/native_check.py --check` holds `ct_native` to it, a ratchet on
-`tools/places_baseline.txt`, and `tools/strict_check.py` reports it for strict
-mode.
+The sample does not establish the effect on the other 47 library movies.
+The next batched run must measure them, particularly the loads and battle
+starts in Ozzie's Fort, Mud Imp, Cyrus and the Ocean Palace Twins. Neither
+rates nor whole-library baselines were recalibrated here. Earlier model
+measurements and the per-change account are in
+[the timing history](history/native-time-model.md).
 
 ## Cleanup into hand ports (M5)
 

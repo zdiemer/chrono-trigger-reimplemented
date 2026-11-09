@@ -1,0 +1,52 @@
+/* Two made-up streams have the same control/reference counts but copy
+ * different amounts of data. More output work must take more native time. */
+#include <stdio.h>
+#include "data/decompress.h"
+#include "port/state_host.h"
+#include "rom.h"
+#include "vars.h"
+
+static uint8_t stream[] = { 0, 0, 2, 9, 0, 2, 0x42, 1, 0, 0 };
+static unsigned failures;
+
+uint8_t rom_read8(const GameState *g, uint32_t at)
+{
+    state_host_game_access(g, 6);
+    if (at < 0xC00000 || at - 0xC00000 >= sizeof stream) {
+        failures++;
+        return 0;
+    }
+    return stream[at - 0xC00000];
+}
+
+static uint32_t unpack(unsigned length, bool direct, bool entry)
+{
+    GameState *g = state_host_create(NULL);
+    if (!g) { failures++; return 0; }
+    stream[8] = (uint8_t)((length - 3) << 4);
+    set_decompress_source(g, 0xC00000);
+    set_decompress_dest(g, 0x7F2000);
+    uint16_t got = entry ? unpack_stream_run(g, direct) : direct ? unpack_stream_direct(g) : unpack_stream(g);
+    uint32_t clocks = state_host_take_owed(g);
+    if (got != length + 1 || decompress_length(g) != got)
+        failures++;
+    for (unsigned i = 0; i < got; i++)
+        if (state_host_read8(g, 0x7F2000 + i) != 0x42)
+            failures++;
+    if (state_host_read8(g, 0x7F2000 + got) != 0x55)
+        failures++;
+    state_host_destroy(g);
+    return clocks;
+}
+
+int main(void)
+{
+    uint32_t short_run = unpack(3, false, false), long_run = unpack(18, false, false);
+    uint32_t direct_short = unpack(3, true, false), direct_long = unpack(18, true, false);
+    uint32_t with_entry = unpack(18, false, true);
+    if (!short_run || long_run <= short_run || direct_long <= direct_short || with_entry <= long_run)
+        failures++;
+    printf("unpack time: short %u, long %u, direct short %u, direct long %u, entry %u; %u failures\n",
+           short_run, long_run, direct_short, direct_long, with_entry, failures);
+    return failures != 0;
+}
