@@ -217,7 +217,13 @@ void battle_cycle_party_colors(GameState *g)
             g, (uint16_t)(at + battle_color_cycle_start(g, battle_object_pose(g, (unsigned)member))));
         unsigned first = first_color_of(battle_object_palette(g, (unsigned)member));
         set_palette_working(g, first + CYCLED_COLOR, color);
-        set_palette_working(g, first + CYCLED_COLOR_AGAIN, color);
+        /* Odd attribute values can put the second color just past the
+         * palette. Preserve that word write into the adjacent workspace. */
+        unsigned second = first + CYCLED_COLOR_AGAIN;
+        if (second < PALETTE_WORKING_COUNT)
+            set_palette_working(g, second, color);
+        else
+            set_palette_working_unchecked(g, second, color);
         at = (uint8_t)(at + CYCLE_STEP);
         set_battle_party_palette_cycle(g, (unsigned)member, at == CYCLE_END ? 0 : at);
     }

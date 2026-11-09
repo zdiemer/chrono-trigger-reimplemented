@@ -4300,6 +4300,11 @@ frame 4,800; restoring the boundary recovers that picture and its complete
 outcome fingerprint, without a timing exception. The no-target animation
 handoff likewise keeps the one-rule cursor advance's clear overflow flag;
 6,000 trials cover its one-, two- and three-member input fixtures.
+Fresh frame-update trials also preserve the color cycle's odd-attribute
+spill into the word just beyond the working palette. The checked palette
+accessor covers ordinary colors; the explicit adjacent-workspace write
+matches the original for those boundary inputs (1,864 comparisons, 136
+guard refusals in 2,000 trials).
 
 Menu task yields call the scheduler as C after constructing the return
 frame and checking its complete contract. `native_park_after_task_switch`
