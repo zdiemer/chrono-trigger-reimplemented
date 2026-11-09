@@ -1,25 +1,21 @@
 # Platform abstraction
 
-Game code today talks to the SNES hardware model directly: hand ports write
-PPU, DMA and APU registers through `m_write8`, and generated code and the
-interpreter do the same through the bus. This document designs the move to
-platform services (video, audio, timing, input, saves) that game code calls
-instead, with the SNES hardware model as one backend: the reference that every
-other backend (a native renderer and mixer, widescreen, a GBA build) is checked
-against.
+Hand ports reach video, audio, timing, input and saves through
+`runtime/platform/`. The SNES backend reproduces the machine accesses needed
+by still-gated callers; the native backends run `ct_native` without an
+emulated CPU or PPU register file. Generated code and the interpreter remain
+on the bus in the reference runtime.
 
-P0 to P3 are implemented (`runtime/platform/`), each with the leftovers its row
-and docs/TODO.md name; P4 and P5 are a design, and so is the timing service's
-native backend ([Timing without a
-beam](#timing-without-a-beam-the-native-backend)). Where a milestone had to
-change the sketches below, the headers are authoritative and its "as built"
-section lists what changed and why.
+P0 through P3 and the native timing backend are implemented. P4 and P5 remain
+designs. The headers define the API; the as-built sections below describe its
+mechanisms, evidence and remaining limits. Development measurements are in
+[history/platform-validation.md](history/platform-validation.md).
 
 | Milestone | What | Status |
 |---|---|---|
 | P0 | Service headers, SNES backend, first hand ports converted | done |
 | P1 | Audio behind the API | done; the CPU half's port and the APU-direct backend it built retired with the sound driver's teardown (see P1 as built) |
-| P2 | Video behind the API, subsystem by subsystem | done: shared code, battle, field, menus and the scenes, the jet bike race included, and `--vid-check` runs from power-on rather than from the frame a subsystem takes over. The Epoch's two Mode 7 screens, the last slice of bank `$C2` that wrote its own registers, went in with Phase 3's menu conversion; what is left is the gate screen the event engine opens, which still writes its own (see P2 as built) |
+| P2 | Video behind the API, subsystem by subsystem | done: shared code, battle, field, menus and the scenes, the jet bike race included, and `--vid-check` runs from power-on rather than from the frame a subsystem takes over. The Epoch's two Mode 7 screens, the last slice of bank `$C2` that wrote its own registers, went in with Phase 3's menu conversion; the event gate is now ported too; remaining escapes and service-fed pixel evidence are below |
 | P3 | Native renderer, pixel-identical to `render.c` | `ct_native` draws service-built frames; dev/player retain the register decoder too. The original decoder check and the service-fed checks are below (see P3 as built). |
 | P4 | Widescreen | |
 | P5 | GBA feasibility study | |
@@ -63,7 +59,7 @@ ported yet surely uses more, so treat "not seen" as "not seen in ported code".
 | Windows | `$2123-$2129`, `$212A-$212B` | Field NMI copies shadows `$0BD9-$0BDD` to `$2123-$2125`, `$2128-$2129`; battle copies `$C861-$C865` to `$2123-$2125`, `$212A-$212B`. Battle drives window 1 and 2 positions by HDMA |
 | Color math | `$2130-$2132` | Field NMI copies `$0BDE` to `$2130`, writes `$2132` = `$E0` (black) then `$0121`. Event `$F1` (`$C0:3D07`) sets `$21` and writes `$17` or `$97` to `$0BE0`, presumably the `$2131` shadow (layer bits plus subtract) |
 | Layers | `$212C-$212F` | Not in ported code |
-| Counters | `$2137`, `$213C-$213F` | Battle wait-for-line `$CD:3B92`; battle NMI reads `$213F`. The unported event scheduler `$C0:5A46` and sprite frame queue `$C0:CA76` read them to stop at a scanline limit |
+| Counters | `$2137`, `$213C-$213F` | Battle wait-for-line `$CD:3B92`; battle NMI reads `$213F`. The event scheduler `$C0:5A46` and sprite frame queue `$C0:CA76` use `tm_frame_time_left` for their work limits |
 
 **HDMA.** Channels drive per-line state set up from game tables in WRAM:
 
@@ -1413,17 +1409,15 @@ from frame 0:
 Fifteen of the twenty-one agree on every frame, the battles included: the
 `windows.w1_left` and `sprite` frames P2 left them with, from the channel a
 transfer and a per-line effect share, are gone. `fixed_color` is the handful of
-frames P2 already had. The one movie that is not close is
-`saves/events-end-of-time-gate`, where everything after frame 3864 differs: the
-event's own gate screen drives the Mode 7 matrix and the screen's brightness
-itself and none of that code is ported yet, so the observer never hears about it
-([TODO.md](TODO.md)). It is not the menus' gate screen -- that movie calls none
+frames P2 already had. In this historical measurement,
+`saves/events-end-of-time-gate` differed after frame 3864 because the event
+gate was not yet ported. That gap is closed: the warp is retired and the
+service-fed pixel check below passes this movie. It is not the menus' gate screen -- that movie calls none
 of `menu/epoch.c`'s entries -- and the same build of `main` reports the same 3863
-of 5599. `attract-demo` is not close either: from frame 2266 the attract
-demo's own scenes write the display around the service -- the scene program's
-modes 1 and 3, which no other movie runs (VRAM, the tile maps' bases, the mode
-and window 1 from 2789 and 8953), and BG2's scroll and window 1's right edge on
-two of its world maps ([TODO.md](TODO.md)).
+of 5599. `attract-demo` also differed from frame 2266 in that run, before modes 1
+and 3 were ported. Those modes are C and retired now; the remaining scene
+escapes and the two world-map settings still need a fresh service-fed check
+([TODO.md](TODO.md), "Recheck the attract demo after the scene teardown").
 
 The two menu movies were the milestone's last leftover, and Phase 3's conversion
 of bank `$C2` closed it: `menus-epoch` went from 5506 of 8799 to all of them and
@@ -1682,70 +1676,12 @@ still comparing VRAM, which is what a line interrupt writes under forced blank.
   122 KB of OAM per frame. As with VRAM, a change that doesn't go through them (a
   state load) is caught by comparing contents at a frame's start.
 
-**Results.**
-
-`ct_dev --px-check --native on` over the whole movie library: **800751 frames,
-every one identical to `render.c`'s at 256x224**, not a differing pixel. The
-range-over and time-over flags agree on every frame, and no mid-frame change of
-video memory ever ran out of snapshots. "Lines drawn" is how many of the frames'
-non-blank lines the cache made the renderer redraw, which is the same number
-`render.c` redraws.
-
-| Movie | Frames | Identical | Spans per frame | Lines drawn |
-|---|---|---|---|---|
-| `title-start.ctm` | 1801 | all | 3.0 | 66.4% |
-| `new-game.ctm` | 7201 | all | 12.8 | 32.9% |
-| `menu.ctm` | 8902 | all | 16.1 | 27.6% |
-| `field.ctm` | 11402 | all | 10.3 | 26.4% |
-| `fair.ctm` | 12452 | all | 9.6 | 26.6% |
-| `fair-companion.ctm` | 17903 | all | 8.9 | 23.7% |
-| `gato-battle.ctm` | 21603 | all | 10.3 | 23.8% |
-| `attract-demo.ctm` | 22500 | all | 25.9 | 55.0% |
-| `saves/battle-tyrano-lair-walls.ctm` | 8043 | all | 19.4 | 32.0% |
-| `saves/battle-golem-twins-gameover.ctm` | 12970 | all | 17.3 | 26.2% |
-| `saves/battle-magus.ctm` | 18001 | all | 18.8 | 26.9% |
-| `saves/events-blackbird.ctm` | 4401 | all | 16.6 | 50.2% |
-| `saves/events-keepers-dome.ctm` | 5001 | all | 36.7 | 47.4% |
-| `saves/events-end-of-time-gate.ctm` | 5601 | all | 119.5 | 48.5% |
-| `saves/events-jetbike-race.ctm` (Mode 7) | 9401 | all | 50.7 | 46.8% |
-| `saves/events-prison-escape.ctm` | 12901 | all | 7.3 | 23.0% |
-| `saves/menus-end-of-time.ctm` | 8803 | all | 83.1 | 36.6% |
-| `saves/menus-epoch.ctm` | 8805 | all | 68.5 | 51.0% |
-| `saves/menus-shop-inn.ctm` | 9704 | all | 20.5 | 26.0% |
-| `saves/menus-shop-equip.ctm` | 15513 | all | 43.6 | 24.9% |
-| `saves/menus-field-menu.ctm` | 10602 | all | 55.2 | 25.3% |
-| `saves/late-omen-terramutant.ctm` | 17763 | all | 32.1 | 30.1% |
-| `saves/late-omen-battles.ctm` | 18413 | all | 21.7 | 26.0% |
-| `saves/late-omen-zeal.ctm` (color math, windows) | 36923 | all | 35.5 | 44.4% |
-| `saves/late-lavos.ctm` | 60250 | all | 29.1 | 25.2% |
-| `saves/endings-beyond-time.ctm` | 105003 | all | 55.2 | 7.4% |
-| `saves/endings-telepod-lavos.ctm` | 132888 | all | 33.4 | 9.9% |
-| `saves/endings-bucket-lavos.ctm` | 196001 | all | 25.7 | 52.8% |
-
-The per-line effects are what the span counts show: the battles run about 20
-spans a frame, the menus and the Epoch 55-85, the End of Time's gate 120. That
-is also what the decoder costs, since it rebuilds and compares a `VidLineState`
-at every line whatever happens.
-
-Speed, `ct_play` headless with `--native on --generated only`, on a shared machine,
-runs alternating between the two renderers (five pairs for `gato-battle`, three
-for the others):
-
-| Movie | Frames | Scanline (median) | Native (median) |
-|---|---|---|---|
-| `gato-battle.ctm` | 21600 | 11.74 s (11.54-11.85) | 11.79 s (11.75-11.86) |
-| `saves/events-jetbike-race.ctm` | 9400 | 5.61 s (5.46-5.64) | 5.55 s (5.39-5.79) |
-| `saves/late-omen-zeal.ctm` | 36922 | 20.86 s (20.44-23.80) | 20.55 s (19.30-23.71) |
-
-That is a wash, so P3's "measurably faster" isn't met: the two renderers do the
-same drawing on the same lines, and the native one carries the decoder on top.
-The 81% figure the milestone quoted was the renderer's share before it had a
-cache; against the cached `render.c` there is nothing left to win by rendering
-whole spans, and what remains to win is the decoder, which a build fed by service
-calls wouldn't run at all.
-
-The unit tests (including the platform lint and the new renderer lint) pass and
-the build is warning-free with `-DCT_WERROR=ON`.
+**Results.** The original register-decoded `--px-check` run produced
+800,751 frames identical to `render.c`, including sprite-overflow flags and
+mid-frame memory snapshots. Its movie-by-movie counts and paired benchmark
+runs are in [history/platform-validation.md](history/platform-validation.md).
+The benchmark was a wash against cached `render.c`; pixel identity did not
+establish a speed improvement. Measure the service-fed path separately.
 
 #### Video from service calls, as built
 
@@ -1969,14 +1905,12 @@ none.
 
 ## Timing without a beam: the native backend
 
-Phase 4a's design ([PLAN.md](PLAN.md)), decided before the backend is
-written. For video, audio, input and saves a host backend translates the SNES
-one. Timing can't be translated: `tm_set_line`, `tm_enable_interrupts`, the
-acknowledges and the status reads are scanline and interrupt concepts, and a
-host that calls the game once a frame has neither. So the backend follows from
-what the game uses time and the beam *for*, and where no backend can answer,
-the answer is a game-side rewrite. This section is that census, the
-classification, the model a native build runs on, and the rewrites.
+The native backend implements a deterministic frame scheduler and work
+account. It expresses what the game used the beam for: frame boundaries,
+deferred work budgets, line-handler display changes and cosmetic randomness.
+There is no emulated CPU or host-clock dependency. The design census below
+explains those needs; "Timing without a beam, as built" records the API and
+REIMPLEMENTATION.md, "The frame-level time model", records the work accounting.
 
 ### The census
 
@@ -2004,7 +1938,9 @@ registers from 78 instructions, every one of them in the census. Six are in
 it only because of the width rule: five divider spills, and the second
 frame-parity read below.
 
-**117 instructions: 52 in hand ports, 65 still generated.** The ports reach
+**The initial census: 117 instructions.** At the time, 52 were in ports and
+65 still generated. This inventory explains the design, not current port
+coverage; the as-built section below records the implementations. The ports reached
 them through 39 timing service calls, and through direct reads of `$4212` and
 the counters in `battle/wait.c`, which predate the
 service. By what they are for:
@@ -2102,16 +2038,13 @@ picture the vblank check lists it as an exception
 (`tools/vblank_check_exceptions.txt`); a native build shows it a frame later,
 the line or two on a few frames that target 4 accepts.
 
-What follows from it:
+The work account adds lag frames when loads or ordinary work exceed the
+main thread's frame share. Handlers run during that debt; they do not preempt
+C instructions, and their own work is kept out of main-thread debt. The
+field's script and animation queues consult the same deterministic budget.
+This preserves deferred work and blanked load time without a beam. Rates and
+validation are in REIMPLEMENTATION.md, "The frame-level time model".
 
-- **Handlers never preempt the main thread**, so there are no lag frames.
-  Work the original spread over two frames when the main thread overran is done
-  in one, and the handlers' still-busy paths (the battle's interrupt-busy
-  count, the scene's handler while its frame work runs) don't run.
-- **Sections with the interrupts off need nothing.** A load with the handlers
-  off (the menu code alone sets the interrupts at 29 places, most of them in
-  pairs around a load) runs to completion inside one frame, and the black
-  frames the original spent on it are gone.
 - **The main thread needs a stack of its own.** Its frame waits are deep in
   its call stack (event commands, fades, battle scripts), so a native build
   runs the main thread as one coroutine through `runtime/port/fiber.h` and
@@ -2121,9 +2054,8 @@ What follows from it:
 
 ### The calls
 
-What the native backend does with each call, and the calls to add (additive;
-the SNES backend of each new one makes the original's accesses, so shadow mode
-compares what it compared before):
+The design-to-implementation mapping is below; the current signatures and
+SNES comparison behavior are in "Timing without a beam, as built".
 
 | Call | Native backend |
 |---|---|
@@ -2132,13 +2064,13 @@ compares what it compared before):
 | `tm_ack_vblank`, `tm_ack_line_irq` | The pending bit inside its own handler, 0 elsewhere |
 | `tm_video_status` | **None.** A status read in a loop has no constant answer: the scene boot's line handler waits for hblank to end and then for it to start. Each caller is rewritten (below), and until then the call is SNES-only, like `vid_snes_write` |
 | `tm_reset_beam_latch` | Nothing |
-| `tm_sync` | Nothing; its one user, the sound driver's port I/O, goes with the SPC700 port |
-| *new* `tm_wait_frame(pf, o)` | Yields the main thread to the driver. SNES backend: a call-out to the mode's wait routine, whose loop is an idle entry (the API sketch above) |
-| *new* `bool tm_frame_time_left(pf, o, line)` | Uses the native work account to follow the game's budget window. SNES backend: latch and read the vertical counter as `$C0:5A46` does, true before `line` or at line 240 or later |
-| *new* `tm_wait_line(pf, o, line)` | Returns. SNES backend: `$CD:3B82`'s loops |
-| *new* `TmEntropy tm_entropy(pf, o, width)` | Four values of noise, bytes or words, from a host generator the driver seeds, so a replay reproduces them. SNES backend: latch and read the counters as `$C3:02DD` does, a byte or a word at a time (history/reimplementation-chunks.md, "Phase 3, the scene program: the star field, the captions and the random numbers") |
+| `tm_sync` | No host operation; legacy callers use it to settle machine debt |
+| `tm_wait_frame(pf, o)` | Yields the main thread to the driver. SNES backend: a call-out to the mode's wait routine, whose loop is an idle entry (the API sketch above) |
+| `bool tm_frame_time_left(pf, o, line)` | Uses the native work account to follow the game's budget window. SNES backend: latch and read the vertical counter as `$C0:5A46` does, true before `line` or at line 240 or later |
+| `tm_wait_line(pf, o, line)` | Returns. SNES backend: `$CD:3B82`'s loops |
+| `TmEntropy tm_entropy(pf, o, width)` | Four values of noise, bytes or words, from a host generator the driver seeds, so a replay reproduces them. SNES backend: latch and read the counters as `$C3:02DD` does, a byte or a word at a time (history/reimplementation-chunks.md, "Phase 3, the scene program: the star field, the captions and the random numbers") |
 | `bool tm_odd_frame(pf, o)` | The driver's frame count, odd or even. SNES backend: the original's 16-bit read of `$213E`-`$213F`, the field's bit 7 of the high byte, the word kept for scaffolding (`tm_snes_odd_frame_read`; added with the staff roll, REIMPLEMENTATION.md, "Phase 3, the scene program: the staff roll") |
-| *new* `bool in_ready(pf, o)` (input) | True. SNES backend: `$4212` bit 0 clear |
+| `bool in_ready(pf, o)` (input) | True. SNES backend: `$4212` bit 0 clear |
 
 `tm_frame_time_left` expresses a work budget. The native backend uses the
 calibrated work account; a SNES ROM compiled from the ports can use the
@@ -2147,31 +2079,17 @@ the same call. None requires changing the game code.
 
 ### The rewrites
 
-The uses no backend can answer, and what each becomes (docs/TODO.md, "Timing
-without a beam", tracks them):
+The schedulers, random stir and line-handler display changes use services;
+those implementations are described below. Legacy wait entries and called
+machine forms remain where gated callers or the legacy driver need their
+contracts. TODO.md, "Frame waits still made on the machine", tracks those
+boundaries. The original proposed rewrites are preserved in
+[history/platform-validation.md](history/platform-validation.md).
 
-| Routine | Now | Becomes |
-|---|---|---|
-| The event scheduler `$C0:5A46` | generated, beam budget | run due object scripts while `tm_frame_time_left(pf, o, limit)`; leave the rest queued for the next frame |
-| The sprite frame queue `$C0:CA76` | generated, beam budget | the same over the animation queue, with its script-set limit |
-| `$C3:02DD` for `$C3:01E4` | generated | the stir as game code (`scene_draw_random`, ported for the star field), over `tm_entropy` |
-| The races `$C0:3B71` and `$C0:4181`; the waits before a mode enables its vblank handler, the field's `$C0:0B38` and the time warp's `$FD:EADA` (both reached through `tm_wait_frame_then_enable` now); the generated flag waits `$CD:044A`, `$CD:3E55`, `$CF:FCFB`; every idle entry on a flag a handler clears | idle entries, or generated | `tm_wait_frame` |
-| The line handlers' hblank waits `$C0:ECEB`, `$D1:FEB8`, `$C3:0530`/`$C3:0538` | idle entries | gone: the blank is `vid_raster_display` at the handler's line |
-| The controller-busy waits in `$C2:84EC` and `$C3:0A8E` | ports that stop at the original's loop | `in_ready` |
-| `$CD:3B82` | idle entries reading the registers directly | `tm_wait_line`, or nothing once its purpose is known |
-| The timer resets in `$C2:0043`, `$C2:940D` | generated (the boot's, `$FD:C000`, and the time warp's, `$FD:EB81`, are `tm_reset_timers`; the battle's line, `$D1:F1B0`, is `tm_set_line`) | a reset of timers nothing enables is `tm_reset_timers`, which a native backend leaves empty |
-
-**Validation.** A call that re-expresses a use keeps its accesses, so shadow
-mode compares it as it compares the ports now. The schedulers are the
-exception: their loop runs a routine per object and reads the beam in between,
-and a port that reads at a different moment from the original can decide the
-budget differently. With the per-object work as a call-out, the clone is
-reloaded from the original after each one and the port reads the beam a few
-clocks before the original does; a read that falls across a line boundary is
-the one disagreement left, and the first port measures how often it happens.
-The native backend itself is checked the way target 4 says, by the routes and
-gameplay: the routes must reach their outcomes with the budgets drained, the
-handlers never preempting and the scene program's randomness from the host.
+Still-gated changes preserve machine accesses for comparison. Retired native
+work preserves contracts and recorded outcomes, with gameplay routes checking
+progress when fixed input drifts. A deferred-work queue must keep unfinished
+work for a later frame rather than silently discard it.
 
 ### Timing without a beam, as built
 
@@ -2193,7 +2111,7 @@ call it (below).
 |---|---|---|
 | `tm_wait_frame(pf, PF_CALL_DC(site, routine, set))` | the call of the mode's own wait routine the original made (JSR in its bank, JSL from another); where the routine only waits for the next vblank to begin (`pf_snes_vblank_wait`, `encodings.c`: the scene program's `$7E:31B0`) and its contract holds (its code in place, 8-bit A, a data bank reaching the I/O registers), the machine waits where the port stands instead and only shadow mode and the tools call it (`native_wait_call`, `NATIVE_WAKE_VBLANK`) | yields the main thread to the driver |
 | `tm_wait_frame_then_enable(pf, PF_CALL_DC(site, routine, set), sources, line)` | the call of the original's wait for the vblank with the handlers off, which then turns them on (the field's screen setup, `$C0:0B38`; the time warp's start, `$FD:EADA`, whose mode runs no line handler: `line` is `TM_LINE_UNCHANGED`) | waits a frame, then `tm_set_line` (unless `TM_LINE_UNCHANGED`) and `tm_enable_interrupts` |
-| `tm_frame_time_left(pf, o, line)` | `$213F`, `$2137`, `$213D` twice; true while the line is above `line` or at 240 and below | true |
+| `tm_frame_time_left(pf, o, line)` | `$213F`, `$2137`, `$213D` twice; true while the line is above `line` or at 240 and below | tests the same budget window against the calibrated native work account |
 | `tm_wait_frames(pf, PF_CALL_DC(...), frames)` | the count in A's low byte, and the call of the mode's routine that waits that many (the battle's `$CD:3E3B`) | waits that many frames |
 | `tm_wait_for_handlers(pf, PF_LOOP(head, exit))` | the machine waits where the port stands, taking its interrupts there, until one has been taken; no original code runs (`native_wait_loop`, below) | yields the main thread to the driver: the next frame's handlers run |
 | `tm_wait_for_handlers_held(pf, PF_LOOP_HELD(head, exit, set))` | the frame waits the main thread is in at nearly every frame's end (the field's, the sprite-object mode's, the menus' uploads): the shipping mode stops the port at the loop's head, where the idle entry waits and goes on as the port would, so a save holds it, and answers false; shadow mode waits through the original's loop and answers true (`native_wait_loop_held`; docs/MOVIES.md, "Suspended routines and owed time") | as `tm_wait_for_handlers`, and true |
@@ -2232,7 +2150,8 @@ checks both window boundaries, repeated queries, renewed budgets after a
 wait and the handlers' share.
 `ct_native` (PLAYING.md, "The native program") links it with the whole of
 `game/` and runs the program (`core/program.c`'s main thread and handlers),
-so far through the boot and the field's first start; `ct_play` still runs on
+through the movie library, with remaining outcome differences recorded in
+TODO.md and the outcome ledgers; `ct_play` still runs on
 the emulated machine, whose interrupts need the SNES backend. `tests/port/timing_test.c` runs a made-up game on it: the
 frame's order, a handler switched on or off mid-frame, a wait twenty calls
 deep, the acknowledges, the budget, the parity, the generator's replay and
@@ -2404,10 +2323,10 @@ battle's frame work's own from 19.9 million to 1.8 million.
   and comparing decoded state is new to `native.c`; readers of the released
   memory have to be found first, and the WRAM access log that needs isn't
   there yet.
-- **Mid-frame VRAM and CGRAM changes.** The decoder must notice palette
-  writes during the frame and uploads under forced blank (battle IRQ); spans
-  carry palette changes, but a VRAM change inside the visible frame would need
-  more.
+- **Mid-frame VRAM and CGRAM changes.** Both frame builders retain memory
+  snapshots for spans. The remaining question is where the native scheduler
+  captures them around line-handler uploads; TODO.md, "Native uploads at the
+  line boundary", records the checkpoint that an earlier ordering lost.
 - **GBA limits beyond the hardware table.** Color math with subtraction and
   sub screen addition has no direct GBA equivalent; per-line effects cost
   interrupt time; the 70% vertical resolution affects every UI layout.
