@@ -521,9 +521,9 @@ const unsigned scene_palace_task_count = sizeof scene_palace_tasks / sizeof scen
 /* The scripts' first step: channel 0's, which runs the first command of
  * channel 1's too. It reads Y -- the setup's load of channel 1's script -- and
  * the overflow as the dispatch left it. */
-static void take_the_scripts_first_step(Snes *s)
+static bool take_the_scripts_first_step(Snes *s)
 {
-    scene_bridge_first_script_step(s, 0x7E6792, scene_channels_script(state_of(s), PALACE_CHANNEL));
+    return scene_bridge_first_script_step(s, 0x7E6792, scene_channels_script(state_of(s), PALACE_CHANNEL));
 }
 
 /* The setup: the scene started, the scripts' first step by `first_step`,
@@ -539,8 +539,7 @@ static bool set_up_the_palace_with(GameState *g, Platform *pf, bool (*first_step
 
 static bool first_step_on_the_machine(void *ctx)
 {
-    take_the_scripts_first_step(ctx);
-    return true;
+    return take_the_scripts_first_step(ctx);
 }
 
 /* Entered with 8-bit A. Back, the direct page is the scene's, the data bank
@@ -548,7 +547,8 @@ static bool first_step_on_the_machine(void *ctx)
  * the frame's work reads. */
 bool scene_palace_set_up_scene(Snes *s)
 {
-    set_up_the_palace_with(state_of(s), m_platform(s), first_step_on_the_machine, s);
+    if (!set_up_the_palace_with(state_of(s), m_platform(s), first_step_on_the_machine, s))
+        return false;
     s->cpu.y = palette_animations_leave();
     m_set_flag(s, CPU_FLAG_V, false);
     return true;
@@ -614,15 +614,15 @@ static bool sweep_the_curtain_with(GameState *g, Platform *pf, bool (*step)(void
 
 static bool curtain_step_on_the_machine(void *ctx)
 {
-    (void)scene_run_long_called(ctx, 0x7E6844, CURTAIN_STEP, CURTAIN_IGNORES, scene_sweep_the_curtain);
-    return true;
+    return scene_run_long_called(ctx, 0x7E6844, CURTAIN_STEP, CURTAIN_IGNORES, scene_sweep_the_curtain);
 }
 
 /* Back in 8-bit A, as the original returns: its caller may read the width
  * before it sets it again. Nothing else it leaves is read. */
 void scene_sweep_the_palace_curtain_entry(Snes *s)
 {
-    sweep_the_curtain_with(state_of(s), m_platform(s), curtain_step_on_the_machine, s);
+    if (!sweep_the_curtain_with(state_of(s), m_platform(s), curtain_step_on_the_machine, s))
+        return;
     s->cpu.p |= CPU_FLAG_M;
     m_rts(s);
 }

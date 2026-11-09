@@ -831,11 +831,11 @@ void scene_bridge_leave(Snes *s);
  * Epoch's dive's, which goes on in 16-bit A. */
 enum { SCENE_UNPACK = 0x7E3691, SCENE_UNPACK_IGNORES = DC_A | DC_Y | DC_N | DC_Z | DC_C };
 enum { SCENE_FIRST_STEP = 0x7E3749, SCENE_FIRST_STEP_IGNORES = DC_A | DC_X | DC_N | DC_Z | DC_C };
-void scene_bridge_unpack(Snes *s, uint32_t site, uint16_t resource);
-void scene_bridge_take_the_first_script_step(Snes *s, uint32_t site, uint16_t y, uint8_t kept_bank);
+bool scene_bridge_unpack(Snes *s, uint32_t site, uint16_t resource);
+bool scene_bridge_take_the_first_script_step(Snes *s, uint32_t site, uint16_t y, uint8_t kept_bank);
 void scene_bridge_back_on_the_scene_s_page(Snes *s);
 /* Both, keeping the setup's own data bank. */
-void scene_bridge_first_script_step(Snes *s, uint32_t site, uint16_t y);
+bool scene_bridge_first_script_step(Snes *s, uint32_t site, uint16_t y);
 
 /* What the program's palette made current ($7E:38AF) and the palette
  * animations' stop ($FD:FFEE) leave in Y, which a script's first step and the

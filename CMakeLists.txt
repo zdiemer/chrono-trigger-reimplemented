@@ -561,6 +561,8 @@ target_link_libraries(vars_test PRIVATE ct_vars_checked ct_runtime)
 # Field visibility must survive with all comparison scaffolding removed.
 add_executable(event_contract_test tests/port/event_contract_test.c)
 target_link_libraries(event_contract_test PRIVATE ct_game_native_shape ct_vars_checked ct_runtime)
+add_executable(scene_contract_test tests/port/scene_contract_test.c)
+target_link_libraries(scene_contract_test PRIVATE ct_game_native_shape ct_vars_checked ct_runtime)
 add_executable(field_test tests/port/field_test.c)
 target_link_libraries(field_test PRIVATE ct_game_native_shape ct_vars_checked ct_runtime)
 

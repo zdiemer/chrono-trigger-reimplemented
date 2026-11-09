@@ -216,48 +216,55 @@ static const struct {
 };
 
 typedef struct {
-    void (*unpack)(void *ctx, LavosUnpack which);
+    bool (*unpack)(void *ctx, LavosUnpack which);
     void (*spread)(void *ctx, uint16_t packed);
     bool (*first_step_and_stars)(void *ctx);
 } LavosFallsSetUpSteps;
 
 /* Lavos's picture: its pixels. */
-static void load_lavos(GameState *g, Platform *pf, const LavosFallsSetUpSteps *steps, void *ctx)
+static bool load_lavos(GameState *g, Platform *pf, const LavosFallsSetUpSteps *steps, void *ctx)
 {
     vid_start_vram_uploads(pf, PF_AT(0x7E53BD), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E53C3), LAVOS_VRAM);
     set_decompress_dest(g, LOW_RAM_BUFFER);
-    steps->unpack(ctx, UNPACK_LAVOS_PIXELS);
+    if (!steps->unpack(ctx, UNPACK_LAVOS_PIXELS))
+        return false;
     uint16_t packed = decompress_length(g);
     set_decompress_length(g, (uint16_t)(2 * packed));
     steps->spread(ctx, packed);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     scene_choose_transfer(g, scene_pixels_into_high_bytes);
     scene_send_unpacked_by(g, pf, scene_pixels_into_high_bytes);
+    return true;
 }
 
 /* The planet's tiles and the stars'. */
-static void load_the_sprites(GameState *g, Platform *pf, const LavosFallsSetUpSteps *steps, void *ctx)
+static bool load_the_sprites(GameState *g, Platform *pf, const LavosFallsSetUpSteps *steps, void *ctx)
 {
     copy_into_the_first_bank(g, PLANET_TILE_ORDER, (uint16_t)LOW_RAM_BUFFER, TILES_LAID_OUT);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    steps->unpack(ctx, UNPACK_PLANET_TILES);
+    if (!steps->unpack(ctx, UNPACK_PLANET_TILES))
+        return false;
     vid_set_vram_address(pf, PF_AT(0x7E5421), PLANET_TILES_VRAM);
     lay_out_the_planet_tiles(g, pf);
     charge_legacy_accesses(g, 2);
     charge_legacy_io_accesses(g, 3);
     scene_choose_transfer(g, scene_whole_words);
     vid_set_vram_address(pf, PF_AT(0x7E5434), STAR_TILES_VRAM);
-    steps->unpack(ctx, UNPACK_STAR_TILES);
+    if (!steps->unpack(ctx, UNPACK_STAR_TILES))
+        return false;
     scene_send_unpacked_by(g, pf, scene_whole_words);
+    return true;
 }
 
-static void load_lavos_s_map(GameState *g, Platform *pf, const LavosFallsSetUpSteps *steps, void *ctx)
+static bool load_lavos_s_map(GameState *g, Platform *pf, const LavosFallsSetUpSteps *steps, void *ctx)
 {
     vid_set_vram_address(pf, PF_AT(0x7E5444), LAVOS_VRAM);
-    steps->unpack(ctx, UNPACK_LAVOS_MAP);
+    if (!steps->unpack(ctx, UNPACK_LAVOS_MAP))
+        return false;
     scene_widen_the_plane_map(g);
     send_the_map(pf);
+    return true;
 }
 
 /* The colours: Lavos's, the sprites' (the planet's and the stars'), and the
@@ -309,9 +316,12 @@ static void set_up_the_layers(GameState *g, Platform *pf)
  * scattered and the layers set up. False where a step went no further. */
 static bool set_up_lavos_falls_with(GameState *g, Platform *pf, const LavosFallsSetUpSteps *steps, void *ctx)
 {
-    load_lavos(g, pf, steps, ctx);
-    load_the_sprites(g, pf, steps, ctx);
-    load_lavos_s_map(g, pf, steps, ctx);
+    if (!load_lavos(g, pf, steps, ctx))
+        return false;
+    if (!load_the_sprites(g, pf, steps, ctx))
+        return false;
+    if (!load_lavos_s_map(g, pf, steps, ctx))
+        return false;
     load_the_colours(g);
     set_scene_channels_script(g, SCENE_CAMERA_CHANNEL, LAVOS_SCRIPT);
     set_scene_channels_script(g, SCENE_STAR_FIELD_CHANNEL, FIELD_SCRIPT);
@@ -328,9 +338,9 @@ static bool set_up_lavos_falls_with(GameState *g, Platform *pf, const LavosFalls
  * below the setup's when it keeps the stack pointer. */
 enum { BELOW_THE_SETUP_S_STACK = 4 };
 
-static void unpack_on_the_machine(void *ctx, LavosUnpack which)
+static bool unpack_on_the_machine(void *ctx, LavosUnpack which)
 {
-    scene_bridge_unpack(ctx, lavos_unpacks[which].site, lavos_unpacks[which].resource);
+    return scene_bridge_unpack(ctx, lavos_unpacks[which].site, lavos_unpacks[which].resource);
 }
 
 static void spread_on_the_machine(void *ctx, uint16_t packed)
@@ -347,7 +357,8 @@ static void spread_on_the_machine(void *ctx, uint16_t packed)
 static bool first_step_and_stars_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
-    scene_bridge_first_script_step(s, 0x7E54B4, (uint16_t)(SPRITE_COLOURS_AT + SPRITE_COLOURS_BYTES));
+    if (!scene_bridge_first_script_step(s, 0x7E54B4, (uint16_t)(SPRITE_COLOURS_AT + SPRITE_COLOURS_BYTES)))
+        return false;
     scene_bridge_scatter_stars(s, s->cpu.a);
     return true;
 }
@@ -359,10 +370,11 @@ typedef struct {
     Platform *pf;
 } LavosInC;
 
-static void unpack_the_resource(void *ctx, LavosUnpack which)
+static bool unpack_the_resource(void *ctx, LavosUnpack which)
 {
     LavosInC *c = ctx;
     TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, lavos_unpacks[which].resource));
+    return true;
 }
 
 static void spread(void *ctx, uint16_t packed)

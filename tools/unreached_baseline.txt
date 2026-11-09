@@ -101,5 +101,3 @@ port	core	00FF10	console_vblank_vector	2a492cd0f4b56d4b245df3ce2441e96a8c8b4221e
 port	core	00FF14	console_line_vector	d0f5690f8180caf8e7b066c156f64e04d1675b0e85d20a277854ae2088e5f822	0	-	Conservative live reach; own regions before inlined helpers.
 port	core	000500	console_vblank_stub	09e1181f926654fbfca00846bbc5794b593967912b27359b7bcacd2557ca66ea	0	-	Conservative live reach; own regions before inlined helpers.
 port	core	000504	console_line_stub	b12d717a5d41c872ad6c1ade50ce8a4fe4d1c2757e11eaeec95482e8e888fe73	0	-	Conservative live reach; own regions before inlined helpers.
-
-# Scene engine: matched comparisons and the three reviewed unreachable paths.

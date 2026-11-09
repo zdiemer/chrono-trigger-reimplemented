@@ -659,25 +659,28 @@ static const struct {
 };
 
 typedef struct {
-    void (*unpack)(void *ctx, DiveUnpack which);
+    bool (*unpack)(void *ctx, DiveUnpack which);
     bool (*first_step)(void *ctx);
     bool (*draw_and_scale_once)(void *ctx);
 } DiveSetUpSteps;
 
-static void load_the_shell(GameState *g, Platform *pf, const DiveSetUpSteps *steps, void *ctx)
+static bool load_the_shell(GameState *g, Platform *pf, const DiveSetUpSteps *steps, void *ctx)
 {
     vid_set_vram_address(pf, PF_AT(0x7E78E4), SHELL_PIXELS_VRAM);
     vid_start_vram_uploads(pf, PF_AT(0x7E78E9), SCENE_VRAM_WHOLE_WORDS);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    steps->unpack(ctx, UNPACK_SHELL_PIXELS);
+    if (!steps->unpack(ctx, UNPACK_SHELL_PIXELS))
+        return false;
     scene_choose_transfer(g, scene_pixels_into_high_bytes);
     scene_send_unpacked_by(g, pf, scene_pixels_into_high_bytes);
-    steps->unpack(ctx, UNPACK_SHELL_MAP);
+    if (!steps->unpack(ctx, UNPACK_SHELL_MAP))
+        return false;
     scene_double_plane_rows(g);
     vid_set_vram_address(pf, PF_AT(0x7E790F), SHELL_MAP_VRAM);
     vid_start_vram_uploads(pf, PF_AT(0x7E7913), SCENE_VRAM_LOW_BYTES);
     for (unsigned half = 0; half < 2; half++)
         scene_send_from(g, pf, SCENE_TRANSFER_BYTES, VID_SNES_VRAM_DATA_LOW, SCENE_PLANE_MAP, PLANE_HALF_BYTES);
+    return true;
 }
 
 /* The colors: the scene's, colors 80 to 111 of them copied into the sprites'
@@ -686,10 +689,11 @@ static void load_the_shell(GameState *g, Platform *pf, const DiveSetUpSteps *ste
  * running. */
 enum { COPIED_FROM = 0x50, COPIED_TO = 0xA0, COPIED_COLOURS = 0x20, PALE_CYAN = 0x6F69 };
 
-static void load_the_colours(GameState *g, const DiveSetUpSteps *steps, void *ctx)
+static bool load_the_colours(GameState *g, const DiveSetUpSteps *steps, void *ctx)
 {
     set_decompress_dest(g, DIVE_COLOURS_AT);
-    steps->unpack(ctx, UNPACK_DIVE_COLOURS);
+    if (!steps->unpack(ctx, UNPACK_DIVE_COLOURS))
+        return false;
     for (unsigned n = 0; n < COPIED_COLOURS; n++)
         set_palette_base(g, COPIED_TO + n, palette_base(g, COPIED_FROM + n));
     charge_block_move(g, 2 * COPIED_COLOURS);
@@ -697,6 +701,7 @@ static void load_the_colours(GameState *g, const DiveSetUpSteps *steps, void *ct
     set_palette_base(g, 0, PALE_CYAN);
     scene_use_loaded_palette(g);
     TIMED_AS(g, 0xFDE275, palette_stop_animations(g));
+    return true;
 }
 
 /* The shell's curve seen from outside: each screen line's distance onto the
@@ -771,7 +776,7 @@ enum { SCALER_OUTPUT = 0x7F0200, SCALER_OUTPUT_BYTES = 0x0800, SCALER_OUTPUT_END
 /* The rest of the scene's pieces: the trail's circle's table, the Epoch's
  * first frame of animation to take at once, the shell's curve and the fog,
  * the sprites' tiles and the panel's map. */
-static void make_the_pieces(GameState *g, Platform *pf, const DiveSetUpSteps *steps, void *ctx)
+static bool make_the_pieces(GameState *g, Platform *pf, const DiveSetUpSteps *steps, void *ctx)
 {
     set_scene_scaler_output_end(g, SCALER_OUTPUT_END);
     set_scene_circle_table(g, TRAIL_CIRCLE);
@@ -785,19 +790,23 @@ static void make_the_pieces(GameState *g, Platform *pf, const DiveSetUpSteps *st
     charge_legacy_io_accesses(g, 3);
 
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    steps->unpack(ctx, UNPACK_SPRITE_TILES);
+    if (!steps->unpack(ctx, UNPACK_SPRITE_TILES))
+        return false;
     vid_start_vram_uploads(pf, PF_AT(0x7E7AE3), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E7AE9), SPRITE_TILES_VRAM);
     scene_choose_transfer(g, scene_whole_words);
     scene_send_unpacked_by(g, pf, scene_whole_words);
-    steps->unpack(ctx, UNPACK_MORE_SPRITE_TILES);
+    if (!steps->unpack(ctx, UNPACK_MORE_SPRITE_TILES))
+        return false;
     vid_set_vram_address(pf, PF_AT(0x7E7B03), MORE_SPRITE_TILES_VRAM);
     scene_send_unpacked_by(g, pf, scene_whole_words);
-    steps->unpack(ctx, UNPACK_PANEL_MAP);
+    if (!steps->unpack(ctx, UNPACK_PANEL_MAP))
+        return false;
     vid_set_vram_address(pf, PF_AT(0x7E7B13), PANEL_MAP_VRAM);
     lay_out_the_panel(g, pf);
     charge_legacy_accesses(g, 1);
     scene_clear_buffer(pf, SCALER_OUTPUT, SCALER_OUTPUT_BYTES, 0x7E7B98);
+    return true;
 }
 
 /* The Epoch's bitmap, and the routine that regroups its scaled picture into
@@ -805,11 +814,13 @@ static void make_the_pieces(GameState *g, Platform *pf, const DiveSetUpSteps *st
  * second bank into the tilemap buffer. */
 enum { MATRIX_DESTINATION = 0x0C00, MATRIX_SOURCE = 0x0200 };
 
-static void load_the_epoch(GameState *g, const DiveSetUpSteps *steps, void *ctx)
+static bool load_the_epoch(GameState *g, const DiveSetUpSteps *steps, void *ctx)
 {
     set_decompress_dest(g, EPOCH_BITMAP_AT);
-    steps->unpack(ctx, UNPACK_EPOCH_PICTURE);
+    if (!steps->unpack(ctx, UNPACK_EPOCH_PICTURE))
+        return false;
     TIMED_AS(g, 0xC309E9, scene_write_matrix_code_for(g, MATRIX_DESTINATION, MATRIX_SOURCE));
+    return true;
 }
 
 /* The two channels' scripts: channel 0's moves the camera, channel 1's runs
@@ -851,10 +862,14 @@ static void set_up_the_screen(Platform *pf)
  * it passes once scales none yet. False where a step went no further. */
 static bool set_up_the_dive_with(GameState *g, Platform *pf, const DiveSetUpSteps *steps, void *ctx)
 {
-    load_the_shell(g, pf, steps, ctx);
-    load_the_colours(g, steps, ctx);
-    make_the_pieces(g, pf, steps, ctx);
-    load_the_epoch(g, steps, ctx);
+    if (!load_the_shell(g, pf, steps, ctx))
+        return false;
+    if (!load_the_colours(g, steps, ctx))
+        return false;
+    if (!make_the_pieces(g, pf, steps, ctx))
+        return false;
+    if (!load_the_epoch(g, steps, ctx))
+        return false;
     set_scene_channels_script(g, SCENE_CAMERA_CHANNEL, CAMERA_SCRIPT);
     if (!steps->first_step(ctx))
         return false;
@@ -882,16 +897,18 @@ static bool in_the_pieces(DiveUnpack which)
     return which == UNPACK_SPRITE_TILES || which == UNPACK_MORE_SPRITE_TILES || which == UNPACK_PANEL_MAP;
 }
 
-static void unpack_on_the_machine(void *ctx, DiveUnpack which)
+static bool unpack_on_the_machine(void *ctx, DiveUnpack which)
 {
     Snes *s = ctx;
     if (which == UNPACK_EPOCH_PICTURE)
         s->cpu.d = PIECES_LEAVE_THE_PAGE;
     if (in_the_pieces(which))
         scene_bridge_enter(s, PIECES_CALL);
-    scene_bridge_unpack(s, dive_unpacks[which].site, dive_unpacks[which].resource);
+    if (!scene_bridge_unpack(s, dive_unpacks[which].site, dive_unpacks[which].resource))
+        return false;
     if (in_the_pieces(which))
         scene_bridge_leave(s);
+    return true;
 }
 
 /* The matrix code's writer works on the scene's page, through bank 0; the
@@ -904,8 +921,7 @@ static bool first_step_on_the_machine(void *ctx)
     s->cpu.d = 0x0000;
     s->cpu.db = 0x00;
     m_set_flag(s, CPU_FLAG_X | CPU_FLAG_V, false);
-    scene_bridge_take_the_first_script_step(s, 0x7E79AA, scene_matrix_writer_leaves_y(), s->cpu.db);
-    return true;
+    return scene_bridge_take_the_first_script_step(s, 0x7E79AA, scene_matrix_writer_leaves_y(), s->cpu.db);
 }
 
 /* The Epoch's drawing and the main loop's call, through their entries where
@@ -929,10 +945,11 @@ typedef struct {
     Platform *pf;
 } DiveInC;
 
-static void unpack_the_resource(void *ctx, DiveUnpack which)
+static bool unpack_the_resource(void *ctx, DiveUnpack which)
 {
     DiveInC *c = ctx;
     TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, dive_unpacks[which].resource));
+    return true;
 }
 
 static bool turn_the_camera_channel(void *ctx)

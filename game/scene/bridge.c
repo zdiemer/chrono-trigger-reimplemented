@@ -90,24 +90,27 @@ enum { JSR_SIZE_HERE = 3 };
 
 /* ---- The program's unpacker and a script's first step ----------------------------------------- */
 
-void scene_bridge_unpack(Snes *s, uint32_t site, uint16_t resource)
+bool scene_bridge_unpack(Snes *s, uint32_t site, uint16_t resource)
 {
     s->cpu.x = resource;
     if (m_runs_retired_as_c(s))
-        (void)scene_run_called(s, site, SCENE_UNPACK, SCENE_UNPACK_IGNORES, scene_unpack_resource);
-    else
-        /* The still-gated caller keeps the unpacker's comparison boundary;
-         * its existing timing allowance belongs to that resource load. */
-        m_jsr_dc(s, site, SCENE_UNPACK, SCENE_UNPACK_IGNORES);
+        return scene_run_called(s, site, SCENE_UNPACK, SCENE_UNPACK_IGNORES, scene_unpack_resource);
+    /* The still-gated caller keeps the unpacker's comparison boundary;
+     * its existing timing allowance belongs to that resource load. */
+    uint16_t stack = s->cpu.s;
+    m_jsr_dc(s, site, SCENE_UNPACK, SCENE_UNPACK_IGNORES);
+    return m_came_back(s, site + JSR_SIZE_HERE, stack);
 }
 
-void scene_bridge_take_the_first_script_step(Snes *s, uint32_t site, uint16_t y, uint8_t kept_bank)
+bool scene_bridge_take_the_first_script_step(Snes *s, uint32_t site, uint16_t y, uint8_t kept_bank)
 {
     m_push8(s, kept_bank);
     m_set_flag(s, CPU_FLAG_M, false);
     s->cpu.y = y;
-    (void)scene_run_called(s, site, SCENE_FIRST_STEP, SCENE_FIRST_STEP_IGNORES, scene_run_channel_0_script);
+    if (!scene_run_called(s, site, SCENE_FIRST_STEP, SCENE_FIRST_STEP_IGNORES, scene_run_channel_0_script))
+        return false;
     s->cpu.db = m_pull8(s);
+    return true;
 }
 
 void scene_bridge_back_on_the_scene_s_page(Snes *s)
@@ -116,10 +119,12 @@ void scene_bridge_back_on_the_scene_s_page(Snes *s)
     s->cpu.d = SCENE_PAGE;
 }
 
-void scene_bridge_first_script_step(Snes *s, uint32_t site, uint16_t y)
+bool scene_bridge_first_script_step(Snes *s, uint32_t site, uint16_t y)
 {
-    scene_bridge_take_the_first_script_step(s, site, y, s->cpu.db);
+    if (!scene_bridge_take_the_first_script_step(s, site, y, s->cpu.db))
+        return false;
     scene_bridge_back_on_the_scene_s_page(s);
+    return true;
 }
 
 void scene_bridge_enter(Snes *s, uint32_t call) { m_push16(s, (uint16_t)(call + JSR_SIZE_HERE - 1)); }

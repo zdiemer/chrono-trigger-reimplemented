@@ -1016,13 +1016,14 @@ static bool drain_score(GameState *g)
  * sounds it sends go through the step it is passed (race.h, RaceSends). */
 
 /* The bikes' sounds, then their motion. */
-static void move_and_sound(GameState *g, Platform *pf, BikeSounds sounds, RaceSends send, void *ctx)
+static bool move_and_sound(GameState *g, Platform *pf, BikeSounds sounds, RaceSends send, void *ctx)
 {
-    if (sounds.bumped && !race_song_sending(g))
-        race_send_sound(g, pf, RACE_BUMP_SOUND, send, ctx);
+    if (sounds.bumped && !race_song_sending(g) && !race_send_sound(g, pf, RACE_BUMP_SOUND, send, ctx))
+        return false;
     if (sounds.running && !race_song_sending(g))
         race_send_engine_pitch(g, pf);
     move_bikes(g);
+    return true;
 }
 
 /* The race while it runs: Crono's win hands the slot to his coast, Johnny's
@@ -1035,7 +1036,8 @@ static TaskEnd ride_with(GameState *g, Platform *pf, RaceSends send, void *ctx)
     case RIDE_JOHNNY_WON: return task_is_done();
     case RIDE_ON: break;
     }
-    move_and_sound(g, pf, sounds, send, ctx);
+    if (!move_and_sound(g, pf, sounds, send, ctx))
+        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
     return task_goes_on();
 }
 
@@ -1043,7 +1045,8 @@ static TaskEnd ride_with(GameState *g, Platform *pf, RaceSends send, void *ctx)
 static TaskEnd coast_with(GameState *g, Platform *pf, RaceSends send, void *ctx)
 {
     coast(g);
-    move_and_sound(g, pf, ride_bikes(g), send, ctx);
+    if (!move_and_sound(g, pf, ride_bikes(g), send, ctx))
+        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
     return task_goes_on();
 }
 
@@ -1059,8 +1062,8 @@ static TaskEnd wait_to_leave_with(GameState *g, Platform *pf, RaceSends send, vo
 {
     if (!begin_ending(g))
         return task_goes_on();
-    if (!race_song_sending(g))
-        race_send_sound(g, pf, RACE_LEAVING_SOUND, send, ctx);
+    if (!race_song_sending(g) && !race_send_sound(g, pf, RACE_LEAVING_SOUND, send, ctx))
+        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
     count_down_to_end(g);
     return task_hands_over(TASK_LEAVE);
 }
@@ -1232,6 +1235,7 @@ static void hand_slot_to(Snes *s, uint16_t task)
 static void leave_the_ride(Snes *s, TaskEnd end)
 {
     switch (end.outcome) {
+    case TASK_LEFT_TO_THE_ORIGINAL: return;
     case TASK_HANDS_OVER: hand_slot_to(s, end.next); return;
     case TASK_IS_DONE:
         s->cpu.a = JOHNNY_WON_SCRIPT;
@@ -1275,6 +1279,8 @@ void scene_race_wait_to_leave_entry(Snes *s)
 {
     m_set_flag(s, CPU_FLAG_M, true);
     TaskEnd end = wait_to_leave_with(state_of(s), m_platform(s), race_sound_on_the_machine, s);
+    if (end.outcome == TASK_LEFT_TO_THE_ORIGINAL)
+        return;
     if (end.outcome == TASK_HANDS_OVER) {
         hand_slot_to(s, end.next);
         return;

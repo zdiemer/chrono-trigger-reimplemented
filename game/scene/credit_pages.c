@@ -61,13 +61,15 @@ static const uint16_t letter_colors[] = { 0x0000, 0x77BD, 0x4631, 0x1CE7 };
  * call, as shadow mode pairs the call with the original's. */
 enum { UNPACK = 0x7E3691, UNPACK_IGNORES = DC_A | DC_Y | DC_N | DC_Z | DC_C, LOADER_CALL = 0x7E6B0A };
 
-static void unpack_the_letters_on_the_machine(void *ctx)
+static bool unpack_the_letters_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
     scene_bridge_enter(s, LOADER_CALL);
     s->cpu.x = LETTERS;
-    (void)scene_run_called(s, 0x7E6C3F, UNPACK, UNPACK_IGNORES, scene_unpack_resource);
+    if (!scene_run_called(s, 0x7E6C3F, UNPACK, UNPACK_IGNORES, scene_unpack_resource))
+        return false;
     scene_bridge_leave(s);
+    return true;
 }
 
 // $7E:6BF9
@@ -212,10 +214,11 @@ static void charge_page_text_scan(GameState *g, uint16_t page);
  * they use it, and leaves it there; and it points the sprite table's port at
  * its start before the jobs, as the first job's sprite does (scaffolding: the
  * port's address is compared). */
-static void set_up_the_page(GameState *g, Platform *pf, void (*unpack)(void *ctx), void *ctx)
+static bool set_up_the_page(GameState *g, Platform *pf, bool (*unpack)(void *ctx), void *ctx)
 {
     start_loading_the_letters(g, pf, LETTERS_AS_THEY_ARE_VRAM);
-    unpack(ctx);
+    if (!unpack(ctx))
+        return false;
     send_the_letters_as_they_are(g, pf);
     set_decompress_dest(g, NARROW_LETTERS);
     widen_letters(g, pf, WIDE_LETTERS_VRAM, NARROW_LETTERS, NARROW_LETTER_TILES);
@@ -235,15 +238,19 @@ static void set_up_the_page(GameState *g, Platform *pf, void (*unpack)(void *ctx
     set_scene_fade_countdown(g, FADE_EVERY_FRAME);
     scene_add_task(g, SCENE_FRAME_TASKS, SCENE_TASK_BRIGHTEN);
     scene_add_task(g, SCENE_FRAME_TASKS, SCENE_TASK_SHOW_THE_CREDITS_PAGE);
+    return true;
 }
 
 /* As C, the letters unpacked by the unpacker as C. */
-static void unpack_the_letters(void *ctx) { TIMED_AS((GameState *)ctx, UNPACK, scene_unpacks(ctx, LETTERS)); }
+static bool unpack_the_letters(void *ctx)
+{
+    TIMED_AS((GameState *)ctx, UNPACK, scene_unpacks(ctx, LETTERS));
+    return true;
+}
 
 bool scene_credit_pages_set_up(GameState *g, Platform *pf)
 {
-    set_up_the_page(g, pf, unpack_the_letters, g);
-    return true;
+    return set_up_the_page(g, pf, unpack_the_letters, g);
 }
 
 /* ---- The page's task --------------------------------------------------------------------------- */
@@ -361,7 +368,8 @@ static bool last_letter_overflowed(const GameState *g, uint16_t page)
 bool scene_credit_pages_set_up_scene(Snes *s)
 {
     GameState *g = state_of(s);
-    set_up_the_page(g, m_platform(s), unpack_the_letters_on_the_machine, s);
+    if (!set_up_the_page(g, m_platform(s), unpack_the_letters_on_the_machine, s))
+        return false;
     s->cpu.d = M_DP_PPU;
     s->cpu.db = 0x00;
     s->cpu.p |= CPU_FLAG_M;

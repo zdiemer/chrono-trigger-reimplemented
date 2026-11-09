@@ -4273,6 +4273,12 @@ Those forms preserve the old P masks (including decimal mode), widths,
 pages, banks and code-image guards as broken-contract checks. A refusal
 stops at the original entry with the return frame intact. Unknown setup,
 main-loop and script callees also report a broken contract.
+Setup, unpacking, first-script-step, curtain and sound callbacks propagate a
+failed call through their C callers before any return-frame cleanup or later
+game work. `scene_contract_test` exercises rejected widths, decimal mode and
+code images on synthetic state, including a failed credit-page loader and
+planet restart sound: the rejected PC and stacked return addresses survive,
+and the page and task list do not advance.
 
 The race's main-loop call runs as C. `HOLD_SCENE_RACE_UPLOAD` retains the
 racer and main-loop return frames at `$7E:5211`; the upload continuation
@@ -4384,6 +4390,17 @@ and places 0-4 (strict additionally protects its saved game and place 5);
 places 0-4. Each mode's additional picture identities remain protected
 too. The native-shape routes exercise the late ending separately; these early
 ending picture matches alone do not protect the staff roll.
+
+The warning-as-error build and 561 Python tests pass (ten skips); the later
+call-declaration and callback changes pass 56 liveness and portability tests.
+The task, timing, suspension, field, event-contract and scene-contract C
+tests pass too.
+Manual native-shape routes reach Epoch through Lavos's shell at frame 7757,
+the telepod's Dream Project ending at 169000, and Beyond Time at 109071.
+The latter two runs retain 46 and 2307 exact snapshot replays respectively,
+with none lost or different and no sound-host faults. Their receipts are
+`build/scene-shape-routes-final.log`; the saved-game and checkpoint guards
+remain the route scripts' own.
 
 
 ### Recorded outcomes

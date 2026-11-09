@@ -489,10 +489,13 @@ static bool turn_scripts_on_machine(void *context)
 {
     Snes *s = context;
     s->cpu.a = 0x7157;
-    scene_bridge_first_script_step(s, 0x7E70CE, 0x1C00);
+    if (!scene_bridge_first_script_step(s, 0x7E70CE, 0x1C00))
+        return false;
     m_push8(s, 0);
     m_set_flag(s, CPU_FLAG_M, false);
     bool done = scene_run(s, 0x7E70D1, 0x7E3754, SCENE_FIRST_STEP_IGNORES, scene_run_channel_1_script);
+    if (!done)
+        return false;
     s->cpu.db = m_pull8(s);
     scene_bridge_back_on_the_scene_s_page(s);
     return done;

@@ -156,10 +156,10 @@ static void on_page(Snes *s, uint16_t page, uint8_t bank)
  * page, which it hands back. */
 enum { UNPACK = 0x7E3691, UNPACK_IGNORES = DC_A | DC_Y | DC_N | DC_Z | DC_C };
 
-static void unpack(Snes *s, uint32_t site, uint16_t resource)
+static bool unpack(Snes *s, uint32_t site, uint16_t resource)
 {
     s->cpu.x = resource;
-    (void)scene_run_called(s, site, UNPACK, UNPACK_IGNORES, scene_unpack_resource);
+    return scene_run_called(s, site, UNPACK, UNPACK_IGNORES, scene_unpack_resource);
 }
 
 /* While the setup works on the racers' pictures the program keeps the data
@@ -168,7 +168,7 @@ static void unpack(Snes *s, uint32_t site, uint16_t resource)
  * left the overflow clear. */
 enum { REGISTERS_PAGE = M_DP_PPU };
 
-static void unpack_holding(Snes *s, uint32_t site, uint16_t resource)
+static bool unpack_holding(Snes *s, uint32_t site, uint16_t resource)
 {
     uint8_t bank = s->cpu.db;
     uint16_t page = m_direct_page(s);
@@ -176,9 +176,11 @@ static void unpack_holding(Snes *s, uint32_t site, uint16_t resource)
     m_push16(s, page);
     on_page(s, REGISTERS_PAGE, SCENE_UPPER_WORK_RAM);
     m_set_flag(s, CPU_FLAG_V, false);
-    unpack(s, site, resource);
+    if (!unpack(s, site, resource))
+        return false;
     page = m_pull16(s);
     on_page(s, page, m_pull8(s));
+    return true;
 }
 
 /* The camera script's first step: the program's routine for channel 0's
@@ -188,15 +190,17 @@ static void unpack_holding(Snes *s, uint32_t site, uint16_t resource)
 enum { FIRST_STEP_CALL = 0x7E3CD8, CHANNEL_0_STEP = 0x7E3749, DIVISORS_CLEARED_TO = 0x1546 };
 enum { FIRST_STEP_IGNORES = DC_A | DC_X | DC_N | DC_Z | DC_C };
 
-static void first_script_step(Snes *s)
+static bool first_script_step(Snes *s)
 {
     uint8_t bank = s->cpu.db;
     m_push8(s, bank);
     m_set_flag(s, CPU_FLAG_M, false);
     s->cpu.y = DIVISORS_CLEARED_TO;
     m_set_flag(s, CPU_FLAG_V, false);
-    (void)scene_run_called(s, FIRST_STEP_CALL, CHANNEL_0_STEP, FIRST_STEP_IGNORES, scene_run_channel_0_script);
+    if (!scene_run_called(s, FIRST_STEP_CALL, CHANNEL_0_STEP, FIRST_STEP_IGNORES, scene_run_channel_0_script))
+        return false;
     on_page(s, m_direct_page(s), m_pull8(s));
+    return true;
 }
 
 /* ---- Setting the race up ------------------------------------------------------------------------- */
@@ -581,9 +585,9 @@ static bool race_on_the_machine(void *ctx, RaceCall call, unsigned unpacking, ui
     case RACE_SONG_STARTS: scene_bridge_start_song(s, 0x7E3B5A, (uint8_t)resource); return true;
     case RACE_GRAPHICS_ENTERED: scene_bridge_enter(s, 0x7E3B5D); return true;
     case RACE_GRAPHICS_LEFT: scene_bridge_leave(s); return true;
-    case RACE_UNPACK: unpack(s, unpacked_at[unpacking], resource); return true;
-    case RACE_UNPACK_HOLDING: unpack_holding(s, unpacked_at[unpacking], resource); return true;
-    default: first_script_step(s); return true;
+    case RACE_UNPACK: return unpack(s, unpacked_at[unpacking], resource);
+    case RACE_UNPACK_HOLDING: return unpack_holding(s, unpacked_at[unpacking], resource);
+    default: return first_script_step(s);
     }
 }
 
@@ -696,13 +700,13 @@ static bool sweep_curtain_with(GameState *g, Platform *pf, bool (*step)(void *ct
 
 static bool curtain_step_on_the_machine(void *ctx)
 {
-    (void)scene_run_long_called(ctx, 0x7E3D72, CURTAIN_STEP, CURTAIN_IGNORES, scene_curtain_jump);
-    return true;
+    return scene_run_long_called(ctx, 0x7E3D72, CURTAIN_STEP, CURTAIN_IGNORES, scene_curtain_jump);
 }
 
 void scene_race_sweep_curtain_entry(Snes *s)
 {
-    sweep_curtain_with(state_of(s), m_platform(s), curtain_step_on_the_machine, s);
+    if (!sweep_curtain_with(state_of(s), m_platform(s), curtain_step_on_the_machine, s))
+        return;
     charge_legacy_accesses(state_of(s), 2);
     m_rts(s);
 }
@@ -930,12 +934,12 @@ static const struct {
     [RACE_LEAVING_SOUND] = { AU_START_EFFECT, LEAVING_SOUND, 0x7E426D },
 };
 
-void race_send_sound(GameState *g, Platform *pf, RaceSound sound, RaceSends send, void *ctx)
+bool race_send_sound(GameState *g, Platform *pf, RaceSound sound, RaceSends send, void *ctx)
 {
     set_sound_command_parameters(g, 0, race_sounds[sound].effect);
     set_sound_command_parameters(g, 1, AU_CENTRE);
     set_sound_command(g, race_sounds[sound].command);
-    send(ctx, g, pf, sound);
+    return send(ctx, g, pf, sound);
 }
 
 /* On the machine, the program's send ($7E:377E), which waits for the driver
@@ -944,22 +948,25 @@ void race_send_sound(GameState *g, Platform *pf, RaceSound sound, RaceSends send
  * leaves (and nothing after these calls reads A or the flags it changes). */
 enum { SCENE_SEND = 0x7E377E };
 
-void race_sound_on_the_machine(void *ctx, GameState *g, Platform *pf, RaceSound sound)
+bool race_sound_on_the_machine(void *ctx, GameState *g, Platform *pf, RaceSound sound)
 {
     (void)g;
     (void)pf;
     Snes *s = ctx;
     bool a_8bit = m_flag(s, CPU_FLAG_M);
     m_set_flag(s, CPU_FLAG_M, true);
-    (void)scene_run_called(s, race_sounds[sound].site, SCENE_SEND, DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C,
-                    scene_send_sound_command);
+    if (!scene_run_called(s, race_sounds[sound].site, SCENE_SEND, DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C,
+                    scene_send_sound_command))
+        return false;
     m_set_flag(s, CPU_FLAG_M, a_8bit);
+    return true;
 }
 
 /* As C, the send's port, timed as the program's send. */
-void race_sound(void *ctx, GameState *g, Platform *pf, RaceSound sound)
+bool race_sound(void *ctx, GameState *g, Platform *pf, RaceSound sound)
 {
     (void)ctx;
     (void)sound;
     scene_sends_the_command(g, pf);
+    return true;
 }

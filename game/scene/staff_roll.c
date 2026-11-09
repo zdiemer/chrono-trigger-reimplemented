@@ -328,19 +328,19 @@ enum { STAFF_ROLL_SCRIPT = 0x93E3, STAFF_ROLL_SONG = 0x1B };
  * start. The machine's entry takes them as calls of the original's, the
  * native program as C. */
 typedef struct {
-    void (*send_the_command)(void *ctx);
+    bool (*send_the_command)(void *ctx);
     void (*scatter_the_stars)(void *ctx);
-    void (*unpack)(void *ctx, unsigned graphic);
+    bool (*unpack)(void *ctx, unsigned graphic);
     bool (*first_step)(void *ctx, uint16_t descriptors_end);
     void (*start_the_song)(void *ctx, uint8_t song);
 } StaffRollSteps;
 
 /* The music played fast: the sound driver's command in the buffer, sent. */
-static void play_music_fast(GameState *g, const StaffRollSteps *steps, void *ctx)
+static bool play_music_fast(GameState *g, const StaffRollSteps *steps, void *ctx)
 {
     set_sound_command(g, AU_FAST_FORWARD);
     set_sound_command_parameters(g, 0, 1);
-    steps->send_the_command(ctx);
+    return steps->send_the_command(ctx);
 }
 
 /* The program's transfer of what the unpacker made, a word at a time into
@@ -351,14 +351,16 @@ static void send_unpacked_as_words(GameState *g)
     set_scene_call_transfer_register(g, scene_program_own(), VID_SNES_VRAM_DATA_LOW);
 }
 
-static void load_graphics(GameState *g, Platform *pf, unsigned graphic, const StaffRollSteps *steps, void *ctx)
+static bool load_graphics(GameState *g, Platform *pf, unsigned graphic, const StaffRollSteps *steps, void *ctx)
 {
     const StaffRollGraphics *gr = &staff_roll_graphics[graphic];
     vid_set_vram_address(pf, PF_AT(gr->vram_site), gr->vram);
-    steps->unpack(ctx, graphic);
+    if (!steps->unpack(ctx, graphic))
+        return false;
     if (gr->bytes)
         set_decompress_length(g, gr->bytes);
     TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
+    return true;
 }
 
 /* How the roll is played: fast, closing the telepod ending (mode 13), or
@@ -383,7 +385,8 @@ static void start_slowly(GameState *g, Platform *pf)
 static bool set_up_staff_roll_with(GameState *g, Platform *pf, StaffRollPace pace, const StaffRollSteps *steps, void *ctx)
 {
     if (pace == STAFF_ROLL_FAST) {
-        play_music_fast(g, steps, ctx);
+        if (!play_music_fast(g, steps, ctx))
+            return false;
         set_scene_credits_fast(g, (uint8_t)(scene_credits_fast(g) + 1));
         set_scene_channel_register(g, SCENE_STAR_FIELD_CHANNEL, SCENE_STAR_FIELD_SPEED, STARS_COMING);
     } else {
@@ -397,7 +400,8 @@ static bool set_up_staff_roll_with(GameState *g, Platform *pf, StaffRollPace pac
     send_unpacked_as_words(g);
     vid_start_vram_uploads(pf, PF_AT(0x7E8EE8), SCENE_VRAM_WHOLE_WORDS);
     for (unsigned i = 0; i < STAFF_ROLL_GRAPHICS; i++)
-        load_graphics(g, pf, i, steps, ctx);
+        if (!load_graphics(g, pf, i, steps, ctx))
+            return false;
 
     copy_colors(g, STARS_COLORS, STARS_PALETTE);
     scene_set_letter_colors(g);
@@ -430,11 +434,11 @@ static bool set_up_staff_roll_with(GameState *g, Platform *pf, StaffRollPace pac
  * touches them between the two. */
 enum { SCENE_SEND = 0x7E377E, SEND_IGNORES = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C };
 
-static void send_on_the_machine(void *ctx)
+static bool send_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
     m_set_flag(s, CPU_FLAG_M, true);
-    (void)scene_run_called(s, 0x7E8EB2, SCENE_SEND, SEND_IGNORES, scene_send_sound_command);
+    return scene_run_called(s, 0x7E8EB2, SCENE_SEND, SEND_IGNORES, scene_send_sound_command);
 }
 
 static void scatter_on_the_machine(void *ctx)
@@ -443,9 +447,9 @@ static void scatter_on_the_machine(void *ctx)
     scene_bridge_scatter_stars(s, s->cpu.a);
 }
 
-static void unpack_on_the_machine(void *ctx, unsigned graphic)
+static bool unpack_on_the_machine(void *ctx, unsigned graphic)
 {
-    scene_bridge_unpack(ctx, staff_roll_graphics_unpacked_at[graphic], staff_roll_graphics[graphic].resource);
+    return scene_bridge_unpack(ctx, staff_roll_graphics_unpacked_at[graphic], staff_roll_graphics[graphic].resource);
 }
 
 /* The script's first step, with the program's bank as the data bank, which
@@ -460,7 +464,8 @@ static bool first_step_on_the_machine(void *ctx, uint16_t descriptors_end)
     Snes *s = ctx;
     s->cpu.db = SCENE_LOWER_WORK_RAM;
     m_set_flag(s, CPU_FLAG_V, false);
-    scene_bridge_take_the_first_script_step(s, 0x7E8F94, descriptors_end, BANK_AFTER_THE_STEP);
+    if (!scene_bridge_take_the_first_script_step(s, 0x7E8F94, descriptors_end, BANK_AFTER_THE_STEP))
+        return false;
     scene_bridge_back_on_the_scene_s_page(s);
     return true;
 }
@@ -474,10 +479,11 @@ typedef struct {
     Platform *pf;
 } StaffRollInC;
 
-static void send_the_command(void *ctx)
+static bool send_the_command(void *ctx)
 {
     StaffRollInC *c = ctx;
     scene_sends_the_command(c->game, c->pf);
+    return true;
 }
 
 /* A host's draws take its own noise, so the stars' first starts from nothing
@@ -490,10 +496,11 @@ static void scatter_the_stars(void *ctx)
     TIMED_AS(c->game, SCATTER_STARS, scene_scatter_stars(c->game, c->pf, scene_draw_from(0, false, TM_ENTROPY_BYTES)));
 }
 
-static void unpack_the_graphic(void *ctx, unsigned graphic)
+static bool unpack_the_graphic(void *ctx, unsigned graphic)
 {
     StaffRollInC *c = ctx;
     TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, staff_roll_graphics[graphic].resource));
+    return true;
 }
 
 static bool turn_the_credits_channel(void *ctx, uint16_t descriptors_end)
