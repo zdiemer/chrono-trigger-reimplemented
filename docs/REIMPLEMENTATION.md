@@ -4275,21 +4275,34 @@ script's menu, keeping the former caller's calibrated rate. Task starts and
 resumptions are also held continuations, each retaining its complete gated
 contract and estimate. They begin as separate roots after the scheduler
 selects a stack; nesting one task inside another would change the return
-boundary. Task work parked at a yield still needs its own continuation.
+boundary. Description typing and fade-in now have continuations for each
+frame and their task's completion. The setting description's handoff into
+its value keeps the setting task's calibrated rate. Fade-out and the menu
+screen sequences still have parked callers to remove.
 
 The shipping census on `battle-menu-buttons`, `menus-sweep` and `menus-epoch`
-changes from 87 machine-entered entries and 3,455,625 calls in all to 47
-and 74,509. Wait-loop passes fall from 3,315,508 to zero; entries run only
-as C rise from 835 to 849. Held continuations run 7,768,256 times across 50
+changes from 87 machine-entered entries and 3,455,625 calls in all to 42
+and 66,307. Wait-loop passes fall from 3,315,508 to zero; entries run only
+as C rise from 835 to 855. Held continuations run 7,768,942 times across 57
 entries. This is a control-flow change, not retirement: `machine_joints.py`
-still counts 1,689 registry rows and 917 emulated returns. Held rows rise
-from 69 to 104; explicit stops from 91 to 95 because the two menu waits now
+still counts 1,689 registry rows; emulated returns rise from 917 to 919.
+Held rows rise from 69 to 112; explicit stops from 91 to 96 because the two menu waits now
 name their holds and the new direct-call bridges stop on contract refusal.
-The six call-outs and three registry lookups remain. Before/after shipping
-traces on these three movies agree in all five regions for 20,310 frames,
-including the new frame calls; 49 focused Python tests and the static
-don't-care, port-style and port-smell checks pass. The preceding resource
-contract step passes the sampled gate, including its 84 evidence replays.
+The six call-outs and three registry lookups remain. The battle interrupt's
+frame and scroll services, script channels, action-loop calls, and the
+field interrupt's menu input call now use checked direct calls. Two more
+call-through-machine findings leave the smell baseline.
+
+Before/after shipping traces for the frame calls agree in all five regions
+for these movies' 20,310 frames. The following task-continuation step changes
+only the fade task's return byte at `$7E:0A3E`: it now holds the real nested
+return instead of the outer wait's stale byte. All other state and picture
+hashes agree across the same frames. Eight native-shape menu save/reloads
+replay 120 frames with identical work RAM, no lost or inexact replay; the
+first three saves have no suspended routine, while the later five still
+have one or two. Fifty-nine focused Python tests and the static don't-care,
+port-style and port-smell checks pass. The frame-call commit passes the
+sampled gate, including 84 freshly made evidence replays.
 
 The precondition audit also fixes two menu defects without narrowing their
 fuzz recipes. A refused save restores the main-menu step's flags before the

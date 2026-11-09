@@ -2985,8 +2985,9 @@ comparisons.
   only after the unreached obligations and state readers below are resolved.
   The held boundaries and checked interrupt handoffs are described in
   REIMPLEMENTATION.md, "Battle and menu held boundaries". Close the task work
-  parked at yields and the remaining battle/overworld calls into frame and
-  script services. The scheduler's starts and resumptions have
+  parked at yields, especially fade-out and the screen sequences, and the
+  remaining overworld calls into menu services. The scheduler's starts,
+  resumptions, description typing and fade-in have
   held continuations, and the field no longer remains suspended across menu
   mode. Menu checkpoints at frames 1,800, 2,100 and 2,400 now have no suspended
   routine; later checkpoints still have one or two. Preserve the root task

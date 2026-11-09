@@ -1193,7 +1193,7 @@ static bool call_on_the_machine(void *ctx, LoopCall call, uint8_t arg)
         return battle_run_long(s, 0xC183E0, EXPERIENCE_TO_GOLD, battle_turn_experience_to_gold_entry);
     case CALL_GIVE_GOLD:
         s->cpu.y = battle_gold_won(g);
-        return battle_call(s, 0xC183E7, GIVE_GOLD, DC_A | DC_X | DC_FLAGS);
+        return battle_run_called(s, 0xC183E7, GIVE_GOLD, DC_A | DC_X | DC_FLAGS, battle_give_gold_entry);
     case CALL_SHARE_EXPERIENCE:
         /* the flags in A as the original calls it, which it leaves with what
          * the messages take along */
@@ -1208,7 +1208,7 @@ static bool call_on_the_machine(void *ctx, LoopCall call, uint8_t arg)
     case CALL_PUT_ITEMS_BACK_AFTER_WINNING: return battle_run(s, 0xC183FF, PUT_ITEMS_BACK, battle_put_items_back_entry);
     case CALL_GIVE_AN_ITEM:
         s->cpu.y = arg;
-        return battle_call(s, 0xC1840E, GIVE_ITEM, DC_A | DC_X | DC_FLAGS);
+        return battle_run_called(s, 0xC1840E, GIVE_ITEM, DC_A | DC_X | DC_FLAGS, battle_add_to_inventory);
     case CALL_RAN_AWAY_MESSAGE:
         /* the message in A, its high byte clear as the counting leaves it */
         s->cpu.a = RAN_AWAY_MESSAGE;
@@ -1216,7 +1216,7 @@ static bool call_on_the_machine(void *ctx, LoopCall call, uint8_t arg)
     case CALL_STAND_DOWN_RUNNING: return battle_run(s, 0xC1820A, PARTY_STANDS_DOWN, battle_party_stands_down_entry);
     case CALL_RUNNING_AWAY:
         m_set_a8(s, RUN_AWAY_ACTION);
-        return battle_call(s, 0xC1820F, START_ACTION, READS_A_AND_OVERFLOW);
+        return battle_run_called(s, 0xC1820F, START_ACTION, READS_A_AND_OVERFLOW, battle_show_status_number_entry);
     case CALL_PUT_ITEMS_BACK_AFTER_RUNNING: return battle_run(s, 0xC18218, PUT_ITEMS_BACK, battle_put_items_back_entry);
     case CALL_ENEMY_TURN: return battle_run(s, 0xC184D6, ENEMY_TURN, battle_enemy_takes_turn_entry);
     case CALL_MEMBER_STATUS_TURN:
@@ -1228,9 +1228,12 @@ static bool call_on_the_machine(void *ctx, LoopCall call, uint8_t arg)
         s->cpu.x = (uint16_t)(arg * BATTLE_STAT_BLOCK_BYTES);
         return battle_run_long(s, 0xC18526, MEMBER_TURN, battle_member_status_turn_entry);
     case CALL_COMBINATIONS_ACTING_FOR_ITSELF: return check_combinations(s, 0xC18538);
-    case CALL_ACT_FOR_ITSELF: return battle_call(s, 0xC1853B, MEMBER_ACTS_FOR_ITSELF, READS_A_HIGH);
+    case CALL_ACT_FOR_ITSELF:
+        return battle_run_called(s, 0xC1853B, MEMBER_ACTS_FOR_ITSELF, READS_A_HIGH, battle_end_member_turn_entry);
     case CALL_OPEN_THE_MENU: return step(s, 0xC1856D, BATTLE_STEP_OPEN_MENU);
-    case CALL_CARRY_OUT: return battle_call(s, 0xC10000u | carry_out_calls[arg], CARRY_OUT_ACTION, READS_NOTHING);
+    case CALL_CARRY_OUT:
+        return battle_run_called(s, 0xC10000u | carry_out_calls[arg], CARRY_OUT_ACTION,
+                                  READS_NOTHING, battle_carry_out_member_action_entry);
     case CALL_CHECKS_BEGIN: m_push16(s, CHECKS_CALL_LAST_BYTE); return true;
     case CALL_COMBINATIONS_IN_THE_CHECKS:
         s->cpu.x = arg;

@@ -242,15 +242,15 @@ static bool frame_work_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
     s->cpu.a = 0x0080;
-    m_jsl_dc(s, 0xD1E7DA, FRAME_WORK, DC_X | DC_N | DC_Z | DC_C);
-    return came_back(s);
+    return battle_run_long_called(s, 0xD1E7DA, FRAME_WORK, DC_X | DC_N | DC_Z | DC_C, battle_frame_dispatch)
+           && came_back(s);
 }
 
 static bool map_layers_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
-    m_jsl_dc(s, 0xD1E7E3, GAME_FRAME, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
-    return came_back(s);
+    return battle_run_long_called(s, 0xD1E7E3, GAME_FRAME, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
+                                  battle_scroll_map_layers) && came_back(s);
 }
 
 void battle_nmi(Snes *s)

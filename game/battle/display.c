@@ -319,7 +319,8 @@ static bool pause_on_the_machine(void *ctx)
     Snes *s = ctx;
     s->cpu.db = BATTLE_DATA_BANK;
     s->cpu.a = 0;
-    return battle_call_long(s, 0xCD0AD2, BATTLE_PAUSE_PALETTE_ANIMATION_ENTRY, READS_NOTHING);
+    return battle_run_long_called(s, 0xCD0AD2, BATTLE_PAUSE_PALETTE_ANIMATION_ENTRY, READS_NOTHING,
+                                  battle_pause_palette_animation_entry);
 }
 
 static bool animate_on_the_machine(void *ctx)
@@ -442,8 +443,8 @@ static bool closing_vblank_on_the_machine(void *ctx, ClosingVblankCall call)
     Snes *s = ctx;
     switch (call) {
     case CLOSING_PALETTE:
-        m_jsl_dc(s, 0xD1F4DE, 0xCD09CE, DC_A | DC_X | DC_N | DC_Z | DC_C);
-        return battle_widths_m8_x16(s);
+        return battle_run_long_called(s, 0xD1F4DE, 0xCD09CE, DC_A | DC_X | DC_N | DC_Z | DC_C,
+                                      battle_upload_palette) && battle_widths_m8_x16(s);
     case CLOSING_LINE_EFFECTS:
         if (!rebuild_the_fields_line_effects(s))
             return false;
@@ -454,8 +455,8 @@ static bool closing_vblank_on_the_machine(void *ctx, ClosingVblankCall call)
         s->cpu.db = BATTLE_DATA_BANK;
         return true;
     case CLOSING_MAP_LAYERS:
-        m_jsl_dc(s, 0xD1F549, 0xCD0C89, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
-        return battle_widths_m8_x16(s);
+        return battle_run_long_called(s, 0xD1F549, 0xCD0C89, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
+                                      battle_scroll_map_layers) && battle_widths_m8_x16(s);
     default: return battle_run_long(s, 0xD1F54D, PALETTE_ANIMATION, palette_animate) && battle_widths_m8_x16(s);
     }
 }

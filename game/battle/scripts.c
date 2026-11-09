@@ -179,10 +179,9 @@ static bool elsewhere_on_the_machine(void *ctx, uint8_t command, const ScriptOpc
 
 /* ---- The channels, each frame ------------------------------------------------------------- */
 
-/* The channels run, each from a call of its own in the original ($C1:4C9E
- * is called from a site a channel): the channel's routine (`channel`) calls
- * the commands, which is why the frame's run calls it through the machine
- * rather than as C there (docs/PORTING.md, "Call-outs"). */
+/* Each channel keeps its own call boundary and time estimate. Its checked
+ * C call can still hand a command back to the machine at an unsupported
+ * handler without losing the channel's return frame. */
 static const uint16_t channel_calls[SCRIPT_CHANNELS] = {
     0x4BC8, 0x4BD5, 0x4BE2, 0x4BEF, 0x4C04, 0, 0, 0, 0x4C1C, 0x4C2E, 0x4C40, 0x4C52, 0x4C64, 0x4C76, 0x4C88, 0x4C9A,
 };
@@ -222,7 +221,8 @@ static bool channel_on_the_machine(void *ctx, unsigned channel)
      * neither as the original's do).
      * dc-evidence: ct_fuzz --poison-dc battle_run_scripts, seed 1: 3000 states,
      * 15072 call-outs scrambled, 0 mismatched */
-    return battle_call(s, 0xC10000u | channel_calls[channel], 0xC14C9E, DC_X | DC_N | DC_V | DC_Z | DC_C);
+    return battle_run_called(s, 0xC10000u | channel_calls[channel], 0xC14C9E,
+                              DC_X | DC_N | DC_V | DC_Z | DC_C, battle_run_script_channel);
 }
 
 /* ---- As C ------------------------------------------------------------------------------------ */

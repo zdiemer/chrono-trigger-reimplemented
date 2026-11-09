@@ -24,6 +24,8 @@
 #include "menu/description.h"
 
 #include "charge.h"
+#include "holds.h"
+#include "port/native.h"
 #include "core/program.h"
 #include "menu/bridge.h"
 #include "menu/menu.h"
@@ -458,6 +460,18 @@ static bool wait_on_the_machine(void *ctx) { return menu_wait_a_frame_from(ctx, 
 void menu_type_the_description(Snes *s)
 {
     menu_set_widths(s, true, false);
+    if (m_runs_retired_as_c(s)) {
+        /* Each frame leaves the task's return on its own stack. Resuming
+         * the typing therefore needs no suspended C call chain. */
+        if (type_a_frame(state_of(s))) {
+            (void)menu_run_called(s, 0xC2FAA5, MENU_TASK_WAITS_A_FRAME,
+                                  MENU_TASK_WAIT_READS_NOTHING, menu_task_waits_a_frame);
+            return;
+        }
+        m_rts(s);
+        native_hold(s, HOLD_MENU_TASKS);
+        return;
+    }
     if (type_the_text(state_of(s), wait_on_the_machine, s))
         m_rts(s);
 }
@@ -480,6 +494,30 @@ static void typing_task_on_the_machine(Snes *s, TypingTask task)
 void menu_type_the_description_task_entry(Snes *s) { typing_task_on_the_machine(s, TYPE_THE_DESCRIPTION); }
 void menu_type_the_setting_task_entry(Snes *s) { typing_task_on_the_machine(s, TYPE_THE_SETTING); }
 void menu_type_the_value_task_entry(Snes *s) { typing_task_on_the_machine(s, TYPE_THE_VALUE); }
+
+// $C2:FAA2, $C2:FA46
+/* A description, or a setting's value, has reached its end. Give the rest
+ * of this frame to the other menu tasks. */
+void menu_typing_task_finished(Snes *s)
+{
+    menu_go_on_in(s, END_OF_A_TASK, menu_task_ends, READS_NOTHING);
+}
+
+// $C2:F9EB
+/* The option's text fixes where its value follows on the line. The value
+ * starts a new typing phase on the same task and stack. */
+void menu_setting_text_finished(Snes *s)
+{
+    note_where_the_value_goes(state_of(s));
+    if (!menu_runs_as_port(s, 0xC2FA06, menu_type_the_value_task_entry)) {
+        m_stop_at(s, 0xC2FA06, READS_NOTHING);
+        return;
+    }
+    /* The setting task falls through into the value phase. Its setup keeps
+     * the setting task's rate, as it did inside typing_task_with. */
+    m_jump_to(s, 0xC2FA06);
+    menu_type_the_value_task_entry(s);
+}
 
 /* ---- The guards ---------------------------------------------------------------------------------- */
 

@@ -22,6 +22,7 @@
 #include "charge.h"
 
 #include "field/bridge.h"
+#include "menu/menu.h"
 #include "field/dialog_window.h"
 #include "field/display.h"
 #include "field/line_effects.h"
@@ -293,10 +294,6 @@ static bool call(Snes *s, uint32_t site, uint32_t routine, uint16_t page)
     return bridge_call(s, site, routine, NMI_DONT_CARE, (BridgeMachine){ false, page, 0 });
 }
 
-static bool call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
-{
-    return bridge_call_long(s, site, routine, dont_care, (BridgeMachine){ false, m_direct_page(s), 0 });
-}
 
 /* Edges larger than the port's take are the original's, each called from its
  * site on the layers' page. */
@@ -356,7 +353,8 @@ void field_nmi(Snes *s)
     start_vblank(pf);
     if (field_frame_pending(g) != 0 && !frame_work(s))
         return;
-    if (!call_long(s, 0xC0EC15, MENUS_FRAME, NMI_DONT_CARE & ~DC_Y))
+    if (!field_run_long_called(s, 0xC0EC15, MENUS_FRAME, NMI_DONT_CARE & ~DC_Y, menu_take_the_frames_input,
+                               (BridgeMachine){ false, m_direct_page(s), 0 }))
         return;
     apply_display_shadows(g, pf);
     m_return_to_interrupted(s);

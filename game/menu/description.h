@@ -62,6 +62,9 @@ void menu_type_the_description_task_entry(Snes *s);
 void menu_type_the_setting_task_entry(Snes *s);
 void menu_type_the_value_task_entry(Snes *s);
 void menu_type_the_description(Snes *s);
+/* Held returns after the typing, keeping the task's phase in game state. */
+void menu_typing_task_finished(Snes *s);
+void menu_setting_text_finished(Snes *s);
 bool menu_item_is_describable(Snes *s);
 bool menu_typing_can_start(Snes *s);
 bool menu_setting_is_describable(Snes *s);
