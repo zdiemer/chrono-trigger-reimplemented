@@ -2805,6 +2805,18 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Scene continuation boundaries
 
+- **Clean the retired scene entries from the uncompared ledger.**
+  `tools/uncompared_baseline.txt` still lists obsolete scene comparisons,
+  including `scene_race_scale_pictures` and the bitmap routines. Reconcile
+  those rows with the retirement and retain any evidence still needed by
+  the held continuations.
+
+- **Remove orphaned scene wrapper comments and constants.** Deleted entry
+  wrappers left their explanatory comments and constants behind, including
+  `boot.c`'s `STATUS_BITS` and the `$C3:0530`/`$C3:0538` wait-entry comments.
+  Audit `game/scene/` for these remnants and remove only what no remaining
+  code or contract uses.
+
 - **Remove the remaining menu compatibility scratch after the menus retire.**
   The scene engine retains five `ORIGINAL_EFFECT` sites in `circle.c` and
   four in `curtain.c`, because gated menu callers still compare their iris

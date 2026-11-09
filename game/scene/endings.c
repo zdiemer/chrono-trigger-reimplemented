@@ -1799,7 +1799,8 @@ bool scene_ending_set_up_present(Snes *s)
 
 bool scene_ending_set_up_scene(Snes *s)
 {
-    (void)set_up_ending_with(state_of(s), m_platform(s), &on_the_machine, s);
+    if (!set_up_ending_with(state_of(s), m_platform(s), &on_the_machine, s))
+        return false;
     s->cpu.db = 0x00;
     s->cpu.d = 0x0000;
     m_set_flag(s, CPU_FLAG_V, false);

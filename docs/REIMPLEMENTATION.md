@@ -4276,9 +4276,11 @@ main-loop and script callees also report a broken contract.
 Setup, unpacking, first-script-step, curtain and sound callbacks propagate a
 failed call through their C callers before any return-frame cleanup or later
 game work. `scene_contract_test` exercises rejected widths, decimal mode and
-code images on synthetic state, including a failed credit-page loader and
-planet restart sound: the rejected PC and stacked return addresses survive,
-and the page and task list do not advance.
+code images on synthetic state, including a failed credit-page loader,
+ending setup and planet restart sound: the rejected PC and stacked return
+addresses survive, and the page and task list do not advance. The ending
+setup test retains its dispatch frame beneath the rejected unpacker's frame
+and checks that failure reaches the dispatcher before register cleanup.
 
 The race's main-loop call runs as C. `HOLD_SCENE_RACE_UPLOAD` retains the
 racer and main-loop return frames at `$7E:5211`; the upload continuation

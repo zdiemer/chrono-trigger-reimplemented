@@ -66,6 +66,21 @@ static void probe(Snes *s)
     EXPECT(!scene_credit_pages_set_up_scene(s));
     EXPECT(cpu_pc24(&s->cpu) == 0x7E3691 && s->cpu.s == 0x06FB);
     EXPECT(scene_credits_page(g) == 2); /* The next page was never selected. */
+
+    /* The ending's dispatcher may unwind its frame only after a successful
+     * setup. Reject its first unpack and retain both stacked call frames. */
+    caller(s, CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_V);
+    s->cpu.db = 0x80;
+    set_scene_flags(g, SCENE_MODE_ENDING_CAPTIONED);
+    scene_bridge_enter(s, 0x7E300A);
+    EXPECT(!scene_ending_set_up_scene(s));
+    EXPECT(cpu_pc24(&s->cpu) == 0x7E3691 && s->cpu.s == 0x06FB);
+    EXPECT(snes_bus_peek(&s->bus, 0x06FF) == 0x30);
+    EXPECT(snes_bus_peek(&s->bus, 0x06FE) == 0x0C);
+    EXPECT(snes_bus_peek(&s->bus, 0x06FD) == 0x85);
+    EXPECT(snes_bus_peek(&s->bus, 0x06FC) == 0x4B);
+    EXPECT(s->cpu.db == 0x80 && s->cpu.d == 0);
+    EXPECT(s->cpu.p == (CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_V));
     s->cpu.stopped = true;
 }
 
