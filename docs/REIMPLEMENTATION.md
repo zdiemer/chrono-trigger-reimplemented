@@ -4281,7 +4281,11 @@ to 30 and 47,898; entries called only as C rise from 861 to 868. Held
 continuations run 7,769,274 times at 61 boundaries. Source counts retain
 1,439 ordinary rows, add four held rows (116 to 120), and have 878 machine
 returns, 98 stops and 1,397 scaffolding sites. These are intermediate
-control-flow measurements; neither subsystem has retired its gate.
+control-flow measurements; neither subsystem has retired its gate. Each
+item continuation inherits its original routine's dead return registers;
+the picked-item return matches all 2,000 isolated trials and both calls in
+the focused `menus-field-menu` shadow replay. Its return declarations have
+zero liveness findings.
 
 The upload wait uses the menus' own stack. Its higher stack pointer does
 not mean that the field's caller was unwound: the runtime preserves a
