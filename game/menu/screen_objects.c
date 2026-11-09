@@ -26,6 +26,7 @@
  *
  * The palette the loads and fades change is the mode's image of CGRAM
  * (menu_object_palette), which the vblank handler sends when asked. */
+#include "menu/effect_noise.h"
 #include "menu/screen_objects.h"
 
 #include "charge.h"
@@ -422,7 +423,8 @@ static void count_the_changes(GameState *g, MenuObject self)
                    count_for((int16_t)(green_of(target) - green_of(current))),
                    count_for((int16_t)(blue_of(target) - blue_of(current))));
     }
-    charge_machine_accesses(g, 23);
+    menu_note_effect_noise(g, current);
+    charge_machine_accesses(g, 21);
 }
 
 // $C2:1F85, $C2:1FCC
@@ -438,7 +440,8 @@ static void step_the_colours(GameState *g, MenuObject self)
         colour = moved(colour_in(g, row, i), r, gr, b);
         put_colour(g, row, i, colour);
     }
-    charge_machine_accesses(g, 13);
+    menu_note_effect_noise(g, colour);
+    charge_machine_accesses(g, 11);
 }
 
 enum { FADE_COUNTS = 0, FADE_STEPS_ON = 1, FADE_LETS_GO = 2, PALETTE_FADE_STEPS = 3 };
@@ -524,7 +527,8 @@ bool menu_stream_tiles(GameState *g, MenuObject self)
     uint32_t source = menu_object_slots_stream_source(g, self);
     uint16_t vram = menu_object_slots_stream_vram(g, self);
     menu_queue_object_upload(g, source, vram, bytes);
-    charge_machine_accesses(g, 4);
+    menu_note_effect_noise(g, batch);
+    charge_machine_accesses(g, 2);
     left = (uint16_t)(left - batch);
     if (left == 0)
         return true;

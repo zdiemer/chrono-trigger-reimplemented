@@ -1382,6 +1382,7 @@ const NativeEntry game_time_tags[] = {
     { .addr = 0xC0CA76, .name = "field_draw_queued_frames", .cost_milli = 4235, .time_only = true },
     { .addr = 0xC0CAD9, .name = "field_draw_next_frame", .cost_milli = 8219, .time_only = true },
 
+    { .addr = 0xC00000, .name = "field_enter", .cost_milli = 1, .time_only = true },
     { .addr = 0xC0005D, .name = "field_enter_after_boot", .cost_milli = 1, .time_only = true },
 };
 

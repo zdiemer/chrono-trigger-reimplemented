@@ -10,6 +10,7 @@
  * that change the screen (menu/screen_objects.c), the wave (menu/wave.c),
  * the scenes' (menu/map_scenes.c) and the overworld's walkers and vehicles
  * (game/overworld/). */
+#include "menu/effect_noise.h"
 #include "menu/object.h"
 #include "menu/objects.h"
 
@@ -115,7 +116,8 @@ static void inherit(GameState *g, MenuObject to)
 // $C2:048A, $C2:04CD
 bool menu_start_object(GameState *g, uint16_t handler, MenuSlotKind kind, MenuObject *started)
 {
-    charge_machine_accesses(g, 2);
+    /* Object setup contributes to the curtain's next random edge. */
+    menu_note_effect_noise(g, handler);
     unsigned o = menu_first_free_object(g, kind);
     if (o == MENU_OBJECTS)
         return false;

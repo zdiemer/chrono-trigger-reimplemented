@@ -880,6 +880,20 @@ static bool the_cartridges_field(const Fallbacks *f, uint32_t pc)
     return false;
 }
 
+/* Retired core services formerly enclosed by menu comparisons. The input
+ * wait and ready-sample entry remain compared, so they are not in these
+ * ranges. The RAM copy stub is recognized only while it is MVN; RTL. */
+static bool the_cartridges_menu_services(const Fallbacks *f, uint32_t pc)
+{
+    enum { COPY_STUB = 0x7E9690, COPY_RETURN = COPY_STUB + 3, MVN = 0x54, RTL = 0x6B };
+    if (!f->shadow)
+        return false;
+    if (pc >= COPY_STUB && pc <= COPY_RETURN)
+        return snes_bus_peek(&f->s->bus, COPY_STUB) == MVN && snes_bus_peek(&f->s->bus, COPY_RETURN) == RTL;
+    pc |= 0x800000;
+    return (pc >= 0xC284D2 && pc <= 0xC284F8) || (pc >= 0xC28545 && pc <= 0xC285D5);
+}
+
 /* Only reference play may execute the menus' retired owned runs.
  * Shipping still counts every original instruction as fallback. */
 static bool the_cartridges_menus(const Fallbacks *f, uint32_t pc)
@@ -1081,7 +1095,7 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
         if (f->pass.open)
             f->pass.hidden++;
     }
-    if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc) && !the_cartridges_menus(f, pc) && !the_cartridges_field(f, pc) && !the_cartridges_events(f, pc) && !the_cartridges_decompressor(f, pc) &&
+    if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc) && !the_cartridges_menu_services(f, pc) && !the_cartridges_menus(f, pc) && !the_cartridges_field(f, pc) && !the_cartridges_events(f, pc) && !the_cartridges_decompressor(f, pc) &&
         !the_cartridges_animations(f, pc) && !the_cartridges_warp(f, pc) && !the_cartridges_overworld(f, pc) && !the_cartridges_scene_program(f, pc) && !the_cartridges_scene(f, pc)) {
         bool m8 = e || (p & CPU_FLAG_M), x8 = e || (p & CPU_FLAG_X);
         add(f, pc, eff.kind, routine, eff.port, (uint8_t)misses_instruction_length(op, m8, x8));

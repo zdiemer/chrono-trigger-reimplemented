@@ -20,6 +20,7 @@
  *
  * After them the scripts read only X and the carry, so each entry says what
  * it leaves in those and declares the rest dead. */
+#include "menu/effect_noise.h"
 #include "menu/object_commands.h"
 
 #include "charge.h"
@@ -152,7 +153,8 @@ static void jolt(GameState *g, MenuObject o)
     uint8_t size = next_random(g) & (JOLT_SIZES - 1);
     set_menu_object_slots_x_pixel(g, o, (uint16_t)(menu_object_slots_x_pixel(g, o) + jolt_along(menu_object_cosine(g, angle), size)));
     set_menu_object_slots_y_pixel(g, o, (uint16_t)(menu_object_slots_y_pixel(g, o) + jolt_along(menu_object_sine(g, angle), size)));
-    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, angle == QUARTER_TURN || angle == THREE_QUARTER_TURN ? 0 : 1));
+    menu_note_effect_noise(g, angle);
+    (charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, angle == QUARTER_TURN || angle == THREE_QUARTER_TURN ? 0 : 1));
 }
 
 /* ---- objects put on the map at random ----------------------------------------------------------- */
@@ -461,7 +463,8 @@ static void place_on_scene_edge(GameState *g, MenuObject self)
     set_menu_object_slots_y_pixel(g, self, y);
     uint16_t edges = wram_read16(g, at);
     set_menu_object_slots_x_pixel(g, self, (choose_side & 0x80) ? (uint8_t)(edges >> 8) : (uint8_t)edges);
-    (charge_machine_accesses(g, 3), charge_machine_io_accesses(g, 4));
+    menu_note_effect_noise(g, offset);
+    (charge_machine_accesses(g, 1), charge_machine_io_accesses(g, 4));
 }
 
 // $C6:E101

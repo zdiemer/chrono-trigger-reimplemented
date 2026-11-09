@@ -21,6 +21,7 @@
  * - the game: the scene's objects' sprite scripts, a location to go to,
  *   marks in the screens' own tables, sounds and songs, a routine the script
  *   names. */
+#include "menu/effect_noise.h"
 #include "charge.h"
 #include "menu/script.h"
 
@@ -551,7 +552,7 @@ static ScriptFlow set_scene_script(GameState *g, MenuObject self, uint16_t scene
 {
     enum { EXTRA_OBJECT = 7, EXTRA_SLOT = 3, PARTY = 3 };
     (void)self;
-    charge_machine_accesses(g, 2);
+    menu_note_effect_noise(g, scene_script);
     if (member == EXTRA_OBJECT) {
         set_menu_member_scripts(g, EXTRA_SLOT, scene_script);
         return next_command();

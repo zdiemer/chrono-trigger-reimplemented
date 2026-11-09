@@ -984,8 +984,6 @@ game/scene/curtain.c scene_curtain_step scene_curtain_steps scene_circle_center_
 game/scene/curtain.c scene_curtain_step scene_curtain_sweep scene_circle_center_x # as the line above
 game/scene/curtain.c scene_curtain_step scene_curtain_table scene_circle_center_y # as the line above
 game/scene/curtain.c scene_curtain_step scene_curtain_table_bank scene_circle_radius # as the line above
-run menu_object_start_curtain menu_scratch # the curtain's stir (scene/random.c) mixes in the cell under the scene's frame counter, whatever the menus left there: their scaffolding only changes how ragged the curtain is, in the original as here
-run menu_object_step_curtain menu_scratch # as the line above
 run field_next_frame menu_scratch # the field now calls the same curtain stir directly; these reads of the menu residue under the scene frame counter were attributed to scene_curtain_jump before its retirement, and still change only how ragged the curtain is
 game/menu/turning_world.c leave_turned menu_object_shadows_mode7_center menu_shop_quotient # the plane's centre the frame has just set plainly (turn_a_frame); the scaffolding at those bytes is the menus proper's shop's
 game/menu/turning_world.c hand_the_turn_on menu_object_scratch_world_turn_handed_on menu_object_scratch # the turn the frame's work hands on, which it writes plainly (turn_a_frame) before the scene's script calls this; the scaffolding at the cell is other screens' and modes'

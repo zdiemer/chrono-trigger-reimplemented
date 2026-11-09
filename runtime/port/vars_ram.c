@@ -2684,6 +2684,8 @@ uint8_t menu_scratch_song_steps(const GameState *g) { return r8(g, 0x7E0002u); }
 void set_menu_scratch_song_steps(GameState *g, uint8_t v) { w8(g, 0x7E0002u, v); }
 uint8_t menu_scratch_song_volume(const GameState *g) { return r8(g, 0x7E0003u); }
 void set_menu_scratch_song_volume(GameState *g, uint8_t v) { w8(g, 0x7E0003u, v); }
+uint16_t menu_effect_noise(const GameState *g) { return r16(g, 0x7E0008u); }
+void set_menu_effect_noise(GameState *g, uint16_t v) { w16(g, 0x7E0008u, v); }
 uint8_t menu_amounts_from(const GameState *g) { return r8(g, 0x7E0016u); }
 void set_menu_amounts_from(GameState *g, uint8_t v) { w8(g, 0x7E0016u, v); }
 uint32_t menu_screen_steps_at(const GameState *g) { return r24(g, 0x7E0016u); }

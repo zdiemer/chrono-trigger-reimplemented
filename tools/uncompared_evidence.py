@@ -29,19 +29,10 @@ from tools import evidence_cache, fuzz_compare  # noqa: E402
 # program's start, setup, first frame, clear and hand-back had their cases here
 # until the program retired the gate (docs/REIMPLEMENTATION.md, "The scene
 # program's teardown"): none is an entry now.
-# Held menu continuations can reach a comparison already claimed by their
-# parent task; the battle frame dispatch likewise sits inside the battle loop.
-# Run each independently so every selected call reaches its own comparison.
+# The held menu continuations retired their comparisons with the menus.
+# The battle frame dispatch still sits inside the battle loop: run it
+# independently so every selected call reaches its own comparison.
 CASES = (
-    ("menu_description_task_finished", "menus-sweep", 6424, (), ("menu_description_task_finished",)),
-    ("menu_fade_resumes", "menus-sweep", 6424, (), ("menu_fade_resumes",)),
-    ("menu_fade_starts", "menus-sweep", 6424, (), ("menu_fade_starts",)),
-    ("menu_tonic_member_choice_continues", "menus-field-menu", 10600, (), ("menu_tonic_member_choice_continues",)),
-    ("menu_tab_member_choice_continues", "menus-sweep", 6424, (), ("menu_tab_member_choice_continues",)),
-    ("menu_epoch_map_frame_finished", "menus-epoch", 8800, (), ("menu_epoch_map_frame_finished",)),
-    ("menu_epoch_dial_opened", "menus-epoch", 8800, (), ("menu_epoch_dial_opened",)),
-    ("menu_epoch_dial_frame_finished", "menus-epoch", 8800, (), ("menu_epoch_dial_frame_finished",)),
-    ("menu_counted_frame_finished", "menus-epoch", 8800, (), ("menu_counted_frame_finished",)),
     ("battle_frame_dispatch", "battle-menu-buttons", 5086, ("battle_nmi", "battle_nmi_alternate"), ()),
 )
 

@@ -29,6 +29,7 @@
  * frame by frame, each frame's tiles built and queued for VRAM (the section
  * "The characters the records show"). Both modes hide the sprites they
  * aren't using (menu_hide_all_sprites). */
+#include "menu/effect_noise.h"
 #include "menu/sprites.h"
 
 #include "charge.h"
@@ -329,18 +330,6 @@ static void or_high_bits(GameState *g, uint8_t sprite, uint8_t bits)
     wram_write8(g, past_the_table, (uint8_t)(wram_read8(g, past_the_table) | bits));
 }
 
-/* What the drawing's last node and sprite left, which the mode's scratch
- * cells end holding (charge_drawn): values the path through the list decides
- * and the list afterwards doesn't show. */
-typedef struct {
-    uint16_t node, node_x, node_y, attributes, first_tile, size;
-    uint32_t group_end;
-    int16_t x, x_on_screen_y;
-    bool x_on_screen, shown, any_x_on_screen, any_shown;
-} Drawn;
-
-static Drawn drawn;
-
 /* The original's time for a node follows its sprites: a sprite off the
  * screen across is dropped at once, one off it down a little later, and one
  * shown takes its entry and its high bits; a node on the map places itself
@@ -359,7 +348,12 @@ static void charge_node(GameState *g, bool on_the_map, unsigned sprites, unsigne
 
 // $C2:0D08
 /* Draw one node's group into the sprite table. */
-static void draw_node(GameState *g, NodeLink node)
+typedef struct {
+    bool any_shown;
+    uint16_t noise;
+} DrawnSprites;
+
+static DrawnSprites draw_node(GameState *g, NodeLink node)
 {
     NodeGroup drawn_group = group_of(g, node);
     uint32_t group = drawn_group.group;
@@ -379,6 +373,7 @@ static void draw_node(GameState *g, NodeLink node)
     (void)0;
     p.at = (uint16_t)(p.at + 1);
     unsigned sprites = 0, tested_down = 0, shown_sprites = 0;
+    uint16_t noise = 0;
     do {
         sprites++;
         int16_t sx = (int16_t)(x + (int8_t)group_byte(g, p, 0));
@@ -403,26 +398,28 @@ static void draw_node(GameState *g, NodeLink node)
             count_a_sprite(g);
             shown_sprites++;
         }
-        (void)0;
+        noise = x_on ? (uint16_t)((uint8_t)sx | (uint16_t)(uint8_t)sy << 8) : (uint16_t)sx;
         p.at = (uint16_t)(p.at + 4);
     } while (--left != 0);
     charge_node(g, (look & ON_THE_MAP) != 0, sprites, tested_down, shown_sprites);
-}
-
-static void charge_drawn(GameState *g)
-{
-    charge_machine_accesses(g, 25 + drawn.any_shown);
+    return (DrawnSprites){ shown_sprites != 0, noise };
 }
 
 // $C2:0CEA
 /* Draw the list, node by node, into the sprite table. */
 static void draw_the_list(GameState *g)
 {
-    (void)0;
-    for (NodeLink l = menu_sprite_draw_list_first(g); l != DRAW_LIST; l = next_of(g, l))
-        draw_node(g, l);
-    if (menu_sprite_draw_list_first(g) != DRAW_LIST)
-        charge_drawn(g);
+    bool any_shown = false;
+    uint16_t noise = 0;
+    for (NodeLink l = menu_sprite_draw_list_first(g); l != DRAW_LIST; l = next_of(g, l)) {
+        DrawnSprites drawn = draw_node(g, l);
+        any_shown = drawn.any_shown || any_shown;
+        noise = drawn.noise;
+    }
+    if (menu_sprite_draw_list_first(g) != DRAW_LIST) {
+        menu_note_effect_noise(g, noise);
+        charge_machine_accesses(g, 23 + any_shown);
+    }
 }
 
 /* ---- Sprite scripts --------------------------------------------------------------------------- */
@@ -1291,7 +1288,7 @@ static void a8_x16(Snes *s)
 void menu_empty_the_sprite_list(GameState *g)
 {
     empty_the_list(g);
-    charge_machine_accesses(g, 2);
+    menu_note_effect_noise(g, 0);
 }
 
 // $C2:034D

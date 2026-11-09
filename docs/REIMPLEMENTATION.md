@@ -4098,14 +4098,11 @@ the latter still needs its returned Y convention and the scratch covered by
 its enclosing byte comparison. Screen startup also leaves Y and overflow
 where the still-gated sprite and menu callers expect them.
 
-The field's scratch reconstruction and `event/leaves.c` are deleted except
-for the menu interface still under its callers' gate. The menus' wave-phase
-alias at `$7E:01E2-$7E:01E3` is isolated in
-`field/menu_compat.h`: event calls leave the place/table bytes, the party
-movement dispatch leaves its operand byte, and tile/property copying
-clears the appropriate bytes. Each writes only the live alias, preserving
-the neighbouring bytes. The menu wave handler at `$C2:77C7` reads that
-phase; those writes remain until the menus retire. The scene teardown
+The field's scratch reconstruction and `event/leaves.c` are deleted.
+The menu teardown also removes the wave-phase compatibility writes formerly
+isolated in `field/menu_compat.h`: event calls and movement left operand and
+table bytes under the menus' phase, and tile/property copying cleared them.
+The menu object mode now initializes and advances its own wave phase. The scene teardown
 removes `field/window_shape.c`'s last-edge and fill scratch, formerly kept
 for the ending window task's enclosing comparison. `$7E:0F00` is instead
 real object-view state, as the preceding held-continuation section explains
@@ -4340,6 +4337,42 @@ from shadow reference play; shipping still counts every original
 instruction. Burndown marks that reach retired. The census and machine
 joint reports keep held adapters visible, while retired ordinary rows
 and their closed unreached-ledger records leave their counts.
+The same reference-only classification includes the previously retired
+core input services and RAM block-copy stub, whose comparisons were
+formerly enclosed by menu entries. The controller wait and ready sample
+remain gated; the copy stub is recognized only with its instruction image
+intact. The nine isolated menu-continuation comparisons leave with their
+gate. The curtain's two menu residue-read allowances also leave: its live
+input is now `menu_effect_noise`, set by object setup and drawing and read
+under the scene frame-counter alias. Emptying the sprite list initializes it
+before each object pass. The old scratch records are gone; only the values
+that feed the random edge remain. Removing that input changed the seed of a
+later field curtain and advanced the attract sequence by four frames.
+Restoring it as ordinary state restores every protected strict picture and
+place. These writes keep their former machine cost without adding a new
+host timing charge.
+
+The conditional charges for a scrolled strip and a visible sprite use local
+results, rather than flags in deleted scratch records. The curtain's direct
+calls also retain their pre-call and post-call settling boundaries, so its
+beam sample sees the same pending work as the former call-out. The removed
+`field_enter` compatibility row retains its rate in the time tags.
+
+An A/B replay restoring only the field/event wave-phase writes reproduces
+both pre-retirement strict outcome fingerprints. With the phase owned by the
+menu mode, `attract-demo` changes ten of 376 sampled picture/neighbour frames
+(around 8100 and 19200), and `menus-end-of-time` five of 151 (around 4800).
+Both keep every protected picture identity, their complete place observations,
+and their saved-game and SRAM identities. Their existing picture exceptions
+record this isolated waveform change; no protected identity is removed.
+
+The native sample retains every protected identity in all 37 movies. The
+explicit curtain input changes only `attract-demo`'s existing picture/place
+exceptions: 54 of 376 picture/neighbour samples and the times of visits 41-49
+(four frames later), with the same complete 50-place sequence and game/SRAM
+identities. A diagnostic build omitting only the new noise-value updates
+reproduces both former native fingerprints. The curtain's variable run count
+still uses its unchanged rate; no timing exception or rate was changed.
 
 These sampled witnesses protect pictures and ordered places in **both
 strict and native modes**. The end column distinguishes the protected

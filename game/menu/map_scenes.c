@@ -5,6 +5,7 @@
  * A routine a script calls answers in the mode's first cell
  * (menu_object_scratch_answer), which the script's next command tests: that
  * is how the scripts take a decision they have no command for. */
+#include "menu/effect_noise.h"
 #include "menu/map_scenes.h"
 
 #include "charge.h"
@@ -38,7 +39,8 @@ bool menu_scene_object_in_view(GameState *g)
     MenuObject self = menu_object_running(g);
     uint16_t across = into_view(menu_object_slots_x_pixel(g, self), menu_object_shadows_bg2_scroll_x(g), MENU_MAP_WIDTH);
     uint16_t down = into_view(menu_object_slots_y_pixel(g, self), menu_object_shadows_bg2_scroll_y(g), MENU_MAP_HEIGHT);
-    charge_machine_accesses(g, 4);
+    menu_note_effect_noise(g, across);
+    charge_machine_accesses(g, 2);
     return across < VIEW_WIDTH + 2 * MARGIN && down < VIEW_HEIGHT + MARGIN + MARGIN_BELOW;
 }
 

@@ -347,6 +347,16 @@ meaning = "Frames counted by the scene NMI work"
 source = "game/scene/frame.c, scene_frame_work $C3:08D0"
 
 [[var]]
+name = "menu_effect_noise"
+addr = "7E:0008"
+size = 2
+page = "menu"
+subsystem = "menu"
+reuses = ["scene_frame_counter", "menu_scratch"]
+meaning = "The menu objects' last drawing or setup value, stirred into the curtain's random edge through the scene frame-counter alias; live effect state, not comparison scratch"
+source = "game/menu/objects.c, game/menu/map.c, game/menu/sprites.c; read by game/scene/random.c"
+
+[[var]]
 name = "scene_sprite_priority_start"
 addr = "7E:0010"
 page = "scene"

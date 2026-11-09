@@ -2318,6 +2318,10 @@
 #define RAM_MENU_SCRATCH_EXCHANGE_DIMMED_AT 0x7E0004u /* The dimming of who stays: the next row's window on the front layer, left past the third */
 #define RAM_MENU_SCRATCH_SONG_STEPS 0x7E0002u /* The gate's screen's fades: how many steps the fade takes */
 #define RAM_MENU_SCRATCH_SONG_VOLUME 0x7E0003u /* The gate's screen's fades: the volume the music fades to */
+/* The menu objects' last drawing or setup value, stirred into the curtain's random edge through
+ * the scene frame-counter alias; live effect state, not comparison scratch [2 bytes] */
+#define RAM_MENU_EFFECT_NOISE 0x7E0008u
+#define RAM_MENU_EFFECT_NOISE_DP 0x08u       /* page menu */
 /* Where the rising numbers' amounts start among those shown (menu_heal_shown), in bytes: 0 the
  * HP's, 6 the MP's */
 #define RAM_MENU_AMOUNTS_FROM 0x7E0016u

@@ -15,6 +15,7 @@
  *
  * The object alternates between the slot's two tables by a frame count, so
  * the one shown is never the one being drawn. */
+#include "menu/effect_noise.h"
 #include "menu/line_effects.h"
 #include "menu/handlers.h"
 
@@ -216,14 +217,14 @@ static void capsule_iris(GameState *g, MenuObject o, uint8_t slot)
         /* Both edges of every line at the object's X, whose low byte the
          * original repeats over both. */
         uint8_t x = (uint8_t)menu_pixel(place.x);
-        charge_machine_accesses(g, 2);
+        menu_note_effect_noise(g, stretch);
         fill_lines(g, (uint16_t)line_address(table, menu_pixel(place.y)), stretch, window_edges(x, x));
         return;
     }
     uint16_t centre_at = capsule_centre_at(table, menu_pixel(place.y));
     for (uint16_t n = 0; n < radius; n++)
         set_value_at(g, (uint16_t)(centre_at + 2 * (stretch + n)), value_at(g, (uint16_t)(centre_at - 2 * n)));
-    charge_machine_accesses(g, 2);
+    menu_note_effect_noise(g, centre_at);
     charge_machine_accesses(g, 2);
     fill_lines(g, (uint16_t)(centre_at + 2), (uint16_t)(stretch - 1), value_at(g, centre_at));
 }
@@ -378,7 +379,7 @@ static bool ripple_the_first_plane(GameState *g, MenuObject o)
     for (uint16_t line = 0; line < MENU_LINE_TABLE_LINES; line++, step += RIPPLE_LINE_STEP)
         set_line_value(g, table, line, (uint16_t)(scroll + ripple_push(g, step)));
     set_menu_object_slots_phase(g, o, (uint16_t)(phase + RIPPLE_FRAME_STEP));
-    charge_machine_accesses(g, 2);
+    menu_note_effect_noise(g, step);
     charge_machine_io_accesses(g, 3);
     return phase > 0xFFFF - RIPPLE_FRAME_STEP;
 }
@@ -888,7 +889,7 @@ static void start_scene_gray_ramp(GameState *g, Platform *pf)
     charge_block_move(g, 2u * (MENU_LINE_TABLE_LINES - 1) + SHADES * (LINES_PER_SHADE - 1));
     charge_machine_accesses(g, 2);
     charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
+    menu_note_effect_noise(g, at);
 }
 
 enum { SCENE_GRAY_BAND_BYTES = 48 };

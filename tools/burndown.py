@@ -105,6 +105,9 @@ CALLS = {"JSR", "JSL"}
 # and runs of addresses, first to last.
 RETIRED = {0xC7}
 RETIRED_RUNS = ((0xC30002, 0xC30004), (0xC30557, 0xC308B2),
+                # Core input/copy services formerly enclosed by menu comparisons;
+                # the controller wait and ready-sample rows remain gated.
+                (0xC284D2, 0xC284F8), (0xC28545, 0xC285D5), (0x7E9690, 0x7E9693),
                 # Core tile/palette services, exposed by the field's retirement.
                 (0xFDDE98, 0xFDEAA5), (0xFDFFEE, 0xFDFFF0), (0xFDFFF4, 0xFDFFFF),
                 (0xFDDA00, 0xFDDD95), (0xFDDE15, 0xFDDE97), (0xFDEAA6, 0xFDF28F),

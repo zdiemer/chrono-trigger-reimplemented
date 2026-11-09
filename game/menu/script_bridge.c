@@ -202,8 +202,6 @@ static const struct {
     { 0xC6E391, menu_object_squashed_iris_2 },
     { 0xC6E498, menu_object_capsule_iris_1 },
     { 0xC6E4BE, menu_object_capsule_iris_2 },
-    { 0xC6E241, menu_object_start_curtain },
-    { 0xC6E27E, menu_object_step_curtain },
     { 0xC278A1, menu_scene_object_in_view_entry },
     { 0xC6EE31, menu_scene_note_the_epoch_s_arrival_entry },
     { 0xC26400, menu_epoch_sample_map_colours },
@@ -231,6 +229,9 @@ static void (*script_entry(uint32_t routine))(Snes *)
 static void (*scene_script_entry(uint32_t routine))(Snes *)
 {
     static const struct { uint32_t routine; void (*entry)(Snes *); } scenes[] = {
+        /* The random stir reads frame state after the caller's pending time. */
+        { 0xC6E241, menu_object_start_curtain },
+        { 0xC6E27E, menu_object_step_curtain },
         { 0xC27911, menu_scene_round_iris_entry },
         { 0xC27957, menu_scene_window2_lines_entry },
         { 0xC27981, menu_scene_flattened_iris_entry },
