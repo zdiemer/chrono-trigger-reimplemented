@@ -217,3 +217,9 @@ name = "battle_aim_action"
 runs = "C1C4A0-C1C4E7"
 depends = ["game/battle/aim.c:aim_fits", "game/battle/aim.c:roll_fits", "game/battle/aim.c:take_by_roll", "game/battle/aim.c:the_roll", "game/battle/aim.c:ROLLS", "game/battle/aim_data.h:party_tech_aim", "game/battle/aim_data.h:item_aim_mode", "game/battle/effect_data.h:party_tech", "game/battle/effect_data.h:party_tech_place", "game/battle/effect_data.h:PARTY_TECH_BYTES"]
 why = "The later random-target arms require a roll selector of at least 8. Enumerating all 256 party-tech details and both encodings of every 7-bit item finds that every fixed record with aim mode 9 has a selector at most 6. Enemy mode-9 actions are excluded by roll_fits. The original reads this selector from the party-tech record, not the random result. Preserve that resource relationship and recheck if aim or tech records become editable; the C operation retains the later arms."
+
+[[safe]]
+name = "battle_nmi"
+runs = "D1E84B-D1E879"
+depends = ["game/battle/nmi.c:take_frame_advance", "game/battle/screen_data.h:battle_debug_frame_advance"]
+why = "These are the R/L debug frame-advance controls behind the fixed USA cartridge switch at $CD:3FFF, which is zero. The C handler retains the operation and its switch check. Recheck this exclusion if the debug setting becomes editable; the ordinary Start pause is separate and requires execution evidence."
