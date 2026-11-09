@@ -490,7 +490,7 @@ tick; the look-ahead reads event `$DC`'s operand as if it were a note; an
 effect's table index wraps at 8 bits; a reload keeps what sits outside the
 direct page; a music fade to silence marks the song `$7F`. Three of the
 original's failures are not kept, and the fuzzer steers round them (TODO.md,
-"The C sound driver's leftovers").
+"Host backends beyond SDL", its driver domain item).
 
 **How it was checked**, until the sound driver's teardown deleted the
 lockstep, its audio comparison and `ct_sound_fuzz`'s mode against the
