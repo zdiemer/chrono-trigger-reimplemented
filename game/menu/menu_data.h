@@ -1146,4 +1146,18 @@ static inline uint16_t menu_screen_step_list(const GameState *g, uint8_t screen)
     return rom_read16(g, 0xC28292u + 2u * screen);
 }
 
+/* Four rows of tiles repeated across the scene's small Mode 7 picture. */
+static inline uint8_t menu_scene_pattern_tile(const GameState *g, unsigned tile)
+{
+    return rom_read8(g, 0xC27C28u + tile);
+}
+
+/* The travelling scroll effect uses the cartridge's initial code bytes as
+ * its irregular pattern. Keep that resource choice behind this accessor;
+ * a converted asset can replace it without exposing a code bank to the effect. */
+static inline uint8_t menu_scene_scroll_pattern_byte(const GameState *g, unsigned byte)
+{
+    return rom_read8(g, 0xC00000u + byte);
+}
+
 #endif

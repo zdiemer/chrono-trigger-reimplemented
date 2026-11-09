@@ -6186,6 +6186,12 @@ void set_save_check_game_at(GameState *g, SaveCheckPage page, uint16_t v);
 enum { MENU_OBJECT_SCRATCH_BYTES_BYTES = 28 };
 uint8_t menu_object_scratch_bytes_byte(const GameState *g, unsigned at);
 void set_menu_object_scratch_bytes_byte(GameState *g, unsigned at, uint8_t v);
+/* The gray ramp's last colour value, preserved for byte comparison */
+uint16_t menu_object_scratch_scene_gray_shade(const GameState *g);
+void set_menu_object_scratch_scene_gray_shade(GameState *g, uint16_t v);
+/* The gray ramp's count of unfilled bands, zero when done */
+uint16_t menu_object_scratch_scene_gray_remaining(const GameState *g);
+void set_menu_object_scratch_scene_gray_remaining(GameState *g, uint16_t v);
 /* What a routine a scene's script calls answers (1 yes, 0 no), for the script's next command to
  * test (game/menu/map_scenes.c) */
 uint8_t menu_object_scratch_answer(const GameState *g);
@@ -6197,6 +6203,13 @@ void set_menu_object_scratch_view_across(GameState *g, uint16_t v);
 /* And down from the view's top */
 uint16_t menu_object_scratch_view_down(const GameState *g);
 void set_menu_object_scratch_view_down(GameState *g, uint16_t v);
+/* The travelling scene wave's last line in the table it just built; left for the original's byte
+ * comparison */
+uint32_t menu_object_scratch_scene_wave_output(const GameState *g);
+void set_menu_object_scratch_scene_wave_output(GameState *g, uint32_t v);
+/* The scene's table of paired window edges, read to place an object on one side */
+uint32_t menu_object_scratch_scene_window_edges(const GameState *g);
+void set_menu_object_scratch_scene_window_edges(GameState *g, uint32_t v);
 /* A screen object's (game/menu/screen_objects.c): long pointer to the command that started it,
  * which it reads its parameters through */
 uint32_t menu_object_scratch_screen_command(const GameState *g);
@@ -6481,6 +6494,17 @@ void set_menu_object_scratch_iris_lower_to(GameState *g, uint16_t v);
 /* A random jolt ($C6:E6D0): the direction it took, 256 steps a turn, as a word */
 uint16_t menu_object_scratch_jolt_angle(const GameState *g);
 void set_menu_object_scratch_jolt_angle(GameState *g, uint16_t v);
+/* A scene script's selected map resource: byte offset in its three-byte pointer table ($C2:7AFC,
+ * $C2:7B20) */
+uint16_t menu_object_scratch_scene_resource_offset(const GameState *g);
+void set_menu_object_scratch_scene_resource_offset(GameState *g, uint16_t v);
+/* The start of the final constant-colour part of the scene's gray ramp ($C6:E072), left for byte
+ * comparison */
+uint16_t menu_object_scratch_scene_gray_position(const GameState *g);
+void set_menu_object_scratch_scene_gray_position(GameState *g, uint16_t v);
+/* The byte offset of the scene's chosen window line ($C6:E101), left for byte comparison */
+uint16_t menu_object_scratch_scene_edge_offset(const GameState *g);
+void set_menu_object_scratch_scene_edge_offset(GameState *g, uint16_t v);
 /* A random jolt: how far it went, 0-63 */
 uint8_t menu_object_scratch_jolt_size(const GameState *g);
 void set_menu_object_scratch_jolt_size(GameState *g, uint8_t v);
@@ -6798,6 +6822,21 @@ void set_menu_object_slots_phase(GameState *g, unsigned slot, uint16_t v);
 /* How much a falling object's speed down grows each frame, 16.16 fixed point ($C6:E77F) */
 uint32_t menu_object_slots_acceleration(const GameState *g, unsigned slot);
 void set_menu_object_slots_acceleration(GameState *g, unsigned slot, uint32_t v);
+/* The travelling scene wave's amplitude, scaled in 256ths ($C2:7CD8, $C2:7D5E) */
+uint8_t menu_object_slots_scene_wave_amplitude(const GameState *g, unsigned slot);
+void set_menu_object_slots_scene_wave_amplitude(GameState *g, unsigned slot, uint8_t v);
+/* The travelling scene wave's phase, advancing a sixty-fourth turn per frame */
+uint16_t menu_object_slots_scene_wave_phase(const GameState *g, unsigned slot);
+void set_menu_object_slots_scene_wave_phase(GameState *g, unsigned slot, uint16_t v);
+/* The travelling scene wave's frame parity, selecting which line buffer receives the next sample */
+uint8_t menu_object_slots_scene_wave_frames(const GameState *g, unsigned slot);
+void set_menu_object_slots_scene_wave_frames(GameState *g, unsigned slot, uint8_t v);
+/* The moving fixed-colour band's byte offset from the second line slot's first table */
+uint16_t menu_object_slots_scene_gray_offset(const GameState *g, unsigned slot);
+void set_menu_object_slots_scene_gray_offset(GameState *g, unsigned slot, uint16_t v);
+/* The range of lines over which the scene scatters an object along a window edge */
+uint8_t menu_object_slots_scene_edge_height(const GameState *g, unsigned slot);
+void set_menu_object_slots_scene_edge_height(GameState *g, unsigned slot, uint8_t v);
 /* An iris's radius in lines */
 uint16_t menu_object_slots_iris_radius(const GameState *g, unsigned slot);
 void set_menu_object_slots_iris_radius(GameState *g, unsigned slot, uint16_t v);

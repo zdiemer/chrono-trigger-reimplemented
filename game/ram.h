@@ -4166,9 +4166,13 @@
 #define RAM_MENU_OBJECT_SCRATCH 0x7E0000u
 #define RAM_MENU_OBJECT_SCRATCH_DP 0x00u     /* page menu */
 #define RAM_MENU_OBJECT_SCRATCH_BYTES 0x7E0000u /* Every byte, as the Epoch's screens use them */
+#define RAM_MENU_OBJECT_SCRATCH_SCENE_GRAY_SHADE 0x7E0000u /* The gray ramp's last colour value, preserved for byte comparison */
+#define RAM_MENU_OBJECT_SCRATCH_SCENE_GRAY_REMAINING 0x7E0002u /* The gray ramp's count of unfilled bands, zero when done */
 #define RAM_MENU_OBJECT_SCRATCH_ANSWER 0x7E0000u /* What a routine a scene's script calls answers (1 yes, 0 no), for the script's next command to test (game/menu/map_scenes.c) */
 #define RAM_MENU_OBJECT_SCRATCH_VIEW_ACROSS 0x7E0008u /* Whether an object is in view ($C2:78A1): its place across from the view's left, less a margin, round the map */
 #define RAM_MENU_OBJECT_SCRATCH_VIEW_DOWN 0x7E000Au /* And down from the view's top */
+#define RAM_MENU_OBJECT_SCRATCH_SCENE_WAVE_OUTPUT 0x7E0010u /* The travelling scene wave's last line in the table it just built; left for the original's byte comparison */
+#define RAM_MENU_OBJECT_SCRATCH_SCENE_WINDOW_EDGES 0x7E0010u /* The scene's table of paired window edges, read to place an object on one side */
 #define RAM_MENU_OBJECT_SCRATCH_SCREEN_COMMAND 0x7E0010u /* A screen object's (game/menu/screen_objects.c): long pointer to the command that started it, which it reads its parameters through */
 #define RAM_MENU_OBJECT_SCRATCH_PALETTE_SOURCE 0x7E0010u /* The palette loader: long pointer to the colours it puts in the row */
 #define RAM_MENU_OBJECT_SCRATCH_STREAM_BATCH 0x7E0008u /* The tile streamer: how many tiles its last batch sent */
@@ -4259,6 +4263,9 @@
 #define RAM_MENU_OBJECT_SCRATCH_IRIS_LOWER_FROM 0x7E0016u /* The squashed iris: the line its lower half starts copying from */
 #define RAM_MENU_OBJECT_SCRATCH_IRIS_LOWER_TO 0x7E0019u /* The squashed iris: the centre line, where its lower half starts */
 #define RAM_MENU_OBJECT_SCRATCH_JOLT_ANGLE 0x7E0008u /* A random jolt ($C6:E6D0): the direction it took, 256 steps a turn, as a word */
+#define RAM_MENU_OBJECT_SCRATCH_SCENE_RESOURCE_OFFSET 0x7E0008u /* A scene script's selected map resource: byte offset in its three-byte pointer table ($C2:7AFC, $C2:7B20) */
+#define RAM_MENU_OBJECT_SCRATCH_SCENE_GRAY_POSITION 0x7E0008u /* The start of the final constant-colour part of the scene's gray ramp ($C6:E072), left for byte comparison */
+#define RAM_MENU_OBJECT_SCRATCH_SCENE_EDGE_OFFSET 0x7E0008u /* The byte offset of the scene's chosen window line ($C6:E101), left for byte comparison */
 #define RAM_MENU_OBJECT_SCRATCH_JOLT_SIZE 0x7E000Au /* A random jolt: how far it went, 0-63 */
 #define RAM_MENU_OBJECT_SCRATCH_WORLD_TURN_HANDED_ON 0x7E0008u /* The Day of Lavos's turning world map: the turn a frame's work ($C6:E9F5) hands the routine that turns the picture on by it ($C6:EE23), which the object's script calls next (game/menu/turning_world.c) */
 #define RAM_MENU_OBJECT_SCRATCH_WORLD_LAND_MAP 0x7E0010u /* The turning world map's drawing ($C6:E7FA): where in bank $7E the scene has the land's map (the world map's plane 1), a tile group's number a map tile; the drawing leaves it a whole map on */
@@ -4410,6 +4417,11 @@
 #define RAM_MENU_OBJECT_SLOTS_VELOCITY_Y 0x7E0B4Eu /* How far it moves down each frame, signed 16.16 fixed point */
 #define RAM_MENU_OBJECT_SLOTS_PHASE 0x7E0B52u /* A handler's own count: the wave's phase, the Epoch's screens' angles and steps */
 #define RAM_MENU_OBJECT_SLOTS_ACCELERATION 0x7E0B52u /* How much a falling object's speed down grows each frame, 16.16 fixed point ($C6:E77F) */
+#define RAM_MENU_OBJECT_SLOTS_SCENE_WAVE_AMPLITUDE 0x7E0B52u /* The travelling scene wave's amplitude, scaled in 256ths ($C2:7CD8, $C2:7D5E) */
+#define RAM_MENU_OBJECT_SLOTS_SCENE_WAVE_PHASE 0x7E0B54u /* The travelling scene wave's phase, advancing a sixty-fourth turn per frame */
+#define RAM_MENU_OBJECT_SLOTS_SCENE_WAVE_FRAMES 0x7E0B56u /* The travelling scene wave's frame parity, selecting which line buffer receives the next sample */
+#define RAM_MENU_OBJECT_SLOTS_SCENE_GRAY_OFFSET 0x7E0B52u /* The moving fixed-colour band's byte offset from the second line slot's first table */
+#define RAM_MENU_OBJECT_SLOTS_SCENE_EDGE_HEIGHT 0x7E0B52u /* The range of lines over which the scene scatters an object along a window edge */
 #define RAM_MENU_OBJECT_SLOTS_IRIS_RADIUS 0x7E0B52u /* An iris's radius in lines */
 #define RAM_MENU_OBJECT_SLOTS_IRIS_FRAMES 0x7E0B54u /* The squashed iris's frame count, which picks the pair of tables it draws into */
 #define RAM_MENU_OBJECT_SLOTS_IRIS_STRETCH 0x7E0B54u /* The capsule iris's stretch: the lines its lower half is moved down by */

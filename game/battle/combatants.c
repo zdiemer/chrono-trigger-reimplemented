@@ -463,7 +463,12 @@ static bool comes_back_shown(Snes *s, uint8_t member)
     GameState *g = state_of(s);
     come_back(g, member);
     s->cpu.a = 0;
-    if (!battle_run(s, 0xC1B376, SHOWING, battle_start_action_showing))
+    /* The showing keeps A's high byte and V. The revival's result slot is
+     * four times its party member, plus the zero action offset: that byte
+     * addition cannot overflow. Its other incoming registers are dead. */
+    m_set_flag(s, CPU_FLAG_V, false);
+    if (!battle_run_dc(s, 0xC1B376, SHOWING, DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C,
+                       battle_start_action_showing))
         return false;
     name_in_message(g, member);
     s->cpu.a = MESSAGE_CAME_BACK;

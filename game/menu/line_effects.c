@@ -22,6 +22,7 @@
 #include "cpu_io.h"
 #include "menu/menu_data.h"
 #include "menu/object.h"
+#include "menu/object_commands.h"
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
@@ -129,7 +130,7 @@ enum { CLOSED_LINE = 0x0001 };
 
 /* The circle's inputs, which scene/circle.c reads: the squashed iris gives
  * them as bytes over what the cells held, the capsule as words. */
-static void set_up_circle(GameState *g, MenuObject o, uint16_t table, bool as_words)
+static void set_up_circle(GameState *g, MenuObject o, uint16_t table, bool as_words, uint8_t mode)
 {
     MenuPlace place = menu_object_place(g, o);
     uint16_t x = menu_pixel(place.x), y = menu_pixel(place.y), radius = menu_object_slots_iris_radius(g, o);
@@ -146,7 +147,7 @@ static void set_up_circle(GameState *g, MenuObject o, uint16_t table, bool as_wo
         set_scene_circle_radius(g, (uint16_t)((scene_circle_radius(g) & 0xFF00) | (uint8_t)radius));
         set_scene_circle_table_bank(g, LINE_TABLE_BANK);
     }
-    scene_circle_draw(g, 0);
+    scene_circle_draw(g, mode);
 }
 
 /* The squashed iris's working addresses, for the original's cells: where its
@@ -173,7 +174,7 @@ static void squashed_iris(GameState *g, MenuObject o, uint8_t slot)
     set_menu_object_slots_iris_frames(g, o, frames);
     uint16_t table = menu_line_values(slot, frames);
     menu_show_line_values(g, slot, table);
-    set_up_circle(g, o, table, false);
+    set_up_circle(g, o, table, false, SCENE_CIRCLE_ROUND);
 
     uint16_t centre = menu_pixel(menu_object_place(g, o).y);
     uint16_t half = menu_object_slots_iris_radius(g, o) >> 1;
@@ -218,7 +219,7 @@ static void capsule_iris(GameState *g, MenuObject o, uint8_t slot)
     uint16_t table = menu_line_values(slot, frames);
     menu_show_line_values(g, slot, table);
     set_menu_object_slots_capsule_frames(g, o, (uint16_t)(frames + 1));
-    set_up_circle(g, o, table, true);
+    set_up_circle(g, o, table, true, SCENE_CIRCLE_ROUND);
 
     /* The object owns the capsule's dimensions. The circle renderer leaves
      * its input cells as scaffolding, so do not read those cells back. */
@@ -639,7 +640,428 @@ static bool step_the_curtain_routine(GameState *g, Platform *pf, MenuObject self
     return true;
 }
 
+/* The map scenes' irises alternate their drawing table. The round iris
+ * selects the table before counting the frame; the flattened iris selects
+ * it afterwards and uses the circle service's half-height lower edge. */
+typedef enum { SCENE_ROUND_IRIS, SCENE_FLATTENED_IRIS } SceneIris;
+
+// $C2:7911, $C2:7981
+static uint8_t draw_scene_iris(GameState *g, MenuObject self, SceneIris shape)
+{
+    uint16_t frames = menu_object_slots_iris_frames(g, self);
+    uint8_t before = (uint8_t)frames, after = (uint8_t)(before + 1);
+    uint8_t phase = shape == SCENE_ROUND_IRIS ? before : after;
+    uint8_t slot = shape == SCENE_ROUND_IRIS ? 1 : 2;
+    uint16_t table = menu_line_values(slot, phase);
+    set_menu_object_slots_iris_frames(g, self, (uint16_t)((frames & 0xFF00) | after));
+    menu_show_line_values(g, slot, table);
+    set_up_circle(g, self, table, false,
+                  shape == SCENE_ROUND_IRIS ? SCENE_CIRCLE_ROUND : SCENE_CIRCLE_SQUASHED);
+    return phase;
+}
+
+// $C2:7AAF
+/* Advance the moving scroll table by thirty-two lines, wrapping at the
+ * end of its stored values. The two staged halves keep their own places. */
+static bool advance_scene_scroll(GameState *g)
+{
+    enum { STEP_BYTES = 32 * 2 };
+    uint16_t first = menu_line_values(1, 0), end = (uint16_t)(first + 2 * MENU_LINE_HALF_BYTES);
+    bool wrapped = false;
+    for (unsigned half = 0; half < 2; half++) {
+        uint16_t at = (uint16_t)(menu_object_hdma_pointers(g, half) + STEP_BYTES);
+        wrapped = at >= end;
+        set_menu_object_hdma_pointers(g, half, wrapped ? first : at);
+    }
+    return wrapped;
+}
+
+// $C2:7911
+void menu_scene_round_iris_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    uint8_t phase = draw_scene_iris(g, menu_object_running(g), SCENE_ROUND_IRIS);
+    s->cpu.x = menu_object_current(g);
+    m_set_flag(s, CPU_FLAG_C, (phase & 1) != 0);
+    m_rts(s);
+}
+
+// $C2:7981
+void menu_scene_flattened_iris_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    (void)draw_scene_iris(g, menu_object_running(g), SCENE_FLATTENED_IRIS);
+    s->cpu.x = menu_object_current(g);
+    m_set_flag(s, CPU_FLAG_C, false);
+    m_rep(s, CPU_FLAG_M);
+    m_rts(s);
+}
+
+// $C2:7957
+void menu_scene_window2_lines_entry(Snes *s)
+{
+    menu_start_line_effect(state_of(s), m_platform(s), 0xC2796B, 2, VID_LINE_WINDOW2);
+    m_rts(s);
+}
+
+// $C2:7AAF
+void menu_scene_advance_scroll_entry(Snes *s)
+{
+    m_set_flag(s, CPU_FLAG_C, advance_scene_scroll(state_of(s)));
+    m_rep(s, CPU_FLAG_M);
+    m_rts(s);
+}
+
+// $C2:7ADA, $C2:7AEB
+/* Stage either the moving scroll pattern or the uniform scroll table. */
+static void show_scene_scroll(GameState *g, unsigned which)
+{
+    menu_show_line_values(g, 1, menu_line_values(1, which));
+}
+
+// $C2:7ADA
+void menu_scene_show_moving_scroll_entry(Snes *s)
+{
+    show_scene_scroll(state_of(s), 0);
+    m_rep(s, CPU_FLAG_M);
+    m_rts(s);
+}
+
+// $C2:7AEB
+void menu_scene_show_uniform_scroll_entry(Snes *s)
+{
+    show_scene_scroll(state_of(s), 1);
+    m_rep(s, CPU_FLAG_M);
+    m_rts(s);
+}
+
+static bool scene_round_iris(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)pf, (void)far;
+    (void)draw_scene_iris(g, self, SCENE_ROUND_IRIS);
+    return true;
+}
+
+static bool scene_flattened_iris(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)pf, (void)far;
+    (void)draw_scene_iris(g, self, SCENE_FLATTENED_IRIS);
+    return true;
+}
+
+static bool scene_advance_scroll(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)pf, (void)self, (void)far;
+    (void)advance_scene_scroll(g);
+    return true;
+}
+
+static bool scene_moving_scroll(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)pf, (void)self, (void)far;
+    show_scene_scroll(g, 0);
+    return true;
+}
+
+static bool scene_uniform_scroll(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)pf, (void)self, (void)far;
+    show_scene_scroll(g, 1);
+    return true;
+}
+
+STARTER(scene_window2_lines, 0xC2796B, 2, VID_LINE_WINDOW2)
+
+/* A travelling wave shifts the previous frame up one line and appends a
+ * new sine sample. Horizontal and vertical waves use separate line slots. */
+typedef enum { SCENE_WAVE_HORIZONTAL = 1, SCENE_WAVE_VERTICAL = 2 } SceneWave;
+enum { SCENE_WAVE_PHASE_STEP = MENU_SINE_STEPS / 64 };
+
+// $C2:7C56, $C2:7C97
+static void start_scene_wave(GameState *g, Platform *pf, MenuObject self, SceneWave wave)
+{
+    bool horizontal = wave == SCENE_WAVE_HORIZONTAL;
+    menu_start_line_effect(g, pf, horizontal ? 0xC27C68 : 0xC27CA9, (uint8_t)wave,
+                           horizontal ? VID_LINE_SCROLL_BG2_H : VID_LINE_SCROLL_BG2_V);
+    set_menu_object_slots_scene_wave_frames(g, self, 0);
+    uint16_t first = menu_line_values((uint8_t)wave, 0), other = menu_line_values((uint8_t)wave, 1);
+    unsigned bytes = (unsigned)(other - first) + 2u * MENU_LINE_TABLE_LINES;
+    wram_fill8(g, in_line_bank(first), bytes, 0);
+    charge_block_move(g, bytes - 1);
+}
+
+static void leave_scene_wave_work(GameState *g, uint16_t output, uint8_t magnitude, uint8_t amplitude)
+{
+    set_menu_object_scratch_scene_wave_output(g, in_line_bank(output));
+    hw_set_multiplicand(g, magnitude);
+    (void)hw_multiply_by(g, amplitude);
+}
+
+// $C2:7CD8, $C2:7D5E
+static void advance_scene_wave(GameState *g, MenuObject self, SceneWave wave)
+{
+    uint8_t frames = (uint8_t)(menu_object_slots_scene_wave_frames(g, self) + 1);
+    set_menu_object_slots_scene_wave_frames(g, self, frames);
+    uint16_t to = menu_line_values((uint8_t)wave, frames), from = menu_line_values((uint8_t)wave, frames ^ 1u);
+    unsigned retained = 2u * (MENU_LINE_TABLE_LINES - 1);
+    menu_show_line_values(g, (uint8_t)wave, to);
+    wram_copy(g, in_line_bank((uint16_t)(from + 2)), in_line_bank(to), retained);
+    charge_block_move(g, retained);
+
+    uint16_t phase = (uint16_t)(menu_object_slots_scene_wave_phase(g, self) + SCENE_WAVE_PHASE_STEP);
+    set_menu_object_slots_scene_wave_phase(g, self, phase);
+    int16_t sine = menu_sine(g, phase);
+    uint8_t magnitude = (uint8_t)(sine < 0 ? -sine : sine);
+    uint8_t amplitude = menu_object_slots_scene_wave_amplitude(g, self);
+    int16_t sample = (int16_t)((uint16_t)magnitude * amplitude >> 8);
+    uint16_t output = (uint16_t)(to + retained);
+    set_value_at(g, output, (uint16_t)(sine < 0 ? -sample : sample));
+    ORIGINAL_EFFECT(leave_scene_wave_work(g, output, magnitude, amplitude));
+}
+
+static void start_scene_wave_on_the_machine(Snes *s, SceneWave wave)
+{
+    GameState *g = state_of(s);
+    start_scene_wave(g, m_platform(s), menu_object_running(g), wave);
+    s->cpu.x = (uint16_t)(menu_line_values((uint8_t)wave, 1) + 2u * MENU_LINE_TABLE_LINES - 1);
+    m_rep(s, CPU_FLAG_M);
+    m_rts(s);
+}
+
+static void advance_scene_wave_on_the_machine(Snes *s, SceneWave wave)
+{
+    GameState *g = state_of(s);
+    MenuObject self = menu_object_running(g);
+    advance_scene_wave(g, self, wave);
+    /* The script observes the sine helper's result and half-turn comparison.
+     * Reconstructing those outputs is not another sample of game work. */
+    uint32_t mark = charge_uncounted_begin(g);
+    uint16_t phase = menu_object_slots_scene_wave_phase(g, self);
+    s->cpu.x = (uint16_t)menu_sine(g, phase);
+    m_set_flag(s, CPU_FLAG_C, (phase & (MENU_SINE_STEPS - 1)) >= MENU_SINE_STEPS / 2);
+    charge_uncounted_end(g, mark);
+    m_rep(s, CPU_FLAG_M);
+    m_rts(s);
+}
+
+// $C2:7C56
+void menu_scene_start_horizontal_wave(Snes *s) { start_scene_wave_on_the_machine(s, SCENE_WAVE_HORIZONTAL); }
+// $C2:7C97
+void menu_scene_start_vertical_wave(Snes *s) { start_scene_wave_on_the_machine(s, SCENE_WAVE_VERTICAL); }
+// $C2:7CD8
+void menu_scene_advance_horizontal_wave(Snes *s) { advance_scene_wave_on_the_machine(s, SCENE_WAVE_HORIZONTAL); }
+// $C2:7D5E
+void menu_scene_advance_vertical_wave(Snes *s) { advance_scene_wave_on_the_machine(s, SCENE_WAVE_VERTICAL); }
+
+static bool scene_start_horizontal_wave(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)far;
+    start_scene_wave(g, pf, self, SCENE_WAVE_HORIZONTAL);
+    return true;
+}
+
+static bool scene_start_vertical_wave(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)far;
+    start_scene_wave(g, pf, self, SCENE_WAVE_VERTICAL);
+    return true;
+}
+
+static bool scene_advance_horizontal_wave(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)pf, (void)far;
+    advance_scene_wave(g, self, SCENE_WAVE_HORIZONTAL);
+    return true;
+}
+
+static bool scene_advance_vertical_wave(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)pf, (void)far;
+    advance_scene_wave(g, self, SCENE_WAVE_VERTICAL);
+    return true;
+}
+
+/* A fixed-colour line takes one byte, so each half of its line table
+ * advances by a half-screen of bytes rather than window-edge words. */
+static void show_scene_color_lines(GameState *g, uint8_t slot, uint16_t first)
+{
+    unsigned pair = 2u * (slot - FIRST_SLOT);
+    set_menu_object_hdma_pointers(g, pair, first);
+    set_menu_object_hdma_pointers(g, pair + 1, (uint16_t)(first + MENU_LINE_TABLE_LINES / 2));
+}
+
+static uint8_t scene_gray(uint8_t intensity)
+{
+    return vid_line_fixed_color(VID_ALL_CHANNELS, intensity);
+}
+
+// $C6:E072
+/* A long white-to-black ramp, with eight lines per shade and a full
+ * screen of constant colour at either end for the scene to scroll into. */
+static void start_scene_gray_ramp(GameState *g, Platform *pf)
+{
+    enum { SHADES = 30, LINES_PER_SHADE = 8 };
+    uint16_t first = menu_line_values(1, 0);
+    menu_start_line_effect(g, pf, 0xC6E086, 1, VID_LINE_FIXED_COLOR);
+    show_scene_color_lines(g, 1, first);
+    wram_fill8(g, in_line_bank(first), MENU_LINE_TABLE_LINES, scene_gray(31));
+    uint16_t at = (uint16_t)(first + MENU_LINE_TABLE_LINES);
+    for (unsigned shade = SHADES; shade; shade--) {
+        wram_fill8(g, in_line_bank(at), LINES_PER_SHADE, scene_gray((uint8_t)shade));
+        at = (uint16_t)(at + LINES_PER_SHADE);
+    }
+    wram_fill8(g, in_line_bank(at), MENU_LINE_TABLE_LINES, scene_gray(0));
+    charge_block_move(g, 2u * (MENU_LINE_TABLE_LINES - 1) + SHADES * (LINES_PER_SHADE - 1));
+    ORIGINAL_EFFECT(set_menu_object_scratch_scene_gray_shade(g, scene_gray(0)));
+    ORIGINAL_EFFECT(set_menu_object_scratch_scene_gray_remaining(g, 0));
+    ORIGINAL_EFFECT(set_menu_object_scratch_scene_gray_position(g, at));
+}
+
+enum { SCENE_GRAY_BAND_BYTES = 48 };
+
+/* The narrow band has eight two-line shades followed by eight four-line
+ * shades. Its moving destination is a WRAM stream: crossing a bank goes
+ * on through work RAM, wrapping to its beginning after the last bank. */
+static void paint_scene_gray_band(GameState *g, uint16_t first)
+{
+    uint32_t at = in_line_bank(first);
+    for (unsigned shade = 16; shade; shade--) {
+        unsigned lines = shade > 8 ? 2 : 4;
+        for (unsigned line = 0; line < lines; line++)
+            wram_write8(g, 0x7E0000u | (at++ & 0x1FFFFu), scene_gray((uint8_t)shade));
+    }
+    ORIGINAL_EFFECT(hw_port_seek(g, (uint16_t)at, (uint8_t)(at >> 16)));
+}
+
+// $C6:E170
+/* Begin with white above black, then soften their boundary with the band. */
+static void start_scene_gray_band(GameState *g, Platform *pf)
+{
+    uint16_t first = menu_line_values(2, 0), middle = (uint16_t)(first + MENU_LINE_TABLE_LINES / 2);
+    menu_start_line_effect(g, pf, 0xC6E182, 2, VID_LINE_FIXED_COLOR);
+    show_scene_color_lines(g, 2, first);
+    /* Each original fill includes its seed and a half-screen of copies;
+     * the second fill replaces the first fill's shared final byte. */
+    wram_fill8(g, in_line_bank(first), MENU_LINE_TABLE_LINES / 2 + 1, scene_gray(31));
+    wram_fill8(g, in_line_bank(middle), MENU_LINE_TABLE_LINES / 2 + 1, scene_gray(0));
+    charge_block_move(g, MENU_LINE_TABLE_LINES);
+    paint_scene_gray_band(g, middle);
+}
+
+// $C6:E1FF
+static bool move_scene_gray_band(GameState *g, MenuObject self)
+{
+    uint32_t at = menu_line_values(2, 0) + (uint32_t)menu_object_slots_scene_gray_offset(g, self);
+    paint_scene_gray_band(g, (uint16_t)at);
+    return at > UINT16_MAX;
+}
+
+// $C6:E072
+void menu_scene_start_gray_ramp(Snes *s)
+{
+    start_scene_gray_ramp(state_of(s), m_platform(s));
+    s->cpu.x = (uint16_t)(menu_line_values(1, 0) + 2u * MENU_LINE_TABLE_LINES + 30u * 8 - 1);
+    m_set_flag(s, CPU_FLAG_C, false);
+    m_rep(s, CPU_FLAG_M);
+    m_rtl(s);
+}
+
+// $C6:E170
+void menu_scene_start_gray_band(Snes *s)
+{
+    start_scene_gray_band(state_of(s), m_platform(s));
+    s->cpu.x = (uint16_t)(menu_line_values(2, 0) + MENU_LINE_TABLE_LINES / 2);
+    m_rtl(s);
+}
+
+// $C6:E1FF
+void menu_scene_move_gray_band(Snes *s)
+{
+    GameState *g = state_of(s);
+    uint16_t current = menu_object_current(g);
+    bool wrapped = move_scene_gray_band(g, menu_object_running(g));
+    s->cpu.x = current;
+    m_set_flag(s, CPU_FLAG_C, wrapped);
+    m_rtl(s);
+}
+
+static bool scene_start_gray_ramp(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)self, (void)far;
+    start_scene_gray_ramp(g, pf);
+    return true;
+}
+
+static bool scene_start_gray_band(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)self, (void)far;
+    start_scene_gray_band(g, pf);
+    return true;
+}
+
+static bool scene_move_gray_band(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)pf, (void)far;
+    (void)move_scene_gray_band(g, self);
+    return true;
+}
+
+// $C2:7A56
+/* Both background planes read the same travelling scroll pattern. A second
+ * table holds the unshifted view so the script can switch the effect off
+ * without reprogramming its channels. */
+static void start_scene_scroll_pattern(GameState *g, Platform *pf)
+{
+    enum { PATTERN_BYTES = 2 * MENU_LINE_TABLE_LINES };
+    menu_lay_out_line_slot(g, 1);
+    uint32_t table = menu_line_slot_table(1);
+    menu_program_line_channel(pf, 0xC27A68, 1, VID_LINE_SCROLL_BG1_H, table);
+    menu_program_line_channel(pf, 0xC27A6E, 2, VID_LINE_SCROLL_BG2_H, table);
+    menu_turn_on_line_slots(g, (1u << 1) | (1u << 2));
+    uint16_t first = menu_line_values(1, 0), other = menu_line_values(1, 1);
+    for (unsigned i = 0; i < PATTERN_BYTES; i++)
+        wram_write8(g, in_line_bank((uint16_t)(first + i)), menu_scene_scroll_pattern_byte(g, i));
+    uint16_t scroll = menu_object_shadows_bg1_scroll_x(g);
+    wram_fill16(g, in_line_bank(other), MENU_LINE_TABLE_LINES, scroll);
+    /* The overlapping word fill includes one final low byte. */
+    wram_write8(g, in_line_bank((uint16_t)(other + PATTERN_BYTES)), (uint8_t)scroll);
+    charge_block_move(g, PATTERN_BYTES * 2u - 1);
+}
+
+// $C2:7A56
+void menu_scene_start_scroll_pattern(Snes *s)
+{
+    start_scene_scroll_pattern(state_of(s), m_platform(s));
+    s->cpu.x = (uint16_t)(menu_line_values(1, 1) + 2u * MENU_LINE_TABLE_LINES - 1);
+    m_rep(s, CPU_FLAG_M);
+    m_rts(s);
+}
+
+static bool scene_start_scroll_pattern(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    (void)self, (void)far;
+    start_scene_scroll_pattern(g, pf);
+    return true;
+}
+
 MENU_SCRIPT_ROUTINES(menu_line_effect_routines,
+    { 0xC27A56, "the shared scroll pattern", NULL, scene_start_scroll_pattern },
+    { 0xC6E072, "start gray ramp", NULL, scene_start_gray_ramp },
+    { 0xC6E170, "start gray band", NULL, scene_start_gray_band },
+    { 0xC6E1FF, "move gray band", NULL, scene_move_gray_band },
+
+    { 0xC27C56, "start horizontal wave", NULL, scene_start_horizontal_wave },
+    { 0xC27C97, "start vertical wave", NULL, scene_start_vertical_wave },
+    { 0xC27CD8, "advance horizontal wave", NULL, scene_advance_horizontal_wave },
+    { 0xC27D5E, "advance vertical wave", NULL, scene_advance_vertical_wave },
+
+    { 0xC27911, "round iris", NULL, scene_round_iris },
+    { 0xC27957, "window2 lines", NULL, scene_window2_lines_routine },
+    { 0xC27981, "flattened iris", NULL, scene_flattened_iris },
+    { 0xC27AAF, "advance scroll", NULL, scene_advance_scroll },
+    { 0xC27ADA, "show moving scroll", NULL, scene_moving_scroll },
+    { 0xC27AEB, "show uniform scroll", NULL, scene_uniform_scroll },
+
     { 0xC6E568, "slot 1's values moved on", NULL, advance_routine },
     { 0xC6E000, "window 1's edges line by line", NULL, window1_lines_routine },
     { 0xC6E318, "window 1's edges line by line", NULL, window1_lines_2_routine },

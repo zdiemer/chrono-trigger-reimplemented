@@ -102,13 +102,17 @@ static bool run(Snes *s, uint32_t returns_to, uint32_t routine, void (*entry)(Sn
 /* A former call-out keeps the same call frame and time boundaries. Check
  * the full entry contract after pushing the frame; a refusal leaves the
  * original entry ready for the runtime instead of running an unchecked C call. */
-bool menu_run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
+static bool run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care,
+                       void (*entry)(Snes *), CallKind kind, bool settles)
 {
     uint16_t stack = stack_pointer(s);
-    uint32_t returns_to = site + MENU_JSR_SIZE;
+    uint32_t returns_to = site + (kind == BY_JSL ? MENU_JSL_SIZE : MENU_JSR_SIZE);
+    if (kind == BY_JSL)
+        m_push8(s, (uint8_t)(returns_to >> 16));
     m_push16(s, (uint16_t)(returns_to - 1));
     m_jump_to(s, routine);
-    charge_settle(state_of(s));
+    if (settles)
+        charge_settle(state_of(s));
     const NativeEntry *e = native_continuation_entry_at(s, routine);
     if (!e || e->fn != entry) {
         m_stop_at(s, routine, dont_care);
@@ -116,9 +120,24 @@ bool menu_run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_car
     }
     TIMED_AS(state_of(s), routine, entry(s));
     bool returned = returned_to_call(s, stack, returns_to);
-    if (returned)
+    if (returned && settles)
         charge_settle(state_of(s));
     return returned;
+}
+
+bool menu_run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
+{
+    return run_called(s, site, routine, dont_care, entry, BY_JSR, true);
+}
+
+bool menu_run_long_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
+{
+    return run_called(s, site, routine, dont_care, entry, BY_JSL, true);
+}
+
+bool menu_run_checked(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
+{
+    return run_called(s, site, routine, dont_care, entry, BY_JSR, false);
 }
 
 bool menu_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *))

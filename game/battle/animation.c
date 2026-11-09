@@ -640,13 +640,35 @@ void battle_step_combatant_animations(Snes *s)
     m_rts(s);
 }
 
+/* A group's frames may share the later combatants' part records, but
+ * cannot spill beyond the table. Kinds built by another service do not
+ * consume these records. */
+bool battle_animations_fit(const GameState *g)
+{
+    if (!battle_pose_looks_fit(g))
+        return false;
+    uint8_t phase = battle_frame_phase(g);
+    if (phase >= GROUPS)
+        return true;
+    unsigned first = groups[phase].first_slot, end = first + groups[phase].size;
+    for (unsigned slot = first; slot < end; slot++) {
+        if (!battle_slot_present(g, slot))
+            continue;
+        bool builds = phase == THE_PARTY ? battle_object_builds_graphics(g, slot)
+                                         : enemy_frame_built(g, slot - BATTLE_FIRST_ENEMY);
+        if (builds && !battle_object_graphics_known(g, slot))
+            return false;
+    }
+    return true;
+}
+
 /* The enemies' groups take the order's places as they come, which only a
  * clear A's high byte keeps to the order (the original indexes with the whole
  * of A). */
 bool battle_steps_animations(Snes *s)
 {
     vars_peek(true);
-    bool fits = battle_pose_looks_fit(state_of(s));
+    bool fits = battle_animations_fit(state_of(s));
     vars_peek(false);
     return battle_on_page_a_high_clear(s) && fits;
 }

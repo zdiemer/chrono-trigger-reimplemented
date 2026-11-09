@@ -115,3 +115,9 @@ name = "field_take_palette"
 runs = "C071EB-C071EC"
 depends = ["game/field/palettes.c:object_takes_a_palette_the_tables_hold", "game/field/palettes.c:field_palette_can_be_taken", "game/field/palettes.c:take_party_place_slot"]
 why = "Refused by the guard. A party place's object whose place's slot an object of other colours holds: the original gives up (carry clear) with A left 16-bit from comparing the colours, which its callers then run with. object_takes_a_palette_the_tables_hold turns that call away, so the original's code runs it, and the gate's refusal check holds that no movie's play makes it; take_party_place_slot gives up there too, taking no slot. unreached_party_shares runs the join and the free slot beside it. Keep it as the entry's contract when the field retires."
+
+[[safe]]
+name = "menu_slide_list_a_frame"
+runs = "C2EB3D-C2EB4E,C2EB5C-C2EB65"
+depends = ["game/menu/lists.c:still_within_the_first_band", "game/menu/lists.c:menu_list_slide_frame_is_showable", "game/menu/lists.c:menu_slide_list_a_frame"]
+why = "These paths advance or retreat to another source band after scrolling at least a full band. The frame guard explicitly requires the moved amount to remain within the first band, including its asymmetric negative comparison; the menu slides less than a row between rebuilding its list. Preserve that bound as an assertion when retiring the guard. The excluded whole-band crossing is not claimed to be implemented or fuzz-executed."

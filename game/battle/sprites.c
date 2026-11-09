@@ -166,8 +166,8 @@ static void leave_built_frame(GameState *g, unsigned object, uint32_t tiles, uin
 /* The original counts its rows and tiles in the battle's direct-page cells
  * as it builds, which this leaves once at the end, and keeps the data bank on
  * the stack meanwhile: a graphics set placed over those cells or the stack
- * would read other bytes here, which no object's graphics are (an accepted
- * divergence, found by fuzzing the loose variant, tools/fuzz_routines.toml). */
+ * would read other bytes here. The resource-bank contract excludes that
+ * aliasing: graphics are cartridge data or the field's unpacked sets. */
 void battle_build_frame_graphics(GameState *g, unsigned object, uint8_t frame)
 {
     set_battle_anim_held(g, object, 0);
@@ -493,6 +493,7 @@ enum { GRAPHICS_KINDS = 5, PART_OFFSET_WORDS = BATTLE_COMBATANTS * PARTS_PER_OBJ
 bool battle_object_graphics_known(const GameState *g, unsigned object)
 {
     return battle_names_combatant((uint16_t)object) && battle_object_kind(g, object) < GRAPHICS_KINDS
+           && battle_sprite_graphics_storage(battle_object_graphics(g, object))
            && object * PARTS_PER_OBJECT * OFFSETS_PER_PART + battle_frame_part_offset_bytes(g, battle_object_kind(g, object))
                   <= PART_OFFSET_WORDS;
 }

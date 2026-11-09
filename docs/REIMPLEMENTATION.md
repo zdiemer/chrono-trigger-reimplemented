@@ -4386,6 +4386,45 @@ The unreached inventory and the remaining task-stack work are in TODO.md,
 fallback exemption has been retired on the strength of this control-flow
 step.
 
+### Battle and menu precondition repairs
+
+The object-script audit found 22 scene helpers absent from its C tables.
+They now implement the iris and scroll patterns, horizontal and vertical
+waves, grayscale bands, scene graphics, object acceleration and scene
+results. The legacy dispatcher checks each full contract on the pushed
+call frame; the native dispatcher calls the corresponding state/platform
+operations. All 22 have independent 2,000-trial recipes. Twenty compare
+every trial; each graphics loader compares 658 and rejects 1,342 sources
+whose decoded output does not fit. Their entry-by-entry evidence is in
+`ports.tsv`. No movie has calibrated these previously unreached entries;
+their initial estimates remain explicit follow-up work.
+
+The drawing pass now checks every sprite, effect and afterimage's complete
+range before drawing, including the startup-built OAM high-table lookup.
+Its valid-lookup fixture compares 4,853 of 5,000 trials, rejecting 147;
+randomizing that lookup produces 5,000 refusals and contributes no execution
+evidence. Animation sources must be cartridge graphics or the field's
+unpacked bank, apart from battle scratch and the stack. Unpacked and enemy
+fixtures compare 3,591 and 3,373 of 5,000 trials respectively. Revival
+compares 1,680 of 5,000 after retaining A's high byte and leaving the final
+addition's overflow flag at its call boundary. Equipment paging checks the newly selected row
+or page, with the callee's full contract after pushing the frame; all
+registers and flags survive a refusal. Its existing any-item fixture
+compares 699 of 2,000 trials. These fixtures have no mismatches or accessor
+diagnostics; their other trials are rejected by the stated contracts.
+
+Text validation follows included strings to their tile limit, checking the
+supported control language, inclusion depth, number sizes and the source
+and output's separation from the drawer's cells and live stack. One loose
+trial read a number thirteen bytes below the caller's stack pointer: the
+nested text calls overwrote it before conversion, beyond the standalone
+number converter's shorter stack bound. The complete text envelope now
+rejects it. The unchanged loose fixture compares 1,171 of 2,000 trials and
+rejects 829; a structured hexadecimal fixture compares all 2,000. Negative
+script branches, duplicate and blank names, post-sound continuations and
+gold subtraction wrap have additional directed recipes. These are
+precondition repairs under the existing gate, not a retirement.
+
 ### The scene program's teardown
 
 The sixth subsystem off the gate: the gate no longer compares the scene

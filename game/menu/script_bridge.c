@@ -225,6 +225,40 @@ static void (*script_entry(Snes *s, uint32_t routine))(Snes *)
     return overworld_machine_form(s, routine);
 }
 
+/* These scene operations replace script call-outs. Their bridge checks
+ * the full contract on the pushed frame and retains both time boundaries. */
+static void (*scene_script_entry(uint32_t routine))(Snes *)
+{
+    static const struct { uint32_t routine; void (*entry)(Snes *); } scenes[] = {
+        { 0xC27911, menu_scene_round_iris_entry },
+        { 0xC27957, menu_scene_window2_lines_entry },
+        { 0xC27981, menu_scene_flattened_iris_entry },
+        { 0xC279C8, menu_object_accelerate_down },
+        { 0xC27A56, menu_scene_start_scroll_pattern },
+        { 0xC27AAF, menu_scene_advance_scroll_entry },
+        { 0xC27ADA, menu_scene_show_moving_scroll_entry },
+        { 0xC27AEB, menu_scene_show_uniform_scroll_entry },
+        { 0xC27AFC, menu_object_load_scene_map_graphics },
+        { 0xC27B20, menu_object_load_scene_top_layer },
+        { 0xC27B4F, menu_object_mark_scene_event },
+        { 0xC27BD8, menu_object_lay_out_scene_pattern },
+        { 0xC27C48, menu_object_keep_first_scene_result },
+        { 0xC27C4F, menu_object_keep_second_scene_result },
+        { 0xC27C56, menu_scene_start_horizontal_wave },
+        { 0xC27C97, menu_scene_start_vertical_wave },
+        { 0xC27CD8, menu_scene_advance_horizontal_wave },
+        { 0xC27D5E, menu_scene_advance_vertical_wave },
+        { 0xC6E072, menu_scene_start_gray_ramp },
+        { 0xC6E101, menu_object_place_on_scene_edge },
+        { 0xC6E170, menu_scene_start_gray_band },
+        { 0xC6E1FF, menu_scene_move_gray_band },
+    };
+    for (unsigned i = 0; i < sizeof scenes / sizeof scenes[0]; i++)
+        if (scenes[i].routine == routine)
+            return scenes[i].entry;
+    return NULL;
+}
+
 /* The commands go on from a call with 16-bit index registers on the mode's
  * page; the map's scrolling, whose caller goes on with 8-bit A, also with
  * that. */
@@ -242,8 +276,11 @@ static bool call_out_as(OnTheMachine *m, uint32_t site, uint32_t routine, uint16
     Snes *s = m->s;
     uint8_t bank = s->cpu.db;
     m_sep(s, CPU_FLAG_M);
-    void (*entry)(Snes *) = script_entry(s, routine);
+    void (*entry)(Snes *) = scene_script_entry(routine);
     if (entry) {
+        if (!menu_run_called(s, site, routine, dont_care, entry))
+            return false;
+    } else if ((entry = script_entry(s, routine)) != NULL) {
         if (!menu_run_any_widths(s, site, routine, entry))
             return false;
     } else {
@@ -264,8 +301,11 @@ static bool call_out_far(OnTheMachine *m, uint32_t site, uint32_t routine, uint1
     Snes *s = m->s;
     uint8_t bank = s->cpu.db;
     m_sep(s, CPU_FLAG_M);
-    void (*entry)(Snes *) = script_entry(s, routine);
+    void (*entry)(Snes *) = scene_script_entry(routine);
     if (entry) {
+        if (!menu_run_long_called(s, site, routine, dont_care, entry))
+            return false;
+    } else if ((entry = script_entry(s, routine)) != NULL) {
         if (!menu_run_long_any_widths(s, site, routine, entry))
             return false;
     } else {

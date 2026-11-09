@@ -595,6 +595,7 @@ static bool choose_battle_mode(GameState *g, Platform *pf, const NamingSteps *n,
 /* A letter typed or taken back, with a tick; the name drawn again. */
 static bool type_on_the_name_grid(GameState *g, Platform *pf, const NamingSteps *n, void *ctx)
 {
+    n->note(ctx, NAMING_NOTE_BUTTONS_TESTED, 0);
     NamingTyped t = menu_naming_type(g);
     if (t == NAMING_LETTER_TAKEN_BACK)
         n->note(ctx, NAMING_NOTE_LETTERS_LOADED, (uint8_t)menu_name_letters(g));

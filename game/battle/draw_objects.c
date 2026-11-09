@@ -469,7 +469,7 @@ static void leave_second_entry_mark(GameState *g, unsigned slot, uint8_t mark) {
 // $CF:E83A (to $CF:E8A6)
 /* List the combatants on the battlefield, those with a second entry twice,
  * and sort the list. */
-static DrawList build_draw_list(GameState *g)
+static DrawList build_draw_list(const GameState *g)
 {
     DrawList list = { { 0 }, { { 0, false } }, 0, { false } };
     for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++) {
@@ -477,12 +477,10 @@ static DrawList build_draw_list(GameState *g)
             continue;
         list_add(&list, combatant_y(g, slot), slot, true);
         list.second_entry[slot] = battle_object_extra_draw_on(g, slot) != 0;
-        ORIGINAL_EFFECT(leave_second_entry_mark(g, slot, list.second_entry[slot] ? SECOND_ENTRY : NO_SECOND_ENTRY));
         if (list.second_entry[slot])
             list_add(&list, TOPMOST_KEY, slot, false);
     }
     sort_draw_list(&list);
-    ORIGINAL_EFFECT(leave_draw_list(g, &list));
     return list;
 }
 
@@ -583,6 +581,12 @@ static void leave_pass_cells(GameState *g, const DrawList *list, uint8_t last_pa
 static void draw_objects(GameState *g)
 {
     DrawList list = build_draw_list(g);
+    for (unsigned i = 0; i < list.count; i++)
+        if (list.entry[i].own) {
+            unsigned slot = list.entry[i].slot;
+            ORIGINAL_EFFECT(leave_second_entry_mark(g, slot, list.second_entry[slot] ? SECOND_ENTRY : NO_SECOND_ENTRY));
+        }
+    ORIGINAL_EFFECT(leave_draw_list(g, &list));
     bool drawn_early[BATTLE_COMBATANTS] = { false };
     unsigned sprite = FIRST_FREE_SPRITE;
     uint8_t last_parts = 0;
@@ -607,21 +611,103 @@ static void draw_objects(GameState *g)
     ORIGINAL_EFFECT(leave_pass_cells(g, &list, last_parts, sprite));
 }
 
-/* ---- The entries ------------------------------------------------------------------------ */
 
-/* The pass is guarded on someone being on the battlefield: with the list
- * empty, the original's sort would run through the whole bank. The drawing
- * routines on their own draw the combatant the pass is drawing (the object
- * in its cell, or in X), from the next free sprite in its cell, at a
- * sprite's place in the buffer. */
-static bool someone_on_battlefield(const GameState *g)
+/* Reserve the same sprite ranges the draw pass uses, including tile copies
+ * wider than the visible frame. A frame may share later combatants' part
+ * records, but must stay inside the complete part and sprite buffers. */
+static bool frame_range_fits(const GameState *g, unsigned slot, unsigned *sprite, uint16_t copied_parts)
 {
-    for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++)
-        if (battle_slot_present(g, slot))
-            return true;
-    return false;
+    if (!tile_copy_fits(slot * ENTRIES_PER_COMBATANT, *sprite, tile_groups_for(copied_parts)))
+        return false;
+    if (hidden(g, slot))
+        return true;
+    unsigned parts = frame_parts(g, slot);
+    if (slot * PART_ENTRIES_PER_COMBATANT + parts > BATTLE_PART_OFFSETS_COUNT || *sprite + parts > SPRITES)
+        return false;
+    *sprite += parts;
+    return true;
 }
 
+static bool effect_ranges_fit(const GameState *g, unsigned slot, unsigned *sprite, bool front)
+{
+    for (unsigned row = 0; row < RECORD_ROWS; row++) {
+        uint8_t record = battle_object_effect_slots(g, battle_record_of(slot, row));
+        if (record == 0 || ((record & BATTLE_RECORD_IN_FRONT) != 0) != front)
+            continue;
+        unsigned shown = (uint8_t)(record & ~(front ? BATTLE_RECORD_IN_FRONT : BATTLE_RECORD_BEHIND));
+        if (shown >= BATTLE_EFFECT_SHOWN_COUNT)
+            return false;
+        if (!effect_on_side(g, record, front))
+            continue;
+        unsigned effect = record & BATTLE_RECORD_EFFECT;
+        if (battle_effect_frame_time(g, effect) == 0)
+            continue;
+        uint8_t set = battle_effect_sprite_set(g, effect) & SET_OF_EFFECT;
+        if (set >= BATTLE_BITMAP_COUNTS_COUNT)
+            return false;
+        unsigned count = battle_bitmap_counts(g, set) & SET_OF_EFFECT;
+        /* Zero asks the original to draw 256 sprites, beyond this buffer. */
+        if (count == 0 || *sprite + count > SPRITES
+            || battle_effect_sprite_set_start(g, set) + count * SPRITE_BYTES > BATTLE_EFFECT_SPRITE_DATA_COUNT)
+            return false;
+        *sprite += count;
+    }
+    return true;
+}
+
+static bool draw_pass_fits(const GameState *g)
+{
+    DrawList list = build_draw_list(g);
+    if (list.count == 0)
+        return false;
+    bool drawn_early[BATTLE_COMBATANTS] = { false };
+    unsigned sprite = FIRST_FREE_SPRITE;
+    uint16_t last_parts = 0;
+    bool effects = battle_effects_running(g) != 0, numbers = battle_number_step(g) != 0;
+    for (unsigned i = 0; i < list.count; i++) {
+        DrawEntry e = list.entry[i];
+        unsigned slot = e.slot;
+        uint8_t parts = battle_object_part_count(g, battle_object_of(slot));
+        bool shadow = true;
+        if (!drawn_early[slot] && parts != 0) {
+            last_parts = parts;
+            if (numbers)
+                sprite += battle_prepared_sprites_on(g, slot) ? NUMBER_DIGITS : 0;
+            else if (!effects && !battle_markers_held(g))
+                sprite += battle_marker_on(g, slot) ? 1 : 0;
+            else if (!effect_ranges_fit(g, slot, &sprite, true))
+                return false;
+            if (!frame_range_fits(g, slot, &sprite, parts))
+                return false;
+            if (effects && !numbers && !effect_ranges_fit(g, slot, &sprite, false))
+                return false;
+            drawn_early[slot] = list.second_entry[slot];
+            shadow = !drawn_early[slot];
+        }
+        if (shadow && battle_object_shadow(g, slot) && !hidden(g, slot))
+            sprite += SHADOW_SPRITES;
+        if (sprite > SPRITES)
+            return false;
+        if (effects && e.own && battle_trail_on(g, slot) && battle_afterimage_countdown(g, slot) == 1)
+            for (unsigned point = 0; point < TRAIL_POINTS; point++)
+                if (!frame_range_fits(g, slot, &sprite, last_parts))
+                    return false;
+    }
+    /* The startup-built lookup names bytes of the small OAM high table.
+     * A corrupted lookup must not let drawing reach the following state. */
+    for (unsigned at = FIRST_FREE_SPRITE; at < sprite; at++)
+        if (battle_oam_high_offsets(g, at * SPRITE_BYTES) >= OAM_HIGH_TABLE_BYTES)
+            return false;
+    return true;
+}
+
+/* ---- The entries ------------------------------------------------------------------------ */
+
+/* The pass requires a nonempty list and room for every frame, effect and
+ * afterimage it draws. With the list empty, the original's sort would run
+ * through the whole bank. The individual routines draw the current combatant (the object
+ * in its cell, or in X), from the next free sprite in its cell, at a
+ * sprite's place in the buffer. */
 static bool combatant_object(uint16_t object)
 {
     return object >= BATTLE_FIRST_COMBATANT_OBJECT && object < BATTLE_FIRST_COMBATANT_OBJECT + BATTLE_COMBATANTS;
@@ -670,7 +756,15 @@ static bool peek(Snes *s, bool (*test)(const GameState *))
     return holds;
 }
 
-bool battle_draw_pass_ready(Snes *s) { return battle_sprite_bank_ready(s) && peek(s, someone_on_battlefield); }
+bool battle_draw_pass_ready(Snes *s)
+{
+    if (!battle_sprite_bank_ready(s))
+        return false;
+    vars_peek(true);
+    bool fits = draw_pass_fits(state_of(s));
+    vars_peek(false);
+    return fits;
+}
 
 bool battle_drawing_combatant(Snes *s) { return battle_sprite_page_ready(s) && peek(s, drawing_a_combatant); }
 
@@ -803,8 +897,11 @@ void battle_copy_frame_tiles(Snes *s)
 
 bool battle_objects_drawn(GameState *g)
 {
-    if (!someone_on_battlefield(g))
-        return battle_needs_the_machine(g, 0xCFE83A, "a draw pass with nobody on the battlefield");
+    uint32_t mark = charge_uncounted_begin(g);
+    bool fits = draw_pass_fits(g);
+    charge_uncounted_end(g, mark);
+    if (!fits)
+        return battle_needs_the_machine(g, 0xCFE83A, "a draw pass outside its sprite or frame buffers");
     draw_objects(g);
     return true;
 }

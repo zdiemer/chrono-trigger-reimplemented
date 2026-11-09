@@ -832,10 +832,6 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **What menu's rewrite left** (history/reimplementation-phase3a.md, "Phase 3a: the menus off the
   machine", and "Phase 3a: the menus' follow-ups and the Epoch"):
-  - a divergence the rewrite accepts, on inputs no game state makes: a
-    string's control code past `$0C`, or one included deeper than four, draws
-    nothing, where the original jumps or recurses (`menu_draw_text`'s fuzz
-    mismatches in PORTING.md);
   - the load screen's member rows keep their own place, where the original
     reads it back from its cells after the member row's window list and the
     portrait have run; both are C now, and write those cells only as the
@@ -3019,26 +3015,18 @@ comparisons.
   entries lack a plain recipe: `battle_wait_music_fade_loop` (9 bytes),
   `battle_aim_action` (447) and `battle_call_enemies_in` (42).
 
-  The initial 200-trial replay has 435 clean recipes out of 443. Longer runs,
-  the resource fixes and 44 existing variants leave 2,760 battle bytes in
-  73 entries and 2,341 menu bytes in 73 entries after 482 clean recipes. Preserve
-  the complete source and destination bounds added to tile copying, frames
-  and afterimages when their guards retire. Close the remaining failures in
-  `menu_draw_text`, `battle_draw_objects:loose`,
-  `battle_step_combatant_animations:loose` and
-  `battle_update_combatant:comes_back`. The latter disagrees only in incoming
-  registers at its call cutoff; establish liveness before declaring any
-  dead. Both animation variants exceed `battle_part_offsets`, and equipment's
-  `any_item` variant exceeds the name-place table. Preserve the sprite loader's decoded-output bound and
-  the Epoch map's upload-buffer bound as contracts when their guards retire
-  (REIMPLEMENTATION.md, "Battle and menu held boundaries"). Some recipes leave the
-  original running at a call-out or use invalid asset/state combinations;
-  distinguish fixture constraints from defects and preserve every resulting
-  precondition. The object-script dispatcher's conservative reach includes
-  22 targets absent from the C tables, in `$C2:7911-$C2:7D5E` and
-  `$C6:E072-$C6:E1FF`. Implement them or establish their actual script
-  preconditions; a dispatcher trial that calls the original is not C evidence
-  for those targets.
+  The resource repairs and directed fixtures leave 2,547 battle bytes in
+  72 entries and 269 menu bytes in 45 entries after 566 clean recipes.
+  Preserve the complete sprite/frame/output bounds, startup-built OAM
+  lookup, graphics resource banks, equipment page's name bounds, and text
+  language and stack separation when their guards retire. The original
+  random-OAM fixture is wholly refused; its valid-lookup counterpart is
+  execution evidence. Do not count a refusal or interpreted call-out as
+  evidence for a C implementation. The remaining menu gaps include complete
+  exchange slides, text glyph packing, refusal paths, and map selectors
+  excluded by existing guards. The new scene helpers retain provisional
+  estimates until a movie measures them. Record the reviewed exclusions and
+  matched recipes in the unreached ledger before either subsystem retires.
 
   Initial outcome witnesses are `battle-menu-buttons`, `menus-sweep` and
   `menus-epoch`: both modes protect SRAM end states, pictures and ordered

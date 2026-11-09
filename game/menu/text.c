@@ -666,9 +666,143 @@ static bool clear_of_the_stack(uint32_t number_at, uint16_t sp)
 
 bool menu_tile_on_page(Snes *s) { return on_the_menus_page(s); }
 
+/* Text output belongs in its tile buffer, clear of the drawer's cells and
+ * its active call stack. A zero-length blank run would cover the whole
+ * bank, including both, rather than representing an empty run. */
+static bool text_output_fits(uint16_t pen, unsigned tiles, bool blanks_above, uint16_t sp)
+{
+    enum { DRAWER_CELLS_END = 0x94, CALL_SPACE = 64, CALL_RETURN = 2 };
+    uint32_t low = blanks_above && pen >= ROW_BYTES ? pen - ROW_BYTES : pen;
+    uint32_t end = (uint32_t)pen + tiles * TILE_BYTES;
+    return tiles != 0 && low >= DRAWER_CELLS_END && end <= 0x10000u
+           && (end + CALL_SPACE <= sp || low > (uint32_t)sp + CALL_RETURN);
+}
+
+/* Included strings add saved readers and returns above the number
+ * converter's own pushes. Text and its operands are resources, never data
+ * inside that live call-stack envelope. */
+static bool text_source_clears_stack(uint32_t at, unsigned bytes, uint16_t sp)
+{
+    enum { TEXT_CALL_SPACE = 64 };
+    uint8_t bank = (uint8_t)(at >> 16);
+    uint16_t address = (uint16_t)at;
+    bool low_ram = bank == 0x7E || ((bank & 0x7F) < 0x40 && address < 0x2000);
+    return !low_ram || address > sp || (uint32_t)address + bytes + TEXT_CALL_SPACE <= sp;
+}
+
+/* Validate the text language before drawing. A malformed string must not
+ * select a handler outside the language, exceed the inclusion stack, or
+ * ask the number converter to consume a bank of bytes. These bounds also
+ * apply to included names and strings, up to the current tile limit. */
+static bool text_is_drawable(const GameState *g, TextPlace p, uint8_t settings, uint16_t pen, uint16_t sp)
+{
+    enum { MOST_TEXT_PIECES = 4096 };
+    Inclusions in = { .depth = 0 };
+    uint8_t left = settings & 0x7F;
+    uint16_t line = pen;
+    for (unsigned piece = 0; piece < MOST_TEXT_PIECES; piece++) {
+        if (!reads_memory(address_of(p, 0)) || !text_source_clears_stack(address_of(p, 0), 1, sp))
+            return false;
+        uint8_t code = text_byte(g, p, 0);
+        bool ended = code == END_OF_STRING;
+        if (!ended) {
+            p = advanced(p, 1);
+            if (code >= FIRST_TILE) {
+                if (!text_output_fits(pen, 1, code == BLANK && !(settings & ONE_ROW), sp))
+                    return false;
+                pen = (uint16_t)(pen + TILE_BYTES);
+                ended = --left == 0;
+            } else {
+                if (code >= CONTROL_CODES)
+                    return false;
+                for (uint8_t i = 0; i < control_codes[code].bytes; i++)
+                    if (!reads_memory(address_of(p, i)) || !text_source_clears_stack(address_of(p, i), 1, sp))
+                        return false;
+                ControlOperands c = decode_operands(g, code, p);
+                p = advanced(p, control_codes[code].bytes);
+                switch (code) {
+                case CODE_NEW_LINE:
+                    line = (uint16_t)(line + ((settings & ONE_ROW) ? ROW_BYTES : 2 * ROW_BYTES));
+                    pen = line;
+                    break;
+                case CODE_MOVE: pen = line = (uint16_t)(menu_draw_origin(g) + c.offset); break;
+                case CODE_NUMBER:
+                    if (!number_format((uint8_t)c.format).bytes || !reads_memory(c.number)
+                        || !clear_of_the_drawers_cells(c.number, pen)
+                        || !text_source_clears_stack(c.number, number_format((uint8_t)c.format).bytes, sp)
+                        || !text_output_fits(pen, number_format((uint8_t)c.format).digits, !(settings & ONE_ROW), sp))
+                        return false;
+                    pen = (uint16_t)(pen + TILE_BYTES * number_format((uint8_t)c.format).digits);
+                    break;
+                case CODE_HEX_NUMBER:
+                    if (!reads_memory(c.number) || !clear_of_the_drawers_cells(c.number, pen)
+                        || !text_source_clears_stack(c.number, 4, sp)
+                        || !text_output_fits(pen, (uint8_t)c.format + 1u, false, sp))
+                        return false;
+                    pen = (uint16_t)(pen + TILE_BYTES * ((uint8_t)c.format + 1u));
+                    break;
+                case CODE_LIMITED_NUMBER:
+                    if (!clear_of_the_drawers_cells((uint32_t)TILEMAP_BANK << 16 | c.value_at, pen)
+                        || !text_source_clears_stack((uint32_t)TILEMAP_BANK << 16 | c.value_at, 1, sp)
+                        || !text_output_fits(pen, 2, !(settings & ONE_ROW), sp))
+                        return false;
+                    pen = (uint16_t)(pen + 2 * TILE_BYTES);
+                    break;
+                case CODE_COPY_TILE:
+                    if (!text_output_fits(pen, 1, false, sp))
+                        return false;
+                    pen = (uint16_t)(pen + TILE_BYTES);
+                    left--;
+                    break;
+                case CODE_BLANKS:
+                    if (!text_output_fits(pen, c.count, !(settings & ONE_ROW), sp))
+                        return false;
+                    pen = (uint16_t)(pen + TILE_BYTES * c.count);
+                    break;
+                case CODE_FLAGS: settings = c.value; break;
+                case CODE_STRING:
+                case CODE_NAME:
+                    if (in.depth == INCLUDED_DEPTH)
+                        return false;
+                    in.stack[in.depth++] = (Included){ p, code == CODE_NAME,
+                        (uint16_t)(pen + NAME_TILES * TILE_BYTES), left, settings };
+                    if (code == CODE_NAME) {
+                        p = (TextPlace){ TILEMAP_BANK, c.name };
+                        left = NAME_TILES;
+                        settings = NAME_FLAGS;
+                    } else
+                        p = c.string;
+                    break;
+                default: break;
+                }
+            }
+        }
+        if (ended) {
+            if (!in.depth)
+                return true;
+            Included i = in.stack[--in.depth];
+            p = i.resume;
+            if (i.name) {
+                if (left && !text_output_fits(pen, left, false, sp))
+                    return false;
+                pen = i.pen_after;
+                left = i.limit;
+                settings = i.flags;
+            }
+        }
+    }
+    return false;
+}
+
 bool menu_text_on_page(Snes *s)
 {
-    return on_the_menus_page(s) && converts_from_one(s) && reads_memory((uint32_t)(s->cpu.a >> 8) << 16 | s->cpu.y);
+    if (!on_the_menus_page(s) || !converts_from_one(s))
+        return false;
+    vars_peek(true);
+    bool ok = text_is_drawable(state_of(s), (TextPlace){ (uint8_t)(s->cpu.a >> 8), s->cpu.y },
+                              (uint8_t)s->cpu.a, s->cpu.x, s->cpu.s);
+    vars_peek(false);
+    return ok;
 }
 
 /* A number the game draws is one to three bytes. */

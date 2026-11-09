@@ -406,6 +406,12 @@ bool menu_page_turns(const GameState *g, uint8_t top)
     return paged_to(g, top, &to_an_end) != top;
 }
 
+uint8_t menu_page_destination(const GameState *g, uint8_t top)
+{
+    bool to_an_end;
+    return paged_to(g, top, &to_an_end);
+}
+
 /* The paging's answer in A: whether a page turned. */
 enum { TURNED = 0xFF, NOT_TURNED = 0x00 };
 

@@ -114,6 +114,8 @@ void battle_find_effect_animations(GameState *g);
  * original indexes the enemies' order with A's high byte along, which the
  * game keeps clear. */
 void battle_step_combatants(GameState *g);
+/* The current group's looks and frame-part buffers can hold its animation. */
+bool battle_animations_fit(const GameState *g);
 
 /* Where the facing the object faces starts in its frame lists, after the
  * first facing's (battle/animation.c). */

@@ -13475,6 +13475,16 @@ source = "game/menu/objects.c, game/menu/object_script.c, game/menu/map.c, game/
   size = 0x1C
   meaning = "Every byte, as the Epoch's screens use them"
   [[var.field]]
+  name = "scene_gray_shade"
+  offset = 0x00
+  size = 2
+  meaning = "The gray ramp's last colour value, preserved for byte comparison"
+  [[var.field]]
+  name = "scene_gray_remaining"
+  offset = 0x02
+  size = 2
+  meaning = "The gray ramp's count of unfilled bands, zero when done"
+  [[var.field]]
   name = "answer"
   offset = 0x00
   meaning = "What a routine a scene's script calls answers (1 yes, 0 no), for the script's next command to test (game/menu/map_scenes.c)"
@@ -13488,6 +13498,16 @@ source = "game/menu/objects.c, game/menu/object_script.c, game/menu/map.c, game/
   offset = 0x0A
   size = 2
   meaning = "And down from the view's top"
+  [[var.field]]
+  name = "scene_wave_output"
+  offset = 0x10
+  size = 3
+  meaning = "The travelling scene wave's last line in the table it just built; left for the original's byte comparison"
+  [[var.field]]
+  name = "scene_window_edges"
+  offset = 0x10
+  size = 3
+  meaning = "The scene's table of paired window edges, read to place an object on one side"
   [[var.field]]
   name = "screen_command"
   offset = 0x10
@@ -13922,6 +13942,21 @@ source = "game/menu/objects.c, game/menu/object_script.c, game/menu/map.c, game/
   offset = 0x08
   size = 2
   meaning = "A random jolt ($C6:E6D0): the direction it took, 256 steps a turn, as a word"
+  [[var.field]]
+  name = "scene_resource_offset"
+  offset = 0x08
+  size = 2
+  meaning = "A scene script's selected map resource: byte offset in its three-byte pointer table ($C2:7AFC, $C2:7B20)"
+  [[var.field]]
+  name = "scene_gray_position"
+  offset = 0x08
+  size = 2
+  meaning = "The start of the final constant-colour part of the scene's gray ramp ($C6:E072), left for byte comparison"
+  [[var.field]]
+  name = "scene_edge_offset"
+  offset = 0x08
+  size = 2
+  meaning = "The byte offset of the scene's chosen window line ($C6:E101), left for byte comparison"
   [[var.field]]
   name = "jolt_size"
   offset = 0x0A
@@ -14360,6 +14395,33 @@ source = "game/menu/objects.c, menu_run_objects $C2:051D; game/menu/script.c, me
   offset = 0x22
   size = 4
   meaning = "How much a falling object's speed down grows each frame, 16.16 fixed point ($C6:E77F)"
+
+  [[var.field]]
+  name = "scene_wave_amplitude"
+  offset = 0x22
+  meaning = "The travelling scene wave's amplitude, scaled in 256ths ($C2:7CD8, $C2:7D5E)"
+
+  [[var.field]]
+  name = "scene_wave_phase"
+  offset = 0x24
+  size = 2
+  meaning = "The travelling scene wave's phase, advancing a sixty-fourth turn per frame"
+
+  [[var.field]]
+  name = "scene_wave_frames"
+  offset = 0x26
+  meaning = "The travelling scene wave's frame parity, selecting which line buffer receives the next sample"
+
+  [[var.field]]
+  name = "scene_gray_offset"
+  offset = 0x22
+  size = 2
+  meaning = "The moving fixed-colour band's byte offset from the second line slot's first table"
+
+  [[var.field]]
+  name = "scene_edge_height"
+  offset = 0x22
+  meaning = "The range of lines over which the scene scatters an object along a window edge"
 
   [[var.field]]
   name = "iris_radius"

@@ -197,7 +197,10 @@ static bool run_on_the_machine(void *ctx, EquipmentRoutine r)
         return menu_run_or_call(s, 0xC29D82, 0xC29DAF, READS_NOTHING, menu_slide_equipment_members);
     case EQUIPMENT_SLIDES_THE_MEMBER_ROWS_DOWN:
         return menu_run_or_call(s, 0xC29DAA, 0xC29DAF, READS_NOTHING, menu_slide_equipment_members);
-    case EQUIPMENT_POINTS_ALONG_THE_LIST: return menu_run_any_widths(s, RUNS[r].site, RUNS[r].routine, RUNS[r].entry);
+    case EQUIPMENT_POINTS_ALONG_THE_LIST:
+        /* Reading this frame's cursor can select another page or row. Its
+         * drawing contract must hold for that new selection. */
+        return menu_run_checked(s, 0xC29CAF, 0xC29F05, 0, menu_point_along_equipment_list_entry);
     default: return menu_run(s, RUNS[r].site, RUNS[r].routine, RUNS[r].entry);
     }
 }
@@ -745,11 +748,29 @@ bool menu_equipment_member_switches(Snes *s) { return on_the_screen(s) && peek(s
  * drawn by. */
 enum { RECORD_BYTES = 0x50, FIRST_LIST_PLACE = 4, LIST_ROWS = 9 };
 
+static bool list_is_drawable_from(const GameState *g, unsigned place);
+
+/* Paging redraws eight rows; scrolling draws just the row coming into view.
+ * Validate the names those operations consume, leaving stale rows beyond
+ * the end of the list alone. */
+static bool list_move_is_drawable(const GameState *g, uint8_t row)
+{
+    uint8_t top = menu_equip_list_top(g), to = menu_page_destination(g, top);
+    if (to != top)
+        return list_is_drawable_from(g, to);
+    if (!menu_equip_list_slide_brings_a_row(g, row))
+        return true;
+    uint8_t shifted = menu_pushed(g, MENU_PUSHED_DOWN) ? (uint8_t)(top + 1) : (uint8_t)(top - 1);
+    uint8_t place = (uint8_t)(shifted + row);
+    return place < MENU_LIST_ITEMS_COUNT && menu_list_items(g, place) < MENU_ITEM_NAME_PLACES_COUNT;
+}
+
 static bool list_is_pointable(const GameState *g)
 {
     uint8_t row = (uint8_t)(menu_cursor_index(g) - FIRST_LIST_PLACE);
     return menu_equip_choices(g) <= MENU_LIST_ITEMS_COUNT && row < LIST_ROWS
-           && menu_equip_list_top(g) + LIST_ROWS + 1u <= MENU_LIST_ITEMS_COUNT && queue_takes(g, 2);
+           && menu_equip_list_top(g) + LIST_ROWS + 1u <= MENU_LIST_ITEMS_COUNT && queue_takes(g, 2)
+           && list_move_is_drawable(g, row);
 }
 
 static bool item_step_runs(const GameState *g)
@@ -812,11 +833,10 @@ static bool equipped_are_items(const GameState *g)
  * at the list's end, the empty item, and draws its blank row for the rest,
  * so what lies past the end (an earlier, longer list's leftovers, or
  * whatever the inventory screen left there) is never looked at. */
-static bool list_is_drawable(const GameState *g)
+static bool list_is_drawable_from(const GameState *g, unsigned place)
 {
     if (menu_equip_slot(g) >= SLOT_PLACES || menu_equip_choices(g) > MENU_LIST_ITEMS_COUNT)
         return false;
-    unsigned place = menu_equip_list_top(g);
     for (unsigned row = 0; row < LIST_ROWS_DRAWN; row++, place++) {
         if (place >= MENU_LIST_ITEMS_COUNT)
             return false;
@@ -827,6 +847,11 @@ static bool list_is_drawable(const GameState *g)
             return false;
     }
     return true;
+}
+
+static bool list_is_drawable(const GameState *g)
+{
+    return list_is_drawable_from(g, menu_equip_list_top(g));
 }
 
 /* The list made afresh and drawn from its top: the list must have room for

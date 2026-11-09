@@ -21375,3 +21375,211 @@ args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E004
 iterations = 2000
 why = "Credits completion must refuse a modified task-list continuation before unwinding its caller frame."
 
+
+# The conservative script inventory's near-call iris and scroll targets.
+
+[[routine]]
+name = "menu_scene_round_iris"
+at = "C2:7911"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page and data bank, a running slot as the near script call supplies it; coordinates, radius, frame count and staged line pointers random"
+
+[[routine]]
+name = "menu_scene_window2_lines"
+at = "C2:7957"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page and data bank, a running slot as the near script call supplies it; coordinates, radius, frame count and staged line pointers random"
+
+[[routine]]
+name = "menu_scene_flattened_iris"
+at = "C2:7981"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page and data bank, a running slot as the near script call supplies it; coordinates, radius, frame count and staged line pointers random"
+
+[[routine]]
+name = "menu_scene_advance_scroll"
+at = "C2:7AAF"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page and data bank, a running slot as the near script call supplies it; coordinates, radius, frame count and staged line pointers random"
+
+[[routine]]
+name = "menu_scene_show_moving_scroll"
+at = "C2:7ADA"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page and data bank, a running slot as the near script call supplies it; coordinates, radius, frame count and staged line pointers random"
+
+[[routine]]
+name = "menu_scene_show_uniform_scroll"
+at = "C2:7AEB"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page and data bank, a running slot as the near script call supplies it; coordinates, radius, frame count and staged line pointers random"
+
+# The conservative scene-script inventory: acceleration and persistent results.
+
+[[routine]]
+name = "menu_object_accelerate_down"
+at = "C2:79C8"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the scene script's near-call page, bank and running object; position, answer and story bytes random"
+
+[[routine]]
+name = "menu_object_mark_scene_event"
+at = "C2:7B4F"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the scene script's near-call page, bank and running object; position, answer and story bytes random"
+
+[[routine]]
+name = "menu_object_keep_first_scene_result"
+at = "C2:7C48"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the scene script's near-call page, bank and running object; position, answer and story bytes random"
+
+[[routine]]
+name = "menu_object_keep_second_scene_result"
+at = "C2:7C4F"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the scene script's near-call page, bank and running object; position, answer and story bytes random"
+
+# Travelling waves called by the conservative scene-script inventory.
+
+[[routine]]
+name = "menu_scene_start_horizontal_wave"
+at = "C2:7C56"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the scene script's page, bank and running object; both buffer parities, phases and amplitudes random"
+
+[[routine]]
+name = "menu_scene_start_vertical_wave"
+at = "C2:7C97"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the scene script's page, bank and running object; both buffer parities, phases and amplitudes random"
+
+[[routine]]
+name = "menu_scene_advance_horizontal_wave"
+at = "C2:7CD8"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the scene script's page, bank and running object; both buffer parities, phases and amplitudes random"
+
+[[routine]]
+name = "menu_scene_advance_vertical_wave"
+at = "C2:7D5E"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the scene script's page, bank and running object; both buffer parities, phases and amplitudes random"
+
+# The scene-script resource selectors and repeated Mode 7 pattern.
+
+[[routine]]
+name = "menu_object_load_scene_map_graphics"
+at = "C2:7AFC"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E0008-7E0008=00-6E", "--fill", "7E0009-7E0009=00-00"]
+iterations = 2000
+why = "the scene script's page and bank; catalogue resource offsets with the full decoded-output bound, or the fixed repeated pattern"
+
+[[routine]]
+name = "menu_object_load_scene_top_layer"
+at = "C2:7B20"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E0008-7E0008=00-11", "--fill", "7E0009-7E0009=00-00"]
+iterations = 2000
+why = "the scene script's page and bank; catalogue resource offsets with the full decoded-output bound, or the fixed repeated pattern"
+
+[[routine]]
+name = "menu_object_lay_out_scene_pattern"
+at = "C2:7BD8"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E0008-7E0008=00-00", "--fill", "7E0009-7E0009=00-00"]
+iterations = 2000
+why = "the scene script's page and bank; catalogue resource offsets with the full decoded-output bound, or the fixed repeated pattern"
+
+# Fixed-colour ramps and bands called by the conservative scene scripts.
+
+[[routine]]
+name = "menu_scene_start_gray_ramp"
+at = "C6:E072"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the scene script's page, bank and running object; moving-band offsets random, including WRAM bank crossings"
+
+[[routine]]
+name = "menu_scene_start_gray_band"
+at = "C6:E170"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the scene script's page, bank and running object; moving-band offsets random, including WRAM bank crossings"
+
+[[routine]]
+name = "menu_scene_move_gray_band"
+at = "C6:E1FF"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the scene script's page, bank and running object; moving-band offsets random, including WRAM bank crossings"
+
+[[routine]]
+name = "menu_scene_start_scroll_pattern"
+at = "C2:7A56"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004F=0B30"]
+iterations = 2000
+why = "the scene script's page and bank; scroll and both line tables random"
+
+[[routine]]
+name = "menu_object_place_on_scene_edge"
+at = "C6:E101"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--fill", "7E0011-7E0011=20-FC", "--fill", "7E0012-7E0012=7E-7F"]
+iterations = 2000
+why = "a valid running object and WRAM edge table above the object state; random lines, either side, zero heights and random-index wrap"

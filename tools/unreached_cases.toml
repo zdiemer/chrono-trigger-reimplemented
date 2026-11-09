@@ -385,3 +385,422 @@ at = "C002E8"
 args = ["--fill", "7E0119-7E0119=00,01"]
 iterations = 200
 why = "Resume the held fade with one step left or already dark; check both the next held frame and restoring the stored location before the fresh field entry."
+
+# The menu handlers consume the decoded cursor buttons and direction, not
+# the pad bytes their caller decoded earlier. The base snapshots keep these
+# cells fixed, so random pad bytes alone never exercise a handler's choices.
+[profile.menu_choices]
+args = ["--fill", "7E0D1D-7E0D1D=00,80,40,02,01", "--fill", "7E005A-7E005A=00,01,02,04,08,81,82,84,88"]
+
+[[case]]
+base = "menu_flip_keep_menu_cursors"
+variant = "unreached_choices"
+profile = "menu_choices"
+iterations = 2000
+why = "The handler's decoded confirm, back and shoulder buttons, and each direction or no push, varied independently; all base state and asset bounds retained."
+
+[[case]]
+base = "menu_flip_keep_battle_command"
+variant = "unreached_choices"
+profile = "menu_choices"
+iterations = 2000
+why = "The handler's decoded confirm, back and shoulder buttons, and each direction or no push, varied independently; all base state and asset bounds retained."
+
+[[case]]
+base = "menu_flip_keep_battle_lists"
+variant = "unreached_choices"
+profile = "menu_choices"
+iterations = 2000
+why = "The handler's decoded confirm, back and shoulder buttons, and each direction or no push, varied independently; all base state and asset bounds retained."
+
+[[case]]
+base = "menu_step_battle_speed"
+variant = "unreached_choices"
+profile = "menu_choices"
+iterations = 2000
+why = "The handler's decoded confirm, back and shoulder buttons, and each direction or no push, varied independently; all base state and asset bounds retained."
+
+[[case]]
+base = "menu_take_controls"
+variant = "unreached_choices"
+profile = "menu_choices"
+iterations = 2000
+why = "The handler's decoded confirm, back and shoulder buttons, and each direction or no push, varied independently; all base state and asset bounds retained."
+
+[[case]]
+base = "menu_move_the_exchange_cursor"
+variant = "unreached_choices"
+profile = "menu_choices"
+iterations = 2000
+why = "The handler's decoded confirm, back and shoulder buttons, and each direction or no push, varied independently; all base state and asset bounds retained."
+
+[[case]]
+base = "menu_type_on_the_name_grid"
+variant = "unreached_choices"
+profile = "menu_choices"
+iterations = 2000
+why = "The handler's decoded confirm, back and shoulder buttons, and each direction or no push, varied independently; all base state and asset bounds retained."
+
+[[case]]
+base = "menu_switch_shop_member"
+variant = "unreached_choices"
+profile = "menu_choices"
+iterations = 2000
+why = "The handler's decoded confirm, back and shoulder buttons, and each direction or no push, varied independently; all base state and asset bounds retained."
+
+[[case]]
+base = "menu_choose_equipment_item"
+variant = "unreached_choices"
+profile = "menu_choices"
+iterations = 2000
+why = "The handler's decoded confirm, back and shoulder buttons, and each direction or no push, varied independently; all base state and asset bounds retained."
+
+[[case]]
+base = "menu_choose_tech"
+variant = "unreached_choices"
+profile = "menu_choices"
+iterations = 2000
+why = "The handler's decoded confirm, back and shoulder buttons, and each direction or no push, varied independently; all base state and asset bounds retained."
+
+[[case]]
+base = "menu_choose_for_sale"
+variant = "unreached_choices"
+profile = "menu_choices"
+iterations = 2000
+why = "The handler's decoded confirm, back and shoulder buttons, and each direction or no push, varied independently; all base state and asset bounds retained."
+
+[[case]]
+base = "menu_use_item_by_chance"
+variant = "unreached_choices"
+profile = "menu_choices"
+iterations = 2000
+why = "The handler's decoded confirm, back and shoulder buttons, and each direction or no push, varied independently; all base state and asset bounds retained."
+
+[[case]]
+base = "menu_close_slots_window"
+variant = "unreached_choices"
+profile = "menu_choices"
+iterations = 2000
+why = "The handler's decoded confirm, back and shoulder buttons, and each direction or no push, varied independently; all base state and asset bounds retained."
+
+[[case]]
+base = "menu_accept_the_name"
+variant = "unreached_choices"
+profile = "menu_choices"
+iterations = 2000
+why = "The handler's decoded confirm, back and shoulder buttons, and each direction or no push, varied independently; all base state and asset bounds retained."
+
+[[case]]
+base = "menu_check_the_name"
+variant = "unreached_choices"
+profile = "menu_choices"
+iterations = 2000
+why = "The handler's decoded confirm, back and shoulder buttons, and each direction or no push, varied independently; all base state and asset bounds retained."
+
+[[case]]
+base = "menu_choose_how_many_to_buy"
+variant = "unreached_choices"
+profile = "menu_choices"
+iterations = 2000
+why = "The handler's decoded confirm, back and shoulder buttons, and each direction or no push, varied independently; all base state and asset bounds retained."
+
+[[case]]
+base = "menu_draw_text"
+variant = "unreached_hex"
+args = ["--range", "A=7E80-7EFF", "--range", "X=3000-33FF", "--range", "Y=2000-2000", "--fill", "7E2000-7E2000=0B", "--fill", "7E2001-7E2001=00-07", "--fill", "7E2002-7E2003=2100", "--fill", "7E2004-7E2004=7E", "--fill", "7E2005-7E2005=00"]
+iterations = 2000
+why = "A synthetic terminated string containing the hexadecimal control code, with one through eight digits of a four-byte value. Text, number and destination occupy separate RAM regions outside scratch and stack."
+
+[[case]]
+base = "menu_object_cmd_move_to_across"
+variant = "unreached_start"
+args = ["--fill", "[7E004E]+32,2=0000", "--fill", "7E005F-7E005F=00"]
+iterations = 2000
+why = "The first frame of moving toward a target, so both velocity signs and target directions reach the sprite-script selection. Empty upload queue and the base valid sprite resource retained."
+
+[[case]]
+base = "menu_object_cmd_move_to_across"
+variant = "unreached_arrived"
+args = ["--fill", "[7E004E]+32,2=0001", "--fill", "[7E004E]+34,2=0040", "--fill", "[7E004E]+14,2=0040", "--fill", "7E005F-7E005F=00"]
+iterations = 2000
+why = "A move already on its target pixel finishes the command; the queue remains empty and the base sprite resource remains valid."
+
+[[case]]
+base = "menu_object_cmd_move_to_down"
+variant = "unreached_start"
+args = ["--fill", "[7E004E]+32,2=0000", "--fill", "7E005F-7E005F=00"]
+iterations = 2000
+why = "The first frame of moving toward a target, so both velocity signs and target directions reach the sprite-script selection. Empty upload queue and the base valid sprite resource retained."
+
+[[case]]
+base = "menu_object_cmd_move_to_down"
+variant = "unreached_arrived"
+args = ["--fill", "[7E004E]+32,2=0001", "--fill", "[7E004E]+34,2=0040", "--fill", "[7E004E]+18,2=0040", "--fill", "7E005F-7E005F=00"]
+iterations = 2000
+why = "A move already on its target pixel finishes the command; the queue remains empty and the base sprite resource remains valid."
+
+[[case]]
+base = "menu_move_the_exchange_cursor:unreached_choices"
+variant = "unreached_after_sound"
+remove = ["--stop-at-call"]
+args = ["--stop-at-call", "C2821E"]
+iterations = 2000
+why = "Continue past the sound command with the base APU loopback, comparing the remainder of this cursor step up to its next frame wait; preserve the base state and resource bounds."
+
+[[case]]
+base = "menu_type_on_the_name_grid:unreached_choices"
+variant = "unreached_after_sound"
+remove = ["--stop-at-call"]
+args = ["--stop-at-call", "C2821E"]
+iterations = 2000
+why = "Continue past the sound command with the base APU loopback, comparing the remainder of this cursor step up to its next frame wait; preserve the base state and resource bounds."
+
+[[case]]
+base = "menu_switch_shop_member:unreached_choices"
+variant = "unreached_after_sound"
+remove = ["--stop-at-call"]
+args = ["--stop-at-call", "C2821E"]
+iterations = 2000
+why = "Continue past the sound command with the base APU loopback, comparing the remainder of this cursor step up to its next frame wait; preserve the base state and resource bounds."
+
+[[case]]
+base = "menu_choose_how_many_to_buy:unreached_choices"
+variant = "unreached_after_sound"
+remove = ["--stop-at-call"]
+args = ["--stop-at-call", "C2821E"]
+iterations = 2000
+why = "Continue past the sound command with the base APU loopback, comparing the remainder of this cursor step up to its next frame wait; preserve the base state and resource bounds."
+
+[[case]]
+base = "menu_choose_for_sale:unreached_choices"
+variant = "unreached_after_sound"
+remove = ["--stop-at-call"]
+args = ["--stop-at-call", "C2821E"]
+iterations = 2000
+why = "Continue past the sound command with the base APU loopback, comparing the remainder of this cursor step up to its next frame wait; preserve the base state and resource bounds."
+
+[[case]]
+base = "menu_choose_tech:unreached_choices"
+variant = "unreached_after_sound"
+remove = ["--stop-at-call"]
+args = ["--stop-at-call", "C2821E"]
+iterations = 2000
+why = "Continue past the sound command with the base APU loopback, comparing the remainder of this cursor step up to its next frame wait; preserve the base state and resource bounds."
+
+[[case]]
+base = "menu_accept_the_name:unreached_choices"
+variant = "unreached_after_sound"
+remove = ["--stop-at-call"]
+args = ["--stop-at-call", "C2821E"]
+iterations = 2000
+why = "Continue past the sound command with the base APU loopback, comparing the remainder of this cursor step up to its next frame wait; preserve the base state and resource bounds."
+
+[[case]]
+base = "menu_check_the_name:unreached_choices"
+variant = "unreached_after_sound"
+remove = ["--stop-at-call"]
+args = ["--stop-at-call", "C2821E"]
+iterations = 2000
+why = "Continue past the sound command with the base APU loopback, comparing the remainder of this cursor step up to its next frame wait; preserve the base state and resource bounds."
+
+[[case]]
+base = "menu_party_services"
+variant = "unreached_replace_third"
+args = ["--range", "A=0001-0001", "--range", "Y=0003-0006", "--fill", "7E2980-7E2980=00", "--fill", "7E2981-7E2981=01", "--fill", "7E2982-7E2982=02"]
+iterations = 2000
+why = "Bring a character absent from the full active party into its third place, sending the former third member to reserve. Preserve the field character records and equipment assets."
+
+[[case]]
+base = "menu_party_services"
+variant = "unreached_strip"
+args = ["--range", "A=000A-000A", "--range", "X=0000-0000", "--range", "Y=0000-0006"]
+iterations = 2000
+why = "The equipment service strips all equipment, including Ayla retaining her weapon slot; all seven valid character records are exercised."
+
+[[case]]
+base = "menu_use_item_by_chance"
+variant = "unreached_outcomes"
+args = ["--fill", "7E0D00-7E0D00=00-FF"]
+iterations = 2000
+why = "Vary the frame that indexes the random-byte table, so the item draws all four probability outcomes instead of the snapshot's fixed one."
+
+[[case]]
+base = "menu_epoch_time_dial_object"
+variant = "unreached_buzz"
+args = ["--apu-loopback", "--fill", "[7E004E]+02,1=01", "--fill", "[7E004E]+22,1=00-06", "--fill", "7E00F8-7E00F9=0080", "--fill", "7E0100-7E0101=01F0,01F1,01F2,01F3,01F4,01F5,01F6,01F7"]
+iterations = 2000
+why = "Travel pressed with no turn input, every dial period and each world-map location. Compare the already-here buzz through the sound driver using loopback, as well as selecting travel."
+
+[[case]]
+base = "menu_epoch_time_dial_object"
+variant = "unreached_pass_period"
+args = ["--fill", "[7E004E]+02,1=02", "--fill", "[7E004E]+22,1=00-06", "--fill", "[7E004E]+14,2=0000", "--fill", "[7E004E]+18,2=0000", "--fill", "[7E004E]+20,2=0004,FFFC", "--fill", "7E0100-7E0101=01F0,01F1,01F2,01F3,01F4,01F5,01F6,01F7"]
+iterations = 2000
+why = "An arrived dial angle, each period and each world-map location, moving in either direction. Exercise passing the current period and reversing at either end."
+
+[[case]]
+base = "battle_step_combatant_animations:loose"
+variant = "unreached_unpacked"
+args = ["--fill", "7E1C57-7E1C77:3=7F7F7F"]
+iterations = 5000
+why = "Creature graphics use the field's unpacked bank, while frame and tile lists remain randomized in the first work-RAM bank. The graphics resource contract rejects sources that could wrap into the battle's scratch or stack; the old loose fixture remains a refusal witness, not a successful comparison."
+[[case]]
+base = "battle_draw_objects:loose"
+variant = "unreached_known_oam"
+args = ["--keep", "7E902D-7E922C"]
+iterations = 5000
+why = "Retain the lookup built by battle startup that maps sprite bytes to the OAM high table; otherwise keep the loose randomized draw pass. Corrupt lookup entries are refused by the resource bound, while this case exercises drawing with the lookup the game builds."
+
+[[case]]
+base = "menu_choose_how_many_to_buy:unreached_after_sound"
+variant = "unreached_stable_step"
+args = ["--fill", "7E0D17-7E0D17=05"]
+iterations = 2000
+why = "The quantity screen has already read its current step, so input is not suppressed as on its first frame. Preserve the base resource and quantity bounds; compare choosing, leaving and changing the quantity through its sound up to the frame wait."
+
+[[case]]
+base = "menu_choose_how_many_to_buy:unreached_after_sound"
+variant = "unreached_gold_cap"
+args = ["--fill", "7E0D17-7E0D17=05", "--fill", "7E00F0-7E00F5=FF", "--fill", "7E2C53-7E2C54=0000,0001,967E,967F,FFFF", "--fill", "7E2C55-7E2C55=00", "--fill", "7E1044-7E1046=000000,000001,009680,FFFFFF"]
+iterations = 2000
+why = "Confirm a purchase after the quantity screen first frame, with synthetic totals on both sides of the gold balance. Exercise the original 24-bit subtraction wrap and gold cap, preserving its unusual behavior for underfunded quantities rather than assuming the UI always limits them."
+
+[[case]]
+base = "menu_object_cmd_branch_if_slot_zero"
+variant = "unreached_signed"
+args = ["--fill", "7E1C1E-7E1C1E=80-FF"]
+iterations = 2000
+why = "The conditional branch returns a negative relative offset, testing sign extension after both successful and failed byte tests. Keep the base script, object and addressed-cell bounds; only the signed branch operand changes."
+
+[[case]]
+base = "menu_object_cmd_branch_if_slot_nonzero"
+variant = "unreached_signed"
+args = ["--fill", "7E1C1E-7E1C1E=80-FF"]
+iterations = 2000
+why = "The conditional branch returns a negative relative offset, testing sign extension after both successful and failed byte tests. Keep the base script, object and addressed-cell bounds; only the signed branch operand changes."
+
+[[case]]
+base = "menu_object_cmd_branch_if_slot_not_equal"
+variant = "unreached_signed"
+args = ["--fill", "7E1C1F-7E1C1F=80-FF"]
+iterations = 2000
+why = "The conditional branch returns a negative relative offset, testing sign extension after both successful and failed byte tests. Keep the base script, object and addressed-cell bounds; only the signed branch operand changes."
+
+[[case]]
+base = "menu_object_cmd_branch_if_slot_equal"
+variant = "unreached_signed"
+args = ["--fill", "7E1C1F-7E1C1F=80-FF"]
+iterations = 2000
+why = "The conditional branch returns a negative relative offset, testing sign extension after both successful and failed byte tests. Keep the base script, object and addressed-cell bounds; only the signed branch operand changes."
+
+[[case]]
+base = "menu_object_cmd_branch_if_slot_any_bit"
+variant = "unreached_signed"
+args = ["--fill", "7E1C1F-7E1C1F=80-FF"]
+iterations = 2000
+why = "The conditional branch returns a negative relative offset, testing sign extension after both successful and failed byte tests. Keep the base script, object and addressed-cell bounds; only the signed branch operand changes."
+
+[[case]]
+base = "menu_object_cmd_branch_if_slot_no_bit"
+variant = "unreached_signed"
+args = ["--fill", "7E1C1F-7E1C1F=80-FF"]
+iterations = 2000
+why = "The conditional branch returns a negative relative offset, testing sign extension after both successful and failed byte tests. Keep the base script, object and addressed-cell bounds; only the signed branch operand changes."
+
+[[case]]
+base = "menu_object_cmd_branch_if_cell_zero"
+variant = "unreached_signed"
+args = ["--fill", "7E1C1F-7E1C1F=80-FF"]
+iterations = 2000
+why = "The conditional branch returns a negative relative offset, testing sign extension after both successful and failed byte tests. Keep the base script, object and addressed-cell bounds; only the signed branch operand changes."
+
+[[case]]
+base = "menu_object_cmd_branch_if_cell_nonzero"
+variant = "unreached_signed"
+args = ["--fill", "7E1C1F-7E1C1F=80-FF"]
+iterations = 2000
+why = "The conditional branch returns a negative relative offset, testing sign extension after both successful and failed byte tests. Keep the base script, object and addressed-cell bounds; only the signed branch operand changes."
+
+[[case]]
+base = "menu_object_cmd_branch_if_cell_not_equal"
+variant = "unreached_signed"
+args = ["--fill", "7E1C20-7E1C20=80-FF"]
+iterations = 2000
+why = "The conditional branch returns a negative relative offset, testing sign extension after both successful and failed byte tests. Keep the base script, object and addressed-cell bounds; only the signed branch operand changes."
+
+[[case]]
+base = "menu_object_cmd_branch_if_cell_equal"
+variant = "unreached_signed"
+args = ["--fill", "7E1C20-7E1C20=80-FF"]
+iterations = 2000
+why = "The conditional branch returns a negative relative offset, testing sign extension after both successful and failed byte tests. Keep the base script, object and addressed-cell bounds; only the signed branch operand changes."
+
+[[case]]
+base = "menu_object_cmd_branch_if_cell_any_bit"
+variant = "unreached_signed"
+args = ["--fill", "7E1C20-7E1C20=80-FF"]
+iterations = 2000
+why = "The conditional branch returns a negative relative offset, testing sign extension after both successful and failed byte tests. Keep the base script, object and addressed-cell bounds; only the signed branch operand changes."
+
+[[case]]
+base = "menu_object_cmd_branch_if_cell_no_bit"
+variant = "unreached_signed"
+args = ["--fill", "7E1C20-7E1C20=80-FF"]
+iterations = 2000
+why = "The conditional branch returns a negative relative offset, testing sign extension after both successful and failed byte tests. Keep the base script, object and addressed-cell bounds; only the signed branch operand changes."
+
+[[case]]
+base = "menu_object_cmd_branch_if_cell_below"
+variant = "unreached_signed"
+args = ["--fill", "7E1C20-7E1C20=80-FF"]
+iterations = 2000
+why = "The conditional branch returns a negative relative offset, testing sign extension after both successful and failed byte tests. Keep the base script, object and addressed-cell bounds; only the signed branch operand changes."
+
+[[case]]
+base = "menu_object_cmd_branch_if_cell_at_least"
+variant = "unreached_signed"
+args = ["--fill", "7E1C20-7E1C20=80-FF"]
+iterations = 2000
+why = "The conditional branch returns a negative relative offset, testing sign extension after both successful and failed byte tests. Keep the base script, object and addressed-cell bounds; only the signed branch operand changes."
+
+[[case]]
+base = "menu_take_controls:unreached_choices"
+variant = "unreached_right"
+args = ["--fill", "7E007F-7E007F=08", "--fill", "7E005A-7E005A=01", "--fill", "7E0D1D-7E0D1D=00"]
+iterations = 2000
+why = "Push right while already on the controls option, with either the default or custom assignments selected. No confirm press obscures the direction-only transition."
+
+[[case]]
+base = "menu_accept_the_name:unreached_after_sound"
+variant = "unreached_duplicate"
+args = ["--fill", "7E0F00-7E0F04=80", "--fill", "7E0F05-7E0F05=00", "--fill", "7E9890-7E9894=80", "--fill", "7E9895-7E9895=00", "--fill", "7E2C23-7E2C52=80"]
+iterations = 2000
+why = "Synthetic identical five-letter names force the collision refusal, including its sound through APU loopback. Preserve the base character/record identity guard; no cartridge name data is embedded."
+
+[[case]]
+base = "menu_check_the_name:unreached_after_sound"
+variant = "unreached_duplicate"
+args = ["--fill", "7E0F00-7E0F04=80", "--fill", "7E0F05-7E0F05=00", "--fill", "7E9890-7E9894=80", "--fill", "7E9895-7E9895=00", "--fill", "7E2C23-7E2C52=80"]
+iterations = 2000
+why = "Synthetic identical five-letter names force the collision refusal, including its sound through APU loopback. Preserve the base character/record identity guard; no cartridge name data is embedded."
+
+[[case]]
+base = "menu_accept_the_name:unreached_after_sound"
+variant = "unreached_spaces"
+args = ["--fill", "7E0F00-7E0F04=FF", "--fill", "7E0F05-7E0F05=00"]
+iterations = 2000
+why = "An all-space name trims to empty and is refused without assigning a new name. Compare the trailing-space clearing loop as well as the refusal return."
+
+[[case]]
+base = "menu_object_upload_vram_queue"
+variant = "unreached_empty"
+args = ["--fill", "7E005F-7E005F=00"]
+iterations = 2000
+why = "No queued upload returns immediately without touching video state."
+
+[[case]]
+base = "menu_move_the_exchange_cursor:unreached_after_sound"
+variant = "unreached_kept_row"
+args = ["--fill", "7E0F02-7E0F02=40", "--fill", "7E0F0B-7E0F0B=02", "--fill", "7E0054-7E0054=00", "--fill", "7E005A-7E005A=01,02,04,08"]
+iterations = 2000
+why = "The cursor starts on the story-kept first member and must follow a direction to a free row; the other two active rows stay free, so the search terminates."

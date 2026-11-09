@@ -30,6 +30,8 @@
 #include "menu/menu_data.h"
 #include "menu/object.h"
 #include "original_effects.h"
+#include "overworld/overworld_data.h"
+#include "wram.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -379,6 +381,143 @@ static void note_the_song(GameState *g, MenuObject self)
 {
     (void)self;
     set_current_song(g, menu_object_scratch_answer(g));
+}
+
+// $C2:79C8
+/* Accelerate the falling object by an eighth of a pixel per frame on each
+ * script call. Its fixed-point velocity wraps, including its fraction. */
+static bool accelerate_down(GameState *g, MenuObject self)
+{
+    uint32_t before = menu_object_slots_velocity_y(g, self), after = before + MENU_POSITION_UNITS / 8;
+    set_menu_object_slots_velocity_y(g, self, after);
+    return after < before;
+}
+
+// $C2:7B4F
+/* Keep the scene's story event set after the scene gives control back. */
+static void mark_scene_event(GameState *g, MenuObject self)
+{
+    static const StoryFlag event = { 0x19A, 0x08 };
+    (void)self;
+    set_story_flag(g, event);
+}
+
+/* The scene script hands back two independent results in its answer cell.
+ * These story bytes persist after the object mode reuses that cell. */
+typedef enum { SCENE_FIRST_RESULT = 0xCE, SCENE_SECOND_RESULT = 0xDA } SceneResult;
+
+// $C2:7C48, $C2:7C4F
+static void keep_scene_result(GameState *g, SceneResult result)
+{
+    set_event_memory_byte(g, result, menu_object_scratch_answer(g));
+}
+
+// $C2:79C8
+void menu_object_accelerate_down(Snes *s)
+{
+    GameState *g = state_of(s);
+    m_set_flag(s, CPU_FLAG_C, accelerate_down(g, menu_object_running(g)));
+    s->cpu.x = menu_object_current(g);
+    m_rep(s, CPU_FLAG_M);
+    m_rts(s);
+}
+
+// $C2:7B4F
+void menu_object_mark_scene_event(Snes *s)
+{
+    mark_scene_event(state_of(s), 0);
+    m_rts(s);
+}
+
+// $C2:7C48
+void menu_object_keep_first_scene_result(Snes *s)
+{
+    keep_scene_result(state_of(s), SCENE_FIRST_RESULT);
+    m_rts(s);
+}
+
+// $C2:7C4F
+void menu_object_keep_second_scene_result(Snes *s)
+{
+    keep_scene_result(state_of(s), SCENE_SECOND_RESULT);
+    m_rts(s);
+}
+
+/* Pick a line near the scene's lower edge, rounded to the nearest line.
+ * A zero height retains the original's byte underflow to line 255. */
+static uint8_t scene_edge_line(uint8_t random, uint8_t height)
+{
+    uint16_t product = (uint16_t)random * height;
+    uint8_t line = (uint8_t)((product >> 8) + ((product & 0x80) != 0));
+    return line >= height ? (uint8_t)(line - 1) : line;
+}
+
+enum { SCENE_EDGE_TOP = 0x88, SCENE_EDGE_VIEW_INSET = 8 };
+
+static uint16_t scene_edge_table_offset(const GameState *g, MenuObject self)
+{
+    uint8_t random = menu_random_byte(g, menu_random_index(g));
+    uint8_t line = scene_edge_line(random, menu_object_slots_scene_edge_height(g, self));
+    return (uint16_t)(2u * (SCENE_EDGE_TOP - SCENE_EDGE_VIEW_INSET + line));
+}
+
+/* The edge table is WRAM data above the object state, and the selected
+ * pair of edges must remain within its bank. This also excludes aliasing
+ * the result and scratch cells written before the original reads the pair. */
+static bool scene_edge_is_readable(const GameState *g, MenuObject self)
+{
+    uint32_t table = menu_object_scratch_scene_window_edges(g);
+    return (table >> 16 == 0x7E || table >> 16 == 0x7F) && (uint16_t)table >= 0x2000
+           && (uint32_t)(uint16_t)table + scene_edge_table_offset(g, self) + 2u <= 0x10000u;
+}
+
+bool menu_object_scene_edge_is_readable(Snes *s)
+{
+    if (!m_io_bank(s->cpu.db) || !menu_object_routine_runs(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool fits = scene_edge_is_readable(g, menu_object_running(g));
+    vars_peek(false);
+    return fits;
+}
+
+static void leave_scene_edge_work(GameState *g, uint8_t choose_side, uint16_t offset, uint8_t random, uint8_t height)
+{
+    set_menu_object_scratch_answer(g, choose_side);
+    set_menu_object_scratch_scene_edge_offset(g, offset);
+    hw_set_multiplicand(g, random);
+    (void)hw_multiply_by(g, height);
+}
+
+// $C6:E101
+/* Scatter an object onto either edge of the scene's window. The random
+ * pair chooses the line and side independently; its second byte comes
+ * from the following table byte even at the random index's wrap. */
+static void place_on_scene_edge(GameState *g, MenuObject self)
+{
+    uint8_t index = menu_random_index(g);
+    uint8_t random = menu_random_byte(g, index), choose_side = menu_random_byte(g, (unsigned)index + 1);
+    uint8_t height = menu_object_slots_scene_edge_height(g, self);
+    uint16_t y = (uint16_t)(SCENE_EDGE_TOP + scene_edge_line(random, height));
+    uint16_t offset = (uint16_t)(2u * (y - SCENE_EDGE_VIEW_INSET));
+    uint32_t at = menu_object_scratch_scene_window_edges(g) + offset;
+    set_menu_random_index(g, (uint8_t)(index + 2));
+    set_menu_object_slots_y_pixel(g, self, y);
+    uint16_t edges = wram_read16(g, at);
+    set_menu_object_slots_x_pixel(g, self, (choose_side & 0x80) ? (uint8_t)(edges >> 8) : (uint8_t)edges);
+    ORIGINAL_EFFECT(leave_scene_edge_work(g, choose_side, offset, random, height));
+}
+
+// $C6:E101
+void menu_object_place_on_scene_edge(Snes *s)
+{
+    GameState *g = state_of(s);
+    place_on_scene_edge(g, menu_object_running(g));
+    s->cpu.x = menu_object_current(g);
+    m_set_flag(s, CPU_FLAG_C, false);
+    m_rep(s, CPU_FLAG_M);
+    m_rtl(s);
 }
 
 /* ---- the entries ----------------------------------------------------------------------------- */
@@ -735,6 +874,120 @@ void menu_object_load_second_mode7_palette(Snes *s)
     load_scene_resource(s, MENU_SCENE_PALETTES, SECOND_PALETTE, MODE7_PALETTE_BUFFER);
 }
 
+/* The scene selects a resource by its pointer-table byte offset. Validate
+ * that selection and the decoded size before reusing the Mode 7 buffer. */
+typedef enum { SCENE_MAP_GRAPHICS, SCENE_TOP_LAYER } SceneMapResource;
+enum { SCENE_MAP_GRAPHICS_COUNT = 37, SCENE_TOP_LAYER_COUNT = 6, SCENE_MAP_BUFFER_BYTES = 0x7000 };
+
+static uint32_t scene_map_stream(const GameState *g, SceneMapResource kind)
+{
+    uint8_t number = (uint8_t)(menu_object_scratch_scene_resource_offset(g) / MENU_SCENE_POINTER_BYTES);
+    return overworld_stream(g, kind == SCENE_MAP_GRAPHICS ? OVERWORLD_MAP_GRAPHICS : OVERWORLD_TOP_LAYER_TILEMAPS, number);
+}
+
+static bool scene_map_resource_fits(const GameState *g, SceneMapResource kind)
+{
+    uint16_t offset = menu_object_scratch_scene_resource_offset(g);
+    unsigned count = kind == SCENE_MAP_GRAPHICS ? SCENE_MAP_GRAPHICS_COUNT : SCENE_TOP_LAYER_COUNT;
+    return offset % MENU_SCENE_POINTER_BYTES == 0 && offset / MENU_SCENE_POINTER_BYTES < count
+           && unpack_stream_fits((GameState *)g, scene_map_stream(g, kind), SCENE_MAP_BUFFER_BYTES);
+}
+
+static bool scene_map_graphics_fit(const GameState *g, MenuObject self)
+{
+    (void)self;
+    return scene_map_resource_fits(g, SCENE_MAP_GRAPHICS);
+}
+
+static bool scene_top_layer_fits(const GameState *g, MenuObject self)
+{
+    (void)self;
+    return scene_map_resource_fits(g, SCENE_TOP_LAYER);
+}
+
+static bool scene_resource_guard(Snes *s, SceneMapResource kind)
+{
+    if (!menu_object_routine_page(s))
+        return false;
+    vars_peek(true);
+    bool fits = scene_map_resource_fits(state_of(s), kind);
+    vars_peek(false);
+    return fits;
+}
+
+bool menu_scene_map_graphics_fit(Snes *s) { return scene_resource_guard(s, SCENE_MAP_GRAPHICS); }
+bool menu_scene_top_layer_fits(Snes *s) { return scene_resource_guard(s, SCENE_TOP_LAYER); }
+
+// $C2:7AFC, $C2:7B20
+static void name_scene_map_resource(GameState *g, SceneMapResource kind)
+{
+    set_decompress_source(g, scene_map_stream(g, kind));
+    set_decompress_dest(g, MODE7_GRAPHICS_BUFFER);
+}
+
+static void load_scene_map_resource_on_the_machine(Snes *s, SceneMapResource kind)
+{
+    GameState *g = state_of(s);
+    uint16_t offset = menu_object_scratch_scene_resource_offset(g);
+    name_scene_map_resource(g, kind);
+    (void)unpack_stream_called(g, false);
+    s->cpu.x = offset;
+    m_rts(s);
+}
+
+// $C2:7AFC
+void menu_object_load_scene_map_graphics(Snes *s) { load_scene_map_resource_on_the_machine(s, SCENE_MAP_GRAPHICS); }
+// $C2:7B20
+void menu_object_load_scene_top_layer(Snes *s) { load_scene_map_resource_on_the_machine(s, SCENE_TOP_LAYER); }
+
+static bool load_scene_map_resource(GameState *g, Platform *pf, MenuObject self, bool far, SceneMapResource kind)
+{
+    (void)pf, (void)self, (void)far;
+    name_scene_map_resource(g, kind);
+    (void)unpack_stream(g);
+    return true;
+}
+
+static bool load_scene_map_graphics_routine(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    return load_scene_map_resource(g, pf, self, far, SCENE_MAP_GRAPHICS);
+}
+
+static bool load_scene_top_layer_routine(GameState *g, Platform *pf, MenuObject self, bool far)
+{
+    return load_scene_map_resource(g, pf, self, far, SCENE_TOP_LAYER);
+}
+
+// $C2:7BD8
+/* Repeat each of the scene's four eight-tile rows across two Mode 7 rows.
+ * A solid tile after them supplies the plane outside that small picture. */
+static void lay_out_scene_pattern(GameState *g, MenuObject self)
+{
+    enum { ROW_TILES = 8, ROW_BYTES = 0x20, ROWS = 4, EMPTY_BYTES = 0x100, SOLID_BYTES = 0x40 };
+    (void)self;
+    wram_fill8(g, MODE7_GRAPHICS_BUFFER, EMPTY_BYTES, 0);
+    wram_fill8(g, MODE7_GRAPHICS_BUFFER + EMPTY_BYTES, SOLID_BYTES, 0xFF);
+    charge_block_move(g, EMPTY_BYTES + SOLID_BYTES - 2);
+    for (unsigned row = 0; row < ROWS; row++) {
+        for (unsigned tile = 0; tile < ROW_TILES; tile++) {
+            uint8_t v = menu_scene_pattern_tile(g, row * ROW_TILES + tile);
+            uint32_t at = MODE7_GRAPHICS_BUFFER + row * 2u * ROW_BYTES + tile * 2u;
+            wram_write8(g, at, v);
+            wram_write8(g, at + ROW_BYTES, v);
+        }
+    }
+}
+
+// $C2:7BD8
+void menu_object_lay_out_scene_pattern(Snes *s)
+{
+    lay_out_scene_pattern(state_of(s), 0);
+    s->cpu.x = 32;
+    m_set_flag(s, CPU_FLAG_C, true);
+    m_rts(s);
+}
+
+
 /* ---- As C ----------------------------------------------------------------------------------- */
 
 /* The routines as the program calls them from a script (menu/handlers.h): the
@@ -755,6 +1008,8 @@ static void hide(GameState *g, MenuObject self) { (void)self, hide_the_party(g);
 static void keep(GameState *g, MenuObject self) { (void)self, keep_the_party(g); }
 static void bring_back(GameState *g, MenuObject self) { (void)self, bring_the_party_back(g); }
 
+ROUTINE(lay_out_scene_pattern)
+ROUTINE(place_on_scene_edge)
 ROUTINE(read_the_scene_mode)
 ROUTINE(clear_the_scene_flag)
 ROUTINE(keep_the_song)
@@ -777,6 +1032,14 @@ ROUTINE(mark_played)
 ROUTINE(ask)
 ROUTINE(note_the_song)
 ROUTINE(place_about_the_view)
+
+static void accelerate_down_a_step(GameState *g, MenuObject self) { (void)accelerate_down(g, self); }
+static void keep_first_scene_result(GameState *g, MenuObject self) { (void)self; keep_scene_result(g, SCENE_FIRST_RESULT); }
+static void keep_second_scene_result(GameState *g, MenuObject self) { (void)self; keep_scene_result(g, SCENE_SECOND_RESULT); }
+ROUTINE(accelerate_down_a_step)
+ROUTINE(mark_scene_event)
+ROUTINE(keep_first_scene_result)
+ROUTINE(keep_second_scene_result)
 
 /* The pictures, unpacked by the decompressor. */
 #define PICTURE(name, kind, number, buffer)                                          \
@@ -801,6 +1064,16 @@ static bool clear_all_of_vram_routine(GameState *g, Platform *pf, MenuObject sel
 }
 
 MENU_SCRIPT_ROUTINES(menu_scene_routines,
+    { 0xC6E101, "an object placed on a window edge", scene_edge_is_readable, place_on_scene_edge_routine },
+    { 0xC27AFC, "load scene map graphics", scene_map_graphics_fit, load_scene_map_graphics_routine },
+    { 0xC27B20, "load scene top layer", scene_top_layer_fits, load_scene_top_layer_routine },
+    { 0xC27BD8, "lay out scene pattern", NULL, lay_out_scene_pattern_routine },
+
+    { 0xC279C8, "accelerate down", NULL, accelerate_down_a_step_routine },
+    { 0xC27B4F, "mark scene event", NULL, mark_scene_event_routine },
+    { 0xC27C48, "keep first scene result", NULL, keep_first_scene_result_routine },
+    { 0xC27C4F, "keep second scene result", NULL, keep_second_scene_result_routine },
+
     { 0xC6E237, "the scene's mode read", NULL, read_the_scene_mode_routine },
     { 0xC6E2AF, "the scene's flag cleared", NULL, clear_the_scene_flag_routine },
     { 0xC6E63D, "the song kept", NULL, keep_the_song_routine },

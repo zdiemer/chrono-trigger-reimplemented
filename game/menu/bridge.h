@@ -104,6 +104,10 @@ bool menu_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
  * return. False means the call left its C chain; true means it returned to
  * the original return address. The caller checks its returned convention. */
 bool menu_run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
+bool menu_run_long_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
+/* Check an existing inline call after pushing its frame, retaining its
+ * current time boundaries. Refusal stops at the callee's original entry. */
+bool menu_run_checked(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
 
 /* The same for a sibling the original reaches with a JSL. */
 bool menu_run_long(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));

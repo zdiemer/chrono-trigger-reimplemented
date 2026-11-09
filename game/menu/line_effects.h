@@ -82,4 +82,23 @@ void menu_object_squashed_iris_2(Snes *s);
 void menu_object_capsule_iris_1(Snes *s);
 void menu_object_capsule_iris_2(Snes *s);
 
+/* The map scenes' near-call iris and scroll services. */
+void menu_scene_round_iris_entry(Snes *s);
+void menu_scene_window2_lines_entry(Snes *s);
+void menu_scene_flattened_iris_entry(Snes *s);
+void menu_scene_advance_scroll_entry(Snes *s);
+void menu_scene_show_moving_scroll_entry(Snes *s);
+void menu_scene_show_uniform_scroll_entry(Snes *s);
+
+void menu_scene_start_horizontal_wave(Snes *s);
+void menu_scene_start_vertical_wave(Snes *s);
+void menu_scene_advance_horizontal_wave(Snes *s);
+void menu_scene_advance_vertical_wave(Snes *s);
+
+void menu_scene_start_gray_ramp(Snes *s);
+void menu_scene_start_gray_band(Snes *s);
+void menu_scene_move_gray_band(Snes *s);
+
+void menu_scene_start_scroll_pattern(Snes *s);
+
 #endif

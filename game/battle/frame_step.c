@@ -192,8 +192,8 @@ static bool step_a_part(void *ctx, StepCall call)
     case STEP_FIRST_FRAME:
     case STEP_SECOND_FRAME: TIMED_AS(g, FRAME_WAIT, done = battle_wait_for_frame(g, c->pf)); return done;
     case STEP_ANIMATE:
-        if (!battle_pose_looks_fit(g))
-            return battle_needs_the_machine(g, ANIMATIONS, "the combatants' animations with looks the port doesn't take");
+        if (!battle_animations_fit(g))
+            return battle_needs_the_machine(g, ANIMATIONS, "the combatants' animation outside its look or frame buffers");
         TIMED_AS(g, ANIMATIONS, battle_step_combatants(g));
         return true;
     case STEP_FIRST_EFFECTS:

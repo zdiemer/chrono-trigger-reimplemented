@@ -82,6 +82,8 @@ uint8_t menu_turn_page(GameState *g, uint8_t top);
 
 /* Whether a page turns for the frame's input, asked before the paging. */
 bool menu_page_turns(const GameState *g, uint8_t top);
+/* The prospective first row, before committing the page and cursor move. */
+uint8_t menu_page_destination(const GameState *g, uint8_t top);
 
 /* Its entry ($C2:93BF): the first row in menu_paging_top, the answer in A
  * $FF where a page turned. */
