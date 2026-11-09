@@ -251,9 +251,8 @@ static uint32_t divide(GameState *g, SceneProgramPage page)
     return dividend / divisor;
 }
 
-uint32_t scene_divide32(GameState *g, SceneProgramPage page, uint32_t dividend, uint32_t divisor, bool carry)
+uint32_t scene_divide32(GameState *g, SceneProgramPage page, uint32_t dividend, uint32_t divisor)
 {
-    (void)carry;
     if (!divisor || divisor >= 0x80000000u) {
         program_breaks_a_contract(g, 0x7E339F, "a scene divisor outside its arithmetic domain");
         return 0;

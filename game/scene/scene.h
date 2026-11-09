@@ -510,10 +510,9 @@ uint32_t scene_multiply16(GameState *g, SceneProgramPage page, uint16_t a, uint1
 /* Whether the program's multiply comes out as the product, with or without the
  * byte after the product's top bit carried in (the multiply's guard). */
 bool scene_multiplies_exactly(uint16_t a, uint16_t b, bool carried);
-/* The 32-bit divide's quotient and remainder of `dividend` over `divisor` (not
- * 0, under $80000000: the divide's guard), the caller's carry brought in as
- * the original brings it. Returns the quotient. */
-uint32_t scene_divide32(GameState *g, SceneProgramPage page, uint32_t dividend, uint32_t divisor, bool carry);
+/* The 32-bit divide's quotient and remainder of `dividend` over `divisor`.
+ * The divisor must be nonzero and below $80000000. Returns the quotient. */
+uint32_t scene_divide32(GameState *g, SceneProgramPage page, uint32_t dividend, uint32_t divisor);
 int16_t scene_multiply_by_signed_byte(GameState *g, SceneProgramPage page, uint16_t a, uint16_t b);
 /* A signed `value` (a sine, mostly) scaled by `by` 256ths, through the
  * 16 x 16-bit product: the magnitude scaled and the sign put back, so a

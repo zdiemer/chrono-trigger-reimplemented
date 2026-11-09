@@ -1243,26 +1243,14 @@ rest waits, is [PLAN.md](PLAN.md).
   named as a period; `program.c`'s title special case is a mode test where
   the table wants a column, and `MODE_ENDING_TOO`/`MODE_ENDING_AGAIN` don't
   say what differs.
-- **What the boot path's review left** (none rated translation): the
-  setups still run under the dispatch's return (`scene/program.c`,
-  `scene_bridge_enter`), because each calls the original's code (a script's
-  first step, the sound driver) and shadow mode pairs those calls by the
-  stack they are made at, and the title's ends in the original's wait for its
-  song (`$7E:5AAA`); with the wait as C the frame goes. The title's setup still makes its unpacks and
-  first script step as calls through the machine to ports (`scene_run`), and
-  `run_the_first_script` keeps D and DB on the machine stack; the race's does
-  the same (`m_jsr_dc`). `math.c`'s
-  `scene_divide32` takes a carry only a leftover uses, and
-  `scene_sine_second_half` exports a carry; `tile_animation.c` threads
+- **What the boot path's review left** (none rated translation):
+  `tile_animation.c` threads
   `LoadLeft` through `load_slot` for scaffolding; `location.c`'s built-in
   command copies by raw offsets and its script loading sits in the `Snes *`
   entry; `title.c`'s guards re-run the logic to predict exact multiplies;
   `scene_unpack_resource`'s timing reason blames the unpacker's error, which
   is 6% on its own line, where the worst is 82% of the mean (give the worst
-  call's size). The task lists' runner still calls a task it has no C for
-  through the machine, and finds one that is done by where it stopped
-  (`run_the_original_task`): the race's and the endings' tasks are entries
-  of their own, not rows yet.
+  call's size).
 
 - **What the time warp's review left** (none rated translation):
   `WarpKind` carries ROM columns (`frame_entry`, `window_site`) beside the

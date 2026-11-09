@@ -342,7 +342,7 @@ static void swing_the_pendulum(GameState *g)
     set_scene_mode7_matrix_d(g, across);
     set_scene_mode7_matrix_b(g, down);
     set_scene_mode7_matrix_c(g, (uint16_t)-down);
-    uint32_t reciprocal = scene_divide32(g, own, ZOOM_ONE, zoom, scene_sine_second_half(turn));
+    uint32_t reciprocal = scene_divide32(g, own, ZOOM_ONE, zoom);
     set_scene_channel_register(g, TITLE_CHANNEL, BG1_SCROLL_Y, (uint16_t)(reciprocal - SCROLL_TOP));
     uint16_t swing = (uint16_t)(scene_title_pendulum_swing(g) - 1);
     set_scene_title_pendulum_swing(g, swing ? swing : NARROWEST);

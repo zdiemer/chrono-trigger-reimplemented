@@ -4336,7 +4336,12 @@ the underlying low-RAM alias is still written by the gated menu NMI.
 The initial attract/title/winning-race census found 15 scene rows entered
 by the machine 55,452 times: 36,880 calls, 11,451 stops, 2,544 returns and
 4,577 wait passes. The prepared calls reduce these scene entries to zero;
-Epoch and Beyond Time also have none. A race save/load replay produces
+Epoch and Beyond Time also have none. The final three-movie census has
+69 machine-entered rows and 261,061 entries across all subsystems, against
+84 and 316,513 before; 827 entries run only as C, against 814 before.
+Its scene holds make 4,479,262 idle passes, 651 working passes, 4,556 upload
+wait passes, 1,270 gathers and 635 completed scaling passes.
+A race save/load replay produces
 one exact frame and identical work RAM 60 frames later, without lost or
 inexact state. Full before/after counts and validation receipts accompany
 the retirement's gate evidence; the earlier inventory and continuation
