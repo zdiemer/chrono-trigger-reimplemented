@@ -33,6 +33,8 @@ enum {
     HOLD_FIELD_RESTART = 8,
     /* sprite-object screens waiting for their next vblank count */
     HOLD_MENU_FRAME = 14,
+    /* returning from menu mode to its field or overworld caller */
+    HOLD_MENU_RETURN = 15,
     /* menu tasks waiting for the queued picture to be uploaded */
     HOLD_MENU_TASKS = 10,
     /* battle startup waits for graphics and the opening window */

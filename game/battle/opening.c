@@ -146,7 +146,7 @@ enum { GRAPHICS_LOADED = 4 };
 /* The guards' state halves: the graphics built on combatants the builder
  * knows; the opening's search's other combatants, and the target it last
  * found, which it keeps where it finds nobody, combatants. */
-static bool combatants_graphics_known(const GameState *g)
+static bool combatants_graphics_known(GameState *g)
 {
     bool known = true;
     for (uint8_t slot = 0; slot < BATTLE_COMBATANTS && known; slot++)

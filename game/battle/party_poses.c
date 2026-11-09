@@ -302,7 +302,7 @@ static bool lose(GameState *g, PoseCalls call, void *ctx)
 /* The guards' state halves: the graphics' object a battle slot, as the
  * animations keep its high byte clear, and the members' graphics ones the
  * builders know; the victory's looks as the looks' guard keeps them. */
-static bool members_graphics_known(const GameState *g)
+static bool members_graphics_known(GameState *g)
 {
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
         if (battle_slot_present(g, member) && !battle_object_graphics_known(g, member))
@@ -310,7 +310,7 @@ static bool members_graphics_known(const GameState *g)
     return true;
 }
 
-static bool poses_fit(const GameState *g) { return (battle_graphics_object(g) >> 8) == 0 && members_graphics_known(g); }
+static bool poses_fit(GameState *g) { return (battle_graphics_object(g) >> 8) == 0 && members_graphics_known(g); }
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 

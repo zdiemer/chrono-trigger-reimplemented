@@ -643,10 +643,8 @@ void battle_step_combatant_animations(Snes *s)
 /* A group's frames may share the later combatants' part records, but
  * cannot spill beyond the table. Kinds built by another service do not
  * consume these records. */
-bool battle_animations_fit(const GameState *g)
+static bool animation_frames_fit(GameState *g)
 {
-    if (!battle_pose_looks_fit(g))
-        return false;
     uint8_t phase = battle_frame_phase(g);
     if (phase >= GROUPS)
         return true;
@@ -660,6 +658,18 @@ bool battle_animations_fit(const GameState *g)
             return false;
     }
     return true;
+}
+
+/* Extending a frame's preflight must not extend its calibrated time.
+ * The established pose check keeps its charge; the resource walk has none. */
+bool battle_animations_fit(GameState *g)
+{
+    if (!battle_pose_looks_fit(g))
+        return false;
+    uint32_t mark = charge_uncounted_begin(g);
+    bool fits = animation_frames_fit(g);
+    charge_uncounted_end(g, mark);
+    return fits;
 }
 
 /* The enemies' groups take the order's places as they come, which only a

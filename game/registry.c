@@ -3554,7 +3554,7 @@ const NativeEntry game_held_waits[] = {
       .cost_milli = 3000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .hold = HOLD_OVERWORLD_HALT, .retired = true, .guard = overworld_main_loop_runs },
     { .addr = 0xC22556, .name = "overworld_back_from_the_menus", .fn = overworld_back_from_the_menus, NEEDS_M8_X16_BINARY,
-      .cost_milli = 1, .hold = HOLD_OVERWORLD_FRAME, .retired = true, .guard = overworld_main_loop_runs },
+      .cost_milli = 1, .hold = HOLD_MENU_RETURN, .retired = true, .guard = overworld_main_loop_runs },
     /* the field's wait for the next frame: its pass, for every routine that
      * waits there, which returns to the caller's rest once the vblank handler
      * has taken the frame (a data bank reaching low RAM); and the main loop's
@@ -3619,11 +3619,11 @@ const NativeEntry game_held_waits[] = {
     { .addr = 0xC0283C, .name = "field_menu_picture_brightened", .fn = field_menu_picture_brightened, NEEDS_M8_X16_BINARY,
       .cost_milli = 1, .dont_care = DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_page_low_bank, .hold = HOLD_FIELD_FRAME, .retired = true },
     { .addr = 0xC01964, .name = "field_back_from_the_main_menu", .fn = field_back_from_the_main_menu, NEEDS_M8_X16,
-      .cost_milli = 2981, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_page_bank_zero, .hold = HOLD_FIELD_FRAME, .retired = true },
+      .cost_milli = 2981, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_page_bank_zero, .hold = HOLD_MENU_RETURN, .retired = true },
     { .addr = 0xC019D2, .name = "field_back_from_the_start_menu", .fn = field_back_from_the_start_menu, NEEDS_M8_X16,
-      .cost_milli = 2981, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_page_bank_zero, .hold = HOLD_FIELD_FRAME, .retired = true },
+      .cost_milli = 2981, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_page_bank_zero, .hold = HOLD_MENU_RETURN, .retired = true },
     { .addr = 0xC00D1C, .name = "field_back_from_a_script_menu", .fn = field_back_from_a_script_menu, NEEDS_M8_X16,
-      .cost_milli = 2981, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_page_bank_zero, .hold = HOLD_FIELD_FRAME, .retired = true },
+      .cost_milli = 2981, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_page_bank_zero, .hold = HOLD_MENU_RETURN, .retired = true },
     { .addr = 0xC01981, .name = "field_back_from_a_menu_fade", .fn = field_back_from_a_menu_fade, NEEDS_M8_X16,
       .cost_milli = 2981, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_page_bank_zero, .hold = HOLD_FIELD_FRAME, .retired = true },
     { .addr = 0xC019FF, .name = "field_start_menu_back_from_a_fade", .fn = field_back_from_a_menu_fade, NEEDS_M8_X16,

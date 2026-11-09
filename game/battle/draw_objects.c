@@ -895,8 +895,21 @@ void battle_copy_frame_tiles(Snes *s)
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 
+/* The presence check is game work charged at the drawing's rate. The
+ * deeper resource audit below is a preflight: extending it must neither
+ * add its scans to the frame nor erase the original presence check's time. */
+static bool someone_on_battlefield(const GameState *g)
+{
+    for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++)
+        if (battle_slot_present(g, slot))
+            return true;
+    return false;
+}
+
 bool battle_objects_drawn(GameState *g)
 {
+    if (!someone_on_battlefield(g))
+        return battle_needs_the_machine(g, 0xCFE83A, "a draw pass with nobody on the battlefield");
     uint32_t mark = charge_uncounted_begin(g);
     bool fits = draw_pass_fits(g);
     charge_uncounted_end(g, mark);

@@ -4389,8 +4389,10 @@ step.
 The overworld's menu call also keeps its return as a held continuation.
 The runtime report exposed the previous screen-long suspension as
 `overworld_next_frame` waiting for `$C2:8000` to return to `$C2:2556`.
-Its checked long call now ends at the menu hand-off, and the menu's return
-selects the overworld hold. Native-shape checkpoints at frames 4,800, 5,400
+Its checked long call now ends at the menu hand-off. The menu return has
+one held continuation group for its overworld and three field callers;
+the returning handler does not select a caller by inspecting its PC.
+Native-shape checkpoints at frames 4,800, 5,400
 and 6,000 of `menus-sweep` have no suspended caller. Eight save/reload
 checks replay identically; the two item-use checkpoints at 3,000 and 3,900
 still require exact replay from a prior base. Before/after traces remain
@@ -4414,6 +4416,13 @@ their initial estimates remain explicit follow-up work.
 
 The drawing pass now checks every sprite, effect and afterimage's complete
 range before drawing, including the startup-built OAM high-table lookup.
+The extended resource checks take no estimated game time. The established
+presence, pose and layout checks retain their ordinary charges: replacing
+them with an entirely uncounted audit moved later native pictures in
+`late-omen-battles`. Restoring those charges, while excluding the added
+validation scans, restores its existing outcome identity without changing
+an exception. The dedicated menu-return hold also passes all eight
+native-shape save/reload checks and the suspension tests.
 Its valid-lookup fixture compares 4,853 of 5,000 trials, rejecting 147;
 randomizing that lookup produces 5,000 refusals and contributes no execution
 evidence. Animation sources must be cartridge graphics or the field's

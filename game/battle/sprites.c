@@ -490,12 +490,19 @@ void battle_build_object_graphics_checked(Snes *s)
  * smallest); and A's high byte clear, as the game has it, since the original
  * picks the kind's sizes with the whole of A as its index. */
 enum { GRAPHICS_KINDS = 5, PART_OFFSET_WORDS = BATTLE_COMBATANTS * PARTS_PER_OBJECT * OFFSETS_PER_PART };
-bool battle_object_graphics_known(const GameState *g, unsigned object)
+bool battle_object_graphics_known(GameState *g, unsigned object)
 {
-    return battle_names_combatant((uint16_t)object) && battle_object_kind(g, object) < GRAPHICS_KINDS
-           && battle_sprite_graphics_storage(battle_object_graphics(g, object))
-           && object * PARTS_PER_OBJECT * OFFSETS_PER_PART + battle_frame_part_offset_bytes(g, battle_object_kind(g, object))
-                  <= PART_OFFSET_WORDS;
+    bool known = battle_names_combatant((uint16_t)object) && battle_object_kind(g, object) < GRAPHICS_KINDS
+                 && object * PARTS_PER_OBJECT * OFFSETS_PER_PART
+                            + battle_frame_part_offset_bytes(g, battle_object_kind(g, object)) <= PART_OFFSET_WORDS;
+    if (!known)
+        return false;
+    /* The additional resource check is validation, outside the existing
+     * frame-building estimate. Keep the layout check's ordinary charge. */
+    uint32_t mark = charge_uncounted_begin(g);
+    bool stored = battle_sprite_graphics_storage(battle_object_graphics(g, object));
+    charge_uncounted_end(g, mark);
+    return stored;
 }
 
 bool battle_builds_known_object(Snes *s)
