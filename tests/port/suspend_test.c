@@ -430,6 +430,54 @@ static void wait_suspended(Snes *s)
     leave_waited(s);
 }
 
+/* Two direct calls of the same frame wait, with visible work between them.
+ * Waking the first must not compare the second at that same boundary. */
+static bool repeated_wait_wrong;
+
+static void wait_twice(Snes *s)
+{
+    m_push16(s, 0x8402);
+    wait_suspended(s);
+    uint8_t count = (uint8_t)(m_read8(s, 0x51) + 1);
+    m_write8(s, 0x51, count);
+    m_set_nz8(s, count);
+    s->cpu.x = 0;
+    m_push16(s, 0x840D);
+    wait_suspended(s);
+    if (repeated_wait_wrong)
+        m_write8(s, 0x52, 1);
+    m_rts(s);
+}
+
+static void repeated_wait_case(void)
+{
+    uint8_t *rom = make_rom(wait_code, sizeof wait_code / sizeof wait_code[0], 0x8600);
+    /* The original's work spans an interrupt before reaching its next wait. */
+    const uint8_t twice[] = { 0x20, 0x00, 0x83, 0xE6, 0x51, 0xA2, 0xFF, 0xFF,
+                              0xCA, 0xD0, 0xFD, 0x20, 0x00, 0x83, 0x60 };
+    memcpy(rom + 0x8400, twice, sizeof twice);
+    rom[0x8104] = 0x84;
+    NativeEntry entry = { .addr = 0x008400, .name = "wait_twice", .fn = wait_twice,
+                          .p_mask = 0x30, .p_value = P_M8_X16 };
+    for (unsigned variant = 0; variant < 2; variant++) {
+        repeated_wait_wrong = variant != 0;
+        Snes *s = machine(rom);
+        NativeRuntime *rt = native_create(&entry, 1, NATIVE_SHADOW);
+        native_attach(rt, s);
+        for (unsigned frame = 0; frame < 32; frame++)
+            snes_run_frame(s, 0);
+        const NativeStats *stats = native_stats_named(rt, "wait_twice");
+        CHECK(stats && stats->calls >= 2, "repeated wait variant %u was not exercised: %u calls",
+              variant, stats ? stats->calls : 0);
+        CHECK(stats && (!repeated_wait_wrong ? stats->mismatched == 0 && stats->matched + stats->interrupted >= 2
+                                                     : stats->mismatched > 0),
+              "repeated wait variant %u: wrong comparison result", variant);
+        native_destroy(rt);
+        free(s);
+    }
+    free(rom);
+}
+
 static NativeRuntime *wait_runtime(NativeMode mode, bool held)
 {
     static NativeEntry table[2];
@@ -1145,6 +1193,7 @@ int main(void)
     switch_in_c = false;
     menu_answer_case();
     held_wait_case();
+    repeated_wait_case();
     named_hold_case();
     returning_hold_case();
     other_stack_hold_case();

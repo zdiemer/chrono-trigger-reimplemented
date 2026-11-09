@@ -4276,6 +4276,15 @@ compare. Black Omen's two battles and escape match after that return is
 kept, as do 2,000 trials covering all three slots with command memory on
 and off.
 
+The counted frame wait also exposed a shadow-runtime boundary ambiguity:
+a handler can wake one wait, after which direct C calls reach the next
+wait at the same address and stack depth before the original executes
+again. The runtime records the boundary used to wake the first wait and
+does not compare the second there. It compares again once the original
+advances. `suspend_test` covers two such calls with work spanning an
+interrupt between them, and still rejects a wrong write after the second
+wait. The ending's previously failing wait replays without mismatches.
+
 Menu task yields call the scheduler as C after constructing the return
 frame and checking its complete contract. `native_park_after_task_switch`
 parks the caller until its task resumes; the next task is already held.

@@ -289,6 +289,8 @@ typedef struct Active {
     bool exit_passed;      /* ON, PH_WAIT for a blank: its exit pass's time has passed (IDLE_EXIT_CLOCKS) */
     bool saw_picture;      /* ON, PH_WAIT for the vblank: the picture has been drawn since the wait began */
     bool wait_compared;    /* SHADOW, a wait in the port's loop: the stretch before it was compared */
+    bool wait_resumed;
+    uint64_t wait_resumed_at;   /* the original boundary already used to wake the preceding wait */
     /* PH_CALLOUT: an interrupt taken while the callee runs, or a stack
      * switch (stack_switched), and the S it returns to: until it has, S above
      * the call's return is its handler on a stack of its own (the menus'
@@ -1864,6 +1866,12 @@ static uint32_t wait_step(const Active *a, const Snes *s)
 static bool wait_point(NativeRuntime *rt, Active *a, Snes *s, uint32_t pc)
 {
     Job *j = a->job;
+    /* The wake may run straight through C callees into another wait at the
+     * same address and stack depth. check_top revisits this boundary after
+     * the job runs; it still belongs to the wait just woken, not the next
+     * iteration. Let the original execute before comparing that stretch. */
+    if (a->wait_resumed && s->master == a->wait_resumed_at)
+        return false;
     /* the original comes to the loop's head before it can leave the loop: an
      * exit before that is where it left the last one (a loop that gives up
      * leaves where it goes round to start over) */
@@ -1890,6 +1898,8 @@ static bool wait_point(NativeRuntime *rt, Active *a, Snes *s, uint32_t pc)
     j->wait_answered = pc != j->wait_given_up || pc == j->wait_exit;
     clone_refresh(rt, a, s);
     a->clone->cpu = mine;
+    a->wait_resumed = true;
+    a->wait_resumed_at = s->master;
     job_run(a->job);
     after_run(rt, a, s);
     return true;
