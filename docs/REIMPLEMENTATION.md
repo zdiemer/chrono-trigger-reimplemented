@@ -4395,6 +4395,14 @@ The warning-as-error build and 561 Python tests pass (ten skips); the later
 call-declaration and callback changes pass 56 liveness and portability tests.
 The task, timing, suspension, field, event-contract and scene-contract C
 tests pass too.
+The sampled gate with `--evidence -j 2` ends in `suite OK` in
+`build/scene-gate-contracts.log`: 37 clean shadow movies, identical 7200-frame
+new-game traces, timing and video checks passing, zero shipping fallback
+instructions and zero real-play refusals. All 37 movies finish in strict,
+native and native-shape modes; both outcome ratchets protect every sampled
+movie, and both fast routes pass with scaffolding compiled out. The evidence
+check makes all 84 receipts afresh and passes. This run uses neither
+`--long-routes` nor `--all-movies`.
 Manual native-shape routes reach Epoch through Lavos's shell at frame 7757,
 the telepod's Dream Project ending at 169000, and Beyond Time at 109071.
 The latter two runs retain 46 and 2307 exact snapshot replays respectively,
