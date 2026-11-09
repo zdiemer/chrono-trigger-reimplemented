@@ -3096,9 +3096,9 @@ list, by kind, is what `game/` still asks of one.
 
   - *Where the game's work is still timed short or long.* `ct_native` times
     the game's own work at the routines' calibrated rates (REIMPLEMENTATION.md,
-    "The frame-level time model"); the sample ends 21 of 37 movies as the
-    reference does and enters 210 of 293 places on time. The attract demo
-    visits all 50 places in order but is up to 394 frames early. What the
+    "The frame-level time model"); the sample ends 22 of 37 movies as the
+    reference does and enters 211 of 293 places on time. The attract demo
+    visits all 50 places in order but is up to 344 frames early. What the
     earlier per-routine comparison against the shadow runs' estimates
     (the tags' work in `ct_native` against the parts' and entries' estimates
     over the sample) names next, worst first:
@@ -3121,17 +3121,19 @@ list, by kind, is what `game/` still asks of one.
     of work against 78.99 estimated, so its machine calibration is not the
     first suspect. `ct_native --timing-report` now separates each tag's own
     accesses and charges; shadow parent and child measurements overlap and
-    must not be summed as elapsed work. The unpacker's flat charge still
-    needs comparison across streams with different amounts of copied output.
+    must not be summed as elapsed work.
     Beyond Time's sampled replay still misses its ending; after accounting
-    for native DMA transfers it returns to the load screen at frame 13,039
+    for native DMA and unpacking it returns to the load screen at frame 12,304
     rather than 29,845 and changes 4,189 SRAM bytes. Follow the first shifted
     battle input after the battle and menu teardowns; the aggregate native
     improvement does not establish this movie's outcome.
-    The save-point movie still matches the saved game with native frame
-    budgets but changes 389 SRAM bytes; revisit its save after correcting
-    load timing, before treating that operation as equivalent.
-    The restored legacy access and transfer charges need the next batched library run on
+    Tyrano Lair Walls enters the walkway at frame 3,696 (3,697 before the
+    unpacking correction, 3,703 in the reference), then ends with 44 differing
+    saved-game bytes: inventory, character progression and battle cursors.
+    SRAM still matches and all five places remain on time. Follow the first
+    shifted battle input after the battle and menu teardowns; the re-recorded
+    outcome is not a claim that the fight is equivalent.
+    Native access, transfer, budget and retired-work accounting need the next batched library run on
     the 47 unsampled movies, especially `battle-ozzies-fort`, `battle-mud-imp`,
     `events-cyrus` and `battle-golem-twins`; no library-wide rate fit was made.
   - *The handlers' share of an upload.* The sound driver's upload time is

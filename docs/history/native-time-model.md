@@ -116,3 +116,36 @@ reviewed loss of its SRAM protection while load timing remains incomplete.
 The attract demo's worst early arrival grows from 308 to 394 frames; all
 50 places remain in order. The new outcome observations are 377 match /
 214 drift / 1,415 differ. These mixed effects remain visible in the ledger.
+
+## Pricing the unpacker's actual work
+
+The native backend now counts retired operations' actual accesses before
+applying their retained rate, alongside the replacement-access charges.
+The unpacker's stream reads, copied output and RAM-port operations therefore
+contribute directly. Both backends read one retained-rate table; the machine
+values remain 4,060 and 4,057 thousandths. Nested excluded spans and host
+inspection reads do not enter that account.
+
+Two synthetic streams with identical command counts but copied runs of
+three and eighteen bytes used to cost the same 2,496 clocks. They now cost
+2,159 and 3,134, with the correct output bytes in both cases. Direct entry,
+entry overhead, nested exclusions and the no-cartridge timing fixture are
+also checked. The native RAM-port services charge their ordinary accesses
+outside the unpacker at the caller's tag, as the machine backend does.
+
+With the transfer and frame-budget corrections already in place, the
+sample goes from 21 to 22 reference endings and from 210 to 211 places on
+time. The End of Time gate now matches, and the save-point SRAM match is
+restored. Tyrano Lair Walls loses its saved-game match: it enters the
+walkway at frame 3,696, against 3,697 before and 3,703 in the reference, and
+ends with 44 different saved-game bytes, including inventory, character
+progression and battle cursors. Its SRAM still matches and all five places
+remain on time. That loss is explicitly re-recorded, with the battle-input
+follow-up deferred until the battle and menu teardowns.
+
+Beyond Time still differs, returning to the load screen at frame 12,304;
+its 4,189-byte SRAM difference remains exposed. The attract demo's worst
+early arrival falls from 394 to 344 frames. The outcome observations are
+386 match / 243 drift / 1,377 differ. The 47 native movies outside the sample
+still need the batched library run; none of these measurements is a
+whole-library recalibration.

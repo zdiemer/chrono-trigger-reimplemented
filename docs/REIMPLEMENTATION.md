@@ -1089,12 +1089,15 @@ cartridge (`rom_host.c`), save RAM through the save service
 (`TmHostProgram.accessed`) -- at the bus clocks it takes on the machine (8, 6
 for the cartridge's), and times them at the `cost_milli` of the routine the
 work is tagged as (`TIMED_AS`, `NATIVE_TIME_AS`: `charge_time_as_begin`), the
-rate the machine calibrated for it. The rates are the registry's and the time
-tags' (`game/time_tags.c`), which the build writes as a table
+rate the machine calibrated for it. The rates are the registry's, the time
+tags' (`game/time_tags.c`) and the retired entries'
+(`runtime/port/retired_time_rates.h`), which the build writes as a table
 (`tools/time_rates.py`, `runtime/port/time_rates.h`), so the program keeps no
 registry and always has the last calibration's. A charge is made as on the
 machine: at its routine's rate, the accesses it stands for left out
-(`charge_uncounted_begin`), the unpacker at the price below. For that the
+(`charge_uncounted_begin`). A retired operation collects its own access
+clocks and its explicit replacement work, then applies its retained rate;
+nested excluded work remains excluded. For that the
 charges are plain, not scaffolding (`game/charge.h`): 171 of them were in
 `ORIGINAL_EFFECT`, so the build with no scaffolding had none, and the
 native-shape build ran without them too. What isn't the game's work takes
@@ -1116,6 +1119,14 @@ the machine's estimate is unchanged. `native_time_test` checks the account,
 nested tags, unknown tags, excluded work and fractional clocks. The optional
 `ct_native --timing-report` exposes per-tag work without changing it
 (PLAYING.md).
+
+The unpacker uses this same mechanism. Its stream reads, work RAM copies
+and RAM-port reads, writes and cursor operations contribute their access
+clocks before the retained rate is applied. A flat price per command could
+not distinguish short and long copied runs; `unpack_time_test` now proves
+that distinction with synthetic streams and verifies their output bytes.
+The retained rates are shared with the machine backend, whose values and
+estimate remain unchanged. The no-Python build also retains those rates.
 
 **What a lag frame is computed from.** The host timing backend
 (`platform/native/timing.c`) keeps what the main thread owes since it last
@@ -1162,7 +1173,7 @@ numbers in `time_model.h` with how):
 | A song's start | 95,000, plus 405 a byte loaded and 380 a byte the sound processor moves | 70 songs in eight movies: about 94 echoes of tables and the command itself, then three bytes a message with the music stopped (400 to 425 a byte under a light handler) |
 | Command `$70`'s effects, `$71`'s sample | 750 a byte | uploaded with the music playing, the sound processor answering between its ticks |
 | A song's start while the echo's buffer settles | what is left of the wait, counted after the time the port owes so far has passed (`native_sync`, `tm_host_sit_out_owed`) | the original's song waits on the ports for it; the driver's wait runs through the CPU's work after the last song, which reaches the ports only after that work |
-| The unpacker (`$C3:0002`), in `ct_native` | 64 a charged access | its charge counts the accesses the original makes to its own cells, which follow the stream; its whole time over new-game's 60 streams (29.0 M clocks in the shadow run) against those accesses |
+| The unpacker, in `ct_native` | Its actual and replacement access clocks at the retained rate | `retired_time_rates.h`: 4.060 for `$C3:0002`, 4.057 for `$C3:0557`, the same values used by the machine backend |
 | A transfer from the main thread, in `ct_native` | 8 a byte | DMA's rate, including RAM clears and copies and data-driven VRAM uploads through the supported native escapes; the handlers' sends are the frame's own |
 | The game's own work, in `ct_native` | 8 a memory access (6 the cartridge's), at the tagged routine's `cost_milli` | the machine's estimate of a port, its rates the registry's and the time tags' as last calibrated; a charge at its routine's rate |
 
@@ -1190,16 +1201,18 @@ places. On `a7d8a04d`, before and after keeping the retired operations' work:
 | Native sample | Ends as reference | Places on time |
 |---|---:|---:|
 | Before | 17/37 | 209/293 |
-| Native access, transfer and frame-budget accounting | 21/37 | 210/293 |
+| Native access, transfer, frame-budget and retired-work accounting | 22/37 | 211/293 |
 
-All 37 runs end showing. Fair rescue, Terramutant and the End of Time menu
-now match the saved game. The attract demo visits all 50 reference places
-in order but is up to 394 frames early (360 before). Beyond Time still
-misses its ending, and its changed replay and the save-point movie no longer
-match SRAM; those protections and changed picture checkpoints
+All 37 runs end showing. Fair rescue, Magus, Terramutant, the End of Time
+gate and menu, and the save-point movie match their end states. The attract
+demo visits all 50 reference places in order and is up to 344 frames early
+(360 before). Beyond Time still misses its ending and its SRAM differs;
+Tyrano Lair Walls no longer matches the saved game. Those two protections
+and changed picture checkpoints
 were explicitly re-recorded with reasons in the timing history and outcome
-ledger. Native recorded outcomes are 377 matching, 214 within tolerance and
-1,415 differing observations.
+ledger. Native recorded outcomes are 386 matching, 243 within tolerance and
+1,377 differing observations. These are mixed timing effects, not proof of
+equivalence for the two changed states; their follow-ups remain in TODO.
 `native_time_test` checks the accounting; enabling the diagnostic report
 preserves every sampled outcome artifact. The machine's estimate is unchanged.
 

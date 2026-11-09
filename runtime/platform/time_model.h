@@ -100,28 +100,10 @@ static inline uint32_t time_of_sound_command(uint8_t command, uint32_t sent, uin
     return base + sent * (playing ? TIME_SOUND_BYTE_PLAYING : TIME_SOUND_BYTE) + moved * TIME_SOUND_BYTE_MOVED;
 }
 
-/* ---- Loads --------------------------------------------------------------------------------
- *
- * What a load spends its frames on, as the game's work charges it (charge.h)
- * and the video service sends it. Other game work is charged by the state
- * backend at its tagged rate; the timing backend decides which whole frames
- * that work fills.
- *
- * - The unpacker ($C3:0002), most of a load's work. Its charge counts the
- *   accesses the original makes to its own cells as it goes (where the port
- *   keeps locals), which follow the stream: its segments, control bytes,
- *   references and items. Over new-game's 60 streams the original took
- *   29.0 M clocks (the shadow run's totals for decompress_direct, which
- *   every stream goes through) for 451,831 accesses charged: 64 an access,
- *   the whole of its time.
- * - A send to video memory from the main thread (in vblank the handlers'
- *   sends are the frame's own): TIME_DMA_BYTE a byte, DMA's rate. */
-enum { TIME_UNPACKER = 0xC30002, TIME_UNPACK_ACCESS = 64, TIME_DMA_BYTE = 8 };
-
-static inline uint32_t time_of_charge(uint32_t routine, uint32_t accesses)
-{
-    return routine == TIME_UNPACKER ? accesses * TIME_UNPACK_ACCESS : 0;
-}
+/* A transfer from the main thread, at DMA's byte rate. Unpacking and other
+ * game work use their calibrated rates in the state backend. Transfers in
+ * handlers remain the frame's own work. */
+enum { TIME_DMA_BYTE = 8 };
 
 static inline uint32_t time_of_transfer(uint32_t bytes) { return bytes * TIME_DMA_BYTE; }
 

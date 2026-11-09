@@ -12,7 +12,7 @@
  * scaffolding, which must play the routes as the default build does) keeps
  * the original's pace with them, and a build with no machine times the game's
  * work with them (runtime/port/state_host.c: the charges at the routines'
- * calibrated rates, as here, the unpacker's at the time model's price). The
+ * calibrated rates, including those kept after entries retire). The
  * unpacker's (data/decompress.c), whose original spends half its time on its
  * direct page's cells, is charge_retired, since its entry retired. An
  * uncounted stretch (charge_uncounted_begin) is plain for the same reason:
@@ -55,10 +55,9 @@ void charge_block_move(GameState *g, uint32_t bytes);
 /* The time of the work a retired routine does -- one whose entry left the
  * registry with its subsystem's gate (the unpacker, data/decompress.c) --
  * from charge_retired_begin to charge_retired_end, with `accesses` more
- * charged as charge_as charges them. On the machine, the port's own accesses
+ * charged as charge_as charges them. Both backends time the port's own accesses
  * and the charged ones at the rate the routine's entry was calibrated at when
- * it retired, as its estimate was made while it had one; with no machine,
- * the time model's price of the charged ones (platform/time_model.h). Not
+ * it retired, as its estimate was made while it had one. Not
  * scaffolding: it is the routine's whole time. */
 uint32_t charge_retired_begin(GameState *g);
 void charge_retired_end(GameState *g, uint32_t mark, uint32_t routine, uint32_t accesses);

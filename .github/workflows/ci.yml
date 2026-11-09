@@ -159,6 +159,8 @@ jobs:
         run: build/ci/timing_test
       - name: native_time_test
         run: build/ci/native_time_test
+      - name: unpack_time_test
+        run: build/ci/unpack_time_test
       - name: tasks_test
         run: build/ci/tasks_test
       - name: state_test

@@ -47,7 +47,7 @@ events-cyrus 18
 events-death-peak-ascent 5
 events-death-peak-wind 5
 events-death-peak 4
-events-end-of-time-gate 4
+events-end-of-time-gate 5 # Native retired-work accounting restores the final reference visit within 30 frames.
 events-epoch-lavos 5
 events-fair-clone 6
 events-fair-rescue 7

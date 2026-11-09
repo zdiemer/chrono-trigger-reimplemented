@@ -57,8 +57,9 @@ void state_host_game_access(const GameState *g, uint32_t clocks);
 
 /* Optional accounting for ct_native --timing-report. Access clocks (actual
  * and legacy replacements) and charge_as clocks are kept separately;
- * milli_clocks is their calibrated time before
- * the frame scheduler rounds it. The untagged row has routine 0. */
+ * milli_clocks is their calibrated time before the frame scheduler rounds
+ * it. Tags count timed scopes and retired charge spans, not machine calls.
+ * The untagged row has routine 0. */
 typedef struct {
     uint32_t routine;
     uint64_t tags, bus_clocks, charged_clocks, milli_clocks;
