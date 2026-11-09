@@ -32,6 +32,7 @@
 #include "menu/epoch.h"
 
 #include "charge.h"
+#include "holds.h"
 #include "menu/bridge.h"
 #include "cpu_io.h"
 #include "core/program.h"
@@ -1410,6 +1411,16 @@ static void back_to_the_menus(GameState *g, Platform *pf, uint32_t sprites_site,
     vid_enable_line_effects(pf, PF_AT(effects_site), 0);
 }
 
+static void finish_the_map_view(GameState *g, Platform *pf)
+{
+    back_to_the_menus(g, pf, 0xC263D0, 0xC263D5, 0xC263D8, 0xC263DB);
+}
+
+static void finish_the_time_dial(GameState *g, Platform *pf)
+{
+    back_to_the_menus(g, pf, 0xC26ABA, 0xC26ABE, 0xC26AC1, 0xC26AC4);
+}
+
 // $C2:6965
 /* Set the view's marker glyphs (the typesetter's start and a call), and send
  * them to VRAM $6200. */
@@ -1478,7 +1489,7 @@ static bool show_the_map_view_with(GameState *g, Platform *pf, const EpochScreen
     if (!run_until_the_mode_changes_with(g, THE_MAP_VIEW, MAP_VIEW_MODE, steps, ctx)
         || !steps->wait_frames(ctx, MAP_VIEW_CLOSING))
         return false;
-    back_to_the_menus(g, pf, 0xC263D0, 0xC263D5, 0xC263D8, 0xC263DB);
+    finish_the_map_view(g, pf);
     return true;
 }
 
@@ -1563,7 +1574,7 @@ static bool show_the_time_dial_with(GameState *g, Platform *pf, const EpochScree
     start_a_script_with(g, DIAL_ENDING_SCRIPT, steps, ctx);
     if (!steps->wait_frames(ctx, DIAL_CLOSING))
         return false;
-    back_to_the_menus(g, pf, 0xC26ABA, 0xC26ABE, 0xC26AC1, 0xC26AC4);
+    finish_the_time_dial(g, pf);
     return true;
 }
 
@@ -1633,7 +1644,13 @@ static bool set_glyphs_on_the_machine(void *ctx)
 
 static bool wait_a_frame_on_the_machine(void *ctx, EpochScreen screen)
 {
-    m_jsr_dc(ctx, frame_sites[screen], 0xC2046E, READS_NOTHING | DC_DB);
+    Snes *s = ctx;
+    if (m_runs_retired_as_c(s)) {
+        if (menu_run_called(s, frame_sites[screen], 0xC2046E, READS_NOTHING | DC_DB, menu_wait_for_frame))
+            native_hold(s, HOLD_MENU_FRAME);
+        return false;
+    }
+    m_jsr_dc(s, frame_sites[screen], 0xC2046E, READS_NOTHING | DC_DB);
     return true;
 }
 
@@ -1641,6 +1658,12 @@ static bool wait_frames_on_the_machine(void *ctx, EpochWait wait)
 {
     Snes *s = ctx;
     s->cpu.x = epoch_wait_frames[wait];
+    if (m_runs_retired_as_c(s)) {
+        if (menu_run_called(s, wait_sites[wait], 0xC20454, READS_X_AND_A_HIGH,
+                            menu_wait_frames_sending_the_sound_entry))
+            native_hold(s, HOLD_MENU_FRAME);
+        return false;
+    }
     m_jsr_dc(s, wait_sites[wait], 0xC20454, READS_X_AND_A_HIGH);
     return true;
 }
@@ -1786,6 +1809,50 @@ void menu_epoch_time_dial_screen(Snes *s)
 {
     if (show_the_time_dial_with(state_of(s), m_platform(s), &screen_steps_on_the_machine, s))
         m_rts(s);
+}
+
+/* The screen and its overworld caller leave their return frames in the
+ * saved machine. A displayed frame never retains either enclosing C call. */
+// $C2:63BD
+void menu_epoch_map_frame_finished(Snes *s)
+{
+    if (menu_mode(state_of(s)) == MAP_VIEW_MODE)
+        (void)wait_a_frame_on_the_machine(s, THE_MAP_VIEW);
+    else
+        (void)wait_frames_on_the_machine(s, MAP_VIEW_CLOSING);
+}
+
+// $C2:63CA
+void menu_epoch_map_finished(Snes *s)
+{
+    finish_the_map_view(state_of(s), m_platform(s));
+    m_rts(s);
+    native_hold(s, HOLD_MENU_FRAME);
+}
+
+// $C2:6A9C
+void menu_epoch_dial_opened(Snes *s)
+{
+    (void)wait_a_frame_on_the_machine(s, THE_TIME_DIAL);
+}
+
+// $C2:6A9F
+void menu_epoch_dial_frame_finished(Snes *s)
+{
+    if (menu_mode(state_of(s)) == DIAL_MODE) {
+        (void)wait_a_frame_on_the_machine(s, THE_TIME_DIAL);
+        return;
+    }
+    start_a_script_with(state_of(s), DIAL_ENDING_SCRIPT, &screen_steps_on_the_machine, s);
+    (void)wait_frames_on_the_machine(s, DIAL_CLOSING);
+}
+
+// $C2:6AB4
+void menu_epoch_dial_finished(Snes *s)
+{
+    finish_the_time_dial(state_of(s), m_platform(s));
+    m_rts(s);
+    native_hold(s, HOLD_MENU_FRAME);
 }
 
 /* ---- The entries ---------------------------------------------------------------------------- */

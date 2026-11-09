@@ -51,6 +51,13 @@ bool menu_epoch_kept_off_the_ground(GameState *g, MenuObject epoch);
  * dactyls' map's is the part the dactyl doesn't come down in either. */
 bool menu_epoch_kept_off_the_ground_of(GameState *g, MenuObject o, unsigned map);
 
+/* Saveable returns from the screens' frame waits. */
+void menu_epoch_map_frame_finished(Snes *s);
+void menu_epoch_map_finished(Snes *s);
+void menu_epoch_dial_opened(Snes *s);
+void menu_epoch_dial_frame_finished(Snes *s);
+void menu_epoch_dial_finished(Snes *s);
+
 /* Guards */
 bool menu_epoch_map_is_buildable(Snes *s);
 bool menu_epoch_page_is_menu(Snes *s);

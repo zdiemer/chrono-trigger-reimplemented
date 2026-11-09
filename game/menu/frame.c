@@ -21,6 +21,7 @@
 #include "platform/audio.h"
 #include "platform/timing.h"
 #include "port/machine.h"
+#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -161,8 +162,43 @@ static bool a_frame_left_on_the_machine(void *ctx, uint16_t left)
 
 static void frame_done_on_the_machine(void *ctx) { ORIGINAL_EFFECT((void)m_pull16((Snes *)ctx)); }
 
+/* The countdown lives on the saveable machine stack while the display
+ * advances. Its caller's return stays beneath it, without a suspended port. */
+static void wait_one_counted_frame(Snes *s, uint16_t left)
+{
+    m_push16(s, left);
+    if (menu_run_called(s, 0xC20455, FRAME_WAIT, WAITS_READ_NOTHING, menu_wait_for_frame))
+        native_hold(s, HOLD_MENU_FRAME);
+}
+
+// $C2:0458
+void menu_counted_frame_finished(Snes *s)
+{
+    GameState *g = state_of(s);
+    AudioCommand waiting;
+    bool sent = overworld_take_the_waiting_sound(g, &waiting);
+    if (sent) {
+        au_command(m_platform(s), PF_CALL_DC(0xC20462, 0xC70004, DRIVER_IGNORES), waiting);
+        overworld_waiting_sound_sent(g);
+    }
+    uint16_t left = (uint16_t)(m_pull16(s) - 1);
+    s->cpu.x = left;
+    if (left) {
+        wait_one_counted_frame(s, left);
+        return;
+    }
+    ORIGINAL_EFFECT(m_set_a8(s, sent ? MAILBOX_MARKED_BUSY : MAILBOX_READ_EMPTY));
+    m_set_nz16(s, 0);
+    m_rts(s);
+    native_hold(s, HOLD_MENU_FRAME);
+}
+
 void menu_wait_frames_sending_the_sound_entry(Snes *s)
 {
+    if (m_runs_retired_as_c(s)) {
+        wait_one_counted_frame(s, s->cpu.x);
+        return;
+    }
     static const FramesLeft on_the_machine = { a_frame_left_on_the_machine, frame_done_on_the_machine };
     bool sent = false;
     if (!wait_frames_sending_the_sound(state_of(s), m_platform(s), s->cpu.x, &on_the_machine, s, &sent))

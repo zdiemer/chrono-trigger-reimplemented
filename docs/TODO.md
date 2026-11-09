@@ -2872,7 +2872,7 @@ comparisons.
   only after the unreached obligations and state readers below are resolved.
   The held boundaries and checked interrupt handoffs are described in
   REIMPLEMENTATION.md, "Battle and menu held boundaries". Close the task work
-  parked at yields, especially fade-out and the screen sequences, and the
+  parked at yields in the remaining menu screen sequences, and the
   remaining overworld calls into menu services. The scheduler's starts,
   resumptions, description typing and fade-in have
   held continuations, and the field no longer remains suspended across menu
@@ -2881,8 +2881,10 @@ comparisons.
   suspensions; nesting the next task in the previous task's C chain changes
   its return boundary.
 
-  The shared fade start and resume also cover the original's fade-out calls;
-  its enclosing C callers still park and need the remaining held returns.
+  Preserve the full contracts and timing ownership when replacing the
+  remaining by-address calls. A bounded loading operation can still settle
+  time across a frame; distinguish that from a loop retaining its caller
+  for a whole displayed screen when auditing the suspension report.
 
   Burndown rounds every battle/menu bank to 0% left; that is not proof of
   zero fallback. The existing batched shipping report has no battle fallback

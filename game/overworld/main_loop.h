@@ -40,4 +40,13 @@ bool overworld_frame_not_counted(Snes *s);
  * coming back to itself, a held wait of its own (HOLD_OVERWORLD_HALT). */
 void overworld_halt_entry(Snes *s);
 
+/* Saveable phases around the menu services' counted waits. */
+void overworld_menu_fade_finished(Snes *s);
+void overworld_menu_return_fade_finished(Snes *s);
+void overworld_map_view_fade_finished(Snes *s);
+void overworld_back_from_the_map_view(Snes *s);
+void overworld_screen_return_fade_finished(Snes *s);
+void overworld_dial_fade_finished(Snes *s);
+void overworld_back_from_the_time_dial(Snes *s);
+
 #endif

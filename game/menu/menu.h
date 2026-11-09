@@ -122,6 +122,7 @@ bool menu_screen_step_is_known(Snes *s);
 void menu_wait_for_the_next_frame(GameState *g, Platform *pf);
 void menu_wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t frames);
 void menu_wait_frames_sending_the_sound_entry(Snes *s);
+void menu_counted_frame_finished(Snes *s);
 void menu_wait_for_frame_loop(Snes *s);
 void menu_wait_for_frame(Snes *s);
 void menu_take_the_frames_input(Snes *s);

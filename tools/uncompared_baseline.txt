@@ -153,6 +153,8 @@ field_after_battle  # second movie batch: 99.2% of 129 calls uncompared (128 int
 menu_description_task_finished  # the typing parent claims the comparison first; uncompared_evidence.py selects this continuation alone in menus-sweep and compares all 34 task completions
 menu_fade_resumes  # the fade parent claims the comparison first; uncompared_evidence.py selects this continuation alone in menus-sweep and compares all 21 resumptions, including both fade directions
 menu_fade_starts  # the fade parent claims the comparison first; uncompared_evidence.py selects this entry alone in menus-sweep and compares all three starts before their frame waits
+menu_tonic_member_choice_continues  # the enclosing item task claims the combined comparison; uncompared_evidence.py selects this continuation alone in menus-field-menu and compares all 208 choices through their frame waits
+menu_tab_member_choice_continues  # the enclosing item task claims the combined comparison; uncompared_evidence.py selects this continuation alone in menus-sweep and compares all 201 choices through their frame waits
 menu_fade_the_screen_out  # second movie batch: 94.9% of 137 calls uncompared (0 interrupted, 130 abandoned), abandoned as above
 battle_build_item_list  # second movie batch: 89.0% of 136 calls uncompared (121 interrupted, 0 abandoned), interrupted as above
 battle_show_the_rewards  # second movie batch: 76.7% of 120 calls uncompared (0 interrupted, 92 abandoned), abandoned as above

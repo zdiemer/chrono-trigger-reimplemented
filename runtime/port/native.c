@@ -4014,8 +4014,13 @@ void native_report(const NativeRuntime *rt, FILE *out)
         const Active *a = &rt->active[i];
         if (!a->job)
             continue;
-        fprintf(out, "  suspended %06X %s: waiting at %06X, return %06X, stack %04X\n",
-                a->entry->addr, a->entry->name, a->job->call_target, a->job->call_ret, a->job->call_s_after);
+        if (a->phase == PH_SYNC || a->phase == PH_WAIT)
+            fprintf(out, "  suspended %06X %s: %s at %06X, stack %04X\n",
+                    a->entry->addr, a->entry->name, a->phase == PH_SYNC ? "settling time" : "waiting",
+                    a->sync_pc, a->sync_s);
+        else
+            fprintf(out, "  suspended %06X %s: waiting at %06X, return %06X, stack %04X\n",
+                    a->entry->addr, a->entry->name, a->job->call_target, a->job->call_ret, a->job->call_s_after);
     }
     for (int i = 0; i < rt->nparked; i++) {
         const Active *a = &rt->parked[i].a;

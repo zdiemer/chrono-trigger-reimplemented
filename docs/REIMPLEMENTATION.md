@@ -4293,7 +4293,29 @@ through item use, and restore the item list. The original entry still runs
 the same operation in its comparison loop. The Epoch screens also call
 VRAM clearing, map and gate builders, decompression and text services through
 checked C bridges; a refused contract leaves the original callee entry.
-Their screen loops still retain their enclosing callers across waits.
+Their map and dial loops now leave their return frames in the saved machine,
+as do the counted-frame wait and the overworld's fades into and out of these
+screens. Fifteen held continuations preserve the enclosing routine's rate
+and full contract; the counted wait's sound mailbox is serviced after each
+frame. A refusal leaves the original callee entry and its pushed frame.
+The three focused movies' census now reports 27 machine-entered entries,
+46,597 calls, 870 entries called only as C, and 75 held boundaries with
+7,770,582 passes. There are still no CPU wait-loop passes. The source has
+1,439 ordinary entries, 135 held rows, 881 machine returns, 98 stops and
+1,398 scaffolding sites.
+
+Against the preceding build, all 20,310 frames retain their pictures and
+all five trace regions except the counted wait's stack bytes `$7E:06F0`
+and `$7E:06F2`: the held continuation has already pushed the next count
+where the enclosing C loop had not. Twelve native-shape `menus-epoch`
+checkpoints replay 120 frames with identical work RAM and no lost or
+inexact replay. Eleven save with no suspended routine. Frame 3,900 is
+bounded map-building work settling time before the upload at `$C2:6340`,
+not a screen loop; its replay is exact too. The runtime's suspension report
+now distinguishes that settlement from a call-out, instead of displaying
+the job's stale call-out target. The suspension, state, shadow and timing
+unit tests pass, and liveness finds no invalid return or call declaration.
+
 Eight native-shape `menus-sweep` checkpoints (frames 1,800, 2,100, 2,400,
 3,000, 3,900, 4,800, 5,400 and 6,000) now save without a suspended routine
 and replay 120 frames with identical work RAM. The three focused movies
@@ -4335,6 +4357,11 @@ direction and cadence are ordinary persistent state, including when a
 legacy caller starts the fade; held resumptions read them after a task switch.
 These cases
 run in the gate; the uncompared ledger names this evidence.
+The item task also claims its held member-choice comparisons in combined
+play. Independent runs compare all 208 tonic choices in `menus-field-menu`
+and all 201 tab choices in `menus-sweep`, including their frame waits.
+Both cases run in the gate and are the evidence for their two uncompared
+ledger rows; neither row excuses an untested continuation.
 
 The shipping census on `battle-menu-buttons`, `menus-sweep` and `menus-epoch`
 changes from 87 machine-entered entries and 3,455,625 calls in all to 42
