@@ -4050,17 +4050,8 @@ waits on M5 rather than on a backend.
   line holds it to), so make it a checked precondition of `unpack_stream`, a
   native failure where a stream isn't the cartridge's, as a retired
   subsystem's guards are assertions.
-- **The race's and the endings' setups call through the machine.** The
-  program's unpacker by resource (`$7E:3691`) and a channel's first script
-  step (`$7E:3749`) are ports now (`scene/boot.c`, `scene/script.c`), which
-  the title's setup runs as C (`scene_run`), but the race's and the endings'
-  setups still make them calls on the machine (`m_jsr_dc`), which the registry
-  answers with the ports, and the race's curtain step the same
-  (`$C3:000E`, scene/curtain.c). Run them as C
-  and recalibrate the setups' time; then the setup's machine (the frames and
-  the data bank and direct page it keeps on the stack around them,
-  `scene/bridge.c`) can come down. The setup's mirroring of the racers'
-  pictures runs long loops of its own, which is why it carries timing
+- **Separate the setups' mirroring time.** The race setup's mirroring of the
+  racers' pictures runs long loops of its own, which is why it carries timing
   exceptions; the arrangers (`$7E:3EB7`, `$7E:3ED3`, the latter the ending's
   too) timed as their own routines would fit it better.
 
@@ -4119,21 +4110,13 @@ waits on M5 rather than on a backend.
   `work_out_the_turn_task`: `set_scene_turn_matrix(g, 0..3, ...)`): the four
   entries want names (which is the cosine, which the sine and its negation),
   in the RAM map or an enum, as the turn's position and centre have theirs.
-- **The palace's curtain calls its step through the machine**
-  (`rising_palace.c`, `scene_sweep_the_palace_curtain`): `$C3:01E4` is the
-  registered `scene_sweep_the_curtain`, reached with `m_jsl_dc` so that its
-  comparison stays its own, and `CURTAIN_STEP` is defined again in
-  `curtain.c` (`scene_curtain_jump`). One definition in `scene.h`, and the
-  call as C once the step no longer needs a comparison of its own.
+- **Share the curtain step's identity.** `CURTAIN_STEP` for `$C3:01E4` is
+  defined in both `rising_palace.c` and `curtain.c`; one definition in
+  `scene.h` would keep the timing and checked call sites together.
 - **The credit pages read byte cells through word accessors**
   (`credit_pages.c`: `next_page`'s `scene_credits_page(g) & 0x00FF`,
   `write_the_jobs`'s `scene_sprite_offset_x(g) & 0xFF00`): narrow the
   declarations in `re/ram.toml` so the masks leave the port.
-- **`scene_find_divisor` on a bank that isn't low RAM.** Its limit is read
-  through the data bank, and its guard now leaves the rare call whose data bank
-  doesn't reach low RAM (one in some runs of `events-jetbike-race`) to the
-  original, since the cell it reads there isn't the scene's. Which caller makes
-  it, and what that cell is, isn't known.
 - **The RAM map can't say two variables alias.** `ram_map.py check` rejects
   overlap inside a subsystem, but the ROM overlaps: the map planes' last column
   word is the first plane's row word (`$7E:00E7`), which had to be modelled as
