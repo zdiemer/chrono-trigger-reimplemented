@@ -569,6 +569,9 @@ static bool attacker_fits(const GameState *g) { return battle_actor(g) < BATTLE_
 enum {
     AIM = 0xC1C1DD, SHOW_MESSAGE = 0xCD0021, SHOWING = 0xC1AC57, MEMBER_ATTACKS = 0xC1BFAA,
     USE_ITEM = 0xC1BF46, WORK_OUT_TECH = 0xC1BF79,
+    ACTION_READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS,
+    AIM_READS_CARRY = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z,
+    SHOWING_READS_A_HIGH_AND_OVERFLOW = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C,
 };
 
 /* Each call from the original's own: the targeting with the carry it is
@@ -588,21 +591,29 @@ static bool member_on_the_machine(void *ctx, MemberCall call, bool carry)
     Snes *s = ctx;
     uint32_t site = member_sites[call];
     switch (call) {
-    case MEMBER_ATTACK: return battle_run(s, site, MEMBER_ATTACKS, battle_member_attacks_entry);
+    case MEMBER_ATTACK: return battle_run_dc(s, 0xC1BA7D, MEMBER_ATTACKS, ACTION_READS_NOTHING, battle_member_attacks_entry);
     case MEMBER_AIM_ITEM:
+        m_set_flag(s, CPU_FLAG_C, carry);
+        return battle_run_dc(s, 0xC1BABE, AIM, AIM_READS_CARRY, battle_aim_action_entry);
     case MEMBER_AIM_TECH:
         m_set_flag(s, CPU_FLAG_C, carry);
-        return battle_run(s, site, AIM, battle_aim_action_entry);
+        return battle_run_dc(s, 0xC1BB88, AIM, AIM_READS_CARRY, battle_aim_action_entry);
     case MEMBER_ITEM_AIMED_PAST:
     case MEMBER_TECH_AIMED_PAST: battle_stop_after_call(s, site); return false;
-    case MEMBER_USE_ITEM: return battle_run(s, site, USE_ITEM, battle_use_item_entry);
+    case MEMBER_USE_ITEM: return battle_run_dc(s, 0xC1BB0C, USE_ITEM, ACTION_READS_NOTHING, battle_use_item_entry);
     case MEMBER_WORK_OUT_TECH:
-    case MEMBER_WORK_OUT_ATTACK: return battle_run(s, site, WORK_OUT_TECH, battle_work_out_member_tech_entry);
+        return battle_run_dc(s, 0xC1BBD4, WORK_OUT_TECH, ACTION_READS_NOTHING, battle_work_out_member_tech_entry);
+    case MEMBER_WORK_OUT_ATTACK:
+        return battle_run_dc(s, 0xC1C006, WORK_OUT_TECH, ACTION_READS_NOTHING, battle_work_out_member_tech_entry);
     case MEMBER_SHOW_ITEM:
+        s->cpu.a &= 0x00FF;
+        return battle_run_dc(s, 0xC1BB26, SHOWING, SHOWING_READS_A_HIGH_AND_OVERFLOW, battle_start_action_showing);
     case MEMBER_SHOW_TECH:
+        s->cpu.a &= 0x00FF;
+        return battle_run_dc(s, 0xC1BC1E, SHOWING, SHOWING_READS_A_HIGH_AND_OVERFLOW, battle_start_action_showing);
     case MEMBER_SHOW_ATTACK:
         s->cpu.a &= 0x00FF;
-        return battle_run(s, site, SHOWING, battle_start_action_showing);
+        return battle_run_dc(s, 0xC1C00E, SHOWING, SHOWING_READS_A_HIGH_AND_OVERFLOW, battle_start_action_showing);
     case MEMBER_ITEM_TAKEN:
         m_set_a8(s, MESSAGE_ITEM_TAKEN);
         return battle_run_long(s, site, SHOW_MESSAGE, battle_show_a_battle_message_entry);

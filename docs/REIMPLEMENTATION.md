@@ -4281,6 +4281,14 @@ compare. Black Omen's two battles and escape match after that return is
 kept, as do 2,000 trials covering all three slots with command memory on
 and off.
 
+The member-action bridges declare each callee's live register inputs:
+targeting takes carry, and showing takes A's high byte and overflow.
+Attack, item work and tech work take their arguments from game state.
+The liveness check validates these call-site declarations; the complete
+width, page, bank and binary-mode contracts still apply. Three held-choice
+fixtures compare 6,000 dispatches at the attack or targeting boundary,
+including memory and all live inputs, with zero mismatches.
+
 The counted frame wait also exposed a shadow-runtime boundary ambiguity:
 a handler can wake one wait, after which direct C calls reach the next
 wait at the same address and stack depth before the original executes
