@@ -4460,6 +4460,16 @@ These cases leave 48 menu bytes in 12 entries open in the discovery
 inventory. The final retirement ledger still requires a fresh replay of
 the accumulated recipes.
 
+The new-game-row fixture also reaches the load screen's final switch to
+the boot stack. The fuzzer now tracks popped bytes across task switches,
+as it already did for an interrupt's stack, and retains a stack's low-water
+mark when the scheduler resumes it. Live frames above each saved stack
+pointer remain compared. A synthetic task that leaves and resumes its
+stack matches; corrupting its live return frame fails every trial. The
+new-game fixture then compares 1,882 trials, with 118 guard refusals and
+no budget skips. This fixes comparison bookkeeping without changing the
+game's stack or reconstructing dead temporary bytes.
+
 The outcome witnesses below are in the sampled gate. Each names a picture
 and an ordered-place identity protected in both strict and native play;
 `outcomes_baseline.txt` holds their additional protected identities. The
