@@ -1296,3 +1296,94 @@ args = ["--s", "0A7F", "--tick-at", "C281CA=7E0D01", "--tick-at", "C281CA=7E00F0
 why = "All tab-affected figures are above their caps. Scheduler notifications advance the pressed sample through confirm and then back, comparing the refusal and the closed member window."
 iterations = 2000
 remove = ["--stop-at-call"]
+
+[[case]]
+base = "menu_choose_item_command"
+variant = "unreached_unused_command"
+args = ["--fill", "7E0068-7E0068=02", "--fill", "7E0D17-7E0D17=02", "--fill", "7E00F0-7E00F5=00", "--fill", "7E00F0-7E00F0=80", "--fill", "7E2993-7E2993=80", "--fill", "7E2994-7E2994=08", "--fill", "7E0D83-7E0D83=00", "--fill", "7E0054-7E0054=00"]
+why = "Confirm a cursor place other than the two item commands; the command step returns without choosing either."
+iterations = 2000
+
+[[case]]
+base = "menu_choose_game_to_carry_on_from"
+variant = "unreached_new_game_row"
+args = ["--fill", "7E0068-7E0068=02", "--fill", "7E0D17-7E0D17=02", "--fill", "7E00F0-7E00F5=00", "--fill", "7E00F0-7E00F0=80", "--fill", "7E2993-7E2993=80", "--fill", "7E2994-7E2994=08", "--fill", "7E0D83-7E0D83=00", "--s", "0A7F", "--tick-at", "C281CA=7E0D01", "--fill", "7E006E-7E006E=08", "--fill", "7E00B0-7E00EF=00", "--apu-loopback", "--fill", "7E0054-7E0054=03"]
+why = "Choose the fourth carry-on row, which starts a new game rather than loading a slot."
+iterations = 2000
+remove = ["--stop-at-call"]
+
+[[case]]
+base = "menu_save_in_the_slot"
+variant = "unreached_after_saving"
+args = ["--s", "0A7F", "--tick-at", "C281CA=7E0D01", "--fill", "7E006E-7E006E=08", "--fill", "7E00B0-7E00EF=00", "--fill", "7E0D49-7E0D4B=00"]
+why = "Complete the save and its wait before refreshing the party summary; only the current task runs and uploads are acknowledged."
+iterations = 2000
+remove = ["--stop-at-call"]
+
+[[case]]
+base = "menu_start_sliding_equipment_members"
+variant = "unreached_complete_slide"
+args = ["--s", "0A7F", "--tick-at", "C281CA=7E0D01", "--fill", "7E006E-7E006E=08", "--fill", "7E00B0-7E00EF=00"]
+why = "Complete the equipment-member slide through its saved-flags return with upload acknowledgements and no other active tasks."
+iterations = 2000
+remove = ["--stop-at-call"]
+
+[[case]]
+base = "menu_choose_goods"
+variant = "unreached_complete_page"
+args = ["--s", "0A7F", "--tick-at", "C281CA=7E0D01", "--fill", "7E006E-7E006E=08", "--fill", "7E00B0-7E00EF=00", "--fill", "7E0068-7E0068=02", "--fill", "7E0D17-7E0D17=02", "--fill", "7E00F0-7E00F5=00", "--fill", "7E00F4-7E00F4=10", "--fill", "7E2999-7E2999=10", "--fill", "7E299A-7E299A=20", "--fill", "7E1041-7E1041=02", "--fill", "7E0D83-7E0D83=00"]
+why = "Page left from a later shop page and complete its upload wait before returning to selection."
+iterations = 2000
+remove = ["--stop-at-call"]
+
+[[case]]
+base = "menu_choose_for_sale"
+variant = "unreached_complete_page"
+args = ["--s", "0A7F", "--tick-at", "C281CA=7E0D01", "--fill", "7E006E-7E006E=08", "--fill", "7E00B0-7E00EF=00", "--fill", "7E0068-7E0068=03", "--fill", "7E0D17-7E0D17=03", "--fill", "7E00F0-7E00F5=00", "--fill", "7E00F4-7E00F4=10", "--fill", "7E2999-7E2999=10", "--fill", "7E299A-7E299A=20", "--fill", "7E1043-7E1043=08", "--fill", "7E0D83-7E0D83=00"]
+why = "Page left from a later shop page and complete its upload wait before returning to selection."
+iterations = 2000
+remove = ["--stop-at-call"]
+
+[[case]]
+base = "menu_choose_second_to_exchange:whole"
+variant = "unreached_relist_kept_member"
+args = ["--fill", "7E0068-7E0068=02", "--fill", "7E0D17-7E0D17=02", "--fill", "7E00F0-7E00F5=00", "--fill", "7E00F0-7E00F0=80", "--fill", "7E2993-7E2993=80", "--fill", "7E2994-7E2994=08", "--fill", "7E0D83-7E0D83=00", "--s", "0A7F", "--tick-at", "C281CA=7E0D01", "--fill", "7E006E-7E006E=08", "--fill", "7E00B0-7E00EF=00", "--fill", "7E2980-7E2980=00", "--fill", "7E2981-7E2981=01", "--fill", "7E2982-7E2982=02", "--fill", "7F01DF-7F01DF=80", "--fill", "7E0F00-7E0F00=01", "--fill", "7E0054-7E0054=02", "--fill", "7E0F0B-7E0F0B=02", "--fill", "7E0F0C-7E0F0C=00", "--fill", "7E0F05-7E0F0A=80", "--fill", "7E0080-7E0080=00", "--fill", "7E0DA8-7E0DA8=00"]
+why = "Exchange two free active members, then relist the party with Crono story-kept."
+iterations = 2000
+remove = ["--stop-at-call"]
+
+[[case]]
+base = "menu_compare_shop_figures"
+variant = "unreached_worn_zero_power"
+args = ["--fill", "7E1056-7E105C=01", "--fill", "7E7C00-7E7C93=00", "--fill", "7E9A9B-7E9AA1=00", "--fill", "7E9AB7-7E9ABA=00"]
+why = "Show the already-worn marks and single-digit attack or defence figures for zero-power equipment and base figures."
+iterations = 2000
+
+[[case]]
+base = "menu_choose_equipment_item"
+variant = "unreached_accessory_hp_0000"
+args = ["--fill", "7E00F0-7E00F5=00", "--fill", "7E0D17-7E0D17=02", "--fill", "7E0068-7E0068=02", "--fill", "7E0D26-7E0D27=002A", "--fill", "7E0077-7E0077=03", "--fill", "7E0F00-7E0F61=A8", "--fill", "7E9ACF-7E9AD0=0000", "--fill", "7E9A95-7E9A96=0100"]
+why = "Try the evade-doubling accessory, with the old maximum HP on one side of the trial value to compare the change marker."
+iterations = 2000
+
+[[case]]
+base = "menu_choose_equipment_item"
+variant = "unreached_accessory_hp_ffff"
+args = ["--fill", "7E00F0-7E00F5=00", "--fill", "7E0D17-7E0D17=02", "--fill", "7E0068-7E0068=02", "--fill", "7E0D26-7E0D27=002A", "--fill", "7E0077-7E0077=03", "--fill", "7E0F00-7E0F61=A8", "--fill", "7E9ACF-7E9AD0=FFFF", "--fill", "7E9A95-7E9A96=0100"]
+why = "Try the evade-doubling accessory, with the old maximum HP on one side of the trial value to compare the change marker."
+iterations = 2000
+
+[[case]]
+base = "menu_choose_tech:unreached_after_sound"
+variant = "unreached_learning_single"
+args = ["--fill", "7E0F00-7E0F17=FF", "--fill", "7E0F30-7E0F47=00", "--fill", "7E0F49-7E0F49=01", "--fill", "7E0418-7E0418=00", "--fill", "7E0F4A-7E0F4A=00", "--fill", "7E0F48-7E0F48=00", "--fill", "7E0054-7E0054=00", "--fill", "7E0078-7E0078=00", "--fill", "7E0D83-7E0D83=00", "--fill", "7E0F00-7E0F00=01", "--fill", "7E7701-7E7701=40", "--fill", "7E00F0-7E00F5=00", "--fill", "7E0D17-7E0D17=03"]
+why = "Point at a single tech being learned and draw its learning window."
+iterations = 2000
+
+[[case]]
+base = "menu_choose_tech:unreached_after_sound"
+variant = "unreached_heal_every_member"
+args = ["--fill", "7E0F00-7E0F17=FF", "--fill", "7E0F30-7E0F47=00", "--fill", "7E0F49-7E0F49=01", "--fill", "7E0418-7E0418=00", "--fill", "7E0F4A-7E0F4A=00", "--fill", "7E0F48-7E0F48=00", "--fill", "7E0054-7E0054=00", "--fill", "7E0078-7E0078=00", "--fill", "7E0D83-7E0D83=00", "--fill", "7E0068-7E0068=02", "--fill", "7E0D17-7E0D17=02", "--fill", "7E00F0-7E00F5=00", "--fill", "7E00F0-7E00F0=80", "--fill", "7E2993-7E2993=80", "--fill", "7E2994-7E2994=08", "--fill", "7E0D83-7E0D83=00", "--s", "0A7F", "--tick-at", "C281CA=7E0D01", "--fill", "7E006E-7E006E=08", "--fill", "7E00B0-7E00EF=00", "--fill", "7E0F00-7E0F00=06", "--fill", "7E7700-7E7774=80", "--fill", "7E2607-7E27E7:50=00FF", "--fill", "7E0068-7E0068=03", "--fill", "7E0D17-7E0D17=03"]
+why = "Choose a learned single tech that heals the party, open the target window and place a cursor on every member."
+iterations = 2000
+remove = ["--stop-at-call"]

@@ -2904,8 +2904,8 @@ comparisons.
   arms, and preserve the resulting preconditions as contracts. One battle
   entry still lacks a plain recipe: `battle_call_enemies_in` (42 bytes).
 
-  The discovery union of 625 clean recipes and the reviewed exclusions
-  leaves 1,070 battle bytes in 60 entries and 48 menu bytes in 12 entries.
+  The discovery union of 638 clean recipes and the reviewed exclusions
+  leaves 1,070 battle bytes in 60 entries and no menu bytes open.
   Older runs in this union guide the remaining cases; they are not fresh
   retirement evidence. Replay the completed recipes against the final tree.
   Preserve the complete sprite/frame/output bounds, startup-built OAM
@@ -2913,20 +2913,21 @@ comparisons.
   language and stack separation when their guards retire. The original
   random-OAM fixture is wholly refused; its valid-lookup counterpart is
   execution evidence. Do not count a refusal or interpreted call-out as
-  evidence for a C implementation. The remaining menu gaps include equipment
-  comparisons, tech selection, and save and menu continuation paths. The new scene helpers
+  evidence for a C implementation. The new scene helpers
   retain provisional estimates until a movie measures them. Record the reviewed exclusions and
   matched recipes in the unreached ledger before either subsystem retires.
 
-  `unreached_safe.toml` records fifteen further reviewed exclusions: zero map
+  `unreached_safe.toml` records eighteen further reviewed exclusions: zero map
   selectors, an exchange with no selectable row, fixed hex-glyph and sprite
   assignment encodings, the empty name caught by the earlier duplicate
   check, hits whose guard excludes stealing, the two damage-formula bodies
   bypassed for every byte selector, a restore modifier absent
   from the fixed parameter table, the battle tail's disabled debug arm,
   a hanging wedge's necessarily flat top, and the stopping spiral's
-  single-mover restriction, and random-target branches no fixed aim record
-  selects, and the fixed switch disabling debug frame advance.
+  single-mover restriction, random-target branches no fixed aim record
+  selects, the fixed switch disabling debug frame advance, the bounded
+  closing-window slide, controls that leave before a left wrap, and the
+  exchange layout's unreachable load.
   Preserve their cited bounds and resource
   assumptions as contracts. These arguments are not execution coverage;
   enroll them with the matched recipes only after the inventory closes.

@@ -4456,9 +4456,15 @@ interruption or mismatch.
 The scheduler fixtures supply upload completion
 and input notifications without claiming interrupt or video coverage;
 the recipe merger preserves distinct notifications at the same wait.
-These cases leave 48 menu bytes in 12 entries open in the discovery
-inventory. The final retirement ledger still requires a fresh replay of
-the accumulated recipes.
+Twelve final fixtures compare 23,207 trials, with 793 guard refusals and
+no other skips. They cover the remaining equipment and tech choices,
+shop figures, saving and new-game return paths. Three reviewed arguments
+cover eleven bytes: the closing window cannot reach its middle-band
+decrement within its guarded 24 frames; a left push leaves the controls
+screen before its shared button operation; and both values of the
+exchange layout branch past a dead load. The discovery inventory now has
+no menu byte open. The final retirement ledger still requires a fresh
+replay of the accumulated recipes.
 
 The new-game-row fixture also reaches the load screen's final switch to
 the boot stack. The fuzzer now tracks popped bytes across task switches,

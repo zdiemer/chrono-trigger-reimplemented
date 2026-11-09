@@ -229,3 +229,21 @@ name = "battle_effect_hit"
 runs = "C1E4BB-C1E510,C1E515-C1E574"
 depends = ["game/battle/effect_amounts.c:damage_worked_out", "game/battle/effect_amounts.c:formula", "game/battle/effect_amounts.c:FORMULA_LEFT_AS_IT_IS", "game/battle/effect_work.c:hit_target"]
 why = "Only formula selector 8 reaches the original's later tests for selectors 9 and 10: its equality branch skips the weapon formula to those tests with A still 8, so both fail. Every other selector not already handled runs the weapon formula and jumps past both bodies. These two bodies are unreachable from the hit entry for every byte selector, independently of the cartridge's records. Preserve selector 8's unchanged quotient and the weapon fallback for selectors outside 1 through 8. The directed 9/10 fixture compares that fallback, not these dead bodies."
+
+[[safe]]
+name = "menu_close_slots_window"
+runs = "C2A9CC-C2A9D2"
+depends = ["game/menu/equipment_windows.c:menu_equip_start_members_slide", "game/menu/equipment_windows.c:step_members_bands", "game/menu/equipment_windows.c:menu_equip_slide_members_back_a_frame", "game/menu/equipment_windows.c:BOTTOM_BACK", "game/menu/equipment_windows.c:SLIDE_STEP", "game/menu/equipment_windows.c:SLIDE_FRAMES", "game/menu/equipment_windows.c:FRAMES_A_ROW", "game/menu/equipment_bridge.c:menu_equipment_slots_window_slides", "game/menu/equipment_bridge.c:window_slides", "game/menu/equipment_bridge.c:member_shows", "game/menu/members.h:MENU_MEMBER_ROWS"]
+why = "The middle band shrinks only after the bottom band reaches zero. The closing slide starts that byte at 16 and subtracts 6 modulo 256, first reaching zero after 88 steps. The member-row guard admits only rows 0 through 2: their row delays are 24, 8 and 16 frames, so every admitted close ends after 24 frames. Preserve that row bound and byte wraparound when retiring the guard; the C operation retains the middle-band branch."
+
+[[safe]]
+name = "menu_choose_buttons"
+runs = "C2C1F2-C2C1F3"
+depends = ["game/menu/settings_screen.c:menu_choose_buttons_with", "game/menu/settings_screen.c:menu_settings_take_buttons_input", "game/menu/settings_screen.c:button_asked_for", "game/menu/cursor.c:menu_read_cursor", "game/menu/cursor.c:move_cursor", "game/menu/cursor.c:menu_pushed", "game/menu/cursor.h:MENU_PUSHED_LEFT"]
+why = "A left push sets both the cursor's left direction and its left-move bit. This screen handles that bit by keeping the assignments and leaving before it asks for a row's new button. No admitted call from this entry reaches the later left-wrap arm; up/down, right and Start do not leave a left direction. Preserve the early leave and the paired direction/move update. The shared button operation retains left wrapping for other callers."
+
+[[safe]]
+name = "menu_choose_second_to_exchange"
+runs = "C2CD79-C2CD7A"
+depends = ["game/menu/exchange.c:list_the_party", "game/menu/exchange.c:active_party_alone", "game/menu/exchange.c:menu_exchange_choose_the_second"]
+why = "After loading the layout byte, the original branches away when it is nonzero and immediately branches past these two bytes when it is zero. Nothing changes the flags between those branches. The conservative walk includes this dead load, but no value of the layout reaches it from relisting the exchanged party. Preserve the layout's two-way choice; the kept-member mark in the preceding active-party loop is separate and remains implemented."
