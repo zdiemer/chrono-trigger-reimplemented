@@ -52,6 +52,7 @@ bool menu_epoch_kept_off_the_ground(GameState *g, MenuObject epoch);
 bool menu_epoch_kept_off_the_ground_of(GameState *g, MenuObject o, unsigned map);
 
 /* Guards */
+bool menu_epoch_map_is_buildable(Snes *s);
 bool menu_epoch_page_is_menu(Snes *s);
 bool menu_epoch_object_runs(Snes *s);
 bool menu_epoch_slot_runs(Snes *s);

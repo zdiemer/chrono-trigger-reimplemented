@@ -1626,8 +1626,8 @@ static bool load_record_sprites(GameState *g, LoadRecord load, void *ctx)
     return true;
 }
 
-static bool record_sprite_loadable(const GameState *g, unsigned record);
-static bool opening_records_fit(const GameState *g);
+static bool record_sprite_loadable(GameState *g, unsigned record);
+static bool opening_records_fit(GameState *g);
 
 /* Each load where its guard's state half takes it; otherwise the program goes
  * no further there. */
@@ -1806,9 +1806,28 @@ bool menu_record_task_is_runnable(Snes *s)
     return ok;
 }
 
-static bool record_sprite_loadable(const GameState *g, unsigned record)
+/* A packed sprite must stop before the decode buffer reaches the end of its
+ * work RAM bank: wrapping there would overwrite the menus' state and stack. */
+static bool sprite_graphics_fit(GameState *g, unsigned record, uint8_t set, uint8_t sprite)
 {
-    return menu_record_sprite_set(g, record) < SPRITE_SETS;
+    if (set >= SPRITE_SETS)
+        return false;
+    if (set == PLAYABLE_CHARACTERS)
+        return true;
+    SpriteAssignment a = read_assignment(g, assignment_place(g, set, sprite));
+    if (a.graphics == NO_SPRITE)
+        return true;
+    uint16_t frames_at = (uint16_t)(a.animations * 2 + menu_sprite_animation_frames_table(g));
+    if (menu_sprite_table_word(g, frames_at) == menu_sprite_table_word(g, (uint16_t)(frames_at + 2)))
+        return true;
+    uint32_t graphics = menu_sprite_place(g, (uint16_t)(a.graphics * 3 + menu_sprite_graphics_table(g)));
+    uint16_t to = (uint16_t)(UNPACKED_GRAPHICS + record * UNPACKED_BYTES);
+    return unpack_stream_fits(g, graphics, (uint16_t)(0x10000u - to));
+}
+
+static bool record_sprite_loadable(GameState *g, unsigned record)
+{
+    return sprite_graphics_fit(g, record, menu_record_sprite_set(g, record), menu_record_sprite(g, record));
 }
 
 bool menu_record_sprite_is_loadable(Snes *s)
@@ -1825,14 +1844,14 @@ bool menu_record_sprite_is_loadable(Snes *s)
 /* The opening's records: each sprite of one of the three sets, and of a size
  * whose frames fit, the frame buffer taking them all, since the first frame
  * of each shows. */
-static bool opening_records_fit(const GameState *g)
+static bool opening_records_fit(GameState *g)
 {
     if (!queue_is_whole(g))
         return false;
     uint8_t sent = menu_record_blocks_sent(g);
     for (unsigned record = 0; record < OPENING_RECORDS_SHOWING; record++) {
         uint8_t set = menu_record_sprite_set(g, record);
-        if (set >= SPRITE_SETS)
+        if (!sprite_graphics_fit(g, record, set, (uint8_t)record))
             return false;
         uint8_t blocks = menu_sprite_blocks(g, read_assignment(g, assignment_place(g, set, (uint8_t)record)).size);
         if (!blocks_fit(g, blocks, sent) || (menu_opening_record_tile(g, record) & LOWER_TILE_ROW))

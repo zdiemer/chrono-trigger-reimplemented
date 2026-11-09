@@ -178,9 +178,18 @@ static uint16_t draw_map_tile(GameState *g, uint16_t buffer, uint8_t plane, unsi
     return record;
 }
 
-/* A tile row started: the mode's upload buffer cleared, the first time a
- * quarter more than a tile row, and its place returned. The original looks
- * the buffer up again for each row and clears it with a block move. */
+/* The first strip clears a full kilobyte. Its storage must stay above
+ * low RAM, where the mode's working cells and stacks live, and within its
+ * bank. Later strips use less of the same buffer. */
+static bool map_picture_buffer_fits(const GameState *g)
+{
+    enum { LOW_RAM_END = 0x2000, FIRST_STRIP_BYTES = TILE_ROW_BYTES + TILE_ROW_BYTES / 3 };
+    uint16_t buffer = (uint16_t)menu_object_upload_buffer(g);
+    return buffer >= LOW_RAM_END && (uint32_t)buffer + FIRST_STRIP_BYTES <= 0x10000u;
+}
+
+/* Clear the mode's upload buffer for a tile row, with a third more space
+ * for the first strip, and return its place. */
 static uint16_t start_tile_row(GameState *g, uint16_t bytes)
 {
     uint16_t buffer = (uint16_t)menu_object_upload_buffer(g);
@@ -1679,8 +1688,8 @@ static bool load_the_markers(void *ctx)
 static bool build_the_map(void *ctx)
 {
     ScreenInC *c = ctx;
-    if (!overworld_map_tiles_can_load(c->game)) {
-        program_needs_the_machine(c->game, 0xC263DF, "a map view of a map the port doesn't load");
+    if (!overworld_map_tiles_can_load(c->game) || !map_picture_buffer_fits(c->game)) {
+        program_needs_the_machine(c->game, 0xC263DF, "a map view without its map record or a strip buffer clear of low RAM");
         return false;
     }
     Unpacker u = overworld_unpacker(c->game);
@@ -1781,6 +1790,16 @@ void menu_epoch_time_dial_screen(Snes *s)
 }
 
 /* ---- The entries ---------------------------------------------------------------------------- */
+
+bool menu_epoch_map_is_buildable(Snes *s)
+{
+    if (!overworld_map_tiles_run(s))
+        return false;
+    vars_peek(true);
+    bool fits = map_picture_buffer_fits(state_of(s));
+    vars_peek(false);
+    return fits;
+}
 
 /* Both screens run on the menus' page with the data bank on the I/O banks,
  * their objects' handlers entered with their slot in X. */

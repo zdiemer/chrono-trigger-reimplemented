@@ -35,7 +35,7 @@
  * reads a stream's bytes, an offset from the bank's start that runs on into
  * the next bank. */
 typedef struct {
-    GameState *g;
+    const GameState *g;
     uint8_t bank;
     uint16_t at;
 } Stream;
@@ -129,6 +129,70 @@ static uint32_t original_accesses(const Counts *n)
 
 /* The first segment's length, and so where it ends, comes first. */
 enum { FIRST_LENGTH_BYTES = 2, HEADER_BYTES = 3, BITS_IN_A_CONTROL = 8, HEADER_BITS = 0x3F };
+
+/* Check a packed resource's output extent without changing the destination or
+ * the unpacker's state. Input is bounded to one bank as well, so a malformed
+ * stream whose headers cycle cannot make a resource guard run forever. */
+static bool stream_fits(const GameState *g, uint32_t from, uint16_t capacity)
+{
+    Stream in = { g, (uint8_t)(from >> 16), (uint16_t)(from + FIRST_LENGTH_BYTES) };
+    uint16_t first_length = (uint16_t)(rom_read8(g, from) | rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
+    uint16_t segment_end = (uint16_t)(in.at + first_length);
+    bool long_runs = rom_read8(g, (uint32_t)in.bank << 16 | segment_end) & LONG_RUNS;
+    uint8_t bits_left = BITS_IN_A_CONTROL;
+    uint32_t input_left = 0x10000u - FIRST_LENGTH_BYTES;
+    for (;;) {
+        if (input_left == 0)
+            return false;
+        if (in.at == segment_end) {
+            uint8_t bits = stream_byte(&in, 0) & HEADER_BITS;
+            if (!bits)
+                return true;
+            if (input_left < HEADER_BYTES)
+                return false;
+            bits_left = bits;
+            segment_end = (uint16_t)(stream_word(&in, 1) + (uint16_t)from);
+            in.at += HEADER_BYTES;
+            input_left -= HEADER_BYTES;
+            continue;
+        }
+        uint8_t control = stream_byte(&in, 0);
+        in.at++;
+        input_left--;
+        if (!control) {
+            if (capacity < BITS_IN_A_CONTROL || input_left < BITS_IN_A_CONTROL)
+                return false;
+            capacity -= BITS_IN_A_CONTROL;
+            in.at += BITS_IN_A_CONTROL;
+            input_left -= BITS_IN_A_CONTROL;
+            continue;
+        }
+        do {
+            bool reference = control & 1;
+            uint8_t encoded = reference ? 2 : 1;
+            if (input_left < encoded)
+                return false;
+            uint8_t length = reference ? (uint8_t)(reference_at(&in, long_runs).length_less_three + 3) : 1;
+            if (capacity < length)
+                return false;
+            capacity -= length;
+            in.at += encoded;
+            input_left -= encoded;
+            control >>= 1;
+        } while (--bits_left);
+        bits_left = BITS_IN_A_CONTROL;
+    }
+}
+
+/* Validation is outside the game's work estimate, as it is when the
+ * runtime asks an entry guard. The unpacking itself keeps its existing time. */
+bool unpack_stream_fits(GameState *g, uint32_t from, uint16_t capacity)
+{
+    uint32_t mark = charge_uncounted_begin(g);
+    bool fits = stream_fits(g, from, capacity);
+    charge_uncounted_end(g, mark);
+    return fits;
+}
 
 static uint16_t unpack(GameState *g, Counts *n)
 {

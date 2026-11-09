@@ -4293,6 +4293,34 @@ and combatant drawing matches 496 and rejects 1,504. None mismatches or
 reports an accessor outside its range. These complete-range bounds must
 survive as contracts when their guards retire.
 
+Resource contracts cover the sprite loader's decoded output and the Epoch
+map's upload strip. A bounded stream scan checks the former without writing
+work RAM or moving the unpacker's port. The decoded bytes must fit the
+destination bank; a sprite number alone does not establish that. The map's
+first strip must fit above low RAM and within its bank. The existing input
+ranges give zero mismatches: the single-record loader matches 1,997 of 2,000
+trials, the opening loader 297 of 500, and the map builder 1,744 of 2,000;
+the guards reject the other inputs. `unpack_test` checks the stream scan's
+exact capacity and one-byte-short boundary over its worked stream and
+2,000 generated streams, without changing output or unpacker state.
+
+The item animation's graphics calls now declare the registers liveness
+proves unread, preserving A, the data bank and direct page. The upload wait
+also preserves A's high byte and carry. Each matches 3,000 trials through
+its first call boundary. The far upload wrapper matches another 3,000 at
+its forwarding call; the near entry's trial covers the work to the wait.
+The held main menu task keeps its canonical routine name, so its existing
+accepted high-byte read remains attributed to the same operation.
+
+The source effects audit finds no external port reader of battle
+scaffolding. Its nineteen external menu findings are overworld reads of
+reused storage: object slots 7, 8, 10, 16 and 17 and the upload queue cursor.
+The overworld puts the direct page and low RAM aside before opening the
+menus and restores them before its objects or map run again. Every reported
+alias lies in those restored ranges. This resolves those external readers;
+internal readers and still-gated callers still need decisions before
+scratch writes can be deleted.
+
 Shipping traces before and after these changes are identical in all five
 memory regions over the three census movies' 20,310 frames. The main-menu
 and shop returns also agree over `menu` and `menus-shop-inn`'s 18,602 frames.

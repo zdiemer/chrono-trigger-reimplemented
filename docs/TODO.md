@@ -3015,19 +3015,19 @@ comparisons.
   entries lack a plain recipe: `battle_wait_music_fade_loop` (9 bytes),
   `battle_aim_action` (447) and `battle_call_enemies_in` (42).
 
-  The initial 200-trial replay has 435 clean recipes out of 443. Extending
-  176 recipes with remaining gaps to their declared limits (up to 2,000)
-  leaves 3,292 battle bytes in 74 entries and 2,417 menu bytes in 77 entries
-  before the save-refusal, character-name and drawing-buffer fixes. Preserve
+  The initial 200-trial replay has 435 clean recipes out of 443. Longer runs,
+  the resource fixes and 44 existing variants leave 2,760 battle bytes in
+  73 entries and 2,341 menu bytes in 73 entries after 482 clean recipes. Preserve
   the complete source and destination bounds added to tile copying, frames
   and afterimages when their guards retire. Close the remaining failures in
-  `battle_load_item_animation`, `battle_send_vram_and_wait`, `menu_draw_text`,
-  `menu_epoch_build_map` and `menu_load_record_sprite`; the last appears only
-  in the longer run (3 mismatches out of 2,000). All three use set 2, sprite
-  `$CE`: its 23,776 unpacked bytes wrap from the second record's `$B800`
-  destination into low RAM and the machine stack. Establish the output
-  storage bound as a contract rather than excluding that sprite by number.
-  Some recipes leave the
+  `menu_draw_text`, `battle_draw_objects:loose`,
+  `battle_step_combatant_animations:loose` and
+  `battle_update_combatant:comes_back`. The latter disagrees only in incoming
+  registers at its call cutoff; establish liveness before declaring any
+  dead. Both animation variants exceed `battle_part_offsets`, and equipment's
+  `any_item` variant exceeds the name-place table. Preserve the sprite loader's decoded-output bound and
+  the Epoch map's upload-buffer bound as contracts when their guards retire
+  (REIMPLEMENTATION.md, "Battle and menu held boundaries"). Some recipes leave the
   original running at a call-out or use invalid asset/state combinations;
   distinguish fixture constraints from defects and preserve every resulting
   precondition. The object-script dispatcher's conservative reach includes

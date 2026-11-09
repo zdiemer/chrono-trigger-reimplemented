@@ -10250,16 +10250,16 @@ name = "battle_send_vram_and_wait"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=007E-007E", "--fill", "7ECA26-7ECA26=00-01",
-        "--fill", "7ECD02-7ECD02=00-00", "--fill", "7ECA20-7ECA20=FE-FF", "--stop-at-call", "CD3E81"]
-why = "a buffer of work RAM, a transfer queued before or not, up to the first wait that waits"
+        "--fill", "7ECD02-7ECD02=00-00", "--fill", "7ECA20-7ECA20=FE-FF", "--stop-at-call", "CD3E75"]
+why = "a buffer of work RAM, a transfer queued before or not, up to the first frame call, before its nested handler wait"
 
 [[routine]]
 name = "battle_send_vram_and_wait_long"
 subsystem = "battle"
 state = "battle"
 args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=007E-007E", "--fill", "7ECA26-7ECA26=00-01",
-        "--fill", "7ECD02-7ECD02=00-00", "--fill", "7ECA20-7ECA20=FE-FF", "--stop-at-call", "CD3E81"]
-why = "the same from another bank"
+        "--fill", "7ECD02-7ECD02=00-00", "--fill", "7ECA20-7ECA20=FE-FF", "--stop-at-call", "CD3ED2"]
+why = "the same from another bank, compared at the forwarding call; the near entry's own recipe checks through to the frame wait, which the original's nested call cannot stop at in this wrapper's comparison"
 
 # -- draw: the combatants' drawing and the effects' motion (battle/draw_objects.c, battle/object_motion.c,
 # battle/effect_paths.c, battle/effect_animation.c)

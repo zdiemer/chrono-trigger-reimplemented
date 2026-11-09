@@ -378,6 +378,9 @@ static ChosenAnimation chosen_for(GameState *g, ShowingKind kind)
  * but A's high byte, which it takes along. The frame work's loads take what
  * they load in A, a byte. */
 enum { FRAME_WAIT_READS = DC_AL | DC_X | DC_Y | DC_FLAGS };
+/* The graphics loaders take their resource in A; neither reads the index
+ * registers or incoming arithmetic flags (the liveness check proves this). */
+enum { GRAPHICS_IGNORES = DC_X | DC_Y | DC_FLAGS };
 
 /* The waits for the next frame, the frame steps and the shapes' calls, each
  * by its place in the loading. */
@@ -391,10 +394,10 @@ static bool load_on_the_machine(void *ctx, LoadCall call, uint8_t what)
     switch (call) {
     case LOAD_GRAPHICS:
         s->cpu.a = what;
-        return battle_run_long(s, 0xC14836, 0xCD0015, battle_load_effect_tile_rows_entry);
+        return battle_run_long_dc(s, 0xC14836, 0xCD0015, GRAPHICS_IGNORES, battle_load_effect_tile_rows_entry);
     case LOAD_SECOND_GRAPHICS:
         s->cpu.a = what;
-        return battle_run_long(s, 0xC1483D, 0xCD002A, battle_load_second_effect_tile_rows_entry);
+        return battle_run_long_dc(s, 0xC1483D, 0xCD002A, GRAPHICS_IGNORES, battle_load_second_effect_tile_rows_entry);
     case LOAD_BACKGROUND:
         s->cpu.a = what;
         return battle_run_long(s, 0xC14857, 0xCD0018, battle_change_battlefield_entry);

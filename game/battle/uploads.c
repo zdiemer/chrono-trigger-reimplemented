@@ -123,7 +123,10 @@ static void leave_what_the_wait_keeps(Snes *s, const GameState *g, SendWait what
 static bool wait_a_frame(Snes *s, uint32_t site, SendWait what)
 {
     ORIGINAL_EFFECT(leave_what_the_wait_keeps(s, state_of(s), what));
-    return battle_run(s, site, 0xCD3E75, battle_wait_for_the_next_frame_entry);
+    /* The following menu turn reads the carry; A's high byte reaches the
+     * pause work. The other incoming registers and arithmetic flags are dead. */
+    return battle_run_dc(s, site, 0xCD3E75, DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z,
+                         battle_wait_for_the_next_frame_entry);
 }
 
 /* The menu's turn the waits give reads the carry the original's comparison

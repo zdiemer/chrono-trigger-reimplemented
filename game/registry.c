@@ -3524,7 +3524,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC2631F, .name = "menu_epoch_map_screen", .fn = menu_epoch_map_screen, NEEDS_M8_X16,
       .cost_milli = 4560, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_map_page_is_menu },
     { .addr = 0xC263DF, .name = "menu_epoch_build_map", .fn = menu_epoch_build_map, NEEDS_M8_X16,
-      .cost_milli = 10675, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = overworld_map_tiles_run },
+      .cost_milli = 10675, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_epoch_map_is_buildable },
     { .addr = 0xC26400, .name = "menu_epoch_sample_map_colours", .fn = menu_epoch_sample_map_colours, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
       .cost_milli = 30988, .dont_care = DC_AL | DC_Y | DC_N | DC_V | DC_Z, .guard = menu_epoch_page_is_menu },
     { .addr = 0xC265B2, .name = "menu_epoch_place_map_picture", .fn = menu_epoch_place_map_picture, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
@@ -3922,7 +3922,7 @@ const NativeEntry game_held_waits[] = {
     /* Task starts and resumptions are fresh roots after the scheduler has
      * selected a stack. Keep the complete gated contracts and rates; never
      * nest a new task inside the previous task's C call chain. */
-    { .addr = 0xC2826F, .name = "menu_run_the_main_task_held", .fn = menu_run_the_main_task, .p_mask = CPU_FLAG_D, .p_value = 0,
+    { .addr = 0xC2826F, .name = "menu_run_the_main_task", .fn = menu_run_the_main_task, .p_mask = CPU_FLAG_D, .p_value = 0,
       .cost_milli = 922, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .guard = menu_screen_step_is_known, .hold = HOLD_MENU_TASKS },
     { .addr = 0xC283BD, .name = "menu_fade_in_task_held", .fn = menu_fade_in_task_entry, .cost_milli = 8768,
