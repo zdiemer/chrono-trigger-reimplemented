@@ -3830,6 +3830,14 @@ high byte must be clear: the original updates only its low byte before a
 builder reads the word. The last enemy group's fixture admits 1,682 matching
 trials and refuses 318 invalid states before either access.
 
+Targeting reuses the low byte of the saved member-action pointer. The item
+and tech callers still read their provisional action number through that
+changed pointer, before replacing it for the animation. A typed overlapping
+view preserves that lookup; retaining the chosen tech number instead left
+the wrong state when work could not proceed. Complete caller fixtures match
+1,911 tech trials and 2,000 item trials, with no mismatches (89 tech trials
+exhaust their call-out budget and contribute no evidence).
+
 The counted frame wait also exposed a shadow-runtime boundary ambiguity:
 a handler can wake one wait, after which direct C calls reach the next
 wait at the same address and stack depth before the original executes

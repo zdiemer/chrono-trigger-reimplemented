@@ -8667,6 +8667,12 @@ enum { BATTLE_NUMBER_SPRITE_HIGH_COUNT = 11 };   /* by combatant */
 uint8_t battle_number_sprite_high(const GameState *g, unsigned i);
 void set_battle_number_sprite_high(GameState *g, unsigned i, uint8_t v);
 
+enum { BATTLE_CHOICE_AFTER_TARGETING_COUNT = 256 };   /* by low byte of the action record pointer after targeting */
+/* The provisional action number read through the record pointer after targeting reuses its low
+ * byte; replaced before showing the action */
+uint8_t battle_choice_after_targeting(const GameState *g, unsigned i);
+void set_battle_choice_after_targeting(GameState *g, unsigned i, uint8_t v);
+
 enum { BATTLE_MEMBER_ACTIONS_COUNT = 3 };   /* by party slot */
 /* The whole record a byte at a time, as a demo battle's party has its records copied in
  * ($C1:B725) [7 bytes, one at a time] */

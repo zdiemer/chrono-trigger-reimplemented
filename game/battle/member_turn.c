@@ -410,8 +410,9 @@ static bool use_item(GameState *g, uint8_t member, MemberCalls call, void *ctx)
     if (!battle_action_came_to_nothing(g)) {
         /* the item's performer is recorded first as the last tech's first
          * member's slot, as the original has it, and the member's after */
-        record_before_work(g, tech_performer(g), ACTION_ITEM, what);
-        battle_keep_byte(g, BATTLE_CLOCK_READS, what);
+        uint8_t chosen = battle_choice_after_targeting(g, battle_low_scratch(g, BATTLE_MEMBER_CELL));
+        record_before_work(g, tech_performer(g), ACTION_ITEM, chosen);
+        battle_keep_byte(g, BATTLE_CLOCK_READS, chosen);
         targets_to_candidates(g);
         if (!call(ctx, MEMBER_USE_ITEM, false))
             return false;
@@ -446,7 +447,10 @@ static bool perform_tech(GameState *g, uint8_t member, MemberCalls call, void *c
         return false;
     bool performed = false;
     if (!battle_action_came_to_nothing(g)) {
-        record_before_work(g, tech_performer(g), ACTION_TECH, tech);
+        /* Targeting reused the low byte of the record pointer. The original
+         * reads through that changed pointer until the showing replaces it. */
+        record_before_work(g, tech_performer(g), ACTION_TECH,
+                           battle_choice_after_targeting(g, battle_low_scratch(g, BATTLE_MEMBER_CELL)));
         targets_to_candidates(g);
         if (!call(ctx, MEMBER_WORK_OUT_TECH, false))
             return false;

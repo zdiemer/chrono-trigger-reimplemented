@@ -5565,6 +5565,12 @@
 #define RAM_BATTLE_NUMBER_SPRITE_HIGH 0x7E92DDu
 #define RAM_BATTLE_NUMBER_SPRITE_HIGH_COUNT 11u
 #define RAM_BATTLE_NUMBER_SPRITE_HIGH_STRIDE 0x01u
+/* The provisional action number read through the record pointer after targeting reuses its low
+ * byte; replaced before showing the action [256 x $1 bytes, by low byte of the action record
+ * pointer after targeting] */
+#define RAM_BATTLE_CHOICE_AFTER_TARGETING 0x7E9306u
+#define RAM_BATTLE_CHOICE_AFTER_TARGETING_COUNT 256u
+#define RAM_BATTLE_CHOICE_AFTER_TARGETING_STRIDE 0x01u
 /* Per party member action records [3 x $7 bytes, by party slot] */
 #define RAM_BATTLE_MEMBER_ACTIONS 0x7E93EEu
 #define RAM_BATTLE_MEMBER_ACTIONS_COUNT 3u

@@ -25373,3 +25373,14 @@ subsystem = "scene"
 reuses = ["scene_race_center_x", "scene_race_center_y", "scene_race_bg2_scroll_x", "scene_race_bg3_scroll_x", "scene_race_bg3_scroll_y", "scene_credits_row", "scene_race_picture_requests", "scene_race_plane_turn", "scene_race_horizon", "scene_race_view_position", "scene_race_view_sent", "scene_race_scenery_drift", "scene_race_camera_offset", "scene_race_johnny_gone", "scene_race_divisors", "scene_flight_view"]
 meaning = "Transformed map queued for the next turning-scene upload"
 source = "game/scene/turning.c and game/scene/rising_palace.c, mode 5 map"
+
+[[var]]
+name = "battle_choice_after_targeting"
+addr = "7E:9306"
+count = 256
+reuses = ["battle_member_actions", "battle_party_names"]
+index = "low byte of the action record pointer after targeting"
+subsystem = "battle"
+meaning = "The provisional action number read through the record pointer after targeting reuses its low byte; replaced before showing the action"
+source = "game/battle/member_turn.c use_item and perform_tech"
+
