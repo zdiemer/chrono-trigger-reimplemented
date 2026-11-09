@@ -714,8 +714,8 @@ static bool the_cartridges_scene(const Fallbacks *f, uint32_t pc)
         { 0x7E3443, 0x7E3509 },
         { 0x7E350E, 0x7E355E },
         { 0x7E357B, 0x7E363B },
-        /* The perspective loop reaches its pairing tail through a patched branch. */
-        { 0x7E366C, 0x7E3688 },
+        /* Perspective reaches its curve step and pairing tail through patched branches. */
+        { 0x7E3662, 0x7E3688 },
         { 0x7E3691, 0x7E3708 },
         { 0x7E3749, 0x7E390A },
         { 0x7E3934, 0x7E39E7 },

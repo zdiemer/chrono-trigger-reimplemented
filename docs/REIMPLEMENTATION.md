@@ -4292,9 +4292,9 @@ RAM overlay: the code-image contracts distinguish it from other programs,
 and no generated scene operation runs in shipping play. Reference/shadow
 execution remains the original program, which can of course touch its
 state; it is no longer a source of per-entry scene comparisons. The fallback
-measure and burndown classify 67 runs (27,920 bytes) as retired, including
-the perspective loop's 29-byte pairing tail reached through its patched
-branch (the original-image ownership walk misses that edge). Shipping
+measure and burndown classify 67 runs (27,930 bytes) as retired, including
+the perspective loop's 39-byte curve-step and pairing tails reached through
+its patched branches (the original-image ownership walk misses those edges). Shipping
 fallback accounting still counts those addresses, so
 retirement cannot hide original code re-entered in real play.
 
@@ -4321,7 +4321,11 @@ they are not dispatchable registry entries. Held rows remain retired
 continuations until the legacy driver leaves the product.
 
 Removed scratch accesses retain their RAM/I/O/cartridge charges at each
-operation's unchanged estimate. Former call-outs settle the caller after
+operation's unchanged estimate. The divisor search's former hardware-poll
+charge stays specific to the legacy machine: the native program never charged
+those comparison-only polls. Charging them there adds lag frames in the race;
+restoring that distinction reproduces all three native race movies' existing
+outcome identities without changing their exceptions. Former call-outs settle the caller after
 pushing the return frame and the callee before returning. These helpers keep
 the call's liveness declaration and target; `dontcare_check.py` recognizes
 them at each call site. Moving the settlement before the field curtain's
@@ -4334,6 +4338,16 @@ are identical. The two existing picture exceptions record that evidence;
 no protected identity is relaxed. The effects baseline renames the same
 curtain entropy read from its former scene wrapper to `field_next_frame`:
 the underlying low-RAM alias is still written by the gated menu NMI.
+
+The held race's completed pass has two video-line exceptions, for display
+blanking and line-effect shutdown. In `attract-demo`, they occur at frames
+8750 and 19909 (affected lines 83 and 168), after the curtain has closed.
+A pre-write audit finds all 672 curtain-table bytes zero, the window covering
+all shown layers and a black backdrop; rendering that PPU state produces
+zero lit pixels at both endings. Disabling the line effect leaves the closed
+window in place until the immediate forced blank. These line shifts therefore
+change no picture pixels. The calibrated rates are unchanged; no caller
+receives a timing exception.
 
 The initial attract/title/winning-race census found 15 scene rows entered
 by the machine 55,452 times: 36,880 calls, 11,451 stops, 2,544 returns and

@@ -169,9 +169,9 @@ RETIRED_RUNS += (
     (0x7E3443, 0x7E3509),
     (0x7E350E, 0x7E355E),
     (0x7E357B, 0x7E363B),
-    # Perspective's patched branch reaches this shared pairing tail; its
-    # original-image ownership walk cannot follow the mutable displacement.
-    (0x7E366C, 0x7E3688),
+    # Perspective's patched branch reaches the curve step and pairing tail;
+    # its original-image walk cannot follow the mutable displacement.
+    (0x7E3662, 0x7E3688),
     (0x7E3691, 0x7E3708),
     (0x7E3749, 0x7E390A),
     (0x7E3934, 0x7E39E7),
