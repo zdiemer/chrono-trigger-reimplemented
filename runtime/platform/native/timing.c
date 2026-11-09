@@ -55,7 +55,6 @@ void tm_host_frame(Platform *pf)
         fiber_switch(t->waiting);
     }
     if ((t->interrupts & TM_INT_LINE) && t->program.line) {
-        vid_host_before_line(pf);
         t->part = TM_HOST_IN_LINE;
         t->program.line(pf, t->program.ctx);
     }

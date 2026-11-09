@@ -80,8 +80,8 @@ static void picture_line(Platform *pf, void *ctx)
     vid_set_sprite(pf, PF_AT(0), 0, &(VidSprite){ .x = 77, .y = 200 });
 }
 
-/* Exercise the real host frame driver, not just observer calls: uploads in
- * a handler must not recolor or replace tiles/sprites on earlier lines. */
+/* The host's frame model folds handler uploads into the completed picture.
+ * Keep this scheduling contract separate from the observer's span retention. */
 static void handler_uploads(uint16_t line)
 {
     Platform pf = {0};
@@ -90,18 +90,16 @@ static void handler_uploads(uint16_t line)
     tm_host_start(&pf, &program, 1);
     tm_host_frame(&pf);
     const VidFrame *f = vid_host_picture(&pf);
-    CHECK(f->spans[0].cgram && f->spans[0].cgram[0] == 31);
-    CHECK(f->spans[0].vram && f->spans[0].vram[0] == 0);
-    CHECK(f->spans[0].sprites && f->spans[0].sprites->sprites[0].x == 12);
+    CHECK(!f->spans[0].cgram && !f->spans[0].vram && !f->spans[0].sprites);
+    CHECK(f->sprites[0].x == 77);
     CHECK(f->cgram[0] == (31 << 5) && f->vram[0] == 0x34);
 
     VidRenderer *r = vid_render_create();
     uint32_t *pixels = calloc(VID_RENDER_WIDTH * VID_RENDER_HEIGHT, sizeof *pixels);
     vid_render_frame(r, f, pixels, NULL);
-    CHECK(pixels[0] == vid_render_rgb565_to_xrgb8888(vid_render_color(31, 15)));
-    uint16_t last_color = line >= VID_HOST_LAST_LINE ? 31 : 31 << 5;
+    CHECK(pixels[0] == vid_render_rgb565_to_xrgb8888(vid_render_color(31 << 5, 15)));
     CHECK(pixels[(VID_RENDER_HEIGHT - 1) * VID_RENDER_WIDTH] ==
-          vid_render_rgb565_to_xrgb8888(vid_render_color(last_color, 15)));
+          vid_render_rgb565_to_xrgb8888(vid_render_color(31 << 5, 15)));
 
     tm_host_frame(&pf);
     f = vid_host_picture(&pf);
@@ -162,6 +160,11 @@ static void changing_picture(void)
         for (unsigned i = 0; i + 1 < f->span_count; i++)
             CHECK(f->spans[i].cgram && f->spans[i].cgram[0] == i + 1);
         CHECK(f->cgram[0] == VID_RENDER_HEIGHT);
+        /* Even after the last line, keep its memory until the consumer ends
+         * the frame. The next frame can then use the newly uploaded color. */
+        vid_set_palette_color(&pf, PF_AT(0), 0, 0);
+        CHECK(f->spans[f->span_count - 1].cgram[0] == VID_RENDER_HEIGHT);
+        vid_obs_frame_end(ob);
     }
     free(pixels);
     vid_render_destroy(r);

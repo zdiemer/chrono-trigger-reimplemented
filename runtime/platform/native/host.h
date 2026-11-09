@@ -89,8 +89,6 @@ typedef struct {
      * frame's, the picture's end would blank all of it, and its line effects
      * (the layers' and windows' settings line by line) would be lost above. */
     uint16_t display_from, effects_from; /* independent first lines for the two changes */
-    uint16_t next_line;
-    bool picture_started;
     bool below_display, below_line_effects;
     VidDisplay display_below;
     uint8_t line_effects_below;
@@ -148,9 +146,6 @@ const VidFrame *vid_host_picture(Platform *pf);
 /* A new frame begins: what the last one changed below a line holds from its
  * top (tm_host_frame calls it). */
 void vid_host_frame_begins(Platform *pf);
-/* Capture the lines already shown before running the line handler. Its
- * uploads then preserve those lines' memory in the retained frame. */
-void vid_host_before_line(Platform *pf);
 
 /* Start the game: its main thread is made, to run from the first frame, and
  * tm_entropy's generator seeded (a replay seeds it the same). */

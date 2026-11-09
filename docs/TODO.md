@@ -2090,6 +2090,14 @@ rest waits, is [PLAN.md](PLAN.md).
   behavior is not a replacement for those contracts. Add targeted service-fed
   pixel checks for each teardown. The register decoder remains the default
   `ct_dev --px-check` source; `--px-check-services` selects the direct source.
+- **Native uploads at the line boundary.** The host frame model currently
+  folds both handlers' uploads into the whole picture. Capturing the lines
+  above the line handler before running it changes 14 sampled movies'
+  recorded native pictures and loses the matching `field-floor-switch`
+  checkpoint at frame 3000. Reconcile animated tiles and switch redraws with
+  the frame model before changing that order; do not merely re-record those
+  exceptions. The service observer already retains per-span memory when its
+  caller captures at an actual boundary, as the service-fed pixel check does.
 - **Mode 2's column offsets have no encoder.** `rising_palace.c`'s
   `OFFSET_FOR_BG1 = 0x2000` is the SNES's bit in an offset-per-tile entry
   saying which layer the offset moves; a `vid_*` encoder for an entry (the
@@ -2100,15 +2108,18 @@ rest waits, is [PLAN.md](PLAN.md).
   (`$7E:3D41`); a `vid_*` read-back (or a copy within VRAM) would take both
   off the SNES-only escape. `ct_native`, which runs both scenes as C now,
   counts them as escapes and leaves the work RAM they read into as it was.
-- **The attract demo's scenes write their own registers.** `attract-demo`
-  agrees on 9379 of 22499 frames under `--vid-check` (PLATFORM.md, "P2 as
-  built"): the scene program's modes 1 and 3 (`$7E:66DD`-`$7E:6CAB`,
-  unported) write VRAM, the tile maps' bases, the mode and window 1 from
+- **Recheck the attract demo after the scene teardown.** The earlier
+  `attract-demo` measurement agreed on 9379 of 22499 frames under
+  `--vid-check` (PLATFORM.md, "P2 as built"): the then-unported scene
+  program's modes 1 and 3 (`$7E:66DD`-`$7E:6CAB`) wrote VRAM, the tile
+  maps' bases, the mode and window 1 from
   frames 2789 and 8953, and on two of its world maps BG2's horizontal scroll
   (from 2266, on `$1F5`) and window 1's right edge (from 5492, on `$1F7`)
-  change where no call says so; which code writes the last two isn't known yet. With the
-  event's gate, these are what stand between P2 and a library that agrees from
-  power-on.
+  changed where no call said so. Repeat the service-fed pixel check after
+  replacing the scene escapes above, and locate any remaining writers of
+  those two world-map settings. The event gate now passes its service-fed
+  pixel check; the old attract measurement does not establish the merged
+  scene teardown's result.
 - **Renderer performance.** The native renderer was a wash against `render.c`
   rather than faster (the milestone's 81%
   figure predated `render.c`'s line cache), so the speed case for it is still

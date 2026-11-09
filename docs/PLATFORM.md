@@ -1759,11 +1759,12 @@ demand and reused, with capacity for every emitted span, rather than dropping
 changes after a small fixed pool fills. The host's line-handler changes to
 brightness and effect enables have independent start lines; a change after
 line 224 takes effect next frame without blanking the current picture.
-`tm_host_frame` captures the picture through the line handler's boundary
-before running that handler. `vid_host_picture` captures the rest afterward.
-Thus uploads and changed effect tables in the handler cannot repaint the
-earlier lines. Even uploads after the last visible line preserve the completed
-frame until its consumer has finished; the next frame takes the new memory.
+The observer retains a captured span's memory until the consumer finishes the
+frame, including uploads after its last visible line. The native frame driver
+keeps its existing order: both handlers run before `vid_host_picture` captures
+the frame. Its uploads therefore still contribute to that whole picture;
+only display and effect enables have explicit raster boundaries. Moving all
+uploads below the line handler is a separate timing change (TODO.md).
 
 **The backend seam.** `CT_PLATFORM_EXTERN` selects the host implementation
 for all of `ct_native`, including the battle, menu and scene code whose
@@ -1793,19 +1794,21 @@ cannot share the global observer with `--vid-check` or run on shadow clones.
 | `events-end-of-time-gate` (warp and arrival) | 5601 | 0 |
 | `menus-epoch` (Mode 7 and world map) | 8805 | 0 |
 
+The native sample's 37 movies reach their ends showing a picture, and all 37
+pass the existing recorded-outcome ratchet. The host frame order is retained;
+these results do not claim that its existing timing drift has disappeared.
+
 The synthetic `video_test` checks actual rendered palette changes, retained
 tile and sprite versions, a palette change on every line, reuse next frame,
-independent raster changes, and actual host frames whose line handlers replace
-palette, tiles and sprites midway through the picture or after its last line.
-It needs no
-ROM and runs in CI. The warning-as-error build, `video_test`, `timing_test`
+independent raster changes, and the host frame model's folding of handler
+uploads into its completed picture.
+It needs no ROM and runs in CI. The warning-as-error build, `video_test`, `timing_test`
 and `field_test` pass.
 
 `machine_joints.py` measured 24 to 23 register-escape occurrences in `game/`,
 and 544 to 537 video-call occurrences (including inline value helpers): this
 change removes one escape, and the merged scene teardown removes seven video
-call occurrences. The
-new `video calls without host backend` row is zero: every ordinary declared
+call occurrences. The new `video calls without host backend` row is zero: every ordinary declared
 video service has a host definition. That is a presence check, not proof of
 complete behavior; the remaining escape sites and their required meanings
 are in TODO.md, "Video escapes after the retired subsystems". No exception
