@@ -1157,7 +1157,7 @@ numbers in `time_model.h` with how):
 | Command `$70`'s effects, `$71`'s sample | 750 a byte | uploaded with the music playing, the sound processor answering between its ticks |
 | A song's start while the echo's buffer settles | what is left of the wait, counted after the time the port owes so far has passed (`native_sync`, `tm_host_sit_out_owed`) | the original's song waits on the ports for it; the driver's wait runs through the CPU's work after the last song, which reaches the ports only after that work |
 | The unpacker (`$C3:0002`), in `ct_native` | 64 a charged access | its charge counts the accesses the original makes to its own cells, which follow the stream; its whole time over new-game's 60 streams (29.0 M clocks in the shadow run) against those accesses |
-| A send to video memory from the main thread, in `ct_native` | 8 a byte | DMA's rate; the handlers' sends are the frame's own |
+| A transfer from the main thread, in `ct_native` | 8 a byte | DMA's rate, including RAM clears and copies and data-driven VRAM uploads through the supported native escapes; the handlers' sends are the frame's own |
 | The game's own work, in `ct_native` | 8 a memory access (6 the cartridge's), at the tagged routine's `cost_milli` | the machine's estimate of a port, its rates the registry's and the time tags' as last calibrated; a charge at its routine's rate |
 
 The sound's are the wall's time under a light vblank handler, and the machine
@@ -1184,15 +1184,16 @@ places. On `a7d8a04d`, before and after keeping the retired operations' work:
 | Native sample | Ends as reference | Places on time |
 |---|---:|---:|
 | Before | 17/37 | 209/293 |
-| Legacy work charged at the existing rates | 19/37 | 209/293 |
+| Native access and transfer accounting | 20/37 | 210/293 |
 
-All 37 runs end showing. Fair rescue's saved game and the save-point movie's
-SRAM now match; Beyond Time also gains an SRAM match while its saved game
-still differs. The attract demo visits all 50 reference places in order,
-with its worst early arrival reduced from 360 frames to 320. No saved-state
-or place protection is lost; six picture checkpoints moved beyond tolerance
-and were deliberately re-recorded with reasons. Native recorded outcomes
-are 366 matching, 215 within tolerance and 1,429 differing observations.
+All 37 runs end showing. Fair rescue and Terramutant now match the saved game,
+and the save-point movie matches SRAM. The attract demo visits all 50
+reference places in order, with its worst early arrival reduced from 360
+frames to 308. Beyond Time still misses its ending and its changed replay
+no longer matches SRAM; that protection and changed picture checkpoints
+were explicitly re-recorded with reasons in the timing history and outcome
+ledger. Native recorded outcomes are 368 matching, 216 within tolerance and
+1,422 differing observations.
 `native_time_test` checks the accounting; enabling the diagnostic report
 preserves every sampled outcome artifact. The machine's estimate is unchanged.
 

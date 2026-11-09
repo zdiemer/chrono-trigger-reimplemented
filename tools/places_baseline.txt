@@ -60,7 +60,7 @@ events-keepers-dome 6
 events-luccas-mother 13
 events-magic-cave 7
 events-magus-joins 7
-events-ocean-palace-lavos 7
+events-ocean-palace-lavos 8 # Native DMA transfer time restores another reference visit within 30 frames.
 events-prison-escape 7
 events-proto-dome 9
 events-sun-stone 20

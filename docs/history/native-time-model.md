@@ -78,3 +78,25 @@ checkpoints; its exception is deliberately re-recorded. The synthetic
 timing test reproduces the old extra lag frame after a two-frame load and
 verifies that handler work no longer causes it. Both handlers still reduce
 the main thread's frame budget.
+
+## Timing the transfers that bypass the bus
+
+Supported `vid_snes_copy` operations used to move their bytes through the
+observer or host callbacks without charging DMA time. They now use the
+same eight clocks per byte as ordinary main-thread video transfers. This
+includes the power-on clear of 81,536 bytes, or 652,288 clocks. The title
+appears at frame 49 instead of 48 (the reference is 51).
+
+The sample goes from 19 to 20 of 37 reference endings and from 209 to 210
+of 293 places on time. The Terramutant movie now matches the saved game;
+Ocean Palace enters one more reference place on time. Beyond Time still
+misses the ending and now changes 4,189 SRAM bytes: it returns to the load
+screen at frame 13,039, where the preceding model did so at 29,845. Its
+saved-game difference is 54 bytes instead of 829. This is a changed replay
+outcome, not completion of the ending; its SRAM protection is explicitly
+re-recorded with this reason. The remaining timing work is in TODO.
+
+The transfer regression covers the supported RAM clear, RAM copy and VRAM
+upload, including zero as a 64 KiB length. Three such transfers take four
+lag frames; the old backend took none. The sample's outcome observations
+are 368 match / 216 drift / 1,422 differ after the re-recording.

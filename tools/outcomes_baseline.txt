@@ -81,7 +81,7 @@ battle-golem-twins/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 420
 battle-golem-twins/strict places 0 1 2 3 4
 battle-golem-twins/strict sram
 battle-guardian/native game
-battle-guardian/native pictures 1 1800 2100 2400 2700 3300 3600 4200 4800 5400 # Native legacy work charged at its calibrated rate; checkpoint frames 5700,6000 move outside tolerance (reason in outcomes_exceptions.txt).
+battle-guardian/native pictures 1 1800 2100 2400 2700 3000 3600 4200 4800 5400 # Native DMA clears, work RAM copies and data-driven VRAM uploads use their transfer byte rate; 5 match, 5 drift, 77 differ. Checkpoint frames moved outside tolerance: 3300.; Native DMA transfers charged at eight clocks per byte; newly matching identities protected.
 battle-guardian/native places 0 1 2 3 4 5 6
 battle-guardian/native sram end
 battle-guardian/strict game
@@ -113,7 +113,7 @@ battle-magus-north-cape/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 390
 battle-magus-north-cape/strict places 0 1 2 3 4 5 6
 battle-magus-north-cape/strict sram
 battle-magus/native game
-battle-magus/native pictures 1 1800 2100 2400 2700 3300 7500 9000
+battle-magus/native pictures 1 1800 2100 2400 2700 3300 7500 # Native DMA clears, work RAM copies and data-driven VRAM uploads use their transfer byte rate; 7 match, 0 drift, 54 differ. Checkpoint frames moved outside tolerance: 9000.
 battle-magus/native places 0 1 2 3 4 5
 battle-magus/native sram end
 battle-magus/strict game end
@@ -227,7 +227,7 @@ battle-zombor/strict sram end
 endings-beyond-time/native game
 endings-beyond-time/native pictures 1 1800 2100 2400 3900 4200 4800
 endings-beyond-time/native places 0 1 2 3 4
-endings-beyond-time/native sram end # Native legacy work charged at its calibrated rate; newly matching identities protected.
+endings-beyond-time/native sram # Native DMA clears, work RAM copies and data-driven VRAM uploads use their transfer byte rate; 0 match, 0 drift, 1 differ. The replay still misses the ending and returns to the load screen at frame 13039 instead of 29845, changing 4189 SRAM bytes; recorded as a changed outcome, not ending completion; follow the shifted battle inputs after teardown.
 endings-beyond-time/strict game
 endings-beyond-time/strict pictures 1 1800 2100 2400 2700 3900 4200 4500 5100
 endings-beyond-time/strict places 0 1 2 3 4
@@ -361,7 +361,7 @@ events-jetbike-race-won/strict pictures 1 900 1200 1800 2700 3000 3300 3600 3900
 events-jetbike-race-won/strict places 0 1 2 3 4 5 6
 events-jetbike-race-won/strict sram end
 events-jetbike-race/native game end
-events-jetbike-race/native pictures 1 1800 2100 2400 3000 3300 3600 3900 5400 5700 8700 # Native legacy work charged at its calibrated rate; newly matching identities protected.
+events-jetbike-race/native pictures 1 1800 2100 2400 3000 3300 3600 3900 5400 5700 # Native DMA clears, work RAM copies and data-driven VRAM uploads use their transfer byte rate; 6 match, 4 drift, 23 differ. Checkpoint frames moved outside tolerance: 8700.
 events-jetbike-race/native places 0 1 2 3 4 5 6
 events-jetbike-race/native sram end
 events-jetbike-race/strict game end
@@ -401,8 +401,8 @@ events-magus-joins/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 450
 events-magus-joins/strict places 0 1 2 3 4 5 6
 events-magus-joins/strict sram end
 events-ocean-palace-lavos/native game
-events-ocean-palace-lavos/native pictures 1 1800 2100 2400 3600 4200 4800 9600 # Native legacy work charged at its calibrated rate; checkpoint frames 7800,8100 move outside tolerance (reason in outcomes_exceptions.txt).
-events-ocean-palace-lavos/native places 0 1 2 3 4 5 6
+events-ocean-palace-lavos/native pictures 1 1800 2100 2400 3600 4200 4800 9600 17100 25200 # Native DMA clears, work RAM copies and data-driven VRAM uploads use their transfer byte rate; 8 match, 2 drift, 93 differ.; Native DMA transfers charged at eight clocks per byte; newly matching identities protected.
+events-ocean-palace-lavos/native places 0 1 2 3 4 5 6 8 # Native DMA clears, work RAM copies and data-driven VRAM uploads use their transfer byte rate; 1 match, 7 drift, 11 differ.; Native DMA transfers charged at eight clocks per byte; newly matching identities protected.
 events-ocean-palace-lavos/native sram end
 events-ocean-palace-lavos/strict game
 events-ocean-palace-lavos/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 4500 4800 5100 5400 5700 6000 6300 6600 6900 7200 7500 7800 8100 9600 17100 25200
@@ -568,7 +568,7 @@ late-omen-battles/strict game
 late-omen-battles/strict pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 4200 4500 4800 5100 7800
 late-omen-battles/strict places 0 1 2 3 4 5
 late-omen-battles/strict sram end
-late-omen-terramutant/native game
+late-omen-terramutant/native game end # Native DMA clears, work RAM copies and data-driven VRAM uploads use their transfer byte rate; 1 match, 0 drift, 0 differ.; Native DMA transfers charged at eight clocks per byte; newly matching identities protected.
 late-omen-terramutant/native pictures 1 1800 2100 2400 2700 3000 3300 3600 3900
 late-omen-terramutant/native places 0 1 2 3
 late-omen-terramutant/native sram end
@@ -593,7 +593,7 @@ menu/strict pictures 1 1800 2100 2400 3300 3600 3900 4200 4500 4800 5100 5400 57
 menu/strict places 0 1 2 3 4 5
 menu/strict sram end
 menus-end-of-time/native game
-menus-end-of-time/native pictures 1 1800 2100 2400 2700 3000 3300 # Native legacy work charged at its calibrated rate; newly matching identities protected.
+menus-end-of-time/native pictures 1 1800 2100 2400 2700 3000 3300 3600 3900 # Native DMA clears, work RAM copies and data-driven VRAM uploads use their transfer byte rate; 5 match, 4 drift, 22 differ.; Native DMA transfers charged at eight clocks per byte; newly matching identities protected.
 menus-end-of-time/native places 0 1 2 3 4 5
 menus-end-of-time/native sram
 menus-end-of-time/strict game end

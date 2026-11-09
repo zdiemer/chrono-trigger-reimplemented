@@ -282,6 +282,33 @@ static void beside_charges_main(Platform *p, void *ctx)
     }
 }
 
+
+/* Supported native escapes bypass the emulated bus, but their transfers
+ * still take time. A zero length means a full 64 KiB transfer. */
+static unsigned dma_main_calls;
+static uint32_t dma_reads, dma_writes;
+static uint8_t dma_read(void *ctx, uint32_t at) { (void)ctx; (void)at; dma_reads++; return 0x5A; }
+static void dma_write(void *ctx, uint32_t at, uint8_t v) { (void)ctx; (void)at; (void)v; dma_writes++; }
+static void dma_main(Platform *p, void *ctx)
+{
+    (void)ctx;
+    for (;;) {
+        if (!dma_main_calls) {
+            VidSnesTransfer transfer = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = 0x7E0000, .size = 0 };
+            vid_snes_copy(p, PF_AT(0), &transfer);
+            transfer.dest = VID_SNES_WRAM_DATA;
+            vid_snes_copy(p, PF_AT(0), &transfer);
+            transfer.dest = VID_SNES_VRAM_DATA_LOW;
+            transfer.target_reg = VID_SNES_VRAM_ADDRESS;
+            transfer.mode_from_data = true;
+            transfer.mode = 1;
+            vid_snes_copy(p, PF_AT(0), &transfer);
+        }
+        dma_main_calls++;
+        tm_wait_frame(p, PF_AT(0));
+    }
+}
+
 static Platform pf;
 
 int main(void)
@@ -447,6 +474,20 @@ int main(void)
         tm_host_frame(&charges);
     CHECK(charged_main_calls == 4, "handler charges leave four main-thread passes (%u)", charged_main_calls);
     CHECK(tm_host_lag_frames(&charges) == 2, "only the load causes lag (%u)", tm_host_lag_frames(&charges));
+
+
+    static Platform transfers;
+    vid_host_start(&transfers, dma_read, dma_write, NULL);
+    TmHostProgram dma = { dma_main, NULL, NULL, NULL, NULL, NULL, NULL };
+    tm_host_start(&transfers, &dma, 1);
+    for (unsigned frame = 0; frame < 6; frame++)
+        tm_host_frame(&transfers);
+    CHECK(dma_main_calls == 2 && tm_host_lag_frames(&transfers) == 4,
+          "three 64 KiB transfers fill four lag frames (%u calls, %u lag)", dma_main_calls, tm_host_lag_frames(&transfers));
+    CHECK(dma_reads == 2 * 0x10000u && dma_writes == 2 * 0x10000u,
+          "encoded zero length transfers all 64 KiB (%u reads, %u writes)", dma_reads, dma_writes);
+    CHECK(vid_host_picture(&transfers)->vram[0] == 0x5A, "the timed VRAM transfer writes its data");
+    vid_host_stop(&transfers);
 
     printf("timing_test: %s\n", failures ? "FAILED" : "ok");
     return failures != 0;
