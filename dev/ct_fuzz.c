@@ -96,6 +96,8 @@
  * --tick-at PC=WRAM increments a WRAM byte before that interpreted PC on
  * both machines; repeat it for several notifications. This models an external counter notification for a wait;
  * it does not run interrupts, objects or a video frame.
+ * --clear-at PC=WRAM instead clears a pending flag at that boundary, modeling
+ * completion by an external worker with the same limits.
  * --vblank-at PC starts outside vblank and begins it at an interpreted wait
  * head, without running a handler. --buttons sets the first controller's already
  * latched sample. Both fixtures are identical on the original and native sides.
@@ -262,13 +264,14 @@ int main(int argc, char **argv)
                 goto usage;
             buttons = (int)sample;
         }
-        else if (!strcmp(a, "--tick-at")) {
+        else if (!strcmp(a, "--tick-at") || !strcmp(a, "--clear-at")) {
             unsigned pc, address;
             char extra;
             if (sscanf(v, "%x=%x%c", &pc, &address, &extra) != 2 || pc == 0 || pc > 0xFFFFFF ||
                 address < 0x7E0000 || address > 0x7FFFFF || o.nticks == FUZZ_MAX_TICKS)
                 goto usage;
             o.ticks[o.nticks].pc = pc;
+            o.ticks[o.nticks].clear = !strcmp(a, "--clear-at");
             o.ticks[o.nticks++].address = address;
         }
         else if (!strcmp(a, "--iterations")) o.iterations = strtoul(v, NULL, 0);
@@ -402,7 +405,8 @@ usage:
                     "[--seed S] [--long | --interrupt | --jump] [--line-handler] [--budget N] [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... "
                     "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
                     "  [--stop-at-call BBAAAA]... [--with-registry]\n"
-                    "  [--decimal] [--details N] [--coverage out.txt] [--tick-at PC=WRAM]... [--vblank-at PC] [--buttons HHHH]\n"
+                    "  [--decimal] [--details N] [--coverage out.txt] [--tick-at PC=WRAM]... [--clear-at PC=WRAM]...\n"
+                    "  [--vblank-at PC] [--buttons HHHH]\n"
                     "  AREA: BBAAAA-BBAAAA, or [BBAAAA]+OFF,COUNT at the pointer in a cell ([X], [Y] or [D]: in a "
                     "register; BB:[...]: in bank BB)\n");
     return 2;

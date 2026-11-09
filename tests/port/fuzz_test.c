@@ -380,6 +380,19 @@ int main(void)
     CHECK(r.matched == 200 && r.mismatched == 0,
           "both machines receive every notification at a shared wait: %s", log);
 
+    /* A worker completes a pending flag without running a frame. With only
+     * one completion the second flag must still hold the caller. */
+    o.ticks[0].clear = true;
+    o.nticks = 1;
+    o.budget = 2000;
+    r = run(15, &o, log, sizeof log);
+    CHECK(r.callout == 200 && r.matched == 0, "one completion leaves the other request pending");
+    o.ticks[1].clear = true;
+    o.nticks = 2;
+    r = run(15, &o, log, sizeof log);
+    CHECK(r.matched == 200 && r.mismatched == 0,
+          "both pending flags complete on original and call-out machines: %s", log);
+
     /* The port loops where the original returns: abandoned and a finding. */
     o = options(100);
     o.budget = 100000;

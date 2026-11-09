@@ -37,7 +37,7 @@ def merge_args(base, extra):
                 continue
             if option in ('--fill', '--range') and out[i + 1].split('=')[0] != value.split('=')[0]:
                 continue
-            if option == '--tick-at' and out[i + 1] != value:
+            if option in ('--tick-at', '--clear-at') and out[i + 1] != value:
                 continue
             if option in ('--keep', '--stop-at-call'):
                 continue

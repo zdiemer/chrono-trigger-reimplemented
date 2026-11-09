@@ -285,7 +285,8 @@ static void notify_counters(Snes *s)
     for (unsigned i = 0; i < stop_options->nticks; i++)
         if (cpu_pc24(&s->cpu) == stop_options->ticks[i].pc) {
             uint32_t at = stop_options->ticks[i].address;
-            snes_bus_write(&s->bus, at, (uint8_t)(snes_bus_read(&s->bus, at) + 1));
+            uint8_t value = stop_options->ticks[i].clear ? 0 : (uint8_t)(snes_bus_read(&s->bus, at) + 1);
+            snes_bus_write(&s->bus, at, value);
         }
 }
 

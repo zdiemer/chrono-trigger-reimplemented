@@ -64,9 +64,10 @@ typedef struct FuzzOptions {
     void (*coverage_insn)(void *ctx, uint32_t pc, uint8_t p, bool e);
     void (*coverage_matched)(void *ctx);
     void *coverage_ctx;
-    /* An external counter notification at an interpreted wait-loop head,
-     * applied on both machines. This models the notification, not a handler. */
-    struct { uint32_t pc, address; } ticks[FUZZ_MAX_TICKS];
+    /* An external counter increment or pending-flag completion at an
+     * interpreted wait-loop head, applied on both machines. This models
+     * only the notification, not a handler or its frame work. */
+    struct { uint32_t pc, address; bool clear; } ticks[FUZZ_MAX_TICKS];
     unsigned nticks;
     /* Begin vblank at this interpreted wait head on both machines, after
      * starting outside vblank. No interrupt handler or frame work runs. */

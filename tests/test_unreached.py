@@ -210,6 +210,11 @@ class UnreachedTest(unittest.TestCase):
         pressed = ['--tick-at', 'C281CA=7E00F0']
         self.assertEqual(f.merge_args(ready, pressed), ready + pressed)
         self.assertEqual(f.merge_args(ready + pressed, ready), ready + pressed)
+        completed = ['--clear-at', 'C281CA=7E00F0']
+        uploaded = ['--clear-at', 'C281CA=7ECA26']
+        self.assertEqual(f.merge_args(completed, uploaded), completed + uploaded)
+        self.assertEqual(f.merge_args(completed + uploaded, completed), completed + uploaded)
+        self.assertEqual(f.merge_args(ready, completed), ready + completed)
 
     def test_ledger_requires_an_uncovered_owners_plain_recipe(self):
         with self.assertRaisesRegex(ValueError, 'ledger recipes missing: owner'):
