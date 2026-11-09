@@ -4266,6 +4266,11 @@ falls from 19 machine-entered entries to seven, none in battle, with
 outcome ratchets pass. Thirty-one native-shape save/replay checks across
 battle startup and its first menus reproduce WRAM and SRAM after 120
 frames, with no inexact, lost or mismatched suspended-call replay.
+The idle command page also preserves the carry from framing its member:
+the input operation's ordinary C helper does not update CPU flags, while
+the enclosing menu turn still compares that return when cursor placement
+leaves it unchanged. The Guardian movie and 2,000 idle-turn trials match
+with this compatibility write; it does not add counted accesses.
 
 Menu task yields call the scheduler as C after constructing the return
 frame and checking its complete contract. `native_park_after_task_switch`

@@ -163,8 +163,17 @@ static bool marking_carry(const GameState *g, uint8_t member)
 void battle_take_menu_input(Snes *s)
 {
     GameState *g = state_of(s);
+    /* An idle command page keeps the carry from framing its member. The
+     * frame operation is ordinary C, but the still-gated menu turn compares
+     * this flag when cursor placement leaves it unchanged. */
+    vars_peek(true);
+    bool idle_command = !menu_nobody(battle_menu_member(g)) && !battle_targeting(g)
+                        && battle_menu_page(g) == PAGE_COMMANDS && !battle_menu_buttons(g);
+    vars_peek(false);
     BattleMenuMachine m = battle_menu_machine(s, false);
     battle_menu_frame(g, battle_menu_buttons(g), &m.host);
+    if (idle_command)
+        m_set_flag(s, CPU_FLAG_C, true);
     if (!m.stopped)
         m_rts(s);
 }

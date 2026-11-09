@@ -1423,3 +1423,10 @@ args = ["--stop-at-call", "C1AC57", "--fill", "7E5E4A-7E634A:80=00", "--fill", "
 why = "A valid area tech finds nobody in the fight and selects its one-, two-, or three-member no-target animation; compare the state at the real showing call."
 iterations = 2000
 
+
+[[case]]
+base = "battle_menu_turn"
+variant = "unreached_idle_commands"
+args = ["--fill", "7E993A-7E993A=01", "--fill", "7E95D6-7E95D9=00,01,02,FF", "--fill", "7EA6D9-7EA6DB=00,01,02", "--fill", "7EA6DD-7EA6DD=00", "--fill", "7E95DB-7E95DB=00", "--fill", "7E9609-7E9609=00", "--fill", "7E00EE-7E00EF=0000", "--fill", "7EA62D-7EA632=FF"]
+why = "The menu takes an idle command-page turn, with no target cursors replacing the input frame carry."
+iterations = 2000
