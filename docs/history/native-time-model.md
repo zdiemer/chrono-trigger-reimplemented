@@ -67,3 +67,14 @@ The optional per-tag time report leaves all 37 sampled outcome artifacts
 unchanged when enabled. A synthetic native timing test checks nesting,
 unknown tags, uncounted work, the restored access prices, and fractional
 clocks carried across the scheduler taking its account.
+
+## Charging a handler to its frame
+
+Separating service charges made in the vblank and line handlers from the
+main thread's debt preserves 19 of 37 reference endings and 209 of 293
+places on time. No protected outcome is lost. The won Jetbike race's picture
+digest changes, with the same counts of matching, nearby and differing
+checkpoints; its exception is deliberately re-recorded. The synthetic
+timing test reproduces the old extra lag frame after a two-frame load and
+verifies that handler work no longer causes it. Both handlers still reduce
+the main thread's frame budget.

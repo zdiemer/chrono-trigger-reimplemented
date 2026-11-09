@@ -11,6 +11,8 @@
 #include "platform/native/host.h"
 #include "platform/time_model.h"
 
+static uint32_t sum(uint32_t a, uint32_t b) { return b > UINT32_MAX - a ? UINT32_MAX : a + b; }
+
 /* ---- The frame ----------------------------------------------------------------------------- */
 
 static void main_thread_body(void *arg)
@@ -47,7 +49,8 @@ void tm_host_frame(Platform *pf)
     /* what the handlers did since the main thread last ran, the line
      * handler's and the vblank's, is the frame's own time, not the main
      * thread's: it is what the frame leaves the main thread less */
-    t->handlers = t->program.owed ? t->program.owed(t->program.ctx) : 0;
+    t->handlers = sum(t->handler_charges, t->program.owed ? t->program.owed(t->program.ctx) : 0);
+    t->handler_charges = 0;
     if (t->lagging) {
         t->lagging--;
         t->lag_frames++;
@@ -72,12 +75,14 @@ uint32_t tm_host_frames(const Platform *pf) { return pf->timing.frame; }
 
 /* ---- The frame-level time model ------------------------------------------------------------ */
 
-static uint32_t sum(uint32_t a, uint32_t b) { return b > UINT32_MAX - a ? UINT32_MAX : a + b; }
 
 void tm_host_charge(Platform *pf, uint32_t clocks)
 {
     TmHost *t = &pf->timing;
-    t->owed = sum(t->owed, clocks);
+    if (t->part == TM_HOST_IN_VBLANK || t->part == TM_HOST_IN_LINE)
+        t->handler_charges = sum(t->handler_charges, clocks);
+    else
+        t->owed = sum(t->owed, clocks);
 }
 
 uint32_t tm_host_lag_frames(const Platform *pf) { return pf->timing.lag_frames; }

@@ -3217,10 +3217,7 @@ list, by kind, is what `game/` still asks of one.
   main thread, where the design charges only a load's (screen off): gate it on
   forced blank, or show no large send happens with the picture on. A scene's
   port wait soon after boot (`echoed`, `native/audio.c`) passes the driver's start-up
-  delay at once, so the sound runs ahead of the frames charged for it. Sound
-  commands a handler issues (`native/audio.c`) are charged to the main
-  thread's debt (the handlers' work and charges kept by the game's state are
-  the frame's own now).
+  delay at once, so the sound runs ahead of the frames charged for it.
 
 - **Cyrus's fixed movie ends blanked in `ct_native`.** `events-cyrus`
   (ctsave14 slot 1, 39872 frames) consumes all its inputs without a reported

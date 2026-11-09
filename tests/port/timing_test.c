@@ -257,6 +257,31 @@ static void setting_up_main(Platform *p, void *ctx)
     }
 }
 
+/* Handler service charges during a load must not accumulate as work for the
+ * main thread to sit out after it resumes. Each handler takes an eighth of
+ * a frame; the main thread's next half-frame still fits alongside them. */
+static unsigned charged_main_calls;
+
+static void charging_handler(Platform *p, void *ctx)
+{
+    (void)ctx;
+    tm_host_charge(p, TIME_FRAME_CLOCKS / 8);
+}
+
+static void beside_charges_main(Platform *p, void *ctx)
+{
+    (void)ctx;
+    tm_enable_interrupts(p, PF_AT(0), TM_INT_VBLANK | TM_INT_LINE);
+    for (;;) {
+        if (charged_main_calls == 0)
+            tm_host_charge(p, 2 * TIME_FRAME_CLOCKS);
+        else if (charged_main_calls == 1)
+            tm_host_charge(p, TIME_FRAME_CLOCKS / 2);
+        charged_main_calls++;
+        tm_wait_frame(p, PF_AT(0));
+    }
+}
+
 static Platform pf;
 
 int main(void)
@@ -414,6 +439,14 @@ int main(void)
     }
     order[order_len] = 0;
     CHECK(strcmp(order, "M||e|VM|") == 0, "the setup's frames pass before the handler is on: %s", order);
+
+    static Platform charges;
+    TmHostProgram charged = { beside_charges_main, charging_handler, charging_handler, NULL, NULL, NULL, NULL };
+    tm_host_start(&charges, &charged, 1);
+    for (unsigned frame = 0; frame < 6; frame++)
+        tm_host_frame(&charges);
+    CHECK(charged_main_calls == 4, "handler charges leave four main-thread passes (%u)", charged_main_calls);
+    CHECK(tm_host_lag_frames(&charges) == 2, "only the load causes lag (%u)", tm_host_lag_frames(&charges));
 
     printf("timing_test: %s\n", failures ? "FAILED" : "ok");
     return failures != 0;

@@ -1131,6 +1131,12 @@ it was done with: the menus' setup runs with the vblank handler off, and its
 fourteen frames pass with it off, as the original's, before the handler that
 counts the menus' frames comes on. `timing_test` holds the arithmetic.
 
+Service work requested by a vblank or line handler, including sound
+commands, stays with that frame's handler account. It does not accumulate
+as main-thread debt while the main thread sits out a load. The regression
+test gives each handler an eighth of a frame during a two-frame load;
+the next half-frame of main work fits, without a spurious third lag frame.
+
 Before the work was timed, the frames owed went to the nearest, half a frame
 standing for the work nothing counted. Counting the work at one mean rate (40
 clocks an access) was tried then: the attract demo kept to the reference far
