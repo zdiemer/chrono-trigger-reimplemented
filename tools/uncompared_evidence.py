@@ -35,6 +35,7 @@ from tools import evidence_cache, fuzz_compare  # noqa: E402
 CASES = (
     ("menu_description_task_finished", "menus-sweep", 6424, (), ("menu_description_task_finished",)),
     ("menu_fade_resumes", "menus-sweep", 6424, (), ("menu_fade_resumes",)),
+    ("menu_fade_starts", "menus-sweep", 6424, (), ("menu_fade_starts",)),
     ("battle_frame_dispatch", "battle-menu-buttons", 5086, ("battle_nmi", "battle_nmi_alternate"), ()),
 )
 

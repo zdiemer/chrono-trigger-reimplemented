@@ -35,9 +35,9 @@ static void set_brightness(GameState *g, uint8_t level)
     set_menu_brightness(g, (uint8_t)((menu_brightness(g) & ~BRIGHTNESS) | level));
 }
 
-/* For the original's code and shadow mode: the fade's step and its frames a
- * step, which its loop reads back between its steps. */
-static void leave_the_fade(GameState *g, int8_t step)
+/* The direction and cadence survive a task switch: a held continuation
+ * resumes the fade without keeping its caller's C stack. */
+static void start_fade(GameState *g, int8_t step)
 {
     set_menu_fade_step(g, (uint8_t)step);
     set_menu_fade_frames(g, FRAMES_A_STEP);
@@ -97,7 +97,7 @@ static Fade fade_step(GameState *g, int8_t step)
 
 static Fade fade(GameState *g, int8_t step, FadeWait wait, void *ctx)
 {
-    ORIGINAL_EFFECT(leave_the_fade(g, step));
+    start_fade(g, step);
     for (;;) {
         Fade f = fade_step(g, step);
         if (f.end != FADE_NEXT_FRAME)
@@ -285,7 +285,7 @@ void menu_fade_in_begins(Snes *s)
 // $C2:83D0
 void menu_fade_starts(Snes *s)
 {
-    leave_the_fade(state_of(s), (int8_t)s->cpu.a);
+    start_fade(state_of(s), (int8_t)s->cpu.a);
     menu_fade_resumes(s);
 }
 

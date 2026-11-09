@@ -4286,8 +4286,11 @@ step preserves the byte sum and hands its caller through the final frame
 wait. The Ocean Palace replay compares both directions without mismatches or
 guard refusals. Parent stretches still claim many continuation comparisons;
 `uncompared_evidence.py` independently compares all 34 description completions
-and 21 fade resumptions in `menus-sweep`, and all 1,485 battle frame dispatches
-in `battle-menu-buttons` with their interrupt parents excluded. These cases
+and all three fade starts and 21 resumptions in `menus-sweep`, and all 1,485 battle frame dispatches
+in `battle-menu-buttons` with their interrupt parents excluded. The fade's
+direction and cadence are ordinary persistent state, including when a
+legacy caller starts the fade; held resumptions read them after a task switch.
+These cases
 run in the gate; the uncompared ledger names this evidence.
 
 The shipping census on `battle-menu-buttons`, `menus-sweep` and `menus-epoch`
