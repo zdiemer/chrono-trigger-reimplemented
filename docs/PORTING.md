@@ -937,7 +937,10 @@ worker completing a request. Together these options can repeat up to eight
 times. A completion does not perform the worker's work; use it to compare
 the waiting caller, and validate the worker separately. The harness tests
 check that one completion leaves a second request pending and that both
-machines proceed once both requests complete. The effect graphics loader needs
+machines proceed once both requests complete. A call-out that exhausts its
+budget reports its current instruction, bounded by `--details`, so a fixture
+can distinguish a pending worker from a pause or another wait. These skipped
+trials still provide no comparison evidence. The effect graphics loader needs
 both its frame and upload counters notified at the same wait: its
 `notifications` recipe compares all six effects and both upload chunk sizes.
 After the unpacker's teardown made all 102 library calls cross interrupts,

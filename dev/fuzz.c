@@ -658,6 +658,9 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
             native_fiber = NULL;
             in_callout = false;
             if (native_ran == RAN_OUT_CALLOUT) {
+                if (r.callout < (unsigned long)o->details)
+                    fprintf(log, "iteration %lu: call-out exhausted its budget at %06X\n",
+                            it, (unsigned)cpu_pc24(&native.cpu));
                 r.callout++;   /* a callee didn't return on this random state */
                 continue;
             }
