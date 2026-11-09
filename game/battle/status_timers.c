@@ -264,13 +264,30 @@ static bool see_to_the_timer(GameState *g, BattleTimer kind, bool (*show)(void *
     return true;
 }
 
+/* The action step keeps its caller's flags across its waits. Until that
+ * boundary retires, preserve whether the damage-record offset crossed the
+ * signed-byte limit; the record itself is already written by the effect. */
+static void leave_damage_record_overflow(Snes *s)
+{
+    enum { RECORD_BYTES = 4, SET_BYTES = BATTLE_COMBATANTS * RECORD_BYTES };
+    const GameState *g = state_of(s);
+    uint8_t combatant = (uint8_t)(battle_effect_target(g) * RECORD_BYTES);
+    uint8_t hit = (uint8_t)(battle_damage_hit(g) * SET_BYTES);
+    int16_t sum = (int16_t)(int8_t)combatant + (int8_t)hit;
+    m_set_flag(s, CPU_FLAG_V, sum < -128 || sum > 127);
+}
+
 /* On the machine the number is shown from the handler's own call. */
 static bool show_on_the_machine(void *ctx, BattleTimer kind)
 {
     Snes *s = ctx;
-    m_set_a8(s, STATUS_NUMBER_SHOWING);
+    /* The action dispatcher widens the showing index, so its high byte
+     * must be clear even though the status-number entry takes a byte. */
+    s->cpu.a = STATUS_NUMBER_SHOWING;
+    ORIGINAL_EFFECT(leave_damage_record_overflow(s));
     uint32_t site = kind == BATTLE_TIMER_POISON ? POISON_SHOWS_CALL : MAGIC_SHOWS_CALL;
-    return battle_run(s, site, SHOW_NUMBER, battle_show_status_number_entry);
+    return battle_run_dc(s, site, SHOW_NUMBER, DC_X | DC_Y | DC_N | DC_Z | DC_C,
+                         battle_show_status_number_entry);
 }
 
 static void handler_entry(Snes *s, BattleTimer kind)

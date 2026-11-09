@@ -21,6 +21,7 @@
 #include "menu/item_screen.h"
 
 #include "charge.h"
+#include "holds.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/description.h"
@@ -111,7 +112,16 @@ static const uint32_t REFUSALS_AT[] = { [ITEMS_AT_THE_TONIC_S_MEMBERS] = 0xC2B1B
 /* The sprites' blocks a frame the tab's pointing leaves in A. */
 enum { BLOCKS_A_FRAME = 2 };
 
-static bool wait_on_the_machine(void *ctx, ItemsPlace at) { return menu_wait_a_frame_from(ctx, WAITS_AT[at].site); }
+static bool wait_on_the_machine(void *ctx, ItemsPlace at)
+{
+    Snes *s = ctx;
+    if (m_runs_retired_as_c(s) && (at == ITEMS_AT_THE_TONIC_S_MEMBERS || at == ITEMS_AT_THE_TAB_S_MEMBERS)) {
+        (void)menu_run_called(s, WAITS_AT[at].site, MENU_TASK_WAITS_A_FRAME,
+                              MENU_TASK_WAIT_READS_NOTHING, menu_task_waits_a_frame);
+        return false;
+    }
+    return menu_wait_a_frame_from(s, WAITS_AT[at].site);
+}
 
 static bool describe_on_the_machine(void *ctx) { return menu_run(ctx, 0xC2AC59, 0xC2AD2E, menu_describe_listed_item); }
 
@@ -356,6 +366,42 @@ void menu_use_tab(Snes *s) { step(s, menu_use_tab_with); }
 
 // $C2:B0AB
 void menu_use_item(Snes *s) { saving_p(s, menu_use_item_with); }
+
+/* The member choice waits for the player's next input without retaining
+ * the screen step's C stack. Its return frames remain on the task stack. */
+static void member_choice_continues(Snes *s, ItemUseKind kind)
+{
+    MenuItemChoiceStep step = menu_item_member_choice_frame_with(state_of(s), kind, &on_the_machine, s);
+    if (step == MENU_ITEM_CHOICE_WAITING) {
+        (void)wait_on_the_machine(s, kind == USE_RAISES_A_FIGURE ? ITEMS_AT_THE_TAB_S_MEMBERS : ITEMS_AT_THE_TONIC_S_MEMBERS);
+    } else if (step == MENU_ITEM_CHOICE_CLOSED) {
+        m_rts(s);
+        native_hold(s, HOLD_MENU_TASKS);
+    }
+}
+
+// $C2:B1A8
+void menu_tonic_member_choice_continues(Snes *s) { member_choice_continues(s, USE_RESTORES); }
+// $C2:B22B
+void menu_tab_member_choice_continues(Snes *s) { member_choice_continues(s, USE_RAISES_A_FIGURE); }
+
+// $C2:B0EC
+void menu_item_use_finishes(Snes *s)
+{
+    menu_restore_p(s);
+    m_rts(s);
+    native_hold(s, HOLD_MENU_TASKS);
+}
+
+// $C2:AB41
+void menu_picked_item_use_finishes(Snes *s)
+{
+    GameState *g = state_of(s);
+    menu_items_back_to_the_list_unchanged(g);
+    TIMED_AS(g, 0xC28255, menu_stop_tasks(g, HELD_CURSOR_TASK));
+    m_rts(s);
+    native_hold(s, HOLD_MENU_TASKS);
+}
 
 /* ---- The pure entries -------------------------------------------------------------------------- */
 

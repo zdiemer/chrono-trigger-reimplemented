@@ -4264,6 +4264,25 @@ refusal. The caller's work and callee's work keep their own calibrated
 rates. The menu display's four call-through-machine findings leave the
 smell baseline; no allowance is added.
 
+The tonic and tab member-choice loops have a shared one-frame operation.
+In shipping mode, the task leaves its return frame in the saveable task
+stack at each input wait; held continuations run the next choice, return
+through item use, and restore the item list. The original entry still runs
+the same operation in its comparison loop. The Epoch screens also call
+VRAM clearing, map and gate builders, decompression and text services through
+checked C bridges; a refused contract leaves the original callee entry.
+Their screen loops still retain their enclosing callers across waits.
+Eight native-shape `menus-sweep` checkpoints (frames 1,800, 2,100, 2,400,
+3,000, 3,900, 4,800, 5,400 and 6,000) now save without a suspended routine
+and replay 120 frames with identical work RAM. The three focused movies
+below retain identical before/after traces in all five regions over 20,310
+frames. Their census falls from 36 machine-entered entries and 48,213 calls
+to 30 and 47,898; entries called only as C rise from 861 to 868. Held
+continuations run 7,769,274 times at 61 boundaries. Source counts retain
+1,439 ordinary rows, add four held rows (116 to 120), and have 878 machine
+returns, 98 stops and 1,397 scaffolding sites. These are intermediate
+control-flow measurements; neither subsystem has retired its gate.
+
 The upload wait uses the menus' own stack. Its higher stack pointer does
 not mean that the field's caller was unwound: the runtime preserves a
 call-out already marked away by its stack-switch tracking. The field now
@@ -4372,9 +4391,9 @@ passes its held-continuation and save/load cases. The native-shape
 loads away from a base replay exactly, with none differing or lost.
 Reloading each of its seven checkpoints twice and running another 120 frames
 also gives identical work RAM; all eight required replays are exact.
-Eight menu checkpoints from `menus-sweep` also reload exactly. Frames 1,800,
-2,100 and 2,400 have no suspended routine and need no replay; the five later
-checkpoints still have one or two, and all five replays are exact. The
+Eight menu checkpoints from `menus-sweep` also reload exactly; the held
+item-choice and menu-return continuations now leave all eight without a
+suspended routine, as measured above. The
 native-shape telepod-Lavos ending phase reaches frame 148,888 after the core
 fight; the full developer-room tour is outside that phase's evidence.
 Fresh shipping runs of `menu` and `battle-r-series`
@@ -4386,6 +4405,42 @@ step.
 
 ### Battle and menu precondition repairs
 
+Forty-two directed fixtures add timer-wrap, MP recovery, paused-battle
+input, present-target geometry, equipment and shop limits, save damage,
+name-space trimming and menu branch coverage. Two exposed call-boundary
+defects: status-number showing needs A's high byte clear for its action
+dispatcher, and a naming fade preserves the typesetter's string-table
+index in Y. The wrappers supply those inputs; X, Y, N, Z and C at the
+status-number call are declared unused. The action step preserves V across
+its waits, so the wrapper derives that compatibility value from the damage
+record's offset. Both repaired fixtures
+compare all 2,000 trials. All forty-two cases are preserved in
+`tools/unreached_cases.toml`; the ordinary aim and music-fade-loop entries
+also have recipes. These close discovery gaps, but the accumulated old
+results are not fresh retirement evidence.
+The corrected call declarations have zero liveness findings, and all 24
+unreached-ledger unit tests pass. The preceding guard-time/menu-return
+commit passes the sampled gate with 84 fresh evidence replays; this step
+also runs the sampled gate before any registry retirement.
+
+The outcome witnesses below are in the sampled gate. Each names a picture
+and an ordered-place identity protected in both strict and native play;
+`outcomes_baseline.txt` holds their additional protected identities. The
+end-state column identifies protected `end` records, with game and SRAM
+distinguished. A missing end kind is not being claimed as a match.
+
+| Movie | Behaviour exercised | Picture / place in both modes | Protected game / SRAM end, strict; native |
+|---|---|---|---|
+| `battle-menu-buttons` | Battle commands and targets | 3300 / 4 | yes / yes; yes / yes |
+| `battle-guardian` | Guardian, Bits and victory route | 6000 / 6 | no / yes; no / yes |
+| `battle-magus` | Items, dual tech, barriers, KO and revival | 9000 / 5 | yes / yes; no / yes |
+| `battle-lavos-gameover` | Defeat and game over | 5400 / 7 | no / yes; yes / yes |
+| `menus-sweep` | Main-menu screens and item use | 6000 / 3 | yes / yes; yes / yes |
+| `menus-epoch` | Epoch map and time dial | 6000 / 7 | yes / yes; no / yes |
+| `menus-save-point` | Saving at a save point | 2400 / 3 | yes / yes; yes / no |
+| `menus-shop-equip` | Buying, selling and equipment | 3900 / 4 | yes / yes; no / yes |
+| `menus-new-game-plus` | Finished-save load screen | 3000 / 3 | yes / yes; yes / yes |
+
 The overworld's menu call also keeps its return as a held continuation.
 The runtime report exposed the previous screen-long suspension as
 `overworld_next_frame` waiting for `$C2:8000` to return to `$C2:2556`.
@@ -4394,8 +4449,9 @@ one held continuation group for its overworld and three field callers;
 the returning handler does not select a caller by inspecting its PC.
 Native-shape checkpoints at frames 4,800, 5,400
 and 6,000 of `menus-sweep` have no suspended caller. Eight save/reload
-checks replay identically; the two item-use checkpoints at 3,000 and 3,900
-still require exact replay from a prior base. Before/after traces remain
+checks replay identically; the held item-choice continuations described
+above also remove the suspended callers at frames 3,000 and 3,900.
+Before/after traces remain
 identical in every region for `menus-sweep` (6,424 frames), `menus-epoch`
 (8,800) and `battle-menu-buttons` (5,086).
 Across those three movies the machine-entered census falls from 37 entries

@@ -21589,3 +21589,19 @@ state = "objects"
 args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--fill", "7E0011-7E0011=20-FC", "--fill", "7E0012-7E0012=7E-7F"]
 iterations = 2000
 why = "a valid running object and WRAM edge table above the object state; random lines, either side, zero heights and random-index wrap"
+
+[[routine]]
+name = "battle_aim_action"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=00,FF", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00,01,02,FF", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=00", "--fill", "7E0006-7E0007=93EE", "--fill", "7E93EF-7E93EF=20", "--fill", "7EB18C-7EB18C=00-74"]
+iterations = 5000
+why = "A party tech aimed through the ordinary entry; area, item and enemy forms remain separate directed variants."
+
+[[routine]]
+name = "battle_wait_music_fade_loop"
+subsystem = "battle"
+state = "battle"
+args = ["--jump"]
+iterations = 2000
+why = "One pass of the defeat screen fade-status branch with the captured sound state."

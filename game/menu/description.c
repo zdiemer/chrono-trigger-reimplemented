@@ -428,7 +428,13 @@ void menu_describe_item_entry(Snes *s)
     m_rts(s);
 }
 
-void menu_leave_typing_started(Snes *s) { s->cpu.a = 0; }
+/* The naming screen can fade immediately after starting a description.
+ * Its task wait preserves the typesetter's string-table index. */
+void menu_leave_typing_started(Snes *s)
+{
+    s->cpu.a = 0;
+    s->cpu.y = (uint16_t)(2u * menu_text_string(state_of(s)));
+}
 
 // $C2:FA49
 void menu_start_typing_entry(Snes *s)

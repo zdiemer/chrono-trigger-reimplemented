@@ -1265,6 +1265,32 @@ static bool leave_the_member_window_with(GameState *g, const ItemsSteps *n, void
  * pointing is the techs screen's healing's, a tab's looks at the member's
  * figure), and choosing uses the item where it helps and buzzes where it
  * doesn't, until the player goes back. */
+MenuItemChoiceStep menu_item_member_choice_frame_with(GameState *g, ItemUseKind kind, const ItemsSteps *n, void *ctx)
+{
+    bool tab = kind == USE_RAISES_A_FIGURE;
+    ItemsPlace members = tab ? ITEMS_AT_THE_TAB_S_MEMBERS : ITEMS_AT_THE_TONIC_S_MEMBERS;
+    n->read_cursor(ctx);
+    if (!n->run(ctx, tab ? ITEMS_POINTS_AT_A_TAB_MEMBER : ITEMS_POINTS_AT_A_MEMBER_TO_RESTORE))
+        return MENU_ITEM_CHOICE_STOPPED;
+    ItemsMemberChoice c = menu_items_choose_member(g);
+    n->note(ctx, ITEMS_NOTE_BUTTONS_TESTED, 0);
+    if (c == MEMBERS_LEFT)
+        return leave_the_member_window_with(g, n, ctx) ? MENU_ITEM_CHOICE_CLOSED : MENU_ITEM_CHOICE_STOPPED;
+    if (c == MEMBER_POINTED_AT_TO_USE_ON)
+        return MENU_ITEM_CHOICE_WAITING;
+    n->note(ctx, ITEMS_NOTE_HELP_LOADED, 0);
+    if (!menu_items_use_helps(g)) {
+        if (!n->refuse(ctx, members))
+            return MENU_ITEM_CHOICE_STOPPED;
+        return MENU_ITEM_CHOICE_WAITING;
+    }
+    bool used = tab ? n->run(ctx, ITEMS_RAISES_THE_FIGURE) && n->run(ctx, ITEMS_USES_ONE_MORE_TAB)
+                    : n->run(ctx, ITEMS_HEALS_AND_SHOWS) && n->run(ctx, ITEMS_USES_ONE_MORE_TONIC);
+    if (!used)
+        return MENU_ITEM_CHOICE_STOPPED;
+    return MENU_ITEM_CHOICE_WAITING;
+}
+
 static bool choose_members_to_use_on_with(GameState *g, ItemUseKind kind, const ItemsSteps *n, void *ctx)
 {
     bool tab = kind == USE_RAISES_A_FIGURE;
@@ -1278,25 +1304,9 @@ static bool choose_members_to_use_on_with(GameState *g, ItemUseKind kind, const 
     for (;;) {
         if (!n->wait(ctx, members))
             return false;
-        n->read_cursor(ctx);
-        if (!n->run(ctx, tab ? ITEMS_POINTS_AT_A_TAB_MEMBER : ITEMS_POINTS_AT_A_MEMBER_TO_RESTORE))
-            return false;
-        ItemsMemberChoice c = menu_items_choose_member(g);
-        n->note(ctx, ITEMS_NOTE_BUTTONS_TESTED, 0);
-        if (c == MEMBERS_LEFT)
-            return leave_the_member_window_with(g, n, ctx);
-        if (c == MEMBER_POINTED_AT_TO_USE_ON)
-            continue;
-        n->note(ctx, ITEMS_NOTE_HELP_LOADED, 0);
-        if (!menu_items_use_helps(g)) {
-            if (!n->refuse(ctx, members))
-                return false;
-            continue;
-        }
-        bool used = tab ? n->run(ctx, ITEMS_RAISES_THE_FIGURE) && n->run(ctx, ITEMS_USES_ONE_MORE_TAB)
-                        : n->run(ctx, ITEMS_HEALS_AND_SHOWS) && n->run(ctx, ITEMS_USES_ONE_MORE_TONIC);
-        if (!used)
-            return false;
+        MenuItemChoiceStep step = menu_item_member_choice_frame_with(g, kind, n, ctx);
+        if (step != MENU_ITEM_CHOICE_WAITING)
+            return step == MENU_ITEM_CHOICE_CLOSED;
     }
 }
 

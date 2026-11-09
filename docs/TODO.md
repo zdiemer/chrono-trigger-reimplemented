@@ -2881,9 +2881,6 @@ comparisons.
   suspensions; nesting the next task in the previous task's C chain changes
   its return boundary.
 
-  Item-use waits at menu frames 3,000 and 3,900 still suspend their caller;
-  turn those sequences into held continuations.
-
   The shared fade start and resume also cover the original's fade-out calls;
   its enclosing C callers still park and need the remaining held returns.
 
@@ -2904,12 +2901,11 @@ comparisons.
   changing the ledger's checked scope. Its audit follows declared task-switch
   targets as ownership boundaries and does not mistake a pushed relative
   return for a branch. Replay the existing recipes, close their uncovered
-  arms, and preserve the resulting preconditions as contracts. Three battle
-  entries lack a plain recipe: `battle_wait_music_fade_loop` (9 bytes),
-  `battle_aim_action` (447) and `battle_call_enemies_in` (42).
+  arms, and preserve the resulting preconditions as contracts. One battle
+  entry still lacks a plain recipe: `battle_call_enemies_in` (42 bytes).
 
-  The discovery union of 576 clean recipes and the reviewed exclusions
-  leaves 1,593 battle bytes in 69 entries and 145 menu bytes in 31 entries.
+  The discovery union of 612 clean recipes and the reviewed exclusions
+  leaves 1,252 battle bytes in 60 entries and 109 menu bytes in 22 entries.
   Older runs in this union guide the remaining cases; they are not fresh
   retirement evidence. Replay the completed recipes against the final tree.
   Preserve the complete sprite/frame/output bounds, startup-built OAM
@@ -2918,9 +2914,8 @@ comparisons.
   random-OAM fixture is wholly refused; its valid-lookup counterpart is
   execution evidence. Do not count a refusal or interpreted call-out as
   evidence for a C implementation. The remaining menu gaps include complete
-  exchange slides, text glyph packing, refusal paths, and map selectors
-  excluded by existing guards. The new scene helpers retain provisional
-  estimates until a movie measures them. Record the reviewed exclusions and
+  exchange slides and refusal and continuation paths. The new scene helpers
+  retain provisional estimates until a movie measures them. Record the reviewed exclusions and
   matched recipes in the unreached ledger before either subsystem retires.
 
   `unreached_safe.toml` records fourteen further reviewed exclusions: zero map
@@ -2935,12 +2930,6 @@ comparisons.
   assumptions as contracts. These arguments are not execution coverage;
   enroll them with the matched recipes only after the inventory closes.
 
-  Initial outcome witnesses are `battle-menu-buttons`, `menus-sweep` and
-  `menus-epoch`: both modes protect SRAM end states, pictures and ordered
-  places; both also protect game end states except native `menus-epoch`.
-  The exact protected identities remain in `tools/outcomes_baseline.txt`.
-  Extend the teardown's witness table to battle wins, losses, techs and
-  rewards and the menus' save, shop and new-game-plus paths before retirement.
   The bucket-Lavos native-shape route protects the previously regressed
   battle backedges. The native-shape telepod-Lavos ending phase also reaches
   the ending after the core fight; this does not validate the subsequent

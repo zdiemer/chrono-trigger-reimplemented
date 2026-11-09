@@ -22,7 +22,6 @@ game/field/bridge.c                          pc-identity              1  # a bri
 game/menu/bridge.c                           pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
 game/menu/cursor.c                           return-address-pushed    3
 game/menu/epoch.c                            enum-types-nothing       1
-game/menu/epoch.c                            sibling-through-machine  7
 game/scene/frame.c                           return-address-pushed    2
 game/scene/script.c                          return-address-pushed    1
 re/ram.toml                                  stale-provenance         20

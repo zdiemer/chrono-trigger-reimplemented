@@ -314,6 +314,14 @@ typedef struct {
     bool (*run)(void *ctx, ItemsRoutine routine);
 } ItemsSteps;
 
+/* One input frame in the member window, after its task wait. */
+typedef enum { MENU_ITEM_CHOICE_WAITING, MENU_ITEM_CHOICE_CLOSED, MENU_ITEM_CHOICE_STOPPED } MenuItemChoiceStep;
+MenuItemChoiceStep menu_item_member_choice_frame_with(GameState *g, ItemUseKind kind, const ItemsSteps *n, void *ctx);
+void menu_tonic_member_choice_continues(Snes *s);
+void menu_tab_member_choice_continues(Snes *s);
+void menu_item_use_finishes(Snes *s);
+void menu_picked_item_use_finishes(Snes *s);
+
 bool menu_open_items_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
 bool menu_choose_item_command_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
 bool menu_choose_on_item_list_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);

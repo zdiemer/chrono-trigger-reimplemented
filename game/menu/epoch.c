@@ -25,13 +25,14 @@
  * and the work RAM port; this port computes in C and leaves those as
  * scaffolding, once, at the end of each routine (the leave_* functions).
  *
- * The screens call routines of the menus that are still the original's
- * (clearing VRAM, resetting the mode, waiting for a frame, the graphics
- * loader); those calls are made from bridges on the machine, at the
- * original's call sites. The decompressor is C (data/decompress.c). */
+ * The screens call the menu graphics and text services through checked C
+ * bridges. Their waits still retain the screen call until a later frame;
+ * those sequences are the remaining machine boundaries here. The
+ * decompressor is C (data/decompress.c). */
 #include "menu/epoch.h"
 
 #include "charge.h"
+#include "menu/bridge.h"
 #include "cpu_io.h"
 #include "core/program.h"
 #include "menu/display.h"
@@ -1342,15 +1343,12 @@ typedef enum { GATE_TILES_STREAM, GATE_PALETTE_STREAM, GATE_ROWS_STREAM } GateSt
 static const uint8_t gate_stream_bank[] = { [GATE_TILES_STREAM] = 0xC3, [GATE_PALETTE_STREAM] = 0xC6,
                                             [GATE_ROWS_STREAM] = 0xC6 };
 
-/* What the screens ask of whatever runs them. On the machine each is the
- * original's call: the routines the menus still enter by address (VRAM
- * cleared, a frame waited, frames waited while the sound's requests go on),
- * and the screens' own builders, which are entries of their own that shadow
- * mode compares and the timing gate measures; as C each is the port, behind
- * the state half of its entry's guard. Each but the clear is false where it
- * went no further. */
+/* The screen services: graphics and text, then waits while the objects
+ * and sound advance. Machine bridges check the complete entry contracts;
+ * the native program checks their game-state preconditions. False means
+ * the screen stopped before its next step. */
 typedef struct {
-    void (*clear_vram)(void *ctx, EpochScreen screen);
+    bool (*clear_vram)(void *ctx, EpochScreen screen);
     bool (*load_markers)(void *ctx);
     bool (*build_map)(void *ctx);
     bool (*build_gate)(void *ctx);
@@ -1366,11 +1364,13 @@ typedef struct {
 
 /* What both screens do first: the menus' VRAM cleared, the mode's upload
  * queue reset and every object slot freed. */
-static void clear_the_screen_with(GameState *g, EpochScreen screen, const EpochScreenSteps *steps, void *ctx)
+static bool clear_the_screen_with(GameState *g, EpochScreen screen, const EpochScreenSteps *steps, void *ctx)
 {
-    steps->clear_vram(ctx, screen);
+    if (!steps->clear_vram(ctx, screen))
+        return false;
     TIMED_AS(g, 0xC203EF, menu_object_reset_the_upload_queue(g));
     TIMED_AS(g, 0xC20471, menu_free_every_object(g));
+    return true;
 }
 
 /* The screen runs until the menus' mode leaves `mode`, a frame at a time. */
@@ -1452,7 +1452,8 @@ static bool show_the_map_view_with(GameState *g, Platform *pf, const EpochScreen
     vid_set_obj_config(pf, PF_AT(0xC26325), &sprites);
     set_menu_object_shadows_math_control(g, 0);
     set_menu_object_shadows_math_layers(g, BACKDROP);
-    clear_the_screen_with(g, THE_MAP_VIEW, steps, ctx);
+    if (!clear_the_screen_with(g, THE_MAP_VIEW, steps, ctx))
+        return false;
     if (!steps->load_markers(ctx))
         return false;
     TIMED_AS(g, 0xC268F4, map_view_gradient(g, pf));
@@ -1525,7 +1526,8 @@ enum { FIXED_LEVEL = 0x0F };
 
 static bool show_the_time_dial_with(GameState *g, Platform *pf, const EpochScreenSteps *steps, void *ctx)
 {
-    clear_the_screen_with(g, THE_TIME_DIAL, steps, ctx);
+    if (!clear_the_screen_with(g, THE_TIME_DIAL, steps, ctx))
+        return false;
     set_menu_object_shadows_bg_mode(g, MODE_7);
     const VidObjConfig sprites = { .size_select = 0, .base = 0x6000, .name_select = 0 };
     vid_set_obj_config(pf, PF_AT(0xC26A43), &sprites);
@@ -1584,29 +1586,28 @@ static const uint32_t stream_sites[] = { 0xC2738D, 0xC273DC, 0xC27408 };
 
 /* The clear comes back with a 16-bit accumulator; the screens go on with an
  * 8-bit one. */
-static void clear_vram_on_the_machine(void *ctx, EpochScreen screen)
+static bool clear_vram_on_the_machine(void *ctx, EpochScreen screen)
 {
     Snes *s = ctx;
-    m_jsr_dc(s, clear_sites[screen], 0xC226A8, READS_NOTHING);
+    if (!menu_run_called(s, clear_sites[screen], 0xC226A8, READS_NOTHING, menu_clear_vram))
+        return false;
     m_sep(s, CPU_FLAG_M);
+    return true;
 }
 
 static bool load_markers_on_the_machine(void *ctx)
 {
-    m_jsr_dc(ctx, 0xC26337, 0xC26965, READS_NOTHING);
-    return true;
+    return menu_run_called(ctx, 0xC26337, 0xC26965, READS_NOTHING, menu_epoch_load_map_graphics);
 }
 
 static bool build_map_on_the_machine(void *ctx)
 {
-    m_jsr_dc(ctx, 0xC2633D, 0xC263DF, READS_NOTHING);
-    return true;
+    return menu_run_called(ctx, 0xC2633D, 0xC263DF, READS_NOTHING, menu_epoch_build_map);
 }
 
 static bool build_gate_on_the_machine(void *ctx)
 {
-    m_jsr_dc(ctx, 0xC26A8A, 0xC27389, READS_NOTHING);
-    return true;
+    return menu_run_called(ctx, 0xC26A8A, 0xC27389, READS_NOTHING, menu_epoch_gate_graphics);
 }
 
 /* The loader takes the stream's number in the mode's cell at $08 and its
@@ -1617,20 +1618,17 @@ static bool load_stream_on_the_machine(void *ctx, GateStream stream)
     Snes *s = ctx;
     set_menu_object_scratch_bytes_byte(state_of(s), STREAM_CELL, (uint8_t)stream);
     m_set_a8(s, gate_stream_bank[stream]);
-    m_jsr_dc(s, stream_sites[stream], 0xC271F9, READS_A | DC_AH);
-    return true;
+    return menu_run_called(s, stream_sites[stream], 0xC271F9, READS_A | DC_AH, menu_epoch_load_gate_stream);
 }
 
 static bool start_text_on_the_machine(void *ctx)
 {
-    m_jsl_dc(ctx, 0xC269BB, 0xC257DF, READS_NOTHING | DC_DB | DC_D);
-    return true;
+    return menu_run_long_called(ctx, 0xC269BB, 0xC257DF, READS_NOTHING | DC_DB | DC_D, menu_text_start_entry);
 }
 
 static bool set_glyphs_on_the_machine(void *ctx)
 {
-    m_jsl_dc(ctx, 0xC269C4, 0xC25823, READS_NOTHING | DC_D);
-    return true;
+    return menu_run_long_called(ctx, 0xC269C4, 0xC25823, READS_NOTHING | DC_D, menu_text_go_on_entry);
 }
 
 static bool wait_a_frame_on_the_machine(void *ctx, EpochScreen screen)
@@ -1668,11 +1666,12 @@ typedef struct {
     Platform *pf;
 } ScreenInC;
 
-static void clear_all_of_vram(void *ctx, EpochScreen screen)
+static bool clear_all_of_vram(void *ctx, EpochScreen screen)
 {
     (void)screen;
     ScreenInC *c = ctx;
     TIMED_AS(c->game, 0xC226A8, menu_clear_all_of_vram(c->pf));
+    return true;
 }
 
 static const EpochScreenSteps screen_steps_in_c;
