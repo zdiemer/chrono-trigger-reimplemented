@@ -2244,11 +2244,6 @@ rest waits, is [PLAN.md](PLAN.md).
   likely meant). Both are game state a native storage would not have: decide
   the ground past the map (the bytes the battle reads there) and the test's
   bit when the gate retires.
-- **Fuzzing half the event states.** The event handlers' guards turn away an
-  odd running object, and `ct_fuzz --fill` can only bound a byte, so half of
-  every tight run is skipped (more for the comparisons, whose operator must be
-  in its table). A `--fill` form for even values (or a step) would double what
-  each run compares.
 - **`dontcare_check.py` takes a helper's parameters as a cross product.** A
   call-out's or stop's address passed down through helpers is evaluated over
   every value every caller passes, so a helper shared by two kinds of caller
@@ -3246,12 +3241,11 @@ list, by kind, is what `game/` still asks of one.
   in `ct_native` without stopping, but report 2/4/4 video escapes, first at
   `$7E:5AEB`; wind and ascent finish blanked, return showing. These fixed-input
   runs do not establish the route outcomes under the host's different timing.
-- **What the host backends don't do yet.** Audio mixes the
-  voices and throws the frames away; `au_driver_call`, the scene's call into
-  the original's send to the sound processor, ends the program (it comes only
-  from wrappers). The native player (`frontend/sound_native.c`) repeats
-  `sound_host.c`'s echo waits and command queue over its own ports: the two
-  want one core, which `ct_play` needs when it becomes `ct_native`.
+- **What the host backends don't do yet.** The native player already sends
+  audio through `sound_native_take_audio`. Unify `frontend/sound_native.c`
+  and `sound_host.c`'s echo waits and command queues when `ct_play` adopts
+  the native driver. `au_driver_call` still stops on a machine-wrapper call;
+  remove that interface with its remaining callers.
 - **ROM data.** `ct_native` reads the game's data from the asset pack through
   the store; what still reads cartridge addresses outside it, the video
   transfers from ROM, is under "Assets as data
