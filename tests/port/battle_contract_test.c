@@ -66,6 +66,15 @@ int main(void)
     CHECK(!battle_member_status_turn(g, NULL, BATTLE_COMBATANTS));
     CHECK(battle_member_status_turn(g, NULL, BATTLE_COMBATANTS - 1));
 
+    /* The arrival bridge must supply the full legacy argument contract,
+     * including the word paired with X. Retirement does not weaken it. */
+    machine.cpu.y = 0;
+    machine.cpu.x = 3;
+    battle_keep_word(g, 0x02, 2);
+    CHECK(!battle_machine_form_takes(&machine, 0xFDB438, fight_load_enemy_entry));
+    battle_keep_word(g, 0x02, 3);
+    CHECK(battle_machine_form_takes(&machine, 0xFDB438, fight_load_enemy_entry));
+
     printf("battle_contract_test: %d failures\n", failures);
     return failures != 0;
 }

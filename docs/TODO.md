@@ -180,23 +180,18 @@ rest waits, is [PLAN.md](PLAN.md).
   Retired subsystems need coherent-state tests and recorded outcomes instead
   of new comparisons against deleted registry rows.
 
-- **Dino Age's battle interrupt mismatches in real play.** The hand-run
-  `dino_age` route (technoplaza ct-state23 slot 2, 193389-frame scratch movie;
-  MOVIES.md) reaches The End in the reference and shipping modes, but its full
-  `ct_dev --native shadow` replay exits 1. `battle_irq` (`$D1:FE97`,
-  `game/battle/nmi.c`) has one mismatch: at the wait, PPU `$210F` is `FF` in
-  the original and `00` in native code; the next 15 passes still differ before
-  the original leaves. Generated blocks have zero mismatches; sound lockstep
-  is identical (608049 ticks, 24 loads), with zero refusals and no page,
-  accessor or asset diagnostics. This is not a guard refusal to allowlist.
-  It also reproduces with `--generated off` from the Core checkpoint at
-  frame 133140 through 177869; the ending-only interval 177869-193389 is clean.
-  The cause is not established, and no game code was changed. This recording
-  used Core seed 1. The route now defaults to Core seed 2: it finishes at 176261,
-  with a clean full shadow replay and identical final PNG. To reproduce the
-  failure, set this route's `core_seed_offset` to 0, regenerate its movie in
-  scratch storage, then replay all 193389 frames with ct-state23's SRAM and
-  `--native shadow`. Strict mode and `ct_native` complete both inputs.
+- **Dino Age's line-interrupt discrepancy in a native fixture.** Before
+  battle retirement, the hand-run `dino_age` route with Core seed 1
+  (technoplaza ct-state23 slot 2, 193389 frames; MOVIES.md) reached The End
+  in reference and shipping play but exposed a `battle_irq` discrepancy:
+  at the wait, the horizontal scroll byte was `FF` in the original and
+  `00` in the port, persisting for the next 15 passes. It also reproduced
+  without generated code over the Core interval 133140-177869; the ending
+  interval was clean. Core seed 2, the route's default, finished at 176261
+  with a clean comparison and identical final PNG. Both inputs completed
+  in strict and native modes. The cause remains unestablished: recreate
+  the seed-1 state in a native line-effect fixture and check the intended
+  scroll transition. Its registry comparison no longer exists.
 - **IRQ timing simplifications** (RUNTIME.md, "Interrupt timing"): hardware's
   ~3.5-dot trigger delay isn't modeled, and an IRQ pending across `CLI` is
   taken one instruction early.
@@ -248,6 +243,12 @@ rest waits, is [PLAN.md](PLAN.md).
     the map declares on random states (`accessor out of range` in fuzzing,
     `event_script`): its guard doesn't bound where the object's first
     function starts.
+- **The tech sweep's default fight policy.** Seed 1 reaches the Core on the
+  hand ports but repeatedly wipes near frame 94000 with the Core at 9409 HP.
+  Improve its spending and targeting or choose a policy seed that reaches
+  the outcome without original-code handbacks. The passing seed-2
+  native-shape witness is recorded in REIMPLEMENTATION.md, "The battle's
+  teardown"; keep that distinction when changing the default policy.
 - **When the confirm press lands in Atropos's scene, native shape against default.** The scene on `$10C` polls confirm with event command `$31` (`$C0:66A5`) between lines with no box open; the `motherbrain` route now presses through it, but why the native-shape build's timing puts the dialog's last press before the poll is untraced.
 - **An ending's menu script sets the sprites' sizes by `$2101`.** The menus'
   object scripts' byte command `$13` names its cell by address, and an ending

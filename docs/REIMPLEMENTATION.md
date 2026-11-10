@@ -4819,6 +4819,16 @@ the existing search estimate; the other search fields stay local.
 The ordinary status-turn operation asserts the former
 wrapper's combatant bound too.
 
+The legacy enemy-arrival adapter also supplies the enemy argument word
+that the loader's full guard checks, and the call-in adapter supplies its
+tech argument word. These are calling-convention state until the machine
+forms leave. Their old access charges remain in the actions, so publishing
+the arguments adds no time. The tech-sweep route exposed the arrival gap:
+its first native-shape replay completed through original-code handbacks,
+which are not accepted as retirement evidence. `ct_drive` now prints and
+fails on retired-contract breaks too, matching the diagnostic already
+reported by `ct_dev`; route completion cannot silently hide such a break.
+
 `battle_contract_test` runs without a cartridge against the scaffolding-free
 library. It checks that a chosen list reaches the next turn, survives a
 search that selects nothing, and that the ordinary status turn rejects the
@@ -4829,8 +4839,10 @@ checks the adapter's width, decimal, bank and combatant restrictions.
 The final native-shape Lavos routes reach both the bucket's Good Night
 ending (frame 187,945) and the telepod's ending phase (126,441), exercising
 victory, field return and the long defeat/ending work without scaffolding.
-The tech-sweep route also finishes, at frame 65,169 with 21 techs cast;
-its earlier scaffolding-free nonterminating-fight follow-up is closed.
+The tech sweep with policy seed 2 also wins at frame 99,476, casting 21
+techs with no retries, no broken contract and zero original-code fallback
+instructions. Its ordinary seed-1 policy still needs a successful search;
+that policy follow-up does not substitute for the protected movie outcomes.
 This does not claim the telepod's subsequent developer-room tour.
 
 Every retired entry keeps its calibrated rate in `time_tags.c`; deleted
@@ -4889,8 +4901,7 @@ main `ceb2d3e6`, in both strict and native modes. Its refreshed existing
 exceptions record that pre-existing ledger drift. The strict pictures
 1, 1800, 2100, 2400, 2700, 3600, 3900 and 4200 remain protected; native
 protects the same set without 3600. Both modes protect places 0-4, and
-native protects the SRAM end state. The successful native-shape route
-adds a current-timing witness for the Core fight and its tech selection.
+native protects the SRAM end state.
 
 The final census over `menus-sweep`, `menus-epoch` and
 `battle-menu-buttons` has seven machine-entered entries and 44,643 calls,

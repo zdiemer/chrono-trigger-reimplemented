@@ -605,6 +605,7 @@ static const uint32_t message_sites[] = { 0xC19B35, 0xC1A13D, 0xC1A385, 0xC19D68
 static const uint32_t arrival_sites[] = { 0xC19C30, 0xC19EDA, 0xFDAA2E };
 
 enum { TECH_BODY = 0xC19A3D, AIM = 0xC1C1DD, ENEMY_MESSAGE = 0xCD0033, ARRIVAL = 0xFDB438, CALL_IN = 0xFDA990 };
+enum { ARRIVING_ENEMY_CELL = 0x02 };
 
 static bool act_on_the_machine(void *ctx, ActCall call, uint8_t arg, bool carry)
 {
@@ -618,11 +619,17 @@ static bool act_on_the_machine(void *ctx, ActCall call, uint8_t arg, bool carry)
         return battle_run(s, aim_sites[call - ACT_AIM_TECH], AIM, battle_aim_action_entry);
     case ACT_ARRIVAL_CHANGE_INTO:
     case ACT_ARRIVAL_BRING_BACK:
-    case ACT_ARRIVAL_CALL_IN:
+    case ACT_ARRIVAL_CALL_IN: {
         /* an enemy coming into the battle loaded as at the fight's start,
-         * with the enemy in X */
+         * with the enemy in X and the argument word its full guard checks.
+         * The action already retains this word's old access charge. */
+        GameState *g = state_of(s);
+        uint32_t mark = charge_uncounted_begin(g);
+        battle_keep_word(g, ARRIVING_ENEMY_CELL, arg);
+        charge_uncounted_end(g, mark);
         s->cpu.x = arg;
         return battle_run_long_dc(s, arrival_sites[call - ACT_ARRIVAL_CHANGE_INTO], ARRIVAL, READS_X, fight_load_enemy_entry);
+    }
     case ACT_CALL_IN: return battle_run_long_dc(s, 0xC1A3B6, CALL_IN, READS_NOTHING, battle_call_enemies_in_entry);
     default:
         m_set_a8(s, arg);
