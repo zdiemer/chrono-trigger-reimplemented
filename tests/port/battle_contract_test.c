@@ -4,11 +4,13 @@
 
 #include "battle/battle.h"
 #include "battle/bridge.h"
+#include "battle/choosing.h"
 #include "battle/enemy_scripts.h"
 #include "battle/effect_noise.h"
 #include "battle/entries.h"
 #include "battle/machine_forms.h"
 #include "battle/party_turns.h"
+#include "battle/window.h"
 #include "port/vars_ram.h"
 #include "snes/system.h"
 #include "vars.h"
@@ -74,6 +76,24 @@ int main(void)
     CHECK(!battle_machine_form_takes(&machine, 0xFDB438, fight_load_enemy_entry));
     battle_keep_word(g, 0x02, 3);
     CHECK(battle_machine_form_takes(&machine, 0xFDB438, fight_load_enemy_entry));
+
+    /* A search can empty the target list while an ally's item view is
+     * still open. An already marked empty target draws no member's name. */
+    set_battle_ally_target_page(g, 3);
+    set_battle_menu_member(g, 1);
+    set_battle_menu_member_count(g, 1);
+    set_battle_menu_slot(g, 1);
+    set_battle_menu_slot_members(g, 0, MENU_NONE);
+    set_battle_menu_slot_members(g, 1, 1);
+    set_battle_menu_slot_members(g, 2, MENU_NONE);
+    set_battle_targets(g, 0, MENU_NONE);
+    set_battle_ally_target_marked(g, MENU_NONE);
+    CHECK(battle_window_fits(g));
+    set_battle_ally_target_marked(g, 0);
+    CHECK(!battle_window_fits(g));
+    set_battle_targets(g, 0, BATTLE_PARTY_SIZE);
+    set_battle_ally_target_marked(g, BATTLE_PARTY_SIZE);
+    CHECK(!battle_window_fits(g));
 
     printf("battle_contract_test: %d failures\n", failures);
     return failures != 0;

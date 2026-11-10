@@ -4857,6 +4857,18 @@ first invalid combatant. All three checks fail against the preceding
 implementations and pass with the live-state and contract fixes. It also
 checks the adapter's width, decimal, bank and combatant restrictions.
 
+The window contract also accepts an empty party target when that same
+empty target is already marked: the original's redraw compares the two
+before highlighting a name, and the C drawing operation does the same.
+`endings-bucket-lavos` reaches this state at frame 48239. Rejecting it sent
+shipping play back into retired battle code; by frame 48496 the original
+decompressor's block move at `$C3:0633` overwrote the interrupt stubs at
+`$00:0500` and `$00:0504`. Those bytes were corruption, not another valid
+stub format. With the window contract corrected, the 196,000-frame movie
+finishes in strict mode without a contract break. The cartridge-free
+contract test accepts the already marked empty target and still rejects
+an empty target needing a highlight or an enemy in the party view.
+
 The final native-shape Lavos routes reach both the bucket's Good Night
 ending (frame 187,945) and the telepod's ending phase (126,441), exercising
 victory, field return and the long defeat/ending work without scaffolding.
