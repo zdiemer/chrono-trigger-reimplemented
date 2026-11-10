@@ -3657,6 +3657,17 @@ backing adds nothing for this work, since the native program already omitted
 the comparison scaffolding. A repeated visibility test that the host did
 count keeps its ordinary charge in both backings.
 
+The whole-library replay found one missing streaming charge: retiring the
+last movement-counter write in `dd2ba214` removed one RAM access whenever
+any layer moved. `stream_the_layers` retains that access once per call, on
+the machine backing only. In Flea, its 78-master-clock estimate is the
+difference between ending the script budget at frame 3426 and running
+another command; the first object-position difference follows at frame
+3427 (movie frames numbered from one). A state replay through frame 3901
+matches the pre-retirement field state after restoring the charge. Full
+strict Flea and Slash replays also pass their existing outcome ratchets. The
+native program never made the removed write and keeps its existing time.
+
 For example, a tile run formerly wrote three temporary words and the
 three-byte upload cursor. Its estimate now counts six RAM and three I/O
 accesses. The walk records which kinds of work it performed, counting a
