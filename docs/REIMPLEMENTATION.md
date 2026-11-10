@@ -4918,3 +4918,13 @@ call-outs. These source counts include other subsystems' legacy adapters;
 the broader branch-start counts also include teardowns merged from main.
 The fresh build passes the state, suspension, event and scene contract,
 field, native-time and time-parts tests.
+
+The final sampled gate with evidence ends in `suite OK` over 37 movies;
+the separate `battle-tech-sweep` gate also ends in `suite OK`. Both retain
+every protected strict and native outcome, report zero original-code
+fallback instructions and zero refusals, and pass timing without a new
+exception. The scaffolding-free build completes all 37 sampled movies,
+the separate tech-sweep movie and both fast routes. The three manual
+native-shape routes above also report zero fallback instructions and zero
+refusals. These are sampled and targeted results, not a whole-library
+recalibration or a claim that the existing outcome differences are gone.

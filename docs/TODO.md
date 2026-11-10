@@ -1837,8 +1837,8 @@ rest waits, is [PLAN.md](PLAN.md).
 - **Video escapes after the retired subsystems.** The ordinary service calls
   have host implementations; `ct_native` renders their retained frame directly
   (PLATFORM.md, "Video from service calls, as built"). The remaining work is
-  in battle and menus through their teardowns, and in the scene's follow-up
-  work (its merged teardown did not remove these escapes).
+  in battle and menus' remaining transfer descriptors, and in the scene's
+  follow-up work; their teardowns did not remove these escapes.
   Do not replace their machine contracts by a narrower call before checking
   the descriptor's full domain and the state left for callers. The 23
   `machine_joints.py` occurrences are the 22 calls below plus a comment in
@@ -1846,7 +1846,7 @@ rest waits, is [PLAN.md](PLAN.md).
 
   | File | Calls/sites | What the service needs |
   |---|---|---|
-  | `battle/uploads.c` | `$CD:09CE`, `$CF:E33B` (2) | Preserve the palette sender's data-bank behavior and stray RAM writes until their contract retires; decode the queued transfer's destination/mode into a typed upload, with the full guard retained. |
+  | `battle/uploads.c` | `$CD:09CE`, `$CF:E33B` (2) | Preserve the palette sender's data-bank behavior and stray RAM writes while the legacy machine form needs them; decode the queued transfer's destination/mode into a typed upload, with the full guard retained. |
   | `menu/display.c` | `$C2:9526`, `$C2:954B` (2) | Memory clear/copy, including source-bank and work-port wrapping, cursor state and transfer time. The field's `wram_clear` is the precedent, but these use the work RAM port, not the multiplier. |
   | `menu/script.c` | `script_byte` register writer and its `vid_snes_takes_register` guard (2) | Decode script object-configuration commands to `VidObjConfig`; keep refusal of every other register address. |
   | `scene/race.c` | `$7E:3D41`, `$7E:876E`, `$7E:4671` (3) | VRAM read-back with its initial read/step; a continued low-byte plane upload; a low-byte column upload with stride. |
@@ -2734,7 +2734,7 @@ list, by kind, is what `game/` still asks of one.
       `objects.c::turn`, `h->takes` runs under the parent timing tag;
       `handlers.c::script_takes` reaches `menu_sprite_list_is_sound` through
       `menu_object_script_can_run`. The machine's `menu_object_script_runs`
-      excludes those reads with `vars_peek`. After the menu teardown, keep
+      excludes those reads with `vars_peek`. Keep
       the complete guard but exclude its inspection from the native work
       account, then measure the same frames in both modes. This is handler
       time, reducing the main thread's share (at most half a frame).
@@ -2751,13 +2751,13 @@ list, by kind, is what `game/` still asks of one.
     Beyond Time's sampled replay still misses its ending; after accounting
     for native DMA and unpacking it returns to the load screen at frame 12,304
     rather than 29,845 and changes 4,189 SRAM bytes. Follow the first shifted
-    battle input after the battle and menu teardowns; the aggregate native
+    battle input; the aggregate native
     improvement does not establish this movie's outcome.
     Tyrano Lair Walls enters the walkway at frame 3,696 (3,697 before the
     unpacking correction, 3,703 in the reference), then ends with 44 differing
     saved-game bytes: inventory, character progression and battle cursors.
     SRAM still matches and all five places remain on time. Follow the first
-    shifted battle input after the battle and menu teardowns; the re-recorded
+    shifted battle input; the re-recorded
     outcome is not a claim that the fight is equivalent.
     Native access, transfer, budget and retired-work accounting need the next batched library run on
     the 47 unsampled movies, especially `battle-ozzies-fort`, `battle-mud-imp`,
