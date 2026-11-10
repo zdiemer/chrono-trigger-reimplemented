@@ -3587,6 +3587,17 @@ the per-site and per-pair inventory is in [STATE.md](STATE.md). Before moving
 another module, resolve its listed aliases and raw clients, including shared
 initial contents on mode transitions. Do not give two struct fields one cell.
 
+- **The generator, before larger slices** (the state-as-C review): host
+  accessors for indexed variables drop `CT_ACCESSOR_CHECKS`' `CHECK_INDEX`
+  (`tools/ram_map.py`, the host fallback); keep it before an indexed variable
+  moves. The address projection finds a field by a linear scan per byte; give
+  it indexed dispatch before bulk clears, saves and video reads cross many
+  moved fields.
+- **Overlapping variables need shared ownership.** 2,011 of the 2,263 overlap
+  another; independent structs can't keep those relationships, so the next
+  slices need an explicit owner and alias views per overlap, decided module by
+  module before anything overlapping moves (the generator rejects it until then).
+
 - **Core:** controller/clock and palette scratch overlap other uses; character
   records contain both whole-record and named-field views. Inventory tail
   accesses and save projection must keep a single owner. Sound's retired cells
