@@ -438,10 +438,12 @@ static bool party_call(void *ctx, PartyCall call, uint8_t member)
     }
 }
 
-/* Each with its guard's state half: the member a party member, the members
+/* Each with its guard's state half: the slot a combatant, the members
  * hit and the reactions' targets combatants or none. */
 bool battle_member_status_turn(GameState *g, Platform *pf, uint8_t member)
 {
+    if (member >= BATTLE_COMBATANTS)
+        return battle_contract_broken(g, 0xFDAB30, "a status turn past the combatants");
     PartyTurnContext c = { g, pf };
     return status_turn(g, member, member, party_call, &c);
 }

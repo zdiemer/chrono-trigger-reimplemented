@@ -114,7 +114,7 @@ RETIRED_RUNS = ((0xC30002, 0xC30004), (0xC30557, 0xC308B2),
                 (0xC2229D, 0xC22335), (0xC22345, 0xC226A7), (0xC226D6, 0xC2271F), (0xC2274D, 0xC22D6F),
                 (0xC22D91, 0xC257AF), (0xC26263, 0xC2631E),
                 (0x7E3000, 0x7E3175), (0x7E3177, 0x7E31BE),
-                # Events: exact owned runs; menu and battle code remains gated.
+                # Events: exact owned runs; menus and battle have their own runs below.
                 (0xC0034B, 0xC0038E), (0xC01AAC, 0xC01ADE), (0xC01CFC, 0xC01D55),
                 (0xC01D5E, 0xC01E91), (0xC01E9A, 0xC01F23), (0xC02E67, 0xC0305C),
                 (0xC03154, 0xC03B70), (0xC03B76, 0xC03FD5), (0xC04000, 0xC0400D),
@@ -123,7 +123,7 @@ RETIRED_RUNS = ((0xC30002, 0xC30004), (0xC30557, 0xC308B2),
                 (0xC05B8D, 0xC05B94), (0xC05C90, 0xC05CC6), (0xC05F6E, 0xC06466),
                 (0xC06487, 0xC06D2E))
 RETIRED_RUNS += (
-    # Field: exact owned runs; gated menus and battle remain.
+    # Field: exact owned runs, excluding the separately retired menus and battle.
     (0xC00000, 0xC00001),
     (0xC00005, 0xC0034A),
     (0xC0038F, 0xC00B4D),
@@ -153,7 +153,7 @@ RETIRED_RUNS += (
     (0xC0A947, 0xC0AF2F),
     (0xC0AF4E, 0xC0ED13),
     (0xC0ED15, 0xC0F16F),
-    # Field dialog's veneers; the menu typesetter's bodies remain gated.
+    # Field dialog's veneers; the menu typesetter's bodies are retired separately.
     (0xC20003, 0xC20005),
     (0xC20009, 0xC2000B),
     (0xC30011, 0xC30013),
@@ -165,7 +165,7 @@ RETIRED_RUNS += (
 )
 
 RETIRED_RUNS += (
-    # Scene engine: exact owned runs; shared menu code stays gated.
+    # Scene engine: exact owned runs; shared menu code is retired separately.
     (0x7E3176, 0x7E3176),
     (0x7E31BF, 0x7E3208),
     (0x7E32E2, 0x7E340C),

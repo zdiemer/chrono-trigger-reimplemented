@@ -2563,27 +2563,15 @@ rest waits, is [PLAN.md](PLAN.md).
   this after the field's held waits; if it persists, make the setup debt a
   held continuation (REIMPLEMENTATION.md, "The time warp's teardown").
 
-## Shadow comparison gaps
+## Battle upload timing
 
-The early-boss shadow runs also expose a comparison gap in the held-message
-path: `battle_pause_on_the_message` has 168 calls, all abandoned, when run
-as C inside `battle_show_a_battle_message`. Its sixteen frame waits have no
-independent shadow return in these runs. Message typing and clearing still
-compare; add an isolated comparison for the pause itself. This is recorded
-in `uncompared_baseline.txt`.
-
-The two Ocean Palace movies expose a battle comparison gap:
-`battle_dispatch_expired_timers` has 310 of 615 calls interrupted (305 matched),
-with no mismatch. Their narrowed sample crosses the uncompared check's 50%
-threshold; `tools/uncompared_baseline.txt` records it. Establish comparisons
-covering those missing stretches before treating these samples as full evidence.
-
-`battle_frame_work` also exceeds the vblank timing tail on this pair: 217 of
-11901 stretches differ by at least 1024 clocks (maximum 1537), although its
-mean error is 143 clocks and net drift is -0.07%. Its inline alternating VRAM
-upload already has a timing exception; the Twins exercise 306 of that upload's
-stretches over 1024 clocks. The vblank check finds no moved writes. The caller
-now has a documented `vblank-tail` exception too; retain this sample when
+Before retirement, the two Ocean Palace movies' `battle_frame_work`
+comparisons exceeded the vblank timing tail: 217 of
+11901 stretches differed by at least 1024 clocks (maximum 1537), although its
+mean error was 143 clocks and net drift was -0.07%. Its inline alternating VRAM
+upload already had a timing exception; the Twins exercised 306 of that upload's
+stretches over 1024 clocks. The vblank check found no moved writes. The caller
+had a documented `vblank-tail` exception too; retain this sample when
 improving the upload's timing, rather than moving the caller's calibrated mean.
 
 ## The native program
@@ -3114,25 +3102,13 @@ list, by kind, is what `game/` still asks of one.
   (`battle/bridge.c`, `battle/steps.c`, `field/bridge.c`, `menu/bridge.c`,
   `scene/bridge.c`). These go as each subsystem's ports call ports (PLAN.md's
   step 1) and its wrappers leave (step 3).
-  The battle loop backedges also need an iterative
-  continuation with a comparison boundary: shadow waits resume their C call,
-  so directly chaining every backedge would recurse across frames.
-  The generic battle bridge still consults the registry
-  to validate each sibling's width/page/data guards (and battle's return
-  poisoning); deleting the lookup alone bypasses those contracts. Some direct
-  targets have stricter bank guards than their callers, including the party's
+  Checked forms and held continuations retain each sibling's full contract.
+  Some direct targets have stricter bank guards than their callers, including the party's
   return to the field walk. Reset, scene/warp and field reentry tails need their
   shared mode-transition contract before their machine stops can leave.
   Overworld startup's direct first frame also needs a fuzz harness that supplies
   interrupts: all 200 existing setup states now exceed its comparison budget,
   although seven targeted movie calls compare cleanly.
-  Battle's startup-to-loop, frame-to-pass and pass-to-timers stops must
-  retain their boundaries for now. Calling all three directly passed shadow
-  comparisons but failed the scaffolding-disabled bucket-Lavos route after
-  400,000 fight frames. The pre-change build and the candidate restoring those
-  three stops both reach the ending at frame 164169, with eight exact snapshot
-  replays. Isolate the timing/continuation difference before retiring them;
-  no calibration or route exception was added to hide it.
 - **Evidence worker count is not a process cap.** `tools/dc_evidence.py`
   can start four processes per movie, so `suite.py -j 2 --evidence` can run
   eight. Share one process budget across variants and movie workers; a
@@ -3314,14 +3290,7 @@ need diagnosis; they are not allowlist entries or passing contract evidence.
   carries on with the channel's sequence, and `scene/rising_palace.c` ignores
   the palettes' check (it can't fail there, but says nothing).
 - **What the battle's review left** (none rated translation):
-  `battle/enemy_turn.c`'s `choose_again_turn` reads choosing cells
-  (`enemy_choosing_in_cells`, `battle_script_actions_place`) whose last writer
-  on a choose-again turn that isn't a reaction can be `enemy_leave_choosing`'s
-  `ORIGINAL_EFFECT`; the effects baseline's line for `choosing_actions_in_table`
-  names that as a plain writer, where the plain ones are `move_on`,
-  `enemy_hand_back_choosing` and `enemy_turn.c`'s own. `party_turns.c`'s
-  `battle_member_status_turn` checks nothing though its comment says each turn
-  has its guard's state half. `battlefield_change.c`'s
+  `battlefield_change.c`'s
   `battle_load_and_run_battlefield` and its machine twin each spell out the
   load, the scripts' start and the running flag, and `closing.c`'s fade then
   wait is written twice. The waits (`wait.c`) check the typing's fit only where
@@ -3511,20 +3480,6 @@ persistence seams; game-side representation changes still need explicit work.
   exhibit gate (`$7F:0055` bit 7) can be opened, but no movie needs it yet.
 - **Coverage loop**: re-run `--misses` over the whole library after the latest
   movies and feed anything new back into the build.
-- **Battle setup is never compared.** Every call of `battle_setup_state`
-  (`$CC:E2E4`) and `battle_setup_graphics` (`$CC:ED87`) in the library is
-  interrupted by NMI, so shadow mode counts them and compares none; the gate
-  passes on them without looking. What checks them today is `--native on
-  --generated off` tracing identically to a known-good build (DISASSEMBLY.md,
-  "The RAM map"). A fuzz state at their entry, or comparing interrupted calls
-  when the interrupt touches none of their state, would close it. The same
-  holds for the battle's start from the field (`battle_start_from_field`,
-  `$C1:0000`): its call to the battle screen's setup waits for frames, so all
-  its calls are interrupted, and fuzzing compares it only up to that call; what
-  it does after (clearing the battle's memory, taking in the story's rules)
-  is checked by the shipping-mode traces and routes alone. A member that comes
-  back once is fuzzed up to its showing, which `ct_fuzz` can't run as a sibling
-  (no runtime), so the registers at that call differ there.
 - **Snes9x agreement tables** in RUNTIME.md were re-measured after the timing
   fix for `new-game`, `menu` and `field` only; `fair` and `fair-companion` got
   worse and are unexplained.

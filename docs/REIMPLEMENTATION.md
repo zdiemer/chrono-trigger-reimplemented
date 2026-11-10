@@ -4795,7 +4795,23 @@ are deleted. The reader audit checked our ports as well as the original:
 wrapper scratch becomes C arguments, and live targeting, action, animation
 and field state remains ordinary state. The provisional action-record
 pointer left by targeting remains live, including its reused low byte;
-retirement does not substitute the earlier cached tech number. Native-shape
+retirement does not substitute the earlier cached tech number.
+The enemy chooser's action-list position also remains ordinary state: a
+later choose-again turn can read it after the search has returned. A search
+that selects no new list preserves the previous position. Its two-byte
+read and write retain the old machine charges without adding host time to
+the existing search estimate; the other search fields stay local.
+The ordinary status-turn operation asserts the former
+wrapper's combatant bound too.
+
+`battle_contract_test` runs without a cartridge against the scaffolding-free
+library. It checks that a chosen list reaches the next turn, survives a
+search that selects nothing, and that the ordinary status turn rejects the
+first invalid combatant. All three checks fail against the preceding
+implementations and pass with the live-state and contract fixes. It also
+checks the adapter's width, decimal, bank and combatant restrictions.
+
+Native-shape
 Lavos routes reach both the bucket's Good Night ending and the telepod's
 ending phase, exercising victory, field return and the long defeat/ending
 work without scaffolding. This does not claim the subsequent developer-room
@@ -4837,3 +4853,19 @@ The protected outcomes are the battle witnesses in "The menus' teardown":
 strict and native modes. The table there records the exact protected
 saved-game and SRAM end kinds in each mode, alongside the five menu service
 witnesses; existing outcome exceptions do not erase those matches.
+
+The final census over `menus-sweep`, `menus-epoch` and
+`battle-menu-buttons` has seven machine-entered entries and 44,643 calls,
+against 87 entries and 3,455,625 calls at the branch's start. CPU wait-loop
+passes fall from 3,315,508 to zero; 80 held continuations instead execute
+7,780,168 passes as C. The remaining machine entries are console reset,
+boot, the two interrupt vectors and their stubs, and `field_first_start`.
+The census also records 887 entries called only as C.
+
+Immediately before battle retirement, the source measure had 843 ordinary
+entries, 713 emulated returns and 760 scaffolding sites. It now has 13,
+505 and 13 respectively, with 143 held continuations, 107 stops and five
+call-outs. These source counts include other subsystems' legacy adapters;
+the broader branch-start counts also include teardowns merged from main.
+The fresh build passes the state, suspension, event and scene contract,
+field, native-time and time-parts tests.

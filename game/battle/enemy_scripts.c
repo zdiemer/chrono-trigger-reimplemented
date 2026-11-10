@@ -46,21 +46,27 @@ ScriptChoosing enemy_choosing_in_cells(const GameState *g)
     };
 }
 
-/* What a choosing doesn't come to set, the original leaves in its cells as it
- * was: so the scaffolding starts from the cells, which the logic never reads
- * back (each field is set before it is used). */
+/* Keep the action list when no condition chooses a new one. A later
+ * choose-again turn can still use that list. The other search fields are
+ * local to this choice and are established before they are used. */
 ScriptChoosing enemy_choosing(GameState *g, uint8_t enemy)
 {
-    ScriptChoosing c = { .enemy = enemy, .pair = PAIR_NONE, .outcome = OUTCOME_HELD };
+    uint32_t mark = charge_uncounted_begin(g);
+    ScriptChoosing c = { .enemy = enemy, .pair = PAIR_NONE, .outcome = OUTCOME_HELD,
+                         .actions_from = battle_script_actions_place(g) };
+    charge_uncounted_end(g, mark);
+    /* Preserve both backends' existing estimate of the search work. */
     charge_machine_accesses(g, 10);
     return c;
 }
 
-/* The enemy at work is read by the original's search for reactions after the
- * choosing of them all has left it past the last ($C1:B488's caller), so it
- * is kept plainly; the rest is scaffolding. */
+/* Publish the action list for a later choose-again turn, and the enemy
+ * position used by reaction searching after all the enemies have chosen. */
 void enemy_leave_choosing(GameState *g, const ScriptChoosing *c)
 {
+    uint32_t mark = charge_uncounted_begin(g);
+    set_battle_script_actions_place(g, c->actions_from);
+    charge_uncounted_end(g, mark);
     charge_machine_accesses(g, 10);
     set_battle_enemy_turn(g, c->enemy);
 }

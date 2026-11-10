@@ -88,16 +88,12 @@ typedef struct {
 /* A choosing for `enemy`, with no pair under way and nothing failed. */
 ScriptChoosing enemy_choosing(GameState *g, uint8_t enemy);
 
-/* The original keeps a choosing in its cells (battle_enemy_turn,
- * battle_script_place, battle_block_start, battle_script_actions_place,
- * battle_condition_pair, battle_script_outcome, battle_condition_kind). Its
- * still-generated code, shadow mode and the guards read them, so the choosing
- * leaves them as the original would, once, as scaffolding. */
+/* Keep the selected action list for a later choose-again turn, and the enemy
+ * position used by the reaction search. These are shared game state. */
 void enemy_leave_choosing(GameState *g, const ScriptChoosing *c);
 
-/* For the machine's side (the entries, and the turns that are still machine
- * entries): a choosing as the original's callers leave it in the cells, and
- * handed back to them, the cells written as state the machine goes on from. */
+/* The legacy adapters and reaction turns exchange the complete search state
+ * through these cells until the search and turn interfaces share a struct. */
 ScriptChoosing enemy_choosing_in_cells(const GameState *g);
 void enemy_hand_back_choosing(GameState *g, const ScriptChoosing *c);
 
