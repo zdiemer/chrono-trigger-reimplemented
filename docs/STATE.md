@@ -24,7 +24,7 @@ when selecting another module.
 | Resource reads/transfers whose address interface can fall back to RAM | 713 |
 | Page instance conversion and explicit vars_pages include | 4 |
 | PF_GAME video/DMA sources | 72 |
-| RAM names, long WRAM literals, bank shifts/masks | 2,058 |
+| RAM names, long WRAM literals, bank shifts/masks | 2,142 |
 | Unchecked accessor uses/declarations | 163 |
 
 The video ledger includes fixed `$7E/$7F` sources, RAM constants, low-bank

@@ -20,7 +20,7 @@ PATTERNS = {
     "resource-address": r"\b(?:rom_read\w*|rom_cartridge_read|rom_data\w*)\s*\(",
     "page-view": r'\b\w+_page_of\s*\(|#include\s+"port/vars_pages.h"',
     "video-source": r"\bPF_GAME\s*\(",
-    "layout-expression": r"\bRAM_\w+\b|\b0x7[EFef][0-9A-Fa-f]{4}\b|<<\s*16\b|&\s*0x(?:FF0000|FFFF)\b",
+    "layout-expression": r"\bRAM_\w+\b|\b0x7[EFef][0-9A-Fa-f]{4}[uUlL]*\b|<<\s*16[uUlL]*\b|&\s*0x(?:FF0000|FFFF)[uUlL]*\b",
     "unchecked-accessor": r"\b\w+_unchecked\s*\(",
 }
 
