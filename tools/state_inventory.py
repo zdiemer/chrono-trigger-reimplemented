@@ -17,6 +17,7 @@ except ImportError:
 PATTERNS = {
     "raw-helper": r"\b(?:wram_\w+|hw_port_\w+)\s*\(",
     "machine-address": r"\bm_(?:read\w*|write\w*|dp\w*|abs\w*)\s*\(",
+    "resource-address": r"\b(?:rom_read\w*|rom_cartridge_read|rom_data\w*)\s*\(",
     "page-view": r'\b\w+_page_of\s*\(|#include\s+"port/vars_pages.h"',
     "video-source": r"\bPF_GAME\s*\(",
     "layout-expression": r"\bRAM_\w+\b|\b0x7[EFef][0-9A-Fa-f]{4}\b|<<\s*16\b|&\s*0x(?:FF0000|FFFF)\b",

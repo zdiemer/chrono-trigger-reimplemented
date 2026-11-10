@@ -21,6 +21,7 @@ when selecting another module.
 |---|---:|
 | Raw WRAM helpers and work-RAM streaming port | 307 |
 | Machine read/write and direct-page/absolute helpers | 4 |
+| Resource reads/transfers whose address interface can fall back to RAM | 713 |
 | Page instance conversion and explicit vars_pages include | 4 |
 | PF_GAME video/DMA sources | 72 |
 | RAM names, long WRAM literals, bank shifts/masks | 2,058 |
@@ -44,6 +45,12 @@ within a record can overlap too (e.g. `character_records.record` and `hp`);
 those need a single owner even though the variable count is one.
 [state-field-overlaps.tsv](state-field-overlaps.tsv) lists **6,019 within-record
 field pairs in 21 variables**, counted separately from the variable pairs.
+
+The resource-address sites include named resource accessors and their backend
+declarations; most read cartridge data, but the `rom_cartridge_read` contract
+also serves RAM-selected pointers. Counting all of them avoids silently losing
+that path. `runtime/port/rom_host.c` already delegates RAM reads to
+`state_host_read8`. The inventory makes no claim that all 713 read work RAM.
 
 | Map subsystem | Variables | With another variable's bytes | Unchecked | On page instances |
 |---|---:|---:|---:|---:|
@@ -110,3 +117,45 @@ Three records lie in the saved-game projection, while the next location does
 not. This exercises persistence and the route driver's most useful address
 without first rewriting any ports. Whole subsystems with scratch reuse are
 deliberately deferred; TODO.md lists their prerequisites.
+
+## Native structs and the compatibility view
+
+The four records now have `host_module = "locations"` in the map. This names
+their storage owner, independently of the broader subsystem used by the RAM
+knowledge and port inventory. `ram_map.py accessors` generates `vars_host.h`
+and `vars_host.c` alongside the existing outputs. `VarsHostLocations` has
+ordinary `uint16_t` map IDs and `uint8_t` coordinates/flags. There is no packed
+layout, pointer into WRAM, or second copy to synchronize. Arrays use element
+indices, not the original stride; record padding is not state.
+
+With `CT_VARS_HOST`, migrated accessors read/write these fields directly.
+The generator rejects any declared overlap (including fields within a record),
+reuse, unchecked table or page-instance variable selected for migration.
+Array bounds fall back to the compatibility address path rather than indexing
+outside a C object. Supporting page instances as independent owners waits for
+their aliases to be resolved. Other builds still compile the original RAM
+accessor bodies. No game logic changed.
+
+The generated address view explicitly extracts/merges bytes of typed fields,
+so C padding and host byte order do not define persistence. `state_host_read8`
+and `state_host_write8` canonicalize WRAM mirrors, project migrated addresses,
+and use the residual image only for everything else. The WRAM streaming port
+uses these functions too. This is the API native route `peek`/`watch` should
+call: reads are untimed, while game accessors charge the same per-byte amount
+as before. Bulk helpers retain their existing timing and bank wrap rules.
+
+Saves therefore read from and load into the struct fields through their
+existing projection. The save code, SRAM file format, video callbacks and
+end-state writer keep their interfaces. `vars_host_test` runs without a ROM:
+it supplies save-layout metadata, loads a committed cartridge `.srm` through
+the actual slot checker and loader, edits struct fields, saves them with the
+actual checksum writer, and loads the exported bytes into a fresh state.
+It also checks independent states, mirrored and partial writes, cross-field
+copy/fill, the streaming port and a video transfer sourced from a moved field.
+
+**Measure:** 2,263/2,263 (100%) before; **2,259/2,263 (99.82%) image-backed**
+after, four struct-backed variables (20 serialized bytes). The residual
+128 KiB allocation remains during migration; migrated addresses in it are
+unused, not mirrors. This measures ownership moved, not memory saved. Deleting
+the residual allocation requires all variables and unnamed address clients
+to move. The overlap ledgers and TODO.md describe that remaining work.

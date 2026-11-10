@@ -161,6 +161,8 @@ jobs:
         run: build/ci/video_test
       - name: native_time_test
         run: build/ci/native_time_test
+      - name: vars_host_test
+        run: build/ci/vars_host_test
       - name: unpack_time_test
         run: build/ci/unpack_time_test
       - name: tasks_test

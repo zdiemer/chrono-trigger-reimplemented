@@ -2,12 +2,91 @@ file	line	category	expression
 game/battle/action_animation.c	134	layout-expression	<< 16 | script);
 game/battle/action_animation.c	250	layout-expression	0x7E2D00 };
 game/battle/action_animation.c	254	layout-expression	<< 16 | tiles_at);
+game/battle/action_animation_data.h	62	resource-address	rom_read8(g, 0xCD4000u + view * CHARACTER_SCRIPTS_PER_VIEW + character),
+game/battle/action_animation_data.h	63	resource-address	rom_read8(g, at),
+game/battle/action_animation_data.h	64	resource-address	rom_read8(g, at + 1),
+game/battle/action_animation_data.h	65	resource-address	rom_read8(g, at + 2),
+game/battle/action_animation_data.h	66	resource-address	rom_read8(g, at + 3),
+game/battle/action_animation_data.h	67	resource-address	rom_read8(g, at + 4),
+game/battle/action_animation_data.h	80	resource-address	rom_read8(g, at),
+game/battle/action_animation_data.h	81	resource-address	rom_read8(g, at + 1),
+game/battle/action_animation_data.h	82	resource-address	rom_read8(g, at + 2),
+game/battle/action_animation_data.h	83	resource-address	rom_read8(g, at + 3),
+game/battle/action_animation_data.h	84	resource-address	rom_read8(g, at + 4),
+game/battle/action_animation_data.h	85	resource-address	rom_read8(g, at + 5),
+game/battle/action_animation_data.h	86	resource-address	rom_read8(g, at + 6) : ANIMATION_NO_BACKGROUND,
+game/battle/action_animation_data.h	114	resource-address	rom_read16(g, table + (uint16_t)(number * 2));
+game/battle/action_animation_data.h	177	resource-address	rom_read8(g, at) << 8 | rom_read8(g, at + 1));
+game/battle/action_animation_data.h	177	resource-address	rom_read8(g, at + 1));
+game/battle/action_animation_data.h	182	resource-address	rom_read16(g, (uint32_t)bank << 16 | at);
+game/battle/action_animation_data.h	191	resource-address	rom_read8(g, 0xCCF63Cu + character) != 0;
+game/battle/action_animation_data.h	201	resource-address	rom_read8(g, 0xD150A2u + shape * ONE_SPRITE_SHAPE_BYTES);
+game/battle/action_animation_data.h	205	resource-address	rom_read8(g, 0xD150A3u + shape * ONE_SPRITE_SHAPE_BYTES);
+game/battle/action_animation_data.h	217	resource-address	rom_read8(g, 0xCFFFFFu))
+game/battle/action_animation_data.h	219	resource-address	rom_read8(g, 0xCFFFFEu))
+game/battle/action_animation_data.h	221	resource-address	rom_read8(g, 0xCFFFFDu))
+game/battle/action_animation_data.h	232	resource-address	rom_read8(g, 0xD15F42u + (uint8_t)(character * BATTLE_FACINGS + facing));
 game/battle/action_animation_data.h	176	layout-expression	<< 16) + set + (second_half ? 2u : 0u);
 game/battle/action_animation_data.h	182	layout-expression	<< 16 | at);
 game/battle/action_showing.c	71	unchecked-accessor	set_battle_script_subjects_unchecked(g, place, slot);
 game/battle/aim.c	401	unchecked-accessor	battle_enemy_standing_unchecked(g, slot);
 game/battle/aim.c	638	unchecked-accessor	battle_enemy_standing_unchecked(g, enemy);
+game/battle/aim_data.h	30	resource-address	rom_read8(g, at) & 0x7F), rom_read8(g, at + 1) };
+game/battle/aim_data.h	30	resource-address	rom_read8(g, at + 1) };
+game/battle/aim_data.h	37	resource-address	rom_read8(g, at), rom_read8(g, at + 1) };
+game/battle/aim_data.h	37	resource-address	rom_read8(g, at + 1) };
+game/battle/aim_data.h	42	resource-address	rom_read8(g, 0xCC1BB5u + item) & 0x7F); }
+game/battle/aim_data.h	47	resource-address	rom_read16(g, 0xCC2AB0u + (uint16_t)(area * 2)); }
+game/battle/aim_data.h	50	resource-address	rom_read8(g, 0xCC0000u + place); }
+game/battle/aim_data.h	68	resource-address	rom_read8(g, 0xCC0000u + (uint16_t)(at + 1)), size = rom_read8(g, 0xCC0000u + (uint16_t)(at + 2));
+game/battle/aim_data.h	68	resource-address	rom_read8(g, 0xCC0000u + (uint16_t)(at + 2));
+game/battle/aim_data.h	69	resource-address	rom_read8(g, 0xCC0000u + at), (uint8_t)(placing & ~AREA_RULE_TOP_BIT), (uint8_t)(size & ~AREA_RULE_TOP_BIT),
+game/battle/aim_data.h	78	resource-address	rom_read8(g, 0xCCFB6Fu + cells);
 game/battle/animation.c	417	unchecked-accessor	set_battle_party_frame_unchecked(g, slot, BEFORE_THE_FIRST_FRAME);
+game/battle/animation_data.h	39	resource-address	rom_read8(g, 0xCCF77Fu + entry * BATTLE_STATUS_POSE_BYTES) & BATTLE_STATUS_POSES_END;
+game/battle/animation_data.h	44	resource-address	rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3) };
+game/battle/animation_data.h	44	resource-address	rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3) };
+game/battle/animation_data.h	44	resource-address	rom_read8(g, at + 2), rom_read8(g, at + 3) };
+game/battle/animation_data.h	44	resource-address	rom_read8(g, at + 3) };
+game/battle/animation_data.h	49	resource-address	rom_read8(g, at); }
+game/battle/animation_data.h	56	resource-address	rom_read8(g, 0xCCFB91u + animation);
+game/battle/animation_data.h	60	resource-address	rom_read8(g, 0xCCFBCEu + stored);
+game/battle/animation_data.h	67	resource-address	rom_read8(g, 0xCCFBABu + animation);
+game/battle/animation_data.h	74	resource-address	rom_read8(g, 0xC0F700u + direction);
+game/battle/animation_data.h	85	resource-address	rom_read16(g, 0xCE0000u + (uint8_t)(number * 2));
+game/battle/animation_data.h	92	resource-address	rom_read8(g, 0xCCF5BCu + speed);
+game/battle/animation_data.h	96	resource-address	rom_read8(g, 0xCCF4BCu + speed);
+game/battle/animation_data.h	116	resource-address	rom_read16(g, 0xCCF40Au + kind * 2u);
+game/battle/animation_data.h	120	resource-address	rom_read8(g, 0xCCF4FCu + kind);
+game/battle/animation_data.h	136	resource-address	rom_read16(g, 0xCCF3B6u + at + row * 2u);
+game/battle/animation_data.h	137	resource-address	rom_read8(g, 0xCCF3C2u + at);
+game/battle/animation_data.h	138	resource-address	rom_read8(g, 0xCCF3C3u + at);
+game/battle/animation_data.h	145	resource-address	rom_read16(g, 0xCCF941u + object * 2u);
+game/battle/animation_data.h	151	resource-address	rom_read16(g, at); }
+game/battle/animation_data.h	152	resource-address	rom_read8(g, at); }
+game/battle/animation_data.h	153	resource-address	rom_read16(g, at); }
+game/battle/animation_data.h	154	resource-address	rom_read8(g, at); }
+game/battle/animation_data.h	158	resource-address	rom_read8(g, 0xC0FD00u + b); }
+game/battle/animation_data.h	173	resource-address	rom_read8(g, 0xCD0000u + at), rom_read8(g, 0xCD0001u + at) };
+game/battle/animation_data.h	173	resource-address	rom_read8(g, 0xCD0001u + at) };
+game/battle/animation_data.h	181	resource-address	rom_read16(g, (seven ? 0xD14400u : 0xD14100u) + (set * colors + color) * 2u);
+game/battle/animation_data.h	189	resource-address	rom_read16(g, 0xD14D90u + (set * BATTLE_FLASH_SET_COLORS + color) * 2u);
+game/battle/animation_data.h	198	resource-address	rom_read8(g, 0xCE0000u + at);
+game/battle/animation_data.h	216	resource-address	rom_read8(g, from + 3);
+game/battle/animation_data.h	217	resource-address	rom_read8(g, from), (int8_t)rom_read8(g, from + 1), (int8_t)rom_read8(g, from + 2),
+game/battle/animation_data.h	217	resource-address	rom_read8(g, from + 1), (int8_t)rom_read8(g, from + 2),
+game/battle/animation_data.h	217	resource-address	rom_read8(g, from + 2),
+game/battle/animation_data.h	225	resource-address	rom_read16(g, 0xCCF7C0u + set * 2u);
+game/battle/animation_data.h	229	resource-address	rom_read8(g, 0xCCF820u + cell);
+game/battle/animation_data.h	239	resource-address	rom_read16(g, 0xCF0000u | (uint16_t)(0xA000u + at));
+game/battle/animation_data.h	243	resource-address	rom_read16(g, 0xCFE000u + at);
+game/battle/animation_data.h	250	resource-address	rom_read16(g, 0xD00000u + at);
+game/battle/animation_data.h	257	resource-address	rom_read16(g, 0xCD1300u + palette * 2u);
+game/battle/animation_data.h	264	resource-address	rom_read8(g, 0xCEEFEAu + (pace & 7u)); }
+game/battle/animation_data.h	278	resource-address	rom_read16(g, 0xCEF192u + at), rom_read16(g, 0xCEF194u + at) };
+game/battle/animation_data.h	278	resource-address	rom_read16(g, 0xCEF194u + at) };
+game/battle/animation_data.h	283	resource-address	rom_read16(g, 0xCEF156u + kind * 2u); }
+game/battle/animation_data.h	286	resource-address	rom_read8(g, at); }
 game/battle/animation_data.h	22	layout-expression	<< 16 | offset; }
 game/battle/animation_data.h	85	layout-expression	<< 16 | rom_read16(g, 0xCE0000u + (uint8_t)(number * 2));
 game/battle/arith.c	188	layout-expression	<< 16 | low;
@@ -66,6 +145,43 @@ game/battle/effect_amounts.c	127	unchecked-accessor	set_battle_number_records_la
 game/battle/effect_amounts.c	680	unchecked-accessor	set_battle_enemy_beaten_unchecked(g, enemy, 1);
 game/battle/effect_amounts.c	681	unchecked-accessor	set_battle_enemy_animation_unchecked(g, enemy, ENEMY_ANIMATION_BEATEN);
 game/battle/effect_amounts.c	690	unchecked-accessor	set_battle_timer_flags_byte_unchecked(g, BATTLE_TIMER_TURN, slot, 0);
+game/battle/effect_data.h	48	resource-address	rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 4),
+game/battle/effect_data.h	48	resource-address	rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 4),
+game/battle/effect_data.h	48	resource-address	rom_read8(g, at + 2), rom_read8(g, at + 4),
+game/battle/effect_data.h	48	resource-address	rom_read8(g, at + 4),
+game/battle/effect_data.h	49	resource-address	rom_read8(g, at + 7) };
+game/battle/effect_data.h	139	resource-address	rom_read8(g, effect_record_place(table, effect) + n);
+game/battle/effect_data.h	170	resource-address	rom_read8(g, at) & 0x7F), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3),
+game/battle/effect_data.h	170	resource-address	rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3),
+game/battle/effect_data.h	170	resource-address	rom_read8(g, at + 2), rom_read8(g, at + 3),
+game/battle/effect_data.h	170	resource-address	rom_read8(g, at + 3),
+game/battle/effect_data.h	173	resource-address	rom_read8(g, at + 5 + part);
+game/battle/effect_data.h	174	resource-address	rom_read8(g, at + 8 + part);
+game/battle/effect_data.h	182	resource-address	rom_read8(g, party_tech_place(tech)) & 0x80) != 0; }
+game/battle/effect_data.h	190	resource-address	rom_read8(g, 0xCC249Fu + place + part);
+game/battle/effect_data.h	206	resource-address	rom_read8(g, at), (uint8_t)(rom_read8(g, at + 1) & 0x3F) };
+game/battle/effect_data.h	206	resource-address	rom_read8(g, at + 1) & 0x3F) };
+game/battle/effect_data.h	214	resource-address	rom_read8(g, 0xCC213Fu + (uint32_t)(effect * EFFECT_RECORD_BYTES) + n);
+game/battle/effect_data.h	227	resource-address	rom_read8(g, 0xCC2583u + character);
+game/battle/effect_data.h	236	resource-address	rom_read8(g, 0xCC2BDCu + tech), third = rom_read8(g, 0xCC2BEBu + tech);
+game/battle/effect_data.h	236	resource-address	rom_read8(g, 0xCC2BEBu + tech);
+game/battle/effect_data.h	243	resource-address	rom_read8(g, 0xCC253Bu + (uint8_t)(effect & 0x7F));
+game/battle/effect_data.h	260	resource-address	rom_read8(g, at + 4), rom_read8(g, at + 5) };
+game/battle/effect_data.h	260	resource-address	rom_read8(g, at + 5) };
+game/battle/effect_data.h	275	resource-address	rom_read16(g, at), rom_read16(g, at + 2), { rom_read8(g, at + 4), rom_read8(g, at + 5) },
+game/battle/effect_data.h	275	resource-address	rom_read16(g, at + 2), { rom_read8(g, at + 4), rom_read8(g, at + 5) },
+game/battle/effect_data.h	275	resource-address	rom_read8(g, at + 4), rom_read8(g, at + 5) },
+game/battle/effect_data.h	275	resource-address	rom_read8(g, at + 5) },
+game/battle/effect_data.h	276	resource-address	rom_read8(g, at + 6) };
+game/battle/effect_data.h	289	resource-address	rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2) };
+game/battle/effect_data.h	289	resource-address	rom_read8(g, at + 1), rom_read8(g, at + 2) };
+game/battle/effect_data.h	289	resource-address	rom_read8(g, at + 2) };
+game/battle/effect_data.h	303	resource-address	rom_read8(g, at), rom_read8(g, at + 1) };
+game/battle/effect_data.h	303	resource-address	rom_read8(g, at + 1) };
+game/battle/effect_data.h	314	resource-address	rom_read8(g, 0xCC05CDu + (uint8_t)(item << 2) + n);
+game/battle/effect_data.h	325	resource-address	rom_read8(g, ITEM_RECORDS_BANK | item_use_place(item)); }
+game/battle/effect_data.h	334	resource-address	rom_read8(g, 0xCC0ABCu + (uint32_t)((uint8_t)(item - FIRST_RECORDED_ITEM) * ITEM_RECORD_BYTES));
+game/battle/effect_data.h	338	resource-address	rom_read8(g, 0xCC1BB5u + (uint8_t)(item - FIRST_RECORDED_ITEM));
 game/battle/effect_modifiers.c	341	unchecked-accessor	set_battle_enemy_beaten_unchecked(g, (unsigned)(slot - BATTLE_FIRST_ENEMY), 1);
 game/battle/effect_paths.c	65	unchecked-accessor	set_battle_anchor_done_unchecked(g, next, (uint8_t)(battle_anchor_done_unchecked(g, next) + 1));
 game/battle/effect_paths.c	65	unchecked-accessor	battle_anchor_done_unchecked(g, next) + 1));
@@ -85,11 +201,53 @@ game/battle/effect_work.c	482	unchecked-accessor	set_battle_number_records_value
 game/battle/enemy_conditions.c	800	layout-expression	<< 16));
 game/battle/enemy_movement.c	191	unchecked-accessor	battle_object_x_unchecked(g, object), battle_object_y_unchecked(g, object) };
 game/battle/enemy_movement.c	191	unchecked-accessor	battle_object_y_unchecked(g, object) };
+game/battle/equipment_data.h	23	resource-address	rom_read8(g, EQUIPMENT_BANK | place); }
 game/battle/fight_party.c	44	unchecked-accessor	set_character_records_record_byte_unchecked(g, character, at, v);
 game/battle/fight_party.c	63	unchecked-accessor	set_inventory_items_unchecked(g, place, (uint8_t)place);
 game/battle/fight_party.c	64	unchecked-accessor	set_inventory_counts_unchecked(g, place, (uint8_t)place);
 game/battle/fight_party.c	316	unchecked-accessor	battle_character_slot_unchecked(g, character);
 game/battle/frame.c	278	unchecked-accessor	set_palette_working_unchecked(g, A_BANK_ON, kept);
+game/battle/frame_data.h	35	resource-address	rom_read16(g, 0xCCF957u + at), rom_read16(g, 0xCCF967u + at),
+game/battle/frame_data.h	35	resource-address	rom_read16(g, 0xCCF967u + at),
+game/battle/frame_data.h	36	resource-address	rom_read16(g, 0xCCF977u + at) };
+game/battle/frame_data.h	45	resource-address	rom_read8(g, 0xCD019Du + (speed & 0x07u));
+game/battle/frame_data.h	53	resource-address	rom_read8(g, 0xD1EE99u + message);
+game/battle/frame_data.h	63	resource-address	rom_read16(g, 0xCD05FFu + block_offset);
+game/battle/frame_data.h	72	resource-address	rom_read16(g, 0xD15980u + phase_offset);
+game/battle/frame_data.h	88	resource-address	rom_read16(g, 0xCEF24Eu + (uint8_t)(arrangement * 2));
+game/battle/frame_data.h	89	resource-address	rom_read16(g, 0xCEF58Eu + (uint16_t)(lists + 2u * list));
+game/battle/frame_data.h	90	resource-address	rom_read8(g, 0xCE0000u + (uint16_t)(at + i));
+game/battle/frame_data.h	100	resource-address	rom_read16(g, 0xCEE08Eu + 2u * i); }
+game/battle/frame_data.h	129	resource-address	rom_read8(g, at), rom_read8(g, at + 1) }, { rom_read8(g, at + 2), rom_read8(g, at + 3) } };
+game/battle/frame_data.h	129	resource-address	rom_read8(g, at + 1) }, { rom_read8(g, at + 2), rom_read8(g, at + 3) } };
+game/battle/frame_data.h	129	resource-address	rom_read8(g, at + 2), rom_read8(g, at + 3) } };
+game/battle/frame_data.h	129	resource-address	rom_read8(g, at + 3) } };
+game/battle/frame_data.h	146	resource-address	rom_read8(g, at), rom_read8(g, at + 1), rom_read16(g, at + 2), rom_read8(g, at + 4),
+game/battle/frame_data.h	146	resource-address	rom_read8(g, at + 1), rom_read16(g, at + 2), rom_read8(g, at + 4),
+game/battle/frame_data.h	146	resource-address	rom_read16(g, at + 2), rom_read8(g, at + 4),
+game/battle/frame_data.h	146	resource-address	rom_read8(g, at + 4),
+game/battle/frame_data.h	147	resource-address	rom_read8(g, at + 5) };
+game/battle/frame_data.h	156	resource-address	rom_read16(g, 0xD1A575u + (uint16_t)(strip * 2u));
+game/battle/frame_data.h	158	resource-address	rom_read8(g, at); }
+game/battle/frame_data.h	164	resource-address	rom_read8(g, 0xCFE200u + at); }
+game/battle/frame_data.h	169	resource-address	rom_read8(g, 0xCEF03Eu + column); }
+game/battle/frame_data.h	170	resource-address	rom_read8(g, 0xCEF046u + column); }
+game/battle/frame_data.h	176	resource-address	rom_read16(g, 0xCF0000u | at); }
+game/battle/frame_data.h	177	resource-address	rom_read8(g, 0xCF0000u + at); }
+game/battle/frame_data.h	181	resource-address	rom_read16(g, 0xCEEFF2u + set * 2u); }
+game/battle/frame_data.h	187	resource-address	rom_read16(g, 0xCD1308u + (uint8_t)(slot * 2));
+game/battle/frame_data.h	199	resource-address	rom_read8(g, from), rom_read8(g, from + 1), rom_read8(g, from + 2),
+game/battle/frame_data.h	199	resource-address	rom_read8(g, from + 1), rom_read8(g, from + 2),
+game/battle/frame_data.h	199	resource-address	rom_read8(g, from + 2),
+game/battle/frame_data.h	200	resource-address	rom_read8(g, from + 3), rom_read8(g, from + 4), rom_read8(g, from + 5),
+game/battle/frame_data.h	200	resource-address	rom_read8(g, from + 4), rom_read8(g, from + 5),
+game/battle/frame_data.h	200	resource-address	rom_read8(g, from + 5),
+game/battle/frame_data.h	201	resource-address	rom_read8(g, from + 6), rom_read8(g, from + 7) };
+game/battle/frame_data.h	201	resource-address	rom_read8(g, from + 7) };
+game/battle/frame_data.h	206	resource-address	rom_read8(g, 0xCEEFE1u); }
+game/battle/frame_data.h	216	resource-address	rom_read8(g, 0xCEEFFAu + backdrop_math);
+game/battle/frame_data.h	228	resource-address	rom_data(source, bytes); }
+game/battle/frame_data.h	231	resource-address	rom_data_mode(source, bytes, mode);
 game/battle/from_field.c	59	raw-helper	wram_fill16(g, TABLES_AT, TABLES_WORDS, 0);
 game/battle/from_field.c	60	raw-helper	wram_fill16(g, PAGE_CELLS_AT, PAGE_CELLS_WORDS, 0);
 game/battle/from_field.c	49	layout-expression	0x7E0080, PAGE_CELLS_WORDS = 0x36, TABLES_AT = 0x7E2D01, TABLES_WORDS = 0x3FF6 };
@@ -123,6 +281,21 @@ game/battle/positions.c	54	unchecked-accessor	battle_bounds_y_unchecked(g, slot)
 game/battle/positions.c	63	unchecked-accessor	set_battle_bounds_x_unchecked(g, slot, at.x);
 game/battle/positions.c	64	unchecked-accessor	set_battle_bounds_y_unchecked(g, slot, at.y);
 game/battle/random.c	38	layout-expression	<< 16 | number;
+game/battle/rewards_data.h	22	resource-address	rom_read16(g, 0xCC2632u + (uint8_t)(level * 2));
+game/battle/rewards_data.h	37	resource-address	rom_read8(g, 0xCC0000u + stat_growth_rates_place(character) + stat);
+game/battle/rewards_data.h	56	resource-address	rom_read8(g, 0xCC258Au + place), rom_read8(g, 0xCC258Bu + place) };
+game/battle/rewards_data.h	56	resource-address	rom_read8(g, 0xCC258Bu + place) };
+game/battle/rewards_data.h	61	resource-address	rom_read8(g, 0xCC25C2u + place), rom_read8(g, 0xCC25C3u + place) };
+game/battle/rewards_data.h	61	resource-address	rom_read8(g, 0xCC25C3u + place) };
+game/battle/rewards_data.h	76	resource-address	rom_read8(g, 0xCC0000u + place), rom_read8(g, 0xCC0001u + place) };
+game/battle/rewards_data.h	76	resource-address	rom_read8(g, 0xCC0001u + place) };
+game/battle/rewards_data.h	84	resource-address	rom_read16(g, 0xCC26FAu + (uint16_t)(character * TECH_COSTS_BYTES + (uint8_t)(known * 2)));
+game/battle/rewards_data.h	107	resource-address	rom_read8(g, 0xCC0000u + combination_record_place(record));
+game/battle/rewards_data.h	112	resource-address	rom_read8(g, 0xCC0000u + place), rom_read8(g, 0xCC0001u + place),
+game/battle/rewards_data.h	112	resource-address	rom_read8(g, 0xCC0001u + place),
+game/battle/rewards_data.h	113	resource-address	rom_read8(g, 0xCC0002u + place), rom_read16(g, 0xCC0003u + place) };
+game/battle/rewards_data.h	113	resource-address	rom_read16(g, 0xCC0003u + place) };
+game/battle/rewards_data.h	125	resource-address	rom_read8(g, 0xCC0000u + (uint16_t)(combination_tech_asks_place(asks, tech) + position));
 game/battle/rewards_levels.c	43	layout-expression	& 0xFF0000) | (low > (uint16_t)MOST_EXPERIENCE ? (uint16_t)MOST_EXPERIENCE : low);
 game/battle/rewards_levels.c	64	unchecked-accessor	battle_rewards_levels_gained_unchecked(g, member) + 1);
 game/battle/rewards_levels.c	65	unchecked-accessor	set_battle_rewards_levels_gained_unchecked(g, member, count);
@@ -137,6 +310,54 @@ game/battle/rewards_work.h	97	layout-expression	RAM_BATTLE_STATS_STRIDE);
 game/battle/rewards_work.h	115	layout-expression	RAM_CHARACTER_RECORDS_STRIDE };
 game/battle/rewards_work.h	125	layout-expression	RAM_PARTY_SINGLE_TECHS_KNOWN + character); }
 game/battle/rewards_work.h	126	layout-expression	RAM_PARTY_DOUBLE_TECHS_LEARNED + record); }
+game/battle/rules_data.h	16	resource-address	rom_read8(g, 0xC1FFFFu); }
+game/battle/rules_data.h	19	resource-address	rom_read8(g, 0xFDBA61u + at); }
+game/battle/rules_data.h	26	resource-address	rom_read16(g, 0xFDA80Bu + (uint16_t)(slot * 2));
+game/battle/rules_data.h	30	resource-address	rom_read16(g, 0xFDA849u + (uint16_t)(member * 2));
+game/battle/rules_data.h	36	resource-address	rom_read16(g, 0xFDA84Fu + (uint16_t)(member * 2));
+game/battle/rules_data.h	43	resource-address	rom_read8(g, 0xFDA89Du + character);
+game/battle/rules_data.h	51	resource-address	rom_read16(g, 0xFDA80Bu + offset);
+game/battle/rules_data.h	62	resource-address	rom_read16(g, 0xCC8B08u + (uint16_t)(enemy_id * 2));
+game/battle/rules_data.h	65	resource-address	rom_read8(g, 0xCC0000u | at); }
+game/battle/rules_data.h	73	resource-address	rom_read8(g, 0xFDBA4Au + action); }
+game/battle/rules_data.h	79	resource-address	rom_read16(g, 0xC1B8BBu + (uint16_t)(selector * 2));
+game/battle/screen_data.h	25	resource-address	rom_read8(g, at & 0xFFFFFFu); }
+game/battle/screen_data.h	32	resource-address	rom_read16(g, 0xD1646Cu + script * 2u);
+game/battle/screen_data.h	43	resource-address	rom_read16(g, 0xD1E9EFu + (uint8_t)(level * 2));
+game/battle/screen_data.h	44	resource-address	rom_read16(g, 0xD0FBE2u + (uint16_t)(set + 2u * color));
+game/battle/screen_data.h	49	resource-address	rom_read16(g, 0xD0FBE2u); }
+game/battle/screen_data.h	56	resource-address	rom_read8(g, 0xD1EA21u + GRADIENT_PHASES * row + phase);
+game/battle/screen_data.h	64	resource-address	rom_read16(g, 0xD0FD00u + 2u * color);
+game/battle/screen_data.h	75	resource-address	rom_read8(g, 0xD1ECDBu + (uint8_t)(effect * EFFECT_BLOCKS) + block);
+game/battle/screen_data.h	83	resource-address	rom_read16(g, 0xD1ECCFu + (uint8_t)(effect * 2));
+game/battle/screen_data.h	84	resource-address	rom_read16(g, 0xD0FA00u + (uint16_t)(set + 2u * color));
+game/battle/screen_data.h	92	resource-address	rom_read8(g, at) | (uint32_t)rom_read8(g, at + 1) << 8 | (uint32_t)rom_read8(g, at + 2) << 16;
+game/battle/screen_data.h	92	resource-address	rom_read8(g, at + 1) << 8 | (uint32_t)rom_read8(g, at + 2) << 16;
+game/battle/screen_data.h	92	resource-address	rom_read8(g, at + 2) << 16;
+game/battle/screen_data.h	99	resource-address	rom_read8(g, 0xCEF48Eu + angle); }
+game/battle/screen_data.h	107	resource-address	rom_read8(g, at), rom_read8(g, at + 1) };
+game/battle/screen_data.h	107	resource-address	rom_read8(g, at + 1) };
+game/battle/screen_data.h	117	resource-address	rom_read8(g, 0xC0F300u + (uint16_t)(down * SLOPE_STEPS + across));
+game/battle/screen_data.h	123	resource-address	rom_read8(g, 0xCEF1D2u + step); }
+game/battle/screen_data.h	125	resource-address	rom_read8(g, 0xC0FE00u + pick); }
+game/battle/screen_data.h	130	resource-address	rom_read8(g, 0xD1F69Cu + choice); }
+game/battle/screen_data.h	131	resource-address	rom_read8(g, 0xD1F6A4u + choice); }
+game/battle/screen_data.h	132	resource-address	rom_read8(g, 0xD1F6ACu + choice); }
+game/battle/screen_data.h	133	resource-address	rom_read8(g, 0xD1F6B0u + choice); }
+game/battle/screen_data.h	140	resource-address	rom_read8(g, 0xCD1C5Bu + (uint8_t)(orbit * 4) + size);
+game/battle/screen_data.h	156	resource-address	rom_read8(g, 0xD1EC5Fu + at), rom_read8(g, 0xD1EC60u + at), rom_read8(g, 0xD1EC61u + at) };
+game/battle/screen_data.h	156	resource-address	rom_read8(g, 0xD1EC60u + at), rom_read8(g, 0xD1EC61u + at) };
+game/battle/screen_data.h	156	resource-address	rom_read8(g, 0xD1EC61u + at) };
+game/battle/screen_data.h	164	resource-address	rom_read16(g, 0xCD26B0u + (uint8_t)(slot * 2));
+game/battle/screen_data.h	174	resource-address	rom_read16(g, 0xD16002u + 8u * set + 2u * color);
+game/battle/screen_data.h	180	resource-address	rom_read8(g, 0xCD2A42u + choice); }
+game/battle/screen_data.h	194	resource-address	rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 6), rom_read8(g, at + 7) };
+game/battle/screen_data.h	194	resource-address	rom_read8(g, at + 1), rom_read8(g, at + 6), rom_read8(g, at + 7) };
+game/battle/screen_data.h	194	resource-address	rom_read8(g, at + 6), rom_read8(g, at + 7) };
+game/battle/screen_data.h	194	resource-address	rom_read8(g, at + 7) };
+game/battle/screen_data.h	201	resource-address	rom_read8(g, 0xCEF126u + 4u * pace + 2u * slot + period);
+game/battle/screen_data.h	205	resource-address	rom_read8(g, 0xCEF146u + 2u * pace + slot);
+game/battle/screen_data.h	212	resource-address	rom_read8(g, 0xCD3FFFu) != 0; }
 game/battle/screen_data.h	92	layout-expression	<< 16;
 game/battle/screen_graphics.c	56	video-source	PF_GAME(UNPACK_BUFFER), bytes);
 game/battle/screen_graphics.c	58	video-source	PF_GAME(UNPACK_BUFFER), bytes);
@@ -151,6 +372,15 @@ game/battle/screen_sides.c	74	raw-helper	hw_port_seek(g, (uint16_t)(RAM_BATTLE_W
 game/battle/screen_sides.c	76	raw-helper	hw_port_leave_spill(g, (uint8_t)drawn.last_right);
 game/battle/screen_sides.c	69	layout-expression	RAM_BATTLE_WINDOW_LINES >> 16 };
 game/battle/screen_sides.c	74	layout-expression	RAM_BATTLE_WINDOW_LINES + line * LINE_BYTES + w * sizeof(Edges)), WINDOW_TABLE_BANK);
+game/battle/script_data.h	25	resource-address	rom_read16(g, 0xC17A6Bu + 2u * command);
+game/battle/script_data.h	40	resource-address	rom_read8(g, at), rom_read8(g, at + 1) };
+game/battle/script_data.h	40	resource-address	rom_read8(g, at + 1) };
+game/battle/script_data.h	50	resource-address	rom_read8(g, at) | rom_read8(g, at + 1) << 8);
+game/battle/script_data.h	50	resource-address	rom_read8(g, at + 1) << 8);
+game/battle/script_data.h	55	resource-address	rom_read8(g, 0xCCF414u + step); }
+game/battle/script_data.h	56	resource-address	rom_read8(g, 0xCCF434u + step); }
+game/battle/script_data.h	68	resource-address	rom_read8(g, 0xCCF454u + step + probe);
+game/battle/script_data.h	77	resource-address	rom_read8(g, (hit ? 0xCD6DACu : 0xCD6D4Cu) + weapon);
 game/battle/script_data.h	25	layout-expression	<< 16 | rom_read16(g, 0xC17A6Bu + 2u * command);
 game/battle/script_effects.c	45	unchecked-accessor	set_battle_anchor_sources_unchecked(g, anchor, FOLLOWS_NOTHING);
 game/battle/script_effects.c	102	unchecked-accessor	battle_script_subjects_unchecked(g, named);
@@ -187,6 +417,65 @@ game/battle/script_poses.c	215	unchecked-accessor	battle_animation_wait_unchecke
 game/battle/script_poses.c	216	unchecked-accessor	set_battle_animation_wait_unchecked(g, SCRIPT_NOBODY, style.mark);
 game/battle/script_poses.c	221	unchecked-accessor	battle_animating_unchecked(g, SCRIPT_NOBODY) != 0)
 game/battle/script_poses.c	223	unchecked-accessor	set_battle_animation_wait_unchecked(g, SCRIPT_NOBODY, NOT_WAITING);
+game/battle/setup_data.h	18	resource-address	rom_read24(const GameState *g, uint32_t at)
+game/battle/setup_data.h	20	resource-address	rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+game/battle/setup_data.h	20	resource-address	rom_read8(g, at + 2) << 16;
+game/battle/setup_data.h	28	resource-address	rom_read8(g, 0xCCFBC5u + setting);
+game/battle/setup_data.h	33	resource-address	rom_read8(g, 0xCCF4C4u + place); }
+game/battle/setup_data.h	36	resource-address	rom_read8(g, 0xCCF4CCu + place);
+game/battle/setup_data.h	42	resource-address	rom_read8(g, 0xCCF694u + at); }
+game/battle/setup_data.h	43	resource-address	rom_read8(g, 0xCCF644u + column); }
+game/battle/setup_data.h	47	resource-address	rom_read8(g, 0xD15800u + at); }
+game/battle/setup_data.h	48	resource-address	rom_read8(g, 0xD15D50u + at); }
+game/battle/setup_data.h	54	resource-address	rom_read8(g, 0xCCF83Fu + n); }
+game/battle/setup_data.h	55	resource-address	rom_read8(g, 0xCCF837u + n); }
+game/battle/setup_data.h	61	resource-address	rom_read8(g, 0xCCF846u + character);
+game/battle/setup_data.h	65	resource-address	rom_read8(g, 0xCC6500u + at); }
+game/battle/setup_data.h	74	resource-address	rom_read16(g, runs[run] + 2 * color);
+game/battle/setup_data.h	79	resource-address	rom_read8(g, 0xCD6CECu + carried); }
+game/battle/setup_data.h	80	resource-address	rom_read16(g, 0xD14B00u + at); }
+game/battle/setup_data.h	86	resource-address	rom_read16(g, (palette ? 0xD138FAu : 0xD138F2u) + 2 * color);
+game/battle/setup_data.h	88	resource-address	rom_read16(g, 0xD14D80u + 2 * color); }
+game/battle/setup_data.h	96	resource-address	rom_read16(g, 0xCCF395u + 2u * member);
+game/battle/setup_data.h	98	resource-address	rom_read8(g, 0xCCF38Cu + member); }
+game/battle/setup_data.h	108	resource-address	rom_read24(g, 0xE42000u + at); }
+game/battle/setup_data.h	109	resource-address	rom_read24(g, 0xE42300u + at); }
+game/battle/setup_data.h	110	resource-address	rom_read16(g, 0xE42600u + at); }
+game/battle/setup_data.h	111	resource-address	rom_read16(g, 0xE42800u + at); }
+game/battle/setup_data.h	114	resource-address	rom_read8(g, 0xCCF505u + kind); }
+game/battle/setup_data.h	118	resource-address	rom_read8(g, 0xCCFAF3u + at); }
+game/battle/setup_data.h	122	resource-address	rom_read8(g, 0xD14C80u + at); }
+game/battle/setup_data.h	123	resource-address	rom_read8(g, 0xD13900u + at); }
+game/battle/setup_data.h	130	resource-address	rom_read16(g, (upload ? 0xCCF9E9u : 0xCCF9DFu) + (uint8_t)(kind << 1));
+game/battle/setup_data.h	134	resource-address	rom_read16(g, (upload ? 0xCCF9C9u : 0xCCF9B3u) + 2u * slot);
+game/battle/setup_data.h	138	resource-address	rom_read16(g, (upload ? 0xCCF99Du : 0xCCF987u) + 2u * slot);
+game/battle/setup_data.h	145	resource-address	rom_read8(g, 0xCCF939u + n); }
+game/battle/setup_data.h	160	resource-address	rom_read8(g, at + 1), rom_read8(g, at + 3), rom_read8(g, at + 4), rom_read8(g, at + 5),
+game/battle/setup_data.h	160	resource-address	rom_read8(g, at + 3), rom_read8(g, at + 4), rom_read8(g, at + 5),
+game/battle/setup_data.h	160	resource-address	rom_read8(g, at + 4), rom_read8(g, at + 5),
+game/battle/setup_data.h	160	resource-address	rom_read8(g, at + 5),
+game/battle/setup_data.h	161	resource-address	rom_read8(g, at + 6), rom_read8(g, at + 7), rom_read8(g, at + 8), rom_read8(g, at + 9) };
+game/battle/setup_data.h	161	resource-address	rom_read8(g, at + 7), rom_read8(g, at + 8), rom_read8(g, at + 9) };
+game/battle/setup_data.h	161	resource-address	rom_read8(g, at + 8), rom_read8(g, at + 9) };
+game/battle/setup_data.h	161	resource-address	rom_read8(g, at + 9) };
+game/battle/setup_data.h	166	resource-address	rom_read8(g, 0xCCF544u + at); }
+game/battle/setup_data.h	172	resource-address	rom_read16(g, 0xE1DE00u + at); }
+game/battle/setup_data.h	173	resource-address	rom_read16(g, 0xE1DE02u + at); }
+game/battle/setup_data.h	195	resource-address	rom_read16(g, at);
+game/battle/setup_data.h	196	resource-address	rom_read8(g, at + 2);
+game/battle/setup_data.h	198	resource-address	rom_read8(g, at + 3 + n);
+game/battle/setup_data.h	200	resource-address	rom_read8(g, at + 8 + n);
+game/battle/setup_data.h	202	resource-address	rom_read8(g, at + 20 + n);
+game/battle/setup_data.h	208	resource-address	rom_read8(g, 0xCC0000u + at); }
+game/battle/setup_data.h	219	resource-address	rom_read16(g, 0xFDB99Cu + (uint8_t)(demo << 1)) + character * 8);
+game/battle/setup_data.h	220	resource-address	rom_read16(g, 0xFD0000u | at), rom_read16(g, 0xFD0000u | (uint16_t)(at + 2)),
+game/battle/setup_data.h	220	resource-address	rom_read16(g, 0xFD0000u | (uint16_t)(at + 2)),
+game/battle/setup_data.h	221	resource-address	rom_read16(g, 0xFD0000u | (uint16_t)(at + 4)), rom_read16(g, 0xFD0000u | (uint16_t)(at + 6)) };
+game/battle/setup_data.h	221	resource-address	rom_read16(g, 0xFD0000u | (uint16_t)(at + 6)) };
+game/battle/setup_data.h	230	resource-address	rom_read16(g, 0xFDB957u + (uint8_t)(demo << 1));
+game/battle/setup_data.h	231	resource-address	rom_read8(g, 0xFD0000u | (uint16_t)(from + member * MEMBER_ACTION_RECORD_BYTES + at));
+game/battle/setup_data.h	242	resource-address	rom_read8(g, 0xCC2E31u + (uint8_t)(speed - 1 + setting * SPEEDS_A_SETTING));
+game/battle/setup_data.h	249	resource-address	rom_read16(g, 0xCCFC1Eu + character * 2u);
 game/battle/setup_data.h	20	layout-expression	<< 16;
 game/battle/setup_enemies.c	73	layout-expression	<< 16 | frames);
 game/battle/setup_enemies.c	74	layout-expression	<< 16 | delays);
@@ -194,6 +483,23 @@ game/battle/setup_party.c	306	layout-expression	<< 16 | frames);
 game/battle/setup_party.c	307	layout-expression	<< 16 | setup_delay_lists(g, animation));
 game/battle/setup_party.c	276	unchecked-accessor	set_battle_marker_frame_unchecked(g, slot + 1, frame);
 game/battle/setup_party.c	281	unchecked-accessor	battle_marker_frame_unchecked(g, slot + 1);
+game/battle/sprite_data.h	22	resource-address	rom_read8(g, 0xCCF50Au + (uint8_t)(kind << 1));
+game/battle/sprite_data.h	29	resource-address	rom_read16(g, 0xCCF7C0u + (uint16_t)(set << 1));
+game/battle/sprite_data.h	43	resource-address	rom_read8(g, at), (int8_t)rom_read8(g, at + 1), rom_read8(g, at + 2),
+game/battle/sprite_data.h	43	resource-address	rom_read8(g, at + 1), rom_read8(g, at + 2),
+game/battle/sprite_data.h	43	resource-address	rom_read8(g, at + 2),
+game/battle/sprite_data.h	44	resource-address	rom_read8(g, at + 3) };
+game/battle/sprite_data.h	51	resource-address	rom_read8(g, 0xCCF5FDu + kind);
+game/battle/sprite_data.h	58	resource-address	rom_read16(g, 0xCCF77Bu + k * 2);
+game/battle/sprite_data.h	67	resource-address	rom_read8(g, 0xCCF494u + (uint16_t)(move * BATTLE_SCRIPTED_MOVE_STEPS + step));
+game/battle/sprite_data.h	71	resource-address	rom_read8(g, 0xCCF594u + (uint16_t)(move * BATTLE_SCRIPTED_MOVE_STEPS + step));
+game/battle/sprite_data.h	81	resource-address	rom_read8(g, (second ? 0xD15E49u : 0xD15E10u) + row);
+game/battle/sprite_data.h	88	resource-address	rom_read16(g, 0xCCF754u + (uint8_t)(pose << 1));
+game/battle/sprite_data.h	92	resource-address	rom_read8(g, 0xCE0100u + at) | rom_read8(g, 0xCE0101u + at) << 8);
+game/battle/sprite_data.h	92	resource-address	rom_read8(g, 0xCE0101u + at) << 8);
+game/battle/sprite_data.h	99	resource-address	rom_read8(g, 0xC0F900u + (uint16_t)(angle << 2));
+game/battle/sprite_data.h	113	resource-address	rom_read8(g, 0xC0F300u + battle_arctangent_index(across, down));
+game/battle/sprite_data.h	117	resource-address	rom_read8(g, 0xC0F700u + angle); }
 game/battle/sprites.c	71	raw-helper	wram_write16(g, buffer_address(to) + k, 0);
 game/battle/sprites.c	77	raw-helper	wram_write16(g, buffer_address(to) + k, battle_sprite_graphics_word(g, from + k));
 game/battle/sprites.c	83	raw-helper	wram_write8(g, buffer_address(to) + k, battle_mirrored_byte(g, battle_sprite_graphics_byte(g, from + k)));
@@ -236,22 +542,98 @@ game/battle/uploads.c	558	layout-expression	RAM_BATTLE_MENU_TILEMAP); }
 game/battle/window.h	103	unchecked-accessor	battle_menu_slot_members_unchecked(g, slot));
 game/battle/window.h	212	unchecked-accessor	battle_cursor_offset_x_unchecked(g, slot);
 game/battle/window.h	216	unchecked-accessor	battle_cursor_offset_y_unchecked(g, slot);
+game/battle/window_data.h	19	resource-address	rom_read8(g, 0xCCF903u + digit); }
+game/battle/window_data.h	22	resource-address	rom_read8(g, 0xCCF90Du + digit);
+game/battle/window_data.h	29	resource-address	rom_read8(g, (combo ? 0xCCFA6Bu : 0xCCFA41u) + i);
+game/battle/window_data.h	36	resource-address	rom_read8(g, 0xD159FCu + 2 * cell);
+game/battle/window_data.h	40	resource-address	rom_read8(g, 0xD159FCu + 2 * cell + 1);
+game/battle/window_data.h	45	resource-address	rom_read8(g, 0xD15800u + 2 * cell); }
+game/battle/window_data.h	48	resource-address	rom_read8(g, 0xD15800u + 2 * cell + 1);
+game/battle/window_data.h	55	resource-address	rom_read8(g, 0xD15A50u + 2 * cell);
+game/battle/window_data.h	59	resource-address	rom_read8(g, 0xD15A50u + 2 * cell + 1);
+game/battle/window_data.h	66	resource-address	rom_read8(g, 0xD15BD0u + 2 * cell);
+game/battle/window_data.h	70	resource-address	rom_read8(g, 0xD15BD0u + 2 * cell + 1);
+game/battle/window_data.h	78	resource-address	rom_read8(g, 0xCC15C4u + (uint32_t)tech * BATTLE_NAME_CHARACTERS + i);
+game/battle/window_data.h	82	resource-address	rom_read8(g, 0xCC0B5Eu + (uint32_t)item * BATTLE_NAME_CHARACTERS + i);
+game/battle/window_data.h	90	resource-address	rom_read8(g, 0xCCFB4Bu + (triple ? BATTLE_TECH_HEADING_TILES : 0) + i);
+game/battle/window_data.h	103	resource-address	rom_read8(g, at), (int8_t)rom_read8(g, at + 1), rom_read8(g, at + 2),
+game/battle/window_data.h	103	resource-address	rom_read8(g, at + 1), rom_read8(g, at + 2),
+game/battle/window_data.h	103	resource-address	rom_read8(g, at + 2),
+game/battle/window_data.h	104	resource-address	rom_read8(g, at + 3) };
+game/battle/window_data.h	112	resource-address	rom_read16(g, 0xCCF8EDu + 2u * slot);
+game/battle/window_data.h	117	resource-address	rom_read8(g, 0xCCF9FBu + member); }
+game/battle/window_data.h	123	resource-address	rom_read8(g, 0xCCFA95u + row * 9 + column);
+game/battle/window_data.h	130	resource-address	rom_read16(g, 0xCCFAE9u + 2u * row) / 2);
+game/battle/window_data.h	137	resource-address	rom_read8(g, 0xCCF5C4u + 4 * blanks + place);
+game/battle/window_data.h	142	resource-address	rom_read8(g, 0xCCF829u + set); }
+game/battle/window_data.h	145	resource-address	rom_read8(g, 0xE1DE80u + enemy) != 0; }
 game/core/palette.c	565	raw-helper	hw_port_seek(g, SLOTS_IN_WORK_RAM, WORK_RAM_BANK);
 game/core/palette.c	686	video-source	PF_GAME(0x7E2200), PALETTE_COLORS);
 game/core/palette.c	468	layout-expression	0x7E2200 };
 game/core/palette.c	686	layout-expression	0x7E2200), PALETTE_COLORS);
+game/core/palette_data.h	16	resource-address	rom_read16(g, 0xF60000u + at); }
+game/core/palette_data.h	22	resource-address	rom_read8(g, 0xF60003u + record);
+game/core/palette_data.h	30	resource-address	rom_read16(g, 0xFDF9C7u + (uint8_t)(set * 2));
+game/core/palette_data.h	36	resource-address	rom_read8(g, 0xFDFA77u + at); }
+game/core/palette_data.h	40	resource-address	rom_read8(g, at); }
+game/core/sound_data.h	55	resource-address	rom_read16(g, 0xC70010u);
+game/core/sound_data.h	56	resource-address	rom_read16(g, 0xC7001Cu);
+game/core/sound_data.h	57	resource-address	rom_read8(g, block + 2 + (uint16_t)(spc - destination));
+game/core/sound_data.h	102	resource-address	rom_read16(g, (uint32_t)(0xC70010u + 2 * block))) + 2;
+game/core/sound_data.h	106	resource-address	rom_read16(g, 0xC70000u | rom_read16(g, 0xC7001Au)) / 2);
+game/core/sound_data.h	106	resource-address	rom_read16(g, 0xC7001Au)) / 2);
+game/core/sound_data.h	110	resource-address	rom_read16(g, sound_boot_block_data(g, 5) + 2u * n);
+game/core/sound_data.h	114	resource-address	rom_read16(g, sound_boot_block_data(g, 4) + 2u * n);
+game/core/sound_data.h	121	resource-address	rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+game/core/sound_data.h	121	resource-address	rom_read8(g, at + 2) << 16;
+game/core/sound_data.h	123	resource-address	rom_read16(g, sound_song_at(g, song)); }
+game/core/sound_data.h	127	resource-address	rom_read8(g, (at & 0xFF0000u) + (at & 0xFFFFu) + i);
+game/core/sound_data.h	136	resource-address	rom_read16(g, 0xC70E11u + 32u * song + 2u * i);
+game/core/sound_data.h	143	resource-address	rom_read16(g, 0xC70C20u + (uint16_t)((block - 1) * 2));
+game/core/sound_data.h	147	resource-address	rom_read16(g, 0xC70C9Cu + (uint16_t)((block - 1) * 2));
+game/core/sound_data.h	152	resource-address	rom_read8(g, sound_song_percussion_bytes(song) + i);
+game/core/sound_data.h	160	resource-address	rom_read8(g, 0xC70AE9u); }
+game/core/sound_data.h	163	resource-address	rom_read8(g, 0xC7241Du + 2u * (song & 0x7F)) & 0x0F;
+game/core/sound_data.h	165	resource-address	rom_read8(g, 0xC7241Eu + 2u * (song & 0x7F)); }
+game/core/sound_data.h	172	resource-address	rom_read8(g, 0xC70A98u + 4u * n + i);
+game/core/sound_data.h	174	resource-address	rom_read8(g, 0xC70AD8u + i); }
+game/core/sound_data.h	181	resource-address	rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+game/core/sound_data.h	181	resource-address	rom_read8(g, at + 2) << 16;
+game/core/sound_data.h	183	resource-address	rom_read16(g, sound_block_data(g, id)); }
+game/core/sound_data.h	186	resource-address	rom_read8(g, sound_block_data(g, id) + 2 + i);
+game/core/sound_data.h	190	resource-address	rom_read16(g, 0xC70BA4u + (uint16_t)((id - 1) * 2));
+game/core/sound_data.h	199	resource-address	rom_read16(g, 0xC7001Cu + 2u * block);
+game/core/sound_data.h	203	resource-address	rom_read16(g, sound_boot_block_data(g, block) - 2);
+game/core/sound_data.h	207	resource-address	rom_read8(g, sound_boot_block_data(g, block) + i);
+game/core/sound_data.h	223	resource-address	rom_read16(g, entry), rom_read16(g, entry + 2) };
+game/core/sound_data.h	223	resource-address	rom_read16(g, entry + 2) };
+game/core/sound_data.h	228	resource-address	rom_read16(g, sound_effect_set_at(set)); }
+game/core/sound_data.h	231	resource-address	rom_read8(g, sound_effect_set_at(set) + 2 + i);
 game/core/sound_data.h	121	layout-expression	<< 16;
 game/core/sound_data.h	181	layout-expression	<< 16;
 game/core/tile_animation.c	165	raw-helper	hw_port_seek(g, (uint16_t)(TABLES_IN_WORK_RAM + tables * TABLE_BYTES), TABLES_BANK);
 game/core/tile_animation.c	167	raw-helper	hw_port_leave_spill(g, left->last_spill);
 game/core/tile_animation.c	61	video-source	PF_GAME(frame_tiles(g, slot, frame)), TILE_BYTES, NULL);
 game/core/tile_animation.c	50	layout-expression	<< 16 | table_word(tile_animation_tables_sources_byte, g, slot, frame);
+game/core/tile_animation_data.h	19	resource-address	rom_read8(g, 0xF60001u + record) & TILE_ANIMATION_SET_BITS;
+game/core/tile_animation_data.h	26	resource-address	rom_read16(g, 0xFDF290u + (uint8_t)((set & TILE_ANIMATION_SET_BITS) * 2));
+game/core/tile_animation_data.h	31	resource-address	rom_read8(g, 0xFDF310u + at); }
 game/cpu_io.h	59	raw-helper	hw_port_seek(GameState *g, uint16_t at, uint8_t bank);
 game/cpu_io.h	60	raw-helper	hw_port_seek_address(GameState *g, uint16_t at);
 game/cpu_io.h	61	raw-helper	hw_port_seek_bank(GameState *g, uint8_t bank);
 game/cpu_io.h	62	raw-helper	hw_port_read(GameState *g);
 game/cpu_io.h	63	raw-helper	hw_port_write(GameState *g, uint8_t v);
 game/cpu_io.h	69	raw-helper	hw_port_leave_spill(GameState *g, uint8_t low);
+game/data/assets.c	99	resource-address	rom_read8(const GameState *g, uint32_t at) { return rom_cartridge_read(g, at, served(at)); }
+game/data/assets.c	99	resource-address	rom_cartridge_read(g, at, served(at)); }
+game/data/assets.c	101	resource-address	rom_read16(const GameState *g, uint32_t at)
+game/data/assets.c	103	resource-address	rom_read8(g, at);
+game/data/assets.c	104	resource-address	rom_read8(g, at + 1) << 8);
+game/data/assets.c	107	resource-address	rom_data(uint32_t at, uint32_t length)
+game/data/assets.c	137	resource-address	rom_data_mode(uint32_t at, uint32_t length, uint8_t mode)
+game/data/assets.c	140	resource-address	rom_data(at, length ? 1 : 0);
+game/data/assets.c	142	resource-address	rom_data(at, length);
+game/data/assets.c	144	resource-address	rom_data(first, length);
 game/data/assets.c	110	video-source	PF_GAME(at);
 game/data/assets.c	19	layout-expression	<< 16 | offset;
 game/data/assets.c	21	layout-expression	<< 16 | offset;
@@ -260,17 +642,31 @@ game/data/decompress.c	87	raw-helper	wram_write8(out->g, out->bank | out->at, wr
 game/data/decompress.c	87	raw-helper	wram_read8(out->g, out->bank | from));
 game/data/decompress.c	88	raw-helper	hw_port_seek_address(out->g, out->at);
 game/data/decompress.c	204	raw-helper	hw_port_seek(g, out.at, (uint8_t)(to >> 16));
+game/data/decompress.c	45	resource-address	rom_read8(in->g, ((uint32_t)in->bank << 16) + in->at + ahead);
+game/data/decompress.c	138	resource-address	rom_read8(g, from) | rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
+game/data/decompress.c	138	resource-address	rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
+game/data/decompress.c	140	resource-address	rom_read8(g, (uint32_t)in.bank << 16 | segment_end) & LONG_RUNS;
+game/data/decompress.c	200	resource-address	rom_read8(g, from) | rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
+game/data/decompress.c	200	resource-address	rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
+game/data/decompress.c	205	resource-address	rom_read8(g, (uint32_t)in.bank << 16 | segment_end) & LONG_RUNS;
 game/data/decompress.c	45	layout-expression	<< 16) + in->at + ahead);
 game/data/decompress.c	140	layout-expression	<< 16 | segment_end) & LONG_RUNS;
 game/data/decompress.c	205	layout-expression	<< 16 | segment_end) & LONG_RUNS;
+game/data/packed_graphics.h	22	resource-address	rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+game/data/packed_graphics.h	22	resource-address	rom_read8(g, at + 2) << 16;
 game/data/packed_graphics.h	22	layout-expression	<< 16;
 game/event/chests.c	73	unchecked-accessor	field_tile_walkable_unchecked(g, row, column);
 game/event/engine.c	141	layout-expression	<< 16;
+game/event/event_data.h	17	resource-address	rom_read8(g, 0xC0FF20u + n); }
+game/event/event_data.h	18	resource-address	rom_read8(g, 0xC0FF28u + n); }
+game/event/event_data.h	23	resource-address	rom_read16(g, 0xC05D6Eu + 2u * command);
+game/event/event_data.h	31	resource-address	rom_read8(g, 0xC05D37u + at); }
 game/event/memory.c	37	raw-helper	wram_write8(g, address, (uint8_t)value);
 game/event/memory.c	39	raw-helper	wram_write16(g, address, value);
 game/event/memory.c	80	raw-helper	wram_write8(g, b.bank | to, script_byte(g, from));
 game/event/memory.c	47	layout-expression	<< 16)
 game/event/memory_data.h	13	raw-helper	wram_read8(g, at);
+game/event/memory_data.h	13	resource-address	rom_read8(g, at) : wram_read8(g, at);
 game/field/battle_return.c	412	layout-expression	RAM_FIELD_RIPPLE_FRAMES_LEFT + 1) & 0xFFFF };
 game/field/battle_return.c	412	layout-expression	& 0xFFFF };
 game/field/battle_start.c	239	layout-expression	<< 16 | graphics.address);
@@ -303,6 +699,71 @@ game/field/field.h	303	layout-expression	RAM_FIELD_FRAME_STAGING_STRIDE);
 game/field/field.h	312	layout-expression	RAM_ABS(RAM_FIELD_LAYER_STAGING) + layer * RAM_FIELD_LAYER_STAGING_STRIDE +
 game/field/field.h	312	layout-expression	RAM_FIELD_LAYER_STAGING) + layer * RAM_FIELD_LAYER_STAGING_STRIDE +
 game/field/field.h	312	layout-expression	RAM_FIELD_LAYER_STAGING_STRIDE +
+game/field/field_data.h	30	resource-address	rom_read16(g, 0xE4FFE0u + 2u * table);
+game/field/field_data.h	53	resource-address	rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3),
+game/field/field_data.h	53	resource-address	rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3),
+game/field/field_data.h	53	resource-address	rom_read8(g, at + 2), rom_read8(g, at + 3),
+game/field/field_data.h	53	resource-address	rom_read8(g, at + 3),
+game/field/field_data.h	54	resource-address	rom_read8(g, at + 4) };
+game/field/field_data.h	76	resource-address	rom_read16(g, at) | (uint32_t)rom_read8(g, (at + 2) & 0xFFFFFFu) << 16;
+game/field/field_data.h	76	resource-address	rom_read8(g, (at + 2) & 0xFFFFFFu) << 16;
+game/field/field_data.h	80	resource-address	rom_read16(g, (table + (uint32_t)index * FIELD_WORD_ENTRY_BYTES) & 0xFFFFFFu);
+game/field/field_data.h	95	resource-address	rom_read8(g, bank | (uint16_t)(colours + 2 * n)) |
+game/field/field_data.h	96	resource-address	rom_read8(g, bank | (uint16_t)(colours + 2 * n + 1)) << 8);
+game/field/field_data.h	103	resource-address	rom_read16(g, 0xC0FF30u + at); }
+game/field/field_data.h	107	resource-address	rom_read8(g, 0xC0FD00u + b); }
+game/field/field_data.h	114	resource-address	rom_read8(g, 0xFDA000u + at); }
+game/field/field_data.h	130	resource-address	rom_read8(g, 0xD20000u + i); }
+game/field/field_data.h	135	resource-address	rom_read8(g, at); }
+game/field/field_data.h	141	resource-address	rom_read16(g, at); }
+game/field/field_data.h	142	resource-address	rom_read8(g, at); }
+game/field/field_data.h	162	resource-address	rom_read16(g, at); }
+game/field/field_data.h	186	resource-address	rom_read8(g, (uint32_t)t.bank << 16 | place);
+game/field/field_data.h	191	resource-address	rom_read8(g, (uint32_t)FIELD_ANIMATION_TIMES_BANK << 16 | place);
+game/field/field_data.h	197	resource-address	rom_read8(g, 0xC0F300u + index); }
+game/field/field_data.h	203	resource-address	rom_read8(g, 0xC0F800u + direction);
+game/field/field_data.h	210	resource-address	rom_read8(g, 0xC0F700u + direction);
+game/field/field_data.h	215	resource-address	rom_read8(g, 0xC0FE00u + index); }
+game/field/field_data.h	233	resource-address	rom_read8(g, 0xC09BF5u + shape);
+game/field/field_data.h	234	resource-address	rom_read8(g, 0xC09C0Bu + shape);
+game/field/field_data.h	235	resource-address	rom_read8(g, 0xC09C21u + shape);
+game/field/field_data.h	257	resource-address	rom_read8(g, at);
+game/field/field_data.h	258	resource-address	rom_read8(g, at + 1);
+game/field/field_data.h	259	resource-address	rom_read8(g, at + 2);
+game/field/field_data.h	260	resource-address	rom_read8(g, at + 3) | rom_read8(g, at + 4) << 8);
+game/field/field_data.h	260	resource-address	rom_read8(g, at + 4) << 8);
+game/field/field_data.h	261	resource-address	rom_read8(g, at + 5);
+game/field/field_data.h	262	resource-address	rom_read8(g, at + 6);
+game/field/field_data.h	284	resource-address	rom_read16(g, at), rom_read16(g, at + 2) };
+game/field/field_data.h	284	resource-address	rom_read16(g, at + 2) };
+game/field/field_data.h	294	resource-address	rom_read16(g, 0xF5F000u); }
+game/field/field_data.h	298	resource-address	rom_read16(g, at), rom_read16(g, at + 2) };
+game/field/field_data.h	298	resource-address	rom_read16(g, at + 2) };
+game/field/field_data.h	311	resource-address	rom_read16(g, 0xC06EA0u + 2u * (design % WINDOW_DESIGNS));
+game/field/field_data.h	315	resource-address	rom_read16(g, 0xFFB210u + 16u * (design % WINDOW_DESIGNS) + 2u * n);
+game/field/field_data.h	354	resource-address	rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2) };
+game/field/field_data.h	354	resource-address	rom_read8(g, at + 1), rom_read8(g, at + 2) };
+game/field/field_data.h	354	resource-address	rom_read8(g, at + 2) };
+game/field/field_data.h	365	resource-address	rom_read16(g, 0xF60004u + place); }
+game/field/field_data.h	369	resource-address	rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3) };
+game/field/field_data.h	369	resource-address	rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3) };
+game/field/field_data.h	369	resource-address	rom_read8(g, at + 2), rom_read8(g, at + 3) };
+game/field/field_data.h	369	resource-address	rom_read8(g, at + 3) };
+game/field/field_data.h	378	resource-address	rom_read8(g, 0xF60003u + place); }
+game/field/field_data.h	383	resource-address	rom_read16(g, 0xF60000u + at);
+game/field/field_data.h	390	resource-address	rom_read16(g, 0xF60008u + place); }
+game/field/field_data.h	394	resource-address	rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+game/field/field_data.h	394	resource-address	rom_read8(g, at + 2) << 16;
+game/field/field_data.h	403	resource-address	rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+game/field/field_data.h	403	resource-address	rom_read8(g, at + 2) << 16;
+game/field/field_data.h	416	resource-address	rom_read16(g, at), rom_read16(g, at + 2) };
+game/field/field_data.h	416	resource-address	rom_read16(g, at + 2) };
+game/field/field_data.h	427	resource-address	rom_read8(g, tile_set_blocks_place(set) + n);
+game/field/field_data.h	435	resource-address	rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+game/field/field_data.h	435	resource-address	rom_read8(g, at + 2) << 16;
+game/field/field_data.h	440	resource-address	rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+game/field/field_data.h	440	resource-address	rom_read8(g, at + 2) << 16;
+game/field/field_data.h	444	resource-address	rom_data(source, bytes); }
 game/field/field_data.h	76	layout-expression	<< 16;
 game/field/field_data.h	94	layout-expression	<< 16;
 game/field/field_data.h	186	layout-expression	<< 16 | place);
@@ -638,6 +1099,203 @@ game/menu/members.c	74	layout-expression	RAM_CHARACTER_RECORDS));
 game/menu/members.c	75	layout-expression	RAM_CHARACTER_RECORDS_STRIDE == 0 && at / RAM_CHARACTER_RECORDS_STRIDE < CHARACTER_RECORDS_COUNT;
 game/menu/members.c	75	layout-expression	RAM_CHARACTER_RECORDS_STRIDE < CHARACTER_RECORDS_COUNT;
 game/menu/members.c	151	unchecked-accessor	menu_low_hp_marks_unchecked(g, character);
+game/menu/menu_data.h	27	resource-address	rom_read8(g, at & 0xFFFFFFu); }
+game/menu/menu_data.h	39	resource-address	rom_read16(g, 0xC25FE6u + 2u * column);
+game/menu/menu_data.h	43	resource-address	rom_read16(g, 0xC26066u + 2u * column);
+game/menu/menu_data.h	49	resource-address	rom_read8(g, 0xC260E6u + index); }
+game/menu/menu_data.h	67	resource-address	rom_read8(g, at & 0xFFFFFFu); }
+game/menu/menu_data.h	86	resource-address	rom_read8(g, 0xFFCEBAu + step); }
+game/menu/menu_data.h	89	resource-address	rom_read16(g, MENU_ROM_BANK | (uint16_t)(from + 2u * i));
+game/menu/menu_data.h	109	resource-address	rom_read8(g, 0xC288A7u + category);
+game/menu/menu_data.h	111	resource-address	rom_read16(g, 0xFFCF0Eu + 2u * category); }
+game/menu/menu_data.h	112	resource-address	rom_read8(g, 0xFFCF18u + category); }
+game/menu/menu_data.h	113	resource-address	rom_read16(g, 0xFFCF1Du + 2u * category); }
+game/menu/menu_data.h	114	resource-address	rom_read8(g, 0xFFCF27u + category); }
+game/menu/menu_data.h	115	resource-address	rom_read8(g, MENU_ITEM_TABLES_BANK | at); }
+game/menu/menu_data.h	131	resource-address	rom_read16(g, 0xFFB310u + 2u * item);
+game/menu/menu_data.h	136	resource-address	rom_read8(g, 0xCC1BB5u + index); }
+game/menu/menu_data.h	141	resource-address	rom_read8(g, 0xC2AC12u + order); }
+game/menu/menu_data.h	142	resource-address	rom_read8(g, 0xC2AC17u + order); }
+game/menu/menu_data.h	148	resource-address	rom_read16(g, 0xC2AF3Au + 2u * category);
+game/menu/menu_data.h	153	resource-address	rom_read8(g, 0xC2B13Du + outcome); }
+game/menu/menu_data.h	158	resource-address	rom_read8(g, 0xFFCF2Bu + figure); }
+game/menu/menu_data.h	159	resource-address	rom_read8(g, 0xFFCF32u + figure); }
+game/menu/menu_data.h	160	resource-address	rom_read8(g, 0xC2B315u + figure); }
+game/menu/menu_data.h	167	resource-address	rom_read8(g, 0xFFCF2Cu + stat); }
+game/menu/menu_data.h	168	resource-address	rom_read8(g, 0xFFCF33u + stat); }
+game/menu/menu_data.h	172	resource-address	rom_read16(g, 0xCC2D69u + (uint8_t)(level * 2)); }
+game/menu/menu_data.h	181	resource-address	rom_read8(g, 0xC2B045u + 2u * member), rom_read8(g, 0xC2B046u + 2u * member) };
+game/menu/menu_data.h	181	resource-address	rom_read8(g, 0xC2B046u + 2u * member) };
+game/menu/menu_data.h	197	resource-address	rom_read16(g, 0xC25D03u + 2u * (digit & 0x0Fu));
+game/menu/menu_data.h	204	resource-address	rom_read16(g, 0xDEFA00u + 2u * entry);
+game/menu/menu_data.h	214	resource-address	rom_read16(g, 0xC25FD8u + 2u * index);
+game/menu/menu_data.h	245	resource-address	rom_read8(g, at & 0xFFFFFFu); }
+game/menu/menu_data.h	250	resource-address	rom_read8(g, 0xC2F27Du + (digit & 0x0Fu));
+game/menu/menu_data.h	256	resource-address	rom_read8(g, 0xFFCF33u + which); }
+game/menu/menu_data.h	262	resource-address	rom_read16(g, 0xC2EFD4u + 2u * code);
+game/menu/menu_data.h	269	resource-address	rom_read8(g, 0xFF0000u | at); }
+game/menu/menu_data.h	275	resource-address	rom_read16(g, (0xFFC457u + (uint16_t)(2u * number)) & 0xFFFFFFu);
+game/menu/menu_data.h	282	resource-address	rom_read8(g, 0xC2EEF5u + 4u * row + column);
+game/menu/menu_data.h	290	resource-address	rom_read16(g, 0xFFB210u + 16u * design + 2u * i);
+game/menu/menu_data.h	297	resource-address	rom_read8(g, 0xC2D044u + i); }
+game/menu/menu_data.h	305	resource-address	rom_read8(g, 0xC2D4B4u + character);
+game/menu/menu_data.h	309	resource-address	rom_read16(g, 0xFF0000u | (uint16_t)(0xCC84u + character * 32u + 2u * i));
+game/menu/menu_data.h	315	resource-address	rom_read16(g, 0xFFCC74u + 2u * i); }
+game/menu/menu_data.h	316	resource-address	rom_read16(g, 0xFFCE30u + 2u * i); }
+game/menu/menu_data.h	322	resource-address	rom_read8(g, 0xFFD024u + chapter); }
+game/menu/menu_data.h	325	resource-address	rom_read8(g, 0xC2D329u + slot); }
+game/menu/menu_data.h	331	resource-address	rom_read16(g, (0xFFD296u + (location >> 1)) & 0xFFFFFFu);
+game/menu/menu_data.h	350	resource-address	rom_read8(g, 0xC20000u | (uint16_t)(at + i));
+game/menu/menu_data.h	378	resource-address	rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3) };
+game/menu/menu_data.h	378	resource-address	rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3) };
+game/menu/menu_data.h	378	resource-address	rom_read8(g, at + 2), rom_read8(g, at + 3) };
+game/menu/menu_data.h	378	resource-address	rom_read8(g, at + 3) };
+game/menu/menu_data.h	387	resource-address	rom_read8(g, 0xFFC9ACu + row * MENU_NAME_GRID_COLUMNS + column);
+game/menu/menu_data.h	391	resource-address	rom_read16(g, 0xFFF008u + 2u * tile);
+game/menu/menu_data.h	393	resource-address	rom_read16(g, 0xFFCE9Au + 2u * i); }
+game/menu/menu_data.h	453	resource-address	rom_read8(g, 0xC289DCu + 2u * slot); }
+game/menu/menu_data.h	454	resource-address	rom_read8(g, 0xC289DDu + 2u * slot); }
+game/menu/menu_data.h	456	resource-address	rom_read8(g, at & 0xFFFFFFu); }
+game/menu/menu_data.h	461	resource-address	rom_read8(g, at & 0xFFFFFFu) | rom_read8(g, (at + 1) & 0xFFFFFFu) << 8);
+game/menu/menu_data.h	461	resource-address	rom_read8(g, (at + 1) & 0xFFFFFFu) << 8);
+game/menu/menu_data.h	463	resource-address	rom_read8(g, at & 0xFFFFFFu); }
+game/menu/menu_data.h	464	resource-address	rom_read8(g, at & 0xFFFFFFu); }
+game/menu/menu_data.h	470	resource-address	rom_read16(g, 0xC20F91u + 2u * opcode);
+game/menu/menu_data.h	478	resource-address	rom_read16(g, 0xC3E000u + 2u * script);
+game/menu/menu_data.h	488	resource-address	rom_read16(g, table + (uint16_t)(2u * plane));
+game/menu/menu_data.h	503	resource-address	rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+game/menu/menu_data.h	503	resource-address	rom_read8(g, at + 2) << 16;
+game/menu/menu_data.h	509	resource-address	rom_read8(g, 0xC22509u + kind); }
+game/menu/menu_data.h	513	resource-address	rom_read8(g, 0xC0F900u + step); }
+game/menu/menu_data.h	536	resource-address	rom_read8(g, 0xC6EB23u + tilt); }
+game/menu/menu_data.h	541	resource-address	rom_read8(g, 0xC0F800u + angle); }
+game/menu/menu_data.h	552	resource-address	rom_read8(g, 0xC2A642u + i) - MENU_RECORD_FIGURES_PLACE);
+game/menu/menu_data.h	556	resource-address	rom_read8(g, 0xC2E1DCu + i) - MENU_RECORD_FIGURES_PLACE);
+game/menu/menu_data.h	567	resource-address	rom_read8(g, 0xC0F300u + down * MENU_ARCTANGENT_STEPS + across);
+game/menu/menu_data.h	569	resource-address	rom_read8(g, 0xC0F700u + angle); }
+game/menu/menu_data.h	574	resource-address	rom_read8(g, 0xC0FE00u + index); }
+game/menu/menu_data.h	581	resource-address	rom_read16(g, at) | (uint32_t)rom_read16(g, at + 2) << 16;
+game/menu/menu_data.h	581	resource-address	rom_read16(g, at + 2) << 16;
+game/menu/menu_data.h	586	resource-address	rom_read16(g, at) | (uint32_t)rom_read16(g, at + 2) << 16;
+game/menu/menu_data.h	586	resource-address	rom_read16(g, at + 2) << 16;
+game/menu/menu_data.h	598	resource-address	rom_read8(g, 0xC269F0u + map);
+game/menu/menu_data.h	602	resource-address	rom_read16(g, 0xC268E4u + (uint16_t)(2u * map));
+game/menu/menu_data.h	607	resource-address	rom_read16(g, 0xC6F560u + at); }
+game/menu/menu_data.h	608	resource-address	rom_read16(g, 0xC6F5A0u + at); }
+game/menu/menu_data.h	613	resource-address	rom_read8(g, MENU_MAP_VIEW_COLOURS + i); }
+game/menu/menu_data.h	623	resource-address	rom_read16(g, 0xC20000u | (uint16_t)((later_set ? 0x6CA5u : 0x6C97u) + (uint8_t)(period << 1)));
+game/menu/menu_data.h	627	resource-address	rom_read16(g, 0xC20000u | (uint16_t)(0x6CB3u + 2u * period));
+game/menu/menu_data.h	632	resource-address	rom_read8(g, 0xC26F2Du + 2u * corner); }
+game/menu/menu_data.h	633	resource-address	rom_read8(g, 0xC26F2Eu + 2u * corner); }
+game/menu/menu_data.h	638	resource-address	rom_read8(g, 0xC271DDu + (uint8_t)(period << 1)); }
+game/menu/menu_data.h	639	resource-address	rom_read8(g, 0xC271DEu + (uint8_t)(period << 1)); }
+game/menu/menu_data.h	640	resource-address	rom_read8(g, 0xC271EBu + (uint8_t)(period << 1)); }
+game/menu/menu_data.h	641	resource-address	rom_read8(g, 0xC271ECu + (uint8_t)(period << 1)); }
+game/menu/menu_data.h	645	resource-address	rom_read16(g, 0xC27220u + 4u * stream); }
+game/menu/menu_data.h	646	resource-address	rom_read16(g, 0xC27222u + 4u * stream); }
+game/menu/menu_data.h	651	resource-address	rom_read16(g, 0xC272B8u + 2u * row); }
+game/menu/menu_data.h	657	resource-address	rom_read8(g, at & 0xFFFFFFu);
+game/menu/menu_data.h	664	resource-address	rom_read8(g, 0xC6F700u + i); }
+game/menu/menu_data.h	667	resource-address	rom_read8(g, 0xFFD57Au + i); }
+game/menu/menu_data.h	682	resource-address	rom_read16(g, 0xC2F55Cu + set_doubled);
+game/menu/menu_data.h	686	resource-address	rom_read8(g, MENU_SPRITE_BANK | at);
+game/menu/menu_data.h	691	resource-address	rom_read16(g, 0xE4FFE0u); }
+game/menu/menu_data.h	692	resource-address	rom_read16(g, 0xE4FFE2u); }
+game/menu/menu_data.h	695	resource-address	rom_read16(g, MENU_SPRITE_BANK + at) | (uint32_t)rom_read8(g, MENU_SPRITE_BANK + at + 2u) << 16;
+game/menu/menu_data.h	695	resource-address	rom_read8(g, MENU_SPRITE_BANK + at + 2u) << 16;
+game/menu/menu_data.h	700	resource-address	rom_read16(g, 0xE4FFE4u); }
+game/menu/menu_data.h	701	resource-address	rom_read16(g, 0xE4FFE6u); }
+game/menu/menu_data.h	702	resource-address	rom_read16(g, MENU_SPRITE_BANK + at); }
+game/menu/menu_data.h	705	resource-address	rom_read16(g, 0xE4FFE8u); }
+game/menu/menu_data.h	706	resource-address	rom_read8(g, MENU_SPRITE_BANK | at); }
+game/menu/menu_data.h	710	resource-address	rom_read8(g, 0xC2F562u + (size & 3u)); }
+game/menu/menu_data.h	711	resource-address	rom_read8(g, 0xC2F755u + blocks); }
+game/menu/menu_data.h	715	resource-address	rom_read8(g, at & 0xFFFFFFu); }
+game/menu/menu_data.h	722	resource-address	rom_read8(g, 0xC2F548u + 2u * record) | rom_read8(g, 0xC2F549u + 2u * record) << 8);
+game/menu/menu_data.h	722	resource-address	rom_read8(g, 0xC2F549u + 2u * record) << 8);
+game/menu/menu_data.h	724	resource-address	rom_read16(g, 0xC2F556u); }
+game/menu/menu_data.h	727	resource-address	rom_read8(g, 0xC0FD00u + b); }
+game/menu/menu_data.h	733	resource-address	rom_read8(g, 0xC284D0u + phase); }
+game/menu/menu_data.h	741	resource-address	rom_read8(g, 0xFFCE70u + character);
+game/menu/menu_data.h	745	resource-address	rom_read16(g, 0xFFCE78u + 2u * slot);
+game/menu/menu_data.h	749	resource-address	rom_read16(g, MENU_PORTRAIT_BANK | (uint16_t)(colours + 2u * i));
+game/menu/menu_data.h	758	resource-address	rom_read8(g, 0xC2A2C6u + character) / 2u);
+game/menu/menu_data.h	766	resource-address	rom_read16(g, 0xFFCE88u + 2u * element);
+game/menu/menu_data.h	770	resource-address	rom_read16(g, 0xFFCE92u + 2u * element);
+game/menu/menu_data.h	771	resource-address	rom_read16(g, MENU_PORTRAIT_BANK | (uint16_t)(colours + 2u * i));
+game/menu/menu_data.h	783	resource-address	rom_read8(g, 0xC2A4ABu + slot); }
+game/menu/menu_data.h	789	resource-address	rom_read8(g, 0xC2AA06u + i); }
+game/menu/menu_data.h	804	resource-address	rom_read8(g, 0xC2BD40u + group); }
+game/menu/menu_data.h	808	resource-address	rom_read8(g, 0xC2BD65u + 2u * kind); }
+game/menu/menu_data.h	809	resource-address	rom_read8(g, 0xC2BD66u + 2u * kind); }
+game/menu/menu_data.h	813	resource-address	rom_read8(g, 0xCC2963u + group); }
+game/menu/menu_data.h	814	resource-address	rom_read8(g, 0xFFF9BBu + character); }
+game/menu/menu_data.h	822	resource-address	rom_read8(g, 0xCC213Fu + (uint32_t)(tech * MENU_TECH_EFFECT_BYTES) + n);
+game/menu/menu_data.h	829	resource-address	rom_read8(g, 0xCC0000u | (uint16_t)(0x1ACB + 2u * tech));
+game/menu/menu_data.h	834	resource-address	rom_read8(g, 0xCC0000u | (uint16_t)(0x253B + part)); }
+game/menu/menu_data.h	848	resource-address	rom_read8(g, 0xC2BB1Au + row); }
+game/menu/menu_data.h	854	resource-address	rom_read8(g, 0xC2BF2Fu + 2u * member), rom_read8(g, 0xC2BF30u + 2u * member) };
+game/menu/menu_data.h	854	resource-address	rom_read8(g, 0xC2BF30u + 2u * member) };
+game/menu/menu_data.h	859	resource-address	rom_read8(g, 0xC2B519u + character); }
+game/menu/menu_data.h	874	resource-address	rom_read16(g, 0xC2CDCBu + 2u * place); }
+game/menu/menu_data.h	877	resource-address	rom_read8(g, 0xC2CE6Eu + 2u * place), rom_read8(g, 0xC2CE6Fu + 2u * place) };
+game/menu/menu_data.h	877	resource-address	rom_read8(g, 0xC2CE6Fu + 2u * place) };
+game/menu/menu_data.h	892	resource-address	rom_read16(g, 0xC28771u + 2u * i); }
+game/menu/menu_data.h	895	resource-address	rom_read8(g, 0xFFFC57u + group); }
+game/menu/menu_data.h	907	resource-address	rom_read8(g, 0xFFFA7Bu + i); }
+game/menu/menu_data.h	911	resource-address	rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16, rom_read16(g, at + 3) };
+game/menu/menu_data.h	911	resource-address	rom_read8(g, at + 2) << 16, rom_read16(g, at + 3) };
+game/menu/menu_data.h	911	resource-address	rom_read16(g, at + 3) };
+game/menu/menu_data.h	923	resource-address	rom_read8(g, 0xFFFBC1u + i); }
+game/menu/menu_data.h	927	resource-address	rom_read16(g, at), (uint32_t)rom_read16(g, at + 2) | (uint32_t)rom_read8(g, at + 4) << 16,
+game/menu/menu_data.h	927	resource-address	rom_read16(g, at + 2) | (uint32_t)rom_read8(g, at + 4) << 16,
+game/menu/menu_data.h	927	resource-address	rom_read8(g, at + 4) << 16,
+game/menu/menu_data.h	928	resource-address	rom_read16(g, at + 5) };
+game/menu/menu_data.h	933	resource-address	rom_read16(g, 0xFFFBE1u + 2u * slot); }
+game/menu/menu_data.h	942	resource-address	rom_read8(g, 0xCC0000u + (uint32_t)(character * MENU_STARTING_RECORD_BYTES) + at);
+game/menu/menu_data.h	944	resource-address	rom_read8(g, 0xFFFBCFu + which); }
+game/menu/menu_data.h	950	resource-address	rom_read8(g, 0xCC0000u + i); }
+game/menu/menu_data.h	951	resource-address	rom_read8(g, 0xC2FCA6u + i); }
+game/menu/menu_data.h	958	resource-address	rom_read8(g, 0xCD6CECu + weapon); }
+game/menu/menu_data.h	961	resource-address	rom_read16(g, 0xD14B00u + (uint32_t)(set * MENU_WEAPON_COLOURS + i) * 2u);
+game/menu/menu_data.h	970	resource-address	rom_read8(g, 0xCC24B4u + 3u * group + which);
+game/menu/menu_data.h	976	resource-address	rom_read8(g, 0xCC28DBu + 6u * group + 2u * tech + which);
+game/menu/menu_data.h	980	resource-address	rom_read8(g, 0xCC2935u + n); }
+game/menu/menu_data.h	987	resource-address	rom_read8(g, 0xCC2953u + 3u * rock + which);
+game/menu/menu_data.h	992	resource-address	rom_read8(g, 0xFFF951u + character); }
+game/menu/menu_data.h	1002	resource-address	rom_read8(g, 0xFFCAFCu + digit * MENU_DIGIT_BYTES + at);
+game/menu/menu_data.h	1006	resource-address	rom_read8(g, 0xFF9390u + digit * MENU_DIGIT_BYTES + at);
+game/menu/menu_data.h	1016	resource-address	rom_read8(g, 0xC2C4F9u + option); }
+game/menu/menu_data.h	1019	resource-address	rom_read8(g, 0xC2C505u + option);
+game/menu/menu_data.h	1028	resource-address	rom_read16(g, 0xFFD562u + 2u * option);
+game/menu/menu_data.h	1035	resource-address	rom_read16(g, 0xC2C41Bu + 2u * box); }
+game/menu/menu_data.h	1038	resource-address	rom_read8(g, 0xC2C42Fu + box) & 1u) != 0;
+game/menu/menu_data.h	1046	resource-address	rom_read8(g, 0xC2C207u + i); }
+game/menu/menu_data.h	1047	resource-address	rom_read8(g, 0xC2FCA9u + i); }
+game/menu/menu_data.h	1050	resource-address	rom_read16(g, 0xFFD554u + 2u * bit_from_the_top);
+game/menu/menu_data.h	1059	resource-address	rom_read16(g, 0xC2C5A7u + 2u * row);
+game/menu/menu_data.h	1061	resource-address	rom_read8(g, 0xC2C2BDu + row); }
+game/menu/menu_data.h	1069	resource-address	rom_read16(g, 0xC2C2C5u + 2u * assignment);
+game/menu/menu_data.h	1073	resource-address	rom_read8(g, 0xC20000u | menu_settings_conflicts_place(g, assignment));
+game/menu/menu_data.h	1077	resource-address	rom_read8(g, 0xC20000u | (uint16_t)(menu_settings_conflicts_place(g, assignment) + 1u + i));
+game/menu/menu_data.h	1090	resource-address	rom_read16(g, 0xCC2C6Du + 2u * shop);
+game/menu/menu_data.h	1091	resource-address	rom_read8(g, 0xCC0000u | (uint16_t)(list + i));
+game/menu/menu_data.h	1096	resource-address	rom_read8(g, 0xC2DC74u + member); }
+game/menu/menu_data.h	1103	resource-address	rom_read8(g, 0xC2DE1Du + category); }
+game/menu/menu_data.h	1108	resource-address	rom_read8(g, 0xC2E1DCu + figure); }
+game/menu/menu_data.h	1112	resource-address	rom_read16(g, 0xC2DFC5u + 2u * category); }
+game/menu/menu_data.h	1126	resource-address	rom_read16(g, 0xFFF6F2u + 2u * row); }
+game/menu/menu_data.h	1127	resource-address	rom_read16(g, 0xFFF706u + 2u * i); }
+game/menu/menu_data.h	1128	resource-address	rom_read16(g, 0xFFF6FEu + 2u * i); }
+game/menu/menu_data.h	1129	resource-address	rom_read16(g, 0xFFF759u + 2u * i); }
+game/menu/menu_data.h	1136	resource-address	rom_read8(g, 0xC2808Fu + opening); }
+game/menu/menu_data.h	1146	resource-address	rom_read16(g, 0xC28292u + 2u * screen);
+game/menu/menu_data.h	1152	resource-address	rom_read8(g, 0xC27C28u + tile);
+game/menu/menu_data.h	1160	resource-address	rom_read8(g, 0xC00000u + byte);
+game/menu/menu_data.h	1164	resource-address	rom_data(source, bytes); }
+game/menu/menu_data.h	1166	resource-address	rom_data(0xFF0000u | offset, bytes); }
+game/menu/menu_data.h	1168	resource-address	rom_data(second ? 0xC6F520u : 0xC6F500u, 32); }
+game/menu/menu_data.h	1171	resource-address	rom_read16(g, (strings + 2u * string) & 0xFFFFFFu);
 game/menu/menu_data.h	353	layout-expression	<< 16 | (uint16_t)(b[2] | b[3] << 8),
 game/menu/menu_data.h	503	layout-expression	<< 16;
 game/menu/menu_data.h	581	layout-expression	<< 16;
@@ -834,6 +1492,26 @@ game/overworld/main_loop.c	89	layout-expression	0x7E0000, 0x1700, 0x00F0 },
 game/overworld/main_loop.c	90	layout-expression	RAM_MENU_OBJECT_SLOTS, 0x0000, 0x1000 },
 game/overworld/main_loop.c	103	layout-expression	RAM_OVERWORLD_PUT_ASIDE + what[i].to, what[i].bytes);
 game/overworld/main_loop.c	113	layout-expression	RAM_OVERWORLD_PUT_ASIDE + what[i].to, what[i].from, what[i].bytes);
+game/overworld/overworld_data.h	23	resource-address	rom_read8(g, 0xC2397Fu + (uint8_t)(facing * 2u + gait));
+game/overworld/overworld_data.h	27	resource-address	rom_read8(g, 0xC239AAu + facing);
+game/overworld/overworld_data.h	46	resource-address	rom_read8(g, 0xC257C2u + at);
+game/overworld/overworld_data.h	70	resource-address	rom_read16(g, at), rom_read16(g, at + 2), rom_read16(g, at + 4), rom_read16(g, at + 6) };
+game/overworld/overworld_data.h	70	resource-address	rom_read16(g, at + 2), rom_read16(g, at + 4), rom_read16(g, at + 6) };
+game/overworld/overworld_data.h	70	resource-address	rom_read16(g, at + 4), rom_read16(g, at + 6) };
+game/overworld/overworld_data.h	70	resource-address	rom_read16(g, at + 6) };
+game/overworld/overworld_data.h	88	resource-address	rom_read8(g, (wings ? 0xC248C9u : 0xC248C5u) + facing);
+game/overworld/overworld_data.h	95	resource-address	rom_read16(g, 0xC24899u + facing * 4u + axis * 2u);
+game/overworld/overworld_data.h	122	resource-address	rom_read16(g, 0xC25037u + facing * 4u + axis * 2u);
+game/overworld/overworld_data.h	126	resource-address	rom_read8(g, 0xC25047u + facing);
+game/overworld/overworld_data.h	134	resource-address	rom_read16(g, 0xC2508Fu + (flying ? 4u : 0u));
+game/overworld/overworld_data.h	138	resource-address	rom_read8(g, 0xC25091u + (flying ? 4u : 0u));
+game/overworld/overworld_data.h	148	resource-address	rom_read16(g, 0xC2543Cu + (leader_facing * 2u + follower) * 4u + axis * 2u);
+game/overworld/overworld_data.h	152	resource-address	rom_read8(g, 0xC2548Cu + follower * 4u + facing);
+game/overworld/overworld_data.h	171	resource-address	rom_read16(g, 0xC6FD00u + at);
+game/overworld/overworld_data.h	175	resource-address	rom_read8(g, (record + field) & 0xFFFFFFu);
+game/overworld/overworld_data.h	199	resource-address	rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+game/overworld/overworld_data.h	199	resource-address	rom_read8(g, at + 2) << 16;
+game/overworld/overworld_data.h	208	resource-address	rom_read8(g, 0xC6F620u + at);
 game/overworld/overworld_data.h	199	layout-expression	<< 16;
 game/overworld/party.c	95	layout-expression	<< 16 | script);
 game/overworld/places.c	147	layout-expression	<< 16 | script, MENU_ORDINARY_SLOT));
@@ -886,6 +1564,11 @@ game/registry.c	587	layout-expression	0x7E302A, .name = "scene_program_restart",
 game/registry.c	588	layout-expression	0x7E30F9, .name = "scene_init_video", .cost_milli = 3889 },
 game/registry.c	599	layout-expression	0x7E0309, 0x7E0316 },
 game/registry.c	599	layout-expression	0x7E0316 },
+game/rom.h	19	resource-address	rom_read8(const GameState *g, uint32_t at);
+game/rom.h	20	resource-address	rom_read16(const GameState *g, uint32_t at);
+game/rom.h	25	resource-address	rom_data(uint32_t at, uint32_t length);
+game/rom.h	27	resource-address	rom_data_mode(uint32_t at, uint32_t length, uint8_t mode);
+game/rom.h	36	resource-address	rom_cartridge_read(const GameState *g, uint32_t at, const uint8_t *served);
 game/scene/beyond_time.c	177	layout-expression	0x7E9DDE), &centre, VID_M7_CENTER);
 game/scene/beyond_time.c	363	layout-expression	0x7EA03D, scene_draw_large_sprite_list(g, burst_frame(g, firework_frame(g, firework)).list, LIST_KEEPS_EVERY_SPRITE));
 game/scene/beyond_time.c	402	layout-expression	0x7E9E31), &m7, VID_M7_MATRIX | VID_M7_CENTER | VID_M7_SCROLL);
@@ -2007,6 +2690,25 @@ game/scene/scene.h	131	layout-expression	0x7F0200, SCENE_PLANE_MAP = 0x7F2200 };
 game/scene/scene.h	131	layout-expression	0x7F2200 };
 game/scene/scene.h	832	layout-expression	0x7E3691, SCENE_UNPACK_IGNORES = DC_A | DC_Y | DC_N | DC_Z | DC_C };
 game/scene/scene.h	833	layout-expression	0x7E3749, SCENE_FIRST_STEP_IGNORES = DC_A | DC_X | DC_N | DC_Z | DC_C };
+game/scene/scene_data.h	20	resource-address	rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+game/scene/scene_data.h	20	resource-address	rom_read8(g, at + 2) << 16;
+game/scene/scene_data.h	25	resource-address	rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+game/scene/scene_data.h	25	resource-address	rom_read8(g, at + 2) << 16;
+game/scene/scene_data.h	29	resource-address	rom_read8(g, 0xE42303 + character * 3);
+game/scene/scene_data.h	31	resource-address	rom_read16(g, at); }
+game/scene/scene_data.h	32	resource-address	rom_read8(g, at); }
+game/scene/scene_data.h	35	resource-address	rom_read16(g, 0xE42600 + character * 2);
+game/scene/scene_data.h	39	resource-address	rom_read16(g, 0xE42800 + character * 2);
+game/scene/scene_data.h	43	resource-address	rom_read8(g, 0xE40000 | at);
+game/scene/scene_data.h	54	resource-address	rom_read16(g, SCENE_RESOURCES + SCENE_RESOURCE_PROGRAM * SCENE_RESOURCE_SIZE);
+game/scene/scene_data.h	62	resource-address	rom_read16(g, SCENE_RESOURCES + resource * SCENE_RESOURCE_SIZE);
+game/scene/scene_data.h	69	resource-address	rom_read16(g, SCENE_RESOURCES + at) | (uint32_t)rom_read8(g, SCENE_RESOURCES + at + 2) << 16;
+game/scene/scene_data.h	69	resource-address	rom_read8(g, SCENE_RESOURCES + at + 2) << 16;
+game/scene/scene_data.h	78	resource-address	rom_read8(g, (uint32_t)SCENE_DATA_BANK << 16 | addr);
+game/scene/scene_data.h	87	resource-address	rom_read16(g, SCENE_MATRIX_TABLE + index * 2u);
+game/scene/scene_data.h	96	resource-address	rom_read8(g, SCENE_SINE_TABLE + (step & (SCENE_SINE_STEPS - 1)));
+game/scene/scene_data.h	103	resource-address	rom_read8(g, SCENE_RANDOM_TABLE + step); }
+game/scene/scene_data.h	108	resource-address	rom_data_mode(source, bytes, mode);
 game/scene/scene_data.h	20	layout-expression	<< 16;
 game/scene/scene_data.h	25	layout-expression	<< 16;
 game/scene/scene_data.h	69	layout-expression	<< 16;
@@ -2599,6 +3301,17 @@ game/warp/warp.c	270	video-source	PF_GAME((uint16_t)RAM_OAM_BUFFER));
 game/warp/warp.c	269	layout-expression	RAM_PALETTE_BASE), PALETTE_COLOURS);
 game/warp/warp.c	270	layout-expression	RAM_OAM_BUFFER));
 game/warp/warp.c	495	layout-expression	<< 16 | (uint16_t)(pushed + 1);
+game/warp/warp_data.h	18	resource-address	rom_read8(g, 0xC0F800u + angle); }
+game/warp/warp_data.h	25	resource-address	rom_read8(g, 0xFDDD96u + frame % WARP_CIRCLE_FRAMES);
+game/warp/warp_data.h	35	resource-address	rom_read8(g, 0xFDDDF5u + (uint16_t)(past << 8 | step % WARP_FLICKER_STEPS));
+game/warp/warp_data.h	48	resource-address	rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3) };
+game/warp/warp_data.h	48	resource-address	rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3) };
+game/warp/warp_data.h	48	resource-address	rom_read8(g, at + 2), rom_read8(g, at + 3) };
+game/warp/warp_data.h	48	resource-address	rom_read8(g, at + 3) };
+game/warp/warp_data.h	56	resource-address	rom_read16(g, 0xFDF001u + 2u * (colour % WARP_TUNNEL_COLOURS));
+game/warp/warp_data.h	60	resource-address	rom_read16(g, 0xFDF081u + 2u * (colour % WARP_TUNNEL_COLOURS));
+game/warp/warp_data.h	67	resource-address	rom_read16(g, 0xFDF101u + 2u * (shade % WARP_LIGHT_SHADES));
+game/warp/warp_data.h	74	resource-address	rom_read8(g, 0xFDF181u + 2u * (i % WARP_PULSING_COLOURS));
 game/wram.h	23	raw-helper	wram_read8(const GameState *g, uint32_t at);
 game/wram.h	24	raw-helper	wram_read16(const GameState *g, uint32_t at);
 game/wram.h	25	raw-helper	wram_write8(GameState *g, uint32_t at, uint8_t v);

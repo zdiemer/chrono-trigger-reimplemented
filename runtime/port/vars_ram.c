@@ -11,8 +11,8 @@
  * (docs/PLAN.md, "The game's state as C"); nothing in game/ changes with it.
  *
  * Built with CT_VARS_HOST (ct_native, docs/PLAYING.md, "The native program"), the
- * same layout is held in the host's memory instead (port/state_host.h): the bytes
- * at the original's addresses, with no machine behind them. */
+ * migrated modules use generated structs (vars_host.h); other variables retain
+ * the address backing. The compatibility view has no duplicate field storage. */
 #include "vars.h"
 
 #include "port/vars_pages.h"
@@ -27,6 +27,7 @@ bool vars_peeking(void) { return peeking; }
 #ifdef CT_VARS_HOST
 
 #include "port/state_host.h"
+#include "port/vars_host.h"
 
 /* Each access the game's time, as the machine's bus counts it (state_host.c),
    but for a guard's look, which takes none of it (vars_peek). */
@@ -1229,6 +1230,64 @@ uint8_t input_repeat_countdown(const GameState *g) { return r8(g, 0x7E00FDu); }
 void set_input_repeat_countdown(GameState *g, uint8_t v) { w8(g, 0x7E00FDu, v); }
 uint16_t input_previous(const GameState *g) { return r16(g, 0x7E00FEu); }
 void set_input_previous(GameState *g, uint16_t v) { w16(g, 0x7E00FEu, v); }
+#ifdef CT_VARS_HOST
+uint16_t location_id(const GameState *g)
+{
+    if (!peeking)
+        state_host_game_access(g, 16);
+    const VarsHost *h = state_host_vars_const(g);
+    return h->locations.location.id;
+}
+void set_location_id(GameState *g, uint16_t v)
+{
+    if (!peeking)
+        state_host_game_access(g, 16);
+    VarsHost *h = state_host_vars(g);
+    h->locations.location.id = v;
+}
+uint8_t location_x(const GameState *g)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    const VarsHost *h = state_host_vars_const(g);
+    return h->locations.location.x;
+}
+void set_location_x(GameState *g, uint8_t v)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    VarsHost *h = state_host_vars(g);
+    h->locations.location.x = v;
+}
+uint8_t location_y(const GameState *g)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    const VarsHost *h = state_host_vars_const(g);
+    return h->locations.location.y;
+}
+void set_location_y(GameState *g, uint8_t v)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    VarsHost *h = state_host_vars(g);
+    h->locations.location.y = v;
+}
+uint8_t location_flags(const GameState *g)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    const VarsHost *h = state_host_vars_const(g);
+    return h->locations.location.flags;
+}
+void set_location_flags(GameState *g, uint8_t v)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    VarsHost *h = state_host_vars(g);
+    h->locations.location.flags = v;
+}
+#else
 uint16_t location_id(const GameState *g) { return r16(g, 0x7E0100u); }
 void set_location_id(GameState *g, uint16_t v) { w16(g, 0x7E0100u, v); }
 uint8_t location_x(const GameState *g) { return r8(g, 0x7E0102u); }
@@ -1237,6 +1296,65 @@ uint8_t location_y(const GameState *g) { return r8(g, 0x7E0103u); }
 void set_location_y(GameState *g, uint8_t v) { w8(g, 0x7E0103u, v); }
 uint8_t location_flags(const GameState *g) { return r8(g, 0x7E0104u); }
 void set_location_flags(GameState *g, uint8_t v) { w8(g, 0x7E0104u, v); }
+#endif
+#ifdef CT_VARS_HOST
+uint16_t location_previous_id(const GameState *g)
+{
+    if (!peeking)
+        state_host_game_access(g, 16);
+    const VarsHost *h = state_host_vars_const(g);
+    return h->locations.location_previous.id;
+}
+void set_location_previous_id(GameState *g, uint16_t v)
+{
+    if (!peeking)
+        state_host_game_access(g, 16);
+    VarsHost *h = state_host_vars(g);
+    h->locations.location_previous.id = v;
+}
+uint8_t location_previous_x(const GameState *g)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    const VarsHost *h = state_host_vars_const(g);
+    return h->locations.location_previous.x;
+}
+void set_location_previous_x(GameState *g, uint8_t v)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    VarsHost *h = state_host_vars(g);
+    h->locations.location_previous.x = v;
+}
+uint8_t location_previous_y(const GameState *g)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    const VarsHost *h = state_host_vars_const(g);
+    return h->locations.location_previous.y;
+}
+void set_location_previous_y(GameState *g, uint8_t v)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    VarsHost *h = state_host_vars(g);
+    h->locations.location_previous.y = v;
+}
+uint8_t location_previous_flags(const GameState *g)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    const VarsHost *h = state_host_vars_const(g);
+    return h->locations.location_previous.flags;
+}
+void set_location_previous_flags(GameState *g, uint8_t v)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    VarsHost *h = state_host_vars(g);
+    h->locations.location_previous.flags = v;
+}
+#else
 uint16_t location_previous_id(const GameState *g) { return r16(g, 0x7E0105u); }
 void set_location_previous_id(GameState *g, uint16_t v) { w16(g, 0x7E0105u, v); }
 uint8_t location_previous_x(const GameState *g) { return r8(g, 0x7E0107u); }
@@ -1245,6 +1363,65 @@ uint8_t location_previous_y(const GameState *g) { return r8(g, 0x7E0108u); }
 void set_location_previous_y(GameState *g, uint8_t v) { w8(g, 0x7E0108u, v); }
 uint8_t location_previous_flags(const GameState *g) { return r8(g, 0x7E0109u); }
 void set_location_previous_flags(GameState *g, uint8_t v) { w8(g, 0x7E0109u, v); }
+#endif
+#ifdef CT_VARS_HOST
+uint16_t location_stored_id(const GameState *g)
+{
+    if (!peeking)
+        state_host_game_access(g, 16);
+    const VarsHost *h = state_host_vars_const(g);
+    return h->locations.location_stored.id;
+}
+void set_location_stored_id(GameState *g, uint16_t v)
+{
+    if (!peeking)
+        state_host_game_access(g, 16);
+    VarsHost *h = state_host_vars(g);
+    h->locations.location_stored.id = v;
+}
+uint8_t location_stored_x(const GameState *g)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    const VarsHost *h = state_host_vars_const(g);
+    return h->locations.location_stored.x;
+}
+void set_location_stored_x(GameState *g, uint8_t v)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    VarsHost *h = state_host_vars(g);
+    h->locations.location_stored.x = v;
+}
+uint8_t location_stored_y(const GameState *g)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    const VarsHost *h = state_host_vars_const(g);
+    return h->locations.location_stored.y;
+}
+void set_location_stored_y(GameState *g, uint8_t v)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    VarsHost *h = state_host_vars(g);
+    h->locations.location_stored.y = v;
+}
+uint8_t location_stored_flags(const GameState *g)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    const VarsHost *h = state_host_vars_const(g);
+    return h->locations.location_stored.flags;
+}
+void set_location_stored_flags(GameState *g, uint8_t v)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    VarsHost *h = state_host_vars(g);
+    h->locations.location_stored.flags = v;
+}
+#else
 uint16_t location_stored_id(const GameState *g) { return r16(g, 0x7E010Au); }
 void set_location_stored_id(GameState *g, uint16_t v) { w16(g, 0x7E010Au, v); }
 uint8_t location_stored_x(const GameState *g) { return r8(g, 0x7E010Cu); }
@@ -1253,6 +1430,65 @@ uint8_t location_stored_y(const GameState *g) { return r8(g, 0x7E010Du); }
 void set_location_stored_y(GameState *g, uint8_t v) { w8(g, 0x7E010Du, v); }
 uint8_t location_stored_flags(const GameState *g) { return r8(g, 0x7E010Eu); }
 void set_location_stored_flags(GameState *g, uint8_t v) { w8(g, 0x7E010Eu, v); }
+#endif
+#ifdef CT_VARS_HOST
+uint16_t location_next_id(const GameState *g)
+{
+    if (!peeking)
+        state_host_game_access(g, 16);
+    const VarsHost *h = state_host_vars_const(g);
+    return h->locations.location_next.id;
+}
+void set_location_next_id(GameState *g, uint16_t v)
+{
+    if (!peeking)
+        state_host_game_access(g, 16);
+    VarsHost *h = state_host_vars(g);
+    h->locations.location_next.id = v;
+}
+uint8_t location_next_x(const GameState *g)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    const VarsHost *h = state_host_vars_const(g);
+    return h->locations.location_next.x;
+}
+void set_location_next_x(GameState *g, uint8_t v)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    VarsHost *h = state_host_vars(g);
+    h->locations.location_next.x = v;
+}
+uint8_t location_next_y(const GameState *g)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    const VarsHost *h = state_host_vars_const(g);
+    return h->locations.location_next.y;
+}
+void set_location_next_y(GameState *g, uint8_t v)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    VarsHost *h = state_host_vars(g);
+    h->locations.location_next.y = v;
+}
+uint8_t location_next_flags(const GameState *g)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    const VarsHost *h = state_host_vars_const(g);
+    return h->locations.location_next.flags;
+}
+void set_location_next_flags(GameState *g, uint8_t v)
+{
+    if (!peeking)
+        state_host_game_access(g, 8);
+    VarsHost *h = state_host_vars(g);
+    h->locations.location_next.flags = v;
+}
+#else
 uint16_t location_next_id(const GameState *g) { return r16(g, 0x7E0112u); }
 void set_location_next_id(GameState *g, uint16_t v) { w16(g, 0x7E0112u, v); }
 uint8_t location_next_x(const GameState *g) { return r8(g, 0x7E0114u); }
@@ -1261,6 +1497,7 @@ uint8_t location_next_y(const GameState *g) { return r8(g, 0x7E0115u); }
 void set_location_next_y(GameState *g, uint8_t v) { w8(g, 0x7E0115u, v); }
 uint8_t location_next_flags(const GameState *g) { return r8(g, 0x7E0116u); }
 void set_location_next_flags(GameState *g, uint8_t v) { w8(g, 0x7E0116u, v); }
+#endif
 uint8_t play_time_frames(const GameState *g) { return r8(g, 0x7E0400u); }
 void set_play_time_frames(GameState *g, uint8_t v) { w8(g, 0x7E0400u, v); }
 uint8_t play_time_seconds(const GameState *g) { return r8(g, 0x7E0401u); }

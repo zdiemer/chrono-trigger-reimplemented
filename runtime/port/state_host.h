@@ -2,10 +2,10 @@
  * vars.h, cpu_io.h, wram.h, charge.h and original_frame.h for ct_native
  * (docs/PLAYING.md, "The native program").
  *
- * The layout is the original's, as the RAM-backed accessors have it
- * (runtime/port/vars_ram.c, built with CT_VARS_HOST): work RAM's 128 KiB and the
- * cartridge's 8 KiB of save RAM held in the host's memory and reached at the
- * original's addresses, and the multiplier, divider and work RAM port worked
+ * Migrated modules use generated C structs (vars_host.h); the remaining
+ * variables use a residual work-RAM image. The address view projects struct
+ * fields, with no duplicate field values in that image. The cartridge's 8 KiB
+ * of save RAM retains its file layout. The multiplier, divider and work RAM port work
  * out in C rather than by registers. The game's work is timed for the
  * frame-level time model (platform/time_model.h): its accesses at the rates
  * the machine calibrated, and the charges as the machine makes them. What the
@@ -23,12 +23,17 @@
 #include <stdint.h>
 
 #include "state.h"
+#include "port/vars_host.h"
 
 /* A fresh state: work RAM as the console powers on (the original leaves it to
  * the chips; $55 throughout here, as the reference emulator has it) and save
  * RAM from `sram` (8 KiB), or erased. */
 GameState *state_host_create(const uint8_t *sram);
 void state_host_destroy(GameState *g);
+
+/* Generated accessors only: module storage, never exposed to game logic. */
+VarsHost *state_host_vars(GameState *g);
+const VarsHost *state_host_vars_const(const GameState *g);
 
 uint8_t state_host_read8(const GameState *g, uint32_t addr);
 void state_host_write8(GameState *g, uint32_t addr, uint8_t v);

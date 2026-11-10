@@ -3580,7 +3580,7 @@ persistence seams; game-side representation changes still need explicit work.
   two arrays of different lengths with the alias explained in prose. An
   `aliases` field would let an entry say what is true.
 - CI: the macOS job costs 10x minutes on a private repo.
-# State storage ownership
+## State storage ownership
 
 The remaining image-backed variables are measured by `tools/ram_map.py storage`;
 the per-site and per-pair inventory is in [STATE.md](STATE.md). Before moving

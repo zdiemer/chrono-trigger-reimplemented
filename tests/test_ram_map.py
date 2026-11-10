@@ -77,7 +77,9 @@ class TestCommittedMap(unittest.TestCase):
         m = ram_map.RamMap()
         for path, text in ((ram_map.VARS_HEADER, ram_map.render_vars_header(m)),
                            (ram_map.PAGES_HEADER, ram_map.render_pages_header(m)),
-                           (ram_map.BACKING, ram_map.render_backing(m))):
+                           (ram_map.BACKING, ram_map.render_backing(m)),
+                           (ram_map.HOST_HEADER, ram_map.render_host_header(m)),
+                           (ram_map.HOST_BACKING, ram_map.render_host_backing(m))):
             with self.subTest(file=path.name):
                 self.assertEqual(path.read_text(encoding="utf-8"), text,
                                  "%s is out of date with re/ram.toml: "
@@ -98,6 +100,46 @@ class TestCommittedMap(unittest.TestCase):
 
 
 class TestRules(unittest.TestCase):
+    def test_struct_owners_reject_shared_bytes_across_subsystems(self):
+        text = var("one", 'addr = "7E:1000"\nsize = 2\nhost_module = "places"')
+        with self.assertRaisesRegex(ram_map.MapError, "one owner"):
+            ram_map.RamMap(text=text + var("other", 'addr = "7E:1001"', "menu"))
+
+    def test_struct_owners_reject_internal_aliases(self):
+        with self.assertRaisesRegex(ram_map.MapError, "one owner"):
+            ram_map.RamMap(text=var("record", '''addr = "7E:1000"
+stride = 2
+host_module = "places"
+[[var.field]]
+name = "whole"
+offset = 0
+size = 2
+meaning = "m"
+[[var.field]]
+name = "high"
+offset = 1
+meaning = "m"'''))
+
+    def test_struct_owners_reject_overruns(self):
+        with self.assertRaisesRegex(ram_map.MapError, "unchecked"):
+            ram_map.RamMap(text=var("items", '''addr = "7E:1000"
+count = 3
+index = "slot"
+host_module = "items"
+unchecked = "The next cell is shared."'''))
+
+    def test_struct_layout_ignores_original_stride_and_uses_typed_fields(self):
+        m = ram_map.RamMap(text=var("items", '''addr = "7E:1000"
+count = 3
+stride = 8
+size = 2
+index = "slot"
+host_module = "items"'''))
+        self.assertIn("uint16_t items[3];", ram_map.render_host_header(m))
+        self.assertIn("h->items.items[slot]", ram_map.render_backing(m))
+        self.assertIn("offset %= 8u", ram_map.render_host_backing(m))
+        self.assertEqual(ram_map.storage_counts(m), (0, 1))
+
     def test_storage_measure_counts_variables_not_fields_or_elements(self):
         m = ram_map.RamMap(text=var("one", 'addr = "7E:1000"\nsize = 2') +
                           var("many", 'addr = "7E:1100"\ncount = 8\nindex = "slot"'))

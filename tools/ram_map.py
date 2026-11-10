@@ -2,7 +2,8 @@
 
     python3 tools/ram_map.py check                 # validate re/ram.toml
     python3 tools/ram_map.py header [--check]      # write (or compare) game/ram.h
-    python3 tools/ram_map.py accessors [--check]   # game/vars.h and its RAM backing
+    python3 tools/ram_map.py accessors [--check]   # accessors, RAM and native struct backing
+    python3 tools/ram_map.py storage              # native variables still image-backed
     python3 tools/ram_map.py coverage [--open] [--subsystem NAME]
     python3 tools/ram_map.py lookup 7E:95D5 [--page battle]
 
@@ -24,6 +25,9 @@ fails when one is out of date:
   accessor takes against the map's count, bytes, rows and columns, and counts
   what is out of range, when it is built with CT_ACCESSOR_CHECKS; a variable
   with `unchecked` also gets an `_unchecked` pair for marked scaffolding.
+- `runtime/port/vars_host.h` and `vars_host.c`, module-owned native fields and
+  their address projection. `host_module` selects variables whose ownership
+  is resolved; CT_VARS_HOST accessors reach those fields directly.
 
 **Coverage** answers "how much of what game/ touches has a name". It counts,
 over game/ with comments stripped:
@@ -323,7 +327,7 @@ class Var:
     """A variable, an array of them, or an array of records."""
 
     KEYS = {"name", "addr", "size", "count", "stride", "index", "page", "dp",
-            "subsystem", "meaning", "source", "field", "rows", "row_stride", "unchecked", "reuses"}
+            "subsystem", "meaning", "source", "field", "rows", "row_stride", "unchecked", "reuses", "host_module"}
 
     def __init__(self, raw, pages):
         where = "var %r" % raw.get("name")
@@ -341,6 +345,9 @@ class Var:
             raise MapError("%s: subsystem %r is not one of %s" % (where, self.subsystem, SUBSYSTEMS))
         self.meaning = raw["meaning"]
         self.source = raw["source"]
+        self.host_module = raw.get("host_module")
+        if self.host_module is not None and not (isinstance(self.host_module, str) and NAME.fullmatch(self.host_module)):
+            raise MapError("%s: host_module must name its C storage owner" % where)
         self.index = raw.get("index")
         self.size = raw.get("size", 1)
         self.count = raw.get("count", 1)
@@ -515,6 +522,7 @@ class RamMap:
         if dup:
             raise MapError("names used twice: %s" % ", ".join(sorted(dup)))
         self._check_overlaps()
+        self._check_host_owners()
         self.macros = header_macros(self)   # also checks the generated names are unique
         for _, groups in accessors(self):   # the same, for game/vars.h; and no name says a word twice
             for _, _, group in groups:
@@ -528,6 +536,23 @@ class RamMap:
         """The variables whose names carry a word shaped like an address or a
         byte ($1E, $BC): named for where they are, not for what they hold."""
         return [v.name for v in self.vars if any(ADDRESS_WORD.match(w) for w in v.name.split("_"))]
+
+    def _check_host_owners(self):
+        moved = [v for v in self.vars if v.host_module]
+        if not moved:
+            return
+        owners = collections.defaultdict(set)
+        for v in self.vars:
+            for addr in variable_bytes(v):
+                owners[addr].add(v.name)
+        for v in moved:
+            if v.on_instances() or v.unchecked or v.reuses:
+                raise MapError("%s: resolve page instances, unchecked access and reuse before moving storage" % v.name)
+            seen = set()
+            for addr in variable_bytes(v):
+                if addr in seen or owners[addr] != {v.name}:
+                    raise MapError("%s: struct storage needs one owner at %s" % (v.name, fmt_addr(addr)))
+                seen.add(addr)
 
     def _check_overlaps(self):
         """Work RAM is reused from one game mode to the next, so two entries may
@@ -722,6 +747,8 @@ def render_header(m):
 
 VARS_HEADER = GAME / "vars.h"
 BACKING = ROOT / "runtime" / "port" / "vars_ram.c"
+HOST_HEADER = ROOT / "runtime" / "port" / "vars_host.h"
+HOST_BACKING = ROOT / "runtime" / "port" / "vars_host.c"
 
 # A variable this wide or narrower is one C value; a wider one is a buffer, and
 # its bytes are reached one at a time.
@@ -1008,8 +1035,8 @@ def render_backing(m):
         " * (docs/PLAN.md, \"The game's state as C\"); nothing in game/ changes with it.",
         " *",
         " * Built with CT_VARS_HOST (ct_native, docs/PLAYING.md, \"The native program\"), the",
-        " * same layout is held in the host's memory instead (port/state_host.h): the bytes",
-        " * at the original's addresses, with no machine behind them. */",
+        " * migrated modules use generated structs (vars_host.h); other variables retain",
+        " * the address backing. The compatibility view has no duplicate field storage. */",
         "#include \"vars.h\"",
         "",
         "#include \"port/vars_pages.h\"",
@@ -1024,6 +1051,7 @@ def render_backing(m):
         "#ifdef CT_VARS_HOST",
         "",
         "#include \"port/state_host.h\"",
+        "#include \"port/vars_host.h\"",
         "",
         "/* Each access the game's time, as the machine's bus counts it (state_host.c),",
         "   but for a guard's look, which takes none of it (vars_peek). */",
@@ -1100,6 +1128,11 @@ def render_backing(m):
     for sub, groups in accessors(m):
         out += ["", "/* ---- %s %s */" % (sub, "-" * (86 - len(sub))), ""]
         for _, _, group in groups:
+            if group[0].var.host_module:
+                out.append("#ifdef CT_VARS_HOST")
+                for a in group:
+                    out += render_host_accessor(a)
+                out.append("#else")
             for a in group:
                 w = 8 if a.blob or a.table else a.size * 8
                 for write in (False, True):
@@ -1109,7 +1142,127 @@ def render_backing(m):
                                      for arg, limit, what in a.bounds())
                     body = ("w%d(g, %s, v);" if write else "return r%d(g, %s);") % (w, a.address())
                     out.append("%s { %s%s }" % (a.signature(write), checks, body))
+            if group[0].var.host_module:
+                out.append("#endif")
     out.append("")
+    return "\n".join(out)
+
+
+def host_member(a, root="h", element=None, row="row", byte="at"):
+    v = a.var
+    member = "%s->%s.%s" % (root, v.host_module, v.name)
+    if v.rows:
+        member += "[%s]" % row
+    if v.count > 1:
+        member += "[%s]" % (element or index_param(v.index))
+    if v.fields:
+        # Accessor names are unique and derived from the field name.
+        field = next(f for f in v.fields if f.offset == a.offset)
+        member += "." + field.name
+    if a.blob or a.table:
+        member += "[%s]" % byte
+    return member
+
+
+def render_host_accessor(a):
+    out = []
+    width = 1 if a.blob or a.table else a.size
+    for write in (False, True):
+        out += [a.signature(write), "{"]
+        # Invalid indices keep the address-view behavior, never index a C array
+        # out of bounds. Unchecked variables cannot move in the first place.
+        bad = " || ".join("%s >= %s" % (arg, limit) for arg, limit, _ in a.bounds())
+        if bad:
+            fallback = ("w%d(g, %s, v); return;" if write else "return r%d(g, %s);") % (width * 8, a.address())
+            out += ["    if (%s) { %s }" % (bad, fallback)]
+        out += ["    if (!peeking)", "        state_host_game_access(g, %d);" % (width * 8)]
+        out += ["    %sVarsHost *h = state_host_vars%s(g);" % ("" if write else "const ", "" if write else "_const")]
+        member = host_member(a, byte="column" if a.table else "at")
+        out += ["    %s" % (member + " = " + ("v & 0xFFFFFFu" if width == 3 else "v") + ";" if write else "return " + member + ";"), "}"]
+    return out
+
+
+def host_groups(m):
+    groups = collections.defaultdict(list)
+    for v in m.vars:
+        if v.host_module:
+            groups[v.host_module].append(v)
+    return sorted(groups.items())
+
+
+def render_host_header(m):
+    out = ["/* Module-owned native state; generated by tools/ram_map.py accessors.",
+           " * The address view serializes fields explicitly, independent of C padding",
+           " * and host byte order. Unmoved variables still use state_host's image. */",
+           "#ifndef CT_PORT_VARS_HOST_H", "#define CT_PORT_VARS_HOST_H", "",
+           "#include <stdbool.h>", "#include <stdint.h>", ""]
+    groups = host_groups(m)
+    for module, vs in groups:
+        out += ["typedef struct {"]
+        for v in vs:
+            dims = ("[%d]" % v.rows if v.rows else "") + ("[%d]" % v.count if v.count > 1 else "")
+            if v.fields:
+                out += ["    struct {"]
+                for f in v.fields:
+                    out += ["        %s %s%s;" % (C_TYPE.get(f.size, "uint8_t"), f.name,
+                                                   "[%d]" % f.size if f.size > WIDEST else "")]
+                out += ["    } %s%s;" % (v.name, dims)]
+            else:
+                blob = v.size > WIDEST or v.rows
+                out += ["    %s %s%s%s;" % ("uint8_t" if blob else C_TYPE[v.size], v.name, dims,
+                                             "[%d]" % v.size if blob else "")]
+        out += ["} VarsHost%s;" % camel(module), ""]
+    out += ["typedef struct {"]
+    for module, _ in groups:
+        out += ["    VarsHost%s %s;" % (camel(module), module)]
+    if not groups:
+        out += ["    uint8_t unused; /* C has no empty structs. */"]
+    out += ["} VarsHost;", "", "void vars_host_init(VarsHost *h);",
+            "bool vars_host_read8(const VarsHost *h, uint32_t addr, uint8_t *value);",
+            "bool vars_host_write8(VarsHost *h, uint32_t addr, uint8_t value);", "", "#endif", ""]
+    return "\n".join(out)
+
+
+def render_host_backing(m):
+    out = ["/* Address projection of module fields; generated by tools/ram_map.py accessors. */",
+           '#include "port/vars_host.h"', "#include <string.h>", "",
+           "void vars_host_init(VarsHost *h)", "{", "    memset(h, 0x55, sizeof *h);"]
+    groups = [a for _, vs in accessors(m) for v, _, aa in vs if v.host_module for a in aa]
+    # 24-bit values live in uint32_t, whose unused high byte is always zero.
+    for a in groups:
+        if a.size == 3 and not a.table:
+            if a.var.count > 1:
+                out += ["    for (unsigned i = 0; i < %d; i++)" % a.var.count]
+            out += ["    %s%s = 0x555555u;" % ("    " if a.var.count > 1 else "", host_member(a, element="i"))]
+    out += ["}", ""]
+    for write in (False, True):
+        out += ["bool vars_host_%s8(%sVarsHost *h, uint32_t addr, uint8_t %svalue)" %
+                ("write" if write else "read", "" if write else "const ", "" if write else "*"), "{"]
+        if not groups:
+            out += ["    (void)h; (void)addr; (void)value;"]
+        for a in groups:
+            v = a.var
+            span = (v.rows - 1) * v.row_stride if v.rows else 0
+            span += (v.count - 1) * v.stride + a.size
+            out += ["    if (addr >= 0x%06Xu && addr < 0x%06Xu) {" % (a.addr, a.addr + span),
+                    "        uint32_t offset = addr - 0x%06Xu;" % a.addr]
+            if v.rows:
+                out += ["        unsigned row = offset / %du;" % v.row_stride,
+                        "        offset %%= %du;" % v.row_stride]
+            if v.count > 1:
+                out += ["        unsigned element = offset / %du;" % v.stride,
+                        "        offset %%= %du;" % v.stride]
+            condition = ("element < %du && " % v.count if v.count > 1 else "") + "offset < %du" % a.size
+            member = host_member(a, element="element", byte="offset")
+            out += ["        if (%s) {" % condition]
+            if a.blob or a.table:
+                statement = "%s = value;" % member if write else "*value = %s;" % member
+            elif write:
+                statement = "%s = (%s)((%s & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));" % (member, a.type, member)
+            else:
+                statement = "*value = (uint8_t)(%s >> (offset * 8));" % member
+            out += ["            " + statement, "            return true;", "        }", "    }"]
+        out += ["    return false;", "}", ""]
     return "\n".join(out)
 
 
@@ -1554,7 +1707,8 @@ def main(argv=None):
             print("wrote %s" % HEADER.relative_to(ROOT).as_posix())
     elif args.cmd == "accessors":
         want = ((VARS_HEADER, render_vars_header(m)), (PAGES_HEADER, render_pages_header(m)),
-                (BACKING, render_backing(m)))
+                (BACKING, render_backing(m)), (HOST_HEADER, render_host_header(m)),
+                (HOST_BACKING, render_host_backing(m)))
         for path, text in want:
             rel = path.relative_to(ROOT).as_posix()
             if args.check:
