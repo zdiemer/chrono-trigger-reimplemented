@@ -31,6 +31,7 @@
 #include "field/walk.h"
 
 #include "battle/program.h"
+#include "battle/entries.h"
 #include "charge.h"
 #include "core/program.h"
 #include "core/display.h"
@@ -722,7 +723,7 @@ static bool fight_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
     s->cpu.a = field_frame_wait_leaves_a(state_of(s));
-    return bridge_call_long(s, 0xC018A7, BATTLE, 0, on_the_field_page(s, false));
+    return field_run_long_called(s, 0xC018A7, BATTLE, 0, battle_start_from_field, on_the_field_page(s, false));
 }
 
 static bool take_up_on_the_machine(void *ctx)
@@ -761,17 +762,22 @@ void field_requested_battle_finishes(Snes *s)
 // $C0:18CD
 void field_requested_battle_returns(Snes *s) { field_return_to_waiting_caller(s); }
 
-// $C0:18A7
-void field_requested_battle_starts(Snes *s)
+// $C0:18AB
+void field_requested_battle_ended(Snes *s)
 {
-    if (!fight_on_the_machine(s))
-        return;
     GameState *g = state_of(s);
     TIMED_AS(g, FIELD_INSTALL_NMI_ENTRY, field_take_the_vblank_interrupt(g));
     TIMED_AS(g, FIELD_INSTALL_IRQ_ENTRY, field_take_the_line_interrupt(g));
     battle_over(g);
     if (take_up_on_the_machine(s) && press_on_the_machine(s) && free_on_the_machine(s) && field_turn_on_the_machine(s))
         field_return_to_waiting_caller(s);
+}
+
+// $C0:18A7
+void field_requested_battle_starts(Snes *s)
+{
+    if (fight_on_the_machine(s))
+        field_requested_battle_ended(s);
 }
 
 /* False where the port stopped. */

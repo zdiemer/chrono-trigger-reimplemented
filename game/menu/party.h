@@ -111,12 +111,9 @@ void party_rocks_teach(GameState *g);
  * a New Game+. */
 void party_note_the_game_finished(Platform *pf);
 
-/* ---- The registered entries (menu/party_bridge.c) ------------------------------------------- */
+/* ---- The checked legacy adapters (menu/party_bridge.c) ------------------------------------------- */
 
-void menu_party_services(Snes *s);
 void menu_show_what_the_party_wears(Snes *s);
-void menu_rocks_teach(Snes *s);
-bool menu_party_service_runs(Snes *s);
 bool menu_party_wear_is_showable(Snes *s);
 
 #endif

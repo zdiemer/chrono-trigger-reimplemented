@@ -932,13 +932,37 @@ For an interpreted wait on an externally updated byte, `--tick-at
 PC=WRAM` increments that WRAM byte before each execution of PC on both
 machines (including the port's interpreted call-outs). For example,
 `--tick-at C20348=7E004B` supplies the sprite mode's frame notification.
-The option can repeat up to eight times. The effect graphics loader needs
+`--clear-at PC=WRAM` instead clears a pending flag to model an external
+worker completing a request. Together these options can repeat up to eight
+times. A completion does not perform the worker's work; use it to compare
+the waiting caller, and validate the worker separately. The harness tests
+check that one completion leaves a second request pending and that both
+machines proceed once both requests complete. A call-out that exhausts its
+budget reports its current instruction, bounded by `--details`, so a fixture
+can distinguish a pending worker from a pause or another wait. These skipped
+trials still provide no comparison evidence. The effect graphics loader needs
 both its frame and upload counters notified at the same wait: its
 `notifications` recipe compares all six effects and both upload chunk sizes.
 After the unpacker's teardown made all 102 library calls cross interrupts,
 `uncompared_evidence.py` supplies two seeds of 1,024 complete comparisons
 instead, requiring zero skips as well as zero mismatches. The sampled gate
 runs them for the Beyond Time ending; `--evidence` always runs them.
+
+`--compare-entry BBAAAA` compares a reviewed original alias against the
+named routine's C implementation. It retains that routine's complete guard,
+register contract and comparison rules; only the entry address changes.
+Use it when several original bodies implement one C operation, and identify
+that relationship in the recipe. The battle condition table's two aliases
+of `always` each compare 1,564 admitted trials with no mismatches; their
+436 guard refusals contribute no coverage. The coverage records the alias
+actually executed, not the registered address.
+
+`--apu-fade-complete` keeps the command acknowledgement loopback but reports
+zero on the music-fade status port. This supplies a completed sound-worker
+request to a waiting caller; it does not test the sound driver or the fade's
+duration. The battle defeat caller compares 2,000 trials through its frame
+wait and up to the battlefield change with this fixture, without mismatches
+or skipped trials.
 This does not run vblank, the objects, audio or a video frame; use it only
 where the counter notification is the dependency under test. Up to 64
 `--keep`/`--fill` areas can describe a trial's state.
@@ -948,7 +972,7 @@ matters. Past the end of a data area, indexed reads reach I/O space, where open
 bus holds the last byte on the data bus. The interpreter's instruction fetches
 set it and native code doesn't, so those reads differ in ways real game data
 never exercises. `--range` limits a register (script offsets, for example), and
-`--keep` leaves a WRAM range as it is in the base state. `--fill BBAAAA-BBAAAA=lo-hi` gives a WRAM range random bytes within limits, for example a pointer's bank byte in script operands.
+`--keep` leaves a RAM range as it is in the base state. `--fill BBAAAA-BBAAAA=lo-hi` gives it random bytes within limits, for example a pointer's bank byte in script operands. Areas include work RAM and the HiROM cartridge-save mirrors (`$20-$3F` and `$A0-$BF`, `$6000-$7FFF`); ROM and device registers are not written. A marked slot with a synthetic body and an incorrect checksum can therefore compare the menus' spoiled-save answer. Fills and ties use the same save-memory mapping, without changing the base state.
 
 An area need not be every byte of its range, nor a fill a range of bytes:
 

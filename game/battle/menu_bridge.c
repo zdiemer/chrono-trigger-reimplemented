@@ -144,17 +144,6 @@ BattleMenuMachine battle_menu_machine(Snes *s, bool inside_choosing)
  * marking's, of the last entry against the marks; the list's, of its last
  * row's count. The menu's frame itself leaves none worth keeping (the
  * registry's dc-evidence). */
-static bool choosing_carry(const GameState *g)
-{
-    TargetPick pick = battle_target_pick(battle_target_kind(g));
-    return (pick == PICK_SELF || pick == PICK_FALLEN) ? !battle_anyone_aimed_at(g) : true;
-}
-
-static bool marking_carry(const GameState *g, uint8_t member)
-{
-    uint8_t last = (uint8_t)(setup_member_tech_list_start(g, member) + TECHS_A_MEMBER - 1);
-    return !battle_tech_entry_is_a_tech(battle_tech_list_ids(g, last));
-}
 
 /* ---- The entries ---------------------------------------------------------------------------------- */
 
@@ -163,40 +152,37 @@ static bool marking_carry(const GameState *g, uint8_t member)
 void battle_take_menu_input(Snes *s)
 {
     GameState *g = state_of(s);
+    /* An idle command page keeps the carry from framing its member. The
+     * frame operation is ordinary C, but the still-gated menu turn compares
+     * this flag when cursor placement leaves it unchanged. */
+    vars_peek(true);
+    Buttons buttons = battle_menu_buttons(g);
+    bool command_page = !menu_nobody(battle_menu_member(g)) && !battle_targeting(g)
+                        && battle_menu_page(g) == PAGE_COMMANDS;
+    bool idle_command = command_page && !buttons;
+    bool next_member = command_page && (buttons & BUTTON_RIGHT)
+                       && !(buttons & (BUTTON_LEFT | BUTTON_UP | BUTTON_DOWN))
+                       && !(battle_remembers_commands(g) && (buttons & BUTTON_X));
+    vars_peek(false);
     BattleMenuMachine m = battle_menu_machine(s, false);
     battle_menu_frame(g, battle_menu_buttons(g), &m.host);
+    if (idle_command)
+        m_set_flag(s, CPU_FLAG_C, true);
+    if (next_member) {
+        /* Advancing the member slot leaves the compare at its wraparound. */
+        vars_peek(true);
+        m_set_flag(s, CPU_FLAG_C, battle_menu_slot(g) == 0);
+        vars_peek(false);
+    }
     if (!m.stopped)
         m_rts(s);
 }
 
 /* The choosing of targets for the original's callers. It leaves A's high
  * byte clear and the carry of its last compare. */
-void battle_choose_targets_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    BattleMenuMachine m = battle_menu_machine(s, true);
-    battle_choose_targets(g, battle_menu_buttons(g), &m.host);
-    if (m.stopped)
-        return;
-    s->cpu.a &= 0x00FF;
-    vars_peek(true);
-    m_set_flag(s, CPU_FLAG_C, choosing_carry(g));
-    vars_peek(false);
-    m_rts(s);
-}
 
 /* The tech rows' marking for the original's callers: A's high byte clear,
  * the carry of the last entry's compare. */
-void battle_mark_tech_rows_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    battle_mark_tech_rows(g);
-    s->cpu.a &= 0x00FF;
-    vars_peek(true);
-    m_set_flag(s, CPU_FLAG_C, marking_carry(g, battle_menu_member(g)));
-    vars_peek(false);
-    m_rts(s);
-}
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 
@@ -219,7 +205,7 @@ static void click_the_menu(MenuHost *host, MenuClick click)
 bool battle_menu_input_taken(GameState *g, Platform *pf)
 {
     if (!battle_menu_window_fits(g) || !battle_menu_frame_fits(g))
-        return battle_needs_the_machine(g, 0xC11153, "a menu state the menu's frame doesn't take");
+        return battle_contract_broken(g, 0xC11153, "a menu state the menu's frame doesn't take");
     MenuClickContext c = { { click_the_menu }, pf };
     battle_menu_frame(g, battle_menu_buttons(g), &c.host);
     return true;

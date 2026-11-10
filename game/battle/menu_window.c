@@ -35,10 +35,8 @@
 #include "battle/window_data.h"
 #include "battle/window_leaves.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "port/native.h"
 #include "vars.h"
-
 
 /* ---- The menu window's tilemap ---------------------------------------------------------- */
 
@@ -121,7 +119,7 @@ static bool member_disabled(const GameState *g, uint8_t member)
 
 static bool partner_out(GameState *g, uint8_t partner)
 {
-    ORIGINAL_EFFECT(battle_leave_work8(g, PARTNER, partner));
+    charge_machine_accesses(g, 1);
     uint8_t member = partner_member(g, partner);
     return menu_nobody(member) || member_disabled(g, member);
 }
@@ -135,7 +133,7 @@ static bool tech_usable(GameState *g, unsigned member, unsigned record)
         if (!affordable(cost_to(g, record, slot), battle_stats_mp(g, slot)))
             return false;
     uint8_t partners = battle_tech_records_partners(g, record);
-    ORIGINAL_EFFECT(battle_leave_work8(g, PARTNERS, partners));
+    charge_machine_accesses(g, 1);
     if (partners != BLANK_ROW) {
         if (partner_out(g, first_partner(partners)))
             return false;
@@ -177,28 +175,13 @@ static void shade_tech_row(GameState *g, unsigned row, uint8_t attributes)
  * its attributes, the next entry and the rows done. */
 enum { PARTY_MP = 0x96, ROW_PLACE = 0x84, ROW_ATTRIBUTES = 0x94, ENTRY = 0x86, ROWS_DONE = 0x82 };
 
-static void leave_tech_check_cells(GameState *g, unsigned member)
-{
-    set_battle_product(g, (uint16_t)(member * MEMBER_RECORDS_BYTES));   /* the multiplier's cell, reused */
-    for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++)
-        battle_leave_work16(g, (uint8_t)(PARTY_MP + 2 * slot), battle_stats_mp(g, slot));
-}
-
-static void leave_row_cells(GameState *g, unsigned row, uint8_t entry, uint8_t attributes)
-{
-    battle_leave_work16(g, ROW_PLACE, (uint16_t)(2 * tech_row_cell(row, 0)));
-    battle_leave_work8(g, ROW_ATTRIBUTES, attributes);
-    battle_leave_work16(g, ENTRY, (uint8_t)(entry + 1));
-    battle_leave_work16(g, ROWS_DONE, (uint16_t)(row + 1));
-}
-
 // $C1:0EE1
 /* Shade the rows of the member's techs that can't be used now, and mark their
  * records so. */
 static void shade_unusable_techs(GameState *g)
 {
     unsigned member = battle_menu_member(g);
-    ORIGINAL_EFFECT(leave_tech_check_cells(g, member));
+    charge_machine_accesses(g, 14);
     for (unsigned row = 0; row < TECH_ROWS; row++) {
         uint8_t entry = list_entry(g, member, row);
         uint8_t id = battle_tech_list_ids(g, entry);
@@ -207,14 +190,14 @@ static void shade_unusable_techs(GameState *g)
             usable = section_usable(g, id);
         } else {
             unsigned record = tech_record(member, battle_tech_list(g, entry));
-            ORIGINAL_EFFECT(battle_leave_work16(g, RECORD_PLACE, (uint16_t)(TECH_RECORD_BYTES * record)));
+            charge_machine_accesses(g, 2);
             usable = tech_usable(g, member, record);
             uint8_t flags = battle_tech_records_flags(g, record) & (uint8_t)~TECH_DIMMED;
             set_battle_tech_records_flags(g, record, usable ? flags : flags | TECH_DIMMED);
         }
         uint8_t attributes = usable ? TEXT_PLAIN : TEXT_SHADED;
         shade_tech_row(g, row, attributes);
-        ORIGINAL_EFFECT(leave_row_cells(g, row, entry, attributes));
+        charge_machine_accesses(g, 7);
     }
     set_battle_tech_list_dimmed(g, 1);
 }
@@ -231,12 +214,6 @@ static WindowCell slot_line_cell(unsigned slot, unsigned column) { return window
 /* The original counts the column's rows and cells in two work cells. */
 enum { ROWS_COUNTED = 0x80, CELLS_COUNTED = 0x81 };
 
-static void leave_column_cells(GameState *g)
-{
-    battle_leave_work8(g, ROWS_COUNTED, PAGE_ROWS);
-    battle_leave_work8(g, CELLS_COUNTED, COLUMN_CELLS);
-}
-
 /* The list the original laid out, and the column beside it. */
 static void show_tech_list(GameState *g)
 {
@@ -245,7 +222,7 @@ static void show_tech_list(GameState *g)
     for (unsigned row = 0; row < PAGE_ROWS; row++)
         for (unsigned i = 0; i < COLUMN_CELLS; i++)
             menu_set_tile(g, window_cell(row, COLUMN_START + i), battle_tech_page_column_tile(g, row, i));
-    ORIGINAL_EFFECT(leave_column_cells(g));
+    charge_machine_accesses(g, 2);
 }
 
 /* Each member's MP, its cost cells cleared; a slot with nobody has the mark
@@ -312,30 +289,19 @@ static void show_cost(GameState *g, unsigned slot, uint8_t cost)
  * record's among the member's. */
 enum { RECORD_OFFSET = 0x80 };
 
-static void leave_selected_cells(GameState *g, unsigned member, bool blank, uint8_t entry)
-{
-    uint16_t records = (uint16_t)(member * MEMBER_RECORDS_BYTES);
-    if (blank) {   /* only the list's start, over the low byte */
-        set_battle_product(g, (uint16_t)((records & 0xFF00) | (uint8_t)(member * TECHS_PER_MEMBER)));
-        return;
-    }
-    set_battle_product(g, (uint16_t)(records + entry * TECH_RECORD_BYTES));
-    battle_leave_work8(g, RECORD_OFFSET, (uint8_t)(entry * TECH_RECORD_BYTES));
-}
-
 /* The tech under the member's cursor, and what it costs each member. A blank
  * row selects no tech (and clears the second member's costs). */
 static void show_tech_costs(GameState *g, unsigned member)
 {
     uint8_t entry = battle_tech_list(g, (uint8_t)(list_entry(g, member, 0) + battle_tech_cursor(g, member)));
     if (entry == BLANK_ROW) {
-        ORIGINAL_EFFECT(leave_selected_cells(g, member, true, entry));
+        charge_machine_accesses(g, 2);
         menu_set_tile(g, slot_line_cell(1, COST_COLUMN), TILE_BLANK);
         menu_set_tile(g, slot_line_cell(1, COST_COLUMN + 1), TILE_BLANK);
         select_no_tech(g);
         return;
     }
-    ORIGINAL_EFFECT(leave_selected_cells(g, member, false, entry));
+    charge_machine_accesses(g, 3);
     select_tech(g, tech_record(member, entry));
     for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++) {
         uint8_t cost = selected_cost_to(g, slot);
@@ -359,7 +325,7 @@ static void clear_tech_cursor_column(GameState *g)
 static void show_tech_cursor(GameState *g, unsigned member)
 {
     uint8_t row = battle_tech_cursor(g, member);
-    ORIGINAL_EFFECT(battle_leave_work8(g, CURSOR_ROW, row));
+    charge_machine_accesses(g, 1);
     clear_tech_cursor_column(g);
     if (!battle_targeting(g))
         menu_put_cursor(g, window_cell(2 * row, TECH_CURSOR_COLUMN));
@@ -521,7 +487,7 @@ static bool window_call_on_the_machine(void *ctx, WindowCall call, uint8_t tech,
     switch (call) {
     case WINDOW_ROWS:
         m_set_flag(s, CPU_FLAG_C, carry);
-        return battle_call_long(s, 0xC10C79, 0xCFFD02, CALLEE_READS_NOTHING);
+        return battle_run_long_called(s, 0xC10C79, 0xCFFD02, CALLEE_READS_NOTHING, battle_request_window_rows);
     case WINDOW_DESCRIPTION:
         m_set_flag(s, CPU_FLAG_C, carry);
         s->cpu.a = tech;
@@ -531,7 +497,7 @@ static bool window_call_on_the_machine(void *ctx, WindowCall call, uint8_t tech,
             s->cpu.a = TECH_LIST_LAID_OUT_A;
             m_set_flag(s, CPU_FLAG_C, carry);
         }
-        return battle_call_long(s, 0xC10E99, 0xCFFD36, CALLEE_READS_NOTHING);
+        return battle_run_long_called(s, 0xC10E99, 0xCFFD36, CALLEE_READS_NOTHING, battle_request_saved_window_rows);
     }
 }
 
@@ -662,12 +628,6 @@ enum { TARGETS_A_ROUND = 3 };
 /* The original counts the targets and the cursors in two work cells. */
 enum { TARGET_COUNTED = 0x80, CURSOR_COUNTED = 0x82 };
 
-static void leave_group_cells(GameState *g, unsigned target, unsigned cursor)
-{
-    battle_leave_work16(g, TARGET_COUNTED, (uint16_t)target);
-    battle_leave_work16(g, CURSOR_COUNTED, (uint16_t)cursor);
-}
-
 // $C1:1A7B
 /* A group of targets: the first always has a cursor, and the other three go
  * round the rest from where they stopped last time, a round at a time, so a
@@ -690,7 +650,7 @@ static void place_group_cursors(GameState *g)
         if (target == TARGETS_A_ROUND || target == BATTLE_TARGET_ENTRIES || ++cursor == CURSORS)
             break;
     }
-    ORIGINAL_EFFECT(leave_group_cells(g, target, cursor));
+    charge_machine_accesses(g, 4);
     set_battle_target_cursor(g, (uint8_t)(target == BATTLE_TARGET_ENTRIES ? 0 : target));
 }
 
@@ -698,17 +658,31 @@ static void place_group_cursors(GameState *g)
  * see it ($CD:002D, from battle_target_display); some enemies go unnamed. */
 enum { UNNAMED = 0xFF, TARGET_STAT_BLOCK = 0x80 };
 
+/* Set out what the target display shows; the name to show. */
+
+/* When the player moves a lone target and the frame may change, a cursor near
+ * the screen's top brings the other frame on and one near its bottom takes it
+ * off. */
+enum { NEAR_THE_TOP = 0x2D, NEAR_THE_BOTTOM = 0x9C };
+
+/* ---- The item list's cursor --------------------------------------------------------------- */
+
+/* The item list is in the battle window from its eighth row, with a scroll
+ * arrow at each end of its right edge: the upper one blank at the list's
+ * top, the lower one at its end. */
+enum { ITEM_LIST_ROW = 7, ITEM_LIST_TOP = 0, ITEM_LIST_END = 0xFA, TILE_ARROW = 0x7F };
+enum { ARROW_COLUMN = 30, UP_ARROW_ROW = 8, DOWN_ARROW_ROW = 12 };
+
 static bool enemy_hp_shown(const GameState *g, unsigned slot)
 {
     return battle_enemy_hp_seen(g) && battle_enemy_hp_visible(g, slot - BATTLE_FIRST_ENEMY);
 }
 
-/* Set out what the target display shows; the name to show. */
 static uint8_t describe_target(GameState *g, unsigned slot)
 {
     uint8_t enemy = (uint8_t)battle_enemy_numbers(g, slot - BATTLE_FIRST_ENEMY);
     set_battle_target_display(g, 0, enemy);
-    ORIGINAL_EFFECT(battle_leave_work16(g, TARGET_STAT_BLOCK, (uint16_t)(slot * BATTLE_STAT_BLOCK_BYTES)));
+    charge_machine_accesses(g, 2);
     if (enemy_hp_shown(g, slot)) {
         uint16_t hp = battle_stats_hp(g, slot), max_hp = battle_stats_max_hp(g, slot);
         set_battle_target_display(g, 1, (uint8_t)hp);
@@ -718,11 +692,6 @@ static uint8_t describe_target(GameState *g, unsigned slot)
     }
     return battle_enemy_name_hidden(g, enemy) ? UNNAMED : (uint8_t)slot;
 }
-
-/* When the player moves a lone target and the frame may change, a cursor near
- * the screen's top brings the other frame on and one near its bottom takes it
- * off. */
-enum { NEAR_THE_TOP = 0x2D, NEAR_THE_BOTTOM = 0x9C };
 
 static void follow_moved_target(GameState *g)
 {
@@ -739,14 +708,6 @@ static void follow_moved_target(GameState *g)
         set_battle_alternate_frame(g, 0);
     }
 }
-
-/* ---- The item list's cursor --------------------------------------------------------------- */
-
-/* The item list is in the battle window from its eighth row, with a scroll
- * arrow at each end of its right edge: the upper one blank at the list's
- * top, the lower one at its end. */
-enum { ITEM_LIST_ROW = 7, ITEM_LIST_TOP = 0, ITEM_LIST_END = 0xFA, TILE_ARROW = 0x7F };
-enum { ARROW_COLUMN = 30, UP_ARROW_ROW = 8, DOWN_ARROW_ROW = 12 };
 
 static void show_scroll_arrows(GameState *g, uint8_t top)
 {
@@ -804,7 +765,7 @@ static bool show_item_cursor(GameState *g)
         draw_item_cursor(g, item_cursor_cell(g, row));
         drawn++;
     }
-    ORIGINAL_EFFECT(battle_leave_work8(g, DRAWN, drawn));
+    charge_machine_accesses(g, 1);
     return drawn != 0;
 }
 
@@ -845,6 +806,10 @@ typedef bool (*NameTarget)(void *ctx, uint8_t name, bool with_hp);
 
 // $C1:19B4
 /* A lone target: its cursor, and on the command page an enemy's name. */
+
+// $C1:1979
+/* While targets are chosen the cursors go on them, unless there were none to
+ * choose; on the tech page the list's hand goes first. */
 static bool place_lone_target_cursor(GameState *g, uint8_t target, NameTarget name, void *ctx, CursorsPlaced *placed)
 {
     set_battle_single_target(g, target);
@@ -862,9 +827,6 @@ static bool place_lone_target_cursor(GameState *g, uint8_t target, NameTarget na
     return true;
 }
 
-// $C1:1979
-/* While targets are chosen the cursors go on them, unless there were none to
- * choose; on the tech page the list's hand goes first. */
 static bool place_target_cursors(GameState *g, NameTarget name, void *ctx, CursorsPlaced *placed)
 {
     if (menu_nobody(battle_no_targets(g)))
@@ -1024,7 +986,7 @@ static void find_combo_partners(GameState *g)
 static bool cant_join(GameState *g, unsigned member)
 {
     bool out = combatant_cant_act(g, member);
-    ORIGINAL_EFFECT(set_battle_combo_member_out(g, out));
+    charge_machine_accesses(g, 1);
     return out;
 }
 
@@ -1069,13 +1031,6 @@ void battle_update_combo_members_entry(Snes *s)
 
 /* It leaves A's high byte the direct page's (a TDC) and the carry of its
  * loop's last compare, set. */
-void battle_reset_window_frames(Snes *s)
-{
-    battle_reset_frames(state_of(s));
-    s->cpu.a = m_direct_page(s) & 0xFF00;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
-}
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 
@@ -1096,7 +1051,7 @@ bool battle_menu_window_drawn(GameState *g, Platform *pf)
 {
     (void)pf;
     if (!battle_menu_window_fits(g))
-        return battle_needs_the_machine(g, 0xC10C2D, "a menu state the window's port doesn't take");
+        return battle_contract_broken(g, 0xC10C2D, "a menu state the window's port doesn't take");
     WindowLeaves left;
     return draw_menu_window(g, window_call, g, &left);
 }
@@ -1118,7 +1073,7 @@ static bool call_off_the_combination(void *ctx)
 bool battle_update_combo_members(GameState *g, Platform *pf)
 {
     if (!battle_window_fits(g))
-        return battle_needs_the_machine(g, 0xC1B575, "a menu state the combinations' port doesn't take");
+        return battle_contract_broken(g, 0xC1B575, "a menu state the combinations' port doesn't take");
     MenuWindowContext c = { g, pf };
     return update_combo_members(g, call_off_the_combination, &c);
 }
@@ -1129,7 +1084,7 @@ bool battle_menu_cursors_placed(GameState *g, Platform *pf)
 {
     (void)pf;
     if (!battle_window_fits(g))
-        return battle_needs_the_machine(g, 0xC117DD, "a menu state the cursors' port doesn't take");
+        return battle_contract_broken(g, 0xC117DD, "a menu state the cursors' port doesn't take");
     CursorsPlaced placed;
     return place_menu_cursors(g, name_the_target, g, &placed);
 }

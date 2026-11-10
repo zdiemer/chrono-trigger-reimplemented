@@ -79,27 +79,25 @@ for shadow mode or for the original's still-generated code goes through
 `ORIGINAL_EFFECT` (docs/PORTING.md, "Scaffolding"), and the build already
 compiles every port once without it (`ct_game_native_shape`). When a subsystem
 retires the gate, its scaffolding is deleted in the same commit, and anything
-the evidence found reading it from outside (event's scratch cells feed the
-menus' wave phase; TODO.md) is decided first. A subsystem's `portstyle.py`
+the evidence found reading it from outside is decided first. The battle and
+menu values read by the scene's curtain remain explicit live state
+(REIMPLEMENTATION.md, their teardown sections). A subsystem's `portstyle.py`
 scaffolding count is how much of this is left to take down.
 
 ### Working order
 
-**The order now: battle and menus retire, then the machine leaves.** Sound,
+**The order now: finish the state boundaries, then the machine leaves.** Sound,
 data, core services, warp, overworld, the scene program and attract, field,
-events and the scene engine have retired their byte-exact comparisons.
+events, the scene engine, menus and battle have retired their byte-exact comparisons.
 Their retained contracts and compatibility interfaces are documented under
 the subsystem teardown sections in REIMPLEMENTATION.md.
 
-1. **Finish the battle and menus teardowns.** Each needs its unreached paths
-   accounted for, recorded outcomes protected, and its callers' contracts
-   preserved. This work is in progress on another branch.
-2. **Finish the asset and state boundaries.** Replace the last cartridge
+1. **Finish the asset and state boundaries.** Replace the last cartridge
    transfers with store-backed resources, and move the game's variables into
    C structs behind the accessors. Resolve shared scratch, table overruns and
    save projections before changing storage. These can proceed per retired
    subsystem when they do not overlap the teardown work.
-3. **Remove the remaining machine interfaces from the product.** Delete
+2. **Remove the remaining machine interfaces from the product.** Delete
    wrappers, registry dispatch and emulator dependencies once no caller needs
    them; make `ct_play` the native program.
 
@@ -193,74 +191,10 @@ of the accumulated branch before merge. The merge gate runs on the combined
 tree, with long routes once per timing/runtime batch and whole-library
 recalibration in its own batched ledger commit (CLAUDE.md; PORTING.md).
 
-The battle and menus accounts below remain with their pending teardowns.
-
-**`$C1`: the battle.** The bank is in: the enemies' scripts, the
-target search, the random numbers, an enemy's turn, the statuses' timers,
-every action's effect, a party member's action carried out, the setup's party
-helpers with the inventory and gold service (`$C1:8003`), the fight's start
-(`$C1:FA8B`) with the `$FD` routines it calls, the rewards of a won
-battle (`$C1:F93E`, `$C1:F205`, `$C1:B4E9`, `$FD:B201`: the experience, the
-levels, the techs, the items put back), all of which the main loop runs as C,
-and the animation script language (chunks 9a and 9b: the command table in C,
-the flow, values, poses, drawing, effects and colors; the places and facings,
-every move, the grid walk, the sound commands and the screen effect), and
-chunk 10: the enemies' movements (`$C1:3772`-`$C1:4021`), the party's turns as statuses, counters and called-off combinations decide
-them (`$FD:AB30`, `$FD:AC6E`, `$FD:A8CE`-`$A95F`, `$C1:B3F9`, `$C1:B762`), the
-demo's party, and the battle's end's bookkeeping; and the leftovers: the
-battle's start from the field and its return there, the setup's last part,
-the scheduler's animation step, an effect's next frame and a member that comes
-back once; the player choosing (the menu's frame, its lists, the target
-kinds and the area search); and an action shown (history/reimplementation-chunks.md, "Phase 3, battle:
-an action shown"): the showing's step, the action's animation chosen and
-loaded, the poses' looks, the battle's own frame step and step 3, and the
-hits landing with a felled enemy's spoils. `python3 tools/burndown.py
---uncovered C1` (and `CF`, `CC`) leaves only jump stubs into ports, and bank
-`$FD`'s battle routines are C too, the rewards' messages (`$FD:AD17`) and the
-turns' work cleared (`$FD:A982`) the last (history/reimplementation-chunks.md, "Phase 4a,
-timing: the battle frame work's remainders, chunk 2"). The
-burndown counts the bank done, but the fallback measure shows what its ports
-still hand back: with an action's showing C, the largest left are the
-battle frame work's loads the showing calls -- the background's change
-(`$CD:0018`, `$CD:0EBD` and its moves at `$CD:107D`-`$CD:12B8`, 29 million
-instructions of the reference play) and the effects' graphics sets
-(`$CD:0015`, `$CD:002A`), which wait on the vblank handler's sends -- then the
-steps' routines the dispatch (`$C1:0003`, `battle/steps.c`) still calls out to
-and the frame waits (`$C1:007E`, the timing service's; TODO.md, "What an
-action's showing left at its edge").
-
-**`$C2`: the menus.** In: the Epoch's two Mode 7 screens, the object scripts'
-instruction set and the map they scroll, the load screen, the window command
-language, the cursor and sounds, the typesetter, the menus' opening, the
-characters in the records, the records' task, the frame's input, the
-tilemap touches, the equipment screen, the items screen, the techs screen,
-the settings screen (its options through a table, the buttons' assignment,
-the meters, the gauge and the window's design, and the main menu's panel for
-it), the shop (its tabs, the goods and the party's items for sale, the
-panel of who could use an item and how their figures change, the quantity
-and the deal), the party's services the field's scripts, the power-on and a
-New Game+ call (the party's record, equipping, filling HP and MP), the
-figures, the healing and its rising numbers, the inventory's add and take,
-the paging, the records' sprites and colours, the held cursors, the list
-slide, the description's typing, the main menu, the save screen's opening,
-name entry and the battle mode's screen, the shop's steps on the party
-(a member's slots and the list of what fits), and the party's exchange
-(screens 5 and 7, the main menu's panel for it and the gate's song), the
-objects that change the screen (the fades, the mosaic, the palette's loads
-and fades, the tile streamer), the equipment screen's list of what fits,
-what the scenes' scripts call, the sprite-object mode's start and the frame's
-input from the other banks. The
-world map walked on foot is its own subsystem, `game/overworld/` (the
-leader, the followers, the ground and its places, the regions' music, the
-place's sign and the main loop with its round trips to the menus and the
-Epoch's screens), with the vehicles' controller and the Epoch flown over the
-map and through time, and the world map's set up from its record's streams.
-The dactyls' flight over the 65,000,000 B.C. map is C too (history/reimplementation-chunks.md
-"Phase 4a, the shipping mode's fallbacks, chunk 5").
-
-The field, events and both scene layers' retained interfaces are described
+The field, events, both scene layers, menus and battle's retained interfaces are described
 in REIMPLEMENTATION.md, "The field's teardown", "The events' teardown",
-"The scene program's teardown" and "The scene engine's teardown". Their
+"The scene program's teardown", "The scene engine's teardown", "The menus'
+teardown" and "The battle's teardown". Their
 remaining work removes interfaces with their callers rather than adding ports.
 
 ## Phase 4a: what still runs on emulation
@@ -270,7 +204,7 @@ under it is below. None is optional for target 1; the host service backends
 already built are described in PLATFORM.md.
 
 - **Remaining video escapes.** Battle, menus and scene must replace their
-  SNES-specific transfers with named services as their gates retire. TODO.md
+  SNES-specific transfers with named services as the legacy driver leaves. TODO.md
   lists each site and the contract it needs. The service-fed host renderer
   and its pixel check are described in PLATFORM.md.
 - **The native program, and the registry taken down.** `game/core/program.c`
@@ -296,14 +230,6 @@ already built are described in PLATFORM.md.
   and state-driven routes establish how far its replacement actually plays;
   a movie reaching its frame limit is insufficient.
 
-- **The code no movie reaches, checked before its subsystem retires.**
-  Extend `tools/unreached.py` to the remaining 65816 subsystems: battle
-  and menu. Compare the full library's coverage with their
-  ported live reach, then fuzz the missing paths against the original before
-  retiring their gates. Every remaining byte needs a passing comparison or
-  an explicit safety argument in the ledger, with its retirement obligations
-  in TODO.md. The sampled gate checks the full-library ledger; it cannot
-  establish absence from movies it does not run.
 - **The game's state as C, not a work-RAM image.** Even `ct_native` keeps the
   game's state as the 128 KiB byte image the accessors read and write, which
   is the original's memory layout carried into the product. When a subsystem

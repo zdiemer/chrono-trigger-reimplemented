@@ -8,7 +8,6 @@
 #include "core/program.h"
 #include "event/event_data.h"
 #include "port/native.h"
-#include "field/menu_compat.h"
 #include "field/parts.h"
 #include "field/party.h"
 #include "field/walk.h"
@@ -178,7 +177,7 @@ static bool run_on_the_machine(void *ctx, uint16_t at, EventStep *st)
     }
     TIMED_AS(g, handler, {
         if (opcode == 0xB5 || opcode == 0xB6)
-            ORIGINAL_EFFECT(field_leaves_menu_wave_high(g, (uint8_t)at));
+            charge_legacy_accesses(g, 1);
         *st = event_perform(g, m_platform(s), row, at);
     });
     /* X and the carry, as the handler returns them: where the original's loop

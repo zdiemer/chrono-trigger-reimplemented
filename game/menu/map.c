@@ -26,13 +26,13 @@
  * plane's row, as the game keeps them, so scrolling it across would move the
  * first plane down. No screen does.
  */
+#include "menu/effect_noise.h"
 #include "menu/map.h"
 
 #include "charge.h"
 #include "menu/menu_data.h"
 #include "menu/object.h"
 #include "menu/vram.h"
-#include "original_effects.h"
 #include "platform/video.h"
 #include "port/machine.h"
 #include "port/native.h"
@@ -188,24 +188,6 @@ static const StripShape COLUMN_STRIP = { 30, MAP_COLUMNS, MAP_BYTES, STRIP_BYTES
 static const StripShape ROW_STRIP = { 34, 1, MAP_COLUMNS, 2 * STRIP_BYTES, TOP_LEFT, TOP_RIGHT,
                                       BOTTOM_LEFT - TOP_LEFT };
 
-/* Where the last strip a scroll built ended up, for the original's cells
- * (leave_scroll_cells, leave_strip_cells): scaffolding, noted through
- * ORIGINAL_EFFECT alone. */
-static struct {
-    bool any;
-    uint16_t map, at, buffer, out, halves, vram;
-} last_strip;
-
-static void note_strip(uint16_t map, uint16_t at, uint16_t buffer, uint16_t out, uint16_t halves)
-{
-    last_strip.any = true;
-    last_strip.map = map;
-    last_strip.at = at;
-    last_strip.buffer = buffer;
-    last_strip.out = out;
-    last_strip.halves = halves;
-}
-
 // $C2:0773, $C2:07C2, $C2:0843, $C2:088F
 /* Build a strip from map tile `at` of the map at `map`, starting on a map
  * tile's second half where `from_second`, with the first word `out` bytes
@@ -229,7 +211,7 @@ static void build_strip(GameState *g, const MapPlane *p, const StripShape *shape
         out = (uint16_t)(out + 2) & (shape->out_round - 1);
         second = !second;
     }
-    ORIGINAL_EFFECT(note_strip(map, at, buffer, out, (uint16_t)(from_second + shape->words)));
+    (void)0;
 }
 
 // $C2:0773, $C2:07C2 (with $C2:0811)
@@ -270,25 +252,23 @@ static void take_buffer(GameState *g, uint16_t bytes)
  * strip one for each of the tilemap's screens. */
 enum { COLUMN_STRIP_RECORDS = 1, ROW_STRIP_RECORDS = 2 };
 
-// $C2:090D
 /* Queue a column strip for the tilemap column at `pixel` across the plane,
  * the VRAM port stepping a tilemap row at a time. */
-static uint8_t queue_column_strip(GameState *g, const MapPlane *p, uint16_t pixel)
+static uint16_t queue_column_strip(GameState *g, const MapPlane *p, uint16_t pixel)
 {
     uint16_t column = (uint16_t)(pixel / TILE_PIXELS) & (2 * TILEMAP_COLUMNS - 1);
     uint16_t vram = (uint16_t)(tilemap_column(column) + p->tilemap);
     const MenuObjectUpload strip = { MAP_BANK | (uint16_t)menu_object_upload_buffer(g), vram, STRIP_BYTES,
                                      MENU_PORT_ROW_BY_ROW };
-    uint8_t record = menu_queue_object_uploads(g, &strip, COLUMN_STRIP_RECORDS);
+    (void)menu_queue_object_uploads(g, &strip, COLUMN_STRIP_RECORDS);
     take_buffer(g, STRIP_BYTES);
-    ORIGINAL_EFFECT(last_strip.vram = vram);
-    return record;
+    (void)0;
+    return vram;
 }
 
-// $C2:0961
 /* Queue a row strip for the tilemap row at `pixel` down the plane: its first
  * half to the left screen and its second to the right, a word at a time. */
-static uint8_t queue_row_strip(GameState *g, const MapPlane *p, uint16_t pixel)
+static uint16_t queue_row_strip(GameState *g, const MapPlane *p, uint16_t pixel)
 {
     uint16_t row = (uint16_t)((pixel & (TILEMAP_HEIGHT - 1) & ~(TILE_PIXELS - 1)) << 2);
     uint16_t vram = (uint16_t)(row + p->tilemap);
@@ -298,10 +278,10 @@ static uint8_t queue_row_strip(GameState *g, const MapPlane *p, uint16_t pixel)
         { MAP_BANK | (uint16_t)(buffer + STRIP_BYTES), (uint16_t)(vram + TILEMAP_SCREEN), STRIP_BYTES,
           MENU_PORT_WORD_BY_WORD },
     };
-    uint8_t record = menu_queue_object_uploads(g, halves, ROW_STRIP_RECORDS);
+    (void)menu_queue_object_uploads(g, halves, ROW_STRIP_RECORDS);
     take_buffer(g, 2 * STRIP_BYTES);
-    ORIGINAL_EFFECT(last_strip.vram = vram);
-    return record;
+    (void)0;
+    return vram;
 }
 
 /* ---- scrolling ----------------------------------------------------------------------------- */
@@ -332,7 +312,7 @@ static const AxisShape AXES[2] = {
 /* Move the plane one pixel back (left or up) or on, carrying its top-left
  * tile with it; where a tile's worth of the map comes into view at the edge
  * it moved towards, build and queue the strip that fills it. */
-static void scroll_a_pixel(GameState *g, const MapPlane *p, MenuAxis axis, bool back)
+static bool scroll_a_pixel(GameState *g, const MapPlane *p, MenuAxis axis, bool back, uint16_t *last_vram)
 {
     const AxisShape *a = &AXES[axis];
     uint16_t tile = tile_at(g, p->plane, axis);
@@ -344,14 +324,14 @@ static void scroll_a_pixel(GameState *g, const MapPlane *p, MenuAxis axis, bool 
             set_tile_at(g, p->plane, axis, tile = back_one(tile, a->tiles));
         set_scroll(g, p->plane, axis, scroll = back_one(scroll, a->pixels));
         if (!on_tile_edge(scroll))
-            return;
+            return false;
         uncovered = back_one(tile, a->tiles);
         far_half = !second_half(scroll);
         edge = (uint16_t)(scroll - TILE_PIXELS);
     } else {
         set_scroll(g, p->plane, axis, scroll = on_one(scroll, a->pixels));
         if (!on_tile_edge(scroll))
-            return;
+            return false;
         set_tile_at(g, p->plane, axis, tile = on_one(tile, a->tiles));
         uncovered = (uint16_t)(tile + a->screen_tiles);
         if (uncovered >= a->tiles)
@@ -365,34 +345,14 @@ static void scroll_a_pixel(GameState *g, const MapPlane *p, MenuAxis axis, bool 
         uint16_t above = back_one(tile_row(g, p->plane), TILE_ROWS) >> 1;
         TIMED_AS(g, far_half ? BUILD_COLUMN_STRIP_RIGHT : BUILD_COLUMN_STRIP,
                  build_column_strip(g, p, uncovered >> 1, above, far_half));
-        TIMED_AS(g, QUEUE_COLUMN_STRIP, queue_column_strip(g, p, edge));
+        TIMED_AS(g, QUEUE_COLUMN_STRIP, *last_vram = queue_column_strip(g, p, edge));
     } else {
         uint16_t left_of = back_one(tile_column(g, p->plane), TILE_COLUMNS) >> 1;
         TIMED_AS(g, far_half ? BUILD_ROW_STRIP_BOTTOM : BUILD_ROW_STRIP,
                  build_row_strip(g, p, uncovered >> 1, left_of, far_half));
-        TIMED_AS(g, QUEUE_ROW_STRIP, queue_row_strip(g, p, edge));
+        TIMED_AS(g, QUEUE_ROW_STRIP, *last_vram = queue_row_strip(g, p, edge));
     }
-}
-
-/* What the original leaves in its direct-page cells: the plane and its
- * tables, and the last strip's working values. */
-static void leave_scroll_cells(GameState *g, const MapPlane *p, MenuAxis axis, int8_t step)
-{
-    set_menu_object_scratch_map_plane_index(g, (uint16_t)(p->plane << 1));
-    set_menu_object_scratch_map_groups(g, p->groups);
-    set_menu_object_scratch_map_data(g, p->map);
-    set_menu_object_scratch_map_tilemap(g, p->tilemap);
-    if (step != 0)
-        set_menu_object_scratch_map_tiles_left(g, 0);
-    if (!last_strip.any)
-        return;
-    set_menu_object_scratch_map_strip_map(g, last_strip.map);
-    set_menu_object_scratch_map_strip_at(g, last_strip.at);
-    set_menu_object_scratch_map_strip_buffer(g, last_strip.buffer);
-    set_menu_object_scratch_map_strip_vram(g, last_strip.vram);
-    set_menu_object_scratch_map_strip_end(g, axis == MENU_ACROSS ? last_strip.out
-                                                                : (uint16_t)(last_strip.vram + TILEMAP_SCREEN));
-    set_menu_object_scratch_map_strip_tiles_left(g, 0);
+    return true;
 }
 
 // $C2:0568, $C2:066C
@@ -401,11 +361,14 @@ static void leave_scroll_cells(GameState *g, const MapPlane *p, MenuAxis axis, i
 static void scroll_plane(GameState *g, uint8_t plane, MenuAxis axis, int8_t step)
 {
     MapPlane p = plane_of(g, plane);
-    ORIGINAL_EFFECT(last_strip.any = false);
+    bool built_strip = false;
+    uint16_t last_vram = 0;
     unsigned pixels = step < 0 ? (unsigned)-step : (unsigned)step;
     for (unsigned i = 0; i < pixels; i++)
-        scroll_a_pixel(g, &p, axis, step < 0);
-    ORIGINAL_EFFECT(leave_scroll_cells(g, &p, axis, step));
+        built_strip = scroll_a_pixel(g, &p, axis, step < 0, &last_vram) || built_strip;
+    if (built_strip)
+        menu_note_effect_noise(g, last_vram);
+    charge_machine_accesses(g, 8 + (step != 0 ? 2 : 0) + (built_strip ? 10 : 0));
 }
 
 void menu_map_scroll(GameState *g, uint8_t plane, MenuAxis axis, int8_t step)
@@ -487,7 +450,6 @@ static uint16_t build_block(GameState *g, const MapPlane *p, uint16_t map, uint1
     return at;
 }
 
-// $C2:0ADC
 /* Send a block's two tilemap columns from the upload buffer to the plane's
  * tilemap at the block's place across it, the VRAM port stepping a tilemap
  * row at a time. */
@@ -510,24 +472,6 @@ typedef struct {
 /* The original multiplies a row by 96 as a quarter of the row's word swapped
  * (the row times 64) and a half of that, and leaves the quarter. */
 enum { ROW_QUARTER = MAP_COLUMNS * 2 / 3 };
-
-static void leave_redraw_cells(GameState *g, const MapPlane *p, const Redraw *r)
-{
-    set_menu_object_scratch_redraw_tiles_left(g, 0);
-    set_menu_object_scratch_redraw_blocks_left(g, 0);
-    set_menu_object_scratch_redraw_at(g, r->at);
-    set_menu_object_scratch_redraw_out(g, r->out);
-    set_menu_object_scratch_redraw_column(g, r->column);
-    set_menu_object_scratch_redraw_row(g, r->row);
-    set_menu_object_scratch_redraw_x(g, r->x);
-    set_menu_object_scratch_redraw_y(g, r->y);
-    set_menu_object_scratch_redraw_tilemap(g, p->tilemap);
-    set_menu_object_scratch_redraw_vram(g, r->vram);
-    set_menu_object_scratch_redraw_groups(g, p->groups);
-    set_menu_object_scratch_redraw_data(g, p->map);
-    set_menu_object_scratch_redraw_map(g, r->map);
-    set_menu_object_scratch_redraw_row_quarter(g, (uint16_t)(r->row * ROW_QUARTER));
-}
 
 // $C2:09C5
 /* Redraw a whole plane: put its scroll where its top-left tile says, then
@@ -555,7 +499,8 @@ void menu_map_draw_plane(GameState *g, Platform *pf, uint8_t plane)
         r.column = on_one(r.column, MAP_COLUMNS);
         r.x = (uint16_t)(r.x + BLOCK_PIXELS) & (TILEMAP_WIDTH - 1);
     }
-    ORIGINAL_EFFECT(leave_redraw_cells(g, &p, &r));
+    menu_note_effect_noise(g, r.column);
+    charge_machine_accesses(g, 26);
 }
 
 /* ---- the entries ----------------------------------------------------------------------------- */
@@ -678,7 +623,7 @@ void menu_map_centre_on_the_party(GameState *g) { centre_on_party(g); }
 
 void menu_map_redraw_plane(GameState *g, Platform *pf, uint8_t plane)
 {
-    ORIGINAL_EFFECT(set_menu_object_scratch_plane(g, (uint8_t)(plane + 1)));
+    charge_machine_accesses(g, 1);
     TIMED_AS(g, 0xC209C5, menu_map_draw_plane(g, pf, plane));
 }
 
@@ -690,13 +635,6 @@ bool menu_map_can_redraw(const GameState *g, uint8_t plane)
 bool menu_map_party_centres_on_the_map(const GameState *g)
 {
     return location_x(g) < TILE_COLUMNS + CENTRING_COLUMNS && location_y(g) < TILE_ROWS + CENTRING_ROWS;
-}
-
-void menu_map_centre_on_party(Snes *s)
-{
-    centre_on_party(state_of(s));
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
 }
 
 // $C2:09C5
@@ -715,170 +653,4 @@ void menu_map_redraw(Snes *s)
     menu_map_draw_plane(g, m_platform(s), (uint8_t)(named_plane(g) - 1));
     menu_leave_map_redrawn(s);
     m_rts(s);
-}
-
-// $C2:0ADC
-/* Entered from a redraw the original runs: the block's place and the plane's
- * tilemap are in the redraw's cells. */
-void menu_map_upload_block(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint16_t vram = block_vram(menu_object_scratch_redraw_tilemap(g), menu_object_scratch_redraw_x(g));
-    set_menu_object_scratch_redraw_vram(g, vram);
-    upload_block(g, m_platform(s), vram);
-    s->cpu.x = STRIP_BYTES;
-    m_rts(s);
-}
-
-/* ---- the strips' own entries ------------------------------------------------------------------ */
-
-/* The original's scroll builds and queues each strip in routines of their
- * own, which a scroll run on the machine still enters. They take the plane
- * and its tables from the scroll's cells, and the strip's place from the
- * two cells the scroll fills before each call; the game keeps the plane one
- * that scrolls, its tables the plane's own and the place on the map. */
-static MapPlane plane_in_cells(const GameState *g)
-{
-    return (MapPlane){ (uint8_t)(menu_object_scratch_map_plane_index(g) >> 1), menu_object_scratch_map_groups(g),
-                       menu_object_scratch_map_data(g), menu_object_scratch_map_tilemap(g) };
-}
-
-bool menu_map_strip_builds(Snes *s)
-{
-    if (!on_the_page(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    uint16_t index = menu_object_scratch_map_plane_index(g);
-    MapPlane p = plane_in_cells(g);
-    MapPlane own = plane_of(g, p.plane);
-    bool ok = (index == 0 || index == 2) && p.groups == own.groups && p.map == own.map && buffer_is_in_work_ram(g)
-              && menu_object_scratch_map_strip_column(g) < MAP_COLUMNS
-              && menu_object_scratch_map_strip_row(g) < MAP_ROWS;
-    vars_peek(false);
-    return ok;
-}
-
-static bool strip_queues(Snes *s, unsigned records)
-{
-    if (!on_the_page(s))
-        return false;
-    vars_peek(true);
-    bool ok = queue_has_room(state_of(s), records);
-    vars_peek(false);
-    return ok;
-}
-
-bool menu_map_column_strip_queues(Snes *s) { return strip_queues(s, COLUMN_STRIP_RECORDS); }
-bool menu_map_row_strip_queues(Snes *s) { return strip_queues(s, ROW_STRIP_RECORDS); }
-
-/* What a strip's building leaves in the cells: where it read the map and got
- * to, the buffer it filled and where its last word went, the halves it
- * walked and its count run out. */
-static void leave_strip_cells(GameState *g)
-{
-    set_menu_object_scratch_map_strip_map(g, last_strip.map);
-    set_menu_object_scratch_map_strip_at(g, last_strip.at);
-    set_menu_object_scratch_map_strip_buffer(g, last_strip.buffer);
-    set_menu_object_scratch_map_strip_halves(g, last_strip.halves);
-    set_menu_object_scratch_map_strip_end(g, last_strip.out);
-    set_menu_object_scratch_map_strip_tiles_left(g, 0);
-}
-
-/* The strip's operands as the original's scroll hands them over: the plane,
- * the strip's map column and row, and for its queueing the pixel across and
- * down. */
-typedef struct {
-    MapPlane plane;
-    uint16_t column, row, across, down;
-} StripCall;
-
-/* Taking the operands from the cells, putting the results back and
- * returning are the calling convention's work, not the strip's: the strips'
- * rates are what the scroll times its own strips at, where none of it
- * happens, so they are left out of the estimate. */
-static StripCall strip_call(GameState *g, uint32_t *uncounted)
-{
-    *uncounted = charge_uncounted_begin(g);
-    StripCall call = { plane_in_cells(g), menu_object_scratch_map_strip_column(g),
-                       menu_object_scratch_map_strip_row(g), menu_object_scratch_map_queue_across(g),
-                       menu_object_scratch_map_queue_down(g) };
-    charge_uncounted_end(g, *uncounted);
-    return call;
-}
-
-/* The queueing leaves the VRAM word (a row strip's two) in the cells it was
- * handed the pixel in, and comes back with X the strip's first record in the
- * queue. */
-static void leave_column_queued(GameState *g) { set_menu_object_scratch_map_strip_vram(g, last_strip.vram); }
-
-static void leave_row_queued(GameState *g)
-{
-    set_menu_object_scratch_map_strip_vram(g, last_strip.vram);
-    set_menu_object_scratch_map_strip_end(g, (uint16_t)(last_strip.vram + TILEMAP_SCREEN));
-}
-
-typedef enum { STRIP_BUILT, COLUMN_STRIP_QUEUED, ROW_STRIP_QUEUED } StripDone;
-
-static void strip_return(Snes *s, uint32_t uncounted, StripDone done)
-{
-    GameState *g = state_of(s);
-    uncounted = charge_uncounted_begin(g);
-    switch (done) {
-    case STRIP_BUILT: ORIGINAL_EFFECT(leave_strip_cells(g)); break;
-    case COLUMN_STRIP_QUEUED: ORIGINAL_EFFECT(leave_column_queued(g)); break;
-    case ROW_STRIP_QUEUED: ORIGINAL_EFFECT(leave_row_queued(g)); break;
-    }
-    m_rts(s);
-    charge_uncounted_end(g, uncounted);
-}
-
-static void build_column_entry(Snes *s, bool right)
-{
-    GameState *g = state_of(s);
-    uint32_t uncounted = 0;
-    StripCall c = strip_call(g, &uncounted);
-    build_column_strip(g, &c.plane, c.column, c.row, right);
-    strip_return(s, uncounted, STRIP_BUILT);
-}
-
-static void build_row_entry(Snes *s, bool bottom)
-{
-    GameState *g = state_of(s);
-    uint32_t uncounted = 0;
-    StripCall c = strip_call(g, &uncounted);
-    build_row_strip(g, &c.plane, c.row, c.column, bottom);
-    strip_return(s, uncounted, STRIP_BUILT);
-}
-
-// $C2:0773
-void menu_map_build_column_strip(Snes *s) { build_column_entry(s, false); }
-
-// $C2:07C2
-void menu_map_build_column_strip_right(Snes *s) { build_column_entry(s, true); }
-
-// $C2:0843
-void menu_map_build_row_strip(Snes *s) { build_row_entry(s, false); }
-
-// $C2:088F
-void menu_map_build_row_strip_bottom(Snes *s) { build_row_entry(s, true); }
-
-// $C2:090D
-void menu_map_queue_column_strip(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint32_t uncounted = 0;
-    StripCall c = strip_call(g, &uncounted);
-    s->cpu.x = queue_column_strip(g, &c.plane, c.across);
-    strip_return(s, uncounted, COLUMN_STRIP_QUEUED);
-}
-
-// $C2:0961
-void menu_map_queue_row_strip(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint32_t uncounted = 0;
-    StripCall c = strip_call(g, &uncounted);
-    s->cpu.x = queue_row_strip(g, &c.plane, c.down);
-    strip_return(s, uncounted, ROW_STRIP_QUEUED);
 }

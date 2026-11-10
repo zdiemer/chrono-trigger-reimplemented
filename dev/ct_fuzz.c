@@ -96,6 +96,8 @@
  * --tick-at PC=WRAM increments a WRAM byte before that interpreted PC on
  * both machines; repeat it for several notifications. This models an external counter notification for a wait;
  * it does not run interrupts, objects or a video frame.
+ * --clear-at PC=WRAM instead clears a pending flag at that boundary, modeling
+ * completion by an external worker with the same limits.
  * --vblank-at PC starts outside vblank and begins it at an interpreted wait
  * head, without running a handler. --buttons sets the first controller's already
  * latched sample. Both fixtures are identical on the original and native sides.
@@ -130,9 +132,12 @@ static uint8_t *read_file(const char *path, size_t *len)
 
 /* --apu-loopback: the SNES's APU read hook, answering with the CPU's own
  * writes. */
+static bool apu_fade_complete;
 static uint8_t apu_loopback_read(void *ctx, uint8_t port)
 {
     Snes *s = ctx;
+    if (apu_fade_complete && (port & 3) == 1)
+        return 0;
     return s->apu.cpu_in[port & 3];
 }
 
@@ -202,6 +207,7 @@ int main(int argc, char **argv)
     const char *rom_path = NULL, *state_path = NULL, *routine = NULL;
     const char *coverage_path = NULL;
     bool apu_loopback = false, with_registry = false;
+    uint32_t compare_entry = 0;
     int buttons = -1;
     int data_bank = -1, direct_page = -1, stack = -1, m_width = 0, x_width = 0;
     FuzzOptions o;
@@ -233,6 +239,10 @@ int main(int argc, char **argv)
             apu_loopback = true;
             continue;
         }
+        if (!strcmp(a, "--apu-fade-complete")) {
+            apu_loopback = apu_fade_complete = true;
+            continue;
+        }
         if (!strcmp(a, "--poison-dc")) {
             o.poison_dc = true;
             continue;
@@ -248,6 +258,13 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--load-state")) state_path = v;
         else if (!strcmp(a, "--routine")) routine = v;
         else if (!strcmp(a, "--coverage")) coverage_path = v;
+        else if (!strcmp(a, "--compare-entry")) {
+            unsigned pc;
+            char extra;
+            if (sscanf(v, "%x%c", &pc, &extra) != 1 || !pc || pc > 0xFFFFFF)
+                goto usage;
+            compare_entry = pc;
+        }
         else if (!strcmp(a, "--vblank-at")) {
             unsigned pc;
             char extra;
@@ -262,13 +279,14 @@ int main(int argc, char **argv)
                 goto usage;
             buttons = (int)sample;
         }
-        else if (!strcmp(a, "--tick-at")) {
+        else if (!strcmp(a, "--tick-at") || !strcmp(a, "--clear-at")) {
             unsigned pc, address;
             char extra;
             if (sscanf(v, "%x=%x%c", &pc, &address, &extra) != 2 || pc == 0 || pc > 0xFFFFFF ||
                 address < 0x7E0000 || address > 0x7FFFFF || o.nticks == FUZZ_MAX_TICKS)
                 goto usage;
             o.ticks[o.nticks].pc = pc;
+            o.ticks[o.nticks].clear = !strcmp(a, "--clear-at");
             o.ticks[o.nticks++].address = address;
         }
         else if (!strcmp(a, "--iterations")) o.iterations = strtoul(v, NULL, 0);
@@ -315,6 +333,13 @@ int main(int argc, char **argv)
     if (!e) {
         fprintf(stderr, "no routine %s\n", routine);
         return 2;
+    }
+    /* Compare a reviewed original alias with the same C implementation.
+     * All of the registered entry's guards and preconditions still apply. */
+    NativeEntry compared = *e;
+    if (compare_entry) {
+        compared.addr = compare_entry;
+        e = &compared;
     }
 
     size_t rom_len;
@@ -402,7 +427,8 @@ usage:
                     "[--seed S] [--long | --interrupt | --jump] [--line-handler] [--budget N] [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... "
                     "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--s HHHH] [--widths M,X] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
                     "  [--stop-at-call BBAAAA]... [--with-registry]\n"
-                    "  [--decimal] [--details N] [--coverage out.txt] [--tick-at PC=WRAM]... [--vblank-at PC] [--buttons HHHH]\n"
+                    "  [--decimal] [--details N] [--coverage out.txt] [--tick-at PC=WRAM]... [--clear-at PC=WRAM]...\n"
+                    "  [--vblank-at PC] [--buttons HHHH] [--compare-entry BBAAAA] [--apu-fade-complete]\n"
                     "  AREA: BBAAAA-BBAAAA, or [BBAAAA]+OFF,COUNT at the pointer in a cell ([X], [Y] or [D]: in a "
                     "register; BB:[...]: in bank BB)\n");
     return 2;

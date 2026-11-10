@@ -527,6 +527,58 @@ static void check_idle_cutoff(uint8_t flag, uint8_t span, bool interrupt, bool o
     free(rom);
 }
 
+static void idle_to_checked_exit(Snes *s)
+{
+    uint8_t flag = m_read8(s, 0x10);
+    m_set_a8(s, flag);
+    m_set_nz8(s, flag);
+    if (!flag)
+        m_stop_at(s, 0x008104, 0);
+}
+
+static void idle_exit_returns(Snes *s) { m_rts(s); }
+
+/* The first pass can finish without a backedge. Certify only its exact
+ * checked exit; a missing/wrong span or an excursion outside stays counted. */
+static void check_idle_exit(uint8_t span, bool interrupt, bool outside, bool completes)
+{
+    static const uint8_t start[] = {
+        0x78, 0x18, 0xFB, 0xC2, 0x10, 0xE2, 0x20, 0xA2, 0xFF, 0x01, 0x9A,
+        0x20, 0x00, 0x81, 0xE6, 0x10, 0x20, 0x00, 0x81, 0xDB,
+    };
+    static const uint8_t wait[] = { 0xA5, 0x10, 0xD0, 0xFC, 0x60 };
+    uint8_t *rom = make_rom(NMI_RETURNS);
+    memcpy(rom + 0x8000, start, sizeof start);
+    memcpy(rom + 0x8100, wait, sizeof wait);
+    if (outside) {
+        rom[0x8103] = 0x1C;
+        rom[0x8120] = 0x4C, rom[0x8121] = 0x04, rom[0x8122] = 0x81;
+    }
+    Snes *s = malloc(sizeof *s);
+    snes_init(s, rom, ROM_SIZE);
+    snes_power_on(s);
+    s->bus.wram[0x10] = outside ? 1 : 0;
+    NativeEntry entries[] = { { .addr = 0x008100, .name = "idle_cutoff", .fn = idle_to_checked_exit,
+        .idle = true, .idle_exit_span = span, .p_mask = CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M },
+        { .addr = 0x008104, .name = "idle_exit", .fn = idle_exit_returns } };
+    NativeRuntime *rt = native_create(entries, 2, NATIVE_SHADOW);
+    native_attach(rt, s);
+    Fallbacks *f = fallbacks_create(s);
+    fallbacks_attach(f, rt, true);
+    IdleCutoff cutoff = { .fallbacks = f, .s = s, .interrupt = interrupt };
+    s->cpu.on_insn = idle_cutoff_note;
+    s->cpu.on_insn_ctx = &cutoff;
+    snes_run_frame(s, 0);
+    CHECK(cutoff.taken && fallbacks_end_pending(f) != completes,
+          "idle checked exit: span %u interrupt %d outside %d completion %d expected %d",
+          span, interrupt, outside, !fallbacks_end_pending(f), completes);
+    native_set_observer(rt, NULL);
+    fallbacks_destroy(f);
+    native_destroy(rt);
+    free(s);
+    free(rom);
+}
+
 typedef struct EpilogueCount {
     Fallbacks *fallbacks;
     unsigned long outside;
@@ -541,6 +593,88 @@ static void epilogue_note(void *ctx, uint32_t pc, uint8_t p, bool e)
 }
 
 static void restore_callers_frame(Snes *s) { m_return_to_caller_long(s); }
+
+static void idle_helper_decrements(Snes *s)
+{
+    uint8_t left = (uint8_t)(m_read8(s, 0x10) - 1);
+    m_write8(s, 0x10, left);
+    m_set_a8(s, left);
+    m_set_nz8(s, left);
+    m_rts(s);
+}
+
+static void idle_calls_helper(Snes *s)
+{
+    uint8_t left = (uint8_t)(m_read8(s, 0x10) - 1);
+    m_write8(s, 0x10, left);
+    m_set_a8(s, left);
+    m_set_nz8(s, left);
+    if (!left)
+        m_stop_at(s, 0x008105, 0);
+}
+
+static void idle_helper_note(void *ctx, uint32_t pc, uint8_t p, bool e)
+{
+    EpilogueCount *count = ctx;
+    if (pc < 0x008100 || pc > 0x008205)
+        count->outside++;
+    fallbacks_note(count->fallbacks, pc, p, e);
+}
+
+/* A loop can ask a compared helper whether it is finished. Keep its pass
+ * across that helper, but never erase the execution of an unported helper. */
+static void check_idle_helper(bool ported, uint8_t passes)
+{
+    static const uint8_t start[] = {
+        0x78, 0x18, 0xFB, 0xC2, 0x10, 0xE2, 0x20, 0xA2, 0xFF, 0x01, 0x9A,
+        0x20, 0x00, 0x81, 0xDB,
+    };
+    static const uint8_t wait[] = { 0x20, 0x00, 0x82, 0xD0, 0xFB, 0x60 };
+    static const uint8_t helper[] = { 0xC6, 0x10, 0xA5, 0x10, 0x60 };
+    uint8_t *rom = make_rom(NMI_RETURNS);
+    memcpy(rom + 0x8000, start, sizeof start);
+    memcpy(rom + 0x8100, wait, sizeof wait);
+    memcpy(rom + 0x8200, helper, sizeof helper);
+    Snes *s = malloc(sizeof *s);
+    snes_init(s, rom, ROM_SIZE);
+    snes_power_on(s);
+    s->bus.wram[0x10] = passes;
+    NativeEntry entries[] = {
+        { .addr = 0x008100, .name = "idle_helper_loop", .fn = idle_calls_helper,
+          .idle = true, .idle_exit_span = 5 },
+        { .addr = 0x008105, .name = "idle_helper_exit", .fn = idle_exit_returns },
+        { .addr = 0x008200, .name = "idle_helper", .fn = idle_helper_decrements },
+    };
+    NativeRuntime *rt = native_create(entries, ported ? 3 : 2, NATIVE_SHADOW);
+    native_attach(rt, s);
+    Fallbacks *f = fallbacks_create(s);
+    fallbacks_attach(f, rt, true);
+    EpilogueCount count = { .fallbacks = f };
+    s->cpu.on_insn = idle_helper_note;
+    s->cpu.on_insn_ctx = &count;
+    snes_run_frame(s, 0);
+    const NativeStats *st = native_stats_named(rt, "idle_helper");
+    CHECK(!ported || (st && st->matched == passes && st->mismatched == 0), "idle helper did not match");
+    FILE *report = tmpfile();
+    CHECK(report != NULL, "could not open idle helper fallback summary");
+    if (report) {
+        fallbacks_summary(f, report);
+        rewind(report);
+        unsigned long refused, handback, skipped, unported;
+        int fields = fscanf(report, "fallbacks: refused %lu, handback %lu, skipped %lu, unported %lu instructions",
+                            &refused, &handback, &skipped, &unported);
+        CHECK(fields == 4 && refused == 0 && handback == 0 && skipped == 0 &&
+              (ported ? unported == count.outside : unported > count.outside),
+              "idle helper coverage: ported %d passes %u outside %lu fallback %lu",
+              ported, passes, count.outside, fields == 4 ? unported : 0);
+        fclose(report);
+    }
+    native_set_observer(rt, NULL);
+    fallbacks_destroy(f);
+    native_destroy(rt);
+    free(s);
+    free(rom);
+}
 
 /* A continuation restores the registers saved before its entry. Rising S
  * during those pulls must not make its still-compared tail a fallback. */
@@ -589,7 +723,16 @@ static void check_epilogue_coverage(void)
 
 int main(void)
 {
+    check_idle_helper(true, 1);
+    check_idle_helper(true, 5);
+    check_idle_helper(false, 1);
+    check_idle_helper(false, 5);
     check_epilogue_coverage();
+    check_idle_exit(4, false, false, true);
+    check_idle_exit(4, true, false, true);
+    check_idle_exit(0, false, false, false);
+    check_idle_exit(5, false, false, false);
+    check_idle_exit(4, false, true, false);
     check_idle_cutoff(1, 0, false, false, true);
     check_idle_cutoff(0, 5, false, false, true);
     check_idle_cutoff(0, 5, true, false, true);

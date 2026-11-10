@@ -29,7 +29,6 @@
 #include "menu/tiles.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
@@ -76,17 +75,6 @@ bool menu_member_record_is_a_characters(const GameState *g)
     return at % RAM_CHARACTER_RECORDS_STRIDE == 0 && at / RAM_CHARACTER_RECORDS_STRIDE < CHARACTER_RECORDS_COUNT;
 }
 
-/* The original finds the record and the name with the multiplier, which it
- * leaves holding the name's product. */
-static void leave_multiplier(GameState *g, uint8_t character, uint8_t named)
-{
-    hw_set_multiplicand(g, character);
-    (void)hw_multiply_by(g, RECORD_BYTES);
-    hw_set_multiplicand(g, named);
-    (void)hw_multiply_by(g, NAME_BYTES);
-}
-
-// $C2:8820
 bool menu_load_member(GameState *g, uint8_t member)
 {
     set_menu_member_waiting(g, member >= menu_active_members(g) ? WAITING : ACTIVE);
@@ -97,7 +85,7 @@ bool menu_load_member(GameState *g, uint8_t member)
 bool menu_load_character(GameState *g, uint8_t character)
 {
     if (character & NO_MEMBER) {
-        ORIGINAL_EFFECT(hw_set_multiplicand(g, character));
+        charge_machine_io_accesses(g, 1);
         return false;
     }
     set_menu_member_record_at(g, record_place(character));
@@ -106,7 +94,7 @@ bool menu_load_character(GameState *g, uint8_t character)
     uint8_t named = menu_status_record_character(g) & CHARACTER_BITS;
     for (unsigned i = 0; i < NAME_BYTES; i++)
         set_menu_status_record_tail_byte(g, i, character_names_byte(g, named, i));
-    ORIGINAL_EFFECT(leave_multiplier(g, character, named));
+    charge_machine_io_accesses(g, 8);
     return true;
 }
 
@@ -125,37 +113,12 @@ MemberListSlide menu_member_slide_for_push(const GameState *g, uint8_t scroll, b
  * the HP its restoring stops at (menu_note_member_face_and_hp). */
 enum { LOW_HP_FRACTION = 10 };
 
-/* For the original's code and shadow mode: the divider as the last mark's
- * division leaves it. */
-static void leave_the_last_division(GameState *g)
-{
-    hw_set_dividend(g, character_records_hp_cap(g, CHARACTERS - 1));
-    hw_divide_by(g, LOW_HP_FRACTION);
-}
-
 // $C2:813C
 void menu_work_out_low_hp_marks(GameState *g)
 {
     for (unsigned character = 0; character < CHARACTERS; character++)
         set_menu_low_hp_marks(g, character, (uint16_t)(character_records_hp_cap(g, character) / LOW_HP_FRACTION));
-    ORIGINAL_EFFECT(leave_the_last_division(g));
-}
-
-/* What its loop leaves: the last mark in A, the record past the last in X and
- * the last mark's place in Y. */
-static void leave_the_marks_worked_out(Snes *s)
-{
-    enum { PAST_THE_RECORDS = CHARACTERS * RAM_CHARACTER_RECORDS_STRIDE, LAST_MARK_PLACE = 2 * CHARACTERS };
-    s->cpu.a = menu_low_hp_marks(state_of(s), CHARACTERS - 1);
-    s->cpu.x = PAST_THE_RECORDS;
-    s->cpu.y = LAST_MARK_PLACE;
-}
-
-void menu_work_out_low_hp_marks_entry(Snes *s)
-{
-    menu_work_out_low_hp_marks(state_of(s));
-    ORIGINAL_EFFECT(leave_the_marks_worked_out(s));
-    m_rts(s);
+    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 3));
 }
 
 /* The original walks the records from the menus' zero word, which their
@@ -188,7 +151,6 @@ static uint16_t low_hp_mark(const GameState *g, uint8_t character)
     return character < CHARACTERS ? menu_low_hp_marks(g, character) : menu_low_hp_marks_unchecked(g, character);
 }
 
-// $C2:A1EF
 void menu_note_member_face_and_hp(GameState *g)
 {
     uint8_t character = menu_status_record_character(g) & CHARACTER_BITS;
@@ -202,7 +164,6 @@ void menu_note_member_face_and_hp(GameState *g)
  * chosen member's card. */
 enum { MEMBER_ROW = 0xBE0E, EMPTY_ROW = 0xBE15, MEMBER_CARD = 0xBE1C };
 
-// $C2:A216
 void menu_draw_member_row(GameState *g, Platform *pf)
 {
     TIMED_AS(g, 0xC2A1EF, menu_note_member_face_and_hp(g));
@@ -214,7 +175,7 @@ void menu_draw_member_row(GameState *g, Platform *pf)
  * origin, and stop past the reachable members. */
 enum { FIRST_ROW = MENU_FRONT_LAYER_AT, ROW_SPACING = 0x180, ROWS_END = 0x3280 };
 
-// $C2:A1B2
+// $C2:A1E9
 void menu_draw_member_rows(GameState *g, Platform *pf)
 {
     uint16_t member = menu_member_scroll(g);
@@ -248,41 +209,18 @@ enum { UPLOAD_BG2_ROWS = 0xFBFF };
 
 static uint8_t colour_of(bool dimmed) { return dimmed ? DIMMED_COLOUR : CHOSEN_COLOUR; }
 
-// $C2:9EB0
 void menu_colour_member_row(GameState *g, uint16_t at, bool dimmed)
 {
     menu_recolour_block(g, at, ROW_TILE_ROWS, ROW_TILES, colour_of(dimmed));
     menu_recolour_block(g, (uint16_t)(at + BACK_LAYER), ROW_TILE_ROWS, ROW_TILES, colour_of(dimmed));
 }
 
-/* What the original's colouring leaves in the menus' first cells: its count
- * of rows, the cursor's row, the place past the last row, and the last row's
- * tiles and colour as one word. Nothing reads them after it. */
-static uint16_t row_colour_word(bool dimmed) { return (uint16_t)(colour_of(dimmed) << 8 | ROW_TILES); }
-
-static void leave_rows_coloured(GameState *g, uint8_t chosen)
-{
-    set_menu_scratch_member_rows_done(g, MENU_MEMBER_ROWS);
-    set_menu_scratch_member_row_chosen(g, chosen);
-    set_menu_scratch_member_row_place(g, (uint16_t)(FIRST_ROW_TILES + MENU_MEMBER_ROWS * ROW_SPACING));
-    set_menu_scratch_member_row_colour(g, row_colour_word(chosen != MENU_MEMBER_ROWS - 1));
-}
-
-/* What the original's colouring of a row on its own leaves in the menus'
- * cells: where the row is, and its tiles and colour as one word. */
-void menu_leave_member_row_coloured(GameState *g, uint16_t at, bool dimmed)
-{
-    set_menu_scratch_member_row_place(g, at);
-    set_menu_scratch_member_row_colour(g, row_colour_word(dimmed));
-}
-
-// $C2:9E76
 void menu_colour_member_rows(GameState *g)
 {
     uint8_t chosen = menu_member_row(g);
     for (uint8_t row = 0; row < MENU_MEMBER_ROWS; row++)
         TIMED_AS(g, 0xC29EB0, menu_colour_member_row(g, (uint16_t)(FIRST_ROW_TILES + row * ROW_SPACING), row != chosen));
-    ORIGINAL_EFFECT(leave_rows_coloured(g, chosen));
+    charge_machine_accesses(g, 8);
     menu_queue_fixed_upload(g, UPLOAD_BG2_ROWS);
 }
 
@@ -292,7 +230,6 @@ void menu_colour_member_rows(GameState *g)
  * and its sixteen colours in palette row 6. */
 enum { LABEL_AT = 0x2EEC, LABEL_TILES = 6, LABEL_ROWS = 2, LABEL_COLOURS = 16, LABEL_FIRST_COLOUR = 0x60 };
 
-// $C2:A273
 static void show_element(GameState *g)
 {
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
@@ -341,7 +278,13 @@ bool menu_member_can_be_loaded(const GameState *g, uint8_t member)
 {
     if (member >= MENU_MEMBERS_COUNT)
         return false;
-    uint8_t character = menu_members(g, member);
+    return menu_character_can_be_loaded(g, menu_members(g, member));
+}
+
+/* Loading a character also loads its name. A record's name selector must
+ * name one of the seven characters, even when no party list is involved. */
+bool menu_character_can_be_loaded(const GameState *g, uint8_t character)
+{
     if (character & NO_MEMBER)
         return true;
     return character < CHARACTERS && (character_records_record_byte(g, character, 0) & CHARACTER_BITS) < CHARACTERS;
@@ -404,81 +347,11 @@ bool menu_member_rows_can_be_drawn_from(const GameState *g, uint8_t first)
 
 bool menu_member_rows_can_be_drawn(const GameState *g) { return menu_member_rows_can_be_drawn_from(g, menu_member_scroll(g)); }
 
-/* ---- The entries --------------------------------------------------------------------------------- */
-
-// $C2:8820
-/* The member menu_screen_argument's low byte names: A is 0 when one was
- * loaded, or the list's byte for no member in its low byte. */
-void menu_load_member_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t member = (uint8_t)menu_screen_argument(g);
-    if (menu_load_member(g, member))
-        s->cpu.a = 0;
-    else
-        m_set_a8(s, menu_members(g, member));
-    m_rts(s);
-}
-
-// $C2:A1EF
-void menu_note_member_face(Snes *s)
-{
-    menu_note_member_face_and_hp(state_of(s));
-    m_rts(s);
-}
-
-// $C2:A216
-void menu_draw_member_row_entry(Snes *s)
-{
-    menu_draw_member_row(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-// $C2:A1E9
-void menu_draw_empty_member_row(Snes *s)
-{
-    menu_draw_windows(state_of(s), m_platform(s), EMPTY_ROW);
-    m_rts(s);
-}
-
-// $C2:A1B2
-void menu_draw_member_rows_entry(Snes *s)
-{
-    menu_draw_member_rows(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-void menu_leave_member_rows_coloured(Snes *s) { menu_leave_queued_upload(s, UPLOAD_BG2_ROWS); }
-
 // $C2:9E76
-/* Its callers go on with the accumulator's high byte as the upload's
- * queueing leaves it. */
-void menu_colour_member_rows_entry(Snes *s)
-{
-    menu_colour_member_rows(state_of(s));
-    ORIGINAL_EFFECT(menu_leave_member_rows_coloured(s));
-    m_rts(s);
-}
 
 // $C2:9EB0
-/* A row coloured: where it starts in the menus' fifth cell, its tiles and
- * colour in Y (twelve tiles, in the cursor's colour or dimmed). */
-void menu_colour_member_row_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint16_t at = menu_scratch_member_row_place(g);
-    bool dimmed = (s->cpu.y >> 8) == DIMMED_COLOUR;
-    menu_colour_member_row(g, at, dimmed);
-    ORIGINAL_EFFECT(menu_leave_member_row_coloured(g, at, dimmed));
-    m_rts(s);
-}
 
 // $C2:A273
-void menu_show_member_element(Snes *s)
-{
-    show_element(state_of(s));
-    m_rts(s);
-}
 
 /* The card works the member's figures out with what it has on (and writes
  * them back), then draws what the member has on beside them. */
@@ -501,7 +374,7 @@ void menu_draw_member_card_entry(Snes *s)
     menu_set_widths(s, true, m_x8(s));
     menu_draw_member_card(state_of(s), m_platform(s));
     /* A screen continuing into the card observes its final queued upload. */
-    ORIGINAL_EFFECT(menu_leave_queued_upload(s, UPLOAD_BG1_CARD));
+    (void)0;
     menu_restore_p(s);
     m_rts(s);
 }
@@ -544,7 +417,7 @@ static bool draw_the_card(void *ctx)
 {
     CardInC *c = ctx;
     if (!menu_member_card_can_be_drawn(c->game)) {
-        program_needs_the_machine(c->game, 0xC2A22F, "a member card the port doesn't draw");
+        program_breaks_a_contract(c->game, 0xC2A22F, "a member card the port doesn't draw");
         return false;
     }
     TIMED_AS(c->game, 0xC2A22F, menu_draw_member_card(c->game, c->pf));
@@ -562,88 +435,9 @@ bool menu_redraw_member_card(GameState *g, Platform *pf)
 
 static bool on_the_menus_page(Snes *s) { return menu_on_page_work_ram(s); }
 
-bool menu_member_is_loadable(Snes *s)
-{
-    if (!on_the_menus_page(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = menu_member_can_be_loaded(g, (uint8_t)menu_screen_argument(g));
-    vars_peek(false);
-    return ok;
-}
-
-bool menu_member_face_is_noteable(Snes *s) { return on_the_menus_page(s); }
-
-bool menu_member_row_is_drawable(Snes *s)
-{
-    if (!on_the_menus_page(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = menu_window_list_drawable(g, MEMBER_ROW);
-    vars_peek(false);
-    return ok;
-}
-
-bool menu_empty_member_row_is_drawable(Snes *s)
-{
-    if (!on_the_menus_page(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_window_list_drawable(state_of(s), EMPTY_ROW);
-    vars_peek(false);
-    return ok;
-}
-
-bool menu_member_rows_are_drawable(Snes *s)
-{
-    if (!on_the_menus_page(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_member_rows_can_be_drawn(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-bool menu_member_rows_are_colourable(Snes *s)
-{
-    if (!on_the_menus_page(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_vram_queue_bytes(state_of(s)) % MENU_UPLOAD_BYTES == 0;
-    vars_peek(false);
-    return ok;
-}
-
 /* A row the original is asked to colour on its own: in the cursor's colour
  * or dimmed, its twelve tiles in the tilemap buffers on both layers. */
 enum { LOW_RAM_END = 0x2000, BANK_END = 0x10000 };
-
-bool menu_member_row_is_colourable(Snes *s)
-{
-    if (!on_the_menus_page(s))
-        return false;
-    uint16_t word = s->cpu.y;
-    if (word != row_colour_word(false) && word != row_colour_word(true))
-        return false;
-    vars_peek(true);
-    uint16_t at = menu_scratch_member_row_place(state_of(s));
-    vars_peek(false);
-    uint32_t reach = (uint32_t)at + BACK_LAYER + (ROW_TILE_ROWS - 1) * MENU_TILEMAP_ROW_BYTES + ROW_TILES * MENU_TILE_BYTES;
-    return at >= LOW_RAM_END && reach <= BANK_END;
-}
-
-bool menu_member_element_is_showable(Snes *s)
-{
-    if (!on_the_menus_page(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = menu_status_record_character(g) < CHARACTERS && menu_palette_changes_have_room(g);
-    vars_peek(false);
-    return ok;
-}
 
 bool menu_member_card_is_drawable(Snes *s)
 {

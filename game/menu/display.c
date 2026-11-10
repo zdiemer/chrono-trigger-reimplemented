@@ -18,8 +18,10 @@
 #include "menu/display.h"
 
 #include "charge.h"
+#include "field/main_loop.h"
 #include "core/program.h"
 #include "cpu_io.h"
+#include "holds.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/fades.h"
@@ -34,7 +36,6 @@
 #include "menu/saves.h"
 #include "menu/screen_objects.h"
 #include "menu/vram.h"
-#include "original_effects.h"
 #include "overworld/setup.h"
 #include "platform/input.h"
 #include "platform/timing.h"
@@ -201,7 +202,10 @@ enum { MENU_MODE_START = 0xC2800E, THE_START_READS_ALL = 0 };
  * would be made inside this entry's comparison, and shadow mode hands them to
  * the start's, which the original reaches nested in it: every movie
  * mismatched so (chunk 11's review fixes). */
-void menu_mode_enter(Snes *s) { m_stop_at(s, MENU_MODE_START, THE_START_READS_ALL); }
+void menu_mode_enter(Snes *s)
+{
+    menu_continue(s, MENU_MODE_START, menu_mode_start, THE_START_READS_ALL);
+}
 
 /* The blanks the mode's start, its return and its starting the game again
  * make, each from the original's own sites. */
@@ -352,6 +356,7 @@ void menu_mode_return(Snes *s)
     m_set_nz16(s, s->cpu.d);
     m_set_flag(s, CPU_FLAG_I, true);
     m_rtl(s);
+    native_hold(s, HOLD_MENU_RETURN);
 }
 
 // $C2:832F
@@ -361,7 +366,7 @@ void menu_mode_restart(Snes *s)
 {
     blank_and_stop(m_platform(s), restart_sites);
     s->cpu.s = BOOT_STACK;
-    m_stop_at(s, 0xC00000, 0);
+    field_enter_after_mode(s, 0);
 }
 
 /* Closing the menus, from whichever screen closes them: every task stopped
@@ -509,10 +514,14 @@ void menu_nmi_enter(Snes *s)
 {
     set_menu_interrupted_stack(state_of(s), m_enter_handler_stack(s, HANDLER_STACK));
     s->cpu.d = MENUS_PAGE;
-    /* Joining the work here matches the outer NMI entry, but abandons every
-     * nested menu_nmi_work comparison. Keep its checkpoint until the registry
-     * can account for that coverage without losing the per-entry check. */
-    m_stop_at(s, 0xC2842A, DC_N | DC_Z | DC_C);
+    /* Keep the work's own comparison checkpoint in shadow mode. Shipping
+     * hands it the interrupt directly, after settling the entry's work. */
+    if (!m_runs_retired_as_c(s)) {
+        m_stop_at(s, 0xC2842A, DC_N | DC_Z | DC_C);
+        return;
+    }
+    charge_settle(state_of(s));
+    menu_go_on_in(s, 0xC2842A, menu_nmi_work, DC_N | DC_Z | DC_C);
 }
 
 /* The vblank's two calls, run as C or on the machine (below): the frame's
@@ -564,7 +573,7 @@ static bool frame_sent(void *ctx)
 {
     MenuVblankContext *c = ctx;
     if (!menu_block_move_is_a_buffer(c->game)) {
-        program_needs_the_machine(c->game, 0xC285D6, "a block move over the code the menus' vblank runs it through");
+        program_breaks_a_contract(c->game, 0xC285D6, "a block move over the code the menus' vblank runs it through");
         return false;
     }
     TIMED_AS(c->game, 0xC285D6, (void)send_the_frame(c->game, c->pf));
@@ -594,7 +603,8 @@ void menu_line(GameState *g, Platform *pf) { (void)g, (void)pf; }
 static bool frame_sent_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
-    m_jsr_dc(s, 0xC2843F, 0xC285D6, NOTHING_READ);
+    if (!menu_run_called(s, 0xC2843F, 0xC285D6, NOTHING_READ, menu_vblank_upload))
+        return false;
     if (back_as_the_menus_run(s, MENUS_PAGE))
         return true;
     m_stop_dont_care(s, 0xC28442, 0);
@@ -604,7 +614,8 @@ static bool frame_sent_on_the_machine(void *ctx)
 static bool input_taken_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
-    m_jsr_dc(s, 0xC2844D, 0xC28473, INPUT_IGNORES);
+    if (!menu_run_called(s, 0xC2844D, 0xC28473, INPUT_IGNORES, menu_take_frame_input))
+        return false;
     if (back_as_the_menus_run(s, MENUS_PAGE))
         return true;
     m_stop_dont_care(s, 0xC28450, 0);
@@ -632,7 +643,7 @@ static void send_menu_scroll(GameState *g, Platform *pf)
         vid_set_scroll(pf, PF_AT(0xC285E7), (VidLayer)bg, x, x, VID_SCROLL_H);
         vid_set_scroll(pf, PF_AT(0xC285E7), (VidLayer)bg, y, y, VID_SCROLL_V);
     }
-    ORIGINAL_EFFECT(hw_port_seek(g, (uint16_t)(RAM_ABS(RAM_MENU_SCROLL) + SCROLLED_LAYERS * RAM_MENU_SCROLL_STRIDE), 0));
+    charge_machine_io_accesses(g, 3);
 }
 
 static void send_menu_screen_shadows(GameState *g, Platform *pf)
@@ -661,13 +672,12 @@ static uint16_t move_the_block(GameState *g)
     enum { STUB_BLOCK_MOVE = 0x7E54, STUB_BANK_AND_RETURN = 0x6B7E };
     uint16_t from = menu_block_move_source(g), to = menu_block_move_dest(g), size = menu_block_move_size(g);
     uint32_t bytes = size ? size : 0x10000u;
-    ORIGINAL_EFFECT(set_menu_block_move_stub(g, (uint32_t)STUB_BANK_AND_RETURN << 16 | STUB_BLOCK_MOVE));
+    charge_machine_accesses(g, 4);
     wram_copy(g, 0x7E0000u | from, 0x7E0000u | to, bytes);
     charge_block_move(g, bytes);
     return (uint16_t)(to + bytes);
 }
 
-// $C2:86A9
 /* The working palette to CGRAM, when it has changed since it was last sent. */
 void menu_send_palette(GameState *g, Platform *pf)
 {
@@ -777,7 +787,7 @@ void menu_send_upload_queue(GameState *g, Platform *pf)
 bool menu_upload_queue_sent(GameState *g, Platform *pf)
 {
     if (!menu_upload_queue_is_whole(g)) {
-        program_needs_the_machine(g, 0xC28663, "an upload queue the port doesn't send");
+        program_breaks_a_contract(g, 0xC28663, "an upload queue the port doesn't send");
         return false;
     }
     TIMED_AS(g, 0xC28663, menu_send_upload_queue(g, pf));
@@ -834,11 +844,6 @@ bool menu_vram_queue_is_whole(Snes *s)
 }
 
 // $C2:86A9
-void menu_upload_palette(Snes *s)
-{
-    menu_send_palette(state_of(s), m_platform(s));
-    m_rts(s);
-}
 
 /* The two color math tables alternate frame by frame, so the one showing is
  * never the one being built. An entry is a line count, then the value of the
@@ -868,7 +873,7 @@ static uint16_t put_ramp(GameState *g, uint16_t at, uint8_t lines_a_step)
 {
     uint16_t step = (uint16_t)(lines_a_step << 4);
     uint16_t accumulator = menu_math_ramp_accumulator(g);
-    ORIGINAL_EFFECT(set_menu_math_ramp_step(g, step));
+    charge_machine_accesses(g, 2);
     for (unsigned i = 0; i < RAMP_STEPS; i++, at = (uint16_t)(at + MATH_ENTRY_BYTES)) {
         accumulator = (uint16_t)(accumulator + step);
         put_math_entry(g, at, (uint8_t)(accumulator >> 8), menu_math_ramp_colors(g, i));
@@ -902,28 +907,6 @@ void menu_build_math_table(GameState *g, Platform *pf)
         put_math_entry(g, at, menu_math_records_value(g, r), menu_math_ramp_colors(g, SINGLE_COLOR));
         at = (uint16_t)(at + MATH_ENTRY_BYTES);
     }
-}
-
-/* A list the game builds ends within its records and fits a table. */
-bool menu_math_list_fits(Snes *s)
-{
-    GameState *g = state_of(s);
-    unsigned bytes = 0;
-    bool ends = false;
-    vars_peek(true);
-    for (unsigned r = 0; r < MENU_MATH_RECORDS_COUNT && !ends; r++) {
-        ends = (menu_math_records_lines(g, r) & LIST_END) != 0;
-        if (!ends)
-            bytes += menu_math_records_lines(g, r) != 0 ? RAMP_STEPS * MATH_ENTRY_BYTES : MATH_ENTRY_BYTES;
-    }
-    vars_peek(false);
-    return ends && bytes <= MENU_MATH_LINE_TABLES_BYTES;
-}
-
-void menu_build_math_line_table(Snes *s)
-{
-    menu_build_math_table(state_of(s), m_platform(s));
-    m_rts(s);
 }
 
 /* ---- The mode at $C2:0000 ------------------------------------------------------------------------- */
@@ -993,16 +976,6 @@ static const VidScreen object_mode_screen = {
 /* The controller port's programmable lines, all high: nothing latched. */
 enum { IO_LINES_RELEASED = 0xFF };
 
-/* The multiplier and the divider start from nothing, which only the
- * comparison with the original sees: nothing reads them before setting them. */
-static void clear_arithmetic(GameState *g)
-{
-    hw_set_multiplicand(g, 0);
-    (void)hw_multiply_by(g, 0);
-    hw_set_dividend(g, 0);
-    hw_divide_by(g, 0);
-}
-
 // $C2:0043
 /* Set the mode's screen up, and the console's own registers as the mode
  * starts them: the controller port's lines released, the arithmetic unit
@@ -1011,7 +984,7 @@ void menu_object_set_up_the_screen(GameState *g, Platform *pf)
 {
     vid_apply_screen(pf, PF_AT(0xC20043), &object_mode_screen);
     in_set_io_lines(pf, PF_AT(0xC200F8), IO_LINES_RELEASED);
-    ORIGINAL_EFFECT(clear_arithmetic(g));
+    charge_machine_io_accesses(g, 7);
     tm_reset_timers(pf, PF_AT(0xC2010C));
 }
 
@@ -1021,7 +994,6 @@ void menu_object_init_video(Snes *s)
     m_rts(s);
 }
 
-// $C2:012F
 /* The mode's own state starts from nothing: its direct page cleared, the
  * screen off, and the display it sends each frame as the screen starts --
  * mode 1 with BG3 in front, the Mode 7 plane at its identity, both windows
@@ -1046,10 +1018,8 @@ void menu_object_reset_the_mode(GameState *g)
     set_menu_object_shadows_sub_screen(g, SUB_LAYERS);
 }
 
-// $C2:0110
 /* The mode's frame is its own vblank handler's; it has no line handler, so
  * the line interrupt (which it never enables) only returns. */
-
 
 void menu_object_take_the_interrupts(GameState *g)
 {
@@ -1060,7 +1030,6 @@ void menu_object_take_the_interrupts(GameState *g)
 /* Where the uploads the mode builds are put together, in work RAM. */
 enum { UPLOAD_BUFFER = 0x7EF000 };
 
-// $C2:03EF
 /* Empty the mode's upload queue, every record cleared, and start its
  * buffer over. */
 void menu_object_reset_the_upload_queue(GameState *g)
@@ -1081,27 +1050,10 @@ static void set_up_the_mode(GameState *g, Platform *pf)
 }
 
 // $C2:012F
-void menu_object_reset_the_mode_entry(Snes *s)
-{
-    menu_object_reset_the_mode(state_of(s));
-    m_rts(s);
-}
 
 // $C2:0110
-void menu_object_take_the_interrupts_entry(Snes *s)
-{
-    menu_object_take_the_interrupts(state_of(s));
-    m_rts(s);
-}
 
 // $C2:03EF
-/* It leaves the buffer's bank in A, which a caller may read. */
-void menu_object_reset_the_upload_queue_entry(Snes *s)
-{
-    menu_object_reset_the_upload_queue(state_of(s));
-    m_set_a8(s, (uint8_t)(UPLOAD_BUFFER >> 16));
-    m_rts(s);
-}
 
 /* The mode's shadows, as its vblank handler sends them: the BG mode and
  * mosaic, the three layers' scroll, Mode 7's matrix and center, the windows,
@@ -1249,7 +1201,7 @@ static bool object_frame_step(void *ctx, ObjectFrameStep step)
     switch (step) {
     case SEND_THE_QUEUE:
         if (!menu_object_queue_can_be_sent(g)) {
-            program_needs_the_machine(g, 0xC20405, "an upload queue the port doesn't send");
+            program_breaks_a_contract(g, 0xC20405, "an upload queue the port doesn't send");
             return false;
         }
         TIMED_AS(g, 0xC20405, send_object_queue(g, pf));
@@ -1257,11 +1209,11 @@ static bool object_frame_step(void *ctx, ObjectFrameStep step)
     case TAKE_THE_INPUT:
         TIMED_AS(g, 0xC28002, done = input_take_frame(g, pf));
         if (!done)
-            program_needs_the_machine(g, 0xC28002, "the controller not read, or the reset buttons held");
+            program_breaks_a_contract(g, 0xC28002, "the controller not read, or the reset buttons held");
         return done;
     case EMPTY_THE_SPRITE_LIST:
         if (!menu_sprite_list_can_be_emptied(g)) {
-            program_needs_the_machine(g, 0xC20C4D, "a sprite list whose links the mode's start didn't lay out");
+            program_breaks_a_contract(g, 0xC20C4D, "a sprite list whose links the mode's start didn't lay out");
             return false;
         }
         TIMED_AS(g, 0xC20C4D, menu_empty_the_sprite_list(g));
@@ -1274,7 +1226,7 @@ static bool object_frame_step(void *ctx, ObjectFrameStep step)
         return done;
     case DRAW_THE_SPRITE_LIST:
         if (!menu_sprite_list_can_be_drawn(g)) {
-            program_needs_the_machine(g, 0xC20CEA, "a sprite list the port doesn't draw");
+            program_breaks_a_contract(g, 0xC20CEA, "a sprite list the port doesn't draw");
             return false;
         }
         TIMED_AS(g, 0xC20CEA, menu_draw_the_sprite_list(g));
@@ -1359,11 +1311,6 @@ void menu_object_nmi(Snes *s)
     m_rti(s);
 }
 
-// $C2:0345, $C2:8472
-/* Neither menu mode does work on a line interrupt. Their installed handlers
- * simply return, preserving the interrupted work at any register width. */
-void menu_ignore_line_interrupt(Snes *s) { m_rti(s); }
-
 // $C2:0405
 /* The sprite-object mode's VRAM upload queue, unless something is queueing
  * right now: each record from the source, bank and VRAM address, size and
@@ -1446,13 +1393,6 @@ void menu_send_loaded_graphics(Platform *pf, uint16_t vram, uint16_t from, uint1
     vid_send_vram(pf, PF_AT(0xC22D70), vram, PF_GAME(0x7F0000 | from), bytes ? bytes : 0x10000, &word_port);
 }
 
-void menu_upload_vram(Snes *s)
-{
-    menu_send_loaded_graphics(m_platform(s), s->cpu.y, s->cpu.x, s->cpu.a);
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
 // $C2:2D47
 /* The palette the graphics loader decompressed (menu_loaded_palette), sent
  * to CGRAM. */
@@ -1460,7 +1400,6 @@ void menu_send_the_loaded_palette(Platform *pf)
 {
     vid_send_palette(pf, PF_AT(0xC22D4B), 0, PF_GAME(RAM_MENU_LOADED_PALETTE), 256);
 }
-
 
 /* The screen the graphics loader's screens are built on: forced blank; the
  * sprites 8x8 and 16x16 with their tiles at VRAM $4000; mode 1 with BG3 in
@@ -1514,6 +1453,7 @@ void menu_init_video(Snes *s)
  * RAM port, with the per-line effects off first (the transfer runs on one of
  * their channels). The destination is memory, not video, so the transfer goes through
  * the SNES-only escape; the port's address is its input. */
+// $C2:9512
 void menu_clear_memory(GameState *g, Platform *pf, uint16_t at, uint16_t bytes)
 {
     vid_enable_line_effects(pf, PF_AT(0xC2951B), 0x00);
@@ -1534,35 +1474,6 @@ static void clear_the_screens_memory(GameState *g, Platform *pf)
         TIMED_AS(g, 0xC29512, menu_clear_memory(g, pf, stretches[i].at, stretches[i].bytes));
 }
 
-/* Its entry, where the setup goes on: the caller's flags, direct page and
- * data bank put back after. */
-void menu_init_video_memory(Snes *s)
-{
-    clear_the_screens_memory(state_of(s), m_platform(s));
-    m_pull_flags(s);
-    s->cpu.d = m_pull16(s);
-    s->cpu.db = m_pull8(s);
-    m_rts(s);
-}
-
-/* The loader's stretches of work RAM are the screen's buffers, never the
- * stack the loader's own return and saved flags are on. */
-bool menu_memory_stretch_misses_the_stack(Snes *s)
-{
-    uint16_t bytes = s->cpu.y, stack = s->cpu.s;
-    uint32_t from = s->cpu.x, to = from + (bytes ? bytes : 0x10000u);
-    uint32_t low = (uint16_t)(stack - 1), high = (uint32_t)stack + 3;
-    return to <= low || from >= high;
-}
-
-// $C2:9512
-/* Clear Y bytes of work RAM from $7E:X. */
-void menu_fill_memory(Snes *s)
-{
-    menu_clear_memory(state_of(s), m_platform(s), s->cpu.x, s->cpu.y);
-    m_rts(s);
-}
-
 // $C2:9542
 /* Copy Y bytes from $FF:A into work RAM at $7E:X through the work RAM port:
  * memory again, so the SNES-only escape. */
@@ -1571,12 +1482,6 @@ void menu_copy_rom_to_memory(GameState *g, Platform *pf, uint16_t from, uint16_t
     const VidSnesTransfer t = { .dest = VID_SNES_WRAM_DATA, .source = 0xFF0000u | from, .size = bytes, .wram_at = at };
     hw_port_seek(g, at, 0);
     vid_snes_copy(pf, PF_AT(0xC2954B), &t);
-}
-
-void menu_copy_to_memory(Snes *s)
-{
-    menu_copy_rom_to_memory(state_of(s), m_platform(s), s->cpu.a, s->cpu.x, s->cpu.y);
-    m_rts(s);
 }
 
 /* ---- The window line table ----------------------------------------------------------------------- */
@@ -1617,23 +1522,3 @@ void menu_put_window_line_table(GameState *g, Platform *pf)
     vid_set_line_table(pf, PF_AT(0xFFFC0A), 1, (uint16_t)RAM_ABS(RAM_MENU_WINDOW_LINE_TABLE));
     build_window_line_table(g);
 }
-
-/* It leaves its loop's counts in the caller's first three cells: the second
- * level, a run of lines out, and the groups. */
-void menu_leave_window_line_table_counts(GameState *g)
-{
-    set_menu_scratch_window_lines_level(g, SECOND_LEVEL);
-    set_menu_scratch_window_lines_out(g, 0);
-    set_menu_scratch_window_line_groups(g, WINDOW_GROUPS);
-}
-
-void menu_window_build_line_table(Snes *s)
-{
-    menu_put_window_line_table(state_of(s), m_platform(s));
-    m_write8(s, m_dp(s, 0x00), SECOND_LEVEL);
-    m_write8(s, m_dp(s, 0x01), 0);
-    m_write8(s, m_dp(s, 0x02), WINDOW_GROUPS);
-    m_rtl(s);
-}
-
-bool menu_window_line_table_is_buildable(Snes *s) { return s->cpu.db == 0x7E; }

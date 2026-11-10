@@ -14,11 +14,11 @@
  *
  * Angles are 256 a turn, 0 pointing right and a quarter turn pointing down,
  * as the battle's sine table has them. */
+#include "charge.h"
 #include "battle/screen_script.h"
 
 #include "battle/screen_data.h"
 #include "battle/screen_lines.h"
-#include "original_effects.h"
 
 /* ---- The line ---------------------------------------------------------------------------- */
 
@@ -137,13 +137,6 @@ static void turn_about_the_middle(GameState *g, Window w, WhichEdge edge, bool t
 /* What the original leaves in its cells: the run across, twice (its count
  * of the columns still to share out ends where it started), and the run
  * down, with the count of lines still to go, 0. */
-static void leave_cut(GameState *g, const CutLine *l)
-{
-    screen_leave_word(g, 0x45, l->across);
-    screen_leave_word(g, 0x47, l->across);
-    screen_leave_word(g, 0x49, l->down);
-    screen_leave_word(g, 0x4B, 0);
-}
 
 // $CE:EA7E, $CE:E885
 /* Shape window `w` in the coming frame as the side of the line `l` that an
@@ -155,7 +148,7 @@ static void cut_window(GameState *g, Window w, uint8_t angle, const CutLine *l)
     if (line_points_up(angle))
         cover_above(g, w, l->upper);
     uint8_t end = trace_line(g, w, edge, l);
-    ORIGINAL_EFFECT(leave_cut(g, l));
+    charge_machine_accesses(g, 8);
     if (line_points_up(angle)) {
         turn_about_the_middle(g, w, edge, true);
         return;
@@ -193,23 +186,6 @@ static void set_cut_angle(GameState *g, ScreenChannel channel, Window w, uint8_t
  * scratch cells. Only its drawing reads them. */
 enum { STEP_LEFT = 0xFF, NO_STEP = 0, STEP_ON = 1 };
 
-static bool steps_left(uint8_t step) { return (int8_t)step < 0; }
-
-static void leave_line(GameState *g, uint8_t angle, const CutLine *l)
-{
-    set_battle_cut_angle(g, angle);
-    set_battle_cut_ends_across(g, 0, l->upper.x);
-    set_battle_cut_ends_down(g, 0, l->upper.y);
-    set_battle_cut_ends_across(g, 1, l->lower.x);
-    set_battle_cut_ends_down(g, 1, l->lower.y);
-    set_battle_cut_steps(g, 0, l->across == 0 ? NO_STEP : l->leftward ? STEP_LEFT : STEP_ON);
-    set_battle_cut_steps(g, 1, l->down ? STEP_ON : NO_STEP);
-    set_battle_cut_run(g, 0, l->across);
-    set_battle_cut_run(g, 1, l->down);
-    screen_leave_cell(g, 0x4F, l->upper.x);
-    screen_leave_cell(g, 0x51, l->upper.y);
-}
-
 /* Bits of the command's last operand that no script sets: they would move
  * the line onto another window's bytes of the table. */
 enum { STRAY_CUT_BITS = 0x7D };
@@ -234,7 +210,7 @@ static ScreenFlow turn_cut(GameState *g, ScreenChannel channel, uint8_t window, 
     uint8_t turned = (uint8_t)(cut_angle(g, channel, w) + turn);
     set_cut_angle(g, channel, w, turned);
     CutLine l = cut_line_at(g, turned);
-    ORIGINAL_EFFECT(leave_line(g, turned, &l));
+    charge_machine_accesses(g, 11);
     cut_window(g, w, turned, &l);
     return screen_on();
 }
@@ -279,25 +255,8 @@ SCREEN_OPCODES(screen_cut_opcodes,
 
 /* $CE:EA7E, called with the line in the original's cells (leave_line) and the
  * window in A as the byte its edges start at in a line (0 or 2). */
-void battle_cut_window(Snes *s)
-{
-    GameState *g = state_of(s);
-    CutLine l = { .upper = { screen_cell(g, 0x4F), screen_cell(g, 0x51) },
-                  .leftward = steps_left(battle_cut_steps(g, 0)),
-                  .across = battle_cut_run(g, 0),
-                  .down = battle_cut_run(g, 1) };
-    cut_window(g, (s->cpu.a & 0x02) ? WINDOW_2 : WINDOW_1, battle_cut_angle(g), &l);
-    s->cpu.a = 0;
-    m_rtl(s);
-}
 
 /* $CE:E000, called with the command's operand at the script's place. */
-void battle_carry_window_over(Snes *s)
-{
-    carry_window_over(state_of(s), screen_command_operand(state_of(s), 0));
-    s->cpu.a = 0;
-    m_rtl(s);
-}
 
 /* The guards: on the battle's page with A's high byte clear; the cut's window
  * one of the two, its line within the screen, running across no further than
@@ -305,25 +264,3 @@ void battle_carry_window_over(Snes *s)
  * room to share out in a byte (the original's count of the columns to share
  * out is one); the carried window one of the two. */
 enum { A_BYTE_HOLDS = 0x100 };
-
-bool battle_cut_fits(Snes *s)
-{
-    if (!battle_screen_page_a_clear(s) || ((uint8_t)s->cpu.a & ~0x02u) != 0)
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    uint8_t across = screen_cell(g, 0x4F), down = screen_cell(g, 0x51);
-    uint8_t run_across = battle_cut_run(g, 0), run_down = battle_cut_run(g, 1);
-    bool leftward = steps_left(battle_cut_steps(g, 0));
-    vars_peek(false);
-    bool across_fits = leftward ? across >= run_across : across + run_across <= SCREEN_RIGHT;
-    return down + run_down <= SCREEN_LINES && across_fits && run_across + run_down <= A_BYTE_HOLDS;
-}
-
-bool battle_carried_window_is_one(Snes *s)
-{
-    vars_peek(true);
-    bool one = screen_command_operand(state_of(s), 0) < WINDOWS;
-    vars_peek(false);
-    return battle_screen_page(s) && one;
-}

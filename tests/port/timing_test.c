@@ -17,6 +17,7 @@
 
 #include "platform/native/host.h"
 #include "platform/time_model.h"
+#include "platform/observe.h"
 
 static int failures;
 
@@ -344,8 +345,53 @@ static void budget_main(Platform *p, void *ctx)
 
 static Platform pf;
 
+/* The scene's horizontal BG2 wave changes one coordinate on each line.
+ * The other layers and BG2's vertical position must retain their scroll. */
+static uint8_t wave_table_byte(void *ctx, uint32_t at)
+{
+    const uint8_t *table = ctx;
+    return at < 20 ? table[at] : 0;
+}
+
+static void test_second_layer_wave(void)
+{
+    uint8_t table[20] = { 0x82, 16, 0, 0 };
+    table[16] = 3;
+    table[18] = 0xFF;
+    table[19] = 3;
+    VidObserver *ob = vid_obs_create(wave_table_byte, table);
+    CHECK(ob != NULL, "video observer allocated for the wave");
+    if (!ob)
+        return;
+    vid_obs_scroll(ob, VID_BG1, 71, 83, VID_SCROLL_H | VID_SCROLL_V);
+    vid_obs_scroll(ob, VID_BG2, 17, 29, VID_SCROLL_H | VID_SCROLL_V);
+    VidLineEffect effect = { .target = VID_LINE_SCROLL_BG2_H, .table = PF_GAME(0),
+                             .indirect = true, .indirect_bank = 0 };
+    vid_obs_line_effect(ob, 1, &effect);
+    vid_obs_enable_line_effects(ob, 1u << 1);
+    vid_obs_frame_start(ob);
+    for (unsigned line = 0; line <= 224; line++)
+        vid_obs_line(ob, (uint16_t)line);
+    const VidFrame *frame = vid_obs_frame(ob);
+    CHECK(frame->span_count == 2, "two horizontal wave positions (%u)", frame->span_count);
+    if (frame->span_count == 2) {
+        CHECK(frame->spans[0].line == 1 && frame->spans[0].state.bg[1].hofs == 3,
+              "the wave's first line reads its first word");
+        CHECK(frame->spans[1].line == 2 && frame->spans[1].state.bg[1].hofs == 1023,
+              "the next line reads both bytes of its next word");
+    }
+    for (unsigned i = 0; i < frame->span_count; i++) {
+        const VidLineState *state = &frame->spans[i].state;
+        CHECK(state->bg[0].hofs == 71 && state->bg[0].vofs == 83 && state->bg[1].vofs == 29,
+              "the horizontal wave preserves other scroll coordinates");
+    }
+    CHECK(vid_obs_unmodelled(ob) == 0, "the wave has a native video implementation");
+    vid_obs_destroy(ob);
+}
+
 int main(void)
 {
+    test_second_layer_wave();
     TmHostProgram program = { game_main, game_vblank, game_line, NULL, NULL, NULL, NULL };
     tm_host_start(&pf, &program, 12345);
 

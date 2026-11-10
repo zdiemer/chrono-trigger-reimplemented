@@ -21,6 +21,7 @@
 #include "battle/enemy_scripts.h"
 
 #include "battle/battle.h"
+#include "battle/effect_noise.h"
 #include "battle/bridge.h"
 #include "battle/combatant.h"
 #include "battle/entries.h"
@@ -29,7 +30,6 @@
 #include "battle/rules_data.h"
 #include "battle/targets.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- What they share ------------------------------------------------------------------------ */
@@ -37,14 +37,16 @@
 static ConditionResult fails(void) { return (ConditionResult){ .verdict = CONDITION_FAILS }; }
 static ConditionResult holds(void) { return (ConditionResult){ .verdict = CONDITION_HOLDS }; }
 static ConditionResult holds_if(bool held) { return held ? holds() : fails(); }
-static ConditionResult holds_unchosen(void) { return (ConditionResult){ .verdict = CONDITION_HOLDS_UNCHOSEN }; }
 
 /* Nobody picked: the condition fails, having read no further than its
  * selector. */
-static ConditionResult nobody_picked(void) { return (ConditionResult){ .verdict = CONDITION_FAILS, .stopped_at_selector = true }; }
 
 /* It holds for the target it took, if it could take one; a block no longer
  * held comes out `otherwise`. */
+static ConditionResult holds_unchosen(void) { return (ConditionResult){ .verdict = CONDITION_HOLDS_UNCHOSEN }; }
+
+static ConditionResult nobody_picked(void) { return (ConditionResult){ .verdict = CONDITION_FAILS, .stopped_at_selector = true }; }
+
 static ConditionResult for_target(bool taken, ConditionVerdict otherwise)
 {
     return (ConditionResult){
@@ -99,7 +101,7 @@ static ConditionResult at_half_hp(GameState *g, const ScriptChoosing *c, Selecto
         }
     }
     battle_keep_stat_offset_word(g, marked);
-    ORIGINAL_EFFECT(set_battle_candidate_place(g, count));
+    charge_machine_accesses(g, 2);
     return for_target(take_marked(g, marked), CONDITION_HOLDS_UNCHOSEN);
 }
 
@@ -120,11 +122,12 @@ static ConditionResult with_status(GameState *g, const ScriptChoosing *c, uint8_
             mark(g, place);
         }
     } while (++place < count);
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x00, offset));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x02, bits));
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x04, place));
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x06, marked));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, side));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
+    battle_note_curtain_noise_low(g, side);
+    charge_machine_accesses(g, 1);
     return marked == 0 ? fails() : for_target(take_marked(g, marked), CONDITION_FAILS);
 }
 
@@ -142,8 +145,9 @@ static ConditionResult is_enemy(GameState *g, const ScriptChoosing *c, Selector 
             marked++;
             mark(g, place);
         }
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x06, marked));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, id));
+    charge_machine_accesses(g, 2);
+    battle_note_curtain_noise_low(g, id);
+    charge_machine_accesses(g, 1);
     return marked == 0 ? fails() : for_target(take_marked(g, marked), CONDITION_FAILS);
 }
 
@@ -164,7 +168,7 @@ static ConditionResult at_most_hp(GameState *g, const ScriptChoosing *c, Selecto
         }
     battle_keep_word(g, BATTLE_NUMBER_TESTED, (uint8_t)most);
     battle_keep_stat_offset_word(g, count);
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x0C, marked));
+    charge_machine_accesses(g, 2);
     return marked == 0 ? fails() : for_target(take_marked(g, marked), CONDITION_FAILS);
 }
 
@@ -219,6 +223,9 @@ static ConditionResult stat_at_most(GameState *g, const ScriptChoosing *c, Selec
  * the candidates to slots past the combatants. It counts in $0E, which such
  * a slot's stat can be read from (battle.h), so the count is kept there as it
  * goes. */
+
+/* The stat is named by its offset's low byte; its high byte is whatever the
+ * last word kept at $0A left (battle.h), as the original's pointer reads it. */
 static ConditionResult stat_equal(GameState *g, uint8_t count, uint16_t offset, uint8_t value)
 {
     uint8_t place = 0;
@@ -237,8 +244,6 @@ static ConditionResult stat_equal(GameState *g, uint8_t count, uint16_t offset, 
     return found ? for_target(take_marked(g, count), CONDITION_FAILS) : fails();
 }
 
-/* The stat is named by its offset's low byte; its high byte is whatever the
- * last word kept at $0A left (battle.h), as the original's pointer reads it. */
 static ConditionResult stat_is(GameState *g, const ScriptChoosing *c, uint8_t value, Selector who, uint8_t offset_low)
 {
     battle_keep_byte(g, BATTLE_NUMBER_TESTED, value);
@@ -261,7 +266,8 @@ static ConditionResult stat_bits(GameState *g, const ScriptChoosing *c, Selector
         return nobody_picked();
     uint8_t stat = combatant_stat_byte_by_wide_place(g, candidate(g, 0), offset);
     battle_keep_stat_offset_word(g, offset);
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, stat));
+    battle_note_curtain_noise_low(g, stat);
+    charge_machine_accesses(g, 1);
     return holds_if((bits & stat) != 0);
 }
 
@@ -275,8 +281,9 @@ static ConditionResult is_party_member(GameState *g, const ScriptChoosing *c, Se
     uint8_t count = select_by(g, c, who);
     if (count == 0)
         return nobody_picked();
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, whatever_state));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0A, not_member));
+    battle_note_curtain_noise_low(g, whatever_state);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     uint8_t member = 0;
     while (member < BATTLE_PARTY_SIZE && candidate(g, 0) != battle_combatant_id(g, member))
         member++;
@@ -295,7 +302,7 @@ static ConditionResult is_party_member(GameState *g, const ScriptChoosing *c, Se
 static ConditionResult three_on_out(GameState *g, const ScriptChoosing *c, Selector who, uint8_t out_wanted)
 {
     select_by(g, c, who);
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0A, out_wanted));
+    charge_machine_accesses(g, 1);
     bool out = combatant_fighting_as(g, (unsigned)candidate(g, 0) + BATTLE_FIRST_ENEMY) == COMBATANT_NONE;
     return holds_if(out ? out_wanted != 0 : out_wanted == 0);
 }
@@ -305,9 +312,11 @@ static ConditionResult three_on_out(GameState *g, const ScriptChoosing *c, Selec
 static ConditionResult turn_wait(GameState *g, const ScriptChoosing *c, Selector who, uint8_t limit, uint8_t at_least)
 {
     select_by(g, c, who);
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, limit));
+    battle_note_curtain_noise_low(g, limit);
+    charge_machine_accesses(g, 1);
     uint8_t wait = combatant_turn_wait(g, candidate(g, 0));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x09, 0));
+    battle_note_curtain_noise_high(g, 0);
+    charge_machine_accesses(g, 1);
     return holds_if(at_least == 0 ? wait < limit : wait >= limit);
 }
 
@@ -355,6 +364,7 @@ static ConditionResult within_wide_reach(GameState *g, const ScriptChoosing *c, 
  * (not the pair's). Whether the block's actions are chosen then goes by the
  * last one's answer, as asked; otherwise, and with nobody picked, it holds
  * without choosing. */
+
 static ConditionResult each_stands(GameState *g, const ScriptChoosing *c, Selector who, uint8_t negated, SearchKind kind)
 {
     uint8_t count = select_by(g, c, who);
@@ -375,7 +385,7 @@ static ConditionResult each_stands(GameState *g, const ScriptChoosing *c, Select
         }
     } while (++place < count);
     battle_keep_stat_offset_word(g, place);
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x0C, marked));
+    charge_machine_accesses(g, 2);
     battle_keep_word(g, BATTLE_TECH_HITS_LEFT, self(c));
     ConditionResult r = for_target(take_marked(g, marked), CONDITION_HOLDS_UNCHOSEN);
     r.pairs = false;
@@ -432,8 +442,9 @@ static ConditionResult stands_in(GameState *g, const ScriptChoosing *c, uint8_t 
 static ConditionResult enemy_present(GameState *g, const ScriptChoosing *c, uint8_t id, uint8_t absent)
 {
     (void)c;
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, id));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0A, absent));
+    battle_note_curtain_noise_low(g, id);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     bool present = false;
     uint8_t enemy = 0;
     do
@@ -449,9 +460,10 @@ static ConditionResult enemy_present(GameState *g, const ScriptChoosing *c, uint
 static ConditionResult other_kind_present(GameState *g, const ScriptChoosing *c, uint8_t id, uint8_t not_itself,
                                           uint8_t holds_then)
 {
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, id));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0A, not_itself));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0C, holds_then));
+    battle_note_curtain_noise_low(g, id);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     uint8_t enemy = 0;
     do {
         uint8_t fighting = combatant_fighting_as(g, (uint8_t)(BATTLE_FIRST_ENEMY + enemy));
@@ -474,7 +486,8 @@ static ConditionResult enemies_at_most(GameState *g, const ScriptChoosing *c, ui
     for (uint8_t enemy = 0; enemy < BATTLE_ENEMIES; enemy++)
         if (combatant_in_fight(g, (uint8_t)(BATTLE_FIRST_ENEMY + enemy)) && battle_enemy_standing(g, enemy) == 0)
             counted++;
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, most));
+    battle_note_curtain_noise_low(g, most);
+    charge_machine_accesses(g, 1);
     battle_keep_stat_offset_word(g, counted);
     return holds_if(most >= counted);
 }
@@ -485,7 +498,8 @@ static ConditionResult members_at_most(GameState *g, const ScriptChoosing *c, ui
 {
     (void)c;
     uint8_t limit = (uint8_t)(most + 1), fighting = 0;
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, limit));
+    battle_note_curtain_noise_low(g, limit);
+    charge_machine_accesses(g, 1);
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         if (combatant_in_fight(g, member))
             fighting++;
@@ -497,9 +511,11 @@ static ConditionResult members_at_most(GameState *g, const ScriptChoosing *c, ui
 static ConditionResult frames_at_least(GameState *g, const ScriptChoosing *c, uint32_t least)
 {
     (void)c;
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, (uint8_t)least));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x09, (uint8_t)(least >> 8)));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0A, (uint8_t)(least >> 16)));
+    battle_note_curtain_noise_low(g, (uint8_t)least);
+    charge_machine_accesses(g, 1);
+    battle_note_curtain_noise_high(g, (uint8_t)(least >> 8));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     return holds_if((battle_frames(g) & 0xFFFFFF) >= least);
 }
 
@@ -511,8 +527,9 @@ enum { COUNT_AT_MOST = 1 };
 static ConditionResult count_compared(GameState *g, const ScriptChoosing *c, uint8_t number, uint8_t how)
 {
     uint8_t count = battle_enemy_script_counter(g, c->enemy);
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, number));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0A, how));
+    battle_note_curtain_noise_low(g, number);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     return holds_if(how == COUNT_AT_MOST ? count <= number : count >= number);
 }
 
@@ -523,7 +540,7 @@ enum { PERCENT = 100 };
 static ConditionResult chance(GameState *g, const ScriptChoosing *c, uint8_t percent)
 {
     (void)c;
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x00, percent));
+    charge_machine_accesses(g, 1);
     return holds_if(battle_random(g, 0, PERCENT) < percent);
 }
 
@@ -577,11 +594,11 @@ static uint8_t how_named(uint8_t attack_or_tech)
 /* Whether an attack (or a tech) last acted on it, or not. */
 static ConditionResult acted_on_by(GameState *g, const ScriptChoosing *c, uint8_t attack_or_tech, uint8_t negated)
 {
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x02, negated));
+    charge_machine_accesses(g, 1);
     uint8_t how = how_named(attack_or_tech);
     if (how == NAMES_NEITHER)
         return fails();
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x00, how));
+    charge_machine_accesses(g, 1);
     bool was = (record_byte(g, c, 0) & HOW_ACTED) == how;
     return holds_if(negated == 0 ? was : !was);
 }
@@ -592,12 +609,12 @@ static ConditionResult acted_on_by(GameState *g, const ScriptChoosing *c, uint8_
 static ConditionResult acted_on_by_this(GameState *g, const ScriptChoosing *c, uint8_t attack_or_tech, uint8_t number,
                                         uint8_t negated)
 {
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x04, negated));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x02, number));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     uint8_t how = how_named(attack_or_tech);
     if (how == NAMES_NEITHER)
         return fails();
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x00, how));
+    charge_machine_accesses(g, 1);
     bool kind = (record_byte(g, c, 0) & HOW_ACTED) == how, same = record_byte(g, c, 1) == number;
     return holds_if(negated == 0 ? kind && same : !kind && !same);
 }
@@ -607,8 +624,8 @@ static ConditionResult acted_on_by_this(GameState *g, const ScriptChoosing *c, u
 static ConditionResult acted_bit(GameState *g, const ScriptChoosing *c, uint8_t bit, uint8_t negated)
 {
     uint8_t wanted = (uint8_t)((bit & 1) << 4);
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x02, negated));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x00, wanted));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     bool same = (record_byte(g, c, 0) & ACTED_BIT_4) == wanted;
     return holds_if(negated == 0 ? same : !same);
 }
@@ -621,9 +638,9 @@ static ConditionResult acted_bit(GameState *g, const ScriptChoosing *c, uint8_t 
 static ConditionResult acted_on_by_member(GameState *g, const ScriptChoosing *c, uint8_t id, uint8_t whole_party,
                                           uint8_t negated)
 {
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x04, negated));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x02, whole_party));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x00, id));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     uint8_t record = record_byte(g, c, 0);
     if (record & ACTED_BIT_4)
         return fails();
@@ -639,8 +656,8 @@ static ConditionResult acted_on_by_member(GameState *g, const ScriptChoosing *c,
  * or not. */
 static ConditionResult acted_with_elements(GameState *g, const ScriptChoosing *c, uint8_t elements, uint8_t negated)
 {
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x04, negated));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x02, elements));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     bool all = (record_byte(g, c, 2) & elements) == elements;
     return holds_if(negated == 0 ? all : !all);
 }
@@ -820,59 +837,3 @@ bool enemy_condition_in_tables(const GameState *g, uint8_t kind, ScriptPlace at)
     Selector selector = enemy_script_byte(g, (ScriptPlace)(at + operand));
     return selector < SELECTORS || (selector & SELECT_CONDITION_TARGET);
 }
-
-/* ---- The entries ------------------------------------------------------------------------ */
-
-/* Each condition's routine is called with the script read at the condition
- * and the choosing in its cells, and acts on how it came out itself (the
- * block's testing, battle/enemy_scripts.c); it hands A back clear, which the
- * original's callers index with. */
-static void condition_entry(Snes *s, uint8_t kind)
-{
-    GameState *g = state_of(s);
-    ScriptChoosing c = enemy_choosing_in_cells(g);
-    ConditionResult r = carry_out(g, &c, kind, c.place, false);
-    enemy_act_on_condition(g, &c, r);
-    enemy_hand_back_choosing(g, &c);
-    s->cpu.a = 0;
-    m_rts(s);
-}
-
-/* An entry and its guard, which knows the condition it carries out. */
-#define CONDITION_ENTRY(name, kind) \
-    void name(Snes *s) { condition_entry(s, kind); } \
-    bool name##_ready(Snes *s) { return battle_script_entry_ready(s, TAKES_CONDITION, kind); }
-
-CONDITION_ENTRY(battle_condition_always, 0x00)
-CONDITION_ENTRY(battle_condition_at_half_hp, 0x01)
-CONDITION_ENTRY(battle_condition_with_status, 0x02)
-CONDITION_ENTRY(battle_condition_is_enemy, 0x03)
-CONDITION_ENTRY(battle_condition_enemy_present, 0x04)
-CONDITION_ENTRY(battle_condition_enemies_at_most, 0x05)
-CONDITION_ENTRY(battle_condition_frames_at_least, 0x06)
-CONDITION_ENTRY(battle_condition_count_compared, 0x07)
-CONDITION_ENTRY(battle_condition_at_most_hp, 0x08)
-CONDITION_ENTRY(battle_condition_stat_at_least, 0x09)
-CONDITION_ENTRY(battle_condition_stat_bits, 0x0A)
-CONDITION_ENTRY(battle_condition_stat_at_most, 0x0B)
-CONDITION_ENTRY(battle_condition_within_reach, 0x0C)
-CONDITION_ENTRY(battle_condition_level_with, 0x0D)
-CONDITION_ENTRY(battle_condition_stands_beside, 0x0E)
-CONDITION_ENTRY(battle_condition_could_walk_to, 0x0F)
-CONDITION_ENTRY(battle_condition_stands_in, 0x10)
-CONDITION_ENTRY(battle_condition_acted_on_by, 0x11)
-CONDITION_ENTRY(battle_condition_acted_on_by_this, 0x12)
-CONDITION_ENTRY(battle_condition_acted_bit, 0x13)
-CONDITION_ENTRY(battle_condition_acted_on_by_member, 0x14)
-CONDITION_ENTRY(battle_condition_acted_with_elements, 0x15)
-CONDITION_ENTRY(battle_condition_chance, 0x17)
-CONDITION_ENTRY(battle_condition_stat_is, 0x18)
-CONDITION_ENTRY(battle_condition_other_kind_present, 0x1A)
-CONDITION_ENTRY(battle_condition_members_at_most, 0x1B)
-CONDITION_ENTRY(battle_condition_is_party_member, 0x1C)
-CONDITION_ENTRY(battle_condition_three_on_out, 0x1D)
-CONDITION_ENTRY(battle_condition_chooses_but_fails, 0x1E)
-CONDITION_ENTRY(battle_condition_within_wide_reach, 0x1F)
-CONDITION_ENTRY(battle_condition_was_beaten, 0x20)
-CONDITION_ENTRY(battle_condition_stands_apart, 0x21)
-CONDITION_ENTRY(battle_condition_turn_wait, 0x22)

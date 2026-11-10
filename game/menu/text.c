@@ -24,7 +24,6 @@
 
 #include "charge.h"
 #include "menu/menu_data.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -99,6 +98,7 @@ static void put_tile_word(GameState *g, uint32_t at, uint8_t tile)
 
 /* Draw a tile at the pen, and a blank above a blank on two-row text. Returns
  * where the pen goes on. */
+// $C2:EF97
 static uint16_t draw_tile(GameState *g, uint16_t pen, uint8_t tile)
 {
     if (tile == BLANK && !one_row(g))
@@ -174,29 +174,6 @@ static uint16_t draw_digits(GameState *g, uint16_t pen, uint32_t number, NumberF
     return pen;
 }
 
-/* What the number drawer leaves in its cells: the digits less one, the
- * blanking flags (the format's, flipped, until a digit stops them: they last
- * only where every digit was a blank), where it drew and the bytes it had
- * left to convert. */
-static void leave_number_drawn(GameState *g, uint8_t format, NumberFormat f, uint32_t number, uint16_t pen)
-{
-    uint32_t shown = f.digits == 8 ? number : number & ((1u << (4 * f.digits)) - 1);
-    bool still_blanking = f.blank_leading_zeros && f.blank_a_zero_units && shown == 0;
-    set_menu_number_digits(g, (uint8_t)(f.digits - 1));
-    set_menu_number_blanking(g, still_blanking ? (uint8_t)(format ^ 0x80) : 0);
-    set_menu_number_dest(g, pen);
-    set_menu_number_size(g, 0);
-}
-
-/* The conversion's own leftovers: the byte it shifted out (a word, over the
- * digits and blanking cells), and the bytes left. */
-static void leave_converted(GameState *g)
-{
-    set_menu_number_digits(g, 0);
-    set_menu_number_blanking(g, 0);
-    set_menu_number_size(g, 0);
-}
-
 /* The original converts bit by bit, adding each set bit's decimal value: its
  * time is a pass over each byte's eight bits and an add for each bit set. */
 enum { NUMBER_TO_BCD = 0xC2F13F, ACCESSES_PER_BYTE = 56, ACCESSES_PER_SET_BIT = 10 };
@@ -216,28 +193,16 @@ static uint32_t value_converted(GameState *g, uint32_t value, uint8_t bytes)
     return decimal_digits(value);
 }
 
-static uint32_t converted(GameState *g, uint32_t at, uint8_t bytes) { return value_converted(g, number_at(g, at, bytes), bytes); }
-
-// $C2:F13F
-/* Convert the number of `bytes` bytes at `at` to decimal digits, for the menus
- * to show. */
-static void convert_number(GameState *g, uint32_t at, uint8_t bytes)
-{
-    set_menu_text_work_number(g, converted(g, at, bytes));
-    ORIGINAL_EFFECT(leave_converted(g));
-}
-
 uint32_t menu_convert_number(GameState *g, uint32_t value, uint8_t bytes)
 {
     if (bytes < 4)
         value &= (1u << 8 * bytes) - 1;
     uint32_t digits = value_converted(g, value, bytes);
     set_menu_text_work_number(g, digits);
-    ORIGINAL_EFFECT(leave_converted(g));
+    charge_machine_accesses(g, 4);
     return digits;
 }
 
-// $C2:F114
 /* Draw the number at `at` as its format says, at the pen. Returns where the
  * pen goes on. */
 static uint16_t draw_value(GameState *g, uint32_t value, uint8_t format, uint16_t pen)
@@ -246,7 +211,7 @@ static uint16_t draw_value(GameState *g, uint32_t value, uint8_t format, uint16_
     uint32_t digits = value_converted(g, value, f.bytes);
     set_menu_text_work_number(g, digits);
     uint16_t after = draw_digits(g, pen, digits, f);
-    ORIGINAL_EFFECT(leave_number_drawn(g, format, f, digits, pen));
+    charge_machine_accesses(g, 5);
     return after;
 }
 
@@ -502,7 +467,7 @@ static TextPlace draw_string(GameState *g, TextPlace p, uint16_t *pen)
         if (!ended) {
             p = advanced(p, 1);
             if (byte < FIRST_TILE) {
-                ORIGINAL_EFFECT(set_menu_text_work_code_handler(g, menu_text_code_handler(g, byte)));
+                (charge_machine_accesses(g, 2), charge_machine_rom_accesses(g, 2));
                 *pen = control_code(g, byte, &p, *pen, &in);
                 continue;
             }
@@ -517,7 +482,6 @@ static TextPlace draw_string(GameState *g, TextPlace p, uint16_t *pen)
     }
 }
 
-// $C2:EF65
 /* Draw a string at the pen: `settings` is the text's flags, and in its low
  * seven bits the most tiles it may draw (0 for 256: the count is a byte that
  * counts down before it is tested).
@@ -537,7 +501,6 @@ static TextPlace draw_text(GameState *g, TextPlace p, uint16_t *pen, uint8_t set
     return stopped;
 }
 
-// $C2:F28D
 /* The time played, as hours and minutes with a colon between, from its
  * digits at `digits` in work RAM (bank $7E): the minutes' units and tens,
  * the hours' units and tens, and a fifth byte set once the clock has run past
@@ -616,156 +579,17 @@ uint16_t menu_draw_string_on(GameState *g, uint32_t *string, uint16_t pen, uint8
     return pen;
 }
 
-/* ---- The entries ------------------------------------------------------------------------- */
-
-/* All four run on the menus' page, and the conversion starts from the first
- * power of two: the word it starts its table from ($51) is 0 whenever the
- * menus draw a number. */
-static bool on_the_menus_page(Snes *s) { return m_direct_page(s) == 0x0000; }
-static bool converts_from_one(Snes *s)
-{
-    return snes_bus_peek(&s->bus, 0x000051) == 0 && snes_bus_peek(&s->bus, 0x000052) == 0;
-}
-
-/* What the menus read strings and numbers from is work RAM or the ROM: no
- * string or number of the game's is in the I/O registers or open bus, where
- * a read can change what it reads. */
-static bool reads_memory(uint32_t at)
-{
-    uint8_t bank = (uint8_t)(at >> 16);
-    uint16_t address = (uint16_t)at;
-    if (bank == 0x7E || bank == 0x7F || (bank & 0x7F) >= 0x40)
-        return true;
-    return address < 0x2000 || address >= 0x8000;
-}
-
-/* The number drawer keeps its digits and its place in cells of the menus'
- * page ($8A-$93); a number the game draws is neither read from them nor drawn
- * over them. */
-static bool clear_of_the_drawers_cells(uint32_t number_at, uint16_t pen)
-{
-    enum { CELLS = 0x8A, CELLS_END = 0x94, NUMBER_BYTES = 3, BELOW_THE_PEN = 2 * ROW_BYTES };
-    uint8_t bank = (uint8_t)(number_at >> 16);
-    uint16_t address = (uint16_t)number_at;
-    bool low_ram = bank == 0x7E || ((bank & 0x7F) < 0x40 && address < 0x2000);
-    bool reads_them = low_ram && address < CELLS_END && address + NUMBER_BYTES > CELLS;
-    return !reads_them && pen >= CELLS_END + BELOW_THE_PEN;
-}
-
-/* A number the game draws isn't on the stack, where the conversion pushes
- * its place in the number as it reads each byte: the reach of its pushes and
- * the drawer's call below the stack pointer. */
-static bool clear_of_the_stack(uint32_t number_at, uint16_t sp)
-{
-    enum { NUMBER_BYTES = 3, PUSHES = 8 };
-    uint8_t bank = (uint8_t)(number_at >> 16);
-    uint16_t address = (uint16_t)number_at;
-    bool low_ram = bank == 0x7E || ((bank & 0x7F) < 0x40 && address < 0x2000);
-    return !low_ram || address > sp || address + NUMBER_BYTES + PUSHES <= sp;
-}
-
-bool menu_tile_on_page(Snes *s) { return on_the_menus_page(s); }
-
-bool menu_text_on_page(Snes *s)
-{
-    return on_the_menus_page(s) && converts_from_one(s) && reads_memory((uint32_t)(s->cpu.a >> 8) << 16 | s->cpu.y);
-}
-
-/* A number the game draws is one to three bytes. */
-bool menu_number_is_drawable(Snes *s)
-{
-    uint8_t bytes = number_format((uint8_t)s->cpu.a).bytes;
-    uint32_t at = (uint32_t)(s->cpu.a >> 8) << 16 | s->cpu.y;
-    return on_the_menus_page(s) && converts_from_one(s) && bytes != 0 && reads_memory(at)
-           && clear_of_the_drawers_cells(at, s->cpu.x) && clear_of_the_stack(at, s->cpu.s);
-}
-
-bool menu_number_is_convertible(Snes *s)
-{
-    vars_peek(true);
-    uint16_t bytes = menu_number_size(state_of(s));
-    vars_peek(false);
-    uint32_t at = (uint32_t)s->cpu.db << 16 | s->cpu.y;
-    return on_the_menus_page(s) && converts_from_one(s) && bytes >= 1 && bytes <= 3 && reads_memory(at)
-           && clear_of_the_drawers_cells(at, 0xFFFF) && clear_of_the_stack(at, s->cpu.s);
-}
-
-/* The number drawer leaves A's high byte clear (its digits are drawn with it
- * so), which its callers can't be shown not to read. */
-static void clear_a_high(Snes *s) { s->cpu.a &= 0x00FF; }
-
 // $C2:EF65
-void menu_draw_text(Snes *s)
-{
-    uint16_t pen = s->cpu.x;
-    TextPlace stopped = draw_text(state_of(s), (TextPlace){ (uint8_t)(s->cpu.a >> 8), s->cpu.y }, &pen,
-                                  (uint8_t)s->cpu.a);
-    s->cpu.x = pen;
-    s->cpu.y = stopped.at;
-    m_rts(s);
-}
-
-// $C2:EF97
-void menu_draw_tile(Snes *s)
-{
-    s->cpu.x = draw_tile(state_of(s), s->cpu.x, (uint8_t)s->cpu.a);
-    m_rts(s);
-}
 
 // $C2:F114
-void menu_draw_number(Snes *s)
-{
-    uint8_t bytes = number_format((uint8_t)s->cpu.a).bytes;
-    s->cpu.x = draw_number(state_of(s), (uint32_t)(s->cpu.a >> 8) << 16 | s->cpu.y, (uint8_t)s->cpu.a, s->cpu.x);
-    ORIGINAL_EFFECT(clear_a_high(s));
-    s->cpu.y = (uint16_t)(s->cpu.y + bytes);
-    m_rts(s);
-}
-
-// $C2:F13F
-void menu_number_to_bcd(Snes *s)
-{
-    GameState *g = state_of(s);
-    vars_peek(true);
-    uint8_t bytes = (uint8_t)menu_number_size(g);
-    vars_peek(false);
-    convert_number(g, m_abs(s, s->cpu.y), bytes);
-    s->cpu.y = (uint16_t)(s->cpu.y + bytes);
-    m_rts(s);
-}
 
 // $C2:F28D
-void menu_draw_time(Snes *s)
-{
-    (void)menu_draw_time_played(state_of(s), s->cpu.x, s->cpu.y);
-    m_rts(s);
-}
 
 /* The time played is read where the game keeps a header's digits, in work
  * RAM's bank, apart from the cells the time is drawn from, and drawn past the
  * drawer's cells; its digits are decimal, as the clock keeps them. */
 enum { TIME_DIGITS = 5, TIME_SHOWN_CELLS = 0x22, TIME_SHOWN_END = 0x24 };
 
-static bool clear_of_the_time_shown(uint16_t digits)
-{
-    return (uint32_t)digits + TIME_DIGITS <= TIME_SHOWN_CELLS || digits >= TIME_SHOWN_END;
-}
-
 /* Nor is the time drawn over the stack: five tiles from the pen, clear of the
  * drawer's calls below the stack pointer and of the caller's return above it. */
 enum { TIME_TILES = 5, CALLS_BELOW = 16, RETURN_BYTES = 2 };
-
-static bool pen_clear_of_the_stack(uint16_t pen, uint16_t sp)
-{
-    return (uint32_t)pen + TIME_TILES * TILE_BYTES + CALLS_BELOW <= sp || pen > (uint32_t)sp + RETURN_BYTES;
-}
-
-bool menu_time_is_drawable(Snes *s)
-{
-    vars_peek(true);
-    bool decimal = menu_time_digits_are_decimal(state_of(s), s->cpu.y);
-    vars_peek(false);
-    return on_the_menus_page(s) && s->cpu.db == TILEMAP_BANK && converts_from_one(s) && clear_of_the_time_shown(s->cpu.y)
-           && decimal && pen_clear_of_the_stack(s->cpu.x, s->cpu.s)
-           && clear_of_the_drawers_cells(0x7E0000u | s->cpu.y, s->cpu.x) && clear_of_the_stack(0x7E0000u | s->cpu.y, s->cpu.s);
-}

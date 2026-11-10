@@ -10,7 +10,6 @@
 #include "charge.h"
 #include "menu/menu_data.h"
 #include "menu/windows.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -31,7 +30,6 @@ static void set_attribute_at(GameState *g, uint16_t at, uint8_t v) { wram_write8
 enum { PORTRAIT_SIDE = 6, PALETTE_BITS = 0x1C, PALETTE_BYTES_SHIFT = 3, PORTRAIT_COLOURS = 16, CHARACTER_SLOTS = 8 };
 enum { PALETTE_BYTES = 2 };
 
-// $C2:EC38
 void menu_draw_portrait(GameState *g, uint16_t origin, uint8_t character, uint8_t attribute)
 {
     uint16_t tile = (uint16_t)(attribute << 8 | menu_large_portrait_first_tile(g, character));
@@ -53,7 +51,7 @@ void menu_draw_portrait(GameState *g, uint16_t origin, uint8_t character, uint8_
 /* ---- Recolouring tiles --------------------------------------------------------------------------- */
 
 /* A stretch of tiles of a row and the row below it given one attribute. */
-// $C2:ECAC
+
 void menu_colour_row_pair(GameState *g, uint16_t at, uint32_t tiles, uint8_t attribute)
 {
     for (uint32_t i = 0; i < tiles; i++) {
@@ -78,40 +76,11 @@ void menu_recolour_block(GameState *g, uint16_t at, uint32_t rows, uint32_t tile
     set_menu_draw_origin(g, at);
 }
 
-/* ---- The entries --------------------------------------------------------------------------------- */
-
-/* The counts are the accumulator's low byte (tiles) and X (rows), counted
- * down to zero in a 16-bit register, so 0 counts the whole bank. */
-static uint32_t count_of(uint16_t n) { return n ? n : 0x10000u; }
-static uint32_t tiles_asked(Snes *s) { return count_of((uint8_t)s->cpu.a); }
-
 // $C2:EC38
-/* The attribute is what the caller left in the portrait's scratch word's
- * high byte. */
-void menu_draw_large_portrait(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_draw_portrait(g, menu_draw_origin(g), menu_portrait_character(g), (uint8_t)(menu_scratch_portrait_tile(g) >> 8));
-    m_rts(s);
-}
 
 // $C2:ECAC
-/* Its callers go on with the count of tiles in A's high byte. */
-void menu_set_row_pair_attribute(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_colour_row_pair(g, menu_draw_origin(g), tiles_asked(s), (uint8_t)(s->cpu.a >> 8));
-    s->cpu.a = (uint16_t)(s->cpu.a << 8 | s->cpu.a >> 8);
-    m_rts(s);
-}
 
 // $C2:EC93
-void menu_recolour_rows(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_recolour_block(g, menu_draw_origin(g), count_of(s->cpu.x), tiles_asked(s), (uint8_t)(s->cpu.a >> 8));
-    m_rts(s);
-}
 
 /* ---- The guards ---------------------------------------------------------------------------------- */
 
@@ -120,39 +89,3 @@ void menu_recolour_rows(Snes *s)
  * portrait with the palette's changes short of the count's top, which the
  * original carries into the next byte. */
 enum { LOW_PAGES_END = 0x2000, BANK_END = 0x10000 };
-
-static bool on_the_menus_page(Snes *s) { return m_direct_page(s) == 0x0000 && s->cpu.db == 0x7E; }
-
-static bool in_a_buffer(uint16_t at, uint32_t reach) { return at >= LOW_PAGES_END && (uint32_t)at + reach <= BANK_END; }
-
-bool menu_large_portrait_is_drawable(Snes *s)
-{
-    if (!on_the_menus_page(s))
-        return false;
-    vars_peek(true);
-    bool ok = in_a_buffer(menu_draw_origin(state_of(s)), (PORTRAIT_SIDE - 1) * ROW_BYTES + PORTRAIT_SIDE * TILE_BYTES)
-              && menu_palette_changes_have_room(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-bool menu_row_pair_is_colourable(Snes *s)
-{
-    if (!on_the_menus_page(s))
-        return false;
-    vars_peek(true);
-    bool ok = in_a_buffer(menu_draw_origin(state_of(s)), ROW_BYTES + tiles_asked(s) * TILE_BYTES);
-    vars_peek(false);
-    return ok;
-}
-
-bool menu_rows_are_colourable(Snes *s)
-{
-    if (!on_the_menus_page(s))
-        return false;
-    vars_peek(true);
-    uint32_t reach = (count_of(s->cpu.x) - 1) * ROW_BYTES + tiles_asked(s) * TILE_BYTES;
-    bool ok = in_a_buffer(menu_draw_origin(state_of(s)), reach);
-    vars_peek(false);
-    return ok;
-}

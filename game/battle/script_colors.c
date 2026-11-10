@@ -16,12 +16,12 @@
  *
  * The original works in the battle's first work cells as it goes; what it
  * leaves there is scaffolding, written by the leaves helpers. */
+#include "charge.h"
 #include "battle/script_language.h"
 
 #include "battle/animation.h"
 #include "battle/animation_data.h"
 #include "battle/battle.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* The combatants a flash or a restore changes. */
@@ -45,20 +45,8 @@ enum { FLASH_PALETTE = 0x08, FLASH_FIRST_COLOR = 128 + 4 * 16 + 1, FLASH_WHITES 
  * commands that flash or restore move on by. */
 enum { LEFT_SET_EIGHTS = 0x00, LEFT_BOUND = 0x02, LEFT_SET_PLACE = 0x04, LEFT_COLORS_LEFT = 0x06, LEFT_LENGTH = 0x0E };
 
-static void leave_flash(GameState *g, uint8_t set, uint8_t bound)
-{
-    script_leave_word(g, LEFT_SET_EIGHTS, (uint16_t)(set * 8));
-    script_leave(g, LEFT_BOUND, bound);
-    script_leave_word(g, LEFT_SET_PLACE, (uint16_t)(set * BATTLE_FLASH_SET_COLORS * 2));
-}
-
 /* The original paints the set in runs, counting the colors left of each run
  * down, and stops at the last background color in the middle of one. */
-static void leave_painting(GameState *g, unsigned start)
-{
-    unsigned painted = BACKGROUND_COLORS - start;
-    script_leave_word(g, LEFT_COLORS_LEFT, (uint16_t)(BATTLE_FLASH_SET_COLORS - (painted - 1) % BATTLE_FLASH_SET_COLORS));
-}
 
 static bool rule_binds(const GameState *g, uint8_t combatant)
 {
@@ -72,7 +60,7 @@ static void paint_cycled_background(GameState *g, uint8_t set)
     unsigned start = battle_background_cycle(g);
     for (unsigned at = start; at < BACKGROUND_COLORS; at++)
         set_palette_working(g, at, battle_flash_color(g, set, (at - start) % BATTLE_FLASH_SET_COLORS));
-    ORIGINAL_EFFECT(leave_painting(g, start));
+    charge_machine_accesses(g, 2);
 }
 
 // $C1:5DDC
@@ -88,7 +76,7 @@ static void flash(GameState *g, ScriptChannel ch, uint8_t set)
             bound++;
         set_battle_object_palette(g, combatant, FLASH_PALETTE);
     }
-    ORIGINAL_EFFECT(leave_flash(g, set, bound));
+    charge_machine_accesses(g, 5);
     for (unsigned color = 0; color < BATTLE_FLASH_SET_COLORS; color++)
         set_palette_working(g, FLASH_FIRST_COLOR + color, battle_flash_color(g, set, color));
     for (unsigned color = 0; color < FLASH_WHITES; color++)
@@ -118,7 +106,9 @@ static void restore(GameState *g, ScriptChannel ch)
  * at once. */
 static ScriptFlow flash_with(GameState *g, ScriptChannel channel, uint8_t length, uint8_t set)
 {
-    ORIGINAL_EFFECT(script_leave(g, LEFT_LENGTH, length));
+
+    (void)length;
+        charge_machine_accesses(g, 1);
     flash(g, channel, set);
     return SCRIPT_NEXT;
 }
@@ -128,7 +118,9 @@ SCRIPT_OPERATION(flash_with, channel, length, set)
 /* The combatants' own colors come back. */
 static ScriptFlow flash_off(GameState *g, ScriptChannel channel, uint8_t length)
 {
-    ORIGINAL_EFFECT(script_leave(g, LEFT_LENGTH, length));
+
+    (void)length;
+        charge_machine_accesses(g, 1);
     restore(g, channel);
     return SCRIPT_NEXT_FRAME;
 }
@@ -159,12 +151,6 @@ static bool blink_due(GameState *g, uint8_t combatant, uint8_t period, bool *fla
  * stopped. */
 enum { LEFT_BLINK_SET = 0x00, LEFT_PLACE_IN_LIST = 0x10, LEFT_PERIOD = 0x12, TURNED_OVER = 0 };
 
-static void leave_blink(GameState *g, uint8_t length, uint8_t set, uint8_t period)
-{
-    script_leave(g, LEFT_LENGTH, length);
-    script_leave(g, LEFT_BLINK_SET, set);
-    script_leave(g, LEFT_PERIOD, period);
-}
 /* The place in the list lands on the cell the next jump to the script's point
  * lifts by, so it is left as game state (battle.h). */
 static void leave_place_in_list(GameState *g, ScriptChannel ch, unsigned place)
@@ -172,7 +158,7 @@ static void leave_place_in_list(GameState *g, ScriptChannel ch, unsigned place)
     if (ch.kind != SCRIPT_OTHER_TARGETS)
         return;
     battle_leave_jump_lift(g, (uint8_t)place);
-    ORIGINAL_EFFECT(script_leave(g, LEFT_PLACE_IN_LIST + 1, 0));
+    charge_machine_accesses(g, 1);
 }
 
 // $C1:5F13
@@ -186,12 +172,13 @@ static void leave_place_in_list(GameState *g, ScriptChannel ch, unsigned place)
  * variable. */
 static ScriptFlow blink(GameState *g, ScriptChannel channel, uint8_t length, uint8_t set, uint8_t period)
 {
-    if (battle_script_variables(g, 0) == 0) {
-        ORIGINAL_EFFECT(script_leave(g, LEFT_LENGTH, length));
+
+    (void)length;     if (battle_script_variables(g, 0) == 0) {
+        charge_machine_accesses(g, 1);
         restore(g, channel);
         return SCRIPT_NEXT_FRAME;
     }
-    ORIGINAL_EFFECT(leave_blink(g, length, set, period));
+    charge_machine_accesses(g, 3);
     if (channel.kind == SCRIPT_EFFECT)
         return SCRIPT_NEXT_FRAME;
     uint8_t combatant;
@@ -200,7 +187,7 @@ static ScriptFlow blink(GameState *g, ScriptChannel channel, uint8_t length, uin
         bool flashing;
         if (!blink_due(g, combatant, period, &flashing))
             continue;
-        ORIGINAL_EFFECT(script_leave(g, LEFT_LENGTH, TURNED_OVER));
+        charge_machine_accesses(g, 1);
         leave_place_in_list(g, channel, k);
         if (!flashing) {
             restore(g, channel);
@@ -298,22 +285,12 @@ SCRIPT_OPERATION(palette_animation_off, slot)
 enum { PLACE_QUARTER = 0x07, PLACE_SEVEN_COLORS = 0x80, LEFT_FRAME_SET = 0x00, LEFT_FRAME_COUNT = 0x02,
        LEFT_SEVEN_QUARTERS = 0x03, LEFT_SEVEN_PLACE = 0x04 };
 
-static void leave_palette_frame(GameState *g, uint8_t set, bool seven)
-{
-    script_leave_word(g, LEFT_FRAME_SET, (uint16_t)(set * 2));
-    script_leave(g, LEFT_FRAME_COUNT, 0);
-    if (seven) {
-        script_leave(g, LEFT_SEVEN_QUARTERS, (uint8_t)((set * 4) >> 8));
-        script_leave_word(g, LEFT_SEVEN_PLACE, (uint16_t)(set * 6));
-    }
-}
-
 static ScriptFlow palette_frame(GameState *g, uint8_t frame)
 {
     BattlePaletteFrame shown = battle_palette_frame(g, battle_palette_anim_frames(g), frame);
     bool seven = (shown.place & PLACE_SEVEN_COLORS) != 0;
     battle_put_color_set(g, seven, shown.set, shown.place & PLACE_QUARTER);
-    ORIGINAL_EFFECT(leave_palette_frame(g, shown.set, seven));
+    charge_machine_accesses(g, seven ? 6 : 3);
     return SCRIPT_NEXT;
 }
 SCRIPT_OPERATION(palette_frame, frame)

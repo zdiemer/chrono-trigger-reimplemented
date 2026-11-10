@@ -7,12 +7,12 @@
  * animation, pose and effects at rest, and the player's settings taken in for
  * the battle's menus. What each table starts as is its own "nothing yet":
  * $FF where the table names a member, a frame or a pose. */
+#include "charge.h"
 #include "battle/battle.h"
 #include "battle/setup.h"
 
 #include "cpu_io.h"
 #include "battle/setup_data.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- The settings --------------------------------------------------------------------------- */
@@ -174,7 +174,7 @@ enum { START_MARK = 0x40, LOWER_BANK = 0 };
 void setup_reset_for_new_fight(GameState *g)
 {
     set_battle_start_mark(g, START_MARK);
-    ORIGINAL_EFFECT(hw_port_seek_bank(g, LOWER_BANK));
+    charge_machine_io_accesses(g, 1);
     clear_drawing(g);
     close_the_menus(g);
     rest_the_objects(g);

@@ -83,6 +83,12 @@ typedef struct NativeEntry {
      * loop) leaves it counted. Where it is 0, the pass that leaves stays
      * counted unless a port takes over at the loop's exit. */
     uint8_t idle_return_span;
+    /* A wait whose exit is another checked port: bytes from its head up to
+     * that entry. A first pass may already find the wait finished, without
+     * a previous backedge to establish its body. The fallback measure can
+     * certify that pass only at this exact exit and stack, with every
+     * instruction inside the declared span. */
+    uint8_t idle_exit_span;
     /* A held wait's continuation (native_hold): nonzero, the number of the
      * wait it goes on from. In ON mode, where the machine names that wait
      * (Snes.held_wait) and S is the one the main thread rests with, the
@@ -616,6 +622,13 @@ void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uin
 typedef bool (*NativeGoesOn)(Snes *s, uint16_t s_after);
 void native_yield_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care,
                           NativeGoesOn goes_on);
+/* A shipping-mode task has called its scheduler as C and switched stacks.
+ * Park its caller until that task resumes at returns_to with its pre-call
+ * stack. The caller settles its preceding time before calling the scheduler;
+ * the scheduler's time is paid where it left the next task. No call frame is
+ * pushed here. Outside a shipping-mode port this does nothing. */
+void native_park_after_task_switch(Snes *s, uint32_t returns_to, uint16_t stack,
+                                  uint16_t dont_care, NativeGoesOn goes_on);
 /* The same for a call the original makes as a jump through a pointer at
  * `site` (a JMP (abs) whose target it reads at run time), with the return
  * the code before the jump pushed (a PER): the callee returns to `returns_to`,
@@ -752,6 +765,10 @@ bool native_wait_loop_held(Snes *s, uint32_t head, uint32_t exit, int32_t wake, 
  * suspended allows -- names it too. Nothing in the other modes, where the
  * stop is an ordinary stop. A port calls it through m_hold_at. */
 void native_hold(Snes *s, uint8_t wait);
+/* After a return, hold only if the caller resumes at a continuation of
+ * this wait. The runtime owns that boundary lookup; the callee need not
+ * identify a particular caller by its machine address. */
+void native_hold_return(Snes *s, uint8_t wait);
 /* Whether native_wait_call waits where the port stands rather than making the
  * call (ON mode, in a port the runtime runs): a caller whose wait routine
  * also does something before it waits (puts a value on a port) does that
@@ -794,7 +811,8 @@ void native_wait_time(Snes *s, uint32_t clocks);
  * that runs a sibling as C where the original's call reached it through the
  * machine (the battle's steps, battle/steps.c): a stretch (the part of a call
  * between call-outs) more than half of whose bus clocks were spent inside
- * such a scope is the sibling's in the timing report, its errors and its
+ * such scopes for the same sibling at the same depth is the sibling's in
+ * the timing report, its errors and its
  * calibration, not the running port's, whose own clocks in it are a part of
  * it at the running port's value. So a sibling that waits for frames (an
  * action's showing) is measured on its stretches as the original's call of

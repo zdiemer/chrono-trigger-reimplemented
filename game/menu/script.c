@@ -207,12 +207,3 @@ ScriptEnd menu_run_script(GameState *g, MenuObject self, const ScriptRunner *r, 
         set_menu_object_slots_command_state(g, self, 0);
     }
 }
-
-ScriptFlow menu_script_run_directly(GameState *g, const ScriptServices *services, MenuObject self, uint32_t at)
-{
-    const ScriptOpcode *row = menu_script_opcode(menu_script_byte(g, at));
-    if (!row)
-        return end_object();
-    ScriptCommand c = menu_script_decode(g, row, self, at, services);
-    return menu_script_perform(g, row, &c);
-}

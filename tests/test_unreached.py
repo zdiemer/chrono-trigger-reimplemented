@@ -205,6 +205,17 @@ class UnreachedTest(unittest.TestCase):
         self.assertFalse(f.covers({'name': 'caller'}, 'callee'))
         self.assertTrue(f.covers({'name': 'caller', 'covers': ['callee']}, 'callee'))
 
+    def test_recipe_keeps_distinct_notifications_without_doubling_one(self):
+        ready = ['--tick-at', 'C281CA=7E0D01']
+        pressed = ['--tick-at', 'C281CA=7E00F0']
+        self.assertEqual(f.merge_args(ready, pressed), ready + pressed)
+        self.assertEqual(f.merge_args(ready + pressed, ready), ready + pressed)
+        completed = ['--clear-at', 'C281CA=7E00F0']
+        uploaded = ['--clear-at', 'C281CA=7ECA26']
+        self.assertEqual(f.merge_args(completed, uploaded), completed + uploaded)
+        self.assertEqual(f.merge_args(completed + uploaded, completed), completed + uploaded)
+        self.assertEqual(f.merge_args(ready, completed), ready + completed)
+
     def test_ledger_requires_an_uncovered_owners_plain_recipe(self):
         with self.assertRaisesRegex(ValueError, 'ledger recipes missing: owner'):
             f.ledger_recipes(['port\tfield\tC01234\towner\thash\t2'], {})
@@ -262,6 +273,28 @@ class UnreachedTest(unittest.TestCase):
         self.assertEqual(unresolved, [])
         self.assertTrue({0xC04009, 0xC04145, 0xC041C8, 0xC04181} <= own | inline)
         self.assertNotIn(0xC0FF00, own | inline)
+
+    def test_task_switch_targets_are_ownership_boundaries(self):
+        hints = Hints()
+        for pc in (0xC08000, 0xC09000):
+            hints.entries.append(SimpleNamespace(addr=pc, m=True, x=True, kind='test'))
+        hints.indirect[0xC08000] = [0xC09000]
+        hints.nofollow.add(0xC08000)
+        an = Analyzer(FakeRom({0xC08000: bytes.fromhex('6C0010'),
+                               0xC09000: bytes.fromhex('EA60')}), hints)
+        an.run()
+        own, inline, problems = u.walk(an, 0xC08000, {0xC08000, 0xC09000})
+        self.assertEqual(problems, [])
+        self.assertEqual(own | inline, {0xC08000, 0xC08001, 0xC08002})
+
+    def test_pushed_relative_return_is_not_a_branch(self):
+        hints = Hints()
+        hints.entries.append(SimpleNamespace(addr=0xC08000, m=True, x=True, kind='test'))
+        an = Analyzer(FakeRom({0xC08000: bytes.fromhex('6206006060')}), hints)
+        an.run()
+        own, inline, problems = u.walk(an, 0xC08000, {0xC08000})
+        self.assertEqual(problems, [])
+        self.assertEqual(own | inline, set(range(0xC08000, 0xC08004)))
 
     def test_unresolved_walks_are_explicit(self):
         hints = Hints()

@@ -20,18 +20,18 @@
  *
  * What they put on the screen goes through the video service. Their objects'
  * state is kept in their slots (menu/object.h), and their per-line tables in
- * the mode's line-effect slots (menu/line_effects.h). The original also leaves
- * working values in the mode's direct-page cells, the multiplier, the divider
- * and the work RAM port; this port computes in C and leaves those as
- * scaffolding, once, at the end of each routine (the leave_* functions).
+ * the mode's line-effect slots (menu/line_effects.h). Temporary calculation
+ * cells have no readers after retirement; their calibrated work remains
+ * charged without writing the cells.
  *
- * The screens call routines of the menus that are still the original's
- * (clearing VRAM, resetting the mode, waiting for a frame, the graphics
- * loader); those calls are made from bridges on the machine, at the
- * original's call sites. The decompressor is C (data/decompress.c). */
+ * Checked C calls load graphics and text. Held waits let the driver save
+ * and resume the map and time-dial screens between frames.
+ */
 #include "menu/epoch.h"
 
 #include "charge.h"
+#include "holds.h"
+#include "menu/bridge.h"
 #include "cpu_io.h"
 #include "core/program.h"
 #include "menu/display.h"
@@ -44,7 +44,6 @@
 #include "menu/object.h"
 #include "menu/sprites.h"
 #include "menu/vram.h"
-#include "original_effects.h"
 #include "overworld/setup.h"
 #include "platform/audio.h"
 #include "platform/timing.h"
@@ -117,7 +116,7 @@ static void sample_map_colours(GameState *g)
             colour = (uint8_t)(colour << 1 | ((menu_world_map_tiles_byte(g, tile, sampled_planes[plane]) & SAMPLED_BIT) != 0));
         set_menu_map_colours(g, tile, colour);
     }
-    ORIGINAL_EFFECT(hw_port_seek(g, (uint16_t)(RAM_MENU_MAP_COLOURS + WORLD_MAP_TILES), WORK_RAM_BANK));
+    charge_machine_io_accesses(g, 3);
 }
 
 /* The picture (menu/map_picture.h) is built in the mode's upload buffer
@@ -178,9 +177,18 @@ static uint16_t draw_map_tile(GameState *g, uint16_t buffer, uint8_t plane, unsi
     return record;
 }
 
-/* A tile row started: the mode's upload buffer cleared, the first time a
- * quarter more than a tile row, and its place returned. The original looks
- * the buffer up again for each row and clears it with a block move. */
+/* The first strip clears a full kilobyte. Its storage must stay above
+ * low RAM, where the mode's working cells and stacks live, and within its
+ * bank. Later strips use less of the same buffer. */
+static bool map_picture_buffer_fits(const GameState *g)
+{
+    enum { LOW_RAM_END = 0x2000, FIRST_STRIP_BYTES = TILE_ROW_BYTES + TILE_ROW_BYTES / 3 };
+    uint16_t buffer = (uint16_t)menu_object_upload_buffer(g);
+    return buffer >= LOW_RAM_END && (uint32_t)buffer + FIRST_STRIP_BYTES <= 0x10000u;
+}
+
+/* Clear the mode's upload buffer for a tile row, with a third more space
+ * for the first strip, and return its place. */
 static uint16_t start_tile_row(GameState *g, uint16_t bytes)
 {
     uint16_t buffer = (uint16_t)menu_object_upload_buffer(g);
@@ -247,58 +255,16 @@ enum { CELL_NAMES_LEFT = 0x00, CELL_NAMES_ROW = 0x01, CELL_BUFFER_AT = 0x05, CEL
        CELL_NEXT_SOURCE = 0x0A, CELL_NEXT_VRAM = 0x0C, CELL_LAST_GROUP = 0x0E, CELL_NAMES_AT = 0x10,
        CELL_OVER_MAP = 0x13, CELL_LAND_GROUPS = 0x16, CELL_OVER_GROUPS = 0x19 };
 
-/* The colours' sampling: the last tile's colour, the count of tiles run out,
- * and where the last tile's graphics are. */
-static void leave_colours_sampled(GameState *g)
-{
-    enum { LAST_COLOUR = 0x00, TILES_DONE = 0x08, LAST_TILE_AT = 0x10, WORLD_MAP_TILES_AT = 0x9000 };
-    menu_object_leave_cell8(g, LAST_COLOUR, menu_map_colours(g, WORLD_MAP_TILES - 1));
-    menu_object_leave_cell16(g, TILES_DONE, WORLD_MAP_TILES);
-    menu_object_leave_cell16(g, LAST_TILE_AT, (uint16_t)(WORLD_MAP_TILES_AT + (WORLD_MAP_TILES - 1) * TILE_BYTES));
-}
-
-/* The picture's drawing: the buffer's place, the count of map rows run out,
- * the last group it looked at, the plane over the land's map a row past the
- * last, and the two planes' groups. */
-static void leave_picture_drawn(GameState *g, uint16_t last_group)
-{
-    enum { ROWS_DONE = 0x08 };
-    menu_object_leave_cell16(g, CELL_BUFFER_AT, (uint16_t)menu_object_upload_buffer(g));
-    menu_object_leave_cell16(g, ROWS_DONE, MAP_ROWS);
-    menu_object_leave_cell16(g, CELL_LAST_GROUP, last_group);
-    menu_object_leave_cell16(g, CELL_OVER_MAP, (uint16_t)(menu_plane_map(g, OVER_THE_LAND) + MAP_ROWS * MAP_COLUMNS));
-    menu_object_leave_cell16(g, CELL_LAND_GROUPS, menu_plane_groups(g, LAND_PLANE));
-    menu_object_leave_cell16(g, CELL_OVER_GROUPS, menu_plane_groups(g, OVER_THE_LAND));
-}
-
-/* The picture's laying out: the name table's last row sent (its count run
- * out, the row it started the picture at, the tile after the last, a byte,
- * the next row's source and VRAM word), where it started the picture's rows;
- * and the multiplier as it found the picture's row. */
-static void leave_picture_placed(GameState *g)
-{
-    menu_object_leave_cell8(g, CELL_NAMES_LEFT, 0);
-    menu_object_leave_cell8(g, CELL_NAMES_ROW, PICTURE_ROW);
-    menu_object_leave_cell8(g, CELL_NEXT_TILE, FIRST_PICTURE_TILE + PICTURE_TILES_ACROSS * PICTURE_TILES_DOWN);
-    menu_object_leave_cell16(g, CELL_NEXT_SOURCE, (uint16_t)(RAM_ABS(RAM_MENU_MAP_NAME_TABLE) + NAME_TABLE_BYTES));
-    menu_object_leave_cell16(g, CELL_NEXT_VRAM, NAME_ROWS_SENT * MODE7_MAP_ROW);
-    menu_object_leave_cell16(g, CELL_NAMES_AT, (uint16_t)(RAM_ABS(RAM_MENU_MAP_NAME_TABLE)
-                                                          + (PICTURE_ROW + PICTURE_TILES_DOWN) * NAME_ROWS_SENT
-                                                          + PICTURE_COLUMN));
-    hw_set_multiplicand(g, PICTURE_ROW);
-    (void)hw_multiply_by(g, NAME_ROWS_SENT);
-}
-
 // $C2:63DF
 /* The map view's plane, from the world map just loaded: every tile's colour,
  * the picture drawn from them, and the picture laid out on the plane. */
 static void build_map_view(GameState *g, Platform *pf)
 {
     sample_map_colours(g);
-    uint16_t last_group = draw_map_picture(g, pf);
-    ORIGINAL_EFFECT(leave_picture_drawn(g, last_group));
+    (void)draw_map_picture(g, pf);
+    (charge_machine_accesses(g, 15), charge_machine_rom_accesses(g, 6));
     place_map_picture(g, pf);
-    ORIGINAL_EFFECT(leave_picture_placed(g));
+    (charge_machine_accesses(g, 9), charge_machine_io_accesses(g, 4));
 }
 
 /* ---- The map view: its graphics --------------------------------------------------------------- */
@@ -360,25 +326,6 @@ static uint16_t size_at_the_unit(int16_t value) { return (uint16_t)((value < 0 ?
 
 static int16_t zoomed(int16_t value, uint8_t zoom) { return menu_signed_quotient(size_at_the_unit(value), zoom, value < 0); }
 
-/* What working out the matrix leaves in the mode's cells and the divider:
- * the four quotients, the sine's and cosine's sizes, the zooms and the two
- * signs (the second a byte on from the first). */
-static void leave_matrix(GameState *g, int16_t sin, int16_t cos, const int16_t matrix[4], uint16_t zoom_x,
-                         uint16_t zoom_y)
-{
-    enum { QUOTIENTS = 0x00, COS8 = 0x08, SIN8 = 0x0A, ZOOM_X = 0x0C, ZOOM_Y = 0x0E, SIN_SIGN = 0x10, COS_SIGN = 0x11 };
-    for (unsigned i = 0; i < 4; i++)
-        menu_object_leave_cell16(g, QUOTIENTS + 2 * i, (uint16_t)matrix[i]);
-    menu_object_leave_cell16(g, COS8, size_at_the_unit(cos));
-    menu_object_leave_cell16(g, SIN8, size_at_the_unit(sin));
-    menu_object_leave_cell16(g, ZOOM_X, zoom_x);
-    menu_object_leave_cell16(g, ZOOM_Y, zoom_y);
-    menu_object_leave_cell8(g, SIN_SIGN, sin < 0);
-    menu_object_leave_cell8(g, COS_SIGN, cos < 0);
-    hw_set_dividend(g, size_at_the_unit(cos));
-    hw_divide_by(g, (uint8_t)zoom_y);
-}
-
 // $C2:6736, $C2:67B3
 /* Turn the picture by the cursor's angle and zoom it by its zooms across and
  * down. The original takes the angle's sine from another object's angle,
@@ -392,7 +339,7 @@ static void turn_map_view(GameState *g, MenuObject cursor, MenuObject sine_from)
     const int16_t matrix[4] = { zoomed(cos, (uint8_t)zoom_x), zoomed(sin, (uint8_t)zoom_x),
                                 (int16_t)-zoomed(sin, (uint8_t)zoom_y), zoomed(cos, (uint8_t)zoom_y) };
     set_mode7_matrix(g, matrix[0], matrix[1], matrix[2], matrix[3]);
-    ORIGINAL_EFFECT(leave_matrix(g, sin, cos, matrix, zoom_x, zoom_y));
+    (charge_machine_accesses(g, 18), charge_machine_io_accesses(g, 3));
 }
 
 /* The cursor takes the zoom of the step it is on. */
@@ -551,8 +498,8 @@ static void map_view_gradient(GameState *g, Platform *pf)
                 wram_write8(g, in_work_ram(at++), (uint8_t)(level | BLUE));
         } while (++level != LEVELS);
     }
-    ORIGINAL_EFFECT(hw_port_seek(g, at, WORK_RAM_BANK));
-    ORIGINAL_EFFECT(menu_object_leave_cell8(g, 0x00, level));
+    charge_machine_io_accesses(g, 3);
+    charge_machine_accesses(g, 1);
     menu_start_line_effect(g, pf, 0xC2694F, GRADIENT_SLOT, VID_LINE_FIXED_COLOR);
     set_menu_object_hdma_pointers(g, 0, (uint16_t)RAM_MENU_SLOT1_LINE_VALUES);
     set_menu_object_hdma_pointers(g, 1, (uint16_t)(RAM_MENU_SLOT1_LINE_VALUES + GRADIENT_HALF));
@@ -562,20 +509,11 @@ static void map_view_gradient(GameState *g, Platform *pf)
 
 static bool later_periods(const GameState *g) { return menu_story_progress(g) >= MENU_LATER_PERIODS; }
 
-/* The original notes the table of the periods' locations it reads in its
- * cells: its address and bank. */
-static void leave_period_table(GameState *g)
-{
-    enum { PERIODS_AT = 0x10 };
-    menu_object_leave_cell16(g, PERIODS_AT, later_periods(g) ? 0x6CA5 : 0x6C97);
-    menu_object_leave_cell8(g, PERIODS_AT + 2, 0xC2);
-}
-
 // $C2:747A
 /* The period the party is in: the one whose location is here, or the last. */
 static uint8_t period_here(GameState *g)
 {
-    ORIGINAL_EFFECT(leave_period_table(g));
+    charge_machine_accesses(g, 4);
     for (uint8_t period = 0; period < MENU_PERIODS; period++)
         if (menu_period_location(g, later_periods(g), period) == location_here(g))
             return period;
@@ -586,7 +524,7 @@ static uint8_t period_here(GameState *g)
 /* The location a period travels to. */
 static uint16_t period_location(GameState *g, uint8_t period)
 {
-    ORIGINAL_EFFECT(leave_period_table(g));
+    charge_machine_accesses(g, 4);
     return menu_period_location(g, later_periods(g), period);
 }
 
@@ -620,6 +558,7 @@ typedef struct {
     uint16_t value;
 } SignedProduct;
 
+// $C2:6F33
 static SignedProduct multiply_signed(int8_t by, int16_t value)
 {
     SignedProduct p;
@@ -628,19 +567,6 @@ static SignedProduct multiply_signed(int8_t by, int16_t value)
     uint32_t magnitude = (uint32_t)p.by * p.value;
     p.product = (by < 0) != (value < 0) ? -(int32_t)magnitude : (int32_t)magnitude;
     return p;
-}
-
-/* What the multiply leaves: its operands, positive, the 24-bit product, and
- * the multiplier as it worked out the high byte's part. */
-static void leave_multiply(GameState *g, const SignedProduct *p)
-{
-    enum { BY = 0x07, VALUE = 0x0E, PRODUCT = 0x19 };
-    menu_object_leave_cell8(g, BY, p->by);
-    menu_object_leave_cell16(g, VALUE, p->value);
-    menu_object_leave_cell16(g, PRODUCT, (uint16_t)p->product);
-    menu_object_leave_cell8(g, PRODUCT + 2, (uint8_t)((uint32_t)p->product >> 16));
-    hw_set_multiplicand(g, p->by);
-    (void)hw_multiply_by(g, (uint8_t)(p->value >> 8));
 }
 
 /* A turned corner's place on the screen: the centre, moved by the whole
@@ -663,7 +589,6 @@ static void turn_corners(GameState *g, uint16_t angle, ScreenPoint corners[CORNE
 {
     int16_t cos = menu_cosine(g, angle), sin = menu_sine(g, angle);
     SignedProduct last = { 0 };
-    uint16_t last_height = 0;
     for (unsigned c = 0; c < CORNERS; c++) {
         int8_t dx = menu_gate_corner_x(g, c), dy = menu_gate_corner_y(g, c);
         uint16_t across = (uint16_t)multiply_signed(dx, cos).product;
@@ -674,12 +599,11 @@ static void turn_corners(GameState *g, uint16_t angle, ScreenPoint corners[CORNE
         last = multiply_signed(dy, cos);
         uint16_t y = (uint16_t)((uint16_t)last.product - (uint16_t)leant.product);
         corners[c].y = on_the_screen(y, (uint16_t)last.product >= (uint16_t)leant.product, SCREEN_CENTRE_Y);
-        last_height = (uint16_t)leant.product;
         set_menu_gate_corners(g, 2 * c, corners[c].x);
         set_menu_gate_corners(g, 2 * c + 1, corners[c].y);
     }
-    ORIGINAL_EFFECT(leave_multiply(g, &last));
-    ORIGINAL_EFFECT(menu_object_leave_cell16(g, 0x04, last_height));
+    (charge_machine_accesses(g, 6), charge_machine_io_accesses(g, 4));
+    charge_machine_accesses(g, 2);
 }
 
 /* An edge of the triangle, from its higher corner to the line above its
@@ -764,44 +688,11 @@ typedef struct {
     int16_t cos, sin;
 } WindowDrawn;
 
-static void leave_window_drawn(GameState *g, const WindowDrawn *w, const GateEdge *divided)
-{
-    enum { CROSSINGS = 0x00, SECOND_CROSSING = 0x02, HEIGHT = 0x04, CORNERS_LEFT = 0x06, LINE = 0x08, BOTTOM = 0x0A,
-           TO_X = 0x0C, TO_Y = 0x0E, EDGES_LEFT = 0x10, EDGE_AT = 0x11, LINES_LEFT = 0x13, TABLE = 0x16,
-           EDGES = 0x19 };
-    menu_object_leave_cell16(g, CROSSINGS, w->crossings[0]);
-    menu_object_leave_cell16(g, SECOND_CROSSING, w->crossings[1]);
-    if (divided->drawn)
-        menu_object_leave_cell8(g, HEIGHT, divided->height);
-    menu_object_leave_cell8(g, CORNERS_LEFT, 0);
-    menu_object_leave_cell8(g, LINE, w->after_the_last_line);
-    menu_object_leave_cell8(g, LINE + 1, w->any_swapped ? 0 : (uint8_t)((uint16_t)w->cos >> 8));
-    menu_object_leave_cell8(g, BOTTOM, w->bottom);
-    menu_object_leave_cell8(g, BOTTOM + 1, (uint8_t)((uint16_t)w->sin >> 8));
-    menu_object_leave_cell8(g, TO_X, w->last_edge.swapped ? w->last_from.x : w->last_to.x);
-    menu_object_leave_cell8(g, TO_X + 1, 0);
-    menu_object_leave_cell8(g, TO_Y, w->last_edge.drawn ? w->last_edge.bottom : w->last_to.y);
-    if (w->any_swapped)
-        menu_object_leave_cell8(g, TO_Y + 1, (uint8_t)((uint16_t)w->sin >> 8));
-    menu_object_leave_cell8(g, EDGES_LEFT, 0);
-    menu_object_leave_cell8(g, EDGE_AT, 0);
-    menu_object_leave_cell8(g, LINES_LEFT, 0);
-    menu_object_leave_cell8(g, LINES_LEFT + 1, 0);
-    menu_object_leave_cell16(g, TABLE, w->table);
-    menu_object_leave_cell16(g, EDGES, (uint16_t)w->edges);
-    if (divided->drawn) {
-        hw_set_dividend(g, (uint16_t)(divided->width << 8));
-        hw_divide_by(g, divided->height);
-    }
-    hw_port_seek(g, (uint16_t)(w->table + 2 * w->after_the_last_line), w->bank);
-}
-
 /* The original's time for the window follows its lines more closely than
  * the port's accesses do: each line runs its loops over every edge. It is
  * charged, in accesses at the window's rate. */
 enum { LINE_ACCESSES = 7, FIXED_ACCESSES = 330 };
 
-// $C2:6CC1
 /* Draw the gate's window for the angle the gate stands at, into the table
  * not shown this frame, and show it from the next: the table starts closed
  * at its top, its middle lines take the one above them, the triangle's
@@ -862,7 +753,7 @@ static void draw_gate_window(GameState *g, MenuObject dial)
     charge_as(g, 0xC26CC1, FIXED_ACCESSES + LINE_ACCESSES * lines);
     w.after_the_last_line = (uint8_t)(top + lines);
     w.bottom = bottom;
-    ORIGINAL_EFFECT(leave_window_drawn(g, &w, &divided));
+    (charge_machine_accesses(g, 20 + divided.drawn + w.any_swapped), charge_machine_io_accesses(g, 3 + (divided.drawn ? 3 : 0)));
 }
 
 /* ---- The time dial: its objects --------------------------------------------------------------- */
@@ -950,7 +841,7 @@ static DialOutcome time_dial(GameState *g, Platform *pf, MenuObject dial)
         if (turn == 0) {
             if (buttons & TRAVEL_BUTTON) {
                 uint16_t there = period_location(g, menu_object_slots_period(g, dial));
-                ORIGINAL_EFFECT(menu_object_leave_cell16(g, 0x08, location_here(g)));
+                charge_machine_accesses(g, 4);
                 if (there != location_here(g)) {
                     set_menu_travel_location(g, there);
                     set_menu_mode(g, MENU_MODE_BACK_TO_THE_MAP);
@@ -980,7 +871,7 @@ static DialOutcome time_dial(GameState *g, Platform *pf, MenuObject dial)
     }
     uint8_t period = menu_object_slots_period(g, dial);
     uint16_t there = period_location(g, period);
-    ORIGINAL_EFFECT(menu_object_leave_cell16(g, 0x08, there));
+    charge_machine_accesses(g, 2);
     if (location_here(g) != there) {
         set_menu_time_period(g, period);
         set_menu_object_slots_step(g, dial, DIAL_WAITS);
@@ -1010,16 +901,6 @@ static void gate_spin_line(GameState *g, uint16_t cosines, uint16_t sines, uint1
     wram_write16(g, in_work_ram((uint16_t)(sines + 2 * line)), (uint16_t)menu_sine(g, (uint16_t)(angle + EIGHTH_TURN)));
 }
 
-/* What the spin leaves in the mode's cells: the two tables' places, past
- * the lines it filled the first time, and on the first, its loop's count and
- * angle. */
-static void leave_spin(GameState *g, uint16_t cosines, uint16_t sines)
-{
-    enum { COSINES_AT = 0x10, SINES_AT = 0x13 };
-    menu_object_leave_cell16(g, COSINES_AT, cosines);
-    menu_object_leave_cell16(g, SINES_AT, sines);
-}
-
 // $C2:6F85
 /* The gate's spin object. The first frame fills both first tables from its
  * angle, a spin speed's turn a line, and starts the four channels; every
@@ -1044,10 +925,9 @@ static void gate_spin(GameState *g, Platform *pf, MenuObject spin)
         for (uint16_t line = 0; line < MENU_LINE_TABLE_LINES; line++, angle = (uint16_t)(angle + SPIN_SPEED))
             gate_spin_line(g, cosines, sines, line, angle);
         set_menu_object_slots_angle(g, spin, angle);
-        ORIGINAL_EFFECT(leave_spin(g, (uint16_t)(cosines + 2 * MENU_LINE_TABLE_LINES),
-                                   (uint16_t)(sines + 2 * MENU_LINE_TABLE_LINES)));
-        ORIGINAL_EFFECT(menu_object_leave_cell16(g, 0x00, 0));
-        ORIGINAL_EFFECT(menu_object_leave_cell16(g, 0x08, angle));
+        charge_machine_accesses(g, 4);
+        charge_machine_accesses(g, 2);
+        charge_machine_accesses(g, 2);
         return;
     }
     bool first = !(menu_gate_flags(g) & DRAWING_THE_OTHER_SPIN);
@@ -1065,7 +945,7 @@ static void gate_spin(GameState *g, Platform *pf, MenuObject spin)
     uint16_t angle = menu_object_slots_angle(g, spin);
     gate_spin_line(g, cosines, sines, LAST_LINE, angle);
     set_menu_object_slots_angle(g, spin, (uint16_t)(angle + SPIN_SPEED));
-    ORIGINAL_EFFECT(leave_spin(g, cosines, sines));
+    charge_machine_accesses(g, 4);
 }
 
 typedef enum { DIGIT_STARTS, DIGIT_HIDDEN, DIGIT_SHOWING, DIGIT_SHOWN, DIGIT_HIDING } DigitStep;
@@ -1122,7 +1002,6 @@ static void dial_digit(GameState *g, MenuObject digit)
  * each filled with the same run of 32 pieces from the plane's buffer. */
 enum { GATE_TILE_ROWS = 16, GATE_PIECES = 32, GATE_PIECE_BYTES = 0x40, GATE_PIECE_WORDS = 0x80 };
 
-// $C2:7254
 static void upload_gate_tiles(GameState *g, Platform *pf)
 {
     for (unsigned row = 0; row < GATE_TILE_ROWS; row++) {
@@ -1133,30 +1012,9 @@ static void upload_gate_tiles(GameState *g, Platform *pf)
     }
 }
 
-static void leave_gate_tiles(GameState *g)
-{
-    enum { PIECES_LEFT = 0x00, VRAM = 0x08, SOURCE = 0x0A, ROWS_AT = 0x0C };
-    menu_object_leave_cell8(g, PIECES_LEFT, 0);
-    menu_object_leave_cell16(g, VRAM, (uint16_t)(menu_gate_tile_row(g, GATE_TILE_ROWS - 1) + GATE_PIECES * GATE_PIECE_WORDS));
-    menu_object_leave_cell16(g, SOURCE, (uint16_t)(RAM_ABS(RAM_MENU_MODE7_PLANE) + GATE_PIECES * GATE_PIECE_BYTES));
-    menu_object_leave_cell16(g, ROWS_AT, 2 * GATE_TILE_ROWS);
-}
-
 /* A tilemap row is 32 bytes, sixteen words. */
 enum { TILEMAP_ROW_BYTES = 0x20, TILEMAP_ROW_WORDS = 0x10 };
 
-/* Where the rows' table and source are, long, as the original hands them to
- * the rows' upload in its cells. */
-static void leave_rows_asked_for(GameState *g, uint32_t picks, uint32_t source)
-{
-    enum { PICKS = 0x10, SOURCE = 0x13 };
-    menu_object_leave_cell16(g, PICKS, (uint16_t)picks);
-    menu_object_leave_cell8(g, PICKS + 2, (uint8_t)(picks >> 16));
-    menu_object_leave_cell16(g, SOURCE, (uint16_t)source);
-    menu_object_leave_cell8(g, SOURCE + 2, (uint8_t)(source >> 16));
-}
-
-// $C2:72D8
 /* Rows of the gate's tilemap: each picks a row of the source by its number
  * in a table, and goes to the next row of VRAM. A count of 0 is 65536. */
 static void upload_gate_rows(GameState *g, Platform *pf, uint16_t rows, uint32_t picks, uint32_t source, uint16_t vram)
@@ -1168,14 +1026,13 @@ static void upload_gate_rows(GameState *g, Platform *pf, uint16_t rows, uint32_t
         uint32_t from = (source & 0xFF0000u) | (uint16_t)(pick * TILEMAP_ROW_BYTES + source);
         vid_send_vram(pf, PF_AT(0xC272EE), vram, PF_GAME(from), TILEMAP_ROW_BYTES, &after_high);
         vram = (uint16_t)(vram + TILEMAP_ROW_WORDS);
-        ORIGINAL_EFFECT(menu_object_leave_cell16(g, 0x0A, (uint16_t)from));
+        charge_machine_accesses(g, 2);
     } while (--left != 0);
-    ORIGINAL_EFFECT(menu_object_leave_cell16(g, 0x00, 0));
-    ORIGINAL_EFFECT(menu_object_leave_cell16(g, 0x08, vram));
-    ORIGINAL_EFFECT(menu_object_leave_cell16(g, 0x10, (uint16_t)picks));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
 }
 
-// $C2:7361
 /* The gate's picture: its pixels, packed two a byte, a byte each in the
  * plane's buffer. The original writes them through the work RAM port. */
 enum { GATE_PIXEL_PAIRS = 0x400 };
@@ -1187,10 +1044,9 @@ static void unpack_gate_pixels(GameState *g)
         set_menu_mode7_plane(g, 2 * i, (uint8_t)(pair >> 4));
         set_menu_mode7_plane(g, 2 * i + 1, (uint8_t)(pair & 0x0F));
     }
-    ORIGINAL_EFFECT(hw_port_seek(g, (uint16_t)(RAM_ABS(RAM_MENU_MODE7_PLANE) + 2 * GATE_PIXEL_PAIRS), EXTRA_RAM_BANK));
+    charge_machine_io_accesses(g, 3);
 }
 
-// $C2:722C
 /* The gate's picture to the plane's first tiles. */
 static void upload_gate_pixels(Platform *pf)
 {
@@ -1275,35 +1131,18 @@ static const struct {
     { false, { 0, 0, 0, 0 } },
 };
 
-/* The tile the check takes and the area it compared, as the original leaves
- * them in its cells. It stores the tile's row as a word, whose high byte
- * lands in the area's first row's cell, which the area then covers. */
-static void leave_area_cells(GameState *g, uint16_t tile_x, uint16_t tile_y, const Area *a, uint8_t sides)
-{
-    set_menu_object_scratch_area_tile_x(g, (uint8_t)tile_x);
-    set_menu_object_scratch_area_tile_y(g, (uint8_t)tile_y);
-    set_menu_object_scratch_area_top(g, (uint8_t)(tile_y >> 8));
-    if (!a)
-        return;
-    set_menu_object_scratch_area_top(g, a->top);
-    set_menu_object_scratch_area_bottom(g, a->bottom);
-    set_menu_object_scratch_area_left(g, a->left);
-    set_menu_object_scratch_area_right(g, a->right);
-    set_menu_object_scratch_area_outside(g, sides);
-}
-
 /* Whether the object is inside that part of the world map `map`. */
 bool menu_epoch_kept_off_the_ground_of(GameState *g, MenuObject o, unsigned map)
 {
     MenuPlace p = menu_object_place(g, o);
     uint16_t tile_x = menu_pixel(p.x) >> TILE_SHIFT, tile_y = menu_pixel(p.y) >> TILE_SHIFT;
     if (!world_map_areas[map].has_area) {
-        ORIGINAL_EFFECT(leave_area_cells(g, tile_x, tile_y, NULL, 0));
+        charge_machine_accesses(g, 3);
         return false;
     }
     const Area *a = &world_map_areas[map].area;
     uint8_t sides = sides_outside((uint8_t)tile_x, (uint8_t)tile_y, *a);
-    ORIGINAL_EFFECT(leave_area_cells(g, tile_x, tile_y, a, sides));
+    charge_machine_accesses(g, 8);
     return sides == 0;
 }
 
@@ -1333,15 +1172,12 @@ typedef enum { GATE_TILES_STREAM, GATE_PALETTE_STREAM, GATE_ROWS_STREAM } GateSt
 static const uint8_t gate_stream_bank[] = { [GATE_TILES_STREAM] = 0xC3, [GATE_PALETTE_STREAM] = 0xC6,
                                             [GATE_ROWS_STREAM] = 0xC6 };
 
-/* What the screens ask of whatever runs them. On the machine each is the
- * original's call: the routines the menus still enter by address (VRAM
- * cleared, a frame waited, frames waited while the sound's requests go on),
- * and the screens' own builders, which are entries of their own that shadow
- * mode compares and the timing gate measures; as C each is the port, behind
- * the state half of its entry's guard. Each but the clear is false where it
- * went no further. */
+/* The screen services: graphics and text, then waits while the objects
+ * and sound advance. Machine bridges check the complete entry contracts;
+ * the native program checks their game-state preconditions. False means
+ * the screen stopped before its next step. */
 typedef struct {
-    void (*clear_vram)(void *ctx, EpochScreen screen);
+    bool (*clear_vram)(void *ctx, EpochScreen screen);
     bool (*load_markers)(void *ctx);
     bool (*build_map)(void *ctx);
     bool (*build_gate)(void *ctx);
@@ -1357,11 +1193,13 @@ typedef struct {
 
 /* What both screens do first: the menus' VRAM cleared, the mode's upload
  * queue reset and every object slot freed. */
-static void clear_the_screen_with(GameState *g, EpochScreen screen, const EpochScreenSteps *steps, void *ctx)
+static bool clear_the_screen_with(GameState *g, EpochScreen screen, const EpochScreenSteps *steps, void *ctx)
 {
-    steps->clear_vram(ctx, screen);
+    if (!steps->clear_vram(ctx, screen))
+        return false;
     TIMED_AS(g, 0xC203EF, menu_object_reset_the_upload_queue(g));
     TIMED_AS(g, 0xC20471, menu_free_every_object(g));
+    return true;
 }
 
 /* The screen runs until the menus' mode leaves `mode`, a frame at a time. */
@@ -1399,6 +1237,16 @@ static void back_to_the_menus(GameState *g, Platform *pf, uint32_t sprites_site,
     tm_enable_interrupts(pf, PF_AT(interrupts_site), 0);
     vid_stop_uploads(pf, PF_AT(uploads_site));
     vid_enable_line_effects(pf, PF_AT(effects_site), 0);
+}
+
+static void finish_the_map_view(GameState *g, Platform *pf)
+{
+    back_to_the_menus(g, pf, 0xC263D0, 0xC263D5, 0xC263D8, 0xC263DB);
+}
+
+static void finish_the_time_dial(GameState *g, Platform *pf)
+{
+    back_to_the_menus(g, pf, 0xC26ABA, 0xC26ABE, 0xC26AC1, 0xC26AC4);
 }
 
 // $C2:6965
@@ -1443,7 +1291,8 @@ static bool show_the_map_view_with(GameState *g, Platform *pf, const EpochScreen
     vid_set_obj_config(pf, PF_AT(0xC26325), &sprites);
     set_menu_object_shadows_math_control(g, 0);
     set_menu_object_shadows_math_layers(g, BACKDROP);
-    clear_the_screen_with(g, THE_MAP_VIEW, steps, ctx);
+    if (!clear_the_screen_with(g, THE_MAP_VIEW, steps, ctx))
+        return false;
     if (!steps->load_markers(ctx))
         return false;
     TIMED_AS(g, 0xC268F4, map_view_gradient(g, pf));
@@ -1468,7 +1317,7 @@ static bool show_the_map_view_with(GameState *g, Platform *pf, const EpochScreen
     if (!run_until_the_mode_changes_with(g, THE_MAP_VIEW, MAP_VIEW_MODE, steps, ctx)
         || !steps->wait_frames(ctx, MAP_VIEW_CLOSING))
         return false;
-    back_to_the_menus(g, pf, 0xC263D0, 0xC263D5, 0xC263D8, 0xC263DB);
+    finish_the_map_view(g, pf);
     return true;
 }
 
@@ -1489,7 +1338,7 @@ static bool build_the_dial_with(GameState *g, Platform *pf, const EpochScreenSte
     if (!steps->load_stream(ctx, GATE_TILES_STREAM))
         return false;
     vid_send_vram(pf, PF_AT(0xC27393), GATE_TILE_VRAM, PF_GAME(RAM_MENU_GATE_TILES), GATE_TILES_BYTES, &after_high);
-    ORIGINAL_EFFECT(leave_rows_asked_for(g, MENU_GATE_TILEMAP_ROWS, RAM_MENU_MODE7_PLANE));
+    charge_machine_accesses(g, 6);
     TIMED_AS(g, 0xC272D8, upload_gate_rows(g, pf, GATE_TILEMAP_ROWS, MENU_GATE_TILEMAP_ROWS, RAM_MENU_MODE7_PLANE,
                                            GATE_TILEMAP_VRAM));
     if (!steps->load_stream(ctx, GATE_PALETTE_STREAM))
@@ -1498,7 +1347,7 @@ static bool build_the_dial_with(GameState *g, Platform *pf, const EpochScreenSte
     if (!steps->load_stream(ctx, GATE_ROWS_STREAM))
         return false;
     TIMED_AS(g, 0xC27254, upload_gate_tiles(g, pf));
-    ORIGINAL_EFFECT(leave_gate_tiles(g));
+    (charge_machine_accesses(g, 7), charge_machine_rom_accesses(g, 2));
     TIMED_AS(g, 0xC27361, unpack_gate_pixels(g));
     TIMED_AS(g, 0xC2722C, upload_gate_pixels(pf));
     start_dial_objects(g);
@@ -1516,7 +1365,8 @@ enum { FIXED_LEVEL = 0x0F };
 
 static bool show_the_time_dial_with(GameState *g, Platform *pf, const EpochScreenSteps *steps, void *ctx)
 {
-    clear_the_screen_with(g, THE_TIME_DIAL, steps, ctx);
+    if (!clear_the_screen_with(g, THE_TIME_DIAL, steps, ctx))
+        return false;
     set_menu_object_shadows_bg_mode(g, MODE_7);
     const VidObjConfig sprites = { .size_select = 0, .base = 0x6000, .name_select = 0 };
     vid_set_obj_config(pf, PF_AT(0xC26A43), &sprites);
@@ -1552,7 +1402,7 @@ static bool show_the_time_dial_with(GameState *g, Platform *pf, const EpochScree
     start_a_script_with(g, DIAL_ENDING_SCRIPT, steps, ctx);
     if (!steps->wait_frames(ctx, DIAL_CLOSING))
         return false;
-    back_to_the_menus(g, pf, 0xC26ABA, 0xC26ABE, 0xC26AC1, 0xC26AC4);
+    finish_the_time_dial(g, pf);
     return true;
 }
 
@@ -1575,29 +1425,28 @@ static const uint32_t stream_sites[] = { 0xC2738D, 0xC273DC, 0xC27408 };
 
 /* The clear comes back with a 16-bit accumulator; the screens go on with an
  * 8-bit one. */
-static void clear_vram_on_the_machine(void *ctx, EpochScreen screen)
+static bool clear_vram_on_the_machine(void *ctx, EpochScreen screen)
 {
     Snes *s = ctx;
-    m_jsr_dc(s, clear_sites[screen], 0xC226A8, READS_NOTHING);
+    if (!menu_run_called(s, clear_sites[screen], 0xC226A8, READS_NOTHING, menu_clear_vram))
+        return false;
     m_sep(s, CPU_FLAG_M);
+    return true;
 }
 
 static bool load_markers_on_the_machine(void *ctx)
 {
-    m_jsr_dc(ctx, 0xC26337, 0xC26965, READS_NOTHING);
-    return true;
+    return menu_run_called(ctx, 0xC26337, 0xC26965, READS_NOTHING, menu_epoch_load_map_graphics);
 }
 
 static bool build_map_on_the_machine(void *ctx)
 {
-    m_jsr_dc(ctx, 0xC2633D, 0xC263DF, READS_NOTHING);
-    return true;
+    return menu_run_called(ctx, 0xC2633D, 0xC263DF, READS_NOTHING, menu_epoch_build_map);
 }
 
 static bool build_gate_on_the_machine(void *ctx)
 {
-    m_jsr_dc(ctx, 0xC26A8A, 0xC27389, READS_NOTHING);
-    return true;
+    return menu_run_called(ctx, 0xC26A8A, 0xC27389, READS_NOTHING, menu_epoch_gate_graphics);
 }
 
 /* The loader takes the stream's number in the mode's cell at $08 and its
@@ -1608,25 +1457,28 @@ static bool load_stream_on_the_machine(void *ctx, GateStream stream)
     Snes *s = ctx;
     set_menu_object_scratch_bytes_byte(state_of(s), STREAM_CELL, (uint8_t)stream);
     m_set_a8(s, gate_stream_bank[stream]);
-    m_jsr_dc(s, stream_sites[stream], 0xC271F9, READS_A | DC_AH);
-    return true;
+    return menu_run_called(s, stream_sites[stream], 0xC271F9, READS_A | DC_AH, menu_epoch_load_gate_stream);
 }
 
 static bool start_text_on_the_machine(void *ctx)
 {
-    m_jsl_dc(ctx, 0xC269BB, 0xC257DF, READS_NOTHING | DC_DB | DC_D);
-    return true;
+    return menu_run_long_called(ctx, 0xC269BB, 0xC257DF, READS_NOTHING | DC_DB | DC_D, menu_text_start_entry);
 }
 
 static bool set_glyphs_on_the_machine(void *ctx)
 {
-    m_jsl_dc(ctx, 0xC269C4, 0xC25823, READS_NOTHING | DC_D);
-    return true;
+    return menu_run_long_called(ctx, 0xC269C4, 0xC25823, READS_NOTHING | DC_D, menu_text_go_on_entry);
 }
 
 static bool wait_a_frame_on_the_machine(void *ctx, EpochScreen screen)
 {
-    m_jsr_dc(ctx, frame_sites[screen], 0xC2046E, READS_NOTHING | DC_DB);
+    Snes *s = ctx;
+    if (m_runs_retired_as_c(s)) {
+        if (menu_run_called(s, frame_sites[screen], 0xC2046E, READS_NOTHING | DC_DB, menu_wait_for_frame))
+            native_hold(s, HOLD_MENU_FRAME);
+        return false;
+    }
+    m_jsr_dc(s, frame_sites[screen], 0xC2046E, READS_NOTHING | DC_DB);
     return true;
 }
 
@@ -1634,6 +1486,12 @@ static bool wait_frames_on_the_machine(void *ctx, EpochWait wait)
 {
     Snes *s = ctx;
     s->cpu.x = epoch_wait_frames[wait];
+    if (m_runs_retired_as_c(s)) {
+        if (menu_run_called(s, wait_sites[wait], 0xC20454, READS_X_AND_A_HIGH,
+                            menu_wait_frames_sending_the_sound_entry))
+            native_hold(s, HOLD_MENU_FRAME);
+        return false;
+    }
     m_jsr_dc(s, wait_sites[wait], 0xC20454, READS_X_AND_A_HIGH);
     return true;
 }
@@ -1659,11 +1517,12 @@ typedef struct {
     Platform *pf;
 } ScreenInC;
 
-static void clear_all_of_vram(void *ctx, EpochScreen screen)
+static bool clear_all_of_vram(void *ctx, EpochScreen screen)
 {
     (void)screen;
     ScreenInC *c = ctx;
     TIMED_AS(c->game, 0xC226A8, menu_clear_all_of_vram(c->pf));
+    return true;
 }
 
 static const EpochScreenSteps screen_steps_in_c;
@@ -1679,8 +1538,8 @@ static bool load_the_markers(void *ctx)
 static bool build_the_map(void *ctx)
 {
     ScreenInC *c = ctx;
-    if (!overworld_map_tiles_can_load(c->game)) {
-        program_needs_the_machine(c->game, 0xC263DF, "a map view of a map the port doesn't load");
+    if (!overworld_map_tiles_can_load(c->game) || !map_picture_buffer_fits(c->game)) {
+        program_breaks_a_contract(c->game, 0xC263DF, "a map view without its map record or a strip buffer clear of low RAM");
         return false;
     }
     Unpacker u = overworld_unpacker(c->game);
@@ -1693,7 +1552,7 @@ static bool build_the_gate(void *ctx)
 {
     ScreenInC *c = ctx;
     if (!menu_object_address_names_one(menu_object_current(c->game))) {
-        program_needs_the_machine(c->game, 0xC27389, "a time dial built with no object running");
+        program_breaks_a_contract(c->game, 0xC27389, "a time dial built with no object running");
         return false;
     }
     bool built = false;
@@ -1714,7 +1573,7 @@ static bool start_the_text(void *ctx)
 {
     ScreenInC *c = ctx;
     if (!menu_text_can_start(c->game)) {
-        program_needs_the_machine(c->game, 0xC257DF, "a text the typesetter doesn't start");
+        program_breaks_a_contract(c->game, 0xC257DF, "a text the typesetter doesn't start");
         return false;
     }
     TIMED_AS(c->game, 0xC257DF, menu_text_start(c->game));
@@ -1725,7 +1584,7 @@ static bool set_the_glyphs(void *ctx)
 {
     ScreenInC *c = ctx;
     if (!menu_text_can_carry_on(c->game)) {
-        program_needs_the_machine(c->game, 0xC25823, "a text the typesetter doesn't go on with");
+        program_breaks_a_contract(c->game, 0xC25823, "a text the typesetter doesn't go on with");
         return false;
     }
     TIMED_AS(c->game, 0xC25823, menu_text_go_on(c->game));
@@ -1780,7 +1639,66 @@ void menu_epoch_time_dial_screen(Snes *s)
         m_rts(s);
 }
 
+/* The screen and its overworld caller leave their return frames in the
+ * saved machine. A displayed frame never retains either enclosing C call. */
+// $C2:63BD
+void menu_epoch_map_frame_finished(Snes *s)
+{
+    if (menu_mode(state_of(s)) == MAP_VIEW_MODE) {
+        if (wait_a_frame_on_the_machine(s, THE_MAP_VIEW))
+            m_stop_at(s, 0xC263BD, 0);
+    } else if (wait_frames_on_the_machine(s, MAP_VIEW_CLOSING)) {
+        m_stop_at(s, 0xC263CA, 0);
+    }
+}
+
+// $C2:63CA
+void menu_epoch_map_finished(Snes *s)
+{
+    finish_the_map_view(state_of(s), m_platform(s));
+    m_rts(s);
+    native_hold(s, HOLD_MENU_FRAME);
+}
+
+// $C2:6A9C
+void menu_epoch_dial_opened(Snes *s)
+{
+    if (wait_a_frame_on_the_machine(s, THE_TIME_DIAL))
+        m_stop_at(s, 0xC26A9F, 0);
+}
+
+// $C2:6A9F
+void menu_epoch_dial_frame_finished(Snes *s)
+{
+    if (menu_mode(state_of(s)) == DIAL_MODE) {
+        if (wait_a_frame_on_the_machine(s, THE_TIME_DIAL))
+            m_stop_at(s, 0xC26A9F, 0);
+        return;
+    }
+    start_a_script_with(state_of(s), DIAL_ENDING_SCRIPT, &screen_steps_on_the_machine, s);
+    if (wait_frames_on_the_machine(s, DIAL_CLOSING))
+        m_stop_at(s, 0xC26AB4, 0);
+}
+
+// $C2:6AB4
+void menu_epoch_dial_finished(Snes *s)
+{
+    finish_the_time_dial(state_of(s), m_platform(s));
+    m_rts(s);
+    native_hold(s, HOLD_MENU_FRAME);
+}
+
 /* ---- The entries ---------------------------------------------------------------------------- */
+
+bool menu_epoch_map_is_buildable(Snes *s)
+{
+    if (!overworld_map_tiles_run(s))
+        return false;
+    vars_peek(true);
+    bool fits = map_picture_buffer_fits(state_of(s));
+    vars_peek(false);
+    return fits;
+}
 
 /* Both screens run on the menus' page with the data bank on the I/O banks,
  * their objects' handlers entered with their slot in X. */
@@ -1867,27 +1785,6 @@ bool menu_epoch_slot_runs(Snes *s)
     return ok;
 }
 
-/* The matrix takes the angle for its sine from the slot in X. */
-bool menu_epoch_matrix_runs(Snes *s)
-{
-    return menu_epoch_slot_runs(s) && menu_object_address_names_one(s->cpu.x);
-}
-
-/* The window's drawing runs on the page with a slot's object running (the
- * dial calls it with X on other things), and its tables in work RAM, where
- * the dial puts them. */
-bool menu_epoch_window_runs(Snes *s)
-{
-    if (!menu_epoch_page_is_menu(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    uint8_t bank = menu_object_scratch_gate_window_bank(g);
-    bool ok = menu_object_address_names_one(menu_object_current(g)) && (bank == WORK_RAM_BANK || bank == EXTRA_RAM_BANK);
-    vars_peek(false);
-    return ok;
-}
-
 /* The area check on one of the world maps, which the original picks the area
  * of with a jump through a table as long as the maps. */
 bool menu_epoch_on_world_map(Snes *s)
@@ -1944,7 +1841,7 @@ static bool sample_the_map_colours(GameState *g, Platform *pf, MenuObject self, 
 {
     (void)pf, (void)self, (void)far;
     sample_map_colours(g);
-    ORIGINAL_EFFECT(leave_colours_sampled(g));
+    charge_machine_accesses(g, 6);
     return true;
 }
 
@@ -1952,7 +1849,7 @@ static bool lay_out_the_map_picture(GameState *g, Platform *pf, MenuObject self,
 {
     (void)self, (void)far;
     place_map_picture(g, pf);
-    ORIGINAL_EFFECT(leave_picture_placed(g));
+    (charge_machine_accesses(g, 9), charge_machine_io_accesses(g, 4));
     return true;
 }
 
@@ -2038,7 +1935,7 @@ void menu_epoch_sample_map_colours(Snes *s)
 {
     GameState *g = state_of(s);
     sample_map_colours(g);
-    ORIGINAL_EFFECT(leave_colours_sampled(g));
+    charge_machine_accesses(g, 6);
     s->cpu.x = COLOURS_AT;
     s->cpu.a = WORLD_MAP_TILES;
     m_set_flag(s, CPU_FLAG_C, true);
@@ -2051,7 +1948,7 @@ void menu_epoch_place_map_picture(Snes *s)
 {
     GameState *g = state_of(s);
     place_map_picture(g, m_platform(s));
-    ORIGINAL_EFFECT(leave_picture_placed(g));
+    (charge_machine_accesses(g, 9), charge_machine_io_accesses(g, 4));
     s->cpu.x = NAME_ROWS_SENT;
     m_set_flag(s, CPU_FLAG_C, false);
     m_sep(s, CPU_FLAG_M);
@@ -2075,13 +1972,6 @@ void menu_epoch_map_cursor(Snes *s)
 }
 
 // $C2:6736
-void menu_epoch_map_matrix(Snes *s)
-{
-    GameState *g = state_of(s);
-    turn_map_view(g, menu_object_running(g), menu_object_at_address(s->cpu.x));
-    m_rep(s, CPU_FLAG_M);
-    m_rts(s);
-}
 
 /* A marker that ends because the Epoch is elsewhere comes back 16 bits
  * wide. */
@@ -2141,25 +2031,6 @@ void menu_epoch_time_dial_object(Snes *s)
 }
 
 // $C2:6CC1
-void menu_epoch_build_gate_window(Snes *s)
-{
-    GameState *g = state_of(s);
-    draw_gate_window(g, menu_object_running(g));
-    m_rts(s);
-}
-
-// $C2:6F33
-/* The multiply's operands are in the mode's cells: the byte at $07 and the
- * word at $0E. */
-void menu_epoch_multiply_signed(Snes *s)
-{
-    GameState *g = state_of(s);
-    SignedProduct p = multiply_signed((int8_t)menu_object_scratch_bytes_byte(g, 0x07),
-                                      (int16_t)(menu_object_scratch_bytes_byte(g, 0x0E)
-                                                | menu_object_scratch_bytes_byte(g, 0x0F) << 8));
-    leave_multiply(g, &p);
-    m_rts(s);
-}
 
 // $C2:6F85
 void menu_epoch_gate_matrix_object(Snes *s)
@@ -2189,42 +2060,12 @@ void menu_epoch_load_gate_stream(Snes *s)
 }
 
 // $C2:722C
-void menu_epoch_upload_gate_pixels(Snes *s)
-{
-    upload_gate_pixels(m_platform(s));
-    m_rts(s);
-}
 
 // $C2:7254
-void menu_epoch_upload_gate_tiles(Snes *s)
-{
-    GameState *g = state_of(s);
-    upload_gate_tiles(g, m_platform(s));
-    ORIGINAL_EFFECT(leave_gate_tiles(g));
-    m_rts(s);
-}
 
 // $C2:72D8
-/* Its count, table, source and VRAM word are in the mode's cells. */
-void menu_epoch_upload_gate_rows(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint16_t rows = (uint16_t)(menu_object_scratch_bytes_byte(g, 0x00) | menu_object_scratch_bytes_byte(g, 0x01) << 8);
-    uint32_t picks = menu_object_scratch_bytes_byte(g, 0x10) | (uint32_t)menu_object_scratch_bytes_byte(g, 0x11) << 8
-                     | (uint32_t)menu_object_scratch_bytes_byte(g, 0x12) << 16;
-    uint32_t source = menu_object_scratch_bytes_byte(g, 0x13) | (uint32_t)menu_object_scratch_bytes_byte(g, 0x14) << 8
-                      | (uint32_t)menu_object_scratch_bytes_byte(g, 0x15) << 16;
-    uint16_t vram = (uint16_t)(menu_object_scratch_bytes_byte(g, 0x08) | menu_object_scratch_bytes_byte(g, 0x09) << 8);
-    upload_gate_rows(g, m_platform(s), rows, picks, source, vram);
-    m_rts(s);
-}
 
 // $C2:7361
-void menu_epoch_expand_gate_nibbles(Snes *s)
-{
-    unpack_gate_pixels(state_of(s));
-    m_rts(s);
-}
 
 // $C2:7389
 void menu_epoch_gate_graphics(Snes *s)

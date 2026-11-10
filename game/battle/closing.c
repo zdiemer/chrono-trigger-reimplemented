@@ -360,6 +360,12 @@ enum {
  * they are pulled. */
 enum { FIELD_MUSIC_CALL = 0xCD043E, KEPT_AGAIN = 0xCD0445 };
 
+/* The waits for the handler's frame, by where each is made. */
+static const uint32_t handler_waits[] = { 0xCD051B, 0xCD0526 };
+static const uint32_t display_waits[] = { 0xCD03DA, 0xCD03EB };
+static const uint32_t fade_waits[] = { 0xCD0DB4, 0xCD0D99 };
+static const uint32_t settle_waits[] = { 0xCD0DD8, 0xCD0DDB };
+
 static bool put_the_field_music_back(Snes *s)
 {
     uint16_t page = m_direct_page(s);
@@ -367,19 +373,13 @@ static bool put_the_field_music_back(Snes *s)
     m_push8(s, s->cpu.db);
     m_push16(s, s->cpu.d);
     m_push8(s, s->cpu.p);
-    if (!battle_run_long_to_any_page(s, FIELD_MUSIC_CALL, FIELD_MUSIC_BACK_ENTRY, field_bring_the_music_back_entry))
+    if (!battle_field_music_on_the_machine(s, FIELD_MUSIC_CALL, true))
         return false;
     s->cpu.p = m_pull8(s);
     s->cpu.d = m_pull16(s);
     s->cpu.db = m_pull8(s);
     return battle_back(s, KEPT_AGAIN, page, bank);
 }
-
-/* The waits for the handler's frame, by where each is made. */
-static const uint32_t handler_waits[] = { 0xCD051B, 0xCD0526 };
-static const uint32_t display_waits[] = { 0xCD03DA, 0xCD03EB };
-static const uint32_t fade_waits[] = { 0xCD0DB4, 0xCD0D99 };
-static const uint32_t settle_waits[] = { 0xCD0DD8, 0xCD0DDB };
 
 static bool closing_on_the_machine(void *ctx, ClosingCall call, uint16_t arg)
 {
@@ -496,24 +496,9 @@ void battle_play_out_the_defeat_end(Snes *s)
     m_rts(s);
 }
 
-void battle_show_the_defeat(Snes *s)
-{
-    if (!show_the_defeat(state_of(s), closing_on_the_machine, s))
-        return;
-    m_set_a8(s, 0);
-    m_set_nz8(s, 0);
-    m_rts(s);
-}
-
 // $CD:0012
 /* The field asks whether the battle window is still moving before it
  * resumes its own display work. */
-void battle_window_is_sliding(Snes *s)
-{
-    m_set_a8(s, battle_window_sliding(state_of(s)) ? 1 : 0);
-    m_set_nz8(s, (uint8_t)s->cpu.a);
-    m_rtl(s);
-}
 
 void battle_let_the_screen_settle(Snes *s)
 {
@@ -546,7 +531,7 @@ static bool close_a_part(void *ctx, ClosingCall call, uint16_t arg)
     case BOSS_FADE:
     case DEFEAT_FADE:
         if (!battle_message_typing_fits(g))
-            return battle_needs_the_machine(g, 0xCD039E, "a message the menus' text code doesn't go on from");
+            return battle_contract_broken(g, 0xCD039E, "a message the menus' text code doesn't go on from");
         fade_the_music_out(pf);
         TIMED_AS(g, BATTLE_SOME_FRAMES_WAIT, done = battle_wait_some_frames(g, pf, FADE_WAIT_FRAMES));
         return done;

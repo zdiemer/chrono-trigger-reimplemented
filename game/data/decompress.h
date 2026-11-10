@@ -12,6 +12,9 @@
  * them first; its unpacked length, which it keeps in decompress_length. Its
  * time is the time model's, charged here: callers call it plainly. */
 uint16_t unpack_stream(GameState *g);
+/* Whether a packed resource terminates within one bank of input and its
+ * output fits the caller's storage. Does not write work RAM or seek its port. */
+bool unpack_stream_fits(GameState *g, uint32_t from, uint16_t capacity);
 /* The same, as the scene engine calls it, at the routine rather than its
  * jump, which it is timed as. */
 uint16_t unpack_stream_direct(GameState *g);

@@ -33,7 +33,6 @@
 #include "menu/bridge.h"
 #include "menu/glyphs.h"
 #include "menu/menu_data.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "vars.h"
@@ -138,7 +137,7 @@ enum { FIRST_GLYPH = 0xA0 };
 static void set_glyph(GameState *g, uint16_t glyph)
 {
     uint8_t pen = menu_text_reading_pen(g);
-    ORIGINAL_EFFECT(set_menu_text_reading_glyph(g, glyph));
+    charge_machine_accesses(g, 2);
     TIMED_AS(g, tiles_of_layout(layout(g)) == MENU_TILES_4_COLOUR ? 0xC25E36 : 0xC25F07,
              menu_put_glyph(g, glyph, pen, menu_text_tiles(g), tiles_of_layout(layout(g))));
     set_menu_text_reading_pen(g, (uint8_t)(pen + menu_glyph_width(g, (uint8_t)(glyph - FIRST_GLYPH))));
@@ -209,8 +208,9 @@ static uint8_t glyphs_before(const GameState *g, uint32_t at, uint8_t end, uint8
  * original notes the word's byte on the text page, where nothing reads it. */
 static void insert_word(GameState *g, uint8_t code, uint16_t entry)
 {
+    (void)code;
     uint32_t at = menu_dictionary_word(g, entry);
-    ORIGINAL_EFFECT(set_menu_text_reading_code(g, code));
+    charge_machine_accesses(g, 1);
     insert(g, FROM_INSERT, stepped(at, 1), menu_text_byte(g, at));
 }
 
@@ -228,28 +228,23 @@ static void insert_name_at(GameState *g, uint16_t place)
     set_menu_text_reading_insert_left(g, glyphs_before(g, at, NAME_END, NAME_GLYPHS));
 }
 
-
 /* An item's or a tech's name ($CC:0B5E, $CC:15C4, eleven bytes a name, an
  * icon first where it has one) up to its first space; an enemy's all eleven.
  * The original finds a name with the multiplier, which it leaves so. */
 enum { SPACE = 0xEF, NAME_BYTES = MENU_NAME_TABLE_BYTES, NO_ICON = 0x2F };
 
-static void leave_name_found(GameState *g, uint8_t which)
-{
-    hw_set_multiplicand(g, which);
-    (void)hw_multiply_by(g, NAME_BYTES);
-}
+
 
 static void insert_item_name(GameState *g, uint8_t item)
 {
-    ORIGINAL_EFFECT(leave_name_found(g, item));
+    charge_machine_io_accesses(g, 4);
     uint32_t at = stepped(menu_item_name(g, item), 1);   /* past the icon */
     insert(g, FROM_INSERT, at, glyphs_before(g, at, SPACE, NAME_BYTES - 1));
 }
 
 static void insert_tech_name(GameState *g, uint8_t tech)
 {
-    ORIGINAL_EFFECT(leave_name_found(g, tech));
+    charge_machine_io_accesses(g, 4);
     uint32_t at = menu_tech_name(g, tech);
     uint8_t glyphs = glyphs_before(g, at, SPACE, NAME_BYTES);
     if (menu_text_byte(g, at) == NO_ICON) {
@@ -261,7 +256,7 @@ static void insert_tech_name(GameState *g, uint8_t tech)
 
 static void insert_enemy_name(GameState *g, uint8_t enemy)
 {
-    ORIGINAL_EFFECT(leave_name_found(g, enemy));
+    charge_machine_io_accesses(g, 4);
     insert(g, FROM_INSERT, menu_enemy_name(g, enemy), NAME_BYTES);
 }
 
@@ -303,26 +298,7 @@ static uint8_t hex_digits(GameState *g, uint16_t value, uint8_t bytes)
     return n;
 }
 
-/* What the original's conversion leaves on the text page past the glyph
- * drawer's cells, which the first digit's drawing covers all the rest of:
- * its last quotient cell, the eight-digit number's units, and the number's
- * second byte where it read one. */
-static void leave_conversion(GameState *g, uint32_t value, uint8_t bytes, bool hex)
-{
-    if (bytes >= 2)
-        set_menu_number_second_byte(g, (uint8_t)(value >> 8));
-    if (hex)
-        return;
-    if (bytes == 1)
-        set_menu_number_conversion_quotient(g, (uint16_t)((menu_number_conversion_quotient(g) & 0xFF00) | (value / 10 % 10)));
-    else if (bytes == 2)
-        set_menu_number_conversion_quotient(g, 0);
-    else {
-        set_menu_number_conversion_quotient(g, (uint16_t)((value / 100 % 10) | (value / 10 % 10) << 8));
-        set_menu_number_conversion_last(g, (uint8_t)(value % 10));
-        set_menu_number_second_byte(g, 0);
-    }
-}
+
 
 // $C2:5953, $C2:5985, $C2:59C8
 /* A number from the arguments, one to three bytes, as digits to set. */
@@ -332,7 +308,7 @@ static void insert_number(GameState *g, uint8_t bytes)
     uint32_t value = next_argument(g, bytes);
     bool hex = bytes < 3 && menu_text_hex(g) != 0;
     uint8_t count = hex ? hex_digits(g, (uint16_t)value, bytes) : decimal_digits(g, value, WIDTH[bytes]);
-    ORIGINAL_EFFECT(leave_conversion(g, value, bytes, hex));
+    charge_machine_accesses(g, (bytes >= 2) + (hex ? 0 : bytes == 2 ? 2 : 4));
     insert(g, hex ? FROM_HEX_DIGITS : FROM_DIGITS, DIGITS, count);
 }
 
@@ -484,7 +460,6 @@ void menu_text_go_on(GameState *g) { set_glyphs(g, menu_text_budget(g)); }
 
 /* ---- The menus' labels ----------------------------------------------------------------------- */
 
-// $C2:F90C
 /* A label of the menus' table: set a line at a time, each line's glyphs
  * $400 bytes below the line before, until the string ends or a line fills
  * its 32 glyphs. The tiles are in work RAM's bank, the lines from the tiles'
@@ -563,17 +538,11 @@ static Piece piece_at(const GameState *g, uint32_t at)
     return p;
 }
 
-/* ---- The entries ------------------------------------------------------------------------- */
-
-/* The start and a call come back with A clear, which their callers read;
- * nothing reads what they leave in X and Y. */
-static void leave_a_clear(Snes *s) { s->cpu.a = 0; }
-
 // $C2:57DF
 void menu_text_start_entry(Snes *s)
 {
     menu_text_start(state_of(s));
-    ORIGINAL_EFFECT(leave_a_clear(s));
+    (void)0;
     m_rtl(s);
 }
 
@@ -581,17 +550,11 @@ void menu_text_start_entry(Snes *s)
 void menu_text_go_on_entry(Snes *s)
 {
     menu_text_go_on(state_of(s));
-    ORIGINAL_EFFECT(leave_a_clear(s));
+    (void)0;
     m_rtl(s);
 }
 
 // $C2:F90C
-void menu_set_label_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    (void)menu_set_label(g, menu_text_strings(g), menu_text_string(g), menu_load_destination(g));
-    m_rts(s);
-}
 
 /* ---- The guards -------------------------------------------------------------------------- */
 
@@ -721,12 +684,3 @@ bool menu_text_can_be_typed(const GameState *g, uint32_t strings, uint8_t string
 }
 
 bool menu_text_can_carry_on(const GameState *g) { return can_go_on(g); }
-
-bool menu_label_is_settable(Snes *s)
-{
-    const GameState *g = state_of(s);
-    vars_peek(true);
-    bool ok = menu_label_can_be_set(g, menu_text_strings(g), menu_text_string(g), menu_load_destination(g));
-    vars_peek(false);
-    return ok;
-}

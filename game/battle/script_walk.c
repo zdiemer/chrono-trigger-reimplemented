@@ -25,7 +25,6 @@
 #include "battle/entries.h"
 #include "battle/positions.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- The grid --------------------------------------------------------------------------- */
@@ -46,8 +45,6 @@ enum { FREE = 0x00, THE_GOAL = 0xFF, THE_WALKER = 0x20, THE_WAY = 0xE0 };
 /* The search gives up when its rings reach 30 steps. */
 enum { STEPS_SEARCHED = 0x1F, GAVE_UP = 0x80 };
 
-static bool on_the_way(uint8_t mark) { return (mark & THE_WAY) == THE_WAY; }
-
 /* ---- Finding the way ------------------------------------------------------------------------ */
 
 /* A ring of the search, marked: how many of its cells it looked round (it
@@ -62,6 +59,8 @@ static const uint8_t ways_round[] = { UP, DOWN, LEFT, RIGHT };
 
 /* Mark a ring: every free cell next to the last ring's, with its steps,
  * making the next ring; counting how often the goal is next to one. */
+static bool on_the_way(uint8_t mark) { return (mark & THE_WAY) == THE_WAY; }
+
 static Ring mark_a_ring(GameState *g, uint8_t steps)
 {
     Ring ring = { 0, 0, 0 };
@@ -129,23 +128,8 @@ typedef struct {
     bool gave_up;
 } SearchEnd;
 
-static void leave_search(GameState *g, SearchEnd end)
-{
-    script_leave(g, LEFT_SCAN, end.last_ring.looked_round);
-    if (end.walker != 0)
-        script_leave(g, LEFT_LOOKED_ROUND, end.last_looked_round);
-    script_leave(g, LEFT_RING_SIZE, end.last_ring.next_ring_size);
-    script_leave(g, LEFT_WALKER, end.walker);
-    script_leave(g, LEFT_REACHED, end.gave_up ? GAVE_UP : end.last_ring.goal_seen);
-    script_leave_word(g, LEFT_STEPS, end.gave_up ? end.steps : STEPS_RUN_OUT);
-}
-
 /* The original leaves the last cell a ring looked round, which is gone from
  * the ring once the next is moved out: kept as the rings go. */
-static uint8_t last_cell_looked_round(const GameState *g, Ring ring, uint8_t before)
-{
-    return ring.looked_round ? battle_walk_frontier(g, (uint8_t)(ring.looked_round - 1)) : before;
-}
 
 // $C1:4A71
 /* Find the way across the grid from one point to another (to the cell above
@@ -162,22 +146,22 @@ bool battle_find_way(GameState *g, BattlePoint from, BattlePoint to)
         goal = neighbour(goal, UP);
     set_battle_grid(g, goal, THE_GOAL);
     set_battle_walk_goal_cell(g, goal);
-    uint8_t steps = 1, last_looked_round = 0;
+    uint8_t steps = 1;
     Ring ring;
     for (;;) {
         ring = mark_a_ring(g, steps);
-        ORIGINAL_EFFECT(last_looked_round = last_cell_looked_round(g, ring, last_looked_round));
+        charge_machine_accesses(g, ring.looked_round ? 1 : 0);
         if (ring.goal_seen)
             break;
         move_out_a_ring(g, ring.next_ring_size);
         if (++steps == STEPS_SEARCHED) {
-            ORIGINAL_EFFECT(leave_search(g, (SearchEnd){ ring, last_looked_round, walker, steps, true }));
+            charge_machine_accesses(g, 6 + (walker != 0 ? 1 : 0));
             battle_leave_jump_lift(g, goal);
             return false;
         }
     }
     uint8_t way_back = mark_the_way_back(g, walker, goal, steps);
-    ORIGINAL_EFFECT(leave_search(g, (SearchEnd){ ring, last_looked_round, walker, steps, false }));
+    charge_machine_accesses(g, 6 + (walker != 0 ? 1 : 0));
     battle_leave_jump_lift(g, way_back);
     return true;
 }
@@ -195,6 +179,17 @@ static void keep_the_grid(GameState *g, uint8_t slot)
         set_battle_walk_saved_grids(g, (uint16_t)(store + cell), battle_grid(g, cell));
 }
 
+/* A walker's heading before its first step, and its scripted move's steps
+ * as a step is due and as one starts. */
+enum { NO_HEADING_YET = 0xFF, STEP_DUE = 0xFF, STEP_STARTS = 7, STEPS_OVER = 0x80 };
+
+/* The battle counts the walks each combatant starts, which nothing reads
+ * (re/ram.toml, battle_script_command_cells). */
+
+/* What starting a walk leaves: where it is from and to, and the walker. */
+enum { LEFT_FROM = 0x00, LEFT_TO = 0x02, LEFT_WALKING = 0x00 };
+
+// $C1:5454
 static void take_out_the_grid(GameState *g, uint8_t slot)
 {
     uint16_t store = battle_walk_grid_store(g, slot);
@@ -202,39 +197,16 @@ static void take_out_the_grid(GameState *g, uint8_t slot)
         set_battle_walk_grid(g, cell, battle_walk_saved_grids(g, (uint16_t)(store + cell)));
 }
 
-/* A walker's heading before its first step, and its scripted move's steps
- * as a step is due and as one starts. */
-enum { NO_HEADING_YET = 0xFF, STEP_DUE = 0xFF, STEP_STARTS = 7, STEPS_OVER = 0x80 };
-
-/* The battle counts the walks each combatant starts, which nothing reads
- * (re/ram.toml, battle_script_command_cells). */
-static void count_a_walk(GameState *g, uint8_t slot)
-{
-    set_battle_script_command_cells(g, slot, (uint8_t)(battle_script_command_cells(g, slot) + 1));
-}
-
-/* What starting a walk leaves: where it is from and to, and the walker. */
-enum { LEFT_FROM = 0x00, LEFT_TO = 0x02, LEFT_WALKING = 0x00 };
-
-static void leave_walk_ends(GameState *g, BattlePoint from, BattlePoint to)
-{
-    script_leave(g, LEFT_FROM, from.x);
-    script_leave(g, LEFT_FROM + 1, from.y);
-    script_leave(g, LEFT_TO, to.x);
-    script_leave(g, LEFT_TO + 1, to.y);
-}
-
-// $C1:5454
 static void start_walking(GameState *g, ScriptChannel ch, uint8_t slot, BattlePoint to, uint8_t length)
 {
     BattlePoint from = { combatant_x(g, slot), combatant_y(g, slot) };
     set_battle_walk_start_x(g, slot, from.x);
     set_battle_walk_start_y(g, slot, from.y);
-    ORIGINAL_EFFECT(leave_walk_ends(g, from, to));
-    ORIGINAL_EFFECT(count_a_walk(g, slot));
+    charge_machine_accesses(g, 4);
+    charge_machine_accesses(g, 2);
     set_battle_script_walk_lengths(g, ch.channel, length);
     TIMED_AS(g, 0xC14A71, battle_find_way(g, from, to));
-    ORIGINAL_EFFECT(script_leave_word(g, LEFT_WALKING, slot));
+    charge_machine_accesses(g, 2);
     set_battle_walk_cell(g, slot, battle_walk_from_cell(g));
     keep_the_grid(g, slot);
     set_battle_path(g, slot, 0);
@@ -273,6 +245,29 @@ typedef struct {
 
 /* The heading of the first neighbour on the way, up, down, left, in that
  * order and never back along the last heading; right otherwise. */
+
+/* A cell a step looks at, and whether a step round a corner is cut short
+ * there (the corner is on the way). */
+
+/* Choose the walker's next step along the way, from its cell: two cells
+ * straight on where the way runs on, otherwise a diagonal round one side or
+ * the other, cut short where the corner is in the way. */
+
+/* What choosing a step leaves: the walker's cell, the cell it goes to (the
+ * heading's, where it saw the goal), the step, and the diagonal it goes
+ * round. */
+enum { LEFT_AT = 0x02, LEFT_NEXT_CELL = 0x04, LEFT_STEP = 0x05, LEFT_DIAGONAL = 0x06 };
+
+// $C1:54C1
+/* The walker takes its next step, once the last is over: a scripted move,
+ * facing the way it goes. False where the walk has ended. */
+
+/* ---- The command ------------------------------------------------------------------------------ */
+
+/* The original keeps the command's length in a work cell (where the search
+ * then leaves the walker's cell). */
+enum { LEFT_LENGTH = 0x0E };
+
 static NextCell next_cell(const GameState *g, uint8_t at, uint8_t last)
 {
     for (unsigned h = HEADING_UP; h < HEADING_RIGHT; h++) {
@@ -285,20 +280,16 @@ static NextCell next_cell(const GameState *g, uint8_t at, uint8_t last)
     return (NextCell){ HEADING_RIGHT, neighbour(at, RIGHT) };
 }
 
-/* A cell a step looks at, and whether a step round a corner is cut short
- * there (the corner is on the way). */
 static uint8_t probed(const GameState *g, uint8_t at, uint8_t step, WalkProbe probe)
 {
     return neighbour(at, battle_walk_probe(g, step, probe));
 }
+
 static bool cut_short(const GameState *g, uint8_t at, uint8_t step, WalkProbe corner)
 {
     return (battle_walk_grid(g, probed(g, at, step, corner)) & THE_WAY) != 0;
 }
 
-/* Choose the walker's next step along the way, from its cell: two cells
- * straight on where the way runs on, otherwise a diagonal round one side or
- * the other, cut short where the corner is in the way. */
 static WalkStep choose_step(const GameState *g, uint8_t at, uint8_t last)
 {
     NextCell next = next_cell(g, at, last);
@@ -333,30 +324,13 @@ static WalkStep choose_step(const GameState *g, uint8_t at, uint8_t last)
     return s;
 }
 
-/* What choosing a step leaves: the walker's cell, the cell it goes to (the
- * heading's, where it saw the goal), the step, and the diagonal it goes
- * round. */
-enum { LEFT_AT = 0x02, LEFT_NEXT_CELL = 0x04, LEFT_STEP = 0x05, LEFT_DIAGONAL = 0x06 };
-
-static void leave_step(GameState *g, uint8_t at, WalkStep s)
-{
-    script_leave(g, LEFT_AT, at);
-    script_leave_word(g, LEFT_NEXT_CELL, s.cell);
-    script_leave(g, LEFT_STEP, s.step);
-    if (s.goal == GOAL_NOT_SEEN && s.step != s.heading * STEPS_A_HEADING)
-        script_leave_word(g, LEFT_DIAGONAL, s.cell);
-}
-
-// $C1:54C1
-/* The walker takes its next step, once the last is over: a scripted move,
- * facing the way it goes. False where the walk has ended. */
 static bool take_a_step(GameState *g, uint8_t slot)
 {
     set_battle_path_steps(g, slot, STEP_STARTS);
     take_out_the_grid(g, slot);
     uint8_t at = battle_walk_cell(g, slot);
     WalkStep s = choose_step(g, at, battle_walk_heading(g, slot));
-    ORIGINAL_EFFECT(leave_step(g, at, s));
+    charge_machine_accesses(g, 4 + (s.goal == GOAL_NOT_SEEN && s.step != s.heading * STEPS_A_HEADING ? 2 : 0));
     if (s.goal != GOAL_NOT_SEEN) {
         set_battle_path_active(g, slot, 0);
         return false;
@@ -367,12 +341,6 @@ static bool take_a_step(GameState *g, uint8_t slot)
     set_battle_walk_cell(g, slot, s.cell);
     return true;
 }
-
-/* ---- The command ------------------------------------------------------------------------------ */
-
-/* The original keeps the command's length in a work cell (where the search
- * then leaves the walker's cell). */
-enum { LEFT_LENGTH = 0x0E };
 
 static ScriptFlow past_the_walk(GameState *g, ScriptChannel ch)
 {
@@ -386,11 +354,11 @@ static ScriptFlow past_the_walk(GameState *g, ScriptChannel ch)
 static ScriptFlow walk(GameState *g, ScriptChannel ch, uint8_t length, ScriptAim aim, uint8_t x, uint8_t y, uint8_t place)
 {
     BattlePoint to = script_aim(g, aim, x, y, place);
-    ORIGINAL_EFFECT(script_leave(g, LEFT_LENGTH, length));
+    charge_machine_accesses(g, 1);
     if (ch.kind != SCRIPT_ONE_COMBATANT)
         return past_the_walk(g, ch);
     uint8_t slot = script_combatant(g, ch);
-    ORIGINAL_EFFECT(script_leave_word(g, LEFT_WALKING, slot));
+    charge_machine_accesses(g, 2);
     if (!battle_path_active(g, slot)) {
         start_walking(g, ch, slot, to, length);
         return SCRIPT_STAY;
@@ -406,13 +374,6 @@ SCRIPT_OPERATION(walk, channel, length, aim, x, y, place)
 /* The search as the original's walk calls it: from the point in the first two
  * work cells to the point in the next two. It returns with A's high byte
  * clear, as its first instruction leaves it. */
-void battle_find_the_way(Snes *s)
-{
-    GameState *g = state_of(s);
-    battle_find_way(g, (BattlePoint){ battle_work(g, 0), battle_work(g, 1) }, (BattlePoint){ battle_work(g, 2), battle_work(g, 3) });
-    s->cpu.a = 0;
-    m_rts(s);
-}
 
 /* ---- The table ------------------------------------------------------------------------- */
 

@@ -14,10 +14,4 @@
 void menu_build_number_tiles(GameState *g);
 void menu_build_amount_digits(GameState *g);
 
-/* The registered entries ($FF:F548, $FF:F7D9) and their guard. */
-void menu_build_number_tiles_entry(Snes *s);
-void menu_build_amount_digits_entry(Snes *s);
-bool menu_digits_are_buildable(Snes *s);
-bool menu_number_tiles_are_buildable(Snes *s);
-
 #endif

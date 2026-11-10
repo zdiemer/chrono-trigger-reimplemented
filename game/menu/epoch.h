@@ -19,7 +19,6 @@ void menu_epoch_build_map(Snes *s);
 void menu_epoch_sample_map_colours(Snes *s);
 void menu_epoch_place_map_picture(Snes *s);
 void menu_epoch_map_cursor(Snes *s);
-void menu_epoch_map_matrix(Snes *s);
 void menu_epoch_map_party_marker(Snes *s);
 void menu_epoch_map_epoch_marker(Snes *s);
 void menu_epoch_map_location_marker(Snes *s);
@@ -29,17 +28,10 @@ void menu_epoch_load_map_graphics(Snes *s);
 /* The time dial */
 void menu_epoch_time_dial_screen(Snes *s);
 void menu_epoch_time_dial_object(Snes *s);
-void menu_epoch_build_gate_window(Snes *s);
-void menu_epoch_multiply_signed(Snes *s);
 void menu_epoch_gate_matrix_object(Snes *s);
 void menu_epoch_time_dial_digit(Snes *s);
 void menu_epoch_gate_graphics(Snes *s);
 void menu_epoch_load_gate_stream(Snes *s);
-void menu_epoch_upload_gate_pixels(Snes *s);
-void menu_epoch_upload_gate_tiles(Snes *s);
-void menu_epoch_upload_gate_rows(Snes *s);
-void menu_epoch_expand_gate_nibbles(Snes *s);
-
 /* Where the Epoch may fly */
 void menu_epoch_outside_sides(Snes *s);
 void menu_epoch_in_area(Snes *s);
@@ -51,12 +43,18 @@ bool menu_epoch_kept_off_the_ground(GameState *g, MenuObject epoch);
  * dactyls' map's is the part the dactyl doesn't come down in either. */
 bool menu_epoch_kept_off_the_ground_of(GameState *g, MenuObject o, unsigned map);
 
+/* Saveable returns from the screens' frame waits. */
+void menu_epoch_map_frame_finished(Snes *s);
+void menu_epoch_map_finished(Snes *s);
+void menu_epoch_dial_opened(Snes *s);
+void menu_epoch_dial_frame_finished(Snes *s);
+void menu_epoch_dial_finished(Snes *s);
+
 /* Guards */
+bool menu_epoch_map_is_buildable(Snes *s);
 bool menu_epoch_page_is_menu(Snes *s);
 bool menu_epoch_object_runs(Snes *s);
 bool menu_epoch_slot_runs(Snes *s);
-bool menu_epoch_window_runs(Snes *s);
-bool menu_epoch_matrix_runs(Snes *s);
 bool menu_epoch_marker_runs(Snes *s);
 bool menu_epoch_cursor_runs(Snes *s);
 bool menu_epoch_dial_runs(Snes *s);

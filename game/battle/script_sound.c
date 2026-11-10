@@ -13,13 +13,13 @@
  * A screen effect is five settings bytes, which the command gives (as many
  * of them as its first byte says, the rest kept from the last it set);
  * battle/screen_motion.c sets the effect. */
+#include "charge.h"
 #include "battle/script_language.h"
 
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/screen.h"
 #include "battle/script_data.h"
-#include "original_effects.h"
 #include "platform/audio.h"
 #include "vars.h"
 
@@ -110,8 +110,8 @@ static ScriptFlow screen_effect(GameState *g, uint8_t first)
     }
     for (uint8_t k = count; k < SCREEN_EFFECT_SETTINGS; k++)
         settings[k] = battle_screen_effect_settings(g, k);
-    ORIGINAL_EFFECT(script_leave(g, LEFT_COUNTED, 0));
-    ORIGINAL_EFFECT(script_leave(g, LEFT_COUNT, count));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     battle_set_screen_effect_to(g, settings);
     script_go_past(g, (uint8_t)(count + 1));
     return SCRIPT_MOVED_NEXT_FRAME;

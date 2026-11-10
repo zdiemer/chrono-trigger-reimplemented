@@ -802,9 +802,17 @@ int main(int argc, char **argv)
         fprintf(stderr, "ct_drive: loads away from a base (routines suspended or time owed): %lu "
                         "replayed exactly, %lu replayed differing, %lu without them\n",
                 loads_replayed, loads_inexact, loads_lost);
+    /* Route runs need the same retired-contract diagnostics as ct_dev.
+     * A constructed call can stop at the original entry when refused;
+     * reaching the route's outcome after that is not a valid port run. */
+    unsigned contract_count;
+    const NativeContractBreak *contracts = native_contract_breaks(&contract_count);
+    for (unsigned i = 0; i < contract_count; i++)
+        fprintf(stderr, "contract broken: %02X:%04X %s x%lu\n", (unsigned)(contracts[i].routine >> 16),
+                (unsigned)(contracts[i].routine & 0xFFFF), contracts[i].what, contracts[i].count);
+    int rc = contract_count != 0;
     native_destroy(natives);
     natives_free(&table);
-    int rc = 0;
     if (fallbacks) {
         fallbacks_summary(fallbacks, stderr);
         if (fallbacks_write(fallbacks, fallbacks_path) != 0) {

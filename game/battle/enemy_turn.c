@@ -29,7 +29,6 @@
 #include "battle/rules_data.h"
 #include "battle/targets.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -144,7 +143,7 @@ static FirstTarget take_first_target(GameState *g)
     uint8_t target = battle_action_targets(g, 0);
     set_battle_candidates(g, 0, target);
     if (target != NO_CANDIDATE)
-        ORIGINAL_EFFECT(battle_leave_word(g, 0x06, target));
+        charge_machine_accesses(g, 2);
     bool gone = target == NO_CANDIDATE || !fighting(g, target);
     if (gone && target != NO_CANDIDATE && !battle_slot_is_party(target)) {
         set_battle_enemy_animation(g, acting(g), ENEMY_ANIMATION_HALTED);
@@ -224,7 +223,7 @@ static bool attack_turn(GameState *g, ScriptPlace at, ActCalls call, void *ctx)
     TIMED_AS(g, 0xFDAB01, effect_note_enemy_action(g, ENEMY_ATTACKS));
     /* its multiply takes the carry of the test of the attack's number: set for
      * a number past the one that takes the enemy's own detail */
-    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, battle_action_number(g) > 1));
+    charge_machine_accesses(g, 2);
     enemy_attack_ends(g);
     return true;
 }
@@ -236,6 +235,18 @@ static bool attack_turn(GameState *g, ScriptPlace at, ActCalls call, void *ctx)
  * its lookup of the tech's members leaves in a cell; the noting, the carry of
  * marking the targets, which starts from comparing the first with the first
  * enemy's slot. */
+/* Preserve the machine estimate for removed comparison accesses.
+ * Inspect the branch without charging those reads to either backend. */
+
+// $C1:9A3D
+static void charge_target_marking(GameState *g)
+{
+    uint32_t charge_mark = charge_uncounted_begin(g);
+    unsigned count = battle_candidate_count(g);
+    charge_uncounted_end(g, charge_mark);
+    charge_machine_accesses(g, 3 + count);
+}
+
 static bool tech_after_targets(GameState *g, ActCall aim, ActCall message_at, bool stats_first, bool aim_carry,
                                uint8_t message, ActCalls call, void *ctx)
 {
@@ -243,11 +254,11 @@ static bool tech_after_targets(GameState *g, ActCall aim, ActCall message_at, bo
         return false;
     if (stats_first && !battle_member_acts_for_itself(g))
         set_battle_action_kind(g, ACTION_TECH);
-    bool past_party = battle_action_targets(g, 0) >= BATTLE_FIRST_ENEMY;
+    charge_legacy_accesses(g, 1);
     if (enemy_tech_aimed(g)) {
         TIMED_AS(g, 0xFDAAD2, effect_note_enemy_action(g, ENEMY_TECHS));
         /* its multiply takes the carry of the marking of the targets */
-        ORIGINAL_EFFECT(battle_leave_multiply_carry(g, battle_other_marks_carry(g, battle_first_mark_carry(g, past_party))));
+        charge_target_marking(g);
         enemy_tech_ends(g);
         if (!show_message(message_at, stats_first ? battle_action_message(g) : message, call, ctx))
             return false;
@@ -256,7 +267,6 @@ static bool tech_after_targets(GameState *g, ActCall aim, ActCall message_at, bo
     return true;
 }
 
-// $C1:9A3D
 static bool tech_body(GameState *g, ScriptPlace at, ActCalls call, void *ctx)
 {
     enemy_tech_begins(g, battle_enemy_turn(g), at, true);
@@ -341,6 +351,7 @@ static bool change_into_turn(GameState *g, ScriptPlace at, ActCalls call, void *
 }
 
 /* The actions that do their part and show their message. */
+
 static bool carry_out_with_message(GameState *g, EnemyAction action, ActCall message_at, ScriptPlace at, ActCalls call,
                                    void *ctx)
 {
@@ -594,6 +605,7 @@ static const uint32_t message_sites[] = { 0xC19B35, 0xC1A13D, 0xC1A385, 0xC19D68
 static const uint32_t arrival_sites[] = { 0xC19C30, 0xC19EDA, 0xFDAA2E };
 
 enum { TECH_BODY = 0xC19A3D, AIM = 0xC1C1DD, ENEMY_MESSAGE = 0xCD0033, ARRIVAL = 0xFDB438, CALL_IN = 0xFDA990 };
+enum { ARRIVING_ENEMY_CELL = 0x02 };
 
 static bool act_on_the_machine(void *ctx, ActCall call, uint8_t arg, bool carry)
 {
@@ -607,11 +619,17 @@ static bool act_on_the_machine(void *ctx, ActCall call, uint8_t arg, bool carry)
         return battle_run(s, aim_sites[call - ACT_AIM_TECH], AIM, battle_aim_action_entry);
     case ACT_ARRIVAL_CHANGE_INTO:
     case ACT_ARRIVAL_BRING_BACK:
-    case ACT_ARRIVAL_CALL_IN:
+    case ACT_ARRIVAL_CALL_IN: {
         /* an enemy coming into the battle loaded as at the fight's start,
-         * with the enemy in X */
+         * with the enemy in X and the argument word its full guard checks.
+         * The action already retains this word's old access charge. */
+        GameState *g = state_of(s);
+        uint32_t mark = charge_uncounted_begin(g);
+        battle_keep_word(g, ARRIVING_ENEMY_CELL, arg);
+        charge_uncounted_end(g, mark);
         s->cpu.x = arg;
         return battle_run_long_dc(s, arrival_sites[call - ACT_ARRIVAL_CHANGE_INTO], ARRIVAL, READS_X, fight_load_enemy_entry);
+    }
     case ACT_CALL_IN: return battle_run_long_dc(s, 0xC1A3B6, CALL_IN, READS_NOTHING, battle_call_enemies_in_entry);
     default:
         m_set_a8(s, arg);
@@ -702,8 +720,8 @@ static bool turn_on_the_machine(void *ctx, TurnCall call)
     }
     case TURN_EFFECT:
         if (battle_action_kind(g) == ACTION_TECH)
-            return battle_run(s, 0xC18E15, 0xC1D7C4, battle_work_out_enemy_tech);
-        return battle_run(s, 0xC18E10, 0xC1D8D1, battle_work_out_enemy_attack);
+            return battle_run_dc(s, 0xC18E15, 0xC1D7C4, DC_A | DC_X | DC_Y | DC_FLAGS, battle_work_out_enemy_tech);
+        return battle_run_dc(s, 0xC18E10, 0xC1D8D1, DC_A | DC_X | DC_Y | DC_FLAGS, battle_work_out_enemy_attack);
     case TURN_SHOW_THE_EFFECT:
         /* the test of the actor's statuses leaves A's high byte clear */
         s->cpu.a &= 0x00FF;
@@ -789,7 +807,7 @@ static bool act_out(void *ctx, ActCall call, uint8_t arg, bool carry)
     switch (call) {
     case ACT_TECH_BODY:
         if (!enemy_action_entry_fits(g, ACTION_TECH))
-            return battle_needs_the_machine(g, TECH_BODY, "an enemy's tech the port doesn't take");
+            return battle_contract_broken(g, TECH_BODY, "an enemy's tech the port doesn't take");
         TIMED_AS(g, TECH_BODY, done = run_action_turn(g, tech_body, TECH_READS, act_out, ctx));
         return done;
     case ACT_AIM_TECH:
@@ -804,7 +822,7 @@ static bool act_out(void *ctx, ActCall call, uint8_t arg, bool carry)
          * ($C1:9C2E, $C1:9ED8, $FD:AA2C), so it holds by construction; its
          * state half is the enemy being one of the eight */
         if (arg >= BATTLE_ENEMIES)
-            return battle_needs_the_machine(g, ARRIVAL, "an enemy coming into the battle past the eight");
+            return battle_contract_broken(g, ARRIVAL, "an enemy coming into the battle past the eight");
         TIMED_AS(g, ARRIVAL, fight_load_enemy(g, arg));
         return true;
     case ACT_CALL_IN:
@@ -826,14 +844,14 @@ static bool take_a_part_of_the_turn(void *ctx, TurnCall call)
     case TURN_ACTION: {
         const ActionTurnRow *row = turn_of(battle_action_kind(g));
         if (!enemy_action_entry_fits(g, battle_action_kind(g)))
-            return battle_needs_the_machine(g, row->routine, "an enemy's action the port doesn't take");
+            return battle_contract_broken(g, row->routine, "an enemy's action the port doesn't take");
         TIMED_AS(g, row->routine, done = run_action_turn(g, row->turn, row->reads, act_out, ctx));
         return done;
     }
     case TURN_EFFECT: {
         bool tech = battle_action_kind(g) == ACTION_TECH;
         if (!battle_enemy_action_worked_out(g, tech))
-            return battle_needs_the_machine(g, tech ? 0xC1D7C4 : 0xC1D8D1, "an enemy's effect the port doesn't work out");
+            return battle_contract_broken(g, tech ? 0xC1D7C4 : 0xC1D8D1, "an enemy's effect the port doesn't work out");
         TIMED_AS(g, tech ? 0xC1D7C4 : 0xC1D8D1, battle_work_out_enemy_action(g, c->pf, tech));
         return true;
     }
@@ -845,7 +863,7 @@ static bool take_a_part_of_the_turn(void *ctx, TurnCall call)
 bool battle_enemy_takes_turn(GameState *g, Platform *pf)
 {
     if (!battle_enemy_turn_fits(g))
-        return battle_needs_the_machine(g, 0xC18CF9, "an enemy's turn the port doesn't take");
+        return battle_contract_broken(g, 0xC18CF9, "an enemy's turn the port doesn't take");
     EnemyTurnContext c = { g, pf };
     return enemy_turn(g, take_a_part_of_the_turn, &c);
 }

@@ -26,6 +26,12 @@ bool menu_fade_out_from(Snes *s, uint32_t site);
 void menu_fade_the_screen_out(Snes *s);
 void menu_start_the_fade_in_entry(Snes *s);
 void menu_fade_in_task_entry(Snes *s);
+void menu_fade_in_begins(Snes *s);
+void menu_fade_starts(Snes *s);
+bool menu_fade_can_start(Snes *s);
+void menu_fade_resumes(Snes *s);
+void menu_fade_in_finishes(Snes *s);
+bool menu_fade_can_resume(Snes *s);
 
 /* The same as C, from inside a task (menu/tasks.c's coroutines): the screen
  * faded out to black and its last frame waited; and the fade in's task, by

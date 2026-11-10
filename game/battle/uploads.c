@@ -19,6 +19,7 @@
  *
  * Everything goes through the video service, which knows how the SNES made
  * each transfer by the site the call stands for (platform/snes/encodings.c). */
+#include "charge.h"
 #include "battle/frame.h"
 
 #include "battle/battle.h"
@@ -27,7 +28,6 @@
 #include "battle/frame_data.h"
 #include "battle/wait.h"
 #include "battle/window.h"
-#include "original_effects.h"
 #include "platform/video.h"
 #include "port/native.h"
 #include "ram.h"
@@ -76,11 +76,6 @@ static void send_to_vram(Platform *pf, uint16_t vram, uint32_t source, uint16_t 
 
 /* The transfer's size is handed over in the scratch cell $45, where the
  * original leaves it. */
-static void leave_size(GameState *g, uint16_t bytes)
-{
-    set_battle_scratch(g, 0, (uint8_t)bytes);
-    set_battle_scratch(g, 1, (uint8_t)(bytes >> 8));
-}
 
 // $CD:3EB4
 void battle_send_queued_transfer(GameState *g, Platform *pf)
@@ -90,7 +85,7 @@ void battle_send_queued_transfer(GameState *g, Platform *pf)
     uint16_t bytes = battle_vram_request_size(g);
     send_to_vram(pf, battle_vram_request_vram(g),
                  (uint32_t)battle_vram_request_bank(g) << 16 | battle_vram_request_source(g), bytes);
-    ORIGINAL_EFFECT(leave_size(g, bytes));
+    charge_machine_accesses(g, 2);
     set_battle_vram_request_pending(g, 0);
 }
 
@@ -110,20 +105,16 @@ typedef enum { WAITING_FOR_A_PIECE_QUEUED, WAITING_WHILE_QUEUED } SendWait;
  * so the original's A there, which nothing reads after, is left for it: 0
  * after it queued a piece, its sums' leftovers cleared, or the queue's flag it
  * last tested. */
-static void leave_what_the_wait_keeps(Snes *s, const GameState *g, SendWait what)
-{
-    if (what == WAITING_WHILE_QUEUED)
-        m_set_a8(s, battle_vram_request_pending(g));
-    else
-        s->cpu.a = 0;
-}
 
 /* The frame work's wait for the next frame ($CD:3E75), from the call at
  * `site`. */
 static bool wait_a_frame(Snes *s, uint32_t site, SendWait what)
 {
-    ORIGINAL_EFFECT(leave_what_the_wait_keeps(s, state_of(s), what));
-    return battle_run(s, site, 0xCD3E75, battle_wait_for_the_next_frame_entry);
+    charge_machine_accesses(state_of(s), what == WAITING_WHILE_QUEUED ? 1 : 0);
+    /* The following menu turn reads the carry; A's high byte reaches the
+     * pause work. The other incoming registers and arithmetic flags are dead. */
+    return battle_run_dc(s, site, 0xCD3E75, DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z,
+                         battle_wait_for_the_next_frame_entry);
 }
 
 /* The menu's turn the waits give reads the carry the original's comparison
@@ -220,11 +211,6 @@ static void send_block(Platform *pf, uint32_t source, uint16_t vram)
 
 /* The original counts the tiles down in the scratch cell $47, which it leaves
  * at 0. */
-static void leave_tiles_counted(GameState *g)
-{
-    set_battle_scratch(g, 2, 0);
-    set_battle_scratch(g, 3, 0);
-}
 
 /* Blocks come from bank $7E; a block is remembered by its offset into the
  * table of their places, twice its number. */
@@ -245,7 +231,7 @@ static void send_requested_block(GameState *g, Platform *pf)
     set_battle_block_uploaded_row(g, offset);
     set_battle_block_uploaded_source(g, source);
     send_block(pf, (uint32_t)BLOCK_BANK << 16 | source, battle_block_vram(g, offset));
-    ORIGINAL_EFFECT(leave_tiles_counted(g));
+    charge_machine_accesses(g, 2);
     set_battle_block_uploads_made(g, (uint8_t)(battle_block_uploads_made(g) + 1));
 }
 
@@ -271,7 +257,7 @@ static void send_message_tiles(GameState *g, Platform *pf)
 void battle_send_block_and_message_tiles(GameState *g, Platform *pf)
 {
     send_requested_block(g, pf);
-    ORIGINAL_EFFECT(leave_size(g, MESSAGE_HALF_BYTES));
+    charge_machine_accesses(g, 2);
     send_message_tiles(g, pf);
 }
 
@@ -514,13 +500,6 @@ void battle_upload_palette(Snes *s)
 
 /* Entered with the source in A (bank) and X, the VRAM address in Y and the
  * size in the scratch cell $45, which is the caller's to set. */
-void battle_vram_transfer(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint16_t bytes = (uint16_t)(battle_scratch(g, 0) | battle_scratch(g, 1) << 8);
-    send_to_vram(m_platform(s), s->cpu.y, (uint32_t)(uint8_t)s->cpu.a << 16 | s->cpu.x, bytes);
-    m_rts(s);
-}
 
 /* It leaves A 1, the last piece's mark, and the carry the count of what was
  * left leaves: set where nothing is left past the last piece, which its
@@ -544,55 +523,20 @@ void battle_send_vram_and_wait(Snes *s)
 }
 
 // $CD:3ECE
-void battle_send_vram_and_wait_long(Snes *s)
+void battle_send_vram_and_wait_long_entry(Snes *s)
 {
-    if (!battle_run(s, 0xCD3ECE, 0xCD3ED2, battle_send_vram_and_wait))
-        return;
-    m_rtl(s);
+    if (battle_run_called(s, 0xCD3ECE, BATTLE_SEND, 0, battle_send_vram_and_wait))
+        m_rtl(s);
 }
 
 /* A transfer that goes leaves its VRAM address in Y. */
-void battle_flush_vram_transfer(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (battle_vram_request_pending(g))
-        s->cpu.y = battle_vram_request_vram(g);
-    battle_send_queued_transfer(g, m_platform(s));
-    m_rts(s);
-}
 
 /* Y is left as the last transfer left it: the message's VRAM half where its
  * tiles went, the tiles' spacing after a block (the original counts the
  * spacing in Y), or as it was. */
-void battle_upload_alternating_vram(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t blocks_before = battle_block_uploads_made(g);
-    battle_send_block_and_message_tiles(g, m_platform(s));
-    if (battle_vram_copy_mode(g) == MESSAGE_SHOWING)
-        s->cpu.y = message_half_vram[battle_vram_alternate(g) & 1];
-    else if (battle_block_uploads_made(g) != blocks_before)
-        s->cpu.y = TILE_BYTES;
-    m_rts(s);
-}
 
 /* Entered with the source in A (bank) and X and the VRAM address in the
  * scratch cell $45, as $CD:0607 calls it; it leaves Y the tiles' size. */
-void battle_upload_tile_rows(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint16_t vram = (uint16_t)(battle_scratch(g, 0) | battle_scratch(g, 1) << 8);
-    send_block(m_platform(s), (uint32_t)(uint8_t)s->cpu.a << 16 | s->cpu.x, vram);
-    ORIGINAL_EFFECT(leave_tiles_counted(g));
-    s->cpu.y = TILE_BYTES;
-    m_rtl(s);
-}
-
-void battle_upload_vram(Snes *s)
-{
-    battle_send_vblank_uploads(state_of(s), m_platform(s));
-    m_rtl(s);
-}
 
 /* The requests leave A's high byte the page's (0), which the callers read. */
 static void finish_request(Snes *s)
@@ -621,53 +565,3 @@ void battle_request_saved_window_rows(Snes *s)
 
 // $CF:FD6A
 void battle_send_lower_window_rows(GameState *g) { request_window_rows(g, window_tilemap_in_bank_0(LOWER_ROWS)); }
-
-void battle_request_lower_window_rows(Snes *s)
-{
-    battle_send_lower_window_rows(state_of(s));
-    finish_request(s);
-}
-
-/* The guards: on the battle's page with the data bank $7E, what the uploads
- * read in range, and a block of tiles apart from what its upload uses. */
-static bool peek_uploads_in_range(Snes *s)
-{
-    vars_peek(true);
-    bool in_range = battle_vblank_uploads_in_range(state_of(s));
-    vars_peek(false);
-    return in_range;
-}
-
-bool battle_vblank_uploads_ready(Snes *s) { return battle_on_page(s) && peek_uploads_in_range(s); }
-
-/* The block's place is looked up with A's high byte along, 0 as the frame
- * work calls it. */
-bool battle_block_upload_ready(Snes *s)
-{
-    vars_peek(true);
-    bool apart = block_apart(state_of(s), s->cpu.s);
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && apart;
-}
-
-bool battle_queued_transfer_ready(Snes *s)
-{
-    vars_peek(true);
-    bool apart = queued_transfer_apart(state_of(s), s->cpu.s);
-    vars_peek(false);
-    return battle_on_page(s) && apart;
-}
-
-bool battle_vram_transfer_ready(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    uint16_t bytes = (uint16_t)(battle_scratch(g, 0) | battle_scratch(g, 1) << 8);
-    vars_peek(false);
-    return battle_page(s) && transfer_apart((uint8_t)s->cpu.a, s->cpu.x, transfer_bytes(bytes), s->cpu.s);
-}
-
-bool battle_tile_rows_ready(Snes *s)
-{
-    return battle_page(s) && transfer_apart((uint8_t)s->cpu.a, s->cpu.x, BLOCK_BYTES, s->cpu.s);
-}

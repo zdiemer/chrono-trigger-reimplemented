@@ -1,7 +1,5 @@
 /* Arithmetic and register results required by the machine compatibility
- * path and still-gated callers. The menus' two live scratch aliases are
- * isolated in field/menu_compat.h. The still-gated scene window keeps its
- * compared rasterizer scratch locally in field/window_shape.c. */
+ * path and still-gated callers. */
 #ifndef CT_GAME_FIELD_SCRATCH_H
 #define CT_GAME_FIELD_SCRATCH_H
 

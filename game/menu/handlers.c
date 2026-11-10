@@ -1,14 +1,6 @@
-/* The sprite-object mode's objects as the program runs them with no machine
- * (menu/handlers.h): the handlers by the address the slots name them by, the
- * command scripts' runner with its services, and the routines the scripts
- * call by address.
- *
- * Each is the same function of the game's state the machine's entry runs;
- * what differs is only how it is reached. The machine's entries check a
- * guard before they run, which hands a state the port doesn't take to the
- * original; here the guard's state half is checked first, and a state it
- * refuses -- or a handler, command or routine with no C yet -- stops the
- * program where it is met. */
+/* Sprite-object handlers and script services for the native program.
+ * They share game-state operations with the machine-facing C forms.
+ * Invalid state or an unrecognized command reports a broken contract. */
 #include "menu/handlers.h"
 
 #include "charge.h"
@@ -49,7 +41,7 @@ static bool scroll_map(void *ctx, MenuAxis axis, uint8_t plane, int8_t step)
     ObjectScriptContext *c = ctx;
     uint32_t routine = axis == MENU_ACROSS ? 0xC20568 : 0xC2066C;
     if (!menu_map_can_scroll(c->game, plane, menu_map_scroll_records(axis, step))) {
-        program_needs_the_machine(c->game, routine, "a scroll of the map the port doesn't take");
+        program_breaks_a_contract(c->game, routine, "a scroll of the map the port doesn't take");
         return false;
     }
     TIMED_AS(c->game, routine, menu_map_scroll(c->game, plane, axis, step));
@@ -62,7 +54,7 @@ static bool redraw_map(void *ctx, uint8_t plane)
     ObjectScriptContext *c = ctx;
     uint8_t named = (uint8_t)(plane & 3);
     if (named == 0 || !menu_map_can_redraw(c->game, (uint8_t)(named - 1))) {
-        program_needs_the_machine(c->game, 0xC209C5, "a redraw of the map the port doesn't take");
+        program_breaks_a_contract(c->game, 0xC209C5, "a redraw of the map the port doesn't take");
         return false;
     }
     menu_map_redraw_plane(c->game, c->pf, (uint8_t)(named - 1));
@@ -85,7 +77,7 @@ static bool call_routine(void *ctx, uint32_t routine, bool far)
     const MenuScriptRoutine *r = script_routine(at);
     MenuObject self = menu_object_running(c->game);
     if (!r || (r->takes && !r->takes(c->game, self))) {
-        program_needs_the_machine(c->game, at, r ? r->name : "a routine a script calls with no C");
+        program_breaks_a_contract(c->game, at, r ? r->name : "a routine a script calls with no C");
         return false;
     }
     bool back = false;
@@ -112,7 +104,7 @@ static ScriptFlow run_a_command(void *ctx, MenuObject self, uint32_t at)
     if (row)
         command = menu_script_decode(g, row, self, at, &c->services);
     if (!row || !menu_script_runs_here(g, row, &command)) {
-        program_needs_the_machine(g, row ? handler_of(g, c->opcode) : 0xC20F63, "a script command the port doesn't run");
+        program_breaks_a_contract(g, row ? handler_of(g, c->opcode) : 0xC20F63, "a script command the port doesn't run");
         return handed_back();
     }
     ScriptFlow f = handed_back();

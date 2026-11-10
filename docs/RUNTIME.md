@@ -736,6 +736,18 @@ A state still can't hold a native routine suspended in a call-out
 ([PORTING.md](PORTING.md)), which is why `ct_play` waits for none to be before
 a quick save. What it does hold is which held wait the main thread rests in
 (`snes.held_wait`, `snes.held_wait_s`; below).
+The native report lists suspended and parked callers with their wait target, return and
+stack depth, so a stale save boundary can be traced to the caller that still
+needs a held continuation.
+
+A task whose scheduler runs as C can park after the switch with
+`native_park_after_task_switch`. Its caller first settles its time and runs
+the checked scheduler, which selects the next task or held wait. Parking
+records the yielding task's return and pre-call stack; resumption, dropping
+and saving use the same rules as a machine-dispatched yield. The scheduler's
+time is paid where it left the next task. No additional saved-state field
+is needed. `suspend_test` covers both paths, including an interrupt pending
+at the yield, a restarted task, and loading a parked save into either mode.
 
 ## Held waits
 
@@ -779,6 +791,16 @@ Now the continuation is named (`runtime/port/native.h`, `native_hold`;
   full contract before running it. A return anywhere else leaves the hold.
   Address lookup prefers rows without a hold over held aliases, preserving
   the comparison identity of retained routines in shadow mode and old saves.
+- A hold only discards an enclosing call-out whose stack was actually
+  unwound. A callee on another stack is still away from its caller, as the
+  runtime's stack-switch tracking records; the new stack's higher pointer
+  cannot prove that caller dead. The menus' scheduler exercises this case.
+  `suspend_test` keeps a caller suspended across that wait and checks that
+  it resumes after the callee restores its stack and returns. Such a caller
+  still prevents a save base: naming the inner wait does not serialize an
+  enclosing C continuation. Returning near the caller's original stack and
+  starting afresh still abandons the old frame; the same test checks that a
+  prior stack excursion cannot leave that dead caller suspended forever.
 - The two fields are saved with the machine, so a `ct_drive` base, a slot or a
   quick save taken in the wait names it, and a fresh runtime goes on in it.
 - The original's address is still honoured, and this is the only place the

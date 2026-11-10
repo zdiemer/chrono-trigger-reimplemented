@@ -271,45 +271,23 @@ bool battle_screen_page_a_clear(Snes *s);
 /* ... running a channel (screen_motion.c); the jitter with the carry set, as
  * the dispatch leaves it; the positions saved to one of two slots; a screen
  * effect one of the six. */
-bool battle_screen_channel_command(Snes *s);
-bool battle_screen_dispatched_jitter(Snes *s);
-bool battle_screen_saves_positions(Snes *s);
-bool battle_screen_effect_is_one(Snes *s);
 /* ... the HP gradient's phase and rows within its tables (screen_gradient.c). */
 bool battle_gradient_page(Snes *s);
-bool battle_gradient_row_is_one(Snes *s);
 /* ... the window commands' shapes within the window table (screen_window.c). */
-bool battle_screen_band_fits(Snes *s);
-bool battle_screen_middle_band_fits(Snes *s);
-bool battle_screen_copy_unshifted(Snes *s);
-bool battle_screen_fill_is_one(Snes *s);
-bool battle_wave_pair_is_one(Snes *s);
-bool battle_screen_nudge_dispatched(Snes *s);
 /* ... a window quadrilateral one of the two (screen_beam.c); $D1:F91D and
  * $D1:F972 run with the data bank the rasterizer sets for the work RAM port. */
-bool battle_quad_is_one(Snes *s);
-bool battle_beam_quad_is_one(Snes *s);
-bool battle_quad_page(Snes *s);
-bool battle_quad_corners_fit(Snes *s);
 /* ... the triangle's drawing on the battle's page, its lines within the
  * window table (screen_triangles.c). */
-bool battle_triangle_corners_fit(Snes *s);
 /* ... a special effect of the 29, running a channel (screen_specials.c). */
-bool battle_special_effect_ready(Snes *s);
 /* ... a cut through the middle that fits the screen, a window carried over
  * one of the two (screen_divide.c). */
-bool battle_cut_fits(Snes *s);
-bool battle_carried_window_is_one(Snes *s);
 /* ... a run of a circle's edges within the window table and the worked edges
  * (screen_shapes.c). */
-bool battle_circle_run_fits(Snes *s);
 
 /* ... the screen script's channels, its dispatch and its commands
  * (screen_script.c). */
 bool battle_screen_channel_ready(Snes *s);
 bool battle_screen_dispatch_ready(Snes *s);
-bool battle_screen_command_ready(Snes *s);
-bool battle_screen_triangle_ready(Snes *s);
 
 /* ---- The entries (game/registry.c) --------------------------------------------------------- */
 
@@ -317,91 +295,27 @@ bool battle_screen_triangle_ready(Snes *s);
 void battle_run_screen_scripts(Snes *s);
 void battle_run_screen_channel(Snes *s);
 void battle_run_screen_command(Snes *s);
-void battle_start_battlefield_scripts_entry(Snes *s);
-void battle_screen_command(Snes *s);
-void battle_screen_draw_triangle(Snes *s);
-
 /* screen_palette.c */
-void battle_screen_swap_palette_rows(Snes *s);
-void battle_screen_whiten_palette(Snes *s);
-void battle_screen_whiten_high_rows(Snes *s);
-void battle_screen_move_rows_up(Snes *s);
-void battle_screen_move_rows_down(Snes *s);
 void battle_pause_palette_animation_entry(Snes *s);
 /* The palette animations paused with the battle, or let run again ($D1:F426). */
 void battle_pause_palette_animation(GameState *g);
 enum { BATTLE_PAUSE_PALETTE_ANIMATION_ENTRY = 0xD1F426 };
-void battle_save_palette_kinds(Snes *s);
-
 /* screen_gradient.c */
 void battle_step_hp_gradient_entry(Snes *s);
 /* The HP gradient's step ($D1:EA4B), and its guard's state half: its phase
  * in range. */
 void battle_step_hp_gradient(GameState *g);
 bool battle_hp_gradient_steps(const GameState *g);
-void battle_find_gradient_phase(Snes *s);
-void battle_gradient_row_rotation(Snes *s);
-void battle_write_gradient_row(Snes *s);
-
 /* screen_graphics.c */
-void battle_load_effect_graphics(Snes *s);
-
 /* screen_window.c */
-void battle_screen_open_band(Snes *s);
-void battle_screen_wipe_from_left(Snes *s);
-void battle_screen_wave_windows(Snes *s);
-void battle_screen_wave_counted(Snes *s);
-void battle_screen_wave_framed(Snes *s);
-void battle_screen_add_line_deltas(Snes *s);
-void battle_screen_copy_window1_to_window2(Snes *s);
-void battle_screen_copy_window1_inverted(Snes *s);
-void battle_screen_move_column_band(Snes *s);
-void battle_screen_draw_column_band(Snes *s);
-void battle_screen_fill_windows(Snes *s);
-void battle_wave_w1_from_table(Snes *s);
-void battle_wave_w1(Snes *s);
-void battle_wave_w2(Snes *s);
-void battle_fill_windows_empty(Snes *s);
-void battle_fill_window1_empty(Snes *s);
-void battle_fill_window2_empty(Snes *s);
-void battle_fill_window1_full(Snes *s);
-
 /* screen_beam.c */
-void battle_screen_draw_beam(Snes *s);
-void battle_sort_quad_corners(Snes *s);
-void battle_quad_edge_slope(Snes *s);
-void battle_quad_edge_slopes(Snes *s);
-void battle_rasterize_window_quad(Snes *s);
-void battle_draw_window_quad(Snes *s);
-
 /* screen_triangles.c */
-void battle_draw_window_triangle(Snes *s);
-
 /* screen_specials.c */
-void battle_screen_special_effect(Snes *s);
-
 /* screen_divide.c */
-void battle_cut_window(Snes *s);
-void battle_carry_window_over(Snes *s);
-
 /* screen_between.c */
-void battle_measure_direction(Snes *s);
-
 /* screen_shapes.c */
-void battle_copy_circle_lines(Snes *s);
-
 /* screen_motion.c */
-void battle_screen_random_byte(Snes *s);
-void battle_screen_jitter(Snes *s);
-void battle_screen_swing(Snes *s);
-void battle_screen_save_positions(Snes *s);
-void battle_set_screen_effect(Snes *s);
-void battle_stop_shake(Snes *s);
-void battle_start_shake(Snes *s);
-void battle_set_palette_preset(Snes *s);
-
 /* screen_setup.c */
-void battle_build_fade_tables(Snes *s);
 void battle_set_the_screen_up(Snes *s);
 /* The screen set up as a battle starts ($D1:F1B0), as C. False where it went
  * no further. */

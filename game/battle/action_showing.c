@@ -33,7 +33,6 @@
 #include "battle/wait.h"
 #include "battle/script_language.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "platform/audio.h"
 #include "vars.h"
 
@@ -98,12 +97,6 @@ static uint8_t first_target(uint16_t bits)
 
 /* The original walks the target bits out of the first work cells, the other
  * targets' last. */
-static void leave_the_bits_walked(GameState *g, uint16_t others)
-{
-    uint16_t left = (uint16_t)(others << BATTLE_COMBATANTS);
-    set_battle_work(g, 0, (uint8_t)left);
-    set_battle_work(g, 1, (uint8_t)(left >> 8));
-}
 
 // $CC:F156
 /* The showing's subjects for the scripts' channels: the actor; the two
@@ -126,7 +119,7 @@ static void list_the_showing(GameState *g)
     for (uint8_t slot = 0; slot < BATTLE_COMBATANTS; slot++)
         if (others & (0x8000u >> slot))
             list_target(g, listed++, slot);
-    ORIGINAL_EFFECT(leave_the_bits_walked(g, others));
+    charge_machine_accesses(g, 2);
     for (unsigned place = 0; place < PLACES_WITH_A_START; place++) {
         uint8_t slot;
         if (!script_listed(g, place, &slot))
@@ -173,14 +166,6 @@ static bool damage_shown_takes_all(const GameState *g, unsigned member)
 
 /* The original counts the members in its first work cell, and each one
  * falling in a cell of its own after it. */
-static void leave_the_fallen_counted(GameState *g)
-{
-    set_battle_work(g, 0, BATTLE_PARTY_SIZE);
-    set_battle_work(g, 1, 0);
-    for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
-        set_battle_work(g, 2 + member, battle_member_falling(g, member));
-    set_battle_work(g, 2 + BATTLE_PARTY_SIZE, 0);
-}
 
 // $C1:41BE
 /* A party member falls where the damage shown over it takes all the HP it
@@ -189,7 +174,7 @@ static void find_the_members_falling(GameState *g)
 {
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
         set_battle_member_falling(g, member, damage_shown_takes_all(g, member));
-    ORIGINAL_EFFECT(leave_the_fallen_counted(g));
+    charge_machine_accesses(g, 9);
 }
 
 /* A party member among the action's targets. */
@@ -315,7 +300,7 @@ static bool show_the_action(GameState *g, ShowCalls call, void *ctx)
     uint8_t phase = battle_frame_phase(g);
     if (!call(ctx, SHOW_KEEP_THE_PHASE))
         return false;
-    ORIGINAL_EFFECT(set_battle_animation_second_set(g, battle_action_extra(g) & ACTION_MISSED));
+    charge_machine_accesses(g, 3);
     TIMED_AS(g, 0xCCF102, forget_poses(g));
     if (!call(ctx, SHOW_FRAME_AFTER_THE_POSES) || !call(ctx, SHOW_STEP_AFTER_THE_POSES))
         return false;
@@ -396,7 +381,7 @@ static bool show_a_part(void *ctx, ShowCall call)
 bool battle_show_action(GameState *g, Platform *pf)
 {
     if (!showing_fits(g))
-        return battle_needs_the_machine(g, 0xC14058, "an action shown whose actor is past the combatants");
+        return battle_contract_broken(g, 0xC14058, "an action shown whose actor is past the combatants");
     ActionShowContext c = { g, pf };
     return show_the_action(g, show_a_part, &c);
 }
@@ -444,28 +429,9 @@ void battle_show_action_entry(Snes *s)
 /* ---- The other entries ---------------------------------------------------------------------- */
 
 /* It leaves the pose it set in A, its high byte clear. */
-void battle_forget_poses_entry(Snes *s)
-{
-    forget_poses(state_of(s));
-    s->cpu.a = POSE_NONE_HAS;
-    m_rtl(s);
-}
-
-void battle_list_the_showing_entry(Snes *s)
-{
-    list_the_showing(state_of(s));
-    m_rtl(s);
-}
 
 /* The members' count leaves A's high byte clear and the carry of its last
  * compare, set. */
-void battle_find_the_members_falling_entry(Snes *s)
-{
-    find_the_members_falling(state_of(s));
-    s->cpu.a = 0;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
-}
 
 /* The guard: the actor is a combatant (the action's subjects index the
  * objects' places by it), on the battle's page with A's high byte clear,

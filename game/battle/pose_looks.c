@@ -21,7 +21,6 @@
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* The poses a combatant's statuses give it ($CC:F77F), by what the look
@@ -116,16 +115,10 @@ static void put_back_the_colours(GameState *g, unsigned member)
 enum { TINT_FIRST = 1, TINT_PUT_BACK = 12, TINTED_FIRST = 3, TINTED = 2 };
 
 /* The original keeps the palette's place in the first work cells. */
-static void leave_the_palette_place(GameState *g, unsigned member)
-{
-    uint8_t place = (uint8_t)(battle_object_palette(g, member) * PALETTE_COLOURS);
-    set_battle_work(g, 0, place);
-    set_battle_work(g, 1, 0);
-}
 
 static void tint_the_colours(GameState *g, unsigned member)
 {
-    ORIGINAL_EFFECT(leave_the_palette_place(g, member));
+    charge_machine_accesses(g, 3);
     for (unsigned colour = TINT_FIRST; colour < TINT_FIRST + TINT_PUT_BACK; colour++) {
         unsigned at = palette_colour(g, member, colour);
         set_palette_working(g, at, palette_base(g, at));
@@ -138,12 +131,6 @@ static void tint_the_colours(GameState *g, unsigned member)
 
 /* Cells the looks set that nothing traced reads: three the plain look
  * clears, one of which the held look counts. */
-static void leave_the_plain_cells(GameState *g, unsigned slot)
-{
-    set_battle_pose_look_unread(g, slot, 0);
-    set_battle_pose_look_unread_second(g, slot, 0);
-    set_battle_pose_held_count(g, slot, 0);
-}
 
 // $C1:30B6
 /* The old look taken off: no marker, no cycle, a member's colours as
@@ -152,7 +139,7 @@ void battle_take_off_the_look(GameState *g, unsigned slot)
 {
     set_battle_marker_on(g, slot, 0);
     set_battle_party_palette_cycle_on(g, slot, 0);
-    ORIGINAL_EFFECT(leave_the_plain_cells(g, slot));
+    charge_machine_accesses(g, 3);
     if (battle_slot_is_party(slot))
         put_back_the_colours(g, slot);
 }
@@ -182,7 +169,7 @@ static void put_on_the_look(GameState *g, unsigned slot, PoseLook look)
         set_battle_party_palette_cycle(g, slot, 0);
     }
     if (look.tints) {
-        ORIGINAL_EFFECT(set_battle_pose_held_count(g, slot, (uint8_t)(battle_pose_held_count(g, slot) + 1)));
+        charge_machine_accesses(g, 2);
         if (battle_slot_is_party(slot))
             tint_the_colours(g, slot);
     }
@@ -214,11 +201,6 @@ enum { ROUND_STARTS_AGAIN_AT = BATTLE_FIRST_ENEMY };
 
 /* The original names the combatant it is at in a work cell, a word. */
 enum { AT_CELL = 0x14 };
-static void leave_the_combatant_at(GameState *g, unsigned slot)
-{
-    set_battle_work(g, AT_CELL, (uint8_t)slot);
-    set_battle_work(g, AT_CELL + 1, 0);
-}
 
 // $C1:305C
 /* The next combatant round takes the pose its statuses give it, and every
@@ -227,7 +209,7 @@ void battle_go_round_the_poses(GameState *g)
 {
     uint8_t slot = battle_next_enemy_checked(g);
     if (battle_slot_present(g, slot)) {
-        ORIGINAL_EFFECT(leave_the_combatant_at(g, slot));
+        charge_machine_accesses(g, 2);
         TIMED_AS(g, 0xC12F97, (void)combatant_choose_pose(g, slot));
     }
     slot = (uint8_t)(slot + 1);
@@ -238,7 +220,7 @@ void battle_go_round_the_poses(GameState *g)
     set_battle_next_enemy_checked(g, slot);
     for (unsigned each = 0; each < BATTLE_COMBATANTS; each++)
         TIMED_AS(g, 0xC1308C, battle_show_pose_look(g, each));
-    ORIGINAL_EFFECT(leave_the_combatant_at(g, BATTLE_COMBATANTS));
+    charge_machine_accesses(g, 2);
 }
 
 /* The party's palettes keep the colours the looks put back among the
@@ -250,53 +232,4 @@ bool battle_pose_looks_fit(const GameState *g)
         if (palette_colour(g, member, COLOURS_PUT_BACK) > SPRITE_COLOURS + SPRITE_COLOURS - 1)
             return false;
     return true;
-}
-
-/* ---- The entries ------------------------------------------------------------------------------ */
-
-/* The round leaves A's high byte clear and the carry of its last count, set. */
-void battle_go_round_the_poses_entry(Snes *s)
-{
-    battle_go_round_the_poses(state_of(s));
-    s->cpu.a = 0;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
-}
-
-/* For the combatant the original names in the work cell. */
-void battle_show_pose_look_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    battle_show_pose_look(g, battle_work(g, AT_CELL));
-    m_rts(s);
-}
-
-/* The poses' looks: a combatant named in the work cell, whose pose is one of
- * the table's or looks plain; the round's next combatant one of them. */
-static bool pose_fits(const GameState *g, unsigned slot)
-{
-    uint8_t pose = battle_object_pose(g, slot);
-    return (pose & POSE_LOOKS_PLAIN) || pose < POSES;
-}
-
-bool battle_pose_look_ready(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    unsigned slot = battle_work(g, AT_CELL);
-    bool fits = battle_work(g, AT_CELL + 1) == 0 && battle_names_combatant((uint16_t)slot) && pose_fits(g, slot)
-                && battle_pose_looks_fit(g);
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && fits;
-}
-
-bool battle_poses_round_ready(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool fits = battle_names_combatant(battle_next_enemy_checked(g)) && battle_pose_looks_fit(g);
-    for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++)
-        fits = fits && pose_fits(g, slot);
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && fits;
 }

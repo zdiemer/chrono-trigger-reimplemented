@@ -98,7 +98,8 @@ Two kinds of wait are held by the runtime on purpose, and each says how it is
 saved, restored and dropped (`runtime/port/native.h`; `tests/port/suspend_test.c`
 has a case for each):
 
-- *A yield in the middle of a task's work* (`native_yield_call_dc`; the menus'
+- *A yield in the middle of a task's work* (`native_yield_call_dc`, or
+  `native_park_after_task_switch` after a checked C scheduler call; the menus'
   `menu_yield`, a step waiting for the next frame through the task switch at
   `$C2:821E`). The port is *parked*: set aside, off the routines in progress, while
   the other tasks take their turns, and it goes on when the machine is back at

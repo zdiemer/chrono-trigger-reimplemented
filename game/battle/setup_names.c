@@ -5,13 +5,13 @@
  * the party's three members and the (up to three) kinds of enemy in the
  * fight, and keeps them where the window finds them. A character's or
  * member's name is five characters; an enemy's is eleven. */
+#include "charge.h"
 #include "battle/battle.h"
 #include "battle/setup.h"
 
 #include <string.h>
 
 #include "battle/setup_data.h"
-#include "original_effects.h"
 #include "vars.h"
 
 enum { SHORT_NAME = 5, ENEMY_NAME = 11, ENEMY_NAME_ROW = 12 };
@@ -47,7 +47,7 @@ void setup_name_text(GameState *g, NameTable table, uint8_t n, uint8_t text[NAME
     memset(text, NAME_END, NAME_TILES);
     for (unsigned i = 0; i < SHORT_NAME; i++)
         text[i] = short_name_char(g, table, at + i);
-    ORIGINAL_EFFECT(setup_leave_word(g, 0x80, n));
+    charge_machine_accesses(g, 2);
 }
 
 void setup_keep_name_tiles(GameState *g, NameTable table, uint8_t n, const NameTiles *tiles)
@@ -67,11 +67,6 @@ bool setup_enemy_kind_present(const GameState *g, uint8_t kind) { return !(battl
 
 /* The original counts the kinds in its working cells by twos, and keeps the
  * name's place in the names ahead of the conversion. */
-static void leave_enemy_name(GameState *g, uint8_t kind, uint16_t number)
-{
-    setup_leave_word(g, 0x80, (uint16_t)(2 * kind));
-    setup_leave_word(g, 0x82, (uint16_t)(number * 4));
-}
 
 // $CC:ED03
 void setup_enemy_name_text(GameState *g, uint8_t kind, uint8_t text[NAME_TILES])
@@ -81,7 +76,7 @@ void setup_enemy_name_text(GameState *g, uint8_t kind, uint8_t text[NAME_TILES])
     memset(text, NAME_END, NAME_TILES);
     for (unsigned i = 0; i < ENEMY_NAME; i++)
         text[i] = setup_enemy_name_char(g, (uint16_t)(at + i));
-    ORIGINAL_EFFECT(leave_enemy_name(g, kind, number));
+    charge_machine_accesses(g, 4);
 }
 
 /* An enemy's rows are twelve tiles, the name's eleven and the blank after. */
@@ -92,7 +87,7 @@ void setup_keep_enemy_name_tiles(GameState *g, uint8_t kind, const NameTiles *ti
         set_battle_enemy_name_tiles(g, at + i, tiles->glyphs[i]);
         set_battle_enemy_name_tiles(g, at + ENEMY_NAME_ROW + i, tiles->marks[i]);
     }
-    ORIGINAL_EFFECT(setup_leave(g, 0x82, (uint8_t)(8 * kind)));
+    charge_machine_accesses(g, 1);
 }
 
 /* The buffer as the last conversion leaves it. The original writes a name's
@@ -101,16 +96,8 @@ void setup_keep_enemy_name_tiles(GameState *g, uint8_t kind, const NameTiles *ti
  * thirteen (its eleven and two ends). */
 enum { SHORT_NAME_WRITTEN = SHORT_NAME + 1, ENEMY_NAME_WRITTEN = ENEMY_NAME + 2 };
 
-void setup_leave_name_buffer(GameState *g, const uint8_t text[NAME_TILES], bool enemy, const NameTiles *tiles)
-{
-    unsigned written = enemy ? ENEMY_NAME_WRITTEN : SHORT_NAME_WRITTEN;
-    uint8_t copied[NAME_TILES];
-    for (unsigned i = 0; i < NAME_TILES; i++)
-        copied[i] = i < written ? text[i] : TILE_BLANK;
-    battle_leave_name_buffer(g, copied, tiles);
-}
 
 void setup_enemy_names_converted(GameState *g)
 {
-    ORIGINAL_EFFECT(setup_leave_word(g, 0x80, 2 * SETUP_ENEMY_KINDS));
+    charge_machine_accesses(g, 2);
 }

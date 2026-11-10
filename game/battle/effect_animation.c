@@ -20,7 +20,6 @@
 #include "battle/entries.h"
 #include "battle/script_language.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "vars.h"
 
 static bool effect_animating(const GameState *g, unsigned effect) { return battle_effect_animating(g, effect) != 0; }
@@ -66,16 +65,6 @@ typedef struct {
     uint8_t effect;
     bool ended, high_set;
 } TakenFrame;
-
-static void leave_taken_frame(GameState *g, TakenFrame t)
-{
-    set_battle_work(g, LEFT_FACING_RUN, (uint8_t)t.facing_run);
-    set_battle_work(g, LEFT_FACING_RUN + 1, (uint8_t)(t.facing_run >> 8));
-    set_battle_work(g, LEFT_EFFECT_WORD, (uint8_t)(t.effect * 2));
-    set_battle_work(g, LEFT_EFFECT_WORD + 1, 0);
-    set_battle_work(g, LEFT_ENDED, t.ended ? SET_ANIMATION_ENDED : 0);
-    set_battle_work(g, LEFT_HIGH_SET, t.high_set);
-}
 
 // $CC:F2A9
 /* The effect moves on to its animation's next frame: the sprite set it
@@ -124,11 +113,6 @@ static TakenFrame take_next_frame(GameState *g, unsigned effect)
 
 /* The effect stepping, which the original keeps in the battle's first work
  * cells (a word) as it goes round them. */
-static void leave_stepping(GameState *g, uint16_t effect)
-{
-    set_battle_work(g, 0, (uint8_t)effect);
-    set_battle_work(g, 1, (uint8_t)(effect >> 8));
-}
 
 // $CC:F278
 /* Step the effects' animations a frame: count their frame times down, then
@@ -136,41 +120,14 @@ static void leave_stepping(GameState *g, uint16_t effect)
 void battle_animate_effect_frames(GameState *g)
 {
     count_frame_times_down(g);
-    TakenFrame last = { 0 };
     bool taken = false;
     for (unsigned effect = 0; effect < BATTLE_EFFECTS; effect++) {
         if (!frame_is_up(g, effect))
             continue;
-        TIMED_AS(g, 0xCCF2A9, last = take_next_frame(g, effect));
+        TIMED_AS(g, 0xCCF2A9, take_next_frame(g, effect));
         taken = true;
     }
     if (taken)
-        ORIGINAL_EFFECT(leave_taken_frame(g, last));
-    ORIGINAL_EFFECT(leave_stepping(g, BATTLE_EFFECTS));
-}
-
-void battle_animate_effects(Snes *s)
-{
-    battle_animate_effect_frames(state_of(s));
-    m_rtl(s);
-}
-
-/* The effect comes in the first work cells, as the loop above leaves it. */
-static uint16_t stepping(const GameState *g) { return (uint16_t)(battle_work(g, 0) | battle_work(g, 1) << 8); }
-
-void battle_take_effect_frame(Snes *s)
-{
-    GameState *g = state_of(s);
-    TakenFrame taken = take_next_frame(g, stepping(g));
-    ORIGINAL_EFFECT(leave_taken_frame(g, taken));
-    m_rts(s);
-}
-
-/* Only an effect, from the battle's page. */
-bool battle_names_stepping_effect(Snes *s)
-{
-    vars_peek(true);
-    bool effect = stepping(state_of(s)) < BATTLE_EFFECTS;
-    vars_peek(false);
-    return battle_on_page(s) && effect;
+        charge_machine_accesses(g, 6);
+    charge_machine_accesses(g, 2);
 }

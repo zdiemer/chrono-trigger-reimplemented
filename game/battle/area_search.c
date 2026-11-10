@@ -26,6 +26,7 @@
  * where it isn't, the list closes up. The original works in the direct
  * page's cells; what it leaves there is scaffolding (leave_*), except the
  * direction's and the multiply's cells, which their own functions keep. */
+#include "charge.h"
 #include "battle/choosing.h"
 
 #include "battle/aim_data.h"
@@ -34,7 +35,6 @@
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/positions.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- The list of finds -------------------------------------------------------------------------- */
@@ -132,8 +132,8 @@ enum { CELL_END_HIGH = 0x91, CELL_SLOT = 0x8E, CELL_LEFT_OUT = 0x92 };
 static void leave_side(GameState *g, Side side)
 {
     battle_leave_jump_lift(g, side.end);
-    ORIGINAL_EFFECT(battle_leave_work8(g, CELL_END_HIGH, 0));
-    ORIGINAL_EFFECT(battle_leave_work16(g, CELL_SLOT, side.end));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 2);
 }
 
 /* ---- The beam ------------------------------------------------------------------------------------ */
@@ -164,21 +164,6 @@ static BattlePoint off_by(GameState *g, BattlePoint from, uint8_t angle, uint8_t
  * each span runs past a turn. */
 enum { BEAM_POINTS = 0x80, BEAM_LEFT_SPAN = 0x84, BEAM_RIGHT_SPAN = 0x88, BEAM_PAST_A_TURN = 0x8C };
 
-static void leave_beam(GameState *g, const BeamEdge *left, const BeamEdge *right, uint8_t toward)
-{
-    battle_leave_work8(g, BEAM_POINTS, left->at.x);
-    battle_leave_work8(g, BEAM_POINTS + 1, left->at.y);
-    battle_leave_work8(g, BEAM_POINTS + 2, right->at.x);
-    battle_leave_work8(g, BEAM_POINTS + 3, right->at.y);
-    battle_leave_work8(g, BEAM_LEFT_SPAN, left->from);
-    battle_leave_work8(g, BEAM_LEFT_SPAN + 2, left->to);
-    battle_leave_work8(g, BEAM_RIGHT_SPAN, right->from);
-    battle_leave_work8(g, BEAM_RIGHT_SPAN + 2, right->to);
-    battle_leave_work8(g, BEAM_PAST_A_TURN, left->past_a_turn);
-    battle_leave_work8(g, BEAM_PAST_A_TURN + 1, right->past_a_turn);
-    battle_leave_work16(g, CELL_LEFT_OUT, toward);
-}
-
 // $C1:25A3
 static void find_in_beam(GameState *g, AreaAsked a)
 {
@@ -207,7 +192,7 @@ static void find_in_beam(GameState *g, AreaAsked a)
             && within_angles(battle_direction(g, right.at, there), right.from, right.to, right.past_a_turn))
             add_find(g, &f, slot);
     }
-    ORIGINAL_EFFECT(leave_beam(g, &left, &right, a.toward));
+    charge_machine_accesses(g, 12);
     leave_side(g, side);
     put_placed_first(g, a.among_party, a.toward);
 }
@@ -229,17 +214,6 @@ typedef struct {
  * combatant it measured, the square across and the cells down. */
 enum { CIRCLE_ACROSS = 0x80, CIRCLE_DOWN = 0x82, MEASURED_ACROSS_SQUARED = 0x84, MEASURED_DOWN = 0x86 };
 
-static void leave_circle(GameState *g, uint8_t centre, uint8_t across, uint8_t down, LastMeasured last)
-{
-    battle_leave_work16(g, CIRCLE_ACROSS, across);
-    battle_leave_work16(g, CIRCLE_DOWN, down);
-    battle_leave_work16(g, CELL_LEFT_OUT, centre);
-    if (last.measured) {
-        battle_leave_work16(g, MEASURED_ACROSS_SQUARED, last.across_squared);
-        battle_leave_work16(g, MEASURED_DOWN, last.down);
-    }
-}
-
 // $C1:2701
 static void find_in_circle(GameState *g, AreaAsked a)
 {
@@ -258,7 +232,7 @@ static void find_in_circle(GameState *g, AreaAsked a)
         if ((uint8_t)(last.across_squared + battle_grid_distance_squared(g, dy)) <= a.size)
             add_find(g, &f, slot);
     }
-    ORIGINAL_EFFECT(leave_circle(g, a.centre, across, down, last));
+    charge_machine_accesses(g, last.measured ? 10 : 6);
     leave_side(g, side);
     put_placed_first(g, a.among_party, a.centre);
 }
@@ -269,13 +243,6 @@ enum { ROW_REACH = 0x20 };
 
 /* The row's cells: its top and its bottom, and the combatant it is on. */
 enum { ROW_TOP = 0x85, ROW_BOTTOM = 0x87, ROW_CENTRE = 0x88 };
-
-static void leave_row(GameState *g, uint8_t centre, uint8_t top, uint8_t bottom)
-{
-    battle_leave_work16(g, ROW_CENTRE, centre);
-    battle_leave_work8(g, ROW_TOP, top);
-    battle_leave_work8(g, ROW_BOTTOM, bottom);
-}
 
 // $C1:2332
 /* The combatant the row is placed on goes first whatever side it is on. */
@@ -294,7 +261,7 @@ static void find_in_row(GameState *g, AreaAsked a)
         if (there >= top && there <= bottom)
             add_find(g, &f, slot);
     }
-    ORIGINAL_EFFECT(leave_row(g, a.centre, top, bottom));
+    charge_machine_accesses(g, 4);
     leave_side(g, side);
     set_battle_area_found(g, 0, a.centre);
 }
@@ -353,18 +320,6 @@ static bool inside_from(GameState *g, const Corner *c, BattlePoint there)
  * span runs past a turn (a word of three, its last byte clear). */
 enum { CORNER_POINTS = 0x80, CORNER_SPANS = 0x86, CORNER_PAST_A_TURN = 0x92, CORNERS = 3 };
 
-static void leave_triangle(GameState *g, const Corner c[CORNERS])
-{
-    for (unsigned i = 0; i < CORNERS; i++) {
-        battle_leave_work8(g, (uint8_t)(CORNER_POINTS + 2 * i), c[i].at.x);
-        battle_leave_work8(g, (uint8_t)(CORNER_POINTS + 2 * i + 1), c[i].at.y);
-        battle_leave_work8(g, (uint8_t)(CORNER_SPANS + 2 * i), c[i].from);
-        battle_leave_work8(g, (uint8_t)(CORNER_SPANS + 2 * i + 1), c[i].to);
-        battle_leave_work8(g, (uint8_t)(CORNER_PAST_A_TURN + i), c[i].past_a_turn);
-    }
-    battle_leave_work8(g, CORNER_PAST_A_TURN + CORNERS, 0);
-}
-
 // $C1:23A4
 static void find_in_party_triangle(GameState *g)
 {
@@ -386,7 +341,7 @@ static void find_in_party_triangle(GameState *g)
         if (inside_from(g, &c[0], there) && inside_from(g, &c[1], there) && inside_from(g, &c[2], there))
             add_find(g, &f, slot);
     }
-    ORIGINAL_EFFECT(leave_triangle(g, c));
+    charge_machine_accesses(g, 16);
     leave_side(g, side);
     battle_close_up_finds(g);
 }

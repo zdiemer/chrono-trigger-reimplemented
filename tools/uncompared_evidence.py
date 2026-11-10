@@ -4,8 +4,6 @@ The combined shadow run still measures every port. These additional runs
 remove only the ancestors which claim an earlier comparison point, so the
 continuation can reach its own point. No counts from these runs are
 mixed into timing, fallback or combined-run comparison totals.
-The effect graphics loader instead uses a complete fuzz comparison with
-notifications for both of the counters its interpreted wait observes.
 
 A case that compared keeps its verdict in the store every worktree shares
 (tools/evidence_cache.py, keyed on the binary, the ROM, the movie, the run's
@@ -29,14 +27,9 @@ from tools import evidence_cache, fuzz_compare  # noqa: E402
 # program's start, setup, first frame, clear and hand-back had their cases here
 # until the program retired the gate (docs/REIMPLEMENTATION.md, "The scene
 # program's teardown"): none is an entry now.
+# The held menu continuations and battle frame dispatch retired their
+# comparisons with their subsystems. Keep the runner for future gated cases.
 CASES = ()
-
-# The unpacker retired into this loader in 03ba3f61, making every measured
-# call cross an interrupt. Counter notifications let its complete result be
-# compared without handlers, including the work after its first upload.
-FUZZ_NAME = "battle_load_effect_graphics"
-FUZZ_MOVIES = {"battle-tech-sweep", "endings-beyond-time", "endings-telepod-lavos", "endings-bucket-lavos"}
-
 
 def fuzz_compared(text, name, iterations):
     rows = [m for m in fuzz_compare.RESULT.finditer(text) if m["name"] == name]
@@ -44,29 +37,6 @@ def fuzz_compared(text, name, iterations):
             int(rows[0]["matched"]) == iterations and int(rows[0]["mismatched"]) == 0 and
             int(rows[0]["skipped"]) == 0 and not re.search(
                 r"accessor out of range|asset outside the catalogue|contract broken:|halted:", text))
-
-
-def fuzz_evidence(binary, rom, out, cache, seed):
-    _states, recipes = fuzz_compare.load()
-    recipe = next(r for r in recipes if r["name"] == FUZZ_NAME and r.get("variant") == "notifications")
-    options = ["--routine", FUZZ_NAME, "--iterations", str(recipe["iterations"]), "--seed", str(seed)] + recipe["args"]
-    key = evidence_cache.make_key(tool="uncompared_fuzz", binary=evidence_cache.binary_digest(binary),
-                                  rom=evidence_cache.file_digest(rom), options=options,
-                                  judge=evidence_cache.tools_digest(__file__, fuzz_compare.__file__))
-    name = FUZZ_NAME + ":seed-" + str(seed)
-    if cache.get(key) is not None:
-        return name, True, True
-    log = out / (name.replace(":", "-") + ".log")
-    try:
-        with log.open("wb") as f:
-            rc = subprocess.run([str(binary), "--rom", str(rom)] + options, stdout=f,
-                                stderr=subprocess.STDOUT, timeout=120).returncode
-    except subprocess.TimeoutExpired:
-        return name, False, False
-    ok = rc == 0 and fuzz_compared(log.read_text(errors="replace"), FUZZ_NAME, recipe["iterations"])
-    if ok:
-        cache.put(key, dict(compared=True))
-    return name, ok, False
 
 
 def compared(text, name):
@@ -148,10 +118,6 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(max(1, min(args.j, 2))) as pool:
         results = list(pool.map(lambda c: cached_run(c, args.ct_dev.resolve(), args.rom.resolve(), args.out, cache),
                                 cases))
-    if args.movies is None or FUZZ_MOVIES.intersection(args.movies):
-        fuzz = args.ct_dev.resolve().with_name("ct_fuzz" + args.ct_dev.suffix)
-        for seed in (1, 2):
-            results.append(fuzz_evidence(fuzz, args.rom.resolve(), args.out, cache, seed))
     for name, ok, hit in results:
         print("%s: %s%s" % (name, "compared" if ok else "FAILED", " (cached)" if hit else ""))
     failed = sum(not ok for _, ok, _ in results)

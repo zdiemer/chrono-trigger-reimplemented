@@ -8,7 +8,6 @@
 #include "menu/cursor.h"
 #include "menu/bridge.h"
 #include "menu/display.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
@@ -51,7 +50,6 @@ void menu_move_list_rows(GameState *g, uint16_t rows_at, unsigned shown_bytes, u
  * divided by the places past the rows counted in a byte, wrapped round for a
  * list shorter than its rows, and all ones where there are none (a bar no
  * screen draws then). */
-static void leave_the_frame_s_workings(GameState *g, uint8_t shown, uint8_t past, uint16_t track, uint8_t divisor);
 
 void menu_frame_the_list(GameState *g, uint8_t places, uint8_t rows, uint16_t track)
 {
@@ -64,44 +62,8 @@ void menu_frame_the_list(GameState *g, uint8_t places, uint8_t rows, uint16_t tr
     set_menu_scroll_bar_span(g, past);
     set_menu_paging_last_top(g, past);
     set_menu_scroll_bar_step(g, divisor ? (uint16_t)(track / divisor) : 0xFFFF);
-    ORIGINAL_EFFECT(leave_the_frame_s_workings(g, shown, past, track, divisor));
+    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 3));
 }
-
-/* For the original's code and shadow mode: the view's rows and the places
- * past them in the menus' first two cells, and the divider as the share left
- * it. */
-static void leave_the_frame_s_workings(GameState *g, uint8_t shown, uint8_t past, uint16_t track, uint8_t divisor)
-{
-    set_menu_scratch_list_rows(g, shown);
-    set_menu_scratch_list_places_past(g, past);
-    hw_set_dividend(g, track);
-    hw_divide_by(g, divisor);
-}
-
-/* The frame's last load, the thumb's step, in a 16-bit A, and the index
- * registers it worked with 8-bit, their high bytes gone: Y the places, as its
- * callers give them. */
-void menu_leave_the_list_framed(Snes *s, uint8_t places)
-{
-    s->cpu.a = menu_scroll_bar_step(state_of(s));
-    s->cpu.x &= 0x00FF;
-    s->cpu.y = places;
-}
-
-/* The original's callers leave the view's rows in the menus' first cell and
- * the track in the divider. */
-void menu_frame_the_list_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t places = (uint8_t)s->cpu.y;
-    menu_frame_the_list(g, places, menu_scratch_list_rows(g), hw_dividend(g));
-    menu_leave_the_list_framed(s, places);
-    m_rts(s);
-}
-
-/* On the menus' page, reaching the list's cells through a data bank that
- * reaches low RAM. */
-bool menu_list_frame_is_layable(Snes *s) { return menu_on_page_low_ram(s); }
 
 /* ---- The cursor along a list ------------------------------------------------------------------- */
 
@@ -179,16 +141,13 @@ static uint16_t list_band_scroll(const GameState *g, unsigned band)
     return (uint16_t)(list_table_byte(g, band * BAND_BYTES + 1) | list_table_byte(g, band * BAND_BYTES + 2) << 8);
 }
 
-/* For the original's code and shadow mode: the start counts the rows'
- * bands' bytes, and a frame its bands down to none, in the menus' first
- * cell; the original copies the tables with block moves. */
-static void leave_slide_started(GameState *g, unsigned rows, unsigned table_bytes)
+static void charge_slide_started(GameState *g, unsigned rows, unsigned table_bytes)
 {
-    set_menu_scratch_slide_band_bytes(g, (uint16_t)(rows * BAND_BYTES));
-    charge_block_move(g, rows * BAND_BYTES + 2 * table_bytes - rows * BAND_BYTES);
+    (void)rows;
+    charge_machine_accesses(g, 2);
+    charge_block_move(g, 2 * table_bytes);
 }
 
-// $C2:EB9B
 /* The table as it rests is kept, to go back once the slide is over; the
  * staged table takes the bands past the rows from it, a band on (the slide
  * shows a row more than the list), and the slide's bands are the rows with
@@ -216,10 +175,9 @@ void menu_start_list_slide(GameState *g)
     set_menu_scroll_frames(g, SLIDE_FRAMES);
     if (input_repeat_countdown(g) == REPEAT_SOON)
         set_input_repeat_countdown(g, REPEAT_AFTER_THE_SLIDE);
-    ORIGINAL_EFFECT(leave_slide_started(g, rows, table_bytes));
+    charge_slide_started(g, rows, table_bytes);
 }
 
-// $C2:EB1F
 /* The rows in view, as far along as the slide has moved: each band's
  * scroll moved that far; the first row in view shows what is left of it
  * (down) or the row coming in above what it has gained (up), and the last
@@ -235,7 +193,7 @@ void menu_slide_list_a_frame(GameState *g)
     uint8_t last = (uint8_t)(first + rows - 1);
     set_menu_slide_staged_table_byte(g, (rows - 1u) * BAND_BYTES, (uint8_t)(menu_slide_bands_lines(g, last) - first_lines));
     menu_ask_for_the_block_move(g);
-    ORIGINAL_EFFECT(set_menu_scratch_slide_bands_left(g, 0));
+    charge_machine_accesses(g, 2);
 }
 
 /* The table as it rested goes back in. */
@@ -252,101 +210,20 @@ void menu_put_the_list_bands_back(GameState *g)
  * for the caller across the wait. */
 enum { KEEPS_X_Y_AND_FLAGS = DC_A };
 
-/* For the original's code and shadow mode: X and Y past the last band, as
- * the staging leaves them; the flags are the caller's. */
-static void leave_bands_staged(Snes *s)
-{
-    const GameState *g = state_of(s);
-    unsigned rows = menu_slide_rows(g);
-    s->cpu.x = (uint16_t)(menu_slide_first_band(g) + rows * BAND_BYTES);
-    s->cpu.y = (uint16_t)(rows * BAND_BYTES);
-}
-
 // $C2:EB9B
-void menu_start_list_slide_entry(Snes *s)
-{
-    menu_start_list_slide(state_of(s));
-    m_rts(s);
-}
 
 // $C2:EB1F
-void menu_slide_list_a_frame_entry(Snes *s)
-{
-    menu_slide_list_a_frame(state_of(s));
-    ORIGINAL_EFFECT(leave_bands_staged(s));
-    m_stop_at_own(s, MENU_TASK_WAITS_A_FRAME, KEEPS_X_Y_AND_FLAGS);
-}
 
 /* The screens keep their lists' tables among the menus' per-line tables,
  * below the slide's own, and slide up to twelve rows, a table of no more
  * than the slide's staging holds. */
 enum { LINE_TABLES = 0x9000, MOST_ROWS = MENU_SLIDE_BANDS_COUNT - 1, MOST_TABLE_BYTES = MENU_SLIDE_TABLE_AT_REST_BYTES };
 
-bool menu_list_slide_is_startable(Snes *s)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    unsigned rows = menu_slide_rows(g), table_bytes = menu_block_move_size(g) + 1u, at = menu_block_move_dest(g);
-    bool ok = rows >= 1 && rows <= MOST_ROWS && table_bytes <= MOST_TABLE_BYTES && rows * BAND_BYTES <= table_bytes
-              && at >= LINE_TABLES && at + table_bytes <= RAM_MENU_BLOCK_MOVE_SOURCE - 0x7E0000u;
-    vars_peek(false);
-    return ok;
-}
-
-/* A frame shows the bands from the first in view, the list's first row or
- * the row above it, while the slide is still within that first band: a
- * slide moves less than a row. */
-static bool still_within_the_first_band(const GameState *g, uint8_t first)
-{
-    uint8_t moved = (uint8_t)menu_scroll_moved(g), lines = menu_slide_bands_lines(g, first);
-    if ((int16_t)menu_scroll_moved(g) < 0)
-        return (uint8_t)~moved < lines;
-    return moved < lines;
-}
-
-bool menu_list_slide_frame_is_showable(Snes *s)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    unsigned rows = menu_slide_rows(g), offset = menu_slide_first_band(g), first = offset / BAND_BYTES;
-    bool ok = rows >= 1 && offset % BAND_BYTES == 0 && first <= FIRST_ROW && first + rows <= MENU_SLIDE_BANDS_COUNT
-              && still_within_the_first_band(g, (uint8_t)first);
-    vars_peek(false);
-    return ok;
-}
-
-/* What the original leaves its callers, who branch on it: where the list
- * scrolls a row, the push's ways in A's low byte and N set; otherwise the
- * direct page in A, as its last load takes it. */
-void menu_leave_cursor_kept_on_the_list(Snes *s)
-{
-    const GameState *g = state_of(s);
-    if (menu_list_scrolls_a_row(g)) {
-        uint8_t moves = menu_cursor_moves(g);
-        m_set_a8(s, moves);
-        m_set_nz8(s, moves);
-    } else {
-        s->cpu.a = s->cpu.d;
-        m_set_nz16(s, s->cpu.d);
-    }
-}
-
-void menu_step_keeps_the_cursor_on_the_list(Snes *s)
+void menu_charge_cursor_kept_on_the_list(Snes *s)
 {
     GameState *g = state_of(s);
-    TIMED_AS(g, 0xC2EA53, menu_keep_the_cursor_on_the_list(g));
-    ORIGINAL_EFFECT(menu_leave_cursor_kept_on_the_list(s));
-}
-
-void menu_keep_the_cursor_on_the_list_entry(Snes *s)
-{
-    menu_keep_the_cursor_on_the_list(state_of(s));
-    menu_leave_cursor_kept_on_the_list(s);
-    m_rts(s);
+    if (menu_list_scrolls_a_row(g))
+        charge_machine_accesses(g, 1);
 }
 
 /* ---- Paging ------------------------------------------------------------------------------------- */
@@ -354,10 +231,6 @@ void menu_keep_the_cursor_on_the_list_entry(Snes *s)
 /* The shoulder assignments page a list: the first back a page, the second
  * on a page. */
 static const MenuButton PAGE_BACK = MENU_PAGE_ONE_WAY, PAGE_ON = MENU_PAGE_THE_OTHER;
-
-/* For the original's code and shadow mode: the paging takes the list's
- * first row in its cell and leaves the new one there. */
-static void leave_paged_top(GameState *g, uint8_t top) { set_menu_paging_top(g, top); }
 
 /* Where the frame's input pages the list from `top`: a page past either end
  * goes to the end instead (`to_an_end`). The sums are a byte's, as the
@@ -384,7 +257,6 @@ static uint8_t paged_to(const GameState *g, uint8_t top, bool *to_an_end)
     return to;
 }
 
-// $C2:93BF
 /* Paging to an end puts the cursor on the end's place. */
 uint8_t menu_turn_page(GameState *g, uint8_t top)
 {
@@ -396,7 +268,7 @@ uint8_t menu_turn_page(GameState *g, uint8_t top)
         set_menu_scroll_bar_thumb(g, to);
         set_menu_cursor_frame_start(g, MENU_CURSOR_MOVED_ANYWAY);
     }
-    ORIGINAL_EFFECT(leave_paged_top(g, to));
+    charge_machine_accesses(g, 1);
     return to;
 }
 
@@ -406,14 +278,13 @@ bool menu_page_turns(const GameState *g, uint8_t top)
     return paged_to(g, top, &to_an_end) != top;
 }
 
+uint8_t menu_page_destination(const GameState *g, uint8_t top)
+{
+    bool to_an_end;
+    return paged_to(g, top, &to_an_end);
+}
+
 /* The paging's answer in A: whether a page turned. */
 enum { TURNED = 0xFF, NOT_TURNED = 0x00 };
 
 // $C2:93BF
-void menu_turn_page_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t top = menu_paging_top(g);
-    m_set_a8(s, menu_turn_page(g, top) != top ? TURNED : NOT_TURNED);
-    m_rts(s);
-}

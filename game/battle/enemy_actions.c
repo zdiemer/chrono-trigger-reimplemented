@@ -19,7 +19,6 @@
 #include "battle/targets.h"
 #include "battle/timers.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- What they share ------------------------------------------------------------------------ */
@@ -113,7 +112,7 @@ static Choice choose_aim(GameState *g, const ScriptChoosing *c, EnemyAction acti
         set_battle_foes(g, c->enemy, battle_candidates(g, 0));
         return read_to(4);
     }
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x0C, c->enemy));
+    charge_machine_accesses(g, 2);
     face_target(g, c->enemy, pose);
     return read_to(3);
 }
@@ -141,8 +140,8 @@ static Choice need_beaten(GameState *g)
     for (uint8_t enemy = 0; enemy < BATTLE_ENEMIES; enemy++)
         if (beaten_enemy(g, enemy))
             beaten++;
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x10, BATTLE_ENEMIES));
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x0C, beaten));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
     return (Choice){ beaten == 0 ? CHOICE_FINDS_NOBODY : CHOICE_KEEPS, 0 };
 }
 
@@ -155,7 +154,7 @@ DrawnAction enemy_draw_one_of_four(GameState *g, ScriptPlace at)
     static const uint8_t past[] = { FIRST_QUARTER, SECOND_QUARTER, THIRD_QUARTER };
     ScriptPlace place = (ScriptPlace)(at + 1);
     uint8_t drawn = battle_random(g, 0, QUARTERS_LIMIT), quarter = 0;
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0A, drawn));
+    charge_machine_accesses(g, 1);
     while (quarter < sizeof past && drawn >= past[quarter]) {
         place = (ScriptPlace)(place + enemy_action_length(g, enemy_script_byte(g, place)));
         quarter++;
@@ -251,7 +250,7 @@ void enemy_choose_again(GameState *g, ScriptChoosing *c, ScriptPlace at)
         enemy_choose_actions(g, c);
         c->place = (ScriptPlace)(battle_enemy_next_action(g, c->enemy) + SCRIPT_CONDITION_BYTES);
     } while (!(--times & 0x80));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x12, times));
+    charge_machine_accesses(g, 1);
 }
 
 /* ---- The action record ------------------------------------------------------------------------ */
@@ -292,7 +291,7 @@ void enemy_note_actor_bits(GameState *g, uint8_t enemy)
         break;
     }
     set_battle_action_actor_bits(g, bits);
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x10, bits));
+    charge_machine_accesses(g, 1);
 }
 
 /* ---- The attack ---------------------------------------------------------------------------- */
@@ -339,7 +338,7 @@ static uint8_t further_target(GameState *g, uint8_t enemy, Selector who)
     if (who == SELECT_NOBODY)
         return NO_CANDIDATE;
     uint8_t first = battle_candidates(g, 0);
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x10, first));
+    charge_machine_accesses(g, 1);
     select_by(g, enemy, who);
     uint8_t further = battle_candidates(g, 0);
     set_battle_candidates(g, 0, first);
@@ -428,7 +427,7 @@ void enemy_change_own_stat(GameState *g, StatChange change, bool adding)
 {
     battle_keep_word(g, BATTLE_TECH_HITS_LEFT, change.offset);
     if (adding)
-        ORIGINAL_EFFECT(battle_leave_byte(g, 0x10, change.value & (uint8_t)~TAKE_AWAY));
+        charge_machine_accesses(g, 1);
     set_own_stat(g, change.offset, adding ? changed_by(own_stat(g, change.offset), change.value) : change.value);
 }
 
@@ -474,8 +473,8 @@ static uint8_t set_stat(GameState *g, uint8_t offset, uint8_t value, uint8_t or_
 {
     set_battle_action_message(g, message);
     battle_keep_word(g, BATTLE_TECH_HITS_LEFT, offset);
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x10, value));
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x12, or_in));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
     set_own_stat(g, offset, or_in ? (uint8_t)(own_stat(g, offset) | value) : value);
     return battle_action_message(g);
 }
@@ -485,7 +484,7 @@ static uint8_t add_to_stat(GameState *g, uint8_t offset, uint8_t amount, uint8_t
 {
     set_battle_action_message(g, message);
     battle_keep_word(g, BATTLE_TECH_HITS_LEFT, offset);
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x10, (amount & TAKE_AWAY) ? amount & (uint8_t)~TAKE_AWAY : amount));
+    charge_machine_accesses(g, 2);
     uint8_t slot = actor(g);
     set_combatant_stat_byte(g, slot, offset, changed_by_signed(combatant_stat_byte(g, slot, offset), amount));
     return battle_action_message(g);
@@ -631,7 +630,7 @@ ChangeInto enemy_change_into(GameState *g, ScriptPlace at)
     uint8_t id = byte_at(g, at, 1), brought_in = byte_at(g, at, 3);
     set_battle_candidates(g, 0, id);
     set_battle_action_number(g, byte_at(g, at, 2));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x12, brought_in));
+    charge_machine_accesses(g, 1);
     set_battle_action_kind(g, ACTION_TECH);
     enemy_record_action(g);
     uint8_t slot = BATTLE_FIRST_ENEMY;
@@ -662,7 +661,7 @@ ChangeInto enemy_change_into(GameState *g, ScriptPlace at)
         take_actors_hp(g, slot);
         return CHANGED;
     }
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x02, (uint16_t)(slot - BATTLE_FIRST_ENEMY)));
+    charge_machine_accesses(g, 2);
     return CHANGED_TO_BRING_IN;
 }
 
@@ -691,7 +690,7 @@ void enemy_bring_back_starts(GameState *g, ScriptPlace at)
 {
     set_battle_action_message(g, byte_at(g, at, 3));
     battle_keep_byte(g, BATTLE_TECH_HITS_LEFT, byte_at(g, at, 1));
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x12, byte_at(g, at, 2)));
+    (charge_machine_accesses(g, 2), charge_machine_rom_accesses(g, 1));
     battle_clear_candidates(g);
 }
 
@@ -708,9 +707,9 @@ void enemy_bring_back(GameState *g, uint8_t enemy, uint8_t count)
     set_battle_enemy_actions_block(g, enemy, 0xFF);
     set_battle_places(g, enemy, enemy);
     set_battle_enemy_beaten_counted(g, enemy, false);
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x02, enemy));
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x10, enemy));
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x0C, (uint16_t)(count + 1)));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
 }
 
 static void come_back_with_hp(GameState *g, uint8_t enemy, uint8_t how)
@@ -743,8 +742,8 @@ void enemy_bring_back_ends(GameState *g, ScriptPlace at, uint8_t count)
     show_as_the_tech(g, at, count);
     battle_mark_first_target(g);
     battle_mark_other_targets(g);
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x10, BATTLE_ENEMIES));
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x0C, count));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
 }
 
 /* ---- Calling enemies in ---------------------------------------------------------------------- */
@@ -784,83 +783,6 @@ void enemy_called_in(GameState *g, uint8_t enemy, uint8_t how) { come_back_with_
 void enemy_call_in_ends(GameState *g, ScriptPlace at, uint8_t count)
 {
     show_as_the_tech(g, at, count);
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x10, BATTLE_ENEMIES));
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x0C, count));
-}
-
-/* ---- The entries ------------------------------------------------------------------------ */
-
-/* Each action's choosing is called with the choosing in its cells, the script
- * read at the action, and hands it back there. */
-static void choice_entry(Snes *s, ChoiceKind kind)
-{
-    GameState *g = state_of(s);
-    ScriptChoosing c = enemy_choosing_in_cells(g);
-    ScriptPlace at = c.place;
-    follow_choice(&c, choose(g, &c, kind, battle_action_kind(g), at), at);
-    enemy_hand_back_choosing(g, &c);
-    m_rts(s);
-}
-
-/* An entry and its guard, which knows the action it chooses. */
-#define CHOICE_ENTRY(name, kind, action) \
-    void name(Snes *s) { choice_entry(s, kind); } \
-    bool name##_ready(Snes *s) { return battle_script_entry_ready(s, TAKES_ACTION, action); }
-CHOICE_ENTRY(battle_enemy_choose_pose, CHOOSE_POSE, ACTION_POSE)
-CHOICE_ENTRY(battle_enemy_choose_aim, CHOOSE_AIM, ACTION_ATTACK)
-CHOICE_ENTRY(battle_enemy_forgive_block, FORGIVE, ACTION_CHANGE_INTO)
-CHOICE_ENTRY(battle_enemy_note_number, NOTE_NUMBER, ACTION_LEAVE)
-CHOICE_ENTRY(battle_enemy_need_beaten, NEED_BEATEN, ACTION_BRING_BACK)
-
-/* The draw doesn't return: it drops its own return address into the
- * choosing's dispatch ($C1:8C63's, battle/enemy_scripts.c) and goes on with
- * the choosing from the action it drew, returning for it to its caller with
- * what the choosing leaves in A. */
-void battle_enemy_draw_one_of_four(Snes *s)
-{
-    GameState *g = state_of(s);
-    ScriptChoosing c = enemy_choosing_in_cells(g);
-    DrawnAction drawn = enemy_draw_one_of_four(g, c.place);
-    (void)m_pull16(s);
-    TIMED_AS(g, 0xC18C63, enemy_choose_after_draw(g, &c, drawn));
-    enemy_hand_back_choosing(g, &c);
-    s->cpu.a = enemy_choosing_result(g, c.enemy);
-    m_rts(s);
-}
-
-/* The script is read at the draw, as the choosing always has it there: the
- * guard then sees that the four it draws among are actions the table has. */
-bool battle_enemy_draw_one_of_four_ready(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool at_the_draw = enemy_script_byte(g, battle_script_place(g)) == ACTION_ONE_OF_FOUR;
-    vars_peek(false);
-    return at_the_draw && battle_script_entry_ready(s, TAKES_ACTION, ACTION_ONE_OF_FOUR);
-}
-
-void battle_enemy_record_action(Snes *s)
-{
-    enemy_record_action(state_of(s));
-    m_rts(s);
-}
-
-/* The acting enemy comes in A. */
-void battle_enemy_note_actor_bits(Snes *s)
-{
-    GameState *g = state_of(s);
-    enemy_note_actor_bits(g, (uint8_t)s->cpu.a);
-    m_set_a8(s, battle_action_actor_bits(g));
-    m_rts(s);
-}
-
-/* It leaves the kind in A, and the pose in X. */
-void battle_enemy_pose_kind(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t pose = battle_action_pose(g);
-    enemy_note_pose_kind(g);
-    s->cpu.a = pose_kind(pose);
-    s->cpu.x = pose;
-    m_rts(s);
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
 }

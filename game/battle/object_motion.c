@@ -13,21 +13,16 @@
  *   (battle/draw_objects.c);
  * - a party member whose colors cycle (a glow while a tech charges) takes the
  *   cycle's next color. */
+#include "charge.h"
 #include "battle/effects.h"
 
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/sprite_data.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* The loops' counters the original keeps in the effect loops' first cell:
  * each ends at its last value, which the wrapper leaves. */
-static void leave_loop_cell(GameState *g, uint8_t low, uint8_t high)
-{
-    set_battle_effect_cells(g, 0, low);
-    set_battle_effect_cells(g, 1, high);
-}
 
 /* The effect loops' first cell, as a count down past 0 leaves it. */
 enum { COUNTED_PAST_ZERO = 0xFF };
@@ -66,7 +61,7 @@ void battle_raise_numbers(GameState *g)
     set_battle_numbers_row(g, (uint8_t)(row + 1));
     for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++)
         raise_number(g, slot, battle_number_rise(g, slot));
-    ORIGINAL_EFFECT(set_battle_effect_cells(g, 0, 0));
+    charge_machine_accesses(g, 1);
 }
 
 /* ---- Scripted moves ------------------------------------------------------------------- */
@@ -95,7 +90,7 @@ void battle_step_scripted_moves(GameState *g)
         place_combatant_x(g, slot, (uint8_t)(combatant_x(g, slot) + battle_scripted_move_dx(g, move, step)));
         place_combatant_y(g, slot, (uint8_t)(combatant_y(g, slot) + battle_scripted_move_dy(g, move, step)));
         set_battle_path_steps(g, slot, (uint8_t)(battle_path_steps(g, slot) - 1));
-        ORIGINAL_EFFECT(leave_loop_cell(g, step, 0));
+        charge_machine_accesses(g, 2);
     }
 }
 
@@ -123,7 +118,7 @@ void battle_update_anchors(GameState *g)
             place_anchor(g, (unsigned)anchor, combatant_x(g, follows), combatant_y(g, follows));
         }
     }
-    ORIGINAL_EFFECT(leave_loop_cell(g, COUNTED_PAST_ZERO, 0));
+    charge_machine_accesses(g, 2);
 }
 
 /* ---- Trails --------------------------------------------------------------------------- */
@@ -217,11 +212,17 @@ void battle_cycle_party_colors(GameState *g)
             g, (uint16_t)(at + battle_color_cycle_start(g, battle_object_pose(g, (unsigned)member))));
         unsigned first = first_color_of(battle_object_palette(g, (unsigned)member));
         set_palette_working(g, first + CYCLED_COLOR, color);
-        set_palette_working(g, first + CYCLED_COLOR_AGAIN, color);
+        /* Odd attribute values can put the second color just past the
+         * palette. Preserve that word write into the adjacent workspace. */
+        unsigned second = first + CYCLED_COLOR_AGAIN;
+        if (second < PALETTE_WORKING_COUNT)
+            set_palette_working(g, second, color);
+        else
+            set_palette_working_unchecked(g, second, color);
         at = (uint8_t)(at + CYCLE_STEP);
         set_battle_party_palette_cycle(g, (unsigned)member, at == CYCLE_END ? 0 : at);
     }
-    ORIGINAL_EFFECT(leave_loop_cell(g, COUNTED_PAST_ZERO, 0));
+    charge_machine_accesses(g, 2);
 }
 
 /* ---- The entries ---------------------------------------------------------------------- */

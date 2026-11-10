@@ -10,37 +10,29 @@
 #include "battle/screen_script.h"
 
 #include "charge.h"
-#include "original_effects.h"
 #include "port/native.h"
 
 /* ---- The channel's layer ----------------------------------------------------------------- */
 
-static ScreenChannel running_channel(const GameState *g) { return (ScreenChannel)(battle_screen_channel(g) / SCREEN_CHANNEL_RECORD_BYTES); }
-
 // $D1:F474
 /* A random byte, picked from the battle's table by a seed moved on by the
  * frame count. */
-static uint8_t random_pick(const GameState *g, uint8_t seed)
-{
-    return battle_random_table(g, (uint8_t)(seed + (uint8_t)battle_frame_count(g)));
-}
 
 /* The original's pick also adds in the carry its caller's last addition left:
  * a pick right after an amount that went past 255 is taken one further on.
  * The jitter's first pick comes right after the screen script's dispatch,
  * whose shift of the opcode always leaves it. */
+static uint8_t random_pick(const GameState *g, uint8_t seed)
+{
+    return battle_random_table(g, (uint8_t)(seed + (uint8_t)battle_frame_count(g)));
+}
+
 static uint8_t random_pick_after_overflow(const GameState *g, uint8_t seed, bool overflowed)
 {
     return random_pick(g, (uint8_t)(seed + overflowed));
 }
 
 /* What the jitter leaves in its cells: the two amounts and the spread. */
-static void leave_jitter(GameState *g, uint8_t across, uint8_t down, uint8_t spread)
-{
-    screen_leave_cell(g, 0x45, across);
-    screen_leave_cell(g, 0x47, down);
-    screen_leave_cell(g, 0x49, spread);
-}
 
 // $D1:F47C
 /* Shake the channel's layer to a random spot near a point: right by `across`
@@ -52,17 +44,11 @@ static void jitter_layer(GameState *g, ScreenChannel ch, uint8_t across, uint8_t
     uint8_t lower = (uint8_t)((random_pick_after_overflow(g, (uint8_t)right, right > 0xFF) & spread) + down);
     set_battle_screen_layer_x(g, ch, (uint16_t)-(uint8_t)right);
     set_battle_screen_layer_y(g, ch, (uint16_t)-lower);
-    ORIGINAL_EFFECT(leave_jitter(g, (uint8_t)right, lower, spread));
+    charge_machine_accesses(g, 3);
 }
 
 /* Screen command $DF: jitter the layer about a point (three operands: across,
  * down, spread). */
-static void jitter_command(GameState *g)
-{
-    jitter_layer(g, running_channel(g), screen_command_operand(g, 0), screen_command_operand(g, 1),
-                 screen_command_operand(g, 2));
-    screen_command_took(g, 3);
-}
 
 /* The swing's state: which way it is going (the original tests the flag's
  * low byte, and sets it with a word's increment), its speed and its
@@ -243,7 +229,7 @@ static void start_shake(GameState *g, const ShakeAxis axes[SHAKE_AXES])
     }
     uint8_t across = shake_layers_across(g, axes[0].layers);
     set_battle_shake_layers(g, (uint8_t)(shake_layers_down(g, axes[1].layers) | across));
-    ORIGINAL_EFFECT(screen_leave_cell(g, 0x5B, across));
+    charge_machine_accesses(g, 1);
 }
 
 static void start_shake_from(GameState *g, const uint8_t settings[SETTINGS_BYTES])
@@ -326,7 +312,7 @@ static void drift_layer(GameState *g, ScreenChannel channel, uint8_t drift, bool
     uint16_t y = battle_screen_layer_offset_y(g, channel), x = battle_screen_layer_offset_x(g, channel);
     set_battle_screen_layer_offset_y(g, channel, (uint16_t)(forward ? y + down : y - down));
     set_battle_screen_layer_offset_x(g, channel, (uint16_t)(forward ? x + across : x - across));
-    ORIGINAL_EFFECT(screen_leave_cell(g, 0x45, across));
+    charge_machine_accesses(g, 1);
 }
 
 /* Screen command $D7: pick the drift's amounts anew, or drift the layer. */
@@ -395,74 +381,18 @@ SCREEN_OPCODES(screen_motion_opcodes,
 
 /* The guards. The screen script's dispatch calls its commands' bodies with
  * A's high byte clear and the carry set, running a channel. */
-static bool on_a_channel(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool on_one = battle_screen_channel(g) % SCREEN_CHANNEL_RECORD_BYTES == 0 && running_channel(g) < SCREEN_CHANNELS;
-    vars_peek(false);
-    return battle_screen_page_a_clear(s) && on_one;
-}
-
-bool battle_screen_channel_command(Snes *s) { return on_a_channel(s); }
-bool battle_screen_dispatched_jitter(Snes *s) { return on_a_channel(s) && m_flag(s, CPU_FLAG_C); }
 
 /* ... and the slots the positions are saved in are two. */
-bool battle_screen_saves_positions(Snes *s)
-{
-    vars_peek(true);
-    bool a_slot = screen_command_operand(state_of(s), 0) < TRIANGLES;
-    vars_peek(false);
-    return battle_screen_page_a_clear(s) && a_slot;
-}
 
 /* The caller hands the settings in five of the page's cells, $53-$57, and the
  * effect is one of the six the original's table has. */
-static void settings_in_cells(const GameState *g, uint8_t settings[SETTINGS_BYTES])
-{
-    for (unsigned i = 0; i < SETTINGS_BYTES; i++)
-        settings[i] = battle_screen_effect_settings(g, i);
-}
-
-bool battle_screen_effect_is_one(Snes *s)
-{
-    uint8_t settings[SETTINGS_BYTES];
-    vars_peek(true);
-    settings_in_cells(state_of(s), settings);
-    vars_peek(false);
-    return battle_screen_page_a_clear(s) && screen_effect_known(settings[0]);
-}
 
 // $D1:F474
-void battle_screen_random_byte(Snes *s)
-{
-    m_set_a8(s, random_pick_after_overflow(state_of(s), (uint8_t)s->cpu.a, m_flag(s, CPU_FLAG_C)));
-    m_rts(s);
-}
-
-void battle_screen_jitter(Snes *s)
-{
-    jitter_command(state_of(s));
-    screen_command_done(s);
-}
-
-void battle_screen_swing(Snes *s)
-{
-    GameState *g = state_of(s);
-    swing_layer(g, running_channel(g));
-    screen_command_done(s);
-}
-
-void battle_screen_save_positions(Snes *s)
-{
-    GameState *g = state_of(s);
-    corners_at_animation_positions(g, screen_command_operand(g, 0));
-    screen_command_done(s);
-}
 
 // $D1:F67A
 /* Set the screen effect the settings name, each effect's work timed as its
  * own routine's. */
+
 void battle_set_screen_effect_to(GameState *g, const uint8_t settings[SETTINGS_BYTES])
 {
     switch (effect_kinds[effect_choice(settings)]) {
@@ -470,40 +400,4 @@ void battle_set_screen_effect_to(GameState *g, const uint8_t settings[SETTINGS_B
     case START_SHAKE: TIMED_AS(g, 0xD1F6B4, start_shake_from(g, settings)); break;
     case STOP_SHAKE: TIMED_AS(g, 0xD1F692, stop_shake(g)); break;
     }
-}
-
-void battle_set_screen_effect(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t settings[SETTINGS_BYTES];
-    settings_in_cells(g, settings);
-    battle_set_screen_effect_to(g, settings);
-    screen_command_done(s);
-}
-
-void battle_stop_shake(Snes *s)
-{
-    stop_shake(state_of(s));
-    s->cpu.a = 0;
-    m_rts(s);
-}
-
-void battle_start_shake(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t settings[SETTINGS_BYTES];
-    settings_in_cells(g, settings);
-    start_shake_from(g, settings);
-    s->cpu.a = 0;
-    m_rts(s);
-}
-
-void battle_set_palette_preset(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t settings[SETTINGS_BYTES];
-    settings_in_cells(g, settings);
-    set_palette_preset_from(g, settings);
-    s->cpu.a = 0;
-    m_rts(s);
 }

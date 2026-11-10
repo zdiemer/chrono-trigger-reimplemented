@@ -21,7 +21,6 @@
 #include "menu/figures.h"
 #include "menu/menu_data.h"
 #include "menu/techs.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
@@ -31,7 +30,6 @@
 
 enum { LAST_CATEGORY = MENU_ITEM_CATEGORIES - 1 };
 
-// $C2:8881
 /* An item's category and its place in it. */
 static MenuItemPlace place_of(const GameState *g, uint8_t item)
 {
@@ -55,12 +53,11 @@ MenuItemPlace menu_item_place(GameState *g, uint8_t item)
  * `table`, found with the multiplier, which the original leaves so. */
 static uint16_t record_of(GameState *g, uint16_t table, uint8_t bytes, uint8_t index)
 {
-    ORIGINAL_EFFECT(hw_set_multiplicand(g, index));
-    ORIGINAL_EFFECT((void)hw_multiply_by(g, bytes));
+    charge_machine_io_accesses(g, 1);
+    charge_machine_io_accesses(g, 3);
     return (uint16_t)(table + index * bytes);
 }
 
-// $C2:88AD
 /* Where an item's data is in bank $CC. */
 uint16_t menu_item_data_at_of(GameState *g, uint8_t item)
 {
@@ -70,7 +67,6 @@ uint16_t menu_item_data_at_of(GameState *g, uint8_t item)
     return at;
 }
 
-// $C2:88D8
 /* Where the item last looked up has its figures in bank $CC. */
 uint16_t menu_item_figures_at_of_last(GameState *g)
 {
@@ -139,17 +135,13 @@ static void clean_up_inventory(GameState *g)
 /* No place: an item the party has none of, or an inventory with no room. */
 enum { NO_PLACE = INVENTORY_PLACES };
 
-/* For the original's code and shadow mode: the search notes the place it
- * found, a word. */
-static void leave_place_found(GameState *g, unsigned place) { set_menu_item_place_found(g, (uint16_t)place); }
-
 // $C2:87FA
 /* The place that holds an item the party has some of. */
 static unsigned place_holding(GameState *g, uint8_t item)
 {
     for (unsigned place = 0; place < INVENTORY_PLACES; place++)
         if (menu_inventory_item_at(g, place) == item && menu_inventory_count_at(g, place) != 0) {
-            ORIGINAL_EFFECT(leave_place_found(g, place));
+            charge_machine_accesses(g, 2);
             return place;
         }
     return NO_PLACE;
@@ -170,7 +162,6 @@ enum { MOST_HELD = 99 };
 
 static uint8_t held_to_the_most(uint8_t count) { return count >= MOST_HELD ? MOST_HELD : count; }
 
-// $C2:8791
 MenuItemsAdded menu_add_items(GameState *g, uint8_t item, uint8_t count)
 {
     if (menu_item_is_a_slots_nothing(item))
@@ -187,7 +178,6 @@ MenuItemsAdded menu_add_items(GameState *g, uint8_t item, uint8_t count)
     return MENU_ITEMS_ADDED;
 }
 
-// $C2:87D5
 MenuItemsTaken menu_take_items(GameState *g, uint8_t item, uint8_t count)
 {
     if (item == EMPTY)
@@ -216,7 +206,6 @@ uint8_t menu_power_of_item(const GameState *g, uint8_t item)
     return item < MENU_ITEM_POWERS_COUNT ? menu_item_powers(g, item) : menu_item_powers_unchecked(g, item);
 }
 
-// $C2:93A8
 bool menu_loaded_member_can_use(GameState *g, uint8_t item)
 {
     uint8_t users = menu_item_users(g, item);
@@ -338,19 +327,13 @@ void menu_build_item_tables(GameState *g)
 /* The copy the menus take of the bytes after the characters' names. */
 void menu_copy_past_the_names_now(GameState *g) { set_menu_copy_past_the_names(g, menu_past_the_names(g)); }
 
-/* ---- The entries ------------------------------------------------------------------------- */
-
-/* What the tables leave in the menus' first cells: the count of the
- * figures' loop. */
-static void leave_tables_built(GameState *g) { set_menu_scratch_graphics_count(g, ARMED); }
-
 // $C2:9875
 /* The menus' item tables built as they open, the party's techs and
  * everyone's figures noted, and the bytes after the names copied. */
 void menu_build_the_items(GameState *g)
 {
     menu_build_item_tables(g);
-    ORIGINAL_EFFECT(leave_tables_built(g));
+    charge_machine_accesses(g, 2);
     TIMED_AS(g, 0xFFF813, menu_note_party_techs(g));
     TIMED_AS(g, 0xC299B2, menu_note_everyones_figures(g));
     menu_copy_past_the_names_now(g);
@@ -366,41 +349,11 @@ void menu_build_items(Snes *s)
     m_rts(s);
 }
 
-/* The lookup runs with 8-bit index registers, which leaves Y's high byte
- * clear (X it saves and puts back). */
-static void leave_y_a_byte(Snes *s) { s->cpu.y &= 0x00FF; }
-
-/* The lookups' entries: the item in A's low byte; the category comes back
- * there, the data's or the figures' place in A and X. */
 // $C2:8881
-void menu_look_up_item(Snes *s)
-{
-    MenuItemPlace p = menu_item_place(state_of(s), (uint8_t)s->cpu.a);
-    m_set_a8(s, p.category);
-    ORIGINAL_EFFECT(leave_y_a_byte(s));
-    m_rts(s);
-}
-
-static void leave_found(Snes *s, uint16_t at)
-{
-    s->cpu.a = at;
-    s->cpu.x = m_x8(s) ? (uint8_t)at : at;
-}
 
 // $C2:88AD
-void menu_find_item_data(Snes *s)
-{
-    leave_found(s, menu_item_data_at_of(state_of(s), (uint8_t)s->cpu.a));
-    ORIGINAL_EFFECT(leave_y_a_byte(s));   /* its lookup's */
-    m_rts(s);
-}
 
 // $C2:88D8
-void menu_find_item_figures(Snes *s)
-{
-    leave_found(s, menu_item_figures_at_of_last(state_of(s)));
-    m_rts(s);
-}
 
 /* The tables run on the menus' page with the data bank on work RAM's, their
  * name places counted from the zero word the menus keep 0; every
@@ -424,21 +377,11 @@ bool menu_items_are_buildable(Snes *s)
 bool menu_items_built(GameState *g)
 {
     if (!menu_items_can_be_built(g)) {
-        program_needs_the_machine(g, 0xC29875, "item tables the port doesn't build");
+        program_breaks_a_contract(g, 0xC29875, "item tables the port doesn't build");
         return false;
     }
     menu_build_the_items(g);
     return true;
-}
-
-/* The figures' lookup takes the item looked up last, which is of one of the
- * categories. */
-bool menu_item_figures_are_findable(Snes *s)
-{
-    vars_peek(true);
-    bool ok = menu_item_category(state_of(s)) < MENU_ITEM_CATEGORIES;
-    vars_peek(false);
-    return ok;
 }
 
 /* ---- The inventory's entries --------------------------------------------------------------------- */
@@ -451,68 +394,13 @@ bool menu_item_figures_are_findable(Snes *s)
  * byte clear; X they save and put back. */
 enum { ANSWER_DONE = 0x00, ANSWER_NO_ROOM = 0xFF, ANSWER_NOT_HELD = 0xFF, ANSWER_TOO_FEW = 0xFE };
 
-static uint8_t added_answer(MenuItemsAdded added, uint8_t item)
-{
-    return added == MENU_ITEMS_ADDED ? ANSWER_DONE : added == MENU_ITEMS_NO_ROOM ? ANSWER_NO_ROOM : item;
-}
-
-static uint8_t taken_answer(MenuItemsTaken taken)
-{
-    return taken == MENU_ITEMS_TAKEN ? ANSWER_DONE : taken == MENU_ITEMS_NOT_HELD ? ANSWER_NOT_HELD : ANSWER_TOO_FEW;
-}
-
 // $C2:8791
-void menu_add_operand_items(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t item = menu_item_operand(g);
-    MenuItemsAdded added = menu_add_items(g, item, menu_item_operand_quantity(g));
-    m_set_a8(s, added_answer(added, item));
-    ORIGINAL_EFFECT(leave_y_a_byte(s));
-    m_rts(s);
-}
 
 // $C2:87D5
-void menu_take_operand_items(Snes *s)
-{
-    GameState *g = state_of(s);
-    MenuItemsTaken taken = menu_take_items(g, menu_item_operand(g), menu_item_operand_quantity(g));
-    m_set_a8(s, taken_answer(taken));
-    ORIGINAL_EFFECT(leave_y_a_byte(s));
-    m_rts(s);
-}
 
 // $C2:93A8
-/* Who can use the item in menu_item_operand: the answer in A is the loaded
- * character's bit of its users. */
-void menu_ask_who_can_use(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t item = menu_item_operand(g);
-    bool can = menu_loaded_member_can_use(g, item);
-    m_set_a8(s, can ? menu_character_bit(g, menu_status_record_character(g)) : 0);
-    ORIGINAL_EFFECT(leave_y_a_byte(s));
-    m_rts(s);
-}
 
 /* They reach the menus' tables through the data bank, on work RAM's; the
  * item's users are noted for an item of the game's; and the loaded
  * character's bit is one of the table's nine. */
 enum { CHARACTER_BITS_COUNT = 9 };
-
-bool menu_operand_item_is_known(Snes *s)
-{
-    return s->cpu.db == MENU_DATA_BANK;
-}
-
-bool menu_loaded_character_is_known(Snes *s)
-{
-    if (s->cpu.db != MENU_DATA_BANK)
-        return false;
-    vars_peek(true);
-    GameState *g = state_of(s);
-    bool ok = menu_item_operand(g) < MENU_ITEMS && menu_status_record_character(g) < CHARACTER_BITS_COUNT;
-    vars_peek(false);
-    return ok;
-}
-

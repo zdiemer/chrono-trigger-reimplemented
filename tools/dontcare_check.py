@@ -137,8 +137,9 @@ STOPS = ("m_stop_dont_care", "m_stop_at", "m_stop_at_own")
 # runtime wouldn't run it; read as a stop, its arguments at these places.
 # The menus' task loops' waits (game/menu/bridge.h) are stops at their site
 # declaring the named set the wait reads.
-STOP_DELEGATES = {"menu_go_on_in": (1, 3), "m_hold_at": (1, 2), "m_hold_at_own": (1, 2),
-                  "field_hands_over_to": (1, 2), "field_hold_finished_frame": ("0xC0EC60", 1),
+STOP_DELEGATES = {"menu_go_on_in": (1, 3), "menu_continue": (1, 3), "battle_continue": (1, 3), "m_hold_at": (1, 2), "m_hold_at_own": (1, 2),
+                  "battle_refuse_long_call": (2, "0"),
+                  "field_hands_over_to": (1, 2), "field_enter_after_mode": ("0xC00000", 1), "field_hold_finished_frame": ("0xC0EC60", 1),
                   "menu_wait_in_the_task_loop": (1, "MENU_TASK_WAIT_READS_NOTHING"),
                   "menu_wait_frames_in_the_task_loop": (1, "MENU_TASK_WAIT_READS_THE_FRAMES")}
 # A held wait's origin, PF_LOOP_HELD(head, exit, set): a stop at head.
@@ -160,8 +161,8 @@ HELD_WAITS = ("PF_LOOP_HELD",)
 DELEGATES = ("bridge_call", "bridge_call_long", "field_run", "field_run_long", "field_run_holding", "field_run_on_page",
              "bridge_call_on_page", "field_run_or_hand_over", "field_run_called", "field_run_long_called",
              "battle_call",
-             "battle_call_long", "battle_run_dc", "battle_run_long_dc", "menu_call", "menu_call_long", "menu_call_returning",
-             "menu_call_jumped", "menu_yield", "menu_run_or_call", "field_wait_frame", "battle_wait_frame", "battle_wait_frames",
+             "battle_call_long", "battle_run_dc", "battle_run_long_dc", "battle_run_called", "battle_run_long_called", "menu_call", "menu_call_long", "menu_call_returning",
+             "menu_call_jumped", "menu_yield", "menu_run_or_call", "menu_run_called", "menu_run_long_called", "menu_run_checked", "field_wait_frame", "battle_wait_frame", "battle_wait_frames",
              "battle_wait_line", "battle_run_dc_under", "battle_run_long_dc_under", "battle_wait_under", "battle_wait_frames_under",
              "scene_run", "scene_run_long", "scene_run_called", "scene_run_long_called")
 # Calls of a single routine, called (s, site, ...): the routine and the set
@@ -187,7 +188,7 @@ BRIDGES = {
                             "run_entry", "field_wait_frame", "field_run_called", "field_run_long_called", "field_hold_next_frame",
                             "field_hands_over_to", "field_hold_finished_frame"),
     "game/battle/bridge.c": ("battle_call", "battle_call_long", "battle_back", "run_entry", "battle_run_dc", "battle_run_long_dc",
-                             "battle_stop_after_call",
+                             "battle_stop_after_call", "battle_continue", "battle_refuse_long_call",
                              "battle_wait_frame", "battle_wait_frames", "battle_wait_line",
                              "battle_run_under", "battle_run_dc_under", "battle_run_long_dc_under", "battle_wait_under",
                              "battle_wait_frames_under", "battle_send_and_wait"),
@@ -196,9 +197,10 @@ BRIDGES = {
     # a sibling run as C, or the original's call declaring nothing where its preconditions fail
     "game/battle/sound.c": ("battle_play_a_sound_from",),
     "game/menu/bridge.c": ("menu_call", "menu_call_long", "menu_call_returning", "menu_call_jumped", "menu_back",
-                           "menu_yield", "menu_wait_a_frame_from", "run", "menu_run_or_call", "menu_go_on_in"),
+                           "menu_yield", "menu_wait_a_frame_from", "run", "run_called", "menu_run_or_call", "menu_run_called", "menu_run_long_called", "menu_run_checked", "menu_go_on_in", "menu_continue", "menu_begin_inline_call", "menu_refuse_call"),
     "game/scene/bridge.c": ("scene_run", "scene_run_long", "scene_run_called", "scene_run_long_called", "run_entry", "scene_bridge_unpack",
                             "scene_bridge_take_the_first_script_step", "scene_bridge_first_script_step"),
+    "game/field/main_loop.c": ("field_enter_after_mode",),
     "game/menu/tasks.c": ("wait_on", "wait_in_the_loop", "menu_wait_in_the_task_loop", "menu_wait_frames_in_the_task_loop"),
     "game/menu/fades.c": ("fade_from", "menu_fade_out_from"),
 }

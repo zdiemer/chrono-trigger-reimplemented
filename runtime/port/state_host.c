@@ -356,6 +356,21 @@ void charge_as(GameState *g, uint32_t routine, uint32_t accesses)
 
 void charge_block_move(GameState *g, uint32_t bytes) { charge_as(g, BLOCK_MOVE, bytes * ACCESSES_PER_BYTE_MOVED); }
 
+void charge_machine_accesses(GameState *g, uint32_t accesses)
+{
+    (void)g; (void)accesses;
+}
+
+void charge_machine_io_accesses(GameState *g, uint32_t accesses)
+{
+    (void)g; (void)accesses;
+}
+
+void charge_machine_rom_accesses(GameState *g, uint32_t accesses)
+{
+    (void)g; (void)accesses;
+}
+
 void charge_legacy_io_accesses(GameState *g, uint32_t accesses)
 {
     state_host_game_access(g, accesses * IO_ACCESS_CLOCKS);

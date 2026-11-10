@@ -20,7 +20,6 @@
 #include "charge.h"
 #include "core/program.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "scene/scene_data.h"
@@ -41,7 +40,7 @@ enum {
 /* The pointer the original keeps into the random bytes: their page and bank. */
 enum { RANDOM_BYTES_PAGE_AND_BANK = 0xC0FE };
 
-static void leave_the_noise_page(GameState *g) { set_scene_curtain_noise_page(g, RANDOM_BYTES_PAGE_AND_BANK); }
+
 
 /* The first step: every line's edge closed at the side the curtain starts
  * from. Only the bank's low bit says which bank the edges are in here. */
@@ -49,7 +48,7 @@ static void close_every_line(GameState *g, uint16_t edges, uint8_t bank, uint8_t
 {
     uint8_t in_bank = (bank & 1) ? SECOND_BANK : FIRST_BANK;
     wram_fill8(g, (uint32_t)in_bank << 16 | edges, CURTAIN_LINES, fill);
-    ORIGINAL_EFFECT(set_scene_curtain_fill(g, fill));
+    charge_machine_accesses(g, 1);
 }
 
 /* A run of lines that move alike: how many, and how far. */
@@ -133,12 +132,12 @@ void scene_curtain_step(GameState *g, Platform *pf, uint16_t salt)
         return;
     }
 
-    ORIGINAL_EFFECT(leave_the_noise_page(g));
+    charge_machine_accesses(g, 2);
     SceneDraw d = scene_draw_random(g, pf, PF_AT(0xC3024A), scene_draw_from(RANDOM_BYTES_PAGE_AND_BANK & 0xFF, steps >= LAST_STEP,
                                                                            TM_ENTROPY_BYTES),
                                     salt, TM_ENTROPY_BYTES);
     set_scene_curtain_table_bank_high(g, (uint8_t)d);
-    ORIGINAL_EFFECT(set_scene_curtain_end(g, (uint16_t)(edges + CURTAIN_LINES)));
+    charge_machine_accesses(g, 2);
 
     /* Odd steps send the edges to the table, even ones to the half after it. */
     uint16_t sent_to = (steps & 1) ? table : (uint16_t)(table + CURTAIN_LINES);
@@ -157,7 +156,7 @@ void scene_curtain_step(GameState *g, Platform *pf, uint16_t salt)
         hw_port_write(g, edge);
         wram_write8(g, at, edge);
     }
-    ORIGINAL_EFFECT(set_scene_curtain_move(g, run.move));
+    charge_machine_accesses(g, 1);
 }
 
 /* The step as the scenes' C paths take it, with its entry's guard's state

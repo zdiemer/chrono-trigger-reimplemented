@@ -69,9 +69,6 @@ static inline void menu_start_task(GameState *g, unsigned task, uint16_t start)
  * them takes another turn ($C2:8255, menu/frame.c). */
 enum { MENU_TASKS = 8 };
 void menu_stop_tasks(GameState *g, uint8_t tasks);
-void menu_stop_tasks_entry(Snes *s);
-
-
 /* menu/tasks.c: a task waits a frame or some frames, or ends, and the next
  * goes on; the frame's turns from the first task; the menus' first wait; and
  * the turns of the main task and the cursor's, the tasks that run all the
@@ -122,6 +119,7 @@ bool menu_screen_step_is_known(Snes *s);
 void menu_wait_for_the_next_frame(GameState *g, Platform *pf);
 void menu_wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t frames);
 void menu_wait_frames_sending_the_sound_entry(Snes *s);
+void menu_counted_frame_finished(Snes *s);
 void menu_wait_for_frame_loop(Snes *s);
 void menu_wait_for_frame(Snes *s);
 void menu_take_the_frames_input(Snes *s);

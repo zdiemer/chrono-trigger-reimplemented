@@ -11,12 +11,14 @@
  * (menu/display.c). The brightness is the low four bits of the menus'
  * display setting; a fade out that reaches black waits a last frame before
  * it hands the screen on, so that the black is shown. */
+#include "charge.h"
 #include "menu/fades.h"
 
+#include "holds.h"
 #include "menu/bridge.h"
+#include "port/native.h"
+#include "port/vars_ram.h"
 #include "menu/menu.h"
-#include "original_effects.h"
-#include "original_frame.h"
 #include "port/machine.h"
 #include "vars.h"
 
@@ -32,9 +34,9 @@ static void set_brightness(GameState *g, uint8_t level)
     set_menu_brightness(g, (uint8_t)((menu_brightness(g) & ~BRIGHTNESS) | level));
 }
 
-/* For the original's code and shadow mode: the fade's step and its frames a
- * step, which its loop reads back between its steps. */
-static void leave_the_fade(GameState *g, int8_t step)
+/* The direction and cadence survive a task switch: a held continuation
+ * resumes the fade without keeping its caller's C stack. */
+static void start_fade(GameState *g, int8_t step)
 {
     set_menu_fade_step(g, (uint8_t)step);
     set_menu_fade_frames(g, FRAMES_A_STEP);
@@ -68,30 +70,39 @@ static void leave_the_step_s_sum(Snes *s, uint8_t before, int8_t step)
  * task never came back from a wait). With the end, the brightness the last
  * step started from. The frame's wait between the steps is the task's: as C,
  * or on the machine (below); false where the task never came back. */
-typedef enum { FADE_DONE, FADE_AT_BLACK, FADE_STOPPED } FadeEnd;
+typedef enum { FADE_DONE, FADE_AT_BLACK, FADE_STOPPED, FADE_NEXT_FRAME } FadeEnd;
 typedef struct {
     FadeEnd end;
     uint8_t last_from;
 } Fade;
 typedef bool (*FadeWait)(void *ctx);
 
+/* One step is shared by the native coroutine and the legacy held task. */
+static Fade fade_step(GameState *g, int8_t step)
+{
+    uint8_t before = brightness(g);
+    int level = before + step;
+    if (level <= BLACK) {
+        set_brightness(g, BLACK);
+        return (Fade){ FADE_AT_BLACK, before };
+    }
+    if (level >= FULL_BRIGHTNESS) {
+        set_brightness(g, FULL_BRIGHTNESS);
+        return (Fade){ FADE_DONE, before };
+    }
+    set_brightness(g, (uint8_t)level);
+    return (Fade){ FADE_NEXT_FRAME, before };
+}
+
 static Fade fade(GameState *g, int8_t step, FadeWait wait, void *ctx)
 {
-    ORIGINAL_EFFECT(leave_the_fade(g, step));
+    start_fade(g, step);
     for (;;) {
-        uint8_t before = brightness(g);
-        int level = before + step;
-        if (level <= BLACK) {
-            set_brightness(g, BLACK);
-            return (Fade){ FADE_AT_BLACK, before };
-        }
-        if (level >= FULL_BRIGHTNESS) {
-            set_brightness(g, FULL_BRIGHTNESS);
-            return (Fade){ FADE_DONE, before };
-        }
-        set_brightness(g, (uint8_t)level);
+        Fade f = fade_step(g, step);
+        if (f.end != FADE_NEXT_FRAME)
+            return f;
         if (!wait(ctx))
-            return (Fade){ FADE_STOPPED, before };
+            return (Fade){ FADE_STOPPED, f.last_from };
     }
 }
 
@@ -104,7 +115,7 @@ static Fade fade_out(GameState *g, FadeWait between, void *ctx, bool called)
 {
     Fade f;
     if (called)
-        IN_THE_ORIGINALS_FRAME(g, ORIGINAL_RETURN_BYTES, f = fade(g, FADE_OUT_STEP, between, ctx));
+        f = fade(g, FADE_OUT_STEP, between, ctx);
     else
         f = fade(g, FADE_OUT_STEP, between, ctx);
     return f;
@@ -118,7 +129,7 @@ static bool fade_in_task(GameState *g, FadeWait first_frame, FadeWait between, v
     if (!first_frame(ctx))
         return false;
     Fade f;
-    IN_THE_ORIGINALS_FRAME(g, ORIGINAL_RETURN_BYTES, f = fade(g, FADE_IN_STEP, between, ctx));
+    f = fade(g, FADE_IN_STEP, between, ctx);
     return f.end == FADE_DONE;
 }
 
@@ -174,7 +185,8 @@ void menu_fade_the_screen_out(Snes *s)
         menu_go_on_in(s, MENU_TASK_WAITS_A_FRAME, menu_task_waits_a_frame, THE_LAST_KEEPS_ALL);
         break;
     case FADE_DONE: m_rts(s); break;
-    case FADE_STOPPED: break;
+    case FADE_STOPPED:
+    case FADE_NEXT_FRAME: break;
     }
 }
 
@@ -186,21 +198,10 @@ enum { FADE_IN_TASK = 0, FADE_IN_TASK_START = MENU_FADE_IN_TASK_START };
 // $C2:83B2
 void menu_start_the_fade_in(GameState *g) { menu_start_task(g, FADE_IN_TASK, FADE_IN_TASK_START); }
 
-/* What the task's start leaves the screen's step it ends: 16-bit registers,
- * the record's state and countdown in A, and the task's place in X with the
- * flags of its load. */
-static void leave_the_task_started(Snes *s)
-{
-    menu_set_widths(s, false, false);
-    s->cpu.a = MENU_TASK_STARTING | 1 << 8;
-    s->cpu.x = FADE_IN_TASK;
-    m_set_nz16(s, FADE_IN_TASK);
-}
-
 void menu_start_the_fade_in_entry(Snes *s)
 {
     menu_start_the_fade_in(state_of(s));
-    ORIGINAL_EFFECT(leave_the_task_started(s));
+    (void)0;
     m_rts(s);
 }
 
@@ -220,6 +221,85 @@ static bool first_frame_on_the_machine(void *ctx)
 
 void menu_fade_in_task_entry(Snes *s)
 {
+    if (m_runs_retired_as_c(s)) {
+        (void)menu_run_called(s, 0xC283BD, MENU_TASK_WAITS_A_FRAME,
+                              MENU_TASK_WAIT_READS_NOTHING, menu_task_waits_a_frame);
+        return;
+    }
     if (fade_in_task(state_of(s), first_frame_on_the_machine, wait_on_the_machine, s))
         menu_go_on_in(s, THE_TASK_ENDS, menu_task_ends, ENDING_READS_NOTHING);
+}
+
+// $C2:83FB
+/* Either fade advances once, then leaves its next return on the task
+ * stack. No suspended C call needs to survive the displayed frame. */
+void menu_fade_resumes(Snes *s)
+{
+    GameState *g = state_of(s);
+    int8_t step = (int8_t)menu_fade_step(g);
+    Fade f = fade_step(g, step);
+    if (f.end == FADE_NEXT_FRAME) {
+        m_set_a8(s, menu_fade_frames(g));
+        (void)menu_run_called(s, BETWEEN_THE_STEPS, WAIT_FRAMES,
+                              THE_WAITS_IGNORE_THE_FLAGS, menu_task_waits_frames);
+        return;
+    }
+    if (f.end == FADE_AT_BLACK) {
+        leave_the_step_s_sum(s, f.last_from, step);
+        menu_go_on_in(s, MENU_TASK_WAITS_A_FRAME, menu_task_waits_a_frame, THE_LAST_KEEPS_ALL);
+        return;
+    }
+    /* The full-brightness return is also reached independently by shadow
+     * play. Its caller sees full brightness and the successful clamp. */
+    m_set_a8(s, FULL_BRIGHTNESS);
+    m_set_flag(s, CPU_FLAG_N, false);
+    m_set_flag(s, CPU_FLAG_V, false);
+    m_set_flag(s, CPU_FLAG_Z, true);
+    m_set_flag(s, CPU_FLAG_C, true);
+    m_rts(s);
+    native_hold(s, HOLD_MENU_TASKS);
+}
+
+// $C2:83C0
+/* The first frame has drawn the new screen. Start its fade on the task's
+ * original near-call frame, with the phase now persistent game state. */
+void menu_fade_in_begins(Snes *s)
+{
+    menu_set_widths(s, true, false);
+    m_set_a8(s, FADE_IN_STEP);
+    (void)menu_run_called(s, 0xC283C4, 0xC283D0, 0, menu_fade_starts);
+}
+
+// $C2:83D0
+void menu_fade_starts(Snes *s)
+{
+    start_fade(state_of(s), (int8_t)s->cpu.a);
+    menu_fade_resumes(s);
+}
+
+static bool fade_step_is_supported(uint8_t step)
+{
+    return step == FADE_IN_STEP || step == (uint8_t)FADE_OUT_STEP;
+}
+
+bool menu_fade_can_start(Snes *s)
+{
+    return menu_on_page_low_ram(s) && fade_step_is_supported((uint8_t)s->cpu.a);
+}
+
+// $C2:83C7
+void menu_fade_in_finishes(Snes *s)
+{
+    menu_go_on_in(s, THE_TASK_ENDS, menu_task_ends, ENDING_READS_NOTHING);
+}
+
+bool menu_fade_can_resume(Snes *s)
+{
+    if (!menu_on_page_low_ram(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ready = fade_step_is_supported(menu_fade_step(g)) && menu_fade_frames(g) == FRAMES_A_STEP;
+    vars_peek(false);
+    return ready;
 }

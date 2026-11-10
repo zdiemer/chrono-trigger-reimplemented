@@ -63,10 +63,6 @@ bool menu_tile_area_can_be_copied(const GameState *g, uint16_t origin, MenuTileP
 void menu_draw_window_frame(GameState *g, uint16_t at, MenuWindowSize size, MenuWindowStyle style);
 void menu_fill_window_inside(GameState *g, uint16_t at, MenuWindowSize size, MenuWindowStyle style);
 
-/* What the original's frame and inside leave in the drawing's cells, for a
- * window a screen drew whole at `at` (scaffolding: ORIGINAL_EFFECT). */
-void menu_leave_window_cells(GameState *g, uint16_t at, MenuWindowSize size, MenuWindowStyle style);
-
 /* The window style of the design the player chose: its tiles, in
  * `attribute`. */
 MenuWindowStyle menu_design_style(const GameState *g, uint8_t attribute);
@@ -84,39 +80,7 @@ uint16_t menu_lay_out_strip(GameState *g, uint16_t at, uint16_t columns, uint16_
 
 /* The entries: the interpreter, each command's handler (with its guard), and
  * the drawing other screens call. */
-#define MENU_WINDOW_HANDLERS(X)                     \
-    X(menu_window_fill, 0x00)                       \
-    X(menu_window_copy_area, 0x02)                  \
-    X(menu_window_draw, 0x04)                       \
-    X(menu_window_draw_string, 0x06)                \
-    X(menu_window_set_origin, 0x08)                 \
-    X(menu_window_copy_bytes, 0x0E)                 \
-    X(menu_window_set_line_effect, 0x0C)            \
-    X(menu_window_swap_areas, 0x10)                 \
-    X(menu_window_draw_frame_only, 0x12)            \
-    X(menu_window_fill_inside_only, 0x14)
-#define MENU_WINDOW_DECLARE_HANDLER(name, command) \
-    void name(Snes *s);                            \
-    bool name##_accepts(Snes *s);
-MENU_WINDOW_HANDLERS(MENU_WINDOW_DECLARE_HANDLER)
-#undef MENU_WINDOW_DECLARE_HANDLER
-
-void menu_run_window_list(Snes *s);
-void menu_window_frame(Snes *s);
-void menu_window_inside(Snes *s);
-void menu_window_colours(Snes *s);
-void menu_window_in_design(Snes *s);
-
-void menu_lay_out_label_strip(Snes *s);
-void menu_lay_out_graphic_strip(Snes *s);
-
-bool menu_window_list_is_drawable(Snes *s);
-bool menu_strip_is_placeable(Snes *s);
-bool menu_window_frame_is_drawable(Snes *s);
-bool menu_window_inside_is_drawable(Snes *s);
-bool menu_window_colours_are_loadable(Snes *s);
 bool menu_palette_change_counts(Snes *s);
 bool menu_palette_changes_have_room(const GameState *g);
-bool menu_window_in_design_is_drawable(Snes *s);
 
 #endif

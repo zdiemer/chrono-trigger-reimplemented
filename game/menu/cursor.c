@@ -21,7 +21,6 @@
 #include "core/input.h"
 #include "menu/bridge.h"
 #include "menu/menu_data.h"
-#include "original_effects.h"
 #include "platform/audio.h"
 #include "platform/input.h"
 #include "port/native.h"
@@ -48,7 +47,6 @@ static void hide_sprites(GameState *g, unsigned first, unsigned count)
         set_oam_high_table_byte(g, i / SPRITES_A_HIGH_BYTE, ALL_LARGE);
 }
 
-// $C2:984A
 /* Every sprite out of sight. */
 void menu_clear_sprites(GameState *g) { hide_sprites(g, 0, SPRITES); }
 
@@ -73,7 +71,6 @@ static void place_cursor(GameState *g)
         set_oam_buffer_attributes(g, CURSOR_SPRITE, (uint8_t)(oam_buffer_attributes(g, CURSOR_SPRITE) | FLIPPED));
 }
 
-// $C2:E92D
 /* The menus' sprites each frame: theirs hidden, then the cursor placed. */
 void menu_reset_sprites_and_cursor(GameState *g)
 {
@@ -81,7 +78,6 @@ void menu_reset_sprites_and_cursor(GameState *g)
     place_cursor(g);
 }
 
-// $C2:E923
 /* Every sprite hidden, and the cursor placed facing its own way. */
 void menu_clear_sprites_but_cursor(GameState *g)
 {
@@ -157,7 +153,6 @@ static uint8_t buttons_of(const GameState *g)
     return buttons;
 }
 
-// $C2:E984
 /* The frame's input through the cursor: the push moves it, and the buttons
  * come out, but for none on the first frame of a step of the screen. */
 void menu_read_cursor(GameState *g)
@@ -237,18 +232,6 @@ static bool sound_goes_out(GameState *g, SoundEffectVoices voices, uint8_t sound
 /* The sounds a screen queued: the first of them, played at once. */
 enum { QUEUED_SOUND_6 = 0x02, QUEUED_SOUND_7 = 0x01 };
 
-static bool take_queued_sound(GameState *g, uint8_t *sound)
-{
-    uint8_t queued = menu_queued_sounds(g);
-    set_menu_wait_frames(g, 0);
-    uint8_t taken = (queued & QUEUED_SOUND_6) ? QUEUED_SOUND_6 : (queued & QUEUED_SOUND_7) ? QUEUED_SOUND_7 : 0;
-    if (taken == 0)
-        return false;
-    set_menu_queued_sounds(g, (uint8_t)(queued & ~taken));
-    *sound = taken == QUEUED_SOUND_6 ? MENU_SOUND_6 : MENU_SOUND_7;
-    return true;
-}
-
 /* ---- Places kept --------------------------------------------------------------------------------- */
 
 enum { PLACE_BYTES = 6 };
@@ -286,28 +269,11 @@ void menu_put_cursor_places_back(GameState *g)
     charge_block_move(g, MENU_CURSOR_PLACES_KEPT_COUNT * PLACE_BYTES);
 }
 
-/* ---- The entries -------------------------------------------------------------------------------- */
-
 // $C2:984A
-void menu_clear_sprite_table(Snes *s)
-{
-    menu_clear_sprites(state_of(s));
-    m_rts(s);
-}
 
 // $C2:E92D
-void menu_reset_sprites(Snes *s)
-{
-    menu_reset_sprites_and_cursor(state_of(s));
-    m_rts(s);
-}
 
 // $C2:E923
-void menu_clear_sprites_for_cursor(Snes *s)
-{
-    menu_clear_sprites_but_cursor(state_of(s));
-    m_rts(s);
-}
 
 /* What the cursor's reading leaves in the registers, which the screens'
  * handlers can't be shown not to read (the analysis follows them into the
@@ -327,19 +293,9 @@ MenuCursorRead menu_note_cursor_read(const GameState *g)
     return r;
 }
 
-void menu_leave_cursor_read(Snes *s, MenuCursorRead r)
+void menu_charge_cursor_read(Snes *s, MenuCursorRead r)
 {
-    enum { PLACE_BYTES = 6, BUTTON_LOOPS = 2, LAST_BUTTON_ASSIGNMENT = 1 };
-    const GameState *g = state_of(s);
-    uint8_t a_low = menu_cursor_always_back(g) != 0 ? MENU_GO_BACK : 0;
-    uint16_t a_high = r.moved ? 0 : (uint16_t)(s->cpu.a & 0xFF00);
-    s->cpu.a = (uint16_t)(a_high | a_low);
-    uint16_t x = r.moved ? (uint16_t)(r.push * 2) : r.pushed ? r.push : PUSHES;
-    uint16_t y = r.moved ? (uint8_t)(r.from * PLACE_BYTES) : (uint8_t)s->cpu.y;
-    s->cpu.x = r.new_step ? x : BUTTON_LOOPS;
-    s->cpu.y = r.new_step ? y : LAST_BUTTON_ASSIGNMENT;
-    if (!r.new_step)
-        set_menu_scratch_cursor_button_bit(state_of(s), MENU_GO_BACK >> 1);
+    charge_machine_accesses(state_of(s), 1 + !r.new_step);
 }
 
 /* Where the controller read doesn't take the buttons, the port stops where
@@ -388,7 +344,7 @@ bool menu_frame_input_taken(GameState *g, Platform *pf)
     bool fast;
     if (take_frame_input(g, pf, &fast) == CONTROLLER_READ)
         return true;
-    program_needs_the_machine(g, 0xC284EC, "a controller read the port doesn't take");
+    program_breaks_a_contract(g, 0xC284EC, "a controller read the port doesn't take");
     return false;
 }
 
@@ -415,7 +371,7 @@ void menu_step_reads_the_cursor(Snes *s)
     GameState *g = state_of(s);
     MenuCursorRead r = menu_note_cursor_read(g);
     TIMED_AS(g, 0xC2E984, menu_read_cursor(g));
-    ORIGINAL_EFFECT(menu_leave_cursor_read(s, r));
+    charge_machine_accesses(g, 1 + !r.new_step);
 }
 
 void menu_hold_and_read_the_cursor(GameState *g)
@@ -429,23 +385,16 @@ void menu_step_holds_and_reads_the_cursor(Snes *s)
     GameState *g = state_of(s);
     MenuCursorRead r = menu_note_cursor_read(g);
     menu_hold_and_read_the_cursor(g);
-    ORIGINAL_EFFECT(menu_leave_cursor_read(s, r));
+    charge_machine_accesses(g, 1 + !r.new_step);
 }
 
 void menu_step_reads_the_cursor_and_tests_its_buttons(Snes *s)
 {
     menu_step_reads_the_cursor(s);
-    ORIGINAL_EFFECT(menu_leave_bit_test(s, (uint8_t)s->cpu.a, menu_cursor_buttons(state_of(s))));
+    charge_machine_accesses(state_of(s), 1);
 }
 
 // $C2:E984
-void menu_read_cursor_input(Snes *s)
-{
-    MenuCursorRead r = menu_note_cursor_read(state_of(s));
-    menu_read_cursor(state_of(s));
-    ORIGINAL_EFFECT(menu_leave_cursor_read(s, r));
-    m_rts(s);
-}
 
 /* The sounds on the machine. The driver's call is made from the one JSL the
  * original's routines share ($C2:EB1A), so a routine that plays one stands in
@@ -454,8 +403,6 @@ void menu_read_cursor_input(Snes *s)
  * (tools/dontcare_check.py checks it): the accumulator's low byte, X, Y and the
  * flags. The accumulator holds the pan the original loads last before it. */
 enum { DRIVER_IGNORES = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-static void leave_pan(Snes *s) { m_set_a8(s, AU_CENTRE); }
 
 /* The sound sent to the driver, from the original's one call. */
 static void send_the_sound(Platform *pf, SoundEffectVoices voices, uint8_t sound)
@@ -473,7 +420,6 @@ typedef struct {
     void (*dropped)(void *ctx);
 } SoundCalls;
 
-// $C2:EB03
 static bool play_a_sound(GameState *g, SoundEffectVoices voices, uint8_t sound, const SoundCalls *c, void *ctx)
 {
     if (sound_goes_out(g, voices, sound))
@@ -531,16 +477,13 @@ void menu_buzz(GameState *g, Platform *pf) { TIMED_AS(g, 0xC2EACC, menu_sound_pl
 static bool sent_on_the_machine(void *ctx, SoundEffectVoices voices, uint8_t sound)
 {
     Snes *s = ctx;
-    MenuMachine m = menu_machine_now(s);
-    ORIGINAL_EFFECT(leave_pan(s));
+    MenuMachine m = menu_machine(s);
+    (void)0;
     send_the_sound(m_platform(s), voices, sound);
     return menu_back(s, 0xC2EB1E, m);
 }
 
-/* A dropped sound leaves the wait's count in the accumulator's low byte. */
-static void leave_wait(Snes *s) { m_set_a8(s, menu_wait_frames(state_of(s))); }
-
-static void dropped_on_the_machine(void *ctx) { ORIGINAL_EFFECT(leave_wait(ctx)); }
+static void dropped_on_the_machine(void *ctx) { charge_machine_accesses(state_of(ctx), 1); }
 
 static const SoundCalls on_the_machine = { sent_on_the_machine, dropped_on_the_machine };
 
@@ -563,11 +506,6 @@ static void play_from(Snes *s, uint32_t site, uint8_t sound)
 }
 
 // $C2:EB03
-void menu_send_sound(Snes *s)
-{
-    if (play(s, SOUND_EFFECT_ON_VOICES_6_7, (uint8_t)s->cpu.a))
-        m_rts(s);
-}
 
 // $C2:EAF9
 void menu_send_sound_on_other_voices(Snes *s)
@@ -584,23 +522,6 @@ void menu_play_refusal_sound(Snes *s) { play_from(s, 0xC2EAD1, MENU_SOUND_REFUSA
 
 // $C2:EABA
 void menu_play_sound(Snes *s) { play_from(s, 0xC2EABD, (uint8_t)s->cpu.a); }
-
-// $C2:EAD6
-void menu_play_queued_sound(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_save_p(s);
-    menu_set_widths(s, true, true);
-    uint8_t sound;
-    if (take_queued_sound(g, &sound)) {
-        m_push16(s, (uint16_t)(0xC2EAF4 + MENU_JSR_SIZE - 1));
-        if (!play(s, SOUND_EFFECT_ON_VOICES_6_7, sound))
-            return;
-        (void)m_pull16(s);
-    }
-    menu_restore_p(s);
-    m_rts(s);
-}
 
 bool menu_cursor_kept_among(const GameState *g, uint8_t first, uint8_t count, bool left_free)
 {

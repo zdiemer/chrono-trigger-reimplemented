@@ -157,6 +157,15 @@ static void run(const Stream *s, uint32_t to, const char *what)
     memset(wram, SENTINEL, s->made_n + 16);
     set_decompress_source(g, stream_address());
     set_decompress_dest(g, to);
+    uint32_t port_before = snes.bus.wram_port_addr;
+    CHECK(unpack_stream_fits(g, stream_address(), (uint16_t)s->made_n), "%s: exact capacity refused", what);
+    CHECK(unpack_stream_fits(g, stream_address(), (uint16_t)(s->made_n + 1)), "%s: spare capacity refused", what);
+    CHECK(!unpack_stream_fits(g, stream_address(), (uint16_t)(s->made_n - 1)), "%s: short capacity accepted", what);
+    CHECK(decompress_source(g) == stream_address() && decompress_dest(g) == to,
+          "%s: extent check changed the unpacker's state", what);
+    CHECK(snes.bus.wram_port_addr == port_before, "%s: extent check moved the work RAM port", what);
+    for (unsigned i = 0; i < s->made_n + 16; i++)
+        CHECK(wram[i] == SENTINEL, "%s: extent check wrote destination byte %u", what, i);
     uint16_t length = unpack_stream(g);
     CHECK(length == s->made_n, "%s: length %u, made %u", what, length, s->made_n);
     CHECK(decompress_length(g) == length, "%s: the length kept %u, returned %u", what, decompress_length(g), length);

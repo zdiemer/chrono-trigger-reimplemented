@@ -1,4 +1,4 @@
-/* The techs screen on the original's machine: its registered entries, the
+/* The techs screen on the original's machine: its checked legacy adapters, the
  * bridges that run what game/menu/tech_screen.c decides between the calls to
  * what is still the original's, and their guards.
  *
@@ -39,7 +39,6 @@
 #include "menu/sprites.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
@@ -73,30 +72,15 @@ static void read_cursor(Snes *s)
     MenuCursorRead r = menu_note_cursor_read(g);
     (void)r;
     TIMED_AS(g, 0xC2E984, menu_read_cursor(g));
-    ORIGINAL_EFFECT(menu_leave_cursor_read(s, r));
+    menu_charge_cursor_read(s, r);
 }
 
-static void leave_buttons_tested(Snes *s);
-static void leave_load(Snes *s, uint8_t v);
-static void leave_added(Snes *s, uint8_t a, uint8_t b);
-static void leave_shown_compared(Snes *s, uint8_t before);
-static void leave_cursor_moved_off_the_members(Snes *s);
-static void leave_member_slide_started(Snes *s, MemberListSlide slide, uint8_t scroll_before);
-static void leave_list_made(Snes *s, uint8_t before);
-static void leave_kind_switched(Snes *s, uint8_t kind_before);
-static void leave_into_the_list(Snes *s);
-static void leave_lister_tested(Snes *s, uint8_t old_sprite);
-static void leave_tech_looked_at(Snes *s, TechsUse use);
-static void leave_tech_used(Snes *s, bool every_member);
+static void charge_kind_switched(Snes *s, uint8_t kind_before);
+static void charge_tech_looked_at(Snes *s, TechsUse use);
 
-static void leave_list_row_compared(Snes *s);
-static void leave_description_asked(Snes *s);
-static void leave_tech_row_brought_in(Snes *s);
-static void leave_list_slid(Snes *s, bool slid_up);
-static void leave_restoring_pointed(Snes *s, uint8_t before);
-static void leave_users_mp_looked_at(Snes *s);
-static void leave_help_looked_for(Snes *s);
-static void leave_cost_taken(Snes *s, uint8_t mp_before);
+static void charge_description_asked(Snes *s);
+static void charge_list_slid(Snes *s, bool slid_up);
+static void charge_help_looked_for(Snes *s);
 
 /* ---- Opening the screen ------------------------------------------------------------------------ */
 
@@ -140,48 +124,47 @@ static void note_on_the_machine(void *ctx, TechsNote note, uint8_t value)
     (void)value;
     switch (note) {
     case TECHS_NOTE_OPENED:
-        ORIGINAL_EFFECT(leave_load(s, value));
+        (void)0;
         menu_save_p(s);
         menu_set_widths(s, true, m_x8(s));
         break;
     case TECHS_NOTE_ROCKS_NOTED: menu_set_widths(s, false, false); break;
     case TECHS_NOTE_SET_UP: menu_restore_p(s); break;
-    case TECHS_NOTE_BUTTONS_TESTED: ORIGINAL_EFFECT(leave_buttons_tested(s)); break;
-    case TECHS_NOTE_SHOWN_COMPARED: ORIGINAL_EFFECT(leave_shown_compared(s, value)); break;
-    case TECHS_NOTE_LISTED: ORIGINAL_EFFECT(leave_load(s, value)); break;
-    case TECHS_NOTE_DESCRIPTION_STALE: ORIGINAL_EFFECT(leave_load(s, value)); break;
-    case TECHS_NOTE_KIND_SWITCHED: ORIGINAL_EFFECT(leave_kind_switched(s, value)); break;
-    case TECHS_NOTE_CURSOR_KEPT: ORIGINAL_EFFECT(menu_leave_cursor_kept_on_the_list(s)); break;
-    case TECHS_NOTE_LIST_MADE: ORIGINAL_EFFECT(leave_list_made(s, value)); break;
+    case TECHS_NOTE_BUTTONS_TESTED: charge_machine_accesses(state_of(s), 1); break;
+    case TECHS_NOTE_SHOWN_COMPARED: charge_machine_accesses(state_of(s), 2); break;
+    case TECHS_NOTE_LISTED: (void)0; break;
+    case TECHS_NOTE_DESCRIPTION_STALE: (void)0; break;
+    case TECHS_NOTE_KIND_SWITCHED: charge_kind_switched(s, value); break;
+    case TECHS_NOTE_CURSOR_KEPT: menu_charge_cursor_kept_on_the_list(s); break;
+    case TECHS_NOTE_LIST_MADE: charge_machine_accesses(state_of(s), 2); break;
     case TECHS_NOTE_KIND_DESCRIBED: menu_set_widths(s, false, false); break;
-    case TECHS_NOTE_ROWS_QUEUED: ORIGINAL_EFFECT(menu_leave_queued_upload(s, MENU_UPLOAD_FRONT_LAYER)); break;
+    case TECHS_NOTE_ROWS_QUEUED: (void)0; break;
     case TECHS_NOTE_MEMBERS_SLIDING: {
-        uint8_t scroll = menu_tech_member_scroll(state_of(s));
-        MemberListSlide slide = (MemberListSlide)value;
-        ORIGINAL_EFFECT(leave_member_slide_started(s, slide, (uint8_t)(slide == MEMBERS_SLIDE_DOWN ? scroll - 1 : scroll + 1)));
+        (void)menu_tech_member_scroll(state_of(s));
+        charge_machine_accesses(state_of(s), 1);
         break;
     }
-    case TECHS_NOTE_INTO_THE_LIST: ORIGINAL_EFFECT(leave_into_the_list(s)); break;
-    case TECHS_NOTE_LISTER_TESTED: ORIGINAL_EFFECT(leave_lister_tested(s, value)); break;
-    case TECHS_NOTE_LINE_EFFECTS_HELD: ORIGINAL_EFFECT(m_set_a8(s, menu_line_effects(state_of(s)))); break;
-    case TECHS_NOTE_LIST_ROW_COMPARED: ORIGINAL_EFFECT(leave_list_row_compared(s)); break;
-    case TECHS_NOTE_LIST_TOP_LOADED: ORIGINAL_EFFECT(m_set_a8(s, menu_tech_list_top(state_of(s)))); break;
-    case TECHS_NOTE_TECH_ROW_BROUGHT_IN: ORIGINAL_EFFECT(leave_tech_row_brought_in(s)); break;
-    case TECHS_NOTE_LIST_SLID: ORIGINAL_EFFECT(leave_list_slid(s, value != 0)); break;
-    case TECHS_NOTE_DESCRIPTION_ASKED: ORIGINAL_EFFECT(leave_description_asked(s)); break;
-    case TECHS_NOTE_TECH_LOOKED_AT: ORIGINAL_EFFECT(leave_tech_looked_at(s, (TechsUse)value)); break;
-    case TECHS_NOTE_TECH_USED: ORIGINAL_EFFECT(leave_tech_used(s, value != 0)); break;
-    case TECHS_NOTE_TASKS_STOPPED: ORIGINAL_EFFECT(menu_leave_load(s, value)); break;
-    case TECHS_NOTE_OFF_THE_MEMBERS: ORIGINAL_EFFECT(leave_cursor_moved_off_the_members(s)); break;
-    case TECHS_NOTE_A_CLEARED: ORIGINAL_EFFECT(s->cpu.a = 0); break;
-    case TECHS_NOTE_LINE_TABLES_QUEUED: ORIGINAL_EFFECT(menu_leave_queued_upload(s, MENU_UPLOAD_LINE_TABLES)); break;
+    case TECHS_NOTE_INTO_THE_LIST: charge_machine_accesses(state_of(s), 2); break;
+    case TECHS_NOTE_LISTER_TESTED: charge_machine_accesses(state_of(s), 1); break;
+    case TECHS_NOTE_LINE_EFFECTS_HELD: charge_machine_accesses(state_of(s), 1); break;
+    case TECHS_NOTE_LIST_ROW_COMPARED: charge_machine_accesses(state_of(s), 3); break;
+    case TECHS_NOTE_LIST_TOP_LOADED: charge_machine_accesses(state_of(s), 1); break;
+    case TECHS_NOTE_TECH_ROW_BROUGHT_IN: charge_machine_accesses(state_of(s), 2); break;
+    case TECHS_NOTE_LIST_SLID: charge_list_slid(s, value != 0); break;
+    case TECHS_NOTE_DESCRIPTION_ASKED: charge_description_asked(s); break;
+    case TECHS_NOTE_TECH_LOOKED_AT: charge_tech_looked_at(s, (TechsUse)value); break;
+    case TECHS_NOTE_TECH_USED: (void)0; break;
+    case TECHS_NOTE_TASKS_STOPPED: (void)0; break;
+    case TECHS_NOTE_OFF_THE_MEMBERS: charge_machine_accesses(state_of(s), 1); break;
+    case TECHS_NOTE_A_CLEARED: (void)0; break;
+    case TECHS_NOTE_LINE_TABLES_QUEUED: (void)0; break;
     case TECHS_NOTE_NO_HELP:
-        ORIGINAL_EFFECT(leave_load(s, 0));
-        ORIGINAL_EFFECT(m_set_a8(s, 0));
+        (void)0;
+        (void)0;
         break;
-    case TECHS_NOTE_CAST: ORIGINAL_EFFECT(s->cpu.a = 0); break;
-    case TECHS_NOTE_COST_TAKEN: ORIGINAL_EFFECT(leave_cost_taken(s, value)); break;
-    case TECHS_NOTE_USERS_MP_LOOKED_AT: ORIGINAL_EFFECT(leave_users_mp_looked_at(s)); break;
+    case TECHS_NOTE_CAST: (void)0; break;
+    case TECHS_NOTE_COST_TAKEN: charge_machine_accesses(state_of(s), 1); break;
+    case TECHS_NOTE_USERS_MP_LOOKED_AT: charge_machine_accesses(state_of(s), 1); break;
     }
 }
 
@@ -199,7 +182,7 @@ static bool wait_on_the_machine(void *ctx, TechsPlace at)
     Snes *s = ctx;
     if (at == TECHS_AT_THE_CAST) {
         m_set_a8(s, MENU_TECHS_CAST_FRAMES);
-        ORIGINAL_EFFECT(leave_load(s, MENU_TECHS_CAST_FRAMES));
+        (void)0;
         return menu_yield(s, 0xC2B4F9, WAIT_FRAMES, READS_A);
     }
     return menu_wait_a_frame_from(s, WAITS_AT[at].site);
@@ -343,7 +326,7 @@ void menu_load_tech_lister_sprite(Snes *s)
         return;
     menu_restore_p(s);
     s->cpu.d = m_pull16(s);
-    ORIGINAL_EFFECT(leave_load(s, (uint8_t)(s->cpu.d | s->cpu.d >> 8)));
+    (void)0;
     m_rts(s);
 }
 
@@ -355,13 +338,6 @@ void menu_show_tech_lister(Snes *s)
     if (!run(s, menu_show_tech_lister_with))
         return;
     menu_restore_p(s);
-    m_rts(s);
-}
-
-// $C2:BB50
-void menu_show_tech_list(Snes *s)
-{
-    menu_techs_show_the_list(state_of(s), m_platform(s));
     m_rts(s);
 }
 
@@ -381,13 +357,6 @@ void menu_lay_out_tech_members_entry(Snes *s)
     GameState *g = state_of(s);
     menu_techs_lay_out_members(g, m_platform(s));
     TIMED_AS(state_of(s), 0xC2B36D, choose_member(s));
-}
-
-// $C2:BA4F
-void menu_draw_tech_member_rows(Snes *s)
-{
-    menu_techs_draw_member_rows(state_of(s), m_platform(s));
-    m_rts(s);
 }
 
 /* ---- The list ---------------------------------------------------------------------------------- */
@@ -452,11 +421,12 @@ static bool note_the_member_on_the_machine(void *ctx)
 
 static void restoring_note_on_the_machine(void *ctx, RestoringNote note, uint8_t value)
 {
+    (void)value;
     Snes *s = ctx;
     switch (note) {
-    case RESTORING_NOTE_POINTED: ORIGINAL_EFFECT(leave_restoring_pointed(s, value)); break;
-    case RESTORING_NOTE_HELP_LOOKED_FOR: ORIGINAL_EFFECT(leave_help_looked_for(s)); break;
-    case RESTORING_NOTE_BLOCKS_SET: ORIGINAL_EFFECT(m_set_a8(s, menu_record_block_limit(state_of(s)))); break;
+    case RESTORING_NOTE_POINTED: charge_machine_accesses(state_of(s), 3); break;
+    case RESTORING_NOTE_HELP_LOOKED_FOR: charge_help_looked_for(s); break;
+    case RESTORING_NOTE_BLOCKS_SET: charge_machine_accesses(state_of(s), 1); break;
     }
 }
 
@@ -514,166 +484,28 @@ void menu_show_techs_panel(Snes *s)
     m_rts(s);
 }
 
-// $C2:B960
-/* The main menu leaving the techs: its line effects, the records' task,
- * and its windows back. */
-void menu_put_techs_panel_away(Snes *s)
+static void charge_kind_switched(Snes *s, uint8_t kind_before)
 {
+    (void)kind_before;
     GameState *g = state_of(s);
-    menu_save_p(s);
-    menu_set_widths(s, true, m_x8(s));
-    menu_techs_panel_put_away(g, m_platform(s));
-    menu_restore_p(s);
-    m_rts(s);
+    if (menu_pushed(g, MENU_PUSHED_RIGHT) || menu_pushed(g, MENU_PUSHED_LEFT))
+        charge_machine_accesses(g, 1);
 }
 
-/* ---- The pure entries -------------------------------------------------------------------------- */
-
-// $C2:BC6F
-void menu_show_member_tech_list(Snes *s)
-{
-    menu_techs_show_member_list(state_of(s));
-    m_rts(s);
-}
-
-// $C2:BD6B
-/* The rows from the list's place its caller leaves in the first cell. */
-void menu_draw_tech_rows(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_techs_draw_list_rows(g, menu_scratch_tech_list_place(g));
-    m_rts(s);
-}
-
-// $C2:BA2F
-void menu_draw_tech_member_row(Snes *s)
-{
-    menu_techs_draw_member_row(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-// $C2:BB1F
-void menu_show_pointed_tech(Snes *s)
-{
-    menu_techs_show_the_pointed_tech(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-/* ---- What the original's instructions leave ---------------------------------------------------- */
-
-static void leave_load(Snes *s, uint8_t v) { menu_leave_load(s, v); }
-
-/* A step tests the buttons as the cursor's reading left them. */
-static void leave_buttons_tested(Snes *s)
-{
-    menu_leave_bit_test(s, (uint8_t)s->cpu.a, menu_cursor_buttons(state_of(s)));
-}
-
-/* An 8-bit add with the carry clear first: its result's sign and zero, its
- * carry and its overflow. */
-static void leave_added(Snes *s, uint8_t a, uint8_t b)
-{
-    unsigned sum = (unsigned)a + b;
-    uint8_t r = (uint8_t)sum;
-    menu_leave_load(s, r);
-    m_set_flag(s, CPU_FLAG_C, sum > 0xFF);
-    m_set_flag(s, CPU_FLAG_V, ((a ^ r) & (b ^ r) & 0x80) != 0);
-}
-
-/* The overflow of an 8-bit subtraction with the carry set first. */
-static bool subtraction_overflows(uint8_t a, uint8_t b) { return ((a ^ b) & (a ^ (uint8_t)(a - b)) & 0x80) != 0; }
-
-/* The list shown loaded and compared with what the frame found. */
-static void leave_shown_compared(Snes *s, uint8_t before)
-{
-    const GameState *g = state_of(s);
-    m_set_a8(s, menu_tech_list_shown(g));
-    menu_leave_compare(s, menu_tech_list_shown(g), before);
-}
-
-/* The member rows drawn again on going back: the cursor's place worked out
- * as the member row's plus the members' first place. */
-static void leave_cursor_moved_off_the_members(Snes *s)
-{
-    const GameState *g = state_of(s);
-    leave_added(s, menu_tech_member_row(g), 0x0B);
-}
-
-/* A member slide starting: the new scroll's sign and zero; down the list
- * after the reachable members' test (the carry clear, the add's overflow). */
-static void leave_member_slide_started(Snes *s, MemberListSlide slide, uint8_t scroll_before)
-{
-    const GameState *g = state_of(s);
-    leave_load(s, menu_tech_member_scroll(g));
-    if (slide == MEMBERS_SLIDE_DOWN) {
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_set_flag(s, CPU_FLAG_V, ((scroll_before ^ (uint8_t)(scroll_before + 3)) & 0x80 & ~scroll_before) != 0);
-    }
-}
-
-/* A kind switched: the next or the one before compared with the kinds'
- * count, before it goes round (the move in the list keeps the carry). */
-static void leave_kind_switched(Snes *s, uint8_t kind_before)
-{
-    const GameState *g = state_of(s);
-    if (!menu_pushed(g, MENU_PUSHED_RIGHT) && !menu_pushed(g, MENU_PUSHED_LEFT))
-        return;
-    uint8_t moved = menu_pushed(g, MENU_PUSHED_RIGHT) ? (uint8_t)(kind_before + 1) : (uint8_t)(kind_before - 1);
-    m_set_flag(s, CPU_FLAG_C, moved >= MENU_TECH_KINDS);
-}
-
-/* The list made (or not) for the member and the kind: the new list compared
- * with the one before; the overflow of the member row's working out. */
-static void leave_list_made(Snes *s, uint8_t before)
-{
-    const GameState *g = state_of(s);
-    menu_leave_compare(s, menu_tech_list_shown(g), before);
-    uint8_t place = menu_cursor_index(g);
-    m_set_flag(s, CPU_FLAG_V, subtraction_overflows(place, 0x0B));
-}
-
-/* Into the list: the description's request counted down. The lister's
- * record then placed with a word whose sign and zero are both clear, after
- * the member's place worked out. */
-static void leave_into_the_list(Snes *s)
-{
-    const GameState *g = state_of(s);
-    leave_added(s, menu_tech_member_row(g), menu_tech_member_scroll(g));
-    menu_leave_load(s, 0x38);
-}
-
-/* The lister's sprite compared with the character's. */
-static void leave_lister_tested(Snes *s, uint8_t old_sprite)
-{
-    menu_leave_compare(s, menu_status_record_character(state_of(s)), old_sprite);
-}
-
-/* A tech looked at: each refusal leaves its own test's flags, and the
- * accumulator as it loaded or compared. */
-static void leave_tech_looked_at(Snes *s, TechsUse use)
+static void charge_tech_looked_at(Snes *s, TechsUse use)
 {
     GameState *g = state_of(s);
     switch (use) {
     case TECH_REFUSED_WAITING:
-        m_set_a8(s, menu_member_waiting(g));
-        leave_load(s, menu_member_waiting(g));
-        return;
-    case TECH_REFUSED_NOT_HEALING: {
-        uint8_t marks = menu_tech_marks(g, menu_tech_pointed(g));
-        s->cpu.a = marks;
-        leave_load(s, marks);
-        return;
-    }
+        charge_machine_accesses(g, 2);
+        break;
+    case TECH_REFUSED_NOT_HEALING:
+        charge_machine_accesses(g, 2);
+        break;
     case TECH_REFUSED_SHORT_OF_MP:
-    case TECH_USED: {
-        uint8_t mp = menu_status_record_bytes_byte(g, 7), cost = menu_tech_cost(g);
-        uint8_t spill = menu_tech_category(g) == MENU_SINGLE_TECHS ? 0 : menu_tech_cost_beside(g);
-        s->cpu.a = (uint16_t)(spill << 8 | mp);
-        menu_leave_compare(s, mp, cost);
-        uint8_t row = menu_tech_member_row(g), scroll = menu_tech_member_scroll(g), sum = (uint8_t)(row + scroll);
-        m_set_flag(s, CPU_FLAG_V, ((row ^ sum) & (scroll ^ sum) & 0x80) != 0);
-        return;
-    }
+    case TECH_USED:
+        charge_machine_accesses(g, 4 + (menu_tech_category(g) != MENU_SINGLE_TECHS));
+        break;
     }
 }
 
@@ -681,61 +513,18 @@ static void leave_tech_looked_at(Snes *s, TechsUse use)
  * then the effect's every-member bit tested. */
 enum { EVERY_MEMBER_BIT = 0x08 };
 
-static void leave_tech_used(Snes *s, bool every_member)
+void menu_charge_techs_panel_member_chosen(Snes *s, uint8_t row)
 {
-    uint8_t tested = every_member ? EVERY_MEMBER_BIT : 0;
-    m_set_a8(s, tested);
-    leave_load(s, tested);
-    m_set_flag(s, CPU_FLAG_C, false);
+    GameState *g = state_of(s);
+    if (row < menu_active_members(g))
+        charge_machine_accesses(g, 1);
 }
 
-/* The panel's member row compared with the active members (kept), or put
- * on the first. */
-void menu_leave_techs_panel_member_chosen(Snes *s, uint8_t row)
+static void charge_description_asked(Snes *s)
 {
-    const GameState *g = state_of(s);
-    if (row < menu_active_members(g)) {
-        m_set_a8(s, row);
-        menu_leave_compare(s, row, menu_active_members(g));
-        return;
-    }
-    m_set_a8(s, 0);
-    leave_load(s, 0);
-    m_set_flag(s, CPU_FLAG_C, true);
-}
-
-/* The cursor's row kept and compared with where it started the frame. */
-static void leave_list_row_compared(Snes *s)
-{
-    const GameState *g = state_of(s);
-    m_set_a8(s, menu_cursor_index(g));
-    menu_leave_compare(s, menu_cursor_index(g), menu_cursor_frame_start(g));
-}
-
-/* The description's request bit tested against the tech, or the tech
- * compared with the description's. */
-static void leave_description_asked(Snes *s)
-{
-    const GameState *g = state_of(s);
-    uint8_t tech = menu_tech_pointed(g), stale = menu_description_stale(g);
-    m_set_a8(s, tech);
-    menu_leave_bit_test(s, tech, stale);
-    if (!(stale & 0x80))
-        menu_leave_compare(s, tech, menu_description_item(g));
-}
-
-/* The tech brought in, its row drawn and sent: the carry and the overflow
- * of the list's place worked out, the queue's leavings, and the sign and
- * zero of the upload record's place the queue was handed (the queue gives
- * its caller's flags back), which the tick's saved P holds. */
-static void leave_tech_row_brought_in(Snes *s)
-{
-    const GameState *g = state_of(s);
-    uint8_t cursor = menu_cursor_index(g), top = menu_tech_list_top(g);
-    menu_leave_queued_upload(s, MENU_UPLOAD_FRONT_LAYER);
-    leave_added(s, cursor, top);
-    m_set_flag(s, CPU_FLAG_N, (MENU_UPLOAD_FRONT_LAYER & 0x8000) != 0);
-    m_set_flag(s, CPU_FLAG_Z, false);
+    GameState *g = state_of(s);
+    uint8_t stale = menu_description_stale(g);
+    charge_machine_accesses(g, 1 + !(stale & 0x80));
 }
 
 /* Slid: the line effects' bit loaded over what the rows' copies left in the
@@ -743,51 +532,16 @@ static void leave_tech_row_brought_in(Snes *s)
  * last source row down it), and no overflow from the copies' sums. */
 enum { LINE_EFFECTS_MOVED_BIT = 0x80 };
 
-static void leave_list_slid(Snes *s, bool slid_up)
+static void charge_list_slid(Snes *s, bool slid_up)
 {
-    uint8_t high = slid_up ? 0xFF : (uint8_t)(menu_window_place(state_of(s)) >> 8);
-    s->cpu.a = (uint16_t)(high << 8 | LINE_EFFECTS_MOVED_BIT);
-    m_set_flag(s, CPU_FLAG_V, false);
+    if (!slid_up)
+        charge_machine_accesses(state_of(s), 2);
 }
 
-/* Another member pointed at, one at a time: the effect's every-member bit
- * tested (clear), the member's place compared with the one before, the
- * overflow of the place worked out. */
-static void leave_restoring_pointed(Snes *s, uint8_t before)
+static void charge_help_looked_for(Snes *s)
 {
-    const GameState *g = state_of(s);
-    uint8_t place = menu_cursor_index(g), first = menu_use_first_member(g);
-    m_set_a8(s, 0);
-    leave_load(s, 0);
-    m_set_flag(s, CPU_FLAG_C, menu_use_member(g) >= before);
-    m_set_flag(s, CPU_FLAG_V, subtraction_overflows(place, first));
-}
-
-/* Whether the restoring helps, in the accumulator over the last member's
- * HP's high byte where it looked at the HP (a member's load leaves the high
- * byte clear). */
-static void leave_help_looked_for(Snes *s)
-{
-    const GameState *g = state_of(s);
-    uint8_t high = (menu_use_effect(g) & MENU_USE_RESTORES_HP) ? (uint8_t)(character_records_hp(g, menu_member_character(g)) >> 8) : 0;
-    s->cpu.a = (uint16_t)(high << 8 | menu_use_helps(g));
-}
-
-/* The user's MP loaded last (a member's load leaves the accumulator's high
- * byte clear). */
-static void leave_users_mp_looked_at(Snes *s)
-{
-    s->cpu.a = menu_status_record_bytes_byte(state_of(s), 7);
-}
-
-/* The cost taken from the user's MP: the subtraction's flags. */
-static void leave_cost_taken(Snes *s, uint8_t mp_before)
-{
-    const GameState *g = state_of(s);
-    uint8_t cost = menu_tech_cost(g), mp = (uint8_t)(mp_before - cost);
-    m_set_a8(s, mp);
-    menu_leave_compare(s, mp_before, cost);
-    m_set_flag(s, CPU_FLAG_V, subtraction_overflows(mp_before, cost));
+    GameState *g = state_of(s);
+    charge_machine_accesses(g, 1 + ((menu_use_effect(g) & MENU_USE_RESTORES_HP) ? 3 : 0));
 }
 
 /* ---- The guards -------------------------------------------------------------------------------- */
@@ -824,13 +578,8 @@ static bool list_step_runs(const GameState *g)
 bool menu_tech_list_step_runs(Snes *s) { return on_the_screen(s) && menu_cursor_is_movable(s) && peek(s, list_step_runs); }
 bool menu_tech_list_slides(Snes *s) { return on_the_screen(s) && peek(s, list_step_runs); }
 bool menu_tech_is_describable(Snes *s) { return on_the_screen(s) && peek(s, list_step_runs); }
-bool menu_tech_list_is_showable(Snes *s) { return on_the_screen(s) && peek(s, list_step_runs); }
 bool menu_tech_lister_is_showable(Snes *s) { return on_the_screen(s) && peek(s, list_step_runs); }
 bool menu_techs_lister_can_show(const GameState *g) { return list_step_runs(g); }
-
-static bool rows_are_drawable(const GameState *g) { return queue_takes(g, 1) && menu_techs_members_are_drawable(g); }
-
-bool menu_tech_member_rows_are_drawable(Snes *s) { return on_the_screen(s) && peek(s, rows_are_drawable); }
 
 static bool targets_step_runs(const GameState *g)
 {
@@ -843,32 +592,9 @@ bool menu_tech_target_is_pointable(Snes *s) { return on_the_screen(s) && peek(s,
 bool menu_tech_targets_open(Snes *s) { return on_the_screen(s) && peek(s, targets_step_runs); }
 bool menu_techs_targets_can_run(const GameState *g) { return targets_step_runs(g); }
 
-static bool list_rows_are_drawable(const GameState *g)
-{
-    return menu_techs_list_is_pointable(g) && menu_scratch_tech_list_place(g) + LIST_ROWS_SHOWN <= MENU_TECH_LIST_GROUPS_COUNT;
-}
-
-bool menu_tech_rows_are_drawable(Snes *s) { return menu_on_page_work_ram(s) && peek(s, list_rows_are_drawable); }
-
-/* The member's list made afresh where the member or the kind changed: the
- * list as it stands needn't be the kind's yet. */
-static bool member_list_is_showable(const GameState *g)
-{
-    return queue_takes(g, 1) && menu_techs_members_are_drawable(g) && menu_tech_category(g) < MENU_TECH_KINDS;
-}
-
-bool menu_member_tech_list_is_showable(Snes *s) { return menu_on_page_work_ram(s) && peek(s, member_list_is_showable); }
-
 /* A member row: the loaded record a character's, its window list drawable
  * from the drawing origin. */
 enum { MEMBER_ROW_LIST = 0xC01F };
-
-static bool member_row_is_drawable(const GameState *g)
-{
-    return (menu_status_record_character(g) & 0x7F) < CHARACTER_RECORDS_COUNT && menu_window_list_drawable(g, MEMBER_ROW_LIST);
-}
-
-bool menu_tech_member_row_is_drawable(Snes *s) { return menu_on_page_work_ram(s) && peek(s, member_row_is_drawable); }
 
 static bool restoring_is_pointable(const GameState *g)
 {

@@ -13,10 +13,10 @@
  * columns and lines, through the ROM's table of slopes' angles. The last
  * direction measured is kept (battle_screen_direction); a script can also
  * measure one alone ($CC), though no script of the game's does. */
+#include "charge.h"
 #include "battle/screen_script.h"
 
 #include "battle/screen_data.h"
-#include "original_effects.h"
 
 /* ---- The direction between two positions ------------------------------------------------- */
 
@@ -70,23 +70,13 @@ static void keep_direction_work(GameState *g, Run across, Run down)
 /* ... and the runs and the table's place in its scratch cells: each run with
  * half an eighth added where it rounds up, the runs in eighths, and the
  * place. */
-static uint16_t rounded_up(uint8_t run) { return (uint16_t)(run + ((run & HALF_AN_EIGHTH) ? EIGHTH : 0)); }
-
-static void leave_direction(GameState *g, Run across, Run down, uint8_t direction)
-{
-    screen_leave_cell(g, 0x45, direction);
-    screen_leave_word(g, 0x46, in_eighths(across.run));
-    screen_leave_word(g, 0x48, rounded_up(across.run));
-    screen_leave_word(g, 0x4A, rounded_up(down.run));
-    screen_leave_word(g, 0x4C, (uint16_t)(in_eighths(down.run) * SLOPE_STEPS + in_eighths(across.run)));
-}
 
 static uint8_t measure_direction(GameState *g, BattlePoint from, BattlePoint to)
 {
     Run across = run_between(from.x, to.x), down = run_between(from.y, to.y);
     uint8_t direction = direction_between(g, across, down);
     keep_direction_work(g, across, down);
-    ORIGINAL_EFFECT(leave_direction(g, across, down, direction));
+    charge_machine_accesses(g, 9);
     return direction;
 }
 
@@ -101,6 +91,9 @@ static BattlePoint position(const GameState *g, unsigned p)
 static BattlePoint pair_first(const GameState *g, uint8_t pair) { return position(g, SCREEN_PAIR_POSITIONS * pair); }
 static BattlePoint pair_second(const GameState *g, uint8_t pair) { return position(g, SCREEN_PAIR_POSITIONS * pair + 1u); }
 
+// $CD:1B22, $CD:1B1F
+/* Keep a pair on the battlefield, then measure the direction along another,
+ * from its first position to its second, and keep it. */
 static bool names_pairs_and_a_quad(const GameState *g, const ScreenCommand *c)
 {
     (void)g;
@@ -108,9 +101,6 @@ static bool names_pairs_and_a_quad(const GameState *g, const ScreenCommand *c)
            && c->quad < SCREEN_WINDOW_QUADS;
 }
 
-// $CD:1B22, $CD:1B1F
-/* Keep a pair on the battlefield, then measure the direction along another,
- * from its first position to its second, and keep it. */
 static uint8_t aim_along(GameState *g, uint8_t kept_pair, uint8_t aim)
 {
     screen_keep_pair_on_the_battlefield(g, kept_pair);
@@ -149,21 +139,12 @@ static BattlePoint moved(BattlePoint p, BattlePoint by)
 
 /* What the original leaves of the sides: each offset in its cells, and in the
  * multiplier the last one's product. */
-static void leave_sides(GameState *g, uint8_t direction, uint8_t half_width, BandSides s)
-{
-    uint8_t other = (uint8_t)(direction + SCREEN_QUARTER_TURN);
-    screen_leave_cell(g, 0x45, s.other.x);
-    screen_leave_cell(g, 0x47, s.other.y);
-    screen_leave_cell(g, 0x49, s.one.x);
-    screen_leave_cell(g, 0x4B, s.one.y);
-    screen_leave_sine_product(g, other, half_width);
-}
 
 static BandSides band_sides(GameState *g, uint8_t direction)
 {
     uint8_t half_width = battle_script_variables(g, HALF_WIDTH_VARIABLE);
     BandSides s = sides_across(g, direction, half_width);
-    ORIGINAL_EFFECT(leave_sides(g, direction, half_width, s));
+    (charge_machine_accesses(g, 4), charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, 1));
     return s;
 }
 
@@ -233,11 +214,6 @@ static ScreenTriangle wedge_corners(BattlePoint first, BattlePoint second, BandS
 
 /* The original hands the triangles' drawing window 1 (whatever the command's
  * first operand says, which it doesn't read) and clears the cell $20. */
-static void leave_wedge_handed_over(GameState *g)
-{
-    set_battle_window_quad_index(g, WEDGE_WINDOW);
-    screen_leave_cell(g, 0x20, 0);
-}
 
 // $CD:1937
 /* Screen command $DA: draw window 1 as a wedge from a pair's first position
@@ -245,7 +221,7 @@ static void leave_wedge_handed_over(GameState *g)
 static ScreenFlow lay_wedge(GameState *g, uint8_t pair)
 {
     BandSides s = band_sides(g, aim_along(g, WEDGE_KEPT_PAIR, WEDGE_AIM));
-    ORIGINAL_EFFECT(leave_wedge_handed_over(g));
+    charge_machine_accesses(g, 2);
     screen_draw_window_triangle(g, WEDGE_WINDOW, wedge_corners(pair_first(g, pair), pair_second(g, pair), s));
     return screen_on();
 }
@@ -302,11 +278,3 @@ SCREEN_OPCODES(screen_between_opcodes,
 /* $CE:E7CF, called with the two points in the cells $23-$26, the first
  * across and down, then the second; the direction comes back in A and in
  * the cell $45. */
-void battle_measure_direction(Snes *s)
-{
-    GameState *g = state_of(s);
-    BattlePoint from = { battle_direction_work(g, 0), battle_direction_work(g, 1) };
-    BattlePoint to = { battle_direction_work(g, 2), battle_direction_work(g, 3) };
-    s->cpu.a = measure_direction(g, from, to);
-    m_rtl(s);
-}

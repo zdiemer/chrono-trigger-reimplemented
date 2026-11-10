@@ -26,13 +26,11 @@
 #include "battle/rewards_work.h"
 #include "battle/setup.h"
 #include "charge.h"
-#include "original_effects.h"
 
 static void note_learned(GameState *g, uint8_t member, uint8_t what)
 {
     set_battle_rewards_techs_noted(g, member, battle_rewards_techs_noted(g, member) | what);
 }
-
 
 /* A learned bit: a character's single techs from its first, a combination's
  * techs from its first, at the top. */
@@ -61,8 +59,8 @@ enum { MULTIPLY_WORDS = 0xC1C90B };
 static void leave_tech_record_found(GameState *g, uint8_t known, uint8_t first)
 {
     TIMED_AS(g, MULTIPLY_WORDS, battle_leave_multiply(g, (uint8_t)(known + first), PARTY_TECH_BYTES));
-    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, known + first > 0xFF));
-    ORIGINAL_EFFECT(set_battle_learner_first_tech(g, first));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
 }
 
 // $C1:F45F
@@ -81,7 +79,7 @@ bool rewards_reach_next_tech(GameState *g, uint8_t member, uint8_t character, ui
         set_points_left(g, member, (uint16_t)(left - points));
         return false;
     }
-    ORIGINAL_EFFECT(set_battle_tech_learned(g, TECH_REACHED));
+    charge_machine_accesses(g, 1);
     set_points_left(g, member, (uint16_t)(points - left));
     return true;
 }
@@ -100,8 +98,8 @@ void rewards_learn_single_tech(GameState *g, uint8_t member, uint8_t character, 
     set_party_single_techs_known(g, character, (uint8_t)(known + 1));
     if ((uint8_t)(known + 1) >= character_techs(g, character).count)
         set_battle_stats_block_byte(g, member, STAT_NOTES, battle_stats_block_byte(g, member, STAT_NOTES) | STAT_NOTE_TECHS_ALL_LEARNED);
-    ORIGINAL_EFFECT(battle_leave_byte(g, WORK_BIT_AT, learned_bit(known)));
-    ORIGINAL_EFFECT(set_battle_rewards_tech_at(g, *at));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
 }
 
 /* The most tech points a member holds, 9,999,999, as the original brings a
@@ -136,8 +134,8 @@ enum { POINTS_KEPT_AT = 8 };
 void rewards_count_tech_points(GameState *g, uint8_t member, uint8_t character, uint8_t *at)
 {
     uint16_t won = battle_tech_points_won_low(g), points = won;
-    ORIGINAL_EFFECT(set_battle_wide_math(g, POINTS_KEPT_AT, (uint8_t)won));
-    ORIGINAL_EFFECT(set_battle_wide_math(g, POINTS_KEPT_AT + 1, (uint8_t)(won >> 8)));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     bool reached = false, learned = false;
     for (;;) {
         TIMED_AS(g, 0xC1F45F, reached = rewards_reach_next_tech(g, member, character, points));
@@ -160,13 +158,13 @@ void rewards_count_tech_points(GameState *g, uint8_t member, uint8_t character, 
     /* what the original leaves: where the count and the techs' record are
      * once one was reached, and the character's costs once one was learned */
     if (!reached)
-        ORIGINAL_EFFECT(set_battle_tech_learned(g, TECH_NOT_REACHED));
+        charge_machine_accesses(g, 1);
     if (reached || learned) {
-        ORIGINAL_EFFECT(battle_leave_word(g, WORK_KNOWN_AT, known_place(character)));
-        ORIGINAL_EFFECT(battle_leave_word(g, WORK_TECHS_AT, character_techs_place(character)));
+        charge_machine_accesses(g, 2);
+        charge_machine_accesses(g, 2);
     }
     if (learned)
-        ORIGINAL_EFFECT(battle_leave_word(g, WORK_BIT_AT, tech_costs_place(character)));
+        charge_machine_accesses(g, 2);
 }
 
 /* ---- Combination techs ------------------------------------------------------------------ */
@@ -207,10 +205,10 @@ static KnownList list_techs_known(GameState *g, uint8_t characters)
             list.count[list.listed++] = party_single_techs_known(g, character);
     list.count[list.listed] = END_OF_LIST;
     for (unsigned n = 0; n <= list.listed; n++)
-        ORIGINAL_EFFECT(set_battle_combination_techs_known(g, n, list.count[n]));
-    ORIGINAL_EFFECT(battle_leave_byte(g, WORK_SHIFTING_AT, (uint8_t)(characters << SETUP_CHARACTERS)));
-    ORIGINAL_EFFECT(battle_leave_word(g, WORK_CHARACTER_AT, SETUP_CHARACTERS));
-    ORIGINAL_EFFECT(battle_leave_word(g, WORK_LISTED_AT, list.listed));
+        charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
     return list;
 }
 
@@ -236,9 +234,11 @@ static AsksMet asks_met(const GameState *g, const KnownList *list, uint16_t asks
 
 static void leave_asks_met(GameState *g, AsksMet m)
 {
-    ORIGINAL_EFFECT(battle_leave_word(g, WORK_TESTED_AT, m.tested));
-    ORIGINAL_EFFECT(battle_leave_word(g, WORK_LISTED_AT, m.met));
-    ORIGINAL_EFFECT(set_battle_combination_short(g, m.short_of_techs ? 0xFF : 0x00));
+
+    (void)m;
+        charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 1);
 }
 
 // $C1:F533
@@ -262,7 +262,7 @@ void rewards_learn_combination_techs(GameState *g, Combination c, uint8_t member
         /* the original finds the tech's record by multiplying, its carry set
          * from the end of the list */
         TIMED_AS(g, MULTIPLY_WORDS, battle_leave_multiply(g, tech, PARTY_TECH_BYTES));
-        ORIGINAL_EFFECT(battle_leave_multiply_carry(g, true));
+        charge_machine_accesses(g, 1);
         if (party_tech_locked(g, tech))
             continue;
         set_combination_learned(g, c.record, combination_learned(g, c.record) | bit);
@@ -278,10 +278,10 @@ void rewards_learn_combination_techs(GameState *g, Combination c, uint8_t member
     } while (++n != c.count);
     if (tested)
         leave_asks_met(g, last);
-    ORIGINAL_EFFECT(set_battle_combination_tech_bit(g, learned_bit(n)));
-    ORIGINAL_EFFECT(set_battle_combination_tech(g, (uint8_t)(c.first + n)));
-    ORIGINAL_EFFECT(battle_leave_word(g, WORK_TECHS_AT, combination_tech_asks_place(c.asks, n)));
-    ORIGINAL_EFFECT(set_battle_combination_techs_left(g, 0));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 1);
 }
 
 /* The members' characters, a bit each: sorted, and each pair's and the
@@ -307,17 +307,28 @@ static uint8_t member_bit(const GameState *g, uint8_t member)
 
 /* The original works each member's bit out in a cell, starting from the top
  * bit, and keeps the sorted bits and the sets. */
+/* Preserve the machine estimate for removed comparison accesses.
+ * Inspect the branch without charging those reads to either backend. */
+static void charge_last_member_bit(GameState *g, uint8_t last)
+{
+    uint32_t charge_mark = charge_uncounted_begin(g);
+    bool present = battle_combatant_fighting(g, last) != COMBATANT_NONE;
+    charge_uncounted_end(g, charge_mark);
+    charge_machine_accesses(g, present ? 3 : 2);
+}
+
 static void leave_members_sorted(GameState *g, const uint8_t bits[BATTLE_PARTY_SIZE], MemberSets s)
 {
-    uint8_t last = BATTLE_PARTY_SIZE - 1;
-    ORIGINAL_EFFECT(battle_leave_byte(g, WORK_BIT_AT, battle_combatant_fighting(g, last) == COMBATANT_NONE ? 0x80 : member_bit(g, last)));
-    ORIGINAL_EFFECT(set_battle_combination_first_bit(g, bits[0]));
-    ORIGINAL_EFFECT(set_battle_combination_second_bit(g, bits[1]));
+
+    (void)s;     uint8_t last = BATTLE_PARTY_SIZE - 1;
+    charge_last_member_bit(g, last);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     /* the cell is the reactions' animation kept, which they read as they
      * find it (battle/main_loop.c) */
     set_battle_combination_third_bit(g, bits[2]);
     for (unsigned n = 0; n < BATTLE_COMBINATION_MEMBER_SETS_COUNT; n++)
-        ORIGINAL_EFFECT(set_battle_combination_member_sets(g, n, s.sets[n]));
+        charge_machine_accesses(g, 1);
 }
 
 static MemberSets sort_members(GameState *g)
@@ -345,10 +356,10 @@ static bool find_combination(GameState *g, uint8_t characters, Combination *c)
         record++;
     /* the original walks the records in a cell, counting them in another, and
      * keeps the last characters it compared */
-    ORIGINAL_EFFECT(battle_leave_word(g, WORK_KNOWN_AT, combination_record_place(record)));
-    ORIGINAL_EFFECT(set_battle_combination_record_number(g, record));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 1);
     if (record > 0 || these != NO_MORE_COMBINATIONS)
-        ORIGINAL_EFFECT(battle_leave_byte(g, WORK_CHARACTERS_AT, these != NO_MORE_COMBINATIONS ? these : combination_record_characters(g, (uint8_t)(record - 1))));
+        (charge_machine_accesses(g, 1), charge_machine_rom_accesses(g, these == NO_MORE_COMBINATIONS ? 1 : 0));
     if (these == NO_MORE_COMBINATIONS)
         return false;
     CombinationRecord r = combination_record(g, record);
@@ -399,16 +410,16 @@ void rewards_learn_techs(GameState *g)
      * learned byte and its characters */
     if (fighting) {
         set_battle_rewards_member(g, noted);
-        ORIGINAL_EFFECT(set_battle_rewards_tech_at(g, at));
-        ORIGINAL_EFFECT(set_battle_rewards_tech_at_high(g, 0));
+        charge_machine_accesses(g, 1);
+        charge_machine_accesses(g, 1);
     }
     if (learning)
-        ORIGINAL_EFFECT(set_battle_tech_learner(g, learner));
+        charge_machine_accesses(g, 1);
     if (combined) {
-        ORIGINAL_EFFECT(battle_leave_word(g, WORK_BLOCK_AT, combination_learned_place(c.record)));
-        ORIGINAL_EFFECT(set_battle_combination_members(g, c.characters));
+        charge_machine_accesses(g, 2);
+        charge_machine_accesses(g, 1);
     } else if (fighting) {
-        ORIGINAL_EFFECT(battle_leave_word(g, WORK_BLOCK_AT, member_block_place(noted)));
+        charge_machine_accesses(g, 2);
     }
     /* the cell is the effect's hits left, which the next effect that hits
      * several times reads as it finds it (battle/effect_work.c) */

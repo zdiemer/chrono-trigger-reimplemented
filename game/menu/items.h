@@ -80,15 +80,6 @@ void menu_build_items(Snes *s);
 void menu_build_the_items(GameState *g);
 bool menu_items_can_be_built(const GameState *g);
 bool menu_items_built(GameState *g);
-void menu_add_operand_items(Snes *s);
-void menu_take_operand_items(Snes *s);
-void menu_ask_who_can_use(Snes *s);
-bool menu_operand_item_is_known(Snes *s);
-bool menu_loaded_character_is_known(Snes *s);
-void menu_look_up_item(Snes *s);
-void menu_find_item_data(Snes *s);
-void menu_find_item_figures(Snes *s);
 bool menu_items_are_buildable(Snes *s);
-bool menu_item_figures_are_findable(Snes *s);
 
 #endif

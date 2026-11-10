@@ -10,11 +10,11 @@
  * window and the cursors use, the cursors' sprites and colors, and where each
  * object's graphics go in VRAM when the load steps upload them
  * (battle/display.c). */
+#include "charge.h"
 #include "battle/battle.h"
 #include "battle/setup.h"
 
 #include "battle/setup_data.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- The sprite drawing's tables ------------------------------------------------------------ */
@@ -183,7 +183,6 @@ bool setup_objects_parts_fit(const GameState *g)
 
 /* What the original counts the extra parts down in, for the last combatant it
  * met: none left after one or two, two fewer than the kind after five. */
-static uint8_t parts_left(uint8_t kind) { return kind < 3 ? 0 : (uint8_t)(kind - 2); }
 
 /* Every present combatant's sprites and its extra parts' are large. */
 enum { ALL_LARGE = 0xAA };
@@ -207,19 +206,27 @@ void setup_size_bits(GameState *g)
 enum { ENEMY_PALETTE_BASE = 0x20, ENEMY_ROW_ENTRY = SPRITE_ENTRIES_PER_OBJECT * BATTLE_FIRST_ENEMY };
 
 /* The original counts the last enemy's extra parts down in its working cells. */
-static void leave_last_enemy_row(GameState *g)
-{
-    int last = -1;
-    for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++)
-        if (battle_slot_present(g, BATTLE_FIRST_ENEMY + enemy)) {
-            last = (int)enemy;
-            enemy += setup_extra_parts(battle_object_kind(g, BATTLE_FIRST_ENEMY + enemy));
-        }
-    if (last >= 0)
-        setup_leave(g, 0x82, parts_left(battle_object_kind(g, BATTLE_FIRST_ENEMY + (unsigned)last)));
-}
 
 // $CC:EDE9
+/* Preserve the machine estimate for removed comparison accesses.
+ * Inspect the branch without charging those reads to either backend. */
+static void charge_enemy_sprite_row(GameState *g)
+{
+    uint32_t charge_mark = charge_uncounted_begin(g);
+    unsigned accesses = 0;
+    bool found = false;
+    for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
+        accesses++;
+        if (battle_slot_present(g, BATTLE_FIRST_ENEMY + enemy)) {
+            found = true;
+            accesses++;
+            enemy += setup_extra_parts(battle_object_kind(g, BATTLE_FIRST_ENEMY + enemy));
+        }
+    }
+    charge_uncounted_end(g, charge_mark);
+    charge_machine_accesses(g, accesses + (found ? 2 : 0));
+}
+
 void setup_enemy_sprite_attributes(GameState *g)
 {
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
@@ -235,7 +242,7 @@ void setup_enemy_sprite_attributes(GameState *g)
                                                             attributes);
         enemy += extra;
     }
-    ORIGINAL_EFFECT(leave_last_enemy_row(g));
+    charge_enemy_sprite_row(g);
 }
 
 /* ---- Tiles, the cursors' sprites and colors ------------------------------------------------- */
@@ -320,7 +327,7 @@ void setup_uploads(GameState *g)
             set_upload(g, upload, slot, u);
         }
     }
-    ORIGINAL_EFFECT(setup_leave_word(g, 0x80, BATTLE_COMBATANTS));
+    charge_machine_accesses(g, 2);
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
         if (shows_enemy_hp(battle_stats_worn_item(g, member))) {
             set_battle_enemy_hp_seen(g, (uint8_t)(battle_enemy_hp_seen(g) + 1));

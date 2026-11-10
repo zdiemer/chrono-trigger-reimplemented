@@ -98,6 +98,16 @@ static inline uint8_t battle_script_speed_steps(const GameState *g, uint8_t spee
 
 /* ---- Building an object's sprite graphics ------------------------------------------------- */
 
+/* The field supplies creature graphics unpacked in its second work-RAM
+ * bank; the party and uncompressed creatures use cartridge resources. A
+ * source bank must stay away from the battle's scratch and stack even when
+ * a tile's offset wraps. The lower cartridge mirrors also satisfy this. */
+static inline bool battle_sprite_graphics_storage(uint32_t source)
+{
+    uint8_t bank = (uint8_t)(source >> 16);
+    return bank == 0x7F || bank >= 0xC0 || (bank >= 0x40 && bank <= 0x7D);
+}
+
 /* The bytes of one frame's tile list, by the object's graphics kind
  * ($CC:F40A): its tile descriptors, then its part offsets, of which there are
  * as many bytes as $CC:F4FC gives. */

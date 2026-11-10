@@ -1494,6 +1494,10 @@ stay for the ports not moved yet (below).
   give a value that form from what it means; the field's dialog shading, its
   window band's tilemap, its full-line window and its screens now read as
   values (`field/line_effects.c`).
+  The menu scenes also use `VID_LINE_SCROLL_BG2_H`: a word of horizontal
+  scroll for the second background per line. Both the native observer and
+  SNES encoder implement it; `timing_test` checks its table and register
+  encoding without a ROM.
 - **The sprite table's form.** `VID_OAM_*` and `vid_oam_x_low`,
   `vid_oam_high_bits`, `vid_oam_x` and `vid_oam_large` turn a signed screen
   position into the table's entry and high bits and back, and

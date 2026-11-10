@@ -13,6 +13,7 @@
  *
  * The records are bank CC's (battle/equipment_data.h). The entries are at the
  * end. */
+#include "charge.h"
 #include "battle/bridge.h"
 #include "battle/combatant.h"
 #include "battle/party_records.h"
@@ -20,7 +21,6 @@
 #include "battle/entries.h"
 #include "battle/equipment_data.h"
 #include "battle/rules_data.h"
-#include "original_effects.h"
 
 /* The direct page's cells the setup works in. The stat block's place, the
  * record's and what the last boost or affinity added are cells later work
@@ -70,8 +70,8 @@ void battle_apply_boost(GameState *g, uint8_t member, uint8_t which)
             set_combatant_stat_byte(g, member, stat, raised(combatant_stat_byte(g, member, stat), boost.amount, boostable[i].most));
         }
     }
-    ORIGINAL_EFFECT(battle_leave_word(g, BOOST_AT, stat_boost_place(which)));
-    ORIGINAL_EFFECT(battle_leave_byte(g, BITS_LEFT, (uint8_t)(boost.stats << (BOOSTABLE - 1))));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 1);
 }
 
 // $FD:B141
@@ -102,7 +102,7 @@ static void add_affinities(GameState *g, uint8_t member, uint16_t record)
             set_combatant_stat_byte(g, member, at, (uint8_t)(combatant_stat_byte(g, member, at) + amount));
         }
     }
-    ORIGINAL_EFFECT(battle_leave_byte(g, BITS_LEFT, (uint8_t)(adds << (ELEMENTS - 1))));
+    charge_machine_accesses(g, 1);
 }
 
 /* ---- A member's stats ------------------------------------------------------------------------- */
@@ -138,7 +138,7 @@ static void set_up_member_stats(GameState *g, uint8_t member)
         uint16_t record = (uint16_t)(boost_records_place(worn_pieces[p].kind) + effect_times(g, number, BOOST_RECORD_BYTES));
         /* the original finds the armor's and the helmet's record with the
          * carry of its range's test in (scaffolding) */
-        ORIGINAL_EFFECT(battle_leave_multiply_carry(g, worn_pieces[p].first != 0 && piece >= worn_pieces[p].first));
+        charge_machine_accesses(g, 1);
         /* the original hands the boost the record's place and the boosts'
          * table's in cells, and names another table before the affinities,
          * which don't read it: kept, as later work reads the cells */
@@ -163,7 +163,7 @@ static uint16_t item_record_place(GameState *g, uint8_t item, uint16_t none)
     uint16_t place = (uint16_t)(records.place + effect_times(g, (uint8_t)(item - records.first), records.bytes));
     /* the original multiplies with the carry of its range's test in: set
      * past the weapons (scaffolding) */
-    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, item >= FIRST_ARMOR));
+    charge_machine_accesses(g, 1);
     return place;
 }
 
@@ -183,8 +183,8 @@ static void copy_equipment_records(GameState *g, uint8_t worn_at, uint8_t copy_t
             n++;
         } while (n < bytes);
     }
-    ORIGINAL_EFFECT(battle_leave_word(g, MEMBER_AT, BATTLE_PARTY_SIZE));
-    ORIGINAL_EFFECT(battle_leave_word(g, COPIED, 0));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
 }
 
 /* As the fight's start calls them (battle/fight.h). */
@@ -199,102 +199,17 @@ void battle_take_equipment_records(GameState *g, uint8_t worn_at, uint8_t copy_t
 
 /* The stat block whose place is in the cell `at`: the combatant's slot, or
  * none where the place is no block's. */
-static bool block_in_cell(const GameState *g, unsigned at, uint8_t *slot)
-{
-    uint16_t offset = (uint16_t)(battle_cell_word(g, at) - battle_stat_block_place(g, 0));
-    *slot = (uint8_t)(offset / BATTLE_STAT_BLOCK_BYTES);
-    return offset % BATTLE_STAT_BLOCK_BYTES == 0 && offset / BATTLE_STAT_BLOCK_BYTES < BATTLE_PARTY_SIZE;
-}
 
 /* The member in its cell ($02), a member of the party's. */
-bool battle_set_up_member_stats_ready(Snes *s)
-{
-    vars_peek(true);
-    bool member = battle_cell_word(state_of(s), MEMBER_AT) < BATTLE_PARTY_SIZE;
-    vars_peek(false);
-    return battle_on_page(s) && member;
-}
-
-void battle_set_up_member_stats(Snes *s)
-{
-    set_up_member_stats(state_of(s), (uint8_t)battle_cell_word(state_of(s), MEMBER_AT));
-    m_rts(s);
-}
 
 /* A piece's boost and affinities, for the member whose block's place is in
  * its cell ($00), from the record whose place is in its ($08); the boosts'
  * table's place in its cell ($0E). The record is read within the bank. */
 enum { RECORD_LAST_PLACE = 0xFFFA };
 
-static bool piece_ready(Snes *s)
-{
-    uint8_t slot;
-    vars_peek(true);
-    GameState *g = state_of(s);
-    bool ready = block_in_cell(g, BLOCK_AT, &slot) && battle_cell_word(g, RECORD_AT) <= RECORD_LAST_PLACE;
-    vars_peek(false);
-    return battle_on_page(s) && ready;
-}
-
-bool battle_apply_stat_boost_ready(Snes *s)
-{
-    vars_peek(true);
-    bool table = battle_cell_word(state_of(s), TABLE_AT) == STAT_BOOSTS;
-    vars_peek(false);
-    return piece_ready(s) && table;
-}
-
-void battle_apply_stat_boost(Snes *s)
-{
-    uint8_t member;
-    GameState *g = state_of(s);
-    block_in_cell(g, BLOCK_AT, &member);
-    apply_boost(g, member, battle_cell_word(g, RECORD_AT));
-    m_rtl(s);
-}
-
-bool battle_add_affinities_ready(Snes *s) { return piece_ready(s); }
-
-void battle_add_affinities(Snes *s)
-{
-    uint8_t member;
-    GameState *g = state_of(s);
-    block_in_cell(g, BLOCK_AT, &member);
-    add_affinities(g, member, battle_cell_word(g, RECORD_AT));
-    m_rts(s);
-}
-
 /* An item's record's place: the item in A, the place in X (A clear where it
  * has one; where not, X and A are left as they came). */
-bool battle_item_record_place_ready(Snes *s) { return battle_on_page_a_high_clear(s); }
-
-void battle_item_record_place(Snes *s)
-{
-    uint8_t item = (uint8_t)s->cpu.a;
-    uint16_t place = item_record_place(state_of(s), item, s->cpu.x);
-    if (item_records_of(item).bytes != 0) {
-        s->cpu.x = place;
-        s->cpu.a = 0;
-    }
-    m_rtl(s);
-}
 
 /* The records to copy: where the item is in a block, in its cell ($06); where
  * they go, in its ($08); how many bytes, in its ($0A). */
 enum { WORN_AT = BATTLE_MEMBER_CELL, COPY_TO = BATTLE_NUMBER_TESTED, BYTES = BATTLE_STAT_OFFSET_LOW, BLOCK_OFFSETS = 0x100 };
-
-bool battle_copy_equipment_records_ready(Snes *s)
-{
-    vars_peek(true);
-    GameState *g = state_of(s);
-    bool offsets = battle_cell_word(g, WORN_AT) < BLOCK_OFFSETS && battle_cell_word(g, COPY_TO) < BLOCK_OFFSETS;
-    vars_peek(false);
-    return battle_on_page(s) && offsets;
-}
-
-void battle_copy_equipment_records(Snes *s)
-{
-    GameState *g = state_of(s);
-    copy_equipment_records(g, battle_low_scratch(g, WORN_AT), battle_low_scratch(g, COPY_TO), battle_low_scratch(g, BYTES));
-    m_rts(s);
-}

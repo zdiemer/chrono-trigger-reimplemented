@@ -153,6 +153,7 @@ add_library(ct_game STATIC
   game/field/sprites.c
   game/field/window_shape.c
   game/menu/bridge.c
+  game/menu/machine_forms.c
   game/menu/cursor.c
   game/menu/description.c
   game/menu/digits.c
@@ -283,6 +284,7 @@ add_library(ct_game STATIC
   game/battle/arith.c
   game/battle/battlefield.c
   game/battle/bridge.c
+  game/battle/machine_forms.c
   game/battle/buttons.c
   game/battle/combatants.c
   game/battle/damage.c
@@ -572,6 +574,8 @@ add_executable(scene_contract_test tests/port/scene_contract_test.c)
 target_link_libraries(scene_contract_test PRIVATE ct_game_native_shape ct_vars_checked ct_runtime)
 add_executable(field_test tests/port/field_test.c)
 target_link_libraries(field_test PRIVATE ct_game_native_shape ct_vars_checked ct_runtime)
+add_executable(battle_contract_test tests/port/battle_contract_test.c)
+target_link_libraries(battle_contract_test PRIVATE ct_game_native_shape ct_vars_checked ct_runtime)
 
 # Instruction translation (tools/generate, docs/GENERATED.md), with C generated into
 # the build tree for every opcode and context: sst_generated_runner runs it on the

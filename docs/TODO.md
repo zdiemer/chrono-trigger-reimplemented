@@ -9,25 +9,14 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
-- **Uncovered runs outside the scene program.** The remainder audit leaves
-  190 bytes in `$C0`, 18 in `$C2` and 76 in `$CD`, rounded to 0% each by
-  burndown. The event loops at `$C0:58ED`, `$C0:5967`, `$C0:5990` and
+- **Out-of-contract script states.** The event loops at `$C0:58ED`, `$C0:5967`, `$C0:5990` and
   `$C0:5AA3` already run as C for valid scripts; their hand-backs preserve
   out-of-buffer script positions, changed data banks and object state the
   typed map cannot represent. Supporting those states needs a storage or
   script contract, not a second copy of the same loop. The screen runner's
   `$CD:165F` hand-back is for bytes `$FA`-`$FE`, past its command table;
   establish semantics for the original's out-of-table dispatch before
-  admitting them. No shipped script is known to use these paths. The other
-  five battle bytes are `$CD:1D93`, the line request already implemented by
-  the timing service; its independent-entry blocker is recorded under
-  "The battle's wait for a line" below.
-  The five menu waits (`$C2:89F5`, `$8A91`, `$8AB5`, `$8AF8`, `$CECB`)
-  retain their task-switch contract checks: remove their fallback only when
-  the task stack and saved widths can be represented without the machine.
-  The four one-byte returns (`$C0:EC76`, `$C2:034C`, `$9F04`, `$A16F`) are
-  already executed by their wrappers; teaching the estimate to distinguish
-  those from real stops would remove the conservative count, not game work.
+  admitting them. No shipped script is known to use these paths.
 - **Recorded outcomes across the library.** All 84 movies are recorded and
   have strict and native ratchets (REIMPLEMENTATION.md, "Recorded
   outcomes"); their differences are excepted as debts. Resolve the excepted
@@ -49,6 +38,9 @@ rest waits, is [PLAN.md](PLAN.md).
     and boarding-selector checks, and `walk_a_leg`'s stationary invariant.
   - Keep `field_location_is_a_number` and `location_record_is_one` as
     assertions: a non-record offset can unpack into the stack or scratch.
+  - Preserve battle sprite/output bounds, animation resource banks and
+    indexes, startup OAM lookup, action/script table bounds, and text
+    language/stack separation when their storage or assets move.
   - Recheck excluded tile-set blocks, BG2 left drift and unused scene-tile
     loads if assets become editable; recheck the eight-sprite zone proof
     if screen height changes. Arithmetic-dead paths need no substitute.
@@ -90,23 +82,6 @@ rest waits, is [PLAN.md](PLAN.md).
   fight search gives up after 101 tries with Heckran at about 770 of 2100 HP.
   The route is in `HAND_RUN_ROUTES` until its policy wins there: spend MP and
   items more sparingly, or back the search up further than the last decisions.
-- **Compare the whole held-message pause.** `battle-motherbrain` abandons all
-  124 calls of `battle_pause_on_the_message` inside its enclosing message
-  sequence. The focused seed-1 fuzz run compares eight accepted states up to
-  the first wait, with no mismatch, but does not independently compare the
-  complete timed pause (`tools/uncompared_baseline.txt`).
-- **Empty first equipment list preserves its item operand.** `menu_list_what_fits`
-  (`$C2:8953`, `game/menu/equipment.c`) initializes `last_asked` to zero and writes
-  it back even when no inventory item fits the slot. The original only writes
-  `$7E:04C9` when an item falls in the slot's range. Opening equipment immediately
-  from ctsave04 slot 2 therefore mismatches once (`F1` original, `00` native).
-  `unequipped_armor` visits an empty inventory row first, which leaves zero on both
-  sides through normal controls. The underlying scratch-byte discrepancy is still open.
-- **Native items-list scrolling**: `ct_native` playing `battle-unequipped-armor`
-  stops at frame 3147, `$C2:AC3A`: "the items list slid a row, runs only on the
-  machine". This is during the initial inventory visit, before the unequip.
-  The hand-port runtime can run the movie's menu sequence; the host program's
-  item-list continuation still needs a C path.
 
 ### Timing and other accuracy work
 
@@ -205,23 +180,18 @@ rest waits, is [PLAN.md](PLAN.md).
   Retired subsystems need coherent-state tests and recorded outcomes instead
   of new comparisons against deleted registry rows.
 
-- **Dino Age's battle interrupt mismatches in real play.** The hand-run
-  `dino_age` route (technoplaza ct-state23 slot 2, 193389-frame scratch movie;
-  MOVIES.md) reaches The End in the reference and shipping modes, but its full
-  `ct_dev --native shadow` replay exits 1. `battle_irq` (`$D1:FE97`,
-  `game/battle/nmi.c`) has one mismatch: at the wait, PPU `$210F` is `FF` in
-  the original and `00` in native code; the next 15 passes still differ before
-  the original leaves. Generated blocks have zero mismatches; sound lockstep
-  is identical (608049 ticks, 24 loads), with zero refusals and no page,
-  accessor or asset diagnostics. This is not a guard refusal to allowlist.
-  It also reproduces with `--generated off` from the Core checkpoint at
-  frame 133140 through 177869; the ending-only interval 177869-193389 is clean.
-  The cause is not established, and no game code was changed. This recording
-  used Core seed 1. The route now defaults to Core seed 2: it finishes at 176261,
-  with a clean full shadow replay and identical final PNG. To reproduce the
-  failure, set this route's `core_seed_offset` to 0, regenerate its movie in
-  scratch storage, then replay all 193389 frames with ct-state23's SRAM and
-  `--native shadow`. Strict mode and `ct_native` complete both inputs.
+- **Dino Age's line-interrupt discrepancy in a native fixture.** Before
+  battle retirement, the hand-run `dino_age` route with Core seed 1
+  (technoplaza ct-state23 slot 2, 193389 frames; MOVIES.md) reached The End
+  in reference and shipping play but exposed a `battle_irq` discrepancy:
+  at the wait, the horizontal scroll byte was `FF` in the original and
+  `00` in the port, persisting for the next 15 passes. It also reproduced
+  without generated code over the Core interval 133140-177869; the ending
+  interval was clean. Core seed 2, the route's default, finished at 176261
+  with a clean comparison and identical final PNG. Both inputs completed
+  in strict and native modes. The cause remains unestablished: recreate
+  the seed-1 state in a native line-effect fixture and check the intended
+  scroll transition. Its registry comparison no longer exists.
 - **IRQ timing simplifications** (RUNTIME.md, "Interrupt timing"): hardware's
   ~3.5-dot trigger delay isn't modeled, and an IRQ pending across `CLI` is
   taken one instruction early.
@@ -236,16 +206,6 @@ rest waits, is [PLAN.md](PLAN.md).
   in-frame position (RUNTIME.md, "ZSNES save states"), so those runs are for
   coverage only.
 - **`ct_fuzz` doesn't use generated blocks**, only hand ports (GENERATED.md).
-- **`battle_draw_objects` on unbounded counts.** Fuzzed with the part and
-  sprite set counts unbounded (which the fuzzer can do now that it stops a
-  port's own loop), 40 of 20000 states from a `gato-battle` state differ: in 28
-  the port runs on past its budget where the original returns after about
-  200000 accesses (by then the draw list position `$1DC3`, which the sprites
-  overwrite, is far past the list, and the port meets no end entry), and in 12
-  a byte of the drawing page's cells (`$1DC7`, the part count) or `$0049`
-  differs. No movie reaches these; they are the port's to fix or to declare
-  out of reach (`ct_fuzz --routine battle_draw_objects --range A=0000-00FF
-  --db 7E`).
 - **`$213F`'s bit 7 is the beam latch's flag in the runtime's PPU**
   (`runtime/snes/ppu.c`), where the hardware has the field's parity (and the
   latch's flag in bit 6). The scenes read it as the frame's parity
@@ -266,17 +226,14 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What the hand ports alone left** (REIMPLEMENTATION.md, "Phase 4a, the
   shipping mode's fallbacks, chunk 11"):
   - Entries no movie's shadow run compares, checked by fuzzing alone: the
-    defeat on the screen effects' battlefield (`$CD:0D93`, fuzzed up to
-    the music's fade; its `$CD:0DA2` continuation separately fuzzed up to the
-    battlefield change), the planet's count down to the reset
-    (`$7E:63F5`) and its fade out (`$7E:6403`) and the world map scene's note of the Epoch's
-    arrival (`$C6:EE31`). Strict mode's own timing reached them; a movie that
-    plays them would compare them.
+    planet's count down to the reset (`$7E:63F5`) and its fade out
+    (`$7E:6403`) and the world map scene's note of the Epoch's arrival
+    (`$C6:EE31`). Strict mode's own timing reached them; a movie that plays
+    them would compare them.
   - Entries that run nested inside another port's stretch and are compared
     only through it (tools/uncompared_baseline.txt): the field frame's
-    continuations (`$C0:00A4`-`$C0:00B7`), the battle's setup (`$C1:0023`, its
-    calls interrupted), its screen's setup for the field (`$CD:0000`) and the
-    planet's setup (`$7E:6248`, one call, inside the scene's first frame).
+    continuations (`$C0:00A4`-`$C0:00B7`) and the planet's setup (`$7E:6248`,
+    one call, inside the scene's first frame).
   - The scene scripts' interpreter differs from the original in about one
     random state in 17,500, in a channel's word register (`scene_run_sequence`
     at seeds 2 and 3, its continuation after a wait, `$C3:0C28`, at seed 1;
@@ -286,14 +243,12 @@ rest waits, is [PLAN.md](PLAN.md).
     the map declares on random states (`accessor out of range` in fuzzing,
     `event_script`): its guard doesn't bound where the object's first
     function starts.
-- **The tech sweep's fight never ends in the native shape.** The route
-  (`tools/movies/routes/tech_sweep.py`, zophar chrono-trigger slot 1, the Lavos
-  Core) reaches its outcome in the shipping mode, but `ct_drive_native_shape`
-  ran it 400,000 frames without the fight ending: with the scaffolding
-  compiled out, something in that battle stops the fight from finishing.
-  Find what logic reads a cell only scaffolding writes there
-  (`ct_dev --scaffold-reads original`, the route's frames) and make the two
-  builds agree. The route runs by hand (`tools/suite.py`'s `HAND_RUN_ROUTES`).
+- **The tech sweep's default fight policy.** Seed 1 reaches the Core on the
+  hand ports but repeatedly wipes near frame 94000 with the Core at 9409 HP.
+  Improve its spending and targeting or choose a policy seed that reaches
+  the outcome without original-code handbacks. The passing seed-2
+  native-shape witness is recorded in REIMPLEMENTATION.md, "The battle's
+  teardown"; keep that distinction when changing the default policy.
 - **When the confirm press lands in Atropos's scene, native shape against default.** The scene on `$10C` polls confirm with event command `$31` (`$C0:66A5`) between lines with no box open; the `motherbrain` route now presses through it, but why the native-shape build's timing puts the dialog's last press before the poll is untraced.
 - **An ending's menu script sets the sprites' sizes by `$2101`.** The menus'
   object scripts' byte command `$13` names its cell by address, and an ending
@@ -303,17 +258,6 @@ rest waits, is [PLAN.md](PLAN.md).
   has. A build without it needs the script's write as what it means: decode
   the scripts as an asset so a command naming `$2101` becomes a sprite
   setting (`VidObjConfig`) the service takes, and drop the escape.
-- **What the original's code reads of scaffolding** (REIMPLEMENTATION.md, "The
-  fallback measure"). It broke the native shape's three whole routes until
-  the targeting was ported; what it reads now (101 byte and instruction
-  pairs over the library when the measure came in, `tools/effects_check.py --originals`
-  on the fallbacks check's logs, `build/suite/native-shape/originals.txt`)
-  hasn't broken an outcome yet, and is the list to decide before the
-  scaffolding goes: the menus' `$007A` (`menu_open`'s, read at `$C2:CF0A`
-  on), the equipment screens' `$0022`-`$0027` and `$0DAB`, the battle's
-  `$0084`, `$0092` and the enemies' `$A020`-`$A026`, and a block copy at
-  `$C0:0924` that reads the field's cells whole.
-
 ## Port and review follow-ups
 
 - **Prune the evidence cache.** The shared store, `build/evidence-cache` in
@@ -435,17 +379,7 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **What battle's rewrite left** (history/reimplementation-phase3a.md, "Phase 3a: the battle off the
   machine"). It waits for its qualitative review (`.claude/skills/review-port/`).
-  - The original's routines the battle still calls out to: the rewards' gold
-    `$C1:D0A2` (and the set-up step, `$C1:0023`, a port now, is still called
-    through the dispatch's call-out, `battle/steps.c`, rather than as C:
-    run as C under the dispatch's frame, its waits broke the call chain);
-    what an effect's working out turns away to the
-    original (history/reimplementation-chunks.md, "Phase 3, battle chunk 4: the party's working
-    out"): a hit that steals as well (no record has one); an animation that names no movement
-    (`$C1:3760`'s table past its nine rows, no animation the battle gives);
-    and from the battle's start, the wait tail's callee from the frame work and an effect's graphics
-    loaded `$D1:ECF3`.
-  - What the screen script's rows still turn away to the original
+  - Preserve the screen script's excluded-state contracts when changing storage
     (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"), none of it a
     call the library makes: the drift `$D7` where its amount's high byte,
     the cell `$46` (whatever the last effect left there), isn't clear, or its
@@ -786,10 +720,6 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **What menu's rewrite left** (history/reimplementation-phase3a.md, "Phase 3a: the menus off the
   machine", and "Phase 3a: the menus' follow-ups and the Epoch"):
-  - a divergence the rewrite accepts, on inputs no game state makes: a
-    string's control code past `$0C`, or one included deeper than four, draws
-    nothing, where the original jumps or recurses (`menu_draw_text`'s fuzz
-    mismatches in PORTING.md);
   - the load screen's member rows keep their own place, where the original
     reads it back from its cells after the member row's window list and the
     portrait have run; both are C now, and write those cells only as the
@@ -1054,7 +984,7 @@ rest waits, is [PLAN.md](PLAN.md).
     past a table's 87 bytes when the band's half height or a wave part's line
     count is out of the game's range: the guards want the window's largest
     half and the parts' largest counts. The same case reaches
-    `field_rebuild_the_line_effects` through `battle_nmi_alternate`; retain
+    `field_rebuild_line_effects` through `battle_nmi_alternate`; retain
     that caller when testing the bounds;
   - the event engine reads the script past its buffer (`$C0:5A93`,
     `$C0:58DE`): the opcode byte before the command's guard, and an opening's
@@ -1907,8 +1837,8 @@ rest waits, is [PLAN.md](PLAN.md).
 - **Video escapes after the retired subsystems.** The ordinary service calls
   have host implementations; `ct_native` renders their retained frame directly
   (PLATFORM.md, "Video from service calls, as built"). The remaining work is
-  in battle and menus through their teardowns, and in the scene's follow-up
-  work (its merged teardown did not remove these escapes).
+  in battle and menus' remaining transfer descriptors, and in the scene's
+  follow-up work; their teardowns did not remove these escapes.
   Do not replace their machine contracts by a narrower call before checking
   the descriptor's full domain and the state left for callers. The 23
   `machine_joints.py` occurrences are the 22 calls below plus a comment in
@@ -1916,7 +1846,7 @@ rest waits, is [PLAN.md](PLAN.md).
 
   | File | Calls/sites | What the service needs |
   |---|---|---|
-  | `battle/uploads.c` | `$CD:09CE`, `$CF:E33B` (2) | Preserve the palette sender's data-bank behavior and stray RAM writes until their contract retires; decode the queued transfer's destination/mode into a typed upload, with the full guard retained. |
+  | `battle/uploads.c` | `$CD:09CE`, `$CF:E33B` (2) | Preserve the palette sender's data-bank behavior and stray RAM writes while the legacy machine form needs them; decode the queued transfer's destination/mode into a typed upload, with the full guard retained. |
   | `menu/display.c` | `$C2:9526`, `$C2:954B` (2) | Memory clear/copy, including source-bank and work-port wrapping, cursor state and transfer time. The field's `wram_clear` is the precedent, but these use the work RAM port, not the multiplier. |
   | `menu/script.c` | `script_byte` register writer and its `vid_snes_takes_register` guard (2) | Decode script object-configuration commands to `VidObjConfig`; keep refusal of every other register address. |
   | `scene/race.c` | `$7E:3D41`, `$7E:876E`, `$7E:4671` (3) | VRAM read-back with its initial read/step; a continued low-byte plane upload; a low-byte column upload with stride. |
@@ -2210,14 +2140,6 @@ rest waits, is [PLAN.md](PLAN.md).
     design's tiles and colours, the choice pointer) is built into work RAM
     and sent as the original's transfers: a native renderer could draw the
     window from its height and position directly.
-- **The menus' wave phase starts from event's scratch cell.** The wave handler
-  at `$C2:77C7` (`menus-end-of-time`) reads and advances `$01E2` as its phase
-  (`menu_wave_phase`, `menu/wave.c`: it means its object's own, and reaches
-  this one through an index its loop has run on) without setting it first, so
-  it starts from whatever event's calls (`$02`) or `$B5` last left there. A
-  native build without event's scaffolding would start it elsewhere: give the
-  phase a start of its own when the gate retires (a line or two of the wave, a
-  frame).
 - **What the scripts set that isn't established:**
   - `field_setting_1e` (events `$DE`/`$DF` raise it with the location they
     set; cleared at `$C0:2842` and `$C0:2866`, returned by `$C0:28A7`, ANDed
@@ -2570,14 +2492,6 @@ rest waits, is [PLAN.md](PLAN.md).
   Audit `game/scene/` for these remnants and remove only what no remaining
   code or contract uses.
 
-- **Remove the remaining menu compatibility scratch after the menus retire.**
-  The scene engine retains five `ORIGINAL_EFFECT` sites in `circle.c` and
-  four in `curtain.c`, because gated menu callers still compare their iris
-  and curtain work. Keep the called machine forms' contracts until their
-  callers no longer need the legacy stack/register interface. The input
-  domains and unreached proofs are recorded in REIMPLEMENTATION.md,
-  "The scene engine's teardown", and history/scene-unreached.tsv.
-
 - **The time warp's set-up is owed with a port suspended.** Its pixel-built
   light costs about 110 dark frames charged to the starting field event.
   That event remains suspended in the screen wait: 112 of the gate movie's
@@ -2585,40 +2499,16 @@ rest waits, is [PLAN.md](PLAN.md).
   this after the field's held waits; if it persists, make the setup debt a
   held continuation (REIMPLEMENTATION.md, "The time warp's teardown").
 
-## Shadow comparison gaps
+## Battle upload timing
 
-The early-boss shadow runs also expose a comparison gap in the held-message
-path: `battle_pause_on_the_message` has 168 calls, all abandoned, when run
-as C inside `battle_show_a_battle_message`. Its sixteen frame waits have no
-independent shadow return in these runs. Message typing and clearing still
-compare; add an isolated comparison for the pause itself. This is recorded
-in `uncompared_baseline.txt`.
-
-The two Ocean Palace movies also expose comparison coverage gaps:
-`menu_object_cmd_scroll_map` abandons 1669 of 3132 calls (1463 matched), and
-`battle_dispatch_expired_timers` has 310 of 615 calls interrupted (305 matched).
-Neither mismatches. Their narrowed sample crosses the uncompared check's 50%
-threshold; `tools/uncompared_baseline.txt` records it. Establish comparisons
-covering those missing stretches before treating these samples as full evidence.
-
-`battle_frame_work` also exceeds the vblank timing tail on this pair: 217 of
-11901 stretches differ by at least 1024 clocks (maximum 1537), although its
-mean error is 143 clocks and net drift is -0.07%. Its inline alternating VRAM
-upload already has a timing exception; the Twins exercise 306 of that upload's
-stretches over 1024 clocks. The vblank check finds no moved writes. The caller
-now has a documented `vblank-tail` exception too; retain this sample when
+Before retirement, the two Ocean Palace movies' `battle_frame_work`
+comparisons exceeded the vblank timing tail: 217 of
+11901 stretches differed by at least 1024 clocks (maximum 1537), although its
+mean error was 143 clocks and net drift was -0.07%. Its inline alternating VRAM
+upload already had a timing exception; the Twins exercised 306 of that upload's
+stretches over 1024 clocks. The vblank check found no moved writes. The caller
+had a documented `vblank-tail` exception too; retain this sample when
 improving the upload's timing, rather than moving the caller's calibrated mean.
-
-The two Crono trial movies raise four entries past the uncompared-call
-threshold, recorded with reasons in `tools/uncompared_baseline.txt`:
-`battle_pause_on_the_message` abandons all 116 independent comparisons of
-its held-message pause inside `battle_show_a_battle_message`; it needs an
-isolated comparison. Interrupts cut short 266 of 314
-`field_draw_bg1_at_the_load` calls, 132 of 180 `field_draw_bg2_at_the_load`
-calls and 645 of 1284 `battle_decode_tile_row` calls. Their remaining
-48, 48 and 639 comparisons respectively have zero mismatches. The
-interrupted stretches are a validation gap, not additional successful
-comparisons.
 
 ## The native program
 
@@ -2627,22 +2517,16 @@ comparisons.
   `field_walk_a_frame`, whose comparisons retired with the field. Update
   `game/event/entries.c` and `bridge.h`'s comments, which still describe the field
   as gated. Remove the empty control-flow blocks the scaffolding's deletion left
-  in `game/field/map.c` and `game/event/party.c`.
-- **The field's remaining mode interfaces.** Remove the five retired dispatch
-  entries when their callers no longer need them: boot's `field_first_start`,
-  the menus/overworld/scene/warp `field_enter`, and battle's two music calls
-  and line-effect fallback. The menu wave handler still reads the two scratch
-  bytes preserved by `field/menu_compat.h`; remove those writes with the menus.
-  The still-gated ending-window task also compares the rasterizer's scratch;
-  remove the low-RAM-table compatibility writes with that scene task.
+  in `game/field/map.c`.
+- **The field's remaining mode interfaces.** Remove boot's retired dispatch
+  entry `field_first_start` when its caller no longer needs it.
   The sprite/menu chain also retains the screen setup's Y and overflow
   calling convention. The legacy-only work estimates replace counted
   temporary accesses; remove that backing with the legacy driver.
   The held adapters and called machine forms remain until the legacy driver
   gives way to the native program. REIMPLEMENTATION.md lists each caller.
 
-- **What the batched library ledger's review left.** `suspend_test` has no case of an
-  interrupt pending at a task's yield entry, the new `switch_pending` branch.
+- **What the batched library ledger's review left.**
   `tools/uncompared_evidence.py` counts a matched trial as complete even when it
   is an intentional early stop: require an explicit count of full returns.
   Separate the dispatchers' ordinary and interrupted timing paths before they are
@@ -2773,25 +2657,6 @@ comparisons.
   not exercise `ct_native`'s headless-only build. Add a configuration with
   SDL2 and pkg-config discovery disabled, `CT_ROM` empty and `CT_WERROR=ON`.
 
-- **The menus' remaining machine boundaries.** The 21 assigned bridge and
-  support files retain 22 stops: scheduler switches and held waits, reset and
-  mode boundaries, invalid script dispatch, comparison checkpoints and guard
-  fallbacks. The script bridge's near/far fallback covers unknown or refused
-  targets and the two
-  curtain routines. Inlining the latter moved the scene RNG's accepted
-  shared-scratch reads onto `menu_run_object_script` (496 reads in the attract
-  run); retire that scene dependency with its effects evidence before joining
-  those boundaries. Selected routine wrappers still supply register results
-  and nested checkpoints. `menu_mode_enter` documents the nested shadow
-  ownership that prevents simply joining the mode entry. The NMI entry must
-  retain the work's checkpoint: joining it matches the outer entry but
-  abandons all 51,429 nested work comparisons in the sampled gate. Teach the
-  registry to account for that coverage before joining this boundary; no
-  comparison exception was added. The two work-RAM transfers in
-  `menu/display.c` need a memory service preserving the gate's
-  SNES transfer effects. Registered return wrappers remain until their
-  registry entries and original callers retire together. See
-  REIMPLEMENTATION.md, "The menus' machine joints".
 
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
 native program"; PLAN.md, "The native program, and the registry taken down").
@@ -2869,7 +2734,7 @@ list, by kind, is what `game/` still asks of one.
       `objects.c::turn`, `h->takes` runs under the parent timing tag;
       `handlers.c::script_takes` reaches `menu_sprite_list_is_sound` through
       `menu_object_script_can_run`. The machine's `menu_object_script_runs`
-      excludes those reads with `vars_peek`. After the menu teardown, keep
+      excludes those reads with `vars_peek`. Keep
       the complete guard but exclude its inspection from the native work
       account, then measure the same frames in both modes. This is handler
       time, reducing the main thread's share (at most half a frame).
@@ -2886,13 +2751,13 @@ list, by kind, is what `game/` still asks of one.
     Beyond Time's sampled replay still misses its ending; after accounting
     for native DMA and unpacking it returns to the load screen at frame 12,304
     rather than 29,845 and changes 4,189 SRAM bytes. Follow the first shifted
-    battle input after the battle and menu teardowns; the aggregate native
+    battle input; the aggregate native
     improvement does not establish this movie's outcome.
     Tyrano Lair Walls enters the walkway at frame 3,696 (3,697 before the
     unpacking correction, 3,703 in the reference), then ends with 44 differing
     saved-game bytes: inventory, character progression and battle cursors.
     SRAM still matches and all five places remain on time. Follow the first
-    shifted battle input after the battle and menu teardowns; the re-recorded
+    shifted battle input; the re-recorded
     outcome is not a claim that the fight is equivalent.
     Native access, transfer, budget and retired-work accounting need the next batched library run on
     the 47 unsampled movies, especially `battle-ozzies-fort`, `battle-mud-imp`,
@@ -3137,9 +3002,8 @@ list, by kind, is what `game/` still asks of one.
   settings_screen.c) a note is where the machine both leaves the original's
   flags and saves or restores P and sets the widths the original's code has
   at that point (the opening's set-up, the pointing, an option's handler).
-  Splitting the second out as the subroutine it is on the machine (a step
-  callback for the set-up, as the main menu's panels are) would leave the
-  notes scaffolding only.
+  Split these live calling-convention operations from the timing-only notes,
+  then remove the notes when the legacy driver's time backing is replaced.
 - **What the battle still hands the machine as the program runs it.** The
   battle runs as C from the field's request to the field taken up after it
   (REIMPLEMENTATION.md, "The native program through the battle"), each C
@@ -3174,25 +3038,13 @@ list, by kind, is what `game/` still asks of one.
   (`battle/bridge.c`, `battle/steps.c`, `field/bridge.c`, `menu/bridge.c`,
   `scene/bridge.c`). These go as each subsystem's ports call ports (PLAN.md's
   step 1) and its wrappers leave (step 3).
-  The battle loop backedges also need an iterative
-  continuation with a comparison boundary: shadow waits resume their C call,
-  so directly chaining every backedge would recurse across frames.
-  The generic battle bridge still consults the registry
-  to validate each sibling's width/page/data guards (and battle's return
-  poisoning); deleting the lookup alone bypasses those contracts. Some direct
-  targets have stricter bank guards than their callers, including the party's
+  Checked forms and held continuations retain each sibling's full contract.
+  Some direct targets have stricter bank guards than their callers, including the party's
   return to the field walk. Reset, scene/warp and field reentry tails need their
   shared mode-transition contract before their machine stops can leave.
   Overworld startup's direct first frame also needs a fuzz harness that supplies
   interrupts: all 200 existing setup states now exceed its comparison budget,
   although seven targeted movie calls compare cleanly.
-  Battle's startup-to-loop, frame-to-pass and pass-to-timers stops must
-  retain their boundaries for now. Calling all three directly passed shadow
-  comparisons but failed the scaffolding-disabled bucket-Lavos route after
-  400,000 fight frames. The pre-change build and the candidate restoring those
-  three stops both reach the ending at frame 164169, with eight exact snapshot
-  replays. Isolate the timing/continuation difference before retiring them;
-  no calibration or route exception was added to hide it.
 - **Evidence worker count is not a process cap.** `tools/dc_evidence.py`
   can start four processes per movie, so `suite.py -j 2 --evidence` can run
   eight. Share one process budget across variants and movie workers; a
@@ -3374,14 +3226,7 @@ need diagnosis; they are not allowlist entries or passing contract evidence.
   carries on with the channel's sequence, and `scene/rising_palace.c` ignores
   the palettes' check (it can't fail there, but says nothing).
 - **What the battle's review left** (none rated translation):
-  `battle/enemy_turn.c`'s `choose_again_turn` reads choosing cells
-  (`enemy_choosing_in_cells`, `battle_script_actions_place`) whose last writer
-  on a choose-again turn that isn't a reaction can be `enemy_leave_choosing`'s
-  `ORIGINAL_EFFECT`; the effects baseline's line for `choosing_actions_in_table`
-  names that as a plain writer, where the plain ones are `move_on`,
-  `enemy_hand_back_choosing` and `enemy_turn.c`'s own. `party_turns.c`'s
-  `battle_member_status_turn` checks nothing though its comment says each turn
-  has its guard's state half. `battlefield_change.c`'s
+  `battlefield_change.c`'s
   `battle_load_and_run_battlefield` and its machine twin each spell out the
   load, the scripts' start and the running flag, and `closing.c`'s fade then
   wait is written twice. The waits (`wait.c`) check the typing's fit only where
@@ -3571,20 +3416,6 @@ persistence seams; game-side representation changes still need explicit work.
   exhibit gate (`$7F:0055` bit 7) can be opened, but no movie needs it yet.
 - **Coverage loop**: re-run `--misses` over the whole library after the latest
   movies and feed anything new back into the build.
-- **Battle setup is never compared.** Every call of `battle_setup_state`
-  (`$CC:E2E4`) and `battle_setup_graphics` (`$CC:ED87`) in the library is
-  interrupted by NMI, so shadow mode counts them and compares none; the gate
-  passes on them without looking. What checks them today is `--native on
-  --generated off` tracing identically to a known-good build (DISASSEMBLY.md,
-  "The RAM map"). A fuzz state at their entry, or comparing interrupted calls
-  when the interrupt touches none of their state, would close it. The same
-  holds for the battle's start from the field (`battle_start_from_field`,
-  `$C1:0000`): its call to the battle screen's setup waits for frames, so all
-  its calls are interrupted, and fuzzing compares it only up to that call; what
-  it does after (clearing the battle's memory, taking in the story's rules)
-  is checked by the shipping-mode traces and routes alone. A member that comes
-  back once is fuzzed up to its showing, which `ct_fuzz` can't run as a sibling
-  (no runtime), so the registers at that call differ there.
 - **Snes9x agreement tables** in RUNTIME.md were re-measured after the timing
   fix for `new-game`, `menu` and `field` only; `fair` and `fair-companion` got
   worse and are unexplained.

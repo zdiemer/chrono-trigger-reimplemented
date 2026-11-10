@@ -88,6 +88,10 @@ static const struct {
     /* Both notifications must arrive before this wait can finish. */
     { 0x8C00, { 0xAF, 0x40, 0x00, 0x7E, 0xD0, 0xFA, 0xAF, 0x41, 0x00, 0x7E, 0xD0, 0xF4, 0x60 }, 13 },
     { 0x8D00, { 0x20, 0x00, 0x8C, 0x60 }, 4 },
+    /* A task pops a temporary, switches to a scheduler and back, then
+     * abandons its stack for the boot stack. */
+    { 0x8E00, { 0xA9, 0x12, 0x48, 0x68, 0xA2, 0xFF, 0x0A, 0x9A,
+                0xA2, 0xEE, 0x1F, 0x9A, 0xA2, 0xFF, 0x06, 0x9A, 0xEA }, 17 },
 };
 
 /* ---- the ports ------------------------------------------------------------------------- */
@@ -175,6 +179,20 @@ static void calls_wait(Snes *s)
 
 static bool refuses(Snes *s) { (void)s; return false; }
 
+static void leaves_task_stack(Snes *s)
+{
+    s->cpu.x = 0x06FF;
+    s->cpu.s = 0x06FF;
+    m_stop_at(s, 0xC08E10, DC_A | DC_FLAGS);
+}
+
+static void damages_live_old_stack(Snes *s)
+{
+    uint16_t live = (uint16_t)(s->cpu.s + 1);
+    m_write8(s, live, (uint8_t)~m_read8(s, live));
+    leaves_task_stack(s);
+}
+
 static void calls_two_waits(Snes *s)
 {
     m_jsr(s, 0xC08D00, 0xC08C00);
@@ -241,6 +259,8 @@ static const NativeEntry entries[] = {
     { .addr = 0xC08B00, .name = "calls_wait", .fn = calls_wait, M8_X16 },
     { .addr = 0xC08000, .name = "refused_copy", .fn = copy_ok, .guard = refuses, M8_X16 },
     { .addr = 0xC08D00, .name = "calls_two_waits", .fn = calls_two_waits, M8_X16 },
+    { .addr = 0xC08E00, .name = "leaves_task_stack", .fn = leaves_task_stack, M8_X16 },
+    { .addr = 0xC08E00, .name = "damages_live_old_stack", .fn = damages_live_old_stack, M8_X16 },
 };
 
 static uint8_t rom[ROM_SIZE];
@@ -360,6 +380,19 @@ int main(void)
     CHECK(r.matched == 200 && r.mismatched == 0,
           "both machines receive every notification at a shared wait: %s", log);
 
+    /* A worker completes a pending flag without running a frame. With only
+     * one completion the second flag must still hold the caller. */
+    o.ticks[0].clear = true;
+    o.nticks = 1;
+    o.budget = 2000;
+    r = run(15, &o, log, sizeof log);
+    CHECK(r.callout == 200 && r.matched == 0, "one completion leaves the other request pending");
+    o.ticks[1].clear = true;
+    o.nticks = 2;
+    r = run(15, &o, log, sizeof log);
+    CHECK(r.matched == 200 && r.mismatched == 0,
+          "both pending flags complete on original and call-out machines: %s", log);
+
     /* The port loops where the original returns: abandoned and a finding. */
     o = options(100);
     o.budget = 100000;
@@ -464,6 +497,24 @@ int main(void)
     r = run(12, &o, log, sizeof log);
     CHECK(r.matched == 200, "assumes_tied with the tie, filled after it: matched %lu mismatched %lu", r.matched,
           r.mismatched);
+
+    /* A save-RAM fill can supply a tied work-RAM input through a mirror.
+     * The wrong port succeeds only if both fixture writes and reads work. */
+    o = options(200);
+    CHECK(fuzz_parse_area("306010-306010=5A", false, &o.areas[o.nareas++]), "fill cartridge save RAM");
+    CHECK(fuzz_parse_area("7E0040-7E0040=5A", false, &o.areas[o.nareas++]), "fill matching work RAM");
+    CHECK(fuzz_parse_area("7E0042-7E0042=@B06010", false, &o.areas[o.nareas++]), "read save RAM through its mirror");
+    r = run(12, &o, log, sizeof log);
+    CHECK(r.matched == 200 && r.mismatched == 0, "save fill and mirrored tie: matched %lu", r.matched);
+    CHECK(base.bus.sram[0x10] != 0x5A, "a fixture does not change the base save");
+
+    /* A non-interrupt stack switch keeps popped temporaries dead, but
+     * preserves comparison of the live return frame above the old S. */
+    o = options(100);
+    r = run(16, &o, log, sizeof log);
+    CHECK(r.matched == 100 && r.mismatched == 0, "task stack: matched %lu mismatched %lu", r.matched, r.mismatched);
+    r = run(17, &o, log, sizeof log);
+    CHECK(r.mismatched == 100, "live old stack: mismatched %lu", r.mismatched);
 
     /* Areas. */
     FuzzArea a;

@@ -6,11 +6,11 @@
  * grid, with each combatant's cell marked as taken. A battle can leave the
  * party off the grid; the original then marks eleven slots from the first
  * enemy's, three of them past the combatants' tables, and so do we. */
+#include "charge.h"
 #include "battle/animation.h"
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
-#include "original_effects.h"
 #include "vars.h"
 
 enum { GRID_CELLS = 256, CELL_PIXELS_SHIFT = 4, CELL_TAKEN = 0x40 };
@@ -38,14 +38,6 @@ static uint8_t cell_of(uint8_t x, uint8_t y) { return (uint8_t)((y & 0xF0) | x >
  * the last row marked (where any was). */
 enum { NO_ROW = 0x100 };
 
-static void leave_marking_cells(GameState *g, uint8_t first, unsigned last_row)
-{
-    set_battle_work(g, 0, first);
-    set_battle_work(g, 2, 0);
-    if (last_row != NO_ROW)
-        set_battle_work(g, 4, (uint8_t)last_row);
-}
-
 // $CC:F110
 /* Rebuild the grid with the combatants' cells marked. */
 void battle_mark_combatants_on_grid(GameState *g)
@@ -61,15 +53,5 @@ void battle_mark_combatants_on_grid(GameState *g)
         last_row = y & 0xF0;
         set_battle_grid(g, cell_of(object_x(g, battle_object_of(slot)), y), CELL_TAKEN);
     }
-    ORIGINAL_EFFECT(leave_marking_cells(g, first, last_row));
-}
-
-/* A's high byte is left 0 (the original's block move leaves it to a TDC),
- * and A 8-bit. */
-void battle_mark_object_grid(Snes *s)
-{
-    battle_mark_combatants_on_grid(state_of(s));
-    s->cpu.a = 0;
-    m_sep(s, CPU_FLAG_M);
-    m_rtl(s);
+    charge_machine_accesses(g, last_row != NO_ROW ? 3 : 2);
 }

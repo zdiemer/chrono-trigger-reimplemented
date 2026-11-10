@@ -11,14 +11,10 @@
 #include "snes/system.h"
 #include "state.h"
 
-/* The interpreter called from the body of another object's handler (an
- * overworld walker running the script an event gave it), as the handler's
- * JSR at `call_site` calls it: the running object's script for this frame,
- * and how it ended. SCRIPT_GAVE_BACK where a command handed the rest of the
- * frame to the original's interpreter: the port has stopped, and the
- * original goes on to return to the caller's code after the call. A script
- * at `script` runs here where the game keeps its scripts and the sprite list
- * is as the mode keeps it, which the caller's guard asks. */
+/* Run the current object's script for one turn, checking the interpreter's
+ * full contract on the call frame. A rejected call reports the broken
+ * contract and leaves that frame at the original entry; success returns to
+ * the caller with the script's result and original live register outputs. */
 ScriptEnd menu_run_object_script_from(Snes *s, uint32_t call_site);
 bool menu_object_script_can_run(const GameState *g, uint32_t script);
 

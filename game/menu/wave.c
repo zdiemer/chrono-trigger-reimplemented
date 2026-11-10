@@ -9,6 +9,7 @@
  * layer the look of shimmering water. The effect is turned off while the
  * screen is off, and the object does nothing while the map screen's objects
  * are held still. */
+#include "charge.h"
 #include "menu/objects.h"
 
 #include "menu/line_effects.h"
@@ -17,7 +18,6 @@
 #include "menu/screen_objects.h"
 #include "menu/top_layer.h"
 #include "overworld/overworld.h"
-#include "original_effects.h"
 #include "platform/video.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -72,7 +72,7 @@ static bool wave(GameState *g, Platform *pf, MenuObject self)
     set_menu_wave_phase(g, (uint16_t)(phase + WAVE_SPEED));
     for (unsigned line = 1; line < MENU_SLOT1_LINE_VALUES_COUNT; line += 2)
         set_menu_slot1_line_values(g, line, (uint16_t)(scroll + sine(g, phase++)));
-    ORIGINAL_EFFECT(set_menu_object_scratch_wave_phase(g, phase));
+    charge_machine_accesses(g, 2);
     return true;
 }
 

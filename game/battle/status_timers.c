@@ -29,7 +29,6 @@
 #include "battle/program.h"
 #include "battle/steps.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "port/native.h"
 #include "vars.h"
 
@@ -79,8 +78,6 @@ static bool has_timed_status(const GameState *g, BattleTimer kind, uint8_t slot)
     return (combatant_statuses(g, slot) & battle_timed_status(kind)) != 0;
 }
 
-
-
 static bool hasted(const GameState *g, uint8_t slot)
 {
     return ((stat(g, slot, STAT_STATUS_3) | stat(g, slot, STAT_KEPT_STATUS_3)) & STATUS3_HASTE) != 0;
@@ -103,13 +100,6 @@ static uint8_t paced_length(const GameState *g, BattleTimer kind, uint8_t slot, 
  * leaves in its cell (scaffolding): the bit its pacing shifted out of the
  * length last (slowed, the top; hasted, the bottom), or none, which finding
  * the stat block's place leaves. */
-static bool paced_carry(const GameState *g, BattleTimer kind, uint8_t slot)
-{
-    uint8_t length = battle_timer_length(g, kind, slot);
-    if (slowed(g, slot))
-        return (length & 0x80) != 0;
-    return hasted(g, slot) && (length & 0x01) != 0;
-}
 
 /* The runs of a timer count in cycles of ten: true on the tenth, when the
  * count starts again. */
@@ -147,11 +137,21 @@ enum { STAT_BLOCK_PLACE_CELL = 0x10 };
 /* The timer run out seen to, up to what the showing shows. Poison is seen to
  * after its showing (see_to_run_out_timer), as the original's is: the
  * showing's code runs with its due bit still set. */
+/* Preserve the machine estimate for removed comparison accesses.
+ * Inspect the branch without charging those reads to either backend. */
+static void charge_pacing_carry(GameState *g, uint8_t slot)
+{
+    uint32_t charge_mark = charge_uncounted_begin(g);
+    bool slow = slowed(g, slot);
+    charge_uncounted_end(g, charge_mark);
+    charge_machine_accesses(g, slow ? 3 : 5);
+}
+
 static TimerOutcome timer_ran_out(GameState *g, BattleTimer kind, uint8_t slot)
 {
     const TimerEffect effect = timed_statuses[kind].effect;
     if (effect == POISON_HURTS || effect == LOSES_A_POINT || effect == REGAINS_MAGIC)
-        ORIGINAL_EFFECT(battle_leave_word(g, STAT_BLOCK_PLACE_CELL, (uint16_t)(slot * BATTLE_STAT_BLOCK_BYTES)));
+        charge_machine_accesses(g, 2);
     switch (effect) {
     case NOTHING_HAPPENS:
         return NOTHING_TO_SHOW;
@@ -182,7 +182,7 @@ static TimerOutcome timer_ran_out(GameState *g, BattleTimer kind, uint8_t slot)
         if (!has_timed_status(g, kind, slot))
             return NOTHING_TO_SHOW;
         effect_record_status_damage(g, slot, POINT_OF_HP);
-        ORIGINAL_EFFECT(battle_leave_multiply_carry(g, paced_carry(g, kind, slot)));
+        charge_pacing_carry(g, slot);
         return DAMAGE_TO_APPLY;
     case REGAINS_MAGIC:
     default:
@@ -264,13 +264,21 @@ static bool see_to_the_timer(GameState *g, BattleTimer kind, bool (*show)(void *
     return true;
 }
 
+/* The action step keeps its caller's flags across its waits. Until that
+ * boundary retires, preserve whether the damage-record offset crossed the
+ * signed-byte limit; the record itself is already written by the effect. */
+
 /* On the machine the number is shown from the handler's own call. */
 static bool show_on_the_machine(void *ctx, BattleTimer kind)
 {
     Snes *s = ctx;
-    m_set_a8(s, STATUS_NUMBER_SHOWING);
+    /* The action dispatcher widens the showing index, so its high byte
+     * must be clear even though the status-number entry takes a byte. */
+    s->cpu.a = STATUS_NUMBER_SHOWING;
+    charge_machine_accesses(state_of(s), 2);
     uint32_t site = kind == BATTLE_TIMER_POISON ? POISON_SHOWS_CALL : MAGIC_SHOWS_CALL;
-    return battle_run(s, site, SHOW_NUMBER, battle_show_status_number_entry);
+    return battle_run_dc(s, site, SHOW_NUMBER, DC_X | DC_Y | DC_N | DC_Z | DC_C,
+                         battle_show_status_number_entry);
 }
 
 static void handler_entry(Snes *s, BattleTimer kind)
@@ -354,7 +362,7 @@ static bool show_the_status_number(void *ctx, BattleTimer kind)
 bool battle_run_out_timer_seen_to(GameState *g, Platform *pf, BattleTimer kind)
 {
     if (!handler_takes(g, kind))
-        return battle_needs_the_machine(g, handlers[kind].routine, "a timer of nobody's the port doesn't see to");
+        return battle_contract_broken(g, handlers[kind].routine, "a timer of nobody's the port doesn't see to");
     StatusTimerContext c = { g, pf };
     bool done = false;
     TIMED_AS(g, handlers[kind].routine, done = see_to_the_timer(g, kind, show_the_status_number, &c));

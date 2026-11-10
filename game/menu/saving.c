@@ -38,7 +38,6 @@
 #include "menu/saves.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "original_effects.h"
 #include "overworld/overworld.h"
 #include "platform/audio.h"
 #include "port/native.h"
@@ -417,7 +416,7 @@ static const SavingSteps in_the_program;
 static bool takes(GameState *g, bool ok, uint32_t routine, const char *what)
 {
     if (!ok)
-        program_needs_the_machine(g, routine, what);
+        program_breaks_a_contract(g, routine, what);
     return ok;
 }
 

@@ -72,9 +72,6 @@ void menu_draw_member_rows(GameState *g, Platform *pf);
  * the list's front layer), in the colour of the cursor's row or dimmed. */
 void menu_colour_member_rows(GameState *g);
 void menu_colour_member_row(GameState *g, uint16_t at, bool dimmed);
-/* What the original's colouring of a row on its own leaves in the menus'
- * cells (scaffolding: ORIGINAL_EFFECT). */
-void menu_leave_member_row_coloured(GameState *g, uint16_t at, bool dimmed);
 
 /* The card's parts on either side of the original's figures and stats,
  * which the card's bridge calls out to between them: the time played and the
@@ -90,27 +87,14 @@ void menu_finish_member_card(GameState *g);
  * a character or the end of the list. For the guards of the screens that
  * draw them. */
 bool menu_member_can_be_loaded(const GameState *g, uint8_t member);
+bool menu_character_can_be_loaded(const GameState *g, uint8_t character);
 bool menu_member_card_can_be_drawn(const GameState *g);
 bool menu_member_card_can_be_drawn_for(const GameState *g, uint8_t member);
 bool menu_member_rows_can_be_drawn(const GameState *g);
 bool menu_member_rows_can_be_drawn_from(const GameState *g, uint8_t first);
 
-/* What the rows' colouring leaves in the registers, its upload queued last,
- * for a bridge that coloured them as C and goes on to a call that sees them
- * (scaffolding: ORIGINAL_EFFECT). */
-void menu_leave_member_rows_coloured(Snes *s);
-
-/* The entries (game/registry.c). */
-void menu_work_out_low_hp_marks_entry(Snes *s);
+/* The checked legacy adapters. */
 bool menu_low_hp_marks_are_workable(Snes *s);
-void menu_load_member_entry(Snes *s);
-void menu_note_member_face(Snes *s);
-void menu_draw_member_row_entry(Snes *s);
-void menu_draw_empty_member_row(Snes *s);
-void menu_draw_member_rows_entry(Snes *s);
-void menu_colour_member_rows_entry(Snes *s);
-void menu_colour_member_row_entry(Snes *s);
-void menu_show_member_element(Snes *s);
 void menu_draw_member_card_entry(Snes *s);
 /* The card of the member the cursor is on, as C ($C2:A22F). */
 void menu_draw_member_card(GameState *g, Platform *pf);
@@ -122,14 +106,6 @@ bool menu_redraw_member_card(GameState *g, Platform *pf);
  * state half). */
 bool menu_low_hp_marks_can_be_worked_out(const GameState *g);
 
-bool menu_member_is_loadable(Snes *s);
-bool menu_member_face_is_noteable(Snes *s);
-bool menu_member_row_is_drawable(Snes *s);
-bool menu_empty_member_row_is_drawable(Snes *s);
-bool menu_member_rows_are_drawable(Snes *s);
-bool menu_member_rows_are_colourable(Snes *s);
-bool menu_member_row_is_colourable(Snes *s);
-bool menu_member_element_is_showable(Snes *s);
 bool menu_member_card_is_drawable(Snes *s);
 
 #endif

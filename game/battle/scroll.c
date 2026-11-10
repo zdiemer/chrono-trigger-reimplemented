@@ -31,7 +31,6 @@
 #include "battle/screen_data.h"
 #include "charge.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "port/native.h"
 #include "vars.h"
 
@@ -98,12 +97,6 @@ static bool waved_layer(const GameState *g, BattleScrollMode mode, unsigned laye
     return waves && battle_line_scroll_layers(g, layer) != 0;
 }
 
-static void leave_scratch_word(GameState *g, unsigned cell, uint16_t v)
-{
-    set_battle_scratch(g, cell, (uint8_t)v);
-    set_battle_scratch(g, cell + 1, (uint8_t)(v >> 8));
-}
-
 /* The original works the six values out in the scratch cells from $45 on,
  * BG1's across first, and leaves them there; in the wave modes, which layers
  * the wave moves in the low cells $1A, $1C and $1E. BG1's across is the
@@ -111,22 +104,6 @@ static void leave_scratch_word(GameState *g, unsigned cell, uint16_t v)
  * (battle_screen_leftover, screen_motion.c): game state, written plainly
  * (battle_scroll_layers); the rest only the original's code reads. */
 enum { WAVED_LAYER_CELLS = 0x1A };
-
-static void leave_layer_scrolls(GameState *g, BattleScrollMode mode, const LayerScroll s[SCROLLED_LAYERS])
-{
-    for (unsigned layer = 0; layer < SCROLLED_LAYERS; layer++) {
-        if (layer != BG1)
-            leave_scratch_word(g, 4 * layer, s[layer].x);
-        leave_scratch_word(g, 4 * layer + 2, s[layer].y);
-    }
-    if (mode != BATTLE_SCROLL_LINE_OFFSETS && mode != BATTLE_SCROLL_LINE_OFFSETS_LONG_BG3)
-        return;
-    for (unsigned layer = 0; layer < SCROLLED_LAYERS; layer++) {
-        uint16_t waved = battle_line_scroll_layers(g, layer);
-        set_battle_low_scratch(g, WAVED_LAYER_CELLS + 2 * layer, (uint8_t)waved);
-        set_battle_low_scratch(g, WAVED_LAYER_CELLS + 2 * layer + 1, (uint8_t)(waved >> 8));
-    }
-}
 
 // $CD:06C4 (steady), $CD:076C (BG3 moving), $CD:07E2 (the wave), $CD:07B9 (the finer wave)
 void battle_scroll_layers(GameState *g, BattleScrollMode mode)
@@ -141,7 +118,7 @@ void battle_scroll_layers(GameState *g, BattleScrollMode mode)
     if (mode == BATTLE_SCROLL_LINE_OFFSETS_LONG_BG3)
         scroll_entries(g, BG3, s[BG3], waved_layer(g, mode, BG3), LINES_PER_LAYER, FINER_BG3_ENTRIES);
     set_battle_screen_leftover(g, s[BG1].x);
-    ORIGINAL_EFFECT(leave_layer_scrolls(g, mode, s));
+    charge_machine_accesses(g, 4 * SCROLLED_LAYERS - 2 + ((mode == BATTLE_SCROLL_LINE_OFFSETS || mode == BATTLE_SCROLL_LINE_OFFSETS_LONG_BG3) ? 4 * SCROLLED_LAYERS : 0));
 }
 
 /* ---- The screen shake --------------------------------------------------------------------- */
@@ -162,11 +139,6 @@ enum { OFFSET_FRACTION_BITS = 8 };
 
 /* The multiplier's operands, as the original leaves them after an axis's
  * product. */
-static void leave_multiplier(GameState *g, uint8_t magnitude, uint8_t amplitude)
-{
-    hw_set_multiplicand(g, magnitude);
-    (void)hw_multiply_by(g, amplitude);
-}
 
 /* The amplitude steps toward where it settles; dying away to nothing, it
  * stops the axis (whose offset this frame is then nothing). */
@@ -208,7 +180,7 @@ static uint8_t shake_axis(GameState *g, unsigned axis)
         set_battle_shake_rate_elapsed(g, axis, since);
     }
     uint8_t magnitude = battle_shake_magnitude(g, axis), amplitude = battle_shake_amplitude(g, axis);
-    ORIGINAL_EFFECT(leave_multiplier(g, magnitude, amplitude));
+    charge_machine_io_accesses(g, 4);
     return (uint8_t)(magnitude * amplitude >> OFFSET_FRACTION_BITS);
 }
 
@@ -223,11 +195,6 @@ static bool shakes(uint8_t layers, unsigned layer, unsigned axis)
 
 /* The shake's offsets on the axes are left in the scratch cells $45 and
  * $47. */
-static void leave_shake(GameState *g, uint8_t across, uint8_t down)
-{
-    set_battle_scratch(g, 0, across);
-    set_battle_scratch(g, 2, down);
-}
 
 /* ---- Palette presets ---------------------------------------------------------------------- */
 
@@ -273,7 +240,7 @@ static void start_requested_presets(GameState *g)
 void battle_shake_screen(GameState *g)
 {
     const uint8_t offset[2] = { shake_axis(g, ACROSS), shake_axis(g, DOWN) };
-    ORIGINAL_EFFECT(leave_shake(g, offset[ACROSS], offset[DOWN]));
+    charge_machine_accesses(g, 2);
     uint8_t layers = battle_shake_layers(g);
     for (unsigned layer = 0; layer < SCROLLED_LAYERS; layer++)
         for (unsigned axis = ACROSS; axis <= DOWN; axis++)
@@ -290,54 +257,15 @@ static const uint32_t scroll_routines[BATTLE_SCROLL_MODES] = { 0xCD06C4, 0xCD076
 
 /* The fills finish as the original's do: A's high byte the page's (0), which
  * their callers read, and 8-bit A with 16-bit index registers. */
-static void finish_fill(Snes *s)
-{
-    s->cpu.a = BATTLE_PAGE;
-    m_sep(s, CPU_FLAG_M);
-    m_rep(s, CPU_FLAG_X);
-    m_rts(s);
-}
-
-void battle_update_scroll_tables(Snes *s)
-{
-    battle_scroll_layers(state_of(s), BATTLE_SCROLL_STEADY);
-    finish_fill(s);
-}
-
-void battle_update_scroll_tables_bg3_moving(Snes *s)
-{
-    battle_scroll_layers(state_of(s), BATTLE_SCROLL_BG3_MOVING);
-    finish_fill(s);
-}
 
 /* The wave's fill leaves X at BG3's second 32 entries, where the finer
  * wave's ($CD:07B9, which calls it) goes on. */
 enum { SECOND_HALF_OF_BG3 = 0x80 };
 
-void battle_update_scroll_tables_line_wave(Snes *s)
-{
-    battle_scroll_layers(state_of(s), BATTLE_SCROLL_LINE_OFFSETS);
-    s->cpu.x = SECOND_HALF_OF_BG3;
-    finish_fill(s);
-}
-
-void battle_update_scroll_tables_finer_line_wave(Snes *s)
-{
-    battle_scroll_layers(state_of(s), BATTLE_SCROLL_LINE_OFFSETS_LONG_BG3);
-    finish_fill(s);
-}
-
 static BattleScrollMode scroll_mode(const GameState *g) { return (BattleScrollMode)battle_scroll_mode(g); }
 
 // $CD:06B4
 /* The frame work's scroll: the mode's fill, each timed as its own routine. */
-void battle_update_scroll_dispatch(Snes *s)
-{
-    GameState *g = state_of(s);
-    BattleScrollMode mode = scroll_mode(g);
-    TIMED_AS(g, scroll_routines[mode], battle_scroll_layers(g, mode));
-    finish_fill(s);
-}
 
 /* The frame's scroll by the mode, as C. */
 void battle_scroll_by_the_mode(GameState *g)
@@ -362,19 +290,4 @@ bool battle_scroll_the_layers(Snes *s)
     TIMED_AS(g, scroll_routines[mode], battle_scroll_layers(g, mode));
     s->cpu.a = BATTLE_PAGE;   /* as the fills leave it */
     return true;
-}
-
-/* The mode is one of the four the table has, and A's high byte clear. */
-bool battle_scroll_mode_is_one(Snes *s)
-{
-    vars_peek(true);
-    bool one = battle_scroll_mode(state_of(s)) < BATTLE_SCROLL_MODES;
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && one;
-}
-
-void battle_update_screen_shake(Snes *s)
-{
-    battle_shake_screen(state_of(s));
-    m_rts(s);
 }

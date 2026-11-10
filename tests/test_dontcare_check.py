@@ -241,7 +241,9 @@ void carries(Snes *s) {{ {helper}(s, 0xC08003, 0xC08020, DC_Y, next); }}
 void waits(Snes *s) { field_hold_next_frame(s, 0xC08003, DC_X, machine(s)); }
 void finishes(Snes *s) { field_hold_finished_frame(s, DC_Y); }
 void continues(Snes *s) { field_hands_over_to(s, 0xC08020, DC_X, next); }
+void returns_from_mode(Snes *s) { field_enter_after_mode(s, DC_Y); }
 void calls(Snes *s) { field_run_called(s, 0xC08003, 0xC08020, DC_Y, next, machine(s)); }
+void calls_long(Snes *s) { field_run_long_called(s, 0xC08003, 0xC28000, DC_X, next, machine(s)); }
 """)
         headers = [dc.Source("runtime/port/native.h", NATIVE_H)]
         declarations, found = dc.declarations([port], dc.Evaluator([port], headers))
@@ -250,7 +252,42 @@ void calls(Snes *s) { field_run_called(s, 0xC08003, 0xC08020, DC_Y, next, machin
                          [("call", 0, 0xC08003, 0xC0EC60, dc._lv.X),
                           ("stop", 0xC0EC60, 0, 0, dc._lv.Y),
                           ("stop", 0xC08020, 0, 0, dc._lv.X),
-                          ("call", 0, 0xC08003, 0xC08020, dc._lv.Y)])
+                          ("stop", 0xC00000, 0, 0, dc._lv.Y),
+                          ("call", 0, 0xC08003, 0xC08020, dc._lv.Y),
+                          ("call", 0, 0xC08003, 0xC28000, dc._lv.X)])
+
+    def test_menu_checked_call(self):
+        port = dc.Source("game/port.c", """
+void uploads(Snes *s) { menu_run_called(s, 0xC2843F, 0xC285D6, DC_Y, upload); }
+void scene(Snes *s) { menu_run_long_called(s, 0xC21836, 0xC6E101, DC_X, place); }
+void points(Snes *s) { menu_run_checked(s, 0xC29CAF, 0xC29F05, DC_A, point); }
+void continues(Snes *s) { menu_continue(s, 0xC2800E, next, DC_Y); }
+""")
+        bridge = dc.Source("game/menu/bridge.c", """
+static bool run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
+{ m_stop_at(s, routine, dont_care); return false; }
+""")
+        headers = [dc.Source("runtime/port/native.h", NATIVE_H)]
+        sources = [port, bridge]
+        declarations, found = dc.declarations(sources, dc.Evaluator(sources, headers))
+        self.assertEqual(found, [])
+        self.assertEqual([(d.kind, d.at, d.site, d.target, d.dont_care) for d in declarations],
+                         [("call", 0, 0xC2843F, 0xC285D6, dc._lv.Y),
+                          ("call", 0, 0xC21836, 0xC6E101, dc._lv.X),
+                          ("call", 0, 0xC29CAF, 0xC29F05, dc._lv.A),
+                          ("stop", 0xC2800E, 0, 0, dc._lv.Y)])
+
+    def test_battle_checked_calls(self):
+        port = dc.Source("game/port.c", """
+void draws(Snes *s) { battle_run_called(s, 0xCFE778, 0xCFE83A, DC_Y, draw); }
+void reads(Snes *s) { battle_run_long_called(s, 0xCD09C6, 0xC28002, DC_X, input); }
+""")
+        headers = [dc.Source("runtime/port/native.h", NATIVE_H)]
+        declarations, found = dc.declarations([port], dc.Evaluator([port], headers))
+        self.assertEqual(found, [])
+        self.assertEqual([(d.kind, d.at, d.site, d.target, d.dont_care) for d in declarations],
+                         [("call", 0, 0xCFE778, 0xCFE83A, dc._lv.Y),
+                          ("call", 0, 0xCD09C6, 0xC28002, dc._lv.X)])
 
     def test_waits_of_one_routine(self):
         """A wait called (s, site) declares its routine's call with the

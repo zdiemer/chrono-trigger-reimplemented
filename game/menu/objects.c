@@ -10,6 +10,7 @@
  * that change the screen (menu/screen_objects.c), the wave (menu/wave.c),
  * the scenes' (menu/map_scenes.c) and the overworld's walkers and vehicles
  * (game/overworld/). */
+#include "menu/effect_noise.h"
 #include "menu/object.h"
 #include "menu/objects.h"
 
@@ -17,7 +18,7 @@
 #include "core/program.h"
 #include "menu/bridge.h"
 #include "menu/handlers.h"
-#include "original_effects.h"
+#include "menu/machine_forms.h"
 #include "overworld/entries.h"
 #include "platform/timing.h"
 #include "port/machine.h"
@@ -85,14 +86,6 @@ void menu_set_object_byte(GameState *g, MenuObject o, uint16_t at, uint8_t v)
     set_byte_at(g, (uint16_t)(menu_object_address(o) + at), v);
 }
 
-void menu_object_leave_cell8(GameState *g, unsigned cell, uint8_t v) { set_menu_object_scratch_bytes_byte(g, cell, v); }
-
-void menu_object_leave_cell16(GameState *g, unsigned cell, uint16_t v)
-{
-    menu_object_leave_cell8(g, cell, (uint8_t)v);
-    menu_object_leave_cell8(g, cell + 1, (uint8_t)(v >> 8));
-}
-
 /* ---- Starting objects ----------------------------------------------------------------------- */
 
 /* A new object takes on the starter's state from its sixth byte on: where it
@@ -123,7 +116,8 @@ static void inherit(GameState *g, MenuObject to)
 // $C2:048A, $C2:04CD
 bool menu_start_object(GameState *g, uint16_t handler, MenuSlotKind kind, MenuObject *started)
 {
-    ORIGINAL_EFFECT(set_menu_object_scratch_spawn_handler(g, handler));
+    /* Object setup contributes to the curtain's next random edge. */
+    menu_note_effect_noise(g, handler);
     unsigned o = menu_first_free_object(g, kind);
     if (o == MENU_OBJECTS)
         return false;
@@ -138,8 +132,8 @@ bool menu_start_object(GameState *g, uint16_t handler, MenuSlotKind kind, MenuOb
 // $C2:04D9, $C2:04FB
 MenuObject menu_start_script(GameState *g, uint32_t script, MenuSlotKind kind)
 {
-    ORIGINAL_EFFECT(set_menu_object_scratch_start_bank(g, (uint8_t)(script >> 16)));
-    ORIGINAL_EFFECT(set_menu_object_scratch_start_script(g, (uint16_t)script));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 2);
     MenuObject o;
     if (!menu_start_object(g, MENU_SCRIPT_HANDLER, kind, &o))
         o = (MenuObject)menu_last_object_of(kind);
@@ -183,7 +177,6 @@ void menu_object_turn_round(GameState *g, MenuObject o, MenuAxis axis)
     menu_object_set_velocity(g, o, v);
 }
 
-// $C2:0F38
 void menu_object_move(GameState *g, MenuObject o)
 {
     MenuPlace p = menu_object_place(g, o), v = menu_object_velocity(g, o);
@@ -263,11 +256,11 @@ static bool turn(void *ctx, uint16_t address, uint16_t handler, bool *done)
     MenuObject self = menu_object_at_address(address);
     const MenuHandler *h = menu_handler(handler);
     if (!h || !h->run) {
-        program_needs_the_machine(g, HANDLERS_BANK | handler, h ? h->name : "an object's handler with no C");
+        program_breaks_a_contract(g, HANDLERS_BANK | handler, h ? h->name : "an object's handler with no C");
         return false;
     }
     if (h->takes && !h->takes(g, self)) {
-        program_needs_the_machine(g, HANDLERS_BANK | handler, h->name);
+        program_breaks_a_contract(g, HANDLERS_BANK | handler, h->name);
         return false;
     }
     MenuTurn t = MENU_TURN_WENT_NO_FURTHER;
@@ -275,7 +268,7 @@ static bool turn(void *ctx, uint16_t address, uint16_t handler, bool *done)
     if (t == MENU_TURN_WENT_NO_FURTHER)
         return false;
     if (!menu_object_address_names_one(menu_object_current(g))) {
-        program_needs_the_machine(g, HANDLERS_BANK | handler, "a handler that left the running object off its slot");
+        program_breaks_a_contract(g, HANDLERS_BANK | handler, "a handler that left the running object off its slot");
         return false;
     }
     *done = t == MENU_TURN_DONE;
@@ -318,14 +311,16 @@ static bool turn_on_the_machine(void *ctx, uint16_t address, uint16_t handler, b
     /* the time passes before the turn and after it, before the loop counts
      * it, as it did when each turn was a call the machine made */
     tm_sync(m_platform(s));
-    const NativeEntry *port = native_hand_entry_at(s, routine);
-    void (*form)(Snes *) = port && !port->idle ? port->fn : overworld_machine_form(s, routine);
+    void (*form)(Snes *) = menu_object_machine_form(handler);
+    if (!form)
+        form = overworld_machine_entry(routine);
     if (form) {
         if (!menu_run_any_widths(s, TURN_SITE, routine, form))
             return false;
         tm_sync(m_platform(s));
-    } else if (!overworld_call_the_handler(s, routine)) {
-        m_jsr(s, TURN_SITE, routine);
+    } else {
+        menu_refuse_call(s, TURN_SITE + MENU_JSR_SIZE, routine, false);
+        return false;
     }
     if (s->cpu.e || m_x8(s) || !menu_object_address_names_one(menu_object_current(g))) {
         m_stop_at_own(s, 0xC20541, 0);
@@ -349,24 +344,7 @@ void menu_run_objects(Snes *s)
     m_rts(s);
 }
 
-/* ---- The entries ------------------------------------------------------------------------------ */
-
-/* Starting an object copies the running object's state: from a slot, or from
- * low RAM below the I/O registers, where the running object's cell names
- * something else before the first object has run. */
-static bool starter_in_low_ram(const GameState *g) { return menu_object_current(g) <= 0x2000 - SLOT_BYTES; }
-
 bool menu_objects_on_page(Snes *s) { return m_direct_page(s) == 0 && m_bank_reaches_low_ram(s); }
-
-bool menu_objects_can_start(Snes *s)
-{
-    if (!menu_objects_on_page(s))
-        return false;
-    vars_peek(true);
-    bool ok = starter_in_low_ram(state_of(s));
-    vars_peek(false);
-    return ok;
-}
 
 bool menu_object_can_move(Snes *s)
 {
@@ -401,71 +379,12 @@ bool menu_object_handler_takes(Snes *s, bool (*takes)(const GameState *g, MenuOb
     return ok;
 }
 
-/* The address a start leaves in X: past the slot it took, or past the last it
- * looked at where every one was busy. */
-static uint16_t past(const GameState *g, MenuSlotKind kind)
-{
-    unsigned o = menu_first_free_object(g, kind);
-    return menu_object_address((MenuObject)(o == MENU_OBJECTS ? end_of(kind) : o + 1));
-}
-
-static void start_object_entry(Snes *s, MenuSlotKind kind)
-{
-    GameState *g = state_of(s);
-    uint16_t x = past(g, kind);
-    MenuObject started;
-    (void)menu_start_object(g, s->cpu.x, kind, &started);
-    s->cpu.x = x;
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
 // $C2:048A
-/* Start an object running the handler in X, in the first free ordinary slot. */
-void menu_object_spawn(Snes *s) { start_object_entry(s, MENU_ORDINARY_SLOT); }
-
-// $C2:04CD
-/* The same among the four slots a screen runs first. */
-void menu_object_spawn_high(Snes *s) { start_object_entry(s, MENU_FIRST_SLOT); }
-
-/* Starting one on a script leaves X on the slot it took (or the last it
- * looked at), the script's high byte over its bank in A, and the carry and
- * overflow of the subtraction that found the slot. */
-static void start_script_entry(Snes *s, MenuSlotKind kind)
-{
-    GameState *g = state_of(s);
-    uint8_t bank = (uint8_t)s->cpu.a;
-    uint16_t at = s->cpu.x;
-    uint16_t x = (uint16_t)(past(g, kind) - SLOT_BYTES);
-    menu_start_script(g, (uint32_t)bank << 16 | at, kind);
-    s->cpu.x = x;
-    s->cpu.a = (uint16_t)((at & 0xFF00) | bank);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_set_flag(s, CPU_FLAG_V, false);
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
-}
 
 // $C2:04D9
-/* Start an object on the script at X in the bank in A. */
-void menu_object_start_script(Snes *s) { start_script_entry(s, MENU_ORDINARY_SLOT); }
-
-// $C2:04FB
-void menu_object_start_script_high(Snes *s) { start_script_entry(s, MENU_FIRST_SLOT); }
 
 // $C2:0F38
-/* Move the running object by its velocity; it leaves X on the object's slot. */
-void menu_object_step_position(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_object_move(g, menu_object_running(g));
-    s->cpu.x = menu_object_current(g);
-    m_rep(s, CPU_FLAG_M);
-    m_rts(s);
-}
 
-// $C2:0471
 /* Free every object slot: none of them runs a handler, and the first is the
  * one running. */
 void menu_free_every_object(GameState *g)
@@ -476,10 +395,3 @@ void menu_free_every_object(GameState *g)
 }
 
 // $C2:0471
-/* It comes back with an 8-bit accumulator. */
-void menu_free_every_object_entry(Snes *s)
-{
-    menu_free_every_object(state_of(s));
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
-}

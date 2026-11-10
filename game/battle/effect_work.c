@@ -61,7 +61,7 @@ static void take_target(GameState *g)
 static void take_next_target(GameState *g)
 {
     take_target(g);
-    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, true));
+    charge_machine_accesses(g, 1);
 }
 
 /* The next target, counting the targets left down in a byte: false once none
@@ -112,21 +112,25 @@ static void each_target(GameState *g, const EffectRecord *e, TargetWork *work)
  * leaves as the original's loaders do: scaffolding. */
 static void leave_numbers(GameState *g, uint8_t first, uint8_t second)
 {
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_1, first));
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_2, second));
+
+    (void)first;
+    (void)second;
+        charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
 }
 
 /* The record's second and third bytes, as a kind loads them ($C1:D14F). */
 static void leave_record_numbers(GameState *g) { leave_numbers(g, battle_effect_record(g, 1), battle_effect_record(g, 2)); }
 
 // $C1:D1B5
-static void leave_misses(GameState *g, const EffectRecord *e) { ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_3, e->misses)); }
+static void leave_misses(GameState *g, const EffectRecord *e) {
+    (void)e; charge_machine_accesses(g, 1); }
 
 /* The effect missed the target: dodged, or the attacker's miss. */
 static void miss(GameState *g, const EffectRecord *e, bool dodged)
 {
     leave_misses(g, e);
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_4, dodged ? 1 : 0));
+    charge_machine_accesses(g, 1);
     effect_missed(g, e->misses, dodged);
     set_missed(g, true);
 }
@@ -137,7 +141,7 @@ static Healing healing_by_magic(GameState *g, uint8_t multiple, uint8_t restores
 {
     Healing h = { effect_actor_stat(g, STAT_MAGIC), multiple, restores };
     leave_numbers(g, h.power, h.multiple);
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_3, h.restores));
+    charge_machine_accesses(g, 2);
     return h;
 }
 
@@ -151,7 +155,7 @@ static Healing healing_by_item(GameState *g)
     Healing h = { (uint8_t)(item_healing_byte(g, item, ITEM_POWER) & ITEM_POWER_BITS),
                   (uint8_t)(item_healing_byte(g, item, ITEM_AMOUNT) & ITEM_AMOUNT_BITS), item_healing_byte(g, item, ITEM_HEALS) };
     leave_numbers(g, h.power, h.multiple);
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_3, h.restores));
+    charge_machine_accesses(g, 2);
     return h;
 }
 
@@ -196,11 +200,11 @@ static bool status_lands(GameState *g, const EffectRecord *e)
 {
     uint8_t base = e->landing.base_chance, divisor = e->landing.magic_divisor;
     leave_numbers(g, base, divisor);
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_3, base));
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_4, divisor));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
     uint8_t part = (uint8_t)effect_over(g, effect_actor_stat(g, STAT_MAGIC), divisor).quotient;
     uint8_t chance = (uint8_t)(part + base);
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_1, chance));
+    charge_machine_accesses(g, 1);
     if (battle_random(g, 0, PERCENT) <= chance)
         return true;
     /* the original tells a dodge by its fourth cell, which holds the divisor */
@@ -272,16 +276,16 @@ static void hit(GameState *g, Platform *pf, const EffectRecord *e)
 static void drain_target(GameState *g, const EffectRecord *e)
 {
     leave_record_numbers(g);
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_5, e->drain.what));
+    charge_machine_accesses(g, 1);
     set_battle_effect_tally(g, 0);
     if (e->drain.what & DRAINS_HP) {
-        ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_3, DRAIN_HP));
+        charge_machine_accesses(g, 1);
         effect_drain(g, DRAIN_HP, e->drain.share);
         set_battle_effect_tally(g, (uint8_t)(battle_effect_tally(g) + 1));
     }
     if (e->drain.what & DRAINS_MP) {
-        ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_3, DRAIN_MP));
-        ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_1, 0x14));
+        charge_machine_accesses(g, 1);
+        charge_machine_accesses(g, 1);
         effect_drain(g, DRAIN_MP, e->drain.share);
     }
 }
@@ -289,7 +293,7 @@ static void drain_target(GameState *g, const EffectRecord *e)
 static void drain(GameState *g, const EffectRecord *e)
 {
     leave_record_numbers(g);
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_6, e->drain.what));
+    charge_machine_accesses(g, 1);
     each_target(g, e, drain_target);
     set_missed(g, false);
 }
@@ -355,7 +359,7 @@ static void hit_repeatedly(GameState *g, Platform *pf, const EffectRecord *e)
     set_battle_effect_amount(g, battle_effect_total(g));
     effect_record_damage(g, battle_effect_target(g), DAMAGE_PLAIN);
     /* made with the carry of the count's compare, set */
-    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, true));
+    charge_machine_accesses(g, 1);
     note_acted_on(g);
 }
 
@@ -379,7 +383,7 @@ static void item_cure_target(GameState *g, const EffectRecord *e)
 {
     (void)e;
     uint8_t how = item_healing_byte(g, battle_action_detail(g), ITEM_POWER);
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_1, how));
+    charge_machine_accesses(g, 2);
     effect_cure(g, (how & CURE_REVIVES) != 0);
     if (how & CURE_HEALS)
         effect_heal(g, healing_by_item(g));
@@ -398,8 +402,8 @@ static void item_status_target(GameState *g, const EffectRecord *e)
     (void)e;
     uint8_t item = battle_action_detail(g);
     uint8_t which = item_healing_byte(g, item, ITEM_HEALS), bits = item_healing_byte(g, item, ITEM_AMOUNT);
-    ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_1, which));
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_2, bits));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 1);
     effect_inflict_status(g, which, bits);
     set_missed(g, false);
 }
@@ -491,35 +495,27 @@ static void add_number_into(GameState *g, unsigned from, unsigned to)
 /* The record of an enemy's number in a set. */
 enum { LAST_ENEMY_PLACE = SET_BYTES - RECORD_BYTES };
 
-static unsigned number_record(uint8_t set, uint8_t place) { return (unsigned)(set * SET_BYTES + place) / RECORD_BYTES; }
-
 /* What the original leaves in the multiply's cell after adding the hits up
  * (scaffolding): the carry of the compare that chose the last kind to move,
  * the second set's into the first at the last enemy's place, which its last
  * multiply takes. The compare is set where the second set's number was none or
  * a miss, or the first's was a miss or past the kinds: the one the second set
  * ends with, and the one the first began with. */
-static void leave_last_compare(GameState *g, uint8_t sets, uint16_t first_began)
-{
-    uint16_t second = number_kind_word(g, number_record(2, LAST_ENEMY_PLACE));
-    bool carry = sets > 1 && (second == NO_NUMBER || second == NUMBER_MISS || first_began >= NUMBER_MISS);
-    battle_leave_multiply_carry(g, carry);
-}
 
 void effect_add_up_hits(GameState *g, uint8_t sets)
 {
-    uint16_t first_began = number_kind_word(g, number_record(1, LAST_ENEMY_PLACE));
+    charge_legacy_accesses(g, 2);
     for (uint8_t place = FIRST_ENEMY_PLACE; place < SET_BYTES; place = (uint8_t)(place + RECORD_BYTES))
         for (uint8_t set = sets; set != 0; set--) {
             unsigned from = (effect_times(g, set, SET_BYTES) + place) / RECORD_BYTES, to = from - SET_BYTES / RECORD_BYTES;
             add_number_into(g, from, to);
         }
-    ORIGINAL_EFFECT(leave_last_compare(g, sets, first_began));
+    charge_machine_accesses(g, 3);
     for (uint8_t place = FIRST_ENEMY_PLACE; place < SET_BYTES; place = (uint8_t)(place + RECORD_BYTES))
         if (number_value(g, place / RECORD_BYTES) >= MOST_SHOWN)
             set_number_value(g, place / RECORD_BYTES, MOST_SHOWN);
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x10, SET_BYTES));
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x12, sets));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
 }
 
 /* The work's start: the damage table clear, nothing done yet. The clearing
@@ -529,7 +525,7 @@ static ActionRecord start_work(GameState *g, ActionTable table)
     TIMED_AS(g, 0xFDACFD, battle_clear_damage_table(g));
     set_battle_effect_total(g, 0);
     set_battle_action_record_place(g, effect_times(g, battle_action_detail(g), ACTION_RECORD_BYTES));
-    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, true));
+    charge_machine_accesses(g, 1);
     set_battle_damage_hit(g, 0);
     set_battle_effects_worked(g, 0);
     set_battle_effect_sure(g, 0);
@@ -579,7 +575,7 @@ void effect_work_out_enemy_action(GameState *g, Platform *pf, ActionTable table)
     set_battle_damage_hit(g, (uint8_t)(battle_damage_hit(g) + 1));
     set_battle_effects_worked(g, (uint8_t)(battle_effects_worked(g) + 1));
     uint8_t added = action.flags & ACTION_HITS_ADDED;
-    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_3, added));
+    charge_machine_accesses(g, 1);
     if (added)
         effect_add_up_hits(g, added);
 noted:
@@ -654,6 +650,7 @@ bool effect_targets_named(const GameState *g)
  * port takes it so where that cell names a combatant; the kinds that count
  * their targets down without stopping would go round the whole byte, and are
  * left to the original. */
+
 static bool takes_targets(const GameState *g, uint8_t kind)
 {
     if (battle_action_target_count(g) == 0 && (kind == EFFECT_HIT || kind == EFFECT_HIT_REPEATEDLY))
@@ -706,16 +703,6 @@ void battle_work_out_enemy_attack(Snes *s) { work_out_entry(s, ENEMY_ATTACKS); }
 
 /* Each kind as its own routine, for the party's code that runs them, on the
  * effect record the party's code copied. */
-static bool kind_ready(Snes *s, EffectKind kind)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ready = combatants_taken(g, kind)
-                 && effect_kind_ported(g, battle_actor(g), kind, battle_effect_flags(g, 0), battle_effect_flags(g, 1),
-                                       battle_effect_modifier(g));
-    vars_peek(false);
-    return battle_on_page(s) && ready;
-}
 
 /* The kinds hand back A clear but its low byte, and the carry of the last
  * note's loop (set), or the last number's place, which is found without
@@ -738,44 +725,3 @@ bool battle_kind_leaves_carry(uint8_t kind)
     default: return false;
     }
 }
-
-static void kind_entry(Snes *s, EffectKind kind)
-{
-    bool carry_in = m_flag(s, CPU_FLAG_C);
-    effect_run_kind(state_of(s), m_platform(s), kind);
-    if (kind == EFFECT_LOSE_CONDITION_BIT)
-        ORIGINAL_EFFECT(battle_leave_multiply_carry(state_of(s), carry_in));
-    m_set_flag(s, CPU_FLAG_C, battle_kind_leaves_carry(kind));
-    s->cpu.a &= 0x00FF;
-    s->cpu.y = NOTE_BYTES;
-    m_rts(s);
-}
-
-#define KIND_ENTRY(name, kind) \
-    void name(Snes *s) { kind_entry(s, kind); } \
-    bool name##_ready(Snes *s) { return kind_ready(s, kind); }
-KIND_ENTRY(battle_effect_restore, EFFECT_RESTORE)
-KIND_ENTRY(battle_effect_cure, EFFECT_CURE)
-KIND_ENTRY(battle_effect_inflict, EFFECT_INFLICT)
-KIND_ENTRY(battle_effect_hit, EFFECT_HIT)
-KIND_ENTRY(battle_effect_drain, EFFECT_DRAIN)
-KIND_ENTRY(battle_effect_steal, EFFECT_STEAL)
-KIND_ENTRY(battle_effect_restore_showing_hp, EFFECT_RESTORE_SHOWING_HP)
-KIND_ENTRY(battle_effect_hit_repeatedly, EFFECT_HIT_REPEATEDLY)
-KIND_ENTRY(battle_effect_item_restore, EFFECT_ITEM_RESTORE)
-KIND_ENTRY(battle_effect_item_cure, EFFECT_ITEM_CURE)
-KIND_ENTRY(battle_effect_item_status, EFFECT_ITEM_STATUS)
-KIND_ENTRY(battle_effect_lose_condition_bit, EFFECT_LOSE_CONDITION_BIT)
-
-/* The notes of the enemy's action, as the enemy's turn calls them: the carry
- * they come in with is left in the multiply's cell. */
-static void note_entry(Snes *s, ActionTable table)
-{
-    GameState *g = state_of(s);
-    effect_note_enemy_action(g, table);
-    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, m_flag(s, CPU_FLAG_C)));
-    m_rtl(s);
-}
-
-void battle_note_enemy_tech(Snes *s) { note_entry(s, ENEMY_TECHS); }
-void battle_note_enemy_attack(Snes *s) { note_entry(s, ENEMY_ATTACKS); }

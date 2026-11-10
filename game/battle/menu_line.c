@@ -24,7 +24,6 @@
 #include "battle/steps.h"
 #include "battle/window.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "platform/audio.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -123,7 +122,7 @@ static void give_up_the_open_menu(GameState *g, uint8_t member)
         set_battle_ally_target_window(g, 0);
     }
     set_battle_targeting(g, 0);
-    ORIGINAL_EFFECT(set_battle_target_choice_spare(g, 0));
+    charge_machine_accesses(g, 1);
     set_battle_target_choice(g, 0);
     battle_hand_the_menu_on(g, member);
 }
@@ -136,7 +135,7 @@ enum { CALLED_OFF_CELL = 0x80 };
  * the menu, the window's frames put back as the battle starts them. */
 void battle_call_off_the_menu(GameState *g, uint8_t member)
 {
-    ORIGINAL_EFFECT(battle_leave_work8(g, CALLED_OFF_CELL, member));
+    charge_machine_accesses(g, 1);
     if (!menu_slot_has_member(g, member)) {
         step_out_of_the_line(g, member);
         return;
@@ -179,11 +178,6 @@ void battle_called_off_step(Snes *s)
 }
 
 // $C1:1B67
-void battle_next_member_takes_the_menu_entry(Snes *s)
-{
-    battle_next_member_takes_the_menu(state_of(s));
-    m_rts(s);
-}
 
 /* The guards: a party member, as the steps are asked for, with a place in
  * the line for it to join; the turn's step finds the member's cells by the
@@ -213,7 +207,7 @@ bool battle_called_off_ready(Snes *s)
 bool battle_turn_comes(GameState *g, Platform *pf)
 {
     if (battle_step_member(g) >= BATTLE_PARTY_SIZE || battle_menu_queue_length(g) >= BATTLE_MENU_QUEUE_COUNT)
-        return battle_needs_the_machine(g, 0xC11B19, "a turn come with no place in the line");
+        return battle_contract_broken(g, 0xC11B19, "a turn come with no place in the line");
     join_the_line(g, pf, battle_step_member(g));
     return true;
 }
@@ -222,7 +216,7 @@ bool battle_menu_called_off(GameState *g, Platform *pf)
 {
     (void)pf;
     if (battle_step_member(g) >= BATTLE_PARTY_SIZE)
-        return battle_needs_the_machine(g, 0xC11BAA, "a menu called off for a member past the party");
+        return battle_contract_broken(g, 0xC11BAA, "a menu called off for a member past the party");
     battle_call_off_the_menu(g, battle_step_member(g));
     return true;
 }

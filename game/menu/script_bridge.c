@@ -10,6 +10,8 @@
 #include "menu/script_bridge.h"
 
 #include "charge.h"
+#include "core/program.h"
+#include "menu/machine_forms.h"
 #include "menu/bridge.h"
 #include "menu/display.h"
 #include "menu/epoch.h"
@@ -23,7 +25,6 @@
 #include "menu/sprites.h"
 #include "menu/turning_world.h"
 #include "menu/vram.h"
-#include "original_effects.h"
 #include "overworld/music.h"
 #include "overworld/entries.h"
 #include "overworld/setup.h"
@@ -153,13 +154,15 @@ typedef struct {
 
 static const MachineRow *machine_row(const OnTheMachine *m) { return &MACHINE[m->opcode]; }
 
-/* The machine entries corresponding to handlers.c's script routines. The
- * gate needs their register results as well as their game state. Targets
- * outside this table and entries whose guards refuse call the original. */
+/* Legacy forms of handlers.c's named script services. Their register
+ * results still connect the script's live operands; no address dispatch is
+ * needed once the bridge has checked the selected form's contract. */
 static const struct {
     uint32_t routine;
     void (*entry)(Snes *);
 } script_entries[] = {
+    { 0xC27B5A, menu_load_omen_graphics_entry },
+    { 0xC27B9F, menu_load_omen_palette_entry },
     { 0xC6E237, menu_object_read_scene_mode },
     { 0xC6E2AF, menu_object_clear_scene_flag },
     { 0xC6E63D, menu_object_keep_song },
@@ -199,8 +202,6 @@ static const struct {
     { 0xC6E391, menu_object_squashed_iris_2 },
     { 0xC6E498, menu_object_capsule_iris_1 },
     { 0xC6E4BE, menu_object_capsule_iris_2 },
-    /* The curtain's scene RNG reads shared scratch. Keep its registered
-     * boundary until that dependency and its effects evidence are retired. */
     { 0xC278A1, menu_scene_object_in_view_entry },
     { 0xC6EE31, menu_scene_note_the_epoch_s_arrival_entry },
     { 0xC26400, menu_epoch_sample_map_colours },
@@ -214,15 +215,50 @@ static const struct {
     { 0xC6EE23, menu_object_turn_the_world_on },
 };
 
-/* The retired overworld's routines a scene calls have no registered entry:
- * the shipping mode runs their machine forms where their contracts hold
- * (overworld/entries.h), and elsewhere the original's. */
-static void (*script_entry(Snes *s, uint32_t routine))(Snes *)
+/* Select the named service here; the bridge checks it on its call frame. */
+static void (*script_entry(uint32_t routine))(Snes *)
 {
     for (unsigned i = 0; i < sizeof script_entries / sizeof script_entries[0]; i++)
-        if (script_entries[i].routine == routine && menu_runs_as_port(s, routine, script_entries[i].entry))
+        if (script_entries[i].routine == routine)
             return script_entries[i].entry;
-    return overworld_machine_form(s, routine);
+    return overworld_machine_entry(routine);
+}
+
+/* These scene operations replace script call-outs. Their bridge checks
+ * the full contract on the pushed frame and retains both time boundaries. */
+static void (*scene_script_entry(uint32_t routine))(Snes *)
+{
+    static const struct { uint32_t routine; void (*entry)(Snes *); } scenes[] = {
+        /* The random stir reads frame state after the caller's pending time. */
+        { 0xC6E241, menu_object_start_curtain },
+        { 0xC6E27E, menu_object_step_curtain },
+        { 0xC27911, menu_scene_round_iris_entry },
+        { 0xC27957, menu_scene_window2_lines_entry },
+        { 0xC27981, menu_scene_flattened_iris_entry },
+        { 0xC279C8, menu_object_accelerate_down },
+        { 0xC27A56, menu_scene_start_scroll_pattern },
+        { 0xC27AAF, menu_scene_advance_scroll_entry },
+        { 0xC27ADA, menu_scene_show_moving_scroll_entry },
+        { 0xC27AEB, menu_scene_show_uniform_scroll_entry },
+        { 0xC27AFC, menu_object_load_scene_map_graphics },
+        { 0xC27B20, menu_object_load_scene_top_layer },
+        { 0xC27B4F, menu_object_mark_scene_event },
+        { 0xC27BD8, menu_object_lay_out_scene_pattern },
+        { 0xC27C48, menu_object_keep_first_scene_result },
+        { 0xC27C4F, menu_object_keep_second_scene_result },
+        { 0xC27C56, menu_scene_start_horizontal_wave },
+        { 0xC27C97, menu_scene_start_vertical_wave },
+        { 0xC27CD8, menu_scene_advance_horizontal_wave },
+        { 0xC27D5E, menu_scene_advance_vertical_wave },
+        { 0xC6E072, menu_scene_start_gray_ramp },
+        { 0xC6E101, menu_object_place_on_scene_edge },
+        { 0xC6E170, menu_scene_start_gray_band },
+        { 0xC6E1FF, menu_scene_move_gray_band },
+    };
+    for (unsigned i = 0; i < sizeof scenes / sizeof scenes[0]; i++)
+        if (scenes[i].routine == routine)
+            return scenes[i].entry;
+    return NULL;
 }
 
 /* The commands go on from a call with 16-bit index registers on the mode's
@@ -242,12 +278,16 @@ static bool call_out_as(OnTheMachine *m, uint32_t site, uint32_t routine, uint16
     Snes *s = m->s;
     uint8_t bank = s->cpu.db;
     m_sep(s, CPU_FLAG_M);
-    void (*entry)(Snes *) = script_entry(s, routine);
+    void (*entry)(Snes *) = scene_script_entry(routine);
     if (entry) {
+        if (!menu_run_called(s, site, routine, dont_care, entry))
+            return false;
+    } else if ((entry = script_entry(routine)) != NULL) {
         if (!menu_run_any_widths(s, site, routine, entry))
             return false;
     } else {
-        m_jsr_dc(s, site, routine, dont_care);
+        menu_refuse_call(s, site + JSR_SIZE, routine, false);
+        return false;
     }
     if (!back_as_called(s, bank, a8)) {
         m_stop_at_own(s, site + JSR_SIZE, 0);
@@ -264,12 +304,16 @@ static bool call_out_far(OnTheMachine *m, uint32_t site, uint32_t routine, uint1
     Snes *s = m->s;
     uint8_t bank = s->cpu.db;
     m_sep(s, CPU_FLAG_M);
-    void (*entry)(Snes *) = script_entry(s, routine);
+    void (*entry)(Snes *) = scene_script_entry(routine);
     if (entry) {
+        if (!menu_run_long_called(s, site, routine, dont_care, entry))
+            return false;
+    } else if ((entry = script_entry(routine)) != NULL) {
         if (!menu_run_long_any_widths(s, site, routine, entry))
             return false;
     } else {
-        m_jsl_dc(s, site, routine, dont_care);
+        menu_refuse_call(s, site + JSL_SIZE, routine, true);
+        return false;
     }
     if (!back_as_called(s, bank, false)) {
         m_stop_at_own(s, site + JSL_SIZE, 0);
@@ -283,7 +327,7 @@ static bool call_out_far(OnTheMachine *m, uint32_t site, uint32_t routine, uint1
 
 /* ---- The services, on the machine ------------------------------------------------------------- */
 
-/* Record only the results the command's registered entry must hand back. */
+/* Record only the results the command's checked legacy adapter must hand back. */
 static void remember_call(OnTheMachine *m)
 {
     Snes *s = m->s;
@@ -311,13 +355,12 @@ static bool scroll_map(void *ctx, MenuAxis axis, uint8_t plane, int8_t step)
     uint32_t routine = axis == MENU_ACROSS ? SCROLL_ACROSS : SCROLL_DOWN;
     void (*entry)(Snes *) = axis == MENU_ACROSS ? menu_map_scroll_x : menu_map_scroll_y;
     m_sep(s, CPU_FLAG_M);
-    if (menu_runs_as_port(s, routine, entry)) {
-        uint8_t named = (uint8_t)(plane & 3);
-        TIMED_AS(g, routine, menu_map_scroll(g, named, axis, step));
-        menu_leave_map_scrolled(s, named, axis, step);
-    } else if (!menu_call_returning(s, site, routine, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, true, false)) {
+    if (!menu_begin_inline_call(s, site, routine, entry))
         return false;
-    }
+    uint8_t named = (uint8_t)(plane & 3);
+    TIMED_AS(g, routine, menu_map_scroll(g, named, axis, step));
+    menu_leave_map_scrolled(s, named, axis, step);
+    menu_end_inline_call(s, site);
     remember_call(m);
     return true;
 }
@@ -329,12 +372,11 @@ static bool redraw_map(void *ctx, uint8_t plane)
     GameState *g = state_of(s);
     set_menu_object_scratch_plane(g, plane);
     m_sep(s, CPU_FLAG_M);
-    if (menu_runs_as_port(s, 0xC209C5, menu_map_redraw)) {
-        TIMED_AS(g, 0xC209C5, menu_map_draw_plane(g, m_platform(s), (uint8_t)((plane & 3) - 1)));
-        menu_leave_map_redrawn(s);
-    } else if (!menu_call_returning(s, 0xC21950, 0xC209C5, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, true, false)) {
+    if (!menu_begin_inline_call(s, 0xC21950, 0xC209C5, menu_map_redraw))
         return false;
-    }
+    TIMED_AS(g, 0xC209C5, menu_map_draw_plane(g, m_platform(s), (uint8_t)((plane & 3) - 1)));
+    menu_leave_map_redrawn(s);
+    menu_end_inline_call(s, 0xC21950);
     remember_call(m);
     return true;
 }
@@ -575,14 +617,13 @@ static void enter_as_the_dispatch_does(Snes *s, uint8_t opcode)
     m_set_flag(s, CPU_FLAG_Z, opcode == 0);
 }
 
-/* A command the port doesn't run -- an opcode past the language, or one
- * whose cells or tables aren't ones the game has -- goes back to the
- * original's interpreter at the top of its loop, which reads it again: the
- * script pointer is on it, and nothing else carries over. */
+/* Invalid script operands break the retired language's contract. Keep the
+ * failure at the command boundary so its pointer and call frame identify it. */
 enum { INTERPRETER_LOOP = 0xC20F73 };
 
-static ScriptFlow hand_to_the_original(Snes *s)
+static ScriptFlow refuse_command(Snes *s)
 {
+    program_breaks_a_contract(state_of(s), INTERPRETER_LOOP, "a script command outside its contract");
     m_rep(s, CPU_FLAG_M);
     m_stop_at_own(s, INTERPRETER_LOOP, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
     return handed_back();
@@ -609,7 +650,7 @@ static ScriptFlow run_on_the_machine(void *ctx, MenuObject self, uint32_t at)
     bool ours = row && menu_script_runs_here(g, row, &c);
     vars_peek(false);
     if (!ours)
-        return hand_to_the_original(s);
+        return refuse_command(s);
     enter_as_the_dispatch_does(s, opcode);
     m_push16(s, (uint16_t)(DISPATCH_SITE + JSR_SIZE - 1));
     ScriptFlow f = perform(m, row, &c);
@@ -671,38 +712,22 @@ void menu_run_object_script_entry(Snes *s)
         m_rts(s);
 }
 
-/* The call's return is on the stack while the script runs, as the original's
- * JSR leaves it, for a command that hands back to the original's interpreter
- * to return through; its time is the interpreter's own. */
+/* A walker's script runs with a checked return frame and its own estimate. */
 ScriptEnd menu_run_object_script_from(Snes *s, uint32_t call_site)
 {
     m_push16(s, (uint16_t)(call_site + JSR_SIZE - 1));
+    m_jump_to(s, 0xC20F63);
+    if (!menu_machine_form_takes(s, 0xC20F63, menu_run_object_script_entry)) {
+        m_stop_at(s, 0xC20F63, 0);
+        return SCRIPT_GAVE_BACK;
+    }
     ScriptEnd end;
     TIMED_AS(state_of(s), 0xC20F63, end = run_the_running_object_s_script(s));
-    if (end != SCRIPT_GAVE_BACK)
+    if (end != SCRIPT_GAVE_BACK) {
         (void)m_pull16(s);
+        m_jump_to(s, call_site + JSR_SIZE);
+    }
     return end;
-}
-
-/* A command's own entry, as the dispatch enters it (the guard sees to it):
- * the command at the script pointer. A jump leaves the pointer a byte before
- * where the script goes on, for the interpreter's step of 1. */
-static void command_entry(Snes *s, uint8_t opcode)
-{
-    GameState *g = state_of(s);
-    OnTheMachine m = { .s = s, .overflow = m_flag(s, CPU_FLAG_V) };
-    on_the_machine(&m, s, opcode);
-    vars_peek(true);
-    uint32_t at = menu_object_script(g);
-    const ScriptOpcode *row = menu_script_opcode(opcode);
-    ScriptCommand c = menu_script_decode(g, row, menu_object_running(g), at, &m.services);
-    vars_peek(false);
-    ScriptFlow f = perform(&m, row, &c);
-    if (f.kind == SCRIPT_HANDED_BACK)
-        return;
-    if (f.kind == SCRIPT_GO_TO)
-        set_menu_object_script(g, (at & 0xFF0000u) | (uint16_t)(f.to - 1));
-    m_rts(s);
 }
 
 /* A command's handler entered from another's: the screen's song unless the
@@ -710,39 +735,3 @@ static void command_entry(Snes *s, uint8_t opcode)
  * the song isn't kept, with the accumulator 8-bit and its own byte doubled
  * still in X. From there the original is the song's command on the operands
  * at the script pointer, which have the same form. */
-static const struct {
-    uint8_t command, into;
-} goes_on_into[] = { { 0x3D, 0x4A } };
-
-static bool entered_from(Snes *s, uint8_t opcode, uint8_t command)
-{
-    if (command == opcode)
-        return !m_m8(s) && s->cpu.a == opcode * 2 && s->cpu.x == opcode * 2 && !m_flag(s, CPU_FLAG_C);
-    for (unsigned i = 0; i < sizeof goes_on_into / sizeof goes_on_into[0]; i++)
-        if (goes_on_into[i].command == command && goes_on_into[i].into == opcode)
-            return s->cpu.x == command * 2;
-    return false;
-}
-
-static bool command_accepts(Snes *s, uint8_t opcode)
-{
-    if (!on_the_mode_page(s))
-        return false;
-    vars_peek(true);
-    GameState *g = state_of(s);
-    bool ok = menu_object_address_names_one(menu_object_current(g));
-    if (ok) {
-        const ScriptOpcode *row = menu_script_opcode(opcode);
-        uint32_t at = menu_object_script(g);
-        ScriptCommand c = menu_script_decode(g, row, menu_object_running(g), at, NULL);
-        ok = script_bank_holds_scripts((uint8_t)(at >> 16)) && entered_from(s, opcode, menu_script_byte(g, at))
-             && menu_script_runs_here(g, row, &c) && menu_sprite_list_is_sound(g);
-    }
-    vars_peek(false);
-    return ok;
-}
-
-#define MENU_SCRIPT_DEFINE_ENTRY(name, opcode)                               \
-    void name(Snes *s) { command_entry(s, opcode); }                        \
-    bool name##_accepts(Snes *s) { return command_accepts(s, opcode); }
-MENU_SCRIPT_ENTRIES(MENU_SCRIPT_DEFINE_ENTRY)

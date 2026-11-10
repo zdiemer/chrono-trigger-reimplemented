@@ -68,7 +68,7 @@ static void mark_those_taking_part(GameState *g, uint8_t member)
     set_battle_turn_member(g, member);
     set_battle_members_taking_part(g, member, 1);
     uint8_t partners = battle_member_actions_partners(g, member);
-    ORIGINAL_EFFECT(set_battle_member_partners_kept(g, partners));
+    charge_machine_accesses(g, 1);
     if (first_partner(partners) != NO_PARTNER)
         set_battle_members_taking_part(g, first_partner(partners), 1);
     if (second_partner(partners) != NO_PARTNER)
@@ -84,7 +84,7 @@ static bool all_can_act(GameState *g)
         if (!battle_members_taking_part(g, m))
             continue;
         bool out = combatant_cant_act(g, m);
-        ORIGINAL_EFFECT(set_battle_combo_member_out(g, out));
+        charge_machine_accesses(g, 1);
         if (out)
             return false;
     }
@@ -203,7 +203,7 @@ static void member_waits_after_tech(GameState *g, uint8_t tech, unsigned part)
         battle_restart_timer(g, BATTLE_TIMER_TURN, slot);
         set_battle_member_ready(g, slot, 0);
         (void)effect_times(g, MEMBER_ACTION_RECORD_BYTES, slot);
-        ORIGINAL_EFFECT(battle_leave_multiply_carry(g, ran_past));
+        charge_machine_accesses(g, 1);
         set_battle_member_actions_state(g, slot, 0);
     }
 }
@@ -245,7 +245,7 @@ static void end_turn(GameState *g)
         }
     }
     set_battle_member_actions_partners(g, member, NO_PARTNERS);
-    ORIGINAL_EFFECT(set_battle_member_turn_running(g, 0));
+    charge_machine_accesses(g, 1);
 }
 
 // $C1:BCE1
@@ -282,18 +282,19 @@ static void pay_for_part(GameState *g, const PartyTech *t, unsigned part)
  * last of them entered with the carry of the second member's paying: whether
  * its MP covered the cost, which what it has left and the cost say (set where
  * there is no second member). Scaffolding. */
-static void leave_payment_carry(GameState *g, const PartyTech *t)
-{
-    uint8_t member = battle_tech_members(g, 1);
-    bool covered = true;
-    if (member != NO_MEMBER) {
-        uint8_t slot = battle_character_slot(g, member);
-        covered = combatant_mp(g, slot) + effect_part_mp_cost(g, t, 1, slot) <= 0xFFFF;
-    }
-    battle_leave_multiply_carry(g, covered);
-}
 
 /* Every member pays for its part. */
+/* Preserve the machine estimate for removed comparison accesses.
+ * Inspect the branch without charging those reads to either backend. */
+static void charge_payment(GameState *g)
+{
+    uint32_t charge_mark = charge_uncounted_begin(g);
+    bool partner = battle_tech_members(g, 1) != NO_MEMBER;
+    charge_uncounted_end(g, charge_mark);
+    charge_machine_accesses(g, partner ? 6 : 2);
+    charge_machine_rom_accesses(g, partner ? 1 : 0);
+}
+
 static void pay_for_tech(GameState *g)
 {
     uint8_t tech = battle_action_detail(g);
@@ -301,7 +302,7 @@ static void pay_for_tech(GameState *g)
     (void)effect_times(g, tech, PARTY_TECH_BYTES);
     for (unsigned part = 0; part < TECH_MEMBERS; part++)
         pay_for_part(g, &t, part);
-    ORIGINAL_EFFECT(leave_payment_carry(g, &t));
+    charge_payment(g);
 }
 
 /* ---- The turn, as one sequence --------------------------------------------------------------- */
@@ -410,8 +411,9 @@ static bool use_item(GameState *g, uint8_t member, MemberCalls call, void *ctx)
     if (!battle_action_came_to_nothing(g)) {
         /* the item's performer is recorded first as the last tech's first
          * member's slot, as the original has it, and the member's after */
-        record_before_work(g, tech_performer(g), ACTION_ITEM, what);
-        battle_keep_byte(g, BATTLE_CLOCK_READS, what);
+        uint8_t chosen = battle_choice_after_targeting(g, battle_low_scratch(g, BATTLE_MEMBER_CELL));
+        record_before_work(g, tech_performer(g), ACTION_ITEM, chosen);
+        battle_keep_byte(g, BATTLE_CLOCK_READS, chosen);
         targets_to_candidates(g);
         if (!call(ctx, MEMBER_USE_ITEM, false))
             return false;
@@ -446,7 +448,10 @@ static bool perform_tech(GameState *g, uint8_t member, MemberCalls call, void *c
         return false;
     bool performed = false;
     if (!battle_action_came_to_nothing(g)) {
-        record_before_work(g, tech_performer(g), ACTION_TECH, tech);
+        /* Targeting reused the low byte of the record pointer. The original
+         * reads through that changed pointer until the showing replaces it. */
+        record_before_work(g, tech_performer(g), ACTION_TECH,
+                           battle_choice_after_targeting(g, battle_low_scratch(g, BATTLE_MEMBER_CELL)));
         targets_to_candidates(g);
         if (!call(ctx, MEMBER_WORK_OUT_TECH, false))
             return false;
@@ -468,16 +473,16 @@ static bool perform_tech(GameState *g, uint8_t member, MemberCalls call, void *c
 // $C1:B967
 static bool carry_out_action(GameState *g, MemberCalls call, void *ctx)
 {
-    ORIGINAL_EFFECT(set_battle_member_turn_running(g, 1));
+    charge_machine_accesses(g, 1);
     uint8_t member = take_waiting_member(g);
     mark_those_taking_part(g, member);
     if (!all_can_act(g)) {
         TIMED_AS(g, 0xFDA93C, battle_call_off_combination(g));
-        ORIGINAL_EFFECT(set_battle_member_turn_running(g, 0));
+        charge_machine_accesses(g, 1);
         return true;
     }
     battle_keep_word(g, BATTLE_CLOCK_READS, 0);
-    ORIGINAL_EFFECT(set_battle_member_turn_mark(g, 0));
+    charge_machine_accesses(g, 1);
     /* the targeting finds the member's action record through it (battle.h) */
     battle_keep_word(g, BATTLE_MEMBER_CELL, battle_member_record_place(g, member));
     uint8_t choice = battle_member_actions_choice_flags(g, member);
@@ -569,6 +574,9 @@ static bool attacker_fits(const GameState *g) { return battle_actor(g) < BATTLE_
 enum {
     AIM = 0xC1C1DD, SHOW_MESSAGE = 0xCD0021, SHOWING = 0xC1AC57, MEMBER_ATTACKS = 0xC1BFAA,
     USE_ITEM = 0xC1BF46, WORK_OUT_TECH = 0xC1BF79,
+    ACTION_READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS,
+    AIM_READS_CARRY = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z,
+    SHOWING_READS_A_HIGH_AND_OVERFLOW = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C,
 };
 
 /* Each call from the original's own: the targeting with the carry it is
@@ -588,21 +596,29 @@ static bool member_on_the_machine(void *ctx, MemberCall call, bool carry)
     Snes *s = ctx;
     uint32_t site = member_sites[call];
     switch (call) {
-    case MEMBER_ATTACK: return battle_run(s, site, MEMBER_ATTACKS, battle_member_attacks_entry);
+    case MEMBER_ATTACK: return battle_run_dc(s, 0xC1BA7D, MEMBER_ATTACKS, ACTION_READS_NOTHING, battle_member_attacks_entry);
     case MEMBER_AIM_ITEM:
+        m_set_flag(s, CPU_FLAG_C, carry);
+        return battle_run_dc(s, 0xC1BABE, AIM, AIM_READS_CARRY, battle_aim_action_entry);
     case MEMBER_AIM_TECH:
         m_set_flag(s, CPU_FLAG_C, carry);
-        return battle_run(s, site, AIM, battle_aim_action_entry);
+        return battle_run_dc(s, 0xC1BB88, AIM, AIM_READS_CARRY, battle_aim_action_entry);
     case MEMBER_ITEM_AIMED_PAST:
     case MEMBER_TECH_AIMED_PAST: battle_stop_after_call(s, site); return false;
-    case MEMBER_USE_ITEM: return battle_run(s, site, USE_ITEM, battle_use_item_entry);
+    case MEMBER_USE_ITEM: return battle_run_dc(s, 0xC1BB0C, USE_ITEM, ACTION_READS_NOTHING, battle_use_item_entry);
     case MEMBER_WORK_OUT_TECH:
-    case MEMBER_WORK_OUT_ATTACK: return battle_run(s, site, WORK_OUT_TECH, battle_work_out_member_tech_entry);
+        return battle_run_dc(s, 0xC1BBD4, WORK_OUT_TECH, ACTION_READS_NOTHING, battle_work_out_member_tech_entry);
+    case MEMBER_WORK_OUT_ATTACK:
+        return battle_run_dc(s, 0xC1C006, WORK_OUT_TECH, ACTION_READS_NOTHING, battle_work_out_member_tech_entry);
     case MEMBER_SHOW_ITEM:
+        s->cpu.a &= 0x00FF;
+        return battle_run_dc(s, 0xC1BB26, SHOWING, SHOWING_READS_A_HIGH_AND_OVERFLOW, battle_start_action_showing);
     case MEMBER_SHOW_TECH:
+        s->cpu.a &= 0x00FF;
+        return battle_run_dc(s, 0xC1BC1E, SHOWING, SHOWING_READS_A_HIGH_AND_OVERFLOW, battle_start_action_showing);
     case MEMBER_SHOW_ATTACK:
         s->cpu.a &= 0x00FF;
-        return battle_run(s, site, SHOWING, battle_start_action_showing);
+        return battle_run_dc(s, 0xC1C00E, SHOWING, SHOWING_READS_A_HIGH_AND_OVERFLOW, battle_start_action_showing);
     case MEMBER_ITEM_TAKEN:
         m_set_a8(s, MESSAGE_ITEM_TAKEN);
         return battle_run_long(s, site, SHOW_MESSAGE, battle_show_a_battle_message_entry);
@@ -683,35 +699,18 @@ void battle_end_member_turn_entry(Snes *s)
 bool battle_end_member_turn(GameState *g)
 {
     if (!member_turn_end_fits(g))
-        return battle_needs_the_machine(g, 0xC1BCE1, "a member's turn's end with partners past the party");
+        return battle_contract_broken(g, 0xC1BCE1, "a member's turn's end with partners past the party");
     member_turn_ends(g);
     return true;
 }
 
 /* A tech's members' waits, entered with its members in the party's slots. */
-bool battle_members_wait_after_tech_ready(Snes *s)
-{
-    vars_peek(true);
-    bool fits = last_tech_fits(state_of(s), true);
-    vars_peek(false);
-    return battle_on_page(s) && fits;
-}
-
-void battle_members_wait_after_tech(Snes *s)
-{
-    members_wait_after_tech(state_of(s));
-    m_rts(s);
-}
 
 // $C1:B961
 /* The battle's step 2, for the calling off of a member's action ($FD:A937). */
 void battle_member_called_off_step(Snes *s)
 {
-    /* the overflow flag the step saves with the flags across its frame waits
-     * is read by nothing after (tools/v_readers.py C1:0003). dc-evidence:
-     * ct_fuzz --poison-dc battle_member_called_off_step, seed 1: 5000 states,
-     * 5000 call-outs scrambled, 0 mismatched */
-    if (battle_take_step(s, 0xC1B963, BATTLE_STEP_CALLED_OFF, DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C))
+    if (battle_take_step(s, 0xC1B963, BATTLE_STEP_CALLED_OFF, DC_X | DC_Y | DC_N | DC_Z | DC_C))
         m_rtl(s);
 }
 
@@ -733,7 +732,7 @@ static bool carry_out_a_part(void *ctx, MemberCall call, bool carry)
     case MEMBER_AIM_ITEM:
     case MEMBER_AIM_TECH: TIMED_AS(g, AIM, done = battle_aim_action(g, c->pf, carry)); return done;
     case MEMBER_ITEM_AIMED_PAST:
-    case MEMBER_TECH_AIMED_PAST: return battle_needs_the_machine(g, member_sites[call], "an aim past what the port reads");
+    case MEMBER_TECH_AIMED_PAST: return battle_contract_broken(g, member_sites[call], "an aim past what the port reads");
     case MEMBER_USE_ITEM: TIMED_AS(g, USE_ITEM, done = battle_use_item(g, c->pf)); return done;
     case MEMBER_WORK_OUT_TECH:
     case MEMBER_WORK_OUT_ATTACK: TIMED_AS(g, WORK_OUT_TECH, done = battle_work_out_member_tech(g, c->pf)); return done;
@@ -748,7 +747,7 @@ static bool carry_out_a_part(void *ctx, MemberCall call, bool carry)
 bool battle_member_attacks(GameState *g, Platform *pf)
 {
     if (!attacker_fits(g))
-        return battle_needs_the_machine(g, MEMBER_ATTACKS, "an attacker past the party");
+        return battle_contract_broken(g, MEMBER_ATTACKS, "an attacker past the party");
     MemberTurnContext c = { g, pf };
     return attack(g, carry_out_a_part, &c);
 }
@@ -756,7 +755,7 @@ bool battle_member_attacks(GameState *g, Platform *pf)
 bool battle_carry_out_member_action(GameState *g, Platform *pf)
 {
     if (!action_fits(g))
-        return battle_needs_the_machine(g, 0xC1B967, "a member's action the port doesn't carry out");
+        return battle_contract_broken(g, 0xC1B967, "a member's action the port doesn't carry out");
     MemberTurnContext c = { g, pf };
     return carry_out_action(g, carry_out_a_part, &c);
 }

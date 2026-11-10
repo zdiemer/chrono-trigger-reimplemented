@@ -25,7 +25,6 @@
 #include <stdint.h>
 
 #include "battle/battle.h"
-#include "original_effects.h"
 #include "platform/platform.h"
 #include "state.h"
 #include "vars.h"
@@ -225,14 +224,9 @@ static inline uint8_t combatant_cursor_y(const GameState *g, unsigned slot)
     return (uint8_t)(combatant_y(g, slot) + combatant_cursor_offset_y(g, slot));
 }
 
-/* ---- What the original leaves in its work cells ---------------------------------------- */
+/* ---- Inputs to the legacy window adapters --------------------------------------------- */
 
-/* The window's routines keep values on the way in the battle's work cells
- * ($80-$9D, battle_work), which only they read. A port keeps its values in C
- * and leaves the cells' last values, for shadow mode, through these (called
- * in ORIGINAL_EFFECT). `cell` is the original's direct-page operand. Some of
- * the original's callers hand a routine its number there too, which its
- * entry reads (battle_work16). */
+/* Some legacy callers pass operands through these shared work cells. */
 enum { BATTLE_WORK_CELLS = 0x80 };
 
 static inline uint16_t battle_work16(const GameState *g, uint8_t cell)
@@ -250,9 +244,6 @@ static inline void battle_leave_work16(GameState *g, uint8_t cell, uint16_t v)
     battle_leave_work8(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
 }
 
-/* What drawing a member's numbers leaves: its stat block where the original
- * works from it, and whether they are shaded (window.c). */
-void battle_leave_member_drawn(GameState *g, unsigned member, bool shaded);
 
 /* The menu window drawn for the page that is open ($C1:0C2D), and the
  * cursors over the battlefield placed ($C1:17DD), as C: false where they went

@@ -32,6 +32,7 @@
 #include "overworld/main_loop.h"
 
 #include "charge.h"
+#include "field/main_loop.h"
 #include "holds.h"
 #include "core/program.h"
 #include "menu/bridge.h"
@@ -340,32 +341,28 @@ static Pass come_back_from_the_menus(const Loop *l)
     return PASS_GOES_ON;
 }
 
-// $C2:251E
-/* Open the menus (the party's exchange from its button): the map faded out
- * and put aside while they run. */
-static Pass open_the_menus(const Loop *l, OverworldMode mode)
+/* Screen transitions are phases around their display waits. The native
+ * program calls them in sequence; held machine continuations resume the
+ * same operations from saved frame boundaries. */
+static Pass enter_the_menus(const Loop *l, OverworldMode mode)
 {
-    fade_out_with(l, 0xC2251F, FADE_OUT, 0xC2252C);
-    if (!l->steps->frames(l->ctx, WAIT_INTO_THE_MENUS))
-        return PASS_STOPS;
     stop_the_screen(l, (StopSites){ 0xC22537, 0xC2253A, 0xC2253D }, true);
     put_aside(l->game, OVERWORLD_ASIDE, OVERWORLD_PIECES);
     return l->steps->menus(l->ctx, mode);
 }
 
-// $C2:258D
-/* The map view: the map faded out, the direct page and the objects put aside
- * while it runs, and the map faded in again. */
-static Pass open_the_map_view(const Loop *l)
+// $C2:251E
+static Pass open_the_menus(const Loop *l, OverworldMode mode)
+{
+    fade_out_with(l, 0xC2251F, FADE_OUT, 0xC2252C);
+    if (!l->steps->frames(l->ctx, WAIT_INTO_THE_MENUS))
+        return PASS_STOPS;
+    return enter_the_menus(l, mode);
+}
+
+static Pass come_back_from_the_map_view(const Loop *l)
 {
     GameState *g = l->game;
-    fade_out_with(l, 0xC2258E, FADE_OUT_TO_THE_MAP_VIEW, 0xC2259B);
-    if (!l->steps->frames(l->ctx, WAIT_INTO_THE_MAP_VIEW))
-        return PASS_STOPS;
-    stop_the_screen(l, (StopSites){ 0xC225A6, 0xC225A9, 0xC225AC }, true);
-    put_aside(g, MAP_VIEW_ASIDE, MAP_VIEW_PIECES);
-    if (!l->steps->map_view(l->ctx))
-        return PASS_STOPS;
     bring_back(g, MAP_VIEW_ASIDE, MAP_VIEW_PIECES);
     if (!load_the_map(l, LOAD_BACK_FROM_THE_MAP_VIEW))
         return PASS_STOPS;
@@ -378,21 +375,27 @@ static Pass open_the_map_view(const Loop *l)
     return PASS_GOES_ON;
 }
 
-// $C2:261D
-/* The time dial: the map faded out, the effects brought back up, the
- * overworld put aside while the dial runs; back on the map as before, unless
- * the dial sent the party on through time. */
-static Pass run_the_time_dial(const Loop *l)
+static Pass enter_the_map_view(const Loop *l)
+{
+    stop_the_screen(l, (StopSites){ 0xC225A6, 0xC225A9, 0xC225AC }, true);
+    put_aside(l->game, MAP_VIEW_ASIDE, MAP_VIEW_PIECES);
+    if (!l->steps->map_view(l->ctx))
+        return PASS_STOPS;
+    return come_back_from_the_map_view(l);
+}
+
+// $C2:258D
+static Pass open_the_map_view(const Loop *l)
+{
+    fade_out_with(l, 0xC2258E, FADE_OUT_TO_THE_MAP_VIEW, 0xC2259B);
+    if (!l->steps->frames(l->ctx, WAIT_INTO_THE_MAP_VIEW))
+        return PASS_STOPS;
+    return enter_the_map_view(l);
+}
+
+static Pass come_back_from_the_time_dial(const Loop *l)
 {
     GameState *g = l->game;
-    fade_out_with(l, 0xC2261E, FADE_OUT, 0xC2262B);
-    if (!l->steps->frames(l->ctx, WAIT_INTO_THE_DIAL))
-        return PASS_STOPS;
-    stop_the_screen(l, (StopSites){ 0xC22636, 0xC22639, 0xC2263C }, true);
-    au_fade(l->pf, PF_CALL_DC(0xC2264E, 0xC70004, DRIVER_IGNORES), AU_FADE_EFFECTS, 0, AU_FULL_VOLUME);
-    put_aside(g, OVERWORLD_ASIDE, OVERWORLD_PIECES);
-    if (!l->steps->time_dial(l->ctx))
-        return PASS_STOPS;
     bring_back(g, OVERWORLD_ASIDE, OVERWORLD_PIECES);
     TIMED_AS(g, 0xC203EF, menu_object_reset_the_upload_queue(g));
     bool sent_on = the_dial_sent_the_party_on(g);
@@ -409,6 +412,25 @@ static Pass run_the_time_dial(const Loop *l)
         return PASS_STOPS;
     overworld_set_mode(g, OVERWORLD_ON_THE_MAP);
     return PASS_GOES_ON;
+}
+
+static Pass enter_the_time_dial(const Loop *l)
+{
+    stop_the_screen(l, (StopSites){ 0xC22636, 0xC22639, 0xC2263C }, true);
+    au_fade(l->pf, PF_CALL_DC(0xC2264E, 0xC70004, DRIVER_IGNORES), AU_FADE_EFFECTS, 0, AU_FULL_VOLUME);
+    put_aside(l->game, OVERWORLD_ASIDE, OVERWORLD_PIECES);
+    if (!l->steps->time_dial(l->ctx))
+        return PASS_STOPS;
+    return come_back_from_the_time_dial(l);
+}
+
+// $C2:261D
+static Pass run_the_time_dial(const Loop *l)
+{
+    fade_out_with(l, 0xC2261E, FADE_OUT, 0xC2262B);
+    if (!l->steps->frames(l->ctx, WAIT_INTO_THE_DIAL))
+        return PASS_STOPS;
+    return enter_the_time_dial(l);
 }
 
 // $C2:250D
@@ -599,7 +621,7 @@ static bool frames_on_the_machine(void *ctx, LoopWait wait)
 {
     Snes *s = ctx;
     s->cpu.x = loop_waits[wait].frames;
-    return menu_run_or_call(s, loop_waits[wait].site, 0xC20454, READS_X_AND_A_HIGH, menu_wait_frames_sending_the_sound_entry);
+    return menu_run_checked(s, loop_waits[wait].site, 0xC20454, READS_X_AND_A_HIGH, menu_wait_frames_sending_the_sound_entry);
 }
 
 /* The original keeps its count on the stack across the fade's waits. */
@@ -607,6 +629,11 @@ static bool a_fade_frame_on_the_machine(void *ctx, uint16_t left)
 {
     Snes *s = ctx;
     m_push16(s, left);
+    if (m_runs_retired_as_c(s)) {
+        if (menu_run_called(s, 0xC22465, 0xC20346, READS_NOTHING | DC_DB, menu_wait_for_frame))
+            native_hold(s, HOLD_MENU_FRAME);
+        return false;
+    }
     bool back = menu_call(s, 0xC22465, 0xC20346, READS_NOTHING | DC_DB);
     (void)m_pull16(s);
     return back;
@@ -671,7 +698,7 @@ static Pass menus_on_the_machine(void *ctx, OverworldMode mode)
     m_set_flag(s, CPU_FLAG_N, false);
     m_set_flag(s, CPU_FLAG_Z, false);
     m_set_flag(s, CPU_FLAG_C, true);
-    if (!menu_call_long(s, 0xC22552, 0xC28000, DC_AH | DC_Y | DC_C))
+    if (!menu_run_long_called(s, 0xC22552, 0xC28000, DC_AH | DC_Y | DC_C, menu_mode_enter))
         return PASS_STOPS;
     if (!overworld_loop_accepts_machine(s)) {
         program_breaks_a_contract(state_of(s), BACK_FROM_THE_MENUS, "the menus back to the world map outside its contract");
@@ -683,9 +710,9 @@ static Pass menus_on_the_machine(void *ctx, OverworldMode mode)
     return p;
 }
 
-static bool map_view_on_the_machine(void *ctx) { return menu_run(ctx, 0xC225CF, 0xC2631F, menu_epoch_map_screen); }
+static bool map_view_on_the_machine(void *ctx) { return menu_run_checked(ctx, 0xC225CF, 0xC2631F, READS_NOTHING, menu_epoch_map_screen); }
 
-static bool time_dial_on_the_machine(void *ctx) { return menu_run(ctx, 0xC22655, 0xC26A34, menu_epoch_time_dial_screen); }
+static bool time_dial_on_the_machine(void *ctx) { return menu_run_checked(ctx, 0xC22655, 0xC26A34, READS_NOTHING, menu_epoch_time_dial_screen); }
 
 /* A mode the loop doesn't know breaks its contract: reported, and the
  * original's dispatch goes on, with the machine as the wait left it. */
@@ -726,7 +753,7 @@ enum {
 };
 
 /* The field's start, which the world map leaves for, and the halt. */
-enum { THE_FIELD = 0xC00000, HALT = 0xC2250D };
+enum { HALT = 0xC2250D };
 
 void overworld_wait_for_the_next_frame_on_the_machine(Snes *s)
 {
@@ -739,13 +766,47 @@ static void after_the_pass(Snes *s, Pass p)
 {
     switch (p) {
     case PASS_GOES_ON: overworld_wait_for_the_next_frame_on_the_machine(s); break;
-    case PASS_LEAVES: m_stop_at(s, THE_FIELD, READS_NOTHING); break;
+    case PASS_LEAVES: field_enter_after_mode(s, READS_NOTHING); break;
     case PASS_HALTS: m_hold_at_own(s, HALT, READS_NOTHING, HOLD_OVERWORLD_HALT); break;
     default: break;
     }
 }
 
 static Loop on_the_machine_loop(Snes *s) { return (Loop){ state_of(s), m_platform(s), &on_the_machine, s }; }
+
+// $C2:2468
+/* The map's exit fade keeps its remaining frames on the saveable stack.
+ * Its exit record stays selected while the fade disables party movement.
+ * The entry already charged the record read; resuming only retrieves it. */
+void overworld_exit_fade_finished(Snes *s)
+{
+    uint16_t left = (uint16_t)(m_pull16(s) - 1);
+    s->cpu.x = left;
+    if (left) {
+        (void)a_fade_frame_on_the_machine(s, left);
+        return;
+    }
+    Loop l = on_the_machine_loop(s);
+    vars_peek(true);
+    ExitTo to = overworld_exit_here(l.game);
+    vars_peek(false);
+    interrupts(&l, 0xC2246D, false);
+    overworld_leave_for(l.game, to.location, to.arrival, to.x, to.y);
+    after_the_pass(s, leave_the_world_map(&l));
+}
+
+bool overworld_exit_fade_can_resume(Snes *s)
+{
+    if (!overworld_loop_accepts_machine(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool valid = overworld_mode(g) == OVERWORLD_ENTERING_A_PLACE && overworld_exit_here_is_in_range(g);
+    vars_peek(false);
+    uint16_t left = m_read16(s, (uint16_t)(s->cpu.s + 1));
+    return valid && left >= 1 && left <= 0x12;
+}
+
 
 /* The loop runs on the mode's page with the data bank on low RAM, an 8-bit
  * accumulator, 16-bit index registers and binary arithmetic. */
@@ -822,4 +883,61 @@ static Pass come_back_to_the_map_s_screen(Snes *s)
     Pass p = PASS_STOPS;
     TIMED_AS(state_of(s), 0xC2255A, p = come_back_from_the_menus(&l));
     return p;
+}
+
+// $C2:2556
+/* The menus kept the caller's machine frame while their tasks ran. Restore
+ * the map from that frame without keeping its opening pass suspended. */
+void overworld_back_from_the_menus(Snes *s)
+{
+    after_the_pass(s, come_back_to_the_map_s_screen(s));
+}
+
+// $C2:2535
+void overworld_menu_fade_finished(Snes *s)
+{
+    Loop l = on_the_machine_loop(s);
+    after_the_pass(s, enter_the_menus(&l, overworld_mode(l.game)));
+}
+
+// $C2:2585
+void overworld_menu_return_fade_finished(Snes *s)
+{
+    TIMED_AS(state_of(s), 0xC2255A, overworld_set_mode(state_of(s), OVERWORLD_ON_THE_MAP));
+    after_the_pass(s, PASS_GOES_ON);
+}
+
+// $C2:25A4
+void overworld_map_view_fade_finished(Snes *s)
+{
+    Loop l = on_the_machine_loop(s);
+    after_the_pass(s, enter_the_map_view(&l));
+}
+
+// $C2:25D2
+void overworld_back_from_the_map_view(Snes *s)
+{
+    Loop l = on_the_machine_loop(s);
+    after_the_pass(s, come_back_from_the_map_view(&l));
+}
+
+// $C2:2615, $C2:26A0
+void overworld_screen_return_fade_finished(Snes *s)
+{
+    overworld_set_mode(state_of(s), OVERWORLD_ON_THE_MAP);
+    after_the_pass(s, PASS_GOES_ON);
+}
+
+// $C2:2634
+void overworld_dial_fade_finished(Snes *s)
+{
+    Loop l = on_the_machine_loop(s);
+    after_the_pass(s, enter_the_time_dial(&l));
+}
+
+// $C2:2658
+void overworld_back_from_the_time_dial(Snes *s)
+{
+    Loop l = on_the_machine_loop(s);
+    after_the_pass(s, come_back_from_the_time_dial(&l));
 }

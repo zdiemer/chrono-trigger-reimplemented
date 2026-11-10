@@ -27,7 +27,6 @@
 #include "menu/bridge.h"
 #include "menu/menu_data.h"
 #include "menu/text.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
@@ -202,7 +201,6 @@ void menu_fill_window_inside(GameState *g, uint16_t at, MenuWindowSize size, Men
     fill_inside(g, at, inside_of(size.columns), inside_of(size.rows), style);
 }
 
-// $C2:ED08
 /* The design's colours into the window's palette row, whose upper half they
  * are, and the palette sent at the next vblank. */
 enum { PALETTE_ROW_COLOURS = 16, PALETTE_BITS = 0x1C, PALETTE_SHIFT = 2 };
@@ -354,7 +352,6 @@ static uint16_t lay_out_strip(GameState *g, uint16_t at, uint16_t columns, uint1
     return at;
 }
 
-// $C2:FB97
 /* A label in palette row 4, in front: its tiles from `first` on. */
 enum { LABEL_ATTRIBUTE = 0x3100, TILE_NUMBER_LOW = 0x00EF };
 
@@ -363,7 +360,6 @@ void menu_lay_out_label(GameState *g, uint16_t at, uint16_t columns, uint8_t fir
     (void)lay_out_strip(g, at, columns, (uint16_t)((first & TILE_NUMBER_LOW) | LABEL_ATTRIBUTE));
 }
 
-// $C2:FBB4
 /* A strip of a graphic in the attribute and from the tile `tile` names (in
  * the lower two palette rows' and priority's bits and the tile number's low
  * ten): returns the place past it. */
@@ -386,7 +382,7 @@ typedef enum { FILL, COPY_AREA, SWAP_AREAS, WINDOW, STRING, SET_ORIGIN, COPY_BYT
 enum { FRAME = 1, INSIDE = 2 };
 
 /* What each command is, how many operand bytes follow it, and the handler
- * (a registered entry, windows.h) whose calibrated time its work is charged
+ * (a checked legacy adapter, windows.h) whose calibrated time its work is charged
  * at. */
 static const struct {
     WindowOperation operation;
@@ -463,121 +459,17 @@ typedef struct {
     uint16_t pattern_row; /* menu_scratch_window_pattern_row */
 } DrawingCells;
 
-static DrawingCells cells_now(const GameState *g)
+static void charge_command(GameState *g, uint8_t command, const Operands *o)
 {
-    return (DrawingCells){ menu_window_place(g), menu_line_start(g), menu_text_work_window_columns(g),
-                           menu_text_work_window_rows(g), menu_scratch_window_right_side(g),
-                           menu_scratch_window_tile(g), menu_scratch_window_pattern_row(g) };
-}
-
-static void put_cells(GameState *g, const DrawingCells *c)
-{
-    set_menu_window_place(g, c->place);
-    set_menu_line_start(g, c->line);
-    set_menu_text_work_window_columns(g, c->columns);
-    set_menu_text_work_window_rows(g, c->rows);
-    set_menu_scratch_window_right_side(g, c->right_side);
-    set_menu_scratch_window_tile(g, c->tile);
-    set_menu_scratch_window_pattern_row(g, c->pattern_row);
-}
-
-/* A frame walks its rows down from the window's place, and gets to the tile
- * past its bottom row's. */
-static void note_frame(DrawingCells *c, uint16_t at, MenuWindowSize size, MenuWindowStyle style)
-{
-    uint16_t sides = inside_of(size.rows);
-    uint16_t bottom = past_the_part(side_pair_after(past_the_part(style), sides));
-    c->line = rows_down(at, 2u + sides);
-    c->right_side = (uint16_t)((size.columns - 1) * MENU_TILE_BYTES);
-    c->columns = inside_of(size.columns);
-    c->rows = sides;
-    c->tile = past_the_part(bottom);
-}
-
-/* An inside's first four rows are drawn tile by tile, a row of the pattern at
- * a time (a first row wider than four copied on from its first four, which
- * leaves the columns it didn't count), and the rows after them are copied
- * down from those four, which walks the window's place down with them. */
-static void note_inside(DrawingCells *c, uint16_t at, uint16_t columns, uint16_t rows, MenuWindowStyle style)
-{
-    uint16_t corner = inside_corner(at);
-    c->line = rows_down(corner, rows);
-    c->tile = style;
-    c->pattern_row = rows < INSIDE_PATTERN ? (uint16_t)(rows * INSIDE_PATTERN) : 0;
-    c->right_side = rows == 1 && columns > INSIDE_PATTERN ? (uint16_t)(columns - INSIDE_PATTERN) : 0;
-    c->columns = rows > INSIDE_PATTERN ? (uint16_t)(2 * columns - 1) : columns;
-    c->place = rows > INSIDE_PATTERN ? rows_down(corner, rows - INSIDE_PATTERN) : at;
-    c->rows = 0;
-}
-
-/* A copy or a swap walks both its rectangles' places down past their rows;
- * a copy counts its row's bytes less one, a swap its columns. */
-static void note_area(const GameState *g, DrawingCells *c, const Operands *o, bool copy)
-{
-    uint8_t rows = copy ? o->bytes[5] : operand_size(o, 4).rows;
-    c->place = rows_down(place_of(g, operand_place(o, 0)), rows);
-    c->line = rows_down(place_of(g, operand_place(o, 2)), rows);
-    c->columns = copy ? (uint16_t)(2 * o->bytes[4] - 1) : operand_size(o, 4).columns;
-    c->rows = 0;
-}
-
-static void note_command(const GameState *g, DrawingCells *c, uint8_t command, const Operands *o)
-{
+    unsigned accesses = 28 + LANGUAGE[command / 2].operands;
     switch (operation_of(command)) {
-    case COPY_AREA: note_area(g, c, o, true); break;
-    case SWAP_AREAS: note_area(g, c, o, false); break;
-    case WINDOW: {
-        uint16_t at = place_of(g, operand_place(o, 2));
-        MenuWindowSize size = operand_size(o, 4);
-        MenuWindowStyle style = menu_window_style(g);
-        uint8_t parts = LANGUAGE[command / 2].parts;
-        c->place = at;
-        if (parts & FRAME)
-            note_frame(c, at, size, style);
-        if (parts & INSIDE)
-            note_inside(c, at, inside_of(size.columns), inside_of(size.rows), style);
-        break;
-    }
-    case STRING: c->place = place_of(g, operand_place(o, 2)); break;
+    case COPY_AREA: accesses += 6; break;
+    case SWAP_AREAS: accesses += 8; break;
+    case WINDOW: accesses += 5 + !(o->bytes[0] & NAMED_STYLE); break;
+    case STRING: accesses += 2; break;
     default: break;
     }
-}
-
-/* A whole window a screen draws itself, frame and inside, leaves the cells as
- * the original's frame and inside do. Scaffolding, like the rest. */
-void menu_leave_window_cells(GameState *g, uint16_t at, MenuWindowSize size, MenuWindowStyle style)
-{
-    DrawingCells c = cells_now(g);
-    note_frame(&c, at, size, style);
-    note_inside(&c, at, inside_of(size.columns), inside_of(size.rows), style);
-    put_cells(g, &c);
-}
-
-/* The operand cells after a command: its operands, over the longer command's
- * before it; a copy or swap puts its first place over its second. And the
- * other cells a handler keeps: a window's style number times four, a swap's
- * columns counted down. */
-static void leave_operands(GameState *g, uint8_t command, const Operands *o)
-{
-    WindowOperation op = operation_of(command);
-    for (unsigned i = 0; i < LANGUAGE[command / 2].operands && i < MOST_OPERANDS; i++)
-        set_menu_window_operands(g, i, o->bytes[i]);
-    if (op == COPY_AREA || op == SWAP_AREAS) {
-        set_menu_window_operands(g, 2, o->bytes[0]);
-        set_menu_window_operands(g, 3, o->bytes[1]);
-    }
-    if (op == SWAP_AREAS)
-        set_menu_scratch_window_columns_left(g, 0);
-    if (op == WINDOW)
-        set_menu_scratch_window_style_fourfold(g, (uint8_t)(style_number(g, o->bytes[0]) << 2));
-}
-
-static void leave_command(GameState *g, uint8_t command, const Operands *o)
-{
-    DrawingCells c = cells_now(g);
-    note_command(g, &c, command, o);
-    put_cells(g, &c);
-    leave_operands(g, command, o);
+    charge_machine_accesses(g, accesses);
 }
 
 /* ---- The interpreter ---------------------------------------------------------------------------- */
@@ -590,7 +482,6 @@ static Operands operands_at(const GameState *g, uint16_t at, uint8_t command)
     return o;
 }
 
-// $C2:ED31
 void menu_draw_window_list(GameState *g, Platform *pf, uint16_t list)
 {
     uint16_t at = list;
@@ -600,7 +491,7 @@ void menu_draw_window_list(GameState *g, Platform *pf, uint16_t list)
         Operands o = operands_at(g, (uint16_t)(at + 1), command);
         at = (uint16_t)(at + 1 + LANGUAGE[command / 2].operands);
         TIMED_AS(g, LANGUAGE[command / 2].timed_as, run_command(g, pf, command, &o));
-        ORIGINAL_EFFECT(leave_command(g, command, &o));
+        charge_command(g, command, &o);
     }
 }
 
@@ -617,7 +508,7 @@ void menu_copy_tile_area(GameState *g, MenuTilePlace from, MenuTilePlace to, Men
 {
     Operands o = copy_operands(from, to, size);
     TIMED_AS(g, LANGUAGE[COPY_AREA_COMMAND / 2].timed_as, copy_area(g, from, to, size.columns, size.rows));
-    ORIGINAL_EFFECT(leave_command(g, COPY_AREA_COMMAND, &o));
+    charge_command(g, COPY_AREA_COMMAND, &o);
 }
 
 enum { SWAP_AREAS_COMMAND = 0x10 };
@@ -626,7 +517,7 @@ void menu_swap_tile_areas(GameState *g, MenuTilePlace one, MenuTilePlace other, 
 {
     Operands o = copy_operands(one, other, size);
     TIMED_AS(g, LANGUAGE[SWAP_AREAS_COMMAND / 2].timed_as, swap_areas(g, one, other, size));
-    ORIGINAL_EFFECT(leave_command(g, SWAP_AREAS_COMMAND, &o));
+    charge_command(g, SWAP_AREAS_COMMAND, &o);
 }
 
 void menu_draw_windows(GameState *g, Platform *pf, uint16_t list)
@@ -742,189 +633,13 @@ bool menu_tile_area_can_be_copied(const GameState *g, uint16_t origin, MenuTileP
     return command_is_drawable(g, COPY_AREA_COMMAND, &o, origin);
 }
 
-/* ---- The entries -------------------------------------------------------------------------------- */
-
-/* The window routines run on the menus' page; a command's handler, as the
- * interpreter calls it, with the data bank on work RAM's. */
-
-bool menu_window_list_is_drawable(Snes *s)
-{
-    if (!menu_on_page(s))
-        return false;
-    vars_peek(true);
-    bool ok = list_is_drawable(state_of(s), s->cpu.x);
-    vars_peek(false);
-    return ok;
-}
-
-/* What the original leaves in A: the interpreter reads each command byte
- * into an accumulator it clears first (its high byte is read after it); the
- * inside's drawing the last of its working values; the colours' block move
- * the count it runs down to. */
-static void leave_a(Snes *s, uint16_t a) { s->cpu.a = a; }
-
-// $C2:ED31
-void menu_run_window_list(Snes *s)
-{
-    menu_draw_window_list(state_of(s), m_platform(s), s->cpu.x);
-    ORIGINAL_EFFECT(leave_a(s, 0));
-    m_rts(s);
-}
-
-/* A handler reads its command's operands from the cells the interpreter
- * copies them into. */
-static Operands operands_in_cells(const GameState *g)
-{
-    Operands o = { { 0 } };
-    for (unsigned i = 0; i < MOST_OPERANDS; i++)
-        o.bytes[i] = menu_window_operands(g, i);
-    return o;
-}
-
-static void run_handler(Snes *s, uint8_t command)
-{
-    GameState *g = state_of(s);
-    Operands o = operands_in_cells(g);
-    run_command(g, m_platform(s), command, &o);
-    ORIGINAL_EFFECT(leave_command(g, command, &o));
-    m_rts(s);
-}
-
-static bool handler_accepts(Snes *s, uint8_t command)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    const GameState *g = state_of(s);
-    vars_peek(true);
-    Operands o = operands_in_cells(g);
-    bool ok = command_is_drawable(g, command, &o, menu_draw_origin(g))
-              && (operation_of(command) != STRING || strings_convert_from_one(g));
-    vars_peek(false);
-    return ok;
-}
-
-// $C2:ED77, $C2:EF05, $C2:EDAA, $C2:EF48, $C2:F332, $C2:F364, $C2:F337, $C2:F378, $C2:EDB0, $C2:EDB6
-#define MENU_WINDOW_DEFINE_HANDLER(name, command)                  \
-    void name(Snes *s) { run_handler(s, command); }                \
-    bool name##_accepts(Snes *s) { return handler_accepts(s, command); }
-MENU_WINDOW_HANDLERS(MENU_WINDOW_DEFINE_HANDLER)
-#undef MENU_WINDOW_DEFINE_HANDLER
-
-/* The frame's and the inside's own entries, and the window a screen draws
- * in the player's design: a window at the place, of the size and in the style
- * the cells hold, as the screens that call them set them; the inside's own
- * entry takes its size inside the frame, as the frame's drawing leaves it. */
-static MenuWindowSize size_in_cells(const GameState *g)
-{
-    return (MenuWindowSize){ (uint8_t)(menu_window_operands(g, 4) & SIZE_COLUMN_BITS),
-                             (uint8_t)(menu_window_operands(g, 5) & SIZE_ROW_BITS) };
-}
-
-static void leave_frame(GameState *g, uint16_t at, MenuWindowSize size, MenuWindowStyle style)
-{
-    DrawingCells c = cells_now(g);
-    note_frame(&c, at, size, style);
-    put_cells(g, &c);
-}
-
-static void leave_inside(GameState *g, uint16_t at, uint16_t columns, uint16_t rows, MenuWindowStyle style)
-{
-    DrawingCells c = cells_now(g);
-    note_inside(&c, at, columns, rows, style);
-    put_cells(g, &c);
-}
-
-/* The inside's drawing ends on the pattern's row where it had fewer than
- * four, and on the window's place walked down where it copied rows. */
-static uint16_t inside_leaves_a(const GameState *g, uint16_t rows)
-{
-    return rows > INSIDE_PATTERN ? menu_window_place(g) : (uint16_t)(rows < INSIDE_PATTERN ? rows * INSIDE_PATTERN : 0);
-}
-
-// $C2:EDF6
-void menu_window_frame(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint16_t at = menu_window_place(g);
-    MenuWindowSize size = size_in_cells(g);
-    MenuWindowStyle style = menu_window_style(g);
-    menu_draw_window_frame(g, at, size, style);
-    keep_inside_size(g, size);
-    ORIGINAL_EFFECT(leave_frame(g, at, size, style));
-    m_rts(s);
-}
-
-// $C2:EE7F
-void menu_window_inside(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint16_t at = menu_window_place(g);
-    uint16_t columns = menu_text_work_window_columns(g), rows = menu_text_work_window_rows(g);
-    MenuWindowStyle style = menu_window_style(g);
-    fill_inside(g, at, columns, rows, style);
-    ORIGINAL_EFFECT(leave_inside(g, at, columns, rows, style));
-    ORIGINAL_EFFECT(leave_a(s, inside_leaves_a(g, rows)));
-    m_rts(s);
-}
-
 // $C2:ED08
-void menu_window_colours(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_load_window_colours(g, menu_window_style(g));
-    ORIGINAL_EFFECT(leave_a(s, 0xFFFF));
-    m_rts(s);
-}
 
 // $C2:ECDB
 /* A save slot's window, in the player's design and the slot's own palette
  * row, the one after the slot's number (in the tiles from $300 on), with its
  * colours; at the place and of the size the cells hold. */
 enum { SLOT_TILES = 3 };
-
-static MenuWindowStyle slot_style(const GameState *g, uint8_t slot)
-{
-    return menu_design_style(g, (uint8_t)(((slot + 1) << PALETTE_SHIFT) | SLOT_TILES));
-}
-
-void menu_window_in_design(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint16_t at = menu_window_place(g);
-    MenuWindowSize size = size_in_cells(g);
-    MenuWindowStyle style = slot_style(g, menu_save_slot_shown(g));
-    set_menu_window_style(g, style);
-    menu_draw_window_frame(g, at, size, style);
-    keep_inside_size(g, size);
-    menu_fill_window_inside(g, at, size, style);
-    menu_load_window_colours(g, style);
-    ORIGINAL_EFFECT(leave_frame(g, at, size, style));
-    ORIGINAL_EFFECT(leave_inside(g, at, inside_of(size.columns), inside_of(size.rows), style));
-    m_rts(s);
-}
-
-/* The frame, the inside and the slot's window draw where the game's screens
- * put them; the colours go to a palette row the game has. */
-static bool window_in_cells_is_drawable(Snes *s, bool inside_size)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    const GameState *g = state_of(s);
-    vars_peek(true);
-    MenuWindowSize size = size_in_cells(g);
-    if (inside_size)
-        size = (MenuWindowSize){ (uint8_t)(menu_text_work_window_columns(g) + 2), (uint8_t)(menu_text_work_window_rows(g) + 2) };
-    bool fits = inside_size ? menu_text_work_window_columns(g) < SIZE_COLUMN_BITS && menu_text_work_window_rows(g) < SIZE_ROW_BITS
-                            : true;
-    uint8_t tile = (uint8_t)menu_window_style(g);
-    bool ok = fits && size.columns >= 3 && size.rows >= 3 && tile + LAST_INSIDE_TILE <= 0xFF
-              && reaches_only_buffers(menu_window_place(g), size.rows, size.columns * 2u);
-    vars_peek(false);
-    return ok;
-}
-
-bool menu_window_frame_is_drawable(Snes *s) { return window_in_cells_is_drawable(s, false); }
-bool menu_window_inside_is_drawable(Snes *s) { return window_in_cells_is_drawable(s, true); }
 
 /* Loading colours counts a palette change, a word wide in the original: a
  * count at 255 would carry into the next byte. The palette is sent at the
@@ -940,44 +655,4 @@ bool menu_palette_change_counts(Snes *s)
     bool ok = menu_palette_changes_have_room(state_of(s));
     vars_peek(false);
     return ok;
-}
-
-bool menu_window_colours_are_loadable(Snes *s) { return menu_on_page_work_ram(s) && menu_palette_change_counts(s); }
-
-bool menu_window_in_design_is_drawable(Snes *s)
-{
-    if (!menu_on_page(s) || !menu_palette_change_counts(s))
-        return false;
-    const GameState *g = state_of(s);
-    vars_peek(true);
-    MenuWindowSize size = size_in_cells(g);
-    uint8_t tile = (uint8_t)menu_design_style(g, 0);
-    bool ok = size.columns >= 3 && size.rows >= 3 && tile + LAST_INSIDE_TILE <= 0xFF
-              && reaches_only_buffers(menu_window_place(g), size.rows, size.columns * 2u);
-    vars_peek(false);
-    return ok;
-}
-
-/* The strips' entries: the place in X, the columns in Y, the tile in A. The
- * strip leaves X past it, which its callers read. */
-// $C2:FB97
-void menu_lay_out_label_strip(Snes *s)
-{
-    menu_lay_out_label(state_of(s), s->cpu.x, s->cpu.y, (uint8_t)s->cpu.a);
-    m_rts(s);
-}
-
-// $C2:FBB4
-void menu_lay_out_graphic_strip(Snes *s)
-{
-    s->cpu.x = menu_lay_out_strip(state_of(s), s->cpu.x, s->cpu.y, s->cpu.a);
-    m_rts(s);
-}
-
-/* A strip the game lays out is of at least a column, in the buffers. */
-bool menu_strip_is_placeable(Snes *s)
-{
-    uint16_t columns = s->cpu.y;
-    return menu_on_page_work_ram(s) && columns >= 1
-           && reaches_only_buffers(s->cpu.x, 2, (uint32_t)columns * MENU_TILE_BYTES);
 }

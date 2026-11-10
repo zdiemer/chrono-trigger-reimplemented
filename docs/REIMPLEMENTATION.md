@@ -913,7 +913,8 @@ estimated with, in the report and in `on` mode's charge.
 A sibling that a port runs as C where the original's call reached it through
 the machine is measured on its own stretches too, not inside its caller's
 (`native_time_as_sibling`, `runtime/port/native.h`): a stretch more than half
-of whose bus clocks were spent in such a run is the sibling's in the report,
+of whose bus clocks were spent in such runs of the same sibling at the same
+scope depth is the sibling's in the report,
 its errors and its calibration, with the caller's own few clocks a part of it
 at the caller's value. The battle's steps showed why. Once the dispatch
 (`$C1:0003`) was a port running the frame's work and an action's showing as C,
@@ -3597,17 +3598,13 @@ checked form and leaves on the held location continuation with a fresh stack.
 Interrupts call the field handlers from the console stub under their original
 contracts.
 
-The five retained dispatch entries are:
+Boot retains one field dispatch entry:
 
 | Entry | Caller that still needs it |
 |---|---|
 | `field_first_start`, `$C0:000E` | `console_boot` stops at the title/first-start boundary. |
-| `field_enter`, `$C0:0000` | `menu_mode_restart` and the retired overworld's `after_the_pass` stop here; the retired scene program and warp select this continuation under its contract. |
-| `field_rebuild_the_line_effects`, `$C0:0005` | The still-gated battle closing handler's fallback at `$D1:F4E2`. Its ordinary path already calls the C operation. |
-| `field_start_the_battle_song`, `$C0:0008` | Battle screen setup's long call at `$D1:F405`. |
-| `field_bring_the_music_back`, `$C0:000B` | Battle closing's music restoration at `$CD:043E`, including its original page/bank return convention. |
 
-The 90 called machine forms in `field/machine_forms.c` retain the exact P
+The called machine forms in `field/machine_forms.c` retain the exact P
 masks, including decimal mode, and the original page, bank and state
 contracts. Invalid calls report a broken contract before stopping at the
 original entry. The forms and held adapters still translate the legacy
@@ -3618,14 +3615,11 @@ the latter still needs its returned Y convention and the scratch covered by
 its enclosing byte comparison. Screen startup also leaves Y and overflow
 where the still-gated sprite and menu callers expect them.
 
-The field's scratch reconstruction and `event/leaves.c` are deleted except
-for the menu interface still under its callers' gate. The menus' wave-phase
-alias at `$7E:01E2-$7E:01E3` is isolated in
-`field/menu_compat.h`: event calls leave the place/table bytes, the party
-movement dispatch leaves its operand byte, and tile/property copying
-clears the appropriate bytes. Each writes only the live alias, preserving
-the neighbouring bytes. The menu wave handler at `$C2:77C7` reads that
-phase; those writes remain until the menus retire. The scene teardown
+The field's scratch reconstruction and `event/leaves.c` are deleted.
+The menu teardown also removes the wave-phase compatibility writes formerly
+isolated in `field/menu_compat.h`: event calls and movement left operand and
+table bytes under the menus' phase, and tile/property copying cleared them.
+The menu object mode now initializes and advances its own wave phase. The scene teardown
 removes `field/window_shape.c`'s last-edge and fill scratch, formerly kept
 for the ending window task's enclosing comparison. `$7E:0F00` is instead
 real object-view state, as the preceding held-continuation section explains
@@ -3768,6 +3762,278 @@ are recorded in history/field-teardown.md; the teardown's fresh census and
 outcomes are above. Held adapters remain a machine joint until the legacy
 driver gives way to the native program.
 
+### Battle and menu held boundaries
+
+The legacy driver reaches a saveable frame boundary through held adapters.
+The menu object loop, upload wait, scheduler, screen tasks, object-mode
+return, overworld exit fade and music wait keep their continuations in the
+saved machine, rather than suspending a C invocation for a whole screen.
+Battle's graphics/window waits and five main-pass boundaries use the same
+mechanism while its byte comparisons remain active.
+
+Battle startup and its return to the field also use checked C handoffs.
+The setup scheduler keeps its registers on the saved stack; after the
+graphics and window waits, a held continuation restores them and resumes
+the main loop. Battle's final return resumes the field's held request.
+The runtime's `native_hold_return` finds the caller's held continuation by
+wait and return boundary. The opening and final-return adapters therefore
+need no caller-address tests. An unrelated return or another wait remains
+unheld; the continuation's complete contract is checked when it resumes.
+The named-hold suspension tests cover both refusals, frame saves and replay.
+Frame waits, VRAM send-and-wait and menu-row drawing call their guarded
+entries directly, preserving the call-out's settling boundaries. The
+three-movie census (`menus-sweep`, `menus-epoch`, `battle-menu-buttons`)
+falls from 19 machine-entered entries to seven, none in battle, with
+44,643 machine calls and 888 entries reached only as C. All three strict
+outcome ratchets pass. Thirty-one native-shape save/replay checks across
+battle startup and its first menus reproduce WRAM and SRAM after 120
+frames, with no inexact, lost or mismatched suspended-call replay.
+The idle command page also preserves the carry from framing its member:
+the input operation's ordinary C helper does not update CPU flags, while
+the enclosing menu turn still compares that return when cursor placement
+leaves it unchanged. The Guardian movie and 2,000 idle-turn trials match
+with this compatibility write; it does not add counted accesses.
+Advancing to another member similarly preserves the slot wraparound's
+compare. Black Omen's two battles and escape match after that return is
+kept, as do 2,000 trials covering all three slots with command memory on
+and off.
+
+The member-action bridges declare each callee's live register inputs:
+targeting takes carry, and showing takes A's high byte and overflow.
+Attack, item work and tech work take their arguments from game state.
+The liveness check validates these call-site declarations; the complete
+width, page, bank and binary-mode contracts still apply. Three held-choice
+fixtures compare 6,000 dispatches at the attack or targeting boundary,
+including memory and all live inputs, with zero mismatches.
+
+Enemy attack and tech work likewise take their arguments from game state.
+Their call sites declare the dead registers and flags while preserving the
+full machine contracts. The missing-target fixture compares 2,000 choices
+through the attack boundary, with zero mismatches; liveness reports no
+findings for these declarations.
+
+The isolated boundary cases also retain two index preconditions. Targeting
+checks both the full tech-member table offset and the byte-wrapped offset
+it actually reads: 1,562 admitted area-placement trials match, and 438
+invalid member records refuse before indexing character slots. Choosing
+one enemy rejects the aggregate chooser's completed-search sentinel, eight;
+2,000 sentinel trials refuse and 2,000 valid script selections match.
+These strengthen the guards without admitting new machine states.
+
+Animation frame selection also checks both delay-list indexes when a frame
+expires, including the byte wrap of the next frame. The graphics object's
+high byte must be clear: the original updates only its low byte before a
+builder reads the word. The last enemy group's fixture admits 1,682 matching
+trials and refuses 318 invalid states before either access.
+
+Targeting reuses the low byte of the saved member-action pointer. The item
+and tech callers still read their provisional action number through that
+changed pointer, before replacing it for the animation. A typed overlapping
+view preserves that lookup; retaining the chosen tech number instead left
+the wrong state when work could not proceed. Complete caller fixtures match
+1,911 tech trials and 2,000 item trials, with no mismatches (89 tech trials
+exhaust their call-out budget and contribute no evidence).
+
+The counted frame wait also exposed a shadow-runtime boundary ambiguity:
+a handler can wake one wait, after which direct C calls reach the next
+wait at the same address and stack depth before the original executes
+again. The runtime records the boundary used to wake the first wait and
+does not compare the second there. It compares again once the original
+advances. `suspend_test` covers two such calls with work spanning an
+interrupt between them, and still rejects a wrong write after the second
+wait. The ending's previously failing wait replays without mismatches.
+
+The fallback measure keeps an idle pass open across a compared helper:
+the window-slide wait calls its status helper on every pass. A refused,
+unported or handed-back helper still ends that accounting. The graphics
+wait declares its eight-byte return span, and the window wait its six-byte
+span to the checked opening entry, so the first completed pass is covered
+as well. `shadow_test` checks both one-pass and repeated helper waits and
+keeps an unported helper visible.
+
+Setup's former call-out settles the scheduler's kept-register writes at
+the scheduler's rate before entering setup at its own rate. Charging those
+writes as setup changed the protected Golem Twins game-over picture at
+frame 4,800; restoring the boundary recovers that picture and its complete
+outcome fingerprint, without a timing exception. The no-target animation
+handoff likewise keeps the one-rule cursor advance's clear overflow flag;
+6,000 trials cover its one-, two- and three-member input fixtures.
+Fresh frame-update trials also preserve the color cycle's odd-attribute
+spill into the word just beyond the working palette. The checked palette
+accessor covers ordinary colors; the explicit adjacent-workspace write
+matches the original for those boundary inputs (1,864 comparisons, 136
+guard refusals in 2,000 trials).
+
+Menu task yields call the scheduler as C after constructing the return
+frame and checking its complete contract. `native_park_after_task_switch`
+parks the caller until its task resumes; the next task is already held.
+Restarted or discarded tasks abandon that caller. `suspend_test` covers
+these transitions, save/reload and a pending interrupt at the switch.
+The save operation keeps a real return frame across its own waits. The
+world-map exit fade keeps its remaining frames on that saved stack and
+finishes through the checked field entry.
+
+A direct handoff retains the callee's native-mode requirement, P mask
+(including decimal mode), page, bank and code-image/state guard. The guard
+sees the callee's PC and constructed frame. A refusal stops at the original
+entry and a retired contract reports the failure. Named script and object
+handlers dispatch through C tables; the overworld interpreter call checks
+the same contract as an object-script handler. The contract test covers
+bad mode, widths, page, bank, object, script bank and sprite-list state.
+Bounded loading may settle time over a frame; that is distinct from a
+screen-long suspended caller.
+
+### The menus' teardown
+
+The menus' 595 ordinary registry rows retire together. Their uncalled
+entry wrappers and command wrappers are deleted; called legacy adapters
+remain ordinary checked C functions, with held rows only where the driver
+needs a saveable boundary. `menu/machine_forms.c` holds their contracts,
+not a dispatch registry. The field's `field_enter` compatibility row also
+leaves: its menu and world-map callers use the checked C entry. Field boot
+remains for its caller; the battle teardown removes its three field interfaces.
+
+Before retirement, the full-library coverage inventory enrolled all 595
+entries, including 177 with 5,277 bytes absent from the existing 84-movie
+coverage union. A fresh replay of 257 recipes compared 411,605 trials,
+with zero mismatches or loops. The other 100,895 trials supplied no
+coverage (98,847 were guard refusals). Matched recipes and eleven reviewed
+exclusion rows close every menu byte. Their bounds, resource assumptions,
+sprite/output envelopes and text/stack separation remain contracts. The
+precondition repairs and measurements are archived in
+[history/battle-menu-teardown.md](history/battle-menu-teardown.md).
+
+The shipping census over `menus-sweep` (6,424 frames), `menus-epoch`
+(8,800) and `battle-menu-buttons` (5,086) initially found 87 machine-entered
+entries and 3,455,625 calls, including 3,315,508 CPU wait passes. Held
+boundaries and the checked scheduler handoffs reduced this to 21 entries
+and 46,266 calls before retirement, with no CPU wait or generated-code
+pass. Retirement's final census and source-joint counts are recorded with
+its validation below.
+
+The state-reader audit distinguishes aliases from consumers. World-map
+state overlapping the menu workspace is restored from its put-aside copy;
+object display shadows are initialized before vblank uses them. Every
+scene script initializes the world-plane and line-effect operands it
+passes to C. Menu screen setup clears its ordinary zero word before the
+tech/equipment preflights read it. Field/event temporary writes formerly
+seeding the menu wave phase are removed; the phase belongs to the menu
+object mode. Scene circle and curtain comparison-only temporaries leave
+with their last menu comparisons.
+
+The battle teardown removes the last nine `ORIGINAL_EFFECT` sites in
+`glyphs.c` and `typeset.c`, formerly kept for its message comparisons. No
+menu temporary remains for a byte comparison. The old party service dispatcher and its field header
+are deleted; field and event callers already use the party operations.
+
+Retired entries keep their calibrated `cost_milli` in `time_tags.c`.
+Deleted temporary accesses become machine charges at those rates, including
+cartridge/I/O prices and data-dependent loop counts where needed. The native
+program had never executed these comparison-only accesses, so
+`charge_machine_accesses` and its I/O/cartridge counterparts preserve that
+host estimate. Charging them to the host introduced four outcome regressions;
+the separate backing restores all nine protected witnesses without changing
+an exception or a calibrated rate. Call-outs
+that become C retain their settling boundaries and the callee's timing
+ownership. The map-to-menu display exception keeps the existing line
+130/132 difference, now attributed to its world-map handoff; retirement
+adds no timing or video allowance. The resource loader already used by
+world-map setup is also exposed to the Black Omen scene's two script
+calls, closing targets absent from the prior C dispatch tables.
+
+The fallback measure excludes the exact retired menu-owned reach only
+from shadow reference play; shipping still counts every original
+instruction. Burndown marks that reach retired. The census and machine
+joint reports keep held adapters visible, while retired ordinary rows
+and their closed unreached-ledger records leave their counts.
+The same reference-only classification includes the previously retired
+core input services and RAM block-copy stub, whose comparisons were
+formerly enclosed by menu entries. The controller wait and ready sample
+remain gated; the copy stub is recognized only with its instruction image
+intact. The controller idle row declares its five-byte span to the checked
+sample entry. The fallback measure certifies even a first pass that finds
+the controller ready, only at that exact exit and unchanged stack, with
+every executed instruction inside the span. Previously it required an
+observed backedge, so removing the enclosing menu comparisons exposed
+474,356 instructions of this already-ported wait in the sample. An interrupt
+return restores the saved pass before checking its exit. Synthetic checks
+cover the first pass, an interrupted pass, missing and incorrect spans, and
+an excursion outside the span; the latter three remain counted.
+The nine isolated menu-continuation comparisons leave with their
+gate. The curtain's two menu residue-read allowances also leave: its live
+input is now `menu_effect_noise`, set by object setup and drawing and read
+under the scene frame-counter alias. Emptying the sprite list initializes it
+before each object pass. The old scratch records are gone; only the values
+that feed the random edge remain. Removing that input changed the seed of a
+later field curtain and advanced the attract sequence by four frames.
+Restoring it as ordinary state restores every protected strict picture and
+place. These writes keep their former machine cost without adding a new
+host timing charge.
+
+The conditional charges for a scrolled strip and a visible sprite use local
+results, rather than flags in deleted scratch records. The curtain's direct
+calls also retain their pre-call and post-call settling boundaries, so its
+beam sample sees the same pending work as the former call-out. The removed
+`field_enter` compatibility row retains its rate in the time tags.
+
+An A/B replay restoring only the field/event wave-phase writes reproduces
+both pre-retirement strict outcome fingerprints. With the phase owned by the
+menu mode, `attract-demo` changes ten of 376 sampled picture/neighbour frames
+(around 8100 and 19200), and `menus-end-of-time` five of 151 (around 4800).
+Both keep every protected picture identity, their complete place observations,
+and their saved-game and SRAM identities. Their existing picture exceptions
+record this isolated waveform change; no protected identity is removed.
+
+The native sample retains every protected identity in all 37 movies. The
+explicit curtain input changes only `attract-demo`'s existing picture/place
+exceptions: 54 of 376 picture/neighbour samples and the times of visits 41-49
+(four frames later), with the same complete 50-place sequence and game/SRAM
+identities. A diagnostic build omitting only the new noise-value updates
+reproduces both former native fingerprints. The curtain's variable run count
+still uses its unchanged rate; no timing exception or rate was changed.
+
+These sampled witnesses protect pictures and ordered places in **both
+strict and native modes**. The end column distinguishes the protected
+game and SRAM identities; an unprotected end kind is not claimed to match.
+`outcomes_baseline.txt` carries their additional protected identities.
+
+| Movie | Behaviour exercised | Picture / place in both modes | Protected game / SRAM end, strict; native |
+|---|---|---|---|
+| `battle-menu-buttons` | Battle commands and targets | 3300 / 4 | yes / yes; yes / yes |
+| `battle-guardian` | Guardian, Bits and victory route | 6000 / 6 | no / yes; no / yes |
+| `battle-magus` | Items, dual tech, barriers, KO and revival | 9000 / 5 | yes / yes; no / yes |
+| `battle-lavos-gameover` | Defeat and game over | 5400 / 7 | no / yes; yes / yes |
+| `menus-sweep` | Main-menu screens and item use | 6000 / 3 | yes / yes; yes / yes |
+| `menus-epoch` | Epoch map and time dial | 6000 / 7 | yes / yes; no / yes |
+| `menus-save-point` | Saving at a save point | 2400 / 3 | yes / yes; yes / no |
+| `menus-shop-equip` | Buying, selling and equipment | 3900 / 4 | yes / yes; no / yes |
+| `menus-new-game-plus` | Finished-save load screen | 3000 / 3 | yes / yes; yes / yes |
+
+The final three-movie census has **19 machine-entered entries, 46,229
+calls and 878 C-only entries**, with no menu entry or CPU wait-loop pass.
+Compared with the direct-handoff checkpoint, the source measure drops from
+1,439 ordinary entries, 881 returns and 1,398 scaffolding sites to **843
+ordinary entries, 712 returns and 760 scaffolding sites**. Held entries rise
+from 135 to 138: the world-map exit fade, task completion and music wait
+retain saveable boundaries. Call-outs fall from six to five.
+
+All six targeted movies (`menus-sweep`, `menus-epoch`, `battle-menu-buttons`,
+`menus-end-of-time`, `menus-new-game-plus`, `menus-save-point`) finish in
+both normal and native-shape shipping builds with zero original instructions,
+refusals or handbacks. Twenty-six native-shape snapshots across the sweep,
+Epoch map/dial and save-point write reproduce WRAM and SRAM exactly after
+120 frames (or the movie's end); suspended loads replay exactly. The nine
+witnesses above pass the recorded-outcome ratchet in both strict and native
+modes. Thirteen C test programs pass, including the complete call-contract,
+suspension and native-time checks. The Python suite's four initial lint and
+retired-tag lookup findings are fixed; all 53 tests in those affected modules
+pass on rerun, and the other full-suite tests passed.
+
+The native-shape route runner reaches the bucket's Good Night ending at
+frame 168,290 and the telepod route's ending checkpoint at 147,070. The
+latter covers all three Lavos fights; it does not claim the subsequent
+developer-room tour.
+
 ### The scene program's teardown
 
 The scene program's start, clear, first screen, first frame, main loop and
@@ -3863,9 +4129,9 @@ Scene-only scratch reconstruction is deleted, including the field
 rasterizer's scene-only last-edge scratch. Arithmetic cells consumed by
 later random draws remain actual state. The planet tasks' branch choices
 remain ordinary C bookkeeping because their return convention and timing
-use them. Nine scaffolding sites remain: five in `scene/circle.c` and four
-in `scene/curtain.c`, for the still-gated menu iris and curtain callers.
-The menus' teardown removes these. Called machine forms remain where
+use them. The menu teardown removes the last nine comparison-only sites:
+five in `scene/circle.c` and four in `scene/curtain.c`, formerly retained for
+the menu iris and curtain callers. Called machine forms remain where
 the legacy runtime or gated callers need the stack/register interface;
 they are not dispatchable registry entries. Held rows remain retired
 continuations until the legacy driver leaves the product.
@@ -3886,8 +4152,7 @@ attract and race-won; an A/B replay restoring only the old race hand-off
 reproduces the previous digests. Saved-game, save-RAM and place observations
 are identical. The two existing picture exceptions record that evidence;
 no protected identity is relaxed. The effects baseline renames the same
-curtain entropy read from its former scene wrapper to `field_next_frame`:
-the underlying low-RAM alias is still written by the gated menu NMI.
+curtain entropy read from its former scene wrapper to `field_next_frame`.
 
 The held race's completed pass has two video-line exceptions, for display
 blanking and line-effect shutdown. In `attract-demo`, they occur at frames
@@ -4491,3 +4756,175 @@ The no-ROM unreached and burndown tests check the ledger machinery. The
 sampled gate with `--evidence` rechecks the complete ledger and its current
 recipes; long routes run on main once per relevant merge batch. New coverage
 or recalibration records come from a verified whole-library run.
+
+### The battle's teardown
+
+The battle's 827 ordinary comparison entries leave the registry. Uncalled
+entry wrappers, including the command macros, are deleted; callers use the
+ordinary C operations. The legacy driver still calls 291 machine forms,
+whose complete P masks (including decimal mode), page, bank and image/state
+guards are checked in `battle/machine_forms.c`. Failure reports a broken
+contract and stops at the original entry. These are called adapters, not
+address dispatch. Eleven battle held continuations retain saveable frame
+boundaries: the main loop and frame/message waits return control to the
+driver rather than leaving a port suspended across a screen. The driver's
+remaining adapters leave when it gives way to the native program.
+
+The field's two music compatibility entries and line-effect fallback leave
+with their battle callers. Music calls the field's ordinary functions;
+the legacy battle bridge retains the caller context needed by its audio
+service and the full former contracts. Line-effect rebuilding asserts its
+state and width contract. Only boot's `field_first_start` compatibility row
+remains for the field.
+
+The three field entries' calibrated rates move to the time tags with the
+battle rates. The music adapters charge their context save, restore and
+return to the callee's scope, as the former wrappers did. Losing those tags
+made the caller absorb the field work and changed the native attract-demo
+outcome fingerprints; the rate regression test keeps all three values explicit.
+
+Battle conditions, tech searches and window slopes also publish live curtain
+noise. Their low scratch word aliases `scene_frame_counter`, which the scene
+random generator reads. In attract-demo, `members_at_most` and `with_status`
+replace the value left by `stat_bits`; deleting those writes changed the next
+curtain and lost a protected strict-mode picture and place. Publishing the
+values as ordinary shared state restores the pre-retirement strict pictures
+and places exactly. The byte setters preserve the other half of the word,
+and retain the callers' existing access charges without adding host time.
+
+Before retirement the 84-movie coverage union left 13,556 bytes in 289
+battle entries outside movie coverage. A fresh replay of 484 recipes ran
+968,000 trials: 779,466 matched, zero mismatched, and 188,534 skipped
+(169,309 guard refusals). Skips and interpreted call-outs supply no C
+coverage. Matched execution plus the reviewed resource/control-flow proofs
+closed every byte; the canonical ledger passed for 838 entries and 84
+movies before its battle rows were removed. The precondition commit keeps
+the recipes, coverage counts and hashed proofs. Sprite/output bounds,
+animation resource banks and frame indexes, startup-built OAM lookup,
+target/action table bounds, and text language/stack separation remain
+contracts. The enemy chooser's individually callable operation also keeps
+the stricter slot/block contract its deleted wrapper enforced.
+
+All 725 battle `ORIGINAL_EFFECT` sites and the nine remaining menu sites
+are deleted. The reader audit checked our ports as well as the original:
+wrapper scratch becomes C arguments, and live targeting, action, animation
+and field state remains ordinary state. The provisional action-record
+pointer left by targeting remains live, including its reused low byte;
+retirement does not substitute the earlier cached tech number.
+The enemy chooser's action-list position also remains ordinary state: a
+later choose-again turn can read it after the search has returned. A search
+that selects no new list preserves the previous position. Its two-byte
+read and write retain the old machine charges without adding host time to
+the existing search estimate; the other search fields stay local.
+The ordinary status-turn operation asserts the former
+wrapper's combatant bound too.
+
+The legacy enemy-arrival adapter also supplies the enemy argument word
+that the loader's full guard checks, and the call-in adapter supplies its
+tech argument word. These are calling-convention state until the machine
+forms leave. Their old access charges remain in the actions, so publishing
+the arguments adds no time. The tech-sweep route exposed the arrival gap:
+its first native-shape replay completed through original-code handbacks,
+which are not accepted as retirement evidence. `ct_drive` now prints and
+fails on retired-contract breaks too, matching the diagnostic already
+reported by `ct_dev`; route completion cannot silently hide such a break.
+
+`battle_contract_test` runs without a cartridge against the scaffolding-free
+library. It checks that a chosen list reaches the next turn, survives a
+search that selects nothing, and that the ordinary status turn rejects the
+first invalid combatant. All three checks fail against the preceding
+implementations and pass with the live-state and contract fixes. It also
+checks the adapter's width, decimal, bank and combatant restrictions.
+
+The final native-shape Lavos routes reach both the bucket's Good Night
+ending (frame 187,945) and the telepod's ending phase (126,441), exercising
+victory, field return and the long defeat/ending work without scaffolding.
+The tech sweep with policy seed 2 also wins at frame 99,476, casting 21
+techs with no retries, no broken contract and zero original-code fallback
+instructions. Its ordinary seed-1 policy still needs a successful search;
+that policy follow-up does not substitute for the protected movie outcomes.
+This does not claim the telepod's subsequent developer-room tour.
+
+Every retired entry keeps its calibrated rate in `time_tags.c`; deleted
+temporary accesses retain their machine work charges, with no new host
+charge. Direct call-outs keep their settling boundaries and the callee's
+time ownership. No estimate is recalibrated from the sample and no timing
+exception is added. The glyph drawer retains six accesses for its retired
+progress/count/destination writes, including both bytes of progress. The
+enemy chooser's new assertion remains outside the search's charged work,
+as its former registry guard was. Burndown and the reference fallback measure classify
+the 89 retired owned runs (103,130 bytes) as retired, while shipping still
+counts every original instruction. Census and machine-joint reports retain
+the held continuations explicitly.
+
+The isolated frame-dispatch comparison and effect-loader comparisons retire
+with their entries, as do battle's uncompared-call allowances. Their recipes
+and pre-retirement evidence remain in the precondition commit; they are no
+longer runnable comparison entries in the retired build.
+
+The frame tail's remaining by-address effect-graphics load is a C call too.
+Its ordinary operation unpacks each tile block, sends it through the video
+service, loads the palette, then sends the tilemap graphics. The legacy
+driver's sender retains both the loader's full contract and the long
+transfer's contract, including their separate timing scopes and settling
+boundaries. A rejected battle handoff reports a broken contract and keeps
+its constructed return frame at the original entry.
+
+The step and script callers conservatively keep overflow live at their
+remaining machine boundaries. Their retired comparisons no longer need
+the V don't-care declarations or the old registered-entry poison evidence.
+The liveness checker still checks every remaining declaration, including
+the explicit stop when a long call's contract is rejected.
+
+The protected outcomes are the battle witnesses in "The menus' teardown":
+`battle-menu-buttons` (commands/targets, picture 3300, place 4),
+`battle-guardian` (Bits/victory, picture 6000, place 6), `battle-magus`
+(items, dual tech, barriers, KO/revival, picture 9000, place 5), and
+`battle-lavos-gameover` (defeat/game over, picture 5400, place 7), in both
+strict and native modes. The table there records the exact protected
+saved-game and SRAM end kinds in each mode, alongside the five menu service
+witnesses; existing outcome exceptions do not erase those matches.
+
+Controlled replays explain three refreshed picture exceptions. Omitting
+only the live battle curtain updates restores attract-demo's prior native
+fingerprint (five neighbouring samples change). Restoring the cached
+item/tech choice instead of reading the record left by targeting restores
+the prior strict `endings-beyond-time` and native `late-omen-battles`
+fingerprints (25 and 36 samples). Each pair keeps identical game, SRAM and
+complete place observations, and every protected picture still matches.
+`tools/outcomes_exceptions.txt` records these causes; no protected identity
+is removed.
+
+The unsampled `battle-tech-sweep` has identical complete game, SRAM,
+picture and place observations on this branch and a clean build of merged
+main `ceb2d3e6`, in both strict and native modes. Its refreshed existing
+exceptions record that pre-existing ledger drift. The strict pictures
+1, 1800, 2100, 2400, 2700, 3600, 3900 and 4200 remain protected; native
+protects the same set without 3600. Both modes protect places 0-4, and
+native protects the SRAM end state.
+
+The final census over `menus-sweep`, `menus-epoch` and
+`battle-menu-buttons` has seven machine-entered entries and 44,643 calls,
+against 87 entries and 3,455,625 calls at the branch's start. CPU wait-loop
+passes fall from 3,315,508 to zero; 80 held continuations instead execute
+7,779,880 passes as C. The remaining machine entries are console reset,
+boot, the two interrupt vectors and their stubs, and `field_first_start`.
+The census also records 888 entries called only as C.
+
+Immediately before battle retirement, the source measure had 843 ordinary
+entries, 713 emulated returns and 760 scaffolding sites. It now has 13,
+505 and 13 respectively, with 143 held continuations, 107 stops and five
+call-outs. These source counts include other subsystems' legacy adapters;
+the broader branch-start counts also include teardowns merged from main.
+The fresh build passes the state, suspension, event and scene contract,
+field, native-time and time-parts tests.
+
+The final sampled gate with evidence ends in `suite OK` over 37 movies;
+the separate `battle-tech-sweep` gate also ends in `suite OK`. Both retain
+every protected strict and native outcome, report zero original-code
+fallback instructions and zero refusals, and pass timing without a new
+exception. The scaffolding-free build completes all 37 sampled movies,
+the separate tech-sweep movie and both fast routes. The three manual
+native-shape routes above also report zero fallback instructions and zero
+refusals. These are sampled and targeted results, not a whole-library
+recalibration or a claim that the existing outcome differences are gone.

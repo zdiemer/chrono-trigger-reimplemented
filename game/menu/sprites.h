@@ -16,8 +16,6 @@ void menu_give_sprite_script(GameState *g, MenuObject o, uint8_t script);
 /* Lay out the links the sprite list's free nodes start every frame from, as
  * the sprite-object mode starts. */
 void menu_lay_out_the_sprite_nodes(GameState *g);
-void menu_lay_out_the_sprite_nodes_entry(Snes *s);
-
 /* Run the running object's sprite script for this frame: it shows the
  * object's sprites where the object is. */
 void menu_object_animate(GameState *g);
@@ -56,15 +54,10 @@ void menu_load_record_sprites(Snes *s);
 bool menu_record_sprite_loaded(GameState *g, unsigned record);
 bool menu_record_sprites_loaded(GameState *g);
 void menu_load_record_sprite(Snes *s);
-void menu_animate_record(Snes *s);
-void menu_step_record_animation(Snes *s);
 void menu_run_record_task(Snes *s);
 bool menu_record_task_is_runnable(Snes *s);
-void menu_show_record_frame(Snes *s);
-bool menu_record_frame_is_showable(Snes *s);
 bool menu_record_sprites_are_loadable(Snes *s);
 bool menu_record_sprite_is_loadable(Snes *s);
-bool menu_record_is_animatable(Snes *s);
 
 /* A screen of the party's members: its records reset to the seven
  * characters', each still and hidden until the screen places it ($C2:F566);
@@ -90,19 +83,6 @@ typedef struct {
 } MenuWeaponColours;
 MenuWeaponColours menu_weapon_colours(GameState *g, uint8_t character);
 
-/* The registered entries of the four. */
-void menu_reset_character_records_entry(Snes *s);
-void menu_empty_the_records_entry(Snes *s);
-void menu_start_the_records_entry(Snes *s);
-void menu_load_character_colours_entry(Snes *s);
-bool menu_character_colours_are_loadable(Snes *s);
-
-/* For the original's code and shadow mode: a character's sprite record
- * found as the original finds it ($C2:F626), with the multiplier (the
- * character times a record's $40 bytes), its offset noted
- * (menu_record_offset). */
-void menu_leave_record_found(GameState *g, uint8_t character);
-
 /* A character's colours in its sprite palette (its sprite's and its
  * weapon's) dimmed to half where they are: the party exchange dims the
  * members the story keeps. And what the original does with an emptied
@@ -110,12 +90,10 @@ void menu_leave_record_found(GameState *g, uint8_t character);
  * past the palette (for the original's code and shadow mode:
  * ORIGINAL_EFFECT; the palette's `unchecked` accessors). */
 void menu_dim_character_colours(GameState *g, uint8_t character);
-void menu_leave_colours_dimmed_past_the_palette(GameState *g, uint8_t emptied);
+void menu_charge_colours_dimmed_past_the_palette(GameState *g, uint8_t emptied);
 
 /* A character's sprite colours put in its sprite palette, dimmed to half
  * where `dim` (a screen of the party's members dims those not chosen). */
 void menu_put_character_colours(GameState *g, uint8_t character, bool dim);
-void menu_put_character_colours_entry(Snes *s);
-bool menu_character_colours_are_puttable(Snes *s);
 
 #endif

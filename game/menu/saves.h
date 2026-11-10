@@ -88,27 +88,13 @@ void saves_start_a_new_game(GameState *g);
  * callers do, since the check runs on its caller's page. */
 uint16_t saves_slot_on_the_bus(const GameState *g, uint8_t slot);
 
-/* The registered entries (the original's code calls them; the menus' ports
+/* The checked legacy adapters (the original's code calls them; the menus' ports
  * call the C above). */
-void menu_check_save_slot(Snes *s);
-void menu_save_game(Snes *s);
-void menu_load_game(Snes *s);
 void menu_load_carried_over(Snes *s);
-void menu_start_a_new_game(Snes *s);
-bool menu_new_game_can_start(Snes *s);
-void menu_power_on(Snes *s);
-bool menu_power_on_runs(Snes *s);
 bool menu_carry_over_runs(Snes *s);
 /* What the save code and a New Game+'s carrying over take of the state, as
  * their entries' guards do. */
 bool menu_save_code_can_run(const GameState *g);
 bool menu_carry_over_can_run(const GameState *g);
-bool menu_save_slot_is_checkable(Snes *s);
-bool menu_save_code_runs(Snes *s);
-
-/* What setting up a new game's state leaves in the registers, for a port
- * that sets one up inline where the original called $C2:956E
- * (scaffolding). */
-void menu_leave_new_game_set_up(Snes *s);
 
 #endif

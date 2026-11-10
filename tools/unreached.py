@@ -21,7 +21,7 @@ from tools.disasm.closure import reached_code
 from tools.disasm.cpu import decode
 from tools import unreached_fuzz
 
-SUBSYSTEMS = ('attract', 'core', 'warp', 'overworld', 'event', 'field', 'scene')
+SUBSYSTEMS = ('attract', 'core', 'warp', 'overworld', 'event', 'field', 'scene', 'menu', 'battle')
 # Subsystems inventoried ahead of their teardown. Bytes no comparison or
 # reviewed argument covers yet are recorded as `open` rows rather than refused,
 # so the ledger names exactly what is left (docs/REIMPLEMENTATION.md, "The code
@@ -34,7 +34,7 @@ OPEN_REASON = {}
 # Subsystems whose gate has retired while rows of theirs stay in the ledger for
 # their still-gated callers. A teardown adds its subsystem here and takes it out
 # of OPEN; `--check` fails while it has an open row.
-RETIRED = ('core', 'event', 'field', 'scene')
+RETIRED = ('core', 'event', 'field', 'scene', 'menu', 'battle')
 # Entries outside SUBSYSTEMS that an audited dispatch hands its work to, so the
 # whole dispatch is accounted (name: why). The screen command's restart wait,
 # field_restart_wait_for_vblank_loop, was one until the field joined the audit.
@@ -85,6 +85,10 @@ def walk(an, entry, owners):
             continue
         (inline if inside else own).update(range(pc, pc + insn.size))
         nexts, callees = burndown.successors(an, insn)
+        # A task switch's targets are separate entries, deliberately not
+        # followed by width propagation. They still bound the audit's reach.
+        if pc in an.hints.nofollow:
+            nexts = list(an.hints.indirect.get(pc, ())) + sorted(an.derived.get(pc, ()))
         if insn.name in burndown.CALLS and not callees:
             unresolved.add(f'{pc:06X}: unresolved call')
         if not nexts and not callees and insn.name not in burndown.RETURNS:
@@ -553,6 +557,7 @@ def inventory(rom, paths, cache=None):
     inputs += [ROOT / 'tools/burndown.py', ROOT / 'tools/dontcare_check.py', pathlib.Path(__file__)]
     inputs += sorted((ROOT / 'tools/disasm').glob('*.py'))
     digest = hashlib.sha256(rom.read_bytes())
+    digest.update(repr((SUBSYSTEMS, DEPENDENCIES)).encode())
     for path in inputs:
         digest.update(path.relative_to(ROOT).as_posix().encode())
         digest.update(path.read_bytes())
@@ -591,10 +596,13 @@ def open_summary(records):
 
 
 def main():
+    global SUBSYSTEMS
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--rom', type=pathlib.Path, default=ROOT / 'roms/ct-usa.sfc')
     parser.add_argument('--coverage-dir', type=pathlib.Path)
     parser.add_argument('--json', type=pathlib.Path)
+    parser.add_argument('--subsystem', action='append',
+                        help='inventory only: inspect a subsystem before enrolling it in the ledger; repeatable')
     parser.add_argument('--cache', type=pathlib.Path, default=ROOT / 'build/unreached/reach.json')
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--ledger', type=pathlib.Path, default=ROOT / 'tools/unreached_baseline.txt')
@@ -605,6 +613,10 @@ def main():
     parser.add_argument('--admit-open', action='append', default=[], metavar='SUBSYSTEM',
                         help="with --record, a subsystem's first inventory: its unchecked bytes may become open")
     args = parser.parse_args()
+    if args.subsystem:
+        if args.check or args.record:
+            parser.error('--subsystem is inventory-only; ledger checks must retain their complete scope')
+        SUBSYSTEMS = tuple(args.subsystem)
     if not args.coverage_dir and (not args.check or args.record):
         parser.error('inventory/record requires --coverage-dir for the full standard library')
     movies = movie_hashes()

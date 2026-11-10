@@ -83,6 +83,7 @@ typedef struct Pass {
     uint32_t keys[PASS_MAX][4];
     uint64_t hidden;   /* of it, run under a comparison (a port waiting through the loop) */
     uint8_t span;      /* its idle entry's leaving pass's bytes, to its return (NativeEntry.idle_return_span) */
+    uint8_t exit_span; /* bytes before the checked exit entry, at the same stack */
     uint32_t body[PASS_MAX];   /* the addresses of the latest pass that went round at this head */
     int nbody;
 } Pass;
@@ -480,14 +481,23 @@ static bool ran_only_the_loop(const Pass *p)
 
 /* SHADOW: the pass that left the wait returned having run nothing but its
  * idle entry's own bytes, the loop's and its return's: the port's pass. */
-static bool returned_as_the_port(const Pass *p)
+static bool ran_inside_span(const Pass *p, uint8_t span)
 {
-    if (!p->span || !p->n)
+    if (!span || !p->n)
         return false;
     for (int i = 0; i < p->n; i++)
-        if (p->keys[i][0] < p->head || p->keys[i][0] >= p->head + p->span)
+        if (p->keys[i][0] < p->head || p->keys[i][0] >= p->head + span)
             return false;
     return true;
+}
+
+static bool returned_as_the_port(const Pass *p) { return ran_inside_span(p, p->span); }
+
+/* Even the first pass is the idle port's when it reaches its declared
+ * checked exit without changing stack or executing anything outside it. */
+static bool reached_idle_exit(const Pass *p, uint32_t pc, uint16_t sp)
+{
+    return sp == p->s && pc == p->head + p->exit_span && ran_inside_span(p, p->exit_span);
 }
 
 /* A runtime handoff can happen after the return and before the next
@@ -880,6 +890,287 @@ static bool the_cartridges_field(const Fallbacks *f, uint32_t pc)
     return false;
 }
 
+/* Retired core services formerly enclosed by menu comparisons. The input
+ * wait and ready-sample entry remain compared, so they are not in these
+ * ranges. The RAM copy stub is recognized only while it is MVN; RTL. */
+static bool the_cartridges_menu_services(const Fallbacks *f, uint32_t pc)
+{
+    enum { COPY_STUB = 0x7E9690, COPY_RETURN = COPY_STUB + 3, MVN = 0x54, RTL = 0x6B };
+    if (!f->shadow)
+        return false;
+    if (pc >= COPY_STUB && pc <= COPY_RETURN)
+        return snes_bus_peek(&f->s->bus, COPY_STUB) == MVN && snes_bus_peek(&f->s->bus, COPY_RETURN) == RTL;
+    pc |= 0x800000;
+    return (pc >= 0xC284D2 && pc <= 0xC284F8) || (pc >= 0xC28545 && pc <= 0xC285D5);
+}
+
+/* Only reference play may execute the menus' retired owned runs.
+ * Shipping still counts every original instruction as fallback. */
+static bool the_cartridges_menus(const Fallbacks *f, uint32_t pc)
+{
+    static const struct { uint32_t first, last; } runs[] = {
+        { 0xC20000, 0xC20002 },
+        { 0xC2000F, 0xC20555 },
+        { 0xC20568, 0xC20E0C },
+        { 0xC20E1D, 0xC20E49 },
+        { 0xC20E5A, 0xC20F90 },
+        { 0xC21037, 0xC21A6F },
+        { 0xC21A76, 0xC21D01 },
+        { 0xC21D06, 0xC21E40 },
+        { 0xC21E47, 0xC22061 },
+        { 0xC220A2, 0xC220AA },
+        { 0xC220AF, 0xC2210D },
+        { 0xC22116, 0xC221A2 },
+        { 0xC221A7, 0xC22204 },
+        { 0xC22209, 0xC2229C },
+        { 0xC22336, 0xC22344 },
+        { 0xC226A8, 0xC226D3 },
+        { 0xC22720, 0xC2274C },
+        { 0xC22D70, 0xC22D90 },
+        { 0xC257DF, 0xC25841 },
+        { 0xC2584A, 0xC25850 },
+        { 0xC25893, 0xC25902 },
+        { 0xC25945, 0xC25A89 },
+        { 0xC25A8E, 0xC25C27 },
+        { 0xC25C30, 0xC25C60 },
+        { 0xC25C69, 0xC25CA9 },
+        { 0xC25CB2, 0xC25D02 },
+        { 0xC25D23, 0xC25EAE },
+        { 0xC25EBF, 0xC25F7F },
+        { 0xC25F90, 0xC25FD7 },
+        { 0xC2614B, 0xC26262 },
+        { 0xC2631F, 0xC26674 },
+        { 0xC2667D, 0xC268E3 },
+        { 0xC268F4, 0xC269EF },
+        { 0xC26A34, 0xC26AD0 },
+        { 0xC26AD7, 0xC26C96 },
+        { 0xC26CC1, 0xC26F2C },
+        { 0xC26F33, 0xC26F8D },
+        { 0xC26F92, 0xC2714B },
+        { 0xC27156, 0xC271DC },
+        { 0xC271F9, 0xC2721F },
+        { 0xC2722C, 0xC272B7 },
+        { 0xC272D8, 0xC27320 },
+        { 0xC27361, 0xC274AD },
+        { 0xC2754D, 0xC2785F },
+        { 0xC2786F, 0xC27887 },
+        { 0xC278A1, 0xC278E2 },
+        { 0xC27911, 0xC27C27 },
+        { 0xC27C48, 0xC27DE3 },
+        { 0xC28000, 0xC2808E },
+        { 0xC28096, 0xC28290 },
+        { 0xC282B2, 0xC28405 },
+        { 0xC2840E, 0xC284CF },
+        { 0xC285D6, 0xC28770 },
+        { 0xC28791, 0xC288A6 },
+        { 0xC288AD, 0xC2894E },
+        { 0xC28953, 0xC289DB },
+        { 0xC289E4, 0xC28A95 },
+        { 0xC28A98, 0xC28C5A },
+        { 0xC28C75, 0xC28DDE },
+        { 0xC28DE3, 0xC290F7 },
+        { 0xC290FC, 0xC291DA },
+        { 0xC291EB, 0xC2926D },
+        { 0xC29276, 0xC2950F },
+        { 0xC29512, 0xC299C9 },
+        { 0xC299CE, 0xC29B64 },
+        { 0xC29B71, 0xC29B82 },
+        { 0xC29B8F, 0xC29C28 },
+        { 0xC29C31, 0xC2A2C5 },
+        { 0xC2A2CD, 0xC2A3B9 },
+        { 0xC2A3E2, 0xC2A4AA },
+        { 0xC2A4AF, 0xC2A641 },
+        { 0xC2A64D, 0xC2AA05 },
+        { 0xC2AA19, 0xC2AA33 },
+        { 0xC2AA40, 0xC2AC11 },
+        { 0xC2AC1D, 0xC2AF39 },
+        { 0xC2AF42, 0xC2B044 },
+        { 0xC2B04B, 0xC2B0ED },
+        { 0xC2B0FA, 0xC2B13C },
+        { 0xC2B149, 0xC2B315 },
+        { 0xC2B31C, 0xC2B352 },
+        { 0xC2B35D, 0xC2B518 },
+        { 0xC2B520, 0xC2BB19 },
+        { 0xC2BB1F, 0xC2BD3F },
+        { 0xC2BD6B, 0xC2BECD },
+        { 0xC2BEDC, 0xC2BF2E },
+        { 0xC2BF3D, 0xC2BFFE },
+        { 0xC2C017, 0xC2C206 },
+        { 0xC2C20F, 0xC2C2BC },
+        { 0xC2C2FF, 0xC2C41A },
+        { 0xC2C43A, 0xC2C4F8 },
+        { 0xC2C511, 0xC2C547 },
+        { 0xC2C54F, 0xC2C5A6 },
+        { 0xC2C5B3, 0xC2C620 },
+        { 0xC2C627, 0xC2C7A5 },
+        { 0xC2C7AC, 0xC2CA62 },
+        { 0xC2CA67, 0xC2CAD8 },
+        { 0xC2CAE0, 0xC2CDCA },
+        { 0xC2CDE3, 0xC2CE6D },
+        { 0xC2CE86, 0xC2CE95 },
+        { 0xC2CE9D, 0xC2CED3 },
+        { 0xC2CEDC, 0xC2CF2F },
+        { 0xC2CF37, 0xC2D043 },
+        { 0xC2D065, 0xC2D197 },
+        { 0xC2D19F, 0xC2D328 },
+        { 0xC2D32C, 0xC2D45E },
+        { 0xC2D466, 0xC2D4B3 },
+        { 0xC2D4BB, 0xC2D4EF },
+        { 0xC2D4F8, 0xC2D518 },
+        { 0xC2D52B, 0xC2DA34 },
+        { 0xC2DA3D, 0xC2DB97 },
+        { 0xC2DB9F, 0xC2DC73 },
+        { 0xC2DC7B, 0xC2DE1C },
+        { 0xC2DE21, 0xC2DFC4 },
+        { 0xC2DFCF, 0xC2E1DB },
+        { 0xC2E1ED, 0xC2E297 },
+        { 0xC2E2A0, 0xC2E53D },
+        { 0xC2E545, 0xC2E60A },
+        { 0xC2E613, 0xC2E889 },
+        { 0xC2E891, 0xC2E913 },
+        { 0xC2E91B, 0xC2E97B },
+        { 0xC2E984, 0xC2E9D8 },
+        { 0xC2E9E2, 0xC2EA1E },
+        { 0xC2EA27, 0xC2EAD5 },
+        { 0xC2EAF9, 0xC2ED58 },
+        { 0xC2ED77, 0xC2EEF4 },
+        { 0xC2EF05, 0xC2EFD3 },
+        { 0xC2EFF4, 0xC2F179 },
+        { 0xC2F1DA, 0xC2F27C },
+        { 0xC2F28D, 0xC2F361 },
+        { 0xC2F364, 0xC2F547 },
+        { 0xC2F566, 0xC2F6D7 },
+        { 0xC2F6E0, 0xC2F6F4 },
+        { 0xC2F6F7, 0xC2F754 },
+        { 0xC2F75C, 0xC2FBCD },
+        { 0xC2FCB2, 0xC2FE09 },
+        { 0xC6E000, 0xC6E582 },
+        { 0xC6E595, 0xC6E6CF },
+        { 0xC6E74E, 0xC6E7B9 },
+        { 0xC6E7CA, 0xC6EB1A },
+        { 0xC6EB3B, 0xC6EE37 },
+        { 0xFFF548, 0xFFF6F1 },
+        { 0xFFF716, 0xFFF758 },
+        { 0xFFF7D9, 0xFFF950 },
+        { 0xFFF958, 0xFFF9BA },
+        { 0xFFF9C4, 0xFFFA7A },
+        { 0xFFFAA3, 0xFFFBC0 },
+        { 0xFFFBD3, 0xFFFBE0 },
+        { 0xFFFBE7, 0xFFFC56 },
+    };
+    if (!f->shadow)
+        return false;
+    pc |= 0x800000;
+    for (unsigned i = 0; i < sizeof runs / sizeof runs[0]; i++)
+        if (pc >= runs[i].first && pc <= runs[i].last)
+            return true;
+    return false;
+}
+
+/* Only reference play may execute battle's retired owned runs.
+ * Shipping still counts every original instruction as fallback. */
+static bool the_cartridges_battle(const Fallbacks *f, uint32_t pc)
+{
+    static const struct { uint32_t first, last; } runs[] = {
+        { 0xC00002, 0xC00004 },
+        { 0xC10000, 0xC10014 },
+        { 0xC10018, 0xC10050 },
+        { 0xC10065, 0xC1006A },
+        { 0xC1006D, 0xC10BB4 },
+        { 0xC10BB6, 0xC115B5 },
+        { 0xC115C8, 0xC11FE9 },
+        { 0xC1203A, 0xC12327 },
+        { 0xC12329, 0xC12D80 },
+        { 0xC12D9F, 0xC12F1E },
+        { 0xC12F22, 0xC13215 },
+        { 0xC13234, 0xC1375F },
+        { 0xC13772, 0xC14EF5 },
+        { 0xC14EF7, 0xC15F56 },
+        { 0xC15F59, 0xC15F87 },
+        { 0xC15F8A, 0xC16C43 },
+        { 0xC16C46, 0xC179A0 },
+        { 0xC17C2B, 0xC17C3C },
+        { 0xC18000, 0xC1995E },
+        { 0xC19960, 0xC1AE0C },
+        { 0xC1AE13, 0xC1AED2 },
+        { 0xC1AEFD, 0xC1B70C },
+        { 0xC1B70E, 0xC1B80C },
+        { 0xC1B961, 0xC1BC61 },
+        { 0xC1BCE0, 0xC1BF80 },
+        { 0xC1BFA4, 0xC1C099 },
+        { 0xC1C1B2, 0xC1C730 },
+        { 0xC1C732, 0xC1C95B },
+        { 0xC1C96A, 0xC1CE35 },
+        { 0xC1CE3A, 0xC1CF50 },
+        { 0xC1CF69, 0xC1CFBD },
+        { 0xC1CFC2, 0xC1D125 },
+        { 0xC1D132, 0xC1D19F },
+        { 0xC1D1A4, 0xC1D1CE },
+        { 0xC1D1D3, 0xC1D506 },
+        { 0xC1D508, 0xC1D9D6 },
+        { 0xC1DA37, 0xC1E07A },
+        { 0xC1E09E, 0xC1E894 },
+        { 0xC1E89B, 0xC1E8E0 },
+        { 0xC1E8E2, 0xC1EA9B },
+        { 0xC1EA9D, 0xC1EB48 },
+        { 0xC1EB68, 0xC1EFD2 },
+        { 0xC1F036, 0xC1F9E9 },
+        { 0xC1F9EB, 0xC1FA60 },
+        { 0xC1FA8B, 0xC1FDD2 },
+        { 0xCCE000, 0xCCE28F },
+        { 0xCCE2E4, 0xCCF382 },
+        { 0xCD0000, 0xCD000E },
+        { 0xCD0012, 0xCD001D },
+        { 0xCD0021, 0xCD019C },
+        { 0xCD01A5, 0xCD0214 },
+        { 0xCD0235, 0xCD05FE },
+        { 0xCD0607, 0xCD06B1 },
+        { 0xCD06B4, 0xCD06BB },
+        { 0xCD06C4, 0xCD0C82 },
+        { 0xCD0C89, 0xCD1218 },
+        { 0xCD1221, 0xCD12FF },
+        { 0xCD1314, 0xCD13D3 },
+        { 0xCD13DC, 0xCD13E5 },
+        { 0xCD13EE, 0xCD16B4 },
+        { 0xCD17A9, 0xCD1C5A },
+        { 0xCD1C63, 0xCD26AF },
+        { 0xCD26C0, 0xCD2960 },
+        { 0xCD2969, 0xCD29A1 },
+        { 0xCD29AA, 0xCD2A41 },
+        { 0xCD2A4A, 0xCD2A50 },
+        { 0xCD2A8B, 0xCD2DE9 },
+        { 0xCD2DFA, 0xCD319D },
+        { 0xCD31AA, 0xCD38A9 },
+        { 0xCD38B2, 0xCD3E20 },
+        { 0xCD3E3B, 0xCD3F9D },
+        { 0xCEE000, 0xCEE08D },
+        { 0xCEE18E, 0xCEE1C6 },
+        { 0xCEE293, 0xCEEF10 },
+        { 0xCEF066, 0xCEF0E5 },
+        { 0xCFE300, 0xCFF01D },
+        { 0xCFF03E, 0xCFF9F6 },
+        { 0xCFF9FB, 0xCFFE84 },
+        { 0xD1E70A, 0xD1E9EE },
+        { 0xD1EA01, 0xD1EA20 },
+        { 0xD1EA4B, 0xD1EC5E },
+        { 0xD1ECF3, 0xD1EE98 },
+        { 0xD1EEA5, 0xD1F685 },
+        { 0xD1F692, 0xD1F69B },
+        { 0xD1F6B4, 0xD1FBD1 },
+        { 0xD1FBDA, 0xD1FEF3 },
+        { 0xFDA8A5, 0xFDAF8A },
+        { 0xFDAFD7, 0xFDB67E },
+        { 0xFDB6CB, 0xFDB956 },
+    };
+    if (!f->shadow)
+        return false;
+    pc |= 0x800000;
+    for (unsigned i = 0; i < sizeof runs / sizeof runs[0]; i++)
+        if (pc >= runs[i].first && pc <= runs[i].last)
+            return true;
+    return false;
+}
+
 void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
 {
     /* Observe completion before the caller starts another invocation of the
@@ -895,6 +1186,11 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
     if (f->pending && sp == f->pending_s)
         enter(f, (Frame){ .kind = f->eff.kind, .routine = pc, .port = f->eff.port, .floor = sp });
     f->pending = false;
+
+    /* A checked helper may belong to an idle pass, but an unported helper
+     * does not become covered merely because its caller loops afterward. */
+    if (f->pass.open && sp < f->pass.s && f->frames[f->depth - 1].kind != COVERED)
+        f->pass.open = false;
 
     /* A wait loop's pass ends where its routine returns past the loop's level:
      * left open, the next pass through the same head took back whatever ran
@@ -918,7 +1214,7 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
         if (f->pass.open)
             f->pass.hidden++;
     }
-    if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc) && !the_cartridges_field(f, pc) && !the_cartridges_events(f, pc) && !the_cartridges_decompressor(f, pc) &&
+    if (eff.kind != COVERED && !the_cartridges_sound_protocol(s, pc) && !the_cartridges_menu_services(f, pc) && !the_cartridges_battle(f, pc) && !the_cartridges_menus(f, pc) && !the_cartridges_field(f, pc) && !the_cartridges_events(f, pc) && !the_cartridges_decompressor(f, pc) &&
         !the_cartridges_animations(f, pc) && !the_cartridges_warp(f, pc) && !the_cartridges_overworld(f, pc) && !the_cartridges_scene_program(f, pc) && !the_cartridges_scene(f, pc)) {
         bool m8 = e || (p & CPU_FLAG_M), x8 = e || (p & CPU_FLAG_X);
         add(f, pc, eff.kind, routine, eff.port, (uint8_t)misses_instruction_length(op, m8, x8));
@@ -1098,13 +1394,18 @@ static bool still_compared(const Fallbacks *f, const Frame *frame)
  * routine's path, the field's pass going on from a step) is compared nested
  * in it, and once it is set aside the enclosing comparison goes on covering
  * what the original runs, until the runtime says it is over. */
-static void take_over(Fallbacks *f, uint16_t sp, bool nested)
+static void take_over(Fallbacks *f, uint32_t pc, uint16_t sp, bool nested)
 {
+    /* A checked exit can be the first dispatch after an interpreted RTI. */
+    after_an_rti(f, sp);
     /* the wait over: the loop left to the port at its exit, or returned from
      * as its idle entry returns, to a port */
-    if (f->pass.open && (ran_only_the_loop(&f->pass) || (sp > f->pass.s && returned_as_the_port(&f->pass))))
+    bool idle_helper = f->pass.open && sp < f->pass.s;
+    if (!idle_helper && f->pass.open && (ran_only_the_loop(&f->pass) || reached_idle_exit(&f->pass, pc, sp)
+                         || (sp > f->pass.s && returned_as_the_port(&f->pass))))
         take_the_pass_back_as_the_port_s(f);
-    f->pass.open = false;
+    if (!idle_helper)
+        f->pass.open = false;
     leave_finished(f, sp);
     int kept = handler_away(f, sp);
     while (f->depth > kept && !f->frames[f->depth - 1].held && f->frames[f->depth - 1].start <= sp &&
@@ -1118,7 +1419,7 @@ static void on_entered(void *ctx, Snes *s, const NativeEntry *e)
 {
     Fallbacks *f = ctx;
     uint16_t sp = s->cpu.s;
-    take_over(f, sp, true);
+    take_over(f, cpu_pc24(&s->cpu), sp, true);
     if (f->shadow)
         enter(f, (Frame){ .kind = COVERED, .held = e->interrupt, .routine = cpu_pc24(&s->cpu), .port = e->addr,
                           .floor = sp, .name = e->name, .entry = e });
@@ -1151,7 +1452,7 @@ static void on_resumed(void *ctx, Snes *s, const NativeEntry *e, uint16_t entry_
         if (f->frames[i].kind == COVERED && f->frames[i].port == e->addr && f->frames[i].name)
             return;   /* its stretch is still there */
     uint16_t level = f->after_a_call && sp == f->callee_s ? f->last_s : sp;
-    take_over(f, sp, false);
+    take_over(f, cpu_pc24(&s->cpu), sp, false);
     if (f->shadow)
         enter(f, (Frame){ .kind = COVERED, .routine = e->addr, .port = e->addr, .floor = entry_s, .start = level,
                           .name = e->name, .entry = e });
@@ -1183,6 +1484,7 @@ static void on_idle(void *ctx, Snes *s, const NativeEntry *e)
     f->pass.n = 0;
     f->pass.hidden = 0;
     f->pass.span = e->idle_return_span;
+    f->pass.exit_span = e->idle_exit_span;
 }
 
 /* SHADOW: the runtime gives a comparison up under a handler that moved the
@@ -1203,7 +1505,10 @@ static void on_finished(void *ctx, const NativeEntry *e)
     f->given_up.entry = NULL;
     if (abandoned)
         return;
-    leave_idle_pass(f, f->s->cpu.s);
+    /* A compared helper returning to the idle loop leaves that pass open.
+     * A refusal, call-out or stop still discards it at its own handoff. */
+    if (!f->pass.open || f->s->cpu.s > f->pass.s)
+        leave_idle_pass(f, f->s->cpu.s);
     leave_covered(f, e);
 }
 

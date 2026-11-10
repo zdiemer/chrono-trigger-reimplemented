@@ -1,3 +1,4 @@
+#include "battle/machine_forms.h"
 /* The console: how the machine reaches the program (core/program.c).
  *
  * The console powers on, and resets, in the CPU's 6502 emulation mode at the
@@ -18,10 +19,13 @@
 #include "field/machine_forms.h"
 
 #include "charge.h"
+#include "battle/entries.h"
+#include "battle/program.h"
 #include "core/program.h"
 #include "field/field.h"
 #include "field/display.h"
 #include "menu/display.h"
+#include "menu/machine_forms.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
@@ -75,15 +79,20 @@ void console_line_vector(Snes *s) { m_stop_at(s, LINE_STUB, 0); }
 static const struct {
     uint32_t handler;
     NativeFn run;
+    bool compared_at_entry;
 } called_handlers[] = {
-    { MENU_OBJECT_VBLANK_HANDLER, menu_object_nmi },
-    { FIELD_VBLANK_HANDLER, field_nmi },
-    { FIELD_LINE_HANDLER, field_irq },
-    { SCENE_FRAME_HANDLER, scene_nmi },
-    { SCENE_HANDLER_WHILE_WORKING, scene_nmi_while_working },
-    { SCENE_BOOT_VBLANK, scene_boot_nmi },
-    { SCENE_BOOT_LINE, scene_boot_line_irq },
-    { 0xC30945, scene_line_irq_ack },
+    { MENU_OBJECT_VBLANK_HANDLER, menu_object_nmi, false },
+    { MENU_VBLANK_HANDLER, menu_nmi_enter, false },
+    { BATTLE_VBLANK_HANDLER, battle_nmi, true },
+    { BATTLE_LINE_HANDLER, battle_irq, true },
+    { BATTLE_CLOSING_VBLANK_HANDLER, battle_nmi_alternate, true },
+    { FIELD_VBLANK_HANDLER, field_nmi, false },
+    { FIELD_LINE_HANDLER, field_irq, false },
+    { SCENE_FRAME_HANDLER, scene_nmi, false },
+    { SCENE_HANDLER_WHILE_WORKING, scene_nmi_while_working, false },
+    { SCENE_BOOT_VBLANK, scene_boot_nmi, false },
+    { SCENE_BOOT_LINE, scene_boot_line_irq, false },
+    { 0xC30945, scene_line_irq_ack, false },
 };
 enum { CALLED_HANDLERS = sizeof called_handlers / sizeof called_handlers[0] };
 
@@ -119,12 +128,22 @@ static void take_interrupt(Snes *s, ProgramStub stub)
         }
         if (scene_handler)
             charge_settle(state_of(s));
+        /* Until battle retires, its interrupt entry owns the comparison.
+         * Nesting it under the stub ends that comparison at the RTI before
+         * its wrapper can report the result. Shipping still calls it here. */
+        bool compare = called_handlers[i].compared_at_entry && !m_runs_retired_as_c(s);
         const NativeEntry *e = native_continuation_entry_at(s, stub.handler);
-        if ((e && e->fn == called_handlers[i].run) ||
-            (m_runs_retired_as_c(s) && (field_machine_form_takes(s, called_handlers[i].run) ||
-                                       scene_machine_form_takes(s, called_handlers[i].run))))
+        if (!compare && ((e && e->fn == called_handlers[i].run) ||
+                        (m_runs_retired_as_c(s) && (menu_machine_form_takes(s, stub.handler, called_handlers[i].run) ||
+                                                  field_machine_form_takes(s, called_handlers[i].run) ||
+                                                  scene_machine_form_takes(s, called_handlers[i].run) || battle_machine_form_takes(s, stub.handler, called_handlers[i].run))))) {
+            /* Battle used to start at a separate dispatch boundary. Its
+             * handler must see the stub's time already passed, especially
+             * when the main thread has just asked for a frame update. */
+            if (called_handlers[i].compared_at_entry)
+                charge_settle(state_of(s));
             TIMED_AS(state_of(s), stub.handler, called_handlers[i].run(s));
-        else
+        } else
             m_stop_at(s, called_handlers[i].handler, 0);
         return;
     }

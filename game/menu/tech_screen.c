@@ -49,7 +49,6 @@
 #include "menu/tiles.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "original_effects.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -100,7 +99,7 @@ static uint8_t tech_cost_needed(const GameState *g) { return menu_tech_cost_need
 static void clear_the_cost_needed(GameState *g)
 {
     set_menu_tech_cost_needed(g, 0);
-    ORIGINAL_EFFECT(set_menu_tech_cost_beside(g, 0));
+    charge_machine_accesses(g, 1);
 }
 
 /* The screen's line effects at rest, and while its member list slides. */
@@ -123,14 +122,6 @@ enum { LISTER = 7, LAST_RECORD = 8, RECORD_BYTES = 0x40, HIDDEN = 0xFF, SHOWN = 
  * it (menu/sprites.h). */
 static void reset_records(GameState *g) { TIMED_AS(g, 0xC2F566, menu_reset_character_records(g)); }
 
-/* Where a character's record is, as the original works it out ($C2:F626,
- * with the multiplier) and notes it. */
-static void note_record_offset(GameState *g, uint8_t character)
-{
-    hw_set_multiplicand(g, character);
-    set_menu_record_offset(g, hw_multiply_by(g, RECORD_BYTES));
-}
-
 /* A record's place on the screen: its Y and its X (the X's high byte, which
  * says whether it is off the screen's left, stays). */
 static void place_record(GameState *g, unsigned record, MenuSpritePlace at)
@@ -145,7 +136,7 @@ enum { MEMBER_SPRITE_X = 0x1C };
 // $C2:BAFC
 static void place_member_sprite(GameState *g, uint8_t character, uint16_t row)
 {
-    ORIGINAL_EFFECT(note_record_offset(g, character));
+    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4));
     set_menu_record_sprite(g, character, character);
     set_menu_record_hidden(g, character, SHOWN);
     place_record(g, character, (MenuSpritePlace){ menu_tech_row_sprite_y(g, row), MEMBER_SPRITE_X });
@@ -181,8 +172,8 @@ enum { LINES_A_MEMBER = 12, MEMBER_BAR_PLACE = 0x1278 };
 
 static uint8_t in_lines(GameState *g, uint8_t members)
 {
-    ORIGINAL_EFFECT(hw_set_multiplicand(g, LINES_A_MEMBER));
-    ORIGINAL_EFFECT((void)hw_multiply_by(g, members));
+    charge_machine_io_accesses(g, 1);
+    charge_machine_io_accesses(g, 3);
     return (uint8_t)(members * LINES_A_MEMBER);
 }
 
@@ -364,8 +355,8 @@ void menu_techs_draw_list_rows(GameState *g, uint8_t from)
         menu_draw_tech_row(g, (uint16_t)(FIRST_LIST_ROW_AT + row * LIST_ROW_BYTES), tech, waiting);
     }
     set_menu_draw_origin(g, FIRST_LIST_ROW_AT + LIST_ROWS * LIST_ROW_BYTES);
-    ORIGINAL_EFFECT(set_menu_scratch_tech_list_place(g, (uint8_t)(from + LIST_ROWS)));
-    ORIGINAL_EFFECT(set_menu_scratch_tech_rows_left(g, 0));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 2);
 }
 
 /* Which list it is: the member times sixteen, plus the kind. */
@@ -407,7 +398,7 @@ void menu_techs_mark_kind(GameState *g)
     uint8_t kind = menu_tech_category(g);
     uint16_t tab = (uint16_t)(TABS_AT + kind * TAB_BYTES);
     TIMED_AS(g, 0xC2ECAC, menu_colour_row_pair(g, tab, TAB_TILES, CHOSEN_TAB));
-    ORIGINAL_EFFECT(set_menu_scratch_tech_tab_offset(g, (uint16_t)(kind * 2)));
+    charge_machine_accesses(g, 2);
     set_menu_draw_origin(g, tab);
 }
 
@@ -557,7 +548,7 @@ void menu_techs_show_the_lister(GameState *g)
 bool menu_techs_put_the_lister_on_its_record(GameState *g)
 {
     uint8_t character = menu_status_record_character(g);
-    ORIGINAL_EFFECT(note_record_offset(g, character));
+    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4));
     set_menu_record_colours(g, LISTER, menu_record_colours(g, character));
     if (menu_record_sprite(g, LISTER) == character)
         return false;
@@ -570,8 +561,8 @@ enum { LINES_A_ROW = 4, LIST_BAR_PLACE = 0x32E8 };
 
 static uint8_t thumb_at_row(GameState *g, uint8_t row)
 {
-    ORIGINAL_EFFECT(hw_set_multiplicand(g, row));
-    ORIGINAL_EFFECT((void)hw_multiply_by(g, LINES_A_ROW));
+    charge_machine_io_accesses(g, 1);
+    charge_machine_io_accesses(g, 3);
     return (uint8_t)(row * LINES_A_ROW);
 }
 
@@ -612,8 +603,8 @@ static void note_the_pointed_tech(GameState *g)
         others = (uint8_t)(others << 1);
         looked_at++;
     } while (others != 0);
-    ORIGINAL_EFFECT(set_menu_scratch_tech_partner_bits(g, 0));
-    ORIGINAL_EFFECT(set_menu_scratch_tech_partners_counted(g, looked_at));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
 }
 
 // $C2:BB8C
@@ -622,7 +613,7 @@ static void note_the_pointed_tech(GameState *g)
  * tech has no such member. */
 static void draw_tech_members(GameState *g, Platform *pf, uint8_t row, uint16_t at)
 {
-    ORIGINAL_EFFECT(set_menu_tech_row_partners(g, (uint16_t)(menu_tech_members(g, 1) | menu_tech_members(g, 2) << 8)));
+    charge_machine_accesses(g, 4);
     start_drawing_rows(g);
     for (; row < MEMBER_ROWS; row++, at = (uint16_t)(at + MEMBER_ROW_BYTES)) {
         set_menu_draw_origin(g, at);
@@ -634,8 +625,8 @@ static void draw_tech_members(GameState *g, Platform *pf, uint8_t row, uint16_t 
         }
         TIMED_AS(g, 0xC28820, (void)menu_load_character(g, character));
         place_member_sprite(g, menu_status_record_character(g), row);
-        MenuTechCost c = menu_tech_cost_for(g, menu_tech_pointed(g), kind_listed(g));
-        ORIGINAL_EFFECT(set_menu_tech_part_costs(g, row, (uint8_t)c.part));
+        (void)menu_tech_cost_for(g, menu_tech_pointed(g), kind_listed(g));
+        charge_machine_accesses(g, 1);
         TIMED_AS(g, 0xC2BA2F, menu_techs_draw_member_row(g, pf));
     }
     set_menu_screen_argument(g, MEMBER_ROWS);
@@ -664,7 +655,7 @@ void menu_techs_show_the_pointed_tech(GameState *g, Platform *pf)
 {
     note_the_pointed_tech(g);
     MenuTechCost c = menu_tech_cost_for(g, menu_tech_pointed(g), kind_listed(g));
-    ORIGINAL_EFFECT(set_menu_tech_part_costs(g, 0, (uint8_t)c.part));
+    charge_machine_accesses(g, 1);
     set_menu_text_attribute(g, loaded_member_short_of(g, c.mp) ? MP_SHORT : MP_ENOUGH);
     TIMED_AS(g, 0xC2F114, (void)menu_draw_number_value(g, tech_cost_needed(g), COST_FORMAT, COST_AT));
     set_menu_screen_argument(g, 1);
@@ -707,7 +698,7 @@ void menu_techs_turn_page(GameState *g, uint8_t top)
 {
     set_menu_scroll_bar_thumb(g, thumb_at_row(g, menu_scroll_bar_thumb(g)));
     set_menu_tech_list_top(g, top);
-    ORIGINAL_EFFECT(set_menu_scratch_tech_list_place_high(g, 0));
+    charge_machine_accesses(g, 1);
     TIMED_AS(g, 0xC2BD6B, menu_techs_draw_list_rows(g, top));
 }
 
@@ -784,21 +775,6 @@ enum { SECOND_ROW_TOP = 0x3064, FIRST_ROW_TOP = 0x2FE4, SEVENTH_ROW_END = 0x3338
 enum { INCOMING_ROWS = 0x33C0, FIRST_ROWS = 0x2FC0, INCOMING_ROWS_BYTES = 0x80 };
 enum { WORK_RAM = 0x7E0000 };
 
-static void leave_rows_copied_up(GameState *g)
-{
-    set_menu_window_place(g, (uint16_t)(SECOND_ROW_TOP + ROWS_UP * TILE_ROW_BYTES));
-    set_menu_line_start(g, (uint16_t)(FIRST_ROW_TOP + ROWS_UP * TILE_ROW_BYTES));
-    set_menu_text_work_window_rows(g, 0);
-    set_menu_text_work_window_columns(g, NAME_COLUMN_BYTES - 1);
-}
-
-static void leave_rows_copied_down(GameState *g)
-{
-    set_menu_scratch_tech_rows_from(g, (uint16_t)(SEVENTH_ROW_END - ROWS_DOWN * TILE_ROW_BYTES));
-    set_menu_scratch_tech_rows_to(g, (uint16_t)(EIGHTH_ROW_END - ROWS_DOWN * TILE_ROW_BYTES));
-    set_menu_scratch_tech_rows_still(g, 0);
-}
-
 // $C2:B7CC
 static void move_list_rows(GameState *g, bool up)
 {
@@ -807,7 +783,7 @@ static void move_list_rows(GameState *g, bool up)
             wram_copy(g, WORK_RAM | (uint16_t)(SECOND_ROW_TOP + r * TILE_ROW_BYTES),
                       WORK_RAM | (uint16_t)(FIRST_ROW_TOP + r * TILE_ROW_BYTES), NAME_COLUMN_BYTES);
         charge_block_move(g, ROWS_UP * NAME_COLUMN_BYTES);
-        ORIGINAL_EFFECT(leave_rows_copied_up(g));
+        charge_machine_accesses(g, 8);
         return;
     }
     for (unsigned r = 0; r < ROWS_DOWN; r++) {
@@ -817,7 +793,7 @@ static void move_list_rows(GameState *g, bool up)
     }
     wram_copy(g, WORK_RAM | INCOMING_ROWS, WORK_RAM | FIRST_ROWS, INCOMING_ROWS_BYTES);
     charge_block_move(g, ROWS_DOWN * NAME_COLUMN_BYTES + INCOMING_ROWS_BYTES);
-    ORIGINAL_EFFECT(leave_rows_copied_down(g));
+    charge_machine_accesses(g, 6);
 }
 
 /* Once slid: the rows moved in their buffer, the list at rest, the upload
@@ -857,7 +833,7 @@ static void ask_for_description(GameState *g, uint16_t line, uint8_t pace, uint8
     set_menu_description_pace(g, pace);
     if (!menu_description_shows_another(g, which))
         return;
-    ORIGINAL_EFFECT(set_menu_tech_description_spare(g, DESCRIPTION_SPARE));
+    charge_machine_accesses(g, 2);
     menu_describe(g, which, (uint32_t)MENU_TECH_DESCRIPTIONS_BANK << 16 | MENU_TECH_DESCRIPTIONS, DESCRIPTION_ROW_VRAM);
 }
 
@@ -886,12 +862,6 @@ void menu_techs_back_to_the_members(GameState *g)
  * looks at the tech, and keeps its offset once it heals. */
 enum { TECH_RECORD_BYTES = MENU_TECH_EFFECT_BYTES };
 
-static void leave_record_looked_up(GameState *g, uint8_t tech)
-{
-    hw_set_multiplicand(g, TECH_RECORD_BYTES);
-    (void)hw_multiply_by(g, tech);
-}
-
 enum { CHOSEN_SPARE = 0xFF };
 
 TechsUse menu_techs_use(GameState *g)
@@ -900,14 +870,14 @@ TechsUse menu_techs_use(GameState *g)
     if (loaded_member_waits(g))
         return TECH_REFUSED_WAITING;
     uint8_t tech = menu_tech_pointed(g);
-    ORIGINAL_EFFECT(leave_record_looked_up(g, tech));
+    charge_machine_io_accesses(g, 4);
     if (!menu_tech_heals(g, tech))
         return TECH_REFUSED_NOT_HEALING;
-    ORIGINAL_EFFECT(set_menu_scratch_tech_record_offset(g, (uint16_t)(tech * TECH_RECORD_BYTES)));
+    charge_machine_accesses(g, 2);
     uint8_t user = member_on_the_cursor(g);
     set_menu_tech_user(g, user);
     (void)load_member(g, user);
-    ORIGINAL_EFFECT(set_menu_tech_spare(g, CHOSEN_SPARE));
+    charge_machine_accesses(g, 1);
     MenuTechCost c = menu_tech_cost_for(g, tech, kind_listed(g));
     set_menu_tech_cost(g, c.mp);
     return loaded_member_short_of(g, c.mp) ? TECH_REFUSED_SHORT_OF_MP : TECH_USED;
@@ -980,7 +950,7 @@ static void draw_targets(GameState *g, Platform *pf)
         TIMED_AS(g, 0xC2A1EF, menu_note_member_face_and_hp(g));
         menu_draw_windows(g, pf, TARGET_ROW);
         uint8_t character = menu_status_record_character(g);
-        ORIGINAL_EFFECT(note_record_offset(g, character));
+        (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4));
         place_record(g, character, menu_tech_target_sprite_place(g, member));
         at = (uint16_t)(at + TARGET_ROW_BYTES);
         bool hurt = menu_low_hp_marks(g, member) >= menu_status_record_hp(g);
@@ -1115,7 +1085,7 @@ void menu_restoring_look_for_help(GameState *g)
         member++;
         menu_work_on_member(g, member);
     } while (--members != 0);
-    ORIGINAL_EFFECT(set_menu_scratch_restoring_members_left(g, members));
+    charge_machine_accesses(g, 1);
 }
 
 /* ---- The main menu's panel --------------------------------------------------------------------- */
@@ -1369,7 +1339,7 @@ static bool refuse(void *ctx)
 
 static bool only_on_the_machine(TechScreenContext *c, uint32_t routine, const char *what)
 {
-    program_needs_the_machine(c->game, routine, what);
+    program_breaks_a_contract(c->game, routine, what);
     return false;
 }
 
@@ -1583,7 +1553,7 @@ static const RestoringSteps restoring_in_c = { restoring_tick, note_the_member, 
 bool menu_point_at_member_to_restore(GameState *g, Platform *pf)
 {
     if (!menu_restoring_can_point(g)) {
-        program_needs_the_machine(g, 0xC2B83E, "the members a healing is used on, which the port doesn't take");
+        program_breaks_a_contract(g, 0xC2B83E, "the members a healing is used on, which the port doesn't take");
         return false;
     }
     RestoringInC c = { g, pf };

@@ -22,7 +22,6 @@
 #include "battle/wait.h"
 #include "battle/frame.h"
 #include "battle/entries.h"
-#include "original_effects.h"
 #include "charge.h"
 #include "vars.h"
 #include "wram.h"
@@ -87,15 +86,6 @@ static void copy_tile_mirrored(GameState *g, uint32_t from, uint16_t to)
 /* What the original leaves of a tile in its cells: the descriptor, or for a
  * mirrored tile where it copied from and to. */
 enum { LEFT_TILE = 0x0C };
-static void leave_tile(GameState *g, uint16_t tile_or_source, bool mirrored, uint16_t to)
-{
-    set_battle_work(g, LEFT_TILE, (uint8_t)tile_or_source);
-    set_battle_work(g, LEFT_TILE + 1, (uint8_t)(tile_or_source >> 8));
-    if (mirrored) {
-        set_battle_multiply_factors(g, 0, (uint8_t)to);
-        set_battle_multiply_factors(g, 1, (uint8_t)(to >> 8));
-    }
-}
 
 /* Build one tile of a frame from its descriptor. */
 static void build_tile(GameState *g, uint16_t descriptor, uint32_t graphics, uint16_t to)
@@ -103,7 +93,7 @@ static void build_tile(GameState *g, uint16_t descriptor, uint32_t graphics, uin
     uint16_t number = descriptor & TILE_NUMBER;
     if (number == BLANK_TILE) {
         clear_tile(g, to);
-        ORIGINAL_EFFECT(leave_tile(g, descriptor, false, to));
+        charge_machine_accesses(g, 2);
         return;
     }
     uint16_t offset = (uint16_t)(number * TILE_BYTES + (uint16_t)graphics);
@@ -113,7 +103,7 @@ static void build_tile(GameState *g, uint16_t descriptor, uint32_t graphics, uin
         copy_tile_mirrored(g, from, to);
     else
         copy_tile(g, from, to);
-    ORIGINAL_EFFECT(leave_tile(g, mirrored ? offset : descriptor, mirrored, to));
+    charge_machine_accesses(g, mirrored ? 4 : 2);
 }
 
 /* The offsets of the frame's sprite parts from the object's position follow
@@ -140,39 +130,18 @@ enum {
     LEFT_OBJECT = 0x08, LEFT_PART_BYTES = 0x00, LEFT_FIRST_PART = 0x02, LEFT_LAYOUT_BANK = 0x04, LEFT_ROWS = 0x05,
     LEFT_TILE_LIST = 0, LEFT_GRAPHICS = 3, LAYOUT_BANK = 0xCC,
 };
-static void leave_object(GameState *g, unsigned object)
-{
-    set_battle_work(g, LEFT_OBJECT, (uint8_t)object);
-    set_battle_work(g, LEFT_OBJECT + 1, (uint8_t)(object >> 8));
-}
-static void leave_built_frame(GameState *g, unsigned object, uint32_t tiles, uint32_t graphics, uint8_t part_bytes)
-{
-    leave_object(g, object * 2);
-    for (unsigned b = 0; b < 3; b++)
-        set_battle_data_pointers(g, LEFT_TILE_LIST + b, (uint8_t)(tiles >> 8 * b));
-    set_battle_data_pointers(g, LEFT_GRAPHICS, (uint8_t)graphics);
-    set_battle_data_pointers(g, LEFT_GRAPHICS + 1, (uint8_t)(graphics >> 8));
-    set_battle_work(g, LEFT_PART_BYTES, part_bytes);
-    set_battle_work(g, LEFT_PART_BYTES + 1, 0);
-    unsigned first = object * PARTS_PER_OBJECT * OFFSETS_PER_PART * 2;
-    set_battle_work(g, LEFT_FIRST_PART, (uint8_t)first);
-    set_battle_work(g, LEFT_FIRST_PART + 1, (uint8_t)(first >> 8));
-    set_battle_work(g, LEFT_LAYOUT_BANK, LAYOUT_BANK);
-    set_battle_work(g, LEFT_ROWS, 0);
-    set_battle_product(g, TILE_BUFFER_BANK);
-}
 
 // $C1:1C55
 /* The original counts its rows and tiles in the battle's direct-page cells
  * as it builds, which this leaves once at the end, and keeps the data bank on
  * the stack meanwhile: a graphics set placed over those cells or the stack
- * would read other bytes here, which no object's graphics are (an accepted
- * divergence, found by fuzzing the loose variant, tools/fuzz_routines.toml). */
+ * would read other bytes here. The resource-bank contract excludes that
+ * aliasing: graphics are cartridge data or the field's unpacked sets. */
 void battle_build_frame_graphics(GameState *g, unsigned object, uint8_t frame)
 {
     set_battle_anim_held(g, object, 0);
     if (frame == battle_object_frame_shown(g, object)) {
-        ORIGINAL_EFFECT(leave_object(g, object));
+        charge_machine_accesses(g, 2);
         return;
     }
     set_battle_object_frame_shown(g, object, frame);
@@ -199,7 +168,7 @@ void battle_build_frame_graphics(GameState *g, unsigned object, uint8_t frame)
     for (unsigned i = 0; i < part_bytes; i++)
         set_part_offset(g, object, i, (int8_t)battle_tile_list_byte(g, tiles + i));
     set_battle_graphics_built(g, (uint8_t)(battle_graphics_built(g) + 1));
-    ORIGINAL_EFFECT(leave_built_frame(g, object, tiles, graphics, part_bytes));
+    charge_machine_accesses(g, 15);
 }
 
 /* ---- The objects' palette animations ------------------------------------------------------ */
@@ -233,13 +202,6 @@ static uint8_t next_palette_frame(GameState *g, unsigned anim)
 /* What the original leaves in its cells of the last frame it showed: the
  * set, the place, and the count of bytes copied down to 0. */
 enum { LEFT_SET = 0x02, LEFT_PLACE = 0x04 };
-static void leave_palette_frame(GameState *g, BattlePaletteFrame frame)
-{
-    set_battle_work(g, LEFT_SET, frame.set);
-    set_battle_work(g, LEFT_SET + 1, 0);
-    set_battle_work(g, LEFT_PLACE, frame.place);
-    set_battle_multiply_factors(g, 0, 0);
-}
 
 void battle_put_color_set(GameState *g, bool seven, uint8_t set, uint8_t quarter)
 {
@@ -261,15 +223,10 @@ static void show_palette_frame(GameState *g, uint8_t number)
     uint8_t colors = seven ? LARGE_SET_COLORS : SMALL_SET_COLORS;
     (void)battle_multiply(g, colors * COLOR_BYTES, frame.set);
     battle_put_color_set(g, seven, frame.set, frame.place & PLACE_QUARTER);
-    ORIGINAL_EFFECT(leave_palette_frame(g, frame));
+    charge_machine_accesses(g, 4);
 }
 
 enum { LEFT_ANIMATION = 0x00 };
-static void leave_palette_loop(GameState *g)
-{
-    set_battle_work(g, LEFT_ANIMATION, PALETTE_ANIMATIONS);
-    set_battle_work(g, LEFT_ANIMATION + 1, 0);
-}
 
 // $CC:F1E7
 /* Step the palette animations a frame: each running one whose time is up
@@ -286,7 +243,7 @@ void battle_step_palette_animations(GameState *g)
         set_battle_palette_anim_delay(g, anim, battle_palette_anim_period(g, anim));
         show_palette_frame(g, next_palette_frame(g, anim));
     }
-    ORIGINAL_EFFECT(leave_palette_loop(g));
+    charge_machine_accesses(g, 2);
 }
 
 /* ---- An effect's animations ------------------------------------------------------------- */
@@ -302,13 +259,6 @@ enum { RECORD_BYTES = 4, EFFECT_ANIMATIONS = 16 };
 enum { RECORD_MARKS = 0xE0, SEPARATOR = 0x80, LAST_FRAME = 0x40, EMPTY = 0x20 };
 
 enum { LEFT_COUNT = 0x00, LEFT_ANIMATION_NUMBER = 0x02 };
-static void leave_record_cells(GameState *g, uint8_t count)
-{
-    set_battle_work(g, LEFT_COUNT, count);
-    set_battle_work(g, LEFT_COUNT + 1, 0);
-    set_battle_work(g, LEFT_ANIMATION_NUMBER, EFFECT_ANIMATIONS);
-    set_battle_work(g, LEFT_ANIMATION_NUMBER + 1, 0);
-}
 
 // $C1:48EC
 /* Find where each of the effect's animations starts and how many frames it
@@ -340,7 +290,7 @@ void battle_find_effect_animations(GameState *g)
         at = (uint16_t)(at + RECORD_BYTES);
         frames = 1;
     }
-    ORIGINAL_EFFECT(leave_record_cells(g, frames));
+    charge_machine_accesses(g, 4);
 }
 
 /* ---- Bitmap shapes ---------------------------------------------------------------------- */
@@ -374,25 +324,6 @@ static void add_sprite(GameState *g, uint16_t set, uint16_t at, unsigned row, un
  * nothing. */
 enum { LEFT_WIDTH = 0x00, LEFT_ROWS_LEFT = 0x01, LEFT_ROW = 0x02, LEFT_SPRITE = 0x04, LEFT_COLUMN = 0x06 };
 enum { LEFT_SHAPES = 0x0C };
-static void leave_sprite_place(GameState *g, uint16_t at)
-{
-    set_battle_work(g, LEFT_SPRITE, (uint8_t)at);
-    set_battle_work(g, LEFT_SPRITE + 1, (uint8_t)(at >> 8));
-}
-static void leave_shape(GameState *g, uint8_t header, uint16_t at)
-{
-    uint8_t rows = header & SHAPE_ROWS;
-    set_battle_work(g, LEFT_WIDTH, (uint8_t)(header >> SHAPE_WIDTH_SHIFT));
-    set_battle_work(g, LEFT_ROWS_LEFT, 0);
-    set_battle_work(g, LEFT_ROW, rows);
-    set_battle_work(g, LEFT_ROW + 1, 0);
-    leave_sprite_place(g, at);
-    set_battle_work(g, LEFT_COLUMN, SHAPE_COLUMNS);
-    set_battle_work(g, LEFT_COLUMN + 1, 0);
-    for (unsigned row = 0; row < rows; row++)
-        set_battle_bitmap_row_masks(g, row, 0);
-}
-static void leave_shapes_built(GameState *g, uint8_t shapes) { set_battle_work(g, LEFT_SHAPES, shapes); }
 
 /* Build a shape into the set from the stream at `at` (after its header),
  * returning where the stream goes on. */
@@ -412,7 +343,7 @@ static uint16_t build_shape(GameState *g, uint16_t set, uint8_t header, uint16_t
             sprite = (uint16_t)(sprite + EFFECT_SPRITE_BYTES);
         }
     }
-    ORIGINAL_EFFECT(leave_shape(g, header, sprite));
+    charge_machine_accesses(g, 8 + (header & SHAPE_ROWS));
     return (uint16_t)(at + SHAPE_TAIL_BYTES);
 }
 
@@ -429,7 +360,7 @@ static void build_bitmap_shapes(GameState *g)
         uint16_t at = battle_bitmap_stream(g);
         uint8_t header = stream_byte(g, at);
         if (header == 0) {
-            ORIGINAL_EFFECT(leave_sprite_place(g, battle_sprite_set_start(g, set)));
+            (charge_machine_accesses(g, 2), charge_machine_rom_accesses(g, 2));
             break;
         }
         set_battle_bitmap_stream(g, build_shape(g, set, header, (uint16_t)(at + 1)));
@@ -437,52 +368,19 @@ static void build_bitmap_shapes(GameState *g)
         if (++built == SHAPES_AT_A_TIME)
             break;
     }
-    ORIGINAL_EFFECT(leave_shapes_built(g, built));
+    charge_machine_accesses(g, 1);
 }
 
 /* ---- The entries ------------------------------------------------------------------------ */
 
 /* The object and frame come in the cells the original's callers set, which
  * the upload reads too. */
-static unsigned graphics_object(Snes *s) { return battle_graphics_object(state_of(s)); }
-static uint8_t graphics_frame(Snes *s) { return battle_graphics_frame(state_of(s)); }
 
 /* Building leaves A's high byte clear and the carry set, as its last test
  * does; returning early leaves them as they came. */
-static void built(Snes *s)
-{
-    s->cpu.a = 0;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
-}
-
-static void build(Snes *s)
-{
-    GameState *g = state_of(s);
-    unsigned object = graphics_object(s);
-    bool shown = graphics_frame(s) == battle_object_frame_shown(g, object);
-    battle_build_frame_graphics(g, object, graphics_frame(s));
-    if (shown) {
-        m_set_flag(s, CPU_FLAG_C, true);
-        m_rts(s);
-        return;
-    }
-    built(s);
-}
-
-void battle_build_object_graphics(Snes *s) { build(s); }
 
 // $C1:1C4A
 /* The same, for objects whose graphics are built this way. */
-void battle_build_object_graphics_checked(Snes *s)
-{
-    if (!battle_object_builds_graphics(state_of(s), graphics_object(s))) {
-        m_set_flag(s, CPU_FLAG_C, true);
-        m_rts(s);
-        return;
-    }
-    TIMED_AS(state_of(s), 0xC11C55, build(s));
-}
 
 /* Only an object whose graphics kind has a layout, as every object the
  * battle builds has, and whose frame's part offsets stay in the table (a
@@ -490,32 +388,20 @@ void battle_build_object_graphics_checked(Snes *s)
  * smallest); and A's high byte clear, as the game has it, since the original
  * picks the kind's sizes with the whole of A as its index. */
 enum { GRAPHICS_KINDS = 5, PART_OFFSET_WORDS = BATTLE_COMBATANTS * PARTS_PER_OBJECT * OFFSETS_PER_PART };
-bool battle_object_graphics_known(const GameState *g, unsigned object)
-{
-    return battle_names_combatant((uint16_t)object) && battle_object_kind(g, object) < GRAPHICS_KINDS
-           && object * PARTS_PER_OBJECT * OFFSETS_PER_PART + battle_frame_part_offset_bytes(g, battle_object_kind(g, object))
-                  <= PART_OFFSET_WORDS;
-}
 
-bool battle_builds_known_object(Snes *s)
+bool battle_object_graphics_known(GameState *g, unsigned object)
 {
-    vars_peek(true);
-    bool known = battle_object_graphics_known(state_of(s), graphics_object(s));
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && known;
-}
-
-void battle_step_object_palettes(Snes *s)
-{
-    battle_step_palette_animations(state_of(s));
-    m_rtl(s);
-}
-
-void battle_index_effect_animations(Snes *s)
-{
-    battle_find_effect_animations(state_of(s));
-    s->cpu.a = 0;
-    m_rts(s);
+    bool known = battle_names_combatant((uint16_t)object) && battle_object_kind(g, object) < GRAPHICS_KINDS
+                 && object * PARTS_PER_OBJECT * OFFSETS_PER_PART
+                            + battle_frame_part_offset_bytes(g, battle_object_kind(g, object)) <= PART_OFFSET_WORDS;
+    if (!known)
+        return false;
+    /* The additional resource check is validation, outside the existing
+     * frame-building estimate. Keep the layout check's ordinary charge. */
+    uint32_t mark = charge_uncounted_begin(g);
+    bool stored = battle_sprite_graphics_storage(battle_object_graphics(g, object));
+    charge_uncounted_end(g, mark);
+    return stored;
 }
 
 // $C1:4943

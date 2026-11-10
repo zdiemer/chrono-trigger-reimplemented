@@ -36,17 +36,9 @@ void menu_draw_the_scroll_bar(GameState *g);
  * guard's state half). */
 bool menu_scroll_bar_can_be_drawn(const GameState *g);
 
-/* The registered entries ($C2:8A98, $C2:8ABA, $C2:89E4, $C2:89FA,
+/* The checked legacy adapters ($C2:8A98, $C2:8ABA, $C2:89E4, $C2:89FA,
  * $C2:8A31, $C2:8A45, $C2:8AD5, $C2:8AFD, $C2:8B93) and their guards; the
  * scroll bar's task's (menu_run_the_scroll_bar_task, menu/tasks.c). */
-void menu_hold_a_cursor_entry(Snes *s);
-void menu_draw_the_held_cursor_entry(Snes *s);
-void menu_hold_the_cursor_on_the_list_entry(Snes *s);
-void menu_draw_the_cursor_held_on_the_list_entry(Snes *s);
-void menu_hold_the_cursor_on_a_member_entry(Snes *s);
-void menu_put_cursors_on_every_member_entry(Snes *s);
-void menu_draw_cursors_on_every_member_entry(Snes *s);
-void menu_start_the_scroll_bar_entry(Snes *s);
 void menu_run_the_held_cursor_task(Snes *s);
 void menu_run_the_list_cursor_task(Snes *s);
 void menu_run_the_member_cursor_task(Snes *s);

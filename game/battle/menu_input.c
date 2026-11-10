@@ -30,7 +30,6 @@
 #include "battle/menu_bridge.h"
 #include "battle/window_data.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "port/native.h"
 #include "vars.h"
 
@@ -80,15 +79,6 @@ static int empty_place(const GameState *g) { return item_place(g, NO_ITEM); }
  * to copy where it copied the record. */
 enum { STOLEN_SLOT_CELL = 0x80, BYTES_LEFT_CELL = 0x82, STOLEN_ITEM_CELL = 0x84, KEPT_AT_CELL = 0x86 };
 
-static void leave_stolen_cells(GameState *g, unsigned member, uint8_t item, bool copied)
-{
-    battle_leave_work16(g, STOLEN_SLOT_CELL, (uint16_t)member);
-    battle_leave_work16(g, KEPT_AT_CELL, (uint16_t)(member * KEPT_ITEM_STRIDE));
-    battle_leave_work8(g, STOLEN_ITEM_CELL, item);
-    if (copied)
-        battle_leave_work8(g, BYTES_LEFT_CELL, 0);
-}
-
 static void forget_kept_item(GameState *g, unsigned member)
 {
     set_battle_member_kept_item_waiting(g, member, 0);
@@ -123,7 +113,7 @@ void battle_list_stolen_item(GameState *g)
         set_battle_item_list_held(g, (unsigned)place, battle_member_kept_item_held(g, (unsigned)member));
         set_battle_item_list_spare(g, (unsigned)place, battle_member_kept_item_spare(g, (unsigned)member));
     }
-    ORIGINAL_EFFECT(leave_stolen_cells(g, (unsigned)member, item, copied));
+    charge_machine_accesses(g, copied ? 6 : 5);
     forget_kept_item(g, (unsigned)member);
     if (!menu_nobody(battle_menu_member(g)) && battle_menu_page(g) == PAGE_ITEMS)
         set_battle_item_list_changed(g, (uint8_t)(battle_item_list_changed(g) + 1));
@@ -139,7 +129,7 @@ static void forget_target_named(GameState *g)
 {
     if (battle_message_by_id(g) || battle_message_by_id_high(g))
         return;
-    ORIGINAL_EFFECT(set_battle_message_window_kind(g, NAME_WITH_HP));
+    charge_machine_accesses(g, 1);
     set_battle_message_asked(g, NO_MESSAGE);
 }
 
@@ -209,7 +199,7 @@ static void move_to_target(GameState *g, const Frame *f, bool forward)
 static void restore_list_frames(GameState *g, MenuPage page)
 {
     if (page == PAGE_TECHS) {
-        ORIGINAL_EFFECT(set_battle_tech_page_open_mark(g, 0));
+        charge_machine_accesses(g, 1);
         set_battle_frames_reload_request(g, (uint8_t)(battle_frames_reload_request(g) + 1));
         return;
     }
@@ -234,7 +224,7 @@ static MenuPage back_from_the_party(GameState *g)
 static void stop_targeting(GameState *g)
 {
     set_battle_target_choice(g, 0);
-    ORIGINAL_EFFECT(set_battle_target_choice_spare(g, 0));
+    charge_machine_accesses(g, 1);
     set_battle_targeting(g, (uint8_t)(battle_targeting(g) - 1));
 }
 
@@ -266,7 +256,7 @@ static void take_partner(GameState *g, uint8_t partner)
         set_battle_menu_member_count(g, (uint8_t)(battle_menu_member_count(g) - 1));
     set_battle_menu_slot_members(g, partner, MENU_NONE);
     set_battle_member_actions_state(g, partner, battle_member_actions_state(g, partner) & (uint8_t)~MEMBER_ACTION_CHOSEN);
-    ORIGINAL_EFFECT(battle_leave_work8(g, CHOICE_CELL, partner));
+    charge_machine_accesses(g, 1);
 }
 
 /* What the member chose, as its action record keeps it. */
@@ -322,13 +312,6 @@ static void remember_command(GameState *g, uint8_t member)
 }
 
 /* The action's choosing cells the original queues it from. */
-static void leave_chosen_cells(GameState *g, const Chosen *c)
-{
-    battle_leave_work8(g, CHOICE_CELL, c->choice);
-    battle_leave_work8(g, PARTNERS_CELL, c->partners);
-    if (c->what_kept)
-        battle_leave_work8(g, WHAT_CELL, c->what);
-}
 
 /* The member's action queued; its menu closes and the menu goes to the first
  * slot with a member still to choose. */
@@ -336,7 +319,7 @@ static void queue_action(GameState *g, uint8_t member, const Chosen *c)
 {
     remember_command(g, member);
     set_battle_attack_by_shortcut(g, 0);
-    ORIGINAL_EFFECT(set_battle_target_choice_spare(g, 0));
+    charge_machine_accesses(g, 1);
     set_battle_target_choice(g, 0);
     set_battle_ally_target_window(g, 0);
     uint8_t queued = battle_action_queue_length(g);
@@ -352,8 +335,8 @@ static void queue_action(GameState *g, uint8_t member, const Chosen *c)
     if (c->what_kept)
         set_battle_member_actions_what(g, member, c->what);
     else
-        ORIGINAL_EFFECT(set_battle_member_actions_what(g, member, (uint8_t)battle_work16(g, WHAT_CELL)));
-    ORIGINAL_EFFECT(leave_chosen_cells(g, c));
+        charge_machine_accesses(g, 3);
+    charge_machine_accesses(g, c->what_kept ? 3 : 2);
 
     set_battle_menu_member_count(g, (uint8_t)(battle_menu_member_count(g) - 1));
     battle_hand_the_menu_on(g, member);
@@ -459,7 +442,7 @@ static void open_techs(GameState *g)
     battle_mark_tech_rows(g);
     set_battle_menu_command(g, COMMAND_TECH);
     set_battle_menu_page(g, PAGE_TECHS);
-    ORIGINAL_EFFECT(set_battle_tech_page_open_mark(g, 0));
+    charge_machine_accesses(g, 1);
     set_battle_frames_reload_request(g, (uint8_t)(battle_frames_reload_request(g) + 1));
 }
 
@@ -532,14 +515,6 @@ enum { TECH_ROWS_SHOWN = 3, TECH_DIMMED = 0x80 };
  * rows it went, and the cursor's row worked out. */
 enum { AT_CELL = 0x80, ROWS_CELL = 0x82, ROW_CELL = 0x83 };
 
-static void leave_tech_move(GameState *g, uint8_t at, uint8_t rows_left, bool worked_out, uint8_t row)
-{
-    battle_leave_work16(g, AT_CELL, at);
-    battle_leave_work8(g, ROWS_CELL, rows_left);
-    if (worked_out)
-        battle_leave_work8(g, ROW_CELL, row);
-}
-
 // $C1:13AD
 /* Up to the row before with a tech on it, scrolling the list where the
  * cursor would leave its top; nothing where there is none before. */
@@ -549,7 +524,7 @@ static void tech_cursor_up(GameState *g, uint8_t member, uint8_t at)
     for (;;) {
         rows++;
         if (at == 0) {
-            ORIGINAL_EFFECT(leave_tech_move(g, at, rows, false, 0));
+            charge_machine_accesses(g, 3);
             return;
         }
         at--;
@@ -558,7 +533,7 @@ static void tech_cursor_up(GameState *g, uint8_t member, uint8_t at)
     }
     int row = battle_tech_cursor(g, member) - rows;
     uint8_t scroll = battle_tech_scroll(g, member);
-    ORIGINAL_EFFECT(leave_tech_move(g, at, 0, true, (uint8_t)row));
+    charge_machine_accesses(g, 4);
     if (row < 0 && scroll == 0)
         return;
     if (row < 0) {
@@ -578,7 +553,7 @@ static void tech_cursor_down(GameState *g, uint8_t member, uint8_t at)
     for (;;) {
         rows++;
         if ((uint8_t)(at + 1) >= battle_tech_list_length(g, member)) {
-            ORIGINAL_EFFECT(leave_tech_move(g, at, rows, false, 0));
+            charge_machine_accesses(g, 3);
             return;
         }
         at++;
@@ -586,7 +561,7 @@ static void tech_cursor_down(GameState *g, uint8_t member, uint8_t at)
             break;
     }
     unsigned row = battle_tech_cursor(g, member) + rows;
-    ORIGINAL_EFFECT(leave_tech_move(g, at, 0, true, (uint8_t)row));
+    charge_machine_accesses(g, 4);
     uint8_t scroll = battle_tech_scroll(g, member);
     if (row >= TECH_ROWS_SHOWN) {
         scroll = (uint8_t)(scroll + row - (TECH_ROWS_SHOWN - 1));
@@ -611,7 +586,7 @@ static void take_tech_page(GameState *g, const Frame *f, uint8_t member)
 {
     hold_timers_for_lists(g);
     uint8_t at = (uint8_t)(battle_tech_scroll(g, member) + battle_tech_cursor(g, member));
-    ORIGINAL_EFFECT(battle_leave_work16(g, AT_CELL, at));
+    charge_machine_accesses(g, 2);
     if (pressed(f, BUTTON_A)) {
         click(f, CLICK_TECH_CHOSEN);
         use_tech(g, f);
@@ -657,7 +632,7 @@ enum { NOT_FOR_BATTLE = 0x80 };
 static void use_item(GameState *g, const Frame *f)
 {
     uint8_t at = (uint8_t)(battle_item_top(g) + battle_item_row(g));
-    ORIGINAL_EFFECT(battle_leave_work8(g, AT_CELL, at));
+    charge_machine_accesses(g, 1);
     uint16_t place = battle_multiply(g, at, ITEM_LIST_RECORD_BYTES);
     if ((battle_item_list_flags(g, at) & NOT_FOR_BATTLE) || battle_item_list_held(g, at) == 0)
         return;
@@ -738,37 +713,14 @@ void battle_menu_frame(GameState *g, Buttons buttons, MenuHost *host)
 /* The frame around the member leaves A the high table's byte, its high byte
  * clear, X past the four sprites, the carry of its loop's last compare and
  * the other flags of loading the byte. */
-void battle_frame_member_choosing_entry(Snes *s)
-{
-    battle_frame_member_choosing(state_of(s));
-    s->cpu.a = ALL_CORNERS_LARGE;
-    s->cpu.x = FRAME_CORNERS * 4;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_set_flag(s, CPU_FLAG_N, true);
-    m_set_flag(s, CPU_FLAG_Z, false);
-    m_rts(s);
-}
 
 /* The stat block noted from the member in A; the original leaves A clear (its
  * direct page's) and X the stat block. */
-void battle_note_menu_stat_block_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t slot = (uint8_t)s->cpu.a;
-    battle_note_menu_stat_block(g, slot);
-    s->cpu.x = battle_stat_block_place(g, slot);
-    s->cpu.a = BATTLE_PAGE;
-    m_set_flag(s, CPU_FLAG_Z, true);
-    m_set_flag(s, CPU_FLAG_N, false);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rtl(s);
-}
 
 /* ---- The guards --------------------------------------------------------------------------------- */
 
 /* The stat block of a combatant or the menu's nobody, by the byte in A, its
  * high byte clear (the original reads the table with the whole of A). */
-bool battle_note_menu_stat_block_ready(Snes *s) { return battle_on_page_a_high_clear(s); }
 
 /* What the menu's frame takes on trust beside the window's state
  * (battle_menu_window_ready): the menu's slot one of the three or none; a

@@ -38,6 +38,7 @@ void field_tile_copy_finishes_both_layers(Snes *s);
 void field_requested_battle_finishes(Snes *s);
 void field_requested_battle_returns(Snes *s);
 void field_requested_battle_starts(Snes *s);
+void field_requested_battle_ended(Snes *s);
 
 void field_requested_battle_decided(Snes *s);
 

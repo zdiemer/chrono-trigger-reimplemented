@@ -22,6 +22,7 @@
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "charge.h"
+#include "holds.h"
 #include "port/machine.h"
 
 /* ---- The names --------------------------------------------------------------------------------- */
@@ -80,7 +81,7 @@ void battle_setup_state(GameState *g)
     setup_party_objects(g);
     setup_enemies(g);
     convert_enemy_names(g, &last);
-    ORIGINAL_EFFECT(setup_leave_name_buffer(g, last.text, last.enemy, &last.tiles));
+    charge_machine_accesses(g, 3 * NAME_TILES);
 }
 
 void battle_setup_state_entry(Snes *s)
@@ -107,7 +108,7 @@ void battle_setup_graphics(GameState *g)
 void battle_setup_graphics_entry(Snes *s)
 {
     battle_setup_graphics(state_of(s));
-    m_stop_at(s, WAIT_FOR_GRAPHICS, DC_A | DC_X | DC_Y | DC_FLAGS);
+    m_hold_at(s, WAIT_FOR_GRAPHICS, DC_A | DC_X | DC_Y | DC_FLAGS, HOLD_BATTLE_GRAPHICS);
 }
 
 /* ---- The guards ------------------------------------------------------------------------------- */

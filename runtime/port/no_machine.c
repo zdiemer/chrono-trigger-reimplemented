@@ -23,6 +23,9 @@
 #include "port/no_machine.h"
 #include "snes/bus.h"
 
+/* No standalone machine-call comparison tool is attached to this program. */
+void (*native_call_stop)(uint32_t site, uint32_t target, uint16_t dont_care);
+
 static void (*report_failure)(void *ctx, const char *routine);
 static void *report_ctx;
 
@@ -76,6 +79,12 @@ void native_yield_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_cal
     (void)s, (void)site, (void)target, (void)long_call, (void)dont_care, (void)goes_on;
     no_machine_call("native_yield_call_dc", site, target);
 }
+void native_park_after_task_switch(Snes *s, uint32_t returns_to, uint16_t stack,
+                                  uint16_t dont_care, NativeGoesOn goes_on)
+{
+    (void)s, (void)returns_to, (void)stack, (void)dont_care, (void)goes_on;
+    no_machine("native_park_after_task_switch");
+}
 void native_jump_call_dc(Snes *s, uint32_t site, uint32_t target, uint32_t returns_to, uint16_t dont_care)
 {
     (void)s, (void)site, (void)target, (void)returns_to, (void)dont_care;
@@ -100,6 +109,7 @@ void native_own_dont_care_at_stop(Snes *s, uint32_t at, uint16_t dont_care)
     no_machine("native_own_dont_care_at_stop");
 }
 void native_hold(Snes *s, uint8_t wait) { (void)s, (void)wait; no_machine("native_hold"); }
+void native_hold_return(Snes *s, uint8_t wait) { (void)s, (void)wait; no_machine("native_hold_return"); }
 bool native_runs_retired_as_c(const Snes *s)
 {
     (void)s;

@@ -31,6 +31,7 @@ bool overworld_main_loop_runs(Snes *s);
  * its code don't. */
 void overworld_wait_for_the_next_frame_on_the_machine(Snes *s);
 void overworld_next_frame(Snes *s);
+void overworld_back_from_the_menus(Snes *s);
 void overworld_waits_for_the_frame(Snes *s);
 bool overworld_frame_counted(Snes *s);
 bool overworld_frame_not_counted(Snes *s);
@@ -38,5 +39,17 @@ bool overworld_frame_not_counted(Snes *s);
 /* The halt ($C2:250D): the game stopped for good, a pass at a time, each
  * coming back to itself, a held wait of its own (HOLD_OVERWORLD_HALT). */
 void overworld_halt_entry(Snes *s);
+
+void overworld_exit_fade_finished(Snes *s);
+bool overworld_exit_fade_can_resume(Snes *s);
+
+/* Saveable phases around the menu services' counted waits. */
+void overworld_menu_fade_finished(Snes *s);
+void overworld_menu_return_fade_finished(Snes *s);
+void overworld_map_view_fade_finished(Snes *s);
+void overworld_back_from_the_map_view(Snes *s);
+void overworld_screen_return_fade_finished(Snes *s);
+void overworld_dial_fade_finished(Snes *s);
+void overworld_back_from_the_time_dial(Snes *s);
 
 #endif

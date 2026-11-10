@@ -6,6 +6,7 @@
  * battle but not yet in the fight, to come in later. Each enemy's stat block
  * is filled from its record in the ROM, and the enemies that have something
  * to steal are marked. */
+#include "charge.h"
 #include "battle/fight.h"
 
 #include "battle/arith.h"
@@ -16,7 +17,6 @@
 #include "battle/rules_data.h"
 #include "battle/setup.h"
 #include "battle/setup_data.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- Who is in the fight ---------------------------------------------------------------------- */
@@ -110,7 +110,7 @@ void fight_load_enemy(GameState *g, uint8_t enemy)
         set_combatant_stat_byte(g, slot, (uint16_t)(STAT_STAMINA + n), record.stats[n]);
     for (unsigned n = 0; n < ENEMY_KIND_BYTES; n++)
         set_combatant_stat_byte(g, slot, (uint16_t)(STAT_KIND + n), record.kind[n]);
-    ORIGINAL_EFFECT(battle_leave_word(g, ID_AT, id));
+    charge_machine_accesses(g, 2);
     battle_keep_word(g, COUNT_AT, (uint16_t)((id * 8) & 0xFF00) | ENEMY_KIND_BYTES);
 }
 
@@ -153,8 +153,8 @@ void fight_mark_what_enemies_carry(GameState *g)
             continue;
         /* the original finds the enemy's rewards by a multiply, and keeps
          * their place in a cell (scaffolding) */
-        uint16_t rewards = (uint16_t)battle_multiply_words(g, id, ENEMY_REWARD_BYTES);
-        ORIGINAL_EFFECT(battle_leave_word(g, REWARDS_AT, rewards));
+        battle_multiply_words(g, id, ENEMY_REWARD_BYTES);
+        charge_machine_accesses(g, 2);
         EnemyItems items = enemy_items(g, id);
         uint8_t marks = 0;
         if (items.charm)

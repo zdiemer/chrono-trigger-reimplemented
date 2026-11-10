@@ -38,7 +38,6 @@
 #include "menu/typeset.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "original_effects.h"
 #include "ram.h"
 #include "vars.h"
 
@@ -98,16 +97,8 @@ void menu_naming_write_out_the_grid(GameState *g)
         put_grid_text(g, &at, NEW_LINE);
     }
     put_grid_text(g, &at, END_OF_TEXT);
-    ORIGINAL_EFFECT(set_menu_scratch_grid_letters_left(g, 0));
-    ORIGINAL_EFFECT(set_menu_scratch_grid_rows_left(g, 0));
-}
-
-/* For the original's code and shadow mode: it works the cursor's place out
- * with the multiplier, which it leaves holding it. */
-static void leave_place_multiplied(GameState *g, uint8_t by, uint8_t times)
-{
-    hw_set_multiplicand(g, by);
-    (void)hw_multiply_by(g, times);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
 }
 
 static void put_cursor_on_row(GameState *g, uint8_t row)
@@ -115,15 +106,15 @@ static void put_cursor_on_row(GameState *g, uint8_t row)
     set_menu_name_grid_row(g, row);
     uint8_t line = (uint8_t)(GRID_TOP + row * GRID_STEP);
     set_menu_cursor_places_y(g, GRID_CURSOR, line);
-    ORIGINAL_EFFECT(set_menu_name_grid_line(g, (uint16_t)(line << 8)));
-    ORIGINAL_EFFECT(leave_place_multiplied(g, GRID_STEP, row));
+    charge_machine_accesses(g, 2);
+    charge_machine_io_accesses(g, 4);
 }
 
 static void put_cursor_on_column(GameState *g, uint8_t column)
 {
     set_menu_name_grid_column(g, column);
     set_menu_cursor_places_x(g, GRID_CURSOR, (uint8_t)(GRID_LEFT + column * GRID_STEP));
-    ORIGINAL_EFFECT(leave_place_multiplied(g, GRID_STEP, column));
+    charge_machine_io_accesses(g, 4);
 }
 
 // $C2:E2A0, $C2:E2AA, $C2:E2CC, $C2:E2D6
@@ -151,7 +142,7 @@ bool menu_naming_move_on_the_grid(GameState *g)
 {
     uint16_t before = menu_naming_cursor_place(g);
     set_menu_name_cursor_before(g, before);
-    ORIGINAL_EFFECT(hw_set_multiplicand(g, GRID_STEP));
+    charge_machine_io_accesses(g, 1);
     uint8_t way = menu_cursor_direction(g);
     if (way & MENU_CURSOR_NOT_PUSHED)
         return false;
@@ -181,7 +172,7 @@ void menu_naming_place_the_names_cursor(GameState *g)
 static void type_the_letter(GameState *g)
 {
     uint8_t row = menu_name_grid_row(g), column = menu_name_grid_column(g);
-    ORIGINAL_EFFECT(leave_place_multiplied(g, GRID_COLUMNS, row));
+    charge_machine_io_accesses(g, 4);
     Letter letter = menu_name_grid_letter(g, row, column);
     unsigned place = menu_name_letters(g) < NAME_LETTERS ? menu_name_letters(g) : NAME_LETTERS - 1;
     set_menu_name_typed_byte(g, place, letter);
@@ -252,7 +243,7 @@ static void drop_the_spaces(GameState *g)
         set_menu_name_kept_byte(g, to++, l);
         space_dropped = END_OF_NAME;
     }
-    ORIGINAL_EFFECT(set_menu_scratch_name_space_before(g, space_dropped));
+    charge_machine_accesses(g, 1);
 }
 
 /* Whether a character's name is the one kept: the same letters to the end
@@ -276,10 +267,10 @@ static bool someone_has_it(GameState *g)
 {
     for (uint8_t who = 0; who < NAMES; who++)
         if (same_name(g, who)) {
-            ORIGINAL_EFFECT(set_menu_scratch_name_place_kept(g, (uint8_t)(who * NAME_BYTES)));
+            charge_machine_accesses(g, 2);
             return true;
         }
-    ORIGINAL_EFFECT(set_menu_scratch_name_place_kept(g, NAMES * NAME_BYTES));
+    charge_machine_accesses(g, 2);
     return false;
 }
 
@@ -361,13 +352,6 @@ static void set_name_cursor(GameState *g, unsigned sprite, uint8_t y, uint8_t at
     set_oam_buffer_attributes(g, sprite, attributes);
 }
 
-/* For the original's code and shadow mode: the portrait's attribute in the
- * scratch word its drawing reads, the window line table's counts. */
-static void leave_portrait_and_lines(GameState *g)
-{
-    set_menu_scratch_portrait_tile(g, (uint16_t)((menu_scratch_portrait_tile(g) & 0x00FF) | PORTRAIT_ATTRIBUTE << 8));
-}
-
 // $C2:E40E
 void menu_naming_open(GameState *g, Platform *pf)
 {
@@ -381,17 +365,17 @@ void menu_naming_open(GameState *g, Platform *pf)
     set_menu_scroll_y(g, FRONT_LAYER, FRONT_LAYER_DOWN);
     set_menu_name_grid_column(g, 0);
     set_menu_name_grid_row(g, 0);
-    ORIGINAL_EFFECT(set_menu_name_grid_line(g, GRID_TOP << 8));
+    charge_machine_accesses(g, 2);
     uint8_t character = named(g);
     set_menu_portrait_character(g, character);
     if (character >= EPOCH)
         menu_queue_fixed_upload(g, UPLOAD_EPOCH_PICTURE_TILES);
-    ORIGINAL_EFFECT(leave_portrait_and_lines(g));
+    charge_machine_accesses(g, 4);
     set_menu_draw_origin(g, PORTRAIT_AT);
     TIMED_AS(g, 0xC2EC38, menu_draw_portrait(g, PORTRAIT_AT, character, PORTRAIT_ATTRIBUTE));
     set_name_cursor(g, NAME_CURSOR_ABOVE, NAME_CURSOR_ABOVE_Y, NAME_CURSOR_ABOVE_ATTRIBUTES);
     set_name_cursor(g, NAME_CURSOR_BELOW, NAME_CURSOR_BELOW_Y, NAME_CURSOR_BELOW_ATTRIBUTES);
-    ORIGINAL_EFFECT(leave_place_multiplied(g, character, NAME_BYTES));
+    charge_machine_io_accesses(g, 4);
     set_menu_name_record_at(g, (uint16_t)(RAM_ABS(RAM_CHARACTER_NAMES) + character * NAME_BYTES));
     for (unsigned place = 0; place < NAME_BYTES; place++)
         set_menu_name_typed_byte(g, place, name_letter(g, character, place));
@@ -412,7 +396,7 @@ void menu_naming_open(GameState *g, Platform *pf)
     TIMED_AS(g, 0xC2FB97, menu_lay_out_label(g, LABEL_BOTTOM_AT, LABEL_COLUMNS, LABEL_BOTTOM_TILE));
     set_menu_cursor_sprite(g, (uint16_t)((menu_cursor_sprite(g) & 0xFF00) | CURSOR_TILE));
     TIMED_AS(g, 0xFFFC04, menu_put_window_line_table(g, pf));
-    ORIGINAL_EFFECT(menu_leave_window_line_table_counts(g));
+    charge_machine_accesses(g, 3);
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER_WHOLE);
     menu_queue_fixed_upload(g, MENU_UPLOAD_BACK_LAYER_WHOLE);
     menu_queue_fixed_upload(g, MENU_UPLOAD_WINDOW_LINES);
@@ -474,7 +458,7 @@ void menu_naming_open_the_battle_mode(GameState *g, Platform *pf)
             set_menu_front_tilemap(g, MODE_SCREEN_AT + MODE_SCREEN_TILES + row * 2 * MODE_ROW_TILES + tile,
                                    menu_battle_mode_screen_tile(g, MODE_SCREEN_TILES + row * MODE_ROW_TILES + tile));
     charge_block_move(g, 2 * (MODE_SCREEN_TILES + MODE_ROWS * MODE_ROW_TILES));
-    ORIGINAL_EFFECT(set_menu_scratch_mode_rows_left(g, 0));
+    charge_machine_accesses(g, 2);
     menu_draw_windows(g, pf, MODE_WINDOWS);
     TIMED_AS(g, 0xC286DD, menu_build_math_table(g, pf));
     for (unsigned i = 0; i < MODE_COLOURS; i++)
@@ -595,6 +579,7 @@ static bool choose_battle_mode(GameState *g, Platform *pf, const NamingSteps *n,
 /* A letter typed or taken back, with a tick; the name drawn again. */
 static bool type_on_the_name_grid(GameState *g, Platform *pf, const NamingSteps *n, void *ctx)
 {
+    n->note(ctx, NAMING_NOTE_BUTTONS_TESTED, 0);
     NamingTyped t = menu_naming_type(g);
     if (t == NAMING_LETTER_TAKEN_BACK)
         n->note(ctx, NAMING_NOTE_LETTERS_LOADED, (uint8_t)menu_name_letters(g));
@@ -761,7 +746,7 @@ static bool routine(void *ctx, NamingRoutine routine)
 {
     NamingContext *c = ctx;
     if (!menu_naming_is_whole(c->game)) {
-        program_needs_the_machine(c->game, routines[routine].routine, "a naming the port doesn't take");
+        program_breaks_a_contract(c->game, routines[routine].routine, "a naming the port doesn't take");
         return false;
     }
     bool back = false;
@@ -773,7 +758,7 @@ bool menu_naming_step(GameState *g, Platform *pf)
 {
     NamingStep step = (NamingStep)menu_screen_step(g);
     if (!takes(g, steps[step].takes)) {
-        program_needs_the_machine(g, steps[step].routine, "a naming the port doesn't take");
+        program_breaks_a_contract(g, steps[step].routine, "a naming the port doesn't take");
         return false;
     }
     NamingContext c = { g, pf };

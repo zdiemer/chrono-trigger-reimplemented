@@ -33,7 +33,6 @@
 #include "menu/text.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- The backdrop -------------------------------------------------------------------------------- */
@@ -230,10 +229,6 @@ void menu_main_menu_keep_the_time(GameState *g)
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
 }
 
-/* For the original's code and shadow mode: a cell it clears here, which
- * nothing reads. */
-static void leave_spare_cleared(GameState *g) { set_menu_main_menu_spare(g, 0); }
-
 void menu_main_menu_move_to(GameState *g, MainMenuOption option)
 {
     set_menu_main_menu_option(g, option);
@@ -242,7 +237,7 @@ void menu_main_menu_move_to(GameState *g, MainMenuOption option)
     set_menu_exchange_cursor_kept(g, 0);
     set_menu_reserve_top(g, 0);
     TIMED_AS(g, 0xC28255, menu_stop_tasks(g, MENU_PANELS_TASKS));
-    ORIGINAL_EFFECT(leave_spare_cleared(g));
+    charge_machine_accesses(g, 1);
 }
 
 /* An option's screen opens from its own window, with the screen's colours
@@ -435,7 +430,7 @@ static bool show_the_panel(void *ctx, MainMenuPlace at)
     (void)at;
     MainMenuContext *c = ctx;
     if (!menu_main_menu_panel_can_show(c->game)) {
-        program_needs_the_machine(c->game, 0xC29B54, "a main menu panel the port doesn't show as C");
+        program_breaks_a_contract(c->game, 0xC29B54, "a main menu panel the port doesn't show as C");
         return false;
     }
     bool back = false;
@@ -483,7 +478,7 @@ static bool member_card(void *ctx)
 {
     MainMenuContext *c = ctx;
     if (!menu_member_card_can_be_drawn(c->game)) {
-        program_needs_the_machine(c->game, 0xC2A22F, "a member card the port doesn't draw");
+        program_breaks_a_contract(c->game, 0xC2A22F, "a member card the port doesn't draw");
         return false;
     }
     TIMED_AS(c->game, 0xC2A22F, menu_draw_member_card(c->game, c->pf));
@@ -513,7 +508,7 @@ static bool step(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(con
                  bool (*run)(GameState *, Platform *, const MainMenuSteps *, void *))
 {
     if (!takes(g)) {
-        program_needs_the_machine(g, routine, "a main menu the port doesn't take");
+        program_breaks_a_contract(g, routine, "a main menu the port doesn't take");
         return false;
     }
     MainMenuContext c = { g, pf };

@@ -26,7 +26,7 @@
 #include "battle/screen.h"
 #include "battle/setup.h"
 #include "charge.h"
-#include "original_effects.h"
+#include "holds.h"
 #include "vars.h"
 
 /* The member's nearest enemy, found as the battlefield's searches find it,
@@ -48,11 +48,6 @@ static BattlePoint standing_at(const GameState *g, uint8_t slot)
 /* The original counts the members down in a cell, which it leaves past the
  * first. */
 enum { LEFT_MEMBER = 0x94 - 0x80 };
-static void leave_member_count(GameState *g)
-{
-    set_battle_work(g, LEFT_MEMBER, 0xFF);
-    set_battle_work(g, LEFT_MEMBER + 1, 0);
-}
 
 // $C1:350F
 /* Each member, the last first, turns to face the enemy nearest it. */
@@ -67,7 +62,7 @@ static void face_the_enemies(GameState *g)
         TIMED_AS(g, 0xC10222, direction = battle_direction(g, from, to));
         set_battle_object_facing(g, member, battle_facing_of_direction(g, direction));
     }
-    ORIGINAL_EFFECT(leave_member_count(g));
+    charge_machine_accesses(g, 2);
 }
 
 // $C1:34DB
@@ -145,7 +140,7 @@ enum { GRAPHICS_LOADED = 4 };
 /* The guards' state halves: the graphics built on combatants the builder
  * knows; the opening's search's other combatants, and the target it last
  * found, which it keeps where it finds nobody, combatants. */
-static bool combatants_graphics_known(const GameState *g)
+static bool combatants_graphics_known(GameState *g)
 {
     bool known = true;
     for (uint8_t slot = 0; slot < BATTLE_COMBATANTS && known; slot++)
@@ -177,18 +172,18 @@ static bool set_up_a_part(void *ctx, SetUpCall call)
     switch (call) {
     case SET_UP_STATE:
         if (!battle_setup_inputs_fit(g))
-            return battle_needs_the_machine(g, SET_UP_STATE_ENTRY, "a battle's setup from a party or enemies the port doesn't take");
+            return battle_contract_broken(g, SET_UP_STATE_ENTRY, "a battle's setup from a party or enemies the port doesn't take");
         TIMED_AS(g, SET_UP_STATE_ENTRY, battle_setup_state(g));
         return true;
     case SET_UP_WINDOW:
         if (!battle_window_fits(g))
-            return battle_needs_the_machine(g, DRAW_WINDOW, "a menu state the window's port doesn't take");
+            return battle_contract_broken(g, DRAW_WINDOW, "a menu state the window's port doesn't take");
         TIMED_AS(g, DRAW_WINDOW, battle_redraw_window(g));
         return true;
     case SET_UP_BOUNDS: TIMED_AS(g, ALL_BOUNDS, battle_update_all_bounds(g)); return true;
     case SET_UP_GRAPHICS:
         if (!setup_objects_parts_fit(g))
-            return battle_needs_the_machine(g, SET_UP_GRAPHICS_ENTRY, "a combatant's parts the port doesn't fit");
+            return battle_contract_broken(g, SET_UP_GRAPHICS_ENTRY, "a combatant's parts the port doesn't fit");
         TIMED_AS(g, SET_UP_GRAPHICS_ENTRY, battle_setup_graphics(g));
         while (battle_graphics_load_step(g) != GRAPHICS_LOADED)
             tm_wait_for_handlers(c->pf, PF_LOOP(0xCCF05B, 0xCCF062));
@@ -211,7 +206,7 @@ bool battle_set_up_runs(GameState *g, Platform *pf)
     if (!set_up(set_up_a_part, &c))
         return false;
     if (!combatants_graphics_known(g))
-        return battle_needs_the_machine(g, AFTER_THE_GRAPHICS, "a combatant's graphics the builder doesn't know");
+        return battle_contract_broken(g, AFTER_THE_GRAPHICS, "a combatant's graphics the builder doesn't know");
     bool done = false;
     TIMED_AS(g, AFTER_THE_GRAPHICS, done = set_up_after_the_graphics(g, slide_the_window_open, &c));
     if (!done)
@@ -219,7 +214,7 @@ bool battle_set_up_runs(GameState *g, Platform *pf)
     while (battle_window_slide_frames(g) != 0)
         tm_wait_for_handlers(pf, PF_LOOP(0xC1003C, 0xC10042));
     if (!opening_fits(g))
-        return battle_needs_the_machine(g, FACES_THE_ENEMIES, "an opening search the port doesn't make");
+        return battle_contract_broken(g, FACES_THE_ENEMIES, "an opening search the port doesn't make");
     TIMED_AS(g, FACES_THE_ENEMIES, open_the_battle(g));
     return battle_party_strikes_its_poses(g, pf);
 }
@@ -257,7 +252,7 @@ void battle_set_up(Snes *s) { (void)set_up(set_up_on_the_machine, s); }
 void battle_set_up_after_the_graphics(Snes *s)
 {
     if (set_up_after_the_graphics(state_of(s), open_the_window_on_the_machine, s))
-        m_stop_at(s, SLIDE_WAIT, THE_WAIT_READS_A_S_HIGH_BYTE);
+        m_hold_at(s, SLIDE_WAIT, THE_WAIT_READS_A_S_HIGH_BYTE, HOLD_BATTLE_WINDOW);
 }
 
 /* Every combatant there's graphics known to the builder (battle/sprites.c). */
@@ -272,13 +267,6 @@ bool battle_combatants_graphics_known(Snes *s)
 }
 
 // $CD:0003
-void battle_start_the_frame_work_entry(Snes *s)
-{
-    battle_start_the_frame_work(state_of(s));
-    m_set_a8(s, FIGHTING);
-    m_set_nz8(s, FIGHTING);
-    m_rtl(s);
-}
 
 // $CD:0000, $CD:0039
 /* The battle's screen set up ($D1:F1B0) for the battle's start from the
@@ -296,8 +284,11 @@ void battle_set_the_screen_up_for_the_field(Snes *s)
 void battle_party_faces_the_enemies(Snes *s)
 {
     open_the_battle(state_of(s));
-    if (battle_strike_the_poses_as_their_own(s))
+    if (battle_strike_the_poses_as_their_own(s)) {
         m_rts(s);
+        /* Setup resumes through the scheduler's saved-register frame. */
+        native_hold_return(s, HOLD_BATTLE_WINDOW);
+    }
 }
 
 /* On the battle's page with A's high byte clear, as the setup comes; the

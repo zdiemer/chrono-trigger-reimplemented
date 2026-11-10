@@ -22,7 +22,6 @@
 #include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/vram.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
@@ -38,14 +37,8 @@ enum {
 };
 enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, READS_A_HIGH = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
-static void leave_buttons_tested(Snes *s);
-static void leave_mode_described(Snes *s, uint8_t shown);
-static void leave_moved_on_the_grid(Snes *s);
-static void leave_cursor_compared(Snes *s);
-static void leave_answer(Snes *s, bool given);
-static void leave_name_found(Snes *s);
-static void leave_start_pressed(Snes *s);
-static void leave_pressed_loaded(Snes *s);
+static void charge_mode_described(Snes *s, uint8_t shown);
+static void charge_moved_on_the_grid(Snes *s);
 
 /* ---- What the steps ask of the menus, on the machine ---------------------------------------------- */
 
@@ -78,17 +71,17 @@ static void note(void *ctx, NamingNote n, uint8_t value)
 {
     Snes *s = ctx;
     switch (n) {
-    case NAMING_NOTE_PRESSED_LOADED: ORIGINAL_EFFECT(leave_pressed_loaded(s)); break;
-    case NAMING_NOTE_MODE_DESCRIBED: ORIGINAL_EFFECT(leave_mode_described(s, value)); break;
-    case NAMING_NOTE_BUTTONS_TESTED: ORIGINAL_EFFECT(leave_buttons_tested(s)); break;
-    case NAMING_NOTE_CURSOR_COMPARED: ORIGINAL_EFFECT(leave_cursor_compared(s)); break;
-    case NAMING_NOTE_LETTERS_LOADED: ORIGINAL_EFFECT(menu_leave_load(s, value)); break;
-    case NAMING_NOTE_MOVED_ON_THE_GRID: ORIGINAL_EFFECT(leave_moved_on_the_grid(s)); break;
-    case NAMING_NOTE_NAME_QUEUED: ORIGINAL_EFFECT(menu_leave_queued_upload(s, MENU_UPLOAD_FRONT_LAYER)); break;
-    case NAMING_NOTE_NAME_FOUND: ORIGINAL_EFFECT(leave_name_found(s)); break;
-    case NAMING_NOTE_ANSWERED: ORIGINAL_EFFECT(leave_answer(s, value != 0)); break;
-    case NAMING_NOTE_NAME_KEPT: ORIGINAL_EFFECT(menu_leave_a_high_byte_set(s)); break; /* the block move that kept it */
-    case NAMING_NOTE_START_PRESSED: ORIGINAL_EFFECT(leave_start_pressed(s)); break;
+    case NAMING_NOTE_PRESSED_LOADED: charge_machine_accesses(state_of(s), 2); break;
+    case NAMING_NOTE_MODE_DESCRIBED: charge_mode_described(s, value); break;
+    case NAMING_NOTE_BUTTONS_TESTED: charge_machine_accesses(state_of(s), 1); break;
+    case NAMING_NOTE_CURSOR_COMPARED: charge_machine_accesses(state_of(s), 2); break;
+    case NAMING_NOTE_LETTERS_LOADED: (void)0; break;
+    case NAMING_NOTE_MOVED_ON_THE_GRID: charge_moved_on_the_grid(s); break;
+    case NAMING_NOTE_NAME_QUEUED: (void)0; break;
+    case NAMING_NOTE_NAME_FOUND: (void)0; break;
+    case NAMING_NOTE_ANSWERED: (void)0; break;
+    case NAMING_NOTE_NAME_KEPT: (void)0; break; /* the block move that kept it */
+    case NAMING_NOTE_START_PRESSED: (void)0; break;
     }
 }
 
@@ -101,7 +94,7 @@ static bool ends(void *ctx, NamingEnd end)
     case NAMING_FADES_OUT:
         /* Choosing the battle mode stopped the screen's tasks. The fade's
          * wait keeps X, the record of the last task stopped. */
-        ORIGINAL_EFFECT(s->cpu.x = MENU_HELD_CURSORS_TASK * RAM_MENU_TASKS_STRIDE);
+        (void)0;
         TIMED_AS(state_of(s), FADE_OUT, menu_fade_the_screen_out(s));
         break;
     case NAMING_LEAVES_THE_MENUS: menu_go_on_in(s, LEAVE_THE_MENUS, menu_close_entry, READS_NOTHING); break;
@@ -154,125 +147,18 @@ void menu_check_the_name(Snes *s) { routine_entry(s, NAMING_CHECK_THE_NAME, fals
 // $C2:E363
 void menu_accept_the_name(Snes *s) { routine_entry(s, NAMING_ACCEPT_THE_NAME, true); }
 
-/* ---- The entries of the naming's C ---------------------------------------------------------------- */
-
-// $C2:E40E
-void menu_naming_open_entry(Snes *s)
-{
-    menu_naming_open(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-// $C2:E545
-void menu_write_out_the_name_grid(Snes *s)
-{
-    menu_naming_write_out_the_grid(state_of(s));
-    m_rts(s);
-}
-
-// $C2:E34A
-void menu_place_the_names_cursor(Snes *s)
-{
-    menu_naming_place_the_names_cursor(state_of(s));
-    m_rts(s);
-}
-
-// $C2:E576
-void menu_open_the_battle_mode(Snes *s)
-{
-    menu_naming_open_the_battle_mode(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-// $C2:E5D3
-void menu_describe_the_battle_mode(Snes *s)
+static void charge_mode_described(Snes *s, uint8_t shown)
 {
     GameState *g = state_of(s);
-    uint8_t shown = menu_description_item(g);
-    menu_naming_describe_the_battle_mode(g);
-    ORIGINAL_EFFECT(leave_mode_described(s, shown));
-    m_rts(s);
+    if (menu_description_item(g) != shown)
+        charge_machine_accesses(g, 1);
 }
 
-/* ---- What the original's tests leave (scaffolding) ----------------------------------------------- */
-
-static void leave_buttons_tested(Snes *s) { menu_leave_bit_test(s, (uint8_t)s->cpu.a, menu_cursor_buttons(state_of(s))); }
-
-/* The description leaves A clear where it started typing another mode's,
- * and otherwise the text it found shown. */
-static void leave_mode_described(Snes *s, uint8_t shown)
+static void charge_moved_on_the_grid(Snes *s)
 {
-    if (menu_description_item(state_of(s)) != shown)
-        menu_leave_typing_started(s);
-    else
-        m_set_a8(s, shown);
-}
-
-/* For the original's code and shadow mode: the cursor's new place, its
- * line or column the grid's edge and the step multiplied added (with what
- * the add overflowed), compared with where it stood; the tick saves those
- * flags as it starts, and the typing the carry; A holds the line or column
- * placed. Where nothing was pushed, only the way (none) was loaded. */
-static void leave_moved_on_the_grid(Snes *s)
-{
-    const GameState *g = state_of(s);
-    uint8_t way = menu_cursor_direction(g);
-    if (way & MENU_CURSOR_NOT_PUSHED) {
-        s->cpu.a = way;
-        menu_leave_load(s, way);
-        return;
-    }
-    uint16_t before = menu_name_cursor_before(g), after = menu_naming_cursor_place(g);
-    bool on_a_row = way == MENU_CURSOR_WENT_UP || way == MENU_CURSOR_WENT_DOWN;
-    uint8_t placed = on_a_row ? (uint8_t)(after >> 8) : (uint8_t)after;
-    uint8_t edge = on_a_row ? MENU_NAME_GRID_TOP : MENU_NAME_GRID_LEFT;
-    uint8_t stepped = (uint8_t)(placed - edge);
-    uint16_t difference = (uint16_t)(before - after);
-    m_set_flag(s, CPU_FLAG_N, (difference & 0x8000) != 0);
-    m_set_flag(s, CPU_FLAG_Z, difference == 0);
-    m_set_flag(s, CPU_FLAG_C, before >= after);
-    m_set_flag(s, CPU_FLAG_V, ((edge ^ placed) & (stepped ^ placed) & 0x80) != 0);
-    s->cpu.a = placed;
-}
-
-static void leave_cursor_compared(Snes *s)
-{
-    const GameState *g = state_of(s);
-    menu_leave_compare(s, menu_cursor_frame_start(g), menu_cursor_index(g));
-}
-
-/* The buttons pressed, loaded as a word. */
-static void leave_pressed_loaded(Snes *s)
-{
-    uint16_t pressed = input_pressed(state_of(s));
-    m_set_flag(s, CPU_FLAG_N, (pressed & 0x8000) != 0);
-    m_set_flag(s, CPU_FLAG_Z, pressed == 0);
-}
-
-/* The check's and the accepting's answer: none where the name may be
- * given, $FF where it may not. */
-/* For the original's code and shadow mode: the name found matched to its
- * end (the last letter compared equal), which the buzz saves the flags of. */
-static void leave_name_found(Snes *s)
-{
-    m_set_flag(s, CPU_FLAG_N, false);
-    m_set_flag(s, CPU_FLAG_Z, true);
-    m_set_flag(s, CPU_FLAG_C, true);
-}
-
-/* ... and Start found among the buttons pressed, which the accepting saves
- * the flags of. */
-static void leave_start_pressed(Snes *s)
-{
-    m_set_a8(s, 1);
-    menu_leave_load(s, 1);
-}
-
-static void leave_answer(Snes *s, bool given)
-{
-    uint8_t answer = given ? 0x00 : 0xFF;
-    m_set_a8(s, answer);
-    menu_leave_load(s, answer);
+    GameState *g = state_of(s);
+    if (!(menu_cursor_direction(g) & MENU_CURSOR_NOT_PUSHED))
+        charge_machine_accesses(g, 4);
 }
 
 /* ---- The guards ---------------------------------------------------------------------------------- */

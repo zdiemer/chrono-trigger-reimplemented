@@ -52,7 +52,6 @@
 #include "menu/typeset.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- The rows ---------------------------------------------------------------------------------- */
@@ -97,10 +96,11 @@ static bool stays(const GameState *g, uint8_t character) { return (story_party_k
  * the menus' first cell. */
 enum { ROWS_FILLED = EXCHANGE_ROWS - 2 };
 
-static void leave_listed(GameState *g, uint8_t place)
+static void charge_listed(GameState *g, uint8_t place)
 {
+    (void)place;
     charge_block_move(g, ROWS_FILLED);
-    set_menu_scratch_exchange_row(g, place);
+    charge_machine_accesses(g, 1);
 }
 
 // $C2:CD2B
@@ -124,7 +124,7 @@ static void list_the_party(GameState *g)
     }
     set_menu_exchange_active_free(g, free);
     if (active_party_alone(g)) {
-        ORIGINAL_EFFECT(leave_listed(g, PARTY_ACTIVE_PLACES));
+        charge_listed(g, PARTY_ACTIVE_PLACES);
         return;
     }
     listed = 0;
@@ -132,7 +132,7 @@ static void list_the_party(GameState *g)
         if (!party_place_is_empty(party_at(g, place)))
             set_menu_exchange_rows(g, EXCHANGE_ACTIVE_ROWS + listed++, place);
     set_menu_exchange_reserve_count(g, listed);
-    ORIGINAL_EFFECT(leave_listed(g, 0));
+    charge_listed(g, 0);
 }
 
 /* ---- The members' rows and sprites ------------------------------------------------------------- */
@@ -144,15 +144,11 @@ enum { ACTIVE_PLACES_AT = 0, RESERVE_PLACES_AT = 3, ROW_ABOVE = 7, ROW_BELOW = 8
 
 static unsigned first_active_place(const GameState *g) { return active_party_alone(g) ? MIDDLE_PLACES_AT : ACTIVE_PLACES_AT; }
 
-/* For the original's code and shadow mode: a place as an offset into the
- * places' tables, two bytes a place, as its loops leave it. */
-static uint16_t place_offset(unsigned place) { return (uint16_t)(2 * place); }
-
 /* A character's sprite stands at a place. */
 static void stand_at(GameState *g, uint8_t character, unsigned place)
 {
     MenuSpritePlace at = menu_exchange_sprite_place(g, place);
-    ORIGINAL_EFFECT(menu_leave_record_found(g, character));
+    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4));
     set_menu_record_y(g, character, at.y);
     set_menu_record_x_low(g, character, at.x);
 }
@@ -195,8 +191,8 @@ static void draw_the_rows(GameState *g, Platform *pf)
         if (!row_is_empty(row(g, r)))
             show_member_at(g, pf, member++, place);
     menu_work_on_member(g, member);
-    ORIGINAL_EFFECT(set_menu_exchange_place_offset(g, place_offset(place)));
-    ORIGINAL_EFFECT(set_menu_exchange_rows_counted(g, EXCHANGE_ACTIVE_ROWS));
+    charge_machine_accesses(g, 2);
+    charge_machine_accesses(g, 2);
 }
 
 // $C2:CE49
@@ -206,14 +202,6 @@ static void stand_the_member(GameState *g, uint8_t r, unsigned place)
     uint8_t character = party_at(g, place_in_the_party(r));
     set_menu_record_sprite(g, character, character);
     stand_at(g, character, place);
-}
-
-/* For the original's code and shadow mode: where its loops left their row
- * and their place. */
-static void leave_stood(GameState *g, unsigned r, unsigned place)
-{
-    set_menu_scratch_exchange_row(g, (uint8_t)r);
-    set_menu_scratch_exchange_place_offset(g, place_offset(place));
 }
 
 // $C2:CDE3 (with $C2:CE2A)
@@ -228,14 +216,14 @@ static void stand_the_members(GameState *g)
         if (!row_is_empty(row(g, r)))
             stand_the_member(g, row(g, r), place++);
     if (active_party_alone(g)) {
-        ORIGINAL_EFFECT(leave_stood(g, EXCHANGE_ACTIVE_ROWS, place));
+        charge_machine_accesses(g, 4);
         return;
     }
     unsigned r = row_at(g, EXCHANGE_FIRST_RESERVE_PLACE);
     for (place = RESERVE_PLACES_AT; place < RESERVE_PLACES_AT + EXCHANGE_RESERVE_SHOWN; r++, place++)
         if (!row_is_empty(row(g, r)))
             stand_the_member(g, row(g, r), place);
-    ORIGINAL_EFFECT(leave_stood(g, r, place));
+    charge_machine_accesses(g, 4);
 }
 
 /* What the members are doing: standing, walking (the one under the cursor)
@@ -265,7 +253,7 @@ static void animate_the_members(GameState *g)
     uint8_t first = menu_exchange_first(g);
     if (someone_chosen(first))
         animate_the_member_at(g, first, CHOSEN_POSE);
-    ORIGINAL_EFFECT(set_menu_scratch_exchange_row(g, COUNTED_PAST_THE_FIRST));
+    charge_machine_accesses(g, 1);
 }
 
 /* The seven characters' records, each standing. */
@@ -294,18 +282,9 @@ static const DimmedWindows ACTIVE_WINDOWS = { 0x2E84, 14 }, MIDDLE_WINDOWS = { 0
 static void dim_the_colours_at(GameState *g, uint8_t character)
 {
     if (party_place_is_empty(character))
-        ORIGINAL_EFFECT(menu_leave_colours_dimmed_past_the_palette(g, character));
+        menu_charge_colours_dimmed_past_the_palette(g, character);
     else
         menu_dim_character_colours(g, character);
-}
-
-/* For the original's code and shadow mode: its loop's count, the row's
- * tiles and attribute, and the windows' place past the third. */
-static void leave_dimmed(GameState *g, DimmedWindows windows)
-{
-    set_menu_scratch_exchange_rows_looked_at(g, EXCHANGE_ACTIVE_ROWS);
-    set_menu_scratch_exchange_dimmed_tiles(g, (uint16_t)(windows.tiles | DIMMED << 8));
-    set_menu_scratch_exchange_dimmed_at(g, (uint16_t)(windows.at + EXCHANGE_ACTIVE_ROWS * WINDOWS_APART));
 }
 
 // $C2:CC4F (with $C2:CCB3)
@@ -329,7 +308,7 @@ static void dim_who_stays(GameState *g)
         TIMED_AS(g, 0xC2EC93, menu_recolour_block(g, at, ROW_TILE_ROWS, windows.tiles, DIMMED));
         TIMED_AS(g, 0xC2EC93, menu_recolour_block(g, (uint16_t)(at + BACK_LAYER), ROW_TILE_ROWS, windows.tiles, DIMMED));
     }
-    ORIGINAL_EFFECT(leave_dimmed(g, windows));
+    charge_machine_accesses(g, 6);
 }
 
 /* ---- The panel --------------------------------------------------------------------------------- */
@@ -365,7 +344,7 @@ void menu_exchange_panel_start(GameState *g, Platform *pf)
         return;
     }
     menu_draw_windows(g, pf, GATE_PANEL_WINDOWS);
-    ORIGINAL_EFFECT(set_menu_draw_origin(g, MENU_FRONT_LAYER_AT));
+    charge_machine_accesses(g, 2);
     uint8_t label = menu_story_items(g, 0) != 0 ? GATE_LABEL_WITH_A_RULE : GATE_LABEL;
     set_menu_load_destination(g, GATE_LABEL_AT);
     TIMED_AS(g, 0xC2F90C, (void)menu_set_label_laid_out(g, MENU_LABEL_STRINGS, label, GATE_LABEL_AT, MENU_TEXT_SIXTEEN_COLOUR_LABEL));
@@ -460,7 +439,7 @@ void menu_exchange_refuse(GameState *g)
 void menu_exchange_lay_out_for_the_gate(GameState *g, uint8_t argument)
 {
     set_menu_exchange_layout(g, argument);
-    ORIGINAL_EFFECT(set_menu_exchange_layout_high(g, argument));
+    charge_machine_accesses(g, 1);
 }
 
 // $C2:C649
@@ -489,13 +468,13 @@ enum { LINES_A_ROW = 6, BAR_PLACE = 0x12EC, BAR_STEPS = 0xA400 };
 static void show_the_scroll_bar(GameState *g)
 {
     uint8_t rows_past = (uint8_t)(menu_exchange_reserve_count(g) - EXCHANGE_RESERVE_SHOWN);
-    ORIGINAL_EFFECT(hw_set_dividend(g, BAR_STEPS));
+    charge_machine_io_accesses(g, 2);
     set_menu_scroll_bar_span(g, rows_past);
     if (menu_exchange_reserve_count(g) <= EXCHANGE_RESERVE_SHOWN)
         return;
     uint8_t span = (uint8_t)(rows_past * LINES_A_ROW);
     set_menu_scroll_bar_span(g, span);
-    ORIGINAL_EFFECT(hw_divide_by(g, span));
+    charge_machine_io_accesses(g, 1);
     set_menu_scroll_bar_thumb(g, (uint8_t)(menu_reserve_top(g) * LINES_A_ROW));
     TIMED_AS(g, 0xC28B93, menu_start_the_scroll_bar(g));
     set_menu_scroll_bar_place(g, BAR_PLACE);
@@ -570,7 +549,7 @@ static MenuTilePlace tiles_of(GameState *g, uint8_t place)
     at.row = (uint8_t)((place & 7) * TILE_ROWS_A_ROW + FIRST_TILE_ROW);
     if (active_party_alone(g))
         at.column = MIDDLE_COLUMN;
-    ORIGINAL_EFFECT(set_menu_scratch_exchange_tiles(g, (uint16_t)(at.column | at.row << 8)));
+    charge_machine_accesses(g, 2);
     return at;
 }
 
@@ -579,13 +558,6 @@ static MenuTilePlace tiles_of(GameState *g, uint8_t place)
  * out of view: its six tile rows. */
 static const MenuTilePlace KEPT_ASIDE = { 2, 32 };
 static const MenuWindowSize RESERVE_ROW_SIZE = { 10, 6 };
-
-/* For the original's code and shadow mode: its multiply by six leaves the
- * row doubled in the menus' first cell. */
-static void leave_row_doubled(GameState *g, uint8_t reserve_place)
-{
-    set_menu_scratch_exchange_row(g, (uint8_t)(2 * reserve_place));
-}
 
 // $C2:C674
 void menu_exchange_choose_the_first(GameState *g)
@@ -596,7 +568,7 @@ void menu_exchange_choose_the_first(GameState *g)
     set_menu_held_cursor(g, place);
     if (on_the_reserve(place)) {
         uint8_t reserve_place = (uint8_t)(place - EXCHANGE_FIRST_RESERVE_PLACE);
-        ORIGINAL_EFFECT(leave_row_doubled(g, reserve_place));
+        charge_machine_accesses(g, 1);
         set_menu_draw_origin(g, MENU_FRONT_LAYER_AT);
         MenuTilePlace from = { RIGHT_COLUMN, (uint8_t)(reserve_place * TILE_ROWS_A_ROW + FIRST_TILE_ROW) };
         menu_copy_tile_area(g, from, KEPT_ASIDE, RESERVE_ROW_SIZE);
@@ -663,15 +635,6 @@ static const MenuTilePlace RESERVE_COLUMN = { RIGHT_COLUMN, FIRST_TILE_ROW };
 static const MenuWindowSize RESERVE_COLUMN_SIZE = { 10, 24 };
 static const MenuTilePlace SLID_BACK_FROM = { RIGHT_COLUMN, 38 }, SLID_ON_FROM = { RIGHT_COLUMN, 32 };
 
-/* For the original's code and shadow mode: the slide's state in its cells,
- * where its loop keeps it from frame to frame. */
-static void leave_slide(GameState *g, const ExchangeSlide *slide)
-{
-    set_menu_exchange_slide_from(g, (uint16_t)(slide->from.column | slide->from.row << 8));
-    set_menu_scroll_step(g, (uint16_t)(int16_t)slide->step);
-    set_menu_scroll_frames(g, slide->frames_left);
-}
-
 static void start_the_slide(GameState *g, Platform *pf, ExchangeSlide *slide, unsigned row_place)
 {
     uint8_t reserve_row = (uint8_t)(menu_cursor_index(g) - EXCHANGE_FIRST_RESERVE_PLACE + menu_reserve_top(g));
@@ -683,9 +646,9 @@ static void start_the_slide(GameState *g, Platform *pf, ExchangeSlide *slide, un
     menu_copy_tile_area(g, RESERVE_COLUMN, slide->from, RESERVE_COLUMN_SIZE);
     set_menu_scroll_moved(g, 0);
     slide->frames_left = SLIDE_FRAMES;
-    ORIGINAL_EFFECT(leave_slide(g, slide));
-    ORIGINAL_EFFECT(set_menu_scratch_exchange_row(g, reserve_row));
-    ORIGINAL_EFFECT(set_menu_exchange_place_offset(g, place_offset(row_place)));
+    charge_machine_accesses(g, 6);
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 2);
 }
 
 /* Pushed past the reserve's first row, it scrolls back a row, its row
@@ -705,7 +668,7 @@ static bool scroll(GameState *g, Platform *pf, ExchangeSlide *slide)
         return true;
     }
     uint8_t last_top = (uint8_t)(menu_exchange_reserve_count(g) - (EXCHANGE_RESERVE_SHOWN - 1));
-    ORIGINAL_EFFECT(set_menu_scratch_exchange_row(g, last_top));
+    charge_machine_accesses(g, 1);
     set_menu_cursor_index(g, LAST_RESERVE_PLACE);
     uint8_t top = (uint8_t)(menu_reserve_top(g) + 1);
     if (top >= last_top)
@@ -736,7 +699,7 @@ static void move_the_reserve(GameState *g, int8_t step)
 {
     for (unsigned r = menu_exchange_reserve_count(g); r-- > 0;) {
         uint8_t character = party_at(g, place_in_the_party(row(g, EXCHANGE_ACTIVE_ROWS + r)));
-        ORIGINAL_EFFECT(menu_leave_record_found(g, character));
+        (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4));
         set_menu_record_y(g, character, (uint8_t)(menu_record_y(g, character) - step));
         set_menu_record_animation(g, character, STANDING);
     }
@@ -756,7 +719,7 @@ bool menu_exchange_slide_a_frame(GameState *g, ExchangeSlide *slide)
     menu_copy_tile_area(g, slide->from, RESERVE_COLUMN, RESERVE_COLUMN_SIZE);
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
     slide->frames_left--;
-    ORIGINAL_EFFECT(leave_slide(g, slide));
+    charge_machine_accesses(g, 6);
     return slide->frames_left != 0;
 }
 
@@ -764,7 +727,7 @@ bool menu_exchange_slide_a_frame(GameState *g, ExchangeSlide *slide)
 void menu_exchange_end_the_slide(GameState *g)
 {
     set_menu_held_cursor_shift(g, 0);
-    ORIGINAL_EFFECT(set_menu_scroll_step(g, 0));
+    charge_machine_accesses(g, 2);
     stand_the_members(g);
 }
 
@@ -1175,7 +1138,7 @@ static const ExchangeSteps in_the_program;
 static bool takes(GameState *g, bool ok, uint32_t routine, const char *what)
 {
     if (!ok)
-        program_needs_the_machine(g, routine, what);
+        program_breaks_a_contract(g, routine, what);
     return ok;
 }
 

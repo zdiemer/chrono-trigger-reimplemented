@@ -85,9 +85,5 @@ void battle_set_wide_math_quotient(GameState *g, uint16_t v);
  * multiply or divide overwrites. */
 void battle_set_wide_math_first(GameState *g, uint16_t v);
 
-/* The word-by-word multiply leaves its second number's cell clear but for the
- * carry its caller came in with: scaffolding, for the callers whose carry is
- * set (the multiply itself leaves it 0). */
-void battle_leave_multiply_carry(GameState *g, bool carry);
 
 #endif

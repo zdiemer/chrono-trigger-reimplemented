@@ -57,25 +57,9 @@ bool menu_map_scroll_x_runs(Snes *s);
 bool menu_map_scroll_y_runs(Snes *s);
 bool menu_map_redraw_runs(Snes *s);
 
-void menu_map_centre_on_party(Snes *s);
 void menu_map_scroll_x(Snes *s);
 void menu_map_scroll_y(Snes *s);
 void menu_map_redraw(Snes *s);
-void menu_map_upload_block(Snes *s);
-
-/* A scroll's strips, built and queued: entered as the original's scroll
- * enters them, a strip at a time, with the plane and the strip's place in the
- * mode's cells. The scroll here runs them as C and times its strips at their
- * rates. */
-bool menu_map_strip_builds(Snes *s);
-bool menu_map_column_strip_queues(Snes *s);
-bool menu_map_row_strip_queues(Snes *s);
-void menu_map_build_column_strip(Snes *s);
-void menu_map_build_column_strip_right(Snes *s);
-void menu_map_build_row_strip(Snes *s);
-void menu_map_build_row_strip_bottom(Snes *s);
-void menu_map_queue_column_strip(Snes *s);
-void menu_map_queue_row_strip(Snes *s);
 
 /* Register results shared by the entries and the script bridge. These do
  * no game work and do not return through the emulated stack. */

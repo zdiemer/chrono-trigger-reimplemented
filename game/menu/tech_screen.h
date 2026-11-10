@@ -371,20 +371,12 @@ void menu_point_at_tech_target(Snes *s);
 void menu_point_at_member_to_restore_entry(Snes *s);
 void menu_note_member_to_restore_entry(Snes *s);
 void menu_show_techs_panel(Snes *s);
-void menu_put_techs_panel_away(Snes *s);
 void menu_show_tech_lister(Snes *s);
 void menu_load_tech_lister_sprite(Snes *s);
-void menu_draw_tech_member_rows(Snes *s);
-void menu_show_tech_list(Snes *s);
 void menu_describe_pointed_tech(Snes *s);
 void menu_describe_tech_kind(Snes *s);
 void menu_describe_tech(Snes *s);
 void menu_open_tech_targets(Snes *s);
-void menu_show_member_tech_list(Snes *s);
-void menu_draw_tech_rows(Snes *s);
-void menu_show_pointed_tech(Snes *s);
-void menu_draw_tech_member_row(Snes *s);
-
 bool menu_techs_screen_opens(Snes *s);
 bool menu_tech_members_step_runs(Snes *s);
 bool menu_tech_list_step_runs(Snes *s);
@@ -397,12 +389,7 @@ bool menu_member_to_restore_is_pointable(Snes *s);
 bool menu_techs_panel_shows(Snes *s);
 bool menu_techs_panel_goes(Snes *s);
 bool menu_tech_lister_is_showable(Snes *s);
-bool menu_tech_member_rows_are_drawable(Snes *s);
-bool menu_tech_list_is_showable(Snes *s);
 bool menu_tech_is_describable(Snes *s);
 bool menu_tech_targets_open(Snes *s);
-bool menu_tech_rows_are_drawable(Snes *s);
-bool menu_member_tech_list_is_showable(Snes *s);
-bool menu_tech_member_row_is_drawable(Snes *s);
 
 #endif

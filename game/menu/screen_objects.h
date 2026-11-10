@@ -53,7 +53,7 @@ bool menu_fade_out_takes(const GameState *g, MenuObject self);
 bool menu_fade_in_takes(const GameState *g, MenuObject self);
 bool menu_mosaic_takes(const GameState *g, MenuObject self);
 
-/* The registered entries and their guards. */
+/* The checked legacy adapters and their guards. */
 void menu_stream_tiles_entry(Snes *s);
 void menu_load_palette_row_entry(Snes *s);
 void menu_fade_palette_row_entry(Snes *s);
@@ -61,13 +61,11 @@ void menu_fade_out_entry(Snes *s);
 void menu_fade_in_entry(Snes *s);
 void menu_clear_mosaic_entry(Snes *s);
 void menu_grow_mosaic_entry(Snes *s);
-void menu_clear_the_palette_entry(Snes *s);
 bool menu_tile_streamer_runs(Snes *s);
 bool menu_palette_loader_runs(Snes *s);
 bool menu_palette_fade_runs(Snes *s);
 bool menu_fade_out_runs(Snes *s);
 bool menu_fade_in_runs(Snes *s);
 bool menu_mosaic_runs(Snes *s);
-bool menu_palette_can_be_cleared(Snes *s);
 
 #endif

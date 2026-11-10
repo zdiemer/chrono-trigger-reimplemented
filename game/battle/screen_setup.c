@@ -31,7 +31,6 @@
 #include "core/program.h"
 #include "field/sounds.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/native.h"
@@ -385,7 +384,7 @@ static bool song_on_the_machine(void *ctx)
     m_push8(s, s->cpu.db);
     m_push16(s, s->cpu.d);
     m_push8(s, s->cpu.p);
-    if (!battle_run_long(s, 0xD1F405, FIELD_BATTLE_SONG_ENTRY, field_start_the_battle_song_entry))
+    if (!battle_field_music_on_the_machine(s, 0xD1F405, false))
         return false;
     s->cpu.p = m_pull8(s);
     s->cpu.d = m_pull16(s);
@@ -394,12 +393,6 @@ static bool song_on_the_machine(void *ctx)
 }
 
 /* ---- The entry ------------------------------------------------------------------------ */
-
-void battle_build_fade_tables(Snes *s)
-{
-    build_fade_tables(state_of(s));
-    m_rtl(s);
-}
 
 void battle_set_the_screen_up(Snes *s)
 {

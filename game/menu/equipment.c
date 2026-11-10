@@ -44,7 +44,6 @@
 #include "menu/text.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "original_effects.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -68,7 +67,6 @@ enum { NOTHING_SHOWN = 0xFF };
 
 static void forget_the_list_shown(GameState *g) { set_menu_equip_shown(g, NOTHING_SHOWN); }
 
-
 /* The inventory's places the list looks through (the last fourteen, past
  * the items the game has, it leaves alone). */
 enum { MENU_INVENTORY_LISTED = 0xF2 };
@@ -89,16 +87,6 @@ static void put_in_list(GameState *g, unsigned row, uint8_t item, uint8_t count)
     set_menu_list_item_counts(g, row, count);
 }
 
-/* The original asks who can use each item through a cell, and sorts with
- * its first two: what is left there is the last item asked about, the last
- * power it kept and how far down the list it got. */
-static void leave_list_made(GameState *g, uint8_t last_asked, uint8_t last_power, uint8_t rows)
-{
-    set_menu_item_operand(g, last_asked);
-    set_menu_scratch_fits_power(g, last_power);
-    set_menu_scratch_fits_row(g, rows);
-}
-
 // $C2:8953
 /* The list of what fits the slot the screen is on and the loaded member can
  * use: each kind the party holds, with how many, the most powerful first (of
@@ -109,12 +97,11 @@ static void leave_list_made(GameState *g, uint8_t last_asked, uint8_t last_power
 void menu_list_what_fits(GameState *g)
 {
     uint8_t slot = menu_equip_slot(g);
-    uint8_t rows = 0, last_asked = 0;
+    uint8_t rows = 0;
     for (unsigned place = 0; place < MENU_INVENTORY_LISTED; place++) {
         uint8_t item = menu_inventory_item_at(g, place);
         if (item == NO_ITEM || !fits(g, slot, item))
             continue;
-        last_asked = item;
         bool usable;
         TIMED_AS(g, 0xC293A8, usable = menu_loaded_member_can_use(g, item));
         if (usable)
@@ -138,7 +125,7 @@ void menu_list_what_fits(GameState *g)
             put_in_list(g, row, item, count);
         }
     }
-    ORIGINAL_EFFECT(leave_list_made(g, last_asked, power, (uint8_t)row));
+    charge_machine_accesses(g, 3);
 }
 
 /* The guard's: a slot of the four, an empty item of no power to end the
@@ -324,7 +311,7 @@ void menu_equip_start_member_slide(GameState *g, Platform *pf)
     TIMED_AS(g, 0xC2A216, menu_draw_member_row(g, pf));
     uint16_t new_row = (uint16_t)(menu_draw_origin(g) + ROW_TILES_FROM_ORIGIN);
     TIMED_AS(g, 0xC29EB0, menu_colour_member_row(g, new_row, true));
-    ORIGINAL_EFFECT(menu_leave_member_row_coloured(g, new_row, true));
+    charge_machine_accesses(g, 4);
     copy_rows_on(g, LIST_FRONT_LAYER, ROWS_PLACE, slide_place(g));
     copy_rows_on(g, LIST_BACK_LAYER, ROWS_PLACE, slide_place(g));
     menu_queue_fixed_upload(g, UPLOAD_BG1_SLID);
@@ -476,14 +463,6 @@ static uint8_t slot_place(const GameState *g) { return (uint8_t)menu_equip_recor
 enum { GREATEST_HP_MARK = MENU_EQUIPMENT_FIGURES_SHOWN + 1 };
 enum { FIGURES_WINDOW = 0xBEE2 };
 
-/* What comparing the figures leaves in the menus' first cell: the last
- * figure the window shows, as the record has it. */
-static void leave_the_last_figure_compared(GameState *g)
-{
-    uint8_t last = menu_equipment_figure_shown(g, MENU_EQUIPMENT_FIGURES_SHOWN - 1);
-    set_menu_scratch_figure_compared(g, menu_status_record_figures_byte(g, last));
-}
-
 // $C2:A5E7
 /* The member's figures worked out again with the item tried on, each marked
  * by how the item moves it from what the member has now, its greatest HP
@@ -492,7 +471,7 @@ static void compare_figures(GameState *g, Platform *pf)
 {
     menu_mark_the_figures_tried_on(g, FIGURES_ON_THE_EQUIPMENT_SCREEN);
     set_menu_figure_marks(g, GREATEST_HP_MARK, menu_figure_mark(menu_status_record_hp_cap(g), menu_figures_greatest_hp(g)));
-    ORIGINAL_EFFECT(leave_the_last_figure_compared(g));
+    (charge_machine_accesses(g, 2), charge_machine_rom_accesses(g, 1));
     menu_draw_windows(g, pf, FIGURES_WINDOW);
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
 }
@@ -527,23 +506,15 @@ void menu_equip_try_on(GameState *g, Platform *pf)
     TIMED_AS(g, 0xC2F2F3, menu_describe_item(g, item));
 }
 
-/* For the original's code and shadow mode: the item and how many the
- * inventory's routines are handed in the menus' cells. */
-static void leave_operand(GameState *g, uint8_t item)
-{
-    set_menu_item_operand_quantity(g, 1);
-    set_menu_item_operand(g, item);
-}
-
 // $C2:9CC1
 void menu_equip_put_on_the_chosen_item(GameState *g)
 {
     uint8_t character = menu_member_character(g), place = slot_place(g);
     uint8_t was = character_records_record_byte(g, character, place);
-    ORIGINAL_EFFECT(leave_operand(g, was));
+    charge_machine_accesses(g, 2);
     TIMED_AS(g, 0xC28791, (void)menu_add_items(g, was, 1));
     uint8_t item = menu_status_record_bytes_byte(g, place);
-    ORIGINAL_EFFECT(leave_operand(g, item));
+    charge_machine_accesses(g, 2);
     set_character_records_record_byte(g, character, place, item);
     TIMED_AS(g, 0xC287D5, (void)menu_take_items(g, item, 1));
 }
@@ -576,15 +547,14 @@ void menu_equip_back_to_the_slots(GameState *g)
  * leaves a row of the list past the last shown or before the first. */
 enum { FIRST_LIST_PLACE = 4 };
 
-
 /* The scroll bar's thumb for the list's first row: four lines a row,
  * through the multiplier ($C2:8BA6), which it leaves with the product. */
 enum { THUMB_LINES_A_ROW = 4 };
 
 static uint8_t thumb_at_row(GameState *g, uint8_t row)
 {
-    ORIGINAL_EFFECT(hw_set_multiplicand(g, row));
-    ORIGINAL_EFFECT((void)hw_multiply_by(g, THUMB_LINES_A_ROW));
+    charge_machine_io_accesses(g, 1);
+    charge_machine_io_accesses(g, 3);
     return (uint8_t)(row * THUMB_LINES_A_ROW);
 }
 
@@ -1121,7 +1091,7 @@ bool menu_open_the_equipment_list_with(GameState *g, Platform *pf, const Equipme
     if (!n->run(ctx, EQUIPMENT_MAKES_THE_LIST))
         return false;
     uint8_t typing_starts = 0;
-    ORIGINAL_EFFECT(typing_starts = menu_equip_opening_starts_typing(g));
+    typing_starts = menu_equip_opening_starts_typing(g);
     menu_equip_open_the_list(g);
     menu_equip_settle_the_list(g);
     n->note(ctx, EQUIPMENT_NOTE_LIST_OPENED, typing_starts);
@@ -1277,7 +1247,7 @@ static void note(void *ctx, EquipmentNote note, uint8_t value) { (void)ctx, (voi
 
 static bool only_on_the_machine(EquipmentContext *c, uint32_t routine, const char *what)
 {
-    program_needs_the_machine(c->game, routine, what);
+    program_breaks_a_contract(c->game, routine, what);
     return false;
 }
 

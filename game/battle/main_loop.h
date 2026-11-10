@@ -10,9 +10,8 @@
 
 /* $FD:A982: the battle's work on its turns cleared, as a battle starts. */
 void battle_clear_the_turn_work(GameState *g);
-void battle_clear_the_turn_work_entry(Snes *s);
-
 void battle_main_loop_start(Snes *s);
+void battle_main_loop_after_setup(Snes *s);
 
 /* The battle from its start ($C1:8000) to its end, a pass a frame, as C:
  * false where it went no further, true once it leaves for the field. */

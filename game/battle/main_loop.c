@@ -53,7 +53,7 @@
 #include "battle/targets.h"
 #include "battle/timers.h"
 #include "charge.h"
-#include "original_effects.h"
+#include "holds.h"
 #include "port/native.h"
 #include "vars.h"
 #include "wram.h"
@@ -115,8 +115,11 @@ typedef bool (*LoopCalls)(void *ctx, LoopCall call, uint8_t arg);
 enum { CLEAR_TURN_WORK = 0xFDA982 };   /* the turns' work cleared (below) */
 
 static void clear_party_statuses(GameState *g) { TIMED_AS(g, 0xC1EA9D, battle_clear_party_statuses(g)); }
+
 static void stand_party_up(GameState *g) { TIMED_AS(g, 0xC1EAE8, battle_stand_party_up(g)); }
+
 static void keep_party_records(GameState *g) { TIMED_AS(g, 0xC1B442, battle_keep_party_records(g)); }
+
 static void take_enemies_away(GameState *g) { TIMED_AS(g, 0xC1B3BB, battle_take_enemies_away(g)); }
 
 /* The party member the loop is working on, where the original's code it
@@ -191,8 +194,8 @@ static void list_combatants_for_the_order(GameState *g)
     }
     for (uint8_t slot = (uint8_t)(battle_enemy_count(g) + BATTLE_FIRST_ENEMY); slot != BATTLE_FIRST_ENEMY; slot--)
         set_pool(g, listed++, slot);
-    ORIGINAL_EFFECT(set_battle_low_scratch(g, 0, BATTLE_PARTY_SIZE));
-    ORIGINAL_EFFECT(set_battle_low_scratch(g, 1, 0));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
 }
 
 /* A random number below `limit`, from the battle's own position. */
@@ -268,6 +271,8 @@ static void put_demo_back(GameState *g)
  * for the field, or on to the loop's next stretch. */
 typedef enum { LOOP_STOPPED, LOOP_LEFT, LOOP_TO_THE_HEAD, LOOP_TO_THE_TIMERS, LOOP_TO_THE_REST, LOOP_NOT_OURS } LoopGoesOn;
 
+static LoopGoesOn finish_battle_start(GameState *g);
+
 // $C1:8000
 /* Start the battle, then on to the loop's head at $C1:8120. No battle is set
  * up without enemies, or with more than there are places for: the original's
@@ -282,6 +287,12 @@ static LoopGoesOn start_battle(GameState *g, LoopCalls call, void *ctx)
     set_demo_aside(g);
     if (!call(ctx, CALL_SET_UP, 0))
         return LOOP_STOPPED;
+    return finish_battle_start(g);
+}
+
+// $C1:8030
+static LoopGoesOn finish_battle_start(GameState *g)
+{
     if (battle_enemy_count(g) == 0 || battle_enemy_count(g) > BATTLE_ENEMIES)
         return LOOP_NOT_OURS;
     list_combatants_for_the_order(g);
@@ -316,34 +327,13 @@ static bool enemies_beaten(const GameState *g)
 }
 
 /* The party's maximum HP goes back to what it was when the battle began. */
-static void restore_party_max_hp(GameState *g)
-{
-    for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
-        set_battle_stats_max_hp(g, member, battle_party_max_hp_kept(g, member));
-}
 
 /* $C1:8443: the battle's last step, into the field again ($C1:0006): the
  * random position kept for the next battle, and each member's carried byte
  * back into its stat block. */
-static LoopGoesOn leave_battle(GameState *g)
-{
-    set_battle_random_kept(g, battle_random_position(g));
-    for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
-        set_battle_stats_carried(g, member, battle_member_carried_weapon(g, member));
-    TIMED_AS(g, 0xFDAAB0, battle_note_beaten_enemies(g));
-    return LOOP_LEFT;
-}
 
 /* $C1:8423: a battle that is lost, or run from, or a demo's end: the party's
  * statuses cleared, the party revived, its stats kept. */
-static LoopGoesOn leave_without_rewards(GameState *g)
-{
-    restore_party_max_hp(g);
-    clear_party_statuses(g);
-    stand_party_up(g);
-    keep_party_records(g);
-    return leave_battle(g);
-}
 
 /* The six items a victory can give. */
 enum { ITEMS_WON = 6 };
@@ -353,6 +343,35 @@ enum { ITEMS_WON = 6 };
  * given, the experience and the tech points shared out (battle/rewards.h),
  * their messages, the party revived, its stats kept, the items it chose and
  * didn't use put back, and the items won. */
+
+/* The party is all out: its defeat, over eight frames and the defeat's step,
+ * and away without rewards. */
+enum { DEFEAT_FRAMES = 8 };
+
+static void restore_party_max_hp(GameState *g)
+{
+    for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
+        set_battle_stats_max_hp(g, member, battle_party_max_hp_kept(g, member));
+}
+
+static LoopGoesOn leave_battle(GameState *g)
+{
+    set_battle_random_kept(g, battle_random_position(g));
+    for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
+        set_battle_stats_carried(g, member, battle_member_carried_weapon(g, member));
+    TIMED_AS(g, 0xFDAAB0, battle_note_beaten_enemies(g));
+    return LOOP_LEFT;
+}
+
+static LoopGoesOn leave_without_rewards(GameState *g)
+{
+    restore_party_max_hp(g);
+    clear_party_statuses(g);
+    stand_party_up(g);
+    keep_party_records(g);
+    return leave_battle(g);
+}
+
 static LoopGoesOn leave_with_rewards(GameState *g, LoopCalls call, void *ctx)
 {
     restore_party_max_hp(g);
@@ -373,7 +392,7 @@ static LoopGoesOn leave_with_rewards(GameState *g, LoopCalls call, void *ctx)
     if (!call(ctx, CALL_PUT_ITEMS_BACK_AFTER_WINNING, 0))
         return LOOP_STOPPED;
     for (unsigned item = 0; item < ITEMS_WON; item++) {
-        ORIGINAL_EFFECT(set_battle_low_scratch(g, 0x10, (uint8_t)item));
+        charge_machine_accesses(g, 1);
         uint8_t won = battle_items_won(g, item);
         if (won == 0)
             continue;
@@ -381,13 +400,9 @@ static LoopGoesOn leave_with_rewards(GameState *g, LoopCalls call, void *ctx)
             return LOOP_STOPPED;
         set_battle_reward_flags(g, battle_reward_flags(g) | REWARD_ITEMS);
     }
-    ORIGINAL_EFFECT(set_battle_low_scratch(g, 0x10, ITEMS_WON));
+    charge_machine_accesses(g, 1);
     return leave_battle(g);
 }
-
-/* The party is all out: its defeat, over eight frames and the defeat's step,
- * and away without rewards. */
-enum { DEFEAT_FRAMES = 8 };
 
 static LoopGoesOn lose(GameState *g, LoopCalls call, void *ctx)
 {
@@ -398,11 +413,11 @@ static LoopGoesOn lose(GameState *g, LoopCalls call, void *ctx)
         return LOOP_STOPPED;
     set_battle_defeat_showing(g, true);
     for (unsigned frame = 0; frame < DEFEAT_FRAMES; frame++) {
-        ORIGINAL_EFFECT(set_battle_low_scratch(g, 0, (uint8_t)frame));
+        charge_machine_accesses(g, 1);
         if (!call(ctx, CALL_DEFEAT_FRAME, 0))
             return LOOP_STOPPED;
     }
-    ORIGINAL_EFFECT(set_battle_low_scratch(g, 0, DEFEAT_FRAMES));
+    charge_machine_accesses(g, 1);
     set_battle_defeat_showing(g, false);
     if (!call(ctx, CALL_DEFEAT, 0))
         return LOOP_STOPPED;
@@ -425,6 +440,9 @@ static LoopGoesOn win(GameState *g, LoopCalls call, void *ctx)
 
 /* The party runs away: the running away's marks and message, the party
  * standing down, the running away's action, and away without rewards. */
+
+/* The party's low HP noted, and every combatant's statuses followed
+ * (battle/combatants.c). */
 static LoopGoesOn run_away(GameState *g, LoopCalls call, void *ctx)
 {
     battle_ends(g, BATTLE_WON_OR_RAN);
@@ -442,8 +460,6 @@ static LoopGoesOn run_away(GameState *g, LoopCalls call, void *ctx)
     return leave_without_rewards(g);
 }
 
-/* The party's low HP noted, and every combatant's statuses followed
- * (battle/combatants.c). */
 static void follow_combatants(GameState *g)
 {
     for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++) {
@@ -547,6 +563,7 @@ static uint8_t member_action(const GameState *g, unsigned member) { return battl
 static void set_member_action(GameState *g, unsigned member, uint8_t v) { set_battle_member_actions_state(g, member, v); }
 
 /* A member with its action chosen is noted ready (its record's byte kept). */
+
 static void note_members_ready(GameState *g)
 {
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
@@ -592,6 +609,8 @@ static bool member_turn(GameState *g, uint8_t member, MemberTurn *turn, LoopCall
  * them; none is $FF. */
 enum { NOBODY = 0xFF };
 
+/* Carry out the member's action, if its record still says it chose one (its
+ * chosen bit as when it was noted ready): the action, then both forgotten. */
 static uint8_t take_from_queue(GameState *g)
 {
     uint8_t member = battle_action_queue(g, 0);
@@ -605,8 +624,6 @@ static uint8_t take_from_queue(GameState *g)
     return member;
 }
 
-/* Carry out the member's action, if its record still says it chose one (its
- * chosen bit as when it was noted ready): the action, then both forgotten. */
 static bool carry_out(GameState *g, uint8_t member, bool *carried, LoopCalls call, void *ctx)
 {
     *carried = ((member_action(g, member) ^ battle_member_ready(g, member)) & MEMBER_ACTION_CHOSEN) != 0;
@@ -656,6 +673,11 @@ static void next_spare_member(GameState *g)
 }
 
 /* The queue: the party's chosen actions carried out one at a time. */
+
+// $C1:8461 (to $C1:8626)
+/* The turn of the combatant whose turn timer ran out (on the passes the timers
+ * are looked at): an enemy's, or a party member's, then the party's queued
+ * actions. */
 static bool run_queue(GameState *g, bool note_ready, TurnGoesOn *next, LoopCalls call, void *ctx)
 {
     if (note_ready)
@@ -675,10 +697,6 @@ static bool run_queue(GameState *g, bool note_ready, TurnGoesOn *next, LoopCalls
     return true;
 }
 
-// $C1:8461 (to $C1:8626)
-/* The turn of the combatant whose turn timer ran out (on the passes the timers
- * are looked at): an enemy's, or a party member's, then the party's queued
- * actions. */
 static bool give_turn(GameState *g, TurnGoesOn *next, LoopCalls call, void *ctx)
 {
     set_battle_enemy_beaten_any(g, false);
@@ -801,6 +819,10 @@ static void forget_actors_action(GameState *g)
 
 /* A status that keeps the actor's script from its reactions, read wherever the
  * actor's cell points. */
+
+/* Each enemy the action hit, in the order of the action's targets, reacts;
+ * between them the actor's chosen action is forgotten again, and the party's
+ * combination techs are looked at after each. */
 static bool actor_silenced(const GameState *g, uint8_t actor)
 {
     if (battle_slot_is_party(actor))
@@ -809,9 +831,6 @@ static bool actor_silenced(const GameState *g, uint8_t actor)
     return (status & STATUS_CONFUSED) != 0;
 }
 
-/* Each enemy the action hit, in the order of the action's targets, reacts;
- * between them the actor's chosen action is forgotten again, and the party's
- * combination techs are looked at after each. */
 static bool enemies_react(GameState *g, LoopCalls call, void *ctx)
 {
     /* the original starts them with the choosing's cells at no enemy, no
@@ -854,6 +873,10 @@ static bool follow_up(GameState *g, uint8_t actor, LoopCalls call, void *ctx)
  * reacts, or else the party members counter; then the beaten enemies
  * finished, the enemies' scripts started again (unless the party is
  * beaten), and the action's targets and numbers cleared. */
+
+/* The turn's handler: the turn itself on the passes that look at timers;
+ * then, while no party member has an action waiting, the turn no longer due;
+ * then what follows every action. */
 static bool after_action(GameState *g, bool skip_to_end, LoopCalls call, void *ctx)
 {
     if (!skip_to_end) {
@@ -881,9 +904,6 @@ static bool after_action(GameState *g, bool skip_to_end, LoopCalls call, void *c
     return true;
 }
 
-/* The turn's handler: the turn itself on the passes that look at timers;
- * then, while no party member has an action waiting, the turn no longer due;
- * then what follows every action. */
 static bool take_turns(GameState *g, LoopCalls call, void *ctx)
 {
     set_battle_action_hit_enemy(g, false);
@@ -957,7 +977,7 @@ static bool make_the_loop_s_call(void *ctx, LoopCall call, uint8_t arg)
     switch (call) {
     case CALL_START_THE_FIGHT:
         if (!setup_party_is_real(g))
-            return battle_needs_the_machine(g, START_FIGHT, "a fight's start with a party the port doesn't take");
+            return battle_contract_broken(g, START_FIGHT, "a fight's start with a party the port doesn't take");
         TIMED_AS(g, START_FIGHT, battle_start_fight(g));
         return true;
     case CALL_SET_UP: return take_the_step(c, BATTLE_STEP_SET_UP);
@@ -1036,7 +1056,7 @@ static bool make_the_loop_s_call(void *ctx, LoopCall call, uint8_t arg)
     case CALL_GIVE_GOLD: TIMED_AS(g, GIVE_GOLD, (void)battle_give_gold(g, battle_gold_won(g))); return true;
     case CALL_SHARE_EXPERIENCE:
         if (!battle_experience_can_be_shared(g))
-            return battle_needs_the_machine(g, SHARE_EXPERIENCE, "the experience shared with records the port doesn't take");
+            return battle_contract_broken(g, SHARE_EXPERIENCE, "the experience shared with records the port doesn't take");
         TIMED_AS(g, SHARE_EXPERIENCE, battle_share_experience(g));
         return true;
     case CALL_SHOW_THE_REWARDS: {
@@ -1064,7 +1084,7 @@ static bool make_the_loop_s_call(void *ctx, LoopCall call, uint8_t arg)
 static bool give_the_turn(BattleLoopContext *c)
 {
     if (!turn_names_a_combatant(c->game))
-        return battle_needs_the_machine(c->game, GIVE_TURN, "a turn whose place names no combatant");
+        return battle_contract_broken(c->game, GIVE_TURN, "a turn whose place names no combatant");
     bool done = false;
     TIMED_AS(c->game, GIVE_TURN, done = take_turns(c->game, make_the_loop_s_call, c));
     return done;
@@ -1081,7 +1101,7 @@ bool battle_main_loop_runs(GameState *g, Platform *pf)
     BattleLoopContext c = { g, pf };
     LoopGoesOn on = start_battle(g, make_the_loop_s_call, &c);
     if (on == LOOP_NOT_OURS)
-        return battle_needs_the_machine(g, STARTING_WITH_THE_ENEMIES, "a battle with enemies the port doesn't list");
+        return battle_contract_broken(g, STARTING_WITH_THE_ENEMIES, "a battle with enemies the port doesn't list");
     while (on == LOOP_TO_THE_HEAD) {
         if (!next_frame(g, make_the_loop_s_call, &c))
             return false;
@@ -1093,7 +1113,7 @@ bool battle_main_loop_runs(GameState *g, Platform *pf)
         if (on != LOOP_TO_THE_REST)
             break;
         if (debugging_switch_on(g))
-            return battle_needs_the_machine(g, PASS_END, "a pass's end with the debugging switch on");
+            return battle_contract_broken(g, PASS_END, "a pass's end with the debugging switch on");
         TIMED_AS(g, PASS_END, on = end_pass(g, make_the_loop_s_call, &c));
     }
     return on == LOOP_LEFT;
@@ -1118,17 +1138,8 @@ enum {
 
 static bool step(Snes *s, uint32_t site, BattleStep number)
 {
-    /* the overflow flag the step saves with the flags across its frame waits
-     * is read by nothing after. The static result, V dead into $C1:0003, is
-     * the proof at every site; the run exercises the menu's ($C1:856D), and
-     * the other five, which the library reaches fewer than 100 times, rest on
-     * the static result alone (dc-evidence:
-     * tools/v_readers.py C1:0003: V dead, its tables' indexes at most $FE (A's
-     * high byte known clear, on the battle's direct page $0000); ct_dev
-     * --poison-set V at each site over the library, calls with V inverted:
-     * C1802D 20, C18151 32, C18161 4, C18188 11, C1856D 285,
-     * C1AC7E 4; 0 differing; a site under 100 rests on the static result) */
-    return battle_take_step(s, site, number, READS_A);
+    /* Keep overflow live at this boundary after its comparison retires. */
+    return battle_take_step(s, site, number, READS_A & ~DC_V);
 }
 
 /* Which members can join a combination tech (battle/menu_window.c), run as
@@ -1159,7 +1170,6 @@ static const uint16_t carry_out_calls[BATTLE_PARTY_SIZE] = { 0x85CE, 0x85E7, 0x8
 /* The members' checks are a subroutine of the turn's, called from $C1:860A,
  * whose return is on the stack under its calls. */
 enum { CHECKS_CALL_LAST_BYTE = 0x860C };
-
 
 static bool call_on_the_machine(void *ctx, LoopCall call, uint8_t arg)
 {
@@ -1192,7 +1202,7 @@ static bool call_on_the_machine(void *ctx, LoopCall call, uint8_t arg)
         return battle_run_long(s, 0xC183E0, EXPERIENCE_TO_GOLD, battle_turn_experience_to_gold_entry);
     case CALL_GIVE_GOLD:
         s->cpu.y = battle_gold_won(g);
-        return battle_call(s, 0xC183E7, GIVE_GOLD, DC_A | DC_X | DC_FLAGS);
+        return battle_run_called(s, 0xC183E7, GIVE_GOLD, DC_A | DC_X | DC_FLAGS, battle_give_gold_entry);
     case CALL_SHARE_EXPERIENCE:
         /* the flags in A as the original calls it, which it leaves with what
          * the messages take along */
@@ -1207,7 +1217,7 @@ static bool call_on_the_machine(void *ctx, LoopCall call, uint8_t arg)
     case CALL_PUT_ITEMS_BACK_AFTER_WINNING: return battle_run(s, 0xC183FF, PUT_ITEMS_BACK, battle_put_items_back_entry);
     case CALL_GIVE_AN_ITEM:
         s->cpu.y = arg;
-        return battle_call(s, 0xC1840E, GIVE_ITEM, DC_A | DC_X | DC_FLAGS);
+        return battle_run_called(s, 0xC1840E, GIVE_ITEM, DC_A | DC_X | DC_FLAGS, battle_add_to_inventory);
     case CALL_RAN_AWAY_MESSAGE:
         /* the message in A, its high byte clear as the counting leaves it */
         s->cpu.a = RAN_AWAY_MESSAGE;
@@ -1215,7 +1225,7 @@ static bool call_on_the_machine(void *ctx, LoopCall call, uint8_t arg)
     case CALL_STAND_DOWN_RUNNING: return battle_run(s, 0xC1820A, PARTY_STANDS_DOWN, battle_party_stands_down_entry);
     case CALL_RUNNING_AWAY:
         m_set_a8(s, RUN_AWAY_ACTION);
-        return battle_call(s, 0xC1820F, START_ACTION, READS_A_AND_OVERFLOW);
+        return battle_run_called(s, 0xC1820F, START_ACTION, READS_A_AND_OVERFLOW, battle_show_status_number_entry);
     case CALL_PUT_ITEMS_BACK_AFTER_RUNNING: return battle_run(s, 0xC18218, PUT_ITEMS_BACK, battle_put_items_back_entry);
     case CALL_ENEMY_TURN: return battle_run(s, 0xC184D6, ENEMY_TURN, battle_enemy_takes_turn_entry);
     case CALL_MEMBER_STATUS_TURN:
@@ -1227,9 +1237,12 @@ static bool call_on_the_machine(void *ctx, LoopCall call, uint8_t arg)
         s->cpu.x = (uint16_t)(arg * BATTLE_STAT_BLOCK_BYTES);
         return battle_run_long(s, 0xC18526, MEMBER_TURN, battle_member_status_turn_entry);
     case CALL_COMBINATIONS_ACTING_FOR_ITSELF: return check_combinations(s, 0xC18538);
-    case CALL_ACT_FOR_ITSELF: return battle_call(s, 0xC1853B, MEMBER_ACTS_FOR_ITSELF, READS_A_HIGH);
+    case CALL_ACT_FOR_ITSELF:
+        return battle_run_called(s, 0xC1853B, MEMBER_ACTS_FOR_ITSELF, READS_A_HIGH, battle_end_member_turn_entry);
     case CALL_OPEN_THE_MENU: return step(s, 0xC1856D, BATTLE_STEP_OPEN_MENU);
-    case CALL_CARRY_OUT: return battle_call(s, 0xC10000u | carry_out_calls[arg], CARRY_OUT_ACTION, READS_NOTHING);
+    case CALL_CARRY_OUT:
+        return battle_run_called(s, 0xC10000u | carry_out_calls[arg], CARRY_OUT_ACTION,
+                                  READS_NOTHING, battle_carry_out_member_action_entry);
     case CALL_CHECKS_BEGIN: m_push16(s, CHECKS_CALL_LAST_BYTE); return true;
     case CALL_COMBINATIONS_IN_THE_CHECKS:
         s->cpu.x = arg;
@@ -1270,14 +1283,14 @@ static void go_on_on_the_machine(Snes *s, LoopGoesOn on)
     switch (on) {
     case LOOP_LEFT:
         s->cpu.a &= 0x00FF;
-        m_stop_at(s, RETURN_TO_THE_FIELD, DC_X | DC_Y | DC_FLAGS | DC_AL);
+        battle_continue(s, RETURN_TO_THE_FIELD, battle_return_to_field, DC_X | DC_Y | DC_FLAGS | DC_AL);
         return;
-    case LOOP_TO_THE_HEAD: m_stop_at(s, LOOP_HEAD, LOOP_HEAD_DEAD); return;
+    case LOOP_TO_THE_HEAD: m_hold_at(s, LOOP_HEAD, LOOP_HEAD_DEAD, HOLD_BATTLE_PASS); return;
     case LOOP_TO_THE_TIMERS:
         m_rep(s, CPU_FLAG_M);
-        m_stop_at(s, TIMERS, PASS_STOP_DEAD);
+        m_hold_at(s, TIMERS, PASS_STOP_DEAD, HOLD_BATTLE_PASS);
         return;
-    case LOOP_TO_THE_REST: m_stop_at(s, REST_OF_PASS, PASS_STOP_DEAD); return;
+    case LOOP_TO_THE_REST: m_hold_at(s, REST_OF_PASS, PASS_STOP_DEAD, HOLD_BATTLE_PASS); return;
     case LOOP_NOT_OURS: m_stop_at(s, STARTING_WITH_THE_ENEMIES, 0); return;
     default: return;
     }
@@ -1307,18 +1320,14 @@ void battle_give_turn(Snes *s)
         m_rts(s);
 }
 
+void battle_main_loop_after_setup(Snes *s) { go_on_on_the_machine(s, finish_battle_start(state_of(s))); }
+
 void battle_main_loop_start(Snes *s) { go_on_on_the_machine(s, start_battle(state_of(s), call_on_the_machine, s)); }
 
 void battle_main_loop(Snes *s)
 {
     if (next_frame(state_of(s), call_on_the_machine, s))
-        m_stop_at(s, PASS_BODY, DC_V);
-}
-
-void battle_clear_the_turn_work_entry(Snes *s)
-{
-    battle_clear_the_turn_work(state_of(s));
-    m_rtl(s);
+        m_hold_at(s, PASS_BODY, DC_V, HOLD_BATTLE_PASS);
 }
 
 void battle_main_loop_body(Snes *s) { go_on_on_the_machine(s, run_pass(state_of(s), call_on_the_machine, s)); }

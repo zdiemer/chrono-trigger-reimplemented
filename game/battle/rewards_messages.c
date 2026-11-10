@@ -24,7 +24,6 @@
 #include "battle/program.h"
 #include "charge.h"
 #include "battle/rewards_work.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* The battle's own messages that tell the rewards, by their number among
@@ -52,17 +51,6 @@ typedef struct {
 
 /* For the original's code and shadow mode: the place, in the cells the
  * original keeps it in (those of a part not reached yet keep what they had). */
-static void leave_the_place(GameState *g, const Telling *t)
-{
-    set_battle_rewards_double_techs_listed(g, t->double_techs_told);
-    if (!t->at_the_members)
-        return;
-    set_battle_rewards_member(g, t->member);
-    for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
-        set_battle_rewards_levels_gained(g, member, t->levels_left[member]);
-    if (t->at_the_single_techs)
-        set_battle_rewards_tech_at(g, t->single_tech);
-}
 
 /* Each message is shown and waited for until it has been read (a routine of
  * its own, battle/message.c), the item's with the item's place in the list,
@@ -72,13 +60,13 @@ typedef bool (*TellCalls)(void *ctx, RewardMessage message, unsigned item);
 
 static bool tell(GameState *g, RewardMessage message, const Telling *t, TellCalls call, void *ctx)
 {
-    ORIGINAL_EFFECT(leave_the_place(g, t));
+    charge_machine_accesses(g, 1 + (t->at_the_members ? 2 + BATTLE_PARTY_SIZE + (t->at_the_single_techs ? 1 : 0) : 0));
     return call(ctx, message, 0);
 }
 
 static bool tell_an_item(GameState *g, unsigned item, const Telling *t, TellCalls call, void *ctx)
 {
-    ORIGINAL_EFFECT(leave_the_place(g, t));
+    charge_machine_accesses(g, 1 + (t->at_the_members ? 2 + BATTLE_PARTY_SIZE + (t->at_the_single_techs ? 1 : 0) : 0));
     return call(ctx, TELL_ITEM, item);
 }
 
@@ -211,7 +199,7 @@ static bool tell_the_rewards(GameState *g, TellCalls call, void *ctx)
     for (t.member = 0; t.member < BATTLE_PARTY_SIZE; t.member++)
         if (!tell_a_members_rewards(g, &t, call, ctx))
             return false;
-    ORIGINAL_EFFECT(leave_the_place(g, &t));
+    charge_machine_accesses(g, 1 + (t.at_the_members ? 2 + BATTLE_PARTY_SIZE + (t.at_the_single_techs ? 1 : 0) : 0));
     return true;
 }
 
@@ -289,7 +277,7 @@ static bool tell_a_reward(void *ctx, RewardMessage message, unsigned item)
 bool battle_show_the_rewards(GameState *g, Platform *pf)
 {
     if (!rewards_fit(g))
-        return battle_needs_the_machine(g, 0xFDAD17, "a double techs' list with no end");
+        return battle_contract_broken(g, 0xFDAD17, "a double techs' list with no end");
     RewardsContext c = { g, pf };
     return tell_the_rewards(g, tell_a_reward, &c);
 }

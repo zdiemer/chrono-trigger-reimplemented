@@ -1,3 +1,4 @@
+#include "charge.h"
 /* A script changing the map (events $E4 now, and $E5 through the field's
  * main loop): a rectangle of the map's tiles copied over another place -- a
  * door that opens, a bridge that appears, a wall that falls.
@@ -19,7 +20,6 @@
 #include "field/field.h"
 #include "field/object.h"
 #include "field/parts.h"
-#include "field/menu_compat.h"
 #include "port/machine.h"
 #include "vars.h"
 
@@ -68,7 +68,7 @@ static void copy_table(GameState *g, TileRectangle r, MapTable table)
         for (unsigned column = 0; column < r.width; column++)
             set_table_byte(g, table, offset_by(r.to, row, column),
                            table_byte(g, table, offset_by(r.from, row, column)));
-    ORIGINAL_EFFECT(field_leaves_menu_wave_low(g, 0));
+    charge_machine_accesses(g, 1);
 }
 
 static void copy_property_bit(GameState *g, TileRectangle r, uint8_t bit)
@@ -81,8 +81,8 @@ static void copy_property_bit(GameState *g, TileRectangle r, uint8_t bit)
                                       (uint8_t)((there & ~bit) | (field_tile_properties(g, from.row, from.column) & bit)));
         }
     }
-    ORIGINAL_EFFECT(field_leaves_menu_wave_low(g, 0));
-    ORIGINAL_EFFECT(field_leaves_menu_wave_high(g, 0));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
 }
 
 // $C0:AF4E, and its table copy $C0:B096

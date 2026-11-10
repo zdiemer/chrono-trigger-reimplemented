@@ -24,6 +24,9 @@
  *     the yield's return and the tasks play on, the port running again from
  *     its next call, in the shipping mode and in shadow mode (compared, no
  *     mismatch).
+ *   The shipping cases also call the scheduler as C and park after the
+ *   switch. Both paths handle an interrupt pending before the switch records
+ *   its wait. Restarting a task happens while the other task owns the machine.
  * - the menus' own answer whether a task can go on from a wait
  *   (menu_task_goes_on_from, game/menu/tasks.c) over the tasks' records: a
  *   task waiting there, with its index registers kept either width, goes on;
@@ -52,6 +55,12 @@
 #include <string.h>
 
 #include "menu/menu.h"
+#include "core/input.h"
+#include "core/machine_forms.h"
+#include "menu/bridge.h"
+#include "menu/object.h"
+#include "menu/script_call.h"
+#include "overworld/entries.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
@@ -126,6 +135,8 @@ static const Code tasks_code[] = {
      * LDA $10,X : TCS : SEP #$20 : PLP : RTS */
     { 0x8200, { 0x08, 0xC2, 0x20, 0x3B, 0xA6, 0x14, 0x95, 0x10, 0x8A, 0x49, 0x02, 0x00, 0xAA, 0x86, 0x14, 0xB5, 0x10,
                 0x1B, 0xE2, 0x20, 0x28, 0x60 }, 22 },
+    /* An interrupt at the task switch records that it ran and returns. */
+    { 0x8500, { 0xE6, 0x40, 0x40 }, 3 },
     /* 8300 the routine the port stands for: INC $20 : JSR 8200 : INC $21 : RTS */
     { 0x8300, { 0xE6, 0x20, 0x20, 0x00, 0x82, 0xE6, 0x21, 0x60 }, 8 },
 };
@@ -145,6 +156,25 @@ static void set_task_waiting(Snes *s, uint16_t record, uint16_t top, uint16_t re
 
 static bool a_goes_on = true;
 static bool wait_not_recorded;
+static bool switch_in_c;
+static unsigned c_switches;
+static bool interrupt_at_yield;
+
+/* The same task records and stacks as the synthetic switch above. */
+static void switch_tasks(Snes *s)
+{
+    m_push8(s, s->cpu.p);
+    uint16_t task = m_read16(s, 0x14);
+    m_write16(s, A_RECORD + task, s->cpu.s);
+    task ^= 2;
+    m_write16(s, 0x14, task);
+    s->cpu.s = m_read16(s, A_RECORD + task);
+    uint8_t p = m_pull8(s);
+    m_rep(s, (uint8_t)~p);
+    m_sep(s, p);
+    m_rts(s);
+    c_switches++;
+}
 
 static bool task_a_goes_on(Snes *s, uint16_t s_after)
 {
@@ -157,7 +187,21 @@ static bool task_a_goes_on(Snes *s, uint16_t s_after)
 static void count_and_yield(Snes *s)
 {
     m_write8(s, COUNT_BEFORE, (uint8_t)(m_read8(s, COUNT_BEFORE) + 1));
-    native_yield_call_dc(s, YIELD_SITE, SWITCH, false, DC_A | DC_X | DC_Y | DC_FLAGS, task_a_goes_on);
+    if (interrupt_at_yield) {
+        s->cpu.nmi_pending = true;
+        interrupt_at_yield = false;
+    }
+    if (switch_in_c && m_runs_retired_as_c(s)) {
+        uint16_t stack = s->cpu.s;
+        m_push16(s, YIELD_SITE + 2);
+        m_jump_to(s, SWITCH);
+        native_sync_boundary(s);
+        switch_tasks(s);
+        native_park_after_task_switch(s, YIELD_SITE + 3, stack,
+                                     DC_A | DC_X | DC_Y | DC_FLAGS, task_a_goes_on);
+    } else {
+        native_yield_call_dc(s, YIELD_SITE, SWITCH, false, DC_A | DC_X | DC_Y | DC_FLAGS, task_a_goes_on);
+    }
     m_write8(s, COUNT_AFTER, (uint8_t)(m_read8(s, COUNT_AFTER) + 1));
     m_rts(s);
 }
@@ -171,7 +215,8 @@ typedef enum { RUN_THROUGH, DROP_THE_TASK, RESTART_THE_TASK, WAIT_NOT_RECORDED }
 
 static void tasks_case(const char *what, NativeMode mode, TaskCase how)
 {
-    uint8_t *rom = make_rom(tasks_code, sizeof tasks_code / sizeof tasks_code[0], 0x8000);
+    uint8_t *rom = make_rom(tasks_code, sizeof tasks_code / sizeof tasks_code[0], 0x8500);
+    bool wanted_interrupt = interrupt_at_yield;
     Snes *s = machine(rom);
     memset(s->bus.wram, 0, 0x600);
     a_goes_on = true;
@@ -182,30 +227,37 @@ static void tasks_case(const char *what, NativeMode mode, TaskCase how)
         entry.cost_milli = 5000000;   /* cross a frame paying the work before the switch starts */
     NativeRuntime *rt = native_create(&entry, 1, mode);
     native_attach(rt, s);
-    enum { FRAMES = 4, PARKED_MIDWAY = 2 };
-    bool parked_seen = false;
-    for (int i = 0; i < FRAMES; i++) {
+    enum { PARKED_MIDWAY = 2 };
+    int frames = switch_in_c && how == RESTART_THE_TASK ? 24 : 4;
+    bool parked_seen = false, restarted = false;
+    for (int i = 0; i < frames; i++) {
         snes_run_frame(s, 0);
         if (native_parked(rt))
             parked_seen = true;
         /* task A can't go on for a frame: the waits it makes then are dropped */
         if (how == DROP_THE_TASK)
             a_goes_on = i != PARKED_MIDWAY - 1;
-        if (i == PARKED_MIDWAY - 1 && how == RESTART_THE_TASK && native_parked(rt) == 1) {
+        bool restart_here = switch_in_c ? (s->cpu.s > A_TOP && cpu_pc24(&s->cpu) >= 0x8180 &&
+                                           cpu_pc24(&s->cpu) < 0x8187) : i == PARKED_MIDWAY - 1;
+        if (i < frames - 1 && restart_here && !restarted && how == RESTART_THE_TASK && native_parked(rt) == 1) {
             /* task A started afresh at its loop's head while its port waits */
             uint16_t s_a = (uint16_t)(s->bus.wram[A_RECORD] | s->bus.wram[A_RECORD + 1] << 8);
             CHECK(s_a < A_TOP && s_a > A_TOP - 0x10, "%s: task A isn't waiting on its stack (S %04X)", what, s_a);
             set_task_waiting(s, A_RECORD, A_TOP, 0x8100);
+            restarted = true;
         }
     }
     const uint8_t *w = s->bus.wram;
     const NativeStats *st = native_stats_named(rt, "count_and_yield");
+    if (wanted_interrupt)
+        CHECK(w[0x40] == 1, "%s: the pending interrupt ran %u times", what, w[0x40]);
     CHECK(!s->cpu.stopped, "%s: ran into the ROM's fill at $%02X:%04X", what, s->cpu.pb, s->cpu.pc);
     CHECK(w[B_TURNS] > (how == WAIT_NOT_RECORDED ? 0 : 10), "%s: task B took %u turns", what, w[B_TURNS]);
-    CHECK(w[COUNT_BEFORE] == w[COUNT_AFTER] || w[COUNT_BEFORE] == (uint8_t)(w[COUNT_AFTER] + 1),
+    CHECK((uint8_t)(w[COUNT_BEFORE] - w[COUNT_AFTER]) <= (restarted ? 2 : 1),
           "%s: counted %u before the yield and %u after", what, w[COUNT_BEFORE], w[COUNT_AFTER]);
     CHECK(parked_seen, "%s: the port was never parked at a frame's end", what);
-    CHECK(native_suspended(rt) == native_parked(rt), "%s: %d suspended, %d of them parked", what,
+    CHECK(native_suspended(rt) >= native_parked(rt) &&
+          native_suspended(rt) <= native_parked(rt) + (switch_in_c ? 1 : 0), "%s: %d suspended, %d of them parked", what,
           native_suspended(rt), native_parked(rt));
     if (how == RUN_THROUGH || how == WAIT_NOT_RECORDED)
         CHECK(st->abandoned == 0, "%s: %u calls abandoned", what, st->abandoned);
@@ -213,6 +265,7 @@ static void tasks_case(const char *what, NativeMode mode, TaskCase how)
         CHECK(st->abandoned >= 1 && st->abandoned < st->calls, "%s: %u of %u calls abandoned", what, st->abandoned,
               st->calls);
     if (how == RESTART_THE_TASK) {
+        CHECK(restarted, "%s: no parked task was available to restart", what);
         CHECK(st->abandoned == 1, "%s: %u calls abandoned, not the one its fresh start replaced", what, st->abandoned);
         CHECK(native_parked(rt) <= 1, "%s: %d parked", what, native_parked(rt));
     }
@@ -377,6 +430,54 @@ static void wait_suspended(Snes *s)
     leave_waited(s);
 }
 
+/* Two direct calls of the same frame wait, with visible work between them.
+ * Waking the first must not compare the second at that same boundary. */
+static bool repeated_wait_wrong;
+
+static void wait_twice(Snes *s)
+{
+    m_push16(s, 0x8402);
+    wait_suspended(s);
+    uint8_t count = (uint8_t)(m_read8(s, 0x51) + 1);
+    m_write8(s, 0x51, count);
+    m_set_nz8(s, count);
+    s->cpu.x = 0;
+    m_push16(s, 0x840D);
+    wait_suspended(s);
+    if (repeated_wait_wrong)
+        m_write8(s, 0x52, 1);
+    m_rts(s);
+}
+
+static void repeated_wait_case(void)
+{
+    uint8_t *rom = make_rom(wait_code, sizeof wait_code / sizeof wait_code[0], 0x8600);
+    /* The original's work spans an interrupt before reaching its next wait. */
+    const uint8_t twice[] = { 0x20, 0x00, 0x83, 0xE6, 0x51, 0xA2, 0xFF, 0xFF,
+                              0xCA, 0xD0, 0xFD, 0x20, 0x00, 0x83, 0x60 };
+    memcpy(rom + 0x8400, twice, sizeof twice);
+    rom[0x8104] = 0x84;
+    NativeEntry entry = { .addr = 0x008400, .name = "wait_twice", .fn = wait_twice,
+                          .p_mask = 0x30, .p_value = P_M8_X16 };
+    for (unsigned variant = 0; variant < 2; variant++) {
+        repeated_wait_wrong = variant != 0;
+        Snes *s = machine(rom);
+        NativeRuntime *rt = native_create(&entry, 1, NATIVE_SHADOW);
+        native_attach(rt, s);
+        for (unsigned frame = 0; frame < 32; frame++)
+            snes_run_frame(s, 0);
+        const NativeStats *stats = native_stats_named(rt, "wait_twice");
+        CHECK(stats && stats->calls >= 2, "repeated wait variant %u was not exercised: %u calls",
+              variant, stats ? stats->calls : 0);
+        CHECK(stats && (!repeated_wait_wrong ? stats->mismatched == 0 && stats->matched + stats->interrupted >= 2
+                                                     : stats->mismatched > 0),
+              "repeated wait variant %u: wrong comparison result", variant);
+        native_destroy(rt);
+        free(s);
+    }
+    free(rom);
+}
+
 static NativeRuntime *wait_runtime(NativeMode mode, bool held)
 {
     static NativeEntry table[2];
@@ -486,7 +587,18 @@ static const Code hold_code[] = {
 static void hold_start(Snes *s)
 {
     m_write8(s, FRAME_FLAG, 0);
-    m_hold_at(s, MAIN_LOOP_HEAD, DC_A | DC_FLAGS, HOLD_TEST_LOOP);
+    m_stop_at(s, MAIN_LOOP_HEAD, DC_A | DC_FLAGS);
+    native_hold_return(s, HOLD_TEST_LOOP);
+}
+
+static void hold_first_start(Snes *s)
+{
+    native_hold_return(s, HOLD_TEST_LOOP);
+    CHECK(s->held_wait == 0, "an unrelated return address named a held continuation");
+    m_stop_at(s, MAIN_LOOP_HEAD, DC_A | DC_FLAGS);
+    native_hold_return(s, HOLD_TEST_LOOP + 1);
+    CHECK(s->held_wait == 0, "a return named a continuation of another wait");
+    hold_start(s);
 }
 
 /* One look of the loop: the frame's work where the handler has asked for it.
@@ -507,7 +619,7 @@ static NativeRuntime *hold_runtime(NativeMode mode)
     /* The live loop sorts after twenty unused holds, beyond the former
      * fixed limit of sixteen continuations. */
     static NativeEntry table[22];
-    table[0] = (NativeEntry){ .addr = 0x008100, .name = "hold_start", .fn = hold_start, .p_mask = 0x30,
+    table[0] = (NativeEntry){ .addr = 0x008100, .name = "hold_start", .fn = hold_first_start, .p_mask = 0x30,
                               .p_value = P_M8_X16, .cost_milli = 1000 };
     table[1] = (NativeEntry){ .addr = MAIN_LOOP_HEAD, .name = "hold_look", .fn = hold_look, .p_mask = 0x20,
                               .p_value = 0x20, .idle = true, .hold = HOLD_TEST_LOOP };
@@ -730,6 +842,87 @@ static void returning_hold_case(void)
     free(rom);
 }
 
+/* A callee waits on a higher, separate stack, then restores its caller's
+ * stack. The hold must not mistake that switch for an unwound call. */
+static bool other_stack_starts_afresh;
+
+static void other_stack_wait(Snes *s)
+{
+    m_write16(s, A_RECORD, s->cpu.s);
+    s->cpu.s = A_TOP + 2 * NATIVE_STACK_SWITCH_DISTANCE;
+    m_write8(s, FRAME_FLAG, 0);
+    m_hold_at(s, MAIN_LOOP_HEAD, DC_A | DC_FLAGS, HOLD_TEST_LOOP);
+}
+
+static void other_stack_look(Snes *s)
+{
+    if (m_read8(s, FRAME_FLAG)) {
+        if (other_stack_starts_afresh) {
+            s->cpu.s = A_TOP + 2;
+            m_jump_to(s, 0x008180);
+        } else {
+            s->cpu.s = m_read16(s, A_RECORD);
+            m_rts(s);
+        }
+    }
+}
+
+static void other_stack_fresh_loop(Snes *s) { (void)s; }
+
+static void other_stack_caller(Snes *s)
+{
+    native_call(s, 0x008200, 0x008300, false);
+    m_write8(s, COUNT_AFTER, (uint8_t)(m_read8(s, COUNT_AFTER) + 1));
+    m_stop_at(s, 0x008200, DC_A | DC_FLAGS);
+}
+
+static void other_stack_hold_case(void)
+{
+    static const Code code[] = {
+        { 0x8000, { 0x78, 0x18, 0xFB, 0xC2, 0x10, 0xE2, 0x20, 0xA2, 0xFF, 0x03, 0x9A,
+                    0xA9, 0x80, 0x8D, 0x00, 0x42, 0x4C, 0x00, 0x82 }, 19 },
+        { 0x8600, { 0xE6, 0x60, 0x40 }, 3 },
+    };
+    const NativeEntry table[] = {
+        { .addr = 0x008200, .name = "caller", .fn = other_stack_caller, .cost_milli = 1000 },
+        { .addr = 0x008300, .name = "other_stack", .fn = other_stack_wait, .cost_milli = 1000 },
+        { .addr = MAIN_LOOP_HEAD, .name = "other_stack_wait", .fn = other_stack_look,
+          .idle = true, .hold = HOLD_TEST_LOOP },
+        { .addr = 0x008180, .name = "fresh_loop", .fn = other_stack_fresh_loop,
+          .idle = true, .hold = HOLD_TEST_LOOP },
+    };
+    uint8_t *rom = make_rom(code, sizeof code / sizeof code[0], 0x8600);
+    Snes *s = machine(rom);
+    NativeRuntime *rt = native_create(table, 4, NATIVE_ON);
+    native_attach(rt, s);
+    s->bus.wram[COUNT_AFTER] = 0;
+    int waiting = suspended_frame_ends(s, rt, 10);
+    CHECK(waiting >= 8 && s->bus.wram[COUNT_AFTER] >= 8 &&
+              native_stats_named(rt, "caller")->abandoned == 0,
+          "other stack hold: suspended %d frames, returned %u, abandoned %u", waiting,
+          s->bus.wram[COUNT_AFTER], native_stats_named(rt, "caller")->abandoned);
+    native_destroy(rt);
+    free(s);
+
+    /* Starting afresh near the caller's old stack really does discard its
+     * return. A previous excursion onto another stack must not keep the
+     * abandoned C caller suspended forever. */
+    other_stack_starts_afresh = true;
+    s = machine(rom);
+    rt = native_create(table, 4, NATIVE_ON);
+    native_attach(rt, s);
+    s->bus.wram[COUNT_AFTER] = 0;
+    waiting = suspended_frame_ends(s, rt, 10);
+    CHECK(waiting <= 1 && s->bus.wram[COUNT_AFTER] == 0 &&
+              native_stats_named(rt, "caller")->abandoned == 1,
+          "fresh stack hold: suspended %d frames, returned %u, abandoned %u", waiting,
+          s->bus.wram[COUNT_AFTER], native_stats_named(rt, "caller")->abandoned);
+    native_destroy(rt);
+    free(s);
+    other_stack_starts_afresh = false;
+    free(rom);
+}
+
 /* The boot's two beam waits must leave one blank before entering the next
  * line. The title's music wait must remain suspended until the audio side
  * supplies a playing-track mask, even when no interrupt is enabled. */
@@ -840,8 +1033,154 @@ static void scene_wait_case(void)
     free(rom);
 }
 
+
+/* Every direct menu call checks the callee after constructing its call frame.
+ * Include a guard that observes the entry PC and frame, as code-image and
+ * stack guards do, as well as the decimal and width bits. */
+static unsigned menu_contract_calls;
+static bool menu_contract_image;
+
+static bool menu_contract_guard(Snes *s)
+{
+    return menu_contract_image && s->cpu.d == 0x1234 && s->cpu.db == 0x7E &&
+           cpu_pc24(&s->cpu) == SWITCH && m_read16(s, s->cpu.s + 1) == YIELD_SITE + 2;
+}
+
+static void menu_contract_callee(Snes *s)
+{
+    menu_contract_calls++;
+    m_rts(s);
+}
+
+static void menu_contract_case(void)
+{
+    const NativeEntry callee = { .addr = SWITCH, .name = "menu_contract_probe", .fn = menu_contract_callee,
+                                .p_mask = CPU_FLAG_D | CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M,
+                                .guard = menu_contract_guard };
+    uint8_t *rom = make_rom(tasks_code, sizeof tasks_code / sizeof tasks_code[0], 0x8000);
+    native_direct_contracts(&callee, 1);
+    for (unsigned form = 0; form < 4; form++) {
+        for (unsigned invalid = 0; invalid < 8; invalid++) {
+            Snes *s = machine(rom);
+            s->cpu.e = invalid == 1;
+            s->cpu.p = CPU_FLAG_M;
+            if (invalid == 2) s->cpu.p |= CPU_FLAG_D;
+            if (invalid == 3) s->cpu.p &= (uint8_t)~CPU_FLAG_M;
+            if (invalid == 4) s->cpu.p |= CPU_FLAG_X;
+            s->cpu.d = invalid == 5 ? 0 : 0x1234;
+            s->cpu.db = invalid == 6 ? 0 : 0x7E;
+            s->cpu.s = A_TOP;
+            menu_contract_image = invalid != 7;
+            menu_contract_calls = 0;
+            bool back;
+            if (form == 0)
+                back = menu_run(s, YIELD_SITE, SWITCH, menu_contract_callee);
+            else if (form == 1)
+                back = menu_run_checked(s, YIELD_SITE, SWITCH, DC_A, menu_contract_callee);
+            else if (form == 2)
+                back = menu_run_or_call(s, YIELD_SITE, SWITCH, DC_A, menu_contract_callee);
+            else {
+                back = menu_begin_inline_call(s, YIELD_SITE, SWITCH, menu_contract_callee);
+                if (back) {
+                    menu_contract_calls++;
+                    menu_end_inline_call(s, YIELD_SITE);
+                }
+            }
+            CHECK(back == (invalid == 0) && menu_contract_calls == (invalid == 0),
+                  "menu call form %u, invalid %u: returned %d, called %u", form, invalid, back, menu_contract_calls);
+            CHECK(cpu_pc24(&s->cpu) == (invalid ? SWITCH : YIELD_SITE + 3) &&
+                  s->cpu.s == (invalid ? A_TOP - 2 : A_TOP),
+                  "menu call form %u, invalid %u: lost the checked call frame", form, invalid);
+            free(s);
+        }
+    }
+    native_direct_contracts(NULL, 0);
+    free(rom);
+}
+
+/* A retired overworld service has no registry row. The menu bridge must
+ * still accept its checked machine form and return through the call frame. */
+static bool cleared_world_label;
+
+static void menu_world_probe(Snes *s)
+{
+    CHECK(core_machine_form_takes(s, input_update), "retired input work has no checked form");
+    GameState *g = state_of(s);
+    set_overworld_sign_label(g, 0, 0xA5);
+    void (*entry)(Snes *) = overworld_machine_form(s, 0xC25798);
+    CHECK(entry != NULL, "retired world service has no checked form");
+    if (entry) {
+        bool back = menu_run(s, 0xC28302, 0xC25798, entry);
+        cleared_world_label = back && overworld_sign_label(g, 0) == 0;
+    }
+    m_jump_to(s, 0x008300);
+    m_rts(s);
+}
+
+static void menu_world_case(void)
+{
+    static const Code code[] = {
+        { 0x8000, { 0x78, 0x18, 0xFB, 0xC2, 0x10, 0xE2, 0x20, 0xA2, 0xFF, 0x01, 0x9A,
+                    0x20, 0x00, 0x83, 0xDB }, 15 },
+        { 0x8300, { 0x60 }, 1 },
+    };
+    const NativeEntry entry = { .addr = 0x008300, .name = "menu_world_probe", .fn = menu_world_probe,
+                                .p_mask = CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M,
+                                .cost_milli = 1000 };
+    uint8_t *rom = make_rom(code, sizeof code / sizeof code[0], 0x8600);
+    Snes *s = machine(rom);
+    NativeRuntime *rt = native_create(&entry, 1, NATIVE_ON);
+    native_attach(rt, s);
+    cleared_world_label = false;
+    snes_run_frame(s, 0);
+    CHECK(cleared_world_label && !native_failed(rt) && !native_suspended(rt),
+          "menu bridge refused a retired world service or lost its return");
+    native_destroy(rt);
+    free(s);
+    free(rom);
+}
+
+/* A world-map walker calls the interpreter directly. Its real contract
+ * accepts either accumulator width and rejects bad machine and object state
+ * before the first command can run, preserving the refused call frame. */
+static void menu_script_contract_case(void)
+{
+    uint8_t *rom = make_rom(tasks_code, sizeof tasks_code / sizeof tasks_code[0], 0x8000);
+    for (unsigned invalid = 0; invalid < 10; invalid++) {
+        Snes *s = machine(rom);
+        GameState *g = state_of(s);
+        s->cpu.e = invalid == 2;
+        s->cpu.p = invalid == 1 ? 0 : CPU_FLAG_M;
+        if (invalid == 3) s->cpu.p |= CPU_FLAG_D;
+        if (invalid == 4) s->cpu.p |= CPU_FLAG_X;
+        s->cpu.d = invalid == 5 ? 0x100 : 0;
+        s->cpu.db = invalid == 6 ? 0x40 : 0x7E;
+        s->cpu.s = A_TOP;
+        menu_object_make_running(g, 0);
+        set_menu_object_slots_script(g, 0, invalid == 8 ? 0x400000 : 0x7F1000);
+        set_menu_sprite_draw_list_first(g, 0xB500);
+        set_menu_sprite_free_list_first(g, invalid == 9 ? 0 : 0xB000);
+        set_menu_sprite_nodes_prev(g, 0, 0xB504);
+        set_menu_sprite_nodes_next(g, 0, 0xB504);
+        m_write8(s, 0x7F1000, 0x52); /* the script ends this object */
+        if (invalid == 7) set_menu_object_current(g, 1);
+        ScriptEnd end = menu_run_object_script_from(s, 0xC2378B);
+        bool accepted = invalid < 2;
+        CHECK(end == (accepted ? SCRIPT_DONE : SCRIPT_GAVE_BACK),
+              "world script contract case %u returned %u", invalid, (unsigned)end);
+        CHECK(cpu_pc24(&s->cpu) == (accepted ? 0xC2378E : 0xC20F63) &&
+              s->cpu.s == (accepted ? A_TOP : A_TOP - 2),
+              "world script contract case %u lost its return frame", invalid);
+        free(s);
+    }
+    free(rom);
+}
+
 int main(void)
 {
+    menu_contract_case();
+    menu_script_contract_case();
+    menu_world_case();
     tasks_case("a yield, shipping mode", NATIVE_ON, RUN_THROUGH);
     tasks_case("a yield, shadow mode", NATIVE_SHADOW, RUN_THROUGH);
     tasks_case("a task dropped, shipping mode", NATIVE_ON, DROP_THE_TASK);
@@ -850,10 +1189,25 @@ int main(void)
     tasks_case("the switch has yet to record the wait", NATIVE_ON, WAIT_NOT_RECORDED);
     parked_save_case("saved parked, loaded in the shipping mode", NATIVE_ON);
     parked_save_case("saved parked, loaded in shadow mode", NATIVE_SHADOW);
+    interrupt_at_yield = true;
+    tasks_case("interrupt pending at the yield entry", NATIVE_ON, WAIT_NOT_RECORDED);
+    switch_in_c = true;
+    interrupt_at_yield = true;
+    tasks_case("interrupt pending at a C task switch", NATIVE_ON, WAIT_NOT_RECORDED);
+    tasks_case("a C task switch", NATIVE_ON, RUN_THROUGH);
+    tasks_case("a C task switch, task dropped", NATIVE_ON, DROP_THE_TASK);
+    tasks_case("a C task switch, task restarted", NATIVE_ON, RESTART_THE_TASK);
+    tasks_case("a C task switch, wait not yet recorded", NATIVE_ON, WAIT_NOT_RECORDED);
+    parked_save_case("saved after a C task switch, loaded in shipping mode", NATIVE_ON);
+    parked_save_case("saved after a C task switch, loaded in shadow mode", NATIVE_SHADOW);
+    CHECK(c_switches > 0, "the C task switch never ran");
+    switch_in_c = false;
     menu_answer_case();
     held_wait_case();
+    repeated_wait_case();
     named_hold_case();
     returning_hold_case();
+    other_stack_hold_case();
     empty_boundary_case();
     scene_wait_case();
     if (failures)

@@ -16,7 +16,6 @@
  * them (the windows' list, then the three slots' rows). */
 void menu_draw_the_slots(GameState *g, Platform *pf);
 void menu_draw_slot_rows(GameState *g);
-void menu_draw_slot_rows_entry(Snes *s);
 /* A slot's window drawn afresh in the design its game was saved with
  * ($C2:D32C), as the save screen does once it has saved in the slot. */
 void menu_redraw_slot_window(GameState *g, uint8_t slot);
@@ -160,8 +159,6 @@ void menu_answer_erase_entry(Snes *s);
 void menu_draw_load_screen(Snes *s);
 void menu_ask_which_to_carry_on_from(Snes *s);
 void menu_erase_slot_entry(Snes *s);
-void menu_draw_slot_window(Snes *s);
-
 bool menu_load_screen_runs(Snes *s);
 bool menu_erase_is_answerable(Snes *s);
 bool menu_load_screen_draws(Snes *s);

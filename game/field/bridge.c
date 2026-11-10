@@ -1,3 +1,4 @@
+#include "battle/machine_forms.h"
 /* The guards the field's entries run under, and what the entry wrappers and
  * bridges share (field/bridge.h). */
 #include "charge.h"
@@ -6,6 +7,7 @@
 #include "field/machine_forms.h"
 #include "scene/scene.h"
 #include "field/bridge.h"
+#include "menu/machine_forms.h"
 #include "field/field_data.h"
 #include "field/main_loop.h"
 #include "holds.h"
@@ -45,7 +47,7 @@ void field_hands_over_to(Snes *s, uint32_t routine, uint16_t dont_care, void (*e
 {
     m_jump_to(s, routine);
     const NativeEntry *e = native_hand_entry_at(s, routine);
-    if ((!e || e->fn != entry) && !event_machine_form_takes(s, entry) && !field_machine_form_takes(s, entry) && !scene_machine_form_takes(s, entry)) {
+    if ((!e || e->fn != entry) && !menu_machine_form_takes(s, routine, entry) && !event_machine_form_takes(s, entry) && !field_machine_form_takes(s, entry) && !scene_machine_form_takes(s, entry) && !battle_machine_form_takes(s, routine, entry)) {
         m_stop_at_own(s, routine, dont_care);
         return;
     }
@@ -89,7 +91,7 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
      * runs whatever the registry has for the state it meets */
     const NativeEntry *e = native_hand_entry(s);
     if ((!e || e->fn != entry) && !core_machine_form_takes(s, entry)
-        && !event_machine_form_takes(s, entry) && !field_machine_form_takes(s, entry) && !scene_machine_form_takes(s, entry)) {
+        && !menu_machine_form_takes(s, routine, entry) && !event_machine_form_takes(s, entry) && !field_machine_form_takes(s, entry) && !scene_machine_form_takes(s, entry) && !battle_machine_form_takes(s, routine, entry)) {
         if (hand_over) {
             /* the call made, its return address pushed: the original goes on
              * from the sibling's entry */
@@ -134,6 +136,7 @@ bool field_run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
 {
     return run_entry(s, site, routine, dont_care, entry, m, false, true, true);
 }
+
 
 bool field_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
                     BridgeMachine m)

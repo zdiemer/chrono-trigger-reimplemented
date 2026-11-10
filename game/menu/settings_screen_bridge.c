@@ -1,4 +1,4 @@
-/* The settings screen on the original's machine: its registered entries, the
+/* The settings screen on the original's machine: its checked legacy adapters, the
  * bridges that run what game/menu/settings_screen.c decides between the
  * calls that are still the original's, and their guards.
  *
@@ -29,7 +29,6 @@
 #include "menu/menu_data.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "original_effects.h"
 #include "platform/audio.h"
 #include "port/machine.h"
 #include "port/native.h"
@@ -60,30 +59,10 @@ static void read_cursor(Snes *s)
     MenuCursorRead r = menu_note_cursor_read(g);
     (void)r;
     TIMED_AS(g, 0xC2E984, menu_read_cursor(g));
-    ORIGINAL_EFFECT(menu_leave_cursor_read(s, r));
+    menu_charge_cursor_read(s, r);
 }
 
-static void leave_a_low(Snes *s, uint8_t v);
-static void leave_flags(Snes *s, uint8_t loaded, bool overflow, bool carry);
-static void leave_queued(Snes *s);
-static void leave_buttons_tested(Snes *s);
-static void leave_editing_tested(Snes *s);
-static void leave_packed(Snes *s);
-static void leave_option_doubled(Snes *s, SettingsOption option);
-static void leave_buttons_loaded(Snes *s);
-static void leave_cursor_compared(Snes *s);
-static void leave_cursor_compared_with_the_start(Snes *s);
-static void leave_meter_shown(Snes *s);
-static void leave_design_loaded(Snes *s);
-static void leave_design_toggled(Snes *s, bool was_choosing);
-static void leave_gauge_taken(Snes *s);
-static void leave_gauge_left(Snes *s);
-static void leave_rows_kept(Snes *s);
-static void leave_rows_left_unkept(Snes *s);
-static void leave_start_tested(Snes *s);
-static void leave_up_or_down_tested(Snes *s);
-static void leave_row_changed(Snes *s, uint8_t paging_before);
-
+static void charge_row_changed(Snes *s, uint8_t paging_before);
 
 /* ---- The opening and the options: what the sequences ask, on the machine ----------------------- */
 
@@ -159,38 +138,38 @@ static void note_on_the_machine(void *ctx, SettingsNote note, uint8_t value)
 {
     Snes *s = ctx;
     switch (note) {
-    case SETTINGS_NOTE_EDITING_TESTED: ORIGINAL_EFFECT(leave_editing_tested(s)); break;
-    case SETTINGS_NOTE_PACKED: ORIGINAL_EFFECT(leave_packed(s)); break;
-    case SETTINGS_NOTE_BUTTONS_TESTED: ORIGINAL_EFFECT(leave_buttons_tested(s)); break;
-    case SETTINGS_NOTE_CURSOR_COMPARED: ORIGINAL_EFFECT(leave_cursor_compared(s)); break;
+    case SETTINGS_NOTE_EDITING_TESTED: charge_machine_accesses(state_of(s), 3); break;
+    case SETTINGS_NOTE_PACKED: charge_machine_accesses(state_of(s), 1); break;
+    case SETTINGS_NOTE_BUTTONS_TESTED: charge_machine_accesses(state_of(s), 1); break;
+    case SETTINGS_NOTE_CURSOR_COMPARED: charge_machine_accesses(state_of(s), 3); break;
     case SETTINGS_NOTE_OPTION_PICKED:
-        ORIGINAL_EFFECT(leave_option_doubled(s, (SettingsOption)value));
+        (void)0;
         menu_save_p(s);
         break;
     case SETTINGS_NOTE_HANDLED: menu_restore_p(s); break;
     case SETTINGS_NOTE_SHOWN:
-        ORIGINAL_EFFECT(leave_queued(s));
-        ORIGINAL_EFFECT(leave_buttons_loaded(s));
+        (void)0;
+        charge_machine_accesses(state_of(s), 1);
         break;
     case SETTINGS_NOTE_METER_UNMOVED:
-        ORIGINAL_EFFECT(s->cpu.a = 0);
-        ORIGINAL_EFFECT(leave_flags(s, 0, m_flag(s, CPU_FLAG_V), m_flag(s, CPU_FLAG_C)));
+        (void)0;
+        (void)0;
         break;
-    case SETTINGS_NOTE_METER_SHOWN: ORIGINAL_EFFECT(leave_meter_shown(s)); break;
-    case SETTINGS_NOTE_DESIGN_LOADED: ORIGINAL_EFFECT(leave_design_loaded(s)); break;
-    case SETTINGS_NOTE_DESIGN_TOGGLED: ORIGINAL_EFFECT(leave_design_toggled(s, value != 0)); break;
-    case SETTINGS_NOTE_GAUGE_LEFT: ORIGINAL_EFFECT(leave_gauge_left(s)); break;
-    case SETTINGS_NOTE_GAUGE_POINTED: ORIGINAL_EFFECT(leave_cursor_compared_with_the_start(s)); break;
+    case SETTINGS_NOTE_METER_SHOWN: charge_machine_accesses(state_of(s), 2); break;
+    case SETTINGS_NOTE_DESIGN_LOADED: (void)0; break;
+    case SETTINGS_NOTE_DESIGN_TOGGLED: charge_machine_accesses(state_of(s), 1); break;
+    case SETTINGS_NOTE_GAUGE_LEFT: (void)0; break;
+    case SETTINGS_NOTE_GAUGE_POINTED: charge_machine_accesses(state_of(s), 3); break;
     case SETTINGS_NOTE_GAUGE_TAKEN:
-        ORIGINAL_EFFECT(leave_queued(s));
-        ORIGINAL_EFFECT(leave_gauge_taken(s));
+        (void)0;
+        (void)0;
         break;
-    case SETTINGS_NOTE_ROWS_KEPT: ORIGINAL_EFFECT(leave_rows_kept(s)); break;
-    case SETTINGS_NOTE_ROWS_LEFT_UNKEPT: ORIGINAL_EFFECT(leave_rows_left_unkept(s)); break;
-    case SETTINGS_NOTE_QUEUED: ORIGINAL_EFFECT(leave_queued(s)); break;
-    case SETTINGS_NOTE_START_TESTED: ORIGINAL_EFFECT(leave_start_tested(s)); break;
-    case SETTINGS_NOTE_UP_OR_DOWN_TESTED: ORIGINAL_EFFECT(leave_up_or_down_tested(s)); break;
-    case SETTINGS_NOTE_ROW_CHANGED: ORIGINAL_EFFECT(leave_row_changed(s, value)); break;
+    case SETTINGS_NOTE_ROWS_KEPT: (void)0; break;
+    case SETTINGS_NOTE_ROWS_LEFT_UNKEPT: charge_machine_accesses(state_of(s), 1); break;
+    case SETTINGS_NOTE_QUEUED: (void)0; break;
+    case SETTINGS_NOTE_START_TESTED: charge_machine_accesses(state_of(s), 2); break;
+    case SETTINGS_NOTE_UP_OR_DOWN_TESTED: charge_machine_accesses(state_of(s), 1); break;
+    case SETTINGS_NOTE_ROW_CHANGED: charge_row_changed(s, value); break;
     }
 }
 
@@ -270,7 +249,7 @@ void menu_settings_send_sound_output(GameState *g, Platform *pf)
 static bool send_on_the_machine(void *ctx)
 {
     Snes *s = ctx;
-    MenuMachine m = menu_machine_now(s);
+    MenuMachine m = menu_machine(s);
     menu_settings_send_sound_output(state_of(s), m_platform(s));
     return menu_back(s, 0xC2C037, m);
 }
@@ -396,184 +375,16 @@ void menu_show_settings_panel(Snes *s)
     m_rts(s);
 }
 
-// $C2:C397
-void menu_put_settings_panel_away(Snes *s)
+static void charge_row_changed(Snes *s, uint8_t paging_before)
 {
-    menu_save_p(s);
-    menu_set_widths(s, true, m_x8(s));
-    menu_settings_panel_put_away(state_of(s));
-    menu_restore_p(s);
-    m_rts(s);
-}
-
-/* ---- What the original's instructions leave (scaffolding) --------------------------------------- */
-
-static void leave_a_low(Snes *s, uint8_t v) { s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | v); }
-
-/* N and Z of a value loaded, with V and C as given. */
-static void leave_flags(Snes *s, uint8_t loaded, bool overflow, bool carry)
-{
-    menu_leave_load(s, loaded);
-    m_set_flag(s, CPU_FLAG_V, overflow);
-    m_set_flag(s, CPU_FLAG_C, carry);
-}
-
-static void leave_queued(Snes *s) { menu_leave_queued_upload(s, MENU_UPLOAD_FRONT_LAYER); }
-
-/* The buttons tested for going back, which they don't ask for, with the
- * accumulator left by the pad's test before it ($C2:BF4D, $C2:BF84). */
-static void leave_buttons_tested(Snes *s) { menu_leave_bit_test(s, (uint8_t)s->cpu.a, menu_cursor_buttons(state_of(s))); }
-
-/* Going back: whether a speed or the design is being set, the boxes' two
- * cells together ($C2:BF5F); the test for going back left V. */
-static void leave_editing_tested(Snes *s)
-{
-    const GameState *g = state_of(s);
-    menu_leave_bit_test(s, (uint8_t)s->cpu.a, menu_cursor_buttons(g));
-    uint8_t either = (uint8_t)(menu_settings_boxes(g, SETTINGS_SETTING_SPEEDS) | menu_settings_boxes(g, SETTINGS_CHOOSING_DESIGN));
-    leave_a_low(s, either);
-    menu_leave_load(s, either);
-}
-
-/* The packing leaves the third byte's gauge in A. */
-static void leave_packed(Snes *s) { leave_a_low(s, game_settings(state_of(s), 2)); }
-
-/* The option's handler is reached with the option doubled in A and X, its
- * flags those of the doubling. */
-static void leave_option_doubled(Snes *s, SettingsOption option)
-{
-    uint8_t doubled = (uint8_t)(option << 1);
-    s->cpu.a = doubled;
-    s->cpu.x = doubled;
-    leave_flags(s, doubled, m_flag(s, CPU_FLAG_V), (option & 0x80) != 0);
-}
-
-/* The test of whether the player chose, after the layer's queueing. */
-static void leave_buttons_loaded(Snes *s)
-{
-    uint8_t buttons = menu_cursor_buttons(state_of(s));
-    leave_a_low(s, buttons);
-    menu_leave_load(s, buttons);
-}
-
-/* Whether the cursor moved: where it was compared with where it is. */
-static void leave_cursor_compared(Snes *s)
-{
-    const GameState *g = state_of(s);
-    leave_a_low(s, menu_cursor_frame_start(g));
-    menu_leave_compare(s, menu_cursor_frame_start(g), menu_cursor_index(g));
-}
-
-/* The same compared the other way round. */
-static void leave_cursor_compared_with_the_start(Snes *s)
-{
-    const GameState *g = state_of(s);
-    leave_a_low(s, menu_cursor_index(g));
-    menu_leave_compare(s, menu_cursor_index(g), menu_cursor_frame_start(g));
-}
-
-/* The meters' drawing leaves the last colouring's swapped count in A and
- * the flags of its load of the design's cell with the one after it. */
-static void leave_meter_shown(Snes *s)
-{
-    const GameState *g = state_of(s);
-    s->cpu.a = 0x0100;
-    uint16_t cells = (uint16_t)(menu_window_design(g) | menu_setting_keep_battle_command(g) << 8);
-    m_set_flag(s, CPU_FLAG_N, (cells & 0x8000) != 0);
-    m_set_flag(s, CPU_FLAG_Z, cells == 0);
-}
-
-/* The design's colours leave their block move's count run out in A, and
- * the flags of the style's load. */
-static void leave_design_loaded(Snes *s)
-{
-    s->cpu.a = 0xFFFF;
-    menu_leave_load(s, 0x10);
-}
-
-/* The choosing flipped, its box's new value in A over what the design's
- * loading or the option's doubling left. */
-static void leave_design_toggled(Snes *s, bool was_choosing)
-{
-    uint8_t choosing = menu_settings_boxes(state_of(s), 6);
-    s->cpu.a = (uint16_t)((was_choosing ? 0xFF00 : 0) | choosing);
-    menu_leave_load(s, choosing);
-}
-
-/* The layout taken from the cursor (less the first layout's place, which
- * can't borrow), then the layer's record loaded for its queueing, whose
- * place is past the bank's middle. */
-static void leave_gauge_taken(Snes *s)
-{
-    leave_flags(s, 0x80, false, true);
-}
-
-/* Back to the options: the options' step in A. */
-static void leave_gauge_left(Snes *s)
-{
-    leave_a_low(s, SETTINGS_ON_THE_OPTIONS);
-    menu_leave_load(s, SETTINGS_ON_THE_OPTIONS);
-}
-
-/* A push left: the rows kept with a block move, the push's test's flags. */
-static void leave_rows_kept(Snes *s)
-{
-    s->cpu.a = 0xFFFF;
-    menu_leave_load(s, MENU_PUSHED_LEFT);
-}
-
-/* Going back: the test for a push left found none, the buttons' test for
- * going back found it. */
-static void leave_rows_left_unkept(Snes *s)
-{
-    leave_a_low(s, 0);
-    menu_leave_bit_test(s, 0, menu_cursor_buttons(state_of(s)));
-}
-
-/* Start found pressed. */
-static void leave_start_tested(Snes *s)
-{
-    uint8_t pressed = (uint8_t)input_pressed(state_of(s));
-    leave_a_low(s, pressed);
-    m_set_flag(s, CPU_FLAG_N, (pressed & 0x80) != 0);
-    m_set_flag(s, CPU_FLAG_Z, false);
-}
-
-/* A push up or down found. */
-static void leave_up_or_down_tested(Snes *s)
-{
-    uint8_t pushes = (uint8_t)(menu_cursor_moves(state_of(s)) & (MENU_PUSHED_UP | MENU_PUSHED_DOWN));
-    leave_a_low(s, pushes);
-    menu_leave_load(s, pushes);
-}
-
-/* A row changed: A holds the first row's change as its drawing left it, and
- * the flags are those of the shoulders' last tests: whether confirm or
- * cancel took L (with their top two bits), and whether the first shoulder's
- * button, R where they left R free, came after L in the buttons' order. */
-static void leave_row_changed(Snes *s, uint8_t paging_before)
-{
-    enum { BUTTON_R = 0x10, BUTTON_L = 0x20, NO_CHANGE = 0xFFFF };
-    const GameState *g = state_of(s);
+    (void)paging_before;
+    GameState *g = state_of(s);
     unsigned row = (uint8_t)(menu_cursor_index(g) - SETTINGS_FIRST_BUTTON_ROW);
     uint8_t first = menu_settings_buttons(g, 0);
     bool changes = first != (row == 0 ? 0xFF : own_button_assignments(g, 0));
-    s->cpu.a = changes ? menu_button_glyph_of(g, first) : NO_CHANGE;
-    uint8_t taken = (uint8_t)(first | menu_settings_buttons(g, 1));
-    uint8_t paging = (taken & BUTTON_R) ? paging_before : BUTTON_R;
-    m_set_flag(s, CPU_FLAG_N, (taken & 0x80) != 0);
-    m_set_flag(s, CPU_FLAG_V, (taken & 0x40) != 0);
-    m_set_flag(s, CPU_FLAG_Z, !(taken & BUTTON_L));
-    m_set_flag(s, CPU_FLAG_C, paging >= BUTTON_L);
-}
-
-/* The panel's frame: the boxes' block move run out, the flags of its count. */
-void menu_leave_settings_panel_frame(Snes *s)
-{
-    s->cpu.a = 0xFFFF;
-    s->cpu.x = 0x0D90;
-    s->cpu.y = 0x0F13;
-    menu_leave_load(s, 1);
+    charge_machine_accesses(g, 1);
+    if (changes)
+        charge_machine_rom_accesses(g, 2);
 }
 
 /* ---- The guards ---------------------------------------------------------------------------------- */
@@ -663,8 +474,6 @@ bool menu_setting_meter_steps(Snes *s)
     SettingsOption meter;
     return on_the_menus_page(s) && meter_of(s->cpu.x, &meter);
 }
-
-
 
 bool menu_settings_panel_shows(Snes *s) { return on_the_menus_page(s) && peek(s, menu_settings_panel_can_show); }
 

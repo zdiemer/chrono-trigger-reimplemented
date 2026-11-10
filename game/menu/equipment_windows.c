@@ -35,7 +35,6 @@
 #include "menu/tiles.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "original_effects.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -107,21 +106,13 @@ static unsigned stage_band(GameState *g, unsigned at, Band b)
     return put_band(g, at, MOST_LINES, b.value);
 }
 
-/* The original writes the table through the work RAM port, which it leaves
- * past the table's end, and keeps each band's value in a scratch cell. */
-static void leave_bands_staged(GameState *g, unsigned bands, uint16_t last_value)
-{
-    hw_port_seek(g, (uint16_t)(STAGED_TABLE + bands * BAND_BYTES + 1), 0x7E);
-    set_menu_scratch_band_value(g, last_value);
-}
-
 static void stage_bands(GameState *g, const Band *bands, unsigned count)
 {
     unsigned at = 0;
     for (unsigned i = 0; i < count; i++)
         at = stage_band(g, at, bands[i]);
     set_menu_staged_line_table_lines(g, at, 0);
-    ORIGINAL_EFFECT(leave_bands_staged(g, at, bands[count - 1].value));
+    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 3));
 }
 
 /* ---- The slots window -------------------------------------------------------------------------- */
@@ -134,13 +125,6 @@ enum { SLOTS = 4, NAME_SETTINGS = 0x0B, ROW_BYTES = 0x80 };
 
 static const uint8_t SLOT_RECORD_PLACES[SLOTS] = { WEAPON_AT, HELMET_AT, ARMOUR_AT, ACCESSORY_AT };
 
-static void leave_slots_listed(GameState *g)
-{
-    for (unsigned slot = 0; slot < SLOTS; slot++)
-        set_menu_equipped_list(g, slot, menu_status_record_bytes_byte(g, SLOT_RECORD_PLACES[slot]));
-    set_menu_equipped_list(g, SLOTS, menu_status_record_bytes_byte(g, PAST_THE_ACCESSORY));
-}
-
 static uint16_t draw_item_name(GameState *g, uint8_t item, uint16_t pen, uint8_t settings)
 {
     uint16_t after = pen;
@@ -151,7 +135,7 @@ static uint16_t draw_item_name(GameState *g, uint8_t item, uint16_t pen, uint8_t
 // $C2:A6F0
 void menu_equip_draw_equipped(GameState *g, uint16_t at)
 {
-    ORIGINAL_EFFECT(leave_slots_listed(g));
+    charge_machine_accesses(g, 10);
     for (unsigned slot = 0; slot < SLOTS; slot++, at = (uint16_t)(at + ROW_BYTES))
         (void)draw_item_name(g, menu_status_record_bytes_byte(g, SLOT_RECORD_PLACES[slot]), at, NAME_SETTINGS);
 }
@@ -165,7 +149,7 @@ void menu_equip_take_slot(GameState *g)
 {
     uint8_t slot = menu_cursor_index(g);
     set_menu_equip_slot(g, slot);
-    ORIGINAL_EFFECT(set_menu_scratch_slot_label(g, (uint16_t)(slot * 2)));
+    charge_machine_accesses(g, 2);
     set_menu_fill_tile(g, 0);
     set_menu_text_attribute(g, 0);
     (void)menu_draw_string(g, menu_slot_label(g, slot), SLOT_LABEL_AT, SLOT_LABEL_SETTINGS);
@@ -177,12 +161,6 @@ void menu_equip_take_slot(GameState *g)
  * the slots' colours, but the slot the cursor is on in the text's. */
 enum { MARKS_AT = 0x3062, MARKED_TILES = 0x0B, DIMMED = 0x1C, UNDIMMED = 0x00 };
 
-static void leave_slots_marked(GameState *g)
-{
-    set_menu_scratch_marked_slot(g, menu_equip_slot(g));
-    set_menu_scratch_slots_marked(g, SLOTS);
-}
-
 /* The drawing origin goes down the rows with the marking, and is left a
  * row past the last. */
 // $C2:A3ED
@@ -191,7 +169,7 @@ void menu_equip_mark_slots_at(GameState *g, uint16_t at)
     for (unsigned slot = 0; slot < SLOTS; slot++, at = (uint16_t)(at + ROW_BYTES))
         TIMED_AS(g, 0xC2ECAC, menu_colour_row_pair(g, at, MARKED_TILES, slot == menu_equip_slot(g) ? UNDIMMED : DIMMED));
     set_menu_draw_origin(g, at);
-    ORIGINAL_EFFECT(leave_slots_marked(g));
+    charge_machine_accesses(g, 5);
 }
 
 // $C2:A3E2
@@ -238,22 +216,6 @@ enum { SLOTS_START = 0x606F, TOP_START = 0x90, MIDDLE_START = 0x30, BOTTOM_MOST 
 enum { FRAMES_A_ROW = 8, LAST_ROW = MENU_MEMBER_ROWS, SLIDE_FRAMES = 0x18, ROWS_STEP = 6, SCREEN_LINES = 0xD0 };
 enum { SLIDING_LINE_EFFECTS = 0xE5 };
 
-static void leave_slide(GameState *g, const MenuWindowSlide *w)
-{
-    set_menu_window_slide_top_lines(g, w->top);
-    set_menu_window_slide_middle_lines(g, w->middle);
-    set_menu_window_slide_bottom_lines(g, w->bottom);
-    set_menu_window_frames_slid(g, w->frame);
-    set_menu_window_rows_wait(g, w->rows_from);
-    set_menu_window_rows_step(g, w->rows_step);
-}
-
-static void leave_rows_waited(GameState *g, uint8_t rows_below)
-{
-    hw_set_multiplicand(g, FRAMES_A_ROW);
-    (void)hw_multiply_by(g, rows_below);
-}
-
 // $C2:A71E
 void menu_equip_start_slots_slide(GameState *g, Platform *pf, MenuWindowSlide *w)
 {
@@ -263,11 +225,11 @@ void menu_equip_start_slots_slide(GameState *g, Platform *pf, MenuWindowSlide *w
     menu_queue_fixed_upload(g, UPLOAD_BG2_SLID);
     show_windows_from(g, SLOTS_START);
     uint8_t rows_below = (uint8_t)(LAST_ROW - menu_member_row(g));
-    ORIGINAL_EFFECT(leave_rows_waited(g, rows_below));
+    charge_machine_io_accesses(g, 4);
     hide_the_scroll_bar(g);
     *w = (MenuWindowSlide){ .top = TOP_START, .middle = MIDDLE_START, .bottom = 0, .frame = 0,
                             .rows_from = (uint8_t)(FRAMES_A_ROW * rows_below), .rows_step = 0 };
-    ORIGINAL_EFFECT(leave_slide(g, w));
+    charge_machine_accesses(g, 7);
 }
 
 /* A frame's band heights, and the bands from the screen's top: the top, the
@@ -315,7 +277,7 @@ bool menu_equip_slide_slots_a_frame(GameState *g, MenuWindowSlide *w)
             w->rows_step = ROWS_STEP;
         more = w->frame < SLIDE_FRAMES;
     }
-    ORIGINAL_EFFECT(leave_slide(g, w));
+    charge_machine_accesses(g, 7);
     return more;
 }
 
@@ -380,11 +342,11 @@ void menu_equip_start_members_slide(GameState *g, MenuWindowSlide *w)
     set_menu_line_effects(g, SLIDING_LINE_EFFECTS);
     *w = (MenuWindowSlide){ .top = TOP_BACK, .middle = MIDDLE_BACK, .bottom = BOTTOM_BACK, .frame = 0, .rows_from = SLIDE_FRAMES, .rows_step = 0 };
     if (row != 0) {
-        ORIGINAL_EFFECT(leave_rows_waited(g, row));
+        charge_machine_io_accesses(g, 4);
         w->rows_step = ROWS_STEP;
         w->rows_from = (uint8_t)(FRAMES_A_ROW * row);
     }
-    ORIGINAL_EFFECT(leave_slide(g, w));
+    charge_machine_accesses(g, 7);
 }
 
 // $C2:A970
@@ -419,7 +381,7 @@ bool menu_equip_slide_members_back_a_frame(GameState *g, MenuWindowSlide *w)
         w->rows_step = 0;
         more = w->frame < SLIDE_FRAMES;
     }
-    ORIGINAL_EFFECT(leave_slide(g, w));
+    charge_machine_accesses(g, 7);
     return more;
 }
 
@@ -488,10 +450,8 @@ void menu_equip_draw_list(GameState *g)
             place++;
         TIMED_AS(g, 0xC2A59A, menu_equip_draw_list_row(g, at));
     }
-    ORIGINAL_EFFECT(set_menu_window_slide_rows_left(g, 0));
+    charge_machine_accesses(g, 2);
 }
-
-uint16_t menu_equip_list_end(void) { return (uint16_t)(LIST_FIRST_ROW_AT + LIST_ROWS * ROW_BYTES); }
 
 /* The list of what fits, once it is made (menu_list_what_fits): the
  * list's rows queued, the list at its first row, the slot's place in a
@@ -517,8 +477,8 @@ enum { THUMB_LINES_A_ROW = 4 };
 void menu_equip_set_list_bar(GameState *g)
 {
     uint8_t span = menu_scroll_bar_span(g);
-    ORIGINAL_EFFECT(hw_set_multiplicand(g, span));
-    ORIGINAL_EFFECT((void)hw_multiply_by(g, THUMB_LINES_A_ROW));
+    charge_machine_io_accesses(g, 1);
+    charge_machine_io_accesses(g, 3);
     set_menu_scroll_bar_span(g, (uint8_t)(span * THUMB_LINES_A_ROW));
     set_menu_scroll_bar_thumb(g, 0);
 }
@@ -530,20 +490,11 @@ void menu_equip_set_list_bar(GameState *g)
  * has scrolled to; and the bar's task started to draw it, beside the list. */
 enum { MEMBER_LINES = 12, MEMBER_BAR_STEPS = 0x7400, MEMBER_BAR_AT = 0x1268 };
 
-static void leave_the_member_bar_worked_out(GameState *g, uint8_t most, uint8_t span)
-{
-    hw_set_multiplicand(g, MEMBER_LINES);
-    (void)hw_multiply_by(g, most);
-    hw_set_dividend(g, MEMBER_BAR_STEPS);
-    hw_divide_by(g, span);
-    (void)hw_multiply_by(g, menu_member_scroll(g));
-}
-
 void menu_equip_show_the_member_bar(GameState *g)
 {
     uint8_t most = menu_member_scroll_most(g);
     if (most == 0) {
-        ORIGINAL_EFFECT(hw_set_multiplicand(g, MEMBER_LINES));
+        charge_machine_io_accesses(g, 1);
         return;
     }
     uint8_t span = (uint8_t)(most * MEMBER_LINES);
@@ -552,7 +503,7 @@ void menu_equip_show_the_member_bar(GameState *g)
     set_menu_scroll_bar_step(g, (uint16_t)(MEMBER_BAR_STEPS / span));
     set_menu_scroll_bar_place(g, MEMBER_BAR_AT);
     set_menu_scroll_bar_thumb(g, (uint8_t)(menu_member_scroll(g) * MEMBER_LINES));
-    ORIGINAL_EFFECT(leave_the_member_bar_worked_out(g, most, span));
+    (charge_machine_accesses(g, 1), charge_machine_io_accesses(g, 10));
 }
 
 /* The list's scroll bar, at the list window's side or (drawn again for
@@ -568,13 +519,6 @@ void menu_equip_place_list_bar(GameState *g, bool again) { set_menu_scroll_bar_p
 enum { LIST_SLIDE_LIST = 0xBEA4, LIST_SLIDE_TABLE_BYTES = 0x10, LIST_START = 0x60FF, LIST_SLOTS_START = 0x402F };
 enum { LIST_SLIDE_STEP = 4, OVER_THE_LIST = 2, THE_LIST = 3, OVER_THE_LIST_LINES = 0x70, LIST_LINES_MOST = 0x20 };
 
-static void leave_list_slide(GameState *g, const MenuListSlide *w)
-{
-    set_menu_window_slide_list_line(g, w->list_line);
-    set_menu_window_slide_slots_line(g, w->slots_line);
-    set_menu_window_slide_step(g, (uint16_t)w->step);
-}
-
 // $C2:A4AF
 void menu_equip_start_list_slide(GameState *g, Platform *pf, MenuListSlide *w)
 {
@@ -584,7 +528,7 @@ void menu_equip_start_list_slide(GameState *g, Platform *pf, MenuListSlide *w)
     menu_queue_fixed_upload(g, UPLOAD_BG2);
     menu_queue_fixed_upload(g, UPLOAD_BG1_SLID);
     *w = (MenuListSlide){ LIST_START, LIST_SLOTS_START, LIST_SLIDE_STEP };
-    ORIGINAL_EFFECT(leave_list_slide(g, w));
+    charge_machine_accesses(g, 6);
     set_menu_staged_line_table_lines(g, OVER_THE_LIST, OVER_THE_LIST_LINES);
     set_menu_staged_line_table_lines(g, THE_LIST, 0);
     set_menu_staged_line_table_value(g, THE_LIST, THIRTY_TWO_UP);
@@ -607,7 +551,7 @@ static void step_list_slide(GameState *g, MenuListSlide *w)
     set_menu_staged_line_table_lines(g, THE_LIST, (uint8_t)(menu_staged_line_table_lines(g, THE_LIST) + w->step));
     set_menu_line_effects(g, LIST_WINDOW_LINE_EFFECTS);
     set_menu_scroll_bar_hidden(g, BAR_HELD);
-    ORIGINAL_EFFECT(leave_list_slide(g, w));
+    charge_machine_accesses(g, 6);
 }
 
 bool menu_equip_slide_list_in_a_frame(GameState *g, MenuListSlide *w)
@@ -629,7 +573,7 @@ void menu_equip_start_list_closing(GameState *g, Platform *pf, MenuListSlide *w)
     menu_queue_fixed_upload(g, UPLOAD_BG2);
     schedule_table_copy(g, STAGED_TABLE, LIVE_TABLE, LIST_SLIDE_TABLE_BYTES);
     *w = (MenuListSlide){ LIST_BACK, LIST_SLOTS_BACK, -LIST_SLIDE_STEP };
-    ORIGINAL_EFFECT(leave_list_slide(g, w));
+    charge_machine_accesses(g, 6);
     set_menu_tasks_countdown(g, LIST_TASK, (uint8_t)(menu_tasks_countdown(g, LIST_TASK) + 1));
     hide_the_scroll_bar(g);
 }

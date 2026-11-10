@@ -40,4 +40,21 @@ void menu_object_load_mode7_palette(Snes *s);
 void menu_object_load_second_mode7_graphics(Snes *s);
 void menu_object_load_second_mode7_palette(Snes *s);
 
+void menu_object_accelerate_down(Snes *s);
+void menu_object_mark_scene_event(Snes *s);
+void menu_object_keep_first_scene_result(Snes *s);
+void menu_object_keep_second_scene_result(Snes *s);
+
+bool menu_scene_map_graphics_fit(Snes *s);
+bool menu_scene_top_layer_fits(Snes *s);
+void menu_object_load_scene_map_graphics(Snes *s);
+void menu_object_load_scene_top_layer(Snes *s);
+void menu_object_lay_out_scene_pattern(Snes *s);
+
+bool menu_object_scene_edge_is_readable(Snes *s);
+void menu_object_place_on_scene_edge(Snes *s);
+
+void menu_load_omen_graphics_entry(Snes *s);
+void menu_load_omen_palette_entry(Snes *s);
+
 #endif

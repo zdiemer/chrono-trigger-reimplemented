@@ -286,8 +286,6 @@ void menu_choose_battle_gauge(Snes *s);
 void menu_take_controls(Snes *s);
 void menu_step_setting_meter(Snes *s);
 void menu_show_settings_panel(Snes *s);
-void menu_put_settings_panel_away(Snes *s);
-
 bool menu_settings_screen_opens(Snes *s);
 bool menu_settings_options_step_runs(Snes *s);
 bool menu_setting_option_is_takeable(Snes *s);

@@ -170,19 +170,14 @@ static bool elsewhere_on_the_machine(void *ctx, uint8_t command, const ScriptOpc
     /* a bridge runs as its handler, called as the runner calls it */
     if (runs == RUN_THE_BRIDGE)
         return battle_run(s, 0xC14CD4, handler_of(g, command), battle_script_command_entry);
-    /* no handler reads the overflow the one before it left, which a
-       command in C doesn't reproduce */
-    /* dc-evidence: ct_fuzz --poison-dc battle_run_script_channel, seed 1: 5000 states,
-       1994 call-outs scrambled, 0 mismatched */
-    return battle_call(s, 0xC14CD4, handler_of(g, command), DC_AL | DC_N | DC_V | DC_Z | DC_C);
+    return battle_call(s, 0xC14CD4, handler_of(g, command), DC_AL | DC_N | DC_Z | DC_C);
 }
 
 /* ---- The channels, each frame ------------------------------------------------------------- */
 
-/* The channels run, each from a call of its own in the original ($C1:4C9E
- * is called from a site a channel): the channel's routine (`channel`) calls
- * the commands, which is why the frame's run calls it through the machine
- * rather than as C there (docs/PORTING.md, "Call-outs"). */
+/* Each channel keeps its own call boundary and time estimate. Its checked
+ * C call can still hand a command back to the machine at an unsupported
+ * handler without losing the channel's return frame. */
 static const uint16_t channel_calls[SCRIPT_CHANNELS] = {
     0x4BC8, 0x4BD5, 0x4BE2, 0x4BEF, 0x4C04, 0, 0, 0, 0x4C1C, 0x4C2E, 0x4C40, 0x4C52, 0x4C64, 0x4C76, 0x4C88, 0x4C9A,
 };
@@ -217,12 +212,9 @@ static bool channel_on_the_machine(void *ctx, unsigned channel)
     Snes *s = ctx;
     s->cpu.y = (uint16_t)channel;
     m_set_a8(s, (uint8_t)(channel * 4));
-    /* The channel reads neither X nor the overflow it is called with (the
-     * showing's steps before it, battle/action_showing.c, are C and leave
-     * neither as the original's do).
-     * dc-evidence: ct_fuzz --poison-dc battle_run_scripts, seed 1: 3000 states,
-     * 15072 call-outs scrambled, 0 mismatched */
-    return battle_call(s, 0xC10000u | channel_calls[channel], 0xC14C9E, DC_X | DC_N | DC_V | DC_Z | DC_C);
+    /* Keep overflow live now that the caller's comparison is retired. */
+    return battle_run_called(s, 0xC10000u | channel_calls[channel], 0xC14C9E,
+                              DC_X | DC_N | DC_Z | DC_C, battle_run_script_channel);
 }
 
 /* ---- As C ------------------------------------------------------------------------------------ */
@@ -241,7 +233,7 @@ static bool command_elsewhere(void *ctx, uint8_t command, const ScriptOpcode *ro
     if (runs == THE_OPERATION_RAN)
         return true;
     if (runs != RUN_THE_BRIDGE)
-        return battle_needs_the_machine(g, handler_of(g, command), "an animation script's command the port doesn't run");
+        return battle_contract_broken(g, handler_of(g, command), "an animation script's command the port doesn't run");
     ScriptCommand decoded = script_decode(g, row);
     TIMED_AS(g, handler_of(g, command), script_play_the_sound(g, c->pf, command, &decoded));
     script_move_on(g, row, SCRIPT_NEXT);

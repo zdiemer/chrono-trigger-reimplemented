@@ -1,4 +1,4 @@
-/* The equipment screen on the original's machine: its registered entries,
+/* The equipment screen on the original's machine: its checked legacy adapters,
  * the bridges that run what game/menu/equipment.c decides between the calls
  * to what is still the original's, and their guards.
  *
@@ -23,6 +23,7 @@
 #include "menu/equipment.h"
 
 #include "charge.h"
+#include "core/program.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/description.h"
@@ -37,7 +38,6 @@
 #include "menu/text.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
@@ -71,7 +71,13 @@ enum {
     READS_A_AND_CARRY = DC_X | DC_Y | DC_N | DC_V | DC_Z,
 };
 
-static bool call(Snes *s, uint32_t site, uint32_t routine) { return menu_call(s, site, routine, READS_NOTHING); }
+static bool refuse_call(Snes *s, uint32_t site, uint32_t routine)
+{
+    program_breaks_a_contract(state_of(s), routine, "an equipment operation outside its contract");
+    m_push16(s, (uint16_t)(site + MENU_JSR_SIZE - 1));
+    m_stop_at(s, routine, READS_NOTHING);
+    return false;
+}
 static bool tick(Snes *s, uint32_t site) { return menu_run(s, site, 0xC2EAC2, menu_play_cursor_sound); }
 
 /* A sound by its number, loaded into A as the original's call does (the
@@ -79,28 +85,15 @@ static bool tick(Snes *s, uint32_t site) { return menu_run(s, site, 0xC2EAC2, me
 static bool play_sound(Snes *s, uint32_t site, uint8_t sound)
 {
     m_set_a8(s, sound);
-    ORIGINAL_EFFECT(menu_leave_load(s, sound));
+    (void)0;
     return menu_run(s, site, 0xC2EABA, menu_play_sound);
 }
 
-static void leave_member_step_tested(Snes *s);
-static void leave_slot_step_tested(Snes *s, SlotChoice c);
-static void leave_buttons_tested(Snes *s);
-static void leave_inventory_changed(Snes *s);
-static void leave_cursor_compared(Snes *s);
-static void leave_member_pointed(Snes *s, uint8_t pointed_before);
-static void leave_member_slide_started(Snes *s, MemberListSlide slide);
-static void leave_slot_kept(Snes *s, uint8_t kept_before);
-static void leave_list_sum(Snes *s, uint8_t shown_before);
-static void leave_label_copied(Snes *s);
-static void leave_list_drawn(Snes *s);
-static void leave_list_opened(Snes *s, bool typing_started);
-static void leave_member_switched(Snes *s);
+static void charge_member_step_tested(Snes *s);
+static void charge_slot_step_tested(Snes *s, SlotChoice c);
+static void charge_list_opened(Snes *s, bool typing_started);
 
-static void leave_page_turned(Snes *s);
-static void leave_row_found(Snes *s);
-static void leave_row_noted(Snes *s, uint8_t row);
-static void leave_list_rows_queued(Snes *s);
+static void charge_row_noted(Snes *s, uint8_t row);
 
 /* ---- What the sequences ask, on the machine ----------------------------------------------------- */
 
@@ -178,7 +171,7 @@ static bool run_on_the_machine(void *ctx, EquipmentRoutine r)
     switch (r) {
     case EQUIPMENT_WORKS_OUT_LOW_HP_MARKS:
         if (!menu_low_hp_marks_are_workable(s))
-            return call(s, 0xC2A653, LOW_HP_MARKS);
+            return refuse_call(s, 0xC2A653, LOW_HP_MARKS);
         TIMED_AS(g, LOW_HP_MARKS, menu_work_out_low_hp_marks(g));
         return true;
     case EQUIPMENT_PLAYS_THE_PUT_ON_SOUND: return play_sound(s, 0xC29CDE, MENU_EQUIP_PUT_ON_SOUND);
@@ -189,7 +182,7 @@ static bool run_on_the_machine(void *ctx, EquipmentRoutine r)
         bool tried_on_by_the_port = menu_equip_can_try_on(g);
         vars_peek(false);
         if (!tried_on_by_the_port)
-            return call(s, 0xC29CB2, TRY_ON);
+            return refuse_call(s, 0xC29CB2, TRY_ON);
         menu_equip_try_on(g, m_platform(s));
         return true;
     }
@@ -197,7 +190,10 @@ static bool run_on_the_machine(void *ctx, EquipmentRoutine r)
         return menu_run_or_call(s, 0xC29D82, 0xC29DAF, READS_NOTHING, menu_slide_equipment_members);
     case EQUIPMENT_SLIDES_THE_MEMBER_ROWS_DOWN:
         return menu_run_or_call(s, 0xC29DAA, 0xC29DAF, READS_NOTHING, menu_slide_equipment_members);
-    case EQUIPMENT_POINTS_ALONG_THE_LIST: return menu_run_any_widths(s, RUNS[r].site, RUNS[r].routine, RUNS[r].entry);
+    case EQUIPMENT_POINTS_ALONG_THE_LIST:
+        /* Reading this frame's cursor can select another page or row. Its
+         * drawing contract must hold for that new selection. */
+        return menu_run_checked(s, 0xC29CAF, 0xC29F05, 0, menu_point_along_equipment_list_entry);
     default: return menu_run(s, RUNS[r].site, RUNS[r].routine, RUNS[r].entry);
     }
 }
@@ -207,29 +203,29 @@ static void note_on_the_machine(void *ctx, EquipmentNote note, uint8_t value)
     Snes *s = ctx;
     (void)value;
     switch (note) {
-    case EQUIPMENT_NOTE_MEMBER_STEP_TESTED: ORIGINAL_EFFECT(leave_member_step_tested(s)); break;
-    case EQUIPMENT_NOTE_MEMBER_POINTED: ORIGINAL_EFFECT(leave_member_pointed(s, value)); break;
-    case EQUIPMENT_NOTE_SLOT_STEP_TESTED: ORIGINAL_EFFECT(leave_slot_step_tested(s, (SlotChoice)value)); break;
-    case EQUIPMENT_NOTE_LABEL_COPIED: ORIGINAL_EFFECT(leave_label_copied(s)); break;
-    case EQUIPMENT_NOTE_SLOT_KEPT: ORIGINAL_EFFECT(leave_slot_kept(s, value)); break;
-    case EQUIPMENT_NOTE_LIST_SUM: ORIGINAL_EFFECT(leave_list_sum(s, value)); break;
-    case EQUIPMENT_NOTE_MEMBER_SWITCHED: ORIGINAL_EFFECT(leave_member_switched(s)); break;
-    case EQUIPMENT_NOTE_BUTTONS_TESTED: ORIGINAL_EFFECT(leave_buttons_tested(s)); break;
-    case EQUIPMENT_NOTE_INVENTORY_CHANGED: ORIGINAL_EFFECT(leave_inventory_changed(s)); break;
-    case EQUIPMENT_NOTE_CURSOR_LOADED: ORIGINAL_EFFECT(menu_leave_load(s, menu_cursor_index(state_of(s)))); break;
-    case EQUIPMENT_NOTE_CURSOR_COMPARED: ORIGINAL_EFFECT(leave_cursor_compared(s)); break;
-    case EQUIPMENT_NOTE_CURSOR_KEPT: ORIGINAL_EFFECT(menu_leave_cursor_kept_on_the_list(s)); break;
-    case EQUIPMENT_NOTE_PAGE_TURNED: ORIGINAL_EFFECT(leave_page_turned(s)); break;
-    case EQUIPMENT_NOTE_LIST_DRAWN: ORIGINAL_EFFECT(leave_list_drawn(s)); break;
-    case EQUIPMENT_NOTE_ROW_NOTED: ORIGINAL_EFFECT(leave_row_noted(s, value)); break;
-    case EQUIPMENT_NOTE_ROW_FOUND: ORIGINAL_EFFECT(leave_row_found(s)); break;
-    case EQUIPMENT_NOTE_LIST_ROWS_QUEUED: ORIGINAL_EFFECT(leave_list_rows_queued(s)); break;
-    case EQUIPMENT_NOTE_LIST_FRAMED: ORIGINAL_EFFECT(menu_leave_the_list_framed(s, menu_equip_choices(state_of(s)))); break;
-    case EQUIPMENT_NOTE_LIST_OPENED: ORIGINAL_EFFECT(leave_list_opened(s, value != 0)); break;
-    case EQUIPMENT_NOTE_LIST_WINDOW_SHOWN: ORIGINAL_EFFECT(menu_leave_load(s, 0x42)); break;
-    case EQUIPMENT_NOTE_LIST_BAR_PLACED: ORIGINAL_EFFECT(menu_leave_load(s, 0x62)); break;
-    case EQUIPMENT_NOTE_SLOTS_REDRAWN: ORIGINAL_EFFECT(menu_leave_load(s, 0x2E)); break;
-    case EQUIPMENT_NOTE_MEMBER_SLIDE_STARTED: ORIGINAL_EFFECT(leave_member_slide_started(s, (MemberListSlide)value)); break;
+    case EQUIPMENT_NOTE_MEMBER_STEP_TESTED: charge_member_step_tested(s); break;
+    case EQUIPMENT_NOTE_MEMBER_POINTED: charge_machine_accesses(state_of(s), 1); break;
+    case EQUIPMENT_NOTE_SLOT_STEP_TESTED: charge_slot_step_tested(s, (SlotChoice)value); break;
+    case EQUIPMENT_NOTE_LABEL_COPIED: (void)0; break;
+    case EQUIPMENT_NOTE_SLOT_KEPT: charge_machine_accesses(state_of(s), 1); break;
+    case EQUIPMENT_NOTE_LIST_SUM: charge_machine_accesses(state_of(s), 1); break;
+    case EQUIPMENT_NOTE_MEMBER_SWITCHED: charge_machine_accesses(state_of(s), 1); break;
+    case EQUIPMENT_NOTE_BUTTONS_TESTED: charge_machine_accesses(state_of(s), 1); break;
+    case EQUIPMENT_NOTE_INVENTORY_CHANGED: (void)0; break;
+    case EQUIPMENT_NOTE_CURSOR_LOADED: charge_machine_accesses(state_of(s), 1); break;
+    case EQUIPMENT_NOTE_CURSOR_COMPARED: charge_machine_accesses(state_of(s), 2); break;
+    case EQUIPMENT_NOTE_CURSOR_KEPT: menu_charge_cursor_kept_on_the_list(s); break;
+    case EQUIPMENT_NOTE_PAGE_TURNED: charge_machine_accesses(state_of(s), 1); break;
+    case EQUIPMENT_NOTE_LIST_DRAWN: (void)0; break;
+    case EQUIPMENT_NOTE_ROW_NOTED: charge_row_noted(s, value); break;
+    case EQUIPMENT_NOTE_ROW_FOUND: (void)0; break;
+    case EQUIPMENT_NOTE_LIST_ROWS_QUEUED: (void)0; break;
+    case EQUIPMENT_NOTE_LIST_FRAMED: charge_machine_accesses(state_of(s), 3); break;
+    case EQUIPMENT_NOTE_LIST_OPENED: charge_list_opened(s, value != 0); break;
+    case EQUIPMENT_NOTE_LIST_WINDOW_SHOWN: (void)0; break;
+    case EQUIPMENT_NOTE_LIST_BAR_PLACED: (void)0; break;
+    case EQUIPMENT_NOTE_SLOTS_REDRAWN: (void)0; break;
+    case EQUIPMENT_NOTE_MEMBER_SLIDE_STARTED: charge_machine_accesses(state_of(s), 1); break;
     }
 }
 
@@ -353,22 +349,6 @@ void menu_point_along_equipment_list_entry(Snes *s)
     step(s, menu_point_along_equipment_list_with);
 }
 
-// $C2:9FDE
-/* It leaves a 16-bit accumulator. */
-void menu_move_equipment_list_rows(Snes *s)
-{
-    menu_equip_move_list_rows(state_of(s));
-    menu_set_widths(s, false, m_x8(s));
-    m_rts(s);
-}
-
-// $C2:9CFC
-void menu_forget_weapon(Snes *s)
-{
-    menu_equip_forget_weapon(state_of(s));
-    m_rts(s);
-}
-
 /* ---- The main menu's panel --------------------------------------------------------------------- */
 
 // $C2:A051
@@ -381,27 +361,6 @@ void menu_show_equipment_panel(Snes *s)
     MainMenuOnTheMachine m = { s, 0, 0 };
     if (!menu_show_equipment_panel_with(state_of(s), m_platform(s), &menu_main_menu_on_the_machine, &m))
         return;
-    menu_restore_p(s);
-    m_rts(s);
-}
-
-// $C2:A0E7
-/* The colours dimmed into the palette where Y points. */
-void menu_dim_panel_colours(Snes *s)
-{
-    menu_equip_dim_colours(state_of(s), (unsigned)(s->cpu.y - RAM_ABS(RAM_MENU_PALETTE)) / 2u);
-    m_rts(s);
-}
-
-// $C2:A101
-/* The panel's colours put back as the main menu leaves the equipment, and
- * the party's items with them. */
-void menu_show_panel_colours(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_save_p(s);
-    menu_set_widths(s, true, m_x8(s));
-    menu_equip_panel_put_away(g);
     menu_restore_p(s);
     m_rts(s);
 }
@@ -459,178 +418,33 @@ void menu_open_equipment_list(Snes *s)
 // $C2:A64D
 void menu_back_to_equipment_slots(Snes *s) { saving_p(s, false, false, menu_back_on_the_equipment_slots_with); }
 
-// $C2:A321
-void menu_show_member_slots(Snes *s)
-{
-    menu_equip_show_slots_of_member(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-// $C2:A38B
-/* It leaves what its label's copy leaves. */
-void menu_take_equipment_slot(Snes *s)
-{
-    menu_equip_take_slot(state_of(s));
-    ORIGINAL_EFFECT(leave_label_copied(s));
-    m_rts(s);
-}
-
-// $C2:A3E2
-void menu_mark_equipment_slots(Snes *s)
-{
-    menu_equip_mark_slots(state_of(s));
-    m_rts(s);
-}
-
-// $C2:A569
-/* It leaves the pen past the list in A. */
-void menu_draw_equipment_list(Snes *s)
-{
-    menu_equip_draw_list(state_of(s));
-    ORIGINAL_EFFECT(leave_list_drawn(s));
-    m_rts(s);
-}
-
-// $C2:A59A
-/* A row at X. */
-void menu_draw_equipment_list_row(Snes *s)
-{
-    menu_equip_draw_list_row(state_of(s), s->cpu.x);
-    m_rts(s);
-}
-
 // $C2:A6F0
 /* What the member has on, from X; it leaves the row past the last in A. */
 enum { EQUIPPED_ROWS_BYTES = 4 * 0x80 };
 
-static void leave_equipped_drawn(Snes *s, uint16_t at) { s->cpu.a = (uint16_t)(at + EQUIPPED_ROWS_BYTES); }
-
-void menu_draw_equipped_items(Snes *s)
+static void charge_member_step_tested(Snes *s)
 {
-    uint16_t at = s->cpu.x;
-    menu_equip_draw_equipped(state_of(s), at);
-    ORIGINAL_EFFECT(leave_equipped_drawn(s, at));
-    m_rts(s);
+    GameState *g = state_of(s);
+    charge_machine_accesses(g, 1 + !menu_pushed(g, MENU_PUSHED_RIGHT));
 }
 
-/* ---- What the original's tests leave ----------------------------------------------------------- */
-
-
-/* The original takes a choice of member by testing the push right and then
- * the buttons (whose overflow is going back's bit), and counts the step on,
- * as the tick it plays saves the flags. */
-static void leave_member_step_tested(Snes *s)
+static void charge_slot_step_tested(Snes *s, SlotChoice c)
 {
-    const GameState *g = state_of(s);
-    if (!menu_pushed(g, MENU_PUSHED_RIGHT))
-        menu_leave_bit_test(s, (uint8_t)s->cpu.a, menu_cursor_buttons(g));
-    menu_leave_load(s, menu_screen_step(g));
-}
-
-/* A slot's step tests the push left and then the buttons; going back loads
- * the members' step, choosing loads how many items fit. */
-static void leave_slot_step_tested(Snes *s, SlotChoice c)
-{
-    const GameState *g = state_of(s);
-    if (!menu_pushed(g, MENU_PUSHED_LEFT))
-        menu_leave_bit_test(s, (uint8_t)s->cpu.a, menu_cursor_buttons(g));
-    if (c == SLOT_LEFT_FOR_THE_MEMBERS)
-        menu_leave_load(s, menu_screen_step(g));
-    else if (c == SLOT_CHOSEN)
-        menu_leave_load(s, menu_equip_choices(g));
-}
-
-/* An item's step tests the buttons. */
-/* The inventory's routines run with 8-bit index registers, which leaves
- * Y's high byte clear. */
-static void leave_inventory_changed(Snes *s) { s->cpu.y &= 0x00FF; }
-
-static void leave_buttons_tested(Snes *s)
-{
-    menu_leave_bit_test(s, (uint8_t)s->cpu.a, menu_cursor_buttons(state_of(s)));
-}
-
-/* Where the list's cursor started the frame, compared with where it is. */
-static void leave_cursor_compared(Snes *s)
-{
-    const GameState *g = state_of(s);
-    menu_leave_compare(s, menu_cursor_frame_start(g), menu_cursor_index(g));
-}
-
-/* The slide's start leaves its step of the list's place in the flags it
- * saves under the slide: the place a member up as the step down to it left
- * them, or as the place's own step on in memory did, after a compare with
- * the furthest it goes that left the carry clear. */
-static void leave_member_slide_started(Snes *s, MemberListSlide slide)
-{
-    menu_leave_load(s, menu_member_scroll(state_of(s)));
-    if (slide == MEMBERS_SLIDE_DOWN)
-        m_set_flag(s, CPU_FLAG_C, false);
-}
-
-/* The member pointed at, compared with the one before; the sum of the row
- * and the scroll it came from never overflows; and the rows' colouring
- * queued their upload last. */
-static void leave_member_pointed(Snes *s, uint8_t pointed_before)
-{
-    const GameState *g = state_of(s);
-    menu_leave_compare(s, menu_member_pointed(g), pointed_before);
-    m_set_flag(s, CPU_FLAG_V, false);
-    menu_leave_member_rows_coloured(s);
-}
-
-/* The slot compared with the one kept before. */
-static void leave_slot_kept(Snes *s, uint8_t kept_before)
-{
-    menu_leave_compare(s, menu_cursor_index(state_of(s)), kept_before);
-}
-
-/* The slot's and the member's sum the list is recorded by, compared with
- * the one recorded before; the sum never overflows. */
-static void leave_list_sum(Snes *s, uint8_t shown_before)
-{
-    const GameState *g = state_of(s);
-    menu_leave_compare(s, menu_equip_shown(g), shown_before);
-    m_set_flag(s, CPU_FLAG_V, false);
+    GameState *g = state_of(s);
+    charge_machine_accesses(g, !menu_pushed(g, MENU_PUSHED_LEFT) +
+                              (c == SLOT_LEFT_FOR_THE_MEMBERS || c == SLOT_CHOSEN));
 }
 
 /* The slot's label copied to the other layer by a block move, which leaves
  * A at $FFFF and the indexes past the copy. */
 enum { LABEL_COPY_FROM_END = 0x30C0, LABEL_COPY_TO_END = 0x38C0 };
 
-static void leave_label_copied(Snes *s)
-{
-    s->cpu.a = 0xFFFF;
-    s->cpu.x = LABEL_COPY_FROM_END;
-    s->cpu.y = LABEL_COPY_TO_END;
-}
-
-/* The list drawn: the pen past its last row in A. */
-static void leave_list_drawn(Snes *s) { s->cpu.a = menu_equip_list_end(); }
-
 /* The description ($C2:F2F3) leaves A clear where it started typing, and
  * the original's last load before the cursor's sound is the cursor's place
  * on the list. */
-static void leave_list_opened(Snes *s, bool typing_started)
+static void charge_list_opened(Snes *s, bool typing_started)
 {
-    if (typing_started)
-        menu_leave_typing_started(s);
-    m_set_a8(s, menu_cursor_index(state_of(s)));
-}
-
-/* The member switched to is compared with the list's last row as the list
- * is laid out for it: from the last row on the list scrolls (the row loaded),
- * before it the comparison is short. */
-static void leave_member_switched(Snes *s)
-{
-    const GameState *g = state_of(s);
-    uint8_t member = menu_member_worked_on(g);
-    if (member >= MENU_MEMBER_ROWS - 1)
-        menu_leave_load(s, MENU_MEMBER_ROWS - 1);
-    else
-        menu_leave_load(s, (uint8_t)(member - (MENU_MEMBER_ROWS - 1)));
-    m_set_flag(s, CPU_FLAG_C, member >= MENU_MEMBER_ROWS - 1);
-    m_set_flag(s, CPU_FLAG_V, false);
+    charge_machine_accesses(state_of(s), 1 + (typing_started ? 1 : 0));
 }
 
 /* The panel's tests before the card: the cursor's row compared with the
@@ -638,45 +452,12 @@ static void leave_member_switched(Snes *s)
  * worked out without overflowing, and the clock's digits' place loaded. */
 enum { CLOCK_DIGITS = 0x0402 };
 
-void menu_leave_equipment_panel_tested(Snes *s, uint8_t row_before)
+static void charge_row_noted(Snes *s, uint8_t row)
 {
-    const GameState *g = state_of(s);
-    menu_leave_load(s, (uint8_t)(CLOCK_DIGITS >> 8));
-    m_set_flag(s, CPU_FLAG_C, row_before >= menu_active_members(g));
-    m_set_flag(s, CPU_FLAG_V, false);
-}
-
-/* A page turned: the paging's answer compared with none, then the new first
- * row loaded. */
-static void leave_page_turned(Snes *s)
-{
-    menu_leave_load(s, menu_equip_list_top(state_of(s)));
-    m_set_flag(s, CPU_FLAG_C, true);
-}
-
-/* The row the cursor is on, which the original notes in the item cell for
- * the slide where the push came past the list's edge (a scrolling list's). */
-static void leave_row_noted(Snes *s, uint8_t row)
-{
+    (void)row;
     GameState *g = state_of(s);
     if (menu_list_scrolls_a_row(g))
-        set_menu_item_operand(g, row);
-}
-
-/* The row coming in found by its place plus the list's first row, a sum
- * that never carries or overflows, for the row's drawing, which may read
- * the overflow. */
-static void leave_row_found(Snes *s)
-{
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_set_flag(s, CPU_FLAG_V, false);
-}
-
-/* The row's upload queued, its record's place loaded last. */
-static void leave_list_rows_queued(Snes *s)
-{
-    menu_leave_queued_upload(s, MENU_EQUIP_LIST_ROWS_UPLOAD);
-    menu_leave_load(s, (uint8_t)(MENU_EQUIP_LIST_ROWS_UPLOAD >> 8));
+        charge_machine_accesses(g, 1);
 }
 
 /* ---- The guards -------------------------------------------------------------------------------- */
@@ -745,11 +526,29 @@ bool menu_equipment_member_switches(Snes *s) { return on_the_screen(s) && peek(s
  * drawn by. */
 enum { RECORD_BYTES = 0x50, FIRST_LIST_PLACE = 4, LIST_ROWS = 9 };
 
+static bool list_is_drawable_from(const GameState *g, unsigned place);
+
+/* Paging redraws eight rows; scrolling draws just the row coming into view.
+ * Validate the names those operations consume, leaving stale rows beyond
+ * the end of the list alone. */
+static bool list_move_is_drawable(const GameState *g, uint8_t row)
+{
+    uint8_t top = menu_equip_list_top(g), to = menu_page_destination(g, top);
+    if (to != top)
+        return list_is_drawable_from(g, to);
+    if (!menu_equip_list_slide_brings_a_row(g, row))
+        return true;
+    uint8_t shifted = menu_pushed(g, MENU_PUSHED_DOWN) ? (uint8_t)(top + 1) : (uint8_t)(top - 1);
+    uint8_t place = (uint8_t)(shifted + row);
+    return place < MENU_LIST_ITEMS_COUNT && menu_list_items(g, place) < MENU_ITEM_NAME_PLACES_COUNT;
+}
+
 static bool list_is_pointable(const GameState *g)
 {
     uint8_t row = (uint8_t)(menu_cursor_index(g) - FIRST_LIST_PLACE);
     return menu_equip_choices(g) <= MENU_LIST_ITEMS_COUNT && row < LIST_ROWS
-           && menu_equip_list_top(g) + LIST_ROWS + 1u <= MENU_LIST_ITEMS_COUNT && queue_takes(g, 2);
+           && menu_equip_list_top(g) + LIST_ROWS + 1u <= MENU_LIST_ITEMS_COUNT && queue_takes(g, 2)
+           && list_move_is_drawable(g, row);
 }
 
 static bool item_step_runs(const GameState *g)
@@ -765,31 +564,13 @@ bool menu_equipment_item_step_runs(Snes *s)
 
 bool menu_equipment_list_is_pointable(Snes *s) { return on_the_screen(s) && peek(s, list_is_pointable); }
 
-
-bool menu_equipment_list_rows_move(Snes *s) { return menu_on_page_work_ram(s); }
-
 static bool weapon_is_forgettable(const GameState *g) { return menu_member_row(g) < MENU_MEMBERS_COUNT; }
-
-bool menu_equipment_weapon_is_forgettable(Snes *s) { return menu_on_page_work_ram(s) && peek(s, weapon_is_forgettable); }
 
 bool menu_equipment_panel_shows(Snes *s) { return on_the_screen(s) && peek(s, menu_equipment_panel_can_show); }
 
 /* The dimmed colours go whole into the palette where Y points, from its
  * first colour on. */
 enum { DIMMED_BYTES = 24 * 2 };
-
-bool menu_panel_colours_dim(Snes *s)
-{
-    uint16_t at = s->cpu.y;
-    uint16_t palette = RAM_ABS(RAM_MENU_PALETTE);
-    if (!menu_on_page_work_ram(s) || at < palette || (at - palette) % 2 != 0
-        || (unsigned)(at - palette) + DIMMED_BYTES > RAM_MENU_PALETTE_COUNT * 2u)
-        return false;
-    vars_peek(true);
-    bool ok = menu_zero(state_of(s)) == 0;
-    vars_peek(false);
-    return ok;
-}
 
 bool menu_panel_colours_show(Snes *s) { return menu_on_page_work_ram(s); }
 
@@ -812,11 +593,10 @@ static bool equipped_are_items(const GameState *g)
  * at the list's end, the empty item, and draws its blank row for the rest,
  * so what lies past the end (an earlier, longer list's leftovers, or
  * whatever the inventory screen left there) is never looked at. */
-static bool list_is_drawable(const GameState *g)
+static bool list_is_drawable_from(const GameState *g, unsigned place)
 {
     if (menu_equip_slot(g) >= SLOT_PLACES || menu_equip_choices(g) > MENU_LIST_ITEMS_COUNT)
         return false;
-    unsigned place = menu_equip_list_top(g);
     for (unsigned row = 0; row < LIST_ROWS_DRAWN; row++, place++) {
         if (place >= MENU_LIST_ITEMS_COUNT)
             return false;
@@ -829,6 +609,11 @@ static bool list_is_drawable(const GameState *g)
     return true;
 }
 
+static bool list_is_drawable(const GameState *g)
+{
+    return list_is_drawable_from(g, menu_equip_list_top(g));
+}
+
 /* The list made afresh and drawn from its top: the list must have room for
  * what fits, and every item a slot takes has a name. */
 static bool list_can_be_made(const GameState *g)
@@ -836,9 +621,6 @@ static bool list_can_be_made(const GameState *g)
     return menu_list_what_fits_can_be_made(g)
         && menu_slot_past_items(g, menu_equip_slot(g)) <= MENU_ITEM_NAME_PLACES_COUNT;
 }
-
-/* One row: the item it names, or none, one of the game's. */
-static bool row_is_drawable(const GameState *g) { return menu_item_operand(g) < MENU_ITEM_NAME_PLACES_COUNT; }
 
 static bool member_shows(const GameState *g)
 {
@@ -850,13 +632,10 @@ static bool list_opens(const GameState *g) { return queue_takes(g, 4) && list_is
 static bool slots_come_back(const GameState *g) { return queue_takes(g, 4) && member_shows(g) && list_is_drawable(g) && equipped_are_items(g); }
 static bool window_slides(const GameState *g) { return queue_takes(g, 3) && member_shows(g) && menu_member_rows_can_be_drawn(g); }
 static bool slots_show(const GameState *g) { return queue_takes(g, 3) && member_shows(g); }
-static bool slots_mark(const GameState *g) { return menu_equip_slot(g) < SLOT_PLACES && menu_cursor_index(g) < SLOT_PLACES; }
 
 bool menu_equipment_members_come_back(Snes *s) { return on_the_screen(s) && peek(s, members_come_back); }
 bool menu_equipment_list_opens(Snes *s) { return on_the_screen(s) && peek(s, list_opens); }
-bool menu_equipment_list_is_drawable(Snes *s) { return menu_on_page_work_ram(s) && peek(s, list_is_drawable); }
 bool menu_equipment_list_can_be_made(Snes *s) { return menu_on_page_work_ram(s) && peek(s, list_can_be_made); }
-bool menu_equipment_list_row_is_drawable(Snes *s) { return menu_on_page_work_ram(s) && peek(s, row_is_drawable); }
 bool menu_equipment_list_slides(Snes *s) { return menu_on_page_work_ram(s) && peek(s, slots_show); }
 bool menu_equipment_slots_come_back(Snes *s) { return on_the_screen(s) && peek(s, slots_come_back); }
 bool menu_equipment_slots_window_slides(Snes *s) { return on_the_screen(s) && peek(s, window_slides); }
@@ -866,33 +645,9 @@ bool menu_equip_slots_window_can_slide(const GameState *g) { return window_slide
 bool menu_equip_can_point_at_a_slot(const GameState *g) { return slot_is_pointable(g); }
 bool menu_equip_members_can_come_back(const GameState *g) { return members_come_back(g); }
 bool menu_equip_list_can_open(const GameState *g) { return list_opens(g); }
-bool menu_equip_list_can_be_drawn(const GameState *g) { return list_is_drawable(g); }
 bool menu_equip_list_can_be_made(const GameState *g) { return list_can_be_made(g); }
 bool menu_equip_list_can_slide(const GameState *g) { return slots_show(g); }
 bool menu_equip_list_can_be_pointed_along(const GameState *g) { return list_is_pointable(g); }
 bool menu_equip_slots_can_come_back(const GameState *g) { return slots_come_back(g); }
 bool menu_equip_can_choose_an_item(const GameState *g) { return item_step_runs(g) && menu_cursor_can_move(g); }
 bool menu_equip_weapon_can_be_forgotten(const GameState *g) { return weapon_is_forgettable(g); }
-bool menu_equipment_slots_are_showable(Snes *s) { return on_the_screen(s) && peek(s, slots_show); }
-bool menu_equipment_slots_are_markable(Snes *s) { return menu_on_page_work_ram(s) && peek(s, slots_mark); }
-bool menu_equipped_items_are_drawable(Snes *s) { return menu_on_page_work_ram(s) && peek(s, equipped_are_items); }
-
-// $C2:8953
-/* The list made as the original's callers make it: what it leaves in the
- * registers they don't read, its flags and widths its caller's (it saves
- * and restores them). */
-void menu_list_what_fits_entry(Snes *s)
-{
-    menu_list_what_fits(state_of(s));
-    m_rts(s);
-}
-
-bool menu_list_what_fits_runs(Snes *s)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_list_what_fits_can_be_made(state_of(s));
-    vars_peek(false);
-    return ok;
-}

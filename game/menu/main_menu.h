@@ -150,10 +150,7 @@ typedef struct {
 } MainMenuOnTheMachine;
 extern const MainMenuSteps menu_main_menu_on_the_machine;
 
-/* The panels' scaffolding, each in its screen's bridge. */
-void menu_leave_equipment_panel_tested(Snes *s, uint8_t row_before);
-void menu_leave_techs_panel_member_chosen(Snes *s, uint8_t row);
-void menu_leave_settings_panel_frame(Snes *s);
+void menu_charge_techs_panel_member_chosen(Snes *s, uint8_t row);
 
 /* The entries ($C2:99CE, $C2:9A1B, $C2:9A98; $C2:9B54, $C2:9B71 the panels;
  * $C2:9AAD, $C2:9B8F), and their guards. */
@@ -161,9 +158,6 @@ void menu_open_main_menu_entry(Snes *s);
 void menu_choose_on_main_menu_entry(Snes *s);
 void menu_back_to_the_main_menu_entry(Snes *s);
 void menu_show_main_menu_panel(Snes *s);
-void menu_put_main_menu_panel_away_entry(Snes *s);
-void menu_draw_main_menu_backdrop_entry(Snes *s);
-void menu_draw_main_menu_entry(Snes *s);
 bool menu_main_menu_opens(Snes *s);
 bool menu_main_menu_step_runs(Snes *s);
 bool menu_main_menu_comes_back(Snes *s);

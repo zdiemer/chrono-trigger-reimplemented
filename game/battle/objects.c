@@ -24,7 +24,6 @@
 #include "battle/entries.h"
 #include "battle/script_language.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- Screen bounds ---------------------------------------------------------------------- */
@@ -123,13 +122,6 @@ static void name_upload_object(GameState *g, unsigned slot)
 /* What the original leaves in its cells: the object, and its facing's part
  * of the frame list. */
 enum { LEFT_OBJECT = 0x00, LEFT_FACING_PART = 0x02 };
-static void leave_step(GameState *g, unsigned slot, uint16_t facing_part)
-{
-    set_battle_work(g, LEFT_OBJECT, (uint8_t)slot);
-    set_battle_work(g, LEFT_OBJECT + 1, 0);
-    set_battle_work(g, LEFT_FACING_PART, (uint8_t)facing_part);
-    set_battle_work(g, LEFT_FACING_PART + 1, (uint8_t)(facing_part >> 8));
-}
 
 static void build_graphics(GameState *g, unsigned slot, uint8_t frame)
 {
@@ -175,7 +167,7 @@ static void take_animation_step(GameState *g, unsigned slot)
     set_battle_object_facing_shown(g, slot, facing);
     uint16_t facing_part = (uint16_t)battle_multiply_long(g, facing, facing_stride(g, slot));
     name_upload_object(g, slot);
-    ORIGINAL_EFFECT(leave_step(g, slot, facing_part));
+    charge_machine_accesses(g, 4);
 
     uint8_t frame = (uint8_t)(battle_animation_frame(g, slot) + 1);
     uint8_t held = battle_animation_wait(g, slot);
@@ -208,11 +200,6 @@ static void keep_found_position(GameState *g, unsigned slot, BattlePoint at)
  * count it ends at, POSITION_SLOTS, is the lift a jump to the script's point
  * takes from there (battle/script_moves.c), so it is kept plainly. */
 enum { LEFT_POSITION_SLOT = 0x10 };
-static void leave_position_slot(GameState *g, unsigned slot)
-{
-    set_battle_work(g, LEFT_POSITION_SLOT, (uint8_t)slot);
-    set_battle_work(g, LEFT_POSITION_SLOT + 1, 0);
-}
 
 /* ---- The entries ------------------------------------------------------------------------ */
 
@@ -228,19 +215,6 @@ bool battle_bounds_carry(const GameState *g, unsigned slot)
     return y >= battle_object_half_height(g, slot);
 }
 
-void battle_update_object_bounds(Snes *s)
-{
-    GameState *g = state_of(s);
-    unsigned slot = s->cpu.x;
-    bool clamped = past_near_edge(battle_bounds_x(g, slot), battle_object_half_width(g, slot))
-                   || past_near_edge(battle_bounds_y(g, slot), battle_object_half_height(g, slot));
-    battle_update_bounds(g, slot);
-    if (clamped)
-        s->cpu.a = 0;
-    m_set_flag(s, CPU_FLAG_C, battle_bounds_carry(g, slot));
-    m_rts(s);
-}
-
 /* It leaves A's high byte clear and the carry the compare that ends its loop
  * leaves. */
 void battle_update_all_object_bounds(Snes *s)
@@ -251,8 +225,6 @@ void battle_update_all_object_bounds(Snes *s)
     m_rts(s);
 }
 
-bool battle_names_bounds_object(Snes *s) { return battle_on_page(s) && battle_names_combatant(s->cpu.x); }
-
 /* The scheduler's pass: the object due, if any, takes its step. It leaves A's
  * high byte clear. */
 void battle_take_due_animation_step(GameState *g)
@@ -262,48 +234,21 @@ void battle_take_due_animation_step(GameState *g)
         take_animation_step(g, slot);
 }
 
-void battle_find_due_animation(Snes *s)
-{
-    battle_take_due_animation_step(state_of(s));
-    s->cpu.a = 0;
-    m_rts(s);
-}
-
 /* The object the pass will find due, without counting the times down: one
  * whose time is up now or runs out this frame. */
-static unsigned due_after_count(const GameState *g)
-{
-    unsigned slot = battle_animation_cursor(g);
-    for (unsigned n = 0; n < BATTLE_COMBATANTS; n++) {
-        if (battle_animating(g, slot) && battle_animation_delay(g, slot) <= 1)
-            return slot;
-        if (++slot == BATTLE_COMBATANTS)
-            slot = 0;
-    }
-    return BATTLE_COMBATANTS;
-}
 
 /* The scheduler's place names an object, and the object due has graphics the
  * battle builds, as every object the game animates has. */
-bool battle_scheduler_in_place(Snes *s)
-{
-    vars_peek(true);
-    GameState *g = state_of(s);
-    bool in_place = battle_names_combatant(battle_animation_cursor(g));
-    unsigned due = in_place ? due_after_count(g) : BATTLE_COMBATANTS;
-    bool known = due == BATTLE_COMBATANTS || !battle_object_builds_graphics(g, due) || battle_object_graphics_known(g, due);
-    vars_peek(false);
-    return battle_on_page(s) && in_place && known;
-}
 
 // $C1:4212
 /* Each slot's position is the place its mode names (battle/script_places.c),
  * worked out afresh. A mode naming a place battle/script_places.c doesn't find
  * is worked out by the original's routine ($C1:762E, `other_place`), by the mode. */
+
 static bool update_animation_positions(GameState *g, bool (*other_place)(void *ctx, uint8_t place), void *ctx)
 {
     for (unsigned slot = 0; slot < POSITION_SLOTS; slot++) {
-        ORIGINAL_EFFECT(leave_position_slot(g, slot));
+        charge_machine_accesses(g, 2);
         uint8_t place;
         if (!animation_slot_follows(g, slot, &place))
             continue;
@@ -318,7 +263,7 @@ static bool update_animation_positions(GameState *g, bool (*other_place)(void *c
         keep_found_position(g, slot, at);
     }
     battle_leave_jump_lift(g, POSITION_SLOTS);
-    ORIGINAL_EFFECT(set_battle_work(g, LEFT_POSITION_SLOT + 1, 0));
+    charge_machine_accesses(g, 1);
     return true;
 }
 
@@ -339,7 +284,7 @@ void battle_update_animation_positions_entry(Snes *s)
 static bool place_with_no_port(void *ctx, uint8_t place)
 {
     (void)place;
-    return battle_needs_the_machine(ctx, 0xC1762E, "a place the scripts follow that the port doesn't find");
+    return battle_contract_broken(ctx, 0xC1762E, "a place the scripts follow that the port doesn't find");
 }
 
 bool battle_update_animation_positions(GameState *g, Platform *pf)

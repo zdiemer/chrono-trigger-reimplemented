@@ -43,16 +43,4 @@ bool menu_time_digits_are_decimal(const GameState *g, uint16_t digits);
  * menu_text_work's number holds them after). */
 uint32_t menu_convert_number(GameState *g, uint32_t value, uint8_t bytes);
 
-void menu_number_to_bcd(Snes *s);
-void menu_draw_time(Snes *s);
-bool menu_time_is_drawable(Snes *s);
-void menu_draw_number(Snes *s);
-void menu_draw_tile(Snes *s);
-void menu_draw_text(Snes *s);
-
-bool menu_text_on_page(Snes *s);
-bool menu_tile_on_page(Snes *s);
-bool menu_number_is_drawable(Snes *s);
-bool menu_number_is_convertible(Snes *s);
-
 #endif

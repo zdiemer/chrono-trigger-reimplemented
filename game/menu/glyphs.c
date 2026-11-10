@@ -1,3 +1,4 @@
+#include "charge.h"
 /* The dialog and the menus: drawing a glyph of the proportional font into the
  * text's tiles.
  *
@@ -26,7 +27,6 @@
 
 #include "menu/menu.h"
 #include "menu/menu_data.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -120,37 +120,13 @@ static uint32_t glyph_byte_place(Tiles t, uint32_t first, uint8_t byte)
     return (first + down) & 0xFFFFFFu;
 }
 
-/* ---- What the original leaves behind ----------------------------------------------------- */
 
-/* The part of a line the original shifts into its own cell for the pen's
- * tile, when the line reaches a third tile (menu_glyph_spill). */
-static void leave_spill(GameState *g, Pen p, uint16_t pixels)
-{
-    uint16_t spill = reaches_a_third_tile(p.offset) ? (uint16_t)(pixels >> (p.offset + TILE_WIDTH)) : 0;
-    set_menu_glyph_spill(g, spill);
-}
 
-/* The drawer's own cells as its loops leave them: past the last byte, the
- * line pairs counted out, and the pointer a tile row and a line further on. */
-static void leave_glyph_drawn(GameState *g, Tiles t, uint32_t first)
-{
-    set_menu_glyph_byte(g, GLYPH_BYTES);
-    set_menu_glyph_lines_left(g, 0);
-    set_menu_glyph_dest(g, glyph_byte_place(t, first, GLYPH_BYTES));
-}
 
-/* The cells the original's setter ($C2:5DC4) hands the drawer the glyph and
- * the pen in, and a step of its arithmetic. */
-static void leave_glyph_set_up(GameState *g, uint16_t glyph, uint8_t pen_x)
-{
-    Glyph gl = glyph_numbered(glyph);
-    set_menu_glyph_number(g, (uint8_t)glyph);
-    set_menu_glyph_pen_offset(g, (uint16_t)(pen_x % TILE_WIDTH));
-    set_menu_glyph_pen_column(g, (uint16_t)((pen_x & ~(TILE_WIDTH - 1)) >> 2));
-    set_menu_glyph_font_step(g, (uint16_t)((glyph >> 1) * TILE_WIDTH));
-    set_menu_glyph_left_pixels(g, gl.left);
-    set_menu_glyph_right_pixels(g, gl.right);
-}
+
+
+
+
 
 /* ---- Drawing ----------------------------------------------------------------------------- */
 
@@ -161,8 +137,9 @@ static void draw_glyph_from(GameState *g, Tiles t, Glyph glyph, Pen p, uint32_t 
         pixels = glyph_pixels(g, glyph, byte);
         put_pixels(g, t, glyph_byte_place(t, first, byte), p, pixels);
     }
-    ORIGINAL_EFFECT(leave_spill(g, p, pixels));
-    ORIGINAL_EFFECT(leave_glyph_drawn(g, t, first));
+    charge_machine_accesses(g, 2);
+    /* Two-byte progress, one-byte count and three-byte destination. */
+    charge_machine_accesses(g, 6);
 }
 
 // $C2:5DC4 (the glyph and the pen worked out), $C2:5E36, $C2:5F07
@@ -171,116 +148,8 @@ static void draw_glyph_from(GameState *g, Tiles t, Glyph glyph, Pen p, uint32_t 
 void menu_put_glyph(GameState *g, uint16_t glyph, uint8_t pen_x, uint32_t line, MenuTextTiles kind)
 {
     uint32_t first = (line & 0xFF0000u) | (uint16_t)(line + LINES_DOWN_THE_ROW);
-    ORIGINAL_EFFECT(leave_glyph_set_up(g, glyph, pen_x));
+    charge_machine_accesses(g, 13);
     draw_glyph_from(g, tiles_of(kind), glyph_numbered(glyph), pen_at(pen_x), first);
 }
 
-/* ---- The entries ------------------------------------------------------------------------- */
-
-/* The glyph and the pen the cells hold, as the original's setter left them. */
-static Glyph glyph_in_cells(const GameState *g)
-{
-    return (Glyph){ menu_glyph_left_pixels(g), menu_glyph_right_pixels(g), (menu_glyph_number(g) & 1) != 0 };
-}
-
-static Pen pen_in_cells(const GameState *g)
-{
-    return (Pen){ (uint8_t)(menu_glyph_pen_column(g) >> 1), (uint8_t)menu_glyph_pen_offset(g) };
-}
-
-// $C2:5E89
-/* Draw the byte of the glyph the drawer is on, at the place the glyph page
- * points at. */
-static void draw_glyph_line(GameState *g)
-{
-    Glyph glyph = glyph_in_cells(g);
-    Pen p = pen_in_cells(g);
-    uint16_t pixels = glyph_pixels(g, glyph, menu_glyph_byte(g));
-    put_pixels(g, FOUR_COLOUR, menu_glyph_dest(g), p, pixels);
-    ORIGINAL_EFFECT(leave_spill(g, p, pixels));
-}
-
 enum { GLYPH_PAGE = 0x0200, FONT_TABLES_BANK = 0xC2 };
-
-/* The glyph drawer's writes land in the text's tiles, which the text engine
- * keeps well clear of the glyph page (the drawer reads its cells a line at a
- * time, so a glyph drawn over them would read what it drew): its reach from
- * the pointer is under $400 bytes in four-colour tiles, $800 in sixteen. */
-static bool clear_of_the_glyph_page(uint32_t dest, Tiles t)
-{
-    uint16_t reach = (uint16_t)(4 * t.row_bytes);
-    uint8_t bank = (uint8_t)(dest >> 16);
-    uint16_t at = (uint16_t)dest;
-    if (at > 0x10000 - reach)
-        return false;
-    bool low_ram = bank == 0x7E || m_io_bank(bank);
-    return !low_ram || at >= GLYPH_PAGE + 0x100 || at + reach <= GLYPH_PAGE;
-}
-
-/* The game enters the drawer on the glyph page, with the pen somewhere a
- * glyph's lines keep inside the line of text (the pen's X is under 256, and
- * its column the one table entry it names), and the glyph's pixels bound for
- * the text's tiles. */
-static bool glyph_is_one_the_game_draws(Snes *s, Tiles t)
-{
-    if (m_direct_page(s) != GLYPH_PAGE)
-        return false;
-    GameState *g = state_of(s);
-    vars_peek(true);
-    uint16_t column = menu_glyph_pen_column(g);
-    uint8_t offset = (uint8_t)menu_glyph_pen_offset(g);   /* the drawer masks the word it is kept in */
-    uint32_t dest = menu_glyph_dest(g);
-    vars_peek(false);
-    unsigned reaches = (column >> 1) + (reaches_a_third_tile(offset) ? 3u : 2u);
-    return offset < TILE_WIDTH && (column & 1) == 0 && reaches <= MENU_TEXT_COLUMNS && clear_of_the_glyph_page(dest, t);
-}
-
-bool menu_glyph_is_drawable(Snes *s) { return glyph_is_one_the_game_draws(s, FOUR_COLOUR); }
-bool menu_glyph_16_colour_is_drawable(Snes *s) { return glyph_is_one_the_game_draws(s, SIXTEEN_COLOUR); }
-
-/* The line entry also reads the column table through the data bank, which
- * the drawer sets to the table's bank, and is called for one of the glyph's
- * 24 bytes. */
-static bool on_a_byte_of_the_glyph(Snes *s)
-{
-    vars_peek(true);
-    bool ok = menu_glyph_byte(state_of(s)) < GLYPH_BYTES;
-    vars_peek(false);
-    return ok;
-}
-
-bool menu_glyph_line_is_drawable(Snes *s)
-{
-    return s->cpu.db == FONT_TABLES_BANK && glyph_is_one_the_game_draws(s, FOUR_COLOUR) && on_a_byte_of_the_glyph(s);
-}
-
-/* All three leave Y at the pen's own tile's offset, the last they looked up. */
-static void leave_y(Snes *s, Tiles t)
-{
-    GameState *g = state_of(s);
-    vars_peek(true);
-    unsigned column = pen_in_cells(g).column;
-    s->cpu.y = t.sixteen_colour ? menu_text_column_offset_16_colour(g, column) : menu_text_column_offset(g, column);
-    vars_peek(false);
-}
-
-void menu_draw_glyph_line(Snes *s)
-{
-    draw_glyph_line(state_of(s));
-    ORIGINAL_EFFECT(leave_y(s, FOUR_COLOUR));
-    m_rts(s);
-}
-
-static void draw_glyph_in_cells(Snes *s, Tiles t)
-{
-    GameState *g = state_of(s);
-    draw_glyph_from(g, t, glyph_in_cells(g), pen_in_cells(g), menu_glyph_dest(g));
-    ORIGINAL_EFFECT(leave_y(s, t));
-    m_rts(s);
-}
-
-// $C2:5E36
-void menu_draw_glyph(Snes *s) { draw_glyph_in_cells(s, FOUR_COLOUR); }
-
-// $C2:5F07
-void menu_draw_glyph_16_colour(Snes *s) { draw_glyph_in_cells(s, SIXTEEN_COLOUR); }

@@ -6,6 +6,7 @@
  * the player's battle speed setting. The combatant whose first turn comes
  * soonest has it one tick away: every other's wait is shortened by as much,
  * so the fight starts at once. The party's gauges show their waits. */
+#include "charge.h"
 #include "battle/fight.h"
 
 #include "battle/arith.h"
@@ -16,7 +17,6 @@
 #include "battle/setup.h"
 #include "battle/setup_data.h"
 #include "battle/timers.h"
-#include "original_effects.h"
 #include "vars.h"
 
 // $FD:B0D5
@@ -72,10 +72,6 @@ enum { FASTEST_SPEED = 16, SETTINGS_SPEED_BITS = 0x07, TICKS_A_SPEED_POINT = 6 }
 
 /* The original multiplies both through the arithmetic's cells, the speed's
  * with the carry of the table's place, a byte, over it (scaffolding). */
-static void leave_speed_carry(GameState *g, uint8_t speed, uint8_t setting)
-{
-    battle_leave_multiply_carry(g, (uint8_t)(speed - 1) + (uint8_t)(setting * SPEEDS_A_SETTING) > 0xFF);
-}
 
 static uint8_t first_wait(GameState *g, uint8_t slot)
 {
@@ -88,7 +84,7 @@ static uint8_t first_wait(GameState *g, uint8_t slot)
     battle_leave_multiply(g, setting, SPEEDS_A_SETTING);
     uint8_t given_back = first_turn_wait(g, setting, speed);
     battle_leave_multiply(g, speed, TICKS_A_SPEED_POINT);
-    ORIGINAL_EFFECT(leave_speed_carry(g, speed, setting));
+    charge_machine_accesses(g, 1);
     return (uint8_t)(SLOWEST_TURN - speed * TICKS_A_SPEED_POINT + given_back);
 }
 
@@ -112,12 +108,11 @@ static void start_turn(GameState *g, uint8_t slot, uint8_t wait)
 
 void fight_set_first_turns(GameState *g)
 {
-    uint16_t place = 0;
     bool any = false;
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         if (!combatant_in_fight(g, member))
             continue;
-        place = battle_stat_block_place(g, member);
+        charge_legacy_rom_accesses(g, 2);
         any = true;
         start_turn(g, member, first_wait(g, member));
         battle_restart_timer(g, BATTLE_TIMER_TURN, member);
@@ -126,7 +121,7 @@ void fight_set_first_turns(GameState *g)
         uint8_t slot = (uint8_t)(BATTLE_FIRST_ENEMY + enemy);
         if (battle_combatant_id(g, slot) == COMBATANT_NONE)
             continue;
-        place = battle_stat_block_place(g, slot);
+        charge_legacy_rom_accesses(g, 2);
         any = true;
         uint8_t wait = first_wait(g, slot);
         if (combatant_stat_byte(g, slot, MAX_MP_HIGH) & STANDING_MARK_BIT)
@@ -135,9 +130,9 @@ void fight_set_first_turns(GameState *g)
         if (combatant_in_fight(g, slot))
             battle_restart_timer(g, BATTLE_TIMER_TURN, slot);
     }
-    ORIGINAL_EFFECT(battle_leave_word(g, SLOT_AT, battle_enemy_count(g)));
+    charge_machine_accesses(g, 3);
     if (any)
-        ORIGINAL_EFFECT(battle_leave_word(g, PLACE_AT, place));
+        charge_machine_accesses(g, 2);
 
     /* the soonest turn: the original compares down the slots, keeping the
      * first it finds of the least nonzero wait of anyone in the fight, and
@@ -152,7 +147,7 @@ void fight_set_first_turns(GameState *g)
         least = battle_timer_counts_byte(g, BATTLE_TIMER_TURN, soonest);
     }
     uint8_t taken_off = (uint8_t)(battle_timer_counts_byte(g, BATTLE_TIMER_TURN, soonest) - 1);
-    ORIGINAL_EFFECT(battle_leave_word(g, TAKEN_OFF_AT, taken_off));
+    charge_machine_accesses(g, 2);
     for (uint8_t slot = 0; slot < BATTLE_COMBATANTS; slot++) {
         uint8_t wait = battle_timer_counts_byte(g, BATTLE_TIMER_TURN, slot);
         if (combatant_in_fight(g, slot) && wait != 0)

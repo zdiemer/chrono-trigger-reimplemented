@@ -78,6 +78,8 @@ bool bridge_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
 bool field_run(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *), BridgeMachine m);
 bool field_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
                     BridgeMachine m);
+/* A former long call-out whose caller has a held continuation after it.
+ * Settle at the same call/return boundaries and hand over at a refused entry. */
 bool field_run_long_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
                            BridgeMachine m);
 

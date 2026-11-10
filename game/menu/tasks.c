@@ -23,6 +23,7 @@
 #include "menu/menu.h"
 
 #include "charge.h"
+#include "holds.h"
 #include "core/program.h"
 #include "core/tasks.h"
 #include "menu/description.h"
@@ -34,7 +35,6 @@
 #include "menu/held_cursors.h"
 #include "menu/sound.h"
 #include "menu/sprites.h"
-#include "original_effects.h"
 #include "platform/timing.h"
 #include "port/machine.h"
 #include "port/native.h"
@@ -116,10 +116,6 @@ static TaskTurn task_ends(GameState *g) { return next_turn(g, record_the_end(g) 
  * in. */
 static void task_goes_on(GameState *g, unsigned task) { set_menu_screen_step(g, menu_tasks_step(g, task)); }
 
-/* For the original's code and shadow mode: a task's start jumps through its
- * start in the menus' first cell. */
-static void leave_the_start(GameState *g, unsigned task) { set_menu_scratch_task_start(g, menu_tasks_start(g, task)); }
-
 /* A task starting starts in the menus' first screen step. The original clears
  * the step and the task's own as words, and the bytes after them with them:
  * the one after the screen step is other modes' (the sprite-object mode's
@@ -130,7 +126,7 @@ static uint16_t task_starts(GameState *g, unsigned task)
     set_menu_tasks_step_high(g, task, 0);
     set_menu_screen_step(g, 0);
     set_menu_screen_step_high(g, 0);
-    ORIGINAL_EFFECT(leave_the_start(g, task));
+    charge_machine_accesses(g, 4);
     return menu_tasks_start(g, task);
 }
 
@@ -158,6 +154,7 @@ static void go_back_into(Snes *s, unsigned task)
     uint16_t place = menu_tasks_stack(g, task);
     s->cpu.a = (uint16_t)((place & 0xFF00) | menu_tasks_step(g, task));
     m_switch_back(s, place);
+    native_hold(s, HOLD_MENU_TASKS);
 }
 
 /* Where the game's tasks start (the menus' screen, the cursor's sprite, a
@@ -192,26 +189,24 @@ static void start(Snes *s, const TaskTurn *turn)
     m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
     for (unsigned i = 0; i < TASK_STARTS_KNOWN; i++)
         if (task_starts_known[i] == at)
-            m_stop_at(s, (uint32_t)MENUS_BANK << 16 | task_starts_known[i], A_START_READS_ITS_PAGE);
+            m_hold_at(s, (uint32_t)MENUS_BANK << 16 | task_starts_known[i], A_START_READS_ITS_PAGE, HOLD_MENU_TASKS);
 }
 
-/* For shadow mode: the bytes the original's way onto the menus' page leaves
- * just below a stack, which it puts the page's number through. */
-static void leave_the_page_below(Snes *s, uint16_t stack)
+static void charge_the_page_below(Snes *s, uint16_t stack)
 {
-    m_write8(s, stack, 0);
-    m_write8(s, (uint16_t)(stack - 1), 0);
+    (void)stack;
+    charge_machine_accesses(state_of(s), 2);
 }
 
 /* No task goes on this frame: back on the menus' main stack and page, the
  * data bank work RAM's, to wait for the frame's uploads to be sent. The
  * menus are in this wait at nearly every frame's end, so a saved machine has
- * to hold it: the shipping mode leaves it to the loop's idle entry, which goes
- * on into the next frame's turns as the port does, and the port stops at the
- * loop (tm_wait_for_handlers_held). False there. */
+ * to hold it: the shipping mode names the idle continuation and its next
+ * frame's scheduler, leaving no suspended port while it waits. Their
+ * registry aliases keep shadow comparisons. False at the held boundary. */
 static bool wait_for_the_next_frame(Snes *s)
 {
-    ORIGINAL_EFFECT(leave_the_page_below(s, THE_MAIN_STACK));
+    charge_the_page_below(s, THE_MAIN_STACK);
     s->cpu.s = THE_MAIN_STACK;
     s->cpu.db = MENUS_DATA_BANK;
     s->cpu.d = 0;
@@ -219,8 +214,10 @@ static bool wait_for_the_next_frame(Snes *s)
     const GameState *g = state_of(s);
     while (!menu_vblank_done(g))
         if (!tm_wait_for_handlers_held(m_platform(s),
-                                       PF_LOOP_HELD(WAIT_FOR_THE_UPLOADS, THE_UPLOADS_SENT, THE_WAIT_READS_NOTHING)))
+                                       PF_LOOP_HELD(WAIT_FOR_THE_UPLOADS, THE_UPLOADS_SENT, THE_WAIT_READS_NOTHING))) {
+            m_hold_at(s, WAIT_FOR_THE_UPLOADS, THE_WAIT_READS_NOTHING, HOLD_MENU_TASKS);
             return false;
+        }
     return true;
 }
 
@@ -259,7 +256,7 @@ static void wait_entry(Snes *s, uint8_t frames)
     GameState *g = state_of(s);
     m_keep_registers_to_switch(s);
     set_menu_tasks_stack(g, running_task(g), s->cpu.s);
-    ORIGINAL_EFFECT(leave_the_page_below(s, s->cpu.s));
+    charge_the_page_below(s, s->cpu.s);
     s->cpu.d = 0;
     take_turn(s, task_waits(g, frames));
 }
@@ -436,13 +433,9 @@ static void leave_the_task_s_stack_below_uncompared(Snes *s)
  * which reads `reads` of the registers; the frames' wait reads A. */
 static void wait_on(Snes *s, uint32_t site, uint32_t wait, void (*entry)(Snes *), uint16_t reads, bool widths_its_own)
 {
-    if (menu_runs_as_port(s, wait, entry)) {
-        leave_the_kept_index_registers_uncompared(s, reads, widths_its_own);
-        leave_the_task_s_stack_below_uncompared(s);
-        menu_run(s, site, wait, entry);
-    } else {
-        m_stop_at(s, site, reads);
-    }
+    leave_the_kept_index_registers_uncompared(s, reads, widths_its_own);
+    leave_the_task_s_stack_below_uncompared(s);
+    (void)menu_run_checked(s, site, wait, reads, entry);
 }
 
 static void wait_in_the_loop(Snes *s, uint32_t site, bool widths_its_own)
@@ -624,7 +617,7 @@ static bool take_a_turn(GameState *g, const TaskTurn *turn)
         while (i < TASK_COUNT && tasks[i].start != at)
             i++;
         if (i == TASK_COUNT) {
-            program_needs_the_machine(g, (uint32_t)MENUS_BANK << 16 | at, "a menus' task only the machine runs");
+            program_breaks_a_contract(g, (uint32_t)MENUS_BANK << 16 | at, "a menus' task only the machine runs");
             return false;
         }
         tasks_start(&the_tasks, (uint8_t)turn->task, run_a_task, (void *)&tasks[i].run);
@@ -681,7 +674,7 @@ static void cursor_task(GameState *g, Platform *pf)
     while (menu_cursor_can_be_placed(g) && cursor_task_turn(g, loop_waits, &c))
         ;
     if (!menu_cursor_can_be_placed(g))
-        program_needs_the_machine(g, (uint32_t)MENUS_BANK << 16 | CURSOR_TASK_HEAD, "a cursor the port doesn't place");
+        program_breaks_a_contract(g, (uint32_t)MENUS_BANK << 16 | CURSOR_TASK_HEAD, "a cursor the port doesn't place");
 }
 
 /* The scroll bar's turns while its guard's state half takes them, each
@@ -694,7 +687,7 @@ static void scroll_bar_task(GameState *g, Platform *pf)
         TIMED_AS(g, turn, menu_draw_the_scroll_bar(g));
         menu_task_waits(g, 1);
     }
-    program_needs_the_machine(g, (uint32_t)MENUS_BANK << 16 | SCROLL_BAR_TASK_HEAD, "a scroll bar the port doesn't draw");
+    program_breaks_a_contract(g, (uint32_t)MENUS_BANK << 16 | SCROLL_BAR_TASK_HEAD, "a scroll bar the port doesn't draw");
 }
 
 /* The records' turns, the same way. */
@@ -706,7 +699,7 @@ static void records_task(GameState *g, Platform *pf)
         TIMED_AS(g, turn, menu_run_the_records(g));
         menu_task_waits(g, 1);
     }
-    program_needs_the_machine(g, (uint32_t)MENUS_BANK << 16 | RECORDS_TASK_HEAD, "records the port doesn't run");
+    program_breaks_a_contract(g, (uint32_t)MENUS_BANK << 16 | RECORDS_TASK_HEAD, "records the port doesn't run");
 }
 
 /* The held cursors' turns, the same way: a frame's drawing timed as the
@@ -727,7 +720,7 @@ static void held_cursor_turns(GameState *g, const HeldCursorTask *t)
         TIMED_AS(g, turn, t->draw(g));
         menu_task_waits(g, 1);
     }
-    program_needs_the_machine(g, (uint32_t)MENUS_BANK << 16 | t->head, t->what);
+    program_breaks_a_contract(g, (uint32_t)MENUS_BANK << 16 | t->head, t->what);
 }
 
 static void held_cursor_task(GameState *g, Platform *pf)

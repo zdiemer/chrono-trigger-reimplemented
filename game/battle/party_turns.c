@@ -41,7 +41,6 @@
 #include "battle/setup_data.h"
 #include "battle/timers.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "port/native.h"
 #include "vars.h"
 
@@ -93,7 +92,7 @@ static uint8_t random_enemy(GameState *g)
 enum { CONFUSED_MEMBER_AT = 0x12 };
 static uint8_t random_other(GameState *g, uint8_t member)
 {
-    ORIGINAL_EFFECT(battle_leave_word(g, CONFUSED_MEMBER_AT, member));
+    charge_machine_accesses(g, 2);
     uint8_t slot;
     do
         slot = draw(g, 0, BATTLE_COMBATANTS);
@@ -142,7 +141,7 @@ static void drop_waiting_action(GameState *g, uint8_t member)
 {
     set_battle_member_ready(g, member, MEMBER_NO_ACTION);
     set_battle_step_member(g, member);
-    ORIGINAL_EFFECT(battle_leave_word(g, BATTLE_ITEM_RETURNING_FOR_AT, member));
+    charge_machine_accesses(g, 2);
     set_battle_timer_flags_byte(g, BATTLE_TIMER_TURN, member, 0);
     set_battle_member_actions_state(g, member, MEMBER_NO_ACTION);
 }
@@ -203,7 +202,7 @@ static bool counter_the_attack(GameState *g, PartyCalls call, void *ctx)
             uint8_t member = battle_reaction_targets(g, entry);
             if (member == COMBATANT_NONE)
                 continue;
-            ORIGINAL_EFFECT(battle_leave_word(g, COUNTERING_BLOCK_AT, (uint16_t)(member * BATTLE_STAT_BLOCK_BYTES)));
+            charge_machine_accesses(g, 2);
             if (!counters(g, member) || draw(g, 0, CHANCES) >= combatant_stat_byte(g, member, STAT_ACCESSORY_SECOND))
                 continue;
             if (!(combatant_stat_byte(g, member, STAT_ACCESSORY_FIRST) & COUNTER_ATTACKS))
@@ -237,7 +236,7 @@ static bool members_hit_are_combatants(const GameState *g)
  * partners forgotten, and its turn's wait started again. */
 static void forget_combination(GameState *g, uint8_t member)
 {
-    ORIGINAL_EFFECT(battle_leave_byte(g, BATTLE_ITEM_RETURNING_FOR_AT, member));
+    charge_machine_accesses(g, 1);
     TIMED_AS(g, 0xC1B6D1, battle_return_chosen_item(g, member));
     set_battle_member_actions_state(g, member, 0);
     set_battle_member_actions_choice_flags(g, member, 0);
@@ -332,7 +331,7 @@ static bool see_to_knocked_out(GameState *g, PartyCalls call, void *ctx)
         uint8_t slot = battle_reaction_targets(g, entry);
         if (slot < BATTLE_FIRST_ENEMY || slot == COMBATANT_NONE)
             continue;
-        ORIGINAL_EFFECT(battle_leave_word(g, TARGET_AT, slot));
+        charge_machine_accesses(g, 2);
         if (knocked_out_unseen(g, slot) && !has_last_reaction(g, slot))
             count_beaten_now(g, slot - BATTLE_FIRST_ENEMY);
     }
@@ -439,10 +438,12 @@ static bool party_call(void *ctx, PartyCall call, uint8_t member)
     }
 }
 
-/* Each with its guard's state half: the member a party member, the members
+/* Each with its guard's state half: the slot a combatant, the members
  * hit and the reactions' targets combatants or none. */
 bool battle_member_status_turn(GameState *g, Platform *pf, uint8_t member)
 {
+    if (member >= BATTLE_COMBATANTS)
+        return battle_contract_broken(g, 0xFDAB30, "a status turn past the combatants");
     PartyTurnContext c = { g, pf };
     return status_turn(g, member, member, party_call, &c);
 }
@@ -450,7 +451,7 @@ bool battle_member_status_turn(GameState *g, Platform *pf, uint8_t member)
 bool battle_cancel_if_unable(GameState *g, Platform *pf, uint8_t member)
 {
     if (member >= BATTLE_PARTY_SIZE)
-        return battle_needs_the_machine(g, 0xC1B3F9, "a member past the party");
+        return battle_contract_broken(g, 0xC1B3F9, "a member past the party");
     PartyTurnContext c = { g, pf };
     return cancel_if_unable(g, member, party_call, &c);
 }
@@ -458,7 +459,7 @@ bool battle_cancel_if_unable(GameState *g, Platform *pf, uint8_t member)
 bool battle_party_counters(GameState *g, Platform *pf)
 {
     if (!members_hit_are_combatants(g))
-        return battle_needs_the_machine(g, 0xFDAC6E, "a member hit past the combatants");
+        return battle_contract_broken(g, 0xFDAC6E, "a member hit past the combatants");
     PartyTurnContext c = { g, pf };
     return counter_the_attack(g, party_call, &c);
 }
@@ -466,7 +467,7 @@ bool battle_party_counters(GameState *g, Platform *pf)
 bool battle_see_to_knocked_out_enemies(GameState *g, Platform *pf)
 {
     if (!reaction_targets_are_combatants(g))
-        return battle_needs_the_machine(g, 0xC1B762, "a reaction's target past the combatants");
+        return battle_contract_broken(g, 0xC1B762, "a reaction's target past the combatants");
     PartyTurnContext c = { g, pf };
     return see_to_knocked_out(g, party_call, &c);
 }
@@ -493,7 +494,7 @@ bool battle_call_off_waiting_combination(GameState *g, Platform *pf)
  * number in the low byte) and can't be declared dead: it is clear where the
  * original's code before the step clears it, and otherwise what the step
  * before left there. */
-enum { STEP_READS_A = DC_X | DC_Y | DC_FLAGS };
+enum { STEP_READS_A = DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
 static void clear_a_high_byte(Snes *s) { s->cpu.a &= 0x00FF; }
 
@@ -510,19 +511,13 @@ static bool party_on_the_machine(void *ctx, PartyCall call, uint8_t member)
     case PARTY_COUNTER_ATTACK: return battle_run_long(s, 0xFDACC9, MEMBER_ATTACKS, battle_member_attacks_from_bank_fd);
     case PARTY_CALLED_OFF_STEP:
         clear_a_high_byte(s);
-        /* dc-evidence: ct_fuzz --poison-dc battle_cancel_if_unable, seed 1: 5000
-         * states, 4904 call-outs scrambled, 0 mismatched */
         return battle_take_step(s, 0xC1B43B, BATTLE_STEP_CALLED_OFF, STEP_READS_A);
     case PARTY_BEATEN_STEP:
         clear_a_high_byte(s);
-        /* dc-evidence: ct_fuzz --poison-dc battle_see_to_knocked_out_enemies:knocked_out, seed 1:
-         * 5000 states, 4954 call-outs scrambled, 0 mismatched */
         return battle_take_step(s, 0xC1B7D7, BATTLE_STEP_ENEMIES_BEATEN, STEP_READS_A);
     case PARTY_STAND_DOWN_STEP:
         if (member == 0)
             clear_a_high_byte(s);
-        /* dc-evidence: ct_fuzz --poison-dc battle_party_stands_down, seed 1: 5000
-         * states, 15000 call-outs scrambled, 0 mismatched */
         return battle_take_step(s, stand_down_sites[member], BATTLE_STEP_CALLED_OFF, STEP_READS_A);
     case PARTY_CLOSE_THE_MENU: return battle_run_long(s, 0xFDA937, CLOSE_MENU, battle_member_called_off_step);
     default:
@@ -594,12 +589,6 @@ void battle_call_off_waiting_combination_entry(Snes *s)
         m_rtl(s);
 }
 
-void battle_call_off_combination_entry(Snes *s)
-{
-    battle_call_off_combination(state_of(s));
-    m_rtl(s);
-}
-
 bool battle_see_to_knocked_out_enemies_ready(Snes *s) { return peek(s, reaction_targets_are_combatants); }
 void battle_see_to_knocked_out_enemies_entry(Snes *s)
 {
@@ -608,18 +597,6 @@ void battle_see_to_knocked_out_enemies_entry(Snes *s)
 }
 
 /* The demo's party ready leaves the record's state in A. */
-void battle_demo_party_ready_entry(Snes *s)
-{
-    battle_demo_party_ready(state_of(s));
-    m_set_a8(s, DEMO_ACTION_STATE);
-    m_rts(s);
-}
-
-void battle_demo_next_turn_entry(Snes *s)
-{
-    battle_demo_next_turn(state_of(s));
-    m_rts(s);
-}
 
 void battle_party_stands_down_entry(Snes *s)
 {

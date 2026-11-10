@@ -1,5 +1,5 @@
 /* The healing and its rising numbers on the original's machine: the
- * registered entries, the task the numbers rise in, and what they leave the
+ * checked legacy adapters, the task the numbers rise in, and what they leave the
  * original's code.
  *
  * The numbers rise in a task of the menus' own, which the showing starts and
@@ -16,7 +16,6 @@
 #include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/members.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
@@ -27,56 +26,22 @@
 enum { END_OF_A_TASK = 0xC28216 };
 enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
-
-/* ---- The healing --------------------------------------------------------------------------------- */
-
-// $C2:8E2D
-void menu_heal_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_heal(g);
-    m_rts(s);
-}
-
-/* ---- What the sequences ask, on the machine ----------------------------------------------------- */
-
-/* What the showing hands back in A: the task's state, none, as its wait
- * read it, a word or a byte; a byte keeps the high byte of the task's start
- * it was loaded with. */
-static void leave_waited(Snes *s)
-{
-    s->cpu.a = m_flag(s, CPU_FLAG_M) ? (uint16_t)(MENU_RAISE_AMOUNTS_TASK_START & 0xFF00) : 0;
-}
-
-/* For the original's code and shadow mode: the task shifts each kind's bit
- * out of the kinds to show as it takes it. */
-static void leave_kinds_left(GameState *g, uint8_t kinds) { set_menu_amounts_kinds(g, kinds); }
-
 /* What a frame leaves in the menus' cells: where its loop over the members
  * got to, the height, the last member's number as it read it, and of the
  * last number it drew, how far it got along its digits (where it drew none
  * they stay as they were). */
 enum { NOT_A_NUMBER = 0x8000, PAST_THE_UNITS = 0xFF, HALF_A_DIGIT = 4 };
 
-static void leave_a_frame(GameState *g, uint8_t from, uint8_t last_digit, uint8_t height)
+static void charge_a_frame(GameState *g, uint8_t from, uint8_t last_digit, uint8_t height)
 {
+    (void)last_digit, (void)height;
     unsigned listed = menu_amounts_listed(g);
-    set_menu_amounts_place(g, (uint16_t)(2 * listed));
-    set_menu_amounts_left(g, 0);
-    set_menu_scratch_amount_height(g, height);
-    set_menu_text_work_number_low(g, menu_heal_shown(g, from / 2 + listed - 1));
-    for (unsigned i = listed; i-- > 0;) {
-        uint16_t number = menu_heal_shown(g, from / 2 + i);
-        if (number & NOT_A_NUMBER)
-            continue;
-        unsigned first = last_digit;
-        while (first > 0 && !(number >> (4 * first) & 0x0F))
-            first--;
-        set_menu_scratch_amount_digit(g, PAST_THE_UNITS);
-        set_menu_scratch_amount_offset(g, (uint8_t)(HALF_A_DIGIT * (first + 1)));
-        set_menu_scratch_amount_drawn(g, (uint8_t)(first + 1));
-        return;
-    }
+    charge_machine_accesses(g, 10);
+    for (unsigned i = listed; i-- > 0;)
+        if (!(menu_heal_shown(g, from / 2 + i) & NOT_A_NUMBER)) {
+            charge_machine_accesses(g, 3);
+            break;
+        }
 }
 
 static const struct {
@@ -121,10 +86,10 @@ static void note_on_the_machine(void *ctx, HealingNote note, uint8_t value)
     Snes *s = ctx;
     GameState *g = state_of(s);
     switch (note) {
-    case HEALING_NOTE_WAITED: ORIGINAL_EFFECT(leave_waited(s)); break;
-    case HEALING_NOTE_KINDS_LEFT: ORIGINAL_EFFECT(leave_kinds_left(g, value)); break;
+    case HEALING_NOTE_WAITED: (void)0; break;
+    case HEALING_NOTE_KINDS_LEFT: charge_machine_accesses(g, 2); break;
     case HEALING_NOTE_A_FRAME_RISEN:
-        ORIGINAL_EFFECT(leave_a_frame(g, menu_amounts_from(g), menu_amounts_last_digit(g), menu_amount_height(g, value)));
+        charge_a_frame(g, menu_amounts_from(g), menu_amounts_last_digit(g), menu_amount_height(g, value));
         break;
     case HEALING_NOTE_RISEN: m_set_a8(s, menu_amount_height(g, value)); break;
     }
@@ -133,7 +98,7 @@ static void note_on_the_machine(void *ctx, HealingNote note, uint8_t value)
 /* The task ends through the scheduler's end of a task. */
 static bool ends_on_the_machine(void *ctx)
 {
-    m_stop_at(ctx, END_OF_A_TASK, READS_NOTHING);
+    menu_continue(ctx, END_OF_A_TASK, menu_task_ends, READS_NOTHING);
     return false;
 }
 

@@ -9,13 +9,14 @@
  * the middle of its own work. The steps are found through a C table; those
  * that are hand ports are run as the original's call reaches them
  * (battle_run), the others are still the original's. */
+#include "holds.h"
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
+#include "battle/machine_forms.h"
 #include "battle/program.h"
 #include "battle/steps.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
 
@@ -29,16 +30,15 @@ enum { STEP_READS_A_AND_OVERFLOW = DC_X | DC_Y | DC_N | DC_Z, STEP_READS_A = STE
 
 /* The routine of each step, its hand port where the dispatch runs it on the
  * machine, what it doesn't read of what the dispatch hands it, and the step
- * as C. The setup is called on the machine as the original's routine, whose
- * ports (battle/opening.c) go on over frames from the waits they stop at,
- * which a call there can't hold. */
+ * as C. Setup leaves saveable waits; its return continuation restores the
+ * scheduler's kept registers before resuming the main loop. */
 static const struct {
     uint32_t routine;
     void (*entry)(Snes *);
     uint16_t dont_care;
     bool (*run)(GameState *g, Platform *pf);
 } STEPS[] = {
-    [BATTLE_STEP_SET_UP] = { 0xC10023, NULL, STEP_READS_A, battle_set_up_runs },
+    [BATTLE_STEP_SET_UP] = { 0xC10023, battle_set_up, STEP_READS_A, battle_set_up_runs },
     [BATTLE_STEP_OPEN_MENU] = { 0xC11B19, battle_turn_comes_step, STEP_READS_A, battle_turn_comes },
     [BATTLE_STEP_CALLED_OFF] = { 0xC11BAA, battle_called_off_step, STEP_READS_A, battle_menu_called_off },
     [BATTLE_STEP_NEXT_FRAME] = { 0xC1106E, battle_wait_step, STEP_READS_A_AND_OVERFLOW, battle_waits_a_frame },
@@ -53,7 +53,6 @@ enum { STEP_COUNT = sizeof STEPS / sizeof STEPS[0] };
 
 /* The dispatch's last pull, the asker's accumulator, leaves its zero and
  * negative. */
-static void leave_the_last_pull(Snes *s, BattleFrame kept) { m_set_nz8(s, kept.kept[0]); }
 
 /* Run a step as the dispatch's table lookup has it: the step's routine finds
  * the table's index, the step doubled, in the accumulator's low byte and in X,
@@ -67,7 +66,14 @@ static bool run_the_step(Snes *s, BattleStep step, BattleFrame kept)
     m_set_a8(s, (uint8_t)(step << 1));
     s->cpu.x = s->cpu.a;
     bool ran;
-    if (STEPS[step].entry)
+    if (step == BATTLE_STEP_SET_UP) {
+        /* This was a call-out: keeping the dispatch's registers is still
+         * dispatch work, settled before setup starts at its own rate. */
+        battle_keep(s, kept);
+        ran = battle_run_called(s, 0xC1004A, STEPS[step].routine, STEPS[step].dont_care, STEPS[step].entry);
+        if (ran)
+            battle_stop_keeping(s, kept);
+    } else if (STEPS[step].entry)
         NATIVE_TIME_AS_SIBLING(s, STEPS[step].routine,
                                ran = battle_run_dc_under(s, 0xC1004A, STEPS[step].routine, STEPS[step].dont_care,
                                                          STEPS[step].entry, kept));
@@ -76,8 +82,22 @@ static bool run_the_step(Snes *s, BattleStep step, BattleFrame kept)
     if (!ran)
         return false;
     battle_give_the_registers_back(s, kept);
-    ORIGINAL_EFFECT(leave_the_last_pull(s, kept));
+    (void)0;
     return true;
+}
+
+// $C1:004D
+/* Setup's held waits discard the C stack. Restore the scheduler's saved
+ * values from its call frame, then resume its caller at a held boundary. */
+void battle_step_returns(Snes *s)
+{
+    s->cpu.y = m_pull16(s);
+    s->cpu.x = m_pull16(s);
+    uint8_t a = m_pull8(s);
+    m_set_a8(s, a);
+    m_set_nz8(s, a);
+    m_rts(s);
+    native_hold(s, HOLD_BATTLE_PASS);
 }
 
 // $C1:0003
@@ -117,14 +137,11 @@ static void leave_the_kept_index_registers_uncompared(Snes *s, uint16_t dont_car
         native_stack_dont_care(s, (uint16_t)(top - KEPT_Y_BELOW), KEPT_REGISTER_BYTES);
 }
 
-/* Whether the runtime would run the dispatch's hand port for the original's
- * call made now: its precondition and guard hold, and the run hasn't
- * left it out. Outside the runtime (ct_fuzz) it wouldn't, and the call is
- * made. */
+/* The retained calling form checks the dispatcher contract independently
+ * of the comparison registry. */
 static bool runs_the_dispatch_here(Snes *s)
 {
-    const NativeEntry *e = native_hand_entry_at(s, BATTLE_STEP);
-    return e && e->fn == battle_run_a_step;
+    return battle_machine_form_takes(s, BATTLE_STEP, battle_run_a_step);
 }
 
 bool battle_take_step(Snes *s, uint32_t site, BattleStep step, uint16_t dont_care)
@@ -152,7 +169,7 @@ bool battle_take_step(Snes *s, uint32_t site, BattleStep step, uint16_t dont_car
 bool battle_step_taken(GameState *g, Platform *pf, BattleStep step)
 {
     if ((unsigned)step >= STEP_COUNT || !STEPS[step].run)
-        return battle_needs_the_machine(g, (unsigned)step < STEP_COUNT ? STEPS[step].routine : BATTLE_STEP, "a battle step");
+        return battle_contract_broken(g, (unsigned)step < STEP_COUNT ? STEPS[step].routine : BATTLE_STEP, "a battle step");
     bool done = false;
     TIMED_AS(g, STEPS[step].routine, done = STEPS[step].run(g, pf));
     return done;

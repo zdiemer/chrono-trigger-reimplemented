@@ -136,8 +136,6 @@ extern const SavingSteps menu_saving_on_the_machine;
  * $C2:CF92; saving in the slot $C2:CF0A, $C2:CF37 and $C2:CF21), and their
  * guards. */
 void menu_show_save_panel_entry(Snes *s);
-void menu_put_save_panel_away(Snes *s);
-void menu_lay_out_save_screen_entry(Snes *s);
 void menu_open_save_screen_entry(Snes *s);
 void menu_choose_on_save_screen_entry(Snes *s);
 void menu_open_saving_entry(Snes *s);
@@ -145,12 +143,8 @@ void menu_choose_slot_to_save_in_entry(Snes *s);
 void menu_answer_whether_to_save_over_entry(Snes *s);
 void menu_close_the_question_on_a_button_entry(Snes *s);
 void menu_save_in_the_slot(Snes *s);
-void menu_save_the_game(Snes *s);
-void menu_show_the_slot_saved(Snes *s);
 bool menu_save_panel_shows(Snes *s);
-bool menu_save_screen_lays_out(Snes *s);
 bool menu_saving_opens(Snes *s);
 bool menu_slot_can_be_saved_in(Snes *s);
-bool menu_slot_saved_shows(Snes *s);
 
 #endif

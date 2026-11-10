@@ -87,7 +87,7 @@ bool battle_object_builds_graphics(const GameState *g, unsigned object);
  * of a graphics kind with a layout, whose frame's part offsets stay in the
  * table (a large kind's run on into the next objects'). Every object the
  * battle builds is one. */
-bool battle_object_graphics_known(const GameState *g, unsigned object);
+bool battle_object_graphics_known(GameState *g, unsigned object);
 
 /* A sprite of an effect sprite set (battle_effect_sprite_data): its place
  * from the set's anchor, its tile and its attributes. */
@@ -114,6 +114,8 @@ void battle_find_effect_animations(GameState *g);
  * original indexes the enemies' order with A's high byte along, which the
  * game keeps clear. */
 void battle_step_combatants(GameState *g);
+/* The current group's looks and frame-part buffers can hold its animation. */
+bool battle_animations_fit(GameState *g);
 
 /* Where the facing the object faces starts in its frame lists, after the
  * first facing's (battle/animation.c). */

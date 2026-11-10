@@ -21,7 +21,6 @@
 #include "menu/menu_data.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "original_effects.h"
 #include "port/native.h"
 #include "vars.h"
 #include "wram.h"
@@ -50,17 +49,6 @@ static void move_block(GameState *g, uint32_t from, uint16_t to, uint32_t bytes)
 static void move_in_work_ram(GameState *g, uint16_t from, uint16_t to, uint32_t bytes) { move_block(g, in_work_ram(from), to, bytes); }
 static void move_from_rom(GameState *g, uint16_t from, uint16_t to, uint32_t bytes) { move_block(g, MENU_ROM_BANK | from, to, bytes); }
 
-/* The counts the loops that build a tile's planes keep in the menus' first
- * cells, which they leave at 0: the widening's rows and tiles a word each,
- * the inking's rows a byte. */
-static void leave_counted_out(GameState *g)
-{
-    set_menu_scratch_graphics_count(g, 0);
-    set_menu_scratch_graphics_tiles(g, 0);
-}
-
-static void leave_rows_counted_out(GameState *g) { set_menu_scratch_graphics_rows(g, 0); }
-
 // $C2:96B2
 /* Four-colour tiles laid out as sixteen-colour ones: each tile's 16 bytes the
  * first half of a tile twice its size, the second half left as it was. */
@@ -86,7 +74,7 @@ static void widen_three_plane_tiles(GameState *g, uint16_t from, uint16_t to, un
             put_tile_byte(g, (uint16_t)(into + LAST_PLANES + 2 * row + 1), 0);
         }
     }
-    ORIGINAL_EFFECT(leave_counted_out(g));
+    charge_machine_accesses(g, 4);
 }
 
 /* A row's ink in its first two planes. The loops that make the planes count
@@ -103,7 +91,7 @@ static void ink_the_fourth_plane(GameState *g, uint16_t at, unsigned tiles)
             put_tile_byte(g, (uint16_t)(row + LAST_PLANES + 1),
                           (uint8_t)(ink_of_two(g, row) | tile_byte(g, (uint16_t)(row + LAST_PLANES))));
         }
-    ORIGINAL_EFFECT(leave_rows_counted_out(g));
+    charge_machine_accesses(g, 1);
 }
 
 // $C2:9653
@@ -117,7 +105,7 @@ static void ink_the_last_two_planes(GameState *g, uint16_t at, unsigned tiles)
             put_tile_byte(g, (uint16_t)(row + LAST_PLANES), ink);
             put_tile_byte(g, (uint16_t)(row + LAST_PLANES + 1), ink);
         }
-    ORIGINAL_EFFECT(leave_rows_counted_out(g));
+    charge_machine_accesses(g, 1);
 }
 
 // $C2:9678
@@ -278,15 +266,9 @@ void menu_build_graphics(GameState *g, Platform *pf)
  * reads. */
 enum { DESIGN_BUFFER = 0x8800, DESIGN_TILES = 20, DESIGN_VRAM = 0x3DC0 };
 
-static void leave_design_vram(GameState *g)
-{
-    set_menu_save_summary_byte(g, 0, (uint8_t)DESIGN_VRAM);
-    set_menu_save_summary_byte(g, 1, (uint8_t)(DESIGN_VRAM >> 8));
-}
-
 void menu_load_window_design(GameState *g)
 {
-    ORIGINAL_EFFECT(leave_design_vram(g));
+    charge_machine_accesses(g, 2);
     uint8_t design = (uint8_t)(menu_window_design(g) & DESIGN_SETTING_BITS);
     move_from_rom(g, (uint16_t)(MENU_ROM_WINDOW_DESIGNS + design * MENU_WINDOW_DESIGN_BYTES), DESIGN_BUFFER,
                   MENU_WINDOW_DESIGN_BYTES + 1);
@@ -305,50 +287,10 @@ void menu_leave_graphics_built(Snes *s)
 {
     menu_set_widths(s, true, false);
     s->cpu.db = MENU_DATA_BANK;
-    ORIGINAL_EFFECT(menu_leave_load(s, (uint8_t)(menu_window_design(state_of(s)))));
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_C, true));
-}
-
-void menu_build_graphics_entry(Snes *s)
-{
-    menu_build_graphics(state_of(s), m_platform(s));
-    menu_leave_graphics_built(s);
-    m_rts(s);
-}
-
-/* The design's colours' block move leaves its count run out in A. */
-static void leave_count_run_out(Snes *s) { s->cpu.a = 0xFFFF; }
-
-void menu_load_window_design_entry(Snes *s)
-{
-    menu_load_window_design(state_of(s));
-    ORIGINAL_EFFECT(leave_count_run_out(s));
-    s->cpu.db = MENU_DATA_BANK;
-    m_rts(s);
+    charge_machine_accesses(state_of(s), 1);
+    (void)0;
 }
 
 /* Both write work RAM's buffers through a data bank on it or its mirrors,
  * with the queue empty enough for what they queue. */
 enum { QUEUE_BYTES = 0x100 };
-
-static bool queue_has_room(const GameState *g, unsigned records)
-{
-    uint8_t queued = menu_vram_queue_bytes(g);
-    return queued % MENU_UPLOAD_BYTES == 0 && queued + records * MENU_UPLOAD_BYTES <= QUEUE_BYTES;
-}
-
-bool menu_graphics_are_buildable(Snes *s)
-{
-    vars_peek(true);
-    bool ok = queue_has_room(state_of(s), 3);
-    vars_peek(false);
-    return ok;
-}
-
-bool menu_window_design_is_loadable(Snes *s)
-{
-    vars_peek(true);
-    bool ok = queue_has_room(state_of(s), 1) && menu_palette_changes_have_room(state_of(s));
-    vars_peek(false);
-    return ok;
-}

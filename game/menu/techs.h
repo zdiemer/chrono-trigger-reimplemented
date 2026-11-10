@@ -72,12 +72,7 @@ void menu_draw_tech_row(GameState *g, uint16_t at, uint8_t tech, bool waiting);
  * from the first double on, whose parts the members have. */
 bool menu_tech_is_the_games(uint8_t tech, MenuTechKind kind);
 
-/* The registered entries ($FF:F813, $FF:F958) and their guards. */
-void menu_note_party_techs_entry(Snes *s);
-void menu_note_rock_techs_entry(Snes *s);
-bool menu_party_techs_are_notable(Snes *s);
 /* Its state half. */
 bool menu_party_techs_can_be_noted(const GameState *g);
-bool menu_rock_techs_are_notable(Snes *s);
 
 #endif

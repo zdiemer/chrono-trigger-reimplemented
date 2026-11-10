@@ -11,11 +11,11 @@
  * in the last battle. Then the members take their places on the battlefield
  * as their objects: position, sprites, first frame, and the graphics and
  * animation lists their character draws with. */
+#include "charge.h"
 #include "battle/battle.h"
 #include "battle/setup.h"
 
 #include "battle/setup_data.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- Who is in the party -------------------------------------------------------------------- */
@@ -54,7 +54,6 @@ static void keep_frogs_slot_as_record(GameState *g)
 
 /* The original steps through the members' names five bytes at a time in its
  * working cells, which the names' conversion finds them at. */
-static void leave_slots_read(GameState *g) { setup_leave_word(g, 0x82, BATTLE_PARTY_SIZE * NAME_CHARACTERS); }
 
 // $CC:E5F3
 void setup_party_slots(GameState *g)
@@ -76,7 +75,7 @@ void setup_party_slots(GameState *g)
         set_battle_slot_present(g, slot, (uint8_t)(battle_slot_present(g, slot) + 1));
     }
     keep_frogs_slot_as_record(g);
-    ORIGINAL_EFFECT(leave_slots_read(g));
+    charge_machine_accesses(g, 2);
 }
 
 /* ---- Colors --------------------------------------------------------------------------------- */
@@ -171,19 +170,6 @@ static uint8_t list_length(const GameState *g, uint8_t member)
 
 /* The original keeps the last member's list end in its working cells, and
  * how many double techs it listed. */
-static uint8_t doubles_listed(const GameState *g, uint8_t member)
-{
-    uint8_t listed = 0;
-    for (uint8_t entry = DOUBLES; entry < DOUBLES_END; entry++)
-        listed += tech_id(g, member, entry) != BLANK_ROW;
-    return listed;
-}
-
-static void leave_lists_built(GameState *g, uint8_t last_end)
-{
-    setup_leave_word(g, 0x8A, last_end);
-    setup_leave(g, 0x8C, doubles_listed(g, BATTLE_PARTY_SIZE - 1));
-}
 
 // $CC:E755
 void setup_tech_lists(GameState *g)
@@ -203,7 +189,7 @@ void setup_tech_lists(GameState *g)
             list_triple(g, member, ends[member]);
     for (uint8_t member = BATTLE_PARTY_SIZE; member-- > 0;)
         set_battle_tech_list_length(g, member, list_length(g, member));
-    ORIGINAL_EFFECT(leave_lists_built(g, ends[BATTLE_PARTY_SIZE - 1]));
+    (charge_machine_accesses(g, 3 + DOUBLES_END - DOUBLES), charge_machine_rom_accesses(g, 2 * (DOUBLES_END - DOUBLES)));
 }
 
 /* ---- Where the cursors were left ------------------------------------------------------------ */

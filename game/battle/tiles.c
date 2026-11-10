@@ -10,11 +10,11 @@
  * sets of colors. The decoded row goes into the decode buffer
  * (battle_decoded_tiles), which the battle's setup then uploads (its load step
  * at $CD:1331). */
+#include "charge.h"
 #include "battle/animation_data.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/frame.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* A descriptor: the tile's graphics start at 8 bytes a number; it has only
@@ -73,12 +73,7 @@ static void leave_word(GameState *g, unsigned at, uint16_t v)
     set_battle_scratch(g, at, (uint8_t)v);
     set_battle_scratch(g, at + 1, (uint8_t)(v >> 8));
 }
-static void leave_tile(GameState *g, uint16_t descriptor, uint8_t palette_byte, uint16_t mask)
-{
-    leave_word(g, LEFT_DESCRIPTOR, descriptor);
-    set_battle_scratch(g, LEFT_PALETTE_BYTE, palette_byte);
-    leave_word(g, LEFT_MASK, mask);
-}
+
 static void leave_third_plane(GameState *g, uint8_t last_row) { leave_word(g, LEFT_ROW_SET, last_row); }
 
 // $CD:1509
@@ -118,7 +113,7 @@ static void flip_tile(GameState *g, uint16_t at)
             set_tile_word(g, top, tile_word(g, bottom));
             set_tile_word(g, bottom, kept);
         }
-        ORIGINAL_EFFECT(leave_word(g, LEFT_SWAPPED, kept));
+        charge_machine_accesses(g, 2);
     }
 }
 
@@ -133,7 +128,7 @@ static void mirror_tile(GameState *g, uint16_t at)
         uint16_t byte = (uint16_t)(at + b);
         set_battle_decoded_tiles(g, byte, battle_mirrored_byte(g, battle_decoded_tiles(g, byte)));
     }
-    ORIGINAL_EFFECT(set_battle_scratch(g, LEFT_ROWS_TO_MIRROR, 0));
+    charge_machine_accesses(g, 1);
 }
 
 /* What the original leaves of the row: where its descriptors ended (the
@@ -176,7 +171,7 @@ void battle_decode_tiles(GameState *g, uint16_t row_set, uint16_t tiles)
             flip_tile(g, at);
         if (descriptor & MIRRORED)
             mirror_tile(g, at);
-        ORIGINAL_EFFECT(leave_tile(g, descriptor, tile_palette_byte(palettes, tile), mask));
+        charge_machine_accesses(g, 5);
         descriptors = (uint16_t)(descriptors + DESCRIPTOR_BYTES);
         at = (uint16_t)(at + TILE_BYTES);
     }
@@ -189,22 +184,5 @@ void battle_decode_tiles(GameState *g, uint16_t row_set, uint16_t tiles)
  * always decodes a whole row. It leaves A clear. */
 enum { TILE_COUNT = 0x22 };
 
-void battle_decode_tile_row(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint16_t tiles = (uint16_t)(battle_scratch(g, TILE_COUNT) | battle_scratch(g, TILE_COUNT + 1) << 8);
-    battle_decode_tiles(g, s->cpu.x, tiles);
-    s->cpu.a = 0;
-    m_rts(s);
-}
-
 /* A whole row or less: the decode buffer holds three rows' tiles. */
 enum { MOST_TILES = 3072 / TILE_BYTES };
-bool battle_decodes_tile_row(Snes *s)
-{
-    vars_peek(true);
-    GameState *g = state_of(s);
-    uint16_t tiles = (uint16_t)(battle_scratch(g, TILE_COUNT) | battle_scratch(g, TILE_COUNT + 1) << 8);
-    vars_peek(false);
-    return battle_on_page(s) && tiles != 0 && tiles <= MOST_TILES;
-}

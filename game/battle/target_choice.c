@@ -23,7 +23,6 @@
 #include "battle/entries.h"
 #include "battle/menu_bridge.h"
 #include "charge.h"
-#include "original_effects.h"
 #include "vars.h"
 
 /* ---- The list and the cursor ------------------------------------------------------------------------ */
@@ -125,12 +124,11 @@ static void list_side(GameState *g, Slots side, bool fallen_too)
             set_battle_area_found(g, 1 + listed++, slot);
     }
     battle_close_up_finds(g);
-    ORIGINAL_EFFECT(battle_leave_work16(g, CELL_END, side.end));
+    charge_machine_accesses(g, 2);
     take_targets(g);
 }
 
 /* ---- The kinds ------------------------------------------------------------------------------------- */
-
 
 /* Where an area goes: on the member choosing, on an enemy the player picks
  * (moving the cursor one way, or either way), or on a particular character;
@@ -206,7 +204,7 @@ static int party_slot_of(const GameState *g, uint8_t character)
 static void pick_character(GameState *g, uint8_t character)
 {
     cursor_moves_frame(g, true);
-    ORIGINAL_EFFECT(battle_leave_work8(g, CELL_END, character));
+    charge_machine_accesses(g, 1);
     for (int slot = BATTLE_PARTY_SIZE - 1; slot >= 0; slot--) {
         if (battle_slot_present(g, slot) && !battle_member_sitting_out(g, slot) && party_members(g, slot) == character) {
             set_battle_area_found(g, 0, (uint8_t)slot);
@@ -312,8 +310,8 @@ static void start_over(GameState *g, uint8_t chooser)
     set_battle_no_targets(g, 0);
     set_battle_targets_together(g, 0);
     cursor_moves_frame(g, false);
-    ORIGINAL_EFFECT(set_battle_target_start_spares(g, 0));
-    ORIGINAL_EFFECT(set_battle_target_start_spare(g, 0));
+    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 1);
     clear_list(g);
 }
 
@@ -344,17 +342,3 @@ bool battle_choose_targets(GameState *g, Buttons pressed, MenuHost *host)
         set_battle_no_targets(g, battle_targets(g, AREA_FOUND_PLACES - 1));
     return menu_nobody(battle_no_targets(g));
 }
-
-/* ---- The entry ----------------------------------------------------------------------------------- */
-
-/* What choosing takes on trust: the cursor on one of the eleven places, and
- * A's high byte clear, which the original carries into the chooser's word. */
-bool battle_choose_targets_ready(Snes *s)
-{
-    vars_peek(true);
-    bool fits = battle_target_choice(state_of(s)) < AREA_FOUND_PLACES;
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && fits;
-}
-
-

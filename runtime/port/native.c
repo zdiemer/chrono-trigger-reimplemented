@@ -289,6 +289,8 @@ typedef struct Active {
     bool exit_passed;      /* ON, PH_WAIT for a blank: its exit pass's time has passed (IDLE_EXIT_CLOCKS) */
     bool saw_picture;      /* ON, PH_WAIT for the vblank: the picture has been drawn since the wait began */
     bool wait_compared;    /* SHADOW, a wait in the port's loop: the stretch before it was compared */
+    bool wait_resumed;
+    uint64_t wait_resumed_at;   /* the original boundary already used to wake the preceding wait */
     /* PH_CALLOUT: an interrupt taken while the callee runs, or a stack
      * switch (stack_switched), and the S it returns to: until it has, S above
      * the call's return is its handler on a stack of its own (the menus'
@@ -645,7 +647,7 @@ static void part_flush(Job *j)
 }
 
 /* Whose stretch a stretch of a port is in the timing report: the routine of
- * the innermost sibling's run (native_time_as_sibling) that held more than
+ * the innermost sibling's runs (native_time_as_sibling) that held more than
  * half of its bus clocks, where that is a hand port's entry other than the
  * running one, else the running port's own (-1). A sibling run as C where the
  * original's call reached it through the machine has stretches that are its
@@ -654,13 +656,20 @@ static void part_flush(Job *j)
  * clocks of the call round them. They are measured as the sibling's, so
  * that its calibration and its worst stretches are its own, as the
  * original's call of it is, rather than the caller's few clocks taking up
- * the sibling's error. */
+ * the sibling's error. Several calls to the same sibling at the same scope
+ * depth are disjoint work and count together: a screen loading three streams
+ * is still mostly the loader's work. Different depths never add together,
+ * since a parent's clocks include its child's. */
 static int stretch_owner(const Job *j)
 {
     int owner = -1, depth = -1;
     for (int r = 0; r < j->nrun_clocks; r++) {
         const RunClocks *run = &j->run_clocks[r];
-        if ((uint64_t)run->bus * 2 > j->stretch_bus && run->depth > depth && run->idx >= 0 && active_runtime
+        uint64_t bus = 0;
+        for (int k = 0; k < j->nrun_clocks; k++)
+            if (j->run_clocks[k].idx == run->idx && j->run_clocks[k].depth == run->depth)
+                bus += j->run_clocks[k].bus;
+        if (bus * 2 > j->stretch_bus && run->depth > depth && run->idx >= 0 && active_runtime
             && &active_runtime->table[run->idx] != j->entry) {
             owner = run->idx;
             depth = run->depth;
@@ -1857,6 +1866,12 @@ static uint32_t wait_step(const Active *a, const Snes *s)
 static bool wait_point(NativeRuntime *rt, Active *a, Snes *s, uint32_t pc)
 {
     Job *j = a->job;
+    /* The wake may run straight through C callees into another wait at the
+     * same address and stack depth. check_top revisits this boundary after
+     * the job runs; it still belongs to the wait just woken, not the next
+     * iteration. Let the original execute before comparing that stretch. */
+    if (a->wait_resumed && s->master == a->wait_resumed_at)
+        return false;
     /* the original comes to the loop's head before it can leave the loop: an
      * exit before that is where it left the last one (a loop that gives up
      * leaves where it goes round to start over) */
@@ -1883,6 +1898,8 @@ static bool wait_point(NativeRuntime *rt, Active *a, Snes *s, uint32_t pc)
     j->wait_answered = pc != j->wait_given_up || pc == j->wait_exit;
     clone_refresh(rt, a, s);
     a->clone->cpu = mine;
+    a->wait_resumed = true;
+    a->wait_resumed_at = s->master;
     job_run(a->job);
     after_run(rt, a, s);
     return true;
@@ -3154,12 +3171,16 @@ static int32_t start_port(NativeRuntime *rt, Snes *s, const NativeEntry *e, bool
  * original never returns to, and the wait rests where their return would
  * be. The machine leaving through such a frame (an RTS above it) used to
  * drop them; a continuation the runtime runs as C makes no such move, so
- * they are dropped here, counted as abandoned. */
+ * they are dropped here, counted as abandoned. A callee on another stack
+ * still returns to its caller: the stack-switch tracking has already marked
+ * it away, and the new stack's S says nothing about the caller's frame. */
 static void drop_what_the_held_wait_left(NativeRuntime *rt, const Snes *s)
 {
     while (rt->nactive > 0) {
         Active *a = &rt->active[rt->nactive - 1];
         if (a->phase != PH_CALLOUT || !a->job || s->cpu.s < a->job->call_s_after)
+            return;
+        if (a->handler_away && (uint32_t)s->cpu.s > (uint32_t)a->job->call_s_after + NATIVE_STACK_SWITCH_DISTANCE)
             return;
         stats_of(rt, a)->abandoned++;
         finish(rt);
@@ -3180,6 +3201,7 @@ static bool go_on_in_the_held_wait(NativeRuntime *rt, Snes *s, uint32_t pc, int3
             st->skipped++;
             continue;
         }
+        drop_what_the_held_wait_left(rt, s);
         *result = e->idle ? run_idle(rt, s, e, pc, true) : start_port(rt, s, e, true);
         return true;
     }
@@ -3294,7 +3316,6 @@ static int32_t intercept(void *ctx, Snes *s)
      * it, the wait's continuations, by its number */
     if (rt->mode == NATIVE_ON && rt->port_timing != PORT_TIMING_ORACLE && s->held_wait && s->cpu.s == s->held_wait_s) {
         int32_t result;
-        drop_what_the_held_wait_left(rt, s);
         if (go_on_in_the_held_wait(rt, s, pc, &result))
             return result;
     }
@@ -3613,6 +3634,23 @@ void native_yield_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_cal
     call_out(s, site, target, long_call, dont_care, false, goes_on);
 }
 
+void native_park_after_task_switch(Snes *s, uint32_t returns_to, uint16_t stack,
+                                  uint16_t dont_care, NativeGoesOn goes_on)
+{
+    Job *j = current_job;
+    if (!j || j->m != s || !active_runtime || active_runtime->mode != NATIVE_ON)
+        return;
+    j->state = JOB_CALLING;
+    j->call_target = cpu_pc24(&s->cpu);
+    j->call_ret = returns_to;
+    j->call_s_after = stack;
+    j->call_dont_care = dont_care;
+    j->call_waits = false;
+    j->call_yields = true;
+    j->goes_on = goes_on;
+    fiber_switch(fiber_main());
+}
+
 void native_jump_call_dc(Snes *s, uint32_t site, uint32_t target, uint32_t returns_to, uint16_t dont_care)
 {
     call_out_returning(s, site, target, returns_to, false, dont_care, false, NULL);
@@ -3725,6 +3763,12 @@ void native_hold(Snes *s, uint8_t wait)
         return;
     s->held_wait = wait;
     s->held_wait_s = s->cpu.s;
+}
+
+void native_hold_return(Snes *s, uint8_t wait)
+{
+    if (active_runtime && the_wait_goes_on_at(active_runtime, wait, cpu_pc24(&s->cpu)))
+        native_hold(s, wait);
 }
 
 void native_call_poison_reset(void)
@@ -3999,6 +4043,23 @@ void native_report(const NativeRuntime *rt, FILE *out)
     }
     if (rt->nactive)
         fprintf(out, "  %d routine(s) still in progress\n", rt->nactive);
+    for (int i = 0; i < rt->nactive; i++) {
+        const Active *a = &rt->active[i];
+        if (!a->job)
+            continue;
+        if (a->phase == PH_SYNC || a->phase == PH_WAIT)
+            fprintf(out, "  suspended %06X %s: %s at %06X, stack %04X\n",
+                    a->entry->addr, a->entry->name, a->phase == PH_SYNC ? "settling time" : "waiting",
+                    a->sync_pc, a->sync_s);
+        else
+            fprintf(out, "  suspended %06X %s: waiting at %06X, return %06X, stack %04X\n",
+                    a->entry->addr, a->entry->name, a->job->call_target, a->job->call_ret, a->job->call_s_after);
+    }
+    for (int i = 0; i < rt->nparked; i++) {
+        const Active *a = &rt->parked[i].a;
+        fprintf(out, "  parked %06X %s: waiting at %06X, return %06X, stack %04X\n",
+                a->entry->addr, a->entry->name, a->job->call_target, a->job->call_ret, a->job->call_s_after);
+    }
     for (int i = 0; i < rt->nactive; i++)
         if (rt->active[i].failed_passes)
             fprintf(out, "  mismatch %06X %s: %s (still waiting for a pass that matches when the run ended)\n",

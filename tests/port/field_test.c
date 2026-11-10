@@ -3,7 +3,6 @@
 #include <stdio.h>
 
 #include "field/object.h"
-#include "field/menu_compat.h"
 #include "field/machine_forms.h"
 #include "field/field.h"
 #include "field/display.h"
@@ -62,21 +61,6 @@ int main(void)
     object_leave_row(g, 3);
     CHECK(field_object_row_link_previous(g, 4) == field_object_offset(2));
     CHECK(object_in_view(g, 0));
-
-    set_event_scratch_byte(g, 8, 0x35);
-    set_event_scratch_byte(g, 9, 0x46);
-    set_event_scratch_byte(g, 10, 0x57);
-    set_event_scratch_byte(g, 11, 0x68);
-    field_leaves_menu_wave_low(g, 0x79);
-    CHECK(event_scratch_byte(g, 8) == 0x35);
-    CHECK(event_scratch_byte(g, 9) == 0x79);
-    CHECK(event_scratch_byte(g, 10) == 0x57);
-    CHECK(menu_wave_phase(g) == 0x5779);
-    field_leaves_menu_wave_high(g, 0x8A);
-    CHECK(event_scratch_byte(g, 9) == 0x79);
-    CHECK(event_scratch_byte(g, 10) == 0x8A);
-    CHECK(event_scratch_byte(g, 11) == 0x68);
-    CHECK(menu_wave_phase(g) == 0x8A79);
 
     /* The retired contracts keep every original width and decimal mask. */
     machine.cpu.e = false;

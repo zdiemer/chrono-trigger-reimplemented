@@ -1,13 +1,7 @@
-/* The sprite-object mode's objects as the program runs them with no machine
- * (game/menu/handlers.c).
- *
- * On the machine an object's handler, and a routine a command script calls,
- * is reached by its address in bank C2 (or anywhere, for a far call), and
- * the runtime finds the port registered there. As C each is a row of a
- * table: the handler's turn or the routine as a function of the game's
- * state, and the state half of the guard its entry has on the machine, which
- * the program checks before it runs it -- where a guard would hand the call
- * to the original, the program goes no further (program_needs_the_machine). */
+/* Sprite-object handlers and script services for the native program.
+ * Tables select the operations and check their game-state contracts.
+ * The legacy driver uses the same operations through checked machine forms;
+ * an unrecognized command or invalid state reports a broken contract. */
 #ifndef CT_GAME_MENU_HANDLERS_H
 #define CT_GAME_MENU_HANDLERS_H
 
@@ -19,7 +13,7 @@
 #include "state.h"
 
 /* How an object's turn ended: it goes on next frame, it is done (its slot
- * free), or it met a step only the machine runs yet. */
+ * free), or a contract prevented it from continuing. */
 typedef enum { MENU_TURN_GOES_ON, MENU_TURN_DONE, MENU_TURN_WENT_NO_FURTHER } MenuTurn;
 
 static inline MenuTurn menu_turn_done_if(bool done) { return done ? MENU_TURN_DONE : MENU_TURN_GOES_ON; }

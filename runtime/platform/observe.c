@@ -583,6 +583,7 @@ static uint8_t effect_unit_len(VidLineTarget target)
     case VID_LINE_SCROLL_BG1_H:
     case VID_LINE_SCROLL_BG1_V:
     case VID_LINE_SCROLL_BG2_V:
+    case VID_LINE_SCROLL_BG2_H:
     case VID_LINE_SCROLL_BG3_H:
     case VID_LINE_SCROLL_BG3_V: return 2;
     case VID_LINE_MODE7_AB:
@@ -686,6 +687,9 @@ static void effect_apply(VidObserver *ob, VidLineTarget target, int i, uint8_t v
         break;
     case VID_LINE_SCROLL_BG1_V:
         set_scroll_v(ob, 0, v);
+        break;
+    case VID_LINE_SCROLL_BG2_H:
+        set_scroll_h(ob, 1, v);
         break;
     case VID_LINE_SCROLL_BG2_V:
         set_scroll_v(ob, 1, v);

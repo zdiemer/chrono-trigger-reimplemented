@@ -14,12 +14,9 @@
  * state is one the routine's contract takes. A state the contract doesn't
  * take is a broken contract, reported. NULL then, elsewhere, and for anything
  * that isn't one of the overworld's: the caller makes the original's call. */
-void (*overworld_machine_form(Snes *s, uint32_t routine))(Snes *s);
+/* Select a named form without entering it. The call bridge must validate it. */
+void (*overworld_machine_entry(uint32_t routine))(Snes *);
 
-/* The original's call, from the objects' loop ($C2:053E), of the
- * overworld's handler at `routine`, where its form doesn't run: with what
- * the handler doesn't read of the registers declared. False, and no call made, for a routine that
- * isn't one of the overworld's handlers. */
-bool overworld_call_the_handler(Snes *s, uint32_t routine);
+void (*overworld_machine_form(Snes *s, uint32_t routine))(Snes *s);
 
 #endif

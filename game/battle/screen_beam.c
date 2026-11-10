@@ -10,12 +10,12 @@
  * corner, its column moving by a fixed amount each line. */
 #include "charge.h"
 #include "battle/screen_script.h"
+#include "battle/effect_noise.h"
 
 #include "battle/bridge.h"
 #include "battle/screen_lines.h"
 #include "battle/screen_sides.h"
 #include "cpu_io.h"
-#include "original_effects.h"
 #include "port/native.h"
 
 /* ---- The quadrilaterals -------------------------------------------------------------------- */
@@ -127,47 +127,8 @@ static WindowSides sides_of(Corner c[CORNERS], Slope slopes[EDGES])
  * through, where it stops and what its word writes leave on port 3. */
 enum { CORNER_CELLS = 0x12, SLOPE_CELLS = 0x03, TOP_LINE_CELL = 0x0F, EDGE_CELLS = 0x0B };
 
-static void leave_corners(GameState *g, const Corner c[CORNERS])
-{
-    for (unsigned i = 0; i < CORNERS; i++) {
-        set_battle_low_scratch(g, CORNER_CELLS + 2 * i, c[i].x);
-        set_battle_low_scratch(g, CORNER_CELLS + 2 * i + 1, c[i].y);
-    }
-}
-
-static void leave_slopes(GameState *g, const Corner c[CORNERS], const Slope slopes[EDGES])
-{
-    for (unsigned e = 0; e < EDGES; e++) {
-        set_battle_low_scratch(g, SLOPE_CELLS + 2 * e, (uint8_t)slopes[e]);
-        set_battle_low_scratch(g, SLOPE_CELLS + 2 * e + 1, (uint8_t)(slopes[e] >> 8));
-    }
-    set_battle_low_scratch(g, TOP_LINE_CELL, c[0].y);
-}
-
 /* Working out a slope leaves the columns over the lines in the divider; the
  * last edge's ends and lines stay in the cells. */
-static void leave_last_edge(GameState *g, Corner from, Corner to)
-{
-    uint8_t columns = to.x < from.x ? (uint8_t)(from.x - to.x) : (uint8_t)(to.x - from.x);
-    set_battle_low_scratch(g, EDGE_CELLS, to.x);
-    set_battle_low_scratch(g, EDGE_CELLS + 1, from.x);
-    set_battle_low_scratch(g, EDGE_CELLS + 2, lines_between(from, to));
-    hw_set_dividend(g, (uint16_t)(columns << SLOPE_FRACTION_BITS));
-    hw_divide_by(g, lines_between(from, to));
-}
-
-static void leave_drawing(GameState *g, Window w, const Corner c[CORNERS], const Slope slopes[EDGES],
-                          const WindowSides *q, SidesDrawn drawn)
-{
-    leave_corners(g, c);
-    leave_slopes(g, c, slopes);
-    leave_last_edge(g, c[edges[EDGES - 1].from], c[edges[EDGES - 1].to]);
-    screen_leave_word(g, 0x45, 0);
-    screen_leave_word(g, 0x47, q->stretches == 1 ? (uint16_t)(odd_frame(g) * 2) : 0);
-    if (q->stretches > 1)
-        screen_leave_word(g, 0x49, 0);
-    sides_leave_port(g, w, q->top + drawn.lines, drawn);
-}
 
 // $D1:F9E7
 /* Draw corners sorted by line into the coming frame's window table, as
@@ -181,7 +142,9 @@ static void rasterize(GameState *g, Window w, const Corner sorted[CORNERS])
     Slope slopes[EDGES];
     WindowSides q = sides_of(c, slopes);
     SidesDrawn drawn = draw_window_sides(g, w, &q);
-    ORIGINAL_EFFECT(leave_drawing(g, w, c, slopes, &q, drawn));
+    battle_note_curtain_noise(g, (uint16_t)((uint8_t)(slopes[TOP_TO_SECOND] >> 8)
+                                          | (uint16_t)(uint8_t)slopes[SECOND_TO_BOTTOM] << 8));
+    (charge_machine_accesses(g, 2 * CORNERS + 2 * EDGES + 9 + (q.stretches == 1 ? 1 : 0) + (q.stretches > 1 ? 2 : 0)), charge_machine_io_accesses(g, 6 + (drawn.lines ? 1 : 0)));
 }
 
 bool screen_quad_fits_the_table(const GameState *g, const BattlePoint c[CORNERS])
@@ -202,7 +165,7 @@ void screen_draw_window_quad(GameState *g, unsigned quad)
     for (unsigned i = 0; i < CORNERS; i++)
         c[i] = quad_corner(g, quad, i);
     sort_corners_by_line(c);
-    ORIGINAL_EFFECT(set_battle_window_quad_index(g, (uint8_t)quad));
+    charge_machine_accesses(g, 1);
     rasterize(g, quad ? WINDOW_2 : WINDOW_1, c);
 }
 
@@ -222,8 +185,8 @@ static uint8_t beam_foot(const GameState *g) { return (uint8_t)(battle_animation
 static void draw_beam(GameState *g, uint8_t quad)
 {
     uint8_t frame = (uint8_t)battle_frame_count(g), sway = screen_scaled_sine(g, frame, BEAM_SWAY);
-    ORIGINAL_EFFECT(hw_set_multiplicand(g, BEAM_SWAY));
-    ORIGINAL_EFFECT(hw_multiply_by(g, battle_sine_magnitude(g, frame)));
+    charge_machine_io_accesses(g, 1);
+    (charge_machine_io_accesses(g, 3), charge_machine_rom_accesses(g, 1));
     uint8_t top_left = (uint8_t)(BEAM_TOP_LEFT + sway);
     uint8_t foot_left = (uint8_t)((uint8_t)battle_animation_positions(g, 0) - BEAM_WIDTH / 2), foot = beam_foot(g);
     screen_set_quad_corner(g, quad, 0, (Corner){ top_left, 0 });
@@ -256,111 +219,12 @@ SCREEN_OPCODES(screen_beam_opcodes,
 /* The rasterizer's own entries find the corners in the battle page's low
  * cells, as its callers hand them over (CORNER_CELLS), and the edges' ends and
  * lines at EDGE_CELLS. */
-static void corners_in_cells(const GameState *g, Corner c[CORNERS])
-{
-    for (unsigned i = 0; i < CORNERS; i++)
-        c[i] = (Corner){ battle_low_scratch(g, CORNER_CELLS + 2 * i), battle_low_scratch(g, CORNER_CELLS + 2 * i + 1) };
-}
 
 /* The guards: the rasterizer runs with the data bank on the I/O registers it
  * draws through, and A's high byte clear; the quadrilateral drawn is one of
  * the two; the corners it is handed are sorted by line, and on an odd frame
  * the bottom one is within the screen, so that the lines it draws stay in the
  * table. */
-bool battle_quad_page(Snes *s) { return m_direct_page(s) == BATTLE_PAGE && m_io_bank(s->cpu.db) && (s->cpu.a & 0xFF00) == 0; }
-
-bool battle_quad_is_one(Snes *s)
-{
-    if (!battle_screen_page(s) || s->cpu.x >= QUADS)
-        return false;
-    vars_peek(true);
-    Corner c[CORNERS];
-    for (unsigned i = 0; i < CORNERS; i++)
-        c[i] = quad_corner(state_of(s), s->cpu.x, i);
-    bool fits = screen_quad_fits_the_table(state_of(s), c);
-    vars_peek(false);
-    return fits;
-}
-
-bool battle_beam_quad_is_one(Snes *s)
-{
-    vars_peek(true);
-    bool one = screen_command_operand(state_of(s), 0) < QUADS && beam_fits(state_of(s));
-    vars_peek(false);
-    return battle_screen_page_a_clear(s) && one;
-}
-
-bool battle_quad_corners_fit(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    Corner c[CORNERS];
-    corners_in_cells(g, c);
-    bool sorted = c[0].y <= c[1].y && c[1].y <= c[2].y && c[2].y <= c[3].y;
-    bool fits = !odd_frame(g) || c[3].y <= SCREEN_LINES;
-    vars_peek(false);
-    return battle_quad_page(s) && sorted && fits;
-}
-
-void battle_sort_quad_corners(Snes *s)
-{
-    GameState *g = state_of(s);
-    Corner c[CORNERS];
-    corners_in_cells(g, c);
-    sort_corners_by_line(c);
-    leave_corners(g, c);
-    m_rts(s);
-}
-
-void battle_quad_edge_slope(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t to_x = battle_low_scratch(g, EDGE_CELLS), from_x = battle_low_scratch(g, EDGE_CELLS + 1);
-    uint8_t lines = battle_low_scratch(g, EDGE_CELLS + 2);
-    s->cpu.y = sides_slope(from_x, to_x, lines);
-    ORIGINAL_EFFECT(hw_set_dividend(g, (uint16_t)((to_x < from_x ? from_x - to_x : to_x - from_x) << SLOPE_FRACTION_BITS)));
-    ORIGINAL_EFFECT(hw_divide_by(g, lines));
-    s->cpu.a = 0;
-    m_rts(s);
-}
-
-void battle_quad_edge_slopes(Snes *s)
-{
-    GameState *g = state_of(s);
-    Corner c[CORNERS];
-    Slope slopes[EDGES];
-    corners_in_cells(g, c);
-    edge_slopes(c, slopes);
-    leave_slopes(g, c, slopes);
-    ORIGINAL_EFFECT(leave_last_edge(g, c[edges[EDGES - 1].from], c[edges[EDGES - 1].to]));
-    s->cpu.a = 0;
-    m_rts(s);
-}
 
 /* $D1:F9E7, entered with the corners sorted in the cells and the window in
  * bit 0 of battle_window_quad_index. */
-void battle_rasterize_window_quad(Snes *s)
-{
-    GameState *g = state_of(s);
-    Corner c[CORNERS];
-    corners_in_cells(g, c);
-    rasterize(g, (battle_window_quad_index(g) & 1) ? WINDOW_2 : WINDOW_1, c);
-    s->cpu.a = 0;
-    m_rts(s);
-}
-
-void battle_draw_window_quad(Snes *s)
-{
-    screen_draw_window_quad(state_of(s), s->cpu.x);
-    s->cpu.a = 0;
-    m_rtl(s);
-}
-
-void battle_screen_draw_beam(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t quad = screen_command_operand(g, 0);
-    TIMED_AS(g, 0xD1F9AF, draw_beam(g, quad));
-    s->cpu.a = 0;
-    m_rtl(s);
-}

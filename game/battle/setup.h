@@ -7,7 +7,6 @@
 #include <stdint.h>
 
 #include "battle/choosing.h"
-#include "original_effects.h"
 #include "snes/system.h"
 #include "state.h"
 #include "vars.h"
@@ -44,8 +43,7 @@ uint8_t setup_extra_parts(uint8_t kind);
 /* The names the battle turns into tiles: the seven characters', the party's
  * and the enemy kinds' (battle/setup_names.c). A name's text is made into
  * two rows of tiles (name_tiles.c), and the rows are kept where the window
- * draws them from. The original converts each in its name buffer; what the
- * last conversion leaves there is scaffolding (setup_leave_name_buffer). */
+ * draws them from. */
 enum { SETUP_CHARACTERS = 7, SETUP_ENEMY_KINDS = 3 };
 typedef enum { CHARACTER_NAMES, PARTY_NAMES } NameTable;
 
@@ -56,7 +54,6 @@ bool setup_enemy_kind_present(const GameState *g, uint8_t kind);
 void setup_enemy_name_text(GameState *g, uint8_t kind, uint8_t text[NAME_TILES]);
 void setup_keep_enemy_name_tiles(GameState *g, uint8_t kind, const NameTiles *tiles);
 void setup_enemy_names_converted(GameState *g);
-void setup_leave_name_buffer(GameState *g, const uint8_t text[NAME_TILES], bool enemy, const NameTiles *tiles);
 
 /* battle/setup_reset.c: the battle's state as every fight starts it. */
 void setup_reset_for_new_fight(GameState *g);
