@@ -2656,7 +2656,7 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
 
 
 What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
-native program"; PLAN.md, "The native program, and the registry taken down").
+native program"; PLAN.md, "The machine out of the product" ).
 `ct_native` links the whole of `game/` but `registry.c`, with every service's
 host backend, and runs the boot, the field, the title's scene, the menus
 a script asks for, the world maps and the battles; left alone it runs the

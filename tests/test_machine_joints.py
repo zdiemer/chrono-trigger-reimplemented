@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from tools.machine_joints import ROOT, cartridge_reads
+from tools.machine_joints import ROOT, cartridge_reads, machine_functions
 
 
 class CartridgeJoints(unittest.TestCase):
@@ -83,3 +83,17 @@ class CartridgeJoints(unittest.TestCase):
         for file in ("example_data.h", "packed_graphics.h", "assets.c", "decompress.c", "rom.h"):
             self.assertEqual(self.count(file, "rom_read8(g, address); rom_data(address, size);"), 0)
             self.assertEqual(self.count(file, "m_read8(s, 0xC00000u);"), 1)
+
+
+class MachineFunctions(unittest.TestCase):
+    def test_definitions_with_the_machine(self):
+        source = ("static void draw(Snes *s, uint8_t x)\n{\n}\n"
+                  "uint16_t total(const GameState *g)\n{\n}\n"
+                  "void hand_back(GameState *g,\n                Snes *s)\n{\n}\n")
+        self.assertEqual(machine_functions(source), 2)
+
+    def test_declarations_calls_and_comments_are_not_definitions(self):
+        source = ("void draw(Snes *s);\n"
+                  "/* void old(Snes *s) { } */\n"
+                  "void f(GameState *g)\n{\n    draw(state_snes(g));\n}\n")
+        self.assertEqual(machine_functions(source), 0)

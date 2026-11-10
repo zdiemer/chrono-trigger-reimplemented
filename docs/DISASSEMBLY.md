@@ -415,7 +415,7 @@ same bytes and shadow mode still compares them. The seam is the platform
 services', for state rather than hardware: the second backing, which holds the
 same values in its own storage, replaces that file per subsystem once no
 generated code touches that subsystem's state, and nothing in `game/` changes
-with it (docs/PLAN.md, "Phase 3a"). `game/ram.h` stays for generated code and
+with it (docs/PLAN.md, "The game's state as C"). `game/ram.h` stays for generated code and
 the ports not converted yet.
 
 The generated files (`vars.h`, `vars_pages.h`, `vars_ram.c`) are committed, for

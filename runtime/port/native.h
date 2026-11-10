@@ -534,7 +534,7 @@ const NativeEntry *native_running_entry(void);
 const NativeEntry *native_hand_entry(Snes *s);
 /* A retired routine called as C with a state its contract doesn't take: a
  * guard that became an assertion when its subsystem left the gate
- * (docs/PLAN.md, "Retiring the gate, deliberately"). The caller goes on
+ * (docs/PLAN.md, "After the byte-exact gate"). The caller goes on
  * through the machine as the guard's refusal did, so the play stays the
  * original's; the break is counted, and ct_dev prints a `contract broken:`
  * line for each routine, which tools/suite.py fails a movie for. */

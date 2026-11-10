@@ -8,7 +8,7 @@
  * uses them writes the same bytes and shadow mode still compares them. The
  * second backing, which holds the same values in its own storage, replaces this
  * file per subsystem once no generated code touches that subsystem's state
- * (docs/PLAN.md, "Phase 3a"); nothing in game/ changes with it.
+ * (docs/PLAN.md, "The game's state as C"); nothing in game/ changes with it.
  *
  * Built with CT_VARS_HOST (ct_native, docs/PLAYING.md, "The native program"), the
  * same layout is held in the host's memory instead (port/state_host.h): the bytes

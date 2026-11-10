@@ -5,7 +5,7 @@
  * the backing's business and opaque here on purpose: today it is emulated work
  * RAM (runtime/port/vars_ram.c), so that shadow mode still compares bytes, and a
  * later backing holds the same values in its own storage without game/ changing
- * (docs/PLAN.md, "Phase 3a").
+ * (docs/PLAN.md, "The game's state as C").
  *
  * `Snes` appears only in a registered entry's wrapper, which turns the machine
  * into a GameState with runtime/port/vars_ram.h's state_of. */

@@ -44,6 +44,7 @@ JOINTS = [
     ("video calls without host backend", None, "the named service implemented on the host"),
     ("cartridge reads by address", None, "named resource accessors serving the store's bytes"),
     ("scaffolding writes", r"\bORIGINAL_EFFECT\(", "its subsystem retiring the gate"),
+    ("functions that take the machine", None, "the game's state and plain values as parameters"),
 ]
 
 ENTRY = re.compile(r"0x[0-9A-Fa-f]{6}")
@@ -106,6 +107,11 @@ def count(per_file):
             name = "cartridge reads by address"
             totals[name] += n
             by_file[path.relative_to(ROOT).as_posix()][name] += n
+        n = machine_functions(text)
+        if n:
+            name = "functions that take the machine"
+            totals[name] += n
+            by_file[path.relative_to(ROOT).as_posix()][name] += n
         missing = sum(len(re.findall(r"\b" + name + r"\(", text)) for name in missing_video)
         if missing:
             name = "video calls without host backend"
@@ -121,6 +127,19 @@ def count(per_file):
     totals["registered entries"] = registry_entries()
     totals["held waits' continuations"] = held_wait_rows()
     return totals, by_file
+
+
+# A function definition: a return type and name at the start of a line, its
+# parameters, and the body's opening brace.
+DEFINITION = re.compile(r"^[A-Za-z_][\w \t*]*?\b\w+\s*\(([^;{}]*)\)\s*\{", re.M)
+
+
+def machine_functions(text):
+    """Function definitions with a `Snes *` parameter: each can run only on an
+    emulated SNES, however its body reads (CLAUDE.md, "Keep the machine out of
+    the logic")."""
+    text = re.sub(r"/\*.*?\*/|//[^\n]*", "", text, flags=re.S)
+    return sum(1 for m in DEFINITION.finditer(text) if re.search(r"\bSnes\s*\*", m.group(1)))
 
 
 def without_comments(text):

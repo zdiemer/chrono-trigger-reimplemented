@@ -1,5 +1,5 @@
 /* The retired routines' times: the routines whose subsystem has left the
- * byte-exact gate (docs/PLAN.md, "Retiring the gate, deliberately"), which the
+ * byte-exact gate (docs/PLAN.md, "After the byte-exact gate"), which the
  * machine no longer enters as ports and shadow mode no longer compares on
  * their own, but whose work the ports still run as C and name
  * (NATIVE_TIME_AS, TIMED_AS, the charges). A port's time is estimated at the

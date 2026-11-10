@@ -12,7 +12,7 @@
  *
  * Both are scaffolding. They stand while the gate is byte-exact and the
  * original's code runs beside the port, and they come down with it
- * (docs/PLAN.md, "Retiring the gate, deliberately"). So they are written apart
+ * (docs/PLAN.md, "After the byte-exact gate"). So they are written apart
  * from the logic, each through ORIGINAL_EFFECT, and never read back by it:
  *
  *     ORIGINAL_EFFECT(keep_compared(g, left, right));

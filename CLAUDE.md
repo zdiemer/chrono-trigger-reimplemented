@@ -48,11 +48,11 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
 - `python3 tools/census.py --ct-dev build/main/ct_dev`: how the game is entered, per registered entry
   over the library in the shipping mode (`ct_dev --census`): by the machine (a vector, a port's call-out,
   stop, yield or return) or as C, and the caller holding it to the registry. The count by the machine is
-  what taking the registry down drives to 0 (docs/PLAN.md, "The native program").
+  what taking the registry down drives to 0 (docs/PLAN.md, "The machine out of the product").
 - `python3 tools/portstyle.py`: how much of each port is reimplementation and how much is
   transliterated assembly, per subsystem and per file (`--files`, `--subsystem S`). `--check` is the
   gate's ratchet against `tools/portstyle_baseline.txt`, the files written before the bar existed:
-  rewriting one to the bar deletes its line, and nothing may be added (docs/PLAN.md, "Phase 3a").
+  rewriting one to the bar deletes its line, and nothing may be added (docs/PORTING.md, "Writing a port").
 - `python3 tools/portsmell.py`: the review rubric's mechanical items, checked by machine instead of
   by a reader -- quoted assembly, an admitted "presumably", a call-out into one of our own registered
   ports, a register carried out to a wrapper, an enum nothing takes as a type (`--list` for the
@@ -61,7 +61,8 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   review spends its reading on the items that need a reader (`.claude/skills/review-port/`).
 - `python3 tools/machine_joints.py`: what in `game/` still needs the emulated machine, counted from the
   source (registered entries, returns through the emulated stack, stops, call-outs, register escapes,
-  video calls with no host backend, scaffolding writes; `--files` per file). With `tools/census.py`'s
+  video calls with no host backend, cartridge reads by address, scaffolding writes, functions that
+  take `Snes *`; `--files` per file). With `tools/census.py`'s
   run-time count, the measure of how far the native program is from no emulator (docs/PLAN.md,
   "What done means, measured").
 - `python3 -m tools.generate.show BB:AAAA... [--m 8 --x 16]`: routines as drafts for their hand ports, to
@@ -111,7 +112,7 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   (`tools/effects_check.py`, run by the suite, in the source and over the vblank check's shipping-mode
   runs with `ct_dev --scaffold-reads`, a ratchet on `tools/effects_baseline.txt`; docs/PORTING.md,
   "Scaffolding"); no port transliterates the assembly where one didn't before
-  (`tools/portstyle.py --check`, run by the suite, static; docs/PLAN.md, "Phase 3a"); no port
+  (`tools/portstyle.py --check`, run by the suite, static; docs/PORTING.md, "Writing a port"); no port
   carries one of the review rubric's mechanical smells where one didn't before
   (`tools/portsmell.py --check`, run by the suite, static); the original's code runs in place of
   hand ports nowhere new, and no more of it where it did, over every movie's reference play
@@ -180,7 +181,7 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
     is reached through the typed accessors generated from `re/ram.toml`, never by address:
     they are RAM-backed while a subsystem is still half-generated, so shadow mode keeps
     comparing bytes, and the storage swaps behind them once it is fully ported
-    (docs/PLAN.md, "Phase 3a"). A routine that calls out to still-generated code mid-body
+    (docs/PLAN.md, "The game's state as C"). A routine that calls out to still-generated code mid-body
     keeps a machine-aware wrapper around a decoupled core until its callees are ports.
   - **Build a vocabulary and call it.** The routine's work belongs in named functions --
     `draw_window_frame`, `load_slot_summary`, `hide_sprites` -- not in a run of machine

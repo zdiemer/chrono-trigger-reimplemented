@@ -32,7 +32,7 @@ whatever they look like inside. A port can read well and still be welded to the
 machine -- `game/battle/effect_paths.c` scores 0.03 with every function on the
 machine -- so the two say different things and Phase 3a has to move both. The
 goal is the machine in a thin wrapper at each entry and the logic in functions
-that take the game's own state (PLAN.md, "Phase 3a").
+that take the game's own state (PORTING.md, "Writing a port").
 
 Two more counts are reported, neither of them a failure yet. Scaffolding: the
 writes and values a port reproduces only for shadow mode or for the
@@ -85,7 +85,7 @@ THRESHOLD = 0.10        # operations per line a new port may not exceed
 # emulated SNES, whatever it looks like inside. The logic belongs in functions
 # that take the game's own state and plain values, with the translation to and
 # from the original's registers and direct page in a thin wrapper at the entry
-# (CLAUDE.md's 65816 rule, and PLAN.md's Phase 3a). Counted separately from the
+# (CLAUDE.md's 65816 rule, and PORTING.md's "Writing a port"). Counted separately from the
 # style score, because a port can read well and still be welded to the machine:
 # game/battle/effect_paths.c scores 0.03 and every one of its functions takes a
 # Snes *.
@@ -173,7 +173,7 @@ def write_baseline(rows: list) -> None:
         "# Ports written before the reimplementation bar existed, and the score each had.",
         "# tools/portstyle.py --check fails when a file not listed here scores above the",
         "# threshold, or a listed file gets worse. Rewriting one to the bar means deleting",
-        "# its line; the list is meant to empty (docs/PLAN.md, \"The transcription backlog\").",
+        "# its line; the list is meant to empty (docs/PORTING.md, \"Writing a port\").",
         "",
     ]
     for rate, _, _, path in sorted(rows, key=lambda r: r[3]):

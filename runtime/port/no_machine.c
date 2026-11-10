@@ -13,8 +13,7 @@
  * So this file is the list of what game/ still asks of the machine: the
  * emulated bus, the runtime's call-outs, stops and returns, its comparisons'
  * declarations and its estimates of a port's time. It shrinks as the
- * wrappers leave (docs/PLAN.md, "The native program, and the registry taken
- * down"), and a symbol the link no longer asks for is deleted from it. */
+ * wrappers leave (docs/PLAN.md, "The machine out of the product"), and a symbol the link no longer asks for is deleted from it. */
 #include <stdio.h>
 #include <stdlib.h>
 

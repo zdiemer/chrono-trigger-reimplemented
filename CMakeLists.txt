@@ -518,8 +518,8 @@ target_include_directories(native_time_test PRIVATE game runtime)
 add_executable(unpack_time_test tests/port/unpack_time_test.c game/data/decompress.c)
 target_link_libraries(unpack_time_test PRIVATE ct_state_host)
 set(CT_NATIVE_GAME_SOURCES ${CT_GAME_SOURCES})
-# What the machine alone runs: the registry (docs/PLAN.md, "The native program, and the
-# registry taken down").
+# What the machine alone runs: the registry (docs/PLAN.md, "The machine out of the
+# product").
 list(REMOVE_ITEM CT_NATIVE_GAME_SOURCES game/registry.c game/time_tags.c)
 add_executable(ct_native frontend/ct_native.c frontend/file_store.c frontend/assets.c frontend/sound_native.c runtime/port/no_machine.c
   runtime/platform/native/render.c ${CT_NATIVE_GAME_SOURCES})
