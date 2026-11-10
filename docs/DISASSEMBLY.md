@@ -234,6 +234,13 @@ the names still shaped like an address or a byte (`field_setting_1e`), which
 wait for a meaning. A record whose fields are separate concepts is two
 variables (`field_object_role` and `field_object_character`, a byte apart).
 
+An optional variable `host_module = "locations"` names its C storage owner
+in the native build. Selection rejects shared bytes, overlapping record
+fields, `reuses`, unchecked arrays and page instances; those require ownership
+work first. This metadata changes neither original addresses nor emulator
+backing. `ram_map.py storage` counts selected variables once each, independent
+of fields and instances; [STATE.md](STATE.md) inventories what blocks the rest.
+
 Work RAM is reused from one game mode to the next, so two entries may cover the
 same bytes when their subsystems differ (the battle's `$7E:2000` is not the
 field's); within a subsystem the map rejects an overlap, unless one entry
@@ -418,7 +425,14 @@ generated code touches that subsystem's state, and nothing in `game/` changes
 with it (docs/PLAN.md, "The game's state as C"). `game/ram.h` stays for generated code and
 the ports not converted yet.
 
-The generated files (`vars.h`, `vars_pages.h`, `vars_ram.c`) are committed, for
+For `CT_VARS_HOST`, selected modules instead use direct typed fields in the
+generated `vars_host.h`. Its `vars_host.c` address projection lets saves, raw
+helpers and route queries read/write the same fields; all other variables
+continue using the image. `state_host.c` normalizes mirrors and routes the
+streaming WRAM port through that view as well. Access timing is unchanged.
+
+The generated files (`vars.h`, `vars_pages.h`, `vars_ram.c`, `vars_host.h`,
+`vars_host.c`) are committed, for
 the reasons the header is, and `tests/test_ram_map.py` fails when one is out of
 date; `tests/port/vars_test.c` checks on a machine with no ROM that the
 accessors reach the bytes the original does, each page kind's instances

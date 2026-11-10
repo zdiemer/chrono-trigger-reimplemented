@@ -1,4 +1,5 @@
 #include "port/state_host.h"
+#include "port/vars_host.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +16,7 @@
 enum { WRAM_BYTES = 0x20000, POWER_ON_BYTE = 0x55 };
 
 struct GameState {
+    VarsHost vars;
     uint8_t wram[WRAM_BYTES];
     uint8_t sram[STATE_HOST_SRAM_BYTES];
     /* the multiplier and divider: their operands, and the result the
@@ -55,6 +57,7 @@ GameState *state_host_create(const uint8_t *sram)
      * where its own clear at power-on leaves it as it was (the menus' records
      * of a party not yet joined): a run starts where the reference plays do */
     memset(g->wram, POWER_ON_BYTE, sizeof g->wram);
+    vars_host_init(&g->vars);
     if (sram)
         memcpy(g->sram, sram, sizeof g->sram);
     return g;
@@ -68,6 +71,8 @@ void state_host_destroy(GameState *g)
 }
 
 uint8_t *state_host_sram(GameState *g) { return g->sram; }
+VarsHost *state_host_vars(GameState *g) { return &g->vars; }
+const VarsHost *state_host_vars_const(const GameState *g) { return &g->vars; }
 
 unsigned long state_host_strays(const GameState *g, uint32_t *first, unsigned *kept)
 {
@@ -135,7 +140,10 @@ uint8_t state_host_read8(const GameState *g, uint32_t addr)
 {
     uint32_t offset;
     switch (place_of(addr & 0xFFFFFF, &offset)) {
-    case IN_WRAM: return g->wram[offset];
+    case IN_WRAM: {
+        uint8_t value;
+        return vars_host_read8(&g->vars, 0x7E0000u + offset, &value) ? value : g->wram[offset];
+    }
     case IN_SRAM: return g->sram[offset];
     case IN_ROM: {
         /* the host's read of the cartridge, not the game's: no time */
@@ -155,7 +163,10 @@ void state_host_write8(GameState *g, uint32_t addr, uint8_t v)
 {
     uint32_t offset;
     switch (place_of(addr & 0xFFFFFF, &offset)) {
-    case IN_WRAM: g->wram[offset] = v; return;
+    case IN_WRAM:
+        if (!vars_host_write8(&g->vars, 0x7E0000u + offset, v))
+            g->wram[offset] = v;
+        return;
     case IN_SRAM: g->sram[offset] = v; return;
     case IN_ROM:
     case NOWHERE: break;
@@ -212,7 +223,7 @@ void hw_port_seek_bank(GameState *g, uint8_t bank)
 uint8_t hw_port_read(GameState *g)
 {
     state_host_game_access(g, IO_ACCESS_CLOCKS);
-    uint8_t v = g->wram[g->port];
+    uint8_t v = state_host_read8(g, 0x7E0000u + g->port);
     g->port = (g->port + 1) & PORT_MASK;
     return v;
 }
@@ -220,7 +231,7 @@ uint8_t hw_port_read(GameState *g)
 void hw_port_write(GameState *g, uint8_t v)
 {
     state_host_game_access(g, IO_ACCESS_CLOCKS);
-    g->wram[g->port] = v;
+    state_host_write8(g, 0x7E0000u + g->port, v);
     g->port = (g->port + 1) & PORT_MASK;
 }
 

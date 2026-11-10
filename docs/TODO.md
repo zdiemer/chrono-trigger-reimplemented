@@ -3580,3 +3580,46 @@ persistence seams; game-side representation changes still need explicit work.
   two arrays of different lengths with the alias explained in prose. An
   `aliases` field would let an entry say what is true.
 - CI: the macOS job costs 10x minutes on a private repo.
+## State storage ownership
+
+The remaining image-backed variables are measured by `tools/ram_map.py storage`;
+the per-site and per-pair inventory is in [STATE.md](STATE.md). Before moving
+another module, resolve its listed aliases and raw clients, including shared
+initial contents on mode transitions. Do not give two struct fields one cell.
+
+- **The generator, before larger slices** (the state-as-C review): host
+  accessors for indexed variables drop `CT_ACCESSOR_CHECKS`' `CHECK_INDEX`
+  (`tools/ram_map.py`, the host fallback); keep it before an indexed variable
+  moves. The address projection finds a field by a linear scan per byte; give
+  it indexed dispatch before bulk clears, saves and video reads cross many
+  moved fields.
+- **Overlapping variables need shared ownership.** 2,011 of the 2,263 overlap
+  another; independent structs can't keep those relationships, so the next
+  slices need an explicit owner and alias views per overlap, decided module by
+  module before anything overlapping moves (the generator rejects it until then).
+
+- **Core:** controller/clock and palette scratch overlap other uses; character
+  records contain both whole-record and named-field views. Inventory tail
+  accesses and save projection must keep a single owner. Sound's retired cells
+  include unchecked tables and should be separated from live sound state.
+- **Data:** decompressor destinations and its streaming WRAM port are dynamic;
+  establish which output buffers are game state versus decoded resources before
+  moving the eight otherwise non-overlapping variables.
+- **Event:** story memory, event variables and field script storage overlap;
+  replace arbitrary-address script operations with owned views where possible.
+- **Field:** map/graphics/scratch reuse and interleaved row tables need owners;
+  video queues, unpack destinations and unchecked object/table tails need views
+  of those owners rather than independent storage.
+- **Menu:** direct-page records and shared screen scratch need ownership across
+  screens; inventory overruns and tilemap/DMA sources need explicit views.
+- **Menu objects:** all 39 variables overlap another module; resolve object
+  records, menu pages and overworld sharing before moving them.
+- **Overworld:** object-mode sharing, map scratch, unchecked tails and video
+  staging must be separated or assigned one owner.
+- **Battle:** 909 variables overlap others; resolve combatant/scratch aliases,
+  whole-record field views, 53 unchecked tables and graphics sources in slices.
+- **Scene:** own/channel page instances, shared mode scratch, line-effect and
+  upload buffers need ownership; retain initial values across mode changes.
+- **Warp:** plane/light graphics and line-effect sources share scene memory;
+  resolve those aliases and the unchecked table before moving the module.
+

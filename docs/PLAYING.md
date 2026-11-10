@@ -658,6 +658,15 @@ ROM is read only to import it; no image of it is mapped
 (`runtime/port/rom_host.c`). Like the shipping shape, it is built without the
 ports' scaffolding, and it builds without a ROM.
 
+The location module's state lives in generated C structs behind those same
+accessors. Other variables still use a residual work-RAM image. The native
+address view projects struct fields for save/load, video sources, end states
+and route queries, including the original's low-bank mirrors; it does not
+keep a second copy of moved fields. Cartridge `.srm` files retain their
+format. [STATE.md](STATE.md) describes the mechanism, inventory and remaining
+image-backed share (`python3 tools/ram_map.py storage`). Emulator-backed
+`ct_dev`, `ct_drive` and hybrid `ct_play` retain RAM-backed accessors.
+
 Nothing in it makes a machine, so the entry wrappers and bridges `game/`
 still has, which take a `Snes *`, are linked but never reached: the program
 calls the functions of the game's state they stand in front of. What they

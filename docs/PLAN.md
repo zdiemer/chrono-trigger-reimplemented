@@ -177,16 +177,14 @@ already built are described in PLATFORM.md.
   ending, the Dino Age interrupt, the tech sweep's wipe near the Core).
   Remaining timing debts (menu-guard accounting, sound timing, line-boundary
   uploads) are settled where a divergence traces to them.
-- **The game's state as C, not a work-RAM image.** Even `ct_native` keeps the
-  game's state as the 128 KiB byte image the accessors read and write, which
-  is the original's memory layout carried into the product. The variables
-  move out of the image into C structs behind the same accessors (generated
-  from `re/ram.toml`, so the ports don't change), and what the original
-  shared through one cell becomes a field one module owns. Resolve shared
-  scratch, table overruns and the saved-game projection first: saves are
-  written from and read into the structs, and a cartridge save (`.srm`)
-  still loads. Measured by the share of `re/ram.toml`'s variables still
-  backed by the image; done when none is.
+- **The game's state as C, not a work-RAM image.** Move the remaining
+  image-backed variables into module-owned structs through the generated
+  backing (STATE.md). Resolve the inventory's shared scratch, internal field
+  aliases, page instances and table overruns before selecting each module;
+  retire its raw-address clients and keep cartridge saves and native route
+  address queries working through the projection. `tools/ram_map.py storage`
+  measures the share of `re/ram.toml`'s variables still backed by the image;
+  finish when none is, then remove the residual image and unnamed clients.
 - **The machine out of the product.** `game/core/program.c` boots the game
   and dispatches its main thread and handlers; `ct_native` runs it with host
   services (PLAYING.md, "The native program"). What is left, counted by

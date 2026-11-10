@@ -28,7 +28,7 @@
 #       (docs/DISASSEMBLY.md, "The accessors").
 #
 #   [[var]]    name, addr | dp, [size], [count, stride, index], [rows, row_stride],
-#              [page], [unchecked], [reuses], subsystem, meaning, source, [[var.field]]
+#              [page], [unchecked], [reuses], [host_module], subsystem, meaning, source, [[var.field]]
 #       A variable. addr is "7E:AAAA" or "7F:AAAA" (low RAM $0000-$1FFF is
 #       $7E:0000-$1FFF, which banks $00-$3F mirror). size is the element's width
 #       in bytes (default 1); an array has count elements `stride` bytes apart
@@ -48,6 +48,9 @@
 #       variable (or a list of them) of the same subsystem whose bytes this
 #       one takes over at another time (the map's data, decompressed where the tiles' looks go
 #       once it is unpacked), which the overlap check otherwise refuses.
+#       `host_module` selects a single C storage owner for CT_VARS_HOST only.
+#       It requires non-overlapping declared bytes, no unchecked access or
+#       reuse, and no page instances (docs/STATE.md). Other builds keep RAM.
 #
 #   [[var.field]]  name, offset, [size], meaning
 #       A record: the element is `stride` bytes and the fields are at these
@@ -3833,6 +3836,7 @@ source = "game/scene/race_drawing.c, scene_draw_number $7E:39F5"
 
 [[var]]
 name = "location"
+host_module = "locations"
 addr = "7E:0100"
 page = "field"
 stride = 5
@@ -3859,6 +3863,7 @@ meaning = "The id word's high byte, its bits 1-4 shifted down to bits 0-3 and it
 
 [[var]]
 name = "location_previous"
+host_module = "locations"
 addr = "7E:0105"
 page = "field"
 stride = 5
@@ -3885,6 +3890,7 @@ meaning = "How the change back to it is made (location's flags)"
 
 [[var]]
 name = "location_next"
+host_module = "locations"
 addr = "7E:0112"
 page = "field"
 stride = 5
@@ -3911,6 +3917,7 @@ meaning = "The id word's high byte, its bits 1-4 shifted down to bits 0-3 and it
 
 [[var]]
 name = "location_stored"
+host_module = "locations"
 addr = "7E:010A"
 page = "field"
 stride = 5
