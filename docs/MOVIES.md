@@ -326,6 +326,17 @@ joins the gate's default sample (`tools/gate_movies.txt`) only where it earns it
 no sampled movie runs, at a good rate per frame, or something a check needs. A long movie made to
 find code or `ct_native`'s stops usually stays in the library alone, run by `--all-movies`.
 
+The post-teardown regression sample adds 21 witnesses to the 37-movie code
+cover: 58 movies and 1,418,355 frames. The extra cost protects state and
+resource preconditions that instruction coverage alone missed, along with
+the affected recorded outcomes. Bucket Lavos and the Spekkio tech sweep
+remain full-length witnesses until shorter recordings reproduce their
+empty-target and message-resource failures. Nizbel II and MotherBrain
+remain library-only: their 148,758 and 135,481 frames need shorter outcome
+witnesses before joining the sample. Reasons accompany every selected movie
+in `tools/gate_movies.txt`; a stale outcome pin still fails the sample and
+belongs in the separately justified library ledger refresh.
+
 **Routes are timing-independent; movies are not.** A route reads the machine, so
 it still works after the hardware model's timing changes — re-run it and it
 finds the new inputs. The `.ctm` it produced is a fixed list of frames: change

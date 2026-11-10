@@ -26,6 +26,11 @@ rest waits, is [PLAN.md](PLAN.md).
   A storage teardown must supply the same saved-game
   projection from the new storage; a picture hash alone cannot establish
   that a visual difference cannot affect play.
+- **Shorter regression movies.** Reduce the expanded gate sample only with
+  recordings that reproduce its failures: Bucket Lavos's empty marked ally
+  target and Spekkio's "nothing to steal" sound selector. Add shorter outcome
+  witnesses for Nizbel II and MotherBrain, which remain library-only because
+  of their length (MOVIES.md, "Adding movies").
 - **Keep the unreached ledger's preconditions when retiring the machine.**
   Preserve the assertions and resource assumptions behind
   `tools/unreached_safe.toml` and the retired subsystems' inventories
