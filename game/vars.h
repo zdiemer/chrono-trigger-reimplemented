@@ -9,7 +9,7 @@
  * is the point: a port written against these keeps working when the storage
  * moves. runtime/port/vars_ram.c is what backs them today, with the game's
  * variables in emulated work RAM so that shadow mode still compares bytes
- * (docs/PLAN.md, "Phase 3a"). A buffer wider than 4 bytes has no one C value,
+ * (docs/PLAN.md, "The game's state as C"). A buffer wider than 4 bytes has no one C value,
  * so its bytes are read and written one at a time (`<name>_byte`). How many
  * elements an array has, and how many bytes such a buffer has, are named too,
  * so that a port that walks one need not know a number.

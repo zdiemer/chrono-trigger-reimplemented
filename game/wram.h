@@ -11,7 +11,7 @@
  * in re/ram.toml whenever the address is fixed. What keeps this from being a
  * hole in the abstraction is that it names no machine: a backing that keeps the
  * game's state in its own storage still has work RAM to put these buffers in
- * (docs/PLAN.md, "Phase 3a"). */
+ * (docs/PLAN.md, "The game's state as C"). */
 #ifndef CT_GAME_WRAM_H
 #define CT_GAME_WRAM_H
 

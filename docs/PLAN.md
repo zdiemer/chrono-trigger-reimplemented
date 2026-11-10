@@ -43,7 +43,7 @@ and their ledgers, not as competing snapshots here.
 | `tools/burndown.py`, `tools/unreached.py` | All live code is implemented; unreached paths have execution evidence or explicit safety arguments. |
 | `tools/fallbacks.py` | No original code substitutes for hand ports, no unexplained refusal, and the build without scaffolding reaches the same route outcomes. |
 | `tools/portstyle.py`, `tools/portsmell.py`, qualitative review | The game reads as source; the machine is confined to interfaces awaiting removal. |
-| `tools/census.py`, `tools/machine_joints.py` | No game entry needs the registry, emulated stack, bus, register escapes or comparison scaffolding. |
+| `tools/census.py`, `tools/machine_joints.py` | No game entry needs the registry, emulated stack, bus, register escapes or comparison scaffolding, and no function in `game/` takes `Snes *`. |
 | Asset catalogue and accessors | Every resource is loaded through the store; no transfer depends on a mapped cartridge. |
 | State accessors | Game variables live in C structs, with defined aliases and bounds, rather than a work-RAM image. |
 | `tools/strict_check.py`, `tools/native_check.py`, `tools/outcomes.py` | The library completes with protected saved games, save RAM, pictures and places; routes verify intended gameplay outcomes. |
@@ -53,62 +53,42 @@ remainder does not establish that the machine can leave. The census names
 which caller still requires an entry. Recorded outcomes distinguish reaching
 a movie's frame limit from playing its intended route.
 
-### Retiring the gate, deliberately
+### After the byte-exact gate
 
-Byte-exact validation is a scaffold, and target 4 is the licence to take it
-down: the game has to stay structurally the same, not byte-identical. So a
-subsystem retires it **on purpose, in its own commit**, when it is fully ported
-and no generated code touches its state any more: its storage moves out of
-emulated work RAM, and shadow mode is replaced for that subsystem by the routes
-and the gameplay tests. Until that point the gate holds, in full. Retiring it
-early, or by accident, is the one failure this plan is most concerned with.
-
-**A guard becomes an assertion when the gate retires.** While the emulator is
-there, a port's guard refusing a state is harmless: the original runs it, so
-the product stays exact, and the rewrites lean on that -- event's guards turned
-away 4.2 million of the 7.3 million states its fuzzing drew, all of them states
-no movie produces (per-entry shadow totals match the predecessor's on every
-entry). A native build has no original to hand a refused call to. So when a
-subsystem retires the gate, each of its guards becomes a claim that the game
-never produces that state, and it is checked as one: over the routes and the
-movie library first, then as an assertion in the build, where a refusal is a
-bug to fix in the port rather than a call to pass on.
-
-**Retiring the gate also switches the scaffolding off.** What a port writes only
-for shadow mode or for the original's still-generated code goes through
-`ORIGINAL_EFFECT` (docs/PORTING.md, "Scaffolding"), and the build already
-compiles every port once without it (`ct_game_native_shape`). When a subsystem
-retires the gate, its scaffolding is deleted in the same commit, and anything
-the evidence found reading it from outside is decided first. The battle and
-menu values read by the scene's curtain remain explicit live state
-(REIMPLEMENTATION.md, their teardown sections). A subsystem's `portstyle.py`
-scaffolding count is how much of this is left to take down.
+Every subsystem has retired its byte-exact comparison (REIMPLEMENTATION.md,
+the teardown sections). What it leaves behind still holds: each retired
+guard is an assertion (`contract broken:`), a claim that the game never
+produces the state it refused, checked over the movies and routes, where a
+refusal is a bug in the port rather than a call to pass on. The scaffolding
+writes left (`tools/machine_joints.py`) go with the comparisons that read
+them.
 
 ### Working order
 
-**The order now: finish the state boundaries, then the machine leaves.** Sound,
-data, core services, warp, overworld, the scene program and attract, field,
-events, the scene engine, menus and battle have retired their byte-exact comparisons.
-Their retained contracts and compatibility interfaces are documented under
-the subsystem teardown sections in REIMPLEMENTATION.md.
+The order to a production native build. Each step's detail is in Phase 4a.
 
-1. **Finish the asset and state boundaries.** Replace the last cartridge
-   transfers with store-backed resources, and move the game's variables into
-   C structs behind the accessors. Resolve shared scratch, table overruns and
-   save projections before changing storage. These can proceed per retired
-   subsystem when they do not overlap the teardown work.
-2. **Remove the remaining machine interfaces from the product.** Delete
-   wrappers, registry dispatch and emulator dependencies once no caller needs
-   them; make `ct_play` the native program.
+1. **The ledger pass.** One whole-library run over everything merged since
+   the last, then `--update`/`--prune`/`--calibrate` as one ledger commit:
+   the teardowns left the baselines and exceptions describing entries that
+   no longer exist.
+2. **The gate after the comparisons.** Decide which checks the gate keeps
+   now that nothing is compared byte for byte, and what becomes of the
+   generated C, the interpreter and shadow mode.
+3. **Prove `ct_native` plays the game.** Routes driven from state in
+   `ct_native` itself, a playthrough from a new game to an ending, and the
+   open divergences traced. Before the machine is deleted, not after, so the
+   deletions have a check that doesn't depend on it.
+4. **The game's state as C structs**, with `.srm` saves still loading.
+5. **The machine out of the product**: wrappers, registry, emulated stack,
+   held waits as C loops, `Snes *` gone from `game/`; `ct_play` becomes
+   `ct_native`.
+6. **The player as a product**: what `ct_play` has that `ct_native` lacks,
+   and release builds.
 
-The native time model and service-fed video backend have landed (PLATFORM.md,
-"Timing without a beam, as built" and "Video from service calls, as built").
-Their remaining timing debts, scene video escapes and missing outcome checks
-are follow-ups in TODO.md, not new backend milestones. Investigate the first
-playback divergence before changing a rate or re-recording an exception.
-
-Independent branches use separate worktrees and a shared process budget.
-Keep shared-file edits local to the subsystem so these tracks can merge.
+Steps 1 to 3 can run side by side; 4 and 5 overlap per module. Investigate
+the first playback divergence before changing a rate or re-recording an
+exception. Independent branches use separate worktrees and a shared process
+budget, with shared-file edits kept local so they merge.
 
 ## The validation gate
 
@@ -154,8 +134,8 @@ where recalibration and baseline updates come from; "every movie" below is every
   --check`, a ratchet against its baseline; REIMPLEMENTATION.md, "The fallback
   measure");
 - no hand port's guard refuses a call real play makes unless its allowlist
-  line says why (`tools/fallbacks.py --refusals`; "Retiring the gate,
-  deliberately", above);
+  line says why (`tools/fallbacks.py --refusals`; "After the byte-exact
+  gate", above);
 - the build with the scaffolding compiled out runs every movie to its end and
   reaches the routes' outcomes in the shipping mode (`ct_dev_native_shape`,
   `ct_drive_native_shape`; REIMPLEMENTATION.md, "The native shape, run");
@@ -166,86 +146,70 @@ where recalibration and baseline updates come from; "every movie" below is every
 - `py -m unittest discover tests` passes and the build is warning-free on
   all four CI platforms.
 
-## Phase 3a: what is left of the transcription backlog
-
-The style ratchet's baseline is empty: every port is at the bar.
-The reimplementation bar and its worked examples are in PORTING.md,
-"Writing a port"; the rewrites are in history/reimplementation-phase3a.md.
-Keep the style and smell ratchets, typed accessors and qualitative review
-while removing the remaining machine interfaces.
-
-## Phase 3: M5 in bulk
-
-The porting accounts and evidence are in history/reimplementation-waves.md,
-history/reimplementation-chunks.md and REIMPLEMENTATION.md. The remaining
-uncovered runs are guarded hand-backs and conservative stop accounting;
-TODO.md, "Uncovered runs outside the scene program", records the domains to
-settle. New work follows CLAUDE.md's reimplementation bar and preserves the
-named state and asset seams.
-
-### How a wave is run
-
-One subsystem per worktree; local edits to shared registries and ledgers;
-a sampled gate at each coherent commit; one independent qualitative review
-of the accumulated branch before merge. The merge gate runs on the combined
-tree, with long routes once per timing/runtime batch and whole-library
-recalibration in its own batched ledger commit (CLAUDE.md; PORTING.md).
-
-The field, events, both scene layers, menus and battle's retained interfaces are described
-in REIMPLEMENTATION.md, "The field's teardown", "The events' teardown",
-"The scene program's teardown", "The scene engine's teardown", "The menus'
-teardown" and "The battle's teardown". Their
-remaining work removes interfaces with their callers rather than adding ports.
-
 ## Phase 4a: what still runs on emulation
 
 The remaining work between a finished `game/` and a native build with nothing
 under it is below. None is optional for target 1; the host service backends
 already built are described in PLATFORM.md.
 
-- **Remaining video escapes.** Battle, menus and scene must replace their
-  SNES-specific transfers with named services as the legacy driver leaves. TODO.md
-  lists each site and the contract it needs. The service-fed host renderer
-  and its pixel check are described in PLATFORM.md.
-- **The native program, and the registry taken down.** `game/core/program.c`
-  boots the game and dispatches its main thread and handlers; `ct_native`
-  runs it with host services (PLAYING.md, "The native program"). Remove each
-  remaining machine boundary in this order:
-  1. Replace calls through the registry with C calls that preserve the
-     callee's full contract and timing scope. A direct call must still check
-     widths, decimal mode, page, bank and code-image assumptions.
-  2. Replace legacy driver boundaries with explicit continuations. A loop
-     waiting across frames needs a held wait, not recursive C calls or a port
-     suspended for a whole screen (RUNTIME.md, "Held waits"). Preserve task
-     switching and saveable caller frames.
-  3. Retire each subsystem's comparisons deliberately. Delete wrappers and
-     scratch writes only when the last gated caller stops observing them;
-     retain contract assertions and the time charged to callers. The teardown
-     sections in REIMPLEMENTATION.md explain the retained machine forms,
-     held continuations and calibrated time tags.
-  4. Once no subsystem needs the machine, remove the registry, intercept,
-     entry macros and emulator from what ships; `ct_play` becomes `ct_native`.
-
-  The census identifies the caller keeping an entry alive. Native outcomes
-  and state-driven routes establish how far its replacement actually plays;
-  a movie reaching its frame limit is insufficient.
-
+- **The ledger pass.** The whole library (`--all-movies`, overnight at a
+  higher `-j`) over everything merged since its last run; recalibration and
+  `--update`/`--prune` come from it as one ledger commit. The stale lines are
+  mostly retired entries: the effects, outcomes, unreached, timing,
+  uncompared and fallback ledgers all name addresses the registry no longer
+  holds.
+- **The gate after the comparisons.** With nothing compared byte for byte,
+  decide for each check whether it still protects the product: shadow
+  mismatches, `--generated only` against `--native off`, the fallback and
+  refusal measures, the effects check and the don't-care check compare
+  against the original or its scaffolding; the routes, recorded outcomes,
+  strict and native checks, sound digests, style and smell ratchets do not.
+  Delete the checks that are empty, and their ledgers with them. Decide in
+  the same item what the generated C, the interpreter and shadow mode are
+  kept for (the oracle tools, a debugging build) or whether they go.
+- **`ct_native` plays the game, checked in `ct_native`.** The routes reach
+  their outcomes in `ct_drive`, which still has the emulator under it, and
+  `ct_native` is checked only by replaying recorded input, which a small
+  timing difference sends elsewhere. Drive the routes from game state in
+  `ct_native` itself; add a playthrough route from a new game to an ending;
+  record the endings not yet recorded and the Reunion route; trace the open
+  divergences (TODO.md: the Tyrano Lair walls' saved game, Beyond Time's
+  ending, the Dino Age interrupt, the tech sweep's wipe near the Core).
+  Remaining timing debts (menu-guard accounting, sound timing, line-boundary
+  uploads) are settled where a divergence traces to them.
 - **The game's state as C, not a work-RAM image.** Even `ct_native` keeps the
   game's state as the 128 KiB byte image the accessors read and write, which
-  is the original's memory layout carried into the product. When a subsystem
-  retires the gate, its variables move out of the image into C structs behind
-  the same accessors (generated from `re/ram.toml`, so the ports don't
-  change), and what the original shared through one cell becomes a field one
-  module owns. Saves are written from and read into the structs, and a
-  cartridge save (`.srm`) still loads. Measured by the share of `re/ram.toml`'s
-  variables still backed by the image; done when none is.
-- **Validation after the teardown.** Before retiring each subsystem, fill
-  its library coverage in the recorded outcomes (REIMPLEMENTATION.md,
-  "Recorded outcomes"), resolve the differences it needs to rely on, and
-  cite the protected movies and kinds in its teardown section. Preserve
-  the saved-game projection when its storage moves out of work RAM; keep
-  the routes, sound digests and guards as assertions. The last teardown
-  must leave no unrecorded reference behaviour it needs to check.
+  is the original's memory layout carried into the product. The variables
+  move out of the image into C structs behind the same accessors (generated
+  from `re/ram.toml`, so the ports don't change), and what the original
+  shared through one cell becomes a field one module owns. Resolve shared
+  scratch, table overruns and the saved-game projection first: saves are
+  written from and read into the structs, and a cartridge save (`.srm`)
+  still loads. Measured by the share of `re/ram.toml`'s variables still
+  backed by the image; done when none is.
+- **The machine out of the product.** `game/core/program.c` boots the game
+  and dispatches its main thread and handlers; `ct_native` runs it with host
+  services (PLAYING.md, "The native program"). What is left, counted by
+  `tools/machine_joints.py`:
+  1. The remaining calls through the registry become C calls that keep the
+     callee's full contract (widths, decimal mode, page, bank, code image)
+     and its time.
+  2. The held waits' continuations become C loops, keeping task switching
+     and saveable caller frames (RUNTIME.md, "Held waits").
+  3. The entry wrappers, returns through the emulated stack, stops and
+     register escapes go; the remaining video escapes become named services
+     (TODO.md lists each site). Functions take the game's state, not
+     `Snes *`.
+  4. The registry, intercept, entry macros and emulator leave what ships;
+     `ct_play` becomes `ct_native`.
+
+  The census identifies the caller keeping an entry alive; the routes in
+  `ct_native` establish how far its replacement plays.
+- **The player as a product.** What `ct_play` has and `ct_native` lacks
+  (PLAYING.md, "The native program"): quick save and load, bindings, movie
+  recording, importing the asset pack on first run. The playback, audio-stall
+  and performance reports in TODO.md re-checked on the native program.
+  Release builds per platform: CI builds `ct_native` but doesn't ship it.
 
 **Assets: imported once from the user's ROM, then loaded by name.** The
 ports reach ROM data through named accessors (`*_data.h`), every byte of it in
@@ -295,7 +259,7 @@ wait behind 4a.
 - **The SNES ROM itself** (TODO.md, "A SNES ROM compiled from the hand ports"):
   MD3, then a hybrid that links one compiled routine in place of the original's
   and checks the ROM plays, then outward. `tests/test_port_subset.py` already
-  keeps `game/` inside what a 65816 compiler handles, and Phase 3a's decoupling
+  keeps `game/` inside what a 65816 compiler handles, and the decoupling
   is what makes a routine linkable at all: the logic apart from the emulated
   machine is exactly what a SNES build compiles.
 - **MD2's remainder**: 42590 census-unknown bytes, 228.3 KiB still `mixed`, and
@@ -304,8 +268,6 @@ wait behind 4a.
   they are proof-of-completeness work, and the formats that ports do depend on
   were typed before the bulk conversion.
 - **The asar cross-check**, which has never run.
-- **Coverage**: the unrecorded endings, the Reunion route, and re-running
-  `--misses` over the whole library.
 
 ## Slot in whenever
 

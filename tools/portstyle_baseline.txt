@@ -1,5 +1,5 @@
 # Ports written before the reimplementation bar existed, and the score each had.
 # tools/portstyle.py --check fails when a file not listed here scores above the
 # threshold, or a listed file gets worse. Rewriting one to the bar means deleting
-# its line; the list is meant to empty (docs/PLAN.md, "The transcription backlog").
+# its line; the list is meant to empty (docs/PORTING.md, "Writing a port").
 

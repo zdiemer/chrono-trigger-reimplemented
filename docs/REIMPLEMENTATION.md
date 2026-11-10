@@ -1667,7 +1667,7 @@ pages and aliasing require the map mechanisms below.
 ### Page kinds: cells on a page the caller chooses
 
 The accessor shape scene's rewrite found missing, built before `event`'s
-(PLAN.md, "Phase 3a"). A page in `re/ram.toml` either has a fixed `d` or, as a
+(PLAN.md, "The game's state as C"). A page in `re/ram.toml` either has a fixed `d` or, as a
 page kind, lists the `instances` its code runs on -- named pages, arrays of
 pages, or both -- and the variables on it take which instance a port means
 (DISASSEMBLY.md, "The accessors"). `tools/ram_map.py accessors` writes the
@@ -2735,7 +2735,7 @@ tasks, and the battle frame work's call-outs.
 
 **Refusals as failures** (`tools/fallbacks.py --refusals`,
 `tools/refusal_allowlist.txt`). A native build has no original to hand a
-refused call to ("Retiring the gate, deliberately", PLAN.md), so a refusal in
+refused call to ("After the byte-exact gate", PLAN.md), so a refusal in
 real play -- the shadow runs, the movies in the shipping mode, the routes --
 fails unless its entry and condition have an allowlist line with a reason.
 Each is printed with its count and its first four states (registers, the run,
@@ -2818,8 +2818,8 @@ anyway, and nothing in them checks an outcome.
 ### The census: how the game is entered
 
 The fallback measure says what of the original still runs; the census says
-why the registry still has to exist (PLAN.md, "The native program, and the
-registry taken down"). `ct_dev --native on --census out.txt` (dev/census.h)
+why the registry still has to exist (PLAN.md, "The machine out of the
+product"). `ct_dev --native on --census out.txt` (dev/census.h)
 counts, per registered entry, each time the machine reached its address and
 the runtime ran it, filed under how it got there -- a vector, the original's
 code (generated or interpreted), or a port's hand-off through the machine:
@@ -2890,8 +2890,8 @@ this replaced.
 
 ### The sound driver's teardown
 
-The first subsystem taken off the gate (PLAN.md, "Retiring the gate,
-deliberately"; "The native program, and the registry taken down", step 3),
+The first subsystem taken off the gate (PLAN.md, "After the byte-exact
+gate"; "The native program, and the registry taken down", step 3),
 on purpose: the gate no longer compares sound with the original's. The C
 sound driver (`game/sound/`) is the only driver anything of ours plays --
 `ct_play`, `ct_drive`, `ct_native` and every `ct_dev` run of the hand ports
@@ -3172,7 +3172,7 @@ code.
 
 **What stays, and why.** The console's eight rows: the vectors and the reset
 are the machine's own way into the program, and go when the machine leaves
-the product (PLAN.md, "The native program", step 4). The controller's wait
+the product (PLAN.md, "The machine out of the product", step 4). The controller's wait
 and the sample taken where it ends (`$C2:84F9`, `$C2:84FE`): a held wait, as
 the attract's main loop is (TODO.md, "The scene main loop still starts at its
 original boundary"), which the menus' machine path stops in and returns to

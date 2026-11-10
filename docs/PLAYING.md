@@ -532,8 +532,8 @@ development tools call (`snes_state_save`, `zst_import_file`, `ct_movie_load`,
 ### The native program
 
 `ct_native` is the game with no emulator under it, the first version of
-what `ct_play` becomes (PLAN.md, "The native program, and the registry taken
-down"). With SDL2 it opens the same window as `ct_play`, with the native
+what `ct_play` becomes (PLAN.md, "The machine out of the product"
+). With SDL2 it opens the same window as `ct_play`, with the native
 renderer, live keyboard/gamepad input and the C sound driver through the
 native mixer and SDL audio. Without SDL2 it remains a headless program.
 

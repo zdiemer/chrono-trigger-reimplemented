@@ -262,7 +262,7 @@ the example.
    docs/PORTING.md, the subsystem's headers, the analysis behind the drafts --
    and none of it gets cheaper for a smaller chunk. Two chunks of 6 KiB cost
    close to twice one chunk of 12 KiB and produce the same code. So aim at the
-   top of the 8-12 KiB the plan sets (docs/PLAN.md, "Wave 2"), and take the whole
+   top of 8-12 KiB, and take the whole
    of a game concept -- every handler of a language, both halves of a screen,
    the routine and its helpers -- rather than half of one and half of the next.
 
@@ -462,7 +462,7 @@ In the same commit as the work:
 - `docs/ports.tsv`: a row per entry — name, `$BB:AAAA`, and the validation in a
   sentence, with the fuzz run recorded. It is tab-separated and appended to, not
   a table to read (docs/PORTING.md, "Status").
-- `docs/PLAN.md`: refresh the burndown table and the Phase 3a table if you
+- `docs/PLAN.md`: refresh the burndown table if you
   emptied backlog files.
 - `docs/TODO.md`: remove what you closed, add what you opened. **Delete finished
   work rather than marking it done** — no "(done)", no strikethrough.

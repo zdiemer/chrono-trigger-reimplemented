@@ -625,7 +625,7 @@ and nothing reads again, which shadow mode compares; a register or flag the
 original leaves and liveness can't show dead, so no don't-care can drop it; a
 cell or register the original's still-generated code expects filled. That is
 scaffolding. It stands while the gate is byte-exact and comes down when the
-subsystem retires the gate (PLAN.md, "Retiring the gate, deliberately").
+subsystem retires the gate (PLAN.md, "After the byte-exact gate").
 Until then it is written apart from the logic, marked, and never read back by
 it:
 

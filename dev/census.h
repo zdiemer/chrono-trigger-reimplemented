@@ -1,5 +1,5 @@
-/* The census of how the game is entered (docs/PLAN.md, "The native program,
- * and the registry taken down", step 1; tools/census.py reads what this
+/* The census of how the game is entered (docs/PLAN.md, "The machine out of the
+ * product", step 1; tools/census.py reads what this
  * writes). In the shipping mode (`--native on --generated on`) a port runs
  * either because the machine reached its address and the runtime found it in
  * game/registry.c, or because another port called its work as C. The first is

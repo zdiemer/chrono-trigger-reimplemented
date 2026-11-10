@@ -54,7 +54,7 @@ ProgramStub program_line_stub(const GameState *g);
 
 /* Where the program's C ends: `routine` is the next thing the program does,
  * which only the machine runs yet (an entry the original's address reaches,
- * docs/PLAN.md, "The native program"). The state's backing supplies it: on
+ * docs/PLAN.md, "The machine out of the product"). The state's backing supplies it: on
  * the machine the address is how the program goes on, so it is never called;
  * with no machine (runtime/port/state_host.c) the program stops there and the
  * driver says where. `what` names it for the report. */

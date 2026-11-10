@@ -18,7 +18,7 @@ fails when one is out of date:
   `runtime/port/vars_pages.h` mapping a direct page to the instance of a page
   kind it is, for entry wrappers. This is what a port uses: it names state
   without saying where it lives, so the storage can move once a subsystem no
-  longer shares it with generated code (docs/PLAN.md, "Phase 3a"). A variable
+  longer shares it with generated code (docs/PLAN.md, "The game's state as C"). A variable
   on a page kind (a page whose code runs with D on any of its instances) takes
   which instance the port means, never a D. The backing checks every index an
   accessor takes against the map's count, bytes, rows and columns, and counts
@@ -695,7 +695,7 @@ def render_header(m):
 # index per array element, a pair per field of a record, and nothing about
 # layout. `runtime/port/vars_ram.c` satisfies it against emulated work RAM while
 # the gate still compares bytes; the storage swaps behind it, per subsystem, once
-# no generated code touches that subsystem's state (docs/PLAN.md, "Phase 3a").
+# no generated code touches that subsystem's state (docs/PLAN.md, "The game's state as C").
 
 VARS_HEADER = GAME / "vars.h"
 BACKING = ROOT / "runtime" / "port" / "vars_ram.c"
@@ -930,7 +930,7 @@ def render_vars_header(m):
         " * is the point: a port written against these keeps working when the storage",
         " * moves. runtime/port/vars_ram.c is what backs them today, with the game's",
         " * variables in emulated work RAM so that shadow mode still compares bytes",
-        " * (docs/PLAN.md, \"Phase 3a\"). A buffer wider than %d bytes has no one C value,"
+        " * (docs/PLAN.md, \"The game's state as C\"). A buffer wider than %d bytes has no one C value,"
         % WIDEST,
         " * so its bytes are read and written one at a time (`<name>_byte`). How many",
         " * elements an array has, and how many bytes such a buffer has, are named too,",
@@ -982,7 +982,7 @@ def render_backing(m):
         " * uses them writes the same bytes and shadow mode still compares them. The",
         " * second backing, which holds the same values in its own storage, replaces this",
         " * file per subsystem once no generated code touches that subsystem's state",
-        " * (docs/PLAN.md, \"Phase 3a\"); nothing in game/ changes with it.",
+        " * (docs/PLAN.md, \"The game's state as C\"); nothing in game/ changes with it.",
         " *",
         " * Built with CT_VARS_HOST (ct_native, docs/PLAYING.md, \"The native program\"), the",
         " * same layout is held in the host's memory instead (port/state_host.h): the bytes",
