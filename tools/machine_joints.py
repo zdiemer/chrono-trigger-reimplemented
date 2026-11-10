@@ -18,7 +18,10 @@ gate's, not the product's.
 """
 
 import argparse
+import ast
 import collections
+import functools
+import operator
 import re
 from pathlib import Path
 
@@ -39,6 +42,7 @@ JOINTS = [
     ("register escapes", r"\bvid_snes_\w+\(|\bau_voices_snes_register\(", "a service call"),
     ("video service calls", r"\bvid_(?!snes_)\w+\(", "inventory, including inline value helpers"),
     ("video calls without host backend", None, "the named service implemented on the host"),
+    ("cartridge reads by address", None, "named resource accessors serving the store's bytes"),
     ("scaffolding writes", r"\bORIGINAL_EFFECT\(", "its subsystem retiring the gate"),
 ]
 
@@ -97,6 +101,11 @@ def count(per_file):
         if path.name == "registry.c":
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
+        n = cartridge_reads(path, text)
+        if n:
+            name = "cartridge reads by address"
+            totals[name] += n
+            by_file[path.relative_to(ROOT).as_posix()][name] += n
         missing = sum(len(re.findall(r"\b" + name + r"\(", text)) for name in missing_video)
         if missing:
             name = "video calls without host backend"
@@ -114,10 +123,259 @@ def count(per_file):
     return totals, by_file
 
 
+def without_comments(text):
+    # Keep strings intact here: quoted includes are needed by constant lookup.
+    return re.sub(r'''"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|/\*.*?\*/|//[^\n]*''',
+                  lambda m: m[0] if m[0][0] in "\"'" else re.sub(r"[^\n]", " ", m[0]),
+                  text, flags=re.S)
+
+
+def expression_at(text, start):
+    """One argument/initializer, with nested parentheses, brackets and braces."""
+    depth = 0
+    for end in range(start, len(text)):
+        c = text[end]
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            if not depth:
+                return text[start:end].strip(), end
+            depth -= 1
+        elif c in ",;" and not depth:
+            return text[start:end].strip(), end
+    return text[start:].strip(), len(text)
+
+
+@functools.lru_cache(maxsize=None)
+def header_text(path):
+    return path.read_text(encoding="utf-8")
+
+
+@functools.lru_cache(maxsize=None)
+def source_definitions(source):
+    source = without_comments(source).replace("\\\n", "")
+    includes = re.findall(r'^\s*#\s*include\s*["<]([^">]+)[">]', source, re.M)
+    entries = []
+    for m in re.finditer(r'^\s*#\s*define\s+(\w+)(\([^\n]*?\))?[^\S\n]+([^\n]+)', source, re.M):
+        parameters = tuple(p.strip() for p in m[2][1:-1].split(",")) if m[2] else None
+        entries.append((m[1], parameters, m[3]))
+    # An undef/redefinition is not a single constant for this source audit.
+    for name in re.findall(r'^\s*#\s*undef\s+(\w+)', source, re.M):
+        entries.extend(((name, None, ""), (name, None, "unknown")))
+    for m in re.finditer(r'\benum\s*(?:\w+\s*)?\{([^}]+)\}', source):
+        previous = "-1"
+        for row in m[1].split(","):
+            parts = row.strip().split("=", 1)
+            name = parts[0].strip()
+            if not re.fullmatch(r"\w+", name):
+                continue
+            value = parts[1] if len(parts) == 2 else f"({previous}) + 1"
+            entries.append((name, None, value))
+            previous = name
+    return includes, entries
+
+
+def constants_in(path, text):
+    """Object/function macros and enums, including transitive quoted headers.
+
+    Conflicting definitions remain unknown. We do not guess which conditional
+    compilation branch or local scope applies to an address expression.
+    """
+    definitions = {}
+    visited = set()
+
+    def add(name, parameters, value):
+        entry = (parameters, value.strip())
+        if name in definitions and definitions[name] != entry:
+            definitions[name] = None
+        else:
+            definitions[name] = entry
+
+    def visit(file, source):
+        file = file.resolve()
+        if file in visited:
+            return
+        visited.add(file)
+        includes, entries = source_definitions(source)
+        for include in includes:
+            for parent in (file.parent, GAME, ROOT / "runtime", ROOT):
+                header = (parent / include).resolve()
+                if header.is_file():
+                    visit(header, header_text(header))
+                    break
+        for entry in entries:
+            add(*entry)
+
+    visit(path, text)
+    return definitions
+
+
+INTEGER_OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
+               ast.BitOr: operator.or_, ast.BitAnd: operator.and_, ast.BitXor: operator.xor,
+               ast.LShift: operator.lshift, ast.RShift: operator.rshift}
+
+
+def constant_value(expression, definitions, seen=frozenset()):
+    """A small integer-expression evaluator; unsupported C is unknown, never RAM.
+
+    Casts must be evaluated, not dropped: a low-word cast can turn a cartridge
+    constant into a RAM offset. Only integer constants can be narrowed here.
+    """
+    casts = {}
+    while True:
+        m = re.search(r'\(\s*(u?int(?:8|16|32)_t|unsigned|int)\s*\)\s*', expression)
+        if not m:
+            break
+        start = m.end()
+        if start < len(expression) and expression[start] == "(":
+            inner, end = expression_at(expression, start + 1)
+            end += 1
+        else:
+            atom = re.match(r'(?:0[xX][\da-fA-F]+|\d+)[uUlL]*\b|[A-Za-z_]\w*', expression[start:])
+            if not atom:
+                return None
+            inner, end = atom[0], start + atom.end()
+        value = constant_value(inner, definitions, seen)
+        if value is None:
+            return None
+        bits = re.search(r'(8|16|32)', m[1])
+        if bits:
+            width = int(bits[1])
+            value &= (1 << width) - 1
+            if m[1].startswith("int") and value & (1 << (width - 1)):
+                value -= 1 << width
+        key = f"__cast{len(casts)}"
+        casts[key] = value
+        expression = expression[:m.start()] + key + expression[end:]
+    expression = re.sub(r'\b(0[xX][\da-fA-F]+|\d+)[uUlL]+\b', r'\1', expression)
+
+    def evaluate(node):
+        if isinstance(node, ast.Constant) and type(node.value) is int:
+            return node.value
+        if isinstance(node, ast.Name):
+            if node.id in casts:
+                return casts[node.id]
+            definition = definitions.get(node.id)
+            if not definition or definition[0] is not None or node.id in seen:
+                raise ValueError
+            return required(constant_value(definition[1], definitions, seen | {node.id}))
+        if isinstance(node, ast.BinOp) and type(node.op) in INTEGER_OPS:
+            left, right = evaluate(node.left), evaluate(node.right)
+            if isinstance(node.op, (ast.LShift, ast.RShift)) and not 0 <= right <= 32:
+                raise ValueError
+            return INTEGER_OPS[type(node.op)](left, right)
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub, ast.Invert)):
+            value = evaluate(node.operand)
+            return -value if isinstance(node.op, ast.USub) else ~value if isinstance(node.op, ast.Invert) else value
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            name = node.func.id
+            definition = definitions.get(name)
+            if not definition or definition[0] is None or name in seen or node.keywords:
+                raise ValueError
+            parameters, body = definition
+            if len(parameters) != len(node.args):
+                raise ValueError
+            local = dict(definitions)
+            for parameter, argument in zip(parameters, node.args):
+                local[parameter] = (None, str(evaluate(argument)))
+            return required(constant_value(body, local, seen | {name}))
+        raise ValueError
+
+    def required(value):
+        if value is None:
+            raise ValueError
+        return value
+
+    try:
+        return evaluate(ast.parse(expression.strip(), mode="eval").body)
+    except (SyntaxError, ValueError, TypeError, RecursionError):
+        return None
+
+
+def work_ram_address(value):
+    if value is None or not 0 <= value <= 0xFFFFFF:
+        return False
+    bank, offset = value >> 16, value & 0xFFFF
+    return bank in (0x7E, 0x7F) or (bank < 0x40 and offset < 0x2000)
+
+
+# Exact (file, operation, expression) -> audit evidence. No wildcard variable
+# names: an unresolved source in a new caller must appear in the inventory.
+# Leave unproved expressions counted rather than treating a RAM-looking name
+# or a fixed bank ORed with an unbounded value as proof.
+AUDITED_RAM_SOURCES = {}
+
+
+def cartridge_sources(path, text):
+    """Conservative candidates, with line, operation and source expression.
+
+    Named data seams may resolve store addresses. Machine reads inside them
+    still count. Elsewhere every unknown is a finding. Generic wram_read
+    escapes also take bus addresses, so their unresolved operands count too.
+    Source field assignments are conservatively included even when the
+    descriptor's eventual consumer may use a named accessor. PF_AT is metadata.
+    This is deliberately not a whole-program C type/range analysis.
+    """
+    named_data = path.name.endswith("_data.h") or path.name in (
+        "packed_graphics.h", "assets.c", "decompress.c", "rom.h")
+    definitions = constants_in(path, text)
+    source = without_comments(text)
+    source = re.sub(r'''"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*' ''',
+                    lambda m: re.sub(r"[^\n]", " ", m[0]), source, flags=re.X)
+    operations = r'm_read\w*|rom_read\w*|rom_data\w*|wram_read(?:8|16|24)|PF_GAME'
+    aliases = {}
+    for name in definitions:
+        target, visited = name, set()
+        while target not in visited:
+            visited.add(target)
+            definition = definitions.get(target)
+            if not definition or definition[0] is not None or not re.fullmatch(r'\w+', definition[1]):
+                break
+            target = definition[1]
+            if re.fullmatch(operations, target):
+                aliases[name] = target
+                break
+    calls = r'\b(' + operations + ''.join('|' + re.escape(name) for name in aliases) + r')\s*\('
+    candidates = []
+    for m in re.finditer(calls, source):
+        kind = aliases.get(m[1], m[1])
+        if named_data and not kind.startswith("m_read"):
+            continue
+        start = m.end()
+        if kind != "PF_GAME" and not kind.startswith("rom_data"):
+            _, start = expression_at(source, start)
+            start += 1
+        expression, _ = expression_at(source, start)
+        # A typed parameter is a declaration, not a read of an address.
+        if re.fullmatch(r'(?:const\s+)?u?int(?:8|16|32)_t\s+\w+', expression):
+            continue
+        candidates.append((m.start(), kind, expression))
+    if not named_data:
+        for m in re.finditer(r'(?:\.|->)source\s*=(?!=)', source):
+            expression, _ = expression_at(source, m.end())
+            candidates.append((m.start(), ".source", expression))
+    relative = path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else path.as_posix()
+    for at, kind, expression in sorted(candidates):
+        key = (relative, kind, re.sub(r"\s+", "", expression))
+        if work_ram_address(constant_value(expression, definitions)) or key in AUDITED_RAM_SOURCES:
+            continue
+        yield source.count("\n", 0, at) + 1, kind, expression
+
+
+def cartridge_reads(path, text):
+    return sum(1 for _ in cartridge_sources(path, text))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--files", action="store_true", help="per file, most joints first")
+    ap.add_argument("--cartridge-sources", action="store_true", help="unproved cartridge sources, with expressions")
     args = ap.parse_args()
+    if args.cartridge_sources:
+        for path in sources():
+            for line, kind, expression in cartridge_sources(path, path.read_text(encoding="utf-8")):
+                print(f"{path.relative_to(ROOT).as_posix()}:{line}: {kind}: {expression}")
+        return
     totals, by_file = count(args.files)
     if args.files:
         for path, c in sorted(by_file.items(), key=lambda kv: -sum(kv[1].values())):

@@ -377,7 +377,9 @@ static inline void pf_snes_upload(Platform *pf, PfOrigin o, const char *name, ui
                                   uint16_t target, PfData src, uint32_t len, const VidSnesXfer *x)
 {
     pf_snes_begin(name, o);
-    PfSnesChannel c = { .channel = x->channel, .control = x->control, .dest = dest, .source = src.addr,
+    const PfSnesEncoding *encoding = pf_snes_encoding_find(o.site);
+    uint32_t source = src.ptr && !src.addr && encoding ? encoding->source : src.addr;
+    PfSnesChannel c = { .channel = x->channel, .control = x->control, .dest = dest, .source = source,
                         .len = len, .stop_if_empty = true, .target_reg = target_reg, .target = target,
                         .port = x->port };
     pf_snes_program(pf_snes(pf), &c, x->steps);
@@ -427,7 +429,7 @@ PF_API void vid_set_palette_color(Platform *pf, PfOrigin o, uint8_t index, uint1
     pf_snes_put(s, PF_SNES_CGDATA, (uint8_t)(color >> 8));
     if (vid_observer) {
         const uint8_t bytes[2] = { (uint8_t)color, (uint8_t)(color >> 8) };
-        vid_obs_upload_palette(vid_observer, index, (PfData){ 0, bytes }, 1);
+        vid_obs_upload_palette(vid_observer, index, (PfData){ .ptr = bytes }, 1);
     }
     pf_snes_end();
 }
@@ -480,6 +482,9 @@ static inline void pf_snes_escape(Platform *pf, PfOrigin o, const char *name, co
 {
     Snes *s = pf_snes(pf);
     VidSnesTransfer resolved = *t;
+    const PfSnesEncoding *encoding = pf_snes_encoding_find(o.site);
+    if (t->data.addr || t->data.ptr || t->data.byte_at)
+        resolved.source = t->data.addr ? t->data.addr : encoding ? encoding->source : 0;
     uint8_t control = x->control;
     if (t->continue_channel) {
         /* Whatever this call site doesn't program stays as the channel holds

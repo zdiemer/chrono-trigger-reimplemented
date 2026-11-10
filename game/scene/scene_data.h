@@ -102,19 +102,10 @@ enum { SCENE_RANDOM_TABLE = 0xC0FE00 };
 
 static inline uint8_t scene_random_byte(const GameState *g, uint8_t step) { return rom_read8(g, SCENE_RANDOM_TABLE + step); }
 
-/* The menu mode's scene stream tables in bank C6 (MD2 resources, 24-bit
- * pointers): scene graphics at $C6:FDF0, and the streams at $C6:FEA0, all in
- * bank C3. `offset` is the byte offset the loaders index them with. */
-enum { SCENE_GRAPHICS_STREAMS = 0xC6FDF0, SCENE_C3_STREAMS = 0xC6FEA0 };
-
-static inline uint16_t scene_stream_word(Snes *s, uint32_t table, uint16_t offset)
+/* Scene-script graphics selected for a direct upload. */
+static inline PfData scene_upload_data(uint32_t source, uint32_t bytes, uint8_t mode)
 {
-    return m_read16(s, table + offset);
-}
-
-static inline uint8_t scene_stream_bank(Snes *s, uint32_t table, uint16_t offset)
-{
-    return m_read8(s, table + offset + 2);
+    return rom_data_mode(source, bytes, mode);
 }
 
 #endif

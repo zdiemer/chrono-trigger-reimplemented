@@ -11,6 +11,7 @@
  * The line interrupt comes at line 211: the picture ends there, the rest of
  * the frame is blanked, and the time to vblank goes to one of two jobs. */
 #include "field/display.h"
+#include "field/field_data.h"
 #include "field/dialog_window.h"
 #include "field/sprites.h"
 #include "field/switches.h"
@@ -196,7 +197,7 @@ void field_show_the_maps_screens(const GameState *g, Platform *pf)
 static void vram_transfer(const GameState *g, Platform *pf)
 {
     uint16_t size = field_transfer_size(g);
-    vid_send_vram_in_mode(pf, PF_AT(0xC02DCA), field_transfer_vram(g), PF_GAME(field_transfer_source(g)),
+    vid_send_vram_in_mode(pf, PF_AT(0xC02DCA), field_transfer_vram(g), field_upload_data(field_transfer_source(g), size ? size : 0x10000u),
                           size ? size : 0x10000u, &word_port, field_transfer_mode(g));
 }
 

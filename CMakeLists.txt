@@ -561,7 +561,7 @@ target_link_libraries(unpack_test PRIVATE ct_game ct_vars_checked ct_runtime)
 # one gives).
 add_executable(assets_test tests/frontend/assets_test.c frontend/assets.c game/data/assets.c
   game/data/asset_catalogue.c)
-target_include_directories(assets_test PRIVATE frontend game)
+target_include_directories(assets_test PRIVATE frontend game runtime)
 
 add_executable(vars_test tests/port/vars_test.c)
 target_include_directories(vars_test PRIVATE game)

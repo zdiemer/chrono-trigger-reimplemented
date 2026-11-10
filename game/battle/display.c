@@ -224,7 +224,7 @@ static void load_the_next_step(GameState *g, Platform *pf)
         return;
     for (unsigned i = 0; i < load_steps[step - 1].count; i++) {
         const VramLoad *l = &load_steps[step - 1].loads[i];
-        vid_send_vram(pf, PF_AT(l->site), l->vram, PF_GAME(l->source), l->bytes, NULL);
+        vid_send_vram(pf, PF_AT(l->site), l->vram, battle_upload_data(l->source, l->bytes), l->bytes, NULL);
     }
     set_battle_graphics_load_step(g, (uint8_t)(step + 1));
 }

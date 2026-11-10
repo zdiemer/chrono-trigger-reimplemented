@@ -20,9 +20,10 @@ among them, or a jump table the analysis found. **build** chooses them:
 - every region holding an address a read log records (`ct_dev --asset-reads`,
   over the movies), which is how the accessors that follow a pointer the data
   holds are found;
-- and, for a resource table any of these is part of, the table and every
-  target it names, so a pointer read from it lands in the catalogue whether or
-  not a movie followed it.
+- every hinted resource table and every target it names, whether or not a
+  movie has selected that table;
+- the named data views in `re/asset_views.toml`, whose bytes also belong to
+  executable code in the matching ROM.
 
 Rows already in the file keep their names. An address read that lies in no
 extracted region is reported: it needs a `[[data]]` hint first (re/hints.toml).
@@ -37,6 +38,7 @@ import binascii
 import bisect
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,6 +49,7 @@ from tools.disasm.memmap import bus_to_offset, fmt, offset_to_bus, parse  # noqa
 
 TSV = ROOT / "re" / "assets.tsv"
 C_OUT = ROOT / "game" / "data" / "asset_catalogue.c"
+VIEWS = ROOT / "re" / "asset_views.toml"
 HEADERS = ["game/**/*_data.h", "game/data/packed_graphics.h"]
 
 # The types re/assets.tsv spells, MD2's and the analysis' jump tables, in the
@@ -82,6 +85,13 @@ def load(path: Path = TSV) -> list[Row]:
             raise SystemExit(f"{path}:{n}: expected 6 tab-separated fields, got {len(f)}")
         rows.append(Row(f[0], f[1], parse(f[2]), parse(f[3]), f[4], f[5]))
     return rows
+
+
+def data_views():
+    """Named asset views of bytes that remain executable in the matching ROM."""
+    with VIEWS.open("rb") as f:
+        return [Row(v["name"], v["type"], parse(v["at"]), parse(v["end"]), "raw", v["purpose"])
+                for v in tomllib.load(f)["view"]]
 
 
 def problems_of(rows: list[Row]) -> list[str]:
@@ -161,7 +171,11 @@ def extraction(rom: bytes):
             taken[o:o + size] = b"\x02" * len(taken[o:o + size])
             for k in range(size):
                 taken.insn.setdefault(o + k, (o, size))
-    return ordered, tables, taken
+    # An asset view doesn't suppress code discovery or alter the matching
+    # extraction. It gives the pack a data interpretation of those same bytes.
+    for view in data_views():
+        ordered.append((view.at, view.end, view.type, view.codec, view.name))
+    return sorted(ordered), tables, taken
 
 
 class Taken(bytearray):
@@ -254,7 +268,10 @@ def build(rom: bytes, reads) -> tuple[list[Row], list[str]]:
     # The untyped blobs the accessors read join the regions.
     blobs = {}
     read = {a for lo, hi in ranges for a in range(lo, hi + 1)}
+    views = data_views()
     for at in set(constants) | read:
+        if any(v.at <= at <= v.end for v in views):
+            continue
         span = untyped_span(taken, at)
         if span:
             blobs[span[0]] = (span[0], span[1], "untyped", "raw", None)
@@ -295,8 +312,8 @@ def build(rom: bytes, reads) -> tuple[list[Row], list[str]]:
     table_names = set()
     for table, targets, tname in tables:
         members = [by_start[t] for t in [table] + targets if t in by_start]
-        if not any(m in chosen for m in members):
-            continue
+        # Scripts can select any hinted table without a movie having played
+        # its location yet. Import all declared tables and their targets.
         kinds = {regions[m][2] for m in members if regions[m][0] != table}
         kind = {"text": "strings", "lz": "streams"}.get(kinds.pop() if len(kinds) == 1 else "", "blobs")
         tname = tname or names.get(by_start.get(table)) or f"{kind}_{table:06x}"
@@ -373,6 +390,10 @@ def read_rom(path: Path) -> bytes:
 def check(rom_path: Path | None) -> list[str]:
     rows = load()
     out = problems_of(rows)
+    for view in data_views():
+        if not any((r.name, r.at, r.end, r.type, r.codec) ==
+                   (view.name, view.at, view.end, view.type, view.codec) for r in rows):
+            out.append(f"{view.name}: declared data view is missing or stale in re/assets.tsv")
     if not C_OUT.exists() or C_OUT.read_text(encoding="utf-8") != generate_c(rows):
         out.append(f"{C_OUT.relative_to(ROOT)} isn't what re/assets.tsv generates: run tools/assets.py build")
     if rom_path is not None:

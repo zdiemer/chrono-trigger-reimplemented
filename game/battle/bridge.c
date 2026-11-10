@@ -7,6 +7,7 @@
 #include "battle/frame.h"
 #include "charge.h"
 #include "battle/bridge.h"
+#include "battle/frame_data.h"
 #include "menu/machine_forms.h"
 
 #include "battle/battle.h"
@@ -159,7 +160,7 @@ bool battle_send_and_wait(Snes *s, uint32_t site, uint32_t from, uint16_t vram, 
     }
     uint16_t page = m_direct_page(s);
     uint8_t bank = data_bank(s);
-    vid_send_vram_and_wait(m_platform(s), PF_CALL_DC(site, BATTLE_SEND, BATTLE_SEND_READS), vram, PF_GAME(from), bytes);
+    vid_send_vram_and_wait(m_platform(s), PF_CALL_DC(site, BATTLE_SEND, BATTLE_SEND_READS), vram, battle_upload_data(from, bytes), bytes);
     return battle_back(s, site + BATTLE_JSR_SIZE, page, bank);
 }
 

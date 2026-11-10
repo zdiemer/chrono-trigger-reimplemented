@@ -14,9 +14,17 @@
 #include <stdint.h>
 
 #include "state.h"
+#include "platform/platform.h"
 
 uint8_t rom_read8(const GameState *g, uint32_t at);
 uint16_t rom_read16(const GameState *g, uint32_t at);
+
+/* A named graphics accessor's transfer, with no game-time charge. Validates
+ * every cartridge byte, including a transfer that wraps inside its bank.
+ * RAM sources retain their backend address. */
+PfData rom_data(uint32_t at, uint32_t length);
+/* A script-selected transfer may repeat one byte or walk backwards. */
+PfData rom_data_mode(uint32_t at, uint32_t length, uint8_t mode);
 
 /* The backing's side of each of those reads: the machine's read of the
  * cartridge at `at` where there is a machine (runtime/port/state_io.c), with

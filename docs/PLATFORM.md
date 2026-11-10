@@ -1806,39 +1806,26 @@ the ROM range the original keeps it in and the codec that decodes it (`raw`,
 extraction"), chosen three ways: every region holding an address an accessor
 names (a constant in a `*_data.h` header; the row is named after the
 accessor); every region holding an address `ct_dev --asset-reads` recorded
-over the movies (the accessors that follow a pointer the data holds); and,
-for a `[[resource]]` table any of those is part of, the table and every target
-it names, so a pointer read from it lands in the catalogue whether or not a
-movie followed it (the targets are `<table>.<entry>`). Besides the typed
-`[[data]]` regions, two kinds the extraction writes as raw blobs: a jump table
-the analysis found (`jump-table`), and a run of bytes that is neither code nor
-a typed region (`untyped`). And one it doesn't: `code`, an instruction a reader
-looks at, where the menus' window command lists are read a byte past their
-end. The file holds locations and types, no ROM bytes.
+over the movies (the accessors that follow a pointer the data holds); and
+every hinted `[[resource]]` table and all its targets, including tables no
+movie has selected yet. The targets are `<table>.<entry>`. Besides the typed
+`[[data]]` regions, the catalogue contains jump tables and untyped blobs.
+`re/asset_views.toml` declares data that shares storage with executable code:
+the menus' 448-byte travelling scroll pattern and the shop's five category
+selectors are `bytes` resources. The matching disassembly still discovers the
+code in those ranges; importing the data does not require a build to keep
+the original code. The files hold
+locations and types, no ROM bytes.
 `game/data/asset_catalogue.c` is generated from it and committed, so a build
 without a ROM has the table; `tests/test_assets.py` fails when it is stale,
 and `tools/assets.py check --rom` (a gate check, `assets`) when a row is no
-longer a region the extraction makes.
+longer an extracted region or a declared data view.
 
-Built from the 48 movies' reads in shadow mode, the catalogue has **6087
-resources, 3,800,908 bytes** (91% of the ROM; nothing the accessors read is
-left out):
-
-| Type | Resources | Bytes | Found by |
-|---|--:|--:|---|
-| `lz` | 1371 | 2354164 | the stream tables (`[[resource]]`) |
-| `text` | 3726 | 144144 | the string tables |
-| `spc700` | 149 | 294487 | the sound driver's blocks |
-| `gfx` | 6 | 334592 | banks CF, D0, D2-D5 |
-| `bytes`, `words`, `ptr16`, `ptr24`, `struct` | 759 | 319038 | the accessors' tables |
-| `script` | 19 | 86445 | event, battle, enemy and object scripts |
-| `mixed`, `undetermined` | 30 | 224269 | regions MD2 hasn't split |
-| `untyped` | 11 | 42521 | regions MD2 hasn't typed (`$F6:24B1-7FFF` the largest) |
-| `jump-table` | 4 | 1230 | the handler tables the guards and call-outs read |
-| `code` | 12 | 18 | a byte read past a command list |
-
-174 rows were found by an accessor's constant, 900 by the reads alone, and
-5013 as entries of a table one of those is.
+The catalogue has **7061 resources, 3,847,602 bytes**. All 44 hinted resource
+tables and their targets are included; `$FF:5860` and its 84 dialog strings
+no longer depend on a movie discovering them. There are no `code` resources.
+The remaining untyped data is 12 runs (43,954 bytes); 32 mixed or undetermined
+regions still await finer types.
 
 **The check.** Every cartridge read an accessor makes is looked up in the
 catalogue (`asset_containing`, `game/data/assets.c`: a binary search, the last
@@ -1860,8 +1847,8 @@ whatever that store serves; `asset_pack_build` makes one from any store, which
 driver, `frontend/files.c`, `files_asset_pack`) writes the pack as
 `<rom name>.assets` beside the saves, on the first launch without one and
 again with `ct_play --import <rom>`, which then exits. The pack is ROM-derived
-and gitignored wherever it lands. Over this catalogue it is 4,003,655 bytes,
-3,800,908 of them the resources.
+and gitignored wherever it lands. It holds the catalogue's 3,847,602 payload
+bytes, plus the directory and header.
 
 **Loaded by name** (`game/data/assets.h`, `assets.c`; `game/rom.h`). The driver
 gives the game an `AssetStore` with `assets_use`, as it keeps the saves: a
@@ -1894,14 +1881,69 @@ compares as before: 0 mismatches, no read outside the catalogue and none that
 differs; a pack with a byte in 997 changed makes ports mismatch and prints
 both lines.
 
-What still reads the mapped ROM: the original's code (the emulator), and the
-video service's transfers whose source is a cartridge address (`PF_GAME` of a ROM
-address: the menus' VRAM fills and ROM copy in `menu/display.c`, the battle's
-tile blocks in `battle/uploads.c`), which the SNES backend sends by DMA from
-the bus. `ct_native` (docs/PLAYING.md, "The native program") reads the game's
-data from the pack and maps no ROM: `runtime/port/rom_host.c` is its backing
-of `game/rom.h`, the store's byte, and the host's memory where the store has
-none.
+**Transfers from the store.** Named graphics accessors return `PfData` via
+`rom_data`: an address retained for the reference backend and a host pointer
+to the store's bytes. A transfer spanning separate resources uses a byte
+resolver rather than assuming the pack lays them next to each other. Every
+cartridge span is checked against the catalogue, including bank wrapping;
+script-selected fixed and backward transfers validate the bytes they use.
+RAM-built tilemaps retain their RAM source. The observer and native backend
+consume the supplied bytes; SNES DMA retains its reference address. Constant
+clears use `PF_VALUE(0)`, with their former cartridge locations confined to
+SNES backend encodings. Lengths, including the odd-length VRAM clear, and
+transfer timing are unchanged.
+
+The targeted transfer inventory replaced **23 sites**: five constant fills, four fixed graphics sites,
+eight dynamic transfer sites, two direct port-body reads, two script-selected
+memory reads and two unused machine-reading helpers. The dynamic sites include
+both menu queues, battle uploads and described transfers, field transfers and
+scene-script uploads.
+The named scalar accessors and unpacker already read the store. `PF_AT` is
+origin metadata, not a data source. The original counter only recognized
+those sites and could not detect new bypasses. Its replacement in
+`tools/machine_joints.py` resolves constants from the file and its transitive
+includes, then counts unproved `m_read*`, `rom_read*`, `rom_data*`, `PF_GAME`
+sources and source-field assignments outside the named data seams. `m_read*` inside
+those seams still count. Generic `wram_read` escapes also take bus addresses
+and are included. Only literal/proven work-RAM addresses or exact, documented
+RAM-only allowlist entries are excluded; the allowlist is currently empty.
+
+The conservative count is **122 in both game/ and ct_native**: 25 `PF_GAME`
+sources, 11 source-field assignments, one `m_read16`, and 85 `wram_read`
+operands. These are candidates requiring proof, not 122 confirmed cartridge
+reads. In particular a source descriptor can eventually be consumed through a
+named accessor, and many computed expressions select RAM. The counter no
+longer assumes either from the file or variable name. `--cartridge-sources`
+prints every candidate's file, line, operation and expression; TODO.md tracks
+their audit. Runtime catalogue checks cover the actual ranges selected by
+the sampled movies, not all possible script inputs.
+
+**Code that was read as data.** `menu_scene_scroll_pattern_byte` reads the
+448-byte `menu_scene_scroll_pattern` resource, replacing 166 instruction-sized
+rows. Ten other code rows supplied the unused eighth byte copied after a
+seven-byte menu upload record, not window-list terminators. `menu_upload_record`
+now reads seven bytes and gives the unused queue byte zero. The gate's row
+picker also stops reading the discarded high byte beyond its last row. Both
+retain the removed read's timing charge. The last code byte, `$C2:DE21`, is
+live: the shop consults it as the non-equipment category's selector when
+counting items worn. Its named byte resource now includes that fifth entry,
+without reclassifying the executable code that shares its storage. No cartridge
+bytes are embedded in the C source.
+
+`ct_native` maps no ROM: `runtime/port/rom_host.c` serves scalar reads from
+the pack; transfers use the same store through `PfData`. A missing cartridge
+byte stops the native program. `native_check.py` now fails on that diagnostic
+and reads outside the catalogue, even if the movie finishes with a picture.
+Store-backed transfer tests use made-up bytes with no ROM, including separate
+resource spans, mirrored bank wrap, fixed fills and reverse reads; video tests
+verify no fallback bus read and both bytes of an odd-length VRAM fill.
+
+The sampled gate with `--evidence` finishes with `suite OK`. All 37 sampled
+movies reach their ends in `ct_native`, with no missing cartridge data;
+both strict and native recorded outcomes pass their 37/37
+ratchets. `ct_dev --px-check` in shipping mode reports all 6425 frames of
+`menus-sweep` and all 5087 frames of `battle-menu-buttons` identical, with no
+differing lines or pixels. No outcome baseline or exception was changed.
 
 ## Timing without a beam: the native backend
 

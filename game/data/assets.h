@@ -12,6 +12,7 @@
 #define CT_GAME_DATA_ASSETS_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /* What a resource is, as MD2 types it, and the codec that decodes it: the
  * names re/assets.tsv spells them with, in the order of asset_type_names and
@@ -61,6 +62,9 @@ enum { ASSET_NONE = 0xFFFF };
  * be any of the addresses the cartridge answers at (its banks $40-$7D, or the
  * upper half of banks $00-$3F and $80-$BF, mirror $C0-$FF). */
 AssetId asset_containing(uint32_t at);
+/* Distinguish RAM/I/O operands from cartridge bytes, including missing
+ * resources, without attempting a lookup or recording a read. */
+bool asset_is_cartridge(uint32_t at);
 
 /* Cartridge reads that land in no resource of the catalogue: how many, and
  * the first one's address (an address that isn't the cartridge's, work RAM a

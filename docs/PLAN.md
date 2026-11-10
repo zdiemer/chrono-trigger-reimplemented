@@ -255,24 +255,24 @@ beside the saves (PLATFORM.md, "The assets, as built"). The same importer can
 build the image for a target that can't afford the ROM or the decoding (GBA,
 Wii, GameCube). What is left:
 
-1. **The last cartridge reads outside the store.** The video service's
-   transfers from a cartridge address (`menu/display.c`, `battle/uploads.c`)
-   go by DMA from the bus. The data is in the catalogue, so the transfers
-   can send the store's bytes (`PfData`'s host pointer), as the unpacker
-   reads its streams through the store already (`rom_read8`). A build with
-   no emulator ("The native program", above) needs it.
-2. **Decoded next, a resource at a time.** Decode the raw pack into structured
-   resources: streams decompressed, tiles in a neutral format, palettes as
-   colours, text as UTF-8, scripts readable (MATCHING.md's codecs and the
-   text and event-script decodings are the start). Each port stops calling
-   the original's decoder for that resource, a reviewed change per resource,
-   in step with its subsystem retiring the gate, and its accessors name the
-   resource rather than the address it was kept at. Widescreen, translations
-   and replaceable assets come from here; the readable layout as a whole is
-   Phase 5's MD3.
+**Audit the remaining address sources.** The conservative source counter has
+122 unproved candidates (TODO.md, "Unproved cartridge-address sources").
+Establish which expressions can only select RAM and which descriptors already
+reach named accessors; cartridge-capable reads need the resource seam. The
+earlier zero covered only the 23 targeted sites, not every possible bypass.
 
-The first belongs to this phase; the second goes resource by resource with
-the subsystems.
+**Decoded next, a resource at a time.** Decode the raw pack into structured
+resources: streams decompressed, tiles in a neutral format, palettes as
+colours, text as UTF-8, scripts readable (MATCHING.md's codecs and the
+text and event-script decodings are the start). Each port stops calling
+the original's decoder for that resource, a reviewed change per resource,
+and its accessors name the resource rather than the address it was kept at.
+Widescreen, translations
+and replaceable assets come from here; the readable layout as a whole is
+Phase 5's MD3.
+
+Decoding proceeds one resource at a time; the transfer path already reads
+the store (PLATFORM.md, "The assets, as built").
 
 ## Phase 4b: the platform milestones
 

@@ -5,7 +5,7 @@
 #include "battle/battle.h"
 #include "battle/effects.h"
 #include "battle/screen.h"
-#include "rom.h"
+#include "battle/animation_data.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -77,7 +77,7 @@ ScriptPlace script_place_plus(ScriptPlace place, uint8_t length)
 static uint8_t script_byte(const GameState *g, uint32_t at)
 {
     uint8_t bank = (uint8_t)(at >> 16);
-    return (bank == 0x7E || bank == 0x7F) ? wram_read8(g, at) : rom_read8(g, at);
+    return (bank == 0x7E || bank == 0x7F) ? wram_read8(g, at) : battle_animation_script_byte(g, at);
 }
 
 uint8_t script_operand(const GameState *g, unsigned k) { return script_byte(g, (battle_script_pointer(g) + k) & 0xFFFFFF); }

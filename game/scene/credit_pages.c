@@ -118,7 +118,7 @@ static void widen_letters(GameState *g, Platform *pf, uint16_t vram, uint32_t fr
 /* The names' layer: BG1, its 32x32 map at $0400 (cleared from a zero byte of
  * the cartridge, the start of the race's plane), and the sprites' tiles from
  * VRAM's start, as the letters are. */
-enum { NAMES_MAP_VRAM = 0x0400, NAMES_MAP_BYTES = 0x0800, ZERO_IN_THE_CARTRIDGE = 0xD20000 };
+enum { NAMES_MAP_VRAM = 0x0400, NAMES_MAP_BYTES = 0x0800 };
 static const VidBg names_bg = { VID_TILEMAP(NAMES_MAP_VRAM, 32, 32) };
 
 /* Every sprite out of sight: every byte of the entries the line below the
@@ -223,7 +223,7 @@ static bool set_up_the_page(GameState *g, Platform *pf, bool (*unpack)(void *ctx
     set_decompress_dest(g, NARROW_LETTERS);
     widen_letters(g, pf, WIDE_LETTERS_VRAM, NARROW_LETTERS, NARROW_LETTER_TILES);
 
-    vid_send_vram_fill(pf, PF_AT(0x7E6B22), NAMES_MAP_VRAM, PF_GAME(ZERO_IN_THE_CARTRIDGE), NAMES_MAP_BYTES, NULL);
+    vid_send_vram_fill(pf, PF_AT(0x7E6B22), NAMES_MAP_VRAM, PF_VALUE(0), NAMES_MAP_BYTES, NULL);
     hide_the_sprites(pf);
     uint16_t page = next_page(g);
     write_the_names(g, pf, page_list(g, PAGE_NAMES, page));

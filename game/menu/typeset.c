@@ -97,7 +97,7 @@ static uint32_t next_argument(GameState *g, unsigned bytes)
 /* Where a string begins: its place in its table, in the table's bank. */
 static uint32_t string_begins(const GameState *g, uint32_t strings, uint8_t string)
 {
-    uint16_t first = rom_read16(g, (strings + 2u * string) & 0xFFFFFFu);
+    uint16_t first = menu_string_offset(g, strings, string);
     return (strings & 0xFF0000u) | first;
 }
 

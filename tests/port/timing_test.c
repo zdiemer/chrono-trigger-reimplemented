@@ -157,7 +157,7 @@ static void asking_main(Platform *p, void *ctx)
         note('m');
         tm_wait_frames(p, PF_CALL(0, 0), 3);
         note('w');
-        vid_send_vram_and_wait(p, PF_CALL(0, 0), 0x7FFF, (PfData){ 0, tiles }, sizeof tiles);
+        vid_send_vram_and_wait(p, PF_CALL(0, 0), 0x7FFF, (PfData){ .ptr = tiles }, sizeof tiles);
         asking_frames_done++;
     }
 }

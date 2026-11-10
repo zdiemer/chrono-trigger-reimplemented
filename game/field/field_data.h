@@ -440,4 +440,7 @@ static inline uint32_t bg3_tile_looks_address(const GameState *g, uint8_t set)
     return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
 }
 
+/* A field transfer's tiles or tilemap, selected by its resource descriptor. */
+static inline PfData field_upload_data(uint32_t source, uint32_t bytes) { return rom_data(source, bytes); }
+
 #endif

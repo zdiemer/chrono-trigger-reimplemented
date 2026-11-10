@@ -22,6 +22,8 @@ static uint32_t cartridge_address(uint32_t at)
     return NOT_ROM;
 }
 
+bool asset_is_cartridge(uint32_t at) { return cartridge_address(at) != NOT_ROM; }
+
 AssetId asset_containing(uint32_t at)
 {
     static AssetId last = ASSET_NONE;   /* reads come in runs through one resource */
@@ -100,4 +102,47 @@ uint16_t rom_read16(const GameState *g, uint32_t at)
 {
     uint8_t low = rom_read8(g, at);
     return (uint16_t)(low | rom_read8(g, at + 1) << 8);
+}
+
+PfData rom_data(uint32_t at, uint32_t length)
+{
+    if ((at >> 16) == 0x7E || (at >> 16) == 0x7F)
+        return PF_GAME(at);
+    PfData data = { .addr = at, .byte_at = served };
+    uint32_t left = length, cursor = at;
+    while (left) {
+        AssetId id = asset_containing(cursor);
+        uint32_t span = 1;
+        if (id == ASSET_NONE) {
+            asset_note_outside(cursor);
+        } else {
+            const AssetEntry *e = &asset_catalogue[id];
+            span = e->length - (cartridge_address(cursor) - e->at);
+            uint32_t bank_left = 0x10000u - (uint16_t)cursor;
+            if (span > bank_left)
+                span = bank_left;
+            if (left == length && span >= length)
+                data.ptr = served(at);
+            else
+                (void)served(cursor);
+        }
+        if (span > left)
+            span = left;
+        left -= span;
+        cursor = (at & 0xFF0000u) | (uint16_t)(cursor + span);
+    }
+    return data;
+}
+
+PfData rom_data_mode(uint32_t at, uint32_t length, uint8_t mode)
+{
+    if (mode & 0x08)
+        return rom_data(at, length ? 1 : 0);
+    if (!(mode & 0x10) || !length)
+        return rom_data(at, length);
+    uint32_t first = (at & 0xFF0000u) | (uint16_t)(at - length + 1);
+    PfData data = rom_data(first, length);
+    data.addr = at;
+    data.ptr = NULL;
+    return data;
 }

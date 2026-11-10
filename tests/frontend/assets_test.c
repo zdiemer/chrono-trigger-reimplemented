@@ -11,6 +11,7 @@
 
 #include "assets.h"
 #include "rom.h"
+#include "event/memory_data.h"
 
 static int failures;
 
@@ -26,6 +27,14 @@ uint8_t rom_cartridge_read(const GameState *g, uint32_t at, const uint8_t *serve
 {
     (void)g, (void)at;
     return served ? *served : 0;
+}
+
+static unsigned memory_reads;
+uint8_t wram_read8(const GameState *g, uint32_t at)
+{
+    (void)g; (void)at;
+    memory_reads++;
+    return 0xA4;
 }
 
 /* A resource's made-up byte: its row and the offset, mixed. */
@@ -97,6 +106,10 @@ int main(void)
 
     /* The game's reads, through the store. */
     assets_use(&store);
+    CHECK(event_selected_data_byte(NULL, asset_catalogue[0].at) == made_up(0, 0));
+    CHECK(memory_reads == 0);
+    CHECK(event_selected_data_word(NULL, 0x7E1234) == 0xA4A4);
+    CHECK(memory_reads == 2); /* RAM keeps its own timing and read instrumentation. */
     for (uint16_t i = 0; i < asset_catalogue_count; i += 97) {
         const AssetEntry *e = &asset_catalogue[i];
         uint32_t last = e->at + e->length - 1;
@@ -108,6 +121,32 @@ int main(void)
             CHECK(rom_read16(NULL, e->at - 0x400000u) == (made_up(i, 0) | made_up(i, 1) << 8));
     }
     /* A cartridge byte in no resource is counted; work RAM isn't the cartridge's. */
+    /* Transfers use the pack's bytes, including across separately allocated
+     * resources and a wrap in a mirrored cartridge bank. */
+    for (uint16_t i = 0; i < asset_catalogue_count; i++) {
+        const AssetEntry *e = &asset_catalogue[i];
+        PfData data = rom_data(e->at, e->length);
+        CHECK(data.ptr && data.ptr[0] == made_up(i, 0));
+        CHECK(*pf_data_pointer(data, e->length - 1) == made_up(i, e->length - 1));
+        if (i + 1 < asset_catalogue_count && e->at + e->length == asset_catalogue[i + 1].at
+            && (e->at >> 16) == (asset_catalogue[i + 1].at >> 16)) {
+            data = rom_data(e->at + e->length - 1, 2);
+            CHECK(!data.ptr && data.byte_at);
+            CHECK(*pf_data_pointer(data, 0) == made_up(i, e->length - 1));
+            CHECK(*pf_data_pointer(data, 1) == made_up(i + 1, 0));
+        }
+    }
+    PfData wrapped = rom_data(0x40FFFFu, 2);
+    CHECK(pf_data_address(wrapped, 1) == 0x400000u);
+    CHECK(*pf_data_pointer(wrapped, 1) == made_up(0, 0));
+    PfData reverse = rom_data_mode(0x400001u, 2, 0x10);
+    CHECK(!reverse.ptr && reverse.byte_at);
+    CHECK(*reverse.byte_at(0x400000u) == made_up(0, 0));
+    unsigned long faults_before_fill = asset_outside_reads()->count;
+    PfData repeated = rom_data_mode(0xC001BFu, 65536, 0x08);
+    CHECK(repeated.ptr && repeated.ptr[0] == made_up(0, 447));
+    CHECK(asset_outside_reads()->count == faults_before_fill);
+    CHECK(!rom_data(0x7E0000u, 128).byte_at);
     unsigned long outside = asset_outside_reads()->count;
     uint32_t gap = outside_every_resource();
     CHECK(gap < 0x1000000u);
@@ -115,6 +154,8 @@ int main(void)
     CHECK(asset_outside_reads()->count == outside + 1);
     CHECK(rom_read8(NULL, 0x7E0000u) == 0);
     CHECK(asset_outside_reads()->count == outside + 1);
+    (void)rom_data(gap, 1);
+    CHECK(asset_outside_reads()->count == outside + 2);
     assets_use(NULL);
 
     /* What a pack mustn't be. */

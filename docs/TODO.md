@@ -1943,39 +1943,36 @@ rest waits, is [PLAN.md](PLAN.md).
   open: whether the battle scripts get a readable form before MD3; which codecs the importer
   needs beyond MATCHING.md's ("Build-time extraction").
   - **The catalogue's rows MD2 hasn't typed** (PLATFORM.md, "The assets, as
-    built"): 11 `untyped` runs (42521 bytes, `$F6:24B1-7FFF` the largest,
-    which the census also lists as unknown) and 30 `mixed` or `undetermined`
+    built"): 12 `untyped` runs (43954 bytes, `$F6:24B1-7FFF` the largest,
+    which the census also lists as unknown) and 32 `mixed` or `undetermined`
     regions now have readers -- the accessors that read them -- and want
     `[[data]]` types with their bounds, which turns their rows into typed
-    ones. The 12 `code` rows are a byte past each of the menus' window
-    command lists (`$C2:C54F` and on) that the list's reader looks at: the
-    format's terminator rule, read from the reader, would say why, and
-    whether the pack needs the byte at all.
-  - **Resources only a read log finds**: a table the scripts name at run
-    time joins the catalogue only once some movie reads it, and `ct_native`
-    stops on a read in no resource. Of the `[[resource]]` tables in
-    `re/hints.toml`, the dialog strings at `$FF:5860` (84 strings) are the one
-    no accessor names and no movie reads; a play that enters a map whose
-    script names it stops there. Record a movie that reads it, or have the
-    catalogue take every hinted table whether or not a log names it.
+    ones.
   - **The accessors' addresses are keys** (PLATFORM.md, "The assets, as
     built"): each accessor still computes where the original kept its data,
     and the read finds the resource by it. Naming the resource in the
     accessor instead goes with decoding it (PLAN.md, "Assets"); until then a
     pack can't move a resource, only serve it.
-  - **Video transfers from cartridge addresses** bypass the store: the menus'
-    VRAM fills and copy (`menu/display.c`: `menu_clear_all_of_vram`,
-    `clear_the_screens_memory`'s fill, `menu_copy_rom_to_memory`) and the
-    battle's tile blocks (`battle/uploads.c`, `send_block`) take a ROM
-    address as their source, which the SNES backend
-    sends by DMA from the bus and a host backend can't read. They want the
-    resource's bytes from the store as `PfData`'s host pointer, which shadow
-    mode can still compare by the address.
+  - **Unproved cartridge-address sources.** The conservative
+    `py tools/machine_joints.py --cartridge-sources` inventory has 122 sites,
+    all linked by `ct_native`: 25 `PF_GAME` sources, 11 source-field
+    assignments, one `m_read16`, and 85 generic `wram_read` operands. This
+    supersedes the old counter's zero, which only recognized fixed spellings.
+    Audit each producer and consumer: prove RAM-only expressions with exact,
+    commented allowlist entries, distinguish descriptors later consumed by
+    named accessors, or move cartridge-capable reads behind a named accessor.
+    No entries have been added to the allowlist to reduce this count.
+    Examples needing that proof are the per-line descriptor's selected bank
+    in `scene/screen.c`, `menu/epoch.c`'s variable-bank reads, the screen's
+    `decompress_dest(g)` transfer, and the stack-relative read in
+    `overworld/main_loop.c`. A RAM-looking name or a RAM bank ORed with an
+    unbounded expression is not proof. The command lists every remaining
+    expression, including computed staging buffers and script operands.
   - **What the asset pack's review left** (none blocking): the `asset
     differs from the cartridge` check compares two copies made from the same
     ROM, so it tests only the importer's address mapping, not the pack's
-    content against anything independent; `asset_served` is 6087 slots, about
-    48 KB of RAM on a GBA, and every byte read is a binary search (with the
+    content against anything independent; `asset_served` is 7061 slots, about
+    56 KB of RAM on a GBA, and every byte read is a binary search (with the
     last hit kept), where a target wants the slots in ROM or a smaller
     catalogue and accessors that name their resource; and the handler table at
     `$C1:7A6B` (`battle/script_data.h`) is code addresses of the original's,
@@ -3100,10 +3097,6 @@ list, by kind, is what `game/` still asks of one.
   and `sound_host.c`'s echo waits and command queues when `ct_play` adopts
   the native driver. `au_driver_call` still stops on a machine-wrapper call;
   remove that interface with its remaining callers.
-- **ROM data.** `ct_native` reads the game's data from the asset pack through
-  the store; what still reads cartridge addresses outside it, the video
-  transfers from ROM, is under "Assets as data
-  files" (Platform).
 - **Reads past a table's end, as the original's glitches make them.** The
   original reads and writes past its tables where a player can push it there
   (the equipment screen with 98 slots of one kind reaches memory far outside

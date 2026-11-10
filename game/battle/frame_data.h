@@ -101,9 +101,6 @@ static inline uint16_t background_ripple_sway(const GameState *g, unsigned i) { 
 
 /* ---- What the uploads send from the ROM -------------------------------------------------- */
 
-/* A zero byte, which tiles are cleared from ($CD:06B2). */
-enum { BATTLE_ZERO_BYTE = 0xCD06B2 };
-
 /* The graphics a battle loads from the ROM as it is set up
  * (battle_load_graphics): the first tiles of the layer the battle's messages
  * are drawn on, and five 64-byte blocks of the window layer's tiles (what
@@ -225,6 +222,13 @@ static inline BattlePaletteFade battlefield_fade(const GameState *g, bool gradie
 {
     unsigned record = (gradient ? BATTLEFIELD_GRADIENT_FADES : 0) + (back_in ? 1 : 0);
     return battle_palette_fade_at(g, 0xCEEFFEu + record * BATTLEFIELD_FADE_BYTES);
+}
+
+/* Tiles selected by battle loads and queued uploads; built tiles may live in RAM. */
+static inline PfData battle_upload_data(uint32_t source, uint32_t bytes) { return rom_data(source, bytes); }
+static inline PfData battle_described_upload_data(uint32_t source, uint32_t bytes, uint8_t mode)
+{
+    return rom_data_mode(source, bytes, mode);
 }
 
 #endif

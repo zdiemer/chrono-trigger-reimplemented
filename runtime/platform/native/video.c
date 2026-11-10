@@ -381,7 +381,7 @@ void vid_set_palette_color(Platform *pf, PfOrigin o, uint8_t index, uint16_t col
 {
     (void)o;
     const uint8_t bytes[2] = { (uint8_t)color, (uint8_t)(color >> 8) };
-    vid_obs_upload_palette(ob(pf), index, (PfData){ 0, bytes }, 1);
+    vid_obs_upload_palette(ob(pf), index, (PfData){ .ptr = bytes }, 1);
 }
 
 void vid_set_oam_address(Platform *pf, PfOrigin o, uint16_t word_addr, bool priority_rotation)

@@ -4,14 +4,15 @@
  * use these for what the language has no command for -- a character's stats,
  * a menu's setting, a table of positions for a cutscene.
  *
- * The addresses are the script's to choose, so what they reach is work RAM
- * located at run time, through game/wram.h. The original keeps the address
+ * The addresses are the script's to choose. Reads use named data accessors
+ * that also serve cartridge resources; writes reach work RAM through wram.h. The original keeps the address
  * it last read through, and the one it last wrote through (the cells
  * event_source_pointer and event_target_pointer); nothing but the command
  * itself reads them back, so they are kept as scaffolding. */
 #include "charge.h"
 #include "event/bridge.h"
 #include "event/engine.h"
+#include "event/memory_data.h"
 #include "event/variables.h"
 
 #include "wram.h"
@@ -21,7 +22,7 @@
 static EventFlow peek(GameState *g, EventVariable variable, Address address, Width width)
 {
     charge_legacy_accesses(g, 3); /* source address selection */
-    uint16_t value = width == AS_BYTE ? wram_read8(g, address) : wram_read16(g, address);
+    uint16_t value = width == AS_BYTE ? event_selected_data_byte(g, address) : event_selected_data_word(g, address);
     set_variable(g, variable, value, width);
     return next_command();
 }
