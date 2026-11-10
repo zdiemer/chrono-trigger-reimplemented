@@ -3169,6 +3169,12 @@ need diagnosis; they are not allowlist entries or passing contract evidence.
 
 ## Review follow-ups for native interfaces
 
+- **What the battle and menus' teardown review left.** `overworld/setup.c`'s
+  `leave_blocks_counted` is kept for the Epoch's comparison, which has since
+  retired: find a reader or delete it. `tools/machine_joints.py`'s
+  scaffolding count of 13 is eight call sites plus five occurrences in
+  `original_effects.h`'s and `original_frame.h`'s macros and examples; count
+  call sites alone.
 - **What the native program's review left** (none rated translation):
   `core/program.h` and `program.c`'s handler table are keyed by the ROM
   address a mode installs, where they want a handler identity; `dev/census.c`'s
