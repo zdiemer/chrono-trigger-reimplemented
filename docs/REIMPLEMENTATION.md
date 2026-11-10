@@ -4872,6 +4872,16 @@ strict and native modes. The table there records the exact protected
 saved-game and SRAM end kinds in each mode, alongside the five menu service
 witnesses; existing outcome exceptions do not erase those matches.
 
+Controlled replays explain three refreshed picture exceptions. Omitting
+only the live battle curtain updates restores attract-demo's prior native
+fingerprint (five neighbouring samples change). Restoring the cached
+item/tech choice instead of reading the record left by targeting restores
+the prior strict `endings-beyond-time` and native `late-omen-battles`
+fingerprints (25 and 36 samples). Each pair keeps identical game, SRAM and
+complete place observations, and every protected picture still matches.
+`tools/outcomes_exceptions.txt` records these causes; no protected identity
+is removed.
+
 The final census over `menus-sweep`, `menus-epoch` and
 `battle-menu-buttons` has seven machine-entered entries and 44,643 calls,
 against 87 entries and 3,455,625 calls at the branch's start. CPU wait-loop
