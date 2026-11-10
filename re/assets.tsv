@@ -674,7 +674,7 @@ battle_animation_tiles_place	mixed	D1:0000	D1:E709	raw	accessor battle_animation
 gradient_set_color	words	D1:E9EF	D1:EA00	raw	accessor gradient_set_color
 gradient_row_turn	bytes	D1:EA21	D1:EA4A	raw	accessor gradient_row_turn
 shape_model_point	words	D1:EC5F	D1:ECF2	raw	accessor shape_model_point
-battle_message_sound	bytes	D1:EE99	D1:EEA4	raw	accessor battle_message_sound
+battle_message_sound	bytes	D1:EE99	D1:EEA6	raw	Battle message sounds including message 13's read into the following screen routine
 shake_period_choice	bytes	D1:F69C	D1:F6B3	raw	accessor shake_period_choice
 field_blank_entries_byte	gfx	D2:0000	D2:EE7F	raw	accessor field_blank_entries_byte
 setup_character_graphics.229	lz	D2:EE80	D2:F85D	lz	setup_character_graphics entry

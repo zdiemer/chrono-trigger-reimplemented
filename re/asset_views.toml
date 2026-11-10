@@ -14,3 +14,10 @@ type = "bytes"
 at = "C2:DE1D"
 end = "C2:DE21"
 purpose = "Four equipment slots and the shop's non-equipment item selector"
+
+[[view]]
+name = "battle_message_sound"
+type = "bytes"
+at = "D1:EE99"
+end = "D1:EEA6"
+purpose = "Battle message sounds including message 13's read into the following screen routine"
