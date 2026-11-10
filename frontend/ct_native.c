@@ -63,6 +63,8 @@
 #endif
 #include "vars.h"
 #include "sound_native.h"
+#include "route_server.h"
+#include "audio_replay.h"
 
 enum { ROM_BYTES = 0x400000 };
 
@@ -262,6 +264,10 @@ typedef struct {
     uint16_t location;
     uint8_t saved[STATE_HOST_SRAM_BYTES];
     int result;
+    bool server;
+    uint16_t second_pad;
+    const uint8_t *initial_sram;
+    AudioReplay *audio_replay;
 } NativeDriver;
 
 /* saves_save_game writes this marker after the entire slot and its checksum.
@@ -305,7 +311,7 @@ static void machine_failure(void *ctx, const char *routine)
 static void native_step(void *ctx, uint16_t buttons)
 {
     NativeDriver *d = ctx;
-    uint16_t second = 0;
+    uint16_t second = d->second_pad;
     /* A movie owns input through its last event; live play then takes over. */
     if (d->movie && d->frame < d->movie->length) {
         buttons = ct_movie_buttons(d->movie, (uint32_t)d->frame);
@@ -314,9 +320,13 @@ static void native_step(void *ctx, uint16_t buttons)
     in_host_set(d->pf, 0, buttons);
     in_host_set(d->pf, 1, second);
     tm_host_frame(d->pf);
-    sound_native_frame(d->sound);
+    if (d->audio_replay)
+        audio_replay_frame(d->audio_replay);
+    else
+        sound_native_frame(d->sound);
     d->frame++;
-    picture_frame(d->picture, d->pf, d->frame);
+    if (!d->server)
+        picture_frame(d->picture, d->pf, d->frame);
     if (d->outcomes && outcome_picture_due(d->frame, d->frames))
         outcome_picture(d->picture->pixels, VID_RENDER_WIDTH, VID_RENDER_HEIGHT, d->frame);
     if (d->locations && location_id(d->game) != d->location) {
@@ -346,6 +356,51 @@ static bool native_done(void *ctx)
     return d->result || d->frame >= d->frames;
 }
 
+/* Power-on is the only base with no live C continuations. Recreate all host
+ * services and stacks, then the server replays input to the saved frame. */
+static bool route_reset(void *ctx)
+{
+    NativeDriver *d = ctx;
+    GameState *game = state_host_create(d->initial_sram);
+    if (!game) return false;
+    fiber_destroy_tree(d->pf->timing.main);
+    sound_native_destroy(d->sound);
+    vid_host_stop(d->pf);
+    state_host_destroy(d->game);
+    *d->pf = (Platform){0};
+    d->game = game;
+    d->pf->save.bytes = state_host_sram(d->game);
+    vid_host_start(d->pf, read_game, write_game, d->game);
+    d->sound = sound_native_create(d->game, d->pf);
+    if (!d->sound) return false;
+    if (d->audio_replay) audio_replay_bind(d->audio_replay, d->game, d->pf, d->sound);
+    tm_host_start(d->pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, d->game,
+                                         take_owed, game_accessed, NULL }, 1);
+    d->frame = 0;
+    d->result = 0;
+    return true;
+}
+
+static bool route_step(void *ctx, uint32_t pads)
+{
+    NativeDriver *d = ctx;
+    d->second_pad = (uint16_t)(pads >> 16);
+    native_step(d, (uint16_t)pads);
+    sound_native_discard_audio(d->sound);
+    return !d->result;
+}
+static uint8_t route_read(void *ctx, uint32_t addr) { return state_host_read8(((NativeDriver *)ctx)->game, addr); }
+static void route_write(void *ctx, uint32_t addr, uint8_t v) { state_host_write8(((NativeDriver *)ctx)->game, addr, v); }
+static bool route_shot(void *ctx, const char *path)
+{
+    NativeDriver *d = ctx;
+    picture_frame(d->picture, d->pf, d->frame);
+    return ct_png_write(path, d->picture->pixels, VID_RENDER_WIDTH, VID_RENDER_HEIGHT) == 0;
+}
+static void *route_audio_save(void *ctx) { return audio_replay_save(((NativeDriver *)ctx)->audio_replay); }
+static bool route_audio_begin(void *ctx, const void *copy) { return audio_replay_begin(((NativeDriver *)ctx)->audio_replay, copy); }
+static bool route_audio_end(void *ctx, const void *copy) { return audio_replay_end(((NativeDriver *)ctx)->audio_replay, copy); }
+
 #ifdef CT_HAVE_SDL
 static const uint32_t *native_pixels(void *ctx) { return ((NativeDriver *)ctx)->picture->pixels; }
 static size_t native_audio(void *ctx, int16_t *out, size_t frames) { return sound_native_take_audio(ctx, out, frames); }
@@ -363,7 +418,7 @@ static void native_title(void *ctx, bool paused, char *out, size_t size)
 static void usage(FILE *out)
 {
     fprintf(out, "usage: ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]\n"
-                 "                 [--headless | --window] [--scale N] [--fullscreen] [--mute]\n"
+                 "                 [--headless | --window | --server] [--scale N] [--fullscreen] [--mute]\n"
                  "                 [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--lag-log] [--timing-report] [--outcomes] [--scene flags[,song]]...\n"
                  "--frames selects headless unless --window is given; --headless defaults to 600 frames.\n"
                  "Window play writes cartridge saves; headless runs only read them. No quick save/load.\n");
@@ -390,6 +445,7 @@ int main(int argc, char **argv)
     const char *end_state = NULL;
     unsigned long frames = 600, shot_every = 0, scale = 3;
     bool frames_given = false, fullscreen = false, mute = false;
+    bool server = false;
     int display_mode = 0;   /* auto, headless, window */
 #ifdef CT_HAVE_SDL
     SDL_SetMainReady();
@@ -409,6 +465,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--movie") && v) movie_path = v, i++;
         else if (!strcmp(a, "--frames") && v && count_from(v, &frames)) frames_given = true, i++;
         else if (!strcmp(a, "--headless")) display_mode = 1;
+        else if (!strcmp(a, "--server")) server = true;
         else if (!strcmp(a, "--window")) display_mode = 2;
         else if (!strcmp(a, "--scale") && v && count_from(v, &scale) && scale >= 1 && scale <= 10) i++;
         else if (!strcmp(a, "--fullscreen")) fullscreen = true;
@@ -432,6 +489,11 @@ int main(int argc, char **argv)
         fprintf(stderr, "ct_native: %s\n", rom_path ? "--shot-every needs --shot-dir" : "--rom is required");
         return 2;
     }
+    if (server && (movie_path || scenes || timing_report || display_mode == 2)) {
+        fprintf(stderr, "ct_native: --server cannot combine with --movie, --scene, --timing-report or --window\n");
+        return 2;
+    }
+    if (server) display_mode = 1;
     bool windowed = display_mode == 2 || (display_mode == 0 && !frames_given);
 #ifndef CT_HAVE_SDL
     if (display_mode == 2) {
@@ -505,13 +567,25 @@ int main(int argc, char **argv)
         .game = g, .pf = &pf, .sound = sound, .picture = &picture,
         .movie = movie_path ? &movie : NULL, .sram_path = sram_path,
         .shot_dir = shot_dir, .frames = frames, .shot_every = shot_every,
-        .locations = locations, .outcomes = outcomes, .persist = windowed, .location = 0xFFFF
+        .locations = locations, .outcomes = outcomes, .persist = windowed, .location = 0xFFFF,
+        .server = server, .initial_sram = sram
     };
     memcpy(driver.saved, state_host_sram(g), sizeof driver.saved);
     pf.save.ctx = &driver;
     pf.save.written = native_save_written;
     no_machine_report_with(machine_failure, &driver);
     int rc = 0;
+    if (server) {
+        driver.audio_replay = audio_replay_create();
+        if (!driver.audio_replay) { fprintf(stderr, "ct_native: out of memory\n"); return 2; }
+        audio_replay_bind(driver.audio_replay, g, &pf, sound);
+        RouteReplay replay = { route_audio_save, audio_replay_drop, route_audio_begin, route_audio_end };
+        RouteHost host = { &driver, route_reset, route_step, route_read, route_write, route_shot, &replay };
+        rc = route_server(&host, driver.saved, sizeof driver.saved, asset_catalogue_version, stdin, stdout);
+        g = driver.game;
+        sound = driver.sound;
+        picture_frame(&picture, &pf, driver.frame);
+    } else
 #ifdef CT_HAVE_SDL
     if (windowed) {
         WindowOptions options = {
@@ -553,6 +627,8 @@ int main(int argc, char **argv)
         rc = 2;
     }
     vid_render_destroy(picture.renderer);
+    audio_replay_destroy(driver.audio_replay);
+    fiber_destroy_tree(pf.timing.main);
     sound_native_destroy(sound);
     vid_host_stop(&pf);
     if (timing_report) {

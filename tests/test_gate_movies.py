@@ -11,6 +11,27 @@ from unittest.mock import patch
 from tools import suite
 
 
+class NativeRoutesTest(unittest.TestCase):
+    def test_exceptions_have_known_names_and_reasons(self):
+        suite.native_route_exceptions()
+
+    def test_invalid_or_duplicate_exceptions_fail(self):
+        with tempfile.TemporaryDirectory() as where:
+            path = pathlib.Path(where) / "exceptions.txt"
+            for text in ("no_such_route # reason", "beyond_time", "beyond_time #",
+                         "beyond_time # first\nbeyond_time # second"):
+                path.write_text(text)
+                with self.subTest(text=text), self.assertRaises(ValueError):
+                    suite.native_route_exceptions(path)
+
+    def test_full_route_exception_does_not_exempt_fast_prefix(self):
+        with tempfile.TemporaryDirectory() as where:
+            path = pathlib.Path(where) / "exceptions.txt"
+            path.write_text("beyond_time # ending diverges\n")
+            exceptions = suite.native_route_exceptions(path)
+            self.assertNotIn("beyond_time:form2", exceptions)
+
+
 class GateMoviesTest(unittest.TestCase):
     def test_every_line_names_a_library_movie_with_its_reason(self):
         names, bad = suite.gate_movies()

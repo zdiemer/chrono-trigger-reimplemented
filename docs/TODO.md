@@ -9,6 +9,14 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
+- **Native route restore cost.** `ct_native --server` rebuilds the main and
+  menu coroutines from power-on input; no later frame has a stack-free base.
+  The fast field route takes about 26 minutes versus two in shipping mode,
+  even with exact audio-host reply reuse (MOVIES.md, "Native program
+  checkpoints"). Give the game resumable tasks or a portable complete
+  continuation checkpoint before relying on late-game breadth-first
+  searches as a cheap test. A RAM-only snapshot cannot replace the replay.
+
 - **Out-of-contract script states.** The event loops at `$C0:58ED`, `$C0:5967`, `$C0:5990` and
   `$C0:5AA3` already run as C for valid scripts; their hand-backs preserve
   out-of-buffer script positions, changed data banks and object state the

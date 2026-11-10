@@ -388,6 +388,52 @@ def check_routes(args, ctx):
     return rc == 0 and failed == 0, "routes", summary, [] if rc == 0 else failures + lines[-30:]
 
 
+NATIVE_ROUTE_EXCEPTIONS = ROOT / "tools/native_route_exceptions.txt"
+
+
+def native_route_exceptions(path=None):
+    """Exact route/phase exceptions, each with the observed failure's reason.
+    A full ending's exception must not hide its passing fast prefix."""
+    known = set(all_routes()) | set(FAST_ROUTES)
+    result = {}
+    for line in (path or NATIVE_ROUTE_EXCEPTIONS).read_text(encoding="utf-8").splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        route, separator, reason = line.partition("#")
+        route, reason = route.strip(), reason.strip()
+        if route not in known or route in result or not separator or not reason:
+            raise ValueError("invalid native route exception: " + line)
+        result[route] = reason
+    return result
+
+
+def check_native_routes(args, ctx):
+    """The routes in the same native program as window play, without a machine."""
+    drive = ctx["binary"].with_name("ct_native" + ctx["binary"].suffix)
+    if not drive.exists():
+        return False, "native-routes", "%s: not found (build it first)" % drive, []
+    try:
+        exceptions = native_route_exceptions()
+    except (ValueError, OSError) as error:
+        return False, "native-routes", str(error), []
+    selected = all_routes() if args.long_routes else FAST_ROUTES
+    routes = [route for route in selected if route not in exceptions]
+    details = ["excepted %s: %s" % (route, exceptions[route]) for route in selected if route in exceptions]
+    if not routes:
+        return True, "native-routes", "0 run, %d explicitly excepted" % len(details), details
+    cmd = [sys.executable, "-m", "tools.movies.route_check", "--native-drive", str(drive), "--rom", str(args.rom),
+           "--mode", "native", "-j", str(max(1, min(ctx["jobs"], len(routes))))]
+    if args.routes_scratch:
+        cmd += ["--scratch", str(args.routes_scratch), "--resume"]
+    rc, lines = run_tool(cmd + routes)
+    passed = sum(1 for line in lines if line.startswith("PASS "))
+    details += [line for line in lines if line.startswith(("PASS ", "FAIL "))]
+    if rc:
+        details += lines[-30:]
+    return rc == 0 and passed == len(routes), "native-routes", \
+        "%d of %d route(s) reach their outcome in ct_native; %d excepted" % (passed, len(routes), len(selected) - len(routes)), details
+
+
 # ---- the shipping mode's fallbacks and the native shape -----------------------------
 
 SHIP = ["--native", "on", "--generated", "on"]
@@ -820,6 +866,7 @@ CHECKS = (
     ("timing", check_timing, "the timing gate over the shadow runs"),
     ("vblank", check_vblank, "the check for video writes on the picture in the shipping mode"),
     ("routes", check_routes, "the route scripts in the shipping mode"),
+    ("native-routes", check_native_routes, "the route scripts in ct_native"),
     ("fallbacks", check_fallbacks, "the ratchet on the original's code run in place of hand ports (the movies' "
                                    "shipping-mode runs)"),
     ("refusals", check_refusals, "the check of real play's refusals against their allowlist"),

@@ -531,6 +531,13 @@ development tools call (`snes_state_save`, `zst_import_file`, `ct_movie_load`,
 
 ### The native program
 
+`ct_native --server --rom roms/ct-usa.sfc --sram save.srm` exposes the native
+frame loop to the state-driven route scripts, through the line protocol in
+[MOVIES.md](MOVIES.md#native-program-checkpoints). It links the same native
+program as window play. Its replay checkpoints reconstruct live coroutine
+stacks from power-on input; these are separate from the player's future
+quick saves and from emulator state files.
+
 `ct_native` is the game with no emulator under it, the first version of
 what `ct_play` becomes (PLAN.md, "The machine out of the product"
 ). With SDL2 it opens the same window as `ct_play`, with the native

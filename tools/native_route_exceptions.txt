@@ -1,0 +1,2 @@
+# Exact route or route:phase # observed reason. Full routes do not exempt their fast prefixes.
+# Hand-run routes retain the exclusions described by HAND_RUN_ROUTES in suite.py.

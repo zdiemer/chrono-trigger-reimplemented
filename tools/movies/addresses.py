@@ -25,6 +25,12 @@ one: this was the only byte that was constant in all the open states and
 different in all the closed ones. The movie tools press A only when it is set,
 which keeps stray presses out of battle menus."""
 
+FIELD_PLAYER_CONTROL = 0x7E011F
+"""Nonzero when the field lets the pad walk the party. Scripts take control
+away for cutscenes and battles (field_player_control in re/ram.toml;
+game/field/walk.c, pad_and_pull). A zero rules out a useful movement probe;
+a nonzero still needs one to find the object the player controls."""
+
 OBJECT_X = 0x7E1800
 OBJECT_Y = 0x7E1880
 """Field object positions, two bytes each (`OBJECT_X + 2 * i`), in 1/16 pixel:

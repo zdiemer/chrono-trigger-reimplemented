@@ -69,6 +69,18 @@ void state_host_destroy(GameState *g)
 
 uint8_t *state_host_sram(GameState *g) { return g->sram; }
 
+StateHostWork state_host_work(const GameState *g)
+{
+    return (StateHostWork){ g->raw_bus, g->owed, g->work_milli };
+}
+
+void state_host_add_work(GameState *g, StateHostWork work)
+{
+    g->raw_bus += work.raw_bus;
+    g->owed += work.owed;
+    g->work_milli += work.milli;
+}
+
 unsigned long state_host_strays(const GameState *g, uint32_t *first, unsigned *kept)
 {
     unsigned n = g->strays < STATE_HOST_STRAYS_KEPT ? (unsigned)g->strays : STATE_HOST_STRAYS_KEPT;
