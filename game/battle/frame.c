@@ -672,7 +672,7 @@ static bool tail_on_the_machine(void *ctx, TailCall call)
     case TAIL_BATTLEFIELD_BACK: return battle_run(s, 0xCD04C4, 0xCD0453, battle_put_the_battlefield_back_entry);
     case TAIL_EFFECT_GRAPHICS:
         m_set_a8(s, battle_effect_graphics_effect(state_of(s)));
-        return battle_call_long(s, 0xCD04D4, 0xD1ECF3, DC_X | DC_Y | DC_FLAGS);
+        return battle_run_long_called(s, 0xCD04D4, 0xD1ECF3, DC_X | DC_Y | DC_FLAGS, battle_load_effect_graphics_entry);
     default: return battle_run(s, 0xCD04DB, BATTLE_TYPE_THE_MESSAGE_ENTRY, battle_type_the_message_entry);
     }
 }
@@ -924,7 +924,11 @@ static bool finish_a_part(void *ctx, TailCall call)
         TIMED_AS(g, 0xCD0453, done = battle_put_the_battlefield_back(g, c->pf));
         return done;
     }
-    case TAIL_EFFECT_GRAPHICS: return battle_contract_broken(g, 0xD1ECF3, "an effect's graphics loaded");
+    case TAIL_EFFECT_GRAPHICS: {
+        bool done = false;
+        TIMED_AS(g, 0xD1ECF3, done = battle_load_effect_graphics(g, c->pf, battle_effect_graphics_effect(g)));
+        return done;
+    }
     default:
         if (!battle_message_typing_fits(g))
             return battle_contract_broken(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, "a message the menus' text code doesn't go on from");

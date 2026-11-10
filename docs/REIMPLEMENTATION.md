@@ -4761,7 +4761,7 @@ or recalibration records come from a verified whole-library run.
 
 The battle's 827 ordinary comparison entries leave the registry. Uncalled
 entry wrappers, including the command macros, are deleted; callers use the
-ordinary C operations. The legacy driver still calls 289 machine forms,
+ordinary C operations. The legacy driver still calls 291 machine forms,
 whose complete P masks (including decimal mode), page, bank and image/state
 guards are checked in `battle/machine_forms.c`. Failure reports a broken
 contract and stops at the original entry. These are called adapters, not
@@ -4814,6 +4814,20 @@ The isolated frame-dispatch comparison and effect-loader comparisons retire
 with their entries, as do battle's uncompared-call allowances. Their recipes
 and pre-retirement evidence remain in the precondition commit; they are no
 longer runnable comparison entries in the retired build.
+
+The frame tail's remaining by-address effect-graphics load is a C call too.
+Its ordinary operation unpacks each tile block, sends it through the video
+service, loads the palette, then sends the tilemap graphics. The legacy
+driver's sender retains both the loader's full contract and the long
+transfer's contract, including their separate timing scopes and settling
+boundaries. A rejected battle handoff reports a broken contract and keeps
+its constructed return frame at the original entry.
+
+The step and script callers conservatively keep overflow live at their
+remaining machine boundaries. Their retired comparisons no longer need
+the V don't-care declarations or the old registered-entry poison evidence.
+The liveness checker still checks every remaining declaration, including
+the explicit stop when a long call's contract is rejected.
 
 The protected outcomes are the battle witnesses in "The menus' teardown":
 `battle-menu-buttons` (commands/targets, picture 3300, place 4),

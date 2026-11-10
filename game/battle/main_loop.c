@@ -1138,17 +1138,8 @@ enum {
 
 static bool step(Snes *s, uint32_t site, BattleStep number)
 {
-    /* the overflow flag the step saves with the flags across its frame waits
-     * is read by nothing after. The static result, V dead into $C1:0003, is
-     * the proof at every site; the run exercises the menu's ($C1:856D), and
-     * the other five, which the library reaches fewer than 100 times, rest on
-     * the static result alone (dc-evidence:
-     * tools/v_readers.py C1:0003: V dead, its tables' indexes at most $FE (A's
-     * high byte known clear, on the battle's direct page $0000); ct_dev
-     * --poison-set V at each site over the library, calls with V inverted:
-     * C1802D 20, C18151 32, C18161 4, C18188 11, C1856D 285,
-     * C1AC7E 4; 0 differing; a site under 100 rests on the static result) */
-    return battle_take_step(s, site, number, READS_A);
+    /* Keep overflow live at this boundary after its comparison retires. */
+    return battle_take_step(s, site, number, READS_A & ~DC_V);
 }
 
 /* Which members can join a combination tech (battle/menu_window.c), run as

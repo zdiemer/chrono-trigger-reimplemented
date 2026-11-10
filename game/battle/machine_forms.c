@@ -21,6 +21,8 @@ static const struct {
     uint8_t mask, value;
     bool (*takes)(Snes *);
 } forms[] = {
+    { battle_load_effect_graphics_entry, 0xD1ECF3, CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, CPU_FLAG_M, battle_screen_page_a_clear },
+    { battle_send_vram_and_wait_long_entry, 0xCD3ECE, CPU_FLAG_M | CPU_FLAG_X, CPU_FLAG_M, battle_on_page },
     { battle_draw_window, 0xC10299, CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, CPU_FLAG_M, battle_window_ready },
     { battle_nmi, 0xD1E77C, 0, 0, NULL },
     { battle_irq, 0xD1FE97, 0, 0, NULL },

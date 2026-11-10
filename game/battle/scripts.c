@@ -170,11 +170,7 @@ static bool elsewhere_on_the_machine(void *ctx, uint8_t command, const ScriptOpc
     /* a bridge runs as its handler, called as the runner calls it */
     if (runs == RUN_THE_BRIDGE)
         return battle_run(s, 0xC14CD4, handler_of(g, command), battle_script_command_entry);
-    /* no handler reads the overflow the one before it left, which a
-       command in C doesn't reproduce */
-    /* dc-evidence: ct_fuzz --poison-dc battle_run_script_channel, seed 1: 5000 states,
-       1994 call-outs scrambled, 0 mismatched */
-    return battle_call(s, 0xC14CD4, handler_of(g, command), DC_AL | DC_N | DC_V | DC_Z | DC_C);
+    return battle_call(s, 0xC14CD4, handler_of(g, command), DC_AL | DC_N | DC_Z | DC_C);
 }
 
 /* ---- The channels, each frame ------------------------------------------------------------- */
@@ -216,13 +212,9 @@ static bool channel_on_the_machine(void *ctx, unsigned channel)
     Snes *s = ctx;
     s->cpu.y = (uint16_t)channel;
     m_set_a8(s, (uint8_t)(channel * 4));
-    /* The channel reads neither X nor the overflow it is called with (the
-     * showing's steps before it, battle/action_showing.c, are C and leave
-     * neither as the original's do).
-     * dc-evidence: ct_fuzz --poison-dc battle_run_scripts, seed 1: 3000 states,
-     * 15072 call-outs scrambled, 0 mismatched */
+    /* Keep overflow live now that the caller's comparison is retired. */
     return battle_run_called(s, 0xC10000u | channel_calls[channel], 0xC14C9E,
-                              DC_X | DC_N | DC_V | DC_Z | DC_C, battle_run_script_channel);
+                              DC_X | DC_N | DC_Z | DC_C, battle_run_script_channel);
 }
 
 /* ---- As C ------------------------------------------------------------------------------------ */

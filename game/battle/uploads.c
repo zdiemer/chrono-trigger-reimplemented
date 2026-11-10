@@ -523,6 +523,11 @@ void battle_send_vram_and_wait(Snes *s)
 }
 
 // $CD:3ECE
+void battle_send_vram_and_wait_long_entry(Snes *s)
+{
+    if (battle_run_called(s, 0xCD3ECE, BATTLE_SEND, 0, battle_send_vram_and_wait))
+        m_rtl(s);
+}
 
 /* A transfer that goes leaves its VRAM address in Y. */
 

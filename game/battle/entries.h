@@ -9,6 +9,10 @@
 #include "snes/system.h"
 #include "state.h"
 
+bool battle_load_effect_graphics(GameState *g, Platform *pf, uint8_t effect);
+void battle_load_effect_graphics_entry(Snes *s);
+void battle_send_vram_and_wait_long_entry(Snes *s);
+
 /* What the original's routines leave in the carry for its callers, worked out
  * for the bridges that call them: the marking of the first target ($C1:AD09)
  * and of the others ($C1:AD35), from the candidates and the carry it found

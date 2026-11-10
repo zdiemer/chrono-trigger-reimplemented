@@ -1,58 +1,83 @@
-/* Battle: loading an effect's graphics.
- *
- * Before a spell or an attack's effect plays, its graphics are loaded: up to
- * four compressed blocks of tiles into VRAM $2000-$3FFF, one after the other,
- * the effect's 48 colors into background rows 2-4 of the palette as loaded,
- * and one more block into the tilemap area at $6800.
- * Each block is unpacked into a buffer in work RAM and sent to VRAM by the
- * frame work, which takes frames; the battle's frame wait doesn't start
- * another effect's load meanwhile.
- *
- * The unpacking is C (data/decompress.c); the sending is still a call to the
- * frame work on the machine, so the loader is a bridge: the machine appears
- * at that call and at the entry. */
+/* Battle: load an effect's tile blocks, palette and tilemap graphics.
+ * The frame tail owns the request. Loading stays marked while each unpacked
+ * block is sent, so a frame wait cannot start a second load over its buffer. */
 #include "battle/screen.h"
-
 #include "battle/bridge.h"
+#include "battle/entries.h"
+#include "charge.h"
 #include "data/decompress.h"
+#include "platform/video.h"
 
 enum {
-    FIRST_BLOCK_VRAM = 0x2000,
-    BLOCK_VRAM_WORDS = 0x0800,
+    FIRST_BLOCK_VRAM = 0x2000, BLOCK_VRAM_WORDS = 0x0800,
     BLOCK_BYTES = 2 * BLOCK_VRAM_WORDS,
-    TILEMAP_GRAPHICS_VRAM = 0x6800,
-    TILEMAP_GRAPHICS_BYTES = 0x0800,
+    TILEMAP_GRAPHICS_VRAM = 0x6800, TILEMAP_GRAPHICS_BYTES = 0x0800,
     EFFECT_FIRST_COLOR = 2 * 16,
 };
-
-/* The blocks are unpacked here, then sent. */
 #define UNPACK_BUFFER 0x7ED000u
 
-/* ---- The load, in the game's terms ---------------------------------------------------------- */
+typedef bool (*SendGraphics)(void *ctx, bool tilemap, uint16_t vram, uint16_t bytes);
 
-/* The original keeps its place in the effect's list in three cells, which
- * nothing else reads: the list's offset, the VRAM address and the block. They
- * hold these at each of its calls. */
-
-/* ---- The two calls to the original's code --------------------------------------------------- */
-
-/* The carry and overflow the decompressor and the transfer hand back to the
- * loader's caller are those of the original's index arithmetic before each
- * unpacking (three bytes an entry). For a block id the index is a 16-bit sum,
- * which neither carries nor overflows. */
-
-/* For the effect's tilemap graphics it is a byte, twice the effect plus it:
- * it carries past 255, and overflows where the two taken as signed bytes add
- * up past the signed range. */
-
-/* Unpack a compressed block into the buffer (data/decompress.c), which
- * leaves the registers as they came: the carry and overflow among them, which
- * the endings' movies show the loader's callers reading. */
-
-/* Send the buffer to VRAM and wait for it to go: the frame work's transfer
- * ($CD:3ECE) takes the buffer's bank in A and its address in X, the VRAM
- * address in Y and the size in the page's cells $53-$54. */
+static void unpack(GameState *g, uint32_t from)
+{
+    set_decompress_source(g, from);
+    set_decompress_dest(g, UNPACK_BUFFER);
+    (void)unpack_stream_called(g, false);
+}
 
 // $D1:ECF3
-/* Load the effect in A's graphics and colors. Where a call doesn't come back
- * as the battle's code runs, the original goes on from it. */
+static bool load_effect_graphics_with(GameState *g, uint8_t effect, SendGraphics send, void *ctx)
+{
+    set_battle_effect_graphics_loading(g, (uint8_t)(battle_effect_graphics_loading(g) + 1));
+    set_battle_effect_graphics_id(g, effect);
+    for (unsigned block = 0; block < EFFECT_BLOCKS; block++) {
+        uint8_t id = effect_graphics_block(g, effect, block);
+        if (id == NO_GRAPHICS_BLOCK)
+            continue;
+        charge_machine_accesses(g, 7);
+        unpack(g, graphics_block_address(g, id));
+        if (!send(ctx, false, (uint16_t)(FIRST_BLOCK_VRAM + block * BLOCK_VRAM_WORDS), BLOCK_BYTES))
+            return false;
+    }
+    charge_machine_accesses(g, 5);
+    for (unsigned i = 0; i < EFFECT_COLORS; i++)
+        set_palette_base(g, EFFECT_FIRST_COLOR + i, effect_color(g, effect, i));
+    charge_machine_accesses(g, 1);
+    unpack(g, effect_tilemap_graphics_address(g, effect));
+    if (!send(ctx, true, TILEMAP_GRAPHICS_VRAM, TILEMAP_GRAPHICS_BYTES))
+        return false;
+    set_battle_effect_graphics_loading(g, false);
+    return true;
+}
+
+static bool send_graphics(void *ctx, bool tilemap, uint16_t vram, uint16_t bytes)
+{
+    if (tilemap)
+        vid_send_vram_and_wait(ctx, PF_CALL_DC(0xD1EDC5, 0xCD3ECE, DC_N | DC_Z), vram, PF_GAME(UNPACK_BUFFER), bytes);
+    else
+        vid_send_vram_and_wait(ctx, PF_CALL_DC(0xD1ED49, 0xCD3ECE, DC_N | DC_Z), vram, PF_GAME(UNPACK_BUFFER), bytes);
+    return true;
+}
+
+bool battle_load_effect_graphics(GameState *g, Platform *pf, uint8_t effect)
+{
+    return load_effect_graphics_with(g, effect, send_graphics, pf);
+}
+
+static bool send_graphics_on_the_machine(void *ctx, bool tilemap, uint16_t vram, uint16_t bytes)
+{
+    Snes *s = ctx;
+    screen_set_cell_word(state_of(s), 0x53, bytes);
+    s->cpu.y = vram;
+    s->cpu.x = (uint16_t)UNPACK_BUFFER;
+    m_set_a8(s, (uint8_t)(UNPACK_BUFFER >> 16));
+    if (tilemap)
+        return battle_run_long_called(s, 0xD1EDC5, 0xCD3ECE, DC_N | DC_Z, battle_send_vram_and_wait_long_entry);
+    return battle_run_long_called(s, 0xD1ED49, 0xCD3ECE, DC_N | DC_Z, battle_send_vram_and_wait_long_entry);
+}
+
+void battle_load_effect_graphics_entry(Snes *s)
+{
+    if (load_effect_graphics_with(state_of(s), (uint8_t)s->cpu.a, send_graphics_on_the_machine, s))
+        m_rtl(s);
+}

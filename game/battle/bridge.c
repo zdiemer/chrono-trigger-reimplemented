@@ -79,6 +79,12 @@ bool battle_back(Snes *s, uint32_t returns_to, uint16_t page, uint8_t bank)
 
 bool battle_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
 {
+    if (m_runs_retired_as_c(s)) {
+        m_push16(s, (uint16_t)(site + BATTLE_JSR_SIZE - 1));
+        program_breaks_a_contract(state_of(s), routine, "a battle call without a C continuation");
+        m_stop_at(s, routine, dont_care);
+        return false;
+    }
     uint16_t page = m_direct_page(s);
     uint8_t bank = data_bank(s);
     m_jsr_dc(s, site, routine, dont_care);
@@ -87,6 +93,13 @@ bool battle_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
 
 bool battle_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
 {
+    if (m_runs_retired_as_c(s)) {
+        m_push8(s, (uint8_t)(site >> 16));
+        m_push16(s, (uint16_t)(site + BATTLE_JSL_SIZE - 1));
+        program_breaks_a_contract(state_of(s), routine, "a battle call without a C continuation");
+        m_stop_at(s, routine, dont_care);
+        return false;
+    }
     uint16_t page = m_direct_page(s);
     uint8_t bank = data_bank(s);
     m_jsl_dc(s, site, routine, dont_care);

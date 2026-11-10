@@ -492,7 +492,7 @@ bool battle_call_off_waiting_combination(GameState *g, Platform *pf)
  * number in the low byte) and can't be declared dead: it is clear where the
  * original's code before the step clears it, and otherwise what the step
  * before left there. */
-enum { STEP_READS_A = DC_X | DC_Y | DC_FLAGS };
+enum { STEP_READS_A = DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
 static void clear_a_high_byte(Snes *s) { s->cpu.a &= 0x00FF; }
 
@@ -509,19 +509,13 @@ static bool party_on_the_machine(void *ctx, PartyCall call, uint8_t member)
     case PARTY_COUNTER_ATTACK: return battle_run_long(s, 0xFDACC9, MEMBER_ATTACKS, battle_member_attacks_from_bank_fd);
     case PARTY_CALLED_OFF_STEP:
         clear_a_high_byte(s);
-        /* dc-evidence: ct_fuzz --poison-dc battle_cancel_if_unable, seed 1: 5000
-         * states, 4904 call-outs scrambled, 0 mismatched */
         return battle_take_step(s, 0xC1B43B, BATTLE_STEP_CALLED_OFF, STEP_READS_A);
     case PARTY_BEATEN_STEP:
         clear_a_high_byte(s);
-        /* dc-evidence: ct_fuzz --poison-dc battle_see_to_knocked_out_enemies:knocked_out, seed 1:
-         * 5000 states, 4954 call-outs scrambled, 0 mismatched */
         return battle_take_step(s, 0xC1B7D7, BATTLE_STEP_ENEMIES_BEATEN, STEP_READS_A);
     case PARTY_STAND_DOWN_STEP:
         if (member == 0)
             clear_a_high_byte(s);
-        /* dc-evidence: ct_fuzz --poison-dc battle_party_stands_down, seed 1: 5000
-         * states, 15000 call-outs scrambled, 0 mismatched */
         return battle_take_step(s, stand_down_sites[member], BATTLE_STEP_CALLED_OFF, STEP_READS_A);
     case PARTY_CLOSE_THE_MENU: return battle_run_long(s, 0xFDA937, CLOSE_MENU, battle_member_called_off_step);
     default:

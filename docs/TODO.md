@@ -435,17 +435,7 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **What battle's rewrite left** (history/reimplementation-phase3a.md, "Phase 3a: the battle off the
   machine"). It waits for its qualitative review (`.claude/skills/review-port/`).
-  - The original's routines the battle still calls out to: the rewards' gold
-    `$C1:D0A2` (and the set-up step, `$C1:0023`, a port now, is still called
-    through the dispatch's call-out, `battle/steps.c`, rather than as C:
-    run as C under the dispatch's frame, its waits broke the call chain);
-    what an effect's working out turns away to the
-    original (history/reimplementation-chunks.md, "Phase 3, battle chunk 4: the party's working
-    out"): a hit that steals as well (no record has one); an animation that names no movement
-    (`$C1:3760`'s table past its nine rows, no animation the battle gives);
-    and from the battle's start, the wait tail's callee from the frame work and an effect's graphics
-    loaded `$D1:ECF3`.
-  - What the screen script's rows still turn away to the original
+  - Preserve the screen script's excluded-state contracts when changing storage
     (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"), none of it a
     call the library makes: the drift `$D7` where its amount's high byte,
     the cell `$46` (whatever the last effect left there), isn't clear, or its
