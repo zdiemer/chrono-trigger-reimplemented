@@ -1963,14 +1963,47 @@ rest waits, is [PLAN.md](PLAN.md).
     and the read finds the resource by it. Naming the resource in the
     accessor instead goes with decoding it (PLAN.md, "Assets"); until then a
     pack can't move a resource, only serve it.
-  - **Video transfers from cartridge addresses** bypass the store: the menus'
-    VRAM fills and copy (`menu/display.c`: `menu_clear_all_of_vram`,
-    `clear_the_screens_memory`'s fill, `menu_copy_rom_to_memory`) and the
-    battle's tile blocks (`battle/uploads.c`, `send_block`) take a ROM
-    address as their source, which the SNES backend
-    sends by DMA from the bus and a host backend can't read. They want the
-    resource's bytes from the store as `PfData`'s host pointer, which shadow
-    mode can still compare by the address.
+  - **Cartridge-read inventory (before the store transfer work).**
+    `tools/machine_joints.py` counts 21 cartridge-capable source sites in
+    `game/`, all linked by `ct_native`. This is a source audit, not pointer
+    analysis; `PF_AT` is origin metadata and is not a cartridge source.
+    - Five constant fills: menus' `menu_clear_all_of_vram`,
+      `clear_the_screens_memory`, and `menu_clear_memory`; battle's message
+      tile clear; scenes' credit-page name-map clear. Replace the cartridge
+      zero with a value, preserving each transfer's length and timing.
+    - Four fixed graphics sites: menus' `menu_copy_rom_to_memory` (font,
+      replacement tiles and window designs), two Epoch map-view tile sends,
+      and battle/display.c's staged load (message tiles and five window
+      blocks, interleaved with work-RAM tilemaps).
+    - Eight dynamic transfer sites: both menu queues, battle's bridge send,
+      `send_to_vram`, `send_block`, and described transfer, the field's
+      general transfer, and `scene_send_from`. Their sources must resolve
+      through named graphics accessors before reaching video. `send_block`
+      currently has only a work-RAM caller; keep its input explicit. Field
+      sprite queues, tile animations (loaded with bank $7F), scene unpacked
+      buffers and line-effect tables are work RAM, not cartridge assets.
+    - Two port-body reads already using the store but lacking the resource
+      seam: menu/typeset.c's string-pointer lookup and battle/script_language.c's
+      script byte. Two unused scene-data helpers still call `m_read16` and
+      `m_read8` on stream-table addresses; delete them.
+    - Code as data: 166 instruction-sized catalogue rows cover $C0:0000-01C0.
+      `menu_scene_scroll_pattern_byte`, called by line_effects.c's
+      `start_scene_scroll_pattern`, uses the first 448 bytes as the travelling
+      scroll pattern. Preserve those as one named byte resource, independent
+      of executable code. The other 12 `code_c2xxxx` rows ($C2:7361, BEDC,
+      C54F, CAE0, CE9D, CF37, D19F, D466, DB9F, DE21, E545, E891) supply the
+      unused eighth byte of seven-byte menu upload records, through
+      `menu_upload_record`. Nothing reads the queue's spare byte: remove
+      that mechanical overread and its resources, retaining its time charge.
+    - Runtime audit: the native video memory callback currently routes ROM
+      through `state_host_read8` and `rom_read8`; it is not a mapped ROM.
+      Transfers therefore work only when their bytes are catalogued. Missing
+      bytes stop in `rom_host.c`; shipping DMA bypasses that check. Route
+      transfers through store-backed `PfData`, check catalogue membership for
+      their entire span (including bank wrap), and validate the sampled
+      shipping/native movies, outcomes and menu/battle pixel comparisons.
+      Runtime counts remain to be measured with this worktree's build; no
+      zero-outside-catalogue result is claimed by this static inventory.
   - **What the asset pack's review left** (none blocking): the `asset
     differs from the cartridge` check compares two copies made from the same
     ROM, so it tests only the importer's address mapping, not the pack's
@@ -3100,10 +3133,6 @@ list, by kind, is what `game/` still asks of one.
   and `sound_host.c`'s echo waits and command queues when `ct_play` adopts
   the native driver. `au_driver_call` still stops on a machine-wrapper call;
   remove that interface with its remaining callers.
-- **ROM data.** `ct_native` reads the game's data from the asset pack through
-  the store; what still reads cartridge addresses outside it, the video
-  transfers from ROM, is under "Assets as data
-  files" (Platform).
 - **Reads past a table's end, as the original's glitches make them.** The
   original reads and writes past its tables where a player can push it there
   (the equipment screen with 98 slots of one kind reaches memory far outside

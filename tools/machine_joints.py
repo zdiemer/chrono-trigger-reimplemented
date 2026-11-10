@@ -39,6 +39,7 @@ JOINTS = [
     ("register escapes", r"\bvid_snes_\w+\(|\bau_voices_snes_register\(", "a service call"),
     ("video service calls", r"\bvid_(?!snes_)\w+\(", "inventory, including inline value helpers"),
     ("video calls without host backend", None, "the named service implemented on the host"),
+    ("cartridge reads by address", None, "named resource accessors serving the store's bytes"),
     ("scaffolding writes", r"\bORIGINAL_EFFECT\(", "its subsystem retiring the gate"),
 ]
 
@@ -97,6 +98,11 @@ def count(per_file):
         if path.name == "registry.c":
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
+        n = cartridge_reads(path, text)
+        if n:
+            name = "cartridge reads by address"
+            totals[name] += n
+            by_file[path.relative_to(ROOT).as_posix()][name] += n
         missing = sum(len(re.findall(r"\b" + name + r"\(", text)) for name in missing_video)
         if missing:
             name = "video calls without host backend"
@@ -112,6 +118,34 @@ def count(per_file):
     totals["registered entries"] = registry_entries()
     totals["held waits' continuations"] = held_wait_rows()
     return totals, by_file
+
+
+def cartridge_reads(path, text):
+    """Audited cartridge-capable transfer sources, plus reads outside accessors.
+
+    PF_AT is timing metadata, not a source. RAM-only queues (field sprites,
+    tile animations, unpacked scene graphics) are not cartridge reads. The
+    expressions below are the dynamic sources whose producers also accept ROM;
+    fixed ROM sources are recognized by their constants in the data headers.
+    This is a source inventory, not whole-program pointer analysis.
+    """
+    text = re.sub(r"/\*.*?\*/|//[^\n]*", "", text, flags=re.S)
+    n = 0
+    if path.name.endswith("_data.h") or path.name == "packed_graphics.h":
+        return len(re.findall(r"\bm_read(?:8|16|24)\(", text))
+    if path.name not in ("assets.c", "decompress.c", "rom.h"):
+        n += len(re.findall(r"\brom_read(?:8|16|24)\(", text))
+    constants = r"(?:MENU_(?:VRAM_CLEARING_ZERO|CLEARING_ZERO|MAP_VIEW_(?:MORE_)?TILES)|BATTLE_ZERO_BYTE|ZERO_IN_THE_CARTRIDGE)"
+    n += len(re.findall(r"PF_GAME\(\s*(?:0x[C-Fc-f][0-9A-Fa-f]{5}\b|" + constants + r"\b)", text))
+    dynamic = {
+        "game/menu/display.c": [r"PF_GAME\(\(uint32_t\)menu_vram_queue_bank", r"PF_GAME\(\(uint32_t\)bank", r"\.source\s*=\s*MENU_CLEARING_ZERO", r"\.source\s*=\s*0xFF0000"],
+        "game/battle/display.c": [r"PF_GAME\(l->source\)"],
+        "game/battle/uploads.c": [r"PF_GAME\(source\)", r"PF_GAME\(from\)", r"\.source\s*=\s*d\.source"],
+        "game/battle/bridge.c": [r"PF_GAME\(from\)"],
+        "game/field/display.c": [r"PF_GAME\(field_transfer_source"],
+        "game/scene/screen.c": [r"\.source\s*=\s*source\b"],
+    }
+    return n + sum(len(re.findall(p, text)) for p in dynamic.get(path.relative_to(ROOT).as_posix(), []))
 
 
 def main():
