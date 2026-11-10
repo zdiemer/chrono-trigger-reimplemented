@@ -560,8 +560,8 @@ rest waits, is [PLAN.md](PLAN.md).
     `battle_stat_block_place` reads past the table for the menu's nobody;
     `CHOOSING_FRAME_LEFT_A` in `menu_window.c` repeats `menu_input.c`'s entry
     derivation; `menu_lists.c`'s `ITEM_WORD` is raw font bytes;
-    `target_choice.c`'s circle sizes `0x09/0x10/0x19` read better as 3Â², 4Â²
-    and 5Â²; `field/walk.c`'s guard comment should say why
+    `target_choice.c`'s circle sizes `0x09/0x10/0x19` read better as 3², 4²
+    and 5²; `field/walk.c`'s guard comment should say why
     `right_side(at.x) + step.x` near `$FF8F` never feeds a carry the port
     drops.
 
@@ -1727,7 +1727,7 @@ rest waits, is [PLAN.md](PLAN.md).
   menus"): `save_screen.c` renamed for what it holds (the slots' summaries);
   `menu_save_slot_in_use`'s fourth entry, the fourth row, split out in the map
   with named values, and the load screen's steps by name rather than
-  `step Â± 1`; the inside's pattern as `pattern[row % 4][column % 4]` with the
+  `step ± 1`; the inside's pattern as `pattern[row % 4][column % 4]` with the
   block moves' time charged in scaffolding; windows.c's operands decoded once
   into a struct per operation; one `first_push()` in cursor.c; names for
   `MENU_SOUND_6` and `_7`; a `SlotSummary` record for the summary's byte
@@ -1990,11 +1990,15 @@ rest waits, is [PLAN.md](PLAN.md).
       `menu_scene_scroll_pattern_byte`, called by line_effects.c's
       `start_scene_scroll_pattern`, uses the first 448 bytes as the travelling
       scroll pattern. Preserve those as one named byte resource, independent
-      of executable code. The other 12 `code_c2xxxx` rows ($C2:7361, BEDC,
-      C54F, CAE0, CE9D, CF37, D19F, D466, DB9F, DE21, E545, E891) supply the
-      unused eighth byte of seven-byte menu upload records, through
-      `menu_upload_record`. Nothing reads the queue's spare byte: remove
-      that mechanical overread and its resources, retaining its time charge.
+      of executable code. Ten `code_c2xxxx` rows ($C2:BEDC, C54F, CAE0,
+      CE9D, CF37, D19F, D466, DB9F, E545, E891) supply the unused eighth
+      byte of seven-byte upload records through `menu_upload_record`.
+      $C2:7361 is the discarded high byte of `menu_gate_row_pick`'s last
+      word read; read the byte and retain the time. $C2:DE21 is live:
+      `menu_category_slot_place` reads a fifth selector for non-equipment
+      items while the shop counts which members carry the item. Preserve
+      that selector as data, extending the resource without reclassifying
+      executable code in the matching disassembly.
     - Runtime audit: the native video memory callback currently routes ROM
       through `state_host_read8` and `rom_read8`; it is not a mapped ROM.
       Transfers therefore work only when their bytes are catalogued. Missing
@@ -2002,8 +2006,14 @@ rest waits, is [PLAN.md](PLAN.md).
       transfers through store-backed `PfData`, check catalogue membership for
       their entire span (including bank wrap), and validate the sampled
       shipping/native movies, outcomes and menu/battle pixel comparisons.
-      Runtime counts remain to be measured with this worktree's build; no
-      zero-outside-catalogue result is claimed by this static inventory.
+      The first native sample precheck found two real catalogue gaps when
+      the code rows were removed: $C2:7361 in the gate rows and $C2:DE21 in
+      shop items, distinguishing these from the ten unused upload bytes.
+      The known uncatalogued dialog table $FF:5860 and its 84 strings also
+      need importing without requiring a movie to discover them. The sample
+      additionally reports existing video escapes (first $7E:5AEB), which
+      operate on work RAM rather than unavailable cartridge data; those
+      remain the native video model's separate follow-up.
   - **What the asset pack's review left** (none blocking): the `asset
     differs from the cartridge` check compares two copies made from the same
     ROM, so it tests only the importer's address mapping, not the pack's
