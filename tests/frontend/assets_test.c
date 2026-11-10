@@ -31,6 +31,23 @@ uint8_t rom_cartridge_read(const GameState *g, uint32_t at, const uint8_t *serve
 /* A resource's made-up byte: its row and the offset, mixed. */
 static uint8_t made_up(uint16_t row, uint32_t offset) { return (uint8_t)(row * 7 + offset * 13 + 1); }
 
+/* The first cartridge address from $C0:0000 that no resource covers. */
+static uint32_t outside_every_resource(void)
+{
+    uint32_t at = 0xC00000u;
+    for (int moved = 1; moved;) {
+        moved = 0;
+        for (uint16_t i = 0; i < asset_catalogue_count; i++) {
+            const AssetEntry *e = &asset_catalogue[i];
+            if (at >= e->at && at - e->at < e->length) {
+                at = e->at + e->length;
+                moved = 1;
+            }
+        }
+    }
+    return at;
+}
+
 static uint8_t *made_up_bytes;
 static uint32_t made_up_at[0x10000];
 
@@ -92,8 +109,9 @@ int main(void)
     }
     /* A cartridge byte in no resource is counted; work RAM isn't the cartridge's. */
     unsigned long outside = asset_outside_reads()->count;
-    CHECK(asset_catalogue[0].at > 0xC00000u);
-    CHECK(rom_read8(NULL, 0xC00000u) == 0);
+    uint32_t gap = outside_every_resource();
+    CHECK(gap < 0x1000000u);
+    CHECK(rom_read8(NULL, gap) == 0);
     CHECK(asset_outside_reads()->count == outside + 1);
     CHECK(rom_read8(NULL, 0x7E0000u) == 0);
     CHECK(asset_outside_reads()->count == outside + 1);
