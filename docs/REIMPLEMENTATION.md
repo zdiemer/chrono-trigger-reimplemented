@@ -3957,8 +3957,12 @@ the separate backing restores all nine protected witnesses without changing
 an exception or a calibrated rate. Call-outs
 that become C retain their settling boundaries and the callee's timing
 ownership. The map-to-menu display exception keeps the existing line
-130/132 difference, now attributed to its world-map handoff; retirement
-adds no timing or video allowance. The resource loader already used by
+130/132 difference, now attributed to its world-map handoff. The whole-library
+replay also required transferring the existing visible display and HDMA-stop
+exceptions to that handoff: the parent of merge `9b1597a3` and the new caller
+produce the same sites, counts and visible lines in Fiona's Forest (display
+172, HDMA 95) and Sun Stone (display 208, HDMA 131). Only the owning entry
+changed; retirement adds no timing or video allowance. The resource loader already used by
 world-map setup is also exposed to the Black Omen scene's two script
 calls, closing targets absent from the prior C dispatch tables.
 
