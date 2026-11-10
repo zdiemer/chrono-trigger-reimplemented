@@ -98,6 +98,14 @@ class TestCommittedMap(unittest.TestCase):
 
 
 class TestRules(unittest.TestCase):
+    def test_storage_measure_counts_variables_not_fields_or_elements(self):
+        m = ram_map.RamMap(text=var("one", 'addr = "7E:1000"\nsize = 2') +
+                          var("many", 'addr = "7E:1100"\ncount = 8\nindex = "slot"'))
+        self.assertEqual(ram_map.storage_counts(m), (2, 0))
+        m.vars[1].host_module = "example"
+        self.assertEqual(ram_map.storage_counts(m), (1, 1))
+        self.assertEqual(ram_map.storage_counts(ram_map.RamMap(text="")), (0, 0))
+
     def load(self, text):
         return ram_map.RamMap(text=PAGES + text)
 

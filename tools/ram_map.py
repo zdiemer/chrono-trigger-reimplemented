@@ -581,6 +581,29 @@ class RamMap:
         return hits
 
 
+def variable_bytes(v):
+    """Declared bytes, including every page instance but excluding record padding."""
+    for base in v.bases():
+        for row in range(v.rows or 1):
+            for element in range(v.count):
+                at = base + row * (v.row_stride or 0) + element * v.stride
+                for offset, size in ([(f.offset, f.size) for f in v.fields] if v.fields else [(0, v.size)]):
+                    yield from range(at + offset, at + offset + size)
+
+
+def storage_counts(m):
+    """Count map variables, not accessors, instances, fields or allocated bytes."""
+    moved = sum(bool(getattr(v, "host_module", None)) for v in m.vars)
+    return len(m.vars) - moved, moved
+
+
+def storage_report(m, out=sys.stdout):
+    image, moved = storage_counts(m)
+    total = image + moved
+    print("native state: %d/%d variables image-backed (%.2f%%); %d struct-backed"
+          % (image, total, 100 * image / total if total else 0, moved), file=out)
+
+
 # ---- the header -----------------------------------------------------------------------------
 
 def macro(*parts):
@@ -1490,6 +1513,7 @@ def main(argv=None):
     ap.add_argument("--map", type=pathlib.Path, default=MAP, help="the map to read (default re/ram.toml)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("check", help="validate re/ram.toml")
+    sub.add_parser("storage", help="share of native variables still backed by the work-RAM image")
     h = sub.add_parser("header", help="write game/ram.h")
     h.add_argument("--check", action="store_true", help="exit 1 if game/ram.h is out of date")
     a = sub.add_parser("accessors", help="write game/vars.h, runtime/port/vars_pages.h and vars_ram.c")
@@ -1509,7 +1533,9 @@ def main(argv=None):
         print("%s: %s" % (args.map, e), file=sys.stderr)
         return 1
 
-    if args.cmd == "check":
+    if args.cmd == "storage":
+        storage_report(m)
+    elif args.cmd == "check":
         print("%s: %d pages, %d variables, %d images, not-RAM literals in %d files"
               % (args.map, len(m.pages), len(m.vars), len(m.images), len(m.not_ram)))
         shaped = m.address_shaped()
