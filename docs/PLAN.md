@@ -79,8 +79,9 @@ for shadow mode or for the original's still-generated code goes through
 `ORIGINAL_EFFECT` (docs/PORTING.md, "Scaffolding"), and the build already
 compiles every port once without it (`ct_game_native_shape`). When a subsystem
 retires the gate, its scaffolding is deleted in the same commit, and anything
-the evidence found reading it from outside (event's scratch cells feed the
-menus' wave phase; TODO.md) is decided first. A subsystem's `portstyle.py`
+the evidence found reading it from outside is decided first. The battle and
+menu values read by the scene's curtain remain explicit live state
+(REIMPLEMENTATION.md, their teardown sections). A subsystem's `portstyle.py`
 scaffolding count is how much of this is left to take down.
 
 ### Working order
@@ -190,9 +191,10 @@ of the accumulated branch before merge. The merge gate runs on the combined
 tree, with long routes once per timing/runtime batch and whole-library
 recalibration in its own batched ledger commit (CLAUDE.md; PORTING.md).
 
-The field, events and both scene layers' retained interfaces are described
+The field, events, both scene layers, menus and battle's retained interfaces are described
 in REIMPLEMENTATION.md, "The field's teardown", "The events' teardown",
-"The scene program's teardown" and "The scene engine's teardown". Their
+"The scene program's teardown", "The scene engine's teardown", "The menus'
+teardown" and "The battle's teardown". Their
 remaining work removes interfaces with their callers rather than adding ports.
 
 ## Phase 4a: what still runs on emulation

@@ -9,25 +9,14 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
-- **Uncovered runs outside the scene program.** The remainder audit leaves
-  190 bytes in `$C0`, 18 in `$C2` and 76 in `$CD`, rounded to 0% each by
-  burndown. The event loops at `$C0:58ED`, `$C0:5967`, `$C0:5990` and
+- **Out-of-contract script states.** The event loops at `$C0:58ED`, `$C0:5967`, `$C0:5990` and
   `$C0:5AA3` already run as C for valid scripts; their hand-backs preserve
   out-of-buffer script positions, changed data banks and object state the
   typed map cannot represent. Supporting those states needs a storage or
   script contract, not a second copy of the same loop. The screen runner's
   `$CD:165F` hand-back is for bytes `$FA`-`$FE`, past its command table;
   establish semantics for the original's out-of-table dispatch before
-  admitting them. No shipped script is known to use these paths. The other
-  five battle bytes are `$CD:1D93`, the line request already implemented by
-  the timing service; its independent-entry blocker is recorded under
-  "The battle's wait for a line" below.
-  The five menu waits (`$C2:89F5`, `$8A91`, `$8AB5`, `$8AF8`, `$CECB`)
-  retain their task-switch contract checks: remove their fallback only when
-  the task stack and saved widths can be represented without the machine.
-  The four one-byte returns (`$C0:EC76`, `$C2:034C`, `$9F04`, `$A16F`) are
-  already executed by their wrappers; teaching the estimate to distinguish
-  those from real stops would remove the conservative count, not game work.
+  admitting them. No shipped script is known to use these paths.
 - **Recorded outcomes across the library.** All 84 movies are recorded and
   have strict and native ratchets (REIMPLEMENTATION.md, "Recorded
   outcomes"); their differences are excepted as debts. Resolve the excepted
@@ -49,6 +38,9 @@ rest waits, is [PLAN.md](PLAN.md).
     and boarding-selector checks, and `walk_a_leg`'s stationary invariant.
   - Keep `field_location_is_a_number` and `location_record_is_one` as
     assertions: a non-record offset can unpack into the stack or scratch.
+  - Preserve battle sprite/output bounds, animation resource banks and
+    indexes, startup OAM lookup, action/script table bounds, and text
+    language/stack separation when their storage or assets move.
   - Recheck excluded tile-set blocks, BG2 left drift and unused scene-tile
     loads if assets become editable; recheck the eight-sprite zone proof
     if screen height changes. Arithmetic-dead paths need no substitute.
@@ -256,14 +248,6 @@ rest waits, is [PLAN.md](PLAN.md).
     the map declares on random states (`accessor out of range` in fuzzing,
     `event_script`): its guard doesn't bound where the object's first
     function starts.
-- **The tech sweep's fight never ends in the native shape.** The route
-  (`tools/movies/routes/tech_sweep.py`, zophar chrono-trigger slot 1, the Lavos
-  Core) reaches its outcome in the shipping mode, but `ct_drive_native_shape`
-  ran it 400,000 frames without the fight ending: with the scaffolding
-  compiled out, something in that battle stops the fight from finishing.
-  Find what logic reads a cell only scaffolding writes there
-  (`ct_dev --scaffold-reads original`, the route's frames) and make the two
-  builds agree. The route runs by hand (`tools/suite.py`'s `HAND_RUN_ROUTES`).
 - **When the confirm press lands in Atropos's scene, native shape against default.** The scene on `$10C` polls confirm with event command `$31` (`$C0:66A5`) between lines with no box open; the `motherbrain` route now presses through it, but why the native-shape build's timing puts the dialog's last press before the poll is untraced.
 - **An ending's menu script sets the sprites' sizes by `$2101`.** The menus'
   object scripts' byte command `$13` names its cell by address, and an ending

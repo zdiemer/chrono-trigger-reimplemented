@@ -4826,11 +4826,12 @@ first invalid combatant. All three checks fail against the preceding
 implementations and pass with the live-state and contract fixes. It also
 checks the adapter's width, decimal, bank and combatant restrictions.
 
-Native-shape
-Lavos routes reach both the bucket's Good Night ending and the telepod's
-ending phase, exercising victory, field return and the long defeat/ending
-work without scaffolding. This does not claim the subsequent developer-room
-tour.
+The final native-shape Lavos routes reach both the bucket's Good Night
+ending (frame 187,945) and the telepod's ending phase (126,441), exercising
+victory, field return and the long defeat/ending work without scaffolding.
+The tech-sweep route also finishes, at frame 65,169 with 21 techs cast;
+its earlier scaffolding-free nonterminating-fight follow-up is closed.
+This does not claim the telepod's subsequent developer-room tour.
 
 Every retired entry keeps its calibrated rate in `time_tags.c`; deleted
 temporary accesses retain their machine work charges, with no new host
@@ -4882,13 +4883,22 @@ complete place observations, and every protected picture still matches.
 `tools/outcomes_exceptions.txt` records these causes; no protected identity
 is removed.
 
+The unsampled `battle-tech-sweep` has identical complete game, SRAM,
+picture and place observations on this branch and a clean build of merged
+main `ceb2d3e6`, in both strict and native modes. Its refreshed existing
+exceptions record that pre-existing ledger drift. The strict pictures
+1, 1800, 2100, 2400, 2700, 3600, 3900 and 4200 remain protected; native
+protects the same set without 3600. Both modes protect places 0-4, and
+native protects the SRAM end state. The successful native-shape route
+adds a current-timing witness for the Core fight and its tech selection.
+
 The final census over `menus-sweep`, `menus-epoch` and
 `battle-menu-buttons` has seven machine-entered entries and 44,643 calls,
 against 87 entries and 3,455,625 calls at the branch's start. CPU wait-loop
 passes fall from 3,315,508 to zero; 80 held continuations instead execute
-7,780,168 passes as C. The remaining machine entries are console reset,
+7,779,880 passes as C. The remaining machine entries are console reset,
 boot, the two interrupt vectors and their stubs, and `field_first_start`.
-The census also records 887 entries called only as C.
+The census also records 888 entries called only as C.
 
 Immediately before battle retirement, the source measure had 843 ordinary
 entries, 713 emulated returns and 760 scaffolding sites. It now has 13,
