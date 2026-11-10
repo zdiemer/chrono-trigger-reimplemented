@@ -1893,16 +1893,30 @@ clears use `PF_VALUE(0)`, with their former cartridge locations confined to
 SNES backend encodings. Lengths, including the odd-length VRAM clear, and
 transfer timing are unchanged.
 
-The source inventory fell from **23 cartridge reads by address to 0** in
-`tools/machine_joints.py`: five constant fills, four fixed graphics sites,
+The targeted transfer inventory replaced **23 sites**: five constant fills, four fixed graphics sites,
 eight dynamic transfer sites, two direct port-body reads, two script-selected
 memory reads and two unused machine-reading helpers. The dynamic sites include
 both menu queues, battle uploads and described transfers, field transfers and
 scene-script uploads.
 The named scalar accessors and unpacker already read the store. `PF_AT` is
-origin metadata, not a data source. The counter is an audited source measure,
-not whole-program pointer analysis; runtime catalogue checks cover the actual
-ranges selected by scripts.
+origin metadata, not a data source. The original counter only recognized
+those sites and could not detect new bypasses. Its replacement in
+`tools/machine_joints.py` resolves constants from the file and its transitive
+includes, then counts unproved `m_read*`, `rom_read*`, `rom_data*`, `PF_GAME`
+sources and source-field assignments outside the named data seams. `m_read*` inside
+those seams still count. Generic `wram_read` escapes also take bus addresses
+and are included. Only literal/proven work-RAM addresses or exact, documented
+RAM-only allowlist entries are excluded; the allowlist is currently empty.
+
+The conservative count is **122 in both game/ and ct_native**: 25 `PF_GAME`
+sources, 11 source-field assignments, one `m_read16`, and 85 `wram_read`
+operands. These are candidates requiring proof, not 122 confirmed cartridge
+reads. In particular a source descriptor can eventually be consumed through a
+named accessor, and many computed expressions select RAM. The counter no
+longer assumes either from the file or variable name. `--cartridge-sources`
+prints every candidate's file, line, operation and expression; TODO.md tracks
+their audit. Runtime catalogue checks cover the actual ranges selected by
+the sampled movies, not all possible script inputs.
 
 **Code that was read as data.** `menu_scene_scroll_pattern_byte` reads the
 448-byte `menu_scene_scroll_pattern` resource, replacing 166 instruction-sized

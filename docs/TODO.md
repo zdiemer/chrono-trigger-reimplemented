@@ -1953,6 +1953,21 @@ rest waits, is [PLAN.md](PLAN.md).
     and the read finds the resource by it. Naming the resource in the
     accessor instead goes with decoding it (PLAN.md, "Assets"); until then a
     pack can't move a resource, only serve it.
+  - **Unproved cartridge-address sources.** The conservative
+    `py tools/machine_joints.py --cartridge-sources` inventory has 122 sites,
+    all linked by `ct_native`: 25 `PF_GAME` sources, 11 source-field
+    assignments, one `m_read16`, and 85 generic `wram_read` operands. This
+    supersedes the old counter's zero, which only recognized fixed spellings.
+    Audit each producer and consumer: prove RAM-only expressions with exact,
+    commented allowlist entries, distinguish descriptors later consumed by
+    named accessors, or move cartridge-capable reads behind a named accessor.
+    No entries have been added to the allowlist to reduce this count.
+    Examples needing that proof are the per-line descriptor's selected bank
+    in `scene/screen.c`, `menu/epoch.c`'s variable-bank reads, the screen's
+    `decompress_dest(g)` transfer, and the stack-relative read in
+    `overworld/main_loop.c`. A RAM-looking name or a RAM bank ORed with an
+    unbounded expression is not proof. The command lists every remaining
+    expression, including computed staging buffers and script operands.
   - **What the asset pack's review left** (none blocking): the `asset
     differs from the cartridge` check compares two copies made from the same
     ROM, so it tests only the importer's address mapping, not the pack's

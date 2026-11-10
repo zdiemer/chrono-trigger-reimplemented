@@ -38,3 +38,7 @@ class NativeExitTest(unittest.TestCase):
         for text in ("asset outside the catalogue: $C0:1234 x1\n",
                      "strays: 2 cartridge read(s) outside the catalogue of resources\n"):
             self.assertEqual(self.outcome(0, text), "unserved")
+
+    def test_missing_resource_stop_is_unserved(self):
+        text = "frame 42: the program's C goes no further: $C2:A71E, a cartridge byte in no resource of the catalogue\n"
+        self.assertEqual(self.outcome(1, text), "unserved")
