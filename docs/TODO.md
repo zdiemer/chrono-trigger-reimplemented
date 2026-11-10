@@ -560,8 +560,8 @@ rest waits, is [PLAN.md](PLAN.md).
     `battle_stat_block_place` reads past the table for the menu's nobody;
     `CHOOSING_FRAME_LEFT_A` in `menu_window.c` repeats `menu_input.c`'s entry
     derivation; `menu_lists.c`'s `ITEM_WORD` is raw font bytes;
-    `target_choice.c`'s circle sizes `0x09/0x10/0x19` read better as 3², 4²
-    and 5²; `field/walk.c`'s guard comment should say why
+    `target_choice.c`'s circle sizes `0x09/0x10/0x19` read better as 3Â², 4Â²
+    and 5Â²; `field/walk.c`'s guard comment should say why
     `right_side(at.x) + step.x` near `$FF8F` never feeds a carry the port
     drops.
 
@@ -1727,7 +1727,7 @@ rest waits, is [PLAN.md](PLAN.md).
   menus"): `save_screen.c` renamed for what it holds (the slots' summaries);
   `menu_save_slot_in_use`'s fourth entry, the fourth row, split out in the map
   with named values, and the load screen's steps by name rather than
-  `step ± 1`; the inside's pattern as `pattern[row % 4][column % 4]` with the
+  `step Â± 1`; the inside's pattern as `pattern[row % 4][column % 4]` with the
   block moves' time charged in scaffolding; windows.c's operands decoded once
   into a struct per operation; one `first_push()` in cursor.c; names for
   `MENU_SOUND_6` and `_7`; a `SlotSummary` record for the summary's byte
@@ -1964,7 +1964,7 @@ rest waits, is [PLAN.md](PLAN.md).
     accessor instead goes with decoding it (PLAN.md, "Assets"); until then a
     pack can't move a resource, only serve it.
   - **Cartridge-read inventory (before the store transfer work).**
-    `tools/machine_joints.py` counts 21 cartridge-capable source sites in
+    `tools/machine_joints.py` counts 23 cartridge-capable source sites in
     `game/`, all linked by `ct_native`. This is a source audit, not pointer
     analysis; `PF_AT` is origin metadata and is not a cartridge source.
     - Five constant fills: menus' `menu_clear_all_of_vram`,
@@ -1986,6 +1986,10 @@ rest waits, is [PLAN.md](PLAN.md).
       seam: menu/typeset.c's string-pointer lookup and battle/script_language.c's
       script byte. Two unused scene-data helpers still call `m_read16` and
       `m_read8` on stream-table addresses; delete them.
+    - Two event-script memory reads (`event/memory.c`, byte and word peek)
+      accept a full 24-bit script operand. Work RAM is their ordinary input,
+      but cartridge addresses must also use a named accessor and the store,
+      rather than the general `wram_read` escape.
     - Code as data: 166 instruction-sized catalogue rows cover $C0:0000-01C0.
       `menu_scene_scroll_pattern_byte`, called by line_effects.c's
       `start_scene_scroll_pattern`, uses the first 448 bytes as the travelling
