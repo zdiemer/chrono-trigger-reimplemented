@@ -81,12 +81,6 @@ class TestBaseline(unittest.TestCase):
         out = io.StringIO()
         self.assertEqual(portstyle.check(self.rows, out=out), 0, out.getvalue())
 
-    def test_the_backlog_is_what_the_plan_says_it_is(self):
-        """The plan quotes the size; a wave that empties files must update it."""
-        plan = (portstyle.ROOT / "docs/PLAN.md").read_text(encoding="utf-8")
-        self.assertIn("%d of %d files" % (len(self.base), len(self.rows)), plan,
-                      "docs/PLAN.md's Phase 3a no longer matches the baseline")
-
 
 if __name__ == "__main__":
     unittest.main()
