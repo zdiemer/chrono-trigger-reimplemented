@@ -309,8 +309,12 @@ static bool next_actions_in_table(const GameState *g, uint8_t enemy, uint8_t blo
  * $0A first, whose second the stat test reads (battle.h). */
 static void choose_by_script(GameState *g, ScriptChoosing *c, uint8_t id)
 {
-    if (c->enemy >= BATTLE_ENEMIES || c->pair != PAIR_NONE || !no_member_comes_back(g)
-        || !next_actions_in_table(g, c->enemy, battle_enemy_script_block(g, c->enemy))) {
+    /* The former guard inspected state without charging the search. */
+    uint32_t contract_mark = charge_uncounted_begin(g);
+    bool ready = c->enemy < BATTLE_ENEMIES && c->pair == PAIR_NONE && no_member_comes_back(g)
+                 && next_actions_in_table(g, c->enemy, battle_enemy_script_block(g, c->enemy));
+    charge_uncounted_end(g, contract_mark);
+    if (!ready) {
         (void)battle_contract_broken(g, 0xC1AFD2, "an enemy script choice outside its contract");
         return;
     }

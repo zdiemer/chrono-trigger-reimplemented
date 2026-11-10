@@ -4836,7 +4836,10 @@ Every retired entry keeps its calibrated rate in `time_tags.c`; deleted
 temporary accesses retain their machine work charges, with no new host
 charge. Direct call-outs keep their settling boundaries and the callee's
 time ownership. No estimate is recalibrated from the sample and no timing
-exception is added. Burndown and the reference fallback measure classify
+exception is added. The glyph drawer retains six accesses for its retired
+progress/count/destination writes, including both bytes of progress. The
+enemy chooser's new assertion remains outside the search's charged work,
+as its former registry guard was. Burndown and the reference fallback measure classify
 the 89 retired owned runs (103,130 bytes) as retired, while shipping still
 counts every original instruction. Census and machine-joint reports retain
 the held continuations explicitly.

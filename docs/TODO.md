@@ -90,23 +90,6 @@ rest waits, is [PLAN.md](PLAN.md).
   fight search gives up after 101 tries with Heckran at about 770 of 2100 HP.
   The route is in `HAND_RUN_ROUTES` until its policy wins there: spend MP and
   items more sparingly, or back the search up further than the last decisions.
-- **Compare the whole held-message pause.** `battle-motherbrain` abandons all
-  124 calls of `battle_pause_on_the_message` inside its enclosing message
-  sequence. The focused seed-1 fuzz run compares eight accepted states up to
-  the first wait, with no mismatch, but does not independently compare the
-  complete timed pause (`tools/uncompared_baseline.txt`).
-- **Empty first equipment list preserves its item operand.** `menu_list_what_fits`
-  (`$C2:8953`, `game/menu/equipment.c`) initializes `last_asked` to zero and writes
-  it back even when no inventory item fits the slot. The original only writes
-  `$7E:04C9` when an item falls in the slot's range. Opening equipment immediately
-  from ctsave04 slot 2 therefore mismatches once (`F1` original, `00` native).
-  `unequipped_armor` visits an empty inventory row first, which leaves zero on both
-  sides through normal controls. The underlying scratch-byte discrepancy is still open.
-- **Native items-list scrolling**: `ct_native` playing `battle-unequipped-armor`
-  stops at frame 3147, `$C2:AC3A`: "the items list slid a row, runs only on the
-  machine". This is during the initial inventory visit, before the unequip.
-  The hand-port runtime can run the movie's menu sequence; the host program's
-  item-list continuation still needs a C path.
 
 ### Timing and other accuracy work
 
@@ -236,16 +219,6 @@ rest waits, is [PLAN.md](PLAN.md).
   in-frame position (RUNTIME.md, "ZSNES save states"), so those runs are for
   coverage only.
 - **`ct_fuzz` doesn't use generated blocks**, only hand ports (GENERATED.md).
-- **`battle_draw_objects` on unbounded counts.** Fuzzed with the part and
-  sprite set counts unbounded (which the fuzzer can do now that it stops a
-  port's own loop), 40 of 20000 states from a `gato-battle` state differ: in 28
-  the port runs on past its budget where the original returns after about
-  200000 accesses (by then the draw list position `$1DC3`, which the sprites
-  overwrite, is far past the list, and the port meets no end entry), and in 12
-  a byte of the drawing page's cells (`$1DC7`, the part count) or `$0049`
-  differs. No movie reaches these; they are the port's to fix or to declare
-  out of reach (`ct_fuzz --routine battle_draw_objects --range A=0000-00FF
-  --db 7E`).
 - **`$213F`'s bit 7 is the beam latch's flag in the runtime's PPU**
   (`runtime/snes/ppu.c`), where the hardware has the field's parity (and the
   latch's flag in bit 6). The scenes read it as the frame's parity
@@ -266,17 +239,14 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What the hand ports alone left** (REIMPLEMENTATION.md, "Phase 4a, the
   shipping mode's fallbacks, chunk 11"):
   - Entries no movie's shadow run compares, checked by fuzzing alone: the
-    defeat on the screen effects' battlefield (`$CD:0D93`, fuzzed up to
-    the music's fade; its `$CD:0DA2` continuation separately fuzzed up to the
-    battlefield change), the planet's count down to the reset
-    (`$7E:63F5`) and its fade out (`$7E:6403`) and the world map scene's note of the Epoch's
-    arrival (`$C6:EE31`). Strict mode's own timing reached them; a movie that
-    plays them would compare them.
+    planet's count down to the reset (`$7E:63F5`) and its fade out
+    (`$7E:6403`) and the world map scene's note of the Epoch's arrival
+    (`$C6:EE31`). Strict mode's own timing reached them; a movie that plays
+    them would compare them.
   - Entries that run nested inside another port's stretch and are compared
     only through it (tools/uncompared_baseline.txt): the field frame's
-    continuations (`$C0:00A4`-`$C0:00B7`), the battle's setup (`$C1:0023`, its
-    calls interrupted), its screen's setup for the field (`$CD:0000`) and the
-    planet's setup (`$7E:6248`, one call, inside the scene's first frame).
+    continuations (`$C0:00A4`-`$C0:00B7`) and the planet's setup (`$7E:6248`,
+    one call, inside the scene's first frame).
   - The scene scripts' interpreter differs from the original in about one
     random state in 17,500, in a channel's word register (`scene_run_sequence`
     at seeds 2 and 3, its continuation after a wait, `$C3:0C28`, at seed 1;
@@ -303,17 +273,6 @@ rest waits, is [PLAN.md](PLAN.md).
   has. A build without it needs the script's write as what it means: decode
   the scripts as an asset so a command naming `$2101` becomes a sprite
   setting (`VidObjConfig`) the service takes, and drop the escape.
-- **What the original's code reads of scaffolding** (REIMPLEMENTATION.md, "The
-  fallback measure"). It broke the native shape's three whole routes until
-  the targeting was ported; what it reads now (101 byte and instruction
-  pairs over the library when the measure came in, `tools/effects_check.py --originals`
-  on the fallbacks check's logs, `build/suite/native-shape/originals.txt`)
-  hasn't broken an outcome yet, and is the list to decide before the
-  scaffolding goes: the menus' `$007A` (`menu_open`'s, read at `$C2:CF0A`
-  on), the equipment screens' `$0022`-`$0027` and `$0DAB`, the battle's
-  `$0084`, `$0092` and the enemies' `$A020`-`$A026`, and a block copy at
-  `$C0:0924` that reads the field's cells whole.
-
 ## Port and review follow-ups
 
 - **Prune the evidence cache.** The shared store, `build/evidence-cache` in
@@ -2196,14 +2155,6 @@ rest waits, is [PLAN.md](PLAN.md).
     design's tiles and colours, the choice pointer) is built into work RAM
     and sent as the original's transfers: a native renderer could draw the
     window from its height and position directly.
-- **The menus' wave phase starts from event's scratch cell.** The wave handler
-  at `$C2:77C7` (`menus-end-of-time`) reads and advances `$01E2` as its phase
-  (`menu_wave_phase`, `menu/wave.c`: it means its object's own, and reaches
-  this one through an index its loop has run on) without setting it first, so
-  it starts from whatever event's calls (`$02`) or `$B5` last left there. A
-  native build without event's scaffolding would start it elsewhere: give the
-  phase a start of its own when the gate retires (a line or two of the wave, a
-  frame).
 - **What the scripts set that isn't established:**
   - `field_setting_1e` (events `$DE`/`$DF` raise it with the location they
     set; cleared at `$C0:2842` and `$C0:2866`, returned by `$C0:28A7`, ANDed

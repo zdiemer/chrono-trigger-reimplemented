@@ -138,7 +138,8 @@ static void draw_glyph_from(GameState *g, Tiles t, Glyph glyph, Pen p, uint32_t 
         put_pixels(g, t, glyph_byte_place(t, first, byte), p, pixels);
     }
     charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 5);
+    /* Two-byte progress, one-byte count and three-byte destination. */
+    charge_machine_accesses(g, 6);
 }
 
 // $C2:5DC4 (the glyph and the pen worked out), $C2:5E36, $C2:5F07
