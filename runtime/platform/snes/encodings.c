@@ -90,7 +90,7 @@ static const PfSnesEncoding encodings[] = {
     { 0xC2867A, 0, 0, 7, WORDS, STEPS(C, D), 0 },                                           /* the VRAM queue's channel */
     { 0xC28686, 0, 0, 7, WORDS, STEPS(TL, TH, SL, SH, SB, ZL, ZH, GO), 0 },                /* ... each entry */
     { 0xC286ED, 0, 0, 0, 0, STEPS(C, D, SB, ZL), 0 },                                       /* the math line effect */
-    { 0xC226AB, 0, 0, 7, FILL_WORDS, STEPS(TL, TH, P, C, D, SL, SH, SB, ZL, ZH, GO), 0 },  /* VRAM cleared */
+    { 0xC226AB, 0, 0, 7, FILL_WORDS, STEPS(TL, TH, P, C, D, SL, SH, SB, ZL, ZH, GO), 0xC226D4 },  /* VRAM cleared */
     { 0xC22D70, 0, 0, 7, WORDS, STEPS(SL, SH, TL, TH, ZL, ZH, P, C, D, SB, GO), 0 },       /* the loader's upload */
     { 0xC22D4B, 0, 0, 7, ONE_REGISTER, STEPS(TL, C, D, SL, SH, SB, ZL, ZH, GO), 0 },      /* its palette */
     { 0xC2F342, 0, 0, 0, 0, STEPS(SB, IB, C, D), 0 },                                       /* a window command's slot */
@@ -101,8 +101,8 @@ static const PfSnesEncoding encodings[] = {
     { 0xC20187, 0, 0, 0, ONE_REGISTER, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, GO), 0 },   /* the sprite table */
     { 0xC201AD, 0, 0, 0, ONE_REGISTER, STEPS(TL, C, D, SL, SH, SB, ZL, ZH, GO), 0 },      /* the palette */
     { 0xC20417, 0, 0, 0, WORDS, STEPS(SL, SH, TL, TH, ZL, ZH, SB, P, D, C, GO), 0 },       /* the VRAM queue */
-    { 0xC294D8, 0, 0, 0, FILL_WORDS, STEPS(C, D, ZL, ZH, SL, SH, SB, GO), 0 },             /* VRAM filled */
-    { 0xC29526, 0, 0, 0, FIXED_BYTE, STEPS(ZL, ZH, C, D, SL, SH, SB, GO), 0 },             /* work RAM cleared */
+    { 0xC294D8, 0, 0, 0, FILL_WORDS, STEPS(C, D, ZL, ZH, SL, SH, SB, GO), 0xC29510 },             /* VRAM filled */
+    { 0xC29526, 0, 0, 0, FIXED_BYTE, STEPS(ZL, ZH, C, D, SL, SH, SB, GO), 0xC29510 },             /* work RAM cleared */
     { 0xC2954B, 0, 0, 0, ONE_REGISTER, STEPS(SL, SH, ZL, ZH, C, D, SB, GO), 0 },           /* work RAM copied */
     { 0xC20AF6, 0, 0, 7, WORDS, STEPS(TL, TH, P, C, D, SL, SH, SB, ZL, ZH, GO), 0 },       /* a map block's first column */
     { 0xC20B22, 0, 0, 7, WORDS, STEPS(TL, TH, SL, SH, SB, P, C, D, ZL, ZH, GO), 0 },       /* ... its second */
@@ -143,7 +143,7 @@ static const PfSnesEncoding encodings[] = {
     /* ---- The battle ---- */
     { 0xCD09CE, 0, 0, 7, TWO_BYTES, STEPS(IB, TL, C, D, SL, SH, SB, ZL, ZH, GO), 0 },   /* the palette */
     { 0xCD3E95, 0, 0, 7, WORDS, STEPS(TL, TH, SL, SH, SB, C, D, ZL, ZH, GO), 0 },       /* a queued transfer */
-    { 0xCD066F, 0, 0, 7, FILL_WORDS, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, GO), 0 },  /* the message's VRAM cleared */
+    { 0xCD066F, 0, 0, 7, FILL_WORDS, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, GO), 0xCD06B2 },  /* the message's VRAM cleared */
     { 0xD1E8E0, 0, 0, 7, WORDS, STEPS(SL, SH, SB, C, D, ZH, TL, TH, ZL, GO), 0 },       /* a block's first tile */
     { 0xD1E902, 0, 0, 7, WORDS, STEPS(TL, TH, ZL, GO), 0 },                             /* ... the rest */
     { 0xCFE301, 0, 0, 7, ONE_REGISTER, STEPS(C, D, SL, SH, SB, ZL, ZH, TL, GO), 0 },    /* the sprite table */
@@ -203,7 +203,7 @@ static const PfSnesEncoding encodings[] = {
     { 0x7E7872, 0, 0, 7, WORDS, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, P, GO), 0 }, /* figure's upper tile row */
     { 0x7E789D, 0, 0, 7, WORDS, STEPS(TL, TH, ZL, ZH, GO), 0 },                    /* its lower row */
     { 0x7E78B4, 0, 0, 0, ONE_REGISTER, STEPS(TL, VID_STEP_WRITE_BYTES), 0 },        /* three cycling colors, CPU copy */
-    { 0x7E6B22, 0, 0, 7, FILL_WORDS, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, GO), 0 },   /* the credits page's map cleared */
+    { 0x7E6B22, 0, 0, 7, FILL_WORDS, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, GO), 0xD20000 },   /* the credits page's map cleared */
     { 0x7E6B44, 0, 0, 7, FIXED_BYTE, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, GO), 0xD20000 },   /* ... its sprites' high bits, from a 0 */
     { 0x7E6B66, 0, 0, 7, FIXED_BYTE, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, GO), 0x7E4565 },   /* ... and its sprites hidden, from an $E0 */
     { 0x7E90BD, 0, 0, 7, FIXED_BYTE, STEPS(TL, TH, P, ZL, ZH, C, D, SL, SH, SB, GO), 0 },   /* the credits' tiles blanked */

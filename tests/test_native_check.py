@@ -33,3 +33,8 @@ class NativeExitTest(unittest.TestCase):
 
     def test_success_is_not_a_stop(self):
         self.assertEqual(self.outcome(0), "end")
+
+    def test_unserved_cartridge_fails_even_with_a_picture(self):
+        for text in ("asset outside the catalogue: $C0:1234 x1\n",
+                     "strays: 2 cartridge read(s) outside the catalogue of resources\n"):
+            self.assertEqual(self.outcome(0, text), "unserved")

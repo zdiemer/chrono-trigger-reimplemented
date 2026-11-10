@@ -445,7 +445,7 @@ static void keep_the_transfer_in_the_call(GameState *g, uint8_t mode, uint8_t po
 void scene_send_from(GameState *g, Platform *pf, uint8_t mode, uint8_t port_register, uint32_t source, uint16_t bytes)
 {
     keep_the_transfer_in_the_call(g, mode, port_register, source, bytes);
-    const VidSnesTransfer t = { .dest = port_register, .source = source, .size = bytes, .mode_from_data = true, .mode = mode };
+    const VidSnesTransfer t = { .dest = port_register, .data = scene_upload_data(source, bytes ? bytes : 0x10000u, mode), .size = bytes, .mode_from_data = true, .mode = mode };
     vid_snes_copy(pf, PF_AT(0x7E38E3), &t);
 }
 

@@ -71,7 +71,7 @@ static void send_palette_through_work_ram(Platform *pf, uint8_t bank)
 /* Send `bytes` bytes (0 a whole bank) from `source` to VRAM. */
 static void send_to_vram(Platform *pf, uint16_t vram, uint32_t source, uint16_t bytes)
 {
-    vid_send_vram(pf, PF_AT(0xCD3E95), vram, PF_GAME(source), transfer_bytes(bytes), NULL);
+    vid_send_vram(pf, PF_AT(0xCD3E95), vram, battle_upload_data(source, transfer_bytes(bytes)), transfer_bytes(bytes), NULL);
 }
 
 /* The transfer's size is handed over in the scratch cell $45, where the
@@ -205,7 +205,7 @@ static void send_block(Platform *pf, uint32_t source, uint16_t vram)
     for (unsigned tile = 0; tile < BLOCK_TILES; tile++) {
         uint32_t from = (source & 0xFF0000u) | (uint16_t)(source + TILE_BYTES * tile);
         vid_send_vram(pf, PF_AT(tile == 0 ? 0xD1E8E0 : 0xD1E902), (uint16_t)(vram + TILE_SPACING_WORDS * tile),
-                      PF_GAME(from), TILE_BYTES, NULL);
+                      battle_upload_data(from, TILE_BYTES), TILE_BYTES, NULL);
     }
 }
 
@@ -250,7 +250,7 @@ static void send_message_tiles(GameState *g, Platform *pf)
         send_to_vram(pf, vram, RAM_BATTLE_MESSAGE_TILES + (odd ? 0 : RAM_BATTLE_MESSAGE_TILES_STRIDE),
                      MESSAGE_HALF_BYTES);
     else
-        vid_send_vram_fill(pf, PF_AT(0xCD066F), vram, PF_GAME(BATTLE_ZERO_BYTE), MESSAGE_HALF_BYTES, NULL);
+        vid_send_vram_fill(pf, PF_AT(0xCD066F), vram, PF_VALUE(0), MESSAGE_HALF_BYTES, NULL);
 }
 
 // $CD:0607
@@ -298,7 +298,7 @@ static void describe_transfer(GameState *g, TransferDescription d)
 static void send_described_transfer(GameState *g, Platform *pf)
 {
     TransferDescription d = described_transfer(g);
-    const VidSnesTransfer t = { .dest = d.port, .source = d.source, .size = d.size,
+    const VidSnesTransfer t = { .dest = d.port, .data = battle_described_upload_data(d.source, transfer_bytes(d.size), d.mode), .size = d.size,
                                 .target_reg = VID_SNES_VRAM_ADDRESS, .target = d.vram,
                                 .mode_from_data = true, .mode = d.mode };
     vid_snes_copy(pf, PF_AT(0xCFE33B), &t);

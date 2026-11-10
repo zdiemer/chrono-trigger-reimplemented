@@ -123,6 +123,10 @@ def ended(text, rc, end, frames, reference, saved, names):
     """(how, detail) for a ct_native run, its end state against the reference's."""
     if rc is None:
         return "hung", None
+    fault = re.search(r"^.*(?:asset outside the catalogue|cartridge read\(s\) outside the catalogue|"
+                      r"cartridge byte in no resource).*$", text, re.M)
+    if fault and rc in (0, 1):
+        return "unserved", fault.group(0)
     # Only a deliberate program stop exits 1. A fatal machine entry exits 3;
     # a signal/OS crash or timeout must win even if a stop was printed first.
     m = STOP.search(text)
@@ -204,7 +208,7 @@ def main():
                 line += "  <-- fewer on time than its baseline (%d)" % must
         if how == "dark" and dark_is_excepted(excepted.get(name), detail):
             line += "  (excepted: tools/native_dark_exceptions.txt)"
-        elif how in ("dark", "crashed", "hung"):
+        elif how in ("dark", "crashed", "hung", "unserved"):
             failed.append(name)
         print(line)
     reached = sum(1 for n, _p, _f in rows if results[n][0] in ("end", "drifts"))

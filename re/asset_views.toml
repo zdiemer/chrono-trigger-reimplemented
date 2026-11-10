@@ -1,0 +1,16 @@
+# Data deliberately sharing storage with executable code. These views belong
+# to the asset pack; they must not turn executable regions into data in the
+# matching disassembly. Locations only, never cartridge bytes.
+[[view]]
+name = "menu_scene_scroll_pattern"
+type = "bytes"
+at = "C0:0000"
+end = "C0:01BF"
+purpose = "448 bytes of irregular horizontal scroll for both background planes"
+
+[[view]]
+name = "menu_category_slot_place"
+type = "bytes"
+at = "C2:DE1D"
+end = "C2:DE21"
+purpose = "Four equipment slots and the shop's non-equipment item selector"

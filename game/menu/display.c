@@ -779,7 +779,7 @@ void menu_send_upload_queue(GameState *g, Platform *pf)
     for (unsigned i = entries; i-- > 0;) {
         uint16_t size = menu_vram_queue_size(g, i);
         vid_send_vram(pf, PF_AT(0xC28686), menu_vram_queue_vram(g, i),
-                      PF_GAME((uint32_t)menu_vram_queue_bank(g, i) << 16 | menu_vram_queue_source(g, i)),
+                      menu_upload_data((uint32_t)menu_vram_queue_bank(g, i) << 16 | menu_vram_queue_source(g, i), size ? size : 0x10000u),
                       size ? size : 0x10000u, NULL);
     }
 }
@@ -1331,7 +1331,7 @@ static void send_object_queue(GameState *g, Platform *pf)
         uint8_t bank = in_queue ? menu_object_vram_queue_bank(g, r) : menu_object_vram_queue_bank_unchecked(g, r);
         VidVramPort port = vid_vram_port_decode(in_queue ? menu_object_vram_queue_port(g, r)
                                                          : menu_object_vram_queue_port_unchecked(g, r));
-        vid_send_vram(pf, PF_AT(0xC20417), vram, PF_GAME((uint32_t)bank << 16 | source), size ? size : 0x10000u, &port);
+        vid_send_vram(pf, PF_AT(0xC20417), vram, menu_upload_data((uint32_t)bank << 16 | source, size ? size : 0x10000u), size ? size : 0x10000u, &port);
         at = (uint8_t)(at + MENU_OBJECT_UPLOAD_BYTES);
     } while (at != end);
     set_menu_object_vram_queue_end(g, 0);
@@ -1370,10 +1370,10 @@ bool menu_object_queue_is_sendable(Snes *s)
 /* ---- Loading a screen's graphics ------------------------------------------------------------------ */
 
 // $C2:26A8
-/* Clear all of VRAM with the word at $C2:26D4, a whole 64 KiB from word 0. */
+/* Clear all 64 KiB of VRAM, starting at word 0. */
 void menu_clear_all_of_vram(Platform *pf)
 {
-    vid_send_vram_fill(pf, PF_AT(0xC226AB), 0x0000, PF_GAME(MENU_VRAM_CLEARING_ZERO), 0x10000, &word_port);
+    vid_send_vram_fill(pf, PF_AT(0xC226AB), 0x0000, PF_VALUE(0), 0x10000, &word_port);
 }
 
 /* It leaves X at 0. */
@@ -1449,8 +1449,8 @@ void menu_init_video(Snes *s)
     m_rts(s);
 }
 
-/* A stretch of work RAM cleared with the byte at $C2:9510 through the work
- * RAM port, with the per-line effects off first (the transfer runs on one of
+/* A stretch of work RAM cleared through the work RAM port, with the
+ * per-line effects off first (the transfer runs on one of
  * their channels). The destination is memory, not video, so the transfer goes through
  * the SNES-only escape; the port's address is its input. */
 // $C2:9512
@@ -1458,18 +1458,17 @@ void menu_clear_memory(GameState *g, Platform *pf, uint16_t at, uint16_t bytes)
 {
     vid_enable_line_effects(pf, PF_AT(0xC2951B), 0x00);
     hw_port_seek(g, at, 0);
-    const VidSnesTransfer t = { .dest = VID_SNES_WRAM_DATA, .source = MENU_CLEARING_ZERO, .size = bytes,
+    const VidSnesTransfer t = { .dest = VID_SNES_WRAM_DATA, .data = PF_VALUE(0), .size = bytes,
                                 .wram_at = at, .repeats = true };
     vid_snes_copy(pf, PF_AT(0xC29526), &t);
 }
 
 // $C2:94D5
-/* The rest of that setup: VRAM filled from word 0 with the word at $C2:9510,
- * then three stretches of work RAM cleared with it. */
+/* Clear VRAM from word 0, then the screen's three work-RAM buffers. */
 static void clear_the_screens_memory(GameState *g, Platform *pf)
 {
     static const struct { uint16_t at, bytes; } stretches[3] = { { 0x0C00, 0x1200 }, { 0x2E00, 0xD200 }, { 0x0000, 0x0100 } };
-    vid_send_vram_fill(pf, PF_AT(0xC294D8), 0x0000, PF_GAME(MENU_CLEARING_ZERO), 0xFFFF, NULL);
+    vid_send_vram_fill(pf, PF_AT(0xC294D8), 0x0000, PF_VALUE(0), 0xFFFF, NULL);
     for (int i = 0; i < 3; i++)
         TIMED_AS(g, 0xC29512, menu_clear_memory(g, pf, stretches[i].at, stretches[i].bytes));
 }
@@ -1479,7 +1478,7 @@ static void clear_the_screens_memory(GameState *g, Platform *pf)
  * memory again, so the SNES-only escape. */
 void menu_copy_rom_to_memory(GameState *g, Platform *pf, uint16_t from, uint16_t at, uint16_t bytes)
 {
-    const VidSnesTransfer t = { .dest = VID_SNES_WRAM_DATA, .source = 0xFF0000u | from, .size = bytes, .wram_at = at };
+    const VidSnesTransfer t = { .dest = VID_SNES_WRAM_DATA, .data = menu_screen_graphics_data(from, bytes ? bytes : 0x10000u), .size = bytes, .wram_at = at };
     hw_port_seek(g, at, 0);
     vid_snes_copy(pf, PF_AT(0xC2954B), &t);
 }

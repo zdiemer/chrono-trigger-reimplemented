@@ -134,9 +134,9 @@ def cartridge_reads(path, text):
     if path.name.endswith("_data.h") or path.name == "packed_graphics.h":
         return len(re.findall(r"\bm_read(?:8|16|24)\(", text))
     if path.name not in ("assets.c", "decompress.c", "rom.h"):
-        n += len(re.findall(r"\brom_read(?:8|16|24)\(", text))
+        n += len(re.findall(r"\b(?:rom_read(?:8|16|24)|rom_data(?:_mode)?)\(", text))
     constants = r"(?:MENU_(?:VRAM_CLEARING_ZERO|CLEARING_ZERO|MAP_VIEW_(?:MORE_)?TILES)|BATTLE_ZERO_BYTE|ZERO_IN_THE_CARTRIDGE)"
-    n += len(re.findall(r"PF_GAME\(\s*(?:0x[C-Fc-f][0-9A-Fa-f]{5}\b|" + constants + r"\b)", text))
+    n += len(re.findall(r"PF_GAME\(\s*(?:0x[C-Fc-f][0-9A-Fa-f]{5}u?\b|" + constants + r"\b)", text))
     dynamic = {
         "game/menu/display.c": [r"PF_GAME\(\(uint32_t\)menu_vram_queue_bank", r"PF_GAME\(\(uint32_t\)bank", r"\.source\s*=\s*MENU_CLEARING_ZERO", r"\.source\s*=\s*0xFF0000"],
         "game/battle/display.c": [r"PF_GAME\(l->source\)"],
@@ -144,6 +144,7 @@ def cartridge_reads(path, text):
         "game/battle/bridge.c": [r"PF_GAME\(from\)"],
         "game/field/display.c": [r"PF_GAME\(field_transfer_source"],
         "game/scene/screen.c": [r"\.source\s*=\s*source\b"],
+        "game/event/memory.c": [r"\bwram_read(?:8|16)\(g, address\)"],
     }
     return n + sum(len(re.findall(p, text)) for p in dynamic.get(path.relative_to(ROOT).as_posix(), []))
 

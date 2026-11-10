@@ -688,6 +688,7 @@ PF_API void vid_stop_uploads(Platform *pf, PfOrigin o);
 typedef struct {
     uint8_t dest;            /* $43x1 */
     uint32_t source;         /* $43x2-$43x4 */
+    PfData data;             /* named resource or fill value; source is the legacy RAM escape */
     uint16_t size;           /* $43x5-$43x6, 0 meaning 65536 */
     uint8_t target_reg;      /* low byte of the address register the TARGET steps write */
     uint16_t target;

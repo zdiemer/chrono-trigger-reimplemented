@@ -1943,86 +1943,21 @@ rest waits, is [PLAN.md](PLAN.md).
   open: whether the battle scripts get a readable form before MD3; which codecs the importer
   needs beyond MATCHING.md's ("Build-time extraction").
   - **The catalogue's rows MD2 hasn't typed** (PLATFORM.md, "The assets, as
-    built"): 11 `untyped` runs (42521 bytes, `$F6:24B1-7FFF` the largest,
-    which the census also lists as unknown) and 30 `mixed` or `undetermined`
+    built"): 12 `untyped` runs (43954 bytes, `$F6:24B1-7FFF` the largest,
+    which the census also lists as unknown) and 32 `mixed` or `undetermined`
     regions now have readers -- the accessors that read them -- and want
     `[[data]]` types with their bounds, which turns their rows into typed
-    ones. The 12 `code` rows are a byte past each of the menus' window
-    command lists (`$C2:C54F` and on) that the list's reader looks at: the
-    format's terminator rule, read from the reader, would say why, and
-    whether the pack needs the byte at all.
-  - **Resources only a read log finds**: a table the scripts name at run
-    time joins the catalogue only once some movie reads it, and `ct_native`
-    stops on a read in no resource. Of the `[[resource]]` tables in
-    `re/hints.toml`, the dialog strings at `$FF:5860` (84 strings) are the one
-    no accessor names and no movie reads; a play that enters a map whose
-    script names it stops there. Record a movie that reads it, or have the
-    catalogue take every hinted table whether or not a log names it.
+    ones.
   - **The accessors' addresses are keys** (PLATFORM.md, "The assets, as
     built"): each accessor still computes where the original kept its data,
     and the read finds the resource by it. Naming the resource in the
     accessor instead goes with decoding it (PLAN.md, "Assets"); until then a
     pack can't move a resource, only serve it.
-  - **Cartridge-read inventory (before the store transfer work).**
-    `tools/machine_joints.py` counts 23 cartridge-capable source sites in
-    `game/`, all linked by `ct_native`. This is a source audit, not pointer
-    analysis; `PF_AT` is origin metadata and is not a cartridge source.
-    - Five constant fills: menus' `menu_clear_all_of_vram`,
-      `clear_the_screens_memory`, and `menu_clear_memory`; battle's message
-      tile clear; scenes' credit-page name-map clear. Replace the cartridge
-      zero with a value, preserving each transfer's length and timing.
-    - Four fixed graphics sites: menus' `menu_copy_rom_to_memory` (font,
-      replacement tiles and window designs), two Epoch map-view tile sends,
-      and battle/display.c's staged load (message tiles and five window
-      blocks, interleaved with work-RAM tilemaps).
-    - Eight dynamic transfer sites: both menu queues, battle's bridge send,
-      `send_to_vram`, `send_block`, and described transfer, the field's
-      general transfer, and `scene_send_from`. Their sources must resolve
-      through named graphics accessors before reaching video. `send_block`
-      currently has only a work-RAM caller; keep its input explicit. Field
-      sprite queues, tile animations (loaded with bank $7F), scene unpacked
-      buffers and line-effect tables are work RAM, not cartridge assets.
-    - Two port-body reads already using the store but lacking the resource
-      seam: menu/typeset.c's string-pointer lookup and battle/script_language.c's
-      script byte. Two unused scene-data helpers still call `m_read16` and
-      `m_read8` on stream-table addresses; delete them.
-    - Two event-script memory reads (`event/memory.c`, byte and word peek)
-      accept a full 24-bit script operand. Work RAM is their ordinary input,
-      but cartridge addresses must also use a named accessor and the store,
-      rather than the general `wram_read` escape.
-    - Code as data: 166 instruction-sized catalogue rows cover $C0:0000-01C0.
-      `menu_scene_scroll_pattern_byte`, called by line_effects.c's
-      `start_scene_scroll_pattern`, uses the first 448 bytes as the travelling
-      scroll pattern. Preserve those as one named byte resource, independent
-      of executable code. Ten `code_c2xxxx` rows ($C2:BEDC, C54F, CAE0,
-      CE9D, CF37, D19F, D466, DB9F, E545, E891) supply the unused eighth
-      byte of seven-byte upload records through `menu_upload_record`.
-      $C2:7361 is the discarded high byte of `menu_gate_row_pick`'s last
-      word read; read the byte and retain the time. $C2:DE21 is live:
-      `menu_category_slot_place` reads a fifth selector for non-equipment
-      items while the shop counts which members carry the item. Preserve
-      that selector as data, extending the resource without reclassifying
-      executable code in the matching disassembly.
-    - Runtime audit: the native video memory callback currently routes ROM
-      through `state_host_read8` and `rom_read8`; it is not a mapped ROM.
-      Transfers therefore work only when their bytes are catalogued. Missing
-      bytes stop in `rom_host.c`; shipping DMA bypasses that check. Route
-      transfers through store-backed `PfData`, check catalogue membership for
-      their entire span (including bank wrap), and validate the sampled
-      shipping/native movies, outcomes and menu/battle pixel comparisons.
-      The first native sample precheck found two real catalogue gaps when
-      the code rows were removed: $C2:7361 in the gate rows and $C2:DE21 in
-      shop items, distinguishing these from the ten unused upload bytes.
-      The known uncatalogued dialog table $FF:5860 and its 84 strings also
-      need importing without requiring a movie to discover them. The sample
-      additionally reports existing video escapes (first $7E:5AEB), which
-      operate on work RAM rather than unavailable cartridge data; those
-      remain the native video model's separate follow-up.
   - **What the asset pack's review left** (none blocking): the `asset
     differs from the cartridge` check compares two copies made from the same
     ROM, so it tests only the importer's address mapping, not the pack's
-    content against anything independent; `asset_served` is 6087 slots, about
-    48 KB of RAM on a GBA, and every byte read is a binary search (with the
+    content against anything independent; `asset_served` is 7061 slots, about
+    56 KB of RAM on a GBA, and every byte read is a binary search (with the
     last hit kept), where a target wants the slots in ROM or a smaller
     catalogue and accessors that name their resource; and the handler table at
     `$C1:7A6B` (`battle/script_data.h`) is code addresses of the original's,

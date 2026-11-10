@@ -11,6 +11,7 @@
 #include <stdint.h>
 
 #include "menu/vram.h"
+#include "charge.h"
 #include "rom.h"
 #include "state.h"
 
@@ -235,14 +236,6 @@ static inline uint32_t menu_enemy_name(const GameState *g, uint8_t enemy)
 /* Marle's real name, five glyphs ($C2:6146). */
 enum { MENU_MARLE_REAL_NAME = 0xC26146 };
 
-/* The zero the screen's setup fills VRAM with and clears the menus' buffers
- * in work RAM with, a fixed transfer's source ($C2:9510). */
-enum { MENU_CLEARING_ZERO = 0xC29510 };
-
-/* The zero the sprite-object mode's screens clear all of VRAM with
- * ($C2:26D4). */
-enum { MENU_VRAM_CLEARING_ZERO = 0xC226D4 };
-
 /* ---- Text --------------------------------------------------------------------------------- */
 
 /* The menus' strings, and the numbers they show, wherever the caller's
@@ -348,15 +341,17 @@ enum { MENU_ERA_LABELS = 0xFFD396 };
 
 /* An upload of the menus' own, a record in bank C2 laid out as the VRAM
  * queue's entries (menu/vram.h): the VRAM word, the source's address and bank,
- * the size, and a spare byte. `at` is its place in the bank, which the record
+ * and the size. `at` is its place in the bank, which the record
  * wraps in. */
 static inline MenuUpload menu_upload_record(const GameState *g, uint16_t at)
 {
-    uint8_t b[8];
-    for (unsigned i = 0; i < 8; i++)
+    uint8_t b[7];
+    for (unsigned i = 0; i < 7; i++)
         b[i] = rom_read8(g, 0xC20000u | (uint16_t)(at + i));
+    /* The old queue copied an unused eighth byte, sometimes from code. */
+    charge_legacy_rom_accesses((GameState *)g, 1);
     return (MenuUpload){ (uint16_t)(b[0] | b[1] << 8), (uint32_t)b[4] << 16 | (uint16_t)(b[2] | b[3] << 8),
-                         (uint16_t)(b[5] | b[6] << 8), b[7] };
+                         (uint16_t)(b[5] | b[6] << 8), 0 };
 }
 
 /* The main menu ($FF): its window ($BD2E) and the window an option's
@@ -614,7 +609,7 @@ static inline uint16_t menu_cursor_path_zoom_y(const GameState *g, uint16_t at) 
 
 /* The map view's sprites: the cursor's tiles, two runs of 32 bytes, and
  * their sixteen colours with the byte after them. */
-enum { MENU_MAP_VIEW_TILES = 0xC6F500, MENU_MAP_VIEW_MORE_TILES = 0xC6F520, MENU_MAP_VIEW_COLOURS = 0xC6F540 };
+enum { MENU_MAP_VIEW_COLOURS = 0xC6F540 };
 static inline uint8_t menu_map_view_colour_byte(const GameState *g, unsigned i) { return rom_read8(g, MENU_MAP_VIEW_COLOURS + i); }
 
 /* The time dial's seven periods: the location each travels to, in the two
@@ -655,9 +650,14 @@ static inline uint16_t menu_gate_stream_dest(const GameState *g, uint8_t stream)
  * pointer puts it (the dial's own at $C2:7321). */
 static inline uint16_t menu_gate_tile_row(const GameState *g, unsigned row) { return rom_read16(g, 0xC272B8u + 2u * row); }
 enum { MENU_GATE_TILEMAP_ROWS = 0xC27321 };
-/* The original reads a word and keeps its low byte; where the table is
- * pointed at hardware registers, the second byte's read counts too. */
-static inline uint8_t menu_gate_row_pick(const GameState *g, uint32_t at) { return (uint8_t)rom_read16(g, at & 0xFFFFFFu); }
+/* Only the row number is used. Keep the time of the discarded high-byte
+ * read without loading the byte beyond the last row. */
+static inline uint8_t menu_gate_row_pick(const GameState *g, uint32_t at)
+{
+    uint8_t row = rom_read8(g, at & 0xFFFFFFu);
+    charge_legacy_rom_accesses((GameState *)g, 1);
+    return row;
+}
 
 /* The gate's plane: two pixels a byte, a colour in each nibble, the left one
  * in the high nibble ($C6:F700, 1024 bytes). */
@@ -1158,6 +1158,17 @@ static inline uint8_t menu_scene_pattern_tile(const GameState *g, unsigned tile)
 static inline uint8_t menu_scene_scroll_pattern_byte(const GameState *g, unsigned byte)
 {
     return rom_read8(g, 0xC00000u + byte);
+}
+
+/* Menu graphics selected by an upload record, including RAM-built tilemaps. */
+static inline PfData menu_upload_data(uint32_t source, uint32_t bytes) { return rom_data(source, bytes); }
+/* Font tiles, replacement tiles and window designs copied into screen buffers. */
+static inline PfData menu_screen_graphics_data(uint16_t offset, uint32_t bytes) { return rom_data(0xFF0000u | offset, bytes); }
+/* The two tiles marking the Epoch's map view. */
+static inline PfData menu_map_view_tiles(bool second) { return rom_data(second ? 0xC6F520u : 0xC6F500u, 32); }
+static inline uint16_t menu_string_offset(const GameState *g, uint32_t strings, uint8_t string)
+{
+    return rom_read16(g, (strings + 2u * string) & 0xFFFFFFu);
 }
 
 #endif

@@ -10,6 +10,54 @@
 static int failures;
 #define CHECK(c) do { if (!(c)) { fprintf(stderr, "line %d: %s\n", __LINE__, #c); failures++; } } while (0)
 
+static unsigned fallback_reads;
+static uint8_t copied[8];
+static uint8_t unexpected_read(void *ctx, uint32_t at)
+{
+    (void)ctx; (void)at;
+    fallback_reads++;
+    return 0xEE;
+}
+static void copy_byte(void *ctx, uint32_t at, uint8_t value)
+{
+    (void)ctx;
+    copied[at & 7] = value;
+}
+static const uint8_t *split_bytes(uint32_t at)
+{
+    static const uint8_t end = 0x35, start = 0x71;
+    return (uint16_t)at == 0xFFFF ? &end : &start;
+}
+
+static void resource_transfers(void)
+{
+    Platform pf = {0};
+    const uint8_t tiles[] = { 0x12, 0x34, 0x56, 0x78 };
+    vid_host_start(&pf, unexpected_read, copy_byte, NULL);
+    vid_send_vram(&pf, PF_AT(0), 0, (PfData){ .addr = 0xC01000, .ptr = tiles }, 4,
+                  &(VidVramPort){ .step = 1, .after_high = true });
+    vid_send_vram(&pf, PF_AT(0), 2, (PfData){ .addr = 0xC0FFFF, .byte_at = split_bytes }, 2, NULL);
+    vid_send_vram_fill(&pf, PF_AT(0), 3, PF_VALUE(0xA5), 3, NULL);
+    const VidFrame *f = vid_host_picture(&pf);
+    CHECK(f->vram[0] == 0x12 && f->vram[3] == 0x78);
+    CHECK(f->vram[4] == 0x35 && f->vram[5] == 0x71);
+    CHECK(f->vram[6] == 0xA5 && f->vram[7] == 0xA5 && f->vram[8] == 0xA5);
+    VidSnesTransfer transfer = { .dest = VID_SNES_WRAM_DATA, .data = { .ptr = tiles }, .size = 4 };
+    vid_snes_copy(&pf, PF_AT(0), &transfer);
+    CHECK(copied[0] == 0x12 && copied[3] == 0x78);
+    transfer.data = PF_VALUE(0);
+    transfer.repeats = true;
+    vid_snes_copy(&pf, PF_AT(0), &transfer);
+    CHECK(copied[0] == 0 && copied[3] == 0);
+    transfer.repeats = false;
+    transfer.mode_from_data = true;
+    transfer.mode = 0x08;
+    vid_snes_copy(&pf, PF_AT(0), &transfer);
+    CHECK(copied[0] == 0 && copied[3] == 0);
+    CHECK(fallback_reads == 0);
+    vid_host_stop(&pf);
+}
+
 static uint8_t effect_byte(void *ctx, uint32_t at)
 {
     (void)ctx;
@@ -173,6 +221,7 @@ static void changing_picture(void)
 
 int main(void)
 {
+    resource_transfers();
     changing_picture();
     raster_changes();
     handler_uploads(99);

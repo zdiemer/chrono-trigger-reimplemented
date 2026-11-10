@@ -282,4 +282,7 @@ static inline BattleTileRun battle_dissolve_run(const GameState *g, uint8_t layo
  * bytes, by the object's graphics kind ($CE:F156, a word a kind). */
 static inline uint16_t battle_dissolve_bytes(const GameState *g, uint8_t kind) { return rom_read16(g, 0xCEF156u + kind * 2u); }
 
+/* Commands selected by the running battle animation. */
+static inline uint8_t battle_animation_script_byte(const GameState *g, uint32_t at) { return rom_read8(g, at); }
+
 #endif

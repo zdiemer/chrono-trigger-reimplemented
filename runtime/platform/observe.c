@@ -200,7 +200,8 @@ static uint16_t vram_mapped(const VidObserver *ob)
  * a host's own. */
 static uint8_t data_byte(const VidObserver *ob, PfData src, uint32_t i)
 {
-    return src.ptr ? src.ptr[i] : ob->read(ob->ctx, src.addr + i);
+    const uint8_t *byte = pf_data_pointer(src, i);
+    return byte ? *byte : ob->read(ob->ctx, pf_data_address(src, i));
 }
 
 static void vram_put(VidObserver *ob, bool high, uint8_t v)
@@ -541,11 +542,15 @@ void vid_obs_snes_transfer(VidObserver *ob, const VidSnesTransfer *t, uint8_t co
     bool fixed = (control & 0x08) != 0;
     int step = (control & 0x10) ? -1 : 1;
     uint32_t len = t->size ? t->size : 0x10000;
-    uint32_t bank = t->source & 0xFF0000;
-    uint16_t addr = (uint16_t)t->source;
+    uint32_t source = t->data.addr || t->data.byte_at ? t->data.addr : t->source;
+    uint32_t bank = source & 0xFF0000;
+    uint16_t addr = (uint16_t)source;
     for (uint32_t i = 0; i < len; i++) {
         uint8_t reg = (uint8_t)(t->dest + pattern[mode][i % unit_len[mode]]);
-        uint8_t v = ob->read(ob->ctx, bank | addr);
+        uint32_t offset = fixed ? 0 : step > 0 ? i : (uint16_t)(0u - i);
+        const uint8_t *byte = step < 0 && i && t->data.byte_at
+                              ? t->data.byte_at(bank | addr) : pf_data_pointer(t->data, offset);
+        uint8_t v = byte ? *byte : ob->read(ob->ctx, bank | addr);
         if (reg == 0x18 || reg == 0x19)
             vram_put(ob, reg == 0x19, v);
         else if (reg == 0x22)

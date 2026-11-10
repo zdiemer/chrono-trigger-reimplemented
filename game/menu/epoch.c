@@ -1299,8 +1299,8 @@ static bool show_the_map_view_with(GameState *g, Platform *pf, const EpochScreen
     if (!steps->build_map(ctx))
         return false;
 
-    vid_send_vram(pf, PF_AT(0xC26340), 0x6000, PF_GAME(MENU_MAP_VIEW_TILES), 0x0020, &after_high);
-    vid_send_vram(pf, PF_AT(0xC26367), 0x6020, PF_GAME(MENU_MAP_VIEW_MORE_TILES), 0x0020, &after_high);
+    vid_send_vram(pf, PF_AT(0xC26340), 0x6000, menu_map_view_tiles(false), 0x0020, &after_high);
+    vid_send_vram(pf, PF_AT(0xC26367), 0x6020, menu_map_view_tiles(true), 0x0020, &after_high);
     enum { VIEW_COLOURS = 0x100, VIEW_COLOUR_BYTES = 0x21 };
     set_menu_object_palette_byte(g, 0, 0);
     set_menu_object_palette_byte(g, 1, 0);

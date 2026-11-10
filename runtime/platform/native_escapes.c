@@ -46,11 +46,18 @@ void vid_snes_copy(Platform *pf, PfOrigin o, const VidSnesTransfer *t)
         return;
     }
     uint32_t bytes = t->size ? t->size : 0x10000u;
+    uint32_t source_base = t->data.addr || t->data.byte_at ? t->data.addr : t->source;
     if (t->dest == VID_SNES_WRAM_DATA) {
         /* work RAM's port steps through both banks, and wraps round them */
         enum { WORK_RAM = 0x7E0000, WORK_RAM_SPAN = 0x20000 };
         for (uint32_t i = 0; i < bytes; i++) {
-            uint8_t b = v->read(v->ctx, t->repeats ? t->source : (t->source & 0xFF0000u) | (uint16_t)(t->source + i));
+            bool fixed = t->repeats || (t->mode_from_data && (t->mode & 0x08));
+            bool reverse = !fixed && t->mode_from_data && (t->mode & 0x10);
+            uint32_t offset = fixed ? 0 : reverse ? (uint16_t)(0u - i) : i;
+            uint32_t source = (source_base & 0xFF0000u) | (uint16_t)(source_base + offset);
+            const uint8_t *byte = reverse && i && t->data.byte_at
+                                  ? t->data.byte_at(source) : pf_data_pointer(t->data, offset);
+            uint8_t b = byte ? *byte : v->read(v->ctx, source);
             v->write(v->ctx, WORK_RAM + (t->wram_at + i) % WORK_RAM_SPAN, b);
         }
         return;
@@ -61,7 +68,7 @@ void vid_snes_copy(Platform *pf, PfOrigin o, const VidSnesTransfer *t)
     }
     uint8_t product = (uint8_t)(v->multiplicand * v->multiplier);
     for (uint32_t i = 0; i < bytes; i++)
-        v->write(v->ctx, (t->source & 0xFF0000u) | (uint16_t)(t->source + i), product);
+        v->write(v->ctx, (source_base & 0xFF0000u) | (uint16_t)(source_base + i), product);
 }
 
 void vid_snes_transfer(Platform *pf, PfOrigin o, const VidSnesTransfer *t, const VidSnesXfer *x)
