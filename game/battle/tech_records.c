@@ -17,6 +17,7 @@
  * at the end. */
 #include "charge.h"
 #include "battle/effect_parts.h"
+#include "battle/effect_noise.h"
 
 #include "battle/arith.h"
 #include "battle/bridge.h"
@@ -147,6 +148,7 @@ static uint8_t learned_byte(const GameState *g, unsigned triple)
 static void set_up_triple_tech(GameState *g, uint8_t member)
 {
     if (!combatant_in_fight(g, member)) {
+        battle_note_curtain_noise(g, 0);
         charge_machine_accesses(g, 10);
         return;
     }
@@ -156,11 +158,13 @@ static void set_up_triple_tech(GameState *g, uint8_t member)
             continue;
         effect_take_tech_members(g, tech);
         if (members_in_battle(g)) {
+            battle_note_curtain_noise(g, tech);
             (charge_machine_accesses(g, 16), charge_machine_rom_accesses(g, 2));
             fill_triple(g, member, tech);
             return;
         }
     }
+    battle_note_curtain_noise(g, TRIPLE_TECHS_END);
     (charge_machine_accesses(g, 16), charge_machine_rom_accesses(g, 2));
 }
 
@@ -216,6 +220,7 @@ enum { LEARNED_FIRST = 0x80, NO_PARTNER_BYTE = 0xFF };
 void battle_set_up_single_techs(GameState *g, uint8_t member)
 {
     if (!combatant_in_fight(g, member)) {
+        battle_note_curtain_noise(g, 0);
         charge_machine_accesses(g, 6);
         return;
     }
@@ -236,6 +241,7 @@ void battle_set_up_single_techs(GameState *g, uint8_t member)
         record++;
         tech++;
     } while (tech < end);
+    battle_note_curtain_noise(g, end);
     (charge_machine_accesses(g, 12), charge_machine_rom_accesses(g, 2));
 }
 
@@ -284,6 +290,7 @@ static void fill_double(GameState *g, uint8_t member, unsigned record, uint8_t t
 void battle_set_up_double_techs(GameState *g, uint8_t member)
 {
     if (!combatant_in_fight(g, member)) {
+        battle_note_curtain_noise(g, 0);
         charge_machine_accesses(g, 10);
         return;
     }
@@ -299,6 +306,7 @@ void battle_set_up_double_techs(GameState *g, uint8_t member)
         if (++filled == MOST_DOUBLES)
             break;
     }
+    battle_note_curtain_noise(g, tech);
     (charge_machine_accesses(g, 20), charge_machine_rom_accesses(g, 2));
 }
 

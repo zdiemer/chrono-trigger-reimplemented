@@ -4777,6 +4777,21 @@ service and the full former contracts. Line-effect rebuilding asserts its
 state and width contract. Only boot's `field_first_start` compatibility row
 remains for the field.
 
+The three field entries' calibrated rates move to the time tags with the
+battle rates. The music adapters charge their context save, restore and
+return to the callee's scope, as the former wrappers did. Losing those tags
+made the caller absorb the field work and changed the native attract-demo
+outcome fingerprints; the rate regression test keeps all three values explicit.
+
+Battle conditions, tech searches and window slopes also publish live curtain
+noise. Their low scratch word aliases `scene_frame_counter`, which the scene
+random generator reads. In attract-demo, `members_at_most` and `with_status`
+replace the value left by `stat_bits`; deleting those writes changed the next
+curtain and lost a protected strict-mode picture and place. Publishing the
+values as ordinary shared state restores the pre-retirement strict pictures
+and places exactly. The byte setters preserve the other half of the word,
+and retain the callers' existing access charges without adding host time.
+
 Before retirement the 84-movie coverage union left 13,556 bytes in 289
 battle entries outside movie coverage. A fresh replay of 484 recipes ran
 968,000 trials: 779,466 matched, zero mismatched, and 188,534 skipped

@@ -352,9 +352,9 @@ addr = "7E:0008"
 size = 2
 page = "menu"
 subsystem = "menu"
-reuses = ["scene_frame_counter", "menu_scratch"]
-meaning = "The menu objects' last drawing or setup value, stirred into the curtain's random edge through the scene frame-counter alias; live effect state, not comparison scratch"
-source = "game/menu/objects.c, game/menu/map.c, game/menu/sprites.c; read by game/scene/random.c"
+reuses = ["scene_frame_counter", "menu_scratch", "battle_low_scratch"]
+meaning = "The last menu drawing, battle condition, tech search or window slope value, stirred into the curtain's random edge through the scene frame-counter alias; live effect state, not comparison scratch"
+source = "game/menu/objects.c, game/menu/map.c, game/menu/sprites.c, game/battle/effect_noise.h; read by game/scene/random.c"
 
 [[var]]
 name = "scene_sprite_priority_start"

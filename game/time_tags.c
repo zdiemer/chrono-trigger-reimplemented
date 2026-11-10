@@ -17,6 +17,10 @@
 #include "registry.h"
 
 const NativeEntry game_time_tags[] = {
+    /* Field compatibility entries retired with their battle callers. */
+    { .addr = 0xC00005, .name = "field_rebuild_the_line_effects", .cost_milli = 4307, .time_only = true },
+    { .addr = 0xC00008, .name = "field_start_the_battle_song", .cost_milli = 5024, .time_only = true },
+    { .addr = 0xC0000B, .name = "field_bring_the_music_back", .cost_milli = 5056, .time_only = true },
     /* Battle: retain each comparison entry's calibrated work rate. */
     { .addr = 0xC10299, .name = "battle_draw_window", .cost_milli = 10496, .time_only = true },
     { .addr = 0xC12D9F, .name = "battle_step_combatant_animations", .cost_milli = 7837, .time_only = true },

@@ -16,6 +16,13 @@ class NativeTimeRatesTest(unittest.TestCase):
         retired = "    ENTRY(0xC30557, direct, 4057)\n    ENTRY(0xC30002, unpack, 4060)\n"
         self.assertEqual(time_rates.table([registered, retired]), [(0xC30002, 4000), (0xC30557, 4057)])
 
+    def test_field_rates_survive_the_battle_callers_retirement(self):
+        root = Path(__file__).resolve().parents[1]
+        rates = dict(time_rates.table([(root / "game/registry.c").read_text(),
+                                      (root / "game/time_tags.c").read_text()]))
+        self.assertEqual({address: rates.get(address) for address in (0xC00005, 0xC00008, 0xC0000B)},
+                         {0xC00005: 4307, 0xC00008: 5024, 0xC0000B: 5056})
+
     def test_unparsed_rate_fails_instead_of_silently_losing_time(self):
         with self.assertRaises(SystemExit):
             time_rates.check_complete("    ENTRY(0xC30002, unpack, RATE)\n", "bad rate")

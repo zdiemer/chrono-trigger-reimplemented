@@ -5,6 +5,7 @@
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/enemy_scripts.h"
+#include "battle/effect_noise.h"
 #include "battle/entries.h"
 #include "battle/machine_forms.h"
 #include "battle/party_turns.h"
@@ -23,6 +24,14 @@ int main(void)
     static uint8_t rom[0x10000];
     snes_init(&machine, rom, sizeof rom);
     GameState *g = state_of(&machine);
+
+    /* A later curtain reads the frame-counter alias, including the byte a
+     * byte-sized condition leaves alone. */
+    battle_note_curtain_noise(g, 0x1234);
+    battle_note_curtain_noise_low(g, 0x56);
+    CHECK(scene_frame_counter(g) == 0x1256);
+    battle_note_curtain_noise_high(g, 0x78);
+    CHECK(scene_frame_counter(g) == 0x7856);
 
     set_battle_script_actions_place(g, 0x1234);
     ScriptChoosing choice = enemy_choosing(g, 2);

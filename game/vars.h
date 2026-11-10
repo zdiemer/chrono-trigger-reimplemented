@@ -3446,8 +3446,9 @@ void set_menu_scratch_song_steps(GameState *g, uint8_t v);
 uint8_t menu_scratch_song_volume(const GameState *g);
 void set_menu_scratch_song_volume(GameState *g, uint8_t v);
 
-/* The menu objects' last drawing or setup value, stirred into the curtain's random edge through
- * the scene frame-counter alias; live effect state, not comparison scratch */
+/* The last menu drawing, battle condition, tech search or window slope value, stirred into the
+ * curtain's random edge through the scene frame-counter alias; live effect state, not comparison
+ * scratch */
 uint16_t menu_effect_noise(const GameState *g);
 void set_menu_effect_noise(GameState *g, uint16_t v);
 

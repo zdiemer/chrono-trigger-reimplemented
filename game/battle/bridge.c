@@ -42,23 +42,27 @@ bool battle_field_music_on_the_machine(Snes *s, uint32_t site, bool restore)
         m_stop_at(s, routine, 0);
         return false;
     }
+    /* Context translation and the return belonged to the retired callee's
+     * estimate too, not to the battle operation that called it. */
+    int previous_time = charge_time_as_begin(state_of(s), routine);
     m_push8(s, s->cpu.db);
     m_push16(s, s->cpu.d);
     s->cpu.a = FIELD_PAGE;
     s->cpu.d = FIELD_PAGE;
     s->cpu.db = 0;
     if (restore) {
-        TIMED_AS(state_of(s), routine, field_bring_the_music_back(state_of(s), m_platform(s)));
+        field_bring_the_music_back(state_of(s), m_platform(s));
         /* The caller restores its own context after the original's crossed
          * pulls; preserve that continuation for the legacy driver. */
         s->cpu.db = m_pull8(s);
         s->cpu.d = m_pull16(s);
     } else {
-        TIMED_AS(state_of(s), routine, field_start_the_battle_song(state_of(s), m_platform(s)));
+        field_start_the_battle_song(state_of(s), m_platform(s));
         s->cpu.d = m_pull16(s);
         s->cpu.db = m_pull8(s);
     }
     m_rtl(s);
+    charge_time_as_end(state_of(s), previous_time);
     return true;
 }
 

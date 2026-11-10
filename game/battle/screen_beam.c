@@ -10,6 +10,7 @@
  * corner, its column moving by a fixed amount each line. */
 #include "charge.h"
 #include "battle/screen_script.h"
+#include "battle/effect_noise.h"
 
 #include "battle/bridge.h"
 #include "battle/screen_lines.h"
@@ -141,6 +142,8 @@ static void rasterize(GameState *g, Window w, const Corner sorted[CORNERS])
     Slope slopes[EDGES];
     WindowSides q = sides_of(c, slopes);
     SidesDrawn drawn = draw_window_sides(g, w, &q);
+    battle_note_curtain_noise(g, (uint16_t)((uint8_t)(slopes[TOP_TO_SECOND] >> 8)
+                                          | (uint16_t)(uint8_t)slopes[SECOND_TO_BOTTOM] << 8));
     (charge_machine_accesses(g, 2 * CORNERS + 2 * EDGES + 9 + (q.stretches == 1 ? 1 : 0) + (q.stretches > 1 ? 2 : 0)), charge_machine_io_accesses(g, 6 + (drawn.lines ? 1 : 0)));
 }
 

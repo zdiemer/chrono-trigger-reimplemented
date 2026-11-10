@@ -21,6 +21,7 @@
 #include "battle/enemy_scripts.h"
 
 #include "battle/battle.h"
+#include "battle/effect_noise.h"
 #include "battle/bridge.h"
 #include "battle/combatant.h"
 #include "battle/entries.h"
@@ -125,6 +126,7 @@ static ConditionResult with_status(GameState *g, const ScriptChoosing *c, uint8_
     charge_machine_accesses(g, 1);
     charge_machine_accesses(g, 2);
     charge_machine_accesses(g, 2);
+    battle_note_curtain_noise_low(g, side);
     charge_machine_accesses(g, 1);
     return marked == 0 ? fails() : for_target(take_marked(g, marked), CONDITION_FAILS);
 }
@@ -144,6 +146,7 @@ static ConditionResult is_enemy(GameState *g, const ScriptChoosing *c, Selector 
             mark(g, place);
         }
     charge_machine_accesses(g, 2);
+    battle_note_curtain_noise_low(g, id);
     charge_machine_accesses(g, 1);
     return marked == 0 ? fails() : for_target(take_marked(g, marked), CONDITION_FAILS);
 }
@@ -263,6 +266,7 @@ static ConditionResult stat_bits(GameState *g, const ScriptChoosing *c, Selector
         return nobody_picked();
     uint8_t stat = combatant_stat_byte_by_wide_place(g, candidate(g, 0), offset);
     battle_keep_stat_offset_word(g, offset);
+    battle_note_curtain_noise_low(g, stat);
     charge_machine_accesses(g, 1);
     return holds_if((bits & stat) != 0);
 }
@@ -277,6 +281,7 @@ static ConditionResult is_party_member(GameState *g, const ScriptChoosing *c, Se
     uint8_t count = select_by(g, c, who);
     if (count == 0)
         return nobody_picked();
+    battle_note_curtain_noise_low(g, whatever_state);
     charge_machine_accesses(g, 1);
     charge_machine_accesses(g, 1);
     uint8_t member = 0;
@@ -307,8 +312,10 @@ static ConditionResult three_on_out(GameState *g, const ScriptChoosing *c, Selec
 static ConditionResult turn_wait(GameState *g, const ScriptChoosing *c, Selector who, uint8_t limit, uint8_t at_least)
 {
     select_by(g, c, who);
+    battle_note_curtain_noise_low(g, limit);
     charge_machine_accesses(g, 1);
     uint8_t wait = combatant_turn_wait(g, candidate(g, 0));
+    battle_note_curtain_noise_high(g, 0);
     charge_machine_accesses(g, 1);
     return holds_if(at_least == 0 ? wait < limit : wait >= limit);
 }
@@ -435,6 +442,7 @@ static ConditionResult stands_in(GameState *g, const ScriptChoosing *c, uint8_t 
 static ConditionResult enemy_present(GameState *g, const ScriptChoosing *c, uint8_t id, uint8_t absent)
 {
     (void)c;
+    battle_note_curtain_noise_low(g, id);
     charge_machine_accesses(g, 1);
     charge_machine_accesses(g, 1);
     bool present = false;
@@ -452,6 +460,7 @@ static ConditionResult enemy_present(GameState *g, const ScriptChoosing *c, uint
 static ConditionResult other_kind_present(GameState *g, const ScriptChoosing *c, uint8_t id, uint8_t not_itself,
                                           uint8_t holds_then)
 {
+    battle_note_curtain_noise_low(g, id);
     charge_machine_accesses(g, 1);
     charge_machine_accesses(g, 1);
     charge_machine_accesses(g, 1);
@@ -477,6 +486,7 @@ static ConditionResult enemies_at_most(GameState *g, const ScriptChoosing *c, ui
     for (uint8_t enemy = 0; enemy < BATTLE_ENEMIES; enemy++)
         if (combatant_in_fight(g, (uint8_t)(BATTLE_FIRST_ENEMY + enemy)) && battle_enemy_standing(g, enemy) == 0)
             counted++;
+    battle_note_curtain_noise_low(g, most);
     charge_machine_accesses(g, 1);
     battle_keep_stat_offset_word(g, counted);
     return holds_if(most >= counted);
@@ -488,6 +498,7 @@ static ConditionResult members_at_most(GameState *g, const ScriptChoosing *c, ui
 {
     (void)c;
     uint8_t limit = (uint8_t)(most + 1), fighting = 0;
+    battle_note_curtain_noise_low(g, limit);
     charge_machine_accesses(g, 1);
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         if (combatant_in_fight(g, member))
@@ -500,7 +511,9 @@ static ConditionResult members_at_most(GameState *g, const ScriptChoosing *c, ui
 static ConditionResult frames_at_least(GameState *g, const ScriptChoosing *c, uint32_t least)
 {
     (void)c;
+    battle_note_curtain_noise_low(g, (uint8_t)least);
     charge_machine_accesses(g, 1);
+    battle_note_curtain_noise_high(g, (uint8_t)(least >> 8));
     charge_machine_accesses(g, 1);
     charge_machine_accesses(g, 1);
     return holds_if((battle_frames(g) & 0xFFFFFF) >= least);
@@ -514,6 +527,7 @@ enum { COUNT_AT_MOST = 1 };
 static ConditionResult count_compared(GameState *g, const ScriptChoosing *c, uint8_t number, uint8_t how)
 {
     uint8_t count = battle_enemy_script_counter(g, c->enemy);
+    battle_note_curtain_noise_low(g, number);
     charge_machine_accesses(g, 1);
     charge_machine_accesses(g, 1);
     return holds_if(how == COUNT_AT_MOST ? count <= number : count >= number);
