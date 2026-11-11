@@ -9,11 +9,11 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
-- **Remaining machine hand-offs and held loops.** After the console's
-  vector-to-stub and boot chain become C calls, the sampled census still
+- **Remaining machine hand-offs and held loops.** The sampled census still
   enters the field's first start from `field_game_over_fades`. Convert the
   remaining callers subsystem by subsystem under their complete contracts.
-  Held continuations still need saveable C loops: preserve task switching,
+  The scene, overworld, field, menu and battle held continuations still need
+  saveable C loops: preserve task switching,
   the caller's return frame, cartridge saves and fresh-runtime mid-wait
   reloads before replacing a wait. Keep the entry wrappers and registry
   until the native route checks permit their removal (PLAN.md, Phase 4a).

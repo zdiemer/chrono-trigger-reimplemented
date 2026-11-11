@@ -435,22 +435,41 @@ static void end_the_trip_on_the_machine(Snes *s)
         NATIVE_TIME_AS_SIBLING(s, FIELD_STARTS, field_enter(s));
 }
 
+/* Poll under the idle continuation's contract (M8, native mode, warp page,
+ * I/O bank and unchanged zero). A refused idle or a completed frame wakes
+ * the loop, which checks the frame continuation's stronger contract. */
+static bool frame_wait_ends_on_the_machine(Snes *s)
+{
+    return s->cpu.e || !m_m8(s) || !warp_frame_not_taken(s);
+}
+
 // $FD:EAED (the main loop's wait, the frame taken), $FD:DA06, $FD:DA65, $FD:DAC4, $FD:DB27 (each kind's frame)
-/* The vblank handler has taken the frame: the wait takes its mark and returns
- * to the kind's loop, which makes the next frame and waits again, or after the
- * last ends the trip. The held wait's continuation. */
+/* The trip runs as a C loop. Each wait retains the return identifying the
+ * kind, so a saved wait can enter this same loop in a fresh runtime. Nothing
+ * after the wait depends on a local from the preceding frame. */
 void warp_next_frame(Snes *s)
 {
     GameState *g = state_of(s);
-    set_warp_frame_ended(g, 0);
-    m_rts(s);
-    const WarpKind *k = &kinds[kind_going_on_at(cpu_pc24(&s->cpu))];
-    bool goes_on = false;
-    TIMED_AS(g, k->frame_entry, goes_on = make_a_frame(g, m_platform(s), k));
-    if (goes_on)
+    for (;;) {
+        /* The retained row requires M8/X16 but does not constrain decimal
+         * mode. Its guard includes the page, bank, zero and return frame. */
+        if (s->cpu.e || !m_m8(s) || m_x8(s) || !warp_frame_taken(s)) {
+            m_stop_at_own(s, FRAME_WAIT_LOOP, 0);
+            return;
+        }
+        set_warp_frame_ended(g, 0);
+        m_rts(s);
+        const WarpKind *k = &kinds[kind_going_on_at(cpu_pc24(&s->cpu))];
+        bool goes_on = false;
+        TIMED_AS(g, k->frame_entry, goes_on = make_a_frame(g, m_platform(s), k));
+        if (!goes_on) {
+            end_the_trip_on_the_machine(s);
+            return;
+        }
         wait_for_the_frame_taken_on_the_machine(s, k);
-    else
-        end_the_trip_on_the_machine(s);
+        if (!native_poll_held(s, HOLD_WARP_FRAME, FRAME_WAIT_LOOP, frame_wait_ends_on_the_machine))
+            return;
+    }
 }
 
 // $FD:EAED

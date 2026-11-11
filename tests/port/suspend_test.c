@@ -57,6 +57,7 @@
 #include "menu/menu.h"
 #include "core/input.h"
 #include "core/console.h"
+#include "warp/warp.h"
 #include "core/machine_forms.h"
 #include "menu/bridge.h"
 #include "menu/object.h"
@@ -877,7 +878,15 @@ static void other_stack_caller(Snes *s)
     m_stop_at(s, 0x008200, DC_A | DC_FLAGS);
 }
 
-static void other_stack_hold_case(void)
+static bool other_stack_ready(Snes *s) { return snes_bus_peek(&s->bus, FRAME_FLAG) != 0; }
+
+static void other_stack_poll(Snes *s)
+{
+    if (native_poll_held(s, HOLD_TEST_LOOP, MAIN_LOOP_HEAD, other_stack_ready))
+        other_stack_look(s);
+}
+
+static void other_stack_hold_case(bool polling)
 {
     static const Code code[] = {
         { 0x8000, { 0x78, 0x18, 0xFB, 0xC2, 0x10, 0xE2, 0x20, 0xA2, 0xFF, 0x03, 0x9A,
@@ -887,8 +896,8 @@ static void other_stack_hold_case(void)
     const NativeEntry table[] = {
         { .addr = 0x008200, .name = "caller", .fn = other_stack_caller, .cost_milli = 1000 },
         { .addr = 0x008300, .name = "other_stack", .fn = other_stack_wait, .cost_milli = 1000 },
-        { .addr = MAIN_LOOP_HEAD, .name = "other_stack_wait", .fn = other_stack_look,
-          .idle = true, .hold = HOLD_TEST_LOOP },
+        { .addr = MAIN_LOOP_HEAD, .name = "other_stack_wait", .fn = polling ? other_stack_poll : other_stack_look,
+          .idle = !polling, .cost_milli = 1000, .hold = HOLD_TEST_LOOP },
         { .addr = 0x008180, .name = "fresh_loop", .fn = other_stack_fresh_loop,
           .idle = true, .hold = HOLD_TEST_LOOP },
     };
@@ -1177,6 +1186,130 @@ static void menu_script_contract_case(void)
     free(rom);
 }
 
+/* A C loop waits at a restart point whose entire caller frame is on the
+ * machine. Compare its pace with the former held continuations, and reload
+ * both old and new states into fresh runtimes. */
+static bool checkpoint_enabled;
+static unsigned checkpoint_entries;
+
+static bool checkpoint_ready(Snes *s) { return snes_bus_peek(&s->bus, FRAME_FLAG) != 0; }
+static bool checkpoint_idle(Snes *s) { return !checkpoint_ready(s); }
+static void checkpoint_waits(Snes *s) { (void)s; }
+
+static void checkpoint_start(Snes *s)
+{
+    m_push16(s, 0x8321);
+    hold_start(s);
+}
+
+static void checkpoint_frame(Snes *s)
+{
+    checkpoint_entries++;
+    CHECK(!native_poll_held(s, HOLD_TEST_LOOP + 1, MAIN_LOOP_HEAD, checkpoint_ready),
+          "a C loop accepted another wait's restart point");
+    CHECK(!native_poll_held(s, HOLD_TEST_LOOP, MAIN_LOOP_HEAD + 1, checkpoint_ready),
+          "a C loop accepted another entry's restart point");
+    do {
+        m_write8(s, FRAMES_DONE, (uint8_t)(m_read8(s, FRAMES_DONE) + 1));
+        m_write8(s, FRAME_FLAG, 0);
+        m_hold_at(s, MAIN_LOOP_HEAD, DC_A | DC_FLAGS, HOLD_TEST_LOOP);
+    } while (checkpoint_enabled && native_poll_held(s, HOLD_TEST_LOOP, MAIN_LOOP_HEAD, checkpoint_ready));
+}
+
+static NativeRuntime *checkpoint_runtime(Snes *s)
+{
+    static const NativeEntry table[] = {
+        { .addr = 0x008100, .name = "checkpoint_start", .fn = checkpoint_start, .cost_milli = 1000 },
+        { .addr = MAIN_LOOP_HEAD, .name = "checkpoint_frame", .fn = checkpoint_frame, .cost_milli = 1000,
+          .hold = HOLD_TEST_LOOP, .guard = checkpoint_ready },
+        { .addr = MAIN_LOOP_HEAD, .name = "checkpoint_idle", .fn = checkpoint_waits, .idle = true,
+          .hold = HOLD_TEST_LOOP, .guard = checkpoint_idle },
+    };
+    NativeRuntime *rt = native_create(table, sizeof table / sizeof table[0], NATIVE_ON);
+    native_attach(rt, s);
+    return rt;
+}
+
+static void checkpoint_case(void)
+{
+    uint8_t *rom = make_rom(hold_code, sizeof hold_code / sizeof hold_code[0], 0x8600);
+    Snes *old = machine(rom);
+    NativeRuntime *original = checkpoint_runtime(old);
+    checkpoint_enabled = false;
+    checkpoint_entries = 0;
+    run_frames(old, 20);
+    CHECK(checkpoint_entries >= 18, "the original held continuations did not run");
+    size_t old_len;
+    uint8_t *old_state = snes_state_write(old, &old_len);
+    run_frames(old, 30);
+
+    Snes *s = machine(rom);
+    NativeRuntime *rt = checkpoint_runtime(s);
+    checkpoint_enabled = true;
+    checkpoint_entries = 0;
+    CHECK(suspended_frame_ends(s, rt, 20) == 0, "a C loop's checkpoint was not saveable");
+    CHECK(checkpoint_entries == 1, "a C loop restarted %u times", checkpoint_entries);
+    CHECK(s->cpu.s == 0x01FD && snes_bus_peek(&s->bus, 0x01FE) == 0x21 &&
+          snes_bus_peek(&s->bus, 0x01FF) == 0x83, "a C loop lost its saved caller frame");
+    size_t len;
+    uint8_t *state = snes_state_write(s, &len);
+    run_frames(s, 30);
+    CHECK(!memcmp(s->bus.wram, old->bus.wram, sizeof s->bus.wram) && s->master == old->master &&
+          !memcmp(&s->cpu, &old->cpu, offsetof(Cpu, bus)), "the C loop changed the held loop's pace or state");
+    for (unsigned kind = 0; kind < 3; kind++) {
+        Snes *copy = machine(rom);
+        char err[200] = "";
+        CHECK(snes_state_read(copy, kind == 2 ? old_state : state, kind == 2 ? old_len : len,
+                              err, sizeof err) == 0, "checkpoint load: %s", err);
+        if (kind == 1)
+            copy->held_wait = 0;
+        NativeRuntime *fresh = checkpoint_runtime(copy);
+        run_frames(copy, 30);
+        CHECK(!native_suspended(fresh) && !memcmp(s->bus.wram, copy->bus.wram, sizeof s->bus.wram) &&
+              s->master == copy->master && !memcmp(&s->cpu, &copy->cpu, offsetof(Cpu, bus)),
+              "checkpoint reload %u changed the caller, state or pace", kind);
+        native_destroy(fresh);
+        free(copy);
+    }
+    native_destroy(rt);
+    native_destroy(original);
+    free(state);
+    free(old_state);
+    free(s);
+    free(old);
+    free(rom);
+}
+
+static void warp_loop_contract_case(void)
+{
+    uint8_t *rom = make_rom(NULL, 0, 0x8600);
+    for (unsigned invalid = 0; invalid < 7; invalid++) {
+        Snes *s = machine(rom);
+        s->cpu.e = false;
+        s->cpu.p = CPU_FLAG_M;
+        s->cpu.d = 0x0500;
+        s->cpu.db = 0;
+        s->cpu.pb = 0xFD;
+        s->cpu.pc = 0xEAED;
+        s->cpu.s = A_TOP;
+        m_push16(s, invalid == 6 ? 0xFFFF : 0xDA05);
+        set_warp_zero(state_of(s), invalid == 5 ? 1 : 0);
+        set_warp_frame_ended(state_of(s), 1);
+        if (invalid == 0) s->cpu.e = true;
+        if (invalid == 1) s->cpu.p = 0;
+        if (invalid == 2) s->cpu.p |= CPU_FLAG_X;
+        if (invalid == 3) s->cpu.d = 0;
+        if (invalid == 4) s->cpu.db = 0x40;
+        warp_next_frame(s);
+        CHECK(cpu_pc24(&s->cpu) == 0xFDEAED && s->cpu.s == A_TOP - 2 &&
+              warp_frame_ended(state_of(s)) == 1,
+              "warp loop refusal %u consumed its frame or return", invalid);
+        free(s);
+    }
+    free(rom);
+}
+
+
 /* The console's direct vector calls retain the stubs' complete contracts.
  * A bare return is enough to test every status byte without game assets;
  * invalid stubs and emulation mode must leave the interrupt frame intact. */
@@ -1236,6 +1369,8 @@ static void console_call_case(void)
 int main(void)
 {
     console_call_case();
+    checkpoint_case();
+    warp_loop_contract_case();
     menu_contract_case();
     menu_script_contract_case();
     menu_world_case();
@@ -1265,7 +1400,8 @@ int main(void)
     repeated_wait_case();
     named_hold_case();
     returning_hold_case();
-    other_stack_hold_case();
+    other_stack_hold_case(false);
+    other_stack_hold_case(true);
     empty_boundary_case();
     scene_wait_case();
     if (failures)

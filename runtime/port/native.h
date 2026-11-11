@@ -552,10 +552,10 @@ const NativeEntry *native_continuation_entry_at(Snes *s, uint32_t pc);
 /* The same for a call the machine would make to `addr` (24-bit) now. */
 const NativeEntry *native_hand_entry_at(Snes *s, uint32_t addr);
 
-/* Number of registered routines entered and not yet left (suspended in
- * call-outs, parked in a yield to another task, or awaiting shadow
- * comparison). Save states taken while this is nonzero can't restore those
- * routines. */
+/* Number of entered routines a save state cannot restore: suspended in
+ * call-outs, parked in another task or awaiting shadow comparison. A C loop
+ * at its own restartable checkpoint (native_poll_held) is excluded, but its
+ * enclosing callers are still counted. */
 int native_suspended(const NativeRuntime *rt);
 /* Of those, the ones parked in a yield (native_yield_call_dc). */
 int native_parked(const NativeRuntime *rt);
@@ -765,6 +765,19 @@ bool native_wait_loop_held(Snes *s, uint32_t head, uint32_t exit, int32_t wake, 
  * suspended allows -- names it too. Nothing in the other modes, where the
  * stop is an ordinary stop. A port calls it through m_hold_at. */
 void native_hold(Snes *s, uint8_t wait);
+/* A C loop's restartable wait, in shipping mode only. The running entry must
+ * be the continuation at head for wait, with no timing scope left open.
+ * Everything used after waking must be recoverable from saved game/machine
+ * state by reentering that continuation; no local or enclosing C frame may
+ * be needed. The caller retains its machine return frame at head.
+ *
+ * ready is a read-only predicate, also true when a contract no longer holds;
+ * the loop checks its full continuation contract again after waking. While
+ * waiting, this frame alone is saveable. Other suspended/parked callers still
+ * prevent an exact save. A fresh runtime uses the existing held aliases to
+ * resume, including states saved before this C loop existed.
+ * False outside this root continuation: leave the existing hold and return. */
+bool native_poll_held(Snes *s, uint8_t wait, uint32_t head, bool (*ready)(Snes *));
 /* After a return, hold only if the caller resumes at a continuation of
  * this wait. The runtime owns that boundary lookup; the callee need not
  * identify a particular caller by its machine address. */

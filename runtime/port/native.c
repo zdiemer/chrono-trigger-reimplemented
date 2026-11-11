@@ -88,6 +88,9 @@ typedef struct Job {
     uint32_t wait_given_up;
     uint32_t wait_polling, wait_pass_clocks;
     bool wait_answered;
+    /* A restartable C loop polling at its saved held boundary. No callback
+     * pointer enters a save state; the hold's existing entry reconstructs it. */
+    bool (*held_poll)(Snes *);
     uint16_t stop_dont_care;   /* set by native_dont_care_at_stop */
     uint32_t stop_at;          /* ...with where it applies (0: not called) */
     bool stop_own;             /* ...and whether it is the stop's own (native_own_dont_care_at_stop) */
@@ -748,7 +751,22 @@ void native_destroy(NativeRuntime *rt)
     free(rt);
 }
 
-int native_suspended(const NativeRuntime *rt) { return rt->nactive + rt->nparked; }
+int native_suspended(const NativeRuntime *rt)
+{
+    int count = rt->nactive + rt->nparked;
+    if (rt->mode != NATIVE_ON)
+        return count;
+    for (int i = 0; i < rt->nactive; i++) {
+        const Active *a = &rt->active[i];
+        if (a->phase != PH_WAIT || !a->job || !a->job->held_poll)
+            continue;
+        const Snes *s = a->job->m;
+        if (s->held_wait == a->entry->hold && s->held_wait_s == a->sync_s &&
+            s->cpu.s == a->sync_s && cpu_pc24(&s->cpu) == a->sync_pc)
+            count--;
+    }
+    return count;
+}
 int native_parked(const NativeRuntime *rt) { return rt->nparked; }
 
 uint64_t native_owed(const NativeRuntime *rt)
@@ -2094,10 +2112,11 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
          * passes a step at a time, as the original's loop would pass it. */
         if (pc != a->sync_pc || s->cpu.s != a->sync_s || interrupt_deliverable(s))
             return false;
-        bool over = wait_over(a, s);
+        bool over = a->job->held_poll ? a->job->held_poll(s) : wait_over(a, s);
         a->job->wait_answered = over;
         if (!over && (!a->pass_clocks || a->polling_left)) {
-            uint32_t step = until_interrupt(s, wait_step(a, s));
+            uint32_t step = until_interrupt(s, a->job->held_poll ? snes_clocks_to_next_poll_change(s)
+                                                                : wait_step(a, s));
             if (a->pass_clocks)
                 a->polling_left -= step < a->polling_left ? step : a->polling_left;
             *result = (int32_t)step;
@@ -3763,6 +3782,22 @@ void native_hold(Snes *s, uint8_t wait)
         return;
     s->held_wait = wait;
     s->held_wait_s = s->cpu.s;
+}
+
+bool native_poll_held(Snes *s, uint8_t wait, uint32_t head, bool (*ready)(Snes *))
+{
+    Job *j = current_job;
+    if (!native_runs_retired_as_c(s) || !ready || !wait || j->entry->hold != wait ||
+        j->entry->addr != head || j->depth)
+        return false;
+    s->cpu.pb = (uint8_t)(head >> 16);
+    s->cpu.pc = (uint16_t)head;
+    native_hold(s, wait);
+    j->held_poll = ready;
+    (void)wait_in_the_loop(j, head, head, 0, NATIVE_WAKE_HANDLER, 0, 0, 0);
+    j->held_poll = NULL;
+    s->held_wait = 0;
+    return true;
 }
 
 void native_hold_return(Snes *s, uint8_t wait)
