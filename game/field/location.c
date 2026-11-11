@@ -193,6 +193,7 @@ static LocationDescription find_the_record(GameState *g)
 {
     uint16_t location = location_id(g);
     set_location_record_offset(g, location_record_place(location));
+    charge_machine_io_accesses(g, 4); /* the former record-index multiplication */
     return location_description_at(g, location_record_offset(g));
 }
 
@@ -238,12 +239,14 @@ static void load_tile_graphics(GameState *g, Platform *pf)
     uint8_t set = the_record(g).tile_set;
     if (set == NO_TILE_SET)
         return;
+    bool loaded = false;
     for (unsigned n = 0; n < TILE_SET_BLOCKS; n++) {
         uint8_t block = tile_set_block(g, set, n);
         if (n < TILE_SET_BLOCKS_IN_VRAM && block == NO_GRAPHICS_BLOCK)
             field_describe_transfer(g, vram_block_transfer(n));
         if (block == NO_GRAPHICS_BLOCK)
             continue;
+        loaded = true;
         if (n < TILE_SET_BLOCKS_IN_VRAM) {
             unpack(g, graphics_block_address(g, block), UNPACKED_TILES);
             TIMED_AS(g, FIELD_VRAM_TRANSFER_ENTRY, field_send_transfer(g, pf, vram_block_transfer(n)));
@@ -251,6 +254,8 @@ static void load_tile_graphics(GameState *g, Platform *pf)
             unpack(g, graphics_block_address(g, block), kept_blocks[n - TILE_SET_BLOCKS_IN_VRAM]);
         }
     }
+    charge_machine_accesses(g, 3 + (loaded ? 2 : 0)); /* list cursor and last block */
+    charge_machine_io_accesses(g, 4); /* the former list-index multiplication */
 }
 
 // $C0:6DCF
@@ -267,6 +272,7 @@ static void load_bg3_graphics(GameState *g, Platform *pf)
     FieldTransfer t = { .vram = BG3_VRAM_TILES, .mode = TRANSFER_WORDS, .source = BG3_UNPACKED_TILES,
                         .size = BLOCK_TILES };
     TIMED_AS(g, FIELD_VRAM_TRANSFER_ENTRY, field_send_transfer(g, pf, t));
+    charge_machine_accesses(g, 2); /* the last graphics block */
 }
 
 // $C0:09DD
@@ -276,6 +282,7 @@ void field_load_tile_looks(GameState *g)
     uint8_t set = the_record(g).tile_set;
     if (set == NO_TILE_SET)
         return;
+    charge_machine_accesses(g, 2); /* the selected tile set */
     unpack(g, tile_looks_address(g, set), TILE_LOOKS);
 }
 
@@ -286,6 +293,7 @@ void field_load_bg3_tile_looks(GameState *g)
     uint8_t set = the_record(g).bg3_tile_set;
     if (field_map_has_no_bg3_set(g) != 0 || set == NO_TILE_SET)
         return;
+    charge_machine_accesses(g, 2); /* the selected BG3 tile set */
     unpack(g, bg3_tile_looks_address(g, set), BG3_TILE_LOOKS);
 }
 
@@ -387,6 +395,7 @@ enum { FIRST_ROW = 1, ROW_COLOURS = 16, FIRST_ROW_COLOUR = 1, LOCATION_PALETTE_B
 void field_load_location_palette(GameState *g)
 {
     uint8_t palette = location_palette(g, location_record_offset(g));
+    charge_machine_io_accesses(g, 4); /* the former palette-index multiplication */
     uint32_t mark = 0;
     mark = charge_uncounted_begin(g);
     for (unsigned row = 0; row < LOCATION_PALETTE_ROWS; row++)
@@ -472,6 +481,7 @@ static uint16_t the_locations_script(const GameState *g) { return location_scrip
 bool field_load_the_script(GameState *g)
 {
     uint16_t script = the_locations_script(g);
+    charge_machine_accesses(g, 2); /* the selected script */
     unpack(g, field_packed_script(g, script), SCRIPT_BUFFER);
     // $C0:5CC7
     if (script_validity(g) != SCRIPT_VALID) {

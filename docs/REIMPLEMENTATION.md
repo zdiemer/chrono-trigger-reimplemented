@@ -3668,6 +3668,16 @@ matches the pre-retirement field state after restoring the charge. Full
 strict Flea and Slash replays also pass their existing outcome ratchets. The
 native program never made the removed write and keeps its existing time.
 
+Location loading also retains the machine-only work of the deleted tile
+set/list selections, record and palette products, map dimensions, exit
+extent, and attribute-run summary. These were removed in `dd2ba214`
+without replacement charges. Black Tyrano's first load lost about 26,000
+estimated master clocks and began its fade one frame early. The explicit
+access counts use each operation's retained rate and restore no temporary
+values. Full strict Heckran, Magus at North Cape and unequipped-armor
+outcome artifacts now match `54099ed8`, before field retirement; the
+calibration-era differences from the reference remain ledger work.
+
 For example, a tile run formerly wrote three temporary words and the
 three-byte upload cursor. Its estimate now counts six RAM and three I/O
 accesses. The walk records which kinds of work it performed, counting a
