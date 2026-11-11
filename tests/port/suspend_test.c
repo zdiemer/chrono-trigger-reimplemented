@@ -56,6 +56,7 @@
 
 #include "menu/menu.h"
 #include "core/input.h"
+#include "core/console.h"
 #include "core/machine_forms.h"
 #include "menu/bridge.h"
 #include "menu/object.h"
@@ -1176,8 +1177,65 @@ static void menu_script_contract_case(void)
     free(rom);
 }
 
+/* The console's direct vector calls retain the stubs' complete contracts.
+ * A bare return is enough to test every status byte without game assets;
+ * invalid stubs and emulation mode must leave the interrupt frame intact. */
+static void console_call_probe(Snes *s)
+{
+    for (unsigned line = 0; line < 2; line++) {
+        for (unsigned status = 0; status < 256; status++) {
+            for (unsigned rejected = 0; rejected < 3; rejected++) {
+                s->cpu.e = false;
+                s->cpu.p = (uint8_t)status;
+                s->cpu.s = A_TOP;
+                s->cpu.d = 0x1234;
+                s->cpu.db = 0x40;
+                set_nmi_vector(state_of(s), rejected == 1 ? 0 : 0x40);
+                set_irq_vector(state_of(s), rejected == 1 ? 0 : 0x40);
+                m_push8(s, 0xC0);
+                m_push16(s, 0x9000);
+                m_push8(s, (uint8_t)status);
+                s->cpu.e = rejected == 2;
+                if (line)
+                    console_line_vector(s);
+                else
+                    console_vblank_vector(s);
+                CHECK(cpu_pc24(&s->cpu) == (rejected ? (line ? 0x000504u : 0x000500u) : 0xC09000u),
+                      "console vector %u status %u refusal %u lost its destination", line, status, rejected);
+                CHECK(s->cpu.s == A_TOP - (rejected ? 4 : 0) && s->cpu.p == status &&
+                      s->cpu.d == 0x1234 && s->cpu.db == 0x40,
+                      "console vector %u status %u refusal %u changed its caller", line, status, rejected);
+            }
+        }
+    }
+    s->cpu.e = false;
+    s->cpu.stopped = true;
+}
+
+static void console_call_case(void)
+{
+    uint8_t *rom = make_rom(NULL, 0, 0x8600);
+    Snes *s = machine(rom);
+    static const NativeEntry entries[] = {
+        { .addr = 0x008000, .name = "console_call_probe", .fn = console_call_probe, .cost_milli = 1000 },
+        { .addr = 0x000500, .name = "console_vblank_stub", .fn = console_vblank_stub, .cost_milli = 1000,
+          .guard = console_vblank_stub_is_set },
+        { .addr = 0x000504, .name = "console_line_stub", .fn = console_line_stub, .cost_milli = 1000,
+          .guard = console_line_stub_is_set },
+    };
+    s->cpu.e = false;
+    NativeRuntime *rt = native_create(entries, sizeof entries / sizeof entries[0], NATIVE_ON);
+    native_attach(rt, s);
+    run_frames(s, 5);
+    CHECK(s->cpu.stopped, "console call contract probe did not finish");
+    native_destroy(rt);
+    free(s);
+    free(rom);
+}
+
 int main(void)
 {
+    console_call_case();
     menu_contract_case();
     menu_script_contract_case();
     menu_world_case();

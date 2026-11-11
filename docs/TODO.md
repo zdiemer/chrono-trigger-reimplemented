@@ -9,6 +9,14 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
+- **Remaining machine hand-offs and held loops.** After the console's
+  vector-to-stub and boot chain become C calls, the sampled census still
+  enters the field's first start from `field_game_over_fades`. Convert the
+  remaining callers subsystem by subsystem under their complete contracts.
+  Held continuations still need saveable C loops: preserve task switching,
+  the caller's return frame, cartridge saves and fresh-runtime mid-wait
+  reloads before replacing a wait. Keep the entry wrappers and registry
+  until the native route checks permit their removal (PLAN.md, Phase 4a).
 - **Out-of-contract script states.** The event loops at `$C0:58ED`, `$C0:5967`, `$C0:5990` and
   `$C0:5AA3` already run as C for valid scripts; their hand-backs preserve
   out-of-buffer script positions, changed data banks and object state the

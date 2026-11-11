@@ -23,6 +23,7 @@
 #include "battle/program.h"
 #include "core/program.h"
 #include "field/field.h"
+#include "field/main_loop.h"
 #include "field/display.h"
 #include "menu/display.h"
 #include "menu/machine_forms.h"
@@ -39,6 +40,25 @@ enum {
     LINE_STUB = 0x000504,
 };
 
+/* The boot and interrupt stubs are tail calls. Keep the dispatch boundary
+ * before checking the callee: a pending interrupt may run there, even when
+ * the vector itself did no bus work. These entries impose no page, bank or
+ * code-image condition beyond their explicit guard. Shadow mode still stops
+ * so each retained entry owns its comparison. */
+static void continue_at(Snes *s, uint32_t at, uint16_t dont_care, NativeFn run,
+                        uint8_t mask, uint8_t value, bool (*guard)(Snes *))
+{
+    m_jump_to(s, at);
+    if (m_runs_retired_as_c(s)) {
+        native_sync_boundary(s);
+        if (!s->cpu.e && (s->cpu.p & mask) == value && (!guard || guard(s))) {
+            TIMED_AS(state_of(s), at, run(s));
+            return;
+        }
+    }
+    m_stop_at(s, at, dont_care);
+}
+
 // $00:FF00 (and its copy at $C0:FF00)
 /* The reset: the CPU leaves the emulation mode it powers on in, with its
  * interrupts masked, and goes to the boot. The game resets itself through
@@ -48,7 +68,7 @@ void console_reset(Snes *s)
 {
     m_set_flag(s, CPU_FLAG_I, true);
     s->cpu.e = false;
-    m_stop_at(s, BOOT, DC_C);
+    continue_at(s, BOOT, DC_C, console_boot, 0, 0, NULL);
 }
 
 // $FD:C000
@@ -62,16 +82,23 @@ void console_boot(Snes *s)
     m_sep(s, CPU_FLAG_M);
     s->cpu.db = 0x00;
     program_boot(state_of(s), m_platform(s));
-    m_stop_at(s, FIELD_FIRST_START, DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_D);
+    continue_at(s, FIELD_FIRST_START, DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_D,
+                field_first_start, CPU_FLAG_M | CPU_FLAG_X, CPU_FLAG_M, NULL);
 }
 
 // $00:FF10
 /* The vblank's vector: on through its stub. */
-void console_vblank_vector(Snes *s) { m_stop_at(s, VBLANK_STUB, 0); }
+void console_vblank_vector(Snes *s)
+{
+    continue_at(s, VBLANK_STUB, 0, console_vblank_stub, 0, 0, console_vblank_stub_is_set);
+}
 
 // $00:FF14
 /* The line interrupt's vector: on through its stub. */
-void console_line_vector(Snes *s) { m_stop_at(s, LINE_STUB, 0); }
+void console_line_vector(Snes *s)
+{
+    continue_at(s, LINE_STUB, 0, console_line_stub, 0, 0, console_line_stub_is_set);
+}
 
 /* Each mode's interrupt work called from the console's stub. The entry
  * contract is checked after moving to the handler, with the interrupted
