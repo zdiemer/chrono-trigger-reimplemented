@@ -189,6 +189,7 @@ static void after_a_glyph(GameState *g)
         if (units == 0) {
             send_the_text(g, SEND_ONCE);
         } else {
+            charge_machine_io_accesses(g, 4); /* the pause-length multiplication */
             set_field_dialog_hold(g, (uint16_t)(units * FRAMES_A_PAUSE_UNIT));
             send_the_text(g, SEND_EVERY_FRAME);
         }
@@ -240,6 +241,7 @@ static void place_the_window(GameState *g)
     set_dialog_window_position(g, (uint8_t)place_for(g));
     set_dialog_window_state(g, 0);
     set_dialog_text_row(g, 0);
+    charge_machine_accesses(g, 1); /* the former opening-clear marker */
     send_the_text(g, SEND_NOTHING);
     start_the_text(g);
 }
@@ -575,6 +577,7 @@ void field_build_the_window_frame(GameState *g)
     for (unsigned row = 0; row < FRAME_ROWS; row++)
         for (unsigned column = 0; column < FRAME_COLUMNS; column++)
             stage_entry(g, row * FRAME_COLUMNS + column, frame_entry(row, column));
+    charge_machine_io_accesses(g, 3); /* the staging cursor */
 }
 
 /* For the original's code and shadow mode: the end of the last run of tiles
@@ -587,6 +590,8 @@ void field_build_the_text_area(GameState *g)
     for (unsigned row = 0; row < TEXT_AREA_ROWS; row++)
         for (unsigned column = 0; column < FRAME_COLUMNS; column++)
             stage_entry(g, row * FRAME_COLUMNS + column, text_area_entry(row, column));
+    charge_machine_io_accesses(g, 3); /* the staging cursor */
+    charge_machine_accesses(g, 1); /* the last text tile */
 }
 
 static FieldTransfer staged_map(uint16_t vram, unsigned rows)

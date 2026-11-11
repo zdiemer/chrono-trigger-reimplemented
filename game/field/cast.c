@@ -301,10 +301,12 @@ void object_cast_as_character(GameState *g, FieldObject obj, uint8_t character)
     PartyPlace place;
     if (party_place_of(g, character, &place)) {
         join_the_party(g, obj, character, place);
+        charge_machine_accesses(g, 2); /* the casting command's saved resume offset */
         return;
     }
     object_set_aside(g, obj);
     object_set_character(g, obj, character);
+    charge_machine_accesses(g, 1); /* the casting command's saved character */
 }
 
 // $C0:4476
@@ -314,6 +316,7 @@ void object_cast_as_character_apart(GameState *g, FieldObject obj, uint8_t chara
     object_set_solidity(g, obj, true);
     object_set_character(g, obj, character);
     put_on_character_sprite(g, obj, character);
+    charge_machine_accesses(g, 2); /* the casting command's saved resume offset */
 }
 
 /* ---- Graphics unpacked into bank $7F --------------------------------------------------------- *

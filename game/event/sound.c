@@ -7,6 +7,7 @@
  * which calls the retired C sound driver; the commands that send one are bridges,
  * which check what the driver left before going on. The waits only read the
  * driver's status, and are operations like any other. */
+#include "charge.h"
 #include "event/bridge.h"
 #include "event/engine.h"
 
@@ -120,6 +121,7 @@ void event_cmd_play_effect(Snes *s)
 {
     uint16_t at = event_command_offset(s);
     EventCommand c = event_command_of(s, PLAY_EFFECT);
+    charge_machine_accesses(state_of(s), 2); /* the saved script offset */
     BridgeMachine as = event_machine(s, false);
     play_effect(m_platform(s), &c);
     if (sent(s, 0xC03C2A, as))
@@ -130,6 +132,7 @@ void event_cmd_play_song(Snes *s)
 {
     uint16_t at = event_command_offset(s);
     EventCommand c = event_command_of(s, PLAY_SONG);
+    charge_machine_accesses(state_of(s), 2); /* the saved script offset */
     BridgeMachine as = event_machine(s, false);
     play_song(state_of(s), m_platform(s), &c);
     if (sent(s, 0xC03C47, as))
@@ -140,6 +143,7 @@ void event_cmd_fade_music(Snes *s)
 {
     uint16_t at = event_command_offset(s);
     EventCommand c = event_command_of(s, FADE_MUSIC);
+    charge_machine_accesses(state_of(s), 2); /* the saved script offset */
     BridgeMachine as = event_machine(s, false);
     fade_the_music(m_platform(s), &c);
     if (!sent(s, 0xC03C6D, as))
@@ -156,6 +160,7 @@ void event_cmd_send_sound_command(Snes *s)
 {
     uint16_t at = event_command_offset(s);
     EventCommand c = event_command_of(s, SEND_SOUND_COMMAND);
+    charge_machine_accesses(state_of(s), 2); /* the saved script offset */
     BridgeMachine as = event_machine(s, false);
     send_the_command(m_platform(s), &c);
     if (sent(s, 0xC03CB8, as))

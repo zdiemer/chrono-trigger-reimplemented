@@ -3678,6 +3678,17 @@ values. Full strict Heckran, Magus at North Cape and unequipped-armor
 outcome artifacts now match `54099ed8`, before field retirement; the
 calibration-era differences from the reference remain ledger work.
 
+The same audit covers event startup and object preparation: saved operand
+and resume offsets, casting-result reads, tile-property and copy work,
+palette-slot selection, chest marking, the party-service adapter and
+window staging. Each retained count comes from the removed accesses,
+including their conditional branches and RAM/cartridge/I/O prices; none
+reconstructs the dead value. With these costs, full strict Black Tyrano,
+Rust Tyrano and unequipped armor match their pre-field-retirement outcome
+artifacts too. Rust Tyrano passes its current ratchet. Dalton's saved game
+and place sequence match that historical run; its menu pictures and
+Spekkio's later post-battle pictures still require separate attribution.
+
 For example, a tile run formerly wrote three temporary words and the
 three-byte upload cursor. Its estimate now counts six RAM and three I/O
 accesses. The walk records which kinds of work it performed, counting a

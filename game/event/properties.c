@@ -55,6 +55,7 @@ EVENT_OPERATION(set_arrival, self, arrival)
 static EventFlow set_move_length(GameState *g, FieldObject self, uint8_t move_length)
 {
     uint8_t steps = (uint8_t)(move_length + 1);
+    charge_machine_accesses(g, 1); /* the decoded move length */
     object_set_move_length(g, self, steps);
     return next_command();
 }
@@ -71,8 +72,11 @@ static EventFlow stand_on_tile(GameState *g, FieldObject self, uint8_t tile_x, u
     object_put_on_tile(g, self, tile, centred);
     if (object_follows_the_map(g, self)) {
         object_layer_as_the_map(g, self, tile);
+        charge_machine_accesses(g, 4); /* three attributes read back, priority saved */
     } else {
+        charge_machine_accesses(g, 1); /* the selected column */
     }
+    charge_machine_accesses(g, 1); /* the selected row */
     return next_command();
 }
 EVENT_OPERATION(stand_on_tile, self, tile_x, tile_y, centred)
@@ -86,6 +90,7 @@ static EventFlow place(GameState *g, FieldObject self, uint16_t x, uint16_t y)
     if (object_follows_the_map(g, self)) {
         MapTile tile = object_tile(g, self);
         object_layer_as_the_map(g, self, tile);
+        charge_machine_accesses(g, 4); /* three attributes read back, priority saved */
     }
     return next_command();
 }
@@ -99,6 +104,7 @@ static EventFlow set_layering(GameState *g, FieldObject self, uint8_t layering)
 {
     ObjectLayering l = layering_of_byte(layering);
     object_set_layering(g, self, l);
+    charge_machine_accesses(g, l.follows_the_map ? 6 : 1); /* tile, attributes and saved priority */
     return next_command();
 }
 EVENT_OPERATION(set_layering, self, layering)
