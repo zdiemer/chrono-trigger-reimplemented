@@ -1000,7 +1000,9 @@ rest waits, is [PLAN.md](PLAN.md).
 - **Accessor-check performance is unresolved.** Two suite runs grew about
   20%, while alternating isolated runs differed by at most 1%. Reproduce the
   scheduling/build difference before attributing the gap to bounds checks
-  (REIMPLEMENTATION.md, "The accessor bounds checks").
+  (REIMPLEMENTATION.md, "The accessor bounds checks"). The player recheck's
+  native Release runs do not use the checked emulator accessor backing, so
+  their 3367-6889 frames/s do not resolve this suite scheduling question.
 
 - **What the jet bike race's review left.** `race_rules.c::drive_johnny`
   uses `race_lane_high` rather than a lane value; `math.c`, `sprites.c`,
@@ -1906,7 +1908,11 @@ rest waits, is [PLAN.md](PLAN.md).
   rather than faster (the milestone's 81%
   figure predated `render.c`'s line cache), so the speed case for it is still
   unmade. Measure the service-fed path separately from the register decoder;
-  pixel identity establishes correctness, not a speed improvement.
+  pixel identity establishes correctness, not a speed improvement. The native
+  player recheck drew every frame and ran sound on eight bounded gameplay
+  movies at 3367-6889 frames/s in a Windows GCC Release build on the shared
+  machine. That establishes headless headroom there, not an isolated renderer
+  comparison or performance on every supported host.
 - **Host backends beyond SDL**, not yet scoped as milestones:
   - **GPU rendering:** implement integer SNES compositing over `VidFrame`
     and its per-line spans, checked with `--px-check`. Service-fed frames
@@ -2878,55 +2884,19 @@ list, by kind, is what `game/` still asks of one.
   field's events' work `ct_native` still times short there ("Where the game's
   work is still timed short or long", above), not a port's difference. The
   native run also reports two SNES-only video escapes, first at `$7E:5AEB`.
-- **Ocean Palace movie playback.** `battle-golem-twins` and
-  `events-ocean-palace-lavos` run for their full 20216 and 30364 frames in
-  `ct_native` (exit 0), without a missing-C stop, but both report unsupported video
-  calls: four and two respectively, first at `$7E:5AEB`. The finale ends with
-  the screen blanked (the Twins run ends showing), so frame completion is not
-  evidence that the native program plays these scenes correctly. Diagnose its
-  playback and video escapes. Strict `ct_dev --native on --generated off
-  --no-interpreter strict` also reaches both ends, with
-  58 saved-game bytes differing from reference in each, plus 224 SRAM bytes
-  for the Twins; these are `drifts` entries in `tools/strict_baseline.txt`.
-- **Yakra's native replay ends with the screen blanked.** The hand movie
-  `battle-yakra` (ctsave01 slot 2, 71287 frames) originally stopped at frame
-  4032, `$F9:B006`, because the Cathedral's dialogue table was missing from
-  the asset catalogue. Adding that table's existing extracted resources
-  removes the stop. `ct_native` now reaches the frame limit, reports six
-  screen setups and a blanked screen; locate that screen with a state-driven
-  run. Strict mode reaches the same limit without a machine-code
-  stop, but differs from the reference by 128 saved-game bytes. Input replay
-  alone does not establish native completion of the Cathedral route.
+- **Native movie route outcomes after the player recheck.** All eight bounded
+  replays exited 0: Golem Twins (20216 frames), Ocean Palace Lavos (30364),
+  Yakra (71287), Zombor (26320), Nizbel (57673), Giga Gaia (33261), Dalton
+  (39666) and Proto Dome (24717). All ended showing except Ocean Palace
+  Lavos, dark for its last 546 frames. The earlier claims that Yakra, Zombor,
+  Nizbel, Giga Gaia and Proto Dome ended blanked no longer reproduce; no
+  player change is credited with fixing them. Unsupported video escapes
+  remain (first `$7E:5AEB`; respectively 6, 2, 2, 2, 2, 4, 4, 9 calls).
+  Establish the route outcomes and the first divergent inputs with native
+  state-driven routes; an illuminated last frame does not prove victory or
+  a repaired Robo. These are game/video/time-model investigations, outside
+  the desktop player's files, bindings, recording and pacing.
 
-- **Zombor's native replay ends with the screen blanked.** `battle-zombor`
-  reaches 26320 frames without a hard stop, with six screen setups and two
-  SNES-only video calls (first `$7E:5AEB`). Locate the divergent screen with
-  a state-driven run; reaching the movie's limit does not prove victory.
-
-- **Nizbel's native replay ends with the screen blanked.** The hand movie
-  `battle-nizbel` reaches 57673 frames without a hard stop, with six screen
-  setups and two SNES-only video calls (first `$7E:5AEB`). Strict mode also
-  reaches the limit, with a 128-byte saved-game difference. Locate the
-  divergent screen with a state-driven run before claiming native victory.
-- **Giga Gaia's movie in the native program.** `battle-giga-gaia` consumes
-  all 33261 frames without a reported machine-only entry, but ends blanked
-  after only three screen setups (two SNES video escapes, first `$7E:5AEB`).
-  Find where progress stalls; reaching the frame limit does not establish
-  the rescue or the field outcome. The same movie in strict `ct_dev` reaches
-  its frame limit without stopping, with 572 saved-game bytes different from
-  reference play under native timing.
-- **Dalton recording in the native program.** `battle-dalton` consumes all
-  39666 frames without a reported `ct_native` stop, but reports only three
-  screen setups, ending with the screen showing, and two SNES-only video
-  escapes (first `$7E:5AEB`). Establish where it loses the reference route;
-  this does not establish completion of the Blackbird's destruction.
-- **Proto Dome recording in the native program.** `events-proto-dome` consumes
-  all 24717 frames without a reported `ct_native` stop, but ends blanked after
-  four screen setups and two SNES-only video escapes (first `$7E:5AEB`).
-  Establish the first lost transition through Lab 32 and the dome. Strict mode
-  also consumes every frame without a halt, but misses the repair: story `$37`,
-  repair stage `$00`, Robo absent, 59 saved-game bytes different. Diagnose the
-  timed-input drift separately from any native stop.
 - **Rainbow Shell trial recording in the native program.** The hand-run
   `rainbow_shell_trial` recording (47547 frames, ctsave13 slot 2; MOVIES.md)
   completes the trial in the reference play. `ct_native` consumes all 47547
@@ -3410,7 +3380,14 @@ persistence seams; game-side representation changes still need explicit work.
   with A, B, Start, Up, X and Y leave it there. Replaying from the Core with
   seed 2 wins at 149750 and finishes at 160570; that is the route's default.
   This is a reference-runtime stall, not a guard refusal. Its cause is not
-  established; no game code was changed to work around it.
+  established; no game code was changed to work around it. Rechecked against
+  the native host: it has no SPC700 echo loop; its C driver's echo wait is
+  bounded to one second of driver time and reports failure. No failing-seed
+  input movie or checkpoint is committed, so the specific frame-181083 stall
+  could not be replayed in `ct_native` without rebuilding that long route.
+  Preserve a failing recording before claiming the native ending is verified.
+  Menu and battle checkpoint tests did verify byte-identical continued native
+  PCM, and the SDL dummy-device smoke run opened audio successfully.
 - **Content no movie plays at all.** Use movies-wanted.md for the remaining
   route targets; many of the old sidequest and boss gaps now have movies.
   Reuse the pathfinder, dialogue and fight helpers in `tools/movies` and add
@@ -3431,6 +3408,16 @@ persistence seams; game-side representation changes still need explicit work.
   worse and are unexplained.
 
 ## Player and tooling
+
+- **Native checkpoint load latency.** The portable checkpoint reconstructs
+  suspended C stacks by replaying from the starting save (PLAYING.md). It
+  preserves every completed frame, but loading time grows with the session.
+  Direct portable snapshots require explicit resumable game continuations,
+  including the menu tasks, plus serialized video, sound and scheduler state;
+  a RAM dump or raw host-stack copy cannot replace them. Checkpoints reject
+  changed execution-source fingerprints; `.srm` remains the portable progress
+  format across builds.
+
 
 - **`tools/portsmell.py`'s `sibling-through-machine` matches only literal
   addresses in `m_jsr`/`m_jsl`**: a call-out to a registered port through a

@@ -26,6 +26,9 @@ typedef enum {
     ACT_COUNT
 } Action;
 
+/* Desktop defaults, optional key file, then command-line overrides. */
+int bindings_configure(const char *keys_path, const char *const *binds, int nbinds);
+
 /* Back to the defaults. */
 void bindings_reset(void);
 

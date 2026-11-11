@@ -31,8 +31,10 @@ struct Fiber {
     LPVOID handle;
     void (*fn)(void *);
     void *arg;
+    struct Fiber *next;
 };
 
+static Fiber *children;
 static Fiber main_fiber;
 static Fiber *current = &main_fiber;
 
@@ -62,6 +64,8 @@ Fiber *fiber_create(void (*fn)(void *), void *arg)
     f->handle = CreateFiber(FIBER_STACK_SIZE, trampoline, f);
     if (!f->handle)
         abort();
+    f->next = children;
+    children = f;
     return f;
 }
 
@@ -69,6 +73,9 @@ void fiber_destroy(Fiber *f)
 {
     if (!f || f == &main_fiber)
         return;
+    Fiber **link = &children;
+    while (*link && *link != f) link = &(*link)->next;
+    if (*link) *link = f->next;
     DeleteFiber(f->handle);
     free(f);
 }
@@ -94,8 +101,10 @@ struct Fiber {
     void *stack;
     void (*fn)(void *);
     void *arg;
+    struct Fiber *next;
 };
 
+static Fiber *children;
 static Fiber main_fiber;
 static Fiber *current = &main_fiber;
 
@@ -121,6 +130,8 @@ Fiber *fiber_create(void (*fn)(void *), void *arg)
     f->ctx.uc_stack.ss_size = FIBER_STACK_SIZE;
     f->ctx.uc_link = NULL;
     makecontext(&f->ctx, trampoline, 0);
+    f->next = children;
+    children = f;
     return f;
 }
 
@@ -128,6 +139,9 @@ void fiber_destroy(Fiber *f)
 {
     if (!f || f == &main_fiber)
         return;
+    Fiber **link = &children;
+    while (*link && *link != f) link = &(*link)->next;
+    if (*link) *link = f->next;
     free(f->stack);
     free(f);
 }
@@ -143,3 +157,9 @@ void fiber_switch(Fiber *to)
 Fiber *fiber_current(void) { return current; }
 
 #endif
+
+void fiber_reset(void)
+{
+    if (fiber_current() != fiber_main()) abort();
+    while (children) fiber_destroy(children);
+}

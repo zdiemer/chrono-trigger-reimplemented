@@ -174,6 +174,10 @@ int main(void)
     test_deep_stack();
     test_fiber_to_fiber();
     test_abandon();
+    for (int i = 0; i < 10; i++) fiber_switch(fiber_create(abandoned_body, NULL));
+    fiber_reset();
+    CHECK(!resumed, "reset resumed an abandoned stack");
+    test_ping_pong();
     if (failures) {
         printf("fiber_test: %d failures\n", failures);
         return 1;

@@ -10,6 +10,9 @@ typedef struct Fiber Fiber;
 Fiber *fiber_create(void (*fn)(void *arg), void *arg);
 void fiber_destroy(Fiber *f);
 
+/* From the driver only: discard all coroutines before restarting a program. */
+void fiber_reset(void);
+
 /* The fiber representing the thread's original stack. */
 Fiber *fiber_main(void);
 

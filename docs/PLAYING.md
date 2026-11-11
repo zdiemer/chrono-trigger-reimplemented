@@ -50,6 +50,23 @@ the ROM at build time (`CT_ROM`, `roms/ct-usa.sfc` by default); `tools/dist.py`
 stops if no blocks were generated. `--interpreter` builds the development
 player instead.
 
+### Native build artifacts
+
+The `native-player` job in `.github/workflows/ci.yml` builds `ct_native` in
+Release mode without a ROM on Linux GCC, Linux Clang, macOS Apple Clang and
+Windows MinGW GCC. Each uploads a `ct_native-<platform>-<architecture>` build artifact with
+[the player README](NATIVE-README.txt). There is no release publication step.
+
+`tools/package_native.py --build-dir build/main --output build/player-artifact`
+packages an existing build into an empty destination. It copies only the
+executable, README and, on Windows, the recursively discovered non-system DLLs
+using `tools/dist.py`'s dependency checker. Local Windows verification found
+only `SDL2.dll` beyond Windows itself. Linux/macOS players install SDL2 as
+described in the README. Packs, ROMs, saves, generated code and other build
+outputs are never copied. CI smoke-tests the packaged executable's `--help`;
+a local Windows run also checked first import and a later ROM-free launch
+using SDL's dummy video/audio devices and an isolated preferences directory.
+
 ### Without the interpreter
 
 The development system's 65816 interpreter is the reference everything is
@@ -481,7 +498,9 @@ holds the rules that keep it that way).
 | `frontend/window_player.c` | `ct_play`'s adapter: the player, quick saves and desktop files behind those callbacks |
 | `frontend/bindings.h`, `bindings.c` | the window's controls: keys and pad inputs to SNES buttons and player actions |
 | `frontend/headless.c` | `run_headless`: `--frames`, `--hold`, `--screenshot`, `--wav` |
-| `frontend/files.h`, `files.c` | the desktop's storage: what the saves and the asset pack are called, and the files they go in |
+| `frontend/storage.h`, `storage.c`, `asset_files.c` | shared file naming, byte storage and importing packs; `files.c` adapts them to `ct_play` |
+| `frontend/track.h`, `track.c` | shared input history and `.ctm` recording |
+| `frontend/resume.h`, `resume.c` | native continuation checkpoints as bytes, with no paths or devices |
 | `frontend/assets.h`, `assets.c` | the asset pack: the import from a ROM image, and the stores over a pack or a ROM image the game reads its resources from |
 | `frontend/ct_play.c` | the options, which it turns into a player and one driver |
 
@@ -521,7 +540,7 @@ Nor does the player know a path. What it persists it takes and hands out as
 bytes: the cartridge save (through the save service's `sv_host_bytes`), a quick
 save it has taken, the text of the movie being recorded, the misses log. The
 driver decides what they are called and where they go -- on the desktop,
-`frontend/files.c` names them after the ROM or the recording and writes them
+`frontend/storage.c` names them after the ROM or the recording and the drivers write them
 next to the ROM or into `--save-dir` -- so a host without a filesystem keeps
 them its own way. The runtime's file helpers are the same split: the player
 uses `snes_state_write`/`snes_state_read`, `zst_import`, `ct_movie_parse`/
@@ -564,9 +583,15 @@ prevent later saves. A missing save file starts erased.
 Without `--sram`, window play uses `roms/ct-usa.srm` for this ROM. Headless
 runs retain their old behavior: an explicit save is read only, and without
 one they start erased. Keep screenshots, asset packs and end states out of Git.
-The asset pack is the same `roms/ct-usa.assets` that `ct_play` imports from
-your ROM; `--assets` selects another location. No ROM is needed at build time
-for `ct_native` itself.
+The asset pack uses the same importer and format as `ct_play`; `--assets`
+selects another pack and `--save-dir` selects where the default pack and saves
+are kept. Give the ROM as a positional argument (or drop it on the executable)
+on the first launch. Once imported, later launches need no arguments and no
+ROM: the desktop driver remembers the pack and default save location in SDL's
+per-user preferences directory. `--import ROM` rebuilds the pack and exits.
+`CT_NATIVE_HOME` can select an existing preferences directory, including for
+isolated tests. An incompatible pack needs the ROM to import again. No ROM is
+needed at build time for `ct_native` itself.
 
 Controls use `ct_play`'s default bindings: arrows move, **X/Z/S/A** press
 SNES **A/B/X/Y**, **Q/W** are L/R, **Return** is Start, **Right Shift** is
@@ -574,8 +599,55 @@ Select. **P** pauses, **Tab** fast-forwards, **F11** or **Alt+Return** toggles
 fullscreen, and **Escape** quits. SDL gamepads use the D-pad/left stick,
 face buttons by position, shoulders, Start/Back and right trigger for fast
 forward (see the table above). `--scale 3`, `--fullscreen` and `--mute` work
-in the shared window. Native play has no quick save/load, movie recording,
-emulator state loading or custom binding options yet; F5/F7 do nothing.
+in the shared window. Both players read `ct_play.keys` beside the executable,
+then `--keys FILE` and `--bind INPUT=ACTION` overrides through the same driver
+code. Native states are separate from emulator `.state` and ZSNES files.
+
+**Quick saves.** F5 saves the current completed frame to `<rom name>.native-state`
+beside the cartridge save; F7 restores it. Native routines keep live C stacks,
+including menu tasks, which cannot be stored as portable stack addresses. A
+native checkpoint instead holds the initial cartridge save, scene selection,
+both controllers' input history and an outcome checksum. Loading starts the
+same program and reconstructs those continuations one frame per driver call,
+including video, sound, random state and time owed. Every completed frame is
+saveable, including frames with suspended routines. A request made during
+restoration waits until restoration completes. Nothing hands execution to an
+emulator or drops owed time.
+
+Loading takes longer with longer sessions. The window shows the current and
+target frame, continues handling events, and mutes restoration audio; even a
+paused game can finish loading. Checkpoints require the same execution-source
+fingerprint, and reject incompatible or damaged files before restarting. Keep
+cartridge `.srm` saves for progress across builds. The reconstructed RAM, save
+RAM and picture must match the checkpoint checksum before play continues.
+`--save-state FILE` and `--load-state FILE` expose the same format headlessly;
+`--frames N` remains the total frame limit since power-on, including restored
+frames. `--screenshot FILE` writes the last picture; headless `--wav FILE`
+records sound after restoration.
+
+**Recording.** `--record FILE.ctm` uses the recorder shared with `ct_play`.
+It starts with empty SRAM unless `--sram` is supplied, never writes cartridge
+saves, flushes every 600 frames and on exit, and can continue `--movie` input.
+The header names the starting save and its CRC-32. A final no-button event
+preserves trailing idle frames in existing readers. Native timing differs
+from the reference's: `ct_play` and `ct_dev` accept the movie and replay its
+inputs, but may take a different route. Recordings cannot start with `--scene`
+or `--load-state`, or continue a two-controller movie (the shared recorder
+records controller 1). While recording, only a checkpoint from that recording
+loads; loading rewinds its input. Quick saves then use the movie's name.
+
+Measured on the native player: new-game frame 5200 to 7200, menu frame 7400 to
+8000, and Magus frame 5000 to 5600 resumed with byte-identical projected game
+state, SRAM, picture and subsequent PCM audio. Three successive live menu
+reloads also matched uninterrupted continuations. A 7200-frame recording of
+new-game replayed to the same native end state, loaded in `ct_play`, and gave
+`ct_dev` the same reference trace as the source movie. ROM-free
+`player_files_test`, `recorder_test`, `resume_test`, `bindings_test` and
+`fiber_test` cover naming, trailing idle frames, starting-save metadata,
+checkpoint corruption, binding overrides and discarded coroutine stacks.
+`python3 tools/player_check.py --build build/main --rom roms/ct-usa.sfc`
+repeats the ROM-backed continuation and cross-player recording checks serially;
+its generated files remain under `build/player-check`.
 
 The window runs until closed. `--frames N` selects the old headless behavior,
 while `--headless` alone runs 600 frames. `--window` overrides `--frames` so a
@@ -696,6 +768,12 @@ reference emulator's does, since the game reads some of it before writing it
 (the menus' records of the members not yet joined). A cartridge byte that no
 resource of the catalogue holds has no answer without the ROM, so a read of
 one stops the program with its address, as a step only the machine runs does.
+
+The desktop storage/import helpers, recorder, binding configuration and SDL
+window are shared with `ct_play` (`storage.c`, `asset_files.c`, `track.c`,
+`bindings_config.c`, `window.c`). Checkpoint encoding (`resume.c`) takes and
+returns bytes; the driver chooses names and writes files atomically. Resetting
+suspended stacks goes through `fiber_reset` in `runtime/port/fiber.h`.
 
 The driver (`frontend/ct_native.c`) starts the host backends with the
 program and advances one frame per call, from its headless loop or the shared

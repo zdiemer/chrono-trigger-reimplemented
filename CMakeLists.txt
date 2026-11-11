@@ -524,7 +524,7 @@ set(CT_NATIVE_GAME_SOURCES ${CT_GAME_SOURCES})
 # What the machine alone runs: the registry (docs/PLAN.md, "The machine out of the
 # product").
 list(REMOVE_ITEM CT_NATIVE_GAME_SOURCES game/registry.c game/time_tags.c)
-add_executable(ct_native frontend/ct_native.c frontend/file_store.c frontend/assets.c frontend/sound_native.c runtime/port/no_machine.c
+add_executable(ct_native frontend/ct_native.c frontend/resume.c frontend/storage.c frontend/asset_files.c frontend/track.c frontend/file_store.c frontend/assets.c frontend/sound_native.c runtime/port/no_machine.c
   runtime/platform/native/render.c ${CT_NATIVE_GAME_SOURCES})
 target_compile_definitions(ct_native PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
 target_include_directories(ct_native PRIVATE frontend)
@@ -646,11 +646,11 @@ if(NOT CT_PLAYER_INTERPRETER_MODE MATCHES "^(ON|FALLBACK|OFF)$")
 endif()
 
 if(CT_SDL2)
-  target_sources(ct_native PRIVATE frontend/window.c frontend/audio_fill.c frontend/bindings.c)
+  target_sources(ct_native PRIVATE frontend/window.c frontend/audio_fill.c frontend/bindings.c frontend/bindings_config.c)
   target_compile_definitions(ct_native PRIVATE CT_HAVE_SDL)
   target_link_libraries(ct_native PRIVATE ${CT_SDL2})
   add_executable(ct_play frontend/ct_play.c frontend/player.c frontend/natives.c frontend/assets.c frontend/audio_fill.c frontend/window.c
-    frontend/window_player.c frontend/headless.c frontend/files.c frontend/file_store.c frontend/bindings.c frontend/sound_host.c)
+    frontend/window_player.c frontend/headless.c frontend/files.c frontend/storage.c frontend/asset_files.c frontend/track.c frontend/bindings_config.c frontend/file_store.c frontend/bindings.c frontend/sound_host.c)
   # The miss report (dev/misses.h) is the player's log of misses, and of what
   # --interpreted finds.
   target_sources(ct_play PRIVATE dev/misses.c)
@@ -666,7 +666,7 @@ if(CT_SDL2)
     target_link_options(ct_native PRIVATE -static-libgcc)
   endif()
   # The window driver's bindings on a virtual game controller.
-  add_executable(bindings_test tests/frontend/bindings_test.c frontend/bindings.c)
+  add_executable(bindings_test tests/frontend/bindings_test.c frontend/bindings.c frontend/bindings_config.c frontend/storage.c)
   target_include_directories(bindings_test PRIVATE frontend oracle/src)
   target_link_libraries(bindings_test PRIVATE ${CT_SDL2})
   install(TARGETS ct_play RUNTIME DESTINATION .)
@@ -676,3 +676,27 @@ if(CT_SDL2)
 else()
   message(STATUS "SDL2 not found: ct_native is headless; not building ct_play")
 endif()
+
+# Driver names and recorder format require neither SDL nor a ROM.
+add_executable(player_files_test tests/frontend/player_files_test.c frontend/storage.c)
+target_include_directories(player_files_test PRIVATE frontend)
+add_executable(recorder_test tests/frontend/recorder_test.c frontend/track.c)
+target_include_directories(recorder_test PRIVATE frontend)
+target_link_libraries(recorder_test PRIVATE ct_trace)
+
+file(GLOB_RECURSE CT_RESUME_SOURCES CONFIGURE_DEPENDS game/*.c game/*.h runtime/*.c runtime/*.h frontend/*.c frontend/*.h)
+set(CT_RESUME_HASHES "")
+foreach(source IN LISTS CT_RESUME_SOURCES)
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${source}")
+  file(MD5 "${source}" digest)
+  string(APPEND CT_RESUME_HASHES "${digest}")
+endforeach()
+file(MD5 "${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt" digest)
+string(APPEND CT_RESUME_HASHES "${digest}")
+string(MD5 CT_RESUME_BUILD "${CT_RESUME_HASHES}")
+configure_file(cmake/native_build.h.in native_build.h @ONLY)
+target_include_directories(ct_native PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+
+add_executable(resume_test tests/frontend/resume_test.c frontend/resume.c)
+target_include_directories(resume_test PRIVATE frontend)
+target_link_libraries(resume_test PRIVATE ct_trace)

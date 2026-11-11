@@ -275,19 +275,6 @@ static uint16_t next_pad(Player *pl, uint16_t live)
     return live;
 }
 
-static void track_set(Track *t, uint32_t frame, uint16_t pad)
-{
-    if (frame >= t->cap) {
-        t->cap = frame + 1 > t->cap * 2 ? frame + 1 : t->cap * 2;
-        t->pads = realloc(t->pads, t->cap * sizeof *t->pads);
-    }
-    for (uint32_t fr = t->frames; fr < frame; fr++)
-        t->pads[fr] = 0;
-    t->pads[frame] = pad;
-    if (frame >= t->frames)
-        t->frames = frame + 1;
-}
-
 void player_replay(Player *pl, const uint16_t *pads, uint32_t frames, const char *movie_name)
 {
     Track *t = &pl->track;
@@ -305,22 +292,7 @@ uint32_t player_movie_unwritten(const Player *pl)
 
 char *player_movie_text(Player *pl, size_t *len)
 {
-    Track *t = &pl->track;
-    if (!t->record_name || t->frames == t->written_frames)
-        return NULL;
-    char header[512];
-    int n = snprintf(header, sizeof header, "# Recorded with ct_play from power-on");
-    if (t->sram_name)
-        n += snprintf(header + n, sizeof header - n, " with the save %s", t->sram_name);
-    if (t->movie_name)
-        n += snprintf(header + n, sizeof header - n, ", continuing %s", t->movie_name);
-    n += snprintf(header + n, sizeof header - n, ".\n# frames %lu\n", (unsigned long)t->frames);
-    if (t->sram_name)
-        n += snprintf(header + n, sizeof header - n, "# sram crc32 %08X\n", (unsigned)t->sram_crc);
-    snprintf(header + n, sizeof header - n, "# Replay: ct_dev --rom <rom> --frames %lu --movie %s%s --native shadow\n",
-             (unsigned long)t->frames, t->record_name, t->sram_name ? " --sram <save>" : "");
-    t->pending_frames = t->frames;
-    return ct_movie_format(t->pads, t->frames, header, len);
+    return track_text(&pl->track, "ct_play", len);
 }
 
 void player_movie_stored(Player *pl) { pl->track.written_frames = pl->track.pending_frames; }
