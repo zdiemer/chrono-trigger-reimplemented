@@ -243,6 +243,7 @@ static bool host_byte(size_t offset)
         HOST(apu.spc.bus), HOST(apu.on_insn), HOST(apu.on_insn_ctx), HOST(apu.on_dsp_write), HOST(apu.host), HOST(apu.host_ctx), HOST(apu.host_boot), HOST(apu.host_command), HOST(apu.host_send), HOST(apu.host_mix), HOST(apu.host_take),
         HOST(on_line), HOST(on_line_ctx), HOST(on_frame_top), HOST(on_frame_top_ctx),
         HOST(intercept), HOST(intercept_ctx), HOST(interpreter), HOST(native_only),
+        HOST(run_frame_interrupt), HOST(frame_interrupt_ctx),
         HOST(on_miss), HOST(on_miss_ctx), HOST(halted),
         HOST(bus.write_epoch), HOST(bus.wram_page_epoch), HOST(ppu.write_epoch), HOST(ppu.vram_page_epoch),
 #undef HOST
@@ -357,6 +358,21 @@ static void check_versions(Snes *s, const uint8_t *rom, const Fields *f)
         free(old);
     }
 
+    /* A state predating driver events resumes its saved PC, without booting. */
+    rec = find_record(state, len, "snes.frame_interrupt", &rec_len);
+    CHECK(rec != NULL, "no snes.frame_interrupt record");
+    if (rec) {
+        size_t old_len;
+        uint8_t *old = splice(state, len, (size_t)(rec - state), rec_len, NULL, 0, &old_len);
+        Snes *copy = malloc(sizeof *copy);
+        boot(copy, rom);
+        CHECK(snes_state_read(copy, old, old_len, NULL, 0) == 0, "state without driver events failed");
+        CHECK(copy->frame_interrupt == SNES_FRAME_INTERRUPT_NONE, "old state queued a power-on");
+        CHECK(first_difference(f, s, copy) < 0, "state without driver events changed other fields");
+        free(copy);
+        free(old);
+    }
+
     /* A newer build's state: it has a field this build doesn't know. */
     uint8_t extra[64];
     const uint8_t value[4] = { 1, 2, 3, 4 };
@@ -435,7 +451,8 @@ static void check_rejected(Snes *s, const uint8_t *rom, const Fields *f)
     static const struct {
         const char *name;
         uint8_t value;
-    } wild[] = { { "snes.stall_next", 200 }, { "apu.phase", 9 }, { "apu.dsp.fir_pos", 8 }, { "cpu.e", 2 } };
+    } wild[] = { { "snes.stall_next", 200 }, { "snes.frame_interrupt", 4 },
+                 { "apu.phase", 9 }, { "apu.dsp.fir_pos", 8 }, { "cpu.e", 2 } };
     for (size_t i = 0; i < sizeof wild / sizeof wild[0]; i++) {
         memcpy(copy, state, len);
         rec = find_record(copy, len, wild[i].name, &rec_len);

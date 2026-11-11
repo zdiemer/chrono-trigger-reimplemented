@@ -372,6 +372,7 @@ void field_nmi(Snes *s);
  * ($C0:EC60): the loop it waits in, and the return after it. */
 enum { FIELD_FRAME_WAIT_LOOP = 0xC0EC71, FIELD_FRAME_WAIT_RETURN = 0xC0EC76 };
 void field_wait_for_frame_loop(Snes *s);
+void field_wait_for_frame_loop_entry(Snes *s);
 void field_change_location_wait_for_vblank_loop(Snes *s);
 void field_restart_wait_for_vblank_loop(Snes *s);
 void field_restart_in_the_dark(Snes *s);

@@ -412,7 +412,17 @@ void scene_program_finishes_pass(Snes *s)
 
 /* A pass with nothing to call and the scene going on: the idle continuation,
  * which goes round. */
-void scene_program_waits(Snes *s) { (void)s; }
+void scene_program_waits_entry(Snes *s) { (void)s; }
+
+// $7E:3023
+/* Rest while the handlers run the scene. The saved head contains all the
+ * state this loop needs; waking rechecks the code image and the next pass. */
+void scene_program_waits(Snes *s)
+{
+    do {
+        scene_program_waits_entry(s);
+    } while (native_idle_held(s));
+}
 
 /* The continuations' guards: the program's loop -- its call, and its test
  * after it -- on the scene's page; the idle pass where there is nothing to

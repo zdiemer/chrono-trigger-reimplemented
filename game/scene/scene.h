@@ -800,6 +800,7 @@ TaskEnd scene_race_upload_tilemap(GameState *g, Platform *pf, unsigned slot);
 bool scene_race_upload_strip_present(Snes *s);
 bool scene_race_wait_for_tilemap_upload_present(Snes *s);
 void scene_race_wait_for_tilemap_upload_loop(Snes *s);
+void scene_race_wait_for_tilemap_upload_loop_entry(Snes *s);
 
 /* scene/perspective.c (the program in RAM): the entry the endings jump to,
  * and for the race's camera check, whether the port builds the perspective
@@ -876,6 +877,7 @@ void scene_program_finishes_pass(Snes *s);
 bool scene_program_pass_finished(Snes *s);
 bool scene_program_passes(Snes *s);
 void scene_program_waits(Snes *s);
+void scene_program_waits_entry(Snes *s);
 bool scene_program_waits_for_the_frame(Snes *s);
 /* scene/curtain.c: a frame's step of the curtain (the scene engine's $C3:01E4,
  * and its jump $C3:000E) */

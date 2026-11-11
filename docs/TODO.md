@@ -9,6 +9,28 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
+- **Remaining machine hand-offs and held loops.** The remaining source
+  hand-offs need conversion subsystem by subsystem under their complete
+  contracts; the sampled census already has no machine entries. The source
+  inventory has 14 actual address-call sites and nine registry lookups;
+  audit their retained comparison and fallback paths before replacing them.
+  Preserve each retained row's full contract even where an existing named
+  form is looser: `field_next_frame`'s form currently omits the row's
+  `field_on_page_bank_zero` guard.
+  The remaining menu, scene, overworld, field and battle continuations need
+  saveable C loops. The largest remaining sampled dispatch counts are the
+  field's next-frame pass (134,676), battle window slide (118,211), and menu
+  scheduler (117,473) and cursor (116,866) turns. Scene frame, upload-finished
+  and overworld frame-work passes still dispatch once per pass.
+  Preserve task switching,
+  the caller's return frame, cartridge saves and fresh-runtime mid-wait
+  reloads before replacing a wait. Keep the entry wrappers and registry
+  until the native route checks permit their removal (PLAN.md, Phase 4a).
+  The interrupts' review left two tests: `suspend_test`'s comparison of
+  machine and driver delivery should also cover `WAI`, a masked IRQ's
+  wakeup and changes to the interrupt enables, and its legacy-state case
+  should load a state that really lacks `frame_interrupt` rather than clear
+  the field after loading.
 - **Out-of-contract script states.** The event loops at `$C0:58ED`, `$C0:5967`, `$C0:5990` and
   `$C0:5AA3` already run as C for valid scripts; their hand-backs preserve
   out-of-buffer script positions, changed data banks and object state the

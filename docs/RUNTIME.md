@@ -749,12 +749,52 @@ time is paid where it left the next task. No additional saved-state field
 is needed. `suspend_test` covers both paths, including an interrupt pending
 at the yield, a restarted task, and loading a parked save into either mode.
 
+## The frame driver's game calls
+
+In shipping mode the frame driver calls power-on reset and the console's
+vblank and line vectors as C continuations. `frontend/natives.c` binds the
+functions once through `native_attach_frame_interrupts` and
+`native_attach_power_on`. The reset binding selects the emulation-mode
+entry; the interrupt bindings select native-mode entries. Each queued kind
+selects that function without a lookup by PC. Entry filtering, shadow mode
+and oracle timing retain their former paths.
+
+Reset setup and interrupt recognition, entry time and return frames still
+belong to the machine. `snes_power_on` queues power-on after reset setup;
+`snes_run_frame` queues an interrupt after its entry sequence. On the next
+step the runtime pays debt and handles interrupted or parked callers before
+checking the original destination and complete entry contract, including
+mode, P mask and guard. Refusal leaves the original entry and return frame
+for ordinary dispatch. The console's checked boot, stub and handler calls
+keep their estimates and dispatch boundaries.
+
+`snes.frame_interrupt` saves the pending kind, never a function or fiber
+pointer. Loading preserves the destination host's callback; cloning drops
+it. A state without this field queues nothing and resumes its saved PC.
+Binding the reset callback does not queue a reset. A host without callbacks
+uses ordinary dispatch. Existing suspension and debt rules still decide
+whether an exact save is possible.
+
+The suspension test compares every serialized field with and without these
+host calls: power-on, line and vblank interrupts, unpaid time, a nested NMI
+and task switching. Mid-frame states before handlers and a state before
+power-on reload into fresh runtimes, both with the queued event and with
+only the legacy destination, and finish identically. Invalid contracts and
+destinations preserve the interrupt frame. The state test checks event
+values, excludes hooks from serialization and loads a state lacking the
+event field without resetting it.
+
+Over the 37-movie sample the driver reset call removes the remaining 37
+machine entries. Wrappers and returns remain for compatibility; the source
+counts are in "Restartable C loops" below. The preceding interrupt and
+restart measurements are in [the console hand-off history](history/console-handoffs.md).
+
 ## Held waits
 
 A main loop's frame end is a wait the main thread rests in while the vblank
 handler does the frame's work: the scene program's main loop (`$7E:3023`), the
 overworld's (`$C2:0348`), the warp's (`$FD:EAED`), the field's. Run as a C loop
-that waits in place, the port would stay suspended for a whole screen, and no
+without a restartable checkpoint, the port would stay suspended for a whole screen, and no
 `ct_drive` base or `ct_play` quick save would come there. So the wait is
 *held*: the port stops at the loop's head, nothing is suspended, and what the
 loop does when it goes on is a continuation. Until now the continuation was an
@@ -820,31 +860,14 @@ Now the continuation is named (`runtime/port/native.h`, `native_hold`;
   and picture as this build's run that didn't stop. Its first pass is the
   address path's, and the wait is named from then on.
 
-The scene program's main loop is the first held wait (`HOLD_SCENE_MAIN_LOOP`):
-the first frame (`first_frame_on_the_machine`) holds it, and its two passes
-(`attract_wait_loop`, the empty one, idle; `attract_frame_pass`, a picture's
-scaling, a port) are its continuations. These are the measures over
-attract-demo and title-start:
-
-| Measure | Before | Now |
-|---|---|---|
-| census, `$7E:3023` entered by the machine | 4,470,854 wait passes and 103 frame passes (100 by stop, 3 by return) | 0 |
-| census, held runs | none | 4,470,854 and 103 |
-| census, all entries by the machine | 9,285,097 | 4,814,140 |
-| attract-demo, driven a frame at a time in `ct_drive --native on`: frame ends with a routine suspended | 12,329 of 22,500, in 56 runs, the longest 2,142 | the same frames |
-
-The wait passes match one for one, because the continuations are the same
-functions as the idle entry and the port. What changed is how the runtime
-reaches them: by the wait's number, with no address lookup. `tools/machine_joints.py` counts the two rows apart, as
-held waits' continuations: they are still machine wrappers, a joint until the
-loop runs with no machine under it. A `ct_play` quick save taken at attract-demo's
-frame 12,000 (PC `$7E:3023`, wait 1 named), loaded, and played 500 frames ends
-with the same state and the same picture as the run that didn't stop.
-The program then retired the gate (REIMPLEMENTATION.md, "The scene program's
-teardown"): its continuations are `scene_program_waits` and
-`scene_program_next_pass` (`game/scene/program.c`), `.retired`, and the pass
-makes the call the setup named and, once a script ends the scene, the
-program's end, by a return rather than a stop.
+The scene program's main loop (`HOLD_SCENE_MAIN_LOOP`) keeps its original
+head at `$7E:3023`. Its idle C loop waits while there is no picture to scale
+and the scene is still running. The other continuation makes the call the
+setup named, then finishes or ends the program. A scaling call that waits
+for an upload retains its return into `scene_program_finishes_pass`.
+These rows remain available to reconstruct old saves and to check each
+continuation's complete contract; the idle loop's repeated polling no
+longer dispatches a row ("Restartable C loops", below).
 
 The time warp's main loop is the second (`HOLD_WARP_FRAME`, `$FD:EAED`), and
 the first whose subsystem retired the gate (REIMPLEMENTATION.md, "The time
@@ -867,25 +890,17 @@ Over the three movies that take a gate the machine enters the warp 0 times,
 against 747,559 before, and its 1,181 frames and 747,440 idle passes are the
 wait's continuations, run by its number.
 
-The overworld's main loop is the third (`HOLD_OVERWORLD_FRAME`), and the
-first whose wait's code other loops share: its head calls the sprite-object
-mode's wait for the next frame (`$C2:23CF` calls `$C2:046E`, which jumps to
-`$C2:0346`), whose loop (`$C2:0348`) the Epoch's screens and the loop's own
-fades wait in too. So the wait is held at the shared loop, and its
-continuations (`overworld_next_frame`, the frame counted: the wait's return,
-the mode's arm and the wait again; `overworld_waits_for_the_frame`, idle)
-take it only where the wait's return on the stack is the loop's pass
-(`$C2:23D2`); the mode's own idle entry there is found only by the address
-path, where no wait is named. The halt the loop can end in, a loop with the
-interrupts off, holds a wait of its own (`HOLD_OVERWORLD_HALT`). Over the
-four world-map movies (`field-65m-bc`, `-dactyl`, `-dactyl-flight`,
-`field-12kbc-1f4`) and `menus-epoch`, shadow mode compared
-`overworld_next_frame` 5,463 times, every one matched, and the shipping mode
-played each frame for frame as before (`tools/trace.py diff`: work RAM, VRAM,
-CGRAM, OAM, save RAM); on `field-65m-bc-dactyl` the machine's wait-loop
-passes went from 377,674 to 214,949, the other 162,393 now the held wait's.
-The overworld then retired the gate, and its three continuations are
-`.retired` (REIMPLEMENTATION.md, "The overworld's teardown").
+The overworld's main loop (`HOLD_OVERWORLD_FRAME`) shares the sprite-object
+wait at `$C2:0348` with the Epoch's screens and fades. Its saved return to
+`$C2:23D2` distinguishes the world loop from those other callers. The idle
+C loop rests while the frame counter still equals saved A's low byte;
+`overworld_next_frame` returns through the saved caller frame, runs the
+mode's arm and waits again. Both guards require page zero, a low-RAM bank
+and that return frame. The idle row requires native mode and M8; the ready
+row also requires X16 and binary arithmetic. No code-image restriction is
+imposed by either row. Other callers keep the menu frame wait's own hold
+and contract. The halt keeps `HOLD_OVERWORLD_HALT`; its continuation still
+dispatches separately.
 
 The field uses one shared frame wait (`HOLD_FIELD_FRAME`, `$C0:EC71`),
 including callers outside its main loop. `$C0:EC60` finishes the frame and
@@ -927,6 +942,113 @@ at `$C0:EC71`, with no routine suspended; slot and fresh-process reloads
 play 200 more frames with every saved state field and the picture identical,
 without replaying input. `suspend_test` also checks an idle return into a
 held continuation at a different stack depth and its fresh-runtime reload.
+
+### Restartable C loops
+
+Two kinds of loop retain a saveable caller frame. Warp's `warp_next_frame`
+makes each picture then calls `native_poll_held`, a read-only poll at the
+running root continuation's own hold and address. Nothing from a preceding
+frame survives only in a C local: the trip's kind is reconstructed from the
+saved return. The loop checks the frame's complete contract after waking;
+the predicate also wakes if the idle contract stops holding.
+
+The field's shared frame wait at `$C0:EC71`, the menu upload wait at
+`$C2:81CA`, and its sprite-object frame wait at `$C2:0348` run as C loops
+around their one-pass entries. Each retained row's `loop` names that function;
+`native_idle_held` yields between passes. The field pass still loads the
+pending frame into A and flags, and returns through the saved caller frame
+when vblank takes it. The menu frame wait keeps its seen-frame value in saved A
+and returns through the caller frame; the upload wait falls through to the
+task scheduler's retained continuation. The runtime checks the row's full contract before every
+resume, including the P mask and guard. Refusal abandons the live fiber at
+the saved head and leaves the caller frame for ordinary dispatch and its
+refusal report. No callee's guard is skipped.
+
+Idle passes keep their former interrupt and status-change polling points,
+and their existing exit time. They accrue no new port estimate. The C loop
+keeps the wait named at its saved PC and S. `native_suspended` excludes an
+idle loop even while an interrupt or another task temporarily owns PC and S:
+its saved return reconstructs the loop. The warp's `native_poll_held` frame
+is excluded while resting at its checkpoint. Other active or parked callers
+still count, including a caller waiting on another task's stack. Unpaid time still prevents an exact save. No fiber, callback or
+local is serialized: a fresh runtime uses the retained row to reconstruct
+the loop. An older state without a hold named enters by address.
+
+The field's restart in the dark also calls the console boot through
+`console_start`, sharing the reset stub's checked boundary and time. Boot
+requires native mode and imposes no P-mask, page, bank or code-image guard;
+refusal stops at `$FD:C000` with the fresh stack and original don't-care set.
+
+`machine_joints.py` counts remaining held dispatch rows, checking that a
+row's function (or its enabled idle `loop`) contains a C loop and a saveable
+polling API. The count is 136, excluding warp and the six converted idle loops;
+all 143 compatibility rows remain. Warp's separate initial idle
+alias still counts. Tests reject comments, declarations, missing loop
+functions and disabled metadata as conversion evidence.
+
+The source boundary inventory counts actual runtime API calls, including
+short/far call wrappers, `_own` stops and holds, and `_at` and continuation
+lookups. A helper named `call_out` is not evidence of a machine call; its
+body may already call C. Comments, strings and API declarations do not
+count; a function-like macro forwarding to an API still counts that call.
+Tests cover each case. The remaining inventory is 111 stops, 14 address-call
+sites and nine registry lookups, including retained comparison and fallback
+paths. The 505 emulated returns remain; estimates and baselines are
+unchanged. Earlier measurements using narrower patterns are explained in
+[the held-loop history](history/held-loops.md).
+
+The suspension tests compare every serialized field and the polling and
+exit time against one-pass waits, reload old, new and unnamed-hold saves
+into fresh runtimes, and check that resumed loops refuse changed mode,
+widths, decimal status, page, bank and code-image guards without consuming
+the caller frame. A separate-stack wait preserves its suspended caller;
+starting afresh discards it. Mid-frame states captured both at the wait
+and inside an interrupt reload into fresh runtimes with every serialized
+field identical after continued play, for both kinds of idle exit. The earlier warp measurements are in
+[the held-loop history](history/held-loops.md).
+
+The scene program's empty wait at `$7E:3023` and the race's upload wait at
+`$7E:5211` use the same idle-loop boundary. The empty pass leaves machine
+state alone; its guard decides when scaling or scene termination needs the
+other continuation. The upload pass loads the pending word and falls
+through to the existing gathering continuation. Both keep their full code
+image and page guards. When an idle guard stops holding, the runtime
+releases the loop but keeps the named wait while trying its other rows;
+each still gets its own complete contract check. Only if none applies does
+ordinary address dispatch report a refusal. A normal wake neither adds an
+idle exit charge nor becomes a machine entry.
+
+The 37-movie sample measures entries into the converted loops instead of
+repeated polling dispatches:
+
+| Wait | Before | C loop |
+|---|---:|---:|
+| Scene program, empty pass | 39,271,842 | 59 |
+| Race tilemap upload | 8,881 | 2,170 |
+| Overworld frame | 10,251,528 | 28,054 |
+
+The overworld step changes no other held or C-call count. Its total held
+dispatches fall from 11,431,157 to 1,207,683; before the scene step they
+were 50,709,651. Machine entries remain zero throughout.
+
+Exact save checkpoints exercise each loop with its caller frame intact:
+
+| Movie | Saved frame | Wait / S | Continued through |
+|---|---:|---|---:|
+| attract-demo | 12,000 | `$7E:3023`, hold 1 / `$06FF` | 12,200 |
+| events-jetbike-race | 7,810 | `$7E:5211`, hold 9 / `$06FA` | 8,140 |
+| field-65m-bc-dactyl | 2,500 | `$C2:0348`, hold 3 / `$06FD` | 2,700 |
+
+The latter two load cartridge saves. Every checkpoint has no suspended
+caller or unpaid time. The preceding and loop builds serialize every field
+identically there and after continued play; old and new saves loaded into
+fresh runtimes reach those same final states, including sound and save RAM.
+The 200-, 330- and 200-frame traces match. Suspension tests also cover
+mid-frame saves in a wait and its interrupt, separate task stacks, changed
+contracts, and a ready continuation with stricter index-width and decimal
+preconditions than its idle loop. Normal wakes stay named holds. The sampled
+gate ends `suite OK`, with zero real-play refusals and fallback instructions;
+the style and smell ratchets have no new findings.
 
 ## ZSNES save states
 

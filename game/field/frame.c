@@ -17,7 +17,7 @@
  * wait; once the frame is taken it returns to the caller's rest, which for the
  * main loop is a continuation of the same wait (field/main_loop.c,
  * field_next_frame). */
-void field_wait_for_frame_loop(Snes *s)
+void field_wait_for_frame_loop_entry(Snes *s)
 {
     uint8_t pending = field_frame_pending(state_of(s));
     m_set_a8(s, pending);
@@ -26,6 +26,16 @@ void field_wait_for_frame_loop(Snes *s)
         return;              /* still waiting: PC stays at the loop head */
     s->cpu.pc = (uint16_t)FIELD_FRAME_WAIT_RETURN;
     m_rts(s);
+}
+
+// $C0:EC71
+/* The caller's return stays on the saved stack while vblank takes the
+ * finished field frame. No C local survives a polling boundary. */
+void field_wait_for_frame_loop(Snes *s)
+{
+    do {
+        field_wait_for_frame_loop_entry(s);
+    } while (native_idle_held(s));
 }
 
 /* One pass of a wait for vblank before the field engine blanks the screen
@@ -66,7 +76,7 @@ void field_restart_in_the_dark(Snes *s)
 {
     display_go_dark(s);
     s->cpu.s = CONSOLE_STACK_TOP;
-    m_stop_at(s, 0xFDC000, DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_DB | DC_D);
+    console_start(s, DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_DB | DC_D);
 }
 
 // $C0:0B38 (in the screen's setup turning the screen on, $C0:0B28)

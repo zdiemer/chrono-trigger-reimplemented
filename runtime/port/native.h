@@ -104,6 +104,11 @@ typedef struct NativeEntry {
      * that goes round holds the wait again itself; a port's holds it with
      * m_hold_at. */
     uint8_t hold;
+    /* A held idle wait's restartable C loop. fn remains its one-pass entry
+     * for tools and old callers. The loop has no unsaved locals at its
+     * native_idle_held boundary; its caller frame lives on the saved stack.
+     * Each resume checks this entry's full contract before running it. */
+    NativeFn loop;
     /* A retired subsystem's compatibility entry or held-wait continuation
      * (docs/REIMPLEMENTATION.md, "The field's teardown"): entered by the
      * machine only in ON mode. SHADOW runs the original there, uncompared.
@@ -356,7 +361,8 @@ extern void (*generated_insn_hook)(Snes *s, uint32_t pc24);
  * (`held` instead, for a held wait's continuation run where the machine names
  * its wait);
  * `as_c` for every NATIVE_TIME_AS (or TIMED_AS) scope a running port opens
- * naming another registered hand entry (`routine`): that routine's work run
+ * naming another registered hand entry (`routine`), and for the frame
+ * driver's interrupt call (with `by` NULL): that routine's work run
  * as C rather than entered through the machine. Either may be NULL; both are
  * NULL by default. */
 typedef struct NativeCensusHooks {
@@ -372,6 +378,16 @@ extern NativeCensusHooks native_census_hooks;
 
 /* Install on a system (sets snes->intercept). */
 void native_attach(NativeRuntime *rt, Snes *snes);
+/* Select the frame driver's C interrupt continuations once, by function.
+ * Only selected hand entries in shipping mode are eligible. Their full
+ * contracts and estimates still apply; refusal leaves the original vector
+ * for ordinary dispatch. Interrupt entry and the return frame stay on the
+ * machine, so old saves at the vector remain valid. */
+void native_attach_frame_interrupts(NativeRuntime *rt, Snes *snes, NativeFn vblank, NativeFn line);
+/* Bind the emulation-mode power-on entry to the driver's saved start event.
+ * Attach after the interrupt entries; a missing or refused entry retains
+ * ordinary dispatch, including old saves without an event. */
+void native_attach_power_on(NativeRuntime *rt, Snes *snes, NativeFn reset);
 
 /* How many mismatches native_report describes, and apart from them how many
  * notes (abandoned comparisons, timing): 16 each unless set, at most 256. */
@@ -552,10 +568,10 @@ const NativeEntry *native_continuation_entry_at(Snes *s, uint32_t pc);
 /* The same for a call the machine would make to `addr` (24-bit) now. */
 const NativeEntry *native_hand_entry_at(Snes *s, uint32_t addr);
 
-/* Number of registered routines entered and not yet left (suspended in
- * call-outs, parked in a yield to another task, or awaiting shadow
- * comparison). Save states taken while this is nonzero can't restore those
- * routines. */
+/* Number of entered routines a save state cannot restore: suspended in
+ * call-outs, parked in another task or awaiting shadow comparison. A C loop
+ * at its own restartable checkpoint (native_poll_held or native_idle_held) is excluded, but its
+ * enclosing callers are still counted. */
 int native_suspended(const NativeRuntime *rt);
 /* Of those, the ones parked in a yield (native_yield_call_dc). */
 int native_parked(const NativeRuntime *rt);
@@ -765,6 +781,25 @@ bool native_wait_loop_held(Snes *s, uint32_t head, uint32_t exit, int32_t wake, 
  * suspended allows -- names it too. Nothing in the other modes, where the
  * stop is an ordinary stop. A port calls it through m_hold_at. */
 void native_hold(Snes *s, uint8_t wait);
+/* A C loop's restartable wait, in shipping mode only. The running entry must
+ * be the continuation at head for wait, with no timing scope left open.
+ * Everything used after waking must be recoverable from saved game/machine
+ * state by reentering that continuation; no local or enclosing C frame may
+ * be needed. The caller retains its machine return frame at head.
+ *
+ * ready is a read-only predicate, also true when a contract no longer holds;
+ * the loop checks its full continuation contract again after waking. While
+ * waiting, this frame alone is saveable. Other suspended/parked callers still
+ * prevent an exact save. A fresh runtime uses the existing held aliases to
+ * resume, including states saved before this C loop existed.
+ * False outside this root continuation: leave the existing hold and return. */
+bool native_poll_held(Snes *s, uint8_t wait, uint32_t head, bool (*ready)(Snes *));
+
+/* A held idle C loop's backedge. Called after each pass, it yields with the
+ * same polling time as the one-pass wrapper. False means that the pass left
+ * the saved head, or this is not a loop job. No local needed after this
+ * boundary may be absent from the saved machine. */
+bool native_idle_held(Snes *s);
 /* After a return, hold only if the caller resumes at a continuation of
  * this wait. The runtime owns that boundary lookup; the callee need not
  * identify a particular caller by its machine address. */

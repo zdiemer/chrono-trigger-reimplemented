@@ -5,9 +5,9 @@
  * frame to be counted (game/menu/display.c, menu_object_nmi), the menus'
  * for the handler to have sent the uploads the frame queued
  * (menu_nmi_work). Each mode is in its wait at nearly every frame's end, so
- * the ports leave the waiting to named idle continuations here in the
- * shipping mode, which a saved machine holds (platform/timing.h,
- * tm_wait_for_handlers_held), and wait through them themselves elsewhere.
+ * their waits run as restartable C loops in shipping mode, with the caller
+ * frame held on the saved stack. One-pass entries remain for saved addresses
+ * and tools; native_idle_held keeps their polling and exit time.
  * Between its waits the menus' loop runs a turn of each of their tasks
  * (menu/tasks.c), which a screen starts and stops. */
 #include "menu/menu.h"
@@ -83,15 +83,23 @@ void menu_wait_for_frame(Snes *s)
 /* The sprite-object mode waits for the vblank handler to count a frame past
  * the one it saw (in A). Idle entry: one pass, which goes on to the routine's
  * return once the count has moved (the compare's flags are dead there). */
-void menu_wait_for_frame_loop(Snes *s)
+void menu_wait_for_frame_loop_entry(Snes *s)
 {
     uint8_t seen = (uint8_t)s->cpu.a;
-    if (menu_object_frame_counter(state_of(s)) == seen) {
-        m_stop_at(s, FRAME_WAIT_LOOP, 0);
+    if (menu_object_frame_counter(state_of(s)) == seen)
         return;
-    }
     s->cpu.pc = (uint16_t)FRAME_WAIT_RETURN;
     m_rts(s);
+}
+
+// $C2:0348
+/* The saved accumulator identifies the frame being waited for; the caller's
+ * return remains on its stack. Each resume checks the entry's contract. */
+void menu_wait_for_frame_loop(Snes *s)
+{
+    do {
+        menu_wait_for_frame_loop_entry(s);
+    } while (native_idle_held(s));
 }
 
 // $C2:0454
@@ -191,9 +199,19 @@ void menu_wait_frames_sending_the_sound_entry(Snes *s)
 /* The menus wait for the vblank handler to have sent the frame's uploads.
  * Idle entry: one pass, which goes on at $C2:81CF once they are sent, where
  * nothing reads what the loop loaded. */
-void menu_wait_ready_loop(Snes *s)
+void menu_wait_ready_loop_entry(Snes *s)
 {
     m_stop_at(s, menu_vblank_done(state_of(s)) != 0 ? 0xC281CF : 0xC281CA, 0);
+}
+
+// $C2:81CA
+/* Let vblank finish the queued uploads before giving the tasks their turns.
+ * The scheduler's frames stay saved; no local spans a polling boundary. */
+void menu_wait_ready_loop(Snes *s)
+{
+    do {
+        menu_wait_ready_loop_entry(s);
+    } while (native_idle_held(s));
 }
 
 /* The first waits on the menus' page, the second reads its cell through a

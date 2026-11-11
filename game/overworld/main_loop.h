@@ -26,13 +26,14 @@ bool overworld_main_loop_runs(Snes *s);
  * HOLD_OVERWORLD_FRAME): the port starting it stops in the wait's loop
  * ($C2:0348), and the runtime goes on with overworld_next_frame once the
  * vblank handler has counted the frame; overworld_waits_for_the_frame is a
- * pass of the wait before. The guards say which applies, each where the
+ * saveable C loop before it. The guards say which applies, each where the
  * wait returns to the loop's pass, which the mode's other waits that share
  * its code don't. */
 void overworld_wait_for_the_next_frame_on_the_machine(Snes *s);
 void overworld_next_frame(Snes *s);
 void overworld_back_from_the_menus(Snes *s);
 void overworld_waits_for_the_frame(Snes *s);
+void overworld_waits_for_the_frame_entry(Snes *s);
 bool overworld_frame_counted(Snes *s);
 bool overworld_frame_not_counted(Snes *s);
 
