@@ -285,6 +285,7 @@ void event_restart_the_running_object_entry(Snes *s)
     case TURN_HANDED_BACK:
         return;
     case TURN_OVER:
+        charge_machine_accesses(state_of(s), 5); /* the old result's two object reads and call level */
         m_rts(s);
         return;
     default:

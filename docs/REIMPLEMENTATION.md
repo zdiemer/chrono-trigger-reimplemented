@@ -3685,9 +3685,13 @@ window staging. Each retained count comes from the removed accesses,
 including their conditional branches and RAM/cartridge/I/O prices; none
 reconstructs the dead value. With these costs, full strict Black Tyrano,
 Rust Tyrano and unequipped armor match their pre-field-retirement outcome
-artifacts too. Rust Tyrano passes its current ratchet. Dalton's saved game
-and place sequence match that historical run; its menu pictures and
-Spekkio's later post-battle pictures still require separate attribution.
+artifacts too. Rust Tyrano passes its current ratchet. Restarting an object
+script retains the five reads formerly used to return its machine registers;
+dialog shading retains its division and four temporary bytes. At Spekkio's
+return to the field, these account for the missing 2,103 estimated master
+clocks at frame 63294. Its full strict replay now passes the existing outcome
+ratchet. Dalton's saved game and place sequence match the historical run;
+its remaining battle animation pictures still require separate attribution.
 
 For example, a tile run formerly wrote three temporary words and the
 three-byte upload cursor. Its estimate now counts six RAM and three I/O
