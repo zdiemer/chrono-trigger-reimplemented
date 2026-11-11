@@ -319,7 +319,7 @@ def work_ram_address(value):
 
 
 # Exact (file, operation, expression) -> audit evidence. No wildcard variable
-# names: an unresolved source in a new caller must appear in the inventory.
+# names: an unresolved source in a new file or expression stays in the inventory.
 # Leave unproved expressions counted rather than treating a RAM-looking name
 # or a fixed bank ORed with an unbounded value as proof.
 def audited_sources():

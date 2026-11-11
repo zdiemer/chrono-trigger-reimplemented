@@ -1909,7 +1909,7 @@ and are included. Only literal/proven work-RAM addresses or exact, documented
 allowlist entries are excluded (`tools/cartridge_sources_allowlist.tsv`): each
 names the exact file, operation and expression, with its bound, producer or
 consumer as evidence. The tests reject stale entries; another expression or
-caller still counts.
+file still counts.
 
 The full address-source audit reduced **122 candidates to 0**, in both game/
 and `ct_native`: **116 RAM proofs**, **four named-accessor paths** (two already
