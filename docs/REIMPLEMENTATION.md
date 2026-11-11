@@ -3690,8 +3690,13 @@ script retains the five reads formerly used to return its machine registers;
 dialog shading retains its division and four temporary bytes. At Spekkio's
 return to the field, these account for the missing 2,103 estimated master
 clocks at frame 63294. Its full strict replay now passes the existing outcome
-ratchet. Dalton's saved game and place sequence match the historical run;
-its remaining battle animation pictures still require separate attribution.
+ratchet. Party walking also keeps its saved resume offset, and touching an
+object keeps the conditional call-state selection and push dividend costs.
+These were comparison-only accesses deleted in `dd2ba214`; the native host
+never counted them. Dalton's party-step trace now has the same estimate as
+the pre-retirement run (the contacted leader's path had lost 78 raw bus
+clocks). Its remaining battle animation drift is accounted for by the
+battle setup return below.
 
 For example, a tile run formerly wrote three temporary words and the
 three-byte upload cursor. Its estimate now counts six RAM and three I/O

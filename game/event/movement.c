@@ -369,7 +369,10 @@ EVENT_OPERATION(follow_party_member, self, member)
  * onto the leader. */
 static EventFlow step_with_the_party(GameState *g, FieldObject self, bool once)
 {
-    if (field_screen_recentring(g) == 0 && object_is_party_member(g, self)) {
+    if (field_screen_recentring(g) != 0)
+        return once ? end_turn() : stay();
+    charge_machine_accesses(g, 2); /* the command's saved resume offset */
+    if (object_is_party_member(g, self)) {
         object_start_one_step(g, self);
         PartyPlace place = object_party_place(g, self);
         if (place == PARTY_LEADER) {
