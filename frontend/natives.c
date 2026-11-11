@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "port/generated_table.h"
+#include "core/console.h"
 #include "registry.h"
 #include "trace.h"
 
@@ -80,5 +81,6 @@ NativeRuntime *natives_restart(NativeRuntime *old, const NativeTable *t, NativeM
     NativeRuntime *rt = native_create(t->entries, t->count, mode);
     native_set_index(rt, t->index, t->index_count);   /* used only with generated entries */
     native_attach(rt, snes);
+    native_attach_frame_interrupts(rt, snes, console_vblank_vector, console_line_vector);
     return rt;
 }

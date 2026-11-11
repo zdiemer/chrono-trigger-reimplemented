@@ -86,6 +86,12 @@ typedef struct Snes {
     /* Set by an intercept that returned time: the length of the last cycle of
      * what it ran, where interrupts are sampled; 0 means one internal cycle. */
     uint32_t intercept_last_cycle;
+    /* An interrupt entry has built its return frame; the next driver step
+     * calls its C continuation. The event is saved, the hook is not. A host
+     * without this hook continues through the ordinary intercept instead. */
+    uint8_t frame_interrupt;
+    int32_t (*run_frame_interrupt)(void *ctx, struct Snes *snes);
+    void *frame_interrupt_ctx;
     /* The held wait the main thread rests in, if any (port/native.h,
      * native_hold): the number of the wait whose continuation the runtime
      * runs here, 0 for none, and the S the main thread rests with. Saved
@@ -109,6 +115,12 @@ typedef struct Snes {
     void *on_miss_ctx;
     bool halted;
 } Snes;
+
+typedef enum {
+    SNES_FRAME_INTERRUPT_NONE,
+    SNES_FRAME_INTERRUPT_VBLANK,
+    SNES_FRAME_INTERRUPT_LINE,
+} SnesFrameInterrupt;
 
 /* rom must stay valid for the lifetime of the system. */
 void snes_init(Snes *snes, const uint8_t *rom, size_t rom_size);

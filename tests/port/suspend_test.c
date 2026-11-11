@@ -162,6 +162,12 @@ static bool switch_in_c;
 static unsigned c_switches;
 static bool interrupt_at_yield;
 
+static void task_interrupt(Snes *s)
+{
+    m_write8(s, 0x40, (uint8_t)(m_read8(s, 0x40) + 1));
+    m_rti(s);
+}
+
 /* The same task records and stacks as the synthetic switch above. */
 static void switch_tasks(Snes *s)
 {
@@ -227,8 +233,13 @@ static void tasks_case(const char *what, NativeMode mode, TaskCase how)
     NativeEntry entry = tasks_table[0];
     if (how == WAIT_NOT_RECORDED)
         entry.cost_milli = 5000000;   /* cross a frame paying the work before the switch starts */
-    NativeRuntime *rt = native_create(&entry, 1, mode);
+    const NativeEntry entries[] = {
+        entry,
+        { .addr = 0x008500, .name = "task_interrupt", .fn = task_interrupt, .cost_milli = 10000 },
+    };
+    NativeRuntime *rt = native_create(entries, wanted_interrupt && mode == NATIVE_ON ? 2 : 1, mode);
     native_attach(rt, s);
+    native_attach_frame_interrupts(rt, s, task_interrupt, NULL);
     enum { PARKED_MIDWAY = 2 };
     int frames = switch_in_c && how == RESTART_THE_TASK ? 24 : 4;
     bool parked_seen = false, restarted = false;
@@ -1366,8 +1377,183 @@ static void console_call_case(void)
     free(rom);
 }
 
+/* The host's interrupt calls have the same pace and caller frames as vector
+ * dispatch, including interrupts inside a port's unpaid time. Capture saves
+ * between entry and dispatch, and reload both the named event and the older
+ * address-only form into a fresh runtime. */
+static void driver_vblank(Snes *s)
+{
+    m_write8(s, 0x40, (uint8_t)(m_read8(s, 0x40) + 1));
+    (void)m_read8(s, 0x4210);
+    m_rti(s);
+}
+
+static bool driver_nests;
+
+static void driver_line(Snes *s)
+{
+    m_write8(s, 0x41, (uint8_t)(m_read8(s, 0x41) + 1));
+    if (driver_nests && m_read8(s, 0x41) == 3 && !m_read8(s, 0x43)) {
+        m_write8(s, 0x43, 1);
+        s->cpu.nmi_pending = true;
+        native_sync_boundary(s);
+    }
+    (void)m_read8(s, 0x4211);
+    m_rti(s);
+}
+
+static void driver_work(Snes *s)
+{
+    m_write8(s, 0x42, (uint8_t)(m_read8(s, 0x42) + 1));
+    m_rts(s);
+}
+
+static const NativeEntry driver_entries[] = {
+    { .addr = 0x008500, .name = "driver_vblank", .fn = driver_vblank, .cost_milli = 12000 },
+    { .addr = 0x008510, .name = "driver_line", .fn = driver_line, .cost_milli = 12000 },
+    { .addr = 0x008300, .name = "driver_work", .fn = driver_work, .cost_milli = 100000 },
+};
+
+static uint8_t *driver_saves[2];
+static size_t driver_save_lengths[2];
+static int32_t (*driver_dispatch)(void *, Snes *);
+
+static int32_t save_before_interrupt(void *ctx, Snes *s)
+{
+    unsigned k = s->frame_interrupt - SNES_FRAME_INTERRUPT_VBLANK;
+    if (k < 2 && !driver_saves[k]) {
+        CHECK(!native_suspended(ctx) && !native_owed(ctx), "queued interrupt has an unsaved C caller");
+        driver_saves[k] = snes_state_write(s, &driver_save_lengths[k]);
+    }
+    return driver_dispatch(ctx, s);
+}
+
+static void check_driver_state(Snes *a, Snes *b, const char *what)
+{
+    size_t alen, blen;
+    uint8_t *as = snes_state_write(a, &alen), *bs = snes_state_write(b, &blen);
+    CHECK(as && bs && alen == blen && !memcmp(as, bs, alen), "%s: serialized state differs", what);
+    free(as);
+    free(bs);
+}
+
+static void driver_interrupt_case(void)
+{
+    static const Code code[] = {
+        { 0x8000, { 0x20, 0x00, 0x83, 0x80, 0xFB }, 5 },
+        { 0x8300, { 0x60 }, 1 },
+    };
+    uint8_t *rom = make_rom(code, sizeof code / sizeof code[0], 0x8500);
+    rom[0xFFEE] = 0x10;
+    rom[0xFFEF] = 0x85;
+    for (unsigned with_debt = 0; with_debt < 2; with_debt++) {
+        driver_nests = with_debt != 0;
+        Snes *old = machine(rom), *direct = machine(rom);
+        Snes *machines[] = { old, direct };
+        NativeRuntime *runtimes[2];
+        for (unsigned i = 0; i < 2; i++) {
+            Snes *s = machines[i];
+            s->cpu.e = false;
+            s->cpu.p = CPU_FLAG_M;
+            s->cpu.s = A_TOP;
+            s->bus.nmitimen = 0x90;
+            s->bus.htime = 20;
+            s->bus.wram[0x40] = s->bus.wram[0x41] = s->bus.wram[0x42] = 0;
+            s->bus.wram[0x43] = 0;
+            runtimes[i] = native_create(driver_entries, 2 + (int)with_debt, NATIVE_ON);
+            native_attach(runtimes[i], s);
+        }
+        native_attach_frame_interrupts(runtimes[1], direct, driver_vblank, driver_line);
+        if (!with_debt) {
+            driver_dispatch = direct->run_frame_interrupt;
+            direct->run_frame_interrupt = save_before_interrupt;
+        }
+        for (unsigned frame = 0; frame < 8; frame++) {
+            snes_run_frame(old, 0);
+            snes_run_frame(direct, 0);
+            check_driver_state(old, direct, "driver interrupt pace");
+        }
+        CHECK(direct->bus.wram[0x40] == 7 + with_debt && direct->bus.wram[0x41] &&
+              !native_failed(runtimes[0]) && !native_failed(runtimes[1]), "driver interrupts did not run");
+        if (!with_debt) {
+            for (unsigned k = 0; k < 2; k++) {
+                CHECK(driver_saves[k] != NULL, "interrupt kind %u was not saved", k);
+                if (!driver_saves[k])
+                    continue;
+                for (unsigned legacy = 0; legacy < 2; legacy++) {
+                    Snes *copy = machine(rom);
+                    NativeRuntime *fresh = native_create(driver_entries, 2, NATIVE_ON);
+                    native_attach(fresh, copy);
+                    native_attach_frame_interrupts(fresh, copy, driver_vblank, driver_line);
+                    CHECK(snes_state_read(copy, driver_saves[k], driver_save_lengths[k], NULL, 0) == 0,
+                          "queued interrupt state did not load");
+                    CHECK(copy->frame_interrupt == k + SNES_FRAME_INTERRUPT_VBLANK && copy->run_frame_interrupt,
+                          "queued interrupt or host hook was lost on load");
+                    if (legacy)
+                        copy->frame_interrupt = SNES_FRAME_INTERRUPT_NONE;
+                    while (copy->frame < direct->frame)
+                        snes_run_frame(copy, 0);
+                    check_driver_state(direct, copy, "queued interrupt reload");
+                    native_destroy(fresh);
+                    free(copy);
+                }
+                free(driver_saves[k]);
+                driver_saves[k] = NULL;
+            }
+        }
+        native_destroy(runtimes[0]);
+        native_destroy(runtimes[1]);
+        free(old);
+        free(direct);
+    }
+    free(rom);
+}
+
+static bool driver_contract_image;
+static bool driver_contract_guard(Snes *s)
+{
+    return driver_contract_image && s->cpu.d == 0x1234 && s->cpu.db == 0x7E;
+}
+
+static void driver_contract_case(void)
+{
+    const NativeEntry entry = { .addr = 0x008500, .name = "driver_contract", .fn = driver_vblank,
+        .p_mask = CPU_FLAG_D | CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M,
+        .guard = driver_contract_guard, .cost_milli = 12000 };
+    uint8_t *rom = make_rom(NULL, 0, 0x8500);
+    for (unsigned invalid = 1; invalid <= 8; invalid++) {
+        Snes *s = machine(rom);
+        s->cpu.e = false;
+        s->cpu.s = A_TOP;
+        m_push8(s, 0);
+        m_push16(s, 0x8000);
+        m_push8(s, CPU_FLAG_M);
+        s->cpu.pc = invalid == 8 ? 0x8501 : 0x8500;
+        s->cpu.e = invalid == 1;
+        s->cpu.p = CPU_FLAG_M;
+        if (invalid == 2) s->cpu.p |= CPU_FLAG_D;
+        if (invalid == 3) s->cpu.p &= (uint8_t)~CPU_FLAG_M;
+        if (invalid == 4) s->cpu.p |= CPU_FLAG_X;
+        s->cpu.d = invalid == 5 ? 0 : 0x1234;
+        s->cpu.db = invalid == 6 ? 0 : 0x7E;
+        driver_contract_image = invalid != 7;
+        NativeRuntime *rt = native_create(&entry, 1, NATIVE_ON);
+        native_attach(rt, s);
+        native_attach_frame_interrupts(rt, s, driver_vblank, NULL);
+        s->frame_interrupt = SNES_FRAME_INTERRUPT_VBLANK;
+        CHECK(s->run_frame_interrupt(s->frame_interrupt_ctx, s) == -1 &&
+              s->cpu.s == A_TOP - 4 && s->cpu.pc == (invalid == 8 ? 0x8501 : 0x8500) &&
+              !s->frame_interrupt, "driver contract refusal %u consumed the caller", invalid);
+        native_destroy(rt);
+        free(s);
+    }
+    free(rom);
+}
+
 int main(void)
 {
+    driver_interrupt_case();
+    driver_contract_case();
     console_call_case();
     checkpoint_case();
     warp_loop_contract_case();

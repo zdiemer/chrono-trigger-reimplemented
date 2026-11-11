@@ -445,12 +445,15 @@ static void visit(Visitor *v, Snes *s)
     U(v, "snes.intercept_last_cycle", s->intercept_last_cycle);
     U(v, "snes.held_wait", s->held_wait);
     U(v, "snes.held_wait_s", s->held_wait_s);
+    U(v, "snes.frame_interrupt", s->frame_interrupt);
 }
 
 /* What the emulation indexes with or loops on, so a state that passes its
  * checksum but holds nonsense is refused instead of run. */
 static const char *out_of_range(const Snes *s)
 {
+    if (s->frame_interrupt > SNES_FRAME_INTERRUPT_LINE)
+        return "snes.frame_interrupt";
     if (s->stall_next >= SNES_STALL_HISTORY)
         return "snes.stall_next";
     if (s->vline >= SNES_LINES_PER_FRAME)
@@ -662,6 +665,8 @@ int snes_state_read_with(Snes *s, const SnesStateExtra *extra, const uint8_t *da
     s->on_frame_top_ctx = keep.on_frame_top_ctx;
     s->intercept = keep.intercept;
     s->intercept_ctx = keep.intercept_ctx;
+    s->run_frame_interrupt = keep.run_frame_interrupt;
+    s->frame_interrupt_ctx = keep.frame_interrupt_ctx;
     s->interpreter = keep.interpreter;
     s->native_only = keep.native_only;
     s->on_miss = keep.on_miss;

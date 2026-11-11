@@ -356,7 +356,8 @@ extern void (*generated_insn_hook)(Snes *s, uint32_t pc24);
  * (`held` instead, for a held wait's continuation run where the machine names
  * its wait);
  * `as_c` for every NATIVE_TIME_AS (or TIMED_AS) scope a running port opens
- * naming another registered hand entry (`routine`): that routine's work run
+ * naming another registered hand entry (`routine`), and for the frame
+ * driver's interrupt call (with `by` NULL): that routine's work run
  * as C rather than entered through the machine. Either may be NULL; both are
  * NULL by default. */
 typedef struct NativeCensusHooks {
@@ -372,6 +373,12 @@ extern NativeCensusHooks native_census_hooks;
 
 /* Install on a system (sets snes->intercept). */
 void native_attach(NativeRuntime *rt, Snes *snes);
+/* Select the frame driver's C interrupt continuations once, by function.
+ * Only selected hand entries in shipping mode are eligible. Their full
+ * contracts and estimates still apply; refusal leaves the original vector
+ * for ordinary dispatch. Interrupt entry and the return frame stay on the
+ * machine, so old saves at the vector remain valid. */
+void native_attach_frame_interrupts(NativeRuntime *rt, Snes *snes, NativeFn vblank, NativeFn line);
 
 /* How many mismatches native_report describes, and apart from them how many
  * notes (abandoned comparisons, timing): 16 each unless set, at most 256. */

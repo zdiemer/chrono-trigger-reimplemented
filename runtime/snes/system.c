@@ -88,6 +88,7 @@ static void clone_pointers(Snes *dst)
     dst->on_line = NULL;
     dst->on_frame_top = NULL;
     dst->intercept = NULL;
+    dst->run_frame_interrupt = NULL;
     dst->on_miss = NULL;
 }
 
@@ -157,6 +158,7 @@ void snes_power_on(Snes *s)
     }
     cpu_reset(&s->cpu);
     s->held_wait = 0;
+    s->frame_interrupt = SNES_FRAME_INTERRUPT_NONE;
     s->hclock = 0;
     s->vline = 0;
     s->bus.clocks = 0;
@@ -547,7 +549,14 @@ void snes_run_frame(Snes *s, uint16_t pad1)
         bool polled = true;
         s->intercept_last_cycle = 0;
         uint64_t step_stalls = s->stall_total;
-        int32_t spent = s->intercept ? s->intercept(s->intercept_ctx, s) : -1;
+        int32_t spent;
+        if (s->frame_interrupt && s->run_frame_interrupt)
+            spent = s->run_frame_interrupt(s->frame_interrupt_ctx, s);
+        else {
+            s->frame_interrupt = SNES_FRAME_INTERRUPT_NONE;
+            spent = s->intercept ? s->intercept(s->intercept_ctx, s) : -1;
+        }
+        SnesFrameInterrupt interrupt = s->cpu.nmi_pending ? SNES_FRAME_INTERRUPT_VBLANK : SNES_FRAME_INTERRUPT_LINE;
         CpuStep kind = CPU_STEP_READY;
         if (spent < 0 && (s->native_only || !s->interpreter)) {
             /* Without the interpreter: what cpu_step does besides instructions
@@ -574,6 +583,8 @@ void snes_run_frame(Snes *s, uint16_t pad1)
             if (s->bus.clocks && !s->cpu.last_cycle_io)
                 last_cycle = s->bus.clocks - s->bus.access_start;
         }
+        if (kind == CPU_STEP_INTERRUPT && s->run_frame_interrupt)
+            s->frame_interrupt = (uint8_t)interrupt;
         if (!clocks)
             clocks = CLOCKS_PER_IO_CYCLE;   /* WAI/STP idle, or native code that took no time */
         advance(s, clocks);

@@ -364,6 +364,7 @@ typedef struct Replay {
 
 struct NativeRuntime {
     const NativeEntry *table;
+    const NativeEntry *frame_handlers[2];
     int count;
     /* the kept estimates (native_keep_estimates), after the entries in
      * `table` and `stats`: found by time_as alone, never by the machine */
@@ -2825,6 +2826,7 @@ static void restore_machine(Snes *s, Snes *copy, uint64_t since)
     void (*on_line)(void *, Snes *, uint16_t) = s->on_line;
     void (*on_frame_top)(void *, Snes *) = s->on_frame_top;
     int32_t (*icpt)(void *, Snes *) = s->intercept;
+    int32_t (*frame_interrupt)(void *, Snes *) = s->run_frame_interrupt;
     bool (*on_miss)(void *, Snes *) = s->on_miss;
     snes_clone_since(s, copy, since);
     s->bus.wram_written = wram_written;
@@ -2835,6 +2837,7 @@ static void restore_machine(Snes *s, Snes *copy, uint64_t since)
     s->on_line = on_line;
     s->on_frame_top = on_frame_top;
     s->intercept = icpt;
+    s->run_frame_interrupt = frame_interrupt;
     s->on_miss = on_miss;
 }
 
@@ -3135,10 +3138,12 @@ static int32_t run_idle(NativeRuntime *rt, Snes *s, const NativeEntry *e, uint32
 }
 
 /* A hand port started on its fiber where the machine stands (SHADOW: on its
- * copy, compared), and run until it finishes, suspends or stops; `held` as
- * for run_idle. A held wait's continuation takes the wait: it holds it again
+ * copy, compared), and run until it finishes, suspends or stops. The origin
+ * identifies its caller for the census. A held continuation takes the wait: it holds it again
  * with m_hold_at where it goes round. */
-static int32_t start_port(NativeRuntime *rt, Snes *s, const NativeEntry *e, bool held)
+typedef enum { PORT_FROM_MACHINE, PORT_FROM_HOLD, PORT_FROM_FRAME } PortOrigin;
+
+static int32_t start_port(NativeRuntime *rt, Snes *s, const NativeEntry *e, PortOrigin origin)
 {
     Active *a = &rt->active[rt->nactive++];
     memset(a, 0, sizeof *a);
@@ -3159,9 +3164,11 @@ static int32_t start_port(NativeRuntime *rt, Snes *s, const NativeEntry *e, bool
     a->job->nsaved_flags = 0;
     if (rt->observer.entered)
         rt->observer.entered(rt->observer.ctx, s, e);
-    if (rt->mode == NATIVE_ON && held && native_census_hooks.held)
+    if (rt->mode == NATIVE_ON && origin == PORT_FROM_FRAME && native_census_hooks.as_c)
+        native_census_hooks.as_c(native_census_hooks.ctx, NULL, e);
+    else if (rt->mode == NATIVE_ON && origin == PORT_FROM_HOLD && native_census_hooks.held)
         native_census_hooks.held(native_census_hooks.ctx, s, e);
-    else if (rt->mode == NATIVE_ON && !held && native_census_hooks.entered)
+    else if (rt->mode == NATIVE_ON && origin == PORT_FROM_MACHINE && native_census_hooks.entered)
         native_census_hooks.entered(native_census_hooks.ctx, s, e);
     if (rt->mode == NATIVE_ON && e->hold)
         s->held_wait = 0;
@@ -3221,7 +3228,7 @@ static bool go_on_in_the_held_wait(NativeRuntime *rt, Snes *s, uint32_t pc, int3
             continue;
         }
         drop_what_the_held_wait_left(rt, s);
-        *result = e->idle ? run_idle(rt, s, e, pc, true) : start_port(rt, s, e, true);
+        *result = e->idle ? run_idle(rt, s, e, pc, true) : start_port(rt, s, e, PORT_FROM_HOLD);
         return true;
     }
     return false;
@@ -3260,9 +3267,8 @@ static void follow_handlers(NativeRuntime *rt, const Snes *s)
     }
 }
 
-static int32_t intercept(void *ctx, Snes *s)
+static int32_t run_step(NativeRuntime *rt, Snes *s, bool from_frame)
 {
-    NativeRuntime *rt = ctx;
     uint32_t pc = cpu_pc24(&s->cpu);
 
     if (rt->acc)
@@ -3329,6 +3335,25 @@ static int32_t intercept(void *ctx, Snes *s)
             }
         }
         return -1;
+    }
+
+    /* The frame driver supplies the interrupt kind, not an address lookup.
+     * Keep debt payment, interrupted callers and task switching above this
+     * call exactly as for an ordinary entry. An entry refused here remains
+     * at its original vector for the ordinary path below. */
+    if (from_frame) {
+        unsigned event = s->frame_interrupt;
+        s->frame_interrupt = SNES_FRAME_INTERRUPT_NONE;
+        const NativeEntry *e = event >= SNES_FRAME_INTERRUPT_VBLANK && event <= SNES_FRAME_INTERRUPT_LINE
+                                   ? rt->frame_handlers[event - SNES_FRAME_INTERRUPT_VBLANK] : NULL;
+        if (e && e->addr == pc && rt->mode == NATIVE_ON && rt->port_timing != PORT_TIMING_ORACLE &&
+            rt->nactive < MAX_ACTIVE && entry_applies(e, s)) {
+            NativeStats *st = &rt->stats[e - rt->table];
+            st->calls++;
+            if (rt->page_report)
+                count_page(st, s->cpu.d);
+            return start_port(rt, s, e, PORT_FROM_FRAME);
+        }
     }
 
     /* ON: where the machine names a held wait and the main thread rests in
@@ -3435,11 +3460,38 @@ static int32_t intercept(void *ctx, Snes *s)
                 return result;
             continue;   /* the generated block at the same address runs */
         }
-        return start_port(rt, s, e, false);
+        return start_port(rt, s, e, PORT_FROM_MACHINE);
     }
     if (refused && rt->observer.refused)
         rt->observer.refused(rt->observer.ctx, s, refused, refused_why);
     return rt->mode == NATIVE_ON && rt->generated ? continue_generated(rt, s) : -1;
+}
+
+static int32_t intercept(void *ctx, Snes *s) { return run_step(ctx, s, false); }
+
+static int32_t frame_interrupt_on_the_machine(void *ctx, Snes *s) { return run_step(ctx, s, true); }
+
+void native_attach_frame_interrupts(NativeRuntime *rt, Snes *s, NativeFn vblank, NativeFn line)
+{
+    s->run_frame_interrupt = NULL;
+    s->frame_interrupt_ctx = NULL;
+    memset(rt->frame_handlers, 0, sizeof rt->frame_handlers);
+    if (rt->mode != NATIVE_ON)
+        return;
+    const NativeFn handlers[] = { vblank, line };
+    for (unsigned k = 0; k < sizeof handlers / sizeof handlers[0]; k++) {
+        for (int i = 0; handlers[k] && i < rt->count; i++) {
+            const NativeEntry *e = &rt->table[i];
+            if (e->fn == handlers[k] && !e->generated && !e->time_only && !e->idle) {
+                rt->frame_handlers[k] = e;
+                break;
+            }
+        }
+    }
+    if (rt->frame_handlers[0] || rt->frame_handlers[1]) {
+        s->run_frame_interrupt = frame_interrupt_on_the_machine;
+        s->frame_interrupt_ctx = rt;
+    }
 }
 
 unsigned long native_call_step_limit = 50000000ul;
