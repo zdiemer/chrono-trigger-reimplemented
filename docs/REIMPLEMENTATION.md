@@ -4932,6 +4932,17 @@ machine-only charge restores the complete strict outcome artifact to
 `8ad0664d` and passes the existing outcome ratchet, without restoring a
 second stack write or weakening the checked callee contract.
 
+The same merge moved setup's return into `battle_step_returns`. Its five
+register-restoration reads had formerly been local values, while its two
+return-word reads belonged to the startup caller's much higher calibrated
+rate. The held return now leaves those restoration accesses uncounted and
+the startup continuation owns the return-word charge. Dalton's trace at
+frame 5623 isolates the lost 1,831-clock caller estimate; restoring its
+ownership recovers all 17 changed checkpoint pictures. Full strict Dalton
+and R-Series outcome artifacts match the pre-retirement builds; R-Series
+passes its existing ratchet, while Dalton retains only its calibration-era
+ledger differences.
+
 Every retired entry keeps its calibrated rate in `time_tags.c`; deleted
 temporary accesses retain their machine work charges, with no new host
 charge. Direct call-outs keep their settling boundaries and the callee's

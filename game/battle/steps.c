@@ -95,12 +95,17 @@ static bool run_the_step(Snes *s, BattleStep step, BattleFrame kept)
  * values from its call frame, then resume its caller at a held boundary. */
 void battle_step_returns(Snes *s)
 {
+    uint32_t mark = charge_uncounted_begin(state_of(s));
     s->cpu.y = m_pull16(s);
     s->cpu.x = m_pull16(s);
     uint8_t a = m_pull8(s);
     m_set_a8(s, a);
     m_set_nz8(s, a);
     m_rts(s);
+    /* The former C adapter restored these registers from its locals. Its
+     * caller charged only the return word, at the startup routine's rate;
+     * the held continuation retains that ownership in after_setup. */
+    charge_uncounted_end(state_of(s), mark);
     native_hold(s, HOLD_BATTLE_PASS);
 }
 

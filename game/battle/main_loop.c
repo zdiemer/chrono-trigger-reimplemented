@@ -1320,7 +1320,13 @@ void battle_give_turn(Snes *s)
         m_rts(s);
 }
 
-void battle_main_loop_after_setup(Snes *s) { go_on_on_the_machine(s, finish_battle_start(state_of(s))); }
+void battle_main_loop_after_setup(Snes *s)
+{
+    /* The setup dispatch's return word belonged to this caller's estimate
+     * before its C stack became a held continuation. */
+    charge_machine_accesses(state_of(s), 2);
+    go_on_on_the_machine(s, finish_battle_start(state_of(s)));
+}
 
 void battle_main_loop_start(Snes *s) { go_on_on_the_machine(s, start_battle(state_of(s), call_on_the_machine, s)); }
 
