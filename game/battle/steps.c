@@ -70,6 +70,10 @@ static bool run_the_step(Snes *s, BattleStep step, BattleFrame kept)
         /* This was a call-out: keeping the dispatch's registers is still
          * dispatch work, settled before setup starts at its own rate. */
         battle_keep(s, kept);
+        /* The old by-address adapter constructed the return frame twice:
+         * once while looking for a direct entry and once for its call-out.
+         * Keep that calibrated dispatch work without a second stack write. */
+        charge_machine_accesses(state_of(s), 2);
         ran = battle_run_called(s, 0xC1004A, STEPS[step].routine, STEPS[step].dont_care, STEPS[step].entry);
         if (ran)
             battle_stop_keeping(s, kept);

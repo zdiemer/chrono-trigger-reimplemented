@@ -4903,6 +4903,15 @@ instructions. Its ordinary seed-1 policy still needs a successful search;
 that policy follow-up does not substitute for the protected movie outcomes.
 This does not claim the telepod's subsequent developer-room tour.
 
+The setup dispatcher retains the two machine accesses from its former
+by-address adapter's trial return frame. `e4ea6b60` replaced that adapter
+with a direct call; although the duplicate write was correctly removed,
+its 38-master-clock calibrated cost disappeared. R-Series first crosses
+an observable frame boundary at movie frame 8543. Keeping the cost as a
+machine-only charge restores the complete strict outcome artifact to
+`8ad0664d` and passes the existing outcome ratchet, without restoring a
+second stack write or weakening the checked callee contract.
+
 Every retired entry keeps its calibrated rate in `time_tags.c`; deleted
 temporary accesses retain their machine work charges, with no new host
 charge. Direct call-outs keep their settling boundaries and the callee's
