@@ -1954,6 +1954,11 @@ from frame 4500; the saved-game and place exceptions are no longer needed.
 Runtime catalogue checks still cover the ranges selected by the sampled
 movies, not every possible malformed script operand.
 
+Validation for this audit: `assets_test`, all 596 Python tests, the finite
+resource-producer audit, the catalogue check and both port ratchets pass.
+The 58-movie sampled gate with `--evidence` ends `suite OK`; strict and
+native outcome ratchets each pass 58/58.
+
 **Code that was read as data.** `menu_scene_scroll_pattern_byte` reads the
 448-byte `menu_scene_scroll_pattern` resource, replacing 166 instruction-sized
 rows. Ten other code rows supplied the unused eighth byte copied after a
