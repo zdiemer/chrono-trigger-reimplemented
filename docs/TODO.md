@@ -2761,9 +2761,11 @@ list, by kind, is what `game/` still asks of one.
     SRAM still matches and all five places remain on time. Follow the first
     shifted battle input; the re-recorded
     outcome is not a claim that the fight is equivalent.
-    Native access, transfer, budget and retired-work accounting need the next batched library run on
-    the 47 unsampled movies, especially `battle-ozzies-fort`, `battle-mud-imp`,
-    `events-cyrus` and `battle-golem-twins`; no library-wide rate fit was made.
+    Native access, transfer, budget and retired-work accounting need a batched
+    ledger update. The expanded sample now includes Ozzie's Fort, Mud Imp,
+    Cyrus and Golem Twins, but no library-wide rate fit was made. The historical
+    replay audit in history/library-ledgers.md identifies the changed outcome
+    pins and native place counts; do not refresh them from the sample.
   - *The handlers' share of an upload.* The sound driver's upload time is
     the wall's under a light vblank handler; under the menus' busy one the
     original's song loads in about twice the frames, and a battle's song,

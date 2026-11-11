@@ -77,7 +77,7 @@ battle-son-of-sun  # strict/native picture fingerprints after battle timing chan
 battle-black-tyrano  # battle ending and subsequent location sequence after field retirement
 battle-castle-flea  # field-to-battle pictures and the native castle route
 battle-castle-slash  # field-to-battle pictures and the native castle route
-battle-dalton  # action-record selection and battle picture fingerprints
+battle-dalton  # setup return time ownership and battle animation picture fingerprints
 battle-giga-gaia  # battle pictures and return-to-field places
 battle-golem-twins  # battle pictures, subsequent places and save RAM
 battle-heckran  # battle pictures after rate calibration

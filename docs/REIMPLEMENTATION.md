@@ -3668,35 +3668,18 @@ matches the pre-retirement field state after restoring the charge. Full
 strict Flea and Slash replays also pass their existing outcome ratchets. The
 native program never made the removed write and keeps its existing time.
 
-Location loading also retains the machine-only work of the deleted tile
-set/list selections, record and palette products, map dimensions, exit
-extent, and attribute-run summary. These were removed in `dd2ba214`
-without replacement charges. Black Tyrano's first load lost about 26,000
-estimated master clocks and began its fade one frame early. The explicit
-access counts use each operation's retained rate and restore no temporary
-values. Full strict Heckran, Magus at North Cape and unequipped-armor
-outcome artifacts now match `54099ed8`, before field retirement; the
-calibration-era differences from the reference remain ledger work.
-
-The same audit covers event startup and object preparation: saved operand
-and resume offsets, casting-result reads, tile-property and copy work,
-palette-slot selection, chest marking, the party-service adapter and
-window staging. Each retained count comes from the removed accesses,
-including their conditional branches and RAM/cartridge/I/O prices; none
-reconstructs the dead value. With these costs, full strict Black Tyrano,
-Rust Tyrano and unequipped armor match their pre-field-retirement outcome
-artifacts too. Rust Tyrano passes its current ratchet. Restarting an object
-script retains the five reads formerly used to return its machine registers;
-dialog shading retains its division and four temporary bytes. At Spekkio's
-return to the field, these account for the missing 2,103 estimated master
-clocks at frame 63294. Its full strict replay now passes the existing outcome
-ratchet. Party walking also keeps its saved resume offset, and touching an
-object keeps the conditional call-state selection and push dividend costs.
-These were comparison-only accesses deleted in `dd2ba214`; the native host
-never counted them. Dalton's party-step trace now has the same estimate as
-the pre-retirement run (the contacted leader's path had lost 78 raw bus
-clocks). Its remaining battle animation drift is accounted for by the
-battle setup return below.
+The same rule covers location loading, event startup and object preparation:
+tile and map selections, record products, dimensions and extents, operand
+and resume offsets, casting-result reads, tile copies, palette-slot
+selection, chest marking, the party-service adapter, dialog staging and
+shading, script restarts, party stepping and contact selection. The counts
+retain the deleted accesses' conditions and RAM/cartridge/I/O prices; none
+reconstructs a dead value. Full strict replays restore the pre-retirement
+outcome artifacts for the affected field witnesses. Flea, Slash, Rust
+Tyrano and Spekkio pass their existing outcome ratchets; calibration-era
+pins remain ledger work. The per-movie first divergences and historical
+comparisons are in history/library-ledgers.md, "Regressions exposed after
+the teardown sample"; battle setup's separate return ownership is below.
 
 For example, a tile run formerly wrote three temporary words and the
 three-byte upload cursor. Its estimate now counts six RAM and three I/O

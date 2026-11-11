@@ -122,3 +122,111 @@ outcome hashes remain unchanged.
 The Ocean Palace dark-ending exception is removed: both the batch and the
 fresh native replay end visibly. Its recorded-input drift remains open;
 the fresh replay misses the reference's Mammon Machine room visit.
+
+## Regressions exposed after the teardown sample
+
+The whole-library run at `3c91834d` exposed failures absent from the old
+37-movie sample. The repair branch starts at `6cf000b3`. Historical binaries
+were built in the repair worktree and run one movie at a time with the same
+input and cartridge save. Full outcome artifacts distinguish saved game,
+save RAM, picture samples and location sequence; no historical binary or
+diagnostic counterfactual supplies new baseline observations.
+
+**Failures in executable behavior.** Bucket Lavos's first strict refusal is
+frame 48239 at `$C1:0C2D`: an empty ally target is already the marked target.
+The original compares them before indexing a target and returns on equality;
+the guard incorrectly rejected that no-op. Field retirement (`299b2905`)
+exposed the refusal in strict play. Before battle retirement (`9b1597a3`),
+shipping play already refused three battle entries there but kept intact
+interrupt stubs. After retirement removed battle scratch state, the original
+fallback reaches `$C3:0633`'s unpacking block move at frame 48496 and
+overwrites `$0500-$0507`. These are damaged vectors, not another valid stub
+image. Accepting the already marked empty target prevents the fallback;
+strict reaches all 196000 frames and shipping has zero fallback and refusals.
+
+Spekkio's nothing-to-steal message uses selector 13. Both the original
+`$CD:01C3` and the C accessor read `$D1:EE99 + 13 = $D1:EEA6`, an operand
+of the adjacent instruction. The twelve-byte nominal table was too short
+for the actual resource view; its explicit overlay now spans fourteen bytes.
+The failure predates the cartridge-read checking merge `865819f7`: native
+time accounting (`253d674c`) changes the recorded input's path and exposes
+it in a pre-battle-retirement binary too. The complete 134646-frame native
+replay now ends visibly, and native-shape no longer rejects the read.
+
+**The two video findings were attribution changes.** `9b1597a3` transferred
+map-to-menu work to `overworld_menu_fade_finished`, updating the exceptions
+for line differences but omitting their visible-write counterparts. Parent
+and current shipping logs have identical sites, counts and scanlines:
+Fiona's Forest has HDMA disable `$C2:253D` at line 95 and display blank
+`$C2:8025` at 172; Sun Stone has the same writes at 131 and 208. Renaming
+the two existing exceptions, with this evidence on each line, clears both
+findings without accepting a new write.
+
+**Strict timing regressions.** Field scratch retirement `dd2ba214`, merged
+in `299b2905`, removed some counted accesses without replacement estimates.
+The retained counts cover layer streaming, location loading, event/object
+preparation, script restarts, dialog shading, party stepping and contact
+selection. They preserve the machine's calibrated work, with no new charge
+to the native host, which never performed comparison scaffolding. Flea's
+first object-position difference is frame 3427: the missing layer-counter
+write lets another command fit in frame 3426. Spekkio's return to the field
+loses 2103 estimated master clocks at frame 63294 and first changes an
+object delay at 63295. Full strict replays restore the historical artifacts
+for Black Tyrano, Flea, Slash, Heckran, Magus at North Cape, Rust Tyrano,
+unequipped armor, Spekkio and Bucket Lavos.
+
+Battle held continuations `e4ea6b60`, merged in `9b1597a3`, removed two
+trial return-frame writes from setup dispatch and reassigned the setup
+return's cost. R-Series first changes visibly at frame 8543. Dalton's
+startup trace at 5623 isolates the missing return-word estimate; its first
+affected recorded picture is 5698. Keeping dispatch work and return work
+at their respective retained rates restores both complete strict artifacts.
+Flea, Slash, R-Series, Rust Tyrano and Spekkio pass their existing strict
+outcome ratchets after these repairs.
+
+**Changes that remain ledger work.** `54099ed8` calibrated the library's
+rates but retained older observations for 35 movies (the previous section
+records that boundary). Dragon Tank and Son of Sun pass before that commit
+and fail immediately after it, in both strict and native modes. Their strict
+artifacts do not change across the later teardown merges. The same strict
+calibration-only attribution holds for Giga Gaia, Golem Twins, Mud Imp and
+Zombor; the restored teardown witnesses above can still differ from pins
+that predate calibration. The first changed recorded picture in these
+strict comparisons is frame 298, during startup; it is a sampled observation,
+not a claim that the first changed pixel occurs exactly then.
+
+Every failed native outcome was replayed on both sides of `253d674c`:
+Black Tyrano, Flea, Slash, Dalton, Dragon Tank, Giga Gaia, Golem Twins,
+Heckran, Magus at North Cape, MotherBrain, Mud Imp, Nizbel II, Ozzie's Fort,
+R-Series, Rust Tyrano, Son of Sun, Spekkio and Bucket Lavos. Each changes at
+that native time-model merge (the first changed recorded picture is 298).
+The earlier calibration also changes all of those except Flea, Slash and
+Spekkio. Replaying both sides of field retirement does not change their
+native outcome artifacts. The model charges transfers, retired work and
+frame budgets; reverting that accounting to fit a fixed input movie would
+undo its intended correction.
+
+The three native place ratchets likewise move at `253d674c`: Cyrus 18 to
+16 timely arrivals, Fiona's Forest 7 to 4, and Sun Stone 20 to 12. The first
+location transition moves from frame 48 to 49 as DMA time is charged
+(`d8f2c34f` within that merge). Cyrus retains the same 18-place order:
+its arrival at location 497 moves from 3735 to 3737 against reference 3706,
+crossing the 30-frame tolerance. Fiona's location 502 moves 4400 to 4402
+against 4371, then misses the reference's location 424 visit. Sun Stone's
+later fixed inputs diverge after its era transitions: the earlier model
+continues through 21 locations, the new one through 13. These are shown
+time-model changes; their counts and per-kind pins await the ledger commit.
+
+MotherBrain has one additional correct change: `20ad985f` rereads the live
+action record after targeting can reuse its low-pointer storage. Reversing
+only those reads restores its pre-battle-retirement artifact, including the
+five picture samples at 43798-43802, while saved game, save RAM and places
+already agree. Do not restore the stale cached tech selection to recover
+the pictures; the next ledger needs this reason.
+
+The sample now has 58 movies and 1418355 frames, including every failed
+witness except Nizbel II and MotherBrain (148758 and 135481 frames).
+Shorter witnesses for those two remain follow-ups. Bucket Lavos and
+Spekkio remain despite their cost because no shorter input reproduces
+their actual contract and resource faults. No outcome or place baseline
+was changed by these repairs.
