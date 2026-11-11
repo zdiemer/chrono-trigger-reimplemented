@@ -234,9 +234,9 @@ mode and Spekkio in native mode, hiding failures later in their ordering.
 The expanded repair sample checks all entries. The additional native
 unequipped-armor and Zombor failures are also reproduced at `253d674c`;
 unequipped armor already changes at `54099ed8`, while Zombor still passes
-before the native time-model merge. All native artifacts before the final
-alignment-count repair agree with the whole-library run, except Spekkio,
-which now completes.
+before the native time-model merge. All native artifacts agree with the
+whole-library run, except Spekkio, which now completes. The final
+alignment-count repair changes no native artifact in the expanded sample.
 
 The additional strict failures in Lavos game-over, Magus, Tyrano Lair
 walls, Death Peak, Jetbike Race, Ocean Palace, Cyrus and save-point menus
@@ -272,3 +272,22 @@ Shorter witnesses for those two remain follow-ups. Bucket Lavos and
 Spekkio remain despite their cost because no shorter input reproduces
 their actual contract and resource faults. No outcome or place baseline
 was changed by these repairs.
+
+**Final expanded-sample receipt.** The code through `f3c243b0` was rebuilt
+with two jobs. Eight focused C test executables and 31 Python tests passed.
+The 58-movie gate with evidence completed all shadow replays cleanly in
+1959 seconds, kept the 7200-frame trace identical, and passed timing,
+vblank, both shipping routes, sound fuzz and all static/evidence checks.
+Reference and shipping fallback counts are zero, as are guard refusals.
+Native-shape reaches all 58 ends and both route outcomes with zero reads
+of removed scaffolding. Strict reaches all 58 ends; native reaches all 58
+ends visibly. The extended catalogue passes with 7061 resources.
+
+The last line is **`FAILED: native; outcomes`**, not a gate pass. Cyrus,
+Fiona and Sun Stone retain 16, 4 and 12 timely native arrivals against
+18, 7 and 20. Recorded-outcome ratchets pass 35/58 strict and 37/58 native
+movies. The historical comparisons above explain the remaining pins;
+their refresh belongs to the batched ledger, not this sample. Comparing
+with the first repair gate, the final alignment/dispatch correction changes
+only attract mode's strict artifact; all 58 native artifacts and the other
+57 strict artifacts are identical. No outcome or place ratchet was relaxed.

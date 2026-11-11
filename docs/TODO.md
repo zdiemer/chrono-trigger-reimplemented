@@ -2766,6 +2766,9 @@ list, by kind, is what `game/` still asks of one.
     Cyrus and Golem Twins, but no library-wide rate fit was made. The historical
     replay audit in history/library-ledgers.md identifies the changed outcome
     pins and native place counts; do not refresh them from the sample.
+    The repair branch's final expanded sample ends `FAILED: native; outcomes`:
+    all 58 movies complete in strict and native modes and all other checks
+    pass, but the shown calibration/model changes still need that ledger.
   - *The handlers' share of an upload.* The sound driver's upload time is
     the wall's under a light vblank handler; under the menus' busy one the
     original's song loads in about twice the frames, and a battle's song,
