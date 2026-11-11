@@ -1335,10 +1335,22 @@ static void warp_loop_contract_case(void)
 static unsigned idle_loop_entries, idle_loop_passes;
 static bool idle_loop_image = true;
 static bool idle_loop_returns;
+static bool idle_loop_split;
+static bool idle_loop_any_indexes;
 
 static bool idle_loop_guard(Snes *s)
 {
-    return idle_loop_image && s->cpu.d == 0 && s->cpu.db == 0;
+    return idle_loop_image && s->cpu.d == 0 && s->cpu.db == 0 &&
+           (!idle_loop_split || snes_bus_peek(&s->bus, PENDING) != 0);
+}
+
+/* Scene and world waits have complementary guards at the same head. A
+ * normal wake must keep its hold, while the ready row still checks every
+ * part of its own contract. */
+static bool idle_frame_ready(Snes *s)
+{
+    return idle_loop_split && idle_loop_image && s->cpu.d == 0 && s->cpu.db == 0 &&
+           snes_bus_peek(&s->bus, PENDING) == 0;
 }
 
 static void idle_frame_pass(Snes *s)
@@ -1357,13 +1369,29 @@ static void idle_frame_loop(Snes *s)
     } while (native_idle_held(s));
 }
 
+static void idle_begin_wait(Snes *s)
+{
+    wait_held(s);
+    native_hold(s, HOLD_TEST_LOOP);
+}
+
+static void idle_ready_pass(Snes *s)
+{
+    idle_frame_pass(s);
+    native_hold_return(s, HOLD_TEST_LOOP);
+}
+
 static NativeRuntime *idle_loop_runtime(Snes *s, bool loop)
 {
     NativeEntry table[] = {
-        { .addr = 0x008300, .name = "frame_wait", .fn = wait_held,
+        { .addr = 0x008300, .name = "frame_wait", .fn = idle_begin_wait,
           .p_mask = 0x30, .p_value = P_M8_X16, .cost_milli = 3000 },
-        { .addr = WAIT_LOOP, .name = "frame_wait_loop", .fn = idle_frame_pass,
+        { .addr = WAIT_LOOP, .name = "frame_ready", .fn = idle_ready_pass,
           .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_M,
+          .guard = idle_frame_ready, .cost_milli = 1000, .hold = HOLD_TEST_LOOP },
+        { .addr = WAIT_LOOP, .name = "frame_wait_loop", .fn = idle_frame_pass,
+          .p_mask = idle_loop_any_indexes ? CPU_FLAG_M : CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D,
+          .p_value = CPU_FLAG_M,
           .guard = idle_loop_guard, .idle = true, .hold = HOLD_TEST_LOOP,
           .loop = loop ? idle_frame_loop : NULL },
         { .addr = 0x008180, .name = "fresh_idle", .fn = checkpoint_waits,
@@ -1371,7 +1399,7 @@ static NativeRuntime *idle_loop_runtime(Snes *s, bool loop)
         { .addr = WAIT_EXIT, .name = "idle_finished", .fn = leave_waited,
           .cost_milli = 1000, .hold = HOLD_TEST_LOOP },
     };
-    NativeRuntime *rt = native_create(table, 4, NATIVE_ON);
+    NativeRuntime *rt = native_create(table, 5, NATIVE_ON);
     native_attach(rt, s);
     return rt;
 }
@@ -1387,7 +1415,12 @@ static void idle_loop_case(bool returns)
     size_t old_len, len;
     uint8_t *old_state = snes_state_write(old, &old_len);
     idle_loop_entries = idle_loop_passes = 0;
+    looks_entered = looks_held = 0;
+    native_census_hooks = (NativeCensusHooks){ .entered = on_look_entered, .held = on_look_held };
     CHECK(suspended_frame_ends(s, after, 20) == 0, "idle C loop was not saveable");
+    native_census_hooks = (NativeCensusHooks){ 0 };
+    CHECK(looks_entered == 0 && looks_held > 0,
+          "idle wake lost its hold: %d machine entries, %d held", looks_entered, looks_held);
     CHECK(idle_loop_entries <= 20 && idle_loop_passes > idle_loop_entries * 100,
           "idle loop restarted at each poll: %u entries, %u passes", idle_loop_entries, idle_loop_passes);
     uint8_t *state = snes_state_write(s, &len);
@@ -1455,6 +1488,37 @@ static void idle_loop_case(bool returns)
     CHECK(suspended_frame_ends(s, after, 2) == 0, "a replaced idle checkpoint stayed suspended");
     native_destroy(after);
     free(s);
+    free(rom);
+}
+
+
+/* The world idle row allows either index width and arithmetic mode, but
+ * its ready continuation requires X16 and binary arithmetic. The idle
+ * guard becoming false must not let either precondition slip through. */
+static void idle_ready_contract_case(void)
+{
+    uint8_t *rom = make_rom(wait_code, sizeof wait_code / sizeof wait_code[0], 0x8600);
+    idle_loop_split = idle_loop_any_indexes = true;
+    idle_loop_returns = false;
+    for (unsigned flag = CPU_FLAG_D; flag <= CPU_FLAG_X; flag <<= 1) {
+        Snes *s = machine(rom);
+        NativeRuntime *rt = idle_loop_runtime(s, true);
+        run_frames(s, 2);
+        s->cpu.p |= flag;
+        unsigned passes = idle_loop_passes;
+        uint16_t saved_s = s->cpu.s;
+        CHECK(s->intercept(s->intercept_ctx, s) > 0 && idle_loop_passes == passes + 1,
+              "idle contract unexpectedly rejected status bit %u", flag);
+        m_write8(s, PENDING, 0);
+        passes = idle_loop_passes;
+        CHECK(s->intercept(s->intercept_ctx, s) < 0 && cpu_pc24(&s->cpu) == WAIT_LOOP &&
+                  s->cpu.s == saved_s && idle_loop_passes == passes && !native_suspended(rt) &&
+                  native_stats_named(rt, "frame_ready")->skipped > 0,
+              "ready continuation bypassed its stricter status bit %u", flag);
+        native_destroy(rt);
+        free(s);
+    }
+    idle_loop_split = idle_loop_any_indexes = false;
     free(rom);
 }
 
@@ -1853,6 +1917,12 @@ int main(void)
     idle_loop_case(true);
     idle_loop_case(false);
     idle_midframe_case();
+    idle_loop_split = true;
+    idle_loop_case(true);
+    idle_loop_case(false);
+    idle_midframe_case();
+    idle_loop_split = false;
+    idle_ready_contract_case();
     warp_loop_contract_case();
     menu_contract_case();
     menu_script_contract_case();

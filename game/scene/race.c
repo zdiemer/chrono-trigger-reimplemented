@@ -893,13 +893,23 @@ bool scene_race_wait_for_tilemap_upload_present(Snes *s)
 /* One pass of the race's wait for the tilemap it marked finished to be sent,
  * which the vblank upload marks done; then on at $7E:5215. Idle entry, 16-bit
  * A. The wait is for the frame (docs/TODO.md). */
-void scene_race_wait_for_tilemap_upload_loop(Snes *s)
+void scene_race_wait_for_tilemap_upload_loop_entry(Snes *s)
 {
     uint16_t pending = scene_race_tilemap_pending(state_of(s));
     s->cpu.a = pending;
     m_set_nz16(s, pending);
     if (pending == 0)
         s->cpu.pc = 0x5215;
+}
+
+// $7E:5211
+/* Wait for vblank to send the racers' finished tilemap. The pending word
+ * and saved caller frame reconstruct the loop after loading a state. */
+void scene_race_wait_for_tilemap_upload_loop(Snes *s)
+{
+    do {
+        scene_race_wait_for_tilemap_upload_loop_entry(s);
+    } while (native_idle_held(s));
 }
 
 /* ---- The engine's sound --------------------------------------------------------------------- */

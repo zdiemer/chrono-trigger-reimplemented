@@ -183,11 +183,11 @@ already built are described in PLATFORM.md.
   and dispatches its main thread and handlers; `ct_native` runs it with host
   services (PLAYING.md, "The native program"). What is left, counted by
   `tools/machine_joints.py`:
-  13 registered entries, 139 held continuations, 103 stops (including guard
+  13 registered entries, 137 held continuations, 103 stops (including guard
   refusals), five address call-outs and two registry sibling lookups. The
   console's direct boot and stub calls are described in REIMPLEMENTATION.md,
   "The console's direct hand-offs".
-  The held count excludes the field, warp and two menu C loops; all 143 compatibility
+  The held count excludes the field, warp, two menu and two scene C loops; all 143 compatibility
   rows remain (RUNTIME.md, "Restartable C loops").
   The 37-movie sample's census records no calls by the machine after the
   frame driver's reset and interrupt calls (RUNTIME.md) and the field's

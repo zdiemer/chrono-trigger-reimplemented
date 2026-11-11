@@ -2121,11 +2121,11 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
     if (a->phase == PH_IDLE_WAIT) {
         if (pc != a->sync_pc || s->cpu.s != a->sync_s || interrupt_deliverable(s))
             return false;
-        /* A handler may have changed widths, page, bank or the code image.
-         * Refuse at the saved head, so the ordinary path reports the same
-         * refusal and keeps the caller's return frame. */
+        /* A handler may have made another continuation ready at this head,
+         * or changed widths, page, bank or the code image. Keep the hold so
+         * its other rows get their full contract check. If none applies,
+         * ordinary dispatch reports the refusal at the saved caller frame. */
         if (!entry_applies(a->entry, s)) {
-            s->held_wait = 0;
             finish(rt);
             return true;
         }

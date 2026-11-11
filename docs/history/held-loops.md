@@ -73,3 +73,55 @@ frame 3,000. Old and new mid-wait saves loaded into fresh runtimes reach
 that same final state, including sound and save RAM; both 200-frame traces
 match the preceding build's reload. Suspension, state, debt, timing-scope
 and cartridge-save tests pass, as do 28 targeted Python checks.
+
+## Field and menu loop measurements
+
+The field wait's 37-movie census falls from 60,007,940 polling dispatches to
+142,734 entries into its C loop. The floor-switch movie, loaded from its
+cartridge save, rests at frame 2,800 at `$C0:EC71`, hold 5, S `$06FD`, with
+no suspended caller or unpaid time. Old and new builds serialize every
+field identically there and at frame 3,000. Old and new mid-wait saves
+loaded into fresh runtimes reach that same final state, including sound and
+save RAM; both 200-frame traces match the preceding build's reload.
+
+The menu upload wait's sampled dispatches fall from 48,112,971 to 117,478;
+the sprite-object frame wait's fall from 1,281,651 to 3,130. Other held
+continuations and C-call counts are unchanged by the menu step. Across
+these conversions total held dispatches fall from 159,848,871 to
+50,709,651, with zero machine entries on the 37-movie sample.
+
+At frame 4,000, `menus-field-menu` rests in the upload wait with hold 10 and
+S `$09FF`; `menus-epoch` rests in the frame wait with hold 14 and S `$06FB`.
+Both start from cartridge saves. Old and new states reload into fresh
+runtimes and reach frame 4,200 with every serialized field identical to
+uninterrupted play and matching 200-frame traces. The equipment-and-save
+movie also ends with identical serialized state and save RAM. The sampled
+gate ends `suite OK`; style and smell checks have no new findings.
+
+## Scene wait named before its C loop
+
+The scene program's main loop is the first held wait (`HOLD_SCENE_MAIN_LOOP`):
+the first frame (`first_frame_on_the_machine`) holds it, and its two passes
+(`attract_wait_loop`, the empty one, idle; `attract_frame_pass`, a picture's
+scaling, a port) are its continuations. These are the measures over
+attract-demo and title-start:
+
+| Measure | Before | Now |
+|---|---|---|
+| census, `$7E:3023` entered by the machine | 4,470,854 wait passes and 103 frame passes (100 by stop, 3 by return) | 0 |
+| census, held runs | none | 4,470,854 and 103 |
+| census, all entries by the machine | 9,285,097 | 4,814,140 |
+| attract-demo, driven a frame at a time in `ct_drive --native on`: frame ends with a routine suspended | 12,329 of 22,500, in 56 runs, the longest 2,142 | the same frames |
+
+The wait passes match one for one, because the continuations are the same
+functions as the idle entry and the port. What changed is how the runtime
+reaches them: by the wait's number, with no address lookup. `tools/machine_joints.py` counts the two rows apart, as
+held waits' continuations: they are still machine wrappers, a joint until the
+loop runs with no machine under it. A `ct_play` quick save taken at attract-demo's
+frame 12,000 (PC `$7E:3023`, wait 1 named), loaded, and played 500 frames ends
+with the same state and the same picture as the run that didn't stop.
+The program then retired the gate (REIMPLEMENTATION.md, "The scene program's
+teardown"): its continuations are `scene_program_waits` and
+`scene_program_next_pass` (`game/scene/program.c`), `.retired`, and the pass
+makes the call the setup named and, once a script ends the scene, the
+program's end, by a return rather than a stop.

@@ -150,7 +150,7 @@ static const struct {
     { scene_run_frame_tasks, 0x7E398A, CPU_FLAG_X, 0, scene_frame_tasks_present },
     { scene_run_vblank_tasks, 0x7E39BE, CPU_FLAG_X, 0, scene_vblank_tasks_present },
     { scene_wait_for_music_loop, 0x7E5AAA, CPU_FLAG_M, CPU_FLAG_M, scene_wait_for_music_present },
-    { scene_race_wait_for_tilemap_upload_loop, 0x7E5211, CPU_FLAG_M, 0, scene_race_wait_for_tilemap_upload_present },
+    { scene_race_wait_for_tilemap_upload_loop_entry, 0x7E5211, CPU_FLAG_M, 0, scene_race_wait_for_tilemap_upload_present },
     { scene_send_sound_command, 0x7E377E, CPU_FLAG_X, 0, scene_send_sound_command_present },
 };
 
