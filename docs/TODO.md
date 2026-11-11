@@ -26,6 +26,11 @@ rest waits, is [PLAN.md](PLAN.md).
   the caller's return frame, cartridge saves and fresh-runtime mid-wait
   reloads before replacing a wait. Keep the entry wrappers and registry
   until the native route checks permit their removal (PLAN.md, Phase 4a).
+  The interrupts' review left two tests: `suspend_test`'s comparison of
+  machine and driver delivery should also cover `WAI`, a masked IRQ's
+  wakeup and changes to the interrupt enables, and its legacy-state case
+  should load a state that really lacks `frame_interrupt` rather than clear
+  the field after loading.
 - **Out-of-contract script states.** The event loops at `$C0:58ED`, `$C0:5967`, `$C0:5990` and
   `$C0:5AA3` already run as C for valid scripts; their hand-backs preserve
   out-of-buffer script positions, changed data banks and object state the
