@@ -102,6 +102,13 @@ enum { SCENE_RANDOM_TABLE = 0xC0FE00 };
 
 static inline uint8_t scene_random_byte(const GameState *g, uint8_t step) { return rom_read8(g, SCENE_RANDOM_TABLE + step); }
 
+/* The race restores a column either from the plane map at $D2:0000 or
+ * from its edited work-RAM copy. Both keep the original transfer address. */
+static inline PfData scene_race_column_data(uint32_t source, uint16_t bytes)
+{
+    return rom_data(source, bytes);
+}
+
 /* Scene-script graphics selected for a direct upload. */
 static inline PfData scene_upload_data(uint32_t source, uint32_t bytes, uint8_t mode)
 {

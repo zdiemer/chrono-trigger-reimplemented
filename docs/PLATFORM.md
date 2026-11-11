@@ -1906,17 +1906,47 @@ includes, then counts unproved `m_read*`, `rom_read*`, `rom_data*`, `PF_GAME`
 sources and source-field assignments outside the named data seams. `m_read*` inside
 those seams still count. Generic `wram_read` escapes also take bus addresses
 and are included. Only literal/proven work-RAM addresses or exact, documented
-RAM-only allowlist entries are excluded; the allowlist is currently empty.
+allowlist entries are excluded (`tools/cartridge_sources_allowlist.tsv`): each
+names the exact file, operation and expression, with its bound, producer or
+consumer as evidence. The tests reject stale entries; another expression or
+caller still counts.
 
-The conservative count is **122 in both game/ and ct_native**: 25 `PF_GAME`
-sources, 11 source-field assignments, one `m_read16`, and 85 `wram_read`
-operands. These are candidates requiring proof, not 122 confirmed cartridge
-reads. In particular a source descriptor can eventually be consumed through a
-named accessor, and many computed expressions select RAM. The counter no
-longer assumes either from the file or variable name. `--cartridge-sources`
-prints every candidate's file, line, operation and expression; TODO.md tracks
-their audit. Runtime catalogue checks cover the actual ranges selected by
-the sampled movies, not all possible script inputs.
+The full address-source audit reduced **122 candidates to 0**, in both game/
+and `ct_native`: **116 RAM proofs**, **four named-accessor paths** (two already
+used the menu upload accessor, two transfers now use scene accessors), and
+**two hardware transfers** whose source fields actually name destinations.
+The RAM proofs include five scaler descriptors whose 16-bit source fields
+are offsets in the fixed bitmap bank, not bus addresses. They retain indexed
+overruns where these still land in work RAM, including low-RAM mirrors.
+The stack-relative fade admission read now rejects stacks whose count would
+leave low RAM before reading it.
+
+For example, the Epoch window reader's bank is supplied by its sole caller
+as `$7E`; the bank kept in scratch belongs to the writer, not that reader.
+Scene line descriptors come from ten finite tables in the unpacked scene
+program, every entry selecting `$7E`. `tools/cartridge_audit.py --rom` checks
+those producers, the text-column offset bounds, and the eight save-source
+ranges, including three in bank zero's low-RAM mirror. The race's
+original-map column at `$D2:0000` previously
+bypassed the pack; `scene_race_column_data` now serves its existing
+`field_blank_entries_byte` resource. The decompressor-selected transfer uses
+`scene_upload_data`, preserving its mode and bank wrapping rather than
+assuming its shared destination field proves a RAM source. The catalogue
+remains 7061 resources; neither transfer requires a new byte range.
+
+The audit also exposed an event peek of hardware: event `$114` waits for
+music markers 1-3 at `$00:2142`. The host RAM backing answered zero forever.
+The event memory accessor now delegates sound-port operands to
+`platform/script_memory.h`, which decodes the I/O banks and port mirrors and
+calls `au_status`. The native backend therefore answers from the sound
+driver, as the shipping backend does. Byte and word reads, markers and I/O
+mirrors are checked without a ROM in `assets_test`, along with the race's
+pack-backed column. The ROM audit follows every function's paths in 489
+parsed event streams (24 table entries do not parse as scripts, no partial
+paths); `$2142` in `$114` is their only generic-peek hardware address. The two
+reverse-DMA clears already use the video service's multiplier-product read.
+Runtime catalogue checks still cover the ranges selected by the sampled
+movies, not every possible malformed script operand.
 
 **Code that was read as data.** `menu_scene_scroll_pattern_byte` reads the
 448-byte `menu_scene_scroll_pattern` resource, replacing 166 instruction-sized

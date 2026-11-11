@@ -322,7 +322,21 @@ def work_ram_address(value):
 # names: an unresolved source in a new caller must appear in the inventory.
 # Leave unproved expressions counted rather than treating a RAM-looking name
 # or a fixed bank ORed with an unbounded value as proof.
-AUDITED_RAM_SOURCES = {}
+def audited_sources():
+    """Exact sites, with the producer/consumer proof beside each entry."""
+    entries = {}
+    for line in (ROOT / "tools/cartridge_sources_allowlist.tsv").read_text(encoding="utf-8").splitlines():
+        if not line or line.startswith("#"):
+            continue
+        file, operation, expression, disposition, proof = line.split("\t")
+        key = (file, operation, re.sub(r"\s+", "", expression))
+        if disposition not in ("ram", "accessor", "hardware") or not proof.strip() or key in entries:
+            raise ValueError(f"invalid cartridge-source audit: {line}")
+        entries[key] = (disposition, proof)
+    return entries
+
+
+AUDITED_SOURCES = audited_sources()
 
 
 def cartridge_sources(path, text):
@@ -376,7 +390,7 @@ def cartridge_sources(path, text):
     relative = path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else path.as_posix()
     for at, kind, expression in sorted(candidates):
         key = (relative, kind, re.sub(r"\s+", "", expression))
-        if work_ram_address(constant_value(expression, definitions)) or key in AUDITED_RAM_SOURCES:
+        if work_ram_address(constant_value(expression, definitions)) or key in AUDITED_SOURCES:
             continue
         yield source.count("\n", 0, at) + 1, kind, expression
 

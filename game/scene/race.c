@@ -21,6 +21,7 @@
  * race does each frame -- the bikes, the camera, the drawing -- is in
  * race_rules.c, race_camera.c, race_projection.c and race_drawing.c (race.h). */
 #include "scene/race.h"
+#include "scene/scene_data.h"
 
 #include "platform/audio.h"
 #include "platform/video.h"
@@ -790,7 +791,7 @@ bool scene_race_upload_column_present(Snes *s) { return m_code_matches(s, 0x7E46
  * escape. */
 static void upload_column(Platform *pf, uint32_t column)
 {
-    const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .source = column, .size = PLANE_COLUMN_BYTES,
+    const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .data = scene_race_column_data(column, PLANE_COLUMN_BYTES), .size = PLANE_COLUMN_BYTES,
                                 .target_reg = VID_SNES_VRAM_ADDRESS, .target = PLANE_COLUMN_VRAM,
                                 .port = &down_a_column };
     vid_snes_copy(pf, PF_AT(0x7E4671), &t);

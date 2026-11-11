@@ -19,14 +19,14 @@
 
 // $C0:6792
 /* A variable learns the byte or the word at an address. */
-static EventFlow peek(GameState *g, EventVariable variable, Address address, Width width)
+static EventFlow peek(GameState *g, Platform *pf, EventVariable variable, Address address, Width width)
 {
     charge_legacy_accesses(g, 3); /* source address selection */
-    uint16_t value = width == AS_BYTE ? event_selected_data_byte(g, address) : event_selected_data_word(g, address);
+    uint16_t value = width == AS_BYTE ? event_selected_data_byte(g, pf, address) : event_selected_data_word(g, pf, address);
     set_variable(g, variable, value, width);
     return next_command();
 }
-EVENT_OPERATION(peek, variable, address, width)
+EVENT_OPERATION(peek, platform, variable, address, width)
 
 // $C0:67D7
 /* Write a byte or a word at an address: a number, or a variable's value. */

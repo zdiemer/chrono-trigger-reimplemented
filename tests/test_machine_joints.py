@@ -1,9 +1,12 @@
 """The cartridge inventory distinguishes actual sources from timing metadata."""
 import unittest
+import re
+from unittest.mock import patch
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from tools.machine_joints import ROOT, cartridge_reads, machine_functions
+from tools import machine_joints
 
 
 class CartridgeJoints(unittest.TestCase):
@@ -83,6 +86,18 @@ class CartridgeJoints(unittest.TestCase):
         for file in ("example_data.h", "packed_graphics.h", "assets.c", "decompress.c", "rom.h"):
             self.assertEqual(self.count(file, "rom_read8(g, address); rom_data(address, size);"), 0)
             self.assertEqual(self.count(file, "m_read8(s, 0xC00000u);"), 1)
+
+    def test_audited_sites_are_exact_and_still_present(self):
+        audited = dict(machine_joints.AUDITED_SOURCES)
+        live = set()
+        with patch.dict(machine_joints.AUDITED_SOURCES, {}, clear=True):
+            for file in {key[0] for key in audited}:
+                path = ROOT / file
+                for _, operation, expression in machine_joints.cartridge_sources(path, path.read_text(encoding="utf-8")):
+                    live.add((file, operation, re.sub(r"\s+", "", expression)))
+        self.assertFalse(set(audited) - live, "remove stale proofs when their sources change")
+        self.assertEqual(self.count("new_port.c", "wram_read8(g, in_line_bank(at));"), 1)
+        self.assertEqual(self.count("menu/line_effects.c", "wram_read8(g, in_line_bank(other));"), 1)
 
 
 class MachineFunctions(unittest.TestCase):
