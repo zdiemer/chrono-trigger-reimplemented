@@ -890,25 +890,17 @@ Over the three movies that take a gate the machine enters the warp 0 times,
 against 747,559 before, and its 1,181 frames and 747,440 idle passes are the
 wait's continuations, run by its number.
 
-The overworld's main loop is the third (`HOLD_OVERWORLD_FRAME`), and the
-first whose wait's code other loops share: its head calls the sprite-object
-mode's wait for the next frame (`$C2:23CF` calls `$C2:046E`, which jumps to
-`$C2:0346`), whose loop (`$C2:0348`) the Epoch's screens and the loop's own
-fades wait in too. So the wait is held at the shared loop, and its
-continuations (`overworld_next_frame`, the frame counted: the wait's return,
-the mode's arm and the wait again; `overworld_waits_for_the_frame`, idle)
-take it only where the wait's return on the stack is the loop's pass
-(`$C2:23D2`); the mode's own idle entry there is found only by the address
-path, where no wait is named. The halt the loop can end in, a loop with the
-interrupts off, holds a wait of its own (`HOLD_OVERWORLD_HALT`). Over the
-four world-map movies (`field-65m-bc`, `-dactyl`, `-dactyl-flight`,
-`field-12kbc-1f4`) and `menus-epoch`, shadow mode compared
-`overworld_next_frame` 5,463 times, every one matched, and the shipping mode
-played each frame for frame as before (`tools/trace.py diff`: work RAM, VRAM,
-CGRAM, OAM, save RAM); on `field-65m-bc-dactyl` the machine's wait-loop
-passes went from 377,674 to 214,949, the other 162,393 now the held wait's.
-The overworld then retired the gate, and its three continuations are
-`.retired` (REIMPLEMENTATION.md, "The overworld's teardown").
+The overworld's main loop (`HOLD_OVERWORLD_FRAME`) shares the sprite-object
+wait at `$C2:0348` with the Epoch's screens and fades. Its saved return to
+`$C2:23D2` distinguishes the world loop from those other callers. The idle
+C loop rests while the frame counter still equals saved A's low byte;
+`overworld_next_frame` returns through the saved caller frame, runs the
+mode's arm and waits again. Both guards require page zero, a low-RAM bank
+and that return frame. The idle row requires native mode and M8; the ready
+row also requires X16 and binary arithmetic. No code-image restriction is
+imposed by either row. Other callers keep the menu frame wait's own hold
+and contract. The halt keeps `HOLD_OVERWORLD_HALT`; its continuation still
+dispatches separately.
 
 The field uses one shared frame wait (`HOLD_FIELD_FRAME`, `$C0:EC71`),
 including callers outside its main loop. `$C0:EC60` finishes the frame and
@@ -989,7 +981,7 @@ refusal stops at `$FD:C000` with the fresh stack and original don't-care set.
 
 `machine_joints.py` counts remaining held dispatch rows, checking that a
 row's function (or its enabled idle `loop`) contains a C loop and a saveable
-polling API. The count is 137, excluding warp and the five converted idle loops;
+polling API. The count is 136, excluding warp and the six converted idle loops;
 all 143 compatibility rows remain. Warp's separate initial idle
 alias still counts. Tests reject comments, declarations, missing loop
 functions and disabled metadata as conversion evidence. Stops fall from
@@ -1019,25 +1011,37 @@ each still gets its own complete contract check. Only if none applies does
 ordinary address dispatch report a refusal. A normal wake neither adds an
 idle exit charge nor becomes a machine entry.
 
-On the 37-movie sample, scene idle dispatches fall from 39,271,842 to 59,
-and race upload dispatches from 8,881 to 2,170. Every other held count and
-C-call count is unchanged. Total held dispatches fall from 50,709,651 to
-11,431,157; machine entries remain zero.
+The 37-movie sample measures entries into the converted loops instead of
+repeated polling dispatches:
 
-Attract-demo's frame 12,000 rests at `$7E:3023`, hold 1, S `$06FF`.
-The jet-bike race, loaded from its cartridge save, rests at frame 7,810 at
-`$7E:5211`, hold 9, S `$06FA`. Both checkpoints have no suspended caller or
-unpaid time. The preceding build and the loop build serialize every field
-identically there, and at the next exact checkpoints (12,200 and 8,140).
-Old and new saves loaded into fresh runtimes reach those same final states,
-including sound and save RAM; the 200- and 330-frame traces match.
-Suspension tests cover complementary guards at one head, including
-mid-frame saves in the wait and its interrupt, changed contracts and
-separate task stacks. They assert that normal wakes stay named holds and
-that a ready continuation still enforces stricter index-width and decimal
-preconditions than its idle loop. The sampled gate ends `suite OK`, with
-zero real-play guard refusals and fallback instructions; the style and
-smell ratchets have no new findings.
+| Wait | Before | C loop |
+|---|---:|---:|
+| Scene program, empty pass | 39,271,842 | 59 |
+| Race tilemap upload | 8,881 | 2,170 |
+| Overworld frame | 10,251,528 | 28,054 |
+
+The overworld step changes no other held or C-call count. Its total held
+dispatches fall from 11,431,157 to 1,207,683; before the scene step they
+were 50,709,651. Machine entries remain zero throughout.
+
+Exact save checkpoints exercise each loop with its caller frame intact:
+
+| Movie | Saved frame | Wait / S | Continued through |
+|---|---:|---|---:|
+| attract-demo | 12,000 | `$7E:3023`, hold 1 / `$06FF` | 12,200 |
+| events-jetbike-race | 7,810 | `$7E:5211`, hold 9 / `$06FA` | 8,140 |
+| field-65m-bc-dactyl | 2,500 | `$C2:0348`, hold 3 / `$06FD` | 2,700 |
+
+The latter two load cartridge saves. Every checkpoint has no suspended
+caller or unpaid time. The preceding and loop builds serialize every field
+identically there and after continued play; old and new saves loaded into
+fresh runtimes reach those same final states, including sound and save RAM.
+The 200-, 330- and 200-frame traces match. Suspension tests also cover
+mid-frame saves in a wait and its interrupt, separate task stacks, changed
+contracts, and a ready continuation with stricter index-width and decimal
+preconditions than its idle loop. Normal wakes stay named holds. The sampled
+gate ends `suite OK`, with zero real-play refusals and fallback instructions;
+the style and smell ratchets have no new findings.
 
 ## ZSNES save states
 

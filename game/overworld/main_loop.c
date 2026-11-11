@@ -831,7 +831,17 @@ void overworld_next_frame(Snes *s)
 // $C2:0348
 /* A pass of the wait before the frame is counted: the held wait's other
  * continuation, an idle one, which goes round. */
-void overworld_waits_for_the_frame(Snes *s) { (void)s; }
+void overworld_waits_for_the_frame_entry(Snes *s) { (void)s; }
+
+// $C2:0348
+/* Rest until vblank counts the next map frame. The seen count and caller's
+ * return stay saved; the ready pass keeps its stricter X16/binary contract. */
+void overworld_waits_for_the_frame(Snes *s)
+{
+    do {
+        overworld_waits_for_the_frame_entry(s);
+    } while (native_idle_held(s));
+}
 
 /* The wait's return on the stack is to the main loop's pass. */
 static bool waits_in_the_main_loop(const Snes *s)

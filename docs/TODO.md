@@ -13,9 +13,10 @@ rest waits, is [PLAN.md](PLAN.md).
   hand-offs need conversion subsystem by subsystem under their complete
   contracts; the sampled census already has no machine entries.
   The remaining menu, scene, overworld, field and battle continuations need
-  saveable C loops. By sampled held dispatches the next shared wait is the
-  world frame wait (10,251,528); scene frame and upload-finished passes still
-  dispatch once per pass.
+  saveable C loops. The largest remaining sampled dispatch counts are the
+  field's next-frame pass (134,676), battle window slide (118,211), and menu
+  scheduler (117,473) and cursor (116,866) turns. Scene frame, upload-finished
+  and overworld frame-work passes still dispatch once per pass.
   Preserve task switching,
   the caller's return frame, cartridge saves and fresh-runtime mid-wait
   reloads before replacing a wait. Keep the entry wrappers and registry

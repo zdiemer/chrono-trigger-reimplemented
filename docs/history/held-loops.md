@@ -125,3 +125,47 @@ teardown"): its continuations are `scene_program_waits` and
 `scene_program_next_pass` (`game/scene/program.c`), `.retired`, and the pass
 makes the call the setup named and, once a script ends the scene, the
 program's end, by a return rather than a stop.
+
+## Overworld wait named before its C loop
+
+The overworld's main loop is the third (`HOLD_OVERWORLD_FRAME`), and the
+first whose wait's code other loops share: its head calls the sprite-object
+mode's wait for the next frame (`$C2:23CF` calls `$C2:046E`, which jumps to
+`$C2:0346`), whose loop (`$C2:0348`) the Epoch's screens and the loop's own
+fades wait in too. So the wait is held at the shared loop, and its
+continuations (`overworld_next_frame`, the frame counted: the wait's return,
+the mode's arm and the wait again; `overworld_waits_for_the_frame`, idle)
+take it only where the wait's return on the stack is the loop's pass
+(`$C2:23D2`); the mode's own idle entry there is found only by the address
+path, where no wait is named. The halt the loop can end in, a loop with the
+interrupts off, holds a wait of its own (`HOLD_OVERWORLD_HALT`). Over the
+four world-map movies (`field-65m-bc`, `-dactyl`, `-dactyl-flight`,
+`field-12kbc-1f4`) and `menus-epoch`, shadow mode compared
+`overworld_next_frame` 5,463 times, every one matched, and the shipping mode
+played each frame for frame as before (`tools/trace.py diff`: work RAM, VRAM,
+CGRAM, OAM, save RAM); on `field-65m-bc-dactyl` the machine's wait-loop
+passes went from 377,674 to 214,949, the other 162,393 now the held wait's.
+The overworld then retired the gate, and its three continuations are
+`.retired` (REIMPLEMENTATION.md, "The overworld's teardown").
+
+## Scene loop measurements
+
+On the 37-movie sample, scene idle dispatches fall from 39,271,842 to 59,
+and race upload dispatches from 8,881 to 2,170. Every other held count and
+C-call count is unchanged. Total held dispatches fall from 50,709,651 to
+11,431,157; machine entries remain zero.
+
+Attract-demo's frame 12,000 rests at `$7E:3023`, hold 1, S `$06FF`.
+The jet-bike race, loaded from its cartridge save, rests at frame 7,810 at
+`$7E:5211`, hold 9, S `$06FA`. Both checkpoints have no suspended caller or
+unpaid time. The preceding build and the loop build serialize every field
+identically there, and at the next exact checkpoints (12,200 and 8,140).
+Old and new saves loaded into fresh runtimes reach those same final states,
+including sound and save RAM; the 200- and 330-frame traces match.
+Suspension tests cover complementary guards at one head, including
+mid-frame saves in the wait and its interrupt, changed contracts and
+separate task stacks. They assert that normal wakes stay named holds and
+that a ready continuation still enforces stricter index-width and decimal
+preconditions than its idle loop. The sampled gate ends `suite OK`, with
+zero real-play guard refusals and fallback instructions; the style and
+smell ratchets have no new findings.
