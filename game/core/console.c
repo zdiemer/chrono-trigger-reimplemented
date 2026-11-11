@@ -68,7 +68,12 @@ void console_reset(Snes *s)
 {
     m_set_flag(s, CPU_FLAG_I, true);
     s->cpu.e = false;
-    continue_at(s, BOOT, DC_C, console_boot, 0, 0, NULL);
+    console_start(s, DC_C);
+}
+
+void console_start(Snes *s, uint16_t dont_care)
+{
+    continue_at(s, BOOT, dont_care, console_boot, 0, 0, NULL);
 }
 
 // $FD:C000

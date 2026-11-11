@@ -104,6 +104,11 @@ typedef struct NativeEntry {
      * that goes round holds the wait again itself; a port's holds it with
      * m_hold_at. */
     uint8_t hold;
+    /* A held idle wait's restartable C loop. fn remains its one-pass entry
+     * for tools and old callers. The loop has no unsaved locals at its
+     * native_idle_held boundary; its caller frame lives on the saved stack.
+     * Each resume checks this entry's full contract before running it. */
+    NativeFn loop;
     /* A retired subsystem's compatibility entry or held-wait continuation
      * (docs/REIMPLEMENTATION.md, "The field's teardown"): entered by the
      * machine only in ON mode. SHADOW runs the original there, uncompared.
@@ -565,7 +570,7 @@ const NativeEntry *native_hand_entry_at(Snes *s, uint32_t addr);
 
 /* Number of entered routines a save state cannot restore: suspended in
  * call-outs, parked in another task or awaiting shadow comparison. A C loop
- * at its own restartable checkpoint (native_poll_held) is excluded, but its
+ * at its own restartable checkpoint (native_poll_held or native_idle_held) is excluded, but its
  * enclosing callers are still counted. */
 int native_suspended(const NativeRuntime *rt);
 /* Of those, the ones parked in a yield (native_yield_call_dc). */
@@ -789,6 +794,12 @@ void native_hold(Snes *s, uint8_t wait);
  * resume, including states saved before this C loop existed.
  * False outside this root continuation: leave the existing hold and return. */
 bool native_poll_held(Snes *s, uint8_t wait, uint32_t head, bool (*ready)(Snes *));
+
+/* A held idle C loop's backedge. Called after each pass, it yields with the
+ * same polling time as the one-pass wrapper. False means that the pass left
+ * the saved head, or this is not a loop job. No local needed after this
+ * boundary may be absent from the saved machine. */
+bool native_idle_held(Snes *s);
 /* After a return, hold only if the caller resumes at a continuation of
  * this wait. The runtime owns that boundary lookup; the callee need not
  * identify a particular caller by its machine address. */

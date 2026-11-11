@@ -12,8 +12,10 @@ rest waits, is [PLAN.md](PLAN.md).
 - **Remaining machine hand-offs and held loops.** The remaining source
   hand-offs need conversion subsystem by subsystem under their complete
   contracts; the sampled census already has no machine entries.
-  The scene, overworld, field, menu and battle held continuations still need
-  saveable C loops: preserve task switching,
+  The menu, scene, overworld, remaining field and battle continuations need
+  saveable C loops. By sampled held dispatches the next shared waits are
+  menu uploads (48,112,971) and scene programs (39,271,842); then the world
+  frame wait (10,251,528). Preserve task switching,
   the caller's return frame, cartridge saves and fresh-runtime mid-wait
   reloads before replacing a wait. Keep the entry wrappers and registry
   until the native route checks permit their removal (PLAN.md, Phase 4a).

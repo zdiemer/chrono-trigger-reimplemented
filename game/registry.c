@@ -392,7 +392,8 @@ const NativeEntry game_held_waits[] = {
      * after the requests, and the wait again. Each declares what the pass
      * doesn't read from there, as the loop's stop at its head and the walk's
      * call do. */
-    { .addr = 0xC0EC71, .name = "field_waits_for_the_frame", .fn = field_wait_for_frame_loop, NEEDS_M8, .idle = true,
+    { .addr = 0xC0EC71, .name = "field_waits_for_the_frame", .fn = field_wait_for_frame_loop_entry,
+      .loop = field_wait_for_frame_loop, NEEDS_M8, .idle = true,
       .idle_return_span = 6,
       .hold = HOLD_FIELD_FRAME, .guard = field_bank_low_ram, .retired = true },
     { .addr = 0xC00097, .name = "field_first_frame", .fn = field_frame, NEEDS_M8_X16, .cost_milli = 1402,

@@ -31,7 +31,7 @@ GAME = ROOT / "game"
 # (name, pattern, what retires it)
 JOINTS = [
     ("registered entries", None, "ordinary functions their callers call"),
-    ("held waits' continuations", None, "their main loops run as C with no machine under them"),
+    ("held waits' continuations", None, "restartable C loops replace their repeated dispatch"),
     ("returns through the emulated stack", r"\bm_rt[sli]\(", "the entry wrappers deleted"),
     ("stops at the original's addresses", r"\bm_stop_at(?:_own)?\(|\bm_hold_at\(|\bnative_\w*dont_care_at_stop\(",
      "the next step called as C"),
@@ -85,13 +85,54 @@ def registry_entries():
     return len(ENTRY.findall(text[start:text.index("\n};", start)]))
 
 
+def restartable_loops(source):
+    """Functions with an explicit C loop and a saveable polling boundary.
+
+    A caller merely naming a hold, or a wrapper calling one pass, has not
+    replaced repeated dispatch. Count only the two runtime checkpoint APIs,
+    not comments, declarations, or a call in a neighbouring function.
+    """
+    source = re.sub(r'"(?:\\.|[^"\\])*"', '""', without_comments(source))
+    result = set()
+    for m in DEFINITION.finditer(source):
+        depth = 1
+        end = m.end()
+        while end < len(source) and depth:
+            depth += (source[end] == '{') - (source[end] == '}')
+            end += 1
+        body = source[m.end():end - 1]
+        name = re.search(r'(\w+)\s*\(', m[0])[1]
+        if (not depth and
+                re.search(r'\b(?:for|while)\s*\(', body) and
+                re.search(r'\bnative_(?:poll_held|idle_held)\s*\(', body)):
+            result.add(name)
+    return result
+
+
+def held_wait_counts(registry, loops):
+    """Remaining dispatch rows and retained C-loop compatibility rows.
+
+    `.loop` names the restartable idle loop; non-idle loops (warp) are the
+    entry function itself. Metadata alone is insufficient: source must have
+    the loop and checkpoint. The idle alias beside warp still counts.
+    """
+    registry = without_comments(registry)
+    start = registry.index("game_held_waits[] = {")
+    block = registry[start:registry.index("\n};", start)]
+    rows = re.findall(r'\{([^{}]*\.addr\s*=[^{}]*)\}', block)
+    converted = 0
+    for row in rows:
+        loop = re.search(r'\.loop\s*=\s*(\w+)\b', row)
+        entry = re.search(r'\.fn\s*=\s*(\w+)\b', row)
+        fn = loop or entry
+        enabled = not loop or re.search(r'\.idle\s*=\s*true\b', row)
+        converted += bool(enabled and fn and fn[1] in loops)
+    return len(rows) - converted, converted
+
+
 def held_wait_rows():
-    """The held waits' continuations (game_held_waits): machine wrappers the
-    runtime runs by a wait's number rather than finds by address, still a
-    joint until their main loops run with no machine."""
-    text = (GAME / "registry.c").read_text(encoding="utf-8")
-    start = text.index("game_held_waits[] = {")
-    return len(ENTRY.findall(text[start:text.index("\n};", start)]))
+    loops = set().union(*(restartable_loops(p.read_text(encoding="utf-8")) for p in sources()))
+    return held_wait_counts((GAME / "registry.c").read_text(encoding="utf-8"), loops)[0]
 
 
 def count(per_file):
@@ -126,6 +167,7 @@ def count(per_file):
                 by_file[path.relative_to(ROOT).as_posix()][name] += n
     totals["registered entries"] = registry_entries()
     totals["held waits' continuations"] = held_wait_rows()
+    by_file["game/registry.c"]["held waits' continuations"] = totals["held waits' continuations"]
     return totals, by_file
 
 

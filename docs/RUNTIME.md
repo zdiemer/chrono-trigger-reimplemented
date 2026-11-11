@@ -785,8 +785,8 @@ values, excludes hooks from serialization and loads a state lacking the
 event field without resetting it.
 
 Over the 37-movie sample the driver reset call removes the remaining 37
-machine entries. Source joints remain 143 held continuations and 105 stops;
-wrappers and returns remain for compatibility. The preceding interrupt and
+machine entries. Wrappers and returns remain for compatibility; the source
+counts are in "Restartable C loops" below. The preceding interrupt and
 restart measurements are in [the console hand-off history](history/console-handoffs.md).
 
 ## Held waits
@@ -794,7 +794,7 @@ restart measurements are in [the console hand-off history](history/console-hando
 A main loop's frame end is a wait the main thread rests in while the vblank
 handler does the frame's work: the scene program's main loop (`$7E:3023`), the
 overworld's (`$C2:0348`), the warp's (`$FD:EAED`), the field's. Run as a C loop
-that waits in place, the port would stay suspended for a whole screen, and no
+without a restartable checkpoint, the port would stay suspended for a whole screen, and no
 `ct_drive` base or `ct_play` quick save would come there. So the wait is
 *held*: the port stops at the loop's head, nothing is suspended, and what the
 loop does when it goes on is a continuation. Until now the continuation was an
@@ -970,62 +970,65 @@ held continuation at a different stack depth and its fresh-runtime reload.
 
 ### Restartable C loops
 
-The warp's `warp_next_frame` now runs the trip as a C loop. Its frame end
-calls `native_poll_held`: the live fiber waits in place, while the saved
-machine remains at the existing hold with the return frame identifying the
-kind of trip. After waking, the loop reconstructs that kind from the frame
-and checks the continuation's full contract before making another picture.
-The idle contract requires native mode, M8, the warp's page, an I/O bank and
-its unchanged zero cell; the frame also requires X16 and a valid return.
-Neither row constrains decimal mode. Refusal stops at `$FD:EAED` without
-consuming the return or the frame. The calibrated rates stay unchanged.
+Two kinds of loop retain a saveable caller frame. Warp's `warp_next_frame`
+makes each picture then calls `native_poll_held`, a read-only poll at the
+running root continuation's own hold and address. Nothing from a preceding
+frame survives only in a C local: the trip's kind is reconstructed from the
+saved return. The loop checks the frame's complete contract after waking;
+the predicate also wakes if the idle contract stops holding.
 
-`native_poll_held` only accepts the running root continuation's own hold
-number and entry address, with no timing scope open. The caller promises
-that no local from before the wait is needed after it: all such values are
-reconstructed from saved state. Its read-only predicate wakes on either
-completion or a refused idle contract; the loop then checks the complete
-frame contract. Polls use the same interrupt and status-change boundaries
-as the old idle continuation.
+The field's shared frame wait at `$C0:EC71` runs as a C loop around its
+one-pass entry. The retained row's `loop` names that function;
+`native_idle_held` yields between passes. Each pass still loads the pending
+frame into A and flags, and returns through the saved caller frame when
+vblank takes it. The runtime checks the row's full contract before every
+resume, including the P mask and guard. Refusal abandons the live fiber at
+the saved head and leaves the caller frame for ordinary dispatch and its
+refusal report. No callee's guard is skipped.
 
-`native_suspended` excludes this one reconstructible frame only while the
-machine rests at its checkpoint's PC and S. Other active or parked callers
-still count, including a caller waiting on another task's stack. Unpaid
-time still prevents an exact save. No fiber or callback pointer is saved:
-a fresh runtime uses the existing hold number and aliases to enter the C
-loop, and an older state with no hold named can still enter by address.
-Both warp entry wrappers and their held rows remain for that compatibility;
-`machine_joints.py` therefore still counts them. The live trip no longer
-redispatches those continuations for each frame or idle poll.
+Idle passes keep their former interrupt and status-change polling points,
+and their existing exit time. They accrue no new port estimate. The C loop
+keeps the wait named at its saved PC and S; `native_suspended` excludes only
+that reconstructible frame while the machine rests there. Other active or
+parked callers still count, including a caller waiting on another task's
+stack. Unpaid time still prevents an exact save. No fiber, callback or
+local is serialized: a fresh runtime uses the retained row to reconstruct
+the loop. An older state without a hold named enters by address.
 
-The suspension test compares the C loop's state and pace with the former
-held continuations, reloads old, new and unnamed-hold states into fresh
-runtimes, and checks the saved caller frame. Its task-switch cases also run
-with a checkpoint wait: an enclosing caller stays suspended until its own
-stack returns, and a genuine restart discards it. Seven rejected warp
-contracts leave the frame and return intact.
+The field's restart in the dark also calls the console boot through
+`console_start`, sharing the reset stub's checked boundary and time. Boot
+requires native mode and imposes no P-mask, page, bank or code-image guard;
+refusal stops at `$FD:C000` with the fresh stack and original don't-care set.
 
-Across the 37-movie gate sample, the warp's frame-continuation entries fall
-from 414 to two and its idle-continuation passes from 257,754 to 1,572: each
-trip enters the C loop once, after its initial compatibility wait. Every
-other held continuation's count is unchanged. The machine-entry census
-stays at 698,313 after the console conversion. The source counter retains
-143 held rows and 505 emulated returns; the explicit refusal adds one stop
-(104 to 105), and the polling predicate adds one machine-taking function
-(2,001 to 2,002). Timing estimates and baselines are untouched.
+`machine_joints.py` counts remaining held dispatch rows, checking that a
+row's function (or its enabled idle `loop`) contains a C loop and a saveable
+polling API. The count is 141, excluding the field loop and the existing
+warp loop; all 143 compatibility rows remain. Warp's separate initial idle
+alias still counts. Tests reject comments, declarations, missing loop
+functions and disabled metadata as conversion evidence. Stops fall from
+105 to 104 through the field's checked restart. The 505 emulated returns
+remain; estimates and baselines are unchanged.
 
-`events-end-of-time-gate`, loaded from its cartridge save, supplies the real
-save/load check. Frame 4,000 rests at `$FD:EAED`, hold 2, S `$06FD`, with no
-suspended-routine or owed-time warning. The old and new builds serialize
-every field identically there. Old and new mid-wait saves loaded into fresh
-new runtimes both reach frame 4,200 with every serialized field identical
-to uninterrupted play, including the C sound driver and save RAM. Both
-200-frame traces also match the old build's reload, including the framebuffer.
+The suspension tests compare every serialized field and the polling and
+exit time against one-pass waits, reload old, new and unnamed-hold saves
+into fresh runtimes, and check that resumed loops refuse changed mode,
+widths, decimal status, page, bank and code-image guards without consuming
+the caller frame. A separate-stack wait preserves its suspended caller;
+starting afresh discards it. The earlier warp measurements are in
+[the held-loop history](history/held-loops.md).
 
-The sampled gate with `--evidence` ends `suite OK`: 37 movies and both fast
-routes pass, with no real-play refusals or fallback instructions. The
-suspension, state, cartridge-save, debt, time-parts and shadow tests pass,
-as do the 28 targeted Python checks and the port-style and smell ratchets.
+The 37-movie census counts 142,734 entries into the field wait instead of
+60,007,940 polling dispatches. Every other held continuation and C-call count
+is unchanged. Total held dispatches fall from 159,848,871 to 99,983,665;
+machine entries remain zero.
+
+The floor-switch movie, loaded from its cartridge save, rests at frame
+2,800 at `$C0:EC71`, hold 5, S `$06FD`, with no suspended caller or unpaid
+time. Old and new builds serialize every field identically there and at
+frame 3,000. Old and new mid-wait saves loaded into fresh runtimes reach
+that same final state, including sound and save RAM; both 200-frame traces
+match the preceding build's reload. Suspension, state, debt, timing-scope
+and cartridge-save tests pass, as do 28 targeted Python checks.
 
 ## ZSNES save states
 

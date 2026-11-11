@@ -61,7 +61,7 @@ typedef struct SegmentPart {
 
 /* ---- jobs: native routines running on their own stacks ------------------------ */
 
-typedef enum { JOB_RUNNING, JOB_CALLING, JOB_SYNCING, JOB_LATCHING, JOB_WAITING, JOB_DONE } JobState;
+typedef enum { JOB_RUNNING, JOB_CALLING, JOB_SYNCING, JOB_LATCHING, JOB_WAITING, JOB_IDLE_WAIT, JOB_DONE } JobState;
 
 /* A native routine in progress. It runs on a fiber so that calling code that
  * isn't ported (m_jsr/m_jsl) can suspend it: the call is set up on the machine,
@@ -141,7 +141,7 @@ static void job_body(void *arg)
 {
     Job *j = arg;
     for (;;) {
-        j->entry->fn(j->m);
+        (j->entry->idle && j->entry->loop ? j->entry->loop : j->entry->fn)(j->m);
         j->state = JOB_DONE;
         fiber_switch(fiber_main());
     }
@@ -187,6 +187,7 @@ typedef enum {
     PH_SYNC,      /* ON: suspended in native_sync until its time has passed */
     PH_LATCH,     /* SHADOW: suspended in native_await_latch until the original latches the counters */
     PH_WAIT,      /* ON: suspended in native_wait_loop or native_wait_call until what it waits for */
+    PH_IDLE_WAIT, /* ON: a restartable held idle C loop, between passes */
 } Phase;
 
 /* ON mode: time a hand port still owes, and where the machine is while it is
@@ -759,7 +760,7 @@ int native_suspended(const NativeRuntime *rt)
         return count;
     for (int i = 0; i < rt->nactive; i++) {
         const Active *a = &rt->active[i];
-        if (a->phase != PH_WAIT || !a->job || !a->job->held_poll)
+        if (!a->job || (a->phase != PH_IDLE_WAIT && (a->phase != PH_WAIT || !a->job->held_poll)))
             continue;
         const Snes *s = a->job->m;
         if (s->held_wait == a->entry->hold && s->held_wait_s == a->sync_s &&
@@ -1983,6 +1984,8 @@ static bool returned_from_entry(NativeRuntime *rt, Active *a, const Snes *s)
 
 /* Check the innermost active routine against where the machine is now.
  * Returns true if it changed (so the next one may need checking). */
+static int32_t after_idle_loop(NativeRuntime *rt, Active *a, Snes *s);
+
 static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
 {
     Active *a = &rt->active[rt->nactive - 1];
@@ -2104,6 +2107,23 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
         a->clone->ppu.v_latch = s->ppu.v_latch;
         job_run(a->job);
         after_run(rt, a, s);
+        return true;
+    }
+
+    if (a->phase == PH_IDLE_WAIT) {
+        if (pc != a->sync_pc || s->cpu.s != a->sync_s || interrupt_deliverable(s))
+            return false;
+        /* A handler may have changed widths, page, bank or the code image.
+         * Refuse at the saved head, so the ordinary path reports the same
+         * refusal and keeps the caller's return frame. */
+        if (!entry_applies(a->entry, s)) {
+            s->held_wait = 0;
+            finish(rt);
+            return true;
+        }
+        s->held_wait = 0;
+        job_run(a->job);
+        *result = after_idle_loop(rt, a, s);
         return true;
     }
 
@@ -3112,8 +3132,35 @@ static bool the_wait_goes_on_at(const NativeRuntime *rt, uint8_t wait, uint32_t 
  * loop, back from its wait for the next frame) keeps the wait named there,
  * with the S it returns with, so that after the exit pass the runtime goes on
  * with that continuation by the wait's number. */
+typedef enum { PORT_FROM_MACHINE, PORT_FROM_HOLD, PORT_FROM_FRAME } PortOrigin;
+static int32_t start_port(NativeRuntime *rt, Snes *s, const NativeEntry *e, PortOrigin origin);
+
+/* The C loop keeps precisely the one-pass wrapper's time: no cost estimate
+ * is added for idle work. Both the waiting boundary and the exit return
+ * frame can be reconstructed from a save without a host continuation. */
+static int32_t after_idle_loop(NativeRuntime *rt, Active *a, Snes *s)
+{
+    const NativeEntry *e = a->entry;
+    if (a->job->state == JOB_IDLE_WAIT) {
+        a->phase = PH_IDLE_WAIT;
+        a->sync_pc = cpu_pc24(&s->cpu);
+        a->sync_s = s->cpu.s;
+        return (int32_t)(e->idle_clocks ? e->idle_clocks : until_interrupt(s, snes_clocks_to_next_poll_change(s)));
+    }
+    if (the_wait_goes_on_at(rt, e->hold, cpu_pc24(&s->cpu))) {
+        s->held_wait = e->hold;
+        s->held_wait_s = s->cpu.s;
+    }
+    job_put(a->job);
+    a->job = NULL;
+    finish(rt);
+    return e->idle_clocks ? 0 : IDLE_EXIT_CLOCKS;
+}
+
 static int32_t run_idle(NativeRuntime *rt, Snes *s, const NativeEntry *e, uint32_t pc, bool held)
 {
+    if (e->loop && e->hold && rt->nactive < MAX_ACTIVE)
+        return start_port(rt, s, e, held ? PORT_FROM_HOLD : PORT_FROM_MACHINE);
     if (held && native_census_hooks.held)
         native_census_hooks.held(native_census_hooks.ctx, s, e);
     else if (!held && native_census_hooks.entered)
@@ -3141,8 +3188,6 @@ static int32_t run_idle(NativeRuntime *rt, Snes *s, const NativeEntry *e, uint32
  * copy, compared), and run until it finishes, suspends or stops. The origin
  * identifies its caller for the census. A held continuation takes the wait: it holds it again
  * with m_hold_at where it goes round. */
-typedef enum { PORT_FROM_MACHINE, PORT_FROM_HOLD, PORT_FROM_FRAME } PortOrigin;
-
 static int32_t start_port(NativeRuntime *rt, Snes *s, const NativeEntry *e, PortOrigin origin)
 {
     Active *a = &rt->active[rt->nactive++];
@@ -3162,7 +3207,7 @@ static int32_t start_port(NativeRuntime *rt, Snes *s, const NativeEntry *e, Port
     a->job->runs = 0;
     a->job->ndead_stack = 0;
     a->job->nsaved_flags = 0;
-    if (rt->observer.entered)
+    if (!e->idle && rt->observer.entered)
         rt->observer.entered(rt->observer.ctx, s, e);
     if (rt->mode == NATIVE_ON && origin == PORT_FROM_FRAME && native_census_hooks.as_c)
         native_census_hooks.as_c(native_census_hooks.ctx, NULL, e);
@@ -3179,6 +3224,8 @@ static int32_t start_port(NativeRuntime *rt, Snes *s, const NativeEntry *e, Port
         count_from(a, s);
     }
     job_run(a->job);
+    if (e->idle && e->loop)
+        return after_idle_loop(rt, a, s);
     after_run(rt, a, s);
     return rt->mode == NATIVE_ON ? 0 : -1;
 }
@@ -3204,6 +3251,14 @@ static void drop_what_the_held_wait_left(NativeRuntime *rt, const Snes *s)
 {
     while (rt->nactive > 0) {
         Active *a = &rt->active[rt->nactive - 1];
+        /* Another named wait supersedes an idle checkpoint. Its loop owns
+         * no unsaved state, so discard the fiber even if a handler moved to
+         * another task's stack. Returning to it will reconstruct the loop;
+         * a reset that never returns must not leave a suspended caller. */
+        if (a->phase == PH_IDLE_WAIT) {
+            finish(rt);
+            continue;
+        }
         if (a->phase != PH_CALLOUT || !a->job || s->cpu.s < a->job->call_s_after)
             return;
         if (a->handler_away && (uint32_t)s->cpu.s > (uint32_t)a->job->call_s_after + NATIVE_STACK_SWITCH_DISTANCE)
@@ -3865,6 +3920,18 @@ bool native_poll_held(Snes *s, uint8_t wait, uint32_t head, bool (*ready)(Snes *
     (void)wait_in_the_loop(j, head, head, 0, NATIVE_WAKE_HANDLER, 0, 0, 0);
     j->held_poll = NULL;
     s->held_wait = 0;
+    return true;
+}
+
+bool native_idle_held(Snes *s)
+{
+    Job *j = current_job;
+    if (!native_runs_retired_as_c(s) || !j->entry->idle || !j->entry->loop ||
+        !j->entry->hold || cpu_pc24(&s->cpu) != j->entry->addr)
+        return false;
+    native_hold(s, j->entry->hold);
+    j->state = JOB_IDLE_WAIT;
+    fiber_switch(fiber_main());
     return true;
 }
 

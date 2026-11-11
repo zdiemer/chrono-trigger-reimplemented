@@ -898,7 +898,14 @@ static void other_stack_poll(Snes *s)
         other_stack_look(s);
 }
 
-static void other_stack_hold_case(bool polling)
+static void other_stack_loop(Snes *s)
+{
+    do {
+        other_stack_look(s);
+    } while (native_idle_held(s));
+}
+
+static void other_stack_hold_case(unsigned form)
 {
     static const Code code[] = {
         { 0x8000, { 0x78, 0x18, 0xFB, 0xC2, 0x10, 0xE2, 0x20, 0xA2, 0xFF, 0x03, 0x9A,
@@ -908,8 +915,9 @@ static void other_stack_hold_case(bool polling)
     const NativeEntry table[] = {
         { .addr = 0x008200, .name = "caller", .fn = other_stack_caller, .cost_milli = 1000 },
         { .addr = 0x008300, .name = "other_stack", .fn = other_stack_wait, .cost_milli = 1000 },
-        { .addr = MAIN_LOOP_HEAD, .name = "other_stack_wait", .fn = polling ? other_stack_poll : other_stack_look,
-          .idle = !polling, .cost_milli = 1000, .hold = HOLD_TEST_LOOP },
+        { .addr = MAIN_LOOP_HEAD, .name = "other_stack_wait", .fn = form == 1 ? other_stack_poll : other_stack_look,
+          .idle = form != 1, .cost_milli = 1000, .hold = HOLD_TEST_LOOP,
+          .loop = form == 2 ? other_stack_loop : NULL },
         { .addr = 0x008180, .name = "fresh_loop", .fn = other_stack_fresh_loop,
           .idle = true, .hold = HOLD_TEST_LOOP },
     };
@@ -1321,12 +1329,144 @@ static void warp_loop_contract_case(void)
     free(rom);
 }
 
+/* The field's shared wait: an idle C loop retains the caller's complete
+ * return frame and uses the same poll and exit time as the one-pass entry. */
+static unsigned idle_loop_entries, idle_loop_passes;
+static bool idle_loop_image = true;
+
+static bool idle_loop_guard(Snes *s)
+{
+    return idle_loop_image && s->cpu.d == 0 && s->cpu.db == 0;
+}
+
+static void idle_frame_pass(Snes *s)
+{
+    idle_loop_passes++;
+    wait_pass(s);
+    if (s->cpu.pc == WAIT_EXIT)
+        m_rts(s);
+}
+
+static void idle_frame_loop(Snes *s)
+{
+    idle_loop_entries++;
+    do {
+        idle_frame_pass(s);
+    } while (native_idle_held(s));
+}
+
+static NativeRuntime *idle_loop_runtime(Snes *s, bool loop)
+{
+    NativeEntry table[] = {
+        { .addr = 0x008300, .name = "frame_wait", .fn = wait_held,
+          .p_mask = 0x30, .p_value = P_M8_X16, .cost_milli = 3000 },
+        { .addr = WAIT_LOOP, .name = "frame_wait_loop", .fn = idle_frame_pass,
+          .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_M,
+          .guard = idle_loop_guard, .idle = true, .hold = HOLD_TEST_LOOP,
+          .loop = loop ? idle_frame_loop : NULL },
+        { .addr = 0x008180, .name = "fresh_idle", .fn = checkpoint_waits,
+          .idle = true, .hold = HOLD_TEST_LOOP },
+    };
+    NativeRuntime *rt = native_create(table, 3, NATIVE_ON);
+    native_attach(rt, s);
+    return rt;
+}
+
+static void idle_loop_case(void)
+{
+    uint8_t *rom = make_rom(wait_code, sizeof wait_code / sizeof wait_code[0], 0x8600);
+    Snes *old = machine(rom), *s = machine(rom);
+    NativeRuntime *before = idle_loop_runtime(old, false);
+    NativeRuntime *after = idle_loop_runtime(s, true);
+    run_frames(old, 20);
+    size_t old_len, len;
+    uint8_t *old_state = snes_state_write(old, &old_len);
+    idle_loop_entries = idle_loop_passes = 0;
+    CHECK(suspended_frame_ends(s, after, 20) == 0, "idle C loop was not saveable");
+    CHECK(idle_loop_entries <= 20 && idle_loop_passes > idle_loop_entries * 100,
+          "idle loop restarted at each poll: %u entries, %u passes", idle_loop_entries, idle_loop_passes);
+    uint8_t *state = snes_state_write(s, &len);
+    CHECK(len == old_len && !memcmp(state, old_state, len), "idle loop changed the saved wait or caller frame");
+    run_frames(old, 30);
+    run_frames(s, 30);
+    size_t end_len;
+    uint8_t *end = snes_state_write(s, &end_len);
+    size_t old_end_len;
+    uint8_t *old_end = snes_state_write(old, &old_end_len);
+    CHECK(end_len == old_end_len && !memcmp(end, old_end, end_len), "idle loop changed polling or exit time");
+    for (unsigned kind = 0; kind < 3; kind++) {
+        Snes *copy = machine(rom);
+        CHECK(snes_state_read(copy, kind == 2 ? old_state : state, kind == 2 ? old_len : len,
+                              NULL, 0) == 0, "idle wait save did not load");
+        if (kind == 1) copy->held_wait = 0;
+        NativeRuntime *fresh = idle_loop_runtime(copy, true);
+        run_frames(copy, 30);
+        size_t copy_len;
+        uint8_t *copy_state = snes_state_write(copy, &copy_len);
+        CHECK(!native_suspended(fresh) && copy_len == end_len && !memcmp(copy_state, end, end_len),
+              "idle wait reload %u changed time or caller state", kind);
+        free(copy_state);
+        native_destroy(fresh);
+        free(copy);
+    }
+    native_destroy(before);
+    native_destroy(after);
+    free(old_end);
+    free(end);
+    free(old_state);
+    free(state);
+    free(old);
+    free(s);
+
+    for (unsigned invalid = 0; invalid < 7; invalid++) {
+        s = machine(rom);
+        after = idle_loop_runtime(s, true);
+        run_frames(s, 2);
+        unsigned passes = idle_loop_passes;
+        if (invalid == 0) s->cpu.e = true;
+        if (invalid == 1) s->cpu.p ^= CPU_FLAG_M;
+        if (invalid == 2) s->cpu.p |= CPU_FLAG_X;
+        if (invalid == 3) s->cpu.p |= CPU_FLAG_D;
+        if (invalid == 4) s->cpu.d = 0x100;
+        if (invalid == 5) s->cpu.db = 0x40;
+        if (invalid == 6) idle_loop_image = false;
+        uint16_t saved_s = s->cpu.s;
+        CHECK(s->intercept(s->intercept_ctx, s) < 0 && cpu_pc24(&s->cpu) == WAIT_LOOP &&
+              s->cpu.s == saved_s && idle_loop_passes == passes && native_suspended(after) == 0,
+              "idle resume bypassed contract %u or consumed its caller", invalid);
+        idle_loop_image = true;
+        native_destroy(after);
+        free(s);
+    }
+    /* An interrupt can start another task or reset the main stack instead
+     * of returning. Nothing local to the abandoned wait may block a save. */
+    s = machine(rom);
+    after = idle_loop_runtime(s, true);
+    run_frames(s, 2);
+    m_jump_to(s, 0x008180);
+    s->cpu.s = 0x07FF;
+    s->held_wait = HOLD_TEST_LOOP;
+    s->held_wait_s = s->cpu.s;
+    CHECK(suspended_frame_ends(s, after, 2) == 0, "a replaced idle checkpoint stayed suspended");
+    native_destroy(after);
+    free(s);
+    free(rom);
+}
+
 
 /* The console's direct vector calls retain the stubs' complete contracts.
  * A bare return is enough to test every status byte without game assets;
  * invalid stubs and emulation mode must leave the interrupt frame intact. */
 static void console_call_probe(Snes *s)
 {
+    for (unsigned status = 0; status < 256; status++) {
+        s->cpu.e = true;
+        s->cpu.p = (uint8_t)status;
+        s->cpu.s = CONSOLE_STACK_TOP;
+        console_start(s, 0);
+        CHECK(cpu_pc24(&s->cpu) == 0xFDC000 && s->cpu.e && s->cpu.p == status &&
+              s->cpu.s == CONSOLE_STACK_TOP, "console boot refusal %u changed its boundary", status);
+    }
     for (unsigned line = 0; line < 2; line++) {
         for (unsigned status = 0; status < 256; status++) {
             for (unsigned rejected = 0; rejected < 3; rejected++) {
@@ -1649,6 +1789,7 @@ int main(void)
     driver_contract_case();
     console_call_case();
     checkpoint_case();
+    idle_loop_case();
     warp_loop_contract_case();
     menu_contract_case();
     menu_script_contract_case();
@@ -1681,6 +1822,7 @@ int main(void)
     returning_hold_case();
     other_stack_hold_case(false);
     other_stack_hold_case(true);
+    other_stack_hold_case(2);
     empty_boundary_case();
     scene_wait_case();
     if (failures)

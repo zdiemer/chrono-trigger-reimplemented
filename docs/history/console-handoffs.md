@@ -92,3 +92,11 @@ preceding build, including the framebuffer.
 The sampled gate with `--evidence` ends `suite OK`, with no real-play
 refusals or fallback instructions. The suspension, state, debt, timing-scope,
 shadow and cartridge-save tests pass, as do the 28 targeted Python checks.
+
+## Driver power-on
+
+Binding reset to the frame driver removed the sample's final 37 machine
+entries, without moving any of its 159,848,871 held dispatches. Source
+counts at that step were 143 held rows and 105 stops. Old states without
+the driver event field resumed their saved address without queuing reset.
+State and suspension tests passed, and the sampled gate ended `suite OK`.

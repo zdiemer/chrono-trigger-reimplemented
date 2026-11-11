@@ -61,7 +61,7 @@ static const struct {
     { field_irq, 0xC0ECCC, 0, 0, NULL },
     { field_ready_the_picture, 0xC00B28, CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, CPU_FLAG_M, field_on_page_bank_zero },
     { field_nmi, 0xC0EA63, 0, 0, NULL },
-    { field_wait_for_frame_loop, 0xC0EC71, CPU_FLAG_M, CPU_FLAG_M, field_bank_low_ram },
+    { field_wait_for_frame_loop_entry, 0xC0EC71, CPU_FLAG_M, CPU_FLAG_M, field_bank_low_ram },
     { field_change_location_wait_for_vblank_loop, 0xC03B71, CPU_FLAG_M, CPU_FLAG_M, field_display_bank_is_io },
     { field_restart_wait_for_vblank_loop, 0xC04181, CPU_FLAG_M, CPU_FLAG_M, field_display_bank_is_io },
     { field_restart_in_the_dark, 0xC04186, CPU_FLAG_M | CPU_FLAG_X, CPU_FLAG_M, NULL },
