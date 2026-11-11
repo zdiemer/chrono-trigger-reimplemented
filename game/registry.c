@@ -291,7 +291,8 @@ const NativeEntry game_held_waits[] = {
     /* Menu comparisons remain registered while the unreached audit closes.
      * Shipping waits name these continuations, preserving their original
      * contracts and the scheduler's calibrated rate at a saveable boundary. */
-    { .addr = 0xC20348, .name = "menu_frame_held", .fn = menu_wait_for_frame_loop, NEEDS_M8, .idle = true,
+    { .addr = 0xC20348, .name = "menu_frame_held", .fn = menu_wait_for_frame_loop_entry,
+      .loop = menu_wait_for_frame_loop, NEEDS_M8, .idle = true,
       .guard = menu_frame_wait_on_page, .dont_care = DC_X | DC_Y | DC_N | DC_Z | DC_C,
       .hold = HOLD_MENU_FRAME , .retired = true },
     { .addr = 0xC22468, .name = "overworld_exit_fade_finished", .fn = overworld_exit_fade_finished, NEEDS_M8_X16_BINARY,
@@ -329,7 +330,8 @@ const NativeEntry game_held_waits[] = {
       .cost_milli = 5557, .guard = overworld_main_loop_runs, .hold = HOLD_MENU_FRAME, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .retired = true },
     { .addr = 0xC2826C, .name = "menu_main_task_waits_held", .fn = menu_main_task_waits, .p_mask = CPU_FLAG_D, .p_value = 0,
       .cost_milli = 1, .guard = menu_on_page, .hold = HOLD_MENU_TASKS, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C , .retired = true },
-    { .addr = 0xC281CA, .name = "menu_uploads_held", .fn = menu_wait_ready_loop, NEEDS_M8, .idle = true,
+    { .addr = 0xC281CA, .name = "menu_uploads_held", .fn = menu_wait_ready_loop_entry,
+      .loop = menu_wait_ready_loop, NEEDS_M8, .idle = true,
       .guard = menu_ready_wait_reaches_low_ram, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .hold = HOLD_MENU_TASKS , .retired = true },
     { .addr = 0xC281CF, .name = "menu_tasks_held", .fn = menu_run_the_tasks, NEEDS_M8_X8, .cost_milli = 4107,

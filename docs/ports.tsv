@@ -898,11 +898,11 @@ menu_draw_glyph	$C2:5E36	Menu teardown: closed unreached ledger before retiremen
 menu_wait_frames_sending_the_sound	$C2:0454	Menu teardown: closed unreached ledger before retirement; full contracts and calibrated estimate retained (REIMPLEMENTATION.md).
 menu_wait_for_frame	$C2:0346	Menu teardown: closed unreached ledger before retirement; full contracts and calibrated estimate retained (REIMPLEMENTATION.md).
 menu_wait_for_frame_jump	$C2:046E	Menu teardown: closed unreached ledger before retirement; full contracts and calibrated estimate retained (REIMPLEMENTATION.md).
-menu_wait_for_frame_loop	$C2:0348	Menu teardown: closed unreached ledger before retirement; full contracts and calibrated estimate retained (REIMPLEMENTATION.md).
+menu_wait_for_frame_loop, menu_wait_for_frame_loop_entry	$C2:0348	Restartable C wait, preserving saved A and caller return; one-pass wrapper retained (RUNTIME.md, "Restartable C loops"). Sampled held dispatches 1,281,651 to 3,130. Old and new states from cartridge-save playback reload identically through 200 frames. Full contract checked on every resume; polling and exit time unchanged.
 menu_run_the_main_task	$C2:826F	Menu teardown: closed unreached ledger before retirement; full contracts and calibrated estimate retained (REIMPLEMENTATION.md).
 menu_main_task_waits	$C2:826C	Menu teardown: closed unreached ledger before retirement; full contracts and calibrated estimate retained (REIMPLEMENTATION.md).
 menu_start_the_tasks	$C2:8190	Menu teardown: closed unreached ledger before retirement; full contracts and calibrated estimate retained (REIMPLEMENTATION.md).
-menu_wait_ready_loop	$C2:81CA	Menu teardown: closed unreached ledger before retirement; full contracts and calibrated estimate retained (REIMPLEMENTATION.md).
+menu_wait_ready_loop, menu_wait_ready_loop_entry	$C2:81CA	Restartable C upload wait; one-pass wrapper and scheduler continuation retained (RUNTIME.md, "Restartable C loops"). Sampled held dispatches 48,112,971 to 117,478. Old and new mid-wait states reload identically through 200 frames; equipment-and-save playback ends with identical save RAM. Tests cover both idle exits and mid-frame reloads inside interrupts.
 menu_number_to_bcd	$C2:F13F	Menu teardown: closed unreached ledger before retirement; full contracts and calibrated estimate retained (REIMPLEMENTATION.md).
 menu_draw_number	$C2:F114	Menu teardown: closed unreached ledger before retirement; full contracts and calibrated estimate retained (REIMPLEMENTATION.md).
 menu_draw_tile	$C2:EF97	Menu teardown: closed unreached ledger before retirement; full contracts and calibrated estimate retained (REIMPLEMENTATION.md).

@@ -14,8 +14,8 @@ rest waits, is [PLAN.md](PLAN.md).
   contracts; the sampled census already has no machine entries.
   The menu, scene, overworld, remaining field and battle continuations need
   saveable C loops. By sampled held dispatches the next shared waits are
-  menu uploads (48,112,971) and scene programs (39,271,842); then the world
-  frame wait (10,251,528). Preserve task switching,
+  scene programs (39,271,842), then the world frame wait (10,251,528).
+  Preserve task switching,
   the caller's return frame, cartridge saves and fresh-runtime mid-wait
   reloads before replacing a wait. Keep the entry wrappers and registry
   until the native route checks permit their removal (PLAN.md, Phase 4a).

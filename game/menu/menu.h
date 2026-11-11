@@ -121,9 +121,11 @@ void menu_wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t fra
 void menu_wait_frames_sending_the_sound_entry(Snes *s);
 void menu_counted_frame_finished(Snes *s);
 void menu_wait_for_frame_loop(Snes *s);
+void menu_wait_for_frame_loop_entry(Snes *s);
 void menu_wait_for_frame(Snes *s);
 void menu_take_the_frames_input(Snes *s);
 void menu_wait_ready_loop(Snes *s);
+void menu_wait_ready_loop_entry(Snes *s);
 bool menu_frame_wait_on_page(Snes *s);
 bool menu_ready_wait_reaches_low_ram(Snes *s);
 

@@ -977,21 +977,25 @@ frame survives only in a C local: the trip's kind is reconstructed from the
 saved return. The loop checks the frame's complete contract after waking;
 the predicate also wakes if the idle contract stops holding.
 
-The field's shared frame wait at `$C0:EC71` runs as a C loop around its
-one-pass entry. The retained row's `loop` names that function;
+The field's shared frame wait at `$C0:EC71`, the menu upload wait at
+`$C2:81CA`, and its sprite-object frame wait at `$C2:0348` run as C loops
+around their one-pass entries. Each retained row's `loop` names that function;
 `native_idle_held` yields between passes. Each pass still loads the pending
 frame into A and flags, and returns through the saved caller frame when
-vblank takes it. The runtime checks the row's full contract before every
+vblank takes it. The menu frame wait keeps its seen-frame value in saved A
+and returns through the caller frame; the upload wait falls through to the
+task scheduler's retained continuation. The runtime checks the row's full contract before every
 resume, including the P mask and guard. Refusal abandons the live fiber at
 the saved head and leaves the caller frame for ordinary dispatch and its
 refusal report. No callee's guard is skipped.
 
 Idle passes keep their former interrupt and status-change polling points,
 and their existing exit time. They accrue no new port estimate. The C loop
-keeps the wait named at its saved PC and S; `native_suspended` excludes only
-that reconstructible frame while the machine rests there. Other active or
-parked callers still count, including a caller waiting on another task's
-stack. Unpaid time still prevents an exact save. No fiber, callback or
+keeps the wait named at its saved PC and S. `native_suspended` excludes an
+idle loop even while an interrupt or another task temporarily owns PC and S:
+its saved return reconstructs the loop. The warp's `native_poll_held` frame
+is excluded while resting at its checkpoint. Other active or parked callers
+still count, including a caller waiting on another task's stack. Unpaid time still prevents an exact save. No fiber, callback or
 local is serialized: a fresh runtime uses the retained row to reconstruct
 the loop. An older state without a hold named enters by address.
 
@@ -1002,11 +1006,13 @@ refusal stops at `$FD:C000` with the fresh stack and original don't-care set.
 
 `machine_joints.py` counts remaining held dispatch rows, checking that a
 row's function (or its enabled idle `loop`) contains a C loop and a saveable
-polling API. The count is 141, excluding the field loop and the existing
-warp loop; all 143 compatibility rows remain. Warp's separate initial idle
+polling API. The count is 139, excluding the field, warp and two menu loops;
+all 143 compatibility rows remain. Warp's separate initial idle
 alias still counts. Tests reject comments, declarations, missing loop
 functions and disabled metadata as conversion evidence. Stops fall from
-105 to 104 through the field's checked restart. The 505 emulated returns
+105 to 103: the field's checked restart and the menu frame loop's redundant
+stop at its own head. The upload wait's exit still dispatches its next held
+continuation, so that stop remains counted. The 505 emulated returns
 remain; estimates and baselines are unchanged.
 
 The suspension tests compare every serialized field and the polling and
@@ -1014,21 +1020,32 @@ exit time against one-pass waits, reload old, new and unnamed-hold saves
 into fresh runtimes, and check that resumed loops refuse changed mode,
 widths, decimal status, page, bank and code-image guards without consuming
 the caller frame. A separate-stack wait preserves its suspended caller;
-starting afresh discards it. The earlier warp measurements are in
+starting afresh discards it. Mid-frame states captured both at the wait
+and inside an interrupt reload into fresh runtimes with every serialized
+field identical after continued play, for both kinds of idle exit. The earlier warp measurements are in
 [the held-loop history](history/held-loops.md).
 
-The 37-movie census counts 142,734 entries into the field wait instead of
-60,007,940 polling dispatches. Every other held continuation and C-call count
-is unchanged. Total held dispatches fall from 159,848,871 to 99,983,665;
-machine entries remain zero.
+The field wait's 37-movie census falls from 60,007,940 polling dispatches to
+142,734 entries into its C loop. The floor-switch movie, loaded from its
+cartridge save, rests at frame 2,800 at `$C0:EC71`, hold 5, S `$06FD`, with
+no suspended caller or unpaid time. Old and new builds serialize every
+field identically there and at frame 3,000. Old and new mid-wait saves
+loaded into fresh runtimes reach that same final state, including sound and
+save RAM; both 200-frame traces match the preceding build's reload.
 
-The floor-switch movie, loaded from its cartridge save, rests at frame
-2,800 at `$C0:EC71`, hold 5, S `$06FD`, with no suspended caller or unpaid
-time. Old and new builds serialize every field identically there and at
-frame 3,000. Old and new mid-wait saves loaded into fresh runtimes reach
-that same final state, including sound and save RAM; both 200-frame traces
-match the preceding build's reload. Suspension, state, debt, timing-scope
-and cartridge-save tests pass, as do 28 targeted Python checks.
+The menu upload wait's sampled dispatches fall from 48,112,971 to 117,478;
+the sprite-object frame wait's fall from 1,281,651 to 3,130. Other held
+continuations and C-call counts are unchanged by the menu step. Across
+these conversions total held dispatches fall from 159,848,871 to
+50,709,651, with zero machine entries on the 37-movie sample.
+
+At frame 4,000, `menus-field-menu` rests in the upload wait with hold 10 and
+S `$09FF`; `menus-epoch` rests in the frame wait with hold 14 and S `$06FB`.
+Both start from cartridge saves. Old and new states reload into fresh
+runtimes and reach frame 4,200 with every serialized field identical to
+uninterrupted play and matching 200-frame traces. The equipment-and-save
+movie also ends with identical serialized state and save RAM. The sampled
+gate ends `suite OK`; style and smell checks have no new findings.
 
 ## ZSNES save states
 

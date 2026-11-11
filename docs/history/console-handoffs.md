@@ -100,3 +100,26 @@ entries, without moving any of its 159,848,871 held dispatches. Source
 counts at that step were 143 held rows and 105 stops. Old states without
 the driver event field resumed their saved address without queuing reset.
 State and suspension tests passed, and the sampled gate ended `suite OK`.
+
+## Interrupt callers and the field game-over handoff
+
+The frame driver supplies the interrupt vectors' C caller (RUNTIME.md,
+"The frame driver's interrupt calls"). Over the 37 movies in
+`tools/gate_movies.txt`, those calls reduce the census from 698,313 machine
+entries to 41; the field's game-over handoff removes four more, leaving 37
+power-on resets at one entry. The four affected movies are `battle-guardian`,
+`battle-golem-twins-gameover`, `events-death-peak` and `late-omen-terramutant`.
+Each has a byte-identical serialized end state before and after the field
+change, including the C sound driver and save RAM.
+
+`machine_joints.py` and its per-file report are unchanged by these two
+steps: 13 registered entries, 143 held rows, 105 stops (guard refusals
+included), five address call-outs, two registry sibling lookups, 505
+emulated returns and 2,002 machine-taking functions. The first console
+handoff measurements are in [history/console-handoffs.md](history/console-handoffs.md).
+
+The sampled gate with `--evidence` ends `suite OK`: all 37 movies and both
+fast routes pass, with no real-play refusals or fallback instructions. The
+suspension, field and cartridge-save tests pass, as do the 28 targeted
+Python checks and the port-style and smell ratchets. Timing estimates and
+baselines are unchanged.

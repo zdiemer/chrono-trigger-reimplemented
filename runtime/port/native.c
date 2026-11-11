@@ -760,7 +760,15 @@ int native_suspended(const NativeRuntime *rt)
         return count;
     for (int i = 0; i < rt->nactive; i++) {
         const Active *a = &rt->active[i];
-        if (!a->job || (a->phase != PH_IDLE_WAIT && (a->phase != PH_WAIT || !a->job->held_poll)))
+        /* An idle loop has no C state beyond its saved head and caller
+         * frame. An interrupt or another task may temporarily own PC and S;
+         * their saved return still reconstructs the loop. Their own native
+         * callers remain counted, just as before the loop had a fiber. */
+        if (a->phase == PH_IDLE_WAIT && a->job) {
+            count--;
+            continue;
+        }
+        if (a->phase != PH_WAIT || !a->job || !a->job->held_poll)
             continue;
         const Snes *s = a->job->m;
         if (s->held_wait == a->entry->hold && s->held_wait_s == a->sync_s &&

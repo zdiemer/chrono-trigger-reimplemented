@@ -1329,10 +1329,12 @@ static void warp_loop_contract_case(void)
     free(rom);
 }
 
-/* The field's shared wait: an idle C loop retains the caller's complete
- * return frame and uses the same poll and exit time as the one-pass entry. */
+/* Shared frame waits retain the caller's complete return frame and use the
+ * one-pass entry's poll and exit time, whether returning or falling through
+ * to another held continuation (the menu scheduler's case). */
 static unsigned idle_loop_entries, idle_loop_passes;
 static bool idle_loop_image = true;
+static bool idle_loop_returns;
 
 static bool idle_loop_guard(Snes *s)
 {
@@ -1343,7 +1345,7 @@ static void idle_frame_pass(Snes *s)
 {
     idle_loop_passes++;
     wait_pass(s);
-    if (s->cpu.pc == WAIT_EXIT)
+    if (idle_loop_returns && s->cpu.pc == WAIT_EXIT)
         m_rts(s);
 }
 
@@ -1366,14 +1368,17 @@ static NativeRuntime *idle_loop_runtime(Snes *s, bool loop)
           .loop = loop ? idle_frame_loop : NULL },
         { .addr = 0x008180, .name = "fresh_idle", .fn = checkpoint_waits,
           .idle = true, .hold = HOLD_TEST_LOOP },
+        { .addr = WAIT_EXIT, .name = "idle_finished", .fn = leave_waited,
+          .cost_milli = 1000, .hold = HOLD_TEST_LOOP },
     };
-    NativeRuntime *rt = native_create(table, 3, NATIVE_ON);
+    NativeRuntime *rt = native_create(table, 4, NATIVE_ON);
     native_attach(rt, s);
     return rt;
 }
 
-static void idle_loop_case(void)
+static void idle_loop_case(bool returns)
 {
+    idle_loop_returns = returns;
     uint8_t *rom = make_rom(wait_code, sizeof wait_code / sizeof wait_code[0], 0x8600);
     Snes *old = machine(rom), *s = machine(rom);
     NativeRuntime *before = idle_loop_runtime(old, false);
@@ -1453,6 +1458,62 @@ static void idle_loop_case(void)
     free(rom);
 }
 
+
+typedef struct {
+    NativeRuntime *rt;
+    int32_t (*intercept)(void *, Snes *);
+    void *ctx;
+    uint8_t *bytes;
+    size_t len;
+    bool in_handler;
+} IdleSave;
+
+static int32_t save_idle_midframe(void *arg, Snes *s)
+{
+    IdleSave *save = arg;
+    uint32_t pc = cpu_pc24(&s->cpu);
+    bool at = save->in_handler ? pc >= 0x008600 && pc < 0x008605 : s->hclock > 200 && pc == WAIT_LOOP;
+    if (!save->bytes && s->frame >= 5 && at &&
+        !native_suspended(save->rt) && !native_owed(save->rt))
+        save->bytes = snes_state_write(s, &save->len);
+    return save->intercept(save->ctx, s);
+}
+
+static void idle_midframe_case(void)
+{
+    uint8_t *rom = make_rom(wait_code, sizeof wait_code / sizeof wait_code[0], 0x8600);
+    for (unsigned variant = 0; variant < 4; variant++) {
+        idle_loop_returns = (variant & 1) != 0;
+        Snes *s = machine(rom);
+        NativeRuntime *rt = idle_loop_runtime(s, true);
+        IdleSave save = { .rt = rt, .intercept = s->intercept, .ctx = s->intercept_ctx,
+                          .in_handler = (variant & 2) != 0 };
+        s->intercept = save_idle_midframe;
+        s->intercept_ctx = &save;
+        run_frames(s, 12);
+        CHECK(save.bytes != NULL, "idle loop had no mid-frame checkpoint, variant %u", variant);
+        if (save.bytes) {
+            Snes *copy = machine(rom);
+            CHECK(snes_state_read(copy, save.bytes, save.len, NULL, 0) == 0, "idle mid-frame state did not load");
+            CHECK(save.in_handler ? cpu_pc24(&copy->cpu) >= 0x008600 && cpu_pc24(&copy->cpu) < 0x008605
+                                   : copy->hclock > 200 && cpu_pc24(&copy->cpu) == WAIT_LOOP,
+                  "idle snapshot missed its mid-frame wait");
+            NativeRuntime *fresh = idle_loop_runtime(copy, true);
+            run_frames(copy, 12 - (int)copy->frame);
+            size_t a_len, b_len;
+            uint8_t *a = snes_state_write(s, &a_len), *b = snes_state_write(copy, &b_len);
+            CHECK(a_len == b_len && !memcmp(a, b, a_len), "idle mid-frame reload changed time or caller state");
+            free(a);
+            free(b);
+            native_destroy(fresh);
+            free(copy);
+        }
+        free(save.bytes);
+        native_destroy(rt);
+        free(s);
+    }
+    free(rom);
+}
 
 /* The console's direct vector calls retain the stubs' complete contracts.
  * A bare return is enough to test every status byte without game assets;
@@ -1789,7 +1850,9 @@ int main(void)
     driver_contract_case();
     console_call_case();
     checkpoint_case();
-    idle_loop_case();
+    idle_loop_case(true);
+    idle_loop_case(false);
+    idle_midframe_case();
     warp_loop_contract_case();
     menu_contract_case();
     menu_script_contract_case();

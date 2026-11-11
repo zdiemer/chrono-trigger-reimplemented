@@ -58,3 +58,18 @@ The sampled gate with `--evidence` ends `suite OK`: 37 movies and both fast
 routes pass, with no real-play refusals or fallback instructions. The
 suspension, state, cartridge-save, debt, time-parts and shadow tests pass,
 as do the 28 targeted Python checks and the port-style and smell ratchets.
+
+## Field shared frame wait
+
+The 37-movie census counts 142,734 entries into the field wait instead of
+60,007,940 polling dispatches. Every other held continuation and C-call count
+is unchanged. Total held dispatches fall from 159,848,871 to 99,983,665;
+machine entries remain zero.
+
+The floor-switch movie, loaded from its cartridge save, rests at frame
+2,800 at `$C0:EC71`, hold 5, S `$06FD`, with no suspended caller or unpaid
+time. Old and new builds serialize every field identically there and at
+frame 3,000. Old and new mid-wait saves loaded into fresh runtimes reach
+that same final state, including sound and save RAM; both 200-frame traces
+match the preceding build's reload. Suspension, state, debt, timing-scope
+and cartridge-save tests pass, as do 28 targeted Python checks.
