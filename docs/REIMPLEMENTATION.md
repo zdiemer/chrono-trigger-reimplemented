@@ -4346,33 +4346,33 @@ New movies or missing records fail closed. The suite
 runs both recorded checks after strict and native checks, and clears their
 old artifacts before a run, so skipping a producer cannot pass on stale data.
 
-The ledger records the whole library, 84 movies (2,289,640 frames). The
-batched run of `bfd75c49` supplies the reference observations, unchanged
-from the earlier ledger. Its hand-port observations are replaced per movie
-by the ledger branch's fresh targeted and sampled runs. Reasons on changed
-exception rows identify their source and any formerly protected identities
-that moved outside tolerance. The preceding measurement and the regression
-diagnoses are in [the ledger history](history/library-ledgers.md).
+The ledger records the whole library, 84 movies (2,289,640 frames), from
+the batched run of `2bd0d73d`. Reference observations are unchanged. Its
+27 protected regressions are attributed individually to `54099ed8`'s
+calibration, `253d674c`'s native time model, or `9d73e1cd`'s menu wave
+ownership. Historical replays and isolated reversals establish each cause
+before re-recording; the evidence and the earlier measurement are in
+[the ledger history](history/library-ledgers.md). Exceptions identify the
+source run, cause and commit; matching kinds lose their stale exceptions.
 
 | Mode | Saved game / save RAM matches (movies) | Picture match / drift / differ (checkpoints) | Place match / drift / differ (visits) |
 |---|---|---|---|
-| Strict | 40 / 77 of 84 | 1,093 / 160 / 6,495 | 436 / 178 / 256 |
-| Native | 35 / 69 of 84 | 612 / 147 / 6,989 | 89 / 475 / 316 |
+| Strict | 42 / 78 of 84 | 1,120 / 174 / 6,454 | 441 / 184 / 257 |
+| Native | 38 / 69 of 84 | 663 / 215 / 6,870 | 91 / 485 / 299 |
 
-The batch fits 74 drifted rates, plus the planet setup whose small call
-count does not qualify for the drift check. The repeated-hit effect's rate
-returns to 3000 after an interrupted fit broke its complete calls. It
-retains the hit's rate because its ordinary and short paths need separate
-estimates, and the member-tech dispatcher's rate because its mixed effects
-create a complete-call outlier when fitted together. The experience-sharing
-and ending picture dispatchers also keep their rates: fitting their small
-own shares after subtracting their parts creates ordinary-call and vblank
-timing outliers respectively.
-Scene setup exceptions describe loading with the display blanked; the
-planet's rate no longer waits for this batch. Both `warp_end` video
-exceptions disappear from the full library's observations. All 56 long
-routes in the batch reach their outcomes. Branch validation uses the
-sample and fresh targeted movies, with one worker per tool.
+Both end-state kinds match together in 42 strict and 31 native movies.
+Strict visits 625 places on time; native visits 576. The native Cyrus,
+Fiona's Forest and Sun Stone counts are 16, 4 and 12, with their model-change
+attribution on the rows. These measurements do not establish equivalent
+progress for drifting movies.
+
+Calibration over the batch's shadow reports changes only the controller
+entry's `cost_milli`, 5568 to 5567; nine entries remain measured after the
+teardowns. Retired rates retain their earlier measurements and model debts.
+Reference and shipping fallbacks are zero, including all 56 long routes;
+their baselines have no remaining rows. All routes reach their outcomes.
+Branch confirmation uses the sampled gate and explicit named-movie runs;
+it does not repeat the entire library.
 
 No movie matches every kind in either mode. These are existing debts,
 explicitly reasoned per movie, not a claim of harmless pixel changes.

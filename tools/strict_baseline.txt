@@ -63,11 +63,11 @@ events-jetbike-race end
 events-keepers-dome end
 events-luccas-mother end
 events-magic-cave end
-events-magus-joins drifts  # drift: the run passes through the reference's saved-game states but ends before the reference's last 5, from frame 12998 (scene_turn_party_bytes, party_characters_joined, location, event_memory), +46 frames off at the end; with the original's time it plays as the reference to the end (hand ports 8301454 calls, the original's code 12693008 block calls)
+events-magus-joins end
 events-ocean-palace-lavos drifts  # drift: song $10 lands 1 frame earlier at frame 18115; the play clock runs 10 frame(s) ahead; it parts at frame 18380 (text window opens at frame 18672, where the reference has text window opens at frame 18380); with the original's time it plays as the reference to the end (hand ports 11769323 calls, the original's code 18239522 block calls)
 events-prison-escape end
 events-proto-dome drifts  # drift: member 0's battle menu lands 15 frames earlier at frame 9801; the play clock runs 9 frame(s) ahead; the battle at frame 9816 starts from random $87, not $81; it parts at frame 10027 (member 1's battle menu at frame 10044, where the reference has member 2's battle menu at frame 10027); with the original's time it plays as the reference to the end (hand ports 7437734 calls, the original's code 14752056 block calls)
-events-sun-stone drifts  # drift: the field goes dark lands 340 frames later at frame 10635; the play clock runs 337 frame(s) ahead; it parts at frame 10296 (the saved game changes at frame 10636 to a state the reference doesn't reach (its next change is at frame 10296): location_previous); with the original's time it plays as the reference to the end (hand ports 9887779 calls, the original's code 17549683 block calls)
+events-sun-stone end
 events-zeal-palace drifts  # drift: the run passes through the reference's saved-game states but ends before the reference's last 17, from frame 12809 (location, location_previous, location_stored, event_memory), +0 frames off at the end; with the original's time it plays as the reference to the end (hand ports 9507250 calls, the original's code 15191367 block calls)
 field-12kbc-1f4 end
 field-12kbc-1f5 end

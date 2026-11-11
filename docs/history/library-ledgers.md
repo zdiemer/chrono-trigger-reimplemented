@@ -291,3 +291,159 @@ their refresh belongs to the batched ledger, not this sample. Comparing
 with the first repair gate, the final alignment/dispatch correction changes
 only attract mode's strict artifact; all 58 native artifacts and the other
 57 strict artifacts are identical. No outcome or place ratchet was relaxed.
+
+
+## The run of 2bd0d73d
+
+The 84-movie, 56-route batch ends `FAILED: native; outcomes`. Its shadow,
+strict, native-shape, shipping, sound and video checks pass; all 84 strict
+movies finish, all 84 native movies finish visibly, and all 56 native-shape
+routes reach their outcomes. The ledger uses these observations, not the
+earlier repair sample. Reference outcome rows are identical to the committed
+reference ledger. The batch is preserved before fresh checks replace suite
+artifacts; diagnostic historical runs never supply ledger observations.
+
+### The 27 protected regressions
+
+Every row below was compared with the last historical artifact retaining
+its protected observations. Existing repair evidence was inspected, and
+missing comparisons were replayed one movie at a time using the historical
+binaries, copied with their build receipts into isolated scratch directories.
+No historical build replaced the current build. The cause codes mean:
+
+- **C, calibration `54099ed8`.** Its first parent retains the listed
+  observations; this commit loses them and reproduces the repaired batch's
+  complete game, SRAM, picture and place artifact. Its executable change is
+  the registry's rates. The first changed sampled picture is 298, after the
+  matching startup samples at 1-3. This names the first retained picture
+  observation, not an unsampled first changed pixel.
+- **T, native time model `253d674c`.** The merge's parent retains the listed
+  observations; the merge reproduces the batch's complete artifact. The
+  first changed location arrival is the title at frame 49 instead of 48;
+  native DMA accounting (`d8f2c34f`) charges this work. The first changed
+  sampled picture is 298. Later fixed inputs meet different frame budgets,
+  battles, menus and era transitions. Reverting the accounting to preserve
+  those inputs would undo the model correction.
+- **W, menu wave ownership `9d73e1cd`, merged in `9b1597a3`.** Sun Stone's
+  strict game, SRAM and all 21 places remain identical to `54099ed8`.
+  The first changed sampled picture is 4198. Restoring only the field/event
+  aliases, with uncounted writes, restores the entire calibration artifact.
+
+| Movie | Mode | Kind and formerly protected identities | Cause |
+|---|---|---|---|
+| battle-dalton | strict | pictures: 9000 | C |
+| battle-dragon-tank | strict | pictures: 4800, 5400, 8400 | C |
+| battle-unequipped-armor | strict | pictures: 17100 | C |
+| endings-bucket-lavos | strict | pictures: 7800, 8100, 8400, 8700, 9000 | C |
+| events-sun-stone | strict | pictures: 6900 | W |
+| late-lavos | strict | sram: end | C |
+| battle-dalton | native | sram: end | T |
+| battle-dragon-tank | native | pictures: 4500, 4800, 5100 | T |
+| battle-giga-gaia | native | pictures: 4800, 5100 | T |
+| battle-motherbrain | native | pictures: 6900 | T |
+| battle-ozzies-fort | native | pictures: 4500, 4800 | T |
+| battle-r-series | native | pictures: 7200 | T |
+| events-cyrus | native | places: 4, 12 | T |
+| events-death-peak-ascent | native | pictures: 12600 | T |
+| events-fair-shuffle | native | pictures: 5100 | T |
+| events-fionas-forest | native | pictures: 4500 | T |
+| events-fionas-forest | native | places: 4, 5, 6 | T |
+| events-luccas-mother | native | pictures: 8400, 8700, 9000 | T |
+| events-magic-cave | native | pictures: 4200, 4500 | T |
+| events-sun-stone | native | game: end | T |
+| events-sun-stone | native | pictures: 9600, 9900, 10200, 15300, 15600, 15900, 16200, 16500, 16800, 17100, 19500, 19800, 20400, 21000, 21300, 21600, 21900, 22200, 22800 | T |
+| events-sun-stone | native | places: 12, 13, 14, 15, 16, 17, 18, 19 | T |
+| events-zeal-palace | native | pictures: 9300, 10800 | T |
+| fair | native | pictures: 11100, 11400 | T |
+| fair-companion | native | pictures: 11100, 11400, 17400, 17700, 17900 | T |
+| gato-battle | native | pictures: 11100, 11400, 17400, 17700, 18000, 18600 | T |
+| late-omen-zeal | native | sram: end | T |
+
+These are deliberate re-recordings with the cause and commit on each
+exception and each loosened protection, not new executable fixes. The
+end-state findings were checked separately: late Lavos strict differs in
+49 compared SRAM bytes, Dalton native in four, and late Omen Zeal native
+in 398. Their respective calibration/model commits reproduce those entire
+SRAM digests; the immediate parents preserve the protected match. Sun
+Stone native's 23 differing saved-game bytes accompany its changed era
+transitions, with unchanged SRAM. None first appears at a later teardown.
+
+The native place counts have the same T attribution: Cyrus 18 to 16,
+Fiona's Forest 7 to 4, Sun Stone 20 to 12. Cyrus still visits the same 18
+places: location 497 moves from 3735 to 3737 against reference 3706, crossing
+the 30-frame tolerance. Fiona's location 502 moves from 4400 to 4402 against
+4371, then the run misses location 424. Sun Stone's old model visits 21
+locations and the new one 13. The reduced counts remain explicit debts.
+
+### Other changed fingerprints and tightening
+
+The same historical-kind comparison covers every refreshed exception,
+including changes with no lost protected checkpoint. Strict artifacts
+reproduce `54099ed8` and native artifacts `253d674c`, with these separately
+demonstrated differences:
+
+- Some strict pins had already been refreshed during field retirement to
+  the timing with missing access estimates: Death Peak's game/SRAM,
+  Beyond Time's and Ocean Palace's places, and the Lavos game-over, Magus,
+  Tyrano Lair Walls, Ocean Palace, Jetbike Race and save-point pictures.
+  The estimate repairs from `6d82cf2d` through `aeb8d29d` restore their
+  complete kinds at `54099ed8`; their lines identify the repair rather than
+  claiming those newer pins predated calibration. Attract mode also needs `f3c243b0`'s
+  alignment and screen-dispatch correction. Its old pins described the
+  missing-work timing as well.
+- Attract mode retains `aeb00618`'s event handoff and place sequence. The
+  ten wave samples and five race samples have the isolated reversals
+  described in the repair audit above.
+- MotherBrain and Beyond Time's **strict** pictures retain `20ad985f`'s
+  corrected live action-record read. Reversing only those reads restores
+  their complete calibration artifacts. MotherBrain's native artifact
+  already equals its `253d674c` replay.
+- Proto Dome's strict approach includes the Jetbike Race. After its
+  calibration artifact, scene retirement changes only samples 5699 and
+  5702; undoing the held race upload (`3a751c88`) restores precisely those
+  two. Restoring only the old field/event wave aliases restores fifteen
+  other samples, at 8398-8402, 8698-8702 and 8998-9002. Both counterfactuals
+  retain identical game, SRAM and places. Neither supplies ledger data.
+- Spekkio's native replay now completes because `d29f52c1` extends the
+  sound-selector resource through selector 13. Its new complete game and
+  pictures come from the repaired batch, never the old faulted run.
+
+Seven obsolete exceptions disappear: native Black Tyrano and Dragon Tank
+places; strict Dalton and North Cape SRAM; strict Magus-joins game; strict
+Sun Stone game and places. Strict Magus-joins and Sun Stone tighten to
+`end`. Native Flea and Slash tighten from five timely visits each to sixteen,
+and Spekkio from four to five. Other newly matching checkpoint identities
+also become protected. Omitted opt-in hand movies retain their strict rows.
+
+Both fallback baselines become empty: all 84 reference and shipping movies
+and all 56 shipping routes report zero. The former reference ownership
+extents disappeared with comparison retirement; the shipping program no
+longer enters the empty scene callback on the machine. The calibration of
+the nine measured entries changes only `input_take_ready_controller`,
+5568 to 5567. Its ordinary 124- and 132-bus-clock paths still round to
+690 and 734 master clocks respectively; the batch's 2,075,801 measured
+calls fit those paths. It adds no exception and does not refit retired
+rates from reports that no longer measure those comparisons.
+
+### Validation receipt
+
+The rebuilt program passes the 58-movie sampled gate and a separate
+73-movie gate selecting every movie whose ledger row changed, with
+`--movies`, `--all-movies`, `--evidence` and two workers. Both last lines
+are **`suite OK`**. The explicit selection does not repeat the whole
+library or its long routes; those observations remain the batch's.
+
+All 58 sampled strict artifacts and all 58 native artifacts are identical
+to the batch, as are all 73 strict and 73 native artifacts from the named
+run. The named run completes every movie in both modes, with every native
+movie showing; 33 strict and 25 native ends match the reference, and 564
+strict and 520 native places of 784 arrive on time. Fallbacks, refusals
+and unexcepted video findings remain zero.
+
+Checking the preserved 84-movie artifacts against the final outcome ledger
+passes 84/84 in both modes. Every matching identity is protected and no
+matching kind retains an exception. Six exception records are added, 165
+are re-recorded with attribution, and seven stale records are removed.
+No additional game or runtime repair is required by this attribution;
+the remaining timing/progress questions stay in TODO.md. No trace, state
+dump, asset or local path is committed.

@@ -2761,14 +2761,15 @@ list, by kind, is what `game/` still asks of one.
     SRAM still matches and all five places remain on time. Follow the first
     shifted battle input; the re-recorded
     outcome is not a claim that the fight is equivalent.
-    Native access, transfer, budget and retired-work accounting need a batched
-    ledger update. The expanded sample now includes Ozzie's Fort, Mud Imp,
-    Cyrus and Golem Twins, but no library-wide rate fit was made. The historical
-    replay audit in history/library-ledgers.md identifies the changed outcome
-    pins and native place counts; do not refresh them from the sample.
-    The repair branch's final expanded sample ends `FAILED: native; outcomes`:
-    all 58 movies complete in strict and native modes and all other checks
-    pass, but the shown calibration/model changes still need that ledger.
+    Follow the native fixed-input losses isolated at `253d674c`: Cyrus's
+    two arrivals just outside the 30-frame tolerance, Fiona's missing
+    location 424, and Sun Stone's 13-location path instead of 21. Dalton
+    and late Omen Zeal also save different progress after that model change.
+    The batched attribution establishes the changed accounting, not that
+    these outcomes are equivalent; use state-driven routes to distinguish
+    missed recorded inputs from remaining frame-budget errors.
+    Trace late Lavos's strict battle/save inputs too: its `54099ed8` timing
+    leaves 49 compared SRAM bytes different at the end.
   - *The handlers' share of an upload.* The sound driver's upload time is
     the wall's under a light vblank handler; under the menus' busy one the
     original's song loads in about twice the frames, and a battle's song,

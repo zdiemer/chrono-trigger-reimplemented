@@ -12,8 +12,8 @@ menu 6
 new-game 6
 title-start 3
 battle-black-tyrano 7
-battle-castle-flea 5
-battle-castle-slash 5
+battle-castle-flea 16
+battle-castle-slash 16
 battle-dalton 9
 battle-denadoro 5
 battle-dragon-tank 5
@@ -33,7 +33,7 @@ battle-ozzies-fort 9
 battle-r-series 6
 battle-rust-tyrano 5
 battle-son-of-sun 6
-battle-tech-sweep-spekkio 4
+battle-tech-sweep-spekkio 5
 battle-tech-sweep 5
 battle-tyrano-lair-walls 5
 battle-unequipped-armor 10
@@ -43,7 +43,7 @@ endings-bucket-lavos 12
 endings-telepod-lavos 8
 events-blackbird 7
 events-cronos-trial 5
-events-cyrus 18
+events-cyrus 16 # 253d674c charges native DMA and field frame budgets; parent and merge replays isolate the changed arrivals (2bd0d73d library observations).
 events-death-peak-ascent 5
 events-death-peak-wind 5
 events-death-peak 4
@@ -53,7 +53,7 @@ events-fair-clone 6
 events-fair-rescue 7
 events-fair-shuffle 6
 events-fair-strength 5
-events-fionas-forest 7
+events-fionas-forest 4 # 253d674c charges native DMA and field frame budgets; parent and merge replays isolate the changed arrivals (2bd0d73d library observations).
 events-jetbike-race-won 7
 events-jetbike-race 7
 events-keepers-dome 6
@@ -63,7 +63,7 @@ events-magus-joins 7
 events-ocean-palace-lavos 8 # Native DMA transfer time restores another reference visit within 30 frames.
 events-prison-escape 7
 events-proto-dome 9
-events-sun-stone 20
+events-sun-stone 12 # 253d674c charges native DMA and field frame budgets; parent and merge replays isolate the changed arrivals (2bd0d73d library observations).
 events-zeal-palace 21
 field-12kbc-1f4 6
 field-12kbc-1f5 6
