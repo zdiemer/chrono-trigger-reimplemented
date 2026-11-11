@@ -43,6 +43,7 @@
 #include "field/bridge.h"
 #include "field/scratch.h"
 #include "port/machine.h"
+#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -360,6 +361,16 @@ static void start_afresh(Snes *s, uint32_t at)
 {
     display_go_dark(s);
     s->cpu.s = CONSOLE_STACK_TOP;
+    if (at == THE_TITLE && m_runs_retired_as_c(s)) {
+        m_jump_to(s, at);
+        native_sync_boundary(s);
+        /* Starting the title requires native mode and M8/X16. Decimal mode,
+         * page and bank are unrestricted; it initializes its own state. */
+        if (!s->cpu.e && (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == CPU_FLAG_M) {
+            TIMED_AS(state_of(s), THE_TITLE, field_first_start(s));
+            return;
+        }
+    }
     m_stop_at_own(s, at, STARTS_AFRESH);
 }
 

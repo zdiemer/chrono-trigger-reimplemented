@@ -57,6 +57,7 @@
 #include "menu/menu.h"
 #include "core/input.h"
 #include "core/console.h"
+#include "field/battle_return.h"
 #include "warp/warp.h"
 #include "core/machine_forms.h"
 #include "menu/bridge.h"
@@ -1550,8 +1551,49 @@ static void driver_contract_case(void)
     free(rom);
 }
 
+/* A game-over restart intentionally replaces the stack. A refused title
+ * contract must leave that fresh stack and the original destination, with
+ * no title work performed. Decimal mode is not part of this contract. */
+static void field_restart_probe(Snes *s)
+{
+    for (unsigned decimal = 0; decimal < 2; decimal++) {
+        for (unsigned invalid = 0; invalid < 3; invalid++) {
+            s->cpu.e = invalid == 0;
+            uint8_t status = invalid == 1 ? 0 : CPU_FLAG_M;
+            if (invalid == 2) status |= CPU_FLAG_X;
+            if (decimal) status |= CPU_FLAG_D;
+            s->cpu.p = status;
+            s->cpu.s = A_TOP;
+            set_field_brightness(state_of(s), 0);
+            field_game_over_fades(s);
+            CHECK(cpu_pc24(&s->cpu) == 0xC0000E && s->cpu.s == CONSOLE_STACK_TOP &&
+                  s->cpu.p == (status | CPU_FLAG_I) && s->cpu.e == (invalid == 0),
+                  "field restart refusal %u, decimal %u changed its contract or destination", invalid, decimal);
+        }
+    }
+    s->cpu.e = false;
+    s->cpu.stopped = true;
+}
+
+static void field_restart_case(void)
+{
+    const NativeEntry entry = { .addr = 0x008000, .name = "field_restart_probe", .fn = field_restart_probe,
+                                .cost_milli = 1000 };
+    uint8_t *rom = make_rom(NULL, 0, 0x8600);
+    Snes *s = machine(rom);
+    s->cpu.e = false;
+    NativeRuntime *rt = native_create(&entry, 1, NATIVE_ON);
+    native_attach(rt, s);
+    run_frames(s, 2);
+    CHECK(s->cpu.stopped && !native_failed(rt), "field restart contract probe did not finish");
+    native_destroy(rt);
+    free(s);
+    free(rom);
+}
+
 int main(void)
 {
+    field_restart_case();
     driver_interrupt_case();
     driver_contract_case();
     console_call_case();

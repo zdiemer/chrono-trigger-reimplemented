@@ -189,9 +189,9 @@ already built are described in PLATFORM.md.
   "The console's direct hand-offs".
   Held-row counts include save-state compatibility aliases (RUNTIME.md,
   "Restartable C loops").
-  The 37-movie sample's census records 41 calls by the machine to two entries after
-  the frame driver's interrupt calls (RUNTIME.md): 37 resets and four stops
-  at the field's first start.
+  The 37-movie sample's census records 37 calls by the machine, all power-on
+  resets, after the frame driver's interrupt calls (RUNTIME.md) and the
+  field's direct game-over restart (REIMPLEMENTATION.md).
   1. The remaining calls through the registry become C calls that keep the
      callee's full contract (widths, decimal mode, page, bank, code image)
      and its time.

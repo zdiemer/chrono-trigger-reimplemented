@@ -10,9 +10,8 @@ rest waits, is [PLAN.md](PLAN.md).
 ## Correctness and accuracy
 
 - **Remaining machine hand-offs and held loops.** The sampled census still
-  enters the reset at power-on and the field's first start from
-  `field_game_over_fades`. Convert the
-  remaining callers subsystem by subsystem under their complete contracts.
+  enters the reset at power-on. Convert that caller and the remaining
+  source hand-offs subsystem by subsystem under their complete contracts.
   The scene, overworld, field, menu and battle held continuations still need
   saveable C loops: preserve task switching,
   the caller's return frame, cartridge saves and fresh-runtime mid-wait

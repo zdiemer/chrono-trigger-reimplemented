@@ -5026,26 +5026,39 @@ original entry with the original don't-care set and stack intact. Shadow
 mode retains the separate comparisons; no registry rows, wrappers or
 timing estimates change.
 
+The field's game-over fade uses the same boundary before calling
+`field_first_start`: the screen is blank and the stack reset before the
+handoff, as before. Its local check requires native mode and M8/X16, with
+no decimal-mode, page, bank or code-image restriction. Refusal leaves the
+fresh stack at `$C0:000E` with the stop's own don't-care set. The other
+restart destination, the field entry at `$C0:005D`, retains its stop.
+
 The boot has no P restriction; the field's first start takes M8/X16. The
 stubs take any P in native mode, including decimal, and require a jump or
 return installed in the corresponding RAM vector. None of these four
 callees has an additional page, bank or code-image guard. The suspension
 test exercises both vectors at all 256 status bytes, with valid return
 stubs, invalid stubs and emulation-mode refusals, checking the destination
-and the complete interrupt frame.
+and complete interrupt frame. Six field-restart cases check refused CPU
+modes and widths with decimal mode both set and clear.
 
-Over the 37 movies in `tools/gate_movies.txt`, the census's machine entries
-fall from 1,396,661 at seven distinct entries to 698,313 at four. The two
-RAM stubs account for 698,272 removed entries. Every held continuation's
-pass count is unchanged (160,105,465 in total). The remaining entries are
-the two interrupt vectors, power-on reset, and the field's first start
-from game-over. `machine_joints.py` and its per-file report count 107 to
-104 stop sites: four hand-offs share one refusal stop. Registered entries
-(13), held continuations (143), address call-outs (5), registry sibling
-lookups (2) and emulated returns (505) are unchanged. The boundary helper
-adds one machine-taking function (2,000 to 2,001).
+The frame driver supplies the interrupt vectors' C caller (RUNTIME.md,
+"The frame driver's interrupt calls"). Over the 37 movies in
+`tools/gate_movies.txt`, those calls reduce the census from 698,313 machine
+entries to 41; the field's game-over handoff removes four more, leaving 37
+power-on resets at one entry. The four affected movies are `battle-guardian`,
+`battle-golem-twins-gameover`, `events-death-peak` and `late-omen-terramutant`.
+Each has a byte-identical serialized end state before and after the field
+change, including the C sound driver and save RAM.
 
-The sampled gate with `--evidence` ends `suite OK`: no fallbacks or refusals,
-both fast routes reach their outcomes, and all strict/native outcome
-ratchets pass. The suspension test and all 595 Python tests pass; the style
-and smell checks have no new findings.
+`machine_joints.py` and its per-file report are unchanged by these two
+steps: 13 registered entries, 143 held rows, 105 stops (guard refusals
+included), five address call-outs, two registry sibling lookups, 505
+emulated returns and 2,002 machine-taking functions. The first console
+handoff measurements are in [history/console-handoffs.md](history/console-handoffs.md).
+
+The sampled gate with `--evidence` ends `suite OK`: all 37 movies and both
+fast routes pass, with no real-play refusals or fallback instructions. The
+suspension, field and cartridge-save tests pass, as do the 28 targeted
+Python checks and the port-style and smell ratchets. Timing estimates and
+baselines are unchanged.
