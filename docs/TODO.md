@@ -11,7 +11,12 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **Remaining machine hand-offs and held loops.** The remaining source
   hand-offs need conversion subsystem by subsystem under their complete
-  contracts; the sampled census already has no machine entries.
+  contracts; the sampled census already has no machine entries. The source
+  inventory has 14 actual address-call sites and nine registry lookups;
+  audit their retained comparison and fallback paths before replacing them.
+  Preserve each retained row's full contract even where an existing named
+  form is looser: `field_next_frame`'s form currently omits the row's
+  `field_on_page_bank_zero` guard.
   The remaining menu, scene, overworld, field and battle continuations need
   saveable C loops. The largest remaining sampled dispatch counts are the
   field's next-frame pass (134,676), battle window slide (118,211), and menu

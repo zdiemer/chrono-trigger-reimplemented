@@ -984,11 +984,18 @@ row's function (or its enabled idle `loop`) contains a C loop and a saveable
 polling API. The count is 136, excluding warp and the six converted idle loops;
 all 143 compatibility rows remain. Warp's separate initial idle
 alias still counts. Tests reject comments, declarations, missing loop
-functions and disabled metadata as conversion evidence. Stops fall from
-105 to 103: the field's checked restart and the menu frame loop's redundant
-stop at its own head. The upload wait's exit still dispatches its next held
-continuation, so that stop remains counted. The 505 emulated returns
-remain; estimates and baselines are unchanged.
+functions and disabled metadata as conversion evidence.
+
+The source boundary inventory counts actual runtime API calls, including
+short/far call wrappers, `_own` stops and holds, and `_at` and continuation
+lookups. A helper named `call_out` is not evidence of a machine call; its
+body may already call C. Comments, strings and API declarations do not
+count; a function-like macro forwarding to an API still counts that call.
+Tests cover each case. The remaining inventory is 111 stops, 14 address-call
+sites and nine registry lookups, including retained comparison and fallback
+paths. The 505 emulated returns remain; estimates and baselines are
+unchanged. Earlier measurements using narrower patterns are explained in
+[the held-loop history](history/held-loops.md).
 
 The suspension tests compare every serialized field and the polling and
 exit time against one-pass waits, reload old, new and unnamed-hold saves

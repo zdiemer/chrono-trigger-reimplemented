@@ -33,11 +33,11 @@ JOINTS = [
     ("registered entries", None, "ordinary functions their callers call"),
     ("held waits' continuations", None, "restartable C loops replace their repeated dispatch"),
     ("returns through the emulated stack", r"\bm_rt[sli]\(", "the entry wrappers deleted"),
-    ("stops at the original's addresses", r"\bm_stop_at(?:_own)?\(|\bm_hold_at\(|\bnative_\w*dont_care_at_stop\(",
+    ("stops at the original's addresses", None,
      "the next step called as C"),
-    ("call-outs to entries by address", r"\bcall_out\w*\(|\bnative_(?:yield_|jump_)?call_dc\(",
+    ("call-outs to entries by address", None,
      "the callee called as C"),
-    ("siblings found in the registry", r"\bnative_hand_entry\(", "the sibling called as C"),
+    ("siblings found in the registry", None, "the sibling called as C"),
     ("time tags that take the machine", r"\bNATIVE_TIME_AS\(", "a tag with no machine"),
     ("register escapes", r"\bvid_snes_\w+\(|\bau_voices_snes_register\(", "a service call"),
     ("video service calls", r"\bvid_(?!snes_)\w+\(", "inventory, including inline value helpers"),
@@ -135,6 +135,34 @@ def held_wait_rows():
     return held_wait_counts((GAME / "registry.c").read_text(encoding="utf-8"), loops)[0]
 
 
+BOUNDARIES = {
+    "stops at the original's addresses":
+        r"\b(?:m_(?:stop|hold)_at(?:_own)?|native_\w*dont_care_at_stop)\s*\(",
+    "call-outs to entries by address":
+        r"\b(?:m_js[rl](?:_dc)?|native_(?:(?:yield_|jump_)?call(?:_dc)?|wait_call))\s*\(",
+    "siblings found in the registry":
+        r"\bnative_(?:hand_entry(?:_at)?|continuation_entry_at)\s*\(",
+}
+
+
+def machine_boundaries(text):
+    """Actual machine APIs, including their wrappers and address variants.
+
+    A helper's name (call_out_as, for example) says nothing about its body.
+    Comments, strings and API declarations are not calls. A function-like
+    macro forwarding to an API still contains that machine boundary.
+    """
+    source = re.sub(r"\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'",
+                    ' ', without_comments(text))
+    counts = collections.Counter()
+    for name, pattern in BOUNDARIES.items():
+        for match in re.finditer(pattern, source):
+            if re.match(r"\s*(?:const\s+)?Snes\s*\*", source[match.end():]):
+                continue
+            counts[name] += 1
+    return counts
+
+
 def count(per_file):
     totals = collections.Counter()
     by_file = collections.defaultdict(collections.Counter)
@@ -143,6 +171,10 @@ def count(per_file):
         if path.name == "registry.c":
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
+        boundaries = machine_boundaries(text)
+        if boundaries:
+            totals.update(boundaries)
+            by_file[path.relative_to(ROOT).as_posix()].update(boundaries)
         n = cartridge_reads(path, text)
         if n:
             name = "cartridge reads by address"

@@ -1,9 +1,9 @@
-"""The cartridge inventory distinguishes actual sources from timing metadata."""
+"""The machine inventory distinguishes actual interfaces from names and metadata."""
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from tools.machine_joints import ROOT, cartridge_reads, machine_functions, held_wait_counts, restartable_loops
+from tools.machine_joints import ROOT, cartridge_reads, machine_functions, held_wait_counts, restartable_loops, machine_boundaries
 
 
 class HeldLoops(unittest.TestCase):
@@ -129,3 +129,68 @@ class MachineFunctions(unittest.TestCase):
                   "/* void old(Snes *s) { } */\n"
                   "void f(GameState *g)\n{\n    draw(state_snes(g));\n}\n")
         self.assertEqual(machine_functions(source), 0)
+
+
+class MachineBoundaries(unittest.TestCase):
+    def test_own_stops_and_holds_are_boundaries(self):
+        text = """
+            m_stop_at(s, head, dc); m_stop_at_own(s, head, dc);
+            m_hold_at(s, head, dc, hold); m_hold_at_own(s, head, dc, hold);
+            native_dont_care_at_stop(s, head, dc);
+            native_own_dont_care_at_stop(s, head, dc);
+        """
+        self.assertEqual(machine_boundaries(text), {"stops at the original's addresses": 6})
+
+    def test_call_apis_and_machine_wrappers(self):
+        text = """
+            m_jsr(s, site, target); m_jsl(s, site, target);
+            m_jsr_dc(s, site, target, dc); m_jsl_dc(s, site, target, dc);
+            native_call(s, site, target, false); native_call_dc(s, site, target, false, dc);
+            native_yield_call_dc(s, site, target, false, dc, continues);
+            native_jump_call_dc(s, site, target, back, dc);
+            native_wait_call(s, site, target, false, dc, wake);
+            native_call_stop(site, target, dc); m_jsr_stack_bytes(s, last);
+        """
+        self.assertEqual(machine_boundaries(text), {"call-outs to entries by address": 9})
+
+    def test_address_and_continuation_lookups(self):
+        text = "native_hand_entry(s); native_hand_entry_at(s, at); native_continuation_entry_at(s, at);"
+        self.assertEqual(machine_boundaries(text), {"siblings found in the registry": 3})
+
+    def test_helper_names_do_not_establish_a_machine_call(self):
+        text = """
+            bool call_out_as(Snes *s) { checked_c_call(s); return true; }
+            void call_out_far(Snes *s) { checked_c_call(s); }
+            call_out_as(s); call_out_far(s);
+        """
+        self.assertEqual(machine_boundaries(text), {})
+        self.assertEqual(machine_boundaries(text.replace('checked_c_call(s); return', 'm_jsr(s, site, target); return')),
+                         {"call-outs to entries by address": 1})
+
+    def test_comments_and_quoted_calls_are_not_boundaries(self):
+        text = """
+            // m_jsr(s, site, target);
+            /* m_hold_at_own(s, head, dc, hold); */
+            log("native_hand_entry_at(s, at)");
+        """
+        self.assertEqual(machine_boundaries(text), {})
+
+    def test_declarations_do_not_hide_the_calls_in_their_bodies(self):
+        text = """
+            void native_call(Snes *s, uint32_t site, uint32_t target, bool far);
+            const NativeEntry *native_hand_entry(const Snes *s);
+            static inline void m_jsr(Snes *s, uint32_t site, uint32_t target)
+            { native_call(s, site, target, false); }
+        """
+        self.assertEqual(machine_boundaries(text), {"call-outs to entries by address": 1})
+        self.assertEqual(machine_boundaries('return native_hand_entry_at(s, at);'),
+                         {"siblings found in the registry": 1})
+
+    def test_macro_forwarding_contains_the_boundary(self):
+        text = '#define CALL(s, target) m_jsr(s, site, target)\nCALL(s, target);'
+        self.assertEqual(machine_boundaries(text), {"call-outs to entries by address": 1})
+
+    def test_space_before_parameters(self):
+        text = 'm_hold_at_own \n (s, head, dc, hold); native_hand_entry_at \t (s, at);'
+        self.assertEqual(machine_boundaries(text),
+                         {"stops at the original's addresses": 1, "siblings found in the registry": 1})

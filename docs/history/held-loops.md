@@ -169,3 +169,19 @@ that a ready continuation still enforces stricter index-width and decimal
 preconditions than its idle loop. The sampled gate ends `suite OK`, with
 zero real-play guard refusals and fallback instructions; the style and
 smell ratchets have no new findings.
+
+## Source boundary inventory corrected
+
+The earlier source counter reported 103 stops, five address call-outs and
+two sibling lookups after the scene and overworld loops. Counting the
+actual APIs instead gives 111, 14 and nine, without changing any game code.
+Eight `m_hold_at_own` sites were omitted. Four `call_out_*` name hits were
+already checked C helpers (two definitions and their two uses), while
+`m_jsr`/`m_jsl` wrappers were omitted. Address-specific and held-continuation
+lookup APIs add seven previously omitted registry dependencies. The
+corrected patterns, comments/strings/declarations and macro forwarding are
+covered by eight tests. These are measurement corrections, not new machine
+joints or claimed conversions.
+Applying the corrected patterns to the sources before the scene and world
+loop conversions gives the same 111/14/9 counts. The conversions reduce
+held continuations from 139 to 136; they add no machine boundary.
