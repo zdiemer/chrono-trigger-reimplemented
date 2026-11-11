@@ -10,6 +10,7 @@ import os
 import random
 import tempfile
 import unittest
+from unittest.mock import Mock
 
 from tools.movies import addresses, bfs, ctdrv, mkmovie, policies
 from tools.movies.bot import BattleState, Bot
@@ -191,6 +192,40 @@ class TestWalkingSearch(unittest.TestCase):
         machine = self.machine()
         bfs.bfs_walk(machine, lambda m, x, y: False, lambda m: m.position(), lambda m: m.map_id())
         self.assertEqual(machine.slots, {})
+
+    def test_goal_inside_an_already_visited_cell(self):
+        machine = FakeMachine(["...."], (0, 0), cell=1)
+        moves, _ = bfs.bfs_walk(machine, lambda m, x, y: (x, y) == (1, 0),
+                                lambda m: m.position(), lambda m: m.map_id(), cell=6)
+        self.assertEqual(moves, ["RIGHT"])
+        self.assertEqual(machine.position(), (1, 0))
+        self.assertEqual(machine.slots, {})
+
+    def test_held_goal_inside_an_already_visited_cell(self):
+        machine = FakeMachine(["...."], (0, 0), cell=1)
+        moves, _ = bfs.bfs_walk(machine, lambda m, x, y: (x, y) == (3, 0),
+                                lambda m: m.position(), lambda m: m.map_id(), cell=6, push=16)
+        self.assertEqual(moves, ["RIGHT*"])
+        self.assertEqual(machine.position(), (3, 0))
+        self.assertEqual(machine.pads, [(8, "RIGHT"), (16, "RIGHT")])
+        self.assertEqual(machine.slots, {})
+
+
+class TestTelepodOutcome(unittest.TestCase):
+    def test_shell_checkpoint_requires_the_shell_map(self):
+        from tools.movies.routes.telepod_lavos import to_the_shell
+        run = Mock()
+        run.map_id.return_value = "0800"
+        with self.assertRaisesRegex(AssertionError, "Gate reaches Lavos"):
+            to_the_shell(run, 2)
+        run.checkpoint.assert_not_called()
+
+    def test_shell_checkpoint_after_the_gate(self):
+        from tools.movies.routes.telepod_lavos import to_the_shell
+        run = Mock()
+        run.map_id.return_value = "d301"
+        to_the_shell(run, 2)
+        run.checkpoint.assert_called_once_with("shell")
 
 
 class PacingRoom:

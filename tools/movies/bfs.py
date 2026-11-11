@@ -62,23 +62,27 @@ def _search(machine, goal, pos, map_id, move, node_of, max_nodes, root_slot, slo
             machine.restore(slot_of[node])
             move(machine, direction)
             key = node_of(pos(machine), map_id(machine))
+            # A cell groups nearby positions, not their outcomes. A narrower
+            # goal can be reached by a second position in an already seen cell.
+            if goal(machine, *pos(machine)):
+                found = key if key not in parent else ("goal", node, direction)
+                parent[found] = (node, direction)
+                break
             if key == node and extra:
                 # blocked: some exits need the direction held for longer
                 extra(machine, direction)
                 moved = node_of(pos(machine), map_id(machine))
+                if goal(machine, *pos(machine)):
+                    found = ("goal", node, direction + "*")
+                    parent[found] = (node, direction + "*")
+                    break
                 if moved != node:
                     key, direction = ("held", moved, node, direction), direction + "*"
                     parent[key] = (node, direction)
-                    if goal(machine, *pos(machine)):
-                        found = key
-                        break
                 continue
             if key in parent:
                 continue
             parent[key] = (node, direction)
-            if goal(machine, *pos(machine)):
-                found = key
-                break
             if key[0] == "map":
                 continue          # another map: reachable, but don't walk on in it
             slot = slots.take()
@@ -90,7 +94,7 @@ def _search(machine, goal, pos, map_id, move, node_of, max_nodes, root_slot, slo
     machine.restore(root_slot)
     machine.free(root_slot)
     machine.frame = root_frame
-    visited = [key for key in parent if key[0] not in ("map", "held")]
+    visited = [key for key in parent if key[0] not in ("map", "held", "goal")]
     if found is None:
         return None, visited
     moves = []

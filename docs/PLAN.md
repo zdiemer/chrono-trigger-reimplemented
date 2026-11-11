@@ -170,7 +170,9 @@ already built are described in PLATFORM.md.
   the same item what the generated C, the interpreter and shadow mode are
   kept for (the oracle tools, a debugging build) or whether they go.
 - **`ct_native` plays the game, checked in `ct_native`.** Resolve the remaining
-  state-driven route divergences listed in TODO.md; add a playthrough route
+  state-driven route divergences listed in TODO.md. Take complete frame-end
+  bases during play so slot loads can resume the unfinished route audit
+  without replaying from power-on; add a playthrough route
   from a new game to an ending;
   record the endings not yet recorded and the Reunion route; trace the open
   divergences (TODO.md: the Tyrano Lair walls' saved game, Beyond Time's

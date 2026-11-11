@@ -31,6 +31,20 @@ class NativeRoutesTest(unittest.TestCase):
             exceptions = suite.native_route_exceptions(path)
             self.assertNotIn("beyond_time:form2", exceptions)
 
+    def test_long_gate_keeps_the_fast_prefix_of_an_excepted_ending(self):
+        selected = suite.native_route_selection(True, {"beyond_time": "ending timeout"})
+        self.assertIn("beyond_time", selected)  # Still reported with its reason.
+        self.assertIn("beyond_time:form2", selected)
+        self.assertIn("telepod_lavos", selected)
+        self.assertNotIn("telepod_lavos:shell", selected)  # Its full run covers it.
+
+    def test_both_excepted_endings_keep_their_passing_prefixes(self):
+        exceptions = {"beyond_time": "ending timeout", "telepod_lavos": "ending not run"}
+        selected = suite.native_route_selection(True, exceptions)
+        runnable = [route for route in selected if route not in exceptions]
+        self.assertTrue(set(suite.FAST_ROUTES).issubset(runnable))
+        self.assertTrue(set(exceptions).issubset(selected))  # Reasons remain reportable.
+
 
 class GateMoviesTest(unittest.TestCase):
     def test_every_line_names_a_library_movie_with_its_reason(self):

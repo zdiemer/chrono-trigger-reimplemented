@@ -9,13 +9,68 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
-- **Native route restore cost.** `ct_native --server` rebuilds the main and
-  menu coroutines from power-on input; no later frame has a stack-free base.
-  The fast field route takes about 26 minutes versus two in shipping mode,
-  even with exact audio-host reply reuse (MOVIES.md, "Native program
-  checkpoints"). Give the game resumable tasks or a portable complete
-  continuation checkpoint before relying on late-game breadth-first
-  searches as a cheap test. A RAM-only snapshot cannot replace the replay.
+- **The Epoch route's event/audio connection.** `epoch_lavos` in
+  `ct_native --server` stops at frame 9587 over Lavos (`$1B0`): the dive's
+  scene mode never changes from `$02` to `$26`. Shipping reaches the cavern
+  and its first window at frame 7762. The native run reports 1620 unserved
+  accesses, with all eight retained addresses at `$00:2142`. The event
+  memory-peek operation (`event/memory.c`,
+  `$C0:6792`) uses `event_selected_data_byte`, whose non-cartridge branch
+  treats the selected address as RAM; the native RAM backing returns zero
+  for this sound-status port. Location `$1B0`'s event `$114` confirms the
+  dependency: offsets `$0C6A`, `$0CB3` and `$0CE7` poll that port's low
+  nibble for music markers 1, 2 and 3. Zero cannot release the first wait.
+  Connect this script operation to the audio
+  service without making the state backing an emulated hardware bus, and
+  rerun the route. Ordinary `au_status` reads already reach the C driver.
+  The earliest differing route observation under identical input is frame
+  3179: shipping has entered `$1B0`, native is still on world map `$1F0`;
+  native reaches the question 40 frames later. That timing difference
+  alone does not establish the cause of the later wait.
+
+- **Son of Sun's native landing approach.** The native route reaches the
+  future, but fails to land east of the palace at frame 5794; travel mode
+  remains 2. The first differing observation with identical input is at
+  frame 3756: native still reports world map `$1F0`, shipping `$1F2`.
+  Later, `fly_to` releases RIGHT at X=534 and waits twelve frames: native
+  settles at X=536, shipping at X=544. The helper assumes this fixed coast
+  will reach its intended landing tile. Make the landing approach depend
+  on the settled position and investigate whether the coast difference
+  is expected under native timing. Shipping wins the fight and regains
+  field control at frame 18206. No replay or machine-only stop precedes
+  the native failure; it does not establish a difference in the boss fight.
+
+- **Native bases during play.** This branch's `ct_native --server` rebuilds
+  the main and menu coroutines from power-on input; it has no later complete
+  base. Use the held waits represented as data or C loops on `machine-out`
+  to take resumable saves at frame ends during a route. Capture the complete
+  game and task state, host services, sound and timing debt, then replay only
+  the buttons since that base on a slot load. Verify restored RAM, pictures
+  and continued play against uninterrupted runs; a RAM-only copy is insufficient.
+  The audit's Cyrus route took about 80 minutes versus 44 seconds in
+  shipping mode, even with exact audio-host reply reuse (MOVIES.md,
+  "Native program checkpoints"). `beyond_time` wins both final battles, but its ending
+  continuation exceeds six hours searching Leene's Bell plaza (`$051`),
+  after entering it at frame 81312; the last completed protocol step was
+  frame 81750, and the timeout interrupted a restore. Shipping completes
+  the ending at frame 107048. No replay mismatch preceded the timeout.
+  The first observed state difference under identical input is much
+  earlier: at frame 2566, `peek 7E1802 2` returns `400c` in native and
+  `300c` in shipping (Crono's X, 196 versus 195 pixels). That timing
+  difference is not evidence of the timeout's cause. `motherbrain` also
+  exceeds six CPU hours in Geno Dome's escort-pod charge search, after
+  opening the robot room and clearing the lower corridor battle; its last
+  completed step is frame 44933. Shipping completes at 155522.
+  `nizbel_ii` reaches the lower hall and clears its ambushes, then exceeds
+  the same CPU budget searching toward the door switch: its last completed
+  probe is frame 66706, versus shipping's outcome at 132380. The
+  [route ledger](history/native-route-outcomes.md) records the first
+  common-input differences and the stops. The audit was stopped by request
+  with `r_series` past the shutter escape (last completed probe 33504) and
+  `sun_stone_finish` past the Moon Stone recovery (13099). The bucket route
+  had reached the cavern at 97298; its continuation was not run. Rerun these,
+  the time-limited routes and the six unstarted full routes listed in
+  `tools/native_route_exceptions.txt` once loads can use bases during play.
 
 - **Out-of-contract script states.** The event loops at `$C0:58ED`, `$C0:5967`, `$C0:5990` and
   `$C0:5AA3` already run as C for valid scripts; their hand-backs preserve
@@ -2675,23 +2730,13 @@ the movie to its end. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
 
-- **Boss movies still need native outcome checks.** `battle-mud-imp` runs
-  37817 `ct_native` frames with no explicit stop, but ends blanked after three
-  screen setups and two video escapes. `battle-heckran` runs 19376 frames
+- **Heckran still needs a native outcome check.** `battle-heckran` runs 19376 frames
   with no explicit stop, a screen showing after six setups, and four video
-  escapes. Both first escape at the title's `$7E:5AEB` (`vid_snes_copy`,
-  below). Their fixed-input runs do not establish native boss victories;
+  escapes, first at the title's `$7E:5AEB` (`vid_snes_copy`, below).
+  Its fixed-input run does not establish native victory;
   connect the missing video work and verify the intended field outcome.
-  Strict mode completes both frame counts but differs from the reference's
+  Strict mode completes the frame count but differs from the reference's
   saved game (`drifts` in `tools/strict_baseline.txt`).
-- **Castle movie input on the native program.** `battle-castle-slash` (39278 frames) and
-  `battle-castle-flea` (35256), with their ctsave06 cartridge save supplied to
-  `ct_native --sram`, run all frames without a reported stop, but end with the screen
-  blanked after four setups (two title video escapes, first `$7E:5AEB`). Their fixed input does not
-  establish the castle outcome on the native program's different timing. Investigate the
-  blank screen and drive the native program from state to check the fight itself. The
-  shipping `ct_drive` routes do beat both Slash forms and Flea and regain field control;
-  strict mode reaches both movies' ends with saved-game drift.
 - **Crono's trial movies.** `ct_native` with the normal pre-trial save
   stops `events-cronos-trial` at frame 20629, `$C0:881E`, "a walk the port
   doesn't take", during the prison transfer (the walk guard above).
@@ -2905,25 +2950,6 @@ list, by kind, is what `game/` still asks of one.
   setups and two SNES-only video calls (first `$7E:5AEB`). Strict mode also
   reaches the limit, with a 128-byte saved-game difference. Locate the
   divergent screen with a state-driven run before claiming native victory.
-- **Giga Gaia's movie in the native program.** `battle-giga-gaia` consumes
-  all 33261 frames without a reported machine-only entry, but ends blanked
-  after only three screen setups (two SNES video escapes, first `$7E:5AEB`).
-  Find where progress stalls; reaching the frame limit does not establish
-  the rescue or the field outcome. The same movie in strict `ct_dev` reaches
-  its frame limit without stopping, with 572 saved-game bytes different from
-  reference play under native timing.
-- **Dalton recording in the native program.** `battle-dalton` consumes all
-  39666 frames without a reported `ct_native` stop, but reports only three
-  screen setups, ending with the screen showing, and two SNES-only video
-  escapes (first `$7E:5AEB`). Establish where it loses the reference route;
-  this does not establish completion of the Blackbird's destruction.
-- **Proto Dome recording in the native program.** `events-proto-dome` consumes
-  all 24717 frames without a reported `ct_native` stop, but ends blanked after
-  four screen setups and two SNES-only video escapes (first `$7E:5AEB`).
-  Establish the first lost transition through Lab 32 and the dome. Strict mode
-  also consumes every frame without a halt, but misses the repair: story `$37`,
-  repair stage `$00`, Robo absent, 59 saved-game bytes different. Diagnose the
-  timed-input drift separately from any native stop.
 - **Rainbow Shell trial recording in the native program.** The hand-run
   `rainbow_shell_trial` recording (47547 frames, ctsave13 slot 2; MOVIES.md)
   completes the trial in the reference play. `ct_native` consumes all 47547
@@ -3096,10 +3122,6 @@ list, by kind, is what `game/` still asks of one.
   before replacing the escape. The pending window transfer's only writer
   requests VRAM words, but the entry accepts arbitrary destination/mode
   descriptors; a VRAM-only replacement needs that guard contract settled.
-  The three Death Peak movies reach their full 4676/23852/23856-frame budgets
-  in `ct_native` without stopping, but report 2/4/4 video escapes, first at
-  `$7E:5AEB`; wind and ascent finish blanked, return showing. These fixed-input
-  runs do not establish the route outcomes under the host's different timing.
 - **What the host backends don't do yet.** The native player already sends
   audio through `sound_native_take_audio`. Unify `frontend/sound_native.c`
   and `sound_host.c`'s echo waits and command queues when `ct_play` adopts
@@ -3414,11 +3436,6 @@ persistence seams; game-side representation changes still need explicit work.
   puzzle/minigame policies where needed. Re-run routes after timing changes:
   state-driven routes survive drift, their recorded inputs do not.
 
-- **The R Series and Nizbel II fights** (movies-wanted.md, "Boss fights") are unattempted beyond finding
-  where each save starts. `ctsave03` slot 2 (R Series, the
-  factory) and `ctsave07` slot 3 (Nizbel II, Tyrano Lair) start on the world map
-  at the dungeon's door, needing a walk in and
-  down to the boss room neither attempted nor mapped this pass.
 - **zophar `chrono-7`** (everything maxed at the fair) is unused: its Lucca
   exhibit gate (`$7F:0055` bit 7) can be opened, but no movie needs it yet.
 - **Coverage loop**: re-run `--misses` over the whole library after the latest

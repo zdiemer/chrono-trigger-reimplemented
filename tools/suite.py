@@ -407,6 +407,14 @@ def native_route_exceptions(path=None):
     return result
 
 
+def native_route_selection(long_routes, exceptions):
+    """A full-route exception leaves its fast prefix protected in either gate."""
+    if not long_routes:
+        return list(FAST_ROUTES)
+    return all_routes() + [route for route in FAST_ROUTES
+                           if route.split(":", 1)[0] in exceptions]
+
+
 def check_native_routes(args, ctx):
     """The routes in the same native program as window play, without a machine."""
     drive = ctx["binary"].with_name("ct_native" + ctx["binary"].suffix)
@@ -416,7 +424,7 @@ def check_native_routes(args, ctx):
         exceptions = native_route_exceptions()
     except (ValueError, OSError) as error:
         return False, "native-routes", str(error), []
-    selected = all_routes() if args.long_routes else FAST_ROUTES
+    selected = native_route_selection(args.long_routes, exceptions)
     routes = [route for route in selected if route not in exceptions]
     details = ["excepted %s: %s" % (route, exceptions[route]) for route in selected if route in exceptions]
     if not routes:

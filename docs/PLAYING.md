@@ -537,6 +537,11 @@ frame loop to the state-driven route scripts, through the line protocol in
 program as window play. Its replay checkpoints reconstruct live coroutine
 stacks from power-on input; these are separate from the player's future
 quick saves and from emulator state files.
+The [route outcome ledger](history/native-route-outcomes.md) records native
+and shipping results; the gate runs the fast native prefixes every time and
+the 42 passing full routes with `--long-routes`, retaining the fast prefixes
+of excepted endings. Fourteen full routes have explicit failure, timeout or
+incomplete-audit reasons; the ledger distinguishes them.
 
 `ct_native` is the game with no emulator under it, the first version of
 what `ct_play` becomes (PLAN.md, "The machine out of the product"

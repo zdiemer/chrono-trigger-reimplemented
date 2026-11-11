@@ -7,8 +7,9 @@ movie reaches, and coverage only names the instructions it runs
 to win boss fights are another matter, and that is what the tools here are for.
 [movies-wanted.md](movies-wanted.md) lists the code no movie runs and the movies that would reach it.
 
-`ct_drive` (`dev/ct_drive.c`) runs the development system as a server, and
-`tools/movies` drives it: it reads the game's memory to decide what to press —
+`ct_drive` (`dev/ct_drive.c`) runs the development system as a server;
+`ct_native --server` exposes the same protocol in the standalone game.
+`tools/movies` drives either: it reads the game's memory to decide what to press —
 whose turn it is in a battle, where the party is standing, whether a text window
 is waiting — instead of counting frames. A run logs the buttons it held on every
 frame, so a finished run *is* a movie. And because a route reads the machine
@@ -16,7 +17,7 @@ instead of counting frames, it is also the one test of the mode the player
 ships in, where movies can't follow (see Routes as a test).
 
 ```
-route script ──> tools/movies ──> ct_drive (the interpreter, or --native on)
+route script ──> tools/movies ──> ct_drive or ct_native --server
       ▲                │
       └── game memory ─┘            run's pad log ──> movie.ctm ──> ct_dev --native shadow
 ```
@@ -92,9 +93,36 @@ The real program's replay was checked from the final Lavos form checkpoint:
 600 frames with the second controller's Start held produce identical work
 RAM and a pixel-identical picture after an accelerated slot restore, a full
 state-file replay, and ordinary headless `ct_native` movie playback (frame
-4370). The fast routes reach `shell` at frame 5322 and `form2` at frame 3770;
-the same routes in shipping mode reach them at 5102 and 3754. Native searches
-took 1581 and 625 seconds, versus 140 and 104 seconds in shipping mode.
+4370). The `beyond_time:form2` prefix reaches its chamber at frame 3770
+in native and 3754 in shipping, taking 625 and 104 seconds respectively.
+
+The native audit exposed a false positive in the other fast prefix:
+`telepod_lavos:shell` wrote its checkpoint while still in the exhibit.
+It now requires player control, a successful walk onto the right telepod,
+and location `$1D3` before reporting that phase. The search had discarded
+a valid goal position because its coarse cell was already visited: native
+reached `(183, 95.9375)`, within the goal's three-pixel tolerance, but another
+position in that cell had failed the goal. Searches now test every reached
+position before discarding an existing cell, including held movements.
+ROM-free regressions cover both cases and the shell checkpoint's location.
+With that fix, the shared telepod approach reaches the shell at frame 5162
+in native and 5102 in shipping. The full `lavos_lost` reruns reach the Day
+of Lavos at frames 15637 and 16332 respectively; the native run took 1170
+seconds and shipping 129.
+
+The [native route ledger](history/native-route-outcomes.md) lists results
+for all 56 routes in the long-route gate: 42 native passes, two failures,
+three timeouts, three stopped runs and six unstarted runs when the audit
+ended by request. Shipping reached 49 outcomes; seven runs were not started.
+The sampled gate runs both fast native prefixes. With `--long-routes`, it
+runs the 42 passing full routes and retains both prefixes whose full endings
+are excepted. It prints each of the 14 exceptions and its reason from
+`tools/native_route_exceptions.txt`. The existing hand-run exclusions remain
+listed separately in the ledger. [TODO.md](TODO.md) holds the event/audio
+connection, Son of Sun's fixed coast and taking complete frame-end bases
+during play so route restores need not replay from power-on.
+An exception for a full route does not remove its fast prefix from either
+the sampled gate or `--long-routes`.
 
 By default `ct_drive` is the same machine as `ct_dev --native off` — the interpreter and
 the modeled hardware, no ported routines and no generated blocks — so anything
