@@ -645,6 +645,7 @@ void event_cmd_screen_command(Snes *s)
         end_the_field_for_a_scene_on_the_machine(s, c.screen_command);
         return;
     }
+    charge_machine_accesses(g, 1); /* the dispatched command's staging byte */
     unsigned i = screen_command_index(c.screen_command);
     as_the_dispatch_has_it(s, c.screen_command);
     if (screen_commands[i].kind == RESTARTS_THE_GAME) {

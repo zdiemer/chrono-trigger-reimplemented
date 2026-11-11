@@ -3672,9 +3672,12 @@ The same rule covers location loading, event startup and object preparation:
 tile and map selections, record products, dimensions and extents, operand
 and resume offsets, casting-result reads, tile copies, palette-slot
 selection, chest marking, the party-service adapter, dialog staging and
-shading, script restarts, party stepping and contact selection. The counts
+shading, script restarts, party stepping, screen dispatch and contact selection. The counts
 retain the deleted accesses' conditions and RAM/cartridge/I/O prices; none
-reconstructs a dead value. Full strict replays restore the pre-retirement
+reconstructs a dead value. Tile alignment also retains the animation-mode
+test before charging velocity reads: the retirement charged four reads
+unconditionally where the former adapter read either one or five. This
+corrects the existing estimate in both backends. Full strict replays restore the pre-retirement
 outcome artifacts for the affected field witnesses. Flea, Slash, Rust
 Tyrano and Spekkio pass their existing outcome ratchets; calibration-era
 pins remain ledger work. The per-movie first divergences and historical

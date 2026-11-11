@@ -175,6 +175,29 @@ object delay at 63295. Full strict replays restore the historical artifacts
 for Black Tyrano, Flea, Slash, Heckran, Magus at North Cape, Rust Tyrano,
 unequipped armor, Spekkio and Bucket Lavos.
 
+The expanded sample also isolates two remaining field estimates in attract
+mode. Tile alignment's old adapter reads the animation mode, then four
+velocity bytes only for a walking animation; retirement charged four
+unconditionally. For a scripted animation this adds 24 bus clocks, 134
+estimated master clocks per call at `$C0:4F61`. The first affected recorded
+pictures are 4798 and 4799: one sprite's upload is delayed. The conditional
+one-or-five count corrects this existing estimate in both backends. Screen
+dispatch `$C0:3FAF` also retains its one deleted staging-byte write; frame
+15804 exposes the missing eight bus clocks. Neither repair reconstructs
+scratch state or changes a rate.
+
+After these repairs attract mode has the complete place observations of
+`aeb00618`, the event handoff already accepted within `299b2905`. Its first
+changed object position relative to the earlier `54099ed8` is frame 4643;
+the first changed recorded picture is 4798. The remaining fifteen samples
+relative to `aeb00618` have separate A/B explanations: ten around 8100 and
+19200 are the menu-owned wave phase (`9d73e1cd` within `9b1597a3`), and five
+around 22200 are the held race upload (`3a751c88` within scene teardown
+`a7d8a04d`). Restoring only the earlier race scaling/upload handoff removes
+the latter five, keeping identical game, SRAM and places. Restoring only
+the field/event wave aliases removes the former ten. Those accepted changes
+stay; the old exception fingerprints await the ledger.
+
 Battle held continuations `e4ea6b60`, merged in `9b1597a3`, removed two
 trial return-frame writes from setup dispatch and reassigned the setup
 return's cost. R-Series first changes visibly at frame 8543. Dalton's
@@ -205,6 +228,25 @@ Spekkio. Replaying both sides of field retirement does not change their
 native outcome artifacts. The model charges transfers, retired work and
 frame budgets; reverting that accounting to fit a fixed input movie would
 undo its intended correction.
+
+The first whole-library outcome checks stopped at Bucket Lavos in strict
+mode and Spekkio in native mode, hiding failures later in their ordering.
+The expanded repair sample checks all entries. The additional native
+unequipped-armor and Zombor failures are also reproduced at `253d674c`;
+unequipped armor already changes at `54099ed8`, while Zombor still passes
+before the native time-model merge. All native artifacts before the final
+alignment-count repair agree with the whole-library run, except Spekkio,
+which now completes.
+
+The additional strict failures in Lavos game-over, Magus, Tyrano Lair
+walls, Death Peak, Jetbike Race, Ocean Palace, Cyrus and save-point menus
+already fail their current pins at `54099ed8`; the repaired full artifacts
+reproduce that commit. Beyond Time's remaining 25 pictures are the corrected
+live action-record read in `20ad985f`: reverting only those reads reproduces
+its old artifact. Sun Stone keeps its old saved game, SRAM and all 21 places;
+fifty changed pictures, first at 4198, are the menu-owned wave phase.
+Restoring only the field/event aliases reproduces its entire `54099ed8`
+artifact with identical estimated work and timing.
 
 The three native place ratchets likewise move at `253d674c`: Cyrus 18 to
 16 timely arrivals, Fiona's Forest 7 to 4, and Sun Stone 20 to 12. The first
