@@ -1945,6 +1945,12 @@ pack-backed column. The ROM audit follows every function's paths in 489
 parsed event streams (24 table entries do not parse as scripts, no partial
 paths); `$2142` in `$114` is their only generic-peek hardware address. The two
 reverse-DMA clears already use the video service's multiplier-product read.
+In a controlled native replay disabling only that sound-status dispatch,
+the Epoch movie reproduces its old outcome fingerprints and never enters
+location `$1DA`. With the fix it enters at frame 5456 (reference 5483),
+matches the saved game, and gains matching picture 7200 without losing a
+protected picture. The existing picture exception records the changed flight
+from frame 4500; the saved-game and place exceptions are no longer needed.
 Runtime catalogue checks still cover the ranges selected by the sampled
 movies, not every possible malformed script operand.
 
