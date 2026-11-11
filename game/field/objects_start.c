@@ -196,7 +196,9 @@ static BridgeMachine page(const Snes *s) { return on_the_field_page(s, false); }
 static void show_what_the_party_wears(Snes *s)
 {
     GameState *g = state_of(s);
+    charge_machine_accesses(g, 11); /* the old service adapter's party snapshot and operands */
     TIMED_AS(g, MENUS_SERVICES, party_wear_it_shows(g));
+    charge_machine_accesses(g, 1); /* its saved answer */
 }
 
 /* The scanlines the objects' script turns and their animation stop at each

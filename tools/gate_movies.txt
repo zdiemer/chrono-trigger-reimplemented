@@ -17,6 +17,14 @@
 # batch, bring it to 95.1%.
 # Re-pick it when the library changes much (docs/MOVIES.md, "Adding it to the
 # library"); the bytes below are what each added when it was picked, in order.
+#
+# The regression witnesses below also protect behavior the byte cover cannot
+# distinguish: an empty marked target, a message's extended sound selector,
+# and recorded outcomes after retirement or timing changes. Bucket Lavos and
+# the Spekkio sweep are expensive but have no shorter movie reproducing their
+# contract/resource failures. Nizbel II and MotherBrain remain whole-library
+# checks (148758 and 135481 frames); shorter witnesses for their outcome drift
+# are still needed. Do not silently refresh outcome pins when this sample fails.
 
 # the greedy cover, best rate first
 battle-menu-buttons  # 82241 bytes in 5086 frames: the battle's menus, windows and a fight from a save
@@ -57,3 +65,26 @@ field-12kbc-1f6  # the 12,000 B.C. world map's other part
 new-game  # power-on: the trace identity check's movie, and a new game's opening
 field  # power-on: the field from a new game, a strict `end`
 menu  # power-on: the menu from a new game, a strict `end`
+
+# regressions found by the whole-library run after the teardowns
+endings-bucket-lavos  # an already marked empty ally target; strict completion and intact interrupt vectors after frame 48239
+battle-tech-sweep-spekkio  # "nothing to steal" reads the message sound selector beyond the twelve nominal table entries
+events-cyrus  # world-map arrivals just beyond the native place-timing tolerance
+events-fionas-forest  # map-to-menu visible writes and native inputs after the forest load
+events-sun-stone  # map-to-menu visible writes and native progress through repeated era changes
+battle-dragon-tank  # strict/native battle pictures moved by library-wide rate calibration
+battle-son-of-sun  # strict/native picture fingerprints after battle timing changes
+battle-black-tyrano  # battle ending and subsequent location sequence after field retirement
+battle-castle-flea  # field-to-battle pictures and the native castle route
+battle-castle-slash  # field-to-battle pictures and the native castle route
+battle-dalton  # setup return time ownership and battle animation picture fingerprints
+battle-giga-gaia  # battle pictures and return-to-field places
+battle-golem-twins  # battle pictures, subsequent places and save RAM
+battle-heckran  # battle pictures after rate calibration
+battle-magus-north-cape  # saved-game end and the battle-to-field transition
+battle-mud-imp  # saved-game end and battle pictures after rate calibration
+battle-ozzies-fort  # protected native battle pictures and the fort's location sequence
+battle-r-series  # battle action selection and strict saved-game end
+battle-rust-tyrano  # battle picture fingerprints after field retirement
+battle-unequipped-armor  # strict checkpoint pictures late in the fight
+battle-zombor  # strict saved-game end and battle pictures after rate calibration

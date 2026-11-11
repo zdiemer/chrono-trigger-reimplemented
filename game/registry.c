@@ -132,7 +132,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC284F9, .name = "input_wait_for_controller", .fn = input_wait_for_controller,
       .p_mask = CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M, .idle = true, .idle_exit_span = 5, .guard = input_controller_wait_ready },
     { .addr = 0xC284FE, .name = "input_take_ready_controller", .fn = input_take_ready_controller,
-      .p_mask = CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M, .cost_milli = 5568, .guard = input_controller_page_ready,
+      .p_mask = CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M, .cost_milli = 5567, .guard = input_controller_page_ready,
       .dont_care = DC_A | DC_X | DC_Y | DC_FLAGS },
     { .addr = 0x00FF00, .name = "console_reset", .fn = console_reset, .emulation = true, .cost_milli = 1000 },
     { .addr = 0x00FF00, .name = "console_reset", .fn = console_reset, .cost_milli = 1000 },

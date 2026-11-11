@@ -67,25 +67,22 @@ them.
 
 The order to a production native build. Each step's detail is in Phase 4a.
 
-1. **The ledger pass.** One whole-library run over everything merged since
-   the last, then `--update`/`--prune`/`--calibrate` as one ledger commit:
-   the teardowns left the baselines and exceptions describing entries that
-   no longer exist.
-2. **The gate after the comparisons.** Decide which checks the gate keeps
-   now that nothing is compared byte for byte, and what becomes of the
+1. **The gate after the comparisons.** Decide which checks the gate keeps
+   now that subsystem comparisons are retired, and what becomes of the
    generated C, the interpreter and shadow mode.
-3. **Prove `ct_native` plays the game.** Routes driven from state in
+2. **Prove `ct_native` plays the game.** Routes driven from state in
    `ct_native` itself, a playthrough from a new game to an ending, and the
    open divergences traced. Before the machine is deleted, not after, so the
    deletions have a check that doesn't depend on it.
-4. **The game's state as C structs**, with `.srm` saves still loading.
-5. **The machine out of the product**: wrappers, registry, emulated stack,
+3. **The game's state as C structs**, with `.srm` saves still loading.
+4. **The machine out of the product**: wrappers, registry, emulated stack,
    held waits as C loops, `Snes *` gone from `game/`; `ct_play` becomes
    `ct_native`.
-6. **The player as a product**: what `ct_play` has that `ct_native` lacks,
+5. **The player as a product**: what `ct_play` has that `ct_native` lacks,
    and release builds.
 
-Steps 1 to 3 can run side by side; 4 and 5 overlap per module. Investigate
+The first two steps can run side by side; state storage and machine removal
+overlap per module. Investigate
 the first playback divergence before changing a rate or re-recording an
 exception. Independent branches use separate worktrees and a shared process
 budget, with shared-file edits kept local so they merge.
@@ -152,13 +149,7 @@ The remaining work between a finished `game/` and a native build with nothing
 under it is below. None is optional for target 1; the host service backends
 already built are described in PLATFORM.md.
 
-- **The ledger pass.** The whole library (`--all-movies`, overnight at a
-  higher `-j`) over everything merged since its last run; recalibration and
-  `--update`/`--prune` come from it as one ledger commit. The stale lines are
-  mostly retired entries: the effects, outcomes, unreached, timing,
-  uncompared and fallback ledgers all name addresses the registry no longer
-  holds.
-- **The gate after the comparisons.** With nothing compared byte for byte,
+- **The gate after the comparisons.** With subsystem comparisons retired,
   decide for each check whether it still protects the product: shadow
   mismatches, `--generated only` against `--native off`, the fallback and
   refusal measures, the effects check and the don't-care check compare
@@ -167,6 +158,9 @@ already built are described in PLATFORM.md.
   Delete the checks that are empty, and their ledgers with them. Decide in
   the same item what the generated C, the interpreter and shadow mode are
   kept for (the oracle tools, a debugging build) or whether they go.
+  Audit the remaining effects, unreached, timing and uncompared records
+  against the retired comparisons; preserve the evidence still needed by
+  held continuations and native timing.
 - **`ct_native` plays the game, checked in `ct_native`.** The routes reach
   their outcomes in `ct_drive`, which still has the emulator under it, and
   `ct_native` is checked only by replaying recorded input, which a small

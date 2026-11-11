@@ -4,4 +4,3 @@
 # A port that lands lowers these, and `--update` takes the gain; a new line, or more bytes
 # on one, is a new fallback, and needs its reason. An `open PORT` line is what the original ran
 # under that port's comparisons still open when a run ended, which hides it from the rest.
-7E:3176 1312 1  # handback by scene_run_vblank_tasks (scene program (RAM)): the program's empty routine a vblank task list calls; seeded over the gate's sample and the long routes

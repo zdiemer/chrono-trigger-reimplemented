@@ -46,7 +46,9 @@ static inline uint8_t battle_message_frames_at_speed(const GameState *g, uint8_t
 }
 
 /* The sound each of the battle's own messages plays as it opens ($D1:EE99, a
- * byte a message; BATTLE_MESSAGE_SILENT for none). */
+ * byte a message; BATTLE_MESSAGE_SILENT for none). Message 13, nothing to
+ * steal, reads into the following screen routine in the original.
+ * The resource includes that live sound selector as a data view. */
 enum { BATTLE_MESSAGE_SILENT = 0xFF };
 static inline uint8_t battle_message_sound(const GameState *g, uint8_t message)
 {

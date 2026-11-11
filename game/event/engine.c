@@ -300,6 +300,8 @@ EventStep event_perform(GameState *g, Platform *pf, const EventOpcode *row, uint
     EventCommand c = event_decode(g, pf, row, at);
     charge_legacy_accesses(g, legacy_parse_work(row->opcode));
     EventFlow flow = row->run(g, &c);
+    if (row->opcode == 0xE4)
+        charge_machine_accesses(g, 2); /* immediate tile copy's saved resume offset */
     if (flow.kind == FLOW_JUMP)
         charge_legacy_accesses(g, 2); /* the selected jump distance */
     return event_follow(g, row, at, flow);
@@ -452,6 +454,7 @@ EventTurnEnd event_run_openings(GameState *g, const EventRunner *r, FieldObject 
         *stopped_at = 0;
         return broken_turn(g, TURN_NOT_OURS_BEFORE);
     }
+    charge_machine_accesses(g, 2); /* the openings' saved loop bound */
     FieldObject next = 0;
     do {
         *object = next;

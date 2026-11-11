@@ -565,6 +565,8 @@ static void fill_dialog_shading(GameState *g)
     shade(g, &line, SHADING_STEP + SHADING_REST, &SHADING_SUBTRACT, 0);
     for (uint8_t intensity = 1; intensity <= SHADING_DEEPEST; intensity++)
         shade(g, &line, SHADING_STEP, &SHADING_SUBTRACT, intensity);
+    charge_machine_io_accesses(g, 3); /* the old shading division */
+    charge_machine_accesses(g, 4); /* extent, step, remainder and last color */
     copy_dialog_shading(g);
 }
 

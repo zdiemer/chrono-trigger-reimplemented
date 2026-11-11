@@ -68,7 +68,7 @@ static void copy_table(GameState *g, TileRectangle r, MapTable table)
         for (unsigned column = 0; column < r.width; column++)
             set_table_byte(g, table, offset_by(r.to, row, column),
                            table_byte(g, table, offset_by(r.from, row, column)));
-    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 10); /* four working words and the selected table */
 }
 
 static void copy_property_bit(GameState *g, TileRectangle r, uint8_t bit)
@@ -81,8 +81,7 @@ static void copy_property_bit(GameState *g, TileRectangle r, uint8_t bit)
                                       (uint8_t)((there & ~bit) | (field_tile_properties(g, from.row, from.column) & bit)));
         }
     }
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
+    charge_machine_accesses(g, 12); /* last property read, selected bit and five working words */
 }
 
 // $C0:AF4E, and its table copy $C0:B096

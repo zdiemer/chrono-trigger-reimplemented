@@ -70,6 +70,10 @@ static bool run_the_step(Snes *s, BattleStep step, BattleFrame kept)
         /* This was a call-out: keeping the dispatch's registers is still
          * dispatch work, settled before setup starts at its own rate. */
         battle_keep(s, kept);
+        /* The old by-address adapter constructed the return frame twice:
+         * once while looking for a direct entry and once for its call-out.
+         * Keep that calibrated dispatch work without a second stack write. */
+        charge_machine_accesses(state_of(s), 2);
         ran = battle_run_called(s, 0xC1004A, STEPS[step].routine, STEPS[step].dont_care, STEPS[step].entry);
         if (ran)
             battle_stop_keeping(s, kept);
@@ -91,12 +95,17 @@ static bool run_the_step(Snes *s, BattleStep step, BattleFrame kept)
  * values from its call frame, then resume its caller at a held boundary. */
 void battle_step_returns(Snes *s)
 {
+    uint32_t mark = charge_uncounted_begin(state_of(s));
     s->cpu.y = m_pull16(s);
     s->cpu.x = m_pull16(s);
     uint8_t a = m_pull8(s);
     m_set_a8(s, a);
     m_set_nz8(s, a);
     m_rts(s);
+    /* The former C adapter restored these registers from its locals. Its
+     * caller charged only the return word, at the startup routine's rate;
+     * the held continuation retains that ownership in after_setup. */
+    charge_uncounted_end(state_of(s), mark);
     native_hold(s, HOLD_BATTLE_PASS);
 }
 

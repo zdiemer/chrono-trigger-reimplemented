@@ -1930,6 +1930,15 @@ counting items worn. Its named byte resource now includes that fifth entry,
 without reclassifying the executable code that shares its storage. No cartridge
 bytes are embedded in the C source.
 
+The battle-message sound resource likewise includes the two bytes after its
+twelve ordinary entries. Message 13 (nothing to steal), reached by
+`battle-tech-sweep-spekkio`, indexes
+`$D1:EEA6`: the original lookup at `$CD:01C3` reads the following screen
+routine's operand as a live sound selector. Its data view ends there,
+without changing the executable region in the matching build. The extended
+pack carries the movie through all 134,646 frames in `ct_native`, showing,
+with no missing resource or read outside the catalogue.
+
 `ct_native` maps no ROM: `runtime/port/rom_host.c` serves scalar reads from
 the pack; transfers use the same store through `PfData`. A missing cartridge
 byte stops the native program. `native_check.py` now fails on that diagnostic

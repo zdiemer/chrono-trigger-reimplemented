@@ -697,7 +697,7 @@ const AssetEntry asset_catalogue[] = {
     { 0xD1E9EFu, 18u, "gradient_set_color", 1, 4 },
     { 0xD1EA21u, 42u, "gradient_row_turn", 0, 4 },
     { 0xD1EC5Fu, 148u, "shape_model_point", 1, 4 },
-    { 0xD1EE99u, 12u, "battle_message_sound", 0, 4 },
+    { 0xD1EE99u, 14u, "battle_message_sound", 0, 4 },
     { 0xD1F69Cu, 24u, "shake_period_choice", 0, 4 },
     { 0xD20000u, 61056u, "field_blank_entries_byte", 10, 4 },
     { 0xD2EE80u, 2526u, "setup_character_graphics.229", 7, 2 },
@@ -7093,4 +7093,4 @@ AssetServed asset_served[7061];
 
 const uint16_t asset_catalogue_count = 7061;
 
-const uint32_t asset_catalogue_version = 0x2608C509u;
+const uint32_t asset_catalogue_version = 0x8EA12C93u;

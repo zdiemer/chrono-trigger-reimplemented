@@ -3657,6 +3657,33 @@ backing adds nothing for this work, since the native program already omitted
 the comparison scaffolding. A repeated visibility test that the host did
 count keeps its ordinary charge in both backings.
 
+The whole-library replay found one missing streaming charge: retiring the
+last movement-counter write in `dd2ba214` removed one RAM access whenever
+any layer moved. `stream_the_layers` retains that access once per call, on
+the machine backing only. In Flea, its 78-master-clock estimate is the
+difference between ending the script budget at frame 3426 and running
+another command; the first object-position difference follows at frame
+3427 (movie frames numbered from one). A state replay through frame 3901
+matches the pre-retirement field state after restoring the charge. Full
+strict Flea and Slash replays also pass their existing outcome ratchets. The
+native program never made the removed write and keeps its existing time.
+
+The same rule covers location loading, event startup and object preparation:
+tile and map selections, record products, dimensions and extents, operand
+and resume offsets, casting-result reads, tile copies, palette-slot
+selection, chest marking, the party-service adapter, dialog staging and
+shading, script restarts, party stepping, screen dispatch and contact selection. The counts
+retain the deleted accesses' conditions and RAM/cartridge/I/O prices; none
+reconstructs a dead value. Tile alignment also retains the animation-mode
+test before charging velocity reads: the retirement charged four reads
+unconditionally where the former adapter read either one or five. This
+corrects the existing estimate in both backends. Full strict replays restore the pre-retirement
+outcome artifacts for the affected field witnesses. Flea, Slash, Rust
+Tyrano and Spekkio pass their existing outcome ratchets; calibration-era
+pins remain ledger work. The per-movie first divergences and historical
+comparisons are in history/library-ledgers.md, "Regressions exposed after
+the teardown sample"; battle setup's separate return ownership is below.
+
 For example, a tile run formerly wrote three temporary words and the
 three-byte upload cursor. Its estimate now counts six RAM and three I/O
 accesses. The walk records which kinds of work it performed, counting a
@@ -3957,8 +3984,12 @@ the separate backing restores all nine protected witnesses without changing
 an exception or a calibrated rate. Call-outs
 that become C retain their settling boundaries and the callee's timing
 ownership. The map-to-menu display exception keeps the existing line
-130/132 difference, now attributed to its world-map handoff; retirement
-adds no timing or video allowance. The resource loader already used by
+130/132 difference, now attributed to its world-map handoff. The whole-library
+replay also required transferring the existing visible display and HDMA-stop
+exceptions to that handoff: the parent of merge `9b1597a3` and the new caller
+produce the same sites, counts and visible lines in Fiona's Forest (display
+172, HDMA 95) and Sun Stone (display 208, HDMA 131). Only the owning entry
+changed; retirement adds no timing or video allowance. The resource loader already used by
 world-map setup is also exposed to the Black Omen scene's two script
 calls, closing targets absent from the prior C dispatch tables.
 
@@ -4315,33 +4346,33 @@ New movies or missing records fail closed. The suite
 runs both recorded checks after strict and native checks, and clears their
 old artifacts before a run, so skipping a producer cannot pass on stale data.
 
-The ledger records the whole library, 84 movies (2,289,640 frames). The
-batched run of `bfd75c49` supplies the reference observations, unchanged
-from the earlier ledger. Its hand-port observations are replaced per movie
-by the ledger branch's fresh targeted and sampled runs. Reasons on changed
-exception rows identify their source and any formerly protected identities
-that moved outside tolerance. The preceding measurement and the regression
-diagnoses are in [the ledger history](history/library-ledgers.md).
+The ledger records the whole library, 84 movies (2,289,640 frames), from
+the batched run of `2bd0d73d`. Reference observations are unchanged. Its
+27 protected regressions are attributed individually to `54099ed8`'s
+calibration, `253d674c`'s native time model, or `9d73e1cd`'s menu wave
+ownership. Historical replays and isolated reversals establish each cause
+before re-recording; the evidence and the earlier measurement are in
+[the ledger history](history/library-ledgers.md). Exceptions identify the
+source run, cause and commit; matching kinds lose their stale exceptions.
 
 | Mode | Saved game / save RAM matches (movies) | Picture match / drift / differ (checkpoints) | Place match / drift / differ (visits) |
 |---|---|---|---|
-| Strict | 40 / 77 of 84 | 1,093 / 160 / 6,495 | 436 / 178 / 256 |
-| Native | 35 / 69 of 84 | 612 / 147 / 6,989 | 89 / 475 / 316 |
+| Strict | 42 / 78 of 84 | 1,120 / 174 / 6,454 | 441 / 184 / 257 |
+| Native | 38 / 69 of 84 | 663 / 215 / 6,870 | 91 / 485 / 299 |
 
-The batch fits 74 drifted rates, plus the planet setup whose small call
-count does not qualify for the drift check. The repeated-hit effect's rate
-returns to 3000 after an interrupted fit broke its complete calls. It
-retains the hit's rate because its ordinary and short paths need separate
-estimates, and the member-tech dispatcher's rate because its mixed effects
-create a complete-call outlier when fitted together. The experience-sharing
-and ending picture dispatchers also keep their rates: fitting their small
-own shares after subtracting their parts creates ordinary-call and vblank
-timing outliers respectively.
-Scene setup exceptions describe loading with the display blanked; the
-planet's rate no longer waits for this batch. Both `warp_end` video
-exceptions disappear from the full library's observations. All 56 long
-routes in the batch reach their outcomes. Branch validation uses the
-sample and fresh targeted movies, with one worker per tool.
+Both end-state kinds match together in 42 strict and 31 native movies.
+Strict visits 625 places on time; native visits 576. The native Cyrus,
+Fiona's Forest and Sun Stone counts are 16, 4 and 12, with their model-change
+attribution on the rows. These measurements do not establish equivalent
+progress for drifting movies.
+
+Calibration over the batch's shadow reports changes only the controller
+entry's `cost_milli`, 5568 to 5567; nine entries remain measured after the
+teardowns. Retired rates retain their earlier measurements and model debts.
+Reference and shipping fallbacks are zero, including all 56 long routes;
+their baselines have no remaining rows. All routes reach their outcomes.
+Branch confirmation uses the sampled gate and explicit named-movie runs;
+it does not repeat the entire library.
 
 No movie matches every kind in either mode. These are existing debts,
 explicitly reasoned per movie, not a claim of harmless pixel changes.
@@ -4857,6 +4888,18 @@ first invalid combatant. All three checks fail against the preceding
 implementations and pass with the live-state and contract fixes. It also
 checks the adapter's width, decimal, bank and combatant restrictions.
 
+The window contract also accepts an empty party target when that same
+empty target is already marked: the original's redraw compares the two
+before highlighting a name, and the C drawing operation does the same.
+`endings-bucket-lavos` reaches this state at frame 48239. Rejecting it sent
+shipping play back into retired battle code; by frame 48496 the original
+decompressor's block move at `$C3:0633` overwrote the interrupt stubs at
+`$00:0500` and `$00:0504`. Those bytes were corruption, not another valid
+stub format. With the window contract corrected, the 196,000-frame movie
+finishes in strict mode without a contract break. The cartridge-free
+contract test accepts the already marked empty target and still rejects
+an empty target needing a highlight or an enemy in the party view.
+
 The final native-shape Lavos routes reach both the bucket's Good Night
 ending (frame 187,945) and the telepod's ending phase (126,441), exercising
 victory, field return and the long defeat/ending work without scaffolding.
@@ -4865,6 +4908,26 @@ techs with no retries, no broken contract and zero original-code fallback
 instructions. Its ordinary seed-1 policy still needs a successful search;
 that policy follow-up does not substitute for the protected movie outcomes.
 This does not claim the telepod's subsequent developer-room tour.
+
+The setup dispatcher retains the two machine accesses from its former
+by-address adapter's trial return frame. `e4ea6b60` replaced that adapter
+with a direct call; although the duplicate write was correctly removed,
+its 38-master-clock calibrated cost disappeared. R-Series first crosses
+an observable frame boundary at movie frame 8543. Keeping the cost as a
+machine-only charge restores the complete strict outcome artifact to
+`8ad0664d` and passes the existing outcome ratchet, without restoring a
+second stack write or weakening the checked callee contract.
+
+The same merge moved setup's return into `battle_step_returns`. Its five
+register-restoration reads had formerly been local values, while its two
+return-word reads belonged to the startup caller's much higher calibrated
+rate. The held return now leaves those restoration accesses uncounted and
+the startup continuation owns the return-word charge. Dalton's trace at
+frame 5623 isolates the lost 1,831-clock caller estimate; restoring its
+ownership recovers all 17 changed checkpoint pictures. Full strict Dalton
+and R-Series outcome artifacts match the pre-retirement builds; R-Series
+passes its existing ratchet, while Dalton retains only its calibration-era
+ledger differences.
 
 Every retired entry keeps its calibrated rate in `time_tags.c`; deleted
 temporary accesses retain their machine work charges, with no new host

@@ -399,6 +399,7 @@ void stream_the_layers(GameState *g)
 {
     for (unsigned side = 0; side < SIDES; side++)
         set_field_layer_edges_crossed(g, side, 0);
+    bool moved = false;
     for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
         for (unsigned w = 0; w < WAYS; w++) {
             unsigned k = layer * AXES + ways[w].axis;
@@ -415,8 +416,11 @@ void stream_the_layers(GameState *g)
             note_the_crossing(g, &m);
             charge_uncounted_end(g, mark);
             charge_as(g, STREAMING, (uint32_t)pixels * ACCESSES_FOUR_PIXELS / 4);
+            moved = true;
         }
     }
+    if (moved)
+        charge_machine_accesses(g, 1); /* the former exhausted movement counter */
     for (unsigned side = 0; side < SIDES; side++)
         set_field_layer_upload_flags(g, side, 0);
     static const Side order[SIDES] = { SIDE_ABOVE, SIDE_BELOW, SIDE_LEFT, SIDE_RIGHT };

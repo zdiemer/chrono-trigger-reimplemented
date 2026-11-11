@@ -48,8 +48,7 @@ static void set_layer_size(GameState *g, unsigned layer, uint8_t columns, uint8_
 static void take_the_layers(GameState *g)
 {
     uint8_t sizes = field_map_header_sizes(g), layers = field_map_header_layers(g);
-    for (unsigned layer = FIELD_BG1; layer <= FIELD_BG3; layer++) {
-    }
+    charge_machine_accesses(g, 2 * FIELD_LAYERS); /* the dimensions' cleared high bytes */
     set_field_map_flags(g, (layers & HEADER_HAS_BG3) ? FIELD_MAP_HAS_BG3 : 0);
     set_field_bg2_half_scroll(g, (layers & HEADER_BG2_AT_HALF_PACE) ? BG2_HALF_PACE : 0);
     uint8_t still = 0;
@@ -120,6 +119,7 @@ static void take_the_header(GameState *g)
     set_field_layer_drawn_whole(g, field_layer_still(g));
     take_the_drift(g, FIELD_BG2, field_map_header_bg2_drift(g));
     take_the_drift(g, FIELD_BG3, field_map_header_bg3_drift(g));
+    charge_machine_accesses(g, 2); /* the header byte read back and saved */
 }
 
 // $C0:7399
@@ -207,6 +207,7 @@ static void mark_the_exits(GameState *g)
         }
         exit++;
     }
+    charge_machine_accesses(g, 4 + (run.first < run.end ? 2 : 0)); /* extent and last exit */
 }
 
 /* ---- The map unpacked ------------------------------------------------------------------------- */
@@ -218,6 +219,7 @@ enum { UNPACKED_MAP = RAM_FIELD_MAP_HEADER };
 void field_ask_to_unpack_the_map(GameState *g)
 {
     uint16_t map = location_map(g, location_record_offset(g));
+    charge_machine_accesses(g, 2); /* the selected map */
     set_decompress_source(g, field_packed_map(g, map));
     set_decompress_dest(g, UNPACKED_MAP);
 }

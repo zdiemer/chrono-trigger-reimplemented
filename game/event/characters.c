@@ -166,6 +166,19 @@ static bool unpack_on_the_machine(void *ctx, FieldSpriteRecord r, SetKind kind)
     return false;
 }
 
+/* Reads formerly used only to derive the casting wrapper's dead overflow.
+ * Their work remains in the machine's calibrated estimate. */
+static void charge_cast_result(void *ctx, CastGraphics graphics)
+{
+    GameState *g = state_of(ctx);
+    if (graphics.source == GRAPHICS_TO_UNPACK)
+        charge_machine_accesses(g, 4); /* length and unpacked end */
+    else if (graphics.source == GRAPHICS_SHARED) {
+        charge_machine_accesses(g, 3); /* animation table address */
+        charge_machine_rom_accesses(g, 4); /* adjacent animation offsets */
+    }
+}
+
 // $C0:4590
 /* One of the people and creatures takes the object, by its number among
  * them. */
@@ -174,10 +187,12 @@ void event_cmd_cast_npc(Snes *s)
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
     EventCommand c = event_command_of(s, 0x82);
+    charge_machine_accesses(g, 2); /* the saved script offset */
     SetUnpacker u = { unpack_on_the_machine, s };
     CastGraphics graphics;
     if (!cast_npc(g, c.self, c.npc, &u, &graphics))
         return;
+    charge_cast_result(s, graphics);
     event_return(s, (EventStep){ (uint16_t)(at + CAST_NPC_LENGTH), true });
 }
 
@@ -198,10 +213,12 @@ void event_cmd_cast_enemy(Snes *s)
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
     EventCommand c = event_command_of(s, 0x83);
+    charge_machine_accesses(g, 2); /* the saved script offset */
     SetUnpacker u = { unpack_on_the_machine, s };
     CastGraphics graphics;
-    if (!cast_enemy(g, m_platform(s), c.self, c.enemy, c.slot, &u, &graphics, nothing_between))
+    if (!cast_enemy(g, m_platform(s), c.self, c.enemy, c.slot, &u, &graphics, charge_cast_result))
         return;
+    charge_machine_accesses(g, 1); /* the old result's sprite-layout read */
     event_return(s, (EventStep){ (uint16_t)(at + CAST_ENEMY_LENGTH), true });
 }
 

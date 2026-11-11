@@ -397,7 +397,8 @@ enum { ITEM_CURSOR_ROWS = 4, FROG_SLOT_STEP = 5 };
  * byte in places and as a word in others); the menu's member, and each slot's,
  * a party member or nobody, and while anyone is choosing, its slot a party
  * slot and some slot holding a member; the cursors on rows the menus have; the targets
- * combatants or nobody, and an ally while an action is aimed at the party;
+ * combatants or nobody, and an ally while an action is aimed at the party
+ * unless the empty target is already marked (so no name is highlighted);
  * Frog's slot a party slot. A state that breaks these is the original's to
  * run. */
 bool battle_window_fits(const GameState *g)
@@ -413,8 +414,14 @@ bool battle_window_fits(const GameState *g)
     for (unsigned i = 0; i < BATTLE_TARGET_ENTRIES; i++)
         if (!names_combatant_or_nobody(battle_targets(g, i)))
             return false;
-    if (party_shown_for_targets(g) && battle_targets(g, 0) >= BATTLE_PARTY_SIZE)
-        return false;
+    if (party_shown_for_targets(g)) {
+        uint8_t target = battle_targets(g, 0);
+        /* A target search can empty the list while the party view remains
+         * open. The redraw skips the name when that empty target is already
+         * marked, just as it does for an unchanged party member. */
+        if (target >= BATTLE_PARTY_SIZE && !(menu_nobody(target) && target == battle_ally_target_marked(g)))
+            return false;
+    }
     if (battle_target_cursor(g) >= BATTLE_TARGET_ENTRIES)
         return false;
     if (battle_frog_slot(g) % FROG_SLOT_STEP || battle_frog_slot(g) >= BATTLE_PARTY_SIZE * FROG_SLOT_STEP)
