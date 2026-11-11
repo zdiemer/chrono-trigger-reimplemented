@@ -749,56 +749,45 @@ time is paid where it left the next task. No additional saved-state field
 is needed. `suspend_test` covers both paths, including an interrupt pending
 at the yield, a restarted task, and loading a parked save into either mode.
 
-## The frame driver's interrupt calls
+## The frame driver's game calls
 
-In shipping mode the frame driver calls the console's vblank and line
-vectors as C continuations. `frontend/natives.c` supplies their functions to
-`native_attach_frame_interrupts`, which selects the enabled hand entries
-once by function. Each interrupt selects one of those two continuations by
-kind; it does not search the registry by the machine's PC. Entry filtering,
-shadow mode and the oracle timing mode retain their former paths.
+In shipping mode the frame driver calls power-on reset and the console's
+vblank and line vectors as C continuations. `frontend/natives.c` binds the
+functions once through `native_attach_frame_interrupts` and
+`native_attach_power_on`. The reset binding selects the emulation-mode
+entry; the interrupt bindings select native-mode entries. Each queued kind
+selects that function without a lookup by PC. Entry filtering, shadow mode
+and oracle timing retain their former paths.
 
-Interrupt recognition, entry time and the return frame still belong to the
-machine. After an entry sequence, `snes_run_frame` records which interrupt
-was taken and calls its continuation on the next step. Before starting its
-fiber, the runtime pays debt and handles interrupted or parked callers as
-it does for an ordinary entry. It checks the original destination and the
-entry's complete contract, including native mode, P mask and guard. A
-refusal leaves that destination and return frame for ordinary dispatch.
-The console's checked stub and handler calls remain unchanged, including
-their estimates and dispatch boundaries.
+Reset setup and interrupt recognition, entry time and return frames still
+belong to the machine. `snes_power_on` queues power-on after reset setup;
+`snes_run_frame` queues an interrupt after its entry sequence. On the next
+step the runtime pays debt and handles interrupted or parked callers before
+checking the original destination and complete entry contract, including
+mode, P mask and guard. Refusal leaves the original entry and return frame
+for ordinary dispatch. The console's checked boot, stub and handler calls
+keep their estimates and dispatch boundaries.
 
 `snes.frame_interrupt` saves the pending kind, never a function or fiber
 pointer. Loading preserves the destination host's callback; cloning drops
-it. A state with no such field starts with no event queued and enters by
-the retained vector row. A host without the callback similarly uses the
-ordinary path. No new suspended frame exists between interrupt entry and
-the host's call; once a handler starts, the existing suspension and debt
-rules still decide whether an exact save is possible.
+it. A state without this field queues nothing and resumes its saved PC.
+Binding the reset callback does not queue a reset. A host without callbacks
+uses ordinary dispatch. Existing suspension and debt rules still decide
+whether an exact save is possible.
 
-The suspension test compares every serialized field over eight frames with
-and without the host calls, with line and vblank interrupts, unpaid port
-time and a nested NMI. States captured mid-frame before either handler
-reload into fresh runtimes, both with the queued kind and with only the
-legacy destination, and finish identically. Eight invalid contracts or
-destinations preserve the interrupt frame. Task-switch tests also take a
-host interrupt while a caller is yielding. The state test checks the new
-field's range and excludes the hook from serialization.
+The suspension test compares every serialized field with and without these
+host calls: power-on, line and vblank interrupts, unpaid time, a nested NMI
+and task switching. Mid-frame states before handlers and a state before
+power-on reload into fresh runtimes, both with the queued event and with
+only the legacy destination, and finish identically. Invalid contracts and
+destinations preserve the interrupt frame. The state test checks event
+values, excludes hooks from serialization and loads a state lacking the
+event field without resetting it.
 
-Over the 37-movie gate sample, machine entries fall from 698,313 at four
-entries to 41 at two: 37 power-on resets and four field-first-start stops.
-The only changed C-call counts are the 461,909 vblank and 236,363 line
-vectors. All 159,848,871 held-continuation dispatches are unchanged by entry.
-The source joints remain unchanged, including 105 stops and 143 held rows;
-compatibility wrappers and returns remain. A real warp save at frame 4,000
-has every existing field identical to the preceding build. Old and new
-mid-wait saves reload to frame 4,200 identically to uninterrupted play,
-including save RAM and the C sound driver; both 200-frame traces match the
-preceding build, including the framebuffer.
-
-The sampled gate with `--evidence` ends `suite OK`, with no real-play
-refusals or fallback instructions. The suspension, state, debt, timing-scope,
-shadow and cartridge-save tests pass, as do the 28 targeted Python checks.
+Over the 37-movie sample the driver reset call removes the remaining 37
+machine entries. Source joints remain 143 held continuations and 105 stops;
+wrappers and returns remain for compatibility. The preceding interrupt and
+restart measurements are in [the console hand-off history](history/console-handoffs.md).
 
 ## Held waits
 

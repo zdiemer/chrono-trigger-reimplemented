@@ -120,6 +120,7 @@ typedef enum {
     SNES_FRAME_INTERRUPT_NONE,
     SNES_FRAME_INTERRUPT_VBLANK,
     SNES_FRAME_INTERRUPT_LINE,
+    SNES_FRAME_POWER_ON,
 } SnesFrameInterrupt;
 
 /* rom must stay valid for the lifetime of the system. */

@@ -1510,6 +1510,56 @@ static void driver_interrupt_case(void)
     free(rom);
 }
 
+static unsigned driver_boot_calls;
+static void driver_boot(Snes *s)
+{
+    driver_boot_calls++;
+    m_write8(s, 0x44, 0xA7);
+    s->cpu.e = false;
+    s->cpu.stopped = true;
+}
+
+static void driver_power_on_case(void)
+{
+    const NativeEntry entry = { .addr = 0x008000, .name = "driver_boot", .fn = driver_boot,
+                                .emulation = true, .cost_milli = 1000 };
+    uint8_t *rom = make_rom(NULL, 0, 0x8500);
+    Snes *old = machine(rom), *direct = machine(rom);
+    size_t len;
+    uint8_t *state = snes_state_write(direct, &len);
+    CHECK(direct->frame_interrupt == SNES_FRAME_POWER_ON, "power-on did not queue the driver's start");
+    NativeRuntime *before = native_create(&entry, 1, NATIVE_ON);
+    NativeRuntime *after = native_create(&entry, 1, NATIVE_ON);
+    native_attach(before, old);
+    native_attach(after, direct);
+    native_attach_frame_interrupts(after, direct, NULL, NULL);
+    native_attach_power_on(after, direct, driver_boot);
+    driver_boot_calls = 0;
+    run_frames(old, 2);
+    run_frames(direct, 2);
+    CHECK(driver_boot_calls == 2, "power-on did not call each boot once");
+    check_driver_state(old, direct, "driver power-on pace");
+    for (unsigned legacy = 0; legacy < 2; legacy++) {
+        Snes *copy = machine(rom);
+        NativeRuntime *fresh = native_create(&entry, 1, NATIVE_ON);
+        native_attach(fresh, copy);
+        native_attach_frame_interrupts(fresh, copy, NULL, NULL);
+        native_attach_power_on(fresh, copy, driver_boot);
+        CHECK(snes_state_read(copy, state, len, NULL, 0) == 0, "power-on save did not load");
+        if (legacy) copy->frame_interrupt = SNES_FRAME_INTERRUPT_NONE;
+        run_frames(copy, 2);
+        check_driver_state(direct, copy, "driver power-on reload");
+        native_destroy(fresh);
+        free(copy);
+    }
+    native_destroy(before);
+    native_destroy(after);
+    free(state);
+    free(old);
+    free(direct);
+    free(rom);
+}
+
 static bool driver_contract_image;
 static bool driver_contract_guard(Snes *s)
 {
@@ -1595,6 +1645,7 @@ int main(void)
 {
     field_restart_case();
     driver_interrupt_case();
+    driver_power_on_case();
     driver_contract_case();
     console_call_case();
     checkpoint_case();

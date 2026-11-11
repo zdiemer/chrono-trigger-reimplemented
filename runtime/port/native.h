@@ -379,6 +379,10 @@ void native_attach(NativeRuntime *rt, Snes *snes);
  * for ordinary dispatch. Interrupt entry and the return frame stay on the
  * machine, so old saves at the vector remain valid. */
 void native_attach_frame_interrupts(NativeRuntime *rt, Snes *snes, NativeFn vblank, NativeFn line);
+/* Bind the emulation-mode power-on entry to the driver's saved start event.
+ * Attach after the interrupt entries; a missing or refused entry retains
+ * ordinary dispatch, including old saves without an event. */
+void native_attach_power_on(NativeRuntime *rt, Snes *snes, NativeFn reset);
 
 /* How many mismatches native_report describes, and apart from them how many
  * notes (abandoned comparisons, timing): 16 each unless set, at most 256. */

@@ -364,7 +364,7 @@ typedef struct Replay {
 
 struct NativeRuntime {
     const NativeEntry *table;
-    const NativeEntry *frame_handlers[2];
+    const NativeEntry *frame_handlers[3];
     int count;
     /* the kept estimates (native_keep_estimates), after the entries in
      * `table` and `stats`: found by time_as alone, never by the machine */
@@ -3344,7 +3344,7 @@ static int32_t run_step(NativeRuntime *rt, Snes *s, bool from_frame)
     if (from_frame) {
         unsigned event = s->frame_interrupt;
         s->frame_interrupt = SNES_FRAME_INTERRUPT_NONE;
-        const NativeEntry *e = event >= SNES_FRAME_INTERRUPT_VBLANK && event <= SNES_FRAME_INTERRUPT_LINE
+        const NativeEntry *e = event >= SNES_FRAME_INTERRUPT_VBLANK && event <= SNES_FRAME_POWER_ON
                                    ? rt->frame_handlers[event - SNES_FRAME_INTERRUPT_VBLANK] : NULL;
         if (e && e->addr == pc && rt->mode == NATIVE_ON && rt->port_timing != PORT_TIMING_ORACLE &&
             rt->nactive < MAX_ACTIVE && entry_applies(e, s)) {
@@ -3491,6 +3491,22 @@ void native_attach_frame_interrupts(NativeRuntime *rt, Snes *s, NativeFn vblank,
     if (rt->frame_handlers[0] || rt->frame_handlers[1]) {
         s->run_frame_interrupt = frame_interrupt_on_the_machine;
         s->frame_interrupt_ctx = rt;
+    }
+}
+
+void native_attach_power_on(NativeRuntime *rt, Snes *s, NativeFn reset)
+{
+    rt->frame_handlers[SNES_FRAME_POWER_ON - SNES_FRAME_INTERRUPT_VBLANK] = NULL;
+    if (rt->mode != NATIVE_ON || !reset)
+        return;
+    for (int i = 0; i < rt->count; i++) {
+        const NativeEntry *e = &rt->table[i];
+        if (e->fn == reset && e->emulation && !e->generated && !e->time_only && !e->idle) {
+            rt->frame_handlers[SNES_FRAME_POWER_ON - SNES_FRAME_INTERRUPT_VBLANK] = e;
+            s->run_frame_interrupt = frame_interrupt_on_the_machine;
+            s->frame_interrupt_ctx = rt;
+            return;
+        }
     }
 }
 

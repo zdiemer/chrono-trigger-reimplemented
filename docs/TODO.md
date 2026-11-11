@@ -9,9 +9,9 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
-- **Remaining machine hand-offs and held loops.** The sampled census still
-  enters the reset at power-on. Convert that caller and the remaining
-  source hand-offs subsystem by subsystem under their complete contracts.
+- **Remaining machine hand-offs and held loops.** The remaining source
+  hand-offs need conversion subsystem by subsystem under their complete
+  contracts; the sampled census already has no machine entries.
   The scene, overworld, field, menu and battle held continuations still need
   saveable C loops: preserve task switching,
   the caller's return frame, cartridge saves and fresh-runtime mid-wait

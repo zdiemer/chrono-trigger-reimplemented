@@ -452,7 +452,7 @@ static void visit(Visitor *v, Snes *s)
  * checksum but holds nonsense is refused instead of run. */
 static const char *out_of_range(const Snes *s)
 {
-    if (s->frame_interrupt > SNES_FRAME_INTERRUPT_LINE)
+    if (s->frame_interrupt > SNES_FRAME_POWER_ON)
         return "snes.frame_interrupt";
     if (s->stall_next >= SNES_STALL_HISTORY)
         return "snes.stall_next";
@@ -610,6 +610,8 @@ int snes_state_read_with(Snes *s, const SnesStateExtra *extra, const uint8_t *da
     }
     snes_init(tmp, s->bus.rom, s->bus.rom_size);
     snes_power_on(tmp);
+    /* Older states resume their saved address; loading is not a power-on. */
+    tmp->frame_interrupt = SNES_FRAME_INTERRUPT_NONE;
     uint32_t rom_crc = 0;
     field(&v, "rom.crc32", &rom_crc, 4, 1, KIND_UINT);
     if (!v.failed && rom_crc && rom_crc != crc32_of(s->bus.rom, s->bus.rom_size))

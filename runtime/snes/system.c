@@ -158,7 +158,7 @@ void snes_power_on(Snes *s)
     }
     cpu_reset(&s->cpu);
     s->held_wait = 0;
-    s->frame_interrupt = SNES_FRAME_INTERRUPT_NONE;
+    s->frame_interrupt = SNES_FRAME_POWER_ON;
     s->hclock = 0;
     s->vline = 0;
     s->bus.clocks = 0;
