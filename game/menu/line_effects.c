@@ -24,8 +24,6 @@
 #include "menu/menu_data.h"
 #include "menu/object.h"
 #include "menu/object_commands.h"
-#include "port/machine.h"
-#include "port/native.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "scene/scene.h"
@@ -140,7 +138,6 @@ static void set_up_circle(GameState *g, MenuObject o, uint16_t table, bool as_wo
         set_scene_circle_center_y(g, y);
         set_scene_circle_radius(g, radius);
         set_scene_circle_table_bank(g, LINE_TABLE_BANK);
-        charge_machine_accesses(g, 1);
     } else {
         set_scene_circle_center_x(g, (uint16_t)((scene_circle_center_x(g) & 0xFF00) | (uint8_t)x));
         set_scene_circle_center_y(g, (uint16_t)((scene_circle_center_y(g) & 0xFF00) | (uint8_t)y));
@@ -173,7 +170,6 @@ static void squashed_iris(GameState *g, MenuObject o, uint8_t slot)
         set_line_value(g, table, (uint16_t)(centre + n), line_value(g, table, (uint16_t)(centre + 1 + 2 * n)));
     for (uint16_t n = half; n <= 2 * half; n++)
         set_line_value(g, table, (uint16_t)(centre + n), CLOSED_LINE);
-    charge_machine_accesses(g, 12);
 }
 
 /* A run of lines all set to one value, from `at` on. The original fills them
@@ -225,7 +221,6 @@ static void capsule_iris(GameState *g, MenuObject o, uint8_t slot)
     for (uint16_t n = 0; n < radius; n++)
         set_value_at(g, (uint16_t)(centre_at + 2 * (stretch + n)), value_at(g, (uint16_t)(centre_at - 2 * n)));
     menu_note_effect_noise(g, centre_at);
-    charge_machine_accesses(g, 2);
     fill_lines(g, (uint16_t)(centre_at + 2), (uint16_t)(stretch - 1), value_at(g, centre_at));
 }
 
@@ -239,19 +234,6 @@ static void capsule_iris(GameState *g, MenuObject o, uint8_t slot)
  * whole bank), and a capsule stretched 2 lines or more. */
 enum { MODE_PAGE = 0x0000, SCREEN_LINES = 0x100 };
 
-static bool running_a_slot(Snes *s)
-{
-    vars_peek(true);
-    bool ok = menu_object_address_names_one(menu_object_current(state_of(s)));
-    vars_peek(false);
-    return ok;
-}
-
-bool menu_line_effect_can_start(Snes *s)
-{
-    return m_direct_page(s) == MODE_PAGE && m_io_bank(s->cpu.db) && running_a_slot(s);
-}
-
 static bool iris_takes(const GameState *g, MenuObject o, bool capsule)
 {
     uint16_t y = menu_pixel(menu_object_place(g, o).y), radius = menu_object_slots_iris_radius(g, o);
@@ -262,20 +244,6 @@ static bool iris_takes(const GameState *g, MenuObject o, bool capsule)
 
 static bool squashed_iris_takes(const GameState *g, MenuObject o) { return iris_takes(g, o, false); }
 static bool capsule_iris_takes(const GameState *g, MenuObject o) { return iris_takes(g, o, true); }
-
-static bool iris_can_draw(Snes *s, bool capsule)
-{
-    if (m_direct_page(s) != MODE_PAGE || !m_bank_reaches_low_ram(s) || !running_a_slot(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = iris_takes(g, menu_object_running(g), capsule);
-    vars_peek(false);
-    return ok;
-}
-
-bool menu_squashed_iris_can_draw(Snes *s) { return iris_can_draw(s, false); }
-bool menu_capsule_iris_can_draw(Snes *s) { return iris_can_draw(s, true); }
 
 // $C6:E568
 /* Move slot 1's staged values on by four lines; whether the second address
@@ -290,39 +258,6 @@ static bool advance_the_line_tables(GameState *g)
     return second > 0xFFFF - FOUR_LINES;
 }
 
-/* The carry is the second address's running past the end. */
-void menu_object_advance_line_tables(Snes *s)
-{
-    m_set_flag(s, CPU_FLAG_C, advance_the_line_tables(state_of(s)));
-    m_rep(s, CPU_FLAG_M);
-    m_rtl(s);
-}
-
-/* The starters are copies of one another in the ROM, one a slot and a target,
- * each programming the channel from its own code (`site`). */
-static void start_from(Snes *s, uint32_t site, uint8_t slot, VidLineTarget target)
-{
-    menu_start_line_effect(state_of(s), m_platform(s), site, slot, target);
-    m_rtl(s);
-}
-
-// $C6:E000
-/* Window 1's edges line by line, on slot 1. */
-void menu_object_window1_lines(Snes *s) { start_from(s, 0xC6E012, 1, VID_LINE_WINDOW1); }
-
-// $C6:E318
-void menu_object_window1_lines_2(Snes *s) { start_from(s, 0xC6E32A, 1, VID_LINE_WINDOW1); }
-
-// $C6:E448
-void menu_object_window1_lines_3(Snes *s) { start_from(s, 0xC6E45A, 1, VID_LINE_WINDOW1); }
-
-// $C6:E340
-/* Window 2's edges line by line, on slot 2. */
-void menu_object_window2_lines(Snes *s) { start_from(s, 0xC6E352, 2, VID_LINE_WINDOW2); }
-
-// $C6:E470
-void menu_object_window2_lines_2(Snes *s) { start_from(s, 0xC6E482, 2, VID_LINE_WINDOW2); }
-
 // $C6:E595
 /* The first plane's vertical scroll line by line, on slot 3, the object's
  * count starting from nothing. */
@@ -330,15 +265,6 @@ static void start_the_bg1_scroll_lines(GameState *g, Platform *pf, MenuObject o)
 {
     menu_start_line_effect(g, pf, 0xC6E5A7, 3, VID_LINE_SCROLL_BG1_V);
     set_menu_object_slots_phase(g, o, 0);
-}
-
-/* X comes back as the object. */
-void menu_object_bg1_scroll_lines(Snes *s)
-{
-    GameState *g = state_of(s);
-    start_the_bg1_scroll_lines(g, m_platform(s), menu_object_running(g));
-    s->cpu.x = menu_object_current(g);
-    m_rtl(s);
 }
 
 // $C6:E5C5
@@ -380,74 +306,8 @@ static bool ripple_the_first_plane(GameState *g, MenuObject o)
         set_line_value(g, table, line, (uint16_t)(scroll + ripple_push(g, step)));
     set_menu_object_slots_phase(g, o, (uint16_t)(phase + RIPPLE_FRAME_STEP));
     menu_note_effect_noise(g, step);
-    charge_machine_io_accesses(g, 3);
     return phase > 0xFFFF - RIPPLE_FRAME_STEP;
 }
-
-/* On the mode's page, with the data bank $00, through which the original
- * reaches its object and the sine. */
-bool menu_ripple_can_draw(Snes *s)
-{
-    return m_direct_page(s) == MODE_PAGE && m_bank_is_zero(s) && running_a_slot(s);
-}
-
-/* Back with 16-bit A, X the object, and the carry where the phase's step
- * ran past the top of its word. */
-void menu_object_ripple_the_first_plane(Snes *s)
-{
-    GameState *g = state_of(s);
-    MenuObject o = menu_object_running(g);
-    bool came_round = ripple_the_first_plane(g, o);
-    m_rep(s, CPU_FLAG_M);
-    s->cpu.x = menu_object_current(g);
-    m_set_flag(s, CPU_FLAG_C, came_round);
-    m_rtl(s);
-}
-
-/* The irises come back with 16-bit registers: the squashed one with X clear
- * and the carry its radius's low bit, the capsule with X where its filling
- * ended and the carry set where it drew a circle. */
-static void iris_widths(Snes *s) { m_rep(s, CPU_FLAG_M | CPU_FLAG_X); }
-
-static void squashed_entry(Snes *s, uint8_t slot)
-{
-    GameState *g = state_of(s);
-    MenuObject o = menu_object_running(g);
-    squashed_iris(g, o, slot);
-    iris_widths(s);
-    s->cpu.x = 0;
-    m_set_flag(s, CPU_FLAG_C, menu_object_slots_iris_radius(g, o) & 1);
-    m_rtl(s);
-}
-
-/* Where the capsule's filling ended, as the original's block move leaves X:
- * on the last byte it wrote, in the table the frame count had picked. */
-static uint16_t capsule_fill_end(const GameState *g, MenuObject o, uint8_t slot)
-{
-    uint16_t table = menu_line_values(slot, (uint16_t)(menu_object_slots_capsule_frames(g, o) - 1));
-    uint16_t stretch = menu_object_slots_iris_stretch(g, o);
-    if (menu_object_slots_iris_radius(g, o) == 0)
-        return (uint16_t)(line_address(table, menu_pixel(menu_object_place(g, o).y)) + 2 * stretch - 1);
-    return (uint16_t)(capsule_centre_at(table, menu_pixel(menu_object_place(g, o).y)) + 2 * stretch - 2);
-}
-
-static void capsule_entry(Snes *s, uint8_t slot)
-{
-    GameState *g = state_of(s);
-    MenuObject o = menu_object_running(g);
-    capsule_iris(g, o, slot);
-    iris_widths(s);
-    vars_peek(true);
-    s->cpu.x = capsule_fill_end(g, o, slot);
-    vars_peek(false);
-    m_set_flag(s, CPU_FLAG_C, menu_object_slots_iris_radius(g, o) != 0);
-    m_rtl(s);
-}
-
-void menu_object_squashed_iris_1(Snes *s) { squashed_entry(s, 1); }
-void menu_object_squashed_iris_2(Snes *s) { squashed_entry(s, 2); }
-void menu_object_capsule_iris_1(Snes *s) { capsule_entry(s, 1); }
-void menu_object_capsule_iris_2(Snes *s) { capsule_entry(s, 2); }
 
 /* ---- the curtain ------------------------------------------------------------------------------- */
 
@@ -501,59 +361,6 @@ static bool curtain_step_takes(const GameState *g, MenuObject o)
 {
     (void)o;
     return scene_curtain_table_fits(scene_curtain_table_bank(g), scene_curtain_table(g));
-}
-
-static void as_the_curtain_leaves_it(Snes *s, MenuObject o)
-{
-    GameState *g = state_of(s);
-    uint16_t shown = curtain_shown(g, o);
-    uint32_t sum = (uint32_t)shown + CURTAIN_HALF;
-    m_rep(s, CPU_FLAG_M);
-    s->cpu.a = (uint16_t)sum;
-    m_set_nz16(s, s->cpu.a);
-    m_set_flag(s, CPU_FLAG_C, sum > 0xFFFF);
-    m_set_flag(s, CPU_FLAG_V, !(shown & 0x8000) && (sum & 0x8000));
-    s->cpu.x = menu_object_current(g);
-}
-
-void menu_object_start_curtain(Snes *s)
-{
-    GameState *g = state_of(s);
-    MenuObject o = menu_object_running(g);
-    start_the_curtain(g, m_platform(s), o);
-    as_the_curtain_leaves_it(s, o);
-    s->cpu.y = menu_object_slots_curtain_table(g, o);
-    m_rtl(s);
-}
-
-void menu_object_step_curtain(Snes *s)
-{
-    GameState *g = state_of(s);
-    MenuObject o = menu_object_running(g);
-    step_the_curtain(g, m_platform(s), o, s->cpu.x);
-    as_the_curtain_leaves_it(s, o);
-    m_rtl(s);
-}
-
-bool menu_curtain_can_start(Snes *s)
-{
-    if (!menu_line_effect_can_start(s) || !m_bank_reaches_low_ram(s))
-        return false;
-    vars_peek(true);
-    GameState *g = state_of(s);
-    bool fits = curtain_takes(g, menu_object_running(g));
-    vars_peek(false);
-    return fits;
-}
-
-bool menu_curtain_can_step(Snes *s)
-{
-    if (!m_bank_reaches_low_ram(s))
-        return false;
-    vars_peek(true);
-    bool fits = curtain_step_takes(state_of(s), 0);
-    vars_peek(false);
-    return fits;
 }
 
 /* ---- As C ------------------------------------------------------------------------------------- */
@@ -658,63 +465,11 @@ static bool advance_scene_scroll(GameState *g)
     return wrapped;
 }
 
-// $C2:7911
-void menu_scene_round_iris_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t phase = draw_scene_iris(g, menu_object_running(g), SCENE_ROUND_IRIS);
-    s->cpu.x = menu_object_current(g);
-    m_set_flag(s, CPU_FLAG_C, (phase & 1) != 0);
-    m_rts(s);
-}
-
-// $C2:7981
-void menu_scene_flattened_iris_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    (void)draw_scene_iris(g, menu_object_running(g), SCENE_FLATTENED_IRIS);
-    s->cpu.x = menu_object_current(g);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-// $C2:7957
-void menu_scene_window2_lines_entry(Snes *s)
-{
-    menu_start_line_effect(state_of(s), m_platform(s), 0xC2796B, 2, VID_LINE_WINDOW2);
-    m_rts(s);
-}
-
-// $C2:7AAF
-void menu_scene_advance_scroll_entry(Snes *s)
-{
-    m_set_flag(s, CPU_FLAG_C, advance_scene_scroll(state_of(s)));
-    m_rep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
 // $C2:7ADA, $C2:7AEB
 /* Stage either the moving scroll pattern or the uniform scroll table. */
 static void show_scene_scroll(GameState *g, unsigned which)
 {
     menu_show_line_values(g, 1, menu_line_values(1, which));
-}
-
-// $C2:7ADA
-void menu_scene_show_moving_scroll_entry(Snes *s)
-{
-    show_scene_scroll(state_of(s), 0);
-    m_rep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-// $C2:7AEB
-void menu_scene_show_uniform_scroll_entry(Snes *s)
-{
-    show_scene_scroll(state_of(s), 1);
-    m_rep(s, CPU_FLAG_M);
-    m_rts(s);
 }
 
 static bool scene_round_iris(GameState *g, Platform *pf, MenuObject self, bool far)
@@ -791,42 +546,7 @@ static void advance_scene_wave(GameState *g, MenuObject self, SceneWave wave)
     int16_t sample = (int16_t)((uint16_t)magnitude * amplitude >> 8);
     uint16_t output = (uint16_t)(to + retained);
     set_value_at(g, output, (uint16_t)(sine < 0 ? -sample : sample));
-    (charge_machine_accesses(g, 3), charge_machine_io_accesses(g, 4));
 }
-
-static void start_scene_wave_on_the_machine(Snes *s, SceneWave wave)
-{
-    GameState *g = state_of(s);
-    start_scene_wave(g, m_platform(s), menu_object_running(g), wave);
-    s->cpu.x = (uint16_t)(menu_line_values((uint8_t)wave, 1) + 2u * MENU_LINE_TABLE_LINES - 1);
-    m_rep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-static void advance_scene_wave_on_the_machine(Snes *s, SceneWave wave)
-{
-    GameState *g = state_of(s);
-    MenuObject self = menu_object_running(g);
-    advance_scene_wave(g, self, wave);
-    /* The script observes the sine helper's result and half-turn comparison.
-     * Reconstructing those outputs is not another sample of game work. */
-    uint32_t mark = charge_uncounted_begin(g);
-    uint16_t phase = menu_object_slots_scene_wave_phase(g, self);
-    s->cpu.x = (uint16_t)menu_sine(g, phase);
-    m_set_flag(s, CPU_FLAG_C, (phase & (MENU_SINE_STEPS - 1)) >= MENU_SINE_STEPS / 2);
-    charge_uncounted_end(g, mark);
-    m_rep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-// $C2:7C56
-void menu_scene_start_horizontal_wave(Snes *s) { start_scene_wave_on_the_machine(s, SCENE_WAVE_HORIZONTAL); }
-// $C2:7C97
-void menu_scene_start_vertical_wave(Snes *s) { start_scene_wave_on_the_machine(s, SCENE_WAVE_VERTICAL); }
-// $C2:7CD8
-void menu_scene_advance_horizontal_wave(Snes *s) { advance_scene_wave_on_the_machine(s, SCENE_WAVE_HORIZONTAL); }
-// $C2:7D5E
-void menu_scene_advance_vertical_wave(Snes *s) { advance_scene_wave_on_the_machine(s, SCENE_WAVE_VERTICAL); }
 
 static bool scene_start_horizontal_wave(GameState *g, Platform *pf, MenuObject self, bool far)
 {
@@ -887,8 +607,6 @@ static void start_scene_gray_ramp(GameState *g, Platform *pf)
     }
     wram_fill8(g, in_line_bank(at), MENU_LINE_TABLE_LINES, scene_gray(0));
     charge_block_move(g, 2u * (MENU_LINE_TABLE_LINES - 1) + SHADES * (LINES_PER_SHADE - 1));
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
     menu_note_effect_noise(g, at);
 }
 
@@ -905,7 +623,6 @@ static void paint_scene_gray_band(GameState *g, uint16_t first)
         for (unsigned line = 0; line < lines; line++)
             wram_write8(g, 0x7E0000u | (at++ & 0x1FFFFu), scene_gray((uint8_t)shade));
     }
-    charge_machine_io_accesses(g, 3);
 }
 
 // $C6:E170
@@ -929,35 +646,6 @@ static bool move_scene_gray_band(GameState *g, MenuObject self)
     uint32_t at = menu_line_values(2, 0) + (uint32_t)menu_object_slots_scene_gray_offset(g, self);
     paint_scene_gray_band(g, (uint16_t)at);
     return at > UINT16_MAX;
-}
-
-// $C6:E072
-void menu_scene_start_gray_ramp(Snes *s)
-{
-    start_scene_gray_ramp(state_of(s), m_platform(s));
-    s->cpu.x = (uint16_t)(menu_line_values(1, 0) + 2u * MENU_LINE_TABLE_LINES + 30u * 8 - 1);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rep(s, CPU_FLAG_M);
-    m_rtl(s);
-}
-
-// $C6:E170
-void menu_scene_start_gray_band(Snes *s)
-{
-    start_scene_gray_band(state_of(s), m_platform(s));
-    s->cpu.x = (uint16_t)(menu_line_values(2, 0) + MENU_LINE_TABLE_LINES / 2);
-    m_rtl(s);
-}
-
-// $C6:E1FF
-void menu_scene_move_gray_band(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint16_t current = menu_object_current(g);
-    bool wrapped = move_scene_gray_band(g, menu_object_running(g));
-    s->cpu.x = current;
-    m_set_flag(s, CPU_FLAG_C, wrapped);
-    m_rtl(s);
 }
 
 static bool scene_start_gray_ramp(GameState *g, Platform *pf, MenuObject self, bool far)
@@ -1001,15 +689,6 @@ static void start_scene_scroll_pattern(GameState *g, Platform *pf)
     /* The overlapping word fill includes one final low byte. */
     wram_write8(g, in_line_bank((uint16_t)(other + PATTERN_BYTES)), (uint8_t)scroll);
     charge_block_move(g, PATTERN_BYTES * 2u - 1);
-}
-
-// $C2:7A56
-void menu_scene_start_scroll_pattern(Snes *s)
-{
-    start_scene_scroll_pattern(state_of(s), m_platform(s));
-    s->cpu.x = (uint16_t)(menu_line_values(1, 1) + 2u * MENU_LINE_TABLE_LINES - 1);
-    m_rep(s, CPU_FLAG_M);
-    m_rts(s);
 }
 
 static bool scene_start_scroll_pattern(GameState *g, Platform *pf, MenuObject self, bool far)

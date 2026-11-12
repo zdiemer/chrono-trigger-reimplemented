@@ -225,7 +225,6 @@ static void strip(GameState *g, uint8_t character)
 {
     for (unsigned slot = character == AYLA ? MENU_ARMOUR : MENU_WEAPONS; slot < MENU_EQUIPMENT_SLOTS; slot++)
         put_in_slot(g, character, slot, slots_nothing[slot]);
-    charge_machine_accesses(g, 2);
 }
 
 bool party_can_equip(const GameState *g, uint8_t item)
@@ -237,20 +236,15 @@ bool party_can_equip(const GameState *g, uint8_t item)
 void party_equip(GameState *g, uint8_t character, uint8_t item)
 {
     enum { ONE = 1 };
-    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4));
     if (item == MENU_NO_WEAPON) {
-        charge_machine_accesses(g, 2);
         strip(g, character);
     } else {
         MenuItemPlace p;
         TIMED_AS(g, 0xC28881, p = menu_item_place(g, item));
         if (p.category >= MENU_EQUIPMENT_SLOTS)
             return;
-        charge_machine_accesses(g, 2);
         uint8_t was = worn(g, character, p.category);
-        charge_machine_accesses(g, 1);
         TIMED_AS(g, 0xC28791, (void)menu_add_items(g, was, ONE));
-        charge_machine_accesses(g, 1);
         put_in_slot(g, character, p.category, item);
         TIMED_AS(g, 0xC287D5, (void)menu_take_items(g, item, ONE));
     }

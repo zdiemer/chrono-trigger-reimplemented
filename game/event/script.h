@@ -48,15 +48,6 @@
 #include "field/party.h"
 #include "field/screen_effects.h"
 
-/* ---- The script -------------------------------------------------------------------- */
-
-static inline uint8_t script_byte(const GameState *g, uint16_t at) { return event_script_byte(g, at); }
-
-static inline uint16_t script_word(const GameState *g, uint16_t at)
-{
-    return (uint16_t)(event_script_byte(g, at) | event_script_byte(g, (unsigned)at + 1) << 8);
-}
-
 /* Scripts name an object by its offset in the field's object tables, which
  * is how a link stores it (field/object.h); the object whose script is
  * running is the field's current object. */
@@ -78,18 +69,6 @@ typedef struct {
     EventFlowKind kind;
     uint16_t to;   /* FLOW_NEXT_AFTER, FLOW_END_TURN_AFTER, FLOW_GO_TO */
 } EventFlow;
-
-static inline EventFlow next_command(void) { return (EventFlow){ FLOW_NEXT, 0 }; }
-static inline EventFlow end_turn(void) { return (EventFlow){ FLOW_END_TURN, 0 }; }
-static inline EventFlow stay(void) { return (EventFlow){ FLOW_STAY, 0 }; }
-static inline EventFlow run_again(void) { return (EventFlow){ FLOW_AGAIN, 0 }; }
-static inline EventFlow take_jump(void) { return (EventFlow){ FLOW_JUMP, 0 }; }
-static inline EventFlow next_command_after(uint16_t bytes) { return (EventFlow){ FLOW_NEXT_AFTER, bytes }; }
-static inline EventFlow end_turn_after(uint16_t bytes) { return (EventFlow){ FLOW_END_TURN_AFTER, bytes }; }
-static inline EventFlow go_to(uint16_t to) { return (EventFlow){ FLOW_GO_TO, to }; }
-
-/* A condition's outcome: on after it when it holds, its jump when it doesn't. */
-static inline EventFlow unless_jump(bool holds) { return holds ? next_command() : take_jump(); }
 
 /* Where the script goes on, and whether the object's turn does (this frame). */
 typedef struct {
@@ -376,5 +355,33 @@ EventStep event_perform(GameState *g, Platform *pf, const EventOpcode *row, uint
 /* Where the script goes on after a command at `at` whose operation said
  * `flow`. */
 EventStep event_follow(GameState *g, const EventOpcode *row, uint16_t at, EventFlow flow);
+
+/* ---- The script -------------------------------------------------------------------- */
+
+static inline uint8_t script_byte(const GameState *g, uint16_t at) { return event_script_byte(g, at); }
+
+static inline uint16_t script_word(const GameState *g, uint16_t at)
+{
+    return (uint16_t)(event_script_byte(g, at) | event_script_byte(g, (unsigned)at + 1) << 8);
+}
+
+static inline EventFlow next_command(void) { return (EventFlow){ FLOW_NEXT, 0 }; }
+
+static inline EventFlow end_turn(void) { return (EventFlow){ FLOW_END_TURN, 0 }; }
+
+static inline EventFlow stay(void) { return (EventFlow){ FLOW_STAY, 0 }; }
+
+static inline EventFlow run_again(void) { return (EventFlow){ FLOW_AGAIN, 0 }; }
+
+static inline EventFlow take_jump(void) { return (EventFlow){ FLOW_JUMP, 0 }; }
+
+static inline EventFlow next_command_after(uint16_t bytes) { return (EventFlow){ FLOW_NEXT_AFTER, bytes }; }
+
+static inline EventFlow end_turn_after(uint16_t bytes) { return (EventFlow){ FLOW_END_TURN_AFTER, bytes }; }
+
+static inline EventFlow go_to(uint16_t to) { return (EventFlow){ FLOW_GO_TO, to }; }
+
+/* A condition's outcome: on after it when it holds, its jump when it doesn't. */
+static inline EventFlow unless_jump(bool holds) { return holds ? next_command() : take_jump(); }
 
 #endif

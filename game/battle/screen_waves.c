@@ -51,7 +51,6 @@ static ScreenFlow wave_lines(GameState *g, uint8_t layers, uint8_t every, uint8_
         set_battle_line_scroll_layers(g, layer, (layers >> layer) & 1);
     if ((battle_enemy_rule(g) & BATTLE_RULE_NUMBER) == BATTLE_THE_FIRST_RULE)
         set_battle_line_scroll_layers(g, BG1, 0);
-    (charge_machine_accesses(g, fine ? 3 : 2), charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, 1));
     return screen_on();
 }
 SCREEN_OPERATION(wave_lines, layers, every, amplitude, speed, fine)
@@ -80,7 +79,6 @@ static ScreenFlow sway_lines(GameState *g, uint8_t value)
         set_battle_line_scroll_offsets_down(g, HALF_THE_ENTRIES + entry, 0);
     }
     screen_leave_for_the_drift(g, sway);
-    charge_machine_accesses(g, 2);
     return screen_on();
 }
 SCREEN_OPERATION(sway_lines, value)

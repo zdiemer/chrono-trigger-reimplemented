@@ -26,7 +26,6 @@
 #include "battle/screen.h"
 #include "battle/setup.h"
 #include "charge.h"
-#include "holds.h"
 #include "vars.h"
 
 /* The member's nearest enemy, found as the battlefield's searches find it,
@@ -62,7 +61,6 @@ static void face_the_enemies(GameState *g)
         TIMED_AS(g, 0xC10222, direction = battle_direction(g, from, to));
         set_battle_object_facing(g, member, battle_facing_of_direction(g, direction));
     }
-    charge_machine_accesses(g, 2);
 }
 
 // $C1:34DB
@@ -161,9 +159,7 @@ typedef struct {
     Platform *pf;
 } BattleSetUpContext;
 
-enum { SET_UP_ENTRY = 0xC10023, SET_UP_STATE_ENTRY = 0xCCE2E4, DRAW_WINDOW = 0xC10299, ALL_BOUNDS = 0xC1283D,
-       SET_UP_GRAPHICS_ENTRY = 0xCCED87, AFTER_THE_GRAPHICS = 0xC10031, OPEN_THE_WINDOW = 0xCD000C,
-       FACES_THE_ENEMIES = 0xC10042 };
+enum { SET_UP_ENTRY = 0xC10023, SET_UP_STATE_ENTRY = 0xCCE2E4, DRAW_WINDOW = 0xC10299, ALL_BOUNDS = 0xC1283D, SET_UP_GRAPHICS_ENTRY = 0xCCED87, AFTER_THE_GRAPHICS = 0xC10031, OPEN_THE_WINDOW = 0xCD000C, FACES_THE_ENEMIES = 0xC10042 };
 
 static bool set_up_a_part(void *ctx, SetUpCall call)
 {
@@ -226,78 +222,5 @@ bool battle_set_up_runs(GameState *g, Platform *pf)
  * returns to the setup), and for the window's slide (battle/wait.c), which
  * reads none of the registers but A's high byte, as the window's opening
  * leaves it. */
-enum { SLIDE_WAIT = 0xC1003C, THE_WAIT_READS_A_S_HIGH_BYTE = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+enum { SLIDE_WAIT = 0xC1003C };
 /* The window's opening sets the rest of the registers itself. */
-enum { THE_OPENING_READS_A_S_HIGH_BYTE = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-static bool set_up_on_the_machine(void *ctx, SetUpCall call)
-{
-    Snes *s = ctx;
-    switch (call) {
-    case SET_UP_STATE: return battle_run_long(s, 0xC10023, SET_UP_STATE_ENTRY, battle_setup_state_entry);
-    case SET_UP_WINDOW: return battle_run(s, 0xC10027, DRAW_WINDOW, battle_draw_window);
-    case SET_UP_BOUNDS: return battle_run(s, 0xC1002A, ALL_BOUNDS, battle_update_all_object_bounds);
-    case SET_UP_GRAPHICS: return battle_run_long(s, 0xC1002D, SET_UP_GRAPHICS_ENTRY, battle_setup_graphics_entry);
-    default: return false;
-    }
-}
-
-static bool open_the_window_on_the_machine(void *ctx)
-{
-    return battle_run_long_dc(ctx, 0xC10038, OPEN_THE_WINDOW, THE_OPENING_READS_A_S_HIGH_BYTE, battle_open_the_window);
-}
-
-void battle_set_up(Snes *s) { (void)set_up(set_up_on_the_machine, s); }
-
-void battle_set_up_after_the_graphics(Snes *s)
-{
-    if (set_up_after_the_graphics(state_of(s), open_the_window_on_the_machine, s))
-        m_hold_at(s, SLIDE_WAIT, THE_WAIT_READS_A_S_HIGH_BYTE, HOLD_BATTLE_WINDOW);
-}
-
-/* Every combatant there's graphics known to the builder (battle/sprites.c). */
-bool battle_combatants_graphics_known(Snes *s)
-{
-    if (!battle_on_page_a_high_clear(s))
-        return false;
-    vars_peek(true);
-    bool known = combatants_graphics_known(state_of(s));
-    vars_peek(false);
-    return known;
-}
-
-// $CD:0003
-
-// $CD:0000, $CD:0039
-/* The battle's screen set up ($D1:F1B0) for the battle's start from the
- * field, which calls it through this bank's table of ways in. */
-void battle_set_the_screen_up_for_the_field(Snes *s)
-{
-    if (battle_run_long(s, 0xCD0039, 0xD1F1B0, battle_set_the_screen_up))
-        m_rtl(s);
-}
-
-/* ---- The entry --------------------------------------------------------------------------- */
-
-/* From the setup's wait for the window's slide ($C1:0042, which jumps here),
- * and on to the poses (battle/party_poses.c), which return to the setup. */
-void battle_party_faces_the_enemies(Snes *s)
-{
-    open_the_battle(state_of(s));
-    if (battle_strike_the_poses_as_their_own(s)) {
-        m_rts(s);
-        /* Setup resumes through the scheduler's saved-register frame. */
-        native_hold_return(s, HOLD_BATTLE_WINDOW);
-    }
-}
-
-/* On the battle's page with A's high byte clear, as the setup comes; the
- * search's other combatants, and the target it last found, which it keeps
- * where it finds nobody, are combatants. */
-bool battle_opening_ready(Snes *s)
-{
-    vars_peek(true);
-    bool named = opening_fits(state_of(s));
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && named;
-}

@@ -1,3 +1,5 @@
+#include "event/script.h"
+#include "event/script.h"
 /* Scripts recording the story (event/variables.h): writing a byte or a word
  * of the story memory, moving the story's progress on, and raising or
  * lowering a single story flag -- a door unlocked, a character met.

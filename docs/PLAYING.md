@@ -32,6 +32,20 @@ bytes under names; `frontend/file_store.c` handles host files. Main-thread and
 menu-task stack switching goes through `runtime/port/fiber.h`. The native
 renderer and mixer operate on service state, with no emulation backend.
 
+## The native program
+
+`game/core/program.c` boots the services and calls field, scene and warp modes
+directly. Game operations take game state and the platform services they use.
+The program stores each mode's vblank and line callbacks as C function pointers
+in its own state. The frame driver calls those callbacks and resumes the main
+coroutine; waits yield through the timing service. Reset and title requests
+return to the program loop rather than changing a program counter or stack.
+
+Native time comes from counted work and the authored rates in
+`runtime/port/time_rates.c`. The original addresses retained as timing keys and
+diagnostic origins are never executed. There is no registry, emulated CPU,
+machine-entry macro layer or missing-machine stub backend.
+
 `tools/dist.py` builds and packages ct_native and its host libraries. On Windows
 it follows DLL imports and copies non-system dependencies; on Unix it lists
 external shared libraries for the target machine to install.

@@ -56,7 +56,6 @@ ScriptChoosing enemy_choosing(GameState *g, uint8_t enemy)
                          .actions_from = battle_script_actions_place(g) };
     charge_uncounted_end(g, mark);
     /* Preserve both backends' existing estimate of the search work. */
-    charge_machine_accesses(g, 10);
     return c;
 }
 
@@ -67,7 +66,6 @@ void enemy_leave_choosing(GameState *g, const ScriptChoosing *c)
     uint32_t mark = charge_uncounted_begin(g);
     set_battle_script_actions_place(g, c->actions_from);
     charge_uncounted_end(g, mark);
-    charge_machine_accesses(g, 10);
     set_battle_enemy_turn(g, c->enemy);
 }
 void enemy_hand_back_choosing(GameState *g, const ScriptChoosing *c) { write_choosing(g, c); }
@@ -402,15 +400,6 @@ static bool no_member_comes_back(const GameState *g)
     return true;
 }
 
-/* The commands an entry takes up are the tables': a script holds no others,
- * but a place the game never leaves a script at (a fuzzed one) can land on
- * bytes that aren't, which the original dispatches past its tables -- a
- * condition or an action into the tables after, a selector into code. So the
- * guards look at what the entry would take up from the place: a condition and
- * the selector it names, an action and its selectors, and after a draw among
- * four, those four. */
-static bool selector_in_table(uint8_t selector) { return selector < SELECTORS || (selector & SELECT_CONDITION_TARGET); }
-
 /* An action by its byte: the end of the actions, or one of the tables'. */
 static bool action_byte_in_tables(const GameState *g, ScriptPlace at)
 {
@@ -449,21 +438,6 @@ static bool actions_in_table(const GameState *g, ScriptPlace at)
  * end marker after wherever the conditions left the place (in an operand,
  * where a byte there is the marker). */
 enum { CONDITIONS_A_BLOCK_HOLDS = 2 };
-
-static bool block_in_tables(const GameState *g, uint8_t kind, ScriptPlace at)
-{
-    for (unsigned n = 0; n < CONDITIONS_A_BLOCK_HOLDS; n++) {
-        ScriptPlace condition = (ScriptPlace)(at + n * SCRIPT_CONDITION_BYTES);
-        if (n > 0 && enemy_script_byte(g, condition) == SCRIPT_BLOCK_END)
-            break;
-        if (!enemy_condition_in_tables(g, n == 0 ? kind : enemy_script_byte(g, condition), condition))
-            return false;
-        for (unsigned left_at = 0; left_at < SCRIPT_CONDITION_BYTES; left_at++)
-            if (!actions_in_table(g, (ScriptPlace)(end_after(g, (ScriptPlace)(condition + left_at)) + 1)))
-                return false;
-    }
-    return true;
-}
 
 /* An enemy going on through its block's actions takes up the next it kept:
  * where the block it kept them for is one the choosing can reach from
@@ -523,30 +497,6 @@ bool enemy_action_entry_fits(const GameState *g, uint8_t action)
     return working_on_an_enemy(g) && action_entry_fits_the_tables(g, action, battle_script_place(g));
 }
 
-static bool takes_what_the_tables_hold(const Snes *s, const GameState *g, ScriptUse use, uint8_t command)
-{
-    ScriptPlace at = battle_script_place(g);
-    switch (use) {
-    case TAKES_CONDITION: return block_in_tables(g, command, at) && next_actions_kept_in_table(g);
-    case TAKES_HELD: return actions_in_table(g, (ScriptPlace)(end_after(g, at) + 1)) && next_actions_kept_in_table(g);
-    case TAKES_ACTION: return action_entry_fits_the_tables(g, command, at);
-    case TAKES_SELECTOR: return selector_in_table(enemy_script_byte(g, (ScriptPlace)(at + 1)));
-    case TAKES_SELECTOR_IN_A: return battle_selector_in_a(s) < SELECTORS;
-    case TAKES_ACTIONS: return choosing_actions_in_table(g);
-    case TAKES_NOTHING: return true;
-    }
-    return true;
-}
-
-bool battle_script_entry_ready(Snes *s, ScriptUse use, uint8_t command)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ready = working_on_an_enemy(g) && takes_what_the_tables_hold(s, g, use, command);
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && ready;
-}
-
 /* The turn starts from the acting enemy alone: a reaction carries out the
  * action its conditions chose, a turn the next the enemy kept. */
 bool battle_enemy_turn_fits(const GameState *g)
@@ -555,12 +505,4 @@ bool battle_enemy_turn_fits(const GameState *g)
     return enemy < BATTLE_ENEMIES && no_member_comes_back(g)
            && actions_in_table(g, battle_action_hit_enemy(g) ? battle_script_actions_place(g)
                                                             : battle_enemy_next_action(g, enemy));
-}
-
-bool battle_enemy_turn_ready(Snes *s)
-{
-    vars_peek(true);
-    bool ready = battle_enemy_turn_fits(state_of(s));
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && ready;
 }

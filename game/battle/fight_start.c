@@ -83,8 +83,6 @@ enum { TIMER_KIND_CURSORS = 13 };
 static void clear_timer_order(GameState *g)
 {
     set_battle_foe_kept(g, 0);
-    for (unsigned n = 0; n < BATTLE_FIGHT_START_SPARES_COUNT; n++)
-        charge_machine_accesses(g, 1);
     set_battle_timer_kind_bit(g, 0);
     set_battle_timer_kinds_due(g, 0);
     for (unsigned kind = 0; kind < BATTLE_TIMER_KINDS; kind++)
@@ -113,10 +111,8 @@ enum { NO_SPARE_TURN = 3 };
 
 void fight_clear_turn_state(GameState *g)
 {
-    charge_machine_accesses(g, 12);
     set_battle_action_running(g, 0);
     set_battle_action_state(g, 0);
-    charge_machine_accesses(g, 1);
     set_battle_candidate_count(g, 0);
     set_battle_action_hit_enemy(g, 0);
     set_battle_action_hit_party(g, 0);
@@ -140,8 +136,6 @@ void fight_clear_turn_state(GameState *g)
     for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++)
         set_battle_candidates(g, slot, COMBATANT_NONE);
     set_battle_condition_target(g, COMBATANT_NONE);
-    for (unsigned n = 0; n < BATTLE_CONDITION_TARGET_SPARES_COUNT; n++)
-        charge_machine_accesses(g, 1);
     set_battle_enemy_beaten_any(g, 0);
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
         set_battle_enemy_action_chosen(g, enemy, 0);
@@ -177,8 +171,7 @@ void fight_number_places(GameState *g)
  * member whose stats are added up, twice over (scaffolding); and the
  * equipment records' copies' three numbers, the last of which survive the
  * start (above). */
-enum { COUNTING_AT = 0x02, TECHS_MEMBER_AT = BATTLE_MEMBER_CELL, WORN_AT = BATTLE_MEMBER_CELL,
-       COPY_TO_AT = BATTLE_NUMBER_TESTED, BYTES_AT = BATTLE_STAT_OFFSET_LOW, ADDING_UP_AT = 0x10 };
+enum { COUNTING_AT = 0x02, TECHS_MEMBER_AT = BATTLE_MEMBER_CELL, WORN_AT = BATTLE_MEMBER_CELL, COPY_TO_AT = BATTLE_NUMBER_TESTED, BYTES_AT = BATTLE_STAT_OFFSET_LOW, ADDING_UP_AT = 0x10 };
 
 /* The equipment's records each member's block takes: the weapon's attack and
  * what goes with it, the helmet's and the armor's defence and modifier, and
@@ -211,7 +204,6 @@ void battle_start_fight(GameState *g)
     fight_list_combatants(g);
     for (uint8_t enemy = 0; enemy < battle_enemy_count(g); enemy++)
         fight_load_enemy(g, enemy);
-    charge_machine_accesses(g, 3);
     fight_note_enemy_families(g);
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         fight_take_member_record(g, member);
@@ -225,7 +217,6 @@ void battle_start_fight(GameState *g)
 
     battle_blank_tech_records(g);
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
-        charge_machine_accesses(g, 2);
         battle_set_up_single_techs(g, member);
         battle_set_up_double_techs(g, member);
         battle_find_triple_tech(g, member);
@@ -238,18 +229,14 @@ void battle_start_fight(GameState *g)
     clear_timer_order(g);
 
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
-        charge_machine_accesses(g, 2);
         battle_equip_member(g, member);
     }
     for (unsigned n = 0; n < RECORDS_TAKEN; n++) {
-        charge_machine_accesses(g, 6);
         battle_take_equipment_records(g, records_taken[n].worn_at, records_taken[n].copy_to, records_taken[n].bytes);
     }
     keep_last_record_handed_over(g);
-    charge_machine_accesses(g, 1);
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         fight_add_up_member_stats(g, member);
-    charge_machine_accesses(g, 2);
 
     fight_clear_timers(g);
     fight_set_timer_lengths(g);

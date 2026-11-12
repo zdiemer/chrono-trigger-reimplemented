@@ -34,7 +34,6 @@ static StealOutcome came_out(GameState *g, StealOutcome outcome)
                    : outcome == STEAL_NOTHING ? STEAL_OUTCOME_NOTHING
                                               : battle_steal_outcome(g);
     set_battle_steal_outcome(g, kept);
-    charge_machine_accesses(g, 1);
     return outcome;
 }
 
@@ -76,17 +75,13 @@ static void give_stolen(GameState *g, uint8_t item)
     battle_keep_word(g, BATTLE_CLOCK_READS, 0);
     battle_keep_word(g, BATTLE_NUMBER_TESTED, 0);
     battle_keep_stat_offset_word(g, 0);
-    charge_machine_accesses(g, 2);
     uint8_t thief = battle_actor(g);
     effect_times(g, thief, KEPT_ITEM_BYTES);
     /* entered with the carry the item's test left, set */
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 2);
     set_battle_action_came_to_nothing(g, 0);
     if (item >= FIRST_RECORDED_ITEM) {
         uint8_t past = (uint8_t)(item - FIRST_RECORDED_ITEM);
         battle_keep_stat_offset_word(g, past);
-        charge_machine_accesses(g, 2);
         uint8_t flags = item_record_flags(g, item);
         if (flags & ITEM_KEPT_APART) {
             battle_member_keep_item(g, thief, item, item_record_detail(g, item), (uint8_t)(flags & ~ITEM_KEPT_APART));
@@ -108,7 +103,6 @@ StealOutcome effect_steal(GameState *g, uint8_t chance)
     if (drawn > chance)
         return came_out(g, STEAL_MISSED);
     uint8_t target = battle_effect_target(g);
-    charge_machine_accesses(g, 2);
     uint8_t enemy = combatant_id(g, target);
     battle_keep_stat_offset_word(g, effect_times(g, enemy, 7));
     bool charm = effect_charm_comes(g);

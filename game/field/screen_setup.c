@@ -23,7 +23,6 @@
  * frame's work going on (or, coming back from a menu, the effects only),
  * and the play clock runs again. */
 #include "field/screen_setup.h"
-#include "holds.h"
 #include "field/cast.h"
 #include "field/dialog_window.h"
 #include "field/display.h"
@@ -47,7 +46,6 @@
 #include "field/bridge.h"
 #include "field/scratch.h"
 #include "platform/timing.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -127,35 +125,10 @@ static void place_the_layers_maps(GameState *g)
 
 /* A layer's drawing at the load (field/streaming.h), as C where its guard
  * takes the state and the original's otherwise, on the layers' page. */
-enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
 static const struct {
     uint32_t routine, site;
 } drawing[FIELD_LAYERS] = { { 0xC075E9, 0xC00A96 }, { 0xC078EC, 0xC00AAB }, { 0xC07CB5, 0xC00AD8 } };
-
-static bool draw_a_layer(Snes *s, unsigned layer)
-{
-    GameState *g = state_of(s);
-    if (layer_drawing_fits(g, layer)) {
-        TIMED_AS(g, drawing[layer].routine, draw_layer_at_the_maps_load(g, layer));
-        return true;
-    }
-    program_breaks_a_contract(g, drawing[layer].routine, "a layer drawing outside its map bounds");
-    return bridge_call_on_page(s, drawing[layer].site, drawing[layer].routine, READS_NOTHING, FIELD_LAYERS_PAGE);
-}
-
-/* The layer drawn and sent to its place: both screens where it is drawn
- * whole. */
-static bool draw_and_send_a_layer_on_the_machine(Snes *s, unsigned layer)
-{
-    GameState *g = state_of(s);
-    if (!draw_a_layer(s, layer))
-        return false;
-    set_field_transfer_vram(g, field_layer_map_base(g, layer));
-    bool whole = layer != FIELD_BG1 && (field_layer_drawn_whole(g) & FIELD_LAYER_BIT(layer));
-    TIMED_AS(g, whole ? FIELD_SEND_STAGED_SCREENS_ENTRY : FIELD_SEND_STAGED_SCREEN_ENTRY,
-             field_send_staged_layer(g, m_platform(s), whole));
-    return true;
-}
 
 static bool draws_bg3(const GameState *g)
 {
@@ -170,69 +143,16 @@ static bool draws_bg3(const GameState *g)
  * false where a call it made didn't come back as the field runs. */
 enum { SET_THE_VIDEO_MODE = 0xFDC0D7, SHOW_THE_SCREENS = 0xC0A509 };
 
-static bool draw_the_map_on_the_machine(Snes *s)
-{
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    TIMED_AS(g, CHESTS_MARK_THE_MAP_ENTRY, chests_mark_the_map(g));
-    TIMED_AS(g, SET_THE_VIDEO_MODE, field_set_the_video_mode(pf));
-    TIMED_AS(g, SHOW_THE_SCREENS, field_show_the_maps_screens(g, pf));
-    place_the_screen(g);
-    place_the_layers_maps(g);
-    if (!draw_and_send_a_layer_on_the_machine(s, FIELD_BG1) || !draw_and_send_a_layer_on_the_machine(s, FIELD_BG2))
-        return false;
-    if (draws_bg3(g) && !draw_and_send_a_layer_on_the_machine(s, FIELD_BG3))
-        return false;
-    if (layers_repeat_within_the_maps(g))
-        TIMED_AS(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, stream_the_right_columns(g));
-    else {
-        program_breaks_a_contract(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, "layer columns outside their repeated maps");
-        if (!bridge_call(s, 0xC00AF3, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, READS_NOTHING, on_the_field_page(s, false)))
-            return false;
-    }
-    if (field_bg3_map_size(g) != 0)
-        set_field_layer_map_size(g, FIELD_BG3, field_bg3_map_size(g));
-    return true;
-}
-
 /* ---- The objects ------------------------------------------------------------------------------ */
 
 /* A part of the object's frame drawn as C where its guard takes the state,
  * and the original's otherwise: true while more of it is to draw. False in
  * `came_back` where the call didn't come back as the field runs. */
-enum { THE_BUILDER_READS_THE_OBJECT = DC_A | DC_X | DC_Y | DC_N | DC_Z };
-
-static bool draw_a_frame_part(Snes *s, bool *came_back)
-{
-    *came_back = field_run(s, 0xC0B109, FIELD_DRAW_NEXT_FRAME_ENTRY, THE_BUILDER_READS_THE_OBJECT, field_draw_next_frame,
-                           on_the_field_page(s, true));
-    return *came_back && m_flag(s, CPU_FLAG_C);
-}
 
 /* An object in view at the start is drawn at once: on the screen, in its
  * row, its whole frame drawn and sent, its frame areas let go. False where
  * the port stopped. */
-enum { JOINS_ITS_ROW_READS = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, UPLOAD_THE_QUEUE = 0xC0B1B2 };
-
-static bool draw_at_once_on_the_machine(Snes *s, FieldObject obj)
-{
-    GameState *g = state_of(s);
-    TIMED_AS(g, FIELD_UPDATE_SCREEN_POSITION_ENTRY, object_update_screen_position(g, obj));
-    if (!field_rows_step(s, obj, true)) {
-        program_breaks_a_contract(g, FIELD_JOIN_ROW_ENTRY, "an object outside its row chain");
-        if (!bridge_call(s, 0xC0B104, FIELD_JOIN_ROW_ENTRY, JOINS_ITS_ROW_READS, on_the_field_page(s, true)))
-            return false;
-    }
-    set_field_vram_queue_end(g, 0);
-    bool came_back = true;
-    while (draw_a_frame_part(s, &came_back))
-        ;
-    if (!came_back)
-        return false;
-    TIMED_AS(g, UPLOAD_THE_QUEUE, field_upload_queued_transfers(g, m_platform(s)));
-    TIMED_AS(g, FIELD_RELEASE_FRAME_AREAS_ENTRY, sprites_release_frame_areas(g, obj));
-    return true;
-}
+enum { UPLOAD_THE_QUEUE = 0xC0B1B2 };
 
 // $C0:B0E6 (with $C0:B127 for each)
 /* Every object that shows and is near enough the screen comes into view and
@@ -256,88 +176,12 @@ static bool may_come_into_view(const GameState *g, FieldObject obj)
     return !role.disabled && role.kind != ROLE_WINDOW_ONLY;
 }
 
-/* The sprite builder carries this flag through to still-gated callers.
- * Keep its calling convention until those callers retire with the menus. */
-static void leave_view_overflow_on_the_machine(Snes *s, unsigned objects)
-{
-    const GameState *g = state_of(s);
-    for (unsigned obj = objects; obj-- > 0;)
-        if (may_come_into_view(g, (FieldObject)obj) && (int8_t)field_object_sprite_flag(g, (FieldObject)obj) > 0) {
-            if (!object_in_view(g, (FieldObject)obj))
-                m_set_flag(s, CPU_FLAG_V, field_add_overflows8(field_screen_bottom(g), START_WINDOW_BELOW));
-            return;
-        }
-}
-
-void field_draw_the_objects_in_view(Snes *s)
-{
-    GameState *g = state_of(s);
-    unsigned objects = event_object_count(g);
-    charge_legacy_accesses(g, 4); /* the old loop bound's word read and write */
-    m_sep(s, CPU_FLAG_X);
-    for (FieldObject obj = 0; obj < objects; obj++) {
-        object_make_current(g, obj);
-        if (!may_come_into_view(g, obj) || !object_in_view_at_the_start(g, obj))
-            continue;
-        if (!draw_at_once_on_the_machine(s, obj))
-            return;
-    }
-    m_rep(s, CPU_FLAG_X);
-    leave_view_overflow_on_the_machine(s, objects);
-    if (field_sprite_rows_drawable(s))
-        TIMED_AS(g, SPRITE_TABLE, field_build_sprite_table(s));
-    else
-        m_stop_at_own(s, SPRITE_TABLE, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
-}
-
-/* Its guard: on the field's page with the data bank $00, a count of
- * objects the tables hold (none would have the original's loop run round
- * the bytes 128 times), and each object that may come into view one whose
- * palette and block the port takes as the view does (field/object_view.c). */
-bool field_objects_in_view_can_be_drawn(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    unsigned objects = event_object_count(g);
-    bool ok = objects != 0 && objects <= FIELD_OBJECTS;
-    for (FieldObject obj = 0; ok && obj < objects; obj++)
-        if (may_come_into_view(g, obj))
-            ok = field_view_change_in_the_tables(g, obj);
-    vars_peek(false);
-    return ok;
-}
-
 /* ---- The screen back on ----------------------------------------------------------------------- */
 
 /* The line effects readied for the first frame: their values, their tables
  * built (on 8-bit index registers) and set up, each the port it is, from
  * the original's calls in its routine ($C0:0B28). */
 enum { LINE_EFFECT_VALUES = 0xFDC124, LINE_EFFECTS = 0xFDC2C1, LINE_EFFECTS_SET_UP = 0xFDC1EE };
-
-static bool ready_the_line_effects(Snes *s)
-{
-    if (!field_run_long(s, 0xC00B28, LINE_EFFECT_VALUES, READS_NOTHING, field_init_line_effect_values,
-                        on_the_field_page(s, false)))
-        return false;
-    m_sep(s, CPU_FLAG_X);
-    if (!field_run_long(s, 0xC00B2E, LINE_EFFECTS, READS_NOTHING, field_build_line_effect_tables,
-                        on_the_field_page(s, true)))
-        return false;
-    m_rep(s, CPU_FLAG_X);
-    return field_run_long(s, 0xC00B34, LINE_EFFECTS_SET_UP, READS_NOTHING, field_setup_line_effects,
-                          on_the_field_page(s, false));
-}
-
-// $C0:0B28
-/* Prepare the first picture's line effects, then leave the vblank wait to
- * its held wait. Its continuation turns the handlers on once it arrives. */
-void field_ready_the_picture(Snes *s)
-{
-    if (ready_the_line_effects(s))
-        m_hold_at(s, 0xC00B38, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, HOLD_FIELD_SCREEN);
-}
 
 /* The wait for the vblank with the handlers off, after which they come on:
  * the original's routine's own (from $C0:0B38), which the timing service
@@ -353,9 +197,6 @@ enum { FIRST_SPRITES_HIDDEN = 4 };
 
 /* The original's routines it calls on the machine where a port won't run. */
 enum { FRAME_WAIT = 0xC0EC60, DRAW_THE_OBJECTS = 0xC0B0E6 };
-enum { THE_OBJECTS_READ_Y_AND_THE_OVERFLOW = DC_A | DC_X | DC_N | DC_Z | DC_C };
-
-static BridgeMachine page(const Snes *s) { return on_the_field_page(s, false); }
 
 /* The dialog window's looks, the window design's tiles and colours, the
  * choice pointer's tiles and the field's own sprites. */
@@ -370,59 +211,6 @@ static void put_up_the_window(GameState *g, Platform *pf)
     field_send_the_fields_own_sprites(g, pf);
     sprites_hide_the_first(g, FIRST_SPRITES_HIDDEN);
     TIMED_AS(g, FIELD_SEND_CHOICE_POINTER_ENTRY, field_send_the_choice_pointer(g, pf));
-}
-
-// $C0:286C
-/* The screen set up from nothing (above). Returns for the routine, with the
- * location's dark setting in A (Z set where it is 0); false where the port
- * stopped. */
-static bool set_the_screen_up(Snes *s)
-{
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    if (field_remembered_switches_on_the_map(g))
-        TIMED_AS(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, field_press_the_remembered_switches(g));
-    else {
-        program_breaks_a_contract(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, "remembered switches outside the map");
-        if (!bridge_call(s, 0xC0286C, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, READS_NOTHING, page(s)))
-            return false;
-    }
-    if (!field_run_table_step(s, 0xC0286F, draw_the_map_on_the_machine))
-        return false;
-    field_objects_let_go(g, false);   /* a map's screen starts with no object holding anything of it */
-    /* The still-gated sprite/menu chain reads the fill's Y and the map
-     * drawing's overflow. They remain part of this machine call's result. */
-    s->cpu.y = 0x00FF;
-    m_set_flag(s, CPU_FLAG_V, field_layer_edges_overflow(g));
-    if (!field_run(s, 0xC02881, DRAW_THE_OBJECTS, THE_OBJECTS_READ_Y_AND_THE_OVERFLOW, field_draw_the_objects_in_view,
-                   page(s)))
-        return false;
-    put_up_the_window(g, pf);
-    return field_run_or_hand_over(s, 0xC028A1, 0xC00B28, READS_NOTHING, field_ready_the_picture, page(s));
-}
-
-// $C0:28A4
-/* The picture's handlers are on. Send its first complete frame before the
- * fade starts, leaving the main thread saveable at the shared frame wait. */
-void field_picture_waits_for_its_first_frame(Snes *s)
-{
-    (void)field_hold_next_frame(s, 0xC028A4, READS_NOTHING, page(s));
-}
-
-// $C0:28A7
-void field_picture_is_ready(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t dark = field_setting_1e(g);
-    m_set_a8(s, dark);
-    m_set_nz8(s, dark);
-    field_return_to_waiting_caller(s);
-}
-
-void field_set_the_screen_up(Snes *s)
-{
-    if (set_the_screen_up(s))
-        m_rts(s);
 }
 
 /* ---- The screen set up, as C ------------------------------------------------------------------ */
@@ -510,7 +298,7 @@ bool field_screen_set_up(GameState *g, Platform *pf)
         return false;
     put_up_the_window(g, pf);
     field_line_effects_ready(g, pf);
-    tm_wait_frame_then_enable(pf, PF_CALL_DC(0xC028A1, SCREEN_ON, READS_NOTHING), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD,
+    tm_wait_frame_then_enable(pf, PF_CALL(0xC028A1, SCREEN_ON), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD,
                               FIELD_PICTURE_LAST_LINE);
     field_finish_the_frame(g, pf);
     return true;
@@ -624,120 +412,3 @@ bool field_fade_in_after_a_menu(GameState *g, Platform *pf)
     uint8_t shown;
     return fade_in(g, WITH_THE_EFFECTS_ONLY, &in_the_program, &c, &shown);
 }
-
-/* ---- On the machine ------------------------------------------------------------------------- */
-
-/* Each step from the original's call of it, by kind of fade in. The walk
- * runs under the control the fade keeps on the stack over it. */
-static const struct {
-    uint32_t setup, walk, work, wait;
-} fade_in_sites[] = {
-    [WITH_THE_FRAMES_WORK] = { 0xC02848, 0xC02854, 0xC0285A, 0xC0285D },
-    [WITH_THE_EFFECTS_ONLY] = { 0xC02824, 0xC02830, 0xC02836, 0xC02839 },
-};
-enum { READS_THE_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
-
-static bool set_up_on_the_machine(void *ctx, FadeInKind kind)
-{
-    Snes *s = ctx;
-    return field_run(s, fade_in_sites[kind].setup, FIELD_SET_THE_SCREEN_UP_ENTRY, READS_NOTHING,
-                     field_set_the_screen_up, page(s));
-}
-
-static bool walk_on_the_machine(void *ctx, FadeInKind kind, uint8_t control)
-{
-    Snes *s = ctx;
-    return field_run_holding(s, fade_in_sites[kind].walk, WALK, READS_NOTHING, field_walk_the_leader, page(s), control);
-}
-
-static bool work_on_the_machine(void *ctx, FadeInKind kind)
-{
-    Snes *s = ctx;
-    if (kind == WITH_THE_FRAMES_WORK)
-        return field_run(s, fade_in_sites[kind].work, FIELD_FRAME_WORK_ENTRY, READS_THE_OVERFLOW, field_frame_work,
-                         page(s));
-    return field_run(s, fade_in_sites[kind].work, FIELD_REFRESH_EFFECTS_ENTRY, READS_NOTHING, field_refresh_effects,
-                     page(s));
-}
-
-static bool wait_on_the_machine(void *ctx, FadeInKind kind)
-{
-    Snes *s = ctx;
-    return field_hold_next_frame(s, fade_in_sites[kind].wait, READS_NOTHING, page(s));
-}
-
-/* A is left the last brightness, or the dark setting, which the callers'
- * callers read the high byte of only. */
-static void fade_in_on_the_machine(Snes *s, FadeInKind kind)
-{
-    static const FadeInSteps on_the_machine = { set_up_on_the_machine, walk_on_the_machine, work_on_the_machine,
-                                                wait_on_the_machine };
-    uint8_t shown;
-    if (!fade_in(state_of(s), kind, &on_the_machine, s, &shown))
-        return;
-    m_set_a8(s, shown);
-    m_set_nz8(s, shown);
-    m_rts(s);
-}
-
-void field_fade_in_entry(Snes *s) { fade_in_on_the_machine(s, WITH_THE_FRAMES_WORK); }
-
-void field_fade_in_after_a_menu_entry(Snes *s) { fade_in_on_the_machine(s, WITH_THE_EFFECTS_ONLY); }
-
-/* A fade has no private working state between frames: its brightness and
- * the location's dark setting determine the next step. Returning also
- * keeps the caller's continuation named, across the setup and fade calls. */
-static void finish_brightening(Snes *s, uint8_t shown)
-{
-    GameState *g = state_of(s);
-    set_field_setting_1e(g, 0);
-    start_play_clock(g);
-    m_set_a8(s, shown);
-    m_set_nz8(s, shown);
-    field_return_to_waiting_caller(s);
-}
-
-static void brighten_one_frame(Snes *s, FadeInKind kind)
-{
-    GameState *g = state_of(s);
-    set_field_brightness(g, (uint8_t)(field_brightness(g) + 1));
-    uint8_t control = field_player_control(g);
-    hand_the_party_to_the_player(g, false);
-    if (!walk_on_the_machine(s, kind, control))
-        return;
-    set_field_player_control(g, control);
-    if (work_on_the_machine(s, kind))
-        (void)wait_on_the_machine(s, kind);
-}
-
-static void picture_ready_to_brighten(Snes *s, FadeInKind kind, bool brighten, uint8_t shown)
-{
-    if (brighten)
-        brighten_one_frame(s, kind);
-    else
-        finish_brightening(s, shown);
-}
-
-static void picture_brightened_a_frame(Snes *s, FadeInKind kind)
-{
-    uint8_t shown = field_brightness(state_of(s));
-    if (still_brightening(shown))
-        brighten_one_frame(s, kind);
-    else
-        finish_brightening(s, shown);
-}
-
-// $C0:284B
-void field_picture_begins_brightening(Snes *s)
-{
-    picture_ready_to_brighten(s, WITH_THE_FRAMES_WORK, m_flag(s, CPU_FLAG_Z), (uint8_t)s->cpu.a);
-}
-// $C0:2827
-void field_menu_picture_begins_brightening(Snes *s)
-{
-    picture_ready_to_brighten(s, WITH_THE_EFFECTS_ONLY, m_flag(s, CPU_FLAG_Z), (uint8_t)s->cpu.a);
-}
-// $C0:2860
-void field_picture_brightened(Snes *s) { picture_brightened_a_frame(s, WITH_THE_FRAMES_WORK); }
-// $C0:283C
-void field_menu_picture_brightened(Snes *s) { picture_brightened_a_frame(s, WITH_THE_EFFECTS_ONLY); }

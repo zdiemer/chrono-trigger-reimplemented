@@ -6,7 +6,7 @@
 
 #include <stdbool.h>
 
-#include "snes/system.h"
+#include <stdint.h>
 #include "state.h"
 
 /* Build the number tiles (menu_number_tiles, menu_hundreds_tiles) and the

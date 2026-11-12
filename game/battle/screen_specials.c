@@ -60,7 +60,6 @@ static void lay_bands_of_light(GameState *g, uint8_t lines)
     for (unsigned band = 0; band < BANDS; band++)
         for (BandTable t = BLUE_BANDS; t < BAND_TABLES; t++)
             set_band(g, t, band, lines, band_intensity(band, fade));
-    charge_machine_accesses(g, 3);
 }
 
 // $CD:2D4A
@@ -222,7 +221,6 @@ static void lay_out_the_nudge_wave(GameState *g, ScreenChannel channel)
     (void)channel;
     for (unsigned n = 0; n < NUDGES; n++)
         set_battle_window_line_deltas(g, n, screen_scaled_sine(g, (uint8_t)(n * NUDGE_WAVE_STEP), NUDGE_WAVE_HEIGHT));
-    (charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, 1));
 }
 
 // $CD:2B64
@@ -315,8 +313,7 @@ static void bob_layer_up(GameState *g, ScreenChannel channel) { bob_layer(g, cha
  * dropping off the end); they are large, at the channel's layer, in front of
  * everything, and those that fall below the battlefield (or off the screen)
  * hidden. */
-enum { FIRST_SHOWN = 4, SPRITES_SHOWN = 16, SPRITES = OAM_BUFFER_COUNT, SPRITES_A_HIGH_BYTE = 4, SPRITE_BYTES = 4,
-       IN_FRONT = 0x30, LARGE_SPRITES_BYTE = 0xAA, HIDDEN_LINE = 0xF0, BELOW_THE_BATTLEFIELD = 0xD5 };
+enum { FIRST_SHOWN = 4, SPRITES_SHOWN = 16, SPRITES = OAM_BUFFER_COUNT, SPRITES_A_HIGH_BYTE = 4, SPRITE_BYTES = 4, IN_FRONT = 0x30, LARGE_SPRITES_BYTE = 0xAA, HIDDEN_LINE = 0xF0, BELOW_THE_BATTLEFIELD = 0xD5 };
 
 static uint8_t sprite_line(uint16_t down)
 {
@@ -357,7 +354,6 @@ static void show_effect_sprites_in_front(GameState *g, ScreenChannel channel)
     }
     for (unsigned b = 0; b < HIGH_BYTES_SHOWN; b++)
         set_oam_high_table_byte(g, FIRST_HIGH + b, LARGE_SPRITES_BYTE);
-    charge_machine_accesses(g, 4);
 }
 
 /* ---- Colors, objects and signals ---------------------------------------------------------------- */

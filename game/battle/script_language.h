@@ -62,10 +62,6 @@ bool script_listed(const GameState *g, unsigned at, uint8_t *combatant);
  * channel's subject (k = 0 only), or on the other-targets channel the k-th
  * target listed from `first`. False past the last. */
 bool script_combatant_from(const GameState *g, ScriptChannel ch, unsigned first, unsigned k, uint8_t *combatant);
-static inline bool script_each_combatant(const GameState *g, ScriptChannel ch, unsigned k, uint8_t *combatant)
-{
-    return script_combatant_from(g, ch, OTHER_TARGETS_START, k, combatant);
-}
 
 /* The background's colors, which a rule's cycle runs to the last of. */
 enum { BACKGROUND_COLORS = 128 };
@@ -311,19 +307,6 @@ bool script_place_known(const GameState *g, uint8_t place);
  * `from`; the battle keeps it as the facing last found. */
 uint8_t script_find_facing(GameState *g, uint8_t facing, BattlePoint from);
 
-/* An animation slot can follow a place, found again each frame (battle/
- * objects.c); the battle keeps the place one up, 0 for none. */
-static inline void set_animation_slot_follows(GameState *g, unsigned slot, uint8_t place)
-{
-    set_battle_animation_position_modes(g, slot, (uint8_t)(place + 1));
-}
-static inline bool animation_slot_follows(const GameState *g, unsigned slot, uint8_t *place)
-{
-    uint8_t kept = battle_animation_position_modes(g, slot);
-    *place = (uint8_t)(kept - 1);
-    return kept != 0;
-}
-
 /* The script's point, which the placing commands leave and the moves aim at. */
 BattlePoint script_point(const GameState *g);
 
@@ -334,5 +317,24 @@ BattlePoint script_aim(GameState *g, ScriptAim aim, uint8_t x, uint8_t y, uint8_
 /* The sound commands' sound played, by the command's byte ($78-$7D,
  * battle/script_sound.c), as C. */
 void script_play_the_sound(GameState *g, Platform *pf, uint8_t byte, const ScriptCommand *command);
+
+static inline bool script_each_combatant(const GameState *g, ScriptChannel ch, unsigned k, uint8_t *combatant)
+{
+    return script_combatant_from(g, ch, OTHER_TARGETS_START, k, combatant);
+}
+
+/* An animation slot can follow a place, found again each frame (battle/
+ * objects.c); the battle keeps the place one up, 0 for none. */
+static inline void set_animation_slot_follows(GameState *g, unsigned slot, uint8_t place)
+{
+    set_battle_animation_position_modes(g, slot, (uint8_t)(place + 1));
+}
+
+static inline bool animation_slot_follows(const GameState *g, unsigned slot, uint8_t *place)
+{
+    uint8_t kept = battle_animation_position_modes(g, slot);
+    *place = (uint8_t)(kept - 1);
+    return kept != 0;
+}
 
 #endif

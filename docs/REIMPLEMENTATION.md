@@ -56,11 +56,71 @@ uses platform services for video, audio, input, saves and timing. The desktop
 frontend owns the window, event polling and files. Route tools drive the same
 program over stdin/stdout with `--drive`.
 
-The build links native services and state storage only. Existing entry wrappers,
-registry source and held-wait descriptions remain for the machine-removal work;
-the registry is not a build input. The native host rejects a reached machine-only
-operation. Existing authored work rates are frozen in `runtime/port/time_rates.c`
-with their values unchanged; there is no build-time generator or calibration.
+Game operations take `GameState *g` and, only when needed, `Platform *pf`, plus
+named parameters and C results. Separate parameters keep state-only calculations
+independent of services and service-only uploads independent of game storage.
+Neither handle contains an emulated CPU. The frontend owns the frame loop and
+files; the timing service owns coroutine scheduling.
+
+Core stores typed `ProgramHandler` callbacks in per-game state. Modes install
+their vblank and line functions directly. Frame dispatch reads those pointers;
+it never decodes a jump instruction or searches a table by address. Scene, warp,
+field restart, title and reset hand-offs use normal calls and named requests.
+Invalid state records the first diagnostic and returns; there is no fallback
+to cartridge code. The program test covers callback isolation, replacement,
+disabling, mode hand-offs and failed initial scenes without a ROM.
+
+The former machine entry graph had no native callers. Deleting it across all
+subsystems removed the registry, held-continuation ledger, game time-tag rows,
+console vectors, entry macros, machine access helpers, CPU shell headers and
+`no_machine.c`. Native C tables retain their real operations and timing keys.
+Machine-only cost APIs and their dead calculations were removed too. These
+deletions do not finish the vocabulary and storage work in every subsystem:
+single-implementation adapters and some register-shaped results still need
+simplification, and nineteen video escapes still need named services.
+
+### Time without a machine
+
+`TIMED_AS(g, key, operation)` selects an authored work rate. Accessors, resource
+reads and explicit charges accumulate native work; the scheduler converts that
+debt into lag frames, retaining fractional carry. Rates remain unchanged in
+`runtime/port/time_rates.c`; an address-shaped key identifies an estimate, never
+a function to execute. There is no generator or emulator calibration at build
+time. Untimed validation remains excluded where it was excluded before.
+
+Removing a read can change the estimate even if its value is dead. Callback
+selection therefore retains four access units, and disabling both callbacks
+retains sixteen. A battle upload guard used to inspect both request flags
+seventeen times, plus five bytes for a queued transfer and two for a block;
+the stack guard is gone, but its counted work remains an explicit charge.
+The lean gate caught the missing charge through battle picture and outcome
+changes; restoring the work restored those checks without changing baselines.
+
+### Warp as the subsystem pattern
+
+Warp is the pilot because its small mode includes setup, animation, frame
+waits, line effects and a return to field. `warp_runs(g, pf, scene)` selects a
+`WarpKind`, installs typed callbacks, preserves the story flags, and builds
+frames until the trip ends. `make_a_frame` updates the plane, light and circle
+and returns whether another frame is needed. The timing service yields while
+the frame is pending; completion restores the story flags and returns to the
+program loop. No wrapper, address stop, emulated return or register escape
+remains in core or warp. PORTING.md gives the steps for other subsystems.
+
+### Source inventory
+
+`tools/machine_joints.py --files` measures source dependencies, not coverage.
+
+| Joint | Before | After |
+| --- | ---: | ---: |
+| Functions taking `Snes *` | 2009 | 0 |
+| Registered entries / held continuations | 13 / 136 | 0 / 0 |
+| Emulated returns / address stops | 505 / 111 | 0 / 0 |
+| Address call-outs / sibling lookups | 14 / 9 | 0 / 0 |
+| Machine time tags | 8 | 0 |
+| Register escapes | 20 | 19 |
+| Video service calls | 543 | 534 |
+| Missing video backends / cartridge reads by address / scaffolding | 0 / 0 / 0 | 0 / 0 / 0 |
 
 ## Scaffolding removal
 

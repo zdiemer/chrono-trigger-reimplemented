@@ -1,15 +1,5 @@
-/* The program's top: what runs from power-on, as functions rather than
- * addresses (core/program.c).
- *
- * The console starts the program in two places and interrupts it in two: the
- * boot, then the main thread, which never returns and waits for frames; and
- * once a frame the vblank handler and, where the mode wants the picture ended
- * early, the line handler. On the console the CPU reaches them through the
- * cartridge's vectors and the stubs in work RAM each mode points at its own
- * handlers (core/console.c, the entries that do it). A build with no machine
- * under it (ct_native) has its driver call them instead: the main thread as a
- * coroutine whose frame waits yield to the driver, the handlers as calls once
- * a frame (runtime/platform/native/host.h). */
+/* Boot, mode hand-offs and frame callbacks. The driver resumes the main
+ * coroutine and dispatches enabled frame events through these interfaces. */
 #ifndef CT_GAME_CORE_PROGRAM_H
 #define CT_GAME_CORE_PROGRAM_H
 
@@ -25,7 +15,7 @@
 void program_boot(GameState *g, Platform *pf);
 
 /* The main thread, from power-on: the boot, then the field engine's first
- * start, which shows the title and then the game. It never returns. */
+ * start, which shows the title and then the game. It returns on a game-state failure. */
 void program_main_thread(GameState *g, Platform *pf);
 
 /* The frame's two interrupts, each sent to the handler the running mode
@@ -33,48 +23,26 @@ void program_main_thread(GameState *g, Platform *pf);
 void program_vblank(GameState *g, Platform *pf);
 void program_line(GameState *g, Platform *pf);
 
-/* Each game mode sends the two interrupts to its own handlers: the vblank's,
- * which sends the frame's work to the screen, and the line's, which ends the
- * picture where the mode wants it. `handler` is the handler's address. */
-void program_install_vblank_handler(GameState *g, uint32_t handler);
-void program_install_line_handler(GameState *g, uint32_t handler);
-/* Ignore both interrupts while the diagnostic screen is displayed. */
+/* Each mode installs ordinary C callbacks. The frame driver calls them after
+ * the main thread yields; no address lookup or CPU interrupt frame exists. */
+typedef void (*ProgramHandler)(GameState *g, Platform *pf);
+typedef struct { ProgramHandler vblank, line; } ProgramHandlers;
+/* Module storage supplied by the state owner, independent of mapped RAM. */
+ProgramHandlers *program_handlers(GameState *g);
+void program_install_vblank_handler(GameState *g, ProgramHandler handler);
+void program_install_line_handler(GameState *g, ProgramHandler handler);
 void program_ignore_interrupts(GameState *g);
 
-/* Where a stub sends its interrupt: to a handler, back to what it interrupted
- * (the mode turned it away), or nowhere yet -- before any mode has set it, it
- * holds whatever work RAM held at power-on. */
-typedef enum { PROGRAM_STUB_UNSET, PROGRAM_STUB_RETURNS, PROGRAM_STUB_JUMPS } ProgramStubKind;
-typedef struct {
-    ProgramStubKind kind;
-    uint32_t handler;   /* PROGRAM_STUB_JUMPS: the handler's address */
-} ProgramStub;
-ProgramStub program_vblank_stub(const GameState *g);
-ProgramStub program_line_stub(const GameState *g);
-
-/* Where the program's C ends: `routine` is the next thing the program does,
- * which only the machine runs yet (an entry the original's address reaches,
- * docs/PLAN.md, "The machine out of the product"). The state's backing supplies it: on
- * the machine the address is how the program goes on, so it is never called;
- * with no machine (runtime/port/state_host.c) the program stops there and the
- * driver says where. `what` names it for the report. */
-void program_needs_the_machine(GameState *g, uint32_t routine, const char *what);
-/* Whether it has: the program's C stops where it comes back to the main
- * thread. Never on the machine. */
+/* Record the first invalid or unsupported state. The routine identifies the
+ * diagnostic; it is never executed. The driver reports the failure. */
+void program_fail(GameState *g, uint32_t routine, const char *what);
+/* Whether an operation has reported a failure. */
 bool program_went_no_further(const GameState *g);
 
-/* A retired routine (its subsystem off the byte-exact gate) given a state the
- * game never makes, which its guard used to turn away to the original: the
- * guard is an assertion now, and this is it failing. With no machine the
- * program stops there, as at program_needs_the_machine; on the machine the
- * break is reported (a `contract broken:` line, which fails the gate) and
- * the caller goes on as its refusal did. */
+/* A game-state invariant failed. */
 void program_breaks_a_contract(GameState *g, uint32_t routine, const char *what);
 
-/* Where a mode that ends sends the program next, which the main thread takes
- * when the mode returns to it: a scene of the scene engine's, the field
- * ending into it. The state's backing keeps it; on the machine the address
- * the mode jumps to is how the program goes on, and these are never called. */
+/* A mode returns to the main loop with a scene request. Taking consumes it. */
 void program_goes_on_to_a_scene(GameState *g, uint8_t scene);
 bool program_next_scene(GameState *g, uint8_t *scene);
 /* A driver that starts the game in a scene, as an event would start it from

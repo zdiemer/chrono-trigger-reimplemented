@@ -6,7 +6,7 @@
 #include <stdbool.h>
 
 #include "menu/object.h"
-#include "snes/system.h"
+#include <stdint.h>
 #include "state.h"
 
 /* Whether the running object is in view (or just out of it, its sprites
@@ -23,10 +23,5 @@ void menu_scene_note_the_epoch_s_arrival(GameState *g);
 bool menu_scene_drift_takes(const GameState *g, MenuObject self);
 
 /* The checked legacy adapters and their guards. */
-void menu_scene_note_the_epoch_s_arrival_entry(Snes *s);
-void menu_scene_object_in_view_entry(Snes *s);
-void menu_scene_drift_the_map_entry(Snes *s);
-bool menu_scene_object_in_view_runs(Snes *s);
-bool menu_scene_drift_runs(Snes *s);
 
 #endif

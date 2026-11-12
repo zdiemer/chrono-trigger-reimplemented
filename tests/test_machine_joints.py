@@ -6,39 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from tools import machine_joints
-from tools.machine_joints import ROOT, cartridge_reads, machine_functions, held_wait_counts, restartable_loops, machine_boundaries
-
-
-class HeldLoops(unittest.TestCase):
-    def test_loop_and_checkpoint_must_share_a_function(self):
-        source = '''
-void loop(Snes *s) { for (;;) { step(s); if (!native_poll_held(s, 1, HEAD, ready)) return; } }
-void idle(Snes *s) { do { pass(s); } while (native_idle_held(s)); }
-void one_pass(Snes *s) { native_poll_held(s, 1, HEAD, ready); }
-void just_a_loop(Snes *s) { while (ready(s)) pass(s); }
-void commented(Snes *s) { /* while (native_idle_held(s)) {} */ }
-void quoted(Snes *s) { log("while (native_idle_held(s)) {}"); }
-bool native_idle_held(Snes *s);
-'''
-        self.assertEqual(restartable_loops(source), {'loop', 'idle'})
-
-    def test_compatibility_alias_is_not_a_remaining_dispatch_loop(self):
-        registry = '''const NativeEntry game_held_waits[] = {
- { .addr = 0xC0EC71, .fn = idle_entry, .loop = idle, .idle = true, .hold = FIELD },
- { .addr = 0xFDEAED, .fn = warp, .hold = WARP },
- { .addr = 0xFDEAED, .fn = warp_idle, .hold = WARP },
- { .addr = 0xC000BD, .fn = field_next, .hold = FIELD },
- /* An old address 0xC01234 is not an entry. */
-};'''
-        self.assertEqual(held_wait_counts(registry, {'idle', 'warp'}), (2, 2))
-        self.assertEqual(held_wait_counts(registry, set()), (4, 0))
-
-    def test_unknown_loop_metadata_does_not_hide_an_entry(self):
-        registry = '''const NativeEntry game_held_waits[] = {
- { .addr = 0xC0EC71, .fn = known, .loop = missing, .hold = FIELD },
-};'''
-        self.assertEqual(held_wait_counts(registry, {'known'}), (1, 0))
-        self.assertEqual(held_wait_counts(registry, {'missing'}), (1, 0))
+from tools.machine_joints import ROOT, cartridge_reads, machine_functions, machine_boundaries
 
 
 class CartridgeJoints(unittest.TestCase):

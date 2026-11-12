@@ -28,7 +28,6 @@
 
 #include "charge.h"
 #include "core/program.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
@@ -263,7 +262,7 @@ bool scene_scale_the_bitmap(GameState *g, bool row_nudge)
 {
     /* Native callers have just handed over a new picture with scaler_start. */
     if (!bitmap_fits(g, 0, row_nudge)) {
-        program_needs_the_machine(g, ROW_LOOP, "a bitmap the port's scaler doesn't draw");
+        program_fail(g, ROW_LOOP, "a bitmap the port's scaler doesn't draw");
         return false;
     }
     draw_bitmap(g, row_nudge);
@@ -294,45 +293,6 @@ static bool bitmap_fits(const GameState *g, uint16_t position, bool row_nudge)
             return false;
         row_nudge = output < ROW_BYTES;
     }
-}
-
-static bool bitmap_on_its_page(Snes *s, bool starts)
-{
-    if (!scene_on_scene_page(s) || s->cpu.db != SCENE_UPPER_WORK_RAM)
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool draws = bitmap_fits(g, starts ? 0 : scene_scaler_row_position(g), m_flag(s, CPU_FLAG_C));
-    vars_peek(false);
-    return draws;
-}
-
-bool scene_scaler_in_its_bank(Snes *s) { return bitmap_on_its_page(s, false); }
-
-/* The flags the original leaves where the bitmap ends: those of its measure of
- * the leftover, the previous end less this one's (less the borrow). */
-static void leave_flags_of_measuring(Snes *s, uint16_t previous_end, uint16_t output, bool borrowed)
-{
-    uint16_t beyond = (uint16_t)(previous_end - output - (borrowed ? 1 : 0));
-    m_set_flag(s, CPU_FLAG_C, (uint32_t)output + (borrowed ? 1 : 0) <= previous_end);
-    m_set_flag(s, CPU_FLAG_V, ((previous_end ^ output) & (previous_end ^ beyond) & 0x8000) != 0);
-}
-
-/* Draw through the end. The final leftover measurement uses the nudge of
- * the last row: the entry carry if no row was drawn, otherwise whether the
- * output stride wrapped. The guard has checked every row's extent. */
-void scene_scale_bitmap_row(Snes *s)
-{
-    GameState *g = state_of(s);
-    bool row_nudge = m_flag(s, CPU_FLAG_C);
-    uint16_t previous_end = scene_scaler_output_end(g);
-    uint16_t rows_before = scene_scaler_rows_left(g);
-    draw_bitmap(g, row_nudge);
-    uint16_t output = scene_scaler_output(g);
-    bool drew_rows = scene_scaler_rows_left(g) != (uint16_t)(rows_before - 1);
-    bool last_nudge = drew_rows ? output < ROW_BYTES : row_nudge;
-    leave_flags_of_measuring(s, previous_end, output, scene_scaler_rows_left(g) == 0 && !last_nudge);
-    m_rtl(s);
 }
 
 // $C3:0307

@@ -9,24 +9,7 @@
  * a broken contract and leaves the original boundary intact. */
 #include "scene/scene.h"
 
-#include "port/machine.h"
 #include "port/vars_ram.h"
-
-bool scene_on_scene_page(Snes *s) { return m_direct_page(s) == 0x0000; }
-
-bool scene_on_scene_page_low_bank(Snes *s) { return scene_on_scene_page(s) && m_bank_reaches_low_ram(s); }
-
-/* The work RAM port and the multiplier are reached through the data bank too. */
-bool scene_on_scene_page_io_bank(Snes *s) { return scene_on_scene_page(s) && m_bank_reaches_io(s); }
-
-/* The arithmetic works on the cells of whichever page it's called on: the
- * scene's own or a sequence channel's, the instances re/ram.toml declares for
- * them (a D that is neither is refused, and counted). */
-bool scene_on_program_page(Snes *s)
-{
-    SceneProgramPage page;
-    return scene_program_page_of(m_direct_page(s), &page);
-}
 
 /* The sequence channel whose page is at `d`. */
 bool scene_channel_at(uint16_t d, SceneChannel *ch)
@@ -36,11 +19,4 @@ bool scene_channel_at(uint16_t d, SceneChannel *ch)
         return false;
     *ch = page.index;
     return true;
-}
-
-/* A routine a script calls runs on its channel's page. */
-bool scene_on_channel_page(Snes *s)
-{
-    SceneChannel ch;
-    return scene_channel_at(m_direct_page(s), &ch);
 }

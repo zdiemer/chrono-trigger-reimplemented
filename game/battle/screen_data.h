@@ -14,23 +14,13 @@
 
 #include "battle/positions.h"
 #include "data/packed_graphics.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "rom.h"
 #include "state.h"
 
-/* ---- The screen scripts ---------------------------------------------------------------- */
-
-/* A byte of a screen script, at its 24-bit address. */
-static inline uint8_t battle_screen_script_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
-
 /* Where each of the screen scripts a battlefield runs starts, in their bank
  * ($D1:646C, a word a script). */
 enum { SCREEN_SCRIPT_BANK = 0xD10000 };
-static inline uint16_t screen_script_start(const GameState *g, uint8_t script)
-{
-    return rom_read16(g, 0xD1646Cu + script * 2u);
-}
 
 /* ---- The HP gradient ---------------------------------------------------------------------- */
 
@@ -38,6 +28,62 @@ static inline uint16_t screen_script_start(const GameState *g, uint8_t script)
  * per level ($D1:E9EF, a word a level, into the colors at $D0:FBE2). The
  * level's index is a byte of twice the level. */
 enum { GRADIENT_SET_COLORS = 14 };
+
+/* How far each of the gradient's three palette rows is turned, by the
+ * gradient's phase: three tables of 14 at $D1:EA21. */
+enum { GRADIENT_ROWS = 3, GRADIENT_PHASES = 14 };
+
+/* ---- An effect's graphics ----------------------------------------------------------------- */
+
+/* The compressed graphics blocks an effect loads (data/packed_graphics.h):
+ * four ids an effect, a byte each ($D1:ECDB; an id of $FF is none). The
+ * list's index is a byte of four times the effect. */
+enum { EFFECT_BLOCKS = 4 };
+
+/* An effect's 48 colors: a byte offset per effect ($D1:ECCF, a word each, its
+ * index a byte of twice the effect) into the colors at $D0:FA00. */
+enum { EFFECT_COLORS = 48 };
+
+/* The angle of a slope from the horizontal, 0 to a quarter turn ($40), for a
+ * run of `across` eighths of 256 across and `down` eighths down, each 0-32
+ * ($C0:F300, a row of 32 a run down). A run of 32 across reads the next row's
+ * first, as the original's indexing does. */
+enum { SLOPE_STEPS = 32 };
+
+/* ---- The screen script's triangles -------------------------------------------------------- */
+
+/* The triangles a screen script turns in space ($D1:EC5F): a model is three
+ * points, four bytes each (across, down, depth, and one unused), sixteen
+ * bytes a model. `at` is the point's byte offset, which wraps as a byte. */
+typedef struct {
+    uint8_t across, down, depth;
+} ShapeModelPoint;
+
+/* ---- Palette ------------------------------------------------------------------------------ */
+
+/* The sets of background colors a screen script picks ($D1:6002): four
+ * colors a set, of which the scripts use three. */
+enum { BACKGROUND_SET_COLORS = 3 };
+
+/* ---- Palette presets ---------------------------------------------------------------------- */
+
+/* A palette preset: a pair of fades, eight bytes a slot, sixteen presets
+ * ($CE:F0E6): the colors each changes and the levels it fades between (the
+ * slot's other fields the preset setup sets itself). */
+typedef struct {
+    uint8_t first_color, color_count, level, target;
+} PresetFade;
+
+/* ---- The screen scripts ---------------------------------------------------------------- */
+
+/* A byte of a screen script, at its 24-bit address. */
+static inline uint8_t battle_screen_script_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
+
+static inline uint16_t screen_script_start(const GameState *g, uint8_t script)
+{
+    return rom_read16(g, 0xD1646Cu + script * 2u);
+}
+
 static inline uint16_t gradient_set_color(const GameState *g, uint8_t level, unsigned color)
 {
     uint16_t set = rom_read16(g, 0xD1E9EFu + (uint8_t)(level * 2));
@@ -48,9 +94,6 @@ static inline uint16_t gradient_set_color(const GameState *g, uint8_t level, uns
  * row is looked for. */
 static inline uint16_t gradient_first_color(const GameState *g) { return rom_read16(g, 0xD0FBE2u); }
 
-/* How far each of the gradient's three palette rows is turned, by the
- * gradient's phase: three tables of 14 at $D1:EA21. */
-enum { GRADIENT_ROWS = 3, GRADIENT_PHASES = 14 };
 static inline uint8_t gradient_row_turn(const GameState *g, unsigned row, uint8_t phase)
 {
     return rom_read8(g, 0xD1EA21u + GRADIENT_PHASES * row + phase);
@@ -64,20 +107,11 @@ static inline uint16_t background_row_start_color(const GameState *g, unsigned c
     return rom_read16(g, 0xD0FD00u + 2u * color);
 }
 
-/* ---- An effect's graphics ----------------------------------------------------------------- */
-
-/* The compressed graphics blocks an effect loads (data/packed_graphics.h):
- * four ids an effect, a byte each ($D1:ECDB; an id of $FF is none). The
- * list's index is a byte of four times the effect. */
-enum { EFFECT_BLOCKS = 4 };
 static inline uint8_t effect_graphics_block(const GameState *g, uint8_t effect, unsigned block)
 {
     return rom_read8(g, 0xD1ECDBu + (uint8_t)(effect * EFFECT_BLOCKS) + block);
 }
 
-/* An effect's 48 colors: a byte offset per effect ($D1:ECCF, a word each, its
- * index a byte of twice the effect) into the colors at $D0:FA00. */
-enum { EFFECT_COLORS = 48 };
 static inline uint16_t effect_color(const GameState *g, uint8_t effect, unsigned color)
 {
     uint16_t set = rom_read16(g, 0xD1ECCFu + (uint8_t)(effect * 2));
@@ -107,11 +141,6 @@ static inline BattlePoint screen_edge_toward(const GameState *g, uint8_t angle)
     return (BattlePoint){ rom_read8(g, at), rom_read8(g, at + 1) };
 }
 
-/* The angle of a slope from the horizontal, 0 to a quarter turn ($40), for a
- * run of `across` eighths of 256 across and `down` eighths down, each 0-32
- * ($C0:F300, a row of 32 a run down). A run of 32 across reads the next row's
- * first, as the original's indexing does. */
-enum { SLOPE_STEPS = 32 };
 static inline uint8_t slope_angle(const GameState *g, uint8_t across, uint8_t down)
 {
     return rom_read8(g, 0xC0F300u + (uint16_t)(down * SLOPE_STEPS + across));
@@ -128,8 +157,11 @@ static inline uint8_t battle_random_table(const GameState *g, uint8_t pick) { re
  * between amplitude steps (eight choices each), and which layers each axis
  * moves (four). */
 static inline uint8_t shake_period_choice(const GameState *g, unsigned choice) { return rom_read8(g, 0xD1F69Cu + choice); }
+
 static inline uint8_t shake_rate_choice(const GameState *g, unsigned choice) { return rom_read8(g, 0xD1F6A4u + choice); }
+
 static inline uint8_t shake_layers_across(const GameState *g, unsigned choice) { return rom_read8(g, 0xD1F6ACu + choice); }
+
 static inline uint8_t shake_layers_down(const GameState *g, unsigned choice) { return rom_read8(g, 0xD1F6B0u + choice); }
 
 /* The screen script's two orbits ($CD:1C5B), four sizes each: the circle's
@@ -139,15 +171,6 @@ static inline uint8_t orbit_size(const GameState *g, uint8_t orbit, unsigned siz
 {
     return rom_read8(g, 0xCD1C5Bu + (uint8_t)(orbit * 4) + size);
 }
-
-/* ---- The screen script's triangles -------------------------------------------------------- */
-
-/* The triangles a screen script turns in space ($D1:EC5F): a model is three
- * points, four bytes each (across, down, depth, and one unused), sixteen
- * bytes a model. `at` is the point's byte offset, which wraps as a byte. */
-typedef struct {
-    uint8_t across, down, depth;
-} ShapeModelPoint;
 
 static inline ShapeModelPoint shape_model_point(const GameState *g, uint8_t model, unsigned point)
 {
@@ -164,11 +187,6 @@ static inline uint16_t saved_shape_offset(const GameState *g, uint8_t slot)
     return rom_read16(g, 0xCD26B0u + (uint8_t)(slot * 2));
 }
 
-/* ---- Palette ------------------------------------------------------------------------------ */
-
-/* The sets of background colors a screen script picks ($D1:6002): four
- * colors a set, of which the scripts use three. */
-enum { BACKGROUND_SET_COLORS = 3 };
 static inline uint16_t background_set_color(const GameState *g, uint8_t set, unsigned color)
 {
     return rom_read16(g, 0xD16002u + 8u * set + 2u * color);
@@ -178,15 +196,6 @@ static inline uint16_t background_set_color(const GameState *g, uint8_t set, uns
  * bits of its operand that choose ($CD:2A42): each the slot's byte offset
  * from slot 4. */
 static inline uint8_t script_palette_slot_offset(const GameState *g, unsigned choice) { return rom_read8(g, 0xCD2A42u + choice); }
-
-/* ---- Palette presets ---------------------------------------------------------------------- */
-
-/* A palette preset: a pair of fades, eight bytes a slot, sixteen presets
- * ($CE:F0E6): the colors each changes and the levels it fades between (the
- * slot's other fields the preset setup sets itself). */
-typedef struct {
-    uint8_t first_color, color_count, level, target;
-} PresetFade;
 
 static inline PresetFade palette_preset_fade(const GameState *g, uint8_t preset, unsigned slot)
 {
@@ -200,6 +209,7 @@ static inline uint8_t palette_preset_timing(const GameState *g, unsigned pace, u
 {
     return rom_read8(g, 0xCEF126u + 4u * pace + 2u * slot + period);
 }
+
 static inline uint8_t palette_preset_step(const GameState *g, unsigned pace, unsigned slot)
 {
     return rom_read8(g, 0xCEF146u + 2u * pace + slot);

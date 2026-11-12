@@ -13,7 +13,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "snes/system.h"
 #include "state.h"
 
 /* Whether the scrolling list on the screen scrolls at all: it has places

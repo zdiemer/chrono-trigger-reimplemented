@@ -5,7 +5,7 @@
 
 #include <stdbool.h>
 
-#include "snes/system.h"
+#include <stdint.h>
 #include "state.h"
 
 /* A second cursor held where the player's was (menu_held_cursor), blinking
@@ -39,15 +39,6 @@ bool menu_scroll_bar_can_be_drawn(const GameState *g);
 /* The checked legacy adapters ($C2:8A98, $C2:8ABA, $C2:89E4, $C2:89FA,
  * $C2:8A31, $C2:8A45, $C2:8AD5, $C2:8AFD, $C2:8B93) and their guards; the
  * scroll bar's task's (menu_run_the_scroll_bar_task, menu/tasks.c). */
-void menu_run_the_held_cursor_task(Snes *s);
-void menu_run_the_list_cursor_task(Snes *s);
-void menu_run_the_member_cursor_task(Snes *s);
-void menu_run_the_members_cursors_task(Snes *s);
-bool menu_scroll_bar_is_drawable(Snes *s);
-bool menu_held_cursor_is_drawable(Snes *s);
-bool menu_members_cursors_are_drawable(Snes *s);
-bool menu_list_cursor_is_drawable(Snes *s);
-bool menu_member_cursor_is_drawable(Snes *s);
 
 /* What the held cursors' tasks take of the state, as their entries' guards
  * do: the held cursor's place one of the cursor's table, the member's too

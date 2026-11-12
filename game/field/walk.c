@@ -42,7 +42,6 @@
 #include "field/party.h"
 #include "field/scratch.h"
 #include "field/streaming.h"
-#include "port/machine.h"
 #include "vars.h"
 
 /* ---- The map under a point -------------------------------------------------------------- */
@@ -925,17 +924,6 @@ void party_start_on_the_map(GameState *g)
 /* The walk and the screen's recentring run the layers' scroll and the
  * screen's edges after them, the original's ($C0:91AC, $C0:93E1), on the
  * layers' page with the field's pushed. */
-enum { NOTHING_READ = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-static bool scroll_the_layers(Snes *s, uint32_t scroll_site, uint32_t edges_site)
-{
-    BridgeMachine m = { false, FIELD_LAYERS_PAGE, s->cpu.db };
-    return field_run_called(s, scroll_site, 0xC091AC, NOTHING_READ, field_update_layer_scroll, m) &&
-           field_run_called(s, edges_site, 0xC093E1, NOTHING_READ, field_stream_the_layers, m);
-}
-
-static void on_the_layers_page(Snes *s) { m_push16(s, s->cpu.d), s->cpu.d = FIELD_LAYERS_PAGE; }
-static void back_on_the_field_page(Snes *s) { s->cpu.d = m_pull16(s); }
 
 /* The walk and the screen's step back toward the party, each with the layers
  * scrolled after it -- as C, or on the machine by the original's calls (the
@@ -1014,37 +1002,6 @@ bool field_the_screen_recentres(GameState *g)
     return recentre(g, scroll, g);
 }
 
-/* On the machine, each from its own calls. */
-static bool scroll_on_the_machine(void *ctx, LayersScroll after)
-{
-    Snes *s = ctx;
-    switch (after) {
-    case SCROLL_AS_RECENTRING_STARTS: return scroll_the_layers(s, 0xC088B9, 0xC088BC);
-    case SCROLL_AS_IT_RECENTRES: return scroll_the_layers(s, 0xC088DD, 0xC088E0);
-    default: return scroll_the_layers(s, 0xC08852, 0xC08855);
-    }
-}
-
-void field_walk_the_leader(Snes *s)
-{
-    GameState *g = state_of(s);
-    leader_walks(g);
-    on_the_layers_page(s);
-    if (!scroll_on_the_machine(s, SCROLL_AFTER_THE_WALK))
-        return;
-    back_on_the_field_page(s);
-    m_rts(s);
-}
-
-void field_recentre_the_screen(Snes *s)
-{
-    on_the_layers_page(s);
-    if (!recentre(state_of(s), scroll_on_the_machine, s))
-        return;
-    back_on_the_field_page(s);
-    m_rts(s);
-}
-
 /* The guards. The walk reads the ROM's tables and the requests through the
  * data bank, on the field's page; the leader is an object the tables hold,
  * or an empty place's marker the original can read as a slot (FieldLeader), as
@@ -1081,26 +1038,6 @@ static bool walk_fits(const GameState *g)
     FieldPosition at = field_leader_position(g, leader);
     return object_search_start(g) != 0 && (field_map_index_mask(g) & ~WITHIN_THE_MAPS) == 0 &&
            clear_of_the_end(at);
-}
-
-bool field_walk_can_run(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    bool ok = walk_fits(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-bool field_recentring_can_run(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    bool ok = recentring_fits(state_of(s));
-    vars_peek(false);
-    return ok;
 }
 
 /* The map's start's part: the party's places are objects the tables hold,

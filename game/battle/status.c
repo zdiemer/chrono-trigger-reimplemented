@@ -47,7 +47,6 @@ void battle_show_gauge(GameState *g, unsigned member)
         window_set_tile(g, (WindowCell)(at + i), TILE_GAUGE_FULL);
     if (part)
         window_set_tile(g, (WindowCell)(at + full_cells), (uint8_t)(TILE_GAUGE_EMPTY + part));
-    charge_machine_accesses(g, 8);
 }
 
 /* ---- A member's numbers, in turn ---------------------------------------------------------- */
@@ -84,18 +83,15 @@ void battle_show_party_status(GameState *g)
     if (!battle_status_numbers_covered(g, layout)) {
         unsigned member = next_status_member(g);
         if (!battle_slot_present(g, member)) {
-            charge_machine_accesses(g, 2);
             return;
         }
         bool shaded = member_numbers_shaded(g, member);
         window_show_hp(g, layout, member, shaded);
         window_show_mp(g, layout, member, shaded);
-        charge_machine_accesses(g, 7);
     }
     if (!layout_has_gauges(layout))
         return;
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
         if (battle_slot_present(g, member))
             battle_show_gauge(g, member);
-    charge_machine_accesses(g, 2);
 }

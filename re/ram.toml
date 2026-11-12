@@ -97,7 +97,7 @@
 # (the former machine dispatcher, not committed), agree with the constant TCDs and
 # PEA/PLD pairs in the disassembly listed with each page. The I/O pages the
 # game also puts D on ($2100, $4200, $4300: M_DP_PPU, M_DP_DMA in
-# runtime/port/machine.h) are registers, not work RAM, and are not here.
+# emulator-oracle:runtime:port:machine.h) are registers, not work RAM, and are not here.
 
 [[page]]
 name = "field"
@@ -4283,7 +4283,7 @@ addr = "7E:0167"
 page = "field"
 subsystem = "event"
 meaning = "Commands the running object may still run this frame"
-source = "game/event/bridge.c, event_run_object_script $C0:5A93"
+source = "emulator-oracle:game:event:bridge.c, event_run_object_script $C0:5A93"
 
 [[var]]
 name = "event_commands_per_turn"
@@ -4292,7 +4292,7 @@ addr = "7E:0168"
 page = "field"
 subsystem = "event"
 meaning = "How many commands an object's script may run per frame (event_commands_left starts from it)"
-source = "game/event/bridge.c, event_run_object_script $C0:5A93"
+source = "emulator-oracle:game:event:bridge.c, event_run_object_script $C0:5A93"
 
 [[var]]
 name = "field_current_object"
@@ -4447,7 +4447,7 @@ page = "field"
 size = 2
 subsystem = "event"
 meaning = "Object count * 2, the end of the slot loops"
-source = "game/event/bridge.c event_run_init_scripts $C0:58DE; game/field/object_update.c field_update_objects $C0:A810"
+source = "emulator-oracle:game:event:bridge.c event_run_init_scripts $C0:58DE; game/field/object_update.c field_update_objects $C0:A810"
 
 [[var]]
 name = "field_setting_1e"
@@ -5490,7 +5490,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "event"
 meaning = "Offset in the script buffer where the object's script resumes"
-source = "game/event/bridge.c, event_run_object_script $C0:5A93, event_run_init_scripts $C0:58DE"
+source = "emulator-oracle:game:event:bridge.c, event_run_object_script $C0:5A93, event_run_init_scripts $C0:58DE"
 
 [[var]]
 name = "field_object_static_frame"
@@ -7432,7 +7432,7 @@ name = "event_object_count"
 addr = "7F:2000"
 subsystem = "event"
 meaning = "Number of objects in the current map's event script"
-source = "game/event/bridge.c event_run_init_scripts $C0:58DE; tools/movies/addresses.py SCRIPT_BUFFER"
+source = "emulator-oracle:game:event:bridge.c event_run_init_scripts $C0:58DE; tools/movies/addresses.py SCRIPT_BUFFER"
 
 [[var]]
 name = "event_script"
@@ -10141,7 +10141,7 @@ size = 2
 reuses = ["menu_heal_amounts", "menu_shop_work", "menu_time_played_shown", "menu_opening_records_loaded", "menu_slide_line", "menu_window_slide", "menu_tech_row_drawn"]
 subsystem = "menu"
 meaning = "A frame of the rising numbers: the listed members it has still to draw"
-source = "game/menu/healing_bridge.c, a kind's rise $C2:9047"
+source = "emulator-oracle:game:menu:healing_bridge.c, a kind's rise $C2:9047"
 
 [[var]]
 name = "menu_shop_work"
@@ -11576,7 +11576,7 @@ host_module = "menu"
 addr = "7E:04C0"
 subsystem = "menu"
 meaning = "The character the menus' services ($C2:8004) were last asked to work on, as their caller gives it in Y; the dispatcher keeps it, and the services take it as their argument"
-source = "game/menu/party_bridge.c, the services $C2:8C36"
+source = "emulator-oracle:game:menu:party_bridge.c, the services $C2:8C36"
 
 [[var]]
 name = "menu_service_answer"
@@ -11584,7 +11584,7 @@ host_module = "menu"
 addr = "7E:04C1"
 subsystem = "menu"
 meaning = "What the last of the menus' services answered, which the dispatcher hands back in A: its low byte (menu_service_places_searched holds the high byte of a service that works 16 bits wide)"
-source = "game/menu/party_bridge.c, the services $C2:8C36"
+source = "emulator-oracle:game:menu:party_bridge.c, the services $C2:8C36"
 
 [[var]]
 name = "menu_service_places_searched"
@@ -11592,7 +11592,7 @@ host_module = "menu"
 addr = "7E:04C2"
 subsystem = "menu"
 meaning = "How many of the party's places the last of the services' searches for a character looked through (3 the active party's, 9 all); a service that works 16 bits wide leaves its answer's high byte here instead"
-source = "game/menu/party_bridge.c, the services $C2:8C75, $C2:8CCF"
+source = "emulator-oracle:game:menu:party_bridge.c, the services $C2:8C75, $C2:8CCF"
 
 [[var]]
 name = "menu_service_record_at"
@@ -12132,7 +12132,7 @@ size = 2
 reuses = ["menu_list_items"]
 subsystem = "menu"
 meaning = "Which kinds of number the healing's showing raises: bit 0 the HP's, bit 1 the MP's; its task shifts each out as it takes it"
-source = "game/menu/healing.c, menu_ready_the_amounts $C2:8F6C; game/menu/healing_bridge.c, the task $C2:9016"
+source = "game/menu/healing.c, menu_ready_the_amounts $C2:8F6C; emulator-oracle:game:menu:healing_bridge.c, the task $C2:9016"
 
 [[var]]
 name = "menu_amounts_step"
@@ -12140,7 +12140,7 @@ addr = "7E:0F60"
 reuses = ["menu_list_items"]
 subsystem = "menu"
 meaning = "Where the rising numbers are along their path of heights ($FF:CEBA), a step a frame"
-source = "game/menu/healing_bridge.c, a kind's rise $C2:9047"
+source = "emulator-oracle:game:menu:healing_bridge.c, a kind's rise $C2:9047"
 
 [[var]]
 name = "menu_amounts_last_digit"
@@ -12148,7 +12148,7 @@ addr = "7E:0F61"
 reuses = ["menu_list_items"]
 subsystem = "menu"
 meaning = "The rising numbers' last digit, counted from the units: 3 for the HP's four, 1 for the MP's two"
-source = "game/menu/healing_bridge.c, the task $C2:9016"
+source = "emulator-oracle:game:menu:healing_bridge.c, the task $C2:9016"
 
 [[var]]
 name = "menu_heal_shown"
@@ -12313,7 +12313,7 @@ page = "menu"
 reuses = ["menu_tech_members", "menu_tech_parts_column", "menu_starting_record_at"]
 subsystem = "menu"
 meaning = "Where the rising numbers' amounts start among those shown (menu_heal_shown), in bytes: 0 the HP's, 6 the MP's"
-source = "game/menu/healing_bridge.c, the task $C2:9016"
+source = "emulator-oracle:game:menu:healing_bridge.c, the task $C2:9016"
 
 [[var]]
 name = "menu_amounts_place"
@@ -12323,7 +12323,7 @@ size = 2
 reuses = ["menu_tech_parts_column"]
 subsystem = "menu"
 meaning = "A frame of the rising numbers: the listed member it is drawing, doubled, left past the last"
-source = "game/menu/healing_bridge.c, a kind's rise $C2:9047"
+source = "emulator-oracle:game:menu:healing_bridge.c, a kind's rise $C2:9047"
 
 [[var]]
 name = "menu_tech_members"

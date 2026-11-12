@@ -44,7 +44,6 @@
 #include "field/streaming.h"
 #include "platform/timing.h"
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "scene/scene.h"
@@ -656,17 +655,6 @@ static bool move_on_a_step(GameState *g, Platform *pf, const EffectCalls *calls,
     }
 }
 
-/* Whether this frame's step calls on the field's other work. */
-static bool calls_on_the_field(const GameState *g)
-{
-    switch (field_screen_effect_now(g)) {
-    case CURTAIN: return curtain_sweeping(g);
-    case ON_TO_THE_SCENE:
-    case RIPPLE: return true;
-    default: return false;
-    }
-}
-
 /* The guard's state half: an effect the original's table has (past them it
  * runs into its error trap); and for the searchlight, a shape
  * field/window_shape.c draws as the original does. */
@@ -745,162 +733,13 @@ bool field_screen_effect_moved_on(GameState *g, Platform *pf)
  * Each call is the original's from its own site, on the field's page; where
  * a call doesn't come back as the original's does, the port stops there. */
 
-enum {
-    CURTAIN_SWEEP = 0xC3000E,     /* the scene engine's jump to the curtain's step */
-    DRAW_BG1 = 0xC075E9,          /* BG1's tiles drawn into the staging, on the layers' page */
-};
-enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-/* The curtain's routine saves every register and its flags and puts them
- * back, and reads none but X, which it saves on the stack where the analysis
- * counts it read: the port hands it the original's. */
-enum { CURTAIN_READS_X = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-/* The original's calls at each moment: BG1's drawing, the refresh and the
- * wait. The ripple's last wait is a jump, which returns for the step. */
-static const struct {
-    uint32_t draw_bg1, refresh, wait;
-} calls_at[MOMENTS] = {
-    [CLOSE_BEGINS] = { 0xC02617, 0xC0261E, 0xC02625 },
-    [CLOSE_ENDS] = { 0, 0xC0262B, 0xC0262E },
-    [RIPPLE_BEGINS] = { 0xC02658, 0xC02662, 0xC02688 },
-    [RIPPLE_SETTLING] = { 0, 0xC0268B, 0xC0268E },
-    [RIPPLE_GROWING] = { 0, 0xC026C1, 0xC026C4 },
-    [RIPPLE_HOLDING] = { 0, 0xC026D4, 0xC026D7 },
-    [RIPPLE_SHRINKING] = { 0, 0xC026EB, 0xC026EE },
-    [RIPPLE_ENDS] = { 0, 0xC0271F, 0 },
-};
-
-// $C0:22D8
-static bool sweep_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    s->cpu.x = CURTAIN_INDEX;
-    return field_run_long_called(s, 0xC022FA, CURTAIN_SWEEP, CURTAIN_READS_X, scene_curtain_jump,
-                                 on_the_field_page(s, false));
-}
-
-static bool draw_bg1_on_the_machine(void *ctx, Moment at)
-{
-    return field_run_on_page(ctx, calls_at[at].draw_bg1, DRAW_BG1, READS_NOTHING, field_draw_bg1_at_the_load,
-                             FIELD_LAYERS_PAGE);
-}
-
-static bool refresh_on_the_machine(void *ctx, Moment at)
-{
-    Snes *s = ctx;
-    return field_run(s, calls_at[at].refresh, FIELD_REFRESH_EFFECTS_ENTRY, READS_NOTHING, field_refresh_effects,
-                     on_the_field_page(s, false));
-}
-
-static bool wait_on_the_machine(void *ctx, Moment at)
-{
-    Snes *s = ctx;
-    if (at == RIPPLE_ENDS) {
-        field_hold_finished_frame(s, 0);
-        return false;
-    }
-    return field_hold_next_frame(s, calls_at[at].wait, READS_NOTHING, on_the_field_page(s, false));
-}
-
-static bool battle_set_up_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    return field_run(s, 0xC02628, FIELD_BATTLE_BEGINS_ENTRY, READS_NOTHING, field_battle_begins,
-                     on_the_field_page(s, false));
-}
+enum { CURTAIN_SWEEP = 0xC3000E, /* the scene engine's jump to the curtain's step */
+    DRAW_BG1 = 0xC075E9, /* BG1's tiles drawn into the staging, on the layers' page */ };
 
 /* The original starts the scene on a fresh stack ($C0:2643), which is its
  * own entry. */
 enum { THE_SCENE_STARTS = 0xC02643 };
 
-static void the_scene_starts_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    TIMED_AS(state_of(s), THE_SCENE_STARTS, field_close_into_the_scene(s));
-}
-
-static const EffectCalls on_the_machine = { sweep_on_the_machine,   draw_bg1_on_the_machine,
-                                                refresh_on_the_machine, wait_on_the_machine,
-                                                battle_set_up_on_the_machine, the_scene_starts_on_the_machine };
-
-static bool step_on_the_machine(Snes *s)
-{
-    return move_on_a_step(state_of(s), m_platform(s), &on_the_machine, s);
-}
-
-// $C0:2628
-void field_scene_close_puts_the_field_aside(Snes *s)
-{
-    if (battle_set_up_on_the_machine(s) && refresh_on_the_machine(s, CLOSE_ENDS)
-        && wait_on_the_machine(s, CLOSE_ENDS))
-        field_scene_close_starts_the_scene(s);
-}
-
-// $C0:2631
-void field_scene_close_starts_the_scene(Snes *s)
-{
-    field_hands_over(state_of(s), m_platform(s));
-    the_scene_starts_on_the_machine(s);
-}
-
-// $C0:268B
-void field_ripple_settles(Snes *s)
-{
-    (void)(refresh_on_the_machine(s, RIPPLE_SETTLING) && wait_on_the_machine(s, RIPPLE_SETTLING));
-}
-
-static void ripple_after_a_frame(Snes *s, unsigned stretch)
-{
-    GameState *g = state_of(s);
-    (void)ripple_continues(g, stretch, (uint8_t)(field_ripple_frames_left(g) - 1), &on_the_machine, s);
-}
-// $C0:2691
-void field_ripple_settled_a_frame(Snes *s) { ripple_after_a_frame(s, 0); }
-// $C0:26C7
-void field_ripple_grew_a_frame(Snes *s) { ripple_after_a_frame(s, 1); }
-// $C0:26DA
-void field_ripple_held_a_frame(Snes *s) { ripple_after_a_frame(s, 2); }
-// $C0:26F1
-void field_ripple_shrank_a_frame(Snes *s) { ripple_after_a_frame(s, 3); }
-// $C0:21ED
-void field_screen_effect_returns(Snes *s) { field_return_to_waiting_caller(s); }
-
 /* The steps that call on the field run as the original's table runs them,
  * from its JSR. */
 enum { STEP_TABLE_SITE = 0xC021EA };
-
-/* On the field's page, with 8-bit A and 16-bit index registers. A, X, Y and
- * the flags but V are dead after it; V is as it came, but for the
- * searchlight, which leaves the overflow of its last corner's move. */
-void field_move_screen_effect_on(Snes *s)
-{
-    GameState *g = state_of(s);
-    bool searchlight = field_screen_effect_now(g) == SEARCHLIGHT;
-    bool back = calls_on_the_field(g) ? field_run_table_step(s, STEP_TABLE_SITE, step_on_the_machine)
-                                      : step_on_the_machine(s);
-    if (!back)
-        return;
-    if (searchlight)
-        m_set_flag(s, CPU_FLAG_V, field_searchlight_overflow(g));
-    m_rts(s);
-}
-
-/* The guard: on the field's page with the data bank $00, and its state
- * half. */
-bool field_screen_effect_can_move_on(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    bool ok = effect_fits(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-// $C0:262B
-/* The scene close also resumes after a battle setup that found no enemies. */
-void field_scene_close_field_is_aside(Snes *s)
-{
-    if (refresh_on_the_machine(s, CLOSE_ENDS) && wait_on_the_machine(s, CLOSE_ENDS))
-        field_scene_close_starts_the_scene(s);
-}

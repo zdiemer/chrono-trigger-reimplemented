@@ -12,10 +12,11 @@ C. Observable divergence is accepted where the game stays structurally the same.
    then push and CI. The full-library/every-route batch is non-blocking: findings
    become fixes and never hold up a commit, merge or push.
 2. **The machine out of game/ and the state as C, side by side.** Work module
-   by module under the lean gate. Remove wrappers, registry, held-wait rows,
-   emulated stack operations, register escapes and `Snes *` parameters while
-   moving image-backed state into module-owned structs (STATE.md). Preserve
-   contracts, timing charges, cartridge saves, route queries and recorded
+   by module under the lean gate. Simplify the remaining single-implementation
+   adapters and register-shaped values, replace video register escapes with
+   services, and move image-backed state into module-owned structs (STATE.md).
+   PORTING.md gives the native function and callback pattern. Preserve real
+   state contracts, timing charges, cartridge saves, route queries and recorded
    save/place protections. Resolve aliases and shared scratch before moving
    each group; measure progress with the source and storage inventories.
 3. **ct_native plays the game by its own checks.** Add complete mid-route

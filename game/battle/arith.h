@@ -42,10 +42,6 @@ BattleLongQuotient battle_divide_long(GameState *g, uint32_t dividend, uint16_t 
  * them with the caller's carry clear. */
 uint32_t battle_multiply_words(GameState *g, uint16_t a, uint16_t b);
 
-/* A word-by-word multiply the original makes only to find a place in a
- * table, whose cells the next arithmetic's caller finds as it left them. */
-static inline void battle_leave_multiply(GameState *g, uint16_t a, uint16_t b) { (void)battle_multiply_words(g, a, b); }
-
 /* The long arithmetic's leftover high word: the last word-by-word product's
  * high word, or what the last long division left of its dividend's. Game
  * state: the random draw divides with it (battle/random.c). */
@@ -77,5 +73,8 @@ void battle_set_wide_math_quotient(GameState *g, uint16_t v);
  * multiply or divide overwrites. */
 void battle_set_wide_math_first(GameState *g, uint16_t v);
 
+/* A word-by-word multiply the original makes only to find a place in a
+ * table, whose cells the next arithmetic's caller finds as it left them. */
+static inline void battle_leave_multiply(GameState *g, uint16_t a, uint16_t b) { (void)battle_multiply_words(g, a, b); }
 
 #endif

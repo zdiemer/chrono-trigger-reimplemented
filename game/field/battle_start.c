@@ -34,7 +34,6 @@
 #include "event/party.h"
 #include "field/bridge.h"
 #include "field/scratch.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -185,8 +184,7 @@ static void keep_where_the_party_stands(GameState *g)
 /* An enemy's place in the battle, from where its sprite tiles are in VRAM:
  * the enemies' blocks start at tile $40, two to a place but the first, and
  * the field's own blocks past them ($C0 on) belong to no place. */
-enum { ENEMY_TILES_FROM = 0x40, ENEMY_TILES_END = 0xC0, ENEMY_PLACES = FIELD_BATTLE_ENEMY_OBJECTS_COUNT,
-       TILES_A_BLOCK = 8 };
+enum { ENEMY_TILES_FROM = 0x40, ENEMY_TILES_END = 0xC0, ENEMY_PLACES = FIELD_BATTLE_ENEMY_OBJECTS_COUNT, TILES_A_BLOCK = 8 };
 
 static bool has_a_battle_place(uint8_t tiles) { return tiles < ENEMY_TILES_END; }
 static unsigned battle_place_of_tiles(uint8_t tiles)
@@ -357,25 +355,6 @@ FieldBattleStart field_battle_set_up(GameState *g, Platform *pf)
 
 /* The party's coming back together is called from the original's call;
  * nothing it leaves in the registers is read. */
-enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-static bool back_together_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    return field_run_called(s, 0xC0027E, PARTY_BACK_TOGETHER, READS_NOTHING,
-                            event_party_back_together, on_the_field_page(s, false));
-}
-
-/* The field's page, 8-bit A and 16-bit index registers. The carry says
- * whether no battle is fought; nothing else it leaves is read. */
-void field_battle_begins(Snes *s)
-{
-    FieldBattleStart start = battle_begins(state_of(s), back_together_on_the_machine, s);
-    if (start == FIELD_BATTLE_START_STOPPED)
-        return;
-    m_set_flag(s, CPU_FLAG_C, start == FIELD_NO_BATTLE);
-    m_rts(s);
-}
 
 /* The guard: on the field's page with the data bank $00; the party's places
  * objects or none, the leader's an object whose word is clear above its link
@@ -403,22 +382,4 @@ static bool battle_fits(const GameState *g)
     for (FieldObject obj = 1; ok && obj <= last_searched(g); obj++)
         ok = !an_enemy(g, obj) || tiles_have_a_place((uint8_t)field_object_sprite_tiles(g, obj));
     return ok;
-}
-
-bool field_battle_can_begin(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    bool ok = battle_fits(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-// $C0:0281
-/* The regrouping's held frame is over: no enemy was found. */
-void field_no_battle_returns(Snes *s)
-{
-    m_set_flag(s, CPU_FLAG_C, true);
-    field_return_to_waiting_caller(s);
 }

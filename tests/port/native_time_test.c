@@ -98,9 +98,6 @@ int main(void)
     charge_time_as_end(reported, was);
     CHECK(state_host_take_owed(reported) == 145); /* (16 + 18 + 24) at 2.5 */
     was = charge_time_as_begin(reported, 0xC01235);
-    charge_machine_accesses(reported, 2);
-    charge_machine_io_accesses(reported, 3);
-    charge_machine_rom_accesses(reported, 4);
     charge_time_as_end(reported, was);
     CHECK(state_host_take_owed(reported) == 0); /* never counted by the host */
     CHECK(rows[2].routine == 0 && rows[2].tags == 1 && rows[2].bus_clocks == 16 && rows[2].milli_clocks == 0);

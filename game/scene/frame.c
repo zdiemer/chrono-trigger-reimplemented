@@ -28,14 +28,12 @@
 #include "scene/scene.h"
 
 #include "charge.h"
-#include "core/console.h"
 #include "core/input.h"
 #include "core/program.h"
 #include "platform/audio.h"
 #include "platform/input.h"
 #include "platform/timing.h"
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -143,7 +141,11 @@ bool scene_remove_task(GameState *g, SceneTaskList list, SceneTask task) { retur
 
 /* ---- The frame's work, as logic -------------------------------------------------------------- */
 
-static void install_handler(GameState *g, uint16_t handler) { set_scene_nmi_stub_handler_in_bank(g, handler); }
+static void install_handler(GameState *g, ProgramHandler handler)
+{
+    program_install_vblank_handler(g, handler);
+    charge_legacy_accesses(g, 2);
+}
 
 /* The brightness the scene keeps, where 0 means the screen blank. */
 static VidDisplay display_at(uint8_t brightness)
@@ -158,7 +160,7 @@ static bool begin_frame(GameState *g, Platform *pf)
 {
     bool quiet = tm_ack_vblank(pf, PF_AT(0xC308D9)) == 0;
     vid_enable_line_effects(pf, PF_AT(0xC308DC), 0);
-    install_handler(g, HANDLER_WHILE_WORKING);
+    install_handler(g, scene_vblank_while_working);
     vid_set_display(pf, PF_AT(0xC308EF), &(VidDisplay){ .blank = true });
     return quiet;
 }
@@ -266,219 +268,12 @@ static bool song_to_send(GameState *g, uint8_t *song)
     return true;
 }
 
-/* ---- The bridge: the original's code it calls, and the registers it calls it with ------------ */
-
-/* After a call-out, the code that follows runs in native mode with 16-bit index
- * registers and reaches the registers through a data bank that reaches them;
- * otherwise the port stops there. */
-static bool can_continue(Snes *s) { return !s->cpu.e && !m_flag(s, CPU_FLAG_X) && m_bank_reaches_io(s); }
-
 /* Where the original's copy of the task list leaves Y (past the copy), which
  * the frame's tasks and the controller read's stops see. */
 enum { PAST_THE_COPY = 0x0970 };
 
-// $7E:39BE, $7E:398A
-/* A task list, called as the frame's work calls it: the vblank list with 8-bit
- * A, the frame's list with 16-bit A, and A the pause word it tested (0, to get
- * there), which the tasks may read. */
-static bool run_task_list(Snes *s, SceneTaskList list)
-{
-    bool vblank = list == SCENE_VBLANK_TASKS;
-    m_set_flag(s, CPU_FLAG_M, vblank);
-    s->cpu.a = 0x0000;
-    /* A comparison synchronizes the whole list at its original call. In
-     * shipping play the list is a checked C call; it never enters through
-     * the machine. Keep the comparison boundary until the scene retires. */
-    if (!m_runs_retired_as_c(s)) {
-        m_jsl_dc(s, vblank ? 0xC308F7 : 0xC30938, vblank ? 0x7E39BE : 0x7E398A,
-                 DC_X | DC_N | DC_Z | (vblank ? DC_A : 0));
-        return can_continue(s);
-    }
-    return scene_run_long_called(s, vblank ? 0xC308F7 : 0xC30938, vblank ? 0x7E39BE : 0x7E398A,
-                          DC_X | DC_N | DC_Z | (vblank ? DC_A : 0),
-                          vblank ? scene_run_vblank_tasks : scene_run_frame_tasks) && can_continue(s);
-}
-
-/* The program's send of the command in the sound command buffer ($7E:377A). */
-static bool send_pause_sound(Snes *s, uint32_t site)
-{
-    return scene_run_long(s, site, 0x7E377A, DC_A | DC_X | DC_N | DC_Z, scene_send_sound_command_long);
-}
-
-// $C3:0A8E
-/* Read this frame's buttons, apply a new Start press, and wait for the
- * pause sound to be accepted. A reset continues through the console entry. */
-void scene_read_controller_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    m_set_flag(s, CPU_FLAG_M, true);
-    if (read_controller(g, m_platform(s)) == PAD_RESET) {
-        console_reset(s);
-        return;
-    }
-    m_set_flag(s, CPU_FLAG_M, false);
-    m_set_flag(s, CPU_FLAG_C, scene_joypad(g) >= RESET_BUTTONS);
-    PauseChange change = press_pause(g, scene_joypad(g));
-    if (change != PAUSE_UNCHANGED && !send_pause_sound(s, change == PAUSE_ON ? 0xC30AE1 : 0xC30AF3))
-        return;
-    m_set_flag(s, CPU_FLAG_M, false);
-    m_rts(s);
-}
-
-bool scene_read_controller_present(Snes *s)
-{
-    return s->cpu.d == 0 && m_bank_reaches_io(s) && scene_pause_is_a_switch(s);
-}
-
-// $C3:08D0
-/* The frame's work (see the top of the file). False where the port stopped. */
-static bool frame_work(Snes *s)
-{
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    s->cpu.d = 0x0000;
-    s->cpu.db = 0x00;
-    bool quiet = begin_frame(g, pf);
-    if (scene_flags(g) & SCENE_FLAG_TITLE_WITH_LINE_IRQ)
-        m_set_flag(s, CPU_FLAG_I, false);   /* the line interrupt may interrupt the work */
-    if (!is_paused(g)) {
-        m_set_flag(s, CPU_FLAG_C, quiet);   /* the acknowledge's compare, which the tasks see */
-        if (!run_task_list(s, SCENE_VBLANK_TASKS))
-            return false;
-    }
-    after_vblank_tasks(g, pf);
-    m_set_flag(s, CPU_FLAG_M, true);
-
-    if (!scene_run(s, 0xC3091F, 0xC30A8E, DC_A | DC_X | DC_N | DC_Z, scene_read_controller_entry))
-        return false;
-    if (is_paused(g)) {
-        dim_for_pause(g, pf);
-        charge_legacy_accesses(g, 1);   /* the halving's */
-        s->cpu.a &= 0x00FF;   /* the pause word's high byte, 0 */
-    } else {
-        if (!run_task_list(s, SCENE_FRAME_TASKS))
-            return false;
-    }
-    m_set_flag(s, CPU_FLAG_M, true);
-    install_handler(g, FRAME_HANDLER);
-    return true;
-}
-
-/* The scene keeps its pause as 0 or 1, which the port takes as a switch; the
- * original tests the word, and its low byte, which agree only then. */
-bool scene_pause_is_a_switch(Snes *s)
-{
-    vars_peek(true);
-    bool ok = scene_paused(state_of(s)) <= 1;
-    vars_peek(false);
-    return ok;
-}
-
-/* Entered with 16-bit index registers; back, the callers read A's high byte and
- * the carry as the original leaves them. */
-void scene_frame_work_entry(Snes *s)
-{
-    if (frame_work(s))
-        m_rtl(s);
-}
-
-/* The song's send, as the NMI handler makes it, with the data bank the frame's
- * work leaves (0, which reaches the sound command buffer and the driver; the
- * handler goes on only where it does). False where the port stops. */
-static bool send_song(Snes *s)
-{
-    GameState *g = state_of(s);
-    m_set_flag(s, CPU_FLAG_M, true);
-    uint8_t song;
-    if (!song_to_send(g, &song))
-        return true;
-    au_command(m_platform(s), PF_CALL_DC(0xC309D1, 0xC70004, DC_AL | DC_X | DC_N | DC_Z | DC_C),
-               (AudioCommand){ .command = PLAY_SONG, .p1 = song, .p2 = SONG_VOLUME_AS_IS, .p3 = SONG_ECHO_AS_IS,
-                               .count = 3 });
-    if (!can_continue(s) || !m_flag(s, CPU_FLAG_M))
-        return false;
-    set_sending_song(g, false);
-    return true;
-}
-
 /* The JSR to the song's send pushes this. */
 enum { SEND_SONG_RETURN = 0x08C0 };
-
-// $C3:08B3
-/* The NMI handler: save the interrupted context, call the frame's work
- * under its entry contract, send a changed song, and return. */
-void scene_nmi(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_set_flag(s, CPU_FLAG_M | CPU_FLAG_X, false);
-    m_push16(s, c->a);
-    m_push16(s, c->x);
-    m_push16(s, c->y);
-    m_push16(s, c->d);
-    m_push8(s, c->db);
-
-    if (m_runs_retired_as_c(s)) {
-        if (!scene_run_long_called(s, 0xC308BA, 0xC308D0, 0, scene_frame_work_entry))
-            return;
-    } else {
-        m_jsl(s, 0xC308BA, 0xC308D0);
-    }
-    if (!can_continue(s))
-        return;
-
-    m_push16(s, SEND_SONG_RETURN);
-    if (!send_song(s))
-        return;
-    m_pull16(s);
-
-    m_set_flag(s, CPU_FLAG_M | CPU_FLAG_X, false);
-    c->db = m_pull8(s);
-    c->d = m_pull16(s);
-    c->y = m_pull16(s);
-    c->x = m_pull16(s);
-    c->a = m_pull16(s);
-    m_rti(s);
-}
-
-// $C3:08C9
-/* The NMI while the frame's work runs: acknowledge it, and back. */
-void scene_nmi_while_working(Snes *s)
-{
-    tm_ack_vblank(m_platform(s), PF_AT(0xC308CB));
-    m_rti(s);
-}
-
-// $C3:0945
-/* A line interrupt handler that only acknowledges; nothing installs it. */
-void scene_line_irq_ack(Snes *s)
-{
-    tm_ack_line_irq(m_platform(s), PF_AT(0xC30947));
-    m_rti(s);
-}
-
-/* ---- The task lists' entries ---------------------------------------------------------------- */
-
-bool scene_frame_tasks_present(Snes *s)
-{
-    return m_bank_reaches_low_ram(s) && m_code_matches(s, 0x7E398A, 29, 0xA8C5FD94195E6607ull);
-}
-
-bool scene_vblank_tasks_present(Snes *s)
-{
-    return m_bank_reaches_low_ram(s) && m_code_matches(s, 0x7E39BE, 32, 0xC12FC96AEC0DACA2ull);
-}
-
-/* Completion resumes the list with the task caller's saved widths and bank.
- * Check those before unwinding: the task itself may have changed both. */
-static bool saved_task_list_context(Snes *s)
-{
-    uint8_t flags = snes_bus_peek(&s->bus, (uint16_t)(s->cpu.s + 5));
-    uint8_t bank = snes_bus_peek(&s->bus, (uint16_t)(s->cpu.s + 8));
-    return !(flags & CPU_FLAG_X) && (bank == SCENE_LOWER_WORK_RAM || m_io_bank(bank));
-}
-
-bool scene_finish_frame_task_present(Snes *s) { return scene_frame_tasks_present(s) && saved_task_list_context(s); }
-bool scene_finish_vblank_task_present(Snes *s) { return scene_vblank_tasks_present(s) && saved_task_list_context(s); }
 
 /* ---- The tasks ------------------------------------------------------------------------------ */
 
@@ -512,15 +307,6 @@ static void end_the_task(GameState *g, SceneTaskList list, unsigned slot, TaskEn
         set_task_at(g, list, slot, end.next);
 }
 
-/* What a task leaves for the code after it: Y for the next task, and A (A's
- * high byte is what the frame's work reads after the list's last task; a slot
- * handed over leaves the task that takes it). */
-static void leave_y(Snes *s, TaskLeftovers l)
-{
-    if (l.y_set)
-        s->cpu.y = l.y;
-}
-
 /* A list's loop calls a task from its own code (the frame list's at
  * $7E:3998, the vblank list's at $7E:39CF), with the data bank, the slot, P
  * and D saved under the call, and for the vblank list the direct page in
@@ -530,34 +316,28 @@ static void leave_y(Snes *s, TaskLeftovers l)
 enum { FRAME_TASK_CALL = 0x7E3998, VBLANK_TASK_CALL = 0x7E39CF };
 enum { THE_TASKS_READ_ANYTHING = 0 };
 
-static void keep_the_list_s_frames(Snes *s, uint16_t index)
+TaskEnd scene_task_needs_the_machine(GameState *g, uint32_t routine, const char *what)
 {
-    Cpu *c = &s->cpu;
-    m_push8(s, c->db);
-    m_push16(s, index);
-    m_push8(s, c->p);
-    m_push16(s, c->d);
+    program_fail(g, routine, what);
+    return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
 }
 
-static void unwind_the_task_s_frames(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    c->d = m_pull16(s);
-    c->p = m_pull8(s);
-    c->x = m_pull16(s);
-    c->db = m_pull8(s);
-}
+/* The tasks whose ports take the machine, by the program's routine the value
+ * on the list is the address of: run as the list's call reaches them, timed
+ * as their own routines, where their guards hold (scene_run); a task with no
+ * row here or in the tables above is the original's. The rows are the tasks
+ * the library's runs reach, in shadow mode and in the shipping mode. Those a
+ * build with no machine runs have it as C too. */
 
-/* The program's routines on the lists that a build with no machine runs as
- * C: the channels' turns, the sprites hidden, the palette sent and the
- * plane sent, shown flat or in perspective. Each stays on its list. */
 static TaskEnd channel_turn(GameState *g, Platform *pf, SceneChannel ch)
 {
     if (scene_channel_turn(g, pf, ch) != SCENE_TURN_ENDED)
         return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
     return task_goes_on();
 }
+
 static TaskEnd channel_0_turn(GameState *g, Platform *pf, unsigned slot) { (void)slot; return channel_turn(g, pf, 0); }
+
 static TaskEnd channel_1_turn(GameState *g, Platform *pf, unsigned slot) { (void)slot; return channel_turn(g, pf, 1); }
 
 static TaskEnd hide_every_sprite(GameState *g, Platform *pf, unsigned slot)
@@ -583,7 +363,6 @@ static TaskEnd send_the_flat_plane(GameState *g, Platform *pf, unsigned slot)
     return task_goes_on();
 }
 
-/* The program's empty routine, which a script puts on a list to hold a slot. */
 static TaskEnd nothing_this_frame(GameState *g, Platform *pf, unsigned slot)
 {
     (void)g;
@@ -599,127 +378,111 @@ static TaskEnd send_the_plane_s_place(GameState *g, Platform *pf, unsigned slot)
     return task_goes_on();
 }
 
-TaskEnd scene_task_needs_the_machine(GameState *g, uint32_t routine, const char *what)
-{
-    program_needs_the_machine(g, routine, what);
-    return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
-}
-
-/* The tasks whose ports take the machine, by the program's routine the value
- * on the list is the address of: run as the list's call reaches them, timed
- * as their own routines, where their guards hold (scene_run); a task with no
- * row here or in the tables above is the original's. The rows are the tasks
- * the library's runs reach, in shadow mode and in the shipping mode. Those a
- * build with no machine runs have it as C too. */
-static const struct {
-    uint32_t routine;
-    void (*entry)(Snes *);
-    SceneTaskInC run;
-} machine_tasks[] = {
+static const struct { uint32_t routine; SceneTaskInC run; } machine_tasks[] = {
     /* the scripts' channels' first steps and the vblank list's uploads */
-    { 0x7E3176, NULL, nothing_this_frame },
-    { 0x7E3749, scene_run_channel_0_script, channel_0_turn },
-    { 0x7E3754, scene_run_channel_1_script, channel_1_turn },
-    { 0x7E3843, scene_clear_sprite_table, hide_every_sprite },
-    { 0x7E388B, scene_upload_palette, send_palette },
+    { 0x7E3176, nothing_this_frame },
+    { 0x7E3749, channel_0_turn },
+    { 0x7E3754, channel_1_turn },
+    { 0x7E3843, hide_every_sprite },
+    { 0x7E388B, send_palette },
     /* the jet bike race's */
-    { 0x7E3D72, scene_race_sweep_curtain_entry, scene_race_sweep_curtain },
-    { 0x7E416D, scene_race_settle_camera_entry, scene_race_settle_camera },
-    { 0x7E424D, scene_race_wait_to_leave_entry, scene_race_wait_to_leave },
-    { 0x7E4283, scene_race_leave_entry, scene_race_leave },
-    { 0x7E428B, scene_race_move_along_entry, scene_race_move_along },
-    { 0x7E42BD, scene_race_keep_controller_entry, scene_race_keep_controller },
-    { 0x7E42CE, scene_race_check_perspective_entry, scene_race_check_perspective },
-    { 0x7E4339, scene_race_turn_camera_entry, scene_race_turn_camera },
-    { 0x7E43F2, scene_race_move_camera_entry, scene_race_move_camera },
-    { 0x7E4447, scene_race_aim_camera_entry, scene_race_aim_camera },
-    { 0x7E449C, scene_race_follow_finish_entry, scene_race_follow_finish },
-    { 0x7E44CE, scene_race_drain_score_entry, scene_race_drain_score },
-    { 0x7E44FE, scene_race_set_horizon_entry, scene_race_set_horizon },
-    { 0x7E4643, scene_race_upload_column_rom_entry, scene_race_upload_column_rom },
-    { 0x7E464D, scene_race_upload_column_ram_entry, scene_race_upload_column_ram },
-    { 0x7E4677, scene_race_coast_entry, scene_race_coast },
-    { 0x7E4755, scene_race_await_victory_song_entry, scene_race_await_victory_song },
-    { 0x7E485D, scene_race_ride_entry, scene_race_ride },
-    { 0x7E4D0D, scene_race_place_bikes_entry, scene_race_place_bikes },
-    { 0x7E4F54, scene_race_draw_entry, scene_race_draw },
-    { 0x7E5221, scene_race_upload_tilemap_entry, scene_race_upload_tilemap },
+    { 0x7E3D72, scene_race_sweep_curtain },
+    { 0x7E416D, scene_race_settle_camera },
+    { 0x7E424D, scene_race_wait_to_leave },
+    { 0x7E4283, scene_race_leave },
+    { 0x7E428B, scene_race_move_along },
+    { 0x7E42BD, scene_race_keep_controller },
+    { 0x7E42CE, scene_race_check_perspective },
+    { 0x7E4339, scene_race_turn_camera },
+    { 0x7E43F2, scene_race_move_camera },
+    { 0x7E4447, scene_race_aim_camera },
+    { 0x7E449C, scene_race_follow_finish },
+    { 0x7E44CE, scene_race_drain_score },
+    { 0x7E44FE, scene_race_set_horizon },
+    { 0x7E4643, scene_race_upload_column_rom },
+    { 0x7E464D, scene_race_upload_column_ram },
+    { 0x7E4677, scene_race_coast },
+    { 0x7E4755, scene_race_await_victory_song },
+    { 0x7E485D, scene_race_ride },
+    { 0x7E4D0D, scene_race_place_bikes },
+    { 0x7E4F54, scene_race_draw },
+    { 0x7E5221, scene_race_upload_tilemap },
     /* Lavos falling to the planet's */
-    { 0x7E55F9, scene_turn_the_field_s_angle_entry, scene_turn_the_field_s_angle },
-    { 0x7E5654, scene_send_the_flat_plane_entry, send_the_flat_plane },
-    { 0x7E56A9, scene_turn_lavos_entry, scene_turn_lavos },
-    { 0x7E56EB, scene_draw_the_planet_entry, scene_draw_the_planet },
-    { 0x7E579B, scene_stars_fly_entry, scene_stars_fly },
-    { 0x7E5855, scene_swing_the_field_entry, scene_swing_the_field },
+    { 0x7E55F9, scene_turn_the_field_s_angle },
+    { 0x7E5654, send_the_flat_plane },
+    { 0x7E56A9, scene_turn_lavos },
+    { 0x7E56EB, scene_draw_the_planet },
+    { 0x7E579B, scene_stars_fly },
+    { 0x7E5855, scene_swing_the_field },
     /* the planet's and the rising palace's */
-    { 0x7E63D5, scene_wait_for_a_button_to_restart_entry, scene_wait_for_a_button_to_restart },
-    { 0x7E63F5, scene_count_down_to_the_restart_entry, scene_count_down_to_the_restart },
-    { 0x7E64BF, scene_show_the_planet_s_caption_entry, scene_show_the_planet_s_caption },
-    { 0x7E6844, scene_sweep_the_palace_curtain_entry, scene_sweep_the_palace_curtain },
+    { 0x7E63D5, scene_wait_for_a_button_to_restart },
+    { 0x7E63F5, scene_count_down_to_the_restart },
+    { 0x7E64BF, scene_show_the_planet_s_caption },
+    { 0x7E6844, scene_sweep_the_palace_curtain },
     /* the turning-map scene */
-    { 0x7E7193, scene_step_turn_mosaic_entry, scene_step_turn_mosaic },
-    { 0x7E72FF, scene_spread_turn_figures_entry, scene_spread_turn_figures },
-    { 0x7E7325, scene_size_turn_windows_entry, scene_size_turn_windows },
-    { 0x7E737E, scene_show_turn_mosaic_entry, scene_show_turn_mosaic },
-    { 0x7E73AA, scene_scroll_turn_wave_entry, scene_scroll_turn_wave },
-    { 0x7E76A5, scene_orbit_turn_figures_entry, scene_orbit_turn_figures },
-    { 0x7E7721, scene_update_turn_figures_entry, scene_update_turn_figures },
-    { 0x7E7868, scene_send_turn_figure_entry, scene_send_turn_figure },
-    { 0x7E78AB, scene_cycle_turn_colors_entry, scene_cycle_turn_colors },
+    { 0x7E7193, scene_step_turn_mosaic },
+    { 0x7E72FF, scene_spread_turn_figures },
+    { 0x7E7325, scene_size_turn_windows },
+    { 0x7E737E, scene_show_turn_mosaic },
+    { 0x7E73AA, scene_scroll_turn_wave },
+    { 0x7E76A5, scene_orbit_turn_figures },
+    { 0x7E7721, scene_update_turn_figures },
+    { 0x7E7868, scene_send_turn_figure },
+    { 0x7E78AB, scene_cycle_turn_colors },
     /* the Epoch's dive's */
-    { 0x7E79F8, scene_set_the_screen_outside_entry, scene_set_the_screen_outside },
-    { 0x7E7A35, scene_set_the_screen_in_the_cockpit_entry, scene_set_the_screen_in_the_cockpit },
-    { 0x7E7BF2, scene_open_the_light_entry, scene_open_the_light },
-    { 0x7E7F12, scene_pass_the_shell_across_entry, scene_pass_the_shell_across },
-    { 0x7E7F35, scene_pass_the_shell_down_entry, scene_pass_the_shell_down },
-    { 0x7E7F58, scene_follow_the_panel_entry, scene_follow_the_panel },
-    { 0x7E7F7D, scene_shake_the_cockpit_entry, scene_shake_the_cockpit },
-    { 0x7E7FC4, scene_size_the_trail_entry, scene_size_the_trail },
-    { 0x7E7FCB, scene_draw_the_trail_entry, scene_draw_the_trail },
-    { 0x7E8079, scene_flicker_the_lights_entry, scene_flicker_the_lights },
-    { 0x7E81C4, scene_send_the_plane_s_place_entry, send_the_plane_s_place },
-    { 0x7E81F1, scene_let_the_shell_fall_away_entry, scene_let_the_shell_fall_away },
-    { 0x7E8205, scene_draw_the_epoch_entry, scene_draw_the_epoch },
-    { 0x7E824A, scene_send_the_epoch_entry, scene_send_the_epoch },
-    { 0x7E82D1, scene_check_the_shell_entry, scene_check_the_shell },
-    { 0x7E835B, scene_fly_the_epoch_on_entry, scene_fly_the_epoch_on },
+    { 0x7E79F8, scene_set_the_screen_outside },
+    { 0x7E7A35, scene_set_the_screen_in_the_cockpit },
+    { 0x7E7BF2, scene_open_the_light },
+    { 0x7E7F12, scene_pass_the_shell_across },
+    { 0x7E7F35, scene_pass_the_shell_down },
+    { 0x7E7F58, scene_follow_the_panel },
+    { 0x7E7F7D, scene_shake_the_cockpit },
+    { 0x7E7FC4, scene_size_the_trail },
+    { 0x7E7FCB, scene_draw_the_trail },
+    { 0x7E8079, scene_flicker_the_lights },
+    { 0x7E81C4, send_the_plane_s_place },
+    { 0x7E81F1, scene_let_the_shell_fall_away },
+    { 0x7E8205, scene_draw_the_epoch },
+    { 0x7E824A, scene_send_the_epoch },
+    { 0x7E82D1, scene_check_the_shell },
+    { 0x7E835B, scene_fly_the_epoch_on },
     /* the endings' pictures and credits */
-    { 0x7E8850, scene_ending_place_picture_entry, scene_ending_place_picture },
-    { 0x7E891B, scene_ending_pick_picture_frame_entry, scene_ending_pick_picture_frame },
-    { 0x7E89C0, scene_ending_upload_picture_entry, scene_ending_upload_picture },
-    { 0x7E8C05, scene_clear_sprite_high_bits_entry, scene_clear_sprite_high_bits },
-    { 0x7E8D56, scene_ending_show_credits_entry, scene_ending_show_credits },
-    { 0x7E8B52, scene_ending_panorama_horizon_entry, scene_ending_panorama_horizon },
-    { 0x7E8E44, scene_ending_show_last_scene_entry, scene_ending_show_last_scene },
-    { 0x7E8E88, scene_ending_scroll_bg2_entry, scene_ending_scroll_bg2 },
+    { 0x7E8850, scene_ending_place_picture },
+    { 0x7E891B, scene_ending_pick_picture_frame },
+    { 0x7E89C0, scene_ending_upload_picture },
+    { 0x7E8C05, scene_clear_sprite_high_bits },
+    { 0x7E8D56, scene_ending_show_credits },
+    { 0x7E8B52, scene_ending_panorama_horizon },
+    { 0x7E8E44, scene_ending_show_last_scene },
+    { 0x7E8E88, scene_ending_scroll_bg2 },
     /* the flight beyond time's, the star fields' drift, the captions' and the staff roll's */
-    { 0x7E9080, scene_set_the_flight_horizon_entry, scene_set_the_flight_horizon },
-    { 0x7E90C1, scene_pass_the_map_entry, scene_pass_the_map },
-    { 0x7E9897, scene_stars_start_drift_entry, scene_stars_start_drift },
-    { 0x7E98AC, scene_stars_keep_drifting_entry, scene_stars_keep_drifting },
-    { 0x7E992A, scene_circle_the_epoch_entry, scene_circle_the_epoch },
-    { 0x7E997D, scene_sway_the_epoch_entry, scene_sway_the_epoch },
-    { 0x7E999C, scene_stars_fly_after_captions_entry, scene_stars_fly_after_captions },
-    { 0x7E99B5, scene_keep_the_orbit_entry, scene_keep_the_orbit },
-    { 0x7E99FA, scene_ending_draw_the_end_entry, scene_ending_draw_the_end },
-    { 0x7E9A0C, scene_ending_sweep_window_entry, scene_ending_sweep_window },
-    { 0x7E9ABD, scene_check_the_flight_view_entry, scene_check_the_flight_view },
-    { 0x7E9AF3, scene_place_the_flight_view_entry, scene_place_the_flight_view },
-    { 0x7E9B4F, scene_turn_captions_entry, scene_turn_captions },
-    { 0x7E9BF9, scene_burst_the_fireworks_entry, scene_burst_the_fireworks },
-    { 0x7E9C58, scene_show_the_mosaic_entry, scene_show_the_mosaic },
-    { 0x7E9CE2, scene_send_the_mosaic_frame_entry, scene_send_the_mosaic_frame },
-    { 0x7E9D45, scene_turn_back_and_twinkle_entry, scene_turn_back_and_twinkle },
-    { 0x7E9D48, scene_twinkle_the_lights_entry, scene_twinkle_the_lights },
-    { 0x7E9DBC, scene_send_the_flight_view_entry, scene_send_the_flight_view },
-    { 0x7E9E19, scene_send_the_picture_and_bg2_entry, scene_send_the_picture_and_bg2 },
-    { 0x7E9E2B, scene_send_the_picture_entry, scene_send_the_picture },
-    { 0x7E9E7B, scene_roll_credits_entry, scene_roll_credits },
-    { 0x7E9EFC, scene_upload_credits_entry, scene_upload_credits },
-    { 0x7E9F2B, scene_send_the_credits_picture_entry, scene_send_the_credits_picture },
-    { 0x7E9F39, scene_send_the_pattern_s_map_entry, scene_send_the_pattern_s_map },
-    { 0x7E9F47, scene_send_the_pattern_s_tiles_entry, scene_send_the_pattern_s_tiles },
-    { 0x7E9F73, scene_blank_the_map_entry, scene_blank_the_map },
+    { 0x7E9080, scene_set_the_flight_horizon },
+    { 0x7E90C1, scene_pass_the_map },
+    { 0x7E9897, scene_stars_start_drift },
+    { 0x7E98AC, scene_stars_keep_drifting },
+    { 0x7E992A, scene_circle_the_epoch },
+    { 0x7E997D, scene_sway_the_epoch },
+    { 0x7E999C, scene_stars_fly_after_captions },
+    { 0x7E99B5, scene_keep_the_orbit },
+    { 0x7E99FA, scene_ending_draw_the_end },
+    { 0x7E9A0C, scene_ending_sweep_window },
+    { 0x7E9ABD, scene_check_the_flight_view },
+    { 0x7E9AF3, scene_place_the_flight_view },
+    { 0x7E9B4F, scene_turn_captions },
+    { 0x7E9BF9, scene_burst_the_fireworks },
+    { 0x7E9C58, scene_show_the_mosaic },
+    { 0x7E9CE2, scene_send_the_mosaic_frame },
+    { 0x7E9D45, scene_turn_back_and_twinkle },
+    { 0x7E9D48, scene_twinkle_the_lights },
+    { 0x7E9DBC, scene_send_the_flight_view },
+    { 0x7E9E19, scene_send_the_picture_and_bg2 },
+    { 0x7E9E2B, scene_send_the_picture },
+    { 0x7E9E7B, scene_roll_credits },
+    { 0x7E9EFC, scene_upload_credits },
+    { 0x7E9F2B, scene_send_the_credits_picture },
+    { 0x7E9F39, scene_send_the_pattern_s_map },
+    { 0x7E9F47, scene_send_the_pattern_s_tiles },
+    { 0x7E9F73, scene_blank_the_map },
 };
 
 static int machine_task_row(SceneTask task)
@@ -729,150 +492,6 @@ static int machine_task_row(SceneTask task)
             return (int)i;
     return -1;
 }
-
-static void (*machine_task(SceneTask task))(Snes *)
-{
-    int row = machine_task_row(task);
-    return row < 0 ? NULL : machine_tasks[row].entry;
-}
-
-static TaskEnd run_the_original_task(Snes *s, SceneTaskList list, unsigned slot, SceneTask task)
-{
-    Cpu *c = &s->cpu;
-    bool vblank = list == SCENE_VBLANK_TASKS;
-    uint16_t index = (uint16_t)(slot * 2);
-    m_set_nz16(s, task);
-    keep_the_list_s_frames(s, index);
-    c->x = index;
-    c->a = task;
-    if (vblank) {
-        c->a = c->d;
-        m_set_nz16(s, c->d);
-        m_set_flag(s, CPU_FLAG_M, true);
-    }
-    uint32_t call = vblank ? VBLANK_TASK_CALL : FRAME_TASK_CALL;
-    if (scene_run(s, call, PROGRAM_BANK | task, THE_TASKS_READ_ANYTHING, machine_task(task))) {
-        unwind_the_task_s_frames(s);
-        c->x = index;
-        return task_goes_on();
-    }
-    /* A finishing task has already run the rest of the list and returned
-     * through its caller. A task which yielded has left that continuation
-     * pending. Either way this invocation has no more slots to run. */
-    return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
-}
-
-/* The list calls a task with A the task (the vblank list: the direct page),
- * which a task's own calls may read. */
-static void as_the_list_calls(Snes *s, SceneTaskList list, SceneTask task)
-{
-    s->cpu.a = list == SCENE_VBLANK_TASKS ? s->cpu.d : task;
-}
-
-/* A task the port has as C runs where the program's code for it is the code
- * the port stands for, in binary mode, as every list runs. */
-static bool runs(Snes *s, const SceneTaskPort *port)
-{
-    return port && !m_flag(s, CPU_FLAG_D) && port->present(s);
-}
-
-/* One task's frame, on a list's slot. As C, it is timed as the program's
- * routine for it; the list then has P back as it saved it, with the flags of
- * the slot's load, and the slot in X. A task the port doesn't have is the
- * original's, called through the machine. */
-static TaskEnd run_task(Snes *s, SceneTaskList list, unsigned slot, SceneTask task)
-{
-    /* The program uses its empty routine as a task too. Its only instruction
-     * returns unchanged; retain the list's argument and saved-context result
-     * without handing that return to the interpreter. A different code image
-     * still takes the ordinary checked dispatch below. */
-    if (task == SCENE_PASS_NOTHING && snes_bus_peek(&s->bus, PROGRAM_BANK | task) == 0x60) {
-        m_set_nz16(s, task);
-        as_the_list_calls(s, list, task);
-        s->cpu.x = (uint16_t)(slot * 2);
-        return task_goes_on();
-    }
-    const SceneTaskPort *port = port_of(task, list);
-    if (!runs(s, port))
-        return run_the_original_task(s, list, slot, task);
-    GameState *g = state_of(s);
-    TaskEnd end = task_goes_on();
-    uint16_t index = (uint16_t)(slot * 2);
-    m_set_nz16(s, task);
-    if (port->calls_out) {
-        keep_the_list_s_frames(s, index);
-        scene_bridge_enter(s, list == SCENE_VBLANK_TASKS ? VBLANK_TASK_CALL : FRAME_TASK_CALL);
-        m_set_flag(s, CPU_FLAG_M, true);
-    }
-    NATIVE_TIME_AS(s, PROGRAM_BANK | task, end = port->run(g, m_platform(s)));
-    if (port->calls_out) {
-        scene_bridge_leave(s);
-        unwind_the_task_s_frames(s);
-    }
-    TaskLeftovers l = port->leaves(g, end);
-    leave_y(s, l);
-    end_the_task(g, list, slot, end);
-    s->cpu.x = index;
-    return end;
-}
-
-// $7E:398A, $7E:39BE
-/* Every task on a list from slot `first` on, in order; the list is read again
- * after each task, which can change it. A is the last task's, or 0 where the
- * last slot was empty; the carry is the loop's compare. A task the original
- * runs that leaves some other way than the list's own is the original's from
- * there. */
-static void run_tasks_from(Snes *s, SceneTaskList list, unsigned first)
-{
-    GameState *g = state_of(s);
-    unsigned count = list_length(list);
-    m_set_flag(s, CPU_FLAG_M, false);
-    for (unsigned slot = first; slot < count; slot++) {
-        SceneTask task = list == SCENE_VBLANK_TASKS ? scene_early_tasks(g, slot) : scene_tasks_running(g, slot);
-        if (task == NO_TASK)
-            s->cpu.a = 0;
-        else if (run_task(s, list, slot, task).outcome == TASK_LEFT_TO_THE_ORIGINAL)
-            return;
-        m_set_flag(s, CPU_FLAG_C, slot + 1 == count);   /* the loop's compare; its X, N and Z aren't read */
-    }
-    m_set_flag(s, CPU_FLAG_C, true);   /* the last compare's, at the list's end, from wherever it went on */
-    s->cpu.x = (uint16_t)(count * 2);
-    m_set_nz16(s, 0);
-    m_rtl(s);
-}
-
-/* A task which finishes returns through the list, not through its own call.
- * Restore the caller's page, bank and slot, change the persistent list, then
- * run the remaining slots. The frame's snapshot stays intact this frame. */
-static void finish_task_on_the_machine(Snes *s, SceneTaskList list, TaskEnd end)
-{
-    if (end.outcome == TASK_HANDS_OVER)
-        s->cpu.a = end.next;
-    (void)m_pull16(s);
-    unwind_the_task_s_frames(s);
-    unsigned slot = s->cpu.x / 2u;
-    end_the_task(state_of(s), list, slot, end);
-    uint32_t loop = list == SCENE_VBLANK_TASKS ? 0x7E39BE : 0x7E398A;
-    NATIVE_TIME_AS(s, loop, run_tasks_from(s, list, slot + 1u));
-}
-
-void scene_finish_task(Snes *s, SceneTaskList list, TaskEnd end)
-{
-    uint32_t continuation = list == SCENE_VBLANK_TASKS ? 0x7E39DE :
-                            end.outcome == TASK_HANDS_OVER ? 0x7E39B1 : 0x7E39A7;
-    void (*entry)(Snes *) = list == SCENE_VBLANK_TASKS ? scene_finish_remove_vblank_task_entry :
-        end.outcome == TASK_HANDS_OVER ? scene_finish_replace_frame_task_entry : scene_finish_remove_frame_task_entry;
-    if (end.outcome == TASK_HANDS_OVER)
-        s->cpu.x = end.next;
-    if (!scene_accept_continuation(s, continuation, entry))
-        return;
-    NATIVE_TIME_AS(s, continuation, finish_task_on_the_machine(s, list, end));
-}
-
-// $7E:39A7, $7E:39B1, $7E:39DE
-void scene_finish_remove_frame_task_entry(Snes *s) { scene_finish_task(s, SCENE_FRAME_TASKS, task_is_done()); }
-void scene_finish_replace_frame_task_entry(Snes *s) { scene_finish_task(s, SCENE_FRAME_TASKS, task_hands_over(s->cpu.x)); }
-void scene_finish_remove_vblank_task_entry(Snes *s) { scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done()); }
 
 /* ---- The frame as C, with no machine ------------------------------------------------------------ */
 
@@ -927,7 +546,7 @@ bool scene_frame_work(GameState *g, Platform *pf)
         dim_for_pause(g, pf);
     else if (!run_tasks(g, pf, SCENE_FRAME_TASKS))
         return false;
-    install_handler(g, FRAME_HANDLER);
+    install_handler(g, scene_vblank);
     return true;
 }
 
@@ -939,7 +558,7 @@ void scene_vblank(GameState *g, Platform *pf)
     uint8_t song;
     if (!done || !song_to_send(g, &song))
         return;
-    au_command(pf, PF_CALL_DC(0xC309D1, 0xC70004, DC_AL | DC_X | DC_N | DC_Z | DC_C),
+    au_command(pf, PF_CALL(0xC309D1, 0xC70004),
                (AudioCommand){ .command = PLAY_SONG, .p1 = song, .p2 = SONG_VOLUME_AS_IS, .p3 = SONG_ECHO_AS_IS,
                                .count = 3 });
     set_sending_song(g, false);
@@ -951,14 +570,5 @@ void scene_vblank_while_working(GameState *g, Platform *pf)
     (void)g;
     (void)tm_ack_vblank(pf, PF_AT(0xC308CB));
 }
-
-/* The frame's tasks, from the copy of the list the frame's work made, each
- * called with 16-bit A. */
-static void run_tasks_on_the_machine(Snes *s, SceneTaskList list) { run_tasks_from(s, list, 0); }
-
-void scene_run_frame_tasks(Snes *s) { run_tasks_on_the_machine(s, SCENE_FRAME_TASKS); }
-
-/* The vblank tasks, each called with 8-bit A and the direct page in A. */
-void scene_run_vblank_tasks(Snes *s) { run_tasks_on_the_machine(s, SCENE_VBLANK_TASKS); }
 
 // $7E:399B, $7E:39D2

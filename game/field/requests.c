@@ -43,7 +43,6 @@
 #include "field/display.h"
 #include "field/parts.h"
 #include "field/scratch.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -118,24 +117,6 @@ void field_step_screen_changes(GameState *g)
 static bool asked(const GameState *g, uint8_t request) { return (field_requests(g) & request) != 0; }
 static void answered(GameState *g, uint8_t request) { set_field_requests(g, (uint8_t)(field_requests(g) & ~request)); }
 
-/* The switch's sound (field/sounds.c), run from each switch's own place as
- * the original calls it there. It reads A's high byte (the sound driver
- * keeps it and hands it back) and nothing else of the registers. Two of the
- * five switches note their shape before the sound and three after; nothing
- * reads it in between, but the call is compared, so the shape is noted first
- * where the original does. */
-enum { SOUND_READS_NOTHING = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-/* Where each switch calls the sound from, by its shape and the column
- * stepped into: its own place, which is also where the port stops if the
- * call comes back other than it went. */
-static const struct {
-    uint32_t left, right;   /* stepped into the switch's left column, or its right */
-} sound_sites[] = {
-    [SWITCH_ONE_BY_TWO] = { 0xC00D92, 0xC00D92 },
-    [SWITCH_TWO_BY_TWO] = { 0xC00E8F, 0xC01040 },
-    [SWITCH_TWO_BY_THREE] = { 0xC01212, 0xC0149D },
-};
-
 /* A step event's and a chest's sounds, and what the machine leaves after
  * each answer (the original's registers, which its later calls read): the
  * program plays the sound as C and leaves nothing; the machine's entry calls
@@ -183,62 +164,10 @@ static bool answer_chest_with(GameState *g, const StepAndChestSteps *steps, void
     return true;
 }
 
-/* ---- On the machine ---- */
-
-/* A chest asked for with the step event is opened after it, and its sound
- * reads A's high byte as the step event's code leaves it (field/leaves.c). */
-static void leave_a_for_the_chest(Snes *s, uint16_t step, bool pressed)
-{
-    if (asked(state_of(s), FIELD_REQUEST_OPEN_CHEST))
-        s->cpu.a = (uint16_t)(field_step_event_high_a(state_of(s), step, pressed) << 8 | (s->cpu.a & 0xFF));
-}
-
-static bool switch_sound_on_the_machine(void *ctx, SwitchPress p, uint16_t step)
-{
-    Snes *s = ctx;
-    s->cpu.a = (uint16_t)(field_switch_sound_high_a(state_of(s), p, step) << 8 | (s->cpu.a & 0xFF));
-    uint32_t site = p.step_column == 0 ? sound_sites[p.shape].left : sound_sites[p.shape].right;
-    return field_run(s, site, FIELD_SWITCH_SOUND_ENTRY, SOUND_READS_NOTHING, field_play_the_switch_sound_entry,
-                     on_the_field_page(s, false));
-}
-
-static void step_answered_on_the_machine(void *ctx, uint16_t step, bool pressed)
-{
-    Snes *s = ctx;
-    if (pressed)
-        m_set_flag(s, CPU_FLAG_V, field_switch_redraw_overflow(state_of(s)));
-    leave_a_for_the_chest(s, step, pressed);
-}
-
 /* The chest's sound, run from the original's own call. It reads A's high
  * byte: the step event's where one came before (leave_a_for_the_chest), else
  * as the main loop called the requests. */
 enum { CHEST_SOUND_SITE = 0xC016EB };
-
-static bool chest_sound_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    return field_run(s, CHEST_SOUND_SITE, FIELD_CHEST_SOUND_ENTRY, SOUND_READS_NOTHING,
-                     field_play_the_chest_sound_entry, on_the_field_page(s, false));
-}
-
-static void chest_opened_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    m_set_flag(s, CPU_FLAG_V, field_chest_redraw_overflow(state_of(s)));
-}
-
-static const StepAndChestSteps step_and_chest_on_the_machine = {
-    switch_sound_on_the_machine, step_answered_on_the_machine, chest_sound_on_the_machine,
-    chest_opened_on_the_machine,
-};
-
-static bool answer_step_event(Snes *s)
-{
-    return answer_step_event_with(state_of(s), &step_and_chest_on_the_machine, s);
-}
-
-static bool answer_chest(Snes *s) { return answer_chest_with(state_of(s), &step_and_chest_on_the_machine, s); }
 
 /* ---- As C ---- */
 
@@ -280,36 +209,14 @@ static const StepAndChestSteps step_and_chest_in_the_program = {
 /* ---- Calling on the machine ----------------------------------------------------------------- */
 
 /* The original's routines the answers call. */
-enum {
-    FRAME_WAIT = 0xC0EC60,          /* waits for the next frame */
-    PALETTE_ANIMATION = 0xFDFFF7,   /* the original's jump to it */
-    BATTLE = 0xC10000,
-    /* the field taken up after the battle (field/battle_return.c): a port
+enum { FRAME_WAIT = 0xC0EC60, /* waits for the next frame */
+    PALETTE_ANIMATION = 0xFDFFF7, /* the original's jump to it */
+    BATTLE = 0xC10000, /* the field taken up after the battle (field/battle_return.c): a port
      * that runs frames and ends by going on into another, which only a call
      * can run */
-    FIELD_AFTER_BATTLE = FIELD_AFTER_BATTLE_ENTRY,
-    FIELD_TURN = FIELD_WALK_A_FRAME_ENTRY,   /* a port, which waits for the next frame: called */
-};
+    FIELD_AFTER_BATTLE = FIELD_AFTER_BATTLE_ENTRY, FIELD_TURN = FIELD_WALK_A_FRAME_ENTRY, /* a port, which waits for the next frame: called */ };
 /* The ports the answers run as C. */
-enum { RECENTRE = 0xC0885A, COPY_TILES = 0xC0AF4E, SCROLL_LAYERS = 0xC02C41, FREE_SPRITE_AREAS = 0xC0E935,
-       DRAW_BG1 = 0xC075E9, DRAW_BG2 = 0xC078EC, DRAW_BG3 = 0xC07CB5 };
-enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
-       READS_THE_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
-
-/* The columns right of the view brought in once the screen is put back where
- * the party is (field/streaming.h). */
-static bool bring_in_the_right_columns(Snes *s, uint32_t site)
-{
-    return field_run(s, site, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, READS_NOTHING, field_bring_in_the_right_columns,
-                     on_the_field_page(s, false));
-}
-
-/* The field's own steps (field/main_loop.c), run as C. */
-static bool refresh(Snes *s, uint32_t site)
-{
-    return field_run(s, site, FIELD_REFRESH_EFFECTS_ENTRY, READS_NOTHING, field_refresh_effects,
-                     on_the_field_page(s, false));
-}
+enum { RECENTRE = 0xC0885A, COPY_TILES = 0xC0AF4E, SCROLL_LAYERS = 0xC02C41, FREE_SPRITE_AREAS = 0xC0E935, DRAW_BG1 = 0xC075E9, DRAW_BG2 = 0xC078EC, DRAW_BG3 = 0xC07CB5 };
 
 /* ---- A location change ($C0:0C8F) --------------------------------------------------------- */
 
@@ -329,22 +236,7 @@ static void keep_where_the_party_was(GameState *g)
 
 /* The field starts again on a fresh stack, then its held entry loads the
  * next location after the old C call chain has ended. */
-enum { FIELD_STARTS_AGAIN = 0xC00CC0, AS_THE_FIELD_STARTS = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-// $C0:0C8F
-/* A step of the fade a frame; dark, the change made. False once the field
- * has handed over to the next location's held entry. */
-static bool change_location_on_the_machine(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (field_dims_a_step(g))
-        return true;
-    display_go_dark(s);
-    keep_where_the_party_was(g);
-    field_move_to_the_next_place(g);
-    field_hands_over_to(s, FIELD_STARTS_AGAIN, AS_THE_FIELD_STARTS, field_start_again);
-    return false;
-}
+enum { FIELD_STARTS_AGAIN = 0xC00CC0 };
 
 /* ---- A tile copy ($C0:1779) ----------------------------------------------------------------- */
 
@@ -573,64 +465,6 @@ static bool tile_copy_call(void *ctx, TileCopyCall call)
 /* Finish charging the tile send and deliver its pending interrupts before
  * the frame wait increments field_frame_pending. Combining the two lets a
  * pending vblank consume the newly finished frame instead. */
-enum { THE_LAST_WAIT = DC_A | DC_N | DC_Z };
-
-static bool tile_copy_call_on_the_machine(void *ctx, TileCopyCall call)
-{
-    Snes *s = ctx;
-    if (call == TC_LAST_WAIT) {
-        field_hold_finished_frame(s, THE_LAST_WAIT);
-        return false;
-    }
-    uint32_t site = tile_copy_calls[call].site;
-    switch (tile_copy_calls[call].routine) {
-    case TC_RECENTRE: return field_run(s, site, RECENTRE, READS_NOTHING, field_recentre_the_screen, on_the_field_page(s, false));
-    case TC_FRAME_WORK:
-        return field_run(s, site, FIELD_FRAME_WORK_ENTRY, READS_THE_OVERFLOW, field_frame_work, on_the_field_page(s, false));
-    case TC_COPY: return field_run(s, site, COPY_TILES, READS_NOTHING, field_copy_tiles, on_the_field_page(s, false));
-    case TC_PALETTES:
-        return field_run_long(s, site, PALETTE_ANIMATION, READS_NOTHING, palette_animate, on_the_field_page(s, false));
-    case TC_DRAW_BG1: return field_run_on_page(s, site, DRAW_BG1, READS_NOTHING, field_draw_bg1_at_the_load, FIELD_LAYERS_PAGE);
-    case TC_DRAW_BG2: return field_run_on_page(s, site, DRAW_BG2, READS_NOTHING, field_draw_bg2_at_the_load, FIELD_LAYERS_PAGE);
-    case TC_DRAW_BG3: return field_run_on_page(s, site, DRAW_BG3, READS_NOTHING, field_draw_bg3_at_the_load, FIELD_LAYERS_PAGE);
-    case TC_REFRESH: return refresh(s, site);
-    case TC_COLUMNS: return bring_in_the_right_columns(s, site);
-    case TC_WAIT: return field_hold_next_frame(s, site, READS_NOTHING, on_the_field_page(s, false));
-    default: return false;
-    }
-}
-
-/* False where the port stopped. */
-static bool answer_tile_copy(Snes *s) { return copy_the_tiles(state_of(s), tile_copy_call_on_the_machine, s); }
-
-// $C0:178E
-void field_tile_copy_recentres(Snes *s)
-{
-    if (centre_then_copy(state_of(s), tile_copy_call_on_the_machine, s))
-        field_return_to_waiting_caller(s);
-}
-
-// $C0:179A
-void field_tile_copy_sends_layers(Snes *s)
-{
-    if (send_copied_layers(state_of(s), tile_copy_call_on_the_machine, s))
-        field_return_to_waiting_caller(s);
-}
-
-// $C0:17BC
-void field_tile_copy_finishes_bg1(Snes *s) { (void)finish_one_layer(FIELD_BG1, tile_copy_call_on_the_machine, s); }
-// $C0:17E5
-void field_tile_copy_finishes_bg2(Snes *s) { (void)finish_one_layer(FIELD_BG2, tile_copy_call_on_the_machine, s); }
-// $C0:1882
-void field_tile_copy_finishes_bg3(Snes *s) { (void)finish_one_layer(FIELD_BG3, tile_copy_call_on_the_machine, s); }
-// $C0:188B
-void field_tile_copy_returns(Snes *s) { field_return_to_waiting_caller(s); }
-// $C0:180E
-void field_tile_copy_sends_second_layer(Snes *s) { (void)send_second_layer(state_of(s), tile_copy_call_on_the_machine, s); }
-// $C0:1835
-void field_tile_copy_restores_first_layer(Snes *s) { (void)restore_first_layer(state_of(s), tile_copy_call_on_the_machine, s); }
-// $C0:1859
-void field_tile_copy_finishes_both_layers(Snes *s) { (void)finish_both_layers(tile_copy_call_on_the_machine, s); }
 
 /* ---- A battle ($C0:188C) ------------------------------------------------------------------- */
 
@@ -687,108 +521,6 @@ static bool fight_a_battle(GameState *g, const BattleSteps *steps, void *ctx)
     battle_over(g);
     return steps->take_up_the_field(ctx) && steps->press_the_switches(ctx) && steps->free_the_sprite_areas(ctx) &&
            steps->field_turn(ctx);
-}
-
-/* On the machine, each from the original's call of it. Where the battle's
- * setup on the field finds none to fight, the field's turn goes on by the
- * original's jump to it, which returns to the main loop. */
-static FieldBattleStart begins_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    if (!field_run(s, 0xC01890, FIELD_BATTLE_BEGINS_ENTRY, READS_NOTHING, field_battle_begins, on_the_field_page(s, false)))
-        return FIELD_BATTLE_START_STOPPED;
-    return m_flag(s, CPU_FLAG_C) ? FIELD_NO_BATTLE : FIELD_BATTLE_SET;
-}
-
-static bool no_battle_turn_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    field_hands_over_to(s, FIELD_TURN, READS_NOTHING, field_walk_a_frame);
-    return false;
-}
-
-static bool scroll_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    return field_run_long(s, 0xC01895, SCROLL_LAYERS, READS_NOTHING, field_scroll_layers, on_the_field_page(s, false));
-}
-
-static bool refresh_before_the_battle_on_the_machine(void *ctx) { return refresh(ctx, 0xC0189D); }
-static bool wait_before_the_battle_on_the_machine(void *ctx)
-{
-    return field_hold_next_frame(ctx, 0xC018A4, READS_NOTHING, on_the_field_page(ctx, false));
-}
-
-static bool fight_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    s->cpu.a = field_frame_wait_leaves_a(state_of(s));
-    return field_run_long_called(s, 0xC018A7, BATTLE, 0, battle_start_from_field, on_the_field_page(s, false));
-}
-
-static bool take_up_on_the_machine(void *ctx)
-{
-    return field_run_called(ctx, 0xC018C1, FIELD_AFTER_BATTLE, READS_NOTHING,
-                                  field_after_battle, on_the_field_page(ctx, false));
-}
-
-static bool press_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    return field_run(s, 0xC018C4, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, READS_NOTHING,
-                     field_press_the_remembered_switches_entry, on_the_field_page(s, false));
-}
-
-static bool free_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    return field_run(s, 0xC018C7, FREE_SPRITE_AREAS, READS_NOTHING, field_free_every_sprite_area,
-                     on_the_field_page(s, false));
-}
-
-static bool field_turn_on_the_machine(void *ctx)
-{
-    return field_run_called(ctx, 0xC018CA, FIELD_TURN, READS_NOTHING,
-                                  field_walk_a_frame, on_the_field_page(ctx, false));
-}
-
-// $C0:18C4
-void field_requested_battle_finishes(Snes *s)
-{
-    if (press_on_the_machine(s) && free_on_the_machine(s) && field_turn_on_the_machine(s))
-        field_return_to_waiting_caller(s);
-}
-
-// $C0:18CD
-void field_requested_battle_returns(Snes *s) { field_return_to_waiting_caller(s); }
-
-// $C0:18AB
-void field_requested_battle_ended(Snes *s)
-{
-    GameState *g = state_of(s);
-    TIMED_AS(g, FIELD_INSTALL_NMI_ENTRY, field_take_the_vblank_interrupt(g));
-    TIMED_AS(g, FIELD_INSTALL_IRQ_ENTRY, field_take_the_line_interrupt(g));
-    battle_over(g);
-    if (take_up_on_the_machine(s) && press_on_the_machine(s) && free_on_the_machine(s) && field_turn_on_the_machine(s))
-        field_return_to_waiting_caller(s);
-}
-
-// $C0:18A7
-void field_requested_battle_starts(Snes *s)
-{
-    if (fight_on_the_machine(s))
-        field_requested_battle_ended(s);
-}
-
-/* False where the port stopped. */
-static bool answer_battle(Snes *s)
-{
-    static const BattleSteps on_the_machine = {
-        begins_on_the_machine, no_battle_turn_on_the_machine, scroll_on_the_machine,
-        refresh_before_the_battle_on_the_machine, wait_before_the_battle_on_the_machine, fight_on_the_machine,
-        take_up_on_the_machine, press_on_the_machine, free_on_the_machine, field_turn_on_the_machine,
-    };
-    return fight_a_battle(state_of(s), &on_the_machine, s);
 }
 
 /* As C, each with its guard's state half first. */
@@ -872,31 +604,6 @@ static FieldPass a_battle_fought(GameState *g, Platform *pf)
     return fight_a_battle(g, &in_the_program, &c) ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS;
 }
 
-/* ---- The entry ------------------------------------------------------------------------------ */
-
-// $C0:0C76
-/* The field's page, 8-bit A and 16-bit index registers. A's high byte and the
- * overflow are read after it, as the routines it calls leave them or as it
- * came. */
-/* The requests asked for, in their order. False where the port stopped. */
-static bool answer_requests(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (asked(g, FIELD_REQUEST_LOCATION_CHANGE))
-        return change_location_on_the_machine(s);
-    if (asked(g, FIELD_REQUEST_MENUS))
-        return field_open_script_menu(s);
-    if (asked(g, FIELD_REQUEST_STEP_EVENT) && !answer_step_event(s))
-        return false;
-    if (asked(g, FIELD_REQUEST_OPEN_CHEST) && !answer_chest(s))
-        return false;
-    if (asked(g, FIELD_REQUEST_TILE_COPY))
-        return answer_tile_copy(s);
-    if (asked(g, FIELD_REQUEST_BATTLE))
-        return answer_battle(s);
-    return true;
-}
-
 /* ---- As C, with no machine ------------------------------------------------------------------ */
 
 // $C0:0C8F
@@ -937,14 +644,6 @@ FieldPass field_requests_handled(GameState *g, Platform *pf)
     return FIELD_PASS_GOES_ON;
 }
 
-void field_handle_requests(Snes *s)
-{
-    GameState *g = state_of(s);
-    field_step_screen_changes(g);
-    if (field_requests(g) == 0 || answer_requests(s))
-        m_rts(s);
-}
-
 /* The guard: on the field's page with the data bank $00, and the switch a
  * step event names, and each of the switch's tiles, inside the map's rows
  * (a switch reaches up to two rows above the tile stepped on, and a column
@@ -972,34 +671,4 @@ bool field_requests_can_be_answered(const GameState *g)
     if ((requests & FIELD_REQUEST_OPEN_CHEST) && !(requests & (FIELD_REQUEST_LOCATION_CHANGE | FIELD_REQUEST_MENUS)))
         ok = ok && (field_opened_chest_tile(g) >> 8) < FIELD_MAP_ROWS;
     return ok;
-}
-
-bool field_requests_can_run(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    bool ok = field_requests_can_be_answered(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-// $C0:1893
-/* Resume the request after an empty battle's regrouping frame. */
-void field_requested_battle_decided(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (m_flag(s, CPU_FLAG_C)) {
-        battle_over(g);
-        (void)no_battle_turn_on_the_machine(s);
-        return;
-    }
-    if (!scroll_on_the_machine(s))
-        return;
-    set_field_display_flags(g, (uint8_t)(field_display_flags(g) | FIELD_DISPLAY_SETUP));
-    if (!refresh_before_the_battle_on_the_machine(s))
-        return;
-    set_field_display_flags(g, (uint8_t)(field_display_flags(g) & ~FIELD_DISPLAY_SETUP));
-    if (wait_before_the_battle_on_the_machine(s))
-        field_requested_battle_starts(s);
 }

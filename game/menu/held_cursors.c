@@ -23,15 +23,11 @@
 #include "charge.h"
 #include "menu/bridge.h"
 #include "menu/menu.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
 /* Where the tasks start. */
-enum {
-    DRAW_THE_SCROLL_BAR = 0x8BB8, DRAW_THE_HELD_CURSOR = 0x8AB2, DRAW_THE_MEMBERS_CURSORS = 0x8AF5,
-    DRAW_THE_CURSOR_ON_THE_LIST = 0x89F2, DRAW_THE_CURSOR_ON_A_MEMBER = 0x8A45,
-};
+enum { DRAW_THE_SCROLL_BAR = 0x8BB8, DRAW_THE_HELD_CURSOR = 0x8AB2, DRAW_THE_MEMBERS_CURSORS = 0x8AF5, DRAW_THE_CURSOR_ON_THE_LIST = 0x89F2, DRAW_THE_CURSOR_ON_A_MEMBER = 0x8A45,  };
 
 /* The player's cursor is the 29th sprite; the held cursors follow it. */
 enum { PLAYERS_CURSOR = 28, FIRST_HELD_CURSOR = 29 };
@@ -172,7 +168,6 @@ void menu_draw_the_cursor_held_on_a_member(GameState *g)
     uint8_t y = (uint8_t)(menu_cursor_places_y(g, place) - 1);
     if (place >= ACTIVE_PLACES) {
         int scrolled = (int8_t)(menu_held_reserve_top(g) - menu_reserve_top(g));
-        charge_machine_io_accesses(g, 4);
         int line = y + scrolled * RESERVE_ROW_LINES;
         if (line >= LINES || line < -SHOWN_ABOVE_THE_TOP)
             return;
@@ -207,7 +202,6 @@ void menu_draw_cursors_on_every_member(GameState *g)
     for (unsigned member = 0; member < menu_active_members(g); member++)
         if (!(out >> member & 1))
             draw_member_cursor_at(g, FIRST_HELD_CURSOR + member, (uint8_t)(menu_held_cursor(g) + member));
-    charge_machine_accesses(g, 8);
 }
 
 void menu_start_the_scroll_bar(GameState *g)
@@ -256,7 +250,6 @@ void menu_draw_the_scroll_bar(GameState *g)
         if (menu_scroll_bar_hidden(g))
             return;
         uint8_t x = (uint8_t)menu_scroll_bar_place(g), y = (uint8_t)thumb_line(g);
-        (charge_machine_accesses(g, 7), charge_machine_io_accesses(g, 4));
         uint8_t thumb = menu_scroll_bar_thumb(g), span = menu_scroll_bar_span(g);
         if (span == 0)
             return;
@@ -302,75 +295,13 @@ bool menu_scroll_bar_can_be_drawn(const GameState *g)
  * list, a member), or on each active member, drawn a frame at a time. They
  * wait in the task's 16-bit widths, but the member's, whose drawing makes A
  * 8-bit. */
-enum { HELD_CURSOR_WAIT = 0xC28AB5, LIST_CURSOR_WAIT = 0xC289F5, MEMBER_CURSOR_WAIT = 0xC28A91,
-       MEMBERS_CURSORS_WAIT = 0xC28AF8 };
-
-// $C2:8AB2, $C2:8AB8
-void menu_run_the_held_cursor_task(Snes *s)
-{
-    GameState *g = state_of(s);
-    TIMED_AS(g, 0xC28ABA, menu_draw_the_held_cursor(g));
-    menu_wait_in_the_task_loop(s, HELD_CURSOR_WAIT, false);
-}
-
-// $C2:89F2, $C2:89F8
-void menu_run_the_list_cursor_task(Snes *s)
-{
-    GameState *g = state_of(s);
-    TIMED_AS(g, 0xC289FA, menu_draw_the_cursor_held_on_the_list(g));
-    menu_wait_in_the_task_loop(s, LIST_CURSOR_WAIT, false);
-}
-
-// $C2:8A45, $C2:8A94
-void menu_run_the_member_cursor_task(Snes *s)
-{
-    menu_draw_the_cursor_held_on_a_member(state_of(s));
-    menu_set_widths(s, true, m_x8(s));
-    menu_wait_in_the_task_loop(s, MEMBER_CURSOR_WAIT, true);
-}
-
-// $C2:8AF5, $C2:8AFB
-void menu_run_the_members_cursors_task(Snes *s)
-{
-    GameState *g = state_of(s);
-    TIMED_AS(g, 0xC28AFD, menu_draw_cursors_on_every_member(g));
-    menu_wait_in_the_task_loop(s, MEMBERS_CURSORS_WAIT, false);
-}
-
-// $C2:8B93
-
-bool menu_scroll_bar_is_drawable(Snes *s)
-{
-    if (!menu_on_page_work_ram(s) || m_x8(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_scroll_bar_can_be_drawn(state_of(s));
-    vars_peek(false);
-    return ok;
-}
+enum { HELD_CURSOR_WAIT = 0xC28AB5, LIST_CURSOR_WAIT = 0xC289F5, MEMBER_CURSOR_WAIT = 0xC28A91, MEMBERS_CURSORS_WAIT = 0xC28AF8 };
 
 /* The cursors are drawn on the menus' page with the data bank on work
  * RAM's, at places of the cursor's table (its 42); the members' for the
  * one to three active ones (with none, the original's loop runs round its
  * count's 65536). */
 bool menu_held_cursor_can_be_drawn(const GameState *g) { return menu_held_cursor(g) < MENU_CURSOR_PLACES_COUNT; }
-
-static bool peek(Snes *s, bool (*test)(const GameState *))
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    bool ok = test(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-bool menu_held_cursor_is_drawable(Snes *s) { return peek(s, menu_held_cursor_can_be_drawn); }
-
-/* The list's cursor is drawn at one of the list's places, whatever the
- * sums give; the member's at a place of the cursor's table, a reserve one
- * as the reserve's six places scroll. */
-bool menu_list_cursor_is_drawable(Snes *s) { return menu_on_page_work_ram(s); }
 
 enum { RESERVE_PLACES = 6 };
 
@@ -380,12 +311,8 @@ bool menu_member_cursor_can_be_drawn(const GameState *g)
            && menu_reserve_top(g) < RESERVE_PLACES;
 }
 
-bool menu_member_cursor_is_drawable(Snes *s) { return peek(s, menu_member_cursor_can_be_drawn); }
-
 bool menu_members_cursors_can_be_drawn(const GameState *g)
 {
     return menu_active_members(g) >= 1 && menu_active_members(g) <= MEMBERS_CURSORS
            && menu_held_cursor(g) + menu_active_members(g) <= MENU_CURSOR_PLACES_COUNT;
 }
-
-bool menu_members_cursors_are_drawable(Snes *s) { return peek(s, menu_members_cursors_can_be_drawn); }

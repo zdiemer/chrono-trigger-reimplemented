@@ -33,7 +33,6 @@
 #include "charge.h"
 
 #include "cpu_io.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -454,20 +453,7 @@ bool scene_sprites_fit(const GameState *g, unsigned sprites)
 
 /* Where the original counts a list's entries down, the first of the scene's
  * sprite cells before it, and the end of the high table. */
-enum {
-    COUNT_CELL = RAM_SCENE_SPRITE_LIST_LEFT & 0xFFFF,
-    FIRST_SPRITE_CELL = RAM_SCENE_SPRITE_INDEX & 0xFFFF,
-    SPRITE_TABLES_END = SCENE_SPRITE_HIGH_TABLE + SCENE_SPRITE_HIGH_TABLE_BYTES,
-};
-
-/* The cursor's high-table byte inside the table. */
-static bool high_cursor_in_table(Snes *s)
-{
-    vars_peek(true);
-    uint16_t high = scene_sprite_high_pointer(state_of(s));
-    vars_peek(false);
-    return high >= SCENE_SPRITE_HIGH_TABLE && high < SPRITE_TABLES_END;
-}
+enum { COUNT_CELL = RAM_SCENE_SPRITE_LIST_LEFT & 0xFFFF, FIRST_SPRITE_CELL = RAM_SCENE_SPRITE_INDEX & 0xFFFF, SPRITE_TABLES_END = SCENE_SPRITE_HIGH_TABLE + SCENE_SPRITE_HIGH_TABLE_BYTES,  };
 
 /* ---- What the lists leave, for the wrappers -------------------------------------------------- */
 
@@ -539,31 +525,6 @@ uint16_t scene_signed_list_leaves_a(const GameState *g, uint16_t list)
     return (uint16_t)(high | scene_sprite_place_in_group(g));
 }
 
-/* The bit of the last sprite's high-table byte, as it is before the list is
- * drawn, that the routine's shifts bring down to the byte's second bit by that
- * sprite: a shift of two for each of the list's sprites before it in the
- * byte. */
-
-/* Looked at without the port's time charged for it, as the wrapper's leaves
- * are. */
-
-/* The flags the routine leaves, which a caller's random draw mixes in (the
- * Epoch's dive): the count run down (zero, not negative); the overflow of the
- * last sprite's last sum and the carry of its last test. For a sprite that
- * would start past the right edge, those of its X's sum and of the shift of
- * its high-table byte, which pushes out the byte's bit from before the list
- * was drawn (`high_bit_before`); for any other, its Y's sum's overflow, and
- * the carry of the sum where the sprite is above the top, or of its compare
- * with the bottom of the picture. With no sprite, both as it was called. */
-
-/* ---- Entries: 16-bit A and index registers, on the scene's page ------------------------- */
-
-bool scene_hide_rest_of_group_present(Snes *s)
-{
-    return m_code_matches(s, 0x7E3870, 0x1B, 0xB778A96EC9EEDB9Aull) && scene_on_scene_page_low_bank(s) &&
-           high_cursor_in_table(s);
-}
-
 /* Back with 8-bit A, holding the byte it left, and the count it reached and
  * the carry of its last compare, as the original leaves them. */
 
@@ -621,18 +582,6 @@ uint16_t scene_large_list_leaves_a(const GameState *g, uint16_t list)
 
 /* Where the original keeps a sprite's attributes while it places it. */
 enum { ATTRIBUTES_CELL = RAM_SCENE_SPRITE_LIST_ATTRIBUTES & 0xFFFF };
-
-/* The routine's code, on the scene's page; a list clear of the sprite tables
- * and of the cells the original works in, which it reads back as it goes. */
-bool scene_signed_sprite_list_code_present(Snes *s) { return m_code_matches(s, 0x7E3A92, 0xB6, 0x25F432D70AF1A949ull); }
-
-/* The routine's code, but for the two words of it a caller writes: the test
- * that leaves a sprite out, and two bytes no path runs. */
-bool scene_large_list_code_present(Snes *s)
-{
-    return m_code_matches(s, 0x7EA03D, 0x37, 0x3766BB960571A2ECull) && m_code_matches(s, 0x7EA076, 0x1A, 0xF794154F7C7B7E59ull) &&
-           m_code_matches(s, 0x7EA092, 0x07, 0x35C70EE850957A8Dull);
-}
 
 /* Once the original has left a sprite out it goes on with its accumulator a
  * word wide (leave_word_wide_strays), and takes its count down as a word with

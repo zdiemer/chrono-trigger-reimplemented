@@ -21,7 +21,6 @@
 #include "battle/targets.h"
 #include "battle/timers.h"
 #include "charge.h"
-#include "port/native.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -319,7 +318,6 @@ static UpdateEnd leave_fight(GameState *g, unsigned slot)
         count_enemy_beaten(g, slot - BATTLE_FIRST_ENEMY);
         return UPDATED;
     }
-    (charge_machine_accesses(g, 2), charge_machine_rom_accesses(g, 2));
     drop_choice(g, slot);
     if (combatant_comes_back(g, slot))
         return COMES_BACK_ONCE;
@@ -398,12 +396,6 @@ void combatants_after_update(GameState *g)
         set_battle_party_defeated(g, true);
 }
 
-/* ---- The entries ------------------------------------------------------------------------ */
-
-/* Each takes the combatant as the original's callers give it: its stat block
- * in X, and its battle slot in Y where the routine reads both. */
-static unsigned combatant_in_x(Snes *s) { return battle_slot_of_stat_block(s->cpu.x); }
-
 // $C1:B093
 
 /* ---- A member coming back -------------------------------------------------------------- */
@@ -412,69 +404,10 @@ static unsigned combatant_in_x(Snes *s) { return battle_slot_of_stat_block(s->cp
 enum { SHOWN_AS_TECH = 0x02, COMING_BACK_TECH = 0x7A, MESSAGE_CAME_BACK = 0x09 };
 enum { COMING_BACK_HP_PER_MAGIC = 5 };
 
-// $C1:B316
-/* A member knocked out that comes back once gets up again: the revival is
- * used up, five times its magic in HP comes back to it, which shows over it
- * as healing, and its coming back is shown as a tech performed on it from the
- * first member's place. */
-static void come_back(GameState *g, uint8_t member)
-{
-    set_battle_stats_revival(g, member, battle_stats_revival(g, member) & (uint8_t)~COMES_BACK);
-    uint16_t hp = effect_times(g, combatant_stat_byte(g, member, STAT_MAGIC), COMING_BACK_HP_PER_MAGIC);
-    set_battle_damage_hit(g, 0);
-    effect_show_hp_regained(g, member, hp);
-    set_battle_action_actor(g, 0);
-    set_battle_action_type(g, SHOWN_AS_TECH);
-    set_battle_action_what(g, COMING_BACK_TECH);
-    set_battle_action_extra(g, 0);
-    set_battle_candidates(g, 0, member);
-    battle_mark_first_target(g);
-}
-
-/* The message names the member. */
-static void name_in_message(GameState *g, uint8_t member) { set_battle_target_display(g, 0, battle_combatant_id(g, member)); }
-
-/* The numbers shown are cleared, and the party isn't defeated after all. */
-static void after_coming_back(GameState *g)
-{
-    TIMED_AS(g, 0xFDACEE, battle_clear_numbers_shown(g));
-    set_battle_party_defeated(g, false);
-}
-
 /* The showing and the message are the original's (the showing, a sibling,
  * calls on to them): the showing takes A's high byte along, clear as the
  * targets' marking leaves it, and the message the message's number in A. */
 enum { SHOWING = 0xC1AC57, SHOW_MESSAGE = 0xCD0021 };
-
-static bool comes_back_shown(Snes *s, uint8_t member)
-{
-    GameState *g = state_of(s);
-    come_back(g, member);
-    s->cpu.a = 0;
-    /* The showing keeps A's high byte and V. The revival's result slot is
-     * four times its party member, plus the zero action offset: that byte
-     * addition cannot overflow. Its other incoming registers are dead. */
-    m_set_flag(s, CPU_FLAG_V, false);
-    if (!battle_run_dc(s, 0xC1B376, SHOWING, DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C,
-                       battle_start_action_showing))
-        return false;
-    name_in_message(g, member);
-    s->cpu.a = MESSAGE_CAME_BACK;
-    if (!battle_run_long(s, 0xC1B386, SHOW_MESSAGE, battle_show_a_battle_message_entry))
-        return false;
-    after_coming_back(g);
-    return true;
-}
-
-/* The update leaves A clear. */
-void battle_update_combatant(Snes *s)
-{
-    unsigned slot = combatant_in_x(s);
-    if (combatant_update(state_of(s), slot) == COMES_BACK_ONCE && !comes_back_shown(s, (uint8_t)slot))
-        return;
-    s->cpu.a = 0;
-    m_rts(s);
-}
 
 // $C1:B223
 /* Update every combatant for the turn, a combatant at a time with its place
@@ -485,7 +418,6 @@ void battle_update_combatant(Snes *s)
 static bool update_all_combatants(GameState *g, bool (*coming_back)(void *ctx, unsigned slot), void *ctx)
 {
     for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++) {
-        charge_machine_accesses(g, 1);
         if (combatant_update_comes_back(g, slot)) {
             if (!coming_back(ctx, slot))
                 return false;
@@ -494,33 +426,8 @@ static bool update_all_combatants(GameState *g, bool (*coming_back)(void *ctx, u
         }
         combatant_after_update(g, slot);
     }
-    charge_machine_accesses(g, 1);
     combatants_after_update(g);
     return true;
-}
-
-/* On the machine the member that comes back is updated as the original's
- * loop calls it, with the combatant in X and Y. */
-static bool coming_back_on_the_machine(void *ctx, unsigned slot)
-{
-    Snes *s = ctx;
-    s->cpu.y = (uint16_t)slot;
-    s->cpu.x = (uint16_t)(slot * BATTLE_STAT_BLOCK_BYTES);
-    s->cpu.a = 0;
-    return battle_run(s, 0xC1B234, 0xC1B279, battle_update_combatant);
-}
-
-/* What the callers read back is the carry of the last compare of the search
- * for a party member in the fight: clear when it found the second or the
- * third. */
-void battle_update_all_combatants_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (!update_all_combatants(g, coming_back_on_the_machine, s))
-        return;
-    unsigned member = first_member_fighting(g);
-    m_set_flag(s, CPU_FLAG_C, member == 0 || member == BATTLE_PARTY_SIZE);
-    m_rts(s);
 }
 
 /* ---- As C ------------------------------------------------------------------------------------ */

@@ -93,10 +93,9 @@ static BattlePoint moved(BattlePoint p, Offset o) { return (BattlePoint){ (uint8
 
 // $CF:FA17
 /* A word scaled by a factor in 256ths: the middle byte of their product. */
-static uint8_t scaled(GameState *g, uint8_t factor, uint16_t word)
+static uint8_t scaled(uint8_t factor, uint16_t word)
 {
     uint32_t product = (uint32_t)factor * word;
-    (charge_machine_accesses(g, 6), charge_machine_io_accesses(g, 4));
     return (uint8_t)(product >> 8);
 }
 
@@ -111,7 +110,7 @@ static int8_t scaled_sine(GameState *g, uint8_t angle, uint8_t radius)
     int16_t sine = battle_sine_magnitude(g, angle);
     if (angle >= HALF_TURN)
         sine = (int16_t)-sine;
-    return (int8_t)scaled(g, radius, (uint16_t)sine);
+    return (int8_t)scaled(radius, (uint16_t)sine);
 }
 
 /* The offset of a point at an angle, `across` pixels away horizontally and
@@ -139,10 +138,9 @@ static bool points_close(BattlePoint a, BattlePoint b, uint8_t limit)
     return distance(a.x, b.x) < limit && distance(a.y, b.y) < limit;
 }
 
-static bool close_to(GameState *g, BattlePoint a, BattlePoint b, uint8_t limit)
+static bool close_to(BattlePoint a, BattlePoint b, uint8_t limit)
 {
     bool close = points_close(a, b, limit);
-    charge_machine_accesses(g, 6);
     return close;
 }
 
@@ -171,7 +169,6 @@ static uint8_t angle_toward(GameState *g, BattlePoint from, BattlePoint to)
         angle = below ? (uint8_t)(HALF_TURN - angle) : (uint8_t)(HALF_TURN + angle);
     else if (!below)
         angle = (uint8_t)-angle;
-    charge_machine_accesses(g, BATTLE_CHASE_CELLS_COUNT);
     set_battle_numbers_rising(g, (uint8_t)(battle_arctangent_index(across, down) >> 8));
     return angle;
 }
@@ -234,9 +231,6 @@ static uint16_t run_jump(GameState *g, Mover m, uint16_t substeps, bool count_tu
     if (j.turned)
         set_battle_effect_jump_falling(g, e, j.falling);
     uint16_t whole = (uint16_t)(j.height >> 16);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     return whole;
 }
 
@@ -328,10 +322,10 @@ static bool landed(GameState *g, Mover m)
     BattlePoint p = mover_position(g, m);
     bool second_stage = battle_effect_home_stage(g, e) != 0;
     if (second_stage) {
-        if (!close_to(g, p, target_of(g, m), ON_TARGET))
+        if (!close_to(p, target_of(g, m), ON_TARGET))
             return false;
     } else {
-        if (!close_to(g, p, target_of(g, m), mover_is_anchor(m) ? ANCHOR_LANDING_REACH : LANDING_REACH) || !about_to_land(g, m))
+        if (!close_to(p, target_of(g, m), mover_is_anchor(m) ? ANCHOR_LANDING_REACH : LANDING_REACH) || !about_to_land(g, m))
             return false;
         set_battle_effect_home_stage(g, e, (uint8_t)(battle_effect_home_stage(g, e) + 1));
     }
@@ -393,7 +387,6 @@ static void spiral(GameState *g, Mover m)
     uint8_t angle = battle_effect_angle(g, e);
     set_battle_effect_angle_used(g, e, angle);
     Offset o = polar(g, angle, radius, radius);
-    charge_machine_accesses(g, 2);
     place_mover(g, m, moved((BattlePoint){ battle_effect_base_x(g, e), battle_effect_base_y(g, e) }, o));
 }
 
@@ -438,7 +431,6 @@ static void orbit_step(GameState *g, Mover m, bool flat)
     set_battle_effect_orbit_angle(g, e, angle);
     Offset o = polar(g, angle, radius, flat ? (uint8_t)(radius / 2) : radius);
     if (mover_is_anchor(m)) {
-        charge_machine_accesses(g, 2);
         BattlePoint center = { battle_anchor_orbit_center_x(g, m.index), battle_anchor_orbit_center_y(g, m.index) };
         orbit_anchor_to(g, m.index, moved(center, o));
     } else {
@@ -464,8 +456,7 @@ static void orbit(GameState *g, Mover m)
  * circles or behind it, by where it was on the circle. */
 static void orbit_flat(GameState *g, Mover m)
 {
-    if (mover_is_anchor(m))
-        charge_machine_accesses(g, 1);
+    (void)(mover_is_anchor(m));
     if (mover_path_done(g, m))
         return;
     if (mover_is_anchor(m))
@@ -499,7 +490,6 @@ static void flicker_step(GameState *g, unsigned slot)
     if (wait != 0)
         return;
     uint8_t radius = battle_effect_flicker_radius(g, slot);
-    charge_machine_accesses(g, 1);
     uint8_t hidden = battle_effect_flicker_hidden(g, slot) ^ 1;
     set_battle_effect_flicker_hidden(g, slot, hidden);
     Offset o = hidden ? (Offset){ 0, 0 } : polar(g, battle_effect_angle_used(g, slot), radius, radius);
@@ -561,8 +551,7 @@ static void chase(GameState *g, Mover m)
 {
     unsigned e = mover_entry(m);
     BattlePoint from = chaser_position(g, m), to = target_of(g, m);
-    charge_machine_accesses(g, 4);
-    if (close_to(g, from, to, CHASE_REACH)) {
+    if (close_to(from, to, CHASE_REACH)) {
         count_done(g, m);
         return;
     }
@@ -573,11 +562,9 @@ static void chase(GameState *g, Mover m)
     Offset o = polar(g, heading, speed, speed);
     if (mover_is_anchor(m)) {
         set_battle_anchor_facing(g, m.index, facing);
-        charge_machine_accesses(g, 4);
         place_anchor(g, m.index, (int16_t)(anchor_x(g, m.index) + o.dx), (int16_t)(anchor_y(g, m.index) + o.dy));
     } else {
         set_battle_object_facing(g, m.index, facing);
-        charge_machine_accesses(g, 2);
         place_mover(g, m, moved(mover_position(g, m), o));
     }
 }
@@ -650,14 +637,11 @@ static void step_drifts(GameState *g)
             set_battle_orbit_radius(g, slot, 0);
         }
         Offset o = polar(g, battle_enemy_heading(g, (unsigned)enemy), radius, radius);
-        charge_machine_accesses(g, 1);
-        charge_machine_accesses(g, 1);
         BattlePoint center = { battle_enemy_drift_from_x(g, (unsigned)enemy), battle_enemy_drift_from_y(g, (unsigned)enemy) };
         BattlePoint p = moved(center, o);
         place_combatant_y(g, enemy_slot((unsigned)enemy), p.y);
         place_combatant_x(g, enemy_slot((unsigned)enemy), p.x);
     }
-    charge_machine_accesses(g, 2);
 }
 
 // $CF:F9D3
@@ -677,11 +661,6 @@ void battle_place_formation(GameState *g)
     }
 }
 
-/* ---- The entries ------------------------------------------------------------------------ */
-
-bool battle_effect_page(Snes *s) { return battle_on_page(s); }
-bool battle_effect_handler_ready(Snes *s) { return battle_on_page_a_high_clear(s); }
-
 /* The movers' loops: each running mover's timer counts down, the combatants
  * from the last to the first and then the anchors, and a mover whose timer
  * ran out takes its path's step, in the time of the original's routine for
@@ -692,11 +671,9 @@ static void step_movers(GameState *g, MoverKind kind, unsigned movers)
         Mover m = { kind, (uint8_t)index };
         if (!path_due(g, m))
             continue;
-        charge_machine_accesses(g, 6);
         PathKind k = path_kind(g, m);
         TIMED_AS(g, mover_is_anchor(m) ? paths[k].anchor_routine : paths[k].combatant_routine, paths[k].step(g, m));
     }
-    charge_machine_accesses(g, 2);
 }
 
 // $CF:EFAF
@@ -713,12 +690,6 @@ void battle_step_effect_slots(GameState *g)
     }
 }
 
-void battle_step_effect_slots_entry(Snes *s)
-{
-    battle_step_effect_slots(state_of(s));
-    m_rts(s);
-}
-
 /* The game gives a running mover one of the eight kinds of path. */
 bool battle_effect_paths_known(const GameState *g)
 {
@@ -726,18 +697,4 @@ bool battle_effect_paths_known(const GameState *g)
         if (battle_effect_active(g, e) && battle_effect_type(g, e) >= PATH_KINDS)
             return false;
     return true;
-}
-
-bool battle_effect_paths_ready(Snes *s)
-{
-    vars_peek(true);
-    bool known = battle_effect_paths_known(state_of(s));
-    vars_peek(false);
-    return battle_effect_handler_ready(s) && known;
-}
-
-void battle_place_formation_entry(Snes *s)
-{
-    battle_place_formation(state_of(s));
-    m_rts(s);
 }

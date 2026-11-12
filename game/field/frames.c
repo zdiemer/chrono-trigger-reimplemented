@@ -44,7 +44,6 @@
 #include "charge.h"
 #include "field/bridge.h"
 #include "field/scratch.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -340,8 +339,7 @@ static FrameBuild draw_next_frame(GameState *g, FieldObject obj)
  * them: eight sprites a row of tiles, the rows two tile rows apart. The
  * figure shows palette 1 at priority 2 whatever its object's palette is
  * (field_object_palette, which the frames the queue draws take). */
-enum { FIGURE_SPRITES = 24, FIGURE_TILES = FIGURE_SPRITES * TILES_A_SPRITE, FIGURE_FIRST_TILE = 0x40,
-       FIGURE_SPRITES_A_ROW = 8, FIGURE_PALETTE = 1, FIGURE_PRIORITY = 2, FIGURE_FRAME = 0 };
+enum { FIGURE_SPRITES = 24, FIGURE_TILES = FIGURE_SPRITES * TILES_A_SPRITE, FIGURE_FIRST_TILE = 0x40, FIGURE_SPRITES_A_ROW = 8, FIGURE_PALETTE = 1, FIGURE_PRIORITY = 2, FIGURE_FRAME = 0 };
 enum { FIGURE_VRAM = FIGURE_FIRST_TILE * VRAM_WORDS_A_TILE };
 enum { ATTRIBUTE_PALETTE_SHIFT = 1, ATTRIBUTE_PRIORITY_SHIFT = 4 };
 
@@ -473,48 +471,11 @@ bool field_frame_part_drawn(GameState *g, FieldObject obj)
     return draw_next_frame(g, obj) == FRAME_PART_DRAWN;
 }
 
-// $C0:CAD9
-/* The current object (8-bit X). The carry says the object stays at the
- * queue's head, with more of its frame to draw. The overflow is worked out
- * from what drawing came to (field/leaves.c): the sprite table's building
- * after the frame queue leaves it as it is, and it goes round the main loop
- * to the next frame's pause and menu opening ($C0:18D9), which reach the
- * sound driver's saved flags ($C7:0A39's PHP, taken back other than by PLP)
- * and the menus' BVC at $C2:F7D9; the flag-reader analysis --after C0:CAD9 has it
- * read. No decision of the field's reads it (banks $C0 and $FD have no
- * branch on it). */
-void field_draw_next_frame(Snes *s)
-{
-    GameState *g = state_of(s);
-    FieldObject obj = (FieldObject)field_current_object_slot(s);
-    FrameBuildBefore before = { m_flag(s, CPU_FLAG_V), field_object_animation_frame(g, obj) };
-    FrameBuild outcome = draw_next_frame(g, obj);
-    m_set_flag(s, CPU_FLAG_V, field_frame_build_overflow(g, obj, outcome, before));
-    m_set_flag(s, CPU_FLAG_C, outcome == FRAME_PART_DRAWN || outcome == FRAME_WAITS);
-    m_rts(s);
-}
-
 /* The legacy frame queue calls the checked builder form directly, settling
  * its work at the old call boundary before reading the beam again. The
  * native program calls the state operation. The legacy result in carry
  * says whether the frame has more parts to draw. */
 enum { DRAW_A_FRAME = 0xC0CAD9, THE_FIRST_OF_SEVERAL = 0xC0CAAE, THE_ONLY_ONE = 0xC0CAC2 };
-enum { THE_BUILDER_READS_THE_OBJECT = DC_A | DC_X | DC_Y | DC_N | DC_Z };
-
-static FrameDrawing draw_on_the_machine(void *ctx, FieldObject obj, bool alone)
-{
-    (void)obj;
-    Snes *s = ctx;
-    /* The old call selection read both queue indices for its flags. The
-     * queue front already supplies that answer, but its two accesses remain
-     * part of the calibrated work before the beam deadline is read again. */
-    charge_legacy_accesses(state_of(s), 2);
-    if (!field_run_called(s, alone ? THE_ONLY_ONE : THE_FIRST_OF_SEVERAL, DRAW_A_FRAME, THE_BUILDER_READS_THE_OBJECT,
-                          field_draw_next_frame,
-                     on_the_field_page(s, true)))
-        return FRAME_DRAWING_WENT_ELSEWHERE;
-    return m_flag(s, CPU_FLAG_C) ? FRAME_HAS_MORE_PARTS : FRAME_WHOLE;
-}
 
 static FrameDrawing draw_the_frame(void *ctx, FieldObject obj, bool alone)
 {
@@ -529,27 +490,6 @@ static FrameDrawing draw_the_frame(void *ctx, FieldObject obj, bool alone)
 
 void field_queued_frames_drawn(GameState *g, Platform *pf) { (void)draw_queued_frames(g, pf, draw_the_frame, g); }
 
-/* With 8-bit A and index registers, as the original returns. */
-void field_draw_queued_frames(Snes *s)
-{
-    if (draw_queued_frames(state_of(s), m_platform(s), draw_on_the_machine, s) == DRAWING_WENT_ELSEWHERE)
-        return;
-    m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_rts(s);
-}
-
-/* Its guard: on the field's page, its cells through a data bank that
- * reaches low RAM, the queue in the tables. */
-bool field_queued_frames_can_be_drawn(Snes *s)
-{
-    if (!field_on_page_low_bank(s))
-        return false;
-    vars_peek(true);
-    bool ok = object_frame_queue_in_the_tables(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
 // $C0:E12A
 /* The current object, in X too. It returns with 16-bit index registers
  * whatever it came with, as the original does. Of what it leaves, two are
@@ -560,15 +500,6 @@ bool field_queued_frames_can_be_drawn(Snes *s)
  * engine's dispatch has live after the command that loads the figure
  * ($C0:47E5) returns. */
 enum { FIGURE_Y_AFTER = FIGURE_TILES * WORDS_A_TILE_NAME + FIGURE_SPRITES * OFFSET_BYTES - 1 };
-
-void field_draw_whole_figure(Snes *s)
-{
-    object_draw_whole_figure(state_of(s), m_platform(s), (FieldObject)field_current_object_slot(s));
-    m_rep(s, CPU_FLAG_X);
-    m_set_flag(s, CPU_FLAG_V, false);
-    s->cpu.y = FIGURE_Y_AFTER;
-    m_rts(s);
-}
 
 // $C0:CB0A
 /* The guard: the current object's pictures where the port reads them as the
@@ -584,56 +515,6 @@ void field_draw_whole_figure(Snes *s)
  * entry and the end after it. */
 enum { FIRST_ROM_BANK = 0xC0, LAST_BANK = 0xFF, MOST_AREA_BYTES = 0x600, QUEUE_ENTRIES = 8 };
 #define BANK_BYTES 0x10000u
-
-/* The frame the builder would draw from, where it draws one: the one drawn,
- * for a part after the first; else the held or the next. */
-static ObjectFrame frame_ahead(const GameState *g, FieldObject obj, const FramePlan *plan, bool holding)
-{
-    if (!holding && part_due(g, obj, plan) > 0)
-        return (ObjectFrame){ true, object_frame_drawn(g, obj) };
-    if (holding)
-        return (ObjectFrame){ true, object_held_frame(g, obj) };
-    return object_next_frame(g, obj, FIELD_FRAME_TABLES_BANK);
-}
-
-static bool built_tiles_in_bank(const GameState *g, FieldObject obj, SpriteLayout layout)
-{
-    ObjectGraphics graphics = object_graphics(g, obj);
-    if (graphics.bank != FIELD_BUILD_BANK || layout == LAYOUT_24)
-        return true;
-    const FramePlan *plan = plan_for(g, obj, layout);
-    ObjectFrame f = frame_ahead(g, obj, plan, object_holds_frame(g, obj));
-    if (!f.has_frame)
-        return true;
-    uint32_t description = frame_description(g, obj, plan, f.frame);
-    for (unsigned t = 0; t < (unsigned)plan->sprites * TILES_A_SPRITE; t++) {
-        uint32_t end = field_set_tile_start(graphics, tile_name(g, description, t)) + TILE_BYTES;
-        if (end > BANK_BYTES)
-            return false;
-    }
-    return true;
-}
-
-bool field_frames_can_draw(Snes *s)
-{
-    if (!field_current_object_bank_zero(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    FieldObject obj = (FieldObject)field_current_object_slot(s);
-    SpriteLayout layout = object_sprite_layout(g, obj);
-    uint8_t end = field_vram_queue_end(g);
-    bool goes_on = layout != LAYOUT_24 && !object_holds_frame(g, obj) &&
-                   part_due(g, obj, plan_for(g, obj, layout)) > 0;
-    uint8_t graphics = object_graphics(g, obj).bank;
-    bool ok = object_frame_tables_in_bank(g, obj) && object_frame_descriptions(g, obj).bank >= FIRST_ROM_BANK &&
-              ((graphics >= FIRST_ROM_BANK && graphics != LAST_BANK) || graphics == FIELD_BUILD_BANK) && built_tiles_in_bank(g, obj, layout) &&
-              sprites_records_in_the_tables(g, obj, layout) &&
-              (!goes_on || (uint32_t)field_object_frame_staging(g, obj) + MOST_AREA_BYTES <= BANK_BYTES) &&
-              !(end & 1) && end / QUEUE_ENTRY + 1 < QUEUE_ENTRIES;
-    vars_peek(false);
-    return ok;
-}
 
 /* Its guard: the object's descriptions in the ROM and its records inside
  * their tables. */
@@ -665,18 +546,4 @@ bool field_figure_drawable(const GameState *g, ObjectGraphics set, ObjectGraphic
     return descriptions.bank >= FIRST_ROM_BANK && sprites_records_fit(records, LAYOUT_24) &&
            ((set.bank >= FIRST_ROM_BANK && set.bank != LAST_BANK) ||
             (set.bank == FIELD_BUILD_BANK && figure_tiles_clear(g, set, descriptions)));
-}
-
-bool field_figure_can_be_drawn(Snes *s)
-{
-    if (!field_current_object_bank_zero(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    FieldObject obj = (FieldObject)field_current_object_slot(s);
-    bool ok = (s->cpu.x >> 1) == obj && !(s->cpu.x & 1) &&
-              field_figure_drawable(g, object_graphics(g, obj), object_frame_descriptions(g, obj),
-                                    object_sprite_records(g, obj));
-    vars_peek(false);
-    return ok;
 }

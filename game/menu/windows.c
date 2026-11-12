@@ -27,8 +27,6 @@
 #include "menu/bridge.h"
 #include "menu/menu_data.h"
 #include "menu/text.h"
-#include "port/machine.h"
-#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
@@ -459,19 +457,6 @@ typedef struct {
     uint16_t pattern_row; /* menu_scratch_window_pattern_row */
 } DrawingCells;
 
-static void charge_command(GameState *g, uint8_t command, const Operands *o)
-{
-    unsigned accesses = 28 + LANGUAGE[command / 2].operands;
-    switch (operation_of(command)) {
-    case COPY_AREA: accesses += 6; break;
-    case SWAP_AREAS: accesses += 8; break;
-    case WINDOW: accesses += 5 + !(o->bytes[0] & NAMED_STYLE); break;
-    case STRING: accesses += 2; break;
-    default: break;
-    }
-    charge_machine_accesses(g, accesses);
-}
-
 /* ---- The interpreter ---------------------------------------------------------------------------- */
 
 static Operands operands_at(const GameState *g, uint16_t at, uint8_t command)
@@ -491,33 +476,21 @@ void menu_draw_window_list(GameState *g, Platform *pf, uint16_t list)
         Operands o = operands_at(g, (uint16_t)(at + 1), command);
         at = (uint16_t)(at + 1 + LANGUAGE[command / 2].operands);
         TIMED_AS(g, LANGUAGE[command / 2].timed_as, run_command(g, pf, command, &o));
-        charge_command(g, command, &o);
     }
-}
-
-/* ---- The language's operations, for a screen that runs one itself ------------------------------- */
-
-static Operands copy_operands(MenuTilePlace from, MenuTilePlace to, MenuWindowSize size)
-{
-    return (Operands){ { from.column, from.row, to.column, to.row, size.columns, size.rows } };
 }
 
 enum { COPY_AREA_COMMAND = 0x02 };
 
 void menu_copy_tile_area(GameState *g, MenuTilePlace from, MenuTilePlace to, MenuWindowSize size)
 {
-    Operands o = copy_operands(from, to, size);
     TIMED_AS(g, LANGUAGE[COPY_AREA_COMMAND / 2].timed_as, copy_area(g, from, to, size.columns, size.rows));
-    charge_command(g, COPY_AREA_COMMAND, &o);
 }
 
 enum { SWAP_AREAS_COMMAND = 0x10 };
 
 void menu_swap_tile_areas(GameState *g, MenuTilePlace one, MenuTilePlace other, MenuWindowSize size)
 {
-    Operands o = copy_operands(one, other, size);
     TIMED_AS(g, LANGUAGE[SWAP_AREAS_COMMAND / 2].timed_as, swap_areas(g, one, other, size));
-    charge_command(g, SWAP_AREAS_COMMAND, &o);
 }
 
 void menu_draw_windows(GameState *g, Platform *pf, uint16_t list)
@@ -573,7 +546,7 @@ static bool command_is_drawable(const GameState *g, uint8_t command, const Opera
     }
     case LINE_EFFECT: {
         VidLineEffect e = { 0 };
-        return (operand_word(o, 0) & CHANNEL_BITS) == M_DP_DMA &&   /* the eight channels' own bases */
+        return vid_line_channel_valid(operand_word(o, 0)) &&   /* the eight channels' own bases */
                 vid_line_effect_decode(o->bytes[2], o->bytes[3], &e);
     }
     }
@@ -629,7 +602,7 @@ bool menu_window_list_drawable_from(const GameState *g, uint16_t list, uint16_t 
 bool menu_tile_area_can_be_copied(const GameState *g, uint16_t origin, MenuTilePlace from, MenuTilePlace to,
                                   MenuWindowSize size)
 {
-    Operands o = copy_operands(from, to, size);
+    Operands o = { { from.column, from.row, to.column, to.row, size.columns, size.rows } };
     return command_is_drawable(g, COPY_AREA_COMMAND, &o, origin);
 }
 
@@ -648,11 +621,3 @@ enum { SLOT_TILES = 3 };
 enum { MOST_CHANGES_BEFORE_DRAWING = 0xF0 };
 
 bool menu_palette_changes_have_room(const GameState *g) { return menu_palette_changed(g) < MOST_CHANGES_BEFORE_DRAWING; }
-
-bool menu_palette_change_counts(Snes *s)
-{
-    vars_peek(true);
-    bool ok = menu_palette_changes_have_room(state_of(s));
-    vars_peek(false);
-    return ok;
-}

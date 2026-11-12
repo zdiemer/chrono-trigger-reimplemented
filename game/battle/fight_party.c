@@ -55,7 +55,6 @@ static void set_record_word(GameState *g, unsigned character, unsigned at, uint1
  * as many of each as its number. */
 void fight_start_demo_characters(GameState *g)
 {
-    charge_machine_accesses(g, 1);
     set_battle_party_fighting_count(g, BATTLE_PARTY_SIZE);
     for (unsigned at = 0; at < SETUP_CHARACTERS * RECORD_BYTES; at++)
         set_character_records_record_byte(g, at / RECORD_BYTES, at % RECORD_BYTES, character_start_record_byte(g, (uint16_t)at));
@@ -107,7 +106,6 @@ void fight_take_member_record(GameState *g, uint8_t member)
     battle_leave_multiply(g, RECORD_BYTES, character);
     for (unsigned at = 0; at < BATTLE_STAT_BLOCK_BYTES; at++)
         set_combatant_stat_byte(g, member, (uint16_t)at, at < RECORD_BYTES ? character_records_record_byte(g, character, at) : 0);
-    charge_machine_accesses(g, 4);
 }
 
 // $C1:FDAE
@@ -170,10 +168,7 @@ void fight_set_up_affinities(GameState *g, uint8_t member)
  * the battle gives into gold (battle_members_turning_experience_to_gold),
  * two raise the most HP by a quarter and a half, one makes two of the weapons
  * strike critically more often, and one wards off confusion. */
-enum {
-    EXPERIENCE_TO_GOLD = 0xA9, QUARTER_MORE_HP = 0xA0, HALF_MORE_HP = 0xA1, SHARPER_WEAPONS = 0xB3,
-    WARDS_OFF_CONFUSION = 0xAB,
-};
+enum { EXPERIENCE_TO_GOLD = 0xA9, QUARTER_MORE_HP = 0xA0, HALF_MORE_HP = 0xA1, SHARPER_WEAPONS = 0xB3, WARDS_OFF_CONFUSION = 0xAB,  };
 
 // $FD:AE99
 /* Each member's accessory noted, and how many wear the one that turns the
@@ -222,8 +217,6 @@ void fight_clear_enemy_animations(GameState *g)
 {
     for (unsigned n = 0; n < BATTLE_EFFECT_RECORD_COUNT; n++)
         set_battle_effect_record(g, n, 0);
-    for (unsigned n = 0; n < BATTLE_EFFECT_RECORD_SPARES_COUNT; n++)
-        charge_machine_accesses(g, 1);
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
         set_battle_chosen_actions(g, BATTLE_FIRST_ENEMY + enemy, 0);
         set_battle_enemy_animation(g, enemy, 0);
@@ -267,16 +260,13 @@ enum { STATUS_BITS_AT = 0x00, BLOCK_OFFSET_AT = 0x02, STATUS_BYTE_AT = 0x04 };
 void fight_apply_member_bonuses(GameState *g, uint8_t member)
 {
     if (!combatant_in_fight(g, member)) {
-        charge_machine_accesses(g, 6);
         return;
     }
     if (combatant_stat_byte(g, member, STAT_ACCESSORY_FLAGS) & GIVES_STATUS) {
         uint8_t byte = combatant_stat_byte(g, member, STAT_ACCESSORY_FIRST), bits = combatant_stat_byte(g, member, STAT_ACCESSORY_SECOND);
         uint16_t at = (uint16_t)(STAT_CONDITION + byte);
         set_combatant_stat_byte(g, member, at, combatant_stat_byte(g, member, at) | bits);
-        charge_machine_accesses(g, 6);
     } else {
-        charge_machine_accesses(g, 6);
     }
     uint8_t accessory = combatant_stat_byte(g, member, STAT_ACCESSORY);
     if (accessory != QUARTER_MORE_HP && accessory != HALF_MORE_HP)
@@ -304,43 +294,16 @@ void fight_ward_off_confusion(GameState *g)
  * the characters' slots, as the original does. */
 enum { WEAPON_MARK = 0x80, WEAPON_COUNT = 1, CARRIED_BYTES = 5, OWNERS = 8 };
 
-static uint8_t owners_slot_bit(const GameState *g, uint8_t weapon)
-{
-    uint8_t made_for = weapon_made_for(g, weapon);
-    unsigned character = 0;
-    while (character < OWNERS && !(made_for & 0x80)) {
-        made_for = (uint8_t)(made_for << 1);
-        character++;
-    }
-    uint8_t slot = character < BATTLE_CHARACTER_SLOT_COUNT ? battle_character_slot(g, character)
-                                                            : battle_character_slot_unchecked(g, character);
-    return slot & BATTLE_EMPTY_SLOT ? 0 : (uint8_t)(slot < OWNERS ? 0x80 >> slot : 0);
-}
-
 /* The cells the original counts in: each member's weapon and the carried
  * bytes' place, which later work reads as it finds them (battle.h; the
  * weapons are also noted outside the fight's start), and the weapon's record
  * and the member (scaffolding). */
 enum { WEAPON_AT = BATTLE_MEMBER_CELL, RECORD_AT = 0x04, MEMBER_AT = 0x02, CARRIED_AT = BATTLE_STAT_OFFSET_LOW };
 
-// $FD:AEF2
-/* The weapon each member fights with, noted as the battle carries it. */
-/* Preserve the machine estimate for removed comparison accesses.
- * Inspect the branch without charging those reads to either backend. */
-static void charge_weapon_marking(GameState *g, uint8_t weapon)
-{
-    uint32_t charge_mark = charge_uncounted_begin(g);
-    bool owner = owners_slot_bit(g, weapon) != 0;
-    charge_uncounted_end(g, charge_mark);
-    charge_machine_accesses(g, 3 + owner);
-    charge_machine_rom_accesses(g, 1);
-}
-
 void fight_note_weapons(GameState *g)
 {
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++) {
         set_battle_member_carried_weapon(g, member, 0);
-        charge_machine_accesses(g, 4);
     }
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         uint8_t weapon = combatant_stat_byte(g, member, STAT_WEAPON);
@@ -348,11 +311,8 @@ void fight_note_weapons(GameState *g)
         if (weapon == 0)
             continue;
         battle_multiply_words(g, weapon, WEAPON_SECOND_RECORD_BYTES);
-        charge_machine_accesses(g, 2);
         set_battle_member_carried_weapon(g, member, weapon);
-        charge_weapon_marking(g, weapon);
     }
-    charge_machine_accesses(g, 2);
     battle_keep_word(g, CARRIED_AT, BATTLE_PARTY_SIZE * CARRIED_BYTES);
 }
 
@@ -385,13 +345,11 @@ static void keep_sum_cells(GameState *g, uint8_t first, uint8_t second)
 void fight_add_up_member_stats(GameState *g, uint8_t member)
 {
     uint16_t place = battle_stat_block_place(g, member);
-    charge_machine_accesses(g, 2);
     uint16_t defence = (uint16_t)(combatant_stat_byte(g, member, STAT_STAMINA) + combatant_stat_byte(g, member, STAT_ARMOR_DEFENCE)
                                   + combatant_stat_byte(g, member, STAT_HELMET_DEFENCE));
     set_combatant_stat_byte(g, member, STAT_DEFENCE, defence < MOST_DEFENCE ? (uint8_t)defence : MOST_DEFENCE);
     uint8_t boost = combatant_stat_byte(g, member, STAT_ACCESSORY_FIRST);
     if ((combatant_stat_byte(g, member, STAT_ACCESSORY_FLAGS) & GIVES_BOOST) && boost) {
-        charge_machine_accesses(g, 2);
         battle_keep_word(g, BOOST_TABLE_AT, STAT_BOOSTS);
         battle_apply_boost(g, member, boost);
     }

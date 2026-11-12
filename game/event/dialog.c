@@ -1,3 +1,5 @@
+#include "event/script.h"
+#include "event/script.h"
 /* Scripts talking: a line of dialog in a window, a question with choices,
  * and the answer.
  *

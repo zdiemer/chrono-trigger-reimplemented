@@ -98,9 +98,6 @@ static ScreenFlow change_mosaic(GameState *g, uint8_t layers, uint8_t by, bool s
     if (changed > LARGEST_BLOCKS)
         changed = smaller ? 0 : LARGEST_BLOCKS;
     set_battle_mosaic(g, (uint8_t)(changed << 4 | layers));
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     return screen_on();
 }
 SCREEN_OPERATION(change_mosaic, layers, by, smaller)
@@ -170,7 +167,6 @@ static ScreenFlow change_fixed_color(GameState *g, uint8_t value, uint8_t amount
     if (intensity & FIXED_CHANNELS)
         intensity = (amount & 0x80) ? 0 : FIXED_INTENSITY;
     set_battle_fixed_color(g, (uint8_t)(channels | intensity));
-    charge_machine_accesses(g, 1);
     return screen_on();
 }
 SCREEN_OPERATION(change_fixed_color, value, amount)
@@ -283,8 +279,6 @@ static ScreenFlow start_palette_animation(GameState *g, uint8_t kind, uint8_t mo
     set_palette_animations_step(g, s, step);
     set_palette_animations_period(g, s, period);
     set_palette_animations_delay(g, s, delay);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     return screen_on();
 }
 

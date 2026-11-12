@@ -1,6 +1,3 @@
-/* The load screen: its steps, its drawing, and a slot's erasing
- * (game/menu/load_screen.c), and its steps on the original's machine
- * (game/menu/load_screen_bridge.c). */
 #ifndef CT_GAME_MENU_LOAD_SCREEN_H
 #define CT_GAME_MENU_LOAD_SCREEN_H
 
@@ -9,7 +6,6 @@
 
 #include "menu/vram.h"
 #include "platform/video.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* The slots' windows and rows as the load screen and the save screen draw
@@ -145,23 +141,10 @@ MenuUpload menu_slot_label_upload(uint8_t slot);
 
 /* The machine's side (load_screen_bridge.c): its answers to the sequences,
  * which the slot's showing ($C2:E743, save_screen.c) runs with too. */
-typedef struct {
-    Snes *s;
-} LoadScreenOnTheMachine;
+
 extern const LoadScreenSteps menu_load_screen_on_the_machine;
 
 /* The entries ($C2:E613, $C2:E61B, $C2:E6AE, $C2:E705; $C2:E7C3, $C2:E841,
  * $C2:E8B7, $C2:D32C), and their guards. */
-void menu_open_load_screen_entry(Snes *s);
-void menu_choose_on_load_screen_entry(Snes *s);
-void menu_choose_game_to_carry_on_from_entry(Snes *s);
-void menu_answer_erase_entry(Snes *s);
-void menu_draw_load_screen(Snes *s);
-void menu_ask_which_to_carry_on_from(Snes *s);
-void menu_erase_slot_entry(Snes *s);
-bool menu_load_screen_runs(Snes *s);
-bool menu_erase_is_answerable(Snes *s);
-bool menu_load_screen_draws(Snes *s);
-bool menu_slot_window_is_drawable(Snes *s);
 
 #endif

@@ -22,9 +22,7 @@
 #include "charge.h"
 #include "core/program.h"
 #include "event/engine.h"
-#include "event/event.h"
 #include "field/bridge.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -141,37 +139,11 @@ static TurnsEnd run_queued_turns(GameState *g, Platform *pf, TakeTurn take, void
     return TURNS_OUT_OF_TIME;
 }
 
-/* ---- The entries ------------------------------------------------------------------------------ */
-
-void field_queue_due_turns(Snes *s)
-{
-    queue_due_turns(state_of(s));
-    m_rts(s);
-}
-
 /* Run a queued object's turn directly. Its entry contract is checked with
  * the call's return in place, and a refused turn is left at that entry.
  * A location change or battle can abandon the turn instead of returning:
  * the caller then leaves the machine exactly where the turn stopped. */
 enum { RUN_A_TURN = 0xC05A93, A_TURN_AMONG_OTHERS = 0xC05A7C, THE_LAST_TURN = 0xC05A8B };
-enum { THE_ENGINE_READS_X = DC_A | DC_Y | DC_N | DC_Z | DC_C };
-
-static bool take_turn_on_the_machine(void *ctx, FieldObject obj)
-{
-    Snes *s = ctx;
-    bool last = !field_link_is_object(queue_head(state_of(s)));
-    s->cpu.x = field_object_offset(obj);
-    return field_run_called(s, last ? THE_LAST_TURN : A_TURN_AMONG_OTHERS, RUN_A_TURN, THE_ENGINE_READS_X,
-                            event_run_object_script, on_the_field_page(s, true));
-}
-
-void field_run_queued_turns(Snes *s)
-{
-    if (run_queued_turns(state_of(s), m_platform(s), take_turn_on_the_machine, s) == TURN_WENT_ELSEWHERE)
-        return;
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
-}
 
 /* ---- As C, with no machine ------------------------------------------------------------------ */
 
@@ -203,53 +175,3 @@ bool field_queued_turns_run(GameState *g, Platform *pf)
 /* A queue the port reads as the original does: empty, or each object in it
  * named by its slot doubled, from the head to the tail. */
 enum { LONGEST_QUEUE = FIELD_OBJECTS };
-
-static bool queue_in_the_tables(const GameState *g)
-{
-    FieldLink at = queue_head(g);
-    if (!field_link_is_object(at))
-        return true;
-    for (unsigned n = 0; n < LONGEST_QUEUE; n++) {
-        if (!field_link_names_object(at))
-            return false;
-        if (field_same_link(at, queue_tail(g)))
-            return true;
-        at = queued_after(g, field_linked_object(at));
-    }
-    return false;
-}
-
-/* The countdown: its cells reached through a data bank that reaches low RAM;
- * a count of objects the tables hold, at least one (the original's loop runs
- * until its index meets the count doubled, so no objects would take it round
- * 128 slots); and the queue's two ends in the tables, where objects join it. */
-static bool ends_in_the_tables(const GameState *g)
-{
-    FieldLink head = queue_head(g), tail = queue_tail(g);
-    return (!field_link_is_object(head) || field_link_names_object(head)) &&
-           (!field_link_is_object(tail) || field_link_names_object(tail));
-}
-
-bool field_turns_can_be_counted(Snes *s)
-{
-    if (!field_bank_low_ram(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    uint8_t count = event_object_count(g);
-    bool ok = count != 0 && count <= FIELD_OBJECTS && ends_in_the_tables(g);
-    vars_peek(false);
-    return ok;
-}
-
-/* The turns: on the field's page, its cells through a data bank that reaches
- * low RAM, the queue in the tables. */
-bool field_turns_can_run(Snes *s)
-{
-    if (!field_on_page_low_bank(s))
-        return false;
-    vars_peek(true);
-    bool ok = queue_in_the_tables(state_of(s));
-    vars_peek(false);
-    return ok;
-}

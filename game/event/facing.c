@@ -1,3 +1,5 @@
+#include "event/script.h"
+#include "event/script.h"
 /* Which way objects face: turning an object to a direction, to face another
  * object or a party member, and asking which way one faces.
  *

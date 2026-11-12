@@ -113,7 +113,6 @@ static void flip_tile(GameState *g, uint16_t at)
             set_tile_word(g, top, tile_word(g, bottom));
             set_tile_word(g, bottom, kept);
         }
-        charge_machine_accesses(g, 2);
     }
 }
 
@@ -128,7 +127,6 @@ static void mirror_tile(GameState *g, uint16_t at)
         uint16_t byte = (uint16_t)(at + b);
         set_battle_decoded_tiles(g, byte, battle_mirrored_byte(g, battle_decoded_tiles(g, byte)));
     }
-    charge_machine_accesses(g, 1);
 }
 
 /* What the original leaves of the row: where its descriptors ended (the
@@ -171,7 +169,6 @@ void battle_decode_tiles(GameState *g, uint16_t row_set, uint16_t tiles)
             flip_tile(g, at);
         if (descriptor & MIRRORED)
             mirror_tile(g, at);
-        charge_machine_accesses(g, 5);
         descriptors = (uint16_t)(descriptors + DESCRIPTOR_BYTES);
         at = (uint16_t)(at + TILE_BYTES);
     }

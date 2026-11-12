@@ -21,6 +21,17 @@ typedef struct {
 
 enum { NO_AREA = 0 };
 
+/* A rule: the shape (an index into the area search's seven), how the area is
+ * placed (battle/aim.c, AreaPlacing), whether it is the target search's
+ * rather than the area search's (the placing byte's top bit), its size, and
+ * the size byte's top bit, which some placings pass on. */
+typedef struct {
+    uint8_t shape, placing, size;
+    bool searches_for_target, flag;
+} AreaRule;
+
+enum { AREA_RULE_BYTES = 3, AREA_RULE_TOP_BIT = 0x80 };
+
 /* $CC:1ACB: two bytes a party tech, the mode in the first's low seven bits
  * and the area rules' set in the second (the byte whose low six bits the
  * tech's menu record keeps as its target kind, battle_target_kind). */
@@ -48,17 +59,6 @@ static inline uint16_t area_rules_place(const GameState *g, uint8_t area) { retu
 
 /* How many rules the set at `place` has. */
 static inline uint8_t area_rule_count(const GameState *g, uint16_t place) { return rom_read8(g, 0xCC0000u + place); }
-
-/* A rule: the shape (an index into the area search's seven), how the area is
- * placed (battle/aim.c, AreaPlacing), whether it is the target search's
- * rather than the area search's (the placing byte's top bit), its size, and
- * the size byte's top bit, which some placings pass on. */
-typedef struct {
-    uint8_t shape, placing, size;
-    bool searches_for_target, flag;
-} AreaRule;
-
-enum { AREA_RULE_BYTES = 3, AREA_RULE_TOP_BIT = 0x80 };
 
 /* The rule `n` of the set at `place` (its offset taken in a word, which
  * wraps in the bank). */

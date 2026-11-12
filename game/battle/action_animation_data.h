@@ -54,6 +54,39 @@ typedef enum { ATTACK_FROM_AFAR = 0, ATTACK_UP_CLOSE = 1, ATTACK_CRITICAL = 2 } 
 
 enum { WEAPON_VIEW_BYTES = 5, WEAPON_VIEWS = 3, CHARACTER_SCRIPTS_PER_VIEW = 7 };
 
+/* The other kinds' records start with the script set, and the techs' and the
+ * items' end with the background. An enemy has two attacks ($CD:4926, the
+ * first, and $CD:4F26), six bytes each by the enemy's number. */
+enum { ENEMY_ATTACK_BYTES = 6, ANIMATION_BYTES = 7 };
+
+enum { ANIMATION_TILES_BANK = 0xD1 };
+
+/* A script set: which of the sixteen channels run a script, for the set's
+ * two halves (a word each, high byte first, the first channel the top bit),
+ * then where each running channel's script starts, a word each in the set's
+ * bank, the first half's channels' first. The original reads the halves
+ * from the set's place in long addressing, a set at the bank's end running on
+ * into the next bank. */
+enum { SCRIPT_SET_CHANNELS = 16, SCRIPT_SET_HEADER_BYTES = 4 };
+
+/* ---- The sixteen one-sprite effects ------------------------------------------------------- */
+
+/* The effect sprite sets 32-47 hold one sprite each, from the effects'
+ * one-sprite shapes ($D1:50A2, six bytes each): its tile and attributes. */
+enum { ONE_SPRITE_SHAPE_BYTES = 6 };
+
+/* ---- The developers' switches -------------------------------------------------------------- */
+
+/* Three bytes of the ROM ($CF:FFFD-$CF:FFFF), all 0 in the released game, by
+ * which the developers forced every action's animation: as a critical hit, as
+ * its second script set, or as neither. */
+typedef enum { ANIMATIONS_AS_THEY_ARE, ANIMATIONS_ALL_CRITICAL, ANIMATIONS_ALL_SECOND, ANIMATIONS_ALL_PLAIN } AnimationSwitch;
+
+/* ---- A party member's frames ---------------------------------------------------------------- */
+
+/* The frame a character shows falling to the ground ($D1:5F42), by facing. */
+enum { BATTLE_FACINGS = 4 };
+
 static inline ActionAnimation battle_weapon_animation(const GameState *g, uint8_t weapon, AttackView view,
                                                       uint8_t character)
 {
@@ -68,11 +101,6 @@ static inline ActionAnimation battle_weapon_animation(const GameState *g, uint8_
         .background = ANIMATION_NO_BACKGROUND,
     };
 }
-
-/* The other kinds' records start with the script set, and the techs' and the
- * items' end with the background. An enemy has two attacks ($CD:4926, the
- * first, and $CD:4F26), six bytes each by the enemy's number. */
-enum { ENEMY_ATTACK_BYTES = 6, ANIMATION_BYTES = 7 };
 
 static inline ActionAnimation animation_record(const GameState *g, uint32_t at, bool background)
 {
@@ -137,7 +165,6 @@ static inline uint16_t battle_animation_tiles_place(const GameState *g, Animatio
 {
     return keeper_word(g, keeper == ANIMATIONS_OF_PARTY_ATTACKS ? 0xD10000u : 0xD10060u, tiles);
 }
-enum { ANIMATION_TILES_BANK = 0xD1 };
 
 /* Where the palette animation's frames are (battle_palette_anim_frames): the
  * enemies share a table. */
@@ -163,14 +190,6 @@ static inline uint16_t battle_animation_records_place(const GameState *g, Animat
     return keeper_word(g, tables[keeper], records);
 }
 
-/* A script set: which of the sixteen channels run a script, for the set's
- * two halves (a word each, high byte first, the first channel the top bit),
- * then where each running channel's script starts, a word each in the set's
- * bank, the first half's channels' first. The original reads the halves
- * from the set's place in long addressing, a set at the bank's end running on
- * into the next bank. */
-enum { SCRIPT_SET_CHANNELS = 16, SCRIPT_SET_HEADER_BYTES = 4 };
-
 static inline uint16_t battle_script_set_channels(const GameState *g, uint8_t bank, uint16_t set, bool second_half)
 {
     uint32_t at = ((uint32_t)bank << 16) + set + (second_half ? 2u : 0u);
@@ -191,26 +210,15 @@ static inline bool battle_character_walks_up(const GameState *g, uint8_t charact
     return rom_read8(g, 0xCCF63Cu + character) != 0;
 }
 
-/* ---- The sixteen one-sprite effects ------------------------------------------------------- */
-
-/* The effect sprite sets 32-47 hold one sprite each, from the effects'
- * one-sprite shapes ($D1:50A2, six bytes each): its tile and attributes. */
-enum { ONE_SPRITE_SHAPE_BYTES = 6 };
 static inline uint8_t battle_one_sprite_tile(const GameState *g, unsigned shape)
 {
     return rom_read8(g, 0xD150A2u + shape * ONE_SPRITE_SHAPE_BYTES);
 }
+
 static inline uint8_t battle_one_sprite_attributes(const GameState *g, unsigned shape)
 {
     return rom_read8(g, 0xD150A3u + shape * ONE_SPRITE_SHAPE_BYTES);
 }
-
-/* ---- The developers' switches -------------------------------------------------------------- */
-
-/* Three bytes of the ROM ($CF:FFFD-$CF:FFFF), all 0 in the released game, by
- * which the developers forced every action's animation: as a critical hit, as
- * its second script set, or as neither. */
-typedef enum { ANIMATIONS_AS_THEY_ARE, ANIMATIONS_ALL_CRITICAL, ANIMATIONS_ALL_SECOND, ANIMATIONS_ALL_PLAIN } AnimationSwitch;
 
 static inline AnimationSwitch battle_animation_switch(const GameState *g)
 {
@@ -223,10 +231,6 @@ static inline AnimationSwitch battle_animation_switch(const GameState *g)
     return ANIMATIONS_AS_THEY_ARE;
 }
 
-/* ---- A party member's frames ---------------------------------------------------------------- */
-
-/* The frame a character shows falling to the ground ($D1:5F42), by facing. */
-enum { BATTLE_FACINGS = 4 };
 static inline uint8_t battle_character_falling_frame(const GameState *g, uint8_t character, uint8_t facing)
 {
     return rom_read8(g, 0xD15F42u + (uint8_t)(character * BATTLE_FACINGS + facing));

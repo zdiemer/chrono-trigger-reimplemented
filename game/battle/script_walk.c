@@ -119,8 +119,7 @@ static uint8_t mark_the_way_back(GameState *g, uint8_t walker, uint8_t goal, uin
  * (run out past the walker, once the way back is marked). Where the way back
  * came to (the goal, when it gave up) lands on the cell the next jump to the
  * script's point lifts by, and is left as game state (battle.h). */
-enum { LEFT_SCAN = 0x00, LEFT_LOOKED_ROUND = 0x02, LEFT_RING_SIZE = 0x04, LEFT_WALKER = 0x0E,
-       LEFT_REACHED = 0x12, LEFT_STEPS = 0x14, STEPS_RUN_OUT = 0xFF };
+enum { LEFT_SCAN = 0x00, LEFT_LOOKED_ROUND = 0x02, LEFT_RING_SIZE = 0x04, LEFT_WALKER = 0x0E, LEFT_REACHED = 0x12, LEFT_STEPS = 0x14, STEPS_RUN_OUT = 0xFF };
 
 typedef struct {
     Ring last_ring;
@@ -150,18 +149,15 @@ bool battle_find_way(GameState *g, BattlePoint from, BattlePoint to)
     Ring ring;
     for (;;) {
         ring = mark_a_ring(g, steps);
-        charge_machine_accesses(g, ring.looked_round ? 1 : 0);
         if (ring.goal_seen)
             break;
         move_out_a_ring(g, ring.next_ring_size);
         if (++steps == STEPS_SEARCHED) {
-            charge_machine_accesses(g, 6 + (walker != 0 ? 1 : 0));
             battle_leave_jump_lift(g, goal);
             return false;
         }
     }
     uint8_t way_back = mark_the_way_back(g, walker, goal, steps);
-    charge_machine_accesses(g, 6 + (walker != 0 ? 1 : 0));
     battle_leave_jump_lift(g, way_back);
     return true;
 }
@@ -202,11 +198,8 @@ static void start_walking(GameState *g, ScriptChannel ch, uint8_t slot, BattlePo
     BattlePoint from = { combatant_x(g, slot), combatant_y(g, slot) };
     set_battle_walk_start_x(g, slot, from.x);
     set_battle_walk_start_y(g, slot, from.y);
-    charge_machine_accesses(g, 4);
-    charge_machine_accesses(g, 2);
     set_battle_script_walk_lengths(g, ch.channel, length);
     TIMED_AS(g, 0xC14A71, battle_find_way(g, from, to));
-    charge_machine_accesses(g, 2);
     set_battle_walk_cell(g, slot, battle_walk_from_cell(g));
     keep_the_grid(g, slot);
     set_battle_path(g, slot, 0);
@@ -330,7 +323,6 @@ static bool take_a_step(GameState *g, uint8_t slot)
     take_out_the_grid(g, slot);
     uint8_t at = battle_walk_cell(g, slot);
     WalkStep s = choose_step(g, at, battle_walk_heading(g, slot));
-    charge_machine_accesses(g, 4 + (s.goal == GOAL_NOT_SEEN && s.step != s.heading * STEPS_A_HEADING ? 2 : 0));
     if (s.goal != GOAL_NOT_SEEN) {
         set_battle_path_active(g, slot, 0);
         return false;
@@ -354,11 +346,9 @@ static ScriptFlow past_the_walk(GameState *g, ScriptChannel ch)
 static ScriptFlow walk(GameState *g, ScriptChannel ch, uint8_t length, ScriptAim aim, uint8_t x, uint8_t y, uint8_t place)
 {
     BattlePoint to = script_aim(g, aim, x, y, place);
-    charge_machine_accesses(g, 1);
     if (ch.kind != SCRIPT_ONE_COMBATANT)
         return past_the_walk(g, ch);
     uint8_t slot = script_combatant(g, ch);
-    charge_machine_accesses(g, 2);
     if (!battle_path_active(g, slot)) {
         start_walking(g, ch, slot, to, length);
         return SCRIPT_STAY;

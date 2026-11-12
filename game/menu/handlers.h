@@ -16,8 +16,6 @@
  * free), or a contract prevented it from continuing. */
 typedef enum { MENU_TURN_GOES_ON, MENU_TURN_DONE, MENU_TURN_WENT_NO_FURTHER } MenuTurn;
 
-static inline MenuTurn menu_turn_done_if(bool done) { return done ? MENU_TURN_DONE : MENU_TURN_GOES_ON; }
-
 /* A handler: the address the slots name it by, what it is, the guard's state
  * half (none where the guard's only check is the machine's), and its turn. */
 typedef struct {
@@ -86,5 +84,7 @@ extern const MenuScriptRoutines overworld_routines;
  * command the port doesn't run, or a service that meets a step only the
  * machine runs, goes no further. */
 MenuTurn menu_run_object_script(GameState *g, Platform *pf, MenuObject self);
+
+static inline MenuTurn menu_turn_done_if(bool done) { return done ? MENU_TURN_DONE : MENU_TURN_GOES_ON; }
 
 #endif

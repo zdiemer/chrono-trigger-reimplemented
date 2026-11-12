@@ -222,7 +222,6 @@ enum { HELD_MOST = 0xFF, HELD_LEAST = 0x00, LEFT_AMOUNT = 0x00 };
 
 static ScriptFlow add_held(GameState *g, uint8_t variable, uint8_t amount)
 {
-    charge_machine_accesses(g, 1);
     int sum = variable_value(g, variable) + (int8_t)amount;
     set_variable_value(g, variable, (uint8_t)(sum > HELD_MOST ? HELD_MOST : sum < HELD_LEAST ? HELD_LEAST : sum));
     return SCRIPT_NEXT;

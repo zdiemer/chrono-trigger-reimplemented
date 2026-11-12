@@ -12,7 +12,6 @@
 
 #include "charge.h"
 #include "platform/audio.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -40,30 +39,6 @@ bool scene_music_reached(MusicStatus music, uint8_t level)
 /* Which of the music's tracks are playing: nonzero once a song has started. */
 static uint8_t music_playing(Platform *pf) { return au_status(pf, PF_AT(0x7E5AAA), PLAYING_PORT) & MUSIC_TRACKS; }
 
-/* The guard also checks that absolute addressing reaches the APU ports, which
- * the audio service addresses in bank $00. */
-bool scene_wait_for_music_present(Snes *s)
-{
-    return m_bank_reaches_io(s) && m_code_matches(s, 0x7E5AAA, 7, 0x441A7AC228BA6C77ull);
-}
-
-// $7E:5AAA
-/* Wait for the song to start, then return with its playing-track mask. */
-void scene_wait_for_music_loop(Snes *s)
-{
-    uint8_t playing = au_wait_music_start(m_platform(s), PF_LOOP(0x7E5AAA, 0x7E5AB1));
-    m_set_a8(s, playing);
-    m_set_nz8(s, playing);
-    m_rts(s);
-}
-
-/* The routine at $7E:377E, whose absolute addressing must reach the sound
- * command buffer and the APU ports. */
-bool scene_send_sound_command_present(Snes *s)
-{
-    return m_bank_reaches_io(s) && m_code_matches(s, 0x7E377E, 40, 0x4A45A38F11AEF81Bull);
-}
-
 // $7E:3780
 /* The command in the sound command buffer to the driver, parameters first and
  * the command last, the way the driver's entry sends it but without its
@@ -85,37 +60,6 @@ static uint8_t send_sound_command(const GameState *g, Platform *pf)
 enum { ECHO_PASSES = 0x0400 };
 
 static uint8_t send_and_wait_for_the_echo(GameState *g, Platform *pf);
-
-/* A retry enters with the same buffered command and waits for acceptance. */
-
-// $7E:377E
-/* Send the scene's buffered command and wait until the driver accepts it,
- * retrying when the echo takes too long. The retry count is private to the
- * wait; callers use the command and the successful comparison. */
-void scene_send_sound_command(Snes *s)
-{
-    m_set_flag(s, CPU_FLAG_M, true);
-    uint8_t command = send_and_wait_for_the_echo(state_of(s), m_platform(s));
-    m_set_a8(s, command);
-    m_set_nz8(s, 0);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
-}
-
-bool scene_send_sound_command_long_present(Snes *s)
-{
-    return scene_send_sound_command_present(s) && m_code_matches(s, 0x7E377A, 4, 0x09C58C726C5F3645ull);
-}
-
-// $7E:377A
-/* The frame's long-call form of the same command send. */
-void scene_send_sound_command_long(Snes *s)
-{
-    m_set_flag(s, CPU_FLAG_M, true);
-    TIMED_AS(state_of(s), 0x7E377E, (void)send_and_wait_for_the_echo(state_of(s), m_platform(s)));
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rtl(s);
-}
 
 // $7E:379B
 /* One pass of the echo wait: on to the return at $7E:37A5 when the driver

@@ -40,7 +40,6 @@
 #include "battle/rules_data.h"
 #include "battle/timers.h"
 #include "charge.h"
-#include "port/native.h"
 
 /* ---- The member and its partners ------------------------------------------------------------ */
 
@@ -68,7 +67,6 @@ static void mark_those_taking_part(GameState *g, uint8_t member)
     set_battle_turn_member(g, member);
     set_battle_members_taking_part(g, member, 1);
     uint8_t partners = battle_member_actions_partners(g, member);
-    charge_machine_accesses(g, 1);
     if (first_partner(partners) != NO_PARTNER)
         set_battle_members_taking_part(g, first_partner(partners), 1);
     if (second_partner(partners) != NO_PARTNER)
@@ -84,7 +82,6 @@ static bool all_can_act(GameState *g)
         if (!battle_members_taking_part(g, m))
             continue;
         bool out = combatant_cant_act(g, m);
-        charge_machine_accesses(g, 1);
         if (out)
             return false;
     }
@@ -203,7 +200,6 @@ static void member_waits_after_tech(GameState *g, uint8_t tech, unsigned part)
         battle_restart_timer(g, BATTLE_TIMER_TURN, slot);
         set_battle_member_ready(g, slot, 0);
         (void)effect_times(g, MEMBER_ACTION_RECORD_BYTES, slot);
-        charge_machine_accesses(g, 1);
         set_battle_member_actions_state(g, slot, 0);
     }
 }
@@ -245,7 +241,6 @@ static void end_turn(GameState *g)
         }
     }
     set_battle_member_actions_partners(g, member, NO_PARTNERS);
-    charge_machine_accesses(g, 1);
 }
 
 // $C1:BCE1
@@ -278,23 +273,6 @@ static void pay_for_part(GameState *g, const PartyTech *t, unsigned part)
     set_combatant_mp(g, slot, (uint16_t)(combatant_mp(g, slot) - cost));
 }
 
-/* The original finds each part's cost by a multiply (its record's place), the
- * last of them entered with the carry of the second member's paying: whether
- * its MP covered the cost, which what it has left and the cost say (set where
- * there is no second member). Scaffolding. */
-
-/* Every member pays for its part. */
-/* Preserve the machine estimate for removed comparison accesses.
- * Inspect the branch without charging those reads to either backend. */
-static void charge_payment(GameState *g)
-{
-    uint32_t charge_mark = charge_uncounted_begin(g);
-    bool partner = battle_tech_members(g, 1) != NO_MEMBER;
-    charge_uncounted_end(g, charge_mark);
-    charge_machine_accesses(g, partner ? 6 : 2);
-    charge_machine_rom_accesses(g, partner ? 1 : 0);
-}
-
 static void pay_for_tech(GameState *g)
 {
     uint8_t tech = battle_action_detail(g);
@@ -302,7 +280,6 @@ static void pay_for_tech(GameState *g)
     (void)effect_times(g, tech, PARTY_TECH_BYTES);
     for (unsigned part = 0; part < TECH_MEMBERS; part++)
         pay_for_part(g, &t, part);
-    charge_payment(g);
 }
 
 /* ---- The turn, as one sequence --------------------------------------------------------------- */
@@ -473,16 +450,13 @@ static bool perform_tech(GameState *g, uint8_t member, MemberCalls call, void *c
 // $C1:B967
 static bool carry_out_action(GameState *g, MemberCalls call, void *ctx)
 {
-    charge_machine_accesses(g, 1);
     uint8_t member = take_waiting_member(g);
     mark_those_taking_part(g, member);
     if (!all_can_act(g)) {
         TIMED_AS(g, 0xFDA93C, battle_call_off_combination(g));
-        charge_machine_accesses(g, 1);
         return true;
     }
     battle_keep_word(g, BATTLE_CLOCK_READS, 0);
-    charge_machine_accesses(g, 1);
     /* the targeting finds the member's action record through it (battle.h) */
     battle_keep_word(g, BATTLE_MEMBER_CELL, battle_member_record_place(g, member));
     uint8_t choice = battle_member_actions_choice_flags(g, member);
@@ -571,13 +545,7 @@ static bool attacker_fits(const GameState *g) { return battle_actor(g) < BATTLE_
 
 /* ---- On the machine ------------------------------------------------------------------------ */
 
-enum {
-    AIM = 0xC1C1DD, SHOW_MESSAGE = 0xCD0021, SHOWING = 0xC1AC57, MEMBER_ATTACKS = 0xC1BFAA,
-    USE_ITEM = 0xC1BF46, WORK_OUT_TECH = 0xC1BF79,
-    ACTION_READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS,
-    AIM_READS_CARRY = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z,
-    SHOWING_READS_A_HIGH_AND_OVERFLOW = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C,
-};
+enum { AIM = 0xC1C1DD, SHOW_MESSAGE = 0xCD0021, SHOWING = 0xC1AC57, MEMBER_ATTACKS = 0xC1BFAA, USE_ITEM = 0xC1BF46, WORK_OUT_TECH = 0xC1BF79,  };
 
 /* Each call from the original's own: the targeting with the carry it is
  * handed, the showing taking A's high byte along to the battle's step,
@@ -591,86 +559,6 @@ static const uint32_t member_sites[] = {
     [MEMBER_NOTHING_TO_TAKE] = 0xC1BC46,
 };
 
-static bool member_on_the_machine(void *ctx, MemberCall call, bool carry)
-{
-    Snes *s = ctx;
-    uint32_t site = member_sites[call];
-    switch (call) {
-    case MEMBER_ATTACK: return battle_run_dc(s, 0xC1BA7D, MEMBER_ATTACKS, ACTION_READS_NOTHING, battle_member_attacks_entry);
-    case MEMBER_AIM_ITEM:
-        m_set_flag(s, CPU_FLAG_C, carry);
-        return battle_run_dc(s, 0xC1BABE, AIM, AIM_READS_CARRY, battle_aim_action_entry);
-    case MEMBER_AIM_TECH:
-        m_set_flag(s, CPU_FLAG_C, carry);
-        return battle_run_dc(s, 0xC1BB88, AIM, AIM_READS_CARRY, battle_aim_action_entry);
-    case MEMBER_ITEM_AIMED_PAST:
-    case MEMBER_TECH_AIMED_PAST: battle_stop_after_call(s, site); return false;
-    case MEMBER_USE_ITEM: return battle_run_dc(s, 0xC1BB0C, USE_ITEM, ACTION_READS_NOTHING, battle_use_item_entry);
-    case MEMBER_WORK_OUT_TECH:
-        return battle_run_dc(s, 0xC1BBD4, WORK_OUT_TECH, ACTION_READS_NOTHING, battle_work_out_member_tech_entry);
-    case MEMBER_WORK_OUT_ATTACK:
-        return battle_run_dc(s, 0xC1C006, WORK_OUT_TECH, ACTION_READS_NOTHING, battle_work_out_member_tech_entry);
-    case MEMBER_SHOW_ITEM:
-        s->cpu.a &= 0x00FF;
-        return battle_run_dc(s, 0xC1BB26, SHOWING, SHOWING_READS_A_HIGH_AND_OVERFLOW, battle_start_action_showing);
-    case MEMBER_SHOW_TECH:
-        s->cpu.a &= 0x00FF;
-        return battle_run_dc(s, 0xC1BC1E, SHOWING, SHOWING_READS_A_HIGH_AND_OVERFLOW, battle_start_action_showing);
-    case MEMBER_SHOW_ATTACK:
-        s->cpu.a &= 0x00FF;
-        return battle_run_dc(s, 0xC1C00E, SHOWING, SHOWING_READS_A_HIGH_AND_OVERFLOW, battle_start_action_showing);
-    case MEMBER_ITEM_TAKEN:
-        m_set_a8(s, MESSAGE_ITEM_TAKEN);
-        return battle_run_long(s, site, SHOW_MESSAGE, battle_show_a_battle_message_entry);
-    default:
-        m_set_a8(s, MESSAGE_NOTHING_TO_TAKE);
-        return battle_run_long(s, site, SHOW_MESSAGE, battle_show_a_battle_message_entry);
-    }
-}
-
-/* ---- The entries ------------------------------------------------------------------------------- */
-
-bool battle_carry_out_member_action_ready(Snes *s)
-{
-    vars_peek(true);
-    bool fits = action_fits(state_of(s));
-    vars_peek(false);
-    return battle_on_page(s) && fits;
-}
-
-void battle_carry_out_member_action_entry(Snes *s)
-{
-    if (carry_out_action(state_of(s), member_on_the_machine, s))
-        m_rts(s);
-}
-
-/* The member attacking is in the party's slots. */
-bool battle_member_attacks_ready(Snes *s)
-{
-    vars_peek(true);
-    bool member = attacker_fits(state_of(s));
-    vars_peek(false);
-    return battle_on_page(s) && member;
-}
-
-/* It hands back A's high byte clear. */
-void battle_member_attacks_entry(Snes *s)
-{
-    if (!attack(state_of(s), member_on_the_machine, s))
-        return;
-    s->cpu.a &= 0x00FF;
-    m_rts(s);
-}
-
-// $C1:FDC7
-/* The attack as bank $FD's code calls it, through a long call: a member's
- * status turn and the party's counters (battle/party_turns.c). */
-void battle_member_attacks_from_bank_fd(Snes *s)
-{
-    if (battle_run(s, 0xC1FDC7, MEMBER_ATTACKS, battle_member_attacks_entry))
-        m_rtl(s);
-}
-
 /* The main loop's end of a member's turn whose status picked its action,
  * entered with A's high byte clear, which the original indexes by. */
 static bool member_turn_end_fits(const GameState *g)
@@ -682,36 +570,12 @@ static bool member_turn_end_fits(const GameState *g)
                    && (second_partner(partners) == NO_PARTNER || second_partner(partners) < BATTLE_PARTY_SIZE)));
 }
 
-bool battle_end_member_turn_ready(Snes *s)
-{
-    vars_peek(true);
-    bool fits = member_turn_end_fits(state_of(s));
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && fits;
-}
-
-void battle_end_member_turn_entry(Snes *s)
-{
-    member_turn_ends(state_of(s));
-    m_rts(s);
-}
-
 bool battle_end_member_turn(GameState *g)
 {
     if (!member_turn_end_fits(g))
         return battle_contract_broken(g, 0xC1BCE1, "a member's turn's end with partners past the party");
     member_turn_ends(g);
     return true;
-}
-
-/* A tech's members' waits, entered with its members in the party's slots. */
-
-// $C1:B961
-/* The battle's step 2, for the calling off of a member's action ($FD:A937). */
-void battle_member_called_off_step(Snes *s)
-{
-    if (battle_take_step(s, 0xC1B963, BATTLE_STEP_CALLED_OFF, DC_X | DC_Y | DC_N | DC_Z | DC_C))
-        m_rtl(s);
 }
 
 /* ---- As C ------------------------------------------------------------------------------------ */

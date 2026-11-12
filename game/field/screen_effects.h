@@ -9,7 +9,6 @@
 #include <stdint.h>
 
 #include "platform/platform.h"
-#include "snes/system.h"
 #include "state.h"
 #include "vars.h"
 
@@ -35,11 +34,6 @@ typedef enum {
     OVAL_GONE = 14,               /* the oval's blending gone and the screen's colour as the field starts it */
     SCREEN_EFFECTS                /* past the last: the original's table runs on into its error trap */
 } ScreenEffect;
-
-static inline ScreenEffect field_screen_effect_now(const GameState *g)
-{
-    return (ScreenEffect)field_screen_effect(g);
-}
 
 /* Start an effect that takes nothing but its name. */
 void screen_effect_start(GameState *g, ScreenEffect effect);
@@ -81,23 +75,16 @@ uint16_t screen_searchlight_speed(uint8_t from, uint8_t to, uint8_t frames);
 
 /* The step the main loop runs ($C0:21E1), and its guard: an effect the port
  * draws as the original does. */
-void field_move_screen_effect_on(Snes *s);
 /* As C, with the guard's state half first: false where a step is the
  * machine's yet, or where the field closes into its scene, which is where
  * the program goes next. */
 bool field_screen_effect_moved_on(GameState *g, Platform *pf);
-bool field_screen_effect_can_move_on(Snes *s);
 
 /* Continuations of the field's held frame waits. */
-void field_scene_close_puts_the_field_aside(Snes *s);
-void field_scene_close_starts_the_scene(Snes *s);
-void field_ripple_settles(Snes *s);
-void field_ripple_settled_a_frame(Snes *s);
-void field_ripple_grew_a_frame(Snes *s);
-void field_ripple_held_a_frame(Snes *s);
-void field_ripple_shrank_a_frame(Snes *s);
-void field_screen_effect_returns(Snes *s);
 
-void field_scene_close_field_is_aside(Snes *s);
+static inline ScreenEffect field_screen_effect_now(const GameState *g)
+{
+    return (ScreenEffect)field_screen_effect(g);
+}
 
 #endif

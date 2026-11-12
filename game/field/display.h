@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 #include "platform/platform.h"
-#include "snes/system.h"
+#include <stdint.h>
 #include "state.h"
 
 /* What the vblank handler sends every frame (field/nmi.c): the sprite table,
@@ -23,8 +23,6 @@ bool field_layer_edges_fit(const GameState *g);
 
 /* The twelve deferred uploads of the layers' edge runs: a row or a column
  * scrolling into view, each layer's. */
-void field_irq(Snes *s);
-bool field_display_bank_is_io(Snes *s);
 
 /* A transfer to VRAM the field describes (field_transfer) and sends at once
  * ($C0:2DC8), its size 0 for 64 KiB; and a stretch of work RAM cleared
@@ -51,9 +49,7 @@ enum { FIELD_VRAM_TRANSFER_ENTRY = 0xC02DC8, FIELD_FILL_MEMORY_ENTRY = 0xC02DF1 
 void field_send_staged_layer(GameState *g, Platform *pf, bool both_screens);
 void field_send_staged_bg2_screen(GameState *g, Platform *pf, bool right);
 void field_send_bg3_piece(const GameState *g, Platform *pf);
-enum { FIELD_SEND_STAGED_SCREEN_ENTRY = 0xC07F62, FIELD_SEND_STAGED_SCREENS_ENTRY = 0xC07F77,
-       FIELD_SEND_STAGED_BG2_RIGHT_ENTRY = 0xC07F58, FIELD_SEND_STAGED_BG2_LEFT_ENTRY = 0xC07F5D,
-       FIELD_SEND_BG3_PIECE_ENTRY = 0xC0EC77 };
+enum { FIELD_SEND_STAGED_SCREEN_ENTRY = 0xC07F62, FIELD_SEND_STAGED_SCREENS_ENTRY = 0xC07F77, FIELD_SEND_STAGED_BG2_RIGHT_ENTRY = 0xC07F58, FIELD_SEND_STAGED_BG2_LEFT_ENTRY = 0xC07F5D, FIELD_SEND_BG3_PIECE_ENTRY = 0xC0EC77 };
 
 /* The field's video mode and the map's screens, as a map's screen is set up
  * ($FD:C0D7, $C0:A509). */
@@ -63,6 +59,5 @@ void field_show_the_maps_screens(const GameState *g, Platform *pf);
 /* The last queued transfer's second size, which the queue's upload leaves in
  * Y for the menus' per-frame routine; `none` where the queue is empty. */
 uint16_t field_queue_last_second_size(const GameState *g, uint16_t none);
-
 
 #endif

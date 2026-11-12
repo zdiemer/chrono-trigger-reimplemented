@@ -30,7 +30,6 @@
 #include "battle/menu_bridge.h"
 #include "battle/window_data.h"
 #include "charge.h"
-#include "port/native.h"
 #include "vars.h"
 
 /* ---- Around the menu --------------------------------------------------------------------------- */
@@ -113,7 +112,6 @@ void battle_list_stolen_item(GameState *g)
         set_battle_item_list_held(g, (unsigned)place, battle_member_kept_item_held(g, (unsigned)member));
         set_battle_item_list_spare(g, (unsigned)place, battle_member_kept_item_spare(g, (unsigned)member));
     }
-    charge_machine_accesses(g, copied ? 6 : 5);
     forget_kept_item(g, (unsigned)member);
     if (!menu_nobody(battle_menu_member(g)) && battle_menu_page(g) == PAGE_ITEMS)
         set_battle_item_list_changed(g, (uint8_t)(battle_item_list_changed(g) + 1));
@@ -129,7 +127,6 @@ static void forget_target_named(GameState *g)
 {
     if (battle_message_by_id(g) || battle_message_by_id_high(g))
         return;
-    charge_machine_accesses(g, 1);
     set_battle_message_asked(g, NO_MESSAGE);
 }
 
@@ -199,7 +196,6 @@ static void move_to_target(GameState *g, const Frame *f, bool forward)
 static void restore_list_frames(GameState *g, MenuPage page)
 {
     if (page == PAGE_TECHS) {
-        charge_machine_accesses(g, 1);
         set_battle_frames_reload_request(g, (uint8_t)(battle_frames_reload_request(g) + 1));
         return;
     }
@@ -224,7 +220,6 @@ static MenuPage back_from_the_party(GameState *g)
 static void stop_targeting(GameState *g)
 {
     set_battle_target_choice(g, 0);
-    charge_machine_accesses(g, 1);
     set_battle_targeting(g, (uint8_t)(battle_targeting(g) - 1));
 }
 
@@ -256,7 +251,6 @@ static void take_partner(GameState *g, uint8_t partner)
         set_battle_menu_member_count(g, (uint8_t)(battle_menu_member_count(g) - 1));
     set_battle_menu_slot_members(g, partner, MENU_NONE);
     set_battle_member_actions_state(g, partner, battle_member_actions_state(g, partner) & (uint8_t)~MEMBER_ACTION_CHOSEN);
-    charge_machine_accesses(g, 1);
 }
 
 /* What the member chose, as its action record keeps it. */
@@ -319,7 +313,6 @@ static void queue_action(GameState *g, uint8_t member, const Chosen *c)
 {
     remember_command(g, member);
     set_battle_attack_by_shortcut(g, 0);
-    charge_machine_accesses(g, 1);
     set_battle_target_choice(g, 0);
     set_battle_ally_target_window(g, 0);
     uint8_t queued = battle_action_queue_length(g);
@@ -335,8 +328,6 @@ static void queue_action(GameState *g, uint8_t member, const Chosen *c)
     if (c->what_kept)
         set_battle_member_actions_what(g, member, c->what);
     else
-        charge_machine_accesses(g, 3);
-    charge_machine_accesses(g, c->what_kept ? 3 : 2);
 
     set_battle_menu_member_count(g, (uint8_t)(battle_menu_member_count(g) - 1));
     battle_hand_the_menu_on(g, member);
@@ -442,7 +433,6 @@ static void open_techs(GameState *g)
     battle_mark_tech_rows(g);
     set_battle_menu_command(g, COMMAND_TECH);
     set_battle_menu_page(g, PAGE_TECHS);
-    charge_machine_accesses(g, 1);
     set_battle_frames_reload_request(g, (uint8_t)(battle_frames_reload_request(g) + 1));
 }
 
@@ -524,7 +514,6 @@ static void tech_cursor_up(GameState *g, uint8_t member, uint8_t at)
     for (;;) {
         rows++;
         if (at == 0) {
-            charge_machine_accesses(g, 3);
             return;
         }
         at--;
@@ -533,7 +522,6 @@ static void tech_cursor_up(GameState *g, uint8_t member, uint8_t at)
     }
     int row = battle_tech_cursor(g, member) - rows;
     uint8_t scroll = battle_tech_scroll(g, member);
-    charge_machine_accesses(g, 4);
     if (row < 0 && scroll == 0)
         return;
     if (row < 0) {
@@ -553,7 +541,6 @@ static void tech_cursor_down(GameState *g, uint8_t member, uint8_t at)
     for (;;) {
         rows++;
         if ((uint8_t)(at + 1) >= battle_tech_list_length(g, member)) {
-            charge_machine_accesses(g, 3);
             return;
         }
         at++;
@@ -561,7 +548,6 @@ static void tech_cursor_down(GameState *g, uint8_t member, uint8_t at)
             break;
     }
     unsigned row = battle_tech_cursor(g, member) + rows;
-    charge_machine_accesses(g, 4);
     uint8_t scroll = battle_tech_scroll(g, member);
     if (row >= TECH_ROWS_SHOWN) {
         scroll = (uint8_t)(scroll + row - (TECH_ROWS_SHOWN - 1));
@@ -586,7 +572,6 @@ static void take_tech_page(GameState *g, const Frame *f, uint8_t member)
 {
     hold_timers_for_lists(g);
     uint8_t at = (uint8_t)(battle_tech_scroll(g, member) + battle_tech_cursor(g, member));
-    charge_machine_accesses(g, 2);
     if (pressed(f, BUTTON_A)) {
         click(f, CLICK_TECH_CHOSEN);
         use_tech(g, f);
@@ -632,7 +617,6 @@ enum { NOT_FOR_BATTLE = 0x80 };
 static void use_item(GameState *g, const Frame *f)
 {
     uint8_t at = (uint8_t)(battle_item_top(g) + battle_item_row(g));
-    charge_machine_accesses(g, 1);
     uint16_t place = battle_multiply(g, at, ITEM_LIST_RECORD_BYTES);
     if ((battle_item_list_flags(g, at) & NOT_FOR_BATTLE) || battle_item_list_held(g, at) == 0)
         return;
@@ -785,14 +769,4 @@ bool battle_menu_frame_fits(const GameState *g)
         break;
     }
     return battle_action_queue_length(g) < BATTLE_ACTION_QUEUE_COUNT;
-}
-
-bool battle_take_menu_input_ready(Snes *s)
-{
-    if (!battle_menu_window_ready(s) || (s->cpu.a & 0xFF00))
-        return false;
-    vars_peek(true);
-    bool fits = battle_menu_frame_fits(state_of(s));
-    vars_peek(false);
-    return fits;
 }

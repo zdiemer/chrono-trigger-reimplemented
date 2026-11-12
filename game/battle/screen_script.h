@@ -45,10 +45,6 @@ typedef struct {
     uint16_t to;
 } ScreenFlow;
 
-static inline ScreenFlow screen_on(void) { return (ScreenFlow){ SCREEN_ON, 0 }; }
-static inline ScreenFlow screen_go_to(uint16_t to) { return (ScreenFlow){ SCREEN_GO_TO, to }; }
-static inline ScreenFlow screen_moved(void) { return (ScreenFlow){ SCREEN_MOVED, 0 }; }
-
 /* A wait: on when what it waits for has happened, otherwise back `back`
  * bytes, counted from the command's second byte, to the step's end it waits
  * at. A script names the distance as a byte, and the place moves within its
@@ -218,7 +214,6 @@ typedef bool (*ScreenNeeds)(const GameState *g, const ScreenCommand *command);
 /* A command whose work is still the original's code: the runner moves the
  * channel on past it, then calls this with the machine; false where the
  * original's code carried on. */
-typedef bool (*ScreenBridge)(Snes *s, const ScreenCommand *command);
 
 /* A row: the command byte, the operation (or the bridge), what it needs, the
  * operand bytes it takes, and how each parameter it reads decodes. (The
@@ -228,7 +223,7 @@ typedef bool (*ScreenBridge)(Snes *s, const ScreenCommand *command);
 typedef struct {
     uint8_t opcode;
     ScreenOperation operation;
-    ScreenBridge bridge;
+    bool waits_for_line;
     ScreenNeeds needs;
     uint8_t length;
 #define SCREEN_ARG_FIELD(type, name) ScreenArg name;
@@ -256,6 +251,19 @@ extern const ScreenOpcodes screen_flow_opcodes, screen_layer_opcodes, screen_sha
 /* The row of a command byte, or none past the language's last. */
 const ScreenOpcode *screen_opcode(uint8_t opcode);
 
+/* The two triangles and the two circles are each one of two. */
+enum { SCREEN_SHAPES = 2, SCREEN_CIRCLES = 2 };
+
+/* The screen scripts' frame ($CD:1609), as C: false where it went no
+ * further. */
+bool battle_screen_scripts_run(GameState *g, Platform *pf);
+
+static inline ScreenFlow screen_on(void) { return (ScreenFlow){ SCREEN_ON, 0 }; }
+
+static inline ScreenFlow screen_go_to(uint16_t to) { return (ScreenFlow){ SCREEN_GO_TO, to }; }
+
+static inline ScreenFlow screen_moved(void) { return (ScreenFlow){ SCREEN_MOVED, 0 }; }
+
 /* ---- Places in the script ------------------------------------------------------------------- */
 
 /* A place in the running channel's script, within its bank. */
@@ -274,12 +282,5 @@ static inline ScreenChannel screen_running_channel(const GameState *g)
 {
     return (ScreenChannel)(battle_screen_channel(g) / SCREEN_CHANNEL_RECORD_BYTES);
 }
-
-/* The two triangles and the two circles are each one of two. */
-enum { SCREEN_SHAPES = 2, SCREEN_CIRCLES = 2 };
-
-/* The screen scripts' frame ($CD:1609), as C: false where it went no
- * further. */
-bool battle_screen_scripts_run(GameState *g, Platform *pf);
 
 #endif

@@ -1,3 +1,4 @@
+#include "core/program.h"
 /* Opening the menus: what they set up each time the game enters them,
  * whichever screen they open on.
  *
@@ -25,7 +26,6 @@
 #include "menu/save_screen.h"
 #include "menu/sprites.h"
 #include "platform/audio.h"
-#include "port/native.h"
 #include "sound/sound.h"
 
 /* ---- The party, as the menus list it ------------------------------------------------------------ */
@@ -60,13 +60,7 @@ void menu_list_party(GameState *g)
 
 /* Where each setting sits in the player's three bytes of settings
  * (game_settings). */
-enum {
-    SOUND_OUTPUT_BIT = 0x08, OWN_BUTTONS_BIT = 0x10, KEEP_MENU_CURSORS_BIT = 0x20, ACTIVE_TIME_BIT = 0x40,
-    DESCRIPTIONS_BIT = 0x80, BATTLE_SPEED_BITS = 0x07,
-    WINDOW_DESIGN_BITS = 0x07, MESSAGE_SPEED_SHIFT = 3, MESSAGE_SPEED_BITS = 0x07, KEEP_BATTLE_COMMAND_BIT = 0x40,
-    KEEP_BATTLE_LISTS_BIT = 0x80,
-    BATTLE_GAUGE_BITS = 0x03,
-};
+enum { SOUND_OUTPUT_BIT = 0x08, OWN_BUTTONS_BIT = 0x10, KEEP_MENU_CURSORS_BIT = 0x20, ACTIVE_TIME_BIT = 0x40, DESCRIPTIONS_BIT = 0x80, BATTLE_SPEED_BITS = 0x07, WINDOW_DESIGN_BITS = 0x07, MESSAGE_SPEED_SHIFT = 3, MESSAGE_SPEED_BITS = 0x07, KEEP_BATTLE_COMMAND_BIT = 0x40, KEEP_BATTLE_LISTS_BIT = 0x80, BATTLE_GAUGE_BITS = 0x03,  };
 
 static uint8_t bit_set(uint8_t byte, uint8_t bit) { return (byte & bit) != 0; }
 
@@ -105,7 +99,6 @@ void menu_pack_settings(GameState *g)
                                | (menu_setting_message_speed(g) & MESSAGE_SPEED_BITS) << MESSAGE_SPEED_SHIFT);
     set_game_settings(g, 1, (uint8_t)(second | (menu_window_design(g) & WINDOW_DESIGN_BITS)));
     set_game_settings(g, 2, (uint8_t)(menu_setting_battle_gauge(g) & BATTLE_GAUGE_BITS));
-    charge_machine_accesses(g, 1);
 }
 
 /* ---- The opening ------------------------------------------------------------------------------- */
@@ -116,15 +109,16 @@ enum { LONG_JUMP = 0x5C };
 
 static void take_the_interrupts(GameState *g)
 {
-    set_nmi_vector(g, LONG_JUMP | (uint32_t)MENU_VBLANK_HANDLER << 8);
-    set_irq_vector(g, LONG_JUMP | (uint32_t)MENU_LINE_HANDLER << 8);
+    program_install_vblank_handler(g, menu_vblank);
+    charge_legacy_accesses(g, 4);
+    program_install_line_handler(g, menu_line);
+    charge_legacy_accesses(g, 4);
 }
 
 /* The sound effects quietened and the driver's first set of effects taken:
  * silence played on both pairs of effect voices, their volume put back to
  * full at once, each command from its own call. */
 enum { CHOOSE_EFFECT_SET = 0x70, FIRST_EFFECT_SET = 0, SILENCE = 0xFF, AT_ONCE = 1 };
-enum { DRIVER_IGNORES = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 static const struct {
     uint32_t site;
@@ -140,7 +134,7 @@ enum { QUIETING_COMMANDS = sizeof QUIETING / sizeof QUIETING[0] };
 
 static void quieten_the_channel(Platform *pf, unsigned i)
 {
-    au_command(pf, PF_CALL_DC(QUIETING[i].site, 0xC70004, DRIVER_IGNORES), QUIETING[i].command);
+    au_command(pf, PF_CALL(QUIETING[i].site, 0xC70004), QUIETING[i].command);
 }
 
 /* The layers' vertical scroll a line up, the zero word the menus read, the
@@ -254,64 +248,5 @@ bool menu_opens(GameState *g, Platform *pf)
     return open_the_menus(g, pf, &in_the_program, &c);
 }
 
-/* ---- On the machine --------------------------------------------------------------------------- */
-
-/* Each quietening command is a call-out to the driver, whose return the
- * bridge checks. */
-static bool quieten_on_the_machine(void *ctx, unsigned command)
-{
-    Snes *s = ctx;
-    MenuMachine m = menu_machine(s);
-    quieten_the_channel(m_platform(s), command);
-    return menu_back(s, QUIETING[command].site + MENU_JSL_SIZE, m);
-}
-
 /* Registers the routines the opening calls don't read (the calling convention
  * checks each). */
-enum { SETUP_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-enum { OPENING_ENDS = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-/* The screen's setup is the original's, called; the rest are siblings run as
- * the original's calls reach them. */
-static bool call_on_the_machine(void *ctx, OpeningCall call)
-{
-    Snes *s = ctx;
-    switch (call) {
-    case OPENING_SCREEN: menu_set_widths(s, false, false); return menu_run_called(s, 0xC280F0, 0xC2940D, SETUP_IGNORES, menu_init_video);
-    case OPENING_SAVE_SLOTS: return menu_run(s, 0xC28127, 0xC2D156, menu_read_save_slots);
-    case OPENING_UPLOADS: return menu_run(s, 0xC2812D, 0xC28663, menu_upload_vram_queue);
-    case OPENING_RECORDS: return menu_run(s, 0xC28136, 0xC2F3CA, menu_load_record_sprites);
-    case OPENING_ITEMS: return menu_run(s, 0xC28139, 0xC29875, menu_build_items);
-    }
-    return false;
-}
-
-static void graphics_built_on_the_machine(void *ctx) { menu_leave_graphics_built(ctx); }
-
-static bool low_hp_marks_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    if (menu_low_hp_marks_are_workable(s))
-        return true;
-    m_stop_at(s, LOW_HP_MARKS, OPENING_ENDS);
-    return false;
-}
-
-void menu_open(Snes *s)
-{
-    static const OpeningCalls on_the_machine = { quieten_on_the_machine, call_on_the_machine,
-                                                 graphics_built_on_the_machine, low_hp_marks_on_the_machine };
-    menu_set_widths(s, false, false);
-    s->cpu.d = MENU_PAGE;
-    (void)0;
-    menu_set_widths(s, true, false);
-    if (open_the_menus(state_of(s), m_platform(s), &on_the_machine, s))
-        m_rts(s);
-}
-// $C2:816A
-
-// $C2:92F4
-
-/* The opening sets its own page; it runs with the data bank on work RAM's,
- * as the menus' entry leaves it. */
-bool menu_opening_runs(Snes *s) { return s->cpu.db == MENU_DATA_BANK; }

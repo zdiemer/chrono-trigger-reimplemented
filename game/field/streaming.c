@@ -30,7 +30,6 @@
 #include "field/field.h"
 #include "field/layers.h"
 #include "field/scratch.h"
-#include "port/machine.h"
 #include "vars.h"
 
 /* ---- The map's looks ------------------------------------------------------------------------ */
@@ -399,7 +398,7 @@ void stream_the_layers(GameState *g)
 {
     for (unsigned side = 0; side < SIDES; side++)
         set_field_layer_edges_crossed(g, side, 0);
-    bool moved = false;
+
     for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
         for (unsigned w = 0; w < WAYS; w++) {
             unsigned k = layer * AXES + ways[w].axis;
@@ -416,11 +415,9 @@ void stream_the_layers(GameState *g)
             note_the_crossing(g, &m);
             charge_uncounted_end(g, mark);
             charge_as(g, STREAMING, (uint32_t)pixels * ACCESSES_FOUR_PIXELS / 4);
-            moved = true;
+
         }
     }
-    if (moved)
-        charge_machine_accesses(g, 1); /* the former exhausted movement counter */
     for (unsigned side = 0; side < SIDES; side++)
         set_field_layer_upload_flags(g, side, 0);
     static const Side order[SIDES] = { SIDE_ABOVE, SIDE_BELOW, SIDE_LEFT, SIDE_RIGHT };
@@ -522,19 +519,6 @@ void draw_layer_at_the_maps_load(GameState *g, unsigned layer)
     charge_legacy_io_accesses(g, 3); /* outside the explicitly priced drawing */
 }
 
-/* ---- The entry ---------------------------------------------------------------------------- */
-
-/* From the walk and the recentring, on the layers' page; it leaves the
- * overflow the edge runs' last sum leaves (field/layers.h), which the
- * field's main loop carries on. */
-void field_stream_the_layers(Snes *s)
-{
-    GameState *g = state_of(s);
-    stream_the_layers(g);
-    m_set_flag(s, CPU_FLAG_V, field_layer_edges_overflow(g));
-    m_rts(s);
-}
-
 /* The guard: on the layers' page, and each layer's map repeats within the
  * map's 64 by 64 tables. */
 enum { WITHIN_THE_MAPS = 0x3F3F };
@@ -565,26 +549,6 @@ bool layer_drawing_fits(const GameState *g, unsigned layer)
            (own.top <= own.bottom && own.bottom - own.top < STAGED_ROWS && own.bottom != LAST_ROW);
 }
 
-bool field_bg2_drawing_can_run(Snes *s)
-{
-    if (!field_on_layers_page_io_bank(s))
-        return false;
-    vars_peek(true);
-    bool ok = layer_drawing_fits(state_of(s), FIELD_BG2);
-    vars_peek(false);
-    return ok;
-}
-
-bool field_streaming_can_run(Snes *s)
-{
-    if (!field_on_layers_page_io_bank(s))
-        return false;
-    vars_peek(true);
-    bool ok = layers_repeat_within_the_maps(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
 /* The drawings at a map's load as C, each with its entry's guard's state
  * half: BG2's drawing fitting the staging buffers, BG1's and BG3's every
  * layer's map repeating within the map's tables. */
@@ -599,56 +563,4 @@ bool field_layer_drawn_at_the_load(GameState *g, unsigned layer)
     }
     TIMED_AS(g, drawing_entries[layer], draw_layer_at_the_maps_load(g, layer));
     return true;
-}
-
-/* The drawings at a map's load, on the layers' page; they leave nothing in
- * the registers their callers read. */
-void field_draw_bg1_at_the_load(Snes *s)
-{
-    draw_layer_at_the_maps_load(state_of(s), FIELD_BG1);
-    m_rts(s);
-}
-
-void field_draw_bg2_at_the_load(Snes *s)
-{
-    draw_layer_at_the_maps_load(state_of(s), FIELD_BG2);
-    m_rts(s);
-}
-
-void field_draw_bg3_at_the_load(Snes *s)
-{
-    draw_layer_at_the_maps_load(state_of(s), FIELD_BG3);
-    m_rts(s);
-}
-
-/* The right columns, on the field's page. Nothing in the game reads what it
- * leaves in the registers. The registers are left as the edges' working out
- * leaves them (field/leaves.c) for the requests' stop at the frame wait
- * ($C0:EC60), which their callers jump to: there the analysis has X, Y and
- * the carry read, because the battle's start also waits there and goes on
- * into the battle bank's entry ($C0:18A4, $C1:0000), which it keeps
- * everything live into; and the main loop's next pass reads the overflow
- * ($C0:18D9). So the stop can't declare them, and shadow mode compares them
- * there (requests.c, THE_LAST_WAIT). */
-void field_bring_in_the_right_columns(Snes *s)
-{
-    stream_the_right_columns(state_of(s));
-    FieldEdgesLeave left = field_edges_leave(state_of(s));
-    s->cpu.x = left.right_column_start;
-    s->cpu.y = left.row_above;
-    m_set_flag(s, CPU_FLAG_C, left.carry);
-    m_set_flag(s, CPU_FLAG_V, left.overflow);
-    m_rts(s);
-}
-
-/* Its guard: on the field's page, the data bank reaching the registers, and
- * each layer's map repeating within the map's tables. */
-bool field_right_columns_can_come_in(Snes *s)
-{
-    if (!field_on_page_io_bank(s))
-        return false;
-    vars_peek(true);
-    bool ok = layers_repeat_within_the_maps(state_of(s));
-    vars_peek(false);
-    return ok;
 }

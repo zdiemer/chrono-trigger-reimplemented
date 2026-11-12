@@ -134,7 +134,6 @@ Inflicted effect_inflict_status(GameState *g, uint16_t which, uint8_t bits)
     } else if (kind == LAST_STATUS_BYTE) {
         give_bits(g, which, bits);
     }
-    charge_machine_accesses(g, 1);
     return outcome;
 }
 
@@ -149,7 +148,6 @@ void effect_status_chance(GameState *g, uint8_t chance, uint8_t bits)
     effect_leave_last_worked_byte(g, drawn);
     if (chance < drawn)
         return;
-    charge_machine_accesses(g, 1);
     effect_inflict_status(g, 1, bits);
     uint8_t weapon_modifier = effect_actor_stat(g, STAT_WEAPON_MODIFIER);
     if (weapon_modifier == NO_WEAPON_MODIFIER)

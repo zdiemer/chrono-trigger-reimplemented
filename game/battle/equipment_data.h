@@ -20,8 +20,6 @@
 
 enum { EQUIPMENT_BANK = 0xCC0000u };
 
-static inline uint8_t equipment_bank_byte(const GameState *g, uint16_t place) { return rom_read8(g, EQUIPMENT_BANK | place); }
-
 /* The item ranges, each from its first. */
 enum { FIRST_ARMOR = 0x5A, FIRST_HELMET = 0x7B, FIRST_ACCESSORY = 0x94, FIRST_OTHER_ITEM = 0xBC, ITEMS_RECORDED = 0xF2 };
 
@@ -32,6 +30,41 @@ typedef struct {
     uint8_t first, bytes;
     uint16_t place;
 } ItemRecords;
+
+/* The weapons', armors' and helmets' second records, six bytes each, by the
+ * piece's number from its range's first. */
+typedef enum { WEAPON_BOOSTS, ARMOR_BOOSTS, HELMET_BOOSTS } EquipmentKind;
+enum { BOOST_RECORD_BYTES = 6, BOOST_BYTE = 4, AFFINITY_BYTE = 5 };
+
+/* The characters a weapon is made for, a bit each from the top by character
+ * (the fourth byte of its second record, $CC:06A7, six bytes a weapon; the
+ * place is taken in a word, as the original's multiply gives it). */
+enum { WEAPON_SECOND_RECORD_BYTES = 6 };
+
+/* $CC:29D7: the stat boosts, two bytes each: which stats (a bit each), and
+ * by how much. Where a record names none its byte is 0. */
+typedef struct {
+    uint8_t stats, amount;
+} StatBoost;
+
+enum { STAT_BOOSTS = 0x29D7, NO_BOOST = 0 };
+
+/* A table of the ROM's the stat setup names beside the boosts, which nothing
+ * the setup does reads ($CC:2A03). */
+enum { STAT_SETUP_SPARE_TABLE = 0x2A03 };
+
+/* The other items' battle records ($CC:0ABC, three bytes an item from $BC):
+ * the first byte's top bit says the battle uses the item, and the rest go in
+ * its place in the item list with its menu detail ($CC:1BB5, a byte an
+ * item). */
+enum { USED_IN_BATTLE = 0x80 };
+
+typedef struct {
+    bool used_in_battle;
+    uint8_t flags, menu_detail;
+} ItemInBattle;
+
+static inline uint8_t equipment_bank_byte(const GameState *g, uint16_t place) { return rom_read8(g, EQUIPMENT_BANK | place); }
 
 static inline ItemRecords item_records_of(uint8_t item)
 {
@@ -48,34 +81,16 @@ static inline ItemRecords item_records_of(uint8_t item)
     return (ItemRecords){ 0, 0, 0 };
 }
 
-/* The weapons', armors' and helmets' second records, six bytes each, by the
- * piece's number from its range's first. */
-typedef enum { WEAPON_BOOSTS, ARMOR_BOOSTS, HELMET_BOOSTS } EquipmentKind;
-enum { BOOST_RECORD_BYTES = 6, BOOST_BYTE = 4, AFFINITY_BYTE = 5 };
-
 static inline uint16_t boost_records_place(EquipmentKind kind)
 {
     static const uint16_t first[] = { 0x06A4, 0x08C0, 0x0986 };
     return first[kind];
 }
 
-/* The characters a weapon is made for, a bit each from the top by character
- * (the fourth byte of its second record, $CC:06A7, six bytes a weapon; the
- * place is taken in a word, as the original's multiply gives it). */
-enum { WEAPON_SECOND_RECORD_BYTES = 6 };
-
 static inline uint8_t weapon_made_for(const GameState *g, uint8_t weapon)
 {
     return equipment_bank_byte(g, (uint16_t)(0x06A7 + weapon * WEAPON_SECOND_RECORD_BYTES));
 }
-
-/* $CC:29D7: the stat boosts, two bytes each: which stats (a bit each), and
- * by how much. Where a record names none its byte is 0. */
-typedef struct {
-    uint8_t stats, amount;
-} StatBoost;
-
-enum { STAT_BOOSTS = 0x29D7, NO_BOOST = 0 };
 
 static inline uint16_t stat_boost_place(uint8_t boost) { return (uint16_t)(boost * 2 + STAT_BOOSTS); }
 
@@ -84,21 +99,6 @@ static inline StatBoost stat_boost(const GameState *g, uint8_t boost)
     uint16_t at = stat_boost_place(boost);
     return (StatBoost){ equipment_bank_byte(g, at), equipment_bank_byte(g, (uint16_t)(at + 1)) };
 }
-
-/* A table of the ROM's the stat setup names beside the boosts, which nothing
- * the setup does reads ($CC:2A03). */
-enum { STAT_SETUP_SPARE_TABLE = 0x2A03 };
-
-/* The other items' battle records ($CC:0ABC, three bytes an item from $BC):
- * the first byte's top bit says the battle uses the item, and the rest go in
- * its place in the item list with its menu detail ($CC:1BB5, a byte an
- * item). */
-enum { USED_IN_BATTLE = 0x80 };
-
-typedef struct {
-    bool used_in_battle;
-    uint8_t flags, menu_detail;
-} ItemInBattle;
 
 static inline ItemInBattle item_in_battle(const GameState *g, uint8_t item)
 {

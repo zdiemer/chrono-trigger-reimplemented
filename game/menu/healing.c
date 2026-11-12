@@ -31,8 +31,6 @@
 #include "menu/sprites.h"
 #include "menu/text.h"
 #include "menu/vram.h"
-#include "port/machine.h"
-#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
@@ -50,8 +48,7 @@ enum { NOT_A_NUMBER = 0x8000 };
  * factor's low nibble), or the power times the factor's low five bits and a
  * share of the power drawn at random, taken away instead of given where the
  * factor's top bit is set. The factor's bit 6 says all of it. */
-enum { FIXED = 0x80, POWER_BITS = 0x7F, FIXED_FACTOR_BITS = 0x0F, DRAWN_FACTOR_BITS = 0x1F, TAKEN = 0x80,
-       ALL_OF_IT = 0x40 };
+enum { FIXED = 0x80, POWER_BITS = 0x7F, FIXED_FACTOR_BITS = 0x0F, DRAWN_FACTOR_BITS = 0x1F, TAKEN = 0x80, ALL_OF_IT = 0x40 };
 
 // $C2:8ECC
 static void work_out_amounts(GameState *g, uint16_t amounts[DRAWS])
@@ -61,8 +58,6 @@ static void work_out_amounts(GameState *g, uint16_t amounts[DRAWS])
         uint16_t amount = (uint16_t)((power & POWER_BITS) * (factor & FIXED_FACTOR_BITS));
         for (unsigned i = 0; i < DRAWS; i++)
             amounts[i] = amount;
-        charge_machine_io_accesses(g, 1);
-        charge_machine_io_accesses(g, 3);
         return;
     }
     uint16_t base = (uint16_t)(power * (factor & DRAWN_FACTOR_BITS));
@@ -73,7 +68,6 @@ static void work_out_amounts(GameState *g, uint16_t amounts[DRAWS])
         uint16_t amount = (uint16_t)(base + (share_of * last_drawn >> 8));
         amounts[i] = (factor & TAKEN) ? (uint16_t)-amount : amount;
     }
-    (charge_machine_accesses(g, 8), charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, 6));
 }
 
 /* A member's HP or MP given an amount, up to `greatest`; the amount given is
@@ -109,7 +103,6 @@ void menu_heal(GameState *g)
         set_menu_heal_shown(g, i, NO_AMOUNT);
     uint16_t amounts[DRAWS];
     work_out_amounts(g, amounts);
-    charge_machine_accesses(g, 12);
     bool every = (menu_use_effect(g) & MENU_USE_FOR_EVERY_MEMBER) != 0;
     unsigned first = every ? 0 : menu_use_member(g), members = every ? menu_active_members(g) : 1;
     for (unsigned member = first; member < first + members; member++) {
@@ -120,7 +113,6 @@ void menu_heal(GameState *g)
      * and leaves that one past the last, which the screen after it reads
      * (the techs screen keeps its high byte as it works on another) */
     menu_work_on_member(g, (uint8_t)(first + members));
-    charge_machine_accesses(g, 1);
 }
 
 /* ---- The numbers rising ---------------------------------------------------------------------- */
@@ -183,7 +175,6 @@ void menu_ready_the_amounts(GameState *g)
             continue;
         TIMED_AS(g, 0xC28820, (void)menu_load_member(g, member));
         uint8_t record = menu_status_record_character(g);
-        (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4));
         set_menu_amounts_places_y(g, listed, menu_record_y(g, record));
         set_menu_amounts_places_x(g, listed, (uint8_t)menu_record_x(g, record));
         listed++;
@@ -194,7 +185,6 @@ void menu_ready_the_amounts(GameState *g)
      * that one past the last, the whole argument a word, which the screen
      * after it reads (the techs screen keeps its high byte) */
     menu_work_on_member_only(g, menu_active_members(g));
-    charge_machine_accesses(g, 4);
 }
 
 /* A number's digits as sprites, from its highest: a leading zero is no

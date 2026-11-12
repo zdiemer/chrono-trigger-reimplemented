@@ -6,7 +6,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "snes/system.h"
 #include "state.h"
 
 /* The tiles a text is set in: four-colour (the dialog's and the menus') or

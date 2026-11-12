@@ -1,3 +1,5 @@
+#include "event/script.h"
+#include "event/script.h"
 /* Scripts moving the party between places, and into battle.
  *
  * A location is a map and where the party stands on it, with how the change
@@ -6,17 +8,14 @@
  * Setting the next one and raising the field's request makes the change; the
  * field main loop carries it out, and the script waits on it meanwhile. A
  * battle is requested the same way, and the script waits until it is over. */
-#include "event/bridge.h"
 #include "field/main_loop.h"
 #include "charge.h"
 #include "core/program.h"
 #include "event/engine.h"
 #include "platform/timing.h"
-#include "core/console.h"
 #include "core/display.h"
 #include "event/variables.h"
 #include "field/field.h"
-#include "holds.h"
 
 enum { FULL_BRIGHTNESS = 0x0F };
 
@@ -155,36 +154,9 @@ static void the_place_changes(GameState *g)
     field_move_to_the_next_place(g);
 }
 
-// $C0:3B4B, $C0:3B98
-/* On the machine the wait is the idle entry at $C0:3B71, where nothing the
- * port could leave in the registers is read, which goes on to the change
- * (below). */
-static void go_now_on_the_machine(Snes *s, uint8_t opcode)
-{
-    GameState *g = state_of(s);
-    EventCommand c = event_command_of(s, opcode);
-    set_the_place_to_go_now(g, opcode, &c);
-    m_hold_at(s, 0xC03B71, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, HOLD_FIELD_LOCATION);
-}
-
 /* The field starts again from its start, on the game's fresh stack, and
  * loads the place the party is; it reads nothing of the registers. */
-enum { FIELD_STARTS = 0xC00000, THE_FIELD_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-// $C0:3B76 (after the wait for the vblank at $C0:3B71)
-void event_go_now_in_the_dark(Snes *s)
-{
-    display_go_dark(s);
-    the_place_changes(state_of(s));
-    s->cpu.x = CONSOLE_STACK_TOP;
-    s->cpu.s = CONSOLE_STACK_TOP;
-    /* The fresh stack ends the old field's C call chain.
-     * Start the next field as the held continuation of this hand-off. */
-    m_hold_at_own(s, FIELD_STARTS, THE_FIELD_READS_NOTHING, HOLD_FIELD_LOCATION);
-}
-
-void event_cmd_go_to_location_now(Snes *s) { go_now_on_the_machine(s, GO_NOW); }
-void event_cmd_go_to_location_now_raising_1e(Snes *s) { go_now_on_the_machine(s, GO_NOW_RAISING_1E); }
+enum { FIELD_STARTS = 0xC00000 };
 
 /* As C: the script's turn goes no further, and the field starts again. */
 enum { THE_WAIT = 0xC03B71 };

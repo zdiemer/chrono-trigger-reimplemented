@@ -112,7 +112,6 @@ static Choice choose_aim(GameState *g, const ScriptChoosing *c, EnemyAction acti
         set_battle_foes(g, c->enemy, battle_candidates(g, 0));
         return read_to(4);
     }
-    charge_machine_accesses(g, 2);
     face_target(g, c->enemy, pose);
     return read_to(3);
 }
@@ -140,8 +139,6 @@ static Choice need_beaten(GameState *g)
     for (uint8_t enemy = 0; enemy < BATTLE_ENEMIES; enemy++)
         if (beaten_enemy(g, enemy))
             beaten++;
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
     return (Choice){ beaten == 0 ? CHOICE_FINDS_NOBODY : CHOICE_KEEPS, 0 };
 }
 
@@ -154,7 +151,6 @@ DrawnAction enemy_draw_one_of_four(GameState *g, ScriptPlace at)
     static const uint8_t past[] = { FIRST_QUARTER, SECOND_QUARTER, THIRD_QUARTER };
     ScriptPlace place = (ScriptPlace)(at + 1);
     uint8_t drawn = battle_random(g, 0, QUARTERS_LIMIT), quarter = 0;
-    charge_machine_accesses(g, 1);
     while (quarter < sizeof past && drawn >= past[quarter]) {
         place = (ScriptPlace)(place + enemy_action_length(g, enemy_script_byte(g, place)));
         quarter++;
@@ -250,7 +246,6 @@ void enemy_choose_again(GameState *g, ScriptChoosing *c, ScriptPlace at)
         enemy_choose_actions(g, c);
         c->place = (ScriptPlace)(battle_enemy_next_action(g, c->enemy) + SCRIPT_CONDITION_BYTES);
     } while (!(--times & 0x80));
-    charge_machine_accesses(g, 1);
 }
 
 /* ---- The action record ------------------------------------------------------------------------ */
@@ -291,7 +286,6 @@ void enemy_note_actor_bits(GameState *g, uint8_t enemy)
         break;
     }
     set_battle_action_actor_bits(g, bits);
-    charge_machine_accesses(g, 1);
 }
 
 /* ---- The attack ---------------------------------------------------------------------------- */
@@ -338,7 +332,6 @@ static uint8_t further_target(GameState *g, uint8_t enemy, Selector who)
     if (who == SELECT_NOBODY)
         return NO_CANDIDATE;
     uint8_t first = battle_candidates(g, 0);
-    charge_machine_accesses(g, 1);
     select_by(g, enemy, who);
     uint8_t further = battle_candidates(g, 0);
     set_battle_candidates(g, 0, first);
@@ -426,8 +419,6 @@ static uint8_t own_stat(const GameState *g, uint8_t offset) { return combatant_s
 void enemy_change_own_stat(GameState *g, StatChange change, bool adding)
 {
     battle_keep_word(g, BATTLE_TECH_HITS_LEFT, change.offset);
-    if (adding)
-        charge_machine_accesses(g, 1);
     set_own_stat(g, change.offset, adding ? changed_by(own_stat(g, change.offset), change.value) : change.value);
 }
 
@@ -473,8 +464,6 @@ static uint8_t set_stat(GameState *g, uint8_t offset, uint8_t value, uint8_t or_
 {
     set_battle_action_message(g, message);
     battle_keep_word(g, BATTLE_TECH_HITS_LEFT, offset);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
     set_own_stat(g, offset, or_in ? (uint8_t)(own_stat(g, offset) | value) : value);
     return battle_action_message(g);
 }
@@ -484,7 +473,6 @@ static uint8_t add_to_stat(GameState *g, uint8_t offset, uint8_t amount, uint8_t
 {
     set_battle_action_message(g, message);
     battle_keep_word(g, BATTLE_TECH_HITS_LEFT, offset);
-    charge_machine_accesses(g, 2);
     uint8_t slot = actor(g);
     set_combatant_stat_byte(g, slot, offset, changed_by_signed(combatant_stat_byte(g, slot, offset), amount));
     return battle_action_message(g);
@@ -536,10 +524,7 @@ static uint8_t die(GameState *g, uint8_t number, uint8_t message)
  * block of the combatant in the battle slot of its enemy number (as the
  * original indexes it); nothing again; start the battle's frame count over;
  * count its count up; or set that flag. */
-enum {
-    FLAG_NOTHING = 0x80, FLAG_COUNT_OVER = 0x40, FLAG_CLEAR = 0x20, FLAG_NOTHING_EITHER = 0x10,
-    FLAG_FRAMES_OVER = 0x08, FLAG_COUNT_UP = 0x04, FLAG_SET = 0x02, STAT_FLAG = 0x02,
-};
+enum { FLAG_NOTHING = 0x80, FLAG_COUNT_OVER = 0x40, FLAG_CLEAR = 0x20, FLAG_NOTHING_EITHER = 0x10, FLAG_FRAMES_OVER = 0x08, FLAG_COUNT_UP = 0x04, FLAG_SET = 0x02, STAT_FLAG = 0x02,  };
 
 static void flags(GameState *g, uint8_t which)
 {
@@ -630,7 +615,6 @@ ChangeInto enemy_change_into(GameState *g, ScriptPlace at)
     uint8_t id = byte_at(g, at, 1), brought_in = byte_at(g, at, 3);
     set_battle_candidates(g, 0, id);
     set_battle_action_number(g, byte_at(g, at, 2));
-    charge_machine_accesses(g, 1);
     set_battle_action_kind(g, ACTION_TECH);
     enemy_record_action(g);
     uint8_t slot = BATTLE_FIRST_ENEMY;
@@ -661,7 +645,6 @@ ChangeInto enemy_change_into(GameState *g, ScriptPlace at)
         take_actors_hp(g, slot);
         return CHANGED;
     }
-    charge_machine_accesses(g, 2);
     return CHANGED_TO_BRING_IN;
 }
 
@@ -690,7 +673,6 @@ void enemy_bring_back_starts(GameState *g, ScriptPlace at)
 {
     set_battle_action_message(g, byte_at(g, at, 3));
     battle_keep_byte(g, BATTLE_TECH_HITS_LEFT, byte_at(g, at, 1));
-    (charge_machine_accesses(g, 2), charge_machine_rom_accesses(g, 1));
     battle_clear_candidates(g);
 }
 
@@ -707,9 +689,6 @@ void enemy_bring_back(GameState *g, uint8_t enemy, uint8_t count)
     set_battle_enemy_actions_block(g, enemy, 0xFF);
     set_battle_places(g, enemy, enemy);
     set_battle_enemy_beaten_counted(g, enemy, false);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
 }
 
 static void come_back_with_hp(GameState *g, uint8_t enemy, uint8_t how)
@@ -742,8 +721,6 @@ void enemy_bring_back_ends(GameState *g, ScriptPlace at, uint8_t count)
     show_as_the_tech(g, at, count);
     battle_mark_first_target(g);
     battle_mark_other_targets(g);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
 }
 
 /* ---- Calling enemies in ---------------------------------------------------------------------- */
@@ -783,6 +760,4 @@ void enemy_called_in(GameState *g, uint8_t enemy, uint8_t how) { come_back_with_
 void enemy_call_in_ends(GameState *g, ScriptPlace at, uint8_t count)
 {
     show_as_the_tech(g, at, count);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
 }

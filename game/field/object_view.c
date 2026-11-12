@@ -24,8 +24,6 @@
 #include "ram.h"
 #include "field/bridge.h"
 #include "field/scratch.h"
-#include "port/machine.h"
-#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -320,79 +318,9 @@ bool object_view_updated(GameState *g, FieldObject obj)
 /* An object that matters only on the screen, checked against it. */
 void object_window_only_checked(GameState *g, FieldObject obj) { (void)check_on_screen(g, obj); }
 
-/* ---- Where it meets the original ---------------------------------------------------------- */
-
-/* The overflow of the window's lower edge's sum, which the callers read where
- * nothing after it sets one. */
-static bool bottom_overflows(const GameState *g, uint8_t by)
-{
-    return field_add_overflows8(field_screen_bottom(g), by);
-}
-
 /* The rows' step (field/object_update.c) as C, timed as the routine it is;
  * where the rows' links are ones its entry's guard would turn away, the
  * entry is called from the view's own call, and the original runs it.
  * Nothing it is entered with is read but the overflow. */
-enum { ROWS_CALL_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
+
 enum { JOIN_SITE = 0xC0A90B, LEAVE_SITE = 0xC0A921 };
-
-static bool rows_on_the_machine(void *ctx, FieldObject obj, bool join)
-{
-    Snes *s = ctx;
-    if (field_rows_step(s, obj, join))
-        return true;
-    return field_run_called(s, join ? JOIN_SITE : LEAVE_SITE, join ? FIELD_JOIN_ROW_ENTRY : FIELD_LEAVE_ROW_ENTRY,
-                            ROWS_CALL_DONT_CARE, join ? field_join_object_row : field_leave_object_row,
-                            on_the_field_page(s, true));
-}
-
-/* Taking colours or a block leaves the overflow clear, which the original's
- * callers read where nothing after it sets one. */
-static void clear_the_overflow(void *ctx) { m_set_flag((Snes *)ctx, CPU_FLAG_V, false); }
-
-/* The carry says whether the object is in view; the overflow is the window's
- * lower edge's, for an object that can be seen. False where the bridge
- * stopped. The object is the current one, which the steps read. */
-bool field_update_visibility(Snes *s, FieldObject obj)
-{
-    GameState *g = state_of(s);
-    if (object_can_be_seen(g, obj)) {
-        m_set_flag(s, CPU_FLAG_V, bottom_overflows(g, WIDER_BELOW));
-    }
-    static const ViewSteps on_the_machine = { rows_on_the_machine, clear_the_overflow };
-    ViewUpdate view = update_view(g, obj, &on_the_machine, s);
-    if (view == VIEW_WENT_ELSEWHERE)
-        return false;
-    m_set_flag(s, CPU_FLAG_C, view == IN_SIGHT);
-    return true;
-}
-
-/* The view's guard: the current object one the tables hold, the data bank
- * reaching low RAM, and what its coming or going reads in the tables. */
-bool field_view_can_run(Snes *s)
-{
-    if (!field_current_object_low_bank(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    FieldObject obj = (FieldObject)field_current_object_slot(s);
-    bool ok = !field_view_changes(g, obj) || field_view_change_in_the_tables(g, obj);
-    vars_peek(false);
-    return ok;
-}
-
-/* The current object's (8-bit X). */
-void field_update_object_visibility(Snes *s)
-{
-    if (field_update_visibility(s, (FieldObject)field_current_object_slot(s)))
-        m_rts(s);
-}
-
-/* The carry says whether the object is on screen; the overflow is that of the
- * lower edge's sum. */
-void field_update_in_window(Snes *s, FieldObject obj)
-{
-    GameState *g = state_of(s);
-    m_set_flag(s, CPU_FLAG_C, check_on_screen(g, obj));
-    m_set_flag(s, CPU_FLAG_V, bottom_overflows(g, WIDER_BELOW));
-}

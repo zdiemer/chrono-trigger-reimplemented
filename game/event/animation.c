@@ -1,3 +1,5 @@
+#include "event/script.h"
+#include "event/script.h"
 /* Scripts animating their own object: a looping animation (walking on the
  * spot, a flickering torch), a one-off animation played for a while (a nod,
  * a jump of surprise) after which the object goes back to what it looped, and

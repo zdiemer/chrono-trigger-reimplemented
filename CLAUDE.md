@@ -62,21 +62,17 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
     follows the original's basic blocks has translated the assembly rather than
     reimplemented the routine, however well it passes. Judge a finished port by whether
     someone who has never seen the ROM can read it and say what the game does.
-  - **Keep the machine out of the logic.** A function that takes a `Snes *` can only run on
-    an emulated SNES, however well it reads. The routine's work goes in functions that take
-    the game's own state and plain C values and return results; the translation to and from
-    the original's registers, flags and direct page lives in a thin wrapper at the registered
-    entry, and that wrapper is the only place `m_*` and the `Cpu` struct appear. Game state
-    is reached through the typed accessors generated from `re/ram.toml`, never by address:
-    some still use a RAM image; storage moves behind them under the native gate
-    (docs/PLAN.md, "The game's state as C"). Remove remaining machine-aware wrappers around decoupled logic as their callers move.
+  - **Keep the machine out of the logic.** Operations take `GameState *`, the
+    `Platform *` services they need, and plain values, returning C results.
+    There is no CPU, entry wrapper or registry. Use typed accessors generated
+    from `re/ram.toml`; storage can migrate behind them independently. See
+    docs/PORTING.md for native callbacks, mode hand-offs and work accounting.
   - **Build a vocabulary and call it.** The routine's work belongs in named functions --
     `draw_window_frame`, `load_slot_summary`, `hide_sprites` -- not in a run of machine
     operations the reader has to simulate. If a port is a long straight line of
     `m_lda16`/`m_write16`/`c->a`, the abstraction it needed hasn't been written yet: write
     it, in the port's own file if it is local, in the subsystem's header if shared, in
-    `runtime/platform/` if it is the host. `m_*` and the CPU struct are for a port's thin
-    entry wrapper and for what genuinely has no better expression yet, not for its body.
+    `runtime/platform/` if it is the host. Do not recreate machine registers or entry wrappers.
   - **The accessors are the storage, not the vocabulary.** A function that is a run of
     `set_field_object_*` calls in the original's order has renamed the addresses and kept
     the translation. Model the game's concepts above the accessors -- an object's animation
@@ -88,7 +84,7 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
     form, a constant against an operand, 8- and 16-bit) are one operation and several table
     rows, and the table decodes operands into typed, named parameters, so a handler reads
     `play_animation(g, obj, animation, frames)`, not `operand(g, c, 1)`. Inlined handlers
-    keep their existing time with `NATIVE_TIME_AS` and have native tests for their behavior.
+    keep their existing time with `TIMED_AS` and have native tests for their behavior.
   - **Comments say what a function is for, in the game's terms**: what it does to the game,
     when and why it happens, what it changes. Not the function's name again, not the opcode's
     encoding, not the original's mechanics. The mechanics belong in a comment only where the
@@ -108,9 +104,8 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
     is the older, address-shaped form, for legacy wrappers not removed yet.
     Add what the port learns to the map and regenerate both (docs/STATE.md).
   - Reach the host only through `runtime/platform/` (a lint test enforces it). No PPU, DMA,
-    HDMA or APU register number appears in `game/`. Read and write the machine through
-    `machine.h`'s `m_read8`/`m_write8` and friends, never by indexing a mapped image, so a
-    build that loads its data from somewhere else can redirect it.
+    HDMA or APU register number appears in `game/`. Use typed state accessors, named
+    resources and platform services, never a mapped machine image.
   - Keep SNES *semantics* -- tiles, palettes, priority, window logic -- and drop SNES
     *mechanics*: which register latches what, channel programming, write order, the timing
     of a write. The services exist to express the first and hide the second.
@@ -121,11 +116,9 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
   - Where the original waits on beam position or depends on exact timing, don't reproduce
     the wait silently: port what it computes, say so in a comment at its `// $BB:AAAA`, and
     add it to docs/TODO.md. Those routines are what block the platform milestones.
-  - Keep the logic compilable for the 65816 as well as the host (docs/TODO.md, "A SNES ROM
+  - Keep the logic suitable for the 65816 as well as the host (docs/TODO.md, "A SNES ROM
     compiled from the hand ports"). Put what the routine does in a C function with real
-    parameters and results, and keep the translation to and from the original's registers,
-    flags and direct page in a thin wrapper at its entry: that wrapper is what a SNES build
-    replaces with glue to the original calling convention, and the logic compiles for either.
+    parameters and results. Target-specific glue belongs outside the game logic.
     Use 8- and 16-bit types where the value fits; no floating point, 64-bit integers,
     recursion or large locals; no C library beyond `memcpy`, `memset` and `memcmp`.
     `tests/test_port_subset.py` enforces the mechanical part.
@@ -134,7 +127,7 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
     why, as docs/PLATFORM.md's "as built" sections do.
   - Ports don't carry per-path cycle numbers. Preserve the existing work rates in
     `runtime/port/time_rates.c`; changes need native gameplay evidence. Keep
-    `NATIVE_TIME_AS` tags where inlined work still uses its own rate.
+    `TIMED_AS` tags where inlined work still uses its own rate.
   - Keep working state in C values. Comparison-only scratch writes retired with
     the byte-exact gate; do not reintroduce them (docs/PORTING.md, "Scaffolding").
   - Keep the original's index arithmetic, wraparound and odd offsets included, rather than
@@ -171,8 +164,7 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
 - **A milestone doc is a document, not a log.** It holds the mechanisms, the
   measurements and one worked example of each kind of work; the run of per-chunk
   accounts behind them goes to docs/history/, and a ledger (a row per port, per
-  entry, per exception) goes to a file made to be `grep`ed -- docs/ports.tsv,
-  `tools/*_baseline.txt`, `tools/*_exceptions.txt`. Both are written for a reader
+  entry, per exception) goes to a file made to be `grep`ed -- `tools/*_baseline.txt`, `tools/*_exceptions.txt`. Both are written for a reader
   who arrives with no context, and every agent pays to read them again, so what
   earns its place there is what is still true and still needed.
 - **Delete finished work from the plan and the follow-ups rather than marking it
@@ -197,14 +189,11 @@ worktree under `.claude/worktrees/`. `AGENTS.md` is this file.
   to get a check to pass without a reason on the line that a reviewer would
   accept; fix the cause where it can be fixed. Never claim a fix the diff
   doesn't contain.
-- **Calling the next step as C.** When a stop at the original's address or a
-  call-out becomes a direct call, the callee's full registry contract and guard
-  still hold: its P mask (decimal mode included), widths, page, bank and any
-  code-image guard. Check them before the call, and stop at the original entry
-  when they refuse, as the stop did.
+- **Calling the next step as C.** Preserve the callee's real game-state
+  requirements, work charges and observable order. Do not recreate registry
+  guards for CPU flags, banks, pages or code images.
 - **Names.** No `_as_c`, `_now` or similar suffix: the C function takes the plain
-  name, and a machine wrapper that would clash becomes `<name>_entry`. Machine
-  callbacks are `*_on_the_machine`; a sequence two callers share is `*_with`.
+  name. A sequence two callers share is `*_with`.
 - **Commits.** Plain messages with no `Co-Authored-By`, session or other trailers.
   Commit each coherent step on your branch so work survives an interruption.
   Don't push or merge unless asked.

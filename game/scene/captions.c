@@ -16,7 +16,6 @@
 #include "charge.h"
 
 #include "core/palette.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
@@ -181,16 +180,6 @@ static CaptionTurn turn_captions(GameState *g)
 /* As C, from a task of a scene's own (the planet's caption, scene/planet.c). */
 void scene_draw_caption(GameState *g, uint16_t text) { (void)draw_caption(g, text); }
 
-/* ---- Entries ---------------------------------------------------------------------------------- */
-
-/* The drawing's code, but for the operands the program writes (the line's
- * place and the letters' attributes). */
-static bool drawing_present(Snes *s)
-{
-    return m_code_matches(s, 0x7E64C5, 0x11, 0xD914FAA270D2DEECull) && m_code_matches(s, 0x7E64D7, 0x03, 0x0303201AC7C42ED2ull) &&
-           m_code_matches(s, 0x7E64DB, 0x4A, 0x2A8890C378457217ull) && m_code_matches(s, 0x7E6526, 0x72, 0x8A6337B453CD5D8Cull);
-}
-
 /* The longest caption the guards follow to its end. */
 enum { LONGEST_CAPTION = 0x200 };
 
@@ -203,31 +192,6 @@ bool scene_caption_fits(const GameState *g, uint16_t text)
            scene_sprites_fit(g, sprites);
 }
 
-bool scene_caption_at_present(Snes *s, uint16_t text)
-{
-    if (!scene_on_scene_page(s) || !drawing_present(s))
-        return false;
-    vars_peek(true);
-    bool fits = scene_caption_fits(state_of(s), text);
-    vars_peek(false);
-    return fits;
-}
-
-bool scene_draw_caption_present(Snes *s) { return scene_caption_at_present(s, s->cpu.x); }
-
-/* Entered with X at the text; back, X is past it, Y the next free sprite
- * entry and A the end's code, as the original leaves them, and the data bank
- * 0: the original reads the text through the program's bank, pushed as a word
- * whose other byte it then takes as the bank it goes back with. */
-void scene_draw_caption_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    s->cpu.x = draw_caption(g, s->cpu.x);
-    s->cpu.db = 0x00;
-    charge_legacy_accesses(g, 2);
-    m_rts(s);
-}
-
 /* The task's code and the drawing's, a data bank on low RAM, the scene's
  * page; where a caption is up, it is one the port draws, and its text is in
  * the program, past the start of the bank, so the captions' end is a plain
@@ -238,17 +202,6 @@ static bool captions_as_ported(const GameState *g)
 {
     uint16_t text = scene_ending_caption_text(g);
     return !scene_ending_captions_left(g) || !caption_is_up(g) || (text >= PROGRAM_START && scene_caption_fits(g, text));
-}
-
-bool scene_turn_captions_present(Snes *s)
-{
-    if (!scene_on_scene_page(s) || !m_bank_reaches_low_ram(s) || !drawing_present(s) ||
-        !m_code_matches(s, 0x7E9B4F, 0x69, 0x52724AD781AB6989ull))
-        return false;
-    vars_peek(true);
-    bool ok = captions_as_ported(state_of(s));
-    vars_peek(false);
-    return ok;
 }
 
 /* As C, for a program with no machine: done once the last caption has gone. */
@@ -267,28 +220,3 @@ TaskEnd scene_turn_captions(GameState *g, Platform *pf, unsigned slot)
  * on its way, whose high byte the frame's work may read after the last task;
  * with a caption drawn, Y is the next free sprite entry. */
 enum { FADE_KIND_AS_STORED = 0x0050 };
-
-/* A frame task, entered with 16-bit A. */
-void scene_turn_captions_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    charge_legacy_accesses(g, 2);
-    CaptionTurn turn = turn_captions(g);
-    if (turn != CAPTIONS_ALL_SHOWN && turn != GAP_GOES_ON && turn != CAPTION_FADES_IN)
-        s->cpu.db = 0x00;   /* as the caption's drawing goes back */
-    {
-        unsigned accesses = 0;
-        switch (turn) {
-        case CAPTION_WAITS: accesses = 3; break;
-        case CAPTION_STAYS: case CAPTION_GOES: case CAPTIONS_OVER: accesses = 4; break;
-        case CAPTION_FADES_OUT: accesses = 2; break;
-        default: break;
-        }
-        charge_legacy_accesses(state_of(s), accesses);
-    };
-    if (turn == CAPTIONS_OVER) {
-        scene_finish_task(s, SCENE_FRAME_TASKS, task_is_done());
-        return;
-    }
-    m_rts(s);
-}

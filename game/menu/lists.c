@@ -8,7 +8,6 @@
 #include "menu/cursor.h"
 #include "menu/bridge.h"
 #include "menu/display.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -62,7 +61,6 @@ void menu_frame_the_list(GameState *g, uint8_t places, uint8_t rows, uint16_t tr
     set_menu_scroll_bar_span(g, past);
     set_menu_paging_last_top(g, past);
     set_menu_scroll_bar_step(g, divisor ? (uint16_t)(track / divisor) : 0xFFFF);
-    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 3));
 }
 
 /* ---- The cursor along a list ------------------------------------------------------------------- */
@@ -144,7 +142,6 @@ static uint16_t list_band_scroll(const GameState *g, unsigned band)
 static void charge_slide_started(GameState *g, unsigned rows, unsigned table_bytes)
 {
     (void)rows;
-    charge_machine_accesses(g, 2);
     charge_block_move(g, 2 * table_bytes);
 }
 
@@ -193,7 +190,6 @@ void menu_slide_list_a_frame(GameState *g)
     uint8_t last = (uint8_t)(first + rows - 1);
     set_menu_slide_staged_table_byte(g, (rows - 1u) * BAND_BYTES, (uint8_t)(menu_slide_bands_lines(g, last) - first_lines));
     menu_ask_for_the_block_move(g);
-    charge_machine_accesses(g, 2);
 }
 
 /* The table as it rested goes back in. */
@@ -208,7 +204,6 @@ void menu_put_the_list_bands_back(GameState *g)
 /* The task switch a frame of the slide goes on to, which waits for the
  * next frame and returns to the frame's caller; it keeps X, Y and the flags
  * for the caller across the wait. */
-enum { KEEPS_X_Y_AND_FLAGS = DC_A };
 
 // $C2:EB9B
 
@@ -218,13 +213,6 @@ enum { KEEPS_X_Y_AND_FLAGS = DC_A };
  * below the slide's own, and slide up to twelve rows, a table of no more
  * than the slide's staging holds. */
 enum { LINE_TABLES = 0x9000, MOST_ROWS = MENU_SLIDE_BANDS_COUNT - 1, MOST_TABLE_BYTES = MENU_SLIDE_TABLE_AT_REST_BYTES };
-
-void menu_charge_cursor_kept_on_the_list(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (menu_list_scrolls_a_row(g))
-        charge_machine_accesses(g, 1);
-}
 
 /* ---- Paging ------------------------------------------------------------------------------------- */
 
@@ -268,7 +256,6 @@ uint8_t menu_turn_page(GameState *g, uint8_t top)
         set_menu_scroll_bar_thumb(g, to);
         set_menu_cursor_frame_start(g, MENU_CURSOR_MOVED_ANYWAY);
     }
-    charge_machine_accesses(g, 1);
     return to;
 }
 

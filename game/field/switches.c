@@ -24,7 +24,6 @@
 #include "field/bridge.h"
 #include "field/scratch.h"
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -150,8 +149,7 @@ SwitchPress field_press_switch(GameState *g, uint16_t step)
 /* A map tile's four entries in BG1's tile map in VRAM: where the tile is
  * from the screen's top left edge, on BG1's place in its tile map (which
  * wraps), with the layer's base. */
-enum { BG1 = 0, ENTRIES_A_TILE = FIELD_ENTRIES_A_MAP_TILE, COLUMN_BITS = FIELD_TILE_MAP_COLUMNS - 1,
-       ROW_BITS = FIELD_TILE_MAP_ROWS - 1 };
+enum { BG1 = 0, ENTRIES_A_TILE = FIELD_ENTRIES_A_MAP_TILE, COLUMN_BITS = FIELD_TILE_MAP_COLUMNS - 1, ROW_BITS = FIELD_TILE_MAP_ROWS - 1 };
 
 /* A map tile's four tile map entries, as a chest's are kept. */
 enum { QUARTERS = FIELD_CHEST_ENTRIES_COUNT };
@@ -380,26 +378,3 @@ unsigned field_switch_entry_count(const GameState *g)
 }
 
 unsigned field_switch_rows(SwitchShape shape) { return shapes[shape].rows; }
-
-/* ---- Where it meets the original ------------------------------------------------------------ */
-
-/* On the field's page; nothing it leaves in the registers is read. */
-void field_press_the_remembered_switches_entry(Snes *s)
-{
-    field_press_the_remembered_switches(state_of(s));
-    m_rts(s);
-}
-
-bool field_remembered_switches_can_be_pressed(Snes *s)
-{
-    vars_peek(true);
-    bool ok = field_remembered_switches_on_the_map(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-void field_forget_the_steps_entry(Snes *s)
-{
-    field_forget_the_steps(state_of(s));
-    m_rts(s);
-}

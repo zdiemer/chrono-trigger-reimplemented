@@ -174,7 +174,6 @@ static void draw_boxes(GameState *g)
 {
     for (unsigned box = 0; box < MENU_SETTINGS_BOXES; box++)
         put_box(g, menu_settings_box_place(g, (uint8_t)box), box_ticked(g, box) != menu_settings_box_ticked_for_off(g, (uint8_t)box));
-    charge_machine_accesses(g, 2);
 }
 
 /* ---- The meters and the gauge --------------------------------------------------------------------- */
@@ -200,7 +199,6 @@ static void show_meters(GameState *g)
     (void)show_meter(g, MESSAGE_SPEED_METER, menu_setting_message_speed(g));
     uint16_t lit = show_meter(g, DESIGN_METER, menu_window_design(g));
     set_menu_draw_origin(g, lit); /* the drawing goes on from the last tile lit */
-    charge_machine_accesses(g, 4);
 }
 
 // $C2:C495
@@ -211,7 +209,6 @@ static void show_gauge(GameState *g)
     uint16_t lit = (uint16_t)(GAUGE_ROW + layout * GAUGE_CHOICE_TILES * TILE_BYTES);
     TIMED_AS(g, 0xC2ECAC, menu_colour_row_pair(g, lit, GAUGE_CHOICE_TILES, LIT));
     set_menu_draw_origin(g, lit);
-    charge_machine_accesses(g, 2);
 }
 
 /* ---- The buttons -------------------------------------------------------------------------------- */
@@ -266,7 +263,6 @@ static void draw_button_rows(GameState *g)
         put_tile(g, (uint16_t)(at + ARROW_AT), ROW_BLANK);
         put_tile(g, (uint16_t)(at + CHANGE_AT), ROW_BLANK);
     }
-    charge_machine_accesses(g, 2);
 }
 
 void menu_settings_use_buttons(GameState *g)
@@ -288,7 +284,6 @@ static bool row_changes(const GameState *g, unsigned row, unsigned cursor_row)
 static void charge_buttons_before(GameState *g, unsigned cursor_row)
 {
     (void)cursor_row;
-    charge_machine_accesses(g, 2 * CHANGE_MARKS + 1);
     charge_block_move(g, CHANGE_MARKS);
 }
 
@@ -303,9 +298,6 @@ static void show_row_changes(GameState *g, unsigned cursor_row)
         put_tile(g, (uint16_t)(at + ARROW_AT), changes ? CHANGE_ARROW : NO_CHANGE);
         put_tile(g, (uint16_t)(at + CHANGE_AT), changes ? menu_button_glyph_of(g, menu_settings_buttons(g, row)) : NO_CHANGE);
     }
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 3 + (cursor_row != 0));
 }
 
 static void copy_own_to_rows(GameState *g)
@@ -339,9 +331,6 @@ static void swap_stray_places(GameState *g, unsigned assignment, uint8_t button,
 static void charge_conflicts(GameState *g, unsigned assignment)
 {
     unsigned count = menu_settings_conflicts_count(g, assignment);
-    unsigned copied = count < MENU_SETTINGS_CONFLICTS_COUNT ? count : MENU_SETTINGS_CONFLICTS_COUNT;
-    charge_machine_accesses(g, copied);
-    charge_machine_rom_accesses(g, copied);
     charge_block_move(g, count);
 }
 
@@ -364,7 +353,6 @@ static unsigned give_button(GameState *g, unsigned row, uint8_t button, unsigned
     }
     charge_conflicts(g, row);
     swap_stray_places(g, row, button, replacement);
-    charge_machine_accesses(g, 2);
     return swapped;
 }
 
@@ -724,8 +712,7 @@ void menu_settings_take_gauge_layout(GameState *g)
 /* ---- The panel ------------------------------------------------------------------------------------ */
 
 enum { PANEL_FRAME = 0xC19C, PANEL_WINDOWS = 0xC1B9, PANEL_LINE_EFFECTS = 0x1C };
-enum { CAPTION_AT = 0x22, CAPTION_TILES = 12, CAPTION_LINE = 0x21FF, CAPTION_END_AT = 0x2E, CAPTION_END_TILES = 2,
-       CAPTION_END = 0x21FB, UPLOAD_CAPTION = 0xFC4C };
+enum { CAPTION_AT = 0x22, CAPTION_TILES = 12, CAPTION_LINE = 0x21FF, CAPTION_END_AT = 0x2E, CAPTION_END_TILES = 2, CAPTION_END = 0x21FB, UPLOAD_CAPTION = 0xFC4C };
 
 // $C2:C2FF
 /* The main menu's fourth task held a frame longer while the panel draws;

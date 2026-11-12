@@ -26,10 +26,7 @@
  * record's and what the last boost or affinity added are cells later work
  * reads as it finds them (battle.h), kept plainly; the others are
  * scaffolding. */
-enum {
-    BLOCK_AT = BATTLE_CLOCK_READS, MEMBER_AT = 0x02, BITS_LEFT = 0x04, COPIED = 0x04, RECORD_AT = BATTLE_NUMBER_TESTED,
-    ADDED = BATTLE_STAT_OFFSET_LOW, BOOST_AT = 0x0C, TABLE_AT = BATTLE_TECH_HITS_LEFT,
-};
+enum { BLOCK_AT = BATTLE_CLOCK_READS, MEMBER_AT = 0x02, BITS_LEFT = 0x04, COPIED = 0x04, RECORD_AT = BATTLE_NUMBER_TESTED, ADDED = BATTLE_STAT_OFFSET_LOW, BOOST_AT = 0x0C, TABLE_AT = BATTLE_TECH_HITS_LEFT,  };
 
 /* ---- The boosts ------------------------------------------------------------------------------ */
 
@@ -70,8 +67,6 @@ void battle_apply_boost(GameState *g, uint8_t member, uint8_t which)
             set_combatant_stat_byte(g, member, stat, raised(combatant_stat_byte(g, member, stat), boost.amount, boostable[i].most));
         }
     }
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 1);
 }
 
 // $FD:B141
@@ -102,7 +97,6 @@ static void add_affinities(GameState *g, uint8_t member, uint16_t record)
             set_combatant_stat_byte(g, member, at, (uint8_t)(combatant_stat_byte(g, member, at) + amount));
         }
     }
-    charge_machine_accesses(g, 1);
 }
 
 /* ---- A member's stats ------------------------------------------------------------------------- */
@@ -138,7 +132,6 @@ static void set_up_member_stats(GameState *g, uint8_t member)
         uint16_t record = (uint16_t)(boost_records_place(worn_pieces[p].kind) + effect_times(g, number, BOOST_RECORD_BYTES));
         /* the original finds the armor's and the helmet's record with the
          * carry of its range's test in (scaffolding) */
-        charge_machine_accesses(g, 1);
         /* the original hands the boost the record's place and the boosts'
          * table's in cells, and names another table before the affinities,
          * which don't read it: kept, as later work reads the cells */
@@ -163,7 +156,6 @@ static uint16_t item_record_place(GameState *g, uint8_t item, uint16_t none)
     uint16_t place = (uint16_t)(records.place + effect_times(g, (uint8_t)(item - records.first), records.bytes));
     /* the original multiplies with the carry of its range's test in: set
      * past the weapons (scaffolding) */
-    charge_machine_accesses(g, 1);
     return place;
 }
 
@@ -183,8 +175,6 @@ static void copy_equipment_records(GameState *g, uint8_t worn_at, uint8_t copy_t
             n++;
         } while (n < bytes);
     }
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
 }
 
 /* As the fight's start calls them (battle/fight.h). */

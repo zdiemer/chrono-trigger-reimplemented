@@ -6,15 +6,12 @@
 
 #include "battle/bridge.h"
 #include "platform/platform.h"
-#include "snes/system.h"
+#include <stdint.h>
 
-void battle_sit_out_the_pause_entry(Snes *s);
 /* The pause's turn ($CD:3E44): a paused battle sits the pause out a frame
  * at a time. */
 void battle_sit_out_the_pause(GameState *g, Platform *pf);
 enum { BATTLE_PAUSE_ENTRY = 0xCD3E44 };
-void battle_sit_out_the_pause_long(Snes *s);
-void battle_play_the_script_sound_entry(Snes *s);
 /* A sound a screen script asked for, played once ($CD:3B5F). */
 void battle_play_the_script_sound(GameState *g, Platform *pf);
 enum { BATTLE_SCRIPT_SOUND_ENTRY = 0xCD3B5F };
@@ -29,5 +26,4 @@ enum { BATTLE_PLAY_A_SOUND_ENTRY = 0xCD3B71 };
  * (the battle's page, its widths), the original's call instead. Leaves the
  * registers as the original's routine does: the pan in A's low byte and in X.
  * False where the call stopped and the original has the machine. */
-bool battle_play_a_sound_from(Snes *s, uint32_t site, uint8_t effect, uint8_t pan, BattleFrame kept);
 #endif

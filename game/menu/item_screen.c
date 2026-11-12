@@ -243,15 +243,6 @@ static void lay_out_window_lines(GameState *g)
  * cells keep the bits it shifted out and how far it counted. */
 enum { NAME_BYTES = 6, CHARACTERS_BITS = 8, FIRST_CHARACTER_BIT = 0x80 };
 
-static void charge_users_counted(GameState *g, uint8_t users)
-{
-    unsigned count = 0;
-    for (uint8_t rest = users; rest; rest &= (uint8_t)(rest - 1))
-        count++;
-    charge_machine_accesses(g, 2);
-    charge_machine_io_accesses(g, 1 + 3 * count);
-}
-
 // $C2:AEB6
 static void list_users(GameState *g, uint8_t item)
 {
@@ -267,7 +258,6 @@ static void list_users(GameState *g, uint8_t item)
             listed++;
         }
     charge_block_move(g, MENU_ITEM_USERS_NAMES_COUNT * NAME_BYTES + listed * NAME_BYTES);
-    charge_users_counted(g, users);
 }
 
 /* The item's attack or defence, and its label from the category's: the
@@ -358,7 +348,6 @@ void menu_items_sort(GameState *g)
     for (unsigned i = 0; i < CLEARED_LIST_PLACES; i++)
         set_menu_list_items(g, CLEARED_LIST_FROM + i, 0);
     charge_block_move(g, 2 * MENU_SORT_HELD_COUNT + CLEARED_LIST_PLACES);
-    charge_machine_accesses(g, 2);
     for (unsigned at = 0; at < PLACES; at++) {
         uint8_t item = inventory_items_unchecked(g, at);
         if (item == NO_ITEM)
@@ -515,7 +504,6 @@ void menu_items_draw_row(GameState *g, uint16_t at, uint8_t row)
 {
     uint8_t place = place_of_row(g, row);
     uint8_t item = inventory_items(g, place), count = inventory_counts(g, place);
-    charge_machine_accesses(g, 2);
     if (usable_from_the_menu(g, item))
         set_menu_text_attribute(g, (uint8_t)(menu_text_attribute(g) | USABLE_ATTRIBUTE));
     if (item == NO_ITEM) {
@@ -699,7 +687,6 @@ static const Chance CHANCE_OUTCOMES[CHANCES] = {
 void menu_items_draw_a_chance(GameState *g)
 {
     uint8_t random = menu_random_byte(g, menu_frame_counter(g));
-    charge_machine_io_accesses(g, 4);
     uint8_t drawn = (uint8_t)((CHANCE_SCALE * random) >> 8);
     unsigned outcome = 0;
     while (outcome < CHANCES - 1 && drawn >= menu_chance_limit(g, outcome))
@@ -779,7 +766,6 @@ void menu_items_draw_members(GameState *g, Platform *pf)
         TIMED_AS(g, 0xC2A1EF, menu_note_member_face_and_hp(g));
         menu_draw_windows(g, pf, MEMBER_ROW_LIST);
         uint8_t character = menu_status_record_bytes_byte(g, 0);
-        (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4));
         MenuSpritePlace place = menu_member_sprite_place(g, member);
         set_menu_record_y(g, character, place.y);
         set_menu_record_x(g, character, (uint16_t)((menu_record_x(g, character) & 0xFF00) | place.x));
@@ -914,7 +900,6 @@ enum { CHANCE_ITEM = 0xC9 };
 void menu_items_use_one(GameState *g)
 {
     uint8_t item = inventory_items(g, menu_item_picked(g));
-    charge_machine_accesses(g, 2);
     if (item == CHANCE_ITEM)
         menu_items_draw_a_chance(g);
     TIMED_AS(g, 0xC287D5, (void)menu_take_items(g, item, 1));

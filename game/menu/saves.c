@@ -32,7 +32,6 @@
 #include "menu/bridge.h"
 #include "menu/menu_data.h"
 #include "menu/party.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -158,7 +157,6 @@ void saves_save_game(GameState *g, Platform *pf, uint8_t slot)
     put_saved_word(pf, PF_AT(0xFFFA5F), (uint16_t)(SAVES_SLOT_MARKS + 2 * slot), SAVED_GAME_MARK);
     sv_write8(pf, PF_AT(0xFFFA67), SAVES_LAST_SLOT, slot);
     count_on_the_cartridge(g, pf);
-    (charge_machine_accesses(g, 46), charge_machine_rom_accesses(g, 45));
 }
 
 /* Load the slot's game: every run of work RAM it holds, back where it was. */
@@ -172,7 +170,6 @@ void saves_load_game(GameState *g, Platform *pf, uint8_t slot)
         load_run(g, pf, from, run.at, run.bytes);
         from = (uint16_t)(from + run.bytes);
     }
-    (charge_machine_accesses(g, 46), charge_machine_rom_accesses(g, 45));
 }
 
 /* ---- A New Game+ ---------------------------------------------------------------------------- */
@@ -190,7 +187,6 @@ static void take_over_from(GameState *g, Platform *pf, uint8_t slot)
         MenuCarriedRun run = menu_carried_run(g, i);
         load_run(g, pf, (uint16_t)(game + run.from), run.at, run.bytes);
     }
-    (charge_machine_accesses(g, 20), charge_machine_rom_accesses(g, 21));
     set_party_techs_unlocked(g, sv_read8(pf, PF_AT(0xFFFB3F), (uint16_t)(game + SAVED_TECHS_UNLOCKED)));
 }
 
@@ -229,7 +225,6 @@ SavedGameCheck saves_check_slot_noting(GameState *g, Platform *pf, SaveCheckPage
 {
     SavedGameCheck check = saves_check_slot(g, pf, slot);
     set_save_check_game_at(g, page, saves_slot_on_the_bus(g, slot));
-    charge_machine_accesses(g, 2);
     return check;
 }
 
@@ -327,32 +322,15 @@ void saves_carry_over(GameState *g, Platform *pf, uint8_t slot)
 {
     take_over_from(g, pf, slot);
     for (int character = CHARACTER_RECORDS_COUNT - 1; character >= 0; character--) {
-        (charge_machine_accesses(g, 3), charge_machine_io_accesses(g, 4));
         for (int which = (int)equipment_put_back((uint8_t)character) - 1; which >= 0; which--) {
             uint8_t item = menu_starting_record_byte(g, (uint8_t)character, menu_starting_equipment_place(g, (unsigned)which));
-            charge_machine_accesses(g, 3);
-            charge_machine_accesses(g, 11);
             TIMED_AS(g, MENUS_SERVICES, (party_equip(g, (uint8_t)character, item), party_wear_it_shows(g)));
-            charge_machine_accesses(g, 4);
         }
     }
-    charge_machine_accesses(g, 3);
-    (charge_machine_accesses(g, 18), charge_machine_rom_accesses(g, 7));
     TIMED_AS(g, MENUS_SERVICES, (party_fill_hp(g), party_wear_it_shows(g)));
-    charge_machine_accesses(g, 2);
-    (charge_machine_accesses(g, 18), charge_machine_rom_accesses(g, 7));
     TIMED_AS(g, MENUS_SERVICES, (party_fill_mp(g), party_wear_it_shows(g)));
-    charge_machine_accesses(g, 2);
     leave_key_items_behind(g);
     note_carried_over(g);
-}
-
-void menu_load_carried_over(Snes *s)
-{
-    GameState *g = state_of(s);
-    saves_carry_over(g, m_platform(s), menu_save_slot_shown(g));
-    (void)0;
-    m_rtl(s);
 }
 
 // $C2:8D6A
@@ -369,13 +347,3 @@ bool menu_save_code_can_run(const GameState *g) { return menu_save_slot_shown(g)
 /* A New Game+ runs as the save code does, with the active party's members
  * characters, as the services that put their equipment back read them. */
 bool menu_carry_over_can_run(const GameState *g) { return menu_save_code_can_run(g) && party_record_shows_characters(g); }
-
-bool menu_carry_over_runs(Snes *s)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_carry_over_can_run(state_of(s));
-    vars_peek(false);
-    return ok;
-}

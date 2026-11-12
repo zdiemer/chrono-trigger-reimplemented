@@ -6,7 +6,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "snes/system.h"
 #include "state.h"
 
 /* How a text is laid out in its tiles (menu_text_layout): the low four bits
@@ -14,12 +13,7 @@
  * left sixteen-colour tiles whose lines start a tile further in), and the top
  * bit lines that start at the tiles' very edge. */
 typedef uint8_t MenuTextLayout;
-enum {
-    MENU_TEXT_FOUR_COLOUR = 0x00,
-    MENU_TEXT_A_TILE_FURTHER_LEFT = 0x02,
-    MENU_TEXT_TILE_KIND = 0x0F,
-    MENU_TEXT_LINES_AT_THE_EDGE = 0x80,
-};
+enum { MENU_TEXT_FOUR_COLOUR = 0x00, MENU_TEXT_A_TILE_FURTHER_LEFT = 0x02, MENU_TEXT_TILE_KIND = 0x0F, MENU_TEXT_LINES_AT_THE_EDGE = 0x80,  };
 
 /* Why a call stopped (menu_text_stop): the string ended; a wait; a line or
  * page break the caller acts on (from the first new line on, each starts a
@@ -65,9 +59,5 @@ bool menu_text_can_carry_on(const GameState *g);
 bool menu_text_can_start(const GameState *g);
 
 /* The entries, and their guards. */
-void menu_text_start_entry(Snes *s);
-void menu_text_go_on_entry(Snes *s);
-bool menu_text_is_startable(Snes *s);
-bool menu_text_can_go_on(Snes *s);
 
 #endif

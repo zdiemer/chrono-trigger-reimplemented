@@ -21,8 +21,6 @@
 #include "menu/figures.h"
 #include "menu/menu_data.h"
 #include "menu/techs.h"
-#include "port/machine.h"
-#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -51,10 +49,8 @@ MenuItemPlace menu_item_place(GameState *g, uint8_t item)
 
 /* The record of an item's place in a table of records `bytes` long from
  * `table`, found with the multiplier, which the original leaves so. */
-static uint16_t record_of(GameState *g, uint16_t table, uint8_t bytes, uint8_t index)
+static uint16_t record_of(uint16_t table, uint8_t bytes, uint8_t index)
 {
-    charge_machine_io_accesses(g, 1);
-    charge_machine_io_accesses(g, 3);
     return (uint16_t)(table + index * bytes);
 }
 
@@ -62,7 +58,7 @@ static uint16_t record_of(GameState *g, uint16_t table, uint8_t bytes, uint8_t i
 uint16_t menu_item_data_at_of(GameState *g, uint8_t item)
 {
     MenuItemPlace p = menu_item_place(g, item);
-    uint16_t at = record_of(g, menu_item_data_table(g, p.category), menu_item_data_record_bytes(g, p.category), p.index);
+    uint16_t at = record_of(menu_item_data_table(g, p.category), menu_item_data_record_bytes(g, p.category), p.index);
     set_menu_item_data_at(g, at);
     return at;
 }
@@ -71,7 +67,7 @@ uint16_t menu_item_data_at_of(GameState *g, uint8_t item)
 uint16_t menu_item_figures_at_of_last(GameState *g)
 {
     uint8_t category = (uint8_t)menu_item_category(g);
-    uint16_t at = record_of(g, menu_item_figures_table(g, category), menu_item_figures_record_bytes(g, category),
+    uint16_t at = record_of(menu_item_figures_table(g, category), menu_item_figures_record_bytes(g, category),
                             (uint8_t)menu_item_in_category(g));
     set_menu_item_figures_at(g, at);
     return at;
@@ -141,7 +137,6 @@ static unsigned place_holding(GameState *g, uint8_t item)
 {
     for (unsigned place = 0; place < INVENTORY_PLACES; place++)
         if (menu_inventory_item_at(g, place) == item && menu_inventory_count_at(g, place) != 0) {
-            charge_machine_accesses(g, 2);
             return place;
         }
     return NO_PLACE;
@@ -333,20 +328,9 @@ void menu_copy_past_the_names_now(GameState *g) { set_menu_copy_past_the_names(g
 void menu_build_the_items(GameState *g)
 {
     menu_build_item_tables(g);
-    charge_machine_accesses(g, 2);
     TIMED_AS(g, 0xFFF813, menu_note_party_techs(g));
     TIMED_AS(g, 0xC299B2, menu_note_everyones_figures(g));
     menu_copy_past_the_names_now(g);
-}
-
-void menu_build_items(Snes *s)
-{
-    menu_save_p(s);
-    menu_build_the_items(state_of(s));
-    menu_set_widths(s, true, false);
-    s->cpu.db = MENU_DATA_BANK;   /* as the tables' block moves leave it */
-    menu_restore_p(s);
-    m_rts(s);
 }
 
 // $C2:8881
@@ -362,16 +346,6 @@ void menu_build_items(Snes *s)
 bool menu_items_can_be_built(const GameState *g)
 {
     return menu_everyones_figures_can_be_noted(g) && menu_party_techs_can_be_noted(g) && menu_zero(g) == 0;
-}
-
-bool menu_items_are_buildable(Snes *s)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_items_can_be_built(state_of(s));
-    vars_peek(false);
-    return ok;
 }
 
 bool menu_items_built(GameState *g)

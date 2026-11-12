@@ -10,7 +10,6 @@
 #include <stdint.h>
 
 #include "platform/save.h"
-#include "snes/system.h"
 #include "state.h"
 #include "vars.h"
 
@@ -19,30 +18,11 @@ enum { MENU_SAVE_SLOTS = 3 };
 /* Where things are in save memory. A slot's game is SAVED_GAME_BYTES from its
  * place on; the record of them is at the end. */
 enum { SAVED_GAME_BYTES = 0xA00 };
-enum { SAVES_LAST_SLOT = 0x1FE0, SAVES_TIMES_FINISHED = 0x1FE1, SAVES_FINISHED = 0x1FE2, SAVES_SLOT_SUMS = 0x1FF0,
-       SAVES_SLOT_MARKS = 0x1FF8 };
+enum { SAVES_LAST_SLOT = 0x1FE0, SAVES_TIMES_FINISHED = 0x1FE1, SAVES_FINISHED = 0x1FE2, SAVES_SLOT_SUMS = 0x1FF0, SAVES_SLOT_MARKS = 0x1FF8 };
 
 /* The original's code keeps where a slot's game is as it addresses save
  * memory on the bus, from SAVES_ON_THE_BUS on (menu_slot_game_at). */
 enum { SAVES_ON_THE_BUS = 0x6000 };
-
-static inline uint16_t saves_game_in_memory(uint16_t on_the_bus) { return (uint16_t)(on_the_bus - SAVES_ON_THE_BUS); }
-
-static inline uint8_t saves_last_slot(Platform *pf, PfOrigin o) { return sv_read8(pf, o, SAVES_LAST_SLOT); }
-static inline uint8_t saves_times_finished(Platform *pf, PfOrigin o) { return sv_read8(pf, o, SAVES_TIMES_FINISHED); }
-
-/* Once the game has been finished, the load screen offers a New Game+. */
-static inline bool saves_finished(Platform *pf, PfOrigin o) { return sv_read8(pf, o, SAVES_FINISHED) != 0; }
-static inline void saves_forget_finished(Platform *pf, PfOrigin o) { sv_write8(pf, o, SAVES_FINISHED, 0); }
-static inline void saves_forget_times_finished(Platform *pf, PfOrigin o) { sv_write8(pf, o, SAVES_TIMES_FINISHED, 0); }
-static inline void saves_note_finished(Platform *pf, PfOrigin o) { sv_write8(pf, o, SAVES_FINISHED, 0xFF); }
-
-/* A slot holds a game while its mark (a word) is the one the save writes; the
- * erase writes over the mark's first byte. */
-static inline void saves_spoil_mark(Platform *pf, PfOrigin o, uint8_t slot, uint8_t v)
-{
-    sv_write8(pf, o, (uint16_t)(SAVES_SLOT_MARKS + 2 * slot), v);
-}
 
 /* ---- The save code (menu/saves.c) --------------------------------------------------------- */
 
@@ -68,7 +48,6 @@ void saves_carry_over(GameState *g, Platform *pf, uint8_t slot);
  * with none a new game starts; the load screen marks the new game it starts. */
 typedef enum { SAVES_NOTHING_SAVED = 0, SAVES_NEW_GAME = 1, SAVES_GAME_TO_LOAD = 2 } SavesAtPowerOn;
 enum { SAVES_HOW_IT_STARTS = 0x61 };
-static inline void saves_note_how_it_starts(GameState *g, SavesAtPowerOn how) { set_event_memory_byte(g, SAVES_HOW_IT_STARTS, (uint8_t)how); }
 
 /* The check as the menus make it, from the menus' page or the clock's: the
  * slot's place noted there (menu_slot_game_at on the menus'), for the slot's
@@ -90,11 +69,33 @@ uint16_t saves_slot_on_the_bus(const GameState *g, uint8_t slot);
 
 /* The checked legacy adapters (the original's code calls them; the menus' ports
  * call the C above). */
-void menu_load_carried_over(Snes *s);
-bool menu_carry_over_runs(Snes *s);
 /* What the save code and a New Game+'s carrying over take of the state, as
  * their entries' guards do. */
 bool menu_save_code_can_run(const GameState *g);
 bool menu_carry_over_can_run(const GameState *g);
+
+static inline uint16_t saves_game_in_memory(uint16_t on_the_bus) { return (uint16_t)(on_the_bus - SAVES_ON_THE_BUS); }
+
+static inline uint8_t saves_last_slot(Platform *pf, PfOrigin o) { return sv_read8(pf, o, SAVES_LAST_SLOT); }
+
+static inline uint8_t saves_times_finished(Platform *pf, PfOrigin o) { return sv_read8(pf, o, SAVES_TIMES_FINISHED); }
+
+/* Once the game has been finished, the load screen offers a New Game+. */
+static inline bool saves_finished(Platform *pf, PfOrigin o) { return sv_read8(pf, o, SAVES_FINISHED) != 0; }
+
+static inline void saves_forget_finished(Platform *pf, PfOrigin o) { sv_write8(pf, o, SAVES_FINISHED, 0); }
+
+static inline void saves_forget_times_finished(Platform *pf, PfOrigin o) { sv_write8(pf, o, SAVES_TIMES_FINISHED, 0); }
+
+static inline void saves_note_finished(Platform *pf, PfOrigin o) { sv_write8(pf, o, SAVES_FINISHED, 0xFF); }
+
+/* A slot holds a game while its mark (a word) is the one the save writes; the
+ * erase writes over the mark's first byte. */
+static inline void saves_spoil_mark(Platform *pf, PfOrigin o, uint8_t slot, uint8_t v)
+{
+    sv_write8(pf, o, (uint16_t)(SAVES_SLOT_MARKS + 2 * slot), v);
+}
+
+static inline void saves_note_how_it_starts(GameState *g, SavesAtPowerOn how) { set_event_memory_byte(g, SAVES_HOW_IT_STARTS, (uint8_t)how); }
 
 #endif

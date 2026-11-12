@@ -1,3 +1,5 @@
+#include "event/script.h"
+#include "event/script.h"
 /* Scripts and colours: an object's own palette, and effects on colours.
  *
  * A script can give its object one of the eight sprite palette slots for its

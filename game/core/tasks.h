@@ -3,10 +3,8 @@
  *
  * The menus run their screens this way: a cursor, a window sliding open, the
  * list being drawn, each a task that does a frame's work and waits for the
- * next frame where it is, deep in its own calls. On the machine each task is a
- * stack the menus' task switch moves between ($C2:81CF, menu/tasks.c); a build
- * with no machine under it gives each task a coroutine (runtime/port/fiber.h)
- * and the same order: every running task, in its slot's order, until it waits,
+ * next frame where it is, deep in its own calls. Each task uses a coroutine
+ * (runtime/port/fiber.h), with running tasks visited in slot order,
  * once a frame. A task's wait gives the turn to the next task, not the frame
  * to the driver: the frame ends when the caller of tasks_run_a_frame waits
  * for it. */

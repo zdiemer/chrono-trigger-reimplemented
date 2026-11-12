@@ -35,7 +35,6 @@
 #include "battle/battle.h"
 #include "battle/positions.h"
 #include "battle/screen_data.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "state.h"
 #include "vars.h"
@@ -45,22 +44,6 @@
 /* A screen script channel: 0 or 1, whose records are $10 bytes apart. */
 typedef uint8_t ScreenChannel;
 enum { SCREEN_CHANNELS = 2, SCREEN_CHANNEL_RECORD_BYTES = 0x10 };
-
-/* ---- The running command ---------------------------------------------------------------- */
-
-/* The running command's `n`th operand, from its first. */
-static inline uint8_t screen_command_operand(const GameState *g, unsigned n)
-{
-    return battle_screen_script_byte(g, battle_screen_script(g) + n);
-}
-
-/* The command took `operands` operands: the channel's step after it lands on
- * the next command. The pointer moves within its bank. */
-static inline void screen_command_took(GameState *g, int operands)
-{
-    uint32_t at = battle_screen_script(g);
-    set_battle_screen_script(g, (at & 0xFF0000u) | (uint16_t)(at + operands - 1));
-}
 
 /* ---- Palette rows and the sine --------------------------------------------------------------- */
 
@@ -73,30 +56,10 @@ enum { SCREEN_ROW_COLORS = 16, SCREEN_SPRITE_ROWS = 8 };
  * result is a byte, as the effects use it (a column or a line offset). */
 enum { SCREEN_HALF_TURN = 0x80, SCREEN_SINE_FRACTION_BITS = 8 };
 
-static inline uint8_t screen_scaled_sine(const GameState *g, uint8_t angle, uint8_t amplitude)
-{
-    uint8_t v = (uint8_t)(battle_sine_magnitude(g, angle) * amplitude >> SCREEN_SINE_FRACTION_BITS);
-    return (angle & SCREEN_HALF_TURN) ? (uint8_t)-v : v;
-}
-
 /* A signed amount times the sine of an angle, as a signed byte: the amount's
  * magnitude scaled by the sine's, its sign the product of the two signs. The
  * cosine is the sine a quarter turn on. */
 enum { SCREEN_QUARTER_TURN = 0x40 };
-
-static inline uint8_t screen_magnitude_of(uint8_t amount) { return (amount & SCREEN_HALF_TURN) ? (uint8_t)-amount : amount; }
-
-static inline uint8_t screen_signed_sine(const GameState *g, uint8_t angle, uint8_t amount)
-{
-    uint8_t v = (uint8_t)(battle_sine_magnitude(g, angle) * screen_magnitude_of(amount) >> SCREEN_SINE_FRACTION_BITS);
-    bool negative = ((angle & SCREEN_HALF_TURN) != 0) != ((amount & SCREEN_HALF_TURN) != 0);
-    return negative ? (uint8_t)-v : v;
-}
-
-static inline uint8_t screen_signed_cosine(const GameState *g, uint8_t angle, uint8_t amount)
-{
-    return screen_signed_sine(g, (uint8_t)(angle + SCREEN_QUARTER_TURN), amount);
-}
 
 /* What the original's sine routines leave in the multiplier: the sine's
  * magnitude times the amount's (scaffolding, for ORIGINAL_EFFECT). */
@@ -132,40 +95,6 @@ uint8_t screen_effect_object_rise(const GameState *g);
  * bridges read or write, through screen_cell and screen_set_cell, each saying
  * which. */
 enum { SCREEN_LOW_CELLS_END = BATTLE_LOW_SCRATCH_COUNT, SCREEN_CELLS = 0x45 };
-
-static inline uint8_t screen_cell(const GameState *g, uint8_t cell)
-{
-    return cell < SCREEN_LOW_CELLS_END ? battle_low_scratch(g, cell) : battle_scratch(g, (unsigned)(cell - SCREEN_CELLS));
-}
-
-static inline void screen_set_cell(GameState *g, uint8_t cell, uint8_t v)
-{
-    if (cell < SCREEN_LOW_CELLS_END)
-        set_battle_low_scratch(g, cell, v);
-    else
-        set_battle_scratch(g, (unsigned)(cell - SCREEN_CELLS), v);
-}
-
-static inline uint16_t screen_cell_word(const GameState *g, uint8_t cell)
-{
-    return (uint16_t)(screen_cell(g, cell) | screen_cell(g, (uint8_t)(cell + 1)) << 8);
-}
-
-static inline void screen_set_cell_word(GameState *g, uint8_t cell, uint16_t v)
-{
-    screen_set_cell(g, cell, (uint8_t)v);
-    screen_set_cell(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
-}
-
-/* What a screen command leaves last in the first two cells, a word
- * (battle_screen_leftover), whose high byte the screen scripts' drift tests
- * as it decides how to drift (screen_motion.c): game state, so written
- * plainly, as the layers' scroll writes it each frame (scroll.c). */
-static inline void screen_leave_for_the_drift(GameState *g, uint16_t v) { set_battle_screen_leftover(g, v); }
-
-/* The scaffolding's writes, by the same cells. */
-static inline void screen_leave_cell(GameState *g, uint8_t cell, uint8_t v) { screen_set_cell(g, cell, v); }
-static inline void screen_leave_word(GameState *g, uint8_t cell, uint16_t v) { screen_set_cell_word(g, cell, v); }
 
 /* ---- What loading a battlefield takes from the screen effects ----------------------------- */
 
@@ -249,16 +178,6 @@ void battle_set_screen_effect_to(GameState *g, const uint8_t settings[SCREEN_EFF
  * that gives fewer than all five settings (the animation scripts' command)
  * counts the ones it gives in its low bits. */
 enum { SCREEN_EFFECT_CHOICES = 6, SCREEN_EFFECT_SETTINGS_GIVEN = 0x0F };
-static inline unsigned screen_effect_choice(uint8_t first_setting) { return first_setting >> 4; }
-static inline bool screen_effect_known(uint8_t first_setting) { return screen_effect_choice(first_setting) < SCREEN_EFFECT_CHOICES; }
-static inline uint8_t screen_effect_settings_given(uint8_t first_setting) { return first_setting & SCREEN_EFFECT_SETTINGS_GIVEN; }
-
-/* A command's body returns with A 0, as the original's last TDC leaves it. */
-static inline void screen_command_done(Snes *s)
-{
-    s->cpu.a = 0;
-    m_rtl(s);
-}
 
 /* ---- The guards (registry .guard) ------------------------------------------------------ */
 
@@ -266,13 +185,10 @@ static inline void screen_command_done(Snes *s)
  * of their callers have them (battle/bridge.h); most also with A's high byte
  * 0, which the original's indexing takes along into its tables. The screen
  * script's dispatch calls its commands' bodies so. */
-bool battle_screen_page(Snes *s);
-bool battle_screen_page_a_clear(Snes *s);
 /* ... running a channel (screen_motion.c); the jitter with the carry set, as
  * the dispatch leaves it; the positions saved to one of two slots; a screen
  * effect one of the six. */
 /* ... the HP gradient's phase and rows within its tables (screen_gradient.c). */
-bool battle_gradient_page(Snes *s);
 /* ... the window commands' shapes within the window table (screen_window.c). */
 /* ... a window quadrilateral one of the two (screen_beam.c); $D1:F91D and
  * $D1:F972 run with the data bank the rasterizer sets for the work RAM port. */
@@ -286,22 +202,13 @@ bool battle_gradient_page(Snes *s);
 
 /* ... the screen script's channels, its dispatch and its commands
  * (screen_script.c). */
-bool battle_screen_channel_ready(Snes *s);
-bool battle_screen_dispatch_ready(Snes *s);
-
-/* ---- The entries (game/registry.c) --------------------------------------------------------- */
 
 /* screen_script.c */
-void battle_run_screen_scripts(Snes *s);
-void battle_run_screen_channel(Snes *s);
-void battle_run_screen_command(Snes *s);
 /* screen_palette.c */
-void battle_pause_palette_animation_entry(Snes *s);
 /* The palette animations paused with the battle, or let run again ($D1:F426). */
 void battle_pause_palette_animation(GameState *g);
 enum { BATTLE_PAUSE_PALETTE_ANIMATION_ENTRY = 0xD1F426 };
 /* screen_gradient.c */
-void battle_step_hp_gradient_entry(Snes *s);
 /* The HP gradient's step ($D1:EA4B), and its guard's state half: its phase
  * in range. */
 void battle_step_hp_gradient(GameState *g);
@@ -316,7 +223,6 @@ bool battle_hp_gradient_steps(const GameState *g);
 /* screen_shapes.c */
 /* screen_motion.c */
 /* screen_setup.c */
-void battle_set_the_screen_up(Snes *s);
 /* The screen set up as a battle starts ($D1:F1B0), as C. False where it went
  * no further. */
 bool battle_screen_set_up(GameState *g, Platform *pf);
@@ -325,5 +231,82 @@ bool battle_screen_set_up(GameState *g, Platform *pf);
 bool battle_display_closed(GameState *g, Platform *pf);
 /* The battle window opened as the battle starts ($CD:000C), as C. */
 bool battle_window_opened(GameState *g, Platform *pf);
+
+/* ---- The running command ---------------------------------------------------------------- */
+
+/* The running command's `n`th operand, from its first. */
+static inline uint8_t screen_command_operand(const GameState *g, unsigned n)
+{
+    return battle_screen_script_byte(g, battle_screen_script(g) + n);
+}
+
+/* The command took `operands` operands: the channel's step after it lands on
+ * the next command. The pointer moves within its bank. */
+static inline void screen_command_took(GameState *g, int operands)
+{
+    uint32_t at = battle_screen_script(g);
+    set_battle_screen_script(g, (at & 0xFF0000u) | (uint16_t)(at + operands - 1));
+}
+
+static inline uint8_t screen_scaled_sine(const GameState *g, uint8_t angle, uint8_t amplitude)
+{
+    uint8_t v = (uint8_t)(battle_sine_magnitude(g, angle) * amplitude >> SCREEN_SINE_FRACTION_BITS);
+    return (angle & SCREEN_HALF_TURN) ? (uint8_t)-v : v;
+}
+
+static inline uint8_t screen_magnitude_of(uint8_t amount) { return (amount & SCREEN_HALF_TURN) ? (uint8_t)-amount : amount; }
+
+static inline uint8_t screen_signed_sine(const GameState *g, uint8_t angle, uint8_t amount)
+{
+    uint8_t v = (uint8_t)(battle_sine_magnitude(g, angle) * screen_magnitude_of(amount) >> SCREEN_SINE_FRACTION_BITS);
+    bool negative = ((angle & SCREEN_HALF_TURN) != 0) != ((amount & SCREEN_HALF_TURN) != 0);
+    return negative ? (uint8_t)-v : v;
+}
+
+static inline uint8_t screen_signed_cosine(const GameState *g, uint8_t angle, uint8_t amount)
+{
+    return screen_signed_sine(g, (uint8_t)(angle + SCREEN_QUARTER_TURN), amount);
+}
+
+static inline uint8_t screen_cell(const GameState *g, uint8_t cell)
+{
+    return cell < SCREEN_LOW_CELLS_END ? battle_low_scratch(g, cell) : battle_scratch(g, (unsigned)(cell - SCREEN_CELLS));
+}
+
+static inline void screen_set_cell(GameState *g, uint8_t cell, uint8_t v)
+{
+    if (cell < SCREEN_LOW_CELLS_END)
+        set_battle_low_scratch(g, cell, v);
+    else
+        set_battle_scratch(g, (unsigned)(cell - SCREEN_CELLS), v);
+}
+
+static inline uint16_t screen_cell_word(const GameState *g, uint8_t cell)
+{
+    return (uint16_t)(screen_cell(g, cell) | screen_cell(g, (uint8_t)(cell + 1)) << 8);
+}
+
+static inline void screen_set_cell_word(GameState *g, uint8_t cell, uint16_t v)
+{
+    screen_set_cell(g, cell, (uint8_t)v);
+    screen_set_cell(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
+}
+
+/* What a screen command leaves last in the first two cells, a word
+ * (battle_screen_leftover), whose high byte the screen scripts' drift tests
+ * as it decides how to drift (screen_motion.c): game state, so written
+ * plainly, as the layers' scroll writes it each frame (scroll.c). */
+static inline void screen_leave_for_the_drift(GameState *g, uint16_t v) { set_battle_screen_leftover(g, v); }
+
+/* The scaffolding's writes, by the same cells. */
+static inline void screen_leave_cell(GameState *g, uint8_t cell, uint8_t v) { screen_set_cell(g, cell, v); }
+
+static inline void screen_leave_word(GameState *g, uint8_t cell, uint16_t v) { screen_set_cell_word(g, cell, v); }
+
+static inline unsigned screen_effect_choice(uint8_t first_setting) { return first_setting >> 4; }
+
+static inline bool screen_effect_known(uint8_t first_setting) { return screen_effect_choice(first_setting) < SCREEN_EFFECT_CHOICES; }
+
+static inline uint8_t screen_effect_settings_given(uint8_t first_setting) { return first_setting & SCREEN_EFFECT_SETTINGS_GIVEN; }
 
 #endif

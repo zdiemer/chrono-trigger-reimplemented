@@ -7,7 +7,6 @@
 #include <stdint.h>
 
 #include "platform/platform.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* ---- The picture (warp/picture.c) ---------------------------------------------------------------- */
@@ -38,7 +37,7 @@ uint16_t warp_build_circle(GameState *g);
 /* The circle window's list pointed at one of its tables (0 or 1). */
 void warp_show_circle_table(GameState *g, unsigned table);
 
-/* As C, for a program with no machine (core/program.c): the trip a field's
+/* The trip a field's
  * event asks for, by its scene's number (WARP_FIRST_SCENE on), from the
  * field's end to its start again, false where a step went no further; and
  * the warp's vblank and line handlers. */
@@ -46,20 +45,5 @@ enum { WARP_FIRST_SCENE = 0x80, WARP_VBLANK_HANDLER = 0xFDDE15, WARP_LINE_HANDLE
 bool warp_runs(GameState *g, Platform *pf, uint8_t scene);
 void warp_vblank(GameState *g, Platform *pf);
 void warp_line(GameState *g, Platform *pf);
-
-/* ---- On the machine (warp/warp.c) -------------------------------------------------------------- */
-
-/* The warp's gate is retired: in the shipping mode the field's end starts the
- * trip a field's event asks for, by its scene's number, as C, and the
- * console's vblank stub runs the warp's handler as C, without returning from
- * the interrupt. Between the two the main thread rests in the main loop's
- * held wait (holds.h, HOLD_WARP_FRAME), whose continuations are the next
- * frame and the wait's idle pass, with their guards. */
-void warp_starts_on_the_machine(Snes *s, uint8_t scene);
-void warp_takes_the_frame_on_the_machine(Snes *s);
-void warp_next_frame(Snes *s);
-void warp_waits_for_the_frame(Snes *s);
-bool warp_frame_taken(Snes *s);
-bool warp_frame_not_taken(Snes *s);
 
 #endif

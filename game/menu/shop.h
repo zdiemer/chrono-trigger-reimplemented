@@ -9,7 +9,6 @@
 #include <stdint.h>
 
 #include "platform/video.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* The shop's steps, as its main task runs them (menu_screen_step). */
@@ -331,35 +330,5 @@ bool menu_choose_shop_slot(GameState *g, Platform *pf);
 bool menu_choose_shop_equipment(GameState *g, Platform *pf);
 
 /* ---- The entries (game/menu/shop_bridge.c) ------------------------------------------------------- */
-
-void menu_open_shop_entry(Snes *s);
-void menu_set_up_shop(Snes *s);
-void menu_show_shop_item_panel(Snes *s);
-void menu_choose_shop_tab_entry(Snes *s);
-void menu_open_goods_list(Snes *s);
-void menu_open_for_sale_list(Snes *s);
-void menu_choose_goods_entry(Snes *s);
-void menu_choose_for_sale_entry(Snes *s);
-void menu_choose_how_many_to_buy_entry(Snes *s);
-void menu_choose_how_many_to_sell_entry(Snes *s);
-
-void menu_choose_shop_member_entry(Snes *s);
-void menu_open_shop_member(Snes *s);
-void menu_show_shop_member_slots(Snes *s);
-void menu_switch_shop_member(Snes *s);
-void menu_choose_shop_slot_entry(Snes *s);
-void menu_choose_shop_equipment_entry(Snes *s);
-bool menu_shop_opens(Snes *s);
-bool menu_shop_sets_up(Snes *s);
-bool menu_shop_tabs_step_runs(Snes *s);
-bool menu_shop_buying_step_runs(Snes *s);
-bool menu_shop_selling_step_runs(Snes *s);
-bool menu_shop_quantity_step_runs(Snes *s);
-bool menu_shop_list_opens(Snes *s);
-bool menu_shop_panel_shows(Snes *s);
-bool menu_shop_members_step_runs(Snes *s);
-bool menu_shop_slots_step_runs(Snes *s);
-bool menu_shop_equipping_runs(Snes *s);
-bool menu_shop_member_opens(Snes *s);
 
 #endif

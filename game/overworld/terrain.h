@@ -52,22 +52,6 @@ GroundAround overworld_ground_kept(const GameState *g, MenuObject walker);
  * place's ground. */
 bool overworld_open_ground_kept(const GameState *g, MenuObject vehicle);
 
-/* A walker can't step to a spot where either tile above it is a wall; the
- * leader stands on a place's ground where both are. */
-static inline bool ground_walls_off(GroundAround a) { return ((a.up_left | a.up_right) & GROUND_WALL) != 0; }
-static inline bool ground_of_a_place(GroundAround a)
-{
-    return (a.up_left & GROUND_OF_A_PLACE) && (a.up_right & GROUND_OF_A_PLACE);
-}
-
-/* A wall with both its bits is one even a dactyl can't fly over; it can't
- * fly to a spot where any of the four tiles round it is one. */
-static inline bool ground_bars_flight(GroundAround a)
-{
-    return (a.up_left & GROUND_WALL) == GROUND_WALL || (a.up_right & GROUND_WALL) == GROUND_WALL
-           || (a.down_left & GROUND_WALL) == GROUND_WALL || (a.down_right & GROUND_WALL) == GROUND_WALL;
-}
-
 /* The region of the map a spot is in. The region map starts at the map's
  * second row of map tiles: a spot in the first row has none, and the original
  * reads before the region map there (the guards keep the party off it). */
@@ -84,5 +68,22 @@ uint8_t overworld_region_in_view(GameState *g, MenuViewCentre centre);
  * location song), and whether the place is on the region map. */
 uint8_t overworld_region_of_the_location(GameState *g);
 bool overworld_location_has_a_region(const GameState *g);
+
+/* A walker can't step to a spot where either tile above it is a wall; the
+ * leader stands on a place's ground where both are. */
+static inline bool ground_walls_off(GroundAround a) { return ((a.up_left | a.up_right) & GROUND_WALL) != 0; }
+
+static inline bool ground_of_a_place(GroundAround a)
+{
+    return (a.up_left & GROUND_OF_A_PLACE) && (a.up_right & GROUND_OF_A_PLACE);
+}
+
+/* A wall with both its bits is one even a dactyl can't fly over; it can't
+ * fly to a spot where any of the four tiles round it is one. */
+static inline bool ground_bars_flight(GroundAround a)
+{
+    return (a.up_left & GROUND_WALL) == GROUND_WALL || (a.up_right & GROUND_WALL) == GROUND_WALL
+           || (a.down_left & GROUND_WALL) == GROUND_WALL || (a.down_right & GROUND_WALL) == GROUND_WALL;
+}
 
 #endif

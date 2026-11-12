@@ -31,23 +31,15 @@
 
 #include "platform/audio.h"
 #include "platform/input.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- The bikes ------------------------------------------------------------------------------ */
 
-enum {
-    SPEED_LOSS = 0x80,             /* every frame */
-    CRONO_SPEEDING_UP = 0x100,     /* while below his top speed */
-    JOHNNY_SPEEDING_UP = 0xF8,
-    MAX_SPEED = 0x7FFF,
-    BOOST = 0x1700,
-    BOOST_FRAMES = 0x80,
-    LAST_LANE = 0x7000,
-    SPEED_TO_DISTANCE = 6,         /* a bike moves on by its speed over 64 */
-    SPEED_TO_DISTANCE_MASK = 0x1FF,
-};
+enum { SPEED_LOSS = 0x80, /* every frame */
+    CRONO_SPEEDING_UP = 0x100, /* while below his top speed */
+    JOHNNY_SPEEDING_UP = 0xF8, MAX_SPEED = 0x7FFF, BOOST = 0x1700, BOOST_FRAMES = 0x80, LAST_LANE = 0x7000, SPEED_TO_DISTANCE = 6, /* a bike moves on by its speed over 64 */
+    SPEED_TO_DISTANCE_MASK = 0x1FF,  };
 
 /* The finish, as the bikes' distances reach it: the high word at 8. */
 enum { FINISHED_HIGH_WORD = RACE_FINISH >> 16 };
@@ -165,12 +157,9 @@ static void drive_johnny(GameState *g)
 
 /* ---- Drifting across the track -------------------------------------------------------------- */
 
-enum {
-    MAX_DRIFT = 0x210,
-    DRIFT_LOSS = 0x11,             /* every frame */
-    CRONO_STEERING = 0x28,         /* how much a frame's steering builds the drift up */
-    JOHNNY_STEERING = 0x18,
-};
+enum { MAX_DRIFT = 0x210, DRIFT_LOSS = 0x11, /* every frame */
+    CRONO_STEERING = 0x28, /* how much a frame's steering builds the drift up */
+    JOHNNY_STEERING = 0x18,  };
 
 /* A bike's four drifts, in the order the race works them out. */
 typedef enum { CRONO_UP, CRONO_DOWN, JOHNNY_UP, JOHNNY_DOWN, DRIFTS } Drift;
@@ -260,11 +249,7 @@ static uint16_t lead(const GameState *g, bool unit)
 /* ---- Touching ------------------------------------------------------------------------------------ */
 
 /* Where Johnny is from Crono (scene_race_contact). */
-enum {
-    CRONO_WELL_AHEAD = 0x01, JOHNNY_WELL_AHEAD = 0x02,
-    JOHNNY_WELL_ABOVE = 0x10, JOHNNY_WELL_BELOW = 0x20,
-    ACROSS_SHIFT = 4,
-};
+enum { CRONO_WELL_AHEAD = 0x01, JOHNNY_WELL_AHEAD = 0x02, JOHNNY_WELL_ABOVE = 0x10, JOHNNY_WELL_BELOW = 0x20, ACROSS_SHIFT = 4,  };
 
 /* How close counts as touching: along the track, Crono's bike from $100 on
  * and Johnny's from $C0 on, $200 and $180 apart; across it, $1000. The
@@ -682,10 +667,7 @@ static void move_bikes(GameState *g)
 enum { WINNER_CRONO = 1, WINNER_JOHNNY = 2 };
 
 /* What Crono's winning score earns (scene_race_prize). */
-enum {
-    PRIZE_REPDIGIT = 1, PRIZE_777 = 2, PRIZE_STRAIGHT = 3, PRIZE_ROUND = 4,
-    PRIZE_OVER_1300 = 0x20, PRIZE_OVER_1500 = 0x40, PRIZE_OVER_2000 = 0x80,
-};
+enum { PRIZE_REPDIGIT = 1, PRIZE_777 = 2, PRIZE_STRAIGHT = 3, PRIZE_ROUND = 4, PRIZE_OVER_1300 = 0x20, PRIZE_OVER_1500 = 0x40, PRIZE_OVER_2000 = 0x80,  };
 enum { LUCKY_SCORES = 11 };
 
 static uint8_t lucky_prize(const GameState *g, uint16_t shown)
@@ -1132,47 +1114,6 @@ TaskEnd scene_race_drain_score(GameState *g, Platform *pf, unsigned slot)
     return drain_score_task(g);
 }
 
-/* ---- The guards -------------------------------------------------------------------------------- */
-
-/* The race's tasks run with 16-bit A, on the scene's page, with a data bank
- * that reaches low RAM; each is guarded by a hash of the code it stands for. */
-static bool on_scene(Snes *s) { return scene_on_scene_page_low_bank(s); }
-
-static bool ride_code_present(Snes *s) { return m_code_matches(s, 0x7E4788, 0x585, 0x8A843BADA8B3DE72ull); }
-
-bool scene_race_ride_present(Snes *s) { return on_scene(s) && ride_code_present(s); }
-
-/* The tail sends the pitch straight to the sound driver's ports through the
- * data bank. */
-
-/* The coast's compares carry the demo's finish lanes as operands
- * (scene_race_finish_lanes), which the hash leaves out. */
-bool scene_race_coast_present(Snes *s)
-{
-    return on_scene(s) && ride_code_present(s) && m_code_matches(s, 0x7E4677, 0x57, 0x9976F435141BF5AAull) &&
-           m_code_matches(s, 0x7E46D0, 0x14, 0x19197C1452B72292ull) &&
-           m_code_matches(s, 0x7E46E6, 0x6F, 0x631D422C3D0CD1DCull);
-}
-
-bool scene_race_await_victory_song_present(Snes *s)
-{
-    return on_scene(s) && m_bank_reaches_io(s) && m_code_matches(s, 0x7E4755, 0x1D, 0xCC9805F66890E906ull);
-}
-
-/* The hash leaves out the curtain's way, which the scenes' setups write. */
-bool scene_race_wait_to_leave_present(Snes *s)
-{
-    return on_scene(s) && m_code_matches(s, 0x7E424D, 0x0C, 0x7A9A012413CE0841ull) &&
-           m_code_matches(s, 0x7E425A, 0x29, 0x239A23CA2369EDC7ull);
-}
-
-bool scene_race_leave_present(Snes *s) { return on_scene(s) && m_code_matches(s, 0x7E4283, 8, 0x773BF38DAF64A867ull); }
-
-bool scene_race_drain_score_present(Snes *s)
-{
-    return on_scene(s) && m_code_matches(s, 0x7E44CE, 0x30, 0x7C7DBD61E06D9689ull);
-}
-
 /* The guard hands the task's list changes to the original where the list has
  * no room or lacks the task taken off, which only states the game never makes
  * reach. */
@@ -1185,129 +1126,10 @@ static bool ride_lists_fit(const GameState *g)
     return seam_change(g) == SEAM_KEPT || scene_task_listed(g, SCENE_VBLANK_TASKS, NO_TASK);
 }
 
-bool scene_race_ride_lists_fit(Snes *s)
-{
-    if (!scene_race_ride_present(s))
-        return false;
-    vars_peek(true);
-    bool fits = ride_lists_fit(state_of(s));
-    vars_peek(false);
-    return fits;
-}
-
 static bool coast_lists_fit(const GameState *g)
 {
     return (!leaving_now(g) || scene_task_listed(g, SCENE_FRAME_TASKS, NO_TASK)) &&
            (!seam_passed_again(g) || scene_task_listed(g, SCENE_VBLANK_TASKS, NO_TASK));
-}
-
-bool scene_race_coast_lists_fit(Snes *s)
-{
-    if (!scene_race_coast_present(s))
-        return false;
-    vars_peek(true);
-    bool fits = coast_lists_fit(state_of(s));
-    vars_peek(false);
-    return fits;
-}
-
-/* ---- On the machine ---------------------------------------------------------------------------- */
-
-/* A task that takes itself off the list leaves through the list's own code,
- * which reads the slot it pushed; one that hands its slot to another task, with
- * X that task. Nothing else they leave is read but A's high byte and Y, which
- * they don't touch. */
-
-static void hand_slot_to(Snes *s, uint16_t task)
-{
-    scene_finish_task(s, SCENE_FRAME_TASKS, task_hands_over(task));
-}
-
-/* What the frame's motion leaves in A: Johnny's lane, the last it worked out. */
-
-// $7E:4BD2
-/* The ride's tail, where the original's own code comes to it in a frame the
- * bikes run: the engine's pitch to the sound driver, then the bikes' motion. */
-
-/* The bikes' tasks, as the list's code takes them back: the slot handed on,
- * the task off the list (Johnny's win, with A's high byte his script's), or on
- * after the bikes' motion. */
-static void leave_the_ride(Snes *s, TaskEnd end)
-{
-    switch (end.outcome) {
-    case TASK_LEFT_TO_THE_ORIGINAL: return;
-    case TASK_HANDS_OVER: hand_slot_to(s, end.next); return;
-    case TASK_IS_DONE:
-        s->cpu.a = JOHNNY_WON_SCRIPT;
-        scene_finish_task(s, SCENE_FRAME_TASKS, task_is_done());
-        return;
-    default:
-        charge_legacy_accesses(state_of(s), 2);
-        m_rts(s);
-        return;
-    }
-}
-
-/* The race's task while it runs. */
-void scene_race_ride_entry(Snes *s)
-{
-    leave_the_ride(s, ride_with(state_of(s), m_platform(s), race_sound_on_the_machine, s));
-}
-
-/* The race's task after Crono's finish. */
-void scene_race_coast_entry(Snes *s)
-{
-    leave_the_ride(s, coast_with(state_of(s), m_platform(s), race_sound_on_the_machine, s));
-}
-
-/* Waiting for the victory song, in 8-bit A: its low byte is what the wait last
- * read, which nothing reads. */
-void scene_race_await_victory_song_entry(Snes *s)
-{
-    m_set_flag(s, CPU_FLAG_M, true);
-    TaskEnd end = await_victory_song_task(state_of(s), m_platform(s));
-    if (end.outcome == TASK_HANDS_OVER) {
-        hand_slot_to(s, end.next);
-        return;
-    }
-    m_rts(s);
-}
-
-/* After the race, in 8-bit A: the sound that begins the end is sent from the
- * program's own call, then the countdown takes the task's place. */
-void scene_race_wait_to_leave_entry(Snes *s)
-{
-    m_set_flag(s, CPU_FLAG_M, true);
-    TaskEnd end = wait_to_leave_with(state_of(s), m_platform(s), race_sound_on_the_machine, s);
-    if (end.outcome == TASK_LEFT_TO_THE_ORIGINAL)
-        return;
-    if (end.outcome == TASK_HANDS_OVER) {
-        hand_slot_to(s, end.next);
-        return;
-    }
-    m_rts(s);
-}
-
-void scene_race_leave_entry(Snes *s)
-{
-    leave(state_of(s));
-    m_rts(s);
-}
-
-/* A is the frame counter's low two bits on the frames between, and the score
- * after the step on the others, whose high byte the list's code reads. */
-void scene_race_drain_score_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint16_t frame = scene_frame_counter(g) & (DRAIN_EVERY - 1);
-    charge_legacy_accesses(g, 2);
-    TaskEnd end = drain_score_task(g);
-    if (end.outcome == TASK_IS_DONE) {
-        scene_finish_task(s, SCENE_FRAME_TASKS, task_is_done());
-        return;
-    }
-    charge_legacy_accesses(g, frame ? 0 : 2);
-    m_rts(s);
 }
 
 /* ---- The start ------------------------------------------------------------------------------ */
@@ -1315,11 +1137,7 @@ void scene_race_drain_score_entry(Snes *s)
 /* The bikes as the race starts. Crono is on the higher lanes and Johnny on
  * the lower; Johnny's top speed is lower than Crono's while he leads and higher
  * while he trails. */
-enum {
-    CRONO_START_LANE = 0x6000, JOHNNY_START_LANE = 0x2000,
-    CRONO_TOP_SPEED = 0x4000, JOHNNY_TOP_SPEED_LEADING = 0x3000, JOHNNY_TOP_SPEED_TRAILING = 0x5000,
-    APART = 0x20,   /* the bikes start apart, Crono above */
-};
+enum { CRONO_START_LANE = 0x6000, JOHNNY_START_LANE = 0x2000, CRONO_TOP_SPEED = 0x4000, JOHNNY_TOP_SPEED_LEADING = 0x3000, JOHNNY_TOP_SPEED_TRAILING = 0x5000, APART = 0x20, /* the bikes start apart, Crono above */ };
 
 /* The race's own boosts and their timer, which the demo has none of; the
  * setup writes their low bytes. */

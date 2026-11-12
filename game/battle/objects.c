@@ -167,7 +167,6 @@ static void take_animation_step(GameState *g, unsigned slot)
     set_battle_object_facing_shown(g, slot, facing);
     uint16_t facing_part = (uint16_t)battle_multiply_long(g, facing, facing_stride(g, slot));
     name_upload_object(g, slot);
-    charge_machine_accesses(g, 4);
 
     uint8_t frame = (uint8_t)(battle_animation_frame(g, slot) + 1);
     uint8_t held = battle_animation_wait(g, slot);
@@ -215,16 +214,6 @@ bool battle_bounds_carry(const GameState *g, unsigned slot)
     return y >= battle_object_half_height(g, slot);
 }
 
-/* It leaves A's high byte clear and the carry the compare that ends its loop
- * leaves. */
-void battle_update_all_object_bounds(Snes *s)
-{
-    battle_update_all_bounds(state_of(s));
-    s->cpu.a = 0;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
-}
-
 /* The scheduler's pass: the object due, if any, takes its step. It leaves A's
  * high byte clear. */
 void battle_take_due_animation_step(GameState *g)
@@ -248,7 +237,6 @@ void battle_take_due_animation_step(GameState *g)
 static bool update_animation_positions(GameState *g, bool (*other_place)(void *ctx, uint8_t place), void *ctx)
 {
     for (unsigned slot = 0; slot < POSITION_SLOTS; slot++) {
-        charge_machine_accesses(g, 2);
         uint8_t place;
         if (!animation_slot_follows(g, slot, &place))
             continue;
@@ -263,22 +251,7 @@ static bool update_animation_positions(GameState *g, bool (*other_place)(void *c
         keep_found_position(g, slot, at);
     }
     battle_leave_jump_lift(g, POSITION_SLOTS);
-    charge_machine_accesses(g, 1);
     return true;
-}
-
-/* On the machine the original's picks the place by the mode in A. */
-static bool other_place_on_the_machine(void *ctx, uint8_t place)
-{
-    Snes *s = ctx;
-    s->cpu.a = place;
-    return battle_call(s, 0xC1421E, 0xC1762E, DC_X | DC_Y | DC_N | DC_Z | DC_C);
-}
-
-void battle_update_animation_positions_entry(Snes *s)
-{
-    if (update_animation_positions(state_of(s), other_place_on_the_machine, s))
-        m_rts(s);
 }
 
 static bool place_with_no_port(void *ctx, uint8_t place)

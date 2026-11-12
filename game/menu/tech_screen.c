@@ -99,7 +99,6 @@ static uint8_t tech_cost_needed(const GameState *g) { return menu_tech_cost_need
 static void clear_the_cost_needed(GameState *g)
 {
     set_menu_tech_cost_needed(g, 0);
-    charge_machine_accesses(g, 1);
 }
 
 /* The screen's line effects at rest, and while its member list slides. */
@@ -136,7 +135,6 @@ enum { MEMBER_SPRITE_X = 0x1C };
 // $C2:BAFC
 static void place_member_sprite(GameState *g, uint8_t character, uint16_t row)
 {
-    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4));
     set_menu_record_sprite(g, character, character);
     set_menu_record_hidden(g, character, SHOWN);
     place_record(g, character, (MenuSpritePlace){ menu_tech_row_sprite_y(g, row), MEMBER_SPRITE_X });
@@ -170,18 +168,16 @@ static void start_drawing_rows(GameState *g)
  * multiplies with the multiplier, which it leaves with the span's. */
 enum { LINES_A_MEMBER = 12, MEMBER_BAR_PLACE = 0x1278 };
 
-static uint8_t in_lines(GameState *g, uint8_t members)
+static uint8_t in_lines(uint8_t members)
 {
-    charge_machine_io_accesses(g, 1);
-    charge_machine_io_accesses(g, 3);
     return (uint8_t)(members * LINES_A_MEMBER);
 }
 
 static void place_member_bar(GameState *g)
 {
-    set_menu_scroll_bar_thumb(g, in_lines(g, menu_tech_member_scroll(g)));
+    set_menu_scroll_bar_thumb(g, in_lines(menu_tech_member_scroll(g)));
     set_menu_scroll_bar_place(g, MEMBER_BAR_PLACE);
-    set_menu_scroll_bar_span(g, in_lines(g, menu_scroll_bar_span(g)));
+    set_menu_scroll_bar_span(g, in_lines(menu_scroll_bar_span(g)));
 }
 
 // $C2:BA4F
@@ -355,8 +351,6 @@ void menu_techs_draw_list_rows(GameState *g, uint8_t from)
         menu_draw_tech_row(g, (uint16_t)(FIRST_LIST_ROW_AT + row * LIST_ROW_BYTES), tech, waiting);
     }
     set_menu_draw_origin(g, FIRST_LIST_ROW_AT + LIST_ROWS * LIST_ROW_BYTES);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 2);
 }
 
 /* Which list it is: the member times sixteen, plus the kind. */
@@ -398,7 +392,6 @@ void menu_techs_mark_kind(GameState *g)
     uint8_t kind = menu_tech_category(g);
     uint16_t tab = (uint16_t)(TABS_AT + kind * TAB_BYTES);
     TIMED_AS(g, 0xC2ECAC, menu_colour_row_pair(g, tab, TAB_TILES, CHOSEN_TAB));
-    charge_machine_accesses(g, 2);
     set_menu_draw_origin(g, tab);
 }
 
@@ -548,7 +541,6 @@ void menu_techs_show_the_lister(GameState *g)
 bool menu_techs_put_the_lister_on_its_record(GameState *g)
 {
     uint8_t character = menu_status_record_character(g);
-    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4));
     set_menu_record_colours(g, LISTER, menu_record_colours(g, character));
     if (menu_record_sprite(g, LISTER) == character)
         return false;
@@ -559,10 +551,8 @@ bool menu_techs_put_the_lister_on_its_record(GameState *g)
 /* The list's scroll bar: four lines a row (the multiplier's, $C2:8BA6). */
 enum { LINES_A_ROW = 4, LIST_BAR_PLACE = 0x32E8 };
 
-static uint8_t thumb_at_row(GameState *g, uint8_t row)
+static uint8_t thumb_at_row(uint8_t row)
 {
-    charge_machine_io_accesses(g, 1);
-    charge_machine_io_accesses(g, 3);
     return (uint8_t)(row * LINES_A_ROW);
 }
 
@@ -572,7 +562,7 @@ enum { LIST_BAR_TRACK = 0x1500 };
 
 static void frame_the_list(GameState *g)
 {
-    set_menu_scroll_bar_thumb(g, thumb_at_row(g, menu_tech_list_top(g)));
+    set_menu_scroll_bar_thumb(g, thumb_at_row(menu_tech_list_top(g)));
     set_menu_list_first_place(g, 0);
     TIMED_AS(g, 0xC2EA81, menu_frame_the_list(g, menu_techs_listed(g), LIST_ROWS, LIST_BAR_TRACK));
 }
@@ -603,8 +593,6 @@ static void note_the_pointed_tech(GameState *g)
         others = (uint8_t)(others << 1);
         looked_at++;
     } while (others != 0);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
 }
 
 // $C2:BB8C
@@ -613,7 +601,6 @@ static void note_the_pointed_tech(GameState *g)
  * tech has no such member. */
 static void draw_tech_members(GameState *g, Platform *pf, uint8_t row, uint16_t at)
 {
-    charge_machine_accesses(g, 4);
     start_drawing_rows(g);
     for (; row < MEMBER_ROWS; row++, at = (uint16_t)(at + MEMBER_ROW_BYTES)) {
         set_menu_draw_origin(g, at);
@@ -626,7 +613,6 @@ static void draw_tech_members(GameState *g, Platform *pf, uint8_t row, uint16_t 
         TIMED_AS(g, 0xC28820, (void)menu_load_character(g, character));
         place_member_sprite(g, menu_status_record_character(g), row);
         (void)menu_tech_cost_for(g, menu_tech_pointed(g), kind_listed(g));
-        charge_machine_accesses(g, 1);
         TIMED_AS(g, 0xC2BA2F, menu_techs_draw_member_row(g, pf));
     }
     set_menu_screen_argument(g, MEMBER_ROWS);
@@ -639,7 +625,7 @@ static void draw_tech_members(GameState *g, Platform *pf, uint8_t row, uint16_t 
 void menu_techs_show_the_list(GameState *g, Platform *pf)
 {
     frame_the_list(g);
-    set_menu_scroll_bar_span(g, thumb_at_row(g, menu_scroll_bar_span(g)));
+    set_menu_scroll_bar_span(g, thumb_at_row(menu_scroll_bar_span(g)));
     set_menu_scroll_bar_place(g, LIST_BAR_PLACE);
     note_the_pointed_tech(g);
     set_menu_screen_argument(g, 0);
@@ -655,7 +641,6 @@ void menu_techs_show_the_pointed_tech(GameState *g, Platform *pf)
 {
     note_the_pointed_tech(g);
     MenuTechCost c = menu_tech_cost_for(g, menu_tech_pointed(g), kind_listed(g));
-    charge_machine_accesses(g, 1);
     set_menu_text_attribute(g, loaded_member_short_of(g, c.mp) ? MP_SHORT : MP_ENOUGH);
     TIMED_AS(g, 0xC2F114, (void)menu_draw_number_value(g, tech_cost_needed(g), COST_FORMAT, COST_AT));
     set_menu_screen_argument(g, 1);
@@ -696,9 +681,8 @@ uint8_t menu_techs_list_top_for_paging(GameState *g)
  * row, and the list's rows drawn again from there. */
 void menu_techs_turn_page(GameState *g, uint8_t top)
 {
-    set_menu_scroll_bar_thumb(g, thumb_at_row(g, menu_scroll_bar_thumb(g)));
+    set_menu_scroll_bar_thumb(g, thumb_at_row(menu_scroll_bar_thumb(g)));
     set_menu_tech_list_top(g, top);
-    charge_machine_accesses(g, 1);
     TIMED_AS(g, 0xC2BD6B, menu_techs_draw_list_rows(g, top));
 }
 
@@ -783,7 +767,6 @@ static void move_list_rows(GameState *g, bool up)
             wram_copy(g, WORK_RAM | (uint16_t)(SECOND_ROW_TOP + r * TILE_ROW_BYTES),
                       WORK_RAM | (uint16_t)(FIRST_ROW_TOP + r * TILE_ROW_BYTES), NAME_COLUMN_BYTES);
         charge_block_move(g, ROWS_UP * NAME_COLUMN_BYTES);
-        charge_machine_accesses(g, 8);
         return;
     }
     for (unsigned r = 0; r < ROWS_DOWN; r++) {
@@ -793,7 +776,6 @@ static void move_list_rows(GameState *g, bool up)
     }
     wram_copy(g, WORK_RAM | INCOMING_ROWS, WORK_RAM | FIRST_ROWS, INCOMING_ROWS_BYTES);
     charge_block_move(g, ROWS_DOWN * NAME_COLUMN_BYTES + INCOMING_ROWS_BYTES);
-    charge_machine_accesses(g, 6);
 }
 
 /* Once slid: the rows moved in their buffer, the list at rest, the upload
@@ -805,7 +787,7 @@ void menu_techs_finish_list_slide(GameState *g)
     move_list_rows(g, menu_list_slid_up(g));
     set_menu_scroll_step(g, 0);
     set_menu_vram_queue_bytes(g, 0);
-    set_menu_scroll_bar_thumb(g, thumb_at_row(g, menu_tech_list_top(g)));
+    set_menu_scroll_bar_thumb(g, thumb_at_row(menu_tech_list_top(g)));
     menu_put_the_list_bands_back(g);
 }
 
@@ -833,7 +815,6 @@ static void ask_for_description(GameState *g, uint16_t line, uint8_t pace, uint8
     set_menu_description_pace(g, pace);
     if (!menu_description_shows_another(g, which))
         return;
-    charge_machine_accesses(g, 2);
     menu_describe(g, which, (uint32_t)MENU_TECH_DESCRIPTIONS_BANK << 16 | MENU_TECH_DESCRIPTIONS, DESCRIPTION_ROW_VRAM);
 }
 
@@ -870,14 +851,11 @@ TechsUse menu_techs_use(GameState *g)
     if (loaded_member_waits(g))
         return TECH_REFUSED_WAITING;
     uint8_t tech = menu_tech_pointed(g);
-    charge_machine_io_accesses(g, 4);
     if (!menu_tech_heals(g, tech))
         return TECH_REFUSED_NOT_HEALING;
-    charge_machine_accesses(g, 2);
     uint8_t user = member_on_the_cursor(g);
     set_menu_tech_user(g, user);
     (void)load_member(g, user);
-    charge_machine_accesses(g, 1);
     MenuTechCost c = menu_tech_cost_for(g, tech, kind_listed(g));
     set_menu_tech_cost(g, c.mp);
     return loaded_member_short_of(g, c.mp) ? TECH_REFUSED_SHORT_OF_MP : TECH_USED;
@@ -950,7 +928,6 @@ static void draw_targets(GameState *g, Platform *pf)
         TIMED_AS(g, 0xC2A1EF, menu_note_member_face_and_hp(g));
         menu_draw_windows(g, pf, TARGET_ROW);
         uint8_t character = menu_status_record_character(g);
-        (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4));
         place_record(g, character, menu_tech_target_sprite_place(g, member));
         at = (uint16_t)(at + TARGET_ROW_BYTES);
         bool hurt = menu_low_hp_marks(g, member) >= menu_status_record_hp(g);
@@ -1085,7 +1062,6 @@ void menu_restoring_look_for_help(GameState *g)
         member++;
         menu_work_on_member(g, member);
     } while (--members != 0);
-    charge_machine_accesses(g, 1);
 }
 
 /* ---- The main menu's panel --------------------------------------------------------------------- */
@@ -1337,19 +1313,19 @@ static bool refuse(void *ctx)
     return true;
 }
 
-static bool only_on_the_machine(TechScreenContext *c, uint32_t routine, const char *what)
+static const TechsSteps in_the_program;
+
+static bool reject_operation(TechScreenContext *c, uint32_t routine, const char *what)
 {
     program_breaks_a_contract(c->game, routine, what);
     return false;
 }
 
-static const TechsSteps in_the_program;
-
 static bool move_among_members(void *ctx)
 {
     TechScreenContext *c = ctx;
     if (!menu_techs_can_move_among_members(c->game))
-        return only_on_the_machine(c, 0xC2B520, "a techs screen the port doesn't take");
+        return reject_operation(c, 0xC2B520, "a techs screen the port doesn't take");
     bool back = false;
     TIMED_AS(c->game, 0xC2B520, back = menu_move_among_tech_members_with(c->game, c->pf, &in_the_program, c));
     return back;
@@ -1361,7 +1337,7 @@ static bool sequence(TechScreenContext *c, uint32_t routine, bool (*takes)(const
                      bool (*run)(GameState *, Platform *, const TechsSteps *, void *))
 {
     if (!takes(c->game))
-        return only_on_the_machine(c, routine, "a techs screen the port doesn't take");
+        return reject_operation(c, routine, "a techs screen the port doesn't take");
     bool done = false;
     TIMED_AS(c->game, routine, done = run(c->game, c->pf, &in_the_program, c));
     return done;
@@ -1378,7 +1354,7 @@ static bool describe_the_kind(void *ctx)
 {
     TechScreenContext *c = ctx;
     if (!menu_techs_can_move_among_members(c->game))
-        return only_on_the_machine(c, 0xC2BE16, "a techs screen the port doesn't take");
+        return reject_operation(c, 0xC2BE16, "a techs screen the port doesn't take");
     TIMED_AS(c->game, 0xC2BE16, menu_techs_describe_kind(c->game));
     return true;
 }
@@ -1415,7 +1391,7 @@ static bool run(void *ctx, TechsRoutine r)
         return sequence(c, 0xC2BE01, menu_techs_lister_can_show, menu_describe_pointed_tech_with);
     case TECHS_DESCRIBES_THE_TECH:
         if (!menu_techs_lister_can_show(c->game))
-            return only_on_the_machine(c, 0xC2BE33, "a techs screen the port doesn't take");
+            return reject_operation(c, 0xC2BE33, "a techs screen the port doesn't take");
         TIMED_AS(c->game, 0xC2BE33, menu_techs_describe_tech(c->game));
         return true;
     case TECHS_OPENS_THE_TARGETS:
@@ -1446,7 +1422,7 @@ bool menu_open_techs(GameState *g, Platform *pf)
 {
     TechScreenContext c = { g, pf };
     if (!menu_techs_can_open(g))
-        return only_on_the_machine(&c, 0xC2B35D, "a techs screen the port doesn't take");
+        return reject_operation(&c, 0xC2B35D, "a techs screen the port doesn't take");
     return menu_open_techs_with(g, pf, &in_the_program, &c);
 }
 
@@ -1454,7 +1430,7 @@ bool menu_choose_tech_member(GameState *g, Platform *pf)
 {
     TechScreenContext c = { g, pf };
     if (!members_step_takes(g))
-        return only_on_the_machine(&c, 0xC2B36D, "a techs screen the port doesn't take");
+        return reject_operation(&c, 0xC2B36D, "a techs screen the port doesn't take");
     return menu_choose_tech_member_with(g, pf, &in_the_program, &c);
 }
 
@@ -1465,7 +1441,7 @@ bool menu_choose_tech(GameState *g, Platform *pf)
 {
     TechScreenContext c = { g, pf };
     if (!list_step_takes(g))
-        return only_on_the_machine(&c, 0xC2B3AE, "a techs screen the port doesn't take");
+        return reject_operation(&c, 0xC2B3AE, "a techs screen the port doesn't take");
     return menu_choose_tech_with(g, pf, &in_the_program, &c);
 }
 
@@ -1473,7 +1449,7 @@ bool menu_choose_tech_target(GameState *g, Platform *pf)
 {
     TechScreenContext c = { g, pf };
     if (!targets_step_takes(g))
-        return only_on_the_machine(&c, 0xC2B48E, "a techs screen the port doesn't take");
+        return reject_operation(&c, 0xC2B48E, "a techs screen the port doesn't take");
     return menu_choose_tech_target_with(g, pf, &in_the_program, &c);
 }
 
@@ -1483,7 +1459,7 @@ bool menu_lay_out_tech_members(GameState *g, Platform *pf)
 {
     TechScreenContext c = { g, pf };
     if (!members_step_takes(g))
-        return only_on_the_machine(&c, 0xC2B365, "a techs screen the port doesn't take");
+        return reject_operation(&c, 0xC2B365, "a techs screen the port doesn't take");
     menu_techs_lay_out_members(g, pf);
     bool back = false;
     TIMED_AS(g, 0xC2B36D, back = menu_choose_tech_member_with(g, pf, &in_the_program, &c));

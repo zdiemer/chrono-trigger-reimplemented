@@ -93,11 +93,3 @@ void vid_snes_write_register(Platform *pf, PfOrigin o, uint16_t address, uint8_t
     VidObjConfig c = vid_obj_config_decode(v);
     vid_set_obj_config(pf, o, &c);
 }
-
-/* What the SNES would send nowhere (its writes land in memory, not in the
- * registers), a host sends: the palette. */
-void vid_snes_send_palette_into_memory(Platform *pf, PfOrigin o, uint8_t bank, uint8_t first, PfData src, uint16_t count)
-{
-    (void)bank;
-    vid_send_palette(pf, o, first, src, count);
-}

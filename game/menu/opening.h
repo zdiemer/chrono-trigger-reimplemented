@@ -4,7 +4,8 @@
 #define CT_GAME_MENU_OPENING_H
 
 #include "platform/platform.h"
-#include "snes/system.h"
+#include <stdbool.h>
+#include <stdint.h>
 #include "state.h"
 
 /* The party's nine places: three active, six waiting; a place without a
@@ -22,9 +23,7 @@ void menu_unpack_settings(GameState *g);
 /* The settings screen's cells packed back into the player's settings. */
 void menu_pack_settings(GameState *g);
 
-void menu_open(Snes *s);
 /* The same as C: false where a step is the machine's yet. */
 bool menu_opens(GameState *g, Platform *pf);
-bool menu_opening_runs(Snes *s);
 
 #endif

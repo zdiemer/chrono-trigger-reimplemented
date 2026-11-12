@@ -5,7 +5,7 @@
 
 #include <stdint.h>
 
-#include "snes/system.h"
+#include <stdbool.h>
 #include "state.h"
 
 /* An upload to VRAM: `size` bytes (0 for 64 KiB) from `source`, a 24-bit

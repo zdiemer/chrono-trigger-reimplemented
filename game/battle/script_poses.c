@@ -88,7 +88,6 @@ static void play(GameState *g, ScriptChannel ch, uint8_t animation, PlayMode mod
     else
         for (; script_each_combatant(g, ch, k, &combatant); k++)
             play_combatant_animation(g, combatant, animation, mode);
-    charge_machine_accesses(g, 2 + (ch.kind == SCRIPT_EFFECT ? 0 : ((k != 0 ? 3 : 0) + (ch.kind == SCRIPT_OTHER_TARGETS ? 2 : 0))));
 }
 
 static bool combatants_animating(const GameState *g, ScriptChannel ch)
@@ -210,12 +209,11 @@ static void play_nobodys_animation(GameState *g, uint8_t nobody, uint8_t animati
     set_battle_object_facing_shown_unchecked(g, nobody, TAKE_AFRESH);
 }
 
-static ScriptFlow nobody_plays_and_waits(GameState *g, ScriptChannel ch, uint8_t animation, WaitStyle style)
+static ScriptFlow nobody_plays_and_waits(GameState *g, uint8_t animation, WaitStyle style)
 {
     if (battle_animation_wait_unchecked(g, SCRIPT_NOBODY) == NOT_WAITING) {
         set_battle_animation_wait_unchecked(g, SCRIPT_NOBODY, style.mark);
         play_nobodys_animation(g, SCRIPT_NOBODY, animation, PLAY_ONCE);
-        charge_machine_accesses(g, 2 + (ch.kind == SCRIPT_EFFECT ? 0 : 3 + (ch.kind == SCRIPT_OTHER_TARGETS ? 2 : 0)));
         return SCRIPT_STAY;
     }
     if (battle_animating_unchecked(g, SCRIPT_NOBODY) != 0)
@@ -229,7 +227,7 @@ static ScriptFlow play_and_wait_as(GameState *g, ScriptChannel ch, uint8_t anima
     if (ch.kind == SCRIPT_EFFECT)
         return effect_plays_and_waits(g, ch, animation, style);
     if (ch.kind == SCRIPT_ONE_COMBATANT && script_combatant(g, ch) == SCRIPT_NOBODY)
-        return nobody_plays_and_waits(g, ch, animation, style);
+        return nobody_plays_and_waits(g, animation, style);
     uint8_t marked = marked_combatant(g, ch);
     if (combatant_mark(g, style, marked) == NOT_WAITING) {
         set_combatant_mark(g, style, marked, style.mark);
@@ -273,7 +271,6 @@ enum { LEFT_MARK = 0x00 };
 
 static ScriptFlow play_and_wait_marked(GameState *g, ScriptChannel channel, uint8_t animation, uint8_t mark)
 {
-    charge_machine_accesses(g, 3);
     return play_and_wait_as(g, channel, animation, (WaitStyle){ .shown = false, .every_target = true, .mark = mark });
 }
 SCRIPT_OPERATION(play_and_wait_marked, channel, animation, mark)
@@ -328,8 +325,6 @@ static ScriptFlow set_speed(GameState *g, ScriptChannel channel, uint8_t speed)
     unsigned k;
     for (k = 0; script_each_combatant(g, channel, k, &combatant); k++)
         set_mover_speed(g, combatant_mover(combatant), period, steps);
-    if (channel.kind == SCRIPT_OTHER_TARGETS)
-        charge_machine_accesses(g, 2);
     return SCRIPT_NEXT_FRAME;
 }
 SCRIPT_OPERATION(set_speed, channel, speed)
@@ -346,7 +341,6 @@ enum { OFF_THE_PLANE = 0x80, DRAWING_FLAGS = 0x7F, LEFT_BITS = 0x0E };
 /* The combatants get, or lose, a topmost entry in the draw list as well. */
 static ScriptFlow drawn_on_top(GameState *g, ScriptChannel channel, bool on)
 {
-    charge_machine_accesses(g, 1);
     uint8_t combatant;
     for (unsigned k = 0; script_each_combatant(g, channel, k, &combatant); k++)
         set_battle_object_extra_draw_on(g, combatant, (uint8_t)((battle_object_extra_draw_on(g, combatant) & OFF_THE_PLANE) | on));
@@ -359,7 +353,6 @@ SCRIPT_OPERATION(drawn_on_top, channel, on)
  * back on the battlefield's plane (the original sets the whole byte). */
 static ScriptFlow hidden(GameState *g, ScriptChannel channel, bool on)
 {
-    charge_machine_accesses(g, 1);
     if (channel.kind == SCRIPT_ONE_COMBATANT) {
         set_battle_object_hidden(g, script_combatant(g, channel), on);
         return SCRIPT_NEXT_FRAME;
@@ -377,7 +370,6 @@ SCRIPT_OPERATION(hidden, channel, on)
 static ScriptFlow withdrawn(GameState *g, ScriptChannel channel, bool on)
 {
     uint8_t plane = on ? OFF_THE_PLANE : 0;
-    charge_machine_accesses(g, 1);
     if (channel.channel < OTHER_TARGETS_CHANNEL) {
         uint8_t combatant = script_combatant(g, channel);
         set_battle_object_hidden(g, combatant, (uint8_t)((battle_object_hidden(g, combatant) & DRAWING_FLAGS) | plane));
@@ -422,7 +414,6 @@ static ScriptFlow glide_sprite(GameState *g, ScriptChannel channel, uint8_t leng
 {
 
     (void)length;
-        charge_machine_accesses(g, 3);
     if (channel.kind == SCRIPT_EFFECT)
         return SCRIPT_NEXT_FRAME;
     uint8_t combatant;
@@ -458,7 +449,6 @@ enum { LEFT_OPERAND = 0x00 };
 
 static ScriptFlow attribute_bits(GameState *g, ScriptChannel channel, uint8_t bits)
 {
-    charge_machine_accesses(g, 1);
     if (channel.kind == SCRIPT_EFFECT) {
         set_battle_effect_attribute_bits(g, script_effect(g), bits);
         return SCRIPT_NEXT_FRAME;
@@ -470,24 +460,8 @@ static ScriptFlow attribute_bits(GameState *g, ScriptChannel channel, uint8_t bi
 }
 SCRIPT_OPERATION(attribute_bits, channel, bits)
 
-// $C1:7579
-/* The attribute bits go back to what they started as. The original reads
- * the byte after the command into its first work cell, and never uses it. */
-/* Preserve the machine estimate for removed comparison accesses.
- * Inspect the branch without charging those reads to either backend. */
-static void charge_operand_copy(GameState *g)
-{
-    uint32_t charge_mark = charge_uncounted_begin(g);
-    uint8_t bank = (uint8_t)(((battle_script_pointer(g) + 1) & 0xFFFFFF) >> 16);
-    charge_uncounted_end(g, charge_mark);
-    bool ram = bank == 0x7E || bank == 0x7F;
-    charge_machine_accesses(g, ram ? 5 : 4);
-    charge_machine_rom_accesses(g, ram ? 0 : 1);
-}
-
 static ScriptFlow attribute_bits_back(GameState *g, ScriptChannel channel)
 {
-    charge_operand_copy(g);
     if (channel.kind == SCRIPT_EFFECT) {
         uint8_t effect = script_effect(g);
         set_battle_effect_attribute_bits(g, effect, battle_effect_attribute_bits_start(g, effect));
@@ -530,7 +504,6 @@ static ScriptFlow trail(GameState *g, ScriptChannel channel, uint8_t length, boo
 {
 
     (void)length;
-        charge_machine_accesses(g, on ? 4 : 2);
     ScriptChannel trailed = channel;
     if (channel.kind == SCRIPT_ONE_COMBATANT && channel.channel > OTHER_TARGETS_CHANNEL)
         trailed.kind = SCRIPT_OTHER_TARGETS;
@@ -540,7 +513,6 @@ static ScriptFlow trail(GameState *g, ScriptChannel channel, uint8_t length, boo
             set_battle_trail_period(g, combatant, trail_period);
             set_battle_afterimage_period(g, combatant, afterimage_period);
         } else {
-            charge_machine_accesses(g, 4);
         }
         restart_trail(g, combatant, on ? TRAIL_ON : TRAIL_OFF);
     }

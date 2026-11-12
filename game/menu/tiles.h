@@ -7,7 +7,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "snes/system.h"
 #include "state.h"
 
 /* A character's large portrait, six tiles by six from `origin`, numbered on

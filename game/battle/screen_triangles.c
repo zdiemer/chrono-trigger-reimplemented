@@ -15,7 +15,6 @@
 #include "battle/bridge.h"
 #include "battle/screen_sides.h"
 #include "cpu_io.h"
-#include "port/native.h"
 
 typedef BattlePoint Corner;
 enum { CORNERS = SCREEN_TRIANGLE_CORNERS };
@@ -144,10 +143,7 @@ bool screen_triangle_fits_the_table(const GameState *g, ScreenTriangle t) { retu
  * measured ($0B-$0D, and the divider its division leaves), the top line and
  * the lines each stretch ends on ($0F, $11, $10), and a stretch's count run
  * down to 0 ($01-$02). */
-enum {
-    WAY_CELL = 0x00, COUNT_CELL = 0x01, LEFT_CELL = 0x03, RIGHT_CELL = 0x05, TURNED_CELL = 0x07,
-    EDGE_CELLS = 0x0B, TOP_CELL = 0x0F, SECOND_END_CELL = 0x10, FIRST_END_CELL = 0x11, CORNER_CELLS = 0x12,
-};
+enum { WAY_CELL = 0x00, COUNT_CELL = 0x01, LEFT_CELL = 0x03, RIGHT_CELL = 0x05, TURNED_CELL = 0x07, EDGE_CELLS = 0x0B, TOP_CELL = 0x0F, SECOND_END_CELL = 0x10, FIRST_END_CELL = 0x11, CORNER_CELLS = 0x12,  };
 
 /* The last edge measured: the right side's for a flat top or bottom, and the
  * one a side turns onto otherwise. */
@@ -162,10 +158,7 @@ void screen_draw_window_triangle(GameState *g, unsigned window, ScreenTriangle t
 {
     TriangleSides ts = sides_of(t);
     Window w = window_numbered(window);
-    SidesDrawn drawn = draw_window_sides(g, w, &ts.sides);
-    (charge_machine_accesses(g, 2 * CORNERS + 10 + ((ts.form == LEFT_SIDE_TURNS || ts.form == RIGHT_SIDE_TURNS) ? 3 : 0) + ((ts.sides.stretch[0].lines || ts.sides.stretch[1].lines) ? 2 : 0)), charge_machine_io_accesses(g, 3));
-    charge_machine_accesses(g, 6);
-    (charge_machine_accesses(g, 1), charge_machine_io_accesses(g, 3 + (drawn.lines ? 1 : 0)));
+    (void)draw_window_sides(g, w, &ts.sides);
 }
 
 /* The hung triangle's corner away from the top: where the upper corner's
@@ -186,10 +179,7 @@ void screen_hang_window_triangle(GameState *g, unsigned window, BattlePoint a, B
     Edges above = edges_between(ts.c[0].x, ts.c[1].x);
     for (unsigned line = 0; line < ts.sides.top; line++)
         set_line_edges(g, coming_line(g, line), w, above);
-    SidesDrawn drawn = draw_window_sides(g, w, &ts.sides);
-    (charge_machine_accesses(g, 2 * CORNERS + 10 + ((ts.form == LEFT_SIDE_TURNS || ts.form == RIGHT_SIDE_TURNS) ? 3 : 0) + ((ts.sides.stretch[0].lines || ts.sides.stretch[1].lines) ? 2 : 0)), charge_machine_io_accesses(g, 3));
-    charge_machine_accesses(g, ts.sides.top ? 5 : 4);
-    (charge_machine_accesses(g, 1), charge_machine_io_accesses(g, 3 + (drawn.lines ? 1 : 0)));
+    (void)draw_window_sides(g, w, &ts.sides);
 }
 
 /* ---- The center ---------------------------------------------------------------------------- */
@@ -348,6 +338,5 @@ BattlePoint screen_triangle_center(GameState *g, ScreenTriangle t)
     uint32_t product = (uint32_t)column * m.first.slope;
     uint16_t line = (uint16_t)((product >> SLOPE_FRACTION_BITS) + m.first.intercept);
     keep_center_work(g, m, x, column, product, line);
-    (charge_machine_accesses(g, 19), charge_machine_io_accesses(g, 9));
     return (BattlePoint){ column, (uint8_t)line };
 }

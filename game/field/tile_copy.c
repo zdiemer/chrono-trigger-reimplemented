@@ -20,7 +20,6 @@
 #include "field/field.h"
 #include "field/object.h"
 #include "field/parts.h"
-#include "port/machine.h"
 #include "vars.h"
 
 /* The properties' bits that say which half of its tile set a layer's tile
@@ -68,7 +67,6 @@ static void copy_table(GameState *g, TileRectangle r, MapTable table)
         for (unsigned column = 0; column < r.width; column++)
             set_table_byte(g, table, offset_by(r.to, row, column),
                            table_byte(g, table, offset_by(r.from, row, column)));
-    charge_machine_accesses(g, 10); /* four working words and the selected table */
 }
 
 static void copy_property_bit(GameState *g, TileRectangle r, uint8_t bit)
@@ -81,7 +79,6 @@ static void copy_property_bit(GameState *g, TileRectangle r, uint8_t bit)
                                       (uint8_t)((there & ~bit) | (field_tile_properties(g, from.row, from.column) & bit)));
         }
     }
-    charge_machine_accesses(g, 12); /* last property read, selected bit and five working words */
 }
 
 // $C0:AF4E, and its table copy $C0:B096
@@ -107,34 +104,10 @@ bool map_tile_copy_fits(uint16_t from, uint16_t to, uint16_t destination)
            there.column + (last.column - first.column) < COLUMNS && there.row + (last.row - first.row) < ROWS;
 }
 
-/* ---- The entry -------------------------------------------------------------------------------- */
-
-/* The main loop's copy ($C0:1790) and event $E4's call it on the field's page
- * with 16-bit index registers; it leaves Y and the overflow as its last
- * table's copy does (field/leaves.c). */
-void field_copy_tiles(Snes *s)
-{
-    GameState *g = state_of(s);
-    map_copy_tiles(g);
-    s->cpu.y = field_tile_copy_y(g, s->cpu.y);
-    m_set_flag(s, CPU_FLAG_V, field_tile_copy_overflow(g, m_flag(s, CPU_FLAG_V)));
-    m_rts(s);
-}
-
 /* Its guard: the rectangle and where it goes are on the map (past its edges
  * the original's block moves run on into the next table), and the data bank
  * reaches low RAM. */
 bool field_tile_copy_is_on_the_map(const GameState *g)
 {
     return map_tile_copy_fits(field_tile_copy_from(g), field_tile_copy_to(g), field_tile_copy_destination(g));
-}
-
-bool field_tile_copy_fits(Snes *s)
-{
-    if (!field_on_page_low_bank(s))
-        return false;
-    vars_peek(true);
-    bool ok = field_tile_copy_is_on_the_map(state_of(s));
-    vars_peek(false);
-    return ok;
 }

@@ -24,15 +24,12 @@
 #include "menu/description.h"
 
 #include "charge.h"
-#include "holds.h"
-#include "port/native.h"
 #include "core/program.h"
 #include "menu/bridge.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/typeset.h"
 #include "menu/vram.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -43,10 +40,7 @@ enum { TYPE_A_DESCRIPTION = MENU_TYPE_A_DESCRIPTION, TYPE_A_SETTING = MENU_TYPE_
 
 /* The text layer's tilemap: two bytes a tile, 32 tiles a row. A line of
  * text is two tile rows, its glyphs' top halves and their bottom halves. */
-enum {
-    TILE_BYTES = 2, TILE_ROW_BYTES = 0x40, ROW_START = 0xFFC0, LINE_BYTES = 2 * TILE_ROW_BYTES,
-    TEXT_LAYER_AT = (uint16_t)RAM_MENU_TEXT_TILEMAP,
-};
+enum { TILE_BYTES = 2, TILE_ROW_BYTES = 0x40, ROW_START = 0xFFC0, LINE_BYTES = 2 * TILE_ROW_BYTES, TEXT_LAYER_AT = (uint16_t)RAM_MENU_TEXT_TILEMAP,  };
 
 /* A strip of a line's tiles: sixteen top halves, then their bottom halves. */
 enum { STRIP = 0x10 };
@@ -121,7 +115,6 @@ static void begin_the_next_line(GameState *g)
  * reads. */
 static void send(GameState *g, MenuUpload u)
 {
-    charge_machine_accesses(g, 1);
     TIMED_AS(g, 0xC2838E, menu_queue_upload(g, u));
 }
 
@@ -154,7 +147,6 @@ static void lay_the_new_tiles(GameState *g)
         at = (uint16_t)(at + TILE_BYTES);
     }
     set_menu_description_laid_to(g, pen);
-    charge_machine_accesses(g, 4);
 }
 
 /* The line's tiles and their laying only where it has new glyphs; the row
@@ -168,7 +160,6 @@ void menu_send_the_typing(GameState *g)
         lay_the_new_tiles(g);
     }
     send(g, the_row(g));
-    charge_machine_accesses(g, 13);
 }
 
 /* A frame of typing: as many glyphs as the pace allows set and sent, a
@@ -203,7 +194,6 @@ void menu_start_typing(GameState *g)
     set_menu_description_line_from(g, 0);
     clear_the_row(g);
     begin_line(g, FIRST_LINE);
-    charge_machine_accesses(g, 1);
     menu_start_task(g, MENU_DESCRIPTION_TASK, TYPE_A_DESCRIPTION);
     TIMED_AS(g, 0xC257DF, menu_text_start(g));
 }
@@ -274,7 +264,6 @@ static void begin_the_setting(GameState *g)
     set_menu_description_glyphs_sent(g, 0);
     set_menu_description_line_from(g, 0);
     begin_line(g, FIRST_LINE);
-    charge_machine_accesses(g, 2);
     TIMED_AS(g, 0xC257DF, menu_text_start(g));
 }
 
@@ -286,7 +275,6 @@ static void begin_the_value(GameState *g)
     set_menu_description_glyphs_sent(g, 0);
     set_menu_description_line(g, (uint16_t)(menu_description_value_line(g) + menu_description_value_tile(g) * TILE_BYTES));
     begin_line(g, VALUE_LINE);
-    charge_machine_accesses(g, 2);
     TIMED_AS(g, 0xC257DF, menu_text_start(g));
 }
 
@@ -392,79 +380,6 @@ void menu_type_the_value_task(GameState *g, Platform *pf)
 /* The end of a task, which the scheduler goes on from, and which reads none
  * of the registers. */
 enum { END_OF_A_TASK = 0xC28216 };
-enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-// $C2:FA49
-
-// $C2:F943
-
-// $C2:FAE9
-
-static bool wait_on_the_machine(void *ctx) { return menu_wait_a_frame_from(ctx, 0xC2FAA5); }
-
-// $C2:FAA8
-/* It leaves an 8-bit accumulator. */
-void menu_type_the_description(Snes *s)
-{
-    menu_set_widths(s, true, false);
-    if (m_runs_retired_as_c(s)) {
-        /* Each frame leaves the task's return on its own stack. Resuming
-         * the typing therefore needs no suspended C call chain. */
-        if (type_a_frame(state_of(s))) {
-            (void)menu_run_called(s, 0xC2FAA5, MENU_TASK_WAITS_A_FRAME,
-                                  MENU_TASK_WAIT_READS_NOTHING, menu_task_waits_a_frame);
-            return;
-        }
-        m_rts(s);
-        native_hold(s, HOLD_MENU_TASKS);
-        return;
-    }
-    if (type_the_text(state_of(s), wait_on_the_machine, s))
-        m_rts(s);
-}
-
-/* On the machine each typing is a sibling run as the original's JSR reaches
- * it, with 16-bit registers, and the task's end is the scheduler's. */
-static bool type_on_the_machine(void *ctx, uint32_t site)
-{
-    Snes *s = ctx;
-    menu_set_widths(s, false, false);
-    return menu_run_any_widths(s, site, 0xC2FAA8, menu_type_the_description);
-}
-
-static void typing_task_on_the_machine(Snes *s, TypingTask task)
-{
-    if (typing_task_with(state_of(s), task, type_on_the_machine, s))
-        menu_continue(s, END_OF_A_TASK, menu_task_ends, READS_NOTHING);
-}
-
-void menu_type_the_description_task_entry(Snes *s) { typing_task_on_the_machine(s, TYPE_THE_DESCRIPTION); }
-void menu_type_the_setting_task_entry(Snes *s) { typing_task_on_the_machine(s, TYPE_THE_SETTING); }
-void menu_type_the_value_task_entry(Snes *s) { typing_task_on_the_machine(s, TYPE_THE_VALUE); }
-
-// $C2:FAA2, $C2:FA46
-/* A description, or a setting's value, has reached its end. Give the rest
- * of this frame to the other menu tasks. */
-void menu_typing_task_finished(Snes *s)
-{
-    menu_go_on_in(s, END_OF_A_TASK, menu_task_ends, READS_NOTHING);
-}
-
-// $C2:F9EB
-/* The option's text fixes where its value follows on the line. The value
- * starts a new typing phase on the same task and stack. */
-void menu_setting_text_finished(Snes *s)
-{
-    note_where_the_value_goes(state_of(s));
-    m_jump_to(s, 0xC2FA06);
-    if (!menu_runs_as_port(s, 0xC2FA06, menu_type_the_value_task_entry)) {
-        m_stop_at(s, 0xC2FA06, READS_NOTHING);
-        return;
-    }
-    /* The setting task falls through into the value phase. Its setup keeps
-     * the setting task's rate, as it did inside typing_task_with. */
-    menu_type_the_value_task_entry(s);
-}
 
 /* ---- The guards ---------------------------------------------------------------------------------- */
 
@@ -485,19 +400,7 @@ static bool laying_fits(const GameState *g)
            && line + from + TILE_ROW_BYTES + 2 * TILE_ROW_BYTES <= TEXT_LAYER_AT + MENU_TEXT_TILEMAP_COUNT * TILE_BYTES;
 }
 
-static bool guarded(Snes *s, bool (*ok)(const GameState *g))
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    bool fine = ok(state_of(s));
-    vars_peek(false);
-    return fine;
-}
-
 static bool typing_goes_on(const GameState *g) { return laying_fits(g) && menu_text_can_carry_on(g); }
-
-bool menu_typing_can_go_on(Snes *s) { return guarded(s, typing_goes_on); }
 
 static bool value_fits(const GameState *g)
 {
@@ -514,10 +417,3 @@ static bool typing_task_can_start(const GameState *g, TypingTask task)
     }
     return false;
 }
-
-static bool setting_typing_starts(const GameState *g) { return typing_task_can_start(g, TYPE_THE_SETTING); }
-static bool value_typing_starts(const GameState *g) { return typing_task_can_start(g, TYPE_THE_VALUE); }
-
-bool menu_setting_typing_can_start(Snes *s) { return guarded(s, setting_typing_starts); }
-
-bool menu_value_typing_can_start(Snes *s) { return guarded(s, value_typing_starts); }

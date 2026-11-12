@@ -1,33 +1,15 @@
-/* The program's top: the boot, the main thread, and the frame's two
- * interrupts sent to the running mode's handlers.
- *
- * The boot puts every register of the console and of the picture where the
- * game wants it at the start; the main thread then hands over to the field
- * engine's first start, which shows the title. Each mode installs its own
- * vblank and line handlers by writing the stubs in work RAM the interrupts
- * go through -- a long jump to its handler, or a return while it wants none
- * -- and the frame's interrupts go wherever the stubs say.
- *
- * On the machine, core/console.c's entries are this file's callers: the CPU
- * reaches the boot through the reset and the stubs through the cartridge's
- * vectors, and goes on from them by address. With no machine, the driver
- * calls the main thread and the handlers itself, and where the program's next
- * step is still only a machine entry, the program goes no further
- * (program_needs_the_machine): the field's first start, and every mode's
- * handlers, which are still entries that work on the machine's registers and
- * stack (docs/TODO.md, "The native program"). */
+/* The program from power-on: boot the services, then run field, scene and
+ * warp modes as ordinary calls. Modes yield frames through the timing service
+ * and install the callbacks the frame driver invokes. */
 #include "core/program.h"
+#include "charge.h"
 
-#include "battle/program.h"
-#include "field/field.h"
 #include "field/main_loop.h"
-#include "menu/display.h"
 #include "scene/scene.h"
 #include "warp/warp.h"
 #include "platform/input.h"
 #include "platform/timing.h"
 #include "platform/video.h"
-#include "vars.h"
 
 /* ---- The boot -------------------------------------------------------------------------------- */
 
@@ -70,95 +52,46 @@ void program_boot(GameState *g, Platform *pf)
     vid_apply_screen(pf, PF_AT(0xFDC036), &power_on_screen);
 }
 
-/* ---- The interrupts' stubs ------------------------------------------------------------------- */
+/* Mode callbacks live in the program's own state. Preserve the established
+ * work estimate for reading a four-byte vector on each enabled frame event;
+ * selecting a callback no longer reads or executes that encoding. */
+enum { HANDLER_SELECTION_ACCESSES = 4, IGNORE_HANDLERS_ACCESSES = 16 };
 
-/* A stub is a long jump to the mode's handler, or a return where the mode has
- * turned the interrupt away. */
-enum { STUB_LONG_JUMP = 0x5C, STUB_RETURN = 0x40, STUB_KIND_BITS = 0xFF };
-
-static uint32_t stub_jumping_to(uint32_t handler) { return STUB_LONG_JUMP | handler << 8; }
-
-static ProgramStub stub_of(uint32_t stub)
+void program_install_vblank_handler(GameState *g, ProgramHandler handler)
 {
-    switch (stub & STUB_KIND_BITS) {
-    case STUB_LONG_JUMP: return (ProgramStub){ PROGRAM_STUB_JUMPS, stub >> 8 };
-    case STUB_RETURN: return (ProgramStub){ PROGRAM_STUB_RETURNS, 0 };
-    default: return (ProgramStub){ PROGRAM_STUB_UNSET, 0 };
-    }
+    program_handlers(g)->vblank = handler;
 }
 
-void program_install_vblank_handler(GameState *g, uint32_t handler) { set_nmi_vector(g, stub_jumping_to(handler)); }
-void program_install_line_handler(GameState *g, uint32_t handler) { set_irq_vector(g, stub_jumping_to(handler)); }
+void program_install_line_handler(GameState *g, ProgramHandler handler)
+{
+    program_handlers(g)->line = handler;
+}
 
 void program_ignore_interrupts(GameState *g)
 {
-    set_nmi_vector(g, (nmi_vector(g) & ~STUB_KIND_BITS) | STUB_RETURN);
-    set_irq_vector(g, (irq_vector(g) & ~STUB_KIND_BITS) | STUB_RETURN);
+    *program_handlers(g) = (ProgramHandlers){ 0 };
+    charge_legacy_accesses(g, IGNORE_HANDLERS_ACCESSES);
 }
 
-ProgramStub program_vblank_stub(const GameState *g) { return stub_of(nmi_vector(g)); }
-ProgramStub program_line_stub(const GameState *g) { return stub_of(irq_vector(g)); }
-
-/* ---- The modes' handlers --------------------------------------------------------------------- */
-
-/* The handlers the modes install, by the address their stubs name. A row's
- * `run` is the handler as a function of the game's state, which the driver
- * calls; a handler the table doesn't name stops the program. */
-typedef void (*ProgramHandler)(GameState *g, Platform *pf);
-static const struct {
-    uint32_t handler;
-    const char *name;
-    ProgramHandler run;
-} handlers[] = {
-    { FIELD_VBLANK_HANDLER, "the field's vblank handler", field_vblank },
-    { FIELD_LINE_HANDLER, "the field's line handler", field_line },
-    { MENU_VBLANK_HANDLER, "the menus' vblank handler", menu_vblank },
-    { MENU_LINE_HANDLER, "the menus' line handler", menu_line },
-    { MENU_OBJECT_VBLANK_HANDLER, "the sprite-object mode's vblank handler", menu_object_vblank },
-    { MENU_OBJECT_LINE_HANDLER, "the sprite-object mode's line handler", menu_object_line },
-    { BATTLE_VBLANK_HANDLER, "the battle's vblank handler", battle_vblank },
-    { BATTLE_LINE_HANDLER, "the battle's line handler", battle_line },
-    { BATTLE_CLOSING_VBLANK_HANDLER, "the battle's closing vblank handler", battle_closing_vblank },
-    { SCENE_BOOT_VBLANK, "a scene's boot's vblank handler", scene_boot_vblank },
-    { SCENE_BOOT_LINE, "a scene's boot's line handler", scene_boot_line },
-    { SCENE_FRAME_HANDLER, "a scene program's vblank handler", scene_vblank },
-    { SCENE_HANDLER_WHILE_WORKING, "a scene program's vblank handler while it works", scene_vblank_while_working },
-    { WARP_VBLANK_HANDLER, "the warp's vblank handler", warp_vblank },
-    { WARP_LINE_HANDLER, "the warp's line handler", warp_line },
-};
-enum { HANDLERS = sizeof handlers / sizeof handlers[0] };
-
-static void take(GameState *g, Platform *pf, ProgramStub stub, const char *unknown)
+void program_vblank(GameState *g, Platform *pf)
 {
-    if (stub.kind != PROGRAM_STUB_JUMPS)
-        return;   /* turned away, or no mode has set the stub: the interrupt returns at once */
-    for (unsigned i = 0; i < HANDLERS; i++) {
-        if (handlers[i].handler != stub.handler)
-            continue;
-        if (handlers[i].run)
-            handlers[i].run(g, pf);
-        else
-            program_needs_the_machine(g, stub.handler, handlers[i].name);
-        return;
-    }
-    program_needs_the_machine(g, stub.handler, unknown);
+    charge_legacy_accesses(g, HANDLER_SELECTION_ACCESSES);
+    ProgramHandler handler = program_handlers(g)->vblank;
+    if (handler)
+        handler(g, pf);
 }
 
-void program_vblank(GameState *g, Platform *pf) { take(g, pf, program_vblank_stub(g), "a vblank handler"); }
-void program_line(GameState *g, Platform *pf) { take(g, pf, program_line_stub(g), "a line handler"); }
+void program_line(GameState *g, Platform *pf)
+{
+    charge_legacy_accesses(g, HANDLER_SELECTION_ACCESSES);
+    ProgramHandler handler = program_handlers(g)->line;
+    if (handler)
+        handler(g, pf);
+}
 
 /* ---- The main thread ------------------------------------------------------------------------- */
 
 enum { FIELD_ENTER = 0xC0005D };
-
-/* Where the program's next step is still a machine entry, it waits there,
- * frame after frame, for nothing: the build says where it stopped. */
-static void go_no_further(GameState *g, Platform *pf, uint32_t routine, const char *what)
-{
-    program_needs_the_machine(g, routine, what);
-    for (;;)
-        tm_wait_frame(pf, PF_AT(routine));
-}
 
 /* After power-on the game goes between the field and the scenes: the field
  * runs until it ends into a scene (an event's) or a time gate's tunnel, the
@@ -188,7 +121,7 @@ void program_main_thread(GameState *g, Platform *pf)
     program_boot(g, pf);
     field_power_on(g, pf);
     if (!first_scenes_run(g, pf))
-        go_no_further(g, pf, FIELD_ENTER, "the field's entry");
+        return;
     for (;;) {
         field_runs(g, pf);
         if (program_went_no_further(g))
@@ -213,5 +146,5 @@ void program_main_thread(GameState *g, Platform *pf)
             field_power_on(g, pf);
         }
     }
-    go_no_further(g, pf, FIELD_ENTER, "the field's entry");
+    program_fail(g, FIELD_ENTER, "a mode returned without a continuation");
 }

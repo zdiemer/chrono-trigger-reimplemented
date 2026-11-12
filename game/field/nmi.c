@@ -28,8 +28,6 @@
 #include "field/line_effects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
-#include "port/machine.h"
-#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -271,91 +269,10 @@ void field_vblank(GameState *g, Platform *pf)
     bool read = false;
     TIMED_AS(g, MENUS_FRAME, read = input_take_frame(g, pf));
     if (!read) {
-        program_needs_the_machine(g, MENUS_FRAME, "the controller not read, or the reset buttons held");
+        program_fail(g, MENUS_FRAME, "the controller not read, or the reset buttons held");
         return;
     }
     apply_display_shadows(g, pf);
 }
 
 /* ---- Where it meets the original ------------------------------------------------------- */
-
-enum { NMI_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-/* A call of the frame's work, from its call site, as the original makes it:
- * on the field's page (or the layers', for the deferred uploads; the bank
- * C2 routine on whichever page the handler has), with the data bank $00 and
- * 8-bit A; the registers are the interrupted code's, saved,
- * and none is read (but Y by the bank C2 routine, which is what the frame's
- * work left). It goes on where the call came back as it went, and
- * stops at the call's return otherwise. */
-static bool call(Snes *s, uint32_t site, uint32_t routine, uint16_t page)
-{
-    program_breaks_a_contract(state_of(s), routine, "a field edge upload outside its bounds");
-    return bridge_call(s, site, routine, NMI_DONT_CARE, (BridgeMachine){ false, page, 0 });
-}
-
-
-/* Edges larger than the port's take are the original's, each called from its
- * site on the layers' page. */
-static bool run_edge_uploads(Snes *s)
-{
-    static const uint32_t upload_sites[FIELD_EDGE_UPLOADS] = { 0xC0EB9D, 0xC0EBA6, 0xC0EBAF, 0xC0EBB8,
-                                                               0xC0EBC1, 0xC0EBCA, 0xC0EBD3, 0xC0EBDC,
-                                                               0xC0EBE5, 0xC0EBEE, 0xC0EBF7, 0xC0EC00 };
-    GameState *g = state_of(s);
-    for (unsigned k = 0; k < FIELD_EDGE_UPLOADS; k++) {
-        if (!edge_upload_asked(g, k))
-            continue;
-        if (field_layer_edges_fit(g)) {
-            TIMED_AS(g, edge_uploads[k], field_upload_layer_edge(g, m_platform(s), k));
-            continue;
-        }
-        s->cpu.d = FIELD_LAYERS_PAGE;
-        if (!call(s, upload_sites[k], edge_uploads[k], FIELD_LAYERS_PAGE))
-            return false;
-        s->cpu.d = FIELD_PAGE;
-    }
-    no_more_edges_asked(g);
-    return true;
-}
-
-/* The menus' per-frame routine reads Y, which the original's upload of the
- * sprite tile queue leaves its last entry's second size (and which the edge
- * uploads the original runs may move on): given to it here, where the
- * original sets it. */
-static void hand_on_queue_y(Snes *s)
-{
-    s->cpu.y = field_queue_last_second_size(state_of(s), s->cpu.y);
-}
-
-/* The frame's vblank work on the machine. False where the port stopped. */
-static bool frame_work(Snes *s)
-{
-    GameState *g = state_of(s);
-    s->cpu.d = FIELD_PAGE;
-    if (work_before_the_queue(g, m_platform(s)))
-        return true;
-    hand_on_queue_y(s);
-    upload_the_queue(g, m_platform(s));
-    if (!run_edge_uploads(s))
-        return false;
-    finish_frame(g, m_platform(s));
-    return true;
-}
-
-// $C0:EA63 (installed at the $0500 NMI stub by field_install_nmi)
-void field_nmi(Snes *s)
-{
-    m_save_interrupted_registers(s);
-    s->cpu.db = 0x00;
-    Platform *pf = m_platform(s);
-    GameState *g = state_of(s);
-    start_vblank(pf);
-    if (field_frame_pending(g) != 0 && !frame_work(s))
-        return;
-    if (!field_run_long_called(s, 0xC0EC15, MENUS_FRAME, NMI_DONT_CARE & ~DC_Y, menu_take_the_frames_input,
-                               (BridgeMachine){ false, m_direct_page(s), 0 }))
-        return;
-    apply_display_shadows(g, pf);
-    m_return_to_interrupted(s);
-}

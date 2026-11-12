@@ -42,18 +42,14 @@
 #include "field/field_data.h"
 #include "field/scratch.h"
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
 
 /* ---- Tables ------------------------------------------------------------------------- */
 
-enum {
-    LINES_EACH = 0x80,  /* a count with this bit: each line has values of its own */
-    TABLE_END = 0x00,
-    ENTRY_SIZE = 3,     /* a count, then a 16-bit pointer */
-};
+enum { LINES_EACH = 0x80, /* a count with this bit: each line has values of its own */
+    TABLE_END = 0x00, ENTRY_SIZE = 3, /* a count, then a 16-bit pointer */ };
 
 /* The eight effects, in the order of their tables within a set. */
 
@@ -414,13 +410,9 @@ static void color_math_table(GameState *g, TableWriter t, uint8_t set, const Lay
 /* Where the two windows lie. The top one: 7 lines, then (41 - half) above the
  * band and (100 - half) below it, then 30. The bottom one: 100 + 29 lines, then
  * (42 - half) above the band and (40 - half) below it. */
-enum {
-    TOP_START = 7, TOP_ABOVE = 0x29, TOP_BELOW = 0x64, TOP_END = 0x1E,
-    TOP_WAVE_BELOW = 0x82,      /* what a waving BG3's table has below the top window */
-    TOP_WINDOW1_END = 0x47,     /* and window 1's last part */
-    BOTTOM_START = 0x64, BOTTOM_NEXT = 0x1D, BOTTOM_EDGE = 0x29,
-    BOTTOM_WAVE_START = 0x58,   /* a waving BG3's table divides the first 129 lines 88 + 41 */
-};
+enum { TOP_START = 7, TOP_ABOVE = 0x29, TOP_BELOW = 0x64, TOP_END = 0x1E, TOP_WAVE_BELOW = 0x82, /* what a waving BG3's table has below the top window */
+    TOP_WINDOW1_END = 0x47, /* and window 1's last part */
+    BOTTOM_START = 0x64, BOTTOM_NEXT = 0x1D, BOTTOM_EDGE = 0x29, BOTTOM_WAVE_START = 0x58, /* a waving BG3's table divides the first 129 lines 88 + 41 */ };
 
 /* Window 1 follows its per-line table (two bytes a line) outside the band,
  * reading on past the band's lines, and covers the whole line inside it. The
@@ -518,11 +510,8 @@ static void build_line_effect_tables(GameState *g)
  * 256 bytes up into its own source, so its last $38 bytes repeat its first. */
 static const VidColorMath SHADING_ADD = { .layers = VID_BG1_BIT };
 static const VidColorMath SHADING_SUBTRACT = { .subtract = true, .layers = VID_BG1_BIT };
-enum {
-    ALL_CHANNELS = VID_RED | VID_GREEN | VID_BLUE,   /* the fixed color is a gray */
-    SHADING_LINES = 0x28, SHADING_STEPS = 8, SHADING_DEEPEST = 9,
-    SHADING_COPY_BYTES = 0x100,
-};
+enum { ALL_CHANNELS = VID_RED | VID_GREEN | VID_BLUE, /* the fixed color is a gray */
+    SHADING_LINES = 0x28, SHADING_STEPS = 8, SHADING_DEEPEST = 9, SHADING_COPY_BYTES = 0x100,  };
 
 /* `lines` lines of shading from `*line` on. */
 static void shade(GameState *g, uint8_t *line, uint8_t lines, const VidColorMath *math, uint8_t intensity)
@@ -535,11 +524,7 @@ static void shade(GameState *g, uint8_t *line, uint8_t lines, const VidColorMath
 
 /* Each intensity's lines, the lines past them the unshaded middle takes, and
  * the lines the shading covers. */
-enum {
-    SHADING_STEP = SHADING_LINES / SHADING_STEPS,
-    SHADING_REST = SHADING_LINES % SHADING_STEPS,
-    SHADED_LINES = SHADING_STEPS * SHADING_STEP + SHADING_STEP + SHADING_REST + SHADING_DEEPEST * SHADING_STEP,
-};
+enum { SHADING_STEP = SHADING_LINES / SHADING_STEPS, SHADING_REST = SHADING_LINES % SHADING_STEPS, SHADED_LINES = SHADING_STEPS * SHADING_STEP + SHADING_STEP + SHADING_REST + SHADING_DEEPEST * SHADING_STEP,  };
 
 /* Table set 1's copy of the shading. The copy runs on past the shading's lines
  * into the start of the copy itself, which lies right after them, so its lines
@@ -565,8 +550,6 @@ static void fill_dialog_shading(GameState *g)
     shade(g, &line, SHADING_STEP + SHADING_REST, &SHADING_SUBTRACT, 0);
     for (uint8_t intensity = 1; intensity <= SHADING_DEEPEST; intensity++)
         shade(g, &line, SHADING_STEP, &SHADING_SUBTRACT, intensity);
-    charge_machine_io_accesses(g, 3); /* the old shading division */
-    charge_machine_accesses(g, 4); /* extent, step, remainder and last color */
     copy_dialog_shading(g);
 }
 
@@ -662,19 +645,6 @@ uint8_t field_set_up_line_effects(GameState *g, Platform *pf)
  * three; a place past it jumps into bytes that aren't code. */
 bool field_line_effects_can_be_built(const GameState *g) { return dialog_window_position(g) < WINDOW_POSITIONS; }
 
-/* ---- Where it meets the original ------------------------------------------------------
- *
- * The translation between the original's registers and the C, which a build
- * for the 65816 replaces with its own calling convention. The builders'
- * callers read what the original leaves in X, A, the carry and the overflow,
- * which follow from the tables' last writes; they are worked out here from
- * what the builders left. */
-
-static void set_widths(Snes *s, bool m8, bool x8)
-{
-    s->cpu.p = (uint8_t)((s->cpu.p & ~(CPU_FLAG_M | CPU_FLAG_X)) | (m8 ? CPU_FLAG_M : 0) | (x8 ? CPU_FLAG_X : 0));
-}
-
 /* What sending the scroll leaves in the registers: X the last pointer of
  * window 2's table (or, where a layer waves, where the wave's copy ended), A
  * the color math layers with the last scroll's high byte ($FF after a wave),
@@ -686,52 +656,6 @@ typedef struct {
     bool carry, overflow;
 } Leaves;
 
-static Leaves leaves_after_send(const GameState *g, uint8_t set, bool setup, uint16_t x, bool overflow)
-{
-    bool choice = window2_choice(g);
-    if (setup)
-        return (Leaves){ x, field_color_math_layers_override(g), (uint8_t)(field_auto_scroll_position_y(g, 1) >> 8),
-                         choice, overflow };
-    vars_peek(true);
-    bool waved = a_layer_waves(g);
-    vars_peek(false);
-    if (!waved)
-        return (Leaves){ x, field_fixed_color_math_layers(g), (uint8_t)(field_layer_scroll_v(g, FIELD_BG3) >> 8),
-                         choice, overflow };
-    /* The wave's last line: its offset and the scroll it was added to, and
-     * the pixel the line before carried into it, the rest of its sum. */
-    vars_peek(true);
-    uint16_t a = field_wave_offset(g, (uint16_t)(wave_start(field_line_wave_phase(g)) + (WAVE_LINES - 1) * WAVE_ENTRY));
-    uint16_t b = field_layer_scroll_h(g, FIELD_BG3);
-    bool carried = (uint16_t)(field_line_wave_h(g, set * WAVE_SET_LINES + WAVE_LINES - 1) - a - b) != 0;
-    vars_peek(false);
-    return (Leaves){ wave_values(set, WAVE_LINES), field_fixed_color_math_layers(g), 0xFF,
-                     (uint32_t)a + b + carried > 0xFFFF, field_add_with_carry_overflows16(a, b, carried) };
-}
-
-/* The same after a whole builder: the overflow in, which only a window's
- * lines change. */
-static Leaves leaves_after_build(const GameState *g, uint8_t set, WindowPosition position, bool overflow)
-{
-    if (window_open(g, position)) {
-        uint8_t half = dialog_window_state(g);
-        overflow = position == WINDOW_AT_TOP ? field_subtract_overflows8(TOP_BELOW, half)
-                                             : field_subtract_overflows8(BOTTOM_EDGE, half);
-    }
-    uint16_t last = (uint16_t)(window2_lines(g, set) + WHOLE_SCREEN_TOP);
-    return leaves_after_send(g, set, !window_open(g, position) && overridden(g), last, overflow);
-}
-
-static void leave(Snes *s, Leaves l, uint8_t a_low)
-{
-    s->cpu.x = (uint8_t)l.x;
-    s->cpu.y &= 0xFF;
-    s->cpu.a = (uint16_t)(l.a_high << 8 | a_low);
-    m_set_flag(s, CPU_FLAG_C, l.carry);
-    m_set_flag(s, CPU_FLAG_V, l.overflow);
-    set_widths(s, true, true);
-}
-
 /* The guards: the routines reach the field's page through the direct page and
  * the tables through the data bank $7F, which their callers set. $FD:C2C1
  * runs with the caller's data bank, through which the builders read
@@ -739,38 +663,6 @@ static void leave(Snes *s, Leaves l, uint8_t a_low)
  * dialog_window_position through a table of three; a position past it jumps
  * into bytes that aren't code, which stays the original's. */
 enum { LINE_BANK = 0x7F };
-bool field_line_effects_page_is_field(Snes *s) { return s->cpu.d == FIELD_PAGE; }
-
-/* Sending the scroll is entered with window 2's table choice in the carry,
- * which the port takes from the choice itself. */
-
-bool field_line_effects_page_reaches_ram(Snes *s) { return field_on_page_low_bank(s); }
-bool field_line_effects_can_build(Snes *s)
-{
-    if (!field_line_effects_page_reaches_ram(s))
-        return false;
-    vars_peek(true);
-    bool ok = field_line_effects_can_be_built(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-void field_build_line_effect_tables(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t set = set_to_build(g);
-    WindowPosition position = dialog_window_at(g);
-    build_line_effect_tables(g);
-    leave(s, leaves_after_build(g, set, position, m_flag(s, CPU_FLAG_V)), 0x01);
-    m_rtl(s);
-}
-
-/* The shading's block move leaves the overflow of its last run's end (and the
- * data bank its destination's, which only the fill hands back). */
-static void after_shading(Snes *s)
-{
-    m_set_flag(s, CPU_FLAG_V, field_add_overflows8((uint8_t)(SHADED_LINES * 2), (uint8_t)(SHADING_STEP * 2)));
-}
 
 /* The line effects readied for a screen's first frame: their values, their
  * tables built and set up, each timed as the routine it is. */
@@ -785,13 +677,6 @@ void field_line_effects_ready(GameState *g, Platform *pf)
 
 /* The tables built for the next frame. */
 void field_line_effects_build(GameState *g) { build_line_effect_tables(g); }
-
-void field_init_line_effect_values(Snes *s)
-{
-    init_line_effect_values(state_of(s));
-    after_shading(s);
-    m_rtl(s);
-}
 
 // $C0:0AFF (through $C0:0005)
 /* Both table sets built afresh as the field's setup builds them, from its own
@@ -809,15 +694,4 @@ uint8_t field_rebuild_line_effects(GameState *g, Platform *pf)
     set_field_display_flags(g, (uint8_t)(field_display_flags(g) & ~FIELD_DISPLAY_SETUP));
     field_set_up_line_effects(g, pf);
     return field_line_effect_enable(g);
-}
-
-/* The original reaches the transfer registers through the direct page, which
- * it loads through A and restores; X keeps the last table it programmed. */
-void field_setup_line_effects(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t set = field_set_up_line_effects(g, m_platform(s));
-    s->cpu.x = RAM_ABS(RAM_FIELD_LINE_EFFECT_TABLES + (uint32_t)(set * SLOTS + SLOT_WINDOW2) * RAM_FIELD_LINE_EFFECT_TABLES_STRIDE);
-    s->cpu.a = (uint16_t)(M_DP_DMA | (field_display_flags(g) & FIELD_TABLE_SET_BITS));
-    m_rtl(s);
 }

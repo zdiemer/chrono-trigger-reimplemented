@@ -30,7 +30,6 @@
  * Y, A's low byte or the flags after it returns either (checked against
  * liveness by the calling convention). A's high byte, which the command's
  * move past itself adds with, it hands back as it found it. */
-#define DRIVER_IGNORES (DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C)
 
 /* An effect on the voices the command names, panned, from the call the
  * original makes it at. */
@@ -43,9 +42,9 @@ static void play(Platform *pf, ScriptSound sound)
 {
     AudioCommand c = { .command = sound.voices, .p1 = sound.sound, .p2 = sound.pan, .count = 2 };
     switch (sound.call) {
-    case 0xC161B5: au_command(pf, PF_CALL_DC(0xC161B5, 0xC70004, DRIVER_IGNORES), c); return;
-    case 0xC161DF: au_command(pf, PF_CALL_DC(0xC161DF, 0xC70004, DRIVER_IGNORES), c); return;
-    default: au_command(pf, PF_CALL_DC(0xC1620F, 0xC70004, DRIVER_IGNORES), c); return;
+    case 0xC161B5: au_command(pf, PF_CALL(0xC161B5, 0xC70004), c); return;
+    case 0xC161DF: au_command(pf, PF_CALL(0xC161DF, 0xC70004), c); return;
+    default: au_command(pf, PF_CALL(0xC1620F, 0xC70004), c); return;
     }
 }
 
@@ -74,19 +73,6 @@ void script_play_the_sound(GameState *g, Platform *pf, uint8_t byte, const Scrip
     play(pf, sound_of(g, byte, command));
 }
 
-/* On the machine each is a bridge: true where the driver came back to the
- * command's call as the battle runs. */
-static bool play_on_the_machine(Snes *s, uint8_t byte, const ScriptCommand *command)
-{
-    ScriptSound sound = sound_of(state_of(s), byte, command);
-    play(m_platform(s), sound);
-    return battle_back(s, sound.call + BATTLE_JSL_SIZE, BATTLE_PAGE, BATTLE_DATA_BANK);
-}
-
-bool script_play_sound_bridge(Snes *s, const ScriptCommand *command) { return play_on_the_machine(s, 0x78, command); }
-bool script_play_sound_at_bridge(Snes *s, const ScriptCommand *command) { return play_on_the_machine(s, 0x7A, command); }
-bool script_weapon_sound_bridge(Snes *s, const ScriptCommand *command) { return play_on_the_machine(s, 0x7C, command); }
-
 /* ---- The screen effect ---------------------------------------------------------------------- */
 
 /* The command is the settings and its own byte, the first setting counting
@@ -110,8 +96,6 @@ static ScriptFlow screen_effect(GameState *g, uint8_t first)
     }
     for (uint8_t k = count; k < SCREEN_EFFECT_SETTINGS; k++)
         settings[k] = battle_screen_effect_settings(g, k);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     battle_set_screen_effect_to(g, settings);
     script_go_past(g, (uint8_t)(count + 1));
     return SCRIPT_MOVED_NEXT_FRAME;

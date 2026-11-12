@@ -7,14 +7,10 @@
 #include <stdint.h>
 
 #include "battle/choosing.h"
-#include "snes/system.h"
 #include "state.h"
 #include "vars.h"
 
 /* The registered entries (battle/setup.c). */
-void battle_setup_state_entry(Snes *s);
-void battle_setup_graphics_entry(Snes *s);
-bool battle_setup_inputs_are_real(Snes *s);
 
 /* The battle's state set up ($CC:E2E4), and the objects' graphics
  * ($CC:ED87), whose load the vblank handler then makes a step a frame; and
@@ -23,7 +19,6 @@ bool battle_setup_inputs_are_real(Snes *s);
 void battle_setup_state(GameState *g);
 void battle_setup_graphics(GameState *g);
 bool battle_setup_inputs_fit(const GameState *g);
-bool battle_setup_parts_fit(Snes *s);
 
 /* ---- What the pieces share -------------------------------------------------------------- */
 
@@ -53,7 +48,6 @@ void setup_keep_name_tiles(GameState *g, NameTable table, uint8_t n, const NameT
 bool setup_enemy_kind_present(const GameState *g, uint8_t kind);
 void setup_enemy_name_text(GameState *g, uint8_t kind, uint8_t text[NAME_TILES]);
 void setup_keep_enemy_name_tiles(GameState *g, uint8_t kind, const NameTiles *tiles);
-void setup_enemy_names_converted(GameState *g);
 
 /* battle/setup_reset.c: the battle's state as every fight starts it. */
 void setup_reset_for_new_fight(GameState *g);
@@ -96,6 +90,7 @@ bool setup_enemies_are_real(const GameState *g);
  * after it; `cell` is the original's direct-page address. Nothing in game/
  * reads them back. */
 static inline void setup_leave(GameState *g, uint8_t cell, uint8_t v) { set_battle_work(g, cell - 0x80u, v); }
+
 static inline void setup_leave_word(GameState *g, uint8_t cell, uint16_t v)
 {
     setup_leave(g, cell, (uint8_t)v);

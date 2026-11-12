@@ -1,3 +1,5 @@
+#include "event/script.h"
+#include "event/script.h"
 /* The event engine: every object's script, run a turn at a time.
  *
  * Each frame every object on the map takes a turn: its script runs from where
@@ -159,6 +161,38 @@ static uint32_t decode(const GameState *g, const EventArg *arg, uint16_t at)
  * faces there (event/party.h). */
 enum { FACING_BIT = 0x80, TILE_BITS = 0x7F };
 
+/* An effect on colours (event/colours.c): its form, then the form's
+ * operands. The object's form rotates or fades a run of its colours named by
+ * a byte's two nibbles (the first, from its palette's, and how many) or
+ * writes its own over them from the low nibble's on; the screen's names the
+ * run's first of the 256, and its length in colours or the bytes of its own.
+ * Colours of the script's own follow a word, their bytes' count plus two. */
+enum { STOP_FORM = 0x00, ROTATE_DOWN_FORM = 0x20, ROTATE_UP_FORM = 0x30, FADE_TO_WHITE_FORM = 0x40, FADE_TO_BLACK_FORM = 0x50, COLOURS_FORM = 0x80, FORM_TYPE = 0xF0, FORM_LOW = 0x0F };
+
+/* A jump is by the distance in its jump byte, forward or back from that byte. */
+static EventStep jump(GameState *g, const EventOpcode *row, uint16_t at)
+{
+    uint16_t from = (uint16_t)(at + row->jump);
+    uint8_t distance = script_byte(g, from);
+    uint16_t to = row->back ? (uint16_t)(from - distance) : (uint16_t)(from + distance);
+    return (EventStep){ to, true };
+}
+
+EventStep event_follow(GameState *g, const EventOpcode *row, uint16_t at, EventFlow flow)
+{
+    uint16_t after = (uint16_t)(at + row->length);
+    switch (flow.kind) {
+    case FLOW_NEXT: return (EventStep){ after, true };
+    case FLOW_END_TURN: return (EventStep){ after, false };
+    case FLOW_STAY: return (EventStep){ at, false };
+    case FLOW_AGAIN: return (EventStep){ at, true };
+    case FLOW_JUMP: return jump(g, row, at);
+    case FLOW_NEXT_AFTER: return (EventStep){ (uint16_t)(at + flow.to), true };
+    case FLOW_END_TURN_AFTER: return (EventStep){ (uint16_t)(at + flow.to), false };
+    default: return (EventStep){ flow.to, true };
+    }
+}
+
 static FormationPlace decode_FormationPlace(const GameState *g, const EventArg *arg, uint16_t at)
 {
     if (arg->kind != ARG_FORMATION_PLACE)
@@ -169,8 +203,6 @@ static FormationPlace decode_FormationPlace(const GameState *g, const EventArg *
     return (FormationPlace){ { (uint8_t)(column & TILE_BITS), (uint8_t)(row & TILE_BITS) }, facing };
 }
 
-/* The searchlight's moves: for each corner, its x's start and end, then its
- * y's. */
 static SearchlightMove decode_SearchlightMove(const GameState *g, const EventArg *arg, uint16_t at)
 {
     SearchlightMove m = { { { 0, 0 } }, { { 0, 0 } } };
@@ -183,15 +215,6 @@ static SearchlightMove decode_SearchlightMove(const GameState *g, const EventArg
     }
     return m;
 }
-
-/* An effect on colours (event/colours.c): its form, then the form's
- * operands. The object's form rotates or fades a run of its colours named by
- * a byte's two nibbles (the first, from its palette's, and how many) or
- * writes its own over them from the low nibble's on; the screen's names the
- * run's first of the 256, and its length in colours or the bytes of its own.
- * Colours of the script's own follow a word, their bytes' count plus two. */
-enum { STOP_FORM = 0x00, ROTATE_DOWN_FORM = 0x20, ROTATE_UP_FORM = 0x30, FADE_TO_WHITE_FORM = 0x40,
-       FADE_TO_BLACK_FORM = 0x50, COLOURS_FORM = 0x80, FORM_TYPE = 0xF0, FORM_LOW = 0x0F };
 
 static ColourEffect decode_ColourEffect(const GameState *g, const EventArg *arg, uint16_t at)
 {
@@ -229,30 +252,6 @@ static ColourEffect decode_ColourEffect(const GameState *g, const EventArg *arg,
         e.length = (uint16_t)(e.colours_at + e.bytes - at);
     }
     return e;
-}
-
-/* A jump is by the distance in its jump byte, forward or back from that byte. */
-static EventStep jump(GameState *g, const EventOpcode *row, uint16_t at)
-{
-    uint16_t from = (uint16_t)(at + row->jump);
-    uint8_t distance = script_byte(g, from);
-    uint16_t to = row->back ? (uint16_t)(from - distance) : (uint16_t)(from + distance);
-    return (EventStep){ to, true };
-}
-
-EventStep event_follow(GameState *g, const EventOpcode *row, uint16_t at, EventFlow flow)
-{
-    uint16_t after = (uint16_t)(at + row->length);
-    switch (flow.kind) {
-    case FLOW_NEXT: return (EventStep){ after, true };
-    case FLOW_END_TURN: return (EventStep){ after, false };
-    case FLOW_STAY: return (EventStep){ at, false };
-    case FLOW_AGAIN: return (EventStep){ at, true };
-    case FLOW_JUMP: return jump(g, row, at);
-    case FLOW_NEXT_AFTER: return (EventStep){ (uint16_t)(at + flow.to), true };
-    case FLOW_END_TURN_AFTER: return (EventStep){ (uint16_t)(at + flow.to), false };
-    default: return (EventStep){ flow.to, true };
-    }
 }
 
 EventCommand event_decode(const GameState *g, Platform *pf, const EventOpcode *row, uint16_t at)
@@ -300,8 +299,6 @@ EventStep event_perform(GameState *g, Platform *pf, const EventOpcode *row, uint
     EventCommand c = event_decode(g, pf, row, at);
     charge_legacy_accesses(g, legacy_parse_work(row->opcode));
     EventFlow flow = row->run(g, &c);
-    if (row->opcode == 0xE4)
-        charge_machine_accesses(g, 2); /* immediate tile copy's saved resume offset */
     if (flow.kind == FLOW_JUMP)
         charge_legacy_accesses(g, 2); /* the selected jump distance */
     return event_follow(g, row, at, flow);
@@ -454,7 +451,6 @@ EventTurnEnd event_run_openings(GameState *g, const EventRunner *r, FieldObject 
         *stopped_at = 0;
         return broken_turn(g, TURN_NOT_OURS_BEFORE);
     }
-    charge_machine_accesses(g, 2); /* the openings' saved loop bound */
     FieldObject next = 0;
     do {
         *object = next;

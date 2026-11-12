@@ -47,7 +47,6 @@
 #include "battle/random.h"
 #include "battle/rules_data.h"
 #include "charge.h"
-#include "port/native.h"
 #include "vars.h"
 
 enum { NO_TARGET = 0xFF };
@@ -542,36 +541,25 @@ static uint8_t anchor(const Anchors *a, Anchor which, uint8_t size)
  * the end follows from how far the aim went. Those a later reader takes as
  * game input (battle.h: the clock's word, the member's cell, the cells read
  * as stats) are written plainly; the others are scaffolding. */
-enum {
-    LEFT_MODE_OR_FIRST = 0x00,  /* the aim mode, or a party tech's first member's place once its area is gathered */
-    LEFT_SECOND = 0x02,         /* a party tech's second member's place */
-    LEFT_BOUND = 0x04,          /* a word: where the party's places end; its low byte then the roll's buttons,
-                                   the third member's place, the rule's placing */
-    LEFT_TARGET = 0x06,         /* the roll's target byte, then the chosen target */
-    LEFT_SIZE = 0x08,           /* the roll row's number, then the area's size */
-    LEFT_SIDE = 0x0A,           /* 1 where the area is among the party's places */
+enum { LEFT_MODE_OR_FIRST = 0x00, /* the aim mode, or a party tech's first member's place once its area is gathered */
+    LEFT_SECOND = 0x02, /* a party tech's second member's place */
+    LEFT_BOUND = 0x04, /* a word: where the party's places end; its low byte then the roll's buttons, the third member's place, the rule's placing */
+    LEFT_TARGET = 0x06, /* the roll's target byte, then the chosen target */
+    LEFT_SIZE = 0x08, /* the roll row's number, then the area's size */
+    LEFT_SIDE = 0x0A, /* 1 where the area is among the party's places */
     LEFT_RULES_OR_ACTOR = 0x0C, /* the area rules' set (an item's is its caller's), then the actor */
-    LEFT_FLAG = 0x0E,           /* the area's size byte's top bit */
-    LEFT_ENEMIES_END = 0x10,    /* a word: where the enemies' places end; its low byte then where the next rule is */
-    LEFT_RULE = 0x12,           /* the rule being placed */
-    LEFT_RULES_LEFT = 0x14,     /* the rules still to place */
-};
+    LEFT_FLAG = 0x0E, /* the area's size byte's top bit */
+    LEFT_ENEMIES_END = 0x10, /* a word: where the enemies' places end; its low byte then where the next rule is */
+    LEFT_RULE = 0x12, /* the rule being placed */
+    LEFT_RULES_LEFT = 0x14, /* the rules still to place */ };
 
 static void leave_aim_cells(GameState *g, const Aiming *a)
 {
     if (!a->records_read)
         return;
     bool members = a->gathered && battle_actor(g) < BATTLE_PARTY_SIZE;
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
     battle_keep_byte(g, LEFT_SIDE, a->among_party);
-    if (a->gathered)
-        charge_machine_accesses(g, 1);
-    else if (!a->item)
-        charge_machine_accesses(g, 1);
     battle_keep_byte(g, LEFT_MODE_OR_FIRST, members ? a->anchors.first_member : a->aim.mode);
-    if (members)
-        charge_machine_accesses(g, 1);
     if (a->gathered)
         battle_keep_byte(g, LEFT_TARGET, a->anchors.chosen);
     else if (a->rolled)
@@ -582,30 +570,6 @@ static void leave_aim_cells(GameState *g, const Aiming *a)
     } else if (a->rolled) {
         battle_keep_byte(g, LEFT_SIZE, a->rolled->left_row);
     }
-}
-
-/* Where the original is in its rules: the next rule's place in the set (past
- * its count), the rule's number, the rules left, and the set's place, whose
- * high byte the rule's search flag takes. */
-static void leave_rule_reached(GameState *g, uint16_t rules, uint8_t rule, uint8_t left)
-{
-
-    (void)left;
-    (void)rule;
-    (void)rules;
-        charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 2);
-}
-
-static void leave_rules_placed(GameState *g, uint8_t count)
-{
-
-    (void)count;
-        charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
 }
 
 /* The set's one rule's area, placed for the area search, which keeps it in
@@ -757,7 +721,6 @@ static void place_the_area(GameState *g, Aiming *a)
 {
     a->rules = area_rules_place(g, a->aim.area);
     a->rule_count = area_rule_count(g, a->rules);
-    charge_machine_accesses(g, 2);
     a->anchors = gather_anchors(g);
     a->gathered = true;
     if (a->rule_count == 0)
@@ -775,23 +738,19 @@ static AimProgress aim_up_to_the_area(GameState *g, Aiming *a, bool carry)
 
     (void)carry;     set_battle_action_came_to_nothing(g, 0);
     effect_take_tech_members(g, battle_action_detail(g));
-    charge_machine_accesses(g, 1);
     a->aim = action_aim(g);
     a->row = aim_row(a->aim.mode);
     if (!can_be_made(g, a))
         return CAME_TO_NOTHING;
     /* a roll's way leaves its finish before it rolls; every other leaves
        none until it has taken its targets */
-    charge_machine_accesses(g, 1);
     bool done = false;
     if (!take_by_mode(g, a, &done))
         return CAME_TO_NOTHING;
-    charge_machine_accesses(g, 1);
     if (done)
         return AIMED;
     if (a->row.finish == FINISH_FIRST_IS_CHOSEN)
         set_target(g, 0, chosen_target(g));
-    charge_machine_accesses(g, 1);
     if (a->aim.area == NO_AREA)
         return AIMED;
     place_the_area(g, a);
@@ -805,7 +764,6 @@ typedef enum { SETTLED, NOTHING_SETTLED, SHOW_NO_TARGET } AreaOutcome;
 
 static AreaOutcome settle_after_search(GameState *g, const Aiming *a)
 {
-    leave_rules_placed(g, a->rule_count);
     if (a->row.finish != FINISH_AREA_AND_CHOSEN && area_found_nobody(g))
         return actor_in_party(g) ? SHOW_NO_TARGET : NOTHING_SETTLED;
     return settle_targets(g, a->row.finish) ? SETTLED : NOTHING_SETTLED;
@@ -831,10 +789,8 @@ static void search_area(GameState *g, uint8_t shape, const AreaAsked *asked)
  * start. */
 static void search_the_area(GameState *g, const Aiming *a)
 {
-    leave_rule_reached(g, a->rules, 0, 1);
     TIMED_AS(g, 0xC1C741, search_area(g, a->rule.shape, &a->asked));
     take_finds(g);
-    charge_machine_accesses(g, 1);
 }
 
 // $C1:C1DD
@@ -863,27 +819,6 @@ static AimEnds aim_the_action(GameState *g, bool carry, bool (*show)(void *ctx, 
     if (progress == CAME_TO_NOTHING)
         came_to_nothing(g);
     return AIM_DONE;
-}
-
-static bool show_on_the_machine(void *ctx, uint8_t showing)
-{
-    Snes *s = ctx;
-    s->cpu.a = showing;
-    /* The admitted one-rule search advances its byte cursor from 1 to 4
-     * before selecting the no-target animation, leaving overflow clear. */
-    m_set_flag(s, CPU_FLAG_V, false);
-    return battle_run_dc(s, SHOWING_CALL, SHOWING, DC_X | DC_Y | DC_N | DC_Z | DC_C, battle_start_action_showing);
-}
-
-/* A's high byte goes back clear, as the original's last loads leave it, but
- * after the "no target" showing, which hands back its own. */
-void battle_aim_action_entry(Snes *s)
-{
-    switch (aim_the_action(state_of(s), m_flag(s, CPU_FLAG_C), show_on_the_machine, s)) {
-    case AIM_DONE: s->cpu.a &= 0x00FF; m_rts(s); return;
-    case AIM_SHOWN_NO_TARGET: m_rts(s); return;
-    default: return;
-    }
 }
 
 /* ---- What the port aims ------------------------------------------------------------------------- */
@@ -959,28 +894,6 @@ static bool aim_fits(const GameState *g)
     if (take == TAKE_BY_ROLL && !roll_fits(g, party))
         return false;
     return rules_fit(g, aim.area, party);
-}
-
-/* The operands the original's callers hand it in cells: a member's record
- * place, and an item's area rules, none. The C callers set both cells plainly
- * just before aiming, and the aim's logic reads neither, so only the
- * machine's guard checks them. */
-static bool operands_fit(const GameState *g)
-{
-    uint8_t actor = battle_actor(g);
-    if (actor >= BATTLE_PARTY_SIZE)
-        return true;
-    if (battle_cell_word(g, BATTLE_MEMBER_CELL) != battle_member_record_place(g, actor))
-        return false;
-    return !member_uses_item(g) || battle_cell_word(g, ITEM_AREA_CELL) == NO_AREA;
-}
-
-bool battle_aim_action_ready(Snes *s)
-{
-    vars_peek(true);
-    bool fits = aim_fits(state_of(s)) && operands_fit(state_of(s));
-    vars_peek(false);
-    return battle_on_page(s) && fits;
 }
 
 // $C1:C741

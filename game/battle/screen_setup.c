@@ -33,13 +33,11 @@
 #include "charge.h"
 #include "platform/timing.h"
 #include "platform/video.h"
-#include "port/native.h"
 
 /* A color-math value: the channels it applies to in the top three bits and the
  * intensity in the low five. The tables step the intensity in 1/256ths of a
  * level, and each entry takes the whole part. */
-enum { ALL_CHANNELS = VID_LINE_FIXED_COLOR_ALL_CHANNELS, INTENSITY_FRACTION_BITS = 8,
-       INTENSITY_ONE = 1 << INTENSITY_FRACTION_BITS };
+enum { ALL_CHANNELS = VID_LINE_FIXED_COLOR_ALL_CHANNELS, INTENSITY_FRACTION_BITS = 8, INTENSITY_ONE = 1 << INTENSITY_FRACTION_BITS };
 
 static uint8_t color_math_value(uint16_t intensity) { return (uint8_t)(ALL_CHANNELS | intensity >> INTENSITY_FRACTION_BITS); }
 
@@ -122,8 +120,7 @@ enum { BATTLE_LINE = 211 };
  * screen scripts stopped, every per-line effect on and the screen scripts
  * free to turn any layer on (on a battlefield with the HP gradient, all but
  * BG2). */
-enum { NO_MESSAGE = 0xFF, GRADIENT_FIRST_LEVEL = 8, GRADIENT_EVERY_OTHER_FRAME = 7, BATTLEFIELD_ARRANGEMENT = 8,
-       ALL_LAYERS = 0xFF, ALL_BUT_BG2 = 0xFD, PAUSE_BLOCKED = 0xFF };
+enum { NO_MESSAGE = 0xFF, GRADIENT_FIRST_LEVEL = 8, GRADIENT_EVERY_OTHER_FRAME = 7, BATTLEFIELD_ARRANGEMENT = 8, ALL_LAYERS = 0xFF, ALL_BUT_BG2 = 0xFD, PAUSE_BLOCKED = 0xFF };
 
 static void start_the_frame_work(GameState *g)
 {
@@ -220,8 +217,7 @@ static void start_the_messages(GameState *g)
  * that it moves four lines further on. */
 enum { WINDOW_MAPS = 0x78787878, WINDOW_SCREENS = 0x05050505, WINDOW_MODE = 0x0009 };
 enum { WINDOW_LINES = 48, LAYOUTS = 2, FIRST_TEXT_ROW_LINES = 19, TEXT_ROW_LINES = 12, TEXT_ROW_STEP = 4 };
-enum { BG1_WINDOW_DOWN = 0x0077, BG1_OTHER_LAYOUT_DOWN = 0xFFDF, BG2_WINDOW_DOWN = 0x0077,
-       BG3_FIRST_ROW_DOWN = 0xFFFC, BG3_OTHER_LAYOUT_UP = 0x98 };
+enum { BG1_WINDOW_DOWN = 0x0077, BG1_OTHER_LAYOUT_DOWN = 0xFFDF, BG2_WINDOW_DOWN = 0x0077, BG3_FIRST_ROW_DOWN = 0xFFFC, BG3_OTHER_LAYOUT_UP = 0x98 };
 
 static void lay_the_window_lines_out(GameState *g)
 {
@@ -300,8 +296,10 @@ typedef struct {
 /* Set the screen up as a battle starts. False where a call went no further. */
 static bool set_the_screen_up(GameState *g, Platform *pf, const ScreenSetUpCalls *calls, void *ctx)
 {
-    program_install_vblank_handler(g, BATTLE_VBLANK_HANDLER);
-    program_install_line_handler(g, BATTLE_LINE_HANDLER);
+    program_install_vblank_handler(g, battle_vblank);
+    charge_legacy_accesses(g, 4);
+    program_install_line_handler(g, battle_line);
+    charge_legacy_accesses(g, 4);
     if (!calls->scroll_the_map_layers(ctx))
         return false;
     TIMED_AS(g, 0xCD0C9D, battle_take_the_start_settings(g));
@@ -358,49 +356,4 @@ bool battle_screen_set_up(GameState *g, Platform *pf)
     static const ScreenSetUpCalls in_the_program = { scroll_the_map_layers, clear_the_message_tiles, start_the_song };
     ScreenSetUpContext c = { g, pf };
     return set_the_screen_up(g, pf, &in_the_program, &c);
-}
-
-/* ---- On the machine ------------------------------------------------------------------------ */
-
-static bool scroll_on_the_machine(void *ctx)
-{
-    return battle_run_long(ctx, 0xD1F1D7, BATTLE_SCROLL_MAP_LAYERS_ENTRY, battle_scroll_map_layers);
-}
-
-/* The start's settings leave the carry set, as their count of the scroll
- * tables' bands ends; the song's call below keeps it on the stack. */
-static bool clear_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    m_set_flag(s, CPU_FLAG_C, true);
-    return battle_run_long(s, 0xD1F3FE, BATTLE_CLEAR_THE_MESSAGE_TILES_ENTRY, battle_clear_the_message_tiles_long);
-}
-
-/* The battle's song keeps the data bank, the page and the flags on the stack
- * around its call, where the original keeps them. */
-static bool song_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    m_push8(s, s->cpu.db);
-    m_push16(s, s->cpu.d);
-    m_push8(s, s->cpu.p);
-    if (!battle_field_music_on_the_machine(s, 0xD1F405, false))
-        return false;
-    s->cpu.p = m_pull8(s);
-    s->cpu.d = m_pull16(s);
-    s->cpu.db = m_pull8(s);
-    return true;
-}
-
-/* ---- The entry ------------------------------------------------------------------------ */
-
-void battle_set_the_screen_up(Snes *s)
-{
-    static const ScreenSetUpCalls on_the_machine = { scroll_on_the_machine, clear_on_the_machine, song_on_the_machine };
-    s->cpu.db = BATTLE_DATA_BANK;
-    s->cpu.d = BATTLE_PAGE;
-    if (!set_the_screen_up(state_of(s), m_platform(s), &on_the_machine, s))
-        return;
-    s->cpu.a = 0;
-    m_rtl(s);
 }

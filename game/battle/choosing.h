@@ -44,7 +44,6 @@ typedef struct {
 
 NameTiles battle_name_tiles(const uint8_t text[NAME_TILES]);
 
-
 /* ---- The lists (menu_lists.c) ------------------------------------------------------------------ */
 
 /* A member's tech list is twenty entries; an item list's record is five

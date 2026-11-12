@@ -6,7 +6,7 @@
 #include <stdbool.h>
 
 #include "platform/video.h"
-#include "snes/system.h"
+#include <stdint.h>
 #include "state.h"
 
 /* Build the menus' tile sets and send them to VRAM, load their colours, and
@@ -17,6 +17,5 @@ void menu_build_graphics(GameState *g, Platform *pf);
 void menu_load_window_design(GameState *g);
 
 /* What the graphics leave on the machine, for a caller that runs them as C. */
-void menu_leave_graphics_built(Snes *s);
 
 #endif

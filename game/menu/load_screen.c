@@ -41,15 +41,13 @@
 #include "menu/typeset.h"
 #include "menu/windows.h"
 #include "platform/audio.h"
-#include "port/native.h"
 
 /* ---- Drawing the screen ------------------------------------------------------------------------ */
 
 /* The screen's window command lists: its windows; the panel the chosen slot's
  * summary sits in; the fourth row's two choices; the erase question, and the
  * panel it covers put back. */
-enum { SCREEN_WINDOWS = 0xC0ED, SUMMARY_PANEL = 0xC322, NEW_GAME_CHOICES = 0xC36B, ERASE_QUESTION = 0xC391,
-       ERASE_QUESTION_CLOSED = 0xC191 };
+enum { SCREEN_WINDOWS = 0xC0ED, SUMMARY_PANEL = 0xC322, NEW_GAME_CHOICES = 0xC36B, ERASE_QUESTION = 0xC391, ERASE_QUESTION_CLOSED = 0xC191 };
 
 /* ---- The slots' rows --------------------------------------------------------------------------- */
 
@@ -96,7 +94,6 @@ static void draw_slot_window(GameState *g, uint8_t slot)
     set_menu_window_place(g, box);
     TIMED_AS(g, 0xC2EDF6, menu_draw_window_frame(g, box, SLOT_BOX, style));
     TIMED_AS(g, 0xC2EE7F, menu_fill_window_inside(g, box, SLOT_BOX, style));
-    charge_machine_accesses(g, 30);
     set_menu_window_design(g, (uint8_t)(game_settings(g, 1) & DESIGN_BITS));
 }
 
@@ -125,7 +122,6 @@ void menu_draw_slot_rows(GameState *g)
     /* it counts the slots in the slot shown's cell, which it leaves past the
      * last: no slot shown until the screen picks one */
     set_menu_save_slot_shown(g, MENU_SAVE_SLOTS);
-    charge_machine_accesses(g, 2);
 }
 
 /* The screen's windows and the slots' rows, as the load screen and the save
@@ -276,8 +272,7 @@ static void start_the_new_game(GameState *g, Platform *pf)
 enum { QUESTION_LABEL = 3, QUESTION_LABEL_AT = 0x5E00, QUESTION_LABEL_TABLE = 0xFFCF3B };
 
 /* The question's label, once drawn: two strips of it over the header. */
-enum { LABEL_TOP_AT = 0x52C8, LABEL_TOP_COLUMNS = 8, LABEL_TOP_TILE = 0x3021,
-       LABEL_BOTTOM_AT = 0x5348, LABEL_BOTTOM_COLUMNS = 9, LABEL_BOTTOM_TILE = 0x3062 };
+enum { LABEL_TOP_AT = 0x52C8, LABEL_TOP_COLUMNS = 8, LABEL_TOP_TILE = 0x3021, LABEL_BOTTOM_AT = 0x5348, LABEL_BOTTOM_COLUMNS = 9, LABEL_BOTTOM_TILE = 0x3062 };
 
 void menu_ask_which_game_to_carry_on_from(GameState *g)
 {
@@ -296,11 +291,10 @@ void menu_ask_which_game_to_carry_on_from(GameState *g)
  * stereo (the settings' bit 3), the menus' frame count kept for the battle's
  * random numbers; then out of the menus. */
 enum { SOUND_OUTPUT = 0xF3, STEREO_SETTING = 0x08 };
-enum { DRIVER_IGNORES = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 void menu_send_the_sound_output(GameState *g, Platform *pf)
 {
-    au_command(pf, PF_CALL_DC(0xC2E6A1, 0xC70004, DRIVER_IGNORES),
+    au_command(pf, PF_CALL(0xC2E6A1, 0xC70004),
                (AudioCommand){ .command = SOUND_OUTPUT, .p1 = (uint8_t)(game_settings(g, 0) & STEREO_SETTING), .count = 1 });
 }
 
@@ -496,7 +490,6 @@ bool menu_erase_slot_with(GameState *g, Platform *pf, const LoadScreenSteps *n, 
     if (!n->empty_label(ctx) || !n->wait_a_frame(ctx))
         return false;
     MenuUpload label = menu_slot_label_upload(slot);
-    charge_machine_accesses(g, 1);
     TIMED_AS(g, 0xC2838E, menu_queue_upload(g, label));
     TIMED_AS(g, 0xC2D32C, menu_redraw_slot_window(g, slot));
     n->note(ctx, LOAD_NOTE_ERASED, 0);

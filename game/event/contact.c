@@ -114,27 +114,8 @@ Touch leaders_touch(const GameState *g)
 static void push(GameState *g, FieldObject object, MapTile to)
 {
     party_script_go_to(g, PUSH_SCRIPT, to);
-    charge_machine_io_accesses(g, 2); /* the old push dividend */
     object_run_script_from(g, object, PUSHED_LEVEL, party_script_start(PUSH_SCRIPT));
     mark_field_object_pushed(g);
-}
-
-/* The machine adapter used to check the contacted object's call state again
- * before leaving its level in the multiplier. Retain that conditional work
- * in the estimate, without restoring the temporary hardware value. */
-static void charge_contact_selection(GameState *g, FieldObject object)
-{
-    uint32_t mark = charge_uncounted_begin(g);
-    bool refusing = event_object_call_state_refusing(g, object) != 0;
-    bool disabled = object_disabled(g, object);
-    bool takes = object_takes_calls(g, object);
-    bool multiply = leader_looks_to_push(g, false);
-    charge_uncounted_end(g, mark);
-    /* Contact, level, refusal; then role, reachability, active push and
-     * the selected level, following the former test's short circuits. */
-    charge_machine_accesses(g, 3 + !refusing + (!refusing && !disabled) + takes + multiply);
-    if (multiply)
-        charge_machine_io_accesses(g, 1);
 }
 
 // $C0:3154, and its push $C0:31B1
@@ -146,7 +127,6 @@ void touch_what_the_leader_met(GameState *g)
     Touch t = leaders_touch(g);
     if (t.touched)
         call_on(g, object, TOUCH_LEVEL, TOUCH_FUNCTION);
-    charge_contact_selection(g, object);
     if (t.pushed)
         push(g, object, t.to);
 }
@@ -287,15 +267,6 @@ void field_confirm_pressed(GameState *g)
         give_the_gift(g, gift);
 }
 
-void field_press_confirm(Snes *s)
-{
-    GameState *g = state_of(s);
-    ChestGift gift = press_confirm(g);
-    if (gift.kind != GIFT_NOTHING)
-        give_the_gift(g, gift);
-    m_rts(s);
-}
-
 /* The guards: the object is one the tables hold, as the game keeps it (the
  * original adds its whole word to a place's offset), and runs at one of the
  * levels the places hold; the leader, whose facing a push goes by, faces one
@@ -347,14 +318,4 @@ static bool confirm_fits(const GameState *g)
     if (field_link_is_object(talked_to) && !names_a_contact(g, talked_to, high))
         return false;
     return dialog_on_screen(g) || chest_gift_fits(g);
-}
-
-bool field_confirm_can_run(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    bool ok = confirm_fits(state_of(s));
-    vars_peek(false);
-    return ok;
 }

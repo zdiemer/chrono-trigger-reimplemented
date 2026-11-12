@@ -84,7 +84,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
   movie has shown that read yet: write `$30` plainly too, or show it unread.
 - **Charge the endings' swept window by its lines.**
   `scene_ending_sweep_window` (`game/scene/endings.c`) retains one calibrated
-  rate in `game/time_tags.c`, although its work follows the lines and corners
+  rate in `runtime/port/time_rates.c`, although its work follows the lines and corners
   drawn. Its old worst-case exception records 64,755 clocks of error.
   Measure that work in the native model before changing the retained rate;
   its independent shadow comparison has retired.
@@ -1188,14 +1188,6 @@ PLAN.md gives the work order; the lean native gate protects each change.
   prints and rebuilds. The scene review's proposed multiply carry guard
   would have rejected real calls; syntax alone cannot justify a domain.
 
-- **M4**: skip flags nobody reads, call generated blocks directly where it's
-  safe. Speed only; rendering and sound dominate now.
-- **The draft tool's gaps** (REIMPLEMENTATION.md, "What drafts don't do yet"): D and DB
-  for code only interrupts reach, and the field's main loop after a battle,
-  which the frame analysis gets wrong (a guard catches it: 432877 calls of
-  `field_scroll_layers`); operand names for the battle script handlers;
-  turning I/O register writes and the multiplier into platform calls and C
-  arithmetic; stub signatures that still vary by what a call reads back.
 - **What the overworld on foot left** (the source review, "Phase 3, overworld: the
   world map on foot"):
   - the walkers' event steps run their scripts through the interpreter's
@@ -2110,6 +2102,11 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
 
 ## The native program
 
+- **Simplify each subsystem's native interfaces.** Replace single-implementation
+  callback adapters and register-shaped inputs/results with named operations.
+  Follow PORTING.md; core mode hand-offs and callback ownership are established.
+  Keep actual state checks and counted work. State storage can migrate in parallel.
+
 - **What the field and events' teardown review left.** Update
   `game/event/entries.c` and `bridge.h`'s comments, which still describe the field
   as gated. Remove the empty control-flow blocks the scaffolding's deletion left
@@ -2144,22 +2141,9 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
   machine forms skip the run's `--exclude` check `native_hand_entry_at` makes;
   and a comparison of `menu_run_objects` and `menu_object_nmi` of their own on
   the world map would let their two uncompared-baseline lines go.
-- **Object mode entry contracts.** `turn_on_the_machine` in `menu/objects.c`
-  checks a handler before its return frame and PC are installed. Preserve the
-  actual native callers' requirements when removing this wrapper. The long
-  input step also needs an explicit contract and timing account.
-
-- **Warp source cleanup.** `the_cartridges_warp`'s comment says "mirror in
-  $3D" where the code matches `$FD` and `$7D`. The RAM map still cites the
-  deleted `warp_on_its_page`; correct its source during the storage audit.
-
 - **What the map scroll's review left.** `menu_run_sprite_script` underestimates
   the frames that only run a sprite script inline. Its older re-recorded
   outcome lines no longer say whether a protected match was lost; say so.
-
-- **What the scene frame wait's review left.** `pf_snes_vblank_wait` names
-  `$7E:31B0`, not the alternate entry `$7E:31B7`. Establish whether any
-  remaining machine caller enters there before adding another encoding row.
 
 - **The data subsystem's storage** (REIMPLEMENTATION.md, "The data
   subsystem's teardown"). The unpacker's gate retired but its storage didn't
@@ -2179,54 +2163,10 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
   and a "didn't come back" result it never gives, and the casting's
   `SetUnpacker` (`event/characters.c`). They can be plain calls of
   `unpack_stream`, and the loads' `bool` results lose the unpacking's arm.
-- **The unpacker's pace, kept by hand.** The legacy runtime retains
-  `retired_rates`, entry-access charges and settles (`state_io.c`,
-  `unpack_stream_run`, `unpack_stream_called`) to preserve strict outcomes.
-  The native model now charges calibrated unpacking work too. Unify the
-  paths only with protected outcomes checked; remove the legacy structure
-  with its final caller (REIMPLEMENTATION.md, "The frame-level time model"
-  and "The data subsystem's teardown").
-
-- **What core's teardown left on the machine** (REIMPLEMENTATION.md, "The core
-  services' teardown"). The console's eight rows (the reset, its copy at
-  `$C0:FF00`, the boot, the two vectors and the two stubs) are how the machine
-  enters the program, and go with the machine. The controller's wait
-  (`$C2:84F9`, idle) and the sample after it (`$C2:84FE`) are a held wait the
-  menus' machine path stops in, from `input_update`'s machine form and
-  `menu_take_frame_input`; they go when the menus' frame input stops waiting on
-  the machine (or the wait becomes a `native_wait_call`), with the reset chord's
-  hand-off kept (its unreached `safe` row). Three machine forms stay for
-  still-gated callers: `palette_animate` and `tile_animation_upload`
-  (`core/machine_forms.c`, the field's and the battle's bridges) and
-  `input_update` (the menus' `$C2:8002`); each goes when its last machine-path
-  caller does. The palette's and the tiles' `ORIGINAL_EFFECT` scaffolding
-  (scratch cells, the multiplier, the pointer, the load's leftovers) is seen
-  by those callers' shadow comparisons, and the charges in it are time: it
-  comes down with the last of them, not before. `display_blank_and_stop_interrupts`
-  (`$C0:0B4E`) stays registered because the reference play's original code
-  still calls it outside a port; it retires when the fallback measure shows
-  none. The 39 time tags
-  (`game/time_tags.c`) keep their last calibration; if a caller's timing drifts
-  onto one, there is no shadow run to recalibrate it from, so fit it from the
-  callers' stretches or charge the work at the caller's rate. They are a
-  second mechanism beside the data teardown's `retired_rates`
-  (`runtime/port/state_io.c`); make them one.
 - **CI has no no-SDL configuration.** All four jobs install SDL2, so they do
   not exercise `ct_native`'s headless-only build. Add a configuration with
   SDL2 and pkg-config discovery disabled, `CT_ROM` empty and `CT_WERROR=ON`.
 
-
-What still assumes a machine, as `ct_native` found it (PLAYING.md, "The
-native program"; PLAN.md, "The machine out of the product" ).
-`ct_native` links the whole of `game/` but `registry.c`, with every service's
-host backend, and runs the boot, the field, the title's scene, the menus
-a script asks for, the world maps and the battles; left alone it runs the
-attract sequence round and on without stopping (the jet bike race and the
-rising palace as C), and with `new-game.ctm`'s, `fair.ctm`'s,
-`fair-companion.ctm`'s, `gato-battle.ctm`'s or `menu.ctm`'s presses it plays
-the movie to its end. What the wrappers and bridges call of the machine is
-`runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
-list, by kind, is what `game/` still asks of one.
 
 - **Heckran still needs a native outcome check.** `battle-heckran` runs 19376 frames
   with no explicit stop, a screen showing after six setups, and four video
@@ -2511,61 +2451,9 @@ list, by kind, is what `game/` still asks of one.
   enemy's movement or dissolve the port doesn't run, and the guards' own
   refusals). Each wants its C as the program
   meets it.
-- **Two sequences of one routine.** The field's entry, its location's
-  loading and song, the main loop's pass, the frame's work, the objects'
-  update and view and the pause and menus are one sequence each, which the
-  entry and the program both run, their steps callbacks (REIMPLEMENTATION.md,
-  "The native program through the field and the title"). Still written twice,
-  the machine's beside the program's: the screen's setup
-  (`field_screen_set_up`), the objects' setup
-  (`field_objects_set_up`), the vblank handler's calls (`field_vblank`), a
-  location change's request and a script's menu's (`field_requests_handled`;
-  the tile copy's, a step event's and a chest's are one sequence each), the
-  time gate's tunnel's loop (`warp_runs` beside its entries, warp/warp.c),
-  the scene's frame work and its lists
-  (`scene_frame_work`, `run_tasks`) and the event bridges'
-  C sends. Each wants the same shape; until then a change to one
-  wants the other, and nothing gates the program's copy.
-- **Control flow through the machine.** Call-outs into entries by address
-  (`native_call_dc`, `native_yield_call_dc`, `native_jump_call_dc`), stops
-  at the original's addresses (`m_stop_at`, the `native_*dont_care_at_stop`
-  pair), returns through the emulated stack (`m_rts`, `m_rtl`, `m_rti`:
-  `native_note_return`/`_rti`, every entry wrapper), and a sibling found in
-  the registry by address (`native_hand_entry`) in the five bridges
-  (`battle/bridge.c`, `battle/steps.c`, `field/bridge.c`, `menu/bridge.c`,
-  `scene/bridge.c`). These go as each subsystem's ports call ports (PLAN.md's
-  step 1) and its wrappers leave (step 3).
-  Checked forms and held continuations retain each sibling's full contract.
-  Some direct targets have stricter bank guards than their callers, including the party's
-  return to the field walk. Reset, scene/warp and field reentry tails need their
-  shared mode-transition contract before their machine stops can leave.
-  Overworld startup's direct first frame also needs a fuzz harness that supplies
-  interrupts: all 200 existing setup states now exceed its comparison budget,
-  although seven targeted movie calls compare cleanly.
-- **The machine's memory and registers.** Remove the wrappers' bus accesses,
-  register/page/bank/stack state and guard peeks with the legacy driver.
-  `ct_native` uses host memory but still backs accessors with the original
-  128 KiB byte layout (`runtime/port/state_host.c`); moving it to structs
-  requires the alias and overrun decisions in this file.
-
-- **Time charged to the runtime.** `NATIVE_TIME_AS` and its kin
-  (`native_time_as`, `_end`, `_sibling`, `native_uncounted_*`) take the
-  machine: tags for the timing gate. They want the game's state as their
-  handle, as `TIMED_AS` (charge.h) has, whose host half is a no-op.
-  The field, battle, overworld, event and controller now use `TIMED_AS`
-  for ordinary timing scopes. Battle's three `NATIVE_TIME_AS_SIBLING`
-  scopes and the field's returning-pass scope still need a state-based API
-  that preserves sibling accounting.
-- **Waits on the beam.** `tm_snes_video_status`, the SNES backend's read of
-  the beam's status, from the idle entries' passes (`field/frame.c`,
-  `scene/boot.c`); and the remaining wait loops passed on the machine,
-  especially the menus' ready loop `$C2:81CA`, each wanting the timing
-  service's wait ("Timing without a beam", above).
 - **Code run from RAM.** The scene program runs as C, but still unpacks
   its program image for scripts, sprite lists and tables. Extract those
-  resources by name before removing the image. `core/program.c` also reads
-  the interrupt stubs as data; replace their ROM-address keys with handler
-  identities when the legacy driver leaves.
+  resources by name before removing the image. 
 
 - **Ports that name a register.** The SNES escapes have host halves
   (`runtime/platform/native_escapes.c`) that follow what a host can: the field's memory clear (`vid_snes_copy` from the
@@ -2904,17 +2792,6 @@ persistence seams; game-side representation changes still need explicit work.
 
 - **zophar `chrono-7`** (everything maxed at the fair) is unused: its Lucca
   exhibit gate (`$7F:0055` bit 7) can be opened, but no movie needs it yet.
-- **`tools/portsmell.py`'s `sibling-through-machine` matches only literal
-  addresses in `m_jsr`/`m_jsl`**: a call-out to a registered port through a
-  named constant (`rising_palace.c`'s `m_jsl_dc(s, ..., CURTAIN_STEP, ...)`)
-  or through the bridges' `battle_call`/`menu_call` gets past it, and so does
-  `menu_run` of a C sibling. Resolving the enum constants is cheap; telling
-  the findings from the legitimate cases is not: a `battle_call` to a port is
-  right where it is the call-out a guard's refusal makes (`battle_take_turn`,
-  `battle_take_step`), and `menu_run`'s targets are ports by design, so only
-  a sibling with no call-outs is item 123. The check needs to know which
-  calls are a refusal's (a helper's body, or a branch on the guard) and which
-  siblings call out.
 - **`ram_map.py coverage` stops measuring a file once it is converted.**
   Its denominator counts literal address uses, so accessor-only files
   disappear instead of scoring as named. Include accessor uses or report

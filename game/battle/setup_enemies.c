@@ -27,12 +27,10 @@ enum { TILE_PIXELS = 16, ENEMY_RECORD_BYTES = 12 };
 enum { KIND_BITS = 0x07, STARTS_HIDDEN = 0x80, NO_ENEMY = 0x8000 };
 
 /* An enemy header's flags. */
-enum {
-    DRAWN_ON_TOP = 0x80,      /* a second, topmost entry in the draw list */
+enum { DRAWN_ON_TOP = 0x80, /* a second, topmost entry in the draw list */
     NUMBERS_AT_CURSOR = 0x20, /* its numbers show at its cursor point */
-    LEADS_FORMATION = 0x08,   /* the formation keeps its places around it */
-    UNDER_THE_RULE = 0x04,    /* the battle's rule applies to it */
-};
+    LEADS_FORMATION = 0x08, /* the formation keeps its places around it */
+    UNDER_THE_RULE = 0x04, /* the battle's rule applies to it */ };
 
 /* Enemies drawn a pixel lower than their records place them. */
 static bool stands_lower(uint16_t number) { return number == 0xD8 || number == 0x94 || number == 0xAD; }
@@ -227,7 +225,6 @@ static void count_kinds(GameState *g)
     }
     for (unsigned kind = 0; kind < SETUP_ENEMY_KINDS; kind++)
         set_battle_enemy_kind_counts(g, kind, (uint8_t)counts[kind]);
-    charge_machine_accesses(g, 2 * SETUP_ENEMY_KINDS + 4);
 }
 
 /* Whether the enemies are ones the game makes, as the setup counts on: their
@@ -255,30 +252,6 @@ bool setup_enemies_are_real(const GameState *g)
     return kinds <= SETUP_ENEMY_KINDS;
 }
 
-/* What the original leaves in its working cells from the last enemy it set
- * up, of what the kinds' count after it doesn't write over: its number, its
- * animation set and where its delay lists' next set starts. */
-
-// $CC:EA33
-/* Preserve the machine estimate for removed comparison accesses.
- * Inspect the branch without charging those reads to either backend. */
-static void charge_last_enemy(GameState *g)
-{
-    uint32_t charge_mark = charge_uncounted_begin(g);
-    unsigned examined = 0;
-    bool found = false;
-    for (unsigned enemy = BATTLE_ENEMIES; enemy-- > 0;) {
-        examined++;
-        if (record_has_enemy(g, record_of(g, (uint8_t)enemy))) {
-            found = true;
-            break;
-        }
-    }
-    charge_uncounted_end(g, charge_mark);
-    charge_machine_accesses(g, 2 * examined + (found ? 8 : 0));
-    charge_machine_rom_accesses(g, examined + (found ? 10 : 0));
-}
-
 void setup_enemies(GameState *g)
 {
     keep_start_positions(g);
@@ -287,7 +260,6 @@ void setup_enemies(GameState *g)
         if (record_has_enemy(g, record))
             set_up_enemy(g, enemy, record);
     }
-    charge_last_enemy(g);
     if (battle_formation(g))
         place_formation(g);
     take_rules(g);

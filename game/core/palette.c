@@ -32,7 +32,6 @@
 #include "core/palette_data.h"
 #include "core/program.h"
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -467,21 +466,6 @@ static void charge_fade(GameState *g, bool lighten, uint8_t mode, uint8_t count)
     charge_as(g, fade_loop_routine(lighten, mode), per_color * count);
 }
 
-/* ---- The machine form ---------------------------------------------------------------------------
- *
- * The animations are retired from the byte-exact gate (REIMPLEMENTATION.md,
- * "The core services' teardown"): the machine enters none of their routines
- * as ports, and every caller runs them as C. Callers still under the gate run
- * the frame's work on the machine, under the original's call
- * (core/machine_forms.c), and need the registers the original leaves:
- * palette_animate is that, with its contract. The original saves its
- * caller's direct page and data bank, runs on the page $0500 with the data
- * bank its caller's direct page's low byte (so 0, its contract), and gives
- * them back. */
-
-/* The page, and the slots as the original's Y has them, 12 bytes apart. */
-enum { ANIMATIONS_PAGE = 0x0500, SLOT_BYTES = 12, SLOTS_END = SLOTS * SLOT_BYTES };
-
 static bool every_slot_fits(const GameState *g)
 {
     for (unsigned slot = 0; slot < SLOTS; slot++)
@@ -490,11 +474,8 @@ static bool every_slot_fits(const GameState *g)
     return true;
 }
 
-/* Slots the game never makes (a count of 0 runs the original over 65536
- * colors and on past the palette) break the animations' contract; the guard
- * that turned them away to the original is this assertion now. The check
- * takes none of the animations' time: the scene's tasks run it on the machine
- * too, where its reads would be charged as theirs. */
+/* Reject malformed animation slots without charging validation reads to
+ * the animation work. A zero count would overrun the palette. */
 bool palette_animated(GameState *g)
 {
     vars_peek(true);
@@ -508,52 +489,16 @@ bool palette_animated(GameState *g)
     return true;
 }
 
-bool palette_animate_runs(Snes *s)
-{
-    if ((m_direct_page(s) & 0xFF) != 0)
-        return false;
-    vars_peek(true);
-    bool ok = every_slot_fits(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-/* It leaves the last slot's offset in A and Y, the carry of its last
- * comparison set and the overflow clear. */
+// $FD:E39C
+/* Advance every active palette animation by one frame. */
 void palette_animate_a_frame(GameState *g)
 {
     run_animations(g);
 }
 
-uint16_t palette_animations_leave(void) { return SLOTS_END; }
-
-void palette_animate(Snes *s)
-{
-    GameState *g = state_of(s);
-    palette_animate_a_frame(g);
-    s->cpu.x = ANIMATIONS_PAGE;
-    s->cpu.a = SLOTS_END;
-    s->cpu.y = SLOTS_END;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_set_flag(s, CPU_FLAG_V, false);
-    m_rtl(s);
-}
-
 // $C0:712E
-/* Upload the working palette: the 256 colors at $7E:2200 into CGRAM from entry
- * 0. Every mode calls this from its vblank work; what it leaves in A, X and
- * the flags nobody reads (the entry's set). */
+/* Upload the working palette for this frame. */
 void palette_send_working(Platform *pf)
 {
     vid_send_palette(pf, PF_AT(0xC07130), 0, PF_GAME(0x7E2200), PALETTE_COLORS);
 }
-
-void palette_upload(Snes *s)
-{
-    palette_send_working(m_platform(s));
-    m_rts(s);
-}
-
-/* The upload writes the registers with absolute addressing, so it needs a data
- * bank that reaches them. */
-bool palette_bank_is_io(Snes *s) { return m_io_bank(s->cpu.db); }

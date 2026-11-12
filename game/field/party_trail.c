@@ -34,7 +34,6 @@
 #include "field/field.h"
 #include "field/parts.h"
 #include "field/scratch.h"
-#include "port/machine.h"
 #include "vars.h"
 
 /* ---- Storage: the trail, and what the walk leaves for the party ----------------------- */

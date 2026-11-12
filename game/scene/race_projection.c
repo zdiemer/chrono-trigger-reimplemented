@@ -29,7 +29,6 @@
 #include "scene/race.h"
 
 #include "cpu_io.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -463,16 +462,6 @@ static void place_bikes(GameState *g)
     hand_over_working_cells(g, last, gap);
 }
 
-/* ---- Entry ------------------------------------------------------------------------------------- */
-
-/* The placing's code, and the sine, the multiplies and the divide it calls. */
-static bool placing_code_present(Snes *s)
-{
-    return m_code_matches(s, 0x7E4D0D, 0x247, 0x211E2D7F00447EA5ull) && m_code_matches(s, 0x7E3461, 0x19, 0xA2486F18B991C163ull) &&
-           m_code_matches(s, 0x7E31BF, 74, 0x479627EBF1311CAFull) && m_code_matches(s, 0x7E33D6, 0x37, 0xCB3F0FAD1C9F8EA9ull) &&
-           m_code_matches(s, 0x7E32E2, 189, 0xD04B8C1274AF93C8ull);
-}
-
 /* The states the port places the bikes in: the horizon above the plane's top,
  * with the gap between them on the screen (otherwise the original's sums
  * borrow and wrap into the bikes' lines); and each bike either at a distance
@@ -532,16 +521,6 @@ static bool bikes_placeable(const GameState *g)
     return fits;
 }
 
-bool scene_race_place_bikes_present(Snes *s)
-{
-    if (!scene_on_scene_page_io_bank(s) || !placing_code_present(s))
-        return false;
-    vars_peek(true);
-    bool fits = bikes_placeable(state_of(s));
-    vars_peek(false);
-    return fits;
-}
-
 TaskEnd scene_race_place_bikes(GameState *g, Platform *pf, unsigned slot)
 {
     (void)pf;
@@ -550,24 +529,4 @@ TaskEnd scene_race_place_bikes(GameState *g, Platform *pf, unsigned slot)
         return scene_task_needs_the_machine(g, 0x7E4D0D, "bikes placed where the port's sums don't reach");
     place_bikes(g);
     return task_goes_on();
-}
-
-/* What the placing leaves in A and Y, which the list's code hands on: A the
- * last bike's last edge (Crono's right, Johnny's bottom; Johnny's mark where he
- * is gone and would have come last), Y the distance the last bike placed was
- * looked up at. */
-static void charge_bike_result(GameState *g, Racer last)
-{
-    charge_legacy_accesses(g, last == RACER_JOHNNY ? 4 : 2);
-}
-
-/* A frame task entered with 16-bit A and index registers and the carry clear
- * (the list's own compare, for any slot but the first). */
-void scene_race_place_bikes_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    Racer would_be_last = second_placed(places_of(g));
-    place_bikes(g);
-    charge_bike_result(state_of(s), would_be_last);
-    m_rts(s);
 }

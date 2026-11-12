@@ -1,3 +1,5 @@
+#include "event/script.h"
+#include "event/script.h"
 /* Objects calling on each other: how one object's script makes another do
  * something -- a guard turn to face the party, a door open, a character join
  * a cutscene.
@@ -43,7 +45,6 @@ typedef uint16_t Place;   /* an entry of event_saved_positions */
 
 /* The offset of an object's place at a level among the places, which the
  * original works out in a scratch cell. */
-
 
 static Place place_of(FieldObject object, uint8_t level) { return (Place)(level * OBJECTS_PER_LEVEL + object); }
 

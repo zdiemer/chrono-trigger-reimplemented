@@ -31,7 +31,6 @@
 #include "battle/screen_data.h"
 #include "charge.h"
 #include "cpu_io.h"
-#include "port/native.h"
 #include "vars.h"
 
 /* ---- A layer's scroll -------------------------------------------------------------------- */
@@ -118,7 +117,6 @@ void battle_scroll_layers(GameState *g, BattleScrollMode mode)
     if (mode == BATTLE_SCROLL_LINE_OFFSETS_LONG_BG3)
         scroll_entries(g, BG3, s[BG3], waved_layer(g, mode, BG3), LINES_PER_LAYER, FINER_BG3_ENTRIES);
     set_battle_screen_leftover(g, s[BG1].x);
-    charge_machine_accesses(g, 4 * SCROLLED_LAYERS - 2 + ((mode == BATTLE_SCROLL_LINE_OFFSETS || mode == BATTLE_SCROLL_LINE_OFFSETS_LONG_BG3) ? 4 * SCROLLED_LAYERS : 0));
 }
 
 /* ---- The screen shake --------------------------------------------------------------------- */
@@ -180,7 +178,6 @@ static uint8_t shake_axis(GameState *g, unsigned axis)
         set_battle_shake_rate_elapsed(g, axis, since);
     }
     uint8_t magnitude = battle_shake_magnitude(g, axis), amplitude = battle_shake_amplitude(g, axis);
-    charge_machine_io_accesses(g, 4);
     return (uint8_t)(magnitude * amplitude >> OFFSET_FRACTION_BITS);
 }
 
@@ -201,8 +198,7 @@ static bool shakes(uint8_t layers, unsigned layer, unsigned axis)
 /* A screen effect asks for a preset's fades to start: bit 7 of the request
  * for preset slot 2's over palette animation slot 10, any other bit for slots
  * 0 and 1's over 8 and 9 (and only bit 0 is taken back after). */
-enum { REQUEST_SLOT_10 = 0x80, REQUEST_SLOTS_8_9 = 0x01, PRESET_SLOTS_8_9 = 0, PRESET_SLOT_10 = 2,
-       FIRST_PRESET_SLOT = 8, PRESET_SLOT_BYTES = 12 };
+enum { REQUEST_SLOT_10 = 0x80, REQUEST_SLOTS_8_9 = 0x01, PRESET_SLOTS_8_9 = 0, PRESET_SLOT_10 = 2, FIRST_PRESET_SLOT = 8, PRESET_SLOT_BYTES = 12 };
 
 /* A preset slot is laid out as a palette animation slot, and copied whole. */
 static void start_preset(GameState *g, unsigned preset, unsigned slot)
@@ -240,7 +236,6 @@ static void start_requested_presets(GameState *g)
 void battle_shake_screen(GameState *g)
 {
     const uint8_t offset[2] = { shake_axis(g, ACROSS), shake_axis(g, DOWN) };
-    charge_machine_accesses(g, 2);
     uint8_t layers = battle_shake_layers(g);
     for (unsigned layer = 0; layer < SCROLLED_LAYERS; layer++)
         for (unsigned axis = ACROSS; axis <= DOWN; axis++)
@@ -278,16 +273,3 @@ void battle_scroll_by_the_mode(GameState *g)
  * high byte too: 0 wherever the game calls it, and anything else is the
  * original's. */
 enum { FRAME_WORK_SCROLLS = 0xCD0929, SCROLL_DISPATCH = 0xCD06B4 };
-
-static bool a_high_clear(const Snes *s) { return (s->cpu.a & 0xFF00) == 0; }
-
-bool battle_scroll_the_layers(Snes *s)
-{
-    GameState *g = state_of(s);
-    BattleScrollMode mode = scroll_mode(g);
-    if (!a_high_clear(s))
-        return battle_call(s, FRAME_WORK_SCROLLS, SCROLL_DISPATCH, DC_X | DC_Y | DC_FLAGS | DC_AL);
-    TIMED_AS(g, scroll_routines[mode], battle_scroll_layers(g, mode));
-    s->cpu.a = BATTLE_PAGE;   /* as the fills leave it */
-    return true;
-}

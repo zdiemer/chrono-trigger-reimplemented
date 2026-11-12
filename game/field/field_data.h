@@ -23,13 +23,6 @@ typedef enum {
     FIELD_SPRITE_TABLES,
 } FieldSpriteTable;
 
-/* Where each of the tables of the objects' sprite data is (field_sprite_data_tables),
- * as a long address: in bank $E4, at the word $E4:FFE0 keeps for it. */
-static inline uint32_t field_sprite_data_table(const GameState *g, FieldSpriteTable table)
-{
-    return 0xE40000u | rom_read16(g, 0xE4FFE0u + 2u * table);
-}
-
 /* What a sprite looks like, as a record of five fields, each picking an entry
  * of one of the tables above: its graphics set, its assembly (how its frames
  * lay its tiles out), its palette, its animations, and its layout (how many
@@ -48,20 +41,6 @@ typedef struct {
 
 enum { FIELD_SPRITE_RECORD_BYTES = 5, BATTLE_SPRITE_RECORD_BYTES = 10 };
 
-static inline FieldSpriteRecord field_sprite_record_at(const GameState *g, uint32_t at)
-{
-    return (FieldSpriteRecord){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3),
-                                rom_read8(g, at + 4) };
-}
-static inline FieldSpriteRecord field_sprite_record(const GameState *g, uint16_t id)
-{
-    return field_sprite_record_at(g, 0xE4F000u + (uint16_t)(id * FIELD_SPRITE_RECORD_BYTES));
-}
-static inline FieldSpriteRecord battle_sprite_record(const GameState *g, uint8_t id)
-{
-    return field_sprite_record_at(g, 0xE4F600u + (uint16_t)(id * BATTLE_SPRITE_RECORD_BYTES));
-}
-
 /* The tables a sprite record's fields pick from, where field_sprite_data_tables
  * points them (`table`, a long address; an entry's place carries into the
  * next bank as the original's long reads carry): the graphics sets and the
@@ -70,25 +49,188 @@ static inline FieldSpriteRecord battle_sprite_record(const GameState *g, uint8_t
  * after it, so the difference is the table's size); and beside it the
  * table of each one's frame times. */
 enum { FIELD_LONG_ENTRY_BYTES = 3, FIELD_WORD_ENTRY_BYTES = 2 };
-static inline uint32_t field_sprite_long_entry(const GameState *g, uint32_t table, uint8_t index)
-{
-    uint32_t at = (table + (uint32_t)index * FIELD_LONG_ENTRY_BYTES) & 0xFFFFFFu;
-    return (uint32_t)rom_read16(g, at) | (uint32_t)rom_read8(g, (at + 2) & 0xFFFFFFu) << 16;
-}
-static inline uint16_t field_sprite_word_entry(const GameState *g, uint32_t table, uint16_t index)
-{
-    return rom_read16(g, (table + (uint32_t)index * FIELD_WORD_ENTRY_BYTES) & 0xFFFFFFu);
-}
 
 /* A sprite palette's colours: twelve BGR words a palette, from $E4:0000 (a
  * sprite record's palette times their 24 bytes), which load into a sprite
  * palette's colours 1-12. `colours` is where the palette starts in the bank;
  * a colour past its end wraps in the bank, as the original's block move does. */
 enum { FIELD_SPRITE_COLOURS = 12, FIELD_SPRITE_COLOURS_BANK = 0xE4 };
+
+/* The credits' letters, packed (the unpacker's stream) at $FD:0000: the font
+ * the endings' credits are written in, which event $29 loads into BG3's
+ * tiles. */
+enum { FIELD_CREDITS_LETTERS_PACKED = 0xFD0000 };
+
+/* The field's own messages, a chest's (what it gave, the gold, that it is
+ * empty): a table of dialog strings at $DE:FF00, which the dialog window sets
+ * in place of the script's table when the field opened it. */
+enum { FIELD_MESSAGES = 0xDEFF00 };
+
+/* The blank tile map entries a row of BG3's staging is cleared with before a
+ * credits line: 32 bytes at $D2:0000, the start of the sprite graphics' first
+ * bank, which hold 0. */
+enum { FIELD_BLANK_ENTRIES_BYTES = 32 };
+
+/* The ROM's banks of sprite graphics, which a graphics set's bank names: the
+ * original copies from each of the four with a routine of its own, and a bank
+ * past them (or before) from the last. */
+enum { FIELD_SPRITE_GRAPHICS_FIRST_BANK = 0xD2, FIELD_SPRITE_GRAPHICS_LAST_BANK = 0xD5 };
+
+/* An object's animations as the ROM keeps them: four frame numbers an
+ * animation, ending in $FF, in the object's frame table for its facing, in
+ * the bank the frame builder names; and four frame times an animation,
+ * ending in 0, in its table of times in bank $E4. A frame's place in either
+ * is the table's offset plus animation * 4 plus the frame, summed in 16
+ * bits as the original does. */
+enum { FIELD_FRAMES_A_ANIMATION = 4, FIELD_ANIMATION_TIMES_BANK = 0xE4 };
+/* The bank the frame builder names for the frame tables (field/frames.c). */
+enum { FIELD_FRAME_TABLES_BANK = 0xE4 };
+
+typedef struct {
+    uint8_t bank;
+    uint16_t offset;
+} FieldFrameTable;
+
+/* The ground's slopes (field/walk.c): a tile whose shape is one of the 22
+ * slopes is parted into its upper and its lower level by a line across it.
+ * For each, how far a point's place across the tile is shifted down to rise
+ * along the line (mirrored: counted from the tile's other side), where the
+ * line starts, and which side of it is the upper level ($C0:9BF5, $C0:9C0B,
+ * $C0:9C21, 22 bytes each). */
+enum { FIELD_SLOPES = 22 };
+typedef struct {
+    uint8_t shift;
+    bool mirrored;
+    uint8_t start;
+    uint8_t upper_side;
+} FieldSlope;
+
+/* A location's exit (field/walk.c): a tile of the map, and the location the
+ * party goes to from it, as a script writes a location (event/locations.c):
+ * the map in the low 9 bits of a word whose high byte says how, and where the
+ * party stands there. The exits are seven bytes each in bank $E5, from the
+ * place field_location_exits says. */
+typedef struct {
+    uint8_t x, y;
+    uint8_t reach;   /* how many tiles past the first the exit spans: down where EXIT_RUNS_DOWN is set, across otherwise */
+    uint16_t map_and_how;
+    uint8_t to_x, to_y;
+} FieldExit;
+
+enum { EXIT_RUNS_DOWN = 0x80, EXIT_MORE_TILES = 0x7F, FIELD_EXIT_BYTES = 7 };
+
+/* A chest (event/chests.c): the tile it stands on (row << 8 | column), and
+ * what it holds (event/chests.c says how). Four bytes each, one list for the
+ * game in bank $F5, a location's a run of it (field_location_chests); a chest's place
+ * is where in the bank its record is. */
+enum { FIELD_CHEST_BYTES = 4 };
+typedef struct {
+    uint16_t tile;
+    uint16_t contents;
+} FieldChest;
+
+/* Where the game's chests start, and a location's run of them: a word per
+ * location (by the location doubled) from $F5:F000, the run ending where the
+ * next location's starts. */
+typedef struct {
+    uint16_t first, end;
+} FieldChestRun;
+
+/* ---- The dialog window's looks ------------------------------------------------------------ */
+
+/* The window designs the player chooses among (the settings' second byte,
+ * the menus' too), and each one's graphics: a pointer per design at $C0:6EA0
+ * to its frame's tiles in bank $FF, $200 bytes, with the interior's pattern
+ * after them, $80. And each design's colours, from $FF:B210, eight colours a
+ * design apart, of which the window takes fifteen. */
+enum { WINDOW_DESIGNS = 8, WINDOW_DESIGN_COLOURS = 15 };
+
+/* The choice pointer's four tiles, and the field's two sprites of its own,
+ * the tiles of each 16x16 sprite's top and bottom halves, in bank $FF. */
+enum { FIELD_CHOICE_POINTER_TILES = 0xFF9260, FIELD_OWN_SPRITES_TILES = 0xFF9CF0 };
+
+/* ---- Locations ------------------------------------------------------------------------------- */
+
+/* A location's record (MD2's location_records: 14 bytes a location from
+ * $F6:0000, by the location's nine-bit number), as far as the field's loading
+ * reads it here: the song it plays (one of $80 and up plays none), its tile
+ * set (BG1's and BG2's tiles: the graphics and how the map's tiles are made
+ * of them), and BG3's ($FF: none). The field keeps where the current
+ * location's record is (location_record_offset), which the other readers of
+ * the record take it from (core/palette_data.h). */
+enum { LOCATION_RECORD_BYTES = 14, LOCATION_NUMBER_BITS = 0x01FF, NO_LOCATION_SONG = 0x80, NO_TILE_SET = 0xFF };
+
+typedef struct {
+    uint8_t song;
+    uint8_t tile_set;
+    uint8_t bg3_tile_set;
+} LocationDescription;
+
+/* The map a location shows (its record's word at +4), and where its screen
+ * and its leader stay (four bytes from +10: the left, top, right and bottom
+ * tiles; a left with its top bit set lets them have the whole map). */
+typedef struct {
+    uint8_t left, top, right, bottom;
+} MapEdges;
+enum { MAP_EDGES_THE_WHOLE_MAP = 0x80 };
+
+/* A location's palette: its record's byte 3 names one of the palettes at
+ * $F6:24C0, 210 bytes each: seven rows of fifteen colours, BGR words, for the
+ * background palettes 1-7 but each one's colour 0. The place is worked out in
+ * 16 bits, as the original's sum is. */
+enum { LOCATION_PALETTE_ROWS = 7, LOCATION_PALETTE_ROW_COLOURS = 15 };
+
+/* A location's exits (FieldExit, above): where their run in bank $E5 starts,
+ * from a word per location at $E5:0000, and where it ends, where the next
+ * location's starts. */
+typedef struct {
+    uint16_t first, end;
+} FieldExitRun;
+
+/* A tile set's graphics: eight packed graphics blocks (data/packed_graphics.h),
+ * a byte each from $F6:1C00, $FF for none. The first six are BG1's and BG2's
+ * tiles in VRAM; the last two are kept in bank $7F. */
+enum { TILE_SET_BLOCKS = 8, TILE_SET_BLOCKS_IN_VRAM = 6 };
+
+/* Where each of the tables of the objects' sprite data is (field_sprite_data_tables),
+ * as a long address: in bank $E4, at the word $E4:FFE0 keeps for it. */
+static inline uint32_t field_sprite_data_table(const GameState *g, FieldSpriteTable table)
+{
+    return 0xE40000u | rom_read16(g, 0xE4FFE0u + 2u * table);
+}
+
+static inline FieldSpriteRecord field_sprite_record_at(const GameState *g, uint32_t at)
+{
+    return (FieldSpriteRecord){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3),
+                                rom_read8(g, at + 4) };
+}
+
+static inline FieldSpriteRecord field_sprite_record(const GameState *g, uint16_t id)
+{
+    return field_sprite_record_at(g, 0xE4F000u + (uint16_t)(id * FIELD_SPRITE_RECORD_BYTES));
+}
+
+static inline FieldSpriteRecord battle_sprite_record(const GameState *g, uint8_t id)
+{
+    return field_sprite_record_at(g, 0xE4F600u + (uint16_t)(id * BATTLE_SPRITE_RECORD_BYTES));
+}
+
+static inline uint32_t field_sprite_long_entry(const GameState *g, uint32_t table, uint8_t index)
+{
+    uint32_t at = (table + (uint32_t)index * FIELD_LONG_ENTRY_BYTES) & 0xFFFFFFu;
+    return (uint32_t)rom_read16(g, at) | (uint32_t)rom_read8(g, (at + 2) & 0xFFFFFFu) << 16;
+}
+
+static inline uint16_t field_sprite_word_entry(const GameState *g, uint32_t table, uint16_t index)
+{
+    return rom_read16(g, (table + (uint32_t)index * FIELD_WORD_ENTRY_BYTES) & 0xFFFFFFu);
+}
+
 static inline uint16_t field_sprite_palette_place(uint8_t palette)
 {
     return (uint16_t)(palette * FIELD_SPRITE_COLOURS * 2);
 }
+
 static inline uint16_t field_sprite_colour(const GameState *g, uint16_t colours, unsigned n)
 {
     uint32_t bank = (uint32_t)FIELD_SPRITE_COLOURS_BANK << 16;
@@ -113,20 +255,6 @@ static inline uint8_t field_mirrored_byte(const GameState *g, uint8_t b) { retur
  * reads carry. */
 static inline uint8_t field_credits_byte(const GameState *g, uint16_t at) { return rom_read8(g, 0xFDA000u + at); }
 
-/* The credits' letters, packed (the unpacker's stream) at $FD:0000: the font
- * the endings' credits are written in, which event $29 loads into BG3's
- * tiles. */
-enum { FIELD_CREDITS_LETTERS_PACKED = 0xFD0000 };
-
-/* The field's own messages, a chest's (what it gave, the gold, that it is
- * empty): a table of dialog strings at $DE:FF00, which the dialog window sets
- * in place of the script's table when the field opened it. */
-enum { FIELD_MESSAGES = 0xDEFF00 };
-
-/* The blank tile map entries a row of BG3's staging is cleared with before a
- * credits line: 32 bytes at $D2:0000, the start of the sprite graphics' first
- * bank, which hold 0. */
-enum { FIELD_BLANK_ENTRIES_BYTES = 32 };
 static inline uint8_t field_blank_entries_byte(const GameState *g, unsigned i) { return rom_read8(g, 0xD20000u + i); }
 
 /* Sprite tile graphics, wherever a graphics set's pointer puts them: the ROM's
@@ -139,6 +267,7 @@ static inline uint8_t field_sprite_graphics_byte(const GameState *g, uint32_t at
  * Y offset from the object, a byte each. `at` is a 24-bit address, carried
  * into the next bank as the original's indexed reads carry. */
 static inline uint16_t field_frame_tile_word(const GameState *g, uint32_t at) { return rom_read16(g, at); }
+
 static inline uint8_t field_frame_offset_byte(const GameState *g, uint32_t at) { return rom_read8(g, at); }
 
 /* A bank every address of which holds data -- the ROM's high banks and their
@@ -149,32 +278,14 @@ static inline bool field_bank_always_answers(uint8_t bank)
     return (bank >= 0x40 && bank < 0x80) || bank >= 0xC0;
 }
 
-/* The ROM's banks of sprite graphics, which a graphics set's bank names: the
- * original copies from each of the four with a routine of its own, and a bank
- * past them (or before) from the last. */
-enum { FIELD_SPRITE_GRAPHICS_FIRST_BANK = 0xD2, FIELD_SPRITE_GRAPHICS_LAST_BANK = 0xD5 };
 static inline uint8_t field_sprite_graphics_rom_bank(uint8_t named)
 {
     return named >= FIELD_SPRITE_GRAPHICS_FIRST_BANK && named < FIELD_SPRITE_GRAPHICS_LAST_BANK
                ? named
                : (uint8_t)FIELD_SPRITE_GRAPHICS_LAST_BANK;
 }
+
 static inline uint16_t field_sprite_graphics_word(const GameState *g, uint32_t at) { return rom_read16(g, at); }
-
-/* An object's animations as the ROM keeps them: four frame numbers an
- * animation, ending in $FF, in the object's frame table for its facing, in
- * the bank the frame builder names; and four frame times an animation,
- * ending in 0, in its table of times in bank $E4. A frame's place in either
- * is the table's offset plus animation * 4 plus the frame, summed in 16
- * bits as the original does. */
-enum { FIELD_FRAMES_A_ANIMATION = 4, FIELD_ANIMATION_TIMES_BANK = 0xE4 };
-/* The bank the frame builder names for the frame tables (field/frames.c). */
-enum { FIELD_FRAME_TABLES_BANK = 0xE4 };
-
-typedef struct {
-    uint8_t bank;
-    uint16_t offset;
-} FieldFrameTable;
 
 static inline uint16_t field_animation_place(uint16_t table, uint8_t animation, uint8_t frame)
 {
@@ -214,20 +325,6 @@ static inline uint8_t field_facing_of_direction(const GameState *g, uint8_t dire
  * (field_draw_random): a blocked object's new direction, a script's dice. */
 static inline uint8_t field_random_byte(const GameState *g, uint8_t index) { return rom_read8(g, 0xC0FE00u + index); }
 
-/* The ground's slopes (field/walk.c): a tile whose shape is one of the 22
- * slopes is parted into its upper and its lower level by a line across it.
- * For each, how far a point's place across the tile is shifted down to rise
- * along the line (mirrored: counted from the tile's other side), where the
- * line starts, and which side of it is the upper level ($C0:9BF5, $C0:9C0B,
- * $C0:9C21, 22 bytes each). */
-enum { FIELD_SLOPES = 22 };
-typedef struct {
-    uint8_t shift;
-    bool mirrored;
-    uint8_t start;
-    uint8_t upper_side;
-} FieldSlope;
-
 static inline FieldSlope field_slope(const GameState *g, uint8_t shape)
 {
     uint8_t shift = rom_read8(g, 0xC09BF5u + shape);
@@ -235,20 +332,6 @@ static inline FieldSlope field_slope(const GameState *g, uint8_t shape)
     uint8_t side = rom_read8(g, 0xC09C21u + shape);
     return (FieldSlope){ (uint8_t)(shift & 0x7F), (shift & 0x80) != 0, start, side };
 }
-
-/* A location's exit (field/walk.c): a tile of the map, and the location the
- * party goes to from it, as a script writes a location (event/locations.c):
- * the map in the low 9 bits of a word whose high byte says how, and where the
- * party stands there. The exits are seven bytes each in bank $E5, from the
- * place field_location_exits says. */
-typedef struct {
-    uint8_t x, y;
-    uint8_t reach;   /* how many tiles past the first the exit spans: down where EXIT_RUNS_DOWN is set, across otherwise */
-    uint16_t map_and_how;
-    uint8_t to_x, to_y;
-} FieldExit;
-
-enum { EXIT_RUNS_DOWN = 0x80, EXIT_MORE_TILES = 0x7F, FIELD_EXIT_BYTES = 7 };
 
 static inline FieldExit field_exit(const GameState *g, uint16_t exits, uint8_t index)
 {
@@ -263,16 +346,6 @@ static inline FieldExit field_exit(const GameState *g, uint16_t exits, uint8_t i
     return e;
 }
 
-/* A chest (event/chests.c): the tile it stands on (row << 8 | column), and
- * what it holds (event/chests.c says how). Four bytes each, one list for the
- * game in bank $F5, a location's a run of it (field_location_chests); a chest's place
- * is where in the bank its record is. */
-enum { FIELD_CHEST_BYTES = 4 };
-typedef struct {
-    uint16_t tile;
-    uint16_t contents;
-} FieldChest;
-
 static inline uint16_t field_chest_place(uint16_t first, uint8_t index)
 {
     return (uint16_t)(first + index * FIELD_CHEST_BYTES);
@@ -284,57 +357,23 @@ static inline FieldChest field_chest_at(const GameState *g, uint16_t place)
     return (FieldChest){ rom_read16(g, at), rom_read16(g, at + 2) };
 }
 
-/* Where the game's chests start, and a location's run of them: a word per
- * location (by the location doubled) from $F5:F000, the run ending where the
- * next location's starts. */
-typedef struct {
-    uint16_t first, end;
-} FieldChestRun;
-
 static inline uint16_t field_games_chests_start(const GameState *g) { return rom_read16(g, 0xF5F000u); }
+
 static inline FieldChestRun field_location_chest_run(const GameState *g, uint16_t location_twice)
 {
     uint32_t at = 0xF5F000u + location_twice;
     return (FieldChestRun){ rom_read16(g, at), rom_read16(g, at + 2) };
 }
 
-/* ---- The dialog window's looks ------------------------------------------------------------ */
-
-/* The window designs the player chooses among (the settings' second byte,
- * the menus' too), and each one's graphics: a pointer per design at $C0:6EA0
- * to its frame's tiles in bank $FF, $200 bytes, with the interior's pattern
- * after them, $80. And each design's colours, from $FF:B210, eight colours a
- * design apart, of which the window takes fifteen. */
-enum { WINDOW_DESIGNS = 8, WINDOW_DESIGN_COLOURS = 15 };
 static inline uint32_t field_window_design_graphics(const GameState *g, uint8_t design)
 {
     return 0xFF0000u | rom_read16(g, 0xC06EA0u + 2u * (design % WINDOW_DESIGNS));
 }
+
 static inline uint16_t field_window_design_colour(const GameState *g, uint8_t design, unsigned n)
 {
     return rom_read16(g, 0xFFB210u + 16u * (design % WINDOW_DESIGNS) + 2u * n);
 }
-
-/* The choice pointer's four tiles, and the field's two sprites of its own,
- * the tiles of each 16x16 sprite's top and bottom halves, in bank $FF. */
-enum { FIELD_CHOICE_POINTER_TILES = 0xFF9260, FIELD_OWN_SPRITES_TILES = 0xFF9CF0 };
-
-/* ---- Locations ------------------------------------------------------------------------------- */
-
-/* A location's record (MD2's location_records: 14 bytes a location from
- * $F6:0000, by the location's nine-bit number), as far as the field's loading
- * reads it here: the song it plays (one of $80 and up plays none), its tile
- * set (BG1's and BG2's tiles: the graphics and how the map's tiles are made
- * of them), and BG3's ($FF: none). The field keeps where the current
- * location's record is (location_record_offset), which the other readers of
- * the record take it from (core/palette_data.h). */
-enum { LOCATION_RECORD_BYTES = 14, LOCATION_NUMBER_BITS = 0x01FF, NO_LOCATION_SONG = 0x80, NO_TILE_SET = 0xFF };
-
-typedef struct {
-    uint8_t song;
-    uint8_t tile_set;
-    uint8_t bg3_tile_set;
-} LocationDescription;
 
 static inline uint16_t location_record_place(uint16_t location)
 {
@@ -354,28 +393,16 @@ static inline LocationDescription location_description_at(const GameState *g, ui
     return (LocationDescription){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2) };
 }
 
-/* The map a location shows (its record's word at +4), and where its screen
- * and its leader stay (four bytes from +10: the left, top, right and bottom
- * tiles; a left with its top bit set lets them have the whole map). */
-typedef struct {
-    uint8_t left, top, right, bottom;
-} MapEdges;
-enum { MAP_EDGES_THE_WHOLE_MAP = 0x80 };
-
 static inline uint16_t location_map(const GameState *g, uint16_t place) { return rom_read16(g, 0xF60004u + place); }
+
 static inline MapEdges location_map_edges(const GameState *g, uint16_t place)
 {
     uint32_t at = 0xF6000Au + place;
     return (MapEdges){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3) };
 }
 
-/* A location's palette: its record's byte 3 names one of the palettes at
- * $F6:24C0, 210 bytes each: seven rows of fifteen colours, BGR words, for the
- * background palettes 1-7 but each one's colour 0. The place is worked out in
- * 16 bits, as the original's sum is. */
-enum { LOCATION_PALETTE_ROWS = 7, LOCATION_PALETTE_ROW_COLOURS = 15 };
-
 static inline uint8_t location_palette(const GameState *g, uint16_t place) { return rom_read8(g, 0xF60003u + place); }
+
 static inline uint16_t location_palette_colour(const GameState *g, uint8_t palette, unsigned row, unsigned colour)
 {
     enum { PALETTES = 0x24C0, PALETTE_BYTES = 2 * LOCATION_PALETTE_ROWS * LOCATION_PALETTE_ROW_COLOURS };
@@ -388,6 +415,7 @@ static inline uint16_t location_palette_colour(const GameState *g, uint8_t palet
  * in 16 bits as the original adds it, the doubling's carry going into the
  * third, as for the maps). */
 static inline uint16_t location_script(const GameState *g, uint16_t place) { return rom_read16(g, 0xF60008u + place); }
+
 static inline uint32_t field_packed_script(const GameState *g, uint16_t script)
 {
     uint32_t at = 0xFCF9F0u + (uint16_t)(3u * script + (script >> 15));
@@ -403,25 +431,14 @@ static inline uint32_t field_packed_map(const GameState *g, uint16_t map)
     return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
 }
 
-/* A location's exits (FieldExit, above): where their run in bank $E5 starts,
- * from a word per location at $E5:0000, and where it ends, where the next
- * location's starts. */
-typedef struct {
-    uint16_t first, end;
-} FieldExitRun;
-
 static inline FieldExitRun field_location_exit_run(const GameState *g, uint16_t location)
 {
     uint32_t at = 0xE50000u + (uint16_t)((location & LOCATION_NUMBER_BITS) << 1);
     return (FieldExitRun){ rom_read16(g, at), rom_read16(g, at + 2) };
 }
 
-/* A tile set's graphics: eight packed graphics blocks (data/packed_graphics.h),
- * a byte each from $F6:1C00, $FF for none. The first six are BG1's and BG2's
- * tiles in VRAM; the last two are kept in bank $7F. */
-enum { TILE_SET_BLOCKS = 8, TILE_SET_BLOCKS_IN_VRAM = 6 };
-
 static inline uint32_t tile_set_blocks_place(uint8_t set) { return 0xF61C00u + (uint16_t)(set * TILE_SET_BLOCKS); }
+
 static inline uint8_t tile_set_block(const GameState *g, uint8_t set, unsigned n)
 {
     return rom_read8(g, tile_set_blocks_place(set) + n);
@@ -434,6 +451,7 @@ static inline uint32_t tile_looks_address(const GameState *g, uint8_t set)
     uint32_t at = 0xF62100u + 3u * set;
     return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
 }
+
 static inline uint32_t bg3_tile_looks_address(const GameState *g, uint8_t set)
 {
     uint32_t at = 0xF621C0u + 3u * set;

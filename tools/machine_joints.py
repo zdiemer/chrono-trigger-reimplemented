@@ -3,16 +3,10 @@
     python3 tools/machine_joints.py              # the totals
     python3 tools/machine_joints.py --files      # per file, most first
 
-This counts source dependencies to remove as the machine leaves game/
-(docs/PLAN.md). It does not measure execution coverage. Each row
-is a pattern, so a count is an estimate of sites, not of work: one entry
-wrapper is one return through the emulated stack, and it leaves with its
-subsystem's registry rows rather than one by one.
+Counts source dependencies and guards against reintroducing the deleted machine
+entry layer. These are sites, not execution coverage. Timing keys and diagnostic
+origins are not dispatches. The second column counts linked game sources.
 
-The second count is of what `ct_native` links: a subsystem whose machine side
-is a file of its own leaves it out of the native program (CMakeLists.txt's
-`CT_NATIVE_GAME_SOURCES`, as `registry.c` is), so its joints there are the
-gate's, not the product's.
 """
 
 import argparse
@@ -78,62 +72,15 @@ def missing_video_backends():
     return declared - implemented
 
 
-def registry_entries():
-    """The addresses in the registry's table (game_natives), not in what
-    follows it (the retired subsystems' uncompared cells)."""
-    text = (GAME / "registry.c").read_text(encoding="utf-8")
-    start = text.index("game_natives[] = {")
-    return len(ENTRY.findall(text[start:text.index("\n};", start)]))
-
-
-def restartable_loops(source):
-    """Functions with an explicit C loop and a saveable polling boundary.
-
-    A caller merely naming a hold, or a wrapper calling one pass, has not
-    replaced repeated dispatch. Count only the two runtime checkpoint APIs,
-    not comments, declarations, or a call in a neighbouring function.
-    """
-    source = re.sub(r'"(?:\\.|[^"\\])*"', '""', without_comments(source))
-    result = set()
-    for m in DEFINITION.finditer(source):
-        depth = 1
-        end = m.end()
-        while end < len(source) and depth:
-            depth += (source[end] == '{') - (source[end] == '}')
-            end += 1
-        body = source[m.end():end - 1]
-        name = re.search(r'(\w+)\s*\(', m[0])[1]
-        if (not depth and
-                re.search(r'\b(?:for|while)\s*\(', body) and
-                re.search(r'\bnative_(?:poll_held|idle_held)\s*\(', body)):
-            result.add(name)
-    return result
-
-
-def held_wait_counts(registry, loops):
-    """Remaining dispatch rows and retained C-loop compatibility rows.
-
-    `.loop` names the restartable idle loop; non-idle loops (warp) are the
-    entry function itself. Metadata alone is insufficient: source must have
-    the loop and checkpoint. The idle alias beside warp still counts.
-    """
-    registry = without_comments(registry)
-    start = registry.index("game_held_waits[] = {")
-    block = registry[start:registry.index("\n};", start)]
-    rows = re.findall(r'\{([^{}]*\.addr\s*=[^{}]*)\}', block)
-    converted = 0
-    for row in rows:
-        loop = re.search(r'\.loop\s*=\s*(\w+)\b', row)
-        entry = re.search(r'\.fn\s*=\s*(\w+)\b', row)
-        fn = loop or entry
-        enabled = not loop or re.search(r'\.idle\s*=\s*true\b', row)
-        converted += bool(enabled and fn and fn[1] in loops)
-    return len(rows) - converted, converted
-
-
-def held_wait_rows():
-    loops = set().union(*(restartable_loops(p.read_text(encoding="utf-8")) for p in sources()))
-    return held_wait_counts((GAME / "registry.c").read_text(encoding="utf-8"), loops)[0]
+def dispatch_rows(name):
+    """Count legacy table rows if one is reintroduced; no tables are required."""
+    total = 0
+    for path in sources():
+        source = without_comments(path.read_text(encoding="utf-8"))
+        match = re.search(r"\b" + name + r"\s*\[\s*\]\s*=\s*\{(.*?)\n\};", source, re.S)
+        if match:
+            total += len(re.findall(r"\.addr\s*=", match[1]))
+    return total
 
 
 BOUNDARIES = {
@@ -169,8 +116,6 @@ def count(per_file):
     by_file = collections.defaultdict(collections.Counter)
     missing_video = missing_video_backends()
     for path in sources():
-        if path.name == "registry.c":
-            continue
         text = path.read_text(encoding="utf-8", errors="replace")
         boundaries = machine_boundaries(text)
         if boundaries:
@@ -198,9 +143,8 @@ def count(per_file):
             if n:
                 totals[name] += n
                 by_file[path.relative_to(ROOT).as_posix()][name] += n
-    totals["registered entries"] = registry_entries()
-    totals["held waits' continuations"] = held_wait_rows()
-    by_file["game/registry.c"]["held waits' continuations"] = totals["held waits' continuations"]
+    totals["registered entries"] = dispatch_rows("game_natives")
+    totals["held waits' continuations"] = dispatch_rows("game_held_waits")
     return totals, by_file
 
 
@@ -494,7 +438,7 @@ def main():
     for path, c in by_file.items():
         if path not in left_out:
             native.update(c)
-    print("in game/, and in what ct_native links of it (not " + ", ".join(sorted(left_out)) + "):")
+    print("in game/ and in ct_native" + (" (excluding " + ", ".join(sorted(left_out)) + ")" if left_out else " (all sources linked)") + ":")
     for name, _, retires in JOINTS:
         print(f"{totals[name]:6d} {native[name]:6d}  {name}  (goes when: {retires})")
 

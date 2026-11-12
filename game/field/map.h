@@ -4,7 +4,7 @@
 
 #include <stdbool.h>
 
-#include "snes/system.h"
+#include <stdint.h>
 #include "state.h"
 
 /* Loading a location's map, in its three parts around the unpacker
@@ -22,11 +22,8 @@ void field_mark_the_exits(GameState *g);
 bool field_load_the_map(GameState *g);
 
 // $C0:A33B
-void field_unpack_the_map(Snes *s);
-bool field_map_can_be_unpacked(Snes *s);
 enum { FIELD_UNPACK_THE_MAP_ENTRY = 0xC0A33B };
 /* The map's chests and walkable tiles marked, as its screen is set up
  * (event/chests.h). */
-void field_mark_the_chests(Snes *s);
 
 #endif

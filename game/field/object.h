@@ -55,38 +55,6 @@ typedef struct {
 } FieldLink;
 
 enum { LINK_NONE_BIT = 0x80 };
-static inline FieldLink field_link_to(FieldObject obj) { return (FieldLink){ (uint8_t)(obj << 1) }; }
-static inline FieldLink field_no_link(void) { return (FieldLink){ LINK_NONE_BIT }; }
-static inline bool field_link_is_object(FieldLink link) { return !(link.stored & LINK_NONE_BIT); }
-static inline FieldObject field_linked_object(FieldLink link) { return (FieldObject)(link.stored >> 1); }
-static inline bool field_same_link(FieldLink a, FieldLink b) { return a.stored == b.stored; }
-
-static inline FieldLink field_link_stored(uint8_t byte) { return (FieldLink){ byte }; }
-static inline uint8_t field_link_byte(FieldLink link) { return link.stored; }
-
-/* Whether an offset as the original's tables are indexed -- a stored link, a
- * script's operand naming an object, the current object -- names an object
- * the tables hold: even, and inside them. Past them the original's index
- * reads the tables' neighbours, which only the original runs (the guards
- * check this, and the scripts' operands). */
-static inline bool field_names_object(uint16_t offset) { return !(offset & 1) && offset < 2 * FIELD_OBJECTS; }
-static inline bool field_link_names_object(FieldLink link)
-{
-    return field_link_is_object(link) && field_names_object(link.stored);
-}
-
-/* Whether the original can read a link's slot as one: an object the tables
- * hold, or a marker past them whose byte is even (an odd one reads the
- * tables out of step, a slot's two bytes from two slots, which the game
- * never makes: its marker is $80). */
-static inline bool field_link_readable(FieldLink link)
-{
-    return field_link_is_object(link) ? field_link_names_object(link) : !(link.stored & 1);
-}
-
-/* The object as the original's index registers hold it (its link's byte), for
- * scaffolding that keeps it in a scratch cell and for the machine side. */
-static inline uint8_t field_object_offset(FieldObject obj) { return field_link_to(obj).stored; }
 
 /* ---- The current object (field/object.c) ---------------------------------------------- *
  *
@@ -180,9 +148,7 @@ void object_take_off_the_map(GameState *g, FieldObject obj);
  * sprite table -- in front of the others, behind them, or in the middle,
  * which its layering says (below). */
 typedef enum { LAYOUT_4, LAYOUT_8, LAYOUT_12, LAYOUT_24 } SpriteLayout;
-/* The layout is a byte's low two bits, as a sprite record gives it and the
- * object keeps it. */
-static inline SpriteLayout sprite_layout_of(uint8_t byte) { return (SpriteLayout)(byte & 0x03); }
+
 typedef enum { RANGE_MIDDLE, RANGE_BACK, RANGE_FRONT } SpriteRange;
 SpriteLayout object_sprite_layout(const GameState *g, FieldObject obj);
 SpriteRange object_sprite_range(const GameState *g, FieldObject obj);
@@ -246,7 +212,7 @@ void object_start_on_the_map(GameState *g, FieldObject obj);
  * first object during Lara's rescue. */
 typedef enum { OUT_OF_VIEW, IN_VIEW, PRESENT_WITHOUT_UPDATES } ObjectView;
 ObjectView object_view(const GameState *g, FieldObject obj);
-static inline bool object_in_view(const GameState *g, FieldObject obj) { return object_view(g, obj) == IN_VIEW; }
+
 void object_set_in_view(GameState *g, FieldObject obj, bool in_view);
 void object_apply_row_tail_visibility(GameState *g, FieldLink end, FieldLink predecessor);
 /* A map's screen starts with every object out of view and no frame of its
@@ -261,13 +227,6 @@ typedef struct {
     uint8_t x, y;
 } MapTile;
 
-/* Whether two tiles touch, sides or corners (or are the same). */
-static inline bool tiles_next_to(MapTile a, MapTile b)
-{
-    uint8_t across = (uint8_t)(a.x - b.x + 1), down = (uint8_t)(a.y - b.y + 1);
-    return across <= 2 && down <= 2;
-}
-
 /* Whether a tile is well on screen, clear of its edges by two tiles, where a
  * scene can play without the camera moving. */
 bool tile_well_on_screen(const GameState *g, MapTile tile);
@@ -281,7 +240,7 @@ typedef struct {
 
 FieldPosition object_position(const GameState *g, FieldObject obj);
 MapTile object_tile(const GameState *g, FieldObject obj);
-static inline MapTile tile_at(FieldPosition at) { return (MapTile){ (uint8_t)(at.x >> 8), (uint8_t)(at.y >> 8) }; }
+
 void object_place(GameState *g, FieldObject obj, FieldPosition at);
 
 /* Put the object on a tile, at the tile's bottom: `centred` across it, or
@@ -374,15 +333,7 @@ typedef enum {
  * and those the party also shows on its own (field/party.h): running against
  * something that stops it, the pose the leader holds while the player picks
  * an answer, climbing, and a fidget when it has stood about a while. */
-enum {
-    ANIMATION_STAND = 0,
-    ANIMATION_WALK = 1,
-    ANIMATION_RUN = 6,
-    ANIMATION_RUN_ON_THE_SPOT = 0x17,
-    ANIMATION_CHOOSING = 0x19,
-    ANIMATION_CLIMB = 0x1B,
-    ANIMATION_FIDGET = 0x21,
-};
+enum { ANIMATION_STAND = 0, ANIMATION_WALK = 1, ANIMATION_RUN = 6, ANIMATION_RUN_ON_THE_SPOT = 0x17, ANIMATION_CHOOSING = 0x19, ANIMATION_CLIMB = 0x1B, ANIMATION_FIDGET = 0x21,  };
 
 ObjectAnimationMode object_animation_mode(const GameState *g, FieldObject obj);
 /* Hold a frame, as a script's holding does, with nothing else of its
@@ -729,5 +680,59 @@ Facing field_leader_facing(const GameState *g, FieldLeader leader);
 
 /* The object a dialog's window is placed by, which is waiting on it. */
 void dialog_set_speaker(GameState *g, FieldObject speaker);
+
+static inline FieldLink field_link_to(FieldObject obj) { return (FieldLink){ (uint8_t)(obj << 1) }; }
+
+static inline FieldLink field_no_link(void) { return (FieldLink){ LINK_NONE_BIT }; }
+
+static inline bool field_link_is_object(FieldLink link) { return !(link.stored & LINK_NONE_BIT); }
+
+static inline FieldObject field_linked_object(FieldLink link) { return (FieldObject)(link.stored >> 1); }
+
+static inline bool field_same_link(FieldLink a, FieldLink b) { return a.stored == b.stored; }
+
+static inline FieldLink field_link_stored(uint8_t byte) { return (FieldLink){ byte }; }
+
+static inline uint8_t field_link_byte(FieldLink link) { return link.stored; }
+
+/* Whether an offset as the original's tables are indexed -- a stored link, a
+ * script's operand naming an object, the current object -- names an object
+ * the tables hold: even, and inside them. Past them the original's index
+ * reads the tables' neighbours, which only the original runs (the guards
+ * check this, and the scripts' operands). */
+static inline bool field_names_object(uint16_t offset) { return !(offset & 1) && offset < 2 * FIELD_OBJECTS; }
+
+static inline bool field_link_names_object(FieldLink link)
+{
+    return field_link_is_object(link) && field_names_object(link.stored);
+}
+
+/* Whether the original can read a link's slot as one: an object the tables
+ * hold, or a marker past them whose byte is even (an odd one reads the
+ * tables out of step, a slot's two bytes from two slots, which the game
+ * never makes: its marker is $80). */
+static inline bool field_link_readable(FieldLink link)
+{
+    return field_link_is_object(link) ? field_link_names_object(link) : !(link.stored & 1);
+}
+
+/* The object as the original's index registers hold it (its link's byte), for
+ * scaffolding that keeps it in a scratch cell and for the machine side. */
+static inline uint8_t field_object_offset(FieldObject obj) { return field_link_to(obj).stored; }
+
+/* The layout is a byte's low two bits, as a sprite record gives it and the
+ * object keeps it. */
+static inline SpriteLayout sprite_layout_of(uint8_t byte) { return (SpriteLayout)(byte & 0x03); }
+
+static inline bool object_in_view(const GameState *g, FieldObject obj) { return object_view(g, obj) == IN_VIEW; }
+
+/* Whether two tiles touch, sides or corners (or are the same). */
+static inline bool tiles_next_to(MapTile a, MapTile b)
+{
+    uint8_t across = (uint8_t)(a.x - b.x + 1), down = (uint8_t)(a.y - b.y + 1);
+    return across <= 2 && down <= 2;
+}
+
+static inline MapTile tile_at(FieldPosition at) { return (MapTile){ (uint8_t)(at.x >> 8), (uint8_t)(at.y >> 8) }; }
 
 #endif

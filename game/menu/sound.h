@@ -1,5 +1,3 @@
-/* The menus' music: the gate's screen's song (game/menu/sound.c; on the
- * original's machine, game/menu/sound_bridge.c). */
 #ifndef CT_GAME_MENU_SOUND_H
 #define CT_GAME_MENU_SOUND_H
 
@@ -7,7 +5,7 @@
 
 #include "platform/audio.h"
 #include "platform/platform.h"
-#include "snes/system.h"
+#include <stdint.h>
 #include "state.h"
 
 /* The gate's own song; the story's note (story_game_notes) that the place's
@@ -60,10 +58,5 @@ enum { MENU_GATE_SONG_TASK_START = 0xCBBF };
 void menu_play_the_gate_song(GameState *g, Platform *pf);
 
 /* The entries. */
-void menu_switch_to_the_gate_song_entry(Snes *s);
-void menu_play_the_gate_song_entry(Snes *s);
-void menu_switch_back_to_the_field_song_entry(Snes *s);
-
-void menu_wait_for_menu_music_playing_loop(Snes *s);
 
 #endif

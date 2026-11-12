@@ -19,7 +19,6 @@
 #include "menu/top_layer.h"
 #include "overworld/overworld.h"
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -72,7 +71,6 @@ static bool wave(GameState *g, Platform *pf, MenuObject self)
     set_menu_wave_phase(g, (uint16_t)(phase + WAVE_SPEED));
     for (unsigned line = 1; line < MENU_SLOT1_LINE_VALUES_COUNT; line += 2)
         set_menu_slot1_line_values(g, line, (uint16_t)(scroll + sine(g, phase++)));
-    charge_machine_accesses(g, 2);
     return true;
 }
 
@@ -82,16 +80,4 @@ MenuTurn menu_shimmer_turn(GameState *g, Platform *pf, MenuObject self)
 {
     (void)wave(g, pf, self);
     return MENU_TURN_GOES_ON;
-}
-
-// $C2:7759
-/* The object's handler: it is never done, so it hands back the carry clear;
- * it comes back with the accumulator's width the wave's drawing left. */
-void menu_object_wave_hdma(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (wave(g, m_platform(s), menu_object_running(g)))
-        m_rep(s, CPU_FLAG_M);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
 }

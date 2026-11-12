@@ -27,7 +27,6 @@
 
 #include "menu/menu.h"
 #include "menu/menu_data.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
@@ -120,14 +119,6 @@ static uint32_t glyph_byte_place(Tiles t, uint32_t first, uint8_t byte)
     return (first + down) & 0xFFFFFFu;
 }
 
-
-
-
-
-
-
-
-
 /* ---- Drawing ----------------------------------------------------------------------------- */
 
 static void draw_glyph_from(GameState *g, Tiles t, Glyph glyph, Pen p, uint32_t first)
@@ -137,9 +128,7 @@ static void draw_glyph_from(GameState *g, Tiles t, Glyph glyph, Pen p, uint32_t 
         pixels = glyph_pixels(g, glyph, byte);
         put_pixels(g, t, glyph_byte_place(t, first, byte), p, pixels);
     }
-    charge_machine_accesses(g, 2);
     /* Two-byte progress, one-byte count and three-byte destination. */
-    charge_machine_accesses(g, 6);
 }
 
 // $C2:5DC4 (the glyph and the pen worked out), $C2:5E36, $C2:5F07
@@ -148,7 +137,6 @@ static void draw_glyph_from(GameState *g, Tiles t, Glyph glyph, Pen p, uint32_t 
 void menu_put_glyph(GameState *g, uint16_t glyph, uint8_t pen_x, uint32_t line, MenuTextTiles kind)
 {
     uint32_t first = (line & 0xFF0000u) | (uint16_t)(line + LINES_DOWN_THE_ROW);
-    charge_machine_accesses(g, 13);
     draw_glyph_from(g, tiles_of(kind), glyph_numbered(glyph), pen_at(pen_x), first);
 }
 

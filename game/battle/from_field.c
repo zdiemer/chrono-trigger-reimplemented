@@ -15,7 +15,6 @@
  * there again), the menu cursors the settings remember, and every character
  * with some HP. It waits for its last graphics uploads to go out first, and
  * hides the sprites the field doesn't draw over. */
-#include "holds.h"
 #include "battle/animation.h"
 #include "battle/battle.h"
 #include "battle/bridge.h"
@@ -70,7 +69,6 @@ enum { ENTRY_MARK = 0x0F };
 static void before_the_screen(GameState *g)
 {
     set_battle_frame_pending(g, 0);
-    charge_machine_accesses(g, 1);
     set_battle_transfer_pending(g, 0);
     set_battle_graphics_load_step(g, 0);
     set_battle_alternate_frame(g, (battle_setup_flags(g) & SETUP_ALTERNATE_ARRANGEMENT) != 0);
@@ -84,8 +82,6 @@ static void take_in_the_fight(GameState *g)
     set_battle_sprite_attributes(g, (uint8_t)((battle_setup_flags(g) & SETUP_SPRITES_HIGHER) | SPRITES_PRIORITY));
     uint8_t rules = story_party_rules(g);
     uint8_t some_sit_out = rules & RULES_SOME_SIT_OUT;
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     if (!some_sit_out)
         return;
     for (unsigned member = BATTLE_PARTY_SIZE; member-- > 0;)
@@ -177,7 +173,6 @@ static void remember_cursors(GameState *g)
 static void hand_back_to_the_field(GameState *g)
 {
     restore_member_colors(g);
-    charge_machine_accesses(g, 2);
     keep_party_places(g);
     remember_cursors(g);
 }
@@ -202,8 +197,7 @@ enum { LAST_PHASE = 3, HIDDEN_SPRITES = 0xFF };
  * starts the battle ($C1:8000), the frames are waited for with the battle's
  * last frame wait ($CF:FCFB), which the vblank's work ends, and the display
  * is closed down ($CD:0006, battle/closing.c). */
-enum { SET_UP_SCREEN = 0xCD0000, MAIN_LOOP = 0xC18000, WAIT_FOR_FRAME = 0xCFFCFB, CLOSE_DISPLAY = 0xCD0006,
-       RETURN_TO_THE_FIELD = 0xC10006, READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS };
+enum { SET_UP_SCREEN = 0xCD0000, MAIN_LOOP = 0xC18000, WAIT_FOR_FRAME = 0xCFFCFB, CLOSE_DISPLAY = 0xCD0006, RETURN_TO_THE_FIELD = 0xC10006 };
 
 /* ---- The way in and the way out, as one sequence each ---------------------------------------- */
 
@@ -323,69 +317,4 @@ bool battle_fought(GameState *g, Platform *pf)
     if (!party_as_the_game_has_it(g))
         return battle_contract_broken(g, RETURN_TO_THE_FIELD, "a battle's end with a party the port doesn't hand back");
     return go_back_to_the_field(g, &in_the_program, &c);
-}
-
-/* ---- The entries ---------------------------------------------------------------------------- */
-
-/* The battle's code runs with 8-bit A and 16-bit index registers, on its page
- * with its data bank. The field's registers wait on the stack the while. */
-static void on_the_battle(Snes *s)
-{
-    m_sep(s, CPU_FLAG_M);
-    s->cpu.d = BATTLE_PAGE;
-    s->cpu.db = BATTLE_DATA_BANK;
-}
-
-static bool screen_set_up_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    s->cpu.a = 0;
-    s->cpu.x = 0;
-    return battle_run_long_dc(s, 0xCFFB8E, SET_UP_SCREEN, READS_NOTHING, battle_set_the_screen_up_for_the_field);
-}
-
-// $C1:0000
-void battle_start_from_field(Snes *s)
-{
-    m_save_caller_registers(s);
-    on_the_battle(s);
-    if (come_in_from_the_field(state_of(s), screen_set_up_on_the_machine, s))
-        battle_continue(s, MAIN_LOOP, battle_main_loop_start, READS_NOTHING);
-}
-
-/* Each last frame waited for from its own call; the display closed with A's
- * high byte clear. */
-static const uint32_t last_frame_sites[LAST_FRAMES] = { 0xCFFCB7, 0xCFFCBC, 0xCFFCCC };
-
-static bool frame_passes_on_the_machine(void *ctx, LastFrame frame)
-{
-    return battle_wait_frame(ctx, last_frame_sites[frame], WAIT_FOR_FRAME, READS_NOTHING);
-}
-
-static bool display_closed_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    s->cpu.a = 0;
-    return battle_run_long(s, 0xCFFCE9, CLOSE_DISPLAY, battle_close_the_display);
-}
-
-// $C1:0006
-void battle_return_to_field(Snes *s)
-{
-    static const WayOutCalls on_the_machine = { frame_passes_on_the_machine, display_closed_on_the_machine };
-    if (go_back_to_the_field(state_of(s), &on_the_machine, s)) {
-        m_return_to_caller_long(s);
-        /* The field's caller resumes after the battle's saved registers. */
-        native_hold_return(s, HOLD_FIELD_FRAME);
-    }
-}
-
-/* The way back finds the party as the game has it, and A's high byte clear
- * as the battle's last step leaves it. */
-bool battle_return_ready(Snes *s)
-{
-    vars_peek(true);
-    bool characters = party_as_the_game_has_it(state_of(s));
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && characters;
 }

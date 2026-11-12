@@ -34,7 +34,6 @@
 #include "menu/menu_data.h"
 #include "menu/objects.h"
 #include "menu/vram.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -120,7 +119,6 @@ bool menu_fade_out(GameState *g, MenuObject self)
             return true;
         set_fading(g, FADING_OUT, true);
         set_menu_object_slots_step(g, self, FADE_OUT_DIMS);
-        charge_machine_accesses(g, 6);
         uint8_t frames = operand(g, self, 1);
         if (frames == 0) {
             turn_the_screen(g, false);
@@ -163,7 +161,6 @@ bool menu_fade_in(GameState *g, MenuObject self)
         if (menu_fades_running(g) != 0)
             return stop_fading_in(g);
         set_fading(g, FADING_IN, true);
-        charge_machine_accesses(g, 6);
         uint8_t frames = operand(g, self, 1);
         if (frames == 0) {
             turn_the_screen(g, true);
@@ -213,7 +210,6 @@ enum { MOSAIC_STARTS = 0, MOSAIC_STEPS = 1 };
 static bool start_the_mosaic(GameState *g, MenuObject self)
 {
     set_menu_object_slots_step(g, self, MOSAIC_STEPS);
-    charge_machine_accesses(g, 6);
     set_menu_object_shadows_mosaic(g, (uint8_t)(menu_object_shadows_mosaic(g) | operand(g, self, 1)));
     uint8_t frames = operand(g, self, 2);
     if (frames == 0)
@@ -322,7 +318,6 @@ bool menu_load_palette_row(GameState *g, MenuObject self)
     uint32_t source = menu_object_slots_palette_source(g, self);
     for (unsigned i = 0; i < ROW_COLOURS; i++)
         put_colour(g, row, i, menu_colour(g, (source + i * COLOUR_BYTES) & 0xFFFFFFu));
-    (charge_machine_accesses(g, 3), charge_machine_io_accesses(g, 3));
     menu_send_the_palette(g);
     return false;
 }
@@ -424,7 +419,6 @@ static void count_the_changes(GameState *g, MenuObject self)
                    count_for((int16_t)(blue_of(target) - blue_of(current))));
     }
     menu_note_effect_noise(g, current);
-    charge_machine_accesses(g, 21);
 }
 
 // $C2:1F85, $C2:1FCC
@@ -441,7 +435,6 @@ static void step_the_colours(GameState *g, MenuObject self)
         put_colour(g, row, i, colour);
     }
     menu_note_effect_noise(g, colour);
-    charge_machine_accesses(g, 11);
 }
 
 enum { FADE_COUNTS = 0, FADE_STEPS_ON = 1, FADE_LETS_GO = 2, PALETTE_FADE_STEPS = 3 };
@@ -501,7 +494,6 @@ enum { STREAM_STARTS = 0, STREAM_SENDS = 1, STREAM_STEPS = 2 };
  * a frame (none for all at once) and how many in all. */
 static void take_up_the_stream(GameState *g, MenuObject self)
 {
-    charge_machine_accesses(g, 6);
     uint32_t source = (uint32_t)operand(g, self, 3) << 16 | operand_word(g, self, 1);
     uint16_t vram = operand_word(g, self, 4), a_frame = operand_word(g, self, 6), in_all = operand_word(g, self, 8);
     set_menu_object_slots_stream_source(g, self, source);
@@ -528,7 +520,6 @@ bool menu_stream_tiles(GameState *g, MenuObject self)
     uint16_t vram = menu_object_slots_stream_vram(g, self);
     menu_queue_object_upload(g, source, vram, bytes);
     menu_note_effect_noise(g, batch);
-    charge_machine_accesses(g, 2);
     left = (uint16_t)(left - batch);
     if (left == 0)
         return true;
@@ -540,34 +531,6 @@ bool menu_stream_tiles(GameState *g, MenuObject self)
 
 /* How long the commands that start them are. */
 enum { FADE_COMMAND_BYTES = 2, MOSAIC_COMMAND_BYTES = 3, STREAM_COMMAND_BYTES = 10 };
-
-/* ---- The entries ----------------------------------------------------------------------------- */
-
-/* Each handler is entered from the objects' loop with its slot in X and
- * says whether it is done with the carry, the only thing the loop reads of
- * what it leaves (the registry declares the rest, the accumulator's width
- * among them: the loop sets it again first). */
-static void run_handler(Snes *s, bool (*handler)(GameState *, MenuObject))
-{
-    GameState *g = state_of(s);
-    m_set_flag(s, CPU_FLAG_C, handler(g, menu_object_running(g)));
-    m_rts(s);
-}
-
-// $C2:1CF5
-void menu_stream_tiles_entry(Snes *s) { run_handler(s, menu_stream_tiles); }
-// $C2:1DD4
-void menu_load_palette_row_entry(Snes *s) { run_handler(s, menu_load_palette_row); }
-// $C2:1E38
-void menu_fade_palette_row_entry(Snes *s) { run_handler(s, menu_fade_palette_row); }
-// $C2:20A2
-void menu_fade_out_entry(Snes *s) { run_handler(s, menu_fade_out); }
-// $C2:2105
-void menu_fade_in_entry(Snes *s) { run_handler(s, menu_fade_in); }
-// $C2:2194
-void menu_clear_mosaic_entry(Snes *s) { run_handler(s, menu_clear_mosaic); }
-// $C2:21F8
-void menu_grow_mosaic_entry(Snes *s) { run_handler(s, menu_grow_mosaic); }
 
 // $C2:1DB5
 
@@ -657,10 +620,3 @@ bool menu_mosaic_takes(const GameState *g, MenuObject self)
 {
     return on_step(g, self, MOSAIC_STEPS + 1, MOSAIC_COMMAND_BYTES);
 }
-
-bool menu_tile_streamer_runs(Snes *s) { return menu_object_handler_takes(s, menu_tile_streamer_takes); }
-bool menu_palette_loader_runs(Snes *s) { return menu_object_handler_takes(s, menu_palette_loader_takes); }
-bool menu_palette_fade_runs(Snes *s) { return menu_object_handler_takes(s, menu_palette_fade_takes); }
-bool menu_fade_out_runs(Snes *s) { return menu_object_handler_takes(s, menu_fade_out_takes); }
-bool menu_fade_in_runs(Snes *s) { return menu_object_handler_takes(s, menu_fade_in_takes); }
-bool menu_mosaic_runs(Snes *s) { return menu_object_handler_takes(s, menu_mosaic_takes); }

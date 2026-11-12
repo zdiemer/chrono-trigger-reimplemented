@@ -10,7 +10,6 @@
 #include "battle/screen_script.h"
 
 #include "charge.h"
-#include "port/native.h"
 
 /* ---- The channel's layer ----------------------------------------------------------------- */
 
@@ -44,7 +43,6 @@ static void jitter_layer(GameState *g, ScreenChannel ch, uint8_t across, uint8_t
     uint8_t lower = (uint8_t)((random_pick_after_overflow(g, (uint8_t)right, right > 0xFF) & spread) + down);
     set_battle_screen_layer_x(g, ch, (uint16_t)-(uint8_t)right);
     set_battle_screen_layer_y(g, ch, (uint16_t)-lower);
-    charge_machine_accesses(g, 3);
 }
 
 /* Screen command $DF: jitter the layer about a point (three operands: across,
@@ -229,7 +227,6 @@ static void start_shake(GameState *g, const ShakeAxis axes[SHAKE_AXES])
     }
     uint8_t across = shake_layers_across(g, axes[0].layers);
     set_battle_shake_layers(g, (uint8_t)(shake_layers_down(g, axes[1].layers) | across));
-    charge_machine_accesses(g, 1);
 }
 
 static void start_shake_from(GameState *g, const uint8_t settings[SETTINGS_BYTES])
@@ -312,7 +309,6 @@ static void drift_layer(GameState *g, ScreenChannel channel, uint8_t drift, bool
     uint16_t y = battle_screen_layer_offset_y(g, channel), x = battle_screen_layer_offset_x(g, channel);
     set_battle_screen_layer_offset_y(g, channel, (uint16_t)(forward ? y + down : y - down));
     set_battle_screen_layer_offset_x(g, channel, (uint16_t)(forward ? x + across : x - across));
-    charge_machine_accesses(g, 1);
 }
 
 /* Screen command $D7: pick the drift's amounts anew, or drift the layer. */

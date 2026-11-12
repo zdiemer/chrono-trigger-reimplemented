@@ -30,7 +30,6 @@
 
 #include "cpu_io.h"
 #include "platform/timing.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -272,44 +271,10 @@ static void keep_the_field_moving(GameState *g)
         set_scene_channel_register(g, SCENE_STAR_FIELD_CHANNEL, SCENE_STAR_FIELD_SPEED, 1);
 }
 
-/* ---- Entries ---------------------------------------------------------------------------------- */
-
-/* The stars' routines run from the program's code, through a data bank on the
- * registers and low RAM, and draw through its stir ($7E:3443 to $C3:02DD). */
-static bool stir_present(Snes *s) { return m_code_matches(s, 0x7E3443, 0x05, 0x5E005F3C3E12B1C5ull); }
-
-/* The scatter's code, which the setups that scatter the stars run inline. */
-bool scene_stars_scatter_code_present(Snes *s)
-{
-    return stir_present(s) && m_code_matches(s, 0x7E5777, 0x24, 0x9BECCE6703C0853Aull);
-}
-
-/* Entered with 8-bit A: the first draw starts from A and the carry; back, the
- * overflow is the last draw's. */
-
-/* The flight's code, but for the branch the staff roll patches, which must be
- * one of the two the port knows; and its entries' place in the table. */
-static bool flight_code_present(Snes *s)
-{
-    return m_bank_reaches_io(s) && scene_on_scene_page(s) && stir_present(s) && m_code_matches(s, 0x7E579B, 0x93, 0x2EEBC2AB028554EFull) &&
-           m_code_matches(s, 0x7E5830, 0x25, 0x36CC17F40E00EC1Dull);
-}
-
 static bool flies_from(const GameState *g, uint16_t first)
 {
     uint16_t branch = scene_stars_depth_branch(g);
     return (branch == SCENE_NEAR_STARS_IN_FRONT || branch == SCENE_EVERY_STAR_BEHIND) && first < STARS * STAR_BYTES && first % STAR_BYTES == 0;
-}
-
-bool scene_stars_fly_present(Snes *s)
-{
-    if (!flight_code_present(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = flies_from(g, scene_sprite_index(g));
-    vars_peek(false);
-    return ok;
 }
 
 /* The captioned field's room is made in the table: the cursor's high byte in
@@ -321,37 +286,6 @@ static bool flies_after_the_captions(const GameState *g)
                                               flies_from(g, CAPTIONED_FIRST_STAR)
                                         : flies_from(g, first);
 }
-
-bool scene_stars_fly_after_captions_present(Snes *s)
-{
-    if (!flight_code_present(s) || !m_code_matches(s, 0x7E999C, 0x19, 0xA4690503889A36A6ull) ||
-        !m_code_matches(s, 0x7E3870, 0x1B, 0xB778A96EC9EEDB9Aull))
-        return false;
-    vars_peek(true);
-    bool ok = flies_after_the_captions(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-/* The task leaves Y past the table, and in A's high byte the last star's
- * place down as the divider took it (its size), where the frame's work may
- * read it after the last task; the divider and a cell of the scene's page
- * hold the last star's division. */
-
-/* The flight, the first star's sums starting with `spilled`, and `salt`
- * salting the draws. */
-static void fly(Snes *s, bool spilled, uint16_t salt)
-{
-    (void)fly_stars(state_of(s), m_platform(s), spilled, salt);
-    charge_legacy_accesses(state_of(s), 1);
-    charge_legacy_io_accesses(state_of(s), 3);
-    m_set_flag(s, CPU_FLAG_M, true);
-    m_rts(s);
-}
-
-/* A frame task, entered with 16-bit A: the slot it runs in salts the draws,
- * and the list's carry is what the first star's sums start with. */
-void scene_stars_fly_entry(Snes *s) { fly(s, m_flag(s, CPU_FLAG_C), s->cpu.x); }
 
 /* As C: the list's carry is its compare's, clear past its first slot; at the
  * first, what the frame's work left, which the native program doesn't keep,
@@ -375,54 +309,8 @@ TaskEnd scene_stars_fly(GameState *g, Platform *pf, unsigned slot)
  * place of the slot. */
 enum { HIDING_LEAVES = 4 };
 
-void scene_stars_fly_after_captions_entry(Snes *s)
-{
-    bool made_room = make_room_after_the_captions(state_of(s));
-    fly(s, true, made_room ? HIDING_LEAVES : s->cpu.x);
-}
-
-bool scene_stars_drift_present(Snes *s)
-{
-    return m_bank_reaches_io(s) && scene_on_scene_page(s) && stir_present(s) &&
-           m_code_matches(s, 0x7E98AC, 0x37, 0x201936D7FF083E61ull) && m_code_matches(s, 0x7E98E3, 0x13, 0x08F9C085A7F4E16Dull);
-}
-
-bool scene_stars_start_drift_present(Snes *s)
-{
-    return scene_stars_drift_present(s) && m_code_matches(s, 0x7E9897, 0x15, 0xE86E6174BCBC7357ull);
-}
-
-/* The drift's tasks start from what they were called with: their own address
- * in A, the slot in X and the list's carry. */
-static Drift called_with(Snes *s) { return (Drift){ scene_draw_from(s->cpu.a, m_flag(s, CPU_FLAG_C), TM_ENTROPY_WORDS), s->cpu.x }; }
-
 /* The list's exit for a task that hands its slot to another, the task in X. */
 enum { KEEP_DRIFTING = 0x98AC };
-
-void scene_stars_start_drift_entry(Snes *s)
-{
-    start_drift(state_of(s), m_platform(s), called_with(s));
-    scene_finish_task(s, SCENE_FRAME_TASKS, task_hands_over(KEEP_DRIFTING));
-}
-
-void scene_stars_keep_drifting_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    keep_drifting(g, m_platform(s), called_with(s));
-    uint32_t mark = charge_uncounted_begin(g);
-    unsigned accesses = 0;
-    for (unsigned i = 0; i < DRIFTS; i++) {
-        accesses += 2;
-        if (field_register(g, drift_register[i])) {
-            accesses += 2;
-            break;
-        }
-    }
-    charge_uncounted_end(g, mark);
-    charge_legacy_accesses(g, accesses);
-    keep_the_field_moving(g);
-    m_rts(s);
-}
 
 /* ---- The flight after the captions and the drift, as C ------------------------------------------- */
 

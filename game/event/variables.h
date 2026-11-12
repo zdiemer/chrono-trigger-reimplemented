@@ -18,19 +18,33 @@
 #include "state.h"
 #include "vars.h"
 
-typedef uint8_t EventVariable;   /* a variable's number */
+typedef uint8_t EventVariable;   
+
+/* Most variable commands come in a byte and a word form. */
+typedef enum { AS_BYTE, AS_WORD } Width;
+
+/* ---- The story ------------------------------------------------------------------------- */
+
+typedef uint16_t StoryOffset;   /* where in the story memory */
+
+enum { STORY_SECOND_PAGE = 0x0100 };
+
+/* A story byte a command names by its offset in a page: a flag with the
+ * offset (bit 7 of a flag or an operator byte) says it is on the second. */
+enum { ON_THE_SECOND_PAGE = 0x80 };
+
+/* a variable's number */
 
 static inline uint8_t variable_byte(const GameState *g, EventVariable v) { return (uint8_t)event_variables(g, v); }
+
 static inline uint16_t variable_word(const GameState *g, EventVariable v) { return event_variables(g, v); }
+
 static inline void set_variable_word(GameState *g, EventVariable v, uint16_t value) { set_event_variables(g, v, value); }
 
 static inline void set_variable_byte(GameState *g, EventVariable v, uint8_t value)
 {
     set_event_variables(g, v, (uint16_t)((event_variables(g, v) & 0xFF00) | value));
 }
-
-/* Most variable commands come in a byte and a word form. */
-typedef enum { AS_BYTE, AS_WORD } Width;
 
 static inline uint16_t variable(const GameState *g, EventVariable v, Width w)
 {
@@ -44,16 +58,6 @@ static inline void set_variable(GameState *g, EventVariable v, uint16_t value, W
     else
         set_variable_word(g, v, value);
 }
-
-/* ---- The story ------------------------------------------------------------------------- */
-
-typedef uint16_t StoryOffset;   /* where in the story memory */
-
-enum { STORY_SECOND_PAGE = 0x0100 };
-
-/* A story byte a command names by its offset in a page: a flag with the
- * offset (bit 7 of a flag or an operator byte) says it is on the second. */
-enum { ON_THE_SECOND_PAGE = 0x80 };
 
 static inline StoryOffset story_offset_in(uint8_t offset, uint8_t marked)
 {
@@ -71,6 +75,7 @@ static inline bool story_holds(StoryOffset at, Width width)
 }
 
 static inline uint8_t story_byte(const GameState *g, StoryOffset at) { return event_memory_byte(g, at); }
+
 static inline void set_story_byte(GameState *g, StoryOffset at, uint8_t v) { set_event_memory_byte(g, at, v); }
 
 static inline uint16_t story_word(const GameState *g, StoryOffset at)
@@ -87,6 +92,7 @@ static inline void set_story_word(GameState *g, StoryOffset at, uint16_t v)
 /* The story's progress counter: the first byte of the story memory, which the
  * scripts compare against and set as the story moves on. */
 static inline uint8_t story_progress(const GameState *g) { return story_byte(g, 0); }
+
 static inline void set_story_progress(GameState *g, uint8_t v) { set_story_byte(g, 0, v); }
 
 #endif

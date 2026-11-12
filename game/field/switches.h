@@ -6,7 +6,6 @@
 #include <stdint.h>
 
 #include "platform/platform.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* A switch's shape: a tile and the one above it, two by two, two across by
@@ -47,11 +46,8 @@ void field_remember_step(GameState *g, uint16_t step);
 void field_press_the_remembered_switches(GameState *g);
 /* A new location forgets the steps remembered on the last ($C0:28AA). */
 void field_forget_the_steps(GameState *g);
-void field_forget_the_steps_entry(Snes *s);
 enum { FIELD_FORGET_THE_STEPS_ENTRY = 0xC028AA };
 bool field_remembered_switches_on_the_map(const GameState *g);
-void field_press_the_remembered_switches_entry(Snes *s);
-bool field_remembered_switches_can_be_pressed(Snes *s);
 enum { FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY = 0xC028E1 };
 /* Where remembering `step` stopped in the list: the step, kept or found
  * there, or, the list full of others, its last. */

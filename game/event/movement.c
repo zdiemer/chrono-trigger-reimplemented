@@ -1,3 +1,5 @@
+#include "event/script.h"
+#include "event/script.h"
 /* Scripts moving objects about the map: walking to a tile or up to another
  * object, a number of steps in a direction, a jump or a launch, following
  * someone about, and the party's step every frame.
@@ -23,7 +25,6 @@
  */
 #include "cpu_io.h"
 #include "charge.h"
-#include "event/bridge.h"
 #include "event/contact.h"
 #include "field/scratch.h"
 #include "event/party.h"
@@ -374,7 +375,6 @@ static EventFlow step_with_the_party(GameState *g, FieldObject self, bool once)
 {
     if (field_screen_recentring(g) != 0)
         return once ? end_turn() : stay();
-    charge_machine_accesses(g, 2); /* the command's saved resume offset */
     if (object_is_party_member(g, self)) {
         object_start_one_step(g, self);
         PartyPlace place = object_party_place(g, self);

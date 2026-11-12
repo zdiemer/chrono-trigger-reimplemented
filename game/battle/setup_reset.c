@@ -174,7 +174,6 @@ enum { START_MARK = 0x40, LOWER_BANK = 0 };
 void setup_reset_for_new_fight(GameState *g)
 {
     set_battle_start_mark(g, START_MARK);
-    charge_machine_io_accesses(g, 1);
     clear_drawing(g);
     close_the_menus(g);
     rest_the_objects(g);

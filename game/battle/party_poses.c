@@ -35,8 +35,6 @@
 #include "battle/wait.h"
 #include "battle/window.h"
 #include "charge.h"
-#include "port/machine.h"
-#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -61,29 +59,6 @@ static unsigned pose_at(unsigned member, unsigned frame) { return member * POSE_
  * one's row of the tables. */
 enum { MEMBER_CELL = 0x80, COPY_CELL = 0x82, ROW_CELL = 0x84 };
 
-// $C1:35DD
-/* Each member's pose, from the animation the battle gave it
- * (battle_party_scene_animation) in its lists; the members' first frames a
- * step apart. The last member's lists stay in the animation scheduler's
- * first entry, as a member's frame step keeps them. */
-/* Preserve the machine estimate for removed comparison accesses.
- * Inspect the branch without charging those reads to either backend. */
-static void charge_pose_loading(GameState *g)
-{
-    uint32_t charge_mark = charge_uncounted_begin(g);
-    unsigned reads = 0;
-    bool found = false;
-    for (unsigned member = BATTLE_PARTY_SIZE; member-- > 0;) {
-        reads++;
-        if (battle_slot_present(g, member)) {
-            found = true;
-            break;
-        }
-    }
-    charge_uncounted_end(g, charge_mark);
-    charge_machine_accesses(g, 2 + reads + (found ? 3 : 0));
-}
-
 static void load_the_poses(GameState *g)
 {
     for (unsigned at = 0; at < BATTLE_PARTY_POSE_DELAYS_COUNT; at++)
@@ -106,7 +81,6 @@ static void load_the_poses(GameState *g)
     }
     if (any)
         battle_keep_member_lists(g, frames_at, times_at);
-    charge_pose_loading(g);
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++) {
         set_battle_party_pose_countdown(g, member, (uint8_t)(member + 1));
         set_battle_party_pose_frame(g, member, BEFORE_THE_FIRST_FRAME);
@@ -141,7 +115,6 @@ static void step_a_member(GameState *g, uint8_t member)
     if (frame == POSE_FRAMES)
         return;
     /* the original finds the frame's place in the tables through a work cell */
-    charge_machine_accesses(g, 1);
     uint8_t time = battle_party_pose_delays(g, pose_at(member, frame));
     set_battle_party_pose_countdown(g, member, time);
     if (time == 0)
@@ -167,7 +140,6 @@ static bool step_the_poses(GameState *g)
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         if (takes_its_pose(g, member))
             step_a_member(g, member);
-    charge_machine_accesses(g, 2);
     set_battle_frame_phase(g, NO_PHASE);
     set_battle_queued_uploads_on(g, 0);
     return true;
@@ -204,12 +176,10 @@ static bool strike_the_poses(GameState *g, PoseCalls call, void *ctx)
 {
     load_the_poses(g);
     for (uint8_t left = POSES_FRAMES; left > 0; left--) {
-        charge_machine_accesses(g, 1);
         if (!call(ctx, POSES_FRAME) || !call(ctx, POSES_TAIL))
             return false;
         TIMED_AS(g, 0xC1369A, (void)step_the_poses(g));
     }
-    charge_machine_accesses(g, 1);
     set_battle_queued_uploads_on(g, 0);
     set_battle_frame_phase(g, NO_PHASE);
     return true;
@@ -259,7 +229,6 @@ static bool see_the_fight_off(GameState *g, PoseCalls call, void *ctx)
         set_battle_enemy_drifting(g, enemy, 0);
     for (unsigned slot = BATTLE_PARTY_SIZE; slot-- > 0;)
         battle_take_off_the_look(g, slot);
-    charge_machine_accesses(g, 2);
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         set_battle_step_member(g, member);
         TIMED_AS(g, 0xC11BAA, battle_call_off_the_menu(g, member));
@@ -364,104 +333,4 @@ bool battle_loses_the_fight(GameState *g, Platform *pf)
  * calling off leaves it so. The looks' colours are found by the whole of A
  * with each member's palette, so where the victory's tail leaves A's high
  * byte set, which the game's doesn't, the original goes on from after it. */
-enum { FRAME_WAIT_READS = DC_AL | DC_X | DC_Y | DC_FLAGS, AFTER_THE_TAIL = 0xC13571 };
-
-static bool wait_for_the_next_frame(Snes *s, uint32_t site)
-{
-    return battle_wait_frame(s, site, FRAME_WAIT, FRAME_WAIT_READS);
-}
-
-static bool finish_the_frame(Snes *s, uint32_t site)
-{
-    return battle_run_long(s, site, FRAME_TAIL, battle_frame_wait_tail);
-}
-
-static const uint32_t MENU_TAKEN_AWAY_WAITS[BATTLE_PARTY_SIZE] = { 0xC1358E, 0xC13596, 0xC1359E };
-
-static bool pose_call_on_the_machine(void *ctx, PoseCall call)
-{
-    Snes *s = ctx;
-    switch (call) {
-    case POSES_FRAME: return wait_for_the_next_frame(s, 0xC13686);
-    case POSES_TAIL: return finish_the_frame(s, 0xC13689);
-    case VICTORY_TAIL:
-        if (!finish_the_frame(s, 0xC1356D))
-            return false;
-        if (s->cpu.a & 0xFF00) {
-            m_stop_at(s, AFTER_THE_TAIL, 0);
-            return false;
-        }
-        return true;
-    case VICTORY_FIRST_MENU_GONE:
-    case VICTORY_SECOND_MENU_GONE:
-    case VICTORY_THIRD_MENU_GONE:
-        s->cpu.a &= 0x00FF;
-        return wait_for_the_next_frame(s, MENU_TAKEN_AWAY_WAITS[call - VICTORY_FIRST_MENU_GONE]);
-    case VICTORY_WINDOW: return battle_run(s, 0xC135A6, MENU_WINDOW, battle_draw_menu_window);
-    case DEFEAT_TAIL: return finish_the_frame(s, 0xC1354D);
-    case DEFEAT_FRAME: return wait_for_the_next_frame(s, 0xC13554);
-    case POSES_STRUCK: return battle_strike_the_poses_as_their_own(s);
-    default: return false;
-    }
-}
-
-/* The poses' loading leaves A's high byte clear, which the waits take along;
- * the last step leaves the carry of its last count, set, which the steps'
- * askers read. */
-bool battle_strike_the_poses(Snes *s)
-{
-    s->cpu.a &= 0x00FF;
-    if (!strike_the_poses(state_of(s), pose_call_on_the_machine, s))
-        return false;
-    m_set_flag(s, CPU_FLAG_C, true);
-    return true;
-}
-
-bool battle_strike_the_poses_as_their_own(Snes *s)
-{
-    bool posed;
-    NATIVE_TIME_AS_SIBLING(s, 0xC135DD, posed = battle_strike_the_poses(s));
-    return posed;
-}
-
-/* ---- The entries -------------------------------------------------------------------------- */
-
-// $C1:356D
-void battle_victory_step(Snes *s)
-{
-    if (win(state_of(s), pose_call_on_the_machine, s))
-        m_rts(s);
-}
-
-// $C1:354D
-void battle_defeat_step(Snes *s)
-{
-    if (lose(state_of(s), pose_call_on_the_machine, s))
-        m_rts(s);
-}
-
-// $C1:35DD
-
-// $C1:369A
-/* A frame that steps the poses leaves A's high byte clear and the carry of
- * its last count, set; one that sends leaves them as they came. */
-
-/* The guards: on the battle's page, and their state halves; a step of the
- * poses with the members' frames as the poses keep them. */
-bool battle_poses_ready(Snes *s)
-{
-    vars_peek(true);
-    bool ok = poses_fit(state_of(s));
-    vars_peek(false);
-    return battle_on_page(s) && ok;
-}
-
-/* The victory takes the members' looks off: their palettes' places within
- * the sprites' colours, as the looks' guard keeps them. */
-bool battle_victory_ready(Snes *s)
-{
-    vars_peek(true);
-    bool ok = battle_pose_looks_fit(state_of(s));
-    vars_peek(false);
-    return battle_poses_ready(s) && ok;
-}
+enum { AFTER_THE_TAIL = 0xC13571 };

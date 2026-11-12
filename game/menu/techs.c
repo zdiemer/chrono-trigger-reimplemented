@@ -24,7 +24,6 @@
 #include "menu/menu_data.h"
 #include "menu/opening.h"
 #include "menu/text.h"
-#include "port/machine.h"
 #include "ram.h"
 #include "vars.h"
 
@@ -47,24 +46,7 @@ static unsigned groups_of(GameState *g, uint8_t character, MenuTechKind kind, ui
             groups[found++] = group;
         group++;
     } while (--left != 0);
-    for (unsigned i = 0; i < found; i++)
-        charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 2);
     return found;
-}
-
-/* What the original's walk through the groups' techs leaves in its cells:
- * where in the groups' list it stopped, the last group's learned bits as far
- * as it shifted them, the last group's end and the tech it got to. */
-typedef struct {
-    uint8_t groups_walked, bits_left, group_end, next_tech;
-} TechWalk;
-
-static void charge_techs_walked(GameState *g, TechWalk w, bool any)
-{
-    (void)w;
-    charge_machine_accesses(g, 1 + (any ? 3 : 0));
 }
 
 // $C2:BCAE, $C2:BD00
@@ -78,7 +60,6 @@ void menu_list_techs(GameState *g, uint8_t character, MenuTechKind kind)
     uint8_t groups[MENU_TECH_MEMBER_GROUPS_COUNT];
     unsigned found = groups_of(g, character, kind, groups);
     uint8_t listed = 0;
-    TechWalk w = { 0, 0, 0, 0 };
     for (unsigned i = 0; i < found; i++) {
         uint8_t group = groups[i], learned = menu_tech_groups_listed(g, group);
         uint8_t tech = menu_tech_group_first(g, group), end = menu_tech_group_first(g, (uint8_t)(group + 1));
@@ -91,9 +72,7 @@ void menu_list_techs(GameState *g, uint8_t character, MenuTechKind kind)
             learned = (uint8_t)(learned << 1);
             tech++;
         } while (tech < end);
-        w = (TechWalk){ (uint8_t)(i + 1), learned, end, tech };
     }
-    charge_techs_walked(g, w, found != 0);
     set_menu_techs_listed(g, listed);
     set_menu_tech_list(g, listed, MENU_NO_TECH);
 }
@@ -129,8 +108,6 @@ MenuTechCost menu_tech_cost_for(GameState *g, uint8_t tech, MenuTechKind kind)
     }
     uint8_t mp = cut_by_the_accessory(g, menu_tech_part_mp(g, part));
     set_menu_tech_cost_needed(g, mp);
-    if (kind != MENU_SINGLE_TECHS)
-        (charge_machine_accesses(g, 1), charge_machine_rom_accesses(g, 1));
     return (MenuTechCost){ mp, part };
 }
 
@@ -150,7 +127,6 @@ enum { TECH_RECORD_BYTES = 12 };
 // $C2:B3F2, $C2:B43A
 MenuTechHealing menu_tech_healing(GameState *g, uint8_t tech)
 {
-    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4));
     uint8_t restores = (uint8_t)(menu_tech_effect_byte(g, tech, MENU_TECH_EFFECT_RESTORES) & RESTORES_BITS);
     uint8_t who = (menu_tech_targets(g, tech) & EVERY_MEMBER_BIT) ? EVERY_MEMBER : ONE_MEMBER;
     return (MenuTechHealing){ (uint8_t)(restores | who),
@@ -177,7 +153,6 @@ void menu_draw_tech_row(GameState *g, uint16_t at, uint8_t tech, bool waiting)
         (void)menu_draw_blanks(g, at, NAME_SETTINGS);
         return;
     }
-    charge_machine_io_accesses(g, 4);
     set_menu_text_attribute(g, colours_of(g, tech, waiting));
     (void)menu_draw_string(g, menu_tech_name(g, tech), at, NAME_SETTINGS);
 }
@@ -235,13 +210,10 @@ static unsigned rock_techs_learned(const GameState *g, unsigned rock)
 
 static void charge_rock_search(GameState *g, uint8_t missing)
 {
-    charge_machine_accesses(g, 2);
     for (int rock = MENU_ROCKS - 1; rock >= 0; rock--) {
         if (!party_has_all_of(g, (uint8_t)(MENU_FIRST_ROCK_GROUP + rock), missing))
             continue;
         (void)rock_techs_learned(g, (unsigned)rock);
-        charge_machine_accesses(g, 2);
-        charge_machine_rom_accesses(g, 1);
         break;
     }
 }
@@ -379,12 +351,6 @@ static void note_triple_tech_parts(GameState *g)
  * where the next column would be. */
 enum { PARTS_ROW_SHIFT = 6, DOUBLE_PARTS_A_GROUP = 6 };
 
-static void charge_parts_noted(GameState *g)
-{
-    charge_machine_accesses(g, 12);
-    charge_machine_rom_accesses(g, TRIPLE_TECHS + 2);
-}
-
 /* As the menus open: how many members the screens let the player choose
  * among, and what of the party's techs they list -- the healing techs marked
  * usable, the rocks' triple techs the party could do, the techs learned of
@@ -399,7 +365,6 @@ void menu_note_party_techs(GameState *g)
     list_techs_being_learned(g);
     note_double_tech_parts(g);
     note_triple_tech_parts(g);
-    charge_parts_noted(g);
 }
 
 bool menu_party_techs_can_be_noted(const GameState *g) { return menu_scratch_tech_parts_placed(g) >> 8 == 0; }

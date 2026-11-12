@@ -5,7 +5,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "snes/system.h"
 #include "state.h"
 
 /* An item's category and its place in it; the lookup notes both as the
@@ -74,12 +73,10 @@ void menu_copy_past_the_names_now(GameState *g);
 bool menu_place_is_noted_as_a_location(const GameState *g);
 bool menu_place_note_is_known(const GameState *g);
 
-void menu_build_items(Snes *s);
 /* The same as C; and as C where the guard's state half takes it, false
  * where it doesn't, the program going no further there. */
 void menu_build_the_items(GameState *g);
 bool menu_items_can_be_built(const GameState *g);
 bool menu_items_built(GameState *g);
-bool menu_items_are_buildable(Snes *s);
 
 #endif

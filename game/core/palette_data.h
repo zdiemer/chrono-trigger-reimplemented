@@ -33,6 +33,7 @@ static inline uint16_t palette_animation_set_start(const GameState *g, uint8_t s
 /* A byte of the stream at offset `at` (16-bit), and the long address of that
  * byte, which a slot keeps as its frame table. */
 static inline uint32_t palette_animation_set_address(uint16_t at) { return 0xFD0000u | (uint16_t)(0xFA77u + at); }
+
 static inline uint8_t palette_animation_set_byte(const GameState *g, uint16_t at) { return rom_read8(g, 0xFDFA77u + at); }
 
 /* A frame number of a frame table: a byte of the cartridge at `at`, a slot's

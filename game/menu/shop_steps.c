@@ -78,14 +78,12 @@ bool menu_show_shop_item_panel_with(GameState *g, Platform *pf, const ShopSteps 
     bool usable = false;
     uint16_t left_by_the_last = 0;
     for (; menu_shop_panel_member(g, m, &usable); m++) {
-        charge_machine_accesses(g, 1);
         if (usable) {
             TIMED_AS(g, 0xC2916E, menu_work_out_figures(g));
             (void)0;
         }
         menu_shop_panel_member_shown(g, m);
     }
-    charge_machine_accesses(g, 4);
     n->note(ctx, SHOP_NOTE_PANEL_DONE, left_by_the_last);
     return true;
 }

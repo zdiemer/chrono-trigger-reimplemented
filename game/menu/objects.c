@@ -18,11 +18,7 @@
 #include "core/program.h"
 #include "menu/bridge.h"
 #include "menu/handlers.h"
-#include "menu/machine_forms.h"
-#include "overworld/entries.h"
 #include "platform/timing.h"
-#include "port/machine.h"
-#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
@@ -132,8 +128,6 @@ bool menu_start_object(GameState *g, uint16_t handler, MenuSlotKind kind, MenuOb
 // $C2:04D9, $C2:04FB
 MenuObject menu_start_script(GameState *g, uint32_t script, MenuSlotKind kind)
 {
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 2);
     MenuObject o;
     if (!menu_start_object(g, MENU_SCRIPT_HANDLER, kind, &o))
         o = (MenuObject)menu_last_object_of(kind);
@@ -294,90 +288,6 @@ bool menu_objects_run(GameState *g, Platform *pf)
  * running object elsewhere than a slot: the original then carries on from
  * the call. */
 enum { TURN_SITE = 0xC2053E };
-
-static bool turn_on_the_machine(void *ctx, uint16_t address, uint16_t handler, bool *done)
-{
-    Snes *s = ctx;
-    GameState *g = state_of(s);
-    uint32_t routine = HANDLERS_BANK | handler;
-    if (address != FIRST_SLOT_ADDRESS) {
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_set_flag(s, CPU_FLAG_V, false);
-    }
-    s->cpu.a = handler;
-    s->cpu.x = address;
-    m_set_nz16(s, handler);
-    m_sep(s, CPU_FLAG_M);
-    /* the time passes before the turn and after it, before the loop counts
-     * it, as it did when each turn was a call the machine made */
-    tm_sync(m_platform(s));
-    void (*form)(Snes *) = menu_object_machine_form(handler);
-    if (!form)
-        form = overworld_machine_entry(routine);
-    if (form) {
-        if (!menu_run_any_widths(s, TURN_SITE, routine, form))
-            return false;
-        tm_sync(m_platform(s));
-    } else {
-        menu_refuse_call(s, TURN_SITE + MENU_JSR_SIZE, routine, false);
-        return false;
-    }
-    if (s->cpu.e || m_x8(s) || !menu_object_address_names_one(menu_object_current(g))) {
-        m_stop_at_own(s, 0xC20541, 0);
-        return false;
-    }
-    *done = m_flag(s, CPU_FLAG_C);
-    return true;
-}
-
-// $C2:051D
-/* The loop's own registers are what it leaves: the address past the last
- * slot in A, and the carry of its last comparison. */
-void menu_run_objects(Snes *s)
-{
-    if (!run_the_objects(state_of(s), turn_on_the_machine, s))
-        return;
-    s->cpu.a = SLOTS_END;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_set_flag(s, CPU_FLAG_V, false);
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-bool menu_objects_on_page(Snes *s) { return m_direct_page(s) == 0 && m_bank_reaches_low_ram(s); }
-
-bool menu_object_can_move(Snes *s)
-{
-    if (!menu_objects_on_page(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_object_address_names_one(menu_object_current(state_of(s)));
-    vars_peek(false);
-    return ok;
-}
-
-/* A handler is entered with its slot in X as well, which is the one it
- * reaches its own state through. */
-bool menu_object_handler_runs(Snes *s)
-{
-    if (!menu_object_can_move(s))
-        return false;
-    vars_peek(true);
-    bool ok = s->cpu.x == menu_object_current(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-bool menu_object_handler_takes(Snes *s, bool (*takes)(const GameState *g, MenuObject self))
-{
-    if (!menu_object_handler_runs(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = takes(g, menu_object_running(g));
-    vars_peek(false);
-    return ok;
-}
 
 // $C2:048A
 

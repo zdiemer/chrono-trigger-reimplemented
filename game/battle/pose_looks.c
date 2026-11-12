@@ -118,7 +118,6 @@ enum { TINT_FIRST = 1, TINT_PUT_BACK = 12, TINTED_FIRST = 3, TINTED = 2 };
 
 static void tint_the_colours(GameState *g, unsigned member)
 {
-    charge_machine_accesses(g, 3);
     for (unsigned colour = TINT_FIRST; colour < TINT_FIRST + TINT_PUT_BACK; colour++) {
         unsigned at = palette_colour(g, member, colour);
         set_palette_working(g, at, palette_base(g, at));
@@ -139,7 +138,6 @@ void battle_take_off_the_look(GameState *g, unsigned slot)
 {
     set_battle_marker_on(g, slot, 0);
     set_battle_party_palette_cycle_on(g, slot, 0);
-    charge_machine_accesses(g, 3);
     if (battle_slot_is_party(slot))
         put_back_the_colours(g, slot);
 }
@@ -169,7 +167,6 @@ static void put_on_the_look(GameState *g, unsigned slot, PoseLook look)
         set_battle_party_palette_cycle(g, slot, 0);
     }
     if (look.tints) {
-        charge_machine_accesses(g, 2);
         if (battle_slot_is_party(slot))
             tint_the_colours(g, slot);
     }
@@ -209,7 +206,6 @@ void battle_go_round_the_poses(GameState *g)
 {
     uint8_t slot = battle_next_enemy_checked(g);
     if (battle_slot_present(g, slot)) {
-        charge_machine_accesses(g, 2);
         TIMED_AS(g, 0xC12F97, (void)combatant_choose_pose(g, slot));
     }
     slot = (uint8_t)(slot + 1);
@@ -220,7 +216,6 @@ void battle_go_round_the_poses(GameState *g)
     set_battle_next_enemy_checked(g, slot);
     for (unsigned each = 0; each < BATTLE_COMBATANTS; each++)
         TIMED_AS(g, 0xC1308C, battle_show_pose_look(g, each));
-    charge_machine_accesses(g, 2);
 }
 
 /* The party's palettes keep the colours the looks put back among the

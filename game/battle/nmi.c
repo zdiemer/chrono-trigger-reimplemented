@@ -122,8 +122,6 @@ static void take_frame_advance(GameState *g, Platform *pf)
  * moved aside around it. */
 enum { SCRATCH_BYTES = 43, SCRATCH_ASIDE = 0xCC65 };
 
-static bool came_back(const Snes *s) { return battle_widths_m8_x16(s) && s->cpu.db == BATTLE_DATA_BANK; }
-
 /* ---- The vblank handler ----------------------------------------------------------------- */
 
 /* The frame work for the battle's mode reads A's high byte and Y (the block
@@ -139,23 +137,6 @@ typedef struct {
     bool (*map_layers)(void *ctx);
     void (*put_the_scratch_back)(void *ctx);
 } VblankCalls;
-
-// $D1:E77C
-/* The battle's vblank handler. Unless the last one is still running: the
- * line values latched, the screen blanked for the uploads, the frame work, and
- * unless paused the game's per-frame work and the frame count; then pause and
- * frame advance, and the battle's waits for the frame are released. False
- * where a call went no further. */
-/* Preserve the machine estimate for removed comparison accesses.
- * Inspect the branch without charging those reads to either backend. */
-static void charge_math_restoration(GameState *g)
-{
-    uint32_t charge_mark = charge_uncounted_begin(g);
-    bool dividing = battle_divider_busy(g) != 0;
-    charge_uncounted_end(g, charge_mark);
-    charge_machine_accesses(g, dividing ? 4 : 3);
-    charge_machine_io_accesses(g, dividing ? 3 : 4);
-}
 
 static bool take_the_vblank(GameState *g, Platform *pf, const VblankCalls *calls, void *ctx)
 {
@@ -179,7 +160,6 @@ static bool take_the_vblank(GameState *g, Platform *pf, const VblankCalls *calls
         count_frame(g);
     }
     take_pause(g, pf);
-    charge_math_restoration(g);
     take_frame_advance(g, pf);
     calls->put_the_scratch_back(ctx);
     set_battle_interrupt_busy(g, 0);
@@ -216,48 +196,6 @@ void battle_vblank(GameState *g, Platform *pf)
     static const VblankCalls in_the_program = { scratch_aside, frame_work, map_layers, scratch_back };
     BattleHandlerContext c = { g, pf };
     (void)take_the_vblank(g, pf, &in_the_program, &c);
-}
-
-/* On the machine: the scratch moved with the original's block moves (which
- * leave Y at the move's end, as the frame work reads it), and the frame work
- * on the data bank $00 with A $0080, each call from the original's. */
-static void scratch_aside_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    m_block_move(s, BATTLE_DATA_BANK, SCRATCH_ASIDE, BATTLE_DATA_BANK, BATTLE_PAGE, SCRATCH_BYTES);
-    s->cpu.db = 0x00;
-}
-
-static void scratch_back_on_the_machine(void *ctx)
-{
-    m_block_move(ctx, BATTLE_DATA_BANK, BATTLE_PAGE, BATTLE_DATA_BANK, SCRATCH_ASIDE, SCRATCH_BYTES);
-}
-
-static bool frame_work_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    s->cpu.a = 0x0080;
-    return battle_run_long_called(s, 0xD1E7DA, FRAME_WORK, DC_X | DC_N | DC_Z | DC_C, battle_frame_dispatch)
-           && came_back(s);
-}
-
-static bool map_layers_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    return battle_run_long_called(s, 0xD1E7E3, GAME_FRAME, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
-                                  battle_scroll_map_layers) && came_back(s);
-}
-
-void battle_nmi(Snes *s)
-{
-    static const VblankCalls on_the_machine = { scratch_aside_on_the_machine, frame_work_on_the_machine,
-                                                map_layers_on_the_machine, scratch_back_on_the_machine };
-    m_save_interrupted_registers_bank_first(s);
-    s->cpu.d = BATTLE_PAGE;
-    s->cpu.a = 0;
-    m_sep(s, CPU_FLAG_M);
-    if (take_the_vblank(state_of(s), m_platform(s), &on_the_machine, s))
-        m_return_to_interrupted_bank_first(s);
 }
 
 /* It leaves A 8-bit, the last operand it set. */
@@ -319,7 +257,6 @@ static bool take_the_line(GameState *g, Platform *pf, bool (*tile_animation_uplo
         TIMED_AS(g, 0xD1FE4C, apply_the_alternate_frame(g));
     else if (!battle_paused(g) && !tile_animation_uploads(ctx))
         return false;
-    charge_math_restoration(g);
     set_battle_interrupt_busy(g, 0);
     return true;
 }
@@ -336,29 +273,4 @@ void battle_line(GameState *g, Platform *pf)
 {
     BattleHandlerContext c = { g, pf };
     (void)take_the_line(g, pf, tile_animation_uploads, &c);
-}
-
-/* On the machine the uploads run under the flags of the pause's test,
- * pushed. The page is the battle's and the data bank the registers', as the
- * original's has them at its wait. */
-static bool tile_animation_uploads_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    m_set_a8(s, 0);
-    m_set_nz8(s, 0);
-    m_push8(s, s->cpu.p);
-    if (!battle_run_long(s, 0xD1FEDA, TILE_ANIMATION_UPLOADS, tile_animation_upload) || !battle_widths_m8_x16(s))
-        return false;
-    (void)m_pull8(s);   /* the pause test's flags off the stack; the return puts the interrupted code's back */
-    return true;
-}
-
-void battle_irq(Snes *s)
-{
-    m_save_interrupted_registers_bank_first(s);
-    s->cpu.d = BATTLE_PAGE;
-    s->cpu.db = 0x00;
-    m_sep(s, CPU_FLAG_M);
-    if (take_the_line(state_of(s), m_platform(s), tile_animation_uploads_on_the_machine, s))
-        m_return_to_interrupted_bank_first(s);
 }

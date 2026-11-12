@@ -21,20 +21,8 @@
 #include <stdint.h>
 
 #include "platform/platform.h"
-#include "snes/system.h"
 #include "state.h"
 #include "vars.h"
-
-/* A signed division as the original makes it: the size divided and the sign
- * put back after, so it rounds toward zero, and a divisor of 0 gives the CPU's
- * divider's all ones (-1, or 1 with the sign put back). The Epoch's map view
- * and the Day of Lavos's turning world work their Mode 7 matrices out so, and
- * the time dial its gate's edges' slopes. */
-static inline int16_t menu_signed_quotient(uint16_t size, uint8_t divisor, bool negative)
-{
-    uint16_t q = divisor ? (uint16_t)(size / divisor) : 0xFFFF;
-    return (int16_t)(negative ? (uint16_t)(0 - q) : q);
-}
 
 /* The menus' screens, by the number the menus keep for the one running
  * (menu_screen): the main menu, the six screens its options open (each its
@@ -53,17 +41,8 @@ typedef enum {
  * have places of their own: the description's typing, the cursor's sprite
  * (which a screen's panel holds back while it draws), the scroll bar's, the
  * records', the cursors a screen holds and the healing's rising numbers. */
-enum {
-    MENU_DESCRIPTION_TASK = 2, MENU_CURSOR_TASK = 3, MENU_SCROLL_BAR_TASK = 4, MENU_RECORDS_TASK = 5,
-    MENU_HELD_CURSORS_TASK = 6, MENU_AMOUNTS_TASK = 7,
-};
+enum { MENU_DESCRIPTION_TASK = 2, MENU_CURSOR_TASK = 3, MENU_SCROLL_BAR_TASK = 4, MENU_RECORDS_TASK = 5, MENU_HELD_CURSORS_TASK = 6, MENU_AMOUNTS_TASK = 7,  };
 enum { MENU_TASK_STARTING = 1 };
-static inline void menu_start_task(GameState *g, unsigned task, uint16_t start)
-{
-    set_menu_tasks_state(g, task, MENU_TASK_STARTING);
-    set_menu_tasks_countdown(g, task, 1);
-    set_menu_tasks_start(g, task, start);
-}
 
 /* Stop the tasks whose bits are set in `tasks`, bit n the n-th: none of
  * them takes another turn ($C2:8255, menu/frame.c). */
@@ -73,17 +52,6 @@ void menu_stop_tasks(GameState *g, uint8_t tasks);
  * goes on; the frame's turns from the first task; the menus' first wait; and
  * the turns of the main task and the cursor's, the tasks that run all the
  * time. */
-void menu_task_waits_a_frame(Snes *s);
-void menu_task_waits_frames(Snes *s);
-void menu_task_ends(Snes *s);
-void menu_run_the_tasks(Snes *s);
-void menu_wait_for_the_first_frame(Snes *s);
-void menu_start_the_tasks(Snes *s);
-bool menu_tasks_can_start(Snes *s);
-bool menu_task_can_wait(Snes *s);
-bool menu_task_can_end(Snes *s);
-bool menu_tasks_can_run(Snes *s);
-bool menu_task_goes_on_from(Snes *s, uint16_t s_after);
 
 /* The same as C, each task a coroutine (core/tasks.h): the tasks started as
  * the menus open; a frame's turns, which end where a task closes the menus or
@@ -97,20 +65,12 @@ void menu_task_waits(GameState *g, uint8_t frames);
 void menu_tasks_closed(void);
 void menu_tasks_end(void);
 
-void menu_run_the_main_task(Snes *s);
-void menu_main_task_waits(Snes *s);
-void menu_run_the_cursor_task(Snes *s);
-void menu_run_the_scroll_bar_task(Snes *s);
-void menu_records_task_waits(Snes *s);
-
 /* menu/screens.c: the running screen's step, as the main task's turn runs
  * it; true if it came back to the turn. And the turn's guard: the screen on a
  * step it has. */
-bool menu_run_the_screen_s_step(Snes *s);
 /* The same as C, from inside the main task: false where the step is one the
  * port doesn't have as C, the program going no further there. */
 bool menu_run_the_screen_step(GameState *g, Platform *pf);
-bool menu_screen_step_is_known(Snes *s);
 
 /* menu/frame.c */
 /* The sprite-object mode's main loop waits, as C: for the vblank handler to
@@ -118,17 +78,25 @@ bool menu_screen_step_is_known(Snes *s);
  * each the sound command a request left waiting. */
 void menu_wait_for_the_next_frame(GameState *g, Platform *pf);
 void menu_wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t frames);
-void menu_wait_frames_sending_the_sound_entry(Snes *s);
-void menu_counted_frame_finished(Snes *s);
-void menu_wait_for_frame_loop(Snes *s);
-void menu_wait_for_frame_loop_entry(Snes *s);
-void menu_wait_for_frame(Snes *s);
-void menu_take_the_frames_input(Snes *s);
-void menu_wait_ready_loop(Snes *s);
-void menu_wait_ready_loop_entry(Snes *s);
-bool menu_frame_wait_on_page(Snes *s);
-bool menu_ready_wait_reaches_low_ram(Snes *s);
 
 #include "menu/glyphs.h"
+
+/* A signed division as the original makes it: the size divided and the sign
+ * put back after, so it rounds toward zero, and a divisor of 0 gives the CPU's
+ * divider's all ones (-1, or 1 with the sign put back). The Epoch's map view
+ * and the Day of Lavos's turning world work their Mode 7 matrices out so, and
+ * the time dial its gate's edges' slopes. */
+static inline int16_t menu_signed_quotient(uint16_t size, uint8_t divisor, bool negative)
+{
+    uint16_t q = divisor ? (uint16_t)(size / divisor) : 0xFFFF;
+    return (int16_t)(negative ? (uint16_t)(0 - q) : q);
+}
+
+static inline void menu_start_task(GameState *g, unsigned task, uint16_t start)
+{
+    set_menu_tasks_state(g, task, MENU_TASK_STARTING);
+    set_menu_tasks_countdown(g, task, 1);
+    set_menu_tasks_start(g, task, start);
+}
 
 #endif

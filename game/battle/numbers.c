@@ -72,8 +72,7 @@ typedef struct {
 /* The original's work cells: the record's place and the sprites' (bytes);
  * the combatant's high bits; the attributes; the digits' offsets (after the
  * count of blanks); a word it clears; where the number stands. */
-enum { RECORD_PLACE = 0x80, SPRITE_PLACE = 0x82, HIGH_BITS = 0x84, ATTRIBUTES = 0x8C, OFFSETS = 0x8E,
-       CLEARED = 0x92, PLACE = 0x94, RECORD_BYTES = 4, SPRITE_BYTES = 4 };
+enum { RECORD_PLACE = 0x80, SPRITE_PLACE = 0x82, HIGH_BITS = 0x84, ATTRIBUTES = 0x8C, OFFSETS = 0x8E, CLEARED = 0x92, PLACE = 0x94, RECORD_BYTES = 4, SPRITE_BYTES = 4 };
 
 /* Show a combatant's number: the digits after the blanks in front, each
  * where its offset puts it. */
@@ -91,7 +90,6 @@ static void show_number(GameState *g, unsigned slot, NumberPlace at, SpriteDigit
     }
     set_battle_number_sprite_high(g, slot, high_bits);
     set_battle_prepared_sprites_on(g, slot, 1);
-    (charge_machine_accesses(g, 1 + DIGIT_SPRITES), charge_machine_rom_accesses(g, DIGIT_SPRITES));
 }
 
 static NumberPlace number_place(const GameState *g, unsigned slot)
@@ -113,19 +111,14 @@ static void show_numbers(GameState *g, unsigned set)
         NumberPlace at = number_place(g, slot);
         uint8_t kind = battle_number_records_kind(g, first + slot);
         uint8_t attributes = in_second_palette(kind) ? SECOND_PALETTE_ATTRIBUTES : NUMBER_ATTRIBUTES;
-        charge_machine_accesses(g, 3);
         if (kind == NO_NUMBER)
             continue;
         if (kind != MISS && rises_the_second_way(kind))
             set_battle_number_rise_alt(g, slot, 1);
         uint16_t n = battle_number_records_value(g, first + slot);
         SpriteDigits d = kind == MISS ? miss_digits() : number_digits(g, n);
-        charge_machine_accesses(g, DIGIT_SPRITES + (kind == MISS ? 1 : 2));
         show_number(g, slot, at, d, attributes);
     }
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
     set_battle_numbers_row(g, 0);
     set_battle_numbers_rising(g, 1);
 }

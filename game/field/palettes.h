@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 #include "field/object.h"
-#include "snes/system.h"
+#include <stdint.h>
 #include "state.h"
 
 /* The object gives up its palette slot: it leaves the slot's sharers, and a
@@ -50,8 +50,6 @@ bool object_palette_links_in_the_tables(const GameState *g, FieldObject obj);
  * has set the palettes. */
 bool object_palette_links_safe_to_give_up(const GameState *g, FieldObject obj);
 
-
-enum { FIELD_GIVE_UP_PALETTE_ENTRY = 0xC0734C, FIELD_TAKE_ENEMY_PALETTE_ENTRY = 0xC072B4,
-       FIELD_TAKE_PALETTE_ENTRY = 0xC07170 };
+enum { FIELD_GIVE_UP_PALETTE_ENTRY = 0xC0734C, FIELD_TAKE_ENEMY_PALETTE_ENTRY = 0xC072B4, FIELD_TAKE_PALETTE_ENTRY = 0xC07170 };
 
 #endif

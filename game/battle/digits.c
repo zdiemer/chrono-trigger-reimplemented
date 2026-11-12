@@ -38,7 +38,6 @@ Digits battle_digits_of(GameState *g, uint16_t n, unsigned places)
     }
     set_battle_digits(g, BATTLE_DIGIT_THOUSANDS, DIGIT_BLANK);
     keep_digits(g, d);
-    charge_machine_accesses(g, 2);
     return d;
 }
 

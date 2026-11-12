@@ -34,31 +34,25 @@
 #include "menu/object.h"
 #include "menu/vram.h"
 #include "platform/video.h"
-#include "port/machine.h"
-#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
 
 /* ---- the shape of a plane ------------------------------------------------------------------ */
 
-enum {
-    TILE_PIXELS = 8,              /* pixels across a background tile, and down it */
-    MAP_COLUMNS = 96,             /* map tiles across a plane: one row of map bytes */
-    MAP_ROWS = 64,                /* and down it */
-    MAP_BYTES = MAP_COLUMNS * MAP_ROWS,
-    TILE_COLUMNS = 2 * MAP_COLUMNS,   /* background tiles across it, two a map tile ... */
-    TILE_ROWS = 2 * MAP_ROWS,         /* ... and down */
-    TILEMAP_COLUMNS = 32,         /* background tiles across one tilemap screen ... */
-    TILEMAP_ROWS = 32,            /* ... and down */
-    TILEMAP_WIDTH = 2 * TILEMAP_COLUMNS * TILE_PIXELS,  /* pixels across both screens ... */
-    TILEMAP_HEIGHT = TILEMAP_ROWS * TILE_PIXELS,        /* ... and down one */
-    TILEMAP_SCREEN = 0x400,       /* words from one tilemap screen to the next */
-    STRIP_WORDS = TILEMAP_ROWS,   /* tilemap words in one strip: a whole tilemap column */
-    STRIP_BYTES = 2 * STRIP_WORDS,
-    SCREEN_COLUMNS = TILEMAP_COLUMNS,  /* tiles across the screen, which a scroll looks ahead by ... */
-    SCREEN_ROWS = 28,                  /* ... and down it */
-};
+enum { TILE_PIXELS = 8, /* pixels across a background tile, and down it */
+    MAP_COLUMNS = 96, /* map tiles across a plane: one row of map bytes */
+    MAP_ROWS = 64, /* and down it */
+    MAP_BYTES = MAP_COLUMNS * MAP_ROWS, TILE_COLUMNS = 2 * MAP_COLUMNS, /* background tiles across it, two a map tile ... */
+    TILE_ROWS = 2 * MAP_ROWS, /* ... and down */
+    TILEMAP_COLUMNS = 32, /* background tiles across one tilemap screen ... */
+    TILEMAP_ROWS = 32, /* ... and down */
+    TILEMAP_WIDTH = 2 * TILEMAP_COLUMNS * TILE_PIXELS, /* pixels across both screens ... */
+    TILEMAP_HEIGHT = TILEMAP_ROWS * TILE_PIXELS, /* ... and down one */
+    TILEMAP_SCREEN = 0x400, /* words from one tilemap screen to the next */
+    STRIP_WORDS = TILEMAP_ROWS, /* tilemap words in one strip: a whole tilemap column */
+    STRIP_BYTES = 2 * STRIP_WORDS, SCREEN_COLUMNS = TILEMAP_COLUMNS, /* tiles across the screen, which a scroll looks ahead by ... */
+    SCREEN_ROWS = 28, /* ... and down it */ };
 
 /* A tile group: the four background tiles of one map tile, as words. */
 enum { GROUP_BYTES = 8 };
@@ -289,14 +283,7 @@ static uint16_t queue_row_strip(GameState *g, const MapPlane *p, uint16_t pixel)
 /* The original's routines that build a strip (from the groups' left or right
  * tiles, or their top or bottom ones) and queue it: a strip's work is
  * estimated at their rates, a pixel's move at the scroll's. */
-enum {
-    BUILD_COLUMN_STRIP = 0xC20773,
-    BUILD_COLUMN_STRIP_RIGHT = 0xC207C2,
-    BUILD_ROW_STRIP = 0xC20843,
-    BUILD_ROW_STRIP_BOTTOM = 0xC2088F,
-    QUEUE_COLUMN_STRIP = 0xC2090D,
-    QUEUE_ROW_STRIP = 0xC20961,
-};
+enum { BUILD_COLUMN_STRIP = 0xC20773, BUILD_COLUMN_STRIP_RIGHT = 0xC207C2, BUILD_ROW_STRIP = 0xC20843, BUILD_ROW_STRIP_BOTTOM = 0xC2088F, QUEUE_COLUMN_STRIP = 0xC2090D, QUEUE_ROW_STRIP = 0xC20961,  };
 
 /* How a plane scrolls along each axis: how many tiles and pixels round the
  * map, and how far ahead of the top-left tile the screen's far edge is. */
@@ -368,7 +355,6 @@ static void scroll_plane(GameState *g, uint8_t plane, MenuAxis axis, int8_t step
         built_strip = scroll_a_pixel(g, &p, axis, step < 0, &last_vram) || built_strip;
     if (built_strip)
         menu_note_effect_noise(g, last_vram);
-    charge_machine_accesses(g, 8 + (step != 0 ? 2 : 0) + (built_strip ? 10 : 0));
 }
 
 void menu_map_scroll(GameState *g, uint8_t plane, MenuAxis axis, int8_t step)
@@ -500,22 +486,12 @@ void menu_map_draw_plane(GameState *g, Platform *pf, uint8_t plane)
         r.x = (uint16_t)(r.x + BLOCK_PIXELS) & (TILEMAP_WIDTH - 1);
     }
     menu_note_effect_noise(g, r.column);
-    charge_machine_accesses(g, 26);
 }
 
 /* ---- the entries ----------------------------------------------------------------------------- */
 
 /* The mode's direct page, where its cells are. */
 enum { MODE_PAGE = 0x0000 };
-
-/* They run on the mode's page, reaching their cells through a data bank on
- * low RAM. A script names a plane 1-3 in the plane cell; the scrolls take the
- * first two. The game keeps each plane's top-left tile on the map, its upload
- * buffer in work RAM above low RAM, and its queue on a record with room for
- * what a scroll queues (a strip for every tile it crosses, and one more). */
-static bool on_the_page(const Snes *s) { return m_direct_page(s) == MODE_PAGE && m_bank_reaches_low_ram(s); }
-
-static uint8_t named_plane(const GameState *g) { return (uint8_t)(menu_object_scratch_plane(g) & 3); }
 
 static bool plane_is_on_the_map(const GameState *g, uint8_t plane)
 {
@@ -548,82 +524,11 @@ bool menu_map_can_scroll(const GameState *g, uint8_t plane, unsigned records)
            && queue_has_room(g, records);
 }
 
-static bool scroll_runs(Snes *s, MenuAxis axis)
-{
-    if (!on_the_page(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = menu_map_can_scroll(g, named_plane(g),
-                                  menu_map_scroll_records(axis, (int8_t)menu_object_scratch_step(g)));
-    vars_peek(false);
-    return ok;
-}
-
-bool menu_map_scroll_x_runs(Snes *s) { return scroll_runs(s, MENU_ACROSS); }
-bool menu_map_scroll_y_runs(Snes *s) { return scroll_runs(s, MENU_DOWN); }
-
-bool menu_map_redraw_runs(Snes *s)
-{
-    if (!on_the_page(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    uint8_t plane = named_plane(g);
-    bool ok = plane != 0 && plane_is_on_the_map(g, (uint8_t)(plane - 1)) && buffer_is_in_work_ram(g);
-    vars_peek(false);
-    return ok;
-}
-
-bool menu_map_page_is_menu(Snes *s) { return m_direct_page(s) == MODE_PAGE; }
-
-/* The scrolls come back with an 8-bit accumulator, and X the last strip's
- * place in the queue where the last pixel brought one into view (it is then
- * on a tile's edge), or else the plane doubled. */
-void menu_leave_map_scrolled(Snes *s, uint8_t named, MenuAxis axis, int8_t step)
-{
-    GameState *g = state_of(s);
-    uint8_t plane = (uint8_t)(named - 1);
-    vars_peek(true);
-    bool strip_last = step != 0 && on_tile_edge(scroll_of(g, plane, axis));
-    unsigned records = axis == MENU_ACROSS ? COLUMN_STRIP_RECORDS : ROW_STRIP_RECORDS;
-    uint8_t last_queued = (uint8_t)(menu_object_vram_queue_end(g) - records * MENU_OBJECT_UPLOAD_BYTES);
-    vars_peek(false);
-    s->cpu.x = strip_last ? last_queued : (uint16_t)(plane << 1);
-    m_sep(s, CPU_FLAG_M);
-}
-
-/* Taking the plane and the step from the cells, the registers left and the
- * return are the calling convention's work: the scroll's rate is what its C
- * callers (the object scripts, the overworld's walk) time its work at, where
- * none of it happens, so they are left out of the estimate. */
-static void scroll_entry(Snes *s, MenuAxis axis)
-{
-    GameState *g = state_of(s);
-    uint32_t uncounted = 0;
-    uncounted = charge_uncounted_begin(g);
-    uint8_t plane = named_plane(g);
-    int8_t step = (int8_t)menu_object_scratch_step(g);
-    charge_uncounted_end(g, uncounted);
-    menu_map_scroll(g, plane, axis, step);
-    uncounted = charge_uncounted_begin(g);
-    menu_leave_map_scrolled(s, plane, axis, step);
-    m_rts(s);
-    charge_uncounted_end(g, uncounted);
-}
-
-// $C2:0568
-void menu_map_scroll_x(Snes *s) { scroll_entry(s, MENU_ACROSS); }
-
-// $C2:066C
-void menu_map_scroll_y(Snes *s) { scroll_entry(s, MENU_DOWN); }
-
 // $C2:2720
 void menu_map_centre_on_the_party(GameState *g) { centre_on_party(g); }
 
 void menu_map_redraw_plane(GameState *g, Platform *pf, uint8_t plane)
 {
-    charge_machine_accesses(g, 1);
     TIMED_AS(g, 0xC209C5, menu_map_draw_plane(g, pf, plane));
 }
 
@@ -635,22 +540,4 @@ bool menu_map_can_redraw(const GameState *g, uint8_t plane)
 bool menu_map_party_centres_on_the_map(const GameState *g)
 {
     return location_x(g) < TILE_COLUMNS + CENTRING_COLUMNS && location_y(g) < TILE_ROWS + CENTRING_ROWS;
-}
-
-// $C2:09C5
-/* It comes back with the carry clear and X the block's size, as the block
- * upload leaves it. */
-void menu_leave_map_redrawn(Snes *s)
-{
-    s->cpu.x = STRIP_BYTES;
-    m_sep(s, CPU_FLAG_M);
-    m_set_flag(s, CPU_FLAG_C, false);
-}
-
-void menu_map_redraw(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_map_draw_plane(g, m_platform(s), (uint8_t)(named_plane(g) - 1));
-    menu_leave_map_redrawn(s);
-    m_rts(s);
 }

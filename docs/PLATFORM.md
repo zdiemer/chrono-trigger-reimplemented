@@ -33,8 +33,10 @@ Native work charges accumulate debt, with fractional carry and excluded reads
 handled by the state host. Existing rates in `runtime/port/time_rates.c` are
 frozen authored estimates. Changing a rate requires evidence from native play.
 The timing, native-time, task and unpack-time tests exercise this accounting
-without a ROM. Frame handlers, deferred work and their ordering remain game
-contracts when wrappers are removed.
+without a ROM. Core owns typed mode callbacks in game state; the frame driver
+dispatches them in the established order. The program test checks callback
+isolation, replacement and mode hand-offs. Removing a state read preserves its
+counted work explicitly where pacing depended on it (REIMPLEMENTATION.md).
 
 ## Input, saves and resources
 

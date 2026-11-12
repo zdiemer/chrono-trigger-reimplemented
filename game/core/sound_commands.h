@@ -1,10 +1,5 @@
-/* The game's sound commands, handed to the sound driver the host plays (the C
- * driver, game/sound/): the boot and every command as calls, with nothing
- * uploaded and nothing waited for on the ports. This is the whole of what the
- * cartridge's CPU half in bank $C7 did; that half, which spoke to the
- * original's driver on the sound processor, is no port's any more and runs
- * only in the reference play, as the cartridge's code
- * (docs/REIMPLEMENTATION.md, "The sound driver's teardown"). */
+/* Game sound commands: queued and handed to the C sound program through
+ * the audio service. No sound-processor upload or port polling is needed. */
 #ifndef CT_GAME_CORE_SOUND_COMMANDS_H
 #define CT_GAME_CORE_SOUND_COMMANDS_H
 

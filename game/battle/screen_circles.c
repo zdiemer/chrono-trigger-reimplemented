@@ -345,11 +345,6 @@ static void lay_run_into_the_table(GameState *g, Window w, CircleKind kind, RowR
  * back from its end. */
 enum { UNROLLED_COPY_END = 0xE7C7, UNROLLED_LINE_BYTES = 6, UNROLLED_LINES = 222 };
 
-static int unclipped_top(CircleKind kind, uint8_t radius, uint8_t line)
-{
-    return is_tall(kind) ? line - 2 * radius : line - radius;
-}
-
 /* ... and of laying the run into the table: the run's first row and its top
  * line, the circle's line, how far the top was cut where it was (in rows),
  * and where the copy started or the run ended. */
@@ -391,7 +386,6 @@ enum { DRAW_CIRCLE = 0xCD2FB7, ACCESSES_A_ROW = 32 };
 static ScreenFlow draw_circle(GameState *g, uint8_t circle)
 {
     uint8_t radius = battle_screen_circle_radius(g, circle);
-    charge_machine_accesses(g, 1);
     if (!rows_radius(radius))
         return screen_on();
     CircleKind kind = (CircleKind)battle_screen_circle_kind(g, circle);
@@ -402,8 +396,6 @@ static ScreenFlow draw_circle(GameState *g, uint8_t circle)
     charge_as(g, DRAW_CIRCLE, ACCESSES_A_ROW * rows.rows);
     RowRun run = run_of(kind, radius, line);
     lay_run_into_the_table(g, w, kind, run, line);
-    (charge_machine_accesses(g, rows.first_eighth_rows + 3), charge_machine_io_accesses(g, 3));
-    charge_machine_accesses(g, 10 + (unclipped_top(kind, radius, line) < 0 ? 2 : 0) + (kind == CIRCLE_HUNG_FROM_THE_TOP ? 2 : 0));
     return screen_on();
 }
 SCREEN_OPERATION(draw_circle, circle)
@@ -442,7 +434,6 @@ static ScreenFlow draw_square(GameState *g, uint8_t circle)
     uint8_t half = battle_screen_circle_radius(g, circle), column = battle_screen_circle_x(g, circle);
     Edges row = row_about(column, half);
     if (!half) {
-        charge_machine_accesses(g, 3);
         return screen_on();
     }
     for (unsigned i = 0; i < half; i++) {
@@ -452,8 +443,6 @@ static ScreenFlow draw_square(GameState *g, uint8_t circle)
     uint8_t radius = battle_screen_circle_radius(g, 0), line = battle_screen_circle_y(g, 0);
     RowRun run = round_run(radius, line);
     lay_run_into_the_table(g, WINDOW_1, CIRCLE_ROUND, run, line);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 10 + (unclipped_top(CIRCLE_ROUND, radius, line) < 0 ? 2 : 0));
     return screen_on();
 }
 SCREEN_OPERATION(draw_square, circle)

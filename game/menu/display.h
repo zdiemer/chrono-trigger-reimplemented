@@ -3,7 +3,8 @@
 #define CT_GAME_MENU_DISPLAY_H
 
 #include "platform/video.h"
-#include "snes/system.h"
+#include <stdbool.h>
+#include <stdint.h>
 #include "state.h"
 
 /* Build the per-line colour math table the menus show from the next frame,
@@ -46,17 +47,6 @@ void menu_close(GameState *g, Platform *pf, bool for_the_game);
 enum { MENU_VBLANK_HANDLER = 0xC2840E, MENU_LINE_HANDLER = 0xC28472 };
 
 /* The mode on the machine */
-void menu_mode_enter(Snes *s);
-void menu_mode_start(Snes *s);
-void menu_mode_return(Snes *s);
-void menu_mode_restart(Snes *s);
-void menu_close_entry(Snes *s);
-void menu_close_for_the_game(Snes *s);
-void menu_nmi_enter(Snes *s);
-void menu_nmi_work(Snes *s);
-bool menu_nmi_work_runs(Snes *s);
-void menu_vblank_upload(Snes *s);
-void menu_upload_vram_queue(Snes *s);
 /* The mode at $C2:0000 (sprite objects): its own state started over (its
  * direct page cleared and the shadows of its display set as the screen
  * starts), its vblank handler taken, and its upload queue emptied. */
@@ -81,19 +71,12 @@ void menu_object_line(GameState *g, Platform *pf);
 /* The guard's state half for the mode's upload queue: whole, from memory. */
 bool menu_object_queue_can_be_sent(const GameState *g);
 
-void menu_object_mode_start(Snes *s);
-void menu_object_init_video(Snes *s);
-void menu_object_nmi(Snes *s);
-void menu_object_upload_vram_queue(Snes *s);
-
 /* Loading a screen's graphics: all of VRAM cleared; graphics sent from the
  * loader's buffer in bank $7F; the loaded palette sent to CGRAM. */
 void menu_clear_all_of_vram(Platform *pf);
 void menu_send_loaded_graphics(Platform *pf, uint16_t vram, uint16_t from, uint16_t bytes);
 void menu_send_the_loaded_palette(Platform *pf);
 
-void menu_clear_vram(Snes *s);
-void menu_init_video(Snes *s);
 /* The same as C. */
 void menu_video_set_up(GameState *g, Platform *pf);
 /* The window line table: built, and the per-line slot pointed at it; its
@@ -101,9 +84,5 @@ void menu_video_set_up(GameState *g, Platform *pf);
  * the menus' page from every caller). */
 void menu_put_window_line_table(GameState *g, Platform *pf);
 /* Guards */
-bool menu_display_bank_is_io(Snes *s);
-bool menu_vram_queue_is_whole(Snes *s);
-bool menu_object_queue_is_sendable(Snes *s);
-bool menu_vblank_work_runs(Snes *s);
 
 #endif

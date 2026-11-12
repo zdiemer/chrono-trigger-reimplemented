@@ -1,3 +1,5 @@
+#include "event/script.h"
+#include "event/script.h"
 /* How a script finds its way: jumps, the conditions it branches on, and
  * waiting.
  *
@@ -6,7 +8,6 @@
  * the jumping (event/engine.c); the operations here only say whether a
  * condition holds, or how long to wait. The conditions on the story, the
  * party, dialog and the controller are with those, in their own files. */
-#include "event/bridge.h"
 #include "charge.h"
 #include "field/scratch.h"
 #include "event/variables.h"

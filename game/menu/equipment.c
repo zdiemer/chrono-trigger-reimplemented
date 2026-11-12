@@ -125,7 +125,6 @@ void menu_list_what_fits(GameState *g)
             put_in_list(g, row, item, count);
         }
     }
-    charge_machine_accesses(g, 3);
 }
 
 /* The guard's: a slot of the four, an empty item of no power to end the
@@ -311,7 +310,6 @@ void menu_equip_start_member_slide(GameState *g, Platform *pf)
     TIMED_AS(g, 0xC2A216, menu_draw_member_row(g, pf));
     uint16_t new_row = (uint16_t)(menu_draw_origin(g) + ROW_TILES_FROM_ORIGIN);
     TIMED_AS(g, 0xC29EB0, menu_colour_member_row(g, new_row, true));
-    charge_machine_accesses(g, 4);
     copy_rows_on(g, LIST_FRONT_LAYER, ROWS_PLACE, slide_place(g));
     copy_rows_on(g, LIST_BACK_LAYER, ROWS_PLACE, slide_place(g));
     menu_queue_fixed_upload(g, UPLOAD_BG1_SLID);
@@ -471,7 +469,6 @@ static void compare_figures(GameState *g, Platform *pf)
 {
     menu_mark_the_figures_tried_on(g, FIGURES_ON_THE_EQUIPMENT_SCREEN);
     set_menu_figure_marks(g, GREATEST_HP_MARK, menu_figure_mark(menu_status_record_hp_cap(g), menu_figures_greatest_hp(g)));
-    (charge_machine_accesses(g, 2), charge_machine_rom_accesses(g, 1));
     menu_draw_windows(g, pf, FIGURES_WINDOW);
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
 }
@@ -511,10 +508,8 @@ void menu_equip_put_on_the_chosen_item(GameState *g)
 {
     uint8_t character = menu_member_character(g), place = slot_place(g);
     uint8_t was = character_records_record_byte(g, character, place);
-    charge_machine_accesses(g, 2);
     TIMED_AS(g, 0xC28791, (void)menu_add_items(g, was, 1));
     uint8_t item = menu_status_record_bytes_byte(g, place);
-    charge_machine_accesses(g, 2);
     set_character_records_record_byte(g, character, place, item);
     TIMED_AS(g, 0xC287D5, (void)menu_take_items(g, item, 1));
 }
@@ -551,10 +546,8 @@ enum { FIRST_LIST_PLACE = 4 };
  * through the multiplier ($C2:8BA6), which it leaves with the product. */
 enum { THUMB_LINES_A_ROW = 4 };
 
-static uint8_t thumb_at_row(GameState *g, uint8_t row)
+static uint8_t thumb_at_row(uint8_t row)
 {
-    charge_machine_io_accesses(g, 1);
-    charge_machine_io_accesses(g, 3);
     return (uint8_t)(row * THUMB_LINES_A_ROW);
 }
 
@@ -562,7 +555,7 @@ static uint8_t thumb_at_row(GameState *g, uint8_t row)
  * the row) a page on or back. */
 void menu_equip_turn_list_page(GameState *g, uint8_t top)
 {
-    set_menu_scroll_bar_thumb(g, thumb_at_row(g, menu_scroll_bar_thumb(g)));
+    set_menu_scroll_bar_thumb(g, thumb_at_row(menu_scroll_bar_thumb(g)));
     set_menu_equip_list_top(g, top);
 }
 
@@ -635,7 +628,7 @@ bool menu_equip_list_slide_frames_left(GameState *g)
  * lines in, the rows moved a row along and the list at rest. */
 void menu_equip_finish_list_slide(GameState *g)
 {
-    set_menu_scroll_bar_thumb(g, thumb_at_row(g, menu_equip_list_top(g)));
+    set_menu_scroll_bar_thumb(g, thumb_at_row(menu_equip_list_top(g)));
     set_menu_vram_queue_bytes(g, 0);
     menu_put_the_list_bands_back(g);
     TIMED_AS(g, 0xC29FDE, menu_equip_move_list_rows(g));
@@ -1245,7 +1238,7 @@ static void registers_at(void *ctx, EquipmentPlace at) { (void)ctx, (void)at; }
 
 static void note(void *ctx, EquipmentNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
 
-static bool only_on_the_machine(EquipmentContext *c, uint32_t routine, const char *what)
+static bool reject_operation(EquipmentContext *c, uint32_t routine, const char *what)
 {
     program_breaks_a_contract(c->game, routine, what);
     return false;
@@ -1253,7 +1246,7 @@ static bool only_on_the_machine(EquipmentContext *c, uint32_t routine, const cha
 
 static bool not_taken(EquipmentContext *c, uint32_t routine)
 {
-    return only_on_the_machine(c, routine, "an equipment screen the port doesn't take");
+    return reject_operation(c, routine, "an equipment screen the port doesn't take");
 }
 
 static const EquipmentSteps in_the_program;
@@ -1319,7 +1312,7 @@ static bool run(void *ctx, EquipmentRoutine r)
         return true;
     case EQUIPMENT_TRIES_IT_ON:
         if (!menu_equip_can_try_on(g))
-            return only_on_the_machine(c, 0xC2A5C3, "an item tried on with the menus' zero word not 0");
+            return reject_operation(c, 0xC2A5C3, "an item tried on with the menus' zero word not 0");
         menu_equip_try_on(g, c->pf);
         return true;
     }

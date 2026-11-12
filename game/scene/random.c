@@ -36,7 +36,6 @@
 #include "scene/scene.h"
 
 #include "platform/timing.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "scene/scene_data.h"
 #include "vars.h"

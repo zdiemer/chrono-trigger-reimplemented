@@ -82,7 +82,7 @@ const StateHostTime *state_host_time(const GameState *g, unsigned *count);
 /* The most scenes a driver starts the game in, one after another (program_starts_in_a_scene). */
 enum { STATE_HOST_FIRST_SCENES = 4 };
 
-/* Where the program went no further than its C reaches (program_needs_the_machine,
+/* Where the program went no further than its C reaches (program_fail,
  * game/core/program.h): the routine only the machine runs, and what it is. */
 bool state_host_stopped(const GameState *g, uint32_t *routine, const char **what);
 

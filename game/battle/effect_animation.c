@@ -120,14 +120,11 @@ static TakenFrame take_next_frame(GameState *g, unsigned effect)
 void battle_animate_effect_frames(GameState *g)
 {
     count_frame_times_down(g);
-    bool taken = false;
+
     for (unsigned effect = 0; effect < BATTLE_EFFECTS; effect++) {
         if (!frame_is_up(g, effect))
             continue;
         TIMED_AS(g, 0xCCF2A9, take_next_frame(g, effect));
-        taken = true;
+
     }
-    if (taken)
-        charge_machine_accesses(g, 6);
-    charge_machine_accesses(g, 2);
 }

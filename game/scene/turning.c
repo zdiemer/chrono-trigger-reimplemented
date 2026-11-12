@@ -8,7 +8,6 @@
 #include "cpu_io.h"
 #include "platform/timing.h"
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "scene/scene_data.h"
 #include "vars.h"
@@ -453,7 +452,7 @@ static bool prepare_turn(GameState *g, Platform *pf, bool (*scripts)(void *), vo
 static void show_turn(GameState *g, Platform *pf)
 {
     vid_send_vram_next_frame(pf, PF_AT(0x7E70F2),
-        PF_CALL_DC(0x7E710F, 0x7E31B0, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C),
+        PF_CALL(0x7E710F, 0x7E31B0),
         0x6800, PF_GAME(0x0C00), 0x800, SCENE_VRAM_WHOLE_WORDS);
     show_turn_layers(pf);
     for (unsigned window = 0; window < 2; window++)
@@ -485,172 +484,7 @@ bool scene_turn_set_up(GameState *g, Platform *pf)
     return true;
 }
 
-static bool turn_scripts_on_machine(void *context)
-{
-    Snes *s = context;
-    s->cpu.a = 0x7157;
-    if (!scene_bridge_first_script_step(s, 0x7E70CE, 0x1C00))
-        return false;
-    m_push8(s, 0);
-    m_set_flag(s, CPU_FLAG_M, false);
-    bool done = scene_run(s, 0x7E70D1, 0x7E3754, SCENE_FIRST_STEP_IGNORES, scene_run_channel_1_script);
-    if (!done)
-        return false;
-    s->cpu.db = m_pull8(s);
-    scene_bridge_back_on_the_scene_s_page(s);
-    return done;
-}
-
-bool scene_turn_set_up_scene(Snes *s)
-{
-    if (!prepare_turn(state_of(s), m_platform(s), turn_scripts_on_machine, s))
-        return false;
-    s->cpu.d = M_DP_PPU;
-    s->cpu.db = 0;
-    m_set_flag(s, CPU_FLAG_M, true);
-    m_set_flag(s, CPU_FLAG_V, false);
-    show_turn(state_of(s), m_platform(s));
-    return true;
-}
-
-/* The standalone drawing entries take table byte offsets. The scene's own
- * callers supply one of the seven characters and a whole pose record. */
-
-/* Every mode-5 entry uses the same unpacked program. The copy operands and
- * the first sprite's appearance are writable, so only their surrounding
- * instructions are hashed. Tables read as data remain part of the image. */
-static bool turning_code_present(Snes *s)
-{
-    return m_code_matches(s, 0x7E6E42, 0x6A, 0x3A0831FD39BA6BFDull) &&
-           m_code_matches(s, 0x7E6EAE, 0x6, 0x2FEC6E338BA303A7ull) &&
-           m_code_matches(s, 0x7E6EB5, 0x5, 0xE40D09D53FD2C012ull) &&
-           m_code_matches(s, 0x7E6EBC, 0x7, 0x3C49132E8F5BE0EDull) &&
-           m_code_matches(s, 0x7E6EC4, 0x15A, 0xDF950D0352A1F375ull) &&
-           m_code_matches(s, 0x7E701E, 0x17, 0xBB5DD97642E76A86ull) &&
-           m_code_matches(s, 0x7E7037, 0x5B, 0xC34572C74778F22Eull) &&
-           m_code_matches(s, 0x7E7092, 0xC5, 0x2513793530FEE60Eull) &&
-           m_code_matches(s, 0x7E7193, 0x12, 0xFAD50C2537061CCBull) &&
-           m_code_matches(s, 0x7E7286, 0x1E, 0x792D3975BC96E34Cull) &&
-           m_code_matches(s, 0x7E72FF, 0x26, 0x38E51033E6896A05ull) &&
-           m_code_matches(s, 0x7E7325, 0x2F, 0x5DD6711A0F9CED71ull) &&
-           m_code_matches(s, 0x7E737E, 0x2C, 0xC5513ADE0FD798BAull) &&
-           m_code_matches(s, 0x7E73AA, 0x1C, 0xD341429DE7E414A7ull) &&
-           m_code_matches(s, 0x7E74DD, 0x35F, 0x881337299FF60F0Bull) &&
-           m_code_matches(s, 0x7E7868, 0x43, 0x221D0CF39B706A2Full) &&
-           m_code_matches(s, 0x7E78AB, 0x32, 0x9750089DC679FC80ull);
-}
-
-bool scene_turn_program_present(Snes *s) { return scene_on_scene_page_io_bank(s) && turning_code_present(s); }
-bool scene_turn_set_up_present(Snes *s) { return s->cpu.d == 0 && s->cpu.db == 0 && turning_code_present(s); }
-
-bool scene_update_turn_figures_present(Snes *s)
-{
-    if (!scene_turn_program_present(s))
-        return false;
-    vars_peek(true);
-    GameState *g = state_of(s);
-    bool ready = scene_sprites_fit(g, FIGURES * FIGURE_SPRITES) && !(scene_sprite_index(g) & 3) &&
-                 scene_turn_next_upload(g) < FIGURES * FIGURE_RECORD_BYTES &&
-                 scene_turn_next_upload(g) % FIGURE_RECORD_BYTES == 0;
-    for (unsigned figure = 0; figure < FIGURES; figure++)
-        ready = ready && figure_character(g, figure) < 7;
-    vars_peek(false);
-    return ready;
-}
-
-bool scene_pick_turn_sequence_present(Snes *s)
-{
-    return (scene_on_channel_page(s) && s->cpu.db == SCENE_LOWER_WORK_RAM) && turning_code_present(s);
-}
-
-void scene_spread_turn_figures_entry(Snes *s)
-{
-    scene_spread_turn_figures(state_of(s), m_platform(s), 0);
-    m_set_a8(s, scene_turn_figures_radius(state_of(s), FIGURES - 1));
-    m_set_flag(s, CPU_FLAG_M, true);
-    m_rts(s);
-}
-
-void scene_orbit_turn_figures_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    scene_orbit_turn_figures(g, m_platform(s), 0);
-    uint16_t angle = (uint16_t)(scene_turn_orbit(g) + scene_turn_figures_angle(g, PARTY_FIGURES - 1));
-    s->cpu.a = (uint16_t)((uint16_t)scene_sine(g, angle) << 8 | scene_turn_figures_y(g, PARTY_FIGURES - 1));
-    m_rts(s);
-}
-
-void scene_update_turn_figures_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    unsigned last = FIGURES - 1;
-    bool advances = animation_changed(g, last) || scene_turn_figures_delay(g, last) == 1;
-    bool restarts = advances && (scene_turn_figures_animation(g, last) != scene_turn_figures_active_animation(g, last) ||
-                                scene_figure_animation_byte(g, scene_turn_figures_frames(g, last)) == 0xFF);
-    scene_update_turn_figures(g, m_platform(s), 0);
-    s->cpu.a = FIGURES * FIGURE_RECORD_BYTES;
-    s->cpu.y = restarts ? scene_turn_figures_facing(g, last) : FIGURE_SPRITES * 2;
-    m_rts(s);
-}
-
-void scene_send_turn_figure_entry(Snes *s)
-{
-    scene_send_turn_figure(state_of(s), m_platform(s), 0);
-    m_rts(s);
-}
-
-void scene_cycle_turn_colors_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    scene_cycle_turn_colors(g, m_platform(s), 0);
-    if ((scene_frame_counter(g) & 7) == 0)
-        m_set_flag(s, CPU_FLAG_M, false);
-    m_rts(s);
-}
-
-void scene_size_turn_windows_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint16_t radius = scene_channel_register(g, 1, 0);
-    bool draws_second = radius != scene_turn_window_radius(g, 1);
-    scene_size_turn_windows(g, m_platform(s), 0);
-    s->cpu.a = draws_second ? 0 : radius;
-    m_rts(s);
-}
-
-void scene_scroll_turn_wave_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    /* On its task list this is never the first slot, so its comparison has
-     * cleared the rounding bit. Standalone callers can supply either bit. */
-    uint16_t step = (uint16_t)(scene_channel_register(g, 1, 8) + m_flag(s, CPU_FLAG_C));
-    scroll_turn_wave(g, step);
-    s->cpu.a = scene_turn_wave_lines(g, 223);
-    s->cpu.y = 0xF6BF;
-    s->cpu.db = SCENE_LOWER_WORK_RAM;
-    m_rts(s);
-}
-
-void scene_step_turn_mosaic_entry(Snes *s)
-{
-    if (step_turn_mosaic(state_of(s)))
-        m_set_a8(s, scene_turn_mosaic_size(state_of(s)));
-    m_set_flag(s, CPU_FLAG_M, true);
-    m_rts(s);
-}
-
-void scene_show_turn_mosaic_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    show_turn_mosaic(g, m_platform(s), s->cpu.x);
-    uint8_t size = scene_turn_mosaic_size(g), frame = scene_frame_counter(g) & 3;
-    uint8_t result = size != 0xFF ? (uint8_t)(size << 4 | 1) : frame ? frame : scene_turn_mosaic_previous(g) | 1;
-    m_set_a8(s, result);
-    m_set_flag(s, CPU_FLAG_M, true);
-    m_rts(s);
-}
-
 const SceneScriptRoutine scene_turn_routines[] = {
-    { 0x7286, pick_turn_sequence, scene_pick_turn_sequence_present, false },
+    { 0x7286, pick_turn_sequence },
 };
 const unsigned scene_turn_routine_count = sizeof scene_turn_routines / sizeof scene_turn_routines[0];

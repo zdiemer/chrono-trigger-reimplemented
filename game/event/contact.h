@@ -7,7 +7,7 @@
 
 #include "event/chests.h"
 #include "field/object.h"
-#include "snes/system.h"
+#include <stdint.h>
 #include "state.h"
 
 /* Whether the leader is up against an object (its walk ran into one this
@@ -44,9 +44,7 @@ bool event_touch_is_ours(const GameState *g);
 
 /* The confirm button's machine form and contract, for the gated field
  * main loop. Talk and touch are ordinary operations with no entry wrappers. */
-void field_press_confirm(Snes *s);
 /* The confirm button as C: talk to what the leader faces, or open a chest. */
 void field_confirm_pressed(GameState *g);
-bool field_confirm_can_run(Snes *s);
 
 #endif

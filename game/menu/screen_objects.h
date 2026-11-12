@@ -9,20 +9,11 @@
 #include <stdint.h>
 
 #include "menu/object.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* The handlers, by the addresses in bank C2 a slot names them with. */
 #define MENU_HANDLER_AT(routine) ((uint16_t)(routine))
-enum {
-    MENU_TILE_STREAMER = MENU_HANDLER_AT(0xC21CF5),
-    MENU_PALETTE_LOADER = MENU_HANDLER_AT(0xC21DD4),
-    MENU_PALETTE_FADE = MENU_HANDLER_AT(0xC21E38),
-    MENU_FADE_OUT = MENU_HANDLER_AT(0xC220A2),
-    MENU_FADE_IN = MENU_HANDLER_AT(0xC22105),
-    MENU_MOSAIC_CLEARS = MENU_HANDLER_AT(0xC22194),
-    MENU_MOSAIC_GROWS = MENU_HANDLER_AT(0xC221F8),
-};
+enum { MENU_TILE_STREAMER = MENU_HANDLER_AT(0xC21CF5), MENU_PALETTE_LOADER = MENU_HANDLER_AT(0xC21DD4), MENU_PALETTE_FADE = MENU_HANDLER_AT(0xC21E38), MENU_FADE_OUT = MENU_HANDLER_AT(0xC220A2), MENU_FADE_IN = MENU_HANDLER_AT(0xC22105), MENU_MOSAIC_CLEARS = MENU_HANDLER_AT(0xC22194), MENU_MOSAIC_GROWS = MENU_HANDLER_AT(0xC221F8),  };
 
 /* The screen's display, as the mode's vblank handler sends it: whether it is
  * off, and how bright. */
@@ -54,18 +45,5 @@ bool menu_fade_in_takes(const GameState *g, MenuObject self);
 bool menu_mosaic_takes(const GameState *g, MenuObject self);
 
 /* The checked legacy adapters and their guards. */
-void menu_stream_tiles_entry(Snes *s);
-void menu_load_palette_row_entry(Snes *s);
-void menu_fade_palette_row_entry(Snes *s);
-void menu_fade_out_entry(Snes *s);
-void menu_fade_in_entry(Snes *s);
-void menu_clear_mosaic_entry(Snes *s);
-void menu_grow_mosaic_entry(Snes *s);
-bool menu_tile_streamer_runs(Snes *s);
-bool menu_palette_loader_runs(Snes *s);
-bool menu_palette_fade_runs(Snes *s);
-bool menu_fade_out_runs(Snes *s);
-bool menu_fade_in_runs(Snes *s);
-bool menu_mosaic_runs(Snes *s);
 
 #endif

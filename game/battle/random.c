@@ -42,7 +42,6 @@ static uint8_t over_range(GameState *g, uint8_t number, uint8_t width)
 // $C1:AF22, $C1:AF79
 static uint8_t draw(GameState *g, Position p, uint8_t lowest, uint8_t limit)
 {
-    charge_machine_accesses(g, 1);
     if (lowest == NO_DRAW)
         return limit;
     /* the limit is kept plainly: a party tech's test of whether it stops after

@@ -5,11 +5,8 @@
 #include <stdbool.h>
 
 #include "platform/platform.h"
-#include "snes/system.h"
+#include <stdint.h>
 #include "state.h"
-
-void field_return_from_battle(Snes *s);
-bool field_battle_return_can_run(Snes *s);
 
 /* The field taken up again after a battle ($C0:0283), as C: on its map, a
  * frame at a time, or the game over, or back at the place put aside. False
@@ -17,11 +14,5 @@ bool field_battle_return_can_run(Snes *s);
 bool field_taken_up_after_battle(GameState *g, Platform *pf);
 
 /* Continuations of the field's held frame waits. */
-void field_game_over_waits_for_a_button(Snes *s);
-void field_game_over_fades(Snes *s);
-void field_return_to_kept_place_fades(Snes *s);
-void field_restores_its_picture(Snes *s);
-void field_restores_its_script(Snes *s);
-void field_finishes_restoring(Snes *s);
 
 #endif

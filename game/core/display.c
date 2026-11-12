@@ -4,7 +4,6 @@
 #include "charge.h"
 #include "platform/timing.h"
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 
 // $C0:0B4E
@@ -19,25 +18,3 @@ void display_blank_and_stop(Platform *pf)
     vid_stop_uploads(pf, PF_AT(0xC00B5D));
     vid_enable_line_effects(pf, PF_AT(0xC00B60), 0);
 }
-
-/* It masks the CPU's interrupts too and leaves the data bank 0; what it
- * leaves in A and the flags nobody reads (the entry's set). */
-void display_leaves_the_machine_dark(Snes *s)
-{
-    m_set_flag(s, CPU_FLAG_I, true);
-    s->cpu.db = 0x00;
-}
-
-static void go_dark(Snes *s)
-{
-    display_leaves_the_machine_dark(s);
-    display_blank_and_stop(m_platform(s));
-}
-
-void display_blank_and_stop_interrupts(Snes *s)
-{
-    go_dark(s);
-    m_rts(s);
-}
-
-void display_go_dark(Snes *s) { TIMED_AS(state_of(s), DISPLAY_BLANK_AND_STOP_ENTRY, go_dark(s)); }

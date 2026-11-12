@@ -59,23 +59,6 @@ typedef struct {
     int16_t by;
 } ScriptFlow;
 
-static inline ScriptFlow next_command(void) { return (ScriptFlow){ SCRIPT_NEXT, 0, 0 }; }
-static inline ScriptFlow branch_by(int8_t by) { return (ScriptFlow){ SCRIPT_BRANCH, 0, by }; }
-static inline ScriptFlow go_to(uint16_t to) { return (ScriptFlow){ SCRIPT_GO_TO, to, 0 }; }
-static inline ScriptFlow wait_a_frame(void) { return (ScriptFlow){ SCRIPT_WAIT, 0, 0 }; }
-static inline ScriptFlow end_object(void) { return (ScriptFlow){ SCRIPT_END, 0, 0 }; }
-static inline ScriptFlow handed_back(void) { return (ScriptFlow){ SCRIPT_HANDED_BACK, 0, 0 }; }
-
-/* A condition: its branch where it holds, on to the next command where it
- * doesn't. */
-static inline ScriptFlow branch_if_holds(bool holds, int8_t by) { return holds ? branch_by(by) : next_command(); }
-
-/* Whether the object stops on the command this frame. */
-static inline bool script_flow_stops(ScriptFlow f)
-{
-    return f.kind == SCRIPT_WAIT || f.kind == SCRIPT_END || (f.kind == SCRIPT_BRANCH && f.by == 0);
-}
-
 /* ---- The language's types --------------------------------------------------------------- */
 
 /* A byte a command changes or tests: one of the object's own, by its offset
@@ -278,12 +261,6 @@ ScriptCommand menu_script_decode(const GameState *g, const ScriptOpcode *row, Me
  * game has never breaks either). */
 bool menu_script_runs_here(const GameState *g, const ScriptOpcode *row, const ScriptCommand *c);
 
-/* Run a decoded command. */
-static inline ScriptFlow menu_script_perform(GameState *g, const ScriptOpcode *row, const ScriptCommand *c)
-{
-    return row->run(g, c);
-}
-
 /* ---- The interpreter ---------------------------------------------------------------------- */
 
 /* How the interpreter runs each command: `run` runs the command at `at` for
@@ -307,5 +284,33 @@ ScriptEnd menu_run_script(GameState *g, MenuObject self, const ScriptRunner *r, 
 
 /* Where the script goes on from the command at `at` after `flow`. */
 uint32_t menu_script_follow(const ScriptOpcode *row, uint32_t at, ScriptFlow flow);
+
+static inline ScriptFlow next_command(void) { return (ScriptFlow){ SCRIPT_NEXT, 0, 0 }; }
+
+static inline ScriptFlow branch_by(int8_t by) { return (ScriptFlow){ SCRIPT_BRANCH, 0, by }; }
+
+static inline ScriptFlow go_to(uint16_t to) { return (ScriptFlow){ SCRIPT_GO_TO, to, 0 }; }
+
+static inline ScriptFlow wait_a_frame(void) { return (ScriptFlow){ SCRIPT_WAIT, 0, 0 }; }
+
+static inline ScriptFlow end_object(void) { return (ScriptFlow){ SCRIPT_END, 0, 0 }; }
+
+static inline ScriptFlow handed_back(void) { return (ScriptFlow){ SCRIPT_HANDED_BACK, 0, 0 }; }
+
+/* A condition: its branch where it holds, on to the next command where it
+ * doesn't. */
+static inline ScriptFlow branch_if_holds(bool holds, int8_t by) { return holds ? branch_by(by) : next_command(); }
+
+/* Whether the object stops on the command this frame. */
+static inline bool script_flow_stops(ScriptFlow f)
+{
+    return f.kind == SCRIPT_WAIT || f.kind == SCRIPT_END || (f.kind == SCRIPT_BRANCH && f.by == 0);
+}
+
+/* Run a decoded command. */
+static inline ScriptFlow menu_script_perform(GameState *g, const ScriptOpcode *row, const ScriptCommand *c)
+{
+    return row->run(g, c);
+}
 
 #endif

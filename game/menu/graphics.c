@@ -21,7 +21,6 @@
 #include "menu/menu_data.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "port/native.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -74,7 +73,6 @@ static void widen_three_plane_tiles(GameState *g, uint16_t from, uint16_t to, un
             put_tile_byte(g, (uint16_t)(into + LAST_PLANES + 2 * row + 1), 0);
         }
     }
-    charge_machine_accesses(g, 4);
 }
 
 /* A row's ink in its first two planes. The loops that make the planes count
@@ -91,7 +89,6 @@ static void ink_the_fourth_plane(GameState *g, uint16_t at, unsigned tiles)
             put_tile_byte(g, (uint16_t)(row + LAST_PLANES + 1),
                           (uint8_t)(ink_of_two(g, row) | tile_byte(g, (uint16_t)(row + LAST_PLANES))));
         }
-    charge_machine_accesses(g, 1);
 }
 
 // $C2:9653
@@ -105,7 +102,6 @@ static void ink_the_last_two_planes(GameState *g, uint16_t at, unsigned tiles)
             put_tile_byte(g, (uint16_t)(row + LAST_PLANES), ink);
             put_tile_byte(g, (uint16_t)(row + LAST_PLANES + 1), ink);
         }
-    charge_machine_accesses(g, 1);
 }
 
 // $C2:9678
@@ -143,12 +139,7 @@ static void queue_in_place_of(GameState *g, uint16_t first, unsigned count)
 /* ---- The sets ------------------------------------------------------------------------------ */
 
 /* Where the sets are built. */
-enum {
-    BUFFER = 0x2E00, WIDENED_AT = 0x3000, WIDENED_FROM = 0x4F00, WIDENED_TILES = 0xF0, FOUR_COLOUR_AT = 0x4E00,
-    FIRST_TILES_AT = 0x5000, REPLACED_AT = 0x5100, INKED_TILE = 0x33E0, INKED_TILES_FROM = 0x4880,
-    INKED_TILES_TO = 0x49C0, THREE_PLANE_AT = 0x5400, INKED_THREE_PLANE_TILES = 8, SECOND_SET_BYTES = 0x12A0,
-    DESIGN_TILES_PLACE = BUFFER + MENU_WINDOW_DESIGNS * MENU_WINDOW_DESIGN_BYTES, DESIGN_TILES_FROM = 0x5F00, DESIGN_TILES_BYTES = 0x1A0, INKED_WINDOW_TILES = 0xA4,
-};
+enum { BUFFER = 0x2E00, WIDENED_AT = 0x3000, WIDENED_FROM = 0x4F00, WIDENED_TILES = 0xF0, FOUR_COLOUR_AT = 0x4E00, FIRST_TILES_AT = 0x5000, REPLACED_AT = 0x5100, INKED_TILE = 0x33E0, INKED_TILES_FROM = 0x4880, INKED_TILES_TO = 0x49C0, THREE_PLANE_AT = 0x5400, INKED_THREE_PLANE_TILES = 8, SECOND_SET_BYTES = 0x12A0, DESIGN_TILES_PLACE = BUFFER + MENU_WINDOW_DESIGNS * MENU_WINDOW_DESIGN_BYTES, DESIGN_TILES_FROM = 0x5F00, DESIGN_TILES_BYTES = 0x1A0, INKED_WINDOW_TILES = 0xA4,  };
 
 // $C2:968D-$C2:96EB
 /* The first sets: four-colour tiles laid out as sixteen-colour ones, eleven
@@ -268,27 +259,12 @@ enum { DESIGN_BUFFER = 0x8800, DESIGN_TILES = 20, DESIGN_VRAM = 0x3DC0 };
 
 void menu_load_window_design(GameState *g)
 {
-    charge_machine_accesses(g, 2);
     uint8_t design = (uint8_t)(menu_window_design(g) & DESIGN_SETTING_BITS);
     move_from_rom(g, (uint16_t)(MENU_ROM_WINDOW_DESIGNS + design * MENU_WINDOW_DESIGN_BYTES), DESIGN_BUFFER,
                   MENU_WINDOW_DESIGN_BYTES + 1);
     ink_the_fourth_plane(g, DESIGN_BUFFER, DESIGN_TILES);
     TIMED_AS(g, 0xC28385, queue_records(g, MENU_UPLOAD_WINDOW_DESIGN, 1));
     TIMED_AS(g, 0xC2ED08, menu_load_window_colours(g, menu_window_style(g)));
-}
-
-/* ---- The entries ------------------------------------------------------------------------- */
-
-/* The graphics leave the accumulator 8-bit, the index registers 16-bit, and
- * the data bank on work RAM's, as the design's loading and the block moves
- * before it do; and the flags of the design's setting's last test (whether it
- * is the first design), with the carry of the tiles' last loop. */
-void menu_leave_graphics_built(Snes *s)
-{
-    menu_set_widths(s, true, false);
-    s->cpu.db = MENU_DATA_BANK;
-    charge_machine_accesses(state_of(s), 1);
-    (void)0;
 }
 
 /* Both write work RAM's buffers through a data bank on it or its mirrors,

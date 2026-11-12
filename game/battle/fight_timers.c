@@ -84,7 +84,6 @@ static uint8_t first_wait(GameState *g, uint8_t slot)
     battle_leave_multiply(g, setting, SPEEDS_A_SETTING);
     uint8_t given_back = first_turn_wait(g, setting, speed);
     battle_leave_multiply(g, speed, TICKS_A_SPEED_POINT);
-    charge_machine_accesses(g, 1);
     return (uint8_t)(SLOWEST_TURN - speed * TICKS_A_SPEED_POINT + given_back);
 }
 
@@ -108,12 +107,12 @@ static void start_turn(GameState *g, uint8_t slot, uint8_t wait)
 
 void fight_set_first_turns(GameState *g)
 {
-    bool any = false;
+
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         if (!combatant_in_fight(g, member))
             continue;
         charge_legacy_rom_accesses(g, 2);
-        any = true;
+
         start_turn(g, member, first_wait(g, member));
         battle_restart_timer(g, BATTLE_TIMER_TURN, member);
     }
@@ -122,7 +121,7 @@ void fight_set_first_turns(GameState *g)
         if (battle_combatant_id(g, slot) == COMBATANT_NONE)
             continue;
         charge_legacy_rom_accesses(g, 2);
-        any = true;
+
         uint8_t wait = first_wait(g, slot);
         if (combatant_stat_byte(g, slot, MAX_MP_HIGH) & STANDING_MARK_BIT)
             set_battle_enemy_standing(g, enemy, battle_enemy_standing(g, enemy) | STANDING_MARK);
@@ -130,9 +129,6 @@ void fight_set_first_turns(GameState *g)
         if (combatant_in_fight(g, slot))
             battle_restart_timer(g, BATTLE_TIMER_TURN, slot);
     }
-    charge_machine_accesses(g, 3);
-    if (any)
-        charge_machine_accesses(g, 2);
 
     /* the soonest turn: the original compares down the slots, keeping the
      * first it finds of the least nonzero wait of anyone in the fight, and
@@ -147,7 +143,6 @@ void fight_set_first_turns(GameState *g)
         least = battle_timer_counts_byte(g, BATTLE_TIMER_TURN, soonest);
     }
     uint8_t taken_off = (uint8_t)(battle_timer_counts_byte(g, BATTLE_TIMER_TURN, soonest) - 1);
-    charge_machine_accesses(g, 2);
     for (uint8_t slot = 0; slot < BATTLE_COMBATANTS; slot++) {
         uint8_t wait = battle_timer_counts_byte(g, BATTLE_TIMER_TURN, slot);
         if (combatant_in_fight(g, slot) && wait != 0)

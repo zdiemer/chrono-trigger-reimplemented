@@ -69,7 +69,6 @@ static uint8_t enemy_hp_level(GameState *g)
     uint8_t level = 1;
     while (level < LEVELS && hp >= (uint16_t)(eighth * level))
         level++;
-    charge_machine_accesses(g, 4);
     return level;
 }
 
@@ -138,7 +137,6 @@ static void fade_a_step(GameState *g)
         target = gradient_set_color(g, level, i);
         set_fading_color(g, i, step_toward(fading_color(g, i), target));
     }
-    charge_machine_accesses(g, 2);
     uint8_t left = (uint8_t)(battle_gradient_fade_frames(g) - 1);
     set_battle_gradient_fade_frames(g, left);
     if (left == 0)
@@ -190,23 +188,8 @@ void battle_step_hp_gradient(GameState *g)
 /* The phase picks a turn from 14; the rows start within the colors' repeat. */
 bool battle_hp_gradient_steps(const GameState *g) { return battle_gradient_phase(g) < GRADIENT_PHASES; }
 
-bool battle_gradient_page(Snes *s)
-{
-    vars_peek(true);
-    bool in_range = battle_hp_gradient_steps(state_of(s));
-    vars_peek(false);
-    return battle_screen_page_a_clear(s) && in_range;
-}
-
 /* A row is one of the three (Y its first color's byte offset from color $51),
  * and its start (A) within the repeat. */
 enum { ROW_BYTES = 2 * ROW_COLORS };
-
-void battle_step_hp_gradient_entry(Snes *s)
-{
-    battle_step_hp_gradient(state_of(s));
-    s->cpu.a = 0;
-    m_rtl(s);
-}
 
 void battle_start_gradient_phase(GameState *g) { set_battle_gradient_phase(g, starting_phase(g)); }
