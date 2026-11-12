@@ -14,11 +14,10 @@
  * table of descriptors (setup_line_effects).
  *
  * The work RAM's clear, the sprite table's and the setups' clears of their
- * buffers (scene_clear_buffer) copy the product the Mode 7 multiplier offers,
- * 0 or $E0, out of the PPU: a transfer that reads a register rather than
- * writing one, which no video call expresses, so it goes through the
- * SNES-only escape (vid_snes_copy); the matrix values they leave behind are
- * the video state. */
+ * buffers (scene_clear_buffer) are memory work the program makes in one go:
+ * the original copies the product the Mode 7 multiplier offers, 0 or $E0,
+ * over the memory, so the matrix values it sets for that stay behind as the
+ * video state, and the move takes a transfer's time. */
 #include "scene/scene.h"
 
 #include "charge.h"
@@ -69,24 +68,24 @@ void scene_stops_the_display(Platform *pf)
  * or, for the title coming back, from the task lists, keeping what lies
  * between. */
 enum { SCENE_CELLS_BYTES = 0x0100, FROM_THE_STACK = 0x000900, FROM_THE_TASKS = 0x000920, SOUND_PAGE = 0x1E00 };
+enum { LOW_RAM = 0x7E0000 };
 
 // $7E:3092
-/* Clear the program's work RAM: every byte set to the product the Mode 7
- * multiplier offers, with the matrix set so that it is 0 -- `matrix_left`
- * times 0, `matrix_left` being what the caller hands on (the fades' pace),
- * which the multiplier keeps afterwards. The second transfer keeps the first one's mode,
- * destination and bank, so it programs only its source and size. Returns
- * whether it was the title's shorter clear. */
+/* Clear the program's work RAM: every byte set to 0, the product the Mode 7
+ * multiplier offers the original's clear, with the matrix set to
+ * `matrix_left` times 0 -- `matrix_left` being what the caller hands on (the
+ * fades' pace), which the matrix keeps afterwards. Returns whether it was the
+ * title's shorter clear. */
 bool scene_clear_the_work_ram(GameState *g, Platform *pf, uint8_t matrix_left)
 {
     vid_set_mode7(pf, PF_AT(0x7E3096), &(VidMode7){ .a = (int16_t)(matrix_left << 8 | matrix_left) }, VID_M7_MATRIX_A);
     vid_set_mode7(pf, PF_AT(0x7E309D), &(VidMode7){ .b = 0 }, VID_M7_MATRIX_B);
-    const VidSnesTransfer scene_cells = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = 0x000000, .size = SCENE_CELLS_BYTES };
-    vid_snes_copy(pf, PF_AT(0x7E30B6), &scene_cells);
+    wram_fill8(g, LOW_RAM, SCENE_CELLS_BYTES, 0);
+    tm_charge_transfer(pf, PF_AT(0x7E30B6), SCENE_CELLS_BYTES);
     bool keep_below_tasks = scene_flags(g) & SCENE_FLAG_TITLE_WITH_LINE_IRQ;
     uint32_t from = keep_below_tasks ? FROM_THE_TASKS : FROM_THE_STACK;
-    const VidSnesTransfer rest = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = from, .size = (uint16_t)(SOUND_PAGE - from) };
-    vid_snes_copy(pf, PF_AT(keep_below_tasks ? 0x7E30D2 : 0x7E30E6), &rest);
+    wram_fill8(g, LOW_RAM | from, SOUND_PAGE - from, 0);
+    tm_charge_transfer(pf, PF_AT(keep_below_tasks ? 0x7E30D2 : 0x7E30E6), SOUND_PAGE - from);
     return keep_below_tasks;
 }
 
@@ -136,19 +135,21 @@ static TaskEnd finish_sprites_task(GameState *g, Platform *pf)
     return task_goes_on();
 }
 
-/* A Y below the picture, where a sprite shows nowhere: the product of 1 times
- * -32 the clear copies over every byte of the table. */
+/* A Y below the picture, where a sprite shows nowhere: the original makes it
+ * as the product of 1 times -32, whose low byte its clear copies over every
+ * byte of the table. */
 enum { BELOW_THE_PICTURE = -32 };
 
 // $7E:3843
 /* Hide every sprite: every byte of the sprite table set to a Y below the
- * picture, for the scene to place its sprites again. */
-void scene_hide_every_sprite(Platform *pf)
+ * picture, for the scene to place its sprites again. The matrix keeps the
+ * values the original multiplied with, its B put back to 0 after. */
+void scene_hide_every_sprite(GameState *g, Platform *pf)
 {
     vid_set_mode7(pf, PF_AT(0x7E3845), &(VidMode7){ .a = 1 }, VID_M7_MATRIX_A);
     vid_set_mode7(pf, PF_AT(0x7E384D), &(VidMode7){ .b = BELOW_THE_PICTURE * 256 }, VID_M7_MATRIX_B_HIGH);
-    const VidSnesTransfer t = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = SCENE_SPRITE_TABLE, .size = SCENE_SPRITE_TABLE_BYTES };
-    vid_snes_copy(pf, PF_AT(0x7E3850), &t);
+    wram_fill8(g, LOW_RAM | SCENE_SPRITE_TABLE, SCENE_SPRITE_TABLE_BYTES, (uint8_t)BELOW_THE_PICTURE);
+    tm_charge_transfer(pf, PF_AT(0x7E3850), SCENE_SPRITE_TABLE_BYTES);
     vid_set_mode7(pf, PF_AT(0x7E386C), &(VidMode7){ .b = 0 }, VID_M7_MATRIX_B_HIGH);
 }
 
@@ -299,25 +300,35 @@ const SceneTaskPort scene_screen_tasks[] = {
 };
 const unsigned scene_screen_task_count = sizeof scene_screen_tasks / sizeof scene_screen_tasks[0];
 
+/* What the program's transfer does with its bytes, from the mode and the port
+ * its call cells keep: a word at a time, or a byte at a time into the low or
+ * the high byte of each word, from where VRAM's address stands (the loaders
+ * set it before they unpack). */
+static void send_into_vram(Platform *pf, PfOrigin o, PfData src, uint32_t bytes, uint8_t mode, uint8_t port_register)
+{
+    if (mode == SCENE_TRANSFER_WORDS)
+        vid_continue_vram(pf, o, src, bytes);
+    else
+        vid_continue_vram_half(pf, o, src, bytes,
+                               port_register == SCENE_INTO_HIGH_BYTES ? VID_VRAM_HIGH_BYTES : VID_VRAM_LOW_BYTES);
+}
+
 // $7E:38E7
 /* The program's own transfer: what the decompressor has just unpacked (its
- * destination and length) into the register and in the mode the caller put in
- * the scene's scratch. Both are game data the loaders choose, so it goes
- * through the SNES-only escape; the movies' loaders all feed the VRAM data port. */
+ * destination and length) into VRAM, in the way the caller put in the
+ * scene's scratch. */
 void scene_send_unpacked_as(const GameState *g, Platform *pf, uint8_t mode, uint8_t port_register)
 {
-    uint16_t bytes = decompress_length(g);
-    const VidSnesTransfer t = { .dest = port_register,
-                                .data = scene_upload_data(decompress_dest(g), bytes ? bytes : 0x10000u, mode), .size = bytes,
-                                .mode_from_data = true, .mode = mode };
-    vid_snes_copy(pf, PF_AT(0x7E38EA), &t);
+    uint16_t length = decompress_length(g);
+    uint32_t bytes = length ? length : 0x10000u;
+    send_into_vram(pf, PF_AT(0x7E38EA), scene_upload_data(decompress_dest(g), bytes, mode), bytes, mode, port_register);
 }
 
 // $7E:38C3
-/* The program's other transfer: `bytes` from `source` into a register, in
- * the mode given, with its channel programmed from the scene's call cells,
- * which keep it (the program's multiply carries in the byte after its
- * product, which the count lies in). */
+/* The program's other transfer: `bytes` from `source` into VRAM, in the way
+ * given, with its channel programmed from the scene's call cells, which keep
+ * it (the program's multiply carries in the byte after its product, which the
+ * count lies in). */
 static void keep_the_transfer_in_the_call(GameState *g, uint8_t mode, uint8_t port_register, uint32_t source, uint16_t bytes)
 {
     SceneProgramPage scene = scene_program_own();
@@ -331,21 +342,21 @@ static void keep_the_transfer_in_the_call(GameState *g, uint8_t mode, uint8_t po
 void scene_send_from(GameState *g, Platform *pf, uint8_t mode, uint8_t port_register, uint32_t source, uint16_t bytes)
 {
     keep_the_transfer_in_the_call(g, mode, port_register, source, bytes);
-    const VidSnesTransfer t = { .dest = port_register, .data = scene_upload_data(source, bytes ? bytes : 0x10000u, mode), .size = bytes, .mode_from_data = true, .mode = mode };
-    vid_snes_copy(pf, PF_AT(0x7E38E3), &t);
+    uint32_t count = bytes ? bytes : 0x10000u;
+    send_into_vram(pf, PF_AT(0x7E38E3), scene_upload_data(source, count, mode), count, mode, port_register);
 }
 
-/* Clear a buffer by copying the Mode 7 multiplier's product (0 here) out of
- * the PPU, the way scene_clear_work_ram does: a transfer that reads a register
- * rather than writing one, which goes through the SNES-only escape. */
-void scene_clear_buffer(Platform *pf, uint32_t buffer, uint16_t bytes, uint32_t site)
+/* Clear a buffer, as scene_clear_the_work_ram does, by the program's code at
+ * `site`. */
+void scene_clear_buffer(GameState *g, Platform *pf, uint32_t buffer, uint16_t bytes, uint32_t site)
 {
-    const VidSnesTransfer t = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = buffer, .size = bytes };
-    vid_snes_copy(pf, PF_AT(site), &t);
+    uint32_t count = bytes ? bytes : 0x10000u;
+    wram_fill8(g, buffer, count, 0);
+    tm_charge_transfer(pf, PF_AT(site), count);
 }
 
-const SceneTransfer scene_pixels_into_high_bytes = { SCENE_TRANSFER_BYTES, VID_SNES_VRAM_DATA_HIGH };
-const SceneTransfer scene_whole_words = { SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW };
+const SceneTransfer scene_pixels_into_high_bytes = { SCENE_TRANSFER_BYTES, SCENE_INTO_HIGH_BYTES };
+const SceneTransfer scene_whole_words = { SCENE_TRANSFER_WORDS, SCENE_INTO_LOW_BYTES };
 
 void scene_choose_transfer(GameState *g, SceneTransfer t)
 {

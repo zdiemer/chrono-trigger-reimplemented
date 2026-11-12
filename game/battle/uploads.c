@@ -17,8 +17,7 @@
  *   - one of four uploads in turn while the combatants animate, and one again
  *     when a countdown ends; and a combatant's graphics once they are built.
  *
- * Everything goes through the video service, which knows how the SNES made
- * each transfer by the site the call stands for (platform/snes/encodings.c). */
+ * Everything goes through the video service's sends. */
 #include "charge.h"
 #include "battle/frame.h"
 
@@ -32,9 +31,10 @@
 #include "ram.h"
 #include "vars.h"
 
-/* The described transfers are in words to the VRAM port, as the channel takes
- * them. */
-enum { DMA_WORDS = 0x01 };
+/* The transfers the battle describes are whole words into VRAM, which the
+ * description keeps as the channel takes them: its mode, and the port it
+ * feeds. */
+enum { DMA_WORDS = 0x01, INTO_VRAM = 0x18 };
 
 /* A transfer's size: 0 is a whole 64 KiB, as the channel counts it. */
 static uint32_t transfer_bytes(uint16_t size) { return size ? size : 0x10000u; }
@@ -135,9 +135,8 @@ void battle_send_block_and_message_tiles(GameState *g, Platform *pf)
 /* ---- The transfer a request describes ------------------------------------------------------ */
 
 /* A routine that wants part of the window's tilemap sent describes the
- * transfer in full, as the DMA channel takes it: the vblank hands the
- * description to the SNES-only transfer escape as it is (docs/PLATFORM.md).
- * Its nine values are kept one every sixth byte. */
+ * transfer in full, as the DMA channel takes it, and the vblank sends what
+ * it describes. Its nine values are kept one every sixth byte. */
 typedef struct {
     uint8_t mode, port;
     uint32_t source;
@@ -169,10 +168,9 @@ static void describe_transfer(GameState *g, TransferDescription d)
 static void send_described_transfer(GameState *g, Platform *pf)
 {
     TransferDescription d = described_transfer(g);
-    const VidSnesTransfer t = { .dest = d.port, .data = battle_described_upload_data(d.source, transfer_bytes(d.size), d.mode), .size = d.size,
-                                .target_reg = VID_SNES_VRAM_ADDRESS, .target = d.vram,
-                                .mode_from_data = true, .mode = d.mode };
-    vid_snes_copy(pf, PF_AT(0xCFE33B), &t);
+    uint32_t bytes = transfer_bytes(d.size);
+    vid_send_vram_in_mode(pf, PF_AT(0xCFE33B), d.vram, battle_described_upload_data(d.source, bytes, d.mode), bytes,
+                          NULL, d.mode);
     set_battle_transfer_pending(g, 0);
 }
 
@@ -184,7 +182,7 @@ enum { WINDOW_ROWS_BYTES = 0x0180, WINDOW_ROWS_VRAM = 0x7820, LOWER_ROWS = 0x01C
 
 static void request_window_rows(GameState *g, uint32_t source)
 {
-    describe_transfer(g, (TransferDescription){ DMA_WORDS, VID_SNES_VRAM_DATA_LOW, source, WINDOW_ROWS_BYTES,
+    describe_transfer(g, (TransferDescription){ DMA_WORDS, INTO_VRAM, source, WINDOW_ROWS_BYTES,
                                                 WINDOW_ROWS_VRAM });
 }
 

@@ -23,6 +23,7 @@
 #include "scene/scene_data.h"
 
 #include "platform/audio.h"
+#include "platform/timing.h"
 #include "platform/video.h"
 #include "port/vars_ram.h"
 #include "charge.h"
@@ -70,10 +71,10 @@ enum { PLANE_MAP_IN_ROM = 0xD20000 };
 // $7E:3C09
 /* The race's two work buffers cleared: the per-line tables its effects read,
  * and the tilemap buffer with what follows it. */
-static void clear_race_buffers(Platform *pf)
+static void clear_race_buffers(GameState *g, Platform *pf)
 {
-    scene_clear_buffer(pf, LINE_TABLES, LINE_TABLES_BYTES, 0x7E3C22);
-    scene_clear_buffer(pf, (uint32_t)SCENE_LOWER_WORK_RAM << 16 | SCENE_TILEMAP_BUFFER, TILEMAP_BUFFER_BYTES, 0x7E3C3E);
+    scene_clear_buffer(g, pf, LINE_TABLES, LINE_TABLES_BYTES, 0x7E3C22);
+    scene_clear_buffer(g, pf, (uint32_t)SCENE_LOWER_WORK_RAM << 16 | SCENE_TILEMAP_BUFFER, TILEMAP_BUFFER_BYTES, 0x7E3C3E);
 }
 
 static const VidBg race_bg1 = { .map_base = BG1_MAP_VRAM, .map_w = 32, .map_h = 32 };
@@ -81,14 +82,33 @@ static const VidBg race_bg2 = { .map_base = BG2_MAP_VRAM, .map_w = 32, .map_h = 
 static const VidBg race_bg3 = { .map_base = BG3_MAP_VRAM, .map_w = 32, .map_h = 32 };
 static const VidColorMath race_math = { .sub_screen = true };
 
+/* A row of the plane's name table, in VRAM words. */
+enum { PLANE_ROW_WORDS = 128 };
+
+/* The column of the plane's name table the track scrolls in at, read back out
+ * of VRAM's low bytes into the race's copy of it, a row at a time. The
+ * original reads it through VRAM's port, whose first read after the address
+ * is set hands back the word the setting fetched and fetches that same word
+ * again: the copy's first two bytes are the column's first tile, and the
+ * rest of the column lands a place further on. Kept, since the race sends
+ * the copy back down the column later. The bytes move as a transfer does,
+ * in a transfer's time. */
+static void copy_the_column_back(GameState *g, Platform *pf)
+{
+    for (unsigned i = 0; i < PLANE_COLUMN_READ_BYTES; i++) {
+        unsigned row = i ? i - 1 : 0;
+        uint16_t word = vid_vram_word(pf, PF_AT(0x7E3D41), (uint16_t)(PLANE_COLUMN_VRAM + row * PLANE_ROW_WORDS));
+        wram_fill8(g, PLANE_COLUMN_COPY + i, 1, (uint8_t)word);
+    }
+    tm_charge_transfer(pf, PF_AT(0x7E3D41), PLANE_COLUMN_READ_BYTES);
+}
+
 // $7E:3CFF
 /* The flat layers, on the lines the per-line effect leaves in mode 1: BG1-BG3's
  * tilemaps and their tiles, color math over the sub screen, BG1-BG3 and the
  * sprites on the main screen and BG3 alone on the sub screen. Then the column of
- * the plane's name table the track scrolls in at is read back out of VRAM into
- * the race's copy of it, a transfer in the other direction, which goes through
- * the SNES-only escape. */
-static void setup_race_maps(Platform *pf)
+ * the plane's name table the track scrolls in at is copied back out of VRAM. */
+static void setup_race_maps(GameState *g, Platform *pf)
 {
     vid_set_bg_map(pf, PF_AT(0x7E3D02), VID_BG1, &race_bg1);
     vid_set_bg_map(pf, PF_AT(0x7E3D02), VID_BG2, &race_bg2);
@@ -100,10 +120,7 @@ static void setup_race_maps(Platform *pf)
                     VID_BG1_BIT | VID_BG2_BIT | VID_BG3_BIT | VID_OBJ_BIT, VID_BG3_BIT, VID_SCREEN_MAIN | VID_SCREEN_SUB);
     vid_start_vram_uploads(pf, PF_AT(0x7E3D1F), &down_a_column);
     vid_set_vram_address(pf, PF_AT(0x7E3D25), PLANE_COLUMN_VRAM);
-
-    const VidSnesTransfer t = { .dest = VID_SNES_VRAM_READ, .source = PLANE_COLUMN_COPY,
-                                .size = PLANE_COLUMN_READ_BYTES };
-    vid_snes_copy(pf, PF_AT(0x7E3D41), &t);
+    copy_the_column_back(g, pf);
 }
 
 // $7E:3D8C
@@ -118,14 +135,11 @@ static void fill_racers_map(Platform *pf)
 // $7E:8752
 /* Half the plane's 128x128 name table, from where the loader unpacked it, into
  * the low byte of each VRAM word from where the half before it ended: the two
- * calls cover it all. One byte to a word is what the upload calls model as
- * words, so it goes through the SNES-only escape, which the observer follows
- * byte by byte. */
+ * calls cover it all. */
 void scene_upload_plane_half(Platform *pf)
 {
     vid_start_vram_uploads(pf, PF_AT(0x7E8752), SCENE_VRAM_LOW_BYTES);
-    const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .source = SCENE_PLANE_MAP, .size = PLANE_MAP_HALF_BYTES };
-    vid_snes_copy(pf, PF_AT(0x7E876E), &t);
+    vid_continue_vram_half(pf, PF_AT(0x7E876E), PF_GAME(SCENE_PLANE_MAP), PLANE_MAP_HALF_BYTES, VID_VRAM_LOW_BYTES);
 }
 
 /* ---- The setup's calls ------------------------------------------------------------------------ */
@@ -219,8 +233,6 @@ static void send_unpacked_as(GameState *g, uint8_t mode, uint8_t port_register)
     set_scene_call_transfer_register(g, scene_program_own(), port_register);
 }
 
-enum { BYTES_ONE_REGISTER = 0x00 };
-
 // $7E:37A6
 /* Half the plane's name table, from what was unpacked: each 64-tile row of
  * the track sent twice across the 128 tiles of the plane's row. */
@@ -248,7 +260,7 @@ static bool load_graphics(GameState *g, Platform *pf, unsigned unpacking, const 
         charge_block_move(g, PALETTE_BYTES);
         return true;
     case PLANE_PIXELS:
-        send_unpacked_as(g, BYTES_ONE_REGISTER, VID_SNES_VRAM_DATA_HIGH);
+        send_unpacked_as(g, SCENE_TRANSFER_BYTES, SCENE_INTO_HIGH_BYTES);
         TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
         return true;
     case PLANE_MAP_PART:
@@ -278,12 +290,12 @@ static void before_kind(GameState *g, Platform *pf, RaceGraphicsKind kind)
         return;
     case TILES:
         vid_start_vram_uploads(pf, PF_AT(0x7E3E03), SCENE_VRAM_WHOLE_WORDS);
-        send_unpacked_as(g, SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW);
+        send_unpacked_as(g, SCENE_TRANSFER_WORDS, SCENE_INTO_LOW_BYTES);
         return;
     case LAYER_MAP:
         wram_fill8(g, ROAD_STRIP, ROAD_STRIP_BYTES, 0);
         charge_block_move(g, ROAD_STRIP_BYTES - 1);
-        scene_clear_buffer(pf, SCALER_OUTPUT, SCALER_OUTPUT_BYTES, 0x7E3E71);
+        scene_clear_buffer(g, pf, SCALER_OUTPUT, SCALER_OUTPUT_BYTES, 0x7E3E71);
         return;
     case INTO_PALETTE:
     case PLANE_MAP_PART:
@@ -499,7 +511,7 @@ static bool set_up_the_race(GameState *g, Platform *pf, RaceCalls call, void *ct
     if (!call(ctx, RACE_GRAPHICS_ENTERED, 0, 0) || !load_race_graphics(g, pf, call, ctx)
         || !call(ctx, RACE_GRAPHICS_LEFT, 0, 0) || !load_racers_pictures(g, call, ctx))
         return false;
-    clear_race_buffers(pf);
+    clear_race_buffers(g, pf);
     set_scene_scaler_output_end(g, SCALER_OUTPUT_AS_FULL);
     TIMED_AS(g, 0x7E36CC, scene_set_up_line_effects(g, pf, LINE_EFFECT_DESCRIPTORS));
     set_scene_line_effects(g, RACE_LINE_EFFECTS);
@@ -510,7 +522,7 @@ static bool set_up_the_race(GameState *g, Platform *pf, RaceCalls call, void *ct
     set_scene_perspective_start(g, PERSPECTIVE_FROM_THE_HORIZON);
     set_scene_main_loop_call(g, MAIN_LOOP_SCALES_PICTURES);
     TIMED_AS(g, 0xC309E9, scene_write_matrix_code_for(g, MATRIX_DESTINATION, MATRIX_SOURCE));
-    setup_race_maps(pf);
+    setup_race_maps(g, pf);
     return true;
 }
 
@@ -631,15 +643,11 @@ TaskEnd scene_race_move_camera(GameState *g, Platform *pf, unsigned slot)
 }
 
 /* A column of the plane's name table down into the low bytes of VRAM, a row
- * (128 words) at a time. The transfer writes the data port's low half alone,
- * which the upload calls model as words, so it goes through the SNES-only
- * escape. */
+ * (128 words) at a time. */
 static void upload_column(Platform *pf, uint32_t column)
 {
-    const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .data = scene_race_column_data(column, PLANE_COLUMN_BYTES), .size = PLANE_COLUMN_BYTES,
-                                .target_reg = VID_SNES_VRAM_ADDRESS, .target = PLANE_COLUMN_VRAM,
-                                .port = &down_a_column };
-    vid_snes_copy(pf, PF_AT(0x7E4671), &t);
+    vid_send_vram_half(pf, PF_AT(0x7E4671), PLANE_COLUMN_VRAM, scene_race_column_data(column, PLANE_COLUMN_BYTES),
+                       PLANE_COLUMN_BYTES, VID_VRAM_LOW_BYTES, &down_a_column);
 }
 
 /* A column is sent once: the task is done, and takes itself off the vblank

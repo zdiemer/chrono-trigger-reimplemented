@@ -196,7 +196,7 @@ typedef struct {
 
 /* ---- The sprite table, as the game builds it in its own memory ----------------
  *
- * The game keeps its sprites in the SNES's form, which vid_upload_oam sends: 128
+ * The game keeps its sprites in the SNES's form, which vid_send_oam sends: 128
  * entries of four bytes (X's low byte, Y, tile, attributes), then two bits a
  * sprite (X's ninth bit, and large) four sprites a byte. Positions are signed
  * screen coordinates until they are written, and these alone turn them into
@@ -505,44 +505,6 @@ static inline bool vid_line_effect_decode(uint8_t control, uint8_t dest, VidLine
     return false;
 }
 
-/* How the SNES backend programs a DMA or HDMA channel: the register writes in
- * the original's order, as a list of steps ending in VID_STEP_END. The original
- * code orders them differently at almost every site, and shadow validation
- * compares what they leave behind (an empty upload stops at its size), so the
- * order belongs to each call site. The calls below that take no steps (the
- * vid_send_* uploads, vid_set_line_slot, vid_snes_copy) look the site's up in
- * the SNES backend (platform/snes/encodings.c); the forms that take them are
- * kept for the ports not moved yet (docs/TODO.md, Platform). Other backends
- * ignore both. */
-enum {
-    VID_STEP_END = 0,
-    VID_STEP_CONTROL,        /* $43x0: transfer mode and flags (VidSnesXfer.control) */
-    VID_STEP_DEST,           /* $43x1: the register the channel feeds */
-    VID_STEP_SOURCE_LO,      /* $43x2: source or table address */
-    VID_STEP_SOURCE_HI,      /* $43x3 */
-    VID_STEP_SOURCE_BANK,    /* $43x4 */
-    VID_STEP_SIZE_LO,        /* $43x5; an empty upload stops here */
-    VID_STEP_SIZE_HI,        /* $43x6 */
-    VID_STEP_SIZE_CLEAR,     /* $43x5, $43x6 = 0, as a 16-bit STZ before the size */
-    VID_STEP_INDIRECT_BANK,  /* $43x7 */
-    VID_STEP_TARGET_LO,      /* the destination's address register: VRAM, CGRAM or OAM */
-    VID_STEP_TARGET_HI,      /* its high byte (VRAM) */
-    VID_STEP_START,          /* $420B = the channel's bit */
-    VID_STEP_VRAM_PORT,      /* $2115: how VRAM writes step, from VidSnesXfer.port */
-    VID_STEP_SPILL_SIZE_LO,  /* $43x5 = VidLineEffect.snes_spill */
-    VID_STEP_SPILL_CURSOR_LO, /* $43x8 = VidLineEffect.snes_spill */
-    VID_STEP_INDIRECT_BANK_IS_SOURCE, /* $43x7 = the source's bank, which some sites write there as well */
-    VID_STEP_VRAM_READ_FIRST, /* a read of VRAM's read port ($213A) before a read back, which steps its address on */
-    VID_STEP_WRITE_BYTES,    /* CPU copy into one data port, without programming a DMA channel */
-};
-
-typedef struct {
-    uint8_t channel;         /* 0-7 */
-    uint8_t control;         /* $43x0 as the original writes it (mode 1 for VRAM words, bit 3 fixed source, ...) */
-    const uint8_t *steps;
-    const VidVramPort *port; /* for VID_STEP_VRAM_PORT, where an upload sets it itself */
-} VidSnesXfer;
-
 /* Master brightness and forced blank. */
 PF_API void vid_set_display(Platform *pf, PfOrigin o, const VidDisplay *d);
 /* The same at a known line of the visible frame, for the rare raster writes
@@ -582,9 +544,6 @@ PF_API void vid_set_line_slot(Platform *pf, PfOrigin o, uint8_t slot, const VidL
  * mode unchanged: the menus swap between two tables by frame parity, and
  * rebuild one in place. */
 PF_API void vid_set_line_table(Platform *pf, PfOrigin o, uint8_t slot, uint16_t table);
-/* The older form of vid_set_line_slot, with the SNES write order at the call. */
-PF_API void vid_set_line_effect(Platform *pf, PfOrigin o, uint8_t slot, const VidLineEffect *e,
-                                const uint8_t *snes_steps);
 /* Slots whose line effects run from the next frame on (bit per slot). */
 PF_API void vid_enable_line_effects(Platform *pf, PfOrigin o, uint8_t slots);
 
@@ -618,10 +577,12 @@ PF_API void vid_send_vram_next_frame(Platform *pf, PfOrigin o, PfOrigin wait,
                                     uint16_t vram_addr, PfData src, uint32_t len,
                                     const VidVramPort *port);
 /* The same where the game's data holds the transfer's mode in the SNES's form
- * (a screen transition's, field_transfer). */
+ * (a screen transition's, field_transfer; the battle's described transfer). */
 PF_API void vid_send_vram_in_mode(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
                                   const VidVramPort *port, uint8_t snes_mode);
-/* One byte of each VRAM word (vid_upload_vram_half). */
+/* One byte of each VRAM word, the other left as it is: Mode 7 keeps its tile
+ * numbers in the low bytes and its pixels in the high ones, which are loaded
+ * apart. The port's step then advances the address once per byte. */
 PF_API void vid_send_vram_half(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
                                VidVramHalf half, const VidVramPort *port);
 /* `len` bytes of VRAM filled with the byte at `value`. */
@@ -644,13 +605,33 @@ PF_API void vid_set_sprite(Platform *pf, PfOrigin o, uint8_t index, const VidSpr
  * registers in the order the original's routine at the site did. */
 PF_API void vid_apply_screen(Platform *pf, PfOrigin o, const VidScreen *screen);
 
-/* ---- The older upload forms, with the SNES write order at the call ------------ */
+/* `len` bytes (1-65536) from `src` into VRAM from where the last writes left
+ * off (vid_set_vram_address, and the writes since), stepping as the port
+ * says: a word at a time, or one byte of each word with the other left as it
+ * is. A loader that sets the address once and sends what it unpacks piece by
+ * piece sends each piece so. */
+PF_API void vid_continue_vram(Platform *pf, PfOrigin o, PfData src, uint32_t len);
+PF_API void vid_continue_vram_half(Platform *pf, PfOrigin o, PfData src, uint32_t len, VidVramHalf half);
 
-/* Vblank upload work begins: VRAM writes step the address as `port` says from
- * here on. The SNES backend sets the VRAM port and, with `x`, programs the
- * channel's steps (its mode and destination) ahead of uploads that reuse them. */
-PF_API void vid_begin_vram_uploads(Platform *pf, PfOrigin o, const VidVramPort *port, PfData source,
-                                   const VidSnesXfer *x);
+/* The word VRAM holds at word address `vram_addr`, as the uploads left it: a
+ * setup that builds a map out of one already sent reads it back so. A read
+ * takes no time of its own; the caller charges what its copy takes
+ * (tm_charge_transfer). */
+PF_API uint16_t vid_vram_word(Platform *pf, PfOrigin o, uint16_t vram_addr);
+
+/* The picture's settings that the game's own data names by the SNES address
+ * that holds them, which only the menus' object scripts do (an ending's set
+ * the sprites' sizes and their tiles' place so): which setting an address
+ * is. The setting's byte then decodes as its decoder above says. */
+typedef enum { VID_SETTING_NONE, VID_SETTING_SPRITES } VidSetting;
+static inline VidSetting vid_setting_at(uint16_t address)
+{
+    enum { SPRITE_SETTINGS = 0x2101 };
+    return address == SPRITE_SETTINGS ? VID_SETTING_SPRITES : VID_SETTING_NONE;
+}
+
+/* ---- Writes through the cursors -------------------------------------------------- */
+
 /* Where the next VRAM writes go (word address), and one word or byte written
  * there through the port rather than by an upload. */
 PF_API void vid_set_vram_address(Platform *pf, PfOrigin o, uint16_t vram_addr);
@@ -660,22 +641,6 @@ PF_API void vid_write_vram_byte(Platform *pf, PfOrigin o, bool high, uint8_t val
  * other half. The active port supplies the stride and which half advances
  * the cursor. A zero length leaves the cursor and memory unchanged. */
 PF_API void vid_fill_vram_half(Platform *pf, PfOrigin o, PfData value, uint32_t len, VidVramHalf half);
-/* Copy `len` bytes (1-65536) from `src` into VRAM at word address `vram_addr`
- * (as the VRAM address register holds it). A `len` of 0 uploads nothing: the
- * SNES backend performs the steps before the first size step, as the original
- * programs the source before checking for an empty upload. */
-PF_API void vid_upload_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
-                            const VidSnesXfer *x);
-/* The same for an upload that writes one byte of each VRAM word and leaves the
- * other, which is how Mode 7 is loaded: its tile numbers lie in the low bytes
- * and its pixels in the high ones, so the Epoch's screens build each half on
- * its own. The port's step then advances the address once per byte. */
-PF_API void vid_upload_vram_half(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
-                                 VidVramHalf half, const VidSnesXfer *x);
-/* Fill `len` bytes of VRAM with the byte at `value` (the SNES backend: a
- * fixed-source transfer, so `x->control` has bit 3 set). */
-PF_API void vid_fill_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData value, uint32_t len,
-                          const VidSnesXfer *x);
 /* Where the next palette writes go (CGRAM entry), and where the next sprite
  * writes go: the OAM word address, with the priority rotation that decides which
  * sprite is drawn first. Uploads set both themselves; these are for the mode
@@ -684,77 +649,8 @@ PF_API void vid_set_palette_address(Platform *pf, PfOrigin o, uint8_t first);
 /* Replace one palette colour, including the backdrop at index zero. */
 PF_API void vid_set_palette_color(Platform *pf, PfOrigin o, uint8_t index, uint16_t color);
 PF_API void vid_set_oam_address(Platform *pf, PfOrigin o, uint16_t word_addr, bool priority_rotation);
-/* `count` BGR555 colors from `src` into CGRAM from entry `first`. */
-PF_API void vid_upload_palette(Platform *pf, PfOrigin o, uint8_t first, PfData src, uint16_t count,
-                               const VidSnesXfer *x);
-/* The 544-byte OAM image (128 entries, 32-byte high table), as the game builds it. */
-PF_API void vid_upload_oam(Platform *pf, PfOrigin o, PfData oam, const VidSnesXfer *x);
 /* No uploads are in progress (the SNES backend: the transfer start register cleared). */
 PF_API void vid_stop_uploads(Platform *pf, PfOrigin o);
-
-/* SNES-only escape for a transfer whose meaning isn't established: the game's
- * own table supplies the channel's raw values (battle $CF:E338). Listed by the
- * lint test, which allows it only where registered. */
-typedef struct {
-    uint8_t dest;            /* $43x1 */
-    uint32_t source;         /* $43x2-$43x4 */
-    PfData data;             /* named resource or fill value; source is the legacy RAM escape */
-    uint16_t size;           /* $43x5-$43x6, 0 meaning 65536 */
-    uint8_t target_reg;      /* low byte of the address register the TARGET steps write */
-    uint16_t target;
-    /* The transfer carries on with what the channel already holds: the graphics
-     * loader at $7E:59D5 starts a fill without programming a source, so it
-     * repeats from wherever the last transfer left the channel. No call can name
-     * an address the routine never computes, and only a backend with the channel
-     * can resolve it, so the escape reads back whatever `steps` leaves unwritten
-     * -- control, destination or source -- and hands the observer the transfer
-     * that will actually run. */
-    bool continue_channel;
-    /* Where game data holds the channel's mode (the scene loaders' transfer),
-     * that mode; otherwise the SNES backend takes the site's. */
-    bool mode_from_data;
-    uint8_t mode;
-    const VidVramPort *port;   /* how VRAM steps, where the transfer sets it (vid_snes_copy) */
-    /* A transfer into work RAM's data port (VID_SNES_WRAM_DATA): where in work
-     * RAM the port points, which the game set through its own port (cpu_io.h),
-     * and whether the transfer repeats its source's byte (a clear) rather than
-     * copying a run. The SNES backend has the port; a host writes there. */
-    uint32_t wram_at;
-    bool repeats;
-} VidSnesTransfer;
-/* The escape, with the channel programmed as the original did at the site. */
-PF_API void vid_snes_copy(Platform *pf, PfOrigin o, const VidSnesTransfer *t);
-/* The older form, with the channel and its write order at the call. */
-PF_API void vid_snes_transfer(Platform *pf, PfOrigin o, const VidSnesTransfer *t, const VidSnesXfer *x);
-
-/* SNES-only escape for a byte the game's data writes to a register of the
- * picture's by its address: the menus' object scripts name the byte a command
- * sets by its address, and an ending's sets the sprites' sizes and their
- * tiles' place ($2101) so. Which addresses it takes (the ones the game's
- * scripts write), and the write. Listed by the lint test, which allows it only
- * where registered. */
-PF_API bool vid_snes_takes_register(uint16_t address);
-PF_API void vid_snes_write_register(Platform *pf, PfOrigin o, uint16_t address, uint8_t v);
-
-/* SNES-only escape for a palette send made through a data bank that doesn't
- * reach the registers: the battle's vblank handler in bank D1 sends the
- * palette without setting the data bank, and coming in on code with work
- * RAM's ($7E), the original's writes of the transfer's settings, the
- * palette's start and the transfer's start land in that bank's memory at the
- * registers' addresses, in the site's write order, and nothing is sent. A
- * host without the SNES sends the palette instead (vid_send_palette). Listed
- * by the lint test. */
-
-/* The registers the game's transfers through the escape name, by the low byte
- * of their address ($21xx), as VidSnesTransfer.dest and .target_reg take it. */
-enum {
-    VID_SNES_VRAM_ADDRESS = 0x16,        /* where VRAM writes go */
-    VID_SNES_VRAM_DATA_LOW = 0x18,       /* the VRAM data port's low byte */
-    VID_SNES_VRAM_DATA_HIGH = 0x19,      /* ... and its high byte */
-    VID_SNES_MULTIPLIER_PRODUCT = 0x34,  /* the Mode 7 multiplier's product, which the clears copy */
-    VID_SNES_VRAM_READ = 0x39,           /* the VRAM read port */
-    VID_SNES_WRAM_DATA = 0x80,           /* work RAM's data port, which the menus' clears and copies fill */
-};
 
 /* ---- observer (docs/PLATFORM.md, P2) ------------------------------------------
  *
@@ -791,11 +687,12 @@ void vid_obs_upload_vram_half(VidObserver *ob, uint16_t vram_addr, PfData src, u
 void vid_obs_fill_vram_half(VidObserver *ob, PfData value, uint32_t len, VidVramHalf half);
 void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len, bool fill,
                          const VidVramPort *port);
+void vid_obs_continue_vram(VidObserver *ob, PfData src, uint32_t len, int half);   /* half as vid_obs_write_vram's */
+uint16_t vid_obs_vram_word(const VidObserver *ob, uint16_t vram_addr);
 void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t count);
 void vid_obs_upload_oam(VidObserver *ob, PfData oam);
 void vid_obs_fill_oam(VidObserver *ob, uint16_t word_addr, uint8_t value, uint32_t len);
 void vid_obs_write_oam(VidObserver *ob, uint8_t v);
-void vid_obs_snes_transfer(VidObserver *ob, const VidSnesTransfer *t, uint8_t control);
 
 
 #endif

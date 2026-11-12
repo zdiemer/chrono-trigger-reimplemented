@@ -38,7 +38,7 @@ target_include_directories(ct_media PUBLIC frontend)
 add_library(ct_platform_native STATIC
   runtime/platform/native/timing.c runtime/platform/native/input.c
   runtime/platform/native/video.c runtime/platform/native/audio.c runtime/platform/native/save.c
-  runtime/platform/native_escapes.c runtime/platform/observe.c runtime/platform/voices.c
+  runtime/platform/observe.c runtime/platform/voices.c
   runtime/platform/native/mixer.c runtime/platform/native/snapshot.c runtime/port/fiber.c runtime/port/arena.c)
 target_include_directories(ct_platform_native PUBLIC runtime)
 add_library(ct_state_host STATIC runtime/port/vars_ram.c runtime/port/vars_host.c

@@ -35,8 +35,7 @@ struct VidObserver {
 
     VidVramPort port;
     uint16_t vram_addr;
-    uint8_t cg_addr, cg_latch;
-    bool cg_second;
+    uint8_t cg_addr;
     uint16_t oam_addr;
     uint8_t oam_latch;
     uint8_t oam_first_sprite;   /* the priority rotation, as the address register sets it */
@@ -52,7 +51,6 @@ struct VidObserver {
     uint16_t *cgram_snap[VID_MAX_SPANS];
     VidSpriteSet *sprite_snap[VID_MAX_SPANS];
     unsigned vram_used, cgram_used, sprites_used;
-    uint32_t unmodelled;
     VidFrame frame;
 };
 
@@ -244,7 +242,6 @@ bool vid_obs_restore(VidObserver *ob, const uint8_t *in, size_t len)
     return true;
 }
 
-uint32_t vid_obs_unmodelled(const VidObserver *ob) { return ob->unmodelled; }
 
 const VidFrame *vid_obs_frame(const VidObserver *ob) { return &ob->frame; }
 
@@ -303,19 +300,7 @@ static void vram_put(VidObserver *ob, bool high, uint8_t v)
         ob->vram_addr = (uint16_t)(ob->vram_addr + ob->port.step);
 }
 
-/* CGRAM and OAM through their ports, as runtime/snes/ppu.c writes them. */
-static void cgram_put(VidObserver *ob, uint8_t v)
-{
-    if (!ob->cg_second) {
-        ob->cg_latch = v;
-    } else {
-        keep_palette(ob);
-        ob->cgram[ob->cg_addr++] = (uint16_t)((v & 0x7F) << 8 | ob->cg_latch);
-        ob->palette_dirty = true;
-    }
-    ob->cg_second = !ob->cg_second;
-}
-
+/* OAM through its port, as the SNES's PPU writes it. */
 static void oam_put(VidObserver *ob, uint8_t v)
 {
     keep_sprites(ob);
@@ -531,7 +516,6 @@ void vid_obs_vram_address(VidObserver *ob, uint16_t vram_addr) { ob->vram_addr =
 void vid_obs_palette_address(VidObserver *ob, uint8_t first)
 {
     ob->cg_addr = first;
-    ob->cg_second = false;
 }
 
 void vid_obs_oam_address(VidObserver *ob, uint16_t word_addr, bool priority_rotation)
@@ -561,6 +545,21 @@ void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32
     ob->vram_addr = vram_addr;
     for (uint32_t i = 0; i < len; i++)
         vram_put(ob, (i & 1) != 0, data_byte(ob, src, fill ? 0 : i));
+}
+
+/* An upload from where the last writes left off: words (half -1), or one
+ * byte of each word. */
+void vid_obs_continue_vram(VidObserver *ob, PfData src, uint32_t len, int half)
+{
+    for (uint32_t i = 0; i < len; i++)
+        vram_put(ob, half < 0 ? (i & 1) != 0 : half == 1, data_byte(ob, src, i));
+}
+
+/* A word as the uploads left it, at its plain address. */
+uint16_t vid_obs_vram_word(const VidObserver *ob, uint16_t vram_addr)
+{
+    uint16_t at = (uint16_t)((vram_addr & 0x7FFF) << 1);
+    return (uint16_t)(ob->vram[at] | ob->vram[at + 1] << 8);
 }
 
 void vid_obs_upload_vram_half(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len,
@@ -613,58 +612,6 @@ void vid_obs_fill_oam(VidObserver *ob, uint16_t word_addr, uint8_t value, uint32
 }
 
 void vid_obs_write_oam(VidObserver *ob, uint8_t v) { oam_put(ob, v); }
-
-/* The SNES-only escape: a transfer whose mode and destination are game data.
- * Where the destination is video memory the observer can still follow it, byte
- * by byte in the pattern the transfer mode gives (as runtime/snes/bus.c does);
- * a transfer that reads a register into memory, or writes the work RAM port,
- * changes no video state, and anything else is counted as not modelled. */
-void vid_obs_snes_transfer(VidObserver *ob, const VidSnesTransfer *t, uint8_t control)
-{
-    static const uint8_t pattern[8][4] = {
-        { 0, 0, 0, 0 }, { 0, 1, 0, 1 }, { 0, 0, 0, 0 }, { 0, 0, 1, 1 },
-        { 0, 1, 2, 3 }, { 0, 1, 0, 1 }, { 0, 0, 0, 0 }, { 0, 0, 1, 1 },
-    };
-    static const uint8_t unit_len[8] = { 1, 2, 2, 4, 4, 4, 2, 4 };
-    if (control & 0x80)
-        return;
-    if ((t->dest & 0xFC) == 0x80)   /* $2180-$2183: memory, not video */
-        return;
-    if (t->target_reg == 0x16)
-        ob->vram_addr = t->target;
-    else if (t->target_reg == 0x21)
-        ob->cg_addr = (uint8_t)t->target;
-    else if (t->target_reg != 0) {
-        ob->unmodelled++;
-        return;
-    }
-    uint8_t mode = control & 7;
-    bool fixed = (control & 0x08) != 0;
-    int step = (control & 0x10) ? -1 : 1;
-    uint32_t len = t->size ? t->size : 0x10000;
-    uint32_t source = t->data.addr || t->data.byte_at ? t->data.addr : t->source;
-    uint32_t bank = source & 0xFF0000;
-    uint16_t addr = (uint16_t)source;
-    for (uint32_t i = 0; i < len; i++) {
-        uint8_t reg = (uint8_t)(t->dest + pattern[mode][i % unit_len[mode]]);
-        uint32_t offset = fixed ? 0 : step > 0 ? i : (uint16_t)(0u - i);
-        const uint8_t *byte = step < 0 && i && t->data.byte_at
-                              ? t->data.byte_at(bank | addr) : pf_data_pointer(t->data, offset);
-        uint8_t v = byte ? *byte : ob->read(ob->ctx, bank | addr);
-        if (reg == 0x18 || reg == 0x19)
-            vram_put(ob, reg == 0x19, v);
-        else if (reg == 0x22)
-            cgram_put(ob, v);
-        else if (reg == 0x04)
-            oam_put(ob, v);
-        else {
-            ob->unmodelled++;
-            return;
-        }
-        if (!fixed)
-            addr = (uint16_t)(addr + step);
-    }
-}
 
 /* ---- per-line effects --------------------------------------------------------- */
 

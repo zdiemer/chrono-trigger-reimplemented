@@ -95,14 +95,6 @@ PLAN.md gives the work order; the lean native gate protects each change.
   the outcome without original-code handbacks. The passing seed-2
   native-shape witness is recorded in REIMPLEMENTATION.md, "The battle's
   teardown"; keep that distinction when changing the default policy.
-- **An ending's menu script sets the sprites' sizes by `$2101`.** The menus'
-  object scripts' byte command `$13` names its cell by address, and an ending
-  writes the sprites' size and tile-place register through it; the port hands
-  the write to the SNES escape `vid_snes_write_register`
-  (`menu/script_bridge.c`, `set_console_byte`), which only the SNES backend
-  has. A build without it needs the script's write as what it means: decode
-  the scripts as an asset so a command naming `$2101` becomes a sprite
-  setting (`VidObjConfig`) the service takes, and drop the escape.
 ## Port and review follow-ups
 
 - **What the data teardown's review left.** `$CE:E326-$CE:E332` writes
@@ -727,8 +719,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
   - the palette's send from the vblank handler in bank D1, which doesn't set
     the data bank: on code with work RAM's bank its transfer's writes land in
     work RAM (`$7E:2121`, `$7E:420B`, `$7E:4370`-`$4377`) and the palette
-    isn't sent that frame (`uploads.c`, `send_palette_through_work_ram`,
-    the SNES escape `vid_snes_send_palette_into_memory`); what the
+    isn't sent that frame (`uploads.c`, `send_palette_through_work_ram`); what the
     battle keeps at those cells isn't worked out, and a native build sends
     the palette;
   - a party tech's part with no member: the original reads the slot of the
@@ -812,8 +803,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
   `VidScreen`; name the priority fill byte and palette indices; use typed
   booleans and one palette-copy representation. In `script.c`, give unlisted
   command nibbles an explicit policy and bound a script turn that never ends.
-  Low/high-byte fills are tracked under "Video escapes after the retired
-  subsystems". Add a `PF_CALL_DC` case to `tests/test_burndown.py`.
+  Add a `PF_CALL_DC` case to `tests/test_burndown.py`.
 
 - **What the race's second review left.** `perspective.c::start_lines`
   should return its line step; `PerspectiveStart` should name a scene kind.
@@ -1421,44 +1411,11 @@ PLAN.md gives the work order; the lean native gate protects each change.
   says what else they mean.
 ## Platform
 
-- **The older video forms can leave the service** (PLATFORM.md, "The services'
-  gaps the reviews found, closed"). No port hands the SNES backend its write
-  order at the call any more (the lint's `WRITE_ORDER` is empty): every site's
-  sequence is in `runtime/platform/snes/encodings.c`. The older forms
-  (`vid_upload_*`, `vid_fill_vram`, `vid_begin_vram_uploads`,
-  `vid_set_line_effect`, `vid_snes_transfer`) and `VidSnesXfer` can go once
-  nothing else calls them.
-  The field's own screen setup (`$FD:C0D7`) sets part of a screen, which
-  `VidScreen` doesn't express; it is a run of setters with values, which is
-  enough until a partial screen is wanted elsewhere.
+- **The field's screen setup is a run of setters.** The field's own screen
+  setup (`$FD:C0D7`) sets part of a screen, which `VidScreen` doesn't
+  express; a run of setters with values is enough until a partial screen is
+  wanted elsewhere.
 
-- **Video escapes after the retired subsystems.** The ordinary service calls
-  have host implementations; `ct_native` renders their retained frame directly
-  (PLATFORM.md, "Video from service calls, as built"). The remaining work is
-  in battle and menus' remaining transfer descriptors, and in the scene's
-  follow-up work; their teardowns did not remove these escapes.
-  Do not replace their machine contracts by a narrower call before checking
-  the descriptor's full domain and the state left for callers. The 23
-  `machine_joints.py` occurrences are the 22 calls below plus a comment in
-  `scene/screen.c`; none is in field, events, overworld, warp or core.
-
-  | File | Calls/sites | What the service needs |
-  |---|---|---|
-  | `battle/uploads.c` | `$CD:09CE`, `$CF:E33B` (2) | Preserve the palette sender's data-bank behavior and stray RAM writes while the legacy machine form needs them; decode the queued transfer's destination/mode into a typed upload, with the full guard retained. |
-  | `menu/display.c` | `$C2:9526`, `$C2:954B` (2) | Memory clear/copy, including source-bank and work-port wrapping, cursor state and transfer time. The field's `wram_clear` is the precedent, but these use the work RAM port, not the multiplier. |
-  | `menu/script.c` | `script_byte` register writer and its `vid_snes_takes_register` guard (2) | Decode script object-configuration commands to `VidObjConfig`; keep refusal of every other register address. |
-  | `scene/race.c` | `$7E:3D41`, `$7E:876E`, `$7E:4671` (3) | VRAM read-back with its initial read/step; a continued low-byte plane upload; a low-byte column upload with stride. |
-  | `scene/rising_palace.c` | `$7E:672C`, `$7E:674D` (2) | Plain memory clear retaining the matrix state; VRAM map read-back with the original initial read/step. |
-  | `scene/screen.c` | `$7E:30B6`, `$7E:30D2`/`$7E:30E6`, `$7E:3850` (3) | Two work-buffer clears and a sprite-buffer fill with the multiplier's value; separate memory work from the matrix values that remain video state. |
-  | `scene/screen.c` | `$7E:38EA`, `$7E:38E3` (2) | Typed transfers decoded from scene descriptors, including their byte/word patterns and zero-length convention. |
-  | `scene/screen.c` | `scene_clear_buffer`, `scene_blank_past_the_plane` (2) | Memory clears at `$7E:3C22`, `$7E:3C3E`, `$7E:3E71`, `$7E:7B98`; continued low-byte fills at `$7E:5476`, `$7E:85B2`. |
-  | `scene/title.c` | `$7E:59DD`, `$7E:5AEB` (2) | Name the first fill's source explicitly instead of continuing an old DMA channel; continued low-byte plane fill for the second. |
-  | `scene/staff_roll.c` | `$7E:90BD`, caller's `$7E:8DA9`/`$7E:8F77` (2) | Low-byte tile fill and high-byte priority fill with explicit start, stride and repeated value. |
-
-  The native compatibility file models memory fills and copies and some
-  data-described VRAM transfers, and counts unsupported escapes. Its existing
-  behavior is not a replacement for those contracts. Add targeted service-fed
-  pixel checks for each teardown.
 - **`video_test` checks snapshots, not pixels, for retained changes.** Its
   retained tile and sprite cases (`tests/port/video_test.c`) assert on the
   obdriver's snapshots; add assertions on the rendered pixels, so a renderer
@@ -1476,12 +1433,6 @@ PLAN.md gives the work order; the lean native gate protects each change.
   `OFFSET_FOR_BG1 = 0x2000` is the SNES's bit in an offset-per-tile entry
   saying which layer the offset moves; a `vid_*` encoder for an entry (the
   layer, the scroll) would keep the layout in the platform.
-- **No service reads VRAM back.** The palace's setup reads the field's map back
-  out of VRAM (`$7E:674D`) through `vid_snes_copy` with
-  `VID_STEP_VRAM_READ_FIRST`, and the race's setup its plane's column
-  (`$7E:3D41`); a `vid_*` read-back (or a copy within VRAM) would take both
-  off the SNES-only escape. `ct_native`, which runs both scenes as C now,
-  counts them as escapes and leaves the work RAM they read into as it was.
 - **Recheck the attract demo after the scene teardown.** The earlier
   `attract-demo` measurement agreed on 9379 of 22499 frames under
   `--vid-check` (PLATFORM.md, "P2 as built"): the then-unported scene
@@ -1489,8 +1440,8 @@ PLAN.md gives the work order; the lean native gate protects each change.
   maps' bases, the mode and window 1 from
   frames 2789 and 8953, and on two of its world maps BG2's horizontal scroll
   (from 2266, on `$1F5`) and window 1's right edge (from 5492, on `$1F7`)
-  changed where no call said so. Repeat the service-fed pixel check after
-  replacing the scene escapes above, and locate any remaining writers of
+  changed where no call said so. Repeat the service-fed pixel check now
+  that the scene's transfers are named services, and locate any remaining writers of
   those two world-map settings. The event gate now passes its service-fed
   pixel check; the old attract measurement does not establish the merged
   scene teardown's result.
@@ -1506,7 +1457,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
 - **Host backends beyond SDL**, not yet scoped as milestones:
   - **GPU rendering:** implement integer SNES compositing over `VidFrame`
     and its per-line spans, checked with `--px-check`. Service-fed frames
-    are available; remaining transfer escapes still need explicit meanings.
+    are available.
   - **Audio validation:** replay logged game command streams into the C
     driver offline and keep a digest per movie. Its random/synthetic checks
     do not cover exactly what gameplay sends (SOUND.md, "Validating the port").
@@ -2117,17 +2068,15 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
 
 
 - **Heckran still needs a native outcome check.** `battle-heckran` runs 19376 frames
-  with no explicit stop, a screen showing after six setups, and four video
-  escapes, first at the title's `$7E:5AEB` (`vid_snes_copy`, below).
+  with no explicit stop and a screen showing after six setups.
   Its fixed-input run does not establish native victory;
-  connect the missing video work and verify the intended field outcome.
+  verify the intended field outcome.
 - **Crono's trial movies.** `ct_native` with the normal pre-trial save
   stops `events-cronos-trial` at frame 20629, `$C0:881E`, "a walk the port
   doesn't take", during the prison transfer (the walk guard above).
   `events-cronos-trial-long` reaches its 136868-frame limit without an
   explicit stop, but its screen is blank, with six screen setups; it has
-  not demonstrated the full journey in native C. Both runs report two
-  SNES-only video escapes, first `$7E:5AEB`. Strict-mode movie inputs
+  not demonstrated the full journey in native C. Strict-mode movie inputs
   reach their limits but end with saved state different from the reference;
   neither result establishes a native completion of the trial route.
 - **Long movies still desync on the hand ports alone.** The frame-level time
@@ -2293,16 +2242,13 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
   field's songs before Flea start 18 and 29 frames early (frames 4399 and 5896
   against 4417 and 5925), where strict mode keeps them to the frame, so it is the
   field's events' work `ct_native` still times short there ("Where the game's
-  work is still timed short or long", above), not a port's difference. The
-  native run also reports two SNES-only video escapes, first at `$7E:5AEB`.
+  work is still timed short or long", above), not a port's difference.
 - **Native movie route outcomes after the player recheck.** Golem Twins,
   Ocean Palace Lavos, Yakra, Zombor, Nizbel, Giga Gaia, Dalton and Proto Dome
   all reached their bounded ends. Only Ocean Palace Lavos ended dark (its last
   546 frames); the older blank-ending reports for Yakra, Zombor, Nizbel, Giga
   Gaia and Proto Dome no longer reproduce. Establish victory and quest outcomes
-  with state-driven routes; an illuminated final frame is insufficient. The
-  title and unused-plane video fills have since moved to semantic services;
-  investigate the remaining video escapes separately from player persistence.
+  with state-driven routes; an illuminated final frame is insufficient.
 
 - **Rainbow Shell trial recording in the native program.** The hand-run
   `rainbow_shell_trial` recording (47547 frames, ctsave13 slot 2; MOVIES.md)
@@ -2337,11 +2283,7 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
   particular where the original's goes on from what the call before it left
   (a host's draws take its own noise). The C reads the program's data where
   the boot unpacks it, and doesn't check, as the entries' guards do on the
-  machine, that the unpacked code is the one the ports were written for. The
-  plane's map halves (`scene_upload_plane_half`, `$7E:876E`) and the
-  credits' map blanked (`$7E:90BD`) still use `vid_snes_copy` escapes.
-  Convert these remaining callers to semantic half-word uploads and fills;
-  the title and unused-plane fills now use `vid_fill_vram_half` (PLATFORM.md).
+  machine, that the unpacked code is the one the ports were written for.
   The scene teardown's census finds no ordinary scene entry
   entered by the machine; these host gaps are separate from its retired
   byte-exact comparisons.
@@ -2403,22 +2345,21 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
   its program image for scripts, sprite lists and tables. Extract those
   resources by name before removing the image. 
 
-- **Ports that name a register.** The SNES escapes have host halves
-  (`runtime/platform/native_escapes.c`) that follow what a host can: the field's memory clear (`vid_snes_copy` from the
-  multiplier's product) clears the memory, the sprites' setting a script
-  writes by its address (`vid_snes_write_register`) is the setting, and the
-  battle's palette sent into memory (`vid_snes_send_palette_into_memory`)
-  is sent. The rest of `vid_snes_copy`'s and `vid_snes_transfer`'s uses
-  (`battle/uploads.c`, `menu/display.c`, `scene/race.c`,
-  `scene/rising_palace.c`, `scene/screen.c`, `scene/staff_roll.c`;
-  tests/test_platform_lint.py's list) are transfers into VRAM programmed from
-  the game's tables, which only the SNES's channel settings say the meaning
-  of: the host counts them and the driver reports the first.
-  In the assigned battle files, two escapes remain. Battle's bank-dependent palette send intentionally
-  writes stray RAM and delays the palette; those writes need named state
-  before replacing the escape. The pending window transfer's only writer
-  requests VRAM words, but the entry accepts arbitrary destination/mode
-  descriptors; a VRAM-only replacement needs that guard contract settled.
+- **Transfer descriptions keep a port's address byte.** The scene program's
+  call cells and the battle's described transfer keep the destination as the
+  original stored it, the low byte of VRAM's data port (`SCENE_INTO_LOW_BYTES`
+  and `SCENE_INTO_HIGH_BYTES`, `$18`/`$19` in `scene/scene.h`; `INTO_VRAM` in
+  `battle/uploads.c`), and decode it where the cells are read. Store a named
+  destination (whole words, low bytes, high bytes) instead once nothing reads
+  the cells as the original's bytes.
+- **The sound driver's command `$FD` writes an S-DSP register.**
+  `sound/driver.c`'s `write_register` hands the command's register and value
+  to `au_voices_snes_register`, which the native mixer decodes into its
+  voices' settings (`runtime/platform/native/mixer.c`, `escape_register`):
+  the one register escape `tools/machine_joints.py` still counts. Another
+  mixer needs the command as what it means: the register decoded into named
+  voice settings, the driver keeping what a partial write (a pitch's low
+  byte) leaves of the rest.
 - **Native audio interface.** `au_driver_call` stops on a machine-wrapper
   call; remove that interface with its remaining callers. Preserve command
   queues.
