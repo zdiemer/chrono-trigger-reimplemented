@@ -183,11 +183,10 @@ void fiber_switch(Fiber *to)
 #else
 static void trampoline(void) { fiber_body(); }
 
-/* Below anything the caller's frame holds: a callee's own local. */
+/* Below anything the caller's frame holds: a callee's own frame. */
 __attribute__((noinline)) static uintptr_t stack_here(void)
 {
-    volatile uint8_t here = 0;
-    return (uintptr_t)&here;
+    return (uintptr_t)__builtin_frame_address(0);
 }
 
 /* Room below the deepest address seen for what the switch itself saves. */
