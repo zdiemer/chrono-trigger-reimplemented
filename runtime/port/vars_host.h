@@ -883,6 +883,10 @@ typedef struct {
     uint8_t battle_circle_widths[128];
     uint8_t battle_circle_drawn;
     uint8_t battle_screen_wave_step[2];
+    uint8_t battle_screen_orbit_circle[2];
+    uint8_t battle_screen_orbit_bob[2];
+    uint8_t battle_screen_orbit_sway[2];
+    struct { uint8_t amounts[1]; } battle_screen_drift[2][6];
     uint8_t battle_screen_circle_radius[2];
     uint8_t battle_screen_circle_x[2];
     uint8_t battle_screen_circle_y[2];
@@ -1404,7 +1408,6 @@ typedef struct {
     uint16_t event_saved_position;
     uint32_t event_source_pointer;
     uint32_t event_target_pointer;
-    uint8_t event_scratch[14];
     struct {
         uint8_t coordinates_left;
         uint16_t start;
@@ -1550,7 +1553,6 @@ typedef struct {
     uint8_t field_screen_shake;
     uint8_t field_scene_to_start;
     uint8_t field_scratch_more[2];
-    uint8_t field_work[8];
     struct {
         uint16_t address;
         uint8_t bank;
@@ -1563,9 +1565,6 @@ typedef struct {
     uint16_t field_sprite_range_next[3];
     uint16_t field_target_object;
     uint16_t field_direction;
-    struct {
-        uint16_t copy_table;
-    } field_own_tile;
     struct {
         uint8_t x;
         uint8_t y;
@@ -1594,9 +1593,7 @@ typedef struct {
     uint8_t field_layer_drawn_whole;
     uint8_t field_layer_still;
     uint8_t field_layer_extra_speed_time;
-    uint8_t field_layer_work[14];
     uint16_t field_layer_edge_wrap;
-    uint8_t field_layer_edge_work[16];
     uint16_t field_transition_map_base;
     uint16_t field_layer_map_base[3];
     struct {
@@ -1619,17 +1616,24 @@ typedef struct {
     uint8_t field_window_shadows[5];
     struct { uint8_t properties[64]; } field_tile_properties[64];
     struct {
+        uint8_t sizes;
+        uint8_t layers;
+        uint8_t bg2_drift;
+        uint8_t bg3_drift;
+        uint8_t screens;
+        uint8_t color_math;
+    } field_map_header;
+    uint8_t field_map_data;
+    struct {
         uint16_t address;
         uint8_t bank;
     } field_window_shape_table;
-    uint8_t field_window_shape_edge[8];
     struct {
         uint8_t x;
         uint8_t y;
     } field_window_shape_corners[4];
     uint16_t field_window_shape_top;
     uint16_t field_window_shape_right_start;
-    uint8_t field_window_shape_steps[14];
     uint8_t field_window_2_second_table;
     uint8_t field_trail_movement_x[128];
     uint8_t field_trail_movement_y[128];
@@ -2545,6 +2549,7 @@ typedef struct {
     uint8_t menu_setting_message_speed;
     uint8_t menu_setting_spare;
     uint8_t menu_settings_cursor;
+    uint8_t menu_settings_option_before;
     uint8_t menu_settings_described_option;
     uint8_t menu_settings_description;
     uint16_t menu_description_line_from;
@@ -2557,7 +2562,11 @@ typedef struct {
     uint8_t menu_item_worn_count;
     uint8_t menu_shop_place_shown;
     uint8_t menu_shop_place_shown_past;
+    uint8_t menu_shop_tab_cursor;
+    uint8_t menu_exchange_cursor_kept;
     uint16_t menu_name_cursor_before;
+    uint8_t menu_reserve_top;
+    uint8_t menu_shop_list_cursor;
     uint16_t menu_heal_amounts[6];
     uint32_t menu_shop_quotient;
     uint32_t menu_shop_remainder;
@@ -2611,6 +2620,7 @@ typedef struct {
     uint16_t menu_window_style;
     uint8_t menu_window_design;
     uint8_t menu_text_attribute;
+    uint8_t menu_save_slot_marked;
     uint8_t menu_text_tile_limit;
     uint8_t menu_text_flags;
     uint16_t menu_draw_origin;
@@ -2718,11 +2728,6 @@ typedef struct {
     uint8_t menu_paging_top;
     struct { uint16_t tiles[576]; } menu_equip_list_rows;
     uint8_t menu_equipped_list[5];
-    struct {
-        uint16_t list_line;
-        uint16_t slots_line;
-        uint16_t step;
-    } menu_window_slide;
     uint16_t menu_row_line_values_past[16];
     uint8_t menu_window_frames_slid;
     uint8_t menu_window_rows_wait;
@@ -2763,6 +2768,7 @@ typedef struct {
     uint8_t menu_tech_list_shown_before;
     uint8_t menu_tech_parts[7][60];
     uint8_t menu_record_origin_y_high;
+    uint8_t menu_tech_cost_needed;
     uint8_t menu_tech_member_groups[16];
     uint16_t menu_tech_member_other_lines[12];
     uint16_t menu_tech_target_lines[12];
@@ -2787,7 +2793,6 @@ typedef struct {
     uint8_t save_check_slot[2];
     uint16_t save_check_game_at[2];
     uint16_t save_check_answer[2];
-    uint8_t menu_save_region_table[40];
     uint8_t menu_rock_techs_ready[5];
     struct {
         uint8_t rock;
@@ -2798,7 +2803,6 @@ typedef struct {
     uint32_t menu_tech_parts_column;
     uint32_t menu_starting_record_at;
     uint32_t menu_screen_steps_at;
-    uint8_t menu_hundreds_digits[48];
     uint8_t menu_number_tiles[110][32];
     uint8_t menu_hundreds_tiles[30][32];
     uint8_t menu_amount_digit_tiles[10][32];
@@ -3441,11 +3445,11 @@ typedef struct {
     uint16_t scene_scaler_output;
     uint16_t scene_scaler_plane_output;
     uint16_t scene_scaler_source_row;
+    uint8_t scene_wide_tile_rows_left;
     uint16_t scene_scaler_row_position;
     uint16_t scene_scaler_pair_counter;
     uint16_t scene_scaler_output_end;
     uint16_t scene_race_tilemap_pending;
-    uint8_t scene_bitplane_scratch[9];
     uint16_t scene_bg3_scroll_x;
     struct {
         uint16_t a;
@@ -3456,6 +3460,7 @@ typedef struct {
     uint16_t scene_title_slides[5];
     uint16_t scene_title_slide_ends[5];
     uint16_t scene_title_pendulum_phase;
+    uint16_t scene_title_pendulum_swing;
     uint16_t scene_title_ignores_buttons;
     uint16_t scene_title_button_taken;
     uint16_t scene_title_wait;
@@ -3466,7 +3471,14 @@ typedef struct {
     uint8_t scene_ending_captions_y;
     uint16_t scene_title_timer;
     uint8_t scene_race_tilemap_a_ready;
+    uint8_t scene_race_tilemap_b_ready;
+    uint8_t scene_race_tilemap_ready_high[2];
     uint8_t scene_mosaic_frame;
+    uint8_t scene_mosaic_frame_sent;
+    uint8_t scene_mosaic_piece_frame;
+    uint8_t scene_mosaic_piece_frames;
+    uint8_t scene_mosaic_frame_width;
+    uint8_t scene_mosaic_frame_height;
     uint16_t scene_race_demo;
     struct {
         uint16_t screen_x;
@@ -3516,10 +3528,6 @@ typedef struct {
     struct {
         uint8_t jump;
         uint32_t handler;
-    } scene_nmi_stub;
-    struct {
-        uint8_t jump;
-        uint32_t handler;
     } scene_irq_stub;
     uint16_t scene_tasks[16];
     uint16_t scene_tasks_running[16];
@@ -3540,7 +3548,9 @@ typedef struct {
     uint16_t scene_credits_scroll;
     uint16_t scene_credits_row_vram;
     uint16_t scene_credits_text;
+    uint8_t scene_credits_over;
     uint8_t scene_credits_fast;
+    uint8_t scene_credits_fast_high;
     uint8_t scene_credits_row[32];
     uint16_t scene_stars_depth_branch;
     uint16_t scene_random_seed;
@@ -3578,8 +3588,15 @@ typedef struct {
         uint8_t facing;
         uint8_t active_facing;
     } scene_turn_figures[4];
+    uint16_t scene_turn_orbit;
     uint16_t scene_turn_search_left;
+    uint16_t scene_turn_next_upload;
     uint16_t scene_turn_upload_vram;
+    uint8_t scene_turn_mosaic_period;
+    uint8_t scene_turn_mosaic_countdown;
+    uint8_t scene_turn_pick_sequence;
+    uint8_t scene_turn_mosaic_size;
+    uint8_t scene_turn_mosaic_previous;
     uint16_t scene_turn_window_radius[2];
     uint8_t scene_turn_initial_animation[8];
     uint8_t scene_turn_window_radius_low[2];
@@ -3695,6 +3712,9 @@ typedef struct {
     uint16_t scene_ending_orbit_x;
     uint16_t scene_fireworks_countdown[2];
     uint16_t scene_fireworks_frame[2];
+    uint8_t scene_fireworks_x[2];
+    uint8_t scene_fireworks_y[2];
+    uint16_t scene_fireworks_held;
     uint16_t scene_large_list_clip;
     uint16_t scene_large_list_spare;
     uint8_t scene_race_math_line_counts[2];
@@ -3724,6 +3744,8 @@ typedef struct {
     uint8_t scene_curtain_sweep;
     uint8_t scene_curtain_steps;
     uint16_t scene_curtain_table;
+    uint8_t scene_curtain_table_bank;
+    uint8_t scene_curtain_table_bank_high;
     uint16_t scene_planet_fade_toward;
     uint16_t scene_planet_fade_palette;
     uint16_t scene_planet_fade_colours;
@@ -3797,7 +3819,6 @@ typedef struct {
 
 typedef struct {
     uint16_t warp_zero;
-    uint8_t warp_work[16];
     uint16_t warp_frame;
     uint8_t warp_frame_ended;
     uint8_t warp_circle_center_x;
@@ -3925,9 +3946,6 @@ void vars_host_battle_screen_channels_values_write8(VarsHost *h, uint32_t offset
 /* Byte views of battle_screen_layer_values's storage; no independent alias fields. */
 uint8_t vars_host_battle_screen_layer_values_read8(const VarsHost *h, uint32_t offset);
 void vars_host_battle_screen_layer_values_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of battle_screen_swing_position's storage; no independent alias fields. */
-uint8_t vars_host_battle_screen_swing_position_read8(const VarsHost *h, uint32_t offset);
-void vars_host_battle_screen_swing_position_write8(VarsHost *h, uint32_t offset, uint8_t value);
 /* Byte views of battle_script_point_values's storage; no independent alias fields. */
 uint8_t vars_host_battle_script_point_values_read8(const VarsHost *h, uint32_t offset);
 void vars_host_battle_script_point_values_write8(VarsHost *h, uint32_t offset, uint8_t value);
@@ -3988,12 +4006,6 @@ void vars_host_field_bg1_scroll_position_values_write8(VarsHost *h, uint32_t off
 /* Byte views of field_dialog_shading_values's storage; no independent alias fields. */
 uint8_t vars_host_field_dialog_shading_values_read8(const VarsHost *h, uint32_t offset);
 void vars_host_field_dialog_shading_values_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of field_frame_entry's storage; no independent alias fields. */
-uint8_t vars_host_field_frame_entry_read8(const VarsHost *h, uint32_t offset);
-void vars_host_field_frame_entry_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of field_frame_tiles_left's storage; no independent alias fields. */
-uint8_t vars_host_field_frame_tiles_left_read8(const VarsHost *h, uint32_t offset);
-void vars_host_field_frame_tiles_left_write8(VarsHost *h, uint32_t offset, uint8_t value);
 /* Byte views of field_kept_party_priorities_values's storage; no independent alias fields. */
 uint8_t vars_host_field_kept_party_priorities_values_read8(const VarsHost *h, uint32_t offset);
 void vars_host_field_kept_party_priorities_values_write8(VarsHost *h, uint32_t offset, uint8_t value);
@@ -4168,9 +4180,6 @@ void vars_host_field_object_x_values_write8(VarsHost *h, uint32_t offset, uint8_
 /* Byte views of field_object_y_values's storage; no independent alias fields. */
 uint8_t vars_host_field_object_y_values_read8(const VarsHost *h, uint32_t offset);
 void vars_host_field_object_y_values_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of field_own_tile's storage; no independent alias fields. */
-uint8_t vars_host_field_own_tile_read8(const VarsHost *h, uint32_t offset);
-void vars_host_field_own_tile_write8(VarsHost *h, uint32_t offset, uint8_t value);
 /* Byte views of field_scroll_offset_values's storage; no independent alias fields. */
 uint8_t vars_host_field_scroll_offset_values_read8(const VarsHost *h, uint32_t offset);
 void vars_host_field_scroll_offset_values_write8(VarsHost *h, uint32_t offset, uint8_t value);
@@ -4222,9 +4231,6 @@ void vars_host_frames_at_leaving_write8(VarsHost *h, uint32_t offset, uint8_t va
 /* Byte views of input_mapped's storage; no independent alias fields. */
 uint8_t vars_host_input_mapped_read8(const VarsHost *h, uint32_t offset);
 void vars_host_input_mapped_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of menu_built_upload_values's storage; no independent alias fields. */
-uint8_t vars_host_menu_built_upload_values_read8(const VarsHost *h, uint32_t offset);
-void vars_host_menu_built_upload_values_write8(VarsHost *h, uint32_t offset, uint8_t value);
 /* Byte views of menu_cursor_places_values's storage; no independent alias fields. */
 uint8_t vars_host_menu_cursor_places_values_read8(const VarsHost *h, uint32_t offset);
 void vars_host_menu_cursor_places_values_write8(VarsHost *h, uint32_t offset, uint8_t value);
@@ -4309,9 +4315,6 @@ void vars_host_menu_text_work_values_write8(VarsHost *h, uint32_t offset, uint8_
 /* Byte views of menu_window_shadows_values's storage; no independent alias fields. */
 uint8_t vars_host_menu_window_shadows_values_read8(const VarsHost *h, uint32_t offset);
 void vars_host_menu_window_shadows_values_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of menu_window_slide's storage; no independent alias fields. */
-uint8_t vars_host_menu_window_slide_read8(const VarsHost *h, uint32_t offset);
-void vars_host_menu_window_slide_write8(VarsHost *h, uint32_t offset, uint8_t value);
 /* Byte views of oam_buffer_values's storage; no independent alias fields. */
 uint8_t vars_host_oam_buffer_values_read8(const VarsHost *h, uint32_t offset);
 void vars_host_oam_buffer_values_write8(VarsHost *h, uint32_t offset, uint8_t value);
@@ -4342,9 +4345,6 @@ void vars_host_scene_circle_count_write8(VarsHost *h, uint32_t offset, uint8_t v
 /* Byte views of scene_circle_decision's storage; no independent alias fields. */
 uint8_t vars_host_scene_circle_decision_read8(const VarsHost *h, uint32_t offset);
 void vars_host_scene_circle_decision_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of scene_circle_radius's storage; no independent alias fields. */
-uint8_t vars_host_scene_circle_radius_read8(const VarsHost *h, uint32_t offset);
-void vars_host_scene_circle_radius_write8(VarsHost *h, uint32_t offset, uint8_t value);
 /* Byte views of scene_circle_row's storage; no independent alias fields. */
 uint8_t vars_host_scene_circle_row_read8(const VarsHost *h, uint32_t offset);
 void vars_host_scene_circle_row_write8(VarsHost *h, uint32_t offset, uint8_t value);
@@ -4354,9 +4354,6 @@ void vars_host_scene_circle_table_write8(VarsHost *h, uint32_t offset, uint8_t v
 /* Byte views of scene_credits_page's storage; no independent alias fields. */
 uint8_t vars_host_scene_credits_page_read8(const VarsHost *h, uint32_t offset);
 void vars_host_scene_credits_page_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of scene_credits_row_vram's storage; no independent alias fields. */
-uint8_t vars_host_scene_credits_row_vram_read8(const VarsHost *h, uint32_t offset);
-void vars_host_scene_credits_row_vram_write8(VarsHost *h, uint32_t offset, uint8_t value);
 /* Byte views of scene_credits_text's storage; no independent alias fields. */
 uint8_t vars_host_scene_credits_text_read8(const VarsHost *h, uint32_t offset);
 void vars_host_scene_credits_text_write8(VarsHost *h, uint32_t offset, uint8_t value);
@@ -4366,36 +4363,12 @@ void vars_host_scene_dive_epoch_frames_left_write8(VarsHost *h, uint32_t offset,
 /* Byte views of scene_dive_lights_values's storage; no independent alias fields. */
 uint8_t vars_host_scene_dive_lights_values_read8(const VarsHost *h, uint32_t offset);
 void vars_host_scene_dive_lights_values_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of scene_nmi_stub's storage; no independent alias fields. */
-uint8_t vars_host_scene_nmi_stub_read8(const VarsHost *h, uint32_t offset);
-void vars_host_scene_nmi_stub_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of scene_race_contact's storage; no independent alias fields. */
-uint8_t vars_host_scene_race_contact_read8(const VarsHost *h, uint32_t offset);
-void vars_host_scene_race_contact_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of scene_race_contact_across's storage; no independent alias fields. */
-uint8_t vars_host_scene_race_contact_across_read8(const VarsHost *h, uint32_t offset);
-void vars_host_scene_race_contact_across_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of scene_race_crono_lean's storage; no independent alias fields. */
-uint8_t vars_host_scene_race_crono_lean_read8(const VarsHost *h, uint32_t offset);
-void vars_host_scene_race_crono_lean_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of scene_race_last_contact's storage; no independent alias fields. */
-uint8_t vars_host_scene_race_last_contact_read8(const VarsHost *h, uint32_t offset);
-void vars_host_scene_race_last_contact_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of scene_race_score's storage; no independent alias fields. */
-uint8_t vars_host_scene_race_score_read8(const VarsHost *h, uint32_t offset);
-void vars_host_scene_race_score_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of scene_scaler_source_row's storage; no independent alias fields. */
-uint8_t vars_host_scene_scaler_source_row_read8(const VarsHost *h, uint32_t offset);
-void vars_host_scene_scaler_source_row_write8(VarsHost *h, uint32_t offset, uint8_t value);
 /* Byte views of scene_tasks_running's storage; no independent alias fields. */
 uint8_t vars_host_scene_tasks_running_read8(const VarsHost *h, uint32_t offset);
 void vars_host_scene_tasks_running_write8(VarsHost *h, uint32_t offset, uint8_t value);
 /* Byte views of scene_turn_saved_party's storage; no independent alias fields. */
 uint8_t vars_host_scene_turn_saved_party_read8(const VarsHost *h, uint32_t offset);
 void vars_host_scene_turn_saved_party_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of scene_turn_search_left's storage; no independent alias fields. */
-uint8_t vars_host_scene_turn_search_left_read8(const VarsHost *h, uint32_t offset);
-void vars_host_scene_turn_search_left_write8(VarsHost *h, uint32_t offset, uint8_t value);
 /* Byte views of scene_twinkle_sprite_values's storage; no independent alias fields. */
 uint8_t vars_host_scene_twinkle_sprite_values_read8(const VarsHost *h, uint32_t offset);
 void vars_host_scene_twinkle_sprite_values_write8(VarsHost *h, uint32_t offset, uint8_t value);

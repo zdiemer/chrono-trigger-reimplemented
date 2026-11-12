@@ -433,11 +433,6 @@
 /* The 24-bit pointer events $4A-$4D write through [3 bytes] */
 #define RAM_EVENT_TARGET_POINTER 0x7E01D0u
 #define RAM_EVENT_TARGET_POINTER_DP 0xD0u    /* page field */
-/* The original field/event scratch cells, $D9-$E6. Their reconstruction has retired. The menus
- * own their wave phase at $E2-$E3; field and event temporaries no longer seed it. Named state
- * aliases in this range, such as field_scene_to_start, remain ordinary game state [14 bytes] */
-#define RAM_EVENT_SCRATCH 0x7E01D9u
-#define RAM_EVENT_SCRATCH_DP 0xD9u           /* page field */
 /* The original event $FE's searchlight scratch: coordinates left, the last start, frames and
  * next corner offset. Retired; the C operation keeps these intermediate values locally [10
  * bytes] */
@@ -872,17 +867,9 @@
  * record's size, events $81-$83): only that command reads it back [2 bytes] */
 #define RAM_FIELD_SPRITE_RECORD_PLACE 0x7E01BFu
 #define RAM_FIELD_SPRITE_RECORD_PLACE_DP 0xBFu /* page field */
-/* Cells the field's object, sprite and graphics routines keep values in on the way: an
- * animation's delay entry ($C1), the view window's edges or an object's screen position
- * ($C3-$C6), the Y a tile copy saves ($C5), the Y the blocking check saves ($C7) [8 bytes] */
-#define RAM_FIELD_WORK 0x7E01C1u
-#define RAM_FIELD_WORK_DP 0xC1u              /* page field */
 /* The frame builder's count of a run of a frame's tiles still to draw, a word [2 bytes] */
 #define RAM_FIELD_FRAME_TILES_LEFT 0x7E01C9u
 #define RAM_FIELD_FRAME_TILES_LEFT_DP 0xC9u  /* page field */
-/* Sprites of the current object still to write while the OAM table is built */
-#define RAM_FIELD_SPRITES_LEFT 0x7E01C9u
-#define RAM_FIELD_SPRITES_LEFT_DP 0xC9u      /* page field */
 /* The graphics set the frame builder copies an object's sprite tiles from: a long pointer into
  * the ROM's banks $D2-$D5 or bank $7F [3 bytes] */
 #define RAM_FIELD_SPRITE_GRAPHICS 0x7E01CDu
@@ -907,10 +894,6 @@
 #define RAM_FIELD_FRAME_ENTRY_DP 0xD6u       /* page field */
 #define RAM_FIELD_FRAME_ENTRY_ADDRESS 0x7E01D6u /* The entry's address: the facing's frame table plus animation * 4 + frame */
 #define RAM_FIELD_FRAME_ENTRY_BANK 0x7E01D8u /* The frame tables' bank */
-/* Where the loading of a tile set's graphics read the set's list of blocks (location_records'
- * tile set, $F6:1C00 + 8 a set), left at its last block; nothing reads it after [3 bytes] */
-#define RAM_FIELD_TILE_SET_LIST_PLACE 0x7E01D6u
-#define RAM_FIELD_TILE_SET_LIST_PLACE_DP 0xD6u /* page field */
 /* Next free OAM entry of each sprite range while the sprite table is built (the cells are
  * scratch at other times) [3 x $2 bytes, by sprite range (0 priority bits clear, 1 bit 2 set, 2
  * bit 3 set)] */
@@ -949,12 +932,6 @@
  * facing lookups index with [2 bytes] */
 #define RAM_FIELD_DIRECTION 0x7E01EEu
 #define RAM_FIELD_DIRECTION_DP 0xEEu         /* page field */
-/* Tile the direction is computed from; the tile copy keeps the word here too [2 bytes] */
-#define RAM_FIELD_OWN_TILE 0x7E01F0u
-#define RAM_FIELD_OWN_TILE_DP 0xF0u          /* page field */
-#define RAM_FIELD_OWN_TILE_X 0x7E01F0u       /* Tile X */
-#define RAM_FIELD_OWN_TILE_Y 0x7E01F1u       /* Tile Y */
-#define RAM_FIELD_OWN_TILE_COPY_TABLE 0x7E01F0u /* Where in work RAM the tile copy's last whole table starts (its rows 256 bytes apart), which the copy leaves in these cells; nothing reads it */
 /* Tile the direction is computed toward [2 bytes] */
 #define RAM_FIELD_TARGET_TILE 0x7E01F2u
 #define RAM_FIELD_TARGET_TILE_DP 0xF2u       /* page field */
@@ -998,10 +975,6 @@
 #define RAM_FIELD_WINDOW_SHAPE_TABLE_DP 0x50u /* page field_window_shape */
 #define RAM_FIELD_WINDOW_SHAPE_TABLE_ADDRESS 0x7E0350u /* The table's address in its bank */
 #define RAM_FIELD_WINDOW_SHAPE_TABLE_BANK 0x7E0352u /* Its bank; bit 0 also picks the bank ($7E or $7F) the rasterizer fills the table's ends in */
-/* The edge being drawn: the words X and Y of its start, then of its end, the start the upper
- * end; the field keeps the original's last values there [8 bytes] */
-#define RAM_FIELD_WINDOW_SHAPE_EDGE 0x7E0353u
-#define RAM_FIELD_WINDOW_SHAPE_EDGE_DP 0x53u /* page field_window_shape */
 /* The quadrilateral's corners, in drawing order [4 x $2 bytes, by corner] */
 #define RAM_FIELD_WINDOW_SHAPE_CORNERS 0x7E0360u
 #define RAM_FIELD_WINDOW_SHAPE_CORNERS_COUNT 4u
@@ -1017,12 +990,6 @@
  * upward. The lines below it are filled as empty [2 bytes] */
 #define RAM_FIELD_WINDOW_SHAPE_RIGHT_START 0x7E036Au
 #define RAM_FIELD_WINDOW_SHAPE_RIGHT_START_DP 0x6Au /* page field_window_shape */
-/* The rasterizer's working cells, $F0-$FD: where the edge sequence is entered, then the fill's
- * length ($F0), an edge's lines left ($F2), the edges left ($F4), whether the right-hand side is
- * still to come ($F6), an edge's width and height ($F8, $FA) and its step error ($FC); the field
- * keeps the original's last values there [14 bytes] */
-#define RAM_FIELD_WINDOW_SHAPE_STEPS 0x7E03F0u
-#define RAM_FIELD_WINDOW_SHAPE_STEPS_DP 0xF0u /* page field_window_shape */
 /* The OAM image as the field's sprite table builds it, reached by byte offset: 128 entries of X,
  * Y, tile and attributes, then the high table's 32 bytes [544 bytes] */
 #define RAM_FIELD_SPRITE_TABLE 0x7E0700u
@@ -1581,20 +1548,11 @@
 #define RAM_FIELD_SCROLL_OFFSET_DP 0x4Eu     /* page field_layers */
 #define RAM_FIELD_SCROLL_OFFSET_X 0x7E1D4Eu  /* Horizontal */
 #define RAM_FIELD_SCROLL_OFFSET_Y 0x7E1D4Fu  /* Vertical */
-/* Cells the layer routines keep values in on the way ($52-$5C): a row's start in a tile map, and
- * while a map unpacks its size, the row it is on and a run's three bytes; the field keeps the
- * original's last values there [14 bytes] */
-#define RAM_FIELD_LAYER_WORK 0x7E1D50u
-#define RAM_FIELD_LAYER_WORK_DP 0x50u        /* page field_layers */
 /* Where a layer's left edge column wraps round the tile map (its index less 31), set only by a
  * layer whose left edge is the last column of a half, and read by every layer as its third VRAM
  * address, whether it set it or not [2 bytes] */
 #define RAM_FIELD_LAYER_EDGE_WRAP 0x7E1D5Eu
 #define RAM_FIELD_LAYER_EDGE_WRAP_DP 0x5Eu   /* page field_layers */
-/* The edge helpers' cells ($62-$6F): the column and row they were given and the counts they
- * return; the field keeps the original's last values there [16 bytes] */
-#define RAM_FIELD_LAYER_EDGE_WORK 0x7E1D60u
-#define RAM_FIELD_LAYER_EDGE_WORK_DP 0x60u   /* page field_layers */
 /* Where the walk leaves the leader: across, where it will stand (1/16 pixel), and down, a tile
  * beyond where it will stand the way it goes, the tile whose step event it sets off [4 bytes] */
 #define RAM_FIELD_WALK_AHEAD 0x7E1D70u
@@ -2261,17 +2219,6 @@
  * then the minutes [2 bytes] */
 #define RAM_MENU_TIME_PLAYED_SHOWN 0x7E0022u
 #define RAM_MENU_TIME_PLAYED_SHOWN_DP 0x22u  /* page menu */
-/* A window of the equipment screen sliding in or out, frame by frame: the slots window's three
- * bands of lines, or the list window's two per-line values and its step [6 bytes] */
-#define RAM_MENU_WINDOW_SLIDE 0x7E0022u
-#define RAM_MENU_WINDOW_SLIDE_DP 0x22u       /* page menu */
-#define RAM_MENU_WINDOW_SLIDE_TOP_LINES 0x7E0022u /* The slots window: the lines of its top band (the screen shown 32 lines up) */
-#define RAM_MENU_WINDOW_SLIDE_MIDDLE_LINES 0x7E0024u /* The slots window: the lines of its middle band (16 lines up) */
-#define RAM_MENU_WINDOW_SLIDE_BOTTOM_LINES 0x7E0026u /* The slots window: the lines of its bottom band (48 lines up), which grows as it slides in */
-#define RAM_MENU_WINDOW_SLIDE_LIST_LINE 0x7E0022u /* The list window: the line its layer is shown from (menu_window_line_values') */
-#define RAM_MENU_WINDOW_SLIDE_SLOTS_LINE 0x7E0024u /* The list window: the line the slots' rows are shown from (menu_row_line_values' and past) */
-#define RAM_MENU_WINDOW_SLIDE_STEP 0x7E0026u /* The list window: the lines both move a frame (4 sliding in, -4 out) */
-#define RAM_MENU_WINDOW_SLIDE_ROWS_LEFT 0x7E0022u /* The list of what fits being drawn ($C2:A569): the rows it has left to draw, 0 once done */
 /* The party exchange: the rows the drawing of the rows has looked at, left at the active party's
  * three [2 bytes] */
 #define RAM_MENU_EXCHANGE_ROWS_COUNTED 0x7E0024u
@@ -3680,12 +3627,6 @@
 #define RAM_MENU_BLOCK_MOVE_DEST 0x7E9696u
 /* Bytes the vblank block move copies [2 bytes] */
 #define RAM_MENU_BLOCK_MOVE_SIZE 0x7E9698u
-/* The settings screen's giving a button to an assignment ($C2:C23A): the assignments it may take
- * the button from, copied here from the ROM's list for the assignment, the second pass's over
- * the first's; nothing reads them after [8 x $1 bytes, by byte] */
-#define RAM_MENU_SETTINGS_CONFLICTS 0x7E969Au
-#define RAM_MENU_SETTINGS_CONFLICTS_COUNT 8u
-#define RAM_MENU_SETTINGS_CONFLICTS_STRIDE 0x01u
 /* A list's per-line table as its slide stages it for the vblank's block move to the list's own
  * (menu_block_move_dest): the bands in view, three bytes each (the lines, then the vertical
  * scroll), then the list's bands past them and the table's end as they rest [39 bytes] */
@@ -3748,9 +3689,6 @@
 #define RAM_MENU_EQUIPPED_LIST 0x7E9890u
 #define RAM_MENU_EQUIPPED_LIST_COUNT 5u
 #define RAM_MENU_EQUIPPED_LIST_STRIDE 0x01u
-/* Building the number tiles ($FF:F548): the hundreds digits it reads from, sixteen bytes each,
- * none (blank), 1 and 2; nothing reads them after [48 bytes] */
-#define RAM_MENU_HUNDREDS_DIGITS 0x7E9890u
 /* The names of the characters who can equip the item the items screen shows and have joined the
  * party, one after another, the places past them clear, which the window lists ($C2:AEB6) [7 x
  * $6 bytes, by user] */
@@ -3771,9 +3709,6 @@
 #define RAM_MENU_RECORD_FRAME_TILE_LIST 0x7E9890u
 #define RAM_MENU_RECORD_FRAME_TILE_LIST_COUNT 96u
 #define RAM_MENU_RECORD_FRAME_TILE_LIST_STRIDE 0x02u
-/* The save code's table of the work RAM a save holds, which a save or a load copies here from
- * the ROM as it starts and reads its regions from; nothing reads it after [40 bytes] */
-#define RAM_MENU_SAVE_REGION_TABLE 0x7E9890u
 /* The summary of the save slot being drawn, copied from $7E:7600: three $10-byte party member
  * records first [64 bytes] */
 #define RAM_MENU_SAVE_SUMMARY 0x7E9890u
@@ -3797,10 +3732,6 @@
 #define RAM_MENU_TECH_MEMBER_GROUPS 0x7E9890u
 #define RAM_MENU_TECH_MEMBER_GROUPS_COUNT 16u
 #define RAM_MENU_TECH_MEMBER_GROUPS_STRIDE 0x01u
-/* The byte after menu_tech_cost_needed: a double or triple tech's cost is read and kept a word
- * wide, so it holds the cost of the part after the member's, uncut; cleared with the cost.
- * Nothing reads it */
-#define RAM_MENU_TECH_COST_BESIDE 0x7E9891u
 /* Naming a character: the name as typed, copied and its spaces after it cleared, which the name
  * kept is taken from [6 bytes] */
 #define RAM_MENU_NAME_TRIMMED 0x7E98A0u
@@ -4463,54 +4394,6 @@
 
 /* ---- overworld ----------------------------------------------------------------------------- */
 
-/* The sprite-object mode's direct-page cells as the overworld's routines leave them: the
- * operands of a lookup of the ground or of the regions, and the follower's search for walls.
- * Scaffolding: each routine sets what it reads first, and nothing reads what they leave [28
- * bytes] */
-#define RAM_OVERWORLD_SCRATCH 0x7E0000u
-#define RAM_OVERWORLD_SCRATCH_DP 0x00u       /* page menu */
-#define RAM_OVERWORLD_SCRATCH_REACH_FIRST_X 0x7E0008u /* A test of whether two things on the map are within reach of each other ($C2:2345): the first's place across */
-#define RAM_OVERWORLD_SCRATCH_REACH_FIRST_Y 0x7E000Au /* And down */
-#define RAM_OVERWORLD_SCRATCH_REACH_SECOND_X 0x7E000Cu /* The second's place across */
-#define RAM_OVERWORLD_SCRATCH_REACH_SECOND_Y 0x7E000Eu /* And down */
-#define RAM_OVERWORLD_SCRATCH_REACH_FIRST 0x7E0010u /* Long pointer to the first's reach, four words: left, right, up and down of its place */
-#define RAM_OVERWORLD_SCRATCH_REACH_SECOND 0x7E0013u /* Long pointer to the second's reach */
-#define RAM_OVERWORLD_SCRATCH_BOARDERS 0x7E0000u /* The vehicles' controller, as the party boards: how many of the party there are (game/overworld/vehicles.c) */
-#define RAM_OVERWORLD_SCRATCH_WALKER_TABLE_ROW 0x7E0000u /* A walker's choice of its step on foot: the row of its handler's table for whether an event runs (eight bytes a row), which it adds its step to */
-#define RAM_OVERWORLD_SCRATCH_CHARACTER 0x7E0000u /* A walker's animation: the character it is (Magus's animations are his own) */
-#define RAM_OVERWORLD_SCRATCH_ANIMATION 0x7E0001u /* The sprite script the walker was given last */
-#define RAM_OVERWORLD_SCRATCH_GROUND_COLUMN 0x7E0000u /* A lookup of the ground: the 8x8 tile's column, halved to its map tile's as the lookup reads it */
-#define RAM_OVERWORLD_SCRATCH_GROUND_ROW 0x7E0001u /* And its row, halved likewise */
-#define RAM_OVERWORLD_SCRATCH_GROUND_COLUMN_ODD 0x7E0002u /* Which half of the map tile across the column is on, shifted out as the lookup reads it (0 after) */
-#define RAM_OVERWORLD_SCRATCH_GROUND_ROW_ODD 0x7E0003u /* Which half down the row is on, as the word the lookup adds to the tile group's place */
-#define RAM_OVERWORLD_SCRATCH_FEET_COLUMN 0x7E0008u /* The leader's look around: the 8x8 tile column its feet are at */
-#define RAM_OVERWORLD_SCRATCH_FEET_ROW 0x7E000Au /* And the row */
-#define RAM_OVERWORLD_SCRATCH_GROUND_MAP 0x7E0010u /* Long pointer to the map the ground lookup reads (overworld_map) */
-#define RAM_OVERWORLD_SCRATCH_GROUND_KINDS 0x7E0013u /* Long pointer to the tile groups' kinds of ground (overworld_ground_kinds) */
-#define RAM_OVERWORLD_SCRATCH_REGION_COLUMN 0x7E0000u /* A lookup of the regions: the map tile's column, halved as the lookup reads it */
-#define RAM_OVERWORLD_SCRATCH_REGION_ROW 0x7E0001u /* And the region map's row it reads (the map tile's row less one) */
-#define RAM_OVERWORLD_SCRATCH_REGION_ROW_WORD 0x7E0001u /* The music's look-up of the regions hands the row over as a word, the map tile's row less one (its high byte $FF over the map's first row) */
-#define RAM_OVERWORLD_SCRATCH_REGION_ROW_AT 0x7E0010u /* Long pointer to the region map's row the lookup reads */
-#define RAM_OVERWORLD_SCRATCH_SEARCH_AT 0x7E0005u /* A follower's search for walls: the tile it looked at last along a leg */
-#define RAM_OVERWORLD_SCRATCH_SEARCH_LINE 0x7E0006u /* The row (or column) the leg runs along */
-#define RAM_OVERWORLD_SCRATCH_SEARCH_END 0x7E0007u /* Where the leg ends */
-#define RAM_OVERWORLD_SCRATCH_SEARCH_FROM_COLUMN 0x7E0008u /* The search: the follower's 8x8 tile column */
-#define RAM_OVERWORLD_SCRATCH_SEARCH_TO_COLUMN 0x7E0009u /* The column it heads for (the leader's, or a place on the trail's) */
-#define RAM_OVERWORLD_SCRATCH_SEARCH_FROM_ROW 0x7E000Au /* The follower's row */
-#define RAM_OVERWORLD_SCRATCH_SEARCH_TO_ROW 0x7E000Bu /* The row it heads for, as a word */
-#define RAM_OVERWORLD_SCRATCH_SEARCH_BLOCKED 0x7E000Eu /* Which of the two ways round had a wall: bit 0 across first, bit 1 down first */
-#define RAM_OVERWORLD_SCRATCH_DISTANCE_ACROSS 0x7E0008u /* How far across the follower's goal is, without its sign, as it picks a route */
-#define RAM_OVERWORLD_SCRATCH_PLACE_ROW 0x7E0001u /* The places' watcher's look-up: the map tile row the leader stands on, as a word (the column under it, the look-up's result over that) */
-#define RAM_OVERWORLD_SCRATCH_LISTS_FOUND 0x7E0000u /* Which lists the look-up found the tile on, as overworld_lists_found */
-#define RAM_OVERWORLD_SCRATCH_BOX_TOP 0x7E0000u /* A follower's look for the leader: the top of the box round it */
-#define RAM_OVERWORLD_SCRATCH_BOX_BOTTOM 0x7E0002u /* The row past the box's bottom */
-#define RAM_OVERWORLD_SCRATCH_BOX_LEFT 0x7E0004u /* Its left */
-#define RAM_OVERWORLD_SCRATCH_BOX_RIGHT 0x7E0006u /* The column past its right */
-#define RAM_OVERWORLD_SCRATCH_BOX_LEADER_X 0x7E0008u /* Where the leader stands across */
-#define RAM_OVERWORLD_SCRATCH_BOX_LEADER_Y 0x7E000Au /* And down */
-#define RAM_OVERWORLD_SCRATCH_TRAIL_TRIES 0x7E0016u /* The places back along the trail a follower boxed in still has to try */
-#define RAM_OVERWORLD_SCRATCH_TRAIL_LOOKED_AT 0x7E0019u /* The trail's place it tried last, in bytes of the trail */
-#define RAM_OVERWORLD_SCRATCH_TRAIL_WAY_ROUND 0x7E001Bu /* Which ways round had a wall from the trail's place it settled on */
 /* The region of the world map the party was last seen in, whose song plays ($FF: none yet, so
  * the next look starts its song) */
 #define RAM_OVERWORLD_REGION 0x7E00EBu
@@ -8657,11 +8540,6 @@
  * it to clear [2 bytes] */
 #define RAM_SCENE_RACE_TILEMAP_PENDING 0x7E0039u
 #define RAM_SCENE_RACE_TILEMAP_PENDING_DP 0x39u /* page scene */
-/* Scratch the original packs pixels in, which only the routine that fills it reads: the scaler's
- * eight sample words ($3B-$43), the title's plane tile row's two words and its row count ($3F),
- * or the endings' eight-plane row's four words ($3B-$42) [9 bytes] */
-#define RAM_SCENE_BITPLANE_SCRATCH 0x7E003Bu
-#define RAM_SCENE_BITPLANE_SCRATCH_DP 0x3Bu  /* page scene */
 /* Nonzero while the map buffer ($1400) holds a map for VRAM: the program's upload of it
  * ($7E:783C) sends it and clears this */
 #define RAM_SCENE_MAP_BUFFER_WAITING 0x7E003Bu
@@ -9232,10 +9110,6 @@
  * lines [2 bytes] */
 #define RAM_SCENE_CIRCLE_COUNT 0x7E03F0u
 #define RAM_SCENE_CIRCLE_COUNT_DP 0xF0u      /* page decompress */
-/* The edge the curtain's first step fills its lines with: 0 at the left, $FF at the right
- * (scaffolding) */
-#define RAM_SCENE_CURTAIN_FILL 0x7E03F0u
-#define RAM_SCENE_CURTAIN_FILL_DP 0xF0u      /* page decompress */
 /* The colours' step: the part of the colour stepped toward it compared last, the last colour's
  * blue (scaffolding) [2 bytes] */
 #define RAM_SCENE_PLANET_FADE_TARGET_PART 0x7E03F0u
@@ -9244,9 +9118,6 @@
  * then the mode while the lower half is filled [2 bytes] */
 #define RAM_SCENE_CIRCLE_DECISION 0x7E03F2u
 #define RAM_SCENE_CIRCLE_DECISION_DP 0xF2u   /* page decompress */
-/* How far the curtain's last run of lines moved its edges, 8-11 pixels (scaffolding) */
-#define RAM_SCENE_CURTAIN_MOVE 0x7E03F2u
-#define RAM_SCENE_CURTAIN_MOVE_DP 0xF2u      /* page decompress */
 /* The colours' step: the last colour's red and green, stepped (scaffolding) [2 bytes] */
 #define RAM_SCENE_PLANET_FADE_STEPPED_PARTS 0x7E03F2u
 #define RAM_SCENE_PLANET_FADE_STEPPED_PARTS_DP 0xF2u /* page decompress */
@@ -9265,12 +9136,6 @@
  * bytes] */
 #define RAM_SCENE_PLANET_FADE_COLOURS_LEFT 0x7E03FEu
 #define RAM_SCENE_PLANET_FADE_COLOURS_LEFT_DP 0xFEu /* page decompress */
-/* The NMI stub (core's nmi_vector) as the scenes install their handlers in it: a long jump and
- * its target [4 bytes] */
-#define RAM_SCENE_NMI_STUB 0x7E0500u
-#define RAM_SCENE_NMI_STUB_JUMP 0x7E0500u    /* The jump's opcode, which installing a handler writes */
-#define RAM_SCENE_NMI_STUB_HANDLER 0x7E0501u /* The handler's long address */
-#define RAM_SCENE_NMI_STUB_HANDLER_IN_BANK 0x7E0501u /* The handler's address within its bank, which the frame's work swaps between its two handlers in bank C3 */
 /* The IRQ stub (core's irq_vector) as the scene boot installs its line handler in it: a long
  * jump and its target [4 bytes] */
 #define RAM_SCENE_IRQ_STUB 0x7E0504u
@@ -10029,15 +9894,6 @@
  * from it, and the ports' guards take only a page that holds it (game/warp/warp.c
  * warp_on_its_page) [2 bytes] */
 #define RAM_WARP_ZERO 0x7E0508u
-/* The warp's working cells, which its routines take in turn: the circle's builder (its radius,
- * the area left and the run down its edge, the lines of its lower half), the light's rays (a
- * ray's steps, place and band, a pixel's colour and row), the plane's scale (a product and a
- * quotient) and the palette's turn and pulse (the colours taken out, the last colour made).
- * Nothing reads them after the routine that wrote them; the ports leave their last values as
- * scaffolding [16 x $1 bytes, by byte of the work area] */
-#define RAM_WARP_WORK 0x7E050Au
-#define RAM_WARP_WORK_COUNT 16u
-#define RAM_WARP_WORK_STRIDE 0x01u
 /* Frames since the warp's picture came on: the vblank handler counts them, and the main loop
  * reads them for the plane's place, the circle's size, the colours' pulse and the warp's end [2
  * bytes] */

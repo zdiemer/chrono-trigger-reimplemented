@@ -153,7 +153,9 @@ static void alias_views(void)
     CHECK(menu_past_the_names(g) == 0x783412);
     set_oam_buffer_tile(g, 3, 0x9A);
     CHECK(h->core.sprites[3].tile == 0x9A);
-    CHECK(scene_sprite_table_byte(g, 14) == 0x9A);
+    /* The core's buffer is the owner: the address view reads its write, and
+     * the scene's table beside it keeps its own bytes. */
+    CHECK(state_host_read8(g, 0x7E070E) == 0x9A);
     hw_port_seek(g, 0x070E, 0);
     hw_port_write(g, 0xBC);
     CHECK(oam_buffer_tile(g, 3) == 0xBC);
@@ -290,7 +292,7 @@ static void projection_boundaries(void)
         CHECK(state_host_read8(g, a) == (owned ? pattern(a) : 0));
         if (!owned) retired++;
     }
-    CHECK(retired == 1395); /* 257 retired sound cells and 1,138 unused/padding bytes */
+    CHECK(retired == 1416); /* 257 retired sound cells, 1,138 unused/padding bytes and 21 of scratch nothing reads */
     CHECK(character_records_hp(g, 6) == (uint16_t)(pattern(0x7E27E3) | pattern(0x7E27E4) << 8));
     CHECK(palette_animations_frames(g, 11) == (uint16_t)(pattern(0x7E05AA) | pattern(0x7E05AB) << 8));
     /* Views cross resource portions and typed records at awkward boundaries.

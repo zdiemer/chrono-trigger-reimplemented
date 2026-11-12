@@ -54,6 +54,11 @@
 #       Without elements, byte buffers remain untyped in the storage measure.
 #       `host_blob` explains opaque byte-indexed storage with scalar public accessors.
 #       The storage report separates typed, blob-backed and image-backed variables.
+#       `same_value = true`, beside host_alias, says the alias is another name for
+#       its one owner's value (the same cell under two names), not a view of bytes
+#       another mode may have written: it reads and writes the owner's own field,
+#       with the owner's crossing check, where other aliases of bytes owners keep
+#       beside each other read whichever owner wrote them last.
 #       `host_module` selects a native C storage owner.
 #       `host_alias` instead names one owner or a list of owners: all declared
 #       bytes must lie in those owners' fields, and get no storage of their own.
@@ -618,7 +623,8 @@ source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309"
 
 [[var]]
 name = "scene_wide_tile_rows_left"
-host_alias = "scene_scaler_source_row"
+host_module = "scene"
+overlays = "scene_scaler_source_row"
 addr = "7E:0031"
 page = "scene"
 reuses = "scene_scaler_source_row"
@@ -669,17 +675,6 @@ page = "scene"
 subsystem = "scene"
 meaning = "Nonzero until the vblank upload sends a tilemap half the race marked ready; the race waits for it to clear"
 source = "game/scene/race.c, scene_race_upload_tilemap $7E:5221, scene_race_wait_for_tilemap_upload_loop $7E:5211"
-
-[[var]]
-name = "scene_bitplane_scratch"
-host_module = "scene"
-overlays = ["battle_screen_channel", "menu_object_display_fields", "menu_shop_remainder", "scene_palace_sea_scroll"]
-addr = "7E:003B"
-size = 9
-page = "scene"
-subsystem = "scene"
-meaning = "Scratch the original packs pixels in, which only the routine that fills it reads: the scaler's eight sample words ($3B-$43), the title's plane tile row's two words and its row count ($3F), or the endings' eight-plane row's four words ($3B-$42)"
-source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309; game/scene/title.c, scene_title_expand_plane_tile $7E:5E54, $7E:5EF8"
 
 [[var]]
 name = "scene_bg3_scroll_x"
@@ -767,7 +762,8 @@ source = "game/scene/title.c, scene_title_set_up $7E:5978"
 
 [[var]]
 name = "scene_title_pendulum_swing"
-host_alias = ["scene_ending_orbit_size", "scene_ending_orbit_x"]
+host_module = "scene"
+overlays = ["scene_ending_orbit_size", "scene_ending_orbit_x"]
 addr = "7E:006C"
 size = 2
 page = "scene"
@@ -887,7 +883,8 @@ source = "game/scene/race.c, scene_race_upload_tilemap $7E:5221"
 
 [[var]]
 name = "scene_race_tilemap_b_ready"
-host_alias = "scene_turn_search_left"
+host_module = "scene"
+overlays = "scene_turn_search_left"
 addr = "7E:00AC"
 page = "scene"
 subsystem = "scene"
@@ -896,7 +893,8 @@ source = "game/scene/race.c, scene_race_upload_tilemap $7E:5221"
 
 [[var]]
 name = "scene_race_tilemap_ready_high"
-host_alias = ["scene_credits_fast", "scene_turn_search_left"]
+host_module = "scene"
+overlays = ["scene_credits_fast", "scene_turn_search_left"]
 addr = "7E:00AB"
 count = 2
 stride = 2
@@ -919,7 +917,8 @@ source = "game/scene/endings.c, scene_send_the_mosaic_frame $7E:9CE2"
 
 [[var]]
 name = "scene_mosaic_frame_sent"
-host_alias = "scene_race_contact"
+host_module = "scene"
+overlays = "scene_race_contact"
 addr = "7E:00A5"
 page = "scene"
 subsystem = "scene"
@@ -929,7 +928,8 @@ source = "game/scene/endings.c, scene_show_the_mosaic $7E:9C58"
 
 [[var]]
 name = "scene_mosaic_piece_frame"
-host_alias = "scene_race_contact_across"
+host_module = "scene"
+overlays = "scene_race_contact_across"
 addr = "7E:00A7"
 page = "scene"
 subsystem = "scene"
@@ -939,7 +939,8 @@ source = "game/scene/endings.c, scene_show_the_mosaic $7E:9C58"
 
 [[var]]
 name = "scene_mosaic_piece_frames"
-host_alias = "scene_race_last_contact"
+host_module = "scene"
+overlays = "scene_race_last_contact"
 addr = "7E:00A9"
 page = "scene"
 subsystem = "scene"
@@ -949,7 +950,8 @@ source = "game/scene/endings.c, scene_show_the_mosaic $7E:9C58"
 
 [[var]]
 name = "scene_mosaic_frame_width"
-host_alias = "scene_turn_search_left"
+host_module = "scene"
+overlays = "scene_turn_search_left"
 addr = "7E:00AB"
 page = "scene"
 subsystem = "scene"
@@ -959,7 +961,8 @@ source = "game/scene/endings.c, scene_send_the_mosaic_frame $7E:9CE2 and scene_s
 
 [[var]]
 name = "scene_mosaic_frame_height"
-host_alias = "scene_turn_search_left"
+host_module = "scene"
+overlays = "scene_turn_search_left"
 addr = "7E:00AC"
 page = "scene"
 subsystem = "scene"
@@ -1621,31 +1624,6 @@ meaning = "Nonzero keeps L+R+Select+Start from resetting the console during a sc
 source = "game/scene/frame.c, read_controller_and_pause $C3:0A8E"
 
 [[var]]
-name = "scene_nmi_stub"
-host_module = "scene"
-overlays = "nmi_vector"
-addr = "7E:0500"
-stride = 4
-subsystem = "scene"
-meaning = "The NMI stub (core's nmi_vector) as the scenes install their handlers in it: a long jump and its target"
-source = "game/scene/boot.c, scene_boot $C3:0000; game/scene/frame.c, scene_frame_work $C3:08D0"
-[[var.field]]
-name = "jump"
-offset = 0
-meaning = "The jump's opcode, which installing a handler writes"
-[[var.field]]
-name = "handler"
-offset = 1
-size = 3
-meaning = "The handler's long address"
-[[var.field]]
-name = "handler_in_bank"
-host_alias = "handler"
-offset = 1
-size = 2
-meaning = "The handler's address within its bank, which the frame's work swaps between its two handlers in bank C3"
-
-[[var]]
 name = "scene_irq_stub"
 host_module = "scene"
 overlays = "irq_vector"
@@ -1981,7 +1959,8 @@ source = "game/scene/staff_roll.c, the credits' roll $7E:9E7B"
 
 [[var]]
 name = "scene_credits_over"
-host_alias = "scene_race_score"
+host_module = "scene"
+overlays = "scene_race_score"
 addr = "7E:006A"
 page = "scene"
 subsystem = "scene"
@@ -2001,7 +1980,8 @@ source = "game/scene/staff_roll.c, the staff roll's setup $7E:8EA8 and the credi
 
 [[var]]
 name = "scene_credits_fast_high"
-host_alias = "scene_race_crono_lean"
+host_module = "scene"
+overlays = "scene_race_crono_lean"
 addr = "7E:00AE"
 page = "scene"
 subsystem = "scene"
@@ -2295,7 +2275,6 @@ overlays = "menu_shop_remainder"
 addr = "7E:003B"
 page = "scene"
 subsystem = "scene"
-reuses = ["scene_bitplane_scratch"]
 meaning = "Nonzero while the map buffer ($1400) holds a map for VRAM: the program's upload of it ($7E:783C) sends it and clears this"
 source = "game/scene/rising_palace.c, the map's upload $7E:783C"
 
@@ -2394,7 +2373,8 @@ meaning = "Facing whose animation stream is playing"
 
 [[var]]
 name = "scene_turn_orbit"
-host_alias = ["scene_race_last_contact", "scene_race_tilemap_a_ready"]
+host_module = "scene"
+overlays = ["scene_race_last_contact", "scene_race_tilemap_a_ready"]
 addr = "7E:00A9"
 size = 2
 count = 1
@@ -2418,7 +2398,8 @@ source = "game/scene/turning.c, mode 5 setup and animation"
 
 [[var]]
 name = "scene_turn_next_upload"
-host_alias = ["scene_credits_fast", "scene_race_crono_lean"]
+host_module = "scene"
+overlays = ["scene_credits_fast", "scene_race_crono_lean"]
 addr = "7E:00AD"
 size = 2
 count = 1
@@ -2437,13 +2418,13 @@ size = 2
 count = 1
 stride = 2
 subsystem = "scene"
-reuses = "scene_bitplane_scratch"
 meaning = "Queued figure tile destination, FFFF when no pose changed"
 source = "game/scene/turning.c, mode 5 setup and animation"
 
 [[var]]
 name = "scene_turn_mosaic_period"
-host_alias = "scene_credits_row_vram"
+host_module = "scene"
+overlays = "scene_credits_row_vram"
 addr = "7E:0049"
 size = 1
 count = 1
@@ -2455,7 +2436,8 @@ source = "game/scene/turning.c, mode 5 setup and animation"
 
 [[var]]
 name = "scene_turn_mosaic_countdown"
-host_alias = "scene_credits_text"
+host_module = "scene"
+overlays = "scene_credits_text"
 addr = "7E:004A"
 size = 1
 count = 1
@@ -2467,7 +2449,8 @@ source = "game/scene/turning.c, mode 5 setup and animation"
 
 [[var]]
 name = "scene_turn_pick_sequence"
-host_alias = "scene_credits_text"
+host_module = "scene"
+overlays = "scene_credits_text"
 addr = "7E:004B"
 size = 1
 count = 1
@@ -2479,7 +2462,8 @@ source = "game/scene/turning.c, mode 5 setup and animation"
 
 [[var]]
 name = "scene_turn_mosaic_size"
-host_alias = "scene_dive_epoch_frames_left"
+host_module = "scene"
+overlays = "scene_dive_epoch_frames_left"
 addr = "7E:004C"
 size = 1
 count = 1
@@ -2491,7 +2475,8 @@ source = "game/scene/turning.c, mode 5 setup and animation"
 
 [[var]]
 name = "scene_turn_mosaic_previous"
-host_alias = "scene_dive_epoch_frames_left"
+host_module = "scene"
+overlays = "scene_dive_epoch_frames_left"
 addr = "7E:004D"
 size = 1
 count = 1
@@ -2511,7 +2496,7 @@ count = 2
 stride = 2
 index = "entry"
 subsystem = "scene"
-reuses = ["scene_bitplane_scratch", "scene_palace_ripple_scroll", "scene_palace_sea_scroll"]
+reuses = ["scene_palace_ripple_scroll", "scene_palace_sea_scroll"]
 meaning = "The two circle radii last drawn by the turning scene"
 source = "game/scene/turning.c, mode 5 setup and animation"
 
@@ -2537,7 +2522,7 @@ count = 2
 stride = 2
 index = "entry"
 subsystem = "scene"
-reuses = ["scene_turn_window_radius", "scene_bitplane_scratch", "scene_palace_ripple_scroll", "scene_palace_sea_scroll"]
+reuses = ["scene_turn_window_radius", "scene_palace_ripple_scroll", "scene_palace_sea_scroll"]
 meaning = "The low bytes initialized when the turning scene opens its windows"
 source = "game/scene/turning.c, mode 5 setup"
 
@@ -2741,7 +2726,7 @@ addr = "7E:003B"
 size = 2
 page = "scene"
 subsystem = "scene"
-reuses = ["scene_map_buffer_waiting", "scene_bitplane_scratch"]
+reuses = ["scene_map_buffer_waiting"]
 meaning = "The map sampler increments this word when a map is ready; the upload tests and clears its low byte, scene_map_buffer_waiting"
 source = "game/scene/rising_palace.c $7E:7441"
 
@@ -2799,7 +2784,6 @@ overlays = ["menu_object_display_fields", "menu_shop_remainder"]
 addr = "7E:003D"
 size = 2
 subsystem = "scene"
-reuses = ["scene_bitplane_scratch"]
 meaning = "The palace's scene (mode 3): BG3's horizontal scroll, which moves the column offsets' ripple across the picture by its strength each frame"
 source = "game/scene/rising_palace.c, the ripple $7E:69AF"
 
@@ -2809,7 +2793,6 @@ host_module = "scene"
 addr = "7E:003F"
 size = 2
 subsystem = "scene"
-reuses = ["scene_bitplane_scratch"]
 meaning = "The palace's scene: BG2's vertical scroll below the horizon, which a per-line effect reads; sequence channel 1's register 2 over 4"
 source = "game/scene/rising_palace.c, the ripple $7E:69AF"
 
@@ -2822,7 +2805,7 @@ size = 2
 count = 64
 index = "column: the first 32 across, the next 32 down"
 subsystem = "scene"
-reuses = ["scene_bitplane_scratch", "scene_bg3_scroll_x", "scene_mode7_matrix", "scene_title_slides", "scene_title_slide_ends", "scene_title_pendulum_phase", "scene_title_pendulum_swing", "scene_title_ignores_buttons", "scene_title_button_taken", "scene_title_wait", "scene_title_logo_x", "scene_title_logo_y", "scene_title_timer", "scene_race_tilemap_a_ready", "scene_race_tilemap_b_ready", "scene_race_tilemap_ready_high", "scene_race_demo", "scene_race_racers", "scene_race_score", "scene_race_lead", "scene_race_view", "scene_race_johnny_controls", "scene_race_boosts", "scene_race_place", "scene_race_boost_held", "scene_race_cartridge_column", "scene_race_contact", "scene_race_contact_across", "scene_race_last_contact", "scene_race_crono_lean", "scene_race_stage", "scene_race_finish_margin", "scene_race_finish_margin_high", "scene_race_divisor_start", "scene_race_steer_buttons", "scene_race_boost_timer", "scene_race_frames", "scene_race_leaving", "scene_credits_scroll", "scene_credits_row_vram", "scene_credits_text", "scene_credits_over", "scene_credits_fast", "scene_credits_fast_high", "scene_stars_last_distance", "scene_stars_drift_frames", "scene_ending_picture_half", "scene_ending_picture_source", "scene_ending_picture_zoom", "scene_ending_picture_tall", "scene_ending_caption_gap", "scene_ending_caption_shown", "scene_ending_caption_countdown", "scene_ending_window_left", "scene_ending_window_corners", "scene_ending_caption_phase", "scene_ending_captions_left", "scene_ending_captions_x", "scene_ending_captions_y", "scene_mosaic_frame", "scene_mosaic_frame_sent", "scene_mosaic_piece_frame", "scene_mosaic_piece_frames", "scene_mosaic_frame_width", "scene_mosaic_frame_height"]
+reuses = ["scene_bg3_scroll_x", "scene_mode7_matrix", "scene_title_slides", "scene_title_slide_ends", "scene_title_pendulum_phase", "scene_title_pendulum_swing", "scene_title_ignores_buttons", "scene_title_button_taken", "scene_title_wait", "scene_title_logo_x", "scene_title_logo_y", "scene_title_timer", "scene_race_tilemap_a_ready", "scene_race_tilemap_b_ready", "scene_race_tilemap_ready_high", "scene_race_demo", "scene_race_racers", "scene_race_score", "scene_race_lead", "scene_race_view", "scene_race_johnny_controls", "scene_race_boosts", "scene_race_place", "scene_race_boost_held", "scene_race_cartridge_column", "scene_race_contact", "scene_race_contact_across", "scene_race_last_contact", "scene_race_crono_lean", "scene_race_stage", "scene_race_finish_margin", "scene_race_finish_margin_high", "scene_race_divisor_start", "scene_race_steer_buttons", "scene_race_boost_timer", "scene_race_frames", "scene_race_leaving", "scene_credits_scroll", "scene_credits_row_vram", "scene_credits_text", "scene_credits_over", "scene_credits_fast", "scene_credits_fast_high", "scene_stars_last_distance", "scene_stars_drift_frames", "scene_ending_picture_half", "scene_ending_picture_source", "scene_ending_picture_zoom", "scene_ending_picture_tall", "scene_ending_caption_gap", "scene_ending_caption_shown", "scene_ending_caption_countdown", "scene_ending_window_left", "scene_ending_window_corners", "scene_ending_caption_phase", "scene_ending_captions_left", "scene_ending_captions_x", "scene_ending_captions_y", "scene_mosaic_frame", "scene_mosaic_frame_sent", "scene_mosaic_piece_frame", "scene_mosaic_piece_frames", "scene_mosaic_frame_width", "scene_mosaic_frame_height"]
 meaning = "The palace's scene: the offsets mode 2 moves BG1's columns by, BG3's first two rows as the vblank sends them: across, the ripple's shape from its strength, and down, none"
 source = "game/scene/rising_palace.c, the ripple $7E:69AF and its upload $7E:66DD"
 
@@ -4065,7 +4048,8 @@ source = "game/scene/beyond_time.c $7E:9BF9, $7E:9BD8"
 
 [[var]]
 name = "scene_fireworks_x"
-host_alias = ["scene_palace_column_words_part_6", "scene_race_johnny_controls"]
+host_module = "scene"
+overlays = ["scene_palace_column_words_part_6", "scene_race_johnny_controls"]
 addr = "7E:0097"
 count = 2
 stride = 2
@@ -4079,7 +4063,8 @@ source = "game/scene/beyond_time.c $7E:9BB8"
 
 [[var]]
 name = "scene_fireworks_y"
-host_alias = ["scene_race_boosts", "scene_race_johnny_controls"]
+host_module = "scene"
+overlays = ["scene_race_boosts", "scene_race_johnny_controls"]
 addr = "7E:0098"
 count = 2
 stride = 2
@@ -4092,7 +4077,8 @@ source = "game/scene/beyond_time.c $7E:9BB8"
 
 [[var]]
 name = "scene_fireworks_held"
-host_alias = ["scene_race_boost_held", "scene_race_place"]
+host_module = "scene"
+overlays = ["scene_race_boost_held", "scene_race_place"]
 addr = "7E:009F"
 size = 2
 page = "scene"
@@ -5351,22 +5337,11 @@ meaning = "The 24-bit pointer events $4A-$4D write through"
 source = "game/event/memory.c poke $C0:67D7"
 
 [[var]]
-name = "event_scratch"
-host_module = "event"
-overlays = ["field_scene_to_start", "menu_wave_phase"]
-addr = "7E:01D9"
-page = "field"
-size = 14
-subsystem = "event"
-meaning = "The original field/event scratch cells, $D9-$E6. Their reconstruction has retired. The menus own their wave phase at $E2-$E3; field and event temporaries no longer seed it. Named state aliases in this range, such as field_scene_to_start, remain ordinary game state"
-source = "game/menu/top_layer.c; docs/REIMPLEMENTATION.md, the menus' teardown"
-
-[[var]]
 name = "field_scene_to_start"
 host_module = "field"
 addr = "7E:01DF"
 page = "field"
-reuses = ["event_scratch", "field_sprite_range_next"]
+reuses = ["field_sprite_range_next"]
 subsystem = "field"
 meaning = "The scene the field ends for: event $FF's screen command keeps it here while the picture fades, and the field's end ($C0:3FD6) starts it, the scene engine's below $80 and bank $FD's from $80"
 source = "game/event/screen.c, end_the_field_for_a_scene $C0:3FBB; game/field/main_loop.c, field_start_the_scene $C0:3FD6"
@@ -5400,15 +5375,6 @@ size = 2
 meaning = "Byte offset of the next coordinate"
 
 [[var]]
-name = "field_sprites_left"
-host_alias = "field_frame_tiles_left"
-addr = "7E:01C9"
-page = "field"
-subsystem = "field"
-meaning = "Sprites of the current object still to write while the OAM table is built"
-source = "game/field/sprites.c, field_draw_object_sprites $C0:B309"
-
-[[var]]
 name = "field_scratch_more"
 host_module = "field"
 addr = "7E:01E7"
@@ -5418,17 +5384,6 @@ index = "cell ($E7, $E8)"
 subsystem = "field"
 meaning = "Two scratch cells past event_scratch, $E7-$E8: the larger sprite layouts' placing keeps where its last four sprites' records start there, or (the 24-sprite layout's) the third of them's ninth bit; the field keeps the original's last values there"
 source = "game/field/sprites.c, leave_larger_place ($C0:BA65, $C0:BFF2, $C0:C6E7)"
-
-[[var]]
-name = "field_work"
-host_module = "field"
-overlays = ["event_condition_resume", "event_count", "event_saved_position"]
-addr = "7E:01C1"
-page = "field"
-size = 8
-subsystem = "field"
-meaning = "Cells the field's object, sprite and graphics routines keep values in on the way: an animation's delay entry ($C1), the view window's edges or an object's screen position ($C3-$C6), the Y a tile copy saves ($C5), the Y the blocking check saves ($C7)"
-source = "the leave_ helpers of game/field/graphics.c, object_view.c, sprites.c, motion.c and object_update.c"
 
 [[var]]
 name = "field_sprite_graphics"
@@ -5480,17 +5435,6 @@ offset = 2
 meaning = "The frame tables' bank"
 
 [[var]]
-name = "field_tile_set_list_place"
-host_alias = "field_frame_entry"
-addr = "7E:01D6"
-size = 3
-page = "field"
-subsystem = "field"
-reuses = "field_frame_entry"
-meaning = "Where the loading of a tile set's graphics read the set's list of blocks (location_records' tile set, $F6:1C00 + 8 a set), left at its last block; nothing reads it after"
-source = "game/field/location.c, field_load_tile_graphics $C0:0960"
-
-[[var]]
 name = "field_sprite_range_next"
 host_module = "field"
 overlays = "field_scene_to_start"
@@ -5524,32 +5468,6 @@ size = 2
 subsystem = "field"
 meaning = "Direction ($00/$40/$80/$C0 quadrants, a byte to a turn) field_direction_to_target computes and field_start_step moves in; a word whose high byte field_direction_to_target clears, which the facing lookups index with"
 source = "game/field/motion.c field_direction_to_target $C0:ABA2, field_start_step $C0:ACFD; game/event/movement.c head"
-
-[[var]]
-name = "field_own_tile"
-host_module = "field"
-overlays = "event_searchlight_work"
-addr = "7E:01F0"
-page = "field"
-stride = 2
-subsystem = "field"
-meaning = "Tile the direction is computed from; the tile copy keeps the word here too"
-source = "game/field/motion.c field_direction_to_target $C0:ABA2; game/event/movement.c aim"
-[[var.field]]
-name = "x"
-host_alias = "copy_table"
-offset = 0
-meaning = "Tile X"
-[[var.field]]
-name = "y"
-host_alias = "copy_table"
-offset = 1
-meaning = "Tile Y"
-[[var.field]]
-name = "copy_table"
-offset = 0
-size = 2
-meaning = "Where in work RAM the tile copy's last whole table starts (its rows 256 bytes apart), which the copy leaves in these cells; nothing reads it"
 
 [[var]]
 name = "field_target_tile"
@@ -6823,16 +6741,6 @@ offset = 1
 meaning = "Vertical"
 
 [[var]]
-name = "field_layer_work"
-host_module = "field"
-addr = "7E:1D50"
-page = "field_layers"
-size = 14
-subsystem = "field"
-meaning = "Cells the layer routines keep values in on the way ($52-$5C): a row's start in a tile map, and while a map unpacks its size, the row it is on and a run's three bytes; the field keeps the original's last values there"
-source = "game/field/layers.c field_compute_layer_edges $C0:7F9A, field_unpack_tile_maps $C0:A521"
-
-[[var]]
 name = "field_layer_edge_wrap"
 host_module = "field"
 addr = "7E:1D5E"
@@ -6840,16 +6748,6 @@ page = "field_layers"
 size = 2
 subsystem = "field"
 meaning = "Where a layer's left edge column wraps round the tile map (its index less 31), set only by a layer whose left edge is the last column of a half, and read by every layer as its third VRAM address, whether it set it or not"
-source = "game/field/layers.c, field_compute_layer_edges $C0:7F9A"
-
-[[var]]
-name = "field_layer_edge_work"
-host_module = "field"
-addr = "7E:1D60"
-page = "field_layers"
-size = 16
-subsystem = "field"
-meaning = "The edge helpers' cells ($62-$6F): the column and row they were given and the counts they return; the field keeps the original's last values there"
 source = "game/field/layers.c, field_compute_layer_edges $C0:7F9A"
 
 [[var]]
@@ -7177,7 +7075,8 @@ meaning = "Vertical"
 
 [[var]]
 name = "field_map_header"
-host_alias = "field_tile_looks"
+host_module = "field"
+overlays = "field_tile_looks"
 addr = "7E:B500"
 stride = 6
 subsystem = "field"
@@ -7211,7 +7110,8 @@ meaning = "The layers color math applies to, as the field keeps it (field_color_
 
 [[var]]
 name = "field_map_data"
-host_alias = "field_tile_looks"
+host_module = "field"
+overlays = "field_tile_looks"
 addr = "7E:B506"
 subsystem = "field"
 meaning = "Start of the decompressed map layer data field_unpack_tile_maps reads through the WRAM port"
@@ -7239,17 +7139,6 @@ offset = 2
 meaning = "Its bank; bit 0 also picks the bank ($7E or $7F) the rasterizer fills the table's ends in"
 
 [[var]]
-name = "field_window_shape_edge"
-host_module = "field"
-overlays = ["menu_circle_bank_high", "scene_circle_radius", "scene_circle_table", "scene_circle_table_bank"]
-addr = "7E:0353"
-page = "field_window_shape"
-size = 8
-subsystem = "field"
-meaning = "The edge being drawn: the words X and Y of its start, then of its end, the start the upper end; the field keeps the original's last values there"
-source = "game/field/window_shape.c, the edge routine $C3:1025"
-
-[[var]]
 name = "scene_circle_center_x"
 host_alias = "field_window_shape_table"
 addr = "7E:0350"
@@ -7262,7 +7151,7 @@ source = "game/scene/circle.c, scene_draw_circle $C3:0077"
 [[var]]
 name = "scene_circle_center_y"
 host_module = "scene"
-overlays = ["field_window_shape_table", "field_window_shape_edge"]
+overlays = ["field_window_shape_table"]
 addr = "7E:0352"
 size = 2
 page = "decompress"
@@ -7328,7 +7217,7 @@ source = "game/field/screen_effects.c, event $FF $92-$95 ($C0:405D)"
 [[var]]
 name = "scene_curtain_table"
 host_module = "scene"
-overlays = ["field_window_shape_table", "field_window_shape_edge"]
+overlays = ["field_window_shape_table"]
 addr = "7E:0352"
 size = 2
 page = "decompress"
@@ -7339,7 +7228,8 @@ source = "game/field/screen_effects.c, event $FF $92-$95 ($C0:405D)"
 
 [[var]]
 name = "scene_curtain_table_bank"
-host_alias = "scene_circle_radius"
+host_module = "scene"
+overlays = "scene_circle_radius"
 addr = "7E:0354"
 page = "decompress"
 reuses = "scene_circle_radius"
@@ -7353,7 +7243,8 @@ source = "game/field/screen_effects.c, event $FF $92-$95 ($C0:405D)"
 # writes the cells' final values once.
 [[var]]
 name = "scene_curtain_table_bank_high"
-host_alias = "scene_circle_radius"
+host_module = "scene"
+overlays = "scene_circle_radius"
 addr = "7E:0355"
 page = "decompress"
 subsystem = "scene"
@@ -7370,26 +7261,6 @@ page = "decompress"
 subsystem = "scene"
 reuses = "scene_circle_table"
 meaning = "The page and bank of the curtain's pointer into the game's random bytes ($FE, $C0), which every step writes (scaffolding)"
-source = "game/scene/curtain.c, scene_sweep_the_curtain $C3:01E4"
-
-[[var]]
-name = "scene_curtain_fill"
-host_alias = "scene_circle_count"
-addr = "7E:03F0"
-page = "decompress"
-subsystem = "scene"
-reuses = "scene_circle_count"
-meaning = "The edge the curtain's first step fills its lines with: 0 at the left, $FF at the right (scaffolding)"
-source = "game/scene/curtain.c, scene_sweep_the_curtain $C3:01E4"
-
-[[var]]
-name = "scene_curtain_move"
-host_alias = "scene_circle_decision"
-addr = "7E:03F2"
-page = "decompress"
-subsystem = "scene"
-reuses = "scene_circle_decision"
-meaning = "How far the curtain's last run of lines moved its edges, 8-11 pixels (scaffolding)"
 source = "game/scene/curtain.c, scene_sweep_the_curtain $C3:01E4"
 
 [[var]]
@@ -7461,7 +7332,7 @@ addr = "7E:03F0"
 size = 2
 page = "decompress"
 subsystem = "scene"
-reuses = ["scene_circle_count", "scene_curtain_fill"]
+reuses = ["scene_circle_count"]
 meaning = "The colours' step: the part of the colour stepped toward it compared last, the last colour's blue (scaffolding)"
 source = "game/scene/planet.c, the colours' step $7E:6439"
 
@@ -7472,7 +7343,7 @@ addr = "7E:03F2"
 size = 2
 page = "decompress"
 subsystem = "scene"
-reuses = ["scene_circle_decision", "scene_curtain_move"]
+reuses = ["scene_circle_decision"]
 meaning = "The colours' step: the last colour's red and green, stepped (scaffolding)"
 source = "game/scene/planet.c, the colours' step $7E:6439"
 
@@ -7653,16 +7524,6 @@ subsystem = "field"
 meaning = "Where the quadrilateral's right-hand side starts: the lower end of the first edge drawn upward. The lines below it are filled as empty"
 source = "game/field/window_shape.c, field_rasterize_quad $C3:0011"
 
-[[var]]
-name = "field_window_shape_steps"
-host_module = "field"
-overlays = ["scene_circle_center_row_half", "scene_circle_count", "scene_circle_decision", "scene_circle_row"]
-addr = "7E:03F0"
-page = "field_window_shape"
-size = 14
-subsystem = "field"
-meaning = "The rasterizer's working cells, $F0-$FD: where the edge sequence is entered, then the fill's length ($F0), an edge's lines left ($F2), the edges left ($F4), whether the right-hand side is still to come ($F6), an edge's width and height ($F8, $FA) and its step error ($FC); the field keeps the original's last values there"
-source = "game/field/window_shape.c, field_rasterize_quad $C3:0011 and the edge routine $C3:1025"
 [[var]]
 name = "event_memory"
 host_alias = ["battle_enemies_beaten_for_the_story", "battle_result", "event_memory_storage", "menu_scene_flag", "menu_song_kept", "party_techs_unlocked", "scene_title_left_with_a_button", "shop_price_scale", "story_epoch_arrivals", "story_epoch_notes", "story_game_notes", "story_line", "story_new_game_set_up", "story_party_kept", "story_party_rules"]
@@ -8999,6 +8860,7 @@ source = "game/menu/display.c, menu_nmi_work $C2:842A; game/menu/cursor.c, the m
 [[var]]
 name = "menu_save_slot_era"
 host_alias = "menu_description_item"
+same_value = true
 addr = "7E:0D77"
 subsystem = "menu"
 meaning = "The era whose label the load screen has loaded (the ROM's table at $FF:D296 gives a location's era), loaded again (through $C2:F90C) when a slot shows another. It is the description window's menu_description_item: the load screen compares with whatever that left."
@@ -10376,7 +10238,8 @@ source = "game/menu/settings_screen.c, the options $C2:BFD4, the screen's openin
 
 [[var]]
 name = "menu_settings_option_before"
-host_alias = "menu_name_cursor_before"
+host_module = "menu"
+overlays = "menu_name_cursor_before"
 addr = "7E:007F"
 page = "menu"
 reuses = "menu_save_slot_marked"
@@ -10460,21 +10323,10 @@ overlays = ["battle_search_range", "field_tile_exits_storage_part_26", "menu_bui
 addr = "7E:9890"
 count = 8
 index = "assignment"
-reuses = ["menu_record_frame_tile_list", "menu_equipped_list", "menu_item_users_names", "menu_sort_held", "menu_save_summary", "menu_tech_cost_needed", "menu_tech_member_groups", "menu_save_region_table", "menu_hundreds_digits"]
+reuses = ["menu_record_frame_tile_list", "menu_equipped_list", "menu_item_users_names", "menu_sort_held", "menu_save_summary", "menu_tech_cost_needed", "menu_tech_member_groups"]
 subsystem = "menu"
 meaning = "The settings screen's button rows as a row is changed ($C2:C5C7): the player's own assignments, the cursor's row's made $FF, which each row is compared with to show its change; nothing reads them after"
 source = "game/menu/settings_screen.c, the button rows $C2:C5C7"
-
-[[var]]
-name = "menu_settings_conflicts"
-host_alias = ["menu_slot_row_table_values", "menu_staged_line_table_values"]
-addr = "7E:969A"
-count = 8
-index = "byte"
-reuses = ["menu_slot_row_table", "menu_staged_line_table"]
-subsystem = "menu"
-meaning = "The settings screen's giving a button to an assignment ($C2:C23A): the assignments it may take the button from, copied here from the ROM's list for the assignment, the second pass's over the first's; nothing reads them after"
-source = "game/menu/settings_screen.c, the button rows $C2:C23A"
 
 [[var]]
 name = "menu_front_tilemap"
@@ -10672,7 +10524,8 @@ source = "game/menu/shop.c, the members $C2:E017, $C2:D6E6"
 
 [[var]]
 name = "menu_shop_tab_cursor"
-host_alias = "menu_name_cursor_before"
+host_module = "menu"
+overlays = "menu_name_cursor_before"
 addr = "7E:0080"
 page = "menu"
 subsystem = "menu"
@@ -10681,7 +10534,8 @@ source = "game/menu/shop.c, the members $C2:E017, $C2:D6E6"
 
 [[var]]
 name = "menu_exchange_cursor_kept"
-host_alias = "menu_name_cursor_before"
+host_module = "menu"
+overlays = "menu_name_cursor_before"
 addr = "7E:007F"
 page = "menu"
 reuses = ["menu_settings_option_before", "menu_shop_list_cursor", "menu_save_slot_marked"]
@@ -10702,7 +10556,8 @@ source = "game/menu/naming.c, $C2:E267"
 
 [[var]]
 name = "menu_reserve_top"
-host_alias = "menu_name_cursor_before"
+host_module = "menu"
+overlays = "menu_name_cursor_before"
 addr = "7E:0080"
 page = "menu"
 reuses = "menu_shop_tab_cursor"
@@ -10787,7 +10642,8 @@ host_alias = "field_object_frame_drawn_values"
 
 [[var]]
 name = "menu_shop_list_cursor"
-host_alias = "menu_name_cursor_before"
+host_module = "menu"
+overlays = "menu_name_cursor_before"
 addr = "7E:007F"
 page = "menu"
 reuses = ["menu_save_slot_marked", "menu_settings_option_before"]
@@ -10804,7 +10660,7 @@ page = "menu"
 size = 2
 count = 6
 index = "the three members' HP amounts, then their MP amounts"
-reuses = ["menu_shop_work", "menu_time_played_shown", "menu_opening_records_loaded", "menu_slide_line", "menu_window_slide", "menu_tech_row_drawn", "menu_save_member_row", "menu_save_era_width", "menu_slide_copy", "menu_tech_rows_to_draw", "menu_tech_slide_line", "menu_tech_slide_copy"]
+reuses = ["menu_shop_work", "menu_time_played_shown", "menu_opening_records_loaded", "menu_slide_line", "menu_tech_row_drawn", "menu_save_member_row", "menu_save_era_width", "menu_slide_copy", "menu_tech_rows_to_draw", "menu_tech_slide_line", "menu_tech_slide_copy"]
 subsystem = "menu"
 meaning = "The amounts a healing works out ($C2:8ECC), the same for each member but where they are drawn at random"
 source = "game/menu/healing.c, work_out_amounts $C2:8ECC"
@@ -10815,7 +10671,7 @@ host_alias = "menu_object_display_fields"
 addr = "7E:0022"
 page = "menu"
 size = 2
-reuses = ["menu_heal_amounts", "menu_shop_work", "menu_time_played_shown", "menu_opening_records_loaded", "menu_slide_line", "menu_window_slide", "menu_tech_row_drawn"]
+reuses = ["menu_heal_amounts", "menu_shop_work", "menu_time_played_shown", "menu_opening_records_loaded", "menu_slide_line", "menu_tech_row_drawn"]
 subsystem = "menu"
 meaning = "A frame of the rising numbers: the listed members it has still to draw"
 source = "emulator-oracle:game:menu:healing_bridge.c, a kind's rise $C2:9047"
@@ -10826,7 +10682,7 @@ host_alias = "menu_object_display_fields"
 addr = "7E:0022"
 size = 2
 page = "menu"
-reuses = ["menu_time_played_shown", "menu_opening_records_loaded", "menu_slide_line", "menu_window_slide", "menu_tech_row_drawn"]
+reuses = ["menu_time_played_shown", "menu_opening_records_loaded", "menu_slide_line", "menu_tech_row_drawn"]
 subsystem = "menu"
 meaning = "The shop's routines' working word, each its own: the row of a list being drawn, left past the last; the goods priced; the record's place the panel puts an item in; the members whose colours the equipping went through"
 source = "game/menu/shop.c, $C2:DD02, $C2:DF31, $C2:DB9F, $C2:DD7C; game/menu/shop_equipment.c, $C2:E072"
@@ -11385,7 +11241,8 @@ source = "game/menu/text.c, menu_draw_tile $C2:EF97, attribute control code $C2:
 
 [[var]]
 name = "menu_save_slot_marked"
-host_alias = "menu_name_cursor_before"
+host_module = "menu"
+overlays = "menu_name_cursor_before"
 addr = "7E:007F"
 page = "menu"
 subsystem = "menu"
@@ -12226,6 +12083,7 @@ source = "game/menu/equipment.c"
 [[var]]
 name = "menu_member_pointed"
 host_alias = "menu_tech_list_shown_before"
+same_value = true
 addr = "7E:0083"
 page = "menu"
 subsystem = "menu"
@@ -12674,7 +12532,7 @@ addr = "7E:969A"
 size = 0x27
 subsystem = "menu"
 meaning = "A list's per-line table as its slide stages it for the vblank's block move to the list's own (menu_block_move_dest): the bands in view, three bytes each (the lines, then the vertical scroll), then the list's bands past them and the table's end as they rest"
-reuses = ["menu_staged_line_table", "menu_slot_row_table", "menu_slot_row_table_end", "menu_settings_conflicts"]
+reuses = ["menu_staged_line_table", "menu_slot_row_table", "menu_slot_row_table_end"]
 source = "game/menu/lists.c, menu_start_list_slide $C2:EB9B, menu_slide_list_a_frame $C2:EB1F"
 
 [[var]]
@@ -12729,54 +12587,6 @@ index = "slot: the weapon, the helmet, the armour, the accessory; then the recor
 subsystem = "menu"
 meaning = "What a member has on, in the order the card lists it, copied out of the status record as the card draws it ($C2:A6F0)"
 source = "game/menu/equipment_windows.c"
-
-[[var]]
-name = "menu_window_slide"
-host_module = "menu"
-overlays = "menu_object_display_fields"
-addr = "7E:0022"
-reuses = ["menu_slide_line", "menu_opening_records_loaded", "menu_time_played_shown", "menu_save_member_row", "menu_slide_copy", "menu_save_era_width"]
-page = "menu"
-stride = 6
-subsystem = "menu"
-meaning = "A window of the equipment screen sliding in or out, frame by frame: the slots window's three bands of lines, or the list window's two per-line values and its step"
-source = "game/menu/equipment_windows.c"
-  [[var.field]]
-  name = "top_lines"
-  host_alias = "list_line"
-  offset = 0
-  meaning = "The slots window: the lines of its top band (the screen shown 32 lines up)"
-  [[var.field]]
-  name = "middle_lines"
-  host_alias = "slots_line"
-  offset = 2
-  meaning = "The slots window: the lines of its middle band (16 lines up)"
-  [[var.field]]
-  name = "bottom_lines"
-  host_alias = "step"
-  offset = 4
-  meaning = "The slots window: the lines of its bottom band (48 lines up), which grows as it slides in"
-  [[var.field]]
-  name = "list_line"
-  offset = 0
-  size = 2
-  meaning = "The list window: the line its layer is shown from (menu_window_line_values')"
-  [[var.field]]
-  name = "slots_line"
-  offset = 2
-  size = 2
-  meaning = "The list window: the line the slots' rows are shown from (menu_row_line_values' and past)"
-  [[var.field]]
-  name = "step"
-  offset = 4
-  size = 2
-  meaning = "The list window: the lines both move a frame (4 sliding in, -4 out)"
-  [[var.field]]
-  name = "rows_left"
-  host_alias = "list_line"
-  offset = 0
-  size = 2
-  meaning = "The list of what fits being drawn ($C2:A569): the rows it has left to draw, 0 once done"
 
 [[var]]
 name = "menu_window_line_values"
@@ -13392,7 +13202,7 @@ source = "game/menu/techs.c, menu_note_party_techs $FF:F813, menu_tech_cost_for 
 [[var]]
 name = "menu_tech_row_drawn"
 host_alias = "menu_object_display_fields"
-reuses = ["menu_time_played_shown", "menu_opening_records_loaded", "menu_slide_line", "menu_window_slide"]
+reuses = ["menu_time_played_shown", "menu_opening_records_loaded", "menu_slide_line"]
 addr = "7E:0022"
 page = "menu"
 size = 2
@@ -13403,7 +13213,7 @@ source = "game/menu/tech_screen.c, $C2:BAFC"
 [[var]]
 name = "menu_tech_rows_to_draw"
 host_alias = "menu_object_display_fields"
-reuses = ["menu_window_slide", "menu_tech_slide_line"]
+reuses = ["menu_tech_slide_line"]
 addr = "7E:0024"
 page = "menu"
 size = 2
@@ -13414,7 +13224,6 @@ source = "game/menu/tech_screen.c, $C2:BA4F"
 [[var]]
 name = "menu_tech_slide_line"
 host_alias = "menu_object_display_fields"
-reuses = "menu_window_slide"
 addr = "7E:0024"
 page = "menu"
 size = 2
@@ -13429,7 +13238,7 @@ host_alias = "menu_object_display_fields"
 addr = "7E:0022"
 page = "menu"
 size = 2
-reuses = ["menu_heal_amounts", "menu_amounts_left", "menu_shop_work", "menu_time_played_shown", "menu_opening_records_loaded", "menu_slide_line", "menu_window_slide", "menu_tech_row_drawn"]
+reuses = ["menu_heal_amounts", "menu_amounts_left", "menu_shop_work", "menu_time_played_shown", "menu_opening_records_loaded", "menu_slide_line", "menu_tech_row_drawn"]
 subsystem = "menu"
 meaning = "The party exchange: the place a member's row is drawn at, as an offset into the places' tables (two bytes a place, menu_data.h's exchange places), which the rows' loops leave past the last"
 source = "game/menu/exchange.c, $C2:CCDB, $C2:CD9B, $C2:C85B"
@@ -13440,7 +13249,7 @@ host_alias = "menu_object_display_fields"
 addr = "7E:0024"
 page = "menu"
 size = 2
-reuses = ["menu_heal_amounts", "menu_save_member_row", "menu_window_slide", "menu_tech_rows_to_draw", "menu_tech_slide_line"]
+reuses = ["menu_heal_amounts", "menu_save_member_row", "menu_tech_rows_to_draw", "menu_tech_slide_line"]
 subsystem = "menu"
 meaning = "The party exchange: the rows the drawing of the rows has looked at, left at the active party's three"
 source = "game/menu/exchange.c, $C2:CCDB"
@@ -13451,14 +13260,14 @@ host_alias = "menu_object_display_fields"
 addr = "7E:0024"
 page = "menu"
 size = 2
-reuses = ["menu_heal_amounts", "menu_save_member_row", "menu_window_slide", "menu_tech_rows_to_draw", "menu_tech_slide_line", "menu_exchange_rows_counted"]
+reuses = ["menu_heal_amounts", "menu_save_member_row", "menu_tech_rows_to_draw", "menu_tech_slide_line", "menu_exchange_rows_counted"]
 subsystem = "menu"
 meaning = "The party exchange's slide: where in the tilemap below the screen the reserve's column is shown from this frame, its column in the low byte and its tile row in the high"
 source = "game/menu/exchange.c, $C2:C85B, $C2:C8BA"
 [[var]]
 name = "menu_tech_slide_copy"
 host_alias = "menu_object_display_fields"
-reuses = "menu_window_slide"
+reuses = "menu_save_era_width"
 addr = "7E:0026"
 page = "menu"
 size = 2
@@ -13477,7 +13286,8 @@ source = "game/menu/tech_screen.c, $C2:B5C8"
 
 [[var]]
 name = "menu_tech_cost_needed"
-host_alias = "menu_built_upload_values"
+host_module = "menu"
+overlays = "menu_built_upload_values"
 addr = "7E:9890"
 reuses = ["menu_record_frame_tile_list", "menu_equipped_list", "menu_item_users_names", "menu_sort_held", "menu_save_summary"]
 subsystem = "menu"
@@ -13485,14 +13295,6 @@ meaning = "The MP a member row's member needs for the tech on the techs screen's
 source = "game/menu/tech_screen.c, $C2:BA2F, $C2:BC22"
 
 
-[[var]]
-name = "menu_tech_cost_beside"
-host_alias = "menu_built_upload_values"
-addr = "7E:9891"
-reuses = ["menu_record_frame_tile_list", "menu_equipped_list", "menu_item_users_names", "menu_sort_held", "menu_save_summary", "menu_tech_member_groups"]
-subsystem = "menu"
-meaning = "The byte after menu_tech_cost_needed: a double or triple tech's cost is read and kept a word wide, so it holds the cost of the part after the member's, uncut; cleared with the cost. Nothing reads it"
-source = "game/menu/techs.c, $C2:BC22"
 [[var]]
 name = "menu_tech_member_groups"
 host_module = "menu"
@@ -13610,7 +13412,7 @@ name = "menu_name_trimmed"
 host_module = "menu"
 overlays = "battle_enemy_effect_period"
 addr = "7E:98A0"
-reuses = ["menu_record_frame_tile_list", "menu_item_users_names", "menu_sort_held", "menu_save_region_table", "menu_hundreds_digits"]
+reuses = ["menu_record_frame_tile_list", "menu_item_users_names", "menu_sort_held"]
 size = 6
 subsystem = "menu"
 meaning = "Naming a character: the name as typed, copied and its spaces after it cleared, which the name kept is taken from"
@@ -13624,7 +13426,7 @@ addr = "7E:9890"
 stride = 8
 subsystem = "menu"
 meaning = "An upload to VRAM as a routine builds its record in work RAM for the queue ($C2:838E), as the description's typing builds its two each frame; the queue copies it, and nothing reads it after"
-reuses = ["menu_settings_buttons_before", "menu_record_frame_tile_list", "menu_equipped_list", "menu_item_users_names", "menu_sort_held", "menu_tech_cost_needed", "menu_tech_member_groups", "menu_save_summary", "menu_save_region_table", "menu_hundreds_digits"]
+reuses = ["menu_settings_buttons_before", "menu_record_frame_tile_list", "menu_equipped_list", "menu_item_users_names", "menu_sort_held", "menu_tech_cost_needed", "menu_tech_member_groups", "menu_save_summary"]
 source = "game/menu/vram.c, menu_leave_built_upload"
   [[var.field]]
   name = "vram"
@@ -13712,7 +13514,7 @@ page = "menu"
 size = 2
 subsystem = "menu"
 meaning = "The settings' description: where its option's text was laid, kept from the option's typing for its value's, which goes a tile past the text (menu_description_value_tile on); the original keeps it in its first cells, between the two typings of a task and from one task to the next"
-reuses = ["menu_heal_amounts", "menu_window_slide", "menu_save_era_width", "menu_slide_copy", "menu_tech_slide_copy"]
+reuses = ["menu_heal_amounts", "menu_save_era_width", "menu_slide_copy", "menu_tech_slide_copy"]
 source = "game/menu/description.c, $C2:F9B2, $C2:FA06"
 
 [[var]]
@@ -13723,7 +13525,7 @@ addr = "7E:0028"
 page = "menu"
 subsystem = "menu"
 meaning = "The settings' description: how many tiles along the option's text its value starts (with the one between), kept with menu_description_value_line"
-reuses = ["menu_heal_amounts", "menu_window_slide"]
+reuses = ["menu_heal_amounts"]
 source = "game/menu/description.c, $C2:F9B2, $C2:FA06"
 
 [[var]]
@@ -13802,17 +13604,6 @@ meaning = "How many times the game has been saved: each save counts one, and the
 source = "game/menu/saves.c, menu_save_game $FF:F9FB; game/menu/save_screen.c, the summary's reading $C2:D19F"
 
 [[var]]
-name = "menu_save_region_table"
-host_module = "menu"
-overlays = ["battle_enemy_drift_from_x", "battle_enemy_drift_from_y", "battle_enemy_drifting", "battle_enemy_effect_period", "battle_search_range", "field_tile_exits_storage_part_26", "menu_built_upload_values"]
-addr = "7E:9890"
-size = 0x28
-reuses = ["menu_save_summary", "menu_record_frame_tile_list", "menu_equipped_list", "menu_tech_cost_needed", "menu_tech_member_groups", "menu_tech_cost_beside"]
-subsystem = "menu"
-meaning = "The save code's table of the work RAM a save holds, which a save or a load copies here from the ROM as it starts and reads its regions from; nothing reads it after"
-source = "game/menu/saves.c, $FF:F9FB, $FF:FAA3, $FF:FAED"
-
-[[var]]
 name = "menu_rock_techs_ready"
 host_module = "menu"
 addr = "7E:04A4"
@@ -13882,17 +13673,6 @@ reuses = ["menu_tech_members", "menu_tech_parts_column", "menu_starting_record_a
 subsystem = "menu"
 meaning = "The menus' main task's turn: where the running screen's list of steps is, a long address into bank $C2, which the turn reads the step through; nothing reads it after"
 source = "game/menu/screens.c, the main task's turn $C2:826F"
-
-[[var]]
-name = "menu_hundreds_digits"
-host_module = "menu"
-overlays = ["battle_effect_steps_start", "battle_enemy_drift_from_x", "battle_enemy_drift_from_y", "battle_enemy_drifting", "battle_enemy_effect_period", "battle_search_range", "field_tile_exits_storage_part_26", "menu_built_upload_values"]
-addr = "7E:9890"
-size = 0x30
-reuses = ["menu_save_region_table"]
-subsystem = "menu"
-meaning = "Building the number tiles ($FF:F548): the hundreds digits it reads from, sixteen bytes each, none (blank), 1 and 2; nothing reads them after"
-source = "game/menu/digits.c, menu_build_number_tiles $FF:F548"
 
 [[var]]
 name = "menu_number_tiles"
@@ -20301,7 +20081,7 @@ source = "game/battle/setup_reset.c setup_reset_for_new_fight $CC:E2E4"
 [[var]]
 name = "battle_draw_work"
 host_module = "battle"
-overlays = ["field_layer_edge_wrap", "field_layer_edge_work", "field_layer_work", "field_walk_ahead"]
+overlays = ["field_layer_edge_wrap", "field_walk_ahead"]
 host_blob = "Opaque bytes, indexed by byte position rather than game elements."
 addr = "7E:1D50"
 page = "battle_sprites"
@@ -22456,6 +22236,7 @@ source = "game/battle/buttons.c battle_update_button_repeat $CD:0340"
 [[var]]
 name = "battle_joypad"
 host_alias = "input_mapped"
+same_value = true
 addr = "7E:00F8"
 page = "battle"
 size = 2
@@ -23257,7 +23038,8 @@ source = "$CD:2BA8, $CD:2BD2"
 
 [[var]]
 name = "battle_screen_orbit_circle"
-host_alias = "battle_screen_swing_position"
+host_module = "battle"
+overlays = "battle_screen_swing_position"
 addr = "7E:CA7F"
 count = 2
 stride = 0x10
@@ -23269,7 +23051,8 @@ source = "game/battle/screen_layers.c orbit_layer $CD:1CD5"
 
 [[var]]
 name = "battle_screen_orbit_bob"
-host_alias = "battle_screen_swing_position"
+host_module = "battle"
+overlays = "battle_screen_swing_position"
 addr = "7E:CA80"
 count = 2
 stride = 0x10
@@ -23281,7 +23064,8 @@ source = "game/battle/screen_layers.c orbit_layer $CD:1CD5"
 
 [[var]]
 name = "battle_screen_orbit_sway"
-host_alias = "battle_screen_swing_position"
+host_module = "battle"
+overlays = "battle_screen_swing_position"
 addr = "7E:CA81"
 count = 2
 stride = 0x10
@@ -23293,11 +23077,13 @@ source = "game/battle/screen_layers.c orbit_layer $CD:1CD5"
 
 [[var]]
 name = "battle_screen_drift"
-host_alias = ["battle_screen_swing_position", "battle_screen_swing_speed", "battle_screen_swing_step"]
+host_module = "battle"
+overlays = ["battle_screen_swing_position", "battle_screen_swing_speed", "battle_screen_swing_step"]
 addr = "7E:CA7A"
 count = 6
 rows = 2
 row_stride = 0x10
+elements = { name = "amounts", size = 1, meaning = "A drift amount, 0-31 pixels." }
 index = "amount (the first and fourth across, the others by the command's operand), by screen script channel"
 reuses = ["battle_screen_swing_speed", "battle_screen_swing_step", "battle_screen_swing_position", "battle_screen_orbit_circle"]
 subsystem = "battle"
@@ -24694,6 +24480,7 @@ source = "game/battle/draw_objects.c copy_tiles $CF:EB94"
 [[var]]
 name = "battle_effect_sprite_attributes"
 host_alias = "battle_step_member"
+same_value = true
 addr = "7E:00A1"
 page = "battle"
 subsystem = "battle"
@@ -24817,18 +24604,6 @@ size = 2
 subsystem = "warp"
 meaning = "A zero the warp keeps on its page and starts its indexes from: the original's routines index from it, and the ports' guards take only a page that holds it (game/warp/warp.c warp_on_its_page)"
 source = "game/warp/warp.c warp_set_up $FD:DBB3"
-
-[[var]]
-name = "warp_work"
-host_module = "warp"
-overlays = ["palette_animation_pointer", "palette_animation_scratch"]
-host_blob = "Opaque bytes, indexed by byte position rather than game elements."
-addr = "7E:050A"
-count = 16
-index = "byte of the work area"
-subsystem = "warp"
-meaning = "The warp's working cells, which its routines take in turn: the circle's builder (its radius, the area left and the run down its edge, the lines of its lower half), the light's rays (a ray's steps, place and band, a pixel's colour and row), the plane's scale (a product and a quotient) and the palette's turn and pulse (the colours taken out, the last colour made). Nothing reads them after the routine that wrote them; the ports leave their last values as scaffolding"
-source = "game/warp/picture.c, game/warp/circle.c, game/warp/warp.c ($FD:DB97, $FD:DCBD, $FD:EB8B, $FD:ECD5, $FD:ED89, $FD:F123)"
 
 [[var]]
 name = "warp_frame"
@@ -25189,207 +24964,6 @@ meaning = "Vertical"
 # ---- the overworld (game/overworld/): the world map, walked on foot -----------
 # It runs in the sprite-object mode ($C2:0000): the party are objects of that
 # mode, on its page and in its slots (menu_object_slots' walker fields).
-
-[[var]]
-name = "overworld_scratch"
-host_alias = ["field_after_battle_test_byte", "menu_object_scratch_values", "menu_scratch_storage", "scene_sprite_high_pointer", "scene_sprite_index", "scene_sprite_offset_x"]
-addr = "7E:0000"
-stride = 0x1C
-page = "menu"
-subsystem = "overworld"
-meaning = "The sprite-object mode's direct-page cells as the overworld's routines leave them: the operands of a lookup of the ground or of the regions, and the follower's search for walls. Scaffolding: each routine sets what it reads first, and nothing reads what they leave"
-source = "game/overworld/terrain.c ($C2:62AE, $C2:62ED, $C2:39D5), game/overworld/followers.c ($C2:3FBC, $C2:41B5)"
-  [[var.field]]
-  name = "reach_first_x"
-  offset = 0x08
-  size = 2
-  meaning = "A test of whether two things on the map are within reach of each other ($C2:2345): the first's place across"
-  [[var.field]]
-  name = "reach_first_y"
-  offset = 0x0A
-  size = 2
-  meaning = "And down"
-  [[var.field]]
-  name = "reach_second_x"
-  offset = 0x0C
-  size = 2
-  meaning = "The second's place across"
-  [[var.field]]
-  name = "reach_second_y"
-  offset = 0x0E
-  size = 2
-  meaning = "And down"
-  [[var.field]]
-  name = "reach_first"
-  offset = 0x10
-  size = 3
-  meaning = "Long pointer to the first's reach, four words: left, right, up and down of its place"
-  [[var.field]]
-  name = "reach_second"
-  offset = 0x13
-  size = 3
-  meaning = "Long pointer to the second's reach"
-  [[var.field]]
-  name = "boarders"
-  offset = 0x00
-  meaning = "The vehicles' controller, as the party boards: how many of the party there are (game/overworld/vehicles.c)"
-  [[var.field]]
-  name = "walker_table_row"
-  offset = 0x00
-  meaning = "A walker's choice of its step on foot: the row of its handler's table for whether an event runs (eight bytes a row), which it adds its step to"
-  [[var.field]]
-  name = "character"
-  offset = 0x00
-  meaning = "A walker's animation: the character it is (Magus's animations are his own)"
-  [[var.field]]
-  name = "animation"
-  offset = 0x01
-  meaning = "The sprite script the walker was given last"
-  [[var.field]]
-  name = "ground_column"
-  offset = 0x00
-  meaning = "A lookup of the ground: the 8x8 tile's column, halved to its map tile's as the lookup reads it"
-  [[var.field]]
-  name = "ground_row"
-  offset = 0x01
-  meaning = "And its row, halved likewise"
-  [[var.field]]
-  name = "ground_column_odd"
-  offset = 0x02
-  meaning = "Which half of the map tile across the column is on, shifted out as the lookup reads it (0 after)"
-  [[var.field]]
-  name = "ground_row_odd"
-  offset = 0x03
-  size = 2
-  meaning = "Which half down the row is on, as the word the lookup adds to the tile group's place"
-  [[var.field]]
-  name = "feet_column"
-  offset = 0x08
-  size = 2
-  meaning = "The leader's look around: the 8x8 tile column its feet are at"
-  [[var.field]]
-  name = "feet_row"
-  offset = 0x0A
-  size = 2
-  meaning = "And the row"
-  [[var.field]]
-  name = "ground_map"
-  offset = 0x10
-  size = 3
-  meaning = "Long pointer to the map the ground lookup reads (overworld_map)"
-  [[var.field]]
-  name = "ground_kinds"
-  offset = 0x13
-  size = 3
-  meaning = "Long pointer to the tile groups' kinds of ground (overworld_ground_kinds)"
-  [[var.field]]
-  name = "region_column"
-  offset = 0x00
-  meaning = "A lookup of the regions: the map tile's column, halved as the lookup reads it"
-  [[var.field]]
-  name = "region_row"
-  offset = 0x01
-  meaning = "And the region map's row it reads (the map tile's row less one)"
-  [[var.field]]
-  name = "region_row_word"
-  offset = 0x01
-  size = 2
-  meaning = "The music's look-up of the regions hands the row over as a word, the map tile's row less one (its high byte $FF over the map's first row)"
-  [[var.field]]
-  name = "region_row_at"
-  offset = 0x10
-  size = 3
-  meaning = "Long pointer to the region map's row the lookup reads"
-  [[var.field]]
-  name = "search_at"
-  offset = 0x05
-  meaning = "A follower's search for walls: the tile it looked at last along a leg"
-  [[var.field]]
-  name = "search_line"
-  offset = 0x06
-  meaning = "The row (or column) the leg runs along"
-  [[var.field]]
-  name = "search_end"
-  offset = 0x07
-  meaning = "Where the leg ends"
-  [[var.field]]
-  name = "search_from_column"
-  offset = 0x08
-  meaning = "The search: the follower's 8x8 tile column"
-  [[var.field]]
-  name = "search_to_column"
-  offset = 0x09
-  meaning = "The column it heads for (the leader's, or a place on the trail's)"
-  [[var.field]]
-  name = "search_from_row"
-  offset = 0x0A
-  meaning = "The follower's row"
-  [[var.field]]
-  name = "search_to_row"
-  offset = 0x0B
-  size = 2
-  meaning = "The row it heads for, as a word"
-  [[var.field]]
-  name = "search_blocked"
-  offset = 0x0E
-  meaning = "Which of the two ways round had a wall: bit 0 across first, bit 1 down first"
-  [[var.field]]
-  name = "distance_across"
-  offset = 0x08
-  size = 2
-  meaning = "How far across the follower's goal is, without its sign, as it picks a route"
-  [[var.field]]
-  name = "place_row"
-  offset = 0x01
-  size = 2
-  meaning = "The places' watcher's look-up: the map tile row the leader stands on, as a word (the column under it, the look-up's result over that)"
-  [[var.field]]
-  name = "lists_found"
-  offset = 0x00
-  meaning = "Which lists the look-up found the tile on, as overworld_lists_found"
-  [[var.field]]
-  name = "box_top"
-  offset = 0x00
-  size = 2
-  meaning = "A follower's look for the leader: the top of the box round it"
-  [[var.field]]
-  name = "box_bottom"
-  offset = 0x02
-  size = 2
-  meaning = "The row past the box's bottom"
-  [[var.field]]
-  name = "box_left"
-  offset = 0x04
-  size = 2
-  meaning = "Its left"
-  [[var.field]]
-  name = "box_right"
-  offset = 0x06
-  size = 2
-  meaning = "The column past its right"
-  [[var.field]]
-  name = "box_leader_x"
-  offset = 0x08
-  size = 2
-  meaning = "Where the leader stands across"
-  [[var.field]]
-  name = "box_leader_y"
-  offset = 0x0A
-  size = 2
-  meaning = "And down"
-  [[var.field]]
-  name = "trail_tries"
-  offset = 0x16
-  meaning = "The places back along the trail a follower boxed in still has to try"
-  [[var.field]]
-  name = "trail_looked_at"
-  offset = 0x19
-  size = 2
-  meaning = "The trail's place it tried last, in bytes of the trail"
-  [[var.field]]
-  name = "trail_way_round"
-  offset = 0x1B
-  meaning = "Which ways round had a wall from the trail's place it settled on"
 
 [[var]]
 name = "overworld_region"
@@ -26205,7 +25779,6 @@ host_module = "field"
 addr = "7E:01C9"
 page = "field"
 size = 2
-reuses = "field_sprites_left"
 subsystem = "field"
 meaning = "The frame builder's count of a run of a frame's tiles still to draw, a word"
 source = "game/field/frames.c, draw_run ($C0:CAD9)"
@@ -27031,6 +26604,7 @@ meaning = "Clear: only the list's clearing writes it (a weapon's record would ha
 [[var]]
 name = "battle_turn_member"
 host_alias = "battle_acting_for_itself"
+same_value = true
 addr = "7E:B3F4"
 subsystem = "battle"
 meaning = "The party member whose chosen action is carried out, whose record the turn clears as it ends ($C1:B9C4, $C1:BCF9). It is battle_acting_for_itself: the member whose status picked its action is the one the turn carries out."

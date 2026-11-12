@@ -365,7 +365,7 @@ class Var:
 
     KEYS = {"name", "addr", "size", "count", "stride", "index", "page", "dp",
             "subsystem", "meaning", "source", "field", "rows", "row_stride", "unchecked", "reuses", "host_module", "host_alias", "host_blob", "elements",
-            "overlays"}
+            "overlays", "same_value"}
 
     def __init__(self, raw, pages):
         where = "var %r" % raw.get("name")
@@ -411,6 +411,11 @@ class Var:
                 raise MapError("%s: host_alias must name an owning variable" % where)
             if self.host_module:
                 raise MapError("%s: an alias has no independent host_module" % where)
+        # An alias that is another name for its owner's value, not a view of
+        # bytes another mode may have written last (owner_value).
+        self.same_value = raw.get("same_value", False)
+        if self.same_value not in (False, True) or (self.same_value and self.host_alias is None):
+            raise MapError("%s: same_value marks an alias that names its owner's own value" % where)
         self.index = raw.get("index")
         self.size = raw.get("size", 1)
         self.count = raw.get("count", 1)
@@ -572,6 +577,7 @@ class RamMap:
         # a new game accessor or changing the variable-count denominator.
         self.owners = [Var(raw, self.pages) for raw in doc.get("owner", [])]
         for v in self.owners:
+            v.storage_only = True
             if not v.host_module or v.host_alias:
                 raise MapError("%s: an owner needs host_module and cannot alias a variable" % v.name)
         self.images = [Image(raw) for raw in doc.get("image", [])]
@@ -1456,11 +1462,68 @@ def width_of(a):
     return 1 if a.blob or a.table else a.size
 
 
+def owner_value(a):
+    """For an alias marked `same_value`, each of whose values is exactly one
+    value of its one owner (the same width at the same place, an element for an
+    element): the owner's accessor and the C index of the owner's element for
+    the alias's; else None. Such an alias is another name for the owner's
+    value: it reads and writes the owner's own field, beside other modes'
+    fields as the owner does, where other aliases of shared bytes read the
+    address view (whichever owner wrote them last)."""
+    v = a.var
+    if (not v.same_value or not v.host_alias or len(v.host_owners) != 1 or v.on_instances() or v.rows or
+            (a.field and a.field.host_alias) or a.blob or a.elements.name):
+        return None
+    owner = v.host_owner
+    if owner.rows or owner.on_instances():
+        return None
+    for f in owner.fields or [None]:
+        if f and f.host_alias:
+            continue
+        oa = Accessor(owner, f)
+        if oa.blob or oa.elements.name or oa.size != a.size:
+            continue
+        first, rest = divmod(a.addr - oa.addr, owner.stride)
+        if rest or first < 0 or first + v.count > owner.count or (v.count > 1 and v.stride != owner.stride):
+            continue
+        if owner.count == 1:
+            return oa, None
+        index = index_param(v.index) if v.count > 1 else None
+        return oa, ("%du" % first if index is None else "%du + %s" % (first, index) if first else index)
+    return None
+
+
 def render_host_accessor(a, ids, ov):
     out = []
-    # An owner beside others keeps its own field; its writes tell the address
-    # view it holds the byte now, and its reads count a byte another owner
-    # wrote last (the original would have read that owner's value).
+    same = owner_value(a) if ov.touches(a) else None
+    if a.var.same_value and ov.touches(a) and not same and not a.unchecked:
+        raise MapError("%s: same_value needs an alias that is one owner value, element for element" % a.name)
+    if same:
+        # Another name for one owner value: the owner's own field, checked and
+        # claimed as the owner's accessor does.
+        oa, index = same
+        member = host_member(oa, element=index)
+        width = a.size
+        for write in (False, True):
+            out += [a.signature(write), "{"]
+            name = ("set_" if write else "") + a.name
+            out += ['    IN_RANGE(g, %d, "%s", "%s", %s, %s);' % (ids[a.var.name], name, what, arg, limit)
+                    for arg, limit, what in a.bounds()]
+            bad = " || ".join("%s >= %s" % (arg, limit) for arg, limit, _ in Accessor(a.var, a.field).bounds())
+            if bad:
+                fallback = ("w%d(g, %s, v); return;" if write else "return r%d(g, %s);") % (width * 8, a.address())
+                out += ["    if (%s) { %s }" % (bad, fallback)]
+            out += ["    if (!peeking)", "        state_host_game_access(g, %d);" % (width * 8)]
+            out += ["    %sVarsHost *h = state_host_vars%s(g);" % ("" if write else "const ", "" if write else "_const")]
+            place = ov.place(oa)
+            if write:
+                out += ["    %s = %s;" % (member, "v & 0xFFFFFFu" if width == 3 else "v"),
+                        "    vars_host_claim(h, %s, %du, %s);" % (a.address(), width, place)]
+            else:
+                out += ["    vars_host_check(h, %s, %du, %s);" % (a.address(), width, place),
+                        "    return %s;" % member]
+            out += ["}"]
+        return out
     overlaid = ov.touches(a) and not (a.var.host_alias or (a.field and a.field.host_alias))
     claim = "    vars_host_claim(h, %s, %du, %s);" % (a.address(), width_of(a), ov.place(a)) if overlaid else None
     check = "    vars_host_check(h, %s, %du, %s);" % (a.address(), width_of(a), ov.place(a)) if overlaid else None
