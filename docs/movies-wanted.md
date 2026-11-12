@@ -1,57 +1,25 @@
 # Movies wanted
 
-The game code no movie in the library executes, grouped by what sets it off in
-the game, and the movies that would reach it. Shadow mode only checks what a
-movie runs, so code nobody runs rests on fuzzing alone (TODO.md, "Movies and
-coverage"). This is a ledger for picking the next movie to record; grep it by
-cluster, save or address.
+Gameplay targets for new native movies and state-driven routes. Pick a target
+by cluster, save or address; verify the intended outcome in ct_native.
 
-## How it was measured
+## Reading the inventory
 
-Against the commit that added this file, over the 27 movies of the library
-(`menus-shop-equip` included); the world maps' figures moved to ported where
-the overworld on foot landed (docs/history/reimplementation-chunks.md, "Phase 3, overworld"):
+The byte counts below are historical planning estimates from earlier movie
+libraries, not a current coverage check. A target's play may miss some branches
+in its cluster, so these counts are upper bounds for prioritization only.
+Use the native route's reached outcome and recorded save/place checks to assess
+new coverage; run the whole library and every route with the non-blocking
+`tools/suite.py --long` batch (CLAUDE.md gives the full command).
 
-- **Code**: the analysis `tools/burndown.py` runs (its `Analyzer`, with
-  `reached_code`), so code only an `unreached` hint starts is left out.
-  **Executed**: the union of the movies' `--native shadow --coverage` files.
-  **Ported**: the bytes the registry's ports cover (`burndown.coverage`).
-- Each unexecuted instruction is owned by the port whose walk reaches it (its
-  own region first, then what it inlines), else by the smallest routine of the
-  analysis holding it. The owner's name and sources say what it is.
-- The trigger of each owner, by kind:
-  - world-map objects (bank `$C2` below `$8000`, `$C6:E000` on): the scene each
-    object script belongs to (`tools/disasm/objscript.py`; scene *n* is world
-    map location `$1F0`+*n*, whose era the Epoch's map view names);
-  - the scene program (`$7E`): the modes of `$7E:300A`, by what each mode's
-    setup reaches directly and through the sequence scripts it starts
-    (`tools/disasm/seqscript.py`); the event scripts that start a mode (event
-    `$FF` below `$90`, the mode in its low bits) give its locations;
-  - enemy AI: the enemies whose scripts name the condition, action or target
-    (`tools/disasm/battlescript.py`, names from `$CC:6500`);
-  - event commands: the locations whose event scripts use the opcode
-    (`tools/disasm/derive.py`'s `event_scripts`);
-  - the attract demo: `the route driver` idling at the title, `$7E:0384` (the scene
-    mode) and `$7E:0100` (the location) read every 50 frames.
-- A save's location is the word at `$5F3` of its slot in the `.srm`.
+World-map object scripts identify their scenes; scene modes identify their
+setup and sequence scripts; enemy and event scripts identify the conditions
+and commands they can reach. The native implementations are in
+`game/menu/script.c`, `game/scene/script.c`, `game/battle/enemy_scripts.c` and
+`game/event/engine.c`. A save's location is the word at `$5F3` of its `.srm` slot.
+Optional `movies/hand/` recordings remain outside the standard library.
 
-"Reaches" below is what a target's play passes through, so it is an upper
-bound: a cluster's branches may depend on details the play doesn't hit.
-Re-measure after recording with the movie's `--coverage` file. KiB per minute
-is that bound over the play's length, for ordering only.
-
-## Totals
-
-The historical whole-game totals below precede the retirement inventory.
-`tools/unreached.py` now measures the subsystems a teardown is next for
-against the standard 84-movie library's coverage union, using conservative
-reach through conditional stops: core 11, event 1,490 and field 2,229
-candidate instruction bytes unexecuted. Of these 3,730 bytes, matched fuzz
-trials cover 3,371, reviewed safety arguments account for 143, and 216 of
-the field's are still open. Exact entries, byte runs and evidence are in
-`tools/unreached_baseline.txt`; mechanisms and limits are in
-REIMPLEMENTATION.md, "The code the movie library does not reach". Optional
-`movies/hand/` recordings are outside the suite's standard library.
+## Historical totals
 
 | | KiB unexecuted | ported | unported |
 |---|--:|--:|--:|
@@ -120,7 +88,7 @@ the aiming (`battle targeting`) were counted with the animation commands before.
 ### World maps (object scripts of the `$C2:0000` mode)
 
 Re-measured with the clusters: each unexecuted byte goes to the nearest routine at or before it that
-some scene's object script calls (commands `$34`, `$4E`, `$35`/`$42`; `tools/disasm/objscript.py`), and
+some scene's object script calls (commands `$34`, `$4E`, `$35`/`$42`; `game/menu/script.c`), and
 to that routine's scenes; the rest is the object commands' own handlers and the overworld's code.
 
 | Map | KiB (all ported) | Saves on it, and what is left |
@@ -146,8 +114,8 @@ to that routine's scenes; the rest is the object commands' own handlers and the 
 
 ### Event commands (by opcode's locations)
 
-KiB re-measured with the clusters; the locations are the scripts' (`tools/disasm/derive.py`'s
-`event_scripts`, the location records' script word).
+KiB were measured with the clusters; the locations come from the location
+records' script word.
 
 | Command | KiB | Locations whose scripts use it |
 |---|--:|---|
@@ -206,7 +174,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 - **Route**: yes (the battle bot with a policy that walks the tech lists).
 - **Movie**: `battle-tech-sweep` (route `tech_sweep`, 118090 frames, the Core beaten): `tools/movies/routes/tech_sweep.py` (zophar chrono-trigger slot 1:
   Crono, Magus and Marle inside Lavos's shell): walks to the second Lavos form, fights it and then the
-  Lavos Core with a policy (`tools/movies/policies.tech_sweep`) that opens Tech on each member's turn and
+  Lavos Core with a policy (`tools/movies/policies.py::tech_sweep`) that opens Tech on each member's turn and
   takes the first list entry -- by tech id, read from the tech-by-id table at $94D0, not list position,
   so a double tech is found once whichever partner's turn reaches it first -- that isn't cast yet,
   falling back to Attack once a member's list is exhausted for now (not enough MP, or a tech whose only
@@ -743,7 +711,7 @@ console. This is a reset **during a save**, not evidence that submission 2240 ne
 mid-frame reset. [Chrono Speedruns' glitches page](https://chrono.wikidot.com/glitches)
 mentions mid-frame reset for overworld-position corruption but gives no item-duplication recipe.
 
-The menu code and the original, inspected with `tools.disasm.linear`, establish the following:
+The menu code implements the following save and inventory behavior:
 
 - **Save and load:** `game/menu/saves.c`, `$FF:F9FB`, copies the saved RAM regions in order
   through the block-move stub called at `$FF:FA44`; the checksum and slot marker are written

@@ -65,7 +65,8 @@ def long_batch(args, binary):
                 status = subprocess.run(command, cwd=ROOT, stdout=output, stderr=subprocess.STDOUT).returncode
             except OSError as error:
                 output.write(str(error) + '\n')
-                status = 1
+                print('batch setup failed: could not launch %s: %s (log: %s)' % (name, error, log))
+                return 1
         findings.append(dict(stage=name, status=status, seconds=time.monotonic() - before, log=log.name))
     report = args.out / 'findings.json'
     report.write_text(json.dumps(findings, indent=2) + '\n')

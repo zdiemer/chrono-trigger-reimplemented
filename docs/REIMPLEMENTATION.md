@@ -11,8 +11,10 @@ must reach its declared frame count, exit successfully and avoid an unexplained
 dark ending. `suite OK` is the final pass line; wall time includes every stage
 and must be below 600 seconds. The separate `--long` batch runs the whole library and every public route
 module at `-j 2`, with stage logs and `findings.json` under `build/suite-long`.
-It reports findings without a failing gate status or time budget; fixes follow
-from those findings, and commits, merges and pushes never wait for the batch.
+Gameplay failures remain findings, but a missing binary or a stage launch
+failure aborts the batch with nonzero status and a diagnostic. It reports
+findings without a gate time budget; fixes follow from those findings, and
+commits, merges and pushes never wait for the batch.
 
 Recorded outcomes protect the selected saved-game bytes, cartridge save RAM
 and ordered place visits. The ledger records the movie hash and projection

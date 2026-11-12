@@ -52,7 +52,7 @@ def fly_to(run, x, y):
 def flame_policy(bot, state, rng, inventory):
     """Heal, then attack the flame whose reaction does not counter.
 
-    Enemy $F7's AI (tools.disasm.battlescript) reacts to Roulette Shuffle
+    Enemy $F7's AI reacts to Roulette Shuffle
     by setting magic defence, stat offset $3C, to $62 on the chosen flame
     and $63 on the others. Its $63 reaction counters; the other flame's
     ordinary attack passes damage to the eye. Re-read it for each turn.

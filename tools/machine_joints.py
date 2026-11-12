@@ -3,10 +3,8 @@
     python3 tools/machine_joints.py              # the totals
     python3 tools/machine_joints.py --files      # per file, most first
 
-The census (`tools/census.py`) counts how often real play still reaches a port
-through the machine; this counts the joints in the source that have to go
-before the machine can leave the product (docs/PLAN.md, "What done means,
-measured", and "The native program, and the registry taken down"). Each row
+This counts source dependencies to remove as the machine leaves game/
+(docs/PLAN.md). It does not measure execution coverage. Each row
 is a pattern, so a count is an estimate of sites, not of work: one entry
 wrapper is one return through the emulated stack, and it leaves with its
 subsystem's registry rows rather than one by one.

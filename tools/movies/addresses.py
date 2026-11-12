@@ -2,9 +2,9 @@
 
 Addresses are SNES bus addresses, as everywhere else in the repo. Names in
 parentheses are the ported routines in game/ that use the same address (see
-docs/PORTING.md); those are the primary source. The rest were found by running
-the machine under ct_native and diffing work RAM between known states (the way
-tools/trace.py diff does by hand): press a button, see which byte moved.
+docs/PORTING.md); those are the primary source. The rest came from work-RAM
+comparisons between known states: press a button, see which byte moved. The
+native route driver's snapshots support the same investigation.
 
 Nothing here is ROM data: these are addresses in the console's work RAM.
 """

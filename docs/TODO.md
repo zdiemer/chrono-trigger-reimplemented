@@ -488,10 +488,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
     palette arithmetic doesn't say the byte is in attribute form; `opening.c`
     writes `LEFT_MEMBER` as address arithmetic and 1/0 for bools;
     `enemy_turn.c`'s unreachable `no_turn` row's comment is wrong;
-    `m_return_to_caller_long` wants its own comment; `burndown.py` should
-    report code neither reached nor started by an `unreached` entry rather
-    than drop it; `hints.toml` should note the dead veneers at
-    `$C1:FF53`/`FFAE`/`FFCC` beside `$C1:C09A`.
+    `m_return_to_caller_long` wants its own comment.
 
   - what the screen script language's review left (none blocking after its
     fixes): `screen_script.h`'s language-wide parameter list forces generic
@@ -616,8 +613,8 @@ PLAN.md gives the work order; the lean native gate protects each change.
   - Decode a `Location` in the command row, rather than two words in
     `event/locations.c::location_of`; type comparison operators, urgency
     and flags, and name face/animation commands by meaning.
-  - Share the edge-upload table between `field/nmi.c` and `display.c` once
-    `dontcare_check.py` can follow header tables. Name staging buffers and
+  - Share the edge-upload table between `field/nmi.c` and `display.c`.
+    Name staging buffers and
     stream layouts in the map, then pass buffers rather than bank addresses
     (`layers.c`, `sprites.c`, `graphics.c`, `display.c`).
   - Give scroll, object view, line effects and event visibility one camera
@@ -928,7 +925,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
   `menu_clear_all_of_vram` exists; `object_commands.c`'s story flags aren't
   named for what they mean; `music.h`'s `region` exists only for the wrapper;
   `terrain.h` exports a carry derivation; `0x7E4000` is spelled in both
-  `setup.c` and `main_loop.c`. In `tools/timing_exceptions.txt`,
+  `setup.c` and `main_loop.c`. In the earlier timing measurements,
   `overworld_load_the_map_tiles` and `_load_the_map_again` give "its time
   following the packed data" as the reason, but the unpacker is timed as
   itself and their own work is a few table reads (map_tiles is calibrated
@@ -1199,14 +1196,6 @@ PLAN.md gives the work order; the lean native gate protects each change.
   `field_scroll_layers`); operand names for the battle script handlers;
   turning I/O register writes and the multiplier into platform calls and C
   arithmetic; stub signatures that still vary by what a call reads back.
-- **Two answers to "what is dead after this returns", and only one is
-  authoritative.** `disasm/out/liveness.json::dead_after_return` includes
-  escaped returns through a caller's frame; `tools/generate/show.py`'s
-  `ret_live_mask` asks at the entry's contexts, falling back when unknown.
-  For `$C2:0568` they yielded `X N Z` and `A X Y N V Z C` respectively,
-  with the gate accepting the latter. Move the authoritative query into
-  `liveness.py`, emit both explicitly named answers and document their scopes.
-
 - **What the overworld on foot left** (the source review, "Phase 3, overworld: the
   world map on foot"):
   - the walkers' event steps run their scripts through the interpreter's
@@ -1461,9 +1450,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
     still written only as scaffolding, so an inside drawn after one of them
     would read stale sizes in the native shape (no screen does today);
     `windows.c`'s "what the original leaves" comment still says nothing reads
-    those cells; `tools/disasm/keeps.py` steps over calls as reading nothing,
-    so a callee on the scheduler's path that reads a register would be missed
-    (the path has none today); `read_cursor`'s `(void)r;`.
+    those cells; `read_cursor`'s `(void)r;`.
 - **Scene cells the menu objects use.** The C6 circle setup and motion routines
   (`menu/line_effects.c`, `menu/object_commands.c`) run on the menu's direct page
   and use the circle drawer's and the scaler's cells, which the map files under the scene; their
@@ -1646,11 +1633,8 @@ PLAN.md gives the work order; the lean native gate protects each change.
   updates' vblank tails, `field_nmi`'s tail, the exchange's second-choice tail,
   and `battle_step_the_poses`'s +2.96% drift with its own estimate already at 1.
   The jump/orbit and exchange paths vary within a routine; the field handler
-  and pose step also carry their callees' estimated time. The narrowed
-  video-write check adds no failing finding. Recheck against the combined
-  movie library, then refine the estimates that remain over their limits;
-  `tools/timing_exceptions.txt` records the measured tails and why they are
-  allowed.
+  and pose step also carry their callees' estimated time. Use native route outcomes to establish whether these estimates
+  cause gameplay defects before changing the retained rates.
 
 - **What the timing service's review left** (none rated translation): the
   objects' turn queue and its guard walk (`queue_in_the_tables`) are written
@@ -1897,8 +1881,8 @@ PLAN.md gives the work order; the lean native gate protects each change.
     interrupted and only fuzzing compares them; a cut of the movie whose
     state starts just before each, run with the interrupts held, would give
     shadow mode a call of each;
-  - the scripts' start of an object (`menu_object_cmd_start_script`) is in
-    `tools/timing_exceptions.txt` for its calls in vblank in the Day of Lavos,
+  - the scripts' start of an object (`menu_object_cmd_start_script`) had
+    measured timing error during the Day of Lavos,
     whose free-slot search the original makes a slot at a time over dozens of
     running objects: a charge per slot passed at `$C2:048A`'s rate overshot
     every other scene, and wants a rate of its own (the search as a timed part,
@@ -1988,7 +1972,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
     leader's spot off the map, which no flight makes; the arrival's x
     measured across the map's height (`slow_so_as_not_to_pass`) is the
     original's and kept.
-- **Timing spread in Dalton** (`tools/timing_exceptions.txt`). Drift-only
+- **Timing spread in Dalton** (earlier timing measurements). Drift-only
   calibration updates 226 estimates for `battle-dalton`. The residual
   `battle_find_due_animation` worst error is 53304 clocks (limit 50468) over
   14735 stretches, with mean time 5090 and net drift rounded to zero. None
@@ -1996,7 +1980,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
   graphics construction in one estimate; measure those paths separately
   when revisiting its timing. This movie's video-write check has no unlisted
   movement. No game logic was changed for this exception.
-- **Timing spread in Proto Dome** (`tools/timing_exceptions.txt`). The opening
+- **Timing spread in Proto Dome** (earlier timing measurements). The opening
   and victory poses inherit the frame-graphics and frame-tail estimates:
   `battle_step_the_poses` drifts +9.04% over 256 stretches and
   `battle_strike_the_poses` +4.20% over 262 even with their own estimates at
@@ -2005,7 +1989,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
   3.93% of 7505 vblank stretches off by at least 1024 clocks (maxima 1949 and
   1137). Diagnose the inherited estimates and the variable dialog/frame work;
   the Proto Dome video-write check found no unlisted movement.
-- **Timing spread in the Rainbow Shell trial** (`tools/timing_exceptions.txt`).
+- **Timing spread in the Rainbow Shell trial** (earlier timing measurements).
   After drift-only calibration, `battle_record_trails` has 1.33% of its 7530
   vblank stretches off by at least 1024 clocks (maximum 1676): its RAM history
   shifts only for active trails whose countdown expires. `field_nmi` has 1.24%
@@ -2015,9 +1999,8 @@ PLAN.md gives the work order; the lean native gate protects each change.
   has no unlisted movement. The main menu's opening below also drifts +1.84%
   over 173 stretches with its own scalar already at the minimum 1; its child
   estimates need the investigation described there.
-- **The main menu's opening, over-estimated** (`menu_choose_on_main_menu`, on
-  `tools/timing_exceptions.txt` for its worst stretch since the shipping mode's
-  fallbacks' chunk 7, the source review): a stretch of the main task's turn
+- **The main menu's opening, over-estimated** (`menu_choose_on_main_menu`,
+  identified by the earlier timing measurements): a stretch of the main task's turn
   that opens the menu, drawing its windows and panel, is judged now that a
   port's stretch under the menus' vblank handler isn't taken for the port
   leaving, and its estimate, all of it the menus' own ports' parts at their
@@ -2055,8 +2038,8 @@ PLAN.md gives the work order; the lean native gate protects each change.
     the set; the answer and the set want to move behind the SNES backend
     (the wait's stop made there, as `native_wait_loop_held`'s), leaving the
     service a plain wait;
-  - `menu_open_for_sale_list` is in `tools/timing_exceptions.txt` (45% off
-    on its one stretch in the library): the list for sale's making is timed
+  - `menu_open_for_sale_list` measured 45% off
+    on its one stretch in the earlier library: the list for sale's making is timed
     at its entry's one rate, calibrated on shorter lists, where its work
     goes with the inventory's places. A charge per place listed (as
     `charge_block_move` charges a move per byte) would let the exception go.
@@ -2250,8 +2233,6 @@ list, by kind, is what `game/` still asks of one.
   escapes, first at the title's `$7E:5AEB` (`vid_snes_copy`, below).
   Its fixed-input run does not establish native victory;
   connect the missing video work and verify the intended field outcome.
-  Strict mode completes the frame count but differs from the reference's
-  saved game (`drifts` in `tools/strict_baseline.txt`).
 - **Crono's trial movies.** `ct_native` with the normal pre-trial save
   stops `events-cronos-trial` at frame 20629, `$C0:881E`, "a walk the port
   doesn't take", during the prison transfer (the walk guard above).
@@ -2367,21 +2348,16 @@ list, by kind, is what `game/` still asks of one.
     moved before taking it.
   - *The line interrupt switched with time owed.* `tm_enable_interrupts`
     lets a port's time pass first where the vblank handler goes on or off
-    (PORTING.md, "A port that spans frames"; `debt_test`); turning the line
+    (PORTING.md); turning the line
     interrupt on or off mid-port has the same hazard and isn't synced yet.
   - *The estimates' error* on the machine: many small errors, each moving a
     frame's end or a frame budget (`tm_frame_time_left`: the field's script
     turns stop at line 72 after a map loads) a little, and a press or a
     battle's turn landing on the other side of it; in `events-cyrus` the
     Northern Ruins' battle starts 10 frames early and the fight goes
-    otherwise. Strict mode ends as the shipping mode does; with the
-    original's time (`--port-timing oracle --port-horizon interrupts`) the
-    drifting movies end as the reference's (`tools/drift.py` shows it per
-    movie, with where each parts and the milestone that moved).
-    The diagnostic tool must also report failed exits: the ledger's fresh
-    original-timed end-state proofs match game and save RAM while reporting
-    sound-queue overruns. State agreement is evidence about that state,
-    not a passing run; keep the fault visible in the diagnostic verdict.
+    otherwise. Reproduce the first missed interaction with native
+    state-driven routes before changing rates; a matching end state does not
+    excuse a failed process or a sound-queue overrun.
 
   Meanwhile drive the long movies' native runs by their routes (`the route driver`'s
   scripts react to the game's state, MOVIES.md) rather than recorded presses,
@@ -2648,12 +2624,9 @@ list, by kind, is what `game/` still asks of one.
 
 ## Refusals in real play
 
-Guards that turn away a call real play makes. On the machine the original
-runs the call, so shadow mode and the shipping mode pass; the hand ports
-alone (`strict_check.py`) and `ct_native` stop there. These hand-run findings
-still need diagnosis; they are not passing contract evidence. Retired guards
-are assertions, and phase B carries their diagnostics into a checking native
-build before retiring the emulator-build checks.
+Guards that stop native play still need diagnosis; the hand-run findings
+below are not passing contract evidence. Reproduce them with native routes
+and preserve their diagnostics as the remaining machine wrappers leave.
 
 - **600 A.D. Guardia Forest's object searches.** In
   `events-cronos-trial-long`, `field_object_in_the_way` (`C05B95`, 320

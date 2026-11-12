@@ -73,6 +73,35 @@ class GateFailureTest(unittest.TestCase):
 
 
 class LongBatchTest(unittest.TestCase):
+    def test_launch_failure_is_a_setup_error_even_after_gameplay_findings(self):
+        for stage in range(3):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as where:
+                root = pathlib.Path(where)
+                binary = root / 'ct_native'
+                binary.touch()
+                out = root / 'batch'
+                output = io.StringIO()
+                results = [SimpleNamespace(returncode=1)] * stage + [OSError('cannot launch')]
+                with patch.object(suite, 'all_routes', return_value=['first']), \
+                        patch.object(suite.subprocess, 'run', side_effect=results) as run, \
+                        contextlib.redirect_stdout(output):
+                    rc = suite.main(['--ct-native', str(binary), '--out', str(out), '--long'])
+                self.assertEqual(rc, 1)
+                self.assertEqual(run.call_count, stage + 1)
+                self.assertIn('batch setup failed:', output.getvalue())
+                self.assertNotIn('batch complete:', output.getvalue())
+                self.assertNotIn('suite OK', output.getvalue())
+                log = out / (('movies', 'outcomes', 'routes')[stage] + '.log')
+                self.assertIn('cannot launch', log.read_text())
+
+    def test_missing_binary_is_a_setup_error_without_launching_stages(self):
+        with tempfile.TemporaryDirectory() as where, \
+                patch.object(suite.subprocess, 'run') as run, \
+                contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+            suite.main(['--ct-native', str(pathlib.Path(where) / 'missing'), '--long'])
+        self.assertEqual(error.exception.code, 2)
+        run.assert_not_called()
+
     def test_findings_continue_without_becoming_a_gate_failure(self):
         with tempfile.TemporaryDirectory() as where:
             root = pathlib.Path(where)
