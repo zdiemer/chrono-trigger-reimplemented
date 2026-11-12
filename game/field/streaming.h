@@ -34,13 +34,23 @@ void field_fill_the_views_margins(GameState *g, Platform *pf, bool moved);
  * looks are the map's, where between them the battle may have put its own
  * data over them. The count is the program's own state, beside the game's. */
 typedef struct {
+    int16_t left, right;   /* the screen X a layer holds the map across ... */
+    uint16_t scroll;       /* ... at this scroll */
+} FieldLayerSpan;
+typedef struct {
     uint8_t due;
+    bool held[3];                  /* the layer holds the field's map (FIELD_LAYERS) */
+    FieldLayerSpan span[3];
 } FieldMargins;
 /* Module storage supplied by the state owner, independent of mapped RAM. */
 FieldMargins *field_margins(GameState *g);
 void field_margins_due(GameState *g);
-/* ... and black past the map's edges, every frame. */
-void field_end_the_picture_at_the_maps_edges(GameState *g, Platform *pf);
+/* ... and how far across each layer holds the map, every frame. The battle,
+ * fought over the field's layers, shows them as far at its own scroll
+ * (FIELD_LAYERS of them), but for a layer it draws its own picture into. */
+void field_show_the_layers_across(GameState *g, Platform *pf);
+void field_show_the_layers_under_a_battle(GameState *g, Platform *pf, const uint16_t scroll[3]);
+void field_battle_takes_its_own_layer(GameState *g, unsigned layer);
 
 /* Whether each layer's map repeats within the map's tables, and whether a
  * layer's drawing at the map's load fits the staging buffers (what the port

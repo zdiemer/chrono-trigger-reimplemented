@@ -110,11 +110,16 @@ original's screen coordinates and puts that screen in its middle: it reaches
 from `vid_view_left` (negative) to short of `vid_view_right`.
 
 - **The renderer** draws `VidFrame.view`'s width. Each layer is sampled from
-  its scroll plus the view's left; a layer whose tilemap is one screen across
-  (32 tiles: the menus', the battle's and the dialog's panels) is shown once,
-  over the original's screen, rather than repeated into the margins. Mode 7
-  continues its plane. Black covers what lies outside `VidFrame.shown_left`
-  and `shown_right` (`vid_end_the_picture`, below).
+  its scroll plus the view's left, but only as far across as the frame says
+  it holds the picture (`vid_show_a_layer_across`): every frame starts with
+  each layer holding the original's screen alone, so a tilemap never repeats
+  or shows stale columns in the margins unless its mode built them, and what
+  lies under it shows there instead -- in the end the backdrop, the colour the
+  original shows where no layer is opaque. A line whose tilemap is one screen
+  across (32 tiles: the menus', the battle's and the dialog's panels, which
+  line effects switch to partway down) keeps to the original's screen. The
+  original's screen itself is always drawn as before. Mode 7 continues its
+  plane.
 - **Windows** keep byte edges, as the game's line tables hold them. An edge on
   the screen's first or last dot reaches on to the view's side (`VidWindows`):
   a full window covers the view, a half-screen wipe its half, and a shape
@@ -122,31 +127,40 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   the game's memory and are not widened.
 - **Sprites** carry a place beside the table (`VidSpritePlace`, sent with it by
   `vid_send_oam`): the whole signed X a builder put a sprite at, or that it hid
-  it. A place holds while the entry keeps the X and Y it was given with, so a
-  builder that gives none reads as the table says; the renderer then reads
-  nine bits that land in the right margin as right of the screen. The battle's
-  combatants give their whole X and hide what leaves the screen up or down;
-  the battle's cursors, the scenes' leftover group entries and the time warp's
-  spare sprites are hidden. On the original's screen the renderer draws from
-  the table alone, so places change no picture the gate sees. The sprite
-  limits count the original's screen.
+  it. A place holds while the entry keeps the X and Y it was given with; a
+  sprite without one reads the table's nine bits as the original does, so it
+  never shows in the right margin. The field's objects give their whole X
+  (they run only near the screen, so nine bits far left of it are right of
+  it), the battle's combatants theirs, hiding what leaves the screen up or
+  down; the battle's cursors, the scenes' leftover group entries and the time
+  warp's spare sprites are hidden. The sprite limits count the original's
+  screen.
 - **The field** keeps its screen's edges, which decide which objects run
   (`$C0:A88D`), and draws past them: as its edges come in, and for two frames
   after a map's screen is sent, `field_fill_the_views_margins` builds the
   layers' columns either side of the screen from the map into a line of its
-  own and sends them in the vblank, and `field_end_the_picture_at_the_maps_edges`
-  blacks out the view past the map's edges. Objects show in the margins within
-  the original's activation window (two map tiles past the screen) and not
-  beyond it.
+  own and sends them in the vblank. Past the map's edges a column is built as
+  the edge's, so a room's void or a wall's dark goes on. Each frame
+  `field_show_the_layers_across` says how far each layer holds the map: a
+  streamed layer its built columns, a layer drawn whole its one copy of the
+  map within the map's edges. Objects show in the margins within the
+  original's activation window (two map tiles past the screen) and not beyond.
+- **The battle** is fought over the field's layers and shows them as far as
+  the field last built them, moved with its own scroll
+  (`field_show_the_layers_under_a_battle`); a battlefield that brings its own
+  BG3 keeps that layer to the original's screen.
 - **The world maps** fill their two scrolling planes' margins the same way
-  each frame (`menu_map_fill_the_views_margins`).
+  each frame (`menu_map_fill_the_views_margins`) and show them across the view.
+- **Every other mode** (the menus, the scenes, the time warp's tunnel aside,
+  which is Mode 7) keeps its layers to the original's screen, the backdrop in
+  the margins, until it builds what lies past it.
 
 A wider view's own work reads the game's state outside its time
 (`charge_uncounted_begin`) and sends in the vblank, where a send takes none;
 its state (`SpritePlaces`, `FieldMargins`) is the program's, beside the game's
 memory. So a movie played at a wider view ends in the same work RAM and save
-RAM as at the original's: `field.ctm` and `gato-battle.ctm` were checked so
-with `--end-state` at 400x224.
+RAM as at the original's: `field.ctm`, `gato-battle.ctm` and
+`attract-demo.ctm` were checked so with `--end-state` at 398x224.
 
 GPU backends must preserve line effects and color math. Smaller targets need measured
 memory and coroutine stack budgets; a callback-based frontend needs an appropriate

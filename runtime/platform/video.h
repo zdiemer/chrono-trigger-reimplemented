@@ -421,7 +421,7 @@ typedef struct {
     VidSprite sprites[VID_SPRITES];
     uint8_t first_sprite;   /* OAM priority rotation */
     VidView view;           /* how much of the picture to draw (vid_view) */
-    int16_t shown_left, shown_right;   /* the screen X the picture covers (vid_end_the_picture) */
+    int16_t layer_left[4], layer_right[4];   /* the screen X each BG holds the picture across (vid_show_a_layer_across) */
     uint16_t span_count;
     VidSpan spans[VID_MAX_SPANS];   /* spans[0].line == 1 */
     const uint8_t *vram;    /* 64 KiB, SNES layout */
@@ -561,11 +561,16 @@ static inline bool vid_line_effect_decode(uint8_t control, uint8_t dest, VidLine
  * lay something out, never where a rule of the game's happens to use the
  * screen's size; the gate runs at the original's. */
 PF_API VidView vid_view(const Platform *pf);
-/* Where this frame's picture ends across a wider view: it covers screen X
- * from `left` to short of `right`, and black shows beyond -- the field's map
- * where the view reaches past its edges. Each frame starts covering the
- * whole view, so a mode whose picture ends short says so every frame. */
-PF_API void vid_end_the_picture(Platform *pf, int16_t left, int16_t right);
+/* Where a background layer holds the picture across a wider view this frame:
+ * from screen X `left` to short of `right`, the original's screen always
+ * among it. Past that its tilemap holds
+ * nothing of the picture -- a one-screen map would repeat, a ring would show
+ * what it held last -- so the layer is left out there and what lies under it
+ * (the backdrop at last) shows. Each frame starts with every layer holding
+ * the original's screen alone, so a mode whose layers hold more (a map
+ * scrolling in, built past the screen) says so every frame. Mode 7's plane
+ * goes on past the screen as its settings say, and is never left out. */
+PF_API void vid_show_a_layer_across(Platform *pf, VidLayer bg, int16_t left, int16_t right);
 
 /* Master brightness and forced blank. */
 PF_API void vid_set_display(Platform *pf, PfOrigin o, const VidDisplay *d);
@@ -754,7 +759,7 @@ void vid_obs_continue_vram(VidObserver *ob, PfData src, uint32_t len, int half);
 uint16_t vid_obs_vram_word(const VidObserver *ob, uint16_t vram_addr);
 void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t count);
 void vid_obs_upload_oam(VidObserver *ob, PfData oam, const VidSpritePlace *places);
-void vid_obs_view(VidObserver *ob, VidView view, int16_t shown_left, int16_t shown_right);
+void vid_obs_view(VidObserver *ob, VidView view, const int16_t layer_left[4], const int16_t layer_right[4]);
 void vid_obs_fill_oam(VidObserver *ob, uint16_t word_addr, uint8_t value, uint32_t len);
 void vid_obs_write_oam(VidObserver *ob, uint8_t v);
 

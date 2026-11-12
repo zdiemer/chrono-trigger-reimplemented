@@ -710,6 +710,7 @@ static bool object_frame_step(GameState *g, Platform *pf, ObjectFrameStep step);
 static bool object_mode_vblank(GameState *g, Platform *pf)
 {
     (void)tm_ack_vblank(pf, PF_AT(0xC2016D));
+    menu_map_show_the_planes_across(g, pf);
     set_menu_object_frame_counter(g, (uint8_t)(menu_object_frame_counter(g) + 1));
     if (!(menu_object_frame_state(g) & FRAME_TO_SHOW))
         return true;

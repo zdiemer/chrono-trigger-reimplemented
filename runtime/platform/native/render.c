@@ -67,7 +67,7 @@ typedef struct {
     bool windowed[L_COUNT];
     uint8_t clip[W], math_on[W];   /* the color window's effect */
     int width, left;               /* the view: pixels across, and the screen X of the first */
-    int shown_left, shown_right;   /* the screen X the frame's picture covers */
+    int layer_left[4], layer_right[4];   /* the screen X each BG holds the picture across */
 } SpanCtx;
 
 /* VRAM is tracked in 32-byte pages: one 4bpp tile each, which the dependency
@@ -140,7 +140,7 @@ struct VidRenderer {
     LineCache lines[H + 1];
     const uint32_t *last_out;   /* the framebuffer the cached lines are in */
     int width, left;            /* the view the cached lines were drawn for */
-    int shown_left, shown_right;   /* and where the picture ended on it */
+    int16_t layer_left[4], layer_right[4];   /* and where its layers held the picture */
     VidRenderStats stats;
     bool range_over, time_over;
 };
@@ -746,20 +746,17 @@ static bool sprite_equal(const VidSprite *a, const VidSprite *b)
            a->placed == b->placed && a->hidden == b->hidden;
 }
 
-/* Where a sprite is drawn on the view from `left` to short of `right`. The
- * original's screen reads the table's nine bits, -256 to 255. A wider view
- * takes the game's place where it gave one (VidSpritePlace), and otherwise
- * reads nine bits that would land in the view's right margin as right of the
- * screen, which is where the original's builders put a sprite that leaves it
- * that way. */
-static int sprite_x(const VidSprite *s, int left, int right)
+/* Where a sprite is drawn. The table's nine bits read -256 to 255, as on the
+ * original's screen, where a sprite right of the screen reads as one far left
+ * of it, and where the game parks a sprite it hides; so a wider view shows a
+ * sprite right of the screen only where the game placed it there
+ * (VidSpritePlace). */
+static int sprite_x(const VidSprite *s, int left)
 {
     int x9 = s->x & 0x1FF;
-    if (left == 0)
-        return x9 >= 256 ? x9 - 512 : x9;
-    if (s->placed)
+    if (left != 0 && s->placed)
         return s->x;
-    return x9 >= right ? x9 - 512 : x9;
+    return x9 >= 256 ? x9 - 512 : x9;
 }
 
 /* Rows sprite n covers, as (first row, count): none when it's entirely off the
@@ -775,7 +772,7 @@ static int sprite_rows(const VidSprite *s, uint8_t size, int left, int width, in
         int x9 = s->x & 0x1FF;
         return (x9 > 256 && x9 + w - 1 < 512) ? 0 : obj_height[size][large];
     }
-    int x = sprite_x(s, left, left + width);
+    int x = sprite_x(s, left);
     return s->hidden || x + w <= left || x >= left + width ? 0 : obj_height[size][large];
 }
 
@@ -812,7 +809,7 @@ static void sprites_update(VidRenderer *r, const VidSprite *sprites, uint8_t siz
     for (int n = 0; n < VID_SPRITES; n++) {
         const VidSprite *s = &sprites[n];
         int large = s->large ? 1 : 0;
-        r->sprites.x[n] = (int16_t)sprite_x(s, left, left + width);
+        r->sprites.x[n] = (int16_t)sprite_x(s, left);
         r->sprites.w[n] = obj_width[size][large];
         r->sprites.h[n] = obj_height[size][large];
         int first, count = sprite_rows(s, size, left, width, &first);
@@ -1008,8 +1005,10 @@ static void span_begin(VidRenderer *r, const VidSpan *span, const VidFrame *f, b
     sp->st = st;
     sp->width = r->width;
     sp->left = r->left;
-    sp->shown_left = r->left == 0 ? 0 : f->shown_left;
-    sp->shown_right = r->left == 0 ? SCREEN_W : f->shown_right;
+    for (int bg = 0; bg < 4; bg++) {
+        sp->layer_left[bg] = f->layer_left[bg];
+        sp->layer_right[bg] = f->layer_right[bg];
+    }
     sp->vram = span->vram ? span->vram : f->vram;
     sp->sprites = span->sprites ? span->sprites->sprites : f->sprites;
     sp->first_sprite = span->sprites ? span->sprites->first_sprite : f->first_sprite;
@@ -1071,29 +1070,33 @@ static void span_begin(VidRenderer *r, const VidSpan *span, const VidFrame *f, b
     }
 }
 
-/* A layer whose tilemap is one screen across (32 tiles) repeats every 256
- * pixels: the menus', the battle's and the dialog's panels are laid out on
- * such maps. On a wider view the panel is shown once, over the original's
- * screen in the view's middle, rather than repeated into the margins; a layer
- * two screens across (the field's and the map's, which stream the map in as
- * they scroll) fills the view. */
-static void keep_a_panel_on_the_screen(LayerBuf *lb, const SpanCtx *sp, int layer)
+/* On a wider view a layer is left out past where it holds the picture
+ * (VidFrame.layer_left/right, the original's screen unless the mode said
+ * more), so a tilemap never repeats or shows stale columns in the margins.
+ * A line whose tilemap is one screen across (32 tiles: the menus', the
+ * battle's and the dialog's panels, which line effects can switch to partway
+ * down) is kept to the original's screen whatever the frame says. */
+static void keep_the_layer_to_its_picture(LayerBuf *lb, const SpanCtx *sp, int layer)
 {
-    if (sp->left == 0 || sp->st->bg[layer].map_w != 32)
+    if (sp->left == 0)
         return;
-    int margin = -sp->left;
-    memset(lb->z, 0, (size_t)margin);
-    memset(lb->z + margin + SCREEN_W, 0, (size_t)(sp->width - margin - SCREEN_W));
-}
-
-/* Black past where the frame's picture ends (VidFrame.shown_left/right). */
-static void end_the_line(uint32_t *out, const SpanCtx *sp)
-{
-    int from = sp->shown_left - sp->left, to = sp->shown_right - sp->left;
-    for (int x = 0; x < from && x < sp->width; x++)
-        out[x] = 0;
-    for (int x = to < 0 ? 0 : to; x < sp->width; x++)
-        out[x] = 0;
+    /* the original's screen is drawn as the original draws it, whatever */
+    int screen_from = -sp->left, screen_to = -sp->left + SCREEN_W;
+    int from = sp->layer_left[layer] - sp->left, to = sp->layer_right[layer] - sp->left;
+    from = from < screen_from ? from : screen_from;
+    to = to > screen_to ? to : screen_to;
+    if (sp->st->bg[layer].map_w == 32) {
+        from = screen_from;
+        to = screen_to;
+    }
+    if (from > sp->width)
+        from = sp->width;
+    if (to < from)
+        to = from;
+    if (from > 0)
+        memset(lb->z, 0, (size_t)from);
+    if (to < sp->width)
+        memset(lb->z + (to < 0 ? 0 : to), 0, (size_t)(sp->width - (to < 0 ? 0 : to)));
 }
 
 static void draw_line(VidRenderer *r, LineCtx *c, uint32_t *out)
@@ -1153,7 +1156,7 @@ static void draw_line(VidRenderer *r, LineCtx *c, uint32_t *out)
         }
 
         if (layer != L_OBJ && sp->mode != 7)
-            keep_a_panel_on_the_screen(lb, sp, layer);
+            keep_the_layer_to_its_picture(lb, sp, layer);
         uint8_t bit = (uint8_t)(1 << layer);
         bool windowed = sp->windowed[layer];
         uint8_t math = (layers_math & bit) != 0;
@@ -1168,7 +1171,6 @@ static void draw_line(VidRenderer *r, LineCtx *c, uint32_t *out)
     if (!sp->any_math) {
         for (int x = 0; x < width; x++)
             out[x] = rgb565_to_xrgb8888(sp->clip[x] ? 0 : main_s->color[x]);
-        end_the_line(out, sp);
         return;
     }
     int cap = sp->add_cap;
@@ -1182,7 +1184,6 @@ static void draw_line(VidRenderer *r, LineCtx *c, uint32_t *out)
     case 6: compose_math(out, main_s, sub_s, sp->clip, sp->math_on, true, false, true, cap, width); break;
     default: compose_math(out, main_s, sub_s, sp->clip, sp->math_on, true, true, true, cap, width); break;
     }
-    end_the_line(out, sp);
 }
 
 /* ---- entry points ---------------------------------------------------------------------- */
@@ -1247,15 +1248,16 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
     int width = vid_render_width(f);
     /* The cached lines are the pixels in the framebuffer they were drawn into,
      * across the view they were drawn for. */
-    if (out != r->last_out || width != r->width || f->shown_left != r->shown_left || f->shown_right != r->shown_right) {
+    if (out != r->last_out || width != r->width || memcmp(f->layer_left, r->layer_left, sizeof r->layer_left) ||
+        memcmp(f->layer_right, r->layer_right, sizeof r->layer_right)) {
         for (int line = 1; line <= H; line++)
             r->lines[line].valid = false;
         r->last_out = out;
         r->width = width;
         r->left = vid_view_left((VidView){ (uint16_t)width, H });
         r->sprites.valid = false;
-        r->shown_left = f->shown_left;
-        r->shown_right = f->shown_right;
+        memcpy(r->layer_left, f->layer_left, sizeof r->layer_left);
+        memcpy(r->layer_right, f->layer_right, sizeof r->layer_right);
     }
     if (f->span_count == 0) {
         memset(out, 0, sizeof *out * (size_t)width * H);

@@ -30,6 +30,8 @@
 #include "battle/screen.h"
 #include "battle/wait.h"
 #include "charge.h"
+#include "field/field.h"
+#include "field/streaming.h"
 #include "platform/video.h"
 #include "vars.h"
 
@@ -568,6 +570,7 @@ bool battle_change_battlefield(GameState *g, Platform *pf, uint16_t battlefield)
     if (!fits(g, battlefield))
         return battle_contract_broken(g, 0xCD0018, "a battlefield whose layout the port doesn't build");
     set_battle_screen_scripts_running(g, 0);
+    field_battle_takes_its_own_layer(g, FIELD_BG3);   /* a wider view no longer shows the field's there */
     if (!load_it(g, pf, battlefield))
         return false;
     TIMED_AS(g, 0xCD0D33, battle_start_battlefield_scripts(g));

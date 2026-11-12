@@ -570,8 +570,8 @@ bool field_layer_drawn_at_the_load(GameState *g, unsigned layer)
  * staging buffers, its reads of the map left out of the game's time and its
  * sends made in the vblank, which the original's time doesn't charge -- so
  * the game runs the same at any view. The screen's edges, which decide which
- * objects run, stay the original's. Past the map's edges a margin shows the
- * edge's column again rather than whatever the map's tables hold there.
+ * objects run, stay the original's. Past the map's edges a margin's column is
+ * built from the edge's (clamp_to_the_map).
  *
  * A layer's tile map is 64 columns round: the screen's 33 and a margin of up
  * to 15 columns either side fit, which is what holds the view to
@@ -580,12 +580,20 @@ bool field_layer_drawn_at_the_load(GameState *g, unsigned layer)
  * both are left alone. */
 enum { RING_ROWS = FIELD_TILE_MAP_ROWS, MOST_MARGIN_COLUMNS = (FIELD_TILE_MAP_COLUMNS - FIELD_SCREEN_COLUMNS - 1) / 2 };
 
+/* A column past the map's edge is built as the edge's: what the map fills
+ * its edge with (a room's void, a wall's dark) goes on past it, as it would
+ * if the map went on, rather than the map's tables repeating it or a black
+ * the original's screen never shows. The edges are the screen's limits, or a
+ * half-pace BG2's own map's, and never past the layer's own map. */
 static uint8_t clamp_to_the_map(const GameState *g, unsigned layer, int column)
 {
-    if (keeps_own_edges(g, layer))
-        return (uint8_t)column;   /* half-pace BG2's map has no edges of the screen's */
-    int first = field_map_edges_left(g) * FIELD_ENTRIES_A_MAP_TILE;
-    int last = (field_map_edges_right(g) + 1) * FIELD_ENTRIES_A_MAP_TILE - 1;
+    int first = 0, last = field_map_layer_sizes_width(g, layer) * FIELD_ENTRIES_A_MAP_TILE - 1;
+    if (!keeps_own_edges(g, layer)) {
+        int edge_first = field_map_edges_left(g) * FIELD_ENTRIES_A_MAP_TILE;
+        int edge_last = (field_map_edges_right(g) + 1) * FIELD_ENTRIES_A_MAP_TILE - 1;
+        first = edge_first > first ? edge_first : first;
+        last = edge_last < last ? edge_last : last;
+    }
     return (uint8_t)(column < first ? first : column > last ? last : column);
 }
 
@@ -611,6 +619,14 @@ static void send_a_margin_column(GameState *g, Platform *pf, unsigned layer, int
     vid_send_vram(pf, PF_AT(0), vram, (PfData){ .ptr = ring_order }, sizeof ring_order, &column_port);
 }
 
+/* The columns either side of the screen a view needs, the fine scroll's
+ * included, as many as the ring holds. */
+static int margin_columns(VidView view)
+{
+    int margin = (-vid_view_left(view) + FIELD_ENTRY_PIXELS - 1) / FIELD_ENTRY_PIXELS + 1;
+    return margin < MOST_MARGIN_COLUMNS ? margin : MOST_MARGIN_COLUMNS;
+}
+
 enum { FRAMES_DUE_AFTER_A_SEND = 2 };
 
 void field_margins_due(GameState *g) { field_margins(g)->due = FRAMES_DUE_AFTER_A_SEND; }
@@ -623,9 +639,7 @@ void field_fill_the_views_margins(GameState *g, Platform *pf, bool moved)
         return;
     if (m->due)
         m->due--;
-    int margin = (-vid_view_left(view) + FIELD_ENTRY_PIXELS - 1) / FIELD_ENTRY_PIXELS + 1;
-    if (margin > MOST_MARGIN_COLUMNS)
-        margin = MOST_MARGIN_COLUMNS;
+    int margin = margin_columns(view);
     uint32_t mark = charge_uncounted_begin(g);
     for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
         bool shown = ((field_main_screen(g) | field_sub_screen(g)) >> layer) & 1;
@@ -642,23 +656,86 @@ void field_fill_the_views_margins(GameState *g, Platform *pf, bool moved)
     charge_uncounted_end(g, mark);
 }
 
-/* Past the map's edges the view shows black, as the original's screen never
- * shows past them: where the map's first and last pixels across are on the
- * screen, worked out from BG1's place, which the screen goes by. */
-enum { RING_PIXELS = FIELD_TILE_MAP_COLUMNS * FIELD_ENTRY_PIXELS };
+/* How far across the screen each layer holds the map, for the renderer to
+ * leave the layer out past it (vid_show_a_layer_across): a streamed layer the
+ * columns its margins were built over; a layer drawn whole its tile map's
+ * span of the map, once -- a map one screen across fills only half the tile
+ * map, which shows its tiles again -- and not past the map's edges. Kept for
+ * the battle, which is fought over the field's layers. */
+enum { RING_PIXELS = FIELD_TILE_MAP_COLUMNS * FIELD_ENTRY_PIXELS, ONE_SCREEN_TILES = 16 };
 
-void field_end_the_picture_at_the_maps_edges(GameState *g, Platform *pf)
+static int around_the_ring(int pixels)
 {
-    if (!vid_view_is_wider(vid_view(pf)))
-        return;
-    uint32_t mark = charge_uncounted_begin(g);
-    int fine = (field_layer_scroll_h(g, FIELD_BG1) - field_layer_position_x(g, FIELD_BG1) * FIELD_ENTRY_PIXELS) &
-               (RING_PIXELS - 1);
-    if (fine >= RING_PIXELS / 2)
-        fine -= RING_PIXELS;
+    pixels &= RING_PIXELS - 1;
+    return pixels >= RING_PIXELS / 2 ? pixels - RING_PIXELS : pixels;
+}
+
+static FieldLayerSpan layer_span(const GameState *g, unsigned layer, VidView view, int margin)
+{
+    uint16_t scroll = field_layer_scroll_h(g, layer);
+    unsigned map_columns = field_map_layer_sizes_width(g, layer) * FIELD_ENTRIES_A_MAP_TILE;
+    if (layer != FIELD_BG1 && drawn_whole(g, layer)) {
+        if (map_columns > ONE_SCREEN_TILES * FIELD_ENTRIES_A_MAP_TILE)
+            return (FieldLayerSpan){ vid_view_left(view), vid_view_right(view), scroll };
+        int left = around_the_ring(-(int)scroll);
+        return (FieldLayerSpan){ (int16_t)left, (int16_t)(left + ONE_SCREEN_TILES * FIELD_MAP_TILE_PIXELS), scroll };
+    }
+    bool own = keeps_own_edges(g, layer);
+    ScreenEdges e = screen_edges(g, own);
+    int fine = around_the_ring(scroll - field_layer_position_x(g, layer) * FIELD_ENTRY_PIXELS);
+    int first = e.left - margin, last = e.right + margin + 1;   /* the columns built, the last one past */
+    int left = (first - e.left) * FIELD_ENTRY_PIXELS - fine, right = (last - e.left) * FIELD_ENTRY_PIXELS - fine;
+    return (FieldLayerSpan){ (int16_t)left, (int16_t)(right > left ? right : left), scroll };
+}
+
+/* The map's edges on the screen, by BG1, which the screen goes by: a layer
+ * drawn whole shows nothing past them (the streamed ones go on with their
+ * edges' columns), as the original's screen never shows past them. */
+static FieldLayerSpan maps_span(const GameState *g)
+{
+    int fine = around_the_ring(field_layer_scroll_h(g, FIELD_BG1) -
+                               field_layer_position_x(g, FIELD_BG1) * FIELD_ENTRY_PIXELS);
     int screen_left = field_screen_left(g) * FIELD_ENTRY_PIXELS + fine;   /* the map's pixel at the screen's left */
     int left = field_map_edges_left(g) * FIELD_MAP_TILE_PIXELS - screen_left;
     int right = (field_map_edges_right(g) + 1) * FIELD_MAP_TILE_PIXELS - screen_left;
+    return (FieldLayerSpan){ (int16_t)left, (int16_t)right, 0 };
+}
+
+void field_show_the_layers_across(GameState *g, Platform *pf)
+{
+    VidView view = vid_view(pf);
+    if (!vid_view_is_wider(view))
+        return;
+    FieldMargins *m = field_margins(g);
+    uint32_t mark = charge_uncounted_begin(g);
+    FieldLayerSpan map = maps_span(g);
+    for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
+        bool shown = ((field_main_screen(g) | field_sub_screen(g)) >> layer) & 1;
+        m->span[layer] = shown ? layer_span(g, layer, view, margin_columns(view))
+                               : (FieldLayerSpan){ 0, VID_ORIGINAL_VIEW_WIDTH, field_layer_scroll_h(g, layer) };
+        bool still = layer != FIELD_BG1 && drawn_whole(g, layer);   /* no map edge of its own to go on past */
+        if (still && m->span[layer].left < map.left)
+            m->span[layer].left = map.left;
+        if (still && m->span[layer].right > map.right)
+            m->span[layer].right = map.right;
+        m->held[layer] = shown;
+        vid_show_a_layer_across(pf, (VidLayer)layer, m->span[layer].left, m->span[layer].right);
+    }
     charge_uncounted_end(g, mark);
-    vid_end_the_picture(pf, (int16_t)left, (int16_t)right);
+}
+
+void field_battle_takes_its_own_layer(GameState *g, unsigned layer) { field_margins(g)->held[layer] = false; }
+
+void field_show_the_layers_under_a_battle(GameState *g, Platform *pf, const uint16_t scroll[FIELD_LAYERS])
+{
+    if (!vid_view_is_wider(vid_view(pf)))
+        return;
+    const FieldMargins *m = field_margins(g);
+    for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
+        if (!m->held[layer])
+            continue;
+        int moved = around_the_ring(scroll[layer] - m->span[layer].scroll);
+        vid_show_a_layer_across(pf, (VidLayer)layer, (int16_t)(m->span[layer].left - moved),
+                                (int16_t)(m->span[layer].right - moved));
+    }
 }

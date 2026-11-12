@@ -893,11 +893,11 @@ void vid_obs_frame_start(VidObserver *ob)
 
 void vid_obs_frame_end(VidObserver *ob) { ob->recording = false; }
 
-void vid_obs_view(VidObserver *ob, VidView view, int16_t shown_left, int16_t shown_right)
+void vid_obs_view(VidObserver *ob, VidView view, const int16_t layer_left[4], const int16_t layer_right[4])
 {
     ob->frame.view = view;
-    ob->frame.shown_left = shown_left;
-    ob->frame.shown_right = shown_right;
+    memcpy(ob->frame.layer_left, layer_left, sizeof ob->frame.layer_left);
+    memcpy(ob->frame.layer_right, layer_right, sizeof ob->frame.layer_right);
 }
 
 void vid_obs_line(VidObserver *ob, uint16_t line)

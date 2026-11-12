@@ -603,3 +603,17 @@ void menu_map_fill_the_views_margins(GameState *g, Platform *pf)
     }
     charge_uncounted_end(g, mark);
 }
+
+/* The two planes hold the world map across the whole view, every frame its
+ * margins are kept filled; anything else holds the original's screen alone. */
+void menu_map_show_the_planes_across(GameState *g, Platform *pf)
+{
+    VidView view = vid_view(pf);
+    if (!vid_view_is_wider(view))
+        return;
+    uint32_t mark = charge_uncounted_begin(g);
+    for (uint8_t plane = 0; plane < 2 && overworld_on_a_world_map(g); plane++)
+        if (plane_is_on_the_map(g, plane))
+            vid_show_a_layer_across(pf, (VidLayer)(VID_BG1 + plane), vid_view_left(view), vid_view_right(view));
+    charge_uncounted_end(g, mark);
+}

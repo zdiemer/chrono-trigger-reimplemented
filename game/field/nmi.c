@@ -270,7 +270,7 @@ void field_vblank(GameState *g, Platform *pf)
         field_fill_the_views_margins(g, pf, moved);
         finish_frame(g, pf);
     }
-    field_end_the_picture_at_the_maps_edges(g, pf);
+    field_show_the_layers_across(g, pf);
     bool read = false;
     TIMED_AS(g, MENUS_FRAME, read = input_take_frame(g, pf));
     if (!read) {

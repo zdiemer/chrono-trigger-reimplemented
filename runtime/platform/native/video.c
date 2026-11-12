@@ -45,11 +45,7 @@ const VidFrame *vid_host_picture(Platform *pf)
     vid_obs_display(ob, &v->display);
     vid_obs_enable_line_effects(ob, v->line_effects);
     vid_obs_frame_start(ob);
-    VidView view = vid_view(pf);
-    if (v->shown_left == v->shown_right)
-        vid_obs_view(ob, view, vid_view_left(view), vid_view_right(view));
-    else
-        vid_obs_view(ob, view, v->shown_left, v->shown_right);
+    vid_obs_view(ob, vid_view(pf), v->layer_left, v->layer_right);
     for (uint16_t line = 0; line <= VID_HOST_LAST_LINE; line++) {
         if (v->below_display && line == v->display_from)
             vid_obs_display(ob, &v->display_below);
@@ -75,7 +71,10 @@ void vid_host_frame_begins(Platform *pf)
     }
     v->display_from = v->effects_from = 0;
     v->below_display = v->below_line_effects = false;
-    v->shown_left = v->shown_right = 0;
+    for (unsigned bg = 0; bg < 4; bg++) {
+        v->layer_left[bg] = 0;
+        v->layer_right[bg] = VID_ORIGINAL_VIEW_WIDTH;
+    }
 }
 
 static VidObserver *ob(Platform *pf) { return pf->video.observer; }
@@ -91,12 +90,12 @@ void vid_host_set_view(Platform *pf, VidView view)
     pf->video.view = drawn ? view : (VidView){ 0, 0 };
 }
 
-void vid_end_the_picture(Platform *pf, int16_t left, int16_t right)
+void vid_show_a_layer_across(Platform *pf, VidLayer bg, int16_t left, int16_t right)
 {
-    if (left >= right)
-        left = right = 0;   /* nothing covered reads as the whole view: never asked for */
-    pf->video.shown_left = left;
-    pf->video.shown_right = right;
+    if (bg > VID_BG4)
+        return;
+    pf->video.layer_left[bg] = left;
+    pf->video.layer_right[bg] = right;
 }
 
 /* The driver's choice, or the original's screen where it made none. */
