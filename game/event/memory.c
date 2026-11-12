@@ -22,7 +22,7 @@
 /* A variable learns the byte or the word at an address. */
 static EventFlow peek(GameState *g, Platform *pf, EventVariable variable, Address address, Width width)
 {
-    charge_legacy_accesses(g, 3); /* source address selection */
+    charge_accesses(g, 3); /* source address selection */
     uint16_t value = width == AS_BYTE ? event_selected_data_byte(g, pf, address) : event_selected_data_word(g, pf, address);
     set_variable(g, variable, value, width);
     return next_command();
@@ -33,7 +33,7 @@ EVENT_OPERATION(peek, platform, variable, address, width)
 /* Write a byte or a word at an address: a number, or a variable's value. */
 static EventFlow poke(GameState *g, Address address, uint16_t value, Width width)
 {
-    charge_legacy_accesses(g, 3); /* destination address selection */
+    charge_accesses(g, 3); /* destination address selection */
     if (width == AS_BYTE)
         wram_write8(g, address, (uint8_t)value);
     else

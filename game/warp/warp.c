@@ -88,9 +88,9 @@ static void start_the_warp(GameState *g, Platform *pf)
     tm_enable_interrupts(pf, PF_AT(0xFDDBB0), 0);
     set_warp_zero(g, 0);
     program_install_vblank_handler(g, warp_vblank);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     program_install_line_handler(g, warp_line);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     keep_the_story_flags(g);
     warp_draw_picture(g, pf);
     set_warp_circle_tables_built(g, 0);

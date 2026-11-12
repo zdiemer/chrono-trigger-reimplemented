@@ -70,12 +70,12 @@ void program_install_line_handler(GameState *g, ProgramHandler handler)
 void program_ignore_interrupts(GameState *g)
 {
     *program_handlers(g) = (ProgramHandlers){ 0 };
-    charge_legacy_accesses(g, IGNORE_HANDLERS_ACCESSES);
+    charge_accesses(g, IGNORE_HANDLERS_ACCESSES);
 }
 
 void program_vblank(GameState *g, Platform *pf)
 {
-    charge_legacy_accesses(g, HANDLER_SELECTION_ACCESSES);
+    charge_accesses(g, HANDLER_SELECTION_ACCESSES);
     ProgramHandler handler = program_handlers(g)->vblank;
     if (handler)
         handler(g, pf);
@@ -83,7 +83,7 @@ void program_vblank(GameState *g, Platform *pf)
 
 void program_line(GameState *g, Platform *pf)
 {
-    charge_legacy_accesses(g, HANDLER_SELECTION_ACCESSES);
+    charge_accesses(g, HANDLER_SELECTION_ACCESSES);
     ProgramHandler handler = program_handlers(g)->line;
     if (handler)
         handler(g, pf);

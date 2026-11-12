@@ -99,8 +99,8 @@ static void put_on_character_sprite(GameState *g, FieldObject obj, uint8_t chara
     wear_record(g, obj, r);
     set_graphics(g, obj, long_entry(g, FIELD_SPRITE_GRAPHICS_SETS, r.graphics));
     start_fresh(g, obj);
-    charge_legacy_accesses(g, 4); /* sprite record and last field */
-    charge_legacy_io_accesses(g, 4); /* palette multiplication */
+    charge_accesses(g, 4); /* sprite record and last field */
+    charge_io_accesses(g, 4); /* palette multiplication */
 }
 
 /* ---- Blocks of sprite tiles ---------------------------------------------------------------- *
@@ -165,7 +165,7 @@ static void free_block(GameState *g, unsigned block) { set_field_sprite_block_ow
 
 static void take_block(GameState *g, FieldObject obj, unsigned block, bool pair)
 {
-    charge_legacy_accesses(g, 2); /* selected block and tile row */
+    charge_accesses(g, 2); /* selected block and tile row */
     set_field_sprite_block_owner(g, block, field_link_byte(field_link_to(obj)));
     if (pair)
         set_field_sprite_block_owner(g, block + 1, field_link_byte(field_link_to(obj)));
@@ -414,7 +414,7 @@ static void cast_as_another(GameState *g, FieldObject obj, ObjectKind kind, uint
     start_fresh(g, obj);
     object_set_solidity(g, obj, true);
     wear_record(g, obj, r);
-    charge_legacy_accesses(g, 1); /* selected graphics set */
+    charge_accesses(g, 1); /* selected graphics set */
 }
 
 /* Graphics shared with an object of the map, or to unpack. */
@@ -443,8 +443,8 @@ CastGraphics object_cast_as_npc(GameState *g, FieldObject obj, uint8_t npc)
     cast_as_another(g, obj, ROLE_WALKS_ONLY, npc, r);
     CastGraphics found = find_graphics(g, obj, r);
     note_npc_graphics(g, unpacked_end(g));
-    charge_legacy_accesses(g, 4); /* sprite record and last field */
-    charge_legacy_io_accesses(g, 4); /* palette multiplication */
+    charge_accesses(g, 4); /* sprite record and last field */
+    charge_io_accesses(g, 4); /* palette multiplication */
     return found;
 }
 
@@ -463,8 +463,8 @@ CastGraphics object_cast_as_enemy(GameState *g, FieldObject obj, uint8_t enemy)
         set_graphics(g, obj, long_entry(g, FIELD_SPRITE_GRAPHICS_SETS, r.graphics));
     else
         found = find_graphics(g, obj, r);
-    charge_legacy_accesses(g, 4); /* sprite record and last field */
-    charge_legacy_io_accesses(g, 4); /* palette multiplication */
+    charge_accesses(g, 4); /* sprite record and last field */
+    charge_io_accesses(g, 4); /* palette multiplication */
     return found;
 }
 
@@ -479,7 +479,7 @@ void enemy_takes_its_place(GameState *g, Platform *pf, FieldObject obj, uint8_t 
 {
     unsigned block = enemy_block(slot);
     take_enemy_block(g, obj, block);
-    charge_legacy_accesses(g, 3); /* slot, block and tile row */
+    charge_accesses(g, 3); /* slot, block and tile row */
     if (object_sprite_layout(g, obj) == LAYOUT_24) {
         set_field_built_sprite_object(g, field_link_byte(field_link_to(obj)));
         TIMED_AS(g, 0xC0E12A, object_draw_whole_figure(g, pf, obj));

@@ -126,7 +126,7 @@ static void sample_row(GameState *g, uint16_t source, bool row_moved_on)
         pack_planes(g, planes, pixels);
         planes = (uint16_t)(planes + PLANES);
     }
-    charge_legacy_accesses(g, GROUP + 4);
+    charge_accesses(g, GROUP + 4);
 }
 
 /* The row the same as the last one: its 32 bytes copied. */

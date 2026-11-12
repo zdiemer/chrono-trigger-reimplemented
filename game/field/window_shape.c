@@ -187,7 +187,7 @@ static void rasterize_quad(GameState *g)
     }
     uint16_t fill_length = empty_outside_lines(g, column, top, right_start);
     if (column.bank == FILL_BANK)
-        charge_legacy_accesses(g, drew_sloped_edge ? 21 : 15);
+        charge_accesses(g, drew_sloped_edge ? 21 : 15);
     (void)last;
     (void)fill_length;
 }

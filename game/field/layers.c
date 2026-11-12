@@ -175,7 +175,7 @@ void field_find_layer_edges(GameState *g)
         right_column(&e, right, above);
         store_layer_edges(g, layer, field_layer_map_base(g, layer), &e);
     }
-    charge_legacy_accesses(g, 12); /* six temporary edge words */
+    charge_accesses(g, 12); /* six temporary edge words */
 }
 
 static void put_the_layer_at_its_start(GameState *g, FieldLayer layer)

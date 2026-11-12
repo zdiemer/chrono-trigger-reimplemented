@@ -35,9 +35,9 @@ enum { PROGRAM_START = 0x7E3000, PROGRAM_ADDRESS = 0x3000 };
 static bool boot(GameState *g, Platform *pf, uint8_t flags)
 {
     program_install_vblank_handler(g, scene_boot_vblank);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     program_install_line_handler(g, scene_boot_line);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     tm_enable_interrupts(pf, PF_AT(0xC30034), TM_INT_AUTO_JOYPAD);
     set_scene_flags(g, flags);
     bool line_irq = flags & SCENE_FLAG_TITLE_WITH_LINE_IRQ;

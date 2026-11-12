@@ -49,10 +49,10 @@ static void charge_move_result(GameState *g, FieldObject self, StepStart start, 
         accesses += 4;
     else if (start.outcome == START_BLOCKED) {
         accesses += 5;
-        charge_legacy_rom_accesses(g, 2);
+        charge_rom_accesses(g, 2);
     } else if (start.outcome != START_STILL && start.outcome != START_TURNED_STILL)
         accesses += 8;
-    charge_legacy_accesses(g, accesses);
+    charge_accesses(g, accesses);
 }
 
 /* Set off in a direction for `steps` steps: facing the way when walking, and
@@ -67,10 +67,10 @@ static EventFlow set_off(GameState *g, FieldObject self, MoveStyle style, Direct
     bool in_view = object_view(g, self) != OUT_OF_VIEW;
     bool looked = in_view && (field_object_blocking(g, self) & BLOCKED_BY_OBJECTS);
     charge_uncounted_end(g, mark);
-    charge_legacy_accesses(g, 1 + (in_view ? 1 : 0) + (looked ? 2 : 0));
+    charge_accesses(g, 1 + (in_view ? 1 : 0) + (looked ? 2 : 0));
     if (blocked) {
         direction = (Direction)(direction + TURN_ASIDE);
-        charge_legacy_accesses(g, 4); /* turned direction's word read/write */
+        charge_accesses(g, 4); /* turned direction's word read/write */
         if (style == WALKING)
             object_set_facing(g, self, facing_of_direction(g, direction));
     }
@@ -86,7 +86,7 @@ static EventFlow set_off(GameState *g, FieldObject self, MoveStyle style, Direct
 static EventFlow set_off_toward(GameState *g, FieldObject self, MoveStyle style, Aim aim, uint8_t steps)
 {
     Direction d = direction_between(g, aim.from, aim.to);
-    charge_legacy_accesses(g, 10); /* two tiles, angle work and direction */
+    charge_accesses(g, 10); /* two tiles, angle work and direction */
     return set_off(g, self, style, d, steps);
 }
 
@@ -106,7 +106,7 @@ static EventFlow keep_lining_up(GameState *g, FieldObject self, MoveStyle style)
         uint32_t mark = charge_uncounted_begin(g);
         bool animated = object_animation_mode(g, self) == ANIMATE_WITH_MOVEMENT;
         charge_uncounted_end(g, mark);
-        charge_legacy_accesses(g, 1 + (animated ? 4 : 0)); /* mode, then velocity only for a walking animation */
+        charge_accesses(g, 1 + (animated ? 4 : 0)); /* mode, then velocity only for a walking animation */
     }
     return stay();
 }
@@ -150,7 +150,7 @@ static EventFlow move_to_tile(GameState *g, FieldObject self, uint8_t tile_x, ui
         return stay();
     if (fresh) {
         Aim aim = { object_tile(g, self), { tile_x, tile_y } };
-        charge_legacy_accesses(g, 4); /* the move's two tiles */
+        charge_accesses(g, 4); /* the move's two tiles */
         if (aim.from.x != aim.to.x || aim.from.y != aim.to.y)
             return set_off_toward(g, self, style, aim, steps_to_set_off(g, self, counted, steps));
         if (object_lines_up(g, self, LINE_UP_ON_THE_TILE) && object_line_up_with_tile(g, self))
@@ -191,7 +191,7 @@ static EventFlow walk_up_to(GameState *g, FieldObject self, Someone quarry, Move
 {
     if (quarry.there && !quarry.disabled) {
         Aim aim = { object_tile(g, self), tile_at(quarry.at) };
-        charge_legacy_accesses(g, 6); /* two tiles and target selection */
+        charge_accesses(g, 6); /* two tiles and target selection */
         if (!tiles_next_to(aim.from, aim.to)) {
             if (until == WELL_ON_SCREEN) {
                 if (tile_well_on_screen(g, aim.from))

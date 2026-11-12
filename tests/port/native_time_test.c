@@ -92,9 +92,9 @@ int main(void)
     CHECK(rows[0].milli_clocks == 51000);
     CHECK(rows[1].tags == 1 && rows[1].bus_clocks == 6 && rows[1].milli_clocks == 15000);
     was = charge_time_as_begin(reported, 0xC01235);
-    charge_legacy_accesses(reported, 2);
-    charge_legacy_io_accesses(reported, 3);
-    charge_legacy_rom_accesses(reported, 4);
+    charge_accesses(reported, 2);
+    charge_io_accesses(reported, 3);
+    charge_rom_accesses(reported, 4);
     charge_time_as_end(reported, was);
     CHECK(state_host_take_owed(reported) == 145); /* (16 + 18 + 24) at 2.5 */
     was = charge_time_as_begin(reported, 0xC01235);

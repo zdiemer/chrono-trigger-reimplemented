@@ -120,7 +120,7 @@ void scene_expand_plane_tile(GameState *g, Platform *pf, uint8_t bank, uint16_t 
             vid_write_vram_byte(pf, PF_AT(expansion_of(planes)->site), true, color);
         }
     }
-    charge_legacy_accesses(g, planes + (planes == TILE_PLANES));
+    charge_accesses(g, planes + (planes == TILE_PLANES));
     /* The eight-plane form counts its rows in the bitmap scaler's cell, which
      * the scaler reads before it writes: the count run out stays there. */
     if (planes == SCENE_MOST_PLANES)
@@ -174,7 +174,7 @@ void scene_load_plane_map(GameState *g, Platform *pf, uint8_t picture_bank)
     }
     vid_fill_vram_half(pf, PF_AT(0x7E5AEB), PF_GAME(SCENE_BLANK_TILE), REST_OF_PLANE_BYTES, VID_VRAM_LOW_BYTES);
     /* the port, where the original's reads of the picture leave it */
-    charge_legacy_io_accesses(g, 2);
+    charge_io_accesses(g, 2);
 }
 
 /* The pendulum's screen: the plane (BG1 in mode 7, transparent outside it)

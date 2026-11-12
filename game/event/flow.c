@@ -65,7 +65,7 @@ EVENT_OPERATION(if_compares, left, right, comparison)
 static EventFlow if_story(GameState *g, uint8_t offset, uint16_t value, uint8_t comparison)
 {
     uint8_t byte = story_byte(g, story_offset_in(offset, comparison));
-    charge_legacy_accesses(g, 3); /* compared byte, value and operator */
+    charge_accesses(g, 3); /* compared byte, value and operator */
     return unless_jump(holds(operator_in(comparison), byte, value));
 }
 EVENT_OPERATION(if_story, offset, value, comparison)

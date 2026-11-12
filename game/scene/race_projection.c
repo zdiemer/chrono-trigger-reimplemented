@@ -430,8 +430,8 @@ static uint16_t place_one(GameState *g, Places p, Racer r)
     }
     uint16_t gap = horizon_gap(g, at_the_camera && u.farther);
     uint16_t line = line_at(g, divisor, gap);
-    charge_legacy_accesses(g, 2);
-    charge_legacy_io_accesses(g, 4);
+    charge_accesses(g, 2);
+    charge_io_accesses(g, 4);
     if (r == RACER_CRONO)
         place_crono(g, at, line, gap);
     else

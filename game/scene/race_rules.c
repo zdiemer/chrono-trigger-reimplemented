@@ -77,7 +77,7 @@ static bool at_least(uint16_t a, uint16_t b) { return (int16_t)(a - b) >= 0; }
 static void leave_working_cells(GameState *g, uint16_t first, uint16_t second)
 {
     (void)first;
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
     set_scene_call_second(g, scene_program_own(), second);
 }
 
@@ -362,7 +362,7 @@ static uint16_t overlap(const GameState *g, Racer pushing, Racer pushed, const B
 static void bump_across(GameState *g, Racer pushing, Racer pushed, const BumpAcrossUnits *u)
 {
     uint16_t by = overlap(g, pushing, pushed, u);
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
     uint16_t crono = lane(g, RACER_CRONO), johnny = lane(g, RACER_JOHNNY);
     if (pushing == RACER_CRONO) {
         set_scene_race_racers_lane(g, RACER_CRONO, (uint16_t)(crono - by - !u->into_crono));

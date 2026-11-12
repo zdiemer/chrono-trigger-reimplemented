@@ -117,7 +117,7 @@ static void write_sprites(GameState *g, unsigned range, const Sprite *sprites, u
         hw_port_write(g, sprites[n].tile);
         hw_port_write(g, sprites[n].attributes);
     }
-    charge_legacy_accesses(g, 1); /* the completed sprite count */
+    charge_accesses(g, 1); /* the completed sprite count */
 }
 
 /* Hide the entries each range used last frame beyond this frame's last, and
@@ -435,7 +435,7 @@ static void place_sprites(GameState *g, FieldObject obj, bool reload)
      * high bit bytes: 14 accesses. Above the screen the original's
      * fifth-sprite write also reads the record pointer twice and its
      * offset: six more. */
-    charge_legacy_accesses(g, 14 + (zone_of(at.y) == ABOVE_THE_SCREEN ? 6 : 0));
+    charge_accesses(g, 14 + (zone_of(at.y) == ABOVE_THE_SCREEN ? 6 : 0));
 }
 
 /* ---- Placing the larger layouts --------------------------------------------------------- */
@@ -490,7 +490,7 @@ static bool place_larger(GameState *g, FieldObject obj, SpriteLayout layout, boo
     /* The original reads the position, records and high bits back into
      * temporaries, and writes the 24-sprite count only on or below the
      * screen. */
-    charge_legacy_accesses(g, layout == LAYOUT_24 && zone == ABOVE_THE_SCREEN ? 16 : 17);
+    charge_accesses(g, layout == LAYOUT_24 && zone == ABOVE_THE_SCREEN ? 16 : 17);
     if (layout != LAYOUT_24 || zone != ABOVE_THE_SCREEN)
         return true;
     int16_t last_top = (int16_t)(at.y + (int8_t)last_offset);

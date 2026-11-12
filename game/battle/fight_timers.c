@@ -109,7 +109,7 @@ void fight_set_first_turns(GameState *g)
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         if (!combatant_in_fight(g, member))
             continue;
-        charge_legacy_rom_accesses(g, 2);
+        charge_rom_accesses(g, 2);
 
         start_turn(g, member, first_wait(g, member));
         battle_restart_timer(g, BATTLE_TIMER_TURN, member);
@@ -118,7 +118,7 @@ void fight_set_first_turns(GameState *g)
         uint8_t slot = (uint8_t)(BATTLE_FIRST_ENEMY + enemy);
         if (battle_combatant_id(g, slot) == COMBATANT_NONE)
             continue;
-        charge_legacy_rom_accesses(g, 2);
+        charge_rom_accesses(g, 2);
 
         uint8_t wait = first_wait(g, slot);
         if (combatant_stat_byte(g, slot, MAX_MP_HIGH) & STANDING_MARK_BIT)

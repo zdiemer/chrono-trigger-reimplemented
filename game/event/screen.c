@@ -78,7 +78,7 @@ static uint8_t tint_math(TintMix mix) { return mix == TINT_ADDED ? 0x17 : 0x97; 
 static void take_target_channels(GameState *g)
 {
     uint8_t channels = field_fixed_color_target(g) & CHANNELS;
-    charge_legacy_accesses(g, 1); /* selected tint channels */
+    charge_accesses(g, 1); /* selected tint channels */
     set_field_fixed_color(g, (uint8_t)((field_fixed_color(g) & STRENGTH) | channels));
 }
 

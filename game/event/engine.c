@@ -300,10 +300,10 @@ static uint8_t operand_copy_work(uint8_t opcode)
 EventStep event_perform(GameState *g, Platform *pf, const EventOpcode *row, uint16_t at)
 {
     EventCommand c = event_decode(g, pf, row, at);
-    charge_legacy_accesses(g, operand_copy_work(row->opcode));
+    charge_accesses(g, operand_copy_work(row->opcode));
     EventFlow flow = row->run(g, &c);
     if (flow.kind == FLOW_JUMP)
-        charge_legacy_accesses(g, 2); /* the selected jump distance */
+        charge_accesses(g, 2); /* the selected jump distance */
     return event_follow(g, row, at, flow);
 }
 

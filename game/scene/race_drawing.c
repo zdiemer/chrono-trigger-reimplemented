@@ -262,8 +262,8 @@ static void draw_number(GameState *g, uint16_t value)
     while (shown > 1 && digits[shown - 1] == 0)
         shown--;
     set_scene_number_digits(g, 0, (uint8_t)(shown + 1));
-    charge_legacy_io_accesses(g, 2);
-    charge_legacy_io_accesses(g, 2);
+    charge_io_accesses(g, 2);
+    charge_io_accesses(g, 2);
     draw_list(g, NUMBER_LIST);
 }
 
@@ -347,8 +347,8 @@ static void draw(GameState *g, Platform *pf)
         draw_marker(g, pf, nearer, length);
         draw_marker(g, pf, farther, length);
     }
-    charge_legacy_accesses(g, panel ? 4 : 0);
-    charge_legacy_io_accesses(g, 4);
+    charge_accesses(g, panel ? 4 : 0);
+    charge_io_accesses(g, 4);
     if (panel)
         draw_panel(g);
     draw_racer(g, nearer, pose);

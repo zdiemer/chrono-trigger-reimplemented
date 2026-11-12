@@ -749,7 +749,7 @@ static void lay_out_the_panel(GameState *g, Platform *pf)
         for (unsigned n = HALF_ROW; n-- > 0;)
             vid_write_vram(pf, PF_AT(0x7E7B3D), (uint16_t)(wram_read8(g, attributes++) << 8 | (uint8_t)(first + n)));
     }
-    charge_legacy_io_accesses(g, 2);
+    charge_io_accesses(g, 2);
     vid_start_vram_uploads(pf, PF_AT(0x7E7B55), SCENE_VRAM_LOW_BYTES);
     vid_set_vram_address(pf, PF_AT(0x7E7B5B), PANEL_MIDDLE);
     for (unsigned n = 0; n < MIDDLE_TILES; n++)
@@ -775,10 +775,10 @@ static bool make_the_pieces(GameState *g, Platform *pf, const DiveSetUpSteps *st
     set_scene_dive_epoch_frames_left(g, TAKE_THE_NEXT_FRAME);
     set_epoch_frame(g, BEFORE_THE_FIRST_FRAME);
     make_the_curve(g);
-    charge_legacy_accesses(g, 2);
-    charge_legacy_rom_accesses(g, 1);
+    charge_accesses(g, 2);
+    charge_rom_accesses(g, 1);
     make_the_fog(g);
-    charge_legacy_io_accesses(g, 3);
+    charge_io_accesses(g, 3);
 
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     if (!steps->unpack(ctx, UNPACK_SPRITE_TILES))
@@ -795,7 +795,7 @@ static bool make_the_pieces(GameState *g, Platform *pf, const DiveSetUpSteps *st
         return false;
     vid_set_vram_address(pf, PF_AT(0x7E7B13), PANEL_MAP_VRAM);
     lay_out_the_panel(g, pf);
-    charge_legacy_accesses(g, 1);
+    charge_accesses(g, 1);
     scene_clear_buffer(pf, SCALER_OUTPUT, SCALER_OUTPUT_BYTES, 0x7E7B98);
     return true;
 }

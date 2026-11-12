@@ -110,8 +110,8 @@ bool scene_turn_map(GameState *g)
         }
     }
     set_scene_map_pending_count(g, (uint16_t)(scene_map_pending_count(g) + 1));
-    charge_legacy_accesses(g, 20);
-    charge_legacy_io_accesses(g, 6);
+    charge_accesses(g, 20);
+    charge_io_accesses(g, 6);
     return true;
 }
 
@@ -307,8 +307,8 @@ static TaskEnd work_out_the_turn_task(GameState *g, Platform *pf)
     set_scene_turn_center(g, 0, x);
     set_scene_turn_position(g, 1, y);
     set_scene_turn_center(g, 1, y);
-    charge_legacy_rom_accesses(g, 1);
-    charge_legacy_io_accesses(g, 4);
+    charge_rom_accesses(g, 1);
+    charge_io_accesses(g, 4);
     return task_goes_on();
 }
 
@@ -368,7 +368,7 @@ static TaskEnd ripple_the_palace_task(GameState *g, Platform *pf)
         ridge = (uint16_t)(ridge - strength);
         set_scene_palace_column_offsets(g, column, column_offset(ridge));
     }
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
     set_scene_palace_ripple_scroll(g, (uint16_t)(scene_palace_ripple_scroll(g) + strength));
     uint16_t sea = scene_channel_register(g, PALACE_CHANNEL, SEA_SCROLL);
     set_scene_palace_sea_scroll(g, (uint16_t)(sea >> 2));

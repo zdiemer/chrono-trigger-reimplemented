@@ -289,7 +289,7 @@ void scene_send_letters_widened(GameState *g, Platform *pf)
             vid_write_vram(pf, PF_AT(0x7E66C8), 0);
     }
     /* the original reads the tiles through the work RAM port */
-    charge_legacy_io_accesses(g, 2);
+    charge_io_accesses(g, 2);
 }
 
 /* Past the plane's name table (which the two halves leave VRAM's address at
@@ -318,8 +318,8 @@ static void lay_out_mosaic(GameState *g)
     }
     /* the original reads the numbers through the work RAM port and counts them
      * down in a word of the second bank */
-    charge_legacy_io_accesses(g, 2);
-    charge_legacy_accesses(g, 2);
+    charge_io_accesses(g, 2);
+    charge_accesses(g, 2);
     charge_block_move(g, MOSAIC_TILES * MOSAIC_TILE_BYTES);
 }
 
@@ -639,8 +639,8 @@ static void mirror_picture_frames(GameState *g)
         to = scene_mirror_rows(g, to, (uint32_t)SCENE_UPPER_WORK_RAM << 16 | run, MIRROR_LAST, RUN_ROWS);
         run = (uint16_t)(run - RUN_BYTES);
     }
-    charge_legacy_accesses(g, 6);
-    charge_legacy_io_accesses(g, 3);
+    charge_accesses(g, 6);
+    charge_io_accesses(g, 3);
 }
 
 /* What the picture's loading leaves for the scene: the scaler's output full,
@@ -688,7 +688,7 @@ static bool load_new_ground(GameState *g, Platform *pf, SceneProgramPage page, c
         return false;
     scene_double_plane_rows(g);
     /* the original counts the rows down in its page's first cell */
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
     vid_start_vram_uploads(pf, PF_AT(0x7E87B8), SCENE_VRAM_LOW_BYTES);
     vid_set_vram_address(pf, PF_AT(0x7E87BB), 0x0000);
     vid_set_mode7(pf, PF_AT(0x7E87C1), &(VidMode7){ .outside = VID_M7_WRAP }, VID_M7_SELECT);
@@ -805,8 +805,8 @@ static void write_pattern_map(GameState *g)
             at += 2;
         }
     }
-    charge_legacy_accesses(g, 4);
-    charge_legacy_io_accesses(g, 3);
+    charge_accesses(g, 4);
+    charge_io_accesses(g, 3);
     /* the rows' count, run down to 0 in the scene's second cell, which the next
      * frame's controller read takes for the buttons held before */
     SceneProgramPage own = scene_program_own();
@@ -1136,7 +1136,7 @@ static void expand_packed_pixels(GameState *g, Platform *pf, unsigned bytes)
         vid_write_vram_byte(pf, PF_AT(0x7E3551), true, pair & 15);
         vid_write_vram_byte(pf, PF_AT(0x7E3558), true, pair >> 4);
     }
-    charge_legacy_io_accesses(g, 3);
+    charge_io_accesses(g, 3);
 }
 
 /* Each layer's map occupies the beginning of a 32 by 32 tilemap; the rest

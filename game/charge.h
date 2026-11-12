@@ -12,18 +12,18 @@
  * calibrated rate. */
 void charge_as(GameState *g, uint32_t routine, uint32_t accesses);
 
-/* Work the original spends on temporary memory accesses the port keeps as C
- * values instead: the calibrated beam-budget estimate kept without the cells,
- * at the current operation's rate, so that the port charges the same work. */
-void charge_legacy_accesses(GameState *g, uint32_t accesses);
+/* Work the original spends on memory accesses the C keeps in locals instead:
+ * `accesses` work RAM accesses at the current operation's rate, so the frame
+ * takes the time the game's does (docs/TODO.md, "Per-path work counts"). */
+void charge_accesses(GameState *g, uint32_t accesses);
 
 /* The same estimate for the original's multiplier or upload-cursor accesses,
  * which cost a different time from work RAM's. */
-void charge_legacy_io_accesses(GameState *g, uint32_t accesses);
+void charge_io_accesses(GameState *g, uint32_t accesses);
 
 /* Reads of the original's cartridge tables the port no longer makes, at the selected
  * cartridge speed. No table bytes are read or retained. */
-void charge_legacy_rom_accesses(GameState *g, uint32_t accesses);
+void charge_rom_accesses(GameState *g, uint32_t accesses);
 
 
 /* The time of the game's block move moving `bytes` bytes: what the original

@@ -677,7 +677,7 @@ static inline MenuUpload menu_upload_record(const GameState *g, uint16_t at)
     for (unsigned i = 0; i < 7; i++)
         b[i] = rom_read8(g, 0xC20000u | (uint16_t)(at + i));
     /* The old queue copied an unused eighth byte, sometimes from code. */
-    charge_legacy_rom_accesses((GameState *)g, 1);
+    charge_rom_accesses((GameState *)g, 1);
     return (MenuUpload){ (uint16_t)(b[0] | b[1] << 8), (uint32_t)b[4] << 16 | (uint16_t)(b[2] | b[3] << 8),
                          (uint16_t)(b[5] | b[6] << 8), 0 };
 }
@@ -889,7 +889,7 @@ static inline uint16_t menu_gate_tile_row(const GameState *g, unsigned row) { re
 static inline uint8_t menu_gate_row_pick(const GameState *g, uint32_t at)
 {
     uint8_t row = rom_read8(g, at & 0xFFFFFFu);
-    charge_legacy_rom_accesses((GameState *)g, 1);
+    charge_rom_accesses((GameState *)g, 1);
     return row;
 }
 

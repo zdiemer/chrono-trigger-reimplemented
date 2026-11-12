@@ -178,8 +178,8 @@ static void load_sprite_list(GameState *g, uint16_t list, bool clipped)
         next_entry(&c);
     }
     set_cursor(g, c);
-    charge_legacy_io_accesses(g, 3);
-    charge_legacy_accesses(g, 1);
+    charge_io_accesses(g, 3);
+    charge_accesses(g, 1);
 }
 
 /* The lists' offset down as a whole word, which the program's own list of
@@ -246,8 +246,8 @@ void scene_draw_large_sprite_list(GameState *g, uint16_t list, SceneLargeList fo
         next_entry(&c);
     }
     set_cursor(g, c);
-    charge_legacy_io_accesses(g, 3);
-    charge_legacy_accesses(g, 1);
+    charge_io_accesses(g, 3);
+    charge_accesses(g, 1);
 }
 
 /* A list with signed offsets: an entry's X and Y count from the scene's
@@ -297,8 +297,8 @@ void scene_draw_signed_sprite_list(GameState *g, uint16_t list)
         next_entry(&c);
     }
     set_cursor(g, c);
-    charge_legacy_io_accesses(g, 3);
-    charge_legacy_accesses(g, 1 + (sprites ? 2 : 0));
+    charge_io_accesses(g, 3);
+    charge_accesses(g, 1 + (sprites ? 2 : 0));
 }
 
 // $C3:0DBC, $C3:0DF3

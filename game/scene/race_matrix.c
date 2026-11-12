@@ -102,7 +102,7 @@ static void write_matrix_code(GameState *g, uint16_t destination, uint16_t sourc
      * the program's next signed multiply adds into its product
      * (scene/math.c): the step as the loop leaves it is game state. */
     set_scene_call_matrix_row_step(g, scene, o.row);
-    charge_legacy_accesses(g, 8);
+    charge_accesses(g, 8);
 }
 
 /* The scenes' setups have it written into its place in the program

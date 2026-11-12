@@ -306,7 +306,7 @@ static void rotate_the_colors(GameState *g)
     if (left)
         return;
     rotate_colors_up(g, ROTATED_SPRITE_COLORS, SPRITE_COLORS_ROTATED);
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
     if (battle_background_cycle_on(g)) {
         uint8_t cycle = battle_background_cycle(g);
         unsigned palette = cycle >> 4, first = cycle & 0x0F;
@@ -318,7 +318,7 @@ static void rotate_the_colors(GameState *g)
             rotate_colors_up(g, next * PALETTE_COLORS + 1, PALETTE_COLORS - 1);
             next++;
         } while (next < BACKGROUND_PALETTES);
-        charge_legacy_accesses(g, 2);
+        charge_accesses(g, 2);
         return;
     }
 }
@@ -625,7 +625,7 @@ static bool frame_work_takes(GameState *g)
         return false;
     bool queued = battle_vram_request_pending(g) != 0;
     bool block = battle_block_upload_request(g) != 0;
-    charge_legacy_accesses(g, 32 + (queued ? 85 : 0) + (block ? 34 : 0));
+    charge_accesses(g, 32 + (queued ? 85 : 0) + (block ? 34 : 0));
     return true;
 }
 

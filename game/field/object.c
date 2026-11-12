@@ -147,7 +147,7 @@ void object_take_off_the_map(GameState *g, FieldObject obj)
 // $C0:58DE (the map setup's openings)
 void object_start_on_the_map(GameState *g, FieldObject obj)
 {
-    charge_legacy_accesses(g, 1); /* the old word clear's unused high byte */
+    charge_accesses(g, 1); /* the old word clear's unused high byte */
     object_set_solidity(g, obj, false);
     set_field_object_accelerating(g, obj, 0);
     set_field_object_acceleration(g, obj, 0);

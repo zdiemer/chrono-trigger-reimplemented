@@ -315,7 +315,7 @@ static bool close_the_display(GameState *g, Platform *pf, ClosingCalls call, voi
     if (!closing_call(call, ctx, CLOSING_LEAVING_FRAME))
         return false;
     program_install_vblank_handler(g, battle_closing_vblank);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     set_battle_scratch(g, FADE_FROM, battle_brightness(g));
     do
         if (!closing_call(call, ctx, CLOSING_SMALL_FRAME))

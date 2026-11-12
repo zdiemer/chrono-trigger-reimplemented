@@ -103,7 +103,7 @@ static void each_target(GameState *g, const EffectRecord *e, TargetWork *work)
 }
 
 /* The record's second and third bytes, as a kind loads them ($C1:D14F). */
-static void charge_record_numbers(GameState *g) { charge_legacy_accesses(g, 2); }
+static void charge_record_numbers(GameState *g) { charge_accesses(g, 2); }
 
 /* The effect missed the target: dodged, or the attacker's miss. */
 static void miss(GameState *g, const EffectRecord *e, bool dodged)
@@ -453,7 +453,7 @@ static void add_number_into(GameState *g, unsigned from, unsigned to)
  * each capped at what can be shown. */
 void effect_add_up_hits(GameState *g, uint8_t sets)
 {
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
     for (uint8_t place = FIRST_ENEMY_PLACE; place < SET_BYTES; place = (uint8_t)(place + RECORD_BYTES))
         for (uint8_t set = sets; set != 0; set--) {
             unsigned from = (effect_times(g, set, SET_BYTES) + place) / RECORD_BYTES, to = from - SET_BYTES / RECORD_BYTES;

@@ -57,7 +57,7 @@ typedef struct {
 
 static void charge_walk_work(GameState *g, WalkWork work, unsigned probes)
 {
-    charge_legacy_accesses(g, probes + (work.ground ? 9 : 0) +
+    charge_accesses(g, probes + (work.ground ? 9 : 0) +
         (work.landing ? 16 : 0) + (work.screen ? 1 : 0) +
         (work.slope || work.screen_back ? 1 : 0));
 }
@@ -668,14 +668,14 @@ static Velocity keep_to_the_map(GameState *g, FieldLeader leader, Velocity step)
     if (step.x < 0 && field_map_edges_left(g) >= t.x)
         moved.x = 0;
     if (step.x > 0) {
-        charge_legacy_accesses(g, 2); /* the right edge's temporary read and write */
+        charge_accesses(g, 2); /* the right edge's temporary read and write */
         if (t.x >= field_map_edges_right(g))
             moved.x = 0;
     }
     if (step.y < 0 && (uint8_t)(field_map_edges_top(g) + 1) >= t.y)
         moved.y = 0;
     if (step.y > 0) {
-        charge_legacy_accesses(g, 1); /* the lower edge's temporary */
+        charge_accesses(g, 1); /* the lower edge's temporary */
         uint8_t last = (uint8_t)(field_map_edges_bottom(g) + 1);
         if (t.y >= last)
             moved.y = 0;
@@ -729,12 +729,12 @@ static bool screen_follows(GameState *g, FieldLeader leader, Axis axis, bool for
             work->screen_back = true;
             /* The original's downward check makes a backward check too:
              * three edge reads and, at the edge, one fine-scroll read. */
-            charge_legacy_accesses(g, screen == edge ? 4 : 3);
+            charge_accesses(g, screen == edge ? 4 : 3);
         }
         return follows;
     }
     work->screen_back = true;
-    charge_legacy_accesses(g, 1); /* the backward check's edge read */
+    charge_accesses(g, 1); /* the backward check's edge read */
     if (edge < screen)
         return leader_on_screen(g, leader, axis) < middle;
     if (edge > screen)

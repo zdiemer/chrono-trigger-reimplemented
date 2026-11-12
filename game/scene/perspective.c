@@ -239,8 +239,8 @@ static void charge_perspective_temporaries(GameState *g)
     uint32_t mark = charge_uncounted_begin(g);
     bool outside = start_routine(g) == START_SHELL_FROM_OUTSIDE;
     charge_uncounted_end(g, mark);
-    charge_legacy_accesses(g, 12); /* five words stored, start routine read */
-    charge_legacy_io_accesses(g, outside ? 9 : 6);
+    charge_accesses(g, 12); /* five words stored, start routine read */
+    charge_io_accesses(g, outside ? 9 : 6);
 }
 
 /* The distance of the line (or pair) after `line`, which was at `distance`. */

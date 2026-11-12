@@ -363,7 +363,7 @@ static void bring_in(GameState *g, unsigned layer, Side side)
     Line line = line_coming_in(screen_edges(g, keeps_own_edges(g, layer)), side);
     Staging out = { (uint16_t)(field_staged_line(layer, line.way == DOWN_A_COLUMN) - field_staged_line(FIELD_BG1, false)) };
     build_line_charged(g, layer, line, &out, line.way == ALONG_A_ROW ? ACCESSES_16_ROW_ENTRIES : ACCESSES_16_COLUMN_ENTRIES);
-    charge_legacy_io_accesses(g, 3); /* the completed staging cursor */
+    charge_io_accesses(g, 3); /* the completed staging cursor */
     move_place_in_tile_map(g, layer, side);
     set_field_layer_upload_flags(g, side, (uint8_t)(field_layer_upload_flags(g, side) | 1u << layer));
 }
@@ -429,7 +429,7 @@ void stream_the_right_columns(GameState *g)
         Line line = line_coming_in(screen_edges(g, keeps_own_edges(g, layer)), SIDE_RIGHT);
         Staging out = { (uint16_t)(field_staged_line(layer, true) - field_staged_line(FIELD_BG1, false)) };
         build_line_charged(g, layer, line, &out, ACCESSES_16_COLUMN_ENTRIES);
-        charge_legacy_io_accesses(g, 3); /* the completed staging cursor */
+        charge_io_accesses(g, 3); /* the completed staging cursor */
         set_field_layer_upload_flags(g, SIDE_RIGHT, (uint8_t)(field_layer_upload_flags(g, SIDE_RIGHT) | 1u << layer));
     }
     TIMED_AS(g, 0xC07F9A, field_find_layer_edges(g));
@@ -503,7 +503,7 @@ void draw_layer_at_the_maps_load(GameState *g, unsigned layer)
         draw_the_screen(g, layer, &out, screen_edges(g, false));
     charge_uncounted_end(g, mark);
     charge_as(g, drawing[layer], (uint32_t)out.at / ENTRY_BYTES * ACCESSES_A_DRAWN_ENTRY);
-    charge_legacy_io_accesses(g, 3); /* outside the explicitly priced drawing */
+    charge_io_accesses(g, 3); /* outside the explicitly priced drawing */
 }
 
 /* The layers the port streams: each layer's map repeats within the map's 64

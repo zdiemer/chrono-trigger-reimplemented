@@ -40,7 +40,7 @@ EVENT_CHECK(records_in_the_story, story_at, width)
 static EventFlow mark_story_flag(GameState *g, uint8_t flag_bit, bool on_second_page, uint8_t offset, bool raise)
 {
     uint8_t mask = raise ? bit_mask(g, flag_bit) : bit_clear_mask(g, flag_bit);
-    charge_legacy_accesses(g, 1); /* the selected flag mask */
+    charge_accesses(g, 1); /* the selected flag mask */
     StoryOffset at = (StoryOffset)((on_second_page ? STORY_SECOND_PAGE : 0) | offset);
     uint8_t byte = story_byte(g, at);
     set_story_byte(g, at, raise ? (uint8_t)(byte | mask) : (uint8_t)(byte & mask));

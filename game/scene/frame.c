@@ -138,7 +138,7 @@ bool scene_remove_task(GameState *g, SceneTaskList list, SceneTask task) { retur
 static void install_handler(GameState *g, ProgramHandler handler)
 {
     program_install_vblank_handler(g, handler);
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
 }
 
 /* The brightness the scene keeps, where 0 means the screen blank. */

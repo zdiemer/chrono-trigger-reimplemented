@@ -65,7 +65,7 @@ void object_update_screen_position(GameState *g, FieldObject obj)
     ScreenOrigin o = screen_origin(g);
     /* The original works the place out in four words of scratch memory;
      * their eight accesses stay in the screen position's time. */
-    charge_legacy_accesses(g, 8);
+    charge_accesses(g, 8);
     FieldPosition at = object_position(g, obj);
     set_field_object_screen_x(g, obj, stored_screen_coordinate(on_screen(at.x, o.x)));
     set_field_object_screen_y(g, obj, stored_screen_coordinate(on_screen(at.y, o.y)));
@@ -159,7 +159,7 @@ void object_join_row(GameState *g, FieldObject obj)
         return;
     }
     set_previous_in_row(g, field_linked_object(first), field_link_to(obj));
-    charge_legacy_accesses(g, 1); /* the joined row's former byte selection */
+    charge_accesses(g, 1); /* the joined row's former byte selection */
     set_next_in_row(g, obj, first);
     set_row_first(g, row, field_link_to(obj));
     mark_in_a_row(g, obj);
@@ -259,7 +259,7 @@ static bool resort_party(GameState *g, const UpdateSteps *steps, void *ctx)
 static bool update_objects(GameState *g, const UpdateSteps *steps, void *ctx)
 {
     uint8_t count = event_object_count(g);
-    charge_legacy_accesses(g, 4); /* loop bound's former word read/write */
+    charge_accesses(g, 4); /* loop bound's former word read/write */
     UpdateKind kind;
     for (FieldObject obj = 0;; obj++) {
         object_make_current(g, obj);

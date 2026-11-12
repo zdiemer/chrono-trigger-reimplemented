@@ -184,8 +184,8 @@ static void draw_run(GameState *g, FieldObject obj, ObjectGraphics set, uint32_t
         field_draw_frame_tile(g, set, tile_name(g, description, run.first + t), (uint16_t)(at + t * TILE_BYTES));
     /* The builder's bookkeeping for a run -- its count, the saved offset, the
      * tile offset and the upload cursor -- at its calibrated rate. */
-    charge_legacy_accesses(g, 6);
-    charge_legacy_io_accesses(g, 3);
+    charge_accesses(g, 6);
+    charge_io_accesses(g, 3);
 }
 
 static void draw_part(GameState *g, FieldObject obj, ObjectGraphics set, uint32_t description, const FramePart *part)
@@ -293,7 +293,7 @@ static FrameBuild draw_next_frame(GameState *g, FieldObject obj)
     ObjectGraphics set = object_graphics(g, obj);
     /* Choosing the graphics and frame tables, at the builder's calibrated
      * rate. */
-    charge_legacy_accesses(g, 5);
+    charge_accesses(g, 5);
     bool holding = object_holds_frame(g, obj);
     if (holding && layout == LAYOUT_12)
         return FRAME_WAITS;
@@ -307,7 +307,7 @@ static FrameBuild draw_next_frame(GameState *g, FieldObject obj)
             return FRAME_NO_NEXT;
         if (f.frame == object_frame_drawn(g, obj))
             return FRAME_ALREADY_DRAWN;
-        charge_legacy_accesses(g, 4); /* choosing the frame */
+        charge_accesses(g, 4); /* choosing the frame */
         if (!sprites_claim_frame_areas(g, obj, layout))
             return FRAME_NO_ROOM;
         object_set_frame_drawn(g, obj, f.frame);
@@ -316,15 +316,15 @@ static FrameBuild draw_next_frame(GameState *g, FieldObject obj)
     uint32_t description = frame_description(g, obj, plan, frame);
     /* Finding the frame's description, kept in the beam-budgeted queue's
      * estimate. */
-    charge_legacy_accesses(g, 3);
-    charge_legacy_io_accesses(g, 4);
+    charge_accesses(g, 3);
+    charge_io_accesses(g, 4);
     for (unsigned p = first; p <= last; p++)
         draw_part(g, obj, set, description, &plan->part[p]);
     if (last + 1 < plan->parts)
         return FRAME_PART_DRAWN;
     queue_upload(g, obj, plan);
     frame_sprites(g, obj, plan, description, INTO_THE_FRAME_DATA);
-    charge_legacy_accesses(g, 4); /* palette/page reads and attribute selection */
+    charge_accesses(g, 4); /* palette/page reads and attribute selection */
     return FRAME_DRAWN;
 }
 
@@ -372,8 +372,8 @@ void object_draw_whole_figure(GameState *g, Platform *pf, FieldObject obj)
     object_set_frame_drawn(g, obj, FIGURE_FRAME);
     for (unsigned t = 0; t < FIGURE_TILES; t++)
         field_draw_frame_tile(g, set, tile_name(g, description, t), (uint16_t)(figure_place() + t * TILE_BYTES));
-    charge_legacy_accesses(g, 13); /* graphics, description and completed run */
-    charge_legacy_io_accesses(g, 3);
+    charge_accesses(g, 13); /* graphics, description and completed run */
+    charge_io_accesses(g, 3);
     vid_send_vram(pf, PF_AT(0xC0E19A), FIGURE_VRAM, PF_GAME(RAM_FIELD_FIGURE_TILES), FIELD_FIGURE_TILES_BYTES,
                   VID_VRAM_WORD_PORT);
     for (unsigned n = 0; n < FIGURE_SPRITES; n++)
@@ -397,8 +397,8 @@ void object_put_drawn_frame_back(GameState *g, FieldObject obj)
     uint8_t frame = object_frame_drawn(g, obj);
     uint32_t description = frame_description(g, obj, plan, frame);
     frame_sprites(g, obj, plan, description, ONTO_THE_RECORDS);
-    charge_legacy_accesses(g, 7); /* description and attributes */
-    charge_legacy_io_accesses(g, 4);
+    charge_accesses(g, 7); /* description and attributes */
+    charge_io_accesses(g, 4);
     object_mark_records_built(g, obj);
 }
 

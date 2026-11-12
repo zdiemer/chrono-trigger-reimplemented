@@ -96,7 +96,7 @@ static TaskEnd step_the_planet_s_colours_task(GameState *g, Platform *pf)
         return task_goes_on();
     set_scene_planet_fade_steps(g, (uint8_t)(scene_planet_fade_steps(g) - 1));
     step_the_colours(g);
-    charge_legacy_accesses(g, 16);
+    charge_accesses(g, 16);
     colours_stepped = true;
     return task_goes_on();
 }
@@ -110,7 +110,7 @@ void scene_step_the_colours_toward(GameState *g, SceneColourStep step)
     set_scene_planet_fade_toward(g, step.toward);
     set_scene_planet_fade_palette(g, step.palette);
     set_scene_planet_fade_steps(g, step.steps);
-    charge_legacy_accesses(g, 1);
+    charge_accesses(g, 1);
     set_scene_planet_fade_colours(g, step.colours);
 }
 
@@ -228,7 +228,7 @@ static void fade_toward(GameState *g, uint16_t colours)
 {
     set_scene_planet_fade_toward(g, (uint16_t)(colours + FROM_THE_32ND));
     set_scene_planet_fade_steps(g, FADE_STEPS);
-    charge_legacy_accesses(g, 1);   /* the original sets the steps as a word */
+    charge_accesses(g, 1);   /* the original sets the steps as a word */
 }
 
 // $7E:63FE, $7E:6403
@@ -443,7 +443,7 @@ static bool load_the_graphics(GameState *g, Platform *pf, const PlanetSetUpSteps
 static bool load_the_colours(GameState *g, const PlanetSetUpSteps *steps, void *ctx)
 {
     set_decompress_dest(g, COLOURS_AT);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     if (!steps->unpack(ctx, UNPACK_COLOURS))
         return false;
     unpack_at(g, LAST_COLOURS);

@@ -87,5 +87,5 @@ void field_scroll_layers_by_themselves(GameState *g)
         last_backward = backward(last_backward, scroll_axis(g, AUTO_BG3, AXIS_Y));
     }
     if (last_backward < 0)
-        charge_legacy_accesses(g, 2); /* the backward step's magnitude */
+        charge_accesses(g, 2); /* the backward step's magnitude */
 }

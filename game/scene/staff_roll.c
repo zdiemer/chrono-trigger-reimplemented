@@ -100,7 +100,7 @@ static void write_next_line(GameState *g)
             set_scene_credits_row_byte(g, tile++, letter_tile(code));
     }
     /* the original writes the letters through the work RAM port */
-    charge_legacy_io_accesses(g, 3);
+    charge_io_accesses(g, 3);
     if (code == END_OF_CREDITS) {
         set_scene_credits_over(g, (uint8_t)(scene_credits_over(g) + 1));
         scene_remove_task(g, SCENE_VBLANK_TASKS, CREDITS_UPLOAD_TASK);

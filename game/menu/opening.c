@@ -109,9 +109,9 @@ void menu_pack_settings(GameState *g)
 static void take_the_interrupts(GameState *g)
 {
     program_install_vblank_handler(g, menu_vblank);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     program_install_line_handler(g, menu_line);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
 }
 
 /* The sound effects quietened and the driver's first set of effects taken:

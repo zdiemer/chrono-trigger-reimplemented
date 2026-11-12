@@ -137,8 +137,8 @@ void field_objects_start_afresh(GameState *g, Platform *pf)
         object_start_afresh(g, obj);
     for (FieldObject obj = (FieldObject)objects; obj < SLOTS_DISABLED_TO; obj++)
         slot_unused(g, obj);
-    charge_legacy_accesses(g, 2); /* function-table extent */
-    charge_legacy_io_accesses(g, 3); /* completed defaults cursor */
+    charge_accesses(g, 2); /* function-table extent */
+    charge_io_accesses(g, 3); /* completed defaults cursor */
     clear(g, pf, 1);
     clear(g, pf, 2);
     set_field_script_queue_head(g, field_link_byte(field_no_link()));

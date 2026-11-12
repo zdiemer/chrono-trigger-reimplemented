@@ -247,7 +247,7 @@ MovementAnimation object_animate_movement(GameState *g, FieldObject obj)
         return MOVEMENT_KEPT_BY_SCRIPT;
     }
     Velocity v = object_velocity(g, obj);
-    charge_legacy_accesses(g, 1); /* the speed's former intermediate byte */
+    charge_accesses(g, 1); /* the speed's former intermediate byte */
     uint8_t speed = movement_speed(v);
     MovementAnimation choice = speed == 0                                           ? MOVEMENT_STAND
                                : speed >= RUNNING_SPEED && object_may_run(g, obj) ? MOVEMENT_RUN
@@ -435,7 +435,7 @@ static void next_frame(GameState *g, FieldObject obj)
     set_field_object_animation_frame(g, obj, frame);
     uint16_t table = field_object_delay_table(g, obj);
     uint8_t animation = current_animation(g, obj, ITS_TIMES);
-    charge_legacy_accesses(g, 2); /* the first time entry's former word */
+    charge_accesses(g, 2); /* the first time entry's former word */
     uint8_t time = field_animation_frame_time(g, field_animation_place(table, animation, frame));
     if (time != END_OF_TIMES) {
         set_field_object_frame_delay(g, obj, time);
@@ -507,7 +507,7 @@ static NextFrame find_next_frame(const GameState *g, FieldObject obj, uint8_t ta
  * and there is no frame to draw; any other animation starts over. */
 ObjectFrame object_take_next_frame(GameState *g, FieldObject obj, uint8_t tables_bank)
 {
-    charge_legacy_accesses(g, 3); /* frame byte read and intermediate word */
+    charge_accesses(g, 3); /* frame byte read and intermediate word */
     NextFrame next = find_next_frame(g, obj, tables_bank);
     set_field_frame_entry_address(g, next.place);
     switch (next.found) {

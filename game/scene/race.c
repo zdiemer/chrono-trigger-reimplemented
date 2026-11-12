@@ -331,7 +331,7 @@ static void place_crono_blocks(GameState *g)
     for (unsigned i = 0; i < CRONO_BLOCKS; i++)
         place_block(g, CRONO_PICTURES_SECOND + crono_block_of[i] * BLOCK_BYTES,
                     (uint32_t)SCENE_UPPER_WORK_RAM << 16 | crono_blocks[i]);
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
 }
 
 // $7E:3ED3
@@ -386,13 +386,13 @@ static bool load_racers_pictures(GameState *g, RaceCalls call, void *ctx)
     charge_block_move(g, CRONO_PICTURES_COPY_BYTES);
     place_crono_blocks(g);
     mirror_crono(g);
-    charge_legacy_accesses(g, 2);
-    charge_legacy_io_accesses(g, 3);
+    charge_accesses(g, 2);
+    charge_io_accesses(g, 3);
     if (!call(ctx, RACE_UNPACK_HOLDING, THIRD_UNPACKED, THIRD_RESOURCE))
         return false;
     scene_mirror_rows(g, MIRRORED_THIRD, CRONO_PICTURES_SECOND, THIRD_LAST, THIRD_RUNS * MIRROR_RUN_ROWS);
-    charge_legacy_accesses(g, 1);
-    charge_legacy_io_accesses(g, 2);
+    charge_accesses(g, 1);
+    charge_io_accesses(g, 2);
     return true;
 }
 

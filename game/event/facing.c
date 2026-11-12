@@ -24,7 +24,7 @@ EVENT_OPERATION(face, object, facing)
 static EventFlow note_facing(GameState *g, FieldObject object, EventVariable variable)
 {
     Facing facing = object_facing(g, object);
-    charge_legacy_accesses(g, 1); /* the selected facing */
+    charge_accesses(g, 1); /* the selected facing */
     set_variable_byte(g, variable, (uint8_t)facing);
     return next_command();
 }

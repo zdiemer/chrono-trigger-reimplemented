@@ -152,7 +152,7 @@ void objects_all_out_of_view(GameState *g)
         object_set_in_view(g, obj, false);
         object_forget_frame_drawn(g, obj);
     }
-    charge_legacy_io_accesses(g, 3); /* the completed object cursor */
+    charge_io_accesses(g, 3); /* the completed object cursor */
 }
 
 /* The window an object is in view in at the screen's start: the screen
@@ -176,7 +176,7 @@ bool object_in_view_at_the_start(GameState *g, FieldObject obj)
     if (!object_can_be_seen(g, obj))
         return false;
     ViewWindow w = start_window(g);
-    charge_legacy_accesses(g, 4); /* the start window's temporary edges */
+    charge_accesses(g, 4); /* the start window's temporary edges */
     if (!in_window(g, w, obj))
         return false;
     come_into_view(g, obj);
@@ -201,7 +201,7 @@ static bool check_on_screen(GameState *g, FieldObject obj)
 {
     ViewWindow w = { (uint8_t)(field_screen_left(g) - WIDER_ACROSS), (uint8_t)(field_screen_right(g) + WIDER_ACROSS),
                      field_screen_top(g), (uint8_t)(field_screen_bottom(g) + WIDER_BELOW) };
-    charge_legacy_accesses(g, 4); /* the four temporary window edges */
+    charge_accesses(g, 4); /* the four temporary window edges */
     uint8_t x = tile_x2(g, obj), y = tile_y2(g, obj);
     bool inside = (int8_t)(x - w.left) >= 0 && (int8_t)(x - w.right) < 0 && (int8_t)(y - w.top) >= 0 &&
                   (int8_t)(y - w.bottom) < 0;
@@ -255,7 +255,7 @@ static ViewUpdate update_view(GameState *g, FieldObject obj, const ViewSteps *st
      * the second is charged without being made again. */
     charge_as(g, 0xC0A88D, disabled ? 1 : 2);
     if (shown)
-        charge_legacy_accesses(g, 8);
+        charge_accesses(g, 8);
     bool inside = shown && in_window(g, view_window(g), obj);
     bool was_in_view = object_in_view(g, obj);
     if (inside) {

@@ -668,9 +668,9 @@ void menu_object_reset_the_mode(GameState *g)
 void menu_object_take_the_interrupts(GameState *g)
 {
     program_install_vblank_handler(g, menu_object_vblank);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     program_install_line_handler(g, menu_object_line);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
 }
 
 /* Where the uploads the mode builds are put together, in work RAM. */

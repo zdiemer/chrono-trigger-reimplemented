@@ -226,7 +226,7 @@ static bool tech_after_targets(GameState *g, ActCall aim, ActCall message_at, bo
         return false;
     if (stats_first && !battle_member_acts_for_itself(g))
         set_battle_action_kind(g, ACTION_TECH);
-    charge_legacy_accesses(g, 1);
+    charge_accesses(g, 1);
     if (enemy_tech_aimed(g)) {
         TIMED_AS(g, 0xFDAAD2, effect_note_enemy_action(g, ENEMY_TECHS));
         enemy_tech_ends(g);

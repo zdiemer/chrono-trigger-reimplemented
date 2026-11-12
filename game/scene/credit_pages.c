@@ -97,7 +97,7 @@ static void widen_letters(GameState *g, Platform *pf, uint16_t vram, uint32_t fr
         for (unsigned row = 0; row < TILE_ROWS; row++)
             vid_write_vram(pf, PF_AT(0x7E66C8), 0x0000);
     }
-    charge_legacy_io_accesses(g, 2);
+    charge_io_accesses(g, 2);
 }
 
 /* ---- The page ---------------------------------------------------------------------------------- */
@@ -212,7 +212,7 @@ static bool set_up_the_page(GameState *g, Platform *pf, bool (*unpack)(void *ctx
     hide_the_sprites(pf);
     uint16_t page = next_page(g);
     write_the_names(g, pf, page_list(g, PAGE_NAMES, page));
-    charge_legacy_io_accesses(g, 2);
+    charge_io_accesses(g, 2);
     write_the_jobs(g, pf, page_list(g, PAGE_JOBS, page));
     charge_page_text_scan(g, page);
 
@@ -279,6 +279,6 @@ static void charge_page_text_scan(GameState *g, uint16_t page)
         do { accesses++; } while (text_byte(g, at++) != END_OF_ENTRY);
     }
     charge_uncounted_end(g, mark);
-    charge_legacy_accesses(g, accesses);
-    charge_legacy_io_accesses(g, 3);
+    charge_accesses(g, accesses);
+    charge_io_accesses(g, 3);
 }

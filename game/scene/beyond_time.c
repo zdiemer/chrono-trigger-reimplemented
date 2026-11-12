@@ -58,7 +58,7 @@ static void orbit(GameState *g)
 {
     uint16_t twice = (uint16_t)(scene_frame_counter(g) << 1);
     uint16_t size = scene_ending_orbit_size(g);
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
     set_scene_ending_orbit_x(g, (uint16_t)scene_scale_by_256ths(g, scene_program_own(), scene_sine(g, (uint16_t)(twice << 1)), size));
     set_scene_ending_orbit_y(g, (uint16_t)scene_scale_by_256ths(g, scene_program_own(), scene_cosine(g, twice), size));
 }
@@ -126,7 +126,7 @@ static void place_the_view(GameState *g)
     set_camera(g, FLIGHT_DISTANCE, distance);
     uint16_t down = scaled_through_signed_multiply(g, page, scene_cosine(g, turn), distance);
     uint16_t across = scaled_through_signed_multiply(g, page, scene_sine(g, turn), distance);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     uint16_t x = (uint16_t)(camera(g, SCENE_PLANE_X) + across), y = (uint16_t)(camera(g, SCENE_PLANE_Y) + down);
     set_scene_flight_view_x(g, x);
     set_scene_flight_view_centre_x(g, (uint16_t)(x + VIEW_CENTRE_ACROSS));
@@ -345,8 +345,8 @@ static void burst_the_fireworks(GameState *g)
         scene_draw_lists_at(g, scene_fireworks_x(g, firework), scene_fireworks_y(g, firework));
         TIMED_AS(g, 0x7EA03D, scene_draw_large_sprite_list(g, burst_frame(g, firework_frame(g, firework)).list, LIST_KEEPS_EVERY_SPRITE));
     }
-    charge_legacy_accesses(g, 7);
-    charge_legacy_accesses(g, 6);
+    charge_accesses(g, 7);
+    charge_accesses(g, 6);
 }
 
 /* The two fireworks' places over the square. */

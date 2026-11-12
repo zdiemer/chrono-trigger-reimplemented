@@ -319,9 +319,9 @@ typedef struct {
 static bool set_the_screen_up(GameState *g, Platform *pf, const ScreenSetUpCalls *calls, void *ctx)
 {
     program_install_vblank_handler(g, battle_vblank);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     program_install_line_handler(g, battle_line);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     if (!calls->scroll_the_map_layers(ctx))
         return false;
     TIMED_AS(g, 0xCD0C9D, battle_take_the_start_settings(g));

@@ -102,7 +102,7 @@ static FieldObject take_the_first(GameState *g)
 static void queue_due_turns(GameState *g)
 {
     uint8_t count = event_object_count(g);
-    charge_legacy_accesses(g, 4); /* loop bound's former word read/write */
+    charge_accesses(g, 4); /* loop bound's former word read/write */
     for (FieldObject obj = 0; obj < count; obj++) {
         if (!object_turn_comes(g, obj))
             continue;

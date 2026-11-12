@@ -181,7 +181,7 @@ static TaskEnd animate_the_palettes_task(GameState *g, Platform *pf)
     if (!animated)
         return task_goes_on();
     keep_the_multiplier_s_word(g, MULTIPLIER_READ_BACK);
-    charge_legacy_io_accesses(g, 4);
+    charge_io_accesses(g, 4);
     return task_goes_on();
 }
 
@@ -196,7 +196,7 @@ void scene_animate_the_palettes_for(GameState *g, SceneChannel ch)
     bool animated = false;
     TIMED_AS(g, 0xFDFFF7, animated = palette_animated(g));
     if (animated)
-        charge_legacy_accesses(g, 4);
+        charge_accesses(g, 4);
 }
 
 /* ---- The screen's fades ---------------------------------------------------------------------- */
@@ -380,7 +380,7 @@ uint8_t scene_unpacked_bank(const GameState *g)
 void scene_copy_resource_to(GameState *g, SceneProgramPage page, unsigned resource, uint16_t to, uint16_t bytes)
 {
     (void)page;
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
     scene_copy_resource_bytes(g, scene_unpacked_bank(g), scene_resource_offset(g, resource), to, bytes);
     charge_block_move(g, bytes);
 }
@@ -404,7 +404,7 @@ void scene_widen_the_plane_map(GameState *g)
          * tile and moves it on over the other 63, one byte on. */
         charge_block_move(g, UNPACKED_ROW_BYTES + (UNPACKED_ROW_BYTES - 1));
     }
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
 }
 
 // $7E:90A7

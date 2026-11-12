@@ -316,7 +316,7 @@ static void charge_worn_counted(GameState *g)
     unsigned last = 0;
     while (last + 1 < MENU_MEMBER_WEARS_ITEM_COUNT && a_member(g, last + 1))
         last++;
-    charge_legacy_accesses(g, 1);
+    charge_accesses(g, 1);
 }
 
 // $C2:8900

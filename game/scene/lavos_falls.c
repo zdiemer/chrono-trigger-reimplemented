@@ -245,8 +245,8 @@ static bool load_the_sprites(GameState *g, Platform *pf, const LavosFallsSetUpSt
         return false;
     vid_set_vram_address(pf, PF_AT(0x7E5421), PLANET_TILES_VRAM);
     lay_out_the_planet_tiles(g, pf);
-    charge_legacy_accesses(g, 2);
-    charge_legacy_io_accesses(g, 3);
+    charge_accesses(g, 2);
+    charge_io_accesses(g, 3);
     scene_choose_transfer(g, scene_whole_words);
     vid_set_vram_address(pf, PF_AT(0x7E5434), STAR_TILES_VRAM);
     if (!steps->unpack(ctx, UNPACK_STAR_TILES))

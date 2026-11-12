@@ -2526,11 +2526,24 @@ and preserve their diagnostics as the remaining machine wrappers leave.
   (`FIELD_KEEP`/`DROP`, `SONG_KEEP`/`KEPT`, `UPDATE_KEEP_THE_ATTRIBUTES`/
   `ATTRIBUTES_BACK`, `CALL_CHECKS_BEGIN`/`END`); the event runner's
   `state_is_ours`/`always_ours`; and the `*_bridge.c`/`bridge.h` file names,
-  which now hold state checks. About 215
-  `charge_legacy_*` and 142 `charge_block_move` calls still put per-path access
-  counts in `game/`, against "ports don't carry cycle costs". `core/program.c:124`:
+  which now hold state checks. `core/program.c:124`:
   if the first scenes fail the main thread just returns, relying on the callee
   having called `program_fail`.
+- **Per-path work counts in `game/`.** About 215 `charge_accesses`,
+  `charge_io_accesses` and `charge_rom_accesses` calls and 142
+  `charge_block_move` calls carry access counts in the logic, against "ports
+  don't carry cycle costs". They stand for work the original does that the C
+  no longer does through accessors (scratch cells, multiplier and upload-port
+  traffic, table reads), and ct_native's frame-time model (`state_host.c`:
+  accesses at the operation's rate in `time_rates.c`, owed against the
+  frame's budget) needs them to lag where the game lags. `TIMED_AS` can't
+  stand in: it re-rates counted work, and these counts are the work. With the
+  three access charges made no-ops the lean gate fails: six sampled movies
+  lose places and picture fingerprints (`field` ends 5997 frames late, `menu`
+  and `menus-new-game-plus` miss a place by 2 frames) and `native_time` and
+  `program` tests' totals change. They leave `game/` only with a model that
+  prices each operation's work as a whole, calibrated against the movies: a
+  recalibration, not a cleanup.
 - **What the second state-storage slice's review left.** The save test
   should compare the complete serialized payload, allowing for the counter
   and checksum changes a save makes on purpose.

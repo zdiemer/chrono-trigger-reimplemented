@@ -119,7 +119,7 @@ EVENT_OPERATION(set_sprite, object, sprite)
 
 static void note(GameState *g, MapTile tile, EventVariable column, EventVariable row)
 {
-    charge_legacy_accesses(g, 2); /* the selected column and row */
+    charge_accesses(g, 2); /* the selected column and row */
     set_variable_byte(g, column, tile.x);
     set_variable_byte(g, row, tile.y);
 }
