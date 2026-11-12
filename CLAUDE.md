@@ -189,6 +189,9 @@ worktree under `.claude/worktrees/`. `AGENTS.md` is this file.
 - **Processes.** Build with `-j 2` and run at most two `ct_native`
   processes at a time unless told otherwise. Kill a process only by its PID, never
   by image name (`taskkill /IM`, `pkill ct_native`): that kills other agents' runs.
+  Kill only a PID you started yourself. The coordinator runs gates on agents'
+  builds, so a process locking your `ct_native.exe` may not be yours: wait for it
+  to exit, or build into another directory.
 - **The gate.** Run `py tools/suite.py --ct-native build/main/ct_native.exe -j 2`.
   Read its last line: only `suite OK` passes, within the 600-second budget including
   unit tests. Run longer routes by hand only when a change concerns that route.
@@ -203,7 +206,22 @@ worktree under `.claude/worktrees/`. `AGENTS.md` is this file.
   name. A sequence two callers share is `*_with`.
 - **Commits.** Plain messages with no `Co-Authored-By`, session or other trailers.
   Commit each coherent step on your branch so work survives an interruption.
-  Don't push or merge unless asked.
+- **Pull requests.** Work lands through a PR against main. Never push to main or
+  merge anything yourself.
+  - When your branch passes the gate, push it and open the PR with `gh pr create`.
+    The title says what the branch does. The body says what changed, how it was
+    measured and what follow-ups remain.
+  - PR bodies and comments carry no attribution either: no `Co-Authored-By`, no
+    session line, no "Generated with Claude Code" line and no session link.
+  - CI runs the ROM-free checks on the PR: the build with warnings as errors on
+    four platforms, the native tests and the Python tests. CI has no cartridge, so
+    the coordinator runs the gate locally on the PR's exact head and posts the
+    result on the PR. It reviews there and merges once both have passed.
+  - Fix review findings and conflicts with main on your branch, and push.
+  - A PR from outside the coordinator's own agents is untrusted code. The gate
+    builds and runs it beside the cartridge, so the coordinator reads the whole
+    diff first, above all `tools/`, `tests/`, `CMakeLists.txt`, `cmake/` and
+    `.github/`, and gates it only once nothing there is unexplained.
 - **Worktrees.** Before `git worktree remove --force`, check the worktree for links
   into the main checkout (on Windows,
   `Get-ChildItem -Recurse -Force -Attributes ReparsePoint <worktree>`): removing

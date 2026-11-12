@@ -1399,8 +1399,9 @@ PLAN.md gives the work order; the lean native gate protects each change.
   open: whether the battle scripts get a readable form before MD3; which codecs the importer
   needs beyond MATCHING.md's ("Build-time extraction").
   - **The catalogue's rows MD2 hasn't typed** (PLATFORM.md, "The assets, as
-    built"): 12 `untyped` runs (43954 bytes, `$F6:24B1-7FFF` the largest,
-    which the census also lists as unknown) and 32 `mixed` or `undetermined`
+    built"): 13 `untyped` runs (16418 bytes, `$F6:6CF0-7FFF` the largest,
+    color-shaped words after the location palettes, likely the palette
+    animations' frames) and 32 `mixed` or `undetermined`
     regions now have readers -- the accessors that read them -- and want
     `[[data]]` types with their bounds, which turns their rows into typed
     ones.
