@@ -28,6 +28,7 @@
 #include "field/bridge.h"
 #include "field/field.h"
 #include "field/layers.h"
+#include "platform/video.h"
 #include "vars.h"
 
 /* ---- The map's looks ------------------------------------------------------------------------ */
@@ -80,6 +81,7 @@ static uint16_t index_mask(const GameState *g, unsigned layer)
 
 typedef struct {
     uint16_t at;   /* from the first buffer's start */
+    uint8_t *own;  /* or a line of a wider view's own (below), which isn't the game's memory */
 } Staging;
 
 static void stage_byte(GameState *g, uint16_t at, uint8_t v)
@@ -89,8 +91,13 @@ static void stage_byte(GameState *g, uint16_t at, uint8_t v)
 
 static void stage(GameState *g, Staging *s, uint16_t entry)
 {
-    stage_byte(g, s->at, (uint8_t)entry);
-    stage_byte(g, (uint16_t)(s->at + 1), (uint8_t)(entry >> 8));
+    if (s->own) {
+        s->own[s->at] = (uint8_t)entry;
+        s->own[s->at + 1] = (uint8_t)(entry >> 8);
+    } else {
+        stage_byte(g, s->at, (uint8_t)entry);
+        stage_byte(g, (uint16_t)(s->at + 1), (uint8_t)(entry >> 8));
+    }
     s->at = (uint16_t)(s->at + ENTRY_BYTES);
 }
 
@@ -361,7 +368,7 @@ static void build_line_charged(GameState *g, unsigned layer, Line line, Staging 
 static void bring_in(GameState *g, unsigned layer, Side side)
 {
     Line line = line_coming_in(screen_edges(g, keeps_own_edges(g, layer)), side);
-    Staging out = { (uint16_t)(field_staged_line(layer, line.way == DOWN_A_COLUMN) - field_staged_line(FIELD_BG1, false)) };
+    Staging out = { (uint16_t)(field_staged_line(layer, line.way == DOWN_A_COLUMN) - field_staged_line(FIELD_BG1, false)), NULL };
     build_line_charged(g, layer, line, &out, line.way == ALONG_A_ROW ? ACCESSES_16_ROW_ENTRIES : ACCESSES_16_COLUMN_ENTRIES);
     charge_io_accesses(g, 3); /* the completed staging cursor */
     move_place_in_tile_map(g, layer, side);
@@ -427,12 +434,13 @@ void stream_the_right_columns(GameState *g)
         if (layer != FIELD_BG1 && drawn_whole(g, layer))
             continue;
         Line line = line_coming_in(screen_edges(g, keeps_own_edges(g, layer)), SIDE_RIGHT);
-        Staging out = { (uint16_t)(field_staged_line(layer, true) - field_staged_line(FIELD_BG1, false)) };
+        Staging out = { (uint16_t)(field_staged_line(layer, true) - field_staged_line(FIELD_BG1, false)), NULL };
         build_line_charged(g, layer, line, &out, ACCESSES_16_COLUMN_ENTRIES);
         charge_io_accesses(g, 3); /* the completed staging cursor */
         set_field_layer_upload_flags(g, SIDE_RIGHT, (uint8_t)(field_layer_upload_flags(g, SIDE_RIGHT) | 1u << layer));
     }
     TIMED_AS(g, 0xC07F9A, field_find_layer_edges(g));
+    field_margins_due(g);
 }
 
 /* ---- A layer drawn at a map's load ------------------------------------------------------- */
@@ -490,7 +498,7 @@ enum { DRAW_BG1 = 0xC075E9, DRAW_BG2 = 0xC078EC, DRAW_BG3 = 0xC07CB5, ACCESSES_A
 void draw_layer_at_the_maps_load(GameState *g, unsigned layer)
 {
     static const uint32_t drawing[FIELD_LAYERS] = { DRAW_BG1, DRAW_BG2, DRAW_BG3 };
-    Staging out = { 0 };
+    Staging out = { 0, NULL };
     uint32_t mark = 0;
     mark = charge_uncounted_begin(g);   /* the entries' charge below stands for it */
     (void)mark;
@@ -550,4 +558,107 @@ bool field_layer_drawn_at_the_load(GameState *g, unsigned layer)
     }
     TIMED_AS(g, drawing_entries[layer], draw_layer_at_the_maps_load(g, layer));
     return true;
+}
+
+/* ---- A wider view's margins ------------------------------------------------------------------ */
+
+/* On a view wider than the original's screen (vid_view), the layers show
+ * columns of their tile maps either side of the screen's, which the game
+ * never streams: they hold what the ring held last. So each frame the
+ * columns the margins show are built from the map and sent, beside the game's
+ * work and outside it -- into a line of the view's own rather than the
+ * staging buffers, its reads of the map left out of the game's time and its
+ * sends made in the vblank, which the original's time doesn't charge -- so
+ * the game runs the same at any view. The screen's edges, which decide which
+ * objects run, stay the original's. Past the map's edges a margin shows the
+ * edge's column again rather than whatever the map's tables hold there.
+ *
+ * A layer's tile map is 64 columns round: the screen's 33 and a margin of up
+ * to 15 columns either side fit, which is what holds the view to
+ * VID_MAX_VIEW_WIDTH. Layers drawn whole at the map's load hold their whole
+ * map already, and layers the map doesn't show have no looks to build from:
+ * both are left alone. */
+enum { RING_ROWS = FIELD_TILE_MAP_ROWS, MOST_MARGIN_COLUMNS = (FIELD_TILE_MAP_COLUMNS - FIELD_SCREEN_COLUMNS - 1) / 2 };
+
+static uint8_t clamp_to_the_map(const GameState *g, unsigned layer, int column)
+{
+    if (keeps_own_edges(g, layer))
+        return (uint8_t)column;   /* half-pace BG2's map has no edges of the screen's */
+    int first = field_map_edges_left(g) * FIELD_ENTRIES_A_MAP_TILE;
+    int last = (field_map_edges_right(g) + 1) * FIELD_ENTRIES_A_MAP_TILE - 1;
+    return (uint8_t)(column < first ? first : column > last ? last : column);
+}
+
+/* One margin column: the map's 8-pixel column `column` into the tile map's
+ * ring column `ring`. The ring holds the rows from the one above the screen
+ * down, round from where that row is in it, as the game's own columns do. */
+static void send_a_margin_column(GameState *g, Platform *pf, unsigned layer, int column, uint8_t ring)
+{
+    ScreenEdges e = screen_edges(g, keeps_own_edges(g, layer));
+    uint8_t above = (uint8_t)((field_layer_position_y(g, layer) - 1) & (RING_ROWS - 1));
+    uint8_t line[(RING_ROWS + 2) * ENTRY_BYTES], ring_order[RING_ROWS * ENTRY_BYTES];
+    Staging out = { 0, line };
+    build_line(g, layer, (Line){ DOWN_A_COLUMN, clamp_to_the_map(g, layer, column), (uint8_t)(e.top - 1), RING_ROWS / 2 },
+               &out);
+    for (unsigned i = 0; i < RING_ROWS; i++) {
+        unsigned r = (above + i) & (RING_ROWS - 1);
+        ring_order[r * ENTRY_BYTES] = line[i * ENTRY_BYTES];
+        ring_order[r * ENTRY_BYTES + 1] = line[i * ENTRY_BYTES + 1];
+    }
+    uint16_t vram = (uint16_t)(field_layer_map_base(g, layer) + field_tile_map_index(ring, 0));
+    static const VidVramPort column_port = { .step = FIELD_TILE_MAP_HALF_COLUMNS, .after_high = true };
+    /* no original site: a wider view's own send */
+    vid_send_vram(pf, PF_AT(0), vram, (PfData){ .ptr = ring_order }, sizeof ring_order, &column_port);
+}
+
+enum { FRAMES_DUE_AFTER_A_SEND = 2 };
+
+void field_margins_due(GameState *g) { field_margins(g)->due = FRAMES_DUE_AFTER_A_SEND; }
+
+void field_fill_the_views_margins(GameState *g, Platform *pf, bool moved)
+{
+    VidView view = vid_view(pf);
+    FieldMargins *m = field_margins(g);
+    if (!vid_view_is_wider(view) || !(moved || m->due))
+        return;
+    if (m->due)
+        m->due--;
+    int margin = (-vid_view_left(view) + FIELD_ENTRY_PIXELS - 1) / FIELD_ENTRY_PIXELS + 1;
+    if (margin > MOST_MARGIN_COLUMNS)
+        margin = MOST_MARGIN_COLUMNS;
+    uint32_t mark = charge_uncounted_begin(g);
+    for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
+        bool shown = ((field_main_screen(g) | field_sub_screen(g)) >> layer) & 1;
+        if (!shown || (layer != FIELD_BG1 && drawn_whole(g, layer)))
+            continue;
+        ScreenEdges e = screen_edges(g, keeps_own_edges(g, layer));
+        uint8_t x = field_layer_position_x(g, layer);
+        for (int k = 1; k <= margin; k++) {
+            send_a_margin_column(g, pf, layer, e.left - k, (uint8_t)((x - k) & (FIELD_TILE_MAP_COLUMNS - 1)));
+            send_a_margin_column(g, pf, layer, e.right + k,
+                                 (uint8_t)((x + FIELD_SCREEN_COLUMNS + k) & (FIELD_TILE_MAP_COLUMNS - 1)));
+        }
+    }
+    charge_uncounted_end(g, mark);
+}
+
+/* Past the map's edges the view shows black, as the original's screen never
+ * shows past them: where the map's first and last pixels across are on the
+ * screen, worked out from BG1's place, which the screen goes by. */
+enum { RING_PIXELS = FIELD_TILE_MAP_COLUMNS * FIELD_ENTRY_PIXELS };
+
+void field_end_the_picture_at_the_maps_edges(GameState *g, Platform *pf)
+{
+    if (!vid_view_is_wider(vid_view(pf)))
+        return;
+    uint32_t mark = charge_uncounted_begin(g);
+    int fine = (field_layer_scroll_h(g, FIELD_BG1) - field_layer_position_x(g, FIELD_BG1) * FIELD_ENTRY_PIXELS) &
+               (RING_PIXELS - 1);
+    if (fine >= RING_PIXELS / 2)
+        fine -= RING_PIXELS;
+    int screen_left = field_screen_left(g) * FIELD_ENTRY_PIXELS + fine;   /* the map's pixel at the screen's left */
+    int left = field_map_edges_left(g) * FIELD_MAP_TILE_PIXELS - screen_left;
+    int right = (field_map_edges_right(g) + 1) * FIELD_MAP_TILE_PIXELS - screen_left;
+    charge_uncounted_end(g, mark);
+    vid_end_the_picture(pf, (int16_t)left, (int16_t)right);
 }

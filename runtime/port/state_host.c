@@ -8,6 +8,7 @@
 #include "charge.h"
 #include "core/program.h"
 #include "core/sprite_table.h"
+#include "field/streaming.h"
 #include "menu/menu.h"
 #include "cpu_io.h"
 #include "platform/time_model.h"
@@ -20,6 +21,7 @@ struct GameState {
     ProgramHandlers handlers;
     MenuCoroutines menus;
     SpritePlaces sprite_places;
+    FieldMargins field_margins;
     uint8_t sram[STATE_HOST_SRAM_BYTES];
     /* the multiplier and divider: their operands, and the result the
      * product-or-remainder register shows */
@@ -97,6 +99,7 @@ void state_host_restore(GameState *g, const uint8_t *in)
 ProgramHandlers *program_handlers(GameState *g) { return &g->handlers; }
 MenuCoroutines *menu_coroutines(GameState *g) { return &g->menus; }
 SpritePlaces *sprite_places(GameState *g) { return &g->sprite_places; }
+FieldMargins *field_margins(GameState *g) { return &g->field_margins; }
 
 uint8_t *state_host_sram(GameState *g) { return g->sram; }
 VarsHost *state_host_vars(GameState *g) { return &g->vars; }

@@ -23,6 +23,7 @@
 #include "menu/cursor.h"
 #include "menu/fades.h"
 #include "menu/menu.h"
+#include "menu/map.h"
 #include "menu/menu_data.h"
 #include "menu/handlers.h"
 #include "menu/objects.h"
@@ -685,6 +686,7 @@ static void send_object_frame(GameState *g, Platform *pf)
     set_menu_object_frame_state(g, 0);
     send_object_shadows(g, pf);
     place_line_tables(g);
+    menu_map_fill_the_views_margins(g, pf);
 }
 
 /* The mode's own work after its frame is sent, each a routine of its own,
