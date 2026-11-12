@@ -15,7 +15,7 @@ LEDGER = ROOT / "tools/outcomes.txt"
 BASELINE = ROOT / "tools/outcomes_baseline.txt"
 EXCEPTIONS = ROOT / "tools/outcomes_exceptions.txt"
 FAULT = re.compile(r"accessor out of range|page refused:|contract broken:|asset outside the catalogue|"
-                   r"asset differs from the cartridge|the program's C goes no further|strays: [1-9]")
+                   r"asset differs from the cartridge|the program's C goes no further|strays: [1-9]|overlay crossed:")
 KINDS = {"input", "game", "sram", "places"}
 
 

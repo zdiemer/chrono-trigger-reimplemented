@@ -364,7 +364,8 @@ class Var:
     """A variable, an array of them, or an array of records."""
 
     KEYS = {"name", "addr", "size", "count", "stride", "index", "page", "dp",
-            "subsystem", "meaning", "source", "field", "rows", "row_stride", "unchecked", "reuses", "host_module", "host_alias", "host_blob", "elements"}
+            "subsystem", "meaning", "source", "field", "rows", "row_stride", "unchecked", "reuses", "host_module", "host_alias", "host_blob", "elements",
+            "overlays"}
 
     def __init__(self, raw, pages):
         where = "var %r" % raw.get("name")
@@ -393,6 +394,18 @@ class Var:
             raise MapError("%s: host_blob must explain its unstructured storage" % where)
         self.host_owner = None
         self.host_owners = []
+        # An owner the original keeps in bytes it also uses for other modes'
+        # variables, which the reimplementation stores separately: it names the
+        # owners whose bytes it stands beside (_check_host_owners).
+        self.overlays = raw.get("overlays")
+        if self.overlays is not None:
+            if not valid_alias(self.overlays):
+                raise MapError("%s: overlays names the owners whose bytes the original shares" % where)
+            if not self.host_module:
+                raise MapError("%s: only an owner (host_module) can stand beside another" % where)
+            self.overlays = alias_names(self.overlays)
+        else:
+            self.overlays = []
         if self.host_alias is not None:
             if not valid_alias(self.host_alias):
                 raise MapError("%s: host_alias must name an owning variable" % where)
@@ -669,23 +682,65 @@ class RamMap:
                 if not set(range(f.offset, f.offset + f.size)) <= covered:
                     raise MapError("%s.%s: alias lies outside its owning field" % (v.name, f.name))
             cells[v.name] = set(variable_bytes(v))
+        # Each byte has at most one base owner. An owner with `overlays` keeps
+        # its own storage beside the owners it names: the original reuses their
+        # bytes for it in another mode, and the address view writes through to
+        # every owner of a byte (render_host_backing). Every two owners of a
+        # byte are declared beside each other: one names the other, or both
+        # name a third that the byte's original memory also belongs to.
         owned = {}
+        holders = collections.defaultdict(list)
         for v in self.vars + self.owners:
             if not v.host_module:
                 continue
-            seen = set()
-            for addr in variable_bytes(v, owners_only=True):
-                if addr in seen or addr in owned:
+            mine = list(variable_bytes(v, owners_only=True))
+            if len(mine) != len(set(mine)):
+                raise MapError("%s: %s" % (v.name, "an owner's fields overlap" if v.overlays
+                                           else "struct storage needs one owner at %s" % fmt_addr(
+                                               collections.Counter(mine).most_common(1)[0][0])))
+            for addr in mine:
+                holders[addr].append(v)
+                if v.overlays:
+                    continue
+                if addr in owned:
                     raise MapError("%s: struct storage needs one owner at %s" % (v.name, fmt_addr(addr)))
-                seen.add(addr)
                 owned[addr] = v
+        sharing = collections.defaultdict(set)
+        for addr, vs in holders.items():
+            if len(vs) > 1:
+                names = frozenset(v.name for v in vs)
+                for v in vs:
+                    sharing[v.name] |= names - {v.name}
+        for v in self.vars + self.owners:
+            for name in v.overlays:
+                other = by_name.get(name)
+                if other is None or not other.host_module:
+                    raise MapError("%s: overlays names an owner, not %r" % (v.name, name))
+                if name not in sharing[v.name]:
+                    raise MapError("%s: shares no byte with %s, which it says it overlays" % (v.name, name))
+        groups = {frozenset(v.name for v in vs) for vs in holders.values() if len(vs) > 1}
+        for group in groups:
+            for a in group:
+                for b in group:
+                    if a >= b:
+                        continue
+                    va, vb = by_name[a], by_name[b]
+                    linked = (b in va.overlays or a in vb.overlays or
+                              bool(set(va.overlays) & set(vb.overlays)))
+                    if not linked:
+                        raise MapError("%s: overlays must name %s, whose bytes it shares" %
+                                       ((va if va.overlays else vb).name, b if va.overlays else a))
+        overlaid = {addr for v in self.vars + self.owners if v.overlays
+                    for addr in variable_bytes(v, owners_only=True)}
         for v in self.vars:
             if v.host_alias:
                 covered = set().union(*(cells[o.name] for o in v.host_owners))
                 if not cells[v.name] <= covered:
                     raise MapError("%s: alias lies outside its owning variable" % v.name)
+            if v.overlays:
+                continue
             for addr in cells[v.name]:
-                if addr in owned and owned[addr] not in v.host_owners:
+                if addr in owned and owned[addr] not in v.host_owners and addr not in overlaid:
                     raise MapError("%s: struct storage needs one owner at %s; declare its alias" % (v.name, fmt_addr(addr)))
 
     def _check_overlaps(self):
@@ -780,11 +835,13 @@ def access_units(v):
 
 
 def storage_holders(m):
-    """Each owned byte: (owner field, the width of the value holding it, the
-    value's first byte). A scalar field is one value of its size; a labelled
-    buffer is a run of its elements; an unlabelled buffer is width 0 (bytes
-    nothing gives a meaning), which no value matches."""
-    holder = {}
+    """Each owned byte's holders: {owner name: (owner field, the width of the
+    value holding it, the value's first byte)}. A byte has one holder, or more
+    where owners stand beside each other (`overlays`). A scalar field is one
+    value of its size; a labelled buffer is a run of its elements; an
+    unlabelled buffer is width 0 (bytes nothing gives a meaning), which no value
+    matches."""
+    holder = collections.defaultdict(dict)
     for a in owner_accessors(m):
         label = a.var.name + ("." + a.field.name if a.field else "")
         buffer = a.blob or a.table or a.var.host_blob
@@ -795,13 +852,14 @@ def storage_holders(m):
                     start = base + row * (a.var.row_stride or 0) + element * a.var.stride + a.offset
                     for addr in range(start, start + a.size):
                         if not buffer:
-                            holder[addr] = (label, a.size, start)
+                            held = (label, a.size, start)
                         elif unit is None:
-                            holder[addr] = (label, 0, None)
+                            held = (label, 0, None)
                         else:
                             # the element this byte is in, and the element's width
                             first = addr - (addr - start + a.elements.start) % unit
-                            holder[addr] = (label, unit, first)
+                            held = (label, unit, first)
+                        holder[addr][a.var.name] = held
     return holder
 
 
@@ -826,8 +884,12 @@ def variable_storage(v, holder):
     if not (v.host_module or v.host_owner):
         return "image", []
     dependencies = set()
+    names = [o.name for o in v.host_owners]
     for lo, hi, start, width in access_units(v):
-        held = [holder.get(addr) for addr in range(lo, hi)]
+        held = []
+        for addr in range(lo, hi):
+            mine = [h for name, h in holder.get(addr, {}).items() if name in names]
+            held.append(mine[0] if len(mine) == 1 else None if not mine else ("", -1, None))
         if any(h is None for h in held):
             continue
         whole = ({h[0] for h in held} == {held[0][0]} and {h[1] for h in held} == {width} and
@@ -1323,12 +1385,13 @@ def render_backing(m):
     checked = checked_vars(m)
     out += render_range_checks(m, checked)
     ids = {v.name: k for k, v in enumerate(checked)}
+    ov = Overlays.of(m)
     for sub, groups in accessors(m):
         out += ["", "/* ---- %s %s */" % (sub, "-" * (86 - len(sub))), ""]
         for _, _, group in groups:
             if group[0].var.host_owner:
                 for a in group:
-                    out += render_host_accessor(a, ids)
+                    out += render_host_accessor(a, ids, ov)
                 continue
             for a in group:
                 w = 8 if a.blob or a.table else a.size * 8
@@ -1388,8 +1451,19 @@ def element_member(a, member, byte):
     return "%s.%s[%s / %du]" % (member, e.name, offset, e.size), "%s %% %du" % (offset, e.size)
 
 
-def render_host_accessor(a, ids):
+def width_of(a):
+    """The bytes one access of an accessor moves."""
+    return 1 if a.blob or a.table else a.size
+
+
+def render_host_accessor(a, ids, ov):
     out = []
+    # An owner beside others keeps its own field; its writes tell the address
+    # view it holds the byte now, and its reads count a byte another owner
+    # wrote last (the original would have read that owner's value).
+    overlaid = ov.touches(a) and not (a.var.host_alias or (a.field and a.field.host_alias))
+    claim = "    vars_host_claim(h, %s, %du, %s);" % (a.address(), width_of(a), ov.place(a)) if overlaid else None
+    check = "    vars_host_check(h, %s, %du, %s);" % (a.address(), width_of(a), ov.place(a)) if overlaid else None
     width = 1 if a.blob or a.table else a.size
     for write in (False, True):
         out += [a.signature(write), "{"]
@@ -1409,8 +1483,10 @@ def render_host_accessor(a, ids):
         out += ["    %sVarsHost *h = state_host_vars%s(g);" % ("" if write else "const ", "" if write else "_const")]
         # Composed and page views use only the struct projection. Validation
         # proves that every byte has one of the explicitly named owners.
+        # So do views over bytes owners keep beside each other: the address
+        # view reads whichever wrote last, as the original's one byte would.
         complex_view = (len(a.var.host_owners) > 1 or a.var.on_instances() or
-                        a.var.host_owner.on_instances())
+                        a.var.host_owner.on_instances() or ov.touches(a))
         if a.var.host_alias or (a.field and a.field.host_alias):
             owner = a.var.host_owner
             if complex_view:
@@ -1448,6 +1524,8 @@ def render_host_accessor(a, ids):
             out += ["}"]
             continue
         member = host_member(a, byte="column" if a.table else "at")
+        if check and not write:
+            out += [check]
         if a.elements.name:
             byte = "column" if a.table else "at" if a.blob else "0u"
             if not write:
@@ -1460,11 +1538,16 @@ def render_host_accessor(a, ids):
                 else:
                     out += ["    value |= (%s)((%s)(uint8_t)(%s >> (%s * 8)) << %d);" %
                             (a.type, a.type, item, shift, i * 8)]
+            if write and claim:
+                out += [claim]
             if not write:
                 out += ["    return value;"]
             out += ["}"]
             continue
-        out += ["    %s" % (member + " = " + ("v & 0xFFFFFFu" if width == 3 else "v") + ";" if write else "return " + member + ";"), "}"]
+        out += ["    %s" % (member + " = " + ("v & 0xFFFFFFu" if width == 3 else "v") + ";" if write else "return " + member + ";")]
+        if write and claim:
+            out += [claim]
+        out += ["}"]
     return out
 
 
@@ -1543,15 +1626,91 @@ def render_host_header(m):
         out += ["    VarsHost%s %s;" % (camel(module), module)]
     if not groups:
         out += ["    uint8_t unused; /* C has no empty structs. */"]
+    slots = len(Overlays.of(m).pages) * 256
+    if slots:
+        out += ["    /* For each byte owners keep beside each other, the owner that wrote it",
+                "     * last, which the address view reads; 0 when every owner holds it. */",
+                "    uint16_t overlay_writer[%d];" % slots]
     out += ["} VarsHost;", ""]
     for v in alias_owners(m):
         out += ["/* Byte views of %s's storage; no independent alias fields. */" % v.name,
                 "uint8_t vars_host_%s_read8(const VarsHost *h, uint32_t offset);" % v.name,
                 "void vars_host_%s_write8(VarsHost *h, uint32_t offset, uint8_t value);" % v.name]
+    out += ["", "/* An owner beside others (re/ram.toml's `overlays`) wrote these bytes. */",
+            "void vars_host_claim(VarsHost *h, uint32_t addr, unsigned bytes, unsigned place);",
+            "/* An owner beside others reads these bytes: count any another owner wrote last. */",
+            "void vars_host_check(const VarsHost *h, uint32_t addr, unsigned bytes, unsigned place);",
+            "/* The reads that found another owner's bytes: each reader, the owner that",
+            " * wrote them and how often, through `each`; returns how many readers. */",
+            "unsigned vars_host_crossings(void (*each)(const char *reader, const char *writer, uint32_t times, void *ctx),",
+            "                             void *ctx);",
+            "void vars_host_crossings_reset(void);"]
     out += ["", "void vars_host_init(VarsHost *h);",
             "bool vars_host_read8(const VarsHost *h, uint32_t addr, uint8_t *value);",
             "bool vars_host_write8(VarsHost *h, uint32_t addr, uint8_t value);", "", "#endif", ""]
     return "\n".join(out)
+
+
+def placements(m):
+    """Every owner accessor in each of its page instances, as (accessor,
+    instance, first byte): the address view's cases, numbered from 1."""
+    return [(a, instance, base + a.offset) for a in owner_accessors(m)
+            for instance, base in enumerate(a.var.bases())]
+
+
+def accessor_bytes(a, base):
+    """The addresses an accessor's value covers from one of its bases, over
+    every row and element."""
+    for row in range(a.var.rows or 1):
+        for element in range(a.var.count):
+            start = base + row * (a.var.row_stride or 0) + element * a.var.stride
+            yield from range(start, start + a.size)
+
+
+class Overlays:
+    """Where owners stand beside each other (`overlays`): each byte's
+    placements, base owner first, and the bytes more than one owner keeps.
+    The address view writes such a byte to every owner and reads it from the
+    one that wrote it last; each owner's own accessors use its own field."""
+
+    @classmethod
+    def of(cls, m):
+        """The map's overlays, worked out once."""
+        if getattr(m, "_overlays", None) is None:
+            m._overlays = cls(m)
+        return m._overlays
+
+    def __init__(self, m):
+        self.placed = placements(m)
+        owners = collections.defaultdict(list)
+        self.first = {}
+        for number, (a, instance, base) in enumerate(self.placed, 1):
+            self.first.setdefault((a.var.name, a.field.name if a.field else None), number)
+            for addr in accessor_bytes(a, base):
+                owners[addr].append((bool(a.var.overlays), number))
+        self.at = {addr: [n for _, n in sorted(ns)] for addr, ns in owners.items()}
+        self.shared = {addr for addr, ns in self.at.items() if len(ns) > 1}
+        # Each 256-byte page with a shared byte keeps a last writer per byte.
+        self.pages = sorted({(addr - 0x7E0000) >> 8 for addr in self.shared})
+        # The owners of each shared byte, as a set shared by the bytes with the same owners.
+        self.sets = {}
+        self.touched = {}
+        for addr in sorted(self.shared):
+            self.sets.setdefault(tuple(self.at[addr]), len(self.sets) + 1)
+
+    def touches(self, a):
+        key = (a.var.name, a.field.name if a.field else None)
+        if key not in self.touched:
+            self.touched[key] = any(addr in self.shared for base in a.var.bases()
+                                    for addr in accessor_bytes(a, base))
+        return self.touched[key]
+
+    def place(self, a):
+        """The C expression for an owner accessor's placement number."""
+        first = self.first[(a.var.name, a.field.name if a.field else None)]
+        if a.var.on_instances():
+            return "%du + %s" % (first, page_ordinal(a.var.page))
+        return "%du" % first
 
 
 def owner_accessors(m):
@@ -1616,6 +1775,8 @@ def render_host_backing(m):
             if a.var.count > 1:
                 out += ["    for (unsigned i = 0; i < %d; i++)" % a.var.count]
             out += ["    %s%s = 0x555555u;" % ("    " if a.var.count > 1 or a.var.on_instances() else "", host_member(a, element="i", instance="instance"))]
+    if Overlays.of(m).shared:
+        out += ["    memset(h->overlay_writer, 0, sizeof h->overlay_writer);"]
     out += ["}", ""]
     # Aliases use named owners, with offsets in the owner's serialized layout.
     # No host pointer cast, union type punning, padding or endian assumption.
@@ -1643,41 +1804,128 @@ def render_host_backing(m):
             out += ["    return;" if write else "    return 0;", "}", ""]
     # Two indexed loads choose the field. Only populated pages get a byte table;
     # zero selects no storage. Stride/record holes have no owner.
-    pages = {}
-    placed = [(a, instance, base + a.offset) for a in groups for instance, base in enumerate(a.var.bases())]
-    for number, (a, instance, base) in enumerate(placed, 1):
-        for row in range(a.var.rows or 1):
-            for element in range(a.var.count):
-                start = base + row * (a.var.row_stride or 0) + element * a.var.stride
-                for addr in range(start, start + a.size):
-                    page, byte = (addr - 0x7E0000) >> 8, addr & 255
-                    pages.setdefault(page, [0] * 256)[byte] = number
-    if pages:
-        out += ["static const uint16_t projection_pages[512] = {"]
-        out += ["    [%d] = %d," % (page, i) for i, page in enumerate(sorted(pages), 1)]
-        out += ["};", "", "static const uint16_t projection_fields[][256] = {", "    { 0 },"]
+    ov = Overlays.of(m)
+    placed = ov.placed
+
+    def byte_table(name, values):
+        kind = "uint32_t" if max(values.values(), default=0) > 0xFFFF else "uint16_t"
+        pages = {}
+        for addr, n in values.items():
+            pages.setdefault((addr - 0x7E0000) >> 8, [0] * 256)[addr & 255] = n
+        if not pages:
+            return []
+        lines = ["static const uint16_t %s_pages[512] = {" % name]
+        lines += ["    [%d] = %d," % (page, i) for i, page in enumerate(sorted(pages), 1)]
+        lines += ["};", "", "static const %s %s_fields[][256] = {" % (kind, name), "    { 0 },"]
         for page in sorted(pages):
+            lines += ["    { /* $%06X */" % (0x7E0000 + page * 256)]
+            for at in range(0, 256, 16):
+                lines += ["        " + ", ".join(str(n) for n in pages[page][at:at + 16]) + ","]
+            lines += ["    },"]
+        lines += ["};", "", "static unsigned %s_at(uint32_t addr)" % name, "{",
+                  "    if (addr < 0x7E0000u || addr >= 0x800000u)", "        return 0;",
+                  "    return %s_fields[%s_pages[(addr - 0x7E0000u) >> 8]][addr & 255u];" % (name, name), "}", ""]
+        return lines
+
+    out += byte_table("projection", {addr: ns[0] for addr, ns in ov.at.items()})
+    if ov.shared:
+        sets = ov.sets
+        out += ["/* The owners of each byte owners keep beside each other: a set of them",
+                " * (overlay_owner_sets) per byte of each page that has one. */",
+                "static const uint16_t overlay_pages[512] = {"]
+        out += ["    [%d] = %d," % (page, k) for k, page in enumerate(ov.pages, 1)]
+        out += ["};", "", "static const uint16_t overlay_fields[][256] = {", "    { 0 },"]
+        for page in ov.pages:
+            row = [sets[tuple(ov.at[0x7E0000 + page * 256 + b])] if 0x7E0000 + page * 256 + b in ov.shared else 0
+                   for b in range(256)]
             out += ["    { /* $%06X */" % (0x7E0000 + page * 256)]
-            for start in range(0, 256, 16):
-                out += ["        " + ", ".join(str(n) for n in pages[page][start:start + 16]) + ","]
+            for at in range(0, 256, 16):
+                out += ["        " + ", ".join(str(n) for n in row[at:at + 16]) + ","]
             out += ["    },"]
-        out += ["};", "", "static unsigned projection_at(uint32_t addr)", "{",
+        widest = max(len(k) for k in sets)
+        out += ["};", "", "static const uint16_t overlay_owner_sets[%d][%d] = {" % (len(sets) + 1, widest + 1),
+                "    { 0 },"]
+        out += ["    { %s, 0 }," % ", ".join(str(n) for n in k) for k in sets]
+        out += ["};", "",
+                "/* The byte's place in overlay_writer, from 1, or 0 when one owner keeps it. */",
+                "static unsigned overlay_at(uint32_t addr, unsigned *set)", "{",
                 "    if (addr < 0x7E0000u || addr >= 0x800000u)", "        return 0;",
-                "    return projection_fields[projection_pages[(addr - 0x7E0000u) >> 8]][addr & 255u];", "}", ""]
+                "    unsigned page = overlay_pages[(addr - 0x7E0000u) >> 8];",
+                "    *set = overlay_fields[page][addr & 255u];",
+                "    return *set ? (page - 1u) * 256u + (addr & 255u) + 1u : 0u;", "}", ""]
+    out += ["/* What each owner field is called, for the crossings report. */",
+            "static const char *const place_names[%d] = {" % (len(placed) + 1), "    \"\","]
+    out += ["    \"%s%s\"," % (a.var.name + ("." + a.field.name if a.field else ""),
+                               "[%d]" % instance if a.var.on_instances() else "")
+            for a, instance, _ in placed]
+    out += ["};", "",
+            "/* The reads that found another owner's bytes, by reader: how often, and the",
+            " * owner that wrote them the first time. */",
+            "static uint32_t crossed[%d];" % (len(placed) + 1),
+            "static uint16_t crossed_writer[%d];" % (len(placed) + 1), ""]
     for write in (False, True):
-        out += ["bool vars_host_%s8(%sVarsHost *h, uint32_t addr, uint8_t %svalue)" %
+        out += ["static void place_%s8(%sVarsHost *h, unsigned place, uint32_t addr, uint8_t %svalue)" %
                 ("write" if write else "read", "" if write else "const ", "" if write else "*"), "{"]
-        if not groups:
-            out += ["    (void)h; (void)addr; (void)value;"]
-        if groups:
-            out += ["    switch (projection_at(addr)) {"]
-        for number, (a, instance, base) in enumerate(placed, 1):
-            out += ["    case %d: {" % number, "        uint32_t offset = addr - 0x%06Xu;" % base]
-            out += ["        " + line for line in projection_indices(a)]
-            out += ["        " + projection_statement(a, write, instance=str(instance)), "        return true;", "    }"]
-        if groups:
+        if not placed:
+            out += ["    (void)h; (void)place; (void)addr; (void)value;"]
+        else:
+            out += ["    switch (place) {"]
+            for number, (a, instance, base) in enumerate(placed, 1):
+                out += ["    case %d: {" % number, "        uint32_t offset = addr - 0x%06Xu;" % base]
+                out += ["        " + line for line in projection_indices(a)]
+                out += ["        " + projection_statement(a, write, instance=str(instance)), "        return;", "    }"]
             out += ["    default: break;", "    }"]
-        out += ["    return false;", "}", ""]
+        out += ["}", ""]
+    out += ["bool vars_host_read8(const VarsHost *h, uint32_t addr, uint8_t *value)", "{"]
+    if placed:
+        out += ["    unsigned place = projection_at(addr);", "    if (!place)", "        return false;"]
+        if ov.shared:
+            out += ["    unsigned set, slot = overlay_at(addr, &set);",
+                    "    if (slot && h->overlay_writer[slot - 1])",
+                    "        place = h->overlay_writer[slot - 1];"]
+        out += ["    place_read8(h, place, addr, value);", "    return true;", "}", ""]
+    else:
+        out += ["    (void)h; (void)addr; (void)value;", "    return false;", "}", ""]
+    out += ["bool vars_host_write8(VarsHost *h, uint32_t addr, uint8_t value)", "{"]
+    if placed:
+        out += ["    unsigned place = projection_at(addr);", "    if (!place)", "        return false;"]
+        if ov.shared:
+            out += ["    unsigned set, slot = overlay_at(addr, &set);", "    if (slot) {",
+                    "        /* Every owner of the byte takes the write, as the original's one byte does. */",
+                    "        for (const uint16_t *owner = overlay_owner_sets[set]; *owner; owner++)",
+                    "            place_write8(h, *owner, addr, value);",
+                    "        h->overlay_writer[slot - 1] = 0;",
+                    "        return true;", "    }"]
+        out += ["    place_write8(h, place, addr, value);", "    return true;", "}", ""]
+    else:
+        out += ["    (void)h; (void)addr; (void)value;", "    return false;", "}", ""]
+    out += ["void vars_host_claim(VarsHost *h, uint32_t addr, unsigned bytes, unsigned place)", "{"]
+    if ov.shared:
+        out += ["    for (unsigned i = 0; i < bytes; i++) {",
+                "        unsigned set, slot = overlay_at(addr + i, &set);",
+                "        if (slot)",
+                "            h->overlay_writer[slot - 1] = (uint16_t)place;", "    }", "}", ""]
+    else:
+        out += ["    (void)h; (void)addr; (void)bytes; (void)place;", "}", ""]
+    out += ["void vars_host_check(const VarsHost *h, uint32_t addr, unsigned bytes, unsigned place)", "{"]
+    if ov.shared:
+        out += ["    for (unsigned i = 0; i < bytes; i++) {",
+                "        unsigned set, slot = overlay_at(addr + i, &set);",
+                "        unsigned writer = slot ? h->overlay_writer[slot - 1] : 0u;",
+                "        if (writer && writer != place) {",
+                "            if (!crossed[place]++)",
+                "                crossed_writer[place] = (uint16_t)writer;",
+                "            return;", "        }", "    }", "}", ""]
+    else:
+        out += ["    (void)h; (void)addr; (void)bytes; (void)place;", "}", ""]
+    out += ["unsigned vars_host_crossings(void (*each)(const char *reader, const char *writer, uint32_t times, void *ctx),",
+            "                             void *ctx)", "{", "    unsigned readers = 0;",
+            "    for (unsigned place = 1; place < sizeof crossed / sizeof crossed[0]; place++) {",
+            "        if (!crossed[place])", "            continue;", "        readers++;",
+            "        if (each)", "            each(place_names[place], place_names[crossed_writer[place]], crossed[place], ctx);",
+            "    }", "    return readers;", "}", "",
+            "void vars_host_crossings_reset(void)", "{",
+            "    memset(crossed, 0, sizeof crossed);", "    memset(crossed_writer, 0, sizeof crossed_writer);", "}", ""]
     return "\n".join(out)
 
 

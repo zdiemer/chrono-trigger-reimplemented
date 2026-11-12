@@ -2862,15 +2862,32 @@ persistence seams; game-side representation changes still need explicit work.
 - CI: the macOS job costs 10x minutes on a private repo.
 ## State records
 
-The live variables all have module-owned storage, 725 of them still blob-backed
+The live variables all have module-owned storage, 153 of them still blob-backed
 (`tools/ram_map.py storage --list`), and the big field, battle, character, menu
 and submitted-sprite records are declared in `re/ram.toml`; see
 [STATE.md](STATE.md). Remaining record design:
 
-- Type the 725 blob-backed variables. Nearly all are overlays where one mode
-  reads, at its own widths, fields another mode declared (610 through scalar
-  fields alone), or scratch cells with no element structure; each needs the
-  overlay split into a union of the modes' own fields.
+- Type the 153 blob-backed variables (STATE.md, "Storage measure"): give the 57
+  own byte buffers records or word elements where their meaning has them; make
+  the 48 same-mode width views read one owner (a word's high byte through the
+  word) in the ports that use them; and replace the 30 shared views with an
+  explicit hand-off at the mode change where the reader takes the other mode's
+  value, once its owners are known well enough to copy it.
+- Overlay crossings outside the sampled movies: the `overlay crossed:` fault
+  has run over the gate's sample only. The long batch's movie stages fail on
+  it, but `route_check` doesn't scan ct_native's stderr for it, so routes don't
+  yet; make it. A crossing means a separated owner whose mode reads another's
+  bytes, to return to a view or hand off explicitly.
+- Five same-cell aliases count as typed but read through the last-writer view
+  without a crossing check (`battle_joypad`, `battle_turn_member`,
+  `menu_member_pointed`, `menu_save_slot_era`,
+  `battle_effect_sprite_attributes`): point them at their owner's field, or
+  count them as views. Alias views of overlaid owners (e.g.
+  `menu_story_flags_top_layer_first`) write every mode's copy, as the original
+  does; say so in STATE.md.
+- The crossing counters (`crossed[]`, `crossed_writer[]` in
+  `runtime/port/vars_host.c`) are process-wide statics shared by every
+  GameState, and reads under `vars_peek` count as crossings.
 - Unowned addresses in `runtime/port/state_host.c`: the address view reads the
   1,395 bytes no variable owns as 0, where the hardware's power-on value is
   $55, and drops writes that overrun into them. The audit that found no gameplay
@@ -2883,9 +2900,10 @@ and submitted-sprite records are declared in `re/ram.toml`; see
 - Battle enemy AI, effect/anchor motion, status timers and script channels.
 - Scene program channels, racers, task/effect state and palette/tile animations.
 - Overworld actors and vehicles, menu-object command state and warp raster state.
-- Replace alternate mode views with separate logical owners as their remaining
-  scripted/bulk address consumers are removed. Preserve the shared projection
-  until those consumers no longer observe the overlap.
+- Retire the address view's last-writer table (`VarsHost.overlay_writer`) as
+  the scripted, bulk and video consumers that read shared bytes by address are
+  removed; until then it keeps their reads the original's. It costs about
+  240 KB of VarsHost; a per-page bitmap would do until then.
 
 ## Player integration checks
 
