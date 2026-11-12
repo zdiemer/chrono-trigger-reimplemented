@@ -3005,19 +3005,11 @@ persistence seams; game-side representation changes still need explicit work.
   declarations in `re/ram.toml` so the masks leave the port.
 
 - CI: the macOS job costs 10x minutes on a private repo.
-## State storage ownership
+## State records
 
-`tools/ram_map.py storage` reports 283 blob-backed and 27 image-backed variables;
-`storage --list` names their actual buffers. [STATE.md](STATE.md) defines the
-honest typed-storage measure and its before/after counts.
-
-- Decompose the remaining mixed record/instance arrays so their scalar views
-  can own typed fields; retain true graphics, map, script and saved-mode buffers
-  as explicitly blob-backed storage.
-- Remove obsolete sound-driver variables with their remaining clients.
-- Audit the 1,707 addresses outside ownership (257 driver bytes and 1,450
-  unnamed/padding bytes) before removing the residual image. Preserve cartridge
-  saves and route peek/watch through the address projection.
+- Gather field objects, combatants, characters and menu state into designed
+  records using `re/ram.toml` record declarations. Storage ownership and image
+  removal are described in [STATE.md](STATE.md).
 
 ## Player integration checks
 

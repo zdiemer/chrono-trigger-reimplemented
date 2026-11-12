@@ -100,6 +100,51 @@ class TestCommittedMap(unittest.TestCase):
 
 
 class TestRules(unittest.TestCase):
+    def test_records_gather_separately_addressed_arrays(self):
+        text = (var("object_x", 'addr = "7E:1000"\nsize = 2\ncount = 3\nindex = "slot"\nhost_module = "field"') +
+                var("object_y", 'addr = "7E:1100"\nsize = 2\ncount = 3\nindex = "slot"\nhost_module = "field"') + '''
+[[record]]
+name = "objects"
+type = "FieldObjectState"
+module = "field"
+count = 3
+meaning = "Each object's position."
+members = [{owner = "object_x", name = "x"}, {owner = "object_y", name = "y"}]
+''')
+        m = ram_map.RamMap(text=text)
+        header = ram_map.render_host_header(m)
+        self.assertIn("uint16_t x;", header)
+        self.assertIn("FieldObjectState objects[3];", header)
+        self.assertNotIn("object_x[3]", header)
+        self.assertIn("return h->field.objects[slot].x;", ram_map.render_backing(m))
+        self.assertIn("h->field.objects[element].y", ram_map.render_host_backing(m))
+        self.assertEqual(ram_map.storage_counts(m), (0, 0, 2))
+        for old, new in [('count = 3\nmeaning', 'count = 2\nmeaning'),
+                         ('name = "y"}', 'name = "x"}'),
+                         ('owner = "object_y"', 'owner = "missing"')]:
+            with self.subTest(new=new), self.assertRaises(ram_map.MapError):
+                ram_map.RamMap(text=text.replace(old, new))
+
+    def test_buffer_elements_have_values_and_a_serialized_slice(self):
+        text = var("tiles", '''addr = "7E:1000"
+size = 5
+host_module = "field"
+elements = { name = "entries", size = 2, start = 1, meaning = "Tilemap entries." }
+''')
+        m = ram_map.RamMap(text=text)
+        self.assertEqual(ram_map.storage_counts(m), (0, 0, 1))
+        h = ram_map.render_host_header(m)
+        self.assertIn("struct { uint16_t entries[3]; } tiles;", h)
+        c = ram_map.render_host_backing(m)
+        self.assertIn("h->field.tiles.entries[(offset + 1u) / 2u]", c)
+        self.assertIn("(offset + 1u) % 2u", c)
+        for old, new in [('size = 2, start = 1', 'size = 5, start = 1'),
+                         ('start = 1', 'start = 2'),
+                         ('name = "entries"', 'name = "bad-name"'),
+                         ('meaning = "Tilemap entries."', 'meaning = ""')]:
+            with self.subTest(new=new), self.assertRaises(ram_map.MapError):
+                ram_map.RamMap(text=text.replace(old, new))
+
     def test_small_buffers_and_byte_indexed_storage_are_not_typed(self):
         text = var("raw", '''addr = "7E:1000"
 stride = 3

@@ -183,7 +183,7 @@ static void alias_views(void)
     CHECK(h->menu.menu_inventory_past_the_items[0] == 0x73);
     CHECK(range_fault_count() == 1);
     set_character_records_record_byte(g, 0, CHARACTER_RECORDS_RECORD_BYTES, 0xA5);
-    CHECK(h->core.character_records_storage[1].record_part_1[0] == 0xA5);
+    CHECK(h->core.character_records_storage[1].id == 0xA5);
     CHECK(range_fault_count() == 2);
     set_oam_buffer_x(g, OAM_BUFFER_COUNT, 0x5A);
     CHECK(oam_high_table_byte(g, 0) == 0x5A);
@@ -266,8 +266,14 @@ static void projection_boundaries(void)
      * stride/padding holes cannot hide behind a write immediately read back. */
     for (uint32_t a = 0x7E0000; a < 0x800000; a++)
         state_host_write8(g, a, pattern(a));
-    for (uint32_t a = 0x7E0000; a < 0x800000; a++)
-        CHECK(state_host_read8(g, a) == pattern(a));
+    unsigned retired = 0;
+    for (uint32_t a = 0x7E0000; a < 0x800000; a++) {
+        uint8_t value = 0;
+        bool owned = vars_host_read8(state_host_vars_const(g), a, &value);
+        CHECK(state_host_read8(g, a) == (owned ? pattern(a) : 0));
+        if (!owned) retired++;
+    }
+    CHECK(retired == 1395); /* 257 retired sound cells and 1,138 unused/padding bytes */
     CHECK(character_records_hp(g, 6) == (uint16_t)(pattern(0x7E27E3) | pattern(0x7E27E4) << 8));
     CHECK(palette_animations_frames(g, 11) == (uint16_t)(pattern(0x7E05AA) | pattern(0x7E05AB) << 8));
     /* Views cross resource portions and typed records at awkward boundaries.
@@ -365,6 +371,13 @@ static void cartridge_save(const char *path)
         CHECK(exported[slot * SAVED_GAME_BYTES + 0x203] == 0x34);
         CHECK(exported[slot * SAVED_GAME_BYTES + 0x204] == 0x12);
         CHECK(exported[slot * SAVED_GAME_BYTES] == 0x56);
+        static const struct { unsigned offset, length; } reserved[] = {
+            { 0x45C, 36 }, { 0x481, 255 }, { 0x58A, 6 }, { 0x5A1, 11 }, { 0x80A, 4 }
+        };
+        for (unsigned r = 0; r < sizeof reserved / sizeof *reserved; r++)
+            CHECK(memcmp(exported + slot * SAVED_GAME_BYTES + reserved[r].offset,
+                         cartridge + slot * SAVED_GAME_BYTES + reserved[r].offset,
+                         reserved[r].length) == 0);
         /* A fresh state's load consumes the serialized bytes, not the old fields. */
         GameState *loaded = state_host_create(exported);
         CHECK(loaded);

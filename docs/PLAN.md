@@ -14,11 +14,9 @@ C. Observable divergence is accepted where the game stays structurally the same.
 2. **The machine out of game/ and the state as C, side by side.** Work module
    by module under the lean gate. Remove wrappers, registry, held-wait rows,
    emulated stack operations, register escapes and `Snes *` parameters while
-   moving scalar views out of blob/image backing into typed owners (STATE.md).
-   The measure is 1,953 typed, 283 blob-backed and 27 image-backed variables. Preserve
+   designing subsystem records over the typed owners (STATE.md). Preserve
    contracts, timing charges, cartridge saves, route queries and recorded
-   save/place protections. Resolve aliases and shared scratch before moving
-   each group; measure progress with the source and storage inventories.
+   save/place protections. Measure progress with the source and storage inventories.
 3. **ct_native plays the game by its own checks.** Add complete mid-route
    snapshots of game/task state, services, sound and timing debt, so restores
    no longer replay from power-on. Exercise every native route, turn findings

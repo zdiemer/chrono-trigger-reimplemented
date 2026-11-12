@@ -313,7 +313,7 @@ class Field:
         for key in ("name", "offset", "meaning"):
             if key not in raw:
                 raise MapError("%s: missing %s" % (where, key))
-        unknown = set(raw) - {"name", "offset", "size", "meaning", "host_alias", "buffer"}
+        unknown = set(raw) - {"name", "offset", "size", "meaning", "host_alias", "buffer", "elements"}
         if unknown:
             raise MapError("%s: unknown keys %s" % (where, sorted(unknown)))
         self.name = raw["name"]
@@ -322,6 +322,7 @@ class Field:
         self.offset = raw["offset"]
         self.size = raw.get("size", 1)
         self.meaning = raw["meaning"]
+        self.elements = Elements(raw.get("elements"), where)
         self.buffer = raw.get("buffer", False)
         if not isinstance(self.buffer, bool):
             raise MapError("%s: buffer must be boolean" % where)
@@ -333,11 +334,37 @@ class Field:
             raise MapError("%s: offset/size must lie inside the element's stride ($%X)" % (where, var.stride))
 
 
+class Elements:
+    """The game elements in a serialized buffer, independently of its byte API.
+
+    A slice can start inside an element when another view owns its other byte.
+    Only the declared slice is projected; unused edge bits are never observable.
+    """
+
+    def __init__(self, raw, where):
+        self.name = None
+        if raw is None:
+            return
+        if not isinstance(raw, dict) or set(raw) - {"name", "size", "start", "meaning"}:
+            raise MapError("%s: elements needs name, size and meaning" % where)
+        self.name = raw.get("name")
+        self.size = raw.get("size")
+        self.start = raw.get("start", 0)
+        self.meaning = raw.get("meaning")
+        if (not isinstance(self.name, str) or not NAME.fullmatch(self.name) or
+                self.size not in (1, 2, 3, 4) or not isinstance(self.start, int) or
+                not 0 <= self.start < self.size or not self.meaning):
+            raise MapError("%s: invalid element layout" % where)
+
+    def count(self, size):
+        return (self.start + size + self.size - 1) // self.size
+
+
 class Var:
     """A variable, an array of them, or an array of records."""
 
     KEYS = {"name", "addr", "size", "count", "stride", "index", "page", "dp",
-            "subsystem", "meaning", "source", "field", "rows", "row_stride", "unchecked", "reuses", "host_module", "host_alias", "host_blob"}
+            "subsystem", "meaning", "source", "field", "rows", "row_stride", "unchecked", "reuses", "host_module", "host_alias", "host_blob", "elements"}
 
     def __init__(self, raw, pages):
         where = "var %r" % raw.get("name")
@@ -355,6 +382,8 @@ class Var:
             raise MapError("%s: subsystem %r is not one of %s" % (where, self.subsystem, SUBSYSTEMS))
         self.meaning = raw["meaning"]
         self.source = raw["source"]
+        self.elements = Elements(raw.get("elements"), where)
+        self.record = None
         self.host_module = raw.get("host_module")
         if self.host_module is not None and not (isinstance(self.host_module, str) and NAME.fullmatch(self.host_module)):
             raise MapError("%s: host_module must name its C storage owner" % where)
@@ -516,7 +545,7 @@ class Var:
 class RamMap:
     def __init__(self, path=MAP, text=None):
         doc = tomllib.loads(text if text is not None else path.read_text(encoding="utf-8"))
-        unknown = set(doc) - {"page", "var", "owner", "image", "not_ram", "offset"}
+        unknown = set(doc) - {"page", "var", "owner", "record", "image", "not_ram", "offset"}
         if unknown:
             raise MapError("unknown top-level keys %s" % sorted(unknown))
         self.pages = {}
@@ -550,6 +579,8 @@ class RamMap:
             raise MapError("names used twice: %s" % ", ".join(sorted(dup)))
         self._check_overlaps()
         self._check_host_owners()
+        self.records = doc.get("record", [])
+        self._check_records()
         self.macros = header_macros(self)   # also checks the generated names are unique
         for _, groups in accessors(self):   # the same, for game/vars.h; and no name says a word twice
             for _, _, group in groups:
@@ -563,6 +594,47 @@ class RamMap:
         """The variables whose names carry a word shaped like an address or a
         byte ($1E, $BC): named for where they are, not for what they hold."""
         return [v.name for v in self.vars if any(ADDRESS_WORD.match(w) for w in v.name.split("_"))]
+
+    def _check_records(self):
+        """Gather independently addressed fields into game records.
+
+        The serialized layout belongs to each owner. A record only determines
+        the native layout; it never changes an accessor or allocates an alias.
+        """
+        owners = {v.name: v for v in self.vars + self.owners if v.host_module}
+        types, names = set(), set()
+        for r in self.records:
+            if set(r) != {"name", "type", "module", "count", "meaning", "members"}:
+                raise MapError("record needs name, type, module, count, meaning and members")
+            if (not NAME.fullmatch(r["name"]) or not NAME.fullmatch(r["module"]) or
+                    not re.fullmatch(r"[A-Z][A-Za-z0-9]*", r["type"]) or
+                    not isinstance(r["count"], int) or r["count"] < 1 or not r["meaning"]):
+                raise MapError("invalid record declaration")
+            key = (r["module"], r["name"])
+            if key in names or r["type"] in types:
+                raise MapError("record name/type declared twice")
+            names.add(key)
+            types.add(r["type"])
+            fields = set()
+            if not r["members"]:
+                raise MapError("a record needs members")
+            for member in r["members"]:
+                if set(member) - {"owner", "name", "flatten"} or "owner" not in member:
+                    raise MapError("record member needs owner and name, or flatten")
+                v = owners.get(member["owner"])
+                if v is None or v.record:
+                    raise MapError("record member needs an unbound storage owner")
+                count = len(v.bases()) if v.on_instances() else v.count
+                if v.rows or count != r["count"] or (v.on_instances() and v.count != 1):
+                    raise MapError("record members must have the same element count")
+                flatten = member.get("flatten", False)
+                if not isinstance(flatten, bool) or (flatten and (not v.fields or "name" in member)):
+                    raise MapError("only record fields can be flattened")
+                declared = [f.name for f in v.fields if not f.host_alias] if flatten else [member.get("name", "")]
+                if any(not NAME.fullmatch(n) or n in fields for n in declared):
+                    raise MapError("record members must have distinct field names")
+                fields.update(declared)
+                v.record = (r, member)
 
     def _check_host_owners(self):
         by_name = {v.name: v for v in self.vars + self.owners}
@@ -686,7 +758,7 @@ def storage_kinds(m):
     """
     blobs = {}
     for a in owner_accessors(m):
-        if not (a.blob or a.table or a.var.host_blob):
+        if a.elements.name or not (a.blob or a.table or a.var.host_blob):
             continue
         label = a.var.name + ("." + a.field.name if a.field else "")
         for base in a.var.bases():
@@ -884,6 +956,7 @@ class Accessor:
         self.addr = None if var.on_instances() else var.addr + self.offset
         self.size = field.size if field else var.size
         self.meaning = field.meaning if field else var.meaning
+        self.elements = field.elements if field else var.elements
         # A table of rows is a byte by row and column, whatever its row's size.
         self.table = var.rows is not None
         self.blob = (self.size > WIDEST or (field and field.buffer)) and not self.table
@@ -1220,19 +1293,34 @@ def page_ordinal(p):
 
 def host_member(a, root="h", element=None, row="row", byte="at", instance=None):
     v = a.var
-    member = "%s->%s.%s" % (root, v.host_module, v.name)
-    if v.on_instances():
-        member += "[%s]" % (instance if instance is not None else page_ordinal(v.page))
-    if v.rows:
-        member += "[%s]" % row
-    if v.count > 1:
-        member += "[%s]" % (element or index_param(v.index))
+    if v.record:
+        record, binding = v.record
+        member = "%s->%s.%s" % (root, record["module"], record["name"])
+        index = (instance if instance is not None else page_ordinal(v.page)) if v.on_instances() else (element or index_param(v.index))
+        if record["count"] > 1:
+            member += "[%s]" % index
+        if not binding.get("flatten"):
+            member += "." + binding["name"]
+    else:
+        member = "%s->%s.%s" % (root, v.host_module, v.name)
+        if v.on_instances():
+            member += "[%s]" % (instance if instance is not None else page_ordinal(v.page))
+        if v.rows:
+            member += "[%s]" % row
+        if v.count > 1:
+            member += "[%s]" % (element or index_param(v.index))
     if v.fields:
         # Accessor names are unique and derived from the field name.
         member += "." + a.field.name
-    if a.blob or a.table:
+    if (a.blob or a.table) and not a.elements.name:
         member += "[%s]" % byte
     return member
+
+
+def element_member(a, member, byte):
+    e = a.elements
+    offset = "(%s + %du)" % (byte, e.start)
+    return "%s.%s[%s / %du]" % (member, e.name, offset, e.size), "%s %% %du" % (offset, e.size)
 
 
 def render_host_accessor(a, ids):
@@ -1295,6 +1383,22 @@ def render_host_accessor(a, ids):
             out += ["}"]
             continue
         member = host_member(a, byte="column" if a.table else "at")
+        if a.elements.name:
+            byte = "column" if a.table else "at" if a.blob else "0u"
+            if not write:
+                out += ["    %s value = 0;" % a.type]
+            for i in range(width):
+                item, shift = element_member(a, member, "(%s + %du)" % (byte, i))
+                if write:
+                    out += ["    %s = (%s)((%s & ~((uint32_t)0xFFu << (%s * 8))) | (uint32_t)(uint8_t)(v >> %d) << (%s * 8));" %
+                            (item, C_TYPE[a.elements.size], item, shift, i * 8, shift)]
+                else:
+                    out += ["    value |= (%s)((%s)(uint8_t)(%s >> (%s * 8)) << %d);" %
+                            (a.type, a.type, item, shift, i * 8)]
+            if not write:
+                out += ["    return value;"]
+            out += ["}"]
+            continue
         out += ["    %s" % (member + " = " + ("v & 0xFFFFFFu" if width == 3 else "v") + ";" if write else "return " + member + ";"), "}"]
     return out
 
@@ -1304,34 +1408,68 @@ def host_groups(m):
     for v in m.vars + m.owners:
         if v.host_module:
             groups[v.host_module].append(v)
+    for r in m.records:
+        groups[r["module"]]
     return sorted(groups.items())
+
+
+def host_declaration(v, name, dims="", indent="    ", flatten=False):
+    out = []
+    if v.fields:
+        if not flatten:
+            out += [indent + "struct {"]
+        inner = indent if flatten else indent + "    "
+        for f in v.fields:
+            if f.host_alias:
+                continue
+            a = Accessor(v, f)
+            if a.elements.name:
+                e = a.elements
+                out += [inner + "struct { %s %s[%d]; } %s;" %
+                        (C_TYPE[e.size], e.name, e.count(f.size), f.name)]
+            else:
+                out += [inner + "%s %s%s;" % (a.type, f.name,
+                        "[%d]" % f.size if a.blob or a.table else "")]
+        if not flatten:
+            out += [indent + "} %s%s;" % (name, dims)]
+    elif v.elements.name:
+        e = v.elements
+        out += [indent + "struct { %s %s[%d]; } %s%s;" %
+                (C_TYPE[e.size], e.name, e.count(v.size), name, dims)]
+    else:
+        blob = v.size > WIDEST or v.rows
+        out += [indent + "%s %s%s%s;" % ("uint8_t" if blob else C_TYPE[v.size], name, dims,
+                "[%d]" % v.size if blob else "")]
+    return out
 
 
 def render_host_header(m):
     out = ["/* Module-owned native state; generated by tools/ram_map.py accessors.",
            " * The address view serializes fields explicitly, independent of C padding",
-           " * and host byte order. Unmoved variables still use state_host's image. */",
+           " * and host byte order. Unowned addresses have no storage. */",
            "#ifndef CT_PORT_VARS_HOST_H", "#define CT_PORT_VARS_HOST_H", "",
            "#include <stdbool.h>", "#include <stdint.h>", ""]
     groups = host_groups(m)
+    owners = {v.name: v for v in m.vars + m.owners if v.host_module}
+    for r in m.records:
+        out += ["/* %s */" % r["meaning"], "typedef struct {"]
+        for binding in r["members"]:
+            out += host_declaration(owners[binding["owner"]], binding.get("name"),
+                                    flatten=binding.get("flatten", False))
+        out += ["} %s;" % r["type"], ""]
     for module, vs in groups:
         out += ["typedef struct {"]
+        for r in m.records:
+            if r["module"] == module:
+                out += ["    %s %s%s;" % (r["type"], r["name"], "[%d]" % r["count"] if r["count"] > 1 else "")]
         for v in vs:
+            if v.record:
+                continue
             dims = ("[%d]" % len(v.bases()) if v.on_instances() else "")
             dims += ("[%d]" % v.rows if v.rows else "") + ("[%d]" % v.count if v.count > 1 else "")
-            if v.fields:
-                out += ["    struct {"]
-                for f in v.fields:
-                    if f.host_alias:
-                        continue
-                    a = Accessor(v, f)
-                    out += ["        %s %s%s;" % (a.type, f.name,
-                                                   "[%d]" % f.size if a.blob or a.table else "")]
-                out += ["    } %s%s;" % (v.name, dims)]
-            else:
-                blob = v.size > WIDEST or v.rows
-                out += ["    %s %s%s%s;" % ("uint8_t" if blob else C_TYPE[v.size], v.name, dims,
-                                             "[%d]" % v.size if blob else "")]
+            out += host_declaration(v, v.name, dims)
+        if not any(not v.record for v in vs) and not any(r["module"] == module for r in m.records):
+            out += ["    uint8_t unused; /* C has no empty structs. */"]
         out += ["} VarsHost%s;" % camel(module), ""]
     out += ["typedef struct {"]
     for module, _ in groups:
@@ -1365,6 +1503,12 @@ def alias_owners(m):
 
 def projection_statement(a, write, byte="offset", instance=None):
     member = host_member(a, element="element", byte=byte, instance=instance)
+    if a.elements.name:
+        member, byte = element_member(a, member, byte)
+        if write:
+            return "%s = (%s)((%s & ~((uint32_t)0xFFu << (%s * 8))) | (uint32_t)value << (%s * 8));" % (
+                member, C_TYPE[a.elements.size], member, byte, byte)
+        return "*value = (uint8_t)(%s >> (%s * 8));" % (member, byte)
     if a.blob or a.table:
         return "%s = value;" % member if write else "*value = %s;" % member
     if write:
@@ -1389,7 +1533,17 @@ def render_host_backing(m):
     groups = owner_accessors(m)
     # 24-bit values live in uint32_t, whose unused high byte is always zero.
     for a in groups:
-        if a.size == 3 and not a.table and not a.blob:
+        if a.elements.name and a.elements.size == 3:
+            if a.var.on_instances():
+                out += ["    for (unsigned instance = 0; instance < %d; instance++)" % len(a.var.bases())]
+            if a.var.rows:
+                out += ["    for (unsigned row = 0; row < %d; row++)" % a.var.rows]
+            if a.var.count > 1:
+                out += ["    for (unsigned i = 0; i < %d; i++)" % a.var.count]
+            out += ["    for (unsigned item = 0; item < %d; item++)" % a.elements.count(a.size),
+                    "        %s.%s[item] = 0x555555u;" %
+                    (host_member(a, element="i", instance="instance"), a.elements.name)]
+        elif a.size == 3 and not a.table and not a.blob and not a.elements.name:
             if a.var.on_instances():
                 out += ["    for (unsigned instance = 0; instance < %d; instance++)" % len(a.var.bases())]
             if a.var.count > 1:
@@ -1421,7 +1575,7 @@ def render_host_backing(m):
                 out += ["    }"]
             out += ["    return;" if write else "    return 0;", "}", ""]
     # Two indexed loads choose the field. Only populated pages get a byte table;
-    # zero selects the residual image. Stride/record holes have no owner.
+    # zero selects no storage. Stride/record holes have no owner.
     pages = {}
     placed = [(a, instance, base + a.offset) for a in groups for instance, base in enumerate(a.var.bases())]
     for number, (a, instance, base) in enumerate(placed, 1):

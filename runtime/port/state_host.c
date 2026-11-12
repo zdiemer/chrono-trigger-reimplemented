@@ -12,11 +12,8 @@
 #include "rom.h"
 #include "wram.h"
 
-enum { WRAM_BYTES = 0x20000, POWER_ON_BYTE = 0x55 };
-
 struct GameState {
     VarsHost vars;
-    uint8_t wram[WRAM_BYTES];
     uint8_t sram[STATE_HOST_SRAM_BYTES];
     /* the multiplier and divider: their operands, and the result the
      * product-or-remainder register shows */
@@ -52,10 +49,6 @@ GameState *state_host_create(const uint8_t *sram)
     if (!g)
         return NULL;
     g->timed = time_rate_count;
-    /* work RAM as the reference emulator powers it on, which the game reads
-     * where its own clear at power-on leaves it as it was (the menus' records
-     * of a party not yet joined): a run starts where the reference plays do */
-    memset(g->wram, POWER_ON_BYTE, sizeof g->wram);
     vars_host_init(&g->vars);
     if (sram)
         memcpy(g->sram, sram, sizeof g->sram);
@@ -152,8 +145,9 @@ uint8_t state_host_read8(const GameState *g, uint32_t addr)
     uint32_t offset;
     switch (place_of(addr & 0xFFFFFF, &offset)) {
     case IN_WRAM: {
-        uint8_t value;
-        return vars_host_read8(&g->vars, 0x7E0000u + offset, &value) ? value : g->wram[offset];
+        uint8_t value = 0;
+        vars_host_read8(&g->vars, 0x7E0000u + offset, &value);
+        return value;
     }
     case IN_SRAM: return g->sram[offset];
     case IN_ROM: {
@@ -175,8 +169,9 @@ void state_host_write8(GameState *g, uint32_t addr, uint8_t v)
     uint32_t offset;
     switch (place_of(addr & 0xFFFFFF, &offset)) {
     case IN_WRAM:
-        if (!vars_host_write8(&g->vars, 0x7E0000u + offset, v))
-            g->wram[offset] = v;
+        /* Bulk clears may cross retired cells and padding. They have no
+         * storage; inspection reads of those addresses return zero. */
+        vars_host_write8(&g->vars, 0x7E0000u + offset, v);
         return;
     case IN_SRAM: g->sram[offset] = v; return;
     case IN_ROM:

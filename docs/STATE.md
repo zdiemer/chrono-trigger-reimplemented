@@ -1,93 +1,79 @@
 # Native state storage
 
-`python3 tools/ram_map.py storage` counts each `[[var]]` once, regardless of
-fields, elements or page instances. It reports three mutually exclusive kinds:
+Every live map variable has typed C storage. `GameState` has no work-RAM image;
+the generated address view serializes the owning fields directly. Generated
+files come only from `tools/ram_map.py` and `re/ram.toml`.
 
-- **Typed struct-backed:** every declared byte belongs to a named scalar field
-  or an array of game elements. Serialized views of these fields share that
-  classification; no separate value is allocated for a view.
-- **Blob-backed:** at least one byte still belongs to a raw buffer. A scalar
-  accessor assembled from buffer offsets remains blob-backed. A partially typed
-  record is counted entirely here, including its whole-record view.
-- **Image-backed:** storage is still in the residual work-RAM image.
+## Storage measure
 
-`storage --list` names each untyped variable and the actual buffers behind it.
-The measure follows owning fields, not `host_alias` labels. Fields marked
-`buffer = true` remain byte arrays even when only one to four bytes wide;
-`host_blob` explains opaque byte-indexed arrays whose public API already has
-scalar elements. Neither small size nor moving bytes into a module makes them
-typed state. Arrays of actual game elements (inventory items, party coordinates,
-palette colors) are typed; arrays indexed by opaque byte positions are not.
+`python3 tools/ram_map.py storage` counts each public `[[var]]` once, regardless
+of its fields, elements or page instances. An alias counts as typed only when
+all its declared bytes have typed owners. `storage --list` lists any remaining
+blob or image dependencies; it is empty now.
 
-## Typed migration
+| Measure | Before | After |
+|---|---:|---:|
+| Typed variables | 1,953 | 2,236 |
+| Blob-backed variables | 283 | 0 |
+| Image-backed variables | 27 | 0 |
+| Total public variables | 2,263 | 2,236 |
 
-The earlier ownership measure called 2,236 variables struct-backed because they
-had left the residual image. Auditing both wide buffers and narrow anonymous
-remnants gives the honest baseline below. This round promotes 1,168 variables
-to typed storage, without changing the 2,263-variable denominator.
+The denominator fell by 27 because the retired sound loader has no live clients.
+Its declarations and generated accessors were deleted. Its 257 bytes and 1,138
+other unused/padding bytes have no storage. Of the former 1,450 unnamed bytes,
+312 remain as named cartridge-save reserved runs, required for lossless `.srm`
+round trips. A sampled-movie audit with the old fallback instrumented found no
+gameplay reads of the 1,395 dropped bytes; whole-address inspection in native
+tests and route snapshots did read them. The image-free gate verifies the
+observable results after their removal. Unowned inspection addresses return
+zero and bulk writes across them are ignored.
 
-| Module | Typed before | Typed after | Blob before | Blob after | Image after |
-|---|---:|---:|---:|---:|---:|
-| Core | 43 | 55 | 19 | 7 | 27 |
-| Data | 8 | 8 | 0 | 0 | 0 |
-| Event | 8 | 16 | 12 | 4 | 0 |
-| Field | 167 | 241 | 141 | 67 | 0 |
-| Menu | 243 | 393 | 224 | 74 | 0 |
-| Menu objects | 8 | 26 | 31 | 13 | 0 |
-| Overworld | 31 | 34 | 11 | 8 | 0 |
-| Battle | 186 | 859 | 736 | 63 | 0 |
-| Scene | 81 | 303 | 265 | 43 | 0 |
-| Warp | 10 | 18 | 12 | 4 | 0 |
-| **Total** | **785** | **1,953** | **1,451** | **283** | **27** |
+## Owners, elements and records
 
-Sprite submission now owns `scene_sprite_index`, `scene_sprite_high_pointer`,
-`scene_sprite_offset_x` and `scene_sprite_offset_y` as named integers.
-`field_kept_party_x` and `field_kept_party_y` own three coordinate words each.
-Character records own HP/MP fields and the OAM records own x/y/tile/attributes;
-their byte-oriented consumers serialize the same fields. Battle scratch,
-menu drawing state, scene effects and event controls likewise use named scalar
-owners wherever their overlapping layouts allow a complete field or array.
+`host_module` selects an owner. `host_alias` names one owner or a list composing
+several owners. `[[owner]]` declares storage without adding public accessors or
+changing the measure. Internal field views can name several owning fields.
+Every declared byte has exactly one owner; missing coverage, alias chains and
+duplicate ownership are rejected.
 
-The 283 remaining blob-backed variables include graphics, map and script
-buffers, saved raw mode memory and record views containing unknown bytes.
-Some scalar arrays span several modes' records: only some instances currently
-have typed ownership, so the entire array remains blob-backed. Converting
-those requires further record/instance decomposition. `storage --list` is the
-current list, including every partial dependency; none is counted as typed.
-The 27 image-backed variables are obsolete sound-driver state (257 bytes).
-Another 1,450 unnamed/padding bytes lack owners. Audit dynamic script writes,
-clears and unchecked tails before removing the residual 128 KiB allocation.
+A serialized byte API need not imply byte storage. `elements` declares its
+actual element name, width and meaning. Tilemap entries, palette colors, scene
+interpreter registers and loop counters are word arrays; glyph codes, map tile
+identifiers, collision flags, graphics bitplane rows and encoded script units
+are byte-sized elements. Script buffers retain the encoded opcode/operand
+stream, not decoded C instructions. Those buffers belong to their modules.
+Opaque storage without an element declaration still counts as blob-backed;
+`buffer = true` preserves a byte accessor even for a narrow serialized slice.
 
-## Owners and address views
+Overlapping modes share one owner. The projection performs explicit
+little-endian serialization, independent of C padding. A slice can start inside
+an element when another owner holds its other byte; its `elements.start` says
+which byte, and the projection exposes only the declared slice. Mixed records
+have named scalar fields: for example, character records now own base stats,
+level, experience, equipment and derived figures alongside HP/MP. Whole-record
+accessors serialize those same fields, including partial writes.
 
-`host_module` selects a native owner. `host_alias` names one owner or a list
-composing several owners. `[[owner]]` declares storage without adding a public
-variable or changing the measure. Internal field views can likewise name
-several fields. Every declared byte must be covered exactly once: missing
-owners, partial coverage, alias chains and duplicate storage are errors.
+`[[record]]` gathers selected owners into a named C struct and array. Its member
+bindings and optional flattened fields determine the C layout independently of
+the original address spacing. The generator checks member counts, unique field
+names and exclusive ownership. Accessor names and parameters remain unchanged.
 
-Page owners are arrays in declared instance order. Named, indexed and mixed
-page handles choose records, independently of C padding or the original
-spacing of direct pages. Whole-record accessors and named-field accessors share
-the same owner. When a resource crosses typed state, its remaining unstructured
-portions stay explicit buffers; only those bytes are allocated there. Repeated
-remaining layouts keep an array of records. No duplicate backing is maintained.
+## What still uses addresses
 
-The generated projection selects a field by page/byte tables and serializes
-it explicitly in little-endian order. `state_host_read8/write8` canonicalize
-address mirrors and route every owned byte through it; only holes use the
-residual image. Save/load, raw bulk operations, resource reads targeting RAM,
-video callbacks, route peek/watch and end-state queries use the same view.
-Invalid or unchecked indices fall back to this address view rather than index
-outside a C object. Accessor timing remains independent of storage choice.
-The generator emits only native accessors. The emulator read/write branches,
-alternate per-variable backing and `CT_VARS_HOST` build switch were removed
-when merging the native-only main branch.
+- Cartridge `.srm` projection retains the original eight-run layout below.
+- Route `peek`/`watch`, end-state outcomes and replay checksums inspect the same
+  address view to preserve the tools' vocabulary and recorded checks.
+- Dynamic script destinations, bulk clears/copies, video source callbacks and
+  deliberate unchecked indices still select serialized positions. They resolve
+  through the generated projection; none indexes a work-RAM allocation.
+- Legacy entry/page adapters still translate original calling conventions.
+  Removing those adapters is separate from storage ownership.
 
-The source inventories in [state-addresses.tsv](state-addresses.tsv),
+The address tables are immutable dispatch metadata, not another copy of state.
+Source and overlap inventories in [state-addresses.tsv](state-addresses.tsv),
 [state-overlaps.tsv](state-overlaps.tsv) and
-[state-field-overlaps.tsv](state-field-overlaps.tsv) describe address dependencies
-and overlapping views; they are distinct from the typed-storage measure.
+[state-field-overlaps.tsv](state-field-overlaps.tsv) describe remaining address
+users and alternate views; they are not the storage measure.
 
 ## Cartridge save projection
 
@@ -114,29 +100,24 @@ itself stays a byte buffer: it is a persistent file format, not game state.
 `sv_host_bytes` hands this buffer to the driver; disk names and atomic file
 replacement remain frontend responsibilities.
 
-Saving and loading use `wram_read8/write8`, so an address-to-field view must
-serialize and deserialize moved fields in little-endian order, including
-bank-zero mirrors. Route `peek`/`watch`, end-state output, generic clearing,
-copying and video read through that same view. None may read a stale duplicate
-of a moved field in the residual image.
+Saving and loading use the generated address view through `wram_read8/write8`.
+Five reserved runs (312 bytes) have explicit cartridge-format owners so loading
+and saving preserves values the game does not interpret, as well as the slot
+tail already retained in SRAM. The native test checks those reserved runs
+against an actual cartridge save after loading, editing and saving it.
 
 ## Validation
 
-The map tests check typed, blob and partial-record classification, narrow
-buffers, composed ownership and page-instance arrays. Regression tests inspect
-the five review examples' generated native fields directly. `vars_host_test`
-checks byte views, all-address projection, partial writes, independent states,
-page instances, unchecked tails, video sources and the real cartridge save/load
-and checksum routines. The Windows MinGW Release build passes with warnings
-treated as errors. All 211 Python tests and 15 native C tests pass. A generated
-accessor sweep also passes 713,158 read/write comparisons against the serialized
-address view. Generated-file checks confirm the committed outputs are current.
+Map tests cover typed elements, sliced words, records, aliases, page instances,
+invalid declarations and generated-file freshness. `vars_host_test` fills all
+owned addresses before reading them back, verifies that all 1,395 unowned
+addresses discard writes, and exercises aliases, partial writes, independent
+states, unchecked tails and video sources. It invokes the actual cartridge
+save/load/checksum routines on a committed `.srm`, edits typed state, saves,
+checks reserved bytes and loads the result into a fresh state.
 
-After merging native-only main, `tools/suite.py --ct-native build/main/ct_native.exe
--j 2` ends `suite OK` in 354.8 seconds, including unit tests. All 58 sampled
-movies complete, recorded outcomes and picture checks pass, and both fast
-routes reach their outcomes. Portstyle and portsmell pass without baseline or
-exception changes.
+The Windows MinGW Release build uses warnings as errors. The lean gate runs
+Python/native tests, 58 sampled movies, saved outcomes, picture fingerprints,
+both fast routes, portstyle and portsmell. No baseline or exception changes.
 
-The ownership-only results from the retired emulator gate are superseded by
-the typed/blob/image measure above and the native gate.
+The image-free lean gate ends `suite OK` in 319.0 seconds, including all tests.

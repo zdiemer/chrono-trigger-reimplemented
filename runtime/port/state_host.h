@@ -2,10 +2,9 @@
  * vars.h, cpu_io.h, wram.h and charge.h for ct_native
  * (docs/PLAYING.md, "The native program").
  *
- * Migrated modules use generated C structs (vars_host.h); the remaining
- * variables use a residual work-RAM image. The address view projects struct
- * fields, with no duplicate field values in that image. The cartridge's 8 KiB
- * of save RAM retains its file layout. The multiplier, divider and work RAM port work
+ * All state uses generated C records and typed buffers (vars_host.h). The
+ * address view projects their fields; retired cells and padding have no storage.
+ * The cartridge's 8 KiB of save RAM retains its file layout. The multiplier, divider and work RAM port work
  * out in C rather than by registers. The game's work is timed for the
  * frame-level time model (platform/time_model.h): its accesses at the rates
  * the machine calibrated, and the charges as the machine makes them. What the
