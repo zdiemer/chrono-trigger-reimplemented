@@ -1844,7 +1844,7 @@ type) and each resource's original bytes, raw. It reads the ROM through the
 same kind of store the game reads from (`asset_store_rom`), so the pack is
 whatever that store serves; `asset_pack_build` makes one from any store, which
 `assets_test` uses without a ROM. Nothing here opens a file: `ct_play` (its
-driver, `frontend/files.c`, `files_asset_pack`) writes the pack as
+driver, the shared `frontend/asset_files.c`, `files_asset_pack`) writes the pack as
 `<rom name>.assets` beside the saves, on the first launch without one and
 again with `ct_play --import <rom>`, which then exits. The pack is ROM-derived
 and gitignored wherever it lands. It holds the catalogue's 3,847,602 payload

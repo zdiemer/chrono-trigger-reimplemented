@@ -77,8 +77,6 @@ The order to a production native build. Each step's detail is in Phase 4a.
 4. **The machine out of the product**: wrappers, registry, emulated stack,
    held waits as C loops, `Snes *` gone from `game/`; `ct_play` becomes
    `ct_native`.
-5. **The player as a product**: what `ct_play` has that `ct_native` lacks,
-   and release builds.
 
 The first two steps can run side by side; state storage and machine removal
 overlap per module. Investigate
@@ -208,11 +206,6 @@ already built are described in PLATFORM.md.
 
   The census identifies the caller keeping an entry alive; the routes in
   `ct_native` establish how far its replacement plays.
-- **The player as a product.** What `ct_play` has and `ct_native` lacks
-  (PLAYING.md, "The native program"): quick save and load, bindings, movie
-  recording, importing the asset pack on first run. The playback, audio-stall
-  and performance reports in TODO.md re-checked on the native program.
-  Release builds per platform: CI builds `ct_native` but doesn't ship it.
 
 **Assets: imported once from the user's ROM, then loaded by name.** The
 ports reach ROM data through named accessors (`*_data.h`), every byte of it in

@@ -84,6 +84,11 @@ and the initial SRAM before changing the running program. The client's
 `.pads` sidecar still records the input it kept. Resume runs require the
 same executable, ROM and route helpers, checked by `route_check`'s stamp;
 state files are not an interchange format between builds.
+`frontend/resume.c` owns the input history and incremental reconstruction used
+by both route slots and player quick saves. Both use the same native restart
+and parent-aware fiber teardown; route slots retain their RAM/SRAM checksum
+and exact audio-call checks.
+
 `route_server_test` tests the protocol and replay with a made-up program
 whose main and child coroutines keep locals across frame waits; it needs
 no ROM. `audio_replay_test` checks shared branch histories, CPU-side sends,

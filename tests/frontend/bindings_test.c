@@ -28,6 +28,9 @@ int main(void)
 {
     SDL_SetMainReady();
     char err[160];
+    const char *overrides[] = { "F5=QuickLoad", "Pad guide=QuickSave" };
+    CHECK(bindings_configure(NULL, overrides, 2) == 0, "driver overrides failed");
+    CHECK(bindings_key_action(SDL_SCANCODE_F5) == ACT_QUICK_LOAD, "driver ignored override");
     bindings_reset();
     CHECK(bindings_set("Foo = A", err, sizeof err) != 0, "an unknown key binds");
     CHECK(bindings_set("X = Jump", err, sizeof err) != 0, "an unknown action binds");

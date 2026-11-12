@@ -197,6 +197,14 @@ jobs:
         run: build/ci/scene_contract_test
       - name: battle_contract_test
         run: build/ci/battle_contract_test
+      - name: player_files_test
+        run: build/ci/player_files_test
+      - name: recorder_test
+        run: build/ci/recorder_test
+      - name: resume_test
+        run: build/ci/resume_test
+      - name: file_store_test
+        run: build/ci/file_store_test build/ci/test-save.srm
       - name: bindings_test
         run: build/ci/bindings_test
       - name: assets_test
@@ -210,3 +218,66 @@ jobs:
         run: build/ci/spc700_runner tests/apu/data/*.bin
       - name: Generated code against the interpreter on the SNES bus
         run: build/ci/generated_bus_diff
+
+  native-player:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    name: native-player-${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-gcc, os: ubuntu-latest, cc: gcc, shell: bash }
+          - { name: linux-clang, os: ubuntu-latest, cc: clang, shell: bash }
+          - { name: macos-clang, os: macos-latest, cc: clang, shell: bash }
+          - { name: windows-mingw-gcc, os: windows-latest, cc: gcc, shell: 'msys2 {0}' }
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q ninja-build libsdl2-dev
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja sdl2
+      - if: runner.os != 'Windows'
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-python
+            mingw-w64-x86_64-SDL2
+
+      - name: Configure native Release without a ROM
+        run: >-
+          cmake -S . -B build/player -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCT_WERROR=ON -DCT_ROM=
+      - name: Build native player
+        run: cmake --build build/player --target ct_native -j 2
+      - name: Package player and instructions
+        run: python3 tools/package_native.py --build-dir build/player --output build/player-artifact
+      - name: Smoke test packaged player
+        run: build/player-artifact/ct_native --help
+      - name: Upload native player
+        uses: actions/upload-artifact@v4
+        with:
+          name: ct_native-${{ matrix.name }}-${{ runner.arch }}
+          path: build/player-artifact/
+          if-no-files-found: error
