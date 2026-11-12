@@ -249,7 +249,23 @@ save/load/checksum routines with a committed cartridge `.srm`. The Python
 map tests reject missing owners, chains, duplicate ownership and incomplete
 compositions, and verify storage-only records do not add API variables.
 
-Build, unit and sampled-gate results are recorded after the final validation.
+The Windows MinGW Release build passes with `CT_WERROR=ON`. All 629 Python
+unit tests pass, as do `vars_host_test`, `vars_test`, `native_time_test` and
+`unpack_time_test`.
+The generated-file checks and both `portstyle.py --check` and
+`portsmell.py --check` pass. An additional generated accessor sweep checks
+713,158 reads and writes against the serialized address view with zero
+failures, both with accessor diagnostics enabled and disabled.
+
+The sampled gate with `-j 2 --evidence` ends `suite OK`: all 58 shadow movies
+are clean, all 58 strict and native movies reach their ends, and both fast
+routes reach their outcomes in shipping, native and scaffolding-free builds.
+The native route outcomes are Beyond Time's second form at frame 3,770 and
+the telepod's Lavos shell at frame 5,162, with no route exceptions. Trace
+identity, recorded-outcome ratchets and the remaining gate checks pass;
+no baseline or exception was changed. Validation used neither `--all-movies`
+nor `--long-routes`.
+
 The prior slices' measurements are in
 [history/state-storage-second-slice.md](history/state-storage-second-slice.md)
 and [history/state-storage-first-slice.md](history/state-storage-first-slice.md).
