@@ -1626,7 +1626,6 @@ typedef struct {
         uint8_t window2_left;
         uint8_t window2_right;
     } field_window_shadows;
-    struct { uint8_t properties[64]; } field_tile_properties[64];
     struct {
         uint8_t sizes;
         uint8_t layers;
@@ -3900,8 +3899,8 @@ typedef struct {
     /* The reads that found another owner's bytes, by reader: how often, and
      * the owner that wrote them the first time (vars_host_crossings). A
      * diagnostic tally, kept with the state it describes. */
-    uint32_t crossed[3366];
-    uint16_t crossed_writer[3366];
+    uint32_t crossed[3365];
+    uint16_t crossed_writer[3365];
 } VarsHost;
 
 /* Byte views of battle_acting_for_itself's storage; no independent alias fields. */

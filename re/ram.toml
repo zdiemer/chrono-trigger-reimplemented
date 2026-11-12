@@ -7013,8 +7013,7 @@ source = "game/field/layers.c, field_unpack_the_tile_maps $C0:A521"
 [[var]]
 name = "field_tile_properties"
 elements = { name = "properties", size = 1, meaning = "A tile's first map byte, its properties." }
-host_module = "field"
-overlays = ["battle_combatants", "battle_party_pose_frame", "battle_party_pose_member", "battle_party_poses_frames_left", "battle_party_scene_opening", "battle_party_scene_poses_all", "battle_script_waits", "menu_shop_for_sale", "menu_shop_for_sale_counts", "menu_tech_target_lines", "menu_window_line_values", "overworld_map_tail_strips_part_2", "scene_angle_thresholds", "scene_caption_line_x", "scene_caption_line_y", "scene_figure_mirror_bank", "scene_perspective_start", "scene_race_crono_frame_ends", "scene_race_crono_frame_rows", "scene_race_crono_frames", "scene_race_finish_lanes", "scene_race_johnny_frames", "scene_race_markers_right"]
+host_alias = ["battle_decoded_tiles", "battle_effect_sprite_data", "battle_party_pose_frame", "battle_party_pose_member", "battle_party_poses_frames_left", "battle_party_scene_animation", "battle_party_scene_opening", "battle_party_scene_poses_all", "battle_script_pointer_pads", "battle_script_pointers", "battle_script_waits", "menu_back_tilemap", "menu_carry_on_question", "menu_equip_list_rows", "menu_front_tilemap", "menu_gate_tilemap", "menu_glyph_tiles", "menu_main_menu_box", "menu_row_other_line_values", "menu_save_slot_tilemap", "menu_shop_for_sale", "menu_shop_for_sale_counts", "menu_shop_prices", "menu_tech_member_other_lines", "menu_tech_target_lines", "menu_text_tilemap", "menu_window_line_values", "overworld_map", "scene_angle_thresholds", "scene_caption_line_x", "scene_caption_line_y", "scene_figure_mirror_bank", "scene_perspective_start", "scene_race_crono_frame_ends", "scene_race_crono_frame_rows", "scene_race_crono_frames", "scene_race_finish_lanes", "scene_race_johnny_frames", "scene_race_markers_right"]
 addr = "7E:30C0"
 size = 0x40
 rows = 64
@@ -11957,7 +11956,7 @@ source = "game/menu/display.c, $C2:2D47"
 [[var]]
 name = "menu_save_slot_tilemap"
 host_module = "menu"
-overlays = ["field_map_rows_before_combatants_part_2", "field_tile_properties"]
+overlays = ["field_map_rows_before_combatants_part_2"]
 addr = "7E:3200"
 size = 0x240
 elements = { name = "tiles", size = 2, whole = true, meaning = "Tilemap entries: tile number, palette, priority and flips." }
