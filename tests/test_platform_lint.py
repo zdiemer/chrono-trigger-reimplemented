@@ -27,6 +27,13 @@ AUDIO_DRIVER = {
     "scene/race.c",          # the race's engine pitch, written to the driver's ports
 }
 
+# What game/ may include from outside itself besides runtime/platform/'s services.
+RUNTIME_HEADERS = {
+    "port/vars_ram.h",  # the typed state's storage, which every target links
+    "port/fiber.h",     # stack switching, one implementation per host (CLAUDE.md)
+}
+SYSTEM_HEADERS = {"stdbool.h", "stddef.h", "stdint.h", "string.h"}  # the portability subset
+
 MATH = set(range(0x4202, 0x4207)) | set(range(0x4214, 0x4218))
 COMMENT_OR_STRING = re.compile(r'//[^\n]*|/\*.*?\*/|"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\'', re.S)
 HEX = re.compile(r"\b0[xX]([0-9A-Fa-f]+)[uUlL]*\b")
@@ -94,6 +101,29 @@ class PlatformLint(unittest.TestCase):
             for m in hardware.finditer(code):
                 problems.append(f"{path.relative_to(ROOT).as_posix()}: {m.group(0)}")
         self.assertEqual(problems, [], "sound hardware outside the platform services")
+
+    def test_game_includes_only_the_game_and_its_services(self):
+        """game/ is the reimplementation alone (docs/PLAN.md, "Layering"): it includes
+        its own headers, the service interfaces at the top of runtime/platform/ (a
+        backend such as runtime/platform/native/ is below them) and the two
+        portable runtime pieces below, never a backend, an asset decoder, a
+        frontend or an enhancement, so those can change without touching it."""
+        problems = []
+        include = re.compile(r'#\s*include\s*([<"])([^>"]*)[>"]')
+        for path in self.sources():
+            for kind, name in include.findall(path.read_text(encoding="utf-8")):
+                if ".." in name.split("/"):
+                    ok = False   # a relative climb could reach a backend or frontend
+                elif kind == "<":
+                    ok = name in SYSTEM_HEADERS
+                else:
+                    ok = ((GAME / name).exists() or (path.parent / name).exists()
+                          or (name.count("/") == 1 and name.startswith("platform/")   # not platform/native/
+                              and (ROOT / "runtime" / name).exists())
+                          or name in RUNTIME_HEADERS)
+                if not ok:
+                    problems.append(f"{path.relative_to(ROOT).as_posix()}: {name}")
+        self.assertEqual(problems, [], "game/ includes something outside the game and its services")
 
     def test_detector(self):
         self.assertTrue(is_register(0x2100))

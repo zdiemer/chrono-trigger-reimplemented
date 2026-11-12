@@ -116,6 +116,11 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
     range, a tile's size or bit depth, or a fixed bank layout. Take them from the service or
     give them a named constant. Screen coordinates are signed, so positions off the original
     screen survive widescreen.
+  - `game/` is the reimplementation alone (docs/PLAN.md, "Layering"). Backends, asset
+    decoders, frontends and enhancements live outside it and are never included from it.
+    An enhancement that changes what is shown reaches `game/` as a service query or a named
+    option whose default is the original. It never changes the game's rules, and the gate
+    runs at the defaults.
   - Where the original waits on beam position or depends on exact timing, don't reproduce
     the wait silently: port what it computes, say so in a comment at its `// $BB:AAAA`, and
     add it to docs/TODO.md. Those routines are what block the platform milestones.
