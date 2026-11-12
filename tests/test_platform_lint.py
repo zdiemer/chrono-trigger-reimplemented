@@ -84,10 +84,10 @@ class PlatformLint(unittest.TestCase):
 
     def test_no_sound_hardware_in_game(self):
         """The sound driver (game/sound/) plays through the voices (platform/audio.h):
-        no S-DSP register names, and neither the emulated S-DSP nor the voices'
-        register implementation, which are the host's."""
+        no S-DSP register names, and not the emulated S-DSP, which is the
+        host's."""
         problems = []
-        hardware = re.compile(r'#\s*include\s*"(apu/[^"]*|platform/voices_dsp\.h)"|\bDSP_[A-Z]')
+        hardware = re.compile(r'#\s*include\s*"(apu/[^"]*)"|\bDSP_[A-Z]')
         for path in self.sources():
             text = path.read_text(encoding="utf-8")
             code = strip(text) + "\n" + "\n".join(re.findall(r'#\s*include\s*"[^"]*"', text))

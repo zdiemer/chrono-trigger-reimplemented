@@ -127,6 +127,7 @@ def main(argv=None):
         ('snapshots', [py, 'tools/player_check.py', '--build', str(binary.parent), '--rom', str(args.rom), '--out', str(args.out / 'player-check')]),
         ('portstyle', [py, 'tools/portstyle.py', '--check']),
         ('portsmell', [py, 'tools/portsmell.py', '--check']),
+        ('doc-names', [py, 'tools/doc_names.py', '--check']),
     ]
     # Two lanes: the stages that run ct_native take turns (movies already uses
     # both of its -j processes), while the source checks and unit tests, which

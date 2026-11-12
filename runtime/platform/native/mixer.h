@@ -17,9 +17,9 @@
  * its place when its offset wraps. Each of these is kept because it is
  * audible, or because the game relies on it (the echo's buffer runs over
  * samples placed under it, and the driver rewrites its own sample while it
- * plays), and together they keep the mixer checkable frame for frame against
- * the S-DSP (frontend/sound_host.h, SOUND_MIXER_CHECK; dsp_test). There is no
- * register file and no register polling: each call sets what it names.
+ * plays), and together they keep the mixer's output the S-DSP's, frame for
+ * frame. There is no register file and no register polling: each call sets
+ * what it names.
  *
  * The samples lie where the driver places them in `memory`, a sound memory of
  * the mixer's own laid out as the original driver lays out the SPC700's

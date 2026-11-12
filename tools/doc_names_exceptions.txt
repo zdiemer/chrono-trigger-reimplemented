@@ -1,0 +1,50 @@
+# Names the docs cite on purpose although the code doesn't have them
+# (tools/doc_names.py). One name per line, with the reason after a `#`.
+# A line whose name is no longer cited, or is in the code again, fails the
+# check, so the list only holds what is still needed.
+
+# CLAUDE.md
+ReparsePoint            # a PowerShell attribute in the worktree-removal command, not code
+_as_c                   # the banned name suffix the rule forbids
+draw_window_frame       # an illustrative vocabulary name in the porting rules
+load_slot_summary       # an illustrative vocabulary name in the porting rules
+
+# .claude/skills/review-port/SKILL.md: the rubric quotes each smell as it was
+# found; the ports it quotes were rewritten, which is the rubric working.
+sub_C0xxxx              # placeholder for an address-shaped name
+SCRATCH_D9              # an address-shaped name, as found
+cmd_6C                  # an opcode-shaped name, as found
+set_1c80                # an address-shaped name, as found
+loop_animation_0        # numbered twins, as found
+loop_animation_1        # numbered twins, as found
+rotate_left             # an instruction emulation, as found
+field_object_move_state_animation_count  # a name filed under its neighbour, as found
+field_object_animation_mode_mode         # a name filed under its neighbour, as found
+add_carry               # a carry emulation, as found
+VID_STEP_               # the retired transfer steps, as found
+VidSnesXfer             # the retired transfer record, as found
+runtime/platform/snes/encodings.c  # the retired SNES encodings file, as found
+scene_set_vram_6400     # fragments named for a register value, as found
+scene_race_set_vram_0000_again  # fragments named for a register value, as found
+load_title_graphics     # the routine those fragments belonged to
+SCENE_FLAG_LINE_IRQ     # one fact defined twice, as found
+SCENE_FLAG_TITLE_AGAIN  # one fact defined twice, as found
+reset_animation         # an entry name disagreeing with its operation, as found
+SomethingTrace          # placeholder for a trace out-parameter type
+x_for_wrapper           # placeholder for a wrapper-only out-parameter
+IN_OTHERS_WAY           # an enum that typed nothing, as found
+STOPPED_BY_             # an enum that typed nothing, as found
+NO_BATTLE_PLACE         # two names for one byte, as found
+BATTLE_PLACES_IT        # two names for one byte, as found
+OVERWRITTEN_BY_A_LINK   # a stray write modelled as a state, as found
+map_sites               # a tag table indexed by layer, as found
+second_word             # a parameter named for its position, as found
+repeat_forward          # a fill written as a copy, as found
+PUSH_TILE               # operand arithmetic aimed at code, as found
+field_chests            # one accessor for two lists, as found
+vid_oam_y               # a service carrying a game's rule, as found
+battle_multiply_words_carrying  # a carry passed through a call, as found
+redraw_tile             # a parameter for a tag alone, as found
+RedrawSites             # a parameter for a tag alone, as found
+past_the_top            # a carry test written as an overflow, as found
+tm_picture_status       # a service returning register bits, as found

@@ -6,7 +6,7 @@ ct_native is the product. The last commit containing the emulator and oracle too
 
 `tools/suite.py --ct-native build/main/ct_native -j 2` runs the sample in
 `tools/gate_movies.txt`, the New Game+ and inventory item-use routes, portstyle,
-portsmell, Python unit tests and the native CTest tests. Every sampled movie
+portsmell, doc-names (no doc or RAM-map prose naming code that is gone), Python unit tests and the native CTest tests. Every sampled movie
 must reach its declared frame count, exit successfully and avoid an unexplained
 dark ending. `suite OK` is the final pass line; wall time includes every stage
 and must be below 600 seconds. The separate `--long` batch runs the whole library and every public route
@@ -73,7 +73,7 @@ disabling, mode hand-offs and failed initial scenes without a ROM.
 The former machine entry graph had no native callers. Deleting it across all
 subsystems removed the registry, held-continuation ledger, game time-tag rows,
 console vectors, entry macros, machine access helpers, CPU shell headers and
-`no_machine.c`. Native C tables retain their real operations and timing keys.
+the no-machine stubs. Native C tables retain their real operations and timing keys.
 Machine-only cost APIs and their dead calculations were removed too. These
 deletions do not finish the vocabulary and storage work in every subsystem:
 the video escapes have named services (PLATFORM.md, "Memory moves and VRAM
@@ -82,7 +82,7 @@ it means (PLATFORM.md, "Audio"): no register escape is left.
 
 The callback tables that stood between a sequence and its one implementation
 went next, a module at a time (event, overworld, scene, battle, field, menu):
-the menus' main menu, for one, asked a `MainMenuSteps` table for its tick, its
+the menus' main menu, for one, asked a table of its steps for its tick, its
 wait, its panel and its end, and now calls `menu_tick`, `menu_task_waits`, its
 `show_the_panel` and `menu_close` itself, each timed where the table's entry
 was. Callbacks through an opaque context went from 312 to 2 (a coroutine's
