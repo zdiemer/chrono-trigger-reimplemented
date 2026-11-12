@@ -43,7 +43,6 @@ add_library(ct_platform_native STATIC
 target_include_directories(ct_platform_native PUBLIC runtime)
 add_library(ct_state_host STATIC runtime/port/vars_ram.c runtime/port/vars_host.c
   runtime/port/state_host.c runtime/port/rom_host.c runtime/port/time_rates.c)
-target_compile_definitions(ct_state_host PRIVATE CT_VARS_HOST)
 target_include_directories(ct_state_host PUBLIC game)
 target_link_libraries(ct_state_host PUBLIC ct_platform_native)
 
@@ -407,7 +406,7 @@ if(BUILD_TESTING)
   # Preserve bounds diagnostics when an indexed variable moves into a struct.
   add_library(ct_state_host_checked STATIC runtime/port/vars_ram.c runtime/port/vars_host.c
     runtime/port/state_host.c runtime/port/rom_host.c runtime/port/time_rates.c)
-  target_compile_definitions(ct_state_host_checked PRIVATE CT_VARS_HOST CT_ACCESSOR_CHECKS)
+  target_compile_definitions(ct_state_host_checked PRIVATE CT_ACCESSOR_CHECKS)
   target_include_directories(ct_state_host_checked PUBLIC game)
   target_link_libraries(ct_state_host_checked PUBLIC ct_platform_native)
   target_link_libraries(vars_host_test PRIVATE ct_state_host_checked)

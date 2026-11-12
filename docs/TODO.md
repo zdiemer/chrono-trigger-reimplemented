@@ -2888,44 +2888,32 @@ persistence seams; game-side representation changes still need explicit work.
   declarations in `re/ram.toml` so the masks leave the port.
 
 - CI: the macOS job costs 10x minutes on a private repo.
-## State storage ownership
+## State records
 
-The remaining image-backed variables are measured by `tools/ram_map.py storage`;
-the per-site and per-pair inventory is in [STATE.md](STATE.md). Before moving
-another module, resolve its listed aliases and raw clients, including shared
-initial contents on mode transitions. Do not give two struct fields one cell.
+The live variables all have module-owned storage, 725 of them still blob-backed
+(`tools/ram_map.py storage --list`), and the big field, battle, character, menu
+and submitted-sprite records are declared in `re/ram.toml`; see
+[STATE.md](STATE.md). Remaining record design:
 
-- **Owners spanning several existing records:** most of the remaining 1,921
-  overlapping variables cannot name a single containing owner. Define semantic storage
-  covering their shared bytes, or views composed from several owners; retain
-  mode-transition contents and page-instance aliases. The five largest connected
-  groups contain 1,839 variables (STATE.md). Do not turn their address spans into
-  anonymous replacement RAM arrays just to lower the measure.
-- **Core:** controller/clock, story and palette scratch still overlap other uses.
-  The 25 isolated retired sound-driver variables remain image-backed; determine
-  which compatibility clients still require them before deleting their storage.
-  Assess the vector-stub and old sound-pointer/list alias groups with the
-  machine/driver removal rather than allocating new compatibility owners.
-- **Event:** story memory, event variables and field script storage overlap;
-  replace arbitrary-address script operations with owned views where possible.
-- **Field:** map/graphics/scratch reuse and interleaved row tables need owners;
-  video queues, unpack destinations and unchecked object/table tails need views
-  of those owners rather than independent storage.
-- **Menu:** direct-page records and shared screen scratch need ownership across
-  screens; remaining unchecked text/list tails and tilemap/DMA sources need
-  explicit views.
-- **Menu objects:** all 39 variables overlap another module; resolve object
-  records, menu pages and overworld sharing before moving them.
-- **Overworld:** object-mode sharing, map scratch, unchecked tails and video
-  staging must be separated or assigned one owner.
-- **Battle:** resolve the remaining combatant/scratch aliases, whole-record field
-  views, unchecked tables and graphics sources in slices.
-- **Scene:** own/channel page instances, shared mode scratch, line-effect and
-  upload buffers need ownership; retain initial values across mode changes.
-- **Warp:** the remaining 12 variables include plane/light graphics and
-  line-effect sources sharing scene memory; resolve those aliases and their
-  unchecked table.
+- Type the 725 blob-backed variables. Nearly all are overlays where one mode
+  reads, at its own widths, fields another mode declared (610 through scalar
+  fields alone), or scratch cells with no element structure; each needs the
+  overlay split into a union of the modes' own fields.
+- Unowned addresses in `runtime/port/state_host.c`: the address view reads the
+  1,395 bytes no variable owns as 0, where the hardware's power-on value is
+  $55, and drops writes that overrun into them. The audit that found no gameplay
+  reads of those bytes ran over the sampled movies only; run it over the whole
+  library and the long routes, and either own any byte something reads or
+  return the power-on value.
 
+- Event object call/wait state and command queues; field layer scrolling and
+  edge-upload state.
+- Battle enemy AI, effect/anchor motion, status timers and script channels.
+- Scene program channels, racers, task/effect state and palette/tile animations.
+- Overworld actors and vehicles, menu-object command state and warp raster state.
+- Replace alternate mode views with separate logical owners as their remaining
+  scripted/bulk address consumers are removed. Preserve the shared projection
+  until those consumers no longer observe the overlap.
 
 ## Player integration checks
 

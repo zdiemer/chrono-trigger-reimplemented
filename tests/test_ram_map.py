@@ -100,6 +100,197 @@ class TestCommittedMap(unittest.TestCase):
 
 
 class TestRules(unittest.TestCase):
+    def test_records_gather_separately_addressed_arrays(self):
+        text = (var("object_x", 'addr = "7E:1000"\nsize = 2\ncount = 3\nindex = "slot"\nhost_module = "field"') +
+                var("object_y", 'addr = "7E:1100"\nsize = 2\ncount = 3\nindex = "slot"\nhost_module = "field"') + '''
+[[record]]
+name = "objects"
+type = "FieldObjectState"
+module = "field"
+count = 3
+meaning = "Each object's position."
+members = [{owner = "object_x", name = "x"}, {owner = "object_y", name = "y"}]
+''')
+        m = ram_map.RamMap(text=text)
+        header = ram_map.render_host_header(m)
+        self.assertIn("uint16_t x;", header)
+        self.assertIn("FieldObjectState objects[3];", header)
+        self.assertNotIn("object_x[3]", header)
+        self.assertIn("return h->field.objects[slot].x;", ram_map.render_backing(m))
+        self.assertIn("h->field.objects[element].y", ram_map.render_host_backing(m))
+        self.assertEqual(ram_map.storage_counts(m), (0, 0, 2))
+        for old, new in [('count = 3\nmeaning', 'count = 2\nmeaning'),
+                         ('name = "y"}', 'name = "x"}'),
+                         ('owner = "object_y"', 'owner = "missing"')]:
+            with self.subTest(new=new), self.assertRaises(ram_map.MapError):
+                ram_map.RamMap(text=text.replace(old, new))
+
+    def test_buffer_elements_have_values_and_a_serialized_slice(self):
+        text = var("tiles", '''addr = "7E:1000"
+size = 5
+host_module = "field"
+elements = { name = "entries", size = 2, start = 1, meaning = "Tilemap entries." }
+''')
+        m = ram_map.RamMap(text=text)
+        self.assertEqual(ram_map.storage_counts(m), (0, 0, 1))
+        h = ram_map.render_host_header(m)
+        self.assertIn("struct { uint16_t entries[3]; } tiles;", h)
+        c = ram_map.render_host_backing(m)
+        self.assertIn("h->field.tiles.entries[(offset + 1u) / 2u]", c)
+        self.assertIn("(offset + 1u) % 2u", c)
+        for old, new in [('size = 2, start = 1', 'size = 5, start = 1'),
+                         ('start = 1', 'start = 2'),
+                         ('name = "entries"', 'name = "bad-name"'),
+                         ('meaning = "Tilemap entries."', 'meaning = ""')]:
+            with self.subTest(new=new), self.assertRaises(ram_map.MapError):
+                ram_map.RamMap(text=text.replace(old, new))
+
+    def test_single_record_can_own_an_array_member(self):
+        text = var("line_values", '''addr = "7E:1000"
+size = 2
+count = 12
+index = "line"
+host_module = "menu"
+''') + '''
+[[record]]
+name = "window"
+type = "MenuWindow"
+module = "menu"
+count = 1
+meaning = "Window raster lines."
+members = [{owner = "line_values", name = "lines", array = true}]
+'''
+        m = ram_map.RamMap(text=text)
+        self.assertIn("uint16_t lines[12];", ram_map.render_host_header(m))
+        self.assertIn("h->menu.window.lines[element]", ram_map.render_host_backing(m))
+        with self.assertRaises(ram_map.MapError):
+            ram_map.RamMap(text=text.replace("array = true", "array = false"))
+
+    def test_small_buffers_and_byte_indexed_storage_are_not_typed(self):
+        text = var("raw", '''addr = "7E:1000"
+stride = 3
+host_module = "work"
+field = [{name = "bytes", offset = 0, size = 3, buffer = true, meaning = "m"}]''')
+        text += var("view", 'addr = "7E:1000"\nsize = 2\nhost_alias = "raw"', "menu")
+        text += var("memory", 'addr = "7E:2000"\ncount = 16\nindex = "byte"\nhost_module = "work"\nhost_blob = "Opaque saved memory."')
+        m = ram_map.RamMap(text=text)
+        self.assertEqual(ram_map.storage_counts(m), (0, 3, 0))
+        self.assertIn("uint8_t bytes[3]", ram_map.render_host_header(m))
+        self.assertNotIn("bytes = 0x555555u", ram_map.render_host_backing(m))
+
+    def test_review_examples_have_real_typed_owners(self):
+        m = ram_map.RamMap()
+        kinds = ram_map.storage_kinds(m)
+        for name in ("scene_sprite_index", "scene_sprite_high_pointer", "scene_sprite_offset_x",
+                     "scene_sprite_offset_y", "field_kept_party_x"):
+            with self.subTest(name=name):
+                self.assertEqual(kinds[name], ("typed", []))
+                v = next(v for v in m.vars if v.name == name)
+                self.assertTrue(v.host_module)
+
+    def test_storage_follows_the_field_not_the_alias_name(self):
+        text = var("scratch", 'addr = "7E:1000"\nsize = 16\nhost_module = "work"')
+        text += var("word", 'addr = "7E:1002"\nsize = 2\nhost_alias = "scratch"', "menu")
+        text += var("typed", 'addr = "7E:2000"\nsize = 2\nhost_module = "work"')
+        text += var("high", 'addr = "7E:2001"\nhost_alias = "typed"', "menu")
+        m = ram_map.RamMap(text=text)
+        self.assertEqual(ram_map.storage_counts(m), (0, 3, 1))
+        self.assertEqual(ram_map.storage_kinds(m)["word"], ("blob", ["scratch"]))
+        self.assertEqual(ram_map.storage_kinds(m)["high"], ("blob", ["typed"]))
+
+    def test_partly_typed_record_is_blob_backed(self):
+        text = var("record", '''addr = "7E:1000"
+stride = 16
+host_module = "work"
+field = [{name = "hp", offset = 0, size = 2, meaning = "m"},
+         {name = "payload", offset = 2, size = 14, meaning = "m"}]''')
+        text += var("hp", 'addr = "7E:1000"\nsize = 2\nhost_alias = "record"', "menu")
+        text += var("cross", 'addr = "7E:1001"\nsize = 2\nhost_alias = "record"', "scene")
+        self.assertEqual(ram_map.storage_counts(ram_map.RamMap(text=text)), (0, 2, 1))
+
+    def test_a_buffer_label_types_only_values_of_its_width(self):
+        words = var("words", '''addr = "7E:1000"
+stride = 8
+host_module = "work"
+field = [{name = "rest", offset = 0, size = 8, buffer = true, meaning = "m", elements = {name = "speeds", size = 2, meaning = "Speeds."}}]''')
+        aligned = var("speed", 'addr = "7E:1002"\nsize = 2\nhost_alias = "words"', "menu")
+        across = var("across", 'addr = "7E:1003"\nsize = 2\nhost_alias = "words"', "scene")
+        low = var("low", 'addr = "7E:1004"\nhost_alias = "words"', "battle")
+        raw = var("raw", 'addr = "7E:1000"\nsize = 8\nhost_alias = "words"', "field")
+        kinds = ram_map.storage_kinds(ram_map.RamMap(text=words + aligned + across + low + raw))
+        self.assertEqual(kinds["speed"][0], "typed")
+        # a word across two elements, a byte of one, bytes that name no elements
+        for name in ("across", "low", "raw"):
+            with self.subTest(name=name):
+                self.assertEqual(kinds[name], ("blob", ["words.rest"]))
+        # half a word kept in a one-byte field is a slice, not a word
+        half = var("half", '''addr = "7E:2000"
+stride = 2
+host_module = "work"
+field = [{name = "low", offset = 0, size = 1, meaning = "m"},
+         {name = "high", offset = 1, size = 1, buffer = true, meaning = "m", elements = {name = "offsets", size = 2, start = 1, meaning = "Offsets."}}]''')
+        word = var("offset", 'addr = "7E:2000"\nsize = 2\nhost_alias = "half"', "menu")
+        self.assertEqual(ram_map.storage_kinds(ram_map.RamMap(text=half + word))["offset"],
+                         ("blob", ["half.high", "half.low"]))
+
+    def test_a_scalar_field_types_only_a_value_of_its_width_and_place(self):
+        owner = var("cells", '''addr = "7E:3000"
+stride = 4
+host_module = "work"
+field = [{name = "word", offset = 0, size = 2, meaning = "m"}, {name = "low", offset = 2, size = 1, meaning = "m"}, {name = "high", offset = 3, size = 1, meaning = "m"}]''')
+        views = (var("same", 'addr = "7E:3000"\nsize = 2\nhost_alias = "cells"', "menu") +
+                 var("byte_of_word", 'addr = "7E:3001"\nhost_alias = "cells"', "scene") +
+                 var("split", 'addr = "7E:3001"\nsize = 2\nhost_alias = "cells"', "battle") +
+                 var("over_bytes", 'addr = "7E:3002"\nsize = 2\nhost_alias = "cells"', "field"))
+        kinds = ram_map.storage_kinds(ram_map.RamMap(text=owner + views))
+        self.assertEqual(kinds["same"], ("typed", []))
+        self.assertEqual(kinds["byte_of_word"], ("blob", ["cells.word"]))
+        self.assertEqual(kinds["split"], ("blob", ["cells.low", "cells.word"]))
+        self.assertEqual(kinds["over_bytes"], ("blob", ["cells.high", "cells.low"]))
+
+    def test_composed_view_requires_complete_explicit_ownership(self):
+        owners = (var("first", 'addr = "7E:1000"\nsize = 2\nhost_module = "items"') +
+                  var("second", 'addr = "7E:1002"\nsize = 2\nhost_module = "items"'))
+        view = var("whole", 'addr = "7E:1000"\nsize = 4\nhost_alias = ["first", "second"]', "menu")
+        m = ram_map.RamMap(text=owners + view)
+        # the composed view's value spans two fields: blob-backed
+        self.assertEqual(ram_map.storage_counts(m), (0, 1, 2))
+        self.assertNotIn("whole;", ram_map.render_host_header(m))
+        self.assertIn("vars_host_read8(h, address + 3u, &byte)", ram_map.render_backing(m))
+        for bad in ('["first"]', '["first", "first"]', '["first", "whole"]'):
+            with self.subTest(bad=bad), self.assertRaises(ram_map.MapError):
+                ram_map.RamMap(text=owners + view.replace('["first", "second"]', bad))
+
+    def test_whole_record_view_composes_named_fields(self):
+        text = var("pair", '''addr = "7E:1000"
+stride = 4
+host_module = "items"
+field = [{name = "low", offset = 0, size = 2, meaning = "m"},
+         {name = "high", offset = 2, size = 2, meaning = "m"},
+         {name = "whole", offset = 0, size = 4, meaning = "m", host_alias = ["low", "high"]}]''')
+        m = ram_map.RamMap(text=text)
+        self.assertEqual(len(ram_map.owner_accessors(m)), 2)
+        self.assertNotIn("whole;", ram_map.render_host_header(m))
+        with self.assertRaisesRegex(ram_map.MapError, "outside"):
+            ram_map.RamMap(text=text.replace('host_alias = ["low", "high"]', 'host_alias = ["low"]'))
+
+    def test_page_storage_records_and_external_views(self):
+        for page, count in (("input", 2), ("record", 8), ("math", 3)):
+            with self.subTest(page=page):
+                owner = var("records", f'''page = "{page}"
+dp = 0
+stride = 4
+host_module = "records"
+field = [{{name = "value", offset = 0, size = 3, meaning = "m"}}]''').replace("[[var]]", "[[owner]]")
+                view = var("value", f'page = "{page}"\ndp = 0\nsize = 3\nhost_alias = "records"')
+                m = ram_map.RamMap(text=KINDS + owner + view)
+                self.assertEqual(ram_map.storage_counts(m), (0, 0, 1))
+                self.assertIn(f"records[{count}]", ram_map.render_host_header(m))
+                backing = ram_map.render_host_backing(m)
+                self.assertIn(f"h->records.records[{count - 1}].value", backing)
+                self.assertIn("h->records.records[instance].value = 0x555555u", backing)
+                self.assertNotIn("records_value(", ram_map.render_vars_header(m))
+
     def test_struct_owners_reject_shared_bytes_across_subsystems(self):
         text = var("one", 'addr = "7E:1000"\nsize = 2\nhost_module = "places"')
         with self.assertRaisesRegex(ram_map.MapError, "one owner"):
@@ -127,7 +318,7 @@ index = "slot"
 host_module = "items"
 unchecked = "The next cell is shared."'''))
         c = ram_map.render_backing(m)
-        checked = c[c.index("void set_items(GameState *g"):c.index("#else", c.index("void set_items(GameState *g"))]
+        checked = c[c.index("void set_items(GameState *g"):]
         self.assertIn('IN_RANGE(g, 0, "set_items", "count", slot, 3u);', checked)
         self.assertIn('if (slot >= 3u) { w8(g, 0x7E1000u + (uint32_t)slot * 0x01u, v); return; }', checked)
         unchecked = checked[checked.index("void set_items_unchecked"):]
@@ -149,7 +340,8 @@ host_alias = "items"''', "menu"))
         self.assertNotIn(" high[", h)
         self.assertIn("vars_host_items_read8(h, offset + 0u)", c)
         self.assertIn("uint32_t offset = 1u + (uint32_t)slot * 4u;", c)
-        self.assertEqual(ram_map.storage_counts(m), (0, 2))
+        # a byte of a word field is a fragment, not a typed value
+        self.assertEqual(ram_map.storage_counts(m), (0, 1, 1))
         projection = ram_map.render_host_backing(m)
         self.assertIn("projection_fields[projection_pages[", projection)
         self.assertIn("1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0", projection)
@@ -203,15 +395,15 @@ host_module = "items"'''))
         self.assertIn("uint16_t items[3];", ram_map.render_host_header(m))
         self.assertIn("h->items.items[slot]", ram_map.render_backing(m))
         self.assertIn("offset %= 8u", ram_map.render_host_backing(m))
-        self.assertEqual(ram_map.storage_counts(m), (0, 1))
+        self.assertEqual(ram_map.storage_counts(m), (0, 0, 1))
 
     def test_storage_measure_counts_variables_not_fields_or_elements(self):
         m = ram_map.RamMap(text=var("one", 'addr = "7E:1000"\nsize = 2') +
                           var("many", 'addr = "7E:1100"\ncount = 8\nindex = "slot"'))
-        self.assertEqual(ram_map.storage_counts(m), (2, 0))
+        self.assertEqual(ram_map.storage_counts(m), (2, 0, 0))
         m.vars[1].host_module = "example"
-        self.assertEqual(ram_map.storage_counts(m), (1, 1))
-        self.assertEqual(ram_map.storage_counts(ram_map.RamMap(text="")), (0, 0))
+        self.assertEqual(ram_map.storage_counts(m), (1, 0, 1))
+        self.assertEqual(ram_map.storage_counts(ram_map.RamMap(text="")), (0, 0, 0))
 
     def load(self, text):
         return ram_map.RamMap(text=PAGES + text)
