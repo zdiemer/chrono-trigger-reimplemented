@@ -119,16 +119,7 @@ static uint8_t mark_the_way_back(GameState *g, uint8_t walker, uint8_t goal, uin
  * (run out past the walker, once the way back is marked). Where the way back
  * came to (the goal, when it gave up) lands on the cell the next jump to the
  * script's point lifts by, and is left as game state (battle.h). */
-enum { LEFT_SCAN = 0x00, LEFT_LOOKED_ROUND = 0x02, LEFT_RING_SIZE = 0x04, LEFT_WALKER = 0x0E, LEFT_REACHED = 0x12, LEFT_STEPS = 0x14, STEPS_RUN_OUT = 0xFF };
-
-typedef struct {
-    Ring last_ring;
-    uint8_t last_looked_round, walker, steps;
-    bool gave_up;
-} SearchEnd;
-
-/* The original leaves the last cell a ring looked round, which is gone from
- * the ring once the next is moved out: kept as the rings go. */
+enum { LEFT_STEPS = 0x14, STEPS_RUN_OUT = 0xFF };
 
 // $C1:4A71
 /* Find the way across the grid from one point to another (to the cell above
@@ -178,12 +169,6 @@ static void keep_the_grid(GameState *g, uint8_t slot)
 /* A walker's heading before its first step, and its scripted move's steps
  * as a step is due and as one starts. */
 enum { NO_HEADING_YET = 0xFF, STEP_DUE = 0xFF, STEP_STARTS = 7, STEPS_OVER = 0x80 };
-
-/* The battle counts the walks each combatant starts, which nothing reads
- * (re/ram.toml, battle_script_command_cells). */
-
-/* What starting a walk leaves: where it is from and to, and the walker. */
-enum { LEFT_FROM = 0x00, LEFT_TO = 0x02, LEFT_WALKING = 0x00 };
 
 // $C1:5454
 static void take_out_the_grid(GameState *g, uint8_t slot)
@@ -236,24 +221,10 @@ typedef struct {
     uint8_t cell;
 } NextCell;
 
-/* The heading of the first neighbour on the way, up, down, left, in that
- * order and never back along the last heading; right otherwise. */
-
-/* A cell a step looks at, and whether a step round a corner is cut short
- * there (the corner is on the way). */
-
-/* Choose the walker's next step along the way, from its cell: two cells
- * straight on where the way runs on, otherwise a diagonal round one side or
- * the other, cut short where the corner is in the way. */
-
 /* What choosing a step leaves: the walker's cell, the cell it goes to (the
  * heading's, where it saw the goal), the step, and the diagonal it goes
  * round. */
-enum { LEFT_AT = 0x02, LEFT_NEXT_CELL = 0x04, LEFT_STEP = 0x05, LEFT_DIAGONAL = 0x06 };
-
-// $C1:54C1
-/* The walker takes its next step, once the last is over: a scripted move,
- * facing the way it goes. False where the walk has ended. */
+enum { LEFT_STEP = 0x05 };
 
 /* ---- The command ------------------------------------------------------------------------------ */
 
@@ -358,12 +329,6 @@ static ScriptFlow walk(GameState *g, ScriptChannel ch, uint8_t length, ScriptAim
     return take_a_step(g, slot) ? SCRIPT_STAY : past_the_walk(g, ch);
 }
 SCRIPT_OPERATION(walk, channel, length, aim, x, y, place)
-
-/* ---- The entry -------------------------------------------------------------------------- */
-
-/* The search as the original's walk calls it: from the point in the first two
- * work cells to the point in the next two. It returns with A's high byte
- * clear, as its first instruction leaves it. */
 
 /* ---- The table ------------------------------------------------------------------------- */
 

@@ -29,6 +29,7 @@
 
 #include "platform/save.h"
 #include "state.h"
+#include "vars.h"
 
 /* The record's places: the active party's, then the reserve's. */
 enum { PARTY_ACTIVE_PLACES = 3, PARTY_RECORD_PLACES = 9 };
@@ -109,7 +110,5 @@ void party_rocks_teach(GameState *g);
 /* The game finished: the cartridge notes it, so that its load screen offers
  * a New Game+. */
 void party_note_the_game_finished(Platform *pf);
-
-/* ---- The checked legacy adapters (menu/party_bridge.c) ------------------------------------------- */
 
 #endif

@@ -14,7 +14,6 @@
 
 #include "charge.h"
 #include "core/program.h"
-#include "menu/bridge.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "overworld/setup.h"
@@ -146,8 +145,6 @@ bool menu_draw_gate_screen(GameState *g)
     return draw_the_gate_screen_with(g, &u);
 }
 
-// $FF:F716
-
 // $C2:CE9D
 /* BG3's tilemap moved, the screen's counts from zero, its frame task
  * started, and its state set up. */
@@ -161,7 +158,7 @@ void menu_start_gate_screen(GameState *g, Platform *pf)
 }
 
 /* The swirl's per-line scroll is the menus' fifth line effect. */
-enum { SWIRL_LINE_EFFECT = 0x10, FRAMES_A_TURN = 2, THE_TASK_S_WAIT = 0xC2CECB };
+enum { SWIRL_LINE_EFFECT = 0x10, FRAMES_A_TURN = 2 };
 
 // $C2:CECE (with $C2:CEC2, its wait)
 /* The screen's task: the swirl turned, its line effect kept on, and two

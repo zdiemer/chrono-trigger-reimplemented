@@ -132,8 +132,6 @@ static bool close_the_window(GameState *g, ClosingCalls call, void *ctx)
 
 /* ---- The music ------------------------------------------------------------------------------- */
 
-/* The sound driver's command reads only A's high byte. */
-
 /* The music fades out over 16 of the driver's steps. */
 enum { MUSIC_FADE_STEPS = 0x10, SILENT = 0x00 };
 
@@ -329,20 +327,6 @@ static bool close_the_display(GameState *g, Platform *pf, ClosingCalls call, voi
     set_battle_background_flags(g, 0);
     return closing_call(call, ctx, CLOSING_MUSIC_BACK) && closing_call(call, ctx, CLOSING_LAST_SMALL_FRAME);
 }
-
-/* ---- On the machine ------------------------------------------------------------------------ */
-
-/* What the display's steps don't read of the registers where they are
- * called: each loads A's low byte and the index registers before it reads
- * them; the music's fade and the window's closing hand only A's high byte on,
- * to waits that read none of the flags (battle/wait.h). */
-
-/* The field's music after a battle takes the data bank and its page back in
- * the wrong order, so the battle keeps its own data bank, page and flags on
- * the stack around the call and takes them back after: the call comes back
- * to its return with any page and bank, and goes on as the battle runs once
- * they are pulled. */
-enum { FIELD_MUSIC_CALL = 0xCD043E, KEPT_AGAIN = 0xCD0445 };
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 

@@ -95,11 +95,6 @@ static uint8_t paced_length(const GameState *g, BattleTimer kind, uint8_t slot, 
     return slowed(g, slot) ? (uint8_t)(length << 1) : paced;
 }
 
-/* The carry the original records a point of HP with, which the multiply
- * leaves in its cell (scaffolding): the bit its pacing shifted out of the
- * length last (slowed, the top; hasted, the bottom), or none, which finding
- * the stat block's place leaves. */
-
 /* The runs of a timer count in cycles of ten: true on the tenth, when the
  * count starts again. */
 static bool tenth_run(GameState *g, BattleTimer kind, uint8_t slot)
@@ -128,10 +123,6 @@ static uint16_t poison_damage(GameState *g, uint8_t slot)
 
 /* What the status's doing leaves to show. */
 typedef enum { NOTHING_TO_SHOW, NUMBER_TO_SHOW, DAMAGE_TO_APPLY } TimerOutcome;
-
-/* The handlers of the statuses that act leave the combatant's stat block's
- * place in $10, as the original's do: scaffolding. */
-enum { STAT_BLOCK_PLACE_CELL = 0x10 };
 
 static TimerOutcome timer_ran_out(GameState *g, BattleTimer kind, uint8_t slot)
 {
@@ -218,7 +209,7 @@ bool battle_show_status_number(GameState *g, Platform *pf, uint8_t showing)
 }
 
 /* The handlers' calls of $C1:895B, by the kind whose number they show. */
-enum { POISON_SHOWS_CALL = 0xC18945, MAGIC_SHOWS_CALL = 0xC18BB1, SHOW_NUMBER = 0xC1895B };
+enum { SHOW_NUMBER = 0xC1895B };
 
 // $C1:8876, $C1:88C5, $C1:8975, $C1:89B9, $C1:8A05, $C1:8A51, $C1:8A9D-$C1:8A9F, $C1:8B10, $C1:8BB9, $C1:8C08
 /* A run-out timer seen to, the number its status shows shown as an action
@@ -247,8 +238,6 @@ static bool handler_takes(const GameState *g, BattleTimer kind)
 {
     return !battle_timer_found_run_out(g, kind).nobody || timed_statuses[kind].effect == WEARS_OFF;
 }
-
-/* The original's handlers (its table at $C1:B92D), by kind, and their entries. */
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 

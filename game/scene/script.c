@@ -460,52 +460,6 @@ static ScriptFlow run_command(const Command *c, const ScriptRow *row)
     return flow;
 }
 
-/* ---- What the original leaves after a command ------------------------------------------------
- *
- * Scaffolding: the original's interpreter leaves behind a word in the channel's
- * scratch and its carry and overflow, which nothing in the scripts' language
- * means but some of the program's code reads. The bridge leaves them after
- * each command, from the command's kind and what it changed, the way the
- * original's code for that kind of command leaves them; a native build leaves
- * nothing.
- *
- * The word: every command keeps one in its channel's scratch, which only it
- * reads -- an assignment the address of its register, any other command itself
- * and the byte after it. What is left there is the last command's. */
-enum { CHANNEL_PAGES = 0x0A00, CHANNEL_PAGE_BYTES = 0x100 };
-
-/* The flags. What reads them is the program's code after a sequence run, not
- * the scripts: the attract and title programs run their channels at $7E:54B4
- * and go straight on to $7E:5777, whose $7E:3443 calls the random number mixer
- * at $C3:02DD, which starts with a ROL of A and so mixes the carry into the
- * number; and $7E:62F0 reaches the ADC #$40 at $7E:65B3 with the carry the
- * sequence run left, since $7E:3448 between them saves and restores P. So the
- * carry is read. Nothing in either program or in bank C3 branches on the
- * overflow (no BVS or BVC), but the liveness analysis can't see that far and
- * counts it as read, so it is left too.
- *
- * Per kind of command, as the original's code for it leaves them:
- * - a set: both clear (the original's sum of the channel's page and the
- *   register's place, which carries and overflows on no channel's page);
- * - an add: the add's;
- * - a loop, dispatched through a doubled index that clears the carry: done, the
- *   flags of its step past the command, (at + 1) + 4; not done, the carry of
- *   comparing the counter (unsigned) with the limit, where a counter at 0 is
- *   short of it, and the overflow as it was;
- * - a video setting: both clear;
- * - any other command: the carry clear from the dispatch, the overflow as it
- *   was; and a call to the original's code leaves the callee's. */
-
-/* What the flags are worked out from, before the command runs: an add's
- * register, a loop's counter and its limit (read before the loop runs, since a
- * script can lie over the counters it counts). */
-typedef struct {
-    uint16_t value, limit;
-} Before;
-
-/* A loop's step past the command when it is done, (at + 1) + 4. */
-enum { LOOP_STEP = 4 };
-
 /* ---- The program's routines the scripts call ------------------------------------------------- */
 
 /* The routines that are C (scene/title.c, scene/lavos_falls.c, scene/endings.c, scene/staff_roll.c,
@@ -528,15 +482,6 @@ static const SceneScriptRoutine *routine_port(uint16_t routine)
     return NULL;
 }
 
-/* A routine a caller reaches by its address (the interpreter runs them as C):
- * its work on the channel whose page D is, and back with 16-bit A. Some set
- * the data bank to the first bank's around their stores and, through the
- * stack's imbalance, come back with it on the program's. */
-enum { PROGRAM_DATA_BANK = 0x7E };
-
-/* The registers a routine leaves, from its row of the leaves' tables, for A
- * from the A it was called with. */
-
 /* The call reads the routine's address from the scene's own page, where the
  * interpreter puts it ($7E:37F3), and calls it with A the same. */
 enum { PROGRAM_BANK = 0x7E0000 };
@@ -545,19 +490,7 @@ enum { PROGRAM_BANK = 0x7E0000 };
  * in after it (the Epoch's dive's). */
 static void keep_the_routine_called(GameState *g, uint16_t routine) { scene_leave_for_the_draws(g, routine, TM_ENTROPY_WORDS); }
 
-// $C3:0C51
-/* A routine of the program, which the program's call ($7E:37F3) calls
- * through the scene's own page, where the routine's address is kept. As C
- * where the port has it; otherwise through that call, which the routine came
- * back from with the machine as the interpreter runs or otherwise, or stopped
- * in, where the original carries on. */
-
 // $7E:37F3
-/* The program's call of the routine a script calls, through the cell the
- * interpreter puts it in on the scene's own page, with A the routine as the
- * interpreter leaves it: back to the interpreter once it has run. What the
- * routines read of the rest is theirs, so the call declares nothing. */
-enum { THE_CALL_THROUGH_THE_CELL = 0x7E37F6, THE_ROUTINES_READ_ANYTHING = 0 };
 
 /* After a command's call-out, the script moves on past the operand word it was
  * on. Where the callee left the machine other than the port expects, the port
@@ -570,9 +503,6 @@ static void past_the_call(GameState *g, SceneChannel ch)
     set_script(g, ch, (uint16_t)(script(g, ch) + OPERAND_WORD));
 }
 
-/* Where each call-out returns, in the original's code. */
-enum { ROUTINE_CALL_RETURN = 0xC30C5C };
-
 /* ---- A command the port hands over -------------------------------------------------------------
  *
  * The original's code for each command the port may hand over (those whose
@@ -583,18 +513,6 @@ static const uint32_t handlers[] = {
     0xC30C5F,                                 /* the video setting */
 };
 static const uint8_t handler_of[16] = { [0x1] = 0, [0x2] = 1, [0x7] = 2, [0x8] = 3, [0x9] = 4, [0xA] = 5, [0xB] = 6 };
-
-/* A where a command ends the turn: the loop's and the jump's the script's new
- * place, the stop 1, and the plain end of turn its handler's place in the
- * interpreter's table. */
-enum { END_TURN_INDEX = 0x18, STOPPED = 1 };
-
-/* How the run ends: the turn over, or a command or changed calling context
- * needs the original. A music wait either continues or ends this turn. */
-
-/* The wait for the music's registers: A and X its handler's place in the
- * interpreter's table. */
-enum { WAIT_TABLE_INDEX = 0x000A };
 
 /* Read a complete marker update before deciding whether this channel can
  * continue. The sound processor may replace the byte between the reads. */
@@ -613,16 +531,6 @@ static bool advance_music_wait(GameState *g, SceneChannel ch, MusicStatus music)
     set_script(g, ch, (uint16_t)(script(g, ch) + (reached ? 1 : -1)));
     return reached;
 }
-
-/* Standalone entries into the store, task and video command families. The
- * interpreter has already consumed the opcode, so these share the same
- * decoded operations and then continue the channel's turn. */
-
-// $C3:0C19, $C3:0C41
-
-// $C3:0BCC, $C3:0BC4, $C3:0BBC, $C3:0BAB
-
-// $C3:0C5F
 
 /* ---- A channel's turn ----------------------------------------------------------------------- */
 
@@ -696,36 +604,3 @@ SceneTurn scene_channel_turn(GameState *g, Platform *pf, SceneChannel ch)
     }
 }
 
-/* The JSR at $C3:0AFF pushes this as its return address. */
-enum { INTERPRETER_RETURN = 0x0B01 };
-
-/* The wait reads the script through the data bank, on the channel D is on. */
-
-/* ---- The wait for the music ------------------------------------------------------------------ */
-
-// $C3:0C28
-/* Where the wait goes on, the level's operand past: the rest of the channel's
- * turn, as the interpreter's run has it, back to the interpreter's own return.
- * The store command's own path runs through here too, inside a run shadow
- * mode compares, where the run's comparison takes the original's call-outs
- * first (settle_nested, the former machine dispatcher) and this one goes uncompared. */
-
-// $C3:0B02
-/* The interpreter's own return to its caller, where a turn that went on after
- * a wait comes back to. */
-
-/* The interpreter's run is the routine under its JSR at $C3:0AFF, whose
- * return is the interpreter's own RTL ($C3:0B02). */
-
-// $C3:0C2A
-/* One pass of the wait: the music's progress (scene/sound.c) against the level
- * after the command; at the level or past it the wait is over, and until then
- * the script stays on the command and the channel's turn ends, back to the
- * interpreter's caller. Idle entry: A is what the original compared last, and
- * the flags its compare's. */
-
-/* ---- A channel's script started from the program ------------------------------------------------ */
-
-/* The interpreter reads none of A, X and the flags it sets; Y, the overflow and
- * the carry pass through it to the routines its commands call. */
-enum { INTERPRETER = 0xC30AFF };

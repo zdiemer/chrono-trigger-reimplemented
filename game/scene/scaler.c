@@ -89,11 +89,6 @@ static void pack_planes(GameState *g, uint16_t planes, const uint8_t pixels[GROU
     }
 }
 
-/* The original packs the last group's pixels in the scene's scratch, a word a
- * sample, and shifts each plane out of them: the scratch ends with each pixel
- * shifted down a nibble and the last sample's second byte, and its count of
- * pairs run down to 0. */
-
 /* Where a group of eight samples falls along its source row, each a step on
  * from the last (in PIXEL_UNITS), the first from `last`. A bitmap stretched so
  * wide that its samples run past the row's 256th pixel wraps back to the row's
@@ -294,8 +289,3 @@ static bool bitmap_fits(const GameState *g, uint16_t position, bool row_nudge)
         row_nudge = output < ROW_BYTES;
     }
 }
-
-// $C3:0307
-/* A bitmap starts with the row accumulator at 0; its rows are the loop's. */
-
-// $C3:034A

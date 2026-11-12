@@ -30,7 +30,4 @@ enum { FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY = 0xC087F1 };
 bool layers_repeat_within_the_maps(const GameState *g);
 bool layer_drawing_fits(const GameState *g, unsigned layer);
 
-/* The registered entries: the streaming, from the walk and the recentring,
- * and the drawings, from the map's load; and their guard. */
-
 #endif

@@ -27,7 +27,6 @@
  * effects' refresh (field_walk_a_frame).
  */
 #include "field/main_loop.h"
-#include "menu/bridge.h"
 #include "menu/display.h"
 #include "scene/scene.h"
 #include "field/dialog_window.h"
@@ -116,20 +115,35 @@ void field_finish_the_frame(GameState *g, Platform *pf)
 /* The keys (charge.h, TIMED_AS) of the routines whose work the field's steps
  * do: the sound driver's start, the menus' services, the world map and the
  * palettes' animation. */
-enum { SOUND_DRIVER_BOOT = 0xC70000, MENUS_SERVICES = 0xC28004, /* the menus' services (menu/party.h), whose time the power-on's is */
+enum {
+    MENUS_SERVICES = 0xC28004, /* the menus' services (menu/party.h), whose time the power-on's is */
     WORLD_MAP = 0xC20000, /* the world map, in the menus' sprite-object mode */
-    PALETTE_ANIMATION = 0xFDFFF7,  };
+    PALETTE_ANIMATION = 0xFDFFF7,
+};
 
 /* The frame's two budgets: each works through the objects for as long as the
  * frame's time allows (platform/timing.h, tm_frame_time_left). */
-enum { SCRIPT_TURNS = 0xC05A46, /* the queued objects' turns run, as the frame's time allows */
-    SPRITE_FRAMES = 0xC0CA76, /* the objects' new frames drawn, as the frame's time allows */ };
+enum {
+    SCRIPT_TURNS = 0xC05A46,         /* the queued objects' turns run, as the frame's time allows */
+    SPRITE_FRAMES = 0xC0CA76,        /* the objects' new frames drawn, as the frame's time allows */
+};
 
 /* The objects' update: each object that comes into view or leaves it. */
 enum { UPDATE_OBJECTS = 0xC0A810 };
 
 /* The steps it runs, by the routines they stand for. */
-enum { START = 0xC00B86, PAUSE_AND_MENUS = 0xC018D9, REQUESTS = 0xC00C76, WALK = 0xC0881E, CONFIRM = 0xC01AAC, SCREEN_EFFECT = 0xC021E1, SCRIPT_LAYERS = 0xC0274D, LINE_EFFECTS = 0xFDC2C1, SPRITE_TABLE = 0xC0B271, TURNS_DUE = 0xC059D9,  };
+enum {
+    START = 0xC00B86,
+    PAUSE_AND_MENUS = 0xC018D9,
+    REQUESTS = 0xC00C76,
+    WALK = 0xC0881E,
+    CONFIRM = 0xC01AAC,
+    SCREEN_EFFECT = 0xC021E1,
+    SCRIPT_LAYERS = 0xC0274D,
+    LINE_EFFECTS = 0xFDC2C1,
+    SPRITE_TABLE = 0xC0B271,
+    TURNS_DUE = 0xC059D9,
+};
 
 /* The game starts from what the cartridge holds (menu/saves.h): a saved
  * game to load, or a new one; then, as every one of the menus' services
@@ -149,7 +163,7 @@ static void take_the_interrupts(GameState *g)
 /* ---- The field's start ---------------------------------------------------------------------------- */
 
 /* The timing keys of the field's start, its main loop and its frame wait. */
-enum { ENTER = 0xC0005D, MAIN_LOOP = 0xC00097, WAIT_FOR_THE_NEXT_FRAME = 0xC000BA };
+enum { ENTER = 0xC0005D, MAIN_LOOP = 0xC00097 };
 
 /* At power-on, before the sound driver starts: the field's handlers on the
  * interrupts, the screen dark, and work RAM cleared. */
@@ -559,10 +573,7 @@ enum { FIELD_STARTS = 0xC00000 };
  * the original's start for the kind, as the scene engine's does. What each
  * reads first it sets, the flags the look at the scene's number left among
  * it. */
-enum { SCENE_ENGINE = 0xC30000, SCENE_FIELD_CLOSES_INTO = 0x85 };
-
-enum { SCENE_LONG_WARP = 0x80, SCENE_SHORT_WARP = 0x81, SCENE_SHORTEST_WARP = 0x82 };
-enum { LONG_WARP = 0xFDDA00, SHORT_WARP = 0xFDDA5F, SHORTEST_WARP = 0xFDDABE, FLICKERING_WARP = 0xFDDB1D };
+enum { SCENE_FIELD_CLOSES_INTO = 0x85 };
 
 /* As C: the scene the field ends into, the scene engine's or a time gate's
  * tunnel, is the program's next step (core/program.c: scene_runs,

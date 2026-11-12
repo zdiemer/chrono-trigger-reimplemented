@@ -47,9 +47,6 @@ typedef struct {
 
 /* ---- A party member's attack: up close or not -------------------------------------------- */
 
-/* The attack's search for the way leaves its two points in the first work
- * cells, as the original asks with them there. */
-
 // $C1:49FF
 /* A party member's attack is shown up close where the member gets to its
  * first target: where it finds the way there across the battlefield's grid,
@@ -143,10 +140,6 @@ static uint16_t channels_counted(uint16_t channels)
     return count;
 }
 
-/* The original walks a half's channels out of the first work cells, the
- * second half's left in the next two, and clears the battle's note of the
- * second half as it passes over the first's scripts. */
-
 // $C1:4455
 /* The script set's channels start: those its first half marks, each with
  * its script in turn; or for the second half, those it marks, with the
@@ -169,10 +162,6 @@ static void start_the_scripts(GameState *g, uint8_t bank, uint16_t set, bool sec
 }
 
 /* ---- The animation's cells -------------------------------------------------------------- */
-
-/* The palette animation and the effects' records are what the rest of the
- * battle reads of the animation (battle/sprites.c); the rest the original
- * keeps in cells only the loading reads. */
 
 /* What the loading goes on with over the frames: the parts and where the
  * sprite tiles are. */
@@ -360,9 +349,6 @@ static const struct { uint32_t routine; } loaders[SHOWING_KINDS] = {
     [SHOWS_A_TECH] = { 0xC145A0 },
     [SHOWS_AN_ITEM] = { 0xC1475B },
 };
-
-/* Whether a party member's attack is shown up close, for the original's
- * call; it leaves A's high byte clear, as the way's search does. */
 
 /* The guards. The loaders index the ROM's tables with A's high byte along,
  * clear as the showing has it; the actor is a combatant, and a party member's

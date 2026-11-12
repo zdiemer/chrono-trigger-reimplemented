@@ -10,6 +10,7 @@
 #include "menu/cursor.h"
 #include "platform/platform.h"
 #include "state.h"
+#include "vars.h"
 
 /* The healing: the member it is used on (menu_use_member), or every active
  * member, given HP and MP as menu_use_effect, menu_heal_power and
@@ -60,7 +61,12 @@ typedef enum {
 typedef enum { HEALING_SHOWS_THE_AMOUNTS, HEALING_RAISES_A_KIND, HEALING_SENDS_THE_KIND_S_SOUND } HealingRoutine;
 
 /* Where the machine leaves what the original leaves its code. */
-typedef enum { HEALING_NOTE_WAITED, HEALING_NOTE_KINDS_LEFT, HEALING_NOTE_A_FRAME_RISEN, HEALING_NOTE_RISEN } HealingNote;
+typedef enum {
+    HEALING_NOTE_WAITED,
+    HEALING_NOTE_KINDS_LEFT,
+    HEALING_NOTE_A_FRAME_RISEN,
+    HEALING_NOTE_RISEN,
+} HealingNote;
 
 /* What the sequences ask: a frame's wait, the machine's registers as the
  * original's code sets them, a routine run, a note, the task's end. Each
@@ -88,8 +94,5 @@ bool menu_healing_can_run(const GameState *g);
 bool menu_amounts_can_show(const GameState *g);
 bool menu_amounts_kind_can_rise(const GameState *g);
 enum { MENU_RAISE_AMOUNTS_TASK_START = 0x9016 };
-
-/* The checked legacy adapters ($C2:8F55, $C2:8F6C, $C2:8E2D, the task $C2:9016
- * and a kind's rise $C2:9047) and their guards. */
 
 #endif

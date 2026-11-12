@@ -40,7 +40,13 @@ void overworld_control_the_vehicles(GameState *g);
  * (EpochStep, DactylStep). */
 enum { VEHICLE_RISES = 2, VEHICLE_FLIES = 3, VEHICLE_FLIES_A_TILE = 4, VEHICLE_COMES_DOWN = 5 };
 
-enum { VEHICLE_RISING_FRAMES = 0x30, VEHICLE_OVER_THE_PARTY_AFTER = 0x08, VEHICLE_COMING_DOWN_FRAMES = 0x31, VEHICLE_UNDER_THE_PARTY_AFTER = 0x20, VEHICLE_HEIGHT_IN_THE_AIR = 0x18,  };
+enum {
+    VEHICLE_RISING_FRAMES = 0x30,
+    VEHICLE_OVER_THE_PARTY_AFTER = 0x08,
+    VEHICLE_COMING_DOWN_FRAMES = 0x31,
+    VEHICLE_UNDER_THE_PARTY_AFTER = 0x20,
+    VEHICLE_HEIGHT_IN_THE_AIR = 0x18,
+};
 
 /* Its state's bits (overworld_vehicle_state): whether any of `bits` is set;
  * set or cleared. */

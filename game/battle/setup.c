@@ -80,10 +80,6 @@ void battle_setup_state(GameState *g)
     convert_enemy_names(g, &last);
 }
 
-/* It goes on to wait for the graphics to load, which reads nothing the setup
- * leaves in the registers. */
-enum { WAIT_FOR_GRAPHICS = 0xCCF05B };
-
 // $CC:ED87
 void battle_setup_graphics(GameState *g)
 {

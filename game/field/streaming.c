@@ -108,13 +108,6 @@ typedef struct {
     uint8_t tiles;
 } Line;
 
-/* Where the original's builders leave their working cells, for its code and
- * shadow mode: the map column and row they got to, the line's start, and the
- * count, run down. */
-typedef struct {
-    uint8_t map_column, map_row;
-} LineEnd;
-
 /* The half a line starting on an odd tile begins with: the rows of BG1 and
  * BG2 count it as one of the line's map tiles and end with a half of the map
  * tile after the last, so the line is as long either way -- the second half

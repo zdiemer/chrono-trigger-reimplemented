@@ -208,15 +208,6 @@ BattleLongQuotient battle_divide_long(GameState *g, uint32_t dividend, uint16_t 
 
 /* ---- The entries ------------------------------------------------------------------------ */
 
-/* Each takes its numbers from its cells, as the original's callers hand them,
- * and leaves A as the original's last TDC leaves it: the battle's page. */
-
-/* It leaves the product by the word's low byte in X. */
-
-/* It shifts the dividend out through its cells, the quotient's top fifteen
- * bits coming in behind it (the next one is lost) and the caller's carry in at
- * the top; its flags come back as they were. */
-
 /* The bit-serial division loses the remainder's top bit when the divisor has
  * its own set: the game divides by less. */
 enum { LARGEST_DIVISOR = 0x8000 };

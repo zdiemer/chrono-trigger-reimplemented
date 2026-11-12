@@ -490,11 +490,10 @@ void screen_effect_start(GameState *g, ScreenEffect effect) { set_field_screen_e
 /* ---- The steps that run over frames ------------------------------------------------------------
  *
  * The curtain's sweep, the field's close into a scene and the ripple call
- * on the field's other work between their own: bank $C3's sweep, BG1 drawn
- * as at a map's load, the effects refreshed, a frame waited, the battle's
- * start that puts the field aside. Each is one sequence here, whose calls
- * are callbacks: the program makes them as C, and the machine's entry from
- * the original's calls of them. */
+ * on the field's other work between their own: the scene engine's sweep, BG1
+ * drawn as at a map's load, the effects refreshed, a frame waited, the
+ * battle's start that puts the field aside. Each is one sequence here, whose
+ * calls are callbacks. */
 
 /* The moments of the close and the ripple a call is made at. */
 typedef enum {
@@ -733,13 +732,11 @@ bool field_screen_effect_moved_on(GameState *g, Platform *pf)
  * Each call is the original's from its own site, on the field's page; where
  * a call doesn't come back as the original's does, the port stops there. */
 
-enum { CURTAIN_SWEEP = 0xC3000E, /* the scene engine's jump to the curtain's step */
-    DRAW_BG1 = 0xC075E9, /* BG1's tiles drawn into the staging, on the layers' page */ };
+enum {
+    DRAW_BG1 = 0xC075E9, /* BG1's tiles drawn into the staging, on the layers' page */
+};
 
 /* The original starts the scene on a fresh stack ($C0:2643), which is its
  * own entry. */
 enum { THE_SCENE_STARTS = 0xC02643 };
 
-/* The steps that call on the field run as the original's table runs them,
- * from its JSR. */
-enum { STEP_TABLE_SITE = 0xC021EA };

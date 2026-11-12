@@ -145,10 +145,6 @@ enum { SET_THE_VIDEO_MODE = 0xFDC0D7, SHOW_THE_SCREENS = 0xC0A509 };
 
 /* ---- The objects ------------------------------------------------------------------------------ */
 
-/* A part of the object's frame drawn as C where its guard takes the state,
- * and the original's otherwise: true while more of it is to draw. False in
- * `came_back` where the call didn't come back as the field runs. */
-
 /* An object in view at the start is drawn at once: on the screen, in its
  * row, its whole frame drawn and sent, its frame areas let go. False where
  * the port stopped. */
@@ -161,12 +157,6 @@ enum { UPLOAD_THE_QUEUE = 0xC0B1B2 };
  * which returns for this routine. On the field's page with 8-bit index
  * registers for the objects. */
 enum { SPRITE_TABLE = 0xC0B271 };
-
-/* For the original's code and shadow mode: the overflow the loop leaves for
- * the sprite table, which carries it on where it makes no sum of its own:
- * the last object looked at for the view (one that shows) had the start's
- * window worked out, whose last sum is the screen's bottom widened. */
-enum { START_WINDOW_BELOW = 5 };
 
 /* The objects that may come into view: those that show on the map, but those
  * that only matter on the screen itself, which the screen marks. */

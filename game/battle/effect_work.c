@@ -452,9 +452,6 @@ static void add_number_into(GameState *g, unsigned from, unsigned to)
         set_number_kind_word(g, to, kind);
 }
 
-/* The record of an enemy's number in a set. */
-enum { LAST_ENEMY_PLACE = SET_BYTES - RECORD_BYTES };
-
 /* What the original leaves in the multiply's cell after adding the hits up
  * (scaffolding): the carry of the compare that chose the last kind to move,
  * the second set's into the first at the last enemy's place, which its last
@@ -635,9 +632,6 @@ void battle_work_out_enemy_action(GameState *g, Platform *pf, bool tech)
 {
     effect_work_out_enemy_action(g, pf, tech ? ENEMY_TECHS : ENEMY_ATTACKS);
 }
-
-/* Each kind as its own routine, for the party's code that runs them, on the
- * effect record the party's code copied. */
 
 /* The kinds hand back A clear but its low byte, and the carry of the last
  * note's loop (set), or the last number's place, which is found without

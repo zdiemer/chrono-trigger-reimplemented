@@ -39,8 +39,10 @@ void menu_main_menu_keep_the_time(GameState *g);
  * have left running stopped (a bit a task, menu.h): the description's
  * typing, the scroll bar, the records and the cursors it holds. */
 void menu_main_menu_move_to(GameState *g, MainMenuOption option);
-enum { MENU_PANELS_TASKS = 1u << MENU_DESCRIPTION_TASK | 1u << MENU_SCROLL_BAR_TASK | 1u << MENU_RECORDS_TASK
-                        | 1u << MENU_HELD_CURSORS_TASK,  };
+enum {
+    MENU_PANELS_TASKS = 1u << MENU_DESCRIPTION_TASK | 1u << MENU_SCROLL_BAR_TASK | 1u << MENU_RECORDS_TASK
+                        | 1u << MENU_HELD_CURSORS_TASK,
+};
 
 /* The option's panel put away and the main menu drawn over the screen
  * again ($C2:9B71). */
@@ -141,8 +143,5 @@ bool menu_back_to_the_main_menu(GameState *g, Platform *pf);
  * which the panels' entries run with too, on a context of this shape. */
 
 extern const MainMenuSteps menu_main_menu_on_the_machine;
-
-/* The entries ($C2:99CE, $C2:9A1B, $C2:9A98; $C2:9B54, $C2:9B71 the panels;
- * $C2:9AAD, $C2:9B8F), and their guards. */
 
 #endif

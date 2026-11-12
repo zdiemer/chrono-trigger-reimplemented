@@ -8,7 +8,12 @@
 #include "data/decompress.h"
 #include "platform/video.h"
 
-enum { FIRST_BLOCK_VRAM = 0x2000, BLOCK_VRAM_WORDS = 0x0800, BLOCK_BYTES = 2 * BLOCK_VRAM_WORDS, TILEMAP_GRAPHICS_VRAM = 0x6800, TILEMAP_GRAPHICS_BYTES = 0x0800, EFFECT_FIRST_COLOR = 2 * 16,  };
+enum {
+    FIRST_BLOCK_VRAM = 0x2000, BLOCK_VRAM_WORDS = 0x0800,
+    BLOCK_BYTES = 2 * BLOCK_VRAM_WORDS,
+    TILEMAP_GRAPHICS_VRAM = 0x6800, TILEMAP_GRAPHICS_BYTES = 0x0800,
+    EFFECT_FIRST_COLOR = 2 * 16,
+};
 #define UNPACK_BUFFER 0x7ED000u
 
 typedef bool (*SendGraphics)(void *ctx, bool tilemap, uint16_t vram, uint16_t bytes);

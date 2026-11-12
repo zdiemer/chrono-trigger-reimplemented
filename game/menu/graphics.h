@@ -8,6 +8,7 @@
 #include "platform/video.h"
 #include <stdint.h>
 #include "state.h"
+#include "vars.h"
 
 /* Build the menus' tile sets and send them to VRAM, load their colours, and
  * the window design the player chose. */
@@ -15,7 +16,5 @@ void menu_build_graphics(GameState *g, Platform *pf);
 
 /* The chosen window design's tiles queued for VRAM, and its colours. */
 void menu_load_window_design(GameState *g);
-
-/* What the graphics leave on the machine, for a caller that runs them as C. */
 
 #endif

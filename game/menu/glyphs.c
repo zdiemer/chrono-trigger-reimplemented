@@ -140,4 +140,3 @@ void menu_put_glyph(GameState *g, uint16_t glyph, uint8_t pen_x, uint32_t line, 
     draw_glyph_from(g, tiles_of(kind), glyph_numbered(glyph), pen_at(pen_x), first);
 }
 
-enum { GLYPH_PAGE = 0x0200, FONT_TABLES_BANK = 0xC2 };

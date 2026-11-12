@@ -21,7 +21,6 @@
 #include "field/main_loop.h"
 #include "core/program.h"
 #include "cpu_io.h"
-#include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/fades.h"
 #include "menu/menu.h"
@@ -50,12 +49,6 @@ static const VidVramPort word_port = { .step = 1, .after_high = true };
 
 /* What a screen shows while it is set up: nothing, at full brightness. */
 static const VidDisplay BLANK = { .blank = true };
-
-/* Registers the entries' callees don't read, and the stops' (the calling convention
- * checks each). */
-
-/* The pages the two modes' vblank handlers run on. */
-enum { MENUS_PAGE = 0x0D00, OBJECT_MODE_PAGE = 0x0000 };
 
 /* ---- The windows, the screens and color math, as both modes keep them --------------------------- */
 
@@ -119,10 +112,6 @@ typedef enum {
     MENU_OPEN_GATE_EXCHANGE, MENU_OPEN_SAVE_POINT,
 } MenuOpening;
 
-/* The menus' own stack, under the tasks' (menu/tasks.c), and the boot's,
- * which the game starts again on. */
-enum { MENUS_STACK = 0x09FF, BOOT_STACK = 0x06FF };
-
 /* The game started afresh: what the menus do the first time they are entered
  * for the load screen after power-on, before any game has been played. A new
  * game's state is set up, noted as done, the cartridge's record that the game
@@ -163,15 +152,6 @@ static void open_on_the_screen(GameState *g, Platform *pf)
     set_input_repeat_countdown(g, 1);
     tm_enable_interrupts(pf, PF_AT(0xC28087), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
 }
-
-/* What the routines the entry runs as C or calls read of the registers
- * (the calling convention checks each): the opening moves to the menus'
- * page as it starts, which the port moves to first, and reads none of them;
- * nor does the tasks' start. */
-
-/* Entering the menus reads every register the caller hands it: what it asks
- * for and with, its page, data bank, flags and stack. */
-enum { MENU_MODE_START = 0xC2800E, THE_START_READS_ALL = 0 };
 
 /* The blanks the mode's start, its return and its starting the game again
  * make, each from the original's own sites. */
@@ -338,13 +318,6 @@ void menu_ask_for_the_block_move(GameState *g) { set_menu_line_effects(g, (uint8
 
 /* ---- The menus' vblank handler ------------------------------------------------------------------ */
 
-/* The handler runs on a stack of its own, at the top of the menus' low RAM,
- * whatever stack the code it interrupts is on (a screen's task has its own):
- * it keeps that code's registers, notes its stack to go back to, and moves
- * (m_enter_handler_stack: keeping and putting back the interrupted code's
- * registers is the machine's part of taking an interrupt). */
-enum { HANDLER_STACK = 0x1DFD };
-
 /* The vblank's two calls, run as C or on the machine (below): the frame's
  * work sent, and the frame's input taken; each false where it went no
  * further. */
@@ -455,7 +428,6 @@ static void send_menu_screen_shadows(GameState *g, Platform *pf)
  * the bytes moved, the vblank's caller reads. */
 static void move_the_block(GameState *g)
 {
-    enum { STUB_BLOCK_MOVE = 0x7E54, STUB_BANK_AND_RETURN = 0x6B7E };
     uint16_t from = menu_block_move_source(g), to = menu_block_move_dest(g), size = menu_block_move_size(g);
     uint32_t bytes = size ? size : 0x10000u;
     wram_copy(g, 0x7E0000u | from, 0x7E0000u | to, bytes);
@@ -627,13 +599,6 @@ void menu_build_math_table(GameState *g, Platform *pf)
 /* ---- The mode at $C2:0000 ------------------------------------------------------------------------- */
 
 // $C2:000F
-/* Entering the sprite-object mode: interrupts, uploads and per-line effects
- * off, then forced blank at full brightness, which is the brightness the
- * mode's vblank handler goes on using; the cartridge read at its fast speed;
- * the mode's screen, its own state, its vblank handler and its upload queue
- * set up and its palette cleared. The world map it shows is set up next
- * (overworld/setup.c), where the original jumps ($C2:23A8). */
-enum { WORLD_MAP_SET_UP = 0xC223A8, MENU_OBJECT_PAGE = 0x0000 };
 
 static void set_up_the_mode(GameState *g, Platform *pf);
 
@@ -740,10 +705,6 @@ static void set_up_the_mode(GameState *g, Platform *pf)
     TIMED_AS(g, 0xC203EF, menu_object_reset_the_upload_queue(g));
     TIMED_AS(g, 0xC21DB5, menu_clear_the_palette(g));
 }
-
-// $C2:012F
-
-// $C2:0110
 
 // $C2:03EF
 
@@ -938,13 +899,6 @@ void menu_object_vblank(GameState *g, Platform *pf)
 void menu_object_line(GameState *g, Platform *pf) { (void)g, (void)pf; }
 
 /* ---- On the machine ---- */
-
-/* Each step is run from the original's call of it, as C where the registry
- * would run its entry there and as the call otherwise, and the work goes on
- * after it only where it came back as the handler runs. The list's emptying
- * comes back with a 16-bit accumulator. The objects' handlers may read Y and
- * the carry and overflow flags (the handlers are named in work RAM), which
- * the sprites' hiding leaves as the original does. */
 
 // $C2:0405
 /* The sprite-object mode's VRAM upload queue, unless something is queueing

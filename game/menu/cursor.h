@@ -38,7 +38,12 @@ bool menu_cursor_can_be_placed(const GameState *g);
  * assignments, which page a list (or switch the equipment screen's member);
  * and the ways the direction pad pushed the cursor (menu_cursor_moves), with
  * the bit for a push past the menu's places that way (a list's edge). */
-typedef enum { MENU_CHOOSE = 0x80, MENU_GO_BACK = 0x40, MENU_PAGE_ONE_WAY = 0x02, MENU_PAGE_THE_OTHER = 0x01 } MenuButton;
+typedef enum {
+    MENU_CHOOSE = 0x80,
+    MENU_GO_BACK = 0x40,
+    MENU_PAGE_ONE_WAY = 0x02,
+    MENU_PAGE_THE_OTHER = 0x01,
+} MenuButton;
 typedef enum {
     MENU_PUSHED_RIGHT = 0x01, MENU_PUSHED_LEFT = 0x02, MENU_PUSHED_DOWN = 0x04, MENU_PUSHED_UP = 0x08, MENU_PUSHED_PAST_AN_EDGE = 0x80,
 } MenuPush;

@@ -28,8 +28,13 @@ enum { WINDOWS = 2 };
 typedef uint16_t Edges;
 enum { EDGES_EMPTY = 0x00FF, EDGES_FULL = 0xFF00 };
 
-enum { SCREEN_LINES = 224, TABLE_LINES = 2 * SCREEN_LINES, /* the battlefield, above the menus: the lines the bands and waves cover */
-    BATTLEFIELD_LINES = 212, TOP_BORDER_LINES = BATTLE_WINDOW_TOP_LINES_COUNT,  };
+enum {
+    SCREEN_LINES = 224,
+    TABLE_LINES = 2 * SCREEN_LINES,
+    /* the battlefield, above the menus: the lines the bands and waves cover */
+    BATTLEFIELD_LINES = 212,
+    TOP_BORDER_LINES = BATTLE_WINDOW_TOP_LINES_COUNT,
+};
 
 /* A line of the table, counted from the first buffer's first: the second
  * buffer's follow the first's (224-447), and the top border's four come

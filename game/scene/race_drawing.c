@@ -217,15 +217,15 @@ static void draw_marker(GameState *g, Platform *pf, Racer r, uint16_t length)
         draw_sprite(g, marker_sprites[r]);
 }
 
-/* The CPU's multiplier as the bar leaves it: the bar's length as the first
- * operand, and the product of the last marker placed, or, with no panel, the
- * length times its own high byte (the original stores the length as a word).
- * The panel's numbers then use the divider, whose remainder shares the
- * product's register. */
-
 /* The boosts Crono has left, from the panel's right leftward; the last is
  * shown ready while no boost is on. */
-enum { PANEL_X = 0xEA, PANEL_Y = 0xD0, BOOST_STEP = 8, BOOST_ICON = (uint16_t)0x7E5389, BOOST_READY_ICON = (uint16_t)0x7E5385 };
+enum {
+    PANEL_X = 0xEA,
+    PANEL_Y = 0xD0,
+    BOOST_STEP = 8,
+    BOOST_ICON = (uint16_t)0x7E5389,
+    BOOST_READY_ICON = (uint16_t)0x7E5385,
+};
 
 static void draw_boosts(GameState *g)
 {

@@ -24,7 +24,6 @@
 
 #include "charge.h"
 #include "core/program.h"
-#include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/description.h"
 #include "menu/display.h"
@@ -45,27 +44,19 @@
 /* ---- The calls out ----------------------------------------------------------------------------- */
 
 /* The original's routines the steps call, by what they do. */
-enum { LOW_HP_MARKS = 0xC2813C, /* each character's low-HP mark worked out */
-    TRY_ON = 0xC2A5C3, /* the list's item on the cursor tried on (equipment.c), where it is no item of the game's */ };
+enum { LOW_HP_MARKS = 0xC2813C, /* each character's low-HP mark worked out */ };
 
 /* Where a step jumps on to: the member list's move and the slots' pointing,
  * the screen's set-up, the card, back to the members, on to the list (ports
  * of these files), back to the main menu, the refusal's sound and the cursor
  * sound as a step's last. */
-enum { POINT_AT_MEMBER = 0xC29D17, POINT_AT_SLOT = 0xC29ECD, SET_UP_SCREEN = 0xC2A11A, MEMBER_CARD = 0xC2A22F, MAIN_MENU = 0xC29A98, BACK_TO_MEMBERS = 0xC2A2CD, ON_TO_THE_LIST = 0xC2A41A, REFUSAL_SOUND = 0xC2EACC, CURSOR_SOUND = 0xC2EAC2,  };
-
-// $C2:A6F0
-/* What the member has on, from X; it leaves the row past the last in A. */
-enum { EQUIPPED_ROWS_BYTES = 4 * 0x80 };
-
-/* The slot's label copied to the other layer by a block move, which leaves
- * A at $FFFF and the indexes past the copy. */
-enum { LABEL_COPY_FROM_END = 0x30C0, LABEL_COPY_TO_END = 0x38C0 };
-
-/* The panel's tests before the card: the cursor's row compared with the
- * active members (before it was brought onto one), the scroll's furthest
- * worked out without overflowing, and the clock's digits' place loaded. */
-enum { CLOCK_DIGITS = 0x0402 };
+enum {
+    SET_UP_SCREEN = 0xC2A11A,
+    MEMBER_CARD = 0xC2A22F,
+    MAIN_MENU = 0xC29A98,
+    REFUSAL_SOUND = 0xC2EACC,
+    CURSOR_SOUND = 0xC2EAC2,
+};
 
 /* ---- The guards -------------------------------------------------------------------------------- */
 
@@ -134,10 +125,6 @@ static bool item_step_runs(const GameState *g)
 }
 
 static bool weapon_is_forgettable(const GameState *g) { return menu_member_row(g) < MENU_MEMBERS_COUNT; }
-
-/* The dimmed colours go whole into the palette where Y points, from its
- * first colour on. */
-enum { DIMMED_BYTES = 24 * 2 };
 
 /* ---- The windows' guards ----------------------------------------------------------------------- */
 

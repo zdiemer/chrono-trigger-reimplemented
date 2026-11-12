@@ -265,7 +265,14 @@ static void turn_a_frame(GameState *g, MenuObject o)
 
 /* How the turn starts: unturned, at the zoom, distances, pivot and reach the
  * scene opens with, level, and still. */
-enum { START_ZOOM = 0x80, START_ACROSS = 0xA0, START_DOWN = 0x60, START_PIVOT_X = 0x40, START_PIVOT_Y = 0x70, START_REACH = 0x70 };
+enum {
+    START_ZOOM = 0x80,
+    START_ACROSS = 0xA0,
+    START_DOWN = 0x60,
+    START_PIVOT_X = 0x40,
+    START_PIVOT_Y = 0x70,
+    START_REACH = 0x70,
+};
 
 /* The original keeps the zoom, the distances and the reach as words, and
  * clears the bytes after them as it sets them. The turn reads none of them,
@@ -311,7 +318,11 @@ static void start_the_world_turning(GameState *g, Platform *pf, MenuObject o)
  * past: a plane in low RAM could be read changing under it. The scene's
  * planes are well above it (the land's at $5800 and $3800, the other's at
  * $4000 and $3000). */
-enum { LOW_RAM_END = 0x2000, MAP_BYTES = MENU_MAP_ROWS * MENU_MAP_COLUMNS + 1, GROUPS_BYTES = 0x100 * MENU_MAP_GROUP_BYTES };
+enum {
+    LOW_RAM_END = 0x2000,
+    MAP_BYTES = MENU_MAP_ROWS * MENU_MAP_COLUMNS + 1,
+    GROUPS_BYTES = 0x100 * MENU_MAP_GROUP_BYTES,
+};
 
 static bool above_low_ram(uint16_t at, uint32_t bytes) { return at >= LOW_RAM_END && (uint32_t)at + bytes <= 0x10000; }
 

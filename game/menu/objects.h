@@ -5,15 +5,8 @@
 #define CT_GAME_MENU_OBJECTS_H
 
 #include "menu/object.h"
+#include "vars.h"
 #include <stdbool.h>
 #include <stdint.h>
-
-/* menu/objects.c */
-/* A handler's guard: its machine half (menu_object_handler_runs) and the
- * state half it names, which takes the running object. */
-
-/* menu/sprites.c */
-
-/* menu/wave.c */
 
 #endif

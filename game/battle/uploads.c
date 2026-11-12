@@ -58,9 +58,6 @@ static void send_to_vram(Platform *pf, uint16_t vram, uint32_t source, uint16_t 
     vid_send_vram(pf, PF_AT(0xCD3E95), vram, battle_upload_data(source, transfer_bytes(bytes)), transfer_bytes(bytes), NULL);
 }
 
-/* The transfer's size is handed over in the scratch cell $45, where the
- * original leaves it. */
-
 // $CD:3EB4
 void battle_send_queued_transfer(GameState *g, Platform *pf)
 {
@@ -71,17 +68,6 @@ void battle_send_queued_transfer(GameState *g, Platform *pf)
                  (uint32_t)battle_vram_request_bank(g) << 16 | battle_vram_request_source(g), bytes);
     set_battle_vram_request_pending(g, 0);
 }
-
-/* ---- A buffer sent from the main thread ------------------------------------------------------ */
-
-/* The main thread's sends to VRAM (vid_send_vram_and_wait's battle half) go
- * through the vblank handler a piece a frame: 1 KiB, or 4 KiB while the frame
- * work is cut down to the palette and this (battle_frame_work_reduced), which
- * leaves it the time. */
-enum { PIECE_BYTES = 0x400, PIECE_BYTES_REDUCED = 0x1000 };
-
-/* Which of its waits the main thread makes: its first for a piece it has
- * just queued, or a later one while the queue still holds a piece. */
 
 /* ---- A block of tiles, and the message's --------------------------------------------------- */
 
@@ -98,9 +84,6 @@ static void send_block(Platform *pf, uint32_t source, uint16_t vram)
                       battle_upload_data(from, TILE_BYTES), TILE_BYTES, NULL);
     }
 }
-
-/* The original counts the tiles down in the scratch cell $47, which it leaves
- * at 0. */
 
 /* Blocks come from bank $7E; a block is remembered by its offset into the
  * table of their places, twice its number. */
@@ -325,9 +308,6 @@ bool battle_vblank_uploads_in_range(const GameState *g)
  * 8 KiB of work RAM are $7E and the low halves of $00-$3F and $80-$BF; a
  * transfer runs round its bank. */
 enum { COUNT_CELLS = 0x0045, COUNT_CELLS_END = 0x0049, STACK_REACH = 0x20, LOW_RAM_END = 0x2000 };
-
-/* The stack's area: from the bottom of the game's stack to its top. */
-enum { STACK_AREA_BOTTOM = 0x0500 };
 
 // $CF:FD02
 void battle_send_window_rows(GameState *g) { request_window_rows(g, window_tilemap_in_bank_0(0)); }

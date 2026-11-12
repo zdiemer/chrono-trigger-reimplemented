@@ -216,12 +216,6 @@ static void member_steps_out(GameState *g, uint8_t character)
     }
 }
 
-/* For the original's code and shadow mode: the X the menus are called with,
- * which they keep (the menus' dispatcher stores it). The original leaves it
- * the palettes' move's end where the members closed up, and otherwise the
- * last member's object it compared. */
-enum { PALETTES_MOVED_X = 0x2200 };
-
 /* Whether the object's turn goes on after someone is sent to the reserve. As
  * with someone leaving ($D6, above), the original goes on by the carry of its
  * last comparison of a member's character with the one sent, which the
@@ -581,9 +575,6 @@ void member_back_to_the_leader(GameState *g, FieldObject member)
     send_to_the_leader(g, member);
 }
 
-/* Its entry: the field's routine after a battle ($C0:034B) names the member
- * in the cell the leader's contact is kept in, with 8-bit index registers. */
-
 // $C0:034B
 /* After a battle the party comes back together: the members walk back to
  * the leader through the gathering script, as $DA sends them, and catch its
@@ -631,10 +622,6 @@ bool party_can_come_back_together(const GameState *g)
     }
     return ok;
 }
-
-/* Its guard: the member is an object the tables hold, as the game keeps it
- * (the original adds its whole word to the place's offset), at a level the
- * places hold. */
 
 /* The regrouping's guard: the party's places hold objects the tables do, as
  * the game keeps them (the original adds each one's whole word to a place's

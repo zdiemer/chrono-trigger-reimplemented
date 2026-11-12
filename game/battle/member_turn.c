@@ -545,7 +545,14 @@ static bool attacker_fits(const GameState *g) { return battle_actor(g) < BATTLE_
 
 /* ---- On the machine ------------------------------------------------------------------------ */
 
-enum { AIM = 0xC1C1DD, SHOW_MESSAGE = 0xCD0021, SHOWING = 0xC1AC57, MEMBER_ATTACKS = 0xC1BFAA, USE_ITEM = 0xC1BF46, WORK_OUT_TECH = 0xC1BF79,  };
+enum {
+    AIM = 0xC1C1DD,
+    SHOW_MESSAGE = 0xCD0021,
+    SHOWING = 0xC1AC57,
+    MEMBER_ATTACKS = 0xC1BFAA,
+    USE_ITEM = 0xC1BF46,
+    WORK_OUT_TECH = 0xC1BF79,
+};
 
 /* Each call from the original's own: the targeting with the carry it is
  * handed, the showing taking A's high byte along to the battle's step,

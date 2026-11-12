@@ -95,9 +95,6 @@ static uint8_t first_target(uint16_t bits)
     return slot;
 }
 
-/* The original walks the target bits out of the first work cells, the other
- * targets' last. */
-
 // $CC:F156
 /* The showing's subjects for the scripts' channels: the actor; the two
  * others taking part in its tech, or for a member acting alone the other two
@@ -162,9 +159,6 @@ static bool damage_shown_takes_all(const GameState *g, unsigned member)
     uint16_t hp = battle_stats_hp(g, member), shown = battle_number_records_value(g, member);
     return damage && hp != 0 && shown != 0 && shown >= hp;
 }
-
-/* The original counts the members in its first work cell, and each one
- * falling in a cell of its own after it. */
 
 // $C1:41BE
 /* A party member falls where the damage shown over it takes all the HP it

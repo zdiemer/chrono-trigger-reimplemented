@@ -23,6 +23,7 @@
 #include "menu/object.h"
 #include "platform/video.h"
 #include "state.h"
+#include "vars.h"
 
 /* A slot's line values: one table of a line's value (a word) for each of the
  * screen's lines, which the vblank handler sends in two halves. */
@@ -58,9 +59,5 @@ void menu_start_line_effect(GameState *g, Platform *pf, uint32_t site, uint8_t s
 /* Stage the values the slot shows from the next frame: the table at `values`
  * in bank $7E, its top half then its bottom. */
 void menu_show_line_values(GameState *g, uint8_t slot, uint16_t values);
-
-/* The entries: the scripts' routines of bank C6. */
-
-/* The map scenes' near-call iris and scroll services. */
 
 #endif

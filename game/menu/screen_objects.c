@@ -532,8 +532,6 @@ bool menu_stream_tiles(GameState *g, MenuObject self)
 /* How long the commands that start them are. */
 enum { FADE_COMMAND_BYTES = 2, MOSAIC_COMMAND_BYTES = 3, STREAM_COMMAND_BYTES = 10 };
 
-// $C2:1DB5
-
 /* ---- The guards ------------------------------------------------------------------------------ */
 
 /* What a screen object reads is memory, not the machine's registers, and

@@ -7,7 +7,6 @@
 
 #include "charge.h"
 #include "cpu_io.h"
-#include "menu/bridge.h"
 #include "menu/party.h"
 #include "menu/saves.h"
 #include "platform/native/host.h"

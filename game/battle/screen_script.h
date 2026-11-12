@@ -211,10 +211,6 @@ typedef struct {
  * row's isn't met, the original's handler runs the command. */
 typedef bool (*ScreenNeeds)(const GameState *g, const ScreenCommand *command);
 
-/* A command whose work is still the original's code: the runner moves the
- * channel on past it, then calls this with the machine; false where the
- * original's code carried on. */
-
 /* A row: the command byte, the operation (or the bridge), what it needs, the
  * operand bytes it takes, and how each parameter it reads decodes. (The
  * original's handler, whose time the operation takes, and which runs the
@@ -262,8 +258,6 @@ static inline ScreenFlow screen_on(void) { return (ScreenFlow){ SCREEN_ON, 0 }; 
 
 static inline ScreenFlow screen_go_to(uint16_t to) { return (ScreenFlow){ SCREEN_GO_TO, to }; }
 
-static inline ScreenFlow screen_moved(void) { return (ScreenFlow){ SCREEN_MOVED, 0 }; }
-
 /* ---- Places in the script ------------------------------------------------------------------- */
 
 /* A place in the running channel's script, within its bank. */
@@ -273,14 +267,6 @@ static inline uint16_t screen_place(const GameState *g) { return (uint16_t)battl
 static inline uint8_t screen_script_byte_at(const GameState *g, uint16_t at)
 {
     return battle_screen_script_byte(g, (battle_screen_script(g) & 0xFF0000u) | at);
-}
-
-/* ---- The running channel ------------------------------------------------------------------- */
-
-/* The running channel, as the dispatch leaves it for the commands. */
-static inline ScreenChannel screen_running_channel(const GameState *g)
-{
-    return (ScreenChannel)(battle_screen_channel(g) / SCREEN_CHANNEL_RECORD_BYTES);
 }
 
 #endif

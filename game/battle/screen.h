@@ -197,13 +197,6 @@ enum { SCREEN_EFFECT_CHOICES = 6, SCREEN_EFFECT_SETTINGS_GIVEN = 0x0F };
 /* ... a special effect of the 29, running a channel (screen_specials.c). */
 /* ... a cut through the middle that fits the screen, a window carried over
  * one of the two (screen_divide.c). */
-/* ... a run of a circle's edges within the window table and the worked edges
- * (screen_shapes.c). */
-
-/* ... the screen script's channels, its dispatch and its commands
- * (screen_script.c). */
-
-/* screen_script.c */
 /* screen_palette.c */
 /* The palette animations paused with the battle, or let run again ($D1:F426). */
 void battle_pause_palette_animation(GameState *g);
@@ -213,15 +206,6 @@ enum { BATTLE_PAUSE_PALETTE_ANIMATION_ENTRY = 0xD1F426 };
  * in range. */
 void battle_step_hp_gradient(GameState *g);
 bool battle_hp_gradient_steps(const GameState *g);
-/* screen_graphics.c */
-/* screen_window.c */
-/* screen_beam.c */
-/* screen_triangles.c */
-/* screen_specials.c */
-/* screen_divide.c */
-/* screen_between.c */
-/* screen_shapes.c */
-/* screen_motion.c */
 /* screen_setup.c */
 /* The screen set up as a battle starts ($D1:F1B0), as C. False where it went
  * no further. */
@@ -233,12 +217,6 @@ bool battle_display_closed(GameState *g, Platform *pf);
 bool battle_window_opened(GameState *g, Platform *pf);
 
 /* ---- The running command ---------------------------------------------------------------- */
-
-/* The running command's `n`th operand, from its first. */
-static inline uint8_t screen_command_operand(const GameState *g, unsigned n)
-{
-    return battle_screen_script_byte(g, battle_screen_script(g) + n);
-}
 
 /* The command took `operands` operands: the channel's step after it lands on
  * the next command. The pointer moves within its bank. */
@@ -279,11 +257,6 @@ static inline void screen_set_cell(GameState *g, uint8_t cell, uint8_t v)
         set_battle_low_scratch(g, cell, v);
     else
         set_battle_scratch(g, (unsigned)(cell - SCREEN_CELLS), v);
-}
-
-static inline uint16_t screen_cell_word(const GameState *g, uint8_t cell)
-{
-    return (uint16_t)(screen_cell(g, cell) | screen_cell(g, (uint8_t)(cell + 1)) << 8);
 }
 
 static inline void screen_set_cell_word(GameState *g, uint8_t cell, uint16_t v)

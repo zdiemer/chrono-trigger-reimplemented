@@ -843,8 +843,6 @@ void menu_techs_back_to_the_members(GameState *g)
  * looks at the tech, and keeps its offset once it heals. */
 enum { TECH_RECORD_BYTES = MENU_TECH_EFFECT_BYTES };
 
-enum { CHOSEN_SPARE = 0xFF };
-
 TechsUse menu_techs_use(GameState *g)
 {
     set_menu_cursor_index(g, menu_tech_list_row(g));
@@ -941,7 +939,12 @@ static void draw_targets(GameState *g, Platform *pf)
 
 /* A frame later: the window's line table, its members, and its tilemaps
  * sent. */
-enum { TARGET_LINES = OFFSETS_THE_FRONT_LAYER | 0x0C7, TARGET_BLOCKS = 3, UPLOAD_TARGET_ROWS = 0xBECE, UPLOAD_TARGET_WINDOW = 0xBED5 };
+enum {
+    TARGET_LINES = OFFSETS_THE_FRONT_LAYER | 0x0C7,
+    TARGET_BLOCKS = 3,
+    UPLOAD_TARGET_ROWS = 0xBECE,
+    UPLOAD_TARGET_WINDOW = 0xBED5,
+};
 
 void menu_techs_show_targets(GameState *g, Platform *pf)
 {

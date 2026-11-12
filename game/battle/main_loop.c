@@ -265,7 +265,14 @@ static void put_demo_back(GameState *g)
 
 /* How a stretch of the loop ends: where it went no further, the battle left
  * for the field, or on to the loop's next stretch. */
-typedef enum { LOOP_STOPPED, LOOP_LEFT, LOOP_TO_THE_HEAD, LOOP_TO_THE_TIMERS, LOOP_TO_THE_REST, LOOP_NOT_OURS } LoopGoesOn;
+typedef enum {
+    LOOP_STOPPED,
+    LOOP_LEFT,
+    LOOP_TO_THE_HEAD,
+    LOOP_TO_THE_TIMERS,
+    LOOP_TO_THE_REST,
+    LOOP_NOT_OURS,
+} LoopGoesOn;
 
 static LoopGoesOn finish_battle_start(GameState *g);
 
@@ -322,23 +329,8 @@ static bool enemies_beaten(const GameState *g)
     return true;
 }
 
-/* The party's maximum HP goes back to what it was when the battle began. */
-
-/* $C1:8443: the battle's last step, into the field again ($C1:0006): the
- * random position kept for the next battle, and each member's carried byte
- * back into its stat block. */
-
-/* $C1:8423: a battle that is lost, or run from, or a demo's end: the party's
- * statuses cleared, the party revived, its stats kept. */
-
 /* The six items a victory can give. */
 enum { ITEMS_WON = 6 };
-
-/* $C1:83BB: a battle that is won: unless it is a demo, the rewards -- the
- * experience turned to gold where the party wears what does that, the gold
- * given, the experience and the tech points shared out (battle/rewards.h),
- * their messages, the party revived, its stats kept, the items it chose and
- * didn't use put back, and the items won. */
 
 /* The party is all out: its defeat, over eight frames and the defeat's step,
  * and away without rewards. */
@@ -429,9 +421,6 @@ static LoopGoesOn win(GameState *g, LoopCalls call, void *ctx)
         return LOOP_STOPPED;
     return leave_with_rewards(g, call, ctx);
 }
-
-/* The party runs away: the running away's marks and message, the party
- * standing down, the running away's action, and away without rewards. */
 
 /* The party's low HP noted, and every combatant's statuses followed
  * (battle/combatants.c). */
@@ -664,8 +653,6 @@ static void next_spare_member(GameState *g)
     leave_member_for_callees(g, member);
 }
 
-/* The queue: the party's chosen actions carried out one at a time. */
-
 // $C1:8461 (to $C1:8626)
 /* The turn of the combatant whose turn timer ran out (on the passes the timers
  * are looked at): an enemy's, or a party member's, then the party's queued
@@ -809,9 +796,6 @@ static void forget_actors_action(GameState *g)
         set_battle_chosen_actions_unchecked(g, at, 0);
 }
 
-/* A status that keeps the actor's script from its reactions, read wherever the
- * actor's cell points. */
-
 /* Each enemy the action hit, in the order of the action's targets, reacts;
  * between them the actor's chosen action is forgotten again, and the party's
  * combination techs are looked at after each. */
@@ -857,14 +841,6 @@ static bool follow_up(GameState *g, uint8_t actor, LoopCalls call, void *ctx)
         return call(ctx, CALL_PARTY_COUNTERS, 0);
     return actor_silenced(g, actor) || enemies_react(g, call, ctx);
 }
-
-// $C1:8626 (to the end)
-/* After the turn: every combatant updated, the action's targets and actor
- * kept, those knocked out seen to; then, where the action hit an enemy (and
- * isn't a demo's, nor an enemy's that a status silences), each enemy it hit
- * reacts, or else the party members counter; then the beaten enemies
- * finished, the enemies' scripts started again (unless the party is
- * beaten), and the action's targets and numbers cleared. */
 
 /* The turn's handler: the turn itself on the passes that look at timers;
  * then, while no party member has an action waiting, the turn no longer due;
@@ -944,7 +920,31 @@ typedef struct {
 
 /* The routines the calls stand for, as the program goes no further at them
  * where their guards turn the state away or they are only the machine's. */
-enum { START_FIGHT = 0xC1FA8B, UPDATE_COMBATANTS = 0xC1B223, CANCEL_IF_UNABLE = 0xC1B3F9, GIVE_TURN = 0xC18461, PARTY_STANDS_DOWN = 0xC1B7F2, EXPERIENCE_TO_GOLD = 0xFDB201, GIVE_GOLD = 0xC1D0A2, SHARE_EXPERIENCE = 0xC1F93E, SHOW_REWARDS = 0xFDAD17, PUT_ITEMS_BACK = 0xC1B4E9, GIVE_ITEM = 0xC1D005, SHOW_MESSAGE = 0xCD0021, START_ACTION = 0xC1895B, ENEMY_TURN = 0xC18CF9, MEMBER_TURN = 0xFDAB30, CHECK_COMBINATIONS = 0xC1B575, MEMBER_ACTS_FOR_ITSELF = 0xC1BCE1, CARRY_OUT_ACTION = 0xC1B967, AFTER_ACTION = 0xC1B762, PARTY_COUNTERS = 0xFDAC6E, FINISH_BEATEN = 0xC1AC5E, LOOP_START = 0xC18000, PASS_END = 0xC18345, STARTING_WITH_THE_ENEMIES = 0xC18030,  };
+enum {
+    START_FIGHT = 0xC1FA8B,
+    UPDATE_COMBATANTS = 0xC1B223,
+    CANCEL_IF_UNABLE = 0xC1B3F9,
+    GIVE_TURN = 0xC18461,
+    PARTY_STANDS_DOWN = 0xC1B7F2,
+    EXPERIENCE_TO_GOLD = 0xFDB201,
+    GIVE_GOLD = 0xC1D0A2,
+    SHARE_EXPERIENCE = 0xC1F93E,
+    SHOW_REWARDS = 0xFDAD17,
+    PUT_ITEMS_BACK = 0xC1B4E9,
+    GIVE_ITEM = 0xC1D005,
+    SHOW_MESSAGE = 0xCD0021,
+    START_ACTION = 0xC1895B,
+    ENEMY_TURN = 0xC18CF9,
+    MEMBER_TURN = 0xFDAB30,
+    CHECK_COMBINATIONS = 0xC1B575,
+    MEMBER_ACTS_FOR_ITSELF = 0xC1BCE1,
+    CARRY_OUT_ACTION = 0xC1B967,
+    AFTER_ACTION = 0xC1B762,
+    PARTY_COUNTERS = 0xFDAC6E,
+    FINISH_BEATEN = 0xC1AC5E,
+    PASS_END = 0xC18345,
+    STARTING_WITH_THE_ENEMIES = 0xC18030,
+};
 
 /* The running away's message and its action. */
 enum { RAN_AWAY_MESSAGE = 8, RUN_AWAY_ACTION = 0x79 };
@@ -1103,13 +1103,9 @@ bool battle_main_loop_runs(GameState *g, Platform *pf)
     return on == LOOP_LEFT;
 }
 
-/* The members' checks are a subroutine of the turn's, called from $C1:860A,
- * whose return is on the stack under its calls. */
-enum { CHECKS_CALL_LAST_BYTE = 0x860C };
-
 /* Where a stretch goes on on the machine: the loop's head, which starts from
  * A and the flags cleared; the pass's body after the frame's step; the timers
  * (in 16-bit A, as the original's test of the running action leaves it); the
  * rest of the pass ($C1:8345); and the battle's last step into the field
  * ($C1:0006), which takes A's high byte as the noting leaves it, clear. */
-enum { LOOP_HEAD = 0xC18120, PASS_BODY = 0xC1812C, TIMERS = 0xC18231, REST_OF_PASS = PASS_END, RETURN_TO_THE_FIELD = 0xC10006 };
+enum { REST_OF_PASS = PASS_END, RETURN_TO_THE_FIELD = 0xC10006 };

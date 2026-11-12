@@ -60,9 +60,6 @@ static Search search_for(const GameState *g, uint8_t item)
     return s;
 }
 
-/* The search's cells, which only the battle's inventory routines read, each
- * setting its own first (scaffolding). */
-
 // $C1:D005
 uint8_t battle_inventory_add(GameState *g, uint8_t item)
 {
@@ -171,7 +168,13 @@ enum { LIST_RECORDS = BATTLE_ITEM_LIST_COUNT, LIST_RECORD_BYTES = 5 };
  * the item, its number among the other items and how many are held are cells
  * later work reads as it finds them (battle.h), kept plainly; the record's
  * place and the item's battle record's are scaffolding. */
-enum { PLACE_AT = BATTLE_CLOCK_READS, ITEM_RECORD_AT = 0x02, LIST_AT = 0x04, ITEM_AT = BATTLE_MEMBER_CELL, PLACES_LEFT = BATTLE_NUMBER_TESTED, ITEM_NUMBER_AT = BATTLE_STAT_OFFSET_LOW, HELD_AT = BATTLE_TECH_HITS_LEFT,  };
+enum {
+    PLACE_AT = BATTLE_CLOCK_READS,
+    ITEM_AT = BATTLE_MEMBER_CELL,
+    PLACES_LEFT = BATTLE_NUMBER_TESTED,
+    ITEM_NUMBER_AT = BATTLE_STAT_OFFSET_LOW,
+    HELD_AT = BATTLE_TECH_HITS_LEFT,
+};
 
 static void clear_list_record(GameState *g, unsigned record)
 {
@@ -229,30 +232,7 @@ static void build_item_list(GameState *g)
     battle_keep_word(g, PLACES_LEFT, 0);
 }
 
-/* ---- What the rest of the game asks for ------------------------------------------------------- */
-
-/* $C1:8003's requests, by number (A); the ones past these are other
- * routines of the battle's code's, the original's (the entry's guard). Each
- * hands back a byte: whether an item is held, as the item itself or 0; how
- * many are held after an item is added or taken (battle_inventory_add,
- * battle_inventory_take); or for the gold $FF for yes and 0 for no. */
-
-enum { YES = 0xFF, NO = 0x00 };
-
 /* ---- The entry ------------------------------------------------------------------------------ */
-
-/* The item or the gold in Y, a word: for an item, a high byte the port
- * refuses (the original would look for the item it makes, no item among
- * them). The answer comes back in A's low byte. */
-enum { ITEM_MOST = 0xFF };
-
-// $C1:8003
-/* The rest of the game's request, by number in A's low byte with the item or
- * the gold in Y, from any direct page and data bank: the answer in A's low
- * byte, everything else of its caller's as it was (the original saves and
- * puts back its caller's registers around the request). */
-
-/* Each request is timed as the routine of the battle's that answers it. */
 
 /* The item list: built whole; and an item given a record, or an empty place
  * passed, by the list's builder or the steal's giving ($C1:F012), with the
@@ -269,9 +249,6 @@ void battle_list_usable_items(GameState *g) { build_item_list(g); }
  * for its turn (its choice's bit); the item goes back where the turn never
  * came. */
 enum { ITEM_TAKEN_FOR_CHOICE = 0x40 };
-
-/* The original keeps the item it puts back in a cell. */
-enum { RETURNING_ITEM_AT = 0x0E };
 
 // $C1:B6D1
 void battle_return_chosen_item(GameState *g, uint8_t member)
@@ -290,7 +267,7 @@ void battle_return_chosen_item(GameState *g, uint8_t member)
 
 /* The original walks the list and the inventory with cells: the list's
  * record, the place it found the item in and the empty place it put it in. */
-enum { FOUND_AT = 0x00, RECORD_AT = 0x02, EMPTY_AT = 0x04 };
+enum { RECORD_AT = 0x02 };
 
 static unsigned place_holding(const GameState *g, uint8_t item)
 {

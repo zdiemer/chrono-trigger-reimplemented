@@ -318,9 +318,3 @@ bool object_view_updated(GameState *g, FieldObject obj)
 /* An object that matters only on the screen, checked against it. */
 void object_window_only_checked(GameState *g, FieldObject obj) { (void)check_on_screen(g, obj); }
 
-/* The rows' step (field/object_update.c) as C, timed as the routine it is;
- * where the rows' links are ones its entry's guard would turn away, the
- * entry is called from the view's own call, and the original runs it.
- * Nothing it is entered with is read but the overflow. */
-
-enum { JOIN_SITE = 0xC0A90B, LEAVE_SITE = 0xC0A921 };

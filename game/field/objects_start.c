@@ -119,18 +119,11 @@ static const struct {
     { RAM_FIELD_OBJECT_VELOCITY_X, 0x0100 },
     { RAM_EVENT_SAVED_POSITIONS, 0x15C0 },
 };
-enum { CLEARS = sizeof clears / sizeof clears[0] };
 
 static void clear(GameState *g, Platform *pf, unsigned which)
 {
     TIMED_AS(g, FIELD_FILL_MEMORY_ENTRY, field_clear_memory(g, pf, clears[which].from, clears[which].bytes));
 }
-
-/* For the original's code and shadow mode: the work RAM port where the
- * original's writes of the defaults leave it, after the last object's colour
- * effect; and the end of the objects' function tables, a cell of the field's
- * page. */
-enum { UPPER_BANK = 1, FUNCTION_TABLE_BYTES = 0x20 };
 
 /* Where the next graphics set a script unpacks goes, the middle of bank $7F,
  * and the people and creatures loaded: none yet. */
@@ -164,7 +157,6 @@ void field_objects_start_afresh(GameState *g, Platform *pf)
  * overflow, which the defaults leave clear, and the openings carry Y from
  * the last default byte written ($FF). */
 enum { OPENINGS = 0xC058DE };
-enum { THE_DEFAULTS_LEAVE_Y = 0x00FF };
 
 /* The original's routines it calls: the map's own script, and the menus'
  * services, whose time the party's looks take. */

@@ -67,7 +67,7 @@ static uint16_t with_third_plane(uint16_t upper, uint8_t third, uint16_t mask)
 
 /* What the original leaves of the last tile it decoded: its descriptor, the
  * palette byte and mask it used, and the last row of a third plane. */
-enum { LEFT_ROW_SET = 0x12, LEFT_PALETTE_BYTE = 0x18, LEFT_MASK = 0x1A, LEFT_DESCRIPTOR = 0x20 };
+enum { LEFT_ROW_SET = 0x12 };
 static void leave_word(GameState *g, unsigned at, uint16_t v)
 {
     set_battle_scratch(g, at, (uint8_t)v);
@@ -98,9 +98,6 @@ static void decode_tile(GameState *g, uint16_t descriptor, uint16_t mask, uint16
     leave_third_plane(g, third); /* the screen effect's settings can read it (screen_setup.c) */
 }
 
-/* The original swaps rows through a cell; it is left the last row it moved. */
-enum { LEFT_SWAPPED = 0x24 };
-
 // $CD:13FE
 /* Flip a tile top to bottom: each half's rows in the other order. */
 static void flip_tile(GameState *g, uint16_t at)
@@ -115,9 +112,6 @@ static void flip_tile(GameState *g, uint16_t at)
         }
     }
 }
-
-/* The original counts the mirrored rows down in a cell. */
-enum { LEFT_ROWS_TO_MIRROR = 0x1C };
 
 // $CD:144A
 /* Mirror a tile left to right: every byte of its planes. */
@@ -175,11 +169,3 @@ void battle_decode_tiles(GameState *g, uint16_t row_set, uint16_t tiles)
     leave_row_end(g, descriptors, tiles);
 }
 
-/* ---- The entry ------------------------------------------------------------------------- */
-
-/* The row set comes in X, and the count of tiles in its cell; the setup
- * always decodes a whole row. It leaves A clear. */
-enum { TILE_COUNT = 0x22 };
-
-/* A whole row or less: the decode buffer holds three rows' tiles. */
-enum { MOST_TILES = 3072 / TILE_BYTES };

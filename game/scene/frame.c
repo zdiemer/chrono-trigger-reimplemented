@@ -39,10 +39,6 @@
 #include "vars.h"
 #include "wram.h"
 
-/* The NMI's two handlers, in bank C3: the frame's, and the one that only
- * acknowledges while the frame's work runs. */
-enum { FRAME_HANDLER = 0x08B3, HANDLER_WHILE_WORKING = 0x08C9 };
-
 /* The sound driver commands pausing sends: the effects stop, and unpausing
  * plays sound effect $44, panned to the middle. */
 enum { STOP_EFFECTS = 0xF2, PLAY_EFFECT = 0x18, UNPAUSE_EFFECT = 0x44, PAN_MIDDLE = 0x80 };
@@ -268,13 +264,6 @@ static bool song_to_send(GameState *g, uint8_t *song)
     return true;
 }
 
-/* Where the original's copy of the task list leaves Y (past the copy), which
- * the frame's tasks and the controller read's stops see. */
-enum { PAST_THE_COPY = 0x0970 };
-
-/* The JSR to the song's send pushes this. */
-enum { SEND_SONG_RETURN = 0x08C0 };
-
 /* ---- The tasks ------------------------------------------------------------------------------ */
 
 /* The tasks that are C (scene/title.c, scene/screen.c, scene/credit_pages.c,
@@ -306,15 +295,6 @@ static void end_the_task(GameState *g, SceneTaskList list, unsigned slot, TaskEn
     if (end.outcome == TASK_IS_DONE || end.outcome == TASK_HANDS_OVER)
         set_task_at(g, list, slot, end.next);
 }
-
-/* A list's loop calls a task from its own code (the frame list's at
- * $7E:3998, the vblank list's at $7E:39CF), with the data bank, the slot, P
- * and D saved under the call, and for the vblank list the direct page in
- * 8-bit A. A task that is done jumps to one of two exits in the loop, which
- * take it off the list, or hand its slot to the task in X; they unwind the
- * frames under the call and go on with the list. */
-enum { FRAME_TASK_CALL = 0x7E3998, VBLANK_TASK_CALL = 0x7E39CF };
-enum { THE_TASKS_READ_ANYTHING = 0 };
 
 TaskEnd scene_task_needs_the_machine(GameState *g, uint32_t routine, const char *what)
 {
@@ -570,5 +550,3 @@ void scene_vblank_while_working(GameState *g, Platform *pf)
     (void)g;
     (void)tm_ack_vblank(pf, PF_AT(0xC308CB));
 }
-
-// $7E:399B, $7E:39D2

@@ -306,9 +306,14 @@ enum { BLANKED_PAST_THE_PLANE = 0x1000 };
  * unpacked tiles, laid out in turn from $D800 in the second bank; the last
  * $800 bytes of it go to VRAM $5C00, and a vblank task of the program's goes on
  * with it. */
-enum { MOSAIC_TILES = 0x140, MOSAIC_TILE_BYTES = 0x20, MOSAIC_TILESET = SCENE_UNPACK_BUFFER, MOSAIC_NUMBERS = 0x7F2200 };
+enum {
+    MOSAIC_TILES = 0x140,
+    MOSAIC_TILE_BYTES = 0x20,
+    MOSAIC_TILESET = SCENE_UNPACK_BUFFER,
+    MOSAIC_NUMBERS = 0x7F2200,
+};
 enum { MOSAIC = 0x7FD800, MOSAIC_SENT = 0x7FE000, MOSAIC_SENT_BYTES = 0x800, MOSAIC_VRAM = 0x5C00 };
-enum { MOSAIC_TASK = 0x9CE2, MOSAIC_COUNTER = 0x7F8000 };
+enum { MOSAIC_TASK = 0x9CE2 };
 
 // $7E:860C
 static void lay_out_mosaic(GameState *g)
@@ -613,8 +618,14 @@ static uint16_t set_up_ending_with(GameState *g, Platform *pf, const EndingSteps
 /* The picture's frames, unpacked in the second bank and mirrored into place
  * from $5600: fifteen runs of sixteen rows, from the last run's rows up, each
  * row's 32 pixels from its 32nd back. */
-enum { MIRRORED_FRAMES = 0x7F5600, FIRST_RUN = 0x4E00, RUNS = 15, RUN_ROWS = 16, RUN_BYTES = 0x400, MIRROR_LAST = 0x20 };
-enum { PICTURE_ROW_BYTES = 0x40 };
+enum {
+    MIRRORED_FRAMES = 0x7F5600,
+    FIRST_RUN = 0x4E00,
+    RUNS = 15,
+    RUN_ROWS = 16,
+    RUN_BYTES = 0x400,
+    MIRROR_LAST = 0x20,
+};
 
 /* The scaler's output taken as full before the first picture, which so clears
  * all of it past its own end. */
@@ -789,10 +800,6 @@ static bool start_mode7_picture_with(GameState *g, Platform *pf, const EndingSte
 /* The picture behind the credits is a 32x32 map of a 4x4 block of tiles over
  * and over: row r's tiles are 4(r mod 4) to 4(r mod 4) + 3, round again. */
 enum { MAP_SIDE = 32, BLOCK_SIDE = 4 };
-
-/* The original writes the map a word at a time through the work RAM port, the
- * word's low byte through the address before the port's -- the sound CPU's
- * port 3, which it mirrors -- and leaves its counts at 0 in the scene's cells. */
 
 // $7E:8D24
 static void write_pattern_map(GameState *g)
@@ -1539,9 +1546,6 @@ static void scroll_bg2(const GameState *g, Platform *pf)
 
 /* ---- What the tasks take ----------------------------------------------------------------------- */
 
-/* The states the tasks are ports for, which their entries' guards and their
- * C both check: what isn't is the machine's. */
-
 /* The placing draws the tall picture's sixteen sprites at most. */
 enum { MOST_SPRITES = 16 };
 
@@ -1555,9 +1559,6 @@ static bool picture_upload_sized(const GameState *g)
 }
 
 static bool room_for_the_end(const GameState *g) { return scene_sprites_fit(g, scene_sprite_list_length(g, THE_END)); }
-
-/* The rider (RIDER), a sprite list of the program's with signed offsets,
- * behind the window's left edge and level with its top. */
 
 /* The sweep: the window's edges where it keeps them, and no corner on the
  * last line, nor the table's right side, which its drawing reads first: from
@@ -1711,10 +1712,6 @@ TaskEnd scene_ending_sweep_window(GameState *g, Platform *pf, unsigned slot)
         return machine_s(g, 0x7E9A0C, "a last scene's window the port doesn't sweep");
     return sweep_the_window(g, pf) == SWEEP_OVER ? task_is_done() : task_goes_on();
 }
-
-/* Back, Y is 0 as the pattern's writing left it, or without credits past the
- * frame tasks' list, as the block move that stopped them left it. */
-enum { PAST_THE_FRAME_TASKS = 0x0920 + FRAME_TASK_SLOTS * 2 };
 
 /* The scaling reads the picture's shape as a word, the gathering and placing
  * its low byte, which agree while the byte after it is 0, as every ending

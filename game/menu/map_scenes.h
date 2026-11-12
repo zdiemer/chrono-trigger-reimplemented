@@ -8,6 +8,7 @@
 #include "menu/object.h"
 #include <stdint.h>
 #include "state.h"
+#include "vars.h"
 
 /* Whether the running object is in view (or just out of it, its sprites
  * reaching in). */
@@ -21,7 +22,5 @@ void menu_scene_note_the_epoch_s_arrival(GameState *g);
 
 /* The drift's guard's state half. */
 bool menu_scene_drift_takes(const GameState *g, MenuObject self);
-
-/* The checked legacy adapters and their guards. */
 
 #endif

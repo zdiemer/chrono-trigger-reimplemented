@@ -174,8 +174,6 @@ static int8_t sprite_offset(const GameState *g, unsigned sprites, uint32_t descr
     return (int8_t)field_frame_offset_byte(g, description + offsets + n * OFFSET_BYTES + axis);
 }
 
-/* ---- For the original's code and shadow mode (field/scratch.h) -------------------------------- */
-
 /* ---- Drawing ------------------------------------------------------------------------------- */
 
 /* A run of the description's tiles, one after another from its place in the
@@ -339,7 +337,15 @@ static FrameBuild draw_next_frame(GameState *g, FieldObject obj)
  * them: eight sprites a row of tiles, the rows two tile rows apart. The
  * figure shows palette 1 at priority 2 whatever its object's palette is
  * (field_object_palette, which the frames the queue draws take). */
-enum { FIGURE_SPRITES = 24, FIGURE_TILES = FIGURE_SPRITES * TILES_A_SPRITE, FIGURE_FIRST_TILE = 0x40, FIGURE_SPRITES_A_ROW = 8, FIGURE_PALETTE = 1, FIGURE_PRIORITY = 2, FIGURE_FRAME = 0 };
+enum {
+    FIGURE_SPRITES = 24,
+    FIGURE_TILES = FIGURE_SPRITES * TILES_A_SPRITE,
+    FIGURE_FIRST_TILE = 0x40,
+    FIGURE_SPRITES_A_ROW = 8,
+    FIGURE_PALETTE = 1,
+    FIGURE_PRIORITY = 2,
+    FIGURE_FRAME = 0,
+};
 enum { FIGURE_VRAM = FIGURE_FIRST_TILE * VRAM_WORDS_A_TILE };
 enum { ATTRIBUTE_PALETTE_SHIFT = 1, ATTRIBUTE_PRIORITY_SHIFT = 4 };
 
@@ -475,7 +481,7 @@ bool field_frame_part_drawn(GameState *g, FieldObject obj)
  * its work at the old call boundary before reading the beam again. The
  * native program calls the state operation. The legacy result in carry
  * says whether the frame has more parts to draw. */
-enum { DRAW_A_FRAME = 0xC0CAD9, THE_FIRST_OF_SEVERAL = 0xC0CAAE, THE_ONLY_ONE = 0xC0CAC2 };
+enum { DRAW_A_FRAME = 0xC0CAD9 };
 
 static FrameDrawing draw_the_frame(void *ctx, FieldObject obj, bool alone)
 {
@@ -489,17 +495,6 @@ static FrameDrawing draw_the_frame(void *ctx, FieldObject obj, bool alone)
 }
 
 void field_queued_frames_drawn(GameState *g, Platform *pf) { (void)draw_queued_frames(g, pf, draw_the_frame, g); }
-
-// $C0:E12A
-/* The current object, in X too. It returns with 16-bit index registers
- * whatever it came with, as the original does. Of what it leaves, two are
- * read after it: the overflow, which the last sum of the drawing (a tile's
- * place in the build bank, well below $8000) leaves clear, and which goes on
- * round the main loop to the menus' entry, as the frame builder's does; and Y,
- * at the description's last byte (the last sprite's Y offset), which the event
- * engine's dispatch has live after the command that loads the figure
- * ($C0:47E5) returns. */
-enum { FIGURE_Y_AFTER = FIGURE_TILES * WORDS_A_TILE_NAME + FIGURE_SPRITES * OFFSET_BYTES - 1 };
 
 // $C0:CB0A
 /* The guard: the current object's pictures where the port reads them as the

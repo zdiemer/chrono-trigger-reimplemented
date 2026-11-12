@@ -39,9 +39,6 @@ void menu_queue_fixed_upload(GameState *g, uint16_t record)
 
 /* ---- The entries ------------------------------------------------------------------------- */
 
-/* Where the queue is, as the original's block move addresses it. */
-enum { QUEUE_ADDRESS = 0x0C00 };
-
 /* A step that queues `uploads` finds the queue holding whole records, with
  * room for them (it holds 32). */
 enum { QUEUE_HOLDS_BYTES = 32 * MENU_UPLOAD_BYTES };

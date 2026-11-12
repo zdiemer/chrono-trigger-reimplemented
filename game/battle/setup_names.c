@@ -64,9 +64,6 @@ enum { NO_KIND = 0x8000 };
 
 bool setup_enemy_kind_present(const GameState *g, uint8_t kind) { return !(battle_enemy_kinds(g, kind) & NO_KIND); }
 
-/* The original counts the kinds in its working cells by twos, and keeps the
- * name's place in the names ahead of the conversion. */
-
 // $CC:ED03
 void setup_enemy_name_text(GameState *g, uint8_t kind, uint8_t text[NAME_TILES])
 {
@@ -86,10 +83,4 @@ void setup_keep_enemy_name_tiles(GameState *g, uint8_t kind, const NameTiles *ti
         set_battle_enemy_name_tiles(g, at + ENEMY_NAME_ROW + i, tiles->marks[i]);
     }
 }
-
-/* The buffer as the last conversion leaves it. The original writes a name's
- * text, and its end, over the rows the conversion before it left, whose
- * blanks follow it: `written` bytes, a short name's six or an enemy's
- * thirteen (its eleven and two ends). */
-enum { SHORT_NAME_WRITTEN = SHORT_NAME + 1, ENEMY_NAME_WRITTEN = ENEMY_NAME + 2 };
 

@@ -10,8 +10,6 @@
 #include "state.h"
 #include "vars.h"
 
-/* The registered entries (battle/setup.c). */
-
 /* The battle's state set up ($CC:E2E4), and the objects' graphics
  * ($CC:ED87), whose load the vblank handler then makes a step a frame; and
  * the state's guard's state half: a party, enemies and remembered cursors
@@ -90,11 +88,5 @@ bool setup_enemies_are_real(const GameState *g);
  * after it; `cell` is the original's direct-page address. Nothing in game/
  * reads them back. */
 static inline void setup_leave(GameState *g, uint8_t cell, uint8_t v) { set_battle_work(g, cell - 0x80u, v); }
-
-static inline void setup_leave_word(GameState *g, uint8_t cell, uint16_t v)
-{
-    setup_leave(g, cell, (uint8_t)v);
-    setup_leave(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
-}
 
 #endif

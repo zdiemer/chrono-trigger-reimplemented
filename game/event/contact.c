@@ -188,13 +188,6 @@ static Search search_before_the_leader(const GameState *g, FieldLeader leader)
     return r;
 }
 
-/* For the original's code and shadow mode: the search keeps the leader's
- * facing doubled in the second scratch word and its position in two cells
- * of the field's page ($C3, $C5); the last object it measured leaves the
- * overflow of its last subtraction, along the way or, where the object was
- * near enough along, across. */
-enum { CELL_LEADER_X = 0xC3, CELL_LEADER_Y = 0xC5 };
-
 /* The original steps its index down the slots with the checks spelled out
  * for each, where the port reads a byte or two a slot: what the port charges
  * is that difference, a pass for every slot and more for each it measures,

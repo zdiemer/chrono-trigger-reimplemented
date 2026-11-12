@@ -56,17 +56,15 @@ const EventOpcode *event_opcode(uint8_t opcode)
     return by_opcode[opcode];
 }
 
-/* ---- What the port takes -----------------------------------------------------------------
+/* ---- What a command may reach -----------------------------------------------------------
  *
  * The operations reach the object tables by object, where the original
  * indexes them with the object's offset (field/object.h); the two agree for
  * the objects the game makes, which are all even offsets inside the tables.
- * An odd offset, or one past a table, reads the tables' neighbours in the
- * original's memory. And they read operands from the script buffer, which
- * ends with the bank: a command in its last bytes would read its operands
- * through the next bank's mirror of low RAM, where they could be the cells it
- * writes. No script is that long, and no game object odd or past the 64, so
- * a command outside these bounds breaks a checked contract. */
+ * And they read operands from the script buffer, which ends with the bank: a
+ * command in its last bytes would read past it. No script is that long, and
+ * no game object odd or past the 64, so a command outside these bounds breaks
+ * a checked contract. */
 
 /* The bytes a command's operands are read from: its own, and at least
  * eight (a row may decode operands its shorter forms don't have). */
@@ -166,7 +164,16 @@ enum { FACING_BIT = 0x80, TILE_BITS = 0x7F };
  * writes its own over them from the low nibble's on; the screen's names the
  * run's first of the 256, and its length in colours or the bytes of its own.
  * Colours of the script's own follow a word, their bytes' count plus two. */
-enum { STOP_FORM = 0x00, ROTATE_DOWN_FORM = 0x20, ROTATE_UP_FORM = 0x30, FADE_TO_WHITE_FORM = 0x40, FADE_TO_BLACK_FORM = 0x50, COLOURS_FORM = 0x80, FORM_TYPE = 0xF0, FORM_LOW = 0x0F };
+enum {
+    STOP_FORM = 0x00,
+    ROTATE_DOWN_FORM = 0x20,
+    ROTATE_UP_FORM = 0x30,
+    FADE_TO_WHITE_FORM = 0x40,
+    FADE_TO_BLACK_FORM = 0x50,
+    COLOURS_FORM = 0x80,
+    FORM_TYPE = 0xF0,
+    FORM_LOW = 0x0F,
+};
 
 /* A jump is by the distance in its jump byte, forward or back from that byte. */
 static EventStep jump(GameState *g, const EventOpcode *row, uint16_t at)

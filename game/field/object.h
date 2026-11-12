@@ -333,7 +333,15 @@ typedef enum {
  * and those the party also shows on its own (field/party.h): running against
  * something that stops it, the pose the leader holds while the player picks
  * an answer, climbing, and a fidget when it has stood about a while. */
-enum { ANIMATION_STAND = 0, ANIMATION_WALK = 1, ANIMATION_RUN = 6, ANIMATION_RUN_ON_THE_SPOT = 0x17, ANIMATION_CHOOSING = 0x19, ANIMATION_CLIMB = 0x1B, ANIMATION_FIDGET = 0x21,  };
+enum {
+    ANIMATION_STAND = 0,
+    ANIMATION_WALK = 1,
+    ANIMATION_RUN = 6,
+    ANIMATION_RUN_ON_THE_SPOT = 0x17,
+    ANIMATION_CHOOSING = 0x19,
+    ANIMATION_CLIMB = 0x1B,
+    ANIMATION_FIDGET = 0x21,
+};
 
 ObjectAnimationMode object_animation_mode(const GameState *g, FieldObject obj);
 /* Hold a frame, as a script's holding does, with nothing else of its

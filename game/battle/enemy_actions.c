@@ -160,7 +160,15 @@ DrawnAction enemy_draw_one_of_four(GameState *g, ScriptPlace at)
 }
 
 /* How each action is chosen; the other actions need nothing chosen. */
-typedef enum { CHOOSE_NOTHING, CHOOSE_POSE, CHOOSE_AIM, CHOOSE_ONE_OF_FOUR, FORGIVE, NOTE_NUMBER, NEED_BEATEN } ChoiceKind;
+typedef enum {
+    CHOOSE_NOTHING,
+    CHOOSE_POSE,
+    CHOOSE_AIM,
+    CHOOSE_ONE_OF_FOUR,
+    FORGIVE,
+    NOTE_NUMBER,
+    NEED_BEATEN,
+} ChoiceKind;
 
 typedef struct {
     ChoiceKind choice;
@@ -524,7 +532,10 @@ static uint8_t die(GameState *g, uint8_t number, uint8_t message)
  * block of the combatant in the battle slot of its enemy number (as the
  * original indexes it); nothing again; start the battle's frame count over;
  * count its count up; or set that flag. */
-enum { FLAG_NOTHING = 0x80, FLAG_COUNT_OVER = 0x40, FLAG_CLEAR = 0x20, FLAG_NOTHING_EITHER = 0x10, FLAG_FRAMES_OVER = 0x08, FLAG_COUNT_UP = 0x04, FLAG_SET = 0x02, STAT_FLAG = 0x02,  };
+enum {
+    FLAG_NOTHING = 0x80, FLAG_COUNT_OVER = 0x40, FLAG_CLEAR = 0x20, FLAG_NOTHING_EITHER = 0x10,
+    FLAG_FRAMES_OVER = 0x08, FLAG_COUNT_UP = 0x04, FLAG_SET = 0x02, STAT_FLAG = 0x02,
+};
 
 static void flags(GameState *g, uint8_t which)
 {

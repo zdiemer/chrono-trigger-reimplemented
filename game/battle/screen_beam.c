@@ -124,10 +124,7 @@ static WindowSides sides_of(Corner c[CORNERS], Slope slopes[EDGES])
 /* What the original leaves of the drawing: the corners in their order, the
  * slopes and the top line in its cells, and of the work RAM port it draws
  * through, where it stops and what its word writes leave on port 3. */
-enum { CORNER_CELLS = 0x12, SLOPE_CELLS = 0x03, TOP_LINE_CELL = 0x0F, EDGE_CELLS = 0x0B };
-
-/* Working out a slope leaves the columns over the lines in the divider; the
- * last edge's ends and lines stay in the cells. */
+enum { CORNER_CELLS = 0x12, SLOPE_CELLS = 0x03, EDGE_CELLS = 0x0B };
 
 // $D1:F9E7
 /* Draw corners sorted by line into the coming frame's window table, as
@@ -208,18 +205,3 @@ static bool names_a_quad_that_fits(const GameState *g, const ScreenCommand *c)
 SCREEN_OPCODES(screen_beam_opcodes,
     { 0xF4, OPERATION(beam), .needs = names_a_quad_that_fits, .length = 1, .quad = BYTE(0) },
 );
-
-/* ---- The entries ------------------------------------------------------------------------ */
-
-/* The rasterizer's own entries find the corners in the battle page's low
- * cells, as its callers hand them over (CORNER_CELLS), and the edges' ends and
- * lines at EDGE_CELLS. */
-
-/* The guards: the rasterizer runs with the data bank on the I/O registers it
- * draws through, and A's high byte clear; the quadrilateral drawn is one of
- * the two; the corners it is handed are sorted by line, and on an odd frame
- * the bottom one is within the screen, so that the lines it draws stay in the
- * table. */
-
-/* $D1:F9E7, entered with the corners sorted in the cells and the window in
- * bit 0 of battle_window_quad_index. */

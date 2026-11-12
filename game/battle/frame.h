@@ -76,10 +76,6 @@ void battle_keep_animations_off_the_cycle(GameState *g);
 
 /* Fill the layers' per-line scroll tables for this frame, in a mode. */
 void battle_scroll_layers(GameState *g, BattleScrollMode mode);
-/* The frame work's scroll, in whichever mode the battle is in (the call to the
- * original's dispatch where A's high byte, which it indexes with, isn't
- * clear). False where the call didn't come back as the battle runs. */
-
 /* This frame's screen shake, across and down, put on the layers it moves;
  * and the palette presets a screen effect asked for, started. */
 void battle_shake_screen(GameState *g);
@@ -100,12 +96,6 @@ void battle_send_vblank_uploads(GameState *g, Platform *pf);
 /* What those uploads read is inside the tables they read (the guards'
  * part: the graphics object is a combatant's). */
 bool battle_vblank_uploads_in_range(const GameState *g);
-/* And a queued transfer or a block of tiles isn't sent from over the scratch
- * cells or the stack the transfers use. */
-bool battle_transfers_apart(const GameState *g, uint16_t stack);
-/* ... and off the whole of the stack's area, where no machine says where its
- * top is (the program's C). */
-bool battle_transfers_keep_off_the_stack(const GameState *g);
 
 /* ---- display.c ----------------------------------------------------------------------------- */
 
@@ -129,10 +119,6 @@ void battle_arrange_line_effects(GameState *g, uint8_t arrangement);
 /* The rippling background's frame: its lines' sways a step on every fourth
  * frame, or none while background rows 2-4 are moved. */
 void battle_ripple_background(GameState *g);
-/* What the arrangement's block moves leave of the registers, for the
- * original's code after it: A clear, and Y just past the window's second
- * table. */
-
 /* ---- frame.c ------------------------------------------------------------------------------- */
 
 /* Hide every sprite but the menu's cursors, before the objects draw. */
@@ -168,13 +154,6 @@ bool battle_load_and_run_battlefield(GameState *g, Platform *pf, uint16_t battle
 /* The layers' maps and scroll and the screen's settings below the split, as
  * the field hands them to the battle. */
 void battle_take_the_start_settings(GameState *g);
-
-/* ---- The guards (registry .guard) ------------------------------------------------------ */
-
-/* On the battle's page with the data bank $7E, and the mode one the dispatch
- * has; what the frame work and the frame update read in range (frame.c); the
- * scroll mode one of the four (scroll.c); the vblank
- * uploads in range, and a block of tiles apart (uploads.c). */
 
 /* ---- As C (frame.c, display.c) ---------------------------------------------------------------- */
 

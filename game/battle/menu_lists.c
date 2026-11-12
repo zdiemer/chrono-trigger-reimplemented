@@ -31,7 +31,12 @@
 
 /* The list's entries: a tech's id, or one of the marks (choosing.h's list of
  * twenty entries a member, menu_window.c's view of the same). */
-enum { UNNAMED_ENTRY = 0xFB, DOUBLE_TECHS_HEADING = 0xFC, TRIPLE_TECHS_HEADING = 0xFD, FIRST_BLANK_ENTRY = 0xFE,  };
+enum {
+    UNNAMED_ENTRY = 0xFB,
+    DOUBLE_TECHS_HEADING = 0xFC,
+    TRIPLE_TECHS_HEADING = 0xFD,
+    FIRST_BLANK_ENTRY = 0xFE,
+};
 
 bool battle_tech_entry_is_a_tech(uint8_t entry) { return entry < UNNAMED_ENTRY; }
 
@@ -41,7 +46,14 @@ static bool is_tech(uint8_t entry) { return battle_tech_entry_is_a_tech(entry); 
  * is two lines of the list's tilemap; its parts are in columns: a gap of three
  * before the name, the name's eleven, a gap of four after; a heading spans all
  * eighteen from the gap. */
-enum { ROWS_LAID_OUT = 4, GAP_COLUMN = 3, GAP_CELLS = 3, NAME_COLUMN = 6, AFTER_NAME_COLUMN = 17, AFTER_NAME_CELLS = 4 };
+enum {
+    ROWS_LAID_OUT = 4,
+    GAP_COLUMN = 3,
+    GAP_CELLS = 3,
+    NAME_COLUMN = 6,
+    AFTER_NAME_COLUMN = 17,
+    AFTER_NAME_CELLS = 4,
+};
 
 static void list_put(GameState *g, unsigned line, unsigned column, uint8_t tile)
 {
@@ -104,11 +116,7 @@ static uint8_t list_start(const GameState *g) { return setup_member_tech_list_st
 /* The cells the original lays the list out in: the list's start (over the
  * multiplier's product), where it is in the lists and its rows, in bytes of
  * the tilemap; and of the last tech it named, its id and four times it. */
-enum { CELL_AT = 0x80, CELL_TILEMAP_AT = 0x82, CELL_SCROLL = 0x86, CELL_ROWS_LEFT = 0x87, CELL_ROWS_DONE = 0x88, CELL_ID = 0x8E, CELL_ID_TIMES_FOUR = 0x90, ROW_BYTES = 0x80 };
-
-/* The buffer holds what the last row put there: a tech's name converted, a
- * heading's tiles over blanks, or blanks; the converted text is the last
- * tech's. */
+enum { ROW_BYTES = 0x80 };
 
 // $C1:0A88, $C1:0B0B
 void battle_lay_out_tech_list(GameState *g)
@@ -146,7 +154,18 @@ void battle_mark_tech_rows(GameState *g)
  * the list leaves out: it takes the eleven bytes after it (the last the next
  * name's icon), and shows ten of the name's tiles and eleven of the marks
  * above them. */
-enum { ITEM_LIST_LINE = 7, ITEM_LIST_LINES = 6, ITEM_ROWS = 3, ITEM_NAME_COLUMN = 3, ITEM_NAME_GLYPHS = 10, ITEM_COLON_COLUMN = 14, ITEM_COUNT_COLUMN = 15, ITEM_WORD_COLUMN = 22, TILE_COLON = 0x5F, NAME_ICON = 1 };
+enum {
+    ITEM_LIST_LINE = 7,
+    ITEM_LIST_LINES = 6,
+    ITEM_ROWS = 3,
+    ITEM_NAME_COLUMN = 3,
+    ITEM_NAME_GLYPHS = 10,
+    ITEM_COLON_COLUMN = 14,
+    ITEM_COUNT_COLUMN = 15,
+    ITEM_WORD_COLUMN = 22,
+    TILE_COLON = 0x5F,
+    NAME_ICON = 1,
+};
 static const uint8_t ITEM_WORD[] = { 0xA8, 0xCD, 0xBE, 0xC6 };
 
 /* An item whose record's flags have the top bit is for some members only:
@@ -190,17 +209,6 @@ static void lay_out_item_row(GameState *g, unsigned row, unsigned record, uint8_
     for (unsigned i = 0; i < sizeof ITEM_WORD; i++)
         window_put(g, window_cell(glyphs_line, ITEM_WORD_COLUMN + i), ITEM_WORD[i], attributes);
 }
-
-/* The cells the original lays the list out in: the member, the record's place
- * (five bytes a record), the window's place in bytes, the rows done; and of
- * the last item it listed, the item, four times it and its attributes (the
- * list's top in the item's cell where it listed none). */
-enum { CELL_RECORD_AT = 0x80, CELL_WINDOW_AT = 0x82, CELL_ITEM = 0x84, CELL_ROW = 0x86, CELL_ITEM_TIMES_FOUR = 0x8E, CELL_MEMBER = 0x96, CELL_ATTRIBUTES = 0x98 };
-
-/* The buffer holds the last item's name converted. The original copies the
- * name in without blanking the buffer first, so the text it copies out has,
- * past the name's end, what the buffer held: blanks after an item converted
- * before it in the same list, else what the last conversion left. */
 
 // $C1:095D, $C1:09B0
 void battle_lay_out_item_list(GameState *g, uint8_t top)

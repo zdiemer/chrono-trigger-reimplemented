@@ -921,10 +921,6 @@ void party_start_on_the_map(GameState *g)
 
 /* ---- The entries -------------------------------------------------------------------------------- */
 
-/* The walk and the screen's recentring run the layers' scroll and the
- * screen's edges after them, the original's ($C0:91AC, $C0:93E1), on the
- * layers' page with the field's pushed. */
-
 /* The walk and the screen's step back toward the party, each with the layers
  * scrolled after it -- as C, or on the machine by the original's calls (the
  * recentring's first step from a call of its own) -- false where the scroll

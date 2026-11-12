@@ -58,10 +58,6 @@ typedef struct {
     uint8_t tile, plane_pair, row;
 } Offsets;
 
-/* The offsets as the generator leaves them in the scene's cells, the
- * destination's page moved on past the last; nothing reads them again but the
- * row step (below). */
-
 // $C3:09E9
 /* Write the routine: pairs store from the page in `destination` on, and load
  * from `source` on. The source base stays in the scene's cells, where the
@@ -120,11 +116,6 @@ void scene_write_matrix_code_for(GameState *g, uint16_t destination, uint16_t so
 
 uint16_t scene_matrix_writer_leaves_y(void) { return STRIPS * 2; }
 
-/* Entered with 16-bit index registers: X the first destination page's
- * address, Y the source base. The routine sets the direct page and the data
- * bank to 0 itself, and the overflow is its last sum's, the tile step's 28 + 4,
- * which is clear. */
-
 /* ---- The regrouping --------------------------------------------------------------------------- */
 
 /* Where the scaler leaves the picture, in the bank the routine is entered
@@ -153,9 +144,6 @@ void scene_gather_picture_into_tiles(GameState *g)
         }
     }
 }
-
-/* Entered with 16-bit A. The routine moves the direct page as it goes, which
- * its callers put back; nothing it leaves in the registers is read. */
 
 /* ---- The main loop's scaling ------------------------------------------------------------------- */
 

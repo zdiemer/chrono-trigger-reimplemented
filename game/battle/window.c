@@ -123,9 +123,6 @@ static void show_name_plain(GameState *g, WindowLayout layout, unsigned member)
     }
 }
 
-/* The name's tiles, counted down in a work cell. */
-enum { NAME_COUNT = 0x8E };
-
 // $C1:0311
 /* A member's line: its name, its HP (then its maximum in the first layout),
  * its MP, and the gauge in the others. */
@@ -176,10 +173,6 @@ static void put_enemy_name(GameState *g, WindowCell at, unsigned kind)
                    battle_enemy_name_tiles(g, ENEMY_NAME_TILES * kind + ENEMY_NAME_LENGTH + 1 + i), TEXT_PLAIN);
     }
 }
-
-/* The original counts the lines through the list in its work cells: the loop's
- * index, the next line's place (bytes), and the tiles left of a name. */
-enum { LIST_INDEX = 0x80, LIST_PLACE = 0x84, TILEMAP_BYTES_PER_CELL = 2 };
 
 static void list_enemy_kinds(GameState *g)
 {
@@ -242,9 +235,6 @@ static void put_frame_cell(GameState *g, WindowCell cell, unsigned from)
     set_battle_window_frames_tilemap_attributes(g, cell, battle_command_frame_attributes(g, from));
 }
 
-/* The same, and whether it leaves the border out. */
-enum { LEAVES_BORDER_OUT = 0x84 };
-
 // $C1:0929
 static void put_frame(GameState *g, unsigned slot, bool beside_another)
 {
@@ -279,10 +269,6 @@ void window_put_cursor(GameState *g, WindowCell cell)
     window_set_tile(g, (WindowCell)(cell + WINDOW_COLUMNS), TILE_CURSOR + 2);
     window_set_tile(g, (WindowCell)(cell + WINDOW_COLUMNS + 1), TILE_CURSOR + 3);
 }
-
-/* Where the original works out the windows' places: a third of the member's
- * window's offset (bytes), on its way to the whole, and then the whole of the
- * slot's where it draws the cursor. */
 
 // $C1:0872
 /* The member whose menu is open loses the command window's cursor column, the

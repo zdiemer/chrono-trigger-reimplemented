@@ -97,7 +97,13 @@ enum { MAIN_MENU_LINE_EFFECTS = 0x03, BANDS_STAGED = 0x9750, BANDS = 0x9080, BAN
  * one the next two, the one above flipped upside down. An arrow stands a
  * pixel right of the icon, sixteen lines below it or above it. */
 enum { ARROW_BELOW = MENU_MAIN_MENU_OPTIONS, ARROW_ABOVE = MENU_MAIN_MENU_OPTIONS + 1 };
-enum { ARROW_TILE = 0x22, ARROW_BELOW_ATTRIBUTES = 0x3E, ARROW_ABOVE_ATTRIBUTES = 0xBE, ARROW_RIGHT = 1, ARROW_LINES = 16 };
+enum {
+    ARROW_TILE = 0x22,
+    ARROW_BELOW_ATTRIBUTES = 0x3E,
+    ARROW_ABOVE_ATTRIBUTES = 0xBE,
+    ARROW_RIGHT = 1,
+    ARROW_LINES = 16,
+};
 
 /* The arrows' colours go to the last three of the palette. */
 enum { PALETTE_COLOURS = 256, ICON_COLOURS = 0x80 };

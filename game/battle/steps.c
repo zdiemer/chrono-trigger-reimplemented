@@ -16,13 +16,6 @@
 #include "battle/steps.h"
 #include "charge.h"
 
-/* The steps' routines read the accumulator as the original's table lookup
- * leaves it (the step doubled) and the carry. The frame's work and an
- * action's showing may also read the overflow flag as the asker leaves it
- * (liveness can't rule that out for them), which the dispatch passes on
- * untouched; the others don't. Their askers read the accumulator and the
- * carry after (the calling convention checks both). */
-
 /* The routine of each step, its hand port where the dispatch runs it on the
  * machine, what it doesn't read of what the dispatch hands it, and the step
  * as C. Setup leaves saveable waits; its return continuation restores the
@@ -42,10 +35,6 @@ static const struct { uint32_t routine; bool (*run)(GameState *, Platform *); } 
 };
 
 enum { STEP_COUNT = sizeof STEPS / sizeof STEPS[0] };
-
-/* Where the dispatch keeps the asker's registers, below the asker's return
- * address: A's low byte, then X and Y, each high byte first. */
-enum { KEPT_X_BELOW = 2, KEPT_Y_BELOW = 4, KEPT_REGISTER_BYTES = 2 };
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 

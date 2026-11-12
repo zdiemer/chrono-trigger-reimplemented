@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "state.h"
+#include "vars.h"
 
 /* Build the per-line colour math table the menus show from the next frame,
  * from the records the screen left (menu_math_records), and put line-effect
@@ -44,7 +45,6 @@ MenuModeEnd menu_mode_runs(GameState *g, Platform *pf, uint8_t asked_for, uint16
 void menu_vblank(GameState *g, Platform *pf);
 void menu_line(GameState *g, Platform *pf);
 void menu_close(GameState *g, Platform *pf, bool for_the_game);
-enum { MENU_VBLANK_HANDLER = 0xC2840E, MENU_LINE_HANDLER = 0xC28472 };
 
 /* The mode on the machine */
 /* The mode at $C2:0000 (sprite objects): its own state started over (its
@@ -64,7 +64,7 @@ void menu_object_mode_starts(GameState *g, Platform *pf);
 void menu_object_set_up_the_screen(GameState *g, Platform *pf);
 
 /* The mode's vblank handler as C, and its line handler, which only returns. */
-enum { MENU_OBJECT_VBLANK_HANDLER = 0xC2015E, MENU_OBJECT_LINE_HANDLER = 0xC20345 };
+enum { MENU_OBJECT_VBLANK_HANDLER = 0xC2015E };
 void menu_object_vblank(GameState *g, Platform *pf);
 void menu_object_line(GameState *g, Platform *pf);
 

@@ -11,12 +11,6 @@
 #include "rom.h"
 #include "state.h"
 
-/* The built-in commands ($C0:5D37-$C0:5D6D): three runs of commands with no
- * header, which every script load copies to the end of the script buffer for
- * the commands and routines that point an object at them. `at` is the byte's
- * offset from the first run. */
-enum { BUILT_IN_COMMANDS_BYTES = 0x37 };
-
 /* The byte with bit n set ($C0:FF20), and the byte with every bit but n set
  * ($C0:FF28), for n = 0-7; the scripts' bit numbers index them directly, so a
  * larger one reads what follows the table. */

@@ -43,7 +43,15 @@ enum { COLORS = 256 };
 enum { SPRITE_GRAPHICS = 0x4000 };
 
 /* The rows of this file's tasks (below), which their entries run. */
-enum ScreenTaskRow { ROW_ANIMATE_PALETTES, ROW_FINISH_SPRITES, ROW_BRIGHTEN, ROW_DARKEN, ROW_MUSIC_FADES, ROW_DARKEN_IN_SILENCE_AND_END, ROW_DARKEN_AND_END };
+enum ScreenTaskRow {
+    ROW_ANIMATE_PALETTES,
+    ROW_FINISH_SPRITES,
+    ROW_BRIGHTEN,
+    ROW_DARKEN,
+    ROW_MUSIC_FADES,
+    ROW_DARKEN_IN_SILENCE_AND_END,
+    ROW_DARKEN_AND_END,
+};
 
 /* ---- The program stops ---------------------------------------------------------------------- */
 
@@ -119,8 +127,6 @@ static void upload_sprites(GameState *g, Platform *pf)
     set_scene_sprite_index(g, 0);
     set_scene_sprite_high_pointer(g, SCENE_SPRITE_HIGH_TABLE);
 }
-
-/* Nothing it leaves in the registers is read. */
 
 // $7E:380B
 /* The vblank task that sends the frame's sprites: the frame's last group of
@@ -363,8 +369,6 @@ void scene_send_unpacked(const GameState *g, Platform *pf)
     scene_send_unpacked_as(g, pf, scene_call_transfer_control(g, scene), scene_call_transfer_register(g, scene));
 }
 
-/* Returns with RTL; nothing it leaves in the registers is read. */
-
 /* ---- Resources copied as they are, and the palette made current ------------------------------ */
 
 /* The bank of work RAM the unpacker's destination names, by its bank byte's
@@ -427,10 +431,6 @@ void scene_use_loaded_palette(GameState *g)
     charge_block_move(g, PALETTE_BYTES);
 }
 
-/* As the program's code calls it, with 16-bit index registers: back with
- * 8-bit A, and A, X and Y as the block move and its count's step on leave
- * them, past the palettes. */
-
 /* ---- Per-line effects from descriptors --------------------------------------------------- */
 
 /* A table of descriptors, five bytes each, ended by a first byte of $FF: a
@@ -457,11 +457,6 @@ static LineEffectDescriptor read_descriptor(const GameState *g, uint16_t at)
     return (LineEffectDescriptor){ (uint8_t)head, (uint8_t)(head >> 8), table, (uint8_t)bank, (uint8_t)(bank >> 8) };
 }
 
-/* A `VidLineEffect` carries the transfer mode and the indirect bit and nothing
- * else, so a mode byte with any other bit set would be written back as a
- * different one. */
-enum { LINE_EFFECT_MODE_BITS = 0x47 };
-
 // $7E:36CC
 /* Program the per-line effects from the descriptors at `at`, one to each
  * channel from 0 up. The race's table drives window 1's left edge, the Mode 7
@@ -483,5 +478,3 @@ uint16_t scene_set_up_line_effects(const GameState *g, Platform *pf, uint16_t at
         at = (uint16_t)(at + DESCRIPTOR_BYTES);
     }
 }
-
-/* The overflow of stepping past a descriptor, which the program reads after. */

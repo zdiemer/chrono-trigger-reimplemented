@@ -97,7 +97,7 @@ enum { MAX_MP_HIGH = STAT_MAX_MP + 1, STANDING_MARK_BIT = 0x01, STANDING_MARK = 
  * the wait the soonest turn takes off the others. Only the fight's start sets
  * the first turns, and it overwrites them before anything reads them
  * (scaffolding). */
-enum { SLOT_AT = 0x02, PLACE_AT = 0x04, TAKEN_OFF_AT = 0x00 };
+enum { SLOT_AT = 0x02, PLACE_AT = 0x04 };
 
 static void start_turn(GameState *g, uint8_t slot, uint8_t wait)
 {

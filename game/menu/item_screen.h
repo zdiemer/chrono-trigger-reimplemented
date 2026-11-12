@@ -9,6 +9,7 @@
 
 #include "platform/video.h"
 #include "state.h"
+#include "vars.h"
 
 /* The screen's steps, as its main task runs them (menu_screen_step). */
 typedef enum {
@@ -38,7 +39,13 @@ enum { MENU_ITEMS_ROWS = 10 };
 
 /* ---- The commands above the list -------------------------------------------------------------- */
 
-typedef enum { COMMAND_POINTED_AT, COMMAND_LIST_CHOSEN, COMMAND_SORT_CHOSEN, COMMAND_NOTHING_CHOSEN, COMMANDS_LEFT } ItemsCommandChoice;
+typedef enum {
+    COMMAND_POINTED_AT,
+    COMMAND_LIST_CHOSEN,
+    COMMAND_SORT_CHOSEN,
+    COMMAND_NOTHING_CHOSEN,
+    COMMANDS_LEFT,
+} ItemsCommandChoice;
 
 /* What the frame's input does on the commands: choosing the list goes down
  * into it, choosing the sort sorts the party's items, going back leaves for
@@ -136,7 +143,13 @@ void menu_items_panel_put_away(GameState *g);
 /* What an item the menu can use does, from its data: restore HP or MP (one
  * member, or every member at once), restore by chance, rest the whole party,
  * raise one of a member's figures; or nothing. */
-typedef enum { USE_RESTORES, USE_DOES_NOTHING, USE_RESTORES_BY_CHANCE, USE_RESTS_THE_PARTY, USE_RAISES_A_FIGURE } ItemUseKind;
+typedef enum {
+    USE_RESTORES,
+    USE_DOES_NOTHING,
+    USE_RESTORES_BY_CHANCE,
+    USE_RESTS_THE_PARTY,
+    USE_RAISES_A_FIGURE,
+} ItemUseKind;
 ItemUseKind menu_items_look_up_use(GameState *g, uint8_t item);
 
 /* What a tonic does, as its effect's bits say (menu_use_effect): it
@@ -350,7 +363,5 @@ bool menu_close_item_users(GameState *g, Platform *pf);
  * state half, item_screen_bridge.c). */
 bool menu_items_can_move_the_picked(const GameState *g);
 bool menu_sort_items(GameState *g, Platform *pf);
-
-/* ---- The entries (game/menu/item_screen_bridge.c) --------------------------------------------- */
 
 #endif

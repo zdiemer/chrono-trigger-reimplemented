@@ -129,7 +129,11 @@ static void go_to_step(GameState *g, SettingsStep step) { set_menu_screen_step(g
  * cell holds a number rather than an on-off (the gauge, the battle speed,
  * the window design) its box says instead whether the cursor is choosing
  * it. */
-enum { BOX_CHOOSING_GAUGE = SETTINGS_CHOOSING_GAUGE, BOX_SETTING_SPEEDS = SETTINGS_SETTING_SPEEDS, BOX_CHOOSING_DESIGN = SETTINGS_CHOOSING_DESIGN };
+enum {
+    BOX_CHOOSING_GAUGE = SETTINGS_CHOOSING_GAUGE,
+    BOX_SETTING_SPEEDS = SETTINGS_SETTING_SPEEDS,
+    BOX_CHOOSING_DESIGN = SETTINGS_CHOOSING_DESIGN,
+};
 
 static bool box_ticked(const GameState *g, unsigned box) { return menu_settings_boxes(g, box) != 0; }
 static void tick_box(GameState *g, unsigned box, bool on) { set_menu_settings_boxes(g, box, on); }
@@ -216,7 +220,13 @@ static void show_gauge(GameState *g)
 /* Nine assignments: the six rows', the shoulders' two, which page lists one
  * way and the other, and a ninth that is copied with them and nothing
  * reads. */
-enum { ASSIGNMENTS = 9, ROWS_ASSIGNMENTS = MENU_SETTINGS_BUTTON_ROWS, PAGE_ONE_WAY = SETTINGS_PAGE_ONE_WAY, PAGE_THE_OTHER = 7, CHANGE_MARKS = 8 };
+enum {
+    ASSIGNMENTS = 9,
+    ROWS_ASSIGNMENTS = MENU_SETTINGS_BUTTON_ROWS,
+    PAGE_ONE_WAY = SETTINGS_PAGE_ONE_WAY,
+    PAGE_THE_OTHER = 7,
+    CHANGE_MARKS = 8,
+};
 enum { BUTTON_R = 0x10, BUTTON_L = 0x20 };
 
 /* A button's glyph, by its bit from the top (none, the ninth). */
@@ -616,7 +626,12 @@ void menu_settings_show_design(GameState *g)
 
 /* Choosing (or going back) starts or ends the choosing: the cursor points
  * at the design's meter meanwhile, and holds there against pushes. */
-enum { ON_THE_DESIGN_OPTION_X = 0x38, ON_THE_DESIGN_OPTION_Y = 0x3B, ON_THE_DESIGN_METER_X = 0x88, ON_THE_DESIGN_METER_Y = 0x37 };
+enum {
+    ON_THE_DESIGN_OPTION_X = 0x38,
+    ON_THE_DESIGN_OPTION_Y = 0x3B,
+    ON_THE_DESIGN_METER_X = 0x88,
+    ON_THE_DESIGN_METER_Y = 0x37,
+};
 
 bool menu_settings_toggle_design_choice(GameState *g)
 {
@@ -712,7 +727,15 @@ void menu_settings_take_gauge_layout(GameState *g)
 /* ---- The panel ------------------------------------------------------------------------------------ */
 
 enum { PANEL_FRAME = 0xC19C, PANEL_WINDOWS = 0xC1B9, PANEL_LINE_EFFECTS = 0x1C };
-enum { CAPTION_AT = 0x22, CAPTION_TILES = 12, CAPTION_LINE = 0x21FF, CAPTION_END_AT = 0x2E, CAPTION_END_TILES = 2, CAPTION_END = 0x21FB, UPLOAD_CAPTION = 0xFC4C };
+enum {
+    CAPTION_AT = 0x22,
+    CAPTION_TILES = 12,
+    CAPTION_LINE = 0x21FF,
+    CAPTION_END_AT = 0x2E,
+    CAPTION_END_TILES = 2,
+    CAPTION_END = 0x21FB,
+    UPLOAD_CAPTION = 0xFC4C,
+};
 
 // $C2:C2FF
 /* The main menu's fourth task held a frame longer while the panel draws;
@@ -1002,7 +1025,15 @@ static bool send(void *ctx)
 }
 
 /* Each option's handler as C, timed as its routine. */
-typedef enum { HANDLER_STEREO, HANDLER_FLIP, HANDLER_SPEEDS, HANDLER_GAUGE, HANDLER_CONTROLS, HANDLER_METER, HANDLER_DESIGN } HandlerKind;
+typedef enum {
+    HANDLER_STEREO,
+    HANDLER_FLIP,
+    HANDLER_SPEEDS,
+    HANDLER_GAUGE,
+    HANDLER_CONTROLS,
+    HANDLER_METER,
+    HANDLER_DESIGN,
+} HandlerKind;
 static const struct {
     uint32_t routine;
     HandlerKind kind;

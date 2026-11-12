@@ -91,13 +91,6 @@ typedef struct {
     uint16_t offset;
 } FieldFrameTable;
 
-/* The ground's slopes (field/walk.c): a tile whose shape is one of the 22
- * slopes is parted into its upper and its lower level by a line across it.
- * For each, how far a point's place across the tile is shifted down to rise
- * along the line (mirrored: counted from the tile's other side), where the
- * line starts, and which side of it is the upper level ($C0:9BF5, $C0:9C0B,
- * $C0:9C21, 22 bytes each). */
-enum { FIELD_SLOPES = 22 };
 typedef struct {
     uint8_t shift;
     bool mirrored;
@@ -270,14 +263,6 @@ static inline uint16_t field_frame_tile_word(const GameState *g, uint32_t at) { 
 
 static inline uint8_t field_frame_offset_byte(const GameState *g, uint32_t at) { return rom_read8(g, at); }
 
-/* A bank every address of which holds data -- the ROM's high banks and their
- * mirrors, or work RAM -- where a read never finds nothing to answer it and
- * takes what the bus last held. */
-static inline bool field_bank_always_answers(uint8_t bank)
-{
-    return (bank >= 0x40 && bank < 0x80) || bank >= 0xC0;
-}
-
 static inline uint8_t field_sprite_graphics_rom_bank(uint8_t named)
 {
     return named >= FIELD_SPRITE_GRAPHICS_FIRST_BANK && named < FIELD_SPRITE_GRAPHICS_LAST_BANK
@@ -378,13 +363,6 @@ static inline uint16_t field_window_design_colour(const GameState *g, uint8_t de
 static inline uint16_t location_record_place(uint16_t location)
 {
     return (uint16_t)(LOCATION_RECORD_BYTES * (location & LOCATION_NUMBER_BITS));
-}
-
-/* Whether a place is where one of the records starts, as every place the
- * game keeps is (location_record_place). */
-static inline bool location_record_is_one(uint16_t place)
-{
-    return place % LOCATION_RECORD_BYTES == 0 && place <= location_record_place(LOCATION_NUMBER_BITS);
 }
 
 static inline LocationDescription location_description_at(const GameState *g, uint16_t place)

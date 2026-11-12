@@ -233,8 +233,6 @@ static void load_the_next_step(GameState *g, Platform *pf)
 /* Every per-line effect on, the window's included. */
 enum { ALL_LINE_EFFECTS = 0xFF };
 
-/* The call-outs read nothing of the registers. */
-
 /* The palettes' animation, through the original's jump to it. */
 enum { PALETTE_ANIMATION = 0xFDFFF7 };
 
@@ -310,9 +308,6 @@ static void scroll_to_the_base(GameState *g, Platform *pf)
         vid_set_scroll(pf, PF_AT(sites[bg]), (VidLayer)bg, battle_bg_scroll_x(g, bg), battle_bg_scroll_y(g, bg),
                        VID_SCROLL_H | VID_SCROLL_V);
 }
-
-/* The arrangement in A; the carry comes back as the arrangement's top bit,
- * which the original's indexing shifts out. */
 
 /* The closing handler's calls: the palette sent (battle_send_palette's
  * routine, $CD:09CE), the field's line effects rebuilt for the picture the

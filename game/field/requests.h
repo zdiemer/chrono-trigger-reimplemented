@@ -23,6 +23,4 @@ FieldPass field_requests_handled(GameState *g, Platform *pf);
 bool field_requests_can_be_answered(const GameState *g);
 enum { FIELD_HANDLE_REQUESTS_ENTRY = 0xC00C76 };
 
-/* Continuations of the field's held frame waits. */
-
 #endif

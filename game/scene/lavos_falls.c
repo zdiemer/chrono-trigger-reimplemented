@@ -132,12 +132,16 @@ enum { SPRITE_COLOURS = 18, LAVOS_COLOURS = 20, PLANET_TILE_ORDER = 21 };
 
 /* Where things go: the unpacker's destinations, VRAM's places, the working
  * palette's colours copied to (Lavos's from colour 0, the sprites' from 128). */
-enum { LOW_RAM_BUFFER = 0x000C00, PLANET_TILES_VRAM = 0x4000, STAR_TILES_VRAM = 0x4600, LAVOS_VRAM = 0x0000, LAVOS_COLOURS_AT = 0x2200, SPRITE_COLOURS_AT = 0x2300, LAVOS_COLOURS_BYTES = 0x20, SPRITE_COLOURS_BYTES = 0x40,  };
+enum {
+    LOW_RAM_BUFFER = 0x000C00,
+    PLANET_TILES_VRAM = 0x4000, STAR_TILES_VRAM = 0x4600, LAVOS_VRAM = 0x0000,
+    LAVOS_COLOURS_AT = 0x2200, SPRITE_COLOURS_AT = 0x2300, LAVOS_COLOURS_BYTES = 0x20, SPRITE_COLOURS_BYTES = 0x40,
+};
 
 /* Lavos's picture comes packed two pixels to a byte, and Mode 7 takes a byte
  * a pixel: the spread makes each byte two, the low pixel first, from where the
  * unpacker left them in low RAM into the unpack buffer. */
-enum { SPREAD = 0x7E350E, PACKED_PIXELS = 0x7E0C00 };
+enum { PACKED_PIXELS = 0x7E0C00 };
 
 // $7E:350E
 static void spread_the_pixels(GameState *g, uint16_t packed)
@@ -148,11 +152,6 @@ static void spread_the_pixels(GameState *g, uint16_t packed)
         wram_write8(g, SCENE_UNPACK_BUFFER + 2u * n + 1, (uint8_t)(two >> 4));
     }
 }
-
-/* The original writes the pixels through the work RAM port, which it leaves
- * past them; and it reads the packed bytes by moving the stack onto them,
- * keeping its own stack pointer in a cell of the controller's (which the
- * field's reading of the controller writes before anything reads it). */
 
 /* The planet's sprite tiles are laid out in VRAM in the order their list
  * gives: each of the list's 96 entries names one of the tiles unpacked, sent
@@ -198,7 +197,13 @@ static void copy_into_the_first_bank(GameState *g, unsigned resource, uint16_t t
 /* The setup's steps that are other routines of the program's: a resource
  * unpacked by its unpacker, and the scripts' first step. The program takes
  * them as C, the machine's entry as calls of the original's. */
-typedef enum { UNPACK_LAVOS_PIXELS, UNPACK_PLANET_TILES, UNPACK_STAR_TILES, UNPACK_LAVOS_MAP, LAVOS_UNPACKS } LavosUnpack;
+typedef enum {
+    UNPACK_LAVOS_PIXELS,
+    UNPACK_PLANET_TILES,
+    UNPACK_STAR_TILES,
+    UNPACK_LAVOS_MAP,
+    LAVOS_UNPACKS,
+} LavosUnpack;
 
 static const struct {
     uint32_t site;
@@ -326,12 +331,6 @@ static bool set_up_lavos_falls_with(GameState *g, Platform *pf, const LavosFalls
     set_up_the_layers(g, pf);
     return true;
 }
-
-/* ---- On the machine ---- */
-
-/* The spread's call (from $7E:53E1) and its own pushes leave the stack four
- * below the setup's when it keeps the stack pointer. */
-enum { BELOW_THE_SETUP_S_STACK = 4 };
 
 /* ---- As C ---- */
 

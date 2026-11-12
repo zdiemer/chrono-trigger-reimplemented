@@ -30,7 +30,6 @@
 #include "menu/epoch.h"
 
 #include "charge.h"
-#include "menu/bridge.h"
 #include "cpu_io.h"
 #include "core/program.h"
 #include "menu/display.h"
@@ -118,7 +117,12 @@ static void sample_map_colours(GameState *g)
 /* The picture (menu/map_picture.h) is built in the mode's upload buffer
  * four map rows (a row of Mode 7 tiles, twelve) at a time and sent to the
  * plane's tiles from tile 1. */
-enum { MAP_COLUMNS = MENU_MAP_COLUMNS, MAP_ROWS = MENU_MAP_ROWS, PICTURE_TILES_ACROSS = MENU_MAP_PICTURE_TILES_ACROSS, PICTURE_TILES_DOWN = MENU_MAP_PICTURE_TILES_DOWN, TILE_ROW_BYTES = MENU_MAP_PICTURE_TILE_ROW, MAP_ROWS_A_TILE_ROW = MENU_MAP_ROWS_A_TILE_ROW, FIRST_PICTURE_TILE = 1,  };
+enum {
+    MAP_COLUMNS = MENU_MAP_COLUMNS, MAP_ROWS = MENU_MAP_ROWS,
+    PICTURE_TILES_ACROSS = MENU_MAP_PICTURE_TILES_ACROSS, PICTURE_TILES_DOWN = MENU_MAP_PICTURE_TILES_DOWN,
+    TILE_ROW_BYTES = MENU_MAP_PICTURE_TILE_ROW,
+    MAP_ROWS_A_TILE_ROW = MENU_MAP_ROWS_A_TILE_ROW, FIRST_PICTURE_TILE = 1,
+};
 enum { GROUP_BYTES = MENU_MAP_GROUP_BYTES, TOP_RIGHT = MENU_MAP_TOP_RIGHT, BOTTOM_RIGHT = MENU_MAP_BOTTOM_RIGHT };
 enum { BLACK = 0 };
 
@@ -240,9 +244,6 @@ static void place_map_picture(GameState *g, Platform *pf)
                            PF_GAME(RAM_MENU_MAP_NAME_TABLE + row * NAME_ROWS_SENT), NAME_ROWS_SENT,
                            VID_VRAM_LOW_BYTES, &after_low);
 }
-
-/* What each part of building the view leaves in the mode's cells. */
-enum { CELL_NAMES_LEFT = 0x00, CELL_NAMES_ROW = 0x01, CELL_BUFFER_AT = 0x05, CELL_NEXT_TILE = 0x08, CELL_NEXT_SOURCE = 0x0A, CELL_NEXT_VRAM = 0x0C, CELL_LAST_GROUP = 0x0E, CELL_NAMES_AT = 0x10, CELL_OVER_MAP = 0x13, CELL_LAND_GROUPS = 0x16, CELL_OVER_GROUPS = 0x19 };
 
 // $C2:63DF
 /* The map view's plane, from the world map just loaded: every tile's colour,
@@ -1036,7 +1037,12 @@ static void keep_dial_palette(GameState *g)
  * digits, one a period (a new object takes on the period of the one that
  * starts it, which counts them). */
 enum { DIAL_HANDLER = 0x6AC8, SPIN_HANDLER = 0x6F85, DIGIT_HANDLER = 0x7143 };
-enum { DIAL_SCRIPT = 0xC274B8, DIAL_SECOND_SCRIPT = 0xC27504, DIAL_LAST_SCRIPT = 0xC274AE, DIAL_ENDING_SCRIPT = 0xC274B3 };
+enum {
+    DIAL_SCRIPT = 0xC274B8,
+    DIAL_SECOND_SCRIPT = 0xC27504,
+    DIAL_LAST_SCRIPT = 0xC274AE,
+    DIAL_ENDING_SCRIPT = 0xC274B3,
+};
 
 static void start_dial_objects(GameState *g)
 {

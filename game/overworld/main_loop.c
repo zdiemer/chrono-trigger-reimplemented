@@ -34,7 +34,6 @@
 #include "charge.h"
 #include "field/main_loop.h"
 #include "core/program.h"
-#include "menu/bridge.h"
 #include "menu/display.h"
 #include "menu/epoch.h"
 #include "menu/menu.h"
@@ -51,10 +50,6 @@
 #include "ram.h"
 #include "vars.h"
 #include "wram.h"
-
-/* What the routines the loop calls read of the registers (the calling convention
- * checks each): nothing; the frames to wait in X and A's high byte, which the
- * wait hands on; and what the sound driver passes back. */
 
 /* ---- Putting the overworld aside -------------------------------------------------------- */
 
@@ -192,7 +187,12 @@ static void interrupts(const Loop *l, uint32_t site, bool on)
 }
 
 /* The scripts that fade the map out and in, and the map view's own. */
-enum { FADE_OUT = 0xC22EC1, FADE_IN = 0xC22EC4, FADE_OUT_TO_THE_MAP_VIEW = 0xC22EC7, FADE_IN_FROM_THE_MAP_VIEW = 0xC22ED0,  };
+enum {
+    FADE_OUT = 0xC22EC1,
+    FADE_IN = 0xC22EC4,
+    FADE_OUT_TO_THE_MAP_VIEW = 0xC22EC7,
+    FADE_IN_FROM_THE_MAP_VIEW = 0xC22ED0,
+};
 
 static void start_a_script(const Loop *l, uint32_t script)
 {
@@ -578,7 +578,7 @@ OverworldEnd overworld_runs(GameState *g, Platform *pf)
 }
 
 /* Where the original comes back from the menus, and its dispatch on the mode. */
-enum { BACK_FROM_THE_MENUS = 0xC22556, DISPATCH = 0xC223D2 };
+enum { DISPATCH = 0xC223D2 };
 
 /* ---- The held waits ---- */
 
@@ -598,7 +598,7 @@ enum { BACK_FROM_THE_MENUS = 0xC22556, DISPATCH = 0xC223D2 };
  * The halt, where the original spins with the interrupts off, is a held wait
  * of its own (HOLD_OVERWORLD_HALT): each pass stops at its head and the
  * runtime runs overworld_halt_entry again. */
-enum { FRAME_WAIT_LOOP = 0xC20348, AFTER_THE_WAIT = 0xC223D2,  };
+enum { FRAME_WAIT_LOOP = 0xC20348 };
 
 /* The field's start, which the world map leaves for, and the halt. */
 enum { HALT = 0xC2250D };

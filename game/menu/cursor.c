@@ -19,11 +19,12 @@
 #include "charge.h"
 #include "core/program.h"
 #include "core/input.h"
-#include "menu/bridge.h"
 #include "menu/menu_data.h"
 #include "platform/audio.h"
 #include "platform/input.h"
 #include "sound/sound.h"
+#include "vars.h"
+#include "port/vars_ram.h"
 
 /* ---- The sprites ------------------------------------------------------------------------------ */
 
@@ -228,9 +229,6 @@ static bool sound_goes_out(GameState *g, SoundEffectVoices voices, uint8_t sound
     return true;
 }
 
-/* The sounds a screen queued: the first of them, played at once. */
-enum { QUEUED_SOUND_6 = 0x02, QUEUED_SOUND_7 = 0x01 };
-
 /* ---- Places kept --------------------------------------------------------------------------------- */
 
 enum { PLACE_BYTES = 6 };
@@ -268,10 +266,6 @@ void menu_put_cursor_places_back(GameState *g)
     charge_block_move(g, MENU_CURSOR_PLACES_KEPT_COUNT * PLACE_BYTES);
 }
 
-// $C2:984A
-
-// $C2:E92D
-
 // $C2:E923
 
 /* What the cursor's reading leaves in the registers, which the screens'
@@ -291,13 +285,6 @@ MenuCursorRead menu_note_cursor_read(const GameState *g)
     vars_peek(false);
     return r;
 }
-
-/* Where the controller read doesn't take the buttons, the port stops where
- * the original does, with the stack the original's input has built by then:
- * its caller's flags, data bank, page and flags again (as the fast repeat's
- * test left them, the index registers passed through 8 bits on the way), and
- * the return into the input from the read. */
-enum { RETURN_FROM_THE_READ = 0x8489 };
 
 enum { SECOND_CONTROLLER = 1 };
 
@@ -330,10 +317,6 @@ bool menu_frame_input_taken(GameState *g, Platform *pf)
     return false;
 }
 
-/* The input runs on the menus' vblank page, with a data bank that reaches
- * low work RAM. */
-enum { MENUS_VBLANK_PAGE = 0x0D00 };
-
 void menu_hold_and_read_the_cursor(GameState *g)
 {
     set_menu_cursor_held(g, (uint8_t)(menu_cursor_held(g) + 1));
@@ -341,13 +324,6 @@ void menu_hold_and_read_the_cursor(GameState *g)
 }
 
 // $C2:E984
-
-/* The sounds on the machine. The driver's call is made from the one JSL the
- * original's routines share ($C2:EB1A), so a routine that plays one stands in
- * for its whole chain: the P it saves as it starts, the return of its call to
- * the send, and the call itself. What the driver doesn't read at the call
- * (the calling convention checks it): the accumulator's low byte, X, Y and the
- * flags. The accumulator holds the pan the original loads last before it. */
 
 /* The sound sent to the driver, from the original's one call. */
 static void send_the_sound(Platform *pf, SoundEffectVoices voices, uint8_t sound)

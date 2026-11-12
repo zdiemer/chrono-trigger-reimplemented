@@ -171,7 +171,7 @@ void fight_number_places(GameState *g)
  * member whose stats are added up, twice over (scaffolding); and the
  * equipment records' copies' three numbers, the last of which survive the
  * start (above). */
-enum { COUNTING_AT = 0x02, TECHS_MEMBER_AT = BATTLE_MEMBER_CELL, WORN_AT = BATTLE_MEMBER_CELL, COPY_TO_AT = BATTLE_NUMBER_TESTED, BYTES_AT = BATTLE_STAT_OFFSET_LOW, ADDING_UP_AT = 0x10 };
+enum { WORN_AT = BATTLE_MEMBER_CELL, COPY_TO_AT = BATTLE_NUMBER_TESTED, BYTES_AT = BATTLE_STAT_OFFSET_LOW };
 
 /* The equipment's records each member's block takes: the weapon's attack and
  * what goes with it, the helmet's and the armor's defence and modifier, and

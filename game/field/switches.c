@@ -149,7 +149,12 @@ SwitchPress field_press_switch(GameState *g, uint16_t step)
 /* A map tile's four entries in BG1's tile map in VRAM: where the tile is
  * from the screen's top left edge, on BG1's place in its tile map (which
  * wraps), with the layer's base. */
-enum { BG1 = 0, ENTRIES_A_TILE = FIELD_ENTRIES_A_MAP_TILE, COLUMN_BITS = FIELD_TILE_MAP_COLUMNS - 1, ROW_BITS = FIELD_TILE_MAP_ROWS - 1 };
+enum {
+    BG1 = 0,
+    ENTRIES_A_TILE = FIELD_ENTRIES_A_MAP_TILE,
+    COLUMN_BITS = FIELD_TILE_MAP_COLUMNS - 1,
+    ROW_BITS = FIELD_TILE_MAP_ROWS - 1,
+};
 
 /* A map tile's four tile map entries, as a chest's are kept. */
 enum { QUARTERS = FIELD_CHEST_ENTRIES_COUNT };
@@ -167,11 +172,6 @@ static TileEntries tile_entries(const GameState *g, int column, int row)
                             (uint16_t)(field_tile_map_index(x, below) + base),
                             (uint16_t)(field_tile_map_index(right, below) + base) } };
 }
-
-/* For the original's code and shadow mode: working out the entries leaves
- * the screen's edges as words in two of the page's scratch cells, and the
- * last entry's row times 32. */
-enum { ENTRIES_A_ROW = FIELD_TILE_MAP_HALF_COLUMNS };
 
 enum { REDRAW_CHEST = 0x02, REDRAW_SWITCH = 0x10 };
 
@@ -276,8 +276,6 @@ void field_redraw_changed_tiles(GameState *g, Platform *pf)
         set_field_tiles_to_redraw(g, (uint8_t)(waiting & ~REDRAW_CHEST));
     }
 }
-
-/* ---- The step, remembered ------------------------------------------------------------------ */
 
 /* ---- The steps remembered --------------------------------------------------------------- */
 

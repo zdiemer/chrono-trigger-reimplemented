@@ -859,7 +859,13 @@ bool menu_items_use_helps(const GameState *g) { return menu_use_helps(g) != 0; }
  * (their HP's three then their MP's): none but a 1 at the member's place,
  * the original's index taken in two bits. Their showing ($C2:8F6C) comes
  * next. */
-enum { SPARKLE_COLOURS = 4, FIRST_SPARKLE_COLOUR = 0x84, SHOWN_NONE = 0xFFFF, SHOWN_RAISED = 1, SHOWN_PLACE_BITS = 0x03 };
+enum {
+    SPARKLE_COLOURS = 4,
+    FIRST_SPARKLE_COLOUR = 0x84,
+    SHOWN_NONE = 0xFFFF,
+    SHOWN_RAISED = 1,
+    SHOWN_PLACE_BITS = 0x03,
+};
 
 void menu_items_show_the_raise(GameState *g)
 {

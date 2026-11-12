@@ -16,7 +16,6 @@
 
 #include "charge.h"
 #include "core/program.h"
-#include "menu/bridge.h"
 #include "menu/handlers.h"
 #include "platform/timing.h"
 #include "port/vars_ram.h"
@@ -277,22 +276,6 @@ bool menu_objects_run(GameState *g, Platform *pf)
 
 /* ---- On the machine ---- */
 
-/* The handler runs as the original's JSR at $C2:053E calls its jump through
- * the slot's handler (menu_object_handler, $C2:0553), which adds nothing to
- * the call but the jump: a ported handler as C, called here where the
- * registry would run its entry (its widths, decimal mode and guard), or the
- * retired overworld's where the shipping mode runs it and its contract holds
- * (overworld/entries.h), any other by the call, as the original. It says it
- * is done with the carry.
- * False where it came back in a way the loop can't go on from, or left the
- * running object elsewhere than a slot: the original then carries on from
- * the call. */
-enum { TURN_SITE = 0xC2053E };
-
-// $C2:048A
-
-// $C2:04D9
-
 // $C2:0F38
 
 /* Free every object slot: none of them runs a handler, and the first is the
@@ -303,5 +286,3 @@ void menu_free_every_object(GameState *g)
     for (unsigned o = 0; o < MENU_OBJECTS; o++)
         set_menu_object_slots_handler(g, o, 0);
 }
-
-// $C2:0471

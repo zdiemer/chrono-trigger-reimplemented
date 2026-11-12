@@ -20,7 +20,6 @@
 #include "charge.h"
 #include "core/program.h"
 #include "cpu_io.h"
-#include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/equipment.h"
 #include "menu/figures.h"
@@ -330,10 +329,6 @@ bool menu_member_rows_can_be_drawn_from(const GameState *g, uint8_t first)
 }
 
 bool menu_member_rows_can_be_drawn(const GameState *g) { return menu_member_rows_can_be_drawn_from(g, menu_member_scroll(g)); }
-
-// $C2:9E76
-
-// $C2:9EB0
 
 // $C2:A273
 

@@ -79,12 +79,6 @@ typedef struct {
     ScriptPlace actions_from; /* the actions being chosen from */
 } ScriptChoosing;
 
-/* How far the script has been read: each condition and action reads its
- * operands in order and the original keeps the place of the last it read.
- * The block's actions are looked for from there, after the first end marker
- * past it, and so is the next block; an operand byte that is the marker
- * (a number, an offset) moves where they are found, as in the original. */
-
 /* A choosing for `enemy`, with no pair under way and nothing failed. */
 ScriptChoosing enemy_choosing(GameState *g, uint8_t enemy);
 
@@ -129,7 +123,12 @@ enum { CONDITION_KINDS = 0x29, ACTION_KINDS = 0x17 };
 /* How a condition came out, for the block's testing to act on: the block
  * fails; its actions are chosen; it holds with nothing chosen; or its actions
  * are chosen and it fails all the same. */
-typedef enum { CONDITION_FAILS, CONDITION_HOLDS, CONDITION_HOLDS_UNCHOSEN, CONDITION_CHOOSES_BUT_FAILS } ConditionVerdict;
+typedef enum {
+    CONDITION_FAILS,
+    CONDITION_HOLDS,
+    CONDITION_HOLDS_UNCHOSEN,
+    CONDITION_CHOOSES_BUT_FAILS,
+} ConditionVerdict;
 
 typedef struct {
     ConditionVerdict verdict;

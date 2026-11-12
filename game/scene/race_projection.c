@@ -196,9 +196,6 @@ static uint16_t size_at(const GameState *g, uint16_t line)
     return scene_divider_quotient((uint16_t)(camera_height(g) << 8), (uint8_t)line) & SIZE_MASK;
 }
 
-/* The divider as the program leaves it: the height divided by the line, stored
- * as a word, its high byte in the next register. */
-
 /* Half the size, but no less than $40: what the picture's height and width are
  * worked out over. */
 enum { SMALLEST_HALF = 0x40 };

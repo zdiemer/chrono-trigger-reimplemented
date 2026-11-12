@@ -11,7 +11,10 @@
 /* The screen's rows: the active party's three, then the reserve's six, of
  * which four show at a time; the cursor's places are the active party's
  * rows, then the reserve's four shown. */
-enum { EXCHANGE_ACTIVE_ROWS = 3, EXCHANGE_RESERVE_ROWS = 6, EXCHANGE_ROWS = 9, EXCHANGE_RESERVE_SHOWN = 4, EXCHANGE_FIRST_RESERVE_PLACE = EXCHANGE_ACTIVE_ROWS,  };
+enum {
+    EXCHANGE_ACTIVE_ROWS = 3, EXCHANGE_RESERVE_ROWS = 6, EXCHANGE_ROWS = 9, EXCHANGE_RESERVE_SHOWN = 4,
+    EXCHANGE_FIRST_RESERVE_PLACE = EXCHANGE_ACTIVE_ROWS,
+};
 
 /* A row (menu_exchange_rows) holds a place of the party's record, with
  * EXCHANGE_ROW_STAYS where the story keeps its member in the active party;

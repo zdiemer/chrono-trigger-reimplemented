@@ -20,7 +20,6 @@
 
 #include "charge.h"
 #include "core/program.h"
-#include "menu/bridge.h"
 #include "menu/equipment.h"
 #include "menu/exchange.h"
 #include "menu/item_screen.h"
@@ -34,10 +33,6 @@
 #include "menu/tech_screen.h"
 #include "port/vars_ram.h"
 #include "vars.h"
-
-/* A step: the original's routine for it, in the menus' bank, its hand
- * port's machine entry, and the port as C where the program has it (from
- * inside the main task; false where it went no further). */
 
 /* Each screen's steps, in the order the screen names them. */
 typedef struct {
@@ -160,7 +155,7 @@ enum { MENUS_BANK = 0xC20000 };
  * the step's routine in, having pushed a return into the main task's wait
  * for the next frame (menu/tasks.c) first: a step returns to the wait as from
  * a call. */
-enum { THE_JUMP_TO_THE_STEP = 0xC2828E, THE_LOOP_S_WAIT = 0xC2826C };
+enum { THE_JUMP_TO_THE_STEP = 0xC2828E };
 
 /* As C, from inside the main task, timed as the step's own routine. */
 bool menu_run_the_screen_step(GameState *g, Platform *pf)

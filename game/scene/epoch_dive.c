@@ -423,10 +423,6 @@ static void flicker_the_lights(GameState *g, SceneDraw called_with, uint16_t slo
     set_needle(g, RIGHT_NEEDLE, needle_picture(d), RIGHT_GAUGE);
 }
 
-/* The program rewrites the needles through the work RAM port, which it
- * leaves past the right needle's sprites. */
-enum { NEEDLES_END = 0x8122, WORK_RAM_PORT_BANK = SCENE_LOWER_WORK_RAM };
-
 /* The line effects' tables run Mode 7 and the shell's scroll and color math
  * from the top of the view down to the panel's top line: two entries of 84
  * and 83 lines, then the lines from 167 on. The panel below is BG1, scrolled
@@ -495,7 +491,10 @@ typedef enum {
 static const DiveTask from_outside[] = { CHECK_THE_SHELL, RUN_CHANNEL_0, RUN_CHANNEL_1, PASS_THE_SHELL_ACROSS, DRAW_THE_EPOCH };
 static const DiveTask from_the_cockpit[] = { CHECK_THE_SHELL,   CHECK_THE_SHELL, SHAKE_THE_COCKPIT,
                                              RUN_CHANNEL_0,     RUN_CHANNEL_1,   PASS_THE_SHELL_DOWN };
-enum { OUTSIDE_TASKS = sizeof from_outside / sizeof from_outside[0], COCKPIT_TASKS = sizeof from_the_cockpit / sizeof from_the_cockpit[0] };
+enum {
+    OUTSIDE_TASKS = sizeof from_outside / sizeof from_outside[0],
+    COCKPIT_TASKS = sizeof from_the_cockpit / sizeof from_the_cockpit[0],
+};
 
 // $7E:7EF8
 static void take_every_frame_task_off(GameState *g)
@@ -614,13 +613,21 @@ static void white_out(GameState *g, Platform *pf, uint8_t channel)
  * an entry), as the unpacker takes them: the shell's pixels and its map, the
  * scene's colors, the Epoch's bitmap, the sprites' tiles and the panel's map;
  * and the sprites' colors, copied as they are by their number. */
-enum { SHELL_PIXELS = 0x66, SHELL_MAP = 0x69, DIVE_COLOURS = 0x6C, EPOCH_PICTURE = 0x78, SPRITE_TILES = 0x72, MORE_SPRITE_TILES = 0x7B, PANEL_MAP = 0x75,  };
+enum {
+    SHELL_PIXELS = 0x66, SHELL_MAP = 0x69, DIVE_COLOURS = 0x6C, EPOCH_PICTURE = 0x78,
+    SPRITE_TILES = 0x72, MORE_SPRITE_TILES = 0x7B, PANEL_MAP = 0x75,
+};
 enum { SPRITE_COLOURS = 37 };
 
 /* Where they go: the shell's pixels in VRAM's high bytes from $2000, its map in
  * the low bytes from 0; the scene's colors from color 16; the sprites' tiles
  * at $4400 and $5000; the panel's map, BG1's, at $6000. */
-enum { SHELL_PIXELS_VRAM = 0x2000, SHELL_MAP_VRAM = 0x0000, DIVE_COLOURS_AT = 0x7E2020, SPRITE_TILES_VRAM = 0x4400, MORE_SPRITE_TILES_VRAM = 0x5000, PANEL_MAP_VRAM = 0x6000, SPRITE_COLOURS_AT = 0x2180, SPRITE_COLOURS_BYTES = 0x20, EPOCH_BITMAP_AT = 0x7F0A00,  };
+enum {
+    SHELL_PIXELS_VRAM = 0x2000, SHELL_MAP_VRAM = 0x0000, DIVE_COLOURS_AT = 0x7E2020,
+    SPRITE_TILES_VRAM = 0x4400, MORE_SPRITE_TILES_VRAM = 0x5000, PANEL_MAP_VRAM = 0x6000,
+    SPRITE_COLOURS_AT = 0x2180, SPRITE_COLOURS_BYTES = 0x20,
+    EPOCH_BITMAP_AT = 0x7F0A00,
+};
 
 /* The shell's map is half a plane, each of its rows doubled across the
  * plane's 128 tiles; the half is sent twice, so the shell repeats down the
@@ -724,7 +731,13 @@ static void make_the_fog(GameState *g)
  * mirrored, each tile's attributes from the unpacked map in turn; then two
  * runs of three tiles in the middle of its fourth and fifth rows. */
 enum { PANEL_ROWS = 7, HALF_ROW = 16, PANEL_FIRST_TILE = 0x90 };
-enum { PANEL_MIDDLE = 0x6056, PANEL_MIDDLE_BELOW = 0x6076, MIDDLE_TILES = 3, MIDDLE_TILE = 0xB7, MIDDLE_TILE_BELOW = 0xC7 };
+enum {
+    PANEL_MIDDLE = 0x6056,
+    PANEL_MIDDLE_BELOW = 0x6076,
+    MIDDLE_TILES = 3,
+    MIDDLE_TILE = 0xB7,
+    MIDDLE_TILE_BELOW = 0xC7,
+};
 
 static void lay_out_the_panel(GameState *g, Platform *pf)
 {
@@ -745,16 +758,6 @@ static void lay_out_the_panel(GameState *g, Platform *pf)
     for (unsigned n = 0; n < MIDDLE_TILES; n++)
         vid_write_vram_byte(pf, PF_AT(0x7E7B73), false, (uint8_t)(MIDDLE_TILE_BELOW + n));
 }
-
-/* What the original leaves in the scene's cells as it makes the curve: the
- * last half step of the sine, and its count of lines run down. */
-
-/* The program writes the fog through the work RAM port, which it leaves past
- * the falling band. */
-enum { FOG_END = 0xE050 };
-
-/* The panel's tiles count up in the scene's first cell, which ends past the
- * last row. */
 
 /* The scaled picture's output in the second bank cleared, and where the
  * scaler's last output ended. */
@@ -872,17 +875,6 @@ static bool set_up_the_dive_with(GameState *g, Platform *pf, const DiveSetUpStep
     return true;
 }
 
-/* ---- On the machine ---- */
-
-/* The setup calls its pieces' routine ($7E:7A68) from here, whose unpacking
- * calls the original's unpacker under that call's return. The routine leaves
- * the direct page on the DMA registers', where it programmed the clear, and
- * the unpacker after it is called on that page. */
-
-/* The Epoch's drawing and the main loop's call, through their entries where
- * they hold and the original's otherwise. */
-enum { DRAW_THE_EPOCH_CALL = 0x7E79CA, SCALE_THE_EPOCH_CALL = 0x7E79CD };
-
 /* ---- As C ---- */
 
 typedef struct {
@@ -944,14 +936,7 @@ const unsigned scene_dive_routine_count = sizeof scene_dive_routines / sizeof sc
  * saved camera changes. */
 enum { BUILD_PERSPECTIVE = 0x7E357B, CAMERA_PAGE = 0x0A00 };
 
-/* Entered from the program's mode table with 8-bit A; back on the registers'
- * page with the data bank 0, as its last stores leave them, and the overflow
- * the Epoch's drawing left. */
-
 /* ---- What the ports take ---------------------------------------------------------------------- */
-
-/* The states the tasks below are ports for, which their entries' guards and
- * their C both check: what isn't is the machine's. */
 
 /* The shell's passing: the place past the camera inside the range the port
  * keeps round the shell (from 32767 pixels before its start to 32767 past),

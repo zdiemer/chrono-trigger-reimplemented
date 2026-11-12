@@ -23,8 +23,10 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-enum { SECOND_HALF = FIELD_TILE_MAP_HALF_COLUMNS * FIELD_TILE_MAP_ROWS, /* a half's entries: where the second starts */
-    LAST_ROW_OF_HALF = (FIELD_TILE_MAP_ROWS - 1) * FIELD_TILE_MAP_HALF_COLUMNS,  };
+enum {
+    SECOND_HALF = FIELD_TILE_MAP_HALF_COLUMNS * FIELD_TILE_MAP_ROWS,   /* a half's entries: where the second starts */
+    LAST_ROW_OF_HALF = (FIELD_TILE_MAP_ROWS - 1) * FIELD_TILE_MAP_HALF_COLUMNS,
+};
 enum { COLUMN_MASK = FIELD_TILE_MAP_COLUMNS - 1, ROW_MASK = FIELD_TILE_MAP_ROWS - 1 };
 
 /* ---- The edges -------------------------------------------------------------------------- */

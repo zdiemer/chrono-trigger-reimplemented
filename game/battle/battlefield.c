@@ -34,10 +34,6 @@ static uint8_t object_y(const GameState *g, unsigned object)
 
 static uint8_t cell_of(uint8_t x, uint8_t y) { return (uint8_t)((y & 0xF0) | x >> CELL_PIXELS_SHIFT); }
 
-/* The cells the original works in: the first slot, the count left (0), and
- * the last row marked (where any was). */
-enum { NO_ROW = 0x100 };
-
 // $CC:F110
 /* Rebuild the grid with the combatants' cells marked. */
 void battle_mark_combatants_on_grid(GameState *g)

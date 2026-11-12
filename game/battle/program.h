@@ -20,9 +20,6 @@
  * of it handed back. False where it went no further. */
 bool battle_fought(GameState *g, Platform *pf);
 
-/* The battle's handlers, by the stubs' addresses: the vblank's, the line's,
- * and the small one its start and end wait on. */
-enum { BATTLE_VBLANK_HANDLER = 0xD1E77C, BATTLE_LINE_HANDLER = 0xD1FE97, BATTLE_CLOSING_VBLANK_HANDLER = 0xD1F4C0 };
 void battle_vblank(GameState *g, Platform *pf);
 void battle_line(GameState *g, Platform *pf);
 void battle_closing_vblank(GameState *g, Platform *pf);

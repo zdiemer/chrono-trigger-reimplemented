@@ -15,13 +15,12 @@
 /* ---- What the searches leave in their cells ---------------------------------------------- */
 
 /* The direct-page cells the searches work in (battle_work, from $80). */
-enum { LEFT_FIRST = 0x00, /* the reach test's vertical distance, a word ($80); the walker, a word */
+enum {
+    LEFT_FIRST = 0x00, /* the reach test's vertical distance, a word ($80); the walker, a word */
     LEFT_SECOND = 0x02, /* the reach test's horizontal distance squared, a word ($82) */
     LEFT_THIRD = 0x04, /* where a find's loop is, a word ($84); a measure's second square */
-    LEFT_BEST = 0x06, /* the nearest or farthest distance a find has, a word ($86) */
-    LEFT_SEARCHER = 0x0A, /* the searcher, as the nearest-enemy find keeps it ($8A) */
-    LEFT_START = 0x0A, /* where a walk starts, x and y ($8A, $8B) */
-    LEFT_STEP = 0x0C, /* how far down and across a walk's step reaches ($8C, $8E) */ };
+    LEFT_STEP = 0x0C, /* how far down and across a walk's step reaches ($8C, $8E) */
+};
 
 /* ---- Reach ------------------------------------------------------------------------------ */
 
@@ -410,8 +409,6 @@ uint8_t battle_direction(GameState *g, BattlePoint from, BattlePoint to)
     return angle;
 }
 
-/* The radius goes to the multiply as a word, its high byte 0. */
-
 // $C1:01F9
 int8_t battle_along(GameState *g, uint8_t angle, uint8_t radius)
 {
@@ -421,14 +418,3 @@ int8_t battle_along(GameState *g, uint8_t angle, uint8_t radius)
     return along;
 }
 
-/* The reach tests the enemies' animation effects make take the two
- * combatants in X and Y, and leave the answer in A. */
-
-/* The grid's and the boxes' tests take the combatant in a word at $80, and
- * say what they found in A and its sign. */
-
-enum { MEETS_MEMBER = 0x80, MEETS_ENEMY = 0x81 };
-
-/* The enemies' animation effects measure a combatant against the box past
- * the combatants', where they put the effect. */
-enum { EFFECT_BOX = 11 };

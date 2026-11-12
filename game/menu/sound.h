@@ -7,6 +7,7 @@
 #include "platform/platform.h"
 #include <stdint.h>
 #include "state.h"
+#include "vars.h"
 
 /* The gate's own song; the story's note (story_game_notes) that the place's
  * song plays on in the gate's screen. */
@@ -35,8 +36,17 @@ AudioCommand menu_fade_the_place_song_in(const GameState *g);
  * from where, the waits for a fade a frame at a time, the machine's widths
  * as the original's code sets them, the screen's fade out, the wait for the
  * song to be playing, and what the decision leaves (scaffolding). */
-typedef enum { GATE_SONG_FADED_OUT, GATE_SONG_STARTED, GATE_SONG_FADED_OUT_AGAIN, PLACE_SONG_STARTED_AGAIN } GateSongSend;
-typedef enum { GATE_SONG_AT_THE_TASK_S_START, GATE_SONG_AT_THE_GATE_S_FADE, GATE_SONG_AT_THE_PLACE_S_FADE } GateSongPlace;
+typedef enum {
+    GATE_SONG_FADED_OUT,
+    GATE_SONG_STARTED,
+    GATE_SONG_FADED_OUT_AGAIN,
+    PLACE_SONG_STARTED_AGAIN,
+} GateSongSend;
+typedef enum {
+    GATE_SONG_AT_THE_TASK_S_START,
+    GATE_SONG_AT_THE_GATE_S_FADE,
+    GATE_SONG_AT_THE_PLACE_S_FADE,
+} GateSongPlace;
 typedef struct {
     bool (*send)(void *ctx, GateSongSend at, AudioCommand c);
     bool (*send_song_and_fade)(void *ctx, GateSongSend at, AudioCommand song, AudioCommand fade);
@@ -56,7 +66,5 @@ bool menu_switch_to_the_gate_song(GameState *g, Platform *pf);
 bool menu_switch_back_to_the_field_song(GameState *g, Platform *pf);
 enum { MENU_GATE_SONG_TASK_START = 0xCBBF };
 void menu_play_the_gate_song(GameState *g, Platform *pf);
-
-/* The entries. */
 
 #endif

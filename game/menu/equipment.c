@@ -235,7 +235,12 @@ bool menu_equip_point_at_member(GameState *g)
  * every band of the rows' per-line table shows. At the end the three rows in
  * view are copied back to the list's place, a member further along, and the
  * view put back. */
-enum { SLIDE_FRAMES = 12, LIST_FRONT_LAYER = MENU_FRONT_LAYER_AT, LIST_BACK_LAYER = 0x3E00, ROW_TILES_FROM_ORIGIN = 0x84 };
+enum {
+    SLIDE_FRAMES = 12,
+    LIST_FRONT_LAYER = MENU_FRONT_LAYER_AT,
+    LIST_BACK_LAYER = 0x3E00,
+    ROW_TILES_FROM_ORIGIN = 0x84,
+};
 enum { LINE_AT_REST = 0x61FF, ROWS_SLID = 0x06 };
 static const MenuTilePlace ROWS_PLACE = { 2, 2 };
 static const MenuWindowSize ROWS_SIZE = { 12, 18 };

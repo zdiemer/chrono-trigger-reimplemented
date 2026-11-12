@@ -21,14 +21,18 @@
  * (field_layer_edge_vram, ten a layer) and the parts' sizes
  * (field_layer_edge_sizes, five): these say which word is which. The two
  * rows share their sizes, as do the two columns. */
-enum { EDGE_TOP_ROW = 0, /* three addresses: from the start, the other half, the wrap */
-    EDGE_BOTTOM_ROW = 3, /* the same three */
-    EDGE_LEFT_COLUMN = 6, /* two addresses: from the start, the wrap */
-    EDGE_RIGHT_COLUMN = 8, /* the same two */
-    EDGE_ADDRESSES = 10,  };
-enum { EDGE_ROW_SIZES = 0, /* three sizes, the rows' parts */
-    EDGE_COLUMN_SIZES = 3, /* two, the columns' */
-    EDGE_SIZES = 5,  };
+enum {
+    EDGE_TOP_ROW = 0,          /* three addresses: from the start, the other half, the wrap */
+    EDGE_BOTTOM_ROW = 3,       /* the same three */
+    EDGE_LEFT_COLUMN = 6,      /* two addresses: from the start, the wrap */
+    EDGE_RIGHT_COLUMN = 8,     /* the same two */
+    EDGE_ADDRESSES = 10,
+};
+enum {
+    EDGE_ROW_SIZES = 0,        /* three sizes, the rows' parts */
+    EDGE_COLUMN_SIZES = 3,     /* two, the columns' */
+    EDGE_SIZES = 5,
+};
 
 /* A map's settings for its layers, a bit for each of BG2 and BG3 (bit n for
  * layer n): which stay still as the screen scrolls (field_layer_still), and
@@ -143,8 +147,6 @@ typedef struct {
     bool carry, overflow;
 } FieldEdgesLeave;
 FieldEdgesLeave field_edges_leave(const GameState *g);
-
-/* field/tile_copy.c */
 
 /* When a map loads ($C0:A521): its tile maps and tile attributes unpacked
  * from the map's decompressed data; and whether its sizes are ones the

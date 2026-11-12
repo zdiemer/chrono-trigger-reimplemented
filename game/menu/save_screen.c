@@ -29,7 +29,6 @@
 #include "charge.h"
 #include "core/program.h"
 #include "cpu_io.h"
-#include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/load_screen.h"
 #include "menu/saving.h"
@@ -396,7 +395,12 @@ bool menu_move_among_the_slots_with(GameState *g, Platform *pf, const SavingStep
  * the game was saved and finished, the second byte of the settings, the time
  * played and the rest of the header's block, the location, the chapter the
  * story is in, and a flag that makes the summary show no gold. */
-enum { SAVED_CHARACTERS = 0x200, CHARACTER_BYTES = 0x50, SAVED_FIGURE = 0x12, SAVED_RECORD_START = 9, SAVED_PARTY = 0x580, SAVED_SETTINGS_SECOND = 0x591, SAVED_TIMES_SAVED = 0x59C, SAVED_TIMES_FINISHED = 0x59E, SAVED_NAMES = 0x5B0, NAME_BYTES = 6, SAVED_HEADER_BLOCK = 0x5E0, HEADER_BLOCK_BYTES = 10, SAVED_LOCATION = 0x5F3, SAVED_CHAPTER = 0x603, SAVED_FLAGS = 0x793,  };
+enum {
+    SAVED_CHARACTERS = 0x200, CHARACTER_BYTES = 0x50, SAVED_FIGURE = 0x12, SAVED_RECORD_START = 9,
+    SAVED_PARTY = 0x580, SAVED_SETTINGS_SECOND = 0x591, SAVED_TIMES_SAVED = 0x59C, SAVED_TIMES_FINISHED = 0x59E,
+    SAVED_NAMES = 0x5B0, NAME_BYTES = 6, SAVED_HEADER_BLOCK = 0x5E0, HEADER_BLOCK_BYTES = 10,
+    SAVED_LOCATION = 0x5F3, SAVED_CHAPTER = 0x603, SAVED_FLAGS = 0x793,
+};
 enum { LOCATION_BITS = 0x01FF, MOST_TIMES_SAVED = 999, NO_GOLD_SHOWN = 0x80, EMPTY_RECORD = 0xFF };
 
 /* Where the slot the save code has just checked keeps its game, in the save
@@ -425,7 +429,14 @@ static uint16_t saved_word(Platform *pf, uint16_t game, uint16_t at)
 /* The summary's header, after the members: times saved, the location, the
  * header block (its gold at 4, three bytes, and the time played's digits at
  * 9), times finished. */
-enum { HEADER_TIMES_SAVED = 0, HEADER_LOCATION = 2, HEADER_BLOCK = 4, HEADER_GOLD = 4, GOLD_BYTES = 3, HEADER_TIMES_FINISHED = 14 };
+enum {
+    HEADER_TIMES_SAVED = 0,
+    HEADER_LOCATION = 2,
+    HEADER_BLOCK = 4,
+    HEADER_GOLD = 4,
+    GOLD_BYTES = 3,
+    HEADER_TIMES_FINISHED = 14,
+};
 
 static void put_summary_byte(GameState *g, uint8_t slot, unsigned at, uint8_t v)
 {
@@ -472,12 +483,6 @@ static void read_summary(GameState *g, Platform *pf, uint8_t slot)
         for (unsigned i = 0; i < GOLD_BYTES; i++)
             put_summary_byte(g, slot, header + HEADER_GOLD + i, 0);
 }
-/* What reading a summary leaves in the menus' cells and the multiplier: the
- * game's
- * start moved on a byte a member in the time played's cell and its count run
- * down in the row's; the multiplier with the last row's party byte, and the
- * last member's name's place worked out from its character. */
-enum { RECORD_START_MULTIPLIER = CHARACTER_BYTES, NAME_MULTIPLIER = NAME_BYTES };
 
 static void charge_summary_read(GameState *g, Platform *pf)
 {

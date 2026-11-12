@@ -164,11 +164,6 @@ static bool answer_chest_with(GameState *g, const StepAndChestSteps *steps, void
     return true;
 }
 
-/* The chest's sound, run from the original's own call. It reads A's high
- * byte: the step event's where one came before (leave_a_for_the_chest), else
- * as the main loop called the requests. */
-enum { CHEST_SOUND_SITE = 0xC016EB };
-
 /* ---- As C ---- */
 
 typedef struct {
@@ -209,14 +204,20 @@ static const StepAndChestSteps step_and_chest_in_the_program = {
 /* ---- Calling on the machine ----------------------------------------------------------------- */
 
 /* The original's routines the answers call. */
-enum { FRAME_WAIT = 0xC0EC60, /* waits for the next frame */
-    PALETTE_ANIMATION = 0xFDFFF7, /* the original's jump to it */
-    BATTLE = 0xC10000, /* the field taken up after the battle (field/battle_return.c): a port
-     * that runs frames and ends by going on into another, which only a call
-     * can run */
-    FIELD_AFTER_BATTLE = FIELD_AFTER_BATTLE_ENTRY, FIELD_TURN = FIELD_WALK_A_FRAME_ENTRY, /* a port, which waits for the next frame: called */ };
+enum {
+    FRAME_WAIT = 0xC0EC60,          /* waits for the next frame */
+    PALETTE_ANIMATION = 0xFDFFF7,   /* the palettes' animation */
+};
 /* The ports the answers run as C. */
-enum { RECENTRE = 0xC0885A, COPY_TILES = 0xC0AF4E, SCROLL_LAYERS = 0xC02C41, FREE_SPRITE_AREAS = 0xC0E935, DRAW_BG1 = 0xC075E9, DRAW_BG2 = 0xC078EC, DRAW_BG3 = 0xC07CB5 };
+enum {
+    RECENTRE = 0xC0885A,
+    COPY_TILES = 0xC0AF4E,
+    SCROLL_LAYERS = 0xC02C41,
+    FREE_SPRITE_AREAS = 0xC0E935,
+    DRAW_BG1 = 0xC075E9,
+    DRAW_BG2 = 0xC078EC,
+    DRAW_BG3 = 0xC07CB5,
+};
 
 /* ---- A location change ($C0:0C8F) --------------------------------------------------------- */
 
@@ -233,10 +234,6 @@ static void keep_where_the_party_was(GameState *g)
     set_location_previous_y(g, at.y);
     set_location_previous_flags(g, (uint8_t)(at.facing ^ FACING_OPPOSITE));
 }
-
-/* The field starts again on a fresh stack, then its held entry loads the
- * next location after the old C call chain has ended. */
-enum { FIELD_STARTS_AGAIN = 0xC00CC0 };
 
 /* ---- A tile copy ($C0:1779) ----------------------------------------------------------------- */
 
@@ -459,12 +456,6 @@ static bool tile_copy_call(void *ctx, TileCopyCall call)
     default: return false;
     }
 }
-
-/* ---- On the machine ---- */
-
-/* Finish charging the tile send and deliver its pending interrupts before
- * the frame wait increments field_frame_pending. Combining the two lets a
- * pending vblank consume the newly finished frame instead. */
 
 /* ---- A battle ($C0:188C) ------------------------------------------------------------------- */
 

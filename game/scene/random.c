@@ -162,12 +162,3 @@ SceneDraw scene_draw_random_off_the_palette(GameState *g, SceneDraw last, uint16
     TmEntropy noise = { { palette_noise(g, LATCH_BYTE, width), palette_noise(g, ACROSS_BYTE, width), down, down } };
     return stir_in_the_noise(g, st, noise);
 }
-
-/* ---- The draw for the program's own code ----------------------------------------------------- */
-
-/* The program's code hands the draw its number to go on from in A, the bit
- * spilled above it in the carry and its salt in X, a byte or a word as A is
- * wide (its call at $7E:3443, or the stir itself, $C3:02DD), and takes the
- * number drawn back in A with the spilled bit in the carry. A byte draw
- * leaves A's high byte as it was. The flags the stir's last step leaves are
- * worked out from the number drawn; its overflow is the draw's own record. */

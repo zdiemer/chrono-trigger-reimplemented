@@ -75,20 +75,6 @@ typedef struct {
 
 static BattlePoint moved(BattlePoint p, Offset o) { return (BattlePoint){ (uint8_t)(p.x + o.dx), (uint8_t)(p.y + o.dy) }; }
 
-/* ---- What the original leaves in its cells ------------------------------------------ */
-
-/* The effect loops' cells ($C6-$D1) and the multiply's ($00-$06): the
- * original works in them, and the ports leave their last values there for
- * shadow mode. `cell` is the original's direct-page address. */
-
-/* The loop's cells while a mover's step runs: the mover, and twice and four
- * times it (its word and long entries' offsets); and what a count down past
- * the first mover leaves. */
-
-/* The multiply: the factor at $00, the word at $02 and the product (24-bit)
- * at $04, and the CPU's multiplier holding the factor times the word's high
- * byte. */
-
 /* ---- Shared arithmetic --------------------------------------------------------------- */
 
 // $CF:FA17
@@ -143,12 +129,6 @@ static bool close_to(BattlePoint a, BattlePoint b, uint8_t limit)
     bool close = points_close(a, b, limit);
     return close;
 }
-
-/* The chase gives the angle's computation its two points in its cells. */
-
-/* What the angle's computation leaves in its cells: the two points, their
- * differences as bytes with the signs, the angle, the distances and their
- * steps in the table. */
 
 // $CF:FA43
 /* The angle from one point toward another. The table gives the angle within a
@@ -456,7 +436,6 @@ static void orbit(GameState *g, Mover m)
  * circles or behind it, by where it was on the circle. */
 static void orbit_flat(GameState *g, Mover m)
 {
-    (void)(mover_is_anchor(m));
     if (mover_path_done(g, m))
         return;
     if (mover_is_anchor(m))
@@ -540,9 +519,6 @@ static uint8_t turn_toward(GameState *g, Mover m, uint8_t target, uint8_t speed)
     set_battle_effect_chase_aligned(g, e, (uint8_t)(battle_effect_chase_aligned(g, e) + 1));
     return target;
 }
-
-/* A chasing anchor moves by the step as words: it can leave the
- * battlefield's 256 pixels. */
 
 // $CF:F405, $CF:F884
 /* A chase: until the mover is within 16 pixels of its target, it turns

@@ -54,7 +54,6 @@ static const WarpKind kinds[] = {
     [WARP_SHORTEST] = { 0x09F, false, 0xFDDAC4, 0xFDDB00 },
     [WARP_FLICKERING] = { 0x2FF, true, 0xFDDB27, 0xFDDB7A },
 };
-enum { WARP_KINDS = sizeof kinds / sizeof kinds[0] };
 
 /* ---- The story flags ----------------------------------------------------------------------------- */
 

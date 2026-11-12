@@ -21,7 +21,6 @@
 #include "menu/item_screen.h"
 
 #include "charge.h"
-#include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/description.h"
 #include "menu/display.h"
@@ -44,11 +43,9 @@
 /* ---- The calls out ----------------------------------------------------------------------------- */
 
 /* The original's routines the steps call, by what they do. */
-enum { MAIN_MENU = 0xC29A98, /* back to the main menu */ };
-
-/* What they read (the calling convention checks each): most nothing but the
- * page, the data bank and memory; the stop of tasks A, the pointing at a
- * member A (its sound's). */
+enum {
+    MAIN_MENU = 0xC29A98,            /* back to the main menu */
+};
 
 /* The tasks a step stops: the second cursor's (the fourth's bit). */
 enum { HELD_CURSOR_TASK = 0x40 };

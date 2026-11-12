@@ -29,7 +29,6 @@
 
 #include "charge.h"
 #include "cpu_io.h"
-#include "menu/bridge.h"
 #include "menu/menu_data.h"
 #include "menu/party.h"
 #include "port/vars_ram.h"
@@ -108,16 +107,6 @@ static void load_run(GameState *g, Platform *pf, uint16_t from, uint32_t to, uin
     charge_uncounted_end(g, uncounted);
     charge_block_move(g, bytes);
 }
-
-/* ---- What the save code leaves where the original works ------------------------------------ */
-
-/* The original copies its table of runs out of the ROM before it starts, and
- * moves each run through the block move stub, whose banks it writes for each:
- * the table, and the stub as the last move left it. */
-enum { BLOCK_MOVE_OPCODE = 0x54, RETURN_OPCODE = 0x6B };
-
-/* Save memory's bank, as the block move stub names it. */
-enum { SAVE_MEMORY_BANK = 0x30 };
 
 /* ---- Saving --------------------------------------------------------------------------------- */
 
@@ -216,11 +205,6 @@ enum { AYLA = 5 };
 
 static unsigned equipment_put_back(uint8_t character) { return character == AYLA ? MENU_STARTING_EQUIPMENT - 1 : MENU_STARTING_EQUIPMENT; }
 
-/* The check's answer as the original hands it over, in A and in its
- * caller's first cell, beside the slot's place: on the menus' page or the
- * clock's. Nothing reads the answer from the cell. */
-enum { ANSWER_HELD = 0x0000, ANSWER_NONE = 0x8080, ANSWER_SPOILT = 0x4040 };
-
 SavedGameCheck saves_check_slot_noting(GameState *g, Platform *pf, SaveCheckPage page, uint8_t slot)
 {
     SavedGameCheck check = saves_check_slot(g, pf, slot);
@@ -299,10 +283,6 @@ SavesAtPowerOn saves_power_on(GameState *g, Platform *pf)
     return SAVES_NOTHING_SAVED;
 }
 
-// $FF:F9C4
-
-// $FF:F9FB
-
 // $FF:FAA3
 
 /* ... and once every character has its equipment: both counts run out (the
@@ -334,10 +314,6 @@ void saves_carry_over(GameState *g, Platform *pf, uint8_t slot)
 }
 
 // $C2:8D6A
-/* The party's power-on service, which hands back how the game starts in A,
- * with byte-wide registers; A's high byte is as the block moves that clear
- * or start the game leave it, which the dispatcher hands on. */
-enum { BLOCK_MOVED_HIGH = 0xFF00 };
 
 /* The save and the loads run on the menus' page with the data bank on work
  * RAM's, for one of the three slots; they start their table of runs from the

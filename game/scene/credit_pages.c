@@ -58,7 +58,7 @@ static const uint16_t letter_colors[] = { 0x0000, 0x77BD, 0x4631, 0x1CE7 };
  * the unpacking into the destination set. The letters' loader is a routine of
  * the setup's (called from $7E:6B0A), whose return is under the unpacker's
  * call, as shadow mode pairs the call with the original's. */
-enum { UNPACK = 0x7E3691, LOADER_CALL = 0x7E6B0A };
+enum { UNPACK = 0x7E3691 };
 
 // $7E:6BF9
 /* The letters' colors, and VRAM made ready at `vram`, a word at a time, for
@@ -268,14 +268,6 @@ const SceneTaskPort scene_credit_pages_tasks[] = {
 const unsigned scene_credit_pages_task_count = sizeof scene_credit_pages_tasks / sizeof scene_credit_pages_tasks[0];
 
 /* ---- What the setup leaves ------------------------------------------------------------------- */
-
-/* A list of the page's text read through: where it ends, past its $FF, and
- * its last letter if it has one, with the place across a job's would be set. */
-typedef struct {
-    uint16_t end;
-    bool has_letters;
-    uint8_t last_letter, last_x;
-} ListRead;
 
 /* The original reads the page's text through the work RAM port, which it
  * leaves past the jobs' list. */

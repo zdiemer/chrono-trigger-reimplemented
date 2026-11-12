@@ -116,9 +116,6 @@ static bool update_the_view(GameState *g)
  * height down from the view's scroll. */
 enum { VIEW_CENTRE_ACROSS = 0x80, VIEW_CENTRE_DOWN = 0xE0 };
 
-/* For shadow mode: the camera's distance turned, across and down, which the
- * original keeps beside the view on its way to it. */
-
 // $7E:9AF3
 /* In the vblank: the camera stays as far behind as the Epoch's script says,
  * and the view is its place on the map moved out along its turn by that
@@ -339,18 +336,6 @@ static void step_the_burst(GameState *g, unsigned firework)
     set_firework_frame(g, firework, next);
 }
 
-/* For the original's code: the list routine's test written back as it was
- * (kept on the scene's page meanwhile), and the load the program has in the
- * routine's spare bytes, which the fireworks write last. */
-enum { SPARE_AS_LOADED = 0xE0A9 };
-
-/* For the original's code and shadow mode: the original hands a firework's
- * place to the list routine as two words read from the places, which leave
- * their high bytes in the scene's offset -- across, the firework's Y over its
- * X, and down, the byte after its Y (the next firework's X, or for the last
- * the byte past the places). Only the low bytes place the sprites; the last
- * firework's words are the ones that stay. */
-
 // $7E:9BF9
 /* The fireworks burst: each a frame on in its burst, drawn where it bursts as
  * large sprites, every one kept however low. */
@@ -386,7 +371,14 @@ void scene_set_the_fireworks_up(GameState *g)
 
 /* Channel 0's registers as a picture's: its scale, its scroll and its
  * centre. */
-enum { PICTURE_SCALE = 0, PICTURE_SCROLL_X = 1, PICTURE_SCROLL_Y = 2, PICTURE_CENTRE_X = 3, PICTURE_CENTRE_Y = 4, PICTURE_BG2_SCROLL = 7 };
+enum {
+    PICTURE_SCALE = 0,
+    PICTURE_SCROLL_X = 1,
+    PICTURE_SCROLL_Y = 2,
+    PICTURE_CENTRE_X = 3,
+    PICTURE_CENTRE_Y = 4,
+    PICTURE_BG2_SCROLL = 7,
+};
 
 // $7E:9E2B
 /* In the vblank: the picture scaled, unturned, round its centre, and

@@ -129,7 +129,14 @@ static void script_menu_shown(GameState *g)
  * their numbers until the menus' side names them (the menus turn each into a
  * screen through $C2:808F: 0 into their mode 14, 2 into 12, 3 into 13, 6 into
  * 11). */
-typedef enum { MENU_MODE_0 = 0, MAIN_MENU = 1, MENU_MODE_2 = 2, MENU_MODE_3 = 3, START_MENU = 5, MENU_MODE_6 = 6 } FieldMenu;
+typedef enum {
+    MENU_MODE_0 = 0,
+    MAIN_MENU = 1,
+    MENU_MODE_2 = 2,
+    MENU_MODE_3 = 3,
+    START_MENU = 5,
+    MENU_MODE_6 = 6,
+} FieldMenu;
 
 /* What the field stops for: the pause, and the three ways a menu is opened
  * -- the menu button, the Start assignment and a script -- each with its
@@ -424,10 +431,16 @@ static bool pause_and_menus(GameState *g, const StopSteps *steps, PressStart sta
 /* ---- As C ------------------------------------------------------------------------------------- */
 
 /* The routines the steps stand for, which time them. */
-enum { MENUS = 0xC28000, /* the menus, at the mode in A */
-    FRAME_WAIT = 0xC0EC60, /* waits for the next frame */
-    OBJECT_START = 0xC0597D, /* the running object starts over in its script */
-    LINE_EFFECTS = 0xFDC2C1, PRESS_START = 0xC01985, BRING_THE_PARTY_BACK = 0xC01A03, WALK = 0xC0881E, PALETTE_ANIMATION = 0xFDFFF7,  };
+enum {
+    MENUS = 0xC28000,               /* the menus, at the mode in A */
+    FRAME_WAIT = 0xC0EC60,          /* waits for the next frame */
+    OBJECT_START = 0xC0597D,        /* the running object starts over in its script */
+    LINE_EFFECTS = 0xFDC2C1,
+    PRESS_START = 0xC01985,
+    BRING_THE_PARTY_BACK = 0xC01A03,
+    WALK = 0xC0881E,
+    PALETTE_ANIMATION = 0xFDFFF7,
+};
 
 typedef struct {
     GameState *game;
@@ -587,11 +600,6 @@ FieldPass field_script_menu_opened(GameState *g, Platform *pf)
     default: return c.game_starts_again ? FIELD_STARTS_ANEW : FIELD_PASS_STOPS;
     }
 }
-
-enum { SCRIPT_FADE_WALK = 0xC00CDB, SCRIPT_FADE_PALETTES = 0xC00CE1 };
-enum { FADE_IN_TAIL = FIELD_FADE_IN_AFTER_A_MENU_ENTRY };
-
-enum { PRESS_START_CALL = 0xC0191D };
 
 /* The guard: the field's page with the data bank $00, and the party's places
  * objects the tables hold, or none. */

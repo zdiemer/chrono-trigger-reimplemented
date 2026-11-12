@@ -205,9 +205,6 @@ enum { MP_COLUMN = 24, SEPARATOR_COLUMN = 27, COST_COLUMN = 29 };
 
 static WindowCell slot_line_cell(unsigned slot, unsigned column) { return window_cell(1 + 2 * slot, column); }
 
-/* The original counts the column's rows and cells in two work cells. */
-enum { ROWS_COUNTED = 0x80, CELLS_COUNTED = 0x81 };
-
 /* The list the original laid out, and the column beside it. */
 static void show_tech_list(GameState *g)
 {
@@ -277,11 +274,6 @@ static void show_cost(GameState *g, unsigned slot, uint8_t cost)
     menu_set_tile(g, slot_line_cell(slot, COST_COLUMN + 1), one_digit ? TILE_BLANK : d.ones);
 }
 
-/* Where the original works out the record: the place of the member's
- * records, or the record's (bytes, in the multiplier's cell again), and the
- * record's among the member's. */
-enum { RECORD_OFFSET = 0x80 };
-
 /* The tech under the member's cursor, and what it costs each member. A blank
  * row selects no tech (and clears the second member's costs). */
 static void show_tech_costs(GameState *g, unsigned member)
@@ -348,11 +340,6 @@ void battle_reset_frames(GameState *g)
 }
 
 /* ---- The pages, with the original's parts ------------------------------------------------ */
-
-/* The calls to the original's code, the uploads of the window's tilemaps
- * ($CF:FD02, $CF:FD36), read only what the window left in memory. (A tech's
- * description, $CD:0027, is the battle message's, battle/message.c, which
- * takes the tech in A.) */
 
 /* The settings' bit that asks for the descriptions. */
 enum { DESCRIPTIONS_ON = 0x80 };
@@ -464,12 +451,6 @@ static bool draw_menu_window(GameState *g, WindowCalls call, void *ctx, WindowLe
     }
 }
 
-/* On the machine, each call from the original's, with the carry it is
- * handed; the description takes the tech in A, and where there is none the
- * saved rows take what laying out the list left in A (the list tilemap's
- * place after its four rows). */
-enum { TECH_LIST_LAID_OUT_A = 0x0200 };
-
 /* The tech lists as the game keeps them, which the tech page takes on trust:
  * each member's scroll leaves its three rows, and the cursor's, inside its
  * twenty entries, and each entry names one of its records, or is blank on a
@@ -562,9 +543,6 @@ static bool combination_tech_selected(const GameState *g)
  * takes. */
 enum { TARGETS_A_ROUND = 3 };
 
-/* The original counts the targets and the cursors in two work cells. */
-enum { TARGET_COUNTED = 0x80, CURSOR_COUNTED = 0x82 };
-
 // $C1:1A7B
 /* A group of targets: the first always has a cursor, and the other three go
  * round the rest from where they stopped last time, a round at a time, so a
@@ -593,8 +571,6 @@ static void place_group_cursors(GameState *g)
 /* A lone enemy target is named ($CD:0030), with its HP where the party can
  * see it ($CD:002D, from battle_target_display); some enemies go unnamed. */
 enum { UNNAMED = 0xFF, TARGET_STAT_BLOCK = 0x80 };
-
-/* Set out what the target display shows; the name to show. */
 
 /* When the player moves a lone target and the frame may change, a cursor near
  * the screen's top brings the other frame on and one near its bottom takes it
@@ -703,13 +679,6 @@ static bool show_item_cursor(GameState *g)
     return drawn != 0;
 }
 
-/* What the callees read of the machine: $CD:002D and $CD:0030 the name in
- * A's low byte. */
-
-/* What the frame around the member leaves in A: the high table's byte it
- * wrote, its high byte clear. */
-enum { CHOOSING_FRAME_LEFT_A = 0x00AA };
-
 /* How the cursors were placed: the path through the placing, which the
  * machine's wrapper works the registers it hands back out from. */
 typedef enum {
@@ -727,9 +696,6 @@ typedef enum {
 /* The one call placing the cursors makes: a lone enemy target named
  * ($CD:0030, with its HP $CD:002D, battle/message.c). */
 typedef bool (*NameTarget)(void *ctx, uint8_t name, bool with_hp);
-
-// $C1:19B4
-/* A lone target: its cursor, and on the command page an enemy's name. */
 
 // $C1:1979
 /* While targets are chosen the cursors go on them, unless there were none to
@@ -873,9 +839,6 @@ static bool update_combo_members(GameState *g, bool (*call_off)(void *ctx), void
     call_off_combos(g);
     return call_off(ctx);
 }
-
-/* It leaves A's high byte the direct page's (a TDC) and the carry of its
- * loop's last compare, set. */
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 

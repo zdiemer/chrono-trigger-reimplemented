@@ -20,7 +20,6 @@
 
 #include "charge.h"
 #include "cpu_io.h"
-#include "menu/bridge.h"
 #include "menu/menu_data.h"
 #include "menu/opening.h"
 #include "menu/text.h"
@@ -314,7 +313,12 @@ static void list_techs_being_learned(GameState *g)
 
 /* The parts table's columns: the double groups' techs, three a group, then
  * the triple techs. */
-enum { DOUBLE_GROUPS = 15, TECHS_A_DOUBLE_GROUP = 3, TRIPLE_TECHS = 15, FIRST_TRIPLE_COLUMN = DOUBLE_GROUPS * TECHS_A_DOUBLE_GROUP };
+enum {
+    DOUBLE_GROUPS = 15,
+    TECHS_A_DOUBLE_GROUP = 3,
+    TRIPLE_TECHS = 15,
+    FIRST_TRIPLE_COLUMN = DOUBLE_GROUPS * TECHS_A_DOUBLE_GROUP,
+};
 
 /* Each double tech's two characters take their parts in it. */
 static void note_double_tech_parts(GameState *g)
@@ -343,13 +347,6 @@ static void note_triple_tech_parts(GameState *g)
                 set_menu_tech_parts(g, character, FIRST_TRIPLE_COLUMN + tech, menu_triple_tech_part(g, part++));
     }
 }
-
-/* What the original's noting of the parts leaves in its cells: the last
- * double group's first character's row (its low byte taken by the triples'
- * shifting, run out), the last triple tech's last character counted, the
- * triples' parts placed, the groups and the last double's parts' start, and
- * where the next column would be. */
-enum { PARTS_ROW_SHIFT = 6, DOUBLE_PARTS_A_GROUP = 6 };
 
 /* As the menus open: how many members the screens let the player choose
  * among, and what of the party's techs they list -- the healing techs marked

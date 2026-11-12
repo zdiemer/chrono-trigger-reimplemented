@@ -216,7 +216,3 @@ TaskEnd scene_turn_captions(GameState *g, Platform *pf, unsigned slot)
     return turn_captions(g) == CAPTIONS_OVER ? task_is_done() : task_goes_on();
 }
 
-/* What the task leaves in A: the last word the original loaded or worked out
- * on its way, whose high byte the frame's work may read after the last task;
- * with a caption drawn, Y is the next free sprite entry. */
-enum { FADE_KIND_AS_STORED = 0x0050 };

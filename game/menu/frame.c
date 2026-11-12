@@ -14,7 +14,6 @@
 
 #include "charge.h"
 #include "core/input.h"
-#include "menu/bridge.h"
 #include "overworld/music.h"
 #include "platform/audio.h"
 #include "platform/timing.h"
@@ -29,7 +28,7 @@
  * this does. Its registry alias keeps shadow comparisons. The loop keeps the
  * count it saw in A, comparing the count with it, and the comparison's flags
  * are dead after it (the entries' set). */
-enum { FRAME_WAIT = 0xC20346, FRAME_WAIT_LOOP = 0xC20348, FRAME_WAIT_RETURN = 0xC2034C };
+enum { FRAME_WAIT = 0xC20346, FRAME_WAIT_LOOP = 0xC20348 };
 
 /* The wait, a frame at a time, past the count it `seen`: `a_frame` lets one
  * go by, false where the program doesn't come back to the wait. */
@@ -59,13 +58,6 @@ void menu_wait_for_the_next_frame(GameState *g, Platform *pf)
 }
 
 // $C2:0454
-/* The sprite-object mode waits `frames` frames (X), sending the sound command
- * a request left waiting to the driver after each, as its screens do while a
- * scene plays out on them. The waits read nothing; the driver reads A's high byte,
- * which the port leaves as it came. It leaves X at 0, with the flags of its
- * count's last step, and in A's low byte the mailbox as the last frame read
- * it (empty), or the busy mark it sent the last sound under. */
-enum { MAILBOX_READ_EMPTY = 0x00, MAILBOX_MARKED_BUSY = 0xFF };
 
 /* The frames waited, each by `a_frame` (false where the program doesn't come
  * back to the wait); whether the last frame sent a sound. A count of 0 is
@@ -118,16 +110,3 @@ void menu_stop_tasks(GameState *g, uint8_t tasks)
         if (tasks >> task & 1)
             set_menu_tasks_state(g, task, 0);
 }
-
-// $C2:8255
-
-/* ---- The frame's input, from another bank ------------------------------------------------------- */
-
-// $C2:8002
-/* The long entry the field's and the battle's vblank handlers, and the
- * sprite-object mode's, take the frame's input through: the controller, the
- * button assignments and the play time clock (core/input.c), run as its call
- * at $C2:8006 reaches it. Where the controller isn't read yet, the input work
- * stops where the original goes on waiting for it, and the original returns
- * from there. */
-enum { INPUT_CALL = 0xC28006, INPUT_WORK = 0xC284D2 };

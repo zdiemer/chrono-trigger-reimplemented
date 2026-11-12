@@ -47,7 +47,13 @@
 /* The screen's window command lists: its windows; the panel the chosen slot's
  * summary sits in; the fourth row's two choices; the erase question, and the
  * panel it covers put back. */
-enum { SCREEN_WINDOWS = 0xC0ED, SUMMARY_PANEL = 0xC322, NEW_GAME_CHOICES = 0xC36B, ERASE_QUESTION = 0xC391, ERASE_QUESTION_CLOSED = 0xC191 };
+enum {
+    SCREEN_WINDOWS = 0xC0ED,
+    SUMMARY_PANEL = 0xC322,
+    NEW_GAME_CHOICES = 0xC36B,
+    ERASE_QUESTION = 0xC391,
+    ERASE_QUESTION_CLOSED = 0xC191,
+};
 
 /* ---- The slots' rows --------------------------------------------------------------------------- */
 
@@ -272,7 +278,14 @@ static void start_the_new_game(GameState *g, Platform *pf)
 enum { QUESTION_LABEL = 3, QUESTION_LABEL_AT = 0x5E00, QUESTION_LABEL_TABLE = 0xFFCF3B };
 
 /* The question's label, once drawn: two strips of it over the header. */
-enum { LABEL_TOP_AT = 0x52C8, LABEL_TOP_COLUMNS = 8, LABEL_TOP_TILE = 0x3021, LABEL_BOTTOM_AT = 0x5348, LABEL_BOTTOM_COLUMNS = 9, LABEL_BOTTOM_TILE = 0x3062 };
+enum {
+    LABEL_TOP_AT = 0x52C8,
+    LABEL_TOP_COLUMNS = 8,
+    LABEL_TOP_TILE = 0x3021,
+    LABEL_BOTTOM_AT = 0x5348,
+    LABEL_BOTTOM_COLUMNS = 9,
+    LABEL_BOTTOM_TILE = 0x3062,
+};
 
 void menu_ask_which_game_to_carry_on_from(GameState *g)
 {

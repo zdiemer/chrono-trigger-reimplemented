@@ -46,20 +46,20 @@ enum { BATTLE_MESSAGE_SILENT = 0xFF };
  * whose background ripples. */
 enum { LINE_ARRANGEMENT_LISTS = 10, LINE_ARRANGEMENT_LIST_BYTES = 30, RIPPLING_BG2_SCROLL_LIST = 9 };
 
-/* ---- The background's ripple -------------------------------------------------------------- */
-
-/* The sway of a rippling background ($CE:E08E): 128 signed words, two
- * periods of a wave a column or two either way, which the ripple shows 64 at
- * a time. */
-enum { RIPPLE_SWAYS = 128 };
-
 /* ---- What the uploads send from the ROM -------------------------------------------------- */
 
 /* The graphics a battle loads from the ROM as it is set up
  * (battle_load_graphics): the first tiles of the layer the battle's messages
  * are drawn on, and five 64-byte blocks of the window layer's tiles (what
  * each block shows isn't mapped yet: docs/TODO.md). */
-enum { BATTLE_MESSAGE_LAYER_TILES = 0xFF8C60, BATTLE_WINDOW_TILE_BLOCK_1 = 0xD15E82, BATTLE_WINDOW_TILE_BLOCK_2 = 0xD15EC2, BATTLE_WINDOW_TILE_BLOCK_3 = 0xD15F02, BATTLE_WINDOW_TILE_BLOCK_4 = 0xFF9CF0, BATTLE_WINDOW_TILE_BLOCK_5 = 0xFF9D30,  };
+enum {
+    BATTLE_MESSAGE_LAYER_TILES = 0xFF8C60,
+    BATTLE_WINDOW_TILE_BLOCK_1 = 0xD15E82,
+    BATTLE_WINDOW_TILE_BLOCK_2 = 0xD15EC2,
+    BATTLE_WINDOW_TILE_BLOCK_3 = 0xD15F02,
+    BATTLE_WINDOW_TILE_BLOCK_4 = 0xFF9CF0,
+    BATTLE_WINDOW_TILE_BLOCK_5 = 0xFF9D30,
+};
 
 /* ---- The battlefields ------------------------------------------------------------------- */
 

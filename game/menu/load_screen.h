@@ -132,10 +132,6 @@ bool menu_answer_erase(GameState *g, Platform *pf);
 /* And the slot's erasing the answer's yes runs. */
 bool menu_erase_slot(GameState *g, Platform *pf);
 
-/* What erasing a slot does: the slot's game forgotten, and its chapter
- * label's upload. The original builds the upload's record, seven bytes, where
- * the summary is drawn from (load_screen_bridge.c). */
-enum { MENU_LABEL_RECORD_BYTES = 7 };
 void menu_forget_slot(GameState *g, Platform *pf, uint8_t slot);
 MenuUpload menu_slot_label_upload(uint8_t slot);
 
@@ -143,8 +139,5 @@ MenuUpload menu_slot_label_upload(uint8_t slot);
  * which the slot's showing ($C2:E743, save_screen.c) runs with too. */
 
 extern const LoadScreenSteps menu_load_screen_on_the_machine;
-
-/* The entries ($C2:E613, $C2:E61B, $C2:E6AE, $C2:E705; $C2:E7C3, $C2:E841,
- * $C2:E8B7, $C2:D32C), and their guards. */
 
 #endif

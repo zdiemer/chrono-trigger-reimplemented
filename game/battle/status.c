@@ -20,13 +20,6 @@
 enum { GAUGE_CELLS = 4, STEPS_PER_CELL = 8, GAUGE_STEPS = GAUGE_CELLS * STEPS_PER_CELL };
 enum { TILE_GAUGE_EMPTY = 0x67, TILE_GAUGE_FULL = 0x6F };
 
-/* The work cells the original keeps the gauge's numbers in: the steps passed
- * after the full cells, the full cells (counted down), their steps; and the
- * wait and the full wait it hands the divider, a word each, and the steps
- * left. */
-enum { PART_STEPS = 0x82, FULL_CELLS = 0x83, FULL_STEPS = 0x86 };
-enum { WAIT = 0, FULL_WAIT_HIGH = 3, STEPS_LEFT = 4 };
-
 // $C1:06F0
 /* The gauge shows how much of the member's wait has passed: the wait left is
  * worked out as a share of the full wait in 256ths, and then in the gauge's

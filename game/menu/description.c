@@ -25,7 +25,6 @@
 
 #include "charge.h"
 #include "core/program.h"
-#include "menu/bridge.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/typeset.h"
@@ -36,11 +35,18 @@
 
 /* Where the typing's task starts: a description, the settings' option and
  * then its value, and its value alone. */
-enum { TYPE_A_DESCRIPTION = MENU_TYPE_A_DESCRIPTION, TYPE_A_SETTING = MENU_TYPE_A_SETTING, TYPE_A_VALUE = MENU_TYPE_A_VALUE };
+enum {
+    TYPE_A_DESCRIPTION = MENU_TYPE_A_DESCRIPTION,
+    TYPE_A_SETTING = MENU_TYPE_A_SETTING,
+    TYPE_A_VALUE = MENU_TYPE_A_VALUE,
+};
 
 /* The text layer's tilemap: two bytes a tile, 32 tiles a row. A line of
  * text is two tile rows, its glyphs' top halves and their bottom halves. */
-enum { TILE_BYTES = 2, TILE_ROW_BYTES = 0x40, ROW_START = 0xFFC0, LINE_BYTES = 2 * TILE_ROW_BYTES, TEXT_LAYER_AT = (uint16_t)RAM_MENU_TEXT_TILEMAP,  };
+enum {
+    TILE_BYTES = 2, TILE_ROW_BYTES = 0x40, ROW_START = 0xFFC0, LINE_BYTES = 2 * TILE_ROW_BYTES,
+    TEXT_LAYER_AT = (uint16_t)RAM_MENU_TEXT_TILEMAP,
+};
 
 /* A strip of a line's tiles: sixteen top halves, then their bottom halves. */
 enum { STRIP = 0x10 };
@@ -374,12 +380,6 @@ void menu_type_the_value_task(GameState *g, Platform *pf)
     (void)pf;
     typing_task(g, TYPE_THE_VALUE);
 }
-
-/* ---- The entries --------------------------------------------------------------------------------- */
-
-/* The end of a task, which the scheduler goes on from, and which reads none
- * of the registers. */
-enum { END_OF_A_TASK = 0xC28216 };
 
 /* ---- The guards ---------------------------------------------------------------------------------- */
 

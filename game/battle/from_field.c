@@ -60,9 +60,6 @@ static void clear_battle_memory(GameState *g)
     charge_as(g, THE_WAY_IN, 2 * (TABLES_WORDS + PAGE_CELLS_WORDS));
 }
 
-/* Cells the original sets that nothing reads again. */
-enum { ENTRY_MARK = 0x0F };
-
 // $CF:FB65
 /* Before the battle's screen is set up: no frame or transfer pending, no
  * graphics loaded yet, and the window arrangement the field asks for. */
@@ -111,9 +108,6 @@ static void restore_member_colors(GameState *g)
             set_palette_working(g, first + c, palette_base(g, first + c));
     }
 }
-
-/* The original counts the members down in its first cell, which it leaves
- * past the first. */
 
 /* Where each one stood, in 16-pixel tiles and the pixels into the tile, with
  * the frame it showed: the field stands the party and the enemies there. */
@@ -197,7 +191,7 @@ enum { LAST_PHASE = 3, HIDDEN_SPRITES = 0xFF };
  * starts the battle ($C1:8000), the frames are waited for with the battle's
  * last frame wait ($CF:FCFB), which the vblank's work ends, and the display
  * is closed down ($CD:0006, battle/closing.c). */
-enum { SET_UP_SCREEN = 0xCD0000, MAIN_LOOP = 0xC18000, WAIT_FOR_FRAME = 0xCFFCFB, CLOSE_DISPLAY = 0xCD0006, RETURN_TO_THE_FIELD = 0xC10006 };
+enum { SET_UP_SCREEN = 0xCD0000, MAIN_LOOP = 0xC18000, WAIT_FOR_FRAME = 0xCFFCFB, RETURN_TO_THE_FIELD = 0xC10006 };
 
 /* ---- The way in and the way out, as one sequence each ---------------------------------------- */
 

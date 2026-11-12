@@ -17,7 +17,6 @@
 #include "menu/opening.h"
 
 #include "charge.h"
-#include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/display.h"
 #include "menu/graphics.h"
@@ -27,6 +26,7 @@
 #include "menu/sprites.h"
 #include "platform/audio.h"
 #include "sound/sound.h"
+#include "vars.h"
 
 /* ---- The party, as the menus list it ------------------------------------------------------------ */
 
@@ -60,7 +60,13 @@ void menu_list_party(GameState *g)
 
 /* Where each setting sits in the player's three bytes of settings
  * (game_settings). */
-enum { SOUND_OUTPUT_BIT = 0x08, OWN_BUTTONS_BIT = 0x10, KEEP_MENU_CURSORS_BIT = 0x20, ACTIVE_TIME_BIT = 0x40, DESCRIPTIONS_BIT = 0x80, BATTLE_SPEED_BITS = 0x07, WINDOW_DESIGN_BITS = 0x07, MESSAGE_SPEED_SHIFT = 3, MESSAGE_SPEED_BITS = 0x07, KEEP_BATTLE_COMMAND_BIT = 0x40, KEEP_BATTLE_LISTS_BIT = 0x80, BATTLE_GAUGE_BITS = 0x03,  };
+enum {
+    SOUND_OUTPUT_BIT = 0x08, OWN_BUTTONS_BIT = 0x10, KEEP_MENU_CURSORS_BIT = 0x20, ACTIVE_TIME_BIT = 0x40,
+    DESCRIPTIONS_BIT = 0x80, BATTLE_SPEED_BITS = 0x07,
+    WINDOW_DESIGN_BITS = 0x07, MESSAGE_SPEED_SHIFT = 3, MESSAGE_SPEED_BITS = 0x07, KEEP_BATTLE_COMMAND_BIT = 0x40,
+    KEEP_BATTLE_LISTS_BIT = 0x80,
+    BATTLE_GAUGE_BITS = 0x03,
+};
 
 static uint8_t bit_set(uint8_t byte, uint8_t bit) { return (byte & bit) != 0; }
 
@@ -102,10 +108,6 @@ void menu_pack_settings(GameState *g)
 }
 
 /* ---- The opening ------------------------------------------------------------------------------- */
-
-/* The menus' interrupts: their vblank handler, and a line interrupt handler
- * that returns at once. */
-enum { LONG_JUMP = 0x5C };
 
 static void take_the_interrupts(GameState *g)
 {
@@ -247,6 +249,3 @@ bool menu_opens(GameState *g, Platform *pf)
     MenuOpeningContext c = { g, pf };
     return open_the_menus(g, pf, &in_the_program, &c);
 }
-
-/* Registers the routines the opening calls don't read (the calling convention
- * checks each). */

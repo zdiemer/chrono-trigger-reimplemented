@@ -27,7 +27,6 @@
 #include "core/tasks.h"
 #include "menu/description.h"
 #include "menu/fades.h"
-#include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/gate_screen.h"
 #include "menu/healing.h"
@@ -158,31 +157,6 @@ static void start_the_tasks(GameState *g)
 
 /* ---- The tasks that run all the time ------------------------------------------------------- */
 
-/* The two tasks the menus start as they open and stop only as they close are
- * each a loop: a frame's work, then the wait for the next frame. The main
- * task's work is the running screen's step (menu/screens.c), which may wait
- * for frames of its own inside; the cursor's is the menus' sprites hidden and
- * the cursor placed (menu/cursor.c). The scroll bar's task, which a list's
- * screen starts and stops, is the same loop over a frame of the bar's arrows
- * (menu/held_cursors.c), and so is the records' (menu/sprites.c). A task's
- * wait in the middle of its work, which goes on after it rather than round
- * its loop, is menu_yield's (menu/bridge.h). */
-enum { MAIN_TASK_WAIT = 0xC2826C, CURSOR_TASK_WAIT = 0xC2E91E, SCROLL_BAR_TASK_WAIT = 0xC28C30 };
-
-/* The loop's wait, from its JSR at `site`: run as the JSR reaches it where
- * the runtime would run it, and otherwise left to the JSR. Either way the
- * next task goes on, and this one goes on from the JSR's return on its next
- * turn, into its work again. The wait keeps the registers on the task's
- * stack for that return, where the loops read none of them. */
-
-/* The same for frames, A's low byte of them: the task switch's wait for
- * frames ($C2:822B) reads A, and nothing else. */
-
-/* The records' task's loop: a frame of the records' sprites (menu/sprites.c),
- * then the wait, which it waits in with A 16-bit and the index registers
- * 8-bit, set at its head. */
-enum { RECORDS_TASK_WAIT = 0xC2F696 };
-
 /* A loop's turn takes a wait for the next frame, as C or on the machine;
  * false where the task never came back to it. */
 typedef bool (*LoopWait)(void *ctx);
@@ -223,7 +197,12 @@ static void member_cursor_task(GameState *g, Platform *pf);
 static void members_cursors_task(GameState *g, Platform *pf);
 
 enum { SCROLL_BAR_TASK_HEAD = 0x8BB8, RECORDS_TASK_HEAD = 0xF657 };
-enum { HELD_CURSOR_TASK_HEAD = 0x8AB2, LIST_CURSOR_TASK_HEAD = 0x89F2, MEMBER_CURSOR_TASK_HEAD = 0x8A45, MEMBERS_CURSORS_TASK_HEAD = 0x8AF5 };
+enum {
+    HELD_CURSOR_TASK_HEAD = 0x8AB2,
+    LIST_CURSOR_TASK_HEAD = 0x89F2,
+    MEMBER_CURSOR_TASK_HEAD = 0x8A45,
+    MEMBERS_CURSORS_TASK_HEAD = 0x8AF5,
+};
 
 static const struct {
     uint16_t start;

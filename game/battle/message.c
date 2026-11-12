@@ -44,10 +44,6 @@ enum { LETTERS_A_FRAME = 1 };
  * second byte, bits 3-5). */
 static uint8_t message_speed(const GameState *g) { return (uint8_t)((game_settings(g, 1) >> 3) & 0x07); }
 
-/* The bit of the settings below the speed, which the original's shift of the
- * speed moves into the carry. */
-enum { SPEED_SHIFTED_OUT = 0x04 };
-
 // $CD:04DF
 /* The next letter of a message being set. However far it has got, the message
  * is timed from the letter just set: it stays up for the frames its speed
@@ -118,9 +114,6 @@ static void close_the_message(GameState *g)
 /* The frames a message stays up for, at the player's speed. */
 static uint8_t frames_up(const GameState *g) { return battle_message_frames_at_speed(g, message_speed(g)); }
 
-/* A wait for the next frame the original makes with a count in A, which it
- * keeps on the stack across the wait, with the carry `carry`. */
-
 /* The battle's own message's calls, each where the original makes it: its
  * sound (battle/sound.c), its whole text set out ($CD:027F, above), the
  * pauses around it ($CD:020A, below), the hold's frames (battle/wait.c), and
@@ -166,8 +159,6 @@ static bool pause_on_the_message(bool (*frame)(void *ctx, uint8_t left), void *c
 /* The escape's message stays a second, whatever the speed; the others for
  * the frames the speed gives, or until A is pressed. */
 enum { RAN_AWAY = 0x08, RAN_AWAY_FRAMES = 0x3C };
-/* The original keeps the frames in a work cell of the battle's ($53). */
-enum { LEFT_FRAMES = 0x53 - 0x45 };
 
 static bool hold_the_message(GameState *g, uint8_t message, HeldCalls call, void *ctx)
 {
@@ -280,9 +271,6 @@ static bool describe(GameState *g, uint8_t description)
     type_out(g, DESCRIPTIONS, description);
     return true;
 }
-
-/* The opening alone takes the table already named: one of the three the
- * battle's messages come from. */
 
 /* ---- The guard --------------------------------------------------------------------------------- */
 

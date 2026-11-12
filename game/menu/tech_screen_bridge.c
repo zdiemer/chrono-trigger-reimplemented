@@ -23,7 +23,6 @@
 
 #include "charge.h"
 #include "cpu_io.h"
-#include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/description.h"
 #include "menu/healing.h"
@@ -45,25 +44,16 @@
 /* ---- The calls out ----------------------------------------------------------------------------- */
 
 /* The original's routines the steps call, by what they do. */
-enum { WAIT_FRAMES = 0xC2822B, /* the task waits for the frames in A */
-    MAIN_MENU = 0xC29A98, /* back to the main menu */ };
-
-/* The widths and P the original's code sets at those places, and the lister's
- * record's page its sprite's load runs on. */
-enum { LISTER_PAGE = 0x19C0 };
+enum {
+    WAIT_FRAMES = 0xC2822B,            /* the task waits for the frames in A */
+    MAIN_MENU = 0xC29A98,              /* back to the main menu */
+};
 
 /* The healing's targets worked out (its last shifts leave the carry clear),
  * then the effect's every-member bit tested. */
 enum { EVERY_MEMBER_BIT = 0x08 };
 
-/* Slid: the line effects' bit loaded over what the rows' copies left in the
- * accumulator's high byte (the block moves' $FFFF up the list, the copy's
- * last source row down it), and no overflow from the copies' sums. */
-enum { LINE_EFFECTS_MOVED_BIT = 0x80 };
-
 /* ---- The guards -------------------------------------------------------------------------------- */
-
-enum { LIST_ROWS_SHOWN = 8 };
 
 static bool queue_takes(const GameState *g, unsigned uploads) { return menu_upload_queue_takes(g, uploads); }
 

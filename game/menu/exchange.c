@@ -232,10 +232,6 @@ static void animate_the_member_at(GameState *g, RecordPlace place, uint8_t anima
         set_menu_record_animation(g, character, animation);
 }
 
-/* For the original's code and shadow mode: its loop over the party's
- * places counts down past the first. */
-enum { COUNTED_PAST_THE_FIRST = 0xFF };
-
 // $C2:C973
 static void animate_the_members(GameState *g)
 {
@@ -311,7 +307,11 @@ enum { PANEL_FRAMES = 3 };
  * to a rule, menu_story_items' first) and the gate's sprite on the screens'
  * eighth record; the label's tiles are sent and laid out in two strips, its
  * top half and its bottom. */
-enum { MAIN_MENU_PANEL_WINDOWS = 0xBF48, GATE_PANEL_WINDOWS = 0xBF05, SCREEN_WINDOWS = 0xBF7B, GATE_LABEL = 4, GATE_LABEL_WITH_A_RULE = 5, GATE_LABEL_AT = 0x5E00, UPLOAD_GATE_LABEL = 0xCAD9, GATE_RECORD = MENU_EXCHANGE_GATE_RECORD, GATE_SPRITE = 0x48, GATE_SPRITE_SET = 1, GATE_SPRITE_Y = 0xCA, GATE_SPRITE_X = 0x20, GATE_SPRITE_COLOURS = 0x20,  };
+enum {
+    MAIN_MENU_PANEL_WINDOWS = 0xBF48, GATE_PANEL_WINDOWS = 0xBF05, SCREEN_WINDOWS = 0xBF7B,
+    GATE_LABEL = 4, GATE_LABEL_WITH_A_RULE = 5, GATE_LABEL_AT = 0x5E00, UPLOAD_GATE_LABEL = 0xCAD9,
+    GATE_RECORD = MENU_EXCHANGE_GATE_RECORD, GATE_SPRITE = 0x48, GATE_SPRITE_SET = 1, GATE_SPRITE_Y = 0xCA, GATE_SPRITE_X = 0x20, GATE_SPRITE_COLOURS = 0x20,
+};
 static const struct {
     uint16_t at, columns, first_tile;
 } GATE_LABEL_STRIPS[] = { { 0x334C, 8, 0x0100 }, { 0x33CC, 8, 0x0121 } };
@@ -441,7 +441,13 @@ void menu_exchange_start_choosing(GameState *g, uint8_t from)
 /* The screen's line effect is the colour math's; its third layer stands
  * sixteen lines above its top; with the active party alone, the first
  * window runs from x 64 to 191, over the middle. */
-enum { SCREEN_LINE_EFFECTS = 0x01, THIRD_LAYER = 2, THIRD_LAYER_Y = 0x01F0, MIDDLE_WINDOW_LEFT = 0x40, MIDDLE_WINDOW_RIGHT = 0xBF };
+enum {
+    SCREEN_LINE_EFFECTS = 0x01,
+    THIRD_LAYER = 2,
+    THIRD_LAYER_Y = 0x01F0,
+    MIDDLE_WINDOW_LEFT = 0x40,
+    MIDDLE_WINDOW_RIGHT = 0xBF,
+};
 enum { MIDDLE_WINDOW_EDGES = MIDDLE_WINDOW_RIGHT << 8 | MIDDLE_WINDOW_LEFT };
 
 /* The reserve's scroll bar, where it has more members than its four rows:

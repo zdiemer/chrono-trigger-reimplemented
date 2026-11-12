@@ -61,7 +61,7 @@ void battle_note_menu_stat_block(GameState *g, uint8_t member)
 /* A stolen item goes on the list where the list has it already (one more of
  * it, up to 99), else in its first empty place. The member's last waiting
  * item goes first. */
-enum { ITEM_RECORDS = BATTLE_ITEM_LIST_COUNT, MOST_HELD = 99, NO_ITEM = 0, KEPT_ITEM_STRIDE = 8 };
+enum { ITEM_RECORDS = BATTLE_ITEM_LIST_COUNT, MOST_HELD = 99, NO_ITEM = 0 };
 
 static int item_place(const GameState *g, uint8_t item)
 {
@@ -72,11 +72,6 @@ static int item_place(const GameState *g, uint8_t item)
 }
 
 static int empty_place(const GameState *g) { return item_place(g, NO_ITEM); }
-
-/* The cells the original takes the item in with: the member's slot, its
- * kept record's place (eight bytes a member), the item, and the bytes left
- * to copy where it copied the record. */
-enum { STOLEN_SLOT_CELL = 0x80, BYTES_LEFT_CELL = 0x82, STOLEN_ITEM_CELL = 0x84, KEPT_AT_CELL = 0x86 };
 
 static void forget_kept_item(GameState *g, unsigned member)
 {
@@ -239,10 +234,6 @@ static void call_off_targeting(GameState *g)
     battle_move_cursors_away(g);
 }
 
-/* The cells the original queues the action from: the choice (where a
- * partner taken was noted first), the partners, and what it is. */
-enum { CHOICE_CELL = 0x80, PARTNERS_CELL = 0x82, WHAT_CELL = 0x84 };
-
 /* A partner in the member's combination tech is spoken for: its menu slot
  * empties and its own choosing is dropped. */
 static void take_partner(GameState *g, uint8_t partner)
@@ -304,8 +295,6 @@ static void remember_command(GameState *g, uint8_t member)
         set_battle_remembered_command(g, m, COMMAND_ATTACK);
     }
 }
-
-/* The action's choosing cells the original queues it from. */
 
 /* The member's action queued; its menu closes and the menu goes to the first
  * slot with a member still to choose. */
@@ -502,7 +491,7 @@ enum { TECH_ROWS_SHOWN = 3, TECH_DIMMED = 0x80 };
 
 /* The cells the original moves a list's cursor in: the entry it is at, the
  * rows it went, and the cursor's row worked out. */
-enum { AT_CELL = 0x80, ROWS_CELL = 0x82, ROW_CELL = 0x83 };
+enum { AT_CELL = 0x80, ROW_CELL = 0x83 };
 
 // $C1:13AD
 /* Up to the row before with a tech on it, scrolling the list where the
@@ -691,19 +680,7 @@ void battle_menu_frame(GameState *g, Buttons buttons, MenuHost *host)
     set_battle_menu_buttons(g, 0);
 }
 
-/* ---- The entries -------------------------------------------------------------------------------- */
-
-/* The frame around the member leaves A the high table's byte, its high byte
- * clear, X past the four sprites, the carry of its loop's last compare and
- * the other flags of loading the byte. */
-
-/* The stat block noted from the member in A; the original leaves A clear (its
- * direct page's) and X the stat block. */
-
 /* ---- The guards --------------------------------------------------------------------------------- */
-
-/* The stat block of a combatant or the menu's nobody, by the byte in A, its
- * high byte clear (the original reads the table with the whole of A). */
 
 /* What the menu's frame takes on trust beside the window's state
  * (battle_menu_window_ready): the menu's slot one of the three or none; a

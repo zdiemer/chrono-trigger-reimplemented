@@ -69,9 +69,6 @@ static bool take_the_menu_turn(GameState *g, MenuTurnPlace place, StepCalls call
     return true;
 }
 
-/* The menu's turn between two steps of another wait: the frame's queued
- * uploads wait while it goes. */
-
 // $C1:10FA
 /* The frame step: the menu's turn, then the frame work's tail. */
 static bool menu_turn_between_steps(GameState *g, MenuTurnPlace place, StepCalls call, void *ctx)
@@ -176,7 +173,16 @@ typedef struct {
     Platform *pf;
 } FrameStepContext;
 
-enum { MENU_WINDOW_ENTRY = 0xC10C2D, MENU_BUTTONS_ENTRY = 0xC11153, MENU_CURSORS_ENTRY = 0xC117DD, FRAME_TAIL = 0xCD0009, FRAME_WAIT = 0xC1007E, ANIMATIONS = 0xC12D9F, ENEMY_EFFECTS = 0xC13714, DESCRIBE = 0xCD0027, WAIT_STEP = 0xC1106E };
+enum {
+    MENU_WINDOW_ENTRY = 0xC10C2D,
+    MENU_BUTTONS_ENTRY = 0xC11153,
+    MENU_CURSORS_ENTRY = 0xC117DD,
+    FRAME_TAIL = 0xCD0009,
+    FRAME_WAIT = 0xC1007E,
+    ANIMATIONS = 0xC12D9F,
+    ENEMY_EFFECTS = 0xC13714,
+    WAIT_STEP = 0xC1106E,
+};
 
 static bool step_a_part(void *ctx, StepCall call)
 {

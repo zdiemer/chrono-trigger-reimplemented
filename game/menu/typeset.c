@@ -30,7 +30,6 @@
 
 #include "charge.h"
 #include "cpu_io.h"
-#include "menu/bridge.h"
 #include "menu/glyphs.h"
 #include "menu/menu_data.h"
 #include "vars.h"
@@ -42,7 +41,10 @@ typedef enum { FROM_STRING = 0, FROM_INSERT = 1, FROM_DIGITS = 2, FROM_HEX_DIGIT
 
 /* Why a call stopped (typeset.h's MenuTextStop). The start leaves "go on",
  * the first of the breaks. */
-enum { STOP_FINISHED = MENU_TEXT_ENDED, STOP_WAITING = MENU_TEXT_WAITS, GO_ON = MENU_TEXT_BREAKS, FIRST_NEW_LINE = MENU_TEXT_NEW_LINE, LAST_BREAK = MENU_TEXT_LAST_BREAK, STOP_BUDGET = MENU_TEXT_OUT_OF_BUDGET,  };
+enum {
+    STOP_FINISHED = MENU_TEXT_ENDED, STOP_WAITING = MENU_TEXT_WAITS, GO_ON = MENU_TEXT_BREAKS,
+    FIRST_NEW_LINE = MENU_TEXT_NEW_LINE, LAST_BREAK = MENU_TEXT_LAST_BREAK, STOP_BUDGET = MENU_TEXT_OUT_OF_BUDGET,
+};
 
 /* Where a line starts: a tile in from the edge, or indented. */
 enum { MARGIN = 8, INDENT = 0x14, EDGE = 0 };
@@ -300,10 +302,17 @@ static void insert_number(GameState *g, uint8_t bytes)
 /* ---- The string ---------------------------------------------------------------------------- */
 
 /* The control codes. */
-enum { CODE_END = 0x00, CODE_WAIT = 0x03, CODE_BREAKS_FROM = 0x04, CODE_BREAKS_TO = 0x0C, CODE_NUMBER_BYTE = 0x0D, CODE_NUMBER_WORD = 0x0E, CODE_NUMBER_LONG = 0x0F, /* the pause: ends the call where it is and leaves its stop as it was, so
+enum {
+    CODE_END = 0x00, CODE_WAIT = 0x03, CODE_BREAKS_FROM = 0x04, CODE_BREAKS_TO = 0x0C,
+    CODE_NUMBER_BYTE = 0x0D, CODE_NUMBER_WORD = 0x0E, CODE_NUMBER_LONG = 0x0F,
+    /* the pause: ends the call where it is and leaves its stop as it was, so
      * the caller takes the text up next time; the dialog's typing halts for
      * the rest of the frame */
-    CODE_PAUSE = 0x10, CODE_CHARACTER = 0x11, CODE_NAMED = 0x12, CODE_CRONO = 0x13, CODE_MAGUS = 0x19, CODE_LEADER = 0x1A, CODE_MEMBER_1 = 0x1B, CODE_MEMBER_3 = 0x1D, CODE_NADIA = 0x1E, CODE_ITEM = 0x1F, CODE_EPOCH = 0x20, FIRST_WORD = 0x21,  };
+    CODE_PAUSE = 0x10,
+    CODE_CHARACTER = 0x11, CODE_NAMED = 0x12, CODE_CRONO = 0x13, CODE_MAGUS = 0x19, CODE_LEADER = 0x1A,
+    CODE_MEMBER_1 = 0x1B, CODE_MEMBER_3 = 0x1D, CODE_NADIA = 0x1E, CODE_ITEM = 0x1F, CODE_EPOCH = 0x20,
+    FIRST_WORD = 0x21,
+};
 
 /* After $12: 0 a tech, 1 an enemy, 8 up a word of the dictionary's second
  * part. 2-7 jump into code in the original that isn't a handler; no string
@@ -515,8 +524,6 @@ static Piece piece_at(const GameState *g, uint32_t at)
     }
     return p;
 }
-
-// $C2:F90C
 
 /* ---- The guards -------------------------------------------------------------------------- */
 

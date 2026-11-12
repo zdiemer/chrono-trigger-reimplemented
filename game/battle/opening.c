@@ -44,10 +44,6 @@ static BattlePoint standing_at(const GameState *g, uint8_t slot)
     return (BattlePoint){ battle_object_x(g, battle_combatant_object(slot)), battle_object_y(g, battle_combatant_object(slot)) };
 }
 
-/* The original counts the members down in a cell, which it leaves past the
- * first. */
-enum { LEFT_MEMBER = 0x94 - 0x80 };
-
 // $C1:350F
 /* Each member, the last first, turns to face the enemy nearest it. */
 static void face_the_enemies(GameState *g)
@@ -159,7 +155,15 @@ typedef struct {
     Platform *pf;
 } BattleSetUpContext;
 
-enum { SET_UP_ENTRY = 0xC10023, SET_UP_STATE_ENTRY = 0xCCE2E4, DRAW_WINDOW = 0xC10299, ALL_BOUNDS = 0xC1283D, SET_UP_GRAPHICS_ENTRY = 0xCCED87, AFTER_THE_GRAPHICS = 0xC10031, OPEN_THE_WINDOW = 0xCD000C, FACES_THE_ENEMIES = 0xC10042 };
+enum {
+    SET_UP_STATE_ENTRY = 0xCCE2E4,
+    DRAW_WINDOW = 0xC10299,
+    ALL_BOUNDS = 0xC1283D,
+    SET_UP_GRAPHICS_ENTRY = 0xCCED87,
+    AFTER_THE_GRAPHICS = 0xC10031,
+    OPEN_THE_WINDOW = 0xCD000C,
+    FACES_THE_ENEMIES = 0xC10042,
+};
 
 static bool set_up_a_part(void *ctx, SetUpCall call)
 {
@@ -214,13 +218,3 @@ bool battle_set_up_runs(GameState *g, Platform *pf)
     TIMED_AS(g, FACES_THE_ENEMIES, open_the_battle(g));
     return battle_party_strikes_its_poses(g, pf);
 }
-
-/* ---- On the machine ------------------------------------------------------------------------ */
-
-/* Where the setup waits: for the graphics to have loaded, which the setup's
- * graphics end by jumping to (battle_wait_graphics_loaded_loop, which
- * returns to the setup), and for the window's slide (battle/wait.c), which
- * reads none of the registers but A's high byte, as the window's opening
- * leaves it. */
-enum { SLIDE_WAIT = 0xC1003C };
-/* The window's opening sets the rest of the registers itself. */

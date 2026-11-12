@@ -41,18 +41,16 @@ typedef enum {
  * have places of their own: the description's typing, the cursor's sprite
  * (which a screen's panel holds back while it draws), the scroll bar's, the
  * records', the cursors a screen holds and the healing's rising numbers. */
-enum { MENU_DESCRIPTION_TASK = 2, MENU_CURSOR_TASK = 3, MENU_SCROLL_BAR_TASK = 4, MENU_RECORDS_TASK = 5, MENU_HELD_CURSORS_TASK = 6, MENU_AMOUNTS_TASK = 7,  };
+enum {
+    MENU_DESCRIPTION_TASK = 2, MENU_CURSOR_TASK = 3, MENU_SCROLL_BAR_TASK = 4, MENU_RECORDS_TASK = 5,
+    MENU_HELD_CURSORS_TASK = 6, MENU_AMOUNTS_TASK = 7,
+};
 enum { MENU_TASK_STARTING = 1 };
 
 /* Stop the tasks whose bits are set in `tasks`, bit n the n-th: none of
  * them takes another turn ($C2:8255, menu/frame.c). */
 enum { MENU_TASKS = 8 };
 void menu_stop_tasks(GameState *g, uint8_t tasks);
-/* menu/tasks.c: a task waits a frame or some frames, or ends, and the next
- * goes on; the frame's turns from the first task; the menus' first wait; and
- * the turns of the main task and the cursor's, the tasks that run all the
- * time. */
-
 /* The same as C, each task a coroutine (core/tasks.h): the tasks started as
  * the menus open; a frame's turns, which end where a task closes the menus or
  * is one only the machine runs yet; the running task's wait for `frames`

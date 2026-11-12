@@ -26,7 +26,15 @@
  * record's and what the last boost or affinity added are cells later work
  * reads as it finds them (battle.h), kept plainly; the others are
  * scaffolding. */
-enum { BLOCK_AT = BATTLE_CLOCK_READS, MEMBER_AT = 0x02, BITS_LEFT = 0x04, COPIED = 0x04, RECORD_AT = BATTLE_NUMBER_TESTED, ADDED = BATTLE_STAT_OFFSET_LOW, BOOST_AT = 0x0C, TABLE_AT = BATTLE_TECH_HITS_LEFT,  };
+enum {
+    BLOCK_AT = BATTLE_CLOCK_READS,
+    MEMBER_AT = 0x02,
+    BITS_LEFT = 0x04,
+    COPIED = 0x04,
+    RECORD_AT = BATTLE_NUMBER_TESTED,
+    ADDED = BATTLE_STAT_OFFSET_LOW,
+    TABLE_AT = BATTLE_TECH_HITS_LEFT,
+};
 
 /* ---- The boosts ------------------------------------------------------------------------------ */
 
@@ -187,19 +195,11 @@ void battle_take_equipment_records(GameState *g, uint8_t worn_at, uint8_t copy_t
 
 /* ---- The entries ------------------------------------------------------------------------------ */
 
-/* The stat block whose place is in the cell `at`: the combatant's slot, or
- * none where the place is no block's. */
-
-/* The member in its cell ($02), a member of the party's. */
-
-/* A piece's boost and affinities, for the member whose block's place is in
- * its cell ($00), from the record whose place is in its ($08); the boosts'
- * table's place in its cell ($0E). The record is read within the bank. */
-enum { RECORD_LAST_PLACE = 0xFFFA };
-
-/* An item's record's place: the item in A, the place in X (A clear where it
- * has one; where not, X and A are left as they came). */
-
 /* The records to copy: where the item is in a block, in its cell ($06); where
  * they go, in its ($08); how many bytes, in its ($0A). */
-enum { WORN_AT = BATTLE_MEMBER_CELL, COPY_TO = BATTLE_NUMBER_TESTED, BYTES = BATTLE_STAT_OFFSET_LOW, BLOCK_OFFSETS = 0x100 };
+enum {
+    WORN_AT = BATTLE_MEMBER_CELL,
+    COPY_TO = BATTLE_NUMBER_TESTED,
+    BYTES = BATTLE_STAT_OFFSET_LOW,
+    BLOCK_OFFSETS = 0x100,
+};

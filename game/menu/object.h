@@ -60,8 +60,15 @@ void menu_set_object_byte(GameState *g, MenuObject o, uint16_t at, uint8_t v);
  * the frame its sprite script shows rather than counting the frame's time
  * down, and whether it is placed on the map, moving with its scroll, rather
  * than on the screen. */
-enum { MENU_LOOK_IN_FRONT = 0x01, MENU_LOOK_PALETTE = 0x0E, MENU_LOOK_PRIORITY = 0x30, MENU_LOOK_HELD = 0x40, MENU_LOOK_ON_THE_MAP = 0x80, /* The sprites' attribute bits the look gives them. */
-    MENU_LOOK_ATTRIBUTES = MENU_LOOK_PALETTE | MENU_LOOK_PRIORITY,  };
+enum {
+    MENU_LOOK_IN_FRONT = 0x01,
+    MENU_LOOK_PALETTE = 0x0E,
+    MENU_LOOK_PRIORITY = 0x30,
+    MENU_LOOK_HELD = 0x40,
+    MENU_LOOK_ON_THE_MAP = 0x80,
+    /* The sprites' attribute bits the look gives them. */
+    MENU_LOOK_ATTRIBUTES = MENU_LOOK_PALETTE | MENU_LOOK_PRIORITY,
+};
 
 /* ---- Starting objects -------------------------------------------------------------------- */
 

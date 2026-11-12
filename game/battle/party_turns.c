@@ -86,9 +86,6 @@ static uint8_t random_enemy(GameState *g)
     return slot;
 }
 
-/* Anyone in the fight at random, but the member itself (which the original
- * keeps in a cell to compare). */
-enum { CONFUSED_MEMBER_AT = 0x12 };
 static uint8_t random_other(GameState *g, uint8_t member)
 {
     uint8_t slot;
@@ -172,9 +169,6 @@ static bool counters(const GameState *g, uint8_t member)
            && !(combatant_stat_byte(g, member, STAT_STATUS_1) & UNFIT_TO_COUNTER)
            && (combatant_stat_byte(g, member, STAT_ACCESSORY_RECORD) & ACCESSORY_COUNTERS);
 }
-
-/* The original keeps the member's stat block's place in a cell. */
-enum { COUNTERING_BLOCK_AT = 0x0C };
 
 /* The members it hit are the action's first three targets. */
 enum { MEMBERS_HIT = BATTLE_PARTY_SIZE };
@@ -310,9 +304,6 @@ static void count_beaten_now(GameState *g, unsigned enemy)
     set_battle_enemy_beaten_before(g, enemy, 0);
 }
 
-/* The original keeps the target it is at in a cell. */
-enum { TARGET_AT = 0x10 };
-
 // $C1:B762
 static bool see_to_knocked_out(GameState *g, PartyCalls call, void *ctx)
 {
@@ -358,7 +349,10 @@ static bool reaction_targets_are_combatants(const GameState *g)
 
 /* A demo battle's members are ready with an action from the start, waiting
  * with it, their menus open; the demo's records name the action. */
-enum { DEMO_READY = MEMBER_ACTION_CHOSEN | MEMBER_MENU_OPEN, DEMO_ACTION_STATE = MEMBER_ACTION_WAITING | MEMBER_MENU_OPEN,  };
+enum {
+    DEMO_READY = MEMBER_ACTION_CHOSEN | MEMBER_MENU_OPEN,
+    DEMO_ACTION_STATE = MEMBER_ACTION_WAITING | MEMBER_MENU_OPEN,
+};
 
 // $C1:B70E
 void battle_demo_party_ready(GameState *g)

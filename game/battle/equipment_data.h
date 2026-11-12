@@ -21,7 +21,13 @@
 enum { EQUIPMENT_BANK = 0xCC0000u };
 
 /* The item ranges, each from its first. */
-enum { FIRST_ARMOR = 0x5A, FIRST_HELMET = 0x7B, FIRST_ACCESSORY = 0x94, FIRST_OTHER_ITEM = 0xBC, ITEMS_RECORDED = 0xF2 };
+enum {
+    FIRST_ARMOR = 0x5A,
+    FIRST_HELMET = 0x7B,
+    FIRST_ACCESSORY = 0x94,
+    FIRST_OTHER_ITEM = 0xBC,
+    ITEMS_RECORDED = 0xF2,
+};
 
 /* $FD:B033's ranges: the records of the range an item is in, from the first
  * item's, `bytes` long each; an item past the recorded ones has none
@@ -85,11 +91,6 @@ static inline uint16_t boost_records_place(EquipmentKind kind)
 {
     static const uint16_t first[] = { 0x06A4, 0x08C0, 0x0986 };
     return first[kind];
-}
-
-static inline uint8_t weapon_made_for(const GameState *g, uint8_t weapon)
-{
-    return equipment_bank_byte(g, (uint16_t)(0x06A7 + weapon * WEAPON_SECOND_RECORD_BYTES));
 }
 
 static inline uint16_t stat_boost_place(uint8_t boost) { return (uint16_t)(boost * 2 + STAT_BOOSTS); }

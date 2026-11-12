@@ -195,11 +195,6 @@ static void keep_found_position(GameState *g, unsigned slot, BattlePoint at)
     set_battle_animation_positions(g, slot, (uint16_t)(at.x | at.y << 8));
 }
 
-/* The original counts the slots in a cell, which the places don't read. The
- * count it ends at, POSITION_SLOTS, is the lift a jump to the script's point
- * takes from there (battle/script_moves.c), so it is kept plainly. */
-enum { LEFT_POSITION_SLOT = 0x10 };
-
 /* ---- The entries ------------------------------------------------------------------------ */
 
 /* Each takes the object as the original's callers give it, in X. The box's
@@ -222,12 +217,6 @@ void battle_take_due_animation_step(GameState *g)
     if (slot != BATTLE_COMBATANTS)
         take_animation_step(g, slot);
 }
-
-/* The object the pass will find due, without counting the times down: one
- * whose time is up now or runs out this frame. */
-
-/* The scheduler's place names an object, and the object due has graphics the
- * battle builds, as every object the game animates has. */
 
 // $C1:4212
 /* Each slot's position is the place its mode names (battle/script_places.c),

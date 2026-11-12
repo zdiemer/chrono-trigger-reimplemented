@@ -11,9 +11,7 @@
 #include "state.h"
 #include "vars.h"
 
-enum { FIELD_PAGE = 0x0100, FIELD_LAYERS_PAGE = 0x1D00 };
-
-enum { JSR_SIZE = 3, JSL_SIZE = 4 };
+enum { FIELD_LAYERS_PAGE = 0x1D00 };
 
 bool field_tick_is_exact(const GameState *g, unsigned obj);
 bool field_rows_are_exact(const GameState *g, unsigned obj);

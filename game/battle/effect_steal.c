@@ -19,11 +19,6 @@
 /* The accessory that makes its wearer's steals three times as likely to land. */
 enum { THIEFS_ACCESSORY = 0xA5 };
 
-/* The original hands the outcome back in the cell it took the chance in
- * ($16), and the item taken in $06, where the member's turn reads it to name
- * in its message (battle.h, kept plainly). */
-enum { ENEMY_PLACE_CELL = 0x0C };
-
 /* How the steal came out, kept for the member's turn (battle_steal_outcome)
  * and handed back: a miss and nothing to take as themselves; an item taken as
  * its giving left it, and 0 handed back. */
@@ -58,7 +53,7 @@ static void set_marks_of(GameState *g, uint8_t slot, uint8_t marks)
  * by a multiply, the item's record's place, which the scripts' stat test may
  * read after ($08 and $0A, kept plainly), and $00, which the clock's modifier
  * may read (battle.h). */
-enum { KEPT_ITEM_BYTES = 8, RECORD_PLACE_CELL = 0x02, THIEF_RECORD_CELL = 0x04 };
+enum { KEPT_ITEM_BYTES = 8 };
 
 /* One of an item kept for a party member until the battle ends, with the
  * detail and kind its record gives it. */

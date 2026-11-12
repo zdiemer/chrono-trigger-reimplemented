@@ -35,9 +35,6 @@ enum { NO_SLOT = 0xFF };
 
 static uint8_t slot_of(const GameState *g, uint8_t character) { return battle_character_slot(g, character); }
 
-/* The original finds the tech's record by a multiply, whose cells the
- * battle's next arithmetic takes up (battle/arith.h). */
-
 /* ---- Whether the members can take part ------------------------------------------------------- */
 
 /* Two accessories cut the MP a part costs: to half, and to a quarter, each
@@ -64,11 +61,6 @@ uint8_t effect_part_mp_cost(const GameState *g, const PartyTech *t, unsigned par
     return effect_mp_cost_cut(party_effect_mp_cost(g, t->effects[part]), battle_member_accessory(g, slot));
 }
 
-/* A member can take part where nothing keeps them from techs and they have
- * the MP for their part: more MP than it costs, and not kept from techs by
- * their status; exactly as much, whatever their status (the original's
- * test, kept). */
-
 /* What the check leaves as it ends: the MP of the last member whose MP it
  * compared, kept in the word the original compares with
  * (battle_tech_mp_compared, which a steal aimed at the party reads as that
@@ -92,10 +84,8 @@ static bool member_takes_part(const GameState *g, const PartyTech *t, unsigned p
     return cost == mp || (cost < mp && !(combatant_stat_byte(g, slot, STAT_STATUS_1) & STATUS_NO_TECHS));
 }
 
-static void leave_check(GameState *g, uint8_t tech, unsigned stopped_at, uint8_t compared)
+static void leave_check(GameState *g, uint8_t tech, uint8_t compared)
 {
-
-    (void)stopped_at;     ;
     if (compared == NOBODY_COMPARED)
         return;
     multiply_out_tech_place(g, tech);
@@ -123,12 +113,6 @@ enum { ALL_TAKE_PART = 0x00, NOT_ALL_TAKE_PART = 0xFF };
  * to aim at. */
 enum { NOTHING_TO_AIM_AT = 1 };
 
-/* The enemy the attack aims at: the first candidate where it is still in the
- * fight, or the one standing in its place; otherwise one drawn at random from
- * those in the fight. */
-
-// $C1:D63F
-
 /* ---- A part of the tech -------------------------------------------------------------------- */
 
 /* The part's effect copied where the kinds read it; once its member is known
@@ -149,7 +133,7 @@ static bool members_can_take_part(GameState *g, uint8_t tech, const PartyTech *t
             compared = slot;
         all = member_takes_part(g, t, part, slot);
     }
-    leave_check(g, tech, all ? TECH_MEMBERS : part - 1, compared);
+    leave_check(g, tech, compared);
     set_battle_tech_blocked(g, all ? ALL_TAKE_PART : NOT_ALL_TAKE_PART);
     return all;
 }
@@ -210,21 +194,11 @@ static void take_flags(GameState *g, const EffectRecord *e, uint8_t modifier, ui
     set_battle_effect_flags(g, 1, e->more_flags);
 }
 
-/* How the tech marks those it acts on, with its member's slot, and what it is,
- * for the action's showing and the enemies' scripts; an attack's showing is
- * numbered by its effect's damage formula, less one. A tech's further members
- * are its further targets for the showing: none past the first missing, the
- * rest left as they were. */
-
-/* The work starts each part with no status given yet and no enemy beaten. */
-
 /* After a part that missed, the tech stops where a byte of work RAM has bit 7:
  * the original reads it by the tech's record's offset in the wrong bank, where
  * the record's last byte is meant, and so reads whatever the battle's work RAM
  * holds there. Only the original's memory has that byte (docs/TODO.md). */
 enum { STOPS_AT_MISS = 0x80, MISREAD_BASE = 0x7EB1F5 };
-
-/* A part worked out: TECH_WORKED_OUT where the tech goes on. */
 
 /* ---- The tech ------------------------------------------------------------------------------ */
 
@@ -288,13 +262,6 @@ static uint8_t sure_flags(const PartyTech *t)
     return (uint8_t)((t->flags & TECH_CANT_MISS ? EFFECT_CANT_MISS : 0)
                      | (t->flags & TECH_CANT_BE_TURNED_AWAY ? EFFECT_CANT_BE_TURNED_AWAY : 0));
 }
-
-/* The action's notes cleared as the work ends, as an enemy's are. */
-
-/* An attack (battle_action_choice) goes ahead whatever the MP: it is worked
- * out as the character's attack tech, which costs nothing. */
-
-// $C1:D523
 
 // $C1:BF46
 /* The original leaves where it found the item's use in the direct page's

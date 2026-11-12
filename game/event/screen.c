@@ -266,10 +266,6 @@ static void hold_bg3_for_the_credits(GameState *g)
 /* BG3's tile map two screens wide, or two screens tall (field_bg3_map_size). */
 enum { BG3_TWO_SCREENS_WIDE = 1, BG3_TWO_SCREENS_TALL = 2 };
 
-/* What the credits' choice calls (field/script_layers.c): the credits'
- * letters loaded into BG3's tiles, through the unpacker, and the layers'
- * staging blanked. */
-
 // $C0:3E84
 /* Choose which of the credits' texts BG3 shows next, and how BG3's tile map
  * is laid out for it: BG3 held for them, its letters loaded (by
@@ -394,12 +390,6 @@ static bool run_screen_command(GameState *g, uint8_t command, uint8_t x, uint8_t
 /* The routines the field's end calls, including the scene's fresh stack. */
 enum { WALK_THE_LEADER = 0xC0881E, PALETTE_ANIMATION = 0xFDFFF7, FRAME_WAIT = 0xC0EC60 };
 enum { THE_SCENE_STARTS = 0xC03FD6 };
-
-/* The original's dispatch of the screen commands, a JSR through its table
- * ($C0:4009), with the registers it has there: the command's index doubled
- * in A and X, the carry and the overflow its working out left clear. The
- * restart resumes here after the event entry ends its comparison. */
-enum { SCREEN_DISPATCH = 0xC04009 };
 
 /* Entry addresses are only the machine bridge's calling convention. The
  * operation table above describes the effects themselves. */

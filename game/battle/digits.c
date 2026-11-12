@@ -21,9 +21,6 @@ static void keep_digits(GameState *g, Digits d)
     set_battle_digits(g, BATTLE_DIGIT_ONES, d.ones);
 }
 
-/* The original counts the digits out of the number by subtracting until it
- * goes below zero, and leaves it there: its ones less ten. */
-
 // $C1:011F, $C1:0174
 /* A number of three digits, or of two, the hundreds left blank (a digit that
  * outgrows its place shows whatever tile follows the nine's). */

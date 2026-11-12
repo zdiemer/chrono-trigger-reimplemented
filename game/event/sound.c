@@ -16,8 +16,6 @@
 
 /* ---- The commands to the driver ------------------------------------------------------------- */
 
-/* Each command's sends, from its handler's calls of the driver. */
-
 // $C0:3C11
 /* Play a sound effect, from the middle. */
 enum { PLAY_EFFECT = 0xE8, PLAY_EFFECT_BYTES = 2 };

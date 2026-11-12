@@ -40,9 +40,6 @@ static EventFlow subtract(GameState *g, EventVariable counted, uint16_t amount, 
 }
 EVENT_OPERATION(subtract, variable, amount, width)
 
-/* A byte variable as a set of flags: raise some, keep only some, or turn
- * some over. */
-
 // $C0:6BF7
 static EventFlow set_flags(GameState *g, EventVariable variable, uint8_t flags)
 {

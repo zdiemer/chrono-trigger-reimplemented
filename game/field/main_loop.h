@@ -49,7 +49,12 @@ void field_runs(GameState *g, Platform *pf);
 void field_scene_starts(GameState *g, uint8_t scene);
 
 /* The routines, for the ports that run them as C. */
-enum { FIELD_FRAME_WORK_ENTRY = 0xC000BF, FIELD_REFRESH_EFFECTS_ENTRY = 0xC000DE, FIELD_WALK_A_FRAME_ENTRY = 0xC000EB, FIELD_FRAME_WAIT = 0xC0EC60,  };
+enum {
+    FIELD_FRAME_WORK_ENTRY = 0xC000BF,
+    FIELD_REFRESH_EFFECTS_ENTRY = 0xC000DE,
+    FIELD_WALK_A_FRAME_ENTRY = 0xC000EB,
+    FIELD_FRAME_WAIT = 0xC0EC60,
+};
 
 /* field/location.c: loading the location the party is in, and the field put
  * aside for a menu and set up again after it. The field's state moved aside

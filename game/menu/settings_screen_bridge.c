@@ -23,7 +23,6 @@
 #include "menu/settings_screen.h"
 
 #include "charge.h"
-#include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/main_menu.h"
 #include "menu/menu_data.h"
@@ -35,12 +34,10 @@
 
 /* ---- The calls out ------------------------------------------------------------------------------- */
 
-enum { MAIN_MENU = 0xC29A98, /* back to the main menu */
-    CURSOR_SOUND = 0xC2EAC2, TAKE_OPTION = 0xC2BFD4, STEP_METER = 0xC2C164, SOUND_DRIVER = 0xC70004,  };
-
-/* The meter a call steps is its setting's cell, as the original's callers
- * hand it over in X, from each meter's call. */
-enum { BATTLE_SPEED_CELL = 0x0D8B, MESSAGE_SPEED_CELL = 0x0D90, WINDOW_DESIGN_CELL = 0x0D8C };
+enum {
+    MAIN_MENU = 0xC29A98, /* back to the main menu */
+    CURSOR_SOUND = 0xC2EAC2, SOUND_DRIVER = 0xC70004,
+};
 
 /* The sound driver told the mode the player chose (stereo or mono), from
  * the original's call, as C and on the machine. */

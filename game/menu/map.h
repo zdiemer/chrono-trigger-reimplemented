@@ -48,11 +48,4 @@ void menu_map_redraw_plane(GameState *g, Platform *pf, uint8_t plane);
 void menu_map_draw_plane(GameState *g, Platform *pf, uint8_t plane);
 bool menu_map_can_redraw(const GameState *g, uint8_t plane);
 
-/* The entries run on the menus' page, with the data bank on low RAM; the
- * scrolls and the redraw take the plane and the step from the object mode's
- * first cells (map.c's guards say what else the game keeps them to). */
-
-/* Register results shared by the entries and the script bridge. These do
- * no game work and do not return through the emulated stack. */
-
 #endif

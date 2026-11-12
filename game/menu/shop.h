@@ -10,6 +10,7 @@
 
 #include "platform/video.h"
 #include "state.h"
+#include "vars.h"
 
 /* The shop's steps, as its main task runs them (menu_screen_step). */
 typedef enum {
@@ -328,7 +329,5 @@ bool menu_choose_how_many_to_buy(GameState *g, Platform *pf);
 bool menu_choose_shop_member(GameState *g, Platform *pf);
 bool menu_choose_shop_slot(GameState *g, Platform *pf);
 bool menu_choose_shop_equipment(GameState *g, Platform *pf);
-
-/* ---- The entries (game/menu/shop_bridge.c) ------------------------------------------------------- */
 
 #endif

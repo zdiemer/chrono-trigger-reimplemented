@@ -32,22 +32,26 @@ typedef enum { RACER_CRONO, RACER_JOHNNY } Racer;
 
 /* Channel 0's registers, as the race's camera script sets them and the race
  * reads them: those the perspective is built from are the plane's (scene.h). */
-enum { CAMERA_HEIGHT = SCENE_PLANE_HEIGHT, /* how high the camera is: the plane's scale (its low byte) */
-    CAMERA_PLACE = 1, /* where along the track it is, 0-$3FF around */
-    CAMERA_DISTANCE = 2, /* how far it stands from that place */
+enum {
+    CAMERA_HEIGHT = SCENE_PLANE_HEIGHT, /* how high the camera is: the plane's scale (its low byte) */
+    CAMERA_PLACE = 1,      /* where along the track it is, 0-$3FF around */
+    CAMERA_DISTANCE = 2,   /* how far it stands from that place */
     CAMERA_ANGLE = SCENE_PLANE_TURN, /* which way it faces, 0-$3FF around */
     CAMERA_PITCH = SCENE_PLANE_HORIZON, /* how far down the screen the horizon is */
     CAMERA_PLANE_TOP = SCENE_PLANE_TOP, /* where below the horizon the plane's perspective starts */
-    CAMERA_SPEED = 9, /* how far it moves along each frame */
-    RACE_ANIMATION = 10, /* the bikes' animation: they change frame every other count */
+    CAMERA_SPEED = 9,      /* how far it moves along each frame */
+    RACE_ANIMATION = 10,   /* the bikes' animation: they change frame every other count */
     CAMERA_LINES_PAIRED = SCENE_PLANE_LINES_PAIRED, /* nonzero while the perspective is built a pair of lines at a time */
-    CAMERA_LEAN = 12, /* turned into the bikes' poses with the angle */ };
+    CAMERA_LEAN = 12,      /* turned into the bikes' poses with the angle */
+};
 
 /* Channel 1's registers the race reads. */
-enum { RACE_CRONO_SCALE = 0, /* how far off Crono is drawn: the larger, the smaller his picture */
-    CAMERA_SIDE = 2, /* where the camera is down the plane, across the track */
+enum {
+    RACE_CRONO_SCALE = 0,  /* how far off Crono is drawn: the larger, the smaller his picture */
+    CAMERA_SIDE = 2,       /* where the camera is down the plane, across the track */
     RACE_JOHNNY_SCALE = 6, /* the same for Johnny */
-    RACE_STARTED = 13, /* set when the countdown ends */ };
+    RACE_STARTED = 13,     /* set when the countdown ends */
+};
 
 /* The per-line tables split at the horizon, by the camera's pitch, as the
  * race's and the Beyond Time ending's flight's are: the lines above it, half
@@ -74,7 +78,18 @@ typedef enum { RACE_RUNNING = 0, RACE_CRONO_COASTING = 1, RACE_CRONO_PULLED_AWAY
 
 /* The scene's tasks this part of the program adds and removes: their
  * addresses in the program, as the lists hold them (within bank $7E). */
-enum { TASK_FADE_OUT_AND_END = (uint16_t)0x7E34E3, TASK_SETTLE_CAMERA = (uint16_t)0x7E416D, TASK_LEAVE = (uint16_t)0x7E4283, TASK_TURN_CAMERA = (uint16_t)0x7E4339, TASK_FOLLOW_FINISH = (uint16_t)0x7E449C, TASK_DRAIN_SCORE = (uint16_t)0x7E44CE, TASK_COLUMN_FROM_CARTRIDGE = (uint16_t)0x7E4643, TASK_COLUMN_FROM_COPY = (uint16_t)0x7E464D, TASK_COAST = (uint16_t)0x7E4677, TASK_AWAIT_VICTORY_SONG = (uint16_t)0x7E4755,  };
+enum {
+    TASK_FADE_OUT_AND_END = (uint16_t)0x7E34E3,
+    TASK_SETTLE_CAMERA = (uint16_t)0x7E416D,
+    TASK_LEAVE = (uint16_t)0x7E4283,
+    TASK_TURN_CAMERA = (uint16_t)0x7E4339,
+    TASK_FOLLOW_FINISH = (uint16_t)0x7E449C,
+    TASK_DRAIN_SCORE = (uint16_t)0x7E44CE,
+    TASK_COLUMN_FROM_CARTRIDGE = (uint16_t)0x7E4643,
+    TASK_COLUMN_FROM_COPY = (uint16_t)0x7E464D,
+    TASK_COAST = (uint16_t)0x7E4677,
+    TASK_AWAIT_VICTORY_SONG = (uint16_t)0x7E4755,
+};
 
 /* scene/race.c: what the race sends the sound driver -- the engine's pitch
  * (Crono's speed's high byte), and the effects it sends from its own calls,
@@ -106,12 +121,6 @@ void race_start(GameState *g);
 /* scene/race_camera.c: the distances' divisors forgotten, for the perspective
  * of a new camera height. */
 void race_forget_divisors(GameState *g);
-
-/* scene/bridge.c: the frame of a subroutine the race's setup runs inline,
- * entered and left, under the call-outs it makes. */
-
-/* scene/bridge.c: where the main loop's scaling of a racer's picture goes on
- * in the original's scaler, with the carry its first row takes. */
 
 /* scene/math.c: the program's signed 16-bit multiply ($7E:33D6), on a page's
  * cells; returns the product. */

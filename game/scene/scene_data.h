@@ -47,11 +47,6 @@ static inline uint32_t scene_figure_pose_table(const GameState *g, unsigned char
     return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
 }
 
-static inline uint8_t scene_figure_pose_table_extra(const GameState *g, unsigned character)
-{
-    return rom_read8(g, 0xE42303 + character * 3);
-}
-
 static inline uint16_t scene_figure_tile(const GameState *g, uint32_t at) { return rom_read16(g, at); }
 
 static inline uint8_t scene_figure_graphics_byte(const GameState *g, uint32_t at) { return rom_read8(g, at); }

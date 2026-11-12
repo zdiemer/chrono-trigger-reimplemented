@@ -191,13 +191,16 @@ bool battle_run_scripts(GameState *g, Platform *pf)
  * the point is at the top, the throw that waits first into the plain throw's
  * once its wait is over. Entered so, the command's own operation runs there
  * and does the same. */
-enum { END = 0x00, RETURN_FROM_CALL = 0x1F, RETURN_AT_THE_TOP = 0x21, END_UNLESS_LISTED = 0x25, THROW_WAITING_FIRST = 0xD4, THROW = 0xD6 };
+enum {
+    END = 0x00,
+    RETURN_FROM_CALL = 0x1F,
+    RETURN_AT_THE_TOP = 0x21,
+    END_UNLESS_LISTED = 0x25,
+    THROW_WAITING_FIRST = 0xD4,
+    THROW = 0xD6,
+};
 
 /* The end's handler doesn't read the operand the port decides by, so it is
  * read where the game keeps scripts: the ROM's banks or work RAM's, within
  * the bank. */
 enum { WORK_RAM_BANK = 0x7E, LAST_WORK_RAM_BANK = 0x7F, FIRST_ROM_BANK = 0xC0, BANK_END = 0xFFFF };
-
-/* D4's handler goes on into D6's here once its wait is over: where the
-   original runs D4 (its needs refused), this sees D4's byte and refuses too
-   (180 calls in the library; docs/TODO.md). */

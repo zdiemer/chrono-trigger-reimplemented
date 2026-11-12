@@ -34,7 +34,12 @@ void battle_update_bounds(GameState *g, unsigned slot);
 /* The animations the pose code names: a party member's stance in its field
  * clothes (taking no part in the fight), its battle stance, its weak pose,
  * and the party turning to run while L and R are held. */
-enum { ANIMATION_FIELD_STANCE = 0x00, ANIMATION_BATTLE_STANCE = 0x03, ANIMATION_WEAK = 0x12, ANIMATION_RUNNING = 0x2B,  };
+enum {
+    ANIMATION_FIELD_STANCE = 0x00,
+    ANIMATION_BATTLE_STANCE = 0x03,
+    ANIMATION_WEAK = 0x12,
+    ANIMATION_RUNNING = 0x2B,
+};
 
 /* Choose the pose the combatant's statuses give it (knocked out, asleep, ...;
  * its weak pose at low HP; none) and return the animation that goes with it;

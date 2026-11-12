@@ -27,10 +27,14 @@
 
 typedef enum { NO_SWEEP = 0, FROM_THE_LEFT = 1, FROM_THE_RIGHT = 2 } CurtainSweep;
 
-enum { CURTAIN_LINES = 0xE0, /* the picture's 224 lines */
-    EDGES_KEPT_AT = 0x1C0, /* where the edges are kept, past the table's start */
-    LAST_STEP = 0x20, /* the sweep ends when its step count gets here */
-    FIRST_BANK = 0x7E, SECOND_BANK = 0x7F, CLOSED_AT_THE_LEFT = 0x00, CLOSED_AT_THE_RIGHT = 0xFF, RUN_SHORTEST = 3, RUN_SPREAD = 0x1F, MOVE_LEAST = 8, MOVE_SPREAD = 0x03,  };
+enum {
+    CURTAIN_LINES = 0xE0,      /* the picture's 224 lines */
+    EDGES_KEPT_AT = 0x1C0,     /* where the edges are kept, past the table's start */
+    LAST_STEP = 0x20,          /* the sweep ends when its step count gets here */
+    FIRST_BANK = 0x7E, SECOND_BANK = 0x7F,
+    CLOSED_AT_THE_LEFT = 0x00, CLOSED_AT_THE_RIGHT = 0xFF,
+    RUN_SHORTEST = 3, RUN_SPREAD = 0x1F, MOVE_LEAST = 8, MOVE_SPREAD = 0x03,
+};
 
 /* The pointer the original keeps into the random bytes: their page and bank. */
 enum { RANDOM_BYTES_PAGE_AND_BANK = 0xC0FE };

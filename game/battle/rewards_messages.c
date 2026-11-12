@@ -49,9 +49,6 @@ typedef struct {
     uint8_t double_techs_told;
 } Telling;
 
-/* For the original's code and shadow mode: the place, in the cells the
- * original keeps it in (those of a part not reached yet keep what they had). */
-
 /* Each message is shown and waited for until it has been read (a routine of
  * its own, battle/message.c), the item's with the item's place in the list,
  * which the original keeps on the stack over it. False where it went no

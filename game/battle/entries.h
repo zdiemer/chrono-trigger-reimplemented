@@ -22,18 +22,9 @@ bool battle_first_mark_carry(const GameState *g, bool carry);
 bool battle_area_search_carry(uint8_t shape, bool among_party, uint8_t centre, uint8_t toward);
 bool battle_other_marks_carry(const GameState *g, bool carry);
 bool battle_bounds_carry(const GameState *g, unsigned slot);
-/* battle/area_search.c: the noted area searched, and the battle's step 7
- * that does it. */
-
 /* The enemies' minds: battle/random.c, positions.c, targets.c, enemy_scripts.c,
  * enemy_conditions.c, enemy_actions.c, enemy_turn.c, and main_loop.c's
  * beaten enemies. */
-/* battle/random.c */
-/* battle/positions.c */
-/* battle/targets.c */
-/* battle/enemy_scripts.c */
-/* battle/enemy_conditions.c */
-/* battle/enemy_actions.c */
 /* battle/enemy_turn.c */
 /* An enemy's turn ($C1:8CF9), as C. */
 bool battle_enemy_takes_turn(GameState *g, Platform *pf);
@@ -72,34 +63,16 @@ bool battle_end_member_turn(GameState *g);
 /* A member's tech worked out ($C1:BF79), and an item used ($C1:BF46), as C. */
 bool battle_work_out_member_tech(GameState *g, Platform *pf);
 bool battle_use_item(GameState *g, Platform *pf);
-/* battle/member_stats.c */
-/* battle/tech_records.c */
 /* battle/fight_entries.c */
 /* battle/scripts.c: the script commands whose operations are C, each at its
  * handler's address */
 /* battle/script_walk.c */
 struct ScriptCommand;
 
-/* battle/rewards_entries.c */
-
-/* battle/main_loop.c */
-
-/* their guards: each entry above that carries out a script's command has
- * its own, which knows the command (name_ready) */
-
-/* battle/wait.c: battle/wait.h; battle/message.c: battle/message.h */
-
-/* battle/battlefield.c, menu_window.c, damage.c, reset.c */
-/* battle/display.c */
-/* battle/frame.c */
-/* battle/scroll.c */
-/* battle/uploads.c */
 /* battle/stats.c */
 /* Every combatant updated for the turn ($C1:B223), as C: false where a
  * member's coming back went no further. */
 bool battle_update_all_combatants(GameState *g);
-
-/* battle/tiles.c */
 
 /* battle/battlefield_change.c */
 /* The battlefield changed ($CD:0018), and an effect's rows of the
@@ -108,23 +81,12 @@ bool battle_update_all_combatants(GameState *g);
 bool battle_change_battlefield(GameState *g, Platform *pf, uint16_t battlefield);
 bool battle_load_effect_tile_rows(GameState *g, Platform *pf, uint8_t first_row_set, bool second);
 
-/* battle/beaten_enemies.c */
-
-/* battle/battlefield_restore.c */
-/* battle/closing.c */
-
-/* battle/animation.c */
-
 /* battle/rewards_messages.c */
 /* The rewards' messages ($FD:AD17), as C; and the experience's share's guard's
  * state half ($C1:F93E). */
 bool battle_show_the_rewards(GameState *g, Platform *pf);
 bool battle_experience_can_be_shared(const GameState *g);
 
-/* battle/battle_end.c: the battle's end's bookkeeping */
-/* battle/party_turns.c */
-
-/* battle/enemy_movement.c: each movement's routine, $C1:3772-$C1:4021 */
 /* battle/timers.c */
 /* battle/status_timers.c: the timed statuses' handlers, $C1:8876-$C1:8C08,
  * and the showing of a status's number, $C1:895B. */
@@ -132,12 +94,8 @@ bool battle_experience_can_be_shared(const GameState *g);
  * ($C1:895B), as C. */
 bool battle_show_status_number(GameState *g, Platform *pf, uint8_t showing);
 
-/* battle/from_field.c */
-
 /* battle/opening.c */
 void battle_start_the_frame_work(GameState *g);
-
-/* battle/effect_animation.c */
 
 /* battle/effect_paths.c */
 /* The frame's effects' paths ($CF:EFAF), the kinds of path the game gives
@@ -156,13 +114,9 @@ bool battle_update_animation_positions(GameState *g, Platform *pf);
 void battle_scroll_the_map_layers(GameState *g);
 enum { BATTLE_SCROLL_MAP_LAYERS_ENTRY = 0xCD0C89 };
 
-/* battle/nmi.c */
-
 /* battle/scripts.c */
 /* The animation scripts' channels run for a frame ($C1:4BBE), as C. */
 bool battle_run_scripts(GameState *g, Platform *pf);
-
-/* battle/draw_objects.c */
 
 /* battle/object_motion.c */
 void battle_raise_numbers(GameState *g);
@@ -180,9 +134,6 @@ bool battle_build_bitmap_shapes(GameState *g, Platform *pf);
 /* Whose combination techs are called off ($C1:B575), as C. */
 bool battle_update_combo_members(GameState *g, Platform *pf);
 
-/* battle/menu_input.c, menu_lists.c, name_tiles.c, target_choice.c and
- * menu_bridge.c: the player choosing (battle/choosing.h). */
-
 /* battle/action_showing.c, battle/action_animation.c, battle/frame_step.c:
  * an action shown, its animation loaded, and the battle's own frame */
 /* The action's animation loaded ($C1:4310), as C. */
@@ -197,10 +148,6 @@ bool battle_load_action_animation(GameState *g, Platform *pf);
  * member taking part in the fight, the defeat's by all three. */
 typedef enum { PARTY_POSE_OPENING, PARTY_POSE_VICTORY, PARTY_POSE_DEFEAT } PartyPose;
 void battle_give_the_party_poses(GameState *g, PartyPose pose);
-
-/* battle/pose_looks.c: what a pose shows, and the poses' round */
-
-/* battle/damage.c: the hits landing, and a felled enemy's spoils */
 
 /* battle/arith.c, battle/buttons.c */
 /* The controller's held buttons turned into the menus', with their repeat

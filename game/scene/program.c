@@ -43,8 +43,6 @@
  * window shapes' last corner starts at the screen's left. */
 enum { FADE_PACE = 4, DARK = 0, NO_LINE_EFFECTS = 0, NO_SONG = 0, LAST_CORNER = 3 };
 
-/* The scene's own direct page, where the program's cells are. */
-
 // $7E:3063
 static void reset_the_program(GameState *g)
 {
@@ -82,7 +80,11 @@ static void start_from_the_first_screen(GameState *g, Platform *pf)
 enum { SCENE_MODE_BITS = 0x1F, PROGRAM_BANK = 0x7E0000 };
 
 /* The setups' routines, by which their time is reckoned. */
-enum { RACE_SET_UP = 0x7E3B48, CREDIT_PAGES_SET_UP = 0x7E6B04, TITLE_SET_UP = 0x7E5978, PALACE_SET_UP = 0x7E671F, ENDINGS_SET_UP = 0x7E8538, STAFF_ROLL_SET_UP = 0x7E8EA8, LAVOS_FALLS_SET_UP = 0x7E53BB, EPOCH_DIVE_SET_UP = 0x7E78DD, TURN_SET_UP = 0x7E7092, PLANET_SET_UP = 0x7E6248, SLOW_STAFF_ROLL_SET_UP = 0x7E8E95,  };
+enum {
+    RACE_SET_UP = 0x7E3B48, CREDIT_PAGES_SET_UP = 0x7E6B04, TITLE_SET_UP = 0x7E5978, PALACE_SET_UP = 0x7E671F,
+    ENDINGS_SET_UP = 0x7E8538, STAFF_ROLL_SET_UP = 0x7E8EA8, LAVOS_FALLS_SET_UP = 0x7E53BB, EPOCH_DIVE_SET_UP = 0x7E78DD,
+    TURN_SET_UP = 0x7E7092, PLANET_SET_UP = 0x7E6248, SLOW_STAFF_ROLL_SET_UP = 0x7E8E95,
+};
 
 /* ---- The scene's first frame ------------------------------------------------------------------- */
 
@@ -105,16 +107,6 @@ static void put_the_sound_back(GameState *g, Platform *pf)
 /* ---- The main loop ---------------------------------------------------------------------------- */
 
 static bool main_loop_pass(GameState *g, Platform *pf);
-
-/* The program's end ($7E:302A, and its hand-back $7E:303B): its code in
- * place, and the field's location a number for the field's start the game
- * goes back to. */
-
-/* The continuations' guards: the program's loop -- its call, and its test
- * after it -- on the scene's page; the idle pass where there is nothing to
- * call and the scene isn't over, the other everywhere else. Each is a claim
- * the game keeps, which the refusal measure checks over real play
- * (the original hand-back paths --refusals). */
 
 /* ---- The program as C, with no machine ------------------------------------------------------------ */
 

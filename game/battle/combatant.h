@@ -88,43 +88,65 @@ typedef uint32_t Statuses;
 
 /* The status bits the battle's code tests, by what they do in the battle.
  * The first status byte (the low byte of Statuses): */
-enum { /* Blind: its aim is a quarter as good, and it is easier to hit. */
-    STATUS_BLIND = 0x01, /* Asleep: it gets no turns while it has this, its turn timer stopped; a
+enum {
+    /* Blind: its aim is a quarter as good, and it is easier to hit. */
+    STATUS_BLIND = 0x01,
+    /* Asleep: it gets no turns while it has this, its turn timer stopped; a
      * hit wakes it. */
-    STATUS_ASLEEP = 0x02, /* Confused: its enemy's script starts over when this comes or goes; a hit
+    STATUS_ASLEEP = 0x02,
+    /* Confused: its enemy's script starts over when this comes or goes; a hit
      * brings it to its senses, and it is easier to hit. */
-    STATUS_CONFUSED = 0x04, /* A party member with it can't use techs, nor join a combination tech. */
-    STATUS_NO_TECHS = 0x08, /* It loses a point of HP each time its own timer runs out, a timer that
+    STATUS_CONFUSED = 0x04,
+    /* A party member with it can't use techs, nor join a combination tech. */
+    STATUS_NO_TECHS = 0x08,
+    /* It loses a point of HP each time its own timer runs out, a timer that
      * runs as long as a turn's wait, half as long hasted, twice slowed. */
-    STATUS_LOSES_HP = 0x10, /* Slow: its turns come half as fast, and it defends less well. */
-    STATUS_SLOW = 0x20, /* Poisoned: its aim and its defence are lower, its hits weaker. */
-    STATUS_POISON = 0x40, /* Stop: while it lasts the combatant's other timers stand still, and
+    STATUS_LOSES_HP = 0x10,
+    /* Slow: its turns come half as fast, and it defends less well. */
+    STATUS_SLOW = 0x20,
+    /* Poisoned: its aim and its defence are lower, its hits weaker. */
+    STATUS_POISON = 0x40,
+    /* Stop: while it lasts the combatant's other timers stand still, and
      * only this status's own counts (battle/timers.c). */
-    STATUS_STOP = 0x80,  };
+    STATUS_STOP = 0x80,
+};
 
 /* A hit wakes the target and brings it to its senses. */
 enum { STATUSES_A_HIT_ENDS = STATUS_ASLEEP | STATUS_CONFUSED };
 
 /* The third status byte (with the kept ones, STAT_KEPT_STATUS_3): */
-enum { /* Evades a little better: its evasion is doubled. */
-    STATUS3_EVADES_BETTER = 0x01, /* Evades much better: its evasion is two and a half times. */
-    STATUS3_EVADES_MUCH_BETTER = 0x40, /* Haste: its turns come twice as fast. */
-    STATUS3_HASTE = 0x80, /* Timer 11 follows it (battle/timers.h); its meaning isn't worked out. */
-    STATUS3_TIMER_11 = 0x02,  };
+enum {
+    /* Evades a little better: its evasion is doubled. */
+    STATUS3_EVADES_BETTER = 0x01,
+    /* Evades much better: its evasion is two and a half times. */
+    STATUS3_EVADES_MUCH_BETTER = 0x40,
+    /* Haste: its turns come twice as fast. */
+    STATUS3_HASTE = 0x80,
+    /* Timer 11 follows it (battle/timers.h); its meaning isn't worked out. */
+    STATUS3_TIMER_11 = 0x02,
+};
 
 /* Where the third and fourth status bytes sit in Statuses. */
 enum { STATUS_BYTE_3_SHIFT = 16, STATUS_BYTE_4_SHIFT = 24 };
 
 /* The fourth status byte (with the kept ones, STAT_KEPT_STATUS_4): */
-enum { /* Its hits do a quarter more. */
-    STATUS4_HITS_A_QUARTER_HARDER = 0x02, /* A barrier: the hits the effect doesn't pass it with do seven tenths. */
-    STATUS4_BARRIER = 0x04, /* Its hits do half as much again, the half rounded down first. */
-    STATUS4_HITS_HALF_AGAIN_ROUNDED = 0x08, /* It regains 5 MP every tenth time its own timer runs out. */
-    STATUS4_REGAINS_MP = 0x20, /* A shield: as the barrier, against the effects that pass the barrier. */
-    STATUS4_SHIELD = 0x40, /* The top bit keeps the combatant from acting (combatant_cant_act) and
+enum {
+    /* Its hits do a quarter more. */
+    STATUS4_HITS_A_QUARTER_HARDER = 0x02,
+    /* A barrier: the hits the effect doesn't pass it with do seven tenths. */
+    STATUS4_BARRIER = 0x04,
+    /* Its hits do half as much again, the half rounded down first. */
+    STATUS4_HITS_HALF_AGAIN_ROUNDED = 0x08,
+    /* It regains 5 MP every tenth time its own timer runs out. */
+    STATUS4_REGAINS_MP = 0x20,
+    /* A shield: as the barrier, against the effects that pass the barrier. */
+    STATUS4_SHIELD = 0x40,
+    /* The top bit keeps the combatant from acting (combatant_cant_act) and
      * from joining a combination tech, beside what its hits do below. */
-    STATUS4_KEEPS_FROM_ACTING = 0x80, /* Its hits do half as much again. */
-    STATUS4_HITS_HALF_AGAIN = 0x80,  };
+    STATUS4_KEEPS_FROM_ACTING = 0x80,
+    /* Its hits do half as much again. */
+    STATUS4_HITS_HALF_AGAIN = 0x80,
+};
 
 
 

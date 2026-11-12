@@ -11,6 +11,7 @@
 #include "menu/techs.h"
 #include "platform/video.h"
 #include "state.h"
+#include "vars.h"
 
 /* The screen's steps, as its main task runs them (menu_screen_step). */
 typedef enum {
@@ -354,7 +355,5 @@ enum { MENU_TECHS_LISTER_RECORD = 7 };
 bool menu_open_techs(GameState *g, Platform *pf);
 bool menu_lay_out_tech_members(GameState *g, Platform *pf);
 bool menu_choose_tech_member(GameState *g, Platform *pf);
-
-/* ---- The entries (game/menu/tech_screen_bridge.c) --------------------------------------------- */
 
 #endif

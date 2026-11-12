@@ -212,11 +212,6 @@ static void put_out_the_stars(GameState *g)
         put_the_star_anew(g, star);
 }
 
-/* The loop's end: the star records' end in A, 8-bit. Y is the next free
- * sprite entry after a twinkle drawn, the hiding's word after a star put
- * anew (both read it last), and as the list called it otherwise. */
-enum { TWINKLES_END = 0x0CC0 };
-
 /* ---- Where the script fades the planet to -------------------------------------------------------- */
 
 /* The scene's two sets of colours the planet fades toward, unpacked by the
@@ -303,10 +298,6 @@ TaskEnd scene_show_the_planet_s_caption(GameState *g, Platform *pf, unsigned slo
  * game starts again from its reset. */
 enum { RESTART_SOUND = 0x81, RESTART_SOUND_PARAMETER = 0x40, COUNT_DOWN_TO_THE_RESTART = 0x63F5 };
 enum { SCENE_SEND = 0x7E377E };
-/* The list's exit that hands the task's slot over reads the task that takes
- * it in X; the reset reads none of the registers but Y, which the countdown
- * leaves as it was (the liveness can't rule it out down the field's start). */
-enum { CONSOLE_RESET = 0x00FF00 };
 
 static void ask_for_the_restart_sound(GameState *g)
 {
@@ -568,15 +559,3 @@ const SceneTaskPort scene_planet_tasks[] = {
 };
 const unsigned scene_planet_task_count = sizeof scene_planet_tasks / sizeof scene_planet_tasks[0];
 
-/* The step's code, from its start to its return, but for its period, an
- * operand the script changes; and where it keeps its working values, which
- * it writes as each colour steps. */
-enum { STEP_CODE = 0x6439, STEP_CODE_END = 0x64BF, WORKING_CELLS = 0x03F0, WORKING_CELLS_END = 0x0400 };
-
-/* The colours, at least one of each, inside the program's bank and clear of
- * the step's code, its working cells and the top of the stack, where its
- * call's return and the page and bank it sets go: the game's are the scene's
- * palette and colours the setup loaded, and where they lay over any of those
- * the original would step its own code or its working values. The list asks
- * before its call pushes the return, an entry's guard after. */
-enum { PUSHED_BELOW = 4 };

@@ -17,7 +17,4 @@ bool battle_main_loop_runs(GameState *g, Platform *pf);
 /* The turn's handler ($C1:8461), as C, for the timers'. */
 bool battle_turn_given(GameState *g, Platform *pf);
 
-/* The turn's handler, from the call at `site` (the loop's, or the timers'
- * dispatch): the port where its guard holds, else the original's. */
-
 #endif

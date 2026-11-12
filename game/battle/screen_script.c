@@ -38,7 +38,13 @@
 
 /* ---- The language ----------------------------------------------------------------------- */
 
-enum { STEP_ENDS = 0x7F, FIRST_COMMAND = 0x80, LAST_COMMAND = 0xF9, SCRIPT_ENDS = 0xFF, COMMANDS = LAST_COMMAND - FIRST_COMMAND + 1 };
+enum {
+    STEP_ENDS = 0x7F,
+    FIRST_COMMAND = 0x80,
+    LAST_COMMAND = 0xF9,
+    SCRIPT_ENDS = 0xFF,
+    COMMANDS = LAST_COMMAND - FIRST_COMMAND + 1,
+};
 
 /* The original's handlers, by command byte from $80: its dispatch table
  * ($CD:16B5), whose time each command takes, and which runs a command that
@@ -235,9 +241,6 @@ static ScreenFlow jump(GameState *g, uint16_t to)
 }
 SCREEN_OPERATION(jump, to)
 
-/* The battle's rule ($E1:DE00) that some fights bring in: a script takes
- * another way in the fight that has the first. */
-
 // $CD:1B5E
 static ScreenFlow jump_in_the_first_rule(GameState *g, uint16_t to)
 {
@@ -394,9 +397,6 @@ SCREEN_OPCODES(screen_flow_opcodes,
     { 0xC1, .waits_for_line = true, .length = 1, .line = BYTE(0) },
 );
 
-/* What the original's handler leaves of the machine beside what its
- * operation does. */
-
 // $CD:16A6
 /* Run a command: its operation, timed as the original's handler; or, where
  * it has none here, the handler, or a bridge the runner calls with the
@@ -469,7 +469,12 @@ static NextByte next_byte_is(uint8_t byte)
  * game's has one: the original's runner goes on from the byte, at the head
  * of its loop, as its own step would come to it), or at a command whose
  * operand runs its handler's table past its end. */
-typedef enum { CHANNEL_STEPPED, CHANNEL_STOPPED, CHANNEL_BYTE_PAST_THE_LANGUAGE, CHANNEL_COMMAND_PAST_ITS_TABLE } ChannelStep;
+typedef enum {
+    CHANNEL_STEPPED,
+    CHANNEL_STOPPED,
+    CHANNEL_BYTE_PAST_THE_LANGUAGE,
+    CHANNEL_COMMAND_PAST_ITS_TABLE,
+} ChannelStep;
 
 /* The swing's kept word ($8C, $8D) names one of four words; the original's
  * handler jumps through a table of four by the operand's low seven bits, and
@@ -603,17 +608,6 @@ void battle_start_battlefield_scripts(GameState *g)
             start_battlefield_script(g, channel, script);
     }
 }
-
-/* A command whose operation is C, entered as its handler: the command found
- * from its table's index in X, its operands at the place. */
-
-/* The triangle drawn at its size, entered as its handler from the dispatch or
- * from a model's command, whose original goes on into the triangle's code
- * once it has placed the corners: either way the triangle the command's
- * operand numbers (draw_model, screen_shapes.c, does the same in C). */
-enum { DRAW_TRIANGLE = 0xAE };
-
-/* The triangle reads neither the index nor the carry it is entered with. */
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 

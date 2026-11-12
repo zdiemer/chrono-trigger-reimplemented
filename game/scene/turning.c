@@ -27,9 +27,6 @@ static uint8_t mirrored_bits(uint8_t bits)
     return (uint8_t)(bits << 4 | bits >> 4);
 }
 
-/* The old loader's patched source and work-port cursor are observable to the
- * oracle, although the C loader uses neither to find or copy a tile. */
-
 // $7E:6E42, $7E:6E9E
 /* Assemble one pose. Source tile indices wrap within their graphics bank;
  * mirrored tiles reverse each bitplane byte, preserving the plane layout. */

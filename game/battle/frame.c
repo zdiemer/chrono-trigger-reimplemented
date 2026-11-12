@@ -244,7 +244,12 @@ static void mirror_the_flicker(GameState *g)
 /* The cursors' palette has a color that cycles through 62 phases: entry 14
  * of sprite palette 1, or of sprite palette 5 when the cursors use that (the
  * palette bit flipped while the combatants' palettes are). */
-enum { COLOR_PHASES = 0x3E, CURSOR_COLOR = 128 + 16 * 1 + 14, OTHER_CURSOR_COLOR = 128 + 16 * 5 + 14, CURSOR_UPPER_PALETTE = 0x08 };
+enum {
+    COLOR_PHASES = 0x3E,
+    CURSOR_COLOR = 128 + 16 * 1 + 14,
+    OTHER_CURSOR_COLOR = 128 + 16 * 5 + 14,
+    CURSOR_UPPER_PALETTE = 0x08,
+};
 
 static void cycle_the_cursor_color(GameState *g)
 {
@@ -282,7 +287,12 @@ static void rotate_colors_up(GameState *g, unsigned first, unsigned count)
  * 1-12; and with the background's cycle on, the background palette it names
  * from the color it names up, and colors 1-15 of every palette after it, as
  * far as the last background palette (at least one). */
-enum { ROTATED_SPRITE_COLORS = 128 + 16 * 4 + 1, SPRITE_COLORS_ROTATED = 12, PALETTE_COLORS = 16, BACKGROUND_PALETTES = 8 };
+enum {
+    ROTATED_SPRITE_COLORS = 128 + 16 * 4 + 1,
+    SPRITE_COLORS_ROTATED = 12,
+    PALETTE_COLORS = 16,
+    BACKGROUND_PALETTES = 8,
+};
 
 /* The original works the rotation in the effect loops' cells: the color it
  * last kept, the moves it counted down, and where the last run started. */
@@ -427,10 +437,6 @@ static UpdateEnds update_the_frame(GameState *g, Platform *pf, bool (*call)(void
     return UPDATE_DONE;
 }
 
-/* The checked C calls retain their original call frames. Their callees
- * read nothing of the registers but A's high byte, which is 0 here as the
- * frame count leaves it. */
-
 /* ---- The frame work ----------------------------------------------------------------------- */
 
 /* While paused, the screen is dimmed to half, unless the ROM's debug frame
@@ -519,11 +525,6 @@ static bool work_the_frame(GameState *g, Platform *pf, bool (*call)(void *ctx, W
     TIMED_AS(g, 0xCD0ADE, battle_turn_the_gradient(g));
     return call(ctx, WORK_READ) && call(ctx, WORK_REPEAT);
 }
-
-/* On the machine: the frame work runs with the data bank $7E, on the
- * battle's page. Its call-outs read nothing of the registers but what each
- * names: the button reading reads Y, the gradient, the sound's and the
- * battlefield's routines A's high byte, which is 0 on the battle's page. */
 
 /* An enemy's rule that cycles the background's colors (battle_enemy_rule,
  * with the cycle's first color in battle_background_cycle) keeps the battle's
@@ -690,7 +691,15 @@ static bool update_a_part(void *ctx, UpdateCall call)
 /* The frame work's calls, each with its guard's state half where it has
  * one: the HP gradient's step, its phase in range; the frame update, a
  * rotation it takes; the input, a controller read and no reset held. */
-enum { FRAMES_INPUT = 0xC28002, BUTTON_REPEAT = 0xCD0340, HP_GRADIENT = 0xD1EA4B, FRAME_UPDATE = 0xCFE58A, LINE_WAIT = 0xCD3B82, SCREEN_SCRIPTS = 0xCD1609, PALETTE_ANIMATION = 0xFDFFF7 };
+enum {
+    FRAMES_INPUT = 0xC28002,
+    BUTTON_REPEAT = 0xCD0340,
+    HP_GRADIENT = 0xD1EA4B,
+    FRAME_UPDATE = 0xCFE58A,
+    LINE_WAIT = 0xCD3B82,
+    SCREEN_SCRIPTS = 0xCD1609,
+    PALETTE_ANIMATION = 0xFDFFF7,
+};
 
 static bool read_the_input(BattleFrameContext *c)
 {

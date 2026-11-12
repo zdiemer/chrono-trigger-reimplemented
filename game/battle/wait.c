@@ -199,9 +199,6 @@ bool battle_wait_some_frames(GameState *g, Platform *pf, uint8_t frames)
     return wait_some_frames(frames, wait_for_a_next_frame, &c);
 }
 
-/* The frame work's wait for the next frame: the handler's frame, then the
- * menu's turn, which reads of the registers A's high byte and the carry. */
-
 // $CC:F05B (in the battle's setup, $CC:ED87)
 /* Wait for the battle's graphics to have loaded: the vblank handler loads
  * them a step a frame (battle_load_graphics). Once they have, the setup's

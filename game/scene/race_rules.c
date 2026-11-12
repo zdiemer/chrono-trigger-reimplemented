@@ -36,10 +36,17 @@
 
 /* ---- The bikes ------------------------------------------------------------------------------ */
 
-enum { SPEED_LOSS = 0x80, /* every frame */
-    CRONO_SPEEDING_UP = 0x100, /* while below his top speed */
-    JOHNNY_SPEEDING_UP = 0xF8, MAX_SPEED = 0x7FFF, BOOST = 0x1700, BOOST_FRAMES = 0x80, LAST_LANE = 0x7000, SPEED_TO_DISTANCE = 6, /* a bike moves on by its speed over 64 */
-    SPEED_TO_DISTANCE_MASK = 0x1FF,  };
+enum {
+    SPEED_LOSS = 0x80,             /* every frame */
+    CRONO_SPEEDING_UP = 0x100,     /* while below his top speed */
+    JOHNNY_SPEEDING_UP = 0xF8,
+    MAX_SPEED = 0x7FFF,
+    BOOST = 0x1700,
+    BOOST_FRAMES = 0x80,
+    LAST_LANE = 0x7000,
+    SPEED_TO_DISTANCE = 6,         /* a bike moves on by its speed over 64 */
+    SPEED_TO_DISTANCE_MASK = 0x1FF,
+};
 
 /* The finish, as the bikes' distances reach it: the high word at 8. */
 enum { FINISHED_HIGH_WORD = RACE_FINISH >> 16 };
@@ -157,9 +164,12 @@ static void drive_johnny(GameState *g)
 
 /* ---- Drifting across the track -------------------------------------------------------------- */
 
-enum { MAX_DRIFT = 0x210, DRIFT_LOSS = 0x11, /* every frame */
-    CRONO_STEERING = 0x28, /* how much a frame's steering builds the drift up */
-    JOHNNY_STEERING = 0x18,  };
+enum {
+    MAX_DRIFT = 0x210,
+    DRIFT_LOSS = 0x11,             /* every frame */
+    CRONO_STEERING = 0x28,         /* how much a frame's steering builds the drift up */
+    JOHNNY_STEERING = 0x18,
+};
 
 /* A bike's four drifts, in the order the race works them out. */
 typedef enum { CRONO_UP, CRONO_DOWN, JOHNNY_UP, JOHNNY_DOWN, DRIFTS } Drift;
@@ -249,7 +259,11 @@ static uint16_t lead(const GameState *g, bool unit)
 /* ---- Touching ------------------------------------------------------------------------------------ */
 
 /* Where Johnny is from Crono (scene_race_contact). */
-enum { CRONO_WELL_AHEAD = 0x01, JOHNNY_WELL_AHEAD = 0x02, JOHNNY_WELL_ABOVE = 0x10, JOHNNY_WELL_BELOW = 0x20, ACROSS_SHIFT = 4,  };
+enum {
+    CRONO_WELL_AHEAD = 0x01, JOHNNY_WELL_AHEAD = 0x02,
+    JOHNNY_WELL_ABOVE = 0x10, JOHNNY_WELL_BELOW = 0x20,
+    ACROSS_SHIFT = 4,
+};
 
 /* How close counts as touching: along the track, Crono's bike from $100 on
  * and Johnny's from $C0 on, $200 and $180 apart; across it, $1000. The
@@ -365,10 +379,6 @@ static void bump_across(GameState *g, Racer pushing, Racer pushed, const BumpAcr
 }
 
 /* ---- The units the motion hands on ------------------------------------------------------------- */
-
-/* Each function here works out, from the values a step of the motion used,
- * the unit that step leaves for the next sum (see the top of the file). They
- * run in the order the original's sums do, each from the one before. */
 
 /* Out of Johnny's decision, into the drifts: where Crono leads, whether the
  * bikes aren't alongside (alongside, whether Crono is on the track's higher
@@ -667,7 +677,10 @@ static void move_bikes(GameState *g)
 enum { WINNER_CRONO = 1, WINNER_JOHNNY = 2 };
 
 /* What Crono's winning score earns (scene_race_prize). */
-enum { PRIZE_REPDIGIT = 1, PRIZE_777 = 2, PRIZE_STRAIGHT = 3, PRIZE_ROUND = 4, PRIZE_OVER_1300 = 0x20, PRIZE_OVER_1500 = 0x40, PRIZE_OVER_2000 = 0x80,  };
+enum {
+    PRIZE_REPDIGIT = 1, PRIZE_777 = 2, PRIZE_STRAIGHT = 3, PRIZE_ROUND = 4,
+    PRIZE_OVER_1300 = 0x20, PRIZE_OVER_1500 = 0x40, PRIZE_OVER_2000 = 0x80,
+};
 enum { LUCKY_SCORES = 11 };
 
 static uint8_t lucky_prize(const GameState *g, uint16_t shown)
@@ -978,7 +991,6 @@ static void leave(GameState *g)
  * 2000, 200, 20 and 2 it still holds; when it holds none the draining stops,
  * and this returns false. */
 static const uint16_t drains[] = { 2000, 200, 20, 2 };
-enum { LAST_DRAIN = 2 };
 
 static bool drain_score(GameState *g)
 {
@@ -994,8 +1006,8 @@ static bool drain_score(GameState *g)
 
 /* ---- The tasks ------------------------------------------------------------------------------------
  *
- * Each task's frame is one sequence, run on the machine and as C alike; the
- * sounds it sends go through the step it is passed (race.h, RaceSends). */
+ * Each task's frame is one sequence; the sounds it sends go through the step
+ * it is passed (race.h, RaceSends). */
 
 /* The bikes' sounds, then their motion. */
 static bool move_and_sound(GameState *g, Platform *pf, BikeSounds sounds, RaceSends send, void *ctx)
@@ -1137,7 +1149,11 @@ static bool coast_lists_fit(const GameState *g)
 /* The bikes as the race starts. Crono is on the higher lanes and Johnny on
  * the lower; Johnny's top speed is lower than Crono's while he leads and higher
  * while he trails. */
-enum { CRONO_START_LANE = 0x6000, JOHNNY_START_LANE = 0x2000, CRONO_TOP_SPEED = 0x4000, JOHNNY_TOP_SPEED_LEADING = 0x3000, JOHNNY_TOP_SPEED_TRAILING = 0x5000, APART = 0x20, /* the bikes start apart, Crono above */ };
+enum {
+    CRONO_START_LANE = 0x6000, JOHNNY_START_LANE = 0x2000,
+    CRONO_TOP_SPEED = 0x4000, JOHNNY_TOP_SPEED_LEADING = 0x3000, JOHNNY_TOP_SPEED_TRAILING = 0x5000,
+    APART = 0x20,   /* the bikes start apart, Crono above */
+};
 
 /* The race's own boosts and their timer, which the demo has none of; the
  * setup writes their low bytes. */

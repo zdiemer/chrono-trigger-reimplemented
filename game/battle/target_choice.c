@@ -107,8 +107,6 @@ typedef struct {
 static const Slots PARTY = { 0, BATTLE_PARTY_SIZE }, ENEMIES = { BATTLE_FIRST_ENEMY, BATTLE_COMBATANTS },
                    EVERYONE = { 0, BATTLE_COMBATANTS };
 
-enum { CELL_END = 0x80 };
-
 /* Those on the side who can be aimed at, the member choosing first, then the
  * others in slot order; the list closes up where the member isn't on it. */
 static void list_side(GameState *g, Slots side, bool fallen_too)

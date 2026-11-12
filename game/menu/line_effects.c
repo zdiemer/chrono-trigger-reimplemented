@@ -610,8 +610,6 @@ static void start_scene_gray_ramp(GameState *g, Platform *pf)
     menu_note_effect_noise(g, at);
 }
 
-enum { SCENE_GRAY_BAND_BYTES = 48 };
-
 /* The narrow band has eight two-line shades followed by eight four-line
  * shades. Its moving destination is a WRAM stream: crossing a bank goes
  * on through work RAM, wrapping to its beginning after the last bank. */

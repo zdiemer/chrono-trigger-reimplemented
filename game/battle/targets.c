@@ -59,9 +59,9 @@ void battle_clear_candidates(GameState *g)
 /* The direct-page cells the selectors work in (battle_low_scratch). They keep
  * a word at $0A too -- the enemy's own battle slot, or the stat block's byte a
  * selection by status looks at -- whose high byte is kept (battle.h). */
-enum { LEFT_HP = 0x02, /* the lowest or highest HP a selector found, a word ($02) */
-    LEFT_BLOCK = 0x0C, /* the stat block's place's low byte, and its high byte cleared ($0C) */
-    LEFT_PLACE = 0x0E, /* where a selector's loop over the combatants is, a word ($0E) */ };
+enum {
+    LEFT_PLACE = 0x0E, /* where a selector's loop over the combatants is, a word ($0E) */
+};
 
 /* Where a selector's loop over the combatants ended, a word: its low byte
  * is what an enemy tech's hits can be noted as (battle.h), so it is kept. */
@@ -456,17 +456,12 @@ static const SelectorRow selectors[SELECTORS] = {
     { PICK_OTHER_ENEMY_AT_RANDOM, { 0, 0 }, 0 },            // $38 $C1:ABC9
 };
 
-/* The selections by status through $C1:AD68 clear the place a condition's
- * test keeps in its cell, which the others leave. */
-static bool clears_candidate_place(Selector selector) { return selector >= 0x09 && selector <= 0x0D; }
-
 void battle_pick_candidates(GameState *g, uint8_t enemy, Selector selector)
 {
     if (selector >= SELECTORS)
         return;
     const SelectorRow *row = &selectors[selector];
     uint8_t self = (uint8_t)(BATTLE_FIRST_ENEMY + enemy);
-    (void)(clears_candidate_place(selector));
     switch (row->pick) {
     case PICK_NOBODY: break;
     case PICK_PARTY: pick_party(g); break;
@@ -627,8 +622,6 @@ bool battle_other_marks_carry(const GameState *g, bool carry)
         carry = shift_carry(battle_candidates(g, place), carry);
     return carry;
 }
-
-/* The first's marking leaves A holding the none it found there. */
 
 /* ---- The guards ------------------------------------------------------------------------- */
 

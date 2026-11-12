@@ -45,10 +45,6 @@ static uint8_t position_down(const GameState *g) { return (uint8_t)(battle_anima
 
 enum { BAND_WIDEST = 8, BAND_TALLEST = 9 };
 
-/* Each window command leaves a word of its working for the screen scripts'
- * drift (screen_leave_for_the_drift): a band across its edges, a band down
- * the end of its lines. */
-
 // $D1:EDCD
 /* Screen command $EE: open a band about the first animation position, a step
  * wider each frame: across (operand 0), window 1 on every line of the
@@ -513,31 +509,3 @@ SCREEN_OPCODES(screen_window_opcodes,
     { 0xCF, OPERATION(copy_inside_out), .needs = unshifted, .length = 1, .value = BYTE(0) },
     { 0x88, OPERATION(fill), .length = 1, .fill = LOW_SEVEN(0) },
 );
-
-/* ---- The entries ------------------------------------------------------------------------ */
-
-/* The guards. The band down stays above the position's reach of the
- * battlefield's end, and the middle band within the battlefield's top half,
- * or the original's line loop runs round all of work RAM; the inside-out copy
- * takes the lines as they are (an operand of 0 or $80); the fill is one of
- * four; the wave's line pair is one of the 106. None of the others' reaches a
- * game makes. */
-
-enum { PAIR_BYTES = 2 * LINE_BYTES };
-
-/* $D1:EF63, $D1:F07E and $D1:F0E9, the waves' steps as the original calls
- * them for each pair of lines: the offset in A, taken as negative by the N
- * flag its making left; the pair in Y; the phases, amplitudes and bases in
- * the cells the waves leave them in. The first two go on to start window 2's
- * product in the multiplier, and return the carry set for window 2's phase in
- * the second half of the turn. */
-
-/* The nudges' guard has the carry clear, as the operation's dispatch leaves
- * it. */
-
-/* A fill returns with its edges in A, which its callers read the high byte
- * of. */
-
-// $D1:FBCE
-/* Screen command $88: fill the windows as the operand says (X, doubled),
- * each fill's work timed as its own routine's. */

@@ -10,6 +10,7 @@
 #include "platform/audio.h"
 #include "platform/video.h"
 #include "state.h"
+#include "vars.h"
 
 /* The screen's options, as its cursor's places number them: the ten in the
  * left window, then the two speeds' meters the speeds option leads to. The
@@ -263,7 +264,5 @@ void menu_settings_send_sound_output(GameState *g, Platform *pf);
  * further. */
 bool menu_open_settings(GameState *g, Platform *pf);
 bool menu_choose_setting(GameState *g, Platform *pf);
-
-/* ---- The entries (game/menu/settings_screen_bridge.c) ------------------------------------------- */
 
 #endif

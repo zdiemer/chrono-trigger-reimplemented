@@ -241,9 +241,3 @@ bool field_load_the_map(GameState *g)
     field_mark_the_exits(g);
     return true;
 }
-
-/* ---- Where it meets the original ---------------------------------------------------------------- */
-
-/* Tile maps the port doesn't take are the original's, on the layers' page;
- * it is entered with the layers' page's high byte in A's, which the original
- * set D through. */

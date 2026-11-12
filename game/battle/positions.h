@@ -64,7 +64,14 @@ SearchAnswer battle_search_kind(GameState *g, SearchKind kind, uint8_t searcher,
  * within another's reach, as the original's callers name them (the target
  * search's and its walk's, the wider one, and those the enemies' animation
  * effects measure with, $C1:2AE3-$2B1F). */
-enum { REACH_SEARCH = 0x0400, REACH_WIDE = 0x0900, REACH_LONG = 0x0640, REACH_FAR = 0x1000, REACH_TOUCHING = 0x0010, REACH_NEAR = 0x0100,  };
+enum {
+    REACH_SEARCH = 0x0400,
+    REACH_WIDE = 0x0900,
+    REACH_LONG = 0x0640,
+    REACH_FAR = 0x1000,
+    REACH_TOUCHING = 0x0010,
+    REACH_NEAR = 0x0100,
+};
 
 /* Whether combatant b's box is within `reach` of a's, by the square of the
  * distance between the positions their boxes were worked out from. */

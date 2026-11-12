@@ -124,10 +124,4 @@ bool menu_close_the_question_on_a_button(GameState *g, Platform *pf);
 
 extern const SavingSteps menu_saving_on_the_machine;
 
-/* The entries ($C2:D065 the panel, $C2:D0DB, $C2:D0E5; a save point's save
- * screen's steps $C2:D4F8 and $C2:D506; the main menu's save screen's
- * $C2:CEDC and $C2:CEFD, and the two steps both share, $C2:CF61 and
- * $C2:CF92; saving in the slot $C2:CF0A, $C2:CF37 and $C2:CF21), and their
- * guards. */
-
 #endif

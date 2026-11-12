@@ -17,21 +17,4 @@
 typedef enum { OVERWORLD_LEFT, OVERWORLD_WENT_NO_FURTHER } OverworldEnd;
 OverworldEnd overworld_runs(GameState *g, Platform *pf);
 
-/* The loop's contract on the machine: the mode's page with the data bank on
- * low RAM, an 8-bit accumulator, 16-bit index registers and binary
- * arithmetic (overworld_main_loop_runs, the page and bank alone). */
-
-/* The loop's wait for the next frame, a held wait (holds.h,
- * HOLD_OVERWORLD_FRAME): the port starting it stops in the wait's loop
- * ($C2:0348), and the runtime goes on with overworld_next_frame once the
- * vblank handler has counted the frame; overworld_waits_for_the_frame is a
- * saveable C loop before it. The guards say which applies, each where the
- * wait returns to the loop's pass, which the mode's other waits that share
- * its code don't. */
-
-/* The halt ($C2:250D): the game stopped for good, a pass at a time, each
- * coming back to itself, a held wait of its own (HOLD_OVERWORLD_HALT). */
-
-/* Saveable phases around the menu services' counted waits. */
-
 #endif

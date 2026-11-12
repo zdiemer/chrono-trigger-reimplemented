@@ -367,9 +367,6 @@ void enemy_scripts_choose(GameState *g)
 
 /* ---- The entries ------------------------------------------------------------------------ */
 
-/* Each takes the choosing from the cells its callers keep it in and hands it
- * back there. */
-
 /* The enemy's id comes in A. */
 
 enum { CHOSEN_MARK = 1 };
@@ -381,11 +378,6 @@ uint8_t enemy_choosing_result(const GameState *g, uint8_t enemy)
         return action;
     return enemy >= BATTLE_ENEMIES ? enemy : CHOSEN_MARK;
 }
-
-/* The enemy's id comes in A; the section's end marker is left there, and the
- * place the reactions start is where the caller goes on reading. */
-
-/* The place comes in X; A is left with the status byte it tested last. */
 
 /* ---- The guards ------------------------------------------------------------------------- */
 
@@ -433,12 +425,6 @@ static bool actions_in_table(const GameState *g, ScriptPlace at)
     return true;
 }
 
-/* A block from a condition the entry carries out (`kind`): its conditions
- * (one or two), then its actions, which the choosing looks for past the first
- * end marker after wherever the conditions left the place (in an operand,
- * where a byte there is the marker). */
-enum { CONDITIONS_A_BLOCK_HOLDS = 2 };
-
 /* An enemy going on through its block's actions takes up the next it kept:
  * where the block it kept them for is one the choosing can reach from
  * `block` (a script has fewer than BLOCKS_A_SCRIPT_HOLDS). */
@@ -461,9 +447,6 @@ static bool working_on_an_enemy(const GameState *g)
         return false;
     return in_scripts(battle_script_place(g)) && no_member_comes_back(g);
 }
-
-/* An action entry reads its operands at the place; the draw takes up the
- * four after it. */
 
 /* The next actions the enemy at work kept, where its block is the one they
  * are for; and the actions the choosing is at: those it keeps its place at,

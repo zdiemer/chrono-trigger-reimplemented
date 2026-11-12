@@ -47,7 +47,20 @@ enum { PALETTE_BITS = 0x1C, KEPT_AFTER_A_STRING = 0x23 };
 enum { NAME_TILES = 5, NAME_FLAGS = ONE_ROW };
 
 /* The control codes. */
-enum { CODE_NEW_LINE = 0x01, CODE_MOVE = 0x02, CODE_NUMBER = 0x03, CODE_STRING = 0x04, CODE_NAME = 0x05, CODE_PALETTE_FROM = 0x06, CODE_COPY_TILE = 0x07, CODE_BLANKS = 0x08, CODE_FLAGS = 0x09, CODE_ATTRIBUTE = 0x0A, CODE_HEX_NUMBER = 0x0B, CODE_LIMITED_NUMBER = 0x0C,  };
+enum {
+    CODE_NEW_LINE = 0x01,
+    CODE_MOVE = 0x02,
+    CODE_NUMBER = 0x03,
+    CODE_STRING = 0x04,
+    CODE_NAME = 0x05,
+    CODE_PALETTE_FROM = 0x06,
+    CODE_COPY_TILE = 0x07,
+    CODE_BLANKS = 0x08,
+    CODE_FLAGS = 0x09,
+    CODE_ATTRIBUTE = 0x0A,
+    CODE_HEX_NUMBER = 0x0B,
+    CODE_LIMITED_NUMBER = 0x0C,
+};
 
 /* ---- Where the text is ------------------------------------------------------------------- */
 
@@ -562,17 +575,3 @@ uint16_t menu_draw_string_on(GameState *g, uint32_t *string, uint16_t pen, uint8
     return pen;
 }
 
-// $C2:EF65
-
-// $C2:F114
-
-// $C2:F28D
-
-/* The time played is read where the game keeps a header's digits, in work
- * RAM's bank, apart from the cells the time is drawn from, and drawn past the
- * drawer's cells; its digits are decimal, as the clock keeps them. */
-enum { TIME_DIGITS = 5, TIME_SHOWN_CELLS = 0x22, TIME_SHOWN_END = 0x24 };
-
-/* Nor is the time drawn over the stack: five tiles from the pen, clear of the
- * drawer's calls below the stack pointer and of the caller's return above it. */
-enum { TIME_TILES = 5, CALLS_BELOW = 16, RETURN_BYTES = 2 };

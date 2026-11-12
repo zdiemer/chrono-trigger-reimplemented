@@ -65,8 +65,6 @@ void field_draw_frame_tile(GameState *g, ObjectGraphics set, uint16_t tile, uint
         TIMED_AS(g, 0xC0E687, copy_sprite_tile(g, set, tile, to));
 }
 
-/* ---- For the original's code and shadow mode (field/scratch.h) -------------------------- */
-
 /* ---- Entries: the frame builder's calls, on the field's page ------------------------------ */
 
 /* The mirrored copy's guard: on the field's page with the data bank $00, the

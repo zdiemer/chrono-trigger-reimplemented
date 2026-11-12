@@ -48,7 +48,7 @@ enum { PALACE_CHANNEL = 1, SHIMMER = 0, PALACE_SCROLL_Y = 1, SEA_SCROLL = 2 };
 enum { MAP_BUFFER = 0x001400, MAP_BYTES = 0x0800 };
 
 /* The source map and the transformed map are both 32 by 32 tile words. */
-enum { MAP_SOURCE = 0x000C00, MAP_COLUMNS = 32, MAP_ROW_BYTES = 64, MAP_MAX_ROWS = 32 };
+enum { MAP_COLUMNS = 32, MAP_ROW_BYTES = 64, MAP_MAX_ROWS = 32 };
 
 typedef struct { uint16_t across, down; } MapPoint;
 typedef struct {
@@ -81,9 +81,6 @@ static MapSample rounded_map_sample(const MapTransform *t, unsigned row, unsigne
     unsigned tile_byte = (point.across / 256 + MAP_ROW_BYTES * (point.down / 256) + pixel_rounding) & (MAP_BYTES - 2);
     return (MapSample){ row_start, point, tile_byte };
 }
-
-/* The original's local positions, exhausted counts, patched steps, and the
- * multiplication used to address the last sampled tile. None drive C work. */
 
 // $7E:7441
 /* Sample the source map along the turn's rows and columns. Across is in
@@ -143,7 +140,10 @@ static void send_the_map_if_waiting(GameState *g, Platform *pf)
  * map's from its 322nd word, one word on from where they were. Both are
  * transfers out of the registers, which go through the SNES-only escape. */
 enum { BLANK_ROWS_BYTES = 0x0280, BLANK_TILE_WORD = 0x0100, FIELD_MAP_VRAM = 0x6000 };
-enum { BELOW_THE_BLANK_ROWS_VRAM = FIELD_MAP_VRAM + BLANK_ROWS_BYTES / 2, REST_OF_THE_MAP_BYTES = MAP_BYTES - BLANK_ROWS_BYTES };
+enum {
+    BELOW_THE_BLANK_ROWS_VRAM = FIELD_MAP_VRAM + BLANK_ROWS_BYTES / 2,
+    REST_OF_THE_MAP_BYTES = MAP_BYTES - BLANK_ROWS_BYTES,
+};
 
 static void build_the_map(Platform *pf)
 {
@@ -287,10 +287,6 @@ static int16_t scaled(int16_t trig, uint8_t quarter_scale)
     uint16_t product = (uint16_t)((uint16_t)(magnitude * quarter_scale) >> 3);
     return trig < 0 ? (int16_t)-product : (int16_t)product;
 }
-
-/* The original multiplies on the Mode 7 matrix's registers, which it leaves
- * with the sine's magnitude and the scale (scaffolding: mode 2 draws none of
- * it, and the next scene that turns a map sets them again). */
 
 // $7E:73C6
 /* The turn's matrix from channel 0's angle and scale, and the point it turns
@@ -443,7 +439,10 @@ static TaskEnd send_the_map_task(GameState *g, Platform *pf)
 
 /* ---- The rows ---------------------------------------------------------------------------------- */
 
-enum { ROW_WORK_OUT_THE_TURN, ROW_SHIMMER, ROW_RIPPLE, ROW_DARKEN, ROW_WHITEN, ROW_CLEAR, ROW_SEND_THE_OFFSETS, ROW_SEND_THE_MAP,  };
+enum {
+    ROW_WORK_OUT_THE_TURN, ROW_SHIMMER, ROW_RIPPLE, ROW_DARKEN, ROW_WHITEN, ROW_CLEAR, ROW_SEND_THE_OFFSETS,
+    ROW_SEND_THE_MAP,
+};
 
 const SceneTaskPort scene_palace_tasks[] = {
     [ROW_WORK_OUT_THE_TURN] = { SCENE_TASK_WORK_OUT_THE_TURN, SCENE_FRAME_TASKS, work_out_the_turn_task },

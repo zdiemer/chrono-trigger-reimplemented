@@ -202,10 +202,6 @@ uint16_t scene_radius_from_area(GameState *g, uint32_t area)
 
 /* ---- The arithmetic as C calls -------------------------------------------------------------- */
 
-/* For the ports that do the program's arithmetic where it calls it: each sets
- * the operands' cells as the caller does, works on the page's cells as the
- * routine does (its quirks and its leftovers with it) and is timed as it. */
-
 /* A product of two 16-bit operands whose middle partial sums fit
  * (multiplies_exactly), as every caller here gives it. */
 uint32_t scene_multiply16(GameState *g, SceneProgramPage page, uint16_t a, uint16_t b)

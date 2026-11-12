@@ -64,7 +64,11 @@ static Layout layout_of(const GameState *g, FieldObject obj) { return layouts[ob
 /* The table is in low RAM at FIELD_SPRITE_TABLE_ADDRESS, in the video
  * service's form (VID_OAM_*): the entries, then the high table. The ranges'
  * cursors are kept as the table's addresses; here they are offsets into it. */
-enum { OAM_ENTRY = VID_OAM_ENTRY_BYTES, BITS_A_SPRITE = VID_OAM_HIGH_BITS, SPRITES_A_HIGH_BYTE = VID_OAM_SPRITES_A_HIGH_BYTE };
+enum {
+    OAM_ENTRY = VID_OAM_ENTRY_BYTES,
+    BITS_A_SPRITE = VID_OAM_HIGH_BITS,
+    SPRITES_A_HIGH_BYTE = VID_OAM_SPRITES_A_HIGH_BYTE,
+};
 
 enum { RANGES = 3 };   /* by SpriteRange, as field_sprite_range_* index them */
 
@@ -166,7 +170,15 @@ typedef struct {
     uint16_t at;   /* where the record is among the records */
 } SpriteRecord;
 
-enum { RECORD_BYTES = 8, RECORD_X = 0, RECORD_Y = 1, RECORD_X_OFFSET = 2, RECORD_Y_OFFSET = 4, RECORD_TILE = 6, RECORD_ATTRIBUTES = 7 };
+enum {
+    RECORD_BYTES = 8,
+    RECORD_X = 0,
+    RECORD_Y = 1,
+    RECORD_X_OFFSET = 2,
+    RECORD_Y_OFFSET = 4,
+    RECORD_TILE = 6,
+    RECORD_ATTRIBUTES = 7,
+};
 
 static SpriteRecord sprite_record(const GameState *g, FieldObject obj, unsigned n)
 {
@@ -281,7 +293,13 @@ static void draw_object(GameState *g, FieldObject obj)
 typedef enum { ABOVE_THE_SCREEN, LOWER_HALF, UPPER_HALF, ZONES } Zone;
 
 /* The table's hiding line is the first below the screen. */
-enum { HIDDEN = VID_OAM_HIDDEN_Y, BELOW_THE_SCREEN = VID_OAM_HIDDEN_Y, SPRITE_LINES = 32, TABLE_LINES = 256, SCREEN_MIDDLE_LINE = 128 };
+enum {
+    HIDDEN = VID_OAM_HIDDEN_Y,
+    BELOW_THE_SCREEN = VID_OAM_HIDDEN_Y,
+    SPRITE_LINES = 32,
+    TABLE_LINES = 256,
+    SCREEN_MIDDLE_LINE = 128,
+};
 
 static Zone zone_of(int16_t screen_y)
 {
@@ -421,12 +439,6 @@ static void place_sprites(GameState *g, FieldObject obj, bool reload)
 }
 
 /* ---- Placing the larger layouts --------------------------------------------------------- */
-
-/* The 8-, 12- and 24-sprite layouts are placed as the 4-sprite one is, four
- * sprites at a time for their X (each four's ninth bits a high byte of the
- * object's) and then every sprite's Y, by their own rules for which show
- * (above); a rebuild first takes the offsets and, after the Y, the looks from
- * the object's new frame. */
 
 /* Four sprites' X at the object's screen X, and their ninth bits, with every
  * sprite large, as one of the object's high bytes. */
@@ -618,7 +630,14 @@ typedef enum { RECORDS_NONE_TO_DRAW, RECORDS_READY } RecordsOutcome;
  * timed as its routine: the 4-sprite layout's with the fifth sprite's stray Y
  * (place_sprites), the larger ones' with their own rules (place_larger).
  * False where the object isn't drawn this frame. */
-enum { PLACE_4 = 0xC0B788, REBUILD_4 = 0xC0B8CA, PLACE_8 = 0xC0BA65, REBUILD_8 = 0xC0BCDC, PLACE_12 = 0xC0BFF2, REBUILD_12 = 0xC0C2BF };
+enum {
+    PLACE_4 = 0xC0B788,
+    REBUILD_4 = 0xC0B8CA,
+    PLACE_8 = 0xC0BA65,
+    REBUILD_8 = 0xC0BCDC,
+    PLACE_12 = 0xC0BFF2,
+    REBUILD_12 = 0xC0C2BF,
+};
 
 static bool place_layout(GameState *g, FieldObject obj, SpriteLayout layout, bool reload)
 {

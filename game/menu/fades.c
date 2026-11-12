@@ -14,7 +14,6 @@
 #include "charge.h"
 #include "menu/fades.h"
 
-#include "menu/bridge.h"
 #include "port/vars_ram.h"
 #include "menu/menu.h"
 #include "vars.h"
@@ -45,8 +44,7 @@ static void start_fade(GameState *g, int8_t step)
  * out's end, which the original jumps to so that it returns to the fade's
  * caller. The task's frame keeps what the last step leaves in A and the flags
  * for that caller: the sum that reached black. */
-enum { WAIT_FRAMES = 0xC2822B, BETWEEN_THE_STEPS = 0xC283F8 };
-enum { THE_LAST_KEEPS_ALL = MENU_FADE_S_LAST_WAIT_READS_ALL };
+enum { WAIT_FRAMES = 0xC2822B };
 
 /* A fade's steps, in the task it runs in: the brightness moved a step and
  * held for a frame, until it is full or black. A fade that reached black has
@@ -145,5 +143,3 @@ enum { FADE_IN_TASK = 0, FADE_IN_TASK_START = MENU_FADE_IN_TASK_START };
 // $C2:83B2
 void menu_start_the_fade_in(GameState *g) { menu_start_task(g, FADE_IN_TASK, FADE_IN_TASK_START); }
 
-/* Where the task ends ($C2:8216), which reads nothing the fade leaves. */
-enum { THE_TASK_ENDS = 0xC28216 };

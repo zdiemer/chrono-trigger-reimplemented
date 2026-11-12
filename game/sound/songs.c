@@ -295,9 +295,12 @@ void change_echo_delay(SoundDriver *d, uint8_t delay)
 
 /* ---- Songs ------------------------------------------------------------------------------ */
 
-enum { SONG_HEADER_BASE = 0, /* the address the song was built for, less the header */
-    SONG_HEADER_NO_TRACK = 2, SONG_HEADER_TRACKS = 4, /* two sets of eight */
-    SONG_HEADER_BYTES = 0x24 };
+enum {
+    SONG_HEADER_BASE = 0,       /* the address the song was built for, less the header */
+    SONG_HEADER_NO_TRACK = 2,
+    SONG_HEADER_TRACKS = 4,     /* two sets of eight */
+    SONG_HEADER_BYTES = 0x24
+};
 
 // SPC $13A9
 static void save_song(SoundDriver *d)

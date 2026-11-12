@@ -54,7 +54,12 @@ static MapTile screen_corner(const GameState *g)
 }
 
 /* The routines whose work this runs, each timed as its own. */
-enum { LEAVE_ROW = 0xC0A98A, JOIN_ROW = 0xC0A9CD, PUT_FRAME_BACK = 0xC0CB0A, GIVE_UP_PALETTE = FIELD_GIVE_UP_PALETTE_ENTRY };
+enum {
+    LEAVE_ROW = 0xC0A98A,
+    JOIN_ROW = 0xC0A9CD,
+    PUT_FRAME_BACK = 0xC0CB0A,
+    GIVE_UP_PALETTE = FIELD_GIVE_UP_PALETTE_ENTRY,
+};
 
 /* Where the battle kept an object: a tile from the screen's corner, the
  * pixel within it, and the frame it showed. */
@@ -319,23 +324,22 @@ enum { BUILD_SPRITE_TABLE = 0xC0B271 };
 
 // $C0:072E
 /* The original's routines it calls, and the field's own that run frames. */
-enum { SCRIPT_UNPACKED = 0xC056D4, /* the location's event script unpacked */
-    MAP_SCRIPT_STARTS = 0xC0595C, /* the map's own script (object 0) run to its first return */
-    PALETTE_ANIMATION = 0xFDFFF7, /* the original's jump to it */
-    WALK = 0xC0881E, TILE_LOOKS = 0xC009DD, BG3_TILE_LOOKS = 0xC00A14, RETURN_FROM_BATTLE = 0xC00715,  };
+enum {
+    SCRIPT_UNPACKED = 0xC056D4,     /* the location's event script unpacked */
+    MAP_SCRIPT_STARTS = 0xC0595C,   /* the map's own script (object 0) run to its first return */
+    PALETTE_ANIMATION = 0xFDFFF7,   /* the original's jump to it */
+    WALK = 0xC0881E,
+    TILE_LOOKS = 0xC009DD, BG3_TILE_LOOKS = 0xC00A14,
+    RETURN_FROM_BATTLE = 0xC00715,
+};
 
 /* Where the game starts again: the field's first start (the title) after a
  * game over, the field's entry for the place put aside; each on the game's
  * fresh stack. What each reads of the registers first it sets. Where the
  * field is taken up again, the party comes back together ($C0:034B), which
  * the original goes on to. */
-enum { THE_TITLE = 0xC0000E, ENTER = 0xC0005D };
+enum { ENTER = 0xC0005D };
 enum { PARTY_BACK_TOGETHER = 0xC0034B };
-
-/* For shadow mode: the original moves the state back with a block move,
- * which leaves Y past the block's end; the field's first start after a game
- * over hands Y to the menus' routine, which stores it. */
-enum { STATE_BLOCK_END = (RAM_FIELD_RIPPLE_FRAMES_LEFT + 1) & 0xFFFF };
 
 /* The guard: on the field's page with the data bank $00; the leader's place
  * an object (the original takes it without looking, so the party's loop

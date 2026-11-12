@@ -75,7 +75,7 @@ static void play_effect_animation(GameState *g, uint8_t effect, uint8_t animatio
 /* What starting an animation leaves: the animation and the mode, and for
  * combatants the last one's battle slot and its lists' step to the
  * animation, and the other targets counted. */
-enum { LEFT_ANIMATION = 0x00, LEFT_PART = 0x02, LEFT_COMBATANT = 0x0A, LEFT_COUNTED = 0x0C, LEFT_MODE = 0x0E };
+enum { LEFT_ANIMATION = 0x00, LEFT_COMBATANT = 0x0A, LEFT_COUNTED = 0x0C };
 
 // $C1:4D08
 /* Start the animation on what the channel animates. */
@@ -262,12 +262,6 @@ static ScriptFlow play_and_wait(GameState *g, ScriptChannel channel, uint8_t ani
 SCRIPT_OPERATION(play_and_wait, channel, animation)
 
 // $C1:577D
-/* As play_and_wait with the mark the second operand gives (a mark of 0
- * starts the animation again every frame), and on the other targets waiting
- * for every one of them. On an effect channel the original plays it over and
- * over and runs its second operand as a command, which no script does: that
- * is the original's to run (its row's needs). */
-enum { LEFT_MARK = 0x00 };
 
 static ScriptFlow play_and_wait_marked(GameState *g, ScriptChannel channel, uint8_t animation, uint8_t mark)
 {
@@ -310,9 +304,6 @@ static ScriptFlow own_speed(GameState *g, ScriptChannel channel)
 SCRIPT_OPERATION(own_speed, channel)
 
 // $C1:4F54
-/* The combatants, or the effect's anchor, move at one of the eight speeds.
- * On the other targets the original counts them in its first work cells. */
-enum { LEFT_TARGETS_COUNTED = 0x00 };
 
 static ScriptFlow set_speed(GameState *g, ScriptChannel channel, uint8_t speed)
 {
@@ -335,7 +326,7 @@ SCRIPT_OPERATION(set_speed, channel, speed)
  * sets it apart from the battlefield's plane: out of it (hidden's), or above
  * it (drawn on top's), where the targeting and the collisions pass it over.
  * The original keeps the bits it sets in a work cell. */
-enum { OFF_THE_PLANE = 0x80, DRAWING_FLAGS = 0x7F, LEFT_BITS = 0x0E };
+enum { OFF_THE_PLANE = 0x80, DRAWING_FLAGS = 0x7F };
 
 // $C1:5806, $C1:5840
 /* The combatants get, or lose, a topmost entry in the draw list as well. */
@@ -408,7 +399,7 @@ SCRIPT_OPERATION(bring_back, channel)
  * is at the height asked (with every one before it in the list stepped this
  * frame); a step that passes over the height glides on for good. Gliding
  * home is to height 0, where the combatant stands. */
-enum { LEFT_HEIGHT = 0x00, LEFT_STEP = 0x01, LEFT_LENGTH = 0x0E };
+enum { LEFT_STEP = 0x01, LEFT_LENGTH = 0x0E };
 
 static ScriptFlow glide_sprite(GameState *g, ScriptChannel channel, uint8_t length, uint8_t height, uint8_t step)
 {
@@ -443,9 +434,6 @@ static ScriptFlow shadow(GameState *g, ScriptChannel channel, bool on)
 SCRIPT_OPERATION(shadow, channel, on)
 
 // $C1:753A
-/* The combatants', or the effect's, sprites are drawn with the attribute
- * bits the operand gives. */
-enum { LEFT_OPERAND = 0x00 };
 
 static ScriptFlow attribute_bits(GameState *g, ScriptChannel channel, uint8_t bits)
 {
@@ -477,7 +465,6 @@ SCRIPT_OPERATION(attribute_bits_back, channel)
 /* ---- Trails ---------------------------------------------------------------------------- */
 
 enum { TRAIL_POINTS = 4, TRAIL_ON = 3, TRAIL_OFF = 0, TRAIL_DUE_NOW = 1 };
-enum { LEFT_TRAIL_PERIOD = 0x00, LEFT_AFTERIMAGE_PERIOD = 0x01, LEFT_TRAIL_LENGTH = 0x0E, LEFT_TRAIL_STATE = 0x0F };
 
 /* The combatant's trail starts over from where it stands now: due at once,
  * its four points all here. */
@@ -491,10 +478,6 @@ static void restart_trail(GameState *g, uint8_t combatant, uint8_t state)
         set_battle_trail_low_y_byte(g, point, combatant, combatant_y(g, combatant));
     set_battle_trail_on(g, combatant, state);
 }
-
-/* Stopping a trail runs the original's starting body without operands, so it
- * sets the periods from whatever its first work cells hold. Nothing reads a
- * trail's periods while it is off, and starting it sets them. */
 
 // $C1:691B, $C1:69BA
 /* The combatants leave a trail and afterimages, recorded and drawn every so

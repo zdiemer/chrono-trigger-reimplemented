@@ -77,12 +77,6 @@ static uint8_t number_place(GameState *g, uint8_t slot, bool tally_first)
     return (uint8_t)(set_place + slot_place);
 }
 
-/* Where the original keeps the actor's number's place (scaffolding). */
-enum { ACTOR_NUMBER_PLACE_CELL = 0x10 };
-
-/* A record made after a number's place is found is made with the carry of
- * the place's add, which the multiply leaves in its cell (scaffolding). */
-
 // $C1:E89F
 uint8_t effect_target_number(GameState *g)
 {

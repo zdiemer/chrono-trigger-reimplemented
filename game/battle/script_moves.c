@@ -101,16 +101,6 @@ enum { WHOLE_PIXEL = 0x100 };
 
 static uint8_t apart(uint8_t a, uint8_t b) { return a < b ? (uint8_t)(b - a) : (uint8_t)(a - b); }
 
-/* A line runs between two points, which the battle keeps where a direction
- * is asked of them (battle/positions.c): the next direction can be asked of
- * the same points. */
-enum { DIFFERENCES = 4 };
-
-/* What working out a line leaves: the differences and their signs, the
- * sizes; which ways it goes, half its length and which axis is the
- * longer. */
-enum { LEFT_LEFTWARD = 0x02, LEFT_UPWARD = 0x03, LEFT_HALF_LENGTH = 0x04, LEFT_TALL = 0x0C };
-
 enum { ACROSS_SIGN = 5, DOWN_DIFFERENCE = 6, DOWN_SIGN = 7, ACROSS = 11, DOWN = 13 };
 
 /* Every line's set-up leaves its length in the low byte of the throw's wait
@@ -144,13 +134,7 @@ static LineVelocity line_velocity(GameState *g, BattlePoint from, BattlePoint to
 /* A velocity times the mover's speed: the steps it takes each step. */
 static uint16_t at_speed(GameState *g, uint16_t v, uint8_t speed) { return (uint16_t)battle_multiply_long(g, speed, v); }
 
-/* The original works the velocity out in its own cells, and multiplies it
- * by the speed there. */
-
 /* ---- Lines ----------------------------------------------------------------------------------- */
-
-/* The original keeps the mover it starts in a work cell. */
-enum { LEFT_LINE_MOVER = 0x06 };
 
 // $C1:5135, $C1:5042
 /* Set the mover off in a straight line to a point, from where it is, at its
@@ -210,7 +194,7 @@ static MoveStage stage_of(GameState *g, Mover m)
 
 /* The original keeps the command's length in a work cell, and on the other
  * targets' channel the place in their list it has come to. */
-enum { LEFT_LENGTH = 0x0E, LEFT_LISTED = 0x00 };
+enum { LEFT_LENGTH = 0x0E };
 
 // $C1:4FBF, $C1:4FD1, $C1:4FE3
 /* What the channel moves goes in a straight line to where the command aims.
@@ -247,7 +231,7 @@ SCRIPT_OPERATION(line, channel, length, aim, x, y, place)
  * (round the turn backward) where the target lies less than half a turn
  * below. The original works it out by the quarters of the turn the two are
  * in, and leaves them in work cells. */
-enum { HALF_TURN = 0x80, QUARTER_TURN = 0x40, QUARTER_SHIFT = 6, LEFT_TARGET_QUARTER = 0x06, LEFT_HEADING_QUARTER = 0x07 };
+enum { HALF_TURN = 0x80, QUARTER_TURN = 0x40, QUARTER_SHIFT = 6 };
 
 // $C1:53B0
 static bool turns_down(uint8_t heading, uint8_t target)
@@ -256,7 +240,7 @@ static bool turns_down(uint8_t heading, uint8_t target)
 }
 
 /* A heading of none: the mover's own (the angle it last went out at). */
-enum { OWN_HEADING = 0xFF, LEFT_CHASE_HEADING = 0x02 };
+enum { OWN_HEADING = 0xFF };
 
 // $C1:523C, $C1:5333
 /* Set the mover chasing a point, setting out along a heading and turning
@@ -280,10 +264,6 @@ static uint8_t start_chase(GameState *g, Mover m, BattlePoint to, uint8_t headin
     set_moving(g, m, true);
     return heading;
 }
-
-/* The original counts, on the other targets' channel, the chasers still
- * going in a work cell. */
-enum { LEFT_STILL_GOING = 0x04 };
 
 // $C1:51EE, $C1:5205, $C1:521C
 /* What the channel moves chases where the command aims, setting out on a
@@ -319,9 +299,6 @@ static ScriptFlow chase(GameState *g, ScriptChannel ch, uint8_t length, ScriptAi
 SCRIPT_OPERATION(chase, channel, length, aim, x, y, place, heading)
 
 /* ---- Putting a mover somewhere --------------------------------------------------------------- */
-
-/* The original keeps the point in work cells. */
-enum { LEFT_PUT_AT = 0x00 };
 
 // $C1:5611, $C1:566C, $C1:567D
 /* What the channel moves is put where the command aims, at once: its
@@ -381,10 +358,6 @@ static void ready_the_jump(GameState *g, Mover m, uint16_t gravity, uint16_t bou
     set_battle_effect_jump_height(g, e, 0);
     set_battle_effect_jump_falling(g, e, 0);
 }
-
-/* The original keeps the jumper, whether it goes down and its lift in work
- * cells. */
-enum { LEFT_JUMPER = 0x00, LEFT_DOWNWARD = 0x0F };
 
 // $C1:62B4, $C1:63FC
 /* Set the mover jumping to a point: along the line there, its height rising
@@ -464,10 +437,6 @@ static void start_spiral(GameState *g, Mover m, uint8_t frames)
     set_battle_effect_spiral_frames(g, e, frames);
 }
 
-/* What looking ahead leaves: the cell's row and the step across, and the
- * radius the sine's multiply takes. */
-enum { LEFT_AHEAD_ROW = 0x02, LEFT_AHEAD_ACROSS = 0x03 };
-
 // $C1:679F
 static bool blocked_ahead(GameState *g, Mover m)
 {
@@ -478,10 +447,6 @@ static bool blocked_ahead(GameState *g, Mover m)
     uint8_t cell = (uint8_t)(row | (uint8_t)(at.x + dx) >> GRID_COLUMN_SHIFT);
     return (battle_base_grid(g, cell) & GRID_STOPS) != 0;
 }
-
-/* The original keeps, on the other targets' channel, the place in their list
- * and how many of them it waits on in work cells. */
-enum { LEFT_WAITED_ON = 0x04 };
 
 // $C1:6751
 /* What the channel moves spirals out along its heading until the grid stops
@@ -513,11 +478,6 @@ static ScriptFlow spiral_out(GameState *g, ScriptChannel ch)
     return goes ? SCRIPT_STAY : SCRIPT_NEXT_FRAME;
 }
 SCRIPT_OPERATION(spiral_out, channel)
-
-/* A combatant spiralling with others about stops where its box meets another
- * combatant's. The original's overlap test leaves its answer in the first
- * work cell. */
-enum { MEETS_A_MEMBER = 0x80, MEETS_AN_ENEMY = 0x81 };
 
 static bool meets_another(GameState *g, uint8_t slot)
 {
@@ -594,14 +554,7 @@ enum { CIRCLE_BACKWARD = 0x80, CIRCLE_RADIUS = 0x7F, QUARTER_TURN_STEPS = 0x40 }
  * channel it puts two of them to other uses: the place's cell counts its way
  * down the list (a word), and once it has looked the list over for the
  * orbits that ended, the quarter turns' cell holds how many had. */
-enum { LEFT_CIRCLE = 0x00, LEFT_HEADING_SET_OUT = 0x02, LEFT_QUARTERS = 0x04, LEFT_PLACE = 0x06, LEFT_KIND = 0x0F };
-
-typedef struct {
-    uint8_t circle, heading, quarter_turns, length;
-    bool flat;
-    bool at_a_place;
-    uint8_t place;
-} OrbitAsked;
+enum { LEFT_PLACE = 0x06 };
 
 /* How far the other targets' channel came down the list, and, if it looked
  * them over, how many had ended. */
@@ -692,9 +645,6 @@ SCRIPT_OPERATION(orbit, channel, length, aim, place, circle, start, quarter_turn
  * (or, where the rise takes longer, the rise's frames past 36 are a wait
  * after it). Nothing is thrown on the other targets' channel. */
 enum { THROW_FRAMES = 36, ARC_HEIGHT = 0x40, THROW_SPEED_SHIFT = 2, THROW_GRAVITY_DIVISOR = 0x80 };
-
-/* What aiming a throw leaves: the half distances on the axes it goes back
- * along (0 on the others), and its line cells. */
 
 // $C1:6671
 /* The throw's velocity, four times the distance a step (the jump's line
@@ -835,7 +785,7 @@ SCRIPT_OPERATION(throw_moves, channel, wait)
 /* ---- A point along the line to a place --------------------------------------------------------- */
 
 /* The original keeps the line's sums in work cells, and the steps. */
-enum { LEFT_ALONG_X = 0x00, LEFT_ALONG_Y = 0x02, LEFT_STEPS = 0x0E, STEPS_OF_NONE = 0x100 };
+enum { LEFT_STEPS = 0x0E, STEPS_OF_NONE = 0x100 };
 
 // $C1:740B, $C1:7468
 /* The script's point is put a number of steps along the line from what the
@@ -863,9 +813,6 @@ static ScriptFlow point_along(GameState *g, ScriptChannel ch, uint8_t steps, uin
 SCRIPT_OPERATION(point_along, channel, steps, place)
 
 /* ---- The flicker ------------------------------------------------------------------------------ */
-
-/* The original keeps the radius, the period and the frames in work cells. */
-enum { LEFT_FLICKER_RADIUS = 0x00, LEFT_FLICKER_PERIOD = 0x02, LEFT_FLICKER_FRAMES = 0x04 };
 
 /* Set a combatant's sprite flickering: shown off by the radius first, and
  * moved every frame, for `lasting` frames. */

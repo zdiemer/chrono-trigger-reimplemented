@@ -48,10 +48,6 @@
 #include "field/party.h"
 #include "field/screen_effects.h"
 
-/* Scripts name an object by its offset in the field's object tables, which
- * is how a link stores it (field/object.h); the object whose script is
- * running is the field's current object. */
-
 /* ---- What happens next ------------------------------------------------------------- */
 
 typedef enum {

@@ -565,11 +565,8 @@ static bool enemy_turn(GameState *g, TurnCalls call, void *ctx)
 }
 
 enum { TECH_BODY = 0xC19A3D, AIM = 0xC1C1DD, ENEMY_MESSAGE = 0xCD0033, ARRIVAL = 0xFDB438, CALL_IN = 0xFDA990 };
-enum { ARRIVING_ENEMY_CELL = 0x02 };
 
 /* An entry and its guard, which knows the action it carries out. */
-/* The actions' entries, by action. */
-
 /* The action's dispatch, which the original makes with the action doubled in
  * X and A. */
 enum { DISPATCH = 0xC18D88 };
@@ -577,18 +574,6 @@ enum { DISPATCH = 0xC18D88 };
 /* The action shown, from the turn's JSR at $C1:8E47, with A's high byte as
  * the test of the actor's statuses leaves it, clear. */
 enum { SHOWING = 0xC1AC57 };
-
-/* The action is shown, the battle's step 4 asked for from the original's
- * routine for it ($C1:BFA4), whose return the ask is made under, and its hits
- * land (battle/damage.c). The step takes A's high byte along, as the caller
- * left it, and the overflow flag, which it keeps with the flags across its
- * frame waits. */
-
-/* The calling in alone, as the call-in's turn calls it (with JSL): the
- * battle's page and data bank, as each of its arrivals' guards takes them,
- * and the effect code's tech number in the cell the original reads it from,
- * where the turn's start leaves it (enemy_call_in_starts). */
-enum { TECH_NUMBER_CELL = 0x12, TECH_NUMBER_OPERAND = 2 };
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 

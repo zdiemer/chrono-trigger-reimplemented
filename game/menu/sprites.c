@@ -36,7 +36,6 @@
 #include "core/program.h"
 #include "cpu_io.h"
 #include "data/decompress.h"
-#include "menu/bridge.h"
 #include "menu/items.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
@@ -200,8 +199,6 @@ void menu_lay_out_the_sprite_nodes(GameState *g)
         set_menu_sprite_node_links_next(g, n, n == NODES - 1 ? (NodeLink)FREE_LIST : node_link(n + 1));
     }
 }
-
-// $C2:0BF6
 
 // $C2:0C4D
 /* Empty the list for a new frame: every node back on the free list, in order,
@@ -891,10 +888,6 @@ typedef struct {
 
 static FrameTile decode_tile(uint16_t word) { return (FrameTile){ word == 0, (uint16_t)(word & TILE_NUMBER), (word & MIRRORED) != 0 }; }
 
-/* The block move the original copies a frame's pieces with: its stub, with
- * the bank it copies from. */
-enum { STUB_MOVE_TO_WORK_RAM = 0x7E54, STUB_RETURN = 0x6B };
-
 /* Where a frame's blocks go in the frame buffer: past the blocks queued this
  * frame already, and half a block further where the buffer's half says (the
  * place wraps within the bank, as the original's word does). */
@@ -1026,10 +1019,6 @@ static void show_frame(GameState *g, unsigned record, uint8_t frame)
 }
 
 /* ---- A record's animation ---- */
-
-/* An animation's frames for a facing: the sprite's animations one after
- * another, four frames each, the facings' lists one after another, each
- * `animation_count` frames long. */
 
 /* Start the animation the record is asked for from its first frame: where
  * its frames and their times are for the record's facing. */
@@ -1242,13 +1231,6 @@ static void load_the_record_sprite(GameState *g, unsigned record, bool called)
     set_decompress_dest(g, WORK_RAM_BANK | u.to);
     (void)(called ? unpack_stream_called(g, false) : unpack_stream(g));
 }
-
-// $C2:F75C
-
-// $C2:F69D
-
-/* The records' pages, as the original moves its direct page along them. */
-enum { FIRST_RECORD_PAGE = 0x1800, RECORD_PAGE_BYTES = 0x40 };
 
 // $C2:F69B
 

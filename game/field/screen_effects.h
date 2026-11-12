@@ -45,7 +45,12 @@ void screen_circle_opens(GameState *g, ScreenEffect opening, uint8_t x, uint8_t 
 /* The four ways the curtain sweeps: its ragged edge moves from one side of
  * the screen to the other, uncovering the picture or covering it (and leaving
  * it covered). */
-typedef enum { CURTAIN_UNCOVERS_RIGHTWARD, CURTAIN_COVERS_RIGHTWARD, CURTAIN_UNCOVERS_LEFTWARD, CURTAIN_COVERS_LEFTWARD } Curtain;
+typedef enum {
+    CURTAIN_UNCOVERS_RIGHTWARD,
+    CURTAIN_COVERS_RIGHTWARD,
+    CURTAIN_UNCOVERS_LEFTWARD,
+    CURTAIN_COVERS_LEFTWARD,
+} Curtain;
 
 /* A script waiting on a curtain: the curtain started if nothing runs, and
  * once it has swept across, done with. True when it is done. */

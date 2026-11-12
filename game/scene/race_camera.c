@@ -218,11 +218,6 @@ static void turn_camera(GameState *g)
         raise_camera(g, -1);
 }
 
-/* What the camera's height control leaves in A, from the controller, the
- * frame and the height before it ran: the height where it tried a step, the
- * frame count halved where A waited for the odd frame, the controller where
- * neither button was acted on. */
-
 /* ---- After Crono's finish ------------------------------------------------------------------- */
 
 /* The camera settles back, a step every other pair of frames: its height to

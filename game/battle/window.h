@@ -115,7 +115,6 @@ void window_show_mp(GameState *g, WindowLayout layout, unsigned member, bool sha
  * (status.c, $C1:06F0). The original's callers hand it the member in a work
  * cell. */
 void battle_show_gauge(GameState *g, unsigned member);
-enum { BATTLE_GAUGE_MEMBER = 0x80 };
 
 /* Redraw the whole battle window (window.c, $C1:0299), and the next member's
  * numbers and the gauges (status.c, $C1:05A7). The numbers are left alone
@@ -247,21 +246,9 @@ static inline uint8_t combatant_cursor_y(const GameState *g, unsigned slot)
     return (uint8_t)(combatant_y(g, slot) + combatant_cursor_offset_y(g, slot));
 }
 
-static inline uint16_t battle_work16(const GameState *g, uint8_t cell)
-{
-    return (uint16_t)(battle_work(g, (unsigned)(cell - BATTLE_WORK_CELLS))
-                      | battle_work(g, (unsigned)(cell - BATTLE_WORK_CELLS + 1)) << 8);
-}
-
 static inline void battle_leave_work8(GameState *g, uint8_t cell, uint8_t v)
 {
     set_battle_work(g, (unsigned)(cell - BATTLE_WORK_CELLS), v);
-}
-
-static inline void battle_leave_work16(GameState *g, uint8_t cell, uint16_t v)
-{
-    battle_leave_work8(g, cell, (uint8_t)v);
-    battle_leave_work8(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
 }
 
 #endif

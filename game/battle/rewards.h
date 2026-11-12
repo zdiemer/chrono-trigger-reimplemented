@@ -42,8 +42,6 @@ void battle_turn_experience_to_gold(GameState *g);
  * teach; then a share for the characters in reserve. */
 void battle_share_experience(GameState *g);
 
-/* The pieces (each an entry of its own too, battle/entries.h). */
-
 /* battle/rewards_levels.c */
 void rewards_gain_experience(GameState *g, Grower who, uint16_t amount);
 /* `pot` is the experience left to share out, which a level-up pays from. */

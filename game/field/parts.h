@@ -118,10 +118,6 @@ Footprint field_footprint(const GameState *g, uint8_t at);
 /* What the party's steps leave the original's callers (field/leaves.c): the
  * overflow of the leader's step, and of a member's, which follows from
  * whether it moved on. */
-/* The object a member's step leaves Y on: the member's own, which its gait
- * looks up, where it moved on; the one in its place, which it posed, where
- * it waited (field/party_trail.c). */
-
 /* A tile copy (field/tile_copy.c): the map's tables it can take whole, in
  * the order it takes them; what the copy's description names, a table's bit
  * or one of the properties' bits alone; and the rectangle it describes, its

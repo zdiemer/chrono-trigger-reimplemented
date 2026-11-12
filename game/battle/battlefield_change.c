@@ -196,7 +196,13 @@ enum { TILE_GRAPHICS = 0x1FFF, MIRRORED = 0x4000, FLIPPED = 0x8000 };
 /* What the original leaves of a tile set: the descriptors' pointer past the
  * set, in bank $CF, with no tiles left to count; the last row a flip moved
  * (in its cell $69) and the mirror's count of rows run out (in $61). */
-enum { LEFT_DESCRIPTORS = 0x53, LEFT_DESCRIPTOR_BANK = 0x55, LEFT_TILES_LEFT = 0x67, LEFT_FLIPPED_ROW = 0x69, LEFT_MIRROR_ROWS = 0x61, DESCRIPTOR_BANK = 0xCF };
+enum {
+    LEFT_DESCRIPTORS = 0x53,
+    LEFT_DESCRIPTOR_BANK = 0x55,
+    LEFT_TILES_LEFT = 0x67,
+    LEFT_MIRROR_ROWS = 0x61,
+    DESCRIPTOR_BANK = 0xCF,
+};
 
 static uint16_t tile_row(const GameState *g, uint16_t at)
 {
@@ -257,7 +263,13 @@ static void decode_tile_set(GameState *g, uint16_t set)
 
 /* The map's empty places show the layer's last 16x16 tile ($EE), which the
  * last set's tiles 46, 47, 62 and 63 make: they are left blank. */
-enum { LAYER_SETS = 4, LAST_SET = LAYER_SETS - 1, BLANK_TILE_TOP = 46 * TILE_BYTES, BLANK_TILE_BOTTOM = 62 * TILE_BYTES, BLANK_TILE_HALF_BYTES = 2 * TILE_BYTES };
+enum {
+    LAYER_SETS = 4,
+    LAST_SET = LAYER_SETS - 1,
+    BLANK_TILE_TOP = 46 * TILE_BYTES,
+    BLANK_TILE_BOTTOM = 62 * TILE_BYTES,
+    BLANK_TILE_HALF_BYTES = 2 * TILE_BYTES,
+};
 
 static void blank_the_empty_tile(GameState *g)
 {
@@ -368,7 +380,17 @@ static uint8_t next_tile(GameState *g, MapBuilder *b)
  * command doesn't give (battle_screen_effect_settings), so what this and the
  * rest of the loading leave there is the game's, and kept plainly; the rest
  * is scaffolding. */
-enum { LEFT_STRIP_AT = 0x53, LEFT_STRIP_BANK = 0x55, LEFT_BUFFER_AT = 0x57, LEFT_BUFFER_BANK = 0x59, LEFT_CELLS_LEFT = 0x5F, LEFT_CELLS_READ = 0x61, LEFT_CELLS = 0x63, LEFT_COLUMN_AND_ROW = 0x65, LEFT_TILE = 0x67, LEFT_PLACE = 0x69, LEFT_SHEET_COLUMN = 0x6B, LEFT_ROWS_LEFT = 0x6D, LEFT_FLIPS = 0x6F, LEFT_ATTRIBUTES = 0x71, LEFT_TILE_SET_AT = 0x73, LEFT_PALETTE = 0x75 };
+enum {
+    LEFT_STRIP_AT = 0x53,
+    LEFT_STRIP_BANK = 0x55,
+    LEFT_BUFFER_AT = 0x57,
+    LEFT_BUFFER_BANK = 0x59,
+    LEFT_CELLS_LEFT = 0x5F,
+    LEFT_CELLS_READ = 0x61,
+    LEFT_TILE = 0x67,
+    LEFT_PLACE = 0x69,
+    LEFT_ROWS_LEFT = 0x6D,
+};
 
 static void leave_the_builder(GameState *g, const MapBuilder *b, uint16_t tile_set, uint8_t strips, uint8_t rows)
 {
@@ -638,9 +660,6 @@ bool battle_load_effect_tile_rows(GameState *g, Platform *pf, uint8_t first_row_
     return second ? load_effect_tile_rows(g, first_row_set, SECOND_SET_FIRST_SLOT, SECOND_SET_SLOTS, change_a_part, &c)
                   : load_effect_tile_rows(g, first_row_set, 0, FIRST_SET_SLOTS, change_a_part, &c);
 }
-
-/* The pieces, each as the original's routine: the tile set in X, which the
- * decoding of a set and the map's building take; each leaves A clear. */
 
 /* ---- The guards ------------------------------------------------------------------------------- */
 

@@ -113,11 +113,6 @@ static void take_frame_advance(GameState *g, Platform *pf)
 
 /* ---- The interrupted code's context --------------------------------------------------------- */
 
-// $D1:FE71
-/* The multiplier's or divider's operands, set again after the handler's own
- * callees used it: the divider's while the interrupted code has it busy,
- * otherwise the multiplier's. */
-
 /* The direct page's bottom bytes, which the frame work uses as scratch, are
  * moved aside around it. */
 enum { SCRATCH_BYTES = 43, SCRATCH_ASIDE = 0xCC65 };
@@ -197,8 +192,6 @@ void battle_vblank(GameState *g, Platform *pf)
     BattleHandlerContext c = { g, pf };
     (void)take_the_vblank(g, pf, &in_the_program, &c);
 }
-
-/* It leaves A 8-bit, the last operand it set. */
 
 /* ---- The line handler ------------------------------------------------------------------- */
 

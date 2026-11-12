@@ -143,7 +143,7 @@ static TurnsEnd run_queued_turns(GameState *g, Platform *pf, TakeTurn take, void
  * the call's return in place, and a refused turn is left at that entry.
  * A location change or battle can abandon the turn instead of returning:
  * the caller then leaves the machine exactly where the turn stopped. */
-enum { RUN_A_TURN = 0xC05A93, A_TURN_AMONG_OTHERS = 0xC05A7C, THE_LAST_TURN = 0xC05A8B };
+enum { RUN_A_TURN = 0xC05A93 };
 
 /* ---- As C, with no machine ------------------------------------------------------------------ */
 

@@ -24,7 +24,6 @@
 #include "menu/windows.h"
 
 #include "charge.h"
-#include "menu/bridge.h"
 #include "menu/menu_data.h"
 #include "menu/text.h"
 #include "port/vars_ram.h"
@@ -439,24 +438,6 @@ static void run_command(GameState *g, Platform *pf, uint8_t command, const Opera
     }
 }
 
-/* ---- What the original leaves in the drawing's cells -------------------------------------------- */
-
-/* The original's handlers keep their working values in the menus' cells: the
- * command's operands, which they are copied into; a window's columns and
- * rows, the rows its drawing walked, the tile its frame got to, the row of
- * the inside's pattern. Nothing reads them after the list but the next
- * command's handler, over again, so they are left once a command is done as
- * the original leaves them, worked out from the command. */
-typedef struct {
-    uint16_t place;       /* menu_window_place */
-    uint16_t line;        /* menu_line_start */
-    uint16_t columns;     /* menu_text_work_window_columns */
-    uint16_t rows;        /* menu_text_work_window_rows */
-    uint16_t right_side;  /* menu_scratch_window_right_side */
-    uint16_t tile;        /* menu_scratch_window_tile */
-    uint16_t pattern_row; /* menu_scratch_window_pattern_row */
-} DrawingCells;
-
 /* ---- The interpreter ---------------------------------------------------------------------------- */
 
 static Operands operands_at(const GameState *g, uint16_t at, uint8_t command)
@@ -605,8 +586,6 @@ bool menu_tile_area_can_be_copied(const GameState *g, uint16_t origin, MenuTileP
     Operands o = { { from.column, from.row, to.column, to.row, size.columns, size.rows } };
     return command_is_drawable(g, COPY_AREA_COMMAND, &o, origin);
 }
-
-// $C2:ED08
 
 // $C2:ECDB
 /* A save slot's window, in the player's design and the slot's own palette

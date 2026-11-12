@@ -43,7 +43,7 @@ enum { FLASH_PALETTE = 0x08, FLASH_FIRST_COLOR = 128 + 4 * 16 + 1, FLASH_WHITES 
  * tables, the rule-bound combatants it counted, and the colors left of the
  * set where its painting of the background stopped. And the length the
  * commands that flash or restore move on by. */
-enum { LEFT_SET_EIGHTS = 0x00, LEFT_BOUND = 0x02, LEFT_SET_PLACE = 0x04, LEFT_COLORS_LEFT = 0x06, LEFT_LENGTH = 0x0E };
+enum { LEFT_BOUND = 0x02, LEFT_LENGTH = 0x0E };
 
 /* The original paints the set in runs, counting the colors left of each run
  * down, and stops at the last background color in the middle of one. */
@@ -141,11 +141,6 @@ static bool blink_due(GameState *g, uint8_t combatant, uint8_t period, bool *fla
     *flashing = now != 0;
     return true;
 }
-
-/* What the blink leaves: its set and period, the length it moves on by (0
- * once it has turned over), and on the other targets where in the list it
- * stopped. */
-enum { LEFT_BLINK_SET = 0x00, LEFT_PLACE_IN_LIST = 0x10, LEFT_PERIOD = 0x12, TURNED_OVER = 0 };
 
 /* The place in the list lands on the cell the next jump to the script's point
  * lifts by, so it is left as game state (battle.h). */
@@ -274,7 +269,7 @@ SCRIPT_OPERATION(palette_animation_off, slot)
 // $C1:5D1D
 /* One of the palette animations' frames shows at once: its color set goes
  * into the first sprite palette at its place. The channel goes on at once. */
-enum { PLACE_QUARTER = 0x07, PLACE_SEVEN_COLORS = 0x80, LEFT_FRAME_SET = 0x00, LEFT_FRAME_COUNT = 0x02, LEFT_SEVEN_QUARTERS = 0x03, LEFT_SEVEN_PLACE = 0x04 };
+enum { PLACE_QUARTER = 0x07, PLACE_SEVEN_COLORS = 0x80 };
 
 static ScriptFlow palette_frame(GameState *g, uint8_t frame)
 {

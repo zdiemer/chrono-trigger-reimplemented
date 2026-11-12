@@ -45,11 +45,6 @@ static int screen_transition_step(const GameState *g)
     return -1;
 }
 
-/* A map transition (field/field.h, FieldMapMove): a move to a destination,
- * each with its tile map base, or a send of a tile map staged in bank $7E:
- * BG2's left screen, its right screen, a piece of BG3's map
- * (field/display.c). */
-
 /* The first two moves also set BG1's tile map in the line effects' values,
  * two screens wide, from the destination's. */
 
@@ -274,5 +269,3 @@ void field_vblank(GameState *g, Platform *pf)
     }
     apply_display_shadows(g, pf);
 }
-
-/* ---- Where it meets the original ------------------------------------------------------- */

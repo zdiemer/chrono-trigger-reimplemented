@@ -21,7 +21,6 @@
 #include "charge.h"
 #include "core/program.h"
 #include "cpu_io.h"
-#include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/digits.h"
 #include "menu/item_screen.h"
@@ -48,7 +47,14 @@ enum { NOT_A_NUMBER = 0x8000 };
  * factor's low nibble), or the power times the factor's low five bits and a
  * share of the power drawn at random, taken away instead of given where the
  * factor's top bit is set. The factor's bit 6 says all of it. */
-enum { FIXED = 0x80, POWER_BITS = 0x7F, FIXED_FACTOR_BITS = 0x0F, DRAWN_FACTOR_BITS = 0x1F, TAKEN = 0x80, ALL_OF_IT = 0x40 };
+enum {
+    FIXED = 0x80,
+    POWER_BITS = 0x7F,
+    FIXED_FACTOR_BITS = 0x0F,
+    DRAWN_FACTOR_BITS = 0x1F,
+    TAKEN = 0x80,
+    ALL_OF_IT = 0x40,
+};
 
 // $C2:8ECC
 static void work_out_amounts(GameState *g, uint16_t amounts[DRAWS])

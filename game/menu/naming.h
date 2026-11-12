@@ -7,6 +7,7 @@
 #include "menu/cursor.h"
 #include "platform/video.h"
 #include "state.h"
+#include "vars.h"
 
 /* The screen opens on the naming; or, at a new game's first, on the battle
  * mode first, the character noted among those named either way. */
@@ -66,7 +67,12 @@ typedef enum {
     NAMING_OPEN_THE_SCREEN, NAMING_NAME_THE_CHARACTER, NAMING_CHOOSE_BATTLE_MODE, NAMING_OPEN_THE_NAMING,
     NAMING_WAIT_TO_NAME,
 } NamingStep;
-typedef enum { NAMING_MOVE_ON_THE_GRID, NAMING_TYPE_ON_THE_GRID, NAMING_ACCEPT_THE_NAME, NAMING_CHECK_THE_NAME } NamingRoutine;
+typedef enum {
+    NAMING_MOVE_ON_THE_GRID,
+    NAMING_TYPE_ON_THE_GRID,
+    NAMING_ACCEPT_THE_NAME,
+    NAMING_CHECK_THE_NAME,
+} NamingRoutine;
 
 /* How a step ends where it isn't back in the menus' main task by its return:
  * the screen's fade in started, the screen faded out, or the menus left. */
@@ -99,9 +105,5 @@ uint32_t menu_naming_routine_address(NamingRoutine routine);
 /* The screen's step it is on, as C, from inside the menus' main task: false
  * where it went no further (a state the port doesn't take). */
 bool menu_naming_step(GameState *g, Platform *pf);
-
-/* The steps and entries ($C2:E1ED, $C2:E201, $C2:E209, $C2:E21E, $C2:E236;
- * $C2:E267, $C2:E2F4, $C2:E363, $C2:E3E0; $C2:E40E, $C2:E545, $C2:E34A,
- * $C2:E576, $C2:E5D3), and their guards. */
 
 #endif

@@ -127,8 +127,6 @@ bool party_trail_places_hold(const GameState *g)
     return true;
 }
 
-/* ---- What the original leaves (field/scratch.h) --------------------------------------- */
-
 /* ---- The gait a walk shows ------------------------------------------------------------ */
 
 typedef enum { STANDS, WALKS, RUNS } Gait;

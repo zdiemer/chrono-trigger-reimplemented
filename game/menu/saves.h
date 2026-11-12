@@ -18,7 +18,13 @@ enum { MENU_SAVE_SLOTS = 3 };
 /* Where things are in save memory. A slot's game is SAVED_GAME_BYTES from its
  * place on; the record of them is at the end. */
 enum { SAVED_GAME_BYTES = 0xA00 };
-enum { SAVES_LAST_SLOT = 0x1FE0, SAVES_TIMES_FINISHED = 0x1FE1, SAVES_FINISHED = 0x1FE2, SAVES_SLOT_SUMS = 0x1FF0, SAVES_SLOT_MARKS = 0x1FF8 };
+enum {
+    SAVES_LAST_SLOT = 0x1FE0,
+    SAVES_TIMES_FINISHED = 0x1FE1,
+    SAVES_FINISHED = 0x1FE2,
+    SAVES_SLOT_SUMS = 0x1FF0,
+    SAVES_SLOT_MARKS = 0x1FF8,
+};
 
 /* The original's code keeps where a slot's game is as it addresses save
  * memory on the bus, from SAVES_ON_THE_BUS on (menu_slot_game_at). */

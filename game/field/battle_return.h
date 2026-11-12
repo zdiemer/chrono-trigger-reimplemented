@@ -13,6 +13,4 @@
  * where it went no further. */
 bool field_taken_up_after_battle(GameState *g, Platform *pf);
 
-/* Continuations of the field's held frame waits. */
-
 #endif

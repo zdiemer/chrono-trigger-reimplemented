@@ -143,13 +143,7 @@ bool screen_triangle_fits_the_table(const GameState *g, ScreenTriangle t) { retu
  * measured ($0B-$0D, and the divider its division leaves), the top line and
  * the lines each stretch ends on ($0F, $11, $10), and a stretch's count run
  * down to 0 ($01-$02). */
-enum { WAY_CELL = 0x00, COUNT_CELL = 0x01, LEFT_CELL = 0x03, RIGHT_CELL = 0x05, TURNED_CELL = 0x07, EDGE_CELLS = 0x0B, TOP_CELL = 0x0F, SECOND_END_CELL = 0x10, FIRST_END_CELL = 0x11, CORNER_CELLS = 0x12,  };
-
-/* The last edge measured: the right side's for a flat top or bottom, and the
- * one a side turns onto otherwise. */
-
-/* Finding the top line's place in the table leaves the line's offset and the
- * buffer's in the cells $45 and $47. */
+enum { COUNT_CELL = 0x01, EDGE_CELLS = 0x0B, CORNER_CELLS = 0x12 };
 
 /* ---- Drawing --------------------------------------------------------------------------- */
 
@@ -165,10 +159,6 @@ void screen_draw_window_triangle(GameState *g, unsigned window, ScreenTriangle t
  * column meets the lower one's line. Its top is then always flat: two of its
  * corners share the upper corner's line. */
 static Corner right_angle(Corner a, Corner b) { return a.y >= b.y ? (Corner){ a.x, b.y } : (Corner){ b.x, a.y }; }
-
-/* What filling above the triangle leaves: the count run down to 0 in $45,
- * and the top corners' columns as the 8.8 words the fill took them from
- * ($47, $49), or where nothing was filled the buffer's offset. */
 
 // $CD:3924, $CD:3952, $CD:3B10
 void screen_hang_window_triangle(GameState *g, unsigned window, BattlePoint a, BattlePoint b)
@@ -321,12 +311,6 @@ static void keep_center_work(GameState *g, Medians m, Crossing x, uint8_t column
     for (unsigned i = 0; i < sizeof work; i++)
         set_battle_direction_work(g, i, work[i]);
 }
-
-/* What the original leaves of the medians: their ends, left to right, in the
- * battle page's low cells ($12-$19), the second one's measure ($0B-$0D, and
- * the divider), their slopes and intercepts ($45-$4C); and of the multiplier
- * and divider, the column times the slope's high byte, and the column over
- * the low byte of what the divider was last given. */
 
 // $CD:21C0
 BattlePoint screen_triangle_center(GameState *g, ScreenTriangle t)

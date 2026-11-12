@@ -123,9 +123,6 @@ static void write_a_credits_line(GameState *g)
     }
 }
 
-/* A line the staging holds: one ending within BG3's staged lines. */
-enum { LONGEST_LINE = RAM_FIELD_LAYER_STAGING_STRIDE / ENTRY_BYTES };
-
 /* ---- BG2's halves ------------------------------------------------------------------------------ */
 
 enum { BG2_HALVES = FIELD_CLEAR_BG2_LEFT | FIELD_CLEAR_BG2_RIGHT };

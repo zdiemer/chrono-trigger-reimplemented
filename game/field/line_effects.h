@@ -26,6 +26,4 @@ void field_line_effects_ready(GameState *g, Platform *pf);
 void field_line_effects_build(GameState *g);
 
 /* The builders for each window position and table set ($FD:C2EB-$FD:D27E). */
-/* The builders' pieces, each an entry of its own ($FD:C439-$FD:D52D). */
-
 #endif

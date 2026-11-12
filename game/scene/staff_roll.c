@@ -432,13 +432,6 @@ static bool set_up_staff_roll_with(GameState *g, Platform *pf, StaffRollPace pac
  * touches them between the two. */
 enum { SCENE_SEND = 0x7E377E };
 
-/* The script's first step, with the program's bank as the data bank, which
- * the program sets from a word it pushes: the word's other byte, 0, waits on
- * the stack to be the data bank again after. It reads Y and the overflow as
- * the per-line effects' setup leaves them: where the descriptors end, and
- * clear. */
-enum { BANK_AFTER_THE_STEP = 0x00 };
-
 /* ---- As C ---- */
 
 typedef struct {
@@ -528,11 +521,7 @@ static bool upload_takes(const GameState *g);
 /* Where the roll goes on: its scroll, a routine of its own, which reads the
  * data bank and Y; and the frame list's exit for a task that takes itself
  * off. */
-enum { SCROLL_THE_CREDITS = 0x7E9ED6,  };
-
-/* What a line leaves: Y past the row buffer, which the original blanks with a
- * block move, and the data bank the move's, 0. */
-enum { PAST_THE_ROW = 0x1434 };
+enum { SCROLL_THE_CREDITS = 0x7E9ED6 };
 
 /* ---- As C ------------------------------------------------------------------------------------------ */
 

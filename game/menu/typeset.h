@@ -7,13 +7,19 @@
 #include <stdint.h>
 
 #include "state.h"
+#include "vars.h"
 
 /* How a text is laid out in its tiles (menu_text_layout): the low four bits
  * the kind of tiles (none four-colour, any sixteen-colour; a tile further
  * left sixteen-colour tiles whose lines start a tile further in), and the top
  * bit lines that start at the tiles' very edge. */
 typedef uint8_t MenuTextLayout;
-enum { MENU_TEXT_FOUR_COLOUR = 0x00, MENU_TEXT_A_TILE_FURTHER_LEFT = 0x02, MENU_TEXT_TILE_KIND = 0x0F, MENU_TEXT_LINES_AT_THE_EDGE = 0x80,  };
+enum {
+    MENU_TEXT_FOUR_COLOUR = 0x00,
+    MENU_TEXT_A_TILE_FURTHER_LEFT = 0x02,
+    MENU_TEXT_TILE_KIND = 0x0F,
+    MENU_TEXT_LINES_AT_THE_EDGE = 0x80,
+};
 
 /* Why a call stopped (menu_text_stop): the string ended; a wait; a line or
  * page break the caller acts on (from the first new line on, each starts a
@@ -57,7 +63,5 @@ bool menu_text_can_be_typed(const GameState *g, uint32_t strings, uint8_t string
 bool menu_text_can_carry_on(const GameState *g);
 /* The text's start's guard, its state half: strings the typesetter reads. */
 bool menu_text_can_start(const GameState *g);
-
-/* The entries, and their guards. */
 
 #endif

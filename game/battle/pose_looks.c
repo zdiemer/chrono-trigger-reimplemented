@@ -128,9 +128,6 @@ static void tint_the_colours(GameState *g, unsigned member)
 
 /* ---- A look put on ----------------------------------------------------------------------- */
 
-/* Cells the looks set that nothing traced reads: three the plain look
- * clears, one of which the held look counts. */
-
 // $C1:30B6
 /* The old look taken off: no marker, no cycle, a member's colours as
  * loaded. */

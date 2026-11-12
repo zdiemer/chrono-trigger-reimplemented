@@ -8,6 +8,7 @@
 #include "platform/platform.h"
 #include <stdint.h>
 #include "state.h"
+#include "vars.h"
 
 /* The swirl's tilemap, colours and scroll, once its graphics are unpacked;
  * and its turn for a frame. */
@@ -23,7 +24,5 @@ enum { MENU_GATE_SCREEN_TASK_START = 0xCECE };
 void menu_gate_screen_task(GameState *g, Platform *pf);
 /* Whether the swirl can turn as it stands (its task's guard's state half). */
 bool menu_gate_swirl_can_turn(const GameState *g);
-
-/* The checked legacy adapters ($FF:F677, $FF:F716, $C2:CE9D) and their guard. */
 
 #endif

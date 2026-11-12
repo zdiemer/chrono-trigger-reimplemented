@@ -40,17 +40,6 @@ enum { OUT_OF_FIGHT = 0x80, NO_SLOT = 0x80 };
 
 bool grower_at(uint16_t place, Grower *who);
 
-/* The direct page's cells the pieces work in (battle_low_scratch). */
-enum { WORK_BLOCK_AT = 0x00, /* the member's stat block; a combination's learned byte; an HP or MP step's place */
-    WORK_KNOWN_AT = 0x02, /* the character's count of techs known; the combination record; the reserve's character */
-    WORK_TECHS_AT = 0x04, /* the character's techs' record; the combination's asks */
-    WORK_CHARACTERS_AT = 0x08, /* a combination record's characters */
-    WORK_BIT_AT = 0x0A, /* a learned bit, a character's bit; the character's costs */
-    WORK_SHIFTING_AT = 0x0C, /* the combination's characters, shifted through */
-    WORK_TESTED_AT = 0x0E, /* the count of techs known tested */
-    WORK_LISTED_AT = 0x10, /* the combination's characters listed, which is tested; the HP or MP step */
-    WORK_CHARACTER_AT = 0x12, /* the character looked at */ };
-
 /* A character's record's size, which the original multiplies by to find it. */
 enum { CHARACTER_RECORD_BYTES = RAM_CHARACTER_RECORDS_STRIDE };
 
@@ -118,17 +107,5 @@ static inline uint16_t grower_place(Grower who)
         return (uint16_t)(RAM_CHARACTER_RECORDS + who.who * RAM_CHARACTER_RECORDS_STRIDE);
     return (uint16_t)(RAM_BATTLE_STATS + who.who * RAM_BATTLE_STATS_STRIDE);
 }
-
-/* A member's stat block, as an offset from the first, in the cell the tech
- * pieces take it in. */
-static inline uint16_t member_block_place(uint8_t member) { return (uint16_t)(member * BATTLE_STAT_BLOCK_BYTES); }
-
-/* Where a character's costs of its single techs start, as an offset into the
- * table (rewards_data.h, tech_points_for_next). */
-static inline uint16_t tech_costs_place(uint8_t character) { return (uint16_t)(character * TECH_COSTS_BYTES); }
-
-static inline uint16_t known_place(uint8_t character) { return (uint16_t)(RAM_PARTY_SINGLE_TECHS_KNOWN + character); }
-
-static inline uint16_t combination_learned_place(uint8_t record) { return (uint16_t)(RAM_PARTY_DOUBLE_TECHS_LEARNED + record); }
 
 #endif

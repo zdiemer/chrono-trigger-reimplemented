@@ -22,7 +22,6 @@
 
 #include "charge.h"
 #include "cpu_io.h"
-#include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/description.h"
 #include "menu/display.h"
@@ -40,12 +39,10 @@
 
 /* ---- The calls out ------------------------------------------------------------------------------- */
 
-enum { LEAVE_THE_SHOP = 0xC282B2, /* the menus' way out */
+enum {
     FADE_IN = 0xC283B2, /* the screen's fade in started */
-    CURSOR_SOUND = 0xC2EAC2, REFUSAL_SOUND = 0xC2EACC, A_SOUND = 0xC2EABA,  };
-
-/* The sibling routines the sequences reach, each run where the original
- * calls it from. */
+    CURSOR_SOUND = 0xC2EAC2, REFUSAL_SOUND = 0xC2EACC,
+};
 
 /* The sounds by their number, loaded into A as the original's call does
  * (the load's flags are the P the sound saves). */
@@ -55,8 +52,6 @@ enum { DEAL_SOUND = 0x55 };
 enum { UPLOAD_QUANTITY = 0xFBEA };
 
 // $C2:E001
-/* The quantity window's frame drawn, and its rows queued. */
-enum { QUANTITY_WINDOW = 0xC2DE };
 
 static bool zero_is_zero(const GameState *g) { return menu_zero(g) == 0; }
 

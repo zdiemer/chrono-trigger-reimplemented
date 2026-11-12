@@ -8,6 +8,7 @@
 
 #include "platform/platform.h"
 #include "state.h"
+#include "vars.h"
 
 /* What a screen describes -- an item, a tech, a tech kind's caption, a
  * setting -- is a text of the screen's table, by number. A screen asks for
@@ -46,6 +47,4 @@ enum { MENU_TYPE_A_DESCRIPTION = 0xFA9F, MENU_TYPE_A_SETTING = 0xF9B2, MENU_TYPE
 void menu_type_the_description_task(GameState *g, Platform *pf);
 void menu_type_the_setting_task(GameState *g, Platform *pf);
 void menu_type_the_value_task(GameState *g, Platform *pf);
-/* Held returns after the typing, keeping the task's phase in game state. */
-
 #endif

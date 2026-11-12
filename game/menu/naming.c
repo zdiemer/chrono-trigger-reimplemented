@@ -74,7 +74,13 @@ static Letter typed(const GameState *g, unsigned place) { return menu_name_typed
 
 /* The grid's letters, by row and column; on the screen each letter a tile
  * with a blank after it, sixteen pixels apart each way. */
-enum { GRID_ROWS = 8, GRID_COLUMNS = 10, GRID_STEP = 16, GRID_LEFT = MENU_NAME_GRID_LEFT, GRID_TOP = MENU_NAME_GRID_TOP };
+enum {
+    GRID_ROWS = 8,
+    GRID_COLUMNS = 10,
+    GRID_STEP = 16,
+    GRID_LEFT = MENU_NAME_GRID_LEFT,
+    GRID_TOP = MENU_NAME_GRID_TOP,
+};
 
 /* The cursor is the screen's first place, which moves about the grid. */
 enum { GRID_CURSOR = 0 };
@@ -320,7 +326,13 @@ enum { BLANK_ROW_TILE = 0x61FF, TILES_A_ROW = 32, LABEL_TILES_AT = 0x5E00, LABEL
 
 /* The label above the name: a string of the menus' own, laid out on two
  * strips of the text layer. */
-enum { LABEL_STRINGS = 0xFFCF3B, LABEL_STRING = 0, LABEL_TOP_AT = 0x50CA, LABEL_BOTTOM_AT = 0x514A, LABEL_COLUMNS = 24 };
+enum {
+    LABEL_STRINGS = 0xFFCF3B,
+    LABEL_STRING = 0,
+    LABEL_TOP_AT = 0x50CA,
+    LABEL_BOTTOM_AT = 0x514A,
+    LABEL_COLUMNS = 24,
+};
 enum { LABEL_TOP_TILE = 0x00, LABEL_BOTTOM_TILE = 0x41 };
 
 /* The cursor's own sprite, its tile. */
@@ -432,7 +444,13 @@ bool menu_naming_started(const GameState *g) { return (input_pressed(g) & START)
  * its windows, the colour math, its colours in the fifth palette row; the
  * text layer a line down; and its layers queued. */
 enum { MODE_SCREEN_AT = 0x400, MODE_SCREEN_TILES = 0x240, MODE_ROWS = 12, MODE_ROW_TILES = 8 };
-enum { MODE_WINDOWS = 0xC429, MODE_COLOURS_AT = 4 * 16, MODE_COLOURS = 16, MODE_LINE_EFFECTS = 0x05, UPLOAD_MODE_SCREEN = 0xFC61 };
+enum {
+    MODE_WINDOWS = 0xC429,
+    MODE_COLOURS_AT = 4 * 16,
+    MODE_COLOURS = 16,
+    MODE_LINE_EFFECTS = 0x05,
+    UPLOAD_MODE_SCREEN = 0xFC61,
+};
 
 // $C2:E576
 void menu_naming_open_the_battle_mode(GameState *g, Platform *pf)
@@ -459,7 +477,13 @@ void menu_naming_open_the_battle_mode(GameState *g, Platform *pf)
 
 /* The mode on the cursor is described, two glyphs a frame, on a row of
  * its own: the menus' strings from the second. */
-enum { MODE_TEXTS = 0xFFCF3B, MODE_LINE = 0x5248, MODE_ROW_VRAM = 0x6A20, MODE_ROW_BYTES = 0x200, TWO_GLYPHS_A_FRAME = 2 };
+enum {
+    MODE_TEXTS = 0xFFCF3B,
+    MODE_LINE = 0x5248,
+    MODE_ROW_VRAM = 0x6A20,
+    MODE_ROW_BYTES = 0x200,
+    TWO_GLYPHS_A_FRAME = 2,
+};
 
 // $C2:E5D3
 void menu_naming_describe_the_battle_mode(GameState *g)
@@ -480,7 +504,9 @@ void menu_naming_describe_the_battle_mode(GameState *g)
 /* Active, the first choice, sets the setting's bit; waiting clears it. On
  * to the naming as the screen fades out, the screen's tasks stopped. */
 enum { ACTIVE_BIT = 0x40, WAITING_CHOICE = 1, OPENING_THE_NAMING = 3 };
-enum { SCREENS_TASKS = 1u << MENU_DESCRIPTION_TASK | 1u << MENU_SCROLL_BAR_TASK | 1u << MENU_RECORDS_TASK | 1u << MENU_HELD_CURSORS_TASK };
+enum {
+    SCREENS_TASKS = 1u << MENU_DESCRIPTION_TASK | 1u << MENU_SCROLL_BAR_TASK | 1u << MENU_RECORDS_TASK | 1u << MENU_HELD_CURSORS_TASK,
+};
 
 void menu_naming_choose_the_battle_mode(GameState *g)
 {
@@ -644,7 +670,12 @@ typedef bool (*NamingStepRun)(GameState *g, Platform *pf, const NamingSteps *n, 
 /* The steps and the routines, with what each takes of the state as the port
  * does (its entry's guard on the machine): a named one, the naming whole, the
  * cursor movable. */
-typedef enum { TAKES_NOTHING_MORE = 0, TAKES_A_NAMED_ONE = 1, TAKES_THE_NAMING_WHOLE = 2, TAKES_A_MOVABLE_CURSOR = 4 } NamingTakes;
+typedef enum {
+    TAKES_NOTHING_MORE = 0,
+    TAKES_A_NAMED_ONE = 1,
+    TAKES_THE_NAMING_WHOLE = 2,
+    TAKES_A_MOVABLE_CURSOR = 4,
+} NamingTakes;
 
 static const struct {
     uint32_t routine;

@@ -278,7 +278,14 @@ static bool update_objects(GameState *g, const UpdateSteps *steps, void *ctx)
 }
 
 /* The steps' entries, which the update runs inline, and calls where it can't. */
-enum { MOVE = 0xC0AA07, MOVE_PARTY_MEMBER = 0xC0AAFD, VIEW = 0xC0A88D, WINDOW_ONLY = 0xC0A947, TICK = 0xC0C98A, PLACE_ON_SCREEN = 0xC0AB45,  };
+enum {
+    MOVE = 0xC0AA07,
+    MOVE_PARTY_MEMBER = 0xC0AAFD,
+    VIEW = 0xC0A88D,
+    WINDOW_ONLY = 0xC0A947,
+    TICK = 0xC0C98A,
+    PLACE_ON_SCREEN = 0xC0AB45,
+};
 
 /* ---- The rows' step ------------------------------------------------------------------------- */
 

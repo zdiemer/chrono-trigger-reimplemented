@@ -44,13 +44,6 @@ static inline uint16_t battle_member_record_place(const GameState *g, uint8_t me
     return rom_read16(g, 0xFDA849u + (uint16_t)(member * 2));
 }
 
-/* Where each party member's tech records are in work RAM ($FD:A84F, a word a
- * member), which the setup leaves in its cells as it builds them. */
-static inline uint16_t battle_member_tech_records_place(const GameState *g, uint8_t member)
-{
-    return rom_read16(g, 0xFDA84Fu + (uint16_t)(member * 2));
-}
-
 /* A character's single techs, from its first: the next character's first
  * ends them ($FD:A89D, a byte a character). */
 static inline uint8_t character_first_single_tech(const GameState *g, uint8_t character)

@@ -124,9 +124,6 @@ static void give_up_the_open_menu(GameState *g, uint8_t member)
     battle_hand_the_menu_on(g, member);
 }
 
-/* The work cell the original keeps the member in as it calls the menu off. */
-enum { CALLED_OFF_CELL = 0x80 };
-
 // $C1:1BAA
 /* A member's action is called off: out of the line, or out of its slot of
  * the menu, the window's frames put back as the battle starts them. */

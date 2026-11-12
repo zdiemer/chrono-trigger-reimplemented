@@ -28,8 +28,6 @@ static void set_offset(GameState *g, unsigned entry, uint16_t across)
     set_battle_line_scroll_offsets_across(g, entry, across);
 }
 
-/* In the fight with the first of the battle's rules, BG1 keeps still. */
-
 // $CD:253B
 /* Wave the lines of the layers named (BG1, BG2 and BG3 by the operand's top
  * bits) by a sine of `amplitude` pixels down the screen, its phase moving on

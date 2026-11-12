@@ -265,16 +265,6 @@ static bool enemy_in_reserve(const GameState *g, unsigned slot)
     return !battle_slot_is_party(slot) && (battle_enemy_standing(g, slot - BATTLE_FIRST_ENEMY) & ENEMY_IN_RESERVE);
 }
 
-/* A party member knocked out drops the choice bit 4 of its action record
- * marks; the original makes a call there that does nothing, having named the
- * member the actor first, which stays. */
-
-/* The original reaches a member's action record through its place, which it
- * leaves in a cell (battle.h, BATTLE_MEMBER_CELL). */
-
-/* An enemy leaving the fight is beaten, where it hadn't been counted beaten
- * already and wasn't waiting in reserve. */
-
 /* A combatant that comes back once when knocked out (bit 7 of its stat
  * block's revival byte, used up as it does). */
 enum { COMES_BACK = 0x80 };
@@ -297,11 +287,6 @@ static void count_enemy_beaten(GameState *g, unsigned enemy)
 }
 
 bool combatant_comes_back(const GameState *g, unsigned slot) { return (battle_stats_revival(g, slot) & COMES_BACK) != 0; }
-
-/* The combatant leaves the fight, knocked out or taken off: out of the fight
- * with its turn timer stopped and its statuses and low HP gone. An enemy is
- * beaten; a party member's gauge starts over from its turn wait -- unless it
- * comes back. */
 
 // $C1:B279
 /* The combatant's part of the turn's update: in a filled slot it is back in
@@ -396,13 +381,7 @@ void combatants_after_update(GameState *g)
         set_battle_party_defeated(g, true);
 }
 
-// $C1:B093
-
 /* ---- A member coming back -------------------------------------------------------------- */
-
-/* The member's coming back is shown as a tech on it, and told. */
-enum { SHOWN_AS_TECH = 0x02, COMING_BACK_TECH = 0x7A, MESSAGE_CAME_BACK = 0x09 };
-enum { COMING_BACK_HP_PER_MAGIC = 5 };
 
 /* The showing and the message are the original's (the showing, a sibling,
  * calls on to them): the showing takes A's high byte along, clear as the

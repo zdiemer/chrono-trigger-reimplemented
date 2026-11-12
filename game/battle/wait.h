@@ -37,11 +37,4 @@ bool battle_wait_for_the_next_frame(GameState *g, Platform *pf);
 bool battle_wait_some_frames(GameState *g, Platform *pf, uint8_t frames);
 void battle_wait_for_the_small_handler(GameState *g, Platform *pf);
 
-/* A count the original keeps in A and on the stack across a wait, from its
- * first pass's carry on. */
-static inline BattleFrame battle_counting(uint8_t left, BattleCarry carry)
-{
-    return (BattleFrame){ .kept = { left }, .kept_bytes = 1, .carry = carry };
-}
-
 #endif

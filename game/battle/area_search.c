@@ -123,12 +123,6 @@ static bool within_angles(uint8_t angle, uint8_t from, uint8_t to, bool past_a_t
     return past_a_turn ? angle <= to || angle >= from : angle >= from && angle <= to;
 }
 
-/* The cells the searches loop over the side in: its end and the next slot,
- * which the loop leaves at the end. The end's cell is the one a jump to the
- * script's point takes its lift from (battle.h), so the end is left there as
- * game state; the rest is for shadow mode. */
-enum { CELL_END_HIGH = 0x91, CELL_SLOT = 0x8E, CELL_LEFT_OUT = 0x92 };
-
 static void leave_side(GameState *g, Side side)
 {
     battle_leave_jump_lift(g, side.end);
@@ -157,10 +151,6 @@ static BattlePoint off_by(GameState *g, BattlePoint from, uint8_t angle, uint8_t
     uint8_t y = (uint8_t)(from.y + battle_along(g, (uint8_t)(angle + THREE_QUARTERS), radius));
     return (BattlePoint){ x, y };
 }
-
-/* The beam's cells: the edges' points, their spans' angles, and whether
- * each span runs past a turn. */
-enum { BEAM_POINTS = 0x80, BEAM_LEFT_SPAN = 0x84, BEAM_RIGHT_SPAN = 0x88, BEAM_PAST_A_TURN = 0x8C };
 
 // $C1:25A3
 static void find_in_beam(GameState *g, AreaAsked a)
@@ -207,10 +197,6 @@ typedef struct {
     uint8_t across_squared, down;
 } LastMeasured;
 
-/* The circle's cells: its centre's cell across and down, and of the last
- * combatant it measured, the square across and the cells down. */
-enum { CIRCLE_ACROSS = 0x80, CIRCLE_DOWN = 0x82, MEASURED_ACROSS_SQUARED = 0x84, MEASURED_DOWN = 0x86 };
-
 // $C1:2701
 static void find_in_circle(GameState *g, AreaAsked a)
 {
@@ -236,9 +222,6 @@ static void find_in_circle(GameState *g, AreaAsked a)
 /* ---- The row ------------------------------------------------------------------------------------- */
 
 enum { ROW_REACH = 0x20 };
-
-/* The row's cells: its top and its bottom, and the combatant it is on. */
-enum { ROW_TOP = 0x85, ROW_BOTTOM = 0x87, ROW_CENTRE = 0x88 };
 
 // $C1:2332
 /* The combatant the row is placed on goes first whatever side it is on. */

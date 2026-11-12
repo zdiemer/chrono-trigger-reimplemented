@@ -54,17 +54,10 @@ static uint8_t send_sound_command(const GameState *g, Platform *pf)
     return command;
 }
 
-/* The driver echoes a command on port 0 once it has taken it. */
-
 /* How many passes the echo wait makes before it sends the command again. */
 enum { ECHO_PASSES = 0x0400 };
 
 static uint8_t send_and_wait_for_the_echo(GameState *g, Platform *pf);
-
-// $7E:379B
-/* One pass of the echo wait: on to the return at $7E:37A5 when the driver
- * echoes the command, or after the passes run out to $7E:37A3, which sends it
- * again. Idle entry, 8-bit A and 16-bit X. */
 
 /* ---- The sound put back to normal ------------------------------------------------------------ */
 

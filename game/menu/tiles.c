@@ -75,16 +75,10 @@ void menu_recolour_block(GameState *g, uint16_t at, uint32_t rows, uint32_t tile
     set_menu_draw_origin(g, at);
 }
 
-// $C2:EC38
-
-// $C2:ECAC
-
-// $C2:EC93
-
 /* ---- The guards ---------------------------------------------------------------------------------- */
 
 /* They draw on the menus' page with the data bank on work RAM, into a
  * tilemap buffer past the low pages that doesn't run off the bank's end; the
  * portrait with the palette's changes short of the count's top, which the
  * original carries into the next byte. */
-enum { LOW_PAGES_END = 0x2000, BANK_END = 0x10000 };
+enum { BANK_END = 0x10000 };

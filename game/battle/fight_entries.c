@@ -21,14 +21,3 @@ bool battle_fight_can_start(const GameState *g)
     return true;
 }
 
-// $FD:B2DE, $FD:B33F
-
-// $FD:B22E
-
-/* An enemy in X, and the same in the cell the original finds its block by
- * ($02). */
-enum { ENEMY_CELL = 0x02 };
-
-/* It leaves in A the count of the record's last part, its three bytes, which
- * its caller's next pieces find there. */
-enum { LAST_PART_BYTES = 3 };

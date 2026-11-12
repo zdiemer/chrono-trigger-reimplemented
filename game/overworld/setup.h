@@ -47,7 +47,4 @@ Unpacker overworld_unpacker(GameState *g);
  * goes on to it, in the shipping mode: the set up as C and the main loop
  * waiting for its first frame (the original's set up from its start where
  * the state breaks the set up's contract). */
-/* The map's tiles' load as a scene's script calls it on the machine
- * (entries.c), and its contract. */
-
 #endif
