@@ -311,10 +311,12 @@ of that recording, as on all 30366 frames of the Ocean Palace finale.
 
 The 625 Python unit tests pass, as do `video_test`, `native_time_test` and
 `timing_test`; `portstyle` and `portsmell` have no new findings. The build
-uses `CT_WERROR=ON`. The three old picture pins are still unchanged;
-the gate's last line is `FAILED: outcomes` until their deliberate update
-is authorized. This is separate from the fixed-input losses above, whose
-movies, timing estimates and exceptions remain unchanged.
+uses `CT_WERROR=ON`. That gate ended `FAILED: outcomes`; review then
+authorized updating only the three picture pins, with the specific A/B
+reason on each line. Follow-up validation checks the saved native and
+strict outcome artifacts from that run, without rerunning the whole gate.
+This is separate from the fixed-input losses above, whose movies, timing
+estimates and exceptions remain unchanged.
 
 ## Original audit validation
 
