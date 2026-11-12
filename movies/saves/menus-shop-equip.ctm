@@ -3,7 +3,7 @@
 # Save: ctsave14-side_quests3 slot 1 (fantasyanime.com/squaresoft/ctsaves-srm.htm, chrono_trigger.srm).
 # frames 15513
 # sram crc32 1E34C588
-# Replay: ct_native --rom <rom> --frames 15513 --movie menus-shop-equip.ctm --sram <save>
+# Replay: ct_dev --rom <rom> --frames 15513 --movie menus-shop-equip.ctm --sram <save> --native shadow
 # <start_frame> <frame_count> <buttons>
 245 7 START
 390 8 A
