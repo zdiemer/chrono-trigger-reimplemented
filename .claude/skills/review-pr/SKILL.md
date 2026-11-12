@@ -54,9 +54,11 @@ after you do.
 Check every item. Each one is a blocker when it fails.
 
 1. **Gate and CI on this head.** A PR comment reports `suite OK` for the
-   head's short SHA (or says the change is docs only and explains why no
-   gate is needed), and `gh pr checks <n>` is green or skipped for
-   Markdown-only changes. A gate that ran on an earlier commit doesn't count.
+   head's short SHA, or the PR body or a comment says the change is docs only
+   and explains why no gate is needed. `gh pr checks <n>` is green. For a
+   Markdown-only head CI is skipped by its path filter, and `gh pr checks`
+   prints "no checks reported" and exits 1: that counts as skipped, not
+   failed. A gate that ran on an earlier commit doesn't count.
 2. **Behaviour.** The change does what the PR says. Port logic keeps the
    original's observable behaviour, including its index arithmetic,
    wraparound and odd offsets (CLAUDE.md). Nothing is claimed that the diff
@@ -84,8 +86,8 @@ Check every item. Each one is a blocker when it fails.
    - no count lowered by relabelling or loosening what a tool counts;
    - nothing that existing tests depended on is deleted without a replacement.
 7. **Docs match the code.** Milestone docs say what was built and how it was
-   measured. Follow-ups are GitHub issues, not lists in a doc. Finished work is
-   deleted from the plan, not marked done. `tools/doc_names.py --check` would
+   measured. Open follow-ups go where CLAUDE.md says they go. Finished work is
+   deleted from the plan and the follow-ups, not marked done. `tools/doc_names.py --check` would
    pass for the names the PR adds.
 8. **Ports read as hand-written.** When the diff touches ported routines in
    `game/`, apply the `review-port` skill to the changed functions. Only a
