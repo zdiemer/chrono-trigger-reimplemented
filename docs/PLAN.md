@@ -30,6 +30,36 @@ smaller targets; measure stacks and memory before the GBA experiment.
 A relocatable asset layout and a SNES target follow from the C logic, with
 symbolic references and target glue. See TODO.md for the remaining work.
 
+### Layering
+
+`game/` stays the reimplementation alone; ports and enhancements live beside it.
+
+- **Backends and targets** (a GPU renderer, controllers, GBA, Wii/GameCube)
+  implement the services in `runtime/platform/`, one directory per backend
+  beside `runtime/platform/native/`, with a driver in `frontend/` or its own
+  frontend. They never change `game/`.
+- **Asset decoders** serve the named resource accessors through the assets
+  provider. A decoded or edited resource reaches the ports unchanged.
+- **Enhancements that change what is shown** (widescreen first) parameterize
+  the game rather than patch it. `game/` asks a service for the view size and
+  reads named options. At their defaults it is exactly the reimplementation,
+  and the gate runs only at the defaults, so every movie, outcome and route
+  keeps measuring the original. An option may change how much is shown and
+  where it is laid out, never the game's rules. Each enhancement adds its own
+  checks on top of the gate.
+- **Rule changes** (difficulty, quality-of-life) are not planned. If wanted,
+  they would be a separate, named layer with the same defaults-are-original
+  rule, not edits threaded through the ports.
+
+`tests/test_platform_lint.py` holds the line. `game/` includes only:
+
+- its own headers;
+- the service interfaces at the top of `runtime/platform/`;
+- the typed state's storage and the fiber interface from `runtime/port/`;
+- the four C headers of the portability subset.
+
+A backend, decoder, frontend or enhancement header in `game/` fails the gate.
+
 ## Validation
 
 CLAUDE.md gives the blocking gate and the separate `suite.py --long` command.

@@ -63,7 +63,9 @@ assets are not committed.
 
 ## Further targets
 
-Widescreen must review coordinate clipping and field activation bounds. GPU
+Widescreen must review coordinate clipping and field activation bounds. It
+reaches the game as the video service's view size, with the original screen as
+the default the gate measures (docs/PLAN.md, "Layering"). GPU
 backends must preserve line effects and color math. Smaller targets need measured
 memory and coroutine stack budgets; a callback-based frontend needs an appropriate
 fiber backend or resumable game tasks.
