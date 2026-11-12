@@ -75,6 +75,23 @@ class TestDocNames(unittest.TestCase):
         found = self.check('`field_step_count`\n', extra={'re/ram.toml': ram})[0]
         self.assertEqual(found, ['game/field/run.c', 'walk_the_follower'])
 
+    def test_the_ram_maps_unchecked_reasons_and_comments(self):
+        ram = ('# see game/field/gone.h and walk_the_follower\n'
+               '[[var]]\nname = "field_step_count"  # game/field/walk.c\n'
+               'unchecked = "walk_the_lost reads past it"\n')
+        found = self.check('', extra={'re/ram.toml': ram})[0]
+        self.assertEqual(found, ['game/field/gone.h', 'walk_the_lost'])
+
+    def test_python_mentions_do_not_define_names(self):
+        tool = ('"""walk_the_follower, in a docstring."""\n'
+                '# walk_the_lost, in a comment\n'
+                'ENV = "CT_WALKER"\n'
+                'NOTE = "walk_the_ledger in a sentence"\n'
+                'def walk_the_tool(): pass\n')
+        found = self.check('`walk_the_follower` `walk_the_lost` `CT_WALKER` `walk_the_ledger` `walk_the_tool`\n',
+                           extra={'tools/walker.py': tool, 'tools/walk_baseline.txt': 'walk_the_ledger 1\n'})[0]
+        self.assertEqual(found, ['walk_the_follower', 'walk_the_ledger', 'walk_the_lost'])
+
     def test_an_exception_needs_a_reason_and_a_use(self):
         exc = {'tools/doc_names_exceptions.txt': 'walk_the_follower  # an example of a bad name\n'
                                                  'run_fast\n'}

@@ -14,15 +14,17 @@ have:
     snake_case (an underscore between letters) or CamelCase (an internal
     capital), so an ordinary word in backticks is not one. A name ending in
     `_` or `*` stands for every name it begins (`field_upload_layer*`);
-  - the same names cited in re/ram.toml's `source`, `meaning` and `why`
-    strings, which are prose about the code;
-  - paths in backticks (`field/scratch.h`, `screen_script.c`), checked as
-    files: a path matches any file in the tree that it ends.
+  - the same names cited in re/ram.toml's `source`, `meaning`, `why` and
+    `unchecked` strings, which are prose about the code;
+  - paths in backticks (`field/scratch.h`, `screen_script.c`) and in the
+    RAM map's prose and `#` comments, checked as files: a path matches any
+    file in the tree that it ends.
 
-A name exists if it is a word of the code in game/, runtime/, frontend/,
-tools/, tests/, re/ or CMakeLists.txt, with C comments, Python comments and
-the RAM map's prose left out (a stale comment doesn't keep a name alive), or
-the name of a file there. A mention of a name that is gone on purpose (a bad
+A name exists if it is an identifier of the code in game/, runtime/,
+frontend/, tools/, tests/, re/ or CMakeLists.txt, or the name of a file
+there. Comments, docstrings, strings (but a string that is one identifier, an
+environment variable's name), the ledgers in tools/ and the RAM map's prose
+mention names without defining them, so they don't keep a name alive. A mention of a name that is gone on purpose (a bad
 pattern given as an example, a format the reader may still meet) goes in
 tools/doc_names_exceptions.txt with the reason on its line; rewording the doc
 so it names what is there now is usually better.
@@ -33,15 +35,19 @@ import pathlib
 import re
 import sys
 import time
+import tokenize
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXCEPTIONS = 'tools/doc_names_exceptions.txt'
 CODE_DIRS = ('game', 'runtime', 'frontend', 'tools', 'tests', 're')
 CODE_FILES = ('CMakeLists.txt',)
-CODE_SUFFIXES = {'.c', '.h', '.inc', '.py', '.toml', '.tsv', '.txt', '.cmake', '.in', '.json'}
+# Ledgers (tools/*.txt, *.tsv) only mention names, so they don't define one;
+# the RAM map's tables in re/ are where the accessors' names come from.
+CODE_SUFFIXES = {'.c', '.h', '.inc', '.py', '.toml', '.cmake', '.in', '.json'}
+RE_TABLES = {'.tsv'}
 # The check's own files cite stale names as examples; they don't keep one alive.
 SELF = {'tools/doc_names.py', EXCEPTIONS, 'tests/test_doc_names.py'}
-PROSE_KEYS = ('source', 'meaning', 'why')
+PROSE_KEYS = ('source', 'meaning', 'why', 'unchecked')
 
 WORD = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
 SPAN = re.compile(r'`([^`\n]+)`')
@@ -51,8 +57,7 @@ NAME = re.compile(r'(?<![\w$.:/-])(\*?)([A-Za-z_][A-Za-z0-9_]*)(\*?)')
 # A path after a colon is in a git tag (`emulator-oracle:game:event:bridge.c`),
 # which is history rather than the tree.
 PATH = re.compile(r'(?<![\w.$/*:-])((?:[\w.-]+/)*[\w-]+\.(?:c|h|inc|py|md|toml|tsv|txt|cmake|yml))(?![\w/])')
-C_COMMENT = re.compile(r'"(?:\\.|[^"\\\n])*"|/\*.*?\*/|//[^\n]*', re.S)
-PY_COMMENT = re.compile(r'^\s*#[^\n]*', re.M)
+C_COMMENT_OR_STRING = re.compile(r'"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\'|/\*.*?\*/|//[^\n]*', re.S)
 TOML_PROSE = re.compile(r'^\s*(?:%s)\s*=\s*"(?:\\.|[^"\\\n])*"' % '|'.join(PROSE_KEYS), re.M)
 TOML_PROSE_STRING = re.compile(r'^\s*(?:%s)\s*=\s*"((?:\\.|[^"\\\n])*)"' % '|'.join(PROSE_KEYS), re.M)
 
@@ -63,7 +68,9 @@ def is_code_name(word: str) -> bool:
     letter."""
     if not re.search(r'[A-Za-z]{2}', word):
         return False
-    return '_' in word or bool(re.search(r'[a-z][A-Z]', word))
+    # A capital after a lower-case letter in a word of four letters or more:
+    # `KiB` is a unit.
+    return '_' in word or len(word) > 3 and bool(re.search(r'[a-z][A-Z]', word))
 
 
 def cited_names(text: str):
@@ -127,6 +134,11 @@ def citations(root: pathlib.Path):
                 add('path', p.group(1), 're/ram.toml:%d' % line)
             for kind, name in cited_names(PATH.sub(' ', prose)):
                 add(kind, name, 're/ram.toml:%d' % line)
+        # The map's comments explain its format with made-up names, so only
+        # the files they cite are held to the tree.
+        for line, comment in toml_comments_out(text)[1]:
+            for p in PATH.finditer(comment):
+                add('path', p.group(1), 're/ram.toml:%d' % line)
     return found
 
 
@@ -147,17 +159,65 @@ def code_words(root: pathlib.Path):
     for path in code_files(root):
         rel = path.relative_to(root).as_posix()
         words.update(WORD.findall(path.stem))
-        if rel in SELF or path.suffix not in CODE_SUFFIXES and path.name != 'CMakeLists.txt':
+        table = rel.startswith('re/') and path.suffix in RE_TABLES
+        if rel in SELF or not table and path.suffix not in CODE_SUFFIXES and path.name != 'CMakeLists.txt':
+            continue
+        if path.suffix == '.py':
+            words.update(python_identifiers(path))
             continue
         text = path.read_text(encoding='utf-8', errors='replace')
         if path.suffix in ('.c', '.h', '.inc'):
-            text = C_COMMENT.sub(lambda mo: mo.group(0) if mo.group(0).startswith('"') else ' ', text)
-        elif path.suffix == '.py':
-            text = PY_COMMENT.sub(' ', text)
+            text = C_COMMENT_OR_STRING.sub(lambda mo: ' %s ' % ' '.join(key_string(mo.group(0))), text)
         elif path.suffix == '.toml':
-            text = TOML_PROSE.sub(' ', text)
+            text = toml_comments_out(TOML_PROSE.sub(' ', text))[0]
         words.update(WORD.findall(text))
     return words
+
+
+def key_string(literal: str):
+    """A string literal that is one identifier (an environment variable, a
+    key) names something; a sentence only mentions names."""
+    mo = re.fullmatch(r'[rbuRBU]*(["\'])([A-Za-z_][A-Za-z0-9_]*)\1', literal)
+    return [mo.group(2)] if mo else []
+
+
+def python_identifiers(path: pathlib.Path):
+    """The identifiers of a Python file's code: its comments, docstrings and
+    strings mention names, they don't define them."""
+    try:
+        with path.open('rb') as f:
+            out = set()
+            for tok in tokenize.tokenize(f.readline):
+                if tok.type == tokenize.NAME:
+                    out.add(tok.string)
+                elif tok.type == tokenize.STRING:
+                    out.update(key_string(tok.string))
+            return out
+    except (tokenize.TokenError, SyntaxError, UnicodeDecodeError):
+        return set(WORD.findall(path.read_text(encoding='utf-8', errors='replace')))
+
+
+def toml_comments_out(text: str):
+    """(the TOML with its `#` comments blanked, [(line, comment)])."""
+    out, comments = [], []
+    for n, line in enumerate(text.split('\n'), 1):
+        quote, i = None, 0
+        while i < len(line):
+            ch = line[i]
+            if quote:
+                if ch == '\\':
+                    i += 1
+                elif ch == quote:
+                    quote = None
+            elif ch in '"\'':
+                quote = ch
+            elif ch == '#':
+                comments.append((n, line[i + 1:]))
+                line = line[:i]
+                break
+            i += 1
+        out.append(line)
+    return '\n'.join(out), comments
 
 
 def all_files(root: pathlib.Path):

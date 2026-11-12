@@ -185,7 +185,7 @@ source = "LDA #$0200 : TCD at $C2:57E6 and $C2:582A; menu_put_glyph entered with
 name = "menu_record"
 subsystem = "menu"
 meaning = "A menu record's own page: the $40-byte records the task at $C2:F657 runs with the direct page on each, drawing their sprites"
-source = "PEA #$1800/#$1980/#$19C0 : PLD at $C2:F3CF, $C2:CE2F, $C2:BA1F and more, and TCD after ADC #$0040 / SBC #$0040. Measured over the 26 movies (ct_dev --page-report): ($C2:F871) entered with D on each of the eight records and nothing else ($1800 3744 calls, $1840 3497, $1880 3545, $18C0, $1900, $1940 and $1980 1868 each, $19C0 1259; all eight in menus-end-of-time); the opening ($C2:F3CA) marks a ninth, $1A00, empty, and the records' task ($C2:F657) passes it by"
+source = "PEA #$1800/#$1980/#$19C0 : PLD at $C2:F3CF, $C2:CE2F, $C2:BA1F and more, and TCD after ADC #$0040 / SBC #$0040. Measured over the 26 movies (the retired developer build's page report): ($C2:F871) entered with D on each of the eight records and nothing else ($1800 3744 calls, $1840 3497, $1880 3545, $18C0, $1900, $1940 and $1980 1868 each, $19C0 1259; all eight in menus-end-of-time); the opening ($C2:F3CA) marks a ninth, $1A00, empty, and the records' task ($C2:F657) passes it by"
 why = "D walks a table of records, so an offset names a field of whichever record is current"
 instances = [
   { name = "record", base = 0x1800, count = 9, stride = 0x40 },
@@ -195,7 +195,7 @@ instances = [
 name = "save_check"
 subsystem = "menu"
 meaning = "The page the save code's check of a slot ($FF:F9C4) runs on: the menus' own as they open, or the clock's ($0400), where the menus' services ($C2:8C36) look for a slot to go on from at power-on ($C2:8D6A)"
-source = "PEA #$0400 : PLD at $C2:8C40 (the services, which call the check from $C2:8D6E); the menus' page at $C2:D16D (read_save_slots). Measured over the library (ct_dev --page-report): the check entered with D = $0000 and $0400, nothing else"
+source = "PEA #$0400 : PLD at $C2:8C40 (the services, which call the check from $C2:8D6E); the menus' page at $C2:D16D (read_save_slots). Measured over the library (the retired developer build's page report): the check entered with D = $0000 and $0400, nothing else"
 why = "the check has no page of its own: it reads the slot from, and leaves its answer and the slot's place in, its caller's page"
 instances = [
   { name = "menu", d = 0x0000 },
@@ -234,7 +234,7 @@ source = "LDA #$0000 : TCD at $C3:09EE; every scene_ port but the title's start_
 name = "scene_program"
 subsystem = "scene"
 meaning = "The page the scene program's shared routines run on: the scene's own, or, when a sequence script calls one, its channel's"
-source = "Measured over the 26 movies (ct_dev --page-report): multiply ($7E:31BF) entered with D = $0000 146235 times, $0A00 23842 (5412 of them in events-jetbike-race) and $0B00 1920 (endings-beyond-time); divide ($7E:339F, 20115 calls), divide_8_8 ($7E:32E2, 16225) and multiply_signed ($C3:094C, 21120) only with $0000; the sequence interpreter ($C3:0AFF) on $0A00 61680 times and $0B00 18316, never another page. Two channels because the attract program has two (scene_channels); every instance is reached"
+source = "Measured over the 26 movies (the retired developer build's page report): multiply ($7E:31BF) entered with D = $0000 146235 times, $0A00 23842 (5412 of them in events-jetbike-race) and $0B00 1920 (endings-beyond-time); divide ($7E:339F, 20115 calls), divide_8_8 ($7E:32E2, 16225) and multiply_signed ($C3:094C, 21120) only with $0000; the sequence interpreter ($C3:0AFF) on $0A00 61680 times and $0B00 18316, never another page. Two channels because the attract program has two (scene_channels); every instance is reached"
 why = "the routines have no page of their own: they work on the cells of whichever page they are called on, the scene's own, or a sequence channel's (its record in scene_channels) when a channel's script calls a routine of the program"
 instances = [
   { name = "own", d = 0x0000 },
@@ -246,7 +246,7 @@ name = "input"
 d = 0x0000
 subsystem = "core"
 meaning = "The controller reader's direct page: it sets D = $0000 itself, whatever page its caller has"
-source = "PEA #$0000 : PLD at $C2:84EC (input_read_controller, game/core/input.c), which ($C2:84D2) calls before assign_buttons ($C2:8545). Measured over the 26 movies (ct_dev --page-report): input_read_controller entered with eight different D's ($0000 453397 calls, $0100 195982, $0D00 35169, $1E00 1596, $2100 246, $1D00 173, $0300 102, $0500 1), all of which it replaces, and assign_buttons with D = $0000 in all 651497 of its calls; the event engine's input conditions read the cells at $00F2 and $00F8 through the data bank (game/event/input.c)"
+source = "PEA #$0000 : PLD at $C2:84EC (input_read_controller, game/core/input.c), which ($C2:84D2) calls before assign_buttons ($C2:8545). Measured over the 26 movies (the retired developer build's page report): input_read_controller entered with eight different D's ($0000 453397 calls, $0100 195982, $0D00 35169, $1E00 1596, $2100 246, $1D00 173, $0300 102, $0500 1), all of which it replaces, and assign_buttons with D = $0000 in all 651497 of its calls; the event engine's input conditions read the cells at $00F2 and $00F8 through the data bank (game/event/input.c)"
 
 # ==============================================================================
 # Program images
@@ -5725,7 +5725,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Two sprite priority bytes ($20/$30, bits 4-5): +0 from the map's $7E:7040 attribute or the priority mode's bits 0-1, +1 from $7E:7000 or bits 4-5"
 source = "game/field/object.c object_set_sprite_priorities, object_layer_as_the_map $C0:4BA3, object_set_layering $C0:4C74; game/field/motion.c take_priorities_for_the_step"
-unchecked = "a map's start lays an empty place of the party out as the slot its marker names, the first past the tables (game/field/party_trail.c leave_stray_priorities, $C0:9E0E)"
+unchecked = "a map's start lays an empty place of the party out as the slot its marker names, the first past the tables (game/field/party_trail.c, $C0:9E0E)"
 
 [[var]]
 name = "field_row_first_object"
@@ -5995,7 +5995,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "What the object is to the field (field/object.h, ObjectRole): bit 7 disabled; the kind below it, 0-2 the party's leader and members (moved without tile checks), 3 a character who left the party, 7 checked against the screen window only, 8 left alone by the update"
 source = "game/field/object.c object_role, set_role; game/field/object_update.c field_objects_updated $C0:A810"
-unchecked = "an empty party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member, following one and noting one's tile, which read the slot it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library); and a map's object count of 64-127, which the original doubles into a byte and so starts the leader's walk's search for objects in the way past the tables (game/field/walk.c, met_past_the_tables; 20 real calls over the movie library)"
+unchecked = "an empty party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member, following one and noting one's tile, which read the slot it names past the tables (game/event/party.c; 52,898 real calls over the movie library); and a map's object count of 64-127, which the original doubles into a byte and so starts the leader's walk's search for objects in the way past the tables (game/field/walk.c, met_past_the_tables; 20 real calls over the movie library)"
 
 [[var]]
 name = "field_object_character"
@@ -6168,7 +6168,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "16-bit X position in 1/16 pixel, the tile in the high byte ($FF00 off screen)"
 source = "game/field/object_update.c (header comment); tools/movies/addresses.py OBJECT_X"
-unchecked = "an empty party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member, following one and noting one's tile, which read the slot it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library); and a map's object count of 64-127, which the original doubles into a byte and so starts the leader's walk's search for objects in the way past the tables (game/field/walk.c, met_past_the_tables; 20 real calls over the movie library); and the party's place taken as the leader's, for a menu or a change of location, while the party has no leader on the map (its marker $80, as a save's load and the attract demo's scenes leave it until the map's objects start), which reads the first slot past the tables (game/field/location.c, field_leaders_place; frame 1704 of every movie from a save, and the attract demo)"
+unchecked = "an empty party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member, following one and noting one's tile, which read the slot it names past the tables (game/event/party.c; 52,898 real calls over the movie library); and a map's object count of 64-127, which the original doubles into a byte and so starts the leader's walk's search for objects in the way past the tables (game/field/walk.c, met_past_the_tables; 20 real calls over the movie library); and the party's place taken as the leader's, for a menu or a change of location, while the party has no leader on the map (its marker $80, as a save's load and the attract demo's scenes leave it until the map's objects start), which reads the first slot past the tables (game/field/location.c, field_leaders_place; frame 1704 of every movie from a save, and the attract demo)"
 
 [[var.field]]
 name = "fine"
@@ -6190,7 +6190,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "16-bit Y position in 1/16 pixel, the tile in the high byte"
 source = "game/field/object_update.c (header comment); tools/movies/addresses.py OBJECT_Y"
-unchecked = "an empty party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member, following one and noting one's tile, which read the slot it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library); and a map's object count of 64-127, which the original doubles into a byte and so starts the leader's walk's search for objects in the way past the tables (game/field/walk.c, met_past_the_tables; 20 real calls over the movie library); and the party's place taken as the leader's, for a menu or a change of location, while the party has no leader on the map (its marker $80, as a save's load and the attract demo's scenes leave it until the map's objects start), which reads the first slot past the tables (game/field/location.c, field_leaders_place; frame 1704 of every movie from a save, and the attract demo)"
+unchecked = "an empty party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member, following one and noting one's tile, which read the slot it names past the tables (game/event/party.c; 52,898 real calls over the movie library); and a map's object count of 64-127, which the original doubles into a byte and so starts the leader's walk's search for objects in the way past the tables (game/field/walk.c, met_past_the_tables; 20 real calls over the movie library); and the party's place taken as the leader's, for a menu or a change of location, while the party has no leader on the map (its marker $80, as a save's load and the attract demo's scenes leave it until the map's objects start), which reads the first slot past the tables (game/field/location.c, field_leaders_place; frame 1704 of every movie from a save, and the attract demo)"
 
 [[var.field]]
 name = "fine"
@@ -7257,7 +7257,7 @@ size = 2
 page = "decompress"
 subsystem = "scene"
 meaning = "X of the center of the circle $C3:0077 draws into a per-line window table: an 8-bit value in a 16-bit cell, whose high byte the routine clears so it can do its arithmetic on the pair"
-source = "game/scene/circle.c, scene_draw_circle $C3:0077"
+source = "game/scene/circle.c, draw_circle $C3:0077"
 
 [[var]]
 name = "scene_circle_center_y"
@@ -7268,7 +7268,7 @@ size = 2
 page = "decompress"
 subsystem = "scene"
 meaning = "Line of the circle's center: an 8-bit value in a 16-bit cell, whose high byte the routine clears"
-source = "game/scene/circle.c, scene_draw_circle $C3:0077"
+source = "game/scene/circle.c, draw_circle $C3:0077"
 
 [[var]]
 name = "scene_circle_radius"
@@ -7278,7 +7278,7 @@ size = 2
 page = "decompress"
 subsystem = "scene"
 meaning = "The circle's radius in lines: an 8-bit value in a 16-bit cell, whose high byte the routine clears; 0 closes every line"
-source = "game/scene/circle.c, scene_draw_circle $C3:0077"
+source = "game/scene/circle.c, draw_circle $C3:0077"
 
 [[var]]
 name = "scene_circle_table"
@@ -7288,7 +7288,7 @@ size = 2
 page = "decompress"
 subsystem = "scene"
 meaning = "Address of the circle's per-line table (224 lines of left and right X)"
-source = "game/scene/circle.c, scene_draw_circle $C3:0077"
+source = "game/scene/circle.c, draw_circle $C3:0077"
 
 [[var]]
 name = "scene_circle_table_bank"
@@ -7297,7 +7297,7 @@ addr = "7E:0358"
 page = "decompress"
 subsystem = "scene"
 meaning = "Bit 0: the circle's table is in bank $7F rather than $7E"
-source = "game/scene/circle.c, scene_draw_circle $C3:0077"
+source = "game/scene/circle.c, draw_circle $C3:0077"
 
 # The curtain's cells, the inputs of the other window routine of bank $C3
 # ($C3:01E4, through the jump at $C3:000E): the field's curtain sweeps a ragged
@@ -7578,7 +7578,7 @@ size = 2
 page = "decompress"
 subsystem = "scene"
 meaning = "Scratch of the circle $C3:0077 draws: whatever it is counting or has just computed -- the octant's x, then y, then the lines left to mirror, then the byte count of a run of closed lines"
-source = "game/scene/circle.c, scene_draw_circle $C3:0077"
+source = "game/scene/circle.c, draw_circle $C3:0077"
 
 [[var]]
 name = "scene_circle_decision"
@@ -7588,7 +7588,7 @@ size = 2
 page = "decompress"
 subsystem = "scene"
 meaning = "Scratch of the circle: the midpoint algorithm's decision value while the outline is stepped, then the mode while the lower half is filled"
-source = "game/scene/circle.c, scene_draw_circle $C3:0077"
+source = "game/scene/circle.c, draw_circle $C3:0077"
 
 [[var]]
 name = "scene_circle_row"
@@ -7598,7 +7598,7 @@ size = 2
 page = "decompress"
 subsystem = "scene"
 meaning = "Scratch of the circle: the table address of the line y above the center, stepped up two bytes a time"
-source = "game/scene/circle.c, scene_draw_circle $C3:0077"
+source = "game/scene/circle.c, draw_circle $C3:0077"
 
 [[var]]
 name = "scene_circle_center_row_half"
@@ -7608,7 +7608,7 @@ size = 2
 page = "decompress"
 subsystem = "scene"
 meaning = "Scratch of the circle: half the table address of the center line, which halves the subtraction that finds the line x above it"
-source = "game/scene/circle.c, scene_draw_circle $C3:0077"
+source = "game/scene/circle.c, draw_circle $C3:0077"
 
 [[var]]
 name = "field_window_shape_corners"
@@ -8239,7 +8239,7 @@ size = 0x340
 subsystem = "field"
 meaning = "The objects' sprites, 8 bytes each from an object's field_object_sprite_records offset (a byte offset, as the game keeps it): screen X, screen Y ($E0 hidden), the X offset from the object's screen position (a word), the Y offset, then the tile and attribute bytes"
 source = "game/field/sprites.c, place_sprites $C0:B788, draw_object $C0:B309"
-unchecked = "the original places a fifth sprite's Y for an object above the screen, one record past the object's four, which for the last object's records is past the table (game/field/sprites.c, leave_stray_fifth_sprite_y; ct_dev's accessor checks found it over the movie library, at offsets 833 and 836)"
+unchecked = "the original places a fifth sprite's Y for an object above the screen, one record past the object's four, which for the last object's records is past the table (game/field/sprites.c; the retired developer build's accessor checks found it over the movie library, at offsets 833 and 836)"
 
 [[var]]
 name = "field_object_sprite_high"
@@ -8985,7 +8985,7 @@ count = 4
 index = "save slot"
 subsystem = "menu"
 meaning = "Nonzero for the save slots that hold a game, and for the fourth row while it can be chosen (the menus set it to $FF as they open; it is 0 while the load screen asks which game a New Game+ continues from); the load screen's cursor skips the others"
-source = "game/menu/save_screen.c, menu_show_save_slot $C2:E743, $C2:D36C"
+source = "game/menu/save_screen.c, menu_show_save_slot_with $C2:E743, $C2:D36C"
 
 [[var]]
 name = "menu_wait_frames"
@@ -9805,7 +9805,7 @@ count = 42
 index = "cursor position of the current menu (the table runs up to the palette at $9480)"
 subsystem = "menu"
 meaning = "Where the cursor sprite goes for each cursor position of the current menu; the load screen moves its fourth row's between two choices"
-source = "game/menu/cursor.c, menu_read_cursor $C2:E984 (the neighbours by the push each follows); game/menu/save_screen.c, menu_show_save_slot $C2:E743"
+source = "game/menu/cursor.c, menu_read_cursor $C2:E984 (the neighbours by the push each follows); game/menu/save_screen.c, menu_show_save_slot_with $C2:E743"
   [[var.field]]
   name = "x"
   offset = 0
@@ -9839,7 +9839,7 @@ addr = "7E:005A"
 page = "menu"
 subsystem = "menu"
 meaning = "The directions pressed this frame, as the controller's high byte has them (bit 0 right, 1 left, 2 down, 3 up), taken by the cursor's move ($C2:E9E2); bit 7 set where the move left the menu's positions"
-source = "$C2:E9F2, $C2:EA4E; game/menu/save_screen.c, menu_show_save_slot $C2:E743"
+source = "$C2:E9F2, $C2:EA4E; game/menu/save_screen.c, menu_show_save_slot_with $C2:E743"
 
 [[var]]
 name = "menu_slot_row_values"
@@ -9914,7 +9914,7 @@ overlays = "field_object_frame_staging_values"
 addr = "7E:0D9B"
 subsystem = "menu"
 meaning = "Nonzero skips placing the cursor sprite for one frame; the per-frame sprite reset clears it"
-source = "game/menu/save_screen.c, menu_reset_sprites $C2:E92D"
+source = "game/menu/save_screen.c, $C2:E92D"
 
 [[var]]
 name = "menu_vram_queue"
@@ -10020,7 +10020,7 @@ addr = "7E:0054"
 page = "menu"
 subsystem = "menu"
 meaning = "The current menu's cursor position: the cursor sprite is placed from the table at $7E:9380 at 6 bytes per position; on the load screen, the selected save slot"
-source = "game/menu/save_screen.c, menu_reset_sprites $C2:E92D, menu_show_save_slot $C2:E743"
+source = "game/menu/save_screen.c, $C2:E92D, menu_show_save_slot_with $C2:E743"
 
 [[var]]
 name = "menu_cursor_left_from"
@@ -10391,7 +10391,7 @@ addr = "7E:0F00"
 count = 9
 index = "assignment, in button_assignments' order (and a ninth)"
 reuses = ["menu_kept_cursor", "menu_list_items", "menu_gate_screen_state", "menu_item_picked", "menu_tech_list"]
-unchecked = "the eighth assignment's list of the assignments it shares buttons with runs past the ROM's table into its code, whose bytes the settings screen's giving a button takes as places past the assignments (game/menu/settings_screen.c, leave_stray_swaps; reached only when confirm or cancel takes L)"
+unchecked = "the eighth assignment's list of the assignments it shares buttons with runs past the ROM's table into its code, whose bytes the settings screen's giving a button takes as places past the assignments (game/menu/settings_screen.c; reached only when confirm or cancel takes L)"
 subsystem = "menu"
 meaning = "The button assignments the settings screen shows while its cursor is on them: the player's own, with the change the cursor's row is making"
 source = "game/menu/settings_screen.c, the button rows $C2:C183, $C2:C20F"
@@ -11174,7 +11174,7 @@ addr = "7E:0056"
 page = "menu"
 subsystem = "menu"
 meaning = "Nonzero flips the cursor sprite horizontally"
-source = "game/menu/save_screen.c, menu_reset_sprites $C2:E92D"
+source = "game/menu/save_screen.c, $C2:E92D"
 
 [[var]]
 name = "menu_cursor_sprite"
@@ -11185,7 +11185,7 @@ page = "menu"
 size = 2
 subsystem = "menu"
 meaning = "The cursor sprite's tile and attributes"
-source = "game/menu/save_screen.c, menu_reset_sprites $C2:E92D"
+source = "game/menu/save_screen.c, $C2:E92D"
 
 [[var]]
 name = "menu_time_played_shown"
@@ -11371,7 +11371,7 @@ addr = "7E:0079"
 page = "menu"
 subsystem = "menu"
 meaning = "The save slot whose summary the load screen is showing"
-source = "game/menu/save_screen.c, menu_show_save_slot $C2:E743, $C2:D36C"
+source = "game/menu/save_screen.c, menu_show_save_slot_with $C2:E743, $C2:D36C"
 
 [[var]]
 name = "menu_text_attribute"
@@ -11390,7 +11390,7 @@ addr = "7E:007F"
 page = "menu"
 subsystem = "menu"
 meaning = "The save slot whose row the slot rows' effect marks: on the load screen the one after the slot shown (wrapping 0-3); on the save screen the slot under the cursor, which the next frame compares with the cursor to tick when it has moved"
-source = "game/menu/save_screen.c, menu_show_save_slot $C2:E743, menu_move_among_the_slots_with $C2:CFA2, menu_put_slot_rows_effect $C2:CFFB"
+source = "game/menu/save_screen.c, menu_show_save_slot_with $C2:E743, menu_move_among_the_slots_with $C2:CFA2, menu_put_slot_rows_effect $C2:CFFB"
 
 [[var]]
 name = "menu_text_tile_limit"
@@ -12029,7 +12029,7 @@ addr = "7E:9480"
 size = 2
 count = 256
 index = "color"
-unchecked = "an active row of the party exchange whose place of the party is empty: the original takes the emptied place's byte for a character and halves fifteen words past the palette (game/menu/sprites.c menu_leave_colours_dimmed_past_the_palette, $C2:CCB3)"
+unchecked = "an active row of the party exchange whose place of the party is empty: the original takes the emptied place's byte for a character and halves fifteen words past the palette (game/menu/sprites.c, $C2:CCB3)"
 subsystem = "menu"
 meaning = "The menus' working palette, sent to CGRAM when $0D15 says it changed (party portraits' colors at $9500 + member record * $20)"
 source = "game/menu/display.c, $C2:86A9; game/menu/save_screen.c, $C2:D466"
@@ -12105,7 +12105,7 @@ size = 0x240
 elements = { name = "tiles", size = 2, meaning = "Tilemap entries: tile number, palette, priority and flips." }
 subsystem = "menu"
 meaning = "The tilemap buffer the load screen draws a save slot's contents into, three member rows $C0 bytes apart"
-source = "game/menu/save_screen.c, menu_show_save_slot $C2:E743, $C2:D36C"
+source = "game/menu/save_screen.c, menu_show_save_slot_with $C2:E743, $C2:D36C"
 
 [[var]]
 name = "menu_era_label_tiles"
@@ -12117,7 +12117,7 @@ rows = 2
 row_stride = 0x40
 subsystem = "menu"
 meaning = "Where the load screen draws the era label's tiles in its tilemap: two rows of nine tile words, cleared before each slot is shown"
-source = "game/menu/save_screen.c, menu_show_save_slot $C2:E743, $C2:D36C ($C2:FB97 draws them)"
+source = "game/menu/save_screen.c, menu_show_save_slot_with $C2:E743, $C2:D36C ($C2:FB97 draws them)"
 
 [[var]]
 name = "menu_status_record"
@@ -14142,7 +14142,7 @@ addr = "7E:004D"
 page = "menu"
 subsystem = "menu_object"
 meaning = "The next free entry of the sprite table while sprite nodes are drawn"
-source = "game/menu/objects.c, draw_node $C2:0D08; game/menu/display.c, object_mode_vblank $C2:015E"
+source = "game/menu/sprites.c, draw_node $C2:0D08; game/menu/display.c, object_mode_vblank $C2:015E"
 
 [[var]]
 name = "menu_pending_scroll_x"
@@ -14261,7 +14261,7 @@ count = 64
 index = "node"
 subsystem = "menu_object"
 meaning = "The sprite nodes objects queue their sprite groups in, linked into the drawing list ($B500) or the free list ($B504)"
-source = "game/menu/objects.c, $C2:0C4D, $C2:0B53, draw_node $C2:0D08"
+source = "game/menu/sprites.c, $C2:0C4D, $C2:0B53, draw_node $C2:0D08"
   [[var.field]]
   name = "prev"
   offset = 0
@@ -16280,7 +16280,7 @@ size = 3
 page = "menu"
 subsystem = "menu_object"
 meaning = "Long pointer to the sprite group a sprite command shows: a count of 4-byte entries, then the entries"
-source = "game/menu/objects.c, $C2:0B53 and draw_node $C2:0CFE"
+source = "game/menu/sprites.c, $C2:0B53 and draw_node $C2:0CFE"
 
 [[var]]
 name = "menu_object_script"
@@ -16664,7 +16664,7 @@ page = "battle"
 size = 2
 subsystem = "battle"
 meaning = "The stat block ($80 times the battle slot) of the combatant at hand: the party member the window is drawing, or whose menu is open ($CF:FD9E notes it there), or the combatant a status pose was chosen for"
-source = "game/battle/window.c draw_member_line $C1:0311; game/battle/status.c battle_draw_party_status $C1:05A7; $CF:FD9E, called from game/battle/menu_window.c; game/battle/animation.c battle_choose_status_pose $C1:2F97"
+source = "game/battle/window.c draw_member_line $C1:0311; game/battle/status.c battle_show_party_status $C1:05A7; $CF:FD9E, called from game/battle/menu_window.c; game/battle/animation.c combatant_choose_pose $C1:2F97"
 
 [[var]]
 name = "battle_queued_uploads_on"
@@ -16705,7 +16705,7 @@ page = "battle"
 size = 2
 subsystem = "battle"
 meaning = "Buttons pressed or auto-repeated since the menu last took them: $CC97 is ORed in each frame, and placing the menu cursors clears it"
-source = "game/battle/buttons.c battle_update_button_repeat $CD:0340; game/battle/menu_window.c battle_place_menu_cursors $C1:17DD"
+source = "game/battle/buttons.c battle_update_button_repeat $CD:0340; game/battle/menu_window.c place_menu_cursors $C1:17DD"
 
 # ---- battle object page (D = $1D00) -------------------------------------------
 
@@ -17603,7 +17603,7 @@ count = 0x81
 index = "list offset ($CC:F38C + member) + entry"
 subsystem = "battle"
 meaning = "Each party member's tech list: the tech's id, $FC/$FD marking the double and triple tech sections, $FF a blank row"
-source = "game/battle/setup_party.c setup_tech_lists in battle_setup_state $CC:E2E4; game/battle/menu_window.c mark_tech_list $C1:0EE1"
+source = "game/battle/setup_party.c setup_tech_lists in battle_setup_state $CC:E2E4; game/battle/menu_window.c shade_unusable_techs $C1:0EE1"
 
 [[var]]
 name = "battle_tech_list"
@@ -17613,7 +17613,7 @@ count = 0x81
 index = "list offset ($CC:F38C + member) + entry"
 subsystem = "battle"
 meaning = "Each party member's tech list: the entry number of the tech's record at $1A80, $FF a blank row"
-source = "tools/movies/addresses.py BATTLE_TECH_LIST; game/battle/setup_party.c setup_tech_lists; game/battle/menu_window.c mark_tech_list $C1:0EE1, draw_tech_page"
+source = "tools/movies/addresses.py BATTLE_TECH_LIST; game/battle/setup_party.c setup_tech_lists; game/battle/menu_window.c shade_unusable_techs $C1:0EE1, show_tech_page"
 
 # ---- the battle menu -------------------------------------------------------------
 
@@ -17623,7 +17623,7 @@ host_module = "battle"
 addr = "7E:95D5"
 subsystem = "battle"
 meaning = "The party member whose command menu is open; negative ($80 and up) none"
-source = "tools/movies/addresses.py BATTLE_MENU_MEMBER; game/battle/menu_window.c header, battle_draw_menu_window $C1:0C2D, battle_place_menu_cursors $C1:17DD; game/battle/window.c battle_redraw_window $C1:0299"
+source = "tools/movies/addresses.py BATTLE_MENU_MEMBER; game/battle/menu_window.c header, draw_menu_window $C1:0C2D, place_menu_cursors $C1:17DD; game/battle/window.c battle_redraw_window $C1:0299"
 
 [[var]]
 name = "battle_menu_page"
@@ -17631,7 +17631,7 @@ host_module = "battle"
 addr = "7E:95DB"
 subsystem = "battle"
 meaning = "Menu page: 0 the command list (Attack/Tech/Item), 1 the tech list, 2 the item list"
-source = "tools/movies/addresses.py BATTLE_MENU_PAGE; game/battle/menu_window.c battle_draw_menu_window $C1:0C2D"
+source = "tools/movies/addresses.py BATTLE_MENU_PAGE; game/battle/menu_window.c draw_menu_window $C1:0C2D"
 
 [[var]]
 name = "battle_command_cursor"
@@ -17641,7 +17641,7 @@ count = 3
 index = "party slot"
 subsystem = "battle"
 meaning = "Command list cursor per member: 0 Attack, 1 Tech, 2 Item"
-source = "tools/movies/addresses.py BATTLE_COMMAND_CURSOR; game/battle/menu_window.c clear_member_cells $C1:0872"
+source = "tools/movies/addresses.py BATTLE_COMMAND_CURSOR; game/battle/menu_window.c battle_redraw_command_cursor $C1:0872"
 
 [[var]]
 name = "battle_tech_cursor"
@@ -17651,7 +17651,7 @@ count = 3
 index = "party slot"
 subsystem = "battle"
 meaning = "Tech list cursor row per member; the tech under the cursor is list entry scroll + row"
-source = "tools/movies/addresses.py BATTLE_TECH_CURSOR; game/battle/menu_window.c draw_tech_page"
+source = "tools/movies/addresses.py BATTLE_TECH_CURSOR; game/battle/menu_window.c show_tech_page"
 
 [[var]]
 name = "battle_item_row"
@@ -17659,7 +17659,7 @@ host_module = "battle"
 addr = "7E:95E5"
 subsystem = "battle"
 meaning = "Item list cursor row on screen; the selected item is top + row"
-source = "tools/movies/addresses.py BATTLE_ITEM_ROW; game/battle/menu_window.c place_list_cursor $C1:18B0"
+source = "tools/movies/addresses.py BATTLE_ITEM_ROW; game/battle/menu_window.c show_item_cursor $C1:18B0"
 
 [[var]]
 name = "battle_item_top"
@@ -17667,7 +17667,7 @@ host_module = "battle"
 addr = "7E:95E6"
 subsystem = "battle"
 meaning = "List index of the item list's top row (0: at the top, $FA: at the bottom, for the scroll arrows)"
-source = "tools/movies/addresses.py BATTLE_ITEM_TOP; game/battle/menu_window.c place_list_cursor $C1:18B0"
+source = "tools/movies/addresses.py BATTLE_ITEM_TOP; game/battle/menu_window.c show_item_cursor $C1:18B0"
 
 [[var]]
 name = "battle_tech_scroll"
@@ -17677,7 +17677,7 @@ count = 3
 index = "party slot"
 subsystem = "battle"
 meaning = "Tech list scroll per member (list index of the top row)"
-source = "tools/movies/addresses.py BATTLE_TECH_SCROLL; game/battle/menu_window.c mark_tech_list $C1:0EE1, draw_tech_page"
+source = "tools/movies/addresses.py BATTLE_TECH_SCROLL; game/battle/menu_window.c shade_unusable_techs $C1:0EE1, show_tech_page"
 
 [[var]]
 name = "battle_targeting"
@@ -17685,7 +17685,7 @@ host_module = "battle"
 addr = "7E:9609"
 subsystem = "battle"
 meaning = "Nonzero while targets are being chosen; the cursors are then placed on the objects in battle_targets"
-source = "tools/movies/addresses.py BATTLE_TARGETING; game/battle/menu_window.c battle_place_menu_cursors $C1:17DD"
+source = "tools/movies/addresses.py BATTLE_TARGETING; game/battle/menu_window.c place_menu_cursors $C1:17DD"
 
 [[var]]
 name = "battle_target_kind"
@@ -17912,7 +17912,7 @@ host_module = "battle"
 addr = "7E:A6DF"
 subsystem = "battle"
 meaning = "The menu slot the window was last rebuilt for; the command page rebuilds the window when battle_menu_slot differs"
-source = "game/battle/menu_window.c show_command_page in battle_draw_menu_window $C1:0C2D; game/battle/window.c battle_redraw_window $C1:0299"
+source = "game/battle/menu_window.c show_command_page in draw_menu_window $C1:0C2D; game/battle/window.c battle_redraw_window $C1:0299"
 
 [[var]]
 name = "battle_status_member"
@@ -17920,7 +17920,7 @@ host_module = "battle"
 addr = "7E:A6E0"
 subsystem = "battle"
 meaning = "The party member whose HP and MP were redrawn last (cycles 0-2, one per frame)"
-source = "game/battle/status.c battle_draw_party_status $C1:05A7"
+source = "game/battle/status.c battle_show_party_status $C1:05A7"
 
 [[var]]
 name = "battle_menu_tilemap"
@@ -17931,7 +17931,7 @@ stride = 2
 index = "row * 32 + column (6 rows)"
 subsystem = "battle"
 meaning = "The menu window's tilemap: the tech list, members' MP and tech costs, cursor tiles"
-source = "game/battle/menu_window.c header, mark_tech_list $C1:0EE1, draw_tech_page; game/battle/setup_screen.c setup_tilemaps ($180 bytes filled with $2900)"
+source = "game/battle/menu_window.c header, shade_unusable_techs $C1:0EE1, show_tech_page; game/battle/setup_screen.c setup_tilemaps ($180 bytes filled with $2900)"
   [[var.field]]
   name = "tile"
   offset = 0
@@ -17951,7 +17951,7 @@ stride = 2
 index = "tile"
 subsystem = "battle"
 meaning = "(tile, attribute) pairs the tech page's list is laid out in and copied from into the menu tilemap"
-source = "game/battle/menu_window.c draw_tech_page ($C1:0A88 lays it out); game/battle/setup_screen.c setup_tilemaps ($500 bytes filled with $2900)"
+source = "game/battle/menu_window.c battle_lay_out_tech_list ($C1:0A88 lays it out); game/battle/setup_screen.c setup_tilemaps ($500 bytes filled with $2900)"
 
 [[var]]
 name = "battle_selected_tech"
@@ -17960,7 +17960,7 @@ addr = "7E:9EE3"
 stride = 7
 subsystem = "battle"
 meaning = "Copy of the record (battle_tech_records) of the tech under the tech list's cursor, every byte $FF when the row is blank"
-source = "game/battle/menu_window.c show_tech_costs in battle_draw_menu_window $C1:0C2D, place_combo_cursors $C1:17FE"
+source = "game/battle/menu_window.c show_tech_costs in draw_menu_window $C1:0C2D, place_combo_cursors $C1:17FE"
   [[var.field]]
   name = "id"
   offset = 0
@@ -18049,7 +18049,7 @@ host_module = "battle"
 addr = "7E:A43F"
 subsystem = "battle"
 meaning = "Set when the current member's cursor tiles in the window must be redrawn; cleared once they are"
-source = "game/battle/menu_window.c clear_member_cells $C1:0872; game/battle/window.c put_frames $C1:081E"
+source = "game/battle/menu_window.c battle_redraw_command_cursor $C1:0872; game/battle/window.c put_frames $C1:081E"
 
 [[var]]
 name = "battle_item_cursor_shown"
@@ -18057,7 +18057,7 @@ host_module = "battle"
 addr = "7E:991F"
 subsystem = "battle"
 meaning = "The item cursor row the list cursor tiles were last drawn at"
-source = "game/battle/menu_window.c place_list_cursor $C1:18B0"
+source = "game/battle/menu_window.c show_item_cursor $C1:18B0"
 
 [[var]]
 name = "battle_item_arrows_shown"
@@ -18065,7 +18065,7 @@ host_module = "battle"
 addr = "7E:9920"
 subsystem = "battle"
 meaning = "The item list top the scroll arrow tiles were last drawn for"
-source = "game/battle/menu_window.c place_list_cursor $C1:18B0"
+source = "game/battle/menu_window.c show_item_cursor $C1:18B0"
 
 [[var]]
 name = "battle_window_layout"
@@ -18082,7 +18082,7 @@ host_module = "battle"
 addr = "7E:A10F"
 subsystem = "battle"
 meaning = "Where the window's routines keep, while they draw a member's numbers, whether they are shaded (at 0 HP, or low on a blink frame); only they read it"
-source = "game/battle/window.c draw_member_line $C1:0311; game/battle/status.c battle_draw_party_status $C1:05A7"
+source = "game/battle/window.c draw_member_line $C1:0311; game/battle/status.c battle_show_party_status $C1:05A7"
 
 [[var]]
 name = "battle_blink"
@@ -18110,7 +18110,7 @@ index = "party slot"
 unchecked = "read for the member a partner's slot names, whatever that holds (game/battle/menu_window.c, $C1:103E)"
 subsystem = "battle"
 meaning = "Set when the member's status ($5E4B bit 3) keeps it from acting: its techs, and combination techs naming it, are dimmed"
-source = "game/battle/combatants.c combatant_follow_statuses $C1:B0B6; game/battle/menu_window.c $C1:103E, mark_tech_list $C1:0EE1"
+source = "game/battle/combatants.c combatant_follow_statuses $C1:B0B6; game/battle/menu_window.c $C1:103E, shade_unusable_techs $C1:0EE1"
 
 [[var]]
 name = "battle_show_descriptions"
@@ -18127,7 +18127,7 @@ addr = "7E:A0FF"
 size = 2
 subsystem = "battle"
 meaning = "Party slot of character 4 (Frog), times 5 after setup (an index into $1C48)"
-source = "game/battle/setup_party.c setup_party_slots in battle_setup_state $CC:E2E4; game/battle/menu_window.c mark_tech_list $C1:0EE1"
+source = "game/battle/setup_party.c setup_party_slots in battle_setup_state $CC:E2E4; game/battle/menu_window.c shade_unusable_techs $C1:0EE1"
 
 [[var]]
 name = "battle_magus_slot"
@@ -18322,7 +18322,7 @@ overlays = "field_tile_looks"
 addr = "7E:B163"
 count = 11
 index = "place in the order"
-unchecked = "a timer kind's cursor that ran past the order reads on into battle_timer_order_draw after it, as the original's indexed read does (game/battle/timers.c)"
+unchecked = "a timer kind's cursor that ran past the order reads on into the variable after it, as the original's indexed read does (game/battle/timers.c)"
 subsystem = "battle"
 meaning = "The order the combatants' run-out timers are looked for in: battle slots drawn at random at the start of the battle, $FF past the combatants"
 source = "game/battle/timers.c $C1:8290; game/battle/main_loop.c start_battle $C1:8000"
@@ -19681,9 +19681,9 @@ addr = "7E:968C"
 count = 3
 index = "party slot"
 subsystem = "battle"
-unchecked = "battle_choose_status_pose restarts the frame list of whatever combatant it chose a pose for through this table, so an enemy's write lands 5 to 12 bytes past it, the last three on the frame delays of enemies 0-2 (game/battle/animation.c, restart_frame_list)"
+unchecked = "the choice of a status pose restarts the frame list of whatever combatant it chose a pose for through this table, so an enemy's write lands 5 to 12 bytes past it, the last three on the frame delays of enemies 0-2 (game/battle/animation.c, restart_frame_list)"
 meaning = "Party member's position in its pose's frame list ($FF restarts the pose)"
-source = "game/battle/animation.c take_next_party_frame $C1:2E28, restart_frame_list, battle_choose_status_pose $C1:2F97"
+source = "game/battle/animation.c take_next_party_frame $C1:2E28, restart_frame_list, combatant_choose_pose $C1:2F97"
 
 [[var]]
 name = "battle_enemy_frame_delay"
@@ -19803,7 +19803,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "The combatant's pose ($FF none; $80 the low HP pose), chosen from its status"
-source = "game/battle/animation.c battle_choose_status_pose $C1:2F97; game/battle/object_motion.c battle_cycle_party_colors $CF:E7D7"
+source = "game/battle/animation.c combatant_choose_pose $C1:2F97; game/battle/object_motion.c battle_cycle_party_colors $CF:E7D7"
 
 [[var]]
 name = "battle_facing_turn"
@@ -19943,7 +19943,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Set for a party member that takes no part in the fight (from $7F:00B4 by character when bit 0 of $7F:00BA is set, $CF:FBD0): the targeting passes it over, and it stands in its field stance with no weak pose; the enemies' entries stay 0"
-source = "game/battle/animation.c battle_choose_status_pose $C1:2F97"
+source = "game/battle/animation.c combatant_choose_pose $C1:2F97"
 
 [[var]]
 name = "battle_some_sit_out"
@@ -19959,7 +19959,7 @@ host_module = "battle"
 addr = "7E:A0A7"
 subsystem = "battle"
 meaning = "Flags the fight sets at its start (bit 1 from bit 1 of $7F:00BA, inverted, $CF:FBDE; bit 0 ORed in at the battle's start when an enemy in it keeps the party from running away, $CC:ECAA); bit 0 changes the menu's first command ($C1:12BC), and any set keeps the status poses that take the combatant's stance from being chosen"
-source = "game/battle/animation.c battle_choose_status_pose $C1:2F97; game/battle/setup_enemies.c take_rules in battle_setup_state $CC:E2E4"
+source = "game/battle/animation.c combatant_choose_pose $C1:2F97; game/battle/setup_enemies.c take_rules in battle_setup_state $CC:E2E4"
 
 [[var]]
 name = "battle_combatant_down"
@@ -19969,7 +19969,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Set when the combatant's pose was chosen while it was knocked out or falling: the targeting passes over it (but for actions of kind 4), and its next pose clears it ($C1:308C)"
-source = "game/battle/animation.c battle_choose_status_pose $C1:2F97"
+source = "game/battle/animation.c combatant_choose_pose $C1:2F97"
 
 [[var]]
 name = "battle_member_falling"
@@ -19979,7 +19979,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Set for a party member the damage now shown takes to 0 HP ($C1:41BE): its pose is the knocked-out one at once, before its HP says so; the enemies' entries stay 0"
-source = "game/battle/animation.c battle_choose_status_pose $C1:2F97"
+source = "game/battle/animation.c combatant_choose_pose $C1:2F97"
 
 [[var]]
 name = "battle_object_pose_last"
@@ -19989,7 +19989,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "The pose the combatant last had; a different pose restarts its frame list"
-source = "game/battle/animation.c battle_choose_status_pose $C1:2F97"
+source = "game/battle/animation.c combatant_choose_pose $C1:2F97"
 
 [[var]]
 name = "battle_pose_animation"
@@ -19997,7 +19997,7 @@ host_module = "battle"
 addr = "7E:A440"
 subsystem = "battle"
 meaning = "Animation chosen with the pose for the combatant being updated"
-source = "game/battle/animation.c battle_choose_status_pose $C1:2F97; game/battle/animation.c take_next_party_frame $C1:2E28"
+source = "game/battle/animation.c combatant_choose_pose $C1:2F97; game/battle/animation.c take_next_party_frame $C1:2E28"
 
 [[var]]
 name = "battle_object_pose_shown"
@@ -20711,7 +20711,7 @@ host_module = "battle"
 addr = "7E:A86A"
 subsystem = "battle"
 meaning = "Set to reload the window frames tilemap from $D1:5A50 when the tech page is drawn"
-source = "game/battle/menu_window.c draw_tech_page in battle_draw_menu_window $C1:0C2D"
+source = "game/battle/menu_window.c show_tech_page in draw_menu_window $C1:0C2D"
 
 # ---- effects, paths, anchors, trails, orbits -------------------------------------
 
@@ -25055,7 +25055,7 @@ host_module = "warp"
 addr = "7F:702C"
 count = 0x80
 index = "line out from the circle's middle"
-unchecked = "the circle's builder stores each half width as a word, whose second byte lands one past the line: past the table, on the first window table's first byte, when the radius is 127 (game/warp/circle.c leave_half_widths)"
+unchecked = "the circle's builder stores each half width as a word, whose second byte lands one past the line: past the table, on the first window table's first byte, when the radius is 127 (game/warp/circle.c)"
 subsystem = "warp"
 meaning = "Half the circle's width on each line out from its middle, as the circle's builder works them out; nothing reads them after it"
 source = "game/warp/circle.c $FD:EBEF"
@@ -25783,7 +25783,7 @@ addr = "7E:8180"
 count = 128
 stride = 3
 index = "halt"
-unchecked = "a halt notes the byte after its record as the game stops, the next record's first, or past the last record the events' first (game/overworld/places.c, note_the_halt)"
+unchecked = "a halt notes the byte after its record as the game stops, the next record's first, or past the last record the events' first (game/overworld/places.c)"
 subsystem = "overworld"
 meaning = "The world map's halts: map tiles that stop the game, as the third list of places the leader's tile is looked up in"
 source = "game/overworld/places.c ($C2:32CD)"
@@ -29114,7 +29114,7 @@ addr = "7E:9EE3"
 stride = 7
 subsystem = "battle"
 meaning = "Copy of the record (battle_tech_records) of the tech under the tech list's cursor, every byte $FF when the row is blank"
-source = "game/battle/menu_window.c show_tech_costs in battle_draw_menu_window $C1:0C2D, place_combo_cursors $C1:17FE"
+source = "game/battle/menu_window.c show_tech_costs in draw_menu_window $C1:0C2D, place_combo_cursors $C1:17FE"
 host_module = "battle"
 
 [[owner.field]]
@@ -29997,7 +29997,7 @@ stride = 2
 index = "row * 32 + column (6 rows)"
 subsystem = "battle"
 meaning = "The menu window's tilemap: the tech list, members' MP and tech costs, cursor tiles"
-source = "game/battle/menu_window.c header, mark_tech_list $C1:0EE1, draw_tech_page; game/battle/setup_screen.c setup_tilemaps ($180 bytes filled with $2900)"
+source = "game/battle/menu_window.c header, shade_unusable_techs $C1:0EE1, show_tech_page; game/battle/setup_screen.c setup_tilemaps ($180 bytes filled with $2900)"
 host_module = "battle"
 
 [[owner.field]]
@@ -30147,7 +30147,7 @@ count = 42
 index = "cursor position of the current menu (the table runs up to the palette at $9480)"
 subsystem = "menu"
 meaning = "Where the cursor sprite goes for each cursor position of the current menu; the load screen moves its fourth row's between two choices"
-source = "game/menu/cursor.c, menu_read_cursor $C2:E984 (the neighbours by the push each follows); game/menu/save_screen.c, menu_show_save_slot $C2:E743"
+source = "game/menu/cursor.c, menu_read_cursor $C2:E984 (the neighbours by the push each follows); game/menu/save_screen.c, menu_show_save_slot_with $C2:E743"
 host_module = "menu"
 
 [[owner.field]]

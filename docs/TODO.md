@@ -301,18 +301,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
   - The accepted divergences, each at its routine: the drawing pass past 128
     sprites (`$CF:E83A`), a frame's graphics built over the direct page's cells
     or the stack (`$C1:1C55`).
-  - What an effect's working out still leaves the machine as scaffolding
-    (the source review, "Phase 3, battle chunk 2"), for the party's code and the
-    showing, which are the original's: the carry the long multiply keeps in
-    its second number's cell (`battle_leave_multiply_carry`, at eight places in
-    the work and the enemy's turn, each the carry of what came just before a
-    multiply that may be the last), the numbers each kind hands on in the
-    direct page's cells (`EFFECT_ARG_1`-`_6`, $0E and $10), and the kinds'
-    constant carry and Y at their entry. The adding up of the hits' numbers
-    reads the first set's last kind before it adds only for
-    its carry's leave, and `take_next_target` exists only to leave the carry a
-    target after the first is taken with: both go with the carry cell. Each
-    goes when what reads it is a port: the showing's step. The entries turn away a drain where `$1B` isn't clear, the
+  - The entries turn away a drain where `$1B` isn't clear, the
     byte the original reads its stat's offset's high byte from; the party's
     code before it is where to show the game always leaves it so.
   - What the effect work still says or does that the original's shape put
@@ -382,11 +371,10 @@ PLAN.md gives the work order; the lean native gate protects each change.
     history note that belongs in REIMPLEMENTATION.md.
 
   - what the triangles, circles and special effects' review left (none
-    blocking): `screen_triangles.c` works out the bit-serial divider's
-    leftover (`last_bit_scaled_out`, `left_of_the_dividend`) outside
-    `ORIGINAL_EFFECT` and keeps it plainly in `battle_direction_work`, landing
-    `$80` on `battle_party_defeated` -- find the reader or prove the cells
-    dead, then move it to a leaves helper; the shared parameter list now holds both `kind` and
+    blocking): `screen_triangles.c` keeps the bit-serial divider's
+    leftover (`last_bit_scaled_out`, `left_of_the_dividend`) in
+    `battle_direction_work`, landing `$80` on `battle_party_defeated` -- find
+    the reader or prove the cells dead; the shared parameter list now holds both `kind` and
     `circle_kind`; `screen_specials.c` names the wedge corners as bare
     coordinates, splits an animation position with `>> 8`/`& 0xFF`, and reads
     the effect's sprite records by offset; `display.c`'s `move_run_values`
@@ -489,8 +477,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
   - what the Epoch's review rated "mostly" (`menu/epoch.c`, `top_layer.c`):
     - the gate window's fill walks its edges through the `menu_gate_edge_*`
       cells, which nothing else reads, masking a 16-bit declaration down to
-      the byte that means something: walk local edges and leave the table
-      once through `ORIGINAL_EFFECT`, and narrow the declarations in
+      the byte that means something: walk local edges, and narrow the declarations in
       `re/ram.toml`;
     - `turn_corners`/`multiply_signed` keep `SignedProduct` and `last`
       locals only for the leftovers, and `on_the_screen`'s `wrapped` is the
@@ -960,8 +947,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
   carry (`step < 0`), `scroll == 0` as a signed test and `NOBODY` through
   bit 7; `WRAPS_TO_THE_LAST` reproduces a sign test for kinds the guard
   refuses (a plain wrap); `menu_techs_after_casting` returns the old MP only
-  for the leave and subtracts a byte that can't borrow; `MenuTechCost.part`
-  is read only in `ORIGINAL_EFFECT`; the cost is read back from
+  for the leave and subtracts a byte that can't borrow; the cost is read back from
   `tech_cost_needed` right after `menu_tech_cost_for` returned it; the
   list's rows move by `wram_copy` on raw tilemap addresses;
   `menu_tech_effect_byte` takes a byte offset (`{factor, restores}`); the
@@ -1131,8 +1117,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
     them up to their first call out;
   - an emptied place's byte is taken for a character by the dimming of who
     stays, which halves fifteen words past the palette
-    (`sprites.c`, `menu_leave_colours_dimmed_past_the_palette`): scaffolding, so the native build
-    doesn't, on the field's tables the menus lay their own over; show that
+    (`sprites.c`, `$C2:CCB3`), on the field's tables the menus lay their own over; show that
     the field lays those out again as the menus close, or keep the halving;
   - `menu_field_song_volume` (`$7E:04FB`, the volume the place's song fades
     back in to) has no writer the disassembly reaches by its address: find
@@ -1213,10 +1198,6 @@ PLAN.md gives the work order; the lean native gate protects each change.
     that colour the row as C, so the entry is reached only by fuzzing.
 - **What the menus' fourth chunk left** (the source review, "Phase 3, menus: what
   the menus' ports called most"):
-  - the menus' vblank work (`$C2:842A`) calls the per-frame input as a
-    call-out (`m_jsr_dc`), not as C: run as C it changed what
-    the vblank work's fuzzing could compare (415 of 500 to none), which
-    wants looking into;
   - a count of 0 tiles or rows in the recolouring helpers counts the whole
     bank, as the original's 16-bit loop does; the guards turn those away,
     and nothing in the library asks for one.
@@ -1820,8 +1801,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
     `menu_window.c` (item 18): one decoder, in the subsystem's header.
 - **The battle's wait for a line `$CD:3B82`**: its callers call
   `tm_wait_line`, whose SNES backend waits where the port stands in the
-  shipping mode and calls the original's routine only in shadow mode and the
-  tools (`native_wait_call`). Its purpose isn't established: the frame work
+  shipping mode and calls the original's routine only in shadow mode. Its purpose isn't established: the frame work
   waits for line 64 before the screen script channels run while the timed
   effect slots do (`$CD:09AC`), and screen script command `$C1` (`$CD:1D93`)
     waits for a line from the script. The command's C path already uses the
@@ -1895,11 +1875,9 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
   while changing the driver.
 - **What the overworld teardown's review left.** Two retired routines kept no estimate (`overworld_within_reach`,
   `overworld_region_at`; nothing times anything as them): the teardown section
-  should say so. The charges taken out of `ORIGINAL_EFFECT` now charge time in
-  the native-shape build too, so "the native shape's pace" is approximate.
-  `next_frame` in `overworld/main_loop.c` returns a `bool` nothing reads. The
-  machine forms skip the run's `--exclude` check `native_hand_entry_at` makes;
-  and a comparison of `menu_objects_run` and `object_mode_vblank` of their own on
+  should say so.
+  `next_frame` in `overworld/main_loop.c` returns a `bool` nothing reads.
+  A comparison of `menu_objects_run` and `object_mode_vblank` of their own on
   the world map would let their two uncompared-baseline lines go.
 - **What the map scroll's review left.** Its older re-recorded
   outcome lines no longer say whether a protected match was lost; say so.
@@ -1949,7 +1927,7 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
       reference calls. Beyond Time contributes 51,896 and Death Peak 2,942,
       where neither reference enters that save-menu step. The three matching
       menu runs call it 300, 214 and 204 times in both modes. Likewise,
-      `menu_reset_sprites` (`$C2:E92D`) runs 145,789 times against 50,561;
+      the sprites' reset (`$C2:E92D`) runs 145,789 times against 50,561;
       Beyond Time alone contributes 79,258 against 697. Follow the first
       divergent input before changing the tags in `saving.c::ends` or
       `tasks.c::cursor_task_turn`; their whole-movie excess is not evidence

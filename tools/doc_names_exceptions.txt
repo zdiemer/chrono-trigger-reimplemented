@@ -12,6 +12,12 @@ load_slot_summary       # an illustrative vocabulary name in the porting rules
 # .claude/skills/review-port/SKILL.md: the rubric quotes each smell as it was
 # found; the ports it quotes were rewritten, which is the rubric working.
 sub_C0xxxx              # placeholder for an address-shaped name
+SCRATCH_D9              # an address-shaped name, as found
+cmd_6C                  # an opcode-shaped name, as found
+set_1c80                # an address-shaped name, as found
+loop_animation_0        # numbered twins, as found
+loop_animation_1        # numbered twins, as found
+rotate_left             # an instruction emulation, as found
 field_object_move_state_animation_count  # a name filed under its neighbour, as found
 field_object_animation_mode_mode         # a name filed under its neighbour, as found
 add_carry               # a carry emulation, as found

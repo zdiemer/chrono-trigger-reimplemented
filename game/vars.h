@@ -1609,8 +1609,7 @@ void set_field_object_sprite_priority(GameState *g, unsigned slot, uint16_t v);
 /* Two sprite priority bytes ($20/$30, bits 4-5): +0 from the map's $7E:7040 attribute or the
  * priority mode's bits 0-1, +1 from $7E:7000 or bits 4-5 Unchecked, reaching past the variable
  * into what follows it: a map's start lays an empty place of the party out as the slot its
- * marker names, the first past the tables (game/field/party_trail.c leave_stray_priorities,
- * $C0:9E0E) */
+ * marker names, the first past the tables (game/field/party_trail.c, $C0:9E0E) */
 uint16_t field_object_sprite_priority_unchecked(const GameState *g, unsigned slot);
 void set_field_object_sprite_priority_unchecked(GameState *g, unsigned slot, uint16_t v);
 
@@ -1715,10 +1714,10 @@ void set_field_object_role(GameState *g, unsigned slot, uint8_t v);
  * reaching past the variable into what follows it: an empty party place's marker (a byte with
  * the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member,
  * following one and noting one's tile, which read the slot it names past the tables
- * (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library);
- * and a map's object count of 64-127, which the original doubles into a byte and so starts the
- * leader's walk's search for objects in the way past the tables (game/field/walk.c,
- * met_past_the_tables; 20 real calls over the movie library) */
+ * (game/event/party.c; 52,898 real calls over the movie library); and a map's object count of
+ * 64-127, which the original doubles into a byte and so starts the leader's walk's search for
+ * objects in the way past the tables (game/field/walk.c, met_past_the_tables; 20 real calls over
+ * the movie library) */
 uint8_t field_object_role_unchecked(const GameState *g, unsigned slot);
 void set_field_object_role_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -1841,28 +1840,28 @@ void set_field_object_x_tile(GameState *g, unsigned slot, uint8_t v);
 /* Position within the tile ($80 its middle) Unchecked, reaching past the variable into what
  * follows it: an empty party place's marker (a byte with the top bit set, $80 as the game makes
  * it) is taken as an object by the moves toward a member, following one and noting one's tile,
- * which read the slot it names past the tables (game/event/party.c, see_what_the_original_finds;
- * 52,898 real calls over the movie library); and a map's object count of 64-127, which the
- * original doubles into a byte and so starts the leader's walk's search for objects in the way
- * past the tables (game/field/walk.c, met_past_the_tables; 20 real calls over the movie
- * library); and the party's place taken as the leader's, for a menu or a change of location,
- * while the party has no leader on the map (its marker $80, as a save's load and the attract
- * demo's scenes leave it until the map's objects start), which reads the first slot past the
- * tables (game/field/location.c, field_leaders_place; frame 1704 of every movie from a save, and
- * the attract demo) */
+ * which read the slot it names past the tables (game/event/party.c; 52,898 real calls over the
+ * movie library); and a map's object count of 64-127, which the original doubles into a byte and
+ * so starts the leader's walk's search for objects in the way past the tables
+ * (game/field/walk.c, met_past_the_tables; 20 real calls over the movie library); and the
+ * party's place taken as the leader's, for a menu or a change of location, while the party has
+ * no leader on the map (its marker $80, as a save's load and the attract demo's scenes leave it
+ * until the map's objects start), which reads the first slot past the tables
+ * (game/field/location.c, field_leaders_place; frame 1704 of every movie from a save, and the
+ * attract demo) */
 uint8_t field_object_x_fine_unchecked(const GameState *g, unsigned slot);
 void set_field_object_x_fine_unchecked(GameState *g, unsigned slot, uint8_t v);
 /* Tile X Unchecked, reaching past the variable into what follows it: an empty party place's
  * marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the
  * moves toward a member, following one and noting one's tile, which read the slot it names past
- * the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie
- * library); and a map's object count of 64-127, which the original doubles into a byte and so
- * starts the leader's walk's search for objects in the way past the tables (game/field/walk.c,
- * met_past_the_tables; 20 real calls over the movie library); and the party's place taken as the
- * leader's, for a menu or a change of location, while the party has no leader on the map (its
- * marker $80, as a save's load and the attract demo's scenes leave it until the map's objects
- * start), which reads the first slot past the tables (game/field/location.c,
- * field_leaders_place; frame 1704 of every movie from a save, and the attract demo) */
+ * the tables (game/event/party.c; 52,898 real calls over the movie library); and a map's object
+ * count of 64-127, which the original doubles into a byte and so starts the leader's walk's
+ * search for objects in the way past the tables (game/field/walk.c, met_past_the_tables; 20 real
+ * calls over the movie library); and the party's place taken as the leader's, for a menu or a
+ * change of location, while the party has no leader on the map (its marker $80, as a save's load
+ * and the attract demo's scenes leave it until the map's objects start), which reads the first
+ * slot past the tables (game/field/location.c, field_leaders_place; frame 1704 of every movie
+ * from a save, and the attract demo) */
 uint8_t field_object_x_tile_unchecked(const GameState *g, unsigned slot);
 void set_field_object_x_tile_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -1876,28 +1875,27 @@ void set_field_object_y_tile(GameState *g, unsigned slot, uint8_t v);
 /* Position within the tile Unchecked, reaching past the variable into what follows it: an empty
  * party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an
  * object by the moves toward a member, following one and noting one's tile, which read the slot
- * it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls
- * over the movie library); and a map's object count of 64-127, which the original doubles into a
- * byte and so starts the leader's walk's search for objects in the way past the tables
- * (game/field/walk.c, met_past_the_tables; 20 real calls over the movie library); and the
- * party's place taken as the leader's, for a menu or a change of location, while the party has
- * no leader on the map (its marker $80, as a save's load and the attract demo's scenes leave it
- * until the map's objects start), which reads the first slot past the tables
- * (game/field/location.c, field_leaders_place; frame 1704 of every movie from a save, and the
- * attract demo) */
-uint8_t field_object_y_fine_unchecked(const GameState *g, unsigned slot);
-void set_field_object_y_fine_unchecked(GameState *g, unsigned slot, uint8_t v);
-/* Tile Y Unchecked, reaching past the variable into what follows it: an empty party place's
- * marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the
- * moves toward a member, following one and noting one's tile, which read the slot it names past
- * the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie
- * library); and a map's object count of 64-127, which the original doubles into a byte and so
- * starts the leader's walk's search for objects in the way past the tables (game/field/walk.c,
+ * it names past the tables (game/event/party.c; 52,898 real calls over the movie library); and a
+ * map's object count of 64-127, which the original doubles into a byte and so starts the
+ * leader's walk's search for objects in the way past the tables (game/field/walk.c,
  * met_past_the_tables; 20 real calls over the movie library); and the party's place taken as the
  * leader's, for a menu or a change of location, while the party has no leader on the map (its
  * marker $80, as a save's load and the attract demo's scenes leave it until the map's objects
  * start), which reads the first slot past the tables (game/field/location.c,
  * field_leaders_place; frame 1704 of every movie from a save, and the attract demo) */
+uint8_t field_object_y_fine_unchecked(const GameState *g, unsigned slot);
+void set_field_object_y_fine_unchecked(GameState *g, unsigned slot, uint8_t v);
+/* Tile Y Unchecked, reaching past the variable into what follows it: an empty party place's
+ * marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the
+ * moves toward a member, following one and noting one's tile, which read the slot it names past
+ * the tables (game/event/party.c; 52,898 real calls over the movie library); and a map's object
+ * count of 64-127, which the original doubles into a byte and so starts the leader's walk's
+ * search for objects in the way past the tables (game/field/walk.c, met_past_the_tables; 20 real
+ * calls over the movie library); and the party's place taken as the leader's, for a menu or a
+ * change of location, while the party has no leader on the map (its marker $80, as a save's load
+ * and the attract demo's scenes leave it until the map's objects start), which reads the first
+ * slot past the tables (game/field/location.c, field_leaders_place; frame 1704 of every movie
+ * from a save, and the attract demo) */
 uint8_t field_object_y_tile_unchecked(const GameState *g, unsigned slot);
 void set_field_object_y_tile_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -2729,8 +2727,8 @@ void set_field_sprite_records_byte(GameState *g, unsigned at, uint8_t v);
  * screen position (a word), the Y offset, then the tile and attribute bytes [832 bytes, one at a
  * time] Unchecked, reaching past the variable into what follows it: the original places a fifth
  * sprite's Y for an object above the screen, one record past the object's four, which for the
- * last object's records is past the table (game/field/sprites.c, leave_stray_fifth_sprite_y;
- * ct_dev's accessor checks found it over the movie library, at offsets 833 and 836) */
+ * last object's records is past the table (game/field/sprites.c; the retired developer build's
+ * accessor checks found it over the movie library, at offsets 833 and 836) */
 uint8_t field_sprite_records_byte_unchecked(const GameState *g, unsigned at);
 void set_field_sprite_records_byte_unchecked(GameState *g, unsigned at, uint8_t v);
 
@@ -4749,8 +4747,8 @@ void set_menu_settings_buttons(GameState *g, unsigned i, uint8_t v);
  * own, with the change the cursor's row is making Unchecked, reaching past the variable into
  * what follows it: the eighth assignment's list of the assignments it shares buttons with runs
  * past the ROM's table into its code, whose bytes the settings screen's giving a button takes as
- * places past the assignments (game/menu/settings_screen.c, leave_stray_swaps; reached only when
- * confirm or cancel takes L) */
+ * places past the assignments (game/menu/settings_screen.c; reached only when confirm or cancel
+ * takes L) */
 uint8_t menu_settings_buttons_unchecked(const GameState *g, unsigned i);
 void set_menu_settings_buttons_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -5437,7 +5435,7 @@ void set_menu_palette(GameState *g, unsigned i, uint16_t v);
  * at $9500 + member record * $20) Unchecked, reaching past the variable into what follows it: an
  * active row of the party exchange whose place of the party is empty: the original takes the
  * emptied place's byte for a character and halves fifteen words past the palette
- * (game/menu/sprites.c menu_leave_colours_dimmed_past_the_palette, $C2:CCB3) */
+ * (game/menu/sprites.c, $C2:CCB3) */
 uint16_t menu_palette_unchecked(const GameState *g, unsigned i);
 void set_menu_palette_unchecked(GameState *g, unsigned i, uint16_t v);
 
@@ -7433,12 +7431,12 @@ uint8_t overworld_halts_row(const GameState *g, unsigned i);
 void set_overworld_halts_row(GameState *g, unsigned i, uint8_t v);
 /* Bit 7: open; bits 0-6 the map tile's column Unchecked, reaching past the variable into what
  * follows it: a halt notes the byte after its record as the game stops, the next record's first,
- * or past the last record the events' first (game/overworld/places.c, note_the_halt) */
+ * or past the last record the events' first (game/overworld/places.c) */
 uint8_t overworld_halts_column_unchecked(const GameState *g, unsigned i);
 void set_overworld_halts_column_unchecked(GameState *g, unsigned i, uint8_t v);
 /* Bits 0-5 the row Unchecked, reaching past the variable into what follows it: a halt notes the
  * byte after its record as the game stops, the next record's first, or past the last record the
- * events' first (game/overworld/places.c, note_the_halt) */
+ * events' first (game/overworld/places.c) */
 uint8_t overworld_halts_row_unchecked(const GameState *g, unsigned i);
 void set_overworld_halts_row_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -8774,7 +8772,7 @@ enum { BATTLE_PARTY_FRAME_COUNT = 3 };   /* by party slot */
 uint8_t battle_party_frame(const GameState *g, unsigned slot);
 void set_battle_party_frame(GameState *g, unsigned slot, uint8_t v);
 /* Party member's position in its pose's frame list ($FF restarts the pose) Unchecked, reaching
- * past the variable into what follows it: battle_choose_status_pose restarts the frame list of
+ * past the variable into what follows it: the choice of a status pose restarts the frame list of
  * whatever combatant it chose a pose for through this table, so an enemy's write lands 5 to 12
  * bytes past it, the last three on the frame delays of enemies 0-2 (game/battle/animation.c,
  * restart_frame_list) */
@@ -11359,8 +11357,8 @@ uint8_t battle_timer_order(const GameState *g, unsigned i);
 void set_battle_timer_order(GameState *g, unsigned i, uint8_t v);
 /* The order the combatants' run-out timers are looked for in: battle slots drawn at random at
  * the start of the battle, $FF past the combatants Unchecked, reaching past the variable into
- * what follows it: a timer kind's cursor that ran past the order reads on into
- * battle_timer_order_draw after it, as the original's indexed read does (game/battle/timers.c) */
+ * what follows it: a timer kind's cursor that ran past the order reads on into the variable
+ * after it, as the original's indexed read does (game/battle/timers.c) */
 uint8_t battle_timer_order_unchecked(const GameState *g, unsigned i);
 void set_battle_timer_order_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -15344,7 +15342,7 @@ void set_warp_circle_half_widths(GameState *g, unsigned line, uint8_t v);
  * out; nothing reads them after it Unchecked, reaching past the variable into what follows it:
  * the circle's builder stores each half width as a word, whose second byte lands one past the
  * line: past the table, on the first window table's first byte, when the radius is 127
- * (game/warp/circle.c leave_half_widths) */
+ * (game/warp/circle.c) */
 uint8_t warp_circle_half_widths_unchecked(const GameState *g, unsigned line);
 void set_warp_circle_half_widths_unchecked(GameState *g, unsigned line, uint8_t v);
 
