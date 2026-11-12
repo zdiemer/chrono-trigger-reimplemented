@@ -459,9 +459,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
     `kind` three), so `show_layers` casts to `LayerSetting` and
     `set_frame_switch`, `wave` and `fill` fold several operations into one
     switch -- name the parameters, declare the enums the table uses, one
-    operation per case; `run_screen_scripts` and `step_channel` keep the
-    scroll mode, the ended-channel count and the restore request in `Snes *`
-    bodies, and the script cursor goes through `battle_screen_script` every
+    operation per case; the script cursor goes through `battle_screen_script` every
     byte (needed now only for the commands a row turns away and for `$C1`'s
     wait); `saved_shape_offset` and `script_palette_slot_offset` work in byte
     offsets, and the put-aside `array_starts` table carries a record's
@@ -552,8 +550,8 @@ PLAN.md gives the work order; the lean native gate protects each change.
       `BUTTON_*` and `ASSIGNED_*` belong;
     - `start_dial_objects` hands each digit its period through the running
       object's own slot and restores it; set the started slot's instead;
-    - the dial's and the map view's screen setup (`show_the_time_dial_with`,
-      `show_the_map_view_with`) is about 25 shadow writes in the original's
+    - the dial's and the map view's screen setup (`show_the_time_dial`,
+      `show_the_map_view`) is about 25 shadow writes in the original's
       order: one `VidScreen` value each would say what the screen is;
     - `draw_map_tile`/`draw_map_picture` return the last group only for the
       leftovers;
@@ -2484,22 +2482,21 @@ and preserve their diagnostics as the remaining machine wrappers leave.
   typing happens, which wants saying. The combinations' C path checks
   `battle_window_fits`, stricter than its registry guard (the page alone).
 - **What the race's tasks' review left** (none rated translation): the
-  curtain task is written twice (`scene/race.c` and `scene/rising_palace.c`
-  each define a curtain context, `curtain_step` and a near-identical sweep; one
-  helper in `curtain.c` taking the slot and how to show the window would do
-  both). `(TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK }` is spelled inline in
+  curtain's sweep is written twice (`scene/race.c`'s
+  `scene_race_sweep_curtain` and `scene/rising_palace.c`'s, each a
+  `scene_curtain_stepped` and its own window's showing; one helper in
+  `curtain.c` taking the slot and how to show the window would do both). `(TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK }` is spelled inline in
   several files and wants a helper in `scene.h` beside `task_goes_on`.
   `race.c`'s `race_sounds` table keeps a column of ROM call addresses no
-  code reads. `rising_palace.c`'s `turn_the_first_channel` runs
-  `TURN_CHANNEL`, which names the channel holding the palace's turn registers
-  and works only because both are 0. `perspective.c`'s `start_is_a_scene_s` wants
+  code reads. `rising_palace.c` starts its scripts with
+  `scene_first_step(g, pf, TURN_CHANNEL)`, where the channel meant is the
+  first, which `TURN_CHANNEL` (the one holding the turn's registers) names
+  only because both are 0. `perspective.c`'s `start_is_a_scene_s` wants
   a better name, `race_camera.c`'s `core/program.h` include sits in the wrong
   block, and `frame.c`'s `channel_0_turn`/`channel_1_turn` twins want one row
   carrying the channel.
-- **What the main menu's review left** (none rated translation): the menus'
-  `*Place` enums (`MainMenuPlace`, `EquipmentPlace`, `ItemsPlace`,
-  `TechsPlace`, `SettingsPlace`) are the original's call sites one to one, and
-  the C side ignores them. `settings_screen.c`'s `handlers[]` repeats the
+- **What the main menu's review left** (none rated translation):
+  `settings_screen.c`'s `handlers[]` repeats the
   bridge's `OPTION_HANDLERS` routine column; one table, or the bridge takes
   the kind from the logic. `menu_settings_can_open`, `_can_choose` and
   `_option_can_be_taken` are declared in the logic header but defined in
@@ -2510,9 +2507,8 @@ and preserve their diagnostics as the remaining machine wrappers leave.
 - **What the save screens' review left** (none rated translation):
   - `saving.c`'s two `// $C2:CF21` around a forwarder have
     `SLOT_HOLDS_A_GAME` stranded between them.
-  - `LoadScreenPlace`, `SavingPlace` and `ExchangePlace` are the original's
-    call sites one to one, as the main menu's are, and some notes run only
-    under a game branch (`menu_show_save_slot_with`'s fourth row).
+  - Some notes run only under a game branch (`menu_show_save_slot_with`'s
+    fourth row).
   - `tasks.c`'s held cursors' table spells its resume addresses as bare
     literals beside named heads, and computes its timing tags.
   - `load_screen.c` reads and rewrites one byte of a word (`& 0xFF00`), which
@@ -2525,9 +2521,6 @@ and preserve their diagnostics as the remaining machine wrappers leave.
     without checking the leader is readable.
   - `warp/warp.c`'s `kind_of` spells the warp kinds as `WARP_FIRST_SCENE + n`
     where the field's scene numbers could name them.
-  - `scene/planet.c`'s `planet_unpacks` keeps the machine's ROM call sites in
-    a column beside the resources; a table only the machine step reads. Two
-    comments sit back to back above `PlanetUnpack`.
   - `menu/turning_world.c`'s `world_can_be_turned` takes `self` and reads
     `menu_object_current` instead; `hand_the_turn_on` returns the unsigned
     add's carry as "went round past a whole turn", which wants saying for a

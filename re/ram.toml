@@ -9981,7 +9981,7 @@ addr = "7E:0920"
 size = 2
 subsystem = "menu"
 meaning = "The caller's stack pointer, put back when the menus return"
-source = "game/menu/display.c, menu_mode_return $C2:82C1"
+source = "game/menu/display.c, menu_close $C2:82C1"
 
 [[var]]
 name = "menu_interrupted_stack"
@@ -17005,7 +17005,7 @@ host_module = "battle"
 addr = "7E:2A1F"
 subsystem = "battle"
 meaning = "The battle's terms, which the event hands it with battle_setup_flags (event $D8's second operand): bit 7 leaves the party where it stands afterwards, bit 6 keeps the field's song through the fight ($CD:03CC), bit 5 lets the field go on after a defeat (BATTLE_TERMS_*, battle/battle.h)"
-source = "game/event/locations.c fight $C0:3A83; game/battle/closing.c close_the_display $CD:03B4; game/field/sounds.c $C0:1BE6; game/field/battle_return.c $C0:0283"
+source = "game/event/locations.c fight $C0:3A83; game/battle/closing.c battle_display_closed $CD:03B4; game/field/sounds.c $C0:1BE6; game/field/battle_return.c $C0:0283"
 
 [[var]]
 name = "battle_party_placement"
