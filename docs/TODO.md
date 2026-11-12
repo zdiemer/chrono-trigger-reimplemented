@@ -32,25 +32,6 @@ rest waits, is [PLAN.md](PLAN.md).
   should load a state that really lacks `frame_interrupt` rather than clear
   the field after loading.
 
-- **The Epoch route's event/audio connection.** `epoch_lavos` in
-  `ct_native --server` stops at frame 9587 over Lavos (`$1B0`): the dive's
-  scene mode never changes from `$02` to `$26`. Shipping reaches the cavern
-  and its first window at frame 7762. The native run reports 1620 unserved
-  accesses, with all eight retained addresses at `$00:2142`. The event
-  memory-peek operation (`event/memory.c`,
-  `$C0:6792`) uses `event_selected_data_byte`, whose non-cartridge branch
-  treats the selected address as RAM; the native RAM backing returns zero
-  for this sound-status port. Location `$1B0`'s event `$114` confirms the
-  dependency: offsets `$0C6A`, `$0CB3` and `$0CE7` poll that port's low
-  nibble for music markers 1, 2 and 3. Zero cannot release the first wait.
-  Connect this script operation to the audio
-  service without making the state backing an emulated hardware bus, and
-  rerun the route. Ordinary `au_status` reads already reach the C driver.
-  The earliest differing route observation under identical input is frame
-  3179: shipping has entered `$1B0`, native is still on world map `$1F0`;
-  native reaches the question 40 frames later. That timing difference
-  alone does not establish the cause of the later wait.
-
 - **Son of Sun's native landing approach.** The native route reaches the
   future, but fails to land east of the palace at frame 5794; travel mode
   remains 2. The first differing observation with identical input is at
@@ -3211,6 +3192,15 @@ need diagnosis; they are not allowlist entries or passing contract evidence.
 
 ## Review follow-ups for native interfaces
 
+- **What the native route server's review left.** `route_server_test` has no
+  deliberately divergent replay, asserting `err replay` and a nonzero exit;
+  `test_gate_movies` doesn't test `check_native_routes` with a failed
+  subprocess or with PASS results missing.
+- **What the cartridge-address audit's review left.** Each work-RAM proof in
+  the allowlist holds for the code as it stands, but the consistency test
+  catches only a removed expression, not a changed helper or producer behind
+  an unchanged one: a proof should name what it rests on and go stale when
+  that changes.
 - **What the battle and menus' teardown review left.** `overworld/setup.c`'s
   `leave_blocks_counted` is kept for the Epoch's comparison, which has since
   retired: find a reader or delete it. `tools/machine_joints.py`'s

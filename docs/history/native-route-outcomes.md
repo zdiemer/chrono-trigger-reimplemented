@@ -96,6 +96,8 @@ prefixes, and reports all 14 exceptions with their reasons.
   The native RAM backing returns zero for $00:2142, so the first wait cannot
   finish. Native stops at frame 9587 with scene mode $02 instead of $26.
   Shipping reaches Lavos's cavern and its first window at frame 7762.
+  Fixed by the cartridge-address audit, which answers the event's sound-status
+  read from the C sound driver: native passes through the shell at frame 7802.
 - **Beyond Time:** the first common-input difference observed is frame
   2566: `peek 7E1802 2` returns `400c` in native and `300c` in shipping,
   Crono's X at 196 versus 195 pixels. This timing difference does not
