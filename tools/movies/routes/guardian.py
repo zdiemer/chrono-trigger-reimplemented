@@ -23,11 +23,53 @@ HEADER = """\
 
 SAVE = "saves/fantasyanime/ctsave02-future.srm"
 SLOT = 2
-PHASES = ["loaded", "inner", "lower", "room", "battle", "won", "after"]
+PHASES = ["loaded", "dome_inner", "dome_lower", "guardian_room", "guardian", "guardian_won", "guardian_after"]
 
 HALL, INNER, LOWER, GUARDIAN_ROOM = "d600", "d800", "dd00", "db00"
 WAKER = 9                       # $0DB's object 9, before the sealed door
 BATTLE_MENU_MEMBER = 0x7E95D5   # whose battle menu is open, $80 and up for none
+
+
+def play(run, start=1, seed=1):
+    """From the dome's hall to the Guardian beaten and the field back in hand;
+    `start` is the index in PHASES of the first phase to run."""
+    machine = run.machine
+    if start <= 1:
+        assert run.exit_to(INNER), "the dome's inner room"
+        run.checkpoint("dome_inner")
+    if start <= 2:
+        assert run.exit_to(LOWER), "the room below"
+        run.checkpoint("dome_lower")
+    if start <= 3:
+        assert run.exit_to(GUARDIAN_ROOM), "the Guardian's room"
+        run.checkpoint("guardian_room")
+    if start <= 4:
+        tx, ty = run.object_pos(WAKER)
+        for dx, dy, facing in run.SPOTS:
+            if run.walk(lambda m, px, py: abs(px - tx - dx) <= 3 and abs(py - ty - dy) <= 3) is None:
+                continue
+            machine.run(2, facing)
+            machine.run(8)
+            machine.run(3, "A")
+            machine.run(30)
+            if not run.find_player():
+                break
+        assert run.dialogs_until(lambda: A.battle_menu_open(machine), 8000), "the battle's first menu"
+        run.checkpoint("guardian")
+    if start <= 5:
+        seen = []
+
+        def won(r, state):
+            living = policies.enemies(state)
+            if living:
+                seen.append(True)
+            return bool(seen) and not living and any(state.hp(slot) for slot in range(3))
+        run.fight("party", won, party=3, seed=seed)
+        run.checkpoint("guardian_won")
+    if start <= 6:
+        assert run.wait_control(12000), "the field back in hand"
+        run.say("after the battle, map", run.map_id(), "frame", machine.frame)
+        run.checkpoint("guardian_after")
 
 
 def main():
@@ -50,42 +92,7 @@ def main():
         run.say("loaded map", run.map_id(), "frame", machine.frame)
         assert run.map_id() == HALL, "Arris Dome"
         run.checkpoint("loaded")
-    if start <= 1:
-        assert run.exit_to(INNER), "the dome's inner room"
-        run.checkpoint("inner")
-    if start <= 2:
-        assert run.exit_to(LOWER), "the room below"
-        run.checkpoint("lower")
-    if start <= 3:
-        assert run.exit_to(GUARDIAN_ROOM), "the Guardian's room"
-        run.checkpoint("room")
-    if start <= 4:
-        tx, ty = run.object_pos(WAKER)
-        for dx, dy, facing in run.SPOTS:
-            if run.walk(lambda m, px, py: abs(px - tx - dx) <= 3 and abs(py - ty - dy) <= 3) is None:
-                continue
-            machine.run(2, facing)
-            machine.run(8)
-            machine.run(3, "A")
-            machine.run(30)
-            if not run.find_player():
-                break
-        assert run.dialogs_until(lambda: A.battle_menu_open(machine), 8000), "the battle's first menu"
-        run.checkpoint("battle")
-    if start <= 5:
-        seen = []
-
-        def won(r, state):
-            living = policies.enemies(state)
-            if living:
-                seen.append(True)
-            return bool(seen) and not living and any(state.hp(slot) for slot in range(3))
-        run.fight("party", won, party=3, seed=args.seed)
-        run.checkpoint("won")
-    if start <= 6:
-        assert run.wait_control(12000), "the field back in hand"
-        run.say("after the battle, map", run.map_id(), "frame", machine.frame)
-        run.checkpoint("after")
+    play(run, start, args.seed)
     machine.screenshot(run.prefix + "_end.png")
     run.finish("the Guardian beaten")
     if args.movie:
