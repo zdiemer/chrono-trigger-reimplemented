@@ -3005,19 +3005,32 @@ persistence seams; game-side representation changes still need explicit work.
   declarations in `re/ram.toml` so the masks leave the port.
 
 - CI: the macOS job costs 10x minutes on a private repo.
-## State storage ownership
+## State records
 
-`tools/ram_map.py storage` reports 283 blob-backed and 27 image-backed variables;
-`storage --list` names their actual buffers. [STATE.md](STATE.md) defines the
-honest typed-storage measure and its before/after counts.
+The live variables all have module-owned storage, 725 of them still blob-backed
+(`tools/ram_map.py storage --list`), and the big field, battle, character, menu
+and submitted-sprite records are declared in `re/ram.toml`; see
+[STATE.md](STATE.md). Remaining record design:
 
-- Decompose the remaining mixed record/instance arrays so their scalar views
-  can own typed fields; retain true graphics, map, script and saved-mode buffers
-  as explicitly blob-backed storage.
-- Remove obsolete sound-driver variables with their remaining clients.
-- Audit the 1,707 addresses outside ownership (257 driver bytes and 1,450
-  unnamed/padding bytes) before removing the residual image. Preserve cartridge
-  saves and route peek/watch through the address projection.
+- Type the 725 blob-backed variables. Nearly all are overlays where one mode
+  reads, at its own widths, fields another mode declared (610 through scalar
+  fields alone), or scratch cells with no element structure; each needs the
+  overlay split into a union of the modes' own fields.
+- Unowned addresses in `runtime/port/state_host.c`: the address view reads the
+  1,395 bytes no variable owns as 0, where the hardware's power-on value is
+  $55, and drops writes that overrun into them. The audit that found no gameplay
+  reads of those bytes ran over the sampled movies only; run it over the whole
+  library and the long routes, and either own any byte something reads or
+  return the power-on value.
+
+- Event object call/wait state and command queues; field layer scrolling and
+  edge-upload state.
+- Battle enemy AI, effect/anchor motion, status timers and script channels.
+- Scene program channels, racers, task/effect state and palette/tile animations.
+- Overworld actors and vehicles, menu-object command state and warp raster state.
+- Replace alternate mode views with separate logical owners as their remaining
+  scripted/bulk address consumers are removed. Preserve the shared projection
+  until those consumers no longer observe the overlap.
 
 ## Player integration checks
 

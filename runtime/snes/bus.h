@@ -11,7 +11,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define SNES_WRAM_SIZE 0x20000
 #define SNES_SRAM_SIZE 0x2000
 
 /* Write tracking, for machine copies that only copy and compare what changed
@@ -21,7 +20,6 @@
  * state import, a poke) must call snes_mark_all_written afterwards. The epochs
  * are bookkeeping, not machine state: save states don't hold them. */
 #define SNES_TRACK_PAGE_BITS 8
-#define SNES_WRAM_PAGES (SNES_WRAM_SIZE >> SNES_TRACK_PAGE_BITS)
 
 typedef struct SnesIo {
     void *ctx;
@@ -38,7 +36,6 @@ typedef struct DmaChannel {
 typedef struct SnesBus {
     const uint8_t *rom;
     size_t rom_size;
-    uint8_t wram[SNES_WRAM_SIZE];
     uint8_t sram[SNES_SRAM_SIZE];
     uint8_t open_bus;
 
@@ -83,13 +80,6 @@ typedef struct SnesBus {
 
     uint32_t wram_port_addr;   /* $2181-$2183: address for the $2180 WRAM data port */
 
-    /* Optional, SNES_WRAM_SIZE bytes: set to 1 for every WRAM byte the game
-     * writes. Lets traces be compared against emulators with random power-on RAM. */
-    uint8_t *wram_written;
-
-    uint64_t write_epoch;                       /* see SNES_TRACK_PAGE_BITS */
-    uint64_t wram_page_epoch[SNES_WRAM_PAGES];  /* epoch of each page's latest write */
-
     DmaChannel dma[8];
     uint8_t mdmaen;    /* last $420B write; the system runs the transfers */
 
@@ -121,12 +111,6 @@ uint8_t snes_bus_peek(const SnesBus *bus, uint32_t addr);
 enum { SNES_IO_WRITE = 1, SNES_IO_DMA = 2 };
 extern void (*snes_bus_io_observer)(void *ctx, const SnesBus *bus, uint16_t addr, uint8_t value, unsigned flags);
 extern void *snes_bus_io_observer_ctx;
-
-/* The same for work RAM, for ct_dev --event-reads: every CPU or DMA access to a
- * byte of work RAM through snes_bus_read and snes_bus_write (not the $2180
- * port), by its index in wram[], with the flags above. */
-extern void (*snes_bus_wram_observer)(void *ctx, const SnesBus *bus, uint32_t index, uint8_t value, unsigned flags);
-extern void *snes_bus_wram_observer_ctx;
 
 /* Latch pad[] into the $4218-$421F registers, as auto-joypad read does at vblank. */
 void snes_bus_auto_joypad(SnesBus *bus);

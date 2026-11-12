@@ -6525,7 +6525,6 @@ scene_title_timer	scene_turn_figures	2	$7E:0068	$7E:0069
 scene_title_wait	scene_turn_figures	2	$7E:0072	$7E:0073
 scene_turn_window_radius	scene_turn_window_radius_low	2	$7E:003D	$7E:003F
 shop_price_scale	warp_plane_map	2	$7F:01CD	$7F:01CE
-sound_driver_data_pointer	sound_driver_list_ends	3	$7E:1E12	$7E:1E14
 story_epoch_arrivals	warp_plane_map	1	$7F:00CD	$7F:00CD
 story_epoch_notes	warp_plane_map	1	$7F:00CC	$7F:00CC
 story_game_notes	warp_plane_map	1	$7F:01CF	$7F:01CF
