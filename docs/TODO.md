@@ -863,8 +863,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
   itself, and `power` starts at the slot's first item only for a leftover;
   `menu_data.h`'s new slot accessors split a comment from its function;
   `music.c`'s `overworld_play_the_song_in_view` sets the request's fields one
-  by one past `ask_for`; `map_scenes.c` sets the view to 256x224 itself
-  because the platform has no screen-size call (a platform gap).
+  by one past `ask_for`.
 
 - **What the overworld on foot's review left.** Give the packed follower
   route and wall result a `Route` type; name the second-party-place test;
@@ -1429,9 +1428,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
     without a machine has to read its work RAM there; `script_language.c`'s
     `script_byte` already tells the two apart, and the others want the same.
 - **Open questions** in PLATFORM.md: battles playing out differently once
-  timing changes, widescreen's exposed assumptions (the 0-255 object window at
-  `$C0:A88D`, map data beyond VRAM, single-byte battle window positions), and
-  GBA's constraints.
+  timing changes, and GBA's constraints.
 - **Factory route timing estimates.** `battle-r-series` leaves five timing
   exceptions after drift-only calibration: the anchor jump and enemy orbit
   updates' vblank tails, `field_vblank`'s tail, the exchange's second-choice tail,
@@ -1554,7 +1551,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
 
 - **What the map scrolling in left.** BG1/BG2 row builders end with the
   second half of the tile beyond the right edge, where the first half would
-  continue the map. Correct or define that edge for widescreen. Replace
+  continue the map. Replace
   staging/edge-upload runs with direct tilemap writes only with the same
   visible result. `field_layer_edge_wrap`'s low byte is also the climb note
   and the whole-screen draw's final count; resolve the alias before splitting

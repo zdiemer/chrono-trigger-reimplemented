@@ -6,13 +6,14 @@
 #include <stdbool.h>
 
 #include "menu/object.h"
+#include "platform/platform.h"
 #include <stdint.h>
 #include "state.h"
 #include "vars.h"
 
 /* Whether the running object is in view (or just out of it, its sprites
  * reaching in). */
-bool menu_scene_object_in_view(GameState *g);
+bool menu_scene_object_in_view(GameState *g, const Platform *pf);
 
 /* A frame of the object that drifts the map along. */
 void menu_scene_drift_the_map(GameState *g, MenuObject self);
