@@ -965,7 +965,7 @@
 #define RAM_WORLD_POSITION_X 0x7E0283u       /* Horizontal */
 #define RAM_WORLD_POSITION_Y 0x7E0285u       /* Vertical */
 /* Cleared when the field opens its own message (a chest's) and when the battle opens one
- * ($CD:0264); what reads it isn't found in the banks read so far (docs/TODO.md) */
+ * ($CD:0264); what reads it isn't found in the banks read so far (issue #141) */
 #define RAM_FIELD_MESSAGE_MARK 0x7E02A1u
 /* Long pointer to the per-line table the quadrilateral is rasterized into (two bytes per line,
  * left X then right X); the rasterizer moves it a byte on to draw the right-hand edges and back
@@ -4909,7 +4909,7 @@
 #define RAM_BATTLE_TECH_RECORDS_COUNT 60u
 #define RAM_BATTLE_TECH_RECORDS_STRIDE 0x07u
 #define RAM_BATTLE_TECH_RECORDS_ID 0x7E1A80u /* Tech id ($FF: none); what the member's tech list shows */
-#define RAM_BATTLE_TECH_RECORDS_MENU_DETAIL 0x7E1A81u /* A byte the tech menu copies with the rest of the record; nothing in the ported code reads it, and what it is isn't worked out (docs/TODO.md) */
+#define RAM_BATTLE_TECH_RECORDS_MENU_DETAIL 0x7E1A81u /* A byte the tech menu copies with the rest of the record; nothing in the ported code reads it, and what it is isn't worked out (issue #25) */
 #define RAM_BATTLE_TECH_RECORDS_FLAGS 0x7E1A82u /* Bit 7 set while the tech is dimmed (can't be used now) */
 #define RAM_BATTLE_TECH_RECORDS_COST 0x7E1A83u /* MP the tech costs the party member in the first slot (negative: none) */
 #define RAM_BATTLE_TECH_RECORDS_PARTNERS 0x7E1A84u /* Combination partners, one party slot per nibble ($F: none, $FF: single tech) */
@@ -5886,7 +5886,7 @@
  * $FF when the row is blank [7 bytes] */
 #define RAM_BATTLE_SELECTED_TECH 0x7E9EE3u
 #define RAM_BATTLE_SELECTED_TECH_ID 0x7E9EE3u /* Tech id ($FF: none); what the member's tech list shows */
-#define RAM_BATTLE_SELECTED_TECH_MENU_DETAIL 0x7E9EE4u /* A byte the tech menu copies with the rest of the record; nothing in the ported code reads it, and what it is isn't worked out (docs/TODO.md) */
+#define RAM_BATTLE_SELECTED_TECH_MENU_DETAIL 0x7E9EE4u /* A byte the tech menu copies with the rest of the record; nothing in the ported code reads it, and what it is isn't worked out (issue #25) */
 #define RAM_BATTLE_SELECTED_TECH_FLAGS 0x7E9EE5u /* Bit 7 set while the tech is dimmed (can't be used now) */
 #define RAM_BATTLE_SELECTED_TECH_COST 0x7E9EE6u /* MP the tech costs the party member in the first slot (negative: none) */
 #define RAM_BATTLE_SELECTED_TECH_PARTNERS 0x7E9EE7u /* Combination partners, one party slot per nibble ($F: none, $FF: single tech) */
@@ -5980,7 +5980,7 @@
 #define RAM_BATTLE_SCRIPT_SUBJECTS_COUNT 11u
 #define RAM_BATTLE_SCRIPT_SUBJECTS_STRIDE 0x01u
 /* Counted each time a requested block of rows goes to VRAM (nothing in the banks disassembled
- * reads it: docs/TODO.md) */
+ * reads it: issue #25) */
 #define RAM_BATTLE_BLOCK_UPLOADS_MADE 0x7EA01Fu
 /* The low two bits of each enemy's family byte, noted as the fight starts: bit 0 has the enemy,
  * beaten, leave the fight by changing the battlefield rather than dissolving [8 x $1 bytes, by

@@ -17,7 +17,7 @@ def ending(run):
 
 def main():
     # Core seed 1 reaches The End but exposes a battle_irq shadow mismatch;
-    # seed 2 completes with a clean replay. Keep the original finding in TODO.md.
+    # seed 2 completes with a clean replay. Keep the original finding in issue #12.
     play_ending(save=SAVE, title="Dino Age", ending=ending,
                 entry="bucket", party=3, story=0x8E, core_policy="party_lavos_core",
                 core_seed_offset=1)

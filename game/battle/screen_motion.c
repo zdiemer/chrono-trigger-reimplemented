@@ -315,7 +315,7 @@ SCREEN_OPERATION(drift, channel, new_drifts, seed, drift, drifts_forward)
 
 /* The original adds an amount as a word whose high byte is whatever its cell
  * $46 holds, which the last effect's working left there: a drift is C where
- * that is nothing (no script of the game's has the command; docs/TODO.md),
+ * that is nothing (no script of the game's has the command; issue #160),
  * and of one of the first three amounts (the operand's bits can name one
  * past the six). */
 static uint8_t drift_high_byte(const GameState *g) { return battle_scratch(g, 1); }

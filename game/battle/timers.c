@@ -152,7 +152,7 @@ TimerOwner battle_timer_found_run_out(const GameState *g, BattleTimer kind)
 /* Whether the timer at a place of the order has run out. The order's empty
  * place names nobody, whose state the original reads past the kind's row:
  * only the original's memory has it, and this is the one place the port
- * reads it (docs/TODO.md). */
+ * reads it (issue #60). */
 static bool has_run_out(const GameState *g, BattleTimer timer, uint8_t slot)
 {
     if (slot < BATTLE_COMBATANTS)
@@ -167,7 +167,7 @@ static bool has_run_out(const GameState *g, BattleTimer timer, uint8_t slot)
  * the stat block at that slot. The cells are past the kind's rows, in the
  * battle's other tables (the evading much better's state is the poison's
  * length for the third slot), which the game goes on reading: this is the one
- * place the port writes them (docs/TODO.md). */
+ * place the port writes them (issue #60). */
 void battle_timer_wears_off_past_the_rows(GameState *g, BattleTimer kind, uint8_t nobody, Statuses clears)
 {
     uint8_t length = battle_timer_lengths_byte_unchecked(g, kind, nobody);

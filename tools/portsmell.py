@@ -130,7 +130,7 @@ def asm_in_comments(path: str, text: str):
 
 # "Admitted ignorance": a comment that says the port doesn't know what it is
 # describing. Its fix has an owner -- find the reader, or record it in
-# docs/TODO.md -- so it is never allowed to sit in a port's comment.
+# an issue -- so it is never allowed to sit in a port's comment.
 IGNORANCE = re.compile(r"\b(?:presumably|probably|apparently|unclear|unknown|"
                        r"not sure|no idea|seems to|looks like it|"
                        r"isn'?t ported|not ported yet|whatever reads|"
@@ -474,7 +474,7 @@ CHECKS = (
     ("asm-in-comments", asm_in_comments, "15, 8",
      "the assembly quoted in a comment; say what the routine does instead"),
     ("admitted-ignorance", admitted_ignorance, "17",
-     "a comment that doesn't know what it describes; find the reader or file it in docs/TODO.md"),
+     "a comment that doesn't know what it describes; find the reader or file an issue"),
     ("twin-functions", twin_functions, "2",
      "one function per encoding of the operands; make it one operation and several table rows"),
     ("cpu-arithmetic", cpu_arithmetic, "12",

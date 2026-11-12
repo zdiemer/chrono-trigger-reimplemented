@@ -410,7 +410,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   The default Core seed is 2, the other fights' 1: with Core seed 1, the reference stalled
   before the reveal, object 1 at `$033D`, CPU waiting for the sound command echo at `$C7:0635`.
   Another 9000 frames and button probes did not release it. Replaying from the Core checkpoint
-  with seed 2 completed the ending; neither run used pokes. The sound stall is in TODO.md.
+  with seed 2 completed the ending; neither run used pokes. The sound stall is issue #237.
   Coverage adds 16 instruction bytes over the 48-movie library (`$C0:CFEE`-`$D0A8`),
   **no new `$7E` scene-program code**. None of modes 5, 6, 10/11/14/15 or 12 starts.
   Shadow exits 0 with zero mismatches and refusals, no page/accessor/asset diagnostics,
@@ -463,9 +463,9 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   the default. Seed 1 finishes at 193389 but has one shadow mismatch in `battle_line`
   (`$D1:FE97`): at the wait, PPU `$210F` is `FF` in the original and `00` in native
   code, also at 15 later passes before the original leaves. That failure reproduces
-  from the Core checkpoint with generated comparisons off; TODO.md keeps it open.
+  from the Core checkpoint with generated comparisons off; Issue #12 keeps it open.
   `ct_native` stops at frame 15100 in `$FD:B438`, an enemy coming into the battle;
-  strict mode completes all 176261 frames and exits 0. TODO.md records the native stop too.
+  strict mode completes all 176261 frames and exits 0. The native stop was recorded with it.
   Shipping-mode `route_check --mode on:on` reaches The End at 142332 without a
   wipe; all 12 restores replay exactly, with no C sound-driver errors.
 - **What the Prophet Seeks**: `what_the_prophet_seeks`, technoplaza ct-state24 slot 2,
@@ -481,8 +481,8 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   identical sound lockstep (411801 ticks, 24 loads). Two guards refuse three calls
   each at frames 119033-119035 in `$190`: `step_with_the_party` (`$C0:3002`)
   and the second member's following (`$C0:A2CE`). The second party link is `$80`,
-  empty; their `gap` allowlist entries and RAM evidence are in TODO.md's Refusals
-  in real play. Coverage adds 377 instruction bytes over the 48-movie library,
+  empty; their `gap` allowlist entries and RAM evidence were recorded with the
+  refusals in real play. Coverage adds 377 instruction bytes over the 48-movie library,
   **no new `$7E` scene-program code**; none of modes 5, 6, 10/11/14/15 or 12 starts.
   The first check also exposed a missing dialog resource: `$D8:D000` entry 77,
   `$D8:DD14`-`$DD25`, is a real final line, not a sentinel. Correcting the table's
@@ -501,7 +501,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   was inspected.
   Shadow exits 0 with zero mismatches, no page/accessor/asset diagnostics and identical
   sound lockstep (525128 ticks, 24 loads). Seven `walk_the_leader` (`$C0:881E`)
-  refusals at frames 166496-166502 are a `gap` in the allowlist and TODO.md: the
+  refusals at frames 166496-166502 were a `gap` in the allowlist: the
   ending's upward exit carries the leader through Y `$FFxx`, which its guard rejects.
   Coverage adds 111 instruction bytes over the 48-movie library, **no new `$7E`
   scene-program code**; none of modes 5, 6, 10/11/14/15 or 12 starts.
@@ -532,7 +532,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   select mode 15's continuation script without another staff roll. Shadow exits 0
   with zero mismatches, no page/accessor/asset diagnostics and identical sound
   lockstep (387382 ticks, six loads). It reports eight guard refusals at three
-  entries, described in TODO.md's Refusals in real play. `ct_native` and strict
+  entries, recorded with the refusals in real play. `ct_native` and strict
   mode complete all 123341 input frames with exit 0 and no stop.
   The two movement refusals are the departure's Y `$FFxx`; three visibility
   and three palette-release refusals check an odd sharing link despite the
@@ -563,7 +563,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   `scene_build_perspective` (`$7E:357B`, 202 calls), `animate_the_palettes_task` (`$7E:37FA`, 2) and
   `scene_set_up_line_effects` (`$7E:36CC`, 2) -- until chunk 9 ported what they turned away (the dive's
   starts of the lines, the palettes' frame called by a channel's sequence, color math's control and
-  layers by the line). The rest of mode 6 is still the program's (docs/TODO.md). No `page refused` or
+  layers by the line). The rest of mode 6 is still the program's (issue #198). No `page refused` or
   `accessor out of range`. The route reaches its end in the
   shipping mode (frame 7722).
 - **Mode 7** (`$7E:6248`): location `$1DC` is the operators' room of the Day of Lavos (event script
@@ -692,7 +692,7 @@ won't sync here; each is a `the route driver` route from a save, written from th
 
 | Glitch | What it does | Status |
 |---|---|---|
-| 98 slots of one kind of equipment | the equipment screen reaches memory far outside the inventory | waits on the native program's reads past a table's end (TODO.md, "The native program") |
+| 98 slots of one kind of equipment | the equipment screen reaches memory far outside the inventory | waits on the native program's reads past a table's end (issue #208) |
 | Item duplication | interrupt a save after item IDs change but before their quantities do; load the invalid slot with A+Up/Down to retain the mixed inventory | researched below: the TAS uses an external reset during saving, which `the route driver` and `.ctm` cannot request; no `menus-item-duplication.ctm` recorded |
 | New Game+ save corruption | a reset in the middle of a frame leaves a half-written value in the save: maxed stats, nearly any equipment | needs a reset mid-frame, which neither `the route driver` nor `ct_native` models |
 
@@ -745,7 +745,7 @@ source and code research; no game code or validation baselines changed.
 
 ### 15. Where the native program stops (recorded)
 - **What it was for**: not code no movie runs but states no movie reaches, which only
-  `ct_native` and the hand ports alone show (TODO.md, "Refusals in real play"). The survey and
+  `ct_native` and the hand ports alone show (issue #180). The survey and
   the routes are in MOVIES.md ("Routes").
 - **Movies**: `events-magic-cave` (route `magic_cave`, ctsave06 slot 1, 6156 frames) and
   `field-12kbc-after-the-fall` (`last_village_12kbc`, ctsave11 slot 2, 9269) stop there;

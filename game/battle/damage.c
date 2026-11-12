@@ -82,7 +82,7 @@ enum { LEFT_ENEMY = 0x04, LEFT_PLACE = 0x06, LEFT_FELLED = 0x0E };
  * so every spoils taken over the library is the felled enemy's own, in the
  * shipping build and the native one alike. Off the library a native build,
  * which doesn't keep the cell, can differ from the original here (the
- * effects baseline; docs/TODO.md). */
+ * effects baseline; issue #61). */
 typedef struct {
     uint8_t standing, id;
 } FelledEnemy;

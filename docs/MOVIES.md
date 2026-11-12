@@ -33,7 +33,7 @@ fair, 600 A.D.'s castle, shopping, the prison escape); where a save-based
 route already plays a stretch, the route calls that route's `play(run, start)`
 from the state it reached instead of a save (`_trial_cathedral`,
 `cronos_trial`, `dragon_tank`). Its checkpoint names are unique across the
-pieces it composes. Where it stops is in TODO.md.
+pieces it composes. Where it stops is in issue #4.
 `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
 whole library and every public route module as a non-blocking batch. Findings
 become fixes; the batch never blocks a commit, merge or push. Its stage logs,

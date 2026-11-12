@@ -137,7 +137,7 @@ static bool close_to(BattlePoint a, BattlePoint b, uint8_t limit)
  * The original keeps the table's index as a word in its cells, the last of
  * which is followed by the damage numbers' rising flag: the index's high
  * byte lands on it, so a target 64 pixels or more below or above the point
- * sets the numbers rising, and a nearer one stops them (docs/TODO.md). The
+ * sets the numbers rising, and a nearer one stops them (issue #27). The
  * game sees that, so it is kept. */
 static uint8_t angle_toward(GameState *g, BattlePoint from, BattlePoint to)
 {

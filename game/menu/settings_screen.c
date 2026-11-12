@@ -327,7 +327,7 @@ static void keep_rows_as_own(GameState *g)
 /* The places of the eighth assignment's list past the nine assignments. The
  * game compares and swaps them as it does the others: the boxes' first two
  * and cells past them, which only giving confirm or cancel L reaches
- * (docs/TODO.md). */
+ * (issue #84). */
 static void swap_stray_places(GameState *g, unsigned assignment, uint8_t button, uint8_t replacement)
 {
     unsigned count = menu_settings_conflicts_count(g, assignment);
