@@ -74,6 +74,19 @@ void vid_host_frame_begins(Platform *pf)
 
 static VidObserver *ob(Platform *pf) { return pf->video.observer; }
 
+/* ---- The view ------------------------------------------------------------------------------ */
+
+void vid_host_set_view(Platform *pf, VidView view) { pf->video.view = view; }
+
+/* The driver's choice, or the original's screen where it made none. */
+VidView vid_view(const Platform *pf)
+{
+    VidView v = pf->video.view;
+    if (!v.width || !v.height)
+        v = (VidView){ VID_ORIGINAL_VIEW_WIDTH, VID_ORIGINAL_VIEW_HEIGHT };
+    return v;
+}
+
 /* ---- The picture's settings ------------------------------------------------------------------- */
 
 /* A change the line handler makes shows from the line after its own (the

@@ -29,6 +29,7 @@ bool pf_host_restore(Platform *pf, const uint8_t *in, size_t len)
     pf->timing.program = live.timing.program;
     pf->timing.driver = live.timing.driver;
     pf->video.observer = live.video.observer;
+    pf->video.view = live.video.view;
     pf->audio = live.audio;
     pf->save.bytes = live.save.bytes;
     pf->save.ctx = live.save.ctx;

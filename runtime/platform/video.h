@@ -505,6 +505,19 @@ static inline bool vid_line_effect_decode(uint8_t control, uint8_t dest, VidLine
     return false;
 }
 
+/* ---- The view ------------------------------------------------------------------
+ *
+ * How much of the picture is shown: the original's screen, 256 dots by 224
+ * lines, unless the host chose another (a widescreen build; docs/PLAN.md,
+ * "Layering"). The game asks it where it decides how much to show or where to
+ * lay something out, never where a rule of the game's happens to use the
+ * screen's size; the gate runs at the original's. */
+enum { VID_ORIGINAL_VIEW_WIDTH = 256, VID_ORIGINAL_VIEW_HEIGHT = 224 };
+typedef struct {
+    uint16_t width, height;
+} VidView;
+PF_API VidView vid_view(const Platform *pf);
+
 /* Master brightness and forced blank. */
 PF_API void vid_set_display(Platform *pf, PfOrigin o, const VidDisplay *d);
 /* The same at a known line of the visible frame, for the rare raster writes

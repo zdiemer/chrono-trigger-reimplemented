@@ -20,7 +20,8 @@
 /* The view the map is shown in: the original's screen, with a margin round
  * it in which an object still counts as in view (its sprites reach into the
  * screen from there): sixteen pixels left, right and above, thirty-two
- * below. */
+ * below. A rule, not presentation: the scripts branch on the answer, so it
+ * stays the original's screen whatever the host shows (vid_view). */
 enum { VIEW_WIDTH = 256, VIEW_HEIGHT = 224, MARGIN = 16, MARGIN_BELOW = 32 };
 
 /* Where the object is from the view's top-left, round the map, and moved
