@@ -188,12 +188,10 @@ bool field_objects_set_up(GameState *g, Platform *pf)
     field_forget_the_queued_transfers(g);
     field_objects_let_go(g, true);
     TIMED_AS(g, FIELD_START_THE_OBJECTS_ENTRY, field_objects_start_afresh(g, pf));
-    EventScriptContext c = { g, pf };
-    EventRunner r = event_runner(&c);
     FieldObject object;
     uint16_t at;
     EventTurnEnd end = TURN_OVER;
-    TIMED_AS(g, OPENINGS, end = event_run_openings(g, &r, &object, &at));
+    TIMED_AS(g, OPENINGS, end = event_run_openings(g, pf, &object, &at));
     if (!ran_its_course(g, end, OPENINGS))
         return false;
     if (!party_start_fits(g)) {
@@ -201,7 +199,7 @@ bool field_objects_set_up(GameState *g, Platform *pf)
         return false;
     }
     TIMED_AS(g, PARTY_STARTS, party_start_on_the_map(g));
-    TIMED_AS(g, MAP_SCRIPT_STARTS, end = event_run_map_script_commands(g, &r, &at));
+    TIMED_AS(g, MAP_SCRIPT_STARTS, end = event_run_map_script_commands(g, pf, &at));
     if (!ran_its_course(g, end, MAP_SCRIPT_STARTS))
         return false;
     TIMED_AS(g, MENUS_SERVICES, party_wear_it_shows(g));

@@ -383,11 +383,9 @@ static bool build_the_sprite_table(void *ctx)
 
 static bool map_script(AfterBattleContext *c)
 {
-    EventScriptContext e = { c->game, c->pf };
-    EventRunner r = event_runner(&e);
     uint16_t at;
     EventTurnEnd end = TURN_OVER;
-    TIMED_AS(c->game, MAP_SCRIPT_STARTS, end = event_run_map_script_commands(c->game, &r, &at));
+    TIMED_AS(c->game, MAP_SCRIPT_STARTS, end = event_run_map_script_commands(c->game, c->pf, &at));
     if (end == TURN_OVER)
         return true;
     if (end != TURN_HANDED_BACK)

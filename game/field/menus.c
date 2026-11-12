@@ -521,11 +521,9 @@ static bool start_character_over(void *ctx, unsigned row)
 {
     (void)row;
     MenuStopContext *c = ctx;
-    EventScriptContext e = { c->game, c->pf };
-    EventRunner r = event_runner(&e);
     uint16_t at;
     EventTurnEnd end = TURN_OVER;
-    TIMED_AS(c->game, OBJECT_START, end = event_restart_the_running_object(c->game, &r, &at));
+    TIMED_AS(c->game, OBJECT_START, end = event_restart_the_running_object(c->game, c->pf, &at));
     if (end == TURN_OVER)
         return true;
     if (end != TURN_HANDED_BACK)
