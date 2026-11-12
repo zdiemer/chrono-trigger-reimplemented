@@ -2791,13 +2791,23 @@ list, by kind, is what `game/` still asks of one.
     SRAM still matches and all five places remain on time. Follow the first
     shifted battle input; the re-recorded
     outcome is not a claim that the fight is equivalent.
-    Follow the native fixed-input losses isolated at `253d674c`: Cyrus's
-    two arrivals just outside the 30-frame tolerance, Fiona's missing
-    location 424, and Sun Stone's 13-location path instead of 21. Dalton
-    and late Omen Zeal also save different progress after that model change.
-    The batched attribution establishes the changed accounting, not that
-    these outcomes are equivalent; use state-driven routes to distinguish
-    missed recorded inputs from remaining frame-budget errors.
+    The native fixed-input losses isolated at `253d674c` are not timing
+    calibration targets by themselves. Despite Cyrus's two 31-frame-late
+    arrivals, its state-driven tools and first-repairs prefix passes
+    (native/shipping 16404/16375); Fiona's route reaches location 424 with
+    control (5402/5343). Sun Stone turns away at frame
+    10282 with native Y=495.9375 versus shipping 498.9375, missing the
+    Keep's door and leaving at 10635 instead of 10296, before its recorded
+    flight misses the rest of the 21-place path. A state-driven continuation
+    receives both rewards with world control (22278/21951). Dalton's full
+    route completes (35288/39541), while a state-driven continuation of
+    late Omen Zeal beats the first Queen and reaches Mammon
+    Machine (18486/16470); both recordings lose battles before their saved
+    progress differs. These are missed recorded inputs, not evidence for
+    changing the frame budget. The per-frame comparisons and the scope of
+    the continuations are in history/native-route-outcomes.md, "Fixed-input
+    timing losses". Later recorded inputs remain unsuitable as proof of
+    the whole Cyrus or Black Omen quest; no movie or exception was refreshed.
     Trace late Lavos's strict battle/save inputs too: its `54099ed8` timing
     leaves 49 compared SRAM bytes different at the end.
   - *The handlers' share of an upload.* The sound driver's upload time is
@@ -2883,15 +2893,6 @@ list, by kind, is what `game/` still asks of one.
   `native/audio.c` can advance startup sound before its charged frames pass;
   reconcile those clocks.
 
-- **Cyrus's fixed movie ends blanked in `ct_native`.** `events-cyrus`
-  (ctsave14 slot 1, 39872 frames) consumes all its inputs without a reported
-  missing C handler, but the display is blanked after 12 screen setups.
-  It reports two SNES-only video escapes, first `$7E:5AEB`. Establish how
-  far the input gets and whether the native timing misses an interaction;
-  consuming the frames does not establish the repaired ruins or restored
-  Masamune. The reference route reaches both and returns field control;
-  strict `ct_dev` reaches the movie's end with five character-record bytes
-  differing from the reference, not a handler stop.
 - **Ozzie's Fort movie on the native program.** `battle-ozzies-fort` from ctsave12
   slot 2 plays to its 39237-frame end in `ct_native`, showing, but parts from the
   reference in the field before Flea (`$0B7` entered at 12370 against 7110): the

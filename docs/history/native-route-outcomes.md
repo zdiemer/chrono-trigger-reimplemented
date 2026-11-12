@@ -8,7 +8,7 @@ The audit ended by request on 2026-11-11. Stopped and unstarted runs are
 explicit exceptions, not passes; rerun them after native saves can use
 complete frame-end bases during a route instead of replaying from power-on.
 
-All runs use the native implementation in `5aa8489c`. Successful early runs
+The original audit uses the native implementation in `5aa8489c`. Successful early runs
 are retained from before the search correction described in [MOVIES.md](../MOVIES.md).
 Later runs use the corrected search. The false telepod prefix result was
 discarded; its shared approach and the complete Lavos-loss route were rerun.
@@ -207,7 +207,89 @@ power-on replays. The native finale rerun was likewise stopped during its
 early Mammon-room exit search. These are bounded continuations, not new
 full-route passes; the original audit's full native passes remain above.
 
-## Validation
+## Fixed-input timing losses
+
+The follow-up to `253d674c`, based on `a1fcd274` with the landing helper and
+video fills corrected, replays the unchanged five recordings through
+both servers, observing location, world and party positions, dialogue,
+control, travel mode, story and battle-menu state after **every frame**.
+The first observed location difference is the common load-screen transition
+at 1668 (native) versus 1669 (shipping). Uninitialized scratch bytes are not
+gameplay evidence. After loading, the first movement differences are:
+
+| Recording | Frame | Native | Shipping |
+|---|---:|---|---|
+| `events-cyrus` | 3031 | world X 345 | 344 |
+| `events-fionas-forest` | 3667 | world Y 439 | 440 |
+| `events-sun-stone` | 2634 | leader Y 368.9375 | 367.9375 |
+| `battle-dalton` | 2815 | leader Y 174.9375 | 175.9375 |
+| `late-omen-zeal` | 3201 | leader X 57 | 56 |
+
+These precede the lost outcomes. The native backend runs handlers once per
+frame and accounts main-thread work at waits and budget queries; the
+shipping backend can interrupt that work. Their input phase need not be
+identical. `native_time_test` and `timing_test` still pass the budget,
+handler-charge and wait boundaries. The continuations below test whether
+the game can perform the missed actions; they do not establish equal
+frame counts or calibrate away a recorded input's failure.
+
+**Cyrus and Fiona.** Cyrus enters the past at 3737 and 12692, versus 3706
+and 12661, both 31 frames later. The targeted `cyrus:repaired` route passes
+at 16404 and 16375, after both era trips, obtaining and delivering the
+tools, and paying for the first repairs. Its earlier `asked` and `tools`
+checkpoints are 6364/6365 and 11466/11467. This isolates the two late
+arrivals without repeating the full grave route. Fiona's recording reaches
+the present at 4402 versus 4371, then misses the village entrance. The
+`fionas_forest:village` prefix enters location 424 and proves control in
+both builds, at 5402 and 5343. Run these with `route_check --mode native
+--mode on:on cyrus:repaired fionas_forest:village`. Neither is a blocked
+frame-budget loop. The current Cyrus recording ends showing in the ruins'
+entry room `$041`, without video escapes; the old blank-ending report no
+longer describes it. This prefix does not claim that its later recorded
+battle inputs complete the quest.
+
+**Sun Stone.** Both recordings reach the present-day Keep. At frame 9986,
+when the recorded downward walk starts, native's leader is at Y=199.9375
+and shipping's at 203.9375. At 10282 the recording turns upward: native has
+only reached 495.9375, shipping 498.9375. Shipping has triggered the exit
+and enters the world at 10296; native turns away and only exits at 10635,
+after later downward presses. The subsequent boarding and flight inputs
+therefore start from the wrong position. The recorded native path has 13
+location transitions, shipping 21; this is a missed door, not evidence of
+a missing map or quest operation.
+
+A focused continuation keeps each recording's inputs through that exit,
+then uses the corrected flight helper, `sun_stone_finish`'s boarding and
+entrance helpers, and position-driven walks around the mayor's counter and
+to the Keep's stone. The walks target observed room coordinates and wait
+for dialogue and control, without writing game state. It recovers the Moon
+Stone at 13403/13040, replaces it at 16235/15948, enters the charged Keep
+at 18839/18465, and receives Wondershot and Sunshades with world-map control
+at 22278/21951. The checks require quest states `$17`, `$37` and `$F7`,
+the Moon Stone entering and leaving the bag, and both rewards in it.
+This completes the portion the recording misses. The full
+`sun_stone_finish` route's search-cost exception remains: this continuation
+does not rerun its earlier general-purpose searches.
+
+**Dalton and Queen Zeal.** Both fixed-input recordings lose battles before
+their final progress differs. At the Dalton Plus and Queen Zeal setups,
+their battle-menu state differs at 25527 and 5324 respectively. Later
+identical A inputs reach different active members: Dalton at 25938 selects
+member 2 in native and 1 in shipping; Zeal at 6554 selects 0 and 1. Dalton
+returns to the title at 36560 versus 31686; the later fixed inputs reload the Blackbird in native and the Last
+Village in shipping. The full state-driven `dalton` route passes at 35288
+and 39541, including the Blackbird's destruction, the winged Epoch and
+world-map control. Queen Zeal's recording returns to the title at 24145
+versus 17469, before Mammon Machine. A focused continuation uses the same
+recording through frame 5000, waits for `battle_menu_open`, then calls
+`Run.fight("party", ...)` until living party members have defeated the
+enemies. It wins at 17232 and 15194 with zero retries. Advancing dialogue
+with an eight-frame press interval opens the next battle at `$1A6` at
+18486 and 16470. That proves the first recorded loss is avoidable in both
+builds; it is not a claim about the remainder of the Black Omen ending.
+No movie, timing estimate or outcome exception was refreshed.
+
+## Original audit validation
 
 The sampled gate (`tools/suite.py --ct-dev build/main/ct_dev.exe -j 2
 --evidence`) ended with `suite OK`, including both native fast prefixes at
