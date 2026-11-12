@@ -6,6 +6,20 @@ page instances or bytes. Before migration all 2,263/2,263 (100%) use the work-RA
 image in `ct_native`. Emulator-backed builds must retain that backing while
 generated code and byte comparisons use it.
 
+## Typed storage measure
+
+The storage command distinguishes **typed**, **blob-backed** and **image-backed**
+variables. A variable counts as typed only when every declared byte is owned by
+scalar fields or arrays of scalar elements. A serialized view of those fields
+is typed; a scalar accessor that extracts bytes from a buffer is blob-backed.
+A record with even one blob dependency is counted entirely as blob-backed.
+`storage --list` names each untyped variable and the buffers behind it.
+
+The previous ownership-only measure overstated typed migration: at the merge
+review it reported 2,236 struct-backed variables, but the honest counts are
+**1,027 typed, 1,209 blob-backed and 27 image-backed**, out of 2,263. The older
+figures below measure ownership outside the residual image, not typed state.
+
 ## Inventory
 
 `python3 tools/state_inventory.py` reproduces [state-addresses.tsv](state-addresses.tsv)

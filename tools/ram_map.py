@@ -682,22 +682,54 @@ def variable_bytes(v, owners_only=False):
                     yield from range(at + offset, at + offset + size)
 
 
+def storage_kinds(m):
+    """Classify actual backing, not merely the presence of ownership metadata.
+
+    A variable is typed only if every declared byte belongs to scalar owner
+    fields (including arrays of scalar elements). A partial blob dependency
+    makes the whole variable blob-backed. Serialization views of typed fields
+    do not change their storage; naming a scalar view of a blob does not type it.
+    """
+    blobs = {}
+    for a in owner_accessors(m):
+        if not (a.blob or a.table):
+            continue
+        label = a.var.name + ("." + a.field.name if a.field else "")
+        for base in a.var.bases():
+            for row in range(a.var.rows or 1):
+                for element in range(a.var.count):
+                    start = base + row * (a.var.row_stride or 0) + element * a.var.stride + a.offset
+                    blobs.update((addr, label) for addr in range(start, start + a.size))
+    result = {}
+    for v in m.vars:
+        dependencies = sorted({blobs[a] for a in variable_bytes(v) if a in blobs})
+        kind = "image" if not (v.host_module or v.host_owner) else "blob" if dependencies else "typed"
+        result[v.name] = kind, dependencies
+    return result
+
+
 def storage_counts(m):
-    """Count map variables, not accessors, instances, fields or allocated bytes."""
-    moved = sum(bool(v.host_module or v.host_alias) for v in m.vars)
-    return len(m.vars) - moved, moved
+    """Image, blob and typed counts; one vote per map variable, not per byte."""
+    counts = collections.Counter(kind for kind, _ in storage_kinds(m).values())
+    return counts["image"], counts["blob"], counts["typed"]
 
 
-def storage_report(m, out=sys.stdout):
-    image, moved = storage_counts(m)
-    total = image + moved
-    print("native state: %d/%d variables image-backed (%.2f%%); %d struct-backed"
-          % (image, total, 100 * image / total if total else 0, moved), file=out)
+def storage_report(m, out=sys.stdout, details=False):
+    kinds = storage_kinds(m)
+    counts = collections.Counter(kind for kind, _ in kinds.values())
+    print("native state: %d variables; %d image-backed; %d blob-backed; %d typed struct-backed"
+          % (len(m.vars), counts["image"], counts["blob"], counts["typed"]), file=out)
     for sub in SUBSYSTEMS:
         vs = [v for v in m.vars if v.subsystem == sub]
         if vs:
-            moved = sum(bool(v.host_module or v.host_alias) for v in vs)
-            print("  %-12s %4d/%4d image-backed; %4d struct-backed" % (sub, len(vs) - moved, len(vs), moved), file=out)
+            counts = collections.Counter(kinds[v.name][0] for v in vs)
+            print("  %-12s %4d image-backed; %4d blob-backed; %4d typed / %d"
+                  % (sub, counts["image"], counts["blob"], counts["typed"], len(vs)), file=out)
+    if details:
+        for v in m.vars:
+            kind, dependencies = kinds[v.name]
+            if kind != "typed":
+                print("  %s\t%s\t%s" % (kind, v.name, ", ".join(dependencies)), file=out)
 
 
 # ---- the header -----------------------------------------------------------------------------
@@ -1883,7 +1915,8 @@ def main(argv=None):
     ap.add_argument("--map", type=pathlib.Path, default=MAP, help="the map to read (default re/ram.toml)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("check", help="validate re/ram.toml")
-    sub.add_parser("storage", help="share of native variables still backed by the work-RAM image")
+    st = sub.add_parser("storage", help="native variables by image, blob or typed backing")
+    st.add_argument("--list", action="store_true", help="list untyped variables and their blob owners")
     h = sub.add_parser("header", help="write game/ram.h")
     h.add_argument("--check", action="store_true", help="exit 1 if game/ram.h is out of date")
     a = sub.add_parser("accessors", help="write game/vars.h, runtime/port/vars_pages.h and vars_ram.c")
@@ -1904,7 +1937,7 @@ def main(argv=None):
         return 1
 
     if args.cmd == "storage":
-        storage_report(m)
+        storage_report(m, details=args.list)
     elif args.cmd == "check":
         print("%s: %d pages, %d variables, %d images, not-RAM literals in %d files"
               % (args.map, len(m.pages), len(m.vars), len(m.images), len(m.not_ram)))
