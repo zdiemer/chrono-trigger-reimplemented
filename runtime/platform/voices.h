@@ -1,15 +1,10 @@
 /* The voices' implementations (host side of platform/audio.h, "The voices").
  *
  * An AuVoices is a table of the calls' implementations, and each
- * implementation's own struct starts with one: platform/voices_dsp.h makes
- * each call as the S-DSP register writes that make it, platform/native/mixer.h
- * makes the sound itself. The au_voice* calls dispatch through the table
- * (voices.c), so the driver plays through whichever it was handed.
- *
- * A pair plays every call through two implementations at once, answering what
- * the driver asks (au_voice_output) from the first: ct_dev and ct_sound_fuzz
- * use it to hear the mixer beside the S-DSP (frontend/sound_host.h,
- * SOUND_MIXER_CHECK). Game code sees none of this. */
+ * implementation's own struct starts with one: platform/native/mixer.h makes
+ * the sound itself. The au_voice* calls dispatch through the table
+ * (voices.c), so the driver plays through whichever it was handed. Game code
+ * sees none of this. */
 #ifndef CT_PLATFORM_VOICES_H
 #define CT_PLATFORM_VOICES_H
 
@@ -28,7 +23,8 @@ typedef struct AuVoicesOps {
     int8_t (*output)(AuVoices *v, uint8_t voice);
     void (*master_volume)(AuVoices *v, int8_t left, int8_t right);
     void (*noise_clock)(AuVoices *v, uint8_t clock);
-    void (*output_stopped)(AuVoices *v, bool stopped);
+    void (*muted)(AuVoices *v, bool muted);
+    void (*reset)(AuVoices *v, bool reset);
     void (*noise_voices)(AuVoices *v, AuVoiceSet voices);
     void (*pitch_modulation)(AuVoices *v, AuVoiceSet voices);
     void (*echo_voices)(AuVoices *v, AuVoiceSet voices);
@@ -36,13 +32,15 @@ typedef struct AuVoicesOps {
     void (*echo_feedback)(AuVoices *v, int8_t feedback);
     void (*echo_filter)(AuVoices *v, const int8_t taps[8]);
     void (*echo_delay)(AuVoices *v, uint8_t delay);
+    void (*echo_buffer)(AuVoices *v, uint8_t page, uint8_t delay);
     void (*echo_writes)(AuVoices *v, bool on);
     void (*sample_define)(AuVoices *v, uint8_t sample, const uint8_t *brr, uint16_t length, uint16_t loop);
     void (*sample_write)(AuVoices *v, uint8_t sample, uint16_t at, uint8_t byte);
     void (*sample_memory_write)(AuVoices *v, uint16_t at, uint8_t byte);
     void (*sample_memory_move)(AuVoices *v, uint16_t to, uint16_t from, uint16_t length);
     void (*sample_place)(AuVoices *v, uint8_t sample, uint16_t start, uint16_t loop);
-    void (*snes_register)(AuVoices *v, uint8_t reg, uint8_t value);
+    AuVoiceSettings (*voice_settings)(AuVoices *v, uint8_t voice);
+    AuMixSettings (*mix_settings)(AuVoices *v);
 } AuVoicesOps;
 
 struct AuVoices {
@@ -90,12 +88,5 @@ static inline bool voices_echo_writes_over(VoicesEcho e, uint16_t at)
     uint32_t next_length = units ? units * (uint32_t)VOICES_ECHO_UNIT_BYTES : VOICES_ECHO_FRAME_BYTES;
     return (uint16_t)(at - now) < now_length || (uint16_t)(at - next) < next_length;
 }
-
-typedef struct {
-    AuVoices voices;
-    AuVoices *first, *second;
-} AuVoicesPair;
-
-void au_voices_pair(AuVoicesPair *p, AuVoices *first, AuVoices *second);
 
 #endif

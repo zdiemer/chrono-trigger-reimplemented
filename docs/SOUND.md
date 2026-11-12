@@ -99,7 +99,7 @@ half handles `$70` and `$71` itself, with uploads).
 | `$F5` | `$0FBE` | Pause (voices to GAIN, volumes zero) and resume |
 | `$F6` | `$129D` | Run the timer at 8 kHz (fast forward) or back at 190 Hz |
 | `$FC` | `$132E` | Change the echo delay, reallocating and waiting for the buffer |
-| `$FD` | `$12F2` | Write a DSP register directly |
+| `$FD` | `$12F2` | Set one of the voices' or the mix's settings by hand, named by its S-DSP register number; a part of a setting (a pitch byte, an envelope half, one side's volume) keeps the rest |
 | `$FE` | `$100E` | Receive an upload |
 | `$FF` | `$12BD` | Meter mode on or off (p1 1), or jump back to the boot ROM (p1 `$F0`), which is how the game reloads the driver |
 

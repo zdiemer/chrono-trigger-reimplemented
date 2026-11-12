@@ -2337,14 +2337,6 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
   `battle/uploads.c`), and decode it where the cells are read. Store a named
   destination (whole words, low bytes, high bytes) instead once nothing reads
   the cells as the original's bytes.
-- **The sound driver's command `$FD` writes an S-DSP register.**
-  `sound/driver.c`'s `write_register` hands the command's register and value
-  to `au_voices_snes_register`, which the native mixer decodes into its
-  voices' settings (`runtime/platform/native/mixer.c`, `escape_register`):
-  the one register escape `tools/machine_joints.py` still counts. Another
-  mixer needs the command as what it means: the register decoded into named
-  voice settings, the driver keeping what a partial write (a pitch's low
-  byte) leaves of the rest.
 - **Native audio interface.** `au_driver_call` stops on a machine-wrapper
   call; remove that interface with its remaining callers. Preserve command
   queues.
