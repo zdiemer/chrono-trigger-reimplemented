@@ -114,6 +114,109 @@ static void address_view(void)
     state_host_destroy(other);
 }
 
+static unsigned range_fault_count(void)
+{
+    unsigned count, total = 0;
+    const VarsRangeFault *faults = vars_range_faults(&count);
+    for (unsigned i = 0; i < count; i++)
+        total += (unsigned)faults[i].count;
+    return total;
+}
+
+static void alias_views(void)
+{
+    GameState *g = state_host_create(NULL);
+    CHECK(g);
+    if (!g)
+        return;
+    VarsHost *h = state_host_vars(g);
+    /* Internal views and cross-mode views must share initial contents and
+     * partial writes, not just synchronize at a mode transition. */
+    set_character_records_hp(g, 2, 0xABCD);
+    CHECK(h->core.character_records[2].record[3] == 0xCD);
+    CHECK(character_records_record_byte(g, 2, 4) == 0xAB);
+    set_character_records_record_byte(g, 2, 4, 0x12);
+    CHECK(character_records_hp(g, 2) == 0x12CD);
+    set_palette_animations_frames(g, 0, 0x1234);
+    CHECK(palette_animations_fade_mode(g, 0) == 0x34);
+    CHECK(palette_animations_fade_level(g, 0) == 0x12);
+    set_warp_pixel_set_masks(g, 1, 0x67);
+    CHECK(h->palettes.palette_animations[0].frames == 0x1267);
+    set_palette_animations_fade_level(g, 0, 0x89);
+    CHECK(warp_pixel_set_masks(g, 2) == 0x89);
+    set_field_screen_scroll_target_x(g, 0x42);
+    CHECK(battle_object_x(g, 2) == 0x42);
+    set_battle_object_x(g, 3, 0x24);
+    CHECK(field_screen_scroll_target_y(g) == 0x24);
+    set_scene_planet_fade_steps(g, 5);
+    CHECK(h->field.field_window_shape_corners[3].x == 5);
+    set_menu_past_the_names(g, 0x563412);
+    CHECK(h->core.party_gold.low == 0x3412 && h->core.party_gold.high == 0x56);
+    set_party_gold_high(g, 0x78);
+    CHECK(menu_past_the_names(g) == 0x783412);
+    set_oam_buffer_tile(g, 3, 0x9A);
+    CHECK(h->sprites.field_sprite_table[14] == 0x9A);
+    CHECK(scene_sprite_table_byte(g, 14) == 0x9A);
+    hw_port_seek(g, 0x070E, 0);
+    hw_port_write(g, 0xBC);
+    CHECK(oam_buffer_tile(g, 3) == 0xBC);
+    Platform pf = {0};
+    vid_host_start(&pf, read_game, write_game, g);
+    vid_send_vram(&pf, PF_AT(0), 0, PF_GAME(0x7E070E), 1,
+                  &(VidVramPort){ .step = 1, .after_high = true });
+    CHECK(vid_host_picture(&pf)->vram[0] == 0xBC);
+    vid_host_stop(&pf);
+    h->data.decompress_source = 0xFEDCBA;
+    CHECK(decompress_source(g) == 0xFEDCBA);
+    state_host_write8(g, 0x800301, 0x12);
+    CHECK(h->data.decompress_source == 0xFE12BA);
+
+    /* Deliberate inventory and character tails reach the following owner.
+     * Checked accesses diagnose that same reach, without C array overruns. */
+    vars_range_reset();
+    set_inventory_items_unchecked(g, INVENTORY_ITEMS_COUNT, 0x36);
+    CHECK(h->menu.menu_inventory_past_the_items[0] == 0x36);
+    set_character_records_hp_unchecked(g, CHARACTER_RECORDS_COUNT, 0x4567);
+    CHECK(state_host_read8(g, 0x7E2833) == 0x67 && state_host_read8(g, 0x7E2834) == 0x45);
+    CHECK(range_fault_count() == 0);
+    set_inventory_items(g, INVENTORY_ITEMS_COUNT, 0x73);
+    CHECK(h->menu.menu_inventory_past_the_items[0] == 0x73);
+    CHECK(range_fault_count() == 1);
+    set_character_records_record_byte(g, 0, CHARACTER_RECORDS_RECORD_BYTES, 0xA5);
+    CHECK(h->core.character_records[1].record[0] == 0xA5);
+    CHECK(range_fault_count() == 2);
+    set_oam_buffer_x(g, OAM_BUFFER_COUNT, 0x5A);
+    CHECK(oam_high_table_byte(g, 0) == 0x5A);
+    CHECK(range_fault_count() == 3);
+    vars_range_reset();
+    state_host_destroy(g);
+}
+
+static uint8_t pattern(uint32_t address)
+{
+    return (uint8_t)((address * 2654435761u) >> 24);
+}
+
+static void projection_boundaries(void)
+{
+    GameState *g = state_host_create(NULL);
+    CHECK(g);
+    if (!g)
+        return;
+    /* Fill first, then read: duplicate fields, page dispatch mistakes and
+     * stride/padding holes cannot hide behind a write immediately read back. */
+    for (uint32_t a = 0x7E0000; a < 0x800000; a++)
+        state_host_write8(g, a, pattern(a));
+    for (uint32_t a = 0x7E0000; a < 0x800000; a++)
+        CHECK(state_host_read8(g, a) == pattern(a));
+    CHECK(character_records_hp(g, 6) == (uint16_t)(pattern(0x7E27E3) | pattern(0x7E27E4) << 8));
+    CHECK(palette_animations_frames(g, 11) == (uint16_t)(pattern(0x7E05AA) | pattern(0x7E05AB) << 8));
+    uint8_t value;
+    CHECK(!vars_host_read8(state_host_vars_const(g), 0x7DFFFF, &value));
+    CHECK(!vars_host_read8(state_host_vars_const(g), 0x800000, &value));
+    state_host_destroy(g);
+}
+
 static void cartridge_save(const char *path)
 {
     static uint8_t cartridge[STATE_HOST_SRAM_BYTES], exported[STATE_HOST_SRAM_BYTES];
@@ -143,6 +246,15 @@ static void cartridge_save(const char *path)
         CHECK(location_previous_id(g) == (uint16_t)(cartridge[offset + 5] | cartridge[offset + 6] << 8));
         CHECK(location_stored_flags(g) == cartridge[offset + 14]);
         CHECK(location_next_id(g) == 0x5678);
+        /* The cartridge projection enters actual owner storage, including a
+         * whole-record owner whose typed fields are aliases. */
+        CHECK(memcmp(state_host_vars_const(g)->core.character_records[0].record,
+                     cartridge + slot * SAVED_GAME_BYTES + 0x200, CHARACTER_RECORDS_RECORD_BYTES) == 0);
+        CHECK(memcmp(state_host_vars_const(g)->core.inventory_items,
+                     cartridge + slot * SAVED_GAME_BYTES, INVENTORY_ITEMS_COUNT) == 0);
+        state_host_vars(g)->core.character_records[0].record[3] = 0x34;
+        state_host_vars(g)->core.character_records[0].record[4] = 0x12;
+        state_host_vars(g)->core.inventory_items[0] = 0x56;
         set_location_id(g, 0x0123);
         set_location_x(g, 0x45);
         set_location_previous_id(g, 0x0234);
@@ -153,6 +265,9 @@ static void cartridge_save(const char *path)
         memcpy(exported, sv_host_bytes(&pf, &dirty), sizeof exported);
         CHECK(dirty && exported[offset] == 0x23 && exported[offset + 1] == 1);
         CHECK(exported[offset + 2] == 0x45 && exported[offset + 14] == 0x67);
+        CHECK(exported[slot * SAVED_GAME_BYTES + 0x203] == 0x34);
+        CHECK(exported[slot * SAVED_GAME_BYTES + 0x204] == 0x12);
+        CHECK(exported[slot * SAVED_GAME_BYTES] == 0x56);
         /* A fresh state's load consumes the serialized bytes, not the old fields. */
         GameState *loaded = state_host_create(exported);
         CHECK(loaded);
@@ -163,6 +278,7 @@ static void cartridge_save(const char *path)
             CHECK(location_id(loaded) == 0x0123 && location_previous_id(loaded) == 0x0234);
             CHECK(location_x(loaded) == 0x45 && location_stored_flags(loaded) == 0x67);
             CHECK(location_next_id(loaded) == 0x5555);
+            CHECK(character_records_hp(loaded, 0) == 0x1234 && inventory_items(loaded, 0) == 0x56);
             state_host_destroy(loaded);
         }
     }
@@ -173,6 +289,8 @@ static void cartridge_save(const char *path)
 int main(int argc, char **argv)
 {
     address_view();
+    alias_views();
+    projection_boundaries();
     cartridge_save(argc > 1 ? argv[1] : "oracle/saves/fantasyanime/ctsave12-side_quests1.srm");
     printf("vars_host_test: %d failures\n", failures);
     return failures ? 1 : 0;

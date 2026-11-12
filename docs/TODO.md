@@ -3621,39 +3621,34 @@ the per-site and per-pair inventory is in [STATE.md](STATE.md). Before moving
 another module, resolve its listed aliases and raw clients, including shared
 initial contents on mode transitions. Do not give two struct fields one cell.
 
-- **The generator, before larger slices** (the state-as-C review): host
-  accessors for indexed variables drop `CT_ACCESSOR_CHECKS`' `CHECK_INDEX`
-  (`tools/ram_map.py`, the host fallback); keep it before an indexed variable
-  moves. The address projection finds a field by a linear scan per byte; give
-  it indexed dispatch before bulk clears, saves and video reads cross many
-  moved fields.
-- **Overlapping variables need shared ownership.** 2,011 of the 2,263 overlap
-  another; independent structs can't keep those relationships, so the next
-  slices need an explicit owner and alias views per overlap, decided module by
-  module before anything overlapping moves (the generator rejects it until then).
-
-- **Core:** controller/clock and palette scratch overlap other uses; character
-  records contain both whole-record and named-field views. Inventory tail
-  accesses and save projection must keep a single owner. Sound's retired cells
-  include unchecked tables and should be separated from live sound state.
-- **Data:** decompressor destinations and its streaming WRAM port are dynamic;
-  establish which output buffers are game state versus decoded resources before
-  moving the eight otherwise non-overlapping variables.
+- **Owners spanning several existing records:** most of the remaining 1,921
+  overlapping variables cannot name a single containing owner. Define semantic storage
+  covering their shared bytes, or views composed from several owners; retain
+  mode-transition contents and page-instance aliases. The five largest connected
+  groups contain 1,839 variables (STATE.md). Do not turn their address spans into
+  anonymous replacement RAM arrays just to lower the measure.
+- **Core:** controller/clock, story and palette scratch still overlap other uses.
+  The 25 isolated retired sound-driver variables remain image-backed; determine
+  which compatibility clients still require them before deleting their storage.
+  Assess the vector-stub and old sound-pointer/list alias groups with the
+  machine/driver removal rather than allocating new compatibility owners.
 - **Event:** story memory, event variables and field script storage overlap;
   replace arbitrary-address script operations with owned views where possible.
 - **Field:** map/graphics/scratch reuse and interleaved row tables need owners;
   video queues, unpack destinations and unchecked object/table tails need views
   of those owners rather than independent storage.
 - **Menu:** direct-page records and shared screen scratch need ownership across
-  screens; inventory overruns and tilemap/DMA sources need explicit views.
+  screens; remaining unchecked text/list tails and tilemap/DMA sources need
+  explicit views.
 - **Menu objects:** all 39 variables overlap another module; resolve object
   records, menu pages and overworld sharing before moving them.
 - **Overworld:** object-mode sharing, map scratch, unchecked tails and video
   staging must be separated or assigned one owner.
-- **Battle:** 909 variables overlap others; resolve combatant/scratch aliases,
-  whole-record field views, 53 unchecked tables and graphics sources in slices.
+- **Battle:** resolve the remaining combatant/scratch aliases, whole-record field
+  views, unchecked tables and graphics sources in slices.
 - **Scene:** own/channel page instances, shared mode scratch, line-effect and
   upload buffers need ownership; retain initial values across mode changes.
-- **Warp:** plane/light graphics and line-effect sources share scene memory;
-  resolve those aliases and the unchecked table before moving the module.
+- **Warp:** the remaining 12 variables include plane/light graphics and
+  line-effect sources sharing scene memory; resolve those aliases and their
+  unchecked table.
 

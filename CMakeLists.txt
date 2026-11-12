@@ -517,7 +517,13 @@ add_executable(native_time_test tests/port/native_time_test.c runtime/port/state
 target_include_directories(native_time_test PRIVATE game runtime)
 add_executable(vars_host_test tests/port/vars_host_test.c game/menu/saves.c runtime/port/no_machine.c)
 target_compile_definitions(vars_host_test PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
-target_link_libraries(vars_host_test PRIVATE ct_state_host)
+# Compile the native backing's diagnostics too: the player omits them, but
+# migrating an indexed variable must not silently remove its bounds checks.
+add_library(ct_state_host_checked STATIC runtime/port/vars_ram.c runtime/port/vars_host.c runtime/port/state_host.c runtime/port/rom_host.c ${CT_TIME_RATES})
+target_compile_definitions(ct_state_host_checked PRIVATE CT_VARS_HOST CT_ACCESSOR_CHECKS CT_WITHOUT_ORIGINAL_EFFECTS)
+target_include_directories(ct_state_host_checked PUBLIC game)
+target_link_libraries(ct_state_host_checked PUBLIC ct_platform_native)
+target_link_libraries(vars_host_test PRIVATE ct_state_host_checked)
 add_executable(unpack_time_test tests/port/unpack_time_test.c game/data/decompress.c)
 target_link_libraries(unpack_time_test PRIVATE ct_state_host)
 set(CT_NATIVE_GAME_SOURCES ${CT_GAME_SOURCES})

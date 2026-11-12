@@ -234,17 +234,24 @@ the names still shaped like an address or a byte (`field_setting_1e`), which
 wait for a meaning. A record whose fields are separate concepts is two
 variables (`field_object_role` and `field_object_character`, a byte apart).
 
-An optional variable `host_module = "locations"` names its C storage owner
-in the native build. Selection rejects shared bytes, overlapping record
-fields, `reuses`, unchecked arrays and page instances; those require ownership
-work first. This metadata changes neither original addresses nor emulator
-backing. `ram_map.py storage` counts selected variables once each, independent
-of fields and instances; [STATE.md](STATE.md) inventories what blocks the rest.
+An optional variable `host_module = "locations"` selects its C storage module
+in the native build. A variable with `host_alias = "owner_variable"` instead
+views that selected owner's storage, with no independent field. Its declared
+bytes must be fully covered by the owner; every overlapping variable must
+declare the same owner. Within a record, a field's `host_alias = "owner_field"`
+likewise selects a containing field. Alias chains, missing owners, coverage of
+padding and duplicate owners are errors. Page-instance ownership remains open.
+Checked indices retain their diagnostics; invalid indices, including deliberate
+unchecked tails, use the address view without indexing outside a C object.
+This metadata changes neither original addresses nor emulator backing.
+`ram_map.py storage` counts each owner or alias variable once, independently of
+fields and instances, and reports per subsystem; [STATE.md](STATE.md) explains
+the generated views and what blocks the rest.
 
 Work RAM is reused from one game mode to the next, so two entries may cover the
 same bytes when their subsystems differ (the battle's `$7E:2000` is not the
-field's); within a subsystem the map rejects an overlap, unless one entry
-names the other with `reuses`: the same subsystem's bytes put to another use
+field's); within a subsystem the map requires a declared common host owner or
+one entry naming the other with `reuses`: the same subsystem's bytes put to another use
 at another time (the field decompresses a map's data where the map's tile
 looks go once the data is unpacked, `field_tile_looks` over
 `field_map_data`); a third use names the second, and the chain covers the
