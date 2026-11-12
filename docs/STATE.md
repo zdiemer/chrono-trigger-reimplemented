@@ -3,8 +3,7 @@
 `python3 tools/ram_map.py storage` measures Phase 4a by **variables** in
 `re/ram.toml`: each `[[var]]` counts once, regardless of fields, array length,
 page instances or bytes. Before migration all 2,263/2,263 (100%) use the work-RAM
-image in `ct_native`. Emulator-backed builds must retain that backing while
-generated code and byte comparisons use it.
+image in `ct_native`. The lean native gate protects each storage migration.
 
 ## Inventory
 
@@ -139,8 +138,7 @@ index outside a C object. `_unchecked` accessors take that same safe path
 without reporting a fault. The inventory's fourteen tail cells belong to the
 menu arrays; the demo's eighth character record reaches the tech storage.
 The map's existing `unchecked` reasons remain the contracts for those reaches.
-Page-instance variables still wait for ownership to be resolved. Emulator
-builds compile the original RAM accessor bodies; no game logic changed.
+Page-instance variables still wait for ownership to be resolved. No game logic changed.
 
 The address projection selects a field with two indexed table reads (page,
 then byte), followed by a field switch. Only the 23 populated pages have byte
@@ -236,21 +234,8 @@ allocation also requires the remaining unnamed address clients to move.
 
 ## Validation
 
-The warning-as-error build passed. `ram_map.py header --check` and
-`ram_map.py accessors --check`, `vars_host_test`, `native_time_test`,
-`unpack_time_test` and the emulator-backed `vars_test` passed. Both
-`portstyle.py --check` and `portsmell.py --check` passed. No baseline or
-exception was added. The Python unit suite passed all 626 tests without skips.
-The sampled gate's 58 shadow movies were clean; the 7,200-frame generated-only
-trace matched the reference, and the timing, video-write, fallback and refusal
-checks passed. Both fast routes reached their outcomes in the shipping build
-and in `ct_native`, including Lavos's shell and Beyond Time's second form.
-All 58 movies and both routes passed with scaffolding compiled out. All 58
-movies reached their end in strict mode and in `ct_native` with visible output;
-both recorded-outcome ratchets passed. These are baseline checks, not a claim
-that every final state or picture equals the reference (28 strict and 23 native
-end states matched). Sound fuzzing retained both expected digests.
-The sampled `tools/suite.py --ct-dev build/main/ct_dev.exe -j 2 --evidence`
-gate ended `suite OK`; neither the whole-library nor long-route option was used.
-Gate logs and derived artifacts remain under the ignored
-build directory; the evidence cache is local to the worktree.
+The ROM-free tests cover owner/alias coherence, bounds diagnostics, cartridge
+save round trips, bulk reads and writes, video sources and decompression timing.
+`ram_map.py header --check` and `ram_map.py accessors --check` check the committed
+generated accessors. The lean gate additionally protects native movie saves,
+places and fast route outcomes. No save/place baseline or exception changed.

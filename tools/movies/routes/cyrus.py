@@ -10,11 +10,11 @@ import heapq
 from .. import addresses as A, bfs, policies
 from ..campaign import Run, route_arguments, run_route
 
-SAVE = "oracle/saves/fantasyanime/ctsave14-side_quests3.srm"
+SAVE = "saves/fantasyanime/ctsave14-side_quests3.srm"
 HEADER = """\
 # Cyrus's grave: borrow the carpenter's tools across the eras, repair the Northern Ruins,
 # clear the left wing, and bring Frog to Cyrus; the Masamune restored and the field back in hand.
-# Route: cyrus. Save: ctsave14 slot 1 (oracle/saves/fantasyanime).
+# Route: cyrus. Save: ctsave14 slot 1 (saves/fantasyanime).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -190,7 +190,7 @@ def guardians(run, direction, variable, value, seed):
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
     if start > 1:

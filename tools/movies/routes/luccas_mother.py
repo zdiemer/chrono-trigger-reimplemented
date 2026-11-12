@@ -8,7 +8,7 @@ from .. import addresses as A
 from ..campaign import Run, route_arguments, run_route
 from .prepare_luccas_mother import boot, dash_to, world_search
 
-SAVE = "oracle/saves/routes/luccas-mother-before-campfire.srm"
+SAVE = "saves/routes/luccas-mother-before-campfire.srm"
 PHASES = ["loaded", "shrine", "campfire", "gate", "bedroom", "front", "running",
           "console", "saved_lara", "returned", "after"]
 LARA_FLAGS, FOREST_FLAGS = 0x7F007C, 0x7F019E
@@ -18,7 +18,7 @@ HEADER = """\
 # Lucca's mother: recover Robo at Fiona's shrine, the campfire, the red gate to 990 A.D., and the accident.
 # Activate the machine and enter L, A, R, A against the clock; Lara is saved. Return through the gate, receive
 # Robo's GreenDream, and end on the 1000 A.D. world map with control back (route luccas_mother).
-# Save: luccas-mother-before-campfire slot 1 (oracle/saves/routes; prepare_luccas_mother from technoplaza ct-state11).
+# Save: luccas-mother-before-campfire slot 1 (saves/routes; prepare_luccas_mother from technoplaza ct-state11).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -56,8 +56,7 @@ def enter_password(run):
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     m = run.machine
     try:
         start = run.start_at(PHASES)

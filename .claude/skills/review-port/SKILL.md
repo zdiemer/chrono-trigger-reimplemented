@@ -5,7 +5,7 @@ description: Critical qualitative review of hand-written ports in game/, judging
 
 # Reviewing a port: does it read as hand-written?
 
-The gate proves a port **behaves** like the original. It says nothing about
+The gate protects recorded native behavior. It says nothing about
 whether it **reads** like a game someone wrote in C, and neither does
 `tools/portstyle.py`, which measures syntax. Ports have passed both while still
 being translations: the event rewrite scored 0.02 operations per line with no
@@ -484,10 +484,10 @@ Each of these is a finding. Every example here comes from this repo.
     hides behind a clean accessor name, and it breaks the moment storage goes
     native. A deliberate stray write the gate needs is an explicit, marked
     scaffolding write, through the variable's `_unchecked` accessors (the map
-    says why) or `game/wram.h`. The gate now finds the accidental ones the
-    movies reach (`accessor out of range`, docs/DISASSEMBLY.md "The
-    accessors"), and `ct_fuzz` lists those random states reach; what neither
-    reaches is still the reviewer's to read for.
+    says why) or `game/wram.h`. Native bounds-check tests exercise indexed
+    accessors (docs/STATE.md).
+    The movie gate rejects reported accessor faults; paths neither check
+    reaches are still the reviewer's to read for.
 29. **Guards that duplicate the logic.** A guard that re-runs the routine to
     predict it (`field_view_unchanged`, `draws`) is shadow mode's structure
     leaking into the file's shape.
@@ -861,7 +861,8 @@ Each of these is a finding. Every example here comes from this repo.
      cell the logic reads under one name (`battle_jump_lift`) that another
      port's `ORIGINAL_EFFECT` leave writes at its offset (`LEFT_WAY_BACK`):
      the native shape then reads it stale. Check every leave's offset against
-     the map's named cells; a candidate for `tools/effects_check.py`.
+     the map's named cells. Comparison-only writes retired in phase A;
+     reject their reintroduction (docs/PORTING.md, "Scaffolding").
 115. **A register leftover made into vocabulary.** A logic header exporting a
      query whose answer is only what a register held when the original
      returned (`menu_equip_item_described_on_opening`, X left pointing at a
@@ -933,19 +934,9 @@ Each of these is a finding. Every example here comes from this repo.
      bridge remembers the context it set up, or the frame is declared don't
      care; the logic's signatures carry only what the game decides.
 
-**Item 81 and the effects baseline.** A baseline line that admits the two
-builds diverge ("a native build decides it") is a record of the gap, not the
-showing item 81 asks for. Either the cell becomes a plain write wherever the
-original leaves it, or the library is shown to reach no visible difference and
-the port says so, with what the player would see. Read each line's reason
-against the mechanism it cites: a reason pasted across dozens of lines ("each
-object starts afresh") is only as good as its premise, and one false premise
-makes every line that cites it unproven.
-
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
-re-running the logic: first do the port-routine skill's third trap (name the
-reader, or prove it dead with `--poison-dc`). If the flag survives, a status
+re-running the logic: identify the actual native reader before retaining a register derivation. If the flag survives, a status
 enum is acceptable when every member is a real game condition and everything
 that derives registers from it lives outside the logic file (the subsystem's
 leaves), never in the logic's own header.
@@ -975,21 +966,16 @@ subsystem's headers for each chunk in a run.
 
 ## What is legitimately machine-shaped
 
-Don't flag these, but **do** check that each is thin, isolated and says why it
-exists:
+Existing wrappers are deferred to machine removal. Do not add comparison-only
+writes; those have retired. For the remaining forms, check that each is thin,
+isolated and says why it exists:
 
 - a registered entry's wrapper, which translates the original's registers to
   the logic and back;
 - guards;
-- bridges around a call to still-generated code;
+- existing bridges awaiting machine removal;
 - a deliberate reproduction of an original quirk the gate or the game can see
   (a wraparound, an odd order, a scratch write), with a comment saying why;
-- marked scaffolding: writes and values that exist only for still-generated
-  code or shadow mode, going through the scaffolding mechanism
-  (docs/PORTING.md). Until that exists in the tree, the convention is one
-  helper per file with a comment saying the write is for the original's code
-  or shadow mode. A scaffolding write inline among the logic's own writes is
-  smell 9;
 - `// $BB:AAAA` origin comments, and `PF_AT(...)` / `PF_CALL(...)` origin tags
   on service calls.
 

@@ -16,12 +16,12 @@ let the cat spring the final trap. Check all eight fort bits and field control.
 from .. import addresses as A, bfs, policies
 from ..campaign import Run, route_arguments, run_route
 
-SAVE = "oracle/saves/fantasyanime/ctsave12-side_quests1.srm"
+SAVE = "saves/fantasyanime/ctsave12-side_quests1.srm"
 HEADER = """\
 # Ozzie's Fort, 600 A.D.: Flea Plus, Super Slash, the three generals and Ozzie's final trap.
 # From the End of Time by Epoch; the conveyor and treasure scenes, the switch battle,
 # the fall to the floor below, and the cat springing the final trap; field control restored (route ozzies_fort).
-# Save: ctsave12 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave12 slot 2 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -79,7 +79,7 @@ def generals(bot, state, rng, inventory):
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     machine = run.machine
     try:
         start = run.start_at(PHASES)

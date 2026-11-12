@@ -12,7 +12,7 @@
  * docs/PORTING.md, "Scaffolding"). The few ports that still read a stream
  * through the port, where its data has no entries in the RAM map yet, are
  * listed in docs/TODO.md; that is a debt, not a way to write a port.
- * runtime/port/state_io.c is the backing, beside the one for game/vars.h; a
+ * the state backend is the backing, beside the one for game/vars.h; a
  * native backing keeps what those streams need as values, with no
  * registers.
  *

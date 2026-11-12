@@ -463,7 +463,7 @@ void battle_load_action_animation_entry(Snes *s)
  * attack has a target to face. What else the original's loaders read -- the
  * showing's note of the second half, the animation's cells as the loading's
  * start leaves them -- is scaffolding here, which a native build doesn't
- * write; their fuzz runs give it as the showing does (tools/fuzz_routines.toml). */
+ * write; their fuzz runs give it as the showing does (the original input constraints). */
 static bool actor_fits(const GameState *g) { return battle_names_combatant(battle_action_actor(g)); }
 
 static bool target_fits(const GameState *g)

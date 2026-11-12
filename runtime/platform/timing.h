@@ -124,10 +124,7 @@ typedef struct {
 typedef enum { TM_ENTROPY_BYTES, TM_ENTROPY_WORDS } TmEntropyWidth;
 PF_API TmEntropy tm_entropy(Platform *pf, PfOrigin o, TmEntropyWidth width);
 
-#ifdef CT_PLATFORM_SNES
-#include "platform/snes/timing.h"
-#else
-/* The SNES backend's escapes (platform/snes/timing.h), declared so that code
+/* Legacy machine escapes, declared so that code
  * still using them compiles against another backend: the beam's status, which
  * the idle entries' wait loops poll, and the word the field's parity was read
  * with. A backend with no beam has no answer for either: each use is a wait
@@ -137,6 +134,5 @@ PF_API TmEntropy tm_entropy(Platform *pf, PfOrigin o, TmEntropyWidth width);
 enum { TM_SNES_IN_VBLANK = 0x80, TM_SNES_IN_HBLANK = 0x40, TM_SNES_JOYPAD_BUSY = 0x01 };
 uint8_t tm_snes_video_status(Platform *pf, PfOrigin o);
 uint16_t tm_snes_odd_frame_read(void);
-#endif
 
 #endif

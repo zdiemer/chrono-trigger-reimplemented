@@ -12,12 +12,12 @@ HEADER = """\
 # Factory Ruins, 2300 A.D.: open the lab security doors, enter the lower security code, restore power,
 # escape the closing shutters, and defeat the six R Series robots; Robo's rescue, repair and the Gate trip
 # follow, ending with the field back in hand at the End of Time.
-# Route: r_series. Save: ctsave03 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Route: r_series. Save: ctsave03 slot 2 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
-SAVE = "oracle/saves/fantasyanime/ctsave03-future_more.srm"
+SAVE = "saves/fantasyanime/ctsave03-future_more.srm"
 SLOT = 1
 WORLD_MAP, HALL, LAB_SIDE = "f201", "e400", "e500"
 PHASES = ["loaded", "hall", "reordered", "console", "won", "lab", "upper", "security",
@@ -78,8 +78,7 @@ def check_console(run):
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
     if start > 0:

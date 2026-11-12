@@ -115,7 +115,7 @@ static inline uint8_t tile_priority(uint8_t attributes)
 
 TileAttributes map_tile_attributes(const GameState *g, MapPlace p);
 
-/* For the original's effects only (original_effects.h): the attributes the
+/* Compatibility lookup: the attributes the
  * original reads for a place off the map, whose row and column it indexes
  * the tables by all the same -- the next bytes of the row (column 64's upper
  * attributes are column 0's lower ones), or bank $7F's past the last row for

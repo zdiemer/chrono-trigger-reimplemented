@@ -1,5 +1,5 @@
 /* The game's state with no machine under it: the backing of game/state.h,
- * vars.h, cpu_io.h, wram.h, charge.h and original_frame.h for ct_native
+ * vars.h, cpu_io.h, wram.h and charge.h for ct_native
  * (docs/PLAYING.md, "The native program").
  *
  * Migrated modules use generated C structs (vars_host.h); the remaining

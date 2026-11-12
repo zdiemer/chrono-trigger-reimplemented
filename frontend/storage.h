@@ -1,4 +1,4 @@
-/* Desktop file names and byte storage shared by both players. */
+/* Desktop file names and byte storage for the native player. */
 #ifndef CT_STORAGE_H
 #define CT_STORAGE_H
 #include <stdbool.h>
@@ -8,7 +8,6 @@
 typedef struct {
     char sram[1024];      /* <rom name>.srm */
     char state[1024];     /* quick saves: <rom name>.state, or <movie name>.state while recording */
-    char misses[1024];    /* <rom name>.misses.txt */
     char assets[1024];    /* the asset pack (frontend/assets.h): <rom name>.assets */
     const char *movie;    /* the movie being recorded, or NULL */
 } Files;

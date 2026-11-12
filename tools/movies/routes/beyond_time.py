@@ -20,15 +20,14 @@ HEADER = """\
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
-SAVE = "oracle/saves/technoplaza/ct-state15.srm"
+SAVE = "saves/technoplaza/ct-state15.srm"
 PHASES = ["inside", "form2", "core", "ending"]
 SQUARE, BELL_PLAZA, TELEPODS = "5000", "5100", "5500"
 
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 

@@ -1,13 +1,13 @@
 """Buttons and the `.ctm` input movie format (docs/ORACLE.md), and a CLI that
 turns a recorded run into a movie.
 
-A run driven by ctdrv.Machine logs the buttons it held on every frame; this
+A run driven by driver.Driver logs the buttons it held on every frame; this
 module turns that list into the movie's events and back.
 
     python3 -m tools.movies.mkmovie <pads file> <out.ctm> [--frames N]
         [--header header.txt] [--sram save.srm]
 
-The pads file is what `Machine.save_state(path)` writes next to a state
+The pads file is what `Driver.save_state(path)` writes next to a state
 (`<path>.pads`): decimal pad values, one per frame, whitespace separated. The
 header file's lines are copied into the movie; `{FRAMES}` and `{CRC}` in them
 are replaced with the movie's length and the `--sram` save's CRC-32.
@@ -15,7 +15,7 @@ are replaced with the movie's length and the `--sram` save's CRC-32.
 import argparse
 import zlib
 
-# JOY1 bit order, as in oracle/src/movie.h.
+# JOY1 bit order, as in frontend/movie.h.
 BUTTONS = {
     "R": 1 << 4,
     "L": 1 << 5,
@@ -31,7 +31,7 @@ BUTTONS = {
     "B": 1 << 15,
 }
 
-# The order names are written in, matching the movies already in oracle/movies.
+# The order names are written in, matching the movies already in movies.
 BUTTON_ORDER = ["B", "Y", "SELECT", "START", "UP", "DOWN", "LEFT", "RIGHT", "A", "X", "L", "R"]
 
 # A button on the second controller is named with this prefix ("P2:SELECT"), and

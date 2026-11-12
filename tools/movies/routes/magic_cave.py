@@ -15,12 +15,12 @@ from ..campaign import Run, route_arguments, run_route
 HEADER = """\
 # 600 A.D.: from the world map into the mountainside ($0A3), where the party walks up to the rock and Frog, holding
 # the Masamune, remembers: the forest ($077), then Glenn and Cyrus on the bridge ($087), a few lines (route magic_cave).
-# Save: ctsave06 slot 1 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave06 slot 1 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
-SAVE = "oracle/saves/fantasyanime/ctsave06-magus_castle.srm"
+SAVE = "saves/fantasyanime/ctsave06-magus_castle.srm"
 SLOT = 0
 PHASES = ["loaded", "mountain", "forest", "bridge"]
 MOUNTAIN, FOREST, BRIDGE = "a300", "7700", "8700"
@@ -28,8 +28,7 @@ MOUNTAIN, FOREST, BRIDGE = "a300", "7700", "8700"
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 

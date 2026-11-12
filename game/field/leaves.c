@@ -229,7 +229,7 @@ bool field_tile_copy_overflow(const GameState *g, bool before)
 /* The story's progress less the progress its menu waits for ($C0:1993). Its
  * readers: the menus' entry keeps the flags it is entered with ($C2:8013's
  * PHP), and the main loop's next frame reaches the sound driver's saved flags
- * (tools/v_readers.py --after C0:1985). */
+ * (the flag-reader analysis --after C0:1985). */
 bool field_story_test_overflow(const GameState *g)
 {
     return field_subtract_overflows8(story_progress(g), FIELD_START_MENU_FROM_STORY);

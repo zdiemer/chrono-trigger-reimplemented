@@ -4,12 +4,12 @@ from pathlib import Path
 from ..campaign import REPO, Run, route_arguments, run_route
 from .. import policies
 
-SAVE = "oracle/saves/fantasyanime/ctsave03-future_more.srm"
+SAVE = "saves/fantasyanime/ctsave03-future_more.srm"
 PHASES = ["race", "world", "dome", "first_bugs", "second_bugs", "naming", "repaired"]
 HEADER = """\
 # Robo repaired at Proto Dome, 2300 A.D.; keep his name, choose Lucca to accompany him, and return to the field
 # with Robo in the party (route proto_dome). The approach reuses events-jetbike-race-won's winning inputs.
-# Save: ctsave03 slot 1 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave03 slot 1 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -33,12 +33,12 @@ def bugs(run, seed):
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     m = run.machine
     try:
         start = run.start_at(PHASES)
         if start <= 0:
-            m.play_movie(str(Path(REPO) / "oracle/movies/saves/events-jetbike-race-won.ctm"), 8083)
+            m.play_movie(str(Path(REPO) / "movies/saves/events-jetbike-race-won.ctm"), 8083)
             assert m.b(0x7F0000) == 0x37, "before Robo's repair"
             assert m.b(0x7F0148) == 0, "repair not started"
             assert 3 not in m.peek(0x7E2980, 3)

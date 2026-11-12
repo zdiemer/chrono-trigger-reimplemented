@@ -18,12 +18,12 @@ HEADER = """\
 # A floor switch in Lucca's house: load the save (on the 1000 A.D. world map beside the house), go in, step on the
 # two-by-two floor switch there from its left column, then open the menus and close them, the switch pressed again from
 # what the map remembers (route floor_switches).
-# Save: ctsave14 slot 1 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave14 slot 1 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
-SAVE = "oracle/saves/fantasyanime/ctsave14-side_quests3.srm"
+SAVE = "saves/fantasyanime/ctsave14-side_quests3.srm"
 SLOT = 0
 LUCCAS_HOUSE = "0400"
 PHASES = ["loaded", "inside", "pressed", "back"]
@@ -59,8 +59,7 @@ def press(run, column, row, other):
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 

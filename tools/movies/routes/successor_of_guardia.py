@@ -2,7 +2,7 @@
 from ..campaign import run_route
 from ..other_endings import play_ending
 
-SAVE = "oracle/saves/technoplaza/ct-state17.srm"
+SAVE = "saves/technoplaza/ct-state17.srm"
 
 
 def ending(run):

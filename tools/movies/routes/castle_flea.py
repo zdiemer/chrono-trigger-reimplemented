@@ -6,7 +6,7 @@ PHASES = APPROACH + ["flea_hall", "flea_corridor", "flea_room", "flea", "won", "
 HEADER = """\
 # Magus's castle, 600 A.D.: explore the wings, Ozzie's ambush, and the right wing,
 # then the Flea decoy and Flea, ending with the field back in hand (route castle_flea).
-# Save: ctsave06 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave06 slot 2 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -14,8 +14,7 @@ HEADER = """\
 
 def main():
     args = route_arguments(__doc__, save=SAVE)
-    run = CastleRun(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-                    generated=args.generated, until=args.until)
+    run = CastleRun(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     try:
         start = run.start_at(PHASES)
         approach(run, start, args.seed)

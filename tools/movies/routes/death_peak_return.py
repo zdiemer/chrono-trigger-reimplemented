@@ -7,12 +7,12 @@ clone for Crono in the frozen Ocean Palace.
 from ..campaign import Run, route_arguments, run_route
 from .death_peak import arrive, spawn, walk_to
 
-SAVE = "oracle/saves/routes/death-peak-summit.srm"
+SAVE = "saves/routes/death-peak-summit.srm"
 PHASES = ["loaded", "spawn", "shell", "climbed", "summit", "frozen", "returned"]
 HEADER = """\
 # Death Peak, 2300 A.D.: beat the final Lavos Spawn, push its shell into place and climb to the summit.
 # Use the Time Egg, exchange the clone for Crono in the frozen Ocean Palace, and return to field control.
-# Save: death-peak-summit slot 1 (oracle/saves/routes), made by events-death-peak-ascent; route death_peak_return.
+# Save: death-peak-summit slot 1 (saves/routes), made by events-death-peak-ascent; route death_peak_return.
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -21,7 +21,7 @@ HEADER = """\
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     m = run.machine
     try:
         start = run.start_at(PHASES)

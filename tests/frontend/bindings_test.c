@@ -1,4 +1,4 @@
-/* Checks ct_play's gamepad and key bindings (frontend/bindings.c) on a virtual
+/* Checks ct_native's gamepad and key bindings (frontend/bindings.c) on a virtual
  * SDL game controller: the default layout by position (the bottom face button
  * is the SNES's B), the left stick and its dead zone, opposite directions
  * cancelling, a trigger held for fast forward, rebinding, and bad bindings

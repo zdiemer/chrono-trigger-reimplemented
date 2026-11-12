@@ -3,13 +3,13 @@ from .. import addresses as A, policies
 from ..campaign import Run, route_arguments, run_route
 from .epoch_lavos import wait_until, DIAL_PERIOD
 
-SAVE = "oracle/saves/fantasyanime/ctsave13-side_quests2.srm"
+SAVE = "saves/fantasyanime/ctsave13-side_quests2.srm"
 SLOT = 2
 PHASES = ["loaded", "boarded", "future", "landed", "palace", "battle", "won", "after"]
 HEADER = """\
 # Sun Palace, 2300 A.D.: fly the Epoch from ctsave13 slot 3 and win Son of Sun's flame puzzle.
 # The policy reads the flames' reaction state after each shuffle; stop with the field back in hand (route son_of_sun).
-# Save: ctsave13 slot 3 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave13 slot 3 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -52,7 +52,7 @@ def fly_to(run, x, y):
 def flame_policy(bot, state, rng, inventory):
     """Heal, then attack the flame whose reaction does not counter.
 
-    Enemy $F7's AI (tools.disasm.battlescript) reacts to Roulette Shuffle
+    Enemy $F7's AI reacts to Roulette Shuffle
     by setting magic defence, stat offset $3C, to $62 on the chosen flame
     and $63 on the others. Its $63 reaction counters; the other flame's
     ordinary attack passes damage to the eye. Re-read it for each turn.
@@ -153,7 +153,7 @@ def play(run, seed=1):
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     play(run, args.seed)
     m = run.machine
     m.screenshot(run.prefix + "_end.png")

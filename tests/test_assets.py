@@ -1,10 +1,4 @@
-"""The catalogue of resources (re/assets.tsv) and the C table generated from it
-(game/data/asset_catalogue.c). The table is committed so that a build without a
-ROM has it; this fails when it is out of date (regenerate with `python3
-tools/assets.py build --rom <rom>`) or when the catalogue breaks its own rules.
-Whether every row is still a region the matching build extracts needs the ROM:
-the gate checks that (`tools/assets.py check --rom`).
-"""
+"""The authored asset catalogue and committed native lookup table agree; no ROM needed."""
 import unittest
 
 from tools import assets
@@ -16,7 +10,7 @@ def row(name, at, end, type_="bytes"):
 
 class Catalogue(unittest.TestCase):
     def test_committed_catalogue_and_table_agree(self):
-        self.assertEqual(assets.check(None), [])
+        self.assertEqual(assets.check(), [])
 
     def test_rules(self):
         good = [row("a", 0xC00000, 0xC0000F), row("b.1", 0xC00010, 0xC00010)]

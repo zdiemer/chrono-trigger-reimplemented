@@ -8,13 +8,13 @@ from .. import addresses as A, policies
 from ..campaign import Run, route_arguments, run_route
 from .rainbow_shell import CONTROL, enter, fight, load
 
-SAVE = "oracle/saves/routes/rainbow-shell.srm"
+SAVE = "saves/routes/rainbow-shell.srm"
 PHASES = ["loaded", "door", "room", "battle", "after"]
 HEADER = """# Giant's Claw, 600 A.D.: from the dungeon save point, open the door,
 # enter Rust Tyrano's chamber and defeat it with Crono, Lucca and Robo.
 # Includes the countdown and fire breath; ends with the field back in hand.
 # Route: rust_tyrano. The long approach is the hand-run route rainbow_shell.
-# Save: rainbow-shell slot 1 (oracle/saves/routes/rainbow-shell.srm), saved
+# Save: rainbow-shell slot 1 (saves/routes/rainbow-shell.srm), saved
 # normally after playing from fantasyanime ctsave13 slot 1, without pokes.
 # frames {FRAMES}
 # sram crc32 {CRC}
@@ -55,7 +55,7 @@ def tyrano(bot, state, rng, inventory):
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     m = run.machine
     try:
         start = run.start_at(PHASES)

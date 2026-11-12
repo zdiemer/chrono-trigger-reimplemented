@@ -1,7 +1,7 @@
 /* The window driver's controls (docs/PLAYING.md, "Controls"): which keys and
  * gamepad inputs press which SNES buttons, and which drive the player (pause,
  * fast forward, quick save and load, fullscreen, quit). The defaults are the
- * keymap ct_play always had plus a gamepad layout; `--bind` and a key file
+ * keymap ct_native always had plus a gamepad layout; `--bind` and a key file
  * change them. Bindings are the driver's: the player only ever sees the
  * buttons they add up to. */
 #ifndef CT_FRONTEND_BINDINGS_H

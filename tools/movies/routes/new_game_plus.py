@@ -16,7 +16,7 @@ HEADER = """\
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
-SAVE = "oracle/saves/technoplaza/ct-state16.srm"
+SAVE = "saves/technoplaza/ct-state16.srm"
 PHASES = ["loaded", "erased", "started"]
 
 CURSOR = 0x7E0054          # the load screen's cursor: a slot 0-2, the fourth row 3, the erase question's yes 4 and no 5
@@ -37,8 +37,7 @@ def ask_to_erase(run):
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 

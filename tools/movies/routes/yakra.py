@@ -4,10 +4,10 @@ from .. import bfs
 from ..campaign import Run, route_arguments, run_route
 from . import _early_bosses as early
 
-SAVE = "oracle/saves/fantasyanime/ctsave01-kidnapping.srm"
+SAVE = "saves/fantasyanime/ctsave01-kidnapping.srm"
 SLOT = 1
 HEADER = """# Rescue Queen Leene: the Cathedral, Frog joins, the organs and switches, Yakra defeated.
-# Save: ctsave01 slot 2 (oracle/saves/fantasyanime/ctsave01-kidnapping.srm).
+# Save: ctsave01 slot 2 (saves/fantasyanime/ctsave01-kidnapping.srm).
 # Route: yakra
 # frames {FRAMES}
 # sram crc32 {CRC}
@@ -19,7 +19,7 @@ PHASES = ["loaded", "settings", "cathedral", "nun", "nagas", "frog", "organ", "h
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     try:
         start = run.start_at(PHASES)
         if start <= 0:

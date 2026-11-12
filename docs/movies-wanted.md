@@ -1,57 +1,25 @@
 # Movies wanted
 
-The game code no movie in the library executes, grouped by what sets it off in
-the game, and the movies that would reach it. Shadow mode only checks what a
-movie runs, so code nobody runs rests on fuzzing alone (TODO.md, "Movies and
-coverage"). This is a ledger for picking the next movie to record; grep it by
-cluster, save or address.
+Gameplay targets for new native movies and state-driven routes. Pick a target
+by cluster, save or address; verify the intended outcome in ct_native.
 
-## How it was measured
+## Reading the inventory
 
-Against the commit that added this file, over the 27 movies of the library
-(`menus-shop-equip` included); the world maps' figures moved to ported where
-the overworld on foot landed (docs/history/reimplementation-chunks.md, "Phase 3, overworld"):
+The byte counts below are historical planning estimates from earlier movie
+libraries, not a current coverage check. A target's play may miss some branches
+in its cluster, so these counts are upper bounds for prioritization only.
+Use the native route's reached outcome and recorded save/place checks to assess
+new coverage; run the whole library and every route with the non-blocking
+`tools/suite.py --long` batch (CLAUDE.md gives the full command).
 
-- **Code**: the analysis `tools/burndown.py` runs (its `Analyzer`, with
-  `reached_code`), so code only an `unreached` hint starts is left out.
-  **Executed**: the union of the movies' `--native shadow --coverage` files.
-  **Ported**: the bytes the registry's ports cover (`burndown.coverage`).
-- Each unexecuted instruction is owned by the port whose walk reaches it (its
-  own region first, then what it inlines), else by the smallest routine of the
-  analysis holding it. The owner's name and sources say what it is.
-- The trigger of each owner, by kind:
-  - world-map objects (bank `$C2` below `$8000`, `$C6:E000` on): the scene each
-    object script belongs to (`tools/disasm/objscript.py`; scene *n* is world
-    map location `$1F0`+*n*, whose era the Epoch's map view names);
-  - the scene program (`$7E`): the modes of `$7E:300A`, by what each mode's
-    setup reaches directly and through the sequence scripts it starts
-    (`tools/disasm/seqscript.py`); the event scripts that start a mode (event
-    `$FF` below `$90`, the mode in its low bits) give its locations;
-  - enemy AI: the enemies whose scripts name the condition, action or target
-    (`tools/disasm/battlescript.py`, names from `$CC:6500`);
-  - event commands: the locations whose event scripts use the opcode
-    (`tools/disasm/derive.py`'s `event_scripts`);
-  - the attract demo: `ct_drive` idling at the title, `$7E:0384` (the scene
-    mode) and `$7E:0100` (the location) read every 50 frames.
-- A save's location is the word at `$5F3` of its slot in the `.srm`.
+World-map object scripts identify their scenes; scene modes identify their
+setup and sequence scripts; enemy and event scripts identify the conditions
+and commands they can reach. The native implementations are in
+`game/menu/script.c`, `game/scene/script.c`, `game/battle/enemy_scripts.c` and
+`game/event/engine.c`. A save's location is the word at `$5F3` of its `.srm` slot.
+Optional `movies/hand/` recordings remain outside the standard library.
 
-"Reaches" below is what a target's play passes through, so it is an upper
-bound: a cluster's branches may depend on details the play doesn't hit.
-Re-measure after recording with the movie's `--coverage` file. KiB per minute
-is that bound over the play's length, for ordering only.
-
-## Totals
-
-The historical whole-game totals below precede the retirement inventory.
-`tools/unreached.py` now measures the subsystems a teardown is next for
-against the standard 84-movie library's coverage union, using conservative
-reach through conditional stops: core 11, event 1,490 and field 2,229
-candidate instruction bytes unexecuted. Of these 3,730 bytes, matched fuzz
-trials cover 3,371, reviewed safety arguments account for 143, and 216 of
-the field's are still open. Exact entries, byte runs and evidence are in
-`tools/unreached_baseline.txt`; mechanisms and limits are in
-REIMPLEMENTATION.md, "The code the movie library does not reach". Optional
-`oracle/movies/hand/` recordings are outside the suite's standard library.
+## Historical totals
 
 | | KiB unexecuted | ported | unported |
 |---|--:|--:|--:|
@@ -120,7 +88,7 @@ the aiming (`battle targeting`) were counted with the animation commands before.
 ### World maps (object scripts of the `$C2:0000` mode)
 
 Re-measured with the clusters: each unexecuted byte goes to the nearest routine at or before it that
-some scene's object script calls (commands `$34`, `$4E`, `$35`/`$42`; `tools/disasm/objscript.py`), and
+some scene's object script calls (commands `$34`, `$4E`, `$35`/`$42`; `game/menu/script.c`), and
 to that routine's scenes; the rest is the object commands' own handlers and the overworld's code.
 
 | Map | KiB (all ported) | Saves on it, and what is left |
@@ -146,8 +114,8 @@ to that routine's scenes; the rest is the object commands' own handlers and the 
 
 ### Event commands (by opcode's locations)
 
-KiB re-measured with the clusters; the locations are the scripts' (`tools/disasm/derive.py`'s
-`event_scripts`, the location records' script word).
+KiB were measured with the clusters; the locations come from the location
+records' script word.
 
 | Command | KiB | Locations whose scripts use it |
 |---|--:|---|
@@ -206,7 +174,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 - **Route**: yes (the battle bot with a policy that walks the tech lists).
 - **Movie**: `battle-tech-sweep` (route `tech_sweep`, 118090 frames, the Core beaten): `tools/movies/routes/tech_sweep.py` (zophar chrono-trigger slot 1:
   Crono, Magus and Marle inside Lavos's shell): walks to the second Lavos form, fights it and then the
-  Lavos Core with a policy (`tools/movies/policies.tech_sweep`) that opens Tech on each member's turn and
+  Lavos Core with a policy (`tools/movies/policies.py::tech_sweep`) that opens Tech on each member's turn and
   takes the first list entry -- by tech id, read from the tech-by-id table at $94D0, not list position,
   so a double tech is found once whichever partner's turn reaches it first -- that isn't cast yet,
   falling back to Attack once a member's list is exhausted for now (not enough MP, or a tech whose only
@@ -321,7 +289,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 - **Reaches**: 0.62 KiB (ported), about 0.3 KiB a minute.
 - **Route**: yes (load screen presses read from RAM).
 - **Movie**: `menus-new-game-plus` (route `new_game_plus`, 3116 frames): on the second slot, Select
-  and Start on the second controller (`P2:` buttons, through `ct_drive`'s second pad) ask to erase it,
+  and Start on the second controller (`P2:` buttons, through `the route driver`'s second pad) ask to erase it,
   no keeps it, a second ask and yes erases it; then the fourth row's New Game+, carrying on from the
   first slot, the default battle mode and Crono's own name, onto the 1000 A.D. world map. It reaches
   0.67 KiB of code no other movie runs (`$C2` and `$FF`). Shadow mode found four port bugs on the
@@ -378,7 +346,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   Mode 7's loss sequence and mode 6's Epoch dive already have separate movies
   (target 8). None of these nine routes starts modes 5, 10, 14 or 12.
 - **Route**: yes (`bucket_lavos`, `telepod_lavos` and `beyond_time` are the pattern).
-- **Hand-run routes**: these long recordings stay in scratch storage, outside `oracle/movies`.
+- **Hand-run routes**: these long recordings stay in scratch storage, outside `movies`.
   Their routes are in `tools/suite.py`'s `HAND_RUN_ROUTES`, excluded even from `--long-routes`;
   regenerate and check them explicitly (MOVIES.md). `tools/movies/other_endings.py` shares the
   Lavos fights and recording setup, and reuses `telepod_lavos.to_the_shell` for the fair.
@@ -711,7 +679,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 ### 13. The story events no movie plays
 The library now plays the story from the Cathedral to Lavos, the side quests and the fair's games
 (their accounts are in history/movie-routes.md). Of the story's events with a save just before
-them (oracle/saves/README.md), one is left:
+them (saves/README.md), one is left:
 
 | Era | Event | Save before it | Boss |
 |---|---|---|---|
@@ -720,14 +688,14 @@ them (oracle/saves/README.md), one is left:
 ### 14. The original's known glitches
 A faithful port reproduces the original's mistakes, so plays that lean on its documented glitches
 test the ports where no ordinary play goes. The speedruns' inputs come from other emulators and
-won't sync here; each is a `ct_drive` route from a save, written from the glitch's description
+won't sync here; each is a `the route driver` route from a save, written from the glitch's description
 (chrono.wikidot.com/glitches; TASVideos submission 2240 and its forum thread).
 
 | Glitch | What it does | Status |
 |---|---|---|
 | 98 slots of one kind of equipment | the equipment screen reaches memory far outside the inventory | waits on the native program's reads past a table's end (TODO.md, "The native program") |
-| Item duplication | interrupt a save after item IDs change but before their quantities do; load the invalid slot with A+Up/Down to retain the mixed inventory | researched below: the TAS uses an external reset during saving, which `ct_drive` and `.ctm` cannot request; no `menus-item-duplication.ctm` recorded |
-| New Game+ save corruption | a reset in the middle of a frame leaves a half-written value in the save: maxed stats, nearly any equipment | needs a reset mid-frame, which neither `ct_drive` nor `ct_native` models |
+| Item duplication | interrupt a save after item IDs change but before their quantities do; load the invalid slot with A+Up/Down to retain the mixed inventory | researched below: the TAS uses an external reset during saving, which `the route driver` and `.ctm` cannot request; no `menus-item-duplication.ctm` recorded |
+| New Game+ save corruption | a reset in the middle of a frame leaves a half-written value in the save: maxed stats, nearly any equipment | needs a reset mid-frame, which neither `the route driver` nor `ct_native` models |
 
 **Item duplication research (no movie).** [Submission 2240](https://tasvideos.org/2240S),
 "Item duplication", describes three save-corruption methods. The save spans two frames;
@@ -743,7 +711,7 @@ console. This is a reset **during a save**, not evidence that submission 2240 ne
 mid-frame reset. [Chrono Speedruns' glitches page](https://chrono.wikidot.com/glitches)
 mentions mid-frame reset for overworld-position corruption but gives no item-duplication recipe.
 
-The menu code and the original, inspected with `tools.disasm.linear`, establish the following:
+The menu code implements the following save and inventory behavior:
 
 - **Save and load:** `game/menu/saves.c`, `$FF:F9FB`, copies the saved RAM regions in order
   through the block-move stub called at `$FF:FA44`; the checksum and slot marker are written
@@ -766,8 +734,8 @@ The menu code and the original, inspected with `tools.disasm.linear`, establish 
   The C guard `menu_list_what_fits_can_be_made` requires fewer than 98 entries, reserving room
   for that terminator. This is a static limit, not a newly observed real-play refusal.
 
-**Recording blocker:** `dev/ct_drive.c` advances whole frames with controller input and has
-no external reset command; `oracle/src/movie.c` records only controller buttons, with no reset
+**Recording blocker:** `frontend/route_driver.c` advances whole frames with controller input and has
+no external reset command; `frontend/movie.c` records only controller buttons, with no reset
 event. Its machine copies restore a whole machine, rather than rebooting it with partially
 written SRAM. The game's L+R+Select+Start reset does exist (`game/core/input.c`, `$C2:851B`-
 `$8523`), but is polled by the menus' vblank handler; it is not the host reset used by the TAS,

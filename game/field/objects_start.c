@@ -38,7 +38,6 @@
 #include "event/event.h"
 #include "field/bridge.h"
 #include "menu/party.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"

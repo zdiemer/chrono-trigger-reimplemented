@@ -21,7 +21,7 @@ int main(void)
     if (track_text(&track, "ct_native", &len)) return 1;
     /* Rewinding must shorten the output, including a trailing idle run. */
     track.frames = 25;
-    text = track_text(&track, "ct_play", &len);
+    text = track_text(&track, "ct_native", &len);
     if (!text || ct_movie_parse(&movie, text, len, "rewind") || movie.length != 25) return 1;
     ct_movie_free(&movie);
     free(text);

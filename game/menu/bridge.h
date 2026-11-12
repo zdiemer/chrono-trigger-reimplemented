@@ -27,7 +27,7 @@ enum { MENU_JSR_SIZE = 3, MENU_JSL_SIZE = 4 };
 /* ---- Compatibility calls and held task switches --------------------------------------- */
 
 /* Call the original's routine from the JSR (JSL) at `site`, declaring what it
- * doesn't read of the registers (checked by tools/dontcare_check.py, which
+ * doesn't read of the registers (checked by the calling convention, which
  * knows these two as it knows m_jsr_dc). True if the callee came back with
  * the widths, page and data bank it was called with; otherwise the port stops
  * at the call's return, and the original carries on from the callee's
@@ -60,7 +60,7 @@ enum { MENU_TASK_WAITS_FRAMES = 0xC2822B, MENU_TASK_WAIT_READS_THE_FRAMES = MENU
  * or `frames`. `widths_its_own` where the loop sets its widths itself, as
  * the original's code has them at the wait. Where the runtime wouldn't run
  * the wait, the port stops at the JSR, declaring what the wait reads
- * (tools/dontcare_check.py reads it so, from the callers' sites). */
+ * (the calling convention reads it so, from the callers' sites). */
 void menu_wait_in_the_task_loop(Snes *s, uint32_t site, bool widths_its_own);
 void menu_wait_frames_in_the_task_loop(Snes *s, uint32_t site, uint8_t frames, bool widths_its_own);
 

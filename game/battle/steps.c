@@ -25,7 +25,7 @@
  * action's showing may also read the overflow flag as the asker leaves it
  * (liveness can't rule that out for them), which the dispatch passes on
  * untouched; the others don't. Their askers read the accumulator and the
- * carry after (tools/dontcare_check.py checks both). */
+ * carry after (the calling convention checks both). */
 enum { STEP_READS_A_AND_OVERFLOW = DC_X | DC_Y | DC_N | DC_Z, STEP_READS_A = STEP_READS_A_AND_OVERFLOW | DC_V };
 
 /* The routine of each step, its hand port where the dispatch runs it on the
@@ -132,7 +132,7 @@ bool battle_step_is_known(Snes *s)
 enum { KEPT_X_BELOW = 2, KEPT_Y_BELOW = 4, KEPT_REGISTER_BYTES = 2 };
 
 /* The asker's X and Y the dispatch keeps are what its call declares the
- * dispatch doesn't read (tools/dontcare_check.py checks the declaration as
+ * dispatch doesn't read (the calling convention checks the declaration as
  * the original's call at the asker's site): the dispatch only pulls them back
  * after the step, which the port does from its own copy. So where the asker
  * declares them, its own, which aren't the original's, aren't compared while

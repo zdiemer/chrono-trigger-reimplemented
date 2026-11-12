@@ -1,11 +1,7 @@
-/* The calibrated rates of the routines a port's work is timed as, for a build
- * with no machine (ct_native): each registered entry's and time tag's
- * cost_milli, the original's clocks per thousand of the port's bus clocks, as
- * tools/timing_gate.py last calibrated them on the machine. The build writes
- * the table from game/registry.c, game/time_tags.c and retired_time_rates.h
- * (tools/time_rates.py),
- * sorted by address; runtime/port/state_host.c charges the game's own work at
- * them (docs/REIMPLEMENTATION.md, "The frame-level time model"). */
+/* Frozen native work rates, sorted by routine identity. cost_milli scales
+ * the port's accounted work in thousandths; state_host.c accumulates the
+ * resulting frame debt. The committed table is time_rates.c. Changes require
+ * native gameplay evidence; the build does not regenerate or calibrate it. */
 #ifndef CT_PORT_TIME_RATES_H
 #define CT_PORT_TIME_RATES_H
 

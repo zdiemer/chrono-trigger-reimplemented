@@ -19,7 +19,7 @@ void menu_start_the_fade_in(GameState *g);
  * original's routine for it does when the JSR at `site` calls it; false where
  * the port stops (menu/bridge.h, menu_yield). Its last frame's wait is the
  * task switch's ($C2:821E) as if from `site`, with every register as the
- * original leaves them (tools/dontcare_check.py reads it so). */
+ * original leaves them (the calling convention reads it so). */
 enum { MENU_FADE_S_LAST_WAIT_READS_ALL = 0 };
 bool menu_fade_out_from(Snes *s, uint32_t site);
 

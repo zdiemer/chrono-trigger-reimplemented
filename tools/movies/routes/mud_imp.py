@@ -7,12 +7,12 @@ before the boss; stop after the third victory with the field back in hand.
 from .. import policies
 from ..campaign import Run, route_arguments, run_route
 
-SAVE = "oracle/saves/fantasyanime/ctsave09-epoch.srm"
+SAVE = "saves/fantasyanime/ctsave09-epoch.srm"
 PHASES = ["loaded", "cave", "beasts1", "beasts2", "battle", "won", "after"]
 HEADER = """\
 # Terra Cave, 12,000 B.C.: from the settlement save through two Beast pairs to the Mud Imp,
 # Blue Beast and Red Beast; win and return control to the field (route mud_imp).
-# Save: ctsave09 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave09 slot 2 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -60,7 +60,7 @@ def win(run, policy, seed):
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     m = run.machine
     try:
         start = run.start_at(PHASES)

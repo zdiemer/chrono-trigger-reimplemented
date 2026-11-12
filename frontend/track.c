@@ -36,7 +36,7 @@ char *track_text(Track *t, const char *source, size_t *len)
     n += snprintf(header + n, sizeof header - n, ".\n# frames %lu\n", (unsigned long)t->frames);
     if (t->sram_name)
         n += snprintf(header + n, sizeof header - n, "# sram crc32 %08X\n", (unsigned)t->sram_crc);
-    snprintf(header + n, sizeof header - n, "# Replay: ct_dev --rom <rom> --frames %lu --movie %.80s%s --native shadow\n",
+    snprintf(header + n, sizeof header - n, "# Replay: ct_native --rom <rom> --frames %lu --movie %.80s%s\n",
              (unsigned long)t->frames, t->record_name, t->sram_name ? " --sram <save>" : "");
     t->pending_frames = t->frames;
     char *text = ct_movie_format(t->pads, t->frames, header, len);

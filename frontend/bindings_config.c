@@ -10,7 +10,7 @@ int bindings_configure(const char *keys_path, const char *const *binds, int nbin
     if (!keys_path) {
         char *base = SDL_GetBasePath();
         if (base) {
-            snprintf(default_keys, sizeof default_keys, "%s%s", base, "ct_play.keys");
+            snprintf(default_keys, sizeof default_keys, "%s%s", base, "ct_native.keys");
             SDL_free(base);
         }
     }

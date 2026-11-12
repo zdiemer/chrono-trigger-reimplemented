@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from tools.movies import route_check
-from tools.movies import ctdrv
+from tools.movies import driver
 from tools.movies import campaign, addresses
 
 
@@ -22,7 +22,7 @@ class NativeModeTest(unittest.TestCase):
         run.machine.probe.assert_not_called()
 
     def test_abandoned_driver_is_stopped_by_its_process_handle(self):
-        machine = ctdrv.Machine.__new__(ctdrv.Machine)
+        machine = driver.Driver.__new__(driver.Driver)
         machine.process = unittest.mock.Mock()
         machine.command_log = None
         machine.process.poll.return_value = None
@@ -31,30 +31,20 @@ class NativeModeTest(unittest.TestCase):
         machine.process.stdin.close.assert_called_once()
         machine.process.kill.assert_called_once()
 
-    def test_mode_is_distinct_from_shipping(self):
-        mode = route_check.parse_mode("native")
-        self.assertEqual(mode, ("native", None))
-        self.assertEqual(route_check.mode_name(mode), "native")
-        self.assertNotEqual(mode, route_check.parse_mode("on:on"))
 
-    def test_native_client_uses_server_and_named_files(self):
-        with patch.dict(os.environ, {}, clear=True), patch.object(ctdrv.subprocess, "Popen") as popen:
-            ctdrv.Machine(native="native", drive="native.exe", rom="rom.sfc", sram="save.srm")
+    def test_native_client_uses_drive_and_named_files(self):
+        with patch.dict(os.environ, {}, clear=True), patch.object(driver.subprocess, "Popen") as popen:
+            driver.Driver(drive="native.exe", rom="rom.sfc", sram="save.srm")
         command = popen.call_args.args[0]
-        self.assertEqual(command, ["native.exe", "--server", "--assets", "native.assets",
+        self.assertEqual(command, ["native.exe", "--drive", "--assets", "native.assets",
                                    "--rom", "rom.sfc", "--sram", "save.srm"])
         self.assertNotIn("--generated", command)
 
-    def test_shipping_client_keeps_its_protocol(self):
-        with patch.dict(os.environ, {}, clear=True), patch.object(ctdrv.subprocess, "Popen") as popen:
-            ctdrv.Machine(native="on", drive="drive.exe", rom="rom.sfc", sram="save.srm")
-        self.assertEqual(popen.call_args.args[0],
-                         ["drive.exe", "--native", "on", "--generated", "on", "rom.sfc", "save.srm"])
 
     def test_runner_passes_native_mode_and_records_the_outcome(self):
         def start(command, **kwargs):
             self.assertIn("native.exe", command)
-            self.assertEqual(command[command.index("--native") + 1], "native")
+            self.assertNotIn("--native", command)
             self.assertNotIn("--generated", command)
             kwargs["stdout"].write("checkpoint room frame 12\noutcome reached test frame 20\n")
             process = unittest.mock.Mock()
@@ -62,7 +52,7 @@ class NativeModeTest(unittest.TestCase):
             return process
         with tempfile.TemporaryDirectory() as where, patch.object(route_check, "run_stamp", return_value="test"), \
                 patch.object(route_check.subprocess, "Popen", side_effect=start):
-            result = route_check.run_one("test", ("native", None), where, "rom", "native.exe", 10)
+            result = route_check.run_one("test", where, "rom", "native.exe", 10)
         self.assertTrue(result["passed"])
         self.assertEqual(result["frame"], 20)
         self.assertEqual(result["phases"], [("room", 12)])
@@ -74,7 +64,7 @@ class NativeModeTest(unittest.TestCase):
                 patch.object(route_check.os, "killpg", create=True) as killpg:
             start.return_value.pid = 12345
             start.return_value.wait.side_effect = [subprocess.TimeoutExpired("route", 1), 1]
-            result = route_check.run_one("test", ("native", None), where, "rom", "native.exe", 1)
+            result = route_check.run_one("test", where, "rom", "native.exe", 1)
             if os.name == "nt":
                 self.assertEqual(kill.call_args.args[0], ["taskkill", "/PID", "12345", "/T", "/F"])
             else:
@@ -87,18 +77,17 @@ class ResumeTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.where = os.path.join(self.tmp.name, "run")
-        self.drive = os.path.join(self.tmp.name, "ct_drive")
+        self.drive = os.path.join(self.tmp.name, "ct_native")
         self.rom = os.path.join(self.tmp.name, "rom.sfc")
         for path, data in ((self.drive, b"build one"), (self.rom, b"rom")):
             with open(path, "wb") as f:
                 f.write(data)
-        self.mode = route_check.parse_mode("on:on")
 
     def tearDown(self):
         self.tmp.cleanup()
 
     def stamp(self, route="telepod_lavos"):
-        return route_check.run_stamp(route, self.mode, self.rom, self.drive)
+        return route_check.run_stamp(route, self.rom, self.drive)
 
     def leave_checkpoint(self):
         with open(os.path.join(self.where, "checkpoint"), "w") as f:

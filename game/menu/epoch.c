@@ -1409,7 +1409,7 @@ static bool show_the_time_dial_with(GameState *g, Platform *pf, const EpochScree
 /* ---- On the machine ---- */
 
 /* Registers the original's routines the screens call don't read
- * (tools/dontcare_check.py checks each). */
+ * (the calling convention checks each). */
 enum {
     READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_A = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,

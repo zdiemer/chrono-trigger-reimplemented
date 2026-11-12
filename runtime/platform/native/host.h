@@ -1,6 +1,6 @@
 /* The platform services' host backends: what a build with no emulator passes
  * the game as its Platform (docs/PLATFORM.md, "Timing without a beam"). Such a
- * build defines CT_PLATFORM_EXTERN, so the services' headers declare the calls
+ * services' headers declare the calls
  * and these files define them.
  *
  * Timing, input, video, audio and saves. The frame is the driver's: it calls

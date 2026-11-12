@@ -48,7 +48,6 @@ static void w8(GameState *g, uint32_t a, uint8_t v)
 
 #include "port/machine.h"
 #include "port/native.h"
-#include "port/scaffold_reads.h"
 
 /* A value of the width the map gives, low byte first, as the 65816 stores it. */
 static uint8_t r8(const GameState *g, uint32_t a)
@@ -56,14 +55,12 @@ static uint8_t r8(const GameState *g, uint32_t a)
     if (peeking)
         return snes_bus_peek(&state_snes(g)->bus, a & 0xFFFFFF);
     uint8_t v = m_read8(state_snes(g), a);
-    scaffold_note_read(state_snes(g), a);   /* ct_dev --scaffold-reads */
     return v;
 }
 
 static void w8(GameState *g, uint32_t a, uint8_t v)
 {
     m_write8(state_snes(g), a, v);
-    scaffold_note_write(state_snes(g), a);   /* ct_dev --scaffold-reads */
 }
 
 #endif
@@ -183,13 +180,11 @@ bool scene_program_page_of(uint16_t d, SceneProgramPage *page)
 
 /* ---- bounds ---------------------------------------------------------------------------- */
 
-/* An accessor's index past what re/ram.toml declares reaches whatever comes next in work RAM,
- * which works only while the storage is the original's layout. With CT_ACCESSOR_CHECKS (ct_dev,
- * ct_fuzz, the tests) each is counted, per variable, with the first few indices and where the
- * port was, and the access still happens as it did, so shadow mode compares the same bytes;
- * ct_dev reports the counts and the gate fails a movie with any. Without it (ct_play) the check
- * is not compiled. Marked scaffolding that goes out of range on purpose uses a variable's
- * `_unchecked` pair, which the map declares with a reason, or game/wram.h. */
+/* An accessor's index past what re/ram.toml declares reaches whatever comes next in the
+ * compatibility image. CT_ACCESSOR_CHECKS counts such accesses per variable, with the first few
+ * indices and their source. An explicitly documented `_unchecked` accessor is reserved for a
+ * declared extended range; native storage migrations must resolve these ranges before removing
+ * the compatibility image. */
 #ifdef CT_ACCESSOR_CHECKS
 
 static VarsRangeFault range_faults[] = {

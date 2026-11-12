@@ -9,7 +9,7 @@ from .. import addresses as A, bfs, policies
 from ..campaign import Run, route_arguments, run_route
 from .tech_sweep_spekkio import move_to, party_record, reserve, press
 
-SAVE = "oracle/saves/fantasyanime/ctsave12-side_quests1.srm"
+SAVE = "saves/fantasyanime/ctsave12-side_quests1.srm"
 SLOT = 2
 PHASES = ["loaded", "prepared", "village", "seed", "desert", "lower", "battle", "won", "forest", "shrine", "camp"]
 WORLD_600, WORLD_1000 = "f101", "f001"
@@ -22,7 +22,7 @@ HEADER = """\
 # Fiona's forest: the Sunken Desert and Retinite, Robo left to replant the forest in 600 A.D.,
 # his recovery at the shrine 400 years later, and the campfire, ending with Lucca in hand
 # in 1000 A.D. before her optional trip to the past (route fionas_forest).
-# Save: ctsave12 slot 3 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave12 slot 3 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -267,7 +267,7 @@ def catch_retinite(run):
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     m = run.machine
     try:
         start = run.start_at(PHASES)

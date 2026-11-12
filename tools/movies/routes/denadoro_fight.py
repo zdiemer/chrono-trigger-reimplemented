@@ -13,20 +13,19 @@ from ..encounter import enter_from_the_world_map, load_slot, walk_into_a_fight_f
 HEADER = """\
 # 600 A.D.: from the world map into the Denadoro Mountains ($091), up to the monsters nearest the party until one
 # attacks; the battle bot wins the fight, then the field back in hand (route denadoro_fight).
-# Save: ctsave04 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave04 slot 2 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
-SAVE = "oracle/saves/fantasyanime/ctsave04-masamune.srm"
+SAVE = "saves/fantasyanime/ctsave04-masamune.srm"
 SLOT = 1
 PHASES = ["loaded", "inside", "battle", "won", "after"]
 
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 

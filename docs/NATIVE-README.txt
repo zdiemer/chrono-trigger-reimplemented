@@ -26,7 +26,7 @@ Controls: arrows move; X/Z/S/A are SNES A/B/X/Y; Q/W are L/R;
 Return is Start; Right Shift is Select. Gamepads use face buttons by position,
 D-pad/left stick, shoulders, Start/Back. P pauses, Tab/right trigger fast
 forwards, F11 or Alt+Return toggles fullscreen, Escape quits.
-ct_play.keys beside the executable supplies custom bindings. --keys FILE and
+ct_native.keys beside the executable supplies custom bindings. --keys FILE and
 repeatable --bind "INPUT=ACTION" override them; for example --bind "Space=A".
 
 In-game saves use an 8 KiB .srm beside the pack/ROM (or in --save-dir).
@@ -41,8 +41,7 @@ Checkpoints require the same execution build and are separate from emulator
 .state files. Keep in-game .srm saves for progress across build updates.
 
 --record FILE.ctm records from power-on with empty SRAM, or the --sram save.
-Recordings use the shared ct_play/ct_dev format. Native timing differs from
-reference timing, so identical inputs need not follow the same route there.
+Recordings use the .ctm input format described in docs/MOVIES.md.
 Recordings flush periodically and on normal exit. During recording only a
 quick save from that recording loads; loading rewinds the recorded input.
 

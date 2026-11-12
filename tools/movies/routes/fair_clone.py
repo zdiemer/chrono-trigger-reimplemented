@@ -34,8 +34,7 @@ def play(run):
 
 def main():
     args = route_arguments(__doc__, save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     try:
         start = run.start_at(PHASES)
         if start <= 0:

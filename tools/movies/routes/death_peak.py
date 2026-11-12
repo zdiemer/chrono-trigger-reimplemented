@@ -11,14 +11,14 @@ from pathlib import Path
 from .. import addresses as A, policies
 from ..campaign import Run, route_arguments, run_route
 
-SAVE = "oracle/saves/fantasyanime/ctsave12-side_quests1.srm"
+SAVE = "saves/fantasyanime/ctsave12-side_quests1.srm"
 PHASES = ["loaded", "cave", "spawn1", "ledge", "east_cave", "east_outside", "opened",
           "east_back", "ledge_back", "first_back", "west_back", "middle", "spawn2_room", "spawn2",
           "ridge", "ridge_crossed", "lower_slope", "last_field", "saved"]
 HEADER = """\
 # Death Peak, 2300 A.D.: beat the first two Lavos Spawn, open the middle cave, cross the slippery ridge,
 # and save before the final Spawn; field control returns (route death_peak).
-# Save: ctsave12 slot 1 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave12 slot 1 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -130,7 +130,7 @@ def spawn(run, bit, seed):
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     m = run.machine
     try:
         start = run.start_at(PHASES)

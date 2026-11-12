@@ -3,10 +3,8 @@
     python3 tools/machine_joints.py              # the totals
     python3 tools/machine_joints.py --files      # per file, most first
 
-The census (`tools/census.py`) counts how often real play still reaches a port
-through the machine; this counts the joints in the source that have to go
-before the machine can leave the product (docs/PLAN.md, "What done means,
-measured", and "The native program, and the registry taken down"). Each row
+This counts source dependencies to remove as the machine leaves game/
+(docs/PLAN.md). It does not measure execution coverage. Each row
 is a pattern, so a count is an estimate of sites, not of work: one entry
 wrapper is one return through the emulated stack, and it leaves with its
 subsystem's registry rows rather than one by one.
@@ -50,12 +48,15 @@ JOINTS = [
 ENTRY = re.compile(r"0x[0-9A-Fa-f]{6}")
 
 
-NATIVE_LEAVES_OUT = re.compile(r"list\(REMOVE_ITEM CT_NATIVE_GAME_SOURCES ([^)]*)\)")
 
 
 def native_left_out():
     text = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
-    return {f for m in NATIVE_LEAVES_OUT.finditer(text) for f in m.group(1).split()}
+    library = re.search(r"add_library\(ct_game STATIC(.*?)\)", text, re.S)
+    if not library:
+        raise ValueError("ct_game source list is missing")
+    built = set(re.findall(r"game/[\w/]+\.c", library.group(1)))
+    return {p.relative_to(ROOT).as_posix() for p in GAME.rglob("*.c")} - built
 
 
 def sources():

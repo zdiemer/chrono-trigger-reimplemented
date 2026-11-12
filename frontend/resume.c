@@ -1,5 +1,5 @@
 #include "resume.h"
-#include "trace.h"
+#include "checksum.h"
 #include <stdlib.h>
 #include <string.h>
 

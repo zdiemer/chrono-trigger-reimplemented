@@ -39,7 +39,7 @@ def main():
         ("menu", "menu", 7400, 8000),
         ("battle", "saves/battle-magus", 5000, 5600),
     ):
-        source = root / "oracle/movies" / (movie + ".ctm")
+        source = root / "movies" / (movie + ".ctm")
         state = out / (name + ".native-state")
         run("ct_native", name + "-prefix", "--movie", source, "--frames", cut,
             "--save-state", state, "--wav", out / (name + "-prefix.wav"))
@@ -59,14 +59,14 @@ def main():
     # Route slots reuse exact audio-host replies; file loads reconstruct sound
     # normally. Both go through the player's incremental checkpoint engine.
     route_state = out / "route.state"
-    commands = [f"movie {root / 'oracle/movies/menu.ctm'} 7400", "save 0", f"savefile {route_state}"]
+    commands = [f"movie {root / 'movies/menu.ctm'} 7400", "save 0", f"savefile {route_state}"]
     for kind, restore in (("whole", None), ("slot", "load 0"), ("file", f"loadfile {route_state}")):
         if restore:
             commands.append(restore)
         commands += ["run 300 0", f"wram {out / ('route-' + kind + '.bin')}",
                      f"shot {out / ('route-' + kind + '.png')}"]
     commands.append("quit")
-    run("ct_native", "route", "--server", input_text="\n".join(commands) + "\n")
+    run("ct_native", "route", "--drive", input_text="\n".join(commands) + "\n")
     if any(line.startswith("err ") for line in (out / "route.log").read_text().splitlines()):
         raise RuntimeError("route checkpoint command failed")
     for extension in ("bin", "png"):
@@ -76,21 +76,14 @@ def main():
                 raise RuntimeError(f"route {kind}: continued {extension} differs")
     print("route: slot/audio and file restores preserve continued state and picture", flush=True)
 
-    source = root / "oracle/movies/new-game.ctm"
+    source = root / "movies/new-game.ctm"
     recording = out / "recorded.ctm"
     run("ct_native", "record", "--movie", source, "--record", recording, "--frames", 7200,
         "--end-state", out / "record.bin")
     run("ct_native", "replay", "--movie", recording, "--frames", 7200, "--end-state", out / "replay.bin")
     if (out / "record.bin").read_bytes() != (out / "replay.bin").read_bytes():
         raise RuntimeError("recording changed native playback")
-    run("ct_play", "play", "--movie", recording, "--frames", 7200)
-    for name, movie in (("source", source), ("recorded", recording)):
-        run("ct_dev", name, "--movie", movie, "--frames", 7200, "--native", "off",
-            "--trace", out / (name + ".cttr"))
-    if (out / "source.cttr").read_bytes() != (out / "recorded.cttr").read_bytes():
-        raise RuntimeError("recording changed reference playback")
-    print("recording: native state and reference traces identical; ct_play accepted it", flush=True)
-    print("player check OK")
+    print("recording: native playback unchanged", flush=True)
 
 
 if __name__ == "__main__":
