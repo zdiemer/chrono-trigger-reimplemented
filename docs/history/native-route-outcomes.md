@@ -19,8 +19,9 @@ Phase continuations reconstruct their full input histories and verify the
 resulting RAM digest before continuing.
 
 Observed outcomes: native 42 passes, 2 failures, 3 timeouts, 3 stopped, 6 not run; shipping 49 passes, 7 not run.
-The native long-route gate selects the 42 passing full routes and both fast
-prefixes, and reports all 14 exceptions with their reasons.
+Subsequent fixes pass Epoch into Lavos and Son of Sun (below). The native
+long-route gate now selects 44 passing full routes and both fast prefixes,
+and reports the 12 remaining exceptions with their reasons.
 
 | Fast prefix | Native | Shipping |
 |---|---|---|
@@ -44,7 +45,7 @@ prefixes, and reports all 14 exceptions with their reasons.
 | `death_peak_wind` | pass (4696) | pass (4676) |  |
 | `denadoro_fight` | pass (9145) | pass (8553) |  |
 | `dragon_tank` | pass (16008) | pass (17597) |  |
-| `epoch_lavos` | FAIL | pass (7762) | Waits over Lavos at frame 9587, scene $02; unserved music-marker read. See divergences below. |
+| `epoch_lavos` | pass (7802) | pass (7762) | Retested after serving the event's sound-status read; see below. |
 | `factory_switch` | pass (6875) | pass (6869) |  |
 | `fair_clone` | pass (8394) | pass (8333) |  |
 | `fair_rescue` | pass (6635) | pass (7297) |  |
@@ -77,7 +78,7 @@ prefixes, and reports all 14 exceptions with their reasons.
 | `r_series` | stopped | pass (63684) | Stopped by request after the shutter escape (33288); last completed probe 33504, lower lab $0E6. |
 | `rust_tyrano` | pass (22306) | pass (23329) |  |
 | `save_point` | pass (3270) | pass (3270) |  |
-| `son_of_sun` | FAIL | pass (18206) | Fails the landing check at frame 5794, still flying. Fixed coast settles at X=536 versus shipping 544. |
+| `son_of_sun` | pass (16041) | pass (18226) | Retested with the settled-position flight approach; both win without retries. |
 | `sun_stone_finish` | stopped | not run | Stopped by request after recovering the Moon Stone (12881); last completed probe 13099, mayor's house $032. |
 | `tech_sweep_spekkio` | not run | not run | Deferred because power-on slot replay makes searches too slow; rerun after bases can be taken during play. |
 | `telepod_lavos` | not run | not run | Deferred because power-on slot replay makes searches too slow; rerun after bases can be taken during play. |
@@ -133,6 +134,23 @@ prefixes, and reports all 14 exceptions with their reasons.
   Native never leaves flight mode 2 and fails the landing check at frame
   5794. Shipping wins the fight and regains field control at frame 18206.
   This is a landing-approach failure, not evidence about the boss fight.
+  A subsequent per-frame replay of `battle-son-of-sun` resolves the earlier
+  sparse observation: the first differing location is the load-screen
+  transition at frame 1668 (native `$000`, shipping still `$1B1` until 1669).
+  After loading, boarding first differs at 3045 (native travel 4, shipping
+  still 0); the future location changes at 3783 versus 3753. These input and
+  load phases precede the landing symptom. From each route's future checkpoint,
+  releasing RIGHT at X=534 leaves the same tile goal, 536. One frame later
+  shipping has queued goal 544 while native has stopped at 536. After twelve
+  released frames both remain still. `overworld_vehicle_flies_a_tile` finishes
+  a tile, and `overworld_vehicle_flies` starts another from the sampled pad;
+  the different input phase accounts for the extra tile, without a different
+  speed or coasting rule. The helper now approaches the target, then taps and
+  checks the settled coordinate before landing. Both full routes pass:
+  native lands at 4984 and finishes at 16041 (41 seconds); shipping lands at
+  4956 and finishes at 18226 (94 seconds). Regression tests cover immediate
+  and delayed pad sampling, reverse approaches, and blocked movement. The
+  Son of Sun exception is removed; no recording was changed.
 - **R Series (stopped):** the first common-input difference is frame
   2658: world X (`peek 7E0283 2`) is `a003` in native and `9f03` in
   shipping, 928 versus 927 pixels. Native restored power and escaped the

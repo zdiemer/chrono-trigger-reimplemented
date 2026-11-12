@@ -111,16 +111,19 @@ of Lavos at frames 15637 and 16332 respectively; the native run took 1170
 seconds and shipping 129.
 
 The [native route ledger](history/native-route-outcomes.md) lists results
-for all 56 routes in the long-route gate: 42 native passes, two failures,
-three timeouts, three stopped runs and six unstarted runs when the audit
-ended by request. Shipping reached 49 outcomes; seven runs were not started.
+for all 56 routes in the long-route gate. The original audit ended by request
+with 42 native passes; fixes to Epoch into Lavos and Son of Sun bring that
+to 44, with three timeouts, three stopped runs and six unstarted runs.
+Shipping reached 49 outcomes; seven runs were not started.
 The sampled gate runs both fast native prefixes. With `--long-routes`, it
-runs the 42 passing full routes and retains both prefixes whose full endings
-are excepted. It prints each of the 14 exceptions and its reason from
+runs the 44 passing full routes and retains both prefixes whose full endings
+are excepted. It prints each of the 12 exceptions and its reason from
 `tools/native_route_exceptions.txt`. The existing hand-run exclusions remain
-listed separately in the ledger. [TODO.md](TODO.md) holds the event/audio
-connection, Son of Sun's fixed coast and taking complete frame-end bases
-during play so route restores need not replay from power-on.
+listed separately in the ledger. Flight approaches check their settled
+position before landing: the pad's sampling phase can queue another tile
+after release, so a fixed coast is not a destination. [TODO.md](TODO.md)
+holds taking complete frame-end bases during play so route restores need
+not replay from power-on.
 An exception for a full route does not remove its fast prefix from either
 the sampled gate or `--long-routes`.
 

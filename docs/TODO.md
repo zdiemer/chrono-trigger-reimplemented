@@ -32,18 +32,6 @@ rest waits, is [PLAN.md](PLAN.md).
   should load a state that really lacks `frame_interrupt` rather than clear
   the field after loading.
 
-- **Son of Sun's native landing approach.** The native route reaches the
-  future, but fails to land east of the palace at frame 5794; travel mode
-  remains 2. The first differing observation with identical input is at
-  frame 3756: native still reports world map `$1F0`, shipping `$1F2`.
-  Later, `fly_to` releases RIGHT at X=534 and waits twelve frames: native
-  settles at X=536, shipping at X=544. The helper assumes this fixed coast
-  will reach its intended landing tile. Make the landing approach depend
-  on the settled position and investigate whether the coast difference
-  is expected under native timing. Shipping wins the fight and regains
-  field control at frame 18206. No replay or machine-only stop precedes
-  the native failure; it does not establish a difference in the boss fight.
-
 - **Native bases during play.** `ct_native --server` rebuilds
   the main and menu coroutines from power-on input; it has no later complete
   base. Use the held waits, now data or saveable C loops,
