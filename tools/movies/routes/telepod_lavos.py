@@ -25,7 +25,7 @@ HEADER = """\
 # <start_frame> <frame_count> <buttons>"""
 
 SAVE = "saves/technoplaza/ct-state16.srm"
-PHASES = ["fair", "exhibit", "shell", "cavern", "inner", "core", "ending", "devroom", "tour", "kokubo", "credits"]
+PHASES = ["fair", "exhibit", "shell", "cavern", "inner", "core", "ending", "devroom", "rooms", "tour", "kokubo", "credits"]
 
 # The development room: which object in which map sets which bit of $7F:0078.
 # The guard in 5501 opens the door to his developer instead of setting a bit.
@@ -119,30 +119,41 @@ def main():
             for index, bit in people:
                 run.talk(index, done=(lambda b=bit: developers() & b) if bit else None)
             assert run.exit_to("7b01"), "back to the pillars"
+        run.checkpoint("rooms")
+    if start <= 9:
         run.wait_control()
         assert run.go(494, 353, tolerance=3)    # by Kokubo, where the statue is reachable
-        # the reaper statue, off the platform's edge: the way there passes the
-        # developers walking about, so where none blocks it depends on the
-        # frame; look again a little later until one is clear
+        # The reaper statue stands off the platform's edge: the party jumps
+        # down from the edge above it and lands beside it. The way to the edge
+        # passes the developers walking about, so where none blocks it depends
+        # on the frame; look again a little later until one is clear.
         for _ in range(12):
-            if run.go(73, 105, tolerance=2):
+            if run.go(69, 87, tolerance=4):
                 break
             machine.run(23)
         else:
-            raise AssertionError("the reaper statue")
+            raise AssertionError("the edge above the reaper statue")
+        # beside the statue the ledge lets the party move only one way, so
+        # the landing is the field's control coming back, not a probe
+        for _ in range(100):
+            machine.run(6)
+            if machine.b(A.FIELD_PLAYER_CONTROL):
+                break
+        assert machine.b(A.FIELD_PLAYER_CONTROL), "landed beside the reaper statue"
+        statue = lambda: developers() & 0x04
         machine.run(2, "RIGHT")
         machine.run(6)
-        machine.run(3, "A")
         for _ in range(30):
-            machine.run(40)
-            if developers() & 0x04:
-                break
             machine.run(3, "A")
+            machine.run(40)
+            if statue():
+                break
+        assert statue() or run.talk(14, done=statue), "the reaper statue"
         run.close_dialogs()
         run.say("developers %02X" % developers())
         assert developers() == 0x7F, "all seven rounds"
         run.checkpoint("tour")
-    if start <= 9:
+    if start <= 10:
         run.wait_control()
         assert run.go(494, 353, tolerance=3)
         machine.run(2, "LEFT")
@@ -155,7 +166,7 @@ def main():
         run.close_dialogs()
         assert developers() == 0xFF, "Kokubo opens the Gates"
         run.checkpoint("kokubo")
-    if start <= 10:
+    if start <= 11:
         assert run.exit_other(DEV_ROOM_MAPS), "the Dream Team room"
         for index, bit in DREAM_TEAM:
             run.talk(index, done=lambda b=bit: dream_team() & b)

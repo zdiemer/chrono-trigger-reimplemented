@@ -24,6 +24,14 @@ python3 -m tools.movies.route_check beyond_time --drive build/main/ct_native --s
 
 The default fast set is `new_game_plus` and `menu_sweep:items`: the first checks
 New Game+ and erasure, the second loads cartridge progress and uses an item.
+
+`playthrough` starts from a blank cartridge and plays the story on from a new
+game. Its own phases cover what no save-based route plays (the opening, the
+fair, 600 A.D.'s castle, shopping, the prison escape); where a save-based
+route already plays a stretch, the route calls that route's `play(run, start)`
+from the state it reached instead of a save (`_trial_cathedral`,
+`cronos_trial`, `dragon_tank`). Its checkpoint names are unique across the
+pieces it composes. Where it stops is in TODO.md.
 `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
 whole library and every public route module as a non-blocking batch. Findings
 become fixes; the batch never blocks a commit, merge or push. Its stage logs,
