@@ -114,8 +114,8 @@ enum { SCENE_LOWER_WORK_RAM = 0x7E, SCENE_UPPER_WORK_RAM = 0x7F };
 enum { SCENE_TILEMAP_BUFFER = 0x000C00 };
 
 /* The frame's sprite table, in low RAM through bank 0 as the uploads read it:
- * the 128 entries (scene_sprite_table) and the high table after them
- * (scene_sprite_high_table), whose byte scene_sprite_high_pointer holds the
+ * the 128 entries (oam_buffer) and the high table after them
+ * (oam_high_table), whose byte scene_sprite_high_pointer holds the
  * address of. */
 enum { SCENE_SPRITE_TABLE = 0x000700, SCENE_SPRITE_HIGH_TABLE = 0x000900 };
 

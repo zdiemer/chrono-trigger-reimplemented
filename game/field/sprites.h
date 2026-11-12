@@ -7,7 +7,7 @@
 #include "field/object.h"
 #include <stdint.h>
 
-/* Where the sprite table is in low RAM (field_sprite_table), which the
+/* Where the sprite table is in low RAM (core/sprite_table.h), which the
  * vblank sends and whose ranges' cursors the building keeps as addresses. */
 enum { FIELD_SPRITE_TABLE_ADDRESS = 0x0700 };
 

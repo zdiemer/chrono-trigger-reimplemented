@@ -343,14 +343,20 @@ class Elements:
 
     def __init__(self, raw, where):
         self.name = None
+        self.whole = False
         if raw is None:
             return
-        if not isinstance(raw, dict) or set(raw) - {"name", "size", "start", "meaning"}:
+        if not isinstance(raw, dict) or set(raw) - {"name", "size", "start", "meaning", "whole"}:
             raise MapError("%s: elements needs name, size and meaning" % where)
         self.name = raw.get("name")
         self.size = raw.get("size")
         self.start = raw.get("start", 0)
         self.meaning = raw.get("meaning")
+        # The accessors take an element, not a byte: the ports read and write
+        # the buffer's elements at their own width.
+        self.whole = raw.get("whole", False)
+        if self.whole not in (False, True) or (self.whole and self.start):
+            raise MapError("%s: whole elements start at the buffer's first byte" % where)
         if (not isinstance(self.name, str) or not NAME.fullmatch(self.name) or
                 self.size not in (1, 2, 3, 4) or not isinstance(self.start, int) or
                 not 0 <= self.start < self.size or not self.meaning):
@@ -365,7 +371,7 @@ class Var:
 
     KEYS = {"name", "addr", "size", "count", "stride", "index", "page", "dp",
             "subsystem", "meaning", "source", "field", "rows", "row_stride", "unchecked", "reuses", "host_module", "host_alias", "host_blob", "elements",
-            "overlays"}
+            "overlays", "same_value"}
 
     def __init__(self, raw, pages):
         where = "var %r" % raw.get("name")
@@ -411,6 +417,11 @@ class Var:
                 raise MapError("%s: host_alias must name an owning variable" % where)
             if self.host_module:
                 raise MapError("%s: an alias has no independent host_module" % where)
+        # An alias that is another name for its owner's value, not a view of
+        # bytes another mode may have written last (owner_value).
+        self.same_value = raw.get("same_value", False)
+        if self.same_value not in (False, True) or (self.same_value and self.host_alias is None):
+            raise MapError("%s: same_value marks an alias that names its owner's own value" % where)
         self.index = raw.get("index")
         self.size = raw.get("size", 1)
         self.count = raw.get("count", 1)
@@ -572,6 +583,7 @@ class RamMap:
         # a new game accessor or changing the variable-count denominator.
         self.owners = [Var(raw, self.pages) for raw in doc.get("owner", [])]
         for v in self.owners:
+            v.storage_only = True
             if not v.host_module or v.host_alias:
                 raise MapError("%s: an owner needs host_module and cannot alias a variable" % v.name)
         self.images = [Image(raw) for raw in doc.get("image", [])]
@@ -827,7 +839,10 @@ def access_units(v):
                         continue
                     unit = a.elements.size if a.elements.name else 1
                     skip = a.elements.start if a.elements.name else 0
-                    typed = bool(a.elements.name)
+                    # Elements wider than a byte type the buffer only where its
+                    # accessors move whole elements: a port that reads a word
+                    # element a byte at a time reads bytes.
+                    typed = bool(a.elements.name) and (a.elements.size == 1 or a.whole)
                     x = start - skip
                     while x < start + a.size:
                         yield max(x, start), min(x + unit, start + a.size), x, unit if typed else 0
@@ -1085,8 +1100,13 @@ class Accessor:
         # A table of rows is a byte by row and column, whatever its row's size.
         self.table = var.rows is not None
         self.blob = (self.size > WIDEST or (field and field.buffer)) and not self.table
-        self.name = (base + "_byte" if self.blob else base) + ("_unchecked" if unchecked else "")
-        self.type = "uint8_t" if self.blob or self.table else C_TYPE[self.size]
+        # A buffer of whole elements: its accessors take an element's index.
+        self.whole = self.blob and bool(self.elements.name) and self.elements.whole
+        if self.whole and self.size % self.elements.size:
+            raise MapError("%s: whole elements must divide the buffer" % base)
+        self.name = (base + "_byte" if self.blob and not self.whole else base) + ("_unchecked" if unchecked else "")
+        self.type = (C_TYPE[self.elements.size] if self.whole else
+                     "uint8_t" if self.blob or self.table else C_TYPE[self.size])
         # The unchecked pair shares the checked one's constants.
         named = not unchecked
         self.bytes_const = base.upper() + "_BYTES" if self.blob and named else None
@@ -1100,7 +1120,9 @@ class Accessor:
             out.append((self.var.page.handle_decl(), self.var.page.param()))
         if self.var.count > 1:
             out.append(("unsigned " + index_param(self.var.index), index_param(self.var.index)))
-        if self.blob:
+        if self.whole:
+            out.append(("unsigned item", "item"))
+        elif self.blob:
             out.append(("unsigned at", "at"))
         if self.table:
             out += [("unsigned row", "row"), ("unsigned column", "column")]
@@ -1121,7 +1143,9 @@ class Accessor:
             out = "0x%06Xu" % self.addr
         if self.var.count > 1:
             out += " + (uint32_t)%s * 0x%02Xu" % (index_param(self.var.index), self.var.stride)
-        if self.blob:
+        if self.whole:
+            out += " + (uint32_t)item * %du" % self.elements.size
+        elif self.blob:
             out += " + at"
         if self.table:
             out += " + (uint32_t)row * 0x%02Xu + column" % self.var.row_stride
@@ -1144,7 +1168,9 @@ class Accessor:
                 out.append((p.param() + ".index", "%s(%s)" % (page_count_name(p), p.param()), "instances"))
         if v.count > 1:
             out.append((index_param(v.index), "%du" % v.count, "count"))
-        if self.blob:
+        if self.whole:
+            out.append(("item", "%du" % (self.size // self.elements.size), self.elements.name))
+        elif self.blob:
             out.append(("at", "%du" % self.size, "bytes"))
         if self.table:
             out += [("row", "%du" % v.rows, "rows"), ("column", "%du" % self.size, "columns")]
@@ -1156,7 +1182,9 @@ class Accessor:
         if self.table:
             out = self.meaning + " [a byte by row and column]"
         else:
-            out = self.meaning + (" [%d bytes, one at a time]" % self.size if self.blob else "")
+            out = self.meaning + (" [%d %s of %d bytes, one at a time]" % (
+                self.size // self.elements.size, self.elements.name, self.elements.size) if self.whole else
+                " [%d bytes, one at a time]" % self.size if self.blob else "")
         if self.unchecked:
             out += " Unchecked, reaching past the variable into what follows it: %s" % self.var.unchecked
         return out
@@ -1453,18 +1481,79 @@ def element_member(a, member, byte):
 
 def width_of(a):
     """The bytes one access of an accessor moves."""
+    if a.whole:
+        return a.elements.size
     return 1 if a.blob or a.table else a.size
+
+
+def owner_value(a):
+    """For an alias marked `same_value`, each of whose values is exactly one
+    value of its one owner (the same width at the same place, an element for an
+    element): the owner's accessor and the C index of the owner's element for
+    the alias's; else None. Such an alias is another name for the owner's
+    value: it reads and writes the owner's own field, beside other modes'
+    fields as the owner does, where other aliases of shared bytes read the
+    address view (whichever owner wrote them last)."""
+    v = a.var
+    if (not v.same_value or not v.host_alias or len(v.host_owners) != 1 or v.on_instances() or v.rows or
+            (a.field and a.field.host_alias) or a.blob or a.elements.name):
+        return None
+    owner = v.host_owner
+    if owner.rows or owner.on_instances():
+        return None
+    for f in owner.fields or [None]:
+        if f and f.host_alias:
+            continue
+        oa = Accessor(owner, f)
+        if oa.blob or oa.elements.name or oa.size != a.size:
+            continue
+        first, rest = divmod(a.addr - oa.addr, owner.stride)
+        if rest or first < 0 or first + v.count > owner.count or (v.count > 1 and v.stride != owner.stride):
+            continue
+        if owner.count == 1:
+            return oa, None
+        index = index_param(v.index) if v.count > 1 else None
+        return oa, ("%du" % first if index is None else "%du + %s" % (first, index) if first else index)
+    return None
 
 
 def render_host_accessor(a, ids, ov):
     out = []
-    # An owner beside others keeps its own field; its writes tell the address
-    # view it holds the byte now, and its reads count a byte another owner
-    # wrote last (the original would have read that owner's value).
+    same = owner_value(a) if ov.touches(a) else None
+    if a.var.same_value and ov.touches(a) and not same and not a.unchecked:
+        raise MapError("%s: same_value needs an alias that is one owner value, element for element" % a.name)
+    if same:
+        # Another name for one owner value: the owner's own field, checked and
+        # claimed as the owner's accessor does.
+        oa, index = same
+        member = host_member(oa, element=index)
+        width = a.size
+        for write in (False, True):
+            out += [a.signature(write), "{"]
+            name = ("set_" if write else "") + a.name
+            out += ['    IN_RANGE(g, %d, "%s", "%s", %s, %s);' % (ids[a.var.name], name, what, arg, limit)
+                    for arg, limit, what in a.bounds()]
+            bad = " || ".join("%s >= %s" % (arg, limit) for arg, limit, _ in Accessor(a.var, a.field).bounds())
+            if bad:
+                fallback = ("w%d(g, %s, v); return;" if write else "return r%d(g, %s);") % (width * 8, a.address())
+                out += ["    if (%s) { %s }" % (bad, fallback)]
+            out += ["    if (!peeking)", "        state_host_game_access(g, %d);" % (width * 8)]
+            out += ["    %sVarsHost *h = state_host_vars%s(g);" % ("" if write else "const ", "" if write else "_const")]
+            place = ov.place(oa)
+            if write:
+                out += ["    %s = %s;" % (member, "v & 0xFFFFFFu" if width == 3 else "v"),
+                        "    vars_host_claim(h, %s, %du, %s);" % (a.address(), width, place)]
+            else:
+                out += ["    if (!peeking)",
+                        "        vars_host_check(h, %s, %du, %s);" % (a.address(), width, place),
+                        "    return %s;" % member]
+            out += ["}"]
+        return out
     overlaid = ov.touches(a) and not (a.var.host_alias or (a.field and a.field.host_alias))
     claim = "    vars_host_claim(h, %s, %du, %s);" % (a.address(), width_of(a), ov.place(a)) if overlaid else None
-    check = "    vars_host_check(h, %s, %du, %s);" % (a.address(), width_of(a), ov.place(a)) if overlaid else None
-    width = 1 if a.blob or a.table else a.size
+    check = ("    if (!peeking)\n        vars_host_check(h, %s, %du, %s);" % (a.address(), width_of(a), ov.place(a))
+             if overlaid else None)
+    width = width_of(a)
     for write in (False, True):
         out += [a.signature(write), "{"]
         name = ("set_" if write else "") + a.name
@@ -1526,6 +1615,13 @@ def render_host_accessor(a, ids, ov):
         member = host_member(a, byte="column" if a.table else "at")
         if check and not write:
             out += [check]
+        if a.whole:
+            item = "%s.%s[item]" % (member, a.elements.name)
+            out += ["    %s = v;" % item if write else "    return %s;" % item]
+            if write and claim:
+                out += [claim]
+            out += ["}"]
+            continue
         if a.elements.name:
             byte = "column" if a.table else "at" if a.blob else "0u"
             if not write:
@@ -1626,11 +1722,18 @@ def render_host_header(m):
         out += ["    VarsHost%s %s;" % (camel(module), module)]
     if not groups:
         out += ["    uint8_t unused; /* C has no empty structs. */"]
-    slots = len(Overlays.of(m).pages) * 256
+    ov = Overlays.of(m)
+    slots = len(ov.pages) * 256
     if slots:
         out += ["    /* For each byte owners keep beside each other, the owner that wrote it",
-                "     * last, which the address view reads; 0 when every owner holds it. */",
-                "    uint16_t overlay_writer[%d];" % slots]
+                "     * last, which the address view reads: its place among the byte's",
+                "     * owners, from 1; 0 when every owner holds it. */",
+                "    uint8_t overlay_writer[%d];" % slots]
+    out += ["    /* The reads that found another owner's bytes, by reader: how often, and",
+            "     * the owner that wrote them the first time (vars_host_crossings). A",
+            "     * diagnostic tally, kept with the state it describes. */",
+            "    uint32_t crossed[%d];" % (len(ov.placed) + 1),
+            "    uint16_t crossed_writer[%d];" % (len(ov.placed) + 1)]
     out += ["} VarsHost;", ""]
     for v in alias_owners(m):
         out += ["/* Byte views of %s's storage; no independent alias fields. */" % v.name,
@@ -1642,9 +1745,10 @@ def render_host_header(m):
             "void vars_host_check(const VarsHost *h, uint32_t addr, unsigned bytes, unsigned place);",
             "/* The reads that found another owner's bytes: each reader, the owner that",
             " * wrote them and how often, through `each`; returns how many readers. */",
-            "unsigned vars_host_crossings(void (*each)(const char *reader, const char *writer, uint32_t times, void *ctx),",
+            "unsigned vars_host_crossings(const VarsHost *h,",
+            "                             void (*each)(const char *reader, const char *writer, uint32_t times, void *ctx),",
             "                             void *ctx);",
-            "void vars_host_crossings_reset(void);"]
+            "void vars_host_crossings_reset(VarsHost *h);"]
     out += ["", "void vars_host_init(VarsHost *h);",
             "bool vars_host_read8(const VarsHost *h, uint32_t addr, uint8_t *value);",
             "bool vars_host_write8(VarsHost *h, uint32_t addr, uint8_t value);", "", "#endif", ""]
@@ -1777,7 +1881,7 @@ def render_host_backing(m):
             out += ["    %s%s = 0x555555u;" % ("    " if a.var.count > 1 or a.var.on_instances() else "", host_member(a, element="i", instance="instance"))]
     if Overlays.of(m).shared:
         out += ["    memset(h->overlay_writer, 0, sizeof h->overlay_writer);"]
-    out += ["}", ""]
+    out += ["    vars_host_crossings_reset(h);", "}", ""]
     # Aliases use named owners, with offsets in the owner's serialized layout.
     # No host pointer cast, union type punning, padding or endian assumption.
     for v in alias_owners(m):
@@ -1858,11 +1962,7 @@ def render_host_backing(m):
     out += ["    \"%s%s\"," % (a.var.name + ("." + a.field.name if a.field else ""),
                                "[%d]" % instance if a.var.on_instances() else "")
             for a, instance, _ in placed]
-    out += ["};", "",
-            "/* The reads that found another owner's bytes, by reader: how often, and the",
-            " * owner that wrote them the first time. */",
-            "static uint32_t crossed[%d];" % (len(placed) + 1),
-            "static uint16_t crossed_writer[%d];" % (len(placed) + 1), ""]
+    out += ["};", ""]
     for write in (False, True):
         out += ["static void place_%s8(%sVarsHost *h, unsigned place, uint32_t addr, uint8_t %svalue)" %
                 ("write" if write else "read", "" if write else "const ", "" if write else "*"), "{"]
@@ -1882,7 +1982,7 @@ def render_host_backing(m):
         if ov.shared:
             out += ["    unsigned set, slot = overlay_at(addr, &set);",
                     "    if (slot && h->overlay_writer[slot - 1])",
-                    "        place = h->overlay_writer[slot - 1];"]
+                    "        place = overlay_owner_sets[set][h->overlay_writer[slot - 1] - 1u];"]
         out += ["    place_read8(h, place, addr, value);", "    return true;", "}", ""]
     else:
         out += ["    (void)h; (void)addr; (void)value;", "    return false;", "}", ""]
@@ -1903,29 +2003,38 @@ def render_host_backing(m):
     if ov.shared:
         out += ["    for (unsigned i = 0; i < bytes; i++) {",
                 "        unsigned set, slot = overlay_at(addr + i, &set);",
-                "        if (slot)",
-                "            h->overlay_writer[slot - 1] = (uint16_t)place;", "    }", "}", ""]
+                "        if (!slot)",
+                "            continue;",
+                "        for (unsigned k = 0; overlay_owner_sets[set][k]; k++)",
+                "            if (overlay_owner_sets[set][k] == place)",
+                "                h->overlay_writer[slot - 1] = (uint8_t)(k + 1u);",
+                "    }", "}", ""]
     else:
         out += ["    (void)h; (void)addr; (void)bytes; (void)place;", "}", ""]
     out += ["void vars_host_check(const VarsHost *h, uint32_t addr, unsigned bytes, unsigned place)", "{"]
     if ov.shared:
-        out += ["    for (unsigned i = 0; i < bytes; i++) {",
+        out += ["    /* The tally is the diagnostics' own, not the game's: a read counts it. */",
+                "    VarsHost *tally = (VarsHost *)h;",
+                "    for (unsigned i = 0; i < bytes; i++) {",
                 "        unsigned set, slot = overlay_at(addr + i, &set);",
-                "        unsigned writer = slot ? h->overlay_writer[slot - 1] : 0u;",
+                "        unsigned writer = slot && h->overlay_writer[slot - 1] ?",
+                "            overlay_owner_sets[set][h->overlay_writer[slot - 1] - 1u] : 0u;",
                 "        if (writer && writer != place) {",
-                "            if (!crossed[place]++)",
-                "                crossed_writer[place] = (uint16_t)writer;",
+                "            if (!tally->crossed[place]++)",
+                "                tally->crossed_writer[place] = (uint16_t)writer;",
                 "            return;", "        }", "    }", "}", ""]
     else:
         out += ["    (void)h; (void)addr; (void)bytes; (void)place;", "}", ""]
-    out += ["unsigned vars_host_crossings(void (*each)(const char *reader, const char *writer, uint32_t times, void *ctx),",
+    out += ["unsigned vars_host_crossings(const VarsHost *h,",
+            "                             void (*each)(const char *reader, const char *writer, uint32_t times, void *ctx),",
             "                             void *ctx)", "{", "    unsigned readers = 0;",
-            "    for (unsigned place = 1; place < sizeof crossed / sizeof crossed[0]; place++) {",
-            "        if (!crossed[place])", "            continue;", "        readers++;",
-            "        if (each)", "            each(place_names[place], place_names[crossed_writer[place]], crossed[place], ctx);",
+            "    for (unsigned place = 1; place < sizeof h->crossed / sizeof h->crossed[0]; place++) {",
+            "        if (!h->crossed[place])", "            continue;", "        readers++;",
+            "        if (each)",
+            "            each(place_names[place], place_names[h->crossed_writer[place]], h->crossed[place], ctx);",
             "    }", "    return readers;", "}", "",
-            "void vars_host_crossings_reset(void)", "{",
-            "    memset(crossed, 0, sizeof crossed);", "    memset(crossed_writer, 0, sizeof crossed_writer);", "}", ""]
+            "void vars_host_crossings_reset(VarsHost *h)", "{",
+            "    memset(h->crossed, 0, sizeof h->crossed);", "    memset(h->crossed_writer, 0, sizeof h->crossed_writer);", "}", ""]
     return "\n".join(out)
 
 

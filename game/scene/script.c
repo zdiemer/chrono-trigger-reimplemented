@@ -55,25 +55,22 @@ static void set_script(GameState *g, SceneChannel ch, uint16_t at) { set_scene_c
 
 uint16_t scene_channel_register(const GameState *g, SceneChannel ch, unsigned n)
 {
-    return (uint16_t)(scene_channels_registers_byte(g, ch, 2 * n) | scene_channels_registers_byte(g, ch, 2 * n + 1) << 8);
+    return scene_channels_registers(g, ch, n);
 }
 
 void set_scene_channel_register(GameState *g, SceneChannel ch, unsigned n, uint16_t v)
 {
-    set_scene_channels_registers_byte(g, ch, 2 * n, (uint8_t)v);
-    set_scene_channels_registers_byte(g, ch, 2 * n + 1, (uint8_t)(v >> 8));
+    set_scene_channels_registers(g, ch, n, v);
 }
 
 static uint16_t loop_counter(const GameState *g, SceneChannel ch, unsigned n)
 {
-    return (uint16_t)(scene_channels_loop_counters_byte(g, ch, 2 * n) |
-                      scene_channels_loop_counters_byte(g, ch, 2 * n + 1) << 8);
+    return scene_channels_loop_counters(g, ch, n);
 }
 
 static void set_loop_counter(GameState *g, SceneChannel ch, unsigned n, uint16_t v)
 {
-    set_scene_channels_loop_counters_byte(g, ch, 2 * n, (uint8_t)v);
-    set_scene_channels_loop_counters_byte(g, ch, 2 * n + 1, (uint8_t)(v >> 8));
+    set_scene_channels_loop_counters(g, ch, n, v);
 }
 
 /* The script's bytes, in the program. */

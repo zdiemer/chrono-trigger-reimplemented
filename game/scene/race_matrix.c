@@ -133,8 +133,7 @@ void scene_gather_picture_into_tiles(GameState *g)
                 for (uint8_t row = 0; row < TILE_ROWS; row++) {
                     uint16_t from = (uint16_t)(strip_start + tile * TILE_STEP + planes * PLANE_PAIR_STEP + row * ROW_STEP);
                     uint16_t pixels = scene_race_picture(g, (uint16_t)(from - PICTURE) / 2);
-                    set_scene_tilemap_buffer_byte(g, word * 2u, (uint8_t)pixels);
-                    set_scene_tilemap_buffer_byte(g, word * 2u + 1, (uint8_t)(pixels >> 8));
+                    set_scene_tilemap_buffer(g, word, (uint16_t)pixels);
                     word++;
                 }
             }

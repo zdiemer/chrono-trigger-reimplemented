@@ -1321,9 +1321,9 @@ static bool show_the_time_dial(GameState *g, Platform *pf)
     set_menu_object_shadows_mode7_center(g, 0);
     set_menu_object_shadows_mode7_matrix_byte(g, 1, UNIT_HIGH);
     set_menu_object_shadows_mode7_matrix_byte(g, 7, UNIT_HIGH);
-    set_menu_object_shadows_windows_byte(g, 0, 0);
-    set_menu_object_shadows_windows_byte(g, 1, 0);
-    set_menu_object_shadows_windows_byte(g, 2, WINDOW1_ON_COLOUR);
+    set_menu_object_shadows_window_masks_byte(g, 0, 0);
+    set_menu_object_shadows_window_masks_byte(g, 1, 0);
+    set_menu_object_shadows_window_masks_byte(g, 2, WINDOW1_ON_COLOUR);
     set_menu_object_shadows_main_window_mask(g, BG1_AND_SPRITES);
     set_menu_object_shadows_sub_window_mask(g, BG1_AND_SPRITES);
     set_menu_object_shadows_math_control(g, MATH_INSIDE_THE_WINDOW);

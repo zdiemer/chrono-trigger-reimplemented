@@ -36,7 +36,7 @@ static uint32_t unpack(unsigned length, bool direct, bool entry, uint32_t destin
     if (state_host_read8(g, destination + got) != 0x55)
         failures++;
     if (destination == 0x7E0700 &&
-        (field_sprite_table_byte(g, got - 1) != 0x42 || oam_buffer_x(g, 0) != 0x42))
+        (state_host_read8(g, 0x7E0700 + got - 1) != 0x42 || oam_buffer_x(g, 0) != 0x42))
         failures++;
     state_host_destroy(g);
     return clocks;

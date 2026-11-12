@@ -96,9 +96,12 @@ bool overworld_lists_are_loaded(const GameState *g)
 
 ExitTo overworld_exit_here(const GameState *g)
 {
+    /* The location word's high byte is how the party arrives: its bits 1-7
+     * the location's flags, shifted down a bit. */
     enum { LOCATION_BITS = 0x01FF };
     unsigned exit = found_record(g, LIST_EXITS);
-    return (ExitTo){ (uint16_t)(overworld_exits_location(g, exit) & LOCATION_BITS), overworld_exits_arrival(g, exit),
+    uint16_t location = overworld_exits_location(g, exit);
+    return (ExitTo){ (uint16_t)(location & LOCATION_BITS), (uint8_t)(location >> 8),
                      overworld_exits_x(g, exit), overworld_exits_y(g, exit) };
 }
 

@@ -24,6 +24,8 @@ python3 -m tools.movies.route_check beyond_time --drive build/main/ct_native --s
 
 The default fast set is `new_game_plus` and `menu_sweep:items`: the first checks
 New Game+ and erasure, the second loads cartridge progress and uses an item.
+A route whose ct_native printed a runtime fault (tools/outcomes.py's: an
+overlay crossing, an accessor out of range) fails, as a movie does.
 
 `playthrough` starts from a blank cartridge and plays the story on from a new
 game. Its own phases cover what no save-based route plays (the opening, the

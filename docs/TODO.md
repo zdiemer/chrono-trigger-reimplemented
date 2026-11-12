@@ -782,8 +782,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
   returns its step count only for the timing charge; `circle.c`'s
   `h->area & NEGATIVE` is a sign test (`(int16_t)area < 0`); `picture.c`'s callers pass origin tags into
   `start_line_effect`, and the plane's tiles are filled byte by byte
-  through the VRAM port; `warp_work`'s offsets are reused across files
-  under different names (name the cells in the map); a third private
+  through the VRAM port; a third private
   accessor for the `$C0:F800` sine (one, shared); `TM_LINE_UNCHANGED` is an
   in-band `0xFFFF`, and the SNES backend's comment says the call also
   turns the picture on dark, which the native `timing.c` doesn't.
@@ -1004,8 +1003,8 @@ PLAN.md gives the work order; the lean native gate protects each change.
 - **What the field's frame and loading review left** (merged with power-on
   and the field's frame; none blocking): scaffolding written through
   accessors named for another use (`battle_start.c` and `battle_return.c`
-  write the screen corner through `set_field_own_tile_x/y`, the enemy's kind
-  through `set_field_direction`) -- name the second use in the map; `location_description_at` takes a byte offset (take the
+  write the enemy's kind through `set_field_direction`) -- name the second
+  use in the map; `location_description_at` takes a byte offset (take the
   location, return the record);
   `screen_corner` is in `battle_start.c` and `battle_return.c`; BG3's tiles at VRAM
   `0x5000` and the bank `$7F` buffers (`0x7F5080`, `0x7F6000`, `0x7F7000`)
@@ -2551,34 +2550,26 @@ persistence seams; game-side representation changes still need explicit work.
 - CI: the macOS job costs 10x minutes on a private repo.
 ## State records
 
-The live variables all have module-owned storage, 153 of them still blob-backed
+The live variables all have module-owned storage, 68 of them still blob-backed
 (`tools/ram_map.py storage --list`), and the big field, battle, character, menu
 and submitted-sprite records are declared in `re/ram.toml`; see
 [STATE.md](STATE.md). Remaining record design:
 
-- Type the 153 blob-backed variables (STATE.md, "Storage measure"): give the 57
-  own byte buffers records or word elements where their meaning has them; make
-  the 48 same-mode width views read one owner (a word's high byte through the
-  word) in the ports that use them; and replace the 30 shared views with an
-  explicit hand-off at the mode change where the reader takes the other mode's
-  value, once its owners are known well enough to copy it.
-- Overlay crossings outside the sampled movies: the `overlay crossed:` fault
-  has run over the gate's sample only. The long batch's movie stages fail on
-  it, but `route_check` doesn't scan ct_native's stderr for it, so routes don't
-  yet; make it. A crossing means a separated owner whose mode reads another's
-  bytes, to return to a view or hand off explicitly.
-- Five same-cell aliases count as typed but read through the last-writer view
-  without a crossing check (`battle_joypad`, `battle_turn_member`,
-  `menu_member_pointed`, `menu_save_slot_era`,
-  `battle_effect_sprite_attributes`): point them at their owner's field, or
-  count them as views. Alias views of overlaid owners (e.g.
-  `menu_story_flags_top_layer_first`) write every mode's copy, as the original
-  does; say so in STATE.md.
-- The crossing counters (`crossed[]`, `crossed_writer[]` in
-  `runtime/port/vars_host.c`) are process-wide statics shared by every
-  GameState, and reads under `vars_peek` count as crossings.
+- The 68 blob-backed variables (STATE.md, "Storage measure"): replace the 30
+  shared views with an explicit hand-off at the mode change where the reader
+  takes the other mode's value (`battle_message_item` writing event variable
+  0's low byte is the simplest); work out the 10 byte-copied records' fields
+  (save summaries, status record, sprite records) and copy them by field; and
+  give the 6 two-width record views one width: the stat operands and saves'
+  bytes of `character_records` and `battle_stats`, a palette animation's two
+  layouts (a tagged union the generator lacks), the battle trail's low- and
+  high-byte tables (a word owner over two addresses), and the window lines'
+  edges, read as bytes and as words on hot paths, where one width changes the
+  work charges; read the era-label tiles and the Mode 7 matrix shadow as
+  words. The event script and the 19 tile-graphics and line-table buffers stay
+  byte streams.
 - Unowned addresses in `runtime/port/state_host.c`: the address view reads the
-  1,395 bytes no variable owns as 0, where the hardware's power-on value is
+  1,416 bytes no variable owns as 0, where the hardware's power-on value is
   $55, and drops writes that overrun into them. The audit that found no gameplay
   reads of those bytes ran over the sampled movies only; run it over the whole
   library and the long routes, and either own any byte something reads or
@@ -2589,10 +2580,10 @@ and submitted-sprite records are declared in `re/ram.toml`; see
 - Battle enemy AI, effect/anchor motion, status timers and script channels.
 - Scene program channels, racers, task/effect state and palette/tile animations.
 - Overworld actors and vehicles, menu-object command state and warp raster state.
-- Retire the address view's last-writer table (`VarsHost.overlay_writer`) as
-  the scripted, bulk and video consumers that read shared bytes by address are
-  removed; until then it keeps their reads the original's. It costs about
-  240 KB of VarsHost; a per-page bitmap would do until then.
+- Retire the address view's last-writer table (`VarsHost.overlay_writer`, a
+  byte per shared byte, 116 KB) as the scripted, bulk and video consumers that
+  read shared bytes by address are removed; until then it keeps their reads
+  the original's.
 
 ## Player integration checks
 

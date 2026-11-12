@@ -81,13 +81,6 @@ typedef struct {
     uint32_t site[3];           /* each part's transfer, for its origin tag */
 } EdgeRun;
 
-static uint16_t edge_word(const GameState *g, uint8_t (*byte)(const GameState *, unsigned, unsigned), unsigned layer,
-                          unsigned word)
-{
-    uint8_t low = byte(g, layer, 2 * word);
-    return (uint16_t)(byte(g, layer, 2 * word + 1) << 8 | low);
-}
-
 /* The runs, in the order of the layers' upload flags: each layer's row
  * below the view, its top row, the column right of the view, and its left
  * column. A layer's two rows share its row buffer, and its two columns its
@@ -125,9 +118,9 @@ void field_upload_layer_edge(GameState *g, Platform *pf, unsigned upload)
     const VidVramPort *port = r->down_a_column ? &column_port : &word_port;
     uint16_t source = field_staged_line(r->layer, r->down_a_column);
     for (unsigned k = 0; k < r->parts; k++) {
-        uint16_t size = edge_word(g, field_layer_edge_sizes_byte, r->layer, r->sizes + k);
+        uint16_t size = field_layer_edge_sizes(g, r->layer * EDGE_SIZES + r->sizes + k);
         if (size != 0) {
-            uint16_t vram = edge_word(g, field_layer_edge_vram_byte, r->layer, r->addresses + k);
+            uint16_t vram = field_layer_edge_vram(g, r->layer * EDGE_ADDRESSES + r->addresses + k);
             vid_send_vram(pf, PF_AT(r->site[k]), vram, PF_GAME((uint32_t)TILE_MAP_BANK << 16 | source), size, port);
         }
         source = (uint16_t)(source + size);
@@ -144,7 +137,7 @@ bool field_layer_edges_fit(const GameState *g)
 {
     for (unsigned layer = 0; layer < FIELD_LAYERS; layer++)
         for (unsigned w = 0; w < EDGE_SIZES; w++)
-            if (edge_word(g, field_layer_edge_sizes_byte, layer, w) >= LARGEST_PART)
+            if (field_layer_edge_sizes(g, layer * EDGE_SIZES + w) >= LARGEST_PART)
                 return false;
     return true;
 }

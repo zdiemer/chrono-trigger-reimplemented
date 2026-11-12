@@ -174,11 +174,13 @@ overworld leader's guard required the trail index to be in range even for a
 leader setting off, which lays the trail afresh, and leaving Guardia Castle in
 600 A.D. leaves the index at `$80` (fixed in `game/overworld/handlers.c`).
 
-All 2,236 live variables now have module-owned storage, and 1,511 of them
+All 2,213 live variables now have module-owned storage, and 2,145 of them
 typed storage, counting a value as typed only when it is exactly one owner field
-or element of its own width; 725 remain blob-backed, nearly all overlays where
-one mode reads another mode's fields at other widths, and none is image-backed. The 27 retired
-sound-loader variables and the residual 128 KiB work-RAM image were removed.
+or element of its own width; 68 remain blob-backed (the event script, tile graphics and line
+tables in the hardware's formats, byte-copied records, two-width record views
+and views of bytes another mode shares), and none is image-backed. The 27
+retired sound-loader variables, 20 dead scratch declarations and the residual
+128 KiB work-RAM image were removed.
 The baseline was 1,953 typed, 283 blob-backed and 27 image-backed variables.
 The generated address view supports cartridge saves, route inspection and
 remaining dynamic/bulk operations. The generator also emits designed field-object, combatant, character, menu

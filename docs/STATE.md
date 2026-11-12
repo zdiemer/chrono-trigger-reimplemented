@@ -1,7 +1,7 @@
 # Native state storage
 
-Every live map variable has module-owned C storage, and 2,083 of the 2,236 have
-typed storage; the other 153 are still blob-backed. `GameState` has no work-RAM
+Every live map variable has module-owned C storage, and 2,145 of the 2,213 have
+typed storage; the other 68 are still blob-backed. `GameState` has no work-RAM
 image; the generated address view serializes the owning fields directly. Generated
 files come only from `tools/ram_map.py` and `re/ram.toml`.
 
@@ -19,47 +19,81 @@ read out of half a word element); and a reader buffer that declares no elements
 of its own, since a label on the owner does not type bytes nothing says the
 meaning of. The rule holds for aliases too: a mode that reads memory the
 original reuses at another mode's widths is blob-backed, though the bytes sit
-in typed C fields. `storage --list` names each blob-backed variable and the
+in typed C fields. Elements wider than a byte type a buffer only where its
+accessors move whole elements (`elements.whole`, accessors that take an
+element's index and no byte accessor): a port that reads a word a byte at a
+time reads bytes. `storage --list` names each blob-backed variable and the
 owner fields it depends on.
 
-| Module | Blob-backed with shared owners | Blob-backed with overlays | Typed / total |
-|---|---:|---:|---:|
-| menu | 245 | 40 | 427 / 467 |
-| battle | 234 | 30 | 892 / 922 |
-| scene | 132 | 38 | 308 / 346 |
-| field | 55 | 24 | 284 / 308 |
-| menu_object | 23 | 6 | 33 / 39 |
-| core | 12 | 5 | 57 / 62 |
-| overworld | 12 | 2 | 40 / 42 |
-| warp | 7 | 5 | 17 / 22 |
-| event | 5 | 3 | 17 / 20 |
-| all | 725 | 153 | 2,083 / 2,236 |
+| Module | Blob-backed | Typed / total |
+|---|---:|---:|
+| battle | 21 | 901 / 922 |
+| menu | 19 | 443 / 462 |
+| field | 10 | 289 / 299 |
+| menu_object | 6 | 33 / 39 |
+| scene | 4 | 336 / 340 |
+| core | 3 | 59 / 62 |
+| warp | 3 | 18 / 21 |
+| event | 2 | 17 / 19 |
+| overworld | 0 | 41 / 41 |
+| data | 0 | 8 / 8 |
+| all | 68 | 2,145 / 2,213 |
 
-The first column is the map before overlays (every mode reading another's
-owner fields at its own widths); the second is after them, by the same rule.
-632 owners now keep their own fields beside other modes' (see "Overlays");
-four tilemap and palette buffers among them declare their word elements. The
-153 left are, by `storage --list`:
+Before overlays every mode read another's owner fields at its own widths
+(725 blob-backed); 632 owners then got fields of their own beside other
+modes' (see "Overlays"), which left 153. Of those, own fields beside the
+bytes they reuse went to 36 same-mode views (scene scratch, menu cursors,
+the field's map header, the battle screen's orbits); buffers whose meaning
+has elements declare them (names, credit tiles, timers, tech parts and
+story-flag copies a byte each; the scene channels' registers and loop
+counters, the tile animations' steps and sources, the scenes' tilemap buffer,
+palette and turning maps and two menu tilemaps as words, read and written a
+word at a time), the field's layer edge runs are word arrays and the
+window shadows of the field and the menu object mode have named fields; the
+scroll bar's thumb, the overworld's exit arrival, the demo battle's action
+records, the text drawer's number and the menus' window edges are read
+through their owners; the scenes and the field write the sprite table through
+the core's records (`core/sprite_table.c`) instead of byte copies of it; and
+20 declarations that nothing read or wrote, by accessor or address (scratch
+the original's routines kept last values in, which the reconstruction had
+retired), were deleted. The 68 left, by `storage --list`, are honestly blobs
+until their work is done:
 
-- 57 byte buffers with storage of their own and no element structure (sprite
-  tables, line-effect tables, tile graphics, scratch runs). A byte label would
-  not type them; records or word elements would, where the meaning has them.
-- 48 views of their own mode's owners at another width (a word and its high
-  byte, a record field read as two). Splitting them changes the ports' reads.
+- 20 buffers in a hardware or script format, kept as the byte streams they
+  are: the loaded event script (opcodes and operands of mixed widths), tile
+  graphics in the planar format the uploads send (the menus' number and map
+  tiles, the warp's light, the field's figure, frame and BG3 tiles, the
+  race's scaler output and road strip, the battle message's tiles), and
+  per-line tables in the line-effect format of a count byte and its values
+  (field, battle, menu and race line tables).
+- 10 byte copies of records whose fields are not all worked out or are
+  copied whole: save summaries and the load screen's copy, the status
+  record and its tail, the items set aside, the battle's saved shapes and
+  draw work, the text page's arguments, and the field's sprite records and
+  frame data, which the game reaches by byte offset.
+- 8 record views at two widths: the load screen's era-label tiles (a table of
+  tile words its clear writes a byte at a time), the menu object mode's Mode 7
+  matrix (whose parameters' high bytes are set alone), the characters' and combatants' records as
+  bytes (`character_records`, `battle_stats`, used by stat operands and the
+  save), a palette animation's bytes 6-8 (a frame pointer or a fade's mode,
+  level and target, by its kind: one record, two layouts), the battle trail's
+  positions split into low- and high-byte tables at separate addresses, and
+  the battle window lines read as words and as edges.
 - 30 variables that share another mode's bytes at the same time or hand data
-  across a mode change, kept as `host_alias` views (examples under "Overlays").
-- 11 owners with a field read at two widths inside the record, and 7 records
-  with a byte-buffer field.
+  across a mode change, kept as `host_alias` views (examples under
+  "Overlays"); each needs its hand-off written where the mode changes.
 
-The denominator fell by 27 because the retired sound loader has no live clients.
-Its declarations and generated accessors were deleted. Its 257 bytes and 1,138
-other unused/padding bytes have no storage. Of the former 1,450 unnamed bytes,
-312 remain as named cartridge-save reserved runs, required for lossless `.srm`
-round trips. A sampled-movie audit with the old fallback instrumented found no
-gameplay reads of the 1,395 dropped bytes; whole-address inspection in native
-tests and route snapshots did read them. The image-free gate verifies the
-observable results after their removal. Unowned inspection addresses return
-zero and bulk writes across them are ignored.
+The denominator fell by 27 when the retired sound loader's declarations were
+deleted, and by 23 more: the 20 dead scratch declarations and the scenes'
+and the field's byte copies of the sprite table. The 257 sound
+bytes, 1,138 unused/padding bytes and 21 bytes of that scratch no other owner
+covers have no storage. Of the former 1,450 unnamed bytes, 312 remain as named
+cartridge-save reserved runs, required for lossless `.srm` round trips. A
+sampled-movie audit with the old fallback instrumented found no gameplay
+reads of the dropped bytes; whole-address inspection in native tests and
+route snapshots did read them. The image-free gate verifies the observable
+results after their removal. Unowned inspection addresses return zero and
+bulk writes across them are ignored.
 
 ## Owners, elements and records
 
@@ -128,16 +162,25 @@ little of it; the reimplementation need not. An owner that declares
 it names, and its accessors read and write only those. What still reaches the
 memory by address keeps the original's one byte: the address view writes a
 shared byte to every owner of it and answers a read from the owner that wrote
-it last (`VarsHost.overlay_writer`, a placement number per shared byte, 0 when
-every owner holds the same value). Cartridge saves, route peeks and video
-sources therefore see what the original would.
+it last (`VarsHost.overlay_writer`, a byte per shared byte holding the
+writer's place among that byte's owners, 0 when every owner holds the same
+value: 116 KB). Cartridge saves, route peeks and video sources therefore see
+what the original would. An alias of shared bytes reads the same way, and its
+writes reach every mode's copy as the original's one byte does (for example
+`menu_story_flags_top_layer_first`), except an alias marked `same_value`: the
+same cell under two names, which reads and writes its owner's own field with
+the owner's crossing check (`battle_joypad`, `battle_turn_member`,
+`battle_effect_sprite_attributes`, `menu_member_pointed`,
+`menu_save_slot_era`).
 
 Separate storage changes behaviour exactly where a mode reads bytes another
 mode wrote last: the original answered with that mode's value, the separated
 owner answers with its own. Every owner accessor over shared bytes checks
-this, and `ct_native` prints `overlay crossed: <reader> read bytes <writer>
-wrote, N time(s)` at exit. The line is a runtime fault (tools/outcomes.py), so
-a sampled or library movie that crosses fails the gate. A variable whose mode
+this (a guard's look under `vars_peek` doesn't), the state keeps the tally
+(`VarsHost.crossed`), and `ct_native` prints `overlay crossed: <reader> read
+bytes <writer> wrote, N time(s)` at exit. The line is a runtime fault
+(tools/outcomes.py), so a sampled or library movie or a route
+(`route_check`) that crosses fails. A variable whose mode
 really reads another's bytes is not separated: it keeps a `host_alias` view of
 the owner whose bytes it reads, which names the hand-off.
 
@@ -224,7 +267,7 @@ against an actual cartridge save after loading, editing and saving it.
 Map tests cover typed elements, sliced words, records, aliases, overlays and
 their linking rules, page instances, invalid declarations and generated-file
 freshness. `vars_host_test` fills all
-owned addresses before reading them back, verifies that all 1,395 unowned
+owned addresses before reading them back, verifies that all 1,416 unowned
 addresses discard writes, and exercises aliases, partial writes, independent
 states, unchecked tails and video sources. Record tests mutate the native
 structs directly and verify both accessors and cross-mode address aliases; an

@@ -82,6 +82,17 @@ def prepare(where, stamp, resume):
     return kept
 
 
+def runtime_faults(lines):
+    """The lines a run's ct_native printed that fail any run of it (tools/outcomes.py's
+    faults, an overlay crossing among them), as the movie stages fail on them."""
+    if __package__:
+        from ..outcomes import FAULT
+    else:  # run as a file, tools/movies/route_check.py
+        sys.path.insert(0, REPO)
+        from tools.outcomes import FAULT
+    return [line for line in lines if FAULT.search(line)]
+
+
 def run_one(route, scratch, rom, drive, timeout, resume=False, protocol_log=False):
     """Run one native route and report its asserted outcome."""
     name, _, until = route.partition(":")
@@ -125,8 +136,11 @@ def run_one(route, scratch, rom, drive, timeout, resume=False, protocol_log=Fals
         match = CHECKPOINT.match(line)
         if match:
             phases.append((match.group(1), int(match.group(2))))
-    passed = status == 0 and outcome is not None and outcome[0] == "reached"
-    if passed:
+    faults = runtime_faults(lines)
+    passed = status == 0 and outcome is not None and outcome[0] == "reached" and not faults
+    if faults:
+        what = "runtime fault: %s" % faults[0]
+    elif passed:
         what = outcome[1]
     elif status is None:
         what = "timed out after %ds" % timeout

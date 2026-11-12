@@ -57,6 +57,20 @@ class NativeModeTest(unittest.TestCase):
         self.assertEqual(result["frame"], 20)
         self.assertEqual(result["phases"], [("room", 12)])
 
+    def test_a_route_whose_mode_crossed_an_overlay_fails(self):
+        def start(command, **kwargs):
+            kwargs["stdout"].write("outcome reached test frame 20\n"
+                                   "overlay crossed: menu_shop_tab_cursor read bytes menu_name_cursor_before wrote, "
+                                   "1 time(s)\n")
+            process = unittest.mock.Mock()
+            process.wait.return_value = 0
+            return process
+        with tempfile.TemporaryDirectory() as where, patch.object(route_check, "run_stamp", return_value="test"), \
+                patch.object(route_check.subprocess, "Popen", side_effect=start):
+            result = route_check.run_one("test", where, "rom", "native.exe", 10)
+        self.assertFalse(result["passed"])
+        self.assertIn("overlay crossed: menu_shop_tab_cursor", result["what"])
+
     def test_timeout_stops_the_route_process_tree(self):
         with tempfile.TemporaryDirectory() as where, patch.object(route_check, "run_stamp", return_value="test"), \
                 patch.object(route_check.subprocess, "Popen") as start, \

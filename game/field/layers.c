@@ -129,13 +129,6 @@ static void right_column(LayerEdges *e, uint16_t column, uint16_t row)
 
 /* The runs as the uploads read them: VRAM addresses (the tile map index plus
  * the layer's base) and sizes, a word each, in the words layers.h names. */
-static void set_word(GameState *g, void (*set)(GameState *, unsigned, unsigned, uint8_t), unsigned layer,
-                     unsigned word, uint16_t v)
-{
-    set(g, layer, 2 * word, (uint8_t)v);
-    set(g, layer, 2 * word + 1, (uint8_t)(v >> 8));
-}
-
 static void store_layer_edges(GameState *g, unsigned layer, uint16_t base, const LayerEdges *e)
 {
     const uint16_t addresses[EDGE_ADDRESSES] = {
@@ -151,9 +144,9 @@ static void store_layer_edges(GameState *g, unsigned layer, uint16_t base, const
         [EDGE_COLUMN_SIZES + 1] = e->column_sizes.from_map_top,
     };
     for (unsigned k = 0; k < EDGE_ADDRESSES; k++)
-        set_word(g, set_field_layer_edge_vram_byte, layer, k, (uint16_t)(addresses[k] + base));
+        set_field_layer_edge_vram(g, layer * EDGE_ADDRESSES + k, (uint16_t)(addresses[k] + base));
     for (unsigned k = 0; k < EDGE_SIZES; k++)
-        set_word(g, set_field_layer_edge_sizes_byte, layer, k, sizes[k]);
+        set_field_layer_edge_sizes(g, layer * EDGE_SIZES + k, sizes[k]);
 }
 
 // $C0:7F9A

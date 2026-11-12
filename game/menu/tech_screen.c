@@ -478,8 +478,7 @@ bool menu_techs_slide_members_a_frame(GameState *g)
     set_menu_scroll_moved(g, (uint16_t)(menu_scroll_moved(g) + step));
     uint32_t line = (uint32_t)menu_tech_slide_line(g) + step;
     set_menu_tech_slide_line(g, (uint16_t)line);
-    uint16_t thumb = menu_scroll_bar_thumb_word(g);
-    set_menu_scroll_bar_thumb_word(g, (uint16_t)(line > 0xFFFF ? thumb - 1 : thumb + 1));
+    menu_scroll_bar_move_thumb(g, line > 0xFFFF ? -1 : 1);
     show_member_rows_from(g, (uint16_t)line);
     menu_queue_fixed_upload(g, MENU_UPLOAD_LINE_TABLES);
     uint16_t frames = (uint16_t)(menu_scroll_frames(g) - 1);
@@ -738,8 +737,7 @@ bool menu_techs_slide_list_a_frame(GameState *g)
 {
     uint16_t moved = (uint16_t)(menu_scroll_moved(g) + menu_scroll_step(g));
     set_menu_scroll_moved(g, moved);
-    uint16_t thumb = menu_scroll_bar_thumb_word(g);
-    set_menu_scroll_bar_thumb_word(g, (uint16_t)((int16_t)moved < 0 ? thumb - 1 : thumb + 1));
+    menu_scroll_bar_move_thumb(g, (int16_t)moved < 0 ? -1 : 1);
     uint16_t frames = (uint16_t)(menu_scroll_frames(g) - 1);
     set_menu_scroll_frames(g, frames);
     return frames != 0;

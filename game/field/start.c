@@ -58,7 +58,7 @@ static void nothing_under_way(GameState *g)
  * color math as the field starts it, the windows off and none of their
  * corners marked, the backdrop (the palette's first color) black, and BG3 as
  * the map gives it. */
-enum { DARK = 0, WINDOW_SHADOW_BYTES = 3, BACKDROP = 0, BLACK = 0 };
+enum { DARK = 0, BACKDROP = 0, BLACK = 0 };
 
 static void dark_plain_screen(GameState *g)
 {
@@ -68,8 +68,9 @@ static void dark_plain_screen(GameState *g)
     field_line_interrupt_works(g, true);
     set_field_display_flags(g, 0);
     set_field_color_math_control(g, field_starting_color_math());
-    for (unsigned i = 0; i < WINDOW_SHADOW_BYTES; i++)
-        set_field_window_shadows_byte(g, i, 0);
+    set_field_window_shadows_bg1_bg2(g, 0);
+    set_field_window_shadows_bg3_bg4(g, 0);
+    set_field_window_shadows_obj_colour(g, 0);
     set_dialog_choice_pointer(g, DIALOG_NO_CHOICE_POINTER);
     field_map_names_a_bg3_set(g, true);
     set_field_bg3_map_size(g, 0);

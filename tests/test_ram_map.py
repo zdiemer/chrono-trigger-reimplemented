@@ -132,7 +132,8 @@ host_module = "field"
 elements = { name = "entries", size = 2, start = 1, meaning = "Tilemap entries." }
 ''')
         m = ram_map.RamMap(text=text)
-        self.assertEqual(ram_map.storage_counts(m), (0, 0, 1))
+        # Word elements read a byte at a time are bytes to the measure.
+        self.assertEqual(ram_map.storage_counts(m), (0, 1, 0))
         h = ram_map.render_host_header(m)
         self.assertIn("struct { uint16_t entries[3]; } tiles;", h)
         c = ram_map.render_host_backing(m)
@@ -144,6 +145,22 @@ elements = { name = "entries", size = 2, start = 1, meaning = "Tilemap entries."
                          ('meaning = "Tilemap entries."', 'meaning = ""')]:
             with self.subTest(new=new), self.assertRaises(ram_map.MapError):
                 ram_map.RamMap(text=text.replace(old, new))
+
+    def test_whole_elements_are_read_at_their_own_width(self):
+        """A labelled buffer wider than a byte counts as typed only when its
+        accessors move whole elements; the byte accessor goes away."""
+        text = var("tiles", 'addr = "7E:1000"\nsize = 6\nhost_module = "field"\n'
+                            'elements = { name = "entries", size = 2, whole = true, meaning = "Tilemap entries." }')
+        m = ram_map.RamMap(text=text)
+        self.assertEqual(ram_map.storage_counts(m), (0, 0, 1))
+        h = ram_map.render_vars_header(m)
+        self.assertIn("uint16_t tiles(const GameState *g, unsigned item);", h)
+        self.assertNotIn("tiles_byte", h)
+        self.assertIn("return h->field.tiles.entries[item];", ram_map.render_backing(m))
+        with self.assertRaises(ram_map.MapError):
+            ram_map.RamMap(text=text.replace("size = 6", "size = 5"))
+        with self.assertRaises(ram_map.MapError):
+            ram_map.RamMap(text=text.replace("whole = true", "whole = true, start = 1"))
 
     def test_single_record_can_own_an_array_member(self):
         text = var("line_values", '''addr = "7E:1000"
@@ -356,15 +373,29 @@ host_alias = "items"''', "menu"))
         self.assertEqual(ram_map.storage_counts(m), (0, 0, 2))
         h, c, backing = ram_map.render_host_header(m), ram_map.render_backing(m), ram_map.render_host_backing(m)
         self.assertIn("uint8_t view;", h)
-        self.assertIn("uint16_t overlay_writer[256];", h)
+        self.assertIn("uint8_t overlay_writer[256];", h)
+        self.assertIn("uint32_t crossed[3];", h)
         setter = c[c.index("void set_view(GameState *g"):]
         self.assertIn("h->menu.view = v;", setter[:setter.index("}")])
         self.assertIn("vars_host_claim(h, 0x7E1001u, 1u, 2u);", setter[:setter.index("}")])
         getter = c[c.index("uint8_t view(const GameState *g"):]
-        self.assertIn("vars_host_check(h, 0x7E1001u, 1u, 2u);", getter[:getter.index("}")])
+        self.assertIn("if (!peeking)\n        vars_host_check(h, 0x7E1001u, 1u, 2u);", getter[:getter.index("}")])
         self.assertIn("{ 1, 2, 0 },", backing)
-        self.assertIn("place = h->overlay_writer[slot - 1];", backing)
+        self.assertIn("place = overlay_owner_sets[set][h->overlay_writer[slot - 1] - 1u];", backing)
         self.assertIn("for (const uint16_t *owner = overlay_owner_sets[set]; *owner; owner++)", backing)
+
+    def test_a_same_value_alias_reads_its_owners_own_field(self):
+        """An alias marked same_value names its owner's value: it reads the
+        owner's field with the owner's crossing check, not the address view."""
+        m = ram_map.RamMap(text=var("items", 'addr = "7E:1000"\nsize = 2\nhost_module = "items"')
+                           + var("view", 'addr = "7E:1001"\nhost_module = "menu"\noverlays = "items"', "menu")
+                           + var("name", 'addr = "7E:1000"\nsize = 2\nhost_alias = "items"\nsame_value = true'))
+        c = ram_map.render_backing(m)
+        getter = c[c.index("uint16_t name(const GameState *g"):]
+        self.assertIn("return h->items.items;", getter[:getter.index("}")])
+        self.assertIn("vars_host_check(h, 0x7E1000u, 2u, 1u);", getter[:getter.index("}")])
+        with self.assertRaises(ram_map.MapError):
+            ram_map.RamMap(text=var("items", 'addr = "7E:1000"\nsize = 2\nhost_module = "items"\nsame_value = true'))
 
     def test_overlay_validation(self):
         owner = var("items", 'addr = "7E:1000"\nsize = 2\nhost_module = "items"')

@@ -185,6 +185,14 @@ static void charge_conversion(GameState *g, uint32_t value, uint8_t bytes)
     charge_as(g, NUMBER_TO_BCD, bytes * ACCESSES_PER_BYTE + set * ACCESSES_PER_SET_BIT);
 }
 
+/* The number being drawn, left in the text drawer's cells for what reads it
+ * after (the healing's rising numbers): its low four digits, then its high. */
+static void keep_number(GameState *g, uint32_t digits)
+{
+    set_menu_text_work_number_low(g, (uint16_t)digits);
+    set_menu_text_work_number_high(g, (uint16_t)(digits >> 16));
+}
+
 /* The number of `bytes` bytes at `at` as decimal digits. */
 static uint32_t value_converted(GameState *g, uint32_t value, uint8_t bytes)
 {
@@ -197,7 +205,7 @@ uint32_t menu_convert_number(GameState *g, uint32_t value, uint8_t bytes)
     if (bytes < 4)
         value &= (1u << 8 * bytes) - 1;
     uint32_t digits = value_converted(g, value, bytes);
-    set_menu_text_work_number(g, digits);
+    keep_number(g, digits);
     return digits;
 }
 
@@ -207,7 +215,7 @@ static uint16_t draw_value(GameState *g, uint32_t value, uint8_t format, uint16_
 {
     NumberFormat f = number_format(format);
     uint32_t digits = value_converted(g, value, f.bytes);
-    set_menu_text_work_number(g, digits);
+    keep_number(g, digits);
     uint16_t after = draw_digits(g, pen, digits, f);
     return after;
 }
@@ -239,7 +247,7 @@ static uint8_t hex_byte(const GameState *g, uint32_t bytes, unsigned place)
 static uint16_t draw_hex_number(GameState *g, uint32_t at, uint16_t format, uint16_t pen)
 {
     uint32_t bytes = number_at(g, at, 4);
-    set_menu_text_work_number(g, bytes);
+    keep_number(g, bytes);
     uint8_t count = (uint8_t)format;
     /* written first: the digits past the number's bytes are read from here */
     set_menu_number_digits(g, count);

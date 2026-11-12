@@ -385,19 +385,16 @@ static void untint_sprite_palette_3(GameState *g, Platform *pf, uint8_t channel)
 
 /* BG3's map, which the scene builds in its tilemap buffer: its second row is
  * the columns' vertical offsets. */
-enum { VERTICAL_OFFSETS = 0x40, COLUMNS = 32, OFFSET_BYTES = 2 };
+enum { VERTICAL_OFFSETS = 0x20, COLUMNS = 32 };
 
 static uint16_t column_offset(const GameState *g, unsigned column)
 {
-    unsigned at = VERTICAL_OFFSETS + column * OFFSET_BYTES;
-    return (uint16_t)(scene_tilemap_buffer_byte(g, at) | scene_tilemap_buffer_byte(g, at + 1) << 8);
+    return scene_tilemap_buffer(g, VERTICAL_OFFSETS + column);
 }
 
 static void set_column_offset(GameState *g, unsigned column, uint16_t offset)
 {
-    unsigned at = VERTICAL_OFFSETS + column * OFFSET_BYTES;
-    set_scene_tilemap_buffer_byte(g, at, (uint8_t)offset);
-    set_scene_tilemap_buffer_byte(g, at + 1, (uint8_t)(offset >> 8));
+    set_scene_tilemap_buffer(g, VERTICAL_OFFSETS + column, offset);
 }
 
 // $7E:5FFE

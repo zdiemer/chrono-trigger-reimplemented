@@ -203,8 +203,8 @@ static void fade_in_the_picture(GameState *g) { palette_start_fade_to_white(g, T
  * 32 bytes from the cartridge, the start of the race's plane, which is 0.) */
 static void clear_sprite_high_bits(GameState *g)
 {
-    for (unsigned i = 0; i < SCENE_SPRITE_HIGH_TABLE_BYTES; i++)
-        set_scene_sprite_high_table_byte(g, i, 0);
+    for (unsigned i = 0; i < OAM_HIGH_TABLE_BYTES; i++)
+        set_oam_high_table_byte(g, i, 0);
 }
 
 /* ---- The setup ---------------------------------------------------------------------------------- */

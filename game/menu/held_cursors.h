@@ -33,6 +33,8 @@ void menu_draw_cursors_on_every_member(GameState *g);
  * arrows. */
 void menu_start_the_scroll_bar(GameState *g);
 void menu_draw_the_scroll_bar(GameState *g);
+/* The thumb moved a line along the bar (`lines` 1 or -1) as a list slides. */
+void menu_scroll_bar_move_thumb(GameState *g, int lines);
 /* The scroll bar's thumb on the screen, which drawing it takes. */
 bool menu_scroll_bar_can_be_drawn(const GameState *g);
 

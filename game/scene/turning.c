@@ -69,8 +69,8 @@ void scene_draw_figure_pose(GameState *g, unsigned character, uint16_t pose_offs
         uint16_t looks = (uint16_t)(appearance + sprite * 2);
         unsigned high = scene_sprite_high_pointer(g) - SCENE_SPRITE_HIGH_TABLE;
         scene_place_sprite(g, (uint16_t)(first + sprite * 4), (SceneSprite){ (uint8_t)x, y, (uint8_t)looks, (uint8_t)(looks >> 8) });
-        set_scene_sprite_high_table_byte(g, high, (uint8_t)(LARGE_SPRITE | (x & 0x8000 ? LEFT_OF_SCREEN : 0) |
-                                                          scene_sprite_high_table_byte(g, high) >> 2));
+        set_oam_high_table_byte(g, high, (uint8_t)(LARGE_SPRITE | (x & 0x8000 ? LEFT_OF_SCREEN : 0) |
+                                                          oam_high_table_byte(g, high) >> 2));
         unsigned next = first + (sprite + 1) * 4;
         if (next % 16 == 0)
             set_scene_sprite_high_pointer(g, (uint16_t)(scene_sprite_high_pointer(g) + 1));
@@ -285,12 +285,10 @@ TaskEnd scene_cycle_turn_colors(GameState *g, Platform *pf, unsigned slot)
     (void)slot;
     if ((scene_frame_counter(g) & 7) == 0) {
         vid_send_palette(pf, PF_AT(0x7E78B4), 21, PF_GAME(0x7E222A), 3);
-        for (unsigned byte = 0; byte < 2; byte++) {
-            uint8_t first = scene_palette_byte(g, 42 + byte);
-            set_scene_palette_byte(g, 42 + byte, scene_palette_byte(g, 44 + byte));
-            set_scene_palette_byte(g, 44 + byte, scene_palette_byte(g, 46 + byte));
-            set_scene_palette_byte(g, 46 + byte, first);
-        }
+        uint16_t first = scene_palette(g, 21);
+        set_scene_palette(g, 21, scene_palette(g, 22));
+        set_scene_palette(g, 22, scene_palette(g, 23));
+        set_scene_palette(g, 23, first);
     }
     return task_goes_on();
 }
@@ -396,10 +394,10 @@ static void start_turn_map(GameState *g)
     set_scene_turn_circle_center(g, 0, TURN_CENTER_X);
     set_scene_turn_circle_center(g, 1, TURN_CENTER_Y);
     set_scene_circle_table_bank(g, SCENE_LOWER_WORK_RAM);
-    for (unsigned byte = 0; byte < 0x800; byte++) {
-        uint8_t value = scene_turn_saved_map_byte(g, byte);
-        set_scene_tilemap_buffer_byte(g, byte, value);
-        set_scene_turn_output_map_byte(g, byte, value);
+    for (unsigned tile = 0; tile < 0x400; tile++) {
+        uint16_t value = scene_turn_saved_map(g, tile);
+        set_scene_tilemap_buffer(g, tile, value);
+        set_scene_turn_output_map(g, tile, value);
     }
     set_scene_fade_period(g, 2);
     set_scene_fade_countdown(g, 2);
