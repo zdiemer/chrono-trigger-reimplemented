@@ -63,9 +63,17 @@ assets are not committed.
 
 ## Further targets
 
-Widescreen must review coordinate clipping and field activation bounds. It
-reaches the game as the video service's view size, with the original screen as
-the default the gate measures (docs/PLAN.md, "Layering"). GPU
+Widescreen reaches the game as the video service's view, `vid_view`: how much
+of the picture is shown, the original's 256x224 unless the driver chose another
+with `vid_host_set_view` (a snapshot keeps the driver's choice). The gate runs
+at the original's (docs/PLAN.md, "Layering"). A port asks it where it decides
+how much to show or where to lay something out, never where a rule of the
+game's uses the screen's size: the field's object window at `$C0:A88D` decides
+which objects run, so a wider picture needs a draw-only test beside it rather
+than a wider window. As built, the sprite-object mode's in-view test
+(`menu_scene_object_in_view`) asks it; most other screen-bound sites still hold
+positions and window edges in bytes and the OAM's ninth X bit, which a wider
+view has to widen first. GPU
 backends must preserve line effects and color math. Smaller targets need measured
 memory and coroutine stack budgets; a callback-based frontend needs an appropriate
 fiber backend or resumable game tasks.
