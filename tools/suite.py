@@ -123,6 +123,7 @@ def main(argv=None):
         ('movies', [py, 'tools/native_check.py', '--ct-native', str(binary), '--rom', str(args.rom), '--outcomes', str(runs), '-j', str(args.jobs), '--movies', *names]),
         ('outcomes', [py, 'tools/outcomes.py', '--check', '--runs', str(runs), '--movies', *names]),
         ('routes', [py, '-m', 'tools.movies.route_check', '--drive', str(binary), '--rom', str(args.rom), '--scratch', str(args.out / 'routes'), '--timeout', '90', '-j', str(args.jobs)]),
+        ('snapshots', [py, 'tools/player_check.py', '--build', str(binary.parent), '--rom', str(args.rom), '--out', str(args.out / 'player-check')]),
         ('portstyle', [py, 'tools/portstyle.py', '--check']),
         ('portsmell', [py, 'tools/portsmell.py', '--check']),
     ]

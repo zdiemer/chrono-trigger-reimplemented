@@ -4,40 +4,15 @@ PLAN.md gives the work order; the lean native gate protects each change.
 
 ## Correctness and accuracy
 
-- **Native bases during play.** Player quick load and `ct_native --drive`
-  slot load share reconstruction of the main and menu coroutines from
-  power-on input; neither has a later complete base, so load time grows with
-  the session. Quick saves require the same execution-source fingerprint;
-  `.srm` remains portable progress across builds. Use the held waits, now
-  data or saveable C loops,
-  to take resumable saves at frame ends during a route. Capture the complete
-  game and task state, host services, sound and timing debt, then replay only
-  the buttons since that base on a slot load. Verify restored RAM, pictures
-  and continued play against uninterrupted runs; a RAM-only copy is insufficient.
-  The audit's Cyrus route took about 80 minutes versus 44 seconds in
-  shipping mode, even with exact audio-host reply reuse (MOVIES.md,
-  "Native program checkpoints"). `beyond_time` wins both final battles, but its ending
-  continuation exceeds six hours searching Leene's Bell plaza (`$051`),
-  after entering it at frame 81312; the last completed protocol step was
-  frame 81750, and the timeout interrupted a restore. Shipping completes
-  the ending at frame 107048. No replay mismatch preceded the timeout.
-  The first observed state difference under identical input is much
-  earlier: at frame 2566, `peek 7E1802 2` returns `400c` in native and
-  `300c` in shipping (Crono's X, 196 versus 195 pixels). That timing
-  difference is not evidence of the timeout's cause. `motherbrain` also
-  exceeds six CPU hours in Geno Dome's escort-pod charge search, after
-  opening the robot room and clearing the lower corridor battle; its last
-  completed step is frame 44933. Shipping completes at 155522.
-  `nizbel_ii` reaches the lower hall and clears its ambushes, then exceeds
-  the same CPU budget searching toward the door switch: its last completed
-  probe is frame 66706, versus shipping's outcome at 132380. The
-  native route audit records the first
-  common-input differences and the stops. The audit was stopped by request
-  with `r_series` past the shutter escape (last completed probe 33504) and
-  `sun_stone_finish` past the Moon Stone recovery (13099). The bucket route
-  had reached the cavern at 97298; its continuation was not run. Rerun these,
-  the time-limited routes and the six unstarted full routes listed in
-  `docs/movies-wanted.md` once loads can use bases during play.
+- **Native routes still failing with snapshot loads.** With slot loads as
+  snapshots the routes once too slow to finish run in seconds to minutes:
+  `beyond_time`, `bucket_lavos`, `nizbel_ii`, `r_series`, `sun_stone_finish`,
+  `tech_sweep_spekkio`, `trial`, `unequipped_armor`, `zeal_palace` and
+  `zombor` reach their outcomes. Two fail on gameplay rather than time:
+  `motherbrain` exhausts its escort-pod charge search in Geno Dome (last
+  checkpoint `robot_room_open`, frame 41441; stops at 44669; shipping completes
+  at 155522), and `telepod_lavos` passes its ending (checkpoint `devroom`,
+  frame 137171) but fails "the reaper statue" at frame 147027. The six unstarted full routes in `docs/movies-wanted.md` remain to be run.
 
 - **Out-of-contract script states.** The event loops at `$C0:58ED`, `$C0:5967`, `$C0:5990` and
   `$C0:5AA3` already run as C for valid scripts; their hand-backs preserve
@@ -2462,7 +2437,7 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
   descriptors; a VRAM-only replacement needs that guard contract settled.
 - **Native audio interface.** `au_driver_call` stops on a machine-wrapper
   call; remove that interface with its remaining callers. Preserve command
-  queues and exact audio-host reply reuse during route restores.
+  queues.
 
 - **Reads past a table's end, as the original's glitches make them.** The
   original reads and writes past its tables where a player can push it there
@@ -2549,9 +2524,6 @@ and preserve their diagnostics as the remaining machine wrappers leave.
 - **What the native divergences' review left.** Keep the Sun Stone and Queen
   Zeal state-driven continuation scripts as reproducible route checks rather
   than one-off evidence.
-- **What the native route driver's review left.** `route_driver_test` has no
-  deliberately divergent replay, asserting `err replay` and a nonzero exit;
-  Extend protocol failure coverage when snapshot work changes replay.
 - **What the cartridge-address audit's review left.** Each work-RAM proof in
   the allowlist holds for the code as it stands, but the consistency test
   catches only a removed expression, not a changed helper or producer behind
@@ -2921,3 +2893,12 @@ and submitted-sprite records are declared in `re/ram.toml`; see
   earlier frame followed by different input, then verify the rewritten movie
   and final state. Automate restore while paused and repeated live quick loads;
   compare continued RAM, pictures and sound with uninterrupted play.
+- **Snapshot review follow-ups (native-bases).** Confirm the mutable statics
+  outside GameState (game/scene/planet.c `colours_stepped`/`last_star_frame`,
+  game/field/window_shape.c `drew_sloped_edge`) never carry from one frame to
+  the next, or move them into GameState. Check that no suspended game frame
+  caches a Platform heap pointer (observer, sound driver, asset pack), which a
+  restore keeps live. `snapshot_restore` can switch the fibers and then fail in
+  `pf_host_restore` out of memory, leaving the program half restored: restore
+  the services first or make the failure fatal. `route_driver_test`'s movie case
+  no longer checks a resulting value.

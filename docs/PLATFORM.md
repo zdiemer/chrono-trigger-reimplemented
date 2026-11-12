@@ -22,8 +22,8 @@ machine-removal work proceeds. No emulated PPU is used.
 The C sound program receives game commands through the audio service. Voices
 supply sample playback, envelopes, pitch, noise and echo to the native mixer.
 The SDL driver pulls buffered output; game code never polls an audio device.
-Route restores replay audio-host replies exactly through `frontend/audio_replay.c`
-so a checkpoint replay reaches the same game state. See SOUND.md.
+A snapshot keeps the whole sound driver and mixer (docs/PLAYING.md,
+"Snapshots"). See SOUND.md.
 
 ## Timing without a beam
 
