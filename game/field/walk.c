@@ -921,45 +921,41 @@ void party_start_on_the_map(GameState *g)
 /* ---- The walk and the recentring ---------------------------------------------------------------- */
 
 /* The walk and the screen's step back toward the party, each with the layers
- * scrolled after it (the recentring's first step from a call of its own);
- * false where the scroll went no further. */
-typedef enum { SCROLL_AFTER_THE_WALK, SCROLL_AS_RECENTRING_STARTS, SCROLL_AS_IT_RECENTRES } LayersScroll;
-typedef bool (*ScrollTheLayers)(void *ctx, LayersScroll after);
-
-// $C0:881E
-static bool walk_the_leader(GameState *g, ScrollTheLayers scroll, void *ctx)
-{
-    leader_walks(g);
-    return scroll(ctx, SCROLL_AFTER_THE_WALK);
-}
-
-// $C0:885A
-static bool recentre(GameState *g, ScrollTheLayers scroll, void *ctx)
-{
-    bool starts = (Recentring)field_screen_recentring(g) == RECENTRE_STARTS;
-    if (!screen_recentres(g))
-        return true;
-    if (!scroll(ctx, starts ? SCROLL_AS_RECENTRING_STARTS : SCROLL_AS_IT_RECENTRES))
-        return false;
-    screen_recentring_moved(g);
-    return true;
-}
-
-/* The layers scrolled and streamed; false where the layers' maps don't
- * repeat within the map's tables, which the port doesn't stream (the program
- * goes no further). */
+ * scrolled and streamed after it; false where the layers' maps don't repeat
+ * within the map's tables, which the port doesn't stream (the program goes
+ * no further). */
 enum { LAYER_SCROLL = 0xC091AC, LAYERS_STREAMED = 0xC093E1 };
 
-static bool scroll(void *ctx, LayersScroll after)
+static bool scroll(GameState *g)
 {
-    (void)after;
-    GameState *g = ctx;
     TIMED_AS(g, LAYER_SCROLL, field_layer_scroll_updated(g));
     if (!layers_repeat_within_the_maps(g)) {
         program_breaks_a_contract(g, LAYERS_STREAMED, "layers the port doesn't stream");
         return false;
     }
     TIMED_AS(g, LAYERS_STREAMED, stream_the_layers(g));
+    return true;
+}
+
+// $C0:881E
+static bool walk_the_leader(GameState *g)
+{
+    leader_walks(g);
+    return scroll(g);
+}
+
+// $C0:885A
+/* The original reads whether the recentring starts, to scroll the layers
+ * from a call of its own as it does; the scroll is the same, and the read's
+ * time is kept. */
+static bool recentre(GameState *g)
+{
+    charge_accesses(g, 1);
+    if (!screen_recentres(g))
+        return true;
+    if (!scroll(g))
+        return false;
+    screen_recentring_moved(g);
     return true;
 }
 
@@ -972,7 +968,7 @@ bool field_the_leader_walks(GameState *g)
         program_breaks_a_contract(g, THE_WALK, "a walk the port doesn't take");
         return false;
     }
-    return walk_the_leader(g, scroll, g);
+    return walk_the_leader(g);
 }
 
 /* The recentring the port takes: the leader an object the tables hold where the
@@ -993,7 +989,7 @@ bool field_the_screen_recentres(GameState *g)
         program_breaks_a_contract(g, 0xC0885A, "a recentring with no leader the tables hold");
         return false;
     }
-    return recentre(g, scroll, g);
+    return recentre(g);
 }
 
 /* The walk the port takes: the leader is an object the tables hold,

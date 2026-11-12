@@ -492,37 +492,37 @@ void screen_effect_start(GameState *g, ScreenEffect effect) { set_field_screen_e
  * The curtain's sweep, the field's close into a scene and the ripple call
  * on the field's other work between their own: the scene engine's sweep, BG1
  * drawn as at a map's load, the effects refreshed, a frame waited, the
- * battle's start that puts the field aside. Each is one sequence here, whose
- * calls are callbacks. */
+ * battle's start that puts the field aside. */
 
-/* The moments of the close and the ripple a call is made at. */
-typedef enum {
-    CLOSE_BEGINS,       /* BG1 drawn and sent, a frame */
-    CLOSE_ENDS,         /* the field put aside, a frame */
-    RIPPLE_BEGINS,      /* BG1 drawn and sent, the copy waving, a frame */
-    RIPPLE_SETTLING,    /* the frames of each stretch */
-    RIPPLE_GROWING,
-    RIPPLE_HOLDING,
-    RIPPLE_SHRINKING,
-    RIPPLE_ENDS,        /* the copy gone, the last frame */
-    MOMENTS
-} Moment;
+/* The effects refreshed, and a frame waited. */
+static bool refresh_the_effects(GameState *g)
+{
+    bool done = false;
+    TIMED_AS(g, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(g));
+    return done;
+}
 
-typedef struct {
-    bool (*sweep_the_curtain)(void *ctx);
-    bool (*draw_bg1)(void *ctx, Moment at);
-    bool (*refresh)(void *ctx, Moment at);
-    bool (*wait_a_frame)(void *ctx, Moment at);
-    bool (*battle_set_up)(void *ctx);
-    void (*the_scene_starts)(void *ctx);
-} EffectCalls;
+static void wait_for_the_frame(GameState *g, Platform *pf) { TIMED_AS(g, FIELD_FRAME_WAIT, field_finish_the_frame(g, pf)); }
+
+/* A frame refreshed and waited for. */
+static bool a_frame(GameState *g, Platform *pf)
+{
+    if (!refresh_the_effects(g))
+        return false;
+    wait_for_the_frame(g, pf);
+    return true;
+}
+
+/* The curtain's step, scene/curtain.c's; its stir takes the curtain's place
+ * in the effects' table, doubled, as the original's dispatch hands it on. */
+enum { CURTAIN_INDEX = (CURTAIN - 1) * 2 };
 
 /* A frame of the curtain: the picture cut with it, the sweep a step on, and
  * window 2's line effect showing it. */
-static bool curtain_a_frame(GameState *g, const EffectCalls *calls, void *ctx)
+static bool curtain_a_frame(GameState *g, Platform *pf)
 {
     cut_with_the_curtain(g);
-    if (!calls->sweep_the_curtain(ctx))
+    if (!scene_curtain_stepped(g, pf, CURTAIN_INDEX))
         return false;
     curtain_swept_a_step(g);
     return true;
@@ -541,19 +541,21 @@ static void field_hands_over(GameState *g, Platform *pf)
 
 // $C0:260E
 /* It never comes back to the main loop: false always. */
-static bool close_into_the_scene(GameState *g, Platform *pf, const EffectCalls *calls, void *ctx)
+static bool close_into_the_scene(GameState *g, Platform *pf)
 {
-    if (!calls->draw_bg1(ctx, CLOSE_BEGINS))
+    if (!field_layer_drawn_at_the_load(g, FIELD_BG1))
         return false;
     field_put_the_layer_at_its_start(g, FIELD_BG1);
-    if (!calls->refresh(ctx, CLOSE_BEGINS))
+    if (!refresh_the_effects(g))
         return false;
     set_field_map_transition(g, FIELD_MOVE_TO_BG1);
-    if (!calls->wait_a_frame(ctx, CLOSE_BEGINS) || !calls->battle_set_up(ctx) || !calls->refresh(ctx, CLOSE_ENDS) ||
-        !calls->wait_a_frame(ctx, CLOSE_ENDS))
+    wait_for_the_frame(g, pf);
+    FieldBattleStart start = FIELD_BATTLE_START_STOPPED;
+    TIMED_AS(g, FIELD_BATTLE_BEGINS_ENTRY, start = field_battle_set_up(g, pf));
+    if (start == FIELD_BATTLE_START_STOPPED || !a_frame(g, pf))
         return false;
     field_hands_over(g, pf);
-    calls->the_scene_starts(ctx);
+    field_closed_into_the_scene(g);
     return false;
 }
 
@@ -561,28 +563,26 @@ static bool close_into_the_scene(GameState *g, Platform *pf, const EffectCalls *
  * grows a frame where it shows. The original counts the frames in a cell
  * across the waits, which the port leaves as it has it there. */
 static const struct {
-    Moment moment;
     uint8_t frames;
-    bool shown;
+    bool shown, opens;
     int8_t growth;
 } ripple_stretches[] = {
-    { RIPPLE_SETTLING, RIPPLE_SETTLES, false, 0 },
-    { RIPPLE_GROWING, RIPPLE_GROWS, true, RIPPLE_GROWTH },
-    { RIPPLE_HOLDING, RIPPLE_HOLDS, true, 0 },
-    { RIPPLE_SHRINKING, RIPPLE_SHRINKS, true, -RIPPLE_GROWTH },
+    { RIPPLE_SETTLES, false, false, 0 },              /* the copy settling */
+    { RIPPLE_GROWS, true, true, RIPPLE_GROWTH },      /* the circle opening */
+    { RIPPLE_HOLDS, true, false, 0 },                 /* held */
+    { RIPPLE_SHRINKS, true, false, -RIPPLE_GROWTH },  /* and closing */
 };
 enum { RIPPLE_STRETCHES = sizeof ripple_stretches / sizeof ripple_stretches[0] };
 
-static bool ripple_stretch(GameState *g, unsigned stretch, uint8_t left, const EffectCalls *calls, void *ctx)
+static bool ripple_stretch(GameState *g, Platform *pf, unsigned stretch, uint8_t left)
 {
-    Moment at = ripple_stretches[stretch].moment;
     for (; left != 0; left--) {
         if (ripple_stretches[stretch].shown) {
             draw_the_ripple(g);
             set_field_circle_radius(g, (uint8_t)(field_circle_radius(g) + ripple_stretches[stretch].growth));
         }
         set_field_ripple_frames_left(g, left);
-        if (!calls->refresh(ctx, at) || !calls->wait_a_frame(ctx, at))
+        if (!a_frame(g, pf))
             return false;
     }
     set_field_ripple_frames_left(g, 0);
@@ -591,37 +591,37 @@ static bool ripple_stretch(GameState *g, unsigned stretch, uint8_t left, const E
 
 /* The stretch and its remaining frames survive each held frame boundary.
  * The counter is game state: resuming a ripple reads it. */
-static bool ripple_continues(GameState *g, unsigned stretch, uint8_t left, const EffectCalls *calls, void *ctx)
+static bool ripple_continues(GameState *g, Platform *pf, unsigned stretch, uint8_t left)
 {
-    if (!ripple_stretch(g, stretch, left, calls, ctx))
+    if (!ripple_stretch(g, pf, stretch, left))
         return false;
     for (stretch++; stretch < RIPPLE_STRETCHES; stretch++) {
-        if (ripple_stretches[stretch].moment == RIPPLE_GROWING)
+        if (ripple_stretches[stretch].opens)
             ripple_circle_opens(g);
-        if (!ripple_stretch(g, stretch, ripple_stretches[stretch].frames, calls, ctx))
+        if (!ripple_stretch(g, pf, stretch, ripple_stretches[stretch].frames))
             return false;
     }
     ripple_ends(g);
-    return calls->refresh(ctx, RIPPLE_ENDS) && calls->wait_a_frame(ctx, RIPPLE_ENDS);
+    return a_frame(g, pf);
 }
 
 // $C0:264F
-/* The ripple, over its frames: the copy settling, then its circle opening,
- * held and closing; the script sees it played. */
-static bool play_the_ripple(GameState *g, const EffectCalls *calls, void *ctx)
+/* The ripple, over its frames: BG1 drawn and sent and the copy waving, a
+ * frame; the copy settling, then its circle opening, held and closing; the
+ * copy gone, the last frame; the script sees it played. */
+static bool play_the_ripple(GameState *g, Platform *pf)
 {
-    if (!calls->draw_bg1(ctx, RIPPLE_BEGINS))
+    if (!field_layer_drawn_at_the_load(g, FIELD_BG1))
         return false;
     field_put_the_layer_at_its_start(g, FIELD_BG2);
     field_put_the_layer_at_its_start(g, FIELD_BG3);
-    if (!calls->refresh(ctx, RIPPLE_BEGINS))
+    if (!refresh_the_effects(g))
         return false;
     set_field_map_transition(g, FIELD_MOVE_TO_BG2);
     ripple_begins(g);
     set_field_ripple_frames_left(g, RIPPLE_SETTLES);
-    if (!calls->wait_a_frame(ctx, RIPPLE_BEGINS))
-        return false;
-    return ripple_continues(g, 0, RIPPLE_SETTLES, calls, ctx);
+    wait_for_the_frame(g, pf);
+    return ripple_continues(g, pf, 0, RIPPLE_SETTLES);
 }
 
 /* ---- A frame's step ----------------------------------------------------------------------------- */
@@ -629,7 +629,7 @@ static bool play_the_ripple(GameState *g, const EffectCalls *calls, void *ctx)
 // $C0:21E1
 /* False where it went no further: a call the port refused, or the field's
  * close, which ends it. */
-static bool move_on_a_step(GameState *g, Platform *pf, const EffectCalls *calls, void *ctx)
+static bool move_on_a_step(GameState *g, Platform *pf)
 {
     switch (field_screen_effect_now(g)) {
     case HOLE_OPENING: circle_opens_a_step(g, &HOLE_CIRCLE); return true;
@@ -647,9 +647,9 @@ static bool move_on_a_step(GameState *g, Platform *pf, const EffectCalls *calls,
             curtain_done(g);
             return true;
         }
-        return curtain_a_frame(g, calls, ctx);
-    case ON_TO_THE_SCENE: return close_into_the_scene(g, pf, calls, ctx);
-    case RIPPLE: return play_the_ripple(g, calls, ctx);
+        return curtain_a_frame(g, pf);
+    case ON_TO_THE_SCENE: return close_into_the_scene(g, pf);
+    case RIPPLE: return play_the_ripple(g, pf);
     default: return true;   /* none, or the ripple played and waiting to be seen */
     }
 }
@@ -663,67 +663,13 @@ static bool effect_fits(const GameState *g)
     return effect < SCREEN_EFFECTS && (effect != SEARCHLIGHT || field_window_shape_starts_on_a_line(g));
 }
 
-/* ---- The calls ------------------------------------------------------------------------------------ */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} ScreenEffectContext;
-
-/* The curtain's step, scene/curtain.c's; its stir takes the curtain's place
- * in the effects' table, doubled, as the original's dispatch hands it on. */
-enum { CURTAIN_INDEX = (CURTAIN - 1) * 2 };
-
-static bool sweep_the_curtain(void *ctx)
-{
-    ScreenEffectContext *c = ctx;
-    return scene_curtain_stepped(c->game, c->pf, CURTAIN_INDEX);
-}
-
-static bool draw_bg1(void *ctx, Moment at)
-{
-    (void)at;
-    return field_layer_drawn_at_the_load(((ScreenEffectContext *)ctx)->game, FIELD_BG1);
-}
-
-static bool refresh_the_effects(void *ctx, Moment at)
-{
-    (void)at;
-    ScreenEffectContext *c = ctx;
-    bool done = false;
-    TIMED_AS(c->game, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(c->game));
-    return done;
-}
-
-static bool wait_for_the_frame(void *ctx, Moment at)
-{
-    (void)at;
-    ScreenEffectContext *c = ctx;
-    TIMED_AS(c->game, FIELD_FRAME_WAIT, field_finish_the_frame(c->game, c->pf));
-    return true;
-}
-
-static bool put_the_field_aside(void *ctx)
-{
-    ScreenEffectContext *c = ctx;
-    FieldBattleStart start = FIELD_BATTLE_START_STOPPED;
-    TIMED_AS(c->game, FIELD_BATTLE_BEGINS_ENTRY, start = field_battle_set_up(c->game, c->pf));
-    return start != FIELD_BATTLE_START_STOPPED;
-}
-
-static void start_the_scene(void *ctx) { field_closed_into_the_scene(((ScreenEffectContext *)ctx)->game); }
-
 enum { SCREEN_EFFECT = 0xC021E1 };
 
 bool field_screen_effect_moved_on(GameState *g, Platform *pf)
 {
-    static const EffectCalls in_the_program = { sweep_the_curtain, draw_bg1, refresh_the_effects, wait_for_the_frame, put_the_field_aside,
-                                      start_the_scene };
     if (!effect_fits(g)) {
         program_breaks_a_contract(g, SCREEN_EFFECT, "a screen effect the port doesn't draw");
         return false;
     }
-    ScreenEffectContext c = { g, pf };
-    return move_on_a_step(g, pf, &in_the_program, &c);
+    return move_on_a_step(g, pf);
 }
-

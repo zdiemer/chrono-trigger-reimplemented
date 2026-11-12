@@ -189,46 +189,6 @@ void field_power_on(GameState *g, Platform *pf)
 
 typedef enum { START_STEP, LOAD_STEP, SPRITES_STEP, OBJECTS_STEP, FORGET_STEP, FADE_IN_STEP, ENTERING_STEPS } EnterStep;
 
-/* A step of the entry run, or the world map taking over, which the menus'
- * sprite-object mode shows: each false where the field goes no further (the
- * world map true where it left for the field again). */
-typedef struct {
-    bool (*step)(void *ctx, EnterStep step);
-    bool (*to_the_world_map)(void *ctx);
-} EnterSteps;
-
-// $C0:005D (and $C0:0000, the field's start for the other modes)
-/* The field entered, the screen dark: its handlers taken, and for a map its
- * steps; the locations from $1F0 are the world map's instead, which comes
- * back to the field's start for the place it leaves for. False where it went
- * no further. */
-enum { LOCATION_SIGN = 0x8000 };
-
-static bool enter_the_location(GameState *g, Platform *pf, const EnterSteps *steps, void *ctx)
-{
-    if (location_id(g) & LOCATION_SIGN) {
-        program_breaks_a_contract(g, ENTER, "a field location outside its unsigned range");
-        return false;
-    }
-    for (;;) {
-        TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(pf));
-        take_the_interrupts(g);
-        if (!location_is_the_menus(g))
-            break;
-        if (!steps->to_the_world_map(ctx))
-            return false;
-    }
-    for (EnterStep step = START_STEP; step < ENTERING_STEPS; step++)
-        if (!steps->step(ctx, step))
-            return false;
-    return true;
-}
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} FieldPassContext;
-
 static bool start(GameState *g, Platform *pf)
 {
     (void)pf;
@@ -267,27 +227,43 @@ static const struct { uint32_t site, routine; bool (*run)(GameState *, Platform 
     [FADE_IN_STEP] = { 0xC00094, FIELD_FADE_IN_ENTRY, field_fade_in },
 };
 
-static bool enter_step(void *ctx, EnterStep step)
+/* The world map, which the menus' sprite-object mode shows, takes over:
+ * true where it left for the field again. */
+static bool to_the_world_map(GameState *g, Platform *pf)
 {
-    FieldPassContext *c = ctx;
-    bool done = false;
-    TIMED_AS(c->game, entering[step].routine, done = entering[step].run(c->game, c->pf));
-    return done;
-}
-
-static bool to_the_world_map(void *ctx)
-{
-    FieldPassContext *c = ctx;
     OverworldEnd end = OVERWORLD_WENT_NO_FURTHER;
-    TIMED_AS(c->game, WORLD_MAP, end = overworld_runs(c->game, c->pf));
+    TIMED_AS(g, WORLD_MAP, end = overworld_runs(g, pf));
     return end == OVERWORLD_LEFT;
 }
 
+// $C0:005D (and $C0:0000, the field's start for the other modes)
+/* The field entered, the screen dark: its handlers taken, and for a map its
+ * steps; the locations from $1F0 are the world map's instead, which comes
+ * back to the field's start for the place it leaves for. False where it went
+ * no further. */
+enum { LOCATION_SIGN = 0x8000 };
+
 bool field_enter_the_location(GameState *g, Platform *pf)
 {
-    static const EnterSteps in_the_program = { enter_step, to_the_world_map };
-    FieldPassContext c = { g, pf };
-    return enter_the_location(g, pf, &in_the_program, &c);
+    if (location_id(g) & LOCATION_SIGN) {
+        program_breaks_a_contract(g, ENTER, "a field location outside its unsigned range");
+        return false;
+    }
+    for (;;) {
+        TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(pf));
+        take_the_interrupts(g);
+        if (!location_is_the_menus(g))
+            break;
+        if (!to_the_world_map(g, pf))
+            return false;
+    }
+    for (EnterStep step = START_STEP; step < ENTERING_STEPS; step++) {
+        bool done = false;
+        TIMED_AS(g, entering[step].routine, done = entering[step].run(g, pf));
+        if (!done)
+            return false;
+    }
+    return true;
 }
 
 static bool line_effects(GameState *g, Platform *pf)
@@ -338,31 +314,16 @@ enum { FRAME_WORK_STEPS = sizeof frame_work / sizeof frame_work[0] };
 // $C0:00BF
 /* The frame's work: the objects' scripts and the line effects for the next
  * frame, the palettes animated, the objects moved and their new frames
- * drawn, and their sprites put in the table, which `table` does. False where
- * a step went no further. */
-typedef bool (*FrameWorkStep)(void *ctx, unsigned step);
-
-static bool do_the_frame_work(FrameWorkStep step, void *ctx)
-{
-    for (unsigned i = 0; i < FRAME_WORK_STEPS; i++)
-        if (!step(ctx, i))
-            return false;
-    return true;
-}
-
-static bool frame_work_step(void *ctx, unsigned step)
-{
-    FieldPassContext *c = ctx;
-    bool done = false;
-    TIMED_AS(c->game, frame_work[step].routine, done = frame_work[step].run(c->game, c->pf));
-    return done;
-}
-
+ * drawn, and their sprites put in the table. False where a step went no
+ * further. */
 bool field_frame_work_done(GameState *g, Platform *pf)
 {
-    FieldPassContext c = { g, pf };
-    if (!do_the_frame_work(frame_work_step, &c))
-        return false;
+    for (unsigned step = 0; step < FRAME_WORK_STEPS; step++) {
+        bool done = false;
+        TIMED_AS(g, frame_work[step].routine, done = frame_work[step].run(g, pf));
+        if (!done)
+            return false;
+    }
     bool built = false;
     TIMED_AS(g, SPRITE_TABLE, built = field_sprite_table_built(g));
     if (!built)
@@ -386,25 +347,6 @@ typedef enum {
     PAUSE_AND_MENUS_STEP, REQUESTS_STEP, WALK_STEP, CONFIRM_STEP, DIALOG_WINDOW_STEP, SCREEN_EFFECT_STEP,
     SCRIPT_LAYERS_STEP, FRAME_WORK_STEP, PASS_STEPS,
 } PassStep;
-
-// $C0:0097
-/* A pass of the main loop from its `first` step on, up to the wait for the
- * next frame: the frame's presses latched where it starts, then the steps.
- * Where the pass goes after a step that doesn't go on: the field started
- * anew for a new place, or no further. */
-typedef FieldPass (*PassStepRun)(void *ctx, PassStep step);
-
-static FieldPass run_the_pass_from(GameState *g, PassStep first, PassStepRun run, void *ctx)
-{
-    if (first == PAUSE_AND_MENUS_STEP)
-        latch_presses(g);
-    for (PassStep step = first; step < PASS_STEPS; step++) {
-        FieldPass after = run(ctx, step);
-        if (after != FIELD_PASS_GOES_ON)
-            return after;
-    }
-    return FIELD_PASS_GOES_ON;
-}
 
 static FieldPass pause_and_menus(GameState *g, Platform *pf) { return goes_on(field_pause_and_menus(g, pf)); }
 
@@ -447,20 +389,27 @@ static const struct { uint32_t site, routine; FieldPass (*run)(GameState *, Plat
     [FRAME_WORK_STEP] = { 0xC000B7, FIELD_FRAME_WORK_ENTRY, frame_work_done },
 };
 
-static FieldPass pass_step(void *ctx, PassStep step)
+// $C0:0097
+/* A pass of the main loop, up to the wait for the next frame: the frame's
+ * presses latched, then the steps. Where the pass goes after a step that
+ * doesn't go on: the field started anew for a new place, or no further. */
+static FieldPass run_the_pass(GameState *g, Platform *pf)
 {
-    FieldPassContext *c = ctx;
-    FieldPass after = FIELD_PASS_STOPS;
-    TIMED_AS(c->game, the_pass[step].routine, after = the_pass[step].run(c->game, c->pf));
-    return after;
+    latch_presses(g);
+    for (PassStep step = PAUSE_AND_MENUS_STEP; step < PASS_STEPS; step++) {
+        FieldPass after = FIELD_PASS_STOPS;
+        TIMED_AS(g, the_pass[step].routine, after = the_pass[step].run(g, pf));
+        if (after != FIELD_PASS_GOES_ON)
+            return after;
+    }
+    return FIELD_PASS_GOES_ON;
 }
 
 /* The pass goes through the wait for the next frame, unless a step
  * sent it round the main loop itself. */
 FieldPass field_runs_a_pass(GameState *g, Platform *pf)
 {
-    FieldPassContext c = { g, pf };
-    FieldPass after = run_the_pass_from(g, PAUSE_AND_MENUS_STEP, pass_step, &c);
+    FieldPass after = run_the_pass(g, pf);
     if (after == FIELD_PASS_GOES_ROUND)
         return FIELD_PASS_GOES_ON;
     if (after == FIELD_PASS_GOES_ON)
@@ -485,79 +434,30 @@ void field_runs(GameState *g, Platform *pf)
 
 // $C0:00DE
 /* The effects refreshed for the next frame: the line effects' tables built
- * and the palettes animated, each a routine of its own; false where one went
- * no further. */
-typedef struct {
-    bool (*line_effects)(void *ctx);
-    bool (*palettes)(void *ctx);
-} EffectsSteps;
-
-static bool refresh_effects(const EffectsSteps *steps, void *ctx)
-{
-    return steps->line_effects(ctx) && steps->palettes(ctx);
-}
-
-static bool refreshed_line_effects(void *ctx)
-{
-    TIMED_AS((GameState *)ctx, LINE_EFFECTS, field_line_effects_build(ctx));
-    return true;
-}
-
-static bool refreshed_palettes(void *ctx)
-{
-    bool done = false;
-    TIMED_AS((GameState *)ctx, PALETTE_ANIMATION, done = palette_animated(ctx));
-    return done;
-}
-
+ * and the palettes animated, each a routine of its own; false where the
+ * palettes' went no further. */
 bool field_effects_refreshed(GameState *g)
 {
-    static const EffectsSteps in_the_program = { refreshed_line_effects, refreshed_palettes };
-    return refresh_effects(&in_the_program, g);
+    TIMED_AS(g, LINE_EFFECTS, field_line_effects_build(g));
+    bool done = false;
+    TIMED_AS(g, PALETTE_ANIMATION, done = palette_animated(g));
+    return done;
 }
 
 // $C0:00EB
 /* A frame of the leader's walk alone, while the field waits on something of
  * its own: the walk, the effects refreshed, and the wait for the next frame. */
-typedef struct {
-    bool (*walk)(void *ctx);
-    bool (*refresh)(void *ctx);
-    bool (*wait)(void *ctx);
-} WalkFrameSteps;
-
-static bool walk_a_frame(const WalkFrameSteps *steps, void *ctx)
-{
-    return steps->walk(ctx) && steps->refresh(ctx) && steps->wait(ctx);
-}
-
-static bool leader_takes_a_step(void *ctx)
-{
-    FieldPassContext *c = ctx;
-    bool done = false;
-    TIMED_AS(c->game, WALK, done = field_the_leader_walks(c->game));
-    return done;
-}
-
-static bool effects_refreshed(void *ctx)
-{
-    FieldPassContext *c = ctx;
-    bool done = false;
-    TIMED_AS(c->game, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(c->game));
-    return done;
-}
-
-static bool frame_waited(void *ctx)
-{
-    FieldPassContext *c = ctx;
-    TIMED_AS(c->game, FIELD_FRAME_WAIT, field_finish_the_frame(c->game, c->pf));
-    return true;
-}
-
 bool field_walked_a_frame(GameState *g, Platform *pf)
 {
-    static const WalkFrameSteps in_the_program = { leader_takes_a_step, effects_refreshed, frame_waited };
-    FieldPassContext c = { g, pf };
-    return walk_a_frame(&in_the_program, &c);
+    bool done = false;
+    TIMED_AS(g, WALK, done = field_the_leader_walks(g));
+    if (!done)
+        return false;
+    TIMED_AS(g, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(g));
+    if (!done)
+        return false;
+    TIMED_AS(g, FIELD_FRAME_WAIT, field_finish_the_frame(g, pf));
+    return true;
 }
 
 /* The scenes an event command asks for: below $80 the scene engine's

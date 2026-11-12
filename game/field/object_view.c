@@ -140,7 +140,7 @@ static void come_into_view(GameState *g, FieldObject obj)
     object_forget_frame_drawn(g, obj);
 }
 
-static bool take_what_it_needs(GameState *g, FieldObject obj);
+static void take_what_it_needs(GameState *g, FieldObject obj);
 
 /* ---- The screen's start ------------------------------------------------------------------- */
 
@@ -180,7 +180,7 @@ bool object_in_view_at_the_start(GameState *g, FieldObject obj)
     if (!in_window(g, w, obj))
         return false;
     come_into_view(g, obj);
-    (void)take_what_it_needs(g, obj);
+    take_what_it_needs(g, obj);
     return true;
 }
 
@@ -211,14 +211,11 @@ static bool check_on_screen(GameState *g, FieldObject obj)
 
 /* Coming into view, the object takes its palette slot and its block of
  * sprite tiles (field/palettes.c, field/cast.c) and joins its row; leaving,
- * it lets go of its frame areas, its slot and its block, and leaves its row.
- * True where it took colours or a block. */
-static bool take_what_it_needs(GameState *g, FieldObject obj)
+ * it lets go of its frame areas, its slot and its block, and leaves its row. */
+static void take_what_it_needs(GameState *g, FieldObject obj)
 {
-    bool coloured, blocked;
-    TIMED_AS(g, FIELD_TAKE_PALETTE_ENTRY, coloured = object_take_palette(g, obj));
-    TIMED_AS(g, FIELD_TAKE_SPRITE_BLOCK_ENTRY, blocked = object_take_sprite_block(g, obj));
-    return coloured || blocked;
+    TIMED_AS(g, FIELD_TAKE_PALETTE_ENTRY, (void)object_take_palette(g, obj));
+    TIMED_AS(g, FIELD_TAKE_SPRITE_BLOCK_ENTRY, (void)object_take_sprite_block(g, obj));
 }
 
 static void give_up_what_it_had(GameState *g, FieldObject obj)
@@ -230,15 +227,6 @@ static void give_up_what_it_had(GameState *g, FieldObject obj)
 
 /* ---- The view step ------------------------------------------------------------------------ */
 
-/* How the view step's row is joined or left, which is the one step it makes
- * that the port doesn't always take: false where it refused. And what
- * follows taking a palette or a block, if anything (nothing, in the
- * program's steps). */
-typedef struct {
-    bool (*rows)(void *ctx, FieldObject obj, bool join);
-    void (*took_what_it_needs)(void *ctx);
-} ViewSteps;
-
 typedef enum { OUT_OF_SIGHT, IN_SIGHT, VIEW_WENT_ELSEWHERE } ViewUpdate;
 
 // $C0:A88D
@@ -246,8 +234,9 @@ typedef enum { OUT_OF_SIGHT, IN_SIGHT, VIEW_WENT_ELSEWHERE } ViewUpdate;
  * when it is inside the view's window and can be seen, taking what it needs
  * and joining its row; it leaves view when it is outside, giving those up,
  * leaving its row and ending a dialog waiting on it; and out of view, a
- * one-off animation it was playing is hurried to its end. */
-static ViewUpdate update_view(GameState *g, FieldObject obj, const ViewSteps *steps, void *ctx)
+ * one-off animation it was playing is hurried to its end. Its row joined or
+ * left is the one step it makes that the port doesn't always take. */
+static ViewUpdate update_view(GameState *g, FieldObject obj)
 {
     bool disabled = object_disabled(g, obj);
     bool shown = !disabled && (int8_t)field_object_sprite_flag(g, obj) > 0;
@@ -261,9 +250,8 @@ static ViewUpdate update_view(GameState *g, FieldObject obj, const ViewSteps *st
     if (inside) {
         if (!was_in_view) {
             come_into_view(g, obj);
-            if (take_what_it_needs(g, obj) && steps->took_what_it_needs)
-                steps->took_what_it_needs(ctx);
-            if (!steps->rows(ctx, obj, true))
+            take_what_it_needs(g, obj);
+            if (!object_rows_step(g, obj, true))
                 return VIEW_WENT_ELSEWHERE;
         }
         return IN_SIGHT;
@@ -271,7 +259,7 @@ static ViewUpdate update_view(GameState *g, FieldObject obj, const ViewSteps *st
     if (was_in_view) {
         object_set_in_view(g, obj, false);
         give_up_what_it_had(g, obj);
-        if (!steps->rows(ctx, obj, false))
+        if (!object_rows_step(g, obj, false))
             return VIEW_WENT_ELSEWHERE;
         after_leaving_view(g, obj);
     }
@@ -295,9 +283,7 @@ bool field_view_change_in_the_tables(const GameState *g, FieldObject obj)
     return object_takes_a_palette_the_tables_hold(g, obj) && (role.disabled || role.kind <= ROLE_LEFT_ALONE);
 }
 
-/* ---- The steps ------------------------------------------------------------------------------ */
-
-static bool rows(void *ctx, FieldObject obj, bool join) { return object_rows_step(ctx, obj, join); }
+/* ---- The view step, where the port takes it ------------------------------------------------- */
 
 enum { VIEW = 0xC0A88D };
 
@@ -307,8 +293,7 @@ bool object_view_updated(GameState *g, FieldObject obj)
         program_breaks_a_contract(g, VIEW, "an object coming into view or leaving it with tables the port doesn't read");
         return false;
     }
-    static const ViewSteps in_the_program = { rows, NULL };
-    return update_view(g, obj, &in_the_program, g) != VIEW_WENT_ELSEWHERE;
+    return update_view(g, obj) != VIEW_WENT_ELSEWHERE;
 }
 
 /* An object that matters only on the screen, checked against it. */

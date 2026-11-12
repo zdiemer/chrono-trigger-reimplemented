@@ -294,13 +294,11 @@ static const AudioCommand full_volume = { .command = AU_FADE_MUSIC, .p1 = 0, .p2
                                           .p3 = AU_FULL_VOLUME, .count = 3 };
 
 /* The sound driver ($C7:0004), reached through the audio service, and where
- * the loading calls it and goes on. */
+ * the loading calls it. */
 enum {
     SOUND_DRIVER = 0xC70004,
     SONG_SITE = 0xC01B8B,
-    SONG_RETURNS = 0xC01B8F,
     FADE_SITE = 0xC01B73,
-    FADE_RETURNS = 0xC01B77,
 };
 
 static void play(Platform *pf, uint8_t song)
@@ -324,35 +322,21 @@ static bool keep_the_locations_song(GameState *g)
     return true;
 }
 
-/* Whether a call to the sound driver came back to the song's start, at
- * `returns` (the program's always does). */
-typedef bool (*DriverCameBack)(void *ctx, uint32_t returns);
-
 // $C0:1B53
 /* The location's song. Where a screen keeps the song that is playing
  * (menu_song_kept), the song playing is started again. Otherwise the music
  * comes back to full volume at once, and the location's song, if it has one,
- * starts and is kept as the song playing. False where a call to the driver
- * didn't come back. */
-static bool start_the_location_song(GameState *g, Platform *pf, DriverCameBack back, void *ctx)
+ * starts and is kept as the song playing. */
+static void start_the_location_song(GameState *g, Platform *pf)
 {
     if (menu_song_kept(g)) {
         play(pf, current_song(g));
-        return back(ctx, SONG_RETURNS);
+        return;
     }
     bring_the_music_to_full_volume(pf);
-    if (!back(ctx, FADE_RETURNS))
-        return false;
     if (!keep_the_locations_song(g))
-        return true;
+        return;
     play(pf, current_song(g));
-    return back(ctx, SONG_RETURNS);
-}
-
-static bool came_back(void *ctx, uint32_t returns)
-{
-    (void)ctx, (void)returns;
-    return true;
 }
 
 /* ---- The palette, the layers' state and the script -------------------------------------------- */
@@ -481,42 +465,49 @@ static void load_the_animations(GameState *g)
     TIMED_AS(g, PALETTE_ANIMATIONS, palette_load_location_animations(g));
 }
 
-/* The location's loading, entering it and after a menu, whose steps are
- * routines of their own (below): the song, the map and the script; and
- * after a menu the line effects' tables built and set up, the map's script
- * started and the figure an event command built drawn again. Each is false
- * where it went no further: a step the port doesn't take. */
-typedef enum { ENTERING, AFTER_A_MENU } Loading;
-typedef struct {
-    bool (*song)(void *ctx);
-    bool (*map)(void *ctx, Loading loading);
-    bool (*script)(void *ctx, Loading loading);
-    bool (*effects_built)(void *ctx);
-    bool (*effects_set_up)(void *ctx);
-    bool (*map_script)(void *ctx);
-    bool (*figure)(void *ctx, FieldObject obj);
-} LoadSteps;
+/* The location's loading, entering it and after a menu: the song, the map
+ * and the script; and after a menu the line effects' tables built and set
+ * up, the map's script started and the figure an event command built drawn
+ * again, each by the routine it stands for. Each is false where it went no
+ * further: a step the port doesn't take. */
+enum { LINE_EFFECTS = 0xFDC2C1, LINE_EFFECTS_SET_UP = 0xFDC1EE, WHOLE_FIGURE = 0xC0E12A, MAP_SCRIPT_STARTS = 0xC0595C };
 
 /* The location's graphics, map and scripts, in the order both loadings make
  * them. */
-static bool load_graphics_map_and_scripts(GameState *g, Platform *pf, const LoadSteps *steps, void *ctx,
-                                          Loading loading)
+static bool load_graphics_map_and_scripts(GameState *g, Platform *pf)
 {
     load_the_graphics(g, pf);
-    if (!steps->map(ctx, loading))
+    bool loaded = false;
+    TIMED_AS(g, FIELD_UNPACK_THE_MAP_ENTRY, loaded = field_load_the_map(g));
+    if (!loaded)
         return false;
     load_the_tile_looks(g);
-    return steps->script(ctx, loading);
+    TIMED_AS(g, SCRIPT_UNPACKED, loaded = field_load_the_script(g));
+    return loaded;
 }
 
 // $C0:00F4
-static bool load_location(GameState *g, Platform *pf, const LoadSteps *steps, void *ctx)
+bool field_load_the_location(GameState *g, Platform *pf)
 {
     find_the_record(g);
-    if (!steps->song(ctx) || !load_graphics_map_and_scripts(g, pf, steps, ctx, ENTERING))
+    TIMED_AS(g, LOCATION_SONG, start_the_location_song(g, pf));
+    if (!load_graphics_map_and_scripts(g, pf))
         return false;
     load_the_animations(g);
     return true;
+}
+
+/* The map's own script started, run to its first return. */
+static bool start_the_map_script(GameState *g, Platform *pf)
+{
+    uint16_t at;
+    EventTurnEnd end = TURN_OVER;
+    TIMED_AS(g, MAP_SCRIPT_STARTS, end = event_run_map_script_commands(g, pf, &at));
+    if (end == TURN_OVER)
+        return true;
+    if (end != TURN_HANDED_BACK)
+        program_breaks_a_contract(g, MAP_SCRIPT_STARTS, "a map's script the event engine hands to the original");
+    return false;
 }
 
 // $C0:01A5
@@ -526,107 +517,26 @@ static bool load_location(GameState *g, Platform *pf, const LoadSteps *steps, vo
  * told put back, the map's script started, the figure an event command built
  * drawn again, and a gathering of the party the menu cut short finished at
  * once. */
-static bool set_up_after_a_menu(GameState *g, Platform *pf, const LoadSteps *steps, void *ctx)
+static bool set_up_after_a_menu(GameState *g, Platform *pf)
 {
     field_bring_the_state_back(g);
-    if (!steps->effects_built(ctx) || !steps->effects_set_up(ctx))
-        return false;
+    TIMED_AS(g, LINE_EFFECTS, field_line_effects_build(g));
+    TIMED_AS(g, LINE_EFFECTS_SET_UP, (void)field_set_up_line_effects(g, pf));
     sprites_hide_all_next_frame(g);
-    if (!load_graphics_map_and_scripts(g, pf, steps, ctx, AFTER_A_MENU))
+    if (!load_graphics_map_and_scripts(g, pf))
         return false;
     put_back_what_the_party_was_told(g);
-    if (!steps->map_script(ctx))
+    if (!start_the_map_script(g, pf))
         return false;
     FieldLink built = field_link_stored(field_built_sprite_object(g));
     if (field_link_is_object(built)) {
         FieldObject obj = field_linked_object(built);
         object_make_current_recognised(g, obj);
-        if (!steps->figure(ctx, obj))
-            return false;
+        TIMED_AS(g, WHOLE_FIGURE, object_draw_whole_figure(g, pf, obj));
     }
     if (gathering_cut_short(g))
         finish_the_gathering(g);
     return true;
-}
-
-/* The ports the setting up after a menu runs, by the routines they stand
- * for. */
-enum { LINE_EFFECTS = 0xFDC2C1, LINE_EFFECTS_SET_UP = 0xFDC1EE, WHOLE_FIGURE = 0xC0E12A, MAP_SCRIPT_STARTS = 0xC0595C };
-
-/* ---- The steps -------------------------------------------------------------------------------- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} LocationLoadContext;
-
-static bool song(void *ctx)
-{
-    LocationLoadContext *c = ctx;
-    bool back = false;
-    TIMED_AS(c->game, LOCATION_SONG, back = start_the_location_song(c->game, c->pf, came_back, NULL));
-    return back;
-}
-
-static bool map(void *ctx, Loading loading)
-{
-    (void)loading;
-    LocationLoadContext *c = ctx;
-    bool loaded = false;
-    TIMED_AS(c->game, FIELD_UNPACK_THE_MAP_ENTRY, loaded = field_load_the_map(c->game));
-    return loaded;
-}
-
-static bool script(void *ctx, Loading loading)
-{
-    (void)loading;
-    LocationLoadContext *c = ctx;
-    bool loaded = false;
-    TIMED_AS(c->game, SCRIPT_UNPACKED, loaded = field_load_the_script(c->game));
-    return loaded;
-}
-
-static bool effects_built(void *ctx)
-{
-    LocationLoadContext *c = ctx;
-    TIMED_AS(c->game, LINE_EFFECTS, field_line_effects_build(c->game));
-    return true;
-}
-
-static bool effects_set_up(void *ctx)
-{
-    LocationLoadContext *c = ctx;
-    TIMED_AS(c->game, LINE_EFFECTS_SET_UP, (void)field_set_up_line_effects(c->game, c->pf));
-    return true;
-}
-
-static bool map_script(void *ctx)
-{
-    LocationLoadContext *c = ctx;
-    uint16_t at;
-    EventTurnEnd end = TURN_OVER;
-    TIMED_AS(c->game, MAP_SCRIPT_STARTS, end = event_run_map_script_commands(c->game, c->pf, &at));
-    if (end == TURN_OVER)
-        return true;
-    if (end != TURN_HANDED_BACK)
-        program_breaks_a_contract(c->game, MAP_SCRIPT_STARTS, "a map's script the event engine hands to the original");
-    return false;
-}
-
-static bool figure(void *ctx, FieldObject obj)
-{
-    LocationLoadContext *c = ctx;
-    TIMED_AS(c->game, WHOLE_FIGURE, object_draw_whole_figure(c->game, c->pf, obj));
-    return true;
-}
-
-static const LoadSteps in_the_program = { song, map, script, effects_built, effects_set_up,
-                                map_script, figure };
-
-bool field_load_the_location(GameState *g, Platform *pf)
-{
-    LocationLoadContext c = { g, pf };
-    return load_location(g, pf, &in_the_program, &c);
 }
 
 static bool party_places_readable(const GameState *g);
@@ -638,8 +548,7 @@ bool field_set_up_again(GameState *g, Platform *pf)
         program_breaks_a_contract(g, FIELD_SET_UP_AGAIN_ENTRY, "a gathering cut short the port doesn't finish");
         return false;
     }
-    LocationLoadContext c = { g, pf };
-    return set_up_after_a_menu(g, pf, &in_the_program, &c);
+    return set_up_after_a_menu(g, pf);
 }
 
 /* ---- What the port keeps -------------------------------------------------------------------- */

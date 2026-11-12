@@ -302,16 +302,27 @@ void field_hand_over_to_a_battle(GameState *g)
 
 /* ---- The start, as one sequence --------------------------------------------------------------- */
 
-/* With no enemy on the screen the party comes back together and walks a
- * frame (event/party.c, field/main_loop.c). */
-typedef bool (*BackTogether)(void *ctx);
+/* With no enemy on the screen the party comes back together (event/party.c,
+ * refused where it is not one the port brings back) and walks a frame
+ * (field/main_loop.c). */
+enum { PARTY_BACK_TOGETHER = 0xC0034B };
+
+static bool come_back_together(GameState *g, Platform *pf)
+{
+    if (!party_can_come_back_together(g)) {
+        program_breaks_a_contract(g, PARTY_BACK_TOGETHER, "a party the port doesn't bring back together");
+        return false;
+    }
+    TIMED_AS(g, PARTY_BACK_TOGETHER, party_back_together(g));
+    return field_walked_a_frame(g, pf);
+}
 
 // $C0:024C
-static FieldBattleStart battle_begins(GameState *g, BackTogether back_together, void *ctx)
+static FieldBattleStart battle_begins(GameState *g, Platform *pf)
 {
     find_the_enemies(g);
     if (!enemies_found(g))
-        return back_together(ctx) ? FIELD_NO_BATTLE : FIELD_BATTLE_START_STOPPED;
+        return come_back_together(g, pf) ? FIELD_NO_BATTLE : FIELD_BATTLE_START_STOPPED;
     dialog_shut(g);
     field_hand_over_to_a_battle(g);
     field_put_the_state_aside(g);
@@ -321,33 +332,13 @@ static FieldBattleStart battle_begins(GameState *g, BackTogether back_together, 
 
 static bool battle_fits(const GameState *g);
 
-/* The steps, each checking first that the port takes it. */
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} BattleStartContext;
-
-enum { PARTY_BACK_TOGETHER = 0xC0034B };
-
-static bool come_back_together(void *ctx)
-{
-    BattleStartContext *c = ctx;
-    if (!party_can_come_back_together(c->game)) {
-        program_breaks_a_contract(c->game, PARTY_BACK_TOGETHER, "a party the port doesn't bring back together");
-        return false;
-    }
-    TIMED_AS(c->game, PARTY_BACK_TOGETHER, party_back_together(c->game));
-    return field_walked_a_frame(c->game, c->pf);
-}
-
 FieldBattleStart field_battle_set_up(GameState *g, Platform *pf)
 {
     if (!battle_fits(g)) {
         program_breaks_a_contract(g, FIELD_BATTLE_BEGINS_ENTRY, "a battle's start the port doesn't take");
         return FIELD_BATTLE_START_STOPPED;
     }
-    BattleStartContext c = { g, pf };
-    return battle_begins(g, come_back_together, &c);
+    return battle_begins(g, pf);
 }
 
 /* ---- What the port takes ---------------------------------------------------------------------- */

@@ -2510,22 +2510,17 @@ and preserve their diagnostics as the remaining machine wrappers leave.
   `census_destroy` leaves the runtime's obdriver pointing at the freed census;
   `state_host.c` and `game/data/assets.c` each carry the HiROM address map,
   which wants one copy.
-- **What the one-copy review left** (none rated translation): in
-  `object_update.c`, `UpdateCall`'s `RESORT_SECOND`/`RESORT_FIRST` and the
-  `call` argument threaded through the view, tick and rows exist only to pick
-  the machine's call sites, which its own context could track;
-  `object_view.c`'s `took_what_it_needs` callback exists only to clear V, which
-  the wrapper can derive from the state after the call; `main_loop.c`'s
-  `frame_work` rows mix the machine's columns (`long_call`, `x8`, `entry`) with
-  `run`, which wants a parallel table, and its eight one-line C
-  adapters want each C step its own signature.
+- **What the one-copy review left** (none rated translation): the field's
+  `main_loop.c` tables (`entering`, `frame_work`, `the_pass`) keep the
+  original's call sites beside the routines that time them and the steps,
+  which nothing reads, and its one-line steps (`start`, `load`, `frames`
+  and the like) want each step its own signature.
 - **What the menus' tasks review left** (none rated translation; `naming.c`
   and `save_screen.c` the weakest): their register notes
   and call-site addresses ride through the shared logic, where the machine-side
   callbacks could derive them, and the `site` parameter hides them from
-  portsmell's flag-note check; `cursor.c`'s `bool *fast` and
-  `screen_setup.c`'s `uint8_t *shown` out-parameters exist only for the
-  wrapper's registers; `screens.c`'s dispatch by routine address repeats
+  portsmell's flag-note check; `cursor.c`'s `bool *fast` out-parameter
+  exists only for the wrapper's registers; `screens.c`'s dispatch by routine address repeats
   `naming.c`'s `steps[].routine`; `techs.c`'s guard
   `menu_party_techs_can_be_noted` tests a high byte only the original's code
   leaves, which with no machine is always the power-on clear's 0, so in
@@ -2533,26 +2528,18 @@ and preserve their diagnostics as the remaining machine wrappers leave.
   review rubric wants an item for scaffolding notes routed through a steps
   callback.
 - **What the world map's review left** (none rated translation):
-  `field/requests.c`'s `TileCopyCall` carries the original's 33 call sites
-  through the logic, where it wants the routine and layer and the bridge keeping
-  the sites; `overworld/main_loop.c`'s `arm_entered`, `script_started` and
-  `cpu_stilled` hooks exist only to set registers the screens the loop
-  calls on the machine read (the overworld's teardown took
-  `flags_given_back` and `looked_up` away with its scaffolding); `menu/frame.c`'s
-  `bool *sent` exists only for A's leftover; `menu/line_effects.c`'s
-  `FAR_CALL_X`/`NEAR_CALL_X` feed the dispatch's X into `step_the_curtain`'s
-  `salt`, which wants naming for what it is and the comment there agreeing.
+  `menu/frame.c`'s `bool *sent` exists only for A's leftover;
+  `menu/line_effects.c`'s `FAR_CALL_X`/`NEAR_CALL_X` feed the dispatch's X
+  into `step_the_curtain`'s `salt`, which wants naming for what it is and the
+  comment there agreeing.
 - **What the screen effects' review left** (none rated translation): a `$E1`/`$DF`
   in a map's script at the load hands back, and `field/main_loop.c`'s
   `field_runs` returns without asking `program_field_starts_again`, so ct_native
   stops at the field's entry with `field_again` set; the pass loop's handling
-  wants applying to the load too. `field/screen_effects.c`'s `Moment` is ignored
-  by every C callback and exists only to pick `calls_at`'s call sites;
-  `moment == RIPPLE_GROWING` deciding when the circle opens wants a column;
-  `calls_on_the_field` repeats `move_on_a_step`'s choice between the curtain,
-  the close and the ripple. `main_loop.c`'s `effects_refreshed` and
-  `frame_waited` are `screen_effects.c`'s `refresh_the_effects` and
-  `wait_for_the_frame` again. `event/party.c`'s `ask_after_character` works
+  wants applying to the load too. `field/requests.c` and
+  `field/screen_effects.c` each have their own `refresh_the_effects` and
+  `wait_for_the_frame`, as `field/main_loop.c`'s walk a frame spells them out
+  again. `event/party.c`'s `ask_after_character` works
   out `leave_jump`'s target instead of reusing `after_asking`. The credits'
   page setup has three names (`scene_credit_pages_set_up`, `_entry`, `_scene`).
   `field_layer_drawn_at_the_load` wants a `FieldLayer`, not `unsigned`.
@@ -2562,8 +2549,7 @@ and preserve their diagnostics as the remaining machine wrappers leave.
 - **What the battle's review left** (none rated translation):
   `battlefield_change.c`'s
   `battle_load_and_run_battlefield` and its machine twin each spell out the
-  load, the scripts' start and the running flag, and `closing.c`'s fade then
-  wait is written twice. The waits (`wait.c`) check the typing's fit only where
+  load, the scripts' start and the running flag. The waits (`wait.c`) check the typing's fit only where
   typing happens, which wants saying. The combinations' C path checks
   `battle_window_fits`, stricter than its registry guard (the page alone).
 - **What the race's tasks' review left** (none rated translation): the
