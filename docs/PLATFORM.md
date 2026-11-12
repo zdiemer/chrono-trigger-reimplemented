@@ -27,6 +27,15 @@ The SDL driver pulls buffered output; game code never polls an audio device.
 A snapshot keeps the whole sound driver and mixer (docs/PLAYING.md,
 "Snapshots"). See SOUND.md.
 
+No register write reaches the mixer. The driver's command `$FD`, which sets
+one setting by its S-DSP register number, is decoded in the driver
+(`game/sound/driver.c`, `set_by_hand`) into the voice calls that mean it; a
+write to part of a setting reads what the voices are set to
+(`au_voice_settings`, `au_mix_settings`) and sets the whole. The mixer's
+switches became separate calls (`au_output_muted`, `au_voices_reset`) and the
+echo's buffer can be placed by hand (`au_echo_buffer`), as the command can.
+`sound_setting_test` checks each setting against the mixer.
+
 ## Timing without a beam
 
 The game advances in frames. Its main thread and menu tasks use the coroutine
@@ -71,8 +80,8 @@ native picture fingerprints protect this change (REIMPLEMENTATION.md).
 ## Memory moves and VRAM read-backs
 
 Eighteen of the last nineteen register escapes were video transfers and a
-setting the original programmed from its own tables (the nineteenth is the
-sound driver's register write, TODO.md). Each is now one of four things:
+setting the original programmed from its own tables (the nineteenth, the
+sound driver's register write, is under Audio). Each is now one of four things:
 
 - **Memory the game moves itself.** The scenes' clears copied the Mode 7
   multiplier's product over memory, and the menus filled and copied work RAM

@@ -103,10 +103,13 @@ bool snapshot_restore(const SnapshotParts *p, const char *build, const uint8_t *
     part[0] = in + HEAD;
     for (unsigned i = 1; i < PARTS; i++)
         part[i] = part[i - 1] + size[i - 1];
-    /* The fibers check every record before they change a slot; the services
-     * then fail only where memory for the observer's copies runs out. */
-    if (!fiber_restore(part[3], (size_t)size[3]) || !pf_host_restore(p->pf, part[1], (size_t)size[1]))
+    /* The fibers' records are checked before anything changes, and the
+     * services restored next, which fail, changing nothing, only where memory
+     * for the observer's copies runs out; only then do the fibers switch,
+     * which can no longer fail. */
+    if (!fiber_restorable(part[3], (size_t)size[3]) || !pf_host_restore(p->pf, part[1], (size_t)size[1]))
         return false;
+    fiber_restore(part[3], (size_t)size[3]);
     state_host_restore(p->game, part[0]);
     sound_native_restore(p->sound, part[2]);
     if (driver_bytes)

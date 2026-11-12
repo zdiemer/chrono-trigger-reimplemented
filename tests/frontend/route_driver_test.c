@@ -103,8 +103,9 @@ int main(void)
     FILE *movie = fopen("route test.ctm", "w");
     CHECK(movie != NULL);
     if (movie) { fputs("0 5 A\n", movie); fclose(movie); }
+    /* A ($0080) held for all five frames: $80 * (1 + 3 + 9 + 27 + 81) = $3C80. */
     p = (Program){0};
-    run(&p, 42, "movie route test.ctm 5\nframe\nquit\n", "ok 5\nok 5\nok\n");
+    run(&p, 42, "movie route test.ctm 5\nframe\npeek 7e0000 4\nquit\n", "ok 5\nok 5\nok 803c0000\nok\n");
     remove("route test.ctm");
     printf("route_driver_test: %d failures\n", failures);
     return failures != 0;

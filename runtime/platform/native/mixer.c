@@ -474,11 +474,8 @@ static void master_volume(AuVoices *v, int8_t left, int8_t right)
 
 static void noise_clock(AuVoices *v, uint8_t clock) { mixer(v)->noise_clock = clock & 0x1F; }
 
-static void output_stopped(AuVoices *v, bool stopped)
-{
-    mixer(v)->silenced = stopped;
-    mixer(v)->resetting = stopped;
-}
+static void muted(AuVoices *v, bool on) { mixer(v)->silenced = on; }
+static void reset(AuVoices *v, bool on) { mixer(v)->resetting = on; }
 
 static void noise_voices(AuVoices *v, AuVoiceSet voices) { mixer(v)->noise_voices = voices; }
 static void pitch_modulation(AuVoices *v, AuVoiceSet voices) { mixer(v)->modulated_voices = voices; }
@@ -497,6 +494,12 @@ static void echo_delay(AuVoices *v, uint8_t delay)
 {
     mixer(v)->echo_delay = delay;
     mixer(v)->echo_page = voices_echo_page(delay);
+}
+
+static void echo_buffer(AuVoices *v, uint8_t page, uint8_t delay)
+{
+    mixer(v)->echo_page = page;
+    mixer(v)->echo_delay = delay;
 }
 
 static void echo_writes(AuVoices *v, bool on) { mixer(v)->echo_writes = on; }
@@ -547,74 +550,27 @@ static void sample_place(AuVoices *v, uint8_t sample, uint16_t start_at, uint16_
     place(mixer(v), sample, start_at, loop);
 }
 
-/* The SNES escape: an S-DSP register's meaning, set as the call that means it.
- * The registers the S-DSP reports through (the envelopes, the outputs, the
- * ends) take nothing, and nor does the directory's page: this mixer's
- * directory is a table, and the game never moves it. */
-enum {
-    REG_VOLUME_LEFT, REG_VOLUME_RIGHT, REG_PITCH_LOW, REG_PITCH_HIGH, REG_SAMPLE, REG_ADSR1, REG_ADSR2, REG_GAIN,
-    REG_TAP = 0x0F,
-    REG_MASTER_LEFT = 0x0C, REG_MASTER_RIGHT = 0x1C, REG_ECHO_LEFT = 0x2C, REG_ECHO_RIGHT = 0x3C,
-    REG_KEY_ON = 0x4C, REG_KEY_OFF = 0x5C, REG_FLAGS = 0x6C,
-    REG_FEEDBACK = 0x0D, REG_MODULATION = 0x2D, REG_NOISE = 0x3D, REG_ECHO_VOICES = 0x4D,
-    REG_ECHO_PAGE = 0x6D, REG_ECHO_DELAY = 0x7D
-};
-
-static void escape_register(AuVoices *v, uint8_t reg, uint8_t value)
+static AuVoiceSettings voice_settings(AuVoices *v, uint8_t n)
 {
-    Mixer *m = mixer(v);
-    MixerVoice *mv = voice(v, (uint8_t)(reg >> 4));
-    reg &= 0x7F;
-    switch (reg & 0x0F) {
-    case REG_VOLUME_LEFT: mv->volume[0] = (int8_t)value; return;
-    case REG_VOLUME_RIGHT: mv->volume[1] = (int8_t)value; return;
-    case REG_PITCH_LOW: mv->pitch = (uint16_t)((mv->pitch & 0xFF00) | value); return;
-    case REG_PITCH_HIGH: mv->pitch = (uint16_t)((mv->pitch & 0x00FF) | value << 8); return;
-    case REG_SAMPLE: mv->sample = value; return;
-    case REG_ADSR1:
-        mv->adsr = value >> 7;
-        mv->decay = (value >> 4) & 7;
-        mv->attack = value & 0x0F;
-        return;
-    case REG_ADSR2:
-        mv->sustain_level = value >> 5;
-        mv->sustain_rate = value & 0x1F;
-        return;
-    case REG_GAIN:
-        if (value & 0x80)
-            set_gain(v, (uint8_t)(reg >> 4), (AuGain){ (AuGainMode)(AU_GAIN_DECREASE_LINEAR + ((value >> 5) & 3)), value });
-        else
-            set_gain(v, (uint8_t)(reg >> 4), (AuGain){ AU_GAIN_DIRECT, value });
-        return;
-    case REG_TAP: m->taps[reg >> 4] = (int8_t)value; return;
-    }
-    switch (reg) {
-    case REG_MASTER_LEFT: m->master[0] = (int8_t)value; break;
-    case REG_MASTER_RIGHT: m->master[1] = (int8_t)value; break;
-    case REG_ECHO_LEFT: m->echo_volume[0] = (int8_t)value; break;
-    case REG_ECHO_RIGHT: m->echo_volume[1] = (int8_t)value; break;
-    case REG_KEY_ON: m->keys_asked = value; break;
-    case REG_KEY_OFF: m->keys_released = value; break;
-    case REG_FLAGS:
-        m->resetting = value >> 7;
-        m->silenced = (value >> 6) & 1;
-        m->echo_writes = !(value & 0x20);
-        m->noise_clock = value & 0x1F;
-        break;
-    case REG_FEEDBACK: m->echo_feedback = (int8_t)value; break;
-    case REG_MODULATION: m->modulated_voices = value; break;
-    case REG_NOISE: m->noise_voices = value; break;
-    case REG_ECHO_VOICES: m->echo_voices = value; break;
-    case REG_ECHO_PAGE: m->echo_page = value; break;
-    case REG_ECHO_DELAY: m->echo_delay = value; break;
-    }
+    const MixerVoice *mv = voice(v, n);
+    AuEnvelope e = { mv->adsr != 0, mv->attack, mv->decay, mv->sustain_level, mv->sustain_rate };
+    return (AuVoiceSettings){ mv->pitch, e, mv->volume[0], mv->volume[1] };
+}
+
+static AuMixSettings mix_settings(AuVoices *v)
+{
+    const Mixer *m = mixer(v);
+    AuMixSettings s = { m->master[0], m->master[1], m->echo_volume[0], m->echo_volume[1], { 0 }, m->echo_page,
+                        m->echo_delay };
+    memcpy(s.taps, m->taps, sizeof s.taps);
+    return s;
 }
 
 static const AuVoicesOps mixer_ops = {
     start, set_sample, set_envelope, set_gain, set_pitch, set_volume, key_on, key_off, hold, output,
-    master_volume, noise_clock, output_stopped, noise_voices, pitch_modulation, echo_voices, echo_volume,
-    echo_feedback, echo_filter, echo_delay, echo_writes, sample_define, sample_write, sample_memory_write,
-    sample_memory_move, sample_place, escape_register
+    master_volume, noise_clock, muted, reset, noise_voices, pitch_modulation, echo_voices, echo_volume,
+    echo_feedback, echo_filter, echo_delay, echo_buffer, echo_writes, sample_define, sample_write,
+    sample_memory_write, sample_memory_move, sample_place, voice_settings, mix_settings
 };
 
 AuVoices *mixer_voices(Mixer *m)

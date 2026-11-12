@@ -77,7 +77,8 @@ the no-machine stubs. Native C tables retain their real operations and timing ke
 Machine-only cost APIs and their dead calculations were removed too. These
 deletions do not finish the vocabulary and storage work in every subsystem:
 the video escapes have named services (PLATFORM.md, "Memory moves and VRAM
-read-backs"); the sound driver's register write is the one escape left.
+read-backs"), and the sound driver's register write became the voice calls
+it means (PLATFORM.md, "Audio"): no register escape is left.
 
 The callback tables that stood between a sequence and its one implementation
 went next, a module at a time (event, overworld, scene, battle, field, menu):
