@@ -1144,7 +1144,7 @@ static bool run(void *ctx, ExchangeRoutine r)
             return false;
         TIMED_AS(g, 0xC2CAF3, done = menu_lay_out_the_exchange_with(g, c->pf, &the_steps, c));
         return done;
-    case EXCHANGE_DRAWS_THE_SWIRL: TIMED_AS(g, 0xFFF677, done = menu_draw_gate_screen(g)); return done;
+    case EXCHANGE_DRAWS_THE_SWIRL: TIMED_AS(g, 0xFFF677, menu_draw_gate_screen(g)); return true;
     case EXCHANGE_STARTS_THE_GATE_SCREEN: TIMED_AS(g, 0xC2CE9D, menu_start_gate_screen(g, c->pf)); return true;
     }
     return false;

@@ -1230,15 +1230,11 @@ static bool load_map_view_graphics_with(GameState *g, Platform *pf, const EpochS
 
 // $C2:63DF
 /* Load the world map's tiles (overworld/setup.c), then build the view's
- * plane from them. False where the unpacker stopped. */
-static bool build_map_view_from(GameState *g, Platform *pf, const Unpacker *u)
+ * plane from them. */
+static void build_map_view_from_the_tiles(GameState *g, Platform *pf)
 {
-    bool loaded = false;
-    TIMED_AS(g, 0xC227DE, loaded = overworld_load_the_map_tiles(g, u));
-    if (!loaded)
-        return false;
+    TIMED_AS(g, 0xC227DE, overworld_load_the_map_tiles(g));
     build_map_view(g, pf);
-    return true;
 }
 
 // $C2:631F
@@ -1285,9 +1281,9 @@ static bool show_the_map_view_with(GameState *g, Platform *pf, const EpochScreen
 }
 
 // $C2:71F9
-static bool load_gate_stream_from(GameState *g, const Unpacker *u, uint8_t stream, uint8_t bank)
+static void load_gate_stream(GameState *g, uint8_t stream, uint8_t bank)
 {
-    return u->unpack(u->ctx, 0xC2721B, (uint32_t)bank << 16 | menu_gate_stream_source(g, stream),
+    overworld_unpack(g, (uint32_t)bank << 16 | menu_gate_stream_source(g, stream),
                      (uint32_t)EXTRA_RAM_BANK << 16 | menu_gate_stream_dest(g, stream));
 }
 
@@ -1399,10 +1395,8 @@ static bool build_the_map(void *ctx)
         program_breaks_a_contract(c->game, 0xC263DF, "a map view without its map record or a strip buffer clear of low RAM");
         return false;
     }
-    Unpacker u = overworld_unpacker(c->game);
-    bool built = false;
-    TIMED_AS(c->game, 0xC263DF, built = build_map_view_from(c->game, c->pf, &u));
-    return built;
+    TIMED_AS(c->game, 0xC263DF, build_map_view_from_the_tiles(c->game, c->pf));
+    return true;
 }
 
 static bool build_the_gate(void *ctx)
@@ -1420,10 +1414,8 @@ static bool build_the_gate(void *ctx)
 static bool load_a_stream(void *ctx, GateStream stream)
 {
     EpochScreenContext *c = ctx;
-    Unpacker u = overworld_unpacker(c->game);
-    bool loaded = false;
-    TIMED_AS(c->game, 0xC271F9, loaded = load_gate_stream_from(c->game, &u, (uint8_t)stream, gate_stream_bank[stream]));
-    return loaded;
+    TIMED_AS(c->game, 0xC271F9, load_gate_stream(c->game, (uint8_t)stream, gate_stream_bank[stream]));
+    return true;
 }
 
 static bool start_the_text(void *ctx)

@@ -2104,13 +2104,6 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
   stream and the destination as parameters and returns the length, and the
   cells go with the last caller that reads them. The cells it worked in
   (`$0309-$0316`) nothing of ours writes.
-- **The unpacker's seams with one implementation.** Its callers reach it
-  through callbacks made for a machine half that called it out: the world
-  map's `Unpacker` (`overworld/setup.h`, used by the overworld, the Epoch's
-  screens and the gate screen), which still takes the original's call site
-  and a "didn't come back" result it never gives, and the casting's
-  `SetUnpacker` (`event/characters.c`). They can be plain calls of
-  `unpack_stream`, and the loads' `bool` results lose the unpacking's arm.
 - **CI has no no-SDL configuration.** All four jobs install SDL2, so they do
   not exercise `ct_native`'s headless-only build. Add a configuration with
   SDL2 and pkg-config discovery disabled, `CT_ROM` empty and `CT_WERROR=ON`.
@@ -2490,8 +2483,7 @@ and preserve their diagnostics as the remaining machine wrappers leave.
   `aim_carry`; `menu_window.c`'s `WindowLeaves`, `CursorsPlaced` and
   `tech_page_carry`; `battle/window_leaves.[ch]`; the battle's do-nothing calls
   (`FIELD_KEEP`/`DROP`, `SONG_KEEP`/`KEPT`, `UPDATE_KEEP_THE_ATTRIBUTES`/
-  `ATTRIBUTES_BACK`, `CALL_CHECKS_BEGIN`/`END`); the event runner's
-  `state_is_ours`/`always_ours`; and the `*_bridge.c`/`bridge.h` file names,
+  `ATTRIBUTES_BACK`, `CALL_CHECKS_BEGIN`/`END`); and the `*_bridge.c`/`bridge.h` file names,
   which now hold state checks. `core/program.c:124`:
   if the first scenes fail the main thread just returns, relying on the callee
   having called `program_fail`.
