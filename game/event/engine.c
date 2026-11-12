@@ -66,8 +66,7 @@ const EventOpcode *event_opcode(uint8_t opcode)
  * ends with the bank: a command in its last bytes would read its operands
  * through the next bank's mirror of low RAM, where they could be the cells it
  * writes. No script is that long, and no game object odd or past the 64, so
- * a command outside these bounds breaks a checked contract in both the
- * retained machine forms and the native runner. */
+ * a command outside these bounds breaks a checked contract. */
 
 /* The bytes a command's operands are read from: its own, and at least
  * eight (a row may decode operands its shorter forms don't have). */

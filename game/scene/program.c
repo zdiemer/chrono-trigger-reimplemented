@@ -127,11 +127,9 @@ static void put_the_sound_back(GameState *g, Platform *pf)
     TIMED_AS(g, SOUND_BACK_TO_NORMAL, scene_sound_back_to_normal(g, pf));
 }
 
-/* ---- The main loop, on the machine ------------------------------------------------------------ */
+/* ---- The main loop ---------------------------------------------------------------------------- */
 
-/* The routines a pass calls as C (main_loop_pass, below), each checked
- * against its widths, arithmetic mode, page, bank and code image. The race uses a called machine form because its
- * upload wait holds the caller's frame between racers. */
+/* The routines a pass calls (main_loop_pass, below). */
 
 static const struct { ScenePass call; } PASS_ENTRIES[] = {
     { SCENE_PASS_ENDING_SCALING },

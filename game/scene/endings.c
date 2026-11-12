@@ -1298,8 +1298,8 @@ static void set_the_last_colours(GameState *g, Platform *pf, uint8_t channel)
     (void)set_last_colors(g, scene_program_channel(channel));
 }
 
-/* Resource-loading script operations. The shipping runtime calls their
- * checked machine forms, with the same C unpacker and resource callbacks. */
+/* Resource-loading script operations, which load through the C unpacker and
+ * the resource callbacks. */
 const SceneScriptRoutine scene_ending_loading_routines[] = {
     { SCENE_ROUTINE_LOAD_THE_PANORAMA, load_the_panorama },
     { SCENE_ROUTINE_SHOW_THE_LAYERED_PANORAMA, show_the_layered_panorama },

@@ -532,9 +532,6 @@ PLAN.md gives the work order; the lean native gate protects each change.
       effect sprite record by `from + 2`), and inline ROM reads in
       `main_loop.c` and `scripts.c`: index-taking accessors returning records;
     - `x + 1` written to cells that mean a bool or a load step;
-    - `NATIVE_TIME_AS` takes a `Snes *`, so the draw pass, `step_movers` and
-      `step_enemy_group` take one only to name their parts' time: a charge
-      hook reachable from `GameState` (a runtime change);
     - map fixes: the word cells of which one byte means something
       (`battle_repeat_delay`, `battle_window_layout`, `battle_frog_slot`,
       `battle_graphics_object`, `battle_bitmap_set`, `battle_magus_slot`,
@@ -961,10 +958,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
   assert that their guards do not overlap.
 
 - **What the Epoch's, the vehicles' and the screen objects' review left**
-  (none rated translation): the objects' loop (`objects.c`) and the
-  scripts' call command (`script_bridge.c`) still `m_jsr` each handler at its
-  own address -- dispatch through a C table as the event interpreter does
-  (guard tested in C, `NATIVE_TIME_AS`, entries kept registered); the seven
+  (none rated translation): the seven
   screen objects, the Black Omen watch, the vehicles' controller and the
   drift are pure C already, and only handlers that call the script
   interpreter mid-body need a guard-then-call-out helper (the next chunk);
@@ -1221,13 +1215,6 @@ PLAN.md gives the work order; the lean native gate protects each change.
 - **What the vehicles and the screen's objects left** (the source review, "Phase 3,
   menus and overworld: the vehicles, the screen's objects and the calls made
   where they go"):
-  - the objects' loop (`menu/objects.c`) and the scripts' call command
-    (`menu/script_bridge.c`) still call a handler or a named routine through
-    the machine, at its own address, so that each keeps its shadow
-    comparison and its calibrated time: the native program needs a C table of
-    the handlers and of the routines the scripts name, each row the
-    operation's own (`NATIVE_TIME_AS`), with what nothing ports handed to the
-    original;
   - no movie flies the Epoch over the Black Omen or enters it
     (`$C2:4510`-`$C2:452F`, `$C2:4A0A`-`$C2:4A19`), takes off at the story's
     point `$D3` or boards at `$D2`, or sets off for `$1F2` before the Epoch
@@ -1864,7 +1851,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
   - The review proposed a rubric item for `.claude/skills/review-port/`: a
     guard must test its entry's own preconditions, or say whose it borrows
     (the music's fade takes the waits' guard, `battle_message_can_be_typed`,
-    because it runs on into one; `registry.c` says so now). Add it with
+    because it runs on into one). Add it with
     an example once a second case turns up, or now if the owner agrees.
 - **What the shipping mode's fallbacks' second chunk left** (REIMPLEMENTATION.md,
   "Phase 4a, the shipping mode's fallbacks, chunk 2"):
@@ -1948,10 +1935,6 @@ PLAN.md gives the work order; the lean native gate protects each change.
     original after its wait for the music, `$C3:0C28` being no entry,
     `scene/script.c`) and the title's and attract's frame tasks (`$7E:66B0`,
     `$7E:63D5`, `$7E:64BF`);
-  - the frame waits (`$CD:3E75`, `$CD:3E3B`) leave the menu frame's carry,
-    declared don't-care on library evidence (`registry.c`): a C menu frame
-    that worked its carry out, or a C battle message whose waits don't read
-    it, would take the notes out;
   - the victory (`$C1:356D`) goes on as the original after the frame's tail
     where A's high byte comes back set, which the game never makes; its
     fuzzing compares few states (most run past the first call-out's budget),
@@ -2106,6 +2089,14 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
   callback adapters and register-shaped inputs/results with named operations.
   Follow PORTING.md; core mode hand-offs and callback ownership are established.
   Keep actual state checks and counted work. State storage can migrate in parallel.
+- **Comments the machine's deletion left stale.** The deleted wrappers'
+  declarations left their comments behind in subsystem headers, and many
+  comments still describe shadow mode, machine forms, held waits or "as C"
+  twins (`grep -rn "shadow mode\|machine form\|as C" game`). Rewrite them with
+  each subsystem's conversion. The deletion also left brace-less `if`/`else`
+  arms whose removed charge made the next statement their body; two were
+  found and fixed (the battle menu's queued action, the jump's facing) by
+  checking that every brace-less arm is indented under its header.
 
 - **What the field and events' teardown review left.** Update
   `game/event/entries.c` and `bridge.h`'s comments, which still describe the field
@@ -2153,9 +2144,7 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
   reads. As its callers' state leaves work RAM, `unpack_stream` takes the
   stream and the destination as parameters and returns the length, and the
   cells go with the last caller that reads them. The cells it worked in
-  (`$0309-$0316`) nothing of ours writes; `game_uncompared_wram`
-  (`game/registry.c`) leaves them out of every comparison, and goes with
-  the comparisons.
+  (`$0309-$0316`) nothing of ours writes.
 - **The unpacker's seams with one implementation.** Its callers reach it
   through callbacks made for a machine half that called it out: the world
   map's `Unpacker` (`overworld/setup.h`, used by the overworld, the Epoch's

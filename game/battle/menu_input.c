@@ -327,7 +327,6 @@ static void queue_action(GameState *g, uint8_t member, const Chosen *c)
     set_battle_member_actions_partners(g, member, c->partners);
     if (c->what_kept)
         set_battle_member_actions_what(g, member, c->what);
-    else
 
     set_battle_menu_member_count(g, (uint8_t)(battle_menu_member_count(g) - 1));
     battle_hand_the_menu_on(g, member);

@@ -1,6 +1,5 @@
 /* Sprite-object handlers and script services for the native program.
- * Tables select the operations and check their game-state contracts.
- * The legacy driver uses the same operations through checked machine forms;
+ * Tables select the operations and check their game-state contracts;
  * an unrecognized command or invalid state reports a broken contract. */
 #ifndef CT_GAME_MENU_HANDLERS_H
 #define CT_GAME_MENU_HANDLERS_H

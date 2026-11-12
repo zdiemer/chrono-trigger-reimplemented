@@ -408,7 +408,6 @@ static void start_jump(GameState *g, Mover m, BattlePoint to, uint8_t lift, bool
     uint16_t gravity = battle_divide_by(g, bounce, (uint8_t)(v.length >> 1)).quotient;
     if (mover_is_anchor(m))
         set_battle_effect_angle(g, e, angle);
-    else
     face_along(g, m, angle);
     set_target(g, m, to);
     begin_path(g, m, PATH_JUMP);

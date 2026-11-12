@@ -20,18 +20,8 @@ void field_power_on(GameState *g, Platform *pf);
 /* The field's entry as the program calls it, through the fade in; false where
  * a step is the machine's yet, the program going no further there. */
 bool field_enter_the_location(GameState *g, Platform *pf);
-/* Checked continuation from a closing mode, retaining its dispatch boundary. */
 /* The same as C ($C0:00DE): the line effects' tables built, the palettes animated. */
 bool field_effects_refreshed(GameState *g);
-/* The wait for the next frame, a held wait (holds.h, HOLD_FIELD_FRAME): the
- * port that starts it stops in its loop ($C0:EC71), whose idle passes
- * (field/frame.c) return to the caller once the vblank handler has taken the
- * frame. Where the caller is the main loop, its rest is a continuation of the
- * wait: the next pass from the loop's head ($C0:00BD) or from the walk
- * ($C0:00A7, after a request that ended in the wait), and the wait again.
- * The held aliases preserve the saved wait state after comparison retires. */
-/* The field starting again on a fresh stack for a new location, and ending
- * for a scene: the one an event command asked for, or the field's close's. */
 /* The field's close's scene as C ($C0:2643): where the program goes. */
 void field_closed_into_the_scene(GameState *g);
 /* A frame of the leader's walk alone as C ($C0:00EB): the walk, the effects

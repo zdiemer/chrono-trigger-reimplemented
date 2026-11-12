@@ -5,8 +5,8 @@
  * `scene` page), and through a data bank that reaches low RAM. The original's
  * code reaches the same cells relative to D and the data bank, so it is only
  * the same routine when those are what the game always enters it with; these
- * are the contracts checked by the called machine forms. A refusal reports
- * a broken contract and leaves the original boundary intact. */
+ * are those contracts. A refusal reports a broken contract and goes no
+ * further. */
 #include "scene/scene.h"
 
 #include "port/vars_ram.h"

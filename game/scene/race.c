@@ -16,8 +16,7 @@
  * the driver to take them. Without its panel (the attract sequence's) the race
  * ends behind a curtain.
  *
- * The attract sequence and the playable races use these operations. Their
- * machine forms check the scene program's code image in work RAM. What the
+ * The attract sequence and the playable races use these operations. What the
  * race does each frame -- the bikes, the camera, the drawing -- is in
  * race_rules.c, race_camera.c, race_projection.c and race_drawing.c (race.h). */
 #include "scene/race.h"

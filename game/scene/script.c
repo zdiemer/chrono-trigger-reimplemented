@@ -624,10 +624,9 @@ static bool advance_music_wait(GameState *g, SceneChannel ch, MusicStatus music)
 
 // $C3:0C5F
 
-/* ---- A channel's turn as C, with no machine ---------------------------------------------------- */
+/* ---- A channel's turn ----------------------------------------------------------------------- */
 
-/* The native program uses resource callbacks for ending loads; the legacy
- * runtime selects the corresponding checked machine forms above. */
+/* A routine a script names: the scene's own, or one of the endings' loads. */
 static const SceneScriptRoutine *routine_in_c(uint16_t routine)
 {
     const SceneScriptRoutine *r = routine_port(routine);

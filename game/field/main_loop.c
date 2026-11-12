@@ -25,10 +25,7 @@
  * take the frame. While the field waits on something of its own (a fade, a
  * game over's button), it runs a frame with only the leader's walk and the
  * effects' refresh (field_walk_a_frame).
- *
- * The legacy driver calls the field's steps through checked machine forms;
- * the native program calls their state/platform operations directly. Battle
- * and menu hand-offs retain their still-gated interfaces. */
+ */
 #include "field/main_loop.h"
 #include "menu/bridge.h"
 #include "menu/display.h"
@@ -114,36 +111,26 @@ void field_finish_the_frame(GameState *g, Platform *pf)
         tm_wait_frame(pf, PF_AT(FIELD_FRAME_WAIT_LOOP));
 }
 
-/* ---- The routines it calls on the machine ------------------------------------------------------- */
+/* ---- The timing keys of the work it does ---------------------------------------------------------- */
 
-/* The original's routines; the palettes' animation, a port called through
- * the original's jump to it at $FD:FFF7, an entry of its own; and the
- * cartridge's start of its sound driver, which uploads it to the sound
- * processor across frames where the reference play runs it, and hands every
- * register back as it found it, A's low byte and the flags aside. */
+/* The keys (charge.h, TIMED_AS) of the routines whose work the field's steps
+ * do: the sound driver's start, the menus' services, the world map and the
+ * palettes' animation. */
 enum { SOUND_DRIVER_BOOT = 0xC70000, MENUS_SERVICES = 0xC28004, /* the menus' services (menu/party.h), whose time the power-on's is */
     WORLD_MAP = 0xC20000, /* the world map, in the menus' sprite-object mode */
     PALETTE_ANIMATION = 0xFDFFF7,  };
 
-/* The frame's two budgets, ports called on the machine: each reads where the
- * beam is (platform/timing.h, tm_frame_time_left) and calls out per object,
- * and shadow mode compares them a call at a time, with only a short wait for
- * the original's latch, where a C call would stretch the comparison across
- * the frame's work and leave more of it interrupted. A build with no machine
- * calls them as C. */
+/* The frame's two budgets: each works through the objects for as long as the
+ * frame's time allows (platform/timing.h, tm_frame_time_left). */
 enum { SCRIPT_TURNS = 0xC05A46, /* the queued objects' turns run, as the frame's time allows */
     SPRITE_FRAMES = 0xC0CA76, /* the objects' new frames drawn, as the frame's time allows */ };
 
-/* The objects' update, a port whose call-outs (each object that comes into
- * view or leaves it) are some of the original's calls from one site, which
- * shadow mode pairs with the original's only where the update is a call of
- * its own (docs/PORTING.md, "Call-outs"). */
+/* The objects' update: each object that comes into view or leaves it. */
 enum { UPDATE_OBJECTS = 0xC0A810 };
 
-/* The ports it runs as C, by the routines they stand for. */
+/* The steps it runs, by the routines they stand for. */
 enum { START = 0xC00B86, PAUSE_AND_MENUS = 0xC018D9, REQUESTS = 0xC00C76, WALK = 0xC0881E, CONFIRM = 0xC01AAC, SCREEN_EFFECT = 0xC021E1, SCRIPT_LAYERS = 0xC0274D, LINE_EFFECTS = 0xFDC2C1, SPRITE_TABLE = 0xC0B271, TURNS_DUE = 0xC059D9,  };
 
-/* The field's own handlers back on the interrupts. */
 /* The game starts from what the cartridge holds (menu/saves.h): a saved
  * game to load, or a new one; then, as every one of the menus' services
  * ends, what the party wears is shown. */
@@ -159,13 +146,10 @@ static void take_the_interrupts(GameState *g)
     TIMED_AS(g, FIELD_INSTALL_IRQ_ENTRY, field_take_the_line_interrupt(g));
 }
 
-/* ---- The entries ------------------------------------------------------------------------------- */
+/* ---- The field's start ---------------------------------------------------------------------------- */
 
-/* Where the field's entry and its main loop start; the loop reads A's high
- * byte and the overflow as the last pass, or the field's entry, left them. */
+/* The timing keys of the field's start, its main loop and its frame wait. */
 enum { ENTER = 0xC0005D, MAIN_LOOP = 0xC00097, WAIT_FOR_THE_NEXT_FRAME = 0xC000BA };
-
-/* The field's entry reads none of the registers the power-on leaves. */
 
 /* At power-on, before the sound driver starts: the field's handlers on the
  * interrupts, the screen dark, and work RAM cleared. */
@@ -305,9 +289,7 @@ static bool palettes(GameState *g, Platform *pf)
     return palette_animated(g);
 }
 
-/* In order, each step's original call, calibrated routine, checked machine
- * form and state/platform operation. The legacy driver's index width and
- * long-call convention stay at this boundary. */
+/* The main loop's steps, in order. */
 
 static bool turns_due(GameState *g, Platform *pf)
 {
@@ -591,21 +573,3 @@ void field_scene_starts(GameState *g, uint8_t scene) { program_goes_on_to_a_scen
 /* The field closes into the scene its close leads to (field/screen_effects.c),
  * always the scene engine's, whatever its number. */
 void field_closed_into_the_scene(GameState *g) { program_goes_on_to_a_scene(g, SCENE_FIELD_CLOSES_INTO); }
-
-/* ---- The wait for the next frame, held ---------------------------------------------------------- */
-
-/* The frame done, the field waits for the vblank handler to take it. The
- * main thread rests there at nearly every frame's end on a map, so it is a
- * held wait (holds.h, HOLD_FIELD_FRAME; docs/RUNTIME.md, "Held waits"): the
- * port stops in the wait's loop ($C0:EC71) with the call's return on the
- * stack and nothing suspended, in every mode. Its passes are the loop's idle
- * continuation (field_wait_for_frame_loop, field/frame.c), whichever routine
- * called the wait, and once the frame is taken it returns to the caller's
- * rest:
- * - the main loop's, whose next pass is a continuation of the same wait
- *   (field_next_frame), which the runtime goes on with by the wait's number;
- * - a fade, request or event command's named continuation, another row of
- *   the same held wait, with the old C call chain already ended.
- * The loop reads the count into A's low byte each pass; the high byte its
- * callers may read is the count's, as the original leaves it
- * (field/leaves.c). */

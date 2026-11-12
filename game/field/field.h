@@ -186,18 +186,13 @@ void field_line(GameState *g, Platform *pf);
 
 /* field/nmi.c */
 
-/* field/frame.c. The main loop's wait for the vblank to take the frame
- * ($C0:EC60): the loop it waits in, and the return after it. */
-enum { FIELD_FRAME_WAIT_LOOP = 0xC0EC71, FIELD_FRAME_WAIT_RETURN = 0xC0EC76 };
-/* The screen's setup turning the screen back on: one pass of its wait for
- * the vblank ($C0:0B38), and the handlers back on after it ($C0:0B3D). */
-
-/* field/motion.c */
+/* field/main_loop.c. The timing key of the main loop's wait for the vblank
+ * to take the frame ($C0:EC60). */
+enum { FIELD_FRAME_WAIT_LOOP = 0xC0EC71 };
 
 /* field/script_turns.c: the objects counted down to their scripts' turns and
- * queued, and the queued turns run while the frame has time. */
-/* The same two as C: the second false where a turn is one the event engine
- * hands to the original, the program going no further there. */
+ * queued, and the queued turns run while the frame has time; false where a
+ * turn went no further. */
 void field_queue_the_due_turns(GameState *g);
 bool field_queued_turns_run(GameState *g, Platform *pf);
 

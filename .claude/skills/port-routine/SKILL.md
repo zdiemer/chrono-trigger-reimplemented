@@ -7,15 +7,15 @@ description: Rewrite game logic as portable, readable C and validate it in ct_na
 
 Read CLAUDE.md, PORTING.md and the subsystem before editing. Express the game
 through named operations on state and assets. A routine's shape should follow
-its purpose, not the original instruction sequence. Keep register handling in
-existing thin wrappers until machine-removal work deletes them.
+its purpose, not the original instruction sequence. Functions take `GameState *g`,
+the `Platform *pf` services they use and named values (docs/PORTING.md).
 
 Use typed accessors for storage and platform services for host work. A list of
 accessor writes is not a vocabulary: model objects, movement, party state,
 screens and scripts through operations with real parameters and results.
 Do not add comparison scratch, timing constants or address-shaped data reads.
 Preserve the documented arithmetic and save contracts. Keep original routine
-addresses as provenance comments and record ownership in docs/ports.tsv.
+addresses as provenance comments.
 
 Run the native gate from CLAUDE.md, plus a targeted native route when appropriate.
 Read its final line and wall time. No baseline or exception may hide a new failure;

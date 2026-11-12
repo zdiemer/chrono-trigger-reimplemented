@@ -1,6 +1,6 @@
 /* The overworld's objects as the game runs them (game/overworld/handlers.c):
- * what each of their handlers takes of the game's state -- the state halves
- * of the machine forms' contracts (entries.c) -- and the song of where the
+ * what each of their handlers takes of the game's state -- their contracts
+ * -- and the song of where the
  * party is, which a scene's script starts. */
 #ifndef CT_GAME_OVERWORLD_HANDLERS_H
 #define CT_GAME_OVERWORLD_HANDLERS_H

@@ -253,8 +253,7 @@ extern const SceneScriptRoutine scene_ending_routines[];
 extern const unsigned scene_ending_routine_count;
 extern const SceneScriptRoutine scene_staff_roll_routines[];
 extern const unsigned scene_staff_roll_routine_count;
-/* scene/endings.c: resource-loading script routines for the native program;
- * the shipping runtime calls their checked machine forms. */
+/* scene/endings.c: resource-loading script routines. */
 extern const SceneScriptRoutine scene_ending_loading_routines[];
 extern const unsigned scene_ending_loading_routine_count;
 /* scene/sprites.c: a sprite put straight into an entry of the frame's sprite

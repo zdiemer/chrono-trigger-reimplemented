@@ -26,8 +26,7 @@ enum { MENU_JSR_SIZE = 3, MENU_JSL_SIZE = 4 };
 /* The running task's wait for the next frame (or for frames), a call to the
  * task switch `routine` from the JSR at `site`: the next task goes on, and
  * this one from the call's return when its turn comes again, frames later.
- * Shipping calls the checked scheduler as C and parks after its switch;
- * shadow mode compares a native_yield_call_dc. The tasks' own answer to
+ * The checked scheduler parks the task after its switch. The tasks' own answer to
  * whether a parked caller can still go on is menu_task_goes_on_from. The port
  * resumes with its task; true as menu_call's. Where the task never goes on
  * (stopped or started afresh, or the menus closed), the runtime drops the

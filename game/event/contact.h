@@ -42,8 +42,6 @@ bool leader_looks_to_push(const GameState *g, bool touched);
  * map by a facing of the leader's four. */
 bool event_touch_is_ours(const GameState *g);
 
-/* The confirm button's machine form and contract, for the gated field
- * main loop. Talk and touch are ordinary operations with no entry wrappers. */
 /* The confirm button as C: talk to what the leader faces, or open a chest. */
 void field_confirm_pressed(GameState *g);
 

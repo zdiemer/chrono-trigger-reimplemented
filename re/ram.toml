@@ -4238,7 +4238,7 @@ addr = "7E:0152"
 page = "field"
 subsystem = "field"
 meaning = "Nonzero once the main loop has finished a frame; the field NMI runs that frame's vblank work and clears it"
-source = "game/field/nmi.c field_nmi $C0:EA63; game/field/frame.c field_wait_for_frame_loop $C0:EC71"
+source = "game/field/nmi.c field_nmi $C0:EA63; game/field/main_loop.c field_finish_the_frame $C0:EC60"
 
 [[var]]
 name = "field_display_flags"
