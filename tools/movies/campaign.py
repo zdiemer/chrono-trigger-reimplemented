@@ -38,11 +38,12 @@ class RouteDone(Exception):
     """Raised by Run.checkpoint at the phase --until names: the route stops there."""
 
 
-def route_arguments(description, save=None):
+def route_arguments(description, save=None, blank=False):
     """The command line every route script takes. `save` is the route's cartridge
-    save, relative to the repo (saves), the default for --sram."""
+    save, relative to the repo (saves), the default for --sram; a route that
+    starts from a blank cartridge (`blank`) has none."""
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument("--sram", required=save is None, default=save and os.path.join(REPO, save),
+    parser.add_argument("--sram", required=save is None and not blank, default=save and os.path.join(REPO, save),
                         help="cartridge save the route starts from" + (" (default %s)" % save if save else ""))
     parser.add_argument("--prefix", default="route", help="where checkpoints, the log and shots go")
     parser.add_argument("--rom", help="ROM (default roms/ct-usa.sfc, or $CT_ROM)")
