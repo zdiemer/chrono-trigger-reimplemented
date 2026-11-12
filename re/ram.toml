@@ -4867,7 +4867,7 @@ count = 3
 stride = 4
 index = "sprite range (0 priority bits clear, 1 bit 2 set, 2 bit 3 set)"
 subsystem = "field"
-meaning = "A word beside each range's high table pointer, cleared as the sprite table is built; nothing in the field reads it (field/scratch.h: kept for shadow mode)"
+meaning = "A word beside each range's high table pointer, cleared as the sprite table is built; nothing in the field reads it, and the field keeps the original's last value there"
 source = "game/field/sprites.c, field_build_sprite_table $C0:B271"
 
 [[var]]
@@ -5416,7 +5416,7 @@ page = "field"
 count = 2
 index = "cell ($E7, $E8)"
 subsystem = "field"
-meaning = "Two scratch cells past event_scratch, $E7-$E8: the larger sprite layouts' placing keeps where its last four sprites' records start there, or (the 24-sprite layout's) the third of them's ninth bit (field/scratch.h: kept for the original's code and shadow mode)"
+meaning = "Two scratch cells past event_scratch, $E7-$E8: the larger sprite layouts' placing keeps where its last four sprites' records start there, or (the 24-sprite layout's) the third of them's ninth bit; the field keeps the original's last values there"
 source = "game/field/sprites.c, leave_larger_place ($C0:BA65, $C0:BFF2, $C0:C6E7)"
 
 [[var]]
@@ -5577,7 +5577,7 @@ addr = "7E:01F4"
 page = "field"
 size = 4
 subsystem = "field"
-meaning = "The direction's working cells: the angle table index's low part ($F4, a word) and the two distances turned into the quadrant ($F6, $F7) (field/scratch.h: kept for the original's code and shadow mode)"
+meaning = "The direction's working cells: the angle table index's low part ($F4, a word) and the two distances turned into the quadrant ($F6, $F7); the field keeps the original's last values there"
 source = "game/field/motion.c, field_direction_to_target $C0:ABA2"
 
 [[var]]
@@ -6829,7 +6829,7 @@ addr = "7E:1D50"
 page = "field_layers"
 size = 14
 subsystem = "field"
-meaning = "Cells the layer routines keep values in on the way ($52-$5C): a row's start in a tile map, and while a map unpacks its size, the row it is on and a run's three bytes (field/scratch.h: kept for the original's code and shadow mode)"
+meaning = "Cells the layer routines keep values in on the way ($52-$5C): a row's start in a tile map, and while a map unpacks its size, the row it is on and a run's three bytes; the field keeps the original's last values there"
 source = "game/field/layers.c field_compute_layer_edges $C0:7F9A, field_unpack_tile_maps $C0:A521"
 
 [[var]]
@@ -6849,7 +6849,7 @@ addr = "7E:1D60"
 page = "field_layers"
 size = 16
 subsystem = "field"
-meaning = "The edge helpers' cells ($62-$6F): the column and row they were given and the counts they return (field/scratch.h: kept for the original's code and shadow mode)"
+meaning = "The edge helpers' cells ($62-$6F): the column and row they were given and the counts they return; the field keeps the original's last values there"
 source = "game/field/layers.c, field_compute_layer_edges $C0:7F9A"
 
 [[var]]
@@ -7246,7 +7246,7 @@ addr = "7E:0353"
 page = "field_window_shape"
 size = 8
 subsystem = "field"
-meaning = "The edge being drawn: the words X and Y of its start, then of its end, the start the upper end (field/scratch.h: kept for the original's code and shadow mode)"
+meaning = "The edge being drawn: the words X and Y of its start, then of its end, the start the upper end; the field keeps the original's last values there"
 source = "game/field/window_shape.c, the edge routine $C3:1025"
 
 [[var]]
@@ -7350,7 +7350,7 @@ source = "game/field/screen_effects.c, event $FF $92-$95 ($C0:405D)"
 # The circle's scratch, high on the decompressor's page: the original keeps its
 # loop state there rather than in registers, and other code on the page writes
 # the cells before it reads them, so the port keeps its state in locals and
-# writes the cells' final values for shadow mode (ORIGINAL_EFFECT).
+# writes the cells' final values once.
 [[var]]
 name = "scene_curtain_table_bank_high"
 host_alias = "scene_circle_radius"
@@ -7661,7 +7661,7 @@ addr = "7E:03F0"
 page = "field_window_shape"
 size = 14
 subsystem = "field"
-meaning = "The rasterizer's working cells, $F0-$FD: where the edge sequence is entered, then the fill's length ($F0), an edge's lines left ($F2), the edges left ($F4), whether the right-hand side is still to come ($F6), an edge's width and height ($F8, $FA) and its step error ($FC) (field/scratch.h: kept for the original's code and shadow mode)"
+meaning = "The rasterizer's working cells, $F0-$FD: where the edge sequence is entered, then the fill's length ($F0), an edge's lines left ($F2), the edges left ($F4), whether the right-hand side is still to come ($F6), an edge's width and height ($F8, $FA) and its step error ($FC); the field keeps the original's last values there"
 source = "game/field/window_shape.c, field_rasterize_quad $C3:0011 and the edge routine $C3:1025"
 [[var]]
 name = "event_memory"

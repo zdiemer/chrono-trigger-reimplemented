@@ -793,8 +793,8 @@
 #define RAM_FIELD_SPRITE_RANGE_HIGH_STRIDE 0x04u
 #define RAM_FIELD_SPRITE_RANGE_HIGH_DP 0x81u /* page field */
 /* A word beside each range's high table pointer, cleared as the sprite table is built; nothing
- * in the field reads it (field/scratch.h: kept for shadow mode) [3 x $4 bytes, by sprite range
- * (0 priority bits clear, 1 bit 2 set, 2 bit 3 set)] */
+ * in the field reads it, and the field keeps the original's last value there [3 x $4 bytes, by
+ * sprite range (0 priority bits clear, 1 bit 2 set, 2 bit 3 set)] */
 #define RAM_FIELD_SPRITE_RANGE_SPARE 0x7E0183u
 #define RAM_FIELD_SPRITE_RANGE_SPARE_COUNT 3u
 #define RAM_FIELD_SPRITE_RANGE_SPARE_STRIDE 0x04u
@@ -925,8 +925,7 @@
 #define RAM_FIELD_SCENE_TO_START_DP 0xDFu    /* page field */
 /* Two scratch cells past event_scratch, $E7-$E8: the larger sprite layouts' placing keeps where
  * its last four sprites' records start there, or (the 24-sprite layout's) the third of them's
- * ninth bit (field/scratch.h: kept for the original's code and shadow mode) [2 x $1 bytes, by
- * cell ($E7, $E8)] */
+ * ninth bit; the field keeps the original's last values there [2 x $1 bytes, by cell ($E7, $E8)] */
 #define RAM_FIELD_SCRATCH_MORE 0x7E01E7u
 #define RAM_FIELD_SCRATCH_MORE_COUNT 2u
 #define RAM_FIELD_SCRATCH_MORE_STRIDE 0x01u
@@ -962,8 +961,8 @@
 #define RAM_FIELD_TARGET_TILE_X 0x7E01F2u    /* Tile X */
 #define RAM_FIELD_TARGET_TILE_Y 0x7E01F3u    /* Tile Y */
 /* The direction's working cells: the angle table index's low part ($F4, a word) and the two
- * distances turned into the quadrant ($F6, $F7) (field/scratch.h: kept for the original's code
- * and shadow mode) [4 bytes] */
+ * distances turned into the quadrant ($F6, $F7); the field keeps the original's last values
+ * there [4 bytes] */
 #define RAM_FIELD_DIRECTION_WORK 0x7E01F4u
 #define RAM_FIELD_DIRECTION_WORK_DP 0xF4u    /* page field */
 /* Index into the random byte table at $FE00, stepped before each use */
@@ -999,8 +998,8 @@
 #define RAM_FIELD_WINDOW_SHAPE_TABLE_DP 0x50u /* page field_window_shape */
 #define RAM_FIELD_WINDOW_SHAPE_TABLE_ADDRESS 0x7E0350u /* The table's address in its bank */
 #define RAM_FIELD_WINDOW_SHAPE_TABLE_BANK 0x7E0352u /* Its bank; bit 0 also picks the bank ($7E or $7F) the rasterizer fills the table's ends in */
-/* The edge being drawn: the words X and Y of its start, then of its end, the start the upper end
- * (field/scratch.h: kept for the original's code and shadow mode) [8 bytes] */
+/* The edge being drawn: the words X and Y of its start, then of its end, the start the upper
+ * end; the field keeps the original's last values there [8 bytes] */
 #define RAM_FIELD_WINDOW_SHAPE_EDGE 0x7E0353u
 #define RAM_FIELD_WINDOW_SHAPE_EDGE_DP 0x53u /* page field_window_shape */
 /* The quadrilateral's corners, in drawing order [4 x $2 bytes, by corner] */
@@ -1020,8 +1019,8 @@
 #define RAM_FIELD_WINDOW_SHAPE_RIGHT_START_DP 0x6Au /* page field_window_shape */
 /* The rasterizer's working cells, $F0-$FD: where the edge sequence is entered, then the fill's
  * length ($F0), an edge's lines left ($F2), the edges left ($F4), whether the right-hand side is
- * still to come ($F6), an edge's width and height ($F8, $FA) and its step error ($FC)
- * (field/scratch.h: kept for the original's code and shadow mode) [14 bytes] */
+ * still to come ($F6), an edge's width and height ($F8, $FA) and its step error ($FC); the field
+ * keeps the original's last values there [14 bytes] */
 #define RAM_FIELD_WINDOW_SHAPE_STEPS 0x7E03F0u
 #define RAM_FIELD_WINDOW_SHAPE_STEPS_DP 0xF0u /* page field_window_shape */
 /* The OAM image as the field's sprite table builds it, reached by byte offset: 128 entries of X,
@@ -1583,8 +1582,8 @@
 #define RAM_FIELD_SCROLL_OFFSET_X 0x7E1D4Eu  /* Horizontal */
 #define RAM_FIELD_SCROLL_OFFSET_Y 0x7E1D4Fu  /* Vertical */
 /* Cells the layer routines keep values in on the way ($52-$5C): a row's start in a tile map, and
- * while a map unpacks its size, the row it is on and a run's three bytes (field/scratch.h: kept
- * for the original's code and shadow mode) [14 bytes] */
+ * while a map unpacks its size, the row it is on and a run's three bytes; the field keeps the
+ * original's last values there [14 bytes] */
 #define RAM_FIELD_LAYER_WORK 0x7E1D50u
 #define RAM_FIELD_LAYER_WORK_DP 0x50u        /* page field_layers */
 /* Where a layer's left edge column wraps round the tile map (its index less 31), set only by a
@@ -1593,7 +1592,7 @@
 #define RAM_FIELD_LAYER_EDGE_WRAP 0x7E1D5Eu
 #define RAM_FIELD_LAYER_EDGE_WRAP_DP 0x5Eu   /* page field_layers */
 /* The edge helpers' cells ($62-$6F): the column and row they were given and the counts they
- * return (field/scratch.h: kept for the original's code and shadow mode) [16 bytes] */
+ * return; the field keeps the original's last values there [16 bytes] */
 #define RAM_FIELD_LAYER_EDGE_WORK 0x7E1D60u
 #define RAM_FIELD_LAYER_EDGE_WORK_DP 0x60u   /* page field_layers */
 /* Where the walk leaves the leader: across, where it will stand (1/16 pixel), and down, a tile

@@ -241,9 +241,10 @@ static bool goes_on_after_sending(const GameState *g, uint8_t character, bool en
 
 /* ---- The commands ------------------------------------------------------------------------- */
 
-/* After the commands that call the menus' services the object's turn ends:
- * the original's dispatch reaches them with the carry clear, which its
- * engine takes as the turn's end. */
+/* Whether the object's turn goes on after a command that calls the menus'
+ * services: it ends, unless leaving or sending a member away finds a reason
+ * for it to go on (goes_on_after_leaving, goes_on_after_sending), which start
+ * from this. */
 enum { THE_TURN_GOES_ON_AFTER_THE_MENUS = false };
 
 bool event_bring_into_the_party(GameState *g, Platform *pf, uint16_t at, EventStep *step)

@@ -1119,7 +1119,7 @@ void set_field_sprite_range_high(GameState *g, unsigned i, uint16_t v);
 
 enum { FIELD_SPRITE_RANGE_SPARE_COUNT = 3 };   /* by sprite range (0 priority bits clear, 1 bit 2 set, 2 bit 3 set) */
 /* A word beside each range's high table pointer, cleared as the sprite table is built; nothing
- * in the field reads it (field/scratch.h: kept for shadow mode) */
+ * in the field reads it, and the field keeps the original's last value there */
 uint16_t field_sprite_range_spare(const GameState *g, unsigned i);
 void set_field_sprite_range_spare(GameState *g, unsigned i, uint16_t v);
 
@@ -1261,7 +1261,7 @@ void set_field_scene_to_start(GameState *g, uint8_t v);
 enum { FIELD_SCRATCH_MORE_COUNT = 2 };   /* by cell ($E7, $E8) */
 /* Two scratch cells past event_scratch, $E7-$E8: the larger sprite layouts' placing keeps where
  * its last four sprites' records start there, or (the 24-sprite layout's) the third of them's
- * ninth bit (field/scratch.h: kept for the original's code and shadow mode) */
+ * ninth bit; the field keeps the original's last values there */
 uint8_t field_scratch_more(const GameState *g, unsigned i);
 void set_field_scratch_more(GameState *g, unsigned i, uint8_t v);
 
@@ -1307,8 +1307,8 @@ uint8_t field_target_tile_y(const GameState *g);
 void set_field_target_tile_y(GameState *g, uint8_t v);
 
 /* The direction's working cells: the angle table index's low part ($F4, a word) and the two
- * distances turned into the quadrant ($F6, $F7) (field/scratch.h: kept for the original's code
- * and shadow mode) */
+ * distances turned into the quadrant ($F6, $F7); the field keeps the original's last values
+ * there */
 uint32_t field_direction_work(const GameState *g);
 void set_field_direction_work(GameState *g, uint32_t v);
 
@@ -1358,8 +1358,8 @@ void set_field_window_shape_table_address(GameState *g, uint16_t v);
 uint8_t field_window_shape_table_bank(const GameState *g);
 void set_field_window_shape_table_bank(GameState *g, uint8_t v);
 
-/* The edge being drawn: the words X and Y of its start, then of its end, the start the upper end
- * (field/scratch.h: kept for the original's code and shadow mode) [8 bytes, one at a time] */
+/* The edge being drawn: the words X and Y of its start, then of its end, the start the upper
+ * end; the field keeps the original's last values there [8 bytes, one at a time] */
 enum { FIELD_WINDOW_SHAPE_EDGE_BYTES = 8 };
 uint8_t field_window_shape_edge_byte(const GameState *g, unsigned at);
 void set_field_window_shape_edge_byte(GameState *g, unsigned at, uint8_t v);
@@ -1383,8 +1383,8 @@ void set_field_window_shape_right_start(GameState *g, uint16_t v);
 
 /* The rasterizer's working cells, $F0-$FD: where the edge sequence is entered, then the fill's
  * length ($F0), an edge's lines left ($F2), the edges left ($F4), whether the right-hand side is
- * still to come ($F6), an edge's width and height ($F8, $FA) and its step error ($FC)
- * (field/scratch.h: kept for the original's code and shadow mode) [14 bytes, one at a time] */
+ * still to come ($F6), an edge's width and height ($F8, $FA) and its step error ($FC); the field
+ * keeps the original's last values there [14 bytes, one at a time] */
 enum { FIELD_WINDOW_SHAPE_STEPS_BYTES = 14 };
 uint8_t field_window_shape_steps_byte(const GameState *g, unsigned at);
 void set_field_window_shape_steps_byte(GameState *g, unsigned at, uint8_t v);
@@ -2172,8 +2172,8 @@ uint8_t field_scroll_offset_y(const GameState *g);
 void set_field_scroll_offset_y(GameState *g, uint8_t v);
 
 /* Cells the layer routines keep values in on the way ($52-$5C): a row's start in a tile map, and
- * while a map unpacks its size, the row it is on and a run's three bytes (field/scratch.h: kept
- * for the original's code and shadow mode) [14 bytes, one at a time] */
+ * while a map unpacks its size, the row it is on and a run's three bytes; the field keeps the
+ * original's last values there [14 bytes, one at a time] */
 enum { FIELD_LAYER_WORK_BYTES = 14 };
 uint8_t field_layer_work_byte(const GameState *g, unsigned at);
 void set_field_layer_work_byte(GameState *g, unsigned at, uint8_t v);
@@ -2185,8 +2185,7 @@ uint16_t field_layer_edge_wrap(const GameState *g);
 void set_field_layer_edge_wrap(GameState *g, uint16_t v);
 
 /* The edge helpers' cells ($62-$6F): the column and row they were given and the counts they
- * return (field/scratch.h: kept for the original's code and shadow mode) [16 bytes, one at a
- * time] */
+ * return; the field keeps the original's last values there [16 bytes, one at a time] */
 enum { FIELD_LAYER_EDGE_WORK_BYTES = 16 };
 uint8_t field_layer_edge_work_byte(const GameState *g, unsigned at);
 void set_field_layer_edge_work_byte(GameState *g, unsigned at, uint8_t v);

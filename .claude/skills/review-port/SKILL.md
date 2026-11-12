@@ -94,11 +94,8 @@ tick, the frame queue and the frame read follow the same shape.
 #include "field/field.h"
 #include "field/object.h"
 
-#include "field/bridge.h"
 #include "field/field_data.h"
 #include "field/parts.h"
-#include "field/scratch.h"
-#include "port/vars_ram.h"
 #include "vars.h"
 
 /* The end markers of an animation's two tables. */
