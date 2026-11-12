@@ -668,7 +668,7 @@ bool object_has_no_sprite_past_the_tables(const GameState *g, FieldObject slot);
  * (field/walk.c), and the confirm button searches and looks for a chest
  * before it (event/contact.c, event/chests.c). Where that slot stands, its
  * tile and the way it faces are the bytes of the tables after the objects';
- * these are the only reads of them (docs/TODO.md, "Nobody leading"). */
+ * these are the only reads of them (issue #59). */
 typedef struct {
     FieldObject obj;
     bool nobody_leads;

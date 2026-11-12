@@ -317,7 +317,7 @@ enum {
 
 /* After $12: 0 a tech, 1 an enemy, 8 up a word of the dictionary's second
  * part. 2-7 jump into code in the original that isn't a handler; no string
- * has them, and the port ends the call there as a pause does (TODO.md). */
+ * has them, and the port ends the call there as a pause does (issue #108). */
 enum { NAMED_TECH = 0, NAMED_ENEMY = 1, NAMED_WORDS = 8, SECOND_WORDS = 0x1F };
 
 /* The Epoch's name is the eighth of the names the text page reaches. */

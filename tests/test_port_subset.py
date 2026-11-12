@@ -1,10 +1,10 @@
 """Game code stays inside what a 65816 C compiler handles.
 
 The hand ports are meant to compile for the SNES as well as the host, into a
-ROM whose routines are the C in game/ (docs/TODO.md, "A SNES ROM compiled from
-the hand ports"; CLAUDE.md, "Writing a port from generated code"). This checks
-the part of that which is mechanical: no floating point, no 64-bit integers,
-and no host C library beyond memcpy, memset and memcmp. Comments and strings
+ROM whose routines are the C in game/ (issue #234; CLAUDE.md, "Writing a port
+from generated code"). This checks the part of that which is mechanical: no
+floating point, no 64-bit integers, and no host C library beyond memcpy,
+memset and memcmp. Comments and strings
 are skipped. What it can't check -- logic kept apart from the original's
 registers, stack use, speed -- is the porting rules' job.
 """

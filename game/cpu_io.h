@@ -9,7 +9,7 @@
  * behind for the next one to pick up, so a port leaves the operands, the result
  * and the cursor as the original does. The few ports that still read a stream
  * through the port, where its data has no entries in the RAM map yet, are
- * listed in docs/TODO.md; that is a debt, not a way to write a port. The state
+ * a debt (an issue labelled kind: state), not a way to write a port. The state
  * backend keeps what they hold as values, beside the one for game/vars.h.
  *
  * They take the state because that is what they are to a port: values it

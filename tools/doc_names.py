@@ -4,7 +4,7 @@
     python3 tools/doc_names.py --check    # the same, failing on any; the suite runs it
 
 A branch that renames or deletes a function passes its own review and then
-leaves docs/TODO.md, a skill or a `source` string in re/ram.toml pointing at
+leaves a doc, a skill or a `source` string in re/ram.toml pointing at
 something that isn't there, and the next reader goes looking for it. This check
 collects the code names those texts cite and reports each one the code doesn't
 have:

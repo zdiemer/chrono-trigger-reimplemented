@@ -6,7 +6,7 @@ world map on, the route goes on with the pieces other routes play from
 cartridge saves (the Cathedral, the trial, ...), from the state this route
 reached instead of a save. Each phase ends at a checkpoint and the route goes
 on only past checkpoints that succeeded; where it stops is recorded in
-docs/TODO.md.
+issue #4.
 """
 from .. import addresses as A
 from .. import policies

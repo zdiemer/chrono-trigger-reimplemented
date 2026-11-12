@@ -134,7 +134,7 @@ PF_API TmEntropy tm_entropy(Platform *pf, PfOrigin o, TmEntropyWidth width);
  * still using them compiles against another backend: the beam's status, which
  * the idle entries' wait loops poll, and the word the field's parity was read
  * with. A backend with no beam has no answer for either: each use is a wait
- * on the beam still to come off it (docs/TODO.md, "The native program"), and
+ * on the beam still to come off it (an issue labelled kind: timing), and
  * a build with no machine defines what its entry wrappers still call to end
  * the program there (runtime/port/no_machine.c). */
 

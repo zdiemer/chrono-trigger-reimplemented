@@ -67,7 +67,7 @@ EVENT_OPERATION(wait_for_screen, changes)
  * (which colour channels in bits 5-7, the strength in bits 0-4) and the
  * colour-math setting it applies with -- and its interrupt hands both on each
  * frame; so for now the tint is written in those terms here, the field's
- * vocabulary for it still to come (docs/TODO.md). */
+ * vocabulary for it still to come (issue #151). */
 enum { CHANNELS = VID_LINE_FIXED_COLOR_ALL_CHANNELS, STRENGTH = 0x1F };
 
 /* The colour-math setting a tint applies with: over every layer and the

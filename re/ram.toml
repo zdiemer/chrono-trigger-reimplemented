@@ -5120,7 +5120,7 @@ name = "field_message_mark"
 host_alias = "menu_text_hex"
 addr = "7E:02A1"
 subsystem = "field"
-meaning = "Cleared when the field opens its own message (a chest's) and when the battle opens one ($CD:0264); what reads it isn't found in the banks read so far (docs/TODO.md)"
+meaning = "Cleared when the field opens its own message (a chest's) and when the battle opens one ($CD:0264); what reads it isn't found in the banks read so far (issue #141)"
 source = "game/event/dialog.c field_message_opens, the chests' $C0:1F20"
 
 [[var]]
@@ -8726,7 +8726,7 @@ host_module = "menu"
 overlays = ["field_tile_lower_attributes_storage_part_11", "field_upper_attributes_before_sound_part_5", "scene_dive_panel_math_lines", "scene_dive_panel_mode_lines", "scene_dive_panel_scroll_lines", "scene_dive_panel_scroll_x", "scene_dive_panel_scroll_y", "scene_dive_trail_lines", "scene_dive_trail_lines_above", "scene_dive_trail_math_lines", "scene_dive_trail_math_lines_above", "field_tile_exits"]
 addr = "7E:7C00"
 count = 0x94
-unchecked = "the items screen's window of who can equip an accessory reads the byte past the table for its power, as the original does (docs/TODO.md)"
+unchecked = "the items screen's window of who can equip an accessory reads the byte past the table for its power, as the original does (issue #82)"
 index = "item"
 subsystem = "menu"
 meaning = "The first byte of each weapon's, armour's and helmet's figures: its attack or defence"
@@ -16691,7 +16691,7 @@ meaning = "Tech id ($FF: none); what the member's tech list shows"
 [[var.field]]
 name = "menu_detail"
 offset = 1
-meaning = "A byte the tech menu copies with the rest of the record; nothing in the ported code reads it, and what it is isn't worked out (docs/TODO.md)"
+meaning = "A byte the tech menu copies with the rest of the record; nothing in the ported code reads it, and what it is isn't worked out (issue #25)"
 
 [[var.field]]
 name = "flags"
@@ -17737,7 +17737,7 @@ source = "game/battle/menu_window.c show_tech_costs in draw_menu_window $C1:0C2D
   [[var.field]]
   name = "menu_detail"
   offset = 1
-  meaning = "A byte the tech menu copies with the rest of the record; nothing in the ported code reads it, and what it is isn't worked out (docs/TODO.md)"
+  meaning = "A byte the tech menu copies with the rest of the record; nothing in the ported code reads it, and what it is isn't worked out (issue #25)"
   [[var.field]]
   name = "flags"
   offset = 2
@@ -22025,7 +22025,7 @@ name = "battle_block_uploads_made"
 host_module = "battle"
 addr = "7E:A01F"
 subsystem = "battle"
-meaning = "Counted each time a requested block of rows goes to VRAM (nothing in the banks disassembled reads it: docs/TODO.md)"
+meaning = "Counted each time a requested block of rows goes to VRAM (nothing in the banks disassembled reads it: issue #25)"
 source = "game/battle/uploads.c battle_send_block_and_message_tiles $CD:0607"
 
 [[var]]
@@ -28714,7 +28714,7 @@ meaning = "Tech id ($FF: none); what the member's tech list shows"
 name = "menu_detail"
 offset = 1
 size = 1
-meaning = "A byte the tech menu copies with the rest of the record; nothing in the ported code reads it, and what it is isn't worked out (docs/TODO.md)"
+meaning = "A byte the tech menu copies with the rest of the record; nothing in the ported code reads it, and what it is isn't worked out (issue #25)"
 
 [[owner.field]]
 name = "partners"
@@ -36262,7 +36262,7 @@ meaning = "Tech id ($FF: none); what the member's tech list shows"
 [[owner.field]]
 name = "menu_detail"
 offset = 1
-meaning = "A byte the tech menu copies with the rest of the record; nothing in the ported code reads it, and what it is isn't worked out (docs/TODO.md)"
+meaning = "A byte the tech menu copies with the rest of the record; nothing in the ported code reads it, and what it is isn't worked out (issue #25)"
 
 [[owner.field]]
 name = "flags"

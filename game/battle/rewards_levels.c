@@ -226,7 +226,7 @@ void rewards_share_with_reserve(GameState *g)
     set_battle_rewards_member(g, REWARDS_RESERVE);
     /* the original clears the byte after its own cell with it: the first
      * combatant's status script seen, which the next fight's start clears
-     * again (TODO.md) */
+     * again (issue #57) */
     set_battle_status_script_seen(g, 0, 0);
 
     for (uint8_t character = 0; character < SETUP_CHARACTERS; character++) {

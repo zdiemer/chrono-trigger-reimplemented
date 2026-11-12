@@ -70,5 +70,5 @@ prove that the source expresses the game clearly. Read the subsystem as a reader
 who has not seen the implementation report; the review rubric is in
 `.claude/skills/review-port/SKILL.md`. Keep original routine addresses beside
 the operations that implement them; the retired registry ledger is unnecessary.
-Keep as-built mechanisms in REIMPLEMENTATION.md, open work in TODO.md and order
+Keep as-built mechanisms in REIMPLEMENTATION.md, open work in GitHub issues and order
 in PLAN.md. Delete finished plan items.

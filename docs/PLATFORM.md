@@ -17,7 +17,7 @@ No emulated PPU is used, and no call names a register: the SNES-only escapes
 (a raw copy and a register write) and the older forms that took the SNES's
 write order (an upload per transfer, a transfer record) are gone. Two transfer
 descriptions the game keeps in its state still hold the VRAM data port's low
-address byte as the original stored it (TODO.md, Platform).
+address byte as the original stored it (issue #206).
 
 ## Audio
 

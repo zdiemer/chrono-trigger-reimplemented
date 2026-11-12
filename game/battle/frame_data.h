@@ -51,7 +51,7 @@ enum { LINE_ARRANGEMENT_LISTS = 10, LINE_ARRANGEMENT_LIST_BYTES = 30, RIPPLING_B
 /* The graphics a battle loads from the ROM as it is set up
  * (battle_load_graphics): the first tiles of the layer the battle's messages
  * are drawn on, and five 64-byte blocks of the window layer's tiles (what
- * each block shows isn't mapped yet: docs/TODO.md). */
+ * each block shows isn't mapped yet: issue #25). */
 enum {
     BATTLE_MESSAGE_LAYER_TILES = 0xFF8C60,
     BATTLE_WINDOW_TILE_BLOCK_1 = 0xD15E82,
