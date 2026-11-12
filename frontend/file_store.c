@@ -16,13 +16,15 @@
 #include <unistd.h>
 #endif
 
-int file_store_replace(const char *path, const void *bytes, size_t size)
+/* The bytes written and closed in a file beside `path`, named for this
+ * process: its name, malloc'd, or NULL with nothing left behind. */
+static char *written_beside(const char *path, const void *bytes, size_t size)
 {
     static unsigned serial;
     size_t capacity = strlen(path) + 80;
     char *temporary = malloc(capacity);
     if (!temporary)
-        return -1;
+        return NULL;
     int fd = -1;
     for (unsigned attempt = 0; attempt < 100; attempt++) {
 #ifdef _WIN32
@@ -41,7 +43,7 @@ int file_store_replace(const char *path, const void *bytes, size_t size)
     }
     if (fd < 0) {
         free(temporary);
-        return -1;
+        return NULL;
     }
 #ifdef _WIN32
     FILE *f = _fdopen(fd, "wb");
@@ -66,15 +68,43 @@ int file_store_replace(const char *path, const void *bytes, size_t size)
         close(fd);
 #endif
     }
-    if (ok) {
-#ifdef _WIN32
-        ok = MoveFileExA(temporary, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
-#else
-        ok = rename(temporary, path) == 0;
-#endif
+    if (!ok) {
+        remove(temporary);
+        free(temporary);
+        return NULL;
     }
+    return temporary;
+}
+
+int file_store_replace(const char *path, const void *bytes, size_t size)
+{
+    char *temporary = written_beside(path, bytes, size);
+    if (!temporary)
+        return -1;
+#ifdef _WIN32
+    int ok = MoveFileExA(temporary, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+#else
+    int ok = rename(temporary, path) == 0;
+#endif
     if (!ok)
         remove(temporary);
     free(temporary);
     return ok ? 0 : -1;
+}
+
+int file_store_create(const char *path, const void *bytes, size_t size)
+{
+    char *temporary = written_beside(path, bytes, size);
+    if (!temporary)
+        return -1;
+#ifdef _WIN32
+    int ok = MoveFileExA(temporary, path, MOVEFILE_WRITE_THROUGH) != 0;
+    int there = !ok && (GetLastError() == ERROR_ALREADY_EXISTS || GetLastError() == ERROR_FILE_EXISTS);
+#else
+    int ok = link(temporary, path) == 0;   /* fails, rather than replaces, where the file is */
+    int there = !ok && errno == EEXIST;
+#endif
+    remove(temporary);
+    free(temporary);
+    return ok ? 0 : there ? 1 : -1;
 }

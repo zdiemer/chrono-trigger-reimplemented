@@ -198,46 +198,67 @@ static uint8_t *lasting(uint8_t *bytes, size_t len, AssetPack **pack)
     return *pack ? copy : NULL;
 }
 
-/* The pack made again with its palettes as the text beside it says
- * (frontend/palettes.h), the text written from the pack first where there is
- * none, once each palette is seen to read back as the bytes it was written
- * from. False after saying why not; the old pack and its bytes are gone. */
+/* The text of the palettes beside the pack (frontend/palettes.h): the file's,
+ * or where there is none, written from the pack once each palette is seen to
+ * read back as the bytes it was written from. Two players starting on one
+ * pack may both write it; the one that finds the file there first reads it.
+ * NULL, after a warning, where there is no text to be had: the pack's own
+ * palettes serve. */
+static char *palettes_text(const char *path, const AssetStore *raw, size_t *len)
+{
+    const char *why = "";
+    bool missing = false;
+    char *text = (char *)files_read(path, len, true, &missing);
+    if (text || !missing) {
+        if (!text)
+            fprintf(stderr, "ct_native: cannot read %s; playing the pack's own palettes\n", path);
+        return text;
+    }
+    if (!palettes_round_trip(raw, &why)) {
+        fprintf(stderr, "ct_native: palette %s doesn't read back as its bytes; playing the pack's own\n", why);
+        return NULL;
+    }
+    text = palettes_export(raw, len, &why);
+    int written = text ? file_store_create(path, text, *len) : -1;
+    if (written == 0)
+        fprintf(stderr, "wrote the palettes into %s\n", path);
+    else if (written > 0)
+        free(text), text = (char *)files_read(path, len, true, NULL);
+    else
+        fprintf(stderr, "ct_native: cannot write %s; playing the pack's own palettes\n", path);
+    return written < 0 ? (free(text), NULL) : text;
+}
+
+/* The pack made again with its palettes as the text beside it says. True
+ * with the pack unchanged where there is no text; false, the pack and its
+ * bytes gone, only where the text is wrong or the remade pack can't be had. */
 static bool serve_palettes(const char *path, uint8_t **bytes, size_t *len, AssetPack **pack)
 {
     AssetStore raw;
     asset_pack_store(*pack, &raw);
-    const char *why = "";
-    bool missing = false;
     size_t text_len = 0, made_len = 0;
-    uint8_t *made = NULL;
-    char *text = (char *)files_read(path, &text_len, true, &missing);
-    if (!text && !missing) {
-        fprintf(stderr, "ct_native: cannot read %s\n", path);
-    } else if (!text) {
-        if (!palettes_round_trip(&raw, &why))
-            fprintf(stderr, "ct_native: palette %s doesn't read back as its bytes\n", why);
-        else if ((text = palettes_export(&raw, &text_len, &why)) && file_store_replace(path, text, text_len) == 0)
-            fprintf(stderr, "wrote the palettes into %s\n", path);
-        else
-            free(text), text = NULL;
-    }
+    char *text = palettes_text(path, &raw, &text_len);
+    if (!text)
+        return true;
+    const char *why = "";
     unsigned line = 0;
-    AssetPalettes *palettes = text ? palettes_import(text, text_len, &raw, &line, &why) : NULL;
-    if (text && !palettes)
+    AssetPalettes *palettes = palettes_import(text, text_len, &raw, &line, &why);
+    free(text);
+    uint8_t *made = NULL;
+    if (!palettes) {
         fprintf(stderr, "ct_native: %s:%u: %s\n", path, line, why);
-    if (palettes) {
+    } else {
         AssetStore served;
         palettes_store(palettes, &served);
         made = asset_pack_build(&served, ASSET_ROM_CRC32, &made_len, &why);
+        palettes_close(palettes);
     }
-    palettes_close(palettes);
-    free(text);
     asset_pack_close(*pack);
     free(*bytes);
     *bytes = made;
     *len = made_len;
     *pack = made ? asset_pack_open(made, made_len, &why) : NULL;
-    if (made && !*pack) {
+    if (!*pack) {
         free(made);
         *bytes = NULL;
     }
