@@ -12,7 +12,7 @@ C. Observable divergence is accepted where the game stays structurally the same.
    then push and CI. The full-library/every-route batch is non-blocking: findings
    become fixes and never hold up a commit, merge or push.
 2. **The machine out of game/.** Work module by module under the lean gate.
-   Give the sound driver's register write a meaning (TODO.md, Platform).
+   Give the sound driver's register write a meaning (issues labelled area: sound).
    PORTING.md gives the native function and callback pattern. Preserve real state contracts,
    timing charges, cartridge saves, route queries and recorded save/place
    protections. Measure progress with the source and storage inventories.
@@ -28,7 +28,8 @@ renderer and add GPU/controller backends. Keep the portability subset for
 smaller targets; measure stacks and memory before the GBA experiment.
 
 A relocatable asset layout and a SNES target follow from the C logic, with
-symbolic references and target glue. See TODO.md for the remaining work.
+symbolic references and target glue. The remaining work is in the "Phase 4b:
+platform milestones" and "SNES ROM and small targets" milestones.
 
 ### Layering
 
@@ -59,6 +60,15 @@ symbolic references and target glue. See TODO.md for the remaining work.
 - the four C headers of the portability subset.
 
 A backend, decoder, frontend or enhancement header in `game/` fails the gate.
+
+## Follow-ups
+
+Open follow-ups are GitHub issues
+(<https://github.com/zdiemer/chrono-trigger-reimplemented/issues>), one per
+piece of work, each under the milestone for the step it advances: "Step 2: the machine
+out of game/", "Step 3: plays by its own checks", "Phase 4b: platform
+milestones", "SNES ROM and small targets" and "Port quality". CLAUDE.md
+("Follow-ups") says how to file one; issue #268 explains the labels.
 
 ## Validation
 

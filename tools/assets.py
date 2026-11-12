@@ -17,6 +17,10 @@ VIEWS = ROOT / "re" / "asset_views.toml"
 TYPES = ["bytes", "words", "ptr16", "ptr24", "struct", "mixed", "undetermined", "lz", "text", "script", "gfx",
          "spc700", "padding", "header", "jump-table", "untyped", "code"]
 
+# A palette's codec: N colors a row, M rows a palette where the game takes them
+# in groups (frontend/palettes.h writes and reads them as text).
+PALETTE_CODEC = re.compile(r"palette:[1-9][0-9]*(x[1-9][0-9]*)?")
+
 
 
 class Row:
@@ -49,7 +53,8 @@ def data_views():
 
 def problems_of(rows: list[Row]) -> list[str]:
     """What makes a catalogue unusable: names twice, rows overlapping or out of
-    order, a range in no bank, a type game/data/assets.h doesn't know."""
+    order, a range in no bank, a type game/data/assets.h doesn't know, a
+    palette that isn't whole colors."""
     out, names = [], set()
     for i, r in enumerate(rows):
         if not re.fullmatch(r"[a-z][a-z0-9_.]*", r.name):
@@ -61,6 +66,9 @@ def problems_of(rows: list[Row]) -> list[str]:
             out.append(f"{r.name}: type {r.type} isn't one of {', '.join(TYPES)}")
         if bus_to_offset(r.at) is None or r.end < r.at or (r.end >> 16) != (r.at >> 16):
             out.append(f"{r.name}: {fmt(r.at)}-{fmt(r.end)} isn't a range within one ROM bank")
+        if r.codec.startswith("palette") and (not PALETTE_CODEC.fullmatch(r.codec) or r.type != "words"
+                                              or (r.end - r.at + 1) % 2):
+            out.append(f"{r.name}: a palette is words, an even number of bytes, its codec palette:N or palette:NxM")
         if i and rows[i - 1].end >= r.at:
             out.append(f"{r.name}: starts at {fmt(r.at)}, inside or before {rows[i - 1].name}")
     return out

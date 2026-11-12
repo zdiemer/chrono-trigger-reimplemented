@@ -154,7 +154,7 @@ static uint16_t nearer_to_third(GameState *g, uint8_t searcher, uint8_t other, u
  * another combatant's box is in the way.
  *
  * The original's walk is kept as it runs, though it can't be what was meant
- * (only a condition no enemy's script has asks for it; docs/TODO.md): each
+ * (only a condition no enemy's script has asks for it; issue #26): each
  * step's reach is measured not to the other but to whatever box position lies
  * as far into the table of them as the multiplier's first product left by
  * the step's across distance (the radius times the low byte of the sine),

@@ -180,7 +180,7 @@ static uint8_t marked_combatant(const GameState *g, ScriptChannel ch)
  * long pointers, so at $FF every cell it reads and writes is past the tables,
  * in the battle's other cells. Nobody animates, and the wait lasts until the
  * byte it reads past the animating table is clear. This is the one place the
- * port reads and writes them (docs/TODO.md). */
+ * port reads and writes them (issue #60). */
 enum { WORD_BYTES = 2, LONG_POINTER_BYTES = 3 };
 
 /* The two bytes at a byte offset into a table of long pointers, read as a

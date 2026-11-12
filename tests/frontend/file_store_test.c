@@ -65,6 +65,20 @@ int main(int argc, char **argv)
     fault = 0;
     if (file_store_replace(argv[1], after, sizeof after) != 0 || !matches(argv[1], after, sizeof after))
         return 5;
-    puts("file_store_test: short write, close failure and round trip OK");
+    /* A file written only where there is none: a failed write leaves none,
+     * and a second writer finds the first's there and leaves it. */
+    char fresh[4096];
+    snprintf(fresh, sizeof fresh, "%s.created", argv[1]);
+    remove(fresh);
+    fault = 1;
+    if (file_store_create(fresh, before, sizeof before) != -1 || fopen(fresh, "rb"))
+        return 6;
+    fault = 0;
+    if (file_store_create(fresh, before, sizeof before) != 0 || !matches(fresh, before, sizeof before))
+        return 7;
+    if (file_store_create(fresh, after, sizeof after) != 1 || !matches(fresh, before, sizeof before))
+        return 8;
+    remove(fresh);
+    puts("file_store_test: short write, close failure, round trip and create-only OK");
     return 0;
 }

@@ -39,7 +39,7 @@ enum { RESET_BUTTONS = IN_BUTTON_L | IN_BUTTON_R | IN_BUTTON_SELECT | IN_BUTTON_
  * button assignments and the play time's tick. False, with nothing taken,
  * where the console is still reading the controller; where the reset buttons
  * are held the held buttons are taken and it is false too. Other work can't
- * stop where the original waits for the read or resets (docs/TODO.md). */
+ * stop where the original waits for the read or resets (issue #137). */
 bool input_take_frame(GameState *g, Platform *pf);
 
 /* The frame's input work's parts, for work that runs them itself (the menus'

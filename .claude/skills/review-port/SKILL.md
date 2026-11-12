@@ -385,7 +385,7 @@ emulated machine.
     subtracts that take in the carry before them and `race_camera.c`'s
     (accepted 2026-10-20); and `game/field/line_effects.c`'s
     `fill_wave_scroll` (accepted 2026-10-21). Don't grade those files down
-    for them; docs/TODO.md ("The carry chains kept by the owner's decision")
+    for them; issue #18
     tracks them as follow-ups.
 13. **Memory used as registers.** A loop counter or temporary kept in a RAM cell
     and read back (`set_scene_circle_count(g, x); ... x = scene_circle_count(g);`),
@@ -414,8 +414,7 @@ emulated machine.
     it holds.
 17. **Admitted ignorance.** "presumably", "what reads the pair isn't ported":
     always a finding, and machine-checked, `portsmell.py admitted-ignorance`. Its
-    fix has an owner -- find the reader and name the value, or record it in
-    `docs/TODO.md`.
+    fix has an owner -- find the reader and name the value, or open an issue for it.
 18. **One field, several private definitions.** The same bit defined in
     several files, under different names or meanings (`SCENE_FLAG_LINE_IRQ` and
     `SCENE_FLAG_TITLE_AGAIN`, both `0x80` of `scene_flags`). One definition, in
@@ -657,7 +656,7 @@ emulated machine.
 103. **A sentinel the port handles by reaching past the tables in plain
      logic.** A "nobody" (`$FF`, one past the list) that flows through as a
      bare byte and reads or writes stray cells. It needs a typed "nobody",
-     the stray effects in one marked place, and a docs/TODO.md entry: native
+     the stray effects in one marked place, and an issue labelled kind: contract: native
      storage breaks it.
 
 106. **A game-sounding bool that is really the carry of an unsigned add.**

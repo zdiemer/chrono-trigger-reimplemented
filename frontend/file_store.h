@@ -7,5 +7,9 @@
 #include <stddef.h>
 
 int file_store_replace(const char *path, const void *bytes, size_t size);
+/* Write a named file only where there is none, as a whole: 0 written, 1 when
+ * the file was there first (another process may have just written it), -1
+ * when it couldn't be written. */
+int file_store_create(const char *path, const void *bytes, size_t size);
 
 #endif

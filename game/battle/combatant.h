@@ -82,7 +82,7 @@ enum {
 
 /* A combatant's statuses as one value: the four status bytes, the first in
  * the low byte, with the kept statuses ORed into the third and fourth. What
- * each bit is as the player knows it isn't all worked out (docs/TODO.md); the
+ * each bit is as the player knows it isn't all worked out (issue #32); the
  * battle's code names them for what it does with them. */
 typedef uint32_t Statuses;
 

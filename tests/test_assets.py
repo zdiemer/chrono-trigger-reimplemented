@@ -21,6 +21,11 @@ class Catalogue(unittest.TestCase):
         self.assertTrue(assets.problems_of([row("a", 0x7E0000, 0x7E0001)]))       # not the cartridge
         self.assertTrue(assets.problems_of([row("A", 0xC00000, 0xC00001)]))
         self.assertTrue(assets.problems_of([row("a", 0xC00000, 0xC00001, "blob")]))
+        palette = assets.Row("p", "words", 0xC00000, 0xC0001D, "palette:15x7", "read")
+        self.assertEqual(assets.problems_of([palette]), [])
+        for bad in (("words", 0xC0001C, "palette:15"), ("bytes", 0xC0001D, "palette:15"),
+                    ("words", 0xC0001D, "palette:0"), ("words", 0xC0001D, "palette")):
+            self.assertTrue(assets.problems_of([assets.Row("p", bad[0], 0xC00000, bad[1], bad[2], "read")]))
 
     def test_version_follows_the_rows_not_how_they_were_found(self):
         a = [row("a", 0xC00000, 0xC0000F)]

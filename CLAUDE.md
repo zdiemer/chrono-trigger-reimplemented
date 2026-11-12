@@ -123,9 +123,10 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
     runs at the defaults.
   - Where the original waits on beam position or depends on exact timing, don't reproduce
     the wait silently: port what it computes, say so in a comment at its `// $BB:AAAA`, and
-    add it to docs/TODO.md. Those routines are what block the platform milestones.
-  - Keep the logic suitable for the 65816 as well as the host (docs/TODO.md, "A SNES ROM
-    compiled from the hand ports"). Put what the routine does in a C function with real
+    open an issue labelled `kind: timing`. Those routines are what block the platform
+    milestones.
+  - Keep the logic suitable for the 65816 as well as the host (issue #234). Put
+    what the routine does in a C function with real
     parameters and results. Target-specific glue belongs outside the game logic.
     Use 8- and 16-bit types where the value fits; no floating point, 64-bit integers,
     recursion or large locals; no C library beyond `memcpy`, `memset` and `memcmp`.
@@ -167,19 +168,19 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
 - Keep the docs current as work lands, in the same commit as the work: the
   milestone docs (docs/APPROACH.md, REIMPLEMENTATION.md, STATE.md,
   PLATFORM.md, PORTING.md) say what was built and how it was measured,
-  docs/TODO.md holds the open follow-ups, and docs/PLAN.md says what to do next
-  and why the rest waits.
+  GitHub issues hold the open follow-ups ("Follow-ups" below), and docs/PLAN.md
+  says what to do next and why the rest waits.
 - **A milestone doc is a document, not a log.** It holds the mechanisms, the
   measurements and one worked example of each kind of work; the run of per-chunk
   accounts behind them goes to docs/history/, and a ledger (a row per port, per
   entry, per exception) goes to a file made to be `grep`ed -- `tools/*_baseline.txt`, `tools/*_exceptions.txt`. Both are written for a reader
   who arrives with no context, and every agent pays to read them again, so what
   earns its place there is what is still true and still needed.
-- **Delete finished work from the plan and the follow-ups rather than marking it
-  done.** A completed item leaves docs/PLAN.md and docs/TODO.md entirely; what
-  it produced belongs in its milestone doc's "as built" section, which is where
-  the history lives. No "(done)" annotations, no struck-through lines, no
-  completed-work sections.
+- **Delete finished work from the plan and close finished follow-ups rather than
+  marking them done.** A completed item leaves docs/PLAN.md entirely, and the PR
+  that finishes an issue closes it (`Closes #N`); what it produced belongs in its
+  milestone doc's "as built" section, which is where the history lives. No
+  "(done)" annotations, no struck-through lines, no completed-work sections.
 
 ## Working in this repo as an agent
 
@@ -189,6 +190,9 @@ worktree under `.claude/worktrees/`. `AGENTS.md` is this file.
 - **Processes.** Build with `-j 2` and run at most two `ct_native`
   processes at a time unless told otherwise. Kill a process only by its PID, never
   by image name (`taskkill /IM`, `pkill ct_native`): that kills other agents' runs.
+  Kill only a PID you started yourself. The coordinator runs gates on agents'
+  builds, so a process locking your `ct_native.exe` may not be yours: wait for it
+  to exit, or build into another directory.
 - **The gate.** Run `py tools/suite.py --ct-native build/main/ct_native.exe -j 2`.
   Read its last line: only `suite OK` passes, within the 600-second budget including
   unit tests. Run longer routes by hand only when a change concerns that route.
@@ -203,7 +207,36 @@ worktree under `.claude/worktrees/`. `AGENTS.md` is this file.
   name. A sequence two callers share is `*_with`.
 - **Commits.** Plain messages with no `Co-Authored-By`, session or other trailers.
   Commit each coherent step on your branch so work survives an interruption.
-  Don't push or merge unless asked.
+- **Pull requests.** Work lands through a PR against main. Never push to main or
+  merge anything yourself.
+  - When your branch passes the gate, push it and open the PR with `gh pr create`.
+    The title says what the branch does. The body says what changed, how it was
+    measured and what follow-ups remain.
+  - PR bodies and comments carry no attribution either: no `Co-Authored-By`, no
+    session line, no "Generated with Claude Code" line and no session link.
+  - CI runs the ROM-free checks on the PR: the build with warnings as errors on
+    four platforms, the native tests and the Python tests. CI has no cartridge, so
+    the coordinator runs the gate locally on the PR's exact head and posts the
+    result on the PR. A fresh reviewer loading the `review-pr` skill posts its
+    verdict there, and the coordinator merges once all three have passed. A fix
+    gets one scoped re-review.
+  - Fix review findings and conflicts with main on your branch, and push.
+  - A PR from outside the coordinator's own agents is untrusted code. The gate
+    builds and runs it beside the cartridge, so the coordinator reads the whole
+    diff first, above all `tools/`, `tests/`, `CMakeLists.txt`, `cmake/` and
+    `.github/`, and gates it only once nothing there is unexplained.
+- **Follow-ups.** Open follow-ups are GitHub issues
+  (<https://github.com/zdiemer/chrono-trigger-reimplemented/issues>), not a file
+  in the repo. Issue #268 explains the labels and milestones.
+  - File one with an imperative, specific title under 80 characters; one or more
+    `area: ...` labels (the subsystem) and one `kind: ...` label (bug, divergence,
+    port-quality, state, timing, contract, measurement, target, enhancement); the
+    milestone from docs/PLAN.md it advances; and a body that keeps the specifics
+    (files, functions, `$BB:AAAA` addresses, movies, routes, frames) and ends with a
+    **Done when:** line. Nothing machine-specific and nothing derived from ROM bytes.
+  - A comment or doc that leaves something open names its issue (`issue #N`), or
+    "an issue labelled kind: X" where the rule is generic.
+  - The PR that finishes the work closes its issue (`Closes #N` in the body).
 - **Worktrees.** Before `git worktree remove --force`, check the worktree for links
   into the main checkout (on Windows,
   `Get-ChildItem -Recurse -Force -Attributes ReparsePoint <worktree>`): removing

@@ -191,7 +191,7 @@ typedef struct {
  * onto lays its sprite priorities on the bytes after the priorities'. The
  * screen follows that place as it would a leader's, which shows. The two
  * functions below and field/object.h's are the only place the slot is read
- * or written (docs/TODO.md, "Nobody leading"). */
+ * or written (issue #59). */
 
 static uint16_t walker_on_screen(const GameState *g, FieldLeader w, Axis axis)
 {

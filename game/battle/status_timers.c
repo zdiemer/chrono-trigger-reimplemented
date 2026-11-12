@@ -15,7 +15,7 @@
  * to, and for a status that wears off the original's writes past the tables
  * are made in one place (battle_timer_wears_off_past_the_rows); the other
  * kinds of nobody's the port refuses (handler_takes), and the game makes
- * none of them (docs/TODO.md). */
+ * none of them (issue #60). */
 #include "battle/status_timers.h"
 
 #include "battle/battle.h"

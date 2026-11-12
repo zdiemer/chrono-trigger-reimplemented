@@ -147,7 +147,7 @@ static void for_the_fallen(GameState *g)
  * the damage: the game plays it so), 7 or 8 doubled, 9 trebled. Where the
  * console is still reading the controller, or the reset buttons are held, the
  * original waits or resets inside the work; the port goes on with the sets
- * and the clock as they are (docs/TODO.md). */
+ * and the clock as they are (issue #137). */
 enum { DIGITS = 10 };
 
 static void by_the_clock(GameState *g, Platform *pf)

@@ -255,8 +255,20 @@ static void changing_picture(void)
     vid_host_stop(&pf);
 }
 
+/* The view is the original's screen until the driver chooses another. */
+static void view_size(void)
+{
+    Platform pf = {0};
+    VidView v = vid_view(&pf);
+    CHECK(v.width == VID_ORIGINAL_VIEW_WIDTH && v.height == VID_ORIGINAL_VIEW_HEIGHT);
+    vid_host_set_view(&pf, (VidView){ 400, 224 });
+    v = vid_view(&pf);
+    CHECK(v.width == 400 && v.height == 224);
+}
+
 int main(void)
 {
+    view_size();
     resource_transfers();
     fill_half_from_cursor();
     changing_picture();

@@ -14,7 +14,7 @@
  * The search can take the order's empty place for a combatant: the timer it
  * finds run out is then nobody's (TimerOwner), and the original, reading past
  * the kind's row, sees to it as to any slot's; the port refuses nobody's
- * but a status wearing off (docs/TODO.md). */
+ * but a status wearing off (issue #60). */
 #ifndef CT_GAME_BATTLE_TIMERS_H
 #define CT_GAME_BATTLE_TIMERS_H
 
@@ -28,7 +28,7 @@
 /* The kinds, by the status each times: stop, poison, slow, haste, evading
  * much better, the shield, the point of HP lost, the MP regained, the barrier.
  * Kinds 6 and 7 time no status the battle sets, and 11 follows the third
- * status byte's $02, whose meaning isn't worked out (docs/TODO.md). */
+ * status byte's $02, whose meaning isn't worked out (issue #32). */
 typedef enum {
     BATTLE_TIMER_STOP = 0,
     BATTLE_TIMER_POISON, BATTLE_TIMER_SLOW, BATTLE_TIMER_HASTE, BATTLE_TIMER_EVASION,

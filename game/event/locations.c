@@ -56,7 +56,7 @@ static void request_change(GameState *g)
 static bool change_pending(const GameState *g) { return field_requests(g) & FIELD_REQUEST_LOCATION_CHANGE; }
 
 /* $DE and $DF also raise field_setting_1e with the location they set. What
- * the field does with it isn't established (docs/TODO.md). */
+ * the field does with it isn't established (issue #150). */
 static void raise_setting_1e(GameState *g) { set_field_setting_1e(g, 1); }
 
 // $C0:3AB7
@@ -125,7 +125,7 @@ EVENT_OPERATION(fight, setup, terms)
  * field started again from its start. The wait depends on timing, so the
  * port waits for the next frame through the timing service instead: the
  * original spins on the vblank interrupt's flag, racing its own vblank
- * handler for it (docs/TODO.md, "Frame waits still made on the machine"). */
+ * handler for it (an issue labelled kind: timing). */
 enum { GO_NOW = 0xE1, GO_NOW_RAISING_1E = 0xDF };
 
 static void set_the_place_to_go_now(GameState *g, uint8_t opcode, const EventCommand *c)

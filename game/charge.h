@@ -14,7 +14,7 @@ void charge_as(GameState *g, uint32_t routine, uint32_t accesses);
 
 /* Work the original spends on memory accesses the C keeps in locals instead:
  * `accesses` work RAM accesses at the current operation's rate, so the frame
- * takes the time the game's does (docs/TODO.md, "Per-path work counts"). */
+ * takes the time the game's does (issue #213). */
 void charge_accesses(GameState *g, uint32_t accesses);
 
 /* The same estimate for the original's multiplier or upload-cursor accesses,

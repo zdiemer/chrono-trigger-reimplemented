@@ -3,4 +3,4 @@
 # frame its picture may go black on, which excuses that stretch alone. Each is
 # a run the native program's time carries late into a stretch where the
 # reference play's own picture is black;
-# the line comes out when the run keeps the reference's time there (docs/TODO.md).
+# the line comes out when the run keeps the reference's time there (issues labelled kind: timing).

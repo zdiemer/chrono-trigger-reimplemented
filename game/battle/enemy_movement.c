@@ -177,7 +177,7 @@ static Step head_for(GameState *g, unsigned enemy, uint8_t heading)
  * reads the slot's place past the combatants', in the bytes after the
  * battlefield's objects' places, which nothing keeps for it. A target of
  * nobody is a place no one stands on in a build that keeps the game's own
- * storage (docs/TODO.md). */
+ * storage (issue #60). */
 static BattlePoint where_the_original_finds_nobody(const GameState *g, uint8_t nobody)
 {
     unsigned object = battle_object_of(nobody);

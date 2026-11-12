@@ -37,7 +37,7 @@ void vid_host_stop(Platform *pf)
 /* The host frame model folds the handlers' uploads into this picture.
  * Display and effect-enable changes retain their explicit raster boundaries.
  * Moving uploads below the line handler changes recorded native outcomes;
- * that timing-model change is tracked separately in docs/TODO.md. */
+ * that timing-model change is tracked separately in issue #115. */
 const VidFrame *vid_host_picture(Platform *pf)
 {
     VidHost *v = &pf->video;
@@ -73,6 +73,19 @@ void vid_host_frame_begins(Platform *pf)
 }
 
 static VidObserver *ob(Platform *pf) { return pf->video.observer; }
+
+/* ---- The view ------------------------------------------------------------------------------ */
+
+void vid_host_set_view(Platform *pf, VidView view) { pf->video.view = view; }
+
+/* The driver's choice, or the original's screen where it made none. */
+VidView vid_view(const Platform *pf)
+{
+    VidView v = pf->video.view;
+    if (!v.width || !v.height)
+        v = (VidView){ VID_ORIGINAL_VIEW_WIDTH, VID_ORIGINAL_VIEW_HEIGHT };
+    return v;
+}
 
 /* ---- The picture's settings ------------------------------------------------------------------- */
 

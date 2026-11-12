@@ -197,7 +197,7 @@ static void take_flags(GameState *g, const EffectRecord *e, uint8_t modifier, ui
 /* After a part that missed, the tech stops where a byte of work RAM has bit 7:
  * the original reads it by the tech's record's offset in the wrong bank, where
  * the record's last byte is meant, and so reads whatever the battle's work RAM
- * holds there. Only the original's memory has that byte (docs/TODO.md). */
+ * holds there. Only the original's memory has that byte (issue #60). */
 enum { STOPS_AT_MISS = 0x80, MISREAD_BASE = 0x7EB1F5 };
 
 /* ---- The tech ------------------------------------------------------------------------------ */
