@@ -524,12 +524,17 @@ set(CT_NATIVE_GAME_SOURCES ${CT_GAME_SOURCES})
 # What the machine alone runs: the registry (docs/PLAN.md, "The machine out of the
 # product").
 list(REMOVE_ITEM CT_NATIVE_GAME_SOURCES game/registry.c game/time_tags.c)
-add_executable(ct_native frontend/ct_native.c frontend/resume.c frontend/storage.c frontend/asset_files.c frontend/track.c frontend/file_store.c frontend/assets.c frontend/sound_native.c runtime/port/no_machine.c
+add_executable(ct_native frontend/ct_native.c frontend/route_server.c frontend/audio_replay.c frontend/resume.c frontend/storage.c frontend/asset_files.c frontend/track.c frontend/file_store.c frontend/assets.c frontend/sound_native.c runtime/port/no_machine.c
   runtime/platform/native/render.c ${CT_NATIVE_GAME_SOURCES})
 target_compile_definitions(ct_native PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
 target_include_directories(ct_native PRIVATE frontend)
 target_link_libraries(ct_native PRIVATE ct_state_host ct_platform_native ct_trace)
 add_executable(file_store_test tests/frontend/file_store_test.c)
+add_executable(route_server_test tests/frontend/route_server_test.c frontend/route_server.c frontend/resume.c runtime/port/fiber.c)
+target_include_directories(route_server_test PRIVATE frontend runtime)
+target_link_libraries(route_server_test PRIVATE ct_trace)
+add_executable(audio_replay_test tests/frontend/audio_replay_test.c frontend/audio_replay.c)
+target_include_directories(audio_replay_test PRIVATE frontend runtime game)
 add_executable(state_test tests/port/state_test.c)
 target_link_libraries(state_test PRIVATE ct_runtime)
 add_executable(shadow_test tests/port/shadow_test.c dev/fallbacks.c dev/misses.c runtime/port/generated_table_stub.c)
@@ -565,6 +570,7 @@ target_link_libraries(unpack_test PRIVATE ct_game ct_vars_checked ct_runtime)
 add_executable(assets_test tests/frontend/assets_test.c frontend/assets.c game/data/assets.c
   game/data/asset_catalogue.c)
 target_include_directories(assets_test PRIVATE frontend game runtime)
+target_link_libraries(assets_test PRIVATE ct_platform_native)
 
 add_executable(vars_test tests/port/vars_test.c)
 target_include_directories(vars_test PRIVATE game)

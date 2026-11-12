@@ -16,6 +16,9 @@ enum { CONSOLE_STACK_TOP = 0x06FF };
  * cartridge's vectors and the stubs in work RAM, with the stubs' guards. */
 void console_reset(Snes *s);
 void console_boot(Snes *s);
+/* Start the program from the reset stub or a field restart, checking the
+ * boot contract after the caller's time passes. */
+void console_start(Snes *s, uint16_t dont_care);
 void console_vblank_vector(Snes *s);
 void console_line_vector(Snes *s);
 void console_vblank_stub(Snes *s);

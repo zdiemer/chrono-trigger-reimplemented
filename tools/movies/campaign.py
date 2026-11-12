@@ -49,8 +49,8 @@ def route_arguments(description, save=None):
     parser.add_argument("--drive", help="ct_drive binary (default build/main/ct_drive, or $CT_DRIVE)")
     parser.add_argument("--movie", help="write the finished run as this .ctm")
     parser.add_argument("--seed", type=int, default=1, help="seed for the fights' choices")
-    parser.add_argument("--native", choices=("off", "shadow", "on"),
-                        help="ct_drive --native (default off, the interpreter; or $CT_DRIVE_NATIVE)")
+    parser.add_argument("--native", choices=("off", "shadow", "on", "native"),
+                        help="ct_drive --native, or native for ct_native --server (default off; or $CT_DRIVE_NATIVE)")
     parser.add_argument("--generated", choices=("off", "on", "only"),
                         help="ct_drive --generated with --native (default on; or $CT_DRIVE_GENERATED)")
     parser.add_argument("--until", metavar="PHASE", help="stop once this phase's checkpoint is written")
@@ -160,6 +160,11 @@ class Run:
         seconds each, which made the end of a long fight take hours.
         """
         machine = self.machine
+        # The standalone program has no suspended machine call-out to report.
+        # While a script owns the party, rebuilding every live C stack merely
+        # to prove the pad cannot walk it costs five whole-run replays.
+        if machine.native == "native" and not machine.b(A.FIELD_PLAYER_CONTROL):
+            return None
         if machine.native != "off" and machine.native_status().get("suspended", 0):
             return None
         machine.mark(PLAYER_SLOT)

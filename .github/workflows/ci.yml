@@ -155,6 +155,10 @@ jobs:
         run: build/ci/dsp_test
       - name: fiber_test
         run: build/ci/fiber_test
+      - name: route_server_test
+        run: build/ci/route_server_test
+      - name: audio_replay_test
+        run: build/ci/audio_replay_test
       - name: timing_test
         run: build/ci/timing_test
       - name: video_test

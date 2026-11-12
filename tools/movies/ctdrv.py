@@ -19,6 +19,7 @@ Two levels of checkpoint:
 `probe()` runs frames without logging them; searches use it so that only the
 path they keep ends up in the movie.
 """
+import atexit
 import os
 import pathlib
 import subprocess
@@ -29,6 +30,7 @@ from .mkmovie import controllers_of, name_of, pad_of
 REPO = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_ROM = REPO / "roms" / "ct-usa.sfc"
 DEFAULT_DRIVE = REPO / "build" / "main" / ("ct_drive.exe" if os.name == "nt" else "ct_drive")
+DEFAULT_NATIVE_DRIVE = DEFAULT_DRIVE.with_name("ct_native.exe" if os.name == "nt" else "ct_native")
 
 
 class DriveError(RuntimeError):
@@ -61,11 +63,14 @@ class Machine:
 
     def __init__(self, rom=None, sram=None, drive=None, native=None, generated=None):
         rom = str(rom or os.environ.get("CT_ROM") or DEFAULT_ROM)
-        drive = str(drive or os.environ.get("CT_DRIVE") or DEFAULT_DRIVE)
         native = native or os.environ.get("CT_DRIVE_NATIVE") or "off"
+        drive = str(drive or (os.environ.get("CT_NATIVE_DRIVE") or DEFAULT_NATIVE_DRIVE if native == "native"
+                             else os.environ.get("CT_DRIVE") or DEFAULT_DRIVE))
         generated = generated or os.environ.get("CT_DRIVE_GENERATED") or "on"
         command = [drive]
-        if native != "off":
+        if native == "native":
+            command += ["--server", "--assets", os.environ.get("CT_NATIVE_ASSETS") or str(pathlib.Path(drive).with_suffix(".assets"))]
+        elif native != "off":
             command += ["--native", native, "--generated", generated]
         if os.environ.get("CT_DRIVE_DRAIN_BUDGETS") and native == "on":
             command += ["--drain-budgets"]
@@ -74,21 +79,44 @@ class Machine:
         if fallbacks and native == "on":
             Machine._count += 1
             self.counted = (list(command), os.path.join(fallbacks, "drive-%d-%d.txt" % (os.getpid(), Machine._count)))
-        command += [rom] + ([str(sram)] if sram else [])
+        if native == "native":
+            command += ["--rom", rom] + (["--sram", str(sram)] if sram else [])
+        else:
+            command += [rom] + ([str(sram)] if sram else [])
         self.rom, self.sram, self.drive = rom, sram, drive
         self.native, self.generated = native, generated
         self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                         text=True, bufsize=1)
         self.frame = 0
         self.pads = []
+        log = os.environ.get("CT_DRIVE_PROTOCOL_LOG")
+        self.command_log = open(log, "a", encoding="utf-8", buffering=1) if log else None
+        atexit.register(self._abort_if_running)
+
+    def _abort_if_running(self):
+        """A failed route may unwind before close(); leave no driver behind."""
+        if self.process.poll() is None:
+            self.process.stdin.close()
+            try:
+                self.process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait()
+        if self.command_log:
+            self.command_log.close()
+            self.command_log = None
 
     # ---- protocol ------------------------------------------------------------------------
 
     def cmd(self, line):
         """Send one command; return the answer without its "ok"."""
+        if self.command_log:
+            self.command_log.write("> " + line + "\n")
         self.process.stdin.write(line + "\n")
         self.process.stdin.flush()
         answer = self.process.stdout.readline().strip()
+        if self.command_log:
+            self.command_log.write("< " + answer + "\n")
         if not answer.startswith("ok"):
             raise DriveError("%s -> %s" % (line, answer or "<eof>"))
         return answer[3:]
@@ -110,6 +138,10 @@ class Machine:
         except Exception:
             pass
         status = self.process.wait()
+        atexit.unregister(self._abort_if_running)
+        if self.command_log:
+            self.command_log.close()
+            self.command_log = None
         if status:
             raise DriveError("ct_drive exited with status %d (its output says why)" % status)
         if self.counted:

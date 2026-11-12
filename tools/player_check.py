@@ -24,10 +24,11 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     suffix = ".exe" if os.name == "nt" else ""
 
-    def run(app, label, *options):
+    def run(app, label, *options, input_text=None):
         with (out / (label + ".log")).open("wb") as log:
             subprocess.run([str(build / (app + suffix)), "--rom", str(rom), *map(str, options)],
-                           cwd=root, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=300)
+                           cwd=root, input=input_text.encode() if input_text is not None else None,
+                           stdout=log, stderr=subprocess.STDOUT, check=True, timeout=300)
 
     def pcm(label):
         with wave.open(str(out / (label + ".wav")), "rb") as stream:
@@ -54,6 +55,26 @@ def main():
         if pcm(name + "-whole")[len(pcm(name + "-prefix")):] != pcm(name + "-resumed"):
             raise RuntimeError(f"{name}: continued audio differs")
         print(f"{name}: continued state, picture and audio identical", flush=True)
+
+    # Route slots reuse exact audio-host replies; file loads reconstruct sound
+    # normally. Both go through the player's incremental checkpoint engine.
+    route_state = out / "route.state"
+    commands = [f"movie {root / 'oracle/movies/menu.ctm'} 7400", "save 0", f"savefile {route_state}"]
+    for kind, restore in (("whole", None), ("slot", "load 0"), ("file", f"loadfile {route_state}")):
+        if restore:
+            commands.append(restore)
+        commands += ["run 300 0", f"wram {out / ('route-' + kind + '.bin')}",
+                     f"shot {out / ('route-' + kind + '.png')}"]
+    commands.append("quit")
+    run("ct_native", "route", "--server", input_text="\n".join(commands) + "\n")
+    if any(line.startswith("err ") for line in (out / "route.log").read_text().splitlines()):
+        raise RuntimeError("route checkpoint command failed")
+    for extension in ("bin", "png"):
+        expected = (out / f"route-whole.{extension}").read_bytes()
+        for kind in ("slot", "file"):
+            if (out / f"route-{kind}.{extension}").read_bytes() != expected:
+                raise RuntimeError(f"route {kind}: continued {extension} differs")
+    print("route: slot/audio and file restores preserve continued state and picture", flush=True)
 
     source = root / "oracle/movies/new-game.ctm"
     recording = out / "recorded.ctm"

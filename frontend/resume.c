@@ -12,20 +12,66 @@ static void write32(uint8_t *p, uint32_t v)
 {
     for (unsigned i = 0; i < 4; i++) p[i] = (uint8_t)(v >> (i * 8));
 }
+bool resume_reserve(Resume *r, uint32_t frames)
+{
+    if (frames <= r->capacity) return true;
+    uint32_t cap = r->capacity < UINT32_MAX / 2 ? r->capacity * 2 : UINT32_MAX;
+    if (cap < 1024) cap = 1024;
+    if (cap < frames) cap = frames;
+    if (SIZE_MAX / cap < sizeof *r->input) return false;
+    uint32_t *input = realloc(r->input, (size_t)cap * sizeof *input);
+    if (!input) return false;
+    r->input = input;
+    r->capacity = cap;
+    return true;
+}
+bool resume_copy(Resume *to, const Resume *from)
+{
+    if (!resume_reserve(to, from->frames)) return false;
+    uint32_t *input = to->input, capacity = to->capacity;
+    if (from->frames) memcpy(input, from->input, (size_t)from->frames * sizeof *input);
+    *to = *from;
+    to->input = input;
+    to->capacity = capacity;
+    return true;
+}
 bool resume_append(Resume *r, uint16_t first, uint16_t second)
 {
-    if (r->frames == UINT32_MAX) return false;
-    if (r->frames == r->capacity) {
-        uint32_t cap = r->capacity ? r->capacity : 1024;
-        if (cap > UINT32_MAX / 2 || SIZE_MAX / (cap * 2) < sizeof *r->input) return false;
-        cap *= 2;
-        uint32_t *input = realloc(r->input, (size_t)cap * sizeof *input);
-        if (!input) return false;
-        r->input = input;
-        r->capacity = cap;
-    }
+    if (r->frames == UINT32_MAX || !resume_reserve(r, r->frames + 1)) return false;
     r->input[r->frames++] = first | (uint32_t)second << 16;
     return true;
+}
+static bool finish(ResumeReplay *r)
+{
+    if (r->services && !r->host.end(r->host.ctx, r->services)) r->failed = true;
+    if (!r->failed && r->host.checksum(r->host.ctx) != r->target->outcome) r->failed = true;
+    r->active = false;
+    return !r->failed;
+}
+bool resume_start(ResumeReplay *r, ResumeHost host, const Resume *target,
+                  uint32_t start, bool restart, const void *services)
+{
+    *r = (ResumeReplay){ .host = host, .target = target, .services = services, .frame = start };
+    if (start > target->frames || (restart && start) ||
+        (services && (!restart || !host.begin || !host.end)) ||
+        (restart && !host.reset(host.ctx, target)) ||
+        (services && !host.begin(host.ctx, services))) {
+        r->failed = true;
+        return false;
+    }
+    r->active = start < target->frames;
+    return r->active || finish(r);
+}
+bool resume_advance(ResumeReplay *r)
+{
+    if (!r->active) return !r->failed;
+    if (!r->host.step(r->host.ctx, r->target->input[r->frame])) {
+        r->failed = true;
+        r->active = false;
+        return false;
+    }
+    r->frame++;
+    return r->frame < r->target->frames || finish(r);
 }
 uint8_t *resume_write(const Resume *r, const char *build, size_t *len)
 {

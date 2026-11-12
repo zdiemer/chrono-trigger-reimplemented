@@ -21,6 +21,7 @@
  * race does each frame -- the bikes, the camera, the drawing -- is in
  * race_rules.c, race_camera.c, race_projection.c and race_drawing.c (race.h). */
 #include "scene/race.h"
+#include "scene/scene_data.h"
 
 #include "platform/audio.h"
 #include "platform/video.h"
@@ -790,7 +791,7 @@ bool scene_race_upload_column_present(Snes *s) { return m_code_matches(s, 0x7E46
  * escape. */
 static void upload_column(Platform *pf, uint32_t column)
 {
-    const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .source = column, .size = PLANE_COLUMN_BYTES,
+    const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .data = scene_race_column_data(column, PLANE_COLUMN_BYTES), .size = PLANE_COLUMN_BYTES,
                                 .target_reg = VID_SNES_VRAM_ADDRESS, .target = PLANE_COLUMN_VRAM,
                                 .port = &down_a_column };
     vid_snes_copy(pf, PF_AT(0x7E4671), &t);
@@ -893,13 +894,23 @@ bool scene_race_wait_for_tilemap_upload_present(Snes *s)
 /* One pass of the race's wait for the tilemap it marked finished to be sent,
  * which the vblank upload marks done; then on at $7E:5215. Idle entry, 16-bit
  * A. The wait is for the frame (docs/TODO.md). */
-void scene_race_wait_for_tilemap_upload_loop(Snes *s)
+void scene_race_wait_for_tilemap_upload_loop_entry(Snes *s)
 {
     uint16_t pending = scene_race_tilemap_pending(state_of(s));
     s->cpu.a = pending;
     m_set_nz16(s, pending);
     if (pending == 0)
         s->cpu.pc = 0x5215;
+}
+
+// $7E:5211
+/* Wait for vblank to send the racers' finished tilemap. The pending word
+ * and saved caller frame reconstruct the loop after loading a state. */
+void scene_race_wait_for_tilemap_upload_loop(Snes *s)
+{
+    do {
+        scene_race_wait_for_tilemap_upload_loop_entry(s);
+    } while (native_idle_held(s));
 }
 
 /* ---- The engine's sound --------------------------------------------------------------------- */

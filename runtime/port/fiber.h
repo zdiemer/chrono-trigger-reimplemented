@@ -9,9 +9,9 @@ typedef struct Fiber Fiber;
  * return; switch away instead. */
 Fiber *fiber_create(void (*fn)(void *arg), void *arg);
 void fiber_destroy(Fiber *f);
-
-/* From the driver only: discard all coroutines before restarting a program. */
-void fiber_reset(void);
+/* Abandon a suspended program and every fiber it created (including tasks
+ * suspended inside a frame wait). Call from outside that program's tree. */
+void fiber_destroy_tree(Fiber *f);
 
 /* The fiber representing the thread's original stack. */
 Fiber *fiber_main(void);

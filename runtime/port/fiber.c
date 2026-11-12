@@ -31,10 +31,10 @@ struct Fiber {
     LPVOID handle;
     void (*fn)(void *);
     void *arg;
-    struct Fiber *next;
+    struct Fiber *parent, *next;
 };
 
-static Fiber *children;
+static Fiber *allocated;
 static Fiber main_fiber;
 static Fiber *current = &main_fiber;
 
@@ -61,21 +61,29 @@ Fiber *fiber_create(void (*fn)(void *), void *arg)
     Fiber *f = calloc(1, sizeof *f);
     f->fn = fn;
     f->arg = arg;
+    f->parent = current;
+    f->next = allocated;
+    allocated = f;
     f->handle = CreateFiber(FIBER_STACK_SIZE, trampoline, f);
     if (!f->handle)
         abort();
-    f->next = children;
-    children = f;
     return f;
+}
+
+static void unlink_fiber(Fiber *f)
+{
+    Fiber **at = &allocated;
+    while (*at && *at != f) at = &(*at)->next;
+    if (*at) *at = f->next;
+    for (Fiber *p = allocated; p; p = p->next)
+        if (p->parent == f) p->parent = f->parent;
 }
 
 void fiber_destroy(Fiber *f)
 {
     if (!f || f == &main_fiber)
         return;
-    Fiber **link = &children;
-    while (*link && *link != f) link = &(*link)->next;
-    if (*link) *link = f->next;
+    unlink_fiber(f);
     DeleteFiber(f->handle);
     free(f);
 }
@@ -101,10 +109,10 @@ struct Fiber {
     void *stack;
     void (*fn)(void *);
     void *arg;
-    struct Fiber *next;
+    struct Fiber *parent, *next;
 };
 
-static Fiber *children;
+static Fiber *allocated;
 static Fiber main_fiber;
 static Fiber *current = &main_fiber;
 
@@ -123,6 +131,9 @@ Fiber *fiber_create(void (*fn)(void *), void *arg)
         abort();
     f->fn = fn;
     f->arg = arg;
+    f->parent = current;
+    f->next = allocated;
+    allocated = f;
     f->stack = malloc(FIBER_STACK_SIZE);
     if (!f->stack || getcontext(&f->ctx) != 0)
         abort();
@@ -130,18 +141,23 @@ Fiber *fiber_create(void (*fn)(void *), void *arg)
     f->ctx.uc_stack.ss_size = FIBER_STACK_SIZE;
     f->ctx.uc_link = NULL;
     makecontext(&f->ctx, trampoline, 0);
-    f->next = children;
-    children = f;
     return f;
+}
+
+static void unlink_fiber(Fiber *f)
+{
+    Fiber **at = &allocated;
+    while (*at && *at != f) at = &(*at)->next;
+    if (*at) *at = f->next;
+    for (Fiber *p = allocated; p; p = p->next)
+        if (p->parent == f) p->parent = f->parent;
 }
 
 void fiber_destroy(Fiber *f)
 {
     if (!f || f == &main_fiber)
         return;
-    Fiber **link = &children;
-    while (*link && *link != f) link = &(*link)->next;
-    if (*link) *link = f->next;
+    unlink_fiber(f);
     free(f->stack);
     free(f);
 }
@@ -158,8 +174,14 @@ Fiber *fiber_current(void) { return current; }
 
 #endif
 
-void fiber_reset(void)
+void fiber_destroy_tree(Fiber *f)
 {
-    if (fiber_current() != fiber_main()) abort();
-    while (children) fiber_destroy(children);
+    if (!f || f == fiber_main() || f == fiber_current()) return;
+    for (;;) {
+        Fiber *child = allocated;
+        while (child && child->parent != f) child = child->next;
+        if (!child) break;
+        fiber_destroy_tree(child);
+    }
+    fiber_destroy(f);
 }

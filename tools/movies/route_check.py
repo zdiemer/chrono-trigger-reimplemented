@@ -11,10 +11,11 @@ battle won, a place) is the test (docs/MOVIES.md, "Routes as a test").
     python3 -m tools.movies.route_check --mode off --mode on:on beyond_time telepod_lavos:shell
 
 A route is `name` (routes/<name>.py, to its end) or `name:phase` (stopped at that
-phase's checkpoint). A mode is `off` (the interpreter) or
+phase's checkpoint). A mode is `native` (ct_native --server, no emulator), `off` (the interpreter) or
 `<native>:<generated>`, ct_drive's --native and --generated (with `on` and the
 ported routines the C sound driver plays, else the cartridge's own); the
-shipping mode is `on:on`, the default. Every route runs in every mode, from its own
+shipping mode is `on:on`, the default. --native-drive selects ct_native independently
+of --drive; CT_NATIVE_DRIVE supplies its default. Every route runs in every mode, from its own
 cartridge save and from scratch, in `--scratch` (checkpoints, logs and screens;
 not the repo); the table gives each outcome with the frame it was reached at,
 modes side by side. Frame counts differ between modes by design; the outcome is
@@ -40,6 +41,7 @@ import hashlib
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -58,6 +60,8 @@ CHECKPOINT = re.compile(r"^checkpoint (\S+) frame (\d+)")
 
 
 def parse_mode(text):
+    if text == "native":
+        return "native", None
     if text == "off":
         return "off", None
     native, _, generated = text.partition(":")
@@ -68,8 +72,8 @@ def parse_mode(text):
 
 def mode_name(mode):
     native, generated = mode
-    if native == "off":
-        return "off"
+    if native in ("off", "native"):
+        return native
     return "%s:%s" % (native, generated)
 
 
@@ -87,13 +91,19 @@ def run_stamp(route, mode, rom, drive):
     """What a run's checkpoints are only good for: the route, the mode, the
     build and ROM that played them, and the route's script and runner that
     chose its inputs."""
-    drive = drive or os.environ.get("CT_DRIVE") or os.path.join(REPO, "build/main/ct_drive")
+    from .ctdrv import DEFAULT_DRIVE, DEFAULT_NATIVE_DRIVE
+    drive = drive or (os.environ.get("CT_NATIVE_DRIVE") or DEFAULT_NATIVE_DRIVE if mode[0] == "native"
+                      else os.environ.get("CT_DRIVE") or DEFAULT_DRIVE)
     rom = rom or os.environ.get("CT_ROM") or os.path.join(REPO, "roms/ct-usa.sfc")
     name = route.partition(":")[0]
     script = os.path.join(REPO, "tools", "movies", "routes", name + ".py")
-    runner = os.path.join(REPO, "tools", "movies", "campaign.py")
+    from pathlib import Path
+    runner = hashlib.sha256()
+    for source in sorted((Path(REPO) / "tools/movies").rglob("*.py")):
+        runner.update(str(source.relative_to(REPO)).encode())
+        runner.update(source.read_bytes())
     return "route %s\nmode %s\nct_drive %s\nrom %s\nscript %s\nrunner %s\n" % (
-        route, mode_name(mode), file_digest(drive), file_digest(rom), file_digest(script), file_digest(runner))
+        route, mode_name(mode), file_digest(drive), file_digest(rom), file_digest(script), runner.hexdigest())
 
 
 STAMP = "run-stamp.txt"
@@ -117,13 +127,15 @@ def prepare(where, stamp, resume):
     return kept
 
 
-def run_one(route, mode, scratch, rom, drive, timeout, resume=False, fallbacks=None):
+def run_one(route, mode, scratch, rom, drive, timeout, resume=False, fallbacks=None, protocol_log=False):
     """Run one route in one mode; returns a result dict."""
     name, _, until = route.partition(":")
     run_name = "%s-%s" % (route.replace(":", "-"), mode_name(mode).replace(":", "-"))
     where = os.path.join(scratch, run_name)
     resumed = prepare(where, run_stamp(route, mode, rom, drive), resume)
     env = None
+    if protocol_log:
+        env = dict(os.environ, CT_DRIVE_PROTOCOL_LOG=os.path.join(os.path.abspath(where), "protocol.txt"))
     if fallbacks and mode[0] == "on":
         # the frames the run keeps are counted from its start as it ends
         # (ctdrv.Machine.count_kept_frames), a resumed run's included, so
@@ -131,7 +143,7 @@ def run_one(route, mode, scratch, rom, drive, timeout, resume=False, fallbacks=N
         counts = os.path.join(where, "fallbacks")
         shutil.rmtree(counts, ignore_errors=True)
         os.makedirs(counts)
-        env = dict(os.environ, CT_DRIVE_FALLBACKS=counts)
+        env = dict(env or os.environ, CT_DRIVE_FALLBACKS=counts)
     command = [sys.executable, "-m", "tools.movies.routes." + name, "--prefix", os.path.join(where, name),
                "--native", mode[0]]
     if mode[1]:
@@ -146,12 +158,20 @@ def run_one(route, mode, scratch, rom, drive, timeout, resume=False, fallbacks=N
     # a resumed run adds to the output of the runs before it, whose checkpoints
     # it carries on from
     with open(os.path.join(where, "output.txt"), "a" if resumed else "w", encoding="utf-8") as out:
+        process = subprocess.Popen(command, cwd=REPO, stdout=out, stderr=subprocess.STDOUT,
+                                   env=env, start_new_session=os.name != "nt")
         try:
-            status = subprocess.run(command, cwd=REPO, stdout=out, stderr=subprocess.STDOUT,
-                                    timeout=timeout, env=env).returncode
+            status = process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
+            # A driver stuck in a frame cannot observe EOF on the command pipe.
+            if os.name == "nt":
+                subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+            else:
+                os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
             status = None
-    if env:
+    if fallbacks and mode[0] == "on":
         copy = os.path.join(fallbacks, run_name)
         shutil.rmtree(copy, ignore_errors=True)
         shutil.copytree(env["CT_DRIVE_FALLBACKS"], copy)
@@ -185,10 +205,11 @@ def main(argv=None):
     parser.add_argument("routes", nargs="*", default=DEFAULT_ROUTES,
                         help="name or name:phase (default %s)" % " ".join(DEFAULT_ROUTES))
     parser.add_argument("--mode", action="append", type=parse_mode,
-                        help="off or <native>:<generated>, repeatable (default on:on, the shipping mode)")
+                        help="native (ct_native), off or <native>:<generated>, repeatable (default on:on)")
     parser.add_argument("--scratch", help="where runs go (default a temporary directory, removed afterwards)")
     parser.add_argument("--rom", help="ROM (default roms/ct-usa.sfc, or $CT_ROM)")
     parser.add_argument("--drive", help="ct_drive binary (default build/main/ct_drive, or $CT_DRIVE)")
+    parser.add_argument("--native-drive", help="ct_native binary for --mode native (or $CT_NATIVE_DRIVE)")
     parser.add_argument("-j", "--jobs", type=int, default=1, help="routes run at once (default 1)")
     parser.add_argument("--timeout", type=int, default=6 * 3600, help="seconds per run (default 6 hours)")
     parser.add_argument("--fallbacks", metavar="DIR",
@@ -197,12 +218,13 @@ def main(argv=None):
     parser.add_argument("--resume", action="store_true",
                         help="carry on from the checkpoints a run cut short left in --scratch, where the build and "
                              "ROM are the same")
+    parser.add_argument("--protocol-log", action="store_true", help="keep driver requests and answers beside each run")
     args = parser.parse_args(argv)
     if args.resume and not args.scratch:
         parser.error("--resume needs --scratch: the checkpoints are kept there")
     # The routes start ct_drive from their own working directory, so a relative
     # path given here would name nothing there: resolve it against ours.
-    for name in ("drive", "rom", "fallbacks"):
+    for name in ("drive", "native_drive", "rom", "fallbacks"):
         if getattr(args, name):
             setattr(args, name, os.path.abspath(getattr(args, name)))
     modes = args.mode or [parse_mode(mode) for mode in DEFAULT_MODES]
@@ -211,8 +233,9 @@ def main(argv=None):
     jobs = [(route, mode) for route in args.routes for mode in modes]
     try:
         with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
-            futures = [pool.submit(run_one, route, mode, scratch, args.rom, args.drive, args.timeout, args.resume,
-                                   args.fallbacks)
+            futures = [pool.submit(run_one, route, mode, scratch, args.rom,
+                                   args.native_drive if mode[0] == "native" else args.drive, args.timeout, args.resume,
+                                   args.fallbacks, args.protocol_log)
                        for route, mode in jobs]
             # each outcome as it comes, so a run cut short still reports the
             # routes that finished

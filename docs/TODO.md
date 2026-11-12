@@ -9,6 +9,95 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
+- **Remaining machine hand-offs and held loops.** The remaining source
+  hand-offs need conversion subsystem by subsystem under their complete
+  contracts; the sampled census already has no machine entries. The source
+  inventory has 14 actual address-call sites and nine registry lookups;
+  audit their retained comparison and fallback paths before replacing them.
+  Preserve each retained row's full contract even where an existing named
+  form is looser: `field_next_frame`'s form currently omits the row's
+  `field_on_page_bank_zero` guard.
+  The remaining menu, scene, overworld, field and battle continuations need
+  saveable C loops. The largest remaining sampled dispatch counts are the
+  field's next-frame pass (134,676), battle window slide (118,211), and menu
+  scheduler (117,473) and cursor (116,866) turns. Scene frame, upload-finished
+  and overworld frame-work passes still dispatch once per pass.
+  Preserve task switching,
+  the caller's return frame, cartridge saves and fresh-runtime mid-wait
+  reloads before replacing a wait. Keep the entry wrappers and registry
+  until the native route checks permit their removal (PLAN.md, Phase 4a).
+  The interrupts' review left two tests: `suspend_test`'s comparison of
+  machine and driver delivery should also cover `WAI`, a masked IRQ's
+  wakeup and changes to the interrupt enables, and its legacy-state case
+  should load a state that really lacks `frame_interrupt` rather than clear
+  the field after loading.
+
+- **The Epoch route's event/audio connection.** `epoch_lavos` in
+  `ct_native --server` stops at frame 9587 over Lavos (`$1B0`): the dive's
+  scene mode never changes from `$02` to `$26`. Shipping reaches the cavern
+  and its first window at frame 7762. The native run reports 1620 unserved
+  accesses, with all eight retained addresses at `$00:2142`. The event
+  memory-peek operation (`event/memory.c`,
+  `$C0:6792`) uses `event_selected_data_byte`, whose non-cartridge branch
+  treats the selected address as RAM; the native RAM backing returns zero
+  for this sound-status port. Location `$1B0`'s event `$114` confirms the
+  dependency: offsets `$0C6A`, `$0CB3` and `$0CE7` poll that port's low
+  nibble for music markers 1, 2 and 3. Zero cannot release the first wait.
+  Connect this script operation to the audio
+  service without making the state backing an emulated hardware bus, and
+  rerun the route. Ordinary `au_status` reads already reach the C driver.
+  The earliest differing route observation under identical input is frame
+  3179: shipping has entered `$1B0`, native is still on world map `$1F0`;
+  native reaches the question 40 frames later. That timing difference
+  alone does not establish the cause of the later wait.
+
+- **Son of Sun's native landing approach.** The native route reaches the
+  future, but fails to land east of the palace at frame 5794; travel mode
+  remains 2. The first differing observation with identical input is at
+  frame 3756: native still reports world map `$1F0`, shipping `$1F2`.
+  Later, `fly_to` releases RIGHT at X=534 and waits twelve frames: native
+  settles at X=536, shipping at X=544. The helper assumes this fixed coast
+  will reach its intended landing tile. Make the landing approach depend
+  on the settled position and investigate whether the coast difference
+  is expected under native timing. Shipping wins the fight and regains
+  field control at frame 18206. No replay or machine-only stop precedes
+  the native failure; it does not establish a difference in the boss fight.
+
+- **Native bases during play.** Player quick load and `ct_native --server`
+  slot load share reconstruction of the main and menu coroutines from
+  power-on input; neither has a later complete base, so load time grows with
+  the session. Quick saves require the same execution-source fingerprint;
+  `.srm` remains portable progress across builds. Use the held waits, now
+  data or saveable C loops,
+  to take resumable saves at frame ends during a route. Capture the complete
+  game and task state, host services, sound and timing debt, then replay only
+  the buttons since that base on a slot load. Verify restored RAM, pictures
+  and continued play against uninterrupted runs; a RAM-only copy is insufficient.
+  The audit's Cyrus route took about 80 minutes versus 44 seconds in
+  shipping mode, even with exact audio-host reply reuse (MOVIES.md,
+  "Native program checkpoints"). `beyond_time` wins both final battles, but its ending
+  continuation exceeds six hours searching Leene's Bell plaza (`$051`),
+  after entering it at frame 81312; the last completed protocol step was
+  frame 81750, and the timeout interrupted a restore. Shipping completes
+  the ending at frame 107048. No replay mismatch preceded the timeout.
+  The first observed state difference under identical input is much
+  earlier: at frame 2566, `peek 7E1802 2` returns `400c` in native and
+  `300c` in shipping (Crono's X, 196 versus 195 pixels). That timing
+  difference is not evidence of the timeout's cause. `motherbrain` also
+  exceeds six CPU hours in Geno Dome's escort-pod charge search, after
+  opening the robot room and clearing the lower corridor battle; its last
+  completed step is frame 44933. Shipping completes at 155522.
+  `nizbel_ii` reaches the lower hall and clears its ambushes, then exceeds
+  the same CPU budget searching toward the door switch: its last completed
+  probe is frame 66706, versus shipping's outcome at 132380. The
+  [route ledger](history/native-route-outcomes.md) records the first
+  common-input differences and the stops. The audit was stopped by request
+  with `r_series` past the shutter escape (last completed probe 33504) and
+  `sun_stone_finish` past the Moon Stone recovery (13099). The bucket route
+  had reached the cavern at 97298; its continuation was not run. Rerun these,
+  the time-limited routes and the six unstarted full routes listed in
+  `tools/native_route_exceptions.txt` once loads can use bases during play.
+
 - **Out-of-contract script states.** The event loops at `$C0:58ED`, `$C0:5967`, `$C0:5990` and
   `$C0:5AA3` already run as C for valid scripts; their hand-backs preserve
   out-of-buffer script positions, changed data banks and object state the
@@ -1964,21 +2053,6 @@ rest waits, is [PLAN.md](PLAN.md).
     and the read finds the resource by it. Naming the resource in the
     accessor instead goes with decoding it (PLAN.md, "Assets"); until then a
     pack can't move a resource, only serve it.
-  - **Unproved cartridge-address sources.** The conservative
-    `py tools/machine_joints.py --cartridge-sources` inventory has 122 sites,
-    all linked by `ct_native`: 25 `PF_GAME` sources, 11 source-field
-    assignments, one `m_read16`, and 85 generic `wram_read` operands. This
-    supersedes the old counter's zero, which only recognized fixed spellings.
-    Audit each producer and consumer: prove RAM-only expressions with exact,
-    commented allowlist entries, distinguish descriptors later consumed by
-    named accessors, or move cartridge-capable reads behind a named accessor.
-    No entries have been added to the allowlist to reduce this count.
-    Examples needing that proof are the per-line descriptor's selected bank
-    in `scene/screen.c`, `menu/epoch.c`'s variable-bank reads, the screen's
-    `decompress_dest(g)` transfer, and the stack-relative read in
-    `overworld/main_loop.c`. A RAM-looking name or a RAM bank ORed with an
-    unbounded expression is not proof. The command lists every remaining
-    expression, including computed staging buffers and script operands.
   - **What the asset pack's review left** (none blocking): the `asset
     differs from the cartridge` check compares two copies made from the same
     ROM, so it tests only the importer's address mapping, not the pack's
@@ -2678,23 +2752,13 @@ the movie to its end. What the wrappers and bridges call of the machine is
 `runtime/port/no_machine.c`, which nothing `ct_native` runs reaches: its
 list, by kind, is what `game/` still asks of one.
 
-- **Boss movies still need native outcome checks.** `battle-mud-imp` runs
-  37817 `ct_native` frames with no explicit stop, but ends blanked after three
-  screen setups and two video escapes. `battle-heckran` runs 19376 frames
+- **Heckran still needs a native outcome check.** `battle-heckran` runs 19376 frames
   with no explicit stop, a screen showing after six setups, and four video
-  escapes. Both first escape at the title's `$7E:5AEB` (`vid_snes_copy`,
-  below). Their fixed-input runs do not establish native boss victories;
+  escapes, first at the title's `$7E:5AEB` (`vid_snes_copy`, below).
+  Its fixed-input run does not establish native victory;
   connect the missing video work and verify the intended field outcome.
-  Strict mode completes both frame counts but differs from the reference's
+  Strict mode completes the frame count but differs from the reference's
   saved game (`drifts` in `tools/strict_baseline.txt`).
-- **Castle movie input on the native program.** `battle-castle-slash` (39278 frames) and
-  `battle-castle-flea` (35256), with their ctsave06 cartridge save supplied to
-  `ct_native --sram`, run all frames without a reported stop, but end with the screen
-  blanked after four setups (two title video escapes, first `$7E:5AEB`). Their fixed input does not
-  establish the castle outcome on the native program's different timing. Investigate the
-  blank screen and drive the native program from state to check the fight itself. The
-  shipping `ct_drive` routes do beat both Slash forms and Flea and regain field control;
-  strict mode reaches both movies' ends with saved-game drift.
 - **Crono's trial movies.** `ct_native` with the normal pre-trial save
   stops `events-cronos-trial` at frame 20629, `$C0:881E`, "a walk the port
   doesn't take", during the prison transfer (the walk guard above).
@@ -3069,10 +3133,6 @@ list, by kind, is what `game/` still asks of one.
   before replacing the escape. The pending window transfer's only writer
   requests VRAM words, but the entry accepts arbitrary destination/mode
   descriptors; a VRAM-only replacement needs that guard contract settled.
-  The three Death Peak movies reach their full 4676/23852/23856-frame budgets
-  in `ct_native` without stopping, but report 2/4/4 video escapes, first at
-  `$7E:5AEB`; wind and ascent finish blanked, return showing. These fixed-input
-  runs do not establish the route outcomes under the host's different timing.
 - **What the host backends don't do yet.** The native player already sends
   audio through `sound_native_take_audio`. Unify `frontend/sound_native.c`
   and `sound_host.c`'s echo waits and command queues when `ct_play` adopts
@@ -3394,11 +3454,6 @@ persistence seams; game-side representation changes still need explicit work.
   puzzle/minigame policies where needed. Re-run routes after timing changes:
   state-driven routes survive drift, their recorded inputs do not.
 
-- **The R Series and Nizbel II fights** (movies-wanted.md, "Boss fights") are unattempted beyond finding
-  where each save starts. `ctsave03` slot 2 (R Series, the
-  factory) and `ctsave07` slot 3 (Nizbel II, Tyrano Lair) start on the world map
-  at the dungeon's door, needing a walk in and
-  down to the boss room neither attempted nor mapped this pass.
 - **zophar `chrono-7`** (everything maxed at the fair) is unused: its Lucca
   exhibit gate (`$7F:0055` bit 7) can be opened, but no movie needs it yet.
 - **Coverage loop**: re-run `--misses` over the whole library after the latest
@@ -3409,15 +3464,11 @@ persistence seams; game-side representation changes still need explicit work.
 
 ## Player and tooling
 
-- **Native checkpoint load latency.** The portable checkpoint reconstructs
-  suspended C stacks by replaying from the starting save (PLAYING.md). It
-  preserves every completed frame, but loading time grows with the session.
-  Direct portable snapshots require explicit resumable game continuations,
-  including the menu tasks, plus serialized video, sound and scheduler state;
-  a RAM dump or raw host-stack copy cannot replace them. Checkpoints reject
-  changed execution-source fingerprints; `.srm` remains the portable progress
-  format across builds.
-
+- **Automate native quick-load integration checks.** Add a recording test that
+  quick-loads an earlier frame, continues with different input, and verifies
+  the rewritten movie and final state. Automate restore while paused and
+  repeated live quick-load checks, currently exercised by hand; compare
+  continued RAM, pictures and sound with uninterrupted play.
 
 - **`tools/portsmell.py`'s `sibling-through-machine` matches only literal
   addresses in `m_jsr`/`m_jsl`**: a call-out to a registered port through a

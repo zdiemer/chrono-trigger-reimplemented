@@ -500,7 +500,7 @@ holds the rules that keep it that way).
 | `frontend/headless.c` | `run_headless`: `--frames`, `--hold`, `--screenshot`, `--wav` |
 | `frontend/storage.h`, `storage.c`, `asset_files.c` | shared file naming, byte storage and importing packs; `files.c` adapts them to `ct_play` |
 | `frontend/track.h`, `track.c` | shared input history and `.ctm` recording |
-| `frontend/resume.h`, `resume.c` | native continuation checkpoints as bytes, with no paths or devices |
+| `frontend/resume.h`, `resume.c` | shared native checkpoint history, encoding and one-frame reconstruction, with no paths or devices |
 | `frontend/assets.h`, `assets.c` | the asset pack: the import from a ROM image, and the stores over a pack or a ROM image the game reads its resources from |
 | `frontend/ct_play.c` | the options, which it turns into a player and one driver |
 
@@ -549,6 +549,18 @@ development tools call (`snes_state_save`, `zst_import_file`, `ct_movie_load`,
 `misses_write`) are wrappers over them.
 
 ### The native program
+
+`ct_native --server --rom roms/ct-usa.sfc --sram save.srm` exposes the native
+frame loop to the state-driven route scripts, through the line protocol in
+[MOVIES.md](MOVIES.md#native-program-checkpoints). It links the same native
+program as window play. Its replay checkpoints reconstruct live coroutine
+stacks from power-on input; these are separate from the player's future
+quick saves and from emulator state files.
+The [route outcome ledger](history/native-route-outcomes.md) records native
+and shipping results; the gate runs the fast native prefixes every time and
+the 42 passing full routes with `--long-routes`, retaining the fast prefixes
+of excepted endings. Fourteen full routes have explicit failure, timeout or
+incomplete-audit reasons; the ledger distinguishes them.
 
 `ct_native` is the game with no emulator under it, the first version of
 what `ct_play` becomes (PLAN.md, "The machine out of the product"
@@ -771,9 +783,17 @@ one stops the program with its address, as a step only the machine runs does.
 
 The desktop storage/import helpers, recorder, binding configuration and SDL
 window are shared with `ct_play` (`storage.c`, `asset_files.c`, `track.c`,
-`bindings_config.c`, `window.c`). Checkpoint encoding (`resume.c`) takes and
-returns bytes; the driver chooses names and writes files atomically. Resetting
-suspended stacks goes through `fiber_reset` in `runtime/port/fiber.h`.
+`bindings_config.c`, `window.c`). Checkpoint input history and reconstruction
+(`resume.c`) are shared by player quick saves and route-server slots. The driver calls `resume_advance` once per frame;
+completion checks the caller's state checksum and any captured host-service
+checkpoint. The route server retains exact audio-call verification and sound
+state reuse. Player checkpoint encoding takes and returns bytes; the driver
+chooses names and writes files atomically. Resetting
+suspended stacks goes through `fiber_destroy_tree` in `runtime/port/fiber.h`.
+The shared restart also recreates the renderer because its cached lines own
+pixels in the discarded framebuffer. `tools/player_check.py` compares player
+checkpoint continuations (RAM, picture and sound) and route slot/file
+continuations (RAM and picture, with the slot's audio-call checks enabled).
 
 The driver (`frontend/ct_native.c`) starts the host backends with the
 program and advances one frame per call, from its headless loop or the shared

@@ -5012,3 +5012,40 @@ the separate tech-sweep movie and both fast routes. The three manual
 native-shape routes above also report zero fallback instructions and zero
 refusals. These are sampled and targeted results, not a whole-library
 recalibration or a claim that the existing outcome differences are gone.
+
+## The console's direct hand-offs
+
+The shipping console calls its next step as C: reset calls the boot, the
+boot calls the field's first start, and each interrupt vector calls its RAM
+stub. `core/console.c` keeps a shared checked tail-call boundary. It moves to
+the original entry, passes the caller's time with `native_sync_boundary`,
+then checks native CPU mode, the callee's P mask and its guard before a
+`TIMED_AS` call. An empty vector still yields at that boundary, preserving
+the driver's minimum step and interrupt poll. A refusal stops at the
+original entry with the original don't-care set and stack intact. Shadow
+mode retains the separate comparisons; no registry rows, wrappers or
+timing estimates change.
+
+The field's game-over fade uses the same boundary before calling
+`field_first_start`: the screen is blank and the stack reset before the
+handoff, as before. Its local check requires native mode and M8/X16, with
+no decimal-mode, page, bank or code-image restriction. Refusal leaves the
+fresh stack at `$C0:000E` with the stop's own don't-care set. The other
+restart destination, the field entry at `$C0:005D`, retains its stop.
+
+The boot has no P restriction; the field's first start takes M8/X16. The
+stubs take any P in native mode, including decimal, and require a jump or
+return installed in the corresponding RAM vector. None of these four
+callees has an additional page, bank or code-image guard. The suspension
+test exercises both vectors at all 256 status bytes, with valid return
+stubs, invalid stubs and emulation-mode refusals, checking the destination
+and complete interrupt frame. Six field-restart cases check refused CPU
+modes and widths with decimal mode both set and clear.
+
+The frame driver supplies reset and the interrupt vectors' C callers
+(RUNTIME.md, "The frame driver's game calls"). The 37-movie sample now has
+zero machine entries. The field's restart in the dark also calls the boot
+through `console_start`, using the same checked boundary. Current source
+counts and save/load evidence are in RUNTIME.md, "Restartable C loops";
+the preceding handoff measurements, including byte-identical field-restart
+end states, are in [history/console-handoffs.md](history/console-handoffs.md).

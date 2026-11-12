@@ -31,13 +31,13 @@ GAME = ROOT / "game"
 # (name, pattern, what retires it)
 JOINTS = [
     ("registered entries", None, "ordinary functions their callers call"),
-    ("held waits' continuations", None, "their main loops run as C with no machine under them"),
+    ("held waits' continuations", None, "restartable C loops replace their repeated dispatch"),
     ("returns through the emulated stack", r"\bm_rt[sli]\(", "the entry wrappers deleted"),
-    ("stops at the original's addresses", r"\bm_stop_at(?:_own)?\(|\bm_hold_at\(|\bnative_\w*dont_care_at_stop\(",
+    ("stops at the original's addresses", None,
      "the next step called as C"),
-    ("call-outs to entries by address", r"\bcall_out\w*\(|\bnative_(?:yield_|jump_)?call_dc\(",
+    ("call-outs to entries by address", None,
      "the callee called as C"),
-    ("siblings found in the registry", r"\bnative_hand_entry\(", "the sibling called as C"),
+    ("siblings found in the registry", None, "the sibling called as C"),
     ("time tags that take the machine", r"\bNATIVE_TIME_AS\(", "a tag with no machine"),
     ("register escapes", r"\bvid_snes_\w+\(|\bau_voices_snes_register\(", "a service call"),
     ("video service calls", r"\bvid_(?!snes_)\w+\(", "inventory, including inline value helpers"),
@@ -85,13 +85,82 @@ def registry_entries():
     return len(ENTRY.findall(text[start:text.index("\n};", start)]))
 
 
+def restartable_loops(source):
+    """Functions with an explicit C loop and a saveable polling boundary.
+
+    A caller merely naming a hold, or a wrapper calling one pass, has not
+    replaced repeated dispatch. Count only the two runtime checkpoint APIs,
+    not comments, declarations, or a call in a neighbouring function.
+    """
+    source = re.sub(r'"(?:\\.|[^"\\])*"', '""', without_comments(source))
+    result = set()
+    for m in DEFINITION.finditer(source):
+        depth = 1
+        end = m.end()
+        while end < len(source) and depth:
+            depth += (source[end] == '{') - (source[end] == '}')
+            end += 1
+        body = source[m.end():end - 1]
+        name = re.search(r'(\w+)\s*\(', m[0])[1]
+        if (not depth and
+                re.search(r'\b(?:for|while)\s*\(', body) and
+                re.search(r'\bnative_(?:poll_held|idle_held)\s*\(', body)):
+            result.add(name)
+    return result
+
+
+def held_wait_counts(registry, loops):
+    """Remaining dispatch rows and retained C-loop compatibility rows.
+
+    `.loop` names the restartable idle loop; non-idle loops (warp) are the
+    entry function itself. Metadata alone is insufficient: source must have
+    the loop and checkpoint. The idle alias beside warp still counts.
+    """
+    registry = without_comments(registry)
+    start = registry.index("game_held_waits[] = {")
+    block = registry[start:registry.index("\n};", start)]
+    rows = re.findall(r'\{([^{}]*\.addr\s*=[^{}]*)\}', block)
+    converted = 0
+    for row in rows:
+        loop = re.search(r'\.loop\s*=\s*(\w+)\b', row)
+        entry = re.search(r'\.fn\s*=\s*(\w+)\b', row)
+        fn = loop or entry
+        enabled = not loop or re.search(r'\.idle\s*=\s*true\b', row)
+        converted += bool(enabled and fn and fn[1] in loops)
+    return len(rows) - converted, converted
+
+
 def held_wait_rows():
-    """The held waits' continuations (game_held_waits): machine wrappers the
-    runtime runs by a wait's number rather than finds by address, still a
-    joint until their main loops run with no machine."""
-    text = (GAME / "registry.c").read_text(encoding="utf-8")
-    start = text.index("game_held_waits[] = {")
-    return len(ENTRY.findall(text[start:text.index("\n};", start)]))
+    loops = set().union(*(restartable_loops(p.read_text(encoding="utf-8")) for p in sources()))
+    return held_wait_counts((GAME / "registry.c").read_text(encoding="utf-8"), loops)[0]
+
+
+BOUNDARIES = {
+    "stops at the original's addresses":
+        r"\b(?:m_(?:stop|hold)_at(?:_own)?|native_\w*dont_care_at_stop)\s*\(",
+    "call-outs to entries by address":
+        r"\b(?:m_js[rl](?:_dc)?|native_(?:(?:yield_|jump_)?call(?:_dc)?|wait_call))\s*\(",
+    "siblings found in the registry":
+        r"\bnative_(?:hand_entry(?:_at)?|continuation_entry_at)\s*\(",
+}
+
+
+def machine_boundaries(text):
+    """Actual machine APIs, including their wrappers and address variants.
+
+    A helper's name (call_out_as, for example) says nothing about its body.
+    Comments, strings and API declarations are not calls. A function-like
+    macro forwarding to an API still contains that machine boundary.
+    """
+    source = re.sub(r"\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'",
+                    ' ', without_comments(text))
+    counts = collections.Counter()
+    for name, pattern in BOUNDARIES.items():
+        for match in re.finditer(pattern, source):
+            if re.match(r"\s*(?:const\s+)?Snes\s*\*", source[match.end():]):
+                continue
+            counts[name] += 1
+    return counts
 
 
 def count(per_file):
@@ -102,6 +171,10 @@ def count(per_file):
         if path.name == "registry.c":
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
+        boundaries = machine_boundaries(text)
+        if boundaries:
+            totals.update(boundaries)
+            by_file[path.relative_to(ROOT).as_posix()].update(boundaries)
         n = cartridge_reads(path, text)
         if n:
             name = "cartridge reads by address"
@@ -126,6 +199,7 @@ def count(per_file):
                 by_file[path.relative_to(ROOT).as_posix()][name] += n
     totals["registered entries"] = registry_entries()
     totals["held waits' continuations"] = held_wait_rows()
+    by_file["game/registry.c"]["held waits' continuations"] = totals["held waits' continuations"]
     return totals, by_file
 
 
@@ -319,10 +393,24 @@ def work_ram_address(value):
 
 
 # Exact (file, operation, expression) -> audit evidence. No wildcard variable
-# names: an unresolved source in a new caller must appear in the inventory.
+# names: an unresolved source in a new file or expression stays in the inventory.
 # Leave unproved expressions counted rather than treating a RAM-looking name
 # or a fixed bank ORed with an unbounded value as proof.
-AUDITED_RAM_SOURCES = {}
+def audited_sources():
+    """Exact sites, with the producer/consumer proof beside each entry."""
+    entries = {}
+    for line in (ROOT / "tools/cartridge_sources_allowlist.tsv").read_text(encoding="utf-8").splitlines():
+        if not line or line.startswith("#"):
+            continue
+        file, operation, expression, disposition, proof = line.split("\t")
+        key = (file, operation, re.sub(r"\s+", "", expression))
+        if disposition not in ("ram", "accessor", "hardware") or not proof.strip() or key in entries:
+            raise ValueError(f"invalid cartridge-source audit: {line}")
+        entries[key] = (disposition, proof)
+    return entries
+
+
+AUDITED_SOURCES = audited_sources()
 
 
 def cartridge_sources(path, text):
@@ -376,7 +464,7 @@ def cartridge_sources(path, text):
     relative = path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else path.as_posix()
     for at, kind, expression in sorted(candidates):
         key = (relative, kind, re.sub(r"\s+", "", expression))
-        if work_ram_address(constant_value(expression, definitions)) or key in AUDITED_RAM_SOURCES:
+        if work_ram_address(constant_value(expression, definitions)) or key in AUDITED_SOURCES:
             continue
         yield source.count("\n", 0, at) + 1, kind, expression
 

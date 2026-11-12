@@ -291,7 +291,8 @@ const NativeEntry game_held_waits[] = {
     /* Menu comparisons remain registered while the unreached audit closes.
      * Shipping waits name these continuations, preserving their original
      * contracts and the scheduler's calibrated rate at a saveable boundary. */
-    { .addr = 0xC20348, .name = "menu_frame_held", .fn = menu_wait_for_frame_loop, NEEDS_M8, .idle = true,
+    { .addr = 0xC20348, .name = "menu_frame_held", .fn = menu_wait_for_frame_loop_entry,
+      .loop = menu_wait_for_frame_loop, NEEDS_M8, .idle = true,
       .guard = menu_frame_wait_on_page, .dont_care = DC_X | DC_Y | DC_N | DC_Z | DC_C,
       .hold = HOLD_MENU_FRAME , .retired = true },
     { .addr = 0xC22468, .name = "overworld_exit_fade_finished", .fn = overworld_exit_fade_finished, NEEDS_M8_X16_BINARY,
@@ -329,7 +330,8 @@ const NativeEntry game_held_waits[] = {
       .cost_milli = 5557, .guard = overworld_main_loop_runs, .hold = HOLD_MENU_FRAME, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .retired = true },
     { .addr = 0xC2826C, .name = "menu_main_task_waits_held", .fn = menu_main_task_waits, .p_mask = CPU_FLAG_D, .p_value = 0,
       .cost_milli = 1, .guard = menu_on_page, .hold = HOLD_MENU_TASKS, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C , .retired = true },
-    { .addr = 0xC281CA, .name = "menu_uploads_held", .fn = menu_wait_ready_loop, NEEDS_M8, .idle = true,
+    { .addr = 0xC281CA, .name = "menu_uploads_held", .fn = menu_wait_ready_loop_entry,
+      .loop = menu_wait_ready_loop, NEEDS_M8, .idle = true,
       .guard = menu_ready_wait_reaches_low_ram, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .hold = HOLD_MENU_TASKS , .retired = true },
     { .addr = 0xC281CF, .name = "menu_tasks_held", .fn = menu_run_the_tasks, NEEDS_M8_X8, .cost_milli = 4107,
@@ -352,13 +354,15 @@ const NativeEntry game_held_waits[] = {
      * scene's page) */
     { .addr = 0x7E3023, .name = "scene_program_next_pass", .fn = scene_program_next_pass, NEEDS_M16, .cost_milli = 3125,
       .hold = HOLD_SCENE_MAIN_LOOP, .retired = true, .guard = scene_program_passes },
-    { .addr = 0x7E3023, .name = "scene_program_waits", .fn = scene_program_waits, NEEDS_M16, .idle = true,
+    { .addr = 0x7E3023, .name = "scene_program_waits", .fn = scene_program_waits_entry,
+      .loop = scene_program_waits, NEEDS_M16, .idle = true,
       .hold = HOLD_SCENE_MAIN_LOOP, .retired = true, .guard = scene_program_waits_for_the_frame },
     { .addr = 0x7E3026, .name = "scene_program_finishes_pass", .fn = scene_program_finishes_pass, NEEDS_M16,
       .cost_milli = 3125, .hold = HOLD_SCENE_MAIN_LOOP, .retired = true, .guard = scene_program_pass_finished },
     /* The race's upload wait keeps its caller frame, without a suspended
      * port. Its exit gathers the picture and calls that caller directly. */
-    { .addr = 0x7E5211, .name = "scene_race_waits_for_upload", .fn = scene_race_wait_for_tilemap_upload_loop, NEEDS_M16,
+    { .addr = 0x7E5211, .name = "scene_race_waits_for_upload", .fn = scene_race_wait_for_tilemap_upload_loop_entry,
+      .loop = scene_race_wait_for_tilemap_upload_loop, NEEDS_M16,
       .idle = true, .hold = HOLD_SCENE_RACE_UPLOAD, .retired = true, .guard = scene_race_wait_for_tilemap_upload_present },
     { .addr = 0x7E5215, .name = "scene_race_upload_finished", .fn = scene_race_upload_finished, NEEDS_M16_X16,
       .cost_milli = 5204, .dont_care = DC_X | DC_Y | DC_N | DC_Z,
@@ -377,8 +381,8 @@ const NativeEntry game_held_waits[] = {
     { .addr = 0xC20348, .name = "overworld_next_frame", .fn = overworld_next_frame, NEEDS_M8_X16_BINARY,
       .cost_milli = 5557, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .pulls = 2,
       .hold = HOLD_OVERWORLD_FRAME, .retired = true, .guard = overworld_frame_counted },
-    { .addr = 0xC20348, .name = "overworld_waits_for_the_frame", .fn = overworld_waits_for_the_frame, NEEDS_M8,
-      .idle = true, .hold = HOLD_OVERWORLD_FRAME, .retired = true, .guard = overworld_frame_not_counted },
+    { .addr = 0xC20348, .name = "overworld_waits_for_the_frame", .fn = overworld_waits_for_the_frame_entry,
+      .loop = overworld_waits_for_the_frame, NEEDS_M8, .idle = true, .hold = HOLD_OVERWORLD_FRAME, .retired = true, .guard = overworld_frame_not_counted },
     { .addr = 0xC2250D, .name = "overworld_halt", .fn = overworld_halt_entry, NEEDS_M8_X16_BINARY,
       .cost_milli = 3000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .hold = HOLD_OVERWORLD_HALT, .retired = true, .guard = overworld_main_loop_runs },
@@ -392,7 +396,8 @@ const NativeEntry game_held_waits[] = {
      * after the requests, and the wait again. Each declares what the pass
      * doesn't read from there, as the loop's stop at its head and the walk's
      * call do. */
-    { .addr = 0xC0EC71, .name = "field_waits_for_the_frame", .fn = field_wait_for_frame_loop, NEEDS_M8, .idle = true,
+    { .addr = 0xC0EC71, .name = "field_waits_for_the_frame", .fn = field_wait_for_frame_loop_entry,
+      .loop = field_wait_for_frame_loop, NEEDS_M8, .idle = true,
       .idle_return_span = 6,
       .hold = HOLD_FIELD_FRAME, .guard = field_bank_low_ram, .retired = true },
     { .addr = 0xC00097, .name = "field_first_frame", .fn = field_frame, NEEDS_M8_X16, .cost_milli = 1402,

@@ -7,8 +7,9 @@ movie reaches, and coverage only names the instructions it runs
 to win boss fights are another matter, and that is what the tools here are for.
 [movies-wanted.md](movies-wanted.md) lists the code no movie runs and the movies that would reach it.
 
-`ct_drive` (`dev/ct_drive.c`) runs the development system as a server, and
-`tools/movies` drives it: it reads the game's memory to decide what to press —
+`ct_drive` (`dev/ct_drive.c`) runs the development system as a server;
+`ct_native --server` exposes the same protocol in the standalone game.
+`tools/movies` drives either: it reads the game's memory to decide what to press —
 whose turn it is in a battle, where the party is standing, whether a text window
 is waiting — instead of counting frames. A run logs the buttons it held on every
 frame, so a finished run *is* a movie. And because a route reads the machine
@@ -16,12 +17,117 @@ instead of counting frames, it is also the one test of the mode the player
 ships in, where movies can't follow (see Routes as a test).
 
 ```
-route script ──> tools/movies ──> ct_drive (the interpreter, or --native on)
+route script ──> tools/movies ──> ct_drive or ct_native --server
       ▲                │
       └── game memory ─┘            run's pad log ──> movie.ctm ──> ct_dev --native shadow
 ```
 
 ## The driver
+
+The same routes can drive the program with no emulator:
+
+```sh
+python3 -m tools.movies.route_check --mode native --native-drive build/main/ct_native \
+    --rom roms/ct-usa.sfc --scratch build/native-routes telepod_lavos:shell
+```
+
+`--mode native` starts `ct_native --server`; `--native-drive` (or
+`CT_NATIVE_DRIVE`) selects its executable independently of `--drive`.
+Individual routes accept `--native native --drive build/main/ct_native`.
+The client keeps its asset pack beside that executable (`CT_NATIVE_ASSETS`
+overrides it). `--protocol-log` keeps requests and answers in each run's
+scratch directory, including the command still pending if a frame hangs.
+These logs, checkpoints, pictures and RAM dumps are local diagnostic data.
+
+The native server speaks `run`, `runw`, `watch`, `peek`, `frame`, `movie`,
+`shot`, `wram`, `save`, `load`, `drop`, `savefile`, `loadfile`, `native` and
+`quit`. Both controllers are passed to the same frame step as native window
+and headless play. Reads use the host's work-RAM/save-RAM backing and the
+asset store for cartridge addresses. Pictures are rendered when requested;
+video state and the sound driver and mixer advance on every frame.
+`poke` writes work RAM for diagnosis only; saving after a poke is rejected
+until a pre-poke checkpoint is restored.
+
+### Native program checkpoints
+
+The native main thread always has a live C stack at frame end, and a menu
+task may own the frame wait. A work-RAM copy cannot resume either. Unlike
+`ct_drive`'s held machine continuations, there is no later stack-free base:
+the server uses power-on and the initial cartridge save. A slot keeps both
+controllers' input through its frame and a digest of work RAM and save RAM.
+Loading discards the main coroutine and all its descendants, recreates the
+host state, video, sound and seeded timing services, and replays that input.
+It rejects a replay whose RAM digest differs. A load forward on the exact
+same input prefix can keep its live stacks and run only the remaining input.
+
+This trades restore speed for portable, complete continuations: no Windows
+fiber internals, stack addresses or emulator state are serialized. Searches
+late in a route can therefore be expensive. Slots also keep a complete copy
+of the sound driver and mixer and a shared history of audio-host requests,
+replies and their time-accounting deltas. During stack reconstruction each
+audio request must match that history; its reply and accounting are reused,
+then the complete sound copy is restored before play continues. The CPU half
+of sound sends still executes and updates the game's command buffer. This
+avoids synthesizing the same sound on every search rewind without dropping
+sound state or changing a reply. A mismatching request fails the replay.
+State files rebuild sound normally, once on load. `native` reports no suspended *machine call-outs*; native
+coroutines remain live even when the player has control.
+The route's control probe first reads `field_player_control` in native mode:
+the field ignores directional input while a script owns the party, so those
+frames need no speculative movement and rewind. Once the flag is set, the
+usual movement probes still establish which object the pad moves.
+
+Native `savefile` files use a versioned `CTNR` format: catalogue identity,
+initial SRAM, input words and the expected RAM digest, in little-endian
+order. They are not `ct_dev` save states. Loading validates the whole file
+and the initial SRAM before changing the running program. The client's
+`.pads` sidecar still records the input it kept. Resume runs require the
+same executable, ROM and route helpers, checked by `route_check`'s stamp;
+state files are not an interchange format between builds.
+`frontend/resume.c` owns the input history and incremental reconstruction used
+by both route slots and player quick saves. Both use the same native restart
+and parent-aware fiber teardown; route slots retain their RAM/SRAM checksum
+and exact audio-call checks.
+
+`route_server_test` tests the protocol and replay with a made-up program
+whose main and child coroutines keep locals across frame waits; it needs
+no ROM. `audio_replay_test` checks shared branch histories, CPU-side sends,
+timing-counter wraparound, replies, and continued sound after a restore.
+
+The real program's replay was checked from the final Lavos form checkpoint:
+600 frames with the second controller's Start held produce identical work
+RAM and a pixel-identical picture after an accelerated slot restore, a full
+state-file replay, and ordinary headless `ct_native` movie playback (frame
+4370). The `beyond_time:form2` prefix reaches its chamber at frame 3770
+in native and 3754 in shipping, taking 625 and 104 seconds respectively.
+
+The native audit exposed a false positive in the other fast prefix:
+`telepod_lavos:shell` wrote its checkpoint while still in the exhibit.
+It now requires player control, a successful walk onto the right telepod,
+and location `$1D3` before reporting that phase. The search had discarded
+a valid goal position because its coarse cell was already visited: native
+reached `(183, 95.9375)`, within the goal's three-pixel tolerance, but another
+position in that cell had failed the goal. Searches now test every reached
+position before discarding an existing cell, including held movements.
+ROM-free regressions cover both cases and the shell checkpoint's location.
+With that fix, the shared telepod approach reaches the shell at frame 5162
+in native and 5102 in shipping. The full `lavos_lost` reruns reach the Day
+of Lavos at frames 15637 and 16332 respectively; the native run took 1170
+seconds and shipping 129.
+
+The [native route ledger](history/native-route-outcomes.md) lists results
+for all 56 routes in the long-route gate: 42 native passes, two failures,
+three timeouts, three stopped runs and six unstarted runs when the audit
+ended by request. Shipping reached 49 outcomes; seven runs were not started.
+The sampled gate runs both fast native prefixes. With `--long-routes`, it
+runs the 42 passing full routes and retains both prefixes whose full endings
+are excepted. It prints each of the 14 exceptions and its reason from
+`tools/native_route_exceptions.txt`. The existing hand-run exclusions remain
+listed separately in the ledger. [TODO.md](TODO.md) holds the event/audio
+connection, Son of Sun's fixed coast and taking complete frame-end bases
+during play so route restores need not replay from power-on.
+An exception for a full route does not remove its fast prefix from either
+the sampled gate or `--long-routes`.
 
 By default `ct_drive` is the same machine as `ct_dev --native off` — the interpreter and
 the modeled hardware, no ported routines and no generated blocks — so anything
@@ -363,7 +469,8 @@ python3 -m tools.movies.route_check --mode off --mode on:on --scratch work/check
     telepod_lavos:shell beyond_time
 ```
 
-A mode is `off` or `<native>:<generated>`: `on:on`, the default and the
+A mode is `native` (the standalone program), `off`, or
+`<native>:<generated>`: `on:on`, the default and the
 suite's, is the build that ships, with the C sound driver playing in the
 sound processor's place (as `ct_play` does; SOUND.md, "Playing it"), whose
 commands take the time model's time. With `--native on` and the ported
@@ -377,7 +484,7 @@ A long run can be cut short (a time limit on the session running it, a
 restart): with `--scratch` kept and `--resume`, running the same command again
 carries each route on from its last checkpoint rather than from its save. Each
 run's directory records the route, the mode and the SHA-256 of the `ct_drive`,
-the ROM, the route's script and `campaign.py` that played its checkpoints; a
+the ROM, the route's script and all `tools/movies` Python helpers that played its checkpoints; a
 run where any differs starts over, so no outcome rests on phases another build played. The suite
 takes the same through `--routes-scratch DIR` (with `--long-routes`, all three
 ending routes at once where `-j` allows):
