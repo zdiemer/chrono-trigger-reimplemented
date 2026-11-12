@@ -2345,6 +2345,13 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
   its program image for scripts, sprite lists and tables. Extract those
   resources by name before removing the image. 
 
+- **Transfer descriptions keep a port's address byte.** The scene program's
+  call cells and the battle's described transfer keep the destination as the
+  original stored it, the low byte of VRAM's data port (`SCENE_INTO_LOW_BYTES`
+  and `SCENE_INTO_HIGH_BYTES`, `$18`/`$19` in `scene/scene.h`; `INTO_VRAM` in
+  `battle/uploads.c`), and decode it where the cells are read. Store a named
+  destination (whole words, low bytes, high bytes) instead once nothing reads
+  the cells as the original's bytes.
 - **The sound driver's command `$FD` writes an S-DSP register.**
   `sound/driver.c`'s `write_register` hands the command's register and value
   to `au_voices_snes_register`, which the native mixer decodes into its

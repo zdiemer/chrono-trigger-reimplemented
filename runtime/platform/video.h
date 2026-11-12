@@ -196,7 +196,7 @@ typedef struct {
 
 /* ---- The sprite table, as the game builds it in its own memory ----------------
  *
- * The game keeps its sprites in the SNES's form, which vid_upload_oam sends: 128
+ * The game keeps its sprites in the SNES's form, which vid_send_oam sends: 128
  * entries of four bytes (X's low byte, Y, tile, attributes), then two bits a
  * sprite (X's ninth bit, and large) four sprites a byte. Positions are signed
  * screen coordinates until they are written, and these alone turn them into
@@ -580,7 +580,9 @@ PF_API void vid_send_vram_next_frame(Platform *pf, PfOrigin o, PfOrigin wait,
  * (a screen transition's, field_transfer; the battle's described transfer). */
 PF_API void vid_send_vram_in_mode(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
                                   const VidVramPort *port, uint8_t snes_mode);
-/* One byte of each VRAM word (vid_upload_vram_half). */
+/* One byte of each VRAM word, the other left as it is: Mode 7 keeps its tile
+ * numbers in the low bytes and its pixels in the high ones, which are loaded
+ * apart. The port's step then advances the address once per byte. */
 PF_API void vid_send_vram_half(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
                                VidVramHalf half, const VidVramPort *port);
 /* `len` bytes of VRAM filled with the byte at `value`. */

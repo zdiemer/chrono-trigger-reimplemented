@@ -45,14 +45,14 @@ class CartridgeJoints(unittest.TestCase):
         for expression in ("source + offset", "(uint32_t)bank << 16 | pointer", "0x7E0000u | unknown"):
             for call in (f"m_read8(s, {expression})", f"rom_read16(g, {expression})",
                          f"rom_data({expression}, bytes)", f"PF_GAME({expression})",
-                         f"VidSnesTransfer t = {{ .source = {expression}, .size = 10 }}"):
+                         f"SceneUpload t = {{ .source = {expression}, .size = 10 }}"):
                 with self.subTest(call=call):
                     self.assertEqual(self.count("new_port.c", call), 1)
 
     def test_proven_ram_constants(self):
         for address in ("0x7E2000u", "0x7FFFFFu", "0x000100u", "0x3F1FFFu"):
             for call in (f"m_read8(s, {address})", f"PF_GAME({address})",
-                         f"VidSnesTransfer t = {{ .source = {address} }}"):
+                         f"SceneUpload t = {{ .source = {address} }}"):
                 self.assertEqual(self.count("new_port.c", call), 0)
         self.assertEqual(self.count("new_port.c", "#define BUFFER 0x7E0000u\nPF_GAME(BUFFER + 16);"), 0)
         self.assertEqual(self.count("new_port.c", "enum { BANK = 0x7E, BUFFER = BANK << 16 }; PF_GAME(BUFFER);"), 0)

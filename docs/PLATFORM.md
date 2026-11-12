@@ -15,7 +15,9 @@ and per-line effects. The native renderer implements background modes, priority,
 windows and color math. Dirty tracking avoids rebuilding unchanged material.
 No emulated PPU is used, and no call names a register: the SNES-only escapes
 (`vid_snes_copy`, `vid_snes_write_register`) and the older forms that took the
-SNES's write order (`vid_upload_*`, `VidSnesXfer`) are gone.
+SNES's write order (`vid_upload_*`, `VidSnesXfer`) are gone. Two transfer
+descriptions the game keeps in its state still hold the VRAM data port's low
+address byte as the original stored it (TODO.md, Platform).
 
 ## Audio
 
