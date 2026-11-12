@@ -12,16 +12,17 @@
 #include "menu/handlers.h"
 #include "menu/map.h"
 #include "menu/objects.h"
-#include "platform/video.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- Whether an object is in view ---------------------------------------------------------------- */
 
-/* The view the map is shown in (vid_view), with a margin round it in which
- * an object still counts as in view (its sprites reach into the view from
- * there): sixteen pixels left, right and above, thirty-two below. */
-enum { MARGIN = 16, MARGIN_BELOW = 32 };
+/* The view the map is shown in: the original's screen, with a margin round
+ * it in which an object still counts as in view (its sprites reach into the
+ * screen from there): sixteen pixels left, right and above, thirty-two
+ * below. A rule, not presentation: the scripts branch on the answer, so it
+ * stays the original's screen whatever the host shows (vid_view). */
+enum { VIEW_WIDTH = 256, VIEW_HEIGHT = 224, MARGIN = 16, MARGIN_BELOW = 32 };
 
 /* Where the object is from the view's top-left, round the map, and moved
  * on by the margin, so that what is in view counts from 0. */
@@ -33,14 +34,13 @@ static uint16_t into_view(uint16_t at, uint16_t scroll, uint16_t round)
 
 // $C2:78A1
 /* Whether the running object is in view of the map's second plane. */
-bool menu_scene_object_in_view(GameState *g, const Platform *pf)
+bool menu_scene_object_in_view(GameState *g)
 {
-    VidView view = vid_view(pf);
     MenuObject self = menu_object_running(g);
     uint16_t across = into_view(menu_object_slots_x_pixel(g, self), menu_object_shadows_bg2_scroll_x(g), MENU_MAP_WIDTH);
     uint16_t down = into_view(menu_object_slots_y_pixel(g, self), menu_object_shadows_bg2_scroll_y(g), MENU_MAP_HEIGHT);
     menu_note_effect_noise(g, across);
-    return across < view.width + 2 * MARGIN && down < view.height + MARGIN + MARGIN_BELOW;
+    return across < VIEW_WIDTH + 2 * MARGIN && down < VIEW_HEIGHT + MARGIN + MARGIN_BELOW;
 }
 
 /* ---- A drifting map ---------------------------------------------------------------------------- */
@@ -71,8 +71,8 @@ void menu_scene_note_the_epoch_s_arrival(GameState *g) { set_story_epoch_arrival
  * cell, which the script's next command tests. */
 static bool answer_whether_in_view(GameState *g, Platform *pf, MenuObject self, bool far)
 {
-    (void)self, (void)far;
-    set_menu_object_scratch_answer(g, menu_scene_object_in_view(g, pf));
+    (void)pf, (void)self, (void)far;
+    set_menu_object_scratch_answer(g, menu_scene_object_in_view(g));
     return true;
 }
 
