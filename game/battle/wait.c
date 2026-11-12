@@ -33,6 +33,11 @@
 
 /* ---- The waits ------------------------------------------------------------------------------ */
 
+/* The frame work's waits, each timed as its routine: for its vblank
+ * handler's frame ($CD:3E7D), for the next frame, with the menu's turn after
+ * ($CD:3E75), and for a number of frames ($CD:3E3B). */
+enum { HANDLER_WAIT = 0xCD3E7D, NEXT_FRAME_WAIT = 0xCD3E75, SOME_FRAMES_WAIT = 0xCD3E3B };
+
 // $CD:3E58
 /* A frame of a paused fight sat out: the vblank handler has finished a frame
  * once it clears what the battle counted up to ask for it (battle_nmi). */
@@ -43,26 +48,30 @@ void battle_sit_out_a_paused_frame(GameState *g, Platform *pf)
         tm_wait_for_handlers(pf, PF_LOOP(0xCD3E5B, 0xCD3E60));
 }
 
-/* The pause's turn (battle/sound.c) and the message's next letter
- * (battle/message.c), each a routine of its own. */
-typedef bool (*WaitCall)(void *ctx);
+/* The pause's turn (battle/sound.c), which asks nothing of the game's state
+ * that the pause doesn't keep. */
+static void sit_out_a_pause_frame(GameState *g, Platform *pf)
+{
+    TIMED_AS(g, BATTLE_PAUSE_ENTRY, battle_sit_out_the_pause(g, pf));
+}
 
 // $C1:007E
 /* The battle's wait for the next frame: the frame's update asked for, and
  * waited for. A paused battle sits the pause out on a pass of it, and its
- * update, held while paused, comes after. False where the pause's turn went
- * no further. */
-static bool wait_for_the_frame(GameState *g, Platform *pf, WaitCall pause, void *ctx)
+ * update, held while paused, comes after. */
+static void wait_for_frame(GameState *g, Platform *pf)
 {
     set_battle_frame_pending(g, (uint8_t)(battle_frame_pending(g) + 1));
     for (;;) {
-        if (battle_paused(g) && !pause(ctx))
-            return false;
+        if (battle_paused(g))
+            sit_out_a_pause_frame(g, pf);
         if (!battle_frame_pending(g))
-            return true;
+            return;
         tm_wait_for_handlers(pf, PF_LOOP(0xC10080, 0xC10088));
     }
 }
+
+void battle_wait_for_frame(GameState *g, Platform *pf) { TIMED_AS(g, 0xC1007E, wait_for_frame(g, pf)); }
 
 // $CF:FCFB
 /* The same as the battle hands back to the field, when there is no pause. */
@@ -73,41 +82,76 @@ void battle_wait_for_a_last_frame(GameState *g, Platform *pf)
         tm_wait_for_handlers(pf, PF_LOOP(0xCFFCFD, 0xCFFD01));
 }
 
+/* The message's next letter (battle/message.c), refused unless the menus'
+ * text code can go on from a message being set up. */
+static bool type_a_letter(GameState *g)
+{
+    if (!battle_message_typing_fits(g))
+        return battle_contract_broken(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, "a message the menus' text code doesn't go on from");
+    TIMED_AS(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, battle_type_the_message(g));
+    return true;
+}
+
 // $CD:3E7D
 /* The frame work's wait: the vblank handler's frame waited for, the pause
  * given its turn on each pass, then the next letter of a battle message
  * typed. */
-static bool wait_for_the_handler(GameState *g, Platform *pf, WaitCall pause, WaitCall type_the_message, void *ctx)
+static bool wait_for_the_handler(GameState *g, Platform *pf)
 {
     set_battle_nmi_pending(g, (uint8_t)(battle_nmi_pending(g) + 1));
     for (;;) {
-        if (battle_paused(g) && !pause(ctx))
-            return false;
+        if (battle_paused(g))
+            sit_out_a_pause_frame(g, pf);
         if (!battle_nmi_pending(g))
             break;
         tm_wait_for_handlers(pf, PF_LOOP(0xCD3E81, 0xCD3E89));
     }
-    return type_the_message(ctx);
+    return type_a_letter(g);
+}
+
+bool battle_wait_for_the_handler(GameState *g, Platform *pf)
+{
+    bool done = false;
+    TIMED_AS(g, HANDLER_WAIT, done = wait_for_the_handler(g, pf));
+    return done;
 }
 
 // $CD:3E75
 /* The frame work's wait for the next frame: the handler's frame, then the
  * menu's turn (battle/frame_step.c). */
-static bool wait_for_the_next_frame(WaitCall handler, WaitCall menu_turn, void *ctx)
+static bool wait_for_the_next_frame(GameState *g, Platform *pf)
 {
-    return handler(ctx) && menu_turn(ctx);
+    if (!battle_wait_for_the_handler(g, pf))
+        return false;
+    bool done = false;
+    TIMED_AS(g, BATTLE_MENU_TURN_ENTRY, done = battle_menu_turn(g, pf));
+    return done;
+}
+
+bool battle_wait_for_the_next_frame(GameState *g, Platform *pf)
+{
+    bool done = false;
+    TIMED_AS(g, NEXT_FRAME_WAIT, done = wait_for_the_next_frame(g, pf));
+    return done;
 }
 
 // $CD:3E3B
 /* A number of those (0 is 256). */
-static bool wait_some_frames(uint8_t frames, bool (*next_frame)(void *ctx, uint8_t left), void *ctx)
+static bool wait_some_frames(GameState *g, Platform *pf, uint8_t frames)
 {
     uint8_t left = frames;
     do {
-        if (!next_frame(ctx, left))
+        if (!battle_wait_for_the_next_frame(g, pf))
             return false;
     } while (--left);
     return true;
+}
+
+bool battle_wait_some_frames(GameState *g, Platform *pf, uint8_t frames)
+{
+    bool done = false;
+    TIMED_AS(g, SOME_FRAMES_WAIT, done = wait_some_frames(g, pf, frames));
+    return done;
 }
 
 // $CD:044A
@@ -119,79 +163,4 @@ void battle_wait_for_the_small_handler(GameState *g, Platform *pf)
     set_battle_alternate_frame_pending(g, 1);
     while (battle_alternate_frame_pending(g))
         tm_wait_for_handlers(pf, PF_LOOP(0xCD044E, 0xCD0452));
-}
-
-/* ---- The waits' calls ------------------------------------------------------------------------- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} FrameWaitContext;
-
-/* The pause and the menu's turn ask nothing of the game's state that the
- * pause doesn't keep; the message's typing is refused unless the menus' text
- * code can go on from a message being set up. */
-static bool sit_out_a_pause_frame(void *ctx)
-{
-    FrameWaitContext *c = ctx;
-    TIMED_AS(c->game, BATTLE_PAUSE_ENTRY, battle_sit_out_the_pause(c->game, c->pf));
-    return true;
-}
-
-static bool type_a_letter(void *ctx)
-{
-    GameState *g = ((FrameWaitContext *)ctx)->game;
-    if (!battle_message_typing_fits(g))
-        return battle_contract_broken(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, "a message the menus' text code doesn't go on from");
-    TIMED_AS(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, battle_type_the_message(g));
-    return true;
-}
-
-static bool wait_out_the_handler(void *ctx)
-{
-    FrameWaitContext *c = ctx;
-    bool done = false;
-    TIMED_AS(c->game, BATTLE_HANDLER_WAIT, done = wait_for_the_handler(c->game, c->pf, sit_out_a_pause_frame, type_a_letter, c));
-    return done;
-}
-
-static bool take_a_menu_turn(void *ctx)
-{
-    FrameWaitContext *c = ctx;
-    bool done = false;
-    TIMED_AS(c->game, BATTLE_MENU_TURN_ENTRY, done = battle_menu_turn(c->game, c->pf));
-    return done;
-}
-
-static bool wait_for_a_next_frame(void *ctx, uint8_t left)
-{
-    (void)left;
-    FrameWaitContext *c = ctx;
-    bool done = false;
-    TIMED_AS(c->game, BATTLE_NEXT_FRAME_WAIT, done = wait_for_the_next_frame(wait_out_the_handler, take_a_menu_turn, c));
-    return done;
-}
-
-bool battle_wait_for_frame(GameState *g, Platform *pf)
-{
-    FrameWaitContext c = { g, pf };
-    return wait_for_the_frame(g, pf, sit_out_a_pause_frame, &c);
-}
-
-bool battle_wait_for_the_handler(GameState *g, Platform *pf)
-{
-    FrameWaitContext c = { g, pf };
-    return wait_for_the_handler(g, pf, sit_out_a_pause_frame, type_a_letter, &c);
-}
-
-bool battle_wait_for_the_next_frame(GameState *g, Platform *pf)
-{
-    FrameWaitContext c = { g, pf };
-    return wait_for_the_next_frame(wait_out_the_handler, take_a_menu_turn, &c);
-}
-
-bool battle_wait_some_frames(GameState *g, Platform *pf, uint8_t frames)
-{
-    FrameWaitContext c = { g, pf };
-    return wait_some_frames(frames, wait_for_a_next_frame, &c);
 }

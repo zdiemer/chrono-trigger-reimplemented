@@ -386,35 +386,13 @@ bool battle_object_graphics_known(GameState *g, unsigned object)
 }
 
 // $C1:4943
-/* Up to four of the shapes a frame: the next frame waited for and the frame's
- * work let run first (`frame`, the wait and then the frame step, routines
- * of their own). */
-static bool build_bitmap_shapes_over_a_frame(GameState *g, bool (*frame)(void *ctx, bool step), void *ctx)
+/* Up to four of the shapes a frame: the next frame waited for and the frame
+ * step let run first, each a routine of its own. */
+bool battle_build_bitmap_shapes(GameState *g, Platform *pf)
 {
-    if (!frame(ctx, false) || !frame(ctx, true))
+    battle_wait_for_frame(g, pf);
+    if (!battle_frame_stepped(g, pf))
         return false;
     build_bitmap_shapes(g);
     return true;
-}
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} ShapesContext;
-
-static bool wait_for_the_shapes_frame(void *ctx, bool step)
-{
-    ShapesContext *c = ctx;
-    bool done = false;
-    if (step)
-        TIMED_AS(c->game, 0xC110FA, done = battle_frame_stepped(c->game, c->pf));
-    else
-        TIMED_AS(c->game, 0xC1007E, done = battle_wait_for_frame(c->game, c->pf));
-    return done;
-}
-
-bool battle_build_bitmap_shapes(GameState *g, Platform *pf)
-{
-    ShapesContext c = { g, pf };
-    return build_bitmap_shapes_over_a_frame(g, wait_for_the_shapes_frame, &c);
 }

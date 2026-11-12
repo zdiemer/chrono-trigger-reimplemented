@@ -235,18 +235,14 @@ static bool pass_looks(const GameState *g) { return battle_loop_count(g) & 0x01;
 /* Each due kind's handler run: the timed statuses' (battle/status_timers.c),
  * the turn's the main loop's (battle/main_loop.c), each a routine of its
  * own. */
-typedef struct {
-    void (*handlers_begin)(void *ctx);
-    bool (*see_to)(void *ctx, BattleTimer kind);
-} DueCalls;
-
-static bool run_due_handlers(GameState *g, const DueCalls *calls, void *ctx)
+static bool run_due_handlers(GameState *g, Platform *pf)
 {
-    calls->handlers_begin(ctx);
     for (unsigned kind = 0; kind < BATTLE_TIMER_KINDS; kind++) {
         if (!(battle_timer_kinds_due(g) & due_bit(kind)))
             continue;
-        if (!calls->see_to(ctx, (BattleTimer)kind))
+        bool done = kind == BATTLE_TIMER_TURN ? battle_turn_given(g, pf)
+                                              : battle_run_out_timer_seen_to(g, pf, (BattleTimer)kind);
+        if (!done)
             return false;
     }
     return true;
@@ -255,36 +251,16 @@ static bool run_due_handlers(GameState *g, const DueCalls *calls, void *ctx)
 // $C1:8290
 /* The search, and the handlers of the kinds due on the passes that look.
  * False where a handler went no further. */
-static bool see_to_the_timers(GameState *g, const DueCalls *calls, void *ctx)
+static bool see_to_the_timers(GameState *g, Platform *pf)
 {
     bool look = pass_looks(g);
     battle_find_run_out_timers(g, look);
-    return !look || run_due_handlers(g, calls, ctx);
-}
-
-/* ---- The handlers' calls ---------------------------------------------------------------------- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} TimersContext;
-
-static void handlers_begin(void *ctx) { (void)ctx; }
-
-static bool see_to(void *ctx, BattleTimer kind)
-{
-    TimersContext *c = ctx;
-    if (kind == BATTLE_TIMER_TURN)
-        return battle_turn_given(c->game, c->pf);
-    return battle_run_out_timer_seen_to(c->game, c->pf, kind);
+    return !look || run_due_handlers(g, pf);
 }
 
 bool battle_timers_seen_to(GameState *g, Platform *pf)
 {
-    static const DueCalls in_the_program = { handlers_begin, see_to };
-    TimersContext c = { g, pf };
     bool done = false;
-    TIMED_AS(g, SEARCH, done = see_to_the_timers(g, &in_the_program, &c));
+    TIMED_AS(g, SEARCH, done = see_to_the_timers(g, pf));
     return done;
 }
-

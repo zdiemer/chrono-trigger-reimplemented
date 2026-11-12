@@ -236,18 +236,21 @@ enum { ALL_LINE_EFFECTS = 0xFF };
 /* The palettes' animation, through the original's jump to it. */
 enum { PALETTE_ANIMATION = 0xFDFFF7 };
 
-/* The palettes' animation is paused with the battle (battle/screen_palette.c)
- * and run (core/palette.c), each a routine of its own. */
-typedef struct {
-    bool (*pause_the_palette_animation)(void *ctx);
-    bool (*animate_the_palettes)(void *ctx);
-} DisplaySetUpCalls;
+/* The palettes animated (core/palette.c), a routine of its own. */
+static bool animate_the_palettes(GameState *g)
+{
+    bool done = false;
+    TIMED_AS(g, PALETTE_ANIMATION, done = palette_animated(g));
+    return done;
+}
 
 // $CD:09F1
 /* The palette sent, the line effects pointed at their tables, a step of the
  * graphics loaded, the window's table, the brightness, the layers scrolled
- * steadily and the palettes animated. False where a call went no further. */
-static bool set_the_display_up(GameState *g, Platform *pf, const DisplaySetUpCalls *calls, void *ctx)
+ * steadily, the palettes' animation paused with the battle
+ * (battle/screen_palette.c) and the palettes animated. False where their
+ * animation went no further. */
+bool battle_display_set_up(GameState *g, Platform *pf)
 {
     TIMED_AS(g, 0xCD09CE, battle_send_palette(pf));
     point_the_line_effects(pf);
@@ -259,38 +262,11 @@ static bool set_the_display_up(GameState *g, Platform *pf, const DisplaySetUpCal
     vid_set_display(pf, PF_AT(0xCD0AC8), &display);
     TIMED_AS(g, 0xCD06C4, battle_scroll_layers(g, BATTLE_SCROLL_STEADY));
     TIMED_AS(g, 0xCD0B1E, battle_keep_animations_off_the_cycle(g));
-    if (!calls->pause_the_palette_animation(ctx) || !calls->animate_the_palettes(ctx))
+    TIMED_AS(g, BATTLE_PAUSE_PALETTE_ANIMATION_ENTRY, battle_pause_palette_animation(g));
+    if (!animate_the_palettes(g))
         return false;
     TIMED_AS(g, 0xCD0ADE, battle_turn_the_gradient(g));
     return true;
-}
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} DisplaySetUpContext;
-
-/* The palette animation paused. */
-static bool pause_the_palette_animation(void *ctx)
-{
-    GameState *g = ((DisplaySetUpContext *)ctx)->game;
-    TIMED_AS(g, BATTLE_PAUSE_PALETTE_ANIMATION_ENTRY, battle_pause_palette_animation(g));
-    return true;
-}
-
-static bool animate_the_palettes(void *ctx)
-{
-    GameState *g = ((DisplaySetUpContext *)ctx)->game;
-    bool done = false;
-    TIMED_AS(g, PALETTE_ANIMATION, done = palette_animated(g));
-    return done;
-}
-
-bool battle_display_set_up(GameState *g, Platform *pf)
-{
-    static const DisplaySetUpCalls in_the_program = { pause_the_palette_animation, animate_the_palettes };
-    DisplaySetUpContext c = { g, pf };
-    return set_the_display_up(g, pf, &in_the_program, &c);
 }
 
 /* ---- The battle's last vblank handler ---------------------------------------------------- */
@@ -308,63 +284,31 @@ static void scroll_to_the_base(GameState *g, Platform *pf)
                        VID_SCROLL_H | VID_SCROLL_V);
 }
 
-/* The closing handler's calls: the palette sent (battle_send_palette's
- * routine, $CD:09CE), the field's line effects rebuilt for the picture the
- * battle hands back and turned on ($C0:0005, field/line_effects.c), the
- * map's layers scrolled (battle/frame.c) and the palettes animated
- * (core/palette.c). */
-typedef enum { CLOSING_PALETTE, CLOSING_LINE_EFFECTS, CLOSING_MAP_LAYERS, CLOSING_PALETTES } ClosingVblankCall;
-
 // $D1:F4C0
 /* The battle's small vblank handler, as its end fades the picture out: the
- * fade released, the palette, the field's line effects, the brightness the
- * fade has reached, the layers at their base scroll, and the map's own scroll
- * and palette animation. False where a call went no further. */
-static bool take_the_closing_vblank(GameState *g, Platform *pf, bool (*call)(void *ctx, ClosingVblankCall call), void *ctx)
+ * fade released, the palette sent (battle_send_palette's routine, $CD:09CE),
+ * the field's line effects rebuilt for the picture the battle hands back and
+ * turned on ($C0:0005, field/line_effects.c; refused where the builders can't
+ * build them), the brightness the fade has reached, the layers at their base
+ * scroll, and the map's layers scrolled (battle/frame.c) and its palettes
+ * animated (core/palette.c). */
+void battle_closing_vblank(GameState *g, Platform *pf)
 {
     vid_enable_line_effects(pf, PF_AT(0xD1F4CE), 0x00);
     tm_ack_vblank(pf, PF_AT(0xD1F4D2));
     tm_enable_interrupts(pf, PF_AT(0xD1F4D8), TM_INT_VBLANK | TM_INT_LINE | TM_INT_AUTO_JOYPAD);
     release_the_fade(g);
-    if (!call(ctx, CLOSING_PALETTE) || !call(ctx, CLOSING_LINE_EFFECTS))
-        return false;
+    TIMED_AS(g, 0xCD09CE, battle_send_palette(pf));
+    if (!field_line_effects_can_be_built(g)) {
+        (void)battle_contract_broken(g, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY, "line effects the port doesn't build");
+        return;
+    }
+    uint8_t effects;
+    TIMED_AS(g, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY, effects = field_rebuild_line_effects(g, pf));
+    vid_enable_line_effects(pf, PF_AT(0xD1F4E6), effects);
     VidDisplay display = vid_display_decode(fade_brightness(g));
     vid_set_display(pf, PF_AT(0xD1F4ED), &display);
     scroll_to_the_base(g, pf);
-    return call(ctx, CLOSING_MAP_LAYERS) && call(ctx, CLOSING_PALETTES);
-}
-
-/* ---- The closing handler's calls -------------------------------------------------------------- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} ClosingVblankContext;
-
-/* Each call; the line effects are refused where the builders can't build
- * them. */
-static bool closing_vblank_call(void *ctx, ClosingVblankCall call)
-{
-    ClosingVblankContext *c = ctx;
-    GameState *g = c->game;
-    bool done = false;
-    switch (call) {
-    case CLOSING_PALETTE: TIMED_AS(g, 0xCD09CE, battle_send_palette(c->pf)); return true;
-    case CLOSING_LINE_EFFECTS: {
-        if (!field_line_effects_can_be_built(g))
-            return battle_contract_broken(g, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY, "line effects the port doesn't build");
-        uint8_t effects;
-        TIMED_AS(g, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY, effects = field_rebuild_line_effects(g, c->pf));
-        vid_enable_line_effects(c->pf, PF_AT(0xD1F4E6), effects);
-        return true;
-    }
-    case CLOSING_MAP_LAYERS: TIMED_AS(g, BATTLE_SCROLL_MAP_LAYERS_ENTRY, battle_scroll_the_map_layers(g)); return true;
-    default: TIMED_AS(g, PALETTE_ANIMATION, done = palette_animated(g)); return done;
-    }
-}
-
-void battle_closing_vblank(GameState *g, Platform *pf)
-{
-    ClosingVblankContext c = { g, pf };
-    (void)take_the_closing_vblank(g, pf, closing_vblank_call, &c);
+    TIMED_AS(g, BATTLE_SCROLL_MAP_LAYERS_ENTRY, battle_scroll_the_map_layers(g));
+    (void)animate_the_palettes(g);
 }

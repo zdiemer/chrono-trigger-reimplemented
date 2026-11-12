@@ -93,12 +93,24 @@ static CommandRuns how_it_runs(const GameState *g, uint8_t command, const Script
     return (command >= 0x78 && command <= 0x7D) ? RUN_THE_SOUND : RUN_THE_OPERATION;
 }
 
+/* A command run outside its operation: the sounds, played here; any other
+ * command the port doesn't run goes no further. */
+static bool run_elsewhere(GameState *g, Platform *pf, uint8_t command, const ScriptOpcode *row, CommandRuns runs)
+{
+    if (runs == THE_OPERATION_RAN)
+        return true;
+    if (runs != RUN_THE_SOUND)
+        return battle_contract_broken(g, handler_of(g, command), "an animation script's command the port doesn't run");
+    ScriptCommand decoded = script_decode(g, row);
+    TIMED_AS(g, handler_of(g, command), script_play_the_sound(g, pf, command, &decoded));
+    script_move_on(g, row, SCRIPT_NEXT);
+    return true;
+}
+
 // $C1:4C9E
 /* Run a channel for a frame: count off a frame of its wait, or run its
- * commands until one ends the frame (or it holds), and keep its place. A
- * command that isn't the operation's is the routine `elsewhere` runs. */
-static bool run_channel(GameState *g, unsigned channel,
-                        bool (*elsewhere)(void *ctx, uint8_t command, const ScriptOpcode *row, CommandRuns runs), void *ctx)
+ * commands until one ends the frame (or it holds), and keep its place. */
+static bool run_channel(GameState *g, Platform *pf, unsigned channel)
 {
     if (take_up_channel(g, channel))
         return true;
@@ -113,7 +125,7 @@ static bool run_channel(GameState *g, unsigned channel,
             run_operation(g, (uint8_t)command, row);
             runs = THE_OPERATION_RAN;
         }
-        if (!elsewhere(ctx, (uint8_t)command, row, runs))
+        if (!run_elsewhere(g, pf, (uint8_t)command, row, runs))
             return false;
         if (!battle_script_continue(g))
             break;
@@ -124,16 +136,25 @@ static bool run_channel(GameState *g, unsigned channel,
 
 static bool channel_running(const GameState *g, unsigned channel) { return battle_script_running(g, channel) != 0; }
 
+/* A channel's frame, a routine of its own. */
+static bool run_a_channel(GameState *g, Platform *pf, unsigned channel)
+{
+    bool done = false;
+    TIMED_AS(g, 0xC14C9E, done = run_channel(g, pf, channel));
+    return done;
+}
+
 // $C1:4BBE
 /* Run the channels for a frame: the battle's own, the other targets' while
  * the action has some, and, unless the numbers over the combatants are being
  * shown, the enemies', each told its enemy. */
-static bool run_scripts(GameState *g, bool (*run)(void *ctx, unsigned channel), void *ctx)
+bool battle_run_scripts(GameState *g, Platform *pf)
 {
     for (unsigned channel = 0; channel < OTHER_TARGETS_CHANNEL; channel++)
-        if (channel_running(g, channel) && !run(ctx, channel))
+        if (channel_running(g, channel) && !run_a_channel(g, pf, channel))
             return false;
-    if (channel_running(g, OTHER_TARGETS_CHANNEL) && battle_action_other_targets(g) != 0 && !run(ctx, OTHER_TARGETS_CHANNEL))
+    if (channel_running(g, OTHER_TARGETS_CHANNEL) && battle_action_other_targets(g) != 0
+        && !run_a_channel(g, pf, OTHER_TARGETS_CHANNEL))
         return false;
     if (battle_number_step(g) != 0)
         return true;
@@ -141,47 +162,10 @@ static bool run_scripts(GameState *g, bool (*run)(void *ctx, unsigned channel), 
         if (!channel_running(g, channel))
             continue;
         set_battle_script_effect(g, (uint8_t)(channel - FIRST_EFFECT_CHANNEL));
-        if (!run(ctx, channel))
+        if (!run_a_channel(g, pf, channel))
             return false;
     }
     return true;
-}
-
-/* ---- The scripts run -------------------------------------------------------------------------- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} BattleScriptsContext;
-
-/* A command run outside its operation: the sounds, played here; any other
- * command the port doesn't run goes no further. */
-static bool command_elsewhere(void *ctx, uint8_t command, const ScriptOpcode *row, CommandRuns runs)
-{
-    BattleScriptsContext *c = ctx;
-    GameState *g = c->game;
-    if (runs == THE_OPERATION_RAN)
-        return true;
-    if (runs != RUN_THE_SOUND)
-        return battle_contract_broken(g, handler_of(g, command), "an animation script's command the port doesn't run");
-    ScriptCommand decoded = script_decode(g, row);
-    TIMED_AS(g, handler_of(g, command), script_play_the_sound(g, c->pf, command, &decoded));
-    script_move_on(g, row, SCRIPT_NEXT);
-    return true;
-}
-
-static bool run_a_channel(void *ctx, unsigned channel)
-{
-    BattleScriptsContext *c = ctx;
-    bool done = false;
-    TIMED_AS(c->game, 0xC14C9E, done = run_channel(c->game, channel, command_elsewhere, ctx));
-    return done;
-}
-
-bool battle_run_scripts(GameState *g, Platform *pf)
-{
-    BattleScriptsContext c = { g, pf };
-    return run_scripts(g, run_a_channel, &c);
 }
 
 /* The commands whose handler goes on into another's once what it found makes

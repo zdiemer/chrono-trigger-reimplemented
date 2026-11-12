@@ -25,8 +25,8 @@
  *     (battle/display.c), and once the music's fade has run out the field's
  *     music is put back (field/sounds.c).
  *
- * The frame work's waits (battle/wait.c) are calls out of the steps
- * (ClosingCall), each made where the original makes it. */
+ * The frame work's waits (battle/wait.c) are made where the original makes
+ * them. */
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/frame.h"
@@ -52,77 +52,28 @@ enum { WINDOW_SOUND = 0x08 };
 
 /* ---- Opening and closing the window ---------------------------------------------------------- */
 
-/* The window's opening plays its sound and waits for two of the handler's
- * frames, each a routine of its own (battle/sound.c, battle/wait.c). */
-typedef enum { OPENING_SOUND, OPENING_FIRST_FRAME, OPENING_SECOND_FRAME } OpeningCall;
-
 // $CD:04FD
-/* Open the window: its sound, and from the next frame its slide in. */
-static bool open_the_window(GameState *g, bool (*call)(void *ctx, OpeningCall call), void *ctx)
-{
-    if (!call(ctx, OPENING_SOUND) || !call(ctx, OPENING_FIRST_FRAME))
-        return false;
-    battle_start_the_slide(g, BATTLE_SLIDE_STARTING_IN);
-    return call(ctx, OPENING_SECOND_FRAME);
-}
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} BattleClosingContext;
-
-static bool open_a_part(void *ctx, OpeningCall call)
-{
-    BattleClosingContext *c = ctx;
-    if (call == OPENING_SOUND) {
-        TIMED_AS(c->game, BATTLE_PLAY_A_SOUND_ENTRY, battle_play_a_sound(c->pf, WINDOW_SOUND, AU_CENTRE));
-        return true;
-    }
-    bool done = false;
-    TIMED_AS(c->game, BATTLE_HANDLER_WAIT, done = battle_wait_for_the_handler(c->game, c->pf));
-    return done;
-}
-
+/* Open the window: its sound (battle/sound.c), and from the next frame of
+ * the handler's (battle/wait.c) its slide in. */
 bool battle_window_opened(GameState *g, Platform *pf)
 {
-    BattleClosingContext c = { g, pf };
-    return open_the_window(g, open_a_part, &c);
+    TIMED_AS(g, BATTLE_PLAY_A_SOUND_ENTRY, battle_play_a_sound(pf, WINDOW_SOUND, AU_CENTRE));
+    if (!battle_wait_for_the_handler(g, pf))
+        return false;
+    battle_start_the_slide(g, BATTLE_SLIDE_STARTING_IN);
+    return battle_wait_for_the_handler(g, pf);
 }
-
-/* The closing's calls, each where the original makes it: the frame work's
- * waits for its handler's frame (battle/wait.c), the battle's small handler's
- * frame, the frame work's tail ($CD:0009), the battlefield put back
- * (battle/battlefield_restore.c) and changed (battle/battlefield_change.c),
- * the field's music back (field/sounds.c), and the steps that are routines of
- * their own: the music's fade, the window's closing, the boss's end and the
- * defeat's, the screen's settling, the change to another battlefield; and
- * where the original saves and restores the battlefield around the song's
- * frame (SONG_KEEP, SONG_KEPT), which the port passes over. `arg` is the
- * frames counted, or the battlefield. */
-typedef enum {
-    CLOSING_WINDOW_FIRST_FRAME, CLOSING_WINDOW_SECOND_FRAME,
-    CLOSING_PUT_BACK, CLOSING_FADE, CLOSING_THE_WINDOW, CLOSING_SLIDE_FRAME, CLOSING_GONE_FRAME,
-    CLOSING_BOSS_END, CLOSING_DEFEAT_END, CLOSING_LEAVING_FRAME, CLOSING_SMALL_FRAME, CLOSING_MUSIC_BACK,
-    CLOSING_LAST_SMALL_FRAME,
-    BOSS_FADE, BOSS_FADE_FRAME, BOSS_SETTLE, BOSS_HOLD_FRAME, BOSS_CHANGE, BOSS_SETTLE_AGAIN,
-    DEFEAT_FADE, DEFEAT_FADE_FRAME, DEFEAT_CHANGE, DEFEAT_SCRIPTS_FRAME,
-    SETTLE_FIRST_FRAME, SETTLE_SECOND_FRAME, SETTLE_TAIL,
-    SONG_KEEP, SONG_FRAME, SONG_KEPT, CHANGE_LOAD,
-} ClosingCall;
-typedef bool (*ClosingCalls)(void *ctx, ClosingCall call, uint16_t arg);
-
-static bool closing_call(ClosingCalls call, void *ctx, ClosingCall what) { return call(ctx, what, 0); }
 
 // $CD:0516
 /* Close the window: no pausing from now on, the lines laid out for it to go,
  * and from the next frame its slide out. */
-static bool close_the_window(GameState *g, ClosingCalls call, void *ctx)
+static bool close_the_window(GameState *g, Platform *pf)
 {
     set_battle_pause_blocked(g, 1);
-    if (!closing_call(call, ctx, CLOSING_WINDOW_FIRST_FRAME))
+    if (!battle_wait_for_the_handler(g, pf))
         return false;
     battle_arrange_the_lines(g, WINDOW_GOING);
-    if (!closing_call(call, ctx, CLOSING_WINDOW_SECOND_FRAME))
+    if (!battle_wait_for_the_handler(g, pf))
         return false;
     battle_start_the_slide(g, BATTLE_SLIDE_OUT);
     return true;
@@ -135,25 +86,28 @@ enum { MUSIC_FADE_STEPS = 0x10, SILENT = 0x00 };
 
 static bool keeps_the_field_song(const GameState *g) { return battle_terms(g, BATTLE_TERMS_KEEP_THE_FIELD_SONG); }
 
-// $CD:039E
-/* Fade the music out (the wait after it, a quarter of a second, is the
- * caller's: the original jumps to it). */
-static void fade_the_music_out(Platform *pf)
-{
-    au_fade(pf, PF_CALL(0xCD03AB, 0xC70004), AU_FADE_MUSIC, MUSIC_FADE_STEPS, SILENT);
-}
-
 enum { FADE_WAIT_FRAMES = 0x0F };
 
-/* Fade the music out, and wait for its fade to run out, a frame at a time
- * (`fade` and `frame` the calls of each place it is made from). */
-static bool fade_the_music_and_wait(Platform *pf, ClosingCall fade, ClosingCall frame, uint32_t checked_at,
-                                    ClosingCalls call, void *ctx)
+// $CD:039E
+/* Fade the music out, and wait a quarter of a second (the original jumps to
+ * the wait), whose frames type the message's next letter: refused for a
+ * message the menus' text code doesn't go on from. */
+static bool fade_the_music_out(GameState *g, Platform *pf)
 {
-    if (!closing_call(call, ctx, fade))
+    if (!battle_message_typing_fits(g))
+        return battle_contract_broken(g, 0xCD039E, "a message the menus' text code doesn't go on from");
+    au_fade(pf, PF_CALL(0xCD03AB, 0xC70004), AU_FADE_MUSIC, MUSIC_FADE_STEPS, SILENT);
+    return battle_wait_some_frames(g, pf, FADE_WAIT_FRAMES);
+}
+
+/* Fade the music out, and wait for its fade to run out, a frame of the
+ * handler's at a time. */
+static bool fade_the_music_and_wait(GameState *g, Platform *pf, uint32_t checked_at)
+{
+    if (!fade_the_music_out(g, pf))
         return false;
     do
-        if (!closing_call(call, ctx, frame))
+        if (!battle_wait_for_the_handler(g, pf))
             return false;
     while (au_music_fade_left(pf, PF_AT(checked_at)) != 0);
     return true;
@@ -181,15 +135,25 @@ static bool screen_settled(const GameState *g)
 }
 
 /* Two frames at a time, each pair finished as the main loop's frame wait
- * finishes its own. */
-static bool let_the_screen_settle(GameState *g, ClosingCalls call, void *ctx)
+ * finishes its own ($CD:0009). */
+static bool let_the_screen_settle(GameState *g, Platform *pf)
 {
-    do
-        if (!closing_call(call, ctx, SETTLE_FIRST_FRAME) || !closing_call(call, ctx, SETTLE_SECOND_FRAME)
-            || !closing_call(call, ctx, SETTLE_TAIL))
+    do {
+        if (!battle_wait_for_the_handler(g, pf) || !battle_wait_for_the_handler(g, pf))
             return false;
-    while (!screen_settled(g));
+        bool done = false;
+        TIMED_AS(g, 0xCD04AA, done = battle_frame_wait_finished(g, pf));
+        if (!done)
+            return false;
+    } while (!screen_settled(g));
     return true;
+}
+
+static bool settle_the_screen(GameState *g, Platform *pf)
+{
+    bool done = false;
+    TIMED_AS(g, 0xCD0DD8, done = let_the_screen_settle(g, pf));
+    return done;
 }
 
 /* The music's volume back to full at once, for the next song. */
@@ -202,22 +166,27 @@ static void full_volume(Platform *pf)
 /* Change to another battlefield as the battle ends, with its song, from the
  * music's volume back to full a frame before: the battlefield is loaded as
  * an effect loads one, and its own screen scripts start. */
-static bool change_to_the_battlefield(Platform *pf, uint16_t battlefield, ClosingCalls call, void *ctx)
+static bool change_to_the_battlefield(GameState *g, Platform *pf, uint16_t battlefield)
 {
-    if (!call(ctx, SONG_KEEP, battlefield))
-        return false;
     full_volume(pf);
-    if (!closing_call(call, ctx, SONG_FRAME))
+    if (!battle_wait_for_the_handler(g, pf))
         return false;
     au_play_song(pf, PF_CALL(0xCD0D81, 0xC70004), CHANGED_BATTLEFIELD_SONG);
-    return call(ctx, SONG_KEPT, battlefield) && call(ctx, CHANGE_LOAD, battlefield);
+    return battle_load_and_run_battlefield(g, pf, battlefield);
+}
+
+static bool change_the_battlefield(GameState *g, Platform *pf, uint16_t battlefield)
+{
+    bool done = false;
+    TIMED_AS(g, 0xCD0D62, done = change_to_the_battlefield(g, pf, battlefield));
+    return done;
 }
 
 /* A run of frames counted down across the handler's waits. */
-static bool hold_the_screen(ClosingCalls call, void *ctx)
+static bool hold_the_screen(GameState *g, Platform *pf)
 {
     for (uint8_t left = HOLD_FRAMES; left != 0; left--)
-        if (!call(ctx, BOSS_HOLD_FRAME, left))
+        if (!battle_wait_for_the_handler(g, pf))
             return false;
     return true;
 }
@@ -226,16 +195,15 @@ static bool hold_the_screen(ClosingCalls call, void *ctx)
 /* The boss's end, as a battle won on an HP gradient's battlefield ends: the
  * music faded out, the gradient settled to its lowest, the screen held, and
  * the victory's battlefield shown and settled. */
-static bool play_out_the_boss_end(GameState *g, Platform *pf, ClosingCalls call, void *ctx)
+static bool play_out_the_boss_end(GameState *g, Platform *pf)
 {
-    if (!fade_the_music_and_wait(pf, BOSS_FADE, BOSS_FADE_FRAME, 0xCD0DB7, call, ctx))
+    if (!fade_the_music_and_wait(g, pf, 0xCD0DB7))
         return false;
     set_battle_gradient_frame_mask(g, EVERY_FOURTH_FRAME);
     set_battle_gradient_level_override(g, LEVEL_GIVEN);
-    if (!closing_call(call, ctx, BOSS_SETTLE) || !hold_the_screen(call, ctx)
-        || !call(ctx, BOSS_CHANGE, VICTORY_BATTLEFIELD))
+    if (!settle_the_screen(g, pf) || !hold_the_screen(g, pf) || !change_the_battlefield(g, pf, VICTORY_BATTLEFIELD))
         return false;
-    return closing_call(call, ctx, BOSS_SETTLE_AGAIN);
+    return settle_the_screen(g, pf);
 }
 
 /* ---- A defeat's end on those battlefields -------------------------------------------------------- */
@@ -246,12 +214,12 @@ enum { DEFEAT_BATTLEFIELD = 0x87 };
 // $CD:0DA2
 /* Once the fade is silent, show the defeat battlefield and let its screen
  * animation finish before returning to the battle's closing sequence. */
-static bool show_the_defeat(GameState *g, ClosingCalls call, void *ctx)
+static bool show_the_defeat(GameState *g, Platform *pf)
 {
-    if (!call(ctx, DEFEAT_CHANGE, DEFEAT_BATTLEFIELD))
+    if (!change_the_battlefield(g, pf, DEFEAT_BATTLEFIELD))
         return false;
     do
-        if (!closing_call(call, ctx, DEFEAT_SCRIPTS_FRAME))
+        if (!battle_wait_for_the_handler(g, pf))
             return false;
     while (battle_screen_scripts_running(g));
     return true;
@@ -262,13 +230,13 @@ static bool show_the_defeat(GameState *g, ClosingCalls call, void *ctx)
  * ends on the defeat's battlefield: the enemies' rule dropped, the music
  * faded out, and the defeat's battlefield shown with its song, its screen
  * scripts let run out. */
-static bool play_out_the_defeat_end(GameState *g, Platform *pf, ClosingCalls call, void *ctx)
+static bool play_out_the_defeat_end(GameState *g, Platform *pf)
 {
     set_battle_enemy_rule(g, 0);
-    if (!fade_the_music_and_wait(pf, DEFEAT_FADE, DEFEAT_FADE_FRAME, 0xCD0D9C, call, ctx))
+    if (!fade_the_music_and_wait(g, pf, 0xCD0D9C))
         return false;
     bool shown;
-    TIMED_AS(g, 0xCD0DA2, shown = show_the_defeat(g, call, ctx));
+    TIMED_AS(g, 0xCD0DA2, shown = show_the_defeat(g, pf));
     return shown;
 }
 
@@ -282,90 +250,60 @@ enum { SONG_GOES = 0x80 };
  * picture out from the brightness it is given. */
 enum { FADE_FROM = 0 };
 
-// $CD:03B4 (through $CD:0006)
-static bool close_the_display(GameState *g, Platform *pf, ClosingCalls call, void *ctx)
+/* The small handler's frame ($CD:044A). */
+static void wait_for_the_small_handler(GameState *g, Platform *pf)
 {
+    TIMED_AS(g, 0xCD044A, battle_wait_for_the_small_handler(g, pf));
+}
+
+// $CD:03B4 (through $CD:0006)
+/* The display closed down, each step where the original takes it. */
+bool battle_display_closed(GameState *g, Platform *pf)
+{
+    bool done = true;
     if (battle_background_flags(g) & SONG_GOES)
         set_battle_event_flags(g, battle_event_flags(g) & (uint8_t)~BATTLE_TERMS_KEEP_THE_FIELD_SONG);
-    if (battle_battlefield_tiles_replaced(g) && !closing_call(call, ctx, CLOSING_PUT_BACK))
-        return false;
+    if (battle_battlefield_tiles_replaced(g)) {
+        TIMED_AS(g, 0xCD0453, done = battle_put_the_battlefield_back(g, pf));
+        if (!done)
+            return false;
+    }
     set_battle_script_sound_request(g, 0);
-    if (!keeps_the_field_song(g) && !closing_call(call, ctx, CLOSING_FADE))
+    if (!keeps_the_field_song(g) && !fade_the_music_out(g, pf))
         return false;
-    if (!closing_call(call, ctx, CLOSING_THE_WINDOW))
+    TIMED_AS(g, 0xCD0516, done = close_the_window(g, pf));
+    if (!done)
         return false;
     do
-        if (!closing_call(call, ctx, CLOSING_SLIDE_FRAME))
+        if (!battle_wait_for_the_handler(g, pf))
             return false;
     while (battle_window_sliding(g));
     battle_arrange_the_lines(g, WINDOW_GONE);
-    if (!closing_call(call, ctx, CLOSING_GONE_FRAME))
+    if (!battle_wait_for_the_handler(g, pf))
         return false;
     /* the original asks only whether the battle was won: a script's result
        (BATTLE_BACK_TO_THE_PLACE_PUT_ASIDE) ends here as a defeat does */
     bool won = battle_how_it_ended(g) == BATTLE_WON_OR_RAN;
     if ((battle_background_flags(g) & BATTLE_BACKGROUND_HAS_GRADIENT) && won) {
-        if (!closing_call(call, ctx, CLOSING_BOSS_END))
+        TIMED_AS(g, 0xCD0DB1, done = play_out_the_boss_end(g, pf));
+        if (!done)
             return false;
     } else if ((battle_background_flags(g) & (BATTLE_BACKGROUND_HAS_GRADIENT | BATTLE_BACKGROUND_EFFECTS_BATTLEFIELD)) && !won) {
-        if (!closing_call(call, ctx, CLOSING_DEFEAT_END))
+        TIMED_AS(g, 0xCD0D93, done = play_out_the_defeat_end(g, pf));
+        if (!done)
             return false;
     }
     battle_arrange_the_lines(g, LEAVING);
-    if (!closing_call(call, ctx, CLOSING_LEAVING_FRAME))
+    if (!battle_wait_for_the_handler(g, pf))
         return false;
     program_install_vblank_handler(g, battle_closing_vblank);
     charge_accesses(g, 4);
     set_battle_scratch(g, FADE_FROM, battle_brightness(g));
     do
-        if (!closing_call(call, ctx, CLOSING_SMALL_FRAME))
-            return false;
+        wait_for_the_small_handler(g, pf);
     while (!keeps_the_field_song(g) && au_music_fade_left(pf, PF_AT(0xCD0432)) != 0);
     set_battle_background_flags(g, 0);
-    return closing_call(call, ctx, CLOSING_MUSIC_BACK) && closing_call(call, ctx, CLOSING_LAST_SMALL_FRAME);
-}
-
-/* ---- The closing's calls -------------------------------------------------------------------- */
-
-/* Each call. The music's fade, whose wait types the message's next letter,
- * is refused for a message the menus' text code doesn't go on from; the
- * battlefield's change, for a layout the port doesn't build. */
-static bool close_a_part(void *ctx, ClosingCall call, uint16_t arg)
-{
-    BattleClosingContext *c = ctx;
-    GameState *g = c->game;
-    Platform *pf = c->pf;
-    bool done = false;
-    switch (call) {
-    case CLOSING_PUT_BACK: TIMED_AS(g, 0xCD0453, done = battle_put_the_battlefield_back(g, pf)); return done;
-    case CLOSING_FADE:
-    case BOSS_FADE:
-    case DEFEAT_FADE:
-        if (!battle_message_typing_fits(g))
-            return battle_contract_broken(g, 0xCD039E, "a message the menus' text code doesn't go on from");
-        fade_the_music_out(pf);
-        TIMED_AS(g, BATTLE_SOME_FRAMES_WAIT, done = battle_wait_some_frames(g, pf, FADE_WAIT_FRAMES));
-        return done;
-    case CLOSING_THE_WINDOW: TIMED_AS(g, 0xCD0516, done = close_the_window(g, close_a_part, ctx)); return done;
-    case CLOSING_BOSS_END: TIMED_AS(g, 0xCD0DB1, done = play_out_the_boss_end(g, pf, close_a_part, ctx)); return done;
-    case CLOSING_DEFEAT_END: TIMED_AS(g, 0xCD0D93, done = play_out_the_defeat_end(g, pf, close_a_part, ctx)); return done;
-    case CLOSING_SMALL_FRAME:
-    case CLOSING_LAST_SMALL_FRAME: TIMED_AS(g, 0xCD044A, battle_wait_for_the_small_handler(g, pf)); return true;
-    case CLOSING_MUSIC_BACK: TIMED_AS(g, FIELD_MUSIC_BACK_ENTRY, field_bring_the_music_back(g, pf)); return true;
-    case BOSS_SETTLE:
-    case BOSS_SETTLE_AGAIN: TIMED_AS(g, 0xCD0DD8, done = let_the_screen_settle(g, close_a_part, ctx)); return done;
-    case BOSS_CHANGE:
-    case DEFEAT_CHANGE: TIMED_AS(g, 0xCD0D62, done = change_to_the_battlefield(pf, arg, close_a_part, ctx)); return done;
-    case SETTLE_TAIL: TIMED_AS(g, 0xCD04AA, done = battle_frame_wait_finished(g, pf)); return done;
-    case SONG_KEEP:
-    case SONG_KEPT: return true;
-    case CHANGE_LOAD: return battle_load_and_run_battlefield(g, pf, arg);
-    default: TIMED_AS(g, BATTLE_HANDLER_WAIT, done = battle_wait_for_the_handler(g, pf)); return done;
-    }
-}
-
-bool battle_display_closed(GameState *g, Platform *pf)
-{
-    BattleClosingContext c = { g, pf };
-    return close_the_display(g, pf, close_a_part, &c);
+    TIMED_AS(g, FIELD_MUSIC_BACK_ENTRY, field_bring_the_music_back(g, pf));
+    wait_for_the_small_handler(g, pf);
+    return true;
 }

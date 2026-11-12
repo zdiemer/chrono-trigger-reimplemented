@@ -11,7 +11,6 @@
 #include "battle/arith.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
-#include "battle/window_leaves.h"
 #include "vars.h"
 
 /* ---- The gauges ------------------------------------------------------------------------ */

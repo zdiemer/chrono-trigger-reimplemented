@@ -20,7 +20,6 @@
 #include "battle/combatant.h"
 #include "battle/entries.h"
 #include "battle/window_data.h"
-#include "battle/window_leaves.h"
 #include "vars.h"
 
 /* ---- The layouts ------------------------------------------------------------------------ */

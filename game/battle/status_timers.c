@@ -210,14 +210,16 @@ enum { SHOW_NUMBER = 0xC1895B };
 
 // $C1:8876, $C1:88C5, $C1:8975, $C1:89B9, $C1:8A05, $C1:8A51, $C1:8A9D-$C1:8A9F, $C1:8B10, $C1:8BB9, $C1:8C08
 /* A run-out timer seen to, the number its status shows shown as an action
- * of its own (a routine of its own, `show`); poison is seen to after its
+ * of its own (a routine of its own, $C1:895B); poison is seen to after its
  * showing. False where the showing went no further. */
-static bool see_to_the_timer(GameState *g, BattleTimer kind, bool (*show)(void *ctx, BattleTimer kind), void *ctx)
+static bool see_to_the_timer(GameState *g, Platform *pf, BattleTimer kind)
 {
     TimerOwner owner = battle_timer_found_run_out(g, kind);
     TimerOutcome outcome = owner.nobody ? nobodys_timer_ran_out(g, kind, owner.slot) : timer_ran_out(g, kind, owner.slot);
     if (outcome == NUMBER_TO_SHOW) {
-        if (!show(ctx, kind))
+        bool shown = false;
+        TIMED_AS(g, SHOW_NUMBER, shown = battle_show_status_number(g, pf, STATUS_NUMBER_SHOWING));
+        if (!shown)
             return false;
         TIMED_AS(g, 0xFDACEE, battle_clear_numbers_shown(g));
     } else if (outcome == DAMAGE_TO_APPLY) {
@@ -236,20 +238,6 @@ static bool handler_takes(const GameState *g, BattleTimer kind)
 }
 
 /* ---- The handlers --------------------------------------------------------------------------- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} StatusTimerContext;
-
-static bool show_the_status_number(void *ctx, BattleTimer kind)
-{
-    (void)kind;
-    StatusTimerContext *c = ctx;
-    bool done = false;
-    TIMED_AS(c->game, SHOW_NUMBER, done = battle_show_status_number(c->game, c->pf, STATUS_NUMBER_SHOWING));
-    return done;
-}
 
 static const struct { uint32_t routine; } handlers[BATTLE_TIMER_TURN] = {
     [BATTLE_TIMER_STOP] = { 0xC18876 },
@@ -270,8 +258,7 @@ bool battle_run_out_timer_seen_to(GameState *g, Platform *pf, BattleTimer kind)
 {
     if (!handler_takes(g, kind))
         return battle_contract_broken(g, handlers[kind].routine, "a timer of nobody's the port doesn't see to");
-    StatusTimerContext c = { g, pf };
     bool done = false;
-    TIMED_AS(g, handlers[kind].routine, done = see_to_the_timer(g, kind, show_the_status_number, &c));
+    TIMED_AS(g, handlers[kind].routine, done = see_to_the_timer(g, pf, kind));
     return done;
 }

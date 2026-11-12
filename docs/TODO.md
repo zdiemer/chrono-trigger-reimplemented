@@ -493,10 +493,8 @@ PLAN.md gives the work order; the lean native gate protects each change.
     - entry and map names that disagree with the operations
       (`battle_step_orbits`/`step_drifts`, `battle_screen_wipe_from_left`/
       `wipe_diagonally`, the mover tables as `battle_effect_*`, and others);
-    - the cursor bridges in `menu_window.c` keep the target's side in a
-      variable named `carry` and their call-out-free logic in the `Snes *`
-      body: derive the carry in `window_leaves.c`; the tech rules and the
-      combination's calling off belong in a rules module, not the window;
+    - the tech rules and the combination's calling off in `menu_window.c`
+      belong in a rules module, not the window;
     - ROM and record accessors that take byte offsets the callers compute
       (`setup_data.h`, `battle_sprite_layout`, `battle_palette_frame`, the
       effect sprite record by `from + 2`), and inline ROM reads in
@@ -2476,15 +2474,8 @@ and preserve their diagnostics as the remaining machine wrappers leave.
 
 ## Review follow-ups for native interfaces
 
-- **What the machine's removal left** (review of machine-core). Dead carry
-  plumbing the comment cleanup left as code because it changes signatures:
-  `battle_aim_action`'s `carry` and the carry arguments of `ActCalls`,
-  `MemberCalls` and `WindowCalls`; `enemy_turn.c`'s `change_carries` and
-  `aim_carry`; `menu_window.c`'s `WindowLeaves`, `CursorsPlaced` and
-  `tech_page_carry`; `battle/window_leaves.[ch]`; the battle's do-nothing calls
-  (`FIELD_KEEP`/`DROP`, `SONG_KEEP`/`KEPT`, `UPDATE_KEEP_THE_ATTRIBUTES`/
-  `ATTRIBUTES_BACK`, `CALL_CHECKS_BEGIN`/`END`); and the `*_bridge.c`/`bridge.h` file names,
-  which now hold state checks. `core/program.c:124`:
+- **What the machine's removal left** (review of machine-core). The
+  `*_bridge.c`/`bridge.h` file names, which now hold state checks. `core/program.c:124`:
   if the first scenes fail the main thread just returns, relying on the callee
   having called `program_fail`.
 - **Per-path work counts in `game/`.** About 215 `charge_accesses`,

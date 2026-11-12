@@ -98,33 +98,6 @@ enum { FIGHTING = 1 };
 
 void battle_start_the_frame_work(GameState *g) { set_battle_mode(g, FIGHTING); }
 
-/* The setup's calls: the battle's state (battle/setup.c), the window drawn
- * (battle/window.c), the objects' bounds (battle/objects.c), the objects'
- * graphics (battle/setup.c), after which it waits for the vblank handler to
- * load them; then the window opened (battle/closing.c), after which it waits
- * for the window's slide; then the poses (battle/party_poses.c). */
-typedef enum { SET_UP_STATE, SET_UP_WINDOW, SET_UP_BOUNDS, SET_UP_GRAPHICS, SET_UP_CALLS } SetUpCall;
-
-// $C1:0023
-/* The setup, up to the wait for the graphics to load. */
-static bool set_up(bool (*call)(void *ctx, SetUpCall call), void *ctx)
-{
-    for (SetUpCall c = SET_UP_STATE; c < SET_UP_CALLS; c++)
-        if (!call(ctx, c))
-            return false;
-    return true;
-}
-
-// $C1:0031
-/* The setup once the graphics have loaded, up to the wait for the window's
- * slide. */
-static bool set_up_after_the_graphics(GameState *g, bool (*open_the_window)(void *ctx), void *ctx)
-{
-    build_the_combatants_graphics(g);
-    TIMED_AS(g, 0xCD0003, battle_start_the_frame_work(g));
-    return open_the_window(ctx);
-}
-
 /* The graphics' load, a step a frame in the vblank handler, ends at its
  * fourth. */
 enum { GRAPHICS_LOADED = 4 };
@@ -146,12 +119,7 @@ static bool opening_fits(const GameState *g)
            && battle_names_combatant(battle_target_found(g));
 }
 
-/* ---- The setup's calls ------------------------------------------------------------------------ */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} BattleSetUpContext;
+/* ---- The setup ------------------------------------------------------------------------------- */
 
 enum {
     SET_UP_STATE_ENTRY = 0xCCE2E4,
@@ -163,52 +131,52 @@ enum {
     FACES_THE_ENEMIES = 0xC10042,
 };
 
-static bool set_up_a_part(void *ctx, SetUpCall call)
+// $C1:0023
+/* The setup, up to the wait for the graphics to load: the battle's state
+ * (battle/setup.c), the window drawn (battle/window.c), the objects' bounds
+ * (battle/objects.c) and the objects' graphics (battle/setup.c), each
+ * refused where the port doesn't take its state; then the wait for the
+ * vblank handler to load the graphics, a step a frame. */
+static bool set_up(GameState *g, Platform *pf)
 {
-    BattleSetUpContext *c = ctx;
-    GameState *g = c->game;
-    switch (call) {
-    case SET_UP_STATE:
-        if (!battle_setup_inputs_fit(g))
-            return battle_contract_broken(g, SET_UP_STATE_ENTRY, "a battle's setup from a party or enemies the port doesn't take");
-        TIMED_AS(g, SET_UP_STATE_ENTRY, battle_setup_state(g));
-        return true;
-    case SET_UP_WINDOW:
-        if (!battle_window_fits(g))
-            return battle_contract_broken(g, DRAW_WINDOW, "a menu state the window's port doesn't take");
-        TIMED_AS(g, DRAW_WINDOW, battle_redraw_window(g));
-        return true;
-    case SET_UP_BOUNDS: TIMED_AS(g, ALL_BOUNDS, battle_update_all_bounds(g)); return true;
-    case SET_UP_GRAPHICS:
-        if (!setup_objects_parts_fit(g))
-            return battle_contract_broken(g, SET_UP_GRAPHICS_ENTRY, "a combatant's parts the port doesn't fit");
-        TIMED_AS(g, SET_UP_GRAPHICS_ENTRY, battle_setup_graphics(g));
-        // $CC:F05B (in the battle's setup, $CC:ED87)
-        /* wait for the vblank handler to load the graphics, a step a frame */
-        while (battle_graphics_load_step(g) != GRAPHICS_LOADED)
-            tm_wait_for_handlers(c->pf, PF_LOOP(0xCCF05B, 0xCCF062));
-        return true;
-    default: return false;
-    }
+    if (!battle_setup_inputs_fit(g))
+        return battle_contract_broken(g, SET_UP_STATE_ENTRY, "a battle's setup from a party or enemies the port doesn't take");
+    TIMED_AS(g, SET_UP_STATE_ENTRY, battle_setup_state(g));
+    if (!battle_window_fits(g))
+        return battle_contract_broken(g, DRAW_WINDOW, "a menu state the window's port doesn't take");
+    TIMED_AS(g, DRAW_WINDOW, battle_redraw_window(g));
+    TIMED_AS(g, ALL_BOUNDS, battle_update_all_bounds(g));
+    if (!setup_objects_parts_fit(g))
+        return battle_contract_broken(g, SET_UP_GRAPHICS_ENTRY, "a combatant's parts the port doesn't fit");
+    TIMED_AS(g, SET_UP_GRAPHICS_ENTRY, battle_setup_graphics(g));
+    // $CC:F05B (in the battle's setup, $CC:ED87)
+    while (battle_graphics_load_step(g) != GRAPHICS_LOADED)
+        tm_wait_for_handlers(pf, PF_LOOP(0xCCF05B, 0xCCF062));
+    return true;
 }
 
-static bool slide_the_window_open(void *ctx)
+// $C1:0031
+/* The setup once the graphics have loaded, up to the wait for the window's
+ * slide: the window opened (battle/closing.c). */
+static bool set_up_after_the_graphics(GameState *g, Platform *pf)
 {
-    BattleSetUpContext *c = ctx;
+    build_the_combatants_graphics(g);
+    TIMED_AS(g, 0xCD0003, battle_start_the_frame_work(g));
     bool done = false;
-    TIMED_AS(c->game, OPEN_THE_WINDOW, done = battle_window_opened(c->game, c->pf));
+    TIMED_AS(g, OPEN_THE_WINDOW, done = battle_window_opened(g, pf));
     return done;
 }
 
+/* The setup, then the wait for the window's slide, the battle opened facing
+ * the enemies, and the poses (battle/party_poses.c). */
 bool battle_set_up_runs(GameState *g, Platform *pf)
 {
-    BattleSetUpContext c = { g, pf };
-    if (!set_up(set_up_a_part, &c))
+    if (!set_up(g, pf))
         return false;
     if (!combatants_graphics_known(g))
         return battle_contract_broken(g, AFTER_THE_GRAPHICS, "a combatant's graphics the builder doesn't know");
     bool done = false;
-    TIMED_AS(g, AFTER_THE_GRAPHICS, done = set_up_after_the_graphics(g, slide_the_window_open, &c));
+    TIMED_AS(g, AFTER_THE_GRAPHICS, done = set_up_after_the_graphics(g, pf));
     if (!done)
         return false;
     while (battle_window_slide_frames(g) != 0)

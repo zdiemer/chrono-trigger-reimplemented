@@ -216,35 +216,30 @@ static void apply_the_animation_switch(GameState *g)
     }
 }
 
-/* The showing's calls, each where the original makes it: the battle's wait
- * for the next frame ($C1:007E), the frame step ($C1:10FA,
+/* The routines the showing calls, each where the original makes it: the
+ * battle's wait for the next frame ($C1:007E) and the frame step ($C1:10FA,
  * battle/frame_step.c), the animation's loading ($C1:4310,
  * battle/action_animation.c), the places the scripts follow ($C1:4212) and
- * the scripts' step ($C1:4BBE, battle/scripts.c), the sound effects cut off,
- * and the frame's phase kept across them. */
-typedef enum {
-    SHOW_FIRST_FRAME, SHOW_FRAME_AFTER_THE_POSES, SHOW_PLAYING_FRAME, SHOW_FINISHING_FRAME, SHOW_LAST_FRAME,
-    SHOW_FALLING_FRAME, SHOW_FALL_SENT_FRAME, SHOW_FALL_SENT_SECOND_FRAME,
-    SHOW_STEP_AFTER_THE_POSES, SHOW_PLAYING_STEP, SHOW_FINISHING_STEP,
-    SHOW_LOAD, SHOW_POSITIONS, SHOW_SCRIPTS, SHOW_CUT_OFF_THE_SOUNDS, SHOW_KEEP_THE_PHASE, SHOW_PHASE_BACK,
-} ShowCall;
-typedef bool (*ShowCalls)(void *ctx, ShowCall call);
+ * the scripts' step ($C1:4BBE, battle/scripts.c). */
+enum { LOAD = 0xC14310, POSITIONS = 0xC14212, SCRIPTS = 0xC14BBE };
 
 /* A frame of the animation playing. */
-static bool play_a_frame(GameState *g, ShowCalls call, void *ctx)
+static bool play_a_frame(GameState *g, Platform *pf)
 {
-    if (!call(ctx, SHOW_PLAYING_FRAME))
-        return false;
+    battle_wait_for_frame(g, pf);
     TIMED_AS(g, 0xC1423A, battle_take_due_animation_step(g));
-    if (!call(ctx, SHOW_PLAYING_STEP))
+    if (!battle_frame_stepped(g, pf))
         return false;
     TIMED_AS(g, 0xCCF278, battle_animate_effect_frames(g));
     TIMED_AS(g, 0xCCF1E7, battle_step_palette_animations(g));
-    if (!call(ctx, SHOW_POSITIONS))
+    bool done = false;
+    TIMED_AS(g, POSITIONS, done = battle_update_animation_positions(g, pf));
+    if (!done)
         return false;
     TIMED_AS(g, 0xCCF110, battle_mark_combatants_on_grid(g));
     TIMED_AS(g, 0xC1283D, battle_update_all_bounds(g));
-    return call(ctx, SHOW_SCRIPTS);
+    TIMED_AS(g, SCRIPTS, done = battle_run_scripts(g, pf));
+    return done;
 }
 
 /* Every combatant takes its pose afresh: the poses' round
@@ -262,64 +257,18 @@ static void take_poses_afresh(GameState *g)
 
 /* A party member the damage shown takes to nothing falls now, and the
  * showing waits for its fall to be sent. */
-static bool members_fall(GameState *g, ShowCalls call, void *ctx)
+static void members_fall(GameState *g, Platform *pf)
 {
     if (!a_member_targeted(g))
-        return true;
+        return;
     TIMED_AS(g, 0xC141BE, find_the_members_falling(g));
-    if (!call(ctx, SHOW_FALLING_FRAME))
-        return false;
+    battle_wait_for_frame(g, pf);
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
         if (battle_member_falling(g, member))
             show_the_fall(g, member);
     set_battle_reupload_countdown(g, SEND_THE_FALL_AFTER_FRAMES);
-    return call(ctx, SHOW_FALL_SENT_FRAME) && call(ctx, SHOW_FALL_SENT_SECOND_FRAME);
-}
-
-// $C1:4058
-static bool show_the_action(GameState *g, ShowCalls call, void *ctx)
-{
-    set_battle_orbits_held(g, (uint8_t)(battle_orbits_held(g) + 1));
-    TIMED_AS(g, 0xCCF06B, battle_reset_objects(g));
-    if (!call(ctx, SHOW_FIRST_FRAME))
-        return false;
-    set_battle_queued_uploads_on(g, 0);
-    apply_the_animation_switch(g);
-    uint8_t phase = battle_frame_phase(g);
-    if (!call(ctx, SHOW_KEEP_THE_PHASE))
-        return false;
-    TIMED_AS(g, 0xCCF102, forget_poses(g));
-    if (!call(ctx, SHOW_FRAME_AFTER_THE_POSES) || !call(ctx, SHOW_STEP_AFTER_THE_POSES))
-        return false;
-    set_battle_effects_running(g, (uint8_t)(battle_effects_running(g) + 1));
-    TIMED_AS(g, 0xCCF156, list_the_showing(g));
-    if (!call(ctx, SHOW_LOAD))
-        return false;
-    do {
-        if (!play_a_frame(g, call, ctx))
-            return false;
-    } while (!battle_script_signal(g));
-    if (!call(ctx, SHOW_CUT_OFF_THE_SOUNDS))
-        return false;
-    do {
-        if (!call(ctx, SHOW_FINISHING_FRAME) || !call(ctx, SHOW_FINISHING_STEP))
-            return false;
-    } while (battle_screen_scripts_running(g));
-    if (!call(ctx, SHOW_PHASE_BACK))
-        return false;
-    set_battle_frame_phase(g, phase);
-    set_battle_color_rotation_on(g, 0);
-    stop_the_effects(g);
-    enemies_drift_from_where_they_stand(g);
-    if (!call(ctx, SHOW_LAST_FRAME))
-        return false;
-    TIMED_AS(g, 0xCCF06B, battle_reset_objects(g));
-    take_poses_afresh(g);
-    set_battle_graphics_upload_request(g, 0);
-    if (!members_fall(g, call, ctx))
-        return false;
-    set_battle_effects_running(g, 0);
-    return true;
+    battle_wait_for_frame(g, pf);
+    battle_wait_for_frame(g, pf);
 }
 
 /* The sound effects are cut off: the driver starts an effect of none on
@@ -332,42 +281,55 @@ static void cut_off_the_sounds(Platform *pf)
                (AudioCommand){ .command = AU_START_EFFECT, .p1 = NO_SOUND_EFFECT, .count = 1 });
 }
 
+// $C1:4058
+static bool show_the_action(GameState *g, Platform *pf)
+{
+    set_battle_orbits_held(g, (uint8_t)(battle_orbits_held(g) + 1));
+    TIMED_AS(g, 0xCCF06B, battle_reset_objects(g));
+    battle_wait_for_frame(g, pf);
+    set_battle_queued_uploads_on(g, 0);
+    apply_the_animation_switch(g);
+    uint8_t phase = battle_frame_phase(g);
+    TIMED_AS(g, 0xCCF102, forget_poses(g));
+    battle_wait_for_frame(g, pf);
+    if (!battle_frame_stepped(g, pf))
+        return false;
+    set_battle_effects_running(g, (uint8_t)(battle_effects_running(g) + 1));
+    TIMED_AS(g, 0xCCF156, list_the_showing(g));
+    bool loaded = false;
+    TIMED_AS(g, LOAD, loaded = battle_load_action_animation(g, pf));
+    if (!loaded)
+        return false;
+    do {
+        if (!play_a_frame(g, pf))
+            return false;
+    } while (!battle_script_signal(g));
+    cut_off_the_sounds(pf);
+    do {
+        battle_wait_for_frame(g, pf);
+        if (!battle_frame_stepped(g, pf))
+            return false;
+    } while (battle_screen_scripts_running(g));
+    set_battle_frame_phase(g, phase);
+    set_battle_color_rotation_on(g, 0);
+    stop_the_effects(g);
+    enemies_drift_from_where_they_stand(g);
+    battle_wait_for_frame(g, pf);
+    TIMED_AS(g, 0xCCF06B, battle_reset_objects(g));
+    take_poses_afresh(g);
+    set_battle_graphics_upload_request(g, 0);
+    members_fall(g, pf);
+    set_battle_effects_running(g, 0);
+    return true;
+}
+
 /* The showing takes an actor that is a combatant (the action's subjects
  * index the objects' places by it). */
 static bool showing_fits(const GameState *g) { return battle_names_combatant(battle_action_actor(g)); }
-
-/* ---- The showing's calls ----------------------------------------------------------------------- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} ActionShowContext;
-
-enum { FRAME_WAIT = 0xC1007E, FRAME_STEP = 0xC110FA, LOAD = 0xC14310, POSITIONS = 0xC14212, SCRIPTS = 0xC14BBE };
-
-static bool show_a_part(void *ctx, ShowCall call)
-{
-    ActionShowContext *c = ctx;
-    GameState *g = c->game;
-    bool done = false;
-    switch (call) {
-    case SHOW_STEP_AFTER_THE_POSES:
-    case SHOW_PLAYING_STEP:
-    case SHOW_FINISHING_STEP: TIMED_AS(g, FRAME_STEP, done = battle_frame_stepped(g, c->pf)); return done;
-    case SHOW_LOAD: TIMED_AS(g, LOAD, done = battle_load_action_animation(g, c->pf)); return done;
-    case SHOW_POSITIONS: TIMED_AS(g, POSITIONS, done = battle_update_animation_positions(g, c->pf)); return done;
-    case SHOW_SCRIPTS: TIMED_AS(g, SCRIPTS, done = battle_run_scripts(g, c->pf)); return done;
-    case SHOW_CUT_OFF_THE_SOUNDS: cut_off_the_sounds(c->pf); return true;
-    case SHOW_KEEP_THE_PHASE:
-    case SHOW_PHASE_BACK: return true;
-    default: TIMED_AS(g, FRAME_WAIT, done = battle_wait_for_frame(g, c->pf)); return done;
-    }
-}
 
 bool battle_show_action(GameState *g, Platform *pf)
 {
     if (!showing_fits(g))
         return battle_contract_broken(g, 0xC14058, "an action shown whose actor is past the combatants");
-    ActionShowContext c = { g, pf };
-    return show_the_action(g, show_a_part, &c);
+    return show_the_action(g, pf);
 }

@@ -16,8 +16,6 @@ enum {
 };
 #define UNPACK_BUFFER 0x7ED000u
 
-typedef bool (*SendGraphics)(void *ctx, bool tilemap, uint16_t vram, uint16_t bytes);
-
 static void unpack(GameState *g, uint32_t from)
 {
     set_decompress_source(g, from);
@@ -26,7 +24,9 @@ static void unpack(GameState *g, uint32_t from)
 }
 
 // $D1:ECF3
-static bool load_effect_graphics_with(GameState *g, uint8_t effect, SendGraphics send, void *ctx)
+/* An effect's tile blocks, each unpacked and sent to its place in VRAM and
+ * waited for; its colors; and its tilemap graphics, unpacked and sent. */
+bool battle_load_effect_graphics(GameState *g, Platform *pf, uint8_t effect)
 {
     set_battle_effect_graphics_loading(g, (uint8_t)(battle_effect_graphics_loading(g) + 1));
     set_battle_effect_graphics_id(g, effect);
@@ -35,28 +35,14 @@ static bool load_effect_graphics_with(GameState *g, uint8_t effect, SendGraphics
         if (id == NO_GRAPHICS_BLOCK)
             continue;
         unpack(g, graphics_block_address(g, id));
-        if (!send(ctx, false, (uint16_t)(FIRST_BLOCK_VRAM + block * BLOCK_VRAM_WORDS), BLOCK_BYTES))
-            return false;
+        vid_send_vram_and_wait(pf, PF_CALL(0xD1ED49, 0xCD3ECE), (uint16_t)(FIRST_BLOCK_VRAM + block * BLOCK_VRAM_WORDS),
+                               PF_GAME(UNPACK_BUFFER), BLOCK_BYTES);
     }
     for (unsigned i = 0; i < EFFECT_COLORS; i++)
         set_palette_base(g, EFFECT_FIRST_COLOR + i, effect_color(g, effect, i));
     unpack(g, effect_tilemap_graphics_address(g, effect));
-    if (!send(ctx, true, TILEMAP_GRAPHICS_VRAM, TILEMAP_GRAPHICS_BYTES))
-        return false;
+    vid_send_vram_and_wait(pf, PF_CALL(0xD1EDC5, 0xCD3ECE), TILEMAP_GRAPHICS_VRAM, PF_GAME(UNPACK_BUFFER),
+                           TILEMAP_GRAPHICS_BYTES);
     set_battle_effect_graphics_loading(g, false);
     return true;
-}
-
-static bool send_graphics(void *ctx, bool tilemap, uint16_t vram, uint16_t bytes)
-{
-    if (tilemap)
-        vid_send_vram_and_wait(ctx, PF_CALL(0xD1EDC5, 0xCD3ECE), vram, PF_GAME(UNPACK_BUFFER), bytes);
-    else
-        vid_send_vram_and_wait(ctx, PF_CALL(0xD1ED49, 0xCD3ECE), vram, PF_GAME(UNPACK_BUFFER), bytes);
-    return true;
-}
-
-bool battle_load_effect_graphics(GameState *g, Platform *pf, uint8_t effect)
-{
-    return load_effect_graphics_with(g, effect, send_graphics, pf);
 }

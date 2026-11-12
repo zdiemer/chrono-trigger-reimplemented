@@ -49,12 +49,14 @@
  * (step 6), each member's menu closed as the party stands down -- and a
  * waiting member's menu closed ($C1:B961), and a member of a combination
  * called off while it waited ($FD:A8FE, below). */
-typedef enum {
-    PARTY_ATTACK_DRIVEN, PARTY_ATTACK_CONFUSED, PARTY_COUNTER_ATTACK,
-    PARTY_CALLED_OFF_STEP, PARTY_BEATEN_STEP, PARTY_STAND_DOWN_STEP,
-    PARTY_CLOSE_THE_MENU, PARTY_CALL_OFF_WAITING_MEMBER,
-} PartyCall;
-typedef bool (*PartyCalls)(void *ctx, PartyCall call, uint8_t member);
+enum { CALL_OFF_WAITING_MEMBER = 0xFDA8FE, MEMBER_ATTACKS = 0xC1FDC7, CLOSE_MENU = 0xC1B961 };
+
+static bool member_attacks(GameState *g, Platform *pf)
+{
+    bool done = false;
+    TIMED_AS(g, MEMBER_ATTACKS, done = battle_member_attacks(g, pf));
+    return done;
+}
 
 static uint8_t draw(GameState *g, uint8_t lowest, uint8_t limit)
 {
@@ -94,12 +96,12 @@ static uint8_t random_other(GameState *g, uint8_t member)
 }
 
 /* The member attacks `target` as though it had chosen to. */
-static bool attack_for_it(GameState *g, PartyCall attack, uint8_t member, uint8_t target, PartyCalls call, void *ctx)
+static bool attack_for_it(GameState *g, Platform *pf, uint8_t member, uint8_t target)
 {
     set_battle_action_targets(g, 0, target);
     set_battle_action_choice(g, CHOSE_AN_ATTACK);
     set_battle_actor(g, member);
-    return call(ctx, attack, member);
+    return member_attacks(g, pf);
 }
 
 static void note_acted_for_itself(GameState *g)
@@ -110,15 +112,15 @@ static void note_acted_for_itself(GameState *g)
 // $FD:AB30
 /* The statuses are the ones of the stat block the caller names, the
  * member's own as the game calls it. */
-static bool status_turn(GameState *g, uint8_t member, uint8_t statuses_of, PartyCalls call, void *ctx)
+static bool status_turn(GameState *g, Platform *pf, uint8_t member, uint8_t statuses_of)
 {
     set_battle_member_turn_mark(g, 0);
     set_battle_member_acts_for_itself(g, 0);
     if (driven_to_fight(g, statuses_of)) {
-        if (member < BATTLE_PARTY_SIZE && !attack_for_it(g, PARTY_ATTACK_DRIVEN, member, random_enemy(g), call, ctx))
+        if (member < BATTLE_PARTY_SIZE && !attack_for_it(g, pf, member, random_enemy(g)))
             return false;
     } else if (confused(g, statuses_of)) {
-        if (!attack_for_it(g, PARTY_ATTACK_CONFUSED, member, random_other(g, member), call, ctx))
+        if (!attack_for_it(g, pf, member, random_other(g, member)))
             return false;
     } else {
         return true;
@@ -141,12 +143,12 @@ static void drop_waiting_action(GameState *g, uint8_t member)
 // $C1:B3F9
 /* A member whose status keeps it from acting loses the action it waited
  * with: its menu closes (the battle's step) and its item goes back. */
-static bool cancel_if_unable(GameState *g, uint8_t member, PartyCalls call, void *ctx)
+static bool cancel_if_unable(GameState *g, Platform *pf, uint8_t member)
 {
     if (!combatant_cant_act(g, member) || battle_member_ready(g, member) == MEMBER_NO_ACTION)
         return true;
     drop_waiting_action(g, member);
-    if (!call(ctx, PARTY_CALLED_OFF_STEP, member))
+    if (!battle_step_taken(g, pf, BATTLE_STEP_CALLED_OFF))
         return false;
     TIMED_AS(g, 0xC1B6D1, battle_return_chosen_item(g, member));
     return true;
@@ -171,18 +173,18 @@ static bool counters(const GameState *g, uint8_t member)
 /* The members it hit are the action's first three targets. */
 enum { MEMBERS_HIT = BATTLE_PARTY_SIZE };
 
-static bool counter_attack(GameState *g, uint8_t member, bool *attacker_out, PartyCalls call, void *ctx)
+static bool counter_attack(GameState *g, Platform *pf, uint8_t member, bool *attacker_out)
 {
     set_battle_actor(g, member);
     set_battle_action_targets(g, 0, (uint8_t)battle_turn_slot(g));
-    if (!call(ctx, PARTY_COUNTER_ATTACK, member))
+    if (!member_attacks(g, pf))
         return false;
     *attacker_out = (combatant_stat_byte(g, battle_action_targets(g, 0), STAT_CONDITION) & CONDITION_KNOCKED_OUT) != 0;
     return true;
 }
 
 // $FD:AC6E
-static bool counter_the_attack(GameState *g, PartyCalls call, void *ctx)
+static bool counter_the_attack(GameState *g, Platform *pf)
 {
     if (battle_action_hit_party(g)) {
         bool attacker_out = false;
@@ -195,7 +197,7 @@ static bool counter_the_attack(GameState *g, PartyCalls call, void *ctx)
                 continue;
             if (!(combatant_stat_byte(g, member, STAT_ACCESSORY_FIRST) & COUNTER_ATTACKS))
                 set_battle_timer_counts_byte(g, BATTLE_TIMER_TURN, member, TURN_AT_ONCE);
-            else if (!counter_attack(g, member, &attacker_out, call, ctx))
+            else if (!counter_attack(g, pf, member, &attacker_out))
                 return false;
         }
         if (!attacker_out)
@@ -249,24 +251,28 @@ void battle_call_off_combination(GameState *g)
 /* A member of a combination called off, which waited with its action: its
  * action forgotten and its menu closed (the step its caller's code runs for
  * it). */
-static bool call_off_waiting_member(GameState *g, uint8_t member, PartyCalls call, void *ctx)
+static bool call_off_waiting_member(GameState *g, Platform *pf, uint8_t member)
 {
     if (!battle_member_ready(g, member))
         return true;
     forget_combination(g, member);
     set_battle_step_member(g, member);
-    return call(ctx, PARTY_CLOSE_THE_MENU, member);
+    bool done = false;
+    TIMED_AS(g, CLOSE_MENU, done = battle_step_taken(g, pf, BATTLE_STEP_CALLED_OFF));
+    return done;
 }
 
 // $FD:A95F
 /* The combination called off while its members waited with their actions. */
-static bool call_off_while_waiting(GameState *g, PartyCalls call, void *ctx)
+static bool call_off_while_waiting(GameState *g, Platform *pf)
 {
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         if (!battle_combo_called_off(g, member))
             continue;
         set_battle_low_scratch(g, BATTLE_ITEM_RETURNING_FOR_AT, member);
-        if (!call(ctx, PARTY_CALL_OFF_WAITING_MEMBER, member))
+        bool done = false;
+        TIMED_AS(g, CALL_OFF_WAITING_MEMBER, done = call_off_waiting_member(g, pf, member));
+        if (!done)
             return false;
     }
     return true;
@@ -304,7 +310,7 @@ static void count_beaten_now(GameState *g, unsigned enemy)
 }
 
 // $C1:B762
-static bool see_to_knocked_out(GameState *g, PartyCalls call, void *ctx)
+static bool see_to_knocked_out(GameState *g, Platform *pf)
 {
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
         set_battle_enemy_beaten_before(g, enemy, battle_enemy_beaten(g, enemy));
@@ -320,7 +326,7 @@ static bool see_to_knocked_out(GameState *g, PartyCalls call, void *ctx)
             count_beaten_now(g, slot - BATTLE_FIRST_ENEMY);
     }
     set_battle_reaction_entry(g, BATTLE_ENEMIES);
-    if (battle_enemy_beaten_any(g) && !battle_is_demo(g) && !call(ctx, PARTY_BEATEN_STEP, 0))
+    if (battle_enemy_beaten_any(g) && !battle_is_demo(g) && !battle_step_taken(g, pf, BATTLE_STEP_ENEMIES_BEATEN))
         return false;
     uint8_t any = 0;
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
@@ -382,45 +388,17 @@ void battle_demo_next_turn(GameState *g)
 }
 
 // $C1:B7F2
-static bool stand_down(GameState *g, PartyCalls call, void *ctx)
+bool battle_party_stands_down(GameState *g, Platform *pf)
 {
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         set_battle_step_member(g, member);
-        if (!call(ctx, PARTY_STAND_DOWN_STEP, member))
+        if (!battle_step_taken(g, pf, BATTLE_STEP_CALLED_OFF))
             return false;
     }
     return true;
 }
 
-/* ---- The turns' calls ------------------------------------------------------------------------- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} PartyTurnContext;
-
-enum { CALL_OFF_WAITING_MEMBER = 0xFDA8FE, MEMBER_ATTACKS = 0xC1FDC7, CLOSE_MENU = 0xC1B961 };
-
-static bool party_call(void *ctx, PartyCall call, uint8_t member)
-{
-    PartyTurnContext *c = ctx;
-    GameState *g = c->game;
-    bool done = false;
-    switch (call) {
-    case PARTY_ATTACK_DRIVEN:
-    case PARTY_ATTACK_CONFUSED:
-    case PARTY_COUNTER_ATTACK: TIMED_AS(g, MEMBER_ATTACKS, done = battle_member_attacks(g, c->pf)); return done;
-    case PARTY_CALLED_OFF_STEP:
-    case PARTY_STAND_DOWN_STEP: return battle_step_taken(g, c->pf, BATTLE_STEP_CALLED_OFF);
-    case PARTY_BEATEN_STEP: return battle_step_taken(g, c->pf, BATTLE_STEP_ENEMIES_BEATEN);
-    case PARTY_CLOSE_THE_MENU:
-        TIMED_AS(g, CLOSE_MENU, done = battle_step_taken(g, c->pf, BATTLE_STEP_CALLED_OFF));
-        return done;
-    default:
-        TIMED_AS(g, CALL_OFF_WAITING_MEMBER, done = call_off_waiting_member(g, member, party_call, ctx));
-        return done;
-    }
-}
+/* ---- The party's turns -------------------------------------------------------------------- */
 
 /* Each refused unless the slot is a combatant, and the members hit and the
  * reactions' targets combatants or none. */
@@ -428,42 +406,31 @@ bool battle_member_status_turn(GameState *g, Platform *pf, uint8_t member)
 {
     if (member >= BATTLE_COMBATANTS)
         return battle_contract_broken(g, 0xFDAB30, "a status turn past the combatants");
-    PartyTurnContext c = { g, pf };
-    return status_turn(g, member, member, party_call, &c);
+    return status_turn(g, pf, member, member);
 }
 
 bool battle_cancel_if_unable(GameState *g, Platform *pf, uint8_t member)
 {
     if (member >= BATTLE_PARTY_SIZE)
         return battle_contract_broken(g, 0xC1B3F9, "a member past the party");
-    PartyTurnContext c = { g, pf };
-    return cancel_if_unable(g, member, party_call, &c);
+    return cancel_if_unable(g, pf, member);
 }
 
 bool battle_party_counters(GameState *g, Platform *pf)
 {
     if (!members_hit_are_combatants(g))
         return battle_contract_broken(g, 0xFDAC6E, "a member hit past the combatants");
-    PartyTurnContext c = { g, pf };
-    return counter_the_attack(g, party_call, &c);
+    return counter_the_attack(g, pf);
 }
 
 bool battle_see_to_knocked_out_enemies(GameState *g, Platform *pf)
 {
     if (!reaction_targets_are_combatants(g))
         return battle_contract_broken(g, 0xC1B762, "a reaction's target past the combatants");
-    PartyTurnContext c = { g, pf };
-    return see_to_knocked_out(g, party_call, &c);
-}
-
-bool battle_party_stands_down(GameState *g, Platform *pf)
-{
-    PartyTurnContext c = { g, pf };
-    return stand_down(g, party_call, &c);
+    return see_to_knocked_out(g, pf);
 }
 
 bool battle_call_off_waiting_combination(GameState *g, Platform *pf)
 {
-    PartyTurnContext c = { g, pf };
-    return call_off_while_waiting(g, party_call, &c);
+    return call_off_while_waiting(g, pf);
 }

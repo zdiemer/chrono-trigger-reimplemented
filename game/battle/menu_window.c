@@ -32,7 +32,6 @@
 #include "battle/party_turns.h"
 #include "battle/program.h"
 #include "battle/window_data.h"
-#include "battle/window_leaves.h"
 #include "charge.h"
 #include "vars.h"
 
@@ -343,75 +342,32 @@ void battle_reset_frames(GameState *g)
 /* The settings' bit that asks for the descriptions. */
 enum { DESCRIPTIONS_ON = 0x80 };
 
-/* The menu window's calls: the window's rows sent ($CF:FD02, the saved rows
- * $CF:FD36, battle/uploads.c), and a tech's description ($CD:0027,
- * battle/message.c), the description with the tech. Each is handed the flag
- * the original's drawing leaves there (`carry`), which nothing reads now. */
-typedef enum { WINDOW_ROWS, WINDOW_SAVED_ROWS, WINDOW_DESCRIPTION } WindowCall;
-typedef bool (*WindowCalls)(void *ctx, WindowCall call, uint8_t tech, bool carry);
-
-/* What the original's drawing leaves its callers, which nothing reads now:
- * its last flag, where the drawing set it, and whether it cleared its
- * result where the frames were reloaded. */
-typedef struct {
-    bool carry_set, carry, a_cleared;
-} WindowLeaves;
-
 // $C1:0C49
-/* The flag the rows' request is handed is the redraw's, the party
- * status's, or the command cursor's (clear) (window_leaves.h). */
-static bool show_command_page(GameState *g, WindowCalls call, void *ctx)
+/* The command page: the window rebuilt for another member, or the party's
+ * numbers kept current and the command cursor redrawn when asked; then the
+ * window's rows sent ($CF:FD02, battle/uploads.c). */
+static void show_command_page(GameState *g)
 {
-    bool carry;
     if (battle_menu_slot(g) != battle_menu_slot_shown(g)) {
         set_battle_menu_slot_shown(g, battle_menu_slot(g));
         TIMED_AS(g, 0xC11C3A, battle_reset_frames(g));
-        vars_peek(true);
-        carry = window_redraw_carry(g);
-        vars_peek(false);
         TIMED_AS(g, 0xC10299, battle_redraw_window(g));
     } else {
-        vars_peek(true);
-        PartyStatusNote note = note_party_status(g);
-        vars_peek(false);
         TIMED_AS(g, 0xC105A7, battle_show_party_status(g));
-        vars_peek(true);
-        carry = party_status_carry(g, note);
-        vars_peek(false);
-        if (battle_member_cells_redraw(g) && !menu_nobody(battle_menu_slot(g))) {
+        if (battle_member_cells_redraw(g) && !menu_nobody(battle_menu_slot(g)))
             battle_redraw_command_cursor(g);
-            carry = false;
-        }
     }
-    /* the frames' reset ends on a compare that leaves the flag set */
-    if (menu_nobody(battle_menu_member(g))) {
+    if (menu_nobody(battle_menu_member(g)))
         TIMED_AS(g, 0xC11C3A, battle_reset_frames(g));
-        carry = true;
-    }
-    if (!call(ctx, WINDOW_ROWS, 0, carry))
-        return false;
+    TIMED_AS(g, 0xCFFD02, battle_send_window_rows(g));
     request_frames_upload(g);
-    return true;
-}
-
-/* The flag the original has after the page's own drawing, which the
- * description and the upload request are handed: clear from placing the hand,
- * or where a target is being chosen, set on a blank row and else the last
- * cost's tens compared with the zero (clear where no cost shows). */
-static bool tech_page_carry(const GameState *g, unsigned member)
-{
-    if (!battle_targeting(g))
-        return false;
-    if (battle_tech_list(g, (uint8_t)(list_entry(g, member, 0) + battle_tech_cursor(g, member))) == BLANK_ROW)
-        return true;
-    for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++)
-        if (!(selected_cost_to(g, slot) & NO_COST))
-            return battle_digits(g, BATTLE_DIGIT_TENS) >= TILE_DIGIT_ZERO;
-    return false;
 }
 
 // $C1:0C83
-static bool show_tech_page(GameState *g, WindowCalls call, void *ctx, WindowLeaves *left)
+/* The tech page; the tech's description (a battle message, $CD:0027) where
+ * the settings ask for it, then the saved rows sent ($CF:FD36). False where
+ * the description went no further. */
+static bool show_tech_page(GameState *g)
 {
     shade_unusable_techs(g);
     TIMED_AS(g, 0xC10A88, battle_lay_out_tech_list(g));
@@ -420,33 +376,25 @@ static bool show_tech_page(GameState *g, WindowCalls call, void *ctx, WindowLeav
     show_party_mp(g);
     show_tech_costs(g, member);
     show_tech_cursor(g, member);
-    vars_peek(true);
-    bool carry = tech_page_carry(g, member);
-    vars_peek(false);
     bool described = (battle_show_descriptions(g) & DESCRIPTIONS_ON) != 0;
-    if (described && !call(ctx, WINDOW_DESCRIPTION, battle_selected_tech_id(g), carry))
+    if (described && !battle_described(g, battle_selected_tech_id(g)))
         return false;
-    if (!call(ctx, WINDOW_SAVED_ROWS, described, carry))
-        return false;
-    if (battle_frames_reload_request(g)) {
+    TIMED_AS(g, 0xCFFD36, battle_send_saved_window_rows(g));
+    if (battle_frames_reload_request(g))
         reload_tech_page_frames(g);
-        *left = (WindowLeaves){ true, true, true };   /* the reload's last count, and its result */
-    }
     return true;
 }
 
 // $C1:0C2D
 /* Draw the menu window for the page that is open, the member's stat block
- * noted first. A page past the techs leaves the flag of comparing it with
- * the tech page's. */
-static bool draw_menu_window(GameState *g, WindowCalls call, void *ctx, WindowLeaves *left)
+ * noted first. */
+static bool draw_menu_window(GameState *g)
 {
-    *left = (WindowLeaves){ false, false, false };
     TIMED_AS(g, 0xCFFD9E, battle_note_menu_stat_block(g, battle_menu_member(g)));
     switch (battle_menu_page(g)) {
-    case PAGE_COMMANDS: return show_command_page(g, call, ctx);
-    case PAGE_TECHS: return show_tech_page(g, call, ctx, left);
-    default: *left = (WindowLeaves){ true, true, false }; return true;
+    case PAGE_COMMANDS: show_command_page(g); return true;
+    case PAGE_TECHS: return show_tech_page(g);
+    default: return true;
     }
 }
 
@@ -678,45 +626,29 @@ static bool show_item_cursor(GameState *g)
     return drawn != 0;
 }
 
-/* How the cursors were placed: the path through the placing, which nothing
- * reads now. */
-typedef enum {
-    PLACED_AS_THEY_WERE,    /* nobody choosing, or no targets */
-    PLACED_ON_A_GROUP,      /* a group's cursors, which may have gone round */
-    PLACED_ON_A_LONE_TARGET,
-    PLACED_ON_A_NAMED_ENEMY,
-    PLACED_FOLLOWING_THE_TARGET,
-    PLACED_ON_A_COMBINATION,
-    PLACED_ROUND_THE_MEMBER,
-    PLACED_IN_THE_ITEM_LIST_SENT,
-    PLACED_IN_THE_ITEM_LIST_KEPT,
-} CursorsPlaced;
-
-/* The one call placing the cursors makes: a lone enemy target named
- * ($CD:0030, with its HP $CD:002D, battle/message.c). */
-typedef bool (*NameTarget)(void *ctx, uint8_t name, bool with_hp);
-
 // $C1:1979
 /* While targets are chosen the cursors go on them, unless there were none to
- * choose; on the tech page the list's hand goes first. */
-static bool place_lone_target_cursor(GameState *g, uint8_t target, NameTarget name, void *ctx, CursorsPlaced *placed)
+ * choose; on the tech page the list's hand goes first. A lone enemy target
+ * on the command page is named ($CD:0030, with its HP $CD:002D,
+ * battle/message.c). */
+static bool place_lone_target_cursor(GameState *g, uint8_t target)
 {
     set_battle_single_target(g, target);
     point_cursor_at(g, 0, target);
-    *placed = PLACED_ON_A_LONE_TARGET;
-    if (battle_menu_page(g) == PAGE_COMMANDS && !battle_slot_is_party(target)) {
-        if (!name(ctx, describe_target(g, target), enemy_hp_shown(g, target)))
-            return false;
-        *placed = PLACED_ON_A_NAMED_ENEMY;
-    }
+    if (battle_menu_page(g) == PAGE_COMMANDS && !battle_slot_is_party(target)
+        && !battle_combatant_named(g, describe_target(g, target), enemy_hp_shown(g, target)))
+        return false;
     show_cursor(g, 0);
-    if (battle_targets_changed(g) && battle_target_moves_frame(g))
-        *placed = PLACED_FOLLOWING_THE_TARGET;
+    /* the frame's work is calibrated with the port's test here of whether the
+     * target moved the cursors, which follow_moved_target makes again: its
+     * read, and a second where the targets changed */
+    if (battle_targets_changed(g))
+        charge_accesses(g, 1);
     follow_moved_target(g);
     return true;
 }
 
-static bool place_target_cursors(GameState *g, NameTarget name, void *ctx, CursorsPlaced *placed)
+static bool place_target_cursors(GameState *g)
 {
     if (menu_nobody(battle_no_targets(g)))
         return true;
@@ -727,13 +659,12 @@ static bool place_target_cursors(GameState *g, NameTarget name, void *ctx, Curso
         set_cursor_look(g, cursor);
     if (!menu_nobody(battle_targets(g, 1))) {
         place_group_cursors(g);
-        *placed = PLACED_ON_A_GROUP;
         return true;
     }
     uint8_t target = battle_targets(g, 0);
     if (menu_nobody(target))
         return true;
-    return place_lone_target_cursor(g, target, name, ctx, placed);
+    return place_lone_target_cursor(g, target);
 }
 
 // $C1:17DD
@@ -742,29 +673,21 @@ static bool place_target_cursors(GameState *g, NameTarget name, void *ctx, Curso
  * members or, for a tech of its own, the frame around the member, and the
  * item list's cursor, sending the window when it changed. Placing them takes
  * the buttons the menu gathered. */
-static bool place_menu_cursors(GameState *g, NameTarget name, void *ctx, CursorsPlaced *placed)
+static bool place_menu_cursors(GameState *g)
 {
-    *placed = PLACED_AS_THEY_WERE;
     if (menu_nobody(battle_menu_member(g))) {
         battle_move_cursors_away(g);
     } else if (battle_targeting(g)) {
-        if (!place_target_cursors(g, name, ctx, placed))
+        if (!place_target_cursors(g))
             return false;
     } else if (battle_menu_page(g) == PAGE_TECHS) {
-        if (combination_tech_selected(g)) {
+        if (combination_tech_selected(g))
             place_combo_cursors(g);
-            *placed = PLACED_ON_A_COMBINATION;
-        } else {
+        else
             TIMED_AS(g, 0xC11115, battle_frame_member_choosing(g));
-            *placed = PLACED_ROUND_THE_MEMBER;
-        }
     } else if (battle_menu_page(g) != PAGE_COMMANDS) {
-        if (show_item_cursor(g)) {
+        if (show_item_cursor(g))
             TIMED_AS(g, 0xCFFD6A, battle_send_lower_window_rows(g));
-            *placed = PLACED_IN_THE_ITEM_LIST_SENT;
-        } else {
-            *placed = PLACED_IN_THE_ITEM_LIST_KEPT;
-        }
     }
     set_battle_menu_buttons(g, 0);
     return true;
@@ -830,27 +753,8 @@ static void call_off_combos(GameState *g)
 }
 
 // $C1:B575
-/* Work out whose combination techs are called off, and drop what they had
- * queued (`call_off`, a routine of its own, battle/party_turns.c). */
-static bool update_combo_members(GameState *g, bool (*call_off)(void *ctx), void *ctx)
-{
-    find_combo_partners(g);
-    call_off_combos(g);
-    return call_off(ctx);
-}
 
-/* ---- The window's calls ----------------------------------------------------------------------- */
-
-static bool window_call(void *ctx, WindowCall call, uint8_t tech, bool carry)
-{
-    (void)carry;
-    GameState *g = ctx;
-    switch (call) {
-    case WINDOW_ROWS: TIMED_AS(g, 0xCFFD02, battle_send_window_rows(g)); return true;
-    case WINDOW_SAVED_ROWS: TIMED_AS(g, 0xCFFD36, battle_send_saved_window_rows(g)); return true;
-    default: return battle_described(g, tech);
-    }
-}
+/* ---- The window, the cursors and the combinations, as the frame step takes them ---------------- */
 
 /* Refused unless the menu's state and the tech lists are as the game keeps
  * them. */
@@ -859,39 +763,28 @@ bool battle_menu_window_drawn(GameState *g, Platform *pf)
     (void)pf;
     if (!battle_menu_window_fits(g))
         return battle_contract_broken(g, 0xC10C2D, "a menu state the window's port doesn't take");
-    WindowLeaves left;
-    return draw_menu_window(g, window_call, g, &left);
+    return draw_menu_window(g);
 }
 
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} MenuWindowContext;
-
-static bool call_off_the_combination(void *ctx)
-{
-    MenuWindowContext *c = ctx;
-    bool done = false;
-    TIMED_AS(c->game, 0xFDA95F, done = battle_call_off_waiting_combination(c->game, c->pf));
-    return done;
-}
-
-/* Refused unless the menu's state is one the window's port takes. */
+// $C1:B575
+/* Work out whose combination techs are called off, and drop what they had
+ * queued (a routine of its own, battle/party_turns.c). Refused unless the
+ * menu's state is one the window's port takes. */
 bool battle_update_combo_members(GameState *g, Platform *pf)
 {
     if (!battle_window_fits(g))
         return battle_contract_broken(g, 0xC1B575, "a menu state the combinations' port doesn't take");
-    MenuWindowContext c = { g, pf };
-    return update_combo_members(g, call_off_the_combination, &c);
+    find_combo_partners(g);
+    call_off_combos(g);
+    bool done = false;
+    TIMED_AS(g, 0xFDA95F, done = battle_call_off_waiting_combination(g, pf));
+    return done;
 }
-
-static bool name_the_target(void *ctx, uint8_t name, bool with_hp) { return battle_combatant_named(ctx, name, with_hp); }
 
 bool battle_menu_cursors_placed(GameState *g, Platform *pf)
 {
     (void)pf;
     if (!battle_window_fits(g))
         return battle_contract_broken(g, 0xC117DD, "a menu state the cursors' port doesn't take");
-    CursorsPlaced placed;
-    return place_menu_cursors(g, name_the_target, g, &placed);
+    return place_menu_cursors(g);
 }

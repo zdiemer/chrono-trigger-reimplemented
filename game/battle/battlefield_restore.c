@@ -148,63 +148,27 @@ enum { TILES_VRAM = 0x5000, TILES_BYTES = 0x0F80 };
 /* A quarter of a second for the picture to settle. */
 enum { SETTLING_FRAMES = 15 };
 
-/* The putting back's calls: the kept tiles sent and waited for, and the
- * frame work's waits (battle/wait.c). BACK_TESTS_LEFT marks where the
- * original's tests of the battlefield's layer and its fade end, which the
- * port passes over. */
-typedef enum { BACK_TILES_SENT, BACK_TESTS_LEFT, BACK_FADED_FRAME, BACK_SETTLING_FRAMES, BACK_LAST_FRAME } BackCall;
-typedef bool (*BackCalls)(void *ctx, BackCall call, bool own_layer, bool faded);
-
 // $CD:0453
-/* Put the battlefield back. */
-static bool put_the_battlefield_back(GameState *g, BackCalls call, void *ctx)
+/* Put the battlefield back: the kept tiles sent and waited for, and the
+ * screen as the battle started it brought back over the frame work's waits
+ * (battle/wait.c). */
+bool battle_put_the_battlefield_back(GameState *g, Platform *pf)
 {
-    if (!call(ctx, BACK_TILES_SENT, false, false))
-        return false;
+    vid_send_vram_and_wait(pf, PF_CALL(0xCD0460, BATTLE_SEND), TILES_VRAM, PF_GAME(RAM_FIELD_BG3_TILES_UNPACKED),
+                           TILES_BYTES);
     set_battle_battlefield_tiles_replaced(g, 0);
     set_battle_scroll_mode(g, BATTLE_SCROLL_STEADY);
     if (!screen_stays_as_left(g)) {
-        bool own_layer = !battle_bg3_stays_still(g);
-        bool fades = own_layer && shows_its_own_layer(g);
-        if (fades)
+        if (!battle_bg3_stays_still(g) && shows_its_own_layer(g))
             TIMED_AS(g, 0xCD0E61, battle_fade_battlefield_layer(g, true));
-        if (!call(ctx, BACK_TESTS_LEFT, own_layer, fades) || !call(ctx, BACK_FADED_FRAME, false, false))
+        if (!battle_wait_for_the_next_frame(g, pf))
             return false;
         TIMED_AS(g, 0xCD0CF6, take_back_the_start_screen(g));
-        if (!call(ctx, BACK_SETTLING_FRAMES, false, false))
+        if (!battle_wait_some_frames(g, pf, SETTLING_FRAMES))
             return false;
     }
     set_battle_background(g, 0);
     set_battle_background_restore_request(g, 0);
     TIMED_AS(g, 0xCD0E23, battle_restore_kept_colors(g));
-    return call(ctx, BACK_LAST_FRAME, false, false);
-}
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} BattlefieldRestoreContext;
-
-static bool put_back_a_part(void *ctx, BackCall call, bool own_layer, bool faded)
-{
-    (void)own_layer;
-    (void)faded;
-    BattlefieldRestoreContext *c = ctx;
-    GameState *g = c->game;
-    bool done = false;
-    switch (call) {
-    case BACK_TILES_SENT:
-        vid_send_vram_and_wait(c->pf, PF_CALL(0xCD0460, BATTLE_SEND), TILES_VRAM,
-                               PF_GAME(RAM_FIELD_BG3_TILES_UNPACKED), TILES_BYTES);
-        return true;
-    case BACK_TESTS_LEFT: return true;
-    case BACK_SETTLING_FRAMES: TIMED_AS(g, BATTLE_SOME_FRAMES_WAIT, done = battle_wait_some_frames(g, c->pf, SETTLING_FRAMES)); return done;
-    default: TIMED_AS(g, BATTLE_NEXT_FRAME_WAIT, done = battle_wait_for_the_next_frame(g, c->pf)); return done;
-    }
-}
-
-bool battle_put_the_battlefield_back(GameState *g, Platform *pf)
-{
-    BattlefieldRestoreContext c = { g, pf };
-    return put_the_battlefield_back(g, put_back_a_part, &c);
+    return battle_wait_for_the_next_frame(g, pf);
 }
