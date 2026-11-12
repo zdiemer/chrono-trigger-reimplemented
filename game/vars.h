@@ -579,15 +579,16 @@ uint8_t party_techs_unlocked(const GameState *g);
 void set_party_techs_unlocked(GameState *g, uint8_t v);
 
 enum { TILE_ANIMATION_TABLES_COUNT = 12 };   /* by animated tile slot */
-/* Accumulator step for each of the eight frames, one word per frame [16 bytes, one at a time] */
+/* Accumulator step for each of the eight frames, one word per frame [8 steps of 2 bytes, one at
+ * a time] */
 enum { TILE_ANIMATION_TABLES_STEPS_BYTES = 16 };
-uint8_t tile_animation_tables_steps_byte(const GameState *g, unsigned slot, unsigned at);
-void set_tile_animation_tables_steps_byte(GameState *g, unsigned slot, unsigned at, uint8_t v);
-/* Source address of each of the eight frames' tiles, one word per frame [16 bytes, one at a
- * time] */
+uint16_t tile_animation_tables_steps(const GameState *g, unsigned slot, unsigned item);
+void set_tile_animation_tables_steps(GameState *g, unsigned slot, unsigned item, uint16_t v);
+/* Source address of each of the eight frames' tiles, one word per frame [8 sources of 2 bytes,
+ * one at a time] */
 enum { TILE_ANIMATION_TABLES_SOURCES_BYTES = 16 };
-uint8_t tile_animation_tables_sources_byte(const GameState *g, unsigned slot, unsigned at);
-void set_tile_animation_tables_sources_byte(GameState *g, unsigned slot, unsigned at, uint8_t v);
+uint16_t tile_animation_tables_sources(const GameState *g, unsigned slot, unsigned item);
+void set_tile_animation_tables_sources(GameState *g, unsigned slot, unsigned item, uint16_t v);
 
 /* ---- data ---------------------------------------------------------------------------------- */
 
@@ -5092,10 +5093,10 @@ uint16_t menu_front_tilemap(const GameState *g, unsigned row);
 void set_menu_front_tilemap(GameState *g, unsigned row, uint16_t v);
 
 /* The tilemap buffer the load screen draws a save slot's contents into, three member rows $C0
- * bytes apart [576 bytes, one at a time] */
+ * bytes apart [288 tiles of 2 bytes, one at a time] */
 enum { MENU_SAVE_SLOT_TILEMAP_BYTES = 576 };
-uint8_t menu_save_slot_tilemap_byte(const GameState *g, unsigned at);
-void set_menu_save_slot_tilemap_byte(GameState *g, unsigned at, uint8_t v);
+uint16_t menu_save_slot_tilemap(const GameState *g, unsigned item);
+void set_menu_save_slot_tilemap(GameState *g, unsigned item, uint16_t v);
 
 enum { MENU_BACK_TILEMAP_COUNT = 2048 };   /* by tile: 32 a row */
 /* The menus' back layer's tilemap buffer, two screens of 32 tiles by 32: the main menu's
@@ -5116,11 +5117,11 @@ uint16_t menu_text_tilemap(const GameState *g, unsigned row);
 void set_menu_text_tilemap(GameState *g, unsigned row, uint16_t v);
 
 /* The equipment screen's list of what fits in BG3's tilemap buffer: its rows, two tile rows
- * apart, and the row past the last where a slide draws the row coming in [1152 bytes, one at a
- * time] */
+ * apart, and the row past the last where a slide draws the row coming in [576 tiles of 2 bytes,
+ * one at a time] */
 enum { MENU_EQUIP_LIST_ROWS_BYTES = 1152 };
-uint8_t menu_equip_list_rows_byte(const GameState *g, unsigned at);
-void set_menu_equip_list_rows_byte(GameState *g, unsigned at, uint8_t v);
+uint16_t menu_equip_list_rows(const GameState *g, unsigned item);
+void set_menu_equip_list_rows(GameState *g, unsigned item, uint16_t v);
 
 /* Where the load screen draws the era label's tiles in its tilemap: two rows of nine tile words,
  * cleared before each slot is shown [a byte by row and column] */
@@ -13831,18 +13832,18 @@ void set_scene_tasks_running(GameState *g, unsigned slot, uint16_t v);
 
 enum { SCENE_CHANNELS_COUNT = 2 };   /* by sequence channel (0 at $0A00, 1 at $0B00) */
 /* Sixteen word registers the script commands $00-$7F assign and add; channel 0's $0A02/$0A04 are
- * the Mode 7 plane's scroll in the pendulum scene [32 bytes, one at a time] */
+ * the Mode 7 plane's scroll in the pendulum scene [16 registers of 2 bytes, one at a time] */
 enum { SCENE_CHANNELS_REGISTERS_BYTES = 32 };
-uint8_t scene_channels_registers_byte(const GameState *g, unsigned channel, unsigned at);
-void set_scene_channels_registers_byte(GameState *g, unsigned channel, unsigned at, uint8_t v);
+uint16_t scene_channels_registers(const GameState *g, unsigned channel, unsigned item);
+void set_scene_channels_registers(GameState *g, unsigned channel, unsigned item, uint16_t v);
 /* Pointer to the channel's next script command in bank $7E; a store to it is a goto */
 uint16_t scene_channels_script(const GameState *g, unsigned channel);
 void set_scene_channels_script(GameState *g, unsigned channel, uint16_t v);
 /* Counters of the loop commands $80-$9F, a word each at $22 + 2n (n = 7 is the return address)
- * [32 bytes, one at a time] */
+ * [16 counters of 2 bytes, one at a time] */
 enum { SCENE_CHANNELS_LOOP_COUNTERS_BYTES = 32 };
-uint8_t scene_channels_loop_counters_byte(const GameState *g, unsigned channel, unsigned at);
-void set_scene_channels_loop_counters_byte(GameState *g, unsigned channel, unsigned at, uint8_t v);
+uint16_t scene_channels_loop_counters(const GameState *g, unsigned channel, unsigned item);
+void set_scene_channels_loop_counters(GameState *g, unsigned channel, unsigned item, uint16_t v);
 /* Where the script's call command ($A3) returns to */
 uint16_t scene_channels_return_address(const GameState *g, unsigned channel);
 void set_scene_channels_return_address(GameState *g, unsigned channel, uint16_t v);
@@ -13885,10 +13886,10 @@ void set_scene_stars_down(GameState *g, unsigned i, uint8_t v);
  * first two rows, which in BG mode 2 hold the columns' horizontal and vertical offsets: each
  * frame the vertical ones ($0C40-$0C7F) move a column to the right and go to VRAM $7000, which
  * makes the ripple. In the race, all $800 go to whichever half of the racers' tilemap is ready
- * [2048 bytes, one at a time] */
+ * [1024 tiles of 2 bytes, one at a time] */
 enum { SCENE_TILEMAP_BUFFER_BYTES = 2048 };
-uint8_t scene_tilemap_buffer_byte(const GameState *g, unsigned at);
-void set_scene_tilemap_buffer_byte(GameState *g, unsigned at, uint8_t v);
+uint16_t scene_tilemap_buffer(const GameState *g, unsigned item);
+void set_scene_tilemap_buffer(GameState *g, unsigned item, uint16_t v);
 
 enum { SCENE_TWINKLES_COUNT = 24 };   /* by twinkle */
 /* Across the screen */
@@ -13971,10 +13972,11 @@ void set_scene_race_picture_requests_column_step(GameState *g, unsigned i, uint1
 uint16_t scene_race_picture_requests_source_limit(const GameState *g, unsigned i);
 void set_scene_race_picture_requests_source_limit(GameState *g, unsigned i, uint16_t v);
 
-/* Transformed map queued for the next turning-scene upload [2048 bytes, one at a time] */
+/* Transformed map queued for the next turning-scene upload [1024 tiles of 2 bytes, one at a
+ * time] */
 enum { SCENE_TURN_OUTPUT_MAP_BYTES = 2048 };
-uint8_t scene_turn_output_map_byte(const GameState *g, unsigned at);
-void set_scene_turn_output_map_byte(GameState *g, unsigned at, uint8_t v);
+uint16_t scene_turn_output_map(const GameState *g, unsigned item);
+void set_scene_turn_output_map(GameState *g, unsigned item, uint16_t v);
 
 /* A row of the staff credits as it is written, the low bytes of a row of their layer's map: a
  * tile a column, the line's letters from the ninth column on, blank tiles around them [32 bytes,
@@ -14046,10 +14048,10 @@ enum { SCENE_RACE_DIVISORS_COUNT = 256 };   /* by the distance's high byte plus 
 uint8_t scene_race_divisors(const GameState *g, unsigned i);
 void set_scene_race_divisors(GameState *g, unsigned i, uint8_t v);
 
-/* The scene's working palette, 256 colors, sent to CGRAM [512 bytes, one at a time] */
+/* The scene's working palette, 256 colors, sent to CGRAM [256 colors of 2 bytes, one at a time] */
 enum { SCENE_PALETTE_BYTES = 512 };
-uint8_t scene_palette_byte(const GameState *g, unsigned at);
-void set_scene_palette_byte(GameState *g, unsigned at, uint8_t v);
+uint16_t scene_palette(const GameState *g, unsigned item);
+void set_scene_palette(GameState *g, unsigned item, uint16_t v);
 
 enum { SCENE_TURN_PARTY_BYTES_COUNT = 4 };   /* by entry */
 /* Party member and following byte copied into a figure record */
@@ -14629,10 +14631,10 @@ enum { SCENE_MATRIX_CODE_COUNT = 5153 };   /* by byte of the routine */
 uint8_t scene_matrix_code(const GameState *g, unsigned i);
 void set_scene_matrix_code(GameState *g, unsigned i, uint8_t v);
 
-/* Map handed over by the field for the turning scene [2048 bytes, one at a time] */
+/* Map handed over by the field for the turning scene [1024 tiles of 2 bytes, one at a time] */
 enum { SCENE_TURN_SAVED_MAP_BYTES = 2048 };
-uint8_t scene_turn_saved_map_byte(const GameState *g, unsigned at);
-void set_scene_turn_saved_map_byte(GameState *g, unsigned at, uint8_t v);
+uint16_t scene_turn_saved_map(const GameState *g, unsigned item);
+void set_scene_turn_saved_map(GameState *g, unsigned item, uint16_t v);
 
 /* A column of the race's Mode 7 name table: read back from VRAM $0B00 at setup and sent back
  * down the column later [20 bytes, one at a time] */

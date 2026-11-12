@@ -174,9 +174,9 @@ overworld leader's guard required the trail index to be in range even for a
 leader setting off, which lays the trail afresh, and leaving Guardia Castle in
 600 A.D. leaves the index at `$80` (fixed in `game/overworld/handlers.c`).
 
-All 2,213 live variables now have module-owned storage, and 2,148 of them
+All 2,213 live variables now have module-owned storage, and 2,145 of them
 typed storage, counting a value as typed only when it is exactly one owner field
-or element of its own width; 65 remain blob-backed (tile graphics and line
+or element of its own width; 68 remain blob-backed (the event script, tile graphics and line
 tables in the hardware's formats, byte-copied records, two-width record views
 and views of bytes another mode shares), and none is image-backed. The 27
 retired sound-loader variables, 20 dead scratch declarations and the residual

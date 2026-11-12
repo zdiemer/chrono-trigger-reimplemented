@@ -32,18 +32,13 @@ static uint8_t current_frame(const GameState *g, unsigned slot)
 }
 
 /* A frame's step and its tiles' address, a word each in the slot's table. */
-static uint16_t table_word(uint8_t (*byte)(const GameState *, unsigned, unsigned), const GameState *g, unsigned slot,
-                           uint8_t frame)
-{
-    return (uint16_t)(byte(g, slot, frame * 2u) | byte(g, slot, frame * 2u + 1) << 8);
-}
 static uint16_t frame_step(const GameState *g, unsigned slot, uint8_t frame)
 {
-    return table_word(tile_animation_tables_steps_byte, g, slot, frame);
+    return tile_animation_tables_steps(g, slot, frame);
 }
 static uint32_t frame_tiles(const GameState *g, unsigned slot, uint8_t frame)
 {
-    return (uint32_t)tile_animations_bank(g, slot) << 16 | table_word(tile_animation_tables_sources_byte, g, slot, frame);
+    return (uint32_t)tile_animations_bank(g, slot) << 16 | tile_animation_tables_sources(g, slot, frame);
 }
 
 /* A slot in use sends the frame it is on and steps on. `at` names the
@@ -127,10 +122,8 @@ static void load_slot(GameState *g, unsigned slot, unsigned table, SetStream *in
         sources[f] = next_word(in);
     for (unsigned f = 0; f < FRAMES; f++) {
         uint16_t step = steps[f % distinct], source = sources[f % distinct];
-        set_tile_animation_tables_steps_byte(g, table, 2 * f, (uint8_t)step);
-        set_tile_animation_tables_steps_byte(g, table, 2 * f + 1, (uint8_t)(step >> 8));
-        set_tile_animation_tables_sources_byte(g, table, 2 * f, (uint8_t)source);
-        set_tile_animation_tables_sources_byte(g, table, 2 * f + 1, (uint8_t)(source >> 8));
+        set_tile_animation_tables_steps(g, table, f, step);
+        set_tile_animation_tables_sources(g, table, f, source);
     }
 }
 

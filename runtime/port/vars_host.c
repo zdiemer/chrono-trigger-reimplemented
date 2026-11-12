@@ -32819,7 +32819,7 @@ static void place_read8(const VarsHost *h, unsigned place, uint32_t addr, uint8_
     }
     case 117: {
         uint32_t offset = addr - 0x7F2001u;
-        *value = (uint8_t)(h->event.event_script.instructions[(offset + 0u) / 1u] >> ((offset + 0u) % 1u * 8));
+        *value = h->event.event_script[offset];
         return;
     }
     case 118: {
@@ -51911,7 +51911,7 @@ static void place_write8(VarsHost *h, unsigned place, uint32_t addr, uint8_t val
     }
     case 117: {
         uint32_t offset = addr - 0x7F2001u;
-        h->event.event_script.instructions[(offset + 0u) / 1u] = (uint8_t)((h->event.event_script.instructions[(offset + 0u) / 1u] & ~((uint32_t)0xFFu << ((offset + 0u) % 1u * 8))) | (uint32_t)value << ((offset + 0u) % 1u * 8));
+        h->event.event_script[offset] = value;
         return;
     }
     case 118: {

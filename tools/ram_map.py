@@ -343,14 +343,20 @@ class Elements:
 
     def __init__(self, raw, where):
         self.name = None
+        self.whole = False
         if raw is None:
             return
-        if not isinstance(raw, dict) or set(raw) - {"name", "size", "start", "meaning"}:
+        if not isinstance(raw, dict) or set(raw) - {"name", "size", "start", "meaning", "whole"}:
             raise MapError("%s: elements needs name, size and meaning" % where)
         self.name = raw.get("name")
         self.size = raw.get("size")
         self.start = raw.get("start", 0)
         self.meaning = raw.get("meaning")
+        # The accessors take an element, not a byte: the ports read and write
+        # the buffer's elements at their own width.
+        self.whole = raw.get("whole", False)
+        if self.whole not in (False, True) or (self.whole and self.start):
+            raise MapError("%s: whole elements start at the buffer's first byte" % where)
         if (not isinstance(self.name, str) or not NAME.fullmatch(self.name) or
                 self.size not in (1, 2, 3, 4) or not isinstance(self.start, int) or
                 not 0 <= self.start < self.size or not self.meaning):
@@ -833,7 +839,10 @@ def access_units(v):
                         continue
                     unit = a.elements.size if a.elements.name else 1
                     skip = a.elements.start if a.elements.name else 0
-                    typed = bool(a.elements.name)
+                    # Elements wider than a byte type the buffer only where its
+                    # accessors move whole elements: a port that reads a word
+                    # element a byte at a time reads bytes.
+                    typed = bool(a.elements.name) and (a.elements.size == 1 or a.whole)
                     x = start - skip
                     while x < start + a.size:
                         yield max(x, start), min(x + unit, start + a.size), x, unit if typed else 0
@@ -1091,8 +1100,13 @@ class Accessor:
         # A table of rows is a byte by row and column, whatever its row's size.
         self.table = var.rows is not None
         self.blob = (self.size > WIDEST or (field and field.buffer)) and not self.table
-        self.name = (base + "_byte" if self.blob else base) + ("_unchecked" if unchecked else "")
-        self.type = "uint8_t" if self.blob or self.table else C_TYPE[self.size]
+        # A buffer of whole elements: its accessors take an element's index.
+        self.whole = self.blob and bool(self.elements.name) and self.elements.whole
+        if self.whole and self.size % self.elements.size:
+            raise MapError("%s: whole elements must divide the buffer" % base)
+        self.name = (base + "_byte" if self.blob and not self.whole else base) + ("_unchecked" if unchecked else "")
+        self.type = (C_TYPE[self.elements.size] if self.whole else
+                     "uint8_t" if self.blob or self.table else C_TYPE[self.size])
         # The unchecked pair shares the checked one's constants.
         named = not unchecked
         self.bytes_const = base.upper() + "_BYTES" if self.blob and named else None
@@ -1106,7 +1120,9 @@ class Accessor:
             out.append((self.var.page.handle_decl(), self.var.page.param()))
         if self.var.count > 1:
             out.append(("unsigned " + index_param(self.var.index), index_param(self.var.index)))
-        if self.blob:
+        if self.whole:
+            out.append(("unsigned item", "item"))
+        elif self.blob:
             out.append(("unsigned at", "at"))
         if self.table:
             out += [("unsigned row", "row"), ("unsigned column", "column")]
@@ -1127,7 +1143,9 @@ class Accessor:
             out = "0x%06Xu" % self.addr
         if self.var.count > 1:
             out += " + (uint32_t)%s * 0x%02Xu" % (index_param(self.var.index), self.var.stride)
-        if self.blob:
+        if self.whole:
+            out += " + (uint32_t)item * %du" % self.elements.size
+        elif self.blob:
             out += " + at"
         if self.table:
             out += " + (uint32_t)row * 0x%02Xu + column" % self.var.row_stride
@@ -1150,7 +1168,9 @@ class Accessor:
                 out.append((p.param() + ".index", "%s(%s)" % (page_count_name(p), p.param()), "instances"))
         if v.count > 1:
             out.append((index_param(v.index), "%du" % v.count, "count"))
-        if self.blob:
+        if self.whole:
+            out.append(("item", "%du" % (self.size // self.elements.size), self.elements.name))
+        elif self.blob:
             out.append(("at", "%du" % self.size, "bytes"))
         if self.table:
             out += [("row", "%du" % v.rows, "rows"), ("column", "%du" % self.size, "columns")]
@@ -1162,7 +1182,9 @@ class Accessor:
         if self.table:
             out = self.meaning + " [a byte by row and column]"
         else:
-            out = self.meaning + (" [%d bytes, one at a time]" % self.size if self.blob else "")
+            out = self.meaning + (" [%d %s of %d bytes, one at a time]" % (
+                self.size // self.elements.size, self.elements.name, self.elements.size) if self.whole else
+                " [%d bytes, one at a time]" % self.size if self.blob else "")
         if self.unchecked:
             out += " Unchecked, reaching past the variable into what follows it: %s" % self.var.unchecked
         return out
@@ -1459,6 +1481,8 @@ def element_member(a, member, byte):
 
 def width_of(a):
     """The bytes one access of an accessor moves."""
+    if a.whole:
+        return a.elements.size
     return 1 if a.blob or a.table else a.size
 
 
@@ -1529,7 +1553,7 @@ def render_host_accessor(a, ids, ov):
     claim = "    vars_host_claim(h, %s, %du, %s);" % (a.address(), width_of(a), ov.place(a)) if overlaid else None
     check = ("    if (!peeking)\n        vars_host_check(h, %s, %du, %s);" % (a.address(), width_of(a), ov.place(a))
              if overlaid else None)
-    width = 1 if a.blob or a.table else a.size
+    width = width_of(a)
     for write in (False, True):
         out += [a.signature(write), "{"]
         name = ("set_" if write else "") + a.name
@@ -1591,6 +1615,13 @@ def render_host_accessor(a, ids, ov):
         member = host_member(a, byte="column" if a.table else "at")
         if check and not write:
             out += [check]
+        if a.whole:
+            item = "%s.%s[item]" % (member, a.elements.name)
+            out += ["    %s = v;" % item if write else "    return %s;" % item]
+            if write and claim:
+                out += [claim]
+            out += ["}"]
+            continue
         if a.elements.name:
             byte = "column" if a.table else "at" if a.blob else "0u"
             if not write:

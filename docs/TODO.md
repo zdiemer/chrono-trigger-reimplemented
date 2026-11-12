@@ -2550,12 +2550,12 @@ persistence seams; game-side representation changes still need explicit work.
 - CI: the macOS job costs 10x minutes on a private repo.
 ## State records
 
-The live variables all have module-owned storage, 65 of them still blob-backed
+The live variables all have module-owned storage, 68 of them still blob-backed
 (`tools/ram_map.py storage --list`), and the big field, battle, character, menu
 and submitted-sprite records are declared in `re/ram.toml`; see
 [STATE.md](STATE.md). Remaining record design:
 
-- The 65 blob-backed variables (STATE.md, "Storage measure"): replace the 30
+- The 68 blob-backed variables (STATE.md, "Storage measure"): replace the 30
   shared views with an explicit hand-off at the mode change where the reader
   takes the other mode's value (`battle_message_item` writing event variable
   0's low byte is the simplest); work out the 10 byte-copied records' fields
@@ -2565,7 +2565,9 @@ and submitted-sprite records are declared in `re/ram.toml`; see
   layouts (a tagged union the generator lacks), the battle trail's low- and
   high-byte tables (a word owner over two addresses), and the window lines'
   edges, read as bytes and as words on hot paths, where one width changes the
-  work charges. The 19 tile-graphics and line-table buffers stay byte streams.
+  work charges; read the era-label tiles and the Mode 7 matrix shadow as
+  words. The event script and the 19 tile-graphics and line-table buffers stay
+  byte streams.
 - Unowned addresses in `runtime/port/state_host.c`: the address view reads the
   1,416 bytes no variable owns as 0, where the hardware's power-on value is
   $55, and drops writes that overrun into them. The audit that found no gameplay

@@ -3202,55 +3202,51 @@ void set_party_techs_unlocked(GameState *g, uint8_t v)
     h->core.party_techs_unlocked = v;
     vars_host_claim(h, 0x7F01E0u, 1u, 88u);
 }
-uint8_t tile_animation_tables_steps_byte(const GameState *g, unsigned slot, unsigned at)
+uint16_t tile_animation_tables_steps(const GameState *g, unsigned slot, unsigned item)
 {
-    IN_RANGE(g, 24, "tile_animation_tables_steps_byte", "count", slot, 12u);
-    IN_RANGE(g, 24, "tile_animation_tables_steps_byte", "bytes", at, 16u);
-    if (slot >= 12u || at >= 16u) { return r8(g, 0x7F0400u + (uint32_t)slot * 0x20u + at); }
+    IN_RANGE(g, 24, "tile_animation_tables_steps", "count", slot, 12u);
+    IN_RANGE(g, 24, "tile_animation_tables_steps", "steps", item, 8u);
+    if (slot >= 12u || item >= 8u) { return r16(g, 0x7F0400u + (uint32_t)slot * 0x20u + (uint32_t)item * 2u); }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
     if (!peeking)
-        vars_host_check(h, 0x7F0400u + (uint32_t)slot * 0x20u + at, 1u, 89u);
-    uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)(uint8_t)(h->core.tile_animation_tables[slot].steps.steps[((at + 0u) + 0u) / 2u] >> (((at + 0u) + 0u) % 2u * 8)) << 0);
-    return value;
+        vars_host_check(h, 0x7F0400u + (uint32_t)slot * 0x20u + (uint32_t)item * 2u, 2u, 89u);
+    return h->core.tile_animation_tables[slot].steps.steps[item];
 }
-void set_tile_animation_tables_steps_byte(GameState *g, unsigned slot, unsigned at, uint8_t v)
+void set_tile_animation_tables_steps(GameState *g, unsigned slot, unsigned item, uint16_t v)
 {
-    IN_RANGE(g, 24, "set_tile_animation_tables_steps_byte", "count", slot, 12u);
-    IN_RANGE(g, 24, "set_tile_animation_tables_steps_byte", "bytes", at, 16u);
-    if (slot >= 12u || at >= 16u) { w8(g, 0x7F0400u + (uint32_t)slot * 0x20u + at, v); return; }
+    IN_RANGE(g, 24, "set_tile_animation_tables_steps", "count", slot, 12u);
+    IN_RANGE(g, 24, "set_tile_animation_tables_steps", "steps", item, 8u);
+    if (slot >= 12u || item >= 8u) { w16(g, 0x7F0400u + (uint32_t)slot * 0x20u + (uint32_t)item * 2u, v); return; }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->core.tile_animation_tables[slot].steps.steps[((at + 0u) + 0u) / 2u] = (uint16_t)((h->core.tile_animation_tables[slot].steps.steps[((at + 0u) + 0u) / 2u] & ~((uint32_t)0xFFu << (((at + 0u) + 0u) % 2u * 8))) | (uint32_t)(uint8_t)(v >> 0) << (((at + 0u) + 0u) % 2u * 8));
-    vars_host_claim(h, 0x7F0400u + (uint32_t)slot * 0x20u + at, 1u, 89u);
+    h->core.tile_animation_tables[slot].steps.steps[item] = v;
+    vars_host_claim(h, 0x7F0400u + (uint32_t)slot * 0x20u + (uint32_t)item * 2u, 2u, 89u);
 }
-uint8_t tile_animation_tables_sources_byte(const GameState *g, unsigned slot, unsigned at)
+uint16_t tile_animation_tables_sources(const GameState *g, unsigned slot, unsigned item)
 {
-    IN_RANGE(g, 24, "tile_animation_tables_sources_byte", "count", slot, 12u);
-    IN_RANGE(g, 24, "tile_animation_tables_sources_byte", "bytes", at, 16u);
-    if (slot >= 12u || at >= 16u) { return r8(g, 0x7F0410u + (uint32_t)slot * 0x20u + at); }
+    IN_RANGE(g, 24, "tile_animation_tables_sources", "count", slot, 12u);
+    IN_RANGE(g, 24, "tile_animation_tables_sources", "sources", item, 8u);
+    if (slot >= 12u || item >= 8u) { return r16(g, 0x7F0410u + (uint32_t)slot * 0x20u + (uint32_t)item * 2u); }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
     if (!peeking)
-        vars_host_check(h, 0x7F0410u + (uint32_t)slot * 0x20u + at, 1u, 90u);
-    uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)(uint8_t)(h->core.tile_animation_tables[slot].sources.sources[((at + 0u) + 0u) / 2u] >> (((at + 0u) + 0u) % 2u * 8)) << 0);
-    return value;
+        vars_host_check(h, 0x7F0410u + (uint32_t)slot * 0x20u + (uint32_t)item * 2u, 2u, 90u);
+    return h->core.tile_animation_tables[slot].sources.sources[item];
 }
-void set_tile_animation_tables_sources_byte(GameState *g, unsigned slot, unsigned at, uint8_t v)
+void set_tile_animation_tables_sources(GameState *g, unsigned slot, unsigned item, uint16_t v)
 {
-    IN_RANGE(g, 24, "set_tile_animation_tables_sources_byte", "count", slot, 12u);
-    IN_RANGE(g, 24, "set_tile_animation_tables_sources_byte", "bytes", at, 16u);
-    if (slot >= 12u || at >= 16u) { w8(g, 0x7F0410u + (uint32_t)slot * 0x20u + at, v); return; }
+    IN_RANGE(g, 24, "set_tile_animation_tables_sources", "count", slot, 12u);
+    IN_RANGE(g, 24, "set_tile_animation_tables_sources", "sources", item, 8u);
+    if (slot >= 12u || item >= 8u) { w16(g, 0x7F0410u + (uint32_t)slot * 0x20u + (uint32_t)item * 2u, v); return; }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->core.tile_animation_tables[slot].sources.sources[((at + 0u) + 0u) / 2u] = (uint16_t)((h->core.tile_animation_tables[slot].sources.sources[((at + 0u) + 0u) / 2u] & ~((uint32_t)0xFFu << (((at + 0u) + 0u) % 2u * 8))) | (uint32_t)(uint8_t)(v >> 0) << (((at + 0u) + 0u) % 2u * 8));
-    vars_host_claim(h, 0x7F0410u + (uint32_t)slot * 0x20u + at, 1u, 90u);
+    h->core.tile_animation_tables[slot].sources.sources[item] = v;
+    vars_host_claim(h, 0x7F0410u + (uint32_t)slot * 0x20u + (uint32_t)item * 2u, 2u, 90u);
 }
 
 /* ---- data ---------------------------------------------------------------------------------- */
@@ -3807,9 +3803,7 @@ uint8_t event_script_byte(const GameState *g, unsigned at)
     const VarsHost *h = state_host_vars_const(g);
     if (!peeking)
         vars_host_check(h, 0x7F2001u + at, 1u, 117u);
-    uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)(uint8_t)(h->event.event_script.instructions[((at + 0u) + 0u) / 1u] >> (((at + 0u) + 0u) % 1u * 8)) << 0);
-    return value;
+    return h->event.event_script[at];
 }
 void set_event_script_byte(GameState *g, unsigned at, uint8_t v)
 {
@@ -3818,7 +3812,7 @@ void set_event_script_byte(GameState *g, unsigned at, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->event.event_script.instructions[((at + 0u) + 0u) / 1u] = (uint8_t)((h->event.event_script.instructions[((at + 0u) + 0u) / 1u] & ~((uint32_t)0xFFu << (((at + 0u) + 0u) % 1u * 8))) | (uint32_t)(uint8_t)(v >> 0) << (((at + 0u) + 0u) % 1u * 8));
+    h->event.event_script[at] = v;
     vars_host_claim(h, 0x7F2001u + at, 1u, 117u);
 }
 
@@ -21914,28 +21908,26 @@ void set_menu_front_tilemap(GameState *g, unsigned row, uint16_t v)
     h->menu.menu_front_tilemap[row] = v;
     vars_host_claim(h, 0x7E2E00u + (uint32_t)row * 0x02u, 2u, 617u);
 }
-uint8_t menu_save_slot_tilemap_byte(const GameState *g, unsigned at)
+uint16_t menu_save_slot_tilemap(const GameState *g, unsigned item)
 {
-    IN_RANGE(g, 236, "menu_save_slot_tilemap_byte", "bytes", at, 576u);
-    if (at >= 576u) { return r8(g, 0x7E3200u + at); }
+    IN_RANGE(g, 236, "menu_save_slot_tilemap", "tiles", item, 288u);
+    if (item >= 288u) { return r16(g, 0x7E3200u + (uint32_t)item * 2u); }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
     if (!peeking)
-        vars_host_check(h, 0x7E3200u + at, 1u, 618u);
-    uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)(uint8_t)(h->menu.menu_save_slot_tilemap.tiles[((at + 0u) + 0u) / 2u] >> (((at + 0u) + 0u) % 2u * 8)) << 0);
-    return value;
+        vars_host_check(h, 0x7E3200u + (uint32_t)item * 2u, 2u, 618u);
+    return h->menu.menu_save_slot_tilemap.tiles[item];
 }
-void set_menu_save_slot_tilemap_byte(GameState *g, unsigned at, uint8_t v)
+void set_menu_save_slot_tilemap(GameState *g, unsigned item, uint16_t v)
 {
-    IN_RANGE(g, 236, "set_menu_save_slot_tilemap_byte", "bytes", at, 576u);
-    if (at >= 576u) { w8(g, 0x7E3200u + at, v); return; }
+    IN_RANGE(g, 236, "set_menu_save_slot_tilemap", "tiles", item, 288u);
+    if (item >= 288u) { w16(g, 0x7E3200u + (uint32_t)item * 2u, v); return; }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_save_slot_tilemap.tiles[((at + 0u) + 0u) / 2u] = (uint16_t)((h->menu.menu_save_slot_tilemap.tiles[((at + 0u) + 0u) / 2u] & ~((uint32_t)0xFFu << (((at + 0u) + 0u) % 2u * 8))) | (uint32_t)(uint8_t)(v >> 0) << (((at + 0u) + 0u) % 2u * 8));
-    vars_host_claim(h, 0x7E3200u + at, 1u, 618u);
+    h->menu.menu_save_slot_tilemap.tiles[item] = v;
+    vars_host_claim(h, 0x7E3200u + (uint32_t)item * 2u, 2u, 618u);
 }
 uint16_t menu_back_tilemap(const GameState *g, unsigned row)
 {
@@ -22000,28 +21992,26 @@ void set_menu_text_tilemap(GameState *g, unsigned row, uint16_t v)
     h->menu.menu_text_tilemap[row] = v;
     vars_host_claim(h, 0x7E4E00u + (uint32_t)row * 0x02u, 2u, 621u);
 }
-uint8_t menu_equip_list_rows_byte(const GameState *g, unsigned at)
+uint16_t menu_equip_list_rows(const GameState *g, unsigned item)
 {
-    IN_RANGE(g, 240, "menu_equip_list_rows_byte", "bytes", at, 1152u);
-    if (at >= 1152u) { return r8(g, 0x7E4F80u + at); }
+    IN_RANGE(g, 240, "menu_equip_list_rows", "tiles", item, 576u);
+    if (item >= 576u) { return r16(g, 0x7E4F80u + (uint32_t)item * 2u); }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
     if (!peeking)
-        vars_host_check(h, 0x7E4F80u + at, 1u, 622u);
-    uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)(uint8_t)(h->menu.menu_equip_list_rows.tiles[((at + 0u) + 0u) / 2u] >> (((at + 0u) + 0u) % 2u * 8)) << 0);
-    return value;
+        vars_host_check(h, 0x7E4F80u + (uint32_t)item * 2u, 2u, 622u);
+    return h->menu.menu_equip_list_rows.tiles[item];
 }
-void set_menu_equip_list_rows_byte(GameState *g, unsigned at, uint8_t v)
+void set_menu_equip_list_rows(GameState *g, unsigned item, uint16_t v)
 {
-    IN_RANGE(g, 240, "set_menu_equip_list_rows_byte", "bytes", at, 1152u);
-    if (at >= 1152u) { w8(g, 0x7E4F80u + at, v); return; }
+    IN_RANGE(g, 240, "set_menu_equip_list_rows", "tiles", item, 576u);
+    if (item >= 576u) { w16(g, 0x7E4F80u + (uint32_t)item * 2u, v); return; }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_equip_list_rows.tiles[((at + 0u) + 0u) / 2u] = (uint16_t)((h->menu.menu_equip_list_rows.tiles[((at + 0u) + 0u) / 2u] & ~((uint32_t)0xFFu << (((at + 0u) + 0u) % 2u * 8))) | (uint32_t)(uint8_t)(v >> 0) << (((at + 0u) + 0u) % 2u * 8));
-    vars_host_claim(h, 0x7E4F80u + at, 1u, 622u);
+    h->menu.menu_equip_list_rows.tiles[item] = v;
+    vars_host_claim(h, 0x7E4F80u + (uint32_t)item * 2u, 2u, 622u);
 }
 uint8_t menu_era_label_tiles(const GameState *g, unsigned row, unsigned column)
 {
@@ -59491,30 +59481,28 @@ void set_scene_tasks_running(GameState *g, unsigned slot, uint16_t v)
     VarsHost *h = state_host_vars(g);
     h->scene.scene_tasks_running[slot] = v;
 }
-uint8_t scene_channels_registers_byte(const GameState *g, unsigned channel, unsigned at)
+uint16_t scene_channels_registers(const GameState *g, unsigned channel, unsigned item)
 {
-    IN_RANGE(g, 855, "scene_channels_registers_byte", "count", channel, 2u);
-    IN_RANGE(g, 855, "scene_channels_registers_byte", "bytes", at, 32u);
-    if (channel >= 2u || at >= 32u) { return r8(g, 0x7E0A00u + (uint32_t)channel * 0x100u + at); }
+    IN_RANGE(g, 855, "scene_channels_registers", "count", channel, 2u);
+    IN_RANGE(g, 855, "scene_channels_registers", "registers", item, 16u);
+    if (channel >= 2u || item >= 16u) { return r16(g, 0x7E0A00u + (uint32_t)channel * 0x100u + (uint32_t)item * 2u); }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
     if (!peeking)
-        vars_host_check(h, 0x7E0A00u + (uint32_t)channel * 0x100u + at, 1u, 2075u);
-    uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)(uint8_t)(h->scene.scene_channels[channel].registers.registers[((at + 0u) + 0u) / 2u] >> (((at + 0u) + 0u) % 2u * 8)) << 0);
-    return value;
+        vars_host_check(h, 0x7E0A00u + (uint32_t)channel * 0x100u + (uint32_t)item * 2u, 2u, 2075u);
+    return h->scene.scene_channels[channel].registers.registers[item];
 }
-void set_scene_channels_registers_byte(GameState *g, unsigned channel, unsigned at, uint8_t v)
+void set_scene_channels_registers(GameState *g, unsigned channel, unsigned item, uint16_t v)
 {
-    IN_RANGE(g, 855, "set_scene_channels_registers_byte", "count", channel, 2u);
-    IN_RANGE(g, 855, "set_scene_channels_registers_byte", "bytes", at, 32u);
-    if (channel >= 2u || at >= 32u) { w8(g, 0x7E0A00u + (uint32_t)channel * 0x100u + at, v); return; }
+    IN_RANGE(g, 855, "set_scene_channels_registers", "count", channel, 2u);
+    IN_RANGE(g, 855, "set_scene_channels_registers", "registers", item, 16u);
+    if (channel >= 2u || item >= 16u) { w16(g, 0x7E0A00u + (uint32_t)channel * 0x100u + (uint32_t)item * 2u, v); return; }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->scene.scene_channels[channel].registers.registers[((at + 0u) + 0u) / 2u] = (uint16_t)((h->scene.scene_channels[channel].registers.registers[((at + 0u) + 0u) / 2u] & ~((uint32_t)0xFFu << (((at + 0u) + 0u) % 2u * 8))) | (uint32_t)(uint8_t)(v >> 0) << (((at + 0u) + 0u) % 2u * 8));
-    vars_host_claim(h, 0x7E0A00u + (uint32_t)channel * 0x100u + at, 1u, 2075u);
+    h->scene.scene_channels[channel].registers.registers[item] = v;
+    vars_host_claim(h, 0x7E0A00u + (uint32_t)channel * 0x100u + (uint32_t)item * 2u, 2u, 2075u);
 }
 uint16_t scene_channels_script(const GameState *g, unsigned channel)
 {
@@ -59537,30 +59525,28 @@ void set_scene_channels_script(GameState *g, unsigned channel, uint16_t v)
     h->scene.scene_channels[channel].script = v;
     vars_host_claim(h, 0x7E0A20u + (uint32_t)channel * 0x100u, 2u, 2076u);
 }
-uint8_t scene_channels_loop_counters_byte(const GameState *g, unsigned channel, unsigned at)
+uint16_t scene_channels_loop_counters(const GameState *g, unsigned channel, unsigned item)
 {
-    IN_RANGE(g, 855, "scene_channels_loop_counters_byte", "count", channel, 2u);
-    IN_RANGE(g, 855, "scene_channels_loop_counters_byte", "bytes", at, 32u);
-    if (channel >= 2u || at >= 32u) { return r8(g, 0x7E0A22u + (uint32_t)channel * 0x100u + at); }
+    IN_RANGE(g, 855, "scene_channels_loop_counters", "count", channel, 2u);
+    IN_RANGE(g, 855, "scene_channels_loop_counters", "counters", item, 16u);
+    if (channel >= 2u || item >= 16u) { return r16(g, 0x7E0A22u + (uint32_t)channel * 0x100u + (uint32_t)item * 2u); }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
     if (!peeking)
-        vars_host_check(h, 0x7E0A22u + (uint32_t)channel * 0x100u + at, 1u, 2077u);
-    uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)(uint8_t)(h->scene.scene_channels[channel].loop_counters.counters[((at + 0u) + 0u) / 2u] >> (((at + 0u) + 0u) % 2u * 8)) << 0);
-    return value;
+        vars_host_check(h, 0x7E0A22u + (uint32_t)channel * 0x100u + (uint32_t)item * 2u, 2u, 2077u);
+    return h->scene.scene_channels[channel].loop_counters.counters[item];
 }
-void set_scene_channels_loop_counters_byte(GameState *g, unsigned channel, unsigned at, uint8_t v)
+void set_scene_channels_loop_counters(GameState *g, unsigned channel, unsigned item, uint16_t v)
 {
-    IN_RANGE(g, 855, "set_scene_channels_loop_counters_byte", "count", channel, 2u);
-    IN_RANGE(g, 855, "set_scene_channels_loop_counters_byte", "bytes", at, 32u);
-    if (channel >= 2u || at >= 32u) { w8(g, 0x7E0A22u + (uint32_t)channel * 0x100u + at, v); return; }
+    IN_RANGE(g, 855, "set_scene_channels_loop_counters", "count", channel, 2u);
+    IN_RANGE(g, 855, "set_scene_channels_loop_counters", "counters", item, 16u);
+    if (channel >= 2u || item >= 16u) { w16(g, 0x7E0A22u + (uint32_t)channel * 0x100u + (uint32_t)item * 2u, v); return; }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->scene.scene_channels[channel].loop_counters.counters[((at + 0u) + 0u) / 2u] = (uint16_t)((h->scene.scene_channels[channel].loop_counters.counters[((at + 0u) + 0u) / 2u] & ~((uint32_t)0xFFu << (((at + 0u) + 0u) % 2u * 8))) | (uint32_t)(uint8_t)(v >> 0) << (((at + 0u) + 0u) % 2u * 8));
-    vars_host_claim(h, 0x7E0A22u + (uint32_t)channel * 0x100u + at, 1u, 2077u);
+    h->scene.scene_channels[channel].loop_counters.counters[item] = v;
+    vars_host_claim(h, 0x7E0A22u + (uint32_t)channel * 0x100u + (uint32_t)item * 2u, 2u, 2077u);
 }
 uint16_t scene_channels_return_address(const GameState *g, unsigned channel)
 {
@@ -59723,28 +59709,26 @@ void set_scene_stars_down(GameState *g, unsigned i, uint8_t v)
     h->scene.scene_stars[i].down = v;
     vars_host_claim(h, 0x7E0C01u + (uint32_t)i * 0x04u, 1u, 2081u);
 }
-uint8_t scene_tilemap_buffer_byte(const GameState *g, unsigned at)
+uint16_t scene_tilemap_buffer(const GameState *g, unsigned item)
 {
-    IN_RANGE(g, 860, "scene_tilemap_buffer_byte", "bytes", at, 2048u);
-    if (at >= 2048u) { return r8(g, 0x7E0C00u + at); }
+    IN_RANGE(g, 860, "scene_tilemap_buffer", "tiles", item, 1024u);
+    if (item >= 1024u) { return r16(g, 0x7E0C00u + (uint32_t)item * 2u); }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
     if (!peeking)
-        vars_host_check(h, 0x7E0C00u + at, 1u, 2082u);
-    uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)(uint8_t)(h->scene.scene_tilemap_buffer.tiles[((at + 0u) + 0u) / 2u] >> (((at + 0u) + 0u) % 2u * 8)) << 0);
-    return value;
+        vars_host_check(h, 0x7E0C00u + (uint32_t)item * 2u, 2u, 2082u);
+    return h->scene.scene_tilemap_buffer.tiles[item];
 }
-void set_scene_tilemap_buffer_byte(GameState *g, unsigned at, uint8_t v)
+void set_scene_tilemap_buffer(GameState *g, unsigned item, uint16_t v)
 {
-    IN_RANGE(g, 860, "set_scene_tilemap_buffer_byte", "bytes", at, 2048u);
-    if (at >= 2048u) { w8(g, 0x7E0C00u + at, v); return; }
+    IN_RANGE(g, 860, "set_scene_tilemap_buffer", "tiles", item, 1024u);
+    if (item >= 1024u) { w16(g, 0x7E0C00u + (uint32_t)item * 2u, v); return; }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->scene.scene_tilemap_buffer.tiles[((at + 0u) + 0u) / 2u] = (uint16_t)((h->scene.scene_tilemap_buffer.tiles[((at + 0u) + 0u) / 2u] & ~((uint32_t)0xFFu << (((at + 0u) + 0u) % 2u * 8))) | (uint32_t)(uint8_t)(v >> 0) << (((at + 0u) + 0u) % 2u * 8));
-    vars_host_claim(h, 0x7E0C00u + at, 1u, 2082u);
+    h->scene.scene_tilemap_buffer.tiles[item] = v;
+    vars_host_claim(h, 0x7E0C00u + (uint32_t)item * 2u, 2u, 2082u);
 }
 uint8_t scene_twinkles_x(const GameState *g, unsigned i)
 {
@@ -60294,28 +60278,26 @@ void set_scene_race_picture_requests_source_limit(GameState *g, unsigned i, uint
     vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
     vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
-uint8_t scene_turn_output_map_byte(const GameState *g, unsigned at)
+uint16_t scene_turn_output_map(const GameState *g, unsigned item)
 {
-    IN_RANGE(g, 864, "scene_turn_output_map_byte", "bytes", at, 2048u);
-    if (at >= 2048u) { return r8(g, 0x7E1400u + at); }
+    IN_RANGE(g, 864, "scene_turn_output_map", "tiles", item, 1024u);
+    if (item >= 1024u) { return r16(g, 0x7E1400u + (uint32_t)item * 2u); }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
     if (!peeking)
-        vars_host_check(h, 0x7E1400u + at, 1u, 2088u);
-    uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)(uint8_t)(h->scene.scene_turn_output_map.tiles[((at + 0u) + 0u) / 2u] >> (((at + 0u) + 0u) % 2u * 8)) << 0);
-    return value;
+        vars_host_check(h, 0x7E1400u + (uint32_t)item * 2u, 2u, 2088u);
+    return h->scene.scene_turn_output_map.tiles[item];
 }
-void set_scene_turn_output_map_byte(GameState *g, unsigned at, uint8_t v)
+void set_scene_turn_output_map(GameState *g, unsigned item, uint16_t v)
 {
-    IN_RANGE(g, 864, "set_scene_turn_output_map_byte", "bytes", at, 2048u);
-    if (at >= 2048u) { w8(g, 0x7E1400u + at, v); return; }
+    IN_RANGE(g, 864, "set_scene_turn_output_map", "tiles", item, 1024u);
+    if (item >= 1024u) { w16(g, 0x7E1400u + (uint32_t)item * 2u, v); return; }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->scene.scene_turn_output_map.tiles[((at + 0u) + 0u) / 2u] = (uint16_t)((h->scene.scene_turn_output_map.tiles[((at + 0u) + 0u) / 2u] & ~((uint32_t)0xFFu << (((at + 0u) + 0u) % 2u * 8))) | (uint32_t)(uint8_t)(v >> 0) << (((at + 0u) + 0u) % 2u * 8));
-    vars_host_claim(h, 0x7E1400u + at, 1u, 2088u);
+    h->scene.scene_turn_output_map.tiles[item] = v;
+    vars_host_claim(h, 0x7E1400u + (uint32_t)item * 2u, 2u, 2088u);
 }
 uint8_t scene_credits_row_byte(const GameState *g, unsigned at)
 {
@@ -60649,28 +60631,26 @@ void set_scene_race_divisors(GameState *g, unsigned i, uint8_t v)
     h->scene.scene_race_divisors[i] = v;
     vars_host_claim(h, 0x7E1446u + (uint32_t)i * 0x01u, 1u, 2090u);
 }
-uint8_t scene_palette_byte(const GameState *g, unsigned at)
+uint16_t scene_palette(const GameState *g, unsigned item)
 {
-    IN_RANGE(g, 870, "scene_palette_byte", "bytes", at, 512u);
-    if (at >= 512u) { return r8(g, 0x7E2200u + at); }
+    IN_RANGE(g, 870, "scene_palette", "colors", item, 256u);
+    if (item >= 256u) { return r16(g, 0x7E2200u + (uint32_t)item * 2u); }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
     if (!peeking)
-        vars_host_check(h, 0x7E2200u + at, 1u, 2091u);
-    uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)(uint8_t)(h->scene.scene_palette.colors[((at + 0u) + 0u) / 2u] >> (((at + 0u) + 0u) % 2u * 8)) << 0);
-    return value;
+        vars_host_check(h, 0x7E2200u + (uint32_t)item * 2u, 2u, 2091u);
+    return h->scene.scene_palette.colors[item];
 }
-void set_scene_palette_byte(GameState *g, unsigned at, uint8_t v)
+void set_scene_palette(GameState *g, unsigned item, uint16_t v)
 {
-    IN_RANGE(g, 870, "set_scene_palette_byte", "bytes", at, 512u);
-    if (at >= 512u) { w8(g, 0x7E2200u + at, v); return; }
+    IN_RANGE(g, 870, "set_scene_palette", "colors", item, 256u);
+    if (item >= 256u) { w16(g, 0x7E2200u + (uint32_t)item * 2u, v); return; }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->scene.scene_palette.colors[((at + 0u) + 0u) / 2u] = (uint16_t)((h->scene.scene_palette.colors[((at + 0u) + 0u) / 2u] & ~((uint32_t)0xFFu << (((at + 0u) + 0u) % 2u * 8))) | (uint32_t)(uint8_t)(v >> 0) << (((at + 0u) + 0u) % 2u * 8));
-    vars_host_claim(h, 0x7E2200u + at, 1u, 2091u);
+    h->scene.scene_palette.colors[item] = v;
+    vars_host_claim(h, 0x7E2200u + (uint32_t)item * 2u, 2u, 2091u);
 }
 uint8_t scene_turn_party_bytes(const GameState *g, unsigned i)
 {
@@ -62879,28 +62859,26 @@ void set_scene_matrix_code(GameState *g, unsigned i, uint8_t v)
     h->scene.scene_matrix_code[i] = v;
     vars_host_claim(h, 0x7EB574u + (uint32_t)i * 0x01u, 1u, 2183u);
 }
-uint8_t scene_turn_saved_map_byte(const GameState *g, unsigned at)
+uint16_t scene_turn_saved_map(const GameState *g, unsigned item)
 {
-    IN_RANGE(g, 910, "scene_turn_saved_map_byte", "bytes", at, 2048u);
-    if (at >= 2048u) { return r8(g, 0x7EC800u + at); }
+    IN_RANGE(g, 910, "scene_turn_saved_map", "tiles", item, 1024u);
+    if (item >= 1024u) { return r16(g, 0x7EC800u + (uint32_t)item * 2u); }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
     if (!peeking)
-        vars_host_check(h, 0x7EC800u + at, 1u, 2184u);
-    uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)(uint8_t)(h->scene.scene_turn_saved_map.tiles[((at + 0u) + 0u) / 2u] >> (((at + 0u) + 0u) % 2u * 8)) << 0);
-    return value;
+        vars_host_check(h, 0x7EC800u + (uint32_t)item * 2u, 2u, 2184u);
+    return h->scene.scene_turn_saved_map.tiles[item];
 }
-void set_scene_turn_saved_map_byte(GameState *g, unsigned at, uint8_t v)
+void set_scene_turn_saved_map(GameState *g, unsigned item, uint16_t v)
 {
-    IN_RANGE(g, 910, "set_scene_turn_saved_map_byte", "bytes", at, 2048u);
-    if (at >= 2048u) { w8(g, 0x7EC800u + at, v); return; }
+    IN_RANGE(g, 910, "set_scene_turn_saved_map", "tiles", item, 1024u);
+    if (item >= 1024u) { w16(g, 0x7EC800u + (uint32_t)item * 2u, v); return; }
     if (!peeking)
-        state_host_game_access(g, 8);
+        state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->scene.scene_turn_saved_map.tiles[((at + 0u) + 0u) / 2u] = (uint16_t)((h->scene.scene_turn_saved_map.tiles[((at + 0u) + 0u) / 2u] & ~((uint32_t)0xFFu << (((at + 0u) + 0u) % 2u * 8))) | (uint32_t)(uint8_t)(v >> 0) << (((at + 0u) + 0u) % 2u * 8));
-    vars_host_claim(h, 0x7EC800u + at, 1u, 2184u);
+    h->scene.scene_turn_saved_map.tiles[item] = v;
+    vars_host_claim(h, 0x7EC800u + (uint32_t)item * 2u, 2u, 2184u);
 }
 uint8_t scene_race_plane_column_byte(const GameState *g, unsigned at)
 {

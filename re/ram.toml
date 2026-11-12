@@ -49,9 +49,11 @@
 #       one takes over at another time (the map's data, decompressed where the tiles' looks go
 #       once it is unpacked), which the overlap check otherwise refuses.
 #       `buffer = true` preserves a serialized byte API even at narrow widths.
-#       `elements = { name, size, meaning, [start] }` gives a buffer its typed
+#       `elements = { name, size, meaning, [start], [whole] }` gives a buffer its typed
 #       game elements. start is the initial byte within a split element.
-#       Without elements, byte buffers remain untyped in the storage measure.
+#       Without elements, byte buffers remain untyped in the storage measure; so do
+#       elements wider than a byte unless `whole = true` makes the accessors take an
+#       element index at the element's width (no byte accessor).
 #       `host_blob` explains opaque byte-indexed storage with scalar public accessors.
 #       The storage report separates typed, blob-backed and image-backed variables.
 #       `same_value = true`, beside host_alias, says the alias is another name for
@@ -1671,7 +1673,7 @@ source = "the cartridge format and docs/STATE.md's parser table; game/scene/titl
 
 [[var.field]]
 name = "registers"
-elements = { name = "registers", size = 2, meaning = "A script register, a word." }
+elements = { name = "registers", size = 2, whole = true, meaning = "A script register, a word." }
 offset = 0
 size = 32
 meaning = "Sixteen word registers the script commands $00-$7F assign and add; channel 0's $0A02/$0A04 are the Mode 7 plane's scroll in the pendulum scene"
@@ -1684,7 +1686,7 @@ meaning = "Pointer to the channel's next script command in bank $7E; a store to 
 
 [[var.field]]
 name = "loop_counters"
-elements = { name = "counters", size = 2, meaning = "A loop command's counter, a word (the eighth the return address)." }
+elements = { name = "counters", size = 2, whole = true, meaning = "A loop command's counter, a word (the eighth the return address)." }
 offset = 34
 size = 32
 meaning = "Counters of the loop commands $80-$9F, a word each at $22 + 2n (n = 7 is the return address)"
@@ -1702,7 +1704,7 @@ host_module = "scene"
 overlays = ["field_object_animation_link_values", "field_object_character_values", "field_object_frame_drawn_values", "field_object_frame_staging_values", "field_object_frames_address_values", "field_object_frames_bank_values", "field_object_graphics_address_values", "field_object_graphics_bank_values", "field_object_in_view_values", "field_object_palette_values", "field_object_priority_mode_values", "field_object_role_values", "field_object_row_link_values", "field_object_row_mark_values", "field_object_script_link_values", "field_object_sprite_layout_values", "field_object_sprite_priority_values", "field_object_sprite_tiles_values", "field_object_static_frame_values", "field_object_step_length_values", "field_object_turn_countdown_values", "menu_objects_after_channels_part_1_remainder_1", "menu_objects_after_channels_part_1_remainder_2", "menu_objects_after_channels_part_2_remainder_1", "menu_objects_after_channels_part_6_remainder_1", "menu_objects_after_channels_part_6_remainder_2", "menu_objects_after_channels_part_6_remainder_3", "menu_objects_after_channels_part_8_remainder_1", "menu_objects_after_channels_part_8_remainder_2", "menu_objects_after_channels_part_8_remainder_3"]
 addr = "7E:0C00"
 size = 2048
-elements = { name = "tiles", size = 2, meaning = "Tilemap entries: tile number, palette, priority and flips (in the title's BG3 rows, a column's offset)." }
+elements = { name = "tiles", size = 2, whole = true, meaning = "Tilemap entries: tile number, palette, priority and flips (in the title's BG3 rows, a column's offset)." }
 subsystem = "scene"
 meaning = "Tilemap the scene builds in work RAM for vblank. In the title, its first $80 bytes are BG3's first two rows, which in BG mode 2 hold the columns' horizontal and vertical offsets: each frame the vertical ones ($0C40-$0C7F) move a column to the right and go to VRAM $7000, which makes the ripple. In the race, all $800 go to whichever half of the racers' tilemap is ready"
 source = "game/scene/title.c, upload_ripple $7E:6212; game/scene/race.c, scene_race_upload_tilemap $7E:5221, clear_race_buffers $7E:3C09; game/scene/title.c, ripple_columns $7E:5FFE"
@@ -1758,7 +1760,7 @@ host_module = "scene"
 overlays = "palette_working"
 addr = "7E:2200"
 size = 0x200
-elements = { name = "colors", size = 2, meaning = "A CGRAM colour word." }
+elements = { name = "colors", size = 2, whole = true, meaning = "A CGRAM colour word." }
 subsystem = "scene"
 meaning = "The scene's working palette, 256 colors, sent to CGRAM"
 source = "game/scene/screen.c, scene_send_palette $7E:388B"
@@ -8001,7 +8003,6 @@ source = "emulator-oracle:game:event:bridge.c $C0:58DE; tools/movies/addresses.p
 
 [[var]]
 name = "event_script"
-elements = { name = "instructions", size = 1, meaning = "Encoded event opcodes and operands in the loaded script stream." }
 host_module = "event"
 overlays = ["event_script_storage", "field_auto_scroll", "field_auto_scroll_accumulator_values", "field_auto_scroll_position_values", "field_auto_scroll_speed_values", "field_bg1_scroll_position_values", "field_color_math_layers_override", "field_object_sprite_high", "field_object_sprite_high_last", "field_object_sprite_high_more", "menu_loaded_palette", "scene_plane_line_above_a", "scene_plane_line_above_d", "scene_planet_tiles_left", "warp_circle_half_widths", "warp_circle_window_list_values", "warp_circle_windows", "warp_plane_centres_values", "warp_plane_lists_values", "warp_plane_matrix_first_row_values", "warp_plane_matrix_second_row_values", "warp_plane_scrolls_values"]
 addr = "7F:2001"
@@ -8474,13 +8475,13 @@ meaning = "Per-slot animation tables of the animated background tiles"
 source = "game/core/tile_animation.c, tile_animations_send $FD:E022"
   [[var.field]]
   name = "steps"
-  elements = { name = "steps", size = 2, meaning = "A frame's accumulator step." }
+  elements = { name = "steps", size = 2, whole = true, meaning = "A frame's accumulator step." }
   offset = 0
   size = 0x10
   meaning = "Accumulator step for each of the eight frames, one word per frame"
   [[var.field]]
   name = "sources"
-  elements = { name = "sources", size = 2, meaning = "Where a frame's tiles come from in their bank." }
+  elements = { name = "sources", size = 2, whole = true, meaning = "Where a frame's tiles come from in their bank." }
   offset = 0x10
   size = 0x10
   meaning = "Source address of each of the eight frames' tiles, one word per frame"
@@ -11959,7 +11960,7 @@ host_module = "menu"
 overlays = ["field_map_rows_before_combatants_part_2", "field_tile_properties"]
 addr = "7E:3200"
 size = 0x240
-elements = { name = "tiles", size = 2, meaning = "Tilemap entries: tile number, palette, priority and flips." }
+elements = { name = "tiles", size = 2, whole = true, meaning = "Tilemap entries: tile number, palette, priority and flips." }
 subsystem = "menu"
 meaning = "The tilemap buffer the load screen draws a save slot's contents into, three member rows $C0 bytes apart"
 source = "game/menu/save_screen.c, menu_show_save_slot_with $C2:E743, $C2:D36C"
@@ -12564,7 +12565,7 @@ overlays = ["field_map_rows_before_combatants_part_14", "field_map_rows_before_c
 addr = "7E:4F80"
 reuses = ["menu_era_label_tiles", "menu_carry_on_question"]
 size = 0x480
-elements = { name = "tiles", size = 2, meaning = "Tilemap entries: tile number, palette, priority and flips." }
+elements = { name = "tiles", size = 2, whole = true, meaning = "Tilemap entries: tile number, palette, priority and flips." }
 subsystem = "menu"
 meaning = "The equipment screen's list of what fits in BG3's tilemap buffer: its rows, two tile rows apart, and the row past the last where a slide draws the row coming in"
 source = "game/menu/equipment.c, the list's rows moved $C2:9FDE"
@@ -27730,7 +27731,7 @@ source = "game/battle/script_moves.c jump $C1:6299; game/battle/objects.c battle
 
 [[var]]
 name = "scene_turn_saved_map"
-elements = { name = "tiles", size = 2, meaning = "Tilemap entries: tile number, palette, priority and flips." }
+elements = { name = "tiles", size = 2, whole = true, meaning = "Tilemap entries: tile number, palette, priority and flips." }
 host_module = "scene"
 overlays = ["battle_alternate_apply", "battle_alternate_base", "battle_alternate_latched", "battle_alternate_request", "battle_alternate_toggle_held", "battle_background", "battle_background_restore_request", "battle_background_ripple", "battle_band_fade", "battle_battlefield_kept_word", "battle_battlefield_layout_values", "battle_battlefield_scripts", "battle_battlefield_tiles_replaced", "battle_block_upload_request", "battle_block_upload_row", "battle_block_upload_source", "battle_block_uploaded_pad", "battle_block_uploaded_row", "battle_block_uploaded_source", "battle_buttons_held", "battle_circle_drawn", "battle_column_band_half_height", "battle_column_band_left", "battle_cut_angle", "battle_cut_ends_values", "battle_cut_run", "battle_cut_steps", "battle_dissolve_frames", "battle_dissolve_pace", "battle_dissolve_place", "battle_effect_graphics_block", "battle_effect_graphics_effect", "battle_effect_graphics_id", "battle_effect_graphics_list", "battle_effect_graphics_loading", "battle_effect_graphics_vram", "battle_effect_graphics_wanted", "battle_effect_line_wait_off", "battle_ended_effect_object", "battle_fixed_color", "battle_frame_advance_count", "battle_frame_advance_count_high", "battle_frame_work_reduced", "battle_gradient_colors", "battle_gradient_fade_frames", "battle_gradient_fading", "battle_gradient_frame_mask", "battle_gradient_level", "battle_gradient_level_override", "battle_gradient_level_shown", "battle_gradient_phase", "battle_gradient_reversed", "battle_graphics_load_in_vblank", "battle_keep_sprites", "battle_kept_row_colors", "battle_line_effects_on", "battle_line_scroll_layers", "battle_line_sway", "battle_line_wave_phase", "battle_map_cycle", "battle_map_strip_step", "battle_message_asked", "battle_message_by_id", "battle_message_by_id_high", "battle_message_drawing", "battle_message_frames", "battle_message_opening", "battle_message_shown", "battle_message_timed", "battle_nmi_pending", "battle_palette_pause_request", "battle_palette_paused", "battle_palette_preset_request", "battle_palette_rows_moved", "battle_palette_slot_presets_values", "battle_pause_blocked", "battle_pause_held", "battle_paused", "battle_repeat_buttons", "battle_repeat_delay", "battle_restore_keeps_screen", "battle_ripple_frames", "battle_saved_direct_page", "battle_saved_palette_types", "battle_screen_background_colors", "battle_screen_channels_values", "battle_screen_circle_kind", "battle_screen_circle_radius", "battle_screen_circle_x", "battle_screen_circle_y", "battle_screen_direction", "battle_screen_kept_word", "battle_screen_layer_mask", "battle_screen_layer_values", "battle_screen_loop_count", "battle_screen_loop_place", "battle_screen_orbit_growth", "battle_screen_palette_stop_count", "battle_screen_return_place", "battle_screen_swing_position", "battle_screen_swing_speed", "battle_screen_swing_step", "battle_screen_wave_step", "battle_script_sound", "battle_script_sound_pan", "battle_script_sound_request", "battle_scroll_mode", "battle_setup_flags_copy", "battle_shake_layers", "battle_shake_offsets", "battle_shake_values", "battle_shape_angles", "battle_shape_center_x", "battle_shape_center_y", "battle_shape_corners", "battle_shape_depth", "battle_shape_point", "battle_shape_point_high", "battle_shape_radii", "battle_shape_scale_x", "battle_shape_scale_y", "battle_shape_size", "battle_shape_turned_point", "battle_shape_turns", "battle_short_window_scroll_values", "battle_sprites_frozen_setting", "battle_start_cleared", "battle_start_cleared_byte", "battle_start_layout", "battle_tile_row_palettes", "battle_tile_rows_end", "battle_tile_rows_next", "battle_tile_rows_slot", "battle_vram_alternate", "battle_vram_copy_mode", "battle_vram_request_busy", "battle_vram_request_values", "battle_vram_send_last", "battle_vram_send_left", "battle_window_lines_values", "battle_window_quad_index", "battle_window_quads", "battle_window_registers", "battle_window_slide", "battle_window_slide_frames", "battle_window_steps", "field_layer_staging_head"]
 addr = "7E:C800"
@@ -27742,7 +27743,7 @@ source = "game/scene/turning.c and game/scene/rising_palace.c, mode 5 map"
 
 [[var]]
 name = "scene_turn_output_map"
-elements = { name = "tiles", size = 2, meaning = "Tilemap entries: tile number, palette, priority and flips." }
+elements = { name = "tiles", size = 2, whole = true, meaning = "Tilemap entries: tile number, palette, priority and flips." }
 host_module = "scene"
 overlays = ["field_object_accelerating_values", "field_object_acceleration_values", "field_object_animation_frame_values", "field_object_animation_mode_values", "field_object_colours_values", "field_object_counted_move_values", "field_object_delay_table_values", "field_object_facing_table_size_values", "field_object_facing_values", "field_object_frame_delay_values", "field_object_frame_table_values", "field_object_looped_animation_values", "field_object_one_off_animation_values", "field_object_solid_values", "field_object_speed_values", "field_object_sprite_flag_values", "field_object_sprite_records_values", "field_object_sprite_state_values", "field_object_steps_left_values", "field_object_velocity_x_values", "field_object_velocity_y_values", "field_object_x_values", "field_object_y_values"]
 addr = "7E:1400"

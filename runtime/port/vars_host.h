@@ -1427,7 +1427,7 @@ typedef struct {
     uint8_t event_call_waiting[64];
     uint16_t event_object_result[64];
     uint8_t event_object_count;
-    struct { uint8_t instructions[57343]; } event_script;
+    uint8_t event_script[57343];
     struct {
         uint8_t level;
         uint8_t refusing;

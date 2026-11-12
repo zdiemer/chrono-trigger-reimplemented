@@ -105,9 +105,7 @@ bool scene_turn_map(GameState *g)
     for (unsigned y = 0; y < rows; y++) {
         for (unsigned x = 0; x < MAP_COLUMNS; x++) {
             sample = rounded_map_sample(&transform, y, x);
-            unsigned output = y * MAP_ROW_BYTES + 2 * x;
-            set_scene_turn_output_map_byte(g, output, scene_tilemap_buffer_byte(g, sample.tile_byte));
-            set_scene_turn_output_map_byte(g, output + 1, scene_tilemap_buffer_byte(g, sample.tile_byte + 1));
+            set_scene_turn_output_map(g, y * MAP_COLUMNS + x, scene_tilemap_buffer(g, sample.tile_byte / 2));
         }
     }
     set_scene_map_pending_count(g, (uint16_t)(scene_map_pending_count(g) + 1));

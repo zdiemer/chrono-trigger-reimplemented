@@ -293,8 +293,8 @@ enum { SLOT_TILEMAP_BYTES = 0x240, ERA_LABEL_ROWS = 2, ERA_LABEL_ROW_BYTES = 0x1
 
 static void clear_slot_tilemap(GameState *g)
 {
-    for (unsigned i = 0; i < SLOT_TILEMAP_BYTES; i++)
-        set_menu_save_slot_tilemap_byte(g, i, 0);
+    for (unsigned i = 0; i < SLOT_TILEMAP_BYTES / 2; i++)
+        set_menu_save_slot_tilemap(g, i, 0);
     for (unsigned row = 0; row < ERA_LABEL_ROWS; row++)
         for (unsigned i = 0; i < ERA_LABEL_ROW_BYTES; i++)
             set_menu_era_label_tiles(g, row, i, 0);

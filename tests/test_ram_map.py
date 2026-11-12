@@ -132,7 +132,8 @@ host_module = "field"
 elements = { name = "entries", size = 2, start = 1, meaning = "Tilemap entries." }
 ''')
         m = ram_map.RamMap(text=text)
-        self.assertEqual(ram_map.storage_counts(m), (0, 0, 1))
+        # Word elements read a byte at a time are bytes to the measure.
+        self.assertEqual(ram_map.storage_counts(m), (0, 1, 0))
         h = ram_map.render_host_header(m)
         self.assertIn("struct { uint16_t entries[3]; } tiles;", h)
         c = ram_map.render_host_backing(m)
@@ -144,6 +145,22 @@ elements = { name = "entries", size = 2, start = 1, meaning = "Tilemap entries."
                          ('meaning = "Tilemap entries."', 'meaning = ""')]:
             with self.subTest(new=new), self.assertRaises(ram_map.MapError):
                 ram_map.RamMap(text=text.replace(old, new))
+
+    def test_whole_elements_are_read_at_their_own_width(self):
+        """A labelled buffer wider than a byte counts as typed only when its
+        accessors move whole elements; the byte accessor goes away."""
+        text = var("tiles", 'addr = "7E:1000"\nsize = 6\nhost_module = "field"\n'
+                            'elements = { name = "entries", size = 2, whole = true, meaning = "Tilemap entries." }')
+        m = ram_map.RamMap(text=text)
+        self.assertEqual(ram_map.storage_counts(m), (0, 0, 1))
+        h = ram_map.render_vars_header(m)
+        self.assertIn("uint16_t tiles(const GameState *g, unsigned item);", h)
+        self.assertNotIn("tiles_byte", h)
+        self.assertIn("return h->field.tiles.entries[item];", ram_map.render_backing(m))
+        with self.assertRaises(ram_map.MapError):
+            ram_map.RamMap(text=text.replace("size = 6", "size = 5"))
+        with self.assertRaises(ram_map.MapError):
+            ram_map.RamMap(text=text.replace("whole = true", "whole = true, start = 1"))
 
     def test_single_record_can_own_an_array_member(self):
         text = var("line_values", '''addr = "7E:1000"

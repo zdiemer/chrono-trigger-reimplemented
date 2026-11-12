@@ -1,7 +1,7 @@
 # Native state storage
 
-Every live map variable has module-owned C storage, and 2,148 of the 2,213 have
-typed storage; the other 65 are still blob-backed. `GameState` has no work-RAM
+Every live map variable has module-owned C storage, and 2,145 of the 2,213 have
+typed storage; the other 68 are still blob-backed. `GameState` has no work-RAM
 image; the generated address view serializes the owning fields directly. Generated
 files come only from `tools/ram_map.py` and `re/ram.toml`.
 
@@ -19,31 +19,36 @@ read out of half a word element); and a reader buffer that declares no elements
 of its own, since a label on the owner does not type bytes nothing says the
 meaning of. The rule holds for aliases too: a mode that reads memory the
 original reuses at another mode's widths is blob-backed, though the bytes sit
-in typed C fields. `storage --list` names each blob-backed variable and the
+in typed C fields. Elements wider than a byte type a buffer only where its
+accessors move whole elements (`elements.whole`, accessors that take an
+element's index and no byte accessor): a port that reads a word a byte at a
+time reads bytes. `storage --list` names each blob-backed variable and the
 owner fields it depends on.
 
 | Module | Blob-backed | Typed / total |
 |---|---:|---:|
 | battle | 21 | 901 / 922 |
-| menu | 18 | 444 / 462 |
+| menu | 19 | 443 / 462 |
 | field | 10 | 289 / 299 |
-| menu_object | 5 | 34 / 39 |
+| menu_object | 6 | 33 / 39 |
 | scene | 4 | 336 / 340 |
 | core | 3 | 59 / 62 |
 | warp | 3 | 18 / 21 |
-| event | 1 | 18 / 19 |
+| event | 2 | 17 / 19 |
 | overworld | 0 | 41 / 41 |
 | data | 0 | 8 / 8 |
-| all | 65 | 2,148 / 2,213 |
+| all | 68 | 2,145 / 2,213 |
 
 Before overlays every mode read another's owner fields at its own widths
 (725 blob-backed); 632 owners then got fields of their own beside other
 modes' (see "Overlays"), which left 153. Of those, own fields beside the
 bytes they reuse went to 36 same-mode views (scene scratch, menu cursors,
 the field's map header, the battle screen's orbits); buffers whose meaning
-has elements declare them (names, credit and era-label tiles, timers, tech
-parts, story-flag copies, the event script, the scene channels' registers and
-the turning scene's maps), the field's layer edge runs are word arrays and the
+has elements declare them (names, credit tiles, timers, tech parts and
+story-flag copies a byte each; the scene channels' registers and loop
+counters, the tile animations' steps and sources, the scenes' tilemap buffer,
+palette and turning maps and two menu tilemaps as words, read and written a
+word at a time), the field's layer edge runs are word arrays and the
 window shadows of the field and the menu object mode have named fields; the
 scroll bar's thumb, the overworld's exit arrival, the demo battle's action
 records, the text drawer's number and the menus' window edges are read
@@ -51,10 +56,11 @@ through their owners; the scenes and the field write the sprite table through
 the core's records (`core/sprite_table.c`) instead of byte copies of it; and
 20 declarations that nothing read or wrote, by accessor or address (scratch
 the original's routines kept last values in, which the reconstruction had
-retired), were deleted. The 65 left, by `storage --list`, are honestly blobs
+retired), were deleted. The 68 left, by `storage --list`, are honestly blobs
 until their work is done:
 
-- 19 buffers in a hardware format, kept as the byte streams they are: tile
+- 20 buffers in a hardware or script format, kept as the byte streams they
+  are: the loaded event script (opcodes and operands of mixed widths), tile
   graphics in the planar format the uploads send (the menus' number and map
   tiles, the warp's light, the field's figure, frame and BG3 tiles, the
   race's scaler output and road strip, the battle message's tiles), and
@@ -65,7 +71,9 @@ until their work is done:
   record and its tail, the items set aside, the battle's saved shapes and
   draw work, the text page's arguments, and the field's sprite records and
   frame data, which the game reaches by byte offset.
-- 6 record views at two widths: the characters' and combatants' records as
+- 8 record views at two widths: the load screen's era-label tiles (a table of
+  tile words its clear writes a byte at a time), the menu object mode's Mode 7
+  matrix (whose parameters' high bytes are set alone), the characters' and combatants' records as
   bytes (`character_records`, `battle_stats`, used by stat operands and the
   save), a palette animation's bytes 6-8 (a frame pointer or a fade's mode,
   level and target, by its kind: one record, two layouts), the battle trail's
