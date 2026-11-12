@@ -1,7 +1,6 @@
 # Exact route or route:phase # observed reason. Full routes do not exempt their fast prefixes.
 # Hand-run routes retain the exclusions described by HAND_RUN_ROUTES in suite.py.
 beyond_time # The ending continuation exceeded six hours searching Leene's Bell plaza ($051), last reported frame 81750; both final battles were won. Power-on stack replay dominates the search. Shipping completes at frame 107048; the form2 prefix remains gated. See TODO.md.
-epoch_lavos # The event memory-peek command reads sound status at $00:2142 through the RAM accessor; native returns zero and never starts the dive (frame 9587, scene $02). Shipping reaches Lavos at frame 7762; see TODO.md.
 motherbrain # Power-on slot replay consumed six CPU hours in Geno Dome's escort-pod charge search; last completed frame 44933, pod flag still clear. Shipping completes at frame 155522. This is a search-cost limit, not a demonstrated unreachable pod; see TODO.md.
 nizbel_ii # Power-on slot replay consumed six CPU hours after the maze and lower-hall ambushes, searching toward the door switch ($12A); last completed probe frame 66706. Shipping completes at frame 132380. No gameplay assertion failed before the time limit; see TODO.md.
 son_of_sun # The flight helper's fixed coast leaves native X at 536 rather than shipping's 544; landing east of the palace never begins (frame 5794, travel mode 2). Shipping completes at frame 18206. Resolve the state-based landing approach; see TODO.md.

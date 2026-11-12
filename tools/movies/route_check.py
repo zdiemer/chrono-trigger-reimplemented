@@ -91,7 +91,11 @@ def run_stamp(route, mode, rom, drive):
     """What a run's checkpoints are only good for: the route, the mode, the
     build and ROM that played them, and the route's script and runner that
     chose its inputs."""
-    from .ctdrv import DEFAULT_DRIVE, DEFAULT_NATIVE_DRIVE
+    if __package__:
+        from .ctdrv import DEFAULT_DRIVE, DEFAULT_NATIVE_DRIVE
+    else:  # run as a file, tools/movies/route_check.py
+        sys.path.insert(0, REPO)
+        from tools.movies.ctdrv import DEFAULT_DRIVE, DEFAULT_NATIVE_DRIVE
     drive = drive or (os.environ.get("CT_NATIVE_DRIVE") or DEFAULT_NATIVE_DRIVE if mode[0] == "native"
                       else os.environ.get("CT_DRIVE") or DEFAULT_DRIVE)
     rom = rom or os.environ.get("CT_ROM") or os.path.join(REPO, "roms/ct-usa.sfc")
