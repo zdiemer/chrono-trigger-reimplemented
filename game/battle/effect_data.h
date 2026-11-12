@@ -36,19 +36,6 @@ typedef struct {
 
 typedef enum { ENEMY_ATTACKS, ENEMY_TECHS } ActionTable;
 
-/* $CC:88CA and $CC:6FCA, a record an attack or a tech by number. */
-static inline uint32_t action_record_place(ActionTable table, uint8_t number)
-{
-    return (table == ENEMY_ATTACKS ? 0xCC88CAu : 0xCC6FCAu) + (uint32_t)(number * ACTION_RECORD_BYTES);
-}
-
-static inline ActionRecord action_record(const GameState *g, ActionTable table, uint8_t number)
-{
-    uint32_t at = action_record_place(table, number);
-    return (ActionRecord){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 4),
-                           rom_read8(g, at + 7) };
-}
-
 /* ---- An effect ----------------------------------------------------------------------------- */
 
 enum { EFFECT_RECORD_BYTES = 12, NO_EFFECT = 0xFF };
@@ -75,10 +62,7 @@ typedef enum {
  * that can't miss, a barrier and a shield passed; a hit's chances of a status
  * and to steal. The second: the attacker's weapon's modifier as well, and the
  * defence scaled by quarters. */
-enum {
-    EFFECT_STEALS = 0x02, EFFECT_GIVES_STATUS = 0x04, EFFECT_CANT_BE_TURNED_AWAY = 0x10, EFFECT_CANT_MISS = 0x20,
-    EFFECT_PASSES_BARRIER = 0x40, EFFECT_PASSES_SHIELD = 0x80,
-};
+enum { EFFECT_STEALS = 0x02, EFFECT_GIVES_STATUS = 0x04, EFFECT_CANT_BE_TURNED_AWAY = 0x10, EFFECT_CANT_MISS = 0x20, EFFECT_PASSES_BARRIER = 0x40, EFFECT_PASSES_SHIELD = 0x80,  };
 enum { EFFECT_WITH_WEAPON_MODIFIER = 0x80, EFFECT_DEFENCE_QUARTERS = 0x03 };
 
 /* What a cure does: bit 7 revives, bit 6 heals as well; a healing's multiple
@@ -106,6 +90,105 @@ typedef struct {
     uint8_t kinds_turned_away;                            /* the target kinds (STAT_KIND) that turn a hit away */
     uint8_t misses;                                       /* bit 7 the attacker's miss shows, bit 6 the dodge */
 } EffectRecord;
+
+/* ---- The party's techs ---------------------------------------------------------------------- */
+
+/* A party tech is a record of eleven bytes ($CC:1BEB): which members perform
+ * it, its flags, how it marks those it acts on and its elements, and up to
+ * three parts, each an effect of the party's table ($CC:213F, records as the
+ * enemies' are) with a modifier. A single tech has one part, a combination
+ * tech one for each member. */
+enum { PARTY_TECH_BYTES = 11, PARTY_TECH_PARTS = 3, NO_PART = 0x80 };
+
+/* The flags: its effects can't miss, nor be turned away (EFFECT_CANT_MISS and
+ * EFFECT_CANT_BE_TURNED_AWAY, a place lower), and the hits' numbers added
+ * up as an enemy's action adds them (ACTION_HITS_ADDED). */
+enum { TECH_CANT_MISS = 0x40, TECH_CANT_BE_TURNED_AWAY = 0x20 };
+
+typedef struct {
+    uint8_t members;                     /* the members' record ($CC:249F), the low seven bits */
+    uint8_t flags;
+    uint8_t marks;                       /* how those it acts on have it recorded as acting on them */
+    uint8_t elements;
+    uint8_t effects[PARTY_TECH_PARTS];   /* each part's effect; NO_PART set, no part */
+    uint8_t modifiers[PARTY_TECH_PARTS];
+} PartyTech;
+
+/* $CC:249F: the characters who perform a tech, three bytes a record ($FF past
+ * them). */
+enum { TECH_MEMBERS = 3, NO_MEMBER = 0xFF };
+
+/* $CC:1ACB: two bytes a tech for its record in the member's tech list: a
+ * byte the menu copies (not worked out), and its flags' low six bits. */
+typedef struct {
+    uint8_t detail, flags;
+} TechMenuBytes;
+
+/* ---- What an enemy has to steal --------------------------------------------------------------- */
+
+/* $CC:5E00: an enemy's rewards, seven bytes an enemy: of them, the item it
+ * drops (the one a steal takes) and its charm (the rare one a steal may take
+ * instead). */
+typedef struct {
+    uint8_t dropped, charm;
+} EnemyItems;
+
+enum { ENEMY_REWARD_BYTES = 7 };
+
+/* The whole of a beaten enemy's rewards, at the record's place among them
+ * (the enemy's id times its bytes): the experience and the gold, a word
+ * each, its items, and the tech points it gives. */
+typedef struct {
+    uint16_t experience, gold;
+    EnemyItems items;
+    uint8_t tech_points;
+} EnemySpoils;
+
+/* ---- Modifiers and items ----------------------------------------------------------------- */
+
+/* $CC:2A05: a modifier is its routine's number and its two numbers. */
+typedef struct {
+    uint8_t routine, first, second;
+} ModifierRecord;
+
+/* The same record as armor and helmets read it at the fight's start: a byte
+ * of the member's stat block, and the bits the piece sets in it. The start
+ * finds the record by its number times three in a byte, so the modifiers from
+ * 86 on read earlier ones'. */
+typedef struct {
+    uint8_t at, bits;
+} ArmorModifier;
+
+/* $CC:05CD: an item's healing, four bytes an item: what it restores or cures,
+ * how much (a multiple, or $0F for all), and the power of it. The original
+ * finds the item's four bytes by its number times four in a byte, so the
+ * items from 64 on read the first ones' again. */
+enum { ITEM_HEALS, ITEM_AMOUNT, ITEM_POWER };
+
+/* $CC:05CC: the byte before an item's healing, which says what using it in
+ * battle does: restore, cure, or give a status. Its place in the bank is found
+ * as the healing's is, by the item's number times four in a byte (so the
+ * items from 64 on read the first ones' again). */
+enum { ITEM_USE_RESTORES = 0x80, ITEM_USE_GIVES_STATUS = 0x40, ITEM_USE_CURES = 0x04 };
+enum { ITEM_RECORDS_BANK = 0xCC0000u, ITEM_RECORDS_PLACE = 0x05CC };
+
+/* $CC:0ABC and $CC:1BB5: the items from $BC on have a record of three bytes,
+ * whose first byte's bit 7 says a party member who steals one keeps it apart
+ * from the inventory, and a byte of another table the kept one takes along. */
+enum { FIRST_RECORDED_ITEM = 0xBC, ITEM_RECORD_BYTES = 3, ITEM_KEPT_APART = 0x80 };
+
+/* $CC:88CA and $CC:6FCA, a record an attack or a tech by number. */
+static inline uint32_t action_record_place(ActionTable table, uint8_t number)
+{
+    return (table == ENEMY_ATTACKS ? 0xCC88CAu : 0xCC6FCAu) + (uint32_t)(number * ACTION_RECORD_BYTES);
+}
+
+static inline ActionRecord action_record(const GameState *g, ActionTable table, uint8_t number)
+{
+    uint32_t at = action_record_place(table, number);
+    return (ActionRecord){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 4),
+                           rom_read8(g, at + 7) };
+}
 
 /* The record decoded for the kind it is worked out as (which is its first
  * byte, where the work reads it there). */
@@ -139,29 +222,6 @@ static inline uint8_t effect_record_byte(const GameState *g, ActionTable table, 
     return rom_read8(g, effect_record_place(table, effect) + n);
 }
 
-/* ---- The party's techs ---------------------------------------------------------------------- */
-
-/* A party tech is a record of eleven bytes ($CC:1BEB): which members perform
- * it, its flags, how it marks those it acts on and its elements, and up to
- * three parts, each an effect of the party's table ($CC:213F, records as the
- * enemies' are) with a modifier. A single tech has one part, a combination
- * tech one for each member. */
-enum { PARTY_TECH_BYTES = 11, PARTY_TECH_PARTS = 3, NO_PART = 0x80 };
-
-/* The flags: its effects can't miss, nor be turned away (EFFECT_CANT_MISS and
- * EFFECT_CANT_BE_TURNED_AWAY, a place lower), and the hits' numbers added
- * up as an enemy's action adds them (ACTION_HITS_ADDED). */
-enum { TECH_CANT_MISS = 0x40, TECH_CANT_BE_TURNED_AWAY = 0x20 };
-
-typedef struct {
-    uint8_t members;                     /* the members' record ($CC:249F), the low seven bits */
-    uint8_t flags;
-    uint8_t marks;                       /* how those it acts on have it recorded as acting on them */
-    uint8_t elements;
-    uint8_t effects[PARTY_TECH_PARTS];   /* each part's effect; NO_PART set, no part */
-    uint8_t modifiers[PARTY_TECH_PARTS];
-} PartyTech;
-
 static inline uint32_t party_tech_place(uint8_t tech) { return 0xCC1BEBu + (uint32_t)(tech * PARTY_TECH_BYTES); }
 
 static inline PartyTech party_tech(const GameState *g, uint8_t tech)
@@ -181,24 +241,15 @@ static inline PartyTech party_tech(const GameState *g, uint8_t tech)
  * nor a combination's its characters. */
 static inline bool party_tech_locked(const GameState *g, uint8_t tech) { return (rom_read8(g, party_tech_place(tech)) & 0x80) != 0; }
 
-/* $CC:249F: the characters who perform a tech, three bytes a record ($FF past
- * them). */
-enum { TECH_MEMBERS = 3, NO_MEMBER = 0xFF };
-
 static inline uint8_t tech_member_at(const GameState *g, uint16_t place, unsigned part)
 {
     return rom_read8(g, 0xCC249Fu + place + part);
 }
+
 static inline uint8_t tech_member(const GameState *g, uint8_t members, unsigned part)
 {
     return tech_member_at(g, (uint16_t)(members * TECH_MEMBERS), part);
 }
-
-/* $CC:1ACB: two bytes a tech for its record in the member's tech list: a
- * byte the menu copies (not worked out), and its flags' low six bits. */
-typedef struct {
-    uint8_t detail, flags;
-} TechMenuBytes;
 
 static inline TechMenuBytes tech_menu_bytes(const GameState *g, uint8_t tech)
 {
@@ -243,31 +294,11 @@ static inline uint8_t party_effect_mp_cost(const GameState *g, uint8_t effect)
     return rom_read8(g, 0xCC253Bu + (uint8_t)(effect & 0x7F));
 }
 
-/* ---- What an enemy has to steal --------------------------------------------------------------- */
-
-/* $CC:5E00: an enemy's rewards, seven bytes an enemy: of them, the item it
- * drops (the one a steal takes) and its charm (the rare one a steal may take
- * instead). */
-typedef struct {
-    uint8_t dropped, charm;
-} EnemyItems;
-
-enum { ENEMY_REWARD_BYTES = 7 };
-
 static inline EnemyItems enemy_items(const GameState *g, uint8_t enemy)
 {
     uint32_t at = 0xCC5E00u + (uint32_t)(enemy * ENEMY_REWARD_BYTES);
     return (EnemyItems){ rom_read8(g, at + 4), rom_read8(g, at + 5) };
 }
-
-/* The whole of a beaten enemy's rewards, at the record's place among them
- * (the enemy's id times its bytes): the experience and the gold, a word
- * each, its items, and the tech points it gives. */
-typedef struct {
-    uint16_t experience, gold;
-    EnemyItems items;
-    uint8_t tech_points;
-} EnemySpoils;
 
 static inline EnemySpoils enemy_spoils(const GameState *g, uint16_t place)
 {
@@ -276,26 +307,11 @@ static inline EnemySpoils enemy_spoils(const GameState *g, uint16_t place)
                           rom_read8(g, at + 6) };
 }
 
-/* ---- Modifiers and items ----------------------------------------------------------------- */
-
-/* $CC:2A05: a modifier is its routine's number and its two numbers. */
-typedef struct {
-    uint8_t routine, first, second;
-} ModifierRecord;
-
 static inline ModifierRecord modifier_record(const GameState *g, uint8_t modifier)
 {
     uint32_t at = 0xCC2A05u + (uint32_t)(modifier * 3);
     return (ModifierRecord){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2) };
 }
-
-/* The same record as armor and helmets read it at the fight's start: a byte
- * of the member's stat block, and the bits the piece sets in it. The start
- * finds the record by its number times three in a byte, so the modifiers from
- * 86 on read earlier ones'. */
-typedef struct {
-    uint8_t at, bits;
-} ArmorModifier;
 
 static inline ArmorModifier armor_modifier(const GameState *g, uint8_t modifier)
 {
@@ -303,36 +319,20 @@ static inline ArmorModifier armor_modifier(const GameState *g, uint8_t modifier)
     return (ArmorModifier){ rom_read8(g, at), rom_read8(g, at + 1) };
 }
 
-/* $CC:05CD: an item's healing, four bytes an item: what it restores or cures,
- * how much (a multiple, or $0F for all), and the power of it. The original
- * finds the item's four bytes by its number times four in a byte, so the
- * items from 64 on read the first ones' again. */
-enum { ITEM_HEALS, ITEM_AMOUNT, ITEM_POWER };
-
 static inline uint8_t item_healing_byte(const GameState *g, uint8_t item, unsigned n)
 {
     return rom_read8(g, 0xCC05CDu + (uint8_t)(item << 2) + n);
 }
 
-/* $CC:05CC: the byte before an item's healing, which says what using it in
- * battle does: restore, cure, or give a status. Its place in the bank is found
- * as the healing's is, by the item's number times four in a byte (so the
- * items from 64 on read the first ones' again). */
-enum { ITEM_USE_RESTORES = 0x80, ITEM_USE_GIVES_STATUS = 0x40, ITEM_USE_CURES = 0x04 };
-enum { ITEM_RECORDS_BANK = 0xCC0000u, ITEM_RECORDS_PLACE = 0x05CC };
-
 static inline uint16_t item_use_place(uint8_t item) { return (uint16_t)(ITEM_RECORDS_PLACE + (uint8_t)(item << 2)); }
-static inline uint8_t item_use(const GameState *g, uint8_t item) { return rom_read8(g, ITEM_RECORDS_BANK | item_use_place(item)); }
 
-/* $CC:0ABC and $CC:1BB5: the items from $BC on have a record of three bytes,
- * whose first byte's bit 7 says a party member who steals one keeps it apart
- * from the inventory, and a byte of another table the kept one takes along. */
-enum { FIRST_RECORDED_ITEM = 0xBC, ITEM_RECORD_BYTES = 3, ITEM_KEPT_APART = 0x80 };
+static inline uint8_t item_use(const GameState *g, uint8_t item) { return rom_read8(g, ITEM_RECORDS_BANK | item_use_place(item)); }
 
 static inline uint8_t item_record_flags(const GameState *g, uint8_t item)
 {
     return rom_read8(g, 0xCC0ABCu + (uint32_t)((uint8_t)(item - FIRST_RECORDED_ITEM) * ITEM_RECORD_BYTES));
 }
+
 static inline uint8_t item_record_detail(const GameState *g, uint8_t item)
 {
     return rom_read8(g, 0xCC1BB5u + (uint8_t)(item - FIRST_RECORDED_ITEM));

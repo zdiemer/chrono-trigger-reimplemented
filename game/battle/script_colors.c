@@ -60,7 +60,6 @@ static void paint_cycled_background(GameState *g, uint8_t set)
     unsigned start = battle_background_cycle(g);
     for (unsigned at = start; at < BACKGROUND_COLORS; at++)
         set_palette_working(g, at, battle_flash_color(g, set, (at - start) % BATTLE_FLASH_SET_COLORS));
-    charge_machine_accesses(g, 2);
 }
 
 // $C1:5DDC
@@ -76,7 +75,6 @@ static void flash(GameState *g, ScriptChannel ch, uint8_t set)
             bound++;
         set_battle_object_palette(g, combatant, FLASH_PALETTE);
     }
-    charge_machine_accesses(g, 5);
     for (unsigned color = 0; color < BATTLE_FLASH_SET_COLORS; color++)
         set_palette_working(g, FLASH_FIRST_COLOR + color, battle_flash_color(g, set, color));
     for (unsigned color = 0; color < FLASH_WHITES; color++)
@@ -108,7 +106,6 @@ static ScriptFlow flash_with(GameState *g, ScriptChannel channel, uint8_t length
 {
 
     (void)length;
-        charge_machine_accesses(g, 1);
     flash(g, channel, set);
     return SCRIPT_NEXT;
 }
@@ -120,7 +117,6 @@ static ScriptFlow flash_off(GameState *g, ScriptChannel channel, uint8_t length)
 {
 
     (void)length;
-        charge_machine_accesses(g, 1);
     restore(g, channel);
     return SCRIPT_NEXT_FRAME;
 }
@@ -158,7 +154,6 @@ static void leave_place_in_list(GameState *g, ScriptChannel ch, unsigned place)
     if (ch.kind != SCRIPT_OTHER_TARGETS)
         return;
     battle_leave_jump_lift(g, (uint8_t)place);
-    charge_machine_accesses(g, 1);
 }
 
 // $C1:5F13
@@ -174,11 +169,9 @@ static ScriptFlow blink(GameState *g, ScriptChannel channel, uint8_t length, uin
 {
 
     (void)length;     if (battle_script_variables(g, 0) == 0) {
-        charge_machine_accesses(g, 1);
         restore(g, channel);
         return SCRIPT_NEXT_FRAME;
     }
-    charge_machine_accesses(g, 3);
     if (channel.kind == SCRIPT_EFFECT)
         return SCRIPT_NEXT_FRAME;
     uint8_t combatant;
@@ -187,7 +180,6 @@ static ScriptFlow blink(GameState *g, ScriptChannel channel, uint8_t length, uin
         bool flashing;
         if (!blink_due(g, combatant, period, &flashing))
             continue;
-        charge_machine_accesses(g, 1);
         leave_place_in_list(g, channel, k);
         if (!flashing) {
             restore(g, channel);
@@ -282,15 +274,13 @@ SCRIPT_OPERATION(palette_animation_off, slot)
 // $C1:5D1D
 /* One of the palette animations' frames shows at once: its color set goes
  * into the first sprite palette at its place. The channel goes on at once. */
-enum { PLACE_QUARTER = 0x07, PLACE_SEVEN_COLORS = 0x80, LEFT_FRAME_SET = 0x00, LEFT_FRAME_COUNT = 0x02,
-       LEFT_SEVEN_QUARTERS = 0x03, LEFT_SEVEN_PLACE = 0x04 };
+enum { PLACE_QUARTER = 0x07, PLACE_SEVEN_COLORS = 0x80, LEFT_FRAME_SET = 0x00, LEFT_FRAME_COUNT = 0x02, LEFT_SEVEN_QUARTERS = 0x03, LEFT_SEVEN_PLACE = 0x04 };
 
 static ScriptFlow palette_frame(GameState *g, uint8_t frame)
 {
     BattlePaletteFrame shown = battle_palette_frame(g, battle_palette_anim_frames(g), frame);
     bool seven = (shown.place & PLACE_SEVEN_COLORS) != 0;
     battle_put_color_set(g, seven, shown.set, shown.place & PLACE_QUARTER);
-    charge_machine_accesses(g, seven ? 6 : 3);
     return SCRIPT_NEXT;
 }
 SCRIPT_OPERATION(palette_frame, frame)

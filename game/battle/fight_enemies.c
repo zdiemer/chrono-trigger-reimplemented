@@ -110,7 +110,6 @@ void fight_load_enemy(GameState *g, uint8_t enemy)
         set_combatant_stat_byte(g, slot, (uint16_t)(STAT_STAMINA + n), record.stats[n]);
     for (unsigned n = 0; n < ENEMY_KIND_BYTES; n++)
         set_combatant_stat_byte(g, slot, (uint16_t)(STAT_KIND + n), record.kind[n]);
-    charge_machine_accesses(g, 2);
     battle_keep_word(g, COUNT_AT, (uint16_t)((id * 8) & 0xFF00) | ENEMY_KIND_BYTES);
 }
 
@@ -154,7 +153,6 @@ void fight_mark_what_enemies_carry(GameState *g)
         /* the original finds the enemy's rewards by a multiply, and keeps
          * their place in a cell (scaffolding) */
         battle_multiply_words(g, id, ENEMY_REWARD_BYTES);
-        charge_machine_accesses(g, 2);
         EnemyItems items = enemy_items(g, id);
         uint8_t marks = 0;
         if (items.charm)

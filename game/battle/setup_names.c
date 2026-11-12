@@ -47,7 +47,6 @@ void setup_name_text(GameState *g, NameTable table, uint8_t n, uint8_t text[NAME
     memset(text, NAME_END, NAME_TILES);
     for (unsigned i = 0; i < SHORT_NAME; i++)
         text[i] = short_name_char(g, table, at + i);
-    charge_machine_accesses(g, 2);
 }
 
 void setup_keep_name_tiles(GameState *g, NameTable table, uint8_t n, const NameTiles *tiles)
@@ -76,7 +75,6 @@ void setup_enemy_name_text(GameState *g, uint8_t kind, uint8_t text[NAME_TILES])
     memset(text, NAME_END, NAME_TILES);
     for (unsigned i = 0; i < ENEMY_NAME; i++)
         text[i] = setup_enemy_name_char(g, (uint16_t)(at + i));
-    charge_machine_accesses(g, 4);
 }
 
 /* An enemy's rows are twelve tiles, the name's eleven and the blank after. */
@@ -87,7 +85,6 @@ void setup_keep_enemy_name_tiles(GameState *g, uint8_t kind, const NameTiles *ti
         set_battle_enemy_name_tiles(g, at + i, tiles->glyphs[i]);
         set_battle_enemy_name_tiles(g, at + ENEMY_NAME_ROW + i, tiles->marks[i]);
     }
-    charge_machine_accesses(g, 1);
 }
 
 /* The buffer as the last conversion leaves it. The original writes a name's
@@ -96,8 +93,3 @@ void setup_keep_enemy_name_tiles(GameState *g, uint8_t kind, const NameTiles *ti
  * thirteen (its eleven and two ends). */
 enum { SHORT_NAME_WRITTEN = SHORT_NAME + 1, ENEMY_NAME_WRITTEN = ENEMY_NAME + 2 };
 
-
-void setup_enemy_names_converted(GameState *g)
-{
-    charge_machine_accesses(g, 2);
-}

@@ -92,17 +92,6 @@ bool battle_window_opened(GameState *g, Platform *pf)
     return open_the_window(g, open_a_part, &c);
 }
 
-static bool opening_on_the_machine(void *ctx, OpeningCall call)
-{
-    Snes *s = ctx;
-    switch (call) {
-    case OPENING_SOUND:
-        return battle_play_a_sound_from(s, 0xCD0502, WINDOW_SOUND, AU_CENTRE, battle_carrying(BATTLE_CARRY_AS_IT_IS));
-    case OPENING_FIRST_FRAME: return battle_wait_for_the_handler_from(s, 0xCD0505);
-    default: return battle_wait_for_the_handler_from(s, 0xCD0512);
-    }
-}
-
 /* The closing's calls, each where the original makes it: the frame work's
  * waits for its handler's frame (battle/wait.c), the battle's small handler's
  * frame, the frame work's tail ($CD:0009), the battlefield put back
@@ -144,7 +133,6 @@ static bool close_the_window(GameState *g, ClosingCalls call, void *ctx)
 /* ---- The music ------------------------------------------------------------------------------- */
 
 /* The sound driver's command reads only A's high byte. */
-enum { DRIVER_IGNORES = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 /* The music fades out over 16 of the driver's steps. */
 enum { MUSIC_FADE_STEPS = 0x10, SILENT = 0x00 };
@@ -156,7 +144,7 @@ static bool keeps_the_field_song(const GameState *g) { return battle_terms(g, BA
  * caller's: the original jumps to it). */
 static void fade_the_music_out(Platform *pf)
 {
-    au_fade(pf, PF_CALL_DC(0xCD03AB, 0xC70004, DRIVER_IGNORES), AU_FADE_MUSIC, MUSIC_FADE_STEPS, SILENT);
+    au_fade(pf, PF_CALL(0xCD03AB, 0xC70004), AU_FADE_MUSIC, MUSIC_FADE_STEPS, SILENT);
 }
 
 enum { FADE_WAIT_FRAMES = 0x0F };
@@ -211,7 +199,7 @@ static bool let_the_screen_settle(GameState *g, ClosingCalls call, void *ctx)
 /* The music's volume back to full at once, for the next song. */
 static void full_volume(Platform *pf)
 {
-    au_fade(pf, PF_CALL_DC(0xCD0D70, 0xC70004, DRIVER_IGNORES), AU_FADE_ALL, 0, AU_FULL_VOLUME);
+    au_fade(pf, PF_CALL(0xCD0D70, 0xC70004), AU_FADE_ALL, 0, AU_FULL_VOLUME);
 }
 
 // $CD:0D62
@@ -226,7 +214,7 @@ static bool change_to_the_battlefield(Platform *pf, uint16_t battlefield, Closin
     full_volume(pf);
     if (!closing_call(call, ctx, SONG_FRAME))
         return false;
-    au_play_song(pf, PF_CALL_DC(0xCD0D81, 0xC70004, DRIVER_IGNORES), CHANGED_BATTLEFIELD_SONG);
+    au_play_song(pf, PF_CALL(0xCD0D81, 0xC70004), CHANGED_BATTLEFIELD_SONG);
     return call(ctx, SONG_KEPT, battlefield) && call(ctx, CHANGE_LOAD, battlefield);
 }
 
@@ -331,7 +319,8 @@ static bool close_the_display(GameState *g, Platform *pf, ClosingCalls call, voi
     battle_arrange_the_lines(g, LEAVING);
     if (!closing_call(call, ctx, CLOSING_LEAVING_FRAME))
         return false;
-    program_install_vblank_handler(g, BATTLE_CLOSING_VBLANK_HANDLER);
+    program_install_vblank_handler(g, battle_closing_vblank);
+    charge_legacy_accesses(g, 4);
     set_battle_scratch(g, FADE_FROM, battle_brightness(g));
     do
         if (!closing_call(call, ctx, CLOSING_SMALL_FRAME))
@@ -347,11 +336,6 @@ static bool close_the_display(GameState *g, Platform *pf, ClosingCalls call, voi
  * called: each loads A's low byte and the index registers before it reads
  * them; the music's fade and the window's closing hand only A's high byte on,
  * to waits that read none of the flags (battle/wait.h). */
-enum {
-    PUTTING_BACK_IGNORES = DC_AL | DC_X | DC_Y | DC_N | DC_Z,
-    FADE_IGNORES = DC_AL | DC_X | DC_Y | DC_FLAGS,
-    CLOSING_IGNORES = DC_AL | DC_X | DC_Y | DC_FLAGS,
-};
 
 /* The field's music after a battle takes the data bank and its page back in
  * the wrong order, so the battle keeps its own data bank, page and flags on
@@ -359,160 +343,6 @@ enum {
  * to its return with any page and bank, and goes on as the battle runs once
  * they are pulled. */
 enum { FIELD_MUSIC_CALL = 0xCD043E, KEPT_AGAIN = 0xCD0445 };
-
-/* The waits for the handler's frame, by where each is made. */
-static const uint32_t handler_waits[] = { 0xCD051B, 0xCD0526 };
-static const uint32_t display_waits[] = { 0xCD03DA, 0xCD03EB };
-static const uint32_t fade_waits[] = { 0xCD0DB4, 0xCD0D99 };
-static const uint32_t settle_waits[] = { 0xCD0DD8, 0xCD0DDB };
-
-static bool put_the_field_music_back(Snes *s)
-{
-    uint16_t page = m_direct_page(s);
-    uint8_t bank = s->cpu.db;
-    m_push8(s, s->cpu.db);
-    m_push16(s, s->cpu.d);
-    m_push8(s, s->cpu.p);
-    if (!battle_field_music_on_the_machine(s, FIELD_MUSIC_CALL, true))
-        return false;
-    s->cpu.p = m_pull8(s);
-    s->cpu.d = m_pull16(s);
-    s->cpu.db = m_pull8(s);
-    return battle_back(s, KEPT_AGAIN, page, bank);
-}
-
-static bool closing_on_the_machine(void *ctx, ClosingCall call, uint16_t arg)
-{
-    Snes *s = ctx;
-    GameState *g = state_of(s);
-    switch (call) {
-    case CLOSING_WINDOW_FIRST_FRAME:
-    case CLOSING_WINDOW_SECOND_FRAME: return battle_wait_for_the_handler_from(s, handler_waits[call - CLOSING_WINDOW_FIRST_FRAME]);
-    case CLOSING_PUT_BACK: return battle_run_dc(s, 0xCD03C6, 0xCD0453, PUTTING_BACK_IGNORES, battle_put_the_battlefield_back_entry);
-    case CLOSING_FADE: return battle_run_dc(s, 0xCD03D3, 0xCD039E, FADE_IGNORES, battle_fade_the_music_out);
-    case CLOSING_THE_WINDOW: return battle_run_long_dc(s, 0xCD03D6, 0xCD0516, CLOSING_IGNORES, battle_close_the_window_entry);
-    case CLOSING_SLIDE_FRAME:
-    case CLOSING_GONE_FRAME: return battle_wait_for_the_handler_from(s, display_waits[call - CLOSING_SLIDE_FRAME]);
-    case CLOSING_BOSS_END: return battle_run(s, 0xCD03FF, 0xCD0DB1, battle_play_out_the_boss_end);
-    case CLOSING_DEFEAT_END: return battle_run_dc(s, 0xCD040A, 0xCD0D93, BATTLE_WAIT_READS, battle_play_out_the_defeat_end);
-    case CLOSING_LEAVING_FRAME: return battle_wait_for_the_handler_from(s, 0xCD0415);
-    case CLOSING_SMALL_FRAME: return battle_run(s, 0xCD0428, 0xCD044A, battle_wait_for_the_small_handler_entry);
-    case CLOSING_MUSIC_BACK:
-        /* the flags as the wait's last test leaves them (the song kept, or
-           no fade left), which the field music's call keeps on the stack */
-        m_set_nz8(s, keeps_the_field_song(g) ? BATTLE_TERMS_KEEP_THE_FIELD_SONG : 0);
-        return put_the_field_music_back(s);
-    case CLOSING_LAST_SMALL_FRAME:
-        s->cpu.a = 0;
-        return battle_run(s, 0xCD0446, 0xCD044A, battle_wait_for_the_small_handler_entry);
-    case BOSS_FADE: return battle_run_dc(s, 0xCD0DB1, 0xCD039E, FADE_IGNORES, battle_fade_the_music_out);
-    case DEFEAT_FADE: return battle_run_dc(s, 0xCD0D96, 0xCD039E, FADE_IGNORES, battle_fade_the_music_out);
-    case BOSS_FADE_FRAME:
-    case DEFEAT_FADE_FRAME: return battle_wait_for_the_handler_from(s, fade_waits[call == DEFEAT_FADE_FRAME]);
-    case BOSS_SETTLE: return battle_run(s, 0xCD0DC7, 0xCD0DD8, battle_let_the_screen_settle);
-    case BOSS_HOLD_FRAME:
-        /* the count the original keeps in A across the handler's waits,
-           which keep A for it */
-        m_set_a8(s, (uint8_t)arg);
-        return battle_wait_frame(s, 0xCD0DCC, BATTLE_HANDLER_WAIT, BATTLE_COUNTING_WAIT_READS);
-    case BOSS_CHANGE:
-        s->cpu.x = arg;
-        return battle_run(s, 0xCD0DD5, 0xCD0D62, battle_change_to_the_battlefield);
-    case BOSS_SETTLE_AGAIN: return let_the_screen_settle(g, closing_on_the_machine, ctx);
-    case DEFEAT_CHANGE:
-        s->cpu.x = arg;
-        m_set_nz16(s, arg);
-        return battle_run(s, 0xCD0DA5, 0xCD0D62, battle_change_to_the_battlefield);
-    case DEFEAT_SCRIPTS_FRAME: return battle_wait_for_the_handler_from(s, 0xCD0DA8);
-    case SETTLE_FIRST_FRAME:
-    case SETTLE_SECOND_FRAME: return battle_wait_for_the_handler_from(s, settle_waits[call - SETTLE_FIRST_FRAME]);
-    case SETTLE_TAIL: return battle_run_long(s, 0xCD0DDE, 0xCD04AA, battle_frame_wait_tail);
-    case SONG_KEEP: battle_keep(s, battle_keeping_word(arg, BATTLE_CARRY_AS_IT_IS)); return true;
-    case SONG_FRAME: return battle_wait_for_the_handler_from(s, 0xCD0D74);
-    case SONG_KEPT: battle_stop_keeping(s, battle_keeping_word(arg, BATTLE_CARRY_AS_IT_IS)); return true;
-    default:
-        if (!battle_load_and_run_battlefield_on_the_machine(s, 0xCD0D86, arg))
-            return false;
-        s->cpu.a = 0; /* the scripts' start leaves A's high byte clear for the waits */
-        return true;
-    }
-}
-
-/* ---- The entries ------------------------------------------------------------------------------ */
-
-void battle_close_the_display(Snes *s)
-{
-    if (close_the_display(state_of(s), m_platform(s), closing_on_the_machine, s))
-        m_rtl(s);
-}
-
-/* The window's opening leaves its slide in A. */
-void battle_open_the_window(Snes *s)
-{
-    if (!open_the_window(state_of(s), opening_on_the_machine, s))
-        return;
-    m_set_a8(s, BATTLE_SLIDE_STARTING_IN);
-    m_rtl(s);
-}
-
-/* ... and its closing too. */
-void battle_close_the_window_entry(Snes *s)
-{
-    if (!close_the_window(state_of(s), closing_on_the_machine, s))
-        return;
-    m_set_a8(s, BATTLE_SLIDE_OUT);
-    m_rtl(s);
-}
-
-/* The fade's wait is the frame work's for some frames, which the original
- * jumps to with the count in A, so that it returns to the fade's caller. */
-void battle_fade_the_music_out(Snes *s)
-{
-    fade_the_music_out(m_platform(s));
-    m_set_a8(s, FADE_WAIT_FRAMES);
-    TIMED_AS(state_of(s), 0xCD3E3B, battle_wait_some_frames_entry(s));
-}
-
-/* The settling ends on the gradient level's compare, which leaves the carry
- * clear for the waits after the call; the original's boss's end calls the
- * settling and then runs on into it, so it ends there too. */
-static void leave_the_settled_compare(Snes *s) { m_set_flag(s, CPU_FLAG_C, false); }
-
-void battle_play_out_the_boss_end(Snes *s)
-{
-    if (!play_out_the_boss_end(state_of(s), m_platform(s), closing_on_the_machine, s))
-        return;
-    leave_the_settled_compare(s);
-    m_rts(s);
-}
-
-/* It ends on the scripts' flag's load. */
-void battle_play_out_the_defeat_end(Snes *s)
-{
-    if (!play_out_the_defeat_end(state_of(s), m_platform(s), closing_on_the_machine, s))
-        return;
-    m_set_a8(s, 0);
-    m_set_nz8(s, 0);
-    m_rts(s);
-}
-
-// $CD:0012
-/* The field asks whether the battle window is still moving before it
- * resumes its own display work. */
-
-void battle_let_the_screen_settle(Snes *s)
-{
-    if (!let_the_screen_settle(state_of(s), closing_on_the_machine, s))
-        return;
-    leave_the_settled_compare(s);
-    m_rts(s);
-}
-
-void battle_change_to_the_battlefield(Snes *s)
-{
-    if (change_to_the_battlefield(m_platform(s), s->cpu.x, closing_on_the_machine, s))
-        m_rts(s);
-}
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 

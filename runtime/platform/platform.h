@@ -8,20 +8,15 @@
 
 typedef struct Platform Platform;
 
-/* Source identity retained until machine-removal work retires the wrappers. */
+/* Diagnostic and work-accounting provenance; never a dispatch destination. */
 typedef struct {
     uint32_t site, target;
-    uint16_t dont_care;   /* PF_CALL_DC: registers and flags the callee doesn't read */
 } PfOrigin;
-#define PF_AT(addr) ((PfOrigin){ (addr), 0, 0 })
-#define PF_CALL(site, target) ((PfOrigin){ (site), (target), 0 })
-/* Retained wrapper contract metadata. */
-#define PF_CALL_DC(site, target, dont_care) ((PfOrigin){ (site), (target), (dont_care) })
+#define PF_AT(addr) ((PfOrigin){ (addr), 0 })
+#define PF_CALL(site, target) ((PfOrigin){ (site), (target) })
 /* A loop of the original's that a call stands in for: the instruction it
  * comes back to (`head`) and the first after it (`exit`). */
-#define PF_LOOP(head, exit) ((PfOrigin){ (head), (exit), 0 })
-/* Retained held-wait metadata. */
-#define PF_LOOP_HELD(head, exit, dont_care) ((PfOrigin){ (head), (exit), (dont_care) })
+#define PF_LOOP(head, exit) ((PfOrigin){ (head), (exit) })
 
 /* The data a call refers to: a 24-bit game address while the WRAM layout is
  * kept, a host pointer for a store resource or owned memory. A resource

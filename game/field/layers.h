@@ -6,7 +6,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "snes/system.h"
 #include "field/field.h"
 #include "state.h"
 #include "vars.h"
@@ -22,18 +21,14 @@
  * (field_layer_edge_vram, ten a layer) and the parts' sizes
  * (field_layer_edge_sizes, five): these say which word is which. The two
  * rows share their sizes, as do the two columns. */
-enum {
-    EDGE_TOP_ROW = 0,          /* three addresses: from the start, the other half, the wrap */
-    EDGE_BOTTOM_ROW = 3,       /* the same three */
-    EDGE_LEFT_COLUMN = 6,      /* two addresses: from the start, the wrap */
-    EDGE_RIGHT_COLUMN = 8,     /* the same two */
-    EDGE_ADDRESSES = 10,
-};
-enum {
-    EDGE_ROW_SIZES = 0,        /* three sizes, the rows' parts */
-    EDGE_COLUMN_SIZES = 3,     /* two, the columns' */
-    EDGE_SIZES = 5,
-};
+enum { EDGE_TOP_ROW = 0, /* three addresses: from the start, the other half, the wrap */
+    EDGE_BOTTOM_ROW = 3, /* the same three */
+    EDGE_LEFT_COLUMN = 6, /* two addresses: from the start, the wrap */
+    EDGE_RIGHT_COLUMN = 8, /* the same two */
+    EDGE_ADDRESSES = 10,  };
+enum { EDGE_ROW_SIZES = 0, /* three sizes, the rows' parts */
+    EDGE_COLUMN_SIZES = 3, /* two, the columns' */
+    EDGE_SIZES = 5,  };
 
 /* A map's settings for its layers, a bit for each of BG2 and BG3 (bit n for
  * layer n): which stay still as the screen scrolls (field_layer_still), and
@@ -54,8 +49,6 @@ enum { FIELD_COMPUTE_LAYER_EDGES_ENTRY = 0xC07F9A };
 typedef struct {
     uint8_t row, column;
 } MapPlace;
-
-static inline MapPlace map_place_at(uint16_t index) { return (MapPlace){ (uint8_t)(index >> 8), (uint8_t)index }; }
 
 /* What the map says of a tile: a byte of properties, and two of attributes.
  *
@@ -99,19 +92,12 @@ typedef enum {
     SHAPE_CLIMB,
 } TileShape;
 
-static inline TileShape tile_shape(TileAttributes tile) { return (TileShape)(tile.properties >> TILE_SHAPE_SHIFT); }
-static inline bool tile_shape_is_a_slope(TileShape shape) { return shape >= SHAPE_FIRST_SLOPE && shape < SHAPE_LEFT_HALF; }
-static inline uint8_t tile_shape_slope(TileShape shape) { return (uint8_t)(shape - SHAPE_FIRST_SLOPE); }
 enum { TILE_STEP_EVENT = 0x10, TILE_FLOOR_SPEED = 0x0C, TILE_FLOOR_WAY = 0x03 };
 enum { TILE_LOWER_PART = 0, TILE_UPPER_PART_SHIFT = 3, TILE_LEVEL_BITS = 0x03, TILE_CROSSING_BIT = 0x04 };
 
 /* The priority a sprite's half takes on a tile (object.h's 0-3): in front of
  * the map where the tile raises it, among the map's layers otherwise. */
 enum { AMONG_THE_MAP = 2, IN_FRONT_OF_THE_MAP = 3 };
-static inline uint8_t tile_priority(uint8_t attributes)
-{
-    return (attributes & TILE_RAISES_SPRITES) ? IN_FRONT_OF_THE_MAP : AMONG_THE_MAP;
-}
 
 TileAttributes map_tile_attributes(const GameState *g, MapPlace p);
 
@@ -159,8 +145,6 @@ typedef struct {
 FieldEdgesLeave field_edges_leave(const GameState *g);
 
 /* field/tile_copy.c */
-void field_copy_tiles(Snes *s);
-bool field_tile_copy_fits(Snes *s);
 
 /* When a map loads ($C0:A521): its tile maps and tile attributes unpacked
  * from the map's decompressed data; and whether its sizes are ones the
@@ -171,9 +155,21 @@ bool field_tile_maps_fit(const GameState *g);
 enum { FIELD_UNPACK_TILE_MAPS_ENTRY = 0xC0A521 };
 
 /* field/layers.c */
-void field_update_layer_scroll(Snes *s);
 /* The layers' scroll moved on for the frame ($C0:91AC), as C. */
 void field_layer_scroll_updated(GameState *g);
+
+static inline MapPlace map_place_at(uint16_t index) { return (MapPlace){ (uint8_t)(index >> 8), (uint8_t)index }; }
+
+static inline TileShape tile_shape(TileAttributes tile) { return (TileShape)(tile.properties >> TILE_SHAPE_SHIFT); }
+
+static inline bool tile_shape_is_a_slope(TileShape shape) { return shape >= SHAPE_FIRST_SLOPE && shape < SHAPE_LEFT_HALF; }
+
+static inline uint8_t tile_shape_slope(TileShape shape) { return (uint8_t)(shape - SHAPE_FIRST_SLOPE); }
+
+static inline uint8_t tile_priority(uint8_t attributes)
+{
+    return (attributes & TILE_RAISES_SPRITES) ? IN_FRONT_OF_THE_MAP : AMONG_THE_MAP;
+}
 
 /* A layer's tile map setting: the high byte of its place in VRAM with its
  * size's bits, as the line effects send it and a battle takes it over. */

@@ -16,7 +16,6 @@
 #include "battle/screen_lines.h"
 #include "battle/screen_sides.h"
 #include "cpu_io.h"
-#include "port/native.h"
 
 /* ---- The quadrilaterals -------------------------------------------------------------------- */
 
@@ -141,10 +140,9 @@ static void rasterize(GameState *g, Window w, const Corner sorted[CORNERS])
         c[i] = sorted[i];
     Slope slopes[EDGES];
     WindowSides q = sides_of(c, slopes);
-    SidesDrawn drawn = draw_window_sides(g, w, &q);
+    (void)draw_window_sides(g, w, &q);
     battle_note_curtain_noise(g, (uint16_t)((uint8_t)(slopes[TOP_TO_SECOND] >> 8)
                                           | (uint16_t)(uint8_t)slopes[SECOND_TO_BOTTOM] << 8));
-    (charge_machine_accesses(g, 2 * CORNERS + 2 * EDGES + 9 + (q.stretches == 1 ? 1 : 0) + (q.stretches > 1 ? 2 : 0)), charge_machine_io_accesses(g, 6 + (drawn.lines ? 1 : 0)));
 }
 
 bool screen_quad_fits_the_table(const GameState *g, const BattlePoint c[CORNERS])
@@ -165,7 +163,6 @@ void screen_draw_window_quad(GameState *g, unsigned quad)
     for (unsigned i = 0; i < CORNERS; i++)
         c[i] = quad_corner(g, quad, i);
     sort_corners_by_line(c);
-    charge_machine_accesses(g, 1);
     rasterize(g, quad ? WINDOW_2 : WINDOW_1, c);
 }
 
@@ -185,8 +182,6 @@ static uint8_t beam_foot(const GameState *g) { return (uint8_t)(battle_animation
 static void draw_beam(GameState *g, uint8_t quad)
 {
     uint8_t frame = (uint8_t)battle_frame_count(g), sway = screen_scaled_sine(g, frame, BEAM_SWAY);
-    charge_machine_io_accesses(g, 1);
-    (charge_machine_io_accesses(g, 3), charge_machine_rom_accesses(g, 1));
     uint8_t top_left = (uint8_t)(BEAM_TOP_LEFT + sway);
     uint8_t foot_left = (uint8_t)((uint8_t)battle_animation_positions(g, 0) - BEAM_WIDTH / 2), foot = beam_foot(g);
     screen_set_quad_corner(g, quad, 0, (Corner){ top_left, 0 });

@@ -34,7 +34,6 @@
 #include "field/field_data.h"
 #include "field/parts.h"
 #include "field/scratch.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -592,25 +591,8 @@ bool field_tick_is_exact(const GameState *g, unsigned obj)
            none_or_an_object(queue_tail(g));
 }
 
-bool field_object_delays_in_bank(Snes *s)
-{
-    if (!field_current_object_low_bank(s))
-        return false;
-    vars_peek(true);
-    bool ok = field_tick_is_exact(state_of(s), field_current_object_slot(s));
-    vars_peek(false);
-    return ok;
-}
-
 bool object_frame_tables_in_bank(const GameState *g, FieldObject obj)
 {
     return object_facing_is_one(g, obj) &&
            (object_facing(g, obj) != FACING_RIGHT || 3u * field_object_facing_table_size(g, obj) < BANK_SIZE);
-}
-
-/* The current object's (8-bit X). */
-void field_tick_object_animation(Snes *s)
-{
-    object_animation_tick(state_of(s), field_current_object_slot(s));
-    m_rts(s);
 }

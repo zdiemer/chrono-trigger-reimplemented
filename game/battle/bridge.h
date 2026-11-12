@@ -1,9 +1,4 @@
-/* Battle contracts and called adapters for the legacy driver. Game logic
- * uses typed state; these adapters translate its callers' registers, page,
- * bank and stack frames. Checked C handoffs retain the former contracts,
- * including decimal mode and code-image assumptions, and stop at the
- * original entry if the caller breaks one. Held continuations keep frame
- * boundaries saveable until the driver gives way to the native program. */
+/* Battle state validation and shared operation identities. */
 #ifndef CT_GAME_BATTLE_BRIDGE_H
 #define CT_GAME_BATTLE_BRIDGE_H
 
@@ -11,7 +6,6 @@
 #include <stdint.h>
 
 #include "battle/battle.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "state.h"
 #include "vars.h"
@@ -23,8 +17,6 @@ enum { BATTLE_JSR_SIZE = 3, BATTLE_JSL_SIZE = 4 };
 
 /* Field music called from the legacy battle driver, retaining its caller
  * frame for a rejected contract and for audio-service interruptions. */
-bool battle_field_music_on_the_machine(Snes *s, uint32_t site, bool restore);
-void battle_refuse_long_call(Snes *s, uint32_t site, uint32_t routine);
 
 /* ---- Calling the original's code ------------------------------------------------------ */
 
@@ -35,10 +27,6 @@ void battle_refuse_long_call(Snes *s, uint32_t site, uint32_t routine);
  * callee must hand those back for the port to go on. True if it did;
  * otherwise the port stops at the call's return, and the original carries on
  * from the callee's machine. */
-void battle_continue(Snes *s, uint32_t routine, void (*entry)(Snes *), uint16_t dont_care);
-
-bool battle_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
-bool battle_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
 
 /* The battle's waits on the display, as the timing service's (platform/
  * timing.h) from the JSR at `site` to the battle's wait `routine`: for the
@@ -46,22 +34,17 @@ bool battle_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
  * others there), for a number of frames ($CD:3E3B), and for the picture to
  * reach `line` (the wait at $CD:3B82). Each comes back as battle_call's
  * callee must. */
-bool battle_wait_frame(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
-bool battle_wait_frames(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint8_t frames);
-bool battle_wait_line(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint8_t line);
 
 /* The battle's transfer of a buffer of work RAM (`from`, its bank and
  * address) to VRAM from the main thread, from the JSR at `site` to
  * $CD:3ED2, which queues it for the vblank handler and waits until it has
  * gone (vid_send_vram_and_wait); it reads none of the flags. It comes back as
  * battle_call's callee must. */
-enum { BATTLE_SEND = 0xCD3ED2, BATTLE_SEND_READS = DC_FLAGS };
-bool battle_send_and_wait(Snes *s, uint32_t site, uint32_t from, uint16_t vram, uint16_t bytes);
+enum { BATTLE_SEND = 0xCD3ED2 };
 
 /* Stop at the return of the JSR at `site`, where the original carries on with
  * the machine as its callee left it: for a port that asks, after a call-out,
  * whether what the callee left is what it goes on with. */
-void battle_stop_after_call(Snes *s, uint32_t site);
 
 /* The battle's steps' routine (BattleStep, battle.h). */
 enum { BATTLE_STEP = 0xC10003 };
@@ -72,12 +55,10 @@ enum { BATTLE_STEP = 0xC10003 };
  * dispatch called, with `dont_care` what it doesn't
  * read of the asker's registers (checked as a call-out's declaration by
  * the calling convention; battle/steps.c). True if it came back to the call's return. */
-bool battle_take_step(Snes *s, uint32_t site, BattleStep step, uint16_t dont_care);
 
 /* After a call made some other way (a service's call-out), returning to
  * `returns_to` on the page and bank it was made on: the same test, and the
  * same stop. */
-bool battle_back(Snes *s, uint32_t returns_to, uint16_t page, uint8_t bank);
 
 /* Run a sibling port's registered entry as the original's JSR (JSL) at
  * `site` calls `routine`: the return address pushed as the call pushes it, so
@@ -90,27 +71,19 @@ bool battle_back(Snes *s, uint32_t returns_to, uint16_t page, uint8_t bank);
  * registered preconditions) turns the state away, the call is made as a real
  * call instead, declaring nothing don't-care, and the runtime runs what the
  * registry has there. */
-bool battle_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
-bool battle_run_long(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
 
 /* A sibling's work run as C where the original's JSR at `site` calls it,
  * with the call's return pushed meanwhile, so that the work's own call-outs
  * are made under it as the original's are (its time is the caller's to tag,
  * TIMED_AS); and the return taken off again after. */
-void battle_push_the_return(Snes *s, uint32_t site);
-void battle_pull_the_return(Snes *s);
 
 /* battle_run and battle_run_long where the call reads less than every
  * register: the don't-care set of the real call made where the entry's guard
  * turns the state away (and the set a fuzz run stopping at the call compares
  * by). */
-bool battle_run_dc(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
-bool battle_run_long_dc(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
 
 /* Former call-outs, checked after their call frame is pushed. They settle
  * the caller and callee separately and stop at the original entry on refusal. */
-bool battle_run_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
-bool battle_run_long_called(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
 
 /* battle_run_long for a sibling that comes back on a page and data bank of
  * its own, which the caller puts right after the call (the field's music
@@ -118,13 +91,10 @@ bool battle_run_long_called(Snes *s, uint32_t site, uint32_t routine, uint16_t d
  * with the battle's widths, whatever its page. Where the entry's guard turns
  * the state away, the real call made instead goes on only on the page it was
  * made on, as battle_run's does. */
-bool battle_run_long_to_any_page(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
 
 /* 8-bit A and 16-bit index registers, whatever else: what the interrupt
  * handlers need a callee to come back with; and with binary arithmetic, what
  * most of the battle's entries need to be entered with. */
-bool battle_widths_m8_x16(const Snes *s);
-bool battle_binary_m8_x16(const Snes *s);
 
 /* ---- What the original keeps across a call or a wait ------------------------------------- */
 
@@ -142,46 +112,6 @@ typedef struct {
     BattleCarry carry;
 } BattleFrame;
 
-static inline BattleCarry battle_carry_of(bool carry) { return carry ? BATTLE_CARRY_SET : BATTLE_CARRY_CLEAR; }
-/* Nothing kept: only the carry, if that. */
-static inline BattleFrame battle_carrying(BattleCarry carry) { return (BattleFrame){ .carry = carry }; }
-/* A byte kept, as an 8-bit push keeps it. */
-static inline BattleFrame battle_keeping_byte(uint8_t byte, BattleCarry carry)
-{
-    return (BattleFrame){ .kept = { byte }, .kept_bytes = 1, .carry = carry };
-}
-/* A word kept, as a 16-bit push keeps it. */
-static inline BattleFrame battle_keeping_word(uint16_t word, BattleCarry carry)
-{
-    return (BattleFrame){ .kept = { (uint8_t)(word >> 8), (uint8_t)word }, .kept_bytes = 2, .carry = carry };
-}
-
-void battle_keep(Snes *s, BattleFrame f);
-void battle_stop_keeping(Snes *s, BattleFrame f);
-
-/* The frame of a routine that keeps its caller's accumulator (its low byte)
- * and index registers across a call, as the battle's steps do ($C1:0003);
- * and those registers given back from it after. */
-BattleFrame battle_keeping_the_registers(const Snes *s, BattleCarry carry);
-void battle_give_the_registers_back(Snes *s, BattleFrame f);
-
-/* battle_run, battle_run_dc, battle_run_long_dc and battle_wait_frame,
- * battle_wait_frames with the frame set up for the call and taken down after it; where the call
- * stops, the original carries on with what it keeps still on the stack. */
-bool battle_run_under(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *), BattleFrame f);
-bool battle_run_dc_under(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
-                         BattleFrame f);
-bool battle_run_long_dc_under(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
-                              BattleFrame f);
-bool battle_wait_under(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, BattleFrame f);
-bool battle_wait_frames_under(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint8_t frames,
-                              BattleFrame f);
-
-/* ---- What the registers name -------------------------------------------------------------- */
-
-/* An index register holding a stat block's offset (battle.h) names the
- * combatant. */
-static inline unsigned battle_slot_of_stat_block(uint16_t offset) { return offset / BATTLE_STAT_BLOCK_BYTES; }
 bool battle_names_stat_block(uint16_t offset);
 bool battle_names_combatant(uint16_t slot);
 
@@ -189,28 +119,39 @@ bool battle_names_combatant(uint16_t slot);
 
 /* On the battle's page with the data bank at $7E, as nearly all of the
  * battle's code runs. */
-bool battle_on_page(Snes *s);
 /* ... with A's high byte 0 as well, which the effect handlers index with. */
-bool battle_on_page_a_high_clear(Snes *s);
 /* On the battle's page, whatever the data bank. */
-bool battle_page(Snes *s);
 /* On the battle's page with a data bank that reaches the I/O registers. */
-bool battle_on_page_io_bank(Snes *s);
 /* A data bank that reaches the I/O registers. */
-bool battle_data_bank_is_io(Snes *s);
 /* ... or work RAM's, where the palette's send misses the hardware
  * (battle/uploads.c). */
-bool battle_data_bank_is_io_or_work_ram(Snes *s);
 /* On the sprite drawers' page with the data bank at $7E; with A's high byte
  * 0; and on any page, the bank $7E and A's high byte 0. */
-bool battle_sprite_page(Snes *s);
-bool battle_sprite_page_ready(Snes *s);
-bool battle_sprite_bank_ready(Snes *s);
 
 /* On the battle's page with the data bank at $7E, and X names a stat block;
  * and Y the combatant whose stat block X names. */
-bool battle_on_page_combatant_xy(Snes *s);
 
-bool battle_on_page_stat_block_x(Snes *s);
+static inline BattleCarry battle_carry_of(bool carry) { return carry ? BATTLE_CARRY_SET : BATTLE_CARRY_CLEAR; }
+
+/* Nothing kept: only the carry, if that. */
+static inline BattleFrame battle_carrying(BattleCarry carry) { return (BattleFrame){ .carry = carry }; }
+
+/* A byte kept, as an 8-bit push keeps it. */
+static inline BattleFrame battle_keeping_byte(uint8_t byte, BattleCarry carry)
+{
+    return (BattleFrame){ .kept = { byte }, .kept_bytes = 1, .carry = carry };
+}
+
+/* A word kept, as a 16-bit push keeps it. */
+static inline BattleFrame battle_keeping_word(uint16_t word, BattleCarry carry)
+{
+    return (BattleFrame){ .kept = { (uint8_t)(word >> 8), (uint8_t)word }, .kept_bytes = 2, .carry = carry };
+}
+
+/* ---- What the registers name -------------------------------------------------------------- */
+
+/* An index register holding a stat block's offset (battle.h) names the
+ * combatant. */
+static inline unsigned battle_slot_of_stat_block(uint16_t offset) { return offset / BATTLE_STAT_BLOCK_BYTES; }
 
 #endif

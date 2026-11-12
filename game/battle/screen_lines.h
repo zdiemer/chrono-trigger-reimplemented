@@ -28,22 +28,26 @@ enum { WINDOWS = 2 };
 typedef uint16_t Edges;
 enum { EDGES_EMPTY = 0x00FF, EDGES_FULL = 0xFF00 };
 
-static inline Edges edges_between(uint8_t left, uint8_t right) { return (Edges)(right << 8 | left); }
-static inline uint8_t left_edge(Edges e) { return (uint8_t)e; }
-static inline uint8_t right_edge(Edges e) { return (uint8_t)(e >> 8); }
-
-enum {
-    SCREEN_LINES = 224,
-    TABLE_LINES = 2 * SCREEN_LINES,
-    /* the battlefield, above the menus: the lines the bands and waves cover */
-    BATTLEFIELD_LINES = 212,
-    TOP_BORDER_LINES = BATTLE_WINDOW_TOP_LINES_COUNT,
-};
+enum { SCREEN_LINES = 224, TABLE_LINES = 2 * SCREEN_LINES, /* the battlefield, above the menus: the lines the bands and waves cover */
+    BATTLEFIELD_LINES = 212, TOP_BORDER_LINES = BATTLE_WINDOW_TOP_LINES_COUNT,  };
 
 /* A line of the table, counted from the first buffer's first: the second
  * buffer's follow the first's (224-447), and the top border's four come
  * before them (-4 to -1). */
 typedef int TableLine;
+
+/* One edge of a window on a line of the two buffers. */
+typedef enum { LEFT_EDGE, RIGHT_EDGE } WhichEdge;
+
+/* The original counts lines in bytes of the table, four a line, and leaves
+ * such counts in its cells. */
+enum { LINE_BYTES = 4 };
+
+static inline Edges edges_between(uint8_t left, uint8_t right) { return (Edges)(right << 8 | left); }
+
+static inline uint8_t left_edge(Edges e) { return (uint8_t)e; }
+
+static inline uint8_t right_edge(Edges e) { return (uint8_t)(e >> 8); }
 
 static inline Edges line_edges(const GameState *g, TableLine line, Window w)
 {
@@ -67,9 +71,6 @@ static inline void set_line_edges(GameState *g, TableLine line, Window w, Edges 
     }
 }
 
-/* One edge of a window on a line of the two buffers. */
-typedef enum { LEFT_EDGE, RIGHT_EDGE } WhichEdge;
-
 static inline uint8_t line_edge(const GameState *g, unsigned line, Window w, WhichEdge edge)
 {
     if (w == WINDOW_1)
@@ -91,13 +92,11 @@ static inline void set_line_edge(GameState *g, unsigned line, Window w, WhichEdg
     }
 }
 
-/* The original counts lines in bytes of the table, four a line, and leaves
- * such counts in its cells. */
-enum { LINE_BYTES = 4 };
-
 /* The buffer the coming frame shows, and the one on screen now. */
 static inline bool odd_frame(const GameState *g) { return battle_frame_count(g) & 0x01; }
+
 static inline TableLine coming_line(const GameState *g, unsigned line) { return (odd_frame(g) ? SCREEN_LINES : 0) + (int)line; }
+
 static inline TableLine shown_line(const GameState *g, unsigned line) { return (odd_frame(g) ? 0 : SCREEN_LINES) + (int)line; }
 
 #endif

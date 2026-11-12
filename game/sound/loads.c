@@ -26,19 +26,12 @@
 #include "core/sound_data.h"
 #include "sound/driver.h"
 
-enum {
-    SONG_COMMANDS = 0x10,            /* $10-$17: songs; $10, $11, $14 and $15 start one */
-    SAVES_SONG_FIRST = 0x04,         /* the bit that makes $10/$11 into $14/$15 */
-    NOT_A_SONG_START = 0x02,         /* set in $12, $13, $16 and $17, which do nothing */
-    FIRST_SENT_AS_IS = 0x18,         /* $18-$2F and $80-$FF go to the driver as they are */
-    SHORTCUTS = 0x30,                /* $30-$3F stand for a command of four bytes each */
-    LAST_SHORTCUT = 0x3F,
-    SWITCH_EFFECTS = 0x70,
-    LOAD_INSTRUMENT = 0x71,
-    DRIVER_COMMANDS = 0x80,
-    CHANGE_ECHO_DELAY = 0xFC,
-    LIST_END = 0x80                  /* a negative byte ends the list of songs that save first */
-};
+enum { SONG_COMMANDS = 0x10, /* $10-$17: songs; $10, $11, $14 and $15 start one */
+    SAVES_SONG_FIRST = 0x04, /* the bit that makes $10/$11 into $14/$15 */
+    NOT_A_SONG_START = 0x02, /* set in $12, $13, $16 and $17, which do nothing */
+    FIRST_SENT_AS_IS = 0x18, /* $18-$2F and $80-$FF go to the driver as they are */
+    SHORTCUTS = 0x30, /* $30-$3F stand for a command of four bytes each */
+    LAST_SHORTCUT = 0x3F, SWITCH_EFFECTS = 0x70, LOAD_INSTRUMENT = 0x71, DRIVER_COMMANDS = 0x80, CHANGE_ECHO_DELAY = 0xFC, LIST_END = 0x80                  /* a negative byte ends the list of songs that save first */ };
 
 /* ---- The places -------------------------------------------------------------------------- */
 

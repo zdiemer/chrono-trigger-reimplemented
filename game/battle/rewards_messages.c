@@ -58,15 +58,13 @@ typedef struct {
  * further. */
 typedef bool (*TellCalls)(void *ctx, RewardMessage message, unsigned item);
 
-static bool tell(GameState *g, RewardMessage message, const Telling *t, TellCalls call, void *ctx)
+static bool tell(RewardMessage message, TellCalls call, void *ctx)
 {
-    charge_machine_accesses(g, 1 + (t->at_the_members ? 2 + BATTLE_PARTY_SIZE + (t->at_the_single_techs ? 1 : 0) : 0));
     return call(ctx, message, 0);
 }
 
-static bool tell_an_item(GameState *g, unsigned item, const Telling *t, TellCalls call, void *ctx)
+static bool tell_an_item(unsigned item, TellCalls call, void *ctx)
 {
-    charge_machine_accesses(g, 1 + (t->at_the_members ? 2 + BATTLE_PARTY_SIZE + (t->at_the_single_techs ? 1 : 0) : 0));
     return call(ctx, TELL_ITEM, item);
 }
 
@@ -85,21 +83,21 @@ static bool rewarded(const GameState *g, uint8_t reward) { return (battle_reward
  * shared out or given. The tech points are a three-byte sum, of which the
  * original asks only the low word whether there are any: a sum that is a
  * whole multiple of 65,536 goes untold. Then each item given. */
-static bool tell_the_battles_rewards(GameState *g, const Telling *t, TellCalls call, void *ctx)
+static bool tell_the_battles_rewards(GameState *g, TellCalls call, void *ctx)
 {
     if (rewarded(g, REWARD_EXPERIENCE) && battle_experience_won(g) != 0) {
         tell_the_figure(g, battle_experience_won(g));
-        if (!tell(g, TELL_EXPERIENCE, t, call, ctx))
+        if (!tell(TELL_EXPERIENCE, call, ctx))
             return false;
     }
     if (rewarded(g, REWARD_TECH_POINTS) && battle_tech_points_won_low(g) != 0) {
         tell_the_figure(g, battle_tech_points_won_low(g) | (uint32_t)battle_tech_points_won_high(g) << 16);
-        if (!tell(g, TELL_TECH_POINTS, t, call, ctx))
+        if (!tell(TELL_TECH_POINTS, call, ctx))
             return false;
     }
     if (rewarded(g, REWARD_GOLD) && battle_gold_won(g) != 0) {
         tell_the_figure(g, battle_gold_won(g));
-        if (!tell(g, TELL_GOLD, t, call, ctx))
+        if (!tell(TELL_GOLD, call, ctx))
             return false;
     }
     if (!rewarded(g, REWARD_ITEMS))
@@ -109,7 +107,7 @@ static bool tell_the_battles_rewards(GameState *g, const Telling *t, TellCalls c
         if (won == 0)
             continue;
         set_battle_message_item(g, won);
-        if (!tell_an_item(g, item, t, call, ctx))
+        if (!tell_an_item(item, call, ctx))
             return false;
     }
     return true;
@@ -128,7 +126,7 @@ static bool tell_the_levels(GameState *g, Telling *t, uint8_t character, TellCal
     uint8_t *left = &t->levels_left[t->member];
     do {
         set_menu_text_arguments(g, 0, character);
-        if (!tell(g, TELL_LEVEL, t, call, ctx))
+        if (!tell(TELL_LEVEL, call, ctx))
             return false;
     } while (--*left != 0);
     return true;
@@ -146,7 +144,7 @@ static bool tell_the_single_techs(GameState *g, Telling *t, uint8_t character, T
             return true;
         set_menu_text_arguments(g, 0, character);
         set_menu_text_arguments(g, 1, tech);
-        if (!tell(g, TELL_SINGLE_TECH, t, call, ctx))
+        if (!tell(TELL_SINGLE_TECH, call, ctx))
             return false;
     } while (++t->single_tech % PLACES_A_MEMBER != 0);
     return true;
@@ -161,7 +159,7 @@ static bool tell_the_double_techs(GameState *g, Telling *t, TellCalls call, void
         if (tech == NO_TECH)
             return true;
         set_menu_text_arguments(g, 0, tech);
-        if (!tell(g, TELL_DOUBLE_TECH, t, call, ctx))
+        if (!tell(TELL_DOUBLE_TECH, call, ctx))
             return false;
     }
 }
@@ -181,7 +179,7 @@ static bool tell_a_members_rewards(GameState *g, Telling *t, TellCalls call, voi
         return false;
     if (techs & NOTED_TRIPLE_TECH) {
         set_menu_text_arguments(g, 0, battle_rewards_triple_tech(g));
-        if (!tell(g, TELL_TRIPLE_TECH, t, call, ctx))
+        if (!tell(TELL_TRIPLE_TECH, call, ctx))
             return false;
     }
     return true;
@@ -193,13 +191,12 @@ static bool tell_the_rewards(GameState *g, TellCalls call, void *ctx)
     Telling t = { .double_techs_told = 0 };
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
         t.levels_left[member] = battle_rewards_levels_gained(g, member);
-    if (!tell_the_battles_rewards(g, &t, call, ctx))
+    if (!tell_the_battles_rewards(g, call, ctx))
         return false;
     t.at_the_members = true;
     for (t.member = 0; t.member < BATTLE_PARTY_SIZE; t.member++)
         if (!tell_a_members_rewards(g, &t, call, ctx))
             return false;
-    charge_machine_accesses(g, 1 + (t.at_the_members ? 2 + BATTLE_PARTY_SIZE + (t.at_the_single_techs ? 1 : 0) : 0));
     return true;
 }
 
@@ -210,29 +207,7 @@ static bool tell_the_rewards(GameState *g, TellCalls call, void *ctx)
 /* On the machine each from the original's call of it, the message in A,
  * its high byte clear, as every call of the original has it (the guard). The
  * message reads nothing of the registers but which it is. */
-enum { SHOW_A_BATTLE_MESSAGE = 0xCD0021, THE_MESSAGE_READS_A = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-static const uint32_t tell_sites[] = { 0xFDAD2E, 0xFDAD4B, 0xFDAD63, 0xFDAD7C, 0xFDADAE, 0xFDADF4, 0xFDAE20, 0xFDAE3F };
-
-static bool tell_on_the_machine(void *ctx, RewardMessage message, unsigned item)
-{
-    Snes *s = ctx;
-    s->cpu.a = (uint16_t)message;
-    if (message == TELL_ITEM)
-        return battle_run_long_dc_under(s, 0xFDAD7C, SHOW_A_BATTLE_MESSAGE, THE_MESSAGE_READS_A,
-                                        battle_show_a_battle_message_entry,
-                                        battle_keeping_word((uint16_t)item, BATTLE_CARRY_AS_IT_IS));
-    return battle_run_long_dc(s, tell_sites[message], SHOW_A_BATTLE_MESSAGE, THE_MESSAGE_READS_A,
-                              battle_show_a_battle_message_entry);
-}
-
-void battle_show_the_rewards_entry(Snes *s)
-{
-    if (!tell_the_rewards(state_of(s), tell_on_the_machine, s))
-        return;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rtl(s);
-}
+enum { SHOW_A_BATTLE_MESSAGE = 0xCD0021 };
 
 /* The guard: on the battle's page with A's high byte clear, as the main loop
  * calls it, and a member noted with double techs finds the list's end within
@@ -246,16 +221,6 @@ static bool rewards_fit(const GameState *g)
     for (unsigned i = 0; i < BATTLE_REWARDS_DOUBLE_TECHS_COUNT; i++)
         ended |= battle_rewards_double_techs(g, i) == NO_TECH;
     return !double_techs || ended;
-}
-
-bool battle_rewards_can_be_shown(Snes *s)
-{
-    if (!battle_on_page(s) || (s->cpu.a & 0xFF00) != 0)
-        return false;
-    vars_peek(true);
-    bool fits = rewards_fit(state_of(s));
-    vars_peek(false);
-    return fits;
 }
 
 /* ---- As C ------------------------------------------------------------------------------------ */

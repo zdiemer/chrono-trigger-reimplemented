@@ -29,7 +29,6 @@
 #include "battle/rules_data.h"
 #include "battle/targets.h"
 #include "charge.h"
-#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -142,8 +141,6 @@ static FirstTarget take_first_target(GameState *g)
 {
     uint8_t target = battle_action_targets(g, 0);
     set_battle_candidates(g, 0, target);
-    if (target != NO_CANDIDATE)
-        charge_machine_accesses(g, 2);
     bool gone = target == NO_CANDIDATE || !fighting(g, target);
     if (gone && target != NO_CANDIDATE && !battle_slot_is_party(target)) {
         set_battle_enemy_animation(g, acting(g), ENEMY_ANIMATION_HALTED);
@@ -223,28 +220,8 @@ static bool attack_turn(GameState *g, ScriptPlace at, ActCalls call, void *ctx)
     TIMED_AS(g, 0xFDAB01, effect_note_enemy_action(g, ENEMY_ATTACKS));
     /* its multiply takes the carry of the test of the attack's number: set for
      * a number past the one that takes the enemy's own detail */
-    charge_machine_accesses(g, 2);
     enemy_attack_ends(g);
     return true;
-}
-
-/* A tech carried out: its targets, its targeting, the tech noted for its
- * targets (battle/effect_work.c), its message. The actions that change stats
- * first give their message apart and say no further target is none only by
- * its id. The targeting takes `aim_carry` (worked out by the caller), which
- * its lookup of the tech's members leaves in a cell; the noting, the carry of
- * marking the targets, which starts from comparing the first with the first
- * enemy's slot. */
-/* Preserve the machine estimate for removed comparison accesses.
- * Inspect the branch without charging those reads to either backend. */
-
-// $C1:9A3D
-static void charge_target_marking(GameState *g)
-{
-    uint32_t charge_mark = charge_uncounted_begin(g);
-    unsigned count = battle_candidate_count(g);
-    charge_uncounted_end(g, charge_mark);
-    charge_machine_accesses(g, 3 + count);
 }
 
 static bool tech_after_targets(GameState *g, ActCall aim, ActCall message_at, bool stats_first, bool aim_carry,
@@ -258,7 +235,6 @@ static bool tech_after_targets(GameState *g, ActCall aim, ActCall message_at, bo
     if (enemy_tech_aimed(g)) {
         TIMED_AS(g, 0xFDAAD2, effect_note_enemy_action(g, ENEMY_TECHS));
         /* its multiply takes the carry of the marking of the targets */
-        charge_target_marking(g);
         enemy_tech_ends(g);
         if (!show_message(message_at, stats_first ? battle_action_message(g) : message, call, ctx))
             return false;
@@ -588,116 +564,11 @@ static bool enemy_turn(GameState *g, TurnCalls call, void *ctx)
     return true;
 }
 
-/* ---- On the machine ------------------------------------------------------------------------ */
-
-/* The calls read nothing of the registers but what each is given. */
-enum {
-    READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS,
-    READS_A = DC_X | DC_Y | DC_FLAGS,
-    READS_X = DC_A | DC_Y | DC_FLAGS,
-};
-
-/* The action turns' calls, from the original's: the message's and the
- * targeting's by the turn they are made in. */
-static const uint32_t aim_sites[] = { 0xC19AEB, 0xC1A0F2, 0xC1A33A };
-static const uint32_t message_sites[] = { 0xC19B35, 0xC1A13D, 0xC1A385, 0xC19D68, 0xC19DC4, 0xC19E58,
-                                          0xC19E6E, 0xC19FC8, 0xC1A201, 0xC19D0E, 0xC19F50, 0xC1A3C7 };
-static const uint32_t arrival_sites[] = { 0xC19C30, 0xC19EDA, 0xFDAA2E };
-
 enum { TECH_BODY = 0xC19A3D, AIM = 0xC1C1DD, ENEMY_MESSAGE = 0xCD0033, ARRIVAL = 0xFDB438, CALL_IN = 0xFDA990 };
 enum { ARRIVING_ENEMY_CELL = 0x02 };
 
-static bool act_on_the_machine(void *ctx, ActCall call, uint8_t arg, bool carry)
-{
-    Snes *s = ctx;
-    switch (call) {
-    case ACT_TECH_BODY: return battle_run(s, 0xC19A39, TECH_BODY, battle_enemy_tech_body);
-    case ACT_AIM_TECH:
-    case ACT_AIM_SET_STATS_THEN_TECH:
-    case ACT_AIM_ADD_TO_STATS_THEN_TECH:
-        m_set_flag(s, CPU_FLAG_C, carry);
-        return battle_run(s, aim_sites[call - ACT_AIM_TECH], AIM, battle_aim_action_entry);
-    case ACT_ARRIVAL_CHANGE_INTO:
-    case ACT_ARRIVAL_BRING_BACK:
-    case ACT_ARRIVAL_CALL_IN: {
-        /* an enemy coming into the battle loaded as at the fight's start,
-         * with the enemy in X and the argument word its full guard checks.
-         * The action already retains this word's old access charge. */
-        GameState *g = state_of(s);
-        uint32_t mark = charge_uncounted_begin(g);
-        battle_keep_word(g, ARRIVING_ENEMY_CELL, arg);
-        charge_uncounted_end(g, mark);
-        s->cpu.x = arg;
-        return battle_run_long_dc(s, arrival_sites[call - ACT_ARRIVAL_CHANGE_INTO], ARRIVAL, READS_X, fight_load_enemy_entry);
-    }
-    case ACT_CALL_IN: return battle_run_long_dc(s, 0xC1A3B6, CALL_IN, READS_NOTHING, battle_call_enemies_in_entry);
-    default:
-        m_set_a8(s, arg);
-        return battle_run_long(s, message_sites[call - ACT_MESSAGE_TECH], ENEMY_MESSAGE, battle_show_an_enemy_message_entry);
-    }
-}
-
-static void run_action_entry(Snes *s, ActionTurn turn, uint8_t reads)
-{
-    if (run_action_turn(state_of(s), turn, reads, act_on_the_machine, s))
-        m_rts(s);
-}
-
 /* An entry and its guard, which knows the action it carries out. */
-#define ACTION_TURN_ENTRY(name, turn, action, reads) \
-    void name(Snes *s) { run_action_entry(s, turn, reads); } \
-    bool name##_ready(Snes *s) { return battle_script_entry_ready(s, TAKES_ACTION, action); }
-ACTION_TURN_ENTRY(battle_enemy_pose_turn, pose_turn, ACTION_POSE, READS_NOTHING_MORE)
-ACTION_TURN_ENTRY(battle_enemy_attack_turn, attack_turn, ACTION_ATTACK, ATTACK_READS)
-ACTION_TURN_ENTRY(battle_enemy_tech_turn, tech_turn, ACTION_TECH, READS_NOTHING_MORE)
-ACTION_TURN_ENTRY(battle_enemy_tech_body, tech_body, ACTION_TECH, TECH_READS)
-ACTION_TURN_ENTRY(battle_enemy_choose_again_turn, choose_again_turn, ACTION_CHOOSE_AGAIN, READS_NOTHING_MORE)
-ACTION_TURN_ENTRY(battle_enemy_change_into_turn, change_into_turn, ACTION_CHANGE_INTO, READS_NOTHING_MORE)
-ACTION_TURN_ENTRY(battle_enemy_leave_turn, leave_turn, ACTION_LEAVE, READS_NOTHING_MORE)
-ACTION_TURN_ENTRY(battle_enemy_die_turn, die_turn, ACTION_DIE, READS_NOTHING_MORE)
-ACTION_TURN_ENTRY(battle_enemy_set_stat_turn, set_stat_turn, ACTION_SET_STAT, READS_NOTHING_MORE)
-ACTION_TURN_ENTRY(battle_enemy_add_to_stat_turn, add_to_stat_turn, ACTION_ADD_TO_STAT, READS_NOTHING_MORE)
-ACTION_TURN_ENTRY(battle_enemy_flags_turn, flags_turn, ACTION_FLAGS, READS_NOTHING_MORE)
-ACTION_TURN_ENTRY(battle_enemy_message_turn, message_turn, ACTION_MESSAGE, READS_NOTHING_MORE)
-ACTION_TURN_ENTRY(battle_enemy_bring_back_turn, bring_back_turn, ACTION_BRING_BACK, READS_NOTHING_MORE)
-ACTION_TURN_ENTRY(battle_enemy_set_stats_turn, set_stats_turn, ACTION_SET_STATS, READS_NOTHING_MORE)
-ACTION_TURN_ENTRY(battle_enemy_set_stats_then_tech_turn, set_stats_then_tech_turn, ACTION_SET_STATS_THEN_TECH, TECH_READS)
-ACTION_TURN_ENTRY(battle_enemy_add_to_turn_wait_turn, add_to_turn_wait_turn, ACTION_ADD_TO_TURN_WAIT, TURN_WAIT_READS)
-ACTION_TURN_ENTRY(battle_enemy_add_to_stats_turn, add_to_stats_turn, ACTION_ADD_TO_STATS, READS_NOTHING_MORE)
-ACTION_TURN_ENTRY(battle_enemy_add_to_stats_then_tech_turn, add_to_stats_then_tech_turn, ACTION_ADD_TO_STATS_THEN_TECH,
-                  TECH_READS)
-ACTION_TURN_ENTRY(battle_enemy_call_in_turn, call_in_turn, ACTION_CALL_IN, READS_NOTHING_MORE)
-
-/* The actions with no turn take up nothing of the script. */
-void battle_enemy_no_turn(Snes *s) { run_action_entry(s, nothing_turn, READS_NOTHING_MORE); }
-bool battle_enemy_no_turn_ready(Snes *s) { return battle_script_entry_ready(s, TAKES_NOTHING, 0); }
-
 /* The actions' entries, by action. */
-static void (*const turn_entries[ACTION_KINDS])(Snes *) = {
-    [ACTION_POSE] = battle_enemy_pose_turn,
-    [ACTION_ATTACK] = battle_enemy_attack_turn,
-    [ACTION_TECH] = battle_enemy_tech_turn,
-    [0x03] = battle_enemy_no_turn,
-    [ACTION_ONE_OF_FOUR] = battle_enemy_no_turn,
-    [ACTION_CHOOSE_AGAIN] = battle_enemy_choose_again_turn,
-    [0x06] = battle_enemy_no_turn,
-    [ACTION_CHANGE_INTO] = battle_enemy_change_into_turn,
-    [0x08] = battle_enemy_no_turn,
-    [ACTION_LEAVE] = battle_enemy_leave_turn,
-    [ACTION_DIE] = battle_enemy_die_turn,
-    [ACTION_SET_STAT] = battle_enemy_set_stat_turn,
-    [ACTION_ADD_TO_STAT] = battle_enemy_add_to_stat_turn,
-    [ACTION_FLAGS] = battle_enemy_flags_turn,
-    [0x0E] = battle_enemy_no_turn,
-    [ACTION_MESSAGE] = battle_enemy_message_turn,
-    [ACTION_BRING_BACK] = battle_enemy_bring_back_turn,
-    [ACTION_SET_STATS] = battle_enemy_set_stats_turn,
-    [ACTION_SET_STATS_THEN_TECH] = battle_enemy_set_stats_then_tech_turn,
-    [ACTION_ADD_TO_TURN_WAIT] = battle_enemy_add_to_turn_wait_turn,
-    [ACTION_ADD_TO_STATS] = battle_enemy_add_to_stats_turn,
-    [ACTION_ADD_TO_STATS_THEN_TECH] = battle_enemy_add_to_stats_then_tech_turn,
-    [ACTION_CALL_IN] = battle_enemy_call_in_turn,
-};
 
 /* The action's dispatch, which the original makes with the action doubled in
  * X and A. */
@@ -707,86 +578,17 @@ enum { DISPATCH = 0xC18D88 };
  * the test of the actor's statuses leaves it, clear. */
 enum { SHOWING = 0xC1AC57 };
 
-static bool turn_on_the_machine(void *ctx, TurnCall call)
-{
-    Snes *s = ctx;
-    GameState *g = state_of(s);
-    switch (call) {
-    case TURN_ACTION: {
-        uint8_t action = battle_action_kind(g);
-        s->cpu.x = (uint8_t)(action * 2);
-        s->cpu.a = (uint8_t)(action * 2);
-        return battle_run(s, DISPATCH, turn_of(action)->routine, action < ACTION_KINDS ? turn_entries[action] : battle_enemy_no_turn);
-    }
-    case TURN_EFFECT:
-        if (battle_action_kind(g) == ACTION_TECH)
-            return battle_run_dc(s, 0xC18E15, 0xC1D7C4, DC_A | DC_X | DC_Y | DC_FLAGS, battle_work_out_enemy_tech);
-        return battle_run_dc(s, 0xC18E10, 0xC1D8D1, DC_A | DC_X | DC_Y | DC_FLAGS, battle_work_out_enemy_attack);
-    case TURN_SHOW_THE_EFFECT:
-        /* the test of the actor's statuses leaves A's high byte clear */
-        s->cpu.a &= 0x00FF;
-        return battle_run(s, 0xC18E47, SHOWING, battle_start_action_showing);
-    default: return battle_run(s, 0xC18E47, SHOWING, battle_start_action_showing);
-    }
-}
-
 /* The action is shown, the battle's step 4 asked for from the original's
  * routine for it ($C1:BFA4), whose return the ask is made under, and its hits
  * land (battle/damage.c). The step takes A's high byte along, as the caller
  * left it, and the overflow flag, which it keeps with the flags across its
  * frame waits. */
-enum { STEP_READS_A_AND_OVERFLOW = DC_X | DC_Y | DC_N | DC_Z };
-
-static bool start_showing(Snes *s)
-{
-    battle_push_the_return(s, SHOWING);
-    if (!battle_take_step(s, 0xC1BFA6, BATTLE_STEP_SHOW_ACTION, STEP_READS_A_AND_OVERFLOW))
-        return false;
-    battle_pull_the_return(s);
-    GameState *g = state_of(s);
-    TIMED_AS(g, 0xC1EC7F, battle_apply_damage(g));
-    return true;
-}
-
-/* The hits' landing ends with the damage table's clearing, which leaves A
- * clear and the carry set for the showing's callers. */
-void battle_start_action_showing(Snes *s)
-{
-    if (!start_showing(s))
-        return;
-    s->cpu.a = 0;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
-}
 
 /* The calling in alone, as the call-in's turn calls it (with JSL): the
  * battle's page and data bank, as each of its arrivals' guards takes them,
  * and the effect code's tech number in the cell the original reads it from,
  * where the turn's start leaves it (enemy_call_in_starts). */
 enum { TECH_NUMBER_CELL = 0x12, TECH_NUMBER_OPERAND = 2 };
-
-bool battle_call_enemies_in_ready(Snes *s)
-{
-    if (!battle_on_page(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = battle_cell_word(g, TECH_NUMBER_CELL) == enemy_script_byte(g, (ScriptPlace)(battle_script_place(g) + TECH_NUMBER_OPERAND));
-    vars_peek(false);
-    return ok;
-}
-
-void battle_call_enemies_in_entry(Snes *s)
-{
-    if (call_enemies_in(state_of(s), act_on_the_machine, s))
-        m_rtl(s);
-}
-
-void battle_enemy_takes_turn_entry(Snes *s)
-{
-    if (enemy_turn(state_of(s), turn_on_the_machine, s))
-        m_rts(s);
-}
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 

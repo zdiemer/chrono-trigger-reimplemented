@@ -8,7 +8,7 @@ import native_check
 
 
 class NativeExitTest(unittest.TestCase):
-    stop = "frame 42: the program's C goes no further: $C2:A71E, a menu, runs only on the machine\n"
+    stop = "frame 42: the program's C goes no further: $C2:A71E, a menu in an invalid state\n"
 
     def outcome(self, rc, text=None):
         return native_check.ended(self.stop if text is None else text, rc, 100)[0]

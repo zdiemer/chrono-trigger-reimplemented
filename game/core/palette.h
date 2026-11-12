@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 #include "platform/platform.h"
-#include "snes/system.h"
+#include <stdint.h>
 #include "state.h"
 
 /* Every palette animation stopped, as a scene does before it sets its own
@@ -41,27 +41,14 @@ bool palette_animation_playing(const GameState *g, unsigned slot);
 /* Start the current location's palette animations (the field's loading). */
 void palette_load_location_animations(GameState *g);
 
-/* The palette animations' frame, every slot's (the field's and the scenes'
- * call through $FD:FFF7); it leaves A and Y at the end of the slots, which a
- * scene's task leaves for the code after it. */
+/* Advance every active palette animation. */
 void palette_animate_a_frame(GameState *g);
-uint16_t palette_animations_leave(void);
-/* The same as the program runs it: where the guard's state half doesn't take
- * the slots, the program goes no further (false). */
+/* Validate the slots, then advance them; false on invalid game state. */
 bool palette_animated(GameState *g);
 
-/* The frame's work as a still-gated caller's machine path runs it, under the
- * original's call (core/machine_forms.c): the registers the original leaves,
- * and its return. Its contract: 8-bit A, 16-bit index registers, binary
- * arithmetic, a direct page whose low byte is 0, and slots the game makes. */
-void palette_animate(Snes *s);
-bool palette_animate_runs(Snes *s);
-
-void palette_upload(Snes *s);
 /* The working palette sent to CGRAM whole ($C0:712E), every mode's vblank
  * work. */
 void palette_send_working(Platform *pf);
 enum { PALETTE_UPLOAD_ENTRY = 0xC0712E };
-bool palette_bank_is_io(Snes *s);
 
 #endif

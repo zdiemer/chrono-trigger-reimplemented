@@ -5,22 +5,20 @@
 #define CT_GAME_CORE_INPUT_H
 
 #include "platform/input.h"
-#include "snes/system.h"
+#include <stdbool.h>
+#include <stdint.h>
 #include "state.h"
+
+enum { ASSIGNED_PRESSED, ASSIGNED_HELD, ASSIGNED_REPEATING };
 
 /* A set of buttons in the game's own order, the order of the words it keeps
  * them in (input_held and the rest): the face and shoulder buttons in the low
  * byte, the direction pad in the high. The controller's order is PadBits
  * (platform/input.h). */
 typedef uint16_t Buttons;
-enum {
-    BUTTON_A = 0x0080, BUTTON_X = 0x0040, BUTTON_L = 0x0020, BUTTON_R = 0x0010,
-    BUTTON_B = 0x0008, BUTTON_Y = 0x0004, BUTTON_SELECT = 0x0002, BUTTON_START = 0x0001,
-    BUTTON_UP = 0x0800, BUTTON_DOWN = 0x0400, BUTTON_LEFT = 0x0200, BUTTON_RIGHT = 0x0100,
-};
+enum { BUTTON_A = 0x0080, BUTTON_X = 0x0040, BUTTON_L = 0x0020, BUTTON_R = 0x0010, BUTTON_B = 0x0008, BUTTON_Y = 0x0004, BUTTON_SELECT = 0x0002, BUTTON_START = 0x0001, BUTTON_UP = 0x0800, BUTTON_DOWN = 0x0400, BUTTON_LEFT = 0x0200, BUTTON_RIGHT = 0x0100,  };
 
-/* The sets kept through the player's button assignments (input_mapped). */
-typedef enum { ASSIGNED_PRESSED, ASSIGNED_HELD, ASSIGNED_REPEATING } AssignedSet;
+
 
 /* What the field makes of two of the assignments, as a set through them has
  * them: the first confirms -- talks, opens a chest, closes a dialog that
@@ -49,23 +47,5 @@ bool input_take_frame(GameState *g, Platform *pf);
 typedef enum { CONTROLLER_READ, CONTROLLER_NOT_READY, CONTROLLER_RESET } ControllerRead;
 ControllerRead input_read_controller(GameState *g, Platform *pf);
 void input_tick_play_time(GameState *g);
-
-/* Where a read that didn't take the buttons stops on the machine: at the
- * original's wait for the console's read ($C2:84F9) or at the reset. The
- * caller has built the stack the original has there. */
-void input_stop_reading(Snes *s, ControllerRead read);
-
-/* The frame's input work as the menus' machine path runs it from the long
- * entry the other modes take it through ($C2:8002, menu/frame.c), under the
- * original's call: retired from the gate with the rest of it, but it stops on
- * the machine where the console's read isn't done. */
-void input_update(Snes *s);
-
-/* The registered entries (game/registry.c): the wait for the console's read,
- * which the machine makes, and the sample taken where it ends. */
-void input_wait_for_controller(Snes *s);
-void input_take_ready_controller(Snes *s);
-bool input_controller_page_ready(Snes *s);
-bool input_controller_wait_ready(Snes *s);
 
 #endif

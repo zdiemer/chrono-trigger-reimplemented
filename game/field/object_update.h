@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 #include "field/object.h"
-#include "snes/system.h"
+#include <stdint.h>
 #include "state.h"
 
 /* field/object_update.c */
@@ -13,16 +13,11 @@
  * starts ($C0:B204). */
 void field_empty_the_rows(GameState *g);
 
-void field_update_objects(Snes *s);
 /* The same as C: false where a step is one the port doesn't take, the
  * program going no further there (core/program.h). A row joined or left,
  * as C, the same. */
 bool field_objects_updated(GameState *g);
 bool object_rows_step(GameState *g, FieldObject obj, bool join);
 enum { FIELD_UPDATE_SCREEN_POSITION_ENTRY = 0xC0AB45 };
-void field_leave_object_row(Snes *s);
-void field_join_object_row(Snes *s);
-bool field_object_rows_linked(Snes *s);
-bool field_objects_counted(Snes *s);
 
 #endif

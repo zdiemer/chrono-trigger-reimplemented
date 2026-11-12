@@ -14,6 +14,7 @@
 
 struct GameState {
     VarsHost vars;
+    ProgramHandlers handlers;
     uint8_t sram[STATE_HOST_SRAM_BYTES];
     /* the multiplier and divider: their operands, and the result the
      * product-or-remainder register shows */
@@ -61,6 +62,8 @@ void state_host_destroy(GameState *g)
         free(g->time);
     free(g);
 }
+
+ProgramHandlers *program_handlers(GameState *g) { return &g->handlers; }
 
 uint8_t *state_host_sram(GameState *g) { return g->sram; }
 VarsHost *state_host_vars(GameState *g) { return &g->vars; }
@@ -289,7 +292,7 @@ void wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes)
  * accessors, its reads of the cartridge, save RAM through the save service
  * (TmHostProgram.accessed) -- is the bus clocks it takes on the machine
  * (state_host_game_access), at the calibrated rate of the routine the work is
- * timed as (charge_time_as_begin, the TIMED_AS and NATIVE_TIME_AS tags), the
+ * timed as (charge_time_as_begin, TIMED_AS scopes), the
  * rates the machine measured (port/time_rates.h). What a port does another
  * way is charged as the machine charges it: a charge at its routine's rate
  * (charge_as), a block move at the block move's, and a retired routine's
@@ -359,7 +362,7 @@ void state_host_game_access(const GameState *g, uint32_t clocks)
 }
 
 /* The block move stub's routine ($7E:9690), whose rate a byte moved is
- * charged at (a read and a write), as on the machine (port/state_io.c). */
+ * charged at (a read and a write), at the retained block-copy rate. */
 enum { BLOCK_MOVE = 0x7E9690, ACCESS_CLOCKS = 8, ACCESSES_PER_BYTE_MOVED = 2 };
 
 void charge_as(GameState *g, uint32_t routine, uint32_t accesses)
@@ -372,21 +375,6 @@ void charge_as(GameState *g, uint32_t routine, uint32_t accesses)
 }
 
 void charge_block_move(GameState *g, uint32_t bytes) { charge_as(g, BLOCK_MOVE, bytes * ACCESSES_PER_BYTE_MOVED); }
-
-void charge_machine_accesses(GameState *g, uint32_t accesses)
-{
-    (void)g; (void)accesses;
-}
-
-void charge_machine_io_accesses(GameState *g, uint32_t accesses)
-{
-    (void)g; (void)accesses;
-}
-
-void charge_machine_rom_accesses(GameState *g, uint32_t accesses)
-{
-    (void)g; (void)accesses;
-}
 
 void charge_legacy_io_accesses(GameState *g, uint32_t accesses)
 {
@@ -418,8 +406,6 @@ uint32_t charge_retired_begin(GameState *g)
     g->uncounted++;
     return g->raw_bus;
 }
-
-void charge_settle(GameState *g) { (void)g; }
 
 void charge_retired_end(GameState *g, uint32_t mark, uint32_t routine, uint32_t accesses)
 {
@@ -537,7 +523,7 @@ bool program_starts_afresh(GameState *g)
     return afresh;
 }
 
-void program_needs_the_machine(GameState *g, uint32_t routine, const char *what)
+void program_fail(GameState *g, uint32_t routine, const char *what)
 {
     if (g->stopped)
         return;
@@ -546,8 +532,8 @@ void program_needs_the_machine(GameState *g, uint32_t routine, const char *what)
     g->stopped_what = what;
 }
 
-/* With no machine there is no original to go on with: the program stops. */
+/* All game-state contract failures preserve the first diagnostic. */
 void program_breaks_a_contract(GameState *g, uint32_t routine, const char *what)
 {
-    program_needs_the_machine(g, routine, what);
+    program_fail(g, routine, what);
 }

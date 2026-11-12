@@ -9,7 +9,6 @@
 
 #include "platform/audio.h"
 #include "platform/video.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* The screen's options, as its cursor's places number them: the ten in the
@@ -266,33 +265,5 @@ bool menu_open_settings(GameState *g, Platform *pf);
 bool menu_choose_setting(GameState *g, Platform *pf);
 
 /* ---- The entries (game/menu/settings_screen_bridge.c) ------------------------------------------- */
-
-void menu_open_settings_entry(Snes *s);
-void menu_choose_setting_entry(Snes *s);
-void menu_choose_buttons_entry(Snes *s);
-void menu_choose_gauge_layout_entry(Snes *s);
-void menu_take_setting_option(Snes *s);
-void menu_set_sound_output(Snes *s);
-void menu_flip_active_time(Snes *s);
-void menu_flip_keep_menu_cursors(Snes *s);
-void menu_flip_keep_battle_command(Snes *s);
-void menu_flip_keep_battle_lists(Snes *s);
-void menu_flip_descriptions(Snes *s);
-void menu_choose_speeds(Snes *s);
-void menu_step_battle_speed(Snes *s);
-void menu_step_message_speed(Snes *s);
-void menu_step_window_design(Snes *s);
-void menu_choose_battle_gauge(Snes *s);
-void menu_take_controls(Snes *s);
-void menu_step_setting_meter(Snes *s);
-void menu_show_settings_panel(Snes *s);
-bool menu_settings_screen_opens(Snes *s);
-bool menu_settings_options_step_runs(Snes *s);
-bool menu_setting_option_is_takeable(Snes *s);
-bool menu_settings_buttons_step_runs(Snes *s);
-bool menu_settings_gauge_step_runs(Snes *s);
-bool menu_setting_meter_steps(Snes *s);
-bool menu_settings_panel_shows(Snes *s);
-bool menu_settings_panel_goes(Snes *s);
 
 #endif

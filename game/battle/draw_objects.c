@@ -135,7 +135,6 @@ static unsigned draw_frame(GameState *g, unsigned slot, unsigned sprite, FramePo
      * the combatants. Object 23's Y overlaps this frame's X, so that value
      * is also input to the grid (battlefield.c), including in native builds. */
     leave_draw_cell16(g, 0x2E, at.x);
-    charge_machine_accesses(g, 20);
     return sprite;
 }
 
@@ -149,7 +148,6 @@ static uint16_t widened(int8_t v) { return (uint16_t)(int16_t)v; }
  * it is hidden. Returns the next free sprite. */
 static unsigned draw_combatant(GameState *g, unsigned slot, unsigned sprite)
 {
-    charge_machine_accesses(g, 2);
     if (hidden(g, slot))
         return sprite;
     return draw_frame(g, slot, sprite, (FramePoint){ combatant_x(g, slot), combatant_y(g, slot) },
@@ -185,7 +183,6 @@ static void copy_tiles(GameState *g, unsigned from, unsigned to, uint16_t count)
         set_oam_buffer_tile(g, to + n, battle_object_sprite_entries_tile(g, from + n));
         set_oam_buffer_attributes(g, to + n, battle_object_sprite_entries_attributes(g, from + n));
     }
-    charge_machine_accesses(g, 2);
 }
 
 /* The groups a frame of so many parts takes: a group for sixteen parts,
@@ -220,7 +217,6 @@ static unsigned draw_effect(GameState *g, unsigned record, unsigned sprite)
     uint8_t bits = battle_effect_attribute_bits(g, effect);
     uint16_t x = (uint16_t)(battle_anchor_x(g, effect) + battle_anchor_offset_x(g, effect));
     uint16_t y = (uint16_t)(battle_anchor_y(g, effect) + battle_anchor_offset_y(g, effect));
-    charge_machine_accesses(g, 5);
     if (battle_effect_frame_time(g, effect) == 0)
         return sprite;
     uint8_t set = battle_effect_sprite_set(g, effect) & SET_OF_EFFECT;
@@ -232,7 +228,6 @@ static unsigned draw_effect(GameState *g, unsigned record, unsigned sprite)
         set_oam_buffer_attributes(g, sprite + n, (uint8_t)((battle_effect_sprite_data(g, from + 3u) & EFFECT_SPRITE_KEEPS) | bits));
         place_sprite(g, sprite + n, (uint16_t)(battle_effect_sprite_data(g, from) + x), (uint16_t)(battle_effect_sprite_data(g, from + 1u) + y));
     }
-    charge_machine_accesses(g, 10);
     return sprite + counted;
 }
 
@@ -263,7 +258,6 @@ static unsigned draw_numbers(GameState *g, unsigned slot, unsigned sprite)
         put_sprite(g, sprite + d, battle_number_sprites_x(g, digit), battle_number_sprites_y(g, digit),
                    battle_number_sprites_tile(g, digit), battle_number_sprites_attributes(g, digit));
     }
-    charge_machine_accesses(g, 1);
     return sprite + NUMBER_DIGITS;
 }
 
@@ -290,7 +284,6 @@ static unsigned draw_marker(GameState *g, unsigned slot, unsigned sprite)
     if (!battle_marker_on(g, slot))
         return sprite;
     uint8_t x = combatant_x(g, slot), y = combatant_y(g, slot);
-    charge_machine_accesses(g, 2);
     uint8_t frame = next_marker_frame(g, slot);
     MarkerSprite m = battle_marker_sprite(g, (uint8_t)(battle_marker_kind(g, slot) + frame * SPRITE_BYTES));
     put_sprite(g, sprite, (uint8_t)(x + m.x), (uint8_t)(y + m.y), m.tile, (uint8_t)(m.attributes | battle_sprite_attributes(g)));
@@ -339,8 +332,6 @@ static uint16_t sign_of(uint8_t high) { return (high & 0x80) ? 0xFF00 : 0; }
 
 static unsigned draw_afterimage_frame(GameState *g, unsigned slot, unsigned sprite, TrailPoint p)
 {
-    charge_machine_accesses(g, 4);
-    charge_machine_accesses(g, 2);
     if (hidden(g, slot))
         return sprite;
     return draw_frame(g, slot, sprite, (FramePoint){ p.x, p.y }, (FramePoint){ sign_of(p.x_high), sign_of(p.y_high) });
@@ -422,11 +413,7 @@ static DrawList build_draw_list(const GameState *g)
 
 /* ---- The pass, each part in the time of the original's routine for it ------------------ */
 
-enum {
-    DRAW_IN_FRONT = 0xCFEDB8, DRAW_BEHIND = 0xCFEDF7, DRAW_COMBATANT = 0xCFEAC5, COPY_TILES = 0xCFEB94,
-    DRAW_SHADOW = 0xCFEA8A, DRAW_AFTERIMAGES = 0xCFE92C, DRAW_AFTERIMAGE = 0xCFE99C, DRAW_EFFECT = 0xCFEEEB,
-    DRAW_NUMBERS = 0xCFEE9F, DRAW_MARKER = 0xCFEE2C,
-};
+enum { DRAW_IN_FRONT = 0xCFEDB8, DRAW_BEHIND = 0xCFEDF7, DRAW_COMBATANT = 0xCFEAC5, COPY_TILES = 0xCFEB94, DRAW_SHADOW = 0xCFEA8A, DRAW_AFTERIMAGES = 0xCFE92C, DRAW_AFTERIMAGE = 0xCFE99C, DRAW_EFFECT = 0xCFEEEB, DRAW_NUMBERS = 0xCFEE9F, DRAW_MARKER = 0xCFEE2C,  };
 
 /* The effects the combatant's records put on one side of it. */
 static unsigned draw_effects(GameState *g, unsigned slot, unsigned sprite, bool in_front)
@@ -476,7 +463,6 @@ static unsigned draw_afterimage(GameState *g, unsigned slot, unsigned sprite, Tr
  * of its trail's four points. */
 static unsigned draw_afterimages(GameState *g, unsigned slot, unsigned sprite, uint16_t last_parts)
 {
-    charge_machine_accesses(g, 2);
     if (!afterimages_due(g, slot))
         return sprite;
     for (unsigned point = 0; point < TRAIL_POINTS; point++)
@@ -511,10 +497,7 @@ static void draw_objects(GameState *g)
 {
     DrawList list = build_draw_list(g);
     for (unsigned i = 0; i < list.count; i++)
-        if (list.entry[i].own) {
-            charge_machine_accesses(g, 1);
-        }
-    charge_machine_accesses(g, 3 + 2 * list.count);
+        ;
     bool drawn_early[BATTLE_COMBATANTS] = { false };
     unsigned sprite = FIRST_FREE_SPRITE;
     uint8_t last_parts = 0;
@@ -528,15 +511,12 @@ static void draw_objects(GameState *g)
             sprite = draw_with_effects(g, slot, sprite, parts);
             drawn_early[slot] = list.second_entry[slot];
             shadow = !drawn_early[slot];
-            if (drawn_early[slot])
-                charge_machine_accesses(g, 1);
         }
         if (shadow)
             TIMED_AS(g, DRAW_SHADOW, sprite = draw_shadow(g, slot, sprite));
         if (battle_effects_running(g) && e.own && battle_trail_on(g, slot))
             TIMED_AS(g, DRAW_AFTERIMAGES, sprite = draw_afterimages(g, slot, sprite, last_parts));
     }
-    charge_machine_accesses(g, 8);
 }
 
 /* Reserve the same sprite ranges the draw pass uses, including tile copies
@@ -626,50 +606,6 @@ static bool draw_pass_fits(const GameState *g)
         if (battle_oam_high_offsets(g, at * SPRITE_BYTES) >= OAM_HIGH_TABLE_BYTES)
             return false;
     return true;
-}
-
-/* ---- The entries ------------------------------------------------------------------------ */
-
-/* The pass requires a nonempty list and room for every frame, effect and
- * afterimage it draws. With the list empty, the original's sort would run
- * through the whole bank. The individual routines draw the current combatant (the object
- * in its cell, or in X), from the next free sprite in its cell, at a
- * sprite's place in the buffer. */
-
-/* A frame may run into the following combatants' part records, but neither
- * its source parts nor its output sprites may run past their whole buffers. */
-
-/* An afterimage copies its tiles even when the combatant is hidden. The
- * previous frame's part count determines that copy's size. */
-
-/* Each guard looks at the state without taking the machine's time. */
-
-bool battle_draw_pass_ready(Snes *s)
-{
-    if (!battle_sprite_bank_ready(s))
-        return false;
-    vars_peek(true);
-    bool fits = draw_pass_fits(state_of(s));
-    vars_peek(false);
-    return fits;
-}
-
-/* The frame's own routines set A before they use it, whatever the caller
- * left there. */
-
-/* An effect's record in X. */
-
-/* What the original's pass hands its routines in the objects' page's cells. */
-
-/* Each hands the next free sprite back in its cell, and leaves the direct
- * page on the objects' page, where the pass runs, and A's high byte 0, which
- * the callers read; the rest is dead. */
-
-void battle_draw_objects(Snes *s)
-{
-    draw_objects(state_of(s));
-    s->cpu.d = BATTLE_PAGE;
-    m_rts(s);
 }
 
 /* X the combatant's object. */

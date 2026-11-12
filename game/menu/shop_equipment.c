@@ -77,7 +77,6 @@ static void colour_the_members(GameState *g, uint8_t tiles, uint8_t colour)
         put_sprite_colours(g, menu_shop_members(g, member), c);
         member++;
     } while (member < reachable);
-    charge_machine_accesses(g, 7);
 }
 
 /* ---- Down to the members ------------------------------------------------------------------------- */
@@ -97,16 +96,12 @@ void menu_shop_go_down_to_the_members(GameState *g, Platform *pf)
     while (!(menu_shop_members(g, member) & END_OF_THE_MEMBERS)) {
         put_sprite_colours(g, menu_shop_members(g, member), DIMMED);
         colour_strip(g, member, STRIP_TILES, DIMMED);
-        charge_machine_accesses(g, 4);
         any = true;
         member = (uint8_t)(member + 1);
         if (member >= menu_shop_member_count(g))
             break;
     }
     (void)any;
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     menu_draw_windows(g, pf, MEMBERS_WINDOW);
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
 }
@@ -130,7 +125,6 @@ void menu_shop_back_up_to_the_tabs(GameState *g, Platform *pf)
 {
     TIMED_AS(g, 0xC2F5A7, menu_load_character_colours(g));
     colour_strip(g, 0, ALL_STRIPS_TILES, BRIGHT);
-    charge_machine_accesses(g, 4);
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
     set_menu_shop_member_cursor(g, menu_cursor_index(g));
     set_menu_cursor_index(g, menu_shop_tab_cursor(g));

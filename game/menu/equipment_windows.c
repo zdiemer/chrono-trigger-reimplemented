@@ -112,7 +112,6 @@ static void stage_bands(GameState *g, const Band *bands, unsigned count)
     for (unsigned i = 0; i < count; i++)
         at = stage_band(g, at, bands[i]);
     set_menu_staged_line_table_lines(g, at, 0);
-    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 3));
 }
 
 /* ---- The slots window -------------------------------------------------------------------------- */
@@ -135,7 +134,6 @@ static uint16_t draw_item_name(GameState *g, uint8_t item, uint16_t pen, uint8_t
 // $C2:A6F0
 void menu_equip_draw_equipped(GameState *g, uint16_t at)
 {
-    charge_machine_accesses(g, 10);
     for (unsigned slot = 0; slot < SLOTS; slot++, at = (uint16_t)(at + ROW_BYTES))
         (void)draw_item_name(g, menu_status_record_bytes_byte(g, SLOT_RECORD_PLACES[slot]), at, NAME_SETTINGS);
 }
@@ -149,7 +147,6 @@ void menu_equip_take_slot(GameState *g)
 {
     uint8_t slot = menu_cursor_index(g);
     set_menu_equip_slot(g, slot);
-    charge_machine_accesses(g, 2);
     set_menu_fill_tile(g, 0);
     set_menu_text_attribute(g, 0);
     (void)menu_draw_string(g, menu_slot_label(g, slot), SLOT_LABEL_AT, SLOT_LABEL_SETTINGS);
@@ -169,7 +166,6 @@ void menu_equip_mark_slots_at(GameState *g, uint16_t at)
     for (unsigned slot = 0; slot < SLOTS; slot++, at = (uint16_t)(at + ROW_BYTES))
         TIMED_AS(g, 0xC2ECAC, menu_colour_row_pair(g, at, MARKED_TILES, slot == menu_equip_slot(g) ? UNDIMMED : DIMMED));
     set_menu_draw_origin(g, at);
-    charge_machine_accesses(g, 5);
 }
 
 // $C2:A3E2
@@ -225,11 +221,9 @@ void menu_equip_start_slots_slide(GameState *g, Platform *pf, MenuWindowSlide *w
     menu_queue_fixed_upload(g, UPLOAD_BG2_SLID);
     show_windows_from(g, SLOTS_START);
     uint8_t rows_below = (uint8_t)(LAST_ROW - menu_member_row(g));
-    charge_machine_io_accesses(g, 4);
     hide_the_scroll_bar(g);
     *w = (MenuWindowSlide){ .top = TOP_START, .middle = MIDDLE_START, .bottom = 0, .frame = 0,
                             .rows_from = (uint8_t)(FRAMES_A_ROW * rows_below), .rows_step = 0 };
-    charge_machine_accesses(g, 7);
 }
 
 /* A frame's band heights, and the bands from the screen's top: the top, the
@@ -277,7 +271,6 @@ bool menu_equip_slide_slots_a_frame(GameState *g, MenuWindowSlide *w)
             w->rows_step = ROWS_STEP;
         more = w->frame < SLIDE_FRAMES;
     }
-    charge_machine_accesses(g, 7);
     return more;
 }
 
@@ -342,11 +335,9 @@ void menu_equip_start_members_slide(GameState *g, MenuWindowSlide *w)
     set_menu_line_effects(g, SLIDING_LINE_EFFECTS);
     *w = (MenuWindowSlide){ .top = TOP_BACK, .middle = MIDDLE_BACK, .bottom = BOTTOM_BACK, .frame = 0, .rows_from = SLIDE_FRAMES, .rows_step = 0 };
     if (row != 0) {
-        charge_machine_io_accesses(g, 4);
         w->rows_step = ROWS_STEP;
         w->rows_from = (uint8_t)(FRAMES_A_ROW * row);
     }
-    charge_machine_accesses(g, 7);
 }
 
 // $C2:A970
@@ -381,7 +372,6 @@ bool menu_equip_slide_members_back_a_frame(GameState *g, MenuWindowSlide *w)
         w->rows_step = 0;
         more = w->frame < SLIDE_FRAMES;
     }
-    charge_machine_accesses(g, 7);
     return more;
 }
 
@@ -450,7 +440,6 @@ void menu_equip_draw_list(GameState *g)
             place++;
         TIMED_AS(g, 0xC2A59A, menu_equip_draw_list_row(g, at));
     }
-    charge_machine_accesses(g, 2);
 }
 
 /* The list of what fits, once it is made (menu_list_what_fits): the
@@ -477,8 +466,6 @@ enum { THUMB_LINES_A_ROW = 4 };
 void menu_equip_set_list_bar(GameState *g)
 {
     uint8_t span = menu_scroll_bar_span(g);
-    charge_machine_io_accesses(g, 1);
-    charge_machine_io_accesses(g, 3);
     set_menu_scroll_bar_span(g, (uint8_t)(span * THUMB_LINES_A_ROW));
     set_menu_scroll_bar_thumb(g, 0);
 }
@@ -494,7 +481,6 @@ void menu_equip_show_the_member_bar(GameState *g)
 {
     uint8_t most = menu_member_scroll_most(g);
     if (most == 0) {
-        charge_machine_io_accesses(g, 1);
         return;
     }
     uint8_t span = (uint8_t)(most * MEMBER_LINES);
@@ -503,7 +489,6 @@ void menu_equip_show_the_member_bar(GameState *g)
     set_menu_scroll_bar_step(g, (uint16_t)(MEMBER_BAR_STEPS / span));
     set_menu_scroll_bar_place(g, MEMBER_BAR_AT);
     set_menu_scroll_bar_thumb(g, (uint8_t)(menu_member_scroll(g) * MEMBER_LINES));
-    (charge_machine_accesses(g, 1), charge_machine_io_accesses(g, 10));
 }
 
 /* The list's scroll bar, at the list window's side or (drawn again for
@@ -528,7 +513,6 @@ void menu_equip_start_list_slide(GameState *g, Platform *pf, MenuListSlide *w)
     menu_queue_fixed_upload(g, UPLOAD_BG2);
     menu_queue_fixed_upload(g, UPLOAD_BG1_SLID);
     *w = (MenuListSlide){ LIST_START, LIST_SLOTS_START, LIST_SLIDE_STEP };
-    charge_machine_accesses(g, 6);
     set_menu_staged_line_table_lines(g, OVER_THE_LIST, OVER_THE_LIST_LINES);
     set_menu_staged_line_table_lines(g, THE_LIST, 0);
     set_menu_staged_line_table_value(g, THE_LIST, THIRTY_TWO_UP);
@@ -551,7 +535,6 @@ static void step_list_slide(GameState *g, MenuListSlide *w)
     set_menu_staged_line_table_lines(g, THE_LIST, (uint8_t)(menu_staged_line_table_lines(g, THE_LIST) + w->step));
     set_menu_line_effects(g, LIST_WINDOW_LINE_EFFECTS);
     set_menu_scroll_bar_hidden(g, BAR_HELD);
-    charge_machine_accesses(g, 6);
 }
 
 bool menu_equip_slide_list_in_a_frame(GameState *g, MenuListSlide *w)
@@ -573,7 +556,6 @@ void menu_equip_start_list_closing(GameState *g, Platform *pf, MenuListSlide *w)
     menu_queue_fixed_upload(g, UPLOAD_BG2);
     schedule_table_copy(g, STAGED_TABLE, LIVE_TABLE, LIST_SLIDE_TABLE_BYTES);
     *w = (MenuListSlide){ LIST_BACK, LIST_SLOTS_BACK, -LIST_SLIDE_STEP };
-    charge_machine_accesses(g, 6);
     set_menu_tasks_countdown(g, LIST_TASK, (uint8_t)(menu_tasks_countdown(g, LIST_TASK) + 1));
     hide_the_scroll_bar(g);
 }

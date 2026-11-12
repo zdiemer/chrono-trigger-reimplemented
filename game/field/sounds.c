@@ -29,9 +29,9 @@
 
 /* The driver's command entry, called from each of the original's sites; it
  * reads nothing of the registers but A's high byte, which it hands back. */
-enum { DRIVER = 0xC70004, DRIVER_IGNORES = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+enum { DRIVER = 0xC70004 };
 
-static void send(Platform *pf, uint32_t site, AudioCommand c) { au_command(pf, PF_CALL_DC(site, DRIVER, DRIVER_IGNORES), c); }
+static void send(Platform *pf, uint32_t site, AudioCommand c) { au_command(pf, PF_CALL(site, DRIVER), c); }
 
 /* ---- A switch, a chest -------------------------------------------------------------------------- */
 
@@ -76,7 +76,7 @@ static bool keeps_the_field_song(const GameState *g) { return battle_terms(g, BA
 void field_start_the_battle_song(GameState *g, Platform *pf)
 {
     if (keeps_the_field_song(g)) {
-        au_switch_effects(pf, PF_CALL_DC(0xC01BDF, DRIVER, DRIVER_IGNORES), true);
+        au_switch_effects(pf, PF_CALL(0xC01BDF, DRIVER), true);
         return;
     }
     ask_for_effects(g, BATTLE_EFFECTS);
@@ -125,37 +125,10 @@ void field_bring_the_music_back(GameState *g, Platform *pf)
         return;
     }
     if (keeps_the_field_song(g)) {
-        au_switch_effects(pf, PF_CALL_DC(0xC01C89, DRIVER, DRIVER_IGNORES), false);
+        au_switch_effects(pf, PF_CALL(0xC01C89, DRIVER), false);
         return;
     }
     ask_for_effects(g, FIELD_EFFECTS);
     bring_up(pf, AFTER_ANY_OTHER,
              (AudioCommand){ .command = AU_START_SONG_SECOND_SET, .p1 = current_song(g), .count = 1 });
-}
-
-/* ---- The entries ------------------------------------------------------------------------------- */
-
-void field_play_the_switch_sound_entry(Snes *s)
-{
-    field_play_the_switch_sound(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-void field_play_the_chest_sound_entry(Snes *s)
-{
-    field_play_the_chest_sound(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-/* The switch's and the chest's guard: on the field's page with the data bank
- * $00, through which the original reads the leader's place, and a leader the
- * original can read one for. */
-bool field_sound_at_the_leader_can_play(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    bool ok = field_leader_readable(state_of(s));
-    vars_peek(false);
-    return ok;
 }

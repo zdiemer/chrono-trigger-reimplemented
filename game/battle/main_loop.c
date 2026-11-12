@@ -53,8 +53,6 @@
 #include "battle/targets.h"
 #include "battle/timers.h"
 #include "charge.h"
-#include "holds.h"
-#include "port/native.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -194,8 +192,6 @@ static void list_combatants_for_the_order(GameState *g)
     }
     for (uint8_t slot = (uint8_t)(battle_enemy_count(g) + BATTLE_FIRST_ENEMY); slot != BATTLE_FIRST_ENEMY; slot--)
         set_pool(g, listed++, slot);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
 }
 
 /* A random number below `limit`, from the battle's own position. */
@@ -392,7 +388,6 @@ static LoopGoesOn leave_with_rewards(GameState *g, LoopCalls call, void *ctx)
     if (!call(ctx, CALL_PUT_ITEMS_BACK_AFTER_WINNING, 0))
         return LOOP_STOPPED;
     for (unsigned item = 0; item < ITEMS_WON; item++) {
-        charge_machine_accesses(g, 1);
         uint8_t won = battle_items_won(g, item);
         if (won == 0)
             continue;
@@ -400,7 +395,6 @@ static LoopGoesOn leave_with_rewards(GameState *g, LoopCalls call, void *ctx)
             return LOOP_STOPPED;
         set_battle_reward_flags(g, battle_reward_flags(g) | REWARD_ITEMS);
     }
-    charge_machine_accesses(g, 1);
     return leave_battle(g);
 }
 
@@ -413,11 +407,9 @@ static LoopGoesOn lose(GameState *g, LoopCalls call, void *ctx)
         return LOOP_STOPPED;
     set_battle_defeat_showing(g, true);
     for (unsigned frame = 0; frame < DEFEAT_FRAMES; frame++) {
-        charge_machine_accesses(g, 1);
         if (!call(ctx, CALL_DEFEAT_FRAME, 0))
             return LOOP_STOPPED;
     }
-    charge_machine_accesses(g, 1);
     set_battle_defeat_showing(g, false);
     if (!call(ctx, CALL_DEFEAT, 0))
         return LOOP_STOPPED;
@@ -952,15 +944,7 @@ typedef struct {
 
 /* The routines the calls stand for, as the program goes no further at them
  * where their guards turn the state away or they are only the machine's. */
-enum {
-    START_FIGHT = 0xC1FA8B, UPDATE_COMBATANTS = 0xC1B223, CANCEL_IF_UNABLE = 0xC1B3F9, GIVE_TURN = 0xC18461,
-    PARTY_STANDS_DOWN = 0xC1B7F2, EXPERIENCE_TO_GOLD = 0xFDB201, GIVE_GOLD = 0xC1D0A2, SHARE_EXPERIENCE = 0xC1F93E,
-    SHOW_REWARDS = 0xFDAD17, PUT_ITEMS_BACK = 0xC1B4E9, GIVE_ITEM = 0xC1D005, SHOW_MESSAGE = 0xCD0021,
-    START_ACTION = 0xC1895B, ENEMY_TURN = 0xC18CF9, MEMBER_TURN = 0xFDAB30, CHECK_COMBINATIONS = 0xC1B575,
-    MEMBER_ACTS_FOR_ITSELF = 0xC1BCE1, CARRY_OUT_ACTION = 0xC1B967, AFTER_ACTION = 0xC1B762,
-    PARTY_COUNTERS = 0xFDAC6E, FINISH_BEATEN = 0xC1AC5E, LOOP_START = 0xC18000, PASS_END = 0xC18345,
-    STARTING_WITH_THE_ENEMIES = 0xC18030,
-};
+enum { START_FIGHT = 0xC1FA8B, UPDATE_COMBATANTS = 0xC1B223, CANCEL_IF_UNABLE = 0xC1B3F9, GIVE_TURN = 0xC18461, PARTY_STANDS_DOWN = 0xC1B7F2, EXPERIENCE_TO_GOLD = 0xFDB201, GIVE_GOLD = 0xC1D0A2, SHARE_EXPERIENCE = 0xC1F93E, SHOW_REWARDS = 0xFDAD17, PUT_ITEMS_BACK = 0xC1B4E9, GIVE_ITEM = 0xC1D005, SHOW_MESSAGE = 0xCD0021, START_ACTION = 0xC1895B, ENEMY_TURN = 0xC18CF9, MEMBER_TURN = 0xFDAB30, CHECK_COMBINATIONS = 0xC1B575, MEMBER_ACTS_FOR_ITSELF = 0xC1BCE1, CARRY_OUT_ACTION = 0xC1B967, AFTER_ACTION = 0xC1B762, PARTY_COUNTERS = 0xFDAC6E, FINISH_BEATEN = 0xC1AC5E, LOOP_START = 0xC18000, PASS_END = 0xC18345, STARTING_WITH_THE_ENEMIES = 0xC18030,  };
 
 /* The running away's message and its action. */
 enum { RAN_AWAY_MESSAGE = 8, RUN_AWAY_ACTION = 0x79 };
@@ -1119,239 +1103,13 @@ bool battle_main_loop_runs(GameState *g, Platform *pf)
     return on == LOOP_LEFT;
 }
 
-/* ---- On the machine ------------------------------------------------------------------------ */
-
-/* The original's code runs as the battle's does: 8-bit A, 16-bit index
- * registers, binary. Most of the loop's callees read nothing of the registers
- * but what each call gives; some read the carry or the overflow the loop's
- * code before them leaves, or A (all of it, where they take its high byte
- * along), and those calls pass them as the original has them. */
-enum {
-    READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS,
-    READS_CARRY = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_V,
-    READS_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
-    READS_A = DC_X | DC_Y | DC_FLAGS,
-    READS_A_AND_OVERFLOW = DC_X | DC_Y | DC_N | DC_Z | DC_C,
-    READS_A_HIGH = DC_AL | DC_X | DC_Y | DC_FLAGS,
-    READS_Y_AND_OVERFLOW = DC_A | DC_X | DC_N | DC_Z | DC_C,
-};
-
-static bool step(Snes *s, uint32_t site, BattleStep number)
-{
-    /* Keep overflow live at this boundary after its comparison retires. */
-    return battle_take_step(s, site, number, READS_A & ~DC_V);
-}
-
-/* Which members can join a combination tech (battle/menu_window.c), run as
- * the loop's JSR at `site` calls it. */
-static bool check_combinations(Snes *s, uint32_t site)
-{
-    return battle_run(s, site, CHECK_COMBINATIONS, battle_update_combo_members_entry);
-}
-
-/* Every combatant's update, run as the loop's JSR at `site` calls it. */
-static bool update_combatants(Snes *s, uint32_t site)
-{
-    return battle_run(s, site, UPDATE_COMBATANTS, battle_update_all_combatants_entry);
-}
-
-/* A member's action dropped where its status keeps it from acting, with the
- * member in X and A. */
-static bool cancel_if_unable(Snes *s, uint32_t site, uint8_t member)
-{
-    s->cpu.x = member;
-    s->cpu.a = member;
-    return battle_run(s, site, CANCEL_IF_UNABLE, battle_cancel_if_unable_entry);
-}
-
-/* The member's action carried out, from the call the queue makes for it. */
-static const uint16_t carry_out_calls[BATTLE_PARTY_SIZE] = { 0x85CE, 0x85E7, 0x8600 };
-
 /* The members' checks are a subroutine of the turn's, called from $C1:860A,
  * whose return is on the stack under its calls. */
 enum { CHECKS_CALL_LAST_BYTE = 0x860C };
-
-static bool call_on_the_machine(void *ctx, LoopCall call, uint8_t arg)
-{
-    Snes *s = ctx;
-    GameState *g = state_of(s);
-    switch (call) {
-    case CALL_START_THE_FIGHT:
-        /* the fight's start (battle/fight_start.c), run as C */
-        if (!battle_run(s, 0xC18012, START_FIGHT, battle_start_fight_entry))
-            return false;
-        m_sep(s, CPU_FLAG_M);
-        return true;
-    case CALL_SET_UP: return step(s, 0xC1802D, BATTLE_STEP_SET_UP);
-    case CALL_NEXT_FRAME:
-        s->cpu.a = BATTLE_STEP_NEXT_FRAME;
-        m_set_nz8(s, BATTLE_STEP_NEXT_FRAME);
-        /* the frame's work leaves the overflow to nothing that reads it */
-        return battle_take_step(s, 0xC18129, BATTLE_STEP_NEXT_FRAME, 0);
-    case CALL_UPDATE_IN_THE_PASS: return update_combatants(s, 0xC18130);
-    case CALL_CANCEL_IN_THE_PASS: return cancel_if_unable(s, 0xC181DB, arg);
-    case CALL_TURN_IN_THE_PASS: return battle_take_turn(s, 0xC1822B);
-    case CALL_STAND_DOWN_DEFEATED: return battle_run(s, 0xC18143, PARTY_STANDS_DOWN, battle_party_stands_down_entry);
-    case CALL_DEFEAT_FRAME: return step(s, 0xC18151, BATTLE_STEP_NEXT_FRAME);
-    case CALL_DEFEAT: return step(s, 0xC18161, BATTLE_STEP_DEFEAT);
-    case CALL_VICTORY:
-        /* the victory's step takes A's high byte as the clearing leaves it, clear */
-        s->cpu.a = 0;
-        return step(s, 0xC18188, BATTLE_STEP_VICTORY);
-    case CALL_EXPERIENCE_TO_GOLD:
-        return battle_run_long(s, 0xC183E0, EXPERIENCE_TO_GOLD, battle_turn_experience_to_gold_entry);
-    case CALL_GIVE_GOLD:
-        s->cpu.y = battle_gold_won(g);
-        return battle_run_called(s, 0xC183E7, GIVE_GOLD, DC_A | DC_X | DC_FLAGS, battle_give_gold_entry);
-    case CALL_SHARE_EXPERIENCE:
-        /* the flags in A as the original calls it, which it leaves with what
-         * the messages take along */
-        s->cpu.a = battle_reward_flags(g);
-        return battle_run(s, 0xC183F2, SHARE_EXPERIENCE, battle_share_experience_entry);
-    case CALL_SHOW_THE_REWARDS:
-        /* the messages (battle/rewards_messages.c) take A's high byte clear,
-         * as the code before leaves it, and the rewards held where they are */
-        if (arg != 0)
-            s->cpu.a = arg;
-        return battle_run_long(s, 0xC183F5, SHOW_REWARDS, battle_show_the_rewards_entry);
-    case CALL_PUT_ITEMS_BACK_AFTER_WINNING: return battle_run(s, 0xC183FF, PUT_ITEMS_BACK, battle_put_items_back_entry);
-    case CALL_GIVE_AN_ITEM:
-        s->cpu.y = arg;
-        return battle_run_called(s, 0xC1840E, GIVE_ITEM, DC_A | DC_X | DC_FLAGS, battle_add_to_inventory);
-    case CALL_RAN_AWAY_MESSAGE:
-        /* the message in A, its high byte clear as the counting leaves it */
-        s->cpu.a = RAN_AWAY_MESSAGE;
-        return battle_run_long(s, 0xC18203, SHOW_MESSAGE, battle_show_a_battle_message_entry);
-    case CALL_STAND_DOWN_RUNNING: return battle_run(s, 0xC1820A, PARTY_STANDS_DOWN, battle_party_stands_down_entry);
-    case CALL_RUNNING_AWAY:
-        m_set_a8(s, RUN_AWAY_ACTION);
-        return battle_run_called(s, 0xC1820F, START_ACTION, READS_A_AND_OVERFLOW, battle_show_status_number_entry);
-    case CALL_PUT_ITEMS_BACK_AFTER_RUNNING: return battle_run(s, 0xC18218, PUT_ITEMS_BACK, battle_put_items_back_entry);
-    case CALL_ENEMY_TURN: return battle_run(s, 0xC184D6, ENEMY_TURN, battle_enemy_takes_turn_entry);
-    case CALL_MEMBER_STATUS_TURN:
-        /* the turn starts from A clear, as the original's code before it
-         * leaves it; its attack leaves the high byte so for the combination
-         * check after */
-        s->cpu.a = 0;
-        s->cpu.y = arg;
-        s->cpu.x = (uint16_t)(arg * BATTLE_STAT_BLOCK_BYTES);
-        return battle_run_long(s, 0xC18526, MEMBER_TURN, battle_member_status_turn_entry);
-    case CALL_COMBINATIONS_ACTING_FOR_ITSELF: return check_combinations(s, 0xC18538);
-    case CALL_ACT_FOR_ITSELF:
-        return battle_run_called(s, 0xC1853B, MEMBER_ACTS_FOR_ITSELF, READS_A_HIGH, battle_end_member_turn_entry);
-    case CALL_OPEN_THE_MENU: return step(s, 0xC1856D, BATTLE_STEP_OPEN_MENU);
-    case CALL_CARRY_OUT:
-        return battle_run_called(s, 0xC10000u | carry_out_calls[arg], CARRY_OUT_ACTION,
-                                  READS_NOTHING, battle_carry_out_member_action_entry);
-    case CALL_CHECKS_BEGIN: m_push16(s, CHECKS_CALL_LAST_BYTE); return true;
-    case CALL_COMBINATIONS_IN_THE_CHECKS:
-        s->cpu.x = arg;
-        m_set_a8(s, arg);
-        return check_combinations(s, 0xC1884B);
-    case CALL_CANCEL_IN_THE_CHECKS: return cancel_if_unable(s, 0xC18853, arg);
-    case CALL_CHECKS_END: m_pull16(s); return true;
-    case CALL_UPDATE_AFTER_THE_ACTION: return update_combatants(s, 0xC18626);
-    case CALL_SEE_TO_THE_KNOCKED_OUT: return battle_run(s, 0xC1863D, AFTER_ACTION, battle_see_to_knocked_out_enemies_entry);
-    case CALL_PARTY_COUNTERS: return battle_run_long(s, 0xC18650, PARTY_COUNTERS, battle_party_counters_entry);
-    case CALL_REACTION:
-        /* the original keeps the reacting enemy on the stack under the call,
-         * which is the frame the turn's calls are made over */
-        m_push8(s, arg);
-        if (!battle_run(s, 0xC18780, ENEMY_TURN, battle_enemy_takes_turn_entry))
-            return false;
-        m_pull8(s);
-        return true;
-    case CALL_UPDATE_AFTER_A_REACTION: return update_combatants(s, 0xC18787);
-    case CALL_COMBINATIONS_AFTER_A_REACTION: return check_combinations(s, 0xC18809);
-    case CALL_FINISH_THE_BEATEN: return battle_run(s, 0xC1881C, FINISH_BEATEN, battle_finish_beaten_enemies);
-    case CALL_ENEMIES_BEATEN: return step(s, 0xC1AC7E, BATTLE_STEP_ENEMIES_BEATEN);
-    default: return false;
-    }
-}
 
 /* Where a stretch goes on on the machine: the loop's head, which starts from
  * A and the flags cleared; the pass's body after the frame's step; the timers
  * (in 16-bit A, as the original's test of the running action leaves it); the
  * rest of the pass ($C1:8345); and the battle's last step into the field
  * ($C1:0006), which takes A's high byte as the noting leaves it, clear. */
-enum { LOOP_HEAD = 0xC18120, PASS_BODY = 0xC1812C, TIMERS = 0xC18231, REST_OF_PASS = PASS_END,
-       RETURN_TO_THE_FIELD = 0xC10006 };
-enum { LOOP_HEAD_DEAD = DC_A | DC_X | DC_Y | DC_FLAGS, PASS_STOP_DEAD = DC_A | DC_X | DC_Y | DC_FLAGS };
-
-static void go_on_on_the_machine(Snes *s, LoopGoesOn on)
-{
-    switch (on) {
-    case LOOP_LEFT:
-        s->cpu.a &= 0x00FF;
-        battle_continue(s, RETURN_TO_THE_FIELD, battle_return_to_field, DC_X | DC_Y | DC_FLAGS | DC_AL);
-        return;
-    case LOOP_TO_THE_HEAD: m_hold_at(s, LOOP_HEAD, LOOP_HEAD_DEAD, HOLD_BATTLE_PASS); return;
-    case LOOP_TO_THE_TIMERS:
-        m_rep(s, CPU_FLAG_M);
-        m_hold_at(s, TIMERS, PASS_STOP_DEAD, HOLD_BATTLE_PASS);
-        return;
-    case LOOP_TO_THE_REST: m_hold_at(s, REST_OF_PASS, PASS_STOP_DEAD, HOLD_BATTLE_PASS); return;
-    case LOOP_NOT_OURS: m_stop_at(s, STARTING_WITH_THE_ENEMIES, 0); return;
-    default: return;
-    }
-}
-
-/* ---- The entries ------------------------------------------------------------------------ */
-
-/* The turn is the port's where the turn's place names a combatant, as every
- * battle has it (its guard); otherwise the original's, which reads Y and the
- * overflow as the caller leaves them. */
-bool battle_take_turn(Snes *s, uint32_t site)
-{
-    if (battle_turn_names_combatant(s))
-        return battle_run(s, site, GIVE_TURN, battle_give_turn);
-    return battle_call(s, site, GIVE_TURN, READS_Y_AND_OVERFLOW);
-}
-
-void battle_finish_beaten_enemies(Snes *s)
-{
-    if (finish_beaten_enemies(state_of(s), call_on_the_machine, s))
-        m_rts(s);
-}
-
-void battle_give_turn(Snes *s)
-{
-    if (take_turns(state_of(s), call_on_the_machine, s))
-        m_rts(s);
-}
-
-void battle_main_loop_after_setup(Snes *s)
-{
-    /* The setup dispatch's return word belonged to this caller's estimate
-     * before its C stack became a held continuation. */
-    charge_machine_accesses(state_of(s), 2);
-    go_on_on_the_machine(s, finish_battle_start(state_of(s)));
-}
-
-void battle_main_loop_start(Snes *s) { go_on_on_the_machine(s, start_battle(state_of(s), call_on_the_machine, s)); }
-
-void battle_main_loop(Snes *s)
-{
-    if (next_frame(state_of(s), call_on_the_machine, s))
-        m_hold_at(s, PASS_BODY, DC_V, HOLD_BATTLE_PASS);
-}
-
-void battle_main_loop_body(Snes *s) { go_on_on_the_machine(s, run_pass(state_of(s), call_on_the_machine, s)); }
-
-void battle_main_loop_tail(Snes *s) { go_on_on_the_machine(s, end_pass(state_of(s), call_on_the_machine, s)); }
-
-bool battle_turn_names_combatant(Snes *s)
-{
-    vars_peek(true);
-    bool named = turn_names_a_combatant(state_of(s));
-    vars_peek(false);
-    return battle_on_page(s) && named;
-}
-
-bool battle_pass_ends_plainly(Snes *s)
-{
-    vars_peek(true);
-    bool on = debugging_switch_on(state_of(s));
-    vars_peek(false);
-    return battle_on_page(s) && !on;
-}
+enum { LOOP_HEAD = 0xC18120, PASS_BODY = 0xC1812C, TIMERS = 0xC18231, REST_OF_PASS = PASS_END, RETURN_TO_THE_FIELD = 0xC10006 };

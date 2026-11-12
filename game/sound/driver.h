@@ -11,15 +11,6 @@
 
 #include "sound/sound.h"
 
-/* ---- Tracks and voices ---------------------------------------------------------------- */
-
-/* The music's tracks drive the voices of their number, the effects' tracks
- * 12-15 voices 4-7: a track's voice is its number's low three bits. */
-static inline uint8_t voice_of(uint8_t track) { return track & 7; }
-static inline AuVoiceSet voice_bit(uint8_t track) { return (AuVoiceSet)(1u << voice_of(track)); }
-static inline bool is_music(uint8_t track) { return track < SOUND_MUSIC_TRACKS; }
-static inline uint8_t effect_track_of(uint8_t voice) { return (uint8_t)(SOUND_FIRST_EFFECT_TRACK - 4 + voice); }
-
 /* No song: what the song playing, the song saved and the last song started
  * are when there is none. */
 enum { NO_SONG = 0xFF };
@@ -27,27 +18,12 @@ enum { NO_SONG = 0xFF };
 /* The echo's delay is one of sixteen, 0 to 15 steps of 16 ms and 2 KiB of
  * buffer each: a command or a song asks for one in the low four bits. */
 enum { ECHO_DELAYS = 16 };
-static inline uint8_t echo_delay_of(uint8_t asked) { return (uint8_t)(asked % ECHO_DELAYS); }
 
-enum {
-    ALL_VOICES = 0xFF,
-    EFFECT_PAIR_67 = 0xC0,    /* the voices the effects of command $18 play on */
-    EFFECT_PAIR_45 = 0x30     /* ... of command $19 */
-};
-
-/* The flags of the kind of track this is. */
-static inline SoundVoiceFlags *flags_of(SoundDriver *d, uint8_t track)
-{
-    return is_music(track) ? &d->song.music : &d->song.effects;
-}
+enum { ALL_VOICES = 0xFF, EFFECT_PAIR_67 = 0xC0, /* the voices the effects of command $18 play on */
+    EFFECT_PAIR_45 = 0x30     /* ... of command $19 */ };
 
 /* The fades: the music's, and the effects' on each pair of voices. */
 enum { FADE_MUSIC, FADE_EFFECTS_67, FADE_EFFECTS_45 };
-
-/* ---- Slides --------------------------------------------------------------------------- */
-
-static inline uint8_t slide_whole(const SoundSlide *s) { return (uint8_t)(s->level >> 8); }
-static inline void slide_set_whole(SoundSlide *s, uint8_t whole) { s->level = (uint16_t)(whole << 8 | (s->level & 0xFF)); }
 
 /* A slide's step, as 8.8, for `steps` steps from one whole value to another;
  * which way it goes depends on whether the values are signed. */
@@ -125,5 +101,31 @@ void restart_vibrato(SoundDriver *d, uint8_t track);
 void restart_tremolo(SoundDriver *d, uint8_t track);
 uint16_t wave_base_step(uint8_t rate, uint8_t depth);
 void meter_status(SoundDriver *d);
+
+/* ---- Tracks and voices ---------------------------------------------------------------- */
+
+/* The music's tracks drive the voices of their number, the effects' tracks
+ * 12-15 voices 4-7: a track's voice is its number's low three bits. */
+static inline uint8_t voice_of(uint8_t track) { return track & 7; }
+
+static inline AuVoiceSet voice_bit(uint8_t track) { return (AuVoiceSet)(1u << voice_of(track)); }
+
+static inline bool is_music(uint8_t track) { return track < SOUND_MUSIC_TRACKS; }
+
+static inline uint8_t effect_track_of(uint8_t voice) { return (uint8_t)(SOUND_FIRST_EFFECT_TRACK - 4 + voice); }
+
+static inline uint8_t echo_delay_of(uint8_t asked) { return (uint8_t)(asked % ECHO_DELAYS); }
+
+/* The flags of the kind of track this is. */
+static inline SoundVoiceFlags *flags_of(SoundDriver *d, uint8_t track)
+{
+    return is_music(track) ? &d->song.music : &d->song.effects;
+}
+
+/* ---- Slides --------------------------------------------------------------------------- */
+
+static inline uint8_t slide_whole(const SoundSlide *s) { return (uint8_t)(s->level >> 8); }
+
+static inline void slide_set_whole(SoundSlide *s, uint8_t whole) { s->level = (uint16_t)(whole << 8 | (s->level & 0xFF)); }
 
 #endif

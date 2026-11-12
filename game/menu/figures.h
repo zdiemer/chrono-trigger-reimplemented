@@ -6,7 +6,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "snes/system.h"
 #include "state.h"
 
 /* The figures of the member loaded last (menu_load_member) worked out from
@@ -22,10 +21,6 @@ void menu_work_out_figures_shown(GameState *g);
  * on moves it from what the member has (menu_figure_marks): the text's colour
  * where it stays, brighter where it rises, darker where it falls. */
 typedef enum { FIGURE_AS_IT_IS = 0x00, FIGURE_RAISED = 0x08, FIGURE_LOWERED = 0x1C } MenuFigureMark;
-static inline MenuFigureMark menu_figure_mark(uint16_t was, uint16_t is)
-{
-    return is == was ? FIGURE_AS_IT_IS : is > was ? FIGURE_RAISED : FIGURE_LOWERED;
-}
 
 /* Trying an item on, as the equipment screen and the shop do with the item
  * on the cursor: it goes into the slot the screen has open in the member's
@@ -52,10 +47,14 @@ void menu_put_items_back(GameState *g);
 
 /* The checked legacy adapters ($C2:916E, $C2:9137, $C2:99B2, $C2:90FC, $C2:9121)
  * and their guards. */
-bool menu_figures_are_workable(Snes *s);
 /* Its state half: what the member has on all items of the game's. */
 bool menu_figures_can_be_worked_out(const GameState *g);
 /* Its state half: every character's equipment items of the game's. */
 bool menu_everyones_figures_can_be_noted(const GameState *g);
+
+static inline MenuFigureMark menu_figure_mark(uint16_t was, uint16_t is)
+{
+    return is == was ? FIGURE_AS_IT_IS : is > was ? FIGURE_RAISED : FIGURE_LOWERED;
+}
 
 #endif

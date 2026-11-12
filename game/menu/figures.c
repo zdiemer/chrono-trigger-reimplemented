@@ -28,7 +28,6 @@
 #include "menu/members.h"
 #include "menu/menu_data.h"
 #include "menu/party.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -159,19 +158,15 @@ static uint8_t held_to_a_byte(unsigned v) { return v > MOST ? MOST : (uint8_t)v;
  * the divider. */
 enum { PAST_THE_WEAPON = 0xFF };
 
-static void charge_divided(GameState *g, Fighting how, uint8_t weapon_attack, const uint8_t *figures, AttackSum a)
+static void charge_divided(GameState *g, uint8_t weapon_attack, const uint8_t *figures, AttackSum a)
 {
     (void)weapon_attack, (void)figures, (void)a;
-    charge_machine_accesses(g, 1 + (how == FISTS ? 0 : 2));
     for (unsigned i = MENU_EQUIPMENT_SLOTS; i-- > 0;) {
         uint8_t boost = item_amount(g, worn(g, slots_last_first[i]));
         if (boost != NO_BOOST) {
-            charge_machine_rom_accesses(g, 2);
-            charge_machine_accesses(g, 2);
             break;
         }
     }
-    charge_machine_io_accesses(g, how == AIMS ? 3 : 7);
 }
 
 void menu_work_out_figures(GameState *g)
@@ -194,7 +189,7 @@ void menu_work_out_figures(GameState *g)
     AttackSum a = attack_sum(g, how, e.attack, figures);
     set_menu_figures_worked_out(g, DEFENCE, held_to_a_byte((unsigned)figures[STAMINA] + e.defence));
     set_menu_figures_worked_out(g, ATTACK, held_to_a_byte(a.sum / a.by));
-    charge_divided(g, how, e.attack, figures, a);
+    charge_divided(g, e.attack, figures, a);
 }
 
 /* An accessory that doubles evade, which the menus count as they write the
@@ -228,7 +223,6 @@ void menu_note_everyones_figures(GameState *g)
         (void)menu_load_character(g, character);
         TIMED_AS(g, 0xC29137, menu_note_member_figures(g));
     }
-    charge_machine_accesses(g, 2);
 }
 
 /* ---- The party's items set aside ------------------------------------------------------------ */
@@ -313,16 +307,6 @@ void menu_mark_the_figures_tried_on(GameState *g, MenuFiguresWindow window)
 }
 
 bool menu_figures_can_be_worked_out(const GameState *g) { return equipment_is_the_games(g); }
-
-bool menu_figures_are_workable(Snes *s)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    bool ok = equipment_is_the_games(state_of(s));
-    vars_peek(false);
-    return ok;
-}
 
 /* Every character's: the characters' records hold the game's equipment. */
 bool menu_everyones_figures_can_be_noted(const GameState *g)

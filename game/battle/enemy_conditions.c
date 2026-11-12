@@ -101,7 +101,6 @@ static ConditionResult at_half_hp(GameState *g, const ScriptChoosing *c, Selecto
         }
     }
     battle_keep_stat_offset_word(g, marked);
-    charge_machine_accesses(g, 2);
     return for_target(take_marked(g, marked), CONDITION_HOLDS_UNCHOSEN);
 }
 
@@ -122,12 +121,7 @@ static ConditionResult with_status(GameState *g, const ScriptChoosing *c, uint8_
             mark(g, place);
         }
     } while (++place < count);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
     battle_note_curtain_noise_low(g, side);
-    charge_machine_accesses(g, 1);
     return marked == 0 ? fails() : for_target(take_marked(g, marked), CONDITION_FAILS);
 }
 
@@ -145,9 +139,7 @@ static ConditionResult is_enemy(GameState *g, const ScriptChoosing *c, Selector 
             marked++;
             mark(g, place);
         }
-    charge_machine_accesses(g, 2);
     battle_note_curtain_noise_low(g, id);
-    charge_machine_accesses(g, 1);
     return marked == 0 ? fails() : for_target(take_marked(g, marked), CONDITION_FAILS);
 }
 
@@ -168,7 +160,6 @@ static ConditionResult at_most_hp(GameState *g, const ScriptChoosing *c, Selecto
         }
     battle_keep_word(g, BATTLE_NUMBER_TESTED, (uint8_t)most);
     battle_keep_stat_offset_word(g, count);
-    charge_machine_accesses(g, 2);
     return marked == 0 ? fails() : for_target(take_marked(g, marked), CONDITION_FAILS);
 }
 
@@ -267,7 +258,6 @@ static ConditionResult stat_bits(GameState *g, const ScriptChoosing *c, Selector
     uint8_t stat = combatant_stat_byte_by_wide_place(g, candidate(g, 0), offset);
     battle_keep_stat_offset_word(g, offset);
     battle_note_curtain_noise_low(g, stat);
-    charge_machine_accesses(g, 1);
     return holds_if((bits & stat) != 0);
 }
 
@@ -282,8 +272,6 @@ static ConditionResult is_party_member(GameState *g, const ScriptChoosing *c, Se
     if (count == 0)
         return nobody_picked();
     battle_note_curtain_noise_low(g, whatever_state);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     uint8_t member = 0;
     while (member < BATTLE_PARTY_SIZE && candidate(g, 0) != battle_combatant_id(g, member))
         member++;
@@ -302,7 +290,6 @@ static ConditionResult is_party_member(GameState *g, const ScriptChoosing *c, Se
 static ConditionResult three_on_out(GameState *g, const ScriptChoosing *c, Selector who, uint8_t out_wanted)
 {
     select_by(g, c, who);
-    charge_machine_accesses(g, 1);
     bool out = combatant_fighting_as(g, (unsigned)candidate(g, 0) + BATTLE_FIRST_ENEMY) == COMBATANT_NONE;
     return holds_if(out ? out_wanted != 0 : out_wanted == 0);
 }
@@ -313,10 +300,8 @@ static ConditionResult turn_wait(GameState *g, const ScriptChoosing *c, Selector
 {
     select_by(g, c, who);
     battle_note_curtain_noise_low(g, limit);
-    charge_machine_accesses(g, 1);
     uint8_t wait = combatant_turn_wait(g, candidate(g, 0));
     battle_note_curtain_noise_high(g, 0);
-    charge_machine_accesses(g, 1);
     return holds_if(at_least == 0 ? wait < limit : wait >= limit);
 }
 
@@ -385,7 +370,6 @@ static ConditionResult each_stands(GameState *g, const ScriptChoosing *c, Select
         }
     } while (++place < count);
     battle_keep_stat_offset_word(g, place);
-    charge_machine_accesses(g, 2);
     battle_keep_word(g, BATTLE_TECH_HITS_LEFT, self(c));
     ConditionResult r = for_target(take_marked(g, marked), CONDITION_HOLDS_UNCHOSEN);
     r.pairs = false;
@@ -443,8 +427,6 @@ static ConditionResult enemy_present(GameState *g, const ScriptChoosing *c, uint
 {
     (void)c;
     battle_note_curtain_noise_low(g, id);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     bool present = false;
     uint8_t enemy = 0;
     do
@@ -461,9 +443,6 @@ static ConditionResult other_kind_present(GameState *g, const ScriptChoosing *c,
                                           uint8_t holds_then)
 {
     battle_note_curtain_noise_low(g, id);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     uint8_t enemy = 0;
     do {
         uint8_t fighting = combatant_fighting_as(g, (uint8_t)(BATTLE_FIRST_ENEMY + enemy));
@@ -487,7 +466,6 @@ static ConditionResult enemies_at_most(GameState *g, const ScriptChoosing *c, ui
         if (combatant_in_fight(g, (uint8_t)(BATTLE_FIRST_ENEMY + enemy)) && battle_enemy_standing(g, enemy) == 0)
             counted++;
     battle_note_curtain_noise_low(g, most);
-    charge_machine_accesses(g, 1);
     battle_keep_stat_offset_word(g, counted);
     return holds_if(most >= counted);
 }
@@ -499,7 +477,6 @@ static ConditionResult members_at_most(GameState *g, const ScriptChoosing *c, ui
     (void)c;
     uint8_t limit = (uint8_t)(most + 1), fighting = 0;
     battle_note_curtain_noise_low(g, limit);
-    charge_machine_accesses(g, 1);
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         if (combatant_in_fight(g, member))
             fighting++;
@@ -512,10 +489,7 @@ static ConditionResult frames_at_least(GameState *g, const ScriptChoosing *c, ui
 {
     (void)c;
     battle_note_curtain_noise_low(g, (uint8_t)least);
-    charge_machine_accesses(g, 1);
     battle_note_curtain_noise_high(g, (uint8_t)(least >> 8));
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     return holds_if((battle_frames(g) & 0xFFFFFF) >= least);
 }
 
@@ -528,8 +502,6 @@ static ConditionResult count_compared(GameState *g, const ScriptChoosing *c, uin
 {
     uint8_t count = battle_enemy_script_counter(g, c->enemy);
     battle_note_curtain_noise_low(g, number);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     return holds_if(how == COUNT_AT_MOST ? count <= number : count >= number);
 }
 
@@ -540,7 +512,6 @@ enum { PERCENT = 100 };
 static ConditionResult chance(GameState *g, const ScriptChoosing *c, uint8_t percent)
 {
     (void)c;
-    charge_machine_accesses(g, 1);
     return holds_if(battle_random(g, 0, PERCENT) < percent);
 }
 
@@ -594,11 +565,9 @@ static uint8_t how_named(uint8_t attack_or_tech)
 /* Whether an attack (or a tech) last acted on it, or not. */
 static ConditionResult acted_on_by(GameState *g, const ScriptChoosing *c, uint8_t attack_or_tech, uint8_t negated)
 {
-    charge_machine_accesses(g, 1);
     uint8_t how = how_named(attack_or_tech);
     if (how == NAMES_NEITHER)
         return fails();
-    charge_machine_accesses(g, 1);
     bool was = (record_byte(g, c, 0) & HOW_ACTED) == how;
     return holds_if(negated == 0 ? was : !was);
 }
@@ -609,12 +578,9 @@ static ConditionResult acted_on_by(GameState *g, const ScriptChoosing *c, uint8_
 static ConditionResult acted_on_by_this(GameState *g, const ScriptChoosing *c, uint8_t attack_or_tech, uint8_t number,
                                         uint8_t negated)
 {
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     uint8_t how = how_named(attack_or_tech);
     if (how == NAMES_NEITHER)
         return fails();
-    charge_machine_accesses(g, 1);
     bool kind = (record_byte(g, c, 0) & HOW_ACTED) == how, same = record_byte(g, c, 1) == number;
     return holds_if(negated == 0 ? kind && same : !kind && !same);
 }
@@ -624,8 +590,6 @@ static ConditionResult acted_on_by_this(GameState *g, const ScriptChoosing *c, u
 static ConditionResult acted_bit(GameState *g, const ScriptChoosing *c, uint8_t bit, uint8_t negated)
 {
     uint8_t wanted = (uint8_t)((bit & 1) << 4);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     bool same = (record_byte(g, c, 0) & ACTED_BIT_4) == wanted;
     return holds_if(negated == 0 ? same : !same);
 }
@@ -638,9 +602,6 @@ static ConditionResult acted_bit(GameState *g, const ScriptChoosing *c, uint8_t 
 static ConditionResult acted_on_by_member(GameState *g, const ScriptChoosing *c, uint8_t id, uint8_t whole_party,
                                           uint8_t negated)
 {
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     uint8_t record = record_byte(g, c, 0);
     if (record & ACTED_BIT_4)
         return fails();
@@ -656,8 +617,6 @@ static ConditionResult acted_on_by_member(GameState *g, const ScriptChoosing *c,
  * or not. */
 static ConditionResult acted_with_elements(GameState *g, const ScriptChoosing *c, uint8_t elements, uint8_t negated)
 {
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     bool all = (record_byte(g, c, 2) & elements) == elements;
     return holds_if(negated == 0 ? all : !all);
 }

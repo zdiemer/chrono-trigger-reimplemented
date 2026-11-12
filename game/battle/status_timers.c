@@ -29,7 +29,6 @@
 #include "battle/program.h"
 #include "battle/steps.h"
 #include "charge.h"
-#include "port/native.h"
 #include "vars.h"
 
 /* What a kind of timer running out does. */
@@ -134,24 +133,9 @@ typedef enum { NOTHING_TO_SHOW, NUMBER_TO_SHOW, DAMAGE_TO_APPLY } TimerOutcome;
  * place in $10, as the original's do: scaffolding. */
 enum { STAT_BLOCK_PLACE_CELL = 0x10 };
 
-/* The timer run out seen to, up to what the showing shows. Poison is seen to
- * after its showing (see_to_run_out_timer), as the original's is: the
- * showing's code runs with its due bit still set. */
-/* Preserve the machine estimate for removed comparison accesses.
- * Inspect the branch without charging those reads to either backend. */
-static void charge_pacing_carry(GameState *g, uint8_t slot)
-{
-    uint32_t charge_mark = charge_uncounted_begin(g);
-    bool slow = slowed(g, slot);
-    charge_uncounted_end(g, charge_mark);
-    charge_machine_accesses(g, slow ? 3 : 5);
-}
-
 static TimerOutcome timer_ran_out(GameState *g, BattleTimer kind, uint8_t slot)
 {
     const TimerEffect effect = timed_statuses[kind].effect;
-    if (effect == POISON_HURTS || effect == LOSES_A_POINT || effect == REGAINS_MAGIC)
-        charge_machine_accesses(g, 2);
     switch (effect) {
     case NOTHING_HAPPENS:
         return NOTHING_TO_SHOW;
@@ -182,7 +166,6 @@ static TimerOutcome timer_ran_out(GameState *g, BattleTimer kind, uint8_t slot)
         if (!has_timed_status(g, kind, slot))
             return NOTHING_TO_SHOW;
         effect_record_status_damage(g, slot, POINT_OF_HP);
-        charge_pacing_carry(g, slot);
         return DAMAGE_TO_APPLY;
     case REGAINS_MAGIC:
     default:
@@ -226,13 +209,6 @@ static void set_up_status_showing(GameState *g, uint8_t showing)
  * $C1:895B's call. */
 enum { SHOWING_CALL = 0xC18971 };
 
-void battle_show_status_number_entry(Snes *s)
-{
-    set_up_status_showing(state_of(s), (uint8_t)s->cpu.a);
-    if (battle_run(s, SHOWING_CALL, 0xC1AC57, battle_start_action_showing))
-        m_rts(s);
-}
-
 bool battle_show_status_number(GameState *g, Platform *pf, uint8_t showing)
 {
     set_up_status_showing(g, showing);
@@ -264,29 +240,6 @@ static bool see_to_the_timer(GameState *g, BattleTimer kind, bool (*show)(void *
     return true;
 }
 
-/* The action step keeps its caller's flags across its waits. Until that
- * boundary retires, preserve whether the damage-record offset crossed the
- * signed-byte limit; the record itself is already written by the effect. */
-
-/* On the machine the number is shown from the handler's own call. */
-static bool show_on_the_machine(void *ctx, BattleTimer kind)
-{
-    Snes *s = ctx;
-    /* The action dispatcher widens the showing index, so its high byte
-     * must be clear even though the status-number entry takes a byte. */
-    s->cpu.a = STATUS_NUMBER_SHOWING;
-    charge_machine_accesses(state_of(s), 2);
-    uint32_t site = kind == BATTLE_TIMER_POISON ? POISON_SHOWS_CALL : MAGIC_SHOWS_CALL;
-    return battle_run_dc(s, site, SHOW_NUMBER, DC_X | DC_Y | DC_N | DC_Z | DC_C,
-                         battle_show_status_number_entry);
-}
-
-static void handler_entry(Snes *s, BattleTimer kind)
-{
-    if (see_to_the_timer(state_of(s), kind, show_on_the_machine, s))
-        m_rts(s);
-}
-
 /* The guard's state half: a timer of nobody's that does anything but wear
  * off is the original's: its handler works past every table it touches
  * (battle/timers.h). */
@@ -295,53 +248,7 @@ static bool handler_takes(const GameState *g, BattleTimer kind)
     return !battle_timer_found_run_out(g, kind).nobody || timed_statuses[kind].effect == WEARS_OFF;
 }
 
-static bool handler_ready(Snes *s, BattleTimer kind)
-{
-    vars_peek(true);
-    bool ours = handler_takes(state_of(s), kind);
-    vars_peek(false);
-    return battle_on_page(s) && ours;
-}
-
-#define HANDLER(name, kind) \
-    void name(Snes *s) { handler_entry(s, kind); } \
-    bool name##_ready(Snes *s) { return handler_ready(s, kind); }
-HANDLER(battle_stop_timer_ran_out, BATTLE_TIMER_STOP)
-HANDLER(battle_poison_timer_ran_out, BATTLE_TIMER_POISON)
-HANDLER(battle_slow_timer_ran_out, BATTLE_TIMER_SLOW)
-HANDLER(battle_haste_timer_ran_out, BATTLE_TIMER_HASTE)
-HANDLER(battle_evasion_timer_ran_out, BATTLE_TIMER_EVASION)
-HANDLER(battle_shield_timer_ran_out, BATTLE_TIMER_SHIELD)
-HANDLER(battle_timer_6_ran_out, BATTLE_TIMER_6)
-HANDLER(battle_timer_7_ran_out, BATTLE_TIMER_7)
-HANDLER(battle_hp_loss_timer_ran_out, BATTLE_TIMER_HP_LOSS)
-HANDLER(battle_mp_regain_timer_ran_out, BATTLE_TIMER_MP_REGAIN)
-HANDLER(battle_barrier_timer_ran_out, BATTLE_TIMER_BARRIER)
-HANDLER(battle_timer_11_ran_out, BATTLE_TIMER_11)
-
 /* The original's handlers (its table at $C1:B92D), by kind, and their entries. */
-static const struct {
-    uint32_t routine;
-    void (*entry)(Snes *);
-} handlers[BATTLE_TIMER_TURN] = {
-    [BATTLE_TIMER_STOP] = { 0xC18876, battle_stop_timer_ran_out },
-    [BATTLE_TIMER_POISON] = { 0xC188C5, battle_poison_timer_ran_out },
-    [BATTLE_TIMER_SLOW] = { 0xC18975, battle_slow_timer_ran_out },
-    [BATTLE_TIMER_HASTE] = { 0xC189B9, battle_haste_timer_ran_out },
-    [BATTLE_TIMER_EVASION] = { 0xC18A05, battle_evasion_timer_ran_out },
-    [BATTLE_TIMER_SHIELD] = { 0xC18A51, battle_shield_timer_ran_out },
-    [BATTLE_TIMER_6] = { 0xC18A9D, battle_timer_6_ran_out },
-    [BATTLE_TIMER_7] = { 0xC18A9E, battle_timer_7_ran_out },
-    [BATTLE_TIMER_HP_LOSS] = { 0xC18A9F, battle_hp_loss_timer_ran_out },
-    [BATTLE_TIMER_MP_REGAIN] = { 0xC18B10, battle_mp_regain_timer_ran_out },
-    [BATTLE_TIMER_BARRIER] = { 0xC18BB9, battle_barrier_timer_ran_out },
-    [BATTLE_TIMER_11] = { 0xC18C08, battle_timer_11_ran_out },
-};
-
-bool battle_see_to_timer_as_called(Snes *s, uint32_t site, BattleTimer kind)
-{
-    return battle_run(s, site, handlers[kind].routine, handlers[kind].entry);
-}
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 
@@ -358,6 +265,21 @@ static bool show_the_status_number(void *ctx, BattleTimer kind)
     TIMED_AS(c->game, SHOW_NUMBER, done = battle_show_status_number(c->game, c->pf, STATUS_NUMBER_SHOWING));
     return done;
 }
+
+static const struct { uint32_t routine; } handlers[BATTLE_TIMER_TURN] = {
+    [BATTLE_TIMER_STOP] = { 0xC18876 },
+    [BATTLE_TIMER_POISON] = { 0xC188C5 },
+    [BATTLE_TIMER_SLOW] = { 0xC18975 },
+    [BATTLE_TIMER_HASTE] = { 0xC189B9 },
+    [BATTLE_TIMER_EVASION] = { 0xC18A05 },
+    [BATTLE_TIMER_SHIELD] = { 0xC18A51 },
+    [BATTLE_TIMER_6] = { 0xC18A9D },
+    [BATTLE_TIMER_7] = { 0xC18A9E },
+    [BATTLE_TIMER_HP_LOSS] = { 0xC18A9F },
+    [BATTLE_TIMER_MP_REGAIN] = { 0xC18B10 },
+    [BATTLE_TIMER_BARRIER] = { 0xC18BB9 },
+    [BATTLE_TIMER_11] = { 0xC18C08 },
+};
 
 bool battle_run_out_timer_seen_to(GameState *g, Platform *pf, BattleTimer kind)
 {

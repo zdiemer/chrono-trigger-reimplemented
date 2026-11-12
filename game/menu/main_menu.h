@@ -1,5 +1,3 @@
-/* The main menu, menu screen 0 (game/menu/main_menu.c), and its steps on the
- * original's machine (game/menu/main_menu_bridge.c). */
 #ifndef CT_GAME_MENU_MAIN_MENU_H
 #define CT_GAME_MENU_MAIN_MENU_H
 
@@ -8,7 +6,6 @@
 
 #include "menu/menu.h"
 #include "platform/video.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* The options, in the order of their icons and of the screens they open
@@ -42,10 +39,8 @@ void menu_main_menu_keep_the_time(GameState *g);
  * have left running stopped (a bit a task, menu.h): the description's
  * typing, the scroll bar, the records and the cursors it holds. */
 void menu_main_menu_move_to(GameState *g, MainMenuOption option);
-enum {
-    MENU_PANELS_TASKS = 1u << MENU_DESCRIPTION_TASK | 1u << MENU_SCROLL_BAR_TASK | 1u << MENU_RECORDS_TASK
-                        | 1u << MENU_HELD_CURSORS_TASK,
-};
+enum { MENU_PANELS_TASKS = 1u << MENU_DESCRIPTION_TASK | 1u << MENU_SCROLL_BAR_TASK | 1u << MENU_RECORDS_TASK
+                        | 1u << MENU_HELD_CURSORS_TASK,  };
 
 /* The option's panel put away and the main menu drawn over the screen
  * again ($C2:9B71). */
@@ -144,25 +139,10 @@ bool menu_back_to_the_main_menu(GameState *g, Platform *pf);
 
 /* The machine's side (main_menu_bridge.c): its answers to the sequences,
  * which the panels' entries run with too, on a context of this shape. */
-typedef struct {
-    Snes *s;
-    uint8_t techs_row, techs_scroll;
-} MainMenuOnTheMachine;
-extern const MainMenuSteps menu_main_menu_on_the_machine;
 
-void menu_charge_techs_panel_member_chosen(Snes *s, uint8_t row);
+extern const MainMenuSteps menu_main_menu_on_the_machine;
 
 /* The entries ($C2:99CE, $C2:9A1B, $C2:9A98; $C2:9B54, $C2:9B71 the panels;
  * $C2:9AAD, $C2:9B8F), and their guards. */
-void menu_open_main_menu_entry(Snes *s);
-void menu_choose_on_main_menu_entry(Snes *s);
-void menu_back_to_the_main_menu_entry(Snes *s);
-void menu_show_main_menu_panel(Snes *s);
-bool menu_main_menu_opens(Snes *s);
-bool menu_main_menu_step_runs(Snes *s);
-bool menu_main_menu_comes_back(Snes *s);
-bool menu_main_menu_panel_shows(Snes *s);
-bool menu_main_menu_panel_goes(Snes *s);
-bool menu_main_menu_draws(Snes *s);
 
 #endif

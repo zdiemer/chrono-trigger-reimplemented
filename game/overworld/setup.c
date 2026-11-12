@@ -36,7 +36,6 @@
 #include "overworld/overworld_data.h"
 #include "overworld/sign.h"
 #include "platform/timing.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -52,28 +51,14 @@ enum { STAGING = RAM_MENU_WORLD_MAP_TILES, BLOCK_BYTES = 0x1000 };
 /* Where the mode keeps what the map is made of, and the graphics and colours
  * the scene's script sends to VRAM as it plays (its upload command names
  * them). */
-enum {
-    TILE_GROUPS = 0x7E3000,
-    MAPS = 0x7E4000,
-    SCENE_STAGE = RAM_TILE_ANIMATION_TABLES,   /* the scene's script, and the lists before it */
-    SCENE_TILES = 0x7EB800,
-    SCENE_COLOURS = 0x7EC000,
-    SCENE_SPRITES = 0x7EC800,
-    LATE_SCENE_COLOURS = 0x7EC600,
-};
+enum { TILE_GROUPS = 0x7E3000, MAPS = 0x7E4000, SCENE_STAGE = RAM_TILE_ANIMATION_TABLES, /* the scene's script, and the lists before it */
+    SCENE_TILES = 0x7EB800, SCENE_COLOURS = 0x7EC000, SCENE_SPRITES = 0x7EC800, LATE_SCENE_COLOURS = 0x7EC600,  };
 
 /* Where in VRAM the mode's screen reads its tiles (menu/display.c's
  * object_mode_screen): the sprites' from word 0, the party's among them from
  * $1000; the map's from $2000; the top layer's from $7000, and its tilemap
  * at $7800. */
-enum {
-    SPRITE_TILES_VRAM = 0x0000,
-    PARTY_TILES_VRAM = 0x1000,
-    LATE_SPRITE_TILES_VRAM = 0x0C00,
-    MAP_TILES_VRAM = 0x2000,
-    TOP_LAYER_TILES_VRAM = 0x7000,
-    TOP_LAYER_TILEMAP_VRAM = 0x7800,
-};
+enum { SPRITE_TILES_VRAM = 0x0000, PARTY_TILES_VRAM = 0x1000, LATE_SPRITE_TILES_VRAM = 0x0C00, MAP_TILES_VRAM = 0x2000, TOP_LAYER_TILES_VRAM = 0x7000, TOP_LAYER_TILEMAP_VRAM = 0x7800,  };
 
 /* Send graphics from bank $7F, where they are staged, to VRAM. */
 static void send_staged(Platform *pf, uint16_t vram, uint32_t from, uint16_t bytes)
@@ -86,21 +71,7 @@ static void send_staged(Platform *pf, uint16_t vram, uint32_t from, uint16_t byt
 /* What each byte of a world map's record names, and which table it names it
  * in: the four pages of the sprites' graphics; the map's seven blocks of
  * tiles; the top layer's tiles and its tilemap; the palette; and the rest. */
-enum {
-    RECORD_SPRITE_PAGES = 0x0C,
-    RECORD_MAP_TILES = 0x00,
-    RECORD_SCENE_TILES = 0x07,
-    RECORD_TOP_LAYER_TILES = 0x08,
-    RECORD_PALETTE = 0x0A,
-    RECORD_SCENE_COLOURS = 0x0B,
-    RECORD_TILE_GROUPS = 0x10,
-    RECORD_MAPS = 0x11,
-    RECORD_GROUND_KINDS = 0x12,
-    RECORD_REGIONS = 0x13,
-    RECORD_TOP_LAYER_TILEMAP = 0x14,
-    RECORD_PLACE_LISTS = 0x15,
-    RECORD_SCENE_SCRIPT = 0x16,
-};
+enum { RECORD_SPRITE_PAGES = 0x0C, RECORD_MAP_TILES = 0x00, RECORD_SCENE_TILES = 0x07, RECORD_TOP_LAYER_TILES = 0x08, RECORD_PALETTE = 0x0A, RECORD_SCENE_COLOURS = 0x0B, RECORD_TILE_GROUPS = 0x10, RECORD_MAPS = 0x11, RECORD_GROUND_KINDS = 0x12, RECORD_REGIONS = 0x13, RECORD_TOP_LAYER_TILEMAP = 0x14, RECORD_PLACE_LISTS = 0x15, RECORD_SCENE_SCRIPT = 0x16,  };
 enum { SPRITE_PAGES = 4, MAP_TILE_BLOCKS = 7 };
 
 /* A byte with its top bit set names no stream. */
@@ -581,98 +552,9 @@ static bool unpack_the_stream(void *ctx, uint32_t site, uint32_t stream, uint32_
 
 Unpacker overworld_unpacker(GameState *g) { return (Unpacker){ unpack_the_stream, g }; }
 
-/* For the machine's entries, at the pace their reaching the unpacker's entry
- * had (data/decompress.h): run in place, as the world map's own and the
- * Epoch's map view ran it; or called, as the Epoch's gate stream and the gate
- * screen's swirl called it. */
-static bool unpack_as_run(void *ctx, uint32_t site, uint32_t stream, uint32_t to)
-{
-    (void)site;
-    GameState *g = ctx;
-    set_decompress_source(g, stream);
-    set_decompress_dest(g, to);
-    (void)unpack_stream_run(g, false);
-    return true;
-}
-
-static bool unpack_as_called(void *ctx, uint32_t site, uint32_t stream, uint32_t to)
-{
-    (void)site;
-    GameState *g = ctx;
-    set_decompress_source(g, stream);
-    set_decompress_dest(g, to);
-    (void)unpack_stream_called(g, false);
-    return true;
-}
-
-Unpacker overworld_unpacker_on_the_machine(Snes *s) { return (Unpacker){ unpack_as_run, state_of(s) }; }
-
-Unpacker overworld_unpacker_called(Snes *s) { return (Unpacker){ unpack_as_called, state_of(s) }; }
-
-static Unpacker on_the_machine(Snes *s) { return overworld_unpacker_on_the_machine(s); }
-
 /* Where the set up starts; the original's code from there reads nothing of
  * the registers but the mode's page and bank. */
-enum { SET_UP = 0xC223A8, THE_SET_UP_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-// $C2:23A8
-/* The world map set up where the sprite-object mode's start goes on to it
- * (menu/display.c), in the shipping mode: the set up as C, and the main loop
- * waiting for its first frame (main_loop.c, a held wait). Its contract is the
- * one its registry row held: the mode's page with an 8-bit accumulator,
- * 16-bit index registers and binary arithmetic, on a world map whose camera
- * the party's place puts on the map. A state outside it is reported, and the
- * original's set up goes on from its start. The mode's start's time passes
- * first, as it did when the set up was an entry of its own: the set up turns
- * the frame's interrupt on, and on the machine that lands where the time
- * charged so far has brought the beam. */
-void overworld_starts_on_the_machine(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (!overworld_loop_accepts_machine(s) || !overworld_set_up_runs(s)) {
-        program_breaks_a_contract(g, SET_UP, "a world map set up outside its contract");
-        m_stop_at_own(s, SET_UP, THE_SET_UP_READS_NOTHING);
-        return;
-    }
-    tm_sync(m_platform(s));
-    Unpacker u = on_the_machine(s);
-    bool set_up = false;
-    TIMED_AS(g, SET_UP, set_up = overworld_set_up(g, &u, m_platform(s)));
-    if (set_up)
-        overworld_wait_for_the_next_frame_on_the_machine(s);
-}
-
-/* The map's tiles come back with a 16-bit accumulator, the carry of the
- * count's last comparison (set: the count is up) and X the last block's
- * place in its table, as the unpacker hands X back; where none was named, the
- * staging buffer's place, which the original sets the destination from. */
-static void leave_the_last_block(Snes *s)
-{
-    const GameState *g = state_of(s);
-    s->cpu.x = (uint16_t)STAGING;
-    for (unsigned b = MAP_TILE_BLOCKS; b-- > 0;) {
-        uint8_t number = record_byte(g, (uint8_t)(RECORD_MAP_TILES + b));
-        if (!(number & NO_STREAM)) {
-            s->cpu.x = (uint8_t)(number * 3u);
-            break;
-        }
-    }
-    m_set_flag(s, CPU_FLAG_C, true);
-}
-
-// $C2:27DE
-/* The machine form a scene's script calls (overworld/entries.c). */
-void overworld_load_the_map_tiles_on_the_machine(Snes *s)
-{
-    Unpacker u = on_the_machine(s);
-    if (!overworld_load_the_map_tiles(state_of(s), &u))
-        return;
-    vars_peek(true);
-    leave_the_last_block(s);
-    vars_peek(false);
-    m_rep(s, CPU_FLAG_M);
-    m_rts(s);
-}
+enum { SET_UP = 0xC223A8 };
 
 /* ---- The contracts ------------------------------------------------------------------------- */
 
@@ -693,16 +575,6 @@ static bool record_noted(const GameState *g)
  * draw it. */
 bool overworld_can_be_set_up(const GameState *g) { return on_a_world_map(g) && menu_map_party_centres_on_the_map(g); }
 
-bool overworld_set_up_runs(Snes *s)
-{
-    if (!menu_objects_on_page(s))
-        return false;
-    vars_peek(true);
-    bool ok = overworld_can_be_set_up(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
 /* Loading the map again draws it where the camera is, through the upload
  * buffer the main loop has just started over. */
 bool overworld_map_can_be_loaded_again(const GameState *g)
@@ -714,13 +586,3 @@ bool overworld_map_can_be_loaded_again(const GameState *g)
 /* The map's tiles load on a world map whose record is noted (the map view's
  * plane is built from them too: menu/epoch.c). */
 bool overworld_map_tiles_can_load(const GameState *g) { return on_a_world_map(g) && record_noted(g); }
-
-bool overworld_map_tiles_run(Snes *s)
-{
-    if (!menu_objects_on_page(s))
-        return false;
-    vars_peek(true);
-    bool ok = overworld_map_tiles_can_load(state_of(s));
-    vars_peek(false);
-    return ok;
-}

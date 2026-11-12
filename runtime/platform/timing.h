@@ -131,8 +131,7 @@ PF_API TmEntropy tm_entropy(Platform *pf, PfOrigin o, TmEntropyWidth width);
  * on the beam still to come off it (docs/TODO.md, "The native program"), and
  * a build with no machine defines what its entry wrappers still call to end
  * the program there (runtime/port/no_machine.c). */
-enum { TM_SNES_IN_VBLANK = 0x80, TM_SNES_IN_HBLANK = 0x40, TM_SNES_JOYPAD_BUSY = 0x01 };
-uint8_t tm_snes_video_status(Platform *pf, PfOrigin o);
+
 uint16_t tm_snes_odd_frame_read(void);
 
 #endif

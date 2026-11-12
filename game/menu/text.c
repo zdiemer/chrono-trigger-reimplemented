@@ -24,7 +24,6 @@
 
 #include "charge.h"
 #include "menu/menu_data.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
@@ -48,20 +47,7 @@ enum { PALETTE_BITS = 0x1C, KEPT_AFTER_A_STRING = 0x23 };
 enum { NAME_TILES = 5, NAME_FLAGS = ONE_ROW };
 
 /* The control codes. */
-enum {
-    CODE_NEW_LINE = 0x01,
-    CODE_MOVE = 0x02,
-    CODE_NUMBER = 0x03,
-    CODE_STRING = 0x04,
-    CODE_NAME = 0x05,
-    CODE_PALETTE_FROM = 0x06,
-    CODE_COPY_TILE = 0x07,
-    CODE_BLANKS = 0x08,
-    CODE_FLAGS = 0x09,
-    CODE_ATTRIBUTE = 0x0A,
-    CODE_HEX_NUMBER = 0x0B,
-    CODE_LIMITED_NUMBER = 0x0C,
-};
+enum { CODE_NEW_LINE = 0x01, CODE_MOVE = 0x02, CODE_NUMBER = 0x03, CODE_STRING = 0x04, CODE_NAME = 0x05, CODE_PALETTE_FROM = 0x06, CODE_COPY_TILE = 0x07, CODE_BLANKS = 0x08, CODE_FLAGS = 0x09, CODE_ATTRIBUTE = 0x0A, CODE_HEX_NUMBER = 0x0B, CODE_LIMITED_NUMBER = 0x0C,  };
 
 /* ---- Where the text is ------------------------------------------------------------------- */
 
@@ -199,7 +185,6 @@ uint32_t menu_convert_number(GameState *g, uint32_t value, uint8_t bytes)
         value &= (1u << 8 * bytes) - 1;
     uint32_t digits = value_converted(g, value, bytes);
     set_menu_text_work_number(g, digits);
-    charge_machine_accesses(g, 4);
     return digits;
 }
 
@@ -211,7 +196,6 @@ static uint16_t draw_value(GameState *g, uint32_t value, uint8_t format, uint16_
     uint32_t digits = value_converted(g, value, f.bytes);
     set_menu_text_work_number(g, digits);
     uint16_t after = draw_digits(g, pen, digits, f);
-    charge_machine_accesses(g, 5);
     return after;
 }
 
@@ -467,7 +451,6 @@ static TextPlace draw_string(GameState *g, TextPlace p, uint16_t *pen)
         if (!ended) {
             p = advanced(p, 1);
             if (byte < FIRST_TILE) {
-                (charge_machine_accesses(g, 2), charge_machine_rom_accesses(g, 2));
                 *pen = control_code(g, byte, &p, *pen, &in);
                 continue;
             }

@@ -7,7 +7,6 @@
 #include <stdint.h>
 
 #include "platform/platform.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* The menus' short sounds, by their number with the sound driver: the
@@ -91,32 +90,19 @@ typedef struct {
     uint8_t push, from;
 } MenuCursorRead;
 MenuCursorRead menu_note_cursor_read(const GameState *g);
-void menu_charge_cursor_read(Snes *s, MenuCursorRead r);
 
 /* A screen's step reading the cursor as C (menu_read_cursor, timed as the
  * original's reading), and what the original's reading leaves; and the same
  * with the flags of the test of the buttons the original's steps make after
  * it (a BIT of menu_cursor_buttons against the accumulator it leaves). */
-void menu_step_reads_the_cursor(Snes *s);
 /* The cursor read held (a step that waits on any button): the hold counted
  * and the cursor read, as C; and on the machine, leaving what the read
  * leaves, noted before the hold. */
 void menu_hold_and_read_the_cursor(GameState *g);
-void menu_step_holds_and_reads_the_cursor(Snes *s);
-void menu_step_reads_the_cursor_and_tests_its_buttons(Snes *s);
 
 /* The entries. */
-void menu_take_frame_input(Snes *s);
 /* The same as C: false where the controller's read is none the port takes,
  * the program going no further there. */
 bool menu_frame_input_taken(GameState *g, Platform *pf);
-bool menu_frame_input_is_takeable(Snes *s);
-void menu_send_sound_on_other_voices(Snes *s);
-void menu_play_cursor_sound(Snes *s);
-void menu_play_refusal_sound(Snes *s);
-void menu_play_sound(Snes *s);
-bool menu_cursor_is_placeable(Snes *s);
-bool menu_cursor_is_movable(Snes *s);
-bool menu_sounds_on_page(Snes *s);
 
 #endif

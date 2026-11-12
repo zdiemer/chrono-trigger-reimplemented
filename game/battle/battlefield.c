@@ -45,13 +45,10 @@ void battle_mark_combatants_on_grid(GameState *g)
     for (unsigned cell = 0; cell < GRID_CELLS; cell++)
         set_battle_grid(g, cell, battle_base_grid(g, cell));
     uint8_t first = (battle_setup_flags(g) & BATTLE_SETUP_PARTY_OFF_GRID) ? BATTLE_FIRST_ENEMY : 0;
-    unsigned last_row = NO_ROW;
     for (unsigned slot = first; slot < first + (unsigned)BATTLE_COMBATANTS; slot++) {
         if (!slot_present(g, slot))
             continue;
         uint8_t y = object_y(g, battle_object_of(slot));
-        last_row = y & 0xF0;
         set_battle_grid(g, cell_of(object_x(g, battle_object_of(slot)), y), CELL_TAKEN);
     }
-    charge_machine_accesses(g, last_row != NO_ROW ? 3 : 2);
 }

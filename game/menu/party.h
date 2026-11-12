@@ -28,7 +28,6 @@
 #include <stdint.h>
 
 #include "platform/save.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* The record's places: the active party's, then the reserve's. */
@@ -112,8 +111,5 @@ void party_rocks_teach(GameState *g);
 void party_note_the_game_finished(Platform *pf);
 
 /* ---- The checked legacy adapters (menu/party_bridge.c) ------------------------------------------- */
-
-void menu_show_what_the_party_wears(Snes *s);
-bool menu_party_wear_is_showable(Snes *s);
 
 #endif

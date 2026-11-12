@@ -30,7 +30,6 @@
 #include "cpu_io.h"
 #include "platform/timing.h"
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -133,11 +132,7 @@ enum { SPRITE_COLOURS = 18, LAVOS_COLOURS = 20, PLANET_TILE_ORDER = 21 };
 
 /* Where things go: the unpacker's destinations, VRAM's places, the working
  * palette's colours copied to (Lavos's from colour 0, the sprites' from 128). */
-enum {
-    LOW_RAM_BUFFER = 0x000C00,
-    PLANET_TILES_VRAM = 0x4000, STAR_TILES_VRAM = 0x4600, LAVOS_VRAM = 0x0000,
-    LAVOS_COLOURS_AT = 0x2200, SPRITE_COLOURS_AT = 0x2300, LAVOS_COLOURS_BYTES = 0x20, SPRITE_COLOURS_BYTES = 0x40,
-};
+enum { LOW_RAM_BUFFER = 0x000C00, PLANET_TILES_VRAM = 0x4000, STAR_TILES_VRAM = 0x4600, LAVOS_VRAM = 0x0000, LAVOS_COLOURS_AT = 0x2200, SPRITE_COLOURS_AT = 0x2300, LAVOS_COLOURS_BYTES = 0x20, SPRITE_COLOURS_BYTES = 0x40,  };
 
 /* Lavos's picture comes packed two pixels to a byte, and Mode 7 takes a byte
  * a pixel: the spread makes each byte two, the low pixel first, from where the
@@ -338,31 +333,6 @@ static bool set_up_lavos_falls_with(GameState *g, Platform *pf, const LavosFalls
  * below the setup's when it keeps the stack pointer. */
 enum { BELOW_THE_SETUP_S_STACK = 4 };
 
-static bool unpack_on_the_machine(void *ctx, LavosUnpack which)
-{
-    return scene_bridge_unpack(ctx, lavos_unpacks[which].site, lavos_unpacks[which].resource);
-}
-
-static void spread_on_the_machine(void *ctx, uint16_t packed)
-{
-    Snes *s = ctx;
-    GameState *g = state_of(s);
-    spread_the_pixels(g, packed);
-    charge_legacy_io_accesses(g, 3);
-    charge_legacy_accesses(g, 2);
-}
-
-/* The script's first step: Y past the sprites' colours, as their copy left
- * it (scene/bridge.c); the stars' first draw starts from what it leaves. */
-static bool first_step_and_stars_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    if (!scene_bridge_first_script_step(s, 0x7E54B4, (uint16_t)(SPRITE_COLOURS_AT + SPRITE_COLOURS_BYTES)))
-        return false;
-    scene_bridge_scatter_stars(s, s->cpu.a);
-    return true;
-}
-
 /* ---- As C ---- */
 
 typedef struct {
@@ -410,20 +380,10 @@ bool scene_lavos_falls_set_up(GameState *g, Platform *pf)
 
 /* The routines channel 1's script calls, as C (scene/script.c). */
 const SceneScriptRoutine scene_lavos_routines[] = {
-    [SCENE_ROW_SEND_LAVOS_BACK] = { SCENE_ROUTINE_SEND_LAVOS_BACK, send_lavos_back, scene_send_lavos_back_present, false },
-    [SCENE_ROW_LET_LAVOS_FALL] = { SCENE_ROUTINE_LET_LAVOS_FALL, let_lavos_fall, scene_let_lavos_fall_present, false },
+    [SCENE_ROW_SEND_LAVOS_BACK] = { SCENE_ROUTINE_SEND_LAVOS_BACK, send_lavos_back },
+    [SCENE_ROW_LET_LAVOS_FALL] = { SCENE_ROUTINE_LET_LAVOS_FALL, let_lavos_fall },
 };
 const unsigned scene_lavos_routine_count = sizeof scene_lavos_routines / sizeof scene_lavos_routines[0];
-
-/* Entered with 8-bit A; back, the overflow is the scatter's last draw's,
- * which the program reads, and the direct page the scene's. */
-bool scene_lavos_falls_set_up_scene(Snes *s)
-{
-    static const LavosFallsSetUpSteps on_the_machine = {
-        unpack_on_the_machine, spread_on_the_machine, first_step_and_stars_on_the_machine,
-    };
-    return set_up_lavos_falls_with(state_of(s), m_platform(s), &on_the_machine, s);
-}
 
 /* The planet's list, its 28 sprites with room for them in the tables. */
 enum { PLANET_SPRITES = 28 };
@@ -462,98 +422,4 @@ TaskEnd scene_draw_the_planet(GameState *g, Platform *pf, unsigned slot)
         return scene_task_needs_the_machine(g, 0x7E56EB, "a planet's edge with no room for its sprites");
     draw_the_planet(g);
     return task_goes_on();
-}
-
-/* The frame's tasks on the machine, 16-bit, each leaving A as its last load
- * left it: the matrix's last entry the turn wrote, the angle, the speed. */
-void scene_turn_lavos_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    turn_lavos(g);
-    charge_legacy_accesses(g, 2);
-    m_rts(s);
-}
-
-void scene_turn_the_field_s_angle_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    turn_the_field_s_angle(g);
-    charge_legacy_accesses(g, 2);
-    m_rts(s);
-}
-
-void scene_swing_the_field_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    swing_the_field(g);
-    charge_legacy_accesses(g, 2);
-    m_rts(s);
-}
-
-/* Y is the next free sprite entry, and A as the list leaves it (sprites.c),
- * called with the list's place. */
-void scene_draw_the_planet_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    draw_the_planet(g);
-    s->cpu.y = scene_sprite_index(g);
-    scene_charge_clipped_list_result(g, PLANET_EDGE);
-    m_rts(s);
-}
-
-/* ---- The guards ------------------------------------------------------------------------------- */
-
-/* The program's sine and multiply, which the turn runs as C. */
-static bool sine_present(Snes *s) { return m_code_matches(s, 0x7E3461, 0x19, 0xA2486F18B991C163ull); }
-static bool multiply_present(Snes *s) { return m_code_matches(s, 0x7E31BF, 0x4A, 0x479627EBF1311CAFull); }
-
-/* The turn adds the carry the list hands it, which the list's loop leaves
- * clear at the task's slot: the guard turns away a turn entered with it set. */
-bool scene_turn_lavos_present(Snes *s)
-{
-    return scene_on_scene_page_low_bank(s) && !m_flag(s, CPU_FLAG_C) &&
-           m_code_matches(s, 0x7E56A9, 0x42, 0x1954DBB8276A19AEull) && sine_present(s) && multiply_present(s);
-}
-
-/* The angle's turn reaches channel 1's registers through the data bank and
- * adds with the carry the list leaves clear, as the turn does. */
-bool scene_turn_the_field_s_angle_present(Snes *s)
-{
-    return scene_on_scene_page_low_bank(s) && !m_flag(s, CPU_FLAG_C) &&
-           m_code_matches(s, 0x7E55F9, 0x0B, 0xAF9A989D6EC7E462ull);
-}
-
-bool scene_swing_the_field_present(Snes *s)
-{
-    return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E5855, 0x1D, 0xB1A7FF9566C6DC3Bull) && sine_present(s);
-}
-
-bool scene_draw_the_planet_present(Snes *s)
-{
-    if (!scene_on_scene_page_io_bank(s) || !m_code_matches(s, 0x7E56EB, 0x12, 0x9F41A077BE5302E5ull) ||
-        !m_code_matches(s, 0x7E56FD, 0x71, 0xEFBCBE84C2B5A9B6ull))
-        return false;
-    vars_peek(true);
-    bool fits = scene_sprites_fit(state_of(s), PLANET_SPRITES);
-    vars_peek(false);
-    return fits;
-}
-
-bool scene_send_lavos_back_present(Snes *s) { return m_code_matches(s, 0x7E564D, 0x07, 0x5A6A85F804B87658ull); }
-bool scene_let_lavos_fall_present(Snes *s) { return m_code_matches(s, 0x7E5640, 0x0D, 0x521AA074E2851935ull); }
-
-/* The setup's code and the program's routines it runs inline: the spread of
- * the pixels, the laying out of the tiles, the widening of the map, the
- * blanking, the copies of resources, the transfer and the scatter. Its stores
- * reach the registers and low RAM through the data bank. */
-bool scene_lavos_falls_set_up_present(Snes *s)
-{
-    return scene_on_scene_page(s) && m_bank_reaches_io(s) &&
-           m_code_matches(s, 0x7E53BB, 0x12F, 0x9981100ED065A3B0ull) &&
-           m_code_matches(s, 0x7E350E, 0x2E, 0xA6DAAD20AD0C7ACEull) &&
-           m_code_matches(s, 0x7E54EA, 0x40, 0x3448FBAF895AB47Bull) &&
-           m_code_matches(s, 0x7E37CA, 0x29, 0x94A78C10CD6A42C5ull) &&
-           m_code_matches(s, 0x7E90A7, 0x1A, 0x841D0D5589A89675ull) &&
-           m_code_matches(s, 0x7E36AA, 0x22, 0xCCA1DE26086A09CBull) &&
-           m_code_matches(s, 0x7E38E7, 0x24, 0xDD4B67DA62CC8E67ull) && scene_stars_scatter_code_present(s);
 }

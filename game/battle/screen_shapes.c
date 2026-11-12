@@ -233,7 +233,6 @@ static void place_flat_corners(GameState *g, uint8_t shape)
         set_corner(g, shape, corner, (uint8_t)(across + stretched(g, angle, radius, scale_x)),
                    (uint8_t)(down + stretched(g, (uint8_t)(angle + SCREEN_QUARTER_TURN), radius, scale_y)));
     }
-    (charge_machine_accesses(g, 5), charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, 3));
 }
 
 // $CD:2717
@@ -265,7 +264,6 @@ static ScreenFlow grow_corners(GameState *g, uint8_t shape, uint8_t limit, Scree
         if (grown < limit)
             set_radius_of(g, shape, corner, grown);
     }
-    charge_machine_accesses(g, 1);
     return screen_on();
 }
 SCREEN_OPERATION(grow_corners, shape, limit, radii)
@@ -310,13 +308,12 @@ static SpacePoint turn_point(const GameState *g, SpacePoint p, const uint8_t tur
  * multiplier. */
 
 /* Turn a corner by the triangle's turns and place it about its center. */
-static void place_turned_corner(GameState *g, uint8_t shape, unsigned corner, SpacePoint p, bool whole_words)
+static void place_turned_corner(GameState *g, uint8_t shape, unsigned corner, SpacePoint p)
 {
     const uint8_t turns[AXES] = { turn_of(g, shape, ACROSS), turn_of(g, shape, DOWN), turn_of(g, shape, DEPTH) };
     SpacePoint turned = turn_point(g, p, turns);
     set_corner(g, shape, corner, (uint8_t)(turned.across + battle_shape_center_x(g, shape)),
                (uint8_t)(turned.down + battle_shape_center_y(g, shape)));
-    (charge_machine_accesses(g, AXES * (whole_words ? 2 : 1) + 4), charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, 10));
 }
 
 /* What the original leaves of the turns it hands the rotation, and of the
@@ -331,9 +328,8 @@ static void place_turned_corners(GameState *g, uint8_t shape)
         uint8_t angle = angle_of(g, shape, corner), radius = radius_of(g, shape, corner);
         SpacePoint p = { half_sine_of(g, angle, radius), half_sine_of(g, (uint8_t)(angle + SCREEN_QUARTER_TURN), radius),
                          battle_shape_depth(g, shape) };
-        place_turned_corner(g, shape, corner, p, false);
+        place_turned_corner(g, shape, corner, p);
     }
-    charge_machine_accesses(g, 8);
 }
 
 // $CD:2660
@@ -404,8 +400,6 @@ static ScreenFlow rock_triangle(GameState *g, uint8_t shape, ScreenTriple angles
     for (unsigned axis = 0; axis < AXES; axis++)
         set_turn_of(g, shape, axis,
                     (uint8_t)(screen_signed_sine(g, angle_of(g, shape, axis), rocks[axis]) + sways.of[axis]));
-    charge_machine_accesses(g, 1);
-    (charge_machine_accesses(g, 1), charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, 1));
     return screen_on();
 }
 SCREEN_OPERATION(rock_triangle, shape, angles, sways)
@@ -417,7 +411,6 @@ static ScreenFlow raise_triangle_with_effect_object(GameState *g, uint8_t shape)
 {
     uint8_t rise = screen_effect_object_rise(g);
     set_battle_shape_center_y(g, shape, (uint8_t)(battle_shape_center_y(g, shape) - rise));
-    charge_machine_accesses(g, 1);
     return screen_on();
 }
 SCREEN_OPERATION(raise_triangle_with_effect_object, shape)
@@ -481,8 +474,6 @@ static bool sized_triangle_fits(const GameState *g, const ScreenCommand *c)
 static ScreenFlow draw_triangle(GameState *g, uint8_t shape)
 {
     ScreenTriangle t = corners_of(g, shape);
-    (charge_machine_accesses(g, 9), charge_machine_io_accesses(g, 4));
-    charge_machine_accesses(g, 2);
     screen_draw_window_triangle(g, shape, sized_corners(g, shape, t));
     return screen_on();
 }
@@ -498,7 +489,6 @@ static bool names_a_shape_that_fits(const GameState *g, const ScreenCommand *c)
  * the window of its own number. */
 static ScreenFlow draw_triangle_at_its_corners(GameState *g, uint8_t shape)
 {
-    charge_machine_accesses(g, 2);
     screen_draw_window_triangle(g, shape, corners_of(g, shape));
     return screen_on();
 }
@@ -511,7 +501,6 @@ SCREEN_OPERATION(draw_triangle_at_its_corners, shape)
 static ScreenFlow hang_wedge(GameState *g, uint8_t shape)
 {
     ScreenTriangle t = corners_of(g, shape);
-    charge_machine_accesses(g, 2);
     screen_hang_window_triangle(g, shape, t.corner[0], t.corner[1]);
     return screen_on();
 }
@@ -622,9 +611,7 @@ static ScreenFlow draw_model(GameState *g, uint8_t shape, uint8_t model, bool ow
             set_turn_of(g, shape, axis, (uint8_t)(turn_of(g, shape, axis) + spin[axis]));
     uint8_t added = added_depth(g, shape, own_depth);
     for (unsigned corner = 0; corner < CORNERS; corner++)
-        place_turned_corner(g, shape, corner, model_point(g, model, corner, added), true);
-    charge_machine_accesses(g, 11);
-    charge_machine_accesses(g, 2);
+        place_turned_corner(g, shape, corner, model_point(g, model, corner, added));
     clear_the_turn_slots_low_byte(g);
     return draw_triangle(g, (uint8_t)(shape & 1));
 }

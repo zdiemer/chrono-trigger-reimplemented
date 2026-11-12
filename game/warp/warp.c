@@ -2,7 +2,7 @@
  *
  * The field's event command $FF with a scene of $80-$83 ends the field for it
  * (event/screen.c); the warp is a mode of its own, with its own vblank handler,
- * and when it is over it hands back to the field's entry, which loads the
+ * and when it is over it returns to the field, which loads the
  * location the event set. Its four kinds differ in how long they last and in
  * whether the picture flickers (WarpKind).
  *
@@ -11,7 +11,7 @@
  * drawn (warp/picture.c), both of the circle's window tables built empty
  * (warp/circle.c) and the line effects started; then the screen comes on, dark
  * until the vblank handler brightens it. Each frame the main loop waits for the
- * vblank handler to take the frame it finished (a held wait), then
+ * vblank handler to take the frame it finished through the timing service, then
  * makes the next one (make_a_frame): the plane moved on, its colours turned and
  * pulsed, and the circle built for where the warp is in its course:
  * - opening, its first 32 frames: the tunnel seen only inside a circle that
@@ -29,12 +29,9 @@
 #include "charge.h"
 #include "core/program.h"
 #include "field/main_loop.h"
-#include "holds.h"
 #include "scene/scene.h"
 #include "platform/timing.h"
 #include "platform/video.h"
-#include "port/machine.h"
-#include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
 
@@ -42,14 +39,12 @@
 
 typedef enum { WARP_LONG, WARP_SHORT, WARP_SHORTEST, WARP_FLICKERING } WarpKindId;
 
-/* A kind of warp: its last frame, whether its brightness flickers, and, for
- * the original's machine, where its frame starts (the routine its time is
- * charged as, and where its main loop's wait returns to) and where it sets the
- * circle's window. */
+/* Duration and flicker behavior, with timing and video provenance. These
+ * identities select work estimates; they are never callable addresses. */
 typedef struct {
     uint16_t last_frame;
     bool flickers;
-    uint32_t frame_entry;
+    uint32_t frame_rate;
     uint32_t window_site;
 } WarpKind;
 
@@ -93,8 +88,10 @@ static void start_the_warp(GameState *g, Platform *pf)
     vid_set_display(pf, PF_AT(0xFDDBAD), &(VidDisplay){ .brightness = FULL_BRIGHTNESS, .blank = true });
     tm_enable_interrupts(pf, PF_AT(0xFDDBB0), 0);
     set_warp_zero(g, 0);
-    program_install_vblank_handler(g, WARP_VBLANK_HANDLER);
-    program_install_line_handler(g, WARP_LINE_HANDLER);
+    program_install_vblank_handler(g, warp_vblank);
+    charge_legacy_accesses(g, 4);
+    program_install_line_handler(g, warp_line);
+    charge_legacy_accesses(g, 4);
     keep_the_story_flags(g);
     warp_draw_picture(g, pf);
     set_warp_circle_tables_built(g, 0);
@@ -218,7 +215,7 @@ static void pulse_the_colours(GameState *g, uint8_t frame)
  * where the C steps it in locals: a step takes the original about as long as
  * eight of the frame's own accesses at the frame's rate, measured over the
  * three movies the warp plays in, which is what a frame charges for each
- * (charge.h): the frame's pace on the machine, not scaffolding. */
+ * (charge.h): the native frame's retained work estimate. */
 enum { ACCESSES_A_CIRCLE_STEP = 8 };
 
 /* One frame of the warp: true while it goes on, false on its last frame. */
@@ -234,7 +231,7 @@ static bool make_a_frame(GameState *g, Platform *pf, const WarpKind *k)
     set_warp_circle_radius(g, circle ? warp_circle_radius_on(g, (uint8_t)frame) : 0);
     show_the_tunnel(pf, k, phase);
     uint16_t circle_steps = warp_build_circle(g);
-    charge_as(g, k->frame_entry, (uint32_t)circle_steps * ACCESSES_A_CIRCLE_STEP);
+    charge_as(g, k->frame_rate, (uint32_t)circle_steps * ACCESSES_A_CIRCLE_STEP);
     pulse_the_colours(g, (uint8_t)frame);
     return frame != k->last_frame;
 }
@@ -296,12 +293,11 @@ static WarpKindId kind_of(uint8_t scene)
  * original's routine ($FD:EADA, called at $FD:DCB5), which the timing service
  * stands for. */
 enum { SET_UP = 0xFDDB97, SCREEN_ON = 0xFDEADA, THE_SCREEN_ON_CALL = 0xFDDCB5 };
-enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 static void start_the_trip(GameState *g, Platform *pf, const WarpKind *k)
 {
     TIMED_AS(g, SET_UP, start_the_warp(g, pf));
-    tm_wait_frame_then_enable(pf, PF_CALL_DC(THE_SCREEN_ON_CALL, SCREEN_ON, READS_NOTHING),
+    tm_wait_frame_then_enable(pf, PF_CALL(THE_SCREEN_ON_CALL, SCREEN_ON),
                               TM_INT_VBLANK | TM_INT_AUTO_JOYPAD, TM_LINE_UNCHANGED);
     set_warp_frame(g, 0);
     if (k->flickers)
@@ -323,7 +319,7 @@ static void wait_for_the_frame_taken(GameState *g, Platform *pf)
     set_warp_frame_ended(g, 0);
 }
 
-/* The trip as one call, for a program with no machine (core/program.c),
+/* Run the trip,
  * from the field's end to the field's start again: the warp started and the
  * screen turned on, a frame made after each the vblank handler takes, and on
  * the last the screen dark and the story flags put back. False where the
@@ -337,183 +333,20 @@ bool warp_runs(GameState *g, Platform *pf, uint8_t scene)
     while (goes_on) {
         wait_for_the_frame_taken(g, pf);
         if (!keeps_its_zero(g)) {
-            program_needs_the_machine(g, k->frame_entry, "a warp whose zero has moved");
+            program_fail(g, k->frame_rate, "a warp whose zero has moved");
             return false;
         }
-        TIMED_AS(g, k->frame_entry, goes_on = make_a_frame(g, pf, k));
+        TIMED_AS(g, k->frame_rate, goes_on = make_a_frame(g, pf, k));
     }
     TIMED_AS(g, GO_DARK, go_dark(pf));
     TIMED_AS(g, PUT_BACK_THE_STORY_FLAGS, put_back_the_story_flags(g));
     return true;
 }
 
-/* The warp's vblank handler as C (core/program.c's table). */
+/* Publish the frame through the callback installed at the start of the trip. */
 void warp_vblank(GameState *g, Platform *pf) { take_the_frame(g, pf); }
 
 // $FD:DE87
 /* The warp's line handler, which the warp installs but never enables the
  * line interrupt for: it does nothing. */
 void warp_line(GameState *g, Platform *pf) { (void)g, (void)pf; }
-
-/* ---- On the machine ------------------------------------------------------------------------------ */
-
-/* The warp's gate is retired (docs/REIMPLEMENTATION.md, "The time warp's
- * teardown"): none of its routines is an entry the machine finds. In the
- * shipping mode the field's end starts the trip as C (warp_starts_on_the_machine),
- * the console's vblank stub runs its handler as C (warp_takes_the_frame_on_the_machine),
- * and between the two the main thread rests in the main loop's wait for the
- * vblank handler, a held wait (holds.h, HOLD_WARP_FRAME; docs/RUNTIME.md, "Held
- * waits") whose continuations the runtime runs: the next frame once the
- * handler has taken the last, and on the last frame the end, which starts the
- * field again. Elsewhere -- shadow mode's reference play, the tools -- the warp
- * is the cartridge's code, run as it is and compared with nothing. What the
- * machine still holds of a trip is what its held wait needs: the warp's page,
- * the data bank and the widths, and on the stack the loop's return to the
- * kind's next frame, which names the kind. */
-enum { WARP_PAGE = 0x0500, FIELD_STARTS = 0xC00000 };
-
-/* The main loop has made a frame and waits for the vblank handler to take it
- * ($FD:EAEB, called from $FD:DA03, $FD:DA62, $FD:DAC1, $FD:DB24): the
- * handler's mark cleared and the wait held at its loop, the call's return to
- * the kind's next frame on the stack. What the loop's first pass sets, it
- * doesn't read; the frame after reads A's high byte (flicker), so the hold
- * declares its own set, not its caller's. */
-enum { FRAME_WAIT_LOOP_READS = DC_AL | DC_N | DC_Z };
-
-static void wait_for_the_frame_taken_on_the_machine(Snes *s, const WarpKind *k)
-{
-    m_push16(s, (uint16_t)(k->frame_entry - 1));
-    set_warp_frame_ended(state_of(s), 0);
-    m_hold_at_own(s, FRAME_WAIT_LOOP, FRAME_WAIT_LOOP_READS, HOLD_WARP_FRAME);
-}
-
-/* The kind whose main loop's wait returns to `frame`, or WARP_KINDS for none. */
-static unsigned kind_going_on_at(uint32_t frame)
-{
-    unsigned id = 0;
-    while (id < WARP_KINDS && kinds[id].frame_entry != frame)
-        id++;
-    return id;
-}
-
-// $FD:DA00, $FD:DA5F, $FD:DABE, $FD:DB1D (each kind's start), $FD:DB97 (the set-up)
-/* The trip a field's event asks for by its scene's number, started as the
- * field's end hands over to it (field/main_loop.c): on the warp's own page
- * with the data bank $00, the CPU's interrupts masked until the screen comes
- * on, and then the main loop waiting for the first frame. */
-void warp_starts_on_the_machine(Snes *s, uint8_t scene)
-{
-    const WarpKind *k = &kinds[kind_of(scene)];
-    m_set_flag(s, CPU_FLAG_I, true);
-    m_sep(s, CPU_FLAG_M);
-    m_rep(s, CPU_FLAG_X);
-    s->cpu.d = WARP_PAGE;
-    s->cpu.db = 0x00;
-    start_the_trip(state_of(s), m_platform(s), k);
-    wait_for_the_frame_taken_on_the_machine(s, k);
-}
-
-// $FD:DA55, $FD:DAB4, $FD:DB13, $FD:DB8D (each kind's end), $FD:EAC8, $FD:EAB7
-/* The warp over, after its last frame: the screen dark and the CPU's
- * interrupts masked, the story flags put back over the plane's map, and the
- * field started again, which loads the location the event set for the end of
- * the trip. The frame's time passes first, as it did when the end was an
- * entry of its own, so the line effects stop on the line the original stops
- * them on. The field's entry holds its own contract, a location the event
- * set among them: where it doesn't, the field starts as the original's code. */
-static void end_the_trip_on_the_machine(Snes *s)
-{
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    tm_sync(pf);
-    TIMED_AS(g, GO_DARK, go_dark(pf));
-    m_set_flag(s, CPU_FLAG_I, true);
-    TIMED_AS(g, PUT_BACK_THE_STORY_FLAGS, put_back_the_story_flags(g));
-    m_jump_to(s, FIELD_STARTS);
-    /* Field loading keeps its own timing report across this tail call. */
-    if (scene_accept_continuation(s, FIELD_STARTS, field_enter))
-        NATIVE_TIME_AS_SIBLING(s, FIELD_STARTS, field_enter(s));
-}
-
-/* Poll under the idle continuation's contract (M8, native mode, warp page,
- * I/O bank and unchanged zero). A refused idle or a completed frame wakes
- * the loop, which checks the frame continuation's stronger contract. */
-static bool frame_wait_ends_on_the_machine(Snes *s)
-{
-    return s->cpu.e || !m_m8(s) || !warp_frame_not_taken(s);
-}
-
-// $FD:EAED (the main loop's wait, the frame taken), $FD:DA06, $FD:DA65, $FD:DAC4, $FD:DB27 (each kind's frame)
-/* The trip runs as a C loop. Each wait retains the return identifying the
- * kind, so a saved wait can enter this same loop in a fresh runtime. Nothing
- * after the wait depends on a local from the preceding frame. */
-void warp_next_frame(Snes *s)
-{
-    GameState *g = state_of(s);
-    for (;;) {
-        /* The retained row requires M8/X16 but does not constrain decimal
-         * mode. Its guard includes the page, bank, zero and return frame. */
-        if (s->cpu.e || !m_m8(s) || m_x8(s) || !warp_frame_taken(s)) {
-            m_stop_at_own(s, FRAME_WAIT_LOOP, 0);
-            return;
-        }
-        set_warp_frame_ended(g, 0);
-        m_rts(s);
-        const WarpKind *k = &kinds[kind_going_on_at(cpu_pc24(&s->cpu))];
-        bool goes_on = false;
-        TIMED_AS(g, k->frame_entry, goes_on = make_a_frame(g, m_platform(s), k));
-        if (!goes_on) {
-            end_the_trip_on_the_machine(s);
-            return;
-        }
-        wait_for_the_frame_taken_on_the_machine(s, k);
-        if (!native_poll_held(s, HOLD_WARP_FRAME, FRAME_WAIT_LOOP, frame_wait_ends_on_the_machine))
-            return;
-    }
-}
-
-// $FD:EAED
-/* A pass of the wait before the vblank handler has taken the frame: the held
- * wait's other continuation, an idle one, which goes round. */
-void warp_waits_for_the_frame(Snes *s) { (void)s; }
-
-// $FD:DE15
-/* The warp's vblank handler, which the console's vblank stub calls
- * (core/console.c); the stub returns from the interrupt. */
-void warp_takes_the_frame_on_the_machine(Snes *s)
-{
-    NATIVE_TIME_AS(s, WARP_VBLANK_HANDLER, take_the_frame(state_of(s), m_platform(s)));
-}
-
-/* The held wait's continuations' guards: on the warp's page with its zero,
- * and the frame taken, with the wait's call returning to a kind's loop, or
- * not yet taken. Each is a claim the game keeps, which the refusal measure
- * checks over real play (the original hand-back paths --refusals). */
-static bool on_its_page(Snes *s)
-{
-    if (m_direct_page(s) != WARP_PAGE || !m_bank_reaches_io(s))
-        return false;
-    vars_peek(true);
-    bool zero = keeps_its_zero(state_of(s));
-    vars_peek(false);
-    return zero;
-}
-
-static bool frame_taken(Snes *s)
-{
-    vars_peek(true);
-    bool taken = warp_frame_ended(state_of(s)) != 0;
-    vars_peek(false);
-    return taken;
-}
-
-bool warp_frame_taken(Snes *s)
-{
-    uint16_t sp = s->cpu.s;
-    uint16_t pushed = (uint16_t)(snes_bus_peek(&s->bus, (uint16_t)(sp + 1)) | snes_bus_peek(&s->bus, (uint16_t)(sp + 2)) << 8);
-    uint32_t frame = (uint32_t)s->cpu.pb << 16 | (uint16_t)(pushed + 1);
-    return on_its_page(s) && frame_taken(s) && kind_going_on_at(frame) < WARP_KINDS;
-}
-
-bool warp_frame_not_taken(Snes *s) { return on_its_page(s) && !frame_taken(s); }
-

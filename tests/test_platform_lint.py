@@ -24,8 +24,7 @@ UNCONVERTED = set()
 
 # Uses of the SNES-only escapes, per file.
 ESCAPES = {
-    "battle/uploads.c": 2, # $CF:E338, the transfer described by the table at $9EEA; and $CD:09CE's palette send
-                           # through work RAM's data bank, whose register writes land in memory
+    "battle/uploads.c": 1, # $CF:E338, the transfer described by the table at $9EEA
     "menu/display.c": 2,   # $C2:9512 and $C2:9542, which fill and copy memory through the work RAM port
     "menu/script.c": 2,    # the object scripts' byte commands, which name a register of the picture's by its
                            # address (an ending's sets the sprites' sizes, $2101): whether the console takes it,

@@ -29,7 +29,6 @@
 #include "field/line_effects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
-#include "port/native.h"
 #include "ram.h"
 #include "vars.h"
 
@@ -235,7 +234,6 @@ static void load_the_next_step(GameState *g, Platform *pf)
 enum { ALL_LINE_EFFECTS = 0xFF };
 
 /* The call-outs read nothing of the registers. */
-enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS };
 
 /* The palettes' animation, through the original's jump to it. */
 enum { PALETTE_ANIMATION = 0xFDFFF7 };
@@ -298,22 +296,6 @@ bool battle_display_set_up(GameState *g, Platform *pf)
     return set_the_display_up(g, pf, &in_the_program, &c);
 }
 
-/* On the machine, from the original's calls, the data bank $7E from the line
- * effects on. */
-static bool pause_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    s->cpu.db = BATTLE_DATA_BANK;
-    s->cpu.a = 0;
-    return battle_run_long_called(s, 0xCD0AD2, BATTLE_PAUSE_PALETTE_ANIMATION_ENTRY, READS_NOTHING,
-                                  battle_pause_palette_animation_entry);
-}
-
-static bool animate_on_the_machine(void *ctx)
-{
-    return battle_run_long_dc(ctx, 0xCD0AD6, PALETTE_ANIMATION, READS_NOTHING | DC_DB, palette_animate);
-}
-
 /* ---- The battle's last vblank handler ---------------------------------------------------- */
 
 /* The fading screen's brightness is what the fade left in the scratch cell
@@ -327,22 +309,6 @@ static void scroll_to_the_base(GameState *g, Platform *pf)
     for (unsigned bg = 0; bg < 3; bg++)
         vid_set_scroll(pf, PF_AT(sites[bg]), (VidLayer)bg, battle_bg_scroll_x(g, bg), battle_bg_scroll_y(g, bg),
                        VID_SCROLL_H | VID_SCROLL_V);
-}
-
-/* ---- The entries ------------------------------------------------------------------------ */
-
-void battle_setup_display(Snes *s)
-{
-    static const DisplaySetUpCalls on_the_machine = { pause_on_the_machine, animate_on_the_machine };
-    if (!set_the_display_up(state_of(s), m_platform(s), &on_the_machine, s))
-        return;
-    m_rts(s);
-}
-
-void battle_leave_arrangement_registers(Snes *s)
-{
-    s->cpu.a = 0;
-    s->cpu.y = (uint16_t)(RAM_BATTLE_WINDOW_LINE_TABLES + RAM_BATTLE_WINDOW_LINE_TABLES_STRIDE + LINE_ARRANGEMENT_LIST_BYTES);
 }
 
 /* The arrangement in A; the carry comes back as the arrangement's top bit,
@@ -372,67 +338,6 @@ static bool take_the_closing_vblank(GameState *g, Platform *pf, bool (*call)(voi
     vid_set_display(pf, PF_AT(0xD1F4ED), &display);
     scroll_to_the_base(g, pf);
     return call(ctx, CLOSING_MAP_LAYERS) && call(ctx, CLOSING_PALETTES);
-}
-
-/* On the machine: the line effects rebuilt as C where its builders can
- * build and the handler runs as the field's routine is entered, else the
- * original's call from the handler's JSL; either leaves the effects to turn
- * on in A's low byte. The per-line effects' enable is the one write the
- * handler makes through the data bank, which is the interrupted code's: with
- * a bank that doesn't reach the registers -- which is how
- * `battle-golem-twins-gameover` reaches this handler on its way back to the
- * title -- the store lands in memory, so the port writes the memory byte
- * instead. */
-static bool rebuild_the_fields_line_effects(Snes *s)
-{
-    GameState *g = state_of(s);
-    vars_peek(true);
-    bool builds = field_line_effects_can_be_built(g);
-    vars_peek(false);
-    if (!builds || !battle_binary_m8_x16(s)) {
-        (void)battle_contract_broken(g, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY, "field line effects outside their contract");
-        battle_refuse_long_call(s, 0xD1F4E2, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY);
-        return false;
-    }
-    uint8_t effects;
-    TIMED_AS(g, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY, effects = field_rebuild_line_effects(g, m_platform(s)));
-    m_set_a8(s, effects);
-    return true;
-}
-
-static bool closing_vblank_on_the_machine(void *ctx, ClosingVblankCall call)
-{
-    Snes *s = ctx;
-    switch (call) {
-    case CLOSING_PALETTE:
-        return battle_run_long_called(s, 0xD1F4DE, 0xCD09CE, DC_A | DC_X | DC_N | DC_Z | DC_C,
-                                      battle_upload_palette) && battle_widths_m8_x16(s);
-    case CLOSING_LINE_EFFECTS:
-        if (!rebuild_the_fields_line_effects(s))
-            return false;
-        if (m_io_bank(s->cpu.db))
-            vid_enable_line_effects(m_platform(s), PF_AT(0xD1F4E6), (uint8_t)s->cpu.a);
-        else
-            m_write8(s, m_abs(s, M_REG_LINE_EFFECTS), (uint8_t)s->cpu.a);
-        s->cpu.db = BATTLE_DATA_BANK;
-        return true;
-    case CLOSING_MAP_LAYERS:
-        return battle_run_long_called(s, 0xD1F549, 0xCD0C89, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
-                                      battle_scroll_map_layers) && battle_widths_m8_x16(s);
-    default: return battle_run_long(s, 0xD1F54D, PALETTE_ANIMATION, palette_animate) && battle_widths_m8_x16(s);
-    }
-}
-
-/* The handler saves the interrupted code's registers and runs on the battle's
- * page. Returns with RTI. */
-void battle_nmi_alternate(Snes *s)
-{
-    m_save_interrupted_registers_bank_first(s);
-    s->cpu.d = BATTLE_PAGE;
-    s->cpu.a = 0;
-    m_sep(s, CPU_FLAG_M);
-    if (take_the_closing_vblank(state_of(s), m_platform(s), closing_vblank_on_the_machine, s))
-        m_return_to_interrupted_bank_first(s);
 }
 
 /* ---- As C ------------------------------------------------------------------------------------ */

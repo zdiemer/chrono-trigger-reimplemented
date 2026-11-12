@@ -14,7 +14,6 @@
 #include <stdint.h>
 
 #include "platform/platform.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* Where a dialog is (dialog_state). Clearing the text takes four frames, a
@@ -78,17 +77,8 @@ void field_send_the_window_design(GameState *g, Platform *pf);
 void field_colour_the_window(GameState *g);
 void field_send_the_choice_pointer(GameState *g, Platform *pf);
 void field_send_the_fields_own_sprites(GameState *g, Platform *pf);
-enum { FIELD_BUILD_WINDOW_FRAME_ENTRY = 0xC029F7, FIELD_BUILD_TEXT_AREA_ENTRY = 0xC02B78,
-       FIELD_SEND_WINDOW_FRAME_ENTRY = 0xC06EB0, FIELD_SEND_TEXT_AREA_ENTRY = 0xC06EF1,
-       FIELD_SEND_WINDOW_DESIGN_ENTRY = 0xC06E5C, FIELD_SEND_CHOICE_POINTER_ENTRY = 0xC06F5E };
-void field_build_the_window_frame_entry(Snes *s);
-void field_build_the_text_area_entry(Snes *s);
+enum { FIELD_BUILD_WINDOW_FRAME_ENTRY = 0xC029F7, FIELD_BUILD_TEXT_AREA_ENTRY = 0xC02B78, FIELD_SEND_WINDOW_FRAME_ENTRY = 0xC06EB0, FIELD_SEND_TEXT_AREA_ENTRY = 0xC06EF1, FIELD_SEND_WINDOW_DESIGN_ENTRY = 0xC06E5C, FIELD_SEND_CHOICE_POINTER_ENTRY = 0xC06F5E };
 
-enum { FIELD_DIALOG_WINDOW_STEP_ENTRY = 0xC01F87, FIELD_TAKE_CHOICE_BUTTONS_ENTRY = 0xC01ADF,
-       FIELD_SEND_DIALOG_TEXT_ENTRY = 0xC06ECB, FIELD_REFRESH_CHOICE_POINTER_ENTRY = 0xC0F05E };
-
-/* The entries (game/registry.c), and their guards. */
-void field_dialog_window_step_entry(Snes *s);
-bool field_dialog_window_can_step(Snes *s);
+enum { FIELD_DIALOG_WINDOW_STEP_ENTRY = 0xC01F87, FIELD_TAKE_CHOICE_BUTTONS_ENTRY = 0xC01ADF, FIELD_SEND_DIALOG_TEXT_ENTRY = 0xC06ECB, FIELD_REFRESH_CHOICE_POINTER_ENTRY = 0xC0F05E };
 
 #endif

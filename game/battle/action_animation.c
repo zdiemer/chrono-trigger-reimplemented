@@ -69,10 +69,8 @@ static bool attacks_up_close(GameState *g, uint8_t member)
     set_battle_object_facing(g, member, battle_facing_of_direction(g, direction));
     bool close = within;
     if (battle_character_walks_up(g, party_members(g, member)) || within) {
-        charge_machine_accesses(g, 4);
         TIMED_AS(g, 0xC14A71, close = battle_find_way(g, from, to));
     }
-    charge_machine_accesses(g, 1);
     return close;
 }
 
@@ -168,7 +166,6 @@ static void start_the_scripts(GameState *g, uint8_t bank, uint16_t set, bool sec
         start_channel(g, channel, bank, battle_script_set_script(g, bank, script));
         script = (uint16_t)(script + 2);
     }
-    charge_machine_accesses(g, second_half ? 8 : 4);
 }
 
 /* ---- The animation's cells -------------------------------------------------------------- */
@@ -191,7 +188,6 @@ static LoadedAnimation start_the_animation(GameState *g, ChosenAnimation chosen,
     uint16_t scripts_at = battle_script_set_at(g, chosen.keeper, parts.scripts);
     set_battle_palette_anim_frames(g, battle_animation_palette_frames(g, chosen.keeper, parts.palette));
     set_battle_effect_records(g, battle_animation_records_place(g, chosen.keeper, parts.records));
-    charge_machine_accesses(g, 11);
     start_the_scripts(g, battle_script_set_bank(chosen.keeper), scripts_at, second_half);
     return (LoadedAnimation){ parts, tiles_at };
 }
@@ -213,7 +209,6 @@ static void set_up_one_sprite_effects(GameState *g)
                                       battle_one_sprite_attributes(g, shape) | battle_sprite_attributes(g));
         set_battle_bitmap_counts(g, FIRST_ONE_SPRITE_SET + shape, 1);
     }
-    charge_machine_accesses(g, 2);
 }
 
 /* ---- Loading over the frames ---------------------------------------------------------------- */
@@ -306,7 +301,6 @@ static void forget_the_animation(GameState *g)
 {
     set_battle_palette_anim_frames(g, 0);
     set_battle_effect_records(g, 0);
-    charge_machine_accesses(g, 12);
 }
 
 static ShowingKind showing_kind(const GameState *g)
@@ -328,49 +322,6 @@ static ChosenAnimation chosen_for(GameState *g, ShowingKind kind)
     case SHOWS_AN_ATTACK: return attack_animation(g);
     case SHOWS_A_TECH: return tech_animation(g);
     default: return item_animation(g);
-    }
-}
-
-/* ---- On the machine ------------------------------------------------------------------------ */
-
-/* Wait for the next frame ($C1:007E): the wait reads none of the registers
- * but A's high byte, which it takes along. The frame work's loads take what
- * they load in A, a byte. */
-enum { FRAME_WAIT_READS = DC_AL | DC_X | DC_Y | DC_FLAGS };
-/* The graphics loaders take their resource in A; neither reads the index
- * registers or incoming arithmetic flags (the liveness check proves this). */
-enum { GRAPHICS_IGNORES = DC_X | DC_Y | DC_FLAGS };
-
-/* The waits for the next frame, the frame steps and the shapes' calls, each
- * by its place in the loading. */
-static const uint32_t load_frame_waits[] = { 0xC14841, 0xC1485B, 0xC14864, 0xC1488D };
-static const uint32_t load_frame_steps[] = { 0xC1485E, 0xC14867, 0xC14890 };
-static const uint32_t shape_calls[] = { 0xC1489B, 0xC1489E, 0xC148A1, 0xC148A4, 0xC148A7, 0xC148AA, 0xC148AD, 0xC148B0 };
-
-static bool load_on_the_machine(void *ctx, LoadCall call, uint8_t what)
-{
-    Snes *s = ctx;
-    switch (call) {
-    case LOAD_GRAPHICS:
-        s->cpu.a = what;
-        return battle_run_long_dc(s, 0xC14836, 0xCD0015, GRAPHICS_IGNORES, battle_load_effect_tile_rows_entry);
-    case LOAD_SECOND_GRAPHICS:
-        s->cpu.a = what;
-        return battle_run_long_dc(s, 0xC1483D, 0xCD002A, GRAPHICS_IGNORES, battle_load_second_effect_tile_rows_entry);
-    case LOAD_BACKGROUND:
-        s->cpu.a = what;
-        return battle_run_long(s, 0xC14857, 0xCD0018, battle_change_battlefield_entry);
-    case LOAD_FRAME_AFTER_THE_GRAPHICS:
-    case LOAD_FRAME_AFTER_THE_BACKGROUND:
-    case LOAD_FRAME_BEFORE_THE_TILES:
-    case LOAD_FRAME_AFTER_THE_TILES:
-        return battle_wait_frame(s, load_frame_waits[call - LOAD_FRAME_AFTER_THE_GRAPHICS], 0xC1007E, FRAME_WAIT_READS);
-    case LOAD_STEP_AFTER_THE_BACKGROUND:
-    case LOAD_STEP_BEFORE_THE_TILES:
-    case LOAD_STEP_AFTER_THE_TILES:
-        return battle_run(s, load_frame_steps[call - LOAD_STEP_AFTER_THE_BACKGROUND], 0xC110FA, battle_frame_step);
-    case LOAD_UNPACK_THE_TILES: (void)unpack_stream_called(state_of(s), false); return true;
-    default: return battle_run(s, shape_calls[call - LOAD_SHAPES], 0xC14943, battle_build_bitmap_shapes_entry);
     }
 }
 
@@ -402,58 +353,13 @@ static bool load_a_piece(void *ctx, LoadCall call, uint8_t what)
     }
 }
 
-/* ---- The entries ------------------------------------------------------------------------------ */
-
-/* A kind's loading, from its choice; it leaves A's high byte clear, as the
- * original's last count does. */
-static void load(Snes *s, ChosenAnimation chosen)
-{
-    GameState *g = state_of(s);
-    LoadedAnimation loaded = start_the_animation(g, chosen, second_half_asked(g));
-    if (!load_the_animation(g, loaded, load_on_the_machine, s))
-        return;
-    s->cpu.a = 0;
-    m_rts(s);
-}
-
-void battle_load_attack_animation(Snes *s) { load(s, attack_animation(state_of(s))); }
-void battle_load_tech_animation(Snes *s) { load(s, tech_animation(state_of(s))); }
-void battle_load_item_animation(Snes *s) { load(s, item_animation(state_of(s))); }
-
 /* Each kind's loading, as the original's table of loaders has them. */
-typedef struct {
-    uint32_t routine;
-    void (*entry)(Snes *);
-} AnimationLoader;
 
-static const AnimationLoader loaders[SHOWING_KINDS] = {
-    [SHOWS_AN_ATTACK] = { 0xC1432C, battle_load_attack_animation },
-    [SHOWS_A_TECH] = { 0xC145A0, battle_load_tech_animation },
-    [SHOWS_AN_ITEM] = { 0xC1475B, battle_load_item_animation },
+static const struct { uint32_t routine; } loaders[SHOWING_KINDS] = {
+    [SHOWS_AN_ATTACK] = { 0xC1432C },
+    [SHOWS_A_TECH] = { 0xC145A0 },
+    [SHOWS_AN_ITEM] = { 0xC1475B },
 };
-
-/* The original picks the loader with the kind doubled in A and X, its
- * shift's flags left (no carry: the kinds are small). */
-static void leave_the_kind_doubled(Snes *s, ShowingKind kind)
-{
-    uint8_t doubled = (uint8_t)(kind * 2);
-    m_set_a8(s, doubled);
-    s->cpu.x = (uint16_t)((s->cpu.a & 0xFF00) | doubled);
-    m_set_nz8(s, doubled);
-    m_set_flag(s, CPU_FLAG_C, false);
-}
-
-static bool kind_on_the_machine(void *ctx, ShowingKind kind)
-{
-    return battle_run(ctx, 0xC14328, loaders[kind].routine, loaders[kind].entry);
-}
-
-void battle_load_action_animation_entry(Snes *s)
-{
-    leave_the_kind_doubled(s, showing_kind(state_of(s)));
-    if (load_action_animation(state_of(s), kind_on_the_machine, s))
-        m_rts(s);
-}
 
 /* Whether a party member's attack is shown up close, for the original's
  * call; it leaves A's high byte clear, as the way's search does. */
@@ -470,23 +376,6 @@ static bool target_fits(const GameState *g)
 {
     return !battle_slot_is_party(battle_action_actor(g))
            || battle_names_combatant(battle_script_subjects(g, FIRST_TARGET_PLACE));
-}
-
-bool battle_animation_loading_ready(Snes *s)
-{
-    vars_peek(true);
-    bool fits = actor_fits(state_of(s));
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && fits;
-}
-
-bool battle_attack_animation_ready(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool fits = actor_fits(g) && target_fits(g);
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && fits;
 }
 
 /* Each kind's loading with its guard's state half: the actor a combatant,

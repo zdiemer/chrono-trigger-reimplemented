@@ -67,11 +67,9 @@ static Search search_for(const GameState *g, uint8_t item)
 uint8_t battle_inventory_add(GameState *g, uint8_t item)
 {
     if (item == NO_ITEM) {
-        charge_machine_accesses(g, 2);
         return 0;
     }
     Search s = search_for(g, item);
-    charge_machine_accesses(g, 5);
     if (s.found) {
         uint8_t held = held_at(g, s.place);
         if (held >= MOST_HELD)
@@ -89,14 +87,12 @@ uint8_t battle_inventory_add(GameState *g, uint8_t item)
  * battle's inventory routines each do (scaffolding). */
 bool battle_inventory_holds(GameState *g, uint8_t item)
 {
-    charge_machine_accesses(g, 2);
     return item != NO_ITEM && search_for(g, item).found;
 }
 
 // $C1:D056
 uint8_t battle_inventory_take(GameState *g, uint8_t item)
 {
-    charge_machine_accesses(g, 2);
     if (item == NO_ITEM)
         return 0;
     Search s = search_for(g, item);
@@ -124,7 +120,6 @@ static void set_gold(GameState *g, uint32_t amount)
 // $C1:D086
 bool battle_gold_covers(GameState *g, uint16_t amount)
 {
-    charge_machine_accesses(g, 2);
     return gold(g) >= amount;
 }
 
@@ -137,7 +132,6 @@ bool battle_gold_covers(GameState *g, uint16_t amount)
  * $98:0BB0, 9,964,464). False where the gold was held to a most. */
 bool battle_give_gold(GameState *g, uint16_t amount)
 {
-    charge_machine_accesses(g, 2);
     if (amount == 0)
         return true;
     set_gold(g, gold(g) + amount);
@@ -156,10 +150,8 @@ bool battle_give_gold(GameState *g, uint16_t amount)
  * (scaffolding). */
 bool battle_take_gold(GameState *g, uint16_t amount)
 {
-    charge_machine_accesses(g, 2);
     if (amount == 0)
         return true;
-    charge_machine_accesses(g, 4);
     if (gold(g) < amount)
         return false;
     set_gold(g, gold(g) - amount);
@@ -179,10 +171,7 @@ enum { LIST_RECORDS = BATTLE_ITEM_LIST_COUNT, LIST_RECORD_BYTES = 5 };
  * the item, its number among the other items and how many are held are cells
  * later work reads as it finds them (battle.h), kept plainly; the record's
  * place and the item's battle record's are scaffolding. */
-enum {
-    PLACE_AT = BATTLE_CLOCK_READS, ITEM_RECORD_AT = 0x02, LIST_AT = 0x04, ITEM_AT = BATTLE_MEMBER_CELL,
-    PLACES_LEFT = BATTLE_NUMBER_TESTED, ITEM_NUMBER_AT = BATTLE_STAT_OFFSET_LOW, HELD_AT = BATTLE_TECH_HITS_LEFT,
-};
+enum { PLACE_AT = BATTLE_CLOCK_READS, ITEM_RECORD_AT = 0x02, LIST_AT = 0x04, ITEM_AT = BATTLE_MEMBER_CELL, PLACES_LEFT = BATTLE_NUMBER_TESTED, ITEM_NUMBER_AT = BATTLE_STAT_OFFSET_LOW, HELD_AT = BATTLE_TECH_HITS_LEFT,  };
 
 static void clear_list_record(GameState *g, unsigned record)
 {
@@ -203,7 +192,6 @@ static bool list_item(GameState *g, unsigned record, uint8_t item, uint8_t held)
     if (item >= FIRST_OTHER_ITEM) {
         uint8_t number = (uint8_t)(item - FIRST_OTHER_ITEM);
         battle_keep_word(g, ITEM_NUMBER_AT, number);
-        charge_machine_accesses(g, 2);
         ItemInBattle use = item_in_battle(g, item);
         if (use.used_in_battle) {
             set_battle_item_list_item(g, record, item);
@@ -239,7 +227,6 @@ static void build_item_list(GameState *g)
     /* the place counts come round to 0 as the last place is passed */
     battle_keep_word(g, PLACE_AT, 0);
     battle_keep_word(g, PLACES_LEFT, 0);
-    charge_machine_accesses(g, 2);
 }
 
 /* ---- What the rest of the game asks for ------------------------------------------------------- */
@@ -249,26 +236,8 @@ static void build_item_list(GameState *g)
  * hands back a byte: whether an item is held, as the item itself or 0; how
  * many are held after an item is added or taken (battle_inventory_add,
  * battle_inventory_take); or for the gold $FF for yes and 0 for no. */
-typedef enum {
-    REQUEST_HOLDS, REQUEST_ADD, REQUEST_TAKE, REQUEST_GOLD_COVERS, REQUEST_GIVE_GOLD, REQUEST_TAKE_GOLD, REQUESTS,
-} PartyRequest;
 
 enum { YES = 0xFF, NO = 0x00 };
-
-static uint8_t answer(bool yes) { return yes ? YES : NO; }
-
-static uint8_t party_request(GameState *g, PartyRequest request, uint16_t what)
-{
-    switch (request) {
-    case REQUEST_HOLDS: return battle_inventory_holds(g, (uint8_t)what) ? (uint8_t)what : NO;
-    case REQUEST_ADD: return battle_inventory_add(g, (uint8_t)what);
-    case REQUEST_TAKE: return battle_inventory_take(g, (uint8_t)what);
-    case REQUEST_GOLD_COVERS: return answer(battle_gold_covers(g, what));
-    case REQUEST_GIVE_GOLD: return answer(battle_give_gold(g, what));
-    case REQUEST_TAKE_GOLD:
-    default: return answer(battle_take_gold(g, what));
-    }
-}
 
 /* ---- The entry ------------------------------------------------------------------------------ */
 
@@ -276,19 +245,6 @@ static uint8_t party_request(GameState *g, PartyRequest request, uint16_t what)
  * refuses (the original would look for the item it makes, no item among
  * them). The answer comes back in A's low byte. */
 enum { ITEM_MOST = 0xFF };
-
-static bool item_request_ready(Snes *s) { return battle_on_page(s) && s->cpu.y <= ITEM_MOST; }
-
-static void request_entry(Snes *s, PartyRequest request)
-{
-    m_set_a8(s, party_request(state_of(s), request, s->cpu.y));
-    m_rts(s);
-}
-
-bool battle_add_to_inventory_ready(Snes *s) { return item_request_ready(s); }
-void battle_add_to_inventory(Snes *s) { request_entry(s, REQUEST_ADD); }
-
-void battle_give_gold_entry(Snes *s) { request_entry(s, REQUEST_GIVE_GOLD); }
 
 // $C1:8003
 /* The rest of the game's request, by number in A's low byte with the item or
@@ -325,7 +281,6 @@ void battle_return_chosen_item(GameState *g, uint8_t member)
         return;
     set_battle_member_actions_choice_flags(g, member, choice & (uint8_t)~ITEM_TAKEN_FOR_CHOICE);
     uint8_t item = battle_member_actions_what(g, member);
-    charge_machine_accesses(g, 1);
     for (unsigned record = 0; record < LIST_RECORDS; record++)
         if (battle_item_list_item(g, record) == item) {
             set_battle_item_list_held(g, record, (uint8_t)(battle_item_list_held(g, record) + 1));
@@ -353,16 +308,6 @@ typedef struct {
     unsigned found_at, filled_at, record;
 } ListWalk;
 
-static void leave_list_walked(GameState *g, ListWalk w)
-{
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
-    if (w.filled)
-        charge_machine_accesses(g, 2);
-    else
-        charge_machine_accesses(g, 1);
-}
-
 /* The list's count of each item goes back into the inventory: where the
  * inventory holds the item, its count there is the list's (an item used up
  * leaves its place empty); where it doesn't, the item goes into the first
@@ -388,7 +333,6 @@ static void put_list_back(GameState *g)
         w.filled = true;
         w.filled_at = place;
     }
-    leave_list_walked(g, w);
 }
 
 // $C1:B4E9
@@ -396,6 +340,5 @@ void battle_put_items_back(GameState *g)
 {
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         TIMED_AS(g, 0xC1B6D1, battle_return_chosen_item(g, member));
-    charge_machine_accesses(g, 1);
     put_list_back(g);
 }

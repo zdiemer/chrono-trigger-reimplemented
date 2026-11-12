@@ -237,7 +237,6 @@ void menu_main_menu_move_to(GameState *g, MainMenuOption option)
     set_menu_exchange_cursor_kept(g, 0);
     set_menu_reserve_top(g, 0);
     TIMED_AS(g, 0xC28255, menu_stop_tasks(g, MENU_PANELS_TASKS));
-    charge_machine_accesses(g, 1);
 }
 
 /* An option's screen opens from its own window, with the screen's colours

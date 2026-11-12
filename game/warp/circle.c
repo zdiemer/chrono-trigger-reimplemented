@@ -89,7 +89,7 @@ enum { BUILD_THE_CIRCLE = 0xFDEB8B };
  * The radius is one the warp's ramp gives (2-127) or 0: the upper half's count
  * runs from the radius less one and would wrap for a radius of 1. That is a
  * claim the game keeps (the ramp is the cartridge's), checked here: a build
- * with no machine stops at any other radius, and the clamps below keep the
+ * rejects any other radius, and the clamps below keep the
  * lines on the screen whatever it is. Returns how many times the circle's
  * point was stepped (warp.h). */
 uint16_t warp_build_circle(GameState *g)
@@ -98,7 +98,7 @@ uint16_t warp_build_circle(GameState *g)
     set_warp_circle_tables_built(g, (uint8_t)(warp_circle_tables_built(g) + 1));
     uint8_t radius = warp_circle_radius(g);
     if (radius == 1 || radius > MOST_LINES - 1)
-        program_needs_the_machine(g, BUILD_THE_CIRCLE, "a warp's circle of a radius its ramp never gives");
+        program_fail(g, BUILD_THE_CIRCLE, "a warp's circle of a radius its ramp never gives");
     Builder b = { g, table * WARP_CIRCLE_TABLE_LINES };
     if (radius == 0) {
         put_empty_lines(&b, LINES_BUILT);

@@ -10,7 +10,6 @@
 #include "menu/members.h"
 #include "menu/techs.h"
 #include "platform/video.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* The screen's steps, as its main task runs them (menu_screen_step). */
@@ -357,39 +356,5 @@ bool menu_lay_out_tech_members(GameState *g, Platform *pf);
 bool menu_choose_tech_member(GameState *g, Platform *pf);
 
 /* ---- The entries (game/menu/tech_screen_bridge.c) --------------------------------------------- */
-
-void menu_open_techs_entry(Snes *s);
-void menu_lay_out_tech_members_entry(Snes *s);
-void menu_choose_tech_member_entry(Snes *s);
-void menu_choose_tech_entry(Snes *s);
-void menu_choose_tech_target_entry(Snes *s);
-void menu_move_among_tech_members(Snes *s);
-void menu_slide_tech_members(Snes *s);
-void menu_slide_tech_member_rows(Snes *s);
-void menu_slide_tech_list(Snes *s);
-void menu_point_at_tech_target(Snes *s);
-void menu_point_at_member_to_restore_entry(Snes *s);
-void menu_note_member_to_restore_entry(Snes *s);
-void menu_show_techs_panel(Snes *s);
-void menu_show_tech_lister(Snes *s);
-void menu_load_tech_lister_sprite(Snes *s);
-void menu_describe_pointed_tech(Snes *s);
-void menu_describe_tech_kind(Snes *s);
-void menu_describe_tech(Snes *s);
-void menu_open_tech_targets(Snes *s);
-bool menu_techs_screen_opens(Snes *s);
-bool menu_tech_members_step_runs(Snes *s);
-bool menu_tech_list_step_runs(Snes *s);
-bool menu_tech_targets_step_runs(Snes *s);
-bool menu_tech_members_move(Snes *s);
-bool menu_tech_members_slide(Snes *s);
-bool menu_tech_list_slides(Snes *s);
-bool menu_tech_target_is_pointable(Snes *s);
-bool menu_member_to_restore_is_pointable(Snes *s);
-bool menu_techs_panel_shows(Snes *s);
-bool menu_techs_panel_goes(Snes *s);
-bool menu_tech_lister_is_showable(Snes *s);
-bool menu_tech_is_describable(Snes *s);
-bool menu_tech_targets_open(Snes *s);
 
 #endif

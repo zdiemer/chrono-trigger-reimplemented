@@ -132,8 +132,6 @@ enum { CELL_END_HIGH = 0x91, CELL_SLOT = 0x8E, CELL_LEFT_OUT = 0x92 };
 static void leave_side(GameState *g, Side side)
 {
     battle_leave_jump_lift(g, side.end);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 2);
 }
 
 /* ---- The beam ------------------------------------------------------------------------------------ */
@@ -192,7 +190,6 @@ static void find_in_beam(GameState *g, AreaAsked a)
             && within_angles(battle_direction(g, right.at, there), right.from, right.to, right.past_a_turn))
             add_find(g, &f, slot);
     }
-    charge_machine_accesses(g, 12);
     leave_side(g, side);
     put_placed_first(g, a.among_party, a.toward);
 }
@@ -232,7 +229,6 @@ static void find_in_circle(GameState *g, AreaAsked a)
         if ((uint8_t)(last.across_squared + battle_grid_distance_squared(g, dy)) <= a.size)
             add_find(g, &f, slot);
     }
-    charge_machine_accesses(g, last.measured ? 10 : 6);
     leave_side(g, side);
     put_placed_first(g, a.among_party, a.centre);
 }
@@ -261,7 +257,6 @@ static void find_in_row(GameState *g, AreaAsked a)
         if (there >= top && there <= bottom)
             add_find(g, &f, slot);
     }
-    charge_machine_accesses(g, 4);
     leave_side(g, side);
     set_battle_area_found(g, 0, a.centre);
 }
@@ -341,7 +336,6 @@ static void find_in_party_triangle(GameState *g)
         if (inside_from(g, &c[0], there) && inside_from(g, &c[1], there) && inside_from(g, &c[2], there))
             add_find(g, &f, slot);
     }
-    charge_machine_accesses(g, 16);
     leave_side(g, side);
     battle_close_up_finds(g);
 }
@@ -388,25 +382,4 @@ bool battle_area_search_carry(uint8_t shape, bool among_party, uint8_t centre, u
     case AREA_CIRCLE: return !battle_slot_is_party(centre);
     default: return true;
     }
-}
-
-/* The area noted in the search's cells searched by the shape noted beside
- * it, and the carry the search leaves its callers: the battle's step 7, and
- * the targeting's search ($C1:C741), which notes the shape and asks for it. */
-void battle_search_the_noted_area(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint8_t shape = battle_area_shape(g);
-    AreaAsked asked = battle_area_asked(g);
-    battle_find_area(g, shape, &asked);
-    m_set_flag(s, CPU_FLAG_C, battle_area_search_carry(shape, asked.among_party, asked.centre, asked.toward));
-}
-
-// $C1:1FDD
-/* The battle's step 7, as the original's code asks for it through the steps'
- * dispatch (battle/steps.c). */
-void battle_find_the_noted_area(Snes *s)
-{
-    battle_search_the_noted_area(s);
-    m_rts(s);
 }

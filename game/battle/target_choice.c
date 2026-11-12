@@ -124,7 +124,6 @@ static void list_side(GameState *g, Slots side, bool fallen_too)
             set_battle_area_found(g, 1 + listed++, slot);
     }
     battle_close_up_finds(g);
-    charge_machine_accesses(g, 2);
     take_targets(g);
 }
 
@@ -204,7 +203,6 @@ static int party_slot_of(const GameState *g, uint8_t character)
 static void pick_character(GameState *g, uint8_t character)
 {
     cursor_moves_frame(g, true);
-    charge_machine_accesses(g, 1);
     for (int slot = BATTLE_PARTY_SIZE - 1; slot >= 0; slot--) {
         if (battle_slot_present(g, slot) && !battle_member_sitting_out(g, slot) && party_members(g, slot) == character) {
             set_battle_area_found(g, 0, (uint8_t)slot);
@@ -310,8 +308,6 @@ static void start_over(GameState *g, uint8_t chooser)
     set_battle_no_targets(g, 0);
     set_battle_targets_together(g, 0);
     cursor_moves_frame(g, false);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     clear_list(g);
 }
 

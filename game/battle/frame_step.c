@@ -176,9 +176,7 @@ typedef struct {
     Platform *pf;
 } FrameStepContext;
 
-enum { MENU_WINDOW_ENTRY = 0xC10C2D, MENU_BUTTONS_ENTRY = 0xC11153, MENU_CURSORS_ENTRY = 0xC117DD,
-       FRAME_TAIL = 0xCD0009, FRAME_WAIT = 0xC1007E, ANIMATIONS = 0xC12D9F, ENEMY_EFFECTS = 0xC13714,
-       DESCRIBE = 0xCD0027, WAIT_STEP = 0xC1106E };
+enum { MENU_WINDOW_ENTRY = 0xC10C2D, MENU_BUTTONS_ENTRY = 0xC11153, MENU_CURSORS_ENTRY = 0xC117DD, FRAME_TAIL = 0xCD0009, FRAME_WAIT = 0xC1007E, ANIMATIONS = 0xC12D9F, ENEMY_EFFECTS = 0xC13714, DESCRIBE = 0xCD0027, WAIT_STEP = 0xC1106E };
 
 static bool step_a_part(void *ctx, StepCall call)
 {
@@ -232,116 +230,4 @@ bool battle_waits_a_frame(GameState *g, Platform *pf)
         return battle_contract_broken(g, WAIT_STEP, "a menu queue the port doesn't take");
     FrameStepContext c = { g, pf };
     return wait_step(g, step_a_part, &c);
-}
-
-/* ---- On the machine ------------------------------------------------------------------------ */
-
-/* Where the original's routines make the menu's three calls. */
-static const uint32_t menu_sites[TURN_PLACES][MENU_PARTS] = {
-    [TURN_IN_THE_FRAME_STEP] = { 0xC11107, 0xC1110A, 0xC1110D },
-    [TURN_IN_THE_WAIT] = { 0xC110F0, 0xC110F3, 0xC110F6 },
-    [TURN_IN_THE_WAIT_STEP] = { 0xC110D1, 0xC110D4, 0xC110D7 },
-};
-
-/* The message line's description ($CD:0027, battle/message.c) takes the
- * message in A's low byte. */
-static bool show_message(Snes *s, uint32_t site, uint8_t message)
-{
-    m_set_a8(s, message);
-    return battle_run_long(s, site, DESCRIBE, battle_describe);
-}
-
-/* Wait for the next frame ($C1:007E) from the call at `site`: the wait reads
- * none of the registers but A's high byte, which it takes along. */
-enum { FRAME_WAIT_READS = DC_AL | DC_X | DC_Y | DC_FLAGS };
-
-static bool wait_for_the_next_frame(Snes *s, uint32_t site)
-{
-    return battle_wait_frame(s, site, FRAME_WAIT, FRAME_WAIT_READS);
-}
-
-/* The frame work's tail ($CD:0009), from the call at `site`. */
-static bool finish_the_frame(Snes *s, uint32_t site)
-{
-    return battle_run_long(s, site, FRAME_TAIL, battle_frame_wait_tail);
-}
-
-/* The combatants' animation step runs as C where its entry's guard would
- * take it (battle_steps_animations): A's high byte clear, which it indexes
- * with, and the party's palettes the game's; otherwise it is the original's. */
-static bool animate_on_the_machine(Snes *s)
-{
-    if (!battle_steps_animations(s))
-        return battle_call(s, 0xC110A9, ANIMATIONS, DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C);
-    TIMED_AS(state_of(s), ANIMATIONS, battle_step_combatants(state_of(s)));
-    return true;
-}
-
-static bool step_on_the_machine(void *ctx, StepCall call)
-{
-    Snes *s = ctx;
-    switch (call) {
-    case STEP_NOT_DUE:
-        /* the original tests the menu's count in A, which the frame work's
-         * tail is called with where the turn isn't due */
-        m_set_a8(s, 0);
-        m_set_nz8(s, 0);
-        return true;
-    case STEP_FRAME_STEP_TAIL: return finish_the_frame(s, 0xC11110);
-    case STEP_REFUSAL_CLEARED: return show_message(s, 0xC11093, MESSAGE_CLEARED);
-    case STEP_REFUSAL_SAID: return show_message(s, 0xC11099, MESSAGE_CANT_ESCAPE);
-    case STEP_FIRST_FRAME: return wait_for_the_next_frame(s, 0xC1109D);
-    case STEP_FIRST_TAIL: return finish_the_frame(s, 0xC110A0);
-    case STEP_ANIMATE: return animate_on_the_machine(s);
-    case STEP_FIRST_EFFECTS: return battle_run(s, 0xC110B5, ENEMY_EFFECTS, battle_step_enemy_effects);
-    case STEP_SECOND_FRAME: return wait_for_the_next_frame(s, 0xC110BD);
-    case STEP_SECOND_TAIL: return finish_the_frame(s, 0xC110C0);
-    case STEP_SECOND_EFFECTS: return battle_run(s, 0xC110DC, ENEMY_EFFECTS, battle_step_enemy_effects);
-    default: break;
-    }
-    unsigned at = call - STEP_MENU_PART;
-    uint32_t site = menu_sites[at / MENU_PARTS][at % MENU_PARTS];
-    switch ((MenuPart)(at % MENU_PARTS)) {
-    case MENU_WINDOW: return battle_run(s, site, MENU_WINDOW_ENTRY, battle_draw_menu_window);
-    case MENU_BUTTONS: return battle_run(s, site, MENU_BUTTONS_ENTRY, battle_take_menu_input);
-    default: return battle_run(s, site, MENU_CURSORS_ENTRY, battle_place_menu_cursors);
-    }
-}
-
-/* ---- The entries ---------------------------------------------------------------------------- */
-
-void battle_frame_step(Snes *s)
-{
-    if (frame_step(state_of(s), step_on_the_machine, s))
-        m_rts(s);
-}
-
-void battle_menu_turn_long(Snes *s)
-{
-    if (menu_turn(state_of(s), step_on_the_machine, s))
-        m_rtl(s);
-}
-
-/* The step ends with the combatants' boxes worked out, which leaves A's high
- * byte clear and the carry of the last test, set, for the main loop. */
-void battle_wait_step(Snes *s)
-{
-    if (!wait_step(state_of(s), step_on_the_machine, s))
-        return;
-    s->cpu.a = 0;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
-}
-
-/* The guards: on the battle's page, A's high byte clear where the turn is
- * due (the original takes it along into the member's index), and their
- * state half. */
-
-bool battle_frame_step_ready(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool fits = !menu_turn_due(g) || ((s->cpu.a & 0xFF00) == 0 && queue_holds_a_member(g));
-    vars_peek(false);
-    return battle_on_page(s) && fits;
 }

@@ -21,7 +21,6 @@
 
 #include "charge.h"
 #include "platform/input.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "scene/scene_data.h"
 #include "vars.h"
@@ -279,54 +278,10 @@ static void pick_opening(GameState *g, Platform *pf, uint8_t channel)
     set_scene_channels_script(g, channel, scene_race_openings(g, which));
 }
 
-/* ---- Entries ---------------------------------------------------------------------------------- */
-
-/* The camera's tasks are guarded by hashes of their code, on the scene's page
- * with a data bank reaching low RAM; those that use the sine, its code too. */
-static bool on_scene(Snes *s) { return scene_on_scene_page_low_bank(s); }
-static bool sine_present(Snes *s) { return m_code_matches(s, 0x7E3461, 0x19, 0xA2486F18B991C163ull); }
-
-bool scene_race_settle_camera_present(Snes *s) { return on_scene(s) && m_code_matches(s, 0x7E416D, 0x39, 0x8A6D62B6310A5059ull); }
-bool scene_race_move_along_present(Snes *s) { return on_scene(s) && m_code_matches(s, 0x7E428B, 0x32, 0x89E4300D2BB717EAull); }
-bool scene_race_keep_controller_present(Snes *s) { return on_scene(s) && m_code_matches(s, 0x7E42BD, 0x11, 0x4BD0D004BE797B4Full); }
-bool scene_race_check_perspective_present(Snes *s)
-{
-    if (!on_scene(s) || !m_code_matches(s, 0x7E42CE, 0x4B, 0x9F76AD7C9F8AFB23ull))
-        return false;
-    vars_peek(true);
-    bool moved = scene_camera_changed(state_of(s), PERSPECTIVE_REGISTERS);
-    vars_peek(false);
-    return !moved || scene_perspective_as_ported(s, 0x0A00);
-}
-bool scene_race_turn_camera_present(Snes *s) { return on_scene(s) && m_code_matches(s, 0x7E4339, 0xB9, 0x3E2508299E81D23Full); }
-
-/* The camera's turn multiplies on channel 0's page, through the program's
- * signed multiply. */
-bool scene_race_aim_camera_present(Snes *s)
-{
-    return on_scene(s) && sine_present(s) && m_code_matches(s, 0x7E4447, 0x55, 0x5596D8A2F4B871F1ull) &&
-           m_code_matches(s, 0x7E33D6, 0x37, 0xCB3F0FAD1C9F8EA9ull) && m_code_matches(s, 0x7E31BF, 74, 0x479627EBF1311CAFull);
-}
-
-bool scene_race_follow_finish_present(Snes *s) { return on_scene(s) && m_code_matches(s, 0x7E449C, 0x32, 0x66215BBFE736EED8ull); }
-bool scene_race_set_horizon_present(Snes *s)
-{
-    return on_scene(s) && m_code_matches(s, 0x7E44FE, 0x21, 0x7880D3E3796835BFull) && scene_race_upload_strip_present(s);
-}
-
-/* Called by a channel's script, on its page, with the data bank on the
- * program's (where its table of openings is). */
-bool scene_race_pick_opening_present(Snes *s)
-{
-    SceneChannel ch;
-    return scene_channel_at(m_direct_page(s), &ch) && s->cpu.db == SCENE_LOWER_WORK_RAM &&
-           m_code_matches(s, 0x7E3F59, 0x0D, 0xFEC1A17AFFF3EF75ull) && m_code_matches(s, 0x7E3448, 0x19, 0x092856CFEC289766ull);
-}
-
 /* The routines the race's scripts call, as the interpreter runs them
  * (scene/script.c). */
 const SceneScriptRoutine scene_race_routines[] = {
-    { SCENE_ROUTINE_PICK_THE_RACE_S_OPENING, pick_opening, scene_race_pick_opening_present, false },
+    { SCENE_ROUTINE_PICK_THE_RACE_S_OPENING, pick_opening },
 };
 const unsigned scene_race_routine_count = sizeof scene_race_routines / sizeof scene_race_routines[0];
 
@@ -406,76 +361,4 @@ TaskEnd scene_race_check_perspective(GameState *g, Platform *pf, unsigned slot)
         return scene_task_needs_the_machine(g, BUILD_PERSPECTIVE, "a race's perspective whose lines the port doesn't build");
     TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, 0));
     return task_goes_on();
-}
-
-/* ---- On the machine ---------------------------------------------------------------------------- */
-
-/* The tasks below set the direct page on channel 0's record for their work,
- * which the list's code puts back; A's high byte, which the list's code may
- * hand on, is what each leaves there last. */
-
-void scene_race_settle_camera_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    charge_legacy_accesses(g, 4);
-    (void)settle_camera(g);
-    m_rts(s);
-}
-
-void scene_race_move_along_entry(Snes *s)
-{
-    scene_race_move_along(state_of(s), m_platform(s), 0);
-    charge_legacy_accesses(state_of(s), 2);
-    m_rts(s);
-}
-
-void scene_race_keep_controller_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    scene_race_keep_controller(g, m_platform(s), 0);
-    charge_legacy_accesses(g, 2);
-    m_rts(s);
-}
-
-/* A changed camera rebuilds the perspective in C; the guard has checked
- * its drawing before the saved camera and bike divisors change. */
-void scene_race_check_perspective_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    bool rebuilt = camera_changed(g);
-    if (rebuilt)
-        TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, 0));
-    if (rebuilt) scene_charge_perspective_result(state_of(s), 0); else charge_legacy_accesses(state_of(s), 2);
-    m_rts(s);
-}
-
-void scene_race_turn_camera_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    charge_legacy_accesses(g, 6);
-    scene_race_turn_camera(g, m_platform(s), 0);
-    m_rts(s);
-}
-
-void scene_race_aim_camera_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    scene_race_aim_camera(g, m_platform(s), 0);
-    charge_legacy_accesses(g, 2);
-    m_rts(s);
-}
-
-/* Vblank tasks: nothing they leave is read but the accumulator's width (the
- * follower works in 16 bits, and returns so). */
-void scene_race_follow_finish_entry(Snes *s)
-{
-    scene_race_follow_finish(state_of(s), m_platform(s), 0);
-    m_set_flag(s, CPU_FLAG_M, false);
-    m_rts(s);
-}
-
-void scene_race_set_horizon_entry(Snes *s)
-{
-    scene_race_set_horizon(state_of(s), m_platform(s), 0);
-    m_rts(s);
 }

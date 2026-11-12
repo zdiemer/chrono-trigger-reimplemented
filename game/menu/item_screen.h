@@ -8,7 +8,6 @@
 #include <stdint.h>
 
 #include "platform/video.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* The screen's steps, as its main task runs them (menu_screen_step). */
@@ -317,10 +316,6 @@ typedef struct {
 /* One input frame in the member window, after its task wait. */
 typedef enum { MENU_ITEM_CHOICE_WAITING, MENU_ITEM_CHOICE_CLOSED, MENU_ITEM_CHOICE_STOPPED } MenuItemChoiceStep;
 MenuItemChoiceStep menu_item_member_choice_frame_with(GameState *g, ItemUseKind kind, const ItemsSteps *n, void *ctx);
-void menu_tonic_member_choice_continues(Snes *s);
-void menu_tab_member_choice_continues(Snes *s);
-void menu_item_use_finishes(Snes *s);
-void menu_picked_item_use_finishes(Snes *s);
 
 bool menu_open_items_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
 bool menu_choose_item_command_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
@@ -357,39 +352,5 @@ bool menu_items_can_move_the_picked(const GameState *g);
 bool menu_sort_items(GameState *g, Platform *pf);
 
 /* ---- The entries (game/menu/item_screen_bridge.c) --------------------------------------------- */
-
-void menu_open_items_entry(Snes *s);
-void menu_choose_item_command_entry(Snes *s);
-void menu_choose_on_item_list_entry(Snes *s);
-void menu_move_picked_item_entry(Snes *s);
-void menu_sort_items_entry(Snes *s);
-void menu_close_item_users_entry(Snes *s);
-void menu_point_at_listed_item(Snes *s);
-void menu_describe_listed_item(Snes *s);
-void menu_show_items_panel(Snes *s);
-void menu_use_item(Snes *s);
-void menu_use_restoring_item(Snes *s);
-void menu_use_item_by_chance(Snes *s);
-void menu_rest_the_party(Snes *s);
-void menu_use_tab(Snes *s);
-void menu_open_member_window(Snes *s);
-void menu_point_at_tab_member(Snes *s);
-void menu_look_at_tab_member(Snes *s);
-void menu_raise_figure(Snes *s);
-void menu_use_one_more(Snes *s);
-bool menu_items_screen_opens(Snes *s);
-bool menu_item_command_step_runs(Snes *s);
-bool menu_item_list_step_runs(Snes *s);
-bool menu_item_move_step_runs(Snes *s);
-bool menu_items_sort_step_runs(Snes *s);
-bool menu_item_users_step_runs(Snes *s);
-bool menu_listed_item_is_pointable(Snes *s);
-bool menu_items_panel_shows(Snes *s);
-bool menu_items_panel_goes(Snes *s);
-bool menu_item_use_runs(Snes *s);
-bool menu_member_window_opens(Snes *s);
-bool menu_tab_member_is_pointable(Snes *s);
-bool menu_figure_is_raisable(Snes *s);
-bool menu_one_more_is_usable(Snes *s);
 
 #endif

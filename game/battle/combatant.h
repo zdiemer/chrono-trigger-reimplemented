@@ -21,77 +21,7 @@
 #include "state.h"
 #include "vars.h"
 
-/* A combatant's statuses as one value: the four status bytes, the first in
- * the low byte, with the kept statuses ORed into the third and fourth. What
- * each bit is as the player knows it isn't all worked out (docs/TODO.md); the
- * battle's code names them for what it does with them. */
-typedef uint32_t Statuses;
-
-/* The status bits the battle's code tests, by what they do in the battle.
- * The first status byte (the low byte of Statuses): */
 enum {
-    /* Blind: its aim is a quarter as good, and it is easier to hit. */
-    STATUS_BLIND = 0x01,
-    /* Asleep: it gets no turns while it has this, its turn timer stopped; a
-     * hit wakes it. */
-    STATUS_ASLEEP = 0x02,
-    /* Confused: its enemy's script starts over when this comes or goes; a hit
-     * brings it to its senses, and it is easier to hit. */
-    STATUS_CONFUSED = 0x04,
-    /* A party member with it can't use techs, nor join a combination tech. */
-    STATUS_NO_TECHS = 0x08,
-    /* It loses a point of HP each time its own timer runs out, a timer that
-     * runs as long as a turn's wait, half as long hasted, twice slowed. */
-    STATUS_LOSES_HP = 0x10,
-    /* Slow: its turns come half as fast, and it defends less well. */
-    STATUS_SLOW = 0x20,
-    /* Poisoned: its aim and its defence are lower, its hits weaker. */
-    STATUS_POISON = 0x40,
-    /* Stop: while it lasts the combatant's other timers stand still, and
-     * only this status's own counts (battle/timers.c). */
-    STATUS_STOP = 0x80,
-};
-
-/* A hit wakes the target and brings it to its senses. */
-enum { STATUSES_A_HIT_ENDS = STATUS_ASLEEP | STATUS_CONFUSED };
-
-/* The third status byte (with the kept ones, STAT_KEPT_STATUS_3): */
-enum {
-    /* Evades a little better: its evasion is doubled. */
-    STATUS3_EVADES_BETTER = 0x01,
-    /* Evades much better: its evasion is two and a half times. */
-    STATUS3_EVADES_MUCH_BETTER = 0x40,
-    /* Haste: its turns come twice as fast. */
-    STATUS3_HASTE = 0x80,
-    /* Timer 11 follows it (battle/timers.h); its meaning isn't worked out. */
-    STATUS3_TIMER_11 = 0x02,
-};
-
-/* Where the third and fourth status bytes sit in Statuses. */
-enum { STATUS_BYTE_3_SHIFT = 16, STATUS_BYTE_4_SHIFT = 24 };
-
-/* The fourth status byte (with the kept ones, STAT_KEPT_STATUS_4): */
-enum {
-    /* Its hits do a quarter more. */
-    STATUS4_HITS_A_QUARTER_HARDER = 0x02,
-    /* A barrier: the hits the effect doesn't pass it with do seven tenths. */
-    STATUS4_BARRIER = 0x04,
-    /* Its hits do half as much again, the half rounded down first. */
-    STATUS4_HITS_HALF_AGAIN_ROUNDED = 0x08,
-    /* It regains 5 MP every tenth time its own timer runs out. */
-    STATUS4_REGAINS_MP = 0x20,
-    /* A shield: as the barrier, against the effects that pass the barrier. */
-    STATUS4_SHIELD = 0x40,
-    /* The top bit keeps the combatant from acting (combatant_cant_act) and
-     * from joining a combination tech, beside what its hits do below. */
-    STATUS4_KEEPS_FROM_ACTING = 0x80,
-    /* Its hits do half as much again. */
-    STATUS4_HITS_HALF_AGAIN = 0x80,
-};
-
-/* The bytes of a combatant's stat block the battle's code reads by their
- * offsets, as the enemies' scripts name a stat. */
-typedef enum {
     STAT_ELEMENTS = 0x01,        /* the elements of its attack, one bit each, the first from the top */
     STAT_NOTES = 0x02,           /* a party member's: its HP low (bit 0), all its single techs learned (STAT_NOTE_TECHS_ALL_LEARNED) */
     STAT_HP = 0x03,              /* a word */
@@ -148,7 +78,55 @@ typedef enum {
     STAT_HELMET_DEFENCE = 0x70,
     STAT_HELMET_MODIFIER = 0x71,
     STAT_HELMET_MODIFIER_ON = 0x72, /* 1: the helmet's modifier applies */
-} StatOffset;
+};
+
+/* A combatant's statuses as one value: the four status bytes, the first in
+ * the low byte, with the kept statuses ORed into the third and fourth. What
+ * each bit is as the player knows it isn't all worked out (docs/TODO.md); the
+ * battle's code names them for what it does with them. */
+typedef uint32_t Statuses;
+
+/* The status bits the battle's code tests, by what they do in the battle.
+ * The first status byte (the low byte of Statuses): */
+enum { /* Blind: its aim is a quarter as good, and it is easier to hit. */
+    STATUS_BLIND = 0x01, /* Asleep: it gets no turns while it has this, its turn timer stopped; a
+     * hit wakes it. */
+    STATUS_ASLEEP = 0x02, /* Confused: its enemy's script starts over when this comes or goes; a hit
+     * brings it to its senses, and it is easier to hit. */
+    STATUS_CONFUSED = 0x04, /* A party member with it can't use techs, nor join a combination tech. */
+    STATUS_NO_TECHS = 0x08, /* It loses a point of HP each time its own timer runs out, a timer that
+     * runs as long as a turn's wait, half as long hasted, twice slowed. */
+    STATUS_LOSES_HP = 0x10, /* Slow: its turns come half as fast, and it defends less well. */
+    STATUS_SLOW = 0x20, /* Poisoned: its aim and its defence are lower, its hits weaker. */
+    STATUS_POISON = 0x40, /* Stop: while it lasts the combatant's other timers stand still, and
+     * only this status's own counts (battle/timers.c). */
+    STATUS_STOP = 0x80,  };
+
+/* A hit wakes the target and brings it to its senses. */
+enum { STATUSES_A_HIT_ENDS = STATUS_ASLEEP | STATUS_CONFUSED };
+
+/* The third status byte (with the kept ones, STAT_KEPT_STATUS_3): */
+enum { /* Evades a little better: its evasion is doubled. */
+    STATUS3_EVADES_BETTER = 0x01, /* Evades much better: its evasion is two and a half times. */
+    STATUS3_EVADES_MUCH_BETTER = 0x40, /* Haste: its turns come twice as fast. */
+    STATUS3_HASTE = 0x80, /* Timer 11 follows it (battle/timers.h); its meaning isn't worked out. */
+    STATUS3_TIMER_11 = 0x02,  };
+
+/* Where the third and fourth status bytes sit in Statuses. */
+enum { STATUS_BYTE_3_SHIFT = 16, STATUS_BYTE_4_SHIFT = 24 };
+
+/* The fourth status byte (with the kept ones, STAT_KEPT_STATUS_4): */
+enum { /* Its hits do a quarter more. */
+    STATUS4_HITS_A_QUARTER_HARDER = 0x02, /* A barrier: the hits the effect doesn't pass it with do seven tenths. */
+    STATUS4_BARRIER = 0x04, /* Its hits do half as much again, the half rounded down first. */
+    STATUS4_HITS_HALF_AGAIN_ROUNDED = 0x08, /* It regains 5 MP every tenth time its own timer runs out. */
+    STATUS4_REGAINS_MP = 0x20, /* A shield: as the barrier, against the effects that pass the barrier. */
+    STATUS4_SHIELD = 0x40, /* The top bit keeps the combatant from acting (combatant_cant_act) and
+     * from joining a combination tech, beside what its hits do below. */
+    STATUS4_KEEPS_FROM_ACTING = 0x80, /* Its hits do half as much again. */
+    STATUS4_HITS_HALF_AGAIN = 0x80,  };
+
+
 
 /* The first byte of a stat block: what the combatant is, a party member's
  * character or an enemy's id. */
@@ -179,14 +157,6 @@ enum { COMBATANT_NONE = 0xFF };
 
 /* The animation a stopped enemy shows, and the one it goes back to. */
 enum { ENEMY_ANIMATION_IDLE = 0, ENEMY_ANIMATION_STOPPED = 4 };
-
-/* A slot listed for a fight: in it as `id`, or nobody's. */
-static inline void combatant_list_as(GameState *g, unsigned slot, uint8_t id)
-{
-    set_battle_combatant_fighting(g, slot, id);
-    set_battle_combatant_id(g, slot, id);
-}
-static inline void combatant_list_nobody(GameState *g, unsigned slot) { combatant_list_as(g, slot, COMBATANT_NONE); }
 
 Statuses combatant_statuses(const GameState *g, unsigned slot);
 
@@ -241,17 +211,6 @@ void combatant_note_low_hp(GameState *g, unsigned slot);
 /* Whether the combatant's HP was last noted low (the low bit of its stat
  * block's first byte): a party member then takes its weak pose. */
 enum { COMBATANT_LOW_HP_NOTED = 0x01 };
-static inline bool combatant_low_hp_noted(const GameState *g, unsigned slot)
-{
-    return (battle_stats_low_hp(g, slot) & COMBATANT_LOW_HP_NOTED) != 0;
-}
-
-/* The combatant's low HP is no longer noted: it has left the fight, or the
- * battle is over. */
-static inline void combatant_forget_low_hp(GameState *g, unsigned slot)
-{
-    set_battle_stats_low_hp(g, slot, battle_stats_low_hp(g, slot) & (uint8_t)~COMBATANT_LOW_HP_NOTED);
-}
 
 /* Bring the combatant's status timers in step with its statuses, and what its
  * statuses decide besides (battle/combatants.c). */
@@ -272,5 +231,26 @@ bool combatant_update_comes_back(const GameState *g, unsigned slot);
  * out is a defeat. */
 void combatant_after_update(GameState *g, unsigned slot);
 void combatants_after_update(GameState *g);
+
+/* A slot listed for a fight: in it as `id`, or nobody's. */
+static inline void combatant_list_as(GameState *g, unsigned slot, uint8_t id)
+{
+    set_battle_combatant_fighting(g, slot, id);
+    set_battle_combatant_id(g, slot, id);
+}
+
+static inline void combatant_list_nobody(GameState *g, unsigned slot) { combatant_list_as(g, slot, COMBATANT_NONE); }
+
+static inline bool combatant_low_hp_noted(const GameState *g, unsigned slot)
+{
+    return (battle_stats_low_hp(g, slot) & COMBATANT_LOW_HP_NOTED) != 0;
+}
+
+/* The combatant's low HP is no longer noted: it has left the fight, or the
+ * battle is over. */
+static inline void combatant_forget_low_hp(GameState *g, unsigned slot)
+{
+    set_battle_stats_low_hp(g, slot, battle_stats_low_hp(g, slot) & (uint8_t)~COMBATANT_LOW_HP_NOTED);
+}
 
 #endif

@@ -1,3 +1,5 @@
+#include "event/script.h"
+#include "event/script.h"
 /* Scripts and what the party carries: its items and its gold, and the menus a
  * script opens.
  *

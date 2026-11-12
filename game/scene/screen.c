@@ -30,7 +30,6 @@
 #include "platform/audio.h"
 #include "platform/timing.h"
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "scene/scene_data.h"
 #include "vars.h"
@@ -109,13 +108,6 @@ void scene_set_up_first_screen(GameState *g, Platform *pf)
     vid_apply_screen(pf, PF_AT(0x7E30F9), &first_screen);
 }
 
-/* ---- Each frame's sprites and palette -------------------------------------------------------- */
-
-bool scene_upload_sprites_present(Snes *s)
-{
-    return scene_on_scene_page(s) && m_code_matches(s, 0x7E380E, 53, 0x5555FCBF0F118757ull);
-}
-
 // $7E:380E
 /* Send the sprite table to OAM, draw from the sprite the scene put on top
  * (with the priority rotation), and start the sprite cursor over: the first
@@ -140,23 +132,6 @@ static TaskEnd finish_sprites_task(GameState *g, Platform *pf)
     return task_goes_on();
 }
 
-/* Nothing it leaves in the registers is read. */
-static TaskLeftovers finish_sprites_leaves(const GameState *g, TaskEnd end)
-{
-    (void)g;
-    (void)end;
-    return (TaskLeftovers){ 0 };
-}
-
-/* The task's call of the group's end, and the upload after it. */
-bool scene_finish_and_upload_sprites_present(Snes *s)
-{
-    return m_code_matches(s, 0x7E380B, 3, 0xC2A0DA17CDCB993Full) && scene_hide_rest_of_group_present(s) &&
-           scene_upload_sprites_present(s);
-}
-
-bool scene_clear_sprite_table_present(Snes *s) { return m_code_matches(s, 0x7E3843, 45, 0x36CEE4DC10A522A8ull); }
-
 /* A Y below the picture, where a sprite shows nowhere: the product of 1 times
  * -32 the clear copies over every byte of the table. */
 enum { BELOW_THE_PICTURE = -32 };
@@ -173,25 +148,11 @@ void scene_hide_every_sprite(Platform *pf)
     vid_set_mode7(pf, PF_AT(0x7E386C), &(VidMode7){ .b = 0 }, VID_M7_MATRIX_B_HIGH);
 }
 
-void scene_clear_sprite_table(Snes *s)
-{
-    scene_hide_every_sprite(m_platform(s));
-    m_rts(s);
-}
-
-bool scene_upload_palette_present(Snes *s) { return m_code_matches(s, 0x7E388B, 36, 0x84B3B18FAFEEAE44ull); }
-
 // $7E:388B
 /* Send the working palette to CGRAM. */
 void scene_send_palette(Platform *pf)
 {
     vid_send_palette(pf, PF_AT(0x7E388D), 0, PF_GAME(WORKING_PALETTE), COLORS);
-}
-
-void scene_upload_palette(Snes *s)
-{
-    scene_send_palette(m_platform(s));
-    m_rts(s);
 }
 
 /* ---- The palettes' animations, a frame at a time ---------------------------------------------- */
@@ -222,16 +183,6 @@ static TaskEnd animate_the_palettes_task(GameState *g, Platform *pf)
     return task_goes_on();
 }
 
-/* It leaves A and Y as the animations leave them, past their slots. */
-static TaskLeftovers animate_the_palettes_leaves(const GameState *g, TaskEnd end)
-{
-    (void)g;
-    (void)end;
-    uint16_t past_the_slots = palette_animations_leave();
-    return (TaskLeftovers){ .a_set = true, .a = past_the_slots, .y_set = true, .y = past_the_slots, .a_8bit = true,
-                            .overflow_clear = true };
-}
-
 /* The Epoch's dive into Lavos (scene/epoch_dive.c) has its sequence run a
  * frame of the animations itself as it starts a fade, from a channel's page
  * with the data bank on work RAM's, where the word the routine keeps aside is
@@ -245,18 +196,6 @@ void scene_animate_the_palettes_for(GameState *g, SceneChannel ch)
     TIMED_AS(g, 0xFDFFF7, animated = palette_animated(g));
     if (animated)
         charge_legacy_accesses(g, 4);
-}
-
-/* As a frame task, or called by a channel's sequence (above). */
-
-/* The task's code, and the animations' room in their slots (core/palette.c):
- * a frame task on the scene's page through the I/O bank, or a channel's
- * sequence's call on its page through work RAM's. */
-bool scene_animate_the_palettes_present(Snes *s)
-{
-    SceneChannel ch;
-    bool on_a_page = scene_on_scene_page_io_bank(s) || (scene_channel_at(m_direct_page(s), &ch) && s->cpu.db == SCENE_LOWER_WORK_RAM);
-    return on_a_page && m_code_matches(s, 0x7E37FA, 0x11, 0x87E8A981D5C5DAFEull) && palette_animate_runs(s);
 }
 
 /* ---- The screen's fades ---------------------------------------------------------------------- */
@@ -314,14 +253,14 @@ static TaskEnd darken_task(GameState *g, Platform *pf)
 }
 
 /* The driver's command reads A's high byte, the list's task, as it called. */
-enum { DRIVER = 0xC70004, THE_DRIVER_READS_A_HIGH_AND_Y = DC_AL | DC_X | DC_N | DC_Z };
+enum { DRIVER = 0xC70004 };
 
 // $7E:34AB
 /* The music fades out, and the screen goes dark after it, in silence. */
 static TaskEnd fade_the_music_out_task(GameState *g, Platform *pf)
 {
     (void)g;
-    au_fade(pf, PF_CALL_DC(0x7E34B8, DRIVER, THE_DRIVER_READS_A_HIGH_AND_Y), AU_FADE_MUSIC, MUSIC_FADE_STEPS, SILENT);
+    au_fade(pf, PF_CALL(0x7E34B8, DRIVER), AU_FADE_MUSIC, MUSIC_FADE_STEPS, SILENT);
     return (TaskEnd){ TASK_HANDS_OVER, SCENE_TASK_DARKEN_IN_SILENCE_AND_END };
 }
 
@@ -330,7 +269,7 @@ static TaskEnd darken_in_silence_and_end_task(GameState *g, Platform *pf)
 {
     if (!fade_steps(g) || !darker(g))
         return task_goes_on();
-    au_command(pf, PF_CALL_DC(0x7E34DA, DRIVER, THE_DRIVER_READS_A_HIGH_AND_Y),
+    au_command(pf, PF_CALL(0x7E34DA, DRIVER),
                (AudioCommand){ .command = AU_STOP_ALL, .count = 0 });
     end_the_scene(g);
     return task_is_done();
@@ -346,74 +285,18 @@ static TaskEnd darken_and_end_task(GameState *g, Platform *pf)
     return task_is_done();
 }
 
-/* Each works in 8-bit A, whose high byte is still what the list called it
- * with, the task. */
-static TaskLeftovers fade_leaves(SceneTask task)
-{
-    return (TaskLeftovers){ .a_set = true, .a = task, .a_8bit = true, .a_high_as_called = true };
-}
-static TaskLeftovers brighten_leaves(const GameState *g, TaskEnd end) { (void)g; (void)end; return fade_leaves(SCENE_TASK_BRIGHTEN); }
-static TaskLeftovers darken_leaves(const GameState *g, TaskEnd end) { (void)g; (void)end; return fade_leaves(SCENE_TASK_DARKEN); }
-static TaskLeftovers fade_the_music_out_leaves(const GameState *g, TaskEnd end)
-{
-    (void)g;
-    (void)end;
-    return fade_leaves(SCENE_TASK_MUSIC_FADES);
-}
-static TaskLeftovers darken_in_silence_and_end_leaves(const GameState *g, TaskEnd end)
-{
-    (void)g;
-    (void)end;
-    return fade_leaves(SCENE_TASK_DARKEN_IN_SILENCE_AND_END);
-}
-static TaskLeftovers darken_and_end_leaves(const GameState *g, TaskEnd end)
-{
-    (void)g;
-    (void)end;
-    return fade_leaves(SCENE_TASK_DARKEN_AND_END);
-}
-
-/* Each one's code; the cells and the sound buffer are reached through the data
- * bank. */
-bool scene_brighten_present(Snes *s) { return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E347A, 0x1B, 0x4B223E782CD157AAull); }
-bool scene_darken_present(Snes *s) { return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E3495, 0x16, 0x6311E869565DC92Eull); }
-bool scene_fade_the_music_out_present(Snes *s)
-{
-    return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E34AB, 0x17, 0x929CC3F85DA015F6ull);
-}
-bool scene_darken_in_silence_and_end_present(Snes *s)
-{
-    return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E34C2, 0x21, 0x0DBC28C33AF5017Full);
-}
-bool scene_darken_and_end_present(Snes *s)
-{
-    return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E34E3, 0x18, 0xCC5C4AA8697F86C8ull);
-}
-
 /* ---- The frame's own tasks, for the lists ---------------------------------------------------- */
 
 const SceneTaskPort scene_screen_tasks[] = {
-    [ROW_ANIMATE_PALETTES] = { SCENE_TASK_ANIMATE_PALETTES, SCENE_FRAME_TASKS, animate_the_palettes_task, scene_animate_the_palettes_present,
-      animate_the_palettes_leaves, false },
-    [ROW_FINISH_SPRITES] = { SCENE_TASK_FINISH_SPRITES, SCENE_VBLANK_TASKS, finish_sprites_task, scene_finish_and_upload_sprites_present,
-      finish_sprites_leaves, false },
-    [ROW_BRIGHTEN] = { SCENE_TASK_BRIGHTEN, SCENE_FRAME_TASKS, brighten_task, scene_brighten_present, brighten_leaves, false },
-    [ROW_DARKEN] = { SCENE_TASK_DARKEN, SCENE_FRAME_TASKS, darken_task, scene_darken_present, darken_leaves, false },
-    [ROW_MUSIC_FADES] = { SCENE_TASK_MUSIC_FADES, SCENE_FRAME_TASKS, fade_the_music_out_task, scene_fade_the_music_out_present,
-      fade_the_music_out_leaves, true },
-    [ROW_DARKEN_IN_SILENCE_AND_END] = { SCENE_TASK_DARKEN_IN_SILENCE_AND_END, SCENE_FRAME_TASKS, darken_in_silence_and_end_task,
-      scene_darken_in_silence_and_end_present, darken_in_silence_and_end_leaves, true },
-    [ROW_DARKEN_AND_END] = { SCENE_TASK_DARKEN_AND_END, SCENE_FRAME_TASKS, darken_and_end_task, scene_darken_and_end_present,
-      darken_and_end_leaves, false },
+    [ROW_ANIMATE_PALETTES] = { SCENE_TASK_ANIMATE_PALETTES, SCENE_FRAME_TASKS, animate_the_palettes_task },
+    [ROW_FINISH_SPRITES] = { SCENE_TASK_FINISH_SPRITES, SCENE_VBLANK_TASKS, finish_sprites_task },
+    [ROW_BRIGHTEN] = { SCENE_TASK_BRIGHTEN, SCENE_FRAME_TASKS, brighten_task },
+    [ROW_DARKEN] = { SCENE_TASK_DARKEN, SCENE_FRAME_TASKS, darken_task },
+    [ROW_MUSIC_FADES] = { SCENE_TASK_MUSIC_FADES, SCENE_FRAME_TASKS, fade_the_music_out_task },
+    [ROW_DARKEN_IN_SILENCE_AND_END] = { SCENE_TASK_DARKEN_IN_SILENCE_AND_END, SCENE_FRAME_TASKS, darken_in_silence_and_end_task },
+    [ROW_DARKEN_AND_END] = { SCENE_TASK_DARKEN_AND_END, SCENE_FRAME_TASKS, darken_and_end_task },
 };
 const unsigned scene_screen_task_count = sizeof scene_screen_tasks / sizeof scene_screen_tasks[0];
-
-/* ---- The loaders' transfer ------------------------------------------------------------------ */
-
-bool scene_transfer_present(Snes *s)
-{
-    return m_bank_reaches_low_ram(s) && m_code_matches(s, 0x7E38E7, 36, 0xDD4B67DA62CC8E67ull);
-}
 
 // $7E:38E7
 /* The program's own transfer: what the decompressor has just unpacked (its
@@ -578,29 +461,6 @@ static LineEffectDescriptor read_descriptor(const GameState *g, uint16_t at)
  * else, so a mode byte with any other bit set would be written back as a
  * different one. */
 enum { LINE_EFFECT_MODE_BITS = 0x47 };
-
-/* The code, and a table every descriptor of which names a target the service
- * knows. There are eight channels to fill, so a table without its end in eight
- * descriptors is one the original would run off the end of. Peeks only, from
- * bank $7E, which the routine sets itself. */
-bool scene_setup_line_effects_present(Snes *s)
-{
-    if (!m_code_matches(s, 0x7E36CC, 60, 0x45191A42A1EEF6A8ull))
-        return false;
-    uint16_t at = s->cpu.y;
-    for (int channel = 0; channel < LINE_CHANNELS; channel++) {
-        uint8_t mode = snes_bus_peek(&s->bus, descriptor_at(at, 0));
-        if (mode == END_OF_DESCRIPTORS)
-            return true;
-        if (mode & ~LINE_EFFECT_MODE_BITS)
-            return false;
-        VidLineEffect e = { 0 };
-        if (!vid_line_effect_decode(mode, snes_bus_peek(&s->bus, descriptor_at(at, 1)), &e))
-            return false;
-        at = (uint16_t)(at + DESCRIPTOR_BYTES);
-    }
-    return false;
-}
 
 // $7E:36CC
 /* Program the per-line effects from the descriptors at `at`, one to each

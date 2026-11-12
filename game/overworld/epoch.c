@@ -203,7 +203,6 @@ static void wait_at_the_time_gate(GameState *g, MenuObject self)
 
 /* ---- Standing ---------------------------------------------------------------------------------- */
 
-
 // $C2:42F8
 /* As the map starts, and after it has come down, the Epoch is placed where
  * it stands. Where the party has it out it is in the air, or arriving through
@@ -246,7 +245,6 @@ static void set_down(GameState *g, MenuObject self)
 /* At one point of the story the Epoch's first flight is a scene: it rises,
  * and a script holds the map. */
 enum { STORY_SHOWS_THE_FIRST_FLIGHT = 0xD3 };
-
 
 // $C2:443C
 /* Rising; risen, it flies, unless the story shows its first flight as a

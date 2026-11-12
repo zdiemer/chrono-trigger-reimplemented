@@ -13,7 +13,6 @@ static inline void menu_note_effect_noise(GameState *g, uint16_t value)
     uint32_t mark = charge_uncounted_begin(g);
     set_menu_effect_noise(g, value);
     charge_uncounted_end(g, mark);
-    charge_machine_accesses(g, 2);
 }
 
 #endif

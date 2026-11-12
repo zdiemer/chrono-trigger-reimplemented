@@ -20,7 +20,6 @@
 
 #include "menu/bridge.h"
 #include "menu/menu_data.h"
-#include "port/machine.h"
 #include "ram.h"
 #include "vars.h"
 
@@ -101,7 +100,6 @@ void menu_build_number_tiles(GameState *g)
         for (unsigned tens = 0; tens < MENU_DIGITS; tens++)
             put_number_start(g, hundreds, tens);
     blank_first_start(g);
-    (charge_machine_accesses(g, 54), charge_machine_rom_accesses(g, 33));
 }
 
 /* ---- The amounts' digits ---------------------------------------------------------------------- */
@@ -124,5 +122,4 @@ void menu_build_amount_digits(GameState *g)
 {
     for (unsigned digit = 0; digit < MENU_DIGITS; digit++)
         build_amount_digit(g, digit);
-    charge_machine_accesses(g, 3);
 }

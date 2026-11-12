@@ -148,7 +148,6 @@ static void cut_window(GameState *g, Window w, uint8_t angle, const CutLine *l)
     if (line_points_up(angle))
         cover_above(g, w, l->upper);
     uint8_t end = trace_line(g, w, edge, l);
-    charge_machine_accesses(g, 8);
     if (line_points_up(angle)) {
         turn_about_the_middle(g, w, edge, true);
         return;
@@ -210,7 +209,6 @@ static ScreenFlow turn_cut(GameState *g, ScreenChannel channel, uint8_t window, 
     uint8_t turned = (uint8_t)(cut_angle(g, channel, w) + turn);
     set_cut_angle(g, channel, w, turned);
     CutLine l = cut_line_at(g, turned);
-    charge_machine_accesses(g, 11);
     cut_window(g, w, turned, &l);
     return screen_on();
 }

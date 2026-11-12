@@ -24,7 +24,6 @@
 #include "field/field_data.h"
 #include "field/scratch.h"
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -47,7 +46,6 @@ static void set_layer_size(GameState *g, unsigned layer, uint8_t columns, uint8_
 static void take_the_layers(GameState *g)
 {
     uint8_t sizes = field_map_header_sizes(g), layers = field_map_header_layers(g);
-    charge_machine_accesses(g, 2 * FIELD_LAYERS); /* the dimensions' cleared high bytes */
     set_field_map_flags(g, (layers & HEADER_HAS_BG3) ? FIELD_MAP_HAS_BG3 : 0);
     set_field_bg2_half_scroll(g, (layers & HEADER_BG2_AT_HALF_PACE) ? BG2_HALF_PACE : 0);
     uint8_t still = 0;
@@ -118,7 +116,6 @@ static void take_the_header(GameState *g)
     set_field_layer_drawn_whole(g, field_layer_still(g));
     take_the_drift(g, FIELD_BG2, field_map_header_bg2_drift(g));
     take_the_drift(g, FIELD_BG3, field_map_header_bg3_drift(g));
-    charge_machine_accesses(g, 2); /* the header byte read back and saved */
 }
 
 // $C0:7399
@@ -206,7 +203,6 @@ static void mark_the_exits(GameState *g)
         }
         exit++;
     }
-    charge_machine_accesses(g, 4 + (run.first < run.end ? 2 : 0)); /* extent and last exit */
 }
 
 /* ---- The map unpacked ------------------------------------------------------------------------- */
@@ -218,7 +214,6 @@ enum { UNPACKED_MAP = RAM_FIELD_MAP_HEADER };
 void field_ask_to_unpack_the_map(GameState *g)
 {
     uint16_t map = location_map(g, location_record_offset(g));
-    charge_machine_accesses(g, 2); /* the selected map */
     set_decompress_source(g, field_packed_map(g, map));
     set_decompress_dest(g, UNPACKED_MAP);
 }
@@ -252,37 +247,3 @@ bool field_load_the_map(GameState *g)
 /* Tile maps the port doesn't take are the original's, on the layers' page;
  * it is entered with the layers' page's high byte in A's, which the original
  * set D through. */
-enum { THE_TILE_MAPS_IGNORE = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-void field_unpack_the_map(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (!field_load_the_map(g)) {
-        program_breaks_a_contract(g, FIELD_UNPACK_TILE_MAPS_ENTRY, "tile maps outside the field layout");
-        if (!bridge_call_on_page(s, 0xC0A500, FIELD_UNPACK_TILE_MAPS_ENTRY, THE_TILE_MAPS_IGNORE, FIELD_LAYERS_PAGE))
-            return;
-        field_mark_the_exits(g);
-    }
-    m_rts(s);
-}
-
-/* The guard: on the field's page, with the data bank reaching low RAM, where
- * the unpacker's cells are, and the field's place of its location's record
- * one where a record starts, as the game always keeps it. Any other place
- * reads a map number out of the records' bytes, whose "map" can unpack past
- * the end of its bank onto low RAM -- the stack and the unpacker's own
- * cells, which the original reads back as it goes and the C keeps in locals
- * (data/decompress.c), so the two part there. */
-bool field_map_can_be_unpacked(Snes *s)
-{
-    return field_on_page_low_bank(s) && field_location_record_is_one(s);
-}
-
-// $C0:A712
-/* The map's chests and walkable tiles marked (event/chests.c), on the
- * layers' page; nothing it leaves in the registers is read. */
-void field_mark_the_chests(Snes *s)
-{
-    chests_mark_the_map(state_of(s));
-    m_rts(s);
-}

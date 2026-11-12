@@ -60,15 +60,8 @@ void menu_set_object_byte(GameState *g, MenuObject o, uint16_t at, uint8_t v);
  * the frame its sprite script shows rather than counting the frame's time
  * down, and whether it is placed on the map, moving with its scroll, rather
  * than on the screen. */
-enum {
-    MENU_LOOK_IN_FRONT = 0x01,
-    MENU_LOOK_PALETTE = 0x0E,
-    MENU_LOOK_PRIORITY = 0x30,
-    MENU_LOOK_HELD = 0x40,
-    MENU_LOOK_ON_THE_MAP = 0x80,
-    /* The sprites' attribute bits the look gives them. */
-    MENU_LOOK_ATTRIBUTES = MENU_LOOK_PALETTE | MENU_LOOK_PRIORITY,
-};
+enum { MENU_LOOK_IN_FRONT = 0x01, MENU_LOOK_PALETTE = 0x0E, MENU_LOOK_PRIORITY = 0x30, MENU_LOOK_HELD = 0x40, MENU_LOOK_ON_THE_MAP = 0x80, /* The sprites' attribute bits the look gives them. */
+    MENU_LOOK_ATTRIBUTES = MENU_LOOK_PALETTE | MENU_LOOK_PRIORITY,  };
 
 /* ---- Starting objects -------------------------------------------------------------------- */
 
@@ -115,9 +108,6 @@ void menu_object_set_place(GameState *g, MenuObject o, MenuPlace p);
 MenuPlace menu_object_velocity(const GameState *g, MenuObject o);
 void menu_object_set_velocity(GameState *g, MenuObject o, MenuPlace v);
 
-/* The pixel part of a place. */
-static inline uint16_t menu_pixel(uint32_t at) { return (uint16_t)(at >> 16); }
-
 typedef enum { MENU_ACROSS, MENU_DOWN } MenuAxis;
 
 /* Turn the object's velocity round across or down. */
@@ -135,5 +125,8 @@ void menu_object_move(GameState *g, MenuObject o);
 /* Bring an object that has moved off the map back onto it: round the map
  * across, and inside its height down. */
 void menu_object_wrap_onto_map(GameState *g, MenuObject o);
+
+/* The pixel part of a place. */
+static inline uint16_t menu_pixel(uint32_t at) { return (uint16_t)(at >> 16); }
 
 #endif

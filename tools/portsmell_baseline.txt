@@ -4,16 +4,5 @@
 # the list empties as the backlog is rewritten. A deliberate exception carries
 # its reason as a `#` comment on its line.
 
-game/battle/animation.c                      return-address-pushed    1
-game/battle/bridge.c                         pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
-game/battle/main_loop.c                      return-address-pushed    1
-game/core/input.c                            return-address-pushed    1
-game/core/input.h                            enum-types-nothing       1
-game/event/bridge.c                          pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
-game/field/bridge.c                          pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
-game/menu/bridge.c                           pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
-game/menu/cursor.c                           return-address-pushed    3
 game/menu/epoch.c                            enum-types-nothing       1
-game/scene/frame.c                           return-address-pushed    2
-game/scene/script.c                          return-address-pushed    1
 re/ram.toml                                  stale-provenance         20

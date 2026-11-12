@@ -1,8 +1,3 @@
-/* The party exchange (game/menu/exchange.c): the screen where the player
- * swaps two of the party's members, and the main menu's panel for it.
- *
- * The bridges on the original's machine are game/menu/exchange_bridge.c; the
- * music the gate's screen changes to is game/menu/sound.c. */
 #ifndef CT_GAME_MENU_EXCHANGE_H
 #define CT_GAME_MENU_EXCHANGE_H
 
@@ -11,16 +6,12 @@
 
 #include "menu/windows.h"
 #include "platform/video.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* The screen's rows: the active party's three, then the reserve's six, of
  * which four show at a time; the cursor's places are the active party's
  * rows, then the reserve's four shown. */
-enum {
-    EXCHANGE_ACTIVE_ROWS = 3, EXCHANGE_RESERVE_ROWS = 6, EXCHANGE_ROWS = 9, EXCHANGE_RESERVE_SHOWN = 4,
-    EXCHANGE_FIRST_RESERVE_PLACE = EXCHANGE_ACTIVE_ROWS,
-};
+enum { EXCHANGE_ACTIVE_ROWS = 3, EXCHANGE_RESERVE_ROWS = 6, EXCHANGE_ROWS = 9, EXCHANGE_RESERVE_SHOWN = 4, EXCHANGE_FIRST_RESERVE_PLACE = EXCHANGE_ACTIVE_ROWS,  };
 
 /* A row (menu_exchange_rows) holds a place of the party's record, with
  * EXCHANGE_ROW_STAYS where the story keeps its member in the active party;
@@ -243,27 +234,7 @@ bool menu_choose_first_at_the_gate(GameState *g, Platform *pf);
 bool menu_open_exchange_at_the_gate(GameState *g, Platform *pf);
 
 /* The machine's side (exchange_bridge.c). */
-typedef struct {
-    Snes *s;
-} ExchangeOnTheMachine;
+
 extern const ExchangeSteps menu_exchange_on_the_machine;
-
-/* ---- The entries (game/menu/exchange_bridge.c) ------------------------------------------------- */
-
-void menu_open_exchange_entry(Snes *s);
-void menu_lay_out_the_exchange(Snes *s);
-void menu_move_the_exchange_cursor(Snes *s);
-void menu_choose_first_to_exchange_entry(Snes *s);
-void menu_choose_second_to_exchange_entry(Snes *s);
-void menu_open_exchange_at_the_gate_entry(Snes *s);
-void menu_choose_first_at_the_gate_entry(Snes *s);
-void menu_show_exchange_panel_entry(Snes *s);
-bool menu_exchange_opens(Snes *s);
-bool menu_exchange_lays_out(Snes *s);
-bool menu_exchange_cursor_moves(Snes *s);
-bool menu_exchange_step_runs(Snes *s);
-bool menu_exchange_opens_at_the_gate(Snes *s);
-bool menu_exchange_panel_shows(Snes *s);
-bool menu_exchange_panel_goes(Snes *s);
 
 #endif

@@ -19,7 +19,6 @@
 #include "menu/menu_data.h"
 #include "overworld/setup.h"
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -66,7 +65,6 @@ void menu_draw_gate_swirl(GameState *g)
     set_menu_scroll_y(g, SWIRL_LAYER, SWIRL_START_Y);
     lay_out_swirl(g);
     load_swirl_colours(g);
-    charge_machine_accesses(g, 6);
 }
 
 /* ---- Turning it ------------------------------------------------------------------------------- */
@@ -104,7 +102,6 @@ void menu_turn_gate_swirl(GameState *g)
         uint16_t wave = menu_gate_wave(g, phase % PHASE_STEPS + BAND_STEP * band);
         set_menu_gate_swirl(g, band, (uint16_t)(wave + across + (band == 0 ? top_band_nudge(frames) : 0)));
     }
-    charge_machine_accesses(g, 2);
 }
 
 /* ---- Starting it ------------------------------------------------------------------------------ */
@@ -149,14 +146,6 @@ bool menu_draw_gate_screen(GameState *g)
     return draw_the_gate_screen_with(g, &u);
 }
 
-/* The original keeps P on the stack over the drawing and gives it back. */
-void menu_draw_gate_screen_entry(Snes *s)
-{
-    Unpacker u = overworld_unpacker_called(s);
-    (void)draw_the_gate_screen_with(state_of(s), &u);
-    m_rtl(s);
-}
-
 // $FF:F716
 
 // $C2:CE9D
@@ -169,21 +158,6 @@ void menu_start_gate_screen(GameState *g, Platform *pf)
     start_counting(g);
     menu_start_task(g, MENU_DESCRIPTION_TASK, MENU_GATE_SCREEN_TASK_START);
     set_up_gate_screen(g);
-}
-
-/* The original keeps its caller's P on the stack round the task's start, and
- * puts it back as it returns. The setup is copied with a block move, which
- * leaves the data bank on work RAM's and Y past the state, which the caller
- * reads. */
-void menu_start_gate_screen_entry(Snes *s)
-{
-    menu_save_p(s);
-    menu_start_gate_screen(state_of(s), m_platform(s));
-    menu_set_widths(s, false, false);
-    s->cpu.db = MENU_DATA_BANK;
-    s->cpu.y = (uint16_t)(RAM_ABS(RAM_MENU_GATE_SCREEN_STATE) + MENU_GATE_SCREEN_STATE_COUNT);
-    menu_restore_p(s);
-    m_rts(s);
 }
 
 /* The swirl's per-line scroll is the menus' fifth line effect. */
@@ -210,29 +184,6 @@ void menu_gate_screen_task(GameState *g, Platform *pf)
     program_breaks_a_contract(g, 0xC2CECE, "a gate's swirl the port doesn't turn");
 }
 
-void menu_run_the_gate_screen_task(Snes *s)
-{
-    GameState *g = state_of(s);
-    turn_the_swirl(g);
-    menu_set_widths(s, true, m_x8(s));   /* the turn keeps the index registers' width */
-    s->cpu.a = (uint16_t)(menu_gate_swirl(g, BANDS - 1) & 0xFF00);
-    menu_wait_frames_in_the_task_loop(s, THE_TASK_S_WAIT, FRAMES_A_TURN, true);
-}
-
-/* The screen's routines run on the menus' page with the data bank on work
- * RAM's. */
-bool menu_gate_screen_runs(Snes *s) { return menu_on_page_work_ram(s); }
-
 /* The swirl's bands are counted from the menus' zero word, which is 0
  * whenever the menus run. */
 bool menu_gate_swirl_can_turn(const GameState *g) { return menu_zero(g) == 0; }
-
-bool menu_gate_swirl_turns(Snes *s)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_gate_swirl_can_turn(state_of(s));
-    vars_peek(false);
-    return ok;
-}

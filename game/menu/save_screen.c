@@ -39,8 +39,6 @@
 #include "menu/typeset.h"
 #include "menu/windows.h"
 #include "menu/vram.h"
-#include "port/machine.h"
-#include "port/native.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -102,7 +100,6 @@ static void draw_member_portrait(GameState *g, uint16_t origin, uint16_t row, ui
     uint8_t attribute = (uint8_t)((uint8_t)(row << PALETTE_SHIFT) | FIRST_PORTRAIT_PALETTE | UPPER_TILES);
     for (unsigned i = 0; i < 4; i++)
         put_tilemap_byte(g, origin, (uint16_t)(PORTRAIT_AT + corners[i] + 1), attribute);
-    charge_machine_accesses(g, 2);
     uint8_t tile = menu_portrait_first_tile(g, character);
     for (unsigned i = 0; i < 4; i++)
         put_tilemap_byte(g, origin, (uint16_t)(PORTRAIT_AT + corners[i]), (uint8_t)(tile + i));
@@ -391,45 +388,6 @@ bool menu_move_among_the_slots_with(GameState *g, Platform *pf, const SavingStep
     return true;
 }
 
-/* The block moves leave the data bank on work RAM's. */
-static void leave_block_move_bank(Snes *s) { s->cpu.db = MENU_DATA_BANK; }
-
-// $C2:CFFB
-
-// $C2:D466
-
-// $C2:D36C
-
-// $C2:E743
-/* It saves P as it starts and puts it back as it ends, and runs with byte
- * wide registers; the clearing's block moves leave the data bank on work
- * RAM's. */
-void menu_show_save_slot(Snes *s)
-{
-    menu_save_p(s);
-    menu_set_widths(s, true, true);
-    LoadScreenOnTheMachine m = { s };
-    if (!menu_show_save_slot_with(state_of(s), m_platform(s), &menu_load_screen_on_the_machine, &m))
-        return;
-    leave_block_move_bank(s);
-    menu_set_widths(s, false, false);
-    charge_machine_accesses(state_of(s), 1);
-    menu_restore_p(s);
-    m_rts(s);
-}
-
-// $C2:CFA2
-/* It saves P as it starts and puts it back as it ends. */
-void menu_move_among_the_slots(Snes *s)
-{
-    menu_save_p(s);
-    SavingOnTheMachine m = { s };
-    if (!menu_move_among_the_slots_with(state_of(s), m_platform(s), &menu_saving_on_the_machine, &m))
-        return;
-    menu_restore_p(s);
-    m_rts(s);
-}
-
 /* ---- Reading the slots as the menus open ------------------------------------------------------ */
 
 /* A saved game on the cartridge, from its slot's start: the party's places,
@@ -438,12 +396,7 @@ void menu_move_among_the_slots(Snes *s)
  * the game was saved and finished, the second byte of the settings, the time
  * played and the rest of the header's block, the location, the chapter the
  * story is in, and a flag that makes the summary show no gold. */
-enum {
-    SAVED_CHARACTERS = 0x200, CHARACTER_BYTES = 0x50, SAVED_FIGURE = 0x12, SAVED_RECORD_START = 9,
-    SAVED_PARTY = 0x580, SAVED_SETTINGS_SECOND = 0x591, SAVED_TIMES_SAVED = 0x59C, SAVED_TIMES_FINISHED = 0x59E,
-    SAVED_NAMES = 0x5B0, NAME_BYTES = 6, SAVED_HEADER_BLOCK = 0x5E0, HEADER_BLOCK_BYTES = 10,
-    SAVED_LOCATION = 0x5F3, SAVED_CHAPTER = 0x603, SAVED_FLAGS = 0x793,
-};
+enum { SAVED_CHARACTERS = 0x200, CHARACTER_BYTES = 0x50, SAVED_FIGURE = 0x12, SAVED_RECORD_START = 9, SAVED_PARTY = 0x580, SAVED_SETTINGS_SECOND = 0x591, SAVED_TIMES_SAVED = 0x59C, SAVED_TIMES_FINISHED = 0x59E, SAVED_NAMES = 0x5B0, NAME_BYTES = 6, SAVED_HEADER_BLOCK = 0x5E0, HEADER_BLOCK_BYTES = 10, SAVED_LOCATION = 0x5F3, SAVED_CHAPTER = 0x603, SAVED_FLAGS = 0x793,  };
 enum { LOCATION_BITS = 0x01FF, MOST_TIMES_SAVED = 999, NO_GOLD_SHOWN = 0x80, EMPTY_RECORD = 0xFF };
 
 /* Where the slot the save code has just checked keeps its game, in the save
@@ -472,8 +425,7 @@ static uint16_t saved_word(Platform *pf, uint16_t game, uint16_t at)
 /* The summary's header, after the members: times saved, the location, the
  * header block (its gold at 4, three bytes, and the time played's digits at
  * 9), times finished. */
-enum { HEADER_TIMES_SAVED = 0, HEADER_LOCATION = 2, HEADER_BLOCK = 4, HEADER_GOLD = 4, GOLD_BYTES = 3,
-       HEADER_TIMES_FINISHED = 14 };
+enum { HEADER_TIMES_SAVED = 0, HEADER_LOCATION = 2, HEADER_BLOCK = 4, HEADER_GOLD = 4, GOLD_BYTES = 3, HEADER_TIMES_FINISHED = 14 };
 
 static void put_summary_byte(GameState *g, uint8_t slot, unsigned at, uint8_t v)
 {
@@ -530,12 +482,8 @@ enum { RECORD_START_MULTIPLIER = CHARACTER_BYTES, NAME_MULTIPLIER = NAME_BYTES }
 static void charge_summary_read(GameState *g, Platform *pf)
 {
     uint16_t game = checked_game(g);
-    bool any = false;
     for (unsigned row = 0; row < MEMBER_ROWS; row++)
-        if (!(saved_member(pf, game, row) & NO_MEMBER))
-            any = true;
-    charge_machine_accesses(g, 9 + any);
-    charge_machine_io_accesses(g, any ? 5 : 1);
+        (void)saved_member(pf, game, row);
 }
 
 /* ---- The labels --------------------------------------------------------------------------------- */
@@ -619,15 +567,12 @@ static void draw_slot_name(GameState *g)
 {
     uint8_t slot = menu_save_slot_shown(g);
     uint16_t at = (uint16_t)(MENU_SLOT_NAMES_AT + slot * MENU_SLOT_NAME_BYTES);
-    charge_machine_io_accesses(g, 1);
-    charge_machine_io_accesses(g, 3);
     set_label_at(g, SLOT_NAMES, (uint8_t)(FIRST_SLOT_NAME + slot), at);
     /* a shift of 0 is taken as 256 moves */
     uint8_t moves = menu_slot_name_shift(g, slot);
     do
         move_label_right(g, at);
     while (--moves != 0);
-    charge_machine_accesses(g, 1);
 }
 
 // $C2:D266
@@ -668,7 +613,6 @@ static bool read_save_slots(GameState *g, Platform *pf, const SlotCalls *c, void
 {
     for (uint8_t slot = 0; slot < MENU_SAVE_SLOTS; slot++)
         set_menu_save_slot_design(g, slot, 0);
-    charge_machine_accesses(g, 1);
     set_menu_save_slot_in_use(g, FOURTH_ROW, NO_FOURTH_ROW_YET);
     for (uint8_t slot = 0; slot < MENU_SAVE_SLOTS; slot++) {
         set_menu_save_slot_shown(g, slot);
@@ -772,51 +716,6 @@ bool menu_save_slots_read(GameState *g, Platform *pf)
     return read_save_slots(g, pf, &slots, &c);
 }
 
-/* ---- On the machine ----------------------------------------------------------------------------- */
-
-/* Each of these runs as the original's JSR reaches it, saving P as it starts,
- * and leaves the flags the original's code has before its call to the next. */
-
-static bool slot_routine_on_the_machine(void *ctx, SlotRoutine routine, uint32_t site)
-{
-    Snes *s = ctx;
-    switch (routine) {
-    case CHAPTER_LABEL: return menu_run(s, site, 0xC2D296, menu_draw_chapter_label);
-    case SLOT_NAME: return menu_run(s, site, 0xC2D2C4, menu_draw_slot_name);
-    case SLOT_SUMMARY: return menu_run(s, site, 0xC2D19F, menu_read_slot_summary);
-    case DESIGN_AND_CHAPTER: return menu_run(s, site, 0xC2D266, menu_read_design_and_chapter);
-    }
-    return false;
-}
-
-static void slot_note_on_the_machine(void *ctx, SlotNote note, uint8_t a, uint8_t b)
-{
-    (void)a, (void)b;
-    Snes *s = ctx;
-    switch (note) {
-    case NOTE_SLOT_COUNTED: (void)0; break;
-    case NOTE_SLOT_DONE: (void)0; break;
-    case NOTE_SUMMARY_READ: (void)0; break;
-    /* the chapter's search ends on the comparison that found it */
-    case NOTE_CHAPTER_FOUND:
-        menu_set_widths(s, true, true);
-        (void)0;
-        break;
-    }
-}
-
-static const SlotCalls slots_on_the_machine = { slot_routine_on_the_machine, slot_note_on_the_machine };
-
-// $C2:D296
-void menu_draw_chapter_label(Snes *s)
-{
-    menu_save_p(s);
-    menu_set_widths(s, false, false);
-    draw_chapter_label(state_of(s));
-    menu_restore_p(s);
-    m_rts(s);
-}
-
 // $C2:D28D
 /* The empty slot's label, drawn in the chapter label's place; false where
  * its entry's guard wouldn't take the slot shown, the program going no
@@ -830,53 +729,6 @@ bool menu_draw_empty_label(GameState *g)
     set_menu_text_string(g, EMPTY_SLOT_LABEL);
     draw_chapter_label(g);
     return true;
-}
-
-// $C2:D28D
-/* It runs on into the chapter label's drawing ($C2:D296), which saves P as
- * it starts and draws with 16-bit registers. */
-
-// $C2:D2C4
-void menu_draw_slot_name(Snes *s)
-{
-    menu_save_p(s);
-    menu_set_widths(s, false, false);
-    draw_slot_name(state_of(s));
-    menu_restore_p(s);
-    m_rts(s);
-}
-
-// $C2:D266
-/* The chapter's search leaves the index registers a byte. */
-void menu_read_design_and_chapter(Snes *s)
-{
-    menu_save_p(s);
-    if (!read_design_and_chapter(state_of(s), m_platform(s), &slots_on_the_machine, s))
-        return;
-    menu_restore_p(s);
-    m_rts(s);
-}
-
-// $C2:D19F
-void menu_read_slot_summary(Snes *s)
-{
-    menu_save_p(s);
-    menu_set_widths(s, false, false);
-    if (!read_slot_summary(state_of(s), m_platform(s), &slots_on_the_machine, s))
-        return;
-    menu_restore_p(s);
-    m_rts(s);
-}
-
-// $C2:D156
-void menu_read_save_slots(Snes *s)
-{
-    menu_save_p(s);
-    menu_set_widths(s, true, m_x8(s));
-    if (!read_save_slots(state_of(s), m_platform(s), &slots_on_the_machine, s))
-        return;
-    menu_restore_p(s);
-    m_rts(s);
 }
 
 /* ---- The guards ------------------------------------------------------------------------------- */
@@ -944,16 +796,6 @@ bool menu_load_screen_slot_can_show(const GameState *g)
     return menu_cursor_index(g) < SLOT_ROWS && menu_save_slots_can_show(g);
 }
 
-bool menu_save_slots_are_showable(Snes *s)
-{
-    if (!menu_on_page(s) || !m_bank_reaches_low_ram(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_load_screen_slot_can_show(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
 /* The save screen's frame: a cursor on one of the four rows, the slot read
  * as a byte (the original reads it a word wide with the cell after it, which
  * the slots' reading clears as the menus open), a summary the drawing can
@@ -967,53 +809,18 @@ bool menu_slot_under_the_cursor_shows(const GameState *g)
     return ok;
 }
 
-bool menu_slot_under_the_cursor_is_showable(Snes *s)
-{
-    return menu_on_page_work_ram(s) && menu_slot_under_the_cursor_shows(state_of(s));
-}
-
 /* The slots' reading runs on the menus' page with the data bank on work
  * RAM's, and starts its count of the slots from the menus' zero word (which
  * the game keeps 0); each label and summary is of one of the three slots. */
 static bool slots_readable(const GameState *g) { return menu_zero(g) == 0; }
 
-bool menu_save_slots_are_readable(Snes *s)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    bool ok = slots_readable(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
 static bool labels_drawable(const GameState *g) { return menu_save_slot_shown(g) < SAVE_SLOTS; }
-
-bool menu_slot_labels_are_drawable(Snes *s)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    bool ok = labels_drawable(state_of(s));
-    vars_peek(false);
-    return ok;
-}
 
 /* The chapter label its caller named, one the label setting can take. */
 static bool chapter_label_drawable(const GameState *g)
 {
     uint16_t at = (uint16_t)(MENU_CHAPTER_LABELS_AT + (menu_save_slot_shown(g) & 3) * MENU_CHAPTER_LABEL_BYTES);
     return labels_drawable(g) && menu_label_can_be_set(g, CHAPTER_LABELS, menu_text_string(g), at);
-}
-
-bool menu_chapter_label_is_drawable(Snes *s)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    bool ok = chapter_label_drawable(state_of(s));
-    vars_peek(false);
-    return ok;
 }
 
 /* A summary is read from a game the check found within the save memory,
@@ -1035,24 +842,4 @@ static bool summary_readable(const GameState *g, Platform *pf)
     uint16_t at = menu_slot_game_at(g);
     return labels_drawable(g) && menu_zero(g) == 0 && at >= SAVES_ON_THE_BUS
            && (uint32_t)at + SUMMARY_SPAN <= SAVES_ON_THE_BUS + SAVE_SIZE && saved_party_is_characters(pf, at);
-}
-
-bool menu_slot_summary_is_readable(Snes *s)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    bool ok = summary_readable(state_of(s), m_platform(s));
-    vars_peek(false);
-    return ok;
-}
-
-void menu_draw_empty_label_entry(Snes *s)
-{
-    menu_save_p(s);
-    menu_set_widths(s, false, false);
-    if (!menu_draw_empty_label(state_of(s)))
-        return;
-    menu_restore_p(s);
-    m_rts(s);
 }

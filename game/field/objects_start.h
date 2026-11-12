@@ -6,7 +6,7 @@
 #include <stdbool.h>
 
 #include "platform/platform.h"
-#include "snes/system.h"
+#include <stdint.h>
 #include "state.h"
 
 /* Whatever the objects held let go: every block of sprite tiles, palette
@@ -26,12 +26,6 @@ void field_objects_start_afresh(GameState *g, Platform *pf);
  * (the program goes no further there: core/program.h). */
 bool field_objects_set_up(GameState *g, Platform *pf);
 
-/* The entries (game/registry.c): the objects set up ($C0:56A6), and started
- * then running their openings ($C0:5709), with their guards. */
-void field_set_up_the_objects(Snes *s);
-void field_start_the_objects(Snes *s);
-bool field_objects_can_be_set_up(Snes *s);
-bool field_objects_can_start(Snes *s);
 enum { FIELD_SET_UP_THE_OBJECTS_ENTRY = 0xC056A6, FIELD_START_THE_OBJECTS_ENTRY = 0xC05709 };
 
 #endif

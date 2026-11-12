@@ -29,6 +29,71 @@ typedef struct {
 
 enum { BATTLE_QUEUED_SLOTS = 4 };
 
+/* The sound each of the battle's own messages plays as it opens ($D1:EE99, a
+ * byte a message; BATTLE_MESSAGE_SILENT for none). Message 13, nothing to
+ * steal, reads into the following screen routine in the original.
+ * The resource includes that live sound selector as a data view. */
+enum { BATTLE_MESSAGE_SILENT = 0xFF };
+
+/* ---- The line effects' arrangements -------------------------------------------------------- */
+
+/* The ways the screen is laid out for the per-line effects, 32 of them
+ * ($CE:F24E, a word each, its index a byte of twice the arrangement): each the
+ * byte offset of its ten lists of runs of lines among the lists' places at
+ * $CE:F58E (a word each, the place in bank $CE of the list's 30 bytes). The
+ * first nine are the nine per-line tables' (the seven effects' and the
+ * window's two); the tenth stands in for the BG2 scroll's on a battlefield
+ * whose background ripples. */
+enum { LINE_ARRANGEMENT_LISTS = 10, LINE_ARRANGEMENT_LIST_BYTES = 30, RIPPLING_BG2_SCROLL_LIST = 9 };
+
+/* ---- The background's ripple -------------------------------------------------------------- */
+
+/* The sway of a rippling background ($CE:E08E): 128 signed words, two
+ * periods of a wave a column or two either way, which the ripple shows 64 at
+ * a time. */
+enum { RIPPLE_SWAYS = 128 };
+
+/* ---- What the uploads send from the ROM -------------------------------------------------- */
+
+/* The graphics a battle loads from the ROM as it is set up
+ * (battle_load_graphics): the first tiles of the layer the battle's messages
+ * are drawn on, and five 64-byte blocks of the window layer's tiles (what
+ * each block shows isn't mapped yet: docs/TODO.md). */
+enum { BATTLE_MESSAGE_LAYER_TILES = 0xFF8C60, BATTLE_WINDOW_TILE_BLOCK_1 = 0xD15E82, BATTLE_WINDOW_TILE_BLOCK_2 = 0xD15EC2, BATTLE_WINDOW_TILE_BLOCK_3 = 0xD15F02, BATTLE_WINDOW_TILE_BLOCK_4 = 0xFF9CF0, BATTLE_WINDOW_TILE_BLOCK_5 = 0xFF9D30,  };
+
+/* ---- The battlefields ------------------------------------------------------------------- */
+
+/* What a battlefield brings with it ($D1:6240, four bytes a battlefield): the
+ * screen scripts its two channels run and the two sets of background colors
+ * it shows, $FF for none. The index is a word, four times the battlefield. */
+typedef struct {
+    uint8_t scripts[2], color_sets[2];
+} BattlefieldLook;
+
+/* How a battlefield's BG3 layer is laid out ($D1:A233, six bytes a
+ * battlefield, by its number less the top bit, the offset a word): the strips
+ * of map it is built from (the low six bits; bit 6 the tile set's high bit),
+ * its tile set, the first strip, a byte nothing is found reading, and the rows
+ * of tiles each strip has. */
+typedef struct {
+    uint8_t strips, tile_set;
+    uint16_t first_strip;
+    uint8_t kept, rows;
+} BattlefieldLayout;
+
+enum { BATTLEFIELD_STRIP_BANK = 0xD10000 };
+
+/* A fade the battle runs through palette animation slot 10's preset, laid
+ * out as a palette animation slot from its first color: which colors, how
+ * fast, and from what level to what (battle_fade_through_the_preset). */
+typedef struct {
+    uint8_t first_color, color_count, step, delay, period, fade_mode, fade_level, fade_target;
+} BattlePaletteFade;
+
+/* The fades by record: the plain battlefield's out, then back in; the HP
+ * gradient's from the fifth record. */
+enum { BATTLEFIELD_FADE_BYTES = 8, BATTLEFIELD_GRADIENT_FADES = 4 };
+
 static inline BattleQueuedTransfer battle_queued_transfer(const GameState *g, uint8_t slot, unsigned second)
 {
     uint16_t at = (uint16_t)((uint8_t)(slot * 2) + second * 2 * BATTLE_QUEUED_SLOTS);
@@ -45,11 +110,6 @@ static inline uint8_t battle_message_frames_at_speed(const GameState *g, uint8_t
     return rom_read8(g, 0xCD019Du + (speed & 0x07u));
 }
 
-/* The sound each of the battle's own messages plays as it opens ($D1:EE99, a
- * byte a message; BATTLE_MESSAGE_SILENT for none). Message 13, nothing to
- * steal, reads into the following screen routine in the original.
- * The resource includes that live sound selector as a data view. */
-enum { BATTLE_MESSAGE_SILENT = 0xFF };
 static inline uint8_t battle_message_sound(const GameState *g, uint8_t message)
 {
     return rom_read8(g, 0xD1EE99u + message);
@@ -74,17 +134,6 @@ static inline uint16_t battle_animated_color(const GameState *g, uint16_t phase_
     return rom_read16(g, 0xD15980u + phase_offset);
 }
 
-/* ---- The line effects' arrangements -------------------------------------------------------- */
-
-/* The ways the screen is laid out for the per-line effects, 32 of them
- * ($CE:F24E, a word each, its index a byte of twice the arrangement): each the
- * byte offset of its ten lists of runs of lines among the lists' places at
- * $CE:F58E (a word each, the place in bank $CE of the list's 30 bytes). The
- * first nine are the nine per-line tables' (the seven effects' and the
- * window's two); the tenth stands in for the BG2 scroll's on a battlefield
- * whose background ripples. */
-enum { LINE_ARRANGEMENT_LISTS = 10, LINE_ARRANGEMENT_LIST_BYTES = 30, RIPPLING_BG2_SCROLL_LIST = 9 };
-
 static inline uint8_t line_arrangement_byte(const GameState *g, uint8_t arrangement, unsigned list, unsigned i)
 {
     uint16_t lists = rom_read16(g, 0xCEF24Eu + (uint8_t)(arrangement * 2));
@@ -92,55 +141,13 @@ static inline uint8_t line_arrangement_byte(const GameState *g, uint8_t arrangem
     return rom_read8(g, 0xCE0000u + (uint16_t)(at + i));
 }
 
-/* ---- The background's ripple -------------------------------------------------------------- */
-
-/* The sway of a rippling background ($CE:E08E): 128 signed words, two
- * periods of a wave a column or two either way, which the ripple shows 64 at
- * a time. */
-enum { RIPPLE_SWAYS = 128 };
-
 static inline uint16_t background_ripple_sway(const GameState *g, unsigned i) { return rom_read16(g, 0xCEE08Eu + 2u * i); }
-
-/* ---- What the uploads send from the ROM -------------------------------------------------- */
-
-/* The graphics a battle loads from the ROM as it is set up
- * (battle_load_graphics): the first tiles of the layer the battle's messages
- * are drawn on, and five 64-byte blocks of the window layer's tiles (what
- * each block shows isn't mapped yet: docs/TODO.md). */
-enum {
-    BATTLE_MESSAGE_LAYER_TILES = 0xFF8C60,
-    BATTLE_WINDOW_TILE_BLOCK_1 = 0xD15E82,
-    BATTLE_WINDOW_TILE_BLOCK_2 = 0xD15EC2,
-    BATTLE_WINDOW_TILE_BLOCK_3 = 0xD15F02,
-    BATTLE_WINDOW_TILE_BLOCK_4 = 0xFF9CF0,
-    BATTLE_WINDOW_TILE_BLOCK_5 = 0xFF9D30,
-};
-
-/* ---- The battlefields ------------------------------------------------------------------- */
-
-/* What a battlefield brings with it ($D1:6240, four bytes a battlefield): the
- * screen scripts its two channels run and the two sets of background colors
- * it shows, $FF for none. The index is a word, four times the battlefield. */
-typedef struct {
-    uint8_t scripts[2], color_sets[2];
-} BattlefieldLook;
 
 static inline BattlefieldLook battlefield_look(const GameState *g, uint16_t battlefield)
 {
     uint32_t at = 0xD16240u + (uint16_t)(battlefield * 4u);
     return (BattlefieldLook){ { rom_read8(g, at), rom_read8(g, at + 1) }, { rom_read8(g, at + 2), rom_read8(g, at + 3) } };
 }
-
-/* How a battlefield's BG3 layer is laid out ($D1:A233, six bytes a
- * battlefield, by its number less the top bit, the offset a word): the strips
- * of map it is built from (the low six bits; bit 6 the tile set's high bit),
- * its tile set, the first strip, a byte nothing is found reading, and the rows
- * of tiles each strip has. */
-typedef struct {
-    uint8_t strips, tile_set;
-    uint16_t first_strip;
-    uint8_t kept, rows;
-} BattlefieldLayout;
 
 static inline BattlefieldLayout battlefield_layout(const GameState *g, uint16_t battlefield)
 {
@@ -157,8 +164,8 @@ static inline uint16_t battlefield_strip_place(const GameState *g, uint16_t stri
 {
     return rom_read16(g, 0xD1A575u + (uint16_t)(strip * 2u));
 }
+
 static inline uint8_t battlefield_strip_byte(const GameState *g, uint32_t at) { return rom_read8(g, at); }
-enum { BATTLEFIELD_STRIP_BANK = 0xD10000 };
 
 /* Which tiles of the battlefield's sheet take the layer's other palette
  * ($CF:E200): a bit a 16x16 tile, a byte each row of eight, the tile set's
@@ -169,6 +176,7 @@ static inline uint8_t battlefield_tile_palettes(const GameState *g, uint8_t at) 
  * a strip's sixteen columns' place in its row of the map, in bytes
  * ($CE:F046). */
 static inline uint8_t battlefield_palette_bit_mask(const GameState *g, uint8_t column) { return rom_read8(g, 0xCEF03Eu + column); }
+
 static inline uint8_t battlefield_column_place(const GameState *g, uint8_t column) { return rom_read8(g, 0xCEF046u + column); }
 
 /* The battlefield's 8x8 tiles: a tile set's descriptors ($CF:8000, 64 bytes a
@@ -176,6 +184,7 @@ static inline uint8_t battlefield_column_place(const GameState *g, uint8_t colum
  * graphics (in 16-byte units from $CF:0000, two bit planes) and whether it is
  * mirrored or flipped. */
 static inline uint16_t battlefield_tile_descriptor(const GameState *g, uint16_t at) { return rom_read16(g, 0xCF0000u | at); }
+
 static inline uint8_t battlefield_tile_graphics_byte(const GameState *g, uint32_t at) { return rom_read8(g, 0xCF0000u + at); }
 
 /* Where each of the four tile sets of a battlefield's layer goes in VRAM
@@ -189,13 +198,6 @@ static inline uint16_t effect_tile_rows_vram(const GameState *g, uint8_t slot)
     return rom_read16(g, 0xCD1308u + (uint8_t)(slot * 2));
 }
 
-/* A fade the battle runs through palette animation slot 10's preset, laid
- * out as a palette animation slot from its first color: which colors, how
- * fast, and from what level to what (battle_fade_through_the_preset). */
-typedef struct {
-    uint8_t first_color, color_count, step, delay, period, fade_mode, fade_level, fade_target;
-} BattlePaletteFade;
-
 static inline BattlePaletteFade battle_palette_fade_at(const GameState *g, uint32_t from)
 {
     return (BattlePaletteFade){ rom_read8(g, from), rom_read8(g, from + 1), rom_read8(g, from + 2),
@@ -206,6 +208,7 @@ static inline BattlePaletteFade battle_palette_fade_at(const GameState *g, uint3
 /* A beaten enemy's colors fade to white as it dissolves ($CE:EFE1: the
  * animation's kind, then the fade). */
 static inline uint8_t battle_dissolve_fade_kind(const GameState *g) { return rom_read8(g, 0xCEEFE1u); }
+
 static inline BattlePaletteFade battle_dissolve_fade(const GameState *g) { return battle_palette_fade_at(g, 0xCEEFE2u); }
 
 /* The fade that takes the old battlefield's layer away before a new one is
@@ -217,9 +220,7 @@ static inline uint8_t battlefield_fade_kind(const GameState *g, uint8_t backdrop
 {
     return rom_read8(g, 0xCEEFFAu + backdrop_math);
 }
-/* The fades by record: the plain battlefield's out, then back in; the HP
- * gradient's from the fifth record. */
-enum { BATTLEFIELD_FADE_BYTES = 8, BATTLEFIELD_GRADIENT_FADES = 4 };
+
 static inline BattlePaletteFade battlefield_fade(const GameState *g, bool gradient, bool back_in)
 {
     unsigned record = (gradient ? BATTLEFIELD_GRADIENT_FADES : 0) + (back_in ? 1 : 0);
@@ -228,6 +229,7 @@ static inline BattlePaletteFade battlefield_fade(const GameState *g, bool gradie
 
 /* Tiles selected by battle loads and queued uploads; built tiles may live in RAM. */
 static inline PfData battle_upload_data(uint32_t source, uint32_t bytes) { return rom_data(source, bytes); }
+
 static inline PfData battle_described_upload_data(uint32_t source, uint32_t bytes, uint8_t mode)
 {
     return rom_data_mode(source, bytes, mode);

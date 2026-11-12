@@ -35,8 +35,6 @@
 enum { WINDOW_COLUMNS = 32 };
 typedef uint16_t WindowCell;
 
-static inline WindowCell window_cell(unsigned row, unsigned column) { return (WindowCell)(row * WINDOW_COLUMNS + column); }
-
 /* The attributes the window's text is drawn with: plain, or shaded (the names
  * of the members not choosing, a gauge still filling, a member's numbers at
  * low HP, a tech that can't be used); and plain turned upside down, for the
@@ -46,21 +44,6 @@ enum { TEXT_PLAIN = 0x29, TEXT_SHADED = 0x2D, TEXT_PLAIN_UPSIDE_DOWN = 0xA9 };
 /* Tiles every window uses: nothing (the battle window cleared), a blank, and
  * the four quarters of the hand cursor. */
 enum { TILE_NOTHING = 0x00, TILE_BLANK = 0xFF, TILE_CURSOR = 0x60 };
-
-/* The battle window's tilemap. */
-static inline void window_put(GameState *g, WindowCell cell, uint8_t tile, uint8_t attributes)
-{
-    set_battle_window_tilemap_tile(g, cell, tile);
-    set_battle_window_tilemap_attributes(g, cell, attributes);
-}
-static inline void window_set_tile(GameState *g, WindowCell cell, uint8_t tile)
-{
-    set_battle_window_tilemap_tile(g, cell, tile);
-}
-static inline void window_set_attributes(GameState *g, WindowCell cell, uint8_t attributes)
-{
-    set_battle_window_tilemap_attributes(g, cell, attributes);
-}
 
 /* The hand cursor, two cells by two, its top left at `cell`, in the battle
  * window (the tiles only) and in the menu window. */
@@ -76,13 +59,6 @@ typedef enum { PAGE_COMMANDS, PAGE_TECHS, PAGE_ITEMS } MenuPage;
  * page the action was chosen on is kept to go back to
  * (battle_ally_target_page): the page plus one, none 0. */
 enum { NO_PAGE_KEPT = 0 };
-static inline bool party_shown_for_targets(const GameState *g) { return battle_ally_target_page(g) != NO_PAGE_KEPT; }
-static inline MenuPage page_kept_for_targets(const GameState *g) { return (MenuPage)(battle_ally_target_page(g) - 1); }
-static inline void keep_page_for_targets(GameState *g, MenuPage page)
-{
-    set_battle_ally_target_page(g, (uint8_t)(page + 1));
-}
-static inline void forget_page_kept_for_targets(GameState *g) { set_battle_ally_target_page(g, NO_PAGE_KEPT); }
 
 /* The menu slot whose window was last shown, set to none so that the command
  * page rebuilds the window when it next draws (battle_menu_slot_shown); going
@@ -93,15 +69,6 @@ enum { NO_SLOT_SHOWN = 0xFE, NO_SLOT_SHOWN_FROM_A_LIST = 0xFF };
 /* The menu keeps "nobody" in-band, in its member, its slots' members and the
  * targets: a byte with its top bit set. */
 enum { MENU_NOBODY = 0x80, BATTLE_TARGET_ENTRIES = 6 };
-
-static inline bool menu_nobody(uint8_t member) { return (member & MENU_NOBODY) != 0; }
-/* A slot is read as the original indexes it: a slot past the three (Magus's
- * slot, a word, holds no other in a battle) reads on into what follows. */
-static inline bool menu_slot_has_member(const GameState *g, unsigned slot)
-{
-    return !menu_nobody(slot < BATTLE_MENU_SLOT_MEMBERS_COUNT ? battle_menu_slot_members(g, slot)
-                                                                : battle_menu_slot_members_unchecked(g, slot));
-}
 
 /* The party's line for the menu (menu_line.c): the member first in line
  * takes the menu; and the member with the open menu gives its slot up, the
@@ -122,7 +89,6 @@ void battle_call_off_the_menu(GameState *g, uint8_t member);
 typedef enum { LAYOUT_MAX_HP, LAYOUT_NUMBERS_FIRST, LAYOUT_NUMBERS_AFTER } WindowLayout;
 
 WindowLayout battle_window_layout_now(const GameState *g);
-static inline bool layout_has_gauges(WindowLayout layout) { return layout != LAYOUT_MAX_HP; }
 
 /* Where a member's line puts its parts: the lower half of its name (the upper
  * half is the row above, the name being two rows tall), the first of its HP
@@ -200,6 +166,60 @@ enum { BATTLE_DIGIT_THOUSANDS = 1, BATTLE_DIGIT_HUNDREDS, BATTLE_DIGIT_TENS, BAT
 Digits battle_digits_of(GameState *g, uint16_t n, unsigned places);
 /* The same with its zeros in front blanked; the ones always show. */
 Digits battle_digits_blanked(GameState *g, Digits d);
+
+/* ---- Inputs to the legacy window adapters --------------------------------------------- */
+
+/* Some legacy callers pass operands through these shared work cells. */
+enum { BATTLE_WORK_CELLS = 0x80 };
+
+/* The menu window drawn for the page that is open ($C1:0C2D), and the
+ * cursors over the battlefield placed ($C1:17DD), as C: false where they went
+ * no further. */
+bool battle_menu_window_drawn(GameState *g, Platform *pf);
+bool battle_menu_cursors_placed(GameState *g, Platform *pf);
+
+static inline WindowCell window_cell(unsigned row, unsigned column) { return (WindowCell)(row * WINDOW_COLUMNS + column); }
+
+/* The battle window's tilemap. */
+static inline void window_put(GameState *g, WindowCell cell, uint8_t tile, uint8_t attributes)
+{
+    set_battle_window_tilemap_tile(g, cell, tile);
+    set_battle_window_tilemap_attributes(g, cell, attributes);
+}
+
+static inline void window_set_tile(GameState *g, WindowCell cell, uint8_t tile)
+{
+    set_battle_window_tilemap_tile(g, cell, tile);
+}
+
+static inline void window_set_attributes(GameState *g, WindowCell cell, uint8_t attributes)
+{
+    set_battle_window_tilemap_attributes(g, cell, attributes);
+}
+
+static inline bool party_shown_for_targets(const GameState *g) { return battle_ally_target_page(g) != NO_PAGE_KEPT; }
+
+static inline MenuPage page_kept_for_targets(const GameState *g) { return (MenuPage)(battle_ally_target_page(g) - 1); }
+
+static inline void keep_page_for_targets(GameState *g, MenuPage page)
+{
+    set_battle_ally_target_page(g, (uint8_t)(page + 1));
+}
+
+static inline void forget_page_kept_for_targets(GameState *g) { set_battle_ally_target_page(g, NO_PAGE_KEPT); }
+
+static inline bool menu_nobody(uint8_t member) { return (member & MENU_NOBODY) != 0; }
+
+/* A slot is read as the original indexes it: a slot past the three (Magus's
+ * slot, a word, holds no other in a battle) reads on into what follows. */
+static inline bool menu_slot_has_member(const GameState *g, unsigned slot)
+{
+    return !menu_nobody(slot < BATTLE_MENU_SLOT_MEMBERS_COUNT ? battle_menu_slot_members(g, slot)
+                                                                : battle_menu_slot_members_unchecked(g, slot));
+}
+
+static inline bool layout_has_gauges(WindowLayout layout) { return layout != LAYOUT_MAX_HP; }
+
 static inline bool digit_is_zero(uint8_t tile) { return tile == TILE_DIGIT_ZERO; }
 
 /* ---- Combatants on the battlefield ------------------------------------------------------ */
@@ -211,44 +231,37 @@ static inline uint8_t combatant_cursor_offset_x(const GameState *g, unsigned slo
 {
     return slot < BATTLE_CURSOR_OFFSET_X_COUNT ? battle_cursor_offset_x(g, slot) : battle_cursor_offset_x_unchecked(g, slot);
 }
+
 static inline uint8_t combatant_cursor_offset_y(const GameState *g, unsigned slot)
 {
     return slot < BATTLE_CURSOR_OFFSET_Y_COUNT ? battle_cursor_offset_y(g, slot) : battle_cursor_offset_y_unchecked(g, slot);
 }
+
 static inline uint8_t combatant_cursor_x(const GameState *g, unsigned slot)
 {
     return (uint8_t)(combatant_x(g, slot) + combatant_cursor_offset_x(g, slot));
 }
+
 static inline uint8_t combatant_cursor_y(const GameState *g, unsigned slot)
 {
     return (uint8_t)(combatant_y(g, slot) + combatant_cursor_offset_y(g, slot));
 }
-
-/* ---- Inputs to the legacy window adapters --------------------------------------------- */
-
-/* Some legacy callers pass operands through these shared work cells. */
-enum { BATTLE_WORK_CELLS = 0x80 };
 
 static inline uint16_t battle_work16(const GameState *g, uint8_t cell)
 {
     return (uint16_t)(battle_work(g, (unsigned)(cell - BATTLE_WORK_CELLS))
                       | battle_work(g, (unsigned)(cell - BATTLE_WORK_CELLS + 1)) << 8);
 }
+
 static inline void battle_leave_work8(GameState *g, uint8_t cell, uint8_t v)
 {
     set_battle_work(g, (unsigned)(cell - BATTLE_WORK_CELLS), v);
 }
+
 static inline void battle_leave_work16(GameState *g, uint8_t cell, uint16_t v)
 {
     battle_leave_work8(g, cell, (uint8_t)v);
     battle_leave_work8(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
 }
-
-
-/* The menu window drawn for the page that is open ($C1:0C2D), and the
- * cursors over the battlefield placed ($C1:17DD), as C: false where they went
- * no further. */
-bool battle_menu_window_drawn(GameState *g, Platform *pf);
-bool battle_menu_cursors_placed(GameState *g, Platform *pf);
 
 #endif

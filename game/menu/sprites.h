@@ -7,7 +7,7 @@
 #include <stdint.h>
 
 #include "menu/object.h"
-#include "snes/system.h"
+#include <stdbool.h>
 #include "state.h"
 
 /* Give an object one of the sprite scripts by its number, from its start. */
@@ -45,7 +45,6 @@ bool menu_sprite_list_can_be_drawn(const GameState *g);
 /* The menus' records' sprites (the characters on the load screen and the
  * menus' screens): the opening's seven, a record's load, and its animation a
  * frame on, or carried on; and their guards. */
-void menu_load_record_sprites(Snes *s);
 /* The same as C ($C2:F3CA): the records set up and loaded as the menus open;
  * false where a guard's state half doesn't take them, the program going no
  * further there. */
@@ -53,11 +52,6 @@ void menu_load_record_sprites(Snes *s);
  * takes it; false where the program went no further. */
 bool menu_record_sprite_loaded(GameState *g, unsigned record);
 bool menu_record_sprites_loaded(GameState *g);
-void menu_load_record_sprite(Snes *s);
-void menu_run_record_task(Snes *s);
-bool menu_record_task_is_runnable(Snes *s);
-bool menu_record_sprites_are_loadable(Snes *s);
-bool menu_record_sprite_is_loadable(Snes *s);
 
 /* A screen of the party's members: its records reset to the seven
  * characters', each still and hidden until the screen places it ($C2:F566);
@@ -90,7 +84,6 @@ MenuWeaponColours menu_weapon_colours(GameState *g, uint8_t character);
  * past the palette (for the original's code and shadow mode:
  * ORIGINAL_EFFECT; the palette's `unchecked` accessors). */
 void menu_dim_character_colours(GameState *g, uint8_t character);
-void menu_charge_colours_dimmed_past_the_palette(GameState *g, uint8_t emptied);
 
 /* A character's sprite colours put in its sprite palette, dimmed to half
  * where `dim` (a screen of the party's members dims those not chosen). */

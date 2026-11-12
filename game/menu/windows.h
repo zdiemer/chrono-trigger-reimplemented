@@ -7,7 +7,6 @@
 #include <stdint.h>
 
 #include "platform/video.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* Where something is drawn in a tilemap buffer in bank $7E: a tile's place,
@@ -18,7 +17,6 @@ enum { MENU_TILE_BYTES = 2, MENU_TILEMAP_ROW_BYTES = 0x40 };
  * windows; a tile of it by its place in the bank, as the screens name
  * their places. */
 enum { MENU_FRONT_LAYER_AT = 0x2E00 };
-static inline unsigned menu_front_tile_of(uint16_t at) { return (uint16_t)(at - MENU_FRONT_LAYER_AT) / MENU_TILE_BYTES; }
 
 /* A window's style: the tilemap word of its first tile, which says where its
  * twenty tiles start and the attribute (palette and priority) they all take. */
@@ -80,7 +78,8 @@ uint16_t menu_lay_out_strip(GameState *g, uint16_t at, uint16_t columns, uint16_
 
 /* The entries: the interpreter, each command's handler (with its guard), and
  * the drawing other screens call. */
-bool menu_palette_change_counts(Snes *s);
 bool menu_palette_changes_have_room(const GameState *g);
+
+static inline unsigned menu_front_tile_of(uint16_t at) { return (uint16_t)(at - MENU_FRONT_LAYER_AT) / MENU_TILE_BYTES; }
 
 #endif

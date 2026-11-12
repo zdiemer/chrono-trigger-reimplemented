@@ -4,7 +4,8 @@
 #define CT_GAME_MENU_SAVE_SCREEN_H
 
 #include "platform/platform.h"
-#include "snes/system.h"
+#include <stdbool.h>
+#include <stdint.h>
 #include "state.h"
 
 /* The load screen has a row to show (a slot with a game, or the fourth row),
@@ -25,32 +26,16 @@ void menu_put_slot_rows_effect(GameState *g);
  * era label, its members' rows and portraits ($C2:D36C). */
 void menu_draw_the_slot_shown(GameState *g, Platform *pf);
 
-void menu_read_save_slots(Snes *s);
 /* The same as C ($C2:D156): the three slots read as the menus open; false
  * where a guard's state half doesn't take a slot, the program going no
  * further there. */
 bool menu_save_slots_read(GameState *g, Platform *pf);
-void menu_read_slot_summary(Snes *s);
 /* A slot's summary read back once its game is saved ($C2:D19F), as C; false
  * where its guard's state half doesn't take it, the program going no
  * further there. */
 bool menu_slot_summary_read_back(GameState *g, Platform *pf);
-void menu_read_design_and_chapter(Snes *s);
-void menu_draw_chapter_label(Snes *s);
 /* The empty slot's label drawn in the place of the slot shown's, as C;
  * false where the program went no further. */
 bool menu_draw_empty_label(GameState *g);
-void menu_draw_slot_name(Snes *s);
-void menu_show_save_slot(Snes *s);
-void menu_move_among_the_slots(Snes *s);
-
-bool menu_save_slots_are_readable(Snes *s);
-bool menu_slot_labels_are_drawable(Snes *s);
-bool menu_chapter_label_is_drawable(Snes *s);
-bool menu_slot_summary_is_readable(Snes *s);
-bool menu_save_slots_are_showable(Snes *s);
-bool menu_slot_under_the_cursor_is_showable(Snes *s);
-
-void menu_draw_empty_label_entry(Snes *s);
 
 #endif

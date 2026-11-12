@@ -77,13 +77,6 @@ class TestChecks(unittest.TestCase):
         self.assertTrue(self.hits("sign-bit-compare", "if (!((uint16_t)(x - LIMIT) & 0x8000))\n"))
         self.assertFalse(self.hits("sign-bit-compare", "if ((int16_t)(x - LIMIT) < 0)\n"))
 
-    def test_a_call_out_into_one_of_our_own_ports(self):
-        entries = {0xC20553: "menu_draw_window"}
-        self.assertTrue(portsmell.sibling_through_machine(
-            "game/menu/display.c", "m_jsr(s, 0xC2053E, 0xC20553);\n", entries))
-        self.assertFalse(portsmell.sibling_through_machine(
-            "game/menu/display.c", "m_jsr(s, 0xC2053E, 0xC29999);\n", entries))
-
     def test_stale_provenance(self):
         self.assertTrue(self.hits("stale-provenance", '# source = "game/battle/gone.c"\n', "re/ram.toml"))
         self.assertFalse(self.hits("stale-provenance", '# source = "tools/portsmell.py"\n', "re/ram.toml"))

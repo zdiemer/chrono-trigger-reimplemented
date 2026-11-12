@@ -173,7 +173,6 @@ static Step head_for(GameState *g, unsigned enemy, uint8_t heading)
     keep_heading(g, enemy, heading);
     Step step = step_along(g, heading, STEP_LENGTH);
     face_heading(g, enemy, heading);
-    charge_machine_accesses(g, 3);
     return step;
 }
 
@@ -273,7 +272,6 @@ static void charge(GameState *g, unsigned enemy)
         stop_to_act(g, enemy);
     /* with its way free the original adds the enemies' first slot to the slot
      * the boxes' test handed back, not to the enemy, and leaves that */
-    charge_machine_accesses(g, 2);
 }
 
 /* ---- Lining up ($C1:3959) ---------------------------------------------------------------- */
@@ -341,7 +339,6 @@ static uint8_t heading_for_spot(GameState *g, unsigned enemy, uint8_t distance)
     set_battle_enemy_spot_x(g, enemy, spot.x);
     set_battle_enemy_spot_y(g, enemy, spot.y);
     SpotSide side = side_of_spot(at, spot);
-    charge_machine_accesses(g, 3);
     return short_of_spot(side, away) ? away : (uint8_t)(away + HALF_TURN);
 }
 
@@ -360,7 +357,6 @@ enum { SPOT_BOX_ROW = 11 };
 static bool at_spot(GameState *g, unsigned enemy, uint16_t reach)
 {
     BattlePoint spot = spot_of(g, enemy);
-    charge_machine_accesses(g, 2);
     return battle_box_within_reach_of(g, (uint8_t)slot_of(enemy), spot, reach);
 }
 
@@ -459,8 +455,7 @@ static void circle(GameState *g, unsigned enemy, uint8_t animation)
  * loop is 32 pixels high and 64 wide, half that high for the small one; a
  * blocked weave jumps back round the loop and turns the other way. */
 enum { WEAVE_SMALL = 0x0A, WEAVE_THROUGH = 0x0C };
-enum { WEAVE_HOME_BELOW = 16, WEAVE_START = 0xC0, WEAVE_STEP = 0x10, WEAVE_HEIGHT = 0x20, WEAVE_SMALL_HEIGHT = 0x10,
-       WEAVE_WIDER_BY = 0x20, WEAVE_JUMP = 0x58, WEAVE_SMALL_JUMP = 0x30 };
+enum { WEAVE_HOME_BELOW = 16, WEAVE_START = 0xC0, WEAVE_STEP = 0x10, WEAVE_HEIGHT = 0x20, WEAVE_SMALL_HEIGHT = 0x10, WEAVE_WIDER_BY = 0x20, WEAVE_JUMP = 0x58, WEAVE_SMALL_JUMP = 0x30 };
 
 static void start_weave(GameState *g, unsigned enemy, BattlePoint at)
 {
@@ -478,7 +473,6 @@ static BattlePoint next_on_loop(GameState *g, unsigned enemy, bool small)
     uint8_t angle = (uint8_t)(battle_enemy_weave_angle(g, enemy) + (back ? -WEAVE_STEP : WEAVE_STEP));
     set_battle_enemy_weave_angle(g, enemy, angle);
     uint8_t height = small ? WEAVE_SMALL_HEIGHT : WEAVE_HEIGHT;
-    charge_machine_accesses(g, 1);
     int8_t down = battle_along(g, angle, height);
     int8_t across = battle_along(g, (uint8_t)(angle + QUARTER_TURN), (uint8_t)(height + WEAVE_WIDER_BY));
     BattlePoint home = { battle_enemy_weave_home_x(g, enemy), battle_enemy_weave_home_y(g, enemy) };
@@ -510,7 +504,6 @@ static void weave(GameState *g, unsigned enemy, uint8_t animation)
         return;
     }
     uint8_t jump = small ? WEAVE_SMALL_JUMP : WEAVE_JUMP;
-    charge_machine_accesses(g, 1);
     bool back = battle_enemy_weave_back(g, enemy);
     uint8_t angle = battle_enemy_weave_angle(g, enemy);
     set_battle_enemy_weave_angle(g, enemy, (uint8_t)(back ? angle + jump : angle - jump));
@@ -598,6 +591,4 @@ void battle_move_enemy(GameState *g, unsigned enemy, EnemyMovement movement, uin
     case MOVEMENT_TO_THE_MIDDLE: make_for_the_middle(g, enemy); break;
     default: return;
     }
-    if (movement != MOVEMENT_WAIT_FOR_TARGET)
-        charge_machine_accesses(g, 2);
 }

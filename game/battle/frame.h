@@ -35,7 +35,6 @@
 
 #include "battle/frame_data.h"
 #include "platform/platform.h"
-#include "snes/system.h"
 #include "state.h"
 #include "vars.h"
 
@@ -53,8 +52,7 @@ void battle_lay_the_lines_out_again(GameState *g);
  * or sliding out; a slide takes the window's 23 lines a line a frame. */
 enum { BATTLE_SLIDE_STILL = 0, BATTLE_SLIDE_STARTING_IN = 0xFF, BATTLE_SLIDE_OUT = 0x80 };
 void battle_start_the_slide(GameState *g, uint8_t slide);
-// $CD:0534
-static inline bool battle_window_sliding(const GameState *g) { return battle_window_slide_frames(g) != 0; }
+
 /* ---- scroll.c ------------------------------------------------------------------------------ */
 
 /* How the layers are scrolled: steady, or BG3 where screen script channel 0
@@ -81,7 +79,6 @@ void battle_scroll_layers(GameState *g, BattleScrollMode mode);
 /* The frame work's scroll, in whichever mode the battle is in (the call to the
  * original's dispatch where A's high byte, which it indexes with, isn't
  * clear). False where the call didn't come back as the battle runs. */
-bool battle_scroll_the_layers(Snes *s);
 
 /* This frame's screen shake, across and down, put on the layers it moves;
  * and the palette presets a screen effect asked for, started. */
@@ -93,7 +90,6 @@ void battle_shake_screen(GameState *g);
 void battle_send_palette(Platform *pf);
 /* The VRAM transfer a routine queued for the next frame, if one is. */
 void battle_send_queued_transfer(GameState *g, Platform *pf);
-void battle_send_vram_and_wait(Snes *s);
 /* A block of tiles a routine asked for, and half of a battle message's tiles
  * (or of the VRAM they go to, cleared). */
 void battle_send_block_and_message_tiles(GameState *g, Platform *pf);
@@ -136,7 +132,6 @@ void battle_ripple_background(GameState *g);
 /* What the arrangement's block moves leave of the registers, for the
  * original's code after it: A clear, and Y just past the window's second
  * table. */
-void battle_leave_arrangement_registers(Snes *s);
 
 /* ---- frame.c ------------------------------------------------------------------------------- */
 
@@ -168,7 +163,6 @@ void battle_fade_battlefield_layer(GameState *g, bool back_in);
  * (closing.c), and an enemy leaving on its family's or its rule's
  * (beaten_enemies.c). The load is the call at `site`, the battlefield in X,
  * a word, as the caller's TAX leaves it. */
-bool battle_load_and_run_battlefield_on_the_machine(Snes *s, uint32_t site, uint16_t battlefield);
 /* ... as C. */
 bool battle_load_and_run_battlefield(GameState *g, Platform *pf, uint16_t battlefield);
 /* The layers' maps and scroll and the screen's settings below the split, as
@@ -181,9 +175,6 @@ void battle_take_the_start_settings(GameState *g);
  * has; what the frame work and the frame update read in range (frame.c); the
  * scroll mode one of the four (scroll.c); the vblank
  * uploads in range, and a block of tiles apart (uploads.c). */
-bool battle_frame_dispatch_ready(Snes *s);
-bool battle_frame_work_ready(Snes *s);
-bool battle_frame_update_ready(Snes *s);
 
 /* ---- As C (frame.c, display.c) ---------------------------------------------------------------- */
 
@@ -212,5 +203,8 @@ bool battle_frame_stepped(GameState *g, Platform *pf);
 /* The layers' scroll for the frame by the battle's scroll mode ($CD:06B4,
  * battle/scroll.c), as C; the mode one the table has. */
 void battle_scroll_by_the_mode(GameState *g);
+
+// $CD:0534
+static inline bool battle_window_sliding(const GameState *g) { return battle_window_slide_frames(g) != 0; }
 
 #endif

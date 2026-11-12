@@ -3,7 +3,8 @@
 #ifndef CT_GAME_MENU_TEXT_H
 #define CT_GAME_MENU_TEXT_H
 
-#include "snes/system.h"
+#include <stdbool.h>
+#include <stdint.h>
 #include "state.h"
 
 /* Draw the string at `string` (a 24-bit address: the ROM's strings, or names

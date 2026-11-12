@@ -81,7 +81,6 @@ bool rewards_reach_level(GameState *g, Grower who, uint8_t member, uint16_t *pot
         set_battle_reward_flags(g, battle_reward_flags(g) | REWARD_EXPERIENCE);
         if (grower_level(g, who) >= TOP_LEVEL) {
             *pot = 0;
-            charge_machine_accesses(g, 1);
             return false;
         }
         uint16_t left = record_word(g, who, STAT_EXPERIENCE_LEFT);
@@ -100,7 +99,6 @@ bool rewards_reach_level(GameState *g, Grower who, uint8_t member, uint16_t *pot
     }
     if (grower_level(g, who) >= TOP_LEVEL)
         set_record_word(g, who, STAT_EXPERIENCE_LEFT, 0);
-    charge_machine_accesses(g, 1);
     return reached;
 }
 
@@ -114,17 +112,6 @@ static uint8_t growth_step_for(const GameState *g, uint8_t character, uint8_t le
     return n;
 }
 
-/* The original finds the step by its place in the character's bytes, and
- * leaves the place and its count of the steps' bytes behind. */
-static void leave_step_found(GameState *g, uint8_t character, uint8_t step)
-{
-
-    (void)character;
-    (void)step;
-        charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
-}
-
 // $C1:F871
 /* A level grows the record's maximum HP and MP by its character's steps. */
 void rewards_grow_hp_and_mp(GameState *g, Grower who)
@@ -136,7 +123,6 @@ void rewards_grow_hp_and_mp(GameState *g, Grower who)
     uint8_t mp_step = growth_step_for(g, character, level, mp_growth_step);
     uint16_t mp = (uint16_t)(record_word(g, who, STAT_MAX_MP) + mp_growth_step(g, character, mp_step).gain);
     set_record_word(g, who, STAT_MAX_MP, mp >= MOST_MAX_MP ? MOST_MAX_MP : mp);
-    leave_step_found(g, character, mp_step);
 }
 
 /* A record's stats, from STAT_BASE_STATS, and their values at the first
@@ -185,7 +171,6 @@ static void grow_stats(GameState *g, Grower who)
     uint8_t character = grower_character(g, who);
     /* the original finds the rates by multiplying, and keeps their place */
     TIMED_AS(g, MULTIPLY_WORDS, battle_leave_multiply(g, character, STAT_GROWTH_RATES));
-    charge_machine_accesses(g, 2);
     for (unsigned n = 0; n < sizeof stats_grown / sizeof stats_grown[0]; n++)
         set_record_byte(g, who, STAT_BASE_STATS + stats_grown[n].stat, grown_stat(g, who, character, stats_grown[n].rate));
     for (unsigned stat = 0; stat < STATS; stat++)
@@ -207,25 +192,11 @@ void rewards_level_up(GameState *g, Grower who, uint8_t member, uint16_t *pot)
     grow_stats(g, who);
 }
 
-/* ---- Sharing it out ---------------------------------------------------------------------- */
-
-/* The original keeps where the record growing is, with the other two
- * members' blocks after it. */
-static void leave_record_growing(GameState *g, Grower who)
-{
-    charge_machine_accesses(g, 2);
-    if (who.in_reserve)
-        return;
-    for (unsigned n = 1; n < BATTLE_GROWTH_RECORD_PLACES_COUNT; n++)
-        charge_machine_accesses(g, 2);
-}
-
 // $C1:F93E
 void battle_share_experience(GameState *g)
 {
     uint16_t won = battle_experience_won(g);
-    bool grown = false;
-    Grower last = grower_member(0);
+
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         set_battle_rewards_levels_gained(g, member, 0);
         if (battle_combatant_fighting(g, member) & OUT_OF_FIGHT)
@@ -238,11 +209,8 @@ void battle_share_experience(GameState *g)
         do
             TIMED_AS(g, 0xC1F623, rewards_level_up(g, who, member, &pot));
         while (pot != 0 && !knocked_out(g, who));
-        grown = true;
-        last = who;
+
     }
-    if (grown)
-        leave_record_growing(g, last);
     TIMED_AS(g, 0xC1F205, rewards_learn_techs(g));
     TIMED_AS(g, 0xC1F9EB, rewards_share_with_reserve(g));
 }
@@ -260,8 +228,7 @@ void rewards_share_with_reserve(GameState *g)
      * combatant's status script seen, which the next fight's start clears
      * again (TODO.md) */
     set_battle_status_script_seen(g, 0, 0);
-    bool shared = false;
-    uint8_t last = 0;
+
     for (uint8_t character = 0; character < SETUP_CHARACTERS; character++) {
         if (!character_in_reserve(g, character))
             continue;
@@ -274,15 +241,10 @@ void rewards_share_with_reserve(GameState *g)
         TIMED_AS(g, DIVIDE_LONG, share = (uint16_t)battle_divide_leftover(g, (uint16_t)scaled, RESERVE_SHARE_OF).quotient);
         TIMED_AS(g, 0xC1F908, rewards_gain_experience(g, who, share));
         TIMED_AS(g, 0xC1F623, rewards_level_up(g, who, REWARDS_RESERVE, &share));
-        shared = true;
-        last = character;
+
     }
-    if (shared)
-        leave_record_growing(g, grower_in_reserve(last));
     /* the original shifts the joined bits through a cell of its own as it
      * counts the characters in another */
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
 }
 
 /* ---- Gold instead ------------------------------------------------------------------------ */

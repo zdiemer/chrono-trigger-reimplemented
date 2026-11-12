@@ -22,7 +22,6 @@
 #include "scene/scene.h"
 
 #include "charge.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
@@ -72,8 +71,6 @@ static void close_lines(GameState *g, const Circle *c, int first_line, int lines
  * past it -- the pattern of closed lines, on into whatever follows the table.
  * Nothing reads them as lines; they are written as the original writes them. */
 enum { SPILL_BYTES = 3 };
-
-
 
 /* ---- The outline ---------------------------------------------------------------------------- */
 
@@ -165,12 +162,6 @@ static void draw_lower_half(GameState *g, const Circle *c, int lines, int step)
     }
 }
 
-
-
-
-
-
-
 // $C3:0077
 static void draw_circle(GameState *g, uint8_t mode)
 {
@@ -178,13 +169,10 @@ static void draw_circle(GameState *g, uint8_t mode)
                  (int16_t)(scene_circle_radius(g) & 0xFF),
                  (scene_circle_table_bank(g) & 1) ? SCENE_UPPER_WORK_RAM : SCENE_LOWER_WORK_RAM, scene_circle_table(g), 0 };
     c.center_row = line_at(&c, c.center_y);
-    charge_machine_accesses(g, 6);
 
     if (c.radius == 0) {
         close_lines(g, &c, 0, LINES);
-        charge_machine_accesses(g, SPILL_BYTES);
         charge_block_move(g, SPILL_BYTES);
-        charge_machine_accesses(g, 2);
         return;
     }
 
@@ -200,10 +188,8 @@ static void draw_circle(GameState *g, uint8_t mode)
         height = c.radius / 2;
         break;
     default:
-        charge_machine_accesses(g, 8);
         return;
     }
-
 
     if (!(mode & SCENE_CIRCLE_KEEPS_OUTSIDE)) {
         /* close the lines below the circle, from its last line on; with only
@@ -223,7 +209,6 @@ static void draw_circle(GameState *g, uint8_t mode)
 
         }
     }
-    charge_machine_accesses(g, 8);
 }
 
 /* The iris as a C call, for the menus' sprite objects, which draw one. */

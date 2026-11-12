@@ -3,7 +3,8 @@
 #define CT_GAME_CORE_TILE_ANIMATION_H
 
 #include "platform/platform.h"
-#include "snes/system.h"
+#include <stdbool.h>
+#include <stdint.h>
 #include "state.h"
 
 /* Start the animated tiles of the current location's tile set. */
@@ -13,11 +14,5 @@ void tile_animations_load(GameState *g);
  * sent, as the line handlers do after the picture ($FD:E022). */
 void tile_animations_send(GameState *g, Platform *pf);
 enum { TILE_ANIMATIONS_SEND_ENTRY = 0xFDFFFD };
-/* The send as a still-gated line handler's machine path runs it, under the
- * original's call (core/machine_forms.c), and its contract: 8-bit A, 16-bit
- * index registers, binary arithmetic, and no slot reading its tiles from where
- * the original's saves go on the stack. */
-void tile_animation_upload(Snes *s);
-bool tile_animation_upload_runs(Snes *s);
 
 #endif

@@ -5,7 +5,7 @@
 
 #include <stdbool.h>
 
-#include "snes/system.h"
+#include <stdint.h>
 #include "platform/platform.h"
 #include "state.h"
 
@@ -20,12 +20,6 @@ void field_hand_over_to_a_battle(GameState *g);
  * further there. */
 typedef enum { FIELD_BATTLE_SET, FIELD_NO_BATTLE, FIELD_BATTLE_START_STOPPED } FieldBattleStart;
 FieldBattleStart field_battle_set_up(GameState *g, Platform *pf);
-void field_battle_begins(Snes *s);
-bool field_battle_can_begin(Snes *s);
-void field_after_battle(Snes *s);
-bool field_can_take_up_after_battle(Snes *s);
 enum { FIELD_BATTLE_BEGINS_ENTRY = 0xC0024C, FIELD_AFTER_BATTLE_ENTRY = 0xC00283 };
-
-void field_no_battle_returns(Snes *s);
 
 #endif

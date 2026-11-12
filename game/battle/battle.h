@@ -15,46 +15,18 @@
 #include "vars.h"
 
 /* The combatants, by battle slot. */
-enum { BATTLE_PARTY_SIZE = 3, BATTLE_ENEMIES = 8, BATTLE_COMBATANTS = BATTLE_PARTY_SIZE + BATTLE_ENEMIES,
-       BATTLE_FIRST_ENEMY = BATTLE_PARTY_SIZE };
-
-static inline bool battle_slot_is_party(unsigned slot) { return slot < BATTLE_PARTY_SIZE; }
-
-/* How the next jump to the script's point lifts (battle/script_moves.c) is
- * whatever the battle's shared work cell holds when it starts: the work of
- * other routines lands there too -- the animation slots' places each frame,
- * the tech list's last tech, an area search's side, a blink's place in the
- * other targets' list, a walk's way back -- and the jump lifts by what the
- * last of them left. Each leaves its value through here, as game state. */
-static inline void battle_leave_jump_lift(GameState *g, uint8_t lift) { set_battle_jump_lift(g, lift); }
+enum { BATTLE_PARTY_SIZE = 3, BATTLE_ENEMIES = 8, BATTLE_COMBATANTS = BATTLE_PARTY_SIZE + BATTLE_ENEMIES, BATTLE_FIRST_ENEMY = BATTLE_PARTY_SIZE };
 
 /* An enemy marked (in its placement's kind) to stay on the field after the
  * battle: beaten, it stays where it is (battle/beaten_enemies.c), and the
  * field keeps it, taking away an enemy whose kind is left 0
  * (battle/battle_end.c). */
 enum { BATTLE_ENEMY_STAYS_ON_THE_FIELD = 0x40 };
-static inline bool battle_enemy_stays_on_the_field(const GameState *g, unsigned enemy)
-{
-    return (battle_enemy_placement_kind(g, enemy) & BATTLE_ENEMY_STAYS_ON_THE_FIELD) != 0;
-}
-
-/* An object whose sprites carry attribute bits of their own (their priority
- * over the battlefield's layers) is drawn among them; one whose bits an effect
- * took away (battle/screen_specials.c) no longer is, and a beaten enemy that
- * isn't drawn simply leaves its place (battle/beaten_enemies.c). */
-static inline bool battle_object_drawn_on_the_battlefield(const GameState *g, unsigned slot)
-{
-    return battle_object_attribute_bits(g, slot) != 0;
-}
 
 /* An enemy whose family (battle_enemy_family_bits) has it change the
  * battlefield as it leaves the fight, beaten, rather than dissolve
  * (battle/fight_enemies.c notes it, battle/beaten_enemies.c acts on it). */
 enum { BATTLE_FAMILY_CHANGES_THE_BATTLEFIELD = 0x01 };
-static inline bool battle_enemy_changes_the_battlefield(const GameState *g, unsigned enemy)
-{
-    return (battle_enemy_family_bits(g, enemy) & BATTLE_FAMILY_CHANGES_THE_BATTLEFIELD) != 0;
-}
 
 /* The top bit of a party slot's character marks it empty, and of a
  * character's party slot (battle_character_slot) marks the character out of
@@ -71,8 +43,6 @@ typedef enum {
     BATTLE_DEFEATED = 1,
     BATTLE_BACK_TO_THE_PLACE_PUT_ASIDE = 2,
 } BattleResult;
-static inline BattleResult battle_how_it_ended(const GameState *g) { return (BattleResult)battle_result(g); }
-static inline void battle_ends(GameState *g, BattleResult result) { set_battle_result(g, (uint8_t)result); }
 
 /* The terms the event that starts a battle sets it (battle_event_flags,
  * event $D8's second operand, event/locations.c): the party left where it
@@ -80,12 +50,7 @@ static inline void battle_ends(GameState *g, BattleResult result) { set_battle_r
  * fight (battle/closing.c, field/sounds.c); and a defeat that doesn't end the
  * game, the field going on, with its music, as after any other battle
  * (field/battle_return.c, field/sounds.c). */
-enum {
-    BATTLE_TERMS_PARTY_STAYS_PUT = 0x80,
-    BATTLE_TERMS_KEEP_THE_FIELD_SONG = 0x40,
-    BATTLE_TERMS_DEFEAT_GOES_ON = 0x20,
-};
-static inline bool battle_terms(const GameState *g, uint8_t term) { return (battle_event_flags(g) & term) != 0; }
+enum { BATTLE_TERMS_PARTY_STAYS_PUT = 0x80, BATTLE_TERMS_KEEP_THE_FIELD_SONG = 0x40, BATTLE_TERMS_DEFEAT_GOES_ON = 0x20,  };
 
 /* An enemy's rule (battle_enemy_rule): its number in the low seven bits (0
  * none); the top bit is set once a script lifts the hold the rule's color
@@ -101,14 +66,10 @@ enum { BATTLE_STAT_BLOCK_BYTES = 0x80 };
 
 /* How the battle was set up (battle_setup_flags; the vblank keeps a copy,
  * battle_setup_flags_copy). */
-enum {
-    BATTLE_SETUP_NO_VICTORY_POSE = 0x01, /* the party strikes no pose as it wins */
+enum { BATTLE_SETUP_NO_VICTORY_POSE = 0x01, /* the party strikes no pose as it wins */
     BATTLE_SETUP_PARTY_OFF_GRID = 0x04, /* the party stands off the battlefield's grid */
-    BATTLE_SETUP_DEMO = 0x20,           /* a demo battle: the party acts at once, and any button ends it */
-    BATTLE_SETUP_NO_RUNNING = 0x80,     /* L and R held don't run away */
-};
-
-static inline bool battle_is_demo(const GameState *g) { return (battle_setup_flags(g) & BATTLE_SETUP_DEMO) != 0; }
+    BATTLE_SETUP_DEMO = 0x20, /* a demo battle: the party acts at once, and any button ends it */
+    BATTLE_SETUP_NO_RUNNING = 0x80, /* L and R held don't run away */ };
 
 /* The action the effect code carries out: its flags' critical hit
  * (battle_action_flags), and its extra byte's miss (battle_action_extra),
@@ -139,13 +100,7 @@ typedef enum {
  * the member is in choosing (battle_member_ready keeps it once chosen):
  * nothing yet, its command menu open, its action waiting its turn to be
  * carried out, an action chosen. The record is seven bytes. */
-enum {
-    MEMBER_NO_ACTION = 0,
-    MEMBER_MENU_OPEN = 0x01,
-    MEMBER_ACTION_WAITING = 0x40,
-    MEMBER_ACTION_CHOSEN = 0x80,
-    MEMBER_ACTION_RECORD_BYTES = 7,
-};
+enum { MEMBER_NO_ACTION = 0, MEMBER_MENU_OPEN = 0x01, MEMBER_ACTION_WAITING = 0x40, MEMBER_ACTION_CHOSEN = 0x80, MEMBER_ACTION_RECORD_BYTES = 7,  };
 
 /* Its choice: the
  * first set of these bits decides what the member does; bit 4, whose meaning
@@ -155,9 +110,6 @@ enum {
  * partners at all. */
 enum { CHOSE_AN_ATTACK = 0x80, CHOSE_AN_ITEM = 0x40, CHOSE_A_TECH = 0x20, CHOICE_HELD = 0x10 };
 enum { NO_PARTNER = 0x0F, NO_PARTNERS = 0xFF };
-
-static inline uint8_t first_partner(uint8_t partners) { return partners & 0x0F; }
-static inline uint8_t second_partner(uint8_t partners) { return (uint8_t)(partners >> 4); }
 
 /* The action stops at its first target (battle_action_state): an attack. */
 enum { ACTION_STOPS_AT_FIRST = 0x02 };
@@ -173,39 +125,6 @@ void battle_clear_numbers_shown(GameState *g);
 /* The battlefield's objects: the combatants' are the eleven from $0C on, in
  * battle slot order. */
 enum { BATTLE_FIRST_COMBATANT_OBJECT = 0x0C };
-
-static inline unsigned battle_object_of(unsigned slot) { return BATTLE_FIRST_COMBATANT_OBJECT + slot; }
-
-/* Where a combatant stands. Positions on the battlefield are a byte each,
- * which wraps. A slot past the combatants (no battle names one) reads on into
- * the objects after, as the original's indexed reads do. */
-static inline uint8_t combatant_x(const GameState *g, unsigned slot)
-{
-    unsigned object = battle_object_of(slot);
-    return object < BATTLE_OBJECT_X_COUNT ? battle_object_x(g, object) : battle_object_x_unchecked(g, object);
-}
-static inline uint8_t combatant_y(const GameState *g, unsigned slot)
-{
-    unsigned object = battle_object_of(slot);
-    return object < BATTLE_OBJECT_Y_COUNT ? battle_object_y(g, object) : battle_object_y_unchecked(g, object);
-}
-
-/* ---- The direct page's working cells (battle_low_scratch) --------------------------------- */
-
-/* Shared input cells still read by the battle's called adapters. */
-static inline void battle_leave_byte(GameState *g, unsigned at, uint8_t v) { set_battle_low_scratch(g, at, v); }
-static inline void battle_leave_word(GameState *g, unsigned at, uint16_t v)
-{
-    set_battle_low_scratch(g, at, (uint8_t)v);
-    set_battle_low_scratch(g, at + 1, (uint8_t)(v >> 8));
-}
-
-/* A word in the cells, as an entry takes an operand its caller hands it
- * there. */
-static inline uint16_t battle_cell_word(const GameState *g, unsigned at)
-{
-    return (uint16_t)(battle_low_scratch(g, at) | battle_low_scratch(g, at + 1) << 8);
-}
 
 /* Some of them carry a value on to a later reader that takes it as game
  * input, so the enemies' scripts, their turns and the selectors keep what
@@ -239,14 +158,83 @@ static inline uint16_t battle_cell_word(const GameState *g, unsigned at)
  *     stat blocks' places points, which can be these cells, so the
  *     conditions that read candidates' stats keep what they write there
  *     before and while they read. */
-enum {
-    BATTLE_CLOCK_READS = 0x00,
-    BATTLE_MEMBER_CELL = 0x06,
-    BATTLE_NUMBER_TESTED = 0x08,
-    BATTLE_STAT_OFFSET_LOW = 0x0A,
-    BATTLE_STAT_OFFSET_HIGH = 0x0B,
-    BATTLE_TECH_HITS_LEFT = 0x0E,
-};
+enum { BATTLE_CLOCK_READS = 0x00, BATTLE_MEMBER_CELL = 0x06, BATTLE_NUMBER_TESTED = 0x08, BATTLE_STAT_OFFSET_LOW = 0x0A, BATTLE_STAT_OFFSET_HIGH = 0x0B, BATTLE_TECH_HITS_LEFT = 0x0E,  };
+
+static inline bool battle_slot_is_party(unsigned slot) { return slot < BATTLE_PARTY_SIZE; }
+
+/* How the next jump to the script's point lifts (battle/script_moves.c) is
+ * whatever the battle's shared work cell holds when it starts: the work of
+ * other routines lands there too -- the animation slots' places each frame,
+ * the tech list's last tech, an area search's side, a blink's place in the
+ * other targets' list, a walk's way back -- and the jump lifts by what the
+ * last of them left. Each leaves its value through here, as game state. */
+static inline void battle_leave_jump_lift(GameState *g, uint8_t lift) { set_battle_jump_lift(g, lift); }
+
+static inline bool battle_enemy_stays_on_the_field(const GameState *g, unsigned enemy)
+{
+    return (battle_enemy_placement_kind(g, enemy) & BATTLE_ENEMY_STAYS_ON_THE_FIELD) != 0;
+}
+
+/* An object whose sprites carry attribute bits of their own (their priority
+ * over the battlefield's layers) is drawn among them; one whose bits an effect
+ * took away (battle/screen_specials.c) no longer is, and a beaten enemy that
+ * isn't drawn simply leaves its place (battle/beaten_enemies.c). */
+static inline bool battle_object_drawn_on_the_battlefield(const GameState *g, unsigned slot)
+{
+    return battle_object_attribute_bits(g, slot) != 0;
+}
+
+static inline bool battle_enemy_changes_the_battlefield(const GameState *g, unsigned enemy)
+{
+    return (battle_enemy_family_bits(g, enemy) & BATTLE_FAMILY_CHANGES_THE_BATTLEFIELD) != 0;
+}
+
+static inline BattleResult battle_how_it_ended(const GameState *g) { return (BattleResult)battle_result(g); }
+
+static inline void battle_ends(GameState *g, BattleResult result) { set_battle_result(g, (uint8_t)result); }
+
+static inline bool battle_terms(const GameState *g, uint8_t term) { return (battle_event_flags(g) & term) != 0; }
+
+static inline bool battle_is_demo(const GameState *g) { return (battle_setup_flags(g) & BATTLE_SETUP_DEMO) != 0; }
+
+static inline uint8_t first_partner(uint8_t partners) { return partners & 0x0F; }
+
+static inline uint8_t second_partner(uint8_t partners) { return (uint8_t)(partners >> 4); }
+
+static inline unsigned battle_object_of(unsigned slot) { return BATTLE_FIRST_COMBATANT_OBJECT + slot; }
+
+/* Where a combatant stands. Positions on the battlefield are a byte each,
+ * which wraps. A slot past the combatants (no battle names one) reads on into
+ * the objects after, as the original's indexed reads do. */
+static inline uint8_t combatant_x(const GameState *g, unsigned slot)
+{
+    unsigned object = battle_object_of(slot);
+    return object < BATTLE_OBJECT_X_COUNT ? battle_object_x(g, object) : battle_object_x_unchecked(g, object);
+}
+
+static inline uint8_t combatant_y(const GameState *g, unsigned slot)
+{
+    unsigned object = battle_object_of(slot);
+    return object < BATTLE_OBJECT_Y_COUNT ? battle_object_y(g, object) : battle_object_y_unchecked(g, object);
+}
+
+/* ---- The direct page's working cells (battle_low_scratch) --------------------------------- */
+
+/* Shared input cells still read by the battle's called adapters. */
+static inline void battle_leave_byte(GameState *g, unsigned at, uint8_t v) { set_battle_low_scratch(g, at, v); }
+
+static inline void battle_leave_word(GameState *g, unsigned at, uint16_t v)
+{
+    set_battle_low_scratch(g, at, (uint8_t)v);
+    set_battle_low_scratch(g, at + 1, (uint8_t)(v >> 8));
+}
+
+/* A word in the cells, as an entry takes an operand its caller hands it
+ * there. */
+static inline uint16_t battle_cell_word(const GameState *g, unsigned at)
+{
+    return (uint16_t)(battle_low_scratch(g, at) | battle_low_scratch(g, at + 1) << 8);
+}
 
 static inline void battle_keep_byte(GameState *g, unsigned at, uint8_t v) { set_battle_low_scratch(g, at, v); }
 
@@ -256,13 +244,16 @@ static inline uint16_t battle_clock_word(const GameState *g)
 {
     return (uint16_t)(battle_low_scratch(g, BATTLE_CLOCK_READS) | battle_low_scratch(g, BATTLE_CLOCK_READS + 1) << 8);
 }
+
 static inline void battle_keep_word(GameState *g, unsigned at, uint16_t v) { battle_leave_word(g, at, v); }
 
 /* A word kept at $0A-$0B, whose high byte is the stat offset's. */
 static inline void battle_keep_stat_offset_word(GameState *g, uint16_t v) { battle_keep_word(g, BATTLE_STAT_OFFSET_LOW, v); }
+
 static inline uint8_t battle_stat_offset_high(const GameState *g) { return battle_low_scratch(g, BATTLE_STAT_OFFSET_HIGH); }
 
 static inline void battle_keep_tech_hits_left(GameState *g, uint8_t v) { set_battle_low_scratch(g, BATTLE_TECH_HITS_LEFT, v); }
+
 static inline uint8_t battle_tech_hits_left(const GameState *g) { return battle_low_scratch(g, BATTLE_TECH_HITS_LEFT); }
 
 #endif

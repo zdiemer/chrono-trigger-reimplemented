@@ -61,7 +61,6 @@ void battle_raise_numbers(GameState *g)
     set_battle_numbers_row(g, (uint8_t)(row + 1));
     for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++)
         raise_number(g, slot, battle_number_rise(g, slot));
-    charge_machine_accesses(g, 1);
 }
 
 /* ---- Scripted moves ------------------------------------------------------------------- */
@@ -90,7 +89,6 @@ void battle_step_scripted_moves(GameState *g)
         place_combatant_x(g, slot, (uint8_t)(combatant_x(g, slot) + battle_scripted_move_dx(g, move, step)));
         place_combatant_y(g, slot, (uint8_t)(combatant_y(g, slot) + battle_scripted_move_dy(g, move, step)));
         set_battle_path_steps(g, slot, (uint8_t)(battle_path_steps(g, slot) - 1));
-        charge_machine_accesses(g, 2);
     }
 }
 
@@ -118,7 +116,6 @@ void battle_update_anchors(GameState *g)
             place_anchor(g, (unsigned)anchor, combatant_x(g, follows), combatant_y(g, follows));
         }
     }
-    charge_machine_accesses(g, 2);
 }
 
 /* ---- Trails --------------------------------------------------------------------------- */
@@ -222,54 +219,4 @@ void battle_cycle_party_colors(GameState *g)
         at = (uint8_t)(at + CYCLE_STEP);
         set_battle_party_palette_cycle(g, (unsigned)member, at == CYCLE_END ? 0 : at);
     }
-    charge_machine_accesses(g, 2);
-}
-
-/* ---- The entries ---------------------------------------------------------------------- */
-
-/* Each runs with A's high byte 0 (the guard), which the callers read and the
- * logic leaves as it is; the rest of what the original leaves is dead
- * (the registry's don't-care sets). */
-
-void battle_raise_numbers_entry(Snes *s)
-{
-    battle_raise_numbers(state_of(s));
-    m_rts(s);
-}
-
-void battle_step_scripted_moves_entry(Snes *s)
-{
-    battle_step_scripted_moves(state_of(s));
-    m_rts(s);
-}
-
-void battle_update_anchors_entry(Snes *s)
-{
-    battle_update_anchors(state_of(s));
-    m_rts(s);
-}
-
-void battle_record_trails_entry(Snes *s)
-{
-    battle_record_trails(state_of(s));
-    m_rts(s);
-}
-
-/* The caller reads Y, which the original leaves as the last member's color
- * index when that member's colors cycled (its palette's first color, as a
- * byte offset into the palette's sprite colors), and 0 otherwise. */
-static uint16_t y_after_color_cycle(GameState *g)
-{
-    vars_peek(true);
-    uint16_t y = colors_cycle(g, 0) ? (uint8_t)(battle_object_palette(g, 0) << 4) : 0;
-    vars_peek(false);
-    return y;
-}
-
-void battle_cycle_party_colors_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    battle_cycle_party_colors(g);
-    s->cpu.y = y_after_color_cycle(g);
-    m_rts(s);
 }

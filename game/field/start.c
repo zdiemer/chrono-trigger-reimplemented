@@ -19,7 +19,6 @@
 #include "field/walk.h"
 
 #include "field/bridge.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -147,11 +146,4 @@ void field_start_state(GameState *g)
     sprites_from_scratch(g);
     usual_sounds(g);
     set_field_random_index(g, play_time_frames(g));
-}
-
-/* The field's page. Nothing it leaves in the registers is read after it. */
-void field_start(Snes *s)
-{
-    field_start_state(state_of(s));
-    m_rts(s);
 }

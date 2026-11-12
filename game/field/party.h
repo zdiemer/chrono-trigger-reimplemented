@@ -15,7 +15,6 @@
 #include <stdint.h>
 
 #include "field/object.h"
-#include "snes/system.h"
 #include "state.h"
 #include "vars.h"
 
@@ -38,16 +37,6 @@ typedef struct {
 } LeaderGround;
 enum { GROUND_CLIMB_BIT = 0x04, GROUND_MOVING_FLOOR_BIT = 0x08 };
 
-static inline GroundKind ground_kind(LeaderGround ground)
-{
-    if (ground.stored == 0)
-        return GROUND_PLAIN;
-    return (ground.stored & GROUND_CLIMB_BIT) ? GROUND_CLIMB : GROUND_MOVING_FLOOR;
-}
-static inline LeaderGround leader_ground_of(bool climb, bool moving_floor)
-{
-    return (LeaderGround){ (uint8_t)((climb ? GROUND_CLIMB_BIT : 0) | (moving_floor ? GROUND_MOVING_FLOOR_BIT : 0)) };
-}
 LeaderGround leader_ground(const GameState *g);
 void set_leader_ground(GameState *g, LeaderGround ground);
 
@@ -87,14 +76,6 @@ void count_as_on_the_move(GameState *g);
  * leader's having fidgeted is kept. */
 void party_stands_another_frame(GameState *g);
 
-/* The party as it is now taken as the one the map's characters were set up
- * for (field_party_as_loaded): the field's start, and a menu that changed it. */
-static inline void party_taken_as_loaded(GameState *g)
-{
-    for (unsigned place = 0; place < PARTY_PLACES; place++)
-        set_field_party_as_loaded(g, place, party_members(g, place));
-}
-
 /* After a battle the members catch the trail up at the leader's newest
  * footprint, the way behind it as it was (event/party.c). */
 void party_trail_catch_up(GameState *g);
@@ -111,5 +92,25 @@ bool party_trail_places_hold(const GameState *g);
 /* The registered entries (field/party_trail.c): the leader's step ($C0:9E29)
  * and each member's ($C0:A26B, $C0:A2CE), as event $B0's handler calls them,
  * with the current object the one stepping and 8-bit index registers. */
+
+static inline GroundKind ground_kind(LeaderGround ground)
+{
+    if (ground.stored == 0)
+        return GROUND_PLAIN;
+    return (ground.stored & GROUND_CLIMB_BIT) ? GROUND_CLIMB : GROUND_MOVING_FLOOR;
+}
+
+static inline LeaderGround leader_ground_of(bool climb, bool moving_floor)
+{
+    return (LeaderGround){ (uint8_t)((climb ? GROUND_CLIMB_BIT : 0) | (moving_floor ? GROUND_MOVING_FLOOR_BIT : 0)) };
+}
+
+/* The party as it is now taken as the one the map's characters were set up
+ * for (field_party_as_loaded): the field's start, and a menu that changed it. */
+static inline void party_taken_as_loaded(GameState *g)
+{
+    for (unsigned place = 0; place < PARTY_PLACES; place++)
+        set_field_party_as_loaded(g, place, party_members(g, place));
+}
 
 #endif

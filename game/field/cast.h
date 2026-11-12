@@ -15,7 +15,6 @@
 #include "field/field_data.h"
 #include "field/object.h"
 #include "platform/platform.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* The playable characters, by number: Crono, Marle, Lucca, Robo, Frog, Ayla

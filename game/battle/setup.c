@@ -22,8 +22,6 @@
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "charge.h"
-#include "holds.h"
-#include "port/machine.h"
 
 /* ---- The names --------------------------------------------------------------------------------- */
 
@@ -55,7 +53,6 @@ static void convert_enemy_names(GameState *g, LastName *last)
         last->enemy = true;
         setup_keep_enemy_name_tiles(g, kind, &last->tiles);
     }
-    setup_enemy_names_converted(g);
 }
 
 /* ---- The entries ---------------------------------------------------------------------------- */
@@ -81,13 +78,6 @@ void battle_setup_state(GameState *g)
     setup_party_objects(g);
     setup_enemies(g);
     convert_enemy_names(g, &last);
-    charge_machine_accesses(g, 3 * NAME_TILES);
-}
-
-void battle_setup_state_entry(Snes *s)
-{
-    battle_setup_state(state_of(s));
-    m_rtl(s);
 }
 
 /* It goes on to wait for the graphics to load, which reads nothing the setup
@@ -105,12 +95,6 @@ void battle_setup_graphics(GameState *g)
     setup_uploads(g);
 }
 
-void battle_setup_graphics_entry(Snes *s)
-{
-    battle_setup_graphics(state_of(s));
-    m_hold_at(s, WAIT_FOR_GRAPHICS, DC_A | DC_X | DC_Y | DC_FLAGS, HOLD_BATTLE_GRAPHICS);
-}
-
 /* ---- The guards ------------------------------------------------------------------------------- */
 
 /* The setup runs on the battle's page with its data bank, on a party, enemies
@@ -118,25 +102,4 @@ void battle_setup_graphics_entry(Snes *s)
 bool battle_setup_inputs_fit(const GameState *g)
 {
     return setup_party_is_real(g) && setup_enemies_are_real(g) && setup_remembered_cursors_real(g);
-}
-
-bool battle_setup_inputs_are_real(Snes *s)
-{
-    if (!battle_on_page(s))
-        return false;
-    vars_peek(true);
-    bool real = battle_setup_inputs_fit(state_of(s));
-    vars_peek(false);
-    return real;
-}
-
-/* ... and the graphics on combatants whose parts fit their slots. */
-bool battle_setup_parts_fit(Snes *s)
-{
-    if (!battle_on_page(s))
-        return false;
-    vars_peek(true);
-    bool fit = setup_objects_parts_fit(state_of(s));
-    vars_peek(false);
-    return fit;
 }

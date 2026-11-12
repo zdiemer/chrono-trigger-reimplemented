@@ -240,9 +240,7 @@ void chests_mark_the_map(GameState *g)
     set_field_games_chests(g, field_games_chests_start(g));
     uint16_t location_twice = (uint16_t)((location_id(g) & LOCATION_NUMBER_BITS) << 1);
     FieldChestRun run = field_location_chest_run(g, location_twice);
-    bool looked = false;
     for (unsigned pointers = 0; run.first != run.end && pointers < MOST_POINTERS; pointers++) {
-        looked = true;
         set_field_location_chests(g, run.first);
         FieldChest first = field_chest_at(g, run.first);
         if (first.tile != NO_TILE)
@@ -251,7 +249,6 @@ void chests_mark_the_map(GameState *g)
         run = field_location_chest_run(g, location_twice);
     }
     if (run.first == run.end) {
-        charge_machine_accesses(g, looked ? 4 : 2); /* final extent and any followed location */
         return;
     }
     uint16_t mask = field_map_index_mask(g);
@@ -263,9 +260,5 @@ void chests_mark_the_map(GameState *g)
             show_open(g, p);
         index++;
     }
-    if (run.first < run.end) {
-        charge_machine_accesses(g, 10); /* last chest lookup, record, count and extent */
-        charge_machine_rom_accesses(g, 1); /* the last chest's flag mask */
-    } else
-        charge_machine_accesses(g, 6); /* followed location, count and extent */
+
 }

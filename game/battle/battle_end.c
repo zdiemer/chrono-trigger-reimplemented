@@ -60,7 +60,6 @@ void battle_clear_party_statuses(GameState *g)
         set_battle_member_revive_marks(g, member, 0);
     }
     leave_last_member_acting(g);
-    charge_machine_accesses(g, 2);
 }
 
 // $C1:EAE8
@@ -70,7 +69,6 @@ void battle_stand_party_up(GameState *g)
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         set_battle_stats_condition(g, member, 0);
     leave_last_member_acting(g);
-    charge_machine_accesses(g, 2);
 }
 
 /* A character's record is a stat block's first $50 bytes. */
@@ -111,7 +109,6 @@ void battle_keep_party_records(GameState *g)
             keep_record(g, member, character);
         else
             copy_past_the_records(g, member, character);
-        charge_machine_accesses(g, 4);
     }
     /* its count of the members, kept in the cell the clock modifier reads */
     battle_keep_word(g, 0, BATTLE_PARTY_SIZE);

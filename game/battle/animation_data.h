@@ -16,11 +16,6 @@
 #include "rom.h"
 #include "state.h"
 
-/* A long pointer's bank and offset, as the game keeps it in work RAM. The
- * original indexes from the offset in 16 bits within the bank for the lists
- * below, as its [dp],Y reads and its 16-bit sums do. */
-static inline uint32_t battle_at(uint8_t bank, uint16_t offset) { return (uint32_t)bank << 16 | offset; }
-
 /* ---- The combatants' poses and frame lists ------------------------------------------------ */
 
 /* The status poses ($CC:F77F), four bytes an entry, ending in an entry whose
@@ -34,10 +29,71 @@ typedef struct {
 
 enum { BATTLE_STATUS_POSE_BYTES = 4, BATTLE_STATUS_POSES_END = 0x80 };
 
+/* ---- The animation scripts ----------------------------------------------------------------- */
+
+/* The subroutines a script calls by number ($CE:0000, a word each, in bank
+ * CE); the original doubles the number in a byte, so one of 128 or more names
+ * the one 128 below it. */
+enum { SCRIPT_SUBROUTINE_BANK = 0xCE };
+
+/* How a frame's tiles are laid out in the object's tile buffer ($CC:F3B6, 14
+ * bytes a layout): up to six rows, each at an offset from the buffer's start,
+ * of the same number of 32-byte tiles. */
+enum { BATTLE_LAYOUT_ROWS = 6, BATTLE_LAYOUT_BYTES = 14 };
+typedef struct {
+    uint16_t row_offset[BATTLE_LAYOUT_ROWS];
+    uint8_t tiles_per_row, rows;
+} BattleSpriteLayout;
+
+/* ---- The objects' palette animations ------------------------------------------------------ */
+
+/* A palette animation frame ($CD:0000, two bytes a frame from the effect's
+ * table): the color set it shows, and where (the quarter of the first sprite
+ * palette in its low bits; bit 7 for a set of seven colors rather than
+ * three). The frame's place is worked out in 16 bits from the table's. */
+typedef struct {
+    uint8_t set, place;
+} BattlePaletteFrame;
+
+/* A color of a set of three colors ($D1:4100) or of seven ($D1:4400). */
+enum { BATTLE_SMALL_SET_COLORS = 3, BATTLE_LARGE_SET_COLORS = 7 };
+
+/* A color of the sets a flash puts into the combatants' flash palette
+ * ($D1:4D90, twelve colors a set). */
+enum { BATTLE_FLASH_SET_COLORS = 12 };
+
+/* The whole record, as a frame of the effect's animation: its marks (any of
+ * them, BATTLE_EFFECT_FRAME_ENDS, makes it the animation's last) over the
+ * low bits of its sprite set, its offset from the anchor, and how many frames
+ * it shows, whose top bit is the sprite set's high bit. The record is read
+ * on past the bank's end as the original's long reads are. */
+enum { BATTLE_EFFECT_FRAME_BYTES = 4, BATTLE_EFFECT_FRAME_ENDS = 0xE0 };
+typedef struct {
+    uint8_t marks;
+    int8_t x, y;
+    uint8_t time;
+    bool high_set;
+} BattleEffectFrame;
+
+/* The runs of an enemy's tiles a dissolve goes through, two a layout ($CE:F192,
+ * eight bytes a layout): each run's first tile's place in the object's tile
+ * buffer, and how many tiles follow it a tile apart. The original's index is a
+ * byte of the layout times eight. */
+enum { BATTLE_DISSOLVE_RUNS = 2, BATTLE_DISSOLVE_LAYOUTS = 6 };
+typedef struct {
+    uint16_t first, tiles;
+} BattleTileRun;
+
+/* A long pointer's bank and offset, as the game keeps it in work RAM. The
+ * original indexes from the offset in 16 bits within the bank for the lists
+ * below, as its [dp],Y reads and its 16-bit sums do. */
+static inline uint32_t battle_at(uint8_t bank, uint16_t offset) { return (uint32_t)bank << 16 | offset; }
+
 static inline bool battle_status_pose_ends(const GameState *g, uint16_t entry)
 {
     return rom_read8(g, 0xCCF77Fu + entry * BATTLE_STATUS_POSE_BYTES) & BATTLE_STATUS_POSES_END;
 }
+
 static inline BattleStatusPose battle_status_pose(const GameState *g, uint16_t entry)
 {
     uint32_t at = 0xCCF77Fu + entry * BATTLE_STATUS_POSE_BYTES;
@@ -55,6 +111,7 @@ static inline uint8_t battle_enemy_animation_part(const GameState *g, uint8_t an
 {
     return rom_read8(g, 0xCCFB91u + animation);
 }
+
 static inline uint8_t battle_enemy_frame_time(const GameState *g, uint8_t stored)
 {
     return rom_read8(g, 0xCCFBCEu + stored);
@@ -74,12 +131,6 @@ static inline uint8_t battle_facing_of_direction(const GameState *g, uint16_t di
     return rom_read8(g, 0xC0F700u + direction);
 }
 
-/* ---- The animation scripts ----------------------------------------------------------------- */
-
-/* The subroutines a script calls by number ($CE:0000, a word each, in bank
- * CE); the original doubles the number in a byte, so one of 128 or more names
- * the one 128 below it. */
-enum { SCRIPT_SUBROUTINE_BANK = 0xCE };
 static inline uint32_t battle_script_subroutine(const GameState *g, uint8_t number)
 {
     return (uint32_t)SCRIPT_SUBROUTINE_BANK << 16 | rom_read16(g, 0xCE0000u + (uint8_t)(number * 2));
@@ -91,6 +142,7 @@ static inline uint8_t battle_script_speed_period(const GameState *g, uint8_t spe
 {
     return rom_read8(g, 0xCCF5BCu + speed);
 }
+
 static inline uint8_t battle_script_speed_steps(const GameState *g, uint8_t speed)
 {
     return rom_read8(g, 0xCCF4BCu + speed);
@@ -115,19 +167,11 @@ static inline uint16_t battle_frame_tile_list_bytes(const GameState *g, uint8_t 
 {
     return rom_read16(g, 0xCCF40Au + kind * 2u);
 }
+
 static inline uint8_t battle_frame_part_offset_bytes(const GameState *g, uint8_t kind)
 {
     return rom_read8(g, 0xCCF4FCu + kind);
 }
-
-/* How a frame's tiles are laid out in the object's tile buffer ($CC:F3B6, 14
- * bytes a layout): up to six rows, each at an offset from the buffer's start,
- * of the same number of 32-byte tiles. */
-enum { BATTLE_LAYOUT_ROWS = 6, BATTLE_LAYOUT_BYTES = 14 };
-typedef struct {
-    uint16_t row_offset[BATTLE_LAYOUT_ROWS];
-    uint8_t tiles_per_row, rows;
-} BattleSpriteLayout;
 
 static inline BattleSpriteLayout battle_sprite_layout(const GameState *g, uint16_t at)
 {
@@ -149,23 +193,16 @@ static inline uint16_t battle_object_tile_buffer(const GameState *g, unsigned ob
  * object's pointer puts it; and a byte of an object's graphics, wherever its
  * graphics set is. */
 static inline uint16_t battle_tile_list_word(const GameState *g, uint32_t at) { return rom_read16(g, at); }
+
 static inline uint8_t battle_tile_list_byte(const GameState *g, uint32_t at) { return rom_read8(g, at); }
+
 static inline uint16_t battle_sprite_graphics_word(const GameState *g, uint32_t at) { return rom_read16(g, at); }
+
 static inline uint8_t battle_sprite_graphics_byte(const GameState *g, uint32_t at) { return rom_read8(g, at); }
 
 /* Every byte with its bits in the other order ($C0:FD00): a row of a tile's
  * bit plane mirrored left to right. */
 static inline uint8_t battle_mirrored_byte(const GameState *g, uint8_t b) { return rom_read8(g, 0xC0FD00u + b); }
-
-/* ---- The objects' palette animations ------------------------------------------------------ */
-
-/* A palette animation frame ($CD:0000, two bytes a frame from the effect's
- * table): the color set it shows, and where (the quarter of the first sprite
- * palette in its low bits; bit 7 for a set of seven colors rather than
- * three). The frame's place is worked out in 16 bits from the table's. */
-typedef struct {
-    uint8_t set, place;
-} BattlePaletteFrame;
 
 static inline BattlePaletteFrame battle_palette_frame(const GameState *g, uint16_t table, uint16_t frame)
 {
@@ -173,17 +210,12 @@ static inline BattlePaletteFrame battle_palette_frame(const GameState *g, uint16
     return (BattlePaletteFrame){ rom_read8(g, 0xCD0000u + at), rom_read8(g, 0xCD0001u + at) };
 }
 
-/* A color of a set of three colors ($D1:4100) or of seven ($D1:4400). */
-enum { BATTLE_SMALL_SET_COLORS = 3, BATTLE_LARGE_SET_COLORS = 7 };
 static inline uint16_t battle_palette_set_color(const GameState *g, bool seven, uint8_t set, unsigned color)
 {
     unsigned colors = seven ? BATTLE_LARGE_SET_COLORS : BATTLE_SMALL_SET_COLORS;
     return rom_read16(g, (seven ? 0xD14400u : 0xD14100u) + (set * colors + color) * 2u);
 }
 
-/* A color of the sets a flash puts into the combatants' flash palette
- * ($D1:4D90, twelve colors a set). */
-enum { BATTLE_FLASH_SET_COLORS = 12 };
 static inline uint16_t battle_flash_color(const GameState *g, uint8_t set, unsigned color)
 {
     return rom_read16(g, 0xD14D90u + (set * BATTLE_FLASH_SET_COLORS + color) * 2u);
@@ -198,18 +230,6 @@ static inline uint8_t battle_effect_record_marks(const GameState *g, uint16_t at
     return rom_read8(g, 0xCE0000u + at);
 }
 
-/* The whole record, as a frame of the effect's animation: its marks (any of
- * them, BATTLE_EFFECT_FRAME_ENDS, makes it the animation's last) over the
- * low bits of its sprite set, its offset from the anchor, and how many frames
- * it shows, whose top bit is the sprite set's high bit. The record is read
- * on past the bank's end as the original's long reads are. */
-enum { BATTLE_EFFECT_FRAME_BYTES = 4, BATTLE_EFFECT_FRAME_ENDS = 0xE0 };
-typedef struct {
-    uint8_t marks;
-    int8_t x, y;
-    uint8_t time;
-    bool high_set;
-} BattleEffectFrame;
 static inline BattleEffectFrame battle_effect_frame_record(const GameState *g, uint16_t at)
 {
     uint32_t from = 0xCE0000u + at;
@@ -224,6 +244,7 @@ static inline uint16_t battle_sprite_set_start(const GameState *g, uint16_t set)
 {
     return rom_read16(g, 0xCCF7C0u + set * 2u);
 }
+
 static inline uint8_t battle_bitmap_cell_position(const GameState *g, uint16_t cell)
 {
     return rom_read8(g, 0xCCF820u + cell);
@@ -238,6 +259,7 @@ static inline uint16_t battle_tile_descriptor(const GameState *g, uint16_t at)
 {
     return rom_read16(g, 0xCF0000u | (uint16_t)(0xA000u + at));
 }
+
 static inline uint16_t battle_tile_row_palette_word(const GameState *g, uint16_t at)
 {
     return rom_read16(g, 0xCFE000u + at);
@@ -262,15 +284,6 @@ static inline uint16_t battle_palette_plane_mask(const GameState *g, uint8_t pal
 /* How far a dissolve moves on through the 64 places of a tile at each step,
  * by its pace ($CE:EFEA, a byte a pace, by the pace's low three bits). */
 static inline uint8_t battle_dissolve_stride(const GameState *g, uint8_t pace) { return rom_read8(g, 0xCEEFEAu + (pace & 7u)); }
-
-/* The runs of an enemy's tiles a dissolve goes through, two a layout ($CE:F192,
- * eight bytes a layout): each run's first tile's place in the object's tile
- * buffer, and how many tiles follow it a tile apart. The original's index is a
- * byte of the layout times eight. */
-enum { BATTLE_DISSOLVE_RUNS = 2, BATTLE_DISSOLVE_LAYOUTS = 6 };
-typedef struct {
-    uint16_t first, tiles;
-} BattleTileRun;
 
 static inline BattleTileRun battle_dissolve_run(const GameState *g, uint8_t layout, unsigned run)
 {

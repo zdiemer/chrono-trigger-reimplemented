@@ -32,7 +32,6 @@
 #include "menu/object.h"
 #include "overworld/overworld_data.h"
 #include "wram.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -154,7 +153,6 @@ static void jolt(GameState *g, MenuObject o)
     set_menu_object_slots_x_pixel(g, o, (uint16_t)(menu_object_slots_x_pixel(g, o) + jolt_along(menu_object_cosine(g, angle), size)));
     set_menu_object_slots_y_pixel(g, o, (uint16_t)(menu_object_slots_y_pixel(g, o) + jolt_along(menu_object_sine(g, angle), size)));
     menu_note_effect_noise(g, angle);
-    (charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, angle == QUARTER_TURN || angle == THREE_QUARTER_TURN ? 0 : 1));
 }
 
 /* ---- objects put on the map at random ----------------------------------------------------------- */
@@ -176,7 +174,6 @@ enum { MIDDLE_HALF = 0x7F, QUARTER_IN = 0x40 };
 static void place_under_the_view(GameState *g, MenuObject o)
 {
     uint8_t offset = next_random(g) & MIDDLE_HALF;
-    charge_machine_accesses(g, 2);
     set_menu_object_slots_x_pixel(g, o, (uint16_t)(menu_map_column(g, 1) * MAP_TILE_PIXELS + offset + QUARTER_IN));
     set_menu_object_slots_y_pixel(g, o, under_the_view(g));
 }
@@ -189,7 +186,6 @@ enum { STRETCH_START = 0x178 };
 static void place_under_the_stretch(GameState *g, MenuObject o)
 {
     uint8_t offset = next_random(g);
-    charge_machine_accesses(g, 2);
     set_menu_object_slots_x_pixel(g, o, (uint16_t)(STRETCH_START + offset));
     set_menu_object_slots_y_pixel(g, o, under_the_view(g));
 }
@@ -214,7 +210,6 @@ static void step_right_at_random(GameState *g, MenuObject o)
     uint8_t random = next_random(g);
     uint16_t scaled = (uint16_t)(random * STEP_SCALE);
     uint8_t step = (uint8_t)((scaled >> 8) + ((scaled & HALF_A_PIXEL) ? 1 : 0));
-    charge_machine_io_accesses(g, 4);
     set_menu_object_slots_x_pixel(g, o, (uint16_t)(menu_object_slots_x_pixel(g, o) + step));
 }
 
@@ -248,7 +243,6 @@ static void place_about_the_view(GameState *g, MenuObject o)
 {
     uint8_t across = next_random(g) & MIDDLE_HALF;
     uint8_t down = next_random(g) & DOWN_RANDOM;
-    charge_machine_accesses(g, 4);
     set_menu_object_slots_x_pixel(g, o, (uint16_t)(menu_map_column(g, 1) * MAP_TILE_PIXELS + across + QUARTER_IN));
     set_menu_object_slots_y_pixel(g, o, (uint16_t)(DOWN_FROM + down));
 }
@@ -377,37 +371,6 @@ static void keep_scene_result(GameState *g, SceneResult result)
     set_event_memory_byte(g, result, menu_object_scratch_answer(g));
 }
 
-// $C2:79C8
-void menu_object_accelerate_down(Snes *s)
-{
-    GameState *g = state_of(s);
-    m_set_flag(s, CPU_FLAG_C, accelerate_down(g, menu_object_running(g)));
-    s->cpu.x = menu_object_current(g);
-    m_rep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-// $C2:7B4F
-void menu_object_mark_scene_event(Snes *s)
-{
-    mark_scene_event(state_of(s), 0);
-    m_rts(s);
-}
-
-// $C2:7C48
-void menu_object_keep_first_scene_result(Snes *s)
-{
-    keep_scene_result(state_of(s), SCENE_FIRST_RESULT);
-    m_rts(s);
-}
-
-// $C2:7C4F
-void menu_object_keep_second_scene_result(Snes *s)
-{
-    keep_scene_result(state_of(s), SCENE_SECOND_RESULT);
-    m_rts(s);
-}
-
 /* Pick a line near the scene's lower edge, rounded to the nearest line.
  * A zero height retains the original's byte underflow to line 255. */
 static uint8_t scene_edge_line(uint8_t random, uint8_t height)
@@ -436,17 +399,6 @@ static bool scene_edge_is_readable(const GameState *g, MenuObject self)
            && (uint32_t)(uint16_t)table + scene_edge_table_offset(g, self) + 2u <= 0x10000u;
 }
 
-bool menu_object_scene_edge_is_readable(Snes *s)
-{
-    if (!m_io_bank(s->cpu.db) || !menu_object_routine_runs(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool fits = scene_edge_is_readable(g, menu_object_running(g));
-    vars_peek(false);
-    return fits;
-}
-
 // $C6:E101
 /* Scatter an object onto either edge of the scene's window. The random
  * pair chooses the line and side independently; its second byte comes
@@ -464,18 +416,6 @@ static void place_on_scene_edge(GameState *g, MenuObject self)
     uint16_t edges = wram_read16(g, at);
     set_menu_object_slots_x_pixel(g, self, (choose_side & 0x80) ? (uint8_t)(edges >> 8) : (uint8_t)edges);
     menu_note_effect_noise(g, offset);
-    (charge_machine_accesses(g, 1), charge_machine_io_accesses(g, 4));
-}
-
-// $C6:E101
-void menu_object_place_on_scene_edge(Snes *s)
-{
-    GameState *g = state_of(s);
-    place_on_scene_edge(g, menu_object_running(g));
-    s->cpu.x = menu_object_current(g);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rep(s, CPU_FLAG_M);
-    m_rtl(s);
 }
 
 /* ---- the entries ----------------------------------------------------------------------------- */
@@ -485,114 +425,6 @@ void menu_object_place_on_scene_edge(Snes *s)
  * The loaders reach the decompressor's cells through the data bank alone, and
  * the story flags and the staged line values are reached by long address. */
 enum { MODE_PAGE = 0x0000 };
-
-bool menu_object_bank_reaches_low_ram(Snes *s) { return m_bank_reaches_low_ram(s); }
-bool menu_object_routine_page(Snes *s) { return m_direct_page(s) == MODE_PAGE && m_bank_reaches_low_ram(s); }
-
-bool menu_object_routine_runs(Snes *s)
-{
-    if (!menu_object_routine_page(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_object_address_names_one(menu_object_current(state_of(s)));
-    vars_peek(false);
-    return ok;
-}
-
-/* -- the scene's own state -- */
-
-/* The routines that leave nothing but their return, run on the running
- * object. */
-static void run_on_the_running(Snes *s, void (*routine)(GameState *g, MenuObject self))
-{
-    GameState *g = state_of(s);
-    routine(g, menu_object_running(g));
-}
-
-// $C6:E237
-/* The carry is clear. */
-void menu_object_read_scene_mode(Snes *s)
-{
-    run_on_the_running(s, read_the_scene_mode);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rtl(s);
-}
-
-// $C6:E2AF
-void menu_object_clear_scene_flag(Snes *s)
-{
-    run_on_the_running(s, clear_the_scene_flag);
-    m_rtl(s);
-}
-
-// $C6:E63D
-void menu_object_keep_song(Snes *s)
-{
-    run_on_the_running(s, keep_the_song);
-    m_rtl(s);
-}
-
-// $C6:E644
-void menu_object_let_song_go(Snes *s)
-{
-    run_on_the_running(s, let_the_song_go);
-    m_rtl(s);
-}
-
-// $C6:E583
-void menu_object_bob_second_plane(Snes *s)
-{
-    run_on_the_running(s, bob);
-    m_rtl(s);
-}
-
-// $C6:E590
-void menu_object_raise_second_plane(Snes *s)
-{
-    run_on_the_running(s, raise);
-    m_rtl(s);
-}
-
-/* The motion routines come back with a 16-bit accumulator, X the object and
- * the carry the speed down's wrapping round. */
-static void leave_moved(Snes *s, bool wrapped)
-{
-    s->cpu.x = menu_object_current(state_of(s));
-    m_set_flag(s, CPU_FLAG_C, wrapped);
-    m_rep(s, CPU_FLAG_M);
-    m_rtl(s);
-}
-
-// $C6:E77F
-void menu_object_accelerate(Snes *s)
-{
-    GameState *g = state_of(s);
-    leave_moved(s, accelerate(g, menu_object_running(g)));
-}
-
-// $C6:E2B5
-void menu_object_drift(Snes *s)
-{
-    GameState *g = state_of(s);
-    leave_moved(s, drift(g, menu_object_running(g)));
-}
-
-/* The jolt reads its sine table through the data bank, whose bank 0 reaches
- * the cartridge's table. */
-bool menu_object_jolt_runs(Snes *s) { return s->cpu.db == 0x00 && menu_object_routine_runs(s); }
-
-// $C6:E6D0
-/* The carry: the carry of the jolt's add down to the object's place, which
- * the place before and after say (the place comes out lower than it was
- * exactly where the 16-bit add carries, whichever way the jolt went). */
-void menu_object_jolt(Snes *s)
-{
-    GameState *g = state_of(s);
-    MenuObject o = menu_object_running(g);
-    uint16_t was = menu_object_slots_y_pixel(g, o);
-    jolt(g, o);
-    leave_moved(s, menu_object_slots_y_pixel(g, o) < was);
-}
 
 /* -- objects put on the map at random -- */
 
@@ -604,170 +436,6 @@ static bool view_is_on_the_map(const GameState *g, MenuObject self)
     enum { COLUMNS_THE_SUM_TAKES = 0x2000 };
     (void)self;
     return menu_map_column(g, 1) < COLUMNS_THE_SUM_TAKES;
-}
-
-bool menu_object_can_be_placed(Snes *s)
-{
-    if (m_direct_page(s) != MODE_PAGE || s->cpu.db != 0x00)
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = menu_object_address_names_one(menu_object_current(g)) && view_is_on_the_map(g, menu_object_running(g));
-    vars_peek(false);
-    return ok;
-}
-
-/* Placing about the view reaches its object through any data bank on low RAM. */
-bool menu_object_can_be_placed_about_the_view(Snes *s)
-{
-    if (!menu_object_routine_runs(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = view_is_on_the_map(g, menu_object_running(g));
-    vars_peek(false);
-    return ok;
-}
-
-/* They come back 16 bits wide with X on the object, and the carry the top
- * bit the row's multiply by the tile's pixels put out. */
-static void leave_placed(Snes *s)
-{
-    GameState *g = state_of(s);
-    s->cpu.x = menu_object_current(g);
-    m_set_flag(s, CPU_FLAG_C, ((menu_map_row(g, 1) + UNDER_THE_VIEW) & 0x2000) != 0);
-    m_rep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-// $C2:754D
-void menu_object_place_under_the_view(Snes *s)
-{
-    GameState *g = state_of(s);
-    place_under_the_view(g, menu_object_running(g));
-    leave_placed(s);
-}
-
-// $C2:7575
-void menu_object_place_under_the_stretch(Snes *s)
-{
-    GameState *g = state_of(s);
-    place_under_the_stretch(g, menu_object_running(g));
-    leave_placed(s);
-}
-
-// $C2:7598
-/* It comes back 16 bits wide with X the velocity's place in its table and
- * the carry clear. */
-void menu_object_give_random_velocity(Snes *s)
-{
-    enum { VELOCITY_BYTES = 8 };
-    GameState *g = state_of(s);
-    give_random_velocity(g, menu_object_running(g));
-    vars_peek(true);
-    uint8_t pick = menu_random_byte(g, (uint8_t)(menu_random_index(g) - 1)) & (VELOCITIES - 1);
-    vars_peek(false);
-    s->cpu.x = (uint16_t)(pick * VELOCITY_BYTES);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-/* The random steps and places come back 16 bits wide with X on the object
- * and the carry of the last add: the down place's, or the across step's,
- * which runs past the top exactly where the new place comes out below what
- * was added to it. */
-static void leave_stepped(Snes *s, uint16_t place, uint16_t added)
-{
-    s->cpu.x = menu_object_current(state_of(s));
-    m_set_flag(s, CPU_FLAG_C, place < added);
-    m_rep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-// $C2:79E0
-void menu_object_step_right_at_random(Snes *s)
-{
-    GameState *g = state_of(s);
-    MenuObject o = menu_object_running(g);
-    uint16_t was = menu_object_slots_x_pixel(g, o);
-    step_right_at_random(g, o);
-    leave_stepped(s, menu_object_slots_x_pixel(g, o), (uint16_t)(menu_object_slots_x_pixel(g, o) - was));
-}
-
-static void place_in_a_stretch_entry(Snes *s, Stretch at)
-{
-    GameState *g = state_of(s);
-    MenuObject o = menu_object_running(g);
-    place_in_the_stretch(g, o, at);
-    leave_stepped(s, menu_object_slots_y_pixel(g, o), at.top);
-}
-
-// $C2:7A0C
-void menu_object_place_in_the_east_stretch(Snes *s) { place_in_a_stretch_entry(s, EAST_STRETCH); }
-
-// $C2:7A31
-void menu_object_place_in_the_west_stretch(Snes *s) { place_in_a_stretch_entry(s, WEST_STRETCH); }
-
-// $C6:E694
-/* It comes back 16 bits wide with X on the object and the carry of the down
- * place's add, which never runs past the top. */
-void menu_object_place_about_the_view(Snes *s)
-{
-    GameState *g = state_of(s);
-    place_about_the_view(g, menu_object_running(g));
-    s->cpu.x = menu_object_current(g);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rep(s, CPU_FLAG_M);
-    m_rtl(s);
-}
-
-/* -- the party -- */
-
-/* They leave X and the carry as they found them. */
-
-// $C2:7860
-void menu_object_hide_the_party(Snes *s)
-{
-    hide_the_party(state_of(s));
-    m_rts(s);
-}
-
-// $C2:786F
-void menu_object_keep_the_party(Snes *s)
-{
-    keep_the_party(state_of(s));
-    m_rts(s);
-}
-
-// $C2:7888
-void menu_object_bring_the_party_back(Snes *s)
-{
-    bring_the_party_back(state_of(s));
-    m_rts(s);
-}
-
-/* -- the story -- */
-
-// $C2:7B44
-void menu_object_mark_the_scene_played(Snes *s)
-{
-    run_on_the_running(s, mark_played);
-    m_rts(s);
-}
-
-// $C2:7BC4
-void menu_object_ask_the_story(Snes *s)
-{
-    run_on_the_running(s, ask);
-    m_rts(s);
-}
-
-// $C2:7BD1
-void menu_object_note_the_song(Snes *s)
-{
-    run_on_the_running(s, note_the_song);
-    m_rts(s);
 }
 
 /* -- pictures -- */
@@ -782,74 +450,15 @@ static uint32_t name_scene_resource(GameState *g, MenuSceneResource kind, uint8_
     return stream;
 }
 
-/* On the machine, the picture unpacked (data/decompress.c), and the
- * registers left as the original's call to the decompressor leaves them: the
- * resource's number times three in X and the pointer's bank over its high
- * byte in A, as the original looks the stream up, and N and Z as the
- * decompressor's last pull, of the data bank, sets them. */
-static void load_scene_resource(Snes *s, MenuSceneResource kind, uint8_t number, uint32_t buffer, bool far)
-{
-    GameState *g = state_of(s);
-    uint32_t stream = name_scene_resource(g, kind, number, buffer);
-    (void)unpack_stream_called(g, false);
-    s->cpu.a = (uint16_t)((stream & 0xFF00) | (uint8_t)(stream >> 16));
-    s->cpu.x = (uint16_t)(number * MENU_SCENE_POINTER_BYTES);
-    m_set_nz8(s, s->cpu.db);
-    if (far)
-        m_rtl(s);
-    else
-        m_rts(s);
-}
-
 /* Where the pictures go: the graphics to the Mode 7 plane's buffer, the
  * colours to the loaded palette's. The scenes of six of the eight world maps
  * share one picture; one scene has a second of its own. */
 enum { MODE7_GRAPHICS_BUFFER = 0x7F9000, MODE7_PALETTE_BUFFER = 0x7F8C00 };
 enum { SHARED_GRAPHICS = 2, SHARED_PALETTE = 1, SECOND_GRAPHICS = 13, SECOND_PALETTE = 2 };
 
-// $C6:E028
-/* The Mode 7 graphics most of the world maps' scenes share. */
-void menu_object_load_mode7_graphics(Snes *s)
-{
-    load_scene_resource(s, MENU_SCENE_GRAPHICS, SHARED_GRAPHICS, MODE7_GRAPHICS_BUFFER, true);
-}
-
-// $C6:E04D
-/* And their colours. */
-void menu_object_load_mode7_palette(Snes *s)
-{
-    load_scene_resource(s, MENU_SCENE_PALETTES, SHARED_PALETTE, MODE7_PALETTE_BUFFER, true);
-}
-
-// $C6:E64A
-/* The Mode 7 graphics one world map's scene shows after the shared ones. */
-void menu_object_load_second_mode7_graphics(Snes *s)
-{
-    load_scene_resource(s, MENU_SCENE_GRAPHICS, SECOND_GRAPHICS, MODE7_GRAPHICS_BUFFER, true);
-}
-
-// $C6:E66F
-/* And their colours. */
-void menu_object_load_second_mode7_palette(Snes *s)
-{
-    load_scene_resource(s, MENU_SCENE_PALETTES, SECOND_PALETTE, MODE7_PALETTE_BUFFER, true);
-}
-
 /* The rising Black Omen scene uses the same streams as the world map's
  * setup, but loads them on demand before its sprite and palette uploads. */
 enum { OMEN_GRAPHICS = 3, OMEN_SCENE_PALETTE = 18, OMEN_PALETTE_BUFFER = 0x7EC600 };
-
-// $C2:7B5A
-void menu_load_omen_graphics_entry(Snes *s)
-{
-    load_scene_resource(s, MENU_SCENE_GRAPHICS, OMEN_GRAPHICS, MODE7_GRAPHICS_BUFFER, false);
-}
-
-// $C2:7B9F
-void menu_load_omen_palette_entry(Snes *s)
-{
-    load_scene_resource(s, MENU_SCENE_PALETTES, OMEN_SCENE_PALETTE, OMEN_PALETTE_BUFFER, false);
-}
 
 /* The scene selects a resource by its pointer-table byte offset. Validate
  * that selection and the decoded size before reusing the Mode 7 buffer. */
@@ -882,40 +491,12 @@ static bool scene_top_layer_fits(const GameState *g, MenuObject self)
     return scene_map_resource_fits(g, SCENE_TOP_LAYER);
 }
 
-static bool scene_resource_guard(Snes *s, SceneMapResource kind)
-{
-    if (!menu_object_routine_page(s))
-        return false;
-    vars_peek(true);
-    bool fits = scene_map_resource_fits(state_of(s), kind);
-    vars_peek(false);
-    return fits;
-}
-
-bool menu_scene_map_graphics_fit(Snes *s) { return scene_resource_guard(s, SCENE_MAP_GRAPHICS); }
-bool menu_scene_top_layer_fits(Snes *s) { return scene_resource_guard(s, SCENE_TOP_LAYER); }
-
 // $C2:7AFC, $C2:7B20
 static void name_scene_map_resource(GameState *g, SceneMapResource kind)
 {
     set_decompress_source(g, scene_map_stream(g, kind));
     set_decompress_dest(g, MODE7_GRAPHICS_BUFFER);
 }
-
-static void load_scene_map_resource_on_the_machine(Snes *s, SceneMapResource kind)
-{
-    GameState *g = state_of(s);
-    uint16_t offset = menu_object_scratch_scene_resource_offset(g);
-    name_scene_map_resource(g, kind);
-    (void)unpack_stream_called(g, false);
-    s->cpu.x = offset;
-    m_rts(s);
-}
-
-// $C2:7AFC
-void menu_object_load_scene_map_graphics(Snes *s) { load_scene_map_resource_on_the_machine(s, SCENE_MAP_GRAPHICS); }
-// $C2:7B20
-void menu_object_load_scene_top_layer(Snes *s) { load_scene_map_resource_on_the_machine(s, SCENE_TOP_LAYER); }
 
 static bool load_scene_map_resource(GameState *g, Platform *pf, MenuObject self, bool far, SceneMapResource kind)
 {
@@ -953,15 +534,6 @@ static void lay_out_scene_pattern(GameState *g, MenuObject self)
             wram_write8(g, at + ROW_BYTES, v);
         }
     }
-}
-
-// $C2:7BD8
-void menu_object_lay_out_scene_pattern(Snes *s)
-{
-    lay_out_scene_pattern(state_of(s), 0);
-    s->cpu.x = 32;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
 }
 
 /* ---- As C ----------------------------------------------------------------------------------- */

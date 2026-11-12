@@ -119,7 +119,6 @@ static void list_the_showing(GameState *g)
     for (uint8_t slot = 0; slot < BATTLE_COMBATANTS; slot++)
         if (others & (0x8000u >> slot))
             list_target(g, listed++, slot);
-    charge_machine_accesses(g, 2);
     for (unsigned place = 0; place < PLACES_WITH_A_START; place++) {
         uint8_t slot;
         if (!script_listed(g, place, &slot))
@@ -174,7 +173,6 @@ static void find_the_members_falling(GameState *g)
 {
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
         set_battle_member_falling(g, member, damage_shown_takes_all(g, member));
-    charge_machine_accesses(g, 9);
 }
 
 /* A party member among the action's targets. */
@@ -300,7 +298,6 @@ static bool show_the_action(GameState *g, ShowCalls call, void *ctx)
     uint8_t phase = battle_frame_phase(g);
     if (!call(ctx, SHOW_KEEP_THE_PHASE))
         return false;
-    charge_machine_accesses(g, 3);
     TIMED_AS(g, 0xCCF102, forget_poses(g));
     if (!call(ctx, SHOW_FRAME_AFTER_THE_POSES) || !call(ctx, SHOW_STEP_AFTER_THE_POSES))
         return false;
@@ -338,11 +335,10 @@ static bool show_the_action(GameState *g, ShowCalls call, void *ctx)
 /* The sound effects are cut off: the driver starts an effect of none on
  * their voices. The driver's command routine reads none of the registers. */
 enum { NO_SOUND_EFFECT = 0xFF };
-#define DRIVER_IGNORES (DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C)
 
 static void cut_off_the_sounds(Platform *pf)
 {
-    au_command(pf, PF_CALL_DC(0xC140DD, 0xC70004, DRIVER_IGNORES),
+    au_command(pf, PF_CALL(0xC140DD, 0xC70004),
                (AudioCommand){ .command = AU_START_EFFECT, .p1 = NO_SOUND_EFFECT, .count = 1 });
 }
 
@@ -384,62 +380,4 @@ bool battle_show_action(GameState *g, Platform *pf)
         return battle_contract_broken(g, 0xC14058, "an action shown whose actor is past the combatants");
     ActionShowContext c = { g, pf };
     return show_the_action(g, show_a_part, &c);
-}
-
-/* ---- On the machine ------------------------------------------------------------------------ */
-
-/* Wait for the next frame ($C1:007E): the wait reads none of the registers
- * but A's high byte, which it takes along. */
-enum { FRAME_WAIT_READS = DC_AL | DC_X | DC_Y | DC_FLAGS };
-
-/* The waits for the next frame, and the frame steps, each by its place in
- * the showing (ShowCall's order). */
-static const uint32_t show_frame_waits[] = { 0xC1405F, 0xC140A0, 0xC140B0, 0xC140E1, 0xC14116, 0xC1414B, 0xC141B4, 0xC141B7 };
-static const uint32_t show_frame_steps[] = { 0xC140A3, 0xC140B6, 0xC140E4 };
-
-static bool show_on_the_machine(void *ctx, ShowCall call)
-{
-    Snes *s = ctx;
-    switch (call) {
-    case SHOW_STEP_AFTER_THE_POSES:
-    case SHOW_PLAYING_STEP:
-    case SHOW_FINISHING_STEP: return battle_run(s, show_frame_steps[call - SHOW_STEP_AFTER_THE_POSES], FRAME_STEP, battle_frame_step);
-    case SHOW_LOAD: return battle_run(s, 0xC140AD, LOAD, battle_load_action_animation_entry);
-    case SHOW_POSITIONS: return battle_run(s, 0xC140C1, POSITIONS, battle_update_animation_positions_entry);
-    case SHOW_SCRIPTS: return battle_run(s, 0xC140CB, SCRIPTS, battle_run_scripts_entry);
-    case SHOW_CUT_OFF_THE_SOUNDS:
-        cut_off_the_sounds(m_platform(s));
-        return battle_back(s, 0xC140DD + BATTLE_JSL_SIZE, BATTLE_PAGE, BATTLE_DATA_BANK);
-    case SHOW_KEEP_THE_PHASE: m_push8(s, battle_frame_phase(state_of(s))); return true;
-    case SHOW_PHASE_BACK: m_pull8(s); return true;
-    default: return battle_wait_frame(s, show_frame_waits[call - SHOW_FIRST_FRAME], FRAME_WAIT, FRAME_WAIT_READS);
-    }
-}
-
-/* The poses' round ends on its last count, which leaves the carry set, and
- * nothing after it touches the carry; the battle's steps hand it back. */
-void battle_show_action_entry(Snes *s)
-{
-    if (!show_the_action(state_of(s), show_on_the_machine, s))
-        return;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
-}
-
-/* ---- The other entries ---------------------------------------------------------------------- */
-
-/* It leaves the pose it set in A, its high byte clear. */
-
-/* The members' count leaves A's high byte clear and the carry of its last
- * compare, set. */
-
-/* The guard: the actor is a combatant (the action's subjects index the
- * objects' places by it), on the battle's page with A's high byte clear,
- * which the showing's loaders index with. */
-bool battle_show_action_ready(Snes *s)
-{
-    vars_peek(true);
-    bool fits = showing_fits(state_of(s));
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && fits;
 }

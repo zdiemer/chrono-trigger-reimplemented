@@ -26,7 +26,6 @@
 #include "field/field.h"
 #include "field/field_data.h"
 #include "field/scratch.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -127,17 +126,6 @@ static void write_a_credits_line(GameState *g)
 /* A line the staging holds: one ending within BG3's staged lines. */
 enum { LONGEST_LINE = RAM_FIELD_LAYER_STAGING_STRIDE / ENTRY_BYTES };
 
-static bool credits_line_fits(const GameState *g)
-{
-    uint16_t at = field_credits_cursor(g);
-    for (unsigned n = 0; n < LONGEST_LINE; n++, at++) {
-        uint8_t c = field_credits_byte(g, at);
-        if (ends_text(c) || c == LINE_ENDS)
-            return true;
-    }
-    return false;
-}
-
 /* ---- BG2's halves ------------------------------------------------------------------------------ */
 
 enum { BG2_HALVES = FIELD_CLEAR_BG2_LEFT | FIELD_CLEAR_BG2_RIGHT };
@@ -205,10 +193,6 @@ static void close_the_chests_message(GameState *g)
         dialog_end(g);
 }
 
-/* ---- The frame's turn --------------------------------------------------------------------------- */
-
-static bool writing_the_credits(const GameState *g) { return field_mode_flags(g) & FIELD_WRITING_CREDITS; }
-
 // $C0:274D
 static void do_the_layer_work(GameState *g)
 {
@@ -230,34 +214,3 @@ static void do_the_layer_work(GameState *g)
  * sum its send's size is worked out with never overflows), and the rest,
  * the staging's blank among them, as it came. */
 void field_script_layers_worked(GameState *g) { do_the_layer_work(g); }
-
-void field_do_script_layer_work(Snes *s)
-{
-    GameState *g = state_of(s);
-    vars_peek(true);
-    bool writes_a_line = writing_the_credits(g);
-    vars_peek(false);
-    do_the_layer_work(g);
-    if (writes_a_line)
-        m_set_flag(s, CPU_FLAG_V, false);
-    m_rts(s);
-}
-
-void field_load_the_credits_letters_entry(Snes *s)
-{
-    load_the_credits_letters(state_of(s), m_platform(s), true);
-    m_rts(s);
-}
-
-/* The guard: on the field's page with the data bank $00, and a credits line
- * to write ending before it would run past BG3's staging. */
-bool field_script_layer_work_can_run(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = !writing_the_credits(g) || credits_line_fits(g);
-    vars_peek(false);
-    return ok;
-}

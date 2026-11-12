@@ -12,7 +12,6 @@
 #include "battle/screen_lines.h"
 #include "charge.h"
 #include "cpu_io.h"
-#include "port/native.h"
 
 /* Two counts the effects keep between calls, each the one effect's that
  * runs at a time: the first is the band's half width, the waves' damping so
@@ -112,7 +111,6 @@ static void draw_middle_band(GameState *g, uint8_t grow_by)
     for (unsigned line = top; line < bottom; line++)
         set_line_edges(g, coming_line(g, line), WINDOW_1, edges_between(left, right));
     screen_leave_for_the_drift(g, (uint16_t)(bottom * LINE_BYTES));
-    charge_machine_accesses(g, 2);
 }
 
 // $D1:EEA5
@@ -177,7 +175,6 @@ static void draw_waves(GameState *g, Waves w)
         w.phase[WINDOW_2]++;
     }
     screen_leave_for_the_drift(g, w.phase[WINDOW_2]);
-    (charge_machine_accesses(g, 8), charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, 1));
 }
 
 /* The waves die down as their operands add up: the amplitude is $60 less the
@@ -406,7 +403,6 @@ static void ripple_windows(GameState *g)
         }
     }
     screen_leave_for_the_drift(g, (uint8_t)(frame + RIPPLE_PAIRS));
-    (charge_machine_accesses(g, 4), charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, 1));
 }
 
 /* ---- The commands' rows (battle/screen_script.h) --------------------------------------------------- */

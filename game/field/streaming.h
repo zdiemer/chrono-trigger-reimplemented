@@ -6,7 +6,7 @@
 
 #include <stdbool.h>
 
-#include "snes/system.h"
+#include <stdint.h>
 #include "state.h"
 
 /* Every frame, after the layers' scroll ($C0:93E1). */
@@ -32,13 +32,5 @@ bool layer_drawing_fits(const GameState *g, unsigned layer);
 
 /* The registered entries: the streaming, from the walk and the recentring,
  * and the drawings, from the map's load; and their guard. */
-void field_stream_the_layers(Snes *s);
-void field_draw_bg1_at_the_load(Snes *s);
-void field_draw_bg2_at_the_load(Snes *s);
-void field_draw_bg3_at_the_load(Snes *s);
-bool field_streaming_can_run(Snes *s);
-bool field_bg2_drawing_can_run(Snes *s);
-void field_bring_in_the_right_columns(Snes *s);
-bool field_right_columns_can_come_in(Snes *s);
 
 #endif

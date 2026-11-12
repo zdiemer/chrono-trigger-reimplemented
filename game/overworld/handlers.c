@@ -26,7 +26,6 @@
 #include "overworld/terrain.h"
 #include "overworld/vehicles.h"
 #include "platform/audio.h"
-#include "port/native.h"
 #include "vars.h"
 
 /* ---- What each takes ------------------------------------------------------------------------ */
@@ -297,13 +296,12 @@ bool overworld_location_song_takes(const GameState *g, MenuObject self)
 /* The driver ($C7:0004) reads nothing of the registers, and hands back X,
  * the carry and A's high byte as it found them. */
 enum { SOUND_DRIVER = 0xC70004, LOCATION_SONG_SENT = 0xC22F49 };
-#define DRIVER_IGNORES (DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C)
 
 // $C2:2F0F
 void overworld_start_the_location_song(GameState *g, Platform *pf)
 {
     LocationSong song = overworld_location_song(g);
-    au_command(pf, PF_CALL_DC(LOCATION_SONG_SENT, SOUND_DRIVER, DRIVER_IGNORES), overworld_song_command(song.song));
+    au_command(pf, PF_CALL(LOCATION_SONG_SENT, SOUND_DRIVER), overworld_song_command(song.song));
 }
 
 /* ---- As C ------------------------------------------------------------------------------------- */

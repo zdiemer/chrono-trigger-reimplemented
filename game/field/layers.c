@@ -20,14 +20,11 @@
 #include "field/field.h"
 #include "charge.h"
 #include "field/scratch.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
-enum {
-    SECOND_HALF = FIELD_TILE_MAP_HALF_COLUMNS * FIELD_TILE_MAP_ROWS,   /* a half's entries: where the second starts */
-    LAST_ROW_OF_HALF = (FIELD_TILE_MAP_ROWS - 1) * FIELD_TILE_MAP_HALF_COLUMNS,
-};
+enum { SECOND_HALF = FIELD_TILE_MAP_HALF_COLUMNS * FIELD_TILE_MAP_ROWS, /* a half's entries: where the second starts */
+    LAST_ROW_OF_HALF = (FIELD_TILE_MAP_ROWS - 1) * FIELD_TILE_MAP_HALF_COLUMNS,  };
 enum { COLUMN_MASK = FIELD_TILE_MAP_COLUMNS - 1, ROW_MASK = FIELD_TILE_MAP_ROWS - 1 };
 
 /* ---- The edges -------------------------------------------------------------------------- */
@@ -425,15 +422,13 @@ enum { RUN = 0x80, RUN_OF_256 = 0x00 };
  * after them, 0 meaning 256. */
 static void unpack_attributes(GameState *g, MapSize size)
 {
-    bool had_run = false;
+
     MapPlace p = { 0, 0 };
     for (;;) {
         uint8_t first = hw_port_read(g);
         TileAttributes a = read_tile_attributes(g, p, (uint8_t)(first & ~RUN));
         if (first & RUN) {
-            if (!had_run)
-                charge_machine_accesses(g, 3); /* the last repeated tile's attributes */
-            had_run = true;
+
             uint8_t count = hw_port_read(g);
             for (unsigned repeats = (count == RUN_OF_256 ? 0x100u : count) - 1; repeats != 0; repeats--) {
                 if (!next_tile(size, &p))
@@ -459,7 +454,6 @@ void field_unpack_the_tile_maps(GameState *g)
         unpack_layer_map(g, FIELD_BG3);
     MapSize size = layer_size(g, FIELD_BG1);
     unpack_attributes(g, size);
-    charge_machine_accesses(g, 4); /* the unpacked dimensions and final row */
 }
 
 /* ---- Entries: on the layers' page ------------------------------------------------------- */
@@ -510,9 +504,3 @@ bool field_layer_edges_overflow(const GameState *g)
 /* Nothing they leave in the registers is read after (the entries' don't-care
  * sets). */
 void field_layer_scroll_updated(GameState *g) { update_layer_scroll(g); }
-
-void field_update_layer_scroll(Snes *s)
-{
-    update_layer_scroll(state_of(s));
-    m_rts(s);
-}

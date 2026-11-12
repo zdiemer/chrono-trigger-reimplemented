@@ -485,6 +485,12 @@ static inline void vid_line_snes_encoding(VidLineTarget target, uint8_t *mode, u
 
 /* The target a channel's control and destination bytes name, for game data that
  * holds them. False where no target drives that group in that mode. */
+/* Whether a cartridge channel selector names one of the eight line slots. */
+static inline bool vid_line_channel_valid(uint16_t encoded)
+{
+    return (encoded & 0xFF8F) == 0x4300;
+}
+
 static inline bool vid_line_effect_decode(uint8_t control, uint8_t dest, VidLineEffect *e)
 {
     for (int t = 0; t < VID_LINE_TARGETS; t++) {
@@ -738,8 +744,6 @@ PF_API void vid_snes_write_register(Platform *pf, PfOrigin o, uint16_t address, 
  * registers' addresses, in the site's write order, and nothing is sent. A
  * host without the SNES sends the palette instead (vid_send_palette). Listed
  * by the lint test. */
-PF_API void vid_snes_send_palette_into_memory(Platform *pf, PfOrigin o, uint8_t bank, uint8_t first, PfData src,
-                                              uint16_t count);
 
 /* The registers the game's transfers through the escape name, by the low byte
  * of their address ($21xx), as VidSnesTransfer.dest and .target_reg take it. */

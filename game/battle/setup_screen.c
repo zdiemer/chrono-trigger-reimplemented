@@ -205,28 +205,6 @@ void setup_size_bits(GameState *g)
  * the enemies' sprites follow the party's by 16 attribute steps. */
 enum { ENEMY_PALETTE_BASE = 0x20, ENEMY_ROW_ENTRY = SPRITE_ENTRIES_PER_OBJECT * BATTLE_FIRST_ENEMY };
 
-/* The original counts the last enemy's extra parts down in its working cells. */
-
-// $CC:EDE9
-/* Preserve the machine estimate for removed comparison accesses.
- * Inspect the branch without charging those reads to either backend. */
-static void charge_enemy_sprite_row(GameState *g)
-{
-    uint32_t charge_mark = charge_uncounted_begin(g);
-    unsigned accesses = 0;
-    bool found = false;
-    for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
-        accesses++;
-        if (battle_slot_present(g, BATTLE_FIRST_ENEMY + enemy)) {
-            found = true;
-            accesses++;
-            enemy += setup_extra_parts(battle_object_kind(g, BATTLE_FIRST_ENEMY + enemy));
-        }
-    }
-    charge_uncounted_end(g, charge_mark);
-    charge_machine_accesses(g, accesses + (found ? 2 : 0));
-}
-
 void setup_enemy_sprite_attributes(GameState *g)
 {
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
@@ -242,7 +220,6 @@ void setup_enemy_sprite_attributes(GameState *g)
                                                             attributes);
         enemy += extra;
     }
-    charge_enemy_sprite_row(g);
 }
 
 /* ---- Tiles, the cursors' sprites and colors ------------------------------------------------- */
@@ -327,7 +304,6 @@ void setup_uploads(GameState *g)
             set_upload(g, upload, slot, u);
         }
     }
-    charge_machine_accesses(g, 2);
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
         if (shows_enemy_hp(battle_stats_worn_item(g, member))) {
             set_battle_enemy_hp_seen(g, (uint8_t)(battle_enemy_hp_seen(g) + 1));

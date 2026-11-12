@@ -23,7 +23,6 @@
 
 #include "field/bridge.h"
 #include "field/scratch.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"

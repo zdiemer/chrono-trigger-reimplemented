@@ -34,7 +34,6 @@
 #include "scene/race.h"
 
 #include "cpu_io.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -60,10 +59,7 @@ static PerspectiveStart start_routine(const GameState *g) { return (PerspectiveS
  * (the dive's), the branch the race writes to copy each line into the next (the
  * word at scene_perspective_pair_branch), or the dive's branch to read the
  * next line's distance off the shell's curve. */
-enum {
-    STEP_IMAGE = 0xEAE8, STEP_RACE = 0xE8EA, STEP_PAIRS = 0x3680, STEP_TWO_FARTHER = 0xE8E8, STEP_TWO_NEARER = 0xCACA,
-    STEP_ALONG_THE_CURVE = 0x2C80,
-};
+enum { STEP_IMAGE = 0xEAE8, STEP_RACE = 0xE8EA, STEP_PAIRS = 0x3680, STEP_TWO_FARTHER = 0xE8E8, STEP_TWO_NEARER = 0xCACA, STEP_ALONG_THE_CURVE = 0x2C80,  };
 
 /* How the distance goes from one line to the next. */
 typedef enum { DISTANCE_STEPS, DISTANCE_PAIRED, DISTANCE_ALONG_THE_CURVE, DISTANCE_UNKNOWN } DistanceWay;
@@ -91,7 +87,6 @@ enum { LINE_BYTES = 4, SCREEN_LINES = 224, SCREEN_END = SCREEN_LINES * LINE_BYTE
 
 /* The page the loop moves the direct page to, the CPU's registers, to reach the
  * divider. */
-enum { CPU_REGISTERS_PAGE = M_DP_CPU };
 
 /* The line above the screen's first, which an ending's plane starts from when
  * its horizon is 0 (set_line_above_the_screen, below). */
@@ -102,11 +97,7 @@ enum { LINE_ABOVE_THE_SCREEN = -1 };
  * start. From the cockpit, the shell above runs from the top of the view to
  * line 112, nearest at the top, and the shell below from line 128 to the panel,
  * farthest at its top; each step is two. */
-enum {
-    SHELL_FROM_OUTSIDE_FIRST = 26, SHELL_FROM_OUTSIDE_END = 198,
-    SHELL_ABOVE_FIRST = 0, SHELL_ABOVE_END = 112, SHELL_ABOVE_NEAREST = 0xFF,
-    SHELL_BELOW_FIRST = 128, SHELL_BELOW_FARTHEST = 0x20,
-};
+enum { SHELL_FROM_OUTSIDE_FIRST = 26, SHELL_FROM_OUTSIDE_END = 198, SHELL_ABOVE_FIRST = 0, SHELL_ABOVE_END = 112, SHELL_ABOVE_NEAREST = 0xFF, SHELL_BELOW_FIRST = 128, SHELL_BELOW_FARTHEST = 0x20,  };
 
 /* The lines a build makes: from the first to the end, the first's distance,
  * and how it steps (the loop's instruction for it, which a scene's start may
@@ -287,10 +278,7 @@ void scene_build_perspective(GameState *g, SceneChannel ch)
  * built after it. */
 static const unsigned camera_registers[] = { SCENE_PLANE_HEIGHT, SCENE_PLANE_TURN, SCENE_PLANE_HORIZON, SCENE_PLANE_TOP, SCENE_PLANE_LINES_PAIRED };
 static const unsigned dive_camera_registers[] = { SCENE_PLANE_HEIGHT, SCENE_PLANE_TURN, SCENE_PLANE_SHELL_FRAMES };
-enum {
-    CAMERA_REGISTERS = sizeof camera_registers / sizeof camera_registers[0],
-    DIVE_CAMERA_REGISTERS = sizeof dive_camera_registers / sizeof dive_camera_registers[0],
-};
+enum { CAMERA_REGISTERS = sizeof camera_registers / sizeof camera_registers[0], DIVE_CAMERA_REGISTERS = sizeof dive_camera_registers / sizeof dive_camera_registers[0],  };
 
 static unsigned first_camera_change(const GameState *g, const unsigned *kept, unsigned registers)
 {
@@ -340,33 +328,6 @@ void scene_look_at_the_shell_from_outside(GameState *g)
 
 void scene_look_at_the_shell_from_the_cockpit(GameState *g) { set_scene_perspective_start(g, START_SHELL_FROM_THE_COCKPIT); }
 
-/* ---- Entry ----------------------------------------------------------------------------------- */
-
-/* The program's perspective code, without the operands the program writes
- * (the call's, the loads', the branch's, the stores', the step and the end),
- * the copy that pairs the lines, and the sine and the multiply it calls. */
-static bool perspective_code_present(Snes *s)
-{
-    return m_code_matches(s, 0x7E357B, 0x82, 0x034D2698BB682904ull) && m_code_matches(s, 0x7E35FF, 0x0C, 0xA4E8E26A45E46C41ull) &&
-           m_code_matches(s, 0x7E360D, 0x09, 0x36B856197D3AE555ull) && m_code_matches(s, 0x7E3618, 0x0B, 0xAD5C2E09D467B7D5ull) &&
-           m_code_matches(s, 0x7E3625, 0x06, 0x82137DEC2E4A159Cull) && m_code_matches(s, 0x7E362D, 0x05, 0x5893105BB749B77Bull) &&
-           m_code_matches(s, 0x7E3636, 0x01, 0xAF647D4C8602FE1Full) && m_code_matches(s, 0x7E3639, 0x03, 0xE3ADF41C6920B8B2ull) &&
-           m_code_matches(s, 0x7E366C, 0x1D, 0xFA950297A325CF91ull) && m_code_matches(s, 0x7E3461, 0x19, 0xA2486F18B991C163ull) &&
-           m_code_matches(s, 0x7E31BF, 74, 0x479627EBF1311CAFull);
-}
-
-/* The scenes' starts of the lines, and their code. */
-static bool start_known(Snes *s, PerspectiveStart start)
-{
-    switch (start) {
-    case START_RACE: return m_code_matches(s, 0x7E45B0, 0x26, 0xCF140E55949D99BFull);
-    case START_ENDING: return m_code_matches(s, 0x7E9B46, 0x09, 0x55C26FE176ECC36Cull);
-    case START_SHELL_FROM_OUTSIDE: return m_code_matches(s, 0x7E801F, 0x23, 0x232CC79CDE1BF32Bull);
-    case START_SHELL_FROM_THE_COCKPIT: return m_code_matches(s, 0x7E8042, 0x37, 0x91210B2B8A983E26ull);
-    default: return false;
-    }
-}
-
 /* The guard's state half: a scene's start of the lines, and the lines the
  * port builds: a step it knows, from a first line on the screen
  * or the line above it to an end on it that the step reaches (a whole line's
@@ -392,26 +353,6 @@ bool scene_perspective_fits(const GameState *g, SceneChannel ch)
     if (l.step.way == DISTANCE_ALONG_THE_CURVE && start != START_SHELL_FROM_OUTSIDE)
         return false;
     return l.step.way != DISTANCE_PAIRED || (l.end - l.first) % 2 == 0;
-}
-
-/* The curve's code, which only the lines along it run. */
-static bool curve_code_known(Snes *s, const GameState *g, SceneChannel ch)
-{
-    return next_lines(g, ch).step.way != DISTANCE_ALONG_THE_CURVE || m_code_matches(s, 0x7E3662, 0x0A, 0x11939EFB434666F3ull);
-}
-
-/* Whether the port builds the perspective for the channel at `d`: on a
- * channel's page, the code as the port knows it, a scene's lines it knows. */
-bool scene_perspective_as_ported(Snes *s, uint16_t d)
-{
-    SceneChannel ch;
-    if (!scene_channel_at(d, &ch) || !perspective_code_present(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool known = scene_perspective_fits(g, ch) && start_known(s, start_routine(g)) && curve_code_known(s, g, ch);
-    vars_peek(false);
-    return known;
 }
 
 /* The former result-register reconstruction read the line description,

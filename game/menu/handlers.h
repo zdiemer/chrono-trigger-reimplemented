@@ -1,6 +1,5 @@
 /* Sprite-object handlers and script services for the native program.
- * Tables select the operations and check their game-state contracts.
- * The legacy driver uses the same operations through checked machine forms;
+ * Tables select the operations and check their game-state contracts;
  * an unrecognized command or invalid state reports a broken contract. */
 #ifndef CT_GAME_MENU_HANDLERS_H
 #define CT_GAME_MENU_HANDLERS_H
@@ -15,8 +14,6 @@
 /* How an object's turn ended: it goes on next frame, it is done (its slot
  * free), or a contract prevented it from continuing. */
 typedef enum { MENU_TURN_GOES_ON, MENU_TURN_DONE, MENU_TURN_WENT_NO_FURTHER } MenuTurn;
-
-static inline MenuTurn menu_turn_done_if(bool done) { return done ? MENU_TURN_DONE : MENU_TURN_GOES_ON; }
 
 /* A handler: the address the slots name it by, what it is, the guard's state
  * half (none where the guard's only check is the machine's), and its turn. */
@@ -86,5 +83,7 @@ extern const MenuScriptRoutines overworld_routines;
  * command the port doesn't run, or a service that meets a step only the
  * machine runs, goes no further. */
 MenuTurn menu_run_object_script(GameState *g, Platform *pf, MenuObject self);
+
+static inline MenuTurn menu_turn_done_if(bool done) { return done ? MENU_TURN_DONE : MENU_TURN_GOES_ON; }
 
 #endif

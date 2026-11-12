@@ -16,7 +16,6 @@
 #include "core/tile_animation_data.h"
 
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -156,49 +155,4 @@ void tile_animations_load(GameState *g)
         }
         load_slot(g, slot, tables++, &in);
     }
-}
-
-/* ---- The machine form ---------------------------------------------------------------------------
- *
- * The animated tiles are retired from the byte-exact gate (REIMPLEMENTATION.md,
- * "The core services' teardown"): the machine enters neither of their
- * routines as ports. The line handlers still under the gate send them on the
- * machine, under the original's call (core/machine_forms.c), with this form
- * and its contract.
- *
- * The original saves its caller's flags, direct page and data bank on the
- * stack and sets its own there, so a slot whose tiles are read from the top of
- * the stack would send those bytes. No slot the game makes reads the stack:
- * the contract takes none that would, which the guard that turned them away to
- * the original asserts now. */
-static bool reads_the_stack(const Snes *s, uint32_t tiles)
-{
-    enum { LOW_RAM_END = 0x2000, PUSHED = 7 };
-    uint8_t bank = (uint8_t)(tiles >> 16);
-    uint16_t at = (uint16_t)tiles;
-    bool low_ram = bank == 0x7E || (bank & 0x40) == 0;
-    uint16_t top = s->cpu.s;
-    return low_ram && at < LOW_RAM_END && at <= top && at + TILE_BYTES > top - PUSHED;
-}
-
-bool tile_animation_upload_runs(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool odd = odd_frame((uint8_t)(tile_animation_frame(g) + 1));
-    bool ok = true;
-    for (unsigned k = 0; k < TILE_ANIMATIONS_COUNT / 2 && ok; k++) {
-        unsigned slot = odd ? k + TILE_ANIMATIONS_COUNT / 2 : k;
-        ok = !in_use(g, slot) || !reads_the_stack(s, frame_tiles(g, slot, current_frame(g, slot)));
-    }
-    vars_peek(false);
-    return ok;
-}
-
-/* It gives its caller's flags, direct page and data bank back; what it leaves
- * in A, X and Y nobody reads (the entry's set). */
-void tile_animation_upload(Snes *s)
-{
-    tile_animations_send(state_of(s), m_platform(s));
-    m_rtl(s);
 }

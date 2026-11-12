@@ -27,7 +27,6 @@
 #include "field/layers.h"
 #include "field/parts.h"
 #include "field/scratch.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -699,34 +698,4 @@ StepKind party_member_take_step(GameState *g, FieldObject obj)
     set_position_x(g, obj, (uint16_t)(position_x(g, obj) + sign_extended(step_x(g, obj))));
     set_position_y(g, obj, (uint16_t)(position_y(g, obj) + sign_extended(step_y(g, obj))));
     return STEP_TAKEN;
-}
-
-/* ---- Entries ------------------------------------------------------------------------------ */
-
-/* The overflow of a step's last sum, which the object update's callers read:
- * the vertical position's word where it fell or stepped freely, else the
- * vertical step on the fine position it had before the step (which a step
- * held at the tile's edge leaves as it was). */
-static bool overflow_after_step(const GameState *g, FieldObject obj, StepKind kind, uint8_t fine_y_before, bool free,
-                                bool entry_overflow)
-{
-    if (kind == STEP_NONE)
-        return entry_overflow;
-    int8_t y = step_y(g, obj);
-    if (kind == STEP_FALLING) {
-        uint16_t v = field_object_velocity_y(g, obj);
-        return field_add_overflows16((uint16_t)(position_y(g, obj) - v), v);
-    }
-    if (free)
-        return field_add_overflows16((uint16_t)(position_y(g, obj) - sign_extended(y)), sign_extended(y));
-    return y < 0 ? field_subtract_overflows8(fine_y_before, (uint8_t)-y) : field_add_overflows8((uint8_t)y, fine_y_before);
-}
-
-/* The object takes its step: a party member's freely. */
-void field_move_object_step(Snes *s, FieldObject obj, bool party_member)
-{
-    GameState *g = state_of(s);
-    uint8_t fine_y_before = field_object_y_fine(g, obj);
-    StepKind kind = party_member ? party_member_take_step(g, obj) : object_take_step(g, obj);
-    m_set_flag(s, CPU_FLAG_V, overflow_after_step(g, obj, kind, fine_y_before, party_member, m_flag(s, CPU_FLAG_V)));
 }

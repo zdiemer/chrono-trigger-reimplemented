@@ -14,8 +14,7 @@
  *
  * It links game/'s program (core/program.c), the platform services' host
  * backends (runtime/platform/native/) and the coroutines (runtime/port/fiber.h),
- * and none of the CPU, the PPU, the APU, the code generated from the ROM or
- * game/registry.c. The game's state is held in the host's memory
+ * with no emulator or machine entry layer. The game's state is held in the host's memory
  * (runtime/port/state_host.h) and its data read from the asset pack
  * (frontend/assets.h; game/data/assets.h, the store): <rom name>.assets beside
  * the ROM unless --assets names it, imported from the ROM where there is none
@@ -23,8 +22,7 @@
  * kept.
  *
  * It plays in the shared SDL window, or runs headless measurements with
- * --frames. It says how far the program's C carries it -- the frame and the
- * routine where the next step is still only a machine entry -- and what it
+ * --frames. It reports invalid game state with its frame and source origin, and what it
  * reached for that a host doesn't have (an address outside work RAM, save RAM
  * and the cartridge), and whether its picture, drawn every frame by the native
  * renderer, ends showing (tools/native_check.py holds the library to that:
@@ -32,8 +30,7 @@
  * frames as PNGs, --locations the places the run enters, --lag-log each wait
  * the time model makes last (its frame, the frames and the work's clocks),
  * --end-state work RAM and save RAM at the end. Exit status 0 when it ran every frame, 1 where the
- * program stopped short, 2 on bad arguments or files, 3 on a fatal machine
- * entry. This file is the driver:
+ * program stopped short, 2 on bad arguments or files. This file is the driver:
  * the loop, the files and the report belong here. */
 #include <errno.h>
 #include <inttypes.h>
@@ -60,7 +57,6 @@
 #include "platform/native/host.h"
 #include "platform/native/render.h"
 #include "port/state_host.h"
-#include "port/no_machine.h"
 #ifdef CT_HAVE_SDL
 #define SDL_MAIN_HANDLED
 #include "window.h"
@@ -375,12 +371,7 @@ static int native_flush(void *ctx)
     return 0;
 }
 
-static void machine_failure(void *ctx, const char *routine)
-{
-    NativeDriver *d = ctx;
-    fprintf(stderr, "ct_native: frame %lu: %s reached, which only the machine has\n", d->frame + 1, routine);
-    fflush(stderr);
-}
+
 
 /* Both checkpoint callers reconstruct through this exact frame boundary. */
 static bool native_frame(void *ctx, uint32_t pads)
@@ -411,7 +402,7 @@ static bool native_frame(void *ctx, uint32_t pads)
     uint32_t routine;
     const char *what;
     if (state_host_stopped(d->game, &routine, &what)) {
-        fprintf(stderr, "frame %lu: the program's C goes no further: $%02X:%04X, %s, runs only on the machine\n",
+        fprintf(stderr, "frame %lu: the program's C goes no further: $%02X:%04X, %s\n",
                 d->frame, (unsigned)(routine >> 16), (unsigned)(routine & 0xFFFF), what);
         d->result = 1;
     }
@@ -788,7 +779,6 @@ int main(int argc, char **argv)
     memcpy(driver.saved, state_host_sram(g), sizeof driver.saved);
     pf.save.ctx = &driver;
     pf.save.written = native_save_written;
-    no_machine_report_with(machine_failure, &driver);
     int rc = 0;
     if (load_state && native_load_state(&driver, load_state)) return 2;
     if (drive) {
@@ -841,7 +831,6 @@ int main(int argc, char **argv)
     if (driver.result)
         rc = driver.result;
     unsigned long frame = driver.frame;
-    no_machine_report_with(NULL, NULL);
     fprintf(stderr, "ct_native: %lu frame(s); the screen set up %u time(s), %s\n", frame,
             (unsigned)pf.video.screens_applied, pf.video.display.blank ? "blanked" : "showing");
     fprintf(stderr, "time: %u lag frame(s), the main thread's work owed the original's time\n",

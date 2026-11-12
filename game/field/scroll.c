@@ -9,7 +9,6 @@
 #include "charge.h"
 
 #include "field/scratch.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -90,13 +89,4 @@ void field_scroll_layers_by_themselves(GameState *g)
     }
     if (last_backward < 0)
         charge_legacy_accesses(g, 2); /* the backward step's magnitude */
-}
-
-/* It sets its own direct page and data bank, and restores the caller's;
- * nothing it leaves in the registers is read after (the entry's don't-care
- * set). */
-void field_scroll_layers(Snes *s)
-{
-    field_scroll_layers_by_themselves(state_of(s));
-    m_rtl(s);
 }

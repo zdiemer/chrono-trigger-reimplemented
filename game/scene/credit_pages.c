@@ -31,7 +31,6 @@
 #include "charge.h"
 #include "cpu_io.h"
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
@@ -59,18 +58,7 @@ static const uint16_t letter_colors[] = { 0x0000, 0x77BD, 0x4631, 0x1CE7 };
  * the unpacking into the destination set. The letters' loader is a routine of
  * the setup's (called from $7E:6B0A), whose return is under the unpacker's
  * call, as shadow mode pairs the call with the original's. */
-enum { UNPACK = 0x7E3691, UNPACK_IGNORES = DC_A | DC_Y | DC_N | DC_Z | DC_C, LOADER_CALL = 0x7E6B0A };
-
-static bool unpack_the_letters_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    scene_bridge_enter(s, LOADER_CALL);
-    s->cpu.x = LETTERS;
-    if (!scene_run_called(s, 0x7E6C3F, UNPACK, UNPACK_IGNORES, scene_unpack_resource))
-        return false;
-    scene_bridge_leave(s);
-    return true;
-}
+enum { UNPACK = 0x7E3691, LOADER_CALL = 0x7E6B0A };
 
 // $7E:6BF9
 /* The letters' colors, and VRAM made ready at `vram`, a word at a time, for
@@ -272,35 +260,12 @@ static TaskEnd show_the_page_task(GameState *g, Platform *pf)
     return (TaskEnd){ TASK_HANDS_OVER, SCENE_TASK_DARKEN_AND_END };
 }
 
-/* It leaves the frame counter in A, read whole. */
-static TaskLeftovers show_the_page_leaves(const GameState *g, TaskEnd end)
-{
-    (void)end;
-    return (TaskLeftovers){ .a_set = true, .a = scene_frame_counter(g) };
-}
-
 enum { ROW_SHOW_THE_PAGE };
 
-static bool show_the_page_present(Snes *s);
-
 const SceneTaskPort scene_credit_pages_tasks[] = {
-    [ROW_SHOW_THE_PAGE] = { SCENE_TASK_SHOW_THE_CREDITS_PAGE, SCENE_FRAME_TASKS, show_the_page_task,
-      show_the_page_present, show_the_page_leaves, false },
+    [ROW_SHOW_THE_PAGE] = { SCENE_TASK_SHOW_THE_CREDITS_PAGE, SCENE_FRAME_TASKS, show_the_page_task },
 };
 const unsigned scene_credit_pages_task_count = sizeof scene_credit_pages_tasks / sizeof scene_credit_pages_tasks[0];
-
-/* ---- Entries ----------------------------------------------------------------------------------- */
-
-/* The setup's code with its tables and its task's, the widening, and the
- * program's routines it runs inline: the add of a task and the transfer.
- * Its stores reach the registers and low RAM through the data bank. */
-bool scene_credit_pages_set_up_present(Snes *s)
-{
-    return m_bank_reaches_io(s) && m_code_matches(s, 0x7E6B04, 0x1BC, 0x9D419350E0B42143ull) &&
-           m_code_matches(s, 0x7E66B0, 0x2D, 0x668182BFFD2B1A5Bull) &&
-           m_code_matches(s, 0x7E395E, 0x16, 0xBC6CC1EBF7C4F36Aull) &&
-           m_code_matches(s, 0x7E38E7, 0x24, 0xDD4B67DA62CC8E67ull);
-}
 
 /* ---- What the setup leaves ------------------------------------------------------------------- */
 
@@ -311,22 +276,6 @@ typedef struct {
     bool has_letters;
     uint8_t last_letter, last_x;
 } ListRead;
-
-static ListRead read_through(const GameState *g, uint16_t at)
-{
-    ListRead r = { 0 };
-    for (uint8_t first; (first = text_byte(g, at++)) != END_OF_LIST;) {
-        uint8_t x = first;
-        at++;
-        for (uint8_t letter; (letter = text_byte(g, at++)) != END_OF_ENTRY; x = (uint8_t)(x + LETTER_STEP)) {
-            r.has_letters = true;
-            r.last_letter = letter;
-            r.last_x = x;
-        }
-    }
-    r.end = at;
-    return r;
-}
 
 /* The original reads the page's text through the work RAM port, which it
  * leaves past the jobs' list. */
@@ -343,43 +292,4 @@ static void charge_page_text_scan(GameState *g, uint16_t page)
     charge_uncounted_end(g, mark);
     charge_legacy_accesses(g, accesses);
     charge_legacy_io_accesses(g, 3);
-}
-
-static bool subtraction_overflows(uint8_t a, uint8_t b) { return ((a ^ b) & (a ^ (uint8_t)(a - b)) & 0x80) != 0; }
-static bool addition_overflows(uint8_t a, uint8_t b) { return (~(a ^ b) & (a ^ (uint8_t)(a + b)) & 0x80) != 0; }
-
-/* The overflow flag the original's last step of a letter leaves, which the
- * frame's work reads: the step of the last job's place on to the next
- * letter's, or where the jobs have no letters, the subtraction that made the
- * last name's last tile. */
-static bool last_letter_overflowed(const GameState *g, uint16_t page)
-{
-    ListRead jobs = read_through(g, page_list(g, PAGE_JOBS, page));
-    if (jobs.has_letters)
-        return addition_overflows(jobs.last_x, LETTER_STEP);
-    ListRead names = read_through(g, page_list(g, PAGE_NAMES, page));
-    return names.has_letters && subtraction_overflows(names.last_letter, '@');
-}
-
-/* Entered with 8-bit A. Back, the original has left the direct page on the
- * registers' (its writers point it there and don't put it back), the data
- * bank 0, Y the widening's count run out, and the overflow, which the frame's
- * work reads, as the page's last letter left it. */
-bool scene_credit_pages_set_up_scene(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (!set_up_the_page(g, m_platform(s), unpack_the_letters_on_the_machine, s))
-        return false;
-    s->cpu.d = M_DP_PPU;
-    s->cpu.db = 0x00;
-    s->cpu.p |= CPU_FLAG_M;
-    m_set_flag(s, CPU_FLAG_V, last_letter_overflowed(g, scene_credits_page(g)));
-    s->cpu.y = 0x0000;
-    return true;
-}
-
-/* The task's code; the cells are the scene's page's. */
-static bool show_the_page_present(Snes *s)
-{
-    return scene_on_scene_page(s) && m_code_matches(s, 0x7E6BE5, 0x14, 0xF8DD5396B960AE74ull);
 }

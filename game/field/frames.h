@@ -4,15 +4,11 @@
 
 #include <stdbool.h>
 
-#include "snes/system.h"
+#include <stdint.h>
 
 /* field/frames.c */
-void field_draw_next_frame(Snes *s);
-bool field_frames_can_draw(Snes *s);
 enum { FIELD_DRAW_NEXT_FRAME_ENTRY = 0xC0CAD9 };
 /* The frame queue drawn through, while the frame has time. */
-void field_draw_queued_frames(Snes *s);
-bool field_queued_frames_can_be_drawn(Snes *s);
 #include "field/object.h"
 #include "platform/platform.h"
 
@@ -34,7 +30,5 @@ bool object_drawn_frame_can_go_back(const GameState *g, FieldObject obj);
  * engine has live after the command that loads a figure. */
 void object_draw_whole_figure(GameState *g, Platform *pf, FieldObject obj);
 bool field_figure_drawable(const GameState *g, ObjectGraphics set, ObjectGraphics descriptions, uint16_t records);
-void field_draw_whole_figure(Snes *s);
-bool field_figure_can_be_drawn(Snes *s);
 
 #endif

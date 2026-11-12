@@ -12,7 +12,6 @@
 #include "menu/handlers.h"
 #include "menu/map.h"
 #include "menu/objects.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -40,7 +39,6 @@ bool menu_scene_object_in_view(GameState *g)
     uint16_t across = into_view(menu_object_slots_x_pixel(g, self), menu_object_shadows_bg2_scroll_x(g), MENU_MAP_WIDTH);
     uint16_t down = into_view(menu_object_slots_y_pixel(g, self), menu_object_shadows_bg2_scroll_y(g), MENU_MAP_HEIGHT);
     menu_note_effect_noise(g, across);
-    charge_machine_accesses(g, 2);
     return across < VIEW_WIDTH + 2 * MARGIN && down < VIEW_HEIGHT + MARGIN + MARGIN_BELOW;
 }
 
@@ -56,8 +54,6 @@ void menu_scene_drift_the_map(GameState *g, MenuObject self)
     set_menu_object_slots_drift_count(g, self, count);
     if (count & EVERY_FOURTH)
         return;
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     TIMED_AS(g, 0xC20568, menu_map_scroll(g, FIRST_PLANE, MENU_ACROSS, A_TILE));
 }
 
@@ -69,42 +65,6 @@ void menu_scene_drift_the_map(GameState *g, MenuObject self)
  * hands the place over in the mode's first cell, where the routines it calls
  * answer it too. */
 void menu_scene_note_the_epoch_s_arrival(GameState *g) { set_story_epoch_arrivals(g, menu_object_scratch_answer(g)); }
-
-// $C2:78A1
-/* The answer goes to the mode's first cell, which the script tests next. */
-void menu_scene_object_in_view_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    bool in_view = menu_scene_object_in_view(g);
-    set_menu_object_scratch_answer(g, in_view);
-    charge_machine_accesses(g, 2);
-    m_rts(s);
-}
-
-// $C2:7849
-/* A handler, never done: the carry clear, which the objects' loop reads
- * (the width it leaves, the loop sets again: DC_WIDTH). */
-void menu_scene_drift_the_map_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_scene_drift_the_map(g, menu_object_running(g));
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
-}
-
-// $C6:EE31
-/* It leaves the place in A, with the flags of its load. */
-void menu_scene_note_the_epoch_s_arrival_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    menu_scene_note_the_epoch_s_arrival(g);
-    uint8_t place = story_epoch_arrivals(g);
-    m_set_a8(s, place);
-    m_set_nz8(s, place);
-    m_rtl(s);
-}
-
-bool menu_scene_object_in_view_runs(Snes *s) { return menu_object_can_move(s); }
 
 /* ---- As C ---------------------------------------------------------------------------------------- */
 
@@ -135,5 +95,3 @@ bool menu_scene_drift_takes(const GameState *g, MenuObject self)
     (void)self;
     return menu_map_can_scroll(g, 1, menu_map_scroll_records(MENU_ACROSS, 1));
 }
-
-bool menu_scene_drift_runs(Snes *s) { return menu_object_handler_takes(s, menu_scene_drift_takes); }

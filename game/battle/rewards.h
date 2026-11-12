@@ -33,9 +33,6 @@ typedef struct {
     uint8_t who; /* the member, or the character */
 } Grower;
 
-static inline Grower grower_member(uint8_t member) { return (Grower){ false, member }; }
-static inline Grower grower_in_reserve(uint8_t character) { return (Grower){ true, character }; }
-
 /* $FD:B201: the experience turned to gold, where a member wears the accessory
  * that does it. */
 void battle_turn_experience_to_gold(GameState *g);
@@ -69,5 +66,9 @@ typedef struct {
     uint16_t asks;       /* where in bank CC its record says what each tech asks is */
 } Combination;
 void rewards_learn_combination_techs(GameState *g, Combination c, uint8_t member);
+
+static inline Grower grower_member(uint8_t member) { return (Grower){ false, member }; }
+
+static inline Grower grower_in_reserve(uint8_t character) { return (Grower){ true, character }; }
 
 #endif

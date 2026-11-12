@@ -162,14 +162,6 @@ typedef bool (*BackCalls)(void *ctx, BackCall call, bool own_layer, bool faded);
  * colors' copy leaves it set. The tests and the fade also clear A. */
 enum { HALVED_MATH = 0x40 };
 
-static void leave_the_tests(Snes *s, const GameState *g, bool own_layer, bool faded)
-{
-    bool halved = battle_start_screens_math_layers(g) & HALVED_MATH;
-    if (!own_layer || faded)
-        s->cpu.a = 0;
-    m_set_flag(s, CPU_FLAG_C, own_layer && !(faded && halved));
-}
-
 // $CD:0453
 /* Put the battlefield back. */
 static bool put_the_battlefield_back(GameState *g, BackCalls call, void *ctx)
@@ -195,22 +187,6 @@ static bool put_the_battlefield_back(GameState *g, BackCalls call, void *ctx)
     return call(ctx, BACK_LAST_FRAME, false, false);
 }
 
-static bool back_on_the_machine(void *ctx, BackCall call, bool own_layer, bool faded)
-{
-    Snes *s = ctx;
-    switch (call) {
-    case BACK_TILES_SENT: return battle_send_and_wait(s, 0xCD0460, RAM_FIELD_BG3_TILES_UNPACKED, TILES_VRAM, TILES_BYTES);
-    case BACK_TESTS_LEFT: leave_the_tests(s, state_of(s), own_layer, faded); return true;
-    case BACK_FADED_FRAME: return battle_wait_for_the_next_frame_from(s, 0xCD048C);
-    case BACK_SETTLING_FRAMES:
-        return battle_wait_frames(s, 0xCD0494, BATTLE_SOME_FRAMES_WAIT, BATTLE_COUNTING_WAIT_READS, SETTLING_FRAMES);
-    default:
-        s->cpu.a = 0;
-        m_set_flag(s, CPU_FLAG_C, true);
-        return battle_wait_for_the_next_frame_from(s, 0xCD04A2);
-    }
-}
-
 typedef struct {
     GameState *game;
     Platform *pf;
@@ -225,7 +201,7 @@ static bool put_back_a_part(void *ctx, BackCall call, bool own_layer, bool faded
     bool done = false;
     switch (call) {
     case BACK_TILES_SENT:
-        vid_send_vram_and_wait(c->pf, PF_CALL_DC(0xCD0460, BATTLE_SEND, BATTLE_SEND_READS), TILES_VRAM,
+        vid_send_vram_and_wait(c->pf, PF_CALL(0xCD0460, BATTLE_SEND), TILES_VRAM,
                                PF_GAME(RAM_FIELD_BG3_TILES_UNPACKED), TILES_BYTES);
         return true;
     case BACK_TESTS_LEFT: return true;
@@ -238,12 +214,4 @@ bool battle_put_the_battlefield_back(GameState *g, Platform *pf)
 {
     BattlefieldRestoreContext c = { g, pf };
     return put_the_battlefield_back(g, put_back_a_part, &c);
-}
-
-/* ---- The entries ------------------------------------------------------------------------------ */
-
-void battle_put_the_battlefield_back_entry(Snes *s)
-{
-    if (put_the_battlefield_back(state_of(s), back_on_the_machine, s))
-        m_rts(s);
 }

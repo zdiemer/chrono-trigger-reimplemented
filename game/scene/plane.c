@@ -15,7 +15,6 @@
 #include "scene/scene.h"
 
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -70,26 +69,3 @@ void scene_send_the_plane_s_place(const GameState *g, Platform *pf)
  * moves the direct page to channel 0's, which it leaves there, and nothing
  * they leave is read. */
 enum { CAMERA_PAGE = 0x0A00 };
-
-void scene_send_the_flat_plane_entry(Snes *s)
-{
-    scene_send_the_flat_plane(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-void scene_send_the_plane_s_place_entry(Snes *s)
-{
-    scene_send_the_plane_s_place(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-/* Each is sent through the data bank, which must reach the registers. */
-bool scene_send_the_flat_plane_present(Snes *s)
-{
-    return m_bank_reaches_io(s) && m_code_matches(s, 0x7E5654, 0x55, 0x93E05BF3D717E712ull);
-}
-
-bool scene_send_the_plane_s_place_present(Snes *s)
-{
-    return m_bank_reaches_io(s) && m_code_matches(s, 0x7E81C4, 0x2D, 0xF9B68B76E19640AEull);
-}

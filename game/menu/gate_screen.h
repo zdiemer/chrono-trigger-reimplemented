@@ -6,7 +6,7 @@
 #include <stdbool.h>
 
 #include "platform/platform.h"
-#include "snes/system.h"
+#include <stdint.h>
 #include "state.h"
 
 /* The swirl's tilemap, colours and scroll, once its graphics are unpacked;
@@ -25,10 +25,5 @@ void menu_gate_screen_task(GameState *g, Platform *pf);
 bool menu_gate_swirl_can_turn(const GameState *g);
 
 /* The checked legacy adapters ($FF:F677, $FF:F716, $C2:CE9D) and their guard. */
-void menu_draw_gate_screen_entry(Snes *s);
-void menu_start_gate_screen_entry(Snes *s);
-void menu_run_the_gate_screen_task(Snes *s);
-bool menu_gate_screen_runs(Snes *s);
-bool menu_gate_swirl_turns(Snes *s);
 
 #endif

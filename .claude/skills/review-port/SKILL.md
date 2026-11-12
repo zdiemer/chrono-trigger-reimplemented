@@ -98,7 +98,6 @@ tick, the frame queue and the frame read follow the same shape.
 #include "field/field_data.h"
 #include "field/parts.h"
 #include "field/scratch.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -451,10 +450,9 @@ Each of these is a finding. Every example here comes from this repo.
 21. **Two vocabularies, or dead address columns.** Registered entry names that
     disagree with the operation names for the same command (`reset_animation`
     and `stop_animating`), or a column holding ROM addresses that no code reads.
-22. **Calling a sibling port through its ROM address.** An emulated `JSR` into
-    your own subsystem's port instead of a C call: machine-checked, `portsmell.py
-    sibling-through-machine`, which reads every call-out's target against
-    `game/registry.c` (item 61 is the same check from the call-out's side).
+22. **Calling a sibling through its ROM address.** A table, key or lookup that
+    finds another operation by its original address instead of calling it as C
+    (item 61 is the same finding from the callee's side).
 23. **The scaffolding switch used as a value.** `return ORIGINAL_EFFECTS &&
     overflows16(...)`: the switch has leaked into what a function means.
     Machine-checked, `portsmell.py scaffolding-as-value`.
@@ -525,8 +523,8 @@ Each of these is a finding. Every example here comes from this repo.
     whether the wrapper could derive it.
 36. **Timing shaping the logic.** A loop kept byte by byte, or a step kept in
     the original's order, because that shape is what the timing estimate
-    charges. Time is charged through scaffolding (`NATIVE_TIME_AS`, or a
-    block-move charge of N bytes in one call), never by keeping a shape.
+    charges. Time is charged through `TIMED_AS` or an explicit
+    charge of N units in one call, never by keeping a shape.
 37. **Hardware helpers used as the computation.** The divider, the
     multiplier or the work RAM port used to *compute* (`quotient =
     hw_quotient_by(...)`, a list read through the port with a word's high byte
@@ -613,11 +611,9 @@ Each of these is a finding. Every example here comes from this repo.
     rotations, `FADE_TO_WHITE` standing for every fade) reads as if it cared
     which member. Give the coarser case its own type.
 
-61. **A call-out that is really a port.** Machine-checked with item 22,
-    `portsmell.py sibling-through-machine`, which reads every call-out's target
-    against `game/registry.c`: a list headed "the original's routines" can
-    quietly include the subsystem's own ports, called through the machine
-    where C would do.
+61. **A lookup that is really a call.** A list headed "the original's
+    routines", keyed by address, that quietly holds the subsystem's own
+    operations, reached by lookup where a direct C call would do.
 62. **Register setup the call's own declaration marks dead.** A carry set
     before a call whose don't-care set includes `DC_C`.
 63. **An increment where the value is a bool or a state.** `x + 1` written to
@@ -903,7 +899,7 @@ Each of these is a finding. Every example here comes from this repo.
 121. **A sibling's time charged to the caller.** A bridge that calls another
      port's registered entry directly as C, so that entry's time lands on the
      caller, then answers the drift with a timing exception. Wrap the call in
-     `NATIVE_TIME_AS` with the sibling's address, so its own calibrated value
+     `TIMED_AS` with the sibling's key, so its own calibrated value
      is charged, and drop the exception.
 122. **A dispatcher kept as the calling convention between ports.** A C
      function that takes the original's dispatch number and its registers'

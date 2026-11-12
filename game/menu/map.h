@@ -7,7 +7,6 @@
 
 #include "menu/object.h"
 #include "platform/platform.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* Scroll one of the two planes that scroll (1 or 2, as the scripts name
@@ -52,18 +51,8 @@ bool menu_map_can_redraw(const GameState *g, uint8_t plane);
 /* The entries run on the menus' page, with the data bank on low RAM; the
  * scrolls and the redraw take the plane and the step from the object mode's
  * first cells (map.c's guards say what else the game keeps them to). */
-bool menu_map_page_is_menu(Snes *s);
-bool menu_map_scroll_x_runs(Snes *s);
-bool menu_map_scroll_y_runs(Snes *s);
-bool menu_map_redraw_runs(Snes *s);
-
-void menu_map_scroll_x(Snes *s);
-void menu_map_scroll_y(Snes *s);
-void menu_map_redraw(Snes *s);
 
 /* Register results shared by the entries and the script bridge. These do
  * no game work and do not return through the emulated stack. */
-void menu_leave_map_scrolled(Snes *s, uint8_t plane, MenuAxis axis, int8_t step);
-void menu_leave_map_redrawn(Snes *s);
 
 #endif

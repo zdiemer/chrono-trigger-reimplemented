@@ -10,7 +10,6 @@
 #include "charge.h"
 #include "menu/menu_data.h"
 #include "menu/windows.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"

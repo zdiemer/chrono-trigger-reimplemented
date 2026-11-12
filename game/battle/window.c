@@ -123,7 +123,6 @@ static void show_name_plain(GameState *g, WindowLayout layout, unsigned member)
     }
 }
 
-
 /* The name's tiles, counted down in a work cell. */
 enum { NAME_COUNT = 0x8E };
 
@@ -148,7 +147,6 @@ static void draw_member_line(GameState *g, WindowLayout layout, unsigned member)
         window_put(g, (WindowCell)(line.gauge + 1 + GAUGE_CELLS), TILE_GAUGE_RIGHT, TEXT_PLAIN);
         battle_show_gauge(g, member);
     }
-    charge_machine_accesses(g, 4);
 }
 
 /* ---- The window's lists ------------------------------------------------------------------ */
@@ -192,7 +190,6 @@ static void list_enemy_kinds(GameState *g)
         put_enemy_name(g, window_cell(FIRST_LINE_ROW + LINE_ROWS * shown, ENEMY_NAME_COLUMN), kind);
         shown++;
     }
-    charge_machine_accesses(g, shown ? 5 : 4);
 }
 
 /* ---- The command windows --------------------------------------------------------------- */
@@ -235,7 +232,6 @@ static void put_command_window(GameState *g, unsigned member)
         for (unsigned column = 0; column < COMMAND_WINDOW_COLUMNS; column++)
             window_put(g, command_window_cell(member, row, column),
                        battle_command_window_tile(g, combo, row * COMMAND_WINDOW_COLUMNS + column), TEXT_PLAIN);
-    charge_machine_accesses(g, 4);
 }
 
 /* The frames tilemap's cells: the frames are drawn by slot, a window beside a
@@ -256,7 +252,6 @@ static void put_frame(GameState *g, unsigned slot, bool beside_another)
     for (unsigned row = 0; row < COMMAND_WINDOW_ROWS; row++)
         for (unsigned column = first_column; column < COMMAND_WINDOW_COLUMNS; column++)
             put_frame_cell(g, window_cell(row, COMMAND_WINDOW_STEP * slot + column), row * COMMAND_WINDOW_COLUMNS + column);
-    charge_machine_accesses(g, 4);
 }
 
 // $C1:081E
@@ -271,7 +266,6 @@ static void put_frames(GameState *g)
     }
     /* The original notes a border left out for the third slot's frame last,
      * and clears it after the second's. */
-    charge_machine_accesses(g, 2);
 }
 
 /* ---- The command cursor ----------------------------------------------------------------- */
@@ -310,7 +304,6 @@ void battle_redraw_command_cursor(GameState *g)
         window_put_cursor(g, command_window_cell(slot, CURSOR_ROWS_PER_COMMAND * command, 0));
     }
     set_battle_member_cells_redraw(g, 0);
-    charge_machine_accesses(g, redraw ? 2 : 1);
 }
 
 /* The first menu slot with a member, which becomes the menu's when its own
@@ -336,7 +329,6 @@ static void show_command_windows(GameState *g, WindowLayout layout)
     for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++)
         if (menu_slot_has_member(g, slot))
             put_command_window(g, battle_menu_slot_members(g, slot));
-    charge_machine_accesses(g, 2);
     put_frames(g);
     show_name_plain(g, layout, member);
     /* The cursor is asked for as the menu asks for it, by counting the flag up. */
@@ -368,20 +360,6 @@ void battle_redraw_window(GameState *g)
     }
     if (battle_menu_page(g) == PAGE_COMMANDS)
         show_command_windows(g, layout);
-}
-
-/* ---- The entry ------------------------------------------------------------------------- */
-
-/* It leaves the carry as window_leaves.c works it out. */
-void battle_draw_window(Snes *s)
-{
-    GameState *g = state_of(s);
-    vars_peek(true);
-    bool carry = window_redraw_carry(g);
-    vars_peek(false);
-    battle_redraw_window(g);
-    m_set_flag(s, CPU_FLAG_C, carry);
-    m_rts(s);
 }
 
 /* ---- The guards ------------------------------------------------------------------------ */
@@ -438,17 +416,3 @@ bool battle_window_fits(const GameState *g)
             return true;
     return false;
 }
-
-bool battle_window_ready(Snes *s)
-{
-    vars_peek(true);
-    bool ready = battle_on_page(s) && battle_window_fits(state_of(s));
-    vars_peek(false);
-    return ready;
-}
-
-/* The gauge's member, in its work cell, a party member. */
-
-/* The party status and the cursors carry A's high byte into their indexes
- * (the member's, the target's), as the original does: the game's is clear. */
-bool battle_window_ready_a_clear(Snes *s) { return battle_window_ready(s) && !(s->cpu.a & 0xFF00); }

@@ -25,7 +25,6 @@
 #include "battle/window.h"
 #include "charge.h"
 #include "platform/audio.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -39,7 +38,6 @@ enum { WINDOW_TO_REBUILD = NO_SLOT_SHOWN };
  * clears as it queues the action chosen) and its command cursor where the
  * battle remembers it; and the chime of a turn come plays, from the middle. */
 enum { TURN_CHIME = 0x42 };
-#define DRIVER_IGNORES (DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C)
 
 static void join_the_line(GameState *g, Platform *pf, uint8_t member)
 {
@@ -50,7 +48,7 @@ static void join_the_line(GameState *g, Platform *pf, uint8_t member)
     set_battle_menu_queue(g, place, member);
     set_battle_command_cursor(g, member, battle_remembered_command(g, member));
     set_battle_menu_queue_length(g, (uint8_t)(place + 1));
-    au_command(pf, PF_CALL_DC(0xC11B50, 0xC70004, DRIVER_IGNORES),
+    au_command(pf, PF_CALL(0xC11B50, 0xC70004),
                (AudioCommand){ .command = AU_START_OTHER_EFFECT, .p1 = TURN_CHIME, .p2 = AU_CENTRE, .count = 2 });
 }
 
@@ -122,7 +120,6 @@ static void give_up_the_open_menu(GameState *g, uint8_t member)
         set_battle_ally_target_window(g, 0);
     }
     set_battle_targeting(g, 0);
-    charge_machine_accesses(g, 1);
     set_battle_target_choice(g, 0);
     battle_hand_the_menu_on(g, member);
 }
@@ -135,7 +132,6 @@ enum { CALLED_OFF_CELL = 0x80 };
  * the menu, the window's frames put back as the battle starts them. */
 void battle_call_off_the_menu(GameState *g, uint8_t member)
 {
-    charge_machine_accesses(g, 1);
     if (!menu_slot_has_member(g, member)) {
         step_out_of_the_line(g, member);
         return;
@@ -149,55 +145,6 @@ void battle_call_off_the_menu(GameState *g, uint8_t member)
     }
     TIMED_AS(g, 0xC11C3A, battle_reset_frames(g));
     set_battle_tech_list_being_laid_out(g, 0);
-}
-
-/* ---- The entries ---------------------------------------------------------------------------- */
-
-/* The steps' entries take their member from the step's cell; the dispatch
- * hands the asker's registers back after them (steps.c), but not A's high
- * byte and the carry, which the asker reads: the turn's step leaves them as
- * the dispatch gave them, the calling off A's high byte clear and the carry
- * of its last count, set. */
-
-// $C1:1B19
-void battle_turn_comes_step(Snes *s)
-{
-    GameState *g = state_of(s);
-    join_the_line(g, m_platform(s), battle_step_member(g));
-    m_rts(s);
-}
-
-// $C1:1BAA
-void battle_called_off_step(Snes *s)
-{
-    GameState *g = state_of(s);
-    battle_call_off_the_menu(g, battle_step_member(g));
-    s->cpu.a &= 0x00FF;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
-}
-
-// $C1:1B67
-
-/* The guards: a party member, as the steps are asked for, with a place in
- * the line for it to join; the turn's step finds the member's cells by the
- * whole of A with the member, so A's high byte clear, as the main loop asks
- * for it. */
-bool battle_turn_comes_ready(Snes *s)
-{
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = battle_step_member(g) < BATTLE_PARTY_SIZE && battle_menu_queue_length(g) < BATTLE_MENU_QUEUE_COUNT;
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && ok;
-}
-
-bool battle_called_off_ready(Snes *s)
-{
-    vars_peek(true);
-    bool ok = battle_step_member(state_of(s)) < BATTLE_PARTY_SIZE;
-    vars_peek(false);
-    return battle_on_page(s) && ok;
 }
 
 /* ---- As C ------------------------------------------------------------------------------------ */

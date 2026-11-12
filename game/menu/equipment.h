@@ -9,7 +9,6 @@
 
 #include "menu/members.h"
 #include "platform/video.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* ---- Opening it, and the main menu's panel ---------------------------------------------------- */
@@ -367,48 +366,6 @@ bool menu_make_equipment_list(GameState *g, Platform *pf);
 bool menu_point_along_equipment_list(GameState *g, Platform *pf);
 
 /* ---- The entries (game/menu/equipment_bridge.c) ----------------------------------------------- */
-
-void menu_open_equipment_entry(Snes *s);
-void menu_set_up_equipment(Snes *s);
-void menu_choose_equipment_member_entry(Snes *s);
-void menu_point_at_equipment_member(Snes *s);
-void menu_start_sliding_equipment_members(Snes *s);
-void menu_slide_equipment_members(Snes *s);
-void menu_choose_equipment_slot_entry(Snes *s);
-void menu_point_at_equipment_slot(Snes *s);
-void menu_switch_equipment_member_entry(Snes *s);
-void menu_choose_equipment_item_entry(Snes *s);
-void menu_point_along_equipment_list_entry(Snes *s);
-void menu_show_equipment_panel(Snes *s);
-void menu_back_to_equipment_members(Snes *s);
-void menu_open_equipment_list(Snes *s);
-void menu_redraw_equipment_list(Snes *s);
-void menu_make_equipment_list_entry(Snes *s);
-void menu_slide_equipment_list_in(Snes *s);
-void menu_slide_equipment_list_out(Snes *s);
-void menu_back_to_equipment_slots(Snes *s);
-void menu_open_slots_window(Snes *s);
-void menu_close_slots_window(Snes *s);
-bool menu_equipment_members_come_back(Snes *s);
-bool menu_equipment_list_opens(Snes *s);
-bool menu_equipment_list_can_be_made(Snes *s);
-bool menu_equipment_list_slides(Snes *s);
-bool menu_equipment_slots_come_back(Snes *s);
-bool menu_equipment_slots_window_slides(Snes *s);
-
-bool menu_equipment_opens(Snes *s);
-bool menu_equipment_sets_up(Snes *s);
-bool menu_equipment_member_step_runs(Snes *s);
-bool menu_equipment_member_is_pointable(Snes *s);
-bool menu_equipment_members_slide(Snes *s);
-bool menu_equipment_members_slide_starts(Snes *s);
-bool menu_equipment_slot_step_runs(Snes *s);
-bool menu_equipment_slot_is_pointable(Snes *s);
-bool menu_equipment_member_switches(Snes *s);
-bool menu_equipment_item_step_runs(Snes *s);
-bool menu_equipment_list_is_pointable(Snes *s);
-bool menu_equipment_panel_shows(Snes *s);
-bool menu_panel_colours_show(Snes *s);
 
 /* For the entries' leaves (scaffolding): whether the list's opening starts
  * typing a description, the item it describes being another than the one

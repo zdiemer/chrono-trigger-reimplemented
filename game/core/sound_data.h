@@ -28,6 +28,47 @@ enum { SOUND_BOOT_BLOCKS = 6 };
  * percussion mode plays its notes' pitch as an index into them
  * (game/sound/sequencer.c). */
 enum { SOUND_PERCUSSION_ENTRIES = 12, SOUND_PERCUSSION_ENTRY_BYTES = 3 };
+
+/* The pitch of each of the twelve semitones of the octave notes are counted
+ * from, in 4096ths of a sample's own rate ($1D6D). */
+enum { SOUND_SEMITONES = 12 };
+
+/* The fourteen lengths a note can have, in ticks of the song's tempo ($1DB3). */
+enum { SOUND_NOTE_LENGTHS = 14 };
+
+/* How deep a vibrato is, in 256ths of the note's pitch ($1D87): the first for
+ * music, one chosen by the effect for sound effects. An effect chooses among
+ * twelve, and the twelfth is the first byte of the filter presets below, 0,
+ * which the driver takes as the whole pitch. */
+enum { SOUND_VIBRATO_SCALES = 12 };
+
+/* The four echo filters a song can choose, eight taps each ($1D93). */
+enum { SOUND_ECHO_FILTERS = 4, SOUND_ECHO_TAPS = 8 };
+
+/* The driver's own sample: five BRR blocks that loop from the second, which
+ * the driver rewrites as it plays ($1DC2). */
+enum { SOUND_OWN_SAMPLE_BYTES = 45, SOUND_OWN_SAMPLE_LOOP = 9 };
+
+/* The song's instruments $20 on, the blocks its samples are (a 0 ends them;
+ * the driver reads 16 all the same). Blocks are numbered in a byte: the
+ * cartridge keeps a word each, its high byte 0. */
+enum { SOUND_SONG_INSTRUMENTS = 16, SOUND_FIRST_SONG_INSTRUMENT = 0x20 };
+
+/* The boot's own samples (block 2, to $4700, a length and the bytes) and
+ * their directory entries (block 3, to $1E00); the songs' samples go after
+ * them. */
+enum { SOUND_BOOT_SAMPLES_BLOCK = 2, SOUND_BOOT_DIRECTORY_BLOCK = 3 };
+
+/* The boot's directory: for each of its samples, where it starts in sound
+ * memory and where it loops from. */
+typedef struct {
+    uint16_t start, loop;
+} SoundDirectoryEntry;
+enum { SOUND_DIRECTORY_ENTRY_BYTES = 4 };
+
+/* A set of sound effects, as it goes to SPC700 $2F00. */
+enum { SOUND_EFFECT_SETS = 2 };
+
 static inline uint32_t sound_song_percussion_bytes(uint8_t song)
 {
     return 0xC71871u + SOUND_PERCUSSION_ENTRIES * SOUND_PERCUSSION_ENTRY_BYTES * song;
@@ -56,40 +97,26 @@ static inline uint8_t sound_program_byte(const GameState *g, uint16_t spc)
     uint16_t destination = rom_read16(g, 0xC7001Cu);
     return rom_read8(g, block + 2 + (uint16_t)(spc - destination));
 }
+
 static inline uint16_t sound_program_word(const GameState *g, uint16_t spc)
 {
     return (uint16_t)(sound_program_byte(g, spc) | sound_program_byte(g, (uint16_t)(spc + 1)) << 8);
 }
 
-/* The pitch of each of the twelve semitones of the octave notes are counted
- * from, in 4096ths of a sample's own rate ($1D6D). */
-enum { SOUND_SEMITONES = 12 };
 static inline uint16_t sound_semitone_pitch(const GameState *g, uint8_t semitone)
 {
     return sound_program_word(g, (uint16_t)(0x1D6D + 2 * semitone));
 }
 
-/* The fourteen lengths a note can have, in ticks of the song's tempo ($1DB3). */
-enum { SOUND_NOTE_LENGTHS = 14 };
 static inline uint8_t sound_note_length(const GameState *g, uint8_t i) { return sound_program_byte(g, (uint16_t)(0x1DB3 + i)); }
 
-/* How deep a vibrato is, in 256ths of the note's pitch ($1D87): the first for
- * music, one chosen by the effect for sound effects. An effect chooses among
- * twelve, and the twelfth is the first byte of the filter presets below, 0,
- * which the driver takes as the whole pitch. */
-enum { SOUND_VIBRATO_SCALES = 12 };
 static inline uint8_t sound_vibrato_scale(const GameState *g, uint8_t i) { return sound_program_byte(g, (uint16_t)(0x1D87 + i)); }
 
-/* The four echo filters a song can choose, eight taps each ($1D93). */
-enum { SOUND_ECHO_FILTERS = 4, SOUND_ECHO_TAPS = 8 };
 static inline int8_t sound_echo_filter_tap(const GameState *g, uint8_t filter, uint8_t tap)
 {
     return (int8_t)sound_program_byte(g, (uint16_t)(0x1D93 + SOUND_ECHO_TAPS * filter + tap));
 }
 
-/* The driver's own sample: five BRR blocks that loop from the second, which
- * the driver rewrites as it plays ($1DC2). */
-enum { SOUND_OWN_SAMPLE_BYTES = 45, SOUND_OWN_SAMPLE_LOOP = 9 };
 static inline uint8_t sound_own_sample_byte(const GameState *g, uint8_t i)
 {
     return sound_program_byte(g, (uint16_t)(0x1DC2 + i));
@@ -101,14 +128,17 @@ static inline uint32_t sound_boot_block_data(const GameState *g, uint8_t block)
 {
     return (0xC70000u | rom_read16(g, (uint32_t)(0xC70010u + 2 * block))) + 2;
 }
+
 static inline uint8_t sound_boot_instruments(const GameState *g)
 {
     return (uint8_t)(rom_read16(g, 0xC70000u | rom_read16(g, 0xC7001Au)) / 2);
 }
+
 static inline uint16_t sound_boot_instrument_tuning(const GameState *g, uint8_t n)
 {
     return rom_read16(g, sound_boot_block_data(g, 5) + 2u * n);
 }
+
 static inline uint16_t sound_boot_instrument_envelope(const GameState *g, uint8_t n)
 {
     return rom_read16(g, sound_boot_block_data(g, 4) + 2u * n);
@@ -120,21 +150,20 @@ static inline uint32_t sound_song_at(const GameState *g, uint8_t song)
     uint32_t at = 0xC70D18u + 3u * song;
     return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
 }
+
 static inline uint16_t sound_song_length(const GameState *g, uint8_t song) { return rom_read16(g, sound_song_at(g, song)); }
+
 static inline uint8_t sound_song_byte(const GameState *g, uint8_t song, uint16_t i)
 {
     uint32_t at = sound_song_at(g, song) + 2;
     return rom_read8(g, (at & 0xFF0000u) + (at & 0xFFFFu) + i);
 }
 
-/* The song's instruments $20 on, the blocks its samples are (a 0 ends them;
- * the driver reads 16 all the same). Blocks are numbered in a byte: the
- * cartridge keeps a word each, its high byte 0. */
-enum { SOUND_SONG_INSTRUMENTS = 16, SOUND_FIRST_SONG_INSTRUMENT = 0x20 };
 static inline uint8_t sound_song_instrument_block(const GameState *g, uint8_t song, uint8_t i)
 {
     return (uint8_t)rom_read16(g, 0xC70E11u + 32u * song + 2u * i);
 }
+
 /* A block's instrument: its tuning and envelope. The index is the original's,
  * so block 0 (no block) reads the word before each table, as the CPU half
  * sent it. */
@@ -142,6 +171,7 @@ static inline uint16_t sound_instrument_tuning(const GameState *g, uint16_t bloc
 {
     return rom_read16(g, 0xC70C20u + (uint16_t)((block - 1) * 2));
 }
+
 static inline uint16_t sound_instrument_envelope(const GameState *g, uint16_t block)
 {
     return rom_read16(g, 0xC70C9Cu + (uint16_t)((block - 1) * 2));
@@ -158,10 +188,12 @@ static inline uint8_t sound_song_percussion_byte(const GameState *g, uint8_t son
  * with, which is also how much sound memory it keeps free for the echo at the
  * top (the low nibble of the first byte), and the volume it starts at. */
 static inline uint8_t sound_songs(const GameState *g) { return rom_read8(g, 0xC70AE9u); }
+
 static inline uint8_t sound_song_echo_delay(const GameState *g, uint8_t song)
 {
     return rom_read8(g, 0xC7241Du + 2u * (song & 0x7F)) & 0x0F;
 }
+
 static inline uint8_t sound_song_volume(const GameState *g, uint8_t song) { return rom_read8(g, 0xC7241Eu + 2u * (song & 0x7F)); }
 
 /* Commands $30-$3F stand for four bytes each, a command and its three
@@ -171,6 +203,7 @@ static inline uint8_t sound_shortcut_byte(const GameState *g, uint8_t n, uint8_t
 {
     return rom_read8(g, 0xC70A98u + 4u * n + i);
 }
+
 static inline uint8_t sound_song_saving_first(const GameState *g, uint16_t i) { return rom_read8(g, 0xC70AD8u + i); }
 
 /* A sample block (1-62): its length and BRR bytes, and where in it the sample
@@ -180,52 +213,47 @@ static inline uint32_t sound_block_data(const GameState *g, uint16_t id)
     uint32_t at = 0xC70AEAu + (uint16_t)((id - 1) * 3);
     return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
 }
+
 static inline uint16_t sound_block_length(const GameState *g, uint16_t id) { return rom_read16(g, sound_block_data(g, id)); }
+
 static inline uint8_t sound_block_byte(const GameState *g, uint16_t id, uint16_t i)
 {
     return rom_read8(g, sound_block_data(g, id) + 2 + i);
 }
+
 static inline uint16_t sound_block_loop(const GameState *g, uint16_t id)
 {
     return rom_read16(g, 0xC70BA4u + (uint16_t)((id - 1) * 2));
 }
 
-/* The boot's own samples (block 2, to $4700, a length and the bytes) and
- * their directory entries (block 3, to $1E00); the songs' samples go after
- * them. */
-enum { SOUND_BOOT_SAMPLES_BLOCK = 2, SOUND_BOOT_DIRECTORY_BLOCK = 3 };
 static inline uint16_t sound_boot_block_to(const GameState *g, uint8_t block)
 {
     return rom_read16(g, 0xC7001Cu + 2u * block);
 }
+
 static inline uint16_t sound_boot_block_length(const GameState *g, uint8_t block)
 {
     return rom_read16(g, sound_boot_block_data(g, block) - 2);
 }
+
 static inline uint8_t sound_boot_block_byte(const GameState *g, uint8_t block, uint16_t i)
 {
     return rom_read8(g, sound_boot_block_data(g, block) + i);
 }
 
-/* The boot's directory: for each of its samples, where it starts in sound
- * memory and where it loops from. */
-typedef struct {
-    uint16_t start, loop;
-} SoundDirectoryEntry;
-enum { SOUND_DIRECTORY_ENTRY_BYTES = 4 };
 static inline uint8_t sound_boot_directory_entries(const GameState *g)
 {
     return (uint8_t)(sound_boot_block_length(g, SOUND_BOOT_DIRECTORY_BLOCK) / SOUND_DIRECTORY_ENTRY_BYTES);
 }
+
 static inline SoundDirectoryEntry sound_boot_directory_entry(const GameState *g, uint8_t sample)
 {
     uint32_t entry = sound_boot_block_data(g, SOUND_BOOT_DIRECTORY_BLOCK) + SOUND_DIRECTORY_ENTRY_BYTES * sample;
     return (SoundDirectoryEntry){ rom_read16(g, entry), rom_read16(g, entry + 2) };
 }
 
-/* A set of sound effects, as it goes to SPC700 $2F00. */
-enum { SOUND_EFFECT_SETS = 2 };
 static inline uint16_t sound_effect_set_length(const GameState *g, uint8_t set) { return rom_read16(g, sound_effect_set_at(set)); }
+
 static inline uint8_t sound_effect_set_byte(const GameState *g, uint8_t set, uint16_t i)
 {
     return rom_read8(g, sound_effect_set_at(set) + 2 + i);

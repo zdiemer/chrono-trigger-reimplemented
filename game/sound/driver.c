@@ -485,16 +485,8 @@ bool sound_ticking_fast(const SoundDriver *d) { return d->fast; }
  * round them (and past their headers), so the sample never repeats the same
  * way. The nibble after the round's last flips the first byte's top nibble as
  * well. Nibbles are counted from the loop's start, two a byte, high first. */
-enum {
-    FIRST_NIBBLE = 2,
-    LAST_NIBBLE = 0x23,
-    AFTER_LAST_NIBBLE = 0x24,
-    ROUND_START = 3,
-    BRR_BLOCK = 9,
-    OWN_SAMPLE = 0x10,        /* its number in the directory, and its instrument's */
-    OWN_SAMPLE_TUNING = 0x00E1,
-    OWN_SAMPLE_ENVELOPE = 0xE0FF
-};
+enum { FIRST_NIBBLE = 2, LAST_NIBBLE = 0x23, AFTER_LAST_NIBBLE = 0x24, ROUND_START = 3, BRR_BLOCK = 9, OWN_SAMPLE = 0x10, /* its number in the directory, and its instrument's */
+    OWN_SAMPLE_TUNING = 0x00E1, OWN_SAMPLE_ENVELOPE = 0xE0FF };
 
 // SPC $0B5C
 static void flip_high_nibble(SoundDriver *d, uint8_t at)

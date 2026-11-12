@@ -17,7 +17,6 @@
 #include "battle/entries.h"
 #include "battle/random.h"
 #include "charge.h"
-#include "port/native.h"
 
 /* The effect being worked out, as the work copies it (battle_effect_record). */
 static EffectRecord effect_in_work(const GameState *g, EffectKind kind)
@@ -61,7 +60,6 @@ static void take_target(GameState *g)
 static void take_next_target(GameState *g)
 {
     take_target(g);
-    charge_machine_accesses(g, 1);
 }
 
 /* The next target, counting the targets left down in a byte: false once none
@@ -106,31 +104,12 @@ static void each_target(GameState *g, const EffectRecord *e, TargetWork *work)
     }
 }
 
-/* ---- The numbers the kinds take ------------------------------------------------------------ */
-
-/* The kinds hand their numbers on in the direct page's cells, which the port
- * leaves as the original's loaders do: scaffolding. */
-static void leave_numbers(GameState *g, uint8_t first, uint8_t second)
-{
-
-    (void)first;
-    (void)second;
-        charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
-}
-
 /* The record's second and third bytes, as a kind loads them ($C1:D14F). */
-static void leave_record_numbers(GameState *g) { leave_numbers(g, battle_effect_record(g, 1), battle_effect_record(g, 2)); }
-
-// $C1:D1B5
-static void leave_misses(GameState *g, const EffectRecord *e) {
-    (void)e; charge_machine_accesses(g, 1); }
+static void charge_record_numbers(GameState *g) { charge_legacy_accesses(g, 2); }
 
 /* The effect missed the target: dodged, or the attacker's miss. */
 static void miss(GameState *g, const EffectRecord *e, bool dodged)
 {
-    leave_misses(g, e);
-    charge_machine_accesses(g, 1);
     effect_missed(g, e->misses, dodged);
     set_missed(g, true);
 }
@@ -140,8 +119,6 @@ static void miss(GameState *g, const EffectRecord *e, bool dodged)
 static Healing healing_by_magic(GameState *g, uint8_t multiple, uint8_t restores)
 {
     Healing h = { effect_actor_stat(g, STAT_MAGIC), multiple, restores };
-    leave_numbers(g, h.power, h.multiple);
-    charge_machine_accesses(g, 2);
     return h;
 }
 
@@ -154,8 +131,6 @@ static Healing healing_by_item(GameState *g)
     uint8_t item = battle_action_detail(g);
     Healing h = { (uint8_t)(item_healing_byte(g, item, ITEM_POWER) & ITEM_POWER_BITS),
                   (uint8_t)(item_healing_byte(g, item, ITEM_AMOUNT) & ITEM_AMOUNT_BITS), item_healing_byte(g, item, ITEM_HEALS) };
-    leave_numbers(g, h.power, h.multiple);
-    charge_machine_accesses(g, 2);
     return h;
 }
 
@@ -178,7 +153,7 @@ static void restore(GameState *g, const EffectRecord *e)
 /* Cure each target, reviving it where the effect says so, and heal it too. */
 static void cure_target(GameState *g, const EffectRecord *e)
 {
-    leave_record_numbers(g);
+    charge_record_numbers(g);
     effect_cure(g, (e->cure.how & CURE_REVIVES) != 0);
     if (e->cure.how & CURE_HEALS)
         effect_heal(g, healing_by_magic(g, (uint8_t)(e->cure.how & MULTIPLE_BITS), e->cure.restores));
@@ -199,16 +174,11 @@ enum { PERCENT = 100 };
 static bool status_lands(GameState *g, const EffectRecord *e)
 {
     uint8_t base = e->landing.base_chance, divisor = e->landing.magic_divisor;
-    leave_numbers(g, base, divisor);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
     uint8_t part = (uint8_t)effect_over(g, effect_actor_stat(g, STAT_MAGIC), divisor).quotient;
     uint8_t chance = (uint8_t)(part + base);
-    charge_machine_accesses(g, 1);
     if (battle_random(g, 0, PERCENT) <= chance)
         return true;
     /* the original tells a dodge by its fourth cell, which holds the divisor */
-    leave_misses(g, e);
     effect_missed(g, e->misses, divisor == 1);
     set_missed(g, true);
     return false;
@@ -218,7 +188,7 @@ static void inflict_on_target(GameState *g, const EffectRecord *e)
 {
     if (!(effect_flags(g) & EFFECT_CANT_MISS) && !status_lands(g, e))
         return;
-    leave_record_numbers(g);
+    charge_record_numbers(g);
     effect_inflict_status(g, e->inflict.status_byte, e->inflict.statuses);
     set_missed(g, false);
 }
@@ -239,10 +209,9 @@ static void hit_target(GameState *g, Platform *pf, const EffectRecord *e)
         miss(g, e, false);
         return;
     }
-    leave_numbers(g, e->damage.formula, e->damage.defence_stat);
     effect_apply_hit(g, pf, effect_hit_amounts(g, e));
     if (effect_flags(g) & EFFECT_GIVES_STATUS) {
-        leave_record_numbers(g);
+        charge_record_numbers(g);
         effect_status_chance(g, e->hit.chance, e->hit.statuses);
     }
     set_missed(g, false);
@@ -275,25 +244,20 @@ static void hit(GameState *g, Platform *pf, const EffectRecord *e)
  * in the next. */
 static void drain_target(GameState *g, const EffectRecord *e)
 {
-    leave_record_numbers(g);
-    charge_machine_accesses(g, 1);
+    charge_record_numbers(g);
     set_battle_effect_tally(g, 0);
     if (e->drain.what & DRAINS_HP) {
-        charge_machine_accesses(g, 1);
         effect_drain(g, DRAIN_HP, e->drain.share);
         set_battle_effect_tally(g, (uint8_t)(battle_effect_tally(g) + 1));
     }
     if (e->drain.what & DRAINS_MP) {
-        charge_machine_accesses(g, 1);
-        charge_machine_accesses(g, 1);
         effect_drain(g, DRAIN_MP, e->drain.share);
     }
 }
 
 static void drain(GameState *g, const EffectRecord *e)
 {
-    leave_record_numbers(g);
-    charge_machine_accesses(g, 1);
+    charge_record_numbers(g);
     each_target(g, e, drain_target);
     set_missed(g, false);
 }
@@ -320,7 +284,7 @@ static void steal(GameState *g, const EffectRecord *e)
 {
     take_actor(g);
     take_target(g);
-    leave_record_numbers(g);
+    charge_record_numbers(g);
     StealOutcome outcome = effect_steal(g, e->steal.chance);
     if (outcome == STEAL_MISSED)
         miss(g, e, false);
@@ -340,7 +304,7 @@ static void steal(GameState *g, const EffectRecord *e)
  * and so does the port. */
 static void hit_repeatedly(GameState *g, Platform *pf, const EffectRecord *e)
 {
-    leave_record_numbers(g);
+    charge_record_numbers(g);
     set_battle_hits_left(g, e->repeated.hits);
     set_battle_effect_tally(g, 0);
     set_battle_damage_hit(g, 0);
@@ -359,7 +323,6 @@ static void hit_repeatedly(GameState *g, Platform *pf, const EffectRecord *e)
     set_battle_effect_amount(g, battle_effect_total(g));
     effect_record_damage(g, battle_effect_target(g), DAMAGE_PLAIN);
     /* made with the carry of the count's compare, set */
-    charge_machine_accesses(g, 1);
     note_acted_on(g);
 }
 
@@ -383,7 +346,6 @@ static void item_cure_target(GameState *g, const EffectRecord *e)
 {
     (void)e;
     uint8_t how = item_healing_byte(g, battle_action_detail(g), ITEM_POWER);
-    charge_machine_accesses(g, 2);
     effect_cure(g, (how & CURE_REVIVES) != 0);
     if (how & CURE_HEALS)
         effect_heal(g, healing_by_item(g));
@@ -402,8 +364,6 @@ static void item_status_target(GameState *g, const EffectRecord *e)
     (void)e;
     uint8_t item = battle_action_detail(g);
     uint8_t which = item_healing_byte(g, item, ITEM_HEALS), bits = item_healing_byte(g, item, ITEM_AMOUNT);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 1);
     effect_inflict_status(g, which, bits);
     set_missed(g, false);
 }
@@ -510,12 +470,9 @@ void effect_add_up_hits(GameState *g, uint8_t sets)
             unsigned from = (effect_times(g, set, SET_BYTES) + place) / RECORD_BYTES, to = from - SET_BYTES / RECORD_BYTES;
             add_number_into(g, from, to);
         }
-    charge_machine_accesses(g, 3);
     for (uint8_t place = FIRST_ENEMY_PLACE; place < SET_BYTES; place = (uint8_t)(place + RECORD_BYTES))
         if (number_value(g, place / RECORD_BYTES) >= MOST_SHOWN)
             set_number_value(g, place / RECORD_BYTES, MOST_SHOWN);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
 }
 
 /* The work's start: the damage table clear, nothing done yet. The clearing
@@ -525,7 +482,6 @@ static ActionRecord start_work(GameState *g, ActionTable table)
     TIMED_AS(g, 0xFDACFD, battle_clear_damage_table(g));
     set_battle_effect_total(g, 0);
     set_battle_action_record_place(g, effect_times(g, battle_action_detail(g), ACTION_RECORD_BYTES));
-    charge_machine_accesses(g, 1);
     set_battle_damage_hit(g, 0);
     set_battle_effects_worked(g, 0);
     set_battle_effect_sure(g, 0);
@@ -575,7 +531,6 @@ void effect_work_out_enemy_action(GameState *g, Platform *pf, ActionTable table)
     set_battle_damage_hit(g, (uint8_t)(battle_damage_hit(g) + 1));
     set_battle_effects_worked(g, (uint8_t)(battle_effects_worked(g) + 1));
     uint8_t added = action.flags & ACTION_HITS_ADDED;
-    charge_machine_accesses(g, 1);
     if (added)
         effect_add_up_hits(g, added);
 noted:
@@ -674,32 +629,12 @@ static bool action_ported(const GameState *g, ActionTable table)
                                  effect_record_byte(g, table, action.effect, 8), action.modifier);
 }
 
-static bool work_out_ready(Snes *s, ActionTable table)
-{
-    vars_peek(true);
-    bool ready = action_ported(state_of(s), table);
-    vars_peek(false);
-    return battle_on_page(s) && ready;
-}
-
-bool battle_work_out_enemy_tech_ready(Snes *s) { return work_out_ready(s, ENEMY_TECHS); }
-
 bool battle_enemy_action_worked_out(const GameState *g, bool tech) { return action_ported(g, tech ? ENEMY_TECHS : ENEMY_ATTACKS); }
 
 void battle_work_out_enemy_action(GameState *g, Platform *pf, bool tech)
 {
     effect_work_out_enemy_action(g, pf, tech ? ENEMY_TECHS : ENEMY_ATTACKS);
 }
-bool battle_work_out_enemy_attack_ready(Snes *s) { return work_out_ready(s, ENEMY_ATTACKS); }
-
-static void work_out_entry(Snes *s, ActionTable table)
-{
-    effect_work_out_enemy_action(state_of(s), m_platform(s), table);
-    m_rts(s);
-}
-
-void battle_work_out_enemy_tech(Snes *s) { work_out_entry(s, ENEMY_TECHS); }
-void battle_work_out_enemy_attack(Snes *s) { work_out_entry(s, ENEMY_ATTACKS); }
 
 /* Each kind as its own routine, for the party's code that runs them, on the
  * effect record the party's code copied. */

@@ -49,11 +49,9 @@
 #include "menu/display.h"
 #include "core/display.h"
 #include "core/input.h"
-#include "event/event.h"
 #include "event/variables.h"
 #include "field/bridge.h"
 #include "field/parts.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -426,16 +424,10 @@ static bool pause_and_menus(GameState *g, const StopSteps *steps, PressStart sta
 /* ---- As C ------------------------------------------------------------------------------------- */
 
 /* The routines the steps stand for, which time them. */
-enum {
-    MENUS = 0xC28000,               /* the menus, at the mode in A */
-    FRAME_WAIT = 0xC0EC60,          /* waits for the next frame */
-    OBJECT_START = 0xC0597D,        /* the running object starts over in its script */
-    LINE_EFFECTS = 0xFDC2C1,
-    PRESS_START = 0xC01985,
-    BRING_THE_PARTY_BACK = 0xC01A03,
-    WALK = 0xC0881E,
-    PALETTE_ANIMATION = 0xFDFFF7,
-};
+enum { MENUS = 0xC28000, /* the menus, at the mode in A */
+    FRAME_WAIT = 0xC0EC60, /* waits for the next frame */
+    OBJECT_START = 0xC0597D, /* the running object starts over in its script */
+    LINE_EFFECTS = 0xFDC2C1, PRESS_START = 0xC01985, BRING_THE_PARTY_BACK = 0xC01A03, WALK = 0xC0881E, PALETTE_ANIMATION = 0xFDFFF7,  };
 
 typedef struct {
     GameState *game;
@@ -596,268 +588,10 @@ FieldPass field_script_menu_opened(GameState *g, Platform *pf)
     }
 }
 
-/* ---- On the machine --------------------------------------------------------------------------- */
-
-enum {
-    READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
-    READS_THE_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
-    READS_THE_MODE = DC_AH | DC_Y | DC_C,               /* the menus keep the flags and take A and X */
-    READS_THE_WALK = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
-};
-
-/* Each stop's own copy of the original's calls, by where each is. The
- * pause's has only its effects and its wait; a script's fade out walks and
- * animates the palettes, and its fade in is the original's jump, which
- * returns to the main loop itself. */
-static const struct {
-    uint32_t effects, wait, keep, menus, set_up, party, sprites, fade_in;
-} sites[] = {
-    [PAUSED] = { 0xC01905, 0xC018F4, 0, 0, 0, 0, 0, 0 },
-    [OPENED_BY_MENU_BUTTON] = { 0xC0194D, 0xC01953, 0xC0195B, 0xC01960, 0xC01975, 0xC01978, 0xC0197B, 0xC0197E },
-    [OPENED_BY_START] = { 0xC019B6, 0xC019BC, 0xC019C4, 0xC019CE, 0xC019E3, 0xC019E6, 0xC019F9, 0xC019FC },
-    [OPENED_BY_SCRIPT] = { 0, 0xC00CE5, 0xC00CED, 0xC00D18, 0xC00D2D, 0, 0xC00D30, 0 },
-};
 enum { SCRIPT_FADE_WALK = 0xC00CDB, SCRIPT_FADE_PALETTES = 0xC00CE1 };
-enum { FADE_IN_TAIL = FIELD_FADE_IN_AFTER_A_MENU_ENTRY, FADE_IN_READS = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C };
-
-/* The line effect tables are built with 8-bit index registers. */
-static bool effects_built_on_the_machine(void *ctx, FieldStop stop)
-{
-    Snes *s = ctx;
-    m_sep(s, CPU_FLAG_X);
-    if (!field_run_long(s, sites[stop].effects, LINE_EFFECTS, READS_NOTHING, field_build_line_effect_tables,
-                        on_the_field_page(s, true)))
-        return false;
-    m_rep(s, CPU_FLAG_X);
-    return true;
-}
-
-static bool wait_on_the_machine(void *ctx, FieldStop stop)
-{
-    Snes *s = ctx;
-    return field_hold_next_frame(s, sites[stop].wait, READS_NOTHING, on_the_field_page(s, false));
-}
-
-/* The original keeps the control on the stack over the walk, which the
- * walk's own call-outs and stops see, as shadow mode compares them. */
-static bool walk_on_the_machine(void *ctx, uint8_t control)
-{
-    Snes *s = ctx;
-    return field_run_holding(s, SCRIPT_FADE_WALK, WALK, READS_THE_WALK, field_walk_the_leader,
-                             on_the_field_page(s, false), control);
-}
-
-static bool palettes_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    return field_run_long(s, SCRIPT_FADE_PALETTES, PALETTE_ANIMATION, READS_NOTHING, palette_animate,
-                          on_the_field_page(s, false));
-}
-
-static void dark_on_the_machine(void *ctx) { display_go_dark(ctx); }
-
-static bool put_aside_on_the_machine(void *ctx, FieldStop stop)
-{
-    Snes *s = ctx;
-    return field_run(s, sites[stop].keep, FIELD_PUT_ASIDE_ENTRY, READS_NOTHING, field_put_aside_for_a_menu,
-                     on_the_field_page(s, false));
-}
-
-/* The menus take the mode in A with its high byte clear, and N and Z as its
- * load leaves them (N clear, Z where the mode is 0), since their entry keeps
- * the flags; X is the argument of the screen they open on. */
-static bool menus_on_the_machine(void *ctx, FieldStop stop, FieldMenu menu, MenuArgument argument)
-{
-    Snes *s = ctx;
-    if (argument.given)
-        s->cpu.x = argument.value;
-    s->cpu.a = (uint16_t)menu;
-    m_set_flag(s, CPU_FLAG_N, false);
-    m_set_flag(s, CPU_FLAG_Z, menu == MENU_MODE_0);
-    return field_run_long_called(s, sites[stop].menus, MENUS, READS_THE_MODE, menu_mode_enter,
-                                 on_the_field_page(s, false));
-}
-
-static bool set_up_on_the_machine(void *ctx, FieldStop stop)
-{
-    Snes *s = ctx;
-    return field_run(s, sites[stop].set_up, FIELD_SET_UP_AGAIN_ENTRY, READS_NOTHING, field_set_up_after_a_menu,
-                     on_the_field_page(s, false));
-}
-
-static bool party_back_on_the_machine(void *ctx, FieldStop stop)
-{
-    Snes *s = ctx;
-    return field_run(s, sites[stop].party, BRING_THE_PARTY_BACK, READS_THE_OVERFLOW, field_bring_the_party_back,
-                     on_the_field_page(s, false));
-}
-
-static bool sprites_on_the_machine(void *ctx, FieldStop stop)
-{
-    Snes *s = ctx;
-    return field_run(s, sites[stop].sprites, FIELD_BUILD_THE_SPRITES_AFRESH_ENTRY, READS_NOTHING,
-                     field_build_the_sprites_afresh, on_the_field_page(s, false));
-}
-
-/* A script's fade in is the original's jump, which returns to the main loop
- * itself: the port goes no further either way. */
-static bool fade_in_on_the_machine(void *ctx, FieldStop stop)
-{
-    Snes *s = ctx;
-    if (stop != OPENED_BY_SCRIPT)
-        return field_run(s, sites[stop].fade_in, FIELD_FADE_IN_AFTER_A_MENU_ENTRY, READS_NOTHING,
-                         field_fade_in_after_a_menu_entry, on_the_field_page(s, false));
-    /* Unlike the fade's entry, requests and their bridges allow decimal mode. */
-    if (!s->cpu.e && m_m8(s) && !m_x8(s) && !m_flag(s, CPU_FLAG_D) && field_on_page_low_bank(s))
-        TIMED_AS(state_of(s), FADE_IN_TAIL, field_fade_in_after_a_menu_entry(s));
-    else
-        m_stop_at_own(s, FADE_IN_TAIL, FADE_IN_READS);
-    return false;
-}
-
-static const StopSteps on_the_machine = {
-    effects_built_on_the_machine, wait_on_the_machine,    walk_on_the_machine,     palettes_on_the_machine,
-    dark_on_the_machine,          put_aside_on_the_machine, menus_on_the_machine, set_up_on_the_machine,
-    party_back_on_the_machine,    sprites_on_the_machine, fade_in_on_the_machine,
-};
+enum { FADE_IN_TAIL = FIELD_FADE_IN_AFTER_A_MENU_ENTRY };
 
 enum { PRESS_START_CALL = 0xC0191D };
-
-static bool press_start_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    return field_run(s, PRESS_START_CALL, PRESS_START, READS_NOTHING, field_press_start, on_the_field_page(s, false));
-}
-
-/* ---- The entries ------------------------------------------------------------------------------ */
-
-/* The field's page, 8-bit A, 16-bit X. What it leaves in the registers is the
- * routines' it called, or what it came in with: A's high byte and the
- * overflow are read after it. */
-void field_pause_and_menus_entry(Snes *s)
-{
-    if (pause_and_menus(state_of(s), &on_the_machine, press_start_on_the_machine, s))
-        m_rts(s);
-}
-
-/* As for field_pause_and_menus_entry; the story's test leaves the overflow its
- * subtraction makes (field/leaves.c). */
-void field_press_start(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (!dialog_window_open(g))
-        m_set_flag(s, CPU_FLAG_V, field_story_test_overflow(g));
-    if (press_start_with(g, &on_the_machine, s))
-        m_rts(s);
-}
-
-// $C0:1964
-/* The main menu has released its stack. Restore the field from its kept
- * state and continue the interrupted pass after the fade. */
-void field_back_from_the_main_menu(Snes *s)
-{
-    if (back_from_menu(state_of(s), &on_the_machine, s, OPENED_BY_MENU_BUTTON))
-        field_return_to_waiting_caller(s);
-}
-
-// $C0:19D2
-void field_back_from_the_start_menu(Snes *s)
-{
-    if (back_from_menu(state_of(s), &on_the_machine, s, OPENED_BY_START))
-        field_return_to_waiting_caller(s);
-}
-
-// $C0:0D1C
-void field_back_from_a_script_menu(Snes *s)
-{
-    (void)back_from_script_menu(state_of(s), &on_the_machine, s);
-}
-
-// $C0:1981, $C0:19FF
-/* The menu's fade has finished; the clock runs and the interrupted field
- * pass continues. The Start assignment has one more button check in its
- * caller, whereas the menu button returns straight to the field pass. */
-void field_back_from_a_menu_fade(Snes *s)
-{
-    start_play_clock(state_of(s));
-    field_return_to_waiting_caller(s);
-}
-
-// $C0:1920
-/* The Start assignment's menu has returned. Take the remaining menu/choice
- * input once, without restarting the pause or opening Start's menu again. */
-void field_after_the_start_menu(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (!assigned_pressed(g, ASSIGNED_MENU)) {
-        if (dialog_choice_waiting(g))
-            TIMED_AS(g, FIELD_TAKE_CHOICE_BUTTONS_ENTRY, field_take_choice_buttons(g, dialog_choice_active(g)));
-    } else if (menus_may_open(g) && !open_menu(g, &on_the_machine, s, OPENED_BY_MENU_BUTTON)) {
-        return;
-    }
-    field_return_to_waiting_caller(s);
-}
-
-// $C0:18F7
-/* A paused frame has been shown. Resume the remaining input checks only
- * when Start releases the pause; otherwise keep its dim picture another
- * frame. The saved brightness is game state, not a suspended local. */
-void field_pause_continues(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (start_pressed(g)) {
-        end_pause(g);
-        if (menu_input_after_pause(g, &on_the_machine, press_start_on_the_machine, s))
-            field_return_to_waiting_caller(s);
-        return;
-    }
-    show_paused(g);
-    if (!effects_built_on_the_machine(s, PAUSED))
-        return;
-    set_field_display_flags(g, DISPLAY_FIRST_SET);
-    (void)wait_on_the_machine(s, PAUSED);
-}
-
-// $C0:1956
-void field_menu_fade_continues(Snes *s)
-{
-    if (open_menu(state_of(s), &on_the_machine, s, OPENED_BY_MENU_BUTTON))
-        field_return_to_waiting_caller(s);
-}
-
-// $C0:19BF
-void field_start_menu_fade_continues(Snes *s)
-{
-    if (open_menu(state_of(s), &on_the_machine, s, OPENED_BY_START))
-        field_return_to_waiting_caller(s);
-}
-
-// $C0:0CE8
-void field_script_menu_fade_continues(Snes *s)
-{
-    if (open_script_menu(state_of(s), &on_the_machine, s) == MENU_BACK_IN_THE_PASS)
-        field_return_to_waiting_caller(s);
-}
-
-/* True where it came back to the main loop's pass, false where the port
- * stopped, or the fade in has gone back to the main loop itself. */
-bool field_open_script_menu(Snes *s) { return open_script_menu(state_of(s), &on_the_machine, s) == MENU_BACK_IN_THE_PASS; }
-
-/* A character's script started over from its own call. */
-static bool start_character_over_on_the_machine(void *ctx, unsigned row)
-{
-    Snes *s = ctx;
-    return field_run(s, character_starts[row].site, OBJECT_START, READS_THE_OVERFLOW,
-                     event_restart_the_running_object_entry, on_the_field_page(s, false));
-}
-
-/* The field's page, 8-bit A, 16-bit X; the overflow goes on to the scripts'
- * starts as it came. */
-void field_bring_the_party_back(Snes *s)
-{
-    if (bring_the_party_back(state_of(s), start_character_over_on_the_machine, s))
-        m_rts(s);
-}
 
 /* The guard: the field's page with the data bank $00, and the party's places
  * objects the tables hold, or none. */
@@ -869,27 +603,4 @@ static bool party_links_readable(const GameState *g)
             return false;
     }
     return true;
-}
-
-bool field_party_can_come_back(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    bool ok = party_links_readable(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-/* The Start assignment's guard: the field's page with the data bank $00, and
- * the dialog window at the top, the bottom or shut (the swap takes no other
- * place). */
-bool field_start_can_be_pressed(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    bool ok = dialog_window_at(state_of(s)) < WINDOW_POSITIONS;
-    vars_peek(false);
-    return ok;
 }

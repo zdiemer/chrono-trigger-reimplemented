@@ -26,9 +26,7 @@
 #include "scene/race.h"
 
 #include "charge.h"
-#include "holds.h"
 #include "cpu_io.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "scene/scene_data.h"
@@ -133,20 +131,6 @@ uint16_t scene_matrix_writer_leaves_y(void) { return STRIPS * 2; }
  * with: the generator is always given this base. */
 enum { PICTURE = 0x0200 };
 
-/* The routine the generator writes, guarded by a hash of all of it: the bytes
- * are the generator's output for its one table and base, so any other code
- * there is not this. It reads the picture through the data bank, which every
- * caller points at the second bank of work RAM. */
-bool scene_picture_gathering_present(Snes *s)
-{
-    return m_code_matches(s, 0x7EB574, 5153, 0x087A234E99D12FFFull);
-}
-
-bool scene_matrix_code_present(Snes *s)
-{
-    return s->cpu.db == SCENE_UPPER_WORK_RAM && scene_picture_gathering_present(s);
-}
-
 // $7E:B574
 /* Regroup the scaled picture into tiles in the tilemap buffer, a word at a
  * time: strip by strip, the tiles of a strip from left to right, in each tile
@@ -222,55 +206,6 @@ static void gather_scaled_picture(GameState *g)
     TIMED_AS(g, 0x7EB574, scene_gather_picture_into_tiles(g));
 }
 
-/* ---- Entries: the main loop's scaling ----------------------------------------------------------- */
-
-/* The scaling's code, with the scaler's start, and the regrouping. */
-bool scene_race_scale_pictures_present(Snes *s)
-{
-    if (!scene_on_scene_page(s) || !m_code_matches(s, 0x7E51D1, 0x40, 0xCF48DD1914245AD5ull))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool draws = false, fits = true;
-    for (unsigned r = 0; r < RACERS; r++) {
-        if (picture_waiting(g, (Racer)r)) {
-            draws = true;
-            fits = fits && scene_scaling_fits(picture_request(g, (Racer)r));
-        }
-    }
-    vars_peek(false);
-    return fits && (!draws || (m_code_matches(s, 0x7E5215, 0x0C, 0x4CE857A6AFB42F4Dull) && scene_picture_gathering_present(s)));
-}
-
-/* Back from the gathering, which hands the request's new state back in A. */
-bool scene_race_scale_after_present(Snes *s) { return scene_race_scale_pictures_present(s) && s->cpu.a == PICTURE_GATHERED; }
-
-bool scene_race_gather_scaled_present(Snes *s)
-{
-    return scene_on_scene_page(s) && m_code_matches(s, 0x7E5215, 0x0C, 0x4CE857A6AFB42F4Dull) && scene_matrix_code_present(s);
-}
-
-/* The first racer from `from` whose picture waits goes to the scaler, and the
- * machine carries on in the scaler's rows, where the original does (the
- * bridge); with none, back to the main loop, the carry left by the last
- * request's compare: whether Johnny's picture was ever asked for. */
-static void scale_pictures_from(Snes *s, unsigned from)
-{
-    GameState *g = state_of(s);
-    unsigned r = next_waiting(g, from);
-    if (r < RACERS) {
-        hand_to_scaler(g, (Racer)r);
-        scene_bridge_scale_picture(s, (Racer)r, scene_scaler_row_step(g) & 0x8000);
-        return;
-    }
-    m_set_flag(s, CPU_FLAG_C, race_picture_state(g, RACER_JOHNNY) != PICTURE_NONE);
-    m_rts(s);
-}
-
-// $7E:51D1
-/* The main loop's call each pass, while the race runs. */
-void scene_race_scale_pictures_entry(Snes *s) { scale_pictures_from(s, RACER_CRONO); }
-
 /* As C, for a program with no machine: each racer's waiting picture handed
  * over and drawn whole, the racer's last tiles waited for a frame at a time,
  * and the new picture gathered. False where the program goes no further. */
@@ -290,52 +225,4 @@ bool scene_race_scale_pictures(GameState *g, Platform *pf)
         set_scene_race_picture_requests_state(g, (Racer)r, PICTURE_GATHERED);
     }
     return true;
-}
-
-/* Back from Crono's picture, gathered: Johnny's next. */
-void scene_race_scale_after_crono(Snes *s)
-{
-    set_scene_race_picture_requests_state(state_of(s), RACER_CRONO, PICTURE_GATHERED);
-    scale_pictures_from(s, RACER_JOHNNY);
-}
-
-/* Back from Johnny's: the main loop goes on. The carry is the scaling's. */
-void scene_race_scale_after_johnny(Snes *s)
-{
-    set_scene_race_picture_requests_state(state_of(s), RACER_JOHNNY, PICTURE_GATHERED);
-    m_rts(s);
-}
-
-/* Entered with 16-bit A once the upload is done; back to whichever racer's
- * scaling, the request's new state in A, the data bank the one the scaling left
- * on the stack. The carry, which the main loop's callers may read, is the
- * scaler's, untouched. */
-void scene_race_gather_scaled(Snes *s)
-{
-    gather_scaled_picture(state_of(s));
-    s->cpu.db = m_pull8(s);
-    s->cpu.a = PICTURE_GATHERED;
-    m_rts(s);
-}
-
-// $7E:5215
-/* The upload is finished. The saved caller tells which racer's request to
- * mark gathered, then either starts Johnny's picture or returns to the
- * scene loop. Each continuation keeps its own contract and calibrated rate.
- * No C invocation survives the held upload wait. */
-void scene_race_upload_finished(Snes *s)
-{
-    scene_race_gather_scaled(s);
-    uint32_t next = cpu_pc24(&s->cpu);
-    void (*resume)(Snes *) = next == 0x7E51DF ? scene_race_scale_after_crono :
-                            next == 0x7E51F0 ? scene_race_scale_after_johnny : NULL;
-    if (!scene_accept_continuation(s, next, resume))
-        return;
-    charge_settle(state_of(s));
-    TIMED_AS(state_of(s), next, {
-        resume(s);
-        charge_settle(state_of(s));
-    });
-    if (cpu_pc24(&s->cpu) == 0x7E3026)
-        m_hold_at(s, 0x7E3026, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z, HOLD_SCENE_MAIN_LOOP);
 }

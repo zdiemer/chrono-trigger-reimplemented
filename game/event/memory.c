@@ -1,3 +1,5 @@
+#include "event/script.h"
+#include "event/script.h"
 /* Scripts reaching past their own world into the game's memory: reading a
  * byte or a word at an address into a variable, writing one there, and
  * copying a block of data carried in the script into work RAM. The scripts
@@ -10,7 +12,6 @@
  * event_source_pointer and event_target_pointer); nothing but the command
  * itself reads them back, so they are kept as scaffolding. */
 #include "charge.h"
-#include "event/bridge.h"
 #include "event/engine.h"
 #include "event/memory_data.h"
 #include "event/variables.h"
@@ -88,19 +89,6 @@ bool event_copy_data(GameState *g, Platform *pf, uint16_t at, EventStep *step)
     EventCommand c = event_decode(g, pf, event_opcode(0x4E), at);
     *step = copy_data(g, c.destination, c.bank, c.size, at);
     return true;
-}
-
-/* $4E's entry, a bridge for the stack: the original keeps the data bank on
- * the stack across its block move, which a copy onto the stack changes, and
- * so does the port. */
-void event_cmd_copy_data(Snes *s)
-{
-    m_push8(s, s->cpu.db);
-    uint16_t at = event_command_offset(s);
-    EventCommand c = event_command_of(s, 0x4E);
-    EventStep st = copy_data(state_of(s), c.destination, c.bank, c.size, at);
-    s->cpu.db = m_pull8(s);
-    event_return(s, st);
 }
 
 /* The guard's part: the data lies in the script, and there is some (the

@@ -30,7 +30,6 @@
 #include "menu/epoch.h"
 
 #include "charge.h"
-#include "holds.h"
 #include "menu/bridge.h"
 #include "cpu_io.h"
 #include "core/program.h"
@@ -48,8 +47,6 @@
 #include "platform/audio.h"
 #include "platform/timing.h"
 #include "platform/video.h"
-#include "port/machine.h"
-#include "port/native.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "sound/sound.h"
@@ -116,18 +113,12 @@ static void sample_map_colours(GameState *g)
             colour = (uint8_t)(colour << 1 | ((menu_world_map_tiles_byte(g, tile, sampled_planes[plane]) & SAMPLED_BIT) != 0));
         set_menu_map_colours(g, tile, colour);
     }
-    charge_machine_io_accesses(g, 3);
 }
 
 /* The picture (menu/map_picture.h) is built in the mode's upload buffer
  * four map rows (a row of Mode 7 tiles, twelve) at a time and sent to the
  * plane's tiles from tile 1. */
-enum {
-    MAP_COLUMNS = MENU_MAP_COLUMNS, MAP_ROWS = MENU_MAP_ROWS,
-    PICTURE_TILES_ACROSS = MENU_MAP_PICTURE_TILES_ACROSS, PICTURE_TILES_DOWN = MENU_MAP_PICTURE_TILES_DOWN,
-    TILE_ROW_BYTES = MENU_MAP_PICTURE_TILE_ROW,
-    MAP_ROWS_A_TILE_ROW = MENU_MAP_ROWS_A_TILE_ROW, FIRST_PICTURE_TILE = 1,
-};
+enum { MAP_COLUMNS = MENU_MAP_COLUMNS, MAP_ROWS = MENU_MAP_ROWS, PICTURE_TILES_ACROSS = MENU_MAP_PICTURE_TILES_ACROSS, PICTURE_TILES_DOWN = MENU_MAP_PICTURE_TILES_DOWN, TILE_ROW_BYTES = MENU_MAP_PICTURE_TILE_ROW, MAP_ROWS_A_TILE_ROW = MENU_MAP_ROWS_A_TILE_ROW, FIRST_PICTURE_TILE = 1,  };
 enum { GROUP_BYTES = MENU_MAP_GROUP_BYTES, TOP_RIGHT = MENU_MAP_TOP_RIGHT, BOTTOM_RIGHT = MENU_MAP_BOTTOM_RIGHT };
 enum { BLACK = 0 };
 
@@ -251,9 +242,7 @@ static void place_map_picture(GameState *g, Platform *pf)
 }
 
 /* What each part of building the view leaves in the mode's cells. */
-enum { CELL_NAMES_LEFT = 0x00, CELL_NAMES_ROW = 0x01, CELL_BUFFER_AT = 0x05, CELL_NEXT_TILE = 0x08,
-       CELL_NEXT_SOURCE = 0x0A, CELL_NEXT_VRAM = 0x0C, CELL_LAST_GROUP = 0x0E, CELL_NAMES_AT = 0x10,
-       CELL_OVER_MAP = 0x13, CELL_LAND_GROUPS = 0x16, CELL_OVER_GROUPS = 0x19 };
+enum { CELL_NAMES_LEFT = 0x00, CELL_NAMES_ROW = 0x01, CELL_BUFFER_AT = 0x05, CELL_NEXT_TILE = 0x08, CELL_NEXT_SOURCE = 0x0A, CELL_NEXT_VRAM = 0x0C, CELL_LAST_GROUP = 0x0E, CELL_NAMES_AT = 0x10, CELL_OVER_MAP = 0x13, CELL_LAND_GROUPS = 0x16, CELL_OVER_GROUPS = 0x19 };
 
 // $C2:63DF
 /* The map view's plane, from the world map just loaded: every tile's colour,
@@ -262,9 +251,7 @@ static void build_map_view(GameState *g, Platform *pf)
 {
     sample_map_colours(g);
     (void)draw_map_picture(g, pf);
-    (charge_machine_accesses(g, 15), charge_machine_rom_accesses(g, 6));
     place_map_picture(g, pf);
-    (charge_machine_accesses(g, 9), charge_machine_io_accesses(g, 4));
 }
 
 /* ---- The map view: its graphics --------------------------------------------------------------- */
@@ -339,7 +326,6 @@ static void turn_map_view(GameState *g, MenuObject cursor, MenuObject sine_from)
     const int16_t matrix[4] = { zoomed(cos, (uint8_t)zoom_x), zoomed(sin, (uint8_t)zoom_x),
                                 (int16_t)-zoomed(sin, (uint8_t)zoom_y), zoomed(cos, (uint8_t)zoom_y) };
     set_mode7_matrix(g, matrix[0], matrix[1], matrix[2], matrix[3]);
-    (charge_machine_accesses(g, 18), charge_machine_io_accesses(g, 3));
 }
 
 /* The cursor takes the zoom of the step it is on. */
@@ -498,8 +484,6 @@ static void map_view_gradient(GameState *g, Platform *pf)
                 wram_write8(g, in_work_ram(at++), (uint8_t)(level | BLUE));
         } while (++level != LEVELS);
     }
-    charge_machine_io_accesses(g, 3);
-    charge_machine_accesses(g, 1);
     menu_start_line_effect(g, pf, 0xC2694F, GRADIENT_SLOT, VID_LINE_FIXED_COLOR);
     set_menu_object_hdma_pointers(g, 0, (uint16_t)RAM_MENU_SLOT1_LINE_VALUES);
     set_menu_object_hdma_pointers(g, 1, (uint16_t)(RAM_MENU_SLOT1_LINE_VALUES + GRADIENT_HALF));
@@ -513,7 +497,6 @@ static bool later_periods(const GameState *g) { return menu_story_progress(g) >=
 /* The period the party is in: the one whose location is here, or the last. */
 static uint8_t period_here(GameState *g)
 {
-    charge_machine_accesses(g, 4);
     for (uint8_t period = 0; period < MENU_PERIODS; period++)
         if (menu_period_location(g, later_periods(g), period) == location_here(g))
             return period;
@@ -524,7 +507,6 @@ static uint8_t period_here(GameState *g)
 /* The location a period travels to. */
 static uint16_t period_location(GameState *g, uint8_t period)
 {
-    charge_machine_accesses(g, 4);
     return menu_period_location(g, later_periods(g), period);
 }
 
@@ -602,8 +584,6 @@ static void turn_corners(GameState *g, uint16_t angle, ScreenPoint corners[CORNE
         set_menu_gate_corners(g, 2 * c, corners[c].x);
         set_menu_gate_corners(g, 2 * c + 1, corners[c].y);
     }
-    (charge_machine_accesses(g, 6), charge_machine_io_accesses(g, 4));
-    charge_machine_accesses(g, 2);
 }
 
 /* An edge of the triangle, from its higher corner to the line above its
@@ -721,7 +701,6 @@ static void draw_gate_window(GameState *g, MenuObject dial)
     turn_corners(g, angle, corners);
 
     WindowDrawn w = { .table = table, .bank = bank, .cos = menu_cosine(g, angle), .sin = menu_sine(g, angle) };
-    GateEdge divided = { 0 };
     uint8_t top = 0xFF, bottom = 0;
     for (unsigned c = 0; c < CORNERS; c++) {
         ScreenPoint to = corners[(c + 1) % CORNERS];
@@ -731,7 +710,6 @@ static void draw_gate_window(GameState *g, MenuObject dial)
         w.last_to = to;
         if (!edge.drawn)
             continue;
-        divided = edge;
         w.any_swapped = w.any_swapped || edge.swapped;
         keep_edge(g, w.edges++, &edge);
         if (edge.top < top)
@@ -753,7 +731,6 @@ static void draw_gate_window(GameState *g, MenuObject dial)
     charge_as(g, 0xC26CC1, FIXED_ACCESSES + LINE_ACCESSES * lines);
     w.after_the_last_line = (uint8_t)(top + lines);
     w.bottom = bottom;
-    (charge_machine_accesses(g, 20 + divided.drawn + w.any_swapped), charge_machine_io_accesses(g, 3 + (divided.drawn ? 3 : 0)));
 }
 
 /* ---- The time dial: its objects --------------------------------------------------------------- */
@@ -841,7 +818,6 @@ static DialOutcome time_dial(GameState *g, Platform *pf, MenuObject dial)
         if (turn == 0) {
             if (buttons & TRAVEL_BUTTON) {
                 uint16_t there = period_location(g, menu_object_slots_period(g, dial));
-                charge_machine_accesses(g, 4);
                 if (there != location_here(g)) {
                     set_menu_travel_location(g, there);
                     set_menu_mode(g, MENU_MODE_BACK_TO_THE_MAP);
@@ -871,7 +847,6 @@ static DialOutcome time_dial(GameState *g, Platform *pf, MenuObject dial)
     }
     uint8_t period = menu_object_slots_period(g, dial);
     uint16_t there = period_location(g, period);
-    charge_machine_accesses(g, 2);
     if (location_here(g) != there) {
         set_menu_time_period(g, period);
         set_menu_object_slots_step(g, dial, DIAL_WAITS);
@@ -925,9 +900,6 @@ static void gate_spin(GameState *g, Platform *pf, MenuObject spin)
         for (uint16_t line = 0; line < MENU_LINE_TABLE_LINES; line++, angle = (uint16_t)(angle + SPIN_SPEED))
             gate_spin_line(g, cosines, sines, line, angle);
         set_menu_object_slots_angle(g, spin, angle);
-        charge_machine_accesses(g, 4);
-        charge_machine_accesses(g, 2);
-        charge_machine_accesses(g, 2);
         return;
     }
     bool first = !(menu_gate_flags(g) & DRAWING_THE_OTHER_SPIN);
@@ -945,7 +917,6 @@ static void gate_spin(GameState *g, Platform *pf, MenuObject spin)
     uint16_t angle = menu_object_slots_angle(g, spin);
     gate_spin_line(g, cosines, sines, LAST_LINE, angle);
     set_menu_object_slots_angle(g, spin, (uint16_t)(angle + SPIN_SPEED));
-    charge_machine_accesses(g, 4);
 }
 
 typedef enum { DIGIT_STARTS, DIGIT_HIDDEN, DIGIT_SHOWING, DIGIT_SHOWN, DIGIT_HIDING } DigitStep;
@@ -1026,11 +997,7 @@ static void upload_gate_rows(GameState *g, Platform *pf, uint16_t rows, uint32_t
         uint32_t from = (source & 0xFF0000u) | (uint16_t)(pick * TILEMAP_ROW_BYTES + source);
         vid_send_vram(pf, PF_AT(0xC272EE), vram, PF_GAME(from), TILEMAP_ROW_BYTES, &after_high);
         vram = (uint16_t)(vram + TILEMAP_ROW_WORDS);
-        charge_machine_accesses(g, 2);
     } while (--left != 0);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
 }
 
 /* The gate's picture: its pixels, packed two a byte, a byte each in the
@@ -1044,7 +1011,6 @@ static void unpack_gate_pixels(GameState *g)
         set_menu_mode7_plane(g, 2 * i, (uint8_t)(pair >> 4));
         set_menu_mode7_plane(g, 2 * i + 1, (uint8_t)(pair & 0x0F));
     }
-    charge_machine_io_accesses(g, 3);
 }
 
 /* The gate's picture to the plane's first tiles. */
@@ -1137,12 +1103,10 @@ bool menu_epoch_kept_off_the_ground_of(GameState *g, MenuObject o, unsigned map)
     MenuPlace p = menu_object_place(g, o);
     uint16_t tile_x = menu_pixel(p.x) >> TILE_SHIFT, tile_y = menu_pixel(p.y) >> TILE_SHIFT;
     if (!world_map_areas[map].has_area) {
-        charge_machine_accesses(g, 3);
         return false;
     }
     const Area *a = &world_map_areas[map].area;
     uint8_t sides = sides_outside((uint8_t)tile_x, (uint8_t)tile_y, *a);
-    charge_machine_accesses(g, 8);
     return sides == 0;
 }
 
@@ -1338,7 +1302,6 @@ static bool build_the_dial_with(GameState *g, Platform *pf, const EpochScreenSte
     if (!steps->load_stream(ctx, GATE_TILES_STREAM))
         return false;
     vid_send_vram(pf, PF_AT(0xC27393), GATE_TILE_VRAM, PF_GAME(RAM_MENU_GATE_TILES), GATE_TILES_BYTES, &after_high);
-    charge_machine_accesses(g, 6);
     TIMED_AS(g, 0xC272D8, upload_gate_rows(g, pf, GATE_TILEMAP_ROWS, MENU_GATE_TILEMAP_ROWS, RAM_MENU_MODE7_PLANE,
                                            GATE_TILEMAP_VRAM));
     if (!steps->load_stream(ctx, GATE_PALETTE_STREAM))
@@ -1347,7 +1310,6 @@ static bool build_the_dial_with(GameState *g, Platform *pf, const EpochScreenSte
     if (!steps->load_stream(ctx, GATE_ROWS_STREAM))
         return false;
     TIMED_AS(g, 0xC27254, upload_gate_tiles(g, pf));
-    (charge_machine_accesses(g, 7), charge_machine_rom_accesses(g, 2));
     TIMED_AS(g, 0xC27361, unpack_gate_pixels(g));
     TIMED_AS(g, 0xC2722C, upload_gate_pixels(pf));
     start_dial_objects(g);
@@ -1405,110 +1367,6 @@ static bool show_the_time_dial_with(GameState *g, Platform *pf, const EpochScree
     finish_the_time_dial(g, pf);
     return true;
 }
-
-/* ---- On the machine ---- */
-
-/* Registers the original's routines the screens call don't read
- * (the calling convention checks each). */
-enum {
-    READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
-    READS_A = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
-    READS_X_AND_A_HIGH = DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_AL,
-};
-
-/* Where the original makes each call, in the order of the screens, the
- * waits and the streams. */
-static const uint32_t clear_sites[] = { 0xC2632E, 0xC26A34 };
-static const uint32_t frame_sites[] = { 0xC263BA, 0xC26A9C };
-static const uint32_t wait_sites[] = { 0xC263C7, 0xC26A99, 0xC26AB1 };
-static const uint32_t stream_sites[] = { 0xC2738D, 0xC273DC, 0xC27408 };
-
-/* The clear comes back with a 16-bit accumulator; the screens go on with an
- * 8-bit one. */
-static bool clear_vram_on_the_machine(void *ctx, EpochScreen screen)
-{
-    Snes *s = ctx;
-    if (!menu_run_called(s, clear_sites[screen], 0xC226A8, READS_NOTHING, menu_clear_vram))
-        return false;
-    m_sep(s, CPU_FLAG_M);
-    return true;
-}
-
-static bool load_markers_on_the_machine(void *ctx)
-{
-    return menu_run_called(ctx, 0xC26337, 0xC26965, READS_NOTHING, menu_epoch_load_map_graphics);
-}
-
-static bool build_map_on_the_machine(void *ctx)
-{
-    return menu_run_called(ctx, 0xC2633D, 0xC263DF, READS_NOTHING, menu_epoch_build_map);
-}
-
-static bool build_gate_on_the_machine(void *ctx)
-{
-    return menu_run_called(ctx, 0xC26A8A, 0xC27389, READS_NOTHING, menu_epoch_gate_graphics);
-}
-
-/* The loader takes the stream's number in the mode's cell at $08 and its
- * bank in A. */
-static bool load_stream_on_the_machine(void *ctx, GateStream stream)
-{
-    enum { STREAM_CELL = 0x08 };
-    Snes *s = ctx;
-    set_menu_object_scratch_bytes_byte(state_of(s), STREAM_CELL, (uint8_t)stream);
-    m_set_a8(s, gate_stream_bank[stream]);
-    return menu_run_called(s, stream_sites[stream], 0xC271F9, READS_A | DC_AH, menu_epoch_load_gate_stream);
-}
-
-static bool start_text_on_the_machine(void *ctx)
-{
-    return menu_run_long_called(ctx, 0xC269BB, 0xC257DF, READS_NOTHING | DC_DB | DC_D, menu_text_start_entry);
-}
-
-static bool set_glyphs_on_the_machine(void *ctx)
-{
-    return menu_run_long_called(ctx, 0xC269C4, 0xC25823, READS_NOTHING | DC_D, menu_text_go_on_entry);
-}
-
-static bool wait_a_frame_on_the_machine(void *ctx, EpochScreen screen)
-{
-    Snes *s = ctx;
-    if (m_runs_retired_as_c(s)) {
-        if (menu_run_called(s, frame_sites[screen], 0xC2046E, READS_NOTHING | DC_DB, menu_wait_for_frame))
-            native_hold(s, HOLD_MENU_FRAME);
-        return false;
-    }
-    m_jsr_dc(s, frame_sites[screen], 0xC2046E, READS_NOTHING | DC_DB);
-    return true;
-}
-
-static bool wait_frames_on_the_machine(void *ctx, EpochWait wait)
-{
-    Snes *s = ctx;
-    s->cpu.x = epoch_wait_frames[wait];
-    if (m_runs_retired_as_c(s)) {
-        if (menu_run_called(s, wait_sites[wait], 0xC20454, READS_X_AND_A_HIGH,
-                            menu_wait_frames_sending_the_sound_entry))
-            native_hold(s, HOLD_MENU_FRAME);
-        return false;
-    }
-    m_jsr_dc(s, wait_sites[wait], 0xC20454, READS_X_AND_A_HIGH);
-    return true;
-}
-
-/* Starting a script leaves A its address's high byte over its bank, which
- * the frames' wait after it reads. */
-static void script_begun_on_the_machine(void *ctx, uint32_t script)
-{
-    Snes *s = ctx;
-    s->cpu.a = (uint16_t)((script & 0xFF00) | (uint8_t)(script >> 16));
-}
-
-static const EpochScreenSteps screen_steps_on_the_machine = {
-    clear_vram_on_the_machine, load_markers_on_the_machine, build_map_on_the_machine, build_gate_on_the_machine,
-    load_stream_on_the_machine, start_text_on_the_machine, set_glyphs_on_the_machine, wait_a_frame_on_the_machine,
-    wait_frames_on_the_machine, script_begun_on_the_machine,
-};
 
 /* ---- As C ---- */
 
@@ -1625,96 +1483,6 @@ bool menu_epoch_time_dial_shown(GameState *g, Platform *pf)
     return show_the_time_dial_with(g, pf, &screen_steps_in_c, &c);
 }
 
-// $C2:631F
-void menu_epoch_map_screen(Snes *s)
-{
-    if (show_the_map_view_with(state_of(s), m_platform(s), &screen_steps_on_the_machine, s))
-        m_rts(s);
-}
-
-// $C2:6A34
-void menu_epoch_time_dial_screen(Snes *s)
-{
-    if (show_the_time_dial_with(state_of(s), m_platform(s), &screen_steps_on_the_machine, s))
-        m_rts(s);
-}
-
-/* The screen and its overworld caller leave their return frames in the
- * saved machine. A displayed frame never retains either enclosing C call. */
-// $C2:63BD
-void menu_epoch_map_frame_finished(Snes *s)
-{
-    if (menu_mode(state_of(s)) == MAP_VIEW_MODE) {
-        if (wait_a_frame_on_the_machine(s, THE_MAP_VIEW))
-            m_stop_at(s, 0xC263BD, 0);
-    } else if (wait_frames_on_the_machine(s, MAP_VIEW_CLOSING)) {
-        m_stop_at(s, 0xC263CA, 0);
-    }
-}
-
-// $C2:63CA
-void menu_epoch_map_finished(Snes *s)
-{
-    finish_the_map_view(state_of(s), m_platform(s));
-    m_rts(s);
-    native_hold(s, HOLD_MENU_FRAME);
-}
-
-// $C2:6A9C
-void menu_epoch_dial_opened(Snes *s)
-{
-    if (wait_a_frame_on_the_machine(s, THE_TIME_DIAL))
-        m_stop_at(s, 0xC26A9F, 0);
-}
-
-// $C2:6A9F
-void menu_epoch_dial_frame_finished(Snes *s)
-{
-    if (menu_mode(state_of(s)) == DIAL_MODE) {
-        if (wait_a_frame_on_the_machine(s, THE_TIME_DIAL))
-            m_stop_at(s, 0xC26A9F, 0);
-        return;
-    }
-    start_a_script_with(state_of(s), DIAL_ENDING_SCRIPT, &screen_steps_on_the_machine, s);
-    if (wait_frames_on_the_machine(s, DIAL_CLOSING))
-        m_stop_at(s, 0xC26AB4, 0);
-}
-
-// $C2:6AB4
-void menu_epoch_dial_finished(Snes *s)
-{
-    finish_the_time_dial(state_of(s), m_platform(s));
-    m_rts(s);
-    native_hold(s, HOLD_MENU_FRAME);
-}
-
-/* ---- The entries ---------------------------------------------------------------------------- */
-
-bool menu_epoch_map_is_buildable(Snes *s)
-{
-    if (!overworld_map_tiles_run(s))
-        return false;
-    vars_peek(true);
-    bool fits = map_picture_buffer_fits(state_of(s));
-    vars_peek(false);
-    return fits;
-}
-
-/* Both screens run on the menus' page with the data bank on the I/O banks,
- * their objects' handlers entered with their slot in X. */
-bool menu_epoch_page_is_menu(Snes *s) { return s->cpu.d == RAM_PAGE_MENU && s->cpu.db == 0x00; }
-
-bool menu_epoch_object_runs(Snes *s)
-{
-    if (!menu_epoch_page_is_menu(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = menu_object_address_names_one(menu_object_current(g)) && s->cpu.x == menu_object_current(g);
-    vars_peek(false);
-    return ok;
-}
-
 /* The objects whose handlers go by steps are on one of theirs: the original
  * jumps through a table of them, and past its end into code. */
 static bool cursor_takes(const GameState *g, MenuObject cursor)
@@ -1755,73 +1523,6 @@ static bool digit_takes(const GameState *g, MenuObject digit)
            && menu_given_sprite_script_is_well_formed(g, menu_digit_hide_script(g, period));
 }
 
-/* On the machine, each also runs on the menus' page with its slot in X. */
-static bool runs_and_takes(Snes *s, bool (*takes)(const GameState *g, MenuObject o))
-{
-    if (!menu_epoch_object_runs(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = takes(g, menu_object_running(g));
-    vars_peek(false);
-    return ok;
-}
-
-bool menu_epoch_cursor_runs(Snes *s) { return runs_and_takes(s, cursor_takes); }
-bool menu_epoch_dial_runs(Snes *s) { return runs_and_takes(s, dial_takes); }
-bool menu_epoch_spin_runs(Snes *s) { return runs_and_takes(s, spin_takes); }
-bool menu_epoch_marker_runs(Snes *s) { return runs_and_takes(s, marker_takes); }
-bool menu_epoch_digit_runs(Snes *s) { return runs_and_takes(s, digit_takes); }
-
-/* A slot's object is running: the dial's graphics count the digits' periods
- * in its slot. */
-bool menu_epoch_slot_runs(Snes *s)
-{
-    if (!menu_epoch_page_is_menu(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_object_address_names_one(menu_object_current(state_of(s)));
-    vars_peek(false);
-    return ok;
-}
-
-/* The area check on one of the world maps, which the original picks the area
- * of with a jump through a table as long as the maps. */
-bool menu_epoch_on_world_map(Snes *s)
-{
-    if (m_direct_page(s) != 0 || !m_bank_reaches_low_ram(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = menu_object_address_names_one(menu_object_current(g))
-              && (uint16_t)(location_id(g) - MENU_FIRST_WORLD_MAP) < MENU_WORLD_MAPS;
-    vars_peek(false);
-    return ok;
-}
-
-/* An object's handler hands back whether it is done in the carry, and the
- * original's comes back with the accumulator as wide as its path left it. */
-static void handler_returns(Snes *s, bool done, bool wide)
-{
-    m_set_flag(s, CPU_FLAG_C, done);
-    if (wide)
-        m_rep(s, CPU_FLAG_M);
-    else
-        m_sep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-// $C2:63DF
-/* It comes back with an 8-bit accumulator. */
-void menu_epoch_build_map(Snes *s)
-{
-    Unpacker u = overworld_unpacker_on_the_machine(s);
-    if (!build_map_view_from(state_of(s), m_platform(s), &u))
-        return;
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
 /* The Day of Lavos's turning world (menu/turning_world.c) builds its picture
  * of the 1000 A.D. map from the same pieces: its scene's script calls the
  * colours' sampling and the picture's laying out on their own. What each
@@ -1841,7 +1542,6 @@ static bool sample_the_map_colours(GameState *g, Platform *pf, MenuObject self, 
 {
     (void)pf, (void)self, (void)far;
     sample_map_colours(g);
-    charge_machine_accesses(g, 6);
     return true;
 }
 
@@ -1849,7 +1549,6 @@ static bool lay_out_the_map_picture(GameState *g, Platform *pf, MenuObject self,
 {
     (void)self, (void)far;
     place_map_picture(g, pf);
-    (charge_machine_accesses(g, 9), charge_machine_io_accesses(g, 4));
     return true;
 }
 
@@ -1902,7 +1601,7 @@ enum { BUZZ_SENT = 0xC26BE9, SOUND_DRIVER = 0xC70004 };
 static MenuTurn dial_turn(GameState *g, Platform *pf, MenuObject self)
 {
     if (time_dial(g, pf, self) == DIAL_BUZZES)
-        au_command(pf, PF_CALL_DC(BUZZ_SENT, SOUND_DRIVER, READS_X_AND_A_HIGH),
+        au_command(pf, PF_CALL(BUZZ_SENT, SOUND_DRIVER),
                    (AudioCommand){ .command = SOUND_EFFECT_ON_VOICES_6_7, .p1 = BUZZ_EFFECT, .p2 = BUZZ_PAN, .count = 2 });
     return MENU_TURN_GOES_ON;
 }
@@ -1929,173 +1628,3 @@ MENU_HANDLERS(menu_epoch_handlers,
     { SPIN_HANDLER, "the time gate's spin", spin_takes, spin_turn },
     { DIGIT_HANDLER, "a time dial's digit", digit_takes, digit_turn },
 );
-
-// $C2:6400
-void menu_epoch_sample_map_colours(Snes *s)
-{
-    GameState *g = state_of(s);
-    sample_map_colours(g);
-    charge_machine_accesses(g, 6);
-    s->cpu.x = COLOURS_AT;
-    s->cpu.a = WORLD_MAP_TILES;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-// $C2:65B2
-void menu_epoch_place_map_picture(Snes *s)
-{
-    GameState *g = state_of(s);
-    place_map_picture(g, m_platform(s));
-    (charge_machine_accesses(g, 9), charge_machine_io_accesses(g, 4));
-    s->cpu.x = NAME_ROWS_SENT;
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-// $C2:6965
-void menu_epoch_load_map_graphics(Snes *s)
-{
-    if (load_map_view_graphics_with(state_of(s), m_platform(s), &screen_steps_on_the_machine, s))
-        m_rts(s);
-}
-
-// $C2:666C
-/* A step of its walk comes back 16 bits wide. */
-void menu_epoch_map_cursor(Snes *s)
-{
-    GameState *g = state_of(s);
-    CursorOutcome outcome = map_view_cursor(g, menu_object_running(g));
-    handler_returns(s, outcome == CURSOR_DONE, outcome == CURSOR_WALKED);
-}
-
-// $C2:6736
-
-/* A marker that ends because the Epoch is elsewhere comes back 16 bits
- * wide. */
-static void marker_returns(Snes *s, MarkerOutcome outcome)
-{
-    handler_returns(s, outcome != MARKER_SHOWN, outcome == MARKER_NOT_HERE);
-}
-
-// $C2:67FA
-void menu_epoch_map_party_marker(Snes *s)
-{
-    GameState *g = state_of(s);
-    marker_returns(s, party_marker(g, menu_object_running(g)));
-}
-
-// $C2:683B
-void menu_epoch_map_epoch_marker(Snes *s)
-{
-    GameState *g = state_of(s);
-    marker_returns(s, epoch_marker(g, menu_object_running(g)));
-}
-
-// $C2:68A3
-void menu_epoch_map_location_marker(Snes *s)
-{
-    GameState *g = state_of(s);
-    marker_returns(s, landing_marker(g, menu_object_running(g)));
-}
-
-// $C2:68F4
-/* A scene's script calls it too: it comes back with X clear and the carry
- * set. */
-void menu_epoch_map_gradient(Snes *s)
-{
-    map_view_gradient(state_of(s), m_platform(s));
-    s->cpu.x = 0;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
-}
-
-// $C2:6AC8
-/* The dial's buzz goes to the sound driver from the dial's own call, which
- * reads A's high byte: the location's there, where the dial compared it. */
-void menu_epoch_time_dial_object(Snes *s)
-{
-    GameState *g = state_of(s);
-    DialOutcome outcome = time_dial(g, m_platform(s), menu_object_running(g));
-    if (outcome == DIAL_BUZZES) {
-        s->cpu.a = (uint16_t)((location_here(g) & 0xFF00) | BUZZ_PAN);
-        m_sep(s, CPU_FLAG_M);
-        m_jsl_dc(s, 0xC26BE9, 0xC70004, READS_X_AND_A_HIGH);
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_rts(s);
-        return;
-    }
-    handler_returns(s, false, outcome == DIAL_IDLE || outcome == DIAL_PASSES);
-}
-
-// $C2:6CC1
-
-// $C2:6F85
-void menu_epoch_gate_matrix_object(Snes *s)
-{
-    GameState *g = state_of(s);
-    MenuObject spin = menu_object_running(g);
-    bool first_frame = menu_object_slots_step(g, spin) == 0;
-    gate_spin(g, m_platform(s), spin);
-    handler_returns(s, false, !first_frame);
-}
-
-// $C2:7143
-void menu_epoch_time_dial_digit(Snes *s)
-{
-    GameState *g = state_of(s);
-    dial_digit(g, menu_object_running(g));
-    handler_returns(s, false, false);
-}
-
-// $C2:71F9
-/* The stream's number is in the mode's cell at $08, its bank in A. */
-void menu_epoch_load_gate_stream(Snes *s)
-{
-    Unpacker u = overworld_unpacker_called(s);
-    if (load_gate_stream_from(state_of(s), &u, menu_object_scratch_bytes_byte(state_of(s), 0x08), (uint8_t)s->cpu.a))
-        m_rts(s);
-}
-
-// $C2:722C
-
-// $C2:7254
-
-// $C2:72D8
-
-// $C2:7361
-
-// $C2:7389
-void menu_epoch_gate_graphics(Snes *s)
-{
-    if (!build_the_dial_with(state_of(s), m_platform(s), &screen_steps_on_the_machine, s))
-        return;
-    s->cpu.a = (uint16_t)((DIAL_LAST_SCRIPT & 0xFF00) | (uint8_t)(DIAL_LAST_SCRIPT >> 16));
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-// $C6:E74E
-/* The map screen's own check of a tile against an area, both in the object
- * mode's cells; the sides come back there. */
-void menu_epoch_outside_sides(Snes *s)
-{
-    GameState *g = state_of(s);
-    Area a = { menu_object_scratch_area_top(g), menu_object_scratch_area_bottom(g),
-               menu_object_scratch_area_left(g), menu_object_scratch_area_right(g) };
-    set_menu_object_scratch_area_outside(
-        g, sides_outside(menu_object_scratch_area_tile_x(g), menu_object_scratch_area_tile_y(g), a));
-    m_rtl(s);
-}
-
-// $C6:E797
-/* The carry says whether the object is inside; the accumulator is 8-bit. */
-void menu_epoch_in_area(Snes *s)
-{
-    GameState *g = state_of(s);
-    m_set_flag(s, CPU_FLAG_C, in_area(g, menu_object_running(g)));
-    m_sep(s, CPU_FLAG_M);
-    m_rtl(s);
-}

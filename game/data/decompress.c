@@ -101,10 +101,7 @@ static void copy_run(Output *out, Reference r)
  * byte; a reference, the run's length and its place kept and read back, and
  * the data bank kept on the stack over the copy; and an item done, with the
  * control byte going on or done. */
-enum {
-    ORIGINAL_START_AND_END = 9, ORIGINAL_LOOK_AT_THE_SEGMENT = 2, ORIGINAL_SEGMENT = 5, ORIGINAL_CONTROL = 1,
-    ORIGINAL_REFERENCE = 11, ORIGINAL_ITEM_GOES_ON = 4, ORIGINAL_CONTROL_DONE = 3,
-};
+enum { ORIGINAL_START_AND_END = 9, ORIGINAL_LOOK_AT_THE_SEGMENT = 2, ORIGINAL_SEGMENT = 5, ORIGINAL_CONTROL = 1, ORIGINAL_REFERENCE = 11, ORIGINAL_ITEM_GOES_ON = 4, ORIGINAL_CONTROL_DONE = 3,  };
 
 /* The routines the unpacking is timed as: the jump the game's code calls, or
  * the routine itself, which the scene engine calls directly; their entries
@@ -278,8 +275,6 @@ uint16_t unpack_stream_run(GameState *g, bool direct)
 
 uint16_t unpack_stream_called(GameState *g, bool direct)
 {
-    charge_settle(g);
     uint16_t length = unpack_stream_run(g, direct);
-    charge_settle(g);
     return length;
 }

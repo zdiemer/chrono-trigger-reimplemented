@@ -35,11 +35,8 @@
 #include "core/program.h"
 #include "event/calls.h"
 #include "event/engine.h"
-#include "event/event.h"
 #include "field/bridge.h"
 #include "menu/party.h"
-#include "port/machine.h"
-#include "port/native.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -169,58 +166,13 @@ void field_objects_start_afresh(GameState *g, Platform *pf)
 enum { OPENINGS = 0xC058DE };
 enum { THE_DEFAULTS_LEAVE_Y = 0x00FF };
 
-static void go_on_to_the_openings(Snes *s)
-{
-    m_set_flag(s, CPU_FLAG_V, false);
-    s->cpu.y = THE_DEFAULTS_LEAVE_Y;
-    TIMED_AS(state_of(s), OPENINGS, event_run_init_scripts(s));
-}
-
-/* On the field's page; returns from the openings. */
-void field_start_the_objects(Snes *s)
-{
-    field_objects_start_afresh(state_of(s), m_platform(s));
-    go_on_to_the_openings(s);
-}
-
 /* The original's routines it calls: the map's own script, and the menus'
  * services, whose time the party's looks take. */
 enum { MAP_SCRIPT_STARTS = 0xC0595C, MENUS_SERVICES = 0xC28004 };
-enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-enum { THE_MAP_SCRIPT_READS_THE_OVERFLOW = DC_A | DC_N | DC_Z | DC_C };
-
-static BridgeMachine page(const Snes *s) { return on_the_field_page(s, false); }
-
-/* What the party wears shows, as the menus' service shows it. */
-static void show_what_the_party_wears(Snes *s)
-{
-    GameState *g = state_of(s);
-    charge_machine_accesses(g, 11); /* the old service adapter's party snapshot and operands */
-    TIMED_AS(g, MENUS_SERVICES, party_wear_it_shows(g));
-    charge_machine_accesses(g, 1); /* its saved answer */
-}
 
 /* The scanlines the objects' script turns and their animation stop at each
  * frame, as a map starts (a script can move the animation's). */
 enum { SCRIPTS_STOP_AT_LINE = 0x48, ANIMATION_STOPS_AT_LINE = 0x78 };
-
-// $C0:56A6
-/* The objects set up: let go, started, their openings run; then the map's
- * own script started, and the party's looks shown. */
-void field_set_up_the_objects(Snes *s)
-{
-    GameState *g = state_of(s);
-    set_field_script_line_limit(g, SCRIPTS_STOP_AT_LINE);
-    set_field_animation_line_limit(g, ANIMATION_STOPS_AT_LINE);
-    field_forget_the_queued_transfers(g);
-    field_objects_let_go(g, true);
-    if (!field_run(s, 0xC056C5, FIELD_START_THE_OBJECTS_ENTRY, READS_NOTHING, field_start_the_objects,
-                   page(s)) ||
-        !field_run(s, 0xC056C8, MAP_SCRIPT_STARTS, THE_MAP_SCRIPT_READS_THE_OVERFLOW, event_run_map_script, page(s)))
-        return;
-    show_what_the_party_wears(s);
-    m_rts(s);
-}
 
 /* ---- The objects set up, as C ------------------------------------------------------------------ */
 
@@ -266,29 +218,4 @@ bool field_objects_set_up(GameState *g, Platform *pf)
         return false;
     TIMED_AS(g, MENUS_SERVICES, party_wear_it_shows(g));
     return true;
-}
-
-/* The guards: on the field's page with the data bank $00, a count of objects
- * the tables hold (none would have the original's loops run round the bytes),
- * and a party the menus' service can show. */
-static bool objects_fit(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    unsigned objects = event_object_count(state_of(s));
-    vars_peek(false);
-    return objects != 0 && objects <= FIELD_OBJECTS;
-}
-
-bool field_objects_can_start(Snes *s) { return objects_fit(s); }
-
-bool field_objects_can_be_set_up(Snes *s)
-{
-    if (!objects_fit(s))
-        return false;
-    vars_peek(true);
-    bool shows = party_record_shows_characters(state_of(s));
-    vars_peek(false);
-    return shows;
 }

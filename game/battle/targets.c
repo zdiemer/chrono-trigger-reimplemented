@@ -59,18 +59,15 @@ void battle_clear_candidates(GameState *g)
 /* The direct-page cells the selectors work in (battle_low_scratch). They keep
  * a word at $0A too -- the enemy's own battle slot, or the stat block's byte a
  * selection by status looks at -- whose high byte is kept (battle.h). */
-enum {
-    LEFT_HP = 0x02,          /* the lowest or highest HP a selector found, a word ($02) */
-    LEFT_BLOCK = 0x0C,       /* the stat block's place's low byte, and its high byte cleared ($0C) */
-    LEFT_PLACE = 0x0E,       /* where a selector's loop over the combatants is, a word ($0E) */
-};
+enum { LEFT_HP = 0x02, /* the lowest or highest HP a selector found, a word ($02) */
+    LEFT_BLOCK = 0x0C, /* the stat block's place's low byte, and its high byte cleared ($0C) */
+    LEFT_PLACE = 0x0E, /* where a selector's loop over the combatants is, a word ($0E) */ };
 
 /* Where a selector's loop over the combatants ended, a word: its low byte
  * is what an enemy tech's hits can be noted as (battle.h), so it is kept. */
 static void keep_loop_end(GameState *g, uint16_t v)
 {
     battle_keep_tech_hits_left(g, (uint8_t)v);
-    charge_machine_accesses(g, 1);
 }
 
 /* ---- Whom a selector can pick -------------------------------------------------------------- */
@@ -163,7 +160,6 @@ static void pick_member_by_hp(GameState *g, bool most)
         }
     }
     only_candidate(g, picked);
-    charge_machine_accesses(g, 2);
 }
 
 /* The enemy in the fight with the least HP (above none), the enemy itself
@@ -180,7 +176,6 @@ static void pick_weakest_enemy(GameState *g, uint8_t left_out)
         }
     }
     set_count(g, 1);
-    charge_machine_accesses(g, 2);
     battle_keep_tech_hits_left(g, BATTLE_COMBATANTS);
 }
 
@@ -235,10 +230,8 @@ typedef struct {
 
 static void consider(GameState *g, uint8_t slot, StatusTest test)
 {
-    charge_machine_accesses(g, 1);
     if (!combatant_in_fight(g, slot))
         return;
-    (charge_machine_accesses(g, 1), charge_machine_rom_accesses(g, 2));
     if (!(battle_stats_block_byte(g, slot, test.stat) & test.bits))
         return;
     if (battle_stats_block_byte(g, slot, STAT_CONDITION) & CONDITION_KNOCKED_OUT)
@@ -266,7 +259,6 @@ static void start_status_pick(GameState *g, StatusTest test)
     set_battle_candidates_turning(g, 0);
     set_battle_candidates_drawing(g, 0);
     battle_keep_stat_offset_word(g, test.stat);
-    charge_machine_accesses(g, 2);
 }
 
 static void narrow_by_aim(GameState *g, uint8_t self);
@@ -285,7 +277,6 @@ static void pick_enemies_with(GameState *g, uint8_t self, StatusTest test, bool 
     for (uint8_t slot = BATTLE_FIRST_ENEMY; slot < BATTLE_COMBATANTS; slot++)
         if (with_itself || slot != battle_actor(g))
             consider(g, slot, test);
-    charge_machine_accesses(g, 1);
     keep_loop_end(g, (uint16_t)(2 * BATTLE_COMBATANTS));
     narrow_by_aim(g, self);
 }
@@ -305,11 +296,9 @@ static uint8_t stray_status_byte(const GameState *g, uint16_t place, uint8_t sta
  * the mark it added. */
 static uint8_t consider_stray(GameState *g, uint8_t slot, uint16_t place, StatusTest test)
 {
-    charge_machine_accesses(g, 1);
     uint8_t fighting = combatant_fighting_as(g, slot);
     if (fighting == COMBATANT_NONE)
         return fighting;
-    (charge_machine_accesses(g, 1), charge_machine_rom_accesses(g, 2));
     uint8_t byte = stray_status_byte(g, place, test.stat);
     if (!(byte & test.bits))
         return byte;
@@ -339,7 +328,6 @@ static void pick_enemies_with_stray(GameState *g, uint8_t self, StatusTest test)
         place = (uint16_t)(kept + 2);
         kept = leftover;
     }
-    charge_machine_accesses(g, 1);
     keep_loop_end(g, kept);
     narrow_by_aim(g, self);
 }
@@ -478,8 +466,7 @@ void battle_pick_candidates(GameState *g, uint8_t enemy, Selector selector)
         return;
     const SelectorRow *row = &selectors[selector];
     uint8_t self = (uint8_t)(BATTLE_FIRST_ENEMY + enemy);
-    if (clears_candidate_place(selector))
-        charge_machine_accesses(g, 2);
+    (void)(clears_candidate_place(selector));
     switch (row->pick) {
     case PICK_NOBODY: break;
     case PICK_PARTY: pick_party(g); break;
@@ -616,23 +603,7 @@ void battle_mark_other_targets(GameState *g)
     set_battle_action_other_targets(g, bits);
     if (count >= 2)
         battle_keep_word(g, SHIFT_CELL, 0);
-    charge_machine_accesses(g, 1);
 }
-
-/* ---- The entries ------------------------------------------------------------------------ */
-
-/* Each selector's routine picks for the enemy the battle is working on
- * (battle_enemy_turn). */
-
-/* The party's selector leaves the count in X, where the everyone selector
- * goes on from it. */
-
-/* Selecting leaves the first candidate in A and the carry of its last compare,
- * set. The script's reading goes on at the selector. */
-
-/* The selector comes in A, doubled in a byte to index the table: its top bit
- * is lost. */
-uint8_t battle_selector_in_a(const Snes *s) { return (uint8_t)(s->cpu.a & 0x7F); }
 
 /* The bits' routines hand A back clear, and the carry of the last shift that
  * made a bit (set where the slot shifted it right out), or of what they

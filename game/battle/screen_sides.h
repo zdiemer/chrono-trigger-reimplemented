@@ -35,12 +35,6 @@ enum { DIVIDED_BY_NOTHING = 0xFFFF };
  * given down and across instead.) */
 Slope sides_slope(uint8_t from, uint8_t to, uint8_t lines);
 
-/* Whether the edge from `from` to `to` runs leftward (its slope negative). */
-static inline bool sides_leftward(uint8_t from, uint8_t to) { return to < from; }
-
-static inline uint8_t sides_whole_column(Column c) { return (uint8_t)(c >> SLOPE_FRACTION_BITS); }
-static inline Column sides_column_at(uint8_t x) { return (Column)(x << SLOPE_FRACTION_BITS); }
-
 /* A stretch of lines down which each side follows one edge. */
 typedef struct {
     uint8_t lines;
@@ -78,5 +72,12 @@ bool sides_fit_the_table(const GameState *g, uint8_t bottom);
  * stops, the line after the last, and the low byte of the last column its
  * word stores put on the sound port (scaffolding, for ORIGINAL_EFFECT). */
 void sides_leave_port(GameState *g, Window w, unsigned line_after, SidesDrawn drawn);
+
+/* Whether the edge from `from` to `to` runs leftward (its slope negative). */
+static inline bool sides_leftward(uint8_t from, uint8_t to) { return to < from; }
+
+static inline uint8_t sides_whole_column(Column c) { return (uint8_t)(c >> SLOPE_FRACTION_BITS); }
+
+static inline Column sides_column_at(uint8_t x) { return (Column)(x << SLOPE_FRACTION_BITS); }
 
 #endif

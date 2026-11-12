@@ -35,7 +35,6 @@
 
 #include "charge.h"
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -387,8 +386,7 @@ void scene_set_the_fireworks_up(GameState *g)
 
 /* Channel 0's registers as a picture's: its scale, its scroll and its
  * centre. */
-enum { PICTURE_SCALE = 0, PICTURE_SCROLL_X = 1, PICTURE_SCROLL_Y = 2, PICTURE_CENTRE_X = 3, PICTURE_CENTRE_Y = 4,
-       PICTURE_BG2_SCROLL = 7 };
+enum { PICTURE_SCALE = 0, PICTURE_SCROLL_X = 1, PICTURE_SCROLL_Y = 2, PICTURE_CENTRE_X = 3, PICTURE_CENTRE_Y = 4, PICTURE_BG2_SCROLL = 7 };
 
 // $7E:9E2B
 /* In the vblank: the picture scaled, unturned, round its centre, and
@@ -412,219 +410,10 @@ static void send_the_picture_and_bg2(GameState *g, Platform *pf)
     send_the_picture(g, pf);
 }
 
-/* ---- The entries ------------------------------------------------------------------------------ */
-
-/* The frame's tasks: the list reads A's high byte after the last and Y in the
- * next; the vblank's read nothing. Each comes back as the original's does,
- * leaving A as its last load left it. */
-
-void scene_keep_the_orbit_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    orbit(g);
-    charge_legacy_accesses(g, 2);
-    m_rts(s);
-}
-
-void scene_pass_the_map_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    pass_the_map(g);
-    charge_legacy_accesses(g, 2);
-    m_rts(s);
-}
-
 /* Flat, A holds the matrix's last entry the turn wrote; unchanged, the last
  * register compared, the depth. A new perspective is built on channel 0's
  * page; the entry guard checks its lines before the saved camera changes. */
 enum { BUILD_PERSPECTIVE = 0x7E357B, CAMERA_PAGE = 0x0A00 };
-
-void scene_check_the_flight_view_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    bool rebuild = update_the_view(g);
-    if (rebuild)
-        TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, SCENE_CAMERA_CHANNEL));
-    if (rebuild) scene_charge_perspective_result(g, SCENE_CAMERA_CHANNEL); else charge_legacy_accesses(g, 4);
-    m_rts(s);
-}
-
-/* The view's placing works with a 16-bit accumulator, which it comes back
- * with; so does the view's sending in perspective. */
-void scene_place_the_flight_view_entry(Snes *s)
-{
-    place_the_view(state_of(s));
-    s->cpu.p &= (uint8_t)~CPU_FLAG_M;
-    m_rts(s);
-}
-
-void scene_send_the_flight_view_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    send_the_view(g, m_platform(s));
-    if (!plane_flat(g))
-        s->cpu.p &= (uint8_t)~CPU_FLAG_M;
-    m_rts(s);
-}
-
-void scene_set_the_flight_horizon_entry(Snes *s)
-{
-    set_the_horizon(state_of(s));
-    m_rts(s);
-}
-
-void scene_circle_the_epoch_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    circle_the_epoch(g);
-    charge_legacy_accesses(g, 2);
-    m_rts(s);
-}
-
-void scene_sway_the_epoch_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    sway_the_epoch(g);
-    charge_legacy_accesses(g, 2);
-    m_rts(s);
-}
-
-/* Off the eighth frame A holds the frame counter's place in the eight; on
- * it, the last color the swap took, the scene's own color 14 as it was, which
- * is color 46 now. */
-
-void scene_twinkle_the_lights_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    twinkle_the_lights(g);
-    charge_legacy_accesses(g, 4);
-    m_rts(s);
-}
-
-void scene_turn_back_and_twinkle_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    turn_back_and_twinkle(g);
-    charge_legacy_accesses(g, 4);
-    m_rts(s);
-}
-
-/* A holds the spare bytes' load, and Y the next free sprite entry. */
-void scene_burst_the_fireworks_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    burst_the_fireworks(g);
-    s->cpu.y = scene_sprite_index(g);
-    m_rts(s);
-}
-
-/* Called by the shared setup with 8-bit A, which it comes back with; the
- * setup reads none of the registers it leaves. */
-
-void scene_send_the_picture_entry(Snes *s)
-{
-    send_the_picture(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-void scene_send_the_picture_and_bg2_entry(Snes *s)
-{
-    send_the_picture_and_bg2(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-/* ---- The guards ------------------------------------------------------------------------------- */
-
-/* The program's sine and its two multiplies, which the scenes here run as C. */
-static bool sine_present(Snes *s) { return m_code_matches(s, 0x7E3461, 0x19, 0xA2486F18B991C163ull); }
-static bool multiply_present(Snes *s) { return m_code_matches(s, 0x7E31BF, 0x4A, 0x479627EBF1311CAFull); }
-static bool signed_multiply_present(Snes *s)
-{
-    return multiply_present(s) && m_code_matches(s, 0x7E33D6, 0x37, 0xCB3F0FAD1C9F8EA9ull);
-}
-
-/* Every task runs on the scene's page, reaching the channels' registers and
- * the program through a data bank that reaches low RAM; the vblank's that
- * send through one that reaches the registers. */
-static bool frame_task_on_page(Snes *s) { return scene_on_scene_page_low_bank(s); }
-
-bool scene_keep_the_orbit_present(Snes *s)
-{
-    return frame_task_on_page(s) && m_code_matches(s, 0x7E99B5, 0x45, 0x78FEC1F894A5BFF8ull) && sine_present(s) &&
-           multiply_present(s);
-}
-
-bool scene_pass_the_map_present(Snes *s)
-{
-    return frame_task_on_page(s) && m_code_matches(s, 0x7E90C1, 0x0E, 0x881B13929F5DFB2Eull);
-}
-
-bool scene_check_the_flight_view_present(Snes *s)
-{
-    if (!frame_task_on_page(s) || !m_code_matches(s, 0x7E9ABD, 0x36, 0x5952F84E74F8A1FDull) ||
-        !m_code_matches(s, 0x7E56B4, 0x37, 0xD7D22FBA648F6283ull) || !sine_present(s) || !multiply_present(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool rebuild = !plane_flat(g) && scene_camera_changed(g, FLIGHT_CAMERA_REGISTERS);
-    vars_peek(false);
-    return !rebuild || scene_perspective_as_ported(s, CAMERA_PAGE);
-}
-
-bool scene_place_the_flight_view_present(Snes *s)
-{
-    return frame_task_on_page(s) && m_code_matches(s, 0x7E9AF3, 0x53, 0x5224AFB038B83640ull) && sine_present(s) &&
-           signed_multiply_present(s);
-}
-
-/* Flat, the original also adds the carry the list hands the task into the
- * centre across, which the list's loop leaves clear at the task's slot: a task
- * entered with the carry set is the original's. */
-bool scene_send_the_flight_view_present(Snes *s)
-{
-    if (!scene_on_scene_page_io_bank(s) || !m_code_matches(s, 0x7E9DBC, 0x5D, 0xEEE8467EDC5F8B2Aull) ||
-        !m_code_matches(s, 0x7E5654, 0x55, 0x93E05BF3D717E712ull))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = !plane_flat(g) || !m_flag(s, CPU_FLAG_C);
-    vars_peek(false);
-    return ok;
-}
-
-bool scene_set_the_flight_horizon_present(Snes *s)
-{
-    return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E9080, 0x27, 0x0EBC17FE2730FACFull);
-}
-
-bool scene_circle_the_epoch_present(Snes *s)
-{
-    return frame_task_on_page(s) && m_code_matches(s, 0x7E992A, 0x45, 0x781AD13F2E5F0F5Cull) &&
-           m_code_matches(s, 0x7E8921, 0x0F, 0xDE82006F5167A2D9ull) && sine_present(s) && signed_multiply_present(s);
-}
-
-bool scene_sway_the_epoch_present(Snes *s)
-{
-    return frame_task_on_page(s) && m_code_matches(s, 0x7E997D, 0x1F, 0xECA1EDE83E4CF167ull) && sine_present(s);
-}
-
-bool scene_twinkle_the_lights_present(Snes *s)
-{
-    return frame_task_on_page(s) && m_code_matches(s, 0x7E9D48, 0x6A, 0x34669C13030AE9A8ull);
-}
-
-bool scene_turn_back_and_twinkle_present(Snes *s)
-{
-    return scene_twinkle_the_lights_present(s) && m_code_matches(s, 0x7E9D45, 0x03, 0x8C843A1C379B1891ull);
-}
-
-/* The fireworks' code, their bursts' table, the bursts and their sprite
- * lists, and the program's random bytes. */
-static bool fireworks_code_present(Snes *s)
-{
-    return m_code_matches(s, 0x7E9BB8, 0x41, 0xFA1ECC12B4B643A5ull) && m_code_matches(s, 0x7E9C4E, 0x0A, 0xD820E174BD3B64E4ull) &&
-           m_code_matches(s, 0x7EA203, 0x43D, 0xB232C3EBF5FD21D1ull) && m_code_matches(s, 0x7E3448, 0x19, 0x092856CFEC289766ull);
-}
 
 /* Whether a firework is at a frame of one of its bursts, or at a burst's
  * start (an entry before its first), where a burst is started on the start's
@@ -680,28 +469,6 @@ static bool fireworks_burst_as_ported(const GameState *g)
         sprites += ok ? sprites_drawn(g, firework) : 0;
     }
     return ok && scene_sprites_fit(g, sprites);
-}
-
-bool scene_burst_the_fireworks_present(Snes *s)
-{
-    if (!frame_task_on_page(s) || !m_code_matches(s, 0x7E9BF9, 0x55, 0x3E4B3458DBB1B804ull) || !fireworks_code_present(s))
-        return false;
-    vars_peek(true);
-    bool ok = fireworks_burst_as_ported(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-bool scene_set_the_fireworks_up_present(Snes *s) { return scene_on_scene_page(s) && fireworks_code_present(s); }
-
-bool scene_send_the_picture_present(Snes *s)
-{
-    return scene_on_scene_page_io_bank(s) && m_code_matches(s, 0x7E9E2B, 0x4F, 0x5EF71A03D74E88BDull);
-}
-
-bool scene_send_the_picture_and_bg2_present(Snes *s)
-{
-    return scene_send_the_picture_present(s) && m_code_matches(s, 0x7E9E19, 0x12, 0xC7B76F034B5D1EAEull);
 }
 
 /* ---- The tasks as C ------------------------------------------------------------------------------ */

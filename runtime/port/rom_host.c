@@ -21,6 +21,6 @@ uint8_t rom_cartridge_read(const GameState *g, uint32_t at, const uint8_t *serve
     if (!state_host_is_cartridge(at))
         return state_host_read8(g, at);
     /* the stop is the backing's own record, not the game's state */
-    program_needs_the_machine((GameState *)g, at, "a cartridge byte in no resource of the catalogue");
+    program_fail((GameState *)g, at, "a cartridge byte in no resource of the catalogue");
     return 0;
 }

@@ -1,3 +1,5 @@
+#include "event/script.h"
+#include "event/script.h"
 /* Scripts reading the controller: a cutscene waiting for a button, a
  * minigame reading the pad.
  *

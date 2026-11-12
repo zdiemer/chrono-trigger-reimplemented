@@ -75,7 +75,6 @@ void setup_party_slots(GameState *g)
         set_battle_slot_present(g, slot, (uint8_t)(battle_slot_present(g, slot) + 1));
     }
     keep_frogs_slot_as_record(g);
-    charge_machine_accesses(g, 2);
 }
 
 /* ---- Colors --------------------------------------------------------------------------------- */
@@ -189,7 +188,6 @@ void setup_tech_lists(GameState *g)
             list_triple(g, member, ends[member]);
     for (uint8_t member = BATTLE_PARTY_SIZE; member-- > 0;)
         set_battle_tech_list_length(g, member, list_length(g, member));
-    (charge_machine_accesses(g, 3 + DOUBLES_END - DOUBLES), charge_machine_rom_accesses(g, 2 * (DOUBLES_END - DOUBLES)));
 }
 
 /* ---- Where the cursors were left ------------------------------------------------------------ */

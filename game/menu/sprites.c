@@ -44,8 +44,6 @@
 #include "menu/objects.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "port/machine.h"
-#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
@@ -201,7 +199,6 @@ void menu_lay_out_the_sprite_nodes(GameState *g)
         set_menu_sprite_node_links_prev(g, n, n == 0 ? (NodeLink)FREE_LIST : node_link(n - 1));
         set_menu_sprite_node_links_next(g, n, n == NODES - 1 ? (NodeLink)FREE_LIST : node_link(n + 1));
     }
-    charge_machine_accesses(g, 2);
 }
 
 // $C2:0BF6
@@ -418,7 +415,6 @@ static void draw_the_list(GameState *g)
     }
     if (menu_sprite_draw_list_first(g) != DRAW_LIST) {
         menu_note_effect_noise(g, noise);
-        charge_machine_accesses(g, 23 + any_shown);
     }
 }
 
@@ -525,7 +521,6 @@ static bool show(GameState *g, MenuObject o, uint32_t group, uint8_t frames)
 {
     if (!(menu_object_slots_look(g, o) & MENU_LOOK_HELD) && !counting(g, o, frames))
         return false;
-    charge_machine_accesses(g, 3);
     show_sprite_group(g, group);
     return true;
 }
@@ -580,7 +575,6 @@ static void run_sprite_script(GameState *g)
             break;
         p.at = (uint16_t)(p.at + step);
     }
-    charge_machine_accesses(g, 3);
     set_menu_object_slots_sprite_script_at(g, o, p.at);
 }
 
@@ -749,11 +743,9 @@ static SpriteAssignment read_assignment(const GameState *g, uint16_t at)
     return (SpriteAssignment){ b[0], b[1], b[2], b[3], b[4] };
 }
 
-static void charge_assignment(GameState *g, uint8_t set, uint8_t sprite, SpriteAssignment a)
+static void charge_assignment(GameState *g, uint8_t set, uint8_t sprite)
 {
     (void)set, (void)sprite;
-    charge_machine_accesses(g, 6 + (a.graphics != NO_SPRITE ? 2 : 0));
-    charge_machine_io_accesses(g, 4);
     charge_block_move(g, MENU_SPRITE_ASSIGNMENT_BYTES);
 }
 
@@ -800,17 +792,9 @@ void menu_dim_character_colours(GameState *g, uint8_t character)
         set_menu_palette(g, first + i, dimmed(menu_palette(g, first + i)));
 }
 
-void menu_charge_colours_dimmed_past_the_palette(GameState *g, uint8_t emptied)
-{
-    (void)emptied;
-    charge_machine_accesses(g, 4 * CHARACTER_COLOURS);
-}
-
 static void charge_colours_put(GameState *g, bool dim)
 {
-    if (dim)
-        charge_machine_accesses(g, 2);
-    else
+    if (!dim)
         charge_block_move(g, 2 * SPRITE_COLOURS);
 }
 
@@ -857,7 +841,7 @@ static Unpacking load_record_sprite(GameState *g, unsigned record)
     set_menu_record_frame_times(g, record, (uint32_t)SPRITE_TABLES_BANK << 16 | (uint16_t)menu_record_frame_times(g, record));
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
     SpriteAssignment a = read_assignment(g, assignment_place(g, set, sprite));
-    charge_assignment(g, set, sprite, a);
+    charge_assignment(g, set, sprite);
     set_menu_record_sprite_count(g, record, menu_sprite_blocks(g, a.size));
     if (a.graphics == NO_SPRITE)
         return none;
@@ -1018,32 +1002,9 @@ static void show_frame_tiles(GameState *g, unsigned record, const FrameTiles *t)
     queue_frame(g, vram, WORK_RAM_BANK | buffer, blocks, menu_record_upload_spare(g));
 }
 
-/* What the original's frame building leaves: the block move's stub on the
- * graphics' bank; in the menus' first cells, the tile list's end, the
- * mirrored tile's byte count run out where it mirrored one, and its count of
- * the blocks left to queue (out where it queued them a block at a time); and
- * the last upload it queued, in the record it built them in. */
-static bool any_mirrored(const FrameTiles *t)
-{
-    for (unsigned i = 0; i < t->count; i++) {
-        FrameTile tile = decode_tile(t->tile[i]);
-        if (!tile.blank && tile.mirrored)
-            return true;
-    }
-    return false;
-}
-
-static void charge_frame_built(GameState *g, unsigned record, const FrameTiles *t)
-{
-    (void)record;
-    charge_machine_accesses(g, 26 + (any_mirrored(t) ? 2 : 0));
-}
-
 static void charge_frame_found(GameState *g, uint8_t frame, uint8_t frame_bytes, const FrameTiles *t)
 {
     (void)frame, (void)frame_bytes;
-    charge_machine_accesses(g, 2 * t->count);
-    charge_machine_io_accesses(g, 4);
     charge_block_move(g, 2 * t->count);
 }
 
@@ -1062,7 +1023,6 @@ static void show_frame(GameState *g, unsigned record, uint8_t frame)
     FrameTiles tiles = frame_tiles_at(g, list, blocks);
     charge_frame_found(g, frame, bytes, &tiles);
     TIMED_AS(g, 0xC2F75C, show_frame_tiles(g, record, &tiles));
-    charge_frame_built(g, record, &tiles);
 }
 
 /* ---- A record's animation ---- */
@@ -1187,7 +1147,6 @@ void menu_run_the_records(GameState *g)
             TIMED_AS(g, 0xC2F69B, step_animation(g, record));
         if (menu_record_hidden(g, record) == 0) {
             TIMED_AS(g, 0xC2F871, draw_record_sprites(g, record));
-            charge_machine_accesses(g, 14);
         }
     }
 }
@@ -1225,13 +1184,6 @@ static void empty_the_last_records(GameState *g)
     empty_record(g, LAST_RECORD);
 }
 
-/* ---- The entries ------------------------------------------------------------------------------- */
-
-/* The sprite-object mode runs on the menus' page with a data bank on low RAM
- * and its objects in their slots; the list is as its start laid it out, a node
- * or a head at every link it follows, with a node free where one is taken. */
-static bool on_the_mode_page(Snes *s) { return m_direct_page(s) == 0x0000 && m_bank_reaches_low_ram(s); }
-
 static bool list_is_sound(const GameState *g)
 {
     unsigned steps = 0;
@@ -1250,14 +1202,6 @@ static bool free_node_there(const GameState *g)
     return names_a_node(l) && is_link(prev_of(g, l)) && is_link(next_of(g, l));
 }
 
-static bool peek(Snes *s, bool (*check)(const GameState *))
-{
-    vars_peek(true);
-    bool ok = check(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
 bool menu_sprite_list_is_sound(const GameState *g) { return list_is_sound(g) && free_node_there(g); }
 
 static bool links_are_laid_out(const GameState *g)
@@ -1270,17 +1214,6 @@ static bool links_are_laid_out(const GameState *g)
 
 bool menu_sprite_list_can_be_emptied(const GameState *g) { return links_are_laid_out(g); }
 bool menu_sprite_list_can_be_drawn(const GameState *g) { return list_is_sound(g); }
-
-bool menu_sprites_on_page(Snes *s) { return on_the_mode_page(s); }
-bool menu_sprite_list_is_drawable(Snes *s) { return on_the_mode_page(s) && peek(s, list_is_sound); }
-bool menu_sprite_list_is_resettable(Snes *s) { return on_the_mode_page(s) && peek(s, links_are_laid_out); }
-
-/* The widths each leaves: 8-bit A and 16-bit index registers, or 16-bit A. */
-static void a8_x16(Snes *s)
-{
-    m_rep(s, CPU_FLAG_X);
-    m_sep(s, CPU_FLAG_M);
-}
 
 /* ---- The frame's list, as the vblank handler works it ---- */
 
@@ -1297,50 +1230,6 @@ void menu_hide_the_sprites(GameState *g) { hide_all_sprites(g); }
 // $C2:0CEA
 void menu_draw_the_sprite_list(GameState *g) { draw_the_list(g); }
 
-// $C2:034D
-/* It narrows Y to a byte on the way (with 8-bit index registers), and its
- * loop's last subtraction borrows without overflowing: what the objects' run
- * that follows it in the vblank handler starts with. */
-void menu_hide_all_sprites(Snes *s)
-{
-    hide_all_sprites(state_of(s));
-    s->cpu.y &= 0xFF;
-    s->cpu.p = (uint8_t)(s->cpu.p & ~(CPU_FLAG_C | CPU_FLAG_V));
-    a8_x16(s);
-    m_rts(s);
-}
-
-// $C2:0C4D
-void menu_reset_sprite_nodes(Snes *s)
-{
-    menu_empty_the_sprite_list(state_of(s));
-    m_rep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-// $C2:0B53
-
-// $C2:0CEA
-void menu_draw_sprite_nodes(Snes *s)
-{
-    draw_the_list(state_of(s));
-    a8_x16(s);
-    m_rts(s);
-}
-
-// $C2:0E1D
-
-// $C2:F871
-
-/* ---- The records' entries ---- */
-
-static unsigned record_on_page(const Snes *s)
-{
-    unsigned record = 0;
-    (void)menu_record_page_of(m_direct_page(s), &record);
-    return record;
-}
-
 /* A record's sprite loaded, its graphics unpacked where it needs them
  * (data/decompress.c), `called` as the machine's entry called the unpacker. */
 // $C2:F422
@@ -1354,35 +1243,12 @@ static void load_the_record_sprite(GameState *g, unsigned record, bool called)
     (void)(called ? unpack_stream_called(g, false) : unpack_stream(g));
 }
 
-/* The original keeps P on the stack over the load and gives it back. */
-void menu_load_record_sprite(Snes *s)
-{
-    (void)0;
-    load_the_record_sprite(state_of(s), record_on_page(s), true);
-    m_rts(s);
-}
-
 // $C2:F75C
 
 // $C2:F69D
 
 /* The records' pages, as the original moves its direct page along them. */
 enum { FIRST_RECORD_PAGE = 0x1800, RECORD_PAGE_BYTES = 0x40 };
-
-// $C2:F657, $C2:F699
-/* The records' task, from its start and from its wait: a frame of the
- * records, then the wait (menu/tasks.c), with a 16-bit accumulator and the
- * page past the last record as its walk along them leaves them, which the
- * wait keeps; the task goes on from the wait round its loop to its head,
- * which sets its page and widths again. */
-void menu_run_record_task(Snes *s)
-{
-    menu_run_the_records(state_of(s));
-    m_rep(s, CPU_FLAG_M);
-    m_sep(s, CPU_FLAG_X);
-    s->cpu.d = (uint16_t)(FIRST_RECORD_PAGE + TASK_RECORDS * RECORD_PAGE_BYTES);
-    menu_records_task_waits(s);
-}
 
 // $C2:F69B
 
@@ -1432,29 +1298,6 @@ bool menu_record_sprites_loaded(GameState *g)
         return false;
     }
     return load_record_sprites(g, load, g);
-}
-
-/* On the machine each record's load runs as the original's call reaches it,
- * on the record's page, since it may call the unpacker. */
-static bool load_on_the_machine(void *ctx, unsigned record)
-{
-    Snes *s = ctx;
-    s->cpu.d = (uint16_t)(FIRST_RECORD_PAGE + record * RECORD_PAGE_BYTES);
-    menu_set_widths(s, true, true);
-    return menu_run(s, 0xC2F3EE, 0xC2F422, menu_load_record_sprite);
-}
-
-void menu_load_record_sprites(Snes *s)
-{
-    uint16_t page = m_direct_page(s);
-    m_push16(s, page);
-    menu_save_p(s);
-    if (!load_record_sprites(state_of(s), load_on_the_machine, s))
-        return;
-    s->cpu.d = (uint16_t)(FIRST_RECORD_PAGE + OPENING_RECORDS_SHOWING * RECORD_PAGE_BYTES);
-    menu_restore_p(s);
-    s->cpu.d = m_pull16(s);
-    m_rts(s);
 }
 
 /* ---- The records' guards ---- */
@@ -1526,16 +1369,6 @@ bool menu_records_can_run(const GameState *g)
     return true;
 }
 
-bool menu_record_task_is_runnable(Snes *s)
-{
-    if (s->cpu.db != MENU_DATA_BANK)
-        return false;
-    vars_peek(true);
-    bool ok = menu_records_can_run(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
 /* A packed sprite must stop before the decode buffer reaches the end of its
  * work RAM bank: wrapping there would overwrite the menus' state and stack. */
 static bool sprite_graphics_fit(GameState *g, unsigned record, uint8_t set, uint8_t sprite)
@@ -1560,17 +1393,6 @@ static bool record_sprite_loadable(GameState *g, unsigned record)
     return sprite_graphics_fit(g, record, menu_record_sprite_set(g, record), menu_record_sprite(g, record));
 }
 
-bool menu_record_sprite_is_loadable(Snes *s)
-{
-    unsigned record;
-    if (!menu_record_page_of(m_direct_page(s), &record))
-        return false;
-    vars_peek(true);
-    bool ok = record_sprite_loadable(state_of(s), record);
-    vars_peek(false);
-    return ok;
-}
-
 /* The opening's records: each sprite of one of the three sets, and of a size
  * whose frames fit, the frame buffer taking them all, since the first frame
  * of each shows. */
@@ -1589,16 +1411,6 @@ static bool opening_records_fit(GameState *g)
         sent = (uint8_t)(sent + blocks);
     }
     return true;
-}
-
-bool menu_record_sprites_are_loadable(Snes *s)
-{
-    if (m_direct_page(s) != MENU_PAGE || s->cpu.db != MENU_DATA_BANK)
-        return false;
-    vars_peek(true);
-    bool ok = opening_records_fit(state_of(s));
-    vars_peek(false);
-    return ok;
 }
 
 /* ---- The records on a screen of the party's members ------------------------------------------ */
@@ -1656,7 +1468,6 @@ MenuWeaponColours menu_weapon_colours(GameState *g, uint8_t character)
     MenuWeaponColours c;
     for (unsigned i = 0; i < MENU_WEAPON_COLOURS; i++)
         c.colour[i] = menu_weapon_colour(g, set, i);
-    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4));
     return c;
 }
 
@@ -1677,5 +1488,4 @@ void menu_load_character_colours(GameState *g)
             set_menu_palette(g, first + i, c.colour[i]);
     }
     charge_block_move(g, 2 * CHARACTER_RECORDS * (SPRITE_COLOURS + MENU_WEAPON_COLOURS));
-    charge_machine_accesses(g, 2);
 }

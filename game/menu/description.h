@@ -7,7 +7,6 @@
 #include <stdint.h>
 
 #include "platform/platform.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* What a screen describes -- an item, a tech, a tech kind's caption, a
@@ -47,15 +46,6 @@ enum { MENU_TYPE_A_DESCRIPTION = 0xFA9F, MENU_TYPE_A_SETTING = 0xF9B2, MENU_TYPE
 void menu_type_the_description_task(GameState *g, Platform *pf);
 void menu_type_the_setting_task(GameState *g, Platform *pf);
 void menu_type_the_value_task(GameState *g, Platform *pf);
-void menu_type_the_description_task_entry(Snes *s);
-void menu_type_the_setting_task_entry(Snes *s);
-void menu_type_the_value_task_entry(Snes *s);
-void menu_type_the_description(Snes *s);
 /* Held returns after the typing, keeping the task's phase in game state. */
-void menu_typing_task_finished(Snes *s);
-void menu_setting_text_finished(Snes *s);
-bool menu_typing_can_go_on(Snes *s);
-bool menu_setting_typing_can_start(Snes *s);
-bool menu_value_typing_can_start(Snes *s);
 
 #endif

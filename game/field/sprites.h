@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 #include "field/object.h"
-#include "snes/system.h"
+#include <stdint.h>
 
 /* Where the sprite table is in low RAM (field_sprite_table), which the
  * vblank sends and whose ranges' cursors the building keeps as addresses. */
@@ -14,24 +14,17 @@ enum { FIELD_SPRITE_TABLE_ADDRESS = 0x0700 };
 /* field/sprites.c */
 void sprites_hide_all_next_frame(GameState *g);
 void sprites_hide_the_first(GameState *g, unsigned count);
-void field_build_sprite_table(Snes *s);
 /* The same as C, where every draw is one the port makes (false otherwise,
  * with nothing built). */
 bool field_sprite_table_built(GameState *g);
 /* A finite row list whose objects' sprite records fit in their tables. */
-bool field_sprite_rows_drawable(Snes *s);
-void field_draw_object_sprites(Snes *s);
-void field_free_every_sprite_area(Snes *s);
 /* A map's start frees every frame area ($C0:E935). */
 void sprites_free_every_frame_area(GameState *g);
 enum { FIELD_FREE_EVERY_SPRITE_AREA_ENTRY = 0xC0E935 };
 /* As a map's objects start: each one's sprites to be built afresh, and every
  * frame area free ($C0:B192). */
 void sprites_all_to_build_afresh(GameState *g);
-void field_build_the_sprites_afresh(Snes *s);
-bool field_sprites_can_be_built_afresh(Snes *s);
 enum { FIELD_BUILD_THE_SPRITES_AFRESH_ENTRY = 0xC0B192 };
-bool field_sprites_draw_in_table(Snes *s);
 
 /* For the frame builder (field/frames.c): the claim of the tile areas a new
  * frame is drawn into, a sprite of the frame's data the records are rebuilt

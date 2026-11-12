@@ -39,10 +39,3 @@ void battle_update_button_repeat(GameState *g)
     if (buttons & IN_BUTTON_A)
         set_battle_repeat_delay(g, (uint16_t)((battle_repeat_delay(g) & 0xFF00) | AFTER_A_DELAY));
 }
-
-void battle_update_button_repeat_entry(Snes *s)
-{
-    battle_update_button_repeat(state_of(s));
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
-}

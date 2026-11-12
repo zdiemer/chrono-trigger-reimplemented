@@ -164,10 +164,9 @@ enum { LEFT_FIRST = 0x00, LEFT_SECOND = 0x02, LEFT_THIRD = 0x04, LEFT_FOURTH = 0
 /* The radius goes to the sine's multiply in its operand cell. */
 
 /* Halfway between two points, in words (no carry lost). */
-static BattlePoint halfway(GameState *g, BattlePoint a, BattlePoint b)
+static BattlePoint halfway(BattlePoint a, BattlePoint b)
 {
     uint16_t x = (uint16_t)((a.x + b.x) >> 1), y = (uint16_t)((a.y + b.y) >> 1);
-    charge_machine_accesses(g, 8);
     return (BattlePoint){ (uint8_t)x, (uint8_t)y };
 }
 
@@ -177,7 +176,6 @@ static BattlePoint halfway(GameState *g, BattlePoint a, BattlePoint b)
 static BattlePoint amid(GameState *g, BattlePoint a, BattlePoint b, BattlePoint c)
 {
     uint16_t xs = (uint16_t)(a.x + b.x + c.x);
-    charge_machine_accesses(g, 12);
     uint8_t x = (uint8_t)battle_divide_by(g, xs, 3).quotient;
     uint8_t y = (uint8_t)battle_divide_by(g, xs, 3).quotient;
     return (BattlePoint){ x, y };
@@ -194,7 +192,6 @@ static BattlePoint part_way(GameState *g, BattlePoint a, BattlePoint b, uint8_t 
 {
     PlaceWeights w = battle_place_weights(g, weights);
     uint16_t x = weighed(g, a.x, b.x, w), y = weighed(g, a.y, b.y, w);
-    charge_machine_accesses(g, 6);
     return (BattlePoint){ (uint8_t)x, (uint8_t)y };
 }
 
@@ -209,14 +206,12 @@ static void out_along_the_heading(GameState *g)
         uint8_t slot = subject(g, channel);
         uint8_t angle = slot < BATTLE_EFFECT_ANGLE_COUNT ? battle_effect_angle(g, slot) : battle_effect_angle_unchecked(g, slot);
         int8_t dy = battle_along(g, angle, OUT_ALONG), dx = battle_along(g, (uint8_t)(angle + QUARTER_TURN), OUT_ALONG);
-        charge_machine_accesses(g, 5);
         found_at(g, (BattlePoint){ (uint8_t)(combatant_x(g, slot) + dx), (uint8_t)(combatant_y(g, slot) + dy) });
         return;
     }
     uint8_t anchor = (uint8_t)(channel - FIRST_EFFECT_CHANNEL);
     uint8_t angle = battle_effect_angle(g, FIRST_ANCHOR_MOVER + anchor);
     int8_t dy = battle_along(g, angle, OUT_ALONG), dx = battle_along(g, (uint8_t)(angle + QUARTER_TURN), OUT_ALONG);
-    charge_machine_accesses(g, 7);
     found_at_words(g, (uint16_t)(anchor_x(g, anchor) + (uint8_t)dx), (uint16_t)(anchor_y(g, anchor) + (uint8_t)dy));
 }
 
@@ -242,7 +237,7 @@ BattlePoint script_find_place(GameState *g, uint8_t named)
     case WHERE_A_SUBJECT_IS_AIMED: found_at(g, aimed_at(g, subject(g, place.n))); break;
     case THE_PLACE_LAST_FOUND: break;
     case HALFWAY_FROM_THE_ACTOR:
-        found_at(g, halfway(g, standing(g, the_actor(g)), standing(g, performer(g, halfway_to[place.n]))));
+        found_at(g, halfway(standing(g, the_actor(g)), standing(g, performer(g, halfway_to[place.n]))));
         break;
     case AMID_THE_PERFORMERS:
         found_at(g, amid(g, standing(g, the_actor(g)), standing(g, performer(g, FIRST_PARTNER)), standing(g, performer(g, SECOND_PARTNER))));
@@ -260,7 +255,7 @@ BattlePoint script_find_place(GameState *g, uint8_t named)
         break;
     case PART_WAY_BETWEEN_AIMS: found_at(g, part_way(g, aimed_at(g, the_actor(g)), aimed_at(g, the_target(g)), place.n)); break;
     case HALFWAY_BETWEEN_PARTNERS:
-        found_at(g, halfway(g, standing(g, performer(g, FIRST_PARTNER)), standing(g, performer(g, SECOND_PARTNER))));
+        found_at(g, halfway(standing(g, performer(g, FIRST_PARTNER)), standing(g, performer(g, SECOND_PARTNER))));
         break;
     case PART_WAY_TO_THE_ANCHOR: found_at(g, part_way(g, standing(g, the_actor(g)), anchor_point(g, THE_ANCHOR), place.n)); break;
     }
@@ -333,12 +328,10 @@ BattlePoint script_aim(GameState *g, ScriptAim aim, uint8_t x, uint8_t y, uint8_
 /* ---- Facings ----------------------------------------------------------------------------- */
 
 /* The facing codes, by their first number. */
-enum {
-    THE_WAY_A_SUBJECT_FACES = 0x00, /* 0-9: the way channel n's subject faces */
-    TOWARD_A_SUBJECT = 0x0A,        /* $A-$13: toward channel n's subject */
-    A_FIXED_WAY = 0x14,             /* $14-$17: facing 0-3 */
-    TOWARD_THE_MIDDLE = 0x18,       /* toward the middle of the battlefield, a little up */
-};
+enum { THE_WAY_A_SUBJECT_FACES = 0x00, /* 0-9: the way channel n's subject faces */
+    TOWARD_A_SUBJECT = 0x0A, /* $A-$13: toward channel n's subject */
+    A_FIXED_WAY = 0x14, /* $14-$17: facing 0-3 */
+    TOWARD_THE_MIDDLE = 0x18, /* toward the middle of the battlefield, a little up */ };
 
 enum { MIDDLE_ROW = 0x70 };
 
@@ -399,7 +392,6 @@ enum { LEFT_PLACE = 0x00 };
 
 static ScriptFlow point_off_place(GameState *g, uint8_t place, uint8_t x, uint8_t y)
 {
-    charge_machine_accesses(g, 1);
     BattlePoint p = script_find_place(g, place);
     set_script_point(g, (BattlePoint){ (uint8_t)(p.x + x), (uint8_t)(p.y + y) });
     return SCRIPT_NEXT;
@@ -418,7 +410,6 @@ static ScriptFlow point_at_the_mover(GameState *g, ScriptChannel channel)
         set_script_point(g, anchor_point(g, script_effect(g)));
     } else {
         uint8_t slot = subject(g, channel.channel);
-        charge_machine_accesses(g, 2);
         set_script_point(g, standing(g, slot));
     }
     return SCRIPT_NEXT_FRAME;
@@ -464,14 +455,12 @@ static ScriptFlow face(GameState *g, ScriptChannel channel, uint8_t facing)
         uint8_t anchor = script_effect(g);
         BattlePoint at = anchor_point(g, anchor);
         set_battle_anchor_facing(g, anchor, script_find_facing(g, facing, at));
-        charge_machine_accesses(g, 3);
         return SCRIPT_NEXT_FRAME;
     }
     uint8_t slot;
     unsigned turned = 0;
     for (; script_each_combatant(g, channel, turned, &slot); turned++)
         set_battle_object_facing(g, slot, script_find_facing(g, facing, standing(g, slot)));
-    charge_machine_accesses(g, 5 + (turned ? 3 : 0));
     return SCRIPT_NEXT_FRAME;
 }
 SCRIPT_OPERATION(face, channel, facing)
@@ -522,7 +511,6 @@ enum { LEFT_HEADING = 0x00 };
 static ScriptFlow take_heading(GameState *g, ScriptChannel channel, uint8_t named)
 {
     uint8_t heading = named_heading(g, named);
-    charge_machine_accesses(g, 1);
     turn_movers(g, channel, HEADINGS_LIST_FROM, heading, false);
     return SCRIPT_NEXT;
 }
@@ -535,7 +523,6 @@ SCRIPT_OPERATION(take_heading, channel, named)
 static ScriptFlow heading_between(GameState *g, ScriptChannel channel, uint8_t place, uint8_t toward)
 {
     BattlePoint to = script_find_place(g, toward);
-    charge_machine_accesses(g, 3);
     BattlePoint from = script_find_place(g, place);
     turn_movers(g, channel, HEADINGS_LIST_FROM, battle_direction(g, from, to), false);
     return SCRIPT_NEXT;
@@ -546,7 +533,6 @@ SCRIPT_OPERATION(heading_between, channel, place, toward)
 /* The movers' headings turn by an amount. */
 static ScriptFlow turn_heading(GameState *g, ScriptChannel channel, uint8_t amount)
 {
-    charge_machine_accesses(g, 1);
     turn_movers(g, channel, HEADINGS_LIST_FROM, amount, true);
     return SCRIPT_NEXT;
 }
@@ -556,7 +542,6 @@ SCRIPT_OPERATION(turn_heading, channel, amount)
 /* The movers head a given way. */
 static ScriptFlow set_heading(GameState *g, ScriptChannel channel, uint8_t heading)
 {
-    charge_machine_accesses(g, 1);
     turn_movers(g, channel, OTHER_TARGETS_START, heading, false);
     return SCRIPT_NEXT_FRAME;
 }

@@ -447,8 +447,6 @@ static ScriptFlow set_map_tile(GameState *g, MenuObject self, uint8_t plane, uin
 {
     (void)self;
     uint16_t at = map_tile(g, plane, column, row);
-    charge_machine_io_accesses(g, 4);
-    charge_machine_accesses(g, 3);
     wram_write8(g, (uint32_t)MAP_BANK << 16 | at, value);
     return next_command();
 }
@@ -456,13 +454,6 @@ SCRIPT_OPERATION(set_map_tile, plane, column, row, value)
 
 /* The copy runs through the first plane's map or the second's. */
 static uint8_t first_or_second(uint8_t plane) { return plane == 1 ? 1 : 2; }
-
-static void charge_copied(GameState *g, uint16_t from, uint16_t to, uint8_t to_row, uint8_t columns, unsigned rows)
-{
-    (void)from, (void)to, (void)to_row, (void)columns, (void)rows;
-    charge_machine_accesses(g, 9);
-    charge_machine_io_accesses(g, 7);
-}
 
 // $C2:1B2F
 /* Copy a rectangle of map tiles, `columns` across and `rows` down, from one
@@ -483,7 +474,6 @@ static ScriptFlow copy_map_tiles(GameState *g, MenuObject self, uint8_t from_pla
         for (unsigned i = 0; i < across; i++)
             wram_write8(g, dest + i, wram_read8(g, source + i));
     }
-    charge_copied(g, from, to, row, columns, down);
     return next_command();
 }
 SCRIPT_OPERATION(copy_map_tiles, from_plane, from_column, from_row, plane, column, row, columns, rows)
@@ -508,10 +498,6 @@ static ScriptFlow show_tile_group(GameState *g, MenuObject self, uint8_t plane, 
                                + in_its_screen);
     if (across & TILEMAP_COLUMNS)
         vram = (uint16_t)(vram + TILEMAP_SCREEN_WORDS);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
     const MenuObjectUpload rows[2] = {
         { (uint32_t)MAP_BANK << 16 | source, vram, GROUP_ROW_BYTES, MENU_PORT_WORD_BY_WORD },
         { (uint32_t)MAP_BANK << 16 | (uint16_t)(source + GROUP_ROW_BYTES), (uint16_t)(vram + TILEMAP_COLUMNS),
@@ -601,8 +587,6 @@ static ScriptFlow mark_entry(GameState *g, MenuObject self, uint8_t table, uint8
     enum { MARK = 0x80 };
     (void)self;
     uint32_t at = (uint32_t)MAP_BANK << 16 | table_entry(table, entry);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 3);
     uint8_t was = wram_read8(g, at);
     wram_write8(g, at, mark ? (uint8_t)(was | MARK) : (uint8_t)(was & ~MARK));
     return next_command();
@@ -793,3 +777,9 @@ SCRIPT_OPCODES(menu_script_opcodes,
       .group = OPERAND(4), .length = 5 },
     { 0x51, OPERATION(scroll_map), .frames = OPERAND(2), .plane = OPERAND(1), .length = 3 },
     { 0x52, OPERATION(end), .length = 1 });
+
+bool menu_object_script_can_run(const GameState *g, uint32_t script)
+{
+    uint8_t bank = (uint8_t)(script >> 16);
+    return (bank >= 0xC0 || bank == 0x7E || bank == 0x7F) && menu_sprite_list_is_sound(g);
+}

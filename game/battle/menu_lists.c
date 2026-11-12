@@ -31,12 +31,7 @@
 
 /* The list's entries: a tech's id, or one of the marks (choosing.h's list of
  * twenty entries a member, menu_window.c's view of the same). */
-enum {
-    UNNAMED_ENTRY = 0xFB,
-    DOUBLE_TECHS_HEADING = 0xFC,
-    TRIPLE_TECHS_HEADING = 0xFD,
-    FIRST_BLANK_ENTRY = 0xFE,
-};
+enum { UNNAMED_ENTRY = 0xFB, DOUBLE_TECHS_HEADING = 0xFC, TRIPLE_TECHS_HEADING = 0xFD, FIRST_BLANK_ENTRY = 0xFE,  };
 
 bool battle_tech_entry_is_a_tech(uint8_t entry) { return entry < UNNAMED_ENTRY; }
 
@@ -109,8 +104,7 @@ static uint8_t list_start(const GameState *g) { return setup_member_tech_list_st
 /* The cells the original lays the list out in: the list's start (over the
  * multiplier's product), where it is in the lists and its rows, in bytes of
  * the tilemap; and of the last tech it named, its id and four times it. */
-enum { CELL_AT = 0x80, CELL_TILEMAP_AT = 0x82, CELL_SCROLL = 0x86, CELL_ROWS_LEFT = 0x87, CELL_ROWS_DONE = 0x88,
-       CELL_ID = 0x8E, CELL_ID_TIMES_FOUR = 0x90, ROW_BYTES = 0x80 };
+enum { CELL_AT = 0x80, CELL_TILEMAP_AT = 0x82, CELL_SCROLL = 0x86, CELL_ROWS_LEFT = 0x87, CELL_ROWS_DONE = 0x88, CELL_ID = 0x8E, CELL_ID_TIMES_FOUR = 0x90, ROW_BYTES = 0x80 };
 
 /* The buffer holds what the last row put there: a tech's name converted, a
  * heading's tiles over blanks, or blanks; the converted text is the last
@@ -129,8 +123,6 @@ void battle_lay_out_tech_list(GameState *g)
         if (is_tech(entry))
             last_tech = entry;
     }
-    charge_machine_accesses(g, 12);
-    (charge_machine_accesses(g, (last_tech >= 0 ? 3 * NAME_TILES + 3 : 0) + (is_tech(entry) ? 0 : BATTLE_NAME_BUFFER_COUNT + ((entry == DOUBLE_TECHS_HEADING || entry == TRIPLE_TECHS_HEADING) ? BATTLE_TECH_HEADING_TILES : 0))), charge_machine_rom_accesses(g, (last_tech >= 0 ? BATTLE_NAME_CHARACTERS : 0) + ((entry == DOUBLE_TECHS_HEADING || entry == TRIPLE_TECHS_HEADING) ? BATTLE_TECH_HEADING_TILES : 0)));
     /* The last tech's id times four stays in the cell a jump to the script's
      * point takes its lift from (battle.h). */
     if (last_tech >= 0)
@@ -143,7 +135,6 @@ void battle_mark_tech_rows(GameState *g)
     uint8_t start = list_start(g);
     for (unsigned i = 0; i < TECHS_A_MEMBER; i++)
         set_battle_tech_rows_selectable(g, i, is_tech(battle_tech_list_ids(g, start + i)));
-    charge_machine_accesses(g, 1);
 }
 
 /* ---- The item list ------------------------------------------------------------------------------- */
@@ -155,8 +146,7 @@ void battle_mark_tech_rows(GameState *g)
  * the list leaves out: it takes the eleven bytes after it (the last the next
  * name's icon), and shows ten of the name's tiles and eleven of the marks
  * above them. */
-enum { ITEM_LIST_LINE = 7, ITEM_LIST_LINES = 6, ITEM_ROWS = 3, ITEM_NAME_COLUMN = 3, ITEM_NAME_GLYPHS = 10,
-       ITEM_COLON_COLUMN = 14, ITEM_COUNT_COLUMN = 15, ITEM_WORD_COLUMN = 22, TILE_COLON = 0x5F, NAME_ICON = 1 };
+enum { ITEM_LIST_LINE = 7, ITEM_LIST_LINES = 6, ITEM_ROWS = 3, ITEM_NAME_COLUMN = 3, ITEM_NAME_GLYPHS = 10, ITEM_COLON_COLUMN = 14, ITEM_COUNT_COLUMN = 15, ITEM_WORD_COLUMN = 22, TILE_COLON = 0x5F, NAME_ICON = 1 };
 static const uint8_t ITEM_WORD[] = { 0xA8, 0xCD, 0xBE, 0xC6 };
 
 /* An item whose record's flags have the top bit is for some members only:
@@ -205,8 +195,7 @@ static void lay_out_item_row(GameState *g, unsigned row, unsigned record, uint8_
  * (five bytes a record), the window's place in bytes, the rows done; and of
  * the last item it listed, the item, four times it and its attributes (the
  * list's top in the item's cell where it listed none). */
-enum { CELL_RECORD_AT = 0x80, CELL_WINDOW_AT = 0x82, CELL_ITEM = 0x84, CELL_ROW = 0x86, CELL_ITEM_TIMES_FOUR = 0x8E,
-       CELL_MEMBER = 0x96, CELL_ATTRIBUTES = 0x98 };
+enum { CELL_RECORD_AT = 0x80, CELL_WINDOW_AT = 0x82, CELL_ITEM = 0x84, CELL_ROW = 0x86, CELL_ITEM_TIMES_FOUR = 0x8E, CELL_MEMBER = 0x96, CELL_ATTRIBUTES = 0x98 };
 
 /* The buffer holds the last item's name converted. The original copies the
  * name in without blanking the buffer first, so the text it copies out has,
@@ -220,8 +209,6 @@ void battle_lay_out_item_list(GameState *g, uint8_t top)
     for (unsigned line = ITEM_LIST_LINE; line < ITEM_LIST_LINE + ITEM_LIST_LINES; line++)
         for (unsigned column = 0; column < WINDOW_COLUMNS; column++)
             window_put(g, window_cell(line, column), TILE_NOTHING, 0);
-    int last_item = -1;
-    unsigned rows_listed = 0;
     uint8_t attributes = 0;
     for (unsigned row = 0; row < ITEM_ROWS; row++) {
         unsigned record = top + row;
@@ -229,9 +216,6 @@ void battle_lay_out_item_list(GameState *g, uint8_t top)
             continue;
         attributes = usable_by(g, record, member) ? TEXT_PLAIN : TEXT_SHADED;
         lay_out_item_row(g, row, record, attributes);
-        last_item = battle_item_list_item(g, record);
-        rows_listed++;
+        (void)battle_item_list_item(g, record);
     }
-    charge_machine_accesses(g, last_item < 0 ? 10 : 13);
-    (charge_machine_accesses(g, last_item >= 0 ? 3 * NAME_TILES + (rows_listed > 1 ? 0 : NAME_TILES) : 0), charge_machine_rom_accesses(g, last_item >= 0 ? BATTLE_NAME_CHARACTERS : 0));
 }

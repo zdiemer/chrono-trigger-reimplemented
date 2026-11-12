@@ -1,3 +1,5 @@
+#include "event/script.h"
+#include "event/script.h"
 /* Scripts computing with their variables (event/variables.h): setting them
  * from numbers, from each other and from the story; counting; adding and
  * subtracting; treating one as a set of flags; and rolling a random number.

@@ -20,7 +20,6 @@
 #include "field/field.h"
 #include "event/chests.h"
 #include "event/engine.h"
-#include "event/event.h"
 #include "event/party.h"
 #include "field/dialog_window.h"
 #include "field/map.h"
@@ -31,7 +30,6 @@
 
 #include "battle/battle.h"
 #include "charge.h"
-#include "core/console.h"
 #include "core/display.h"
 #include "core/program.h"
 #include "core/input.h"
@@ -42,8 +40,6 @@
 #include "field/walk.h"
 #include "field/bridge.h"
 #include "field/scratch.h"
-#include "port/machine.h"
-#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -319,138 +315,27 @@ static bool take_up_after_battle(GameState *g, AfterCalls call, void *ctx)
 
 /* ---- On the machine ------------------------------------------------------------------------ */
 
-enum { BUILD_SPRITE_TABLE = 0xC0B271, READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-static bool table_on_the_machine(void *ctx)
-{
-    Snes *s = ctx;
-    m_rep(s, CPU_FLAG_X);
-    return field_run_called(s, 0xC0072B, BUILD_SPRITE_TABLE, READS_NOTHING, field_build_sprite_table, on_the_field_page(s, false));
-}
-
-// $C0:0715
-/* The field's page, 8-bit A. Nothing the original leaves in the registers
- * is read after it. */
-void field_return_from_battle(Snes *s)
-{
-    if (return_from_battle(state_of(s), table_on_the_machine, s))
-        m_rts(s);
-}
+enum { BUILD_SPRITE_TABLE = 0xC0B271 };
 
 // $C0:072E
 /* The original's routines it calls, and the field's own that run frames. */
-enum {
-    SCRIPT_UNPACKED = 0xC056D4,     /* the location's event script unpacked */
-    MAP_SCRIPT_STARTS = 0xC0595C,   /* the map's own script (object 0) run to its first return */
-    PALETTE_ANIMATION = 0xFDFFF7,   /* the original's jump to it */
-    WALK = 0xC0881E,
-    TILE_LOOKS = 0xC009DD, BG3_TILE_LOOKS = 0xC00A14,
-    RETURN_FROM_BATTLE = 0xC00715,
-};
-enum { READS_THE_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
+enum { SCRIPT_UNPACKED = 0xC056D4, /* the location's event script unpacked */
+    MAP_SCRIPT_STARTS = 0xC0595C, /* the map's own script (object 0) run to its first return */
+    PALETTE_ANIMATION = 0xFDFFF7, /* the original's jump to it */
+    WALK = 0xC0881E, TILE_LOOKS = 0xC009DD, BG3_TILE_LOOKS = 0xC00A14, RETURN_FROM_BATTLE = 0xC00715,  };
 
 /* Where the game starts again: the field's first start (the title) after a
  * game over, the field's entry for the place put aside; each on the game's
  * fresh stack. What each reads of the registers first it sets. Where the
  * field is taken up again, the party comes back together ($C0:034B), which
  * the original goes on to. */
-enum { THE_TITLE = 0xC0000E, ENTER = 0xC0005D, STARTS_AFRESH = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_D };
-enum { PARTY_BACK_TOGETHER = 0xC0034B, BACK_TOGETHER_READS = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
-static void start_afresh(Snes *s, uint32_t at)
-{
-    display_go_dark(s);
-    s->cpu.s = CONSOLE_STACK_TOP;
-    if (at == THE_TITLE && m_runs_retired_as_c(s)) {
-        m_jump_to(s, at);
-        native_sync_boundary(s);
-        /* Starting the title requires native mode and M8/X16. Decimal mode,
-         * page and bank are unrestricted; it initializes its own state. */
-        if (!s->cpu.e && (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == CPU_FLAG_M) {
-            TIMED_AS(state_of(s), THE_TITLE, field_first_start(s));
-            return;
-        }
-    }
-    m_stop_at_own(s, at, STARTS_AFRESH);
-}
-
-/* The fade out's calls, from each way's own. */
-static const uint32_t fade_walks[] = { 0xC002B7, 0xC002DE };
-static const uint32_t fade_palettes[] = { 0xC002BA, 0xC002E1 };
-static const uint32_t fade_waits[] = { 0xC002BE, 0xC002E5 };
-/* The walks a frame of the field's taking up makes. */
-static const uint32_t take_up_walks[] = { 0xC00319, 0xC00327, 0xC00340 };
-
-static bool after_on_the_machine(void *ctx, AfterCall call, FadeOut way)
-{
-    Snes *s = ctx;
-    BridgeMachine page = on_the_field_page(s, false);
-    switch (call) {
-    case AFTER_GAME_OVER_WALK:
-        return field_run_called(s, 0xC002AA, FIELD_WALK_A_FRAME_ENTRY, READS_NOTHING, field_walk_a_frame, page);
-    case AFTER_FADE_WALK: return field_run(s, fade_walks[way], WALK, READS_NOTHING, field_walk_the_leader, page);
-    case AFTER_FADE_PALETTES: return field_run_long(s, fade_palettes[way], PALETTE_ANIMATION, READS_NOTHING, palette_animate, page);
-    case AFTER_FADE_WAIT: return field_hold_next_frame(s, fade_waits[way], READS_NOTHING, page);
-    case AFTER_PUT_BACK: return field_run(s, 0xC00313, RETURN_FROM_BATTLE, READS_NOTHING, field_return_from_battle, page);
-    case AFTER_UNPACK_THE_MAP:
-        return field_run(s, 0xC00316, FIELD_UNPACK_THE_MAP_ENTRY, READS_NOTHING, field_unpack_the_map, page);
-    case AFTER_FIRST_WALK:
-    case AFTER_SECOND_WALK:
-    case AFTER_THIRD_WALK:
-        return field_run_called(s, take_up_walks[call == AFTER_FIRST_WALK ? 0 : call == AFTER_SECOND_WALK ? 1 : 2],
-                                     FIELD_WALK_A_FRAME_ENTRY, READS_NOTHING, field_walk_a_frame, page);
-    case AFTER_WINDOW_FRAME:
-        return field_run_long(s, 0xC0031C, FIELD_BUILD_WINDOW_FRAME_ENTRY, READS_NOTHING, field_build_the_window_frame_entry, page);
-    case AFTER_TILE_LOOKS: return field_run(s, 0xC00324, TILE_LOOKS, READS_NOTHING, field_load_tile_looks_entry, page);
-    case AFTER_BG3_TILE_LOOKS: return field_run(s, 0xC0032A, BG3_TILE_LOOKS, READS_NOTHING, field_load_bg3_tile_looks_entry, page);
-    case AFTER_SCRIPT: return field_run(s, 0xC0032D, SCRIPT_UNPACKED, READS_NOTHING, field_load_the_script_entry, page);
-    case AFTER_MAP_SCRIPT: return field_run(s, 0xC00330, MAP_SCRIPT_STARTS, READS_THE_OVERFLOW, event_run_map_script, page);
-    case AFTER_CHESTS:
-        return field_run_on_page(s, 0xC0033C, CHESTS_MARK_THE_MAP_ENTRY, READS_NOTHING, field_mark_the_chests, FIELD_LAYERS_PAGE);
-    case AFTER_TEXT_AREA:
-        return field_run_long(s, 0xC00343, FIELD_BUILD_TEXT_AREA_ENTRY, READS_NOTHING, field_build_the_text_area_entry, page);
-    case AFTER_BACK_TOGETHER:
-        field_hands_over_to(s, PARTY_BACK_TOGETHER, BACK_TOGETHER_READS, event_party_back_together);
-        return false;
-    case AFTER_THE_TITLE: start_afresh(s, THE_TITLE); return false;
-    default: start_afresh(s, ENTER); return false;
-    }
-}
+enum { THE_TITLE = 0xC0000E, ENTER = 0xC0005D };
+enum { PARTY_BACK_TOGETHER = 0xC0034B };
 
 /* For shadow mode: the original moves the state back with a block move,
  * which leaves Y past the block's end; the field's first start after a game
  * over hands Y to the menus' routine, which stores it. */
 enum { STATE_BLOCK_END = (RAM_FIELD_RIPPLE_FRAMES_LEFT + 1) & 0xFFFF };
-
-// $C0:0283
-/* The field's page, 8-bit A and 16-bit index registers. */
-void field_after_battle(Snes *s)
-{
-    (void)take_up_after_battle(state_of(s), after_on_the_machine, s);
-}
-
-// $C0:02AD
-void field_game_over_waits_for_a_button(Snes *s) { (void)game_over(state_of(s), after_on_the_machine, s); }
-// $C0:02C1
-void field_game_over_fades(Snes *s)
-{
-    if (fade_out(state_of(s), GAME_OVER_FADE, after_on_the_machine, s))
-        start_afresh(s, THE_TITLE);
-}
-// $C0:02E8
-void field_return_to_kept_place_fades(Snes *s)
-{
-    (void)back_to_the_place_put_aside(state_of(s), after_on_the_machine, s);
-}
-// $C0:031C
-void field_restores_its_picture(Snes *s) { (void)restore_the_field_picture(state_of(s), after_on_the_machine, s); }
-// $C0:032A
-void field_restores_its_script(Snes *s) { (void)restore_the_field_script(state_of(s), after_on_the_machine, s); }
-// $C0:0343
-void field_finishes_restoring(Snes *s) { (void)finish_restoring_the_field(state_of(s), after_on_the_machine, s); }
-
-/* The guard: on the field's page with the data bank $00. */
-bool field_can_take_up_after_battle(Snes *s) { return field_on_page_bank_zero(s); }
 
 /* The guard: on the field's page with the data bank $00; the leader's place
  * an object (the original takes it without looking, so the party's loop
@@ -477,16 +362,6 @@ static bool battle_return_fits(const GameState *g)
         if (ok && field_link_is_object(link) && taken_away(g, enemy) && object_has_no_sprite(g, field_linked_object(link)))
             ok = object_palette_links_in_the_tables(g, field_linked_object(link));
     }
-    return ok;
-}
-
-bool field_battle_return_can_run(Snes *s)
-{
-    if (!field_on_page_bank_zero(s))
-        return false;
-    vars_peek(true);
-    bool ok = battle_return_fits(state_of(s));
-    vars_peek(false);
     return ok;
 }
 

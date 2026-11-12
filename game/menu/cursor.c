@@ -23,7 +23,6 @@
 #include "menu/menu_data.h"
 #include "platform/audio.h"
 #include "platform/input.h"
-#include "port/native.h"
 #include "sound/sound.h"
 
 /* ---- The sprites ------------------------------------------------------------------------------ */
@@ -293,29 +292,12 @@ MenuCursorRead menu_note_cursor_read(const GameState *g)
     return r;
 }
 
-void menu_charge_cursor_read(Snes *s, MenuCursorRead r)
-{
-    charge_machine_accesses(state_of(s), 1 + !r.new_step);
-}
-
 /* Where the controller read doesn't take the buttons, the port stops where
  * the original does, with the stack the original's input has built by then:
  * its caller's flags, data bank, page and flags again (as the fast repeat's
  * test left them, the index registers passed through 8 bits on the way), and
  * the return into the input from the read. */
 enum { RETURN_FROM_THE_READ = 0x8489 };
-
-static void enter_the_read(Snes *s, bool fast)
-{
-    menu_save_p(s);
-    menu_leave_load(s, fast ? 1 : 0);
-    m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_push8(s, s->cpu.db);
-    m_push16(s, s->cpu.d);
-    m_push8(s, s->cpu.p);
-    m_push16(s, RETURN_FROM_THE_READ);
-}
 
 enum { SECOND_CONTROLLER = 1 };
 
@@ -348,50 +330,14 @@ bool menu_frame_input_taken(GameState *g, Platform *pf)
     return false;
 }
 
-void menu_take_frame_input(Snes *s)
-{
-    bool fast;
-    ControllerRead read = take_frame_input(state_of(s), m_platform(s), &fast);
-    if (read != CONTROLLER_READ) {
-        enter_the_read(s, fast);
-        input_stop_reading(s, read);
-        return;
-    }
-    m_rts(s);
-}
-
 /* The input runs on the menus' vblank page, with a data bank that reaches
  * low work RAM. */
 enum { MENUS_VBLANK_PAGE = 0x0D00 };
-
-bool menu_frame_input_is_takeable(Snes *s) { return m_direct_page(s) == MENUS_VBLANK_PAGE && m_bank_reaches_low_ram(s); }
-
-void menu_step_reads_the_cursor(Snes *s)
-{
-    GameState *g = state_of(s);
-    MenuCursorRead r = menu_note_cursor_read(g);
-    TIMED_AS(g, 0xC2E984, menu_read_cursor(g));
-    charge_machine_accesses(g, 1 + !r.new_step);
-}
 
 void menu_hold_and_read_the_cursor(GameState *g)
 {
     set_menu_cursor_held(g, (uint8_t)(menu_cursor_held(g) + 1));
     TIMED_AS(g, 0xC2E984, menu_read_cursor(g));
-}
-
-void menu_step_holds_and_reads_the_cursor(Snes *s)
-{
-    GameState *g = state_of(s);
-    MenuCursorRead r = menu_note_cursor_read(g);
-    menu_hold_and_read_the_cursor(g);
-    charge_machine_accesses(g, 1 + !r.new_step);
-}
-
-void menu_step_reads_the_cursor_and_tests_its_buttons(Snes *s)
-{
-    menu_step_reads_the_cursor(s);
-    charge_machine_accesses(state_of(s), 1);
 }
 
 // $C2:E984
@@ -402,12 +348,11 @@ void menu_step_reads_the_cursor_and_tests_its_buttons(Snes *s)
  * the send, and the call itself. What the driver doesn't read at the call
  * (the calling convention checks it): the accumulator's low byte, X, Y and the
  * flags. The accumulator holds the pan the original loads last before it. */
-enum { DRIVER_IGNORES = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 /* The sound sent to the driver, from the original's one call. */
 static void send_the_sound(Platform *pf, SoundEffectVoices voices, uint8_t sound)
 {
-    au_command(pf, PF_CALL_DC(0xC2EB1A, 0xC70004, DRIVER_IGNORES),
+    au_command(pf, PF_CALL(0xC2EB1A, 0xC70004),
                (AudioCommand){ .command = voices, .p1 = sound, .p2 = AU_CENTRE, .count = 2 });
 }
 
@@ -471,58 +416,6 @@ void menu_tick(GameState *g, Platform *pf) { TIMED_AS(g, 0xC2EAC2, menu_sound_pl
 // $C2:EACC
 void menu_buzz(GameState *g, Platform *pf) { TIMED_AS(g, 0xC2EACC, menu_sound_played(g, pf, MENU_SOUND_REFUSAL)); }
 
-/* On the machine the send is a call-out to the driver: false where the
- * driver came back otherwise than it was called, and the port has stopped
- * where the original carries on. */
-static bool sent_on_the_machine(void *ctx, SoundEffectVoices voices, uint8_t sound)
-{
-    Snes *s = ctx;
-    MenuMachine m = menu_machine(s);
-    (void)0;
-    send_the_sound(m_platform(s), voices, sound);
-    return menu_back(s, 0xC2EB1E, m);
-}
-
-static void dropped_on_the_machine(void *ctx) { charge_machine_accesses(state_of(ctx), 1); }
-
-static const SoundCalls on_the_machine = { sent_on_the_machine, dropped_on_the_machine };
-
-static bool play(Snes *s, SoundEffectVoices voices, uint8_t sound)
-{
-    return play_a_sound(state_of(s), voices, sound, &on_the_machine, s);
-}
-
-/* A routine that saves P and calls the send ($C2:EB03) from `site`. */
-static void play_from(Snes *s, uint32_t site, uint8_t sound)
-{
-    menu_save_p(s);
-    menu_set_widths(s, true, true);
-    m_push16(s, (uint16_t)(site + MENU_JSR_SIZE - 1));
-    if (!play(s, SOUND_EFFECT_ON_VOICES_6_7, sound))
-        return;
-    (void)m_pull16(s);
-    menu_restore_p(s);
-    m_rts(s);
-}
-
-// $C2:EB03
-
-// $C2:EAF9
-void menu_send_sound_on_other_voices(Snes *s)
-{
-    if (play_on_other_voices(state_of(s), (uint8_t)s->cpu.a, &on_the_machine, s))
-        m_rts(s);
-}
-
-// $C2:EAC2
-void menu_play_cursor_sound(Snes *s) { play_from(s, 0xC2EAC7, MENU_SOUND_CURSOR); }
-
-// $C2:EACC
-void menu_play_refusal_sound(Snes *s) { play_from(s, 0xC2EAD1, MENU_SOUND_REFUSAL); }
-
-// $C2:EABA
-void menu_play_sound(Snes *s) { play_from(s, 0xC2EABD, (uint8_t)s->cpu.a); }
-
 bool menu_cursor_kept_among(const GameState *g, uint8_t first, uint8_t count, bool left_free)
 {
     enum { OUT_OF_THE_MENU = 0x80 };
@@ -544,16 +437,6 @@ bool menu_cursor_kept_among(const GameState *g, uint8_t first, uint8_t count, bo
 /* The cursor stands on one of its menu's places. */
 bool menu_cursor_can_be_placed(const GameState *g) { return menu_cursor_index(g) < MENU_CURSOR_PLACES_COUNT; }
 
-bool menu_cursor_is_placeable(Snes *s)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_cursor_can_be_placed(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
 /* The cursor's neighbour a push reaches is one of its menu's places too. */
 bool menu_cursor_can_move(const GameState *g)
 {
@@ -564,15 +447,3 @@ bool menu_cursor_can_move(const GameState *g)
     return at < MENU_CURSOR_PLACES_COUNT
            && (push == PUSHES || (uint8_t)(neighbour(g, at, (CursorPush)push) & ~OUT_OF_THE_MENU) < MENU_CURSOR_PLACES_COUNT);
 }
-
-bool menu_cursor_is_movable(Snes *s)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_cursor_can_move(state_of(s));
-    vars_peek(false);
-    return ok;
-}
-
-bool menu_sounds_on_page(Snes *s) { return menu_on_page(s) && m_bank_reaches_low_ram(s); }

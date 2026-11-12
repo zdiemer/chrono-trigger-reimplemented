@@ -40,7 +40,6 @@
 #include "menu/windows.h"
 #include "overworld/overworld.h"
 #include "platform/audio.h"
-#include "port/native.h"
 #include "sound/sound.h"
 #include "vars.h"
 
@@ -205,11 +204,11 @@ void menu_show_the_slot_saved_now(GameState *g) { show_the_slot_saved(g); }
 
 /* The saved sound: the effect on the effects' second pair of voices, from
  * the middle, sent from the save's own call to the driver. */
-enum { SAVED_SOUND = 0x8A, DRIVER_IGNORES = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+enum { SAVED_SOUND = 0x8A };
 
 void menu_send_the_saved_sound(Platform *pf)
 {
-    au_command(pf, PF_CALL_DC(0xC2CF46, 0xC70004, DRIVER_IGNORES),
+    au_command(pf, PF_CALL(0xC2CF46, 0xC70004),
                (AudioCommand){ .command = SOUND_EFFECT_ON_VOICES_4_5, .p1 = SAVED_SOUND, .p2 = AU_CENTRE, .count = 2 });
 }
 

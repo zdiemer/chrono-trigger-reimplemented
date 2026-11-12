@@ -46,13 +46,12 @@ uint16_t rom_read16(const GameState *g, uint32_t at)
     return (uint16_t)(rom_read8(g, at) | rom_read8(g, at + 1) << 8);
 }
 
-/* New Game+ and machine wrappers are linked but never part of these tests. */
+/* New Game+ party operations are outside this save-format test. */
 void party_equip(GameState *g, uint8_t c, uint8_t item) { (void)g; (void)c; (void)item; abort(); }
 void party_fill_hp(GameState *g) { (void)g; abort(); }
 void party_fill_mp(GameState *g) { (void)g; abort(); }
 void party_wear_it_shows(GameState *g) { (void)g; abort(); }
 bool party_record_shows_characters(const GameState *g) { (void)g; abort(); }
-bool menu_on_page_work_ram(Snes *s) { (void)s; abort(); }
 
 static uint8_t read_game(void *ctx, uint32_t at) { return state_host_read8(ctx, at); }
 static void write_game(void *ctx, uint32_t at, uint8_t value) { state_host_write8(ctx, at, value); }

@@ -22,7 +22,6 @@
 #include "charge.h"
 #include "menu/fades.h"
 #include "menu/menu.h"
-#include "port/native.h"
 #include "vars.h"
 
 /* The menus opened on one of the field's locations rather than the world
@@ -148,7 +147,6 @@ bool menu_switch_back_to_the_field_song_with(GameState *g, Platform *pf, const G
 
 /* The driver's calls, from the song's start's and the fade's routines. */
 enum { SOUND_DRIVER = 0xC70004, SEND_THE_SONG = 0xC2CBF3, SEND_THE_FADE = 0xC2CC09 };
-enum { THE_DRIVER_READS_A_HIGH = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 typedef struct {
     GameState *game;
@@ -159,7 +157,7 @@ static bool sent(void *ctx, GateSongSend at, AudioCommand c)
 {
     (void)at;
     SongInC *n = ctx;
-    au_command(n->pf, PF_CALL_DC(SEND_THE_FADE, SOUND_DRIVER, THE_DRIVER_READS_A_HIGH), c);
+    au_command(n->pf, PF_CALL(SEND_THE_FADE, SOUND_DRIVER), c);
     return true;
 }
 
@@ -167,8 +165,8 @@ static bool song_and_fade_sent(void *ctx, GateSongSend at, AudioCommand song, Au
 {
     (void)at;
     SongInC *n = ctx;
-    au_command(n->pf, PF_CALL_DC(SEND_THE_SONG, SOUND_DRIVER, THE_DRIVER_READS_A_HIGH), song);
-    au_command(n->pf, PF_CALL_DC(SEND_THE_FADE, SOUND_DRIVER, THE_DRIVER_READS_A_HIGH), fade);
+    au_command(n->pf, PF_CALL(SEND_THE_SONG, SOUND_DRIVER), song);
+    au_command(n->pf, PF_CALL(SEND_THE_FADE, SOUND_DRIVER), fade);
     return true;
 }
 

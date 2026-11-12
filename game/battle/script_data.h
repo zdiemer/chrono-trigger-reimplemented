@@ -20,11 +20,6 @@
  * ($C1:7A6B, a word a command byte). */
 enum { SCRIPT_HANDLER_BANK = 0xC1 };
 
-static inline uint32_t battle_script_handler(const GameState *g, uint8_t command)
-{
-    return (uint32_t)SCRIPT_HANDLER_BANK << 16 | rom_read16(g, 0xC17A6Bu + 2u * command);
-}
-
 /* ---- Places ------------------------------------------------------------------------------- */
 
 /* A place part way from one point to another: how many eighths of the way
@@ -33,6 +28,19 @@ static inline uint32_t battle_script_handler(const GameState *g, uint8_t command
 typedef struct {
     uint8_t first, second;
 } PlaceWeights;
+
+/* The cells a heading's step looks at, as offsets in the grid from the cell
+ * the walker is in ($CC:F454 on, by the step's number): two cells straight
+ * on, the cell diagonally ahead to one side and to the other, and the cell
+ * beside the walker that a step round each corner passes. */
+typedef enum {
+    TWO_AHEAD = 0x00, DIAGONAL_ONE_WAY = 0x01, DIAGONAL_OTHER_WAY = 0x02, CORNER_ONE_WAY = 0x21, CORNER_OTHER_WAY = 0x22
+} WalkProbe;
+
+static inline uint32_t battle_script_handler(const GameState *g, uint8_t command)
+{
+    return (uint32_t)SCRIPT_HANDLER_BANK << 16 | rom_read16(g, 0xC17A6Bu + 2u * command);
+}
 
 static inline PlaceWeights battle_place_weights(const GameState *g, uint8_t entry)
 {
@@ -53,15 +61,8 @@ static inline uint16_t battle_walk_grid_store(const GameState *g, uint8_t slot)
 /* A step of the walk, by its number (eight bytes a heading, $CC:F414 on): the
  * heading the walker takes after it, and the facing it shows. */
 static inline uint8_t battle_walk_step_heading(const GameState *g, uint8_t step) { return rom_read8(g, 0xCCF414u + step); }
-static inline uint8_t battle_walk_step_facing(const GameState *g, uint8_t step) { return rom_read8(g, 0xCCF434u + step); }
 
-/* The cells a heading's step looks at, as offsets in the grid from the cell
- * the walker is in ($CC:F454 on, by the step's number): two cells straight
- * on, the cell diagonally ahead to one side and to the other, and the cell
- * beside the walker that a step round each corner passes. */
-typedef enum {
-    TWO_AHEAD = 0x00, DIAGONAL_ONE_WAY = 0x01, DIAGONAL_OTHER_WAY = 0x02, CORNER_ONE_WAY = 0x21, CORNER_OTHER_WAY = 0x22
-} WalkProbe;
+static inline uint8_t battle_walk_step_facing(const GameState *g, uint8_t step) { return rom_read8(g, 0xCCF434u + step); }
 
 static inline uint8_t battle_walk_probe(const GameState *g, uint8_t step, WalkProbe probe)
 {

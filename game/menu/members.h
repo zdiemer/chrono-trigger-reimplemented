@@ -8,7 +8,6 @@
 #include <stdint.h>
 
 #include "platform/video.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* The list shows three members at a time. */
@@ -94,18 +93,13 @@ bool menu_member_rows_can_be_drawn(const GameState *g);
 bool menu_member_rows_can_be_drawn_from(const GameState *g, uint8_t first);
 
 /* The checked legacy adapters. */
-bool menu_low_hp_marks_are_workable(Snes *s);
-void menu_draw_member_card_entry(Snes *s);
 /* The card of the member the cursor is on, as C ($C2:A22F). */
 void menu_draw_member_card(GameState *g, Platform *pf);
-void menu_redraw_member_card_entry(Snes *s);
 /* The card drawn again and the member's row at the list's top ($C2:A21F),
  * as C: false where the program went no further. */
 bool menu_redraw_member_card(GameState *g, Platform *pf);
 /* Whether the low-HP marks can be worked out as C (their entry's guard's
  * state half). */
 bool menu_low_hp_marks_can_be_worked_out(const GameState *g);
-
-bool menu_member_card_is_drawable(Snes *s);
 
 #endif

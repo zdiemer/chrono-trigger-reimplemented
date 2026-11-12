@@ -95,11 +95,9 @@ static bool member_takes_part(const GameState *g, const PartyTech *t, unsigned p
 static void leave_check(GameState *g, uint8_t tech, unsigned stopped_at, uint8_t compared)
 {
 
-    (void)stopped_at;     charge_machine_accesses(g, 1);
+    (void)stopped_at;     ;
     if (compared == NOBODY_COMPARED)
         return;
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     multiply_out_tech_place(g, tech);
     set_battle_tech_mp_compared(g, combatant_mp(g, compared));
 }
@@ -271,7 +269,6 @@ static TechOutcome work_out_part(GameState *g, Platform *pf, const PartyTech *t,
     uint8_t actor = member == NO_MEMBER ? NO_SLOT : slot_of(g, member);
     if (actor == NO_SLOT)
         return TECH_MEMBER_ABSENT;
-    charge_machine_accesses(g, 1);
     take_flags(g, &e, t->modifiers[part], sure);
     set_battle_actor(g, actor);
     if (actor < BATTLE_PARTY_SIZE) {
@@ -332,7 +329,6 @@ static TechOutcome work_out_parts(GameState *g, Platform *pf, const PartyTech *t
         set_battle_effects_worked(g, (uint8_t)(battle_effects_worked(g) + 1));
     }
     uint8_t added = t->flags & ACTION_HITS_ADDED;
-    charge_machine_accesses(g, 1);
     if (added)
         effect_add_up_hits(g, added);
     return TECH_WORKED_OUT;
@@ -345,10 +341,8 @@ static TechOutcome work_out_tech(GameState *g, Platform *pf)
     set_battle_steal_outcome(g, 0);
     uint8_t tech = battle_action_detail(g);
     set_battle_action_record_place(g, effect_times(g, tech, PARTY_TECH_BYTES));
-    charge_machine_accesses(g, 1);
     PartyTech t = party_tech(g, tech);
     battle_keep_word(g, BATTLE_CLOCK_READS, t.members);
-    charge_machine_accesses(g, 2);
     for (unsigned part = 0; part < TECH_MEMBERS; part++)
         set_battle_tech_members(g, part, tech_member(g, t.members, part));
     TechOutcome outcome = TECH_CANT_BE_DONE;
@@ -441,46 +435,9 @@ static bool member_tech_ported(const GameState *g)
     return effect_targets_named(g) && members_in_party(g, &t) && parts_ported(g, &t) && aim_ported(g);
 }
 
-bool battle_work_out_member_tech_ready(Snes *s)
-{
-    vars_peek(true);
-    bool ready = member_tech_ported(state_of(s));
-    vars_peek(false);
-    return battle_on_page(s) && ready;
-}
-
-/* The work hands back A's high byte clear, and the carry set but where it
- * stopped at a miss: then the carry the part's kind left (battle/entries.h).
- * The member's turn next finds the tech's MP cost by a multiply, which keeps
- * the carry it comes in with in its second number's cell ($C1:BBFA). */
-void battle_work_out_member_tech_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    TechOutcome outcome = effect_work_out_member_tech(g, m_platform(s));
-    s->cpu.a &= 0x00FF;
-    m_set_flag(s, CPU_FLAG_C, outcome != TECH_STOPPED_AT_MISS || battle_kind_leaves_carry(battle_effect_record(g, 0)));
-    m_rts(s);
-}
-
 /* An item's kinds are all the port's: the actor and the targets must be
  * combatants. */
 static bool item_use_ported(const GameState *g) { return battle_actor(g) < BATTLE_COMBATANTS && effect_targets_named(g); }
-
-bool battle_use_item_ready(Snes *s)
-{
-    vars_peek(true);
-    bool ready = item_use_ported(state_of(s));
-    vars_peek(false);
-    return battle_on_page(s) && ready;
-}
-
-/* It hands back A's high byte clear. */
-void battle_use_item_entry(Snes *s)
-{
-    effect_use_item(state_of(s), m_platform(s));
-    s->cpu.a &= 0x00FF;
-    m_rts(s);
-}
 
 /* ---- As C ------------------------------------------------------------------------------------ */
 

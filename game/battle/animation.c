@@ -80,7 +80,6 @@ static void choose_order(GameState *g, AnimationGroup group, uint8_t order[GROUP
     unsigned side_first = group == THE_PARTY ? 0 : BATTLE_FIRST_ENEMY;
     for (unsigned place = 0; place < GROUP_PLACES; place++)
         order[place] = place < size ? (uint8_t)(first - side_first + (start + place) % size) : (uint8_t)NO_ONE;
-    charge_machine_accesses(g, 3);
 }
 
 /* One object's graphics built this frame: the upload has room for no more,
@@ -170,7 +169,6 @@ static uint8_t take_next_party_frame(GameState *g, unsigned member, uint8_t anim
 
     uint8_t graphics = battle_party_list_byte(g, (uint16_t)(frames_at + facing_part + frame));
     battle_show_object_frame(g, member, graphics);
-    charge_machine_accesses(g, 2);
     return graphics;
 }
 
@@ -180,7 +178,6 @@ static uint8_t with_running(GameState *g, unsigned member, uint8_t animation)
 {
     if (animation != ANIMATION_BATTLE_STANCE || battle_lr_held(g) == 0)
         return animation;
-    charge_machine_accesses(g, 1);
     set_battle_party_frame(g, member, BEFORE_THE_FIRST_FRAME);
     return ANIMATION_RUNNING;
 }
@@ -207,8 +204,6 @@ static bool members_turn_to_face(GameState *g, unsigned member)
 {
     uint8_t turn = battle_facing_turn(g);
     uint8_t holder = turn & (uint8_t)~TURN_TAKEN;
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 1);
     if (holder != member) {
         if (!(turn & TURN_TAKEN))
             set_battle_facing_turn(g, (uint8_t)(member | TURN_TAKEN));
@@ -244,7 +239,6 @@ static uint8_t direction_to(GameState *g, unsigned member, uint8_t enemy)
     BattlePoint from = { battle_object_x(g, battle_combatant_object(member)), battle_object_y(g, battle_combatant_object(member)) };
     BattlePoint to = { battle_object_x(g, battle_combatant_object(enemy)), battle_object_y(g, battle_combatant_object(enemy)) };
     battle_keep_direction_points(g, from, to);
-    charge_machine_accesses(g, 1);
     uint8_t direction = 0;
     TIMED_AS(g, 0xC10222, direction = battle_direction(g, from, to));
     return direction;
@@ -264,7 +258,6 @@ static bool face_direction(GameState *g, unsigned member, uint16_t direction)
     if (facing == battle_object_facing(g, member))
         return false;
     set_battle_object_facing(g, member, facing);
-    charge_machine_accesses(g, 1);
     return true;
 }
 
@@ -289,8 +282,7 @@ static bool enemy_list_stale(const GameState *g, unsigned enemy)
 
 /* What the original leaves of a frame list it loaded: the list pointers,
  * the part and where the frames were copied from and to. */
-enum { LEFT_FRAMES_POINTER = 6, LEFT_TIMES_POINTER = 9, LEFT_LIST_PART = 0x06, LEFT_LIST_START = 0x02,
-       LEFT_LIST_END = 0x04, LEFT_COUNT = 0x00 };
+enum { LEFT_FRAMES_POINTER = 6, LEFT_TIMES_POINTER = 9, LEFT_LIST_PART = 0x06, LEFT_LIST_START = 0x02, LEFT_LIST_END = 0x04, LEFT_COUNT = 0x00 };
 
 // $C1:3364
 /* Load the enemy's frame list for its animation and facing: the frames'
@@ -316,14 +308,12 @@ static void load_enemy_frame_list(GameState *g, unsigned enemy)
     for (unsigned i = 0; i < ENEMY_LIST_ENTRIES; i++)
         set_battle_enemy_frame_delays(g, list_start + i,
                                       battle_enemy_frame_time(g, battle_frame_list_byte(g, times + offset + i)));
-    charge_machine_accesses(g, 12);
 }
 
 /* The frame the enemy's loaded list has at a place: that one, or the first
  * where the list has ended there (its time is 0). */
 static uint8_t frame_or_first(GameState *g, unsigned enemy, uint8_t frame)
 {
-    charge_machine_accesses(g, 1);
     return battle_enemy_frame_delays(g, (uint8_t)(enemy_list_start(enemy) + frame)) != 0 ? frame : 0;
 }
 
@@ -441,7 +431,6 @@ uint8_t combatant_choose_pose(GameState *g, unsigned slot)
     uint8_t stance = battle_member_sitting_out(g, slot) ? ANIMATION_FIELD_STANCE : ANIMATION_BATTLE_STANCE;
     uint8_t animation = stance;
     set_battle_object_pose(g, slot, NO_POSE);
-    charge_machine_accesses(g, 4);
     bool falling = battle_member_falling(g, slot) != 0;
     if (falling || combatant_knocked_out(g, slot)) {
         set_battle_combatant_down(g, slot, 1);
@@ -457,18 +446,14 @@ uint8_t combatant_choose_pose(GameState *g, unsigned slot)
         animation = pose.animation == STANCE ? (uint8_t)ANIMATION_BATTLE_STANCE : pose.animation;
         if (!(pose.pose & POSE_NONE_BIT))
             take_pose(g, slot, pose.pose);
-        charge_machine_accesses(g, 1);
-        charge_machine_accesses(g, 1);
         return animation;
     }
-    charge_machine_accesses(g, 1);
     if (combatant_low_hp_noted(g, slot) && !battle_member_sitting_out(g, slot)) {
         set_battle_object_pose(g, slot, WEAK_POSE);
         if (battle_object_pose_last(g, slot) != ANIMATION_WEAK && battle_slot_is_party(slot))
             restart_frame_list(g, slot);
         animation = ANIMATION_WEAK;
     }
-    charge_machine_accesses(g, 1);
     return animation;
 }
 
@@ -531,12 +516,10 @@ static void next_party_frame(GameState *g, unsigned member)
  * up takes its next frame, unless it holds its frame for the upload. */
 static void step_party(GameState *g)
 {
-    charge_machine_accesses(g, 1);
     uint8_t order[GROUP_PLACES];
     choose_order(g, THE_PARTY, order);
     for (unsigned place = 0; place < GROUP_PLACES; place++) {
         unsigned member = order[place];
-        charge_machine_accesses(g, 2);
         give_posing(g, member);
         if (!battle_slot_present(g, member))
             continue;
@@ -549,7 +532,6 @@ static void step_party(GameState *g)
         if (left == 0)
             next_party_frame(g, member);
     }
-    charge_machine_accesses(g, 2);
 }
 
 // $C1:3234
@@ -563,10 +545,8 @@ static void step_enemy_group(GameState *g, AnimationGroup group)
     choose_order(g, group, order);
     for (unsigned place = 0; place < GROUP_PLACES; place++) {
         unsigned enemy = order[place];
-        charge_machine_accesses(g, 1);
         if (enemy & NO_ONE_BIT)
             continue;
-        charge_machine_accesses(g, 2);
         if (!battle_slot_present(g, enemy_slot(enemy)))
             continue;
         if (enemy_list_stale(g, enemy))
@@ -584,7 +564,6 @@ static void step_enemy_group(GameState *g, AnimationGroup group)
             TIMED_AS(g, 0xC11C55, battle_build_frame_graphics(g, enemy_slot(enemy), battle_graphics_frame(g)));
         next_enemy_frame(g, enemy);
     }
-    charge_machine_accesses(g, 1);
 }
 
 // $C1:2D9F
@@ -599,7 +578,6 @@ void battle_step_combatants(GameState *g)
         step_party(g);
         return;
     }
-    charge_machine_accesses(g, 1);
     if (phase < GROUPS) {
         step_enemy_group(g, (AnimationGroup)phase);
         set_battle_frame_phase(g, phase_after_enemies(g, phase));
@@ -655,17 +633,6 @@ bool battle_animations_fit(GameState *g)
     return fits;
 }
 
-/* The enemies' groups take the order's places as they come, which only a
- * clear A's high byte keeps to the order (the original indexes with the whole
- * of A). */
-bool battle_steps_animations(Snes *s)
-{
-    vars_peek(true);
-    bool fits = battle_animations_fit(state_of(s));
-    vars_peek(false);
-    return battle_on_page_a_high_clear(s) && fits;
-}
-
 /* The combatant comes in its cell; the animation goes back in A. */
 
 /* The original finds the combatant's stat block by the whole of A as its
@@ -715,29 +682,7 @@ static bool step_enemy_effects(GameState *g, bool (*handler)(void *ctx, uint8_t 
         else if (!handler(ctx, movement))
             return false;
     }
-    charge_machine_accesses(g, 2);
     return true;
-}
-
-/* On the machine the handler is called inside the original's subroutine,
- * whose return address is on the stack under the call. */
-static bool handler_on_the_machine(void *ctx, uint8_t movement)
-{
-    Snes *s = ctx;
-    uint16_t handler = m_jump_table(s, 0xC1, 0x3760, (uint8_t)(movement * 2));
-    m_push16(s, 0x3731);
-    if (!battle_call(s, 0xC1375C, 0xC10000u | handler, DC_AL | DC_X | DC_Y | DC_FLAGS))
-        return false;
-    m_pull16(s);
-    return true;
-}
-
-void battle_step_enemy_effects(Snes *s)
-{
-    if (!battle_timers_held(state_of(s)))
-        s->cpu.a = 0;
-    if (step_enemy_effects(state_of(s), handler_on_the_machine, s))
-        m_rts(s);
 }
 
 /* ---- As C ------------------------------------------------------------------------------------ */

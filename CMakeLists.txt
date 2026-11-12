@@ -46,15 +46,12 @@ add_library(ct_state_host STATIC runtime/port/vars_ram.c runtime/port/vars_host.
 target_include_directories(ct_state_host PUBLIC game)
 target_link_libraries(ct_state_host PUBLIC ct_platform_native)
 
-# Machine entry wrappers remain in these files until the machine-removal branch.
-# The registry and held-wait tables are not build inputs.
+# The game calls native state and platform services directly.
 add_library(ct_game STATIC
-  game/core/console.c
   game/core/program.c
   game/core/tasks.c
   game/core/display.c
   game/core/input.c
-  game/core/machine_forms.c
   game/core/palette.c
   game/core/sound_commands.c
   game/core/tile_animation.c
@@ -62,7 +59,6 @@ add_library(ct_game STATIC
   game/data/asset_catalogue.c
   game/data/decompress.c
   game/event/animation.c
-  game/event/bridge.c
   game/event/calls.c
   game/event/characters.c
   game/event/chests.c
@@ -70,8 +66,6 @@ add_library(ct_game STATIC
   game/event/contact.c
   game/event/dialog.c
   game/event/engine.c
-  game/event/machine_forms.c
-  game/event/entries.c
   game/event/facing.c
   game/event/flow.c
   game/event/input.c
@@ -92,10 +86,7 @@ add_library(ct_game STATIC
   game/field/palettes.c
   game/field/menus.c
   game/field/start.c
-  game/field/machine_forms.c
-  game/field/bridge.c
   game/field/display.c
-  game/field/frame.c
   game/field/frames.c
   game/field/script_turns.c
   game/field/requests.c
@@ -126,8 +117,6 @@ add_library(ct_game STATIC
   game/field/sounds.c
   game/field/sprites.c
   game/field/window_shape.c
-  game/menu/bridge.c
-  game/menu/machine_forms.c
   game/menu/cursor.c
   game/menu/description.c
   game/menu/digits.c
@@ -138,7 +127,6 @@ add_library(ct_game STATIC
   game/menu/equipment_windows.c
   game/menu/exchange.c
   game/menu/fades.c
-  game/menu/exchange_bridge.c
   game/menu/figures.c
   game/menu/frame.c
   game/menu/tasks.c
@@ -146,7 +134,6 @@ add_library(ct_game STATIC
   game/menu/glyphs.c
   game/menu/graphics.c
   game/menu/healing.c
-  game/menu/healing_bridge.c
   game/menu/held_cursors.c
   game/menu/item_screen.c
   game/menu/item_screen_bridge.c
@@ -154,12 +141,9 @@ add_library(ct_game STATIC
   game/menu/line_effects.c
   game/menu/lists.c
   game/menu/load_screen.c
-  game/menu/load_screen_bridge.c
   game/menu/main_menu.c
-  game/menu/main_menu_bridge.c
   game/menu/members.c
   game/menu/naming.c
-  game/menu/naming_bridge.c
   game/menu/map.c
   game/menu/map_scenes.c
   game/menu/object_commands.c
@@ -167,14 +151,11 @@ add_library(ct_game STATIC
   game/menu/objects.c
   game/menu/opening.c
   game/menu/party.c
-  game/menu/party_bridge.c
   game/menu/save_screen.c
   game/menu/saves.c
   game/menu/saving.c
-  game/menu/saving_bridge.c
   game/menu/script.c
   game/menu/screen_objects.c
-  game/menu/script_bridge.c
   game/menu/screens.c
   game/menu/settings_screen.c
   game/menu/settings_screen_bridge.c
@@ -183,7 +164,6 @@ add_library(ct_game STATIC
   game/menu/shop_steps.c
   game/menu/shop_equipment.c
   game/menu/sound.c
-  game/menu/sound_bridge.c
   game/menu/sprites.c
   game/menu/tech_screen.c
   game/menu/tech_screen_bridge.c
@@ -198,7 +178,6 @@ add_library(ct_game STATIC
   game/menu/vram.c
   game/menu/wave.c
   game/menu/windows.c
-  game/overworld/entries.c
   game/overworld/dactyl.c
   game/overworld/epoch.c
   game/overworld/followers.c
@@ -221,7 +200,6 @@ add_library(ct_game STATIC
   game/warp/warp.c
   game/scene/boot.c
   game/scene/bridge.c
-  game/scene/machine_forms.c
   game/scene/circle.c
   game/scene/curtain.c
   game/scene/plane.c
@@ -258,7 +236,6 @@ add_library(ct_game STATIC
   game/battle/arith.c
   game/battle/battlefield.c
   game/battle/bridge.c
-  game/battle/machine_forms.c
   game/battle/buttons.c
   game/battle/combatants.c
   game/battle/damage.c
@@ -373,7 +350,7 @@ add_library(ct_game STATIC
 target_link_libraries(ct_game PUBLIC ct_state_host)
 add_executable(ct_native frontend/ct_native.c frontend/route_driver.c frontend/audio_replay.c
   frontend/resume.c frontend/storage.c frontend/asset_files.c frontend/track.c frontend/sram_find.c
-  frontend/file_store.c frontend/assets.c frontend/sound_native.c runtime/port/no_machine.c
+  frontend/file_store.c frontend/assets.c frontend/sound_native.c
   runtime/platform/native/render.c)
 target_include_directories(ct_native PRIVATE frontend)
 target_link_libraries(ct_native PRIVATE ct_game ct_media)
@@ -423,7 +400,9 @@ if(BUILD_TESTING)
   target_link_libraries(tasks_test PRIVATE ct_platform_native)
   add_executable(native_time_test tests/port/native_time_test.c runtime/port/state_host.c runtime/port/vars_host.c)
   target_include_directories(native_time_test PRIVATE game runtime)
-  add_executable(vars_host_test tests/port/vars_host_test.c game/menu/saves.c runtime/port/no_machine.c)
+  add_executable(program_test tests/port/program_test.c game/core/program.c)
+  target_link_libraries(program_test PRIVATE ct_state_host)
+  add_executable(vars_host_test tests/port/vars_host_test.c game/menu/saves.c)
   # Preserve bounds diagnostics when an indexed variable moves into a struct.
   add_library(ct_state_host_checked STATIC runtime/port/vars_ram.c runtime/port/vars_host.c
     runtime/port/state_host.c runtime/port/rom_host.c runtime/port/time_rates.c)
@@ -442,7 +421,7 @@ if(BUILD_TESTING)
   target_link_libraries(recorder_test PRIVATE ct_media)
   add_executable(resume_test tests/frontend/resume_test.c frontend/resume.c)
   target_link_libraries(resume_test PRIVATE ct_media)
-  foreach(test player_files recorder resume fiber route_driver audio_replay file_store timing video tasks native_time vars_host unpack_time assets)
+  foreach(test player_files recorder resume fiber route_driver audio_replay file_store timing video tasks native_time program vars_host unpack_time assets)
     if(test STREQUAL "file_store")
       add_test(NAME file_store COMMAND file_store_test ${CMAKE_CURRENT_BINARY_DIR}/file-store-test.bin)
     else()

@@ -43,8 +43,6 @@
 #include "menu/menu_data.h"
 #include "menu/object.h"
 #include "platform/video.h"
-#include "port/machine.h"
-#include "port/native.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -102,10 +100,6 @@ static MapTile map_tile(const GameState *g, Plane p, unsigned column, unsigned r
     return tile;
 }
 
-/* The last map tile the drawing looks at: the plane over the land's, at the
- * map's bottom right. */
-static MapTile last_map_tile(const GameState *g, Plane over) { return map_tile(g, over, MENU_MAP_COLUMNS - 1, MENU_MAP_ROWS - 1); }
-
 static void put_pixel(GameState *g, uint16_t at, MenuMapPixel p)
 {
     if (p.drawn)
@@ -126,12 +120,6 @@ static void draw_map_tile(GameState *g, Plane p, unsigned column, unsigned row, 
 enum { FIRST_TILE = 1 };
 static const VidVramPort after_high = { .step = 1, .after_high = true };
 
-static void charge_drawn(GameState *g, Plane land, Plane over)
-{
-    (void)land, (void)over;
-    charge_machine_accesses(g, 20);
-}
-
 // $C6:E7FA, $C6:E8C7
 /* Draw the map, the land and the plane over it, into the picture cleared,
  * and send it to VRAM. */
@@ -149,7 +137,6 @@ static void draw_the_world(GameState *g, Platform *pf, Plane land, Plane over)
     }
     vid_send_vram_half(pf, PF_AT(0xC6E898), FIRST_TILE * MENU_MODE7_TILE_PIXELS, PF_GAME(RAM_MENU_WORLD_PICTURE),
                        MENU_WORLD_PICTURE_COUNT, VID_VRAM_HIGH_BYTES, &after_high);
-    charge_drawn(g, land, over);
 }
 
 /* ---- the turn ------------------------------------------------------------------------------ */
@@ -236,13 +223,6 @@ typedef struct {
     uint16_t cos_zoomed;
 } Worked;
 
-static void charge_worked(GameState *g, MenuObject o, const Worked *w)
-{
-    (void)o, (void)w;
-    charge_machine_accesses(g, 23);
-    charge_machine_io_accesses(g, 7);
-}
-
 // $C6:E9F5, $C6:EDE1
 /* A frame of the turn. */
 static void turn_a_frame(GameState *g, MenuObject o)
@@ -281,13 +261,11 @@ static void turn_a_frame(GameState *g, MenuObject o)
     set_menu_object_shadows_bg1_scroll_y(g, (uint16_t)(centre_y - SCREEN_BOTTOM));
 
     set_menu_object_scratch_world_turn_handed_on(g, menu_object_slots_world_turn(g, o));
-    charge_worked(g, o, &w);
 }
 
 /* How the turn starts: unturned, at the zoom, distances, pivot and reach the
  * scene opens with, level, and still. */
-enum { START_ZOOM = 0x80, START_ACROSS = 0xA0, START_DOWN = 0x60, START_PIVOT_X = 0x40, START_PIVOT_Y = 0x70,
-       START_REACH = 0x70 };
+enum { START_ZOOM = 0x80, START_ACROSS = 0xA0, START_DOWN = 0x60, START_PIVOT_X = 0x40, START_PIVOT_Y = 0x70, START_REACH = 0x70 };
 
 /* The original keeps the zoom, the distances and the reach as words, and
  * clears the bytes after them as it sets them. The turn reads none of them,
@@ -347,17 +325,6 @@ static bool world_can_be_drawn(const GameState *g, MenuObject self)
     return ok;
 }
 
-bool menu_world_can_be_drawn(Snes *s)
-{
-    if (m_direct_page(s) != 0x0000 || !m_bank_reaches_low_ram(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = world_can_be_drawn(g, menu_object_running(g));
-    vars_peek(false);
-    return ok;
-}
-
 /* The turn reaches the CPU's multiplier and divider through a data bank of
  * $00, on the mode's page, for the object running. */
 static bool world_can_be_turned(const GameState *g, MenuObject self)
@@ -366,82 +333,11 @@ static bool world_can_be_turned(const GameState *g, MenuObject self)
     return menu_object_address_names_one(menu_object_current(g));
 }
 
-bool menu_world_can_be_turned(Snes *s)
-{
-    if (m_direct_page(s) != 0x0000 || s->cpu.db != 0x00)
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = world_can_be_turned(g, menu_object_running(g));
-    vars_peek(false);
-    return ok;
-}
-
 /* A frame reads its tilt's step from the tilts' table, so the tilt is one of
  * them, as every one the scene sets is. */
 static bool world_can_turn_a_frame(const GameState *g, MenuObject self)
 {
     return world_can_be_turned(g, self) && menu_object_slots_world_tilt(g, self) < MENU_WORLD_TILTS;
-}
-
-bool menu_world_can_turn_a_frame(Snes *s)
-{
-    if (m_direct_page(s) != 0x0000 || s->cpu.db != 0x00)
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = world_can_turn_a_frame(g, menu_object_running(g));
-    vars_peek(false);
-    return ok;
-}
-
-/* After them the script reads only X and the carry. */
-static void leave_for_the_script(Snes *s, uint16_t x, bool carry)
-{
-    s->cpu.x = x;
-    m_set_flag(s, CPU_FLAG_C, carry);
-    m_rtl(s);
-}
-
-// $C6:E7FA
-/* X is the last tile the drawing looked at, the bottom right tile of the last
- * map tile's group; the carry is set, its rows' count having reached its end;
- * the accumulator is 8 bits wide, as it came. */
-void menu_object_draw_the_world(Snes *s)
-{
-    GameState *g = state_of(s);
-    Plane land = the_land(g), over = over_the_land(g);
-    draw_the_world(g, m_platform(s), land, over);
-    leave_for_the_script(s, last_map_tile(g, over).bottom & MENU_MAP_TILE_NUMBER, true);
-}
-
-/* The turn's routines come back 16 bits wide, with X on the object and the
- * carry set where the plane's centre (its place down, the high half of the
- * shadow) is past the screen's bottom. */
-static void leave_turned(Snes *s)
-{
-    GameState *g = state_of(s);
-    uint16_t centre_y = (uint16_t)(menu_object_shadows_mode7_center(g) >> 16);
-    m_rep(s, CPU_FLAG_M);
-    leave_for_the_script(s, menu_object_current(g), centre_y >= SCREEN_BOTTOM);
-}
-
-// $C6:E90F
-void menu_object_start_the_world_turning(Snes *s)
-{
-    GameState *g = state_of(s);
-    MenuObject o = menu_object_running(g);
-    start_the_world_turning(g, m_platform(s), o);
-    NATIVE_TIME_AS(s, 0xC6E9F5, turn_a_frame(g, o));
-    leave_turned(s);
-}
-
-// $C6:E9F5
-void menu_object_turn_the_world(Snes *s)
-{
-    GameState *g = state_of(s);
-    turn_a_frame(g, menu_object_running(g));
-    leave_turned(s);
 }
 
 // $C6:EE23
@@ -452,15 +348,6 @@ static bool hand_the_turn_on(GameState *g, MenuObject o)
     uint16_t angle = menu_object_slots_phase(g, o), turn = menu_object_scratch_world_turn_handed_on(g);
     set_menu_object_slots_phase(g, o, (uint16_t)(angle + turn));
     return angle + turn > 0xFFFF;
-}
-
-/* The carry is the add's. */
-void menu_object_turn_the_world_on(Snes *s)
-{
-    GameState *g = state_of(s);
-    bool round = hand_the_turn_on(g, menu_object_running(g));
-    m_rep(s, CPU_FLAG_M);
-    leave_for_the_script(s, menu_object_current(g), round);
 }
 
 /* ---- As the program's scene calls them ------------------------------------------------------- */

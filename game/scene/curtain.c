@@ -20,7 +20,6 @@
 #include "charge.h"
 #include "core/program.h"
 #include "cpu_io.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "scene/scene_data.h"
 #include "vars.h"
@@ -28,19 +27,13 @@
 
 typedef enum { NO_SWEEP = 0, FROM_THE_LEFT = 1, FROM_THE_RIGHT = 2 } CurtainSweep;
 
-enum {
-    CURTAIN_LINES = 0xE0,      /* the picture's 224 lines */
-    EDGES_KEPT_AT = 0x1C0,     /* where the edges are kept, past the table's start */
-    LAST_STEP = 0x20,          /* the sweep ends when its step count gets here */
-    FIRST_BANK = 0x7E, SECOND_BANK = 0x7F,
-    CLOSED_AT_THE_LEFT = 0x00, CLOSED_AT_THE_RIGHT = 0xFF,
-    RUN_SHORTEST = 3, RUN_SPREAD = 0x1F, MOVE_LEAST = 8, MOVE_SPREAD = 0x03,
-};
+enum { CURTAIN_LINES = 0xE0, /* the picture's 224 lines */
+    EDGES_KEPT_AT = 0x1C0, /* where the edges are kept, past the table's start */
+    LAST_STEP = 0x20, /* the sweep ends when its step count gets here */
+    FIRST_BANK = 0x7E, SECOND_BANK = 0x7F, CLOSED_AT_THE_LEFT = 0x00, CLOSED_AT_THE_RIGHT = 0xFF, RUN_SHORTEST = 3, RUN_SPREAD = 0x1F, MOVE_LEAST = 8, MOVE_SPREAD = 0x03,  };
 
 /* The pointer the original keeps into the random bytes: their page and bank. */
 enum { RANDOM_BYTES_PAGE_AND_BANK = 0xC0FE };
-
-
 
 /* The first step: every line's edge closed at the side the curtain starts
  * from. Only the bank's low bit says which bank the edges are in here. */
@@ -48,7 +41,6 @@ static void close_every_line(GameState *g, uint16_t edges, uint8_t bank, uint8_t
 {
     uint8_t in_bank = (bank & 1) ? SECOND_BANK : FIRST_BANK;
     wram_fill8(g, (uint32_t)in_bank << 16 | edges, CURTAIN_LINES, fill);
-    charge_machine_accesses(g, 1);
 }
 
 /* A run of lines that move alike: how many, and how far. */
@@ -132,12 +124,10 @@ void scene_curtain_step(GameState *g, Platform *pf, uint16_t salt)
         return;
     }
 
-    charge_machine_accesses(g, 2);
     SceneDraw d = scene_draw_random(g, pf, PF_AT(0xC3024A), scene_draw_from(RANDOM_BYTES_PAGE_AND_BANK & 0xFF, steps >= LAST_STEP,
                                                                            TM_ENTROPY_BYTES),
                                     salt, TM_ENTROPY_BYTES);
     set_scene_curtain_table_bank_high(g, (uint8_t)d);
-    charge_machine_accesses(g, 2);
 
     /* Odd steps send the edges to the table, even ones to the half after it. */
     uint16_t sent_to = (steps & 1) ? table : (uint16_t)(table + CURTAIN_LINES);
@@ -156,7 +146,6 @@ void scene_curtain_step(GameState *g, Platform *pf, uint16_t salt)
         hw_port_write(g, edge);
         wram_write8(g, at, edge);
     }
-    charge_machine_accesses(g, 1);
 }
 
 /* The step as the scenes' C paths take it, with its entry's guard's state
@@ -167,20 +156,11 @@ enum { CURTAIN_STEP_ROUTINE = 0xC301E4 };
 bool scene_curtain_stepped(GameState *g, Platform *pf, uint16_t salt)
 {
     if (!scene_curtain_table_fits(scene_curtain_table_bank(g), scene_curtain_table(g))) {
-        program_needs_the_machine(g, CURTAIN_STEP_ROUTINE, "a curtain whose table the port doesn't sweep");
+        program_fail(g, CURTAIN_STEP_ROUTINE, "a curtain whose table the port doesn't sweep");
         return false;
     }
     TIMED_AS(g, CURTAIN_STEP_ROUTINE, scene_curtain_step(g, pf, salt));
     return true;
-}
-
-/* The step saves every register and its flags and puts them back; the data
- * bank, put back last, leaves its N and Z. */
-void scene_sweep_the_curtain(Snes *s)
-{
-    scene_curtain_step(state_of(s), m_platform(s), s->cpu.x);
-    m_set_nz8(s, s->cpu.db);
-    m_rtl(s);
 }
 
 /* A sweep started, its edges in `table` $1C0 bytes on, in `bank`; the step
@@ -198,8 +178,6 @@ void scene_curtain_start(GameState *g, uint8_t sweep, uint16_t table, uint8_t ba
  * step directly. The platform still synchronizes the noise's beam latch. */
 enum { CURTAIN_STEP = 0xC301E4 };
 
-void scene_curtain_jump(Snes *s) { TIMED_AS(state_of(s), CURTAIN_STEP, scene_sweep_the_curtain(s)); }
-
 /* The edges in either work RAM bank, clear of low RAM's first $2000 bytes
  * (the stack and the curtain's own cells, which the original's saved
  * registers and the step would write over); in the second bank, the halves
@@ -212,14 +190,4 @@ bool scene_curtain_table_fits(uint8_t bank, uint16_t table)
     if (bank == SECOND_BANK)
         return (uint32_t)table + HALVES_REACH <= 0x10000u;
     return bank == FIRST_BANK && table >= LOW_RAM_END && (uint32_t)table + TABLE_REACH <= 0x10000u;
-}
-
-bool scene_sweep_the_curtain_present(Snes *s)
-{
-    if (!m_bank_reaches_low_ram(s))
-        return false;
-    vars_peek(true);
-    bool fits = scene_curtain_table_fits(scene_curtain_table_bank(state_of(s)), scene_curtain_table(state_of(s)));
-    vars_peek(false);
-    return fits;
 }

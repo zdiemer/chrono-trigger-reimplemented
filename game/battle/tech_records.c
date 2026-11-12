@@ -73,10 +73,7 @@ static uint8_t set_slot_cost(GameState *g, unsigned record, uint8_t character, u
 
 /* The direct page's cells the search works in, which the rest of the fight's
  * start overwrites before anything reads them (scaffolding). */
-enum {
-    LOOKED_PAST = BATTLE_CLOCK_READS, TECH_TWICE = 0x02, RECORDS_AT = 0x04, TECH_AT = BATTLE_NUMBER_TESTED,
-    LEARNED_READ = 0x0C, TECHS_END = BATTLE_TECH_HITS_LEFT, PER_BYTE = 0x10, SPARE = 0x14,
-};
+enum { LOOKED_PAST = BATTLE_CLOCK_READS, TECH_TWICE = 0x02, RECORDS_AT = 0x04, TECH_AT = BATTLE_NUMBER_TESTED, LEARNED_READ = 0x0C, TECHS_END = BATTLE_TECH_HITS_LEFT, PER_BYTE = 0x10, SPARE = 0x14,  };
 
 /* Whether all three of a tech's members are in the battle: each a character
  * in a party slot. */
@@ -123,10 +120,8 @@ static void fill_triple(GameState *g, uint8_t member, uint8_t tech)
      * place), the last entered with the carry the second member's
      * accessory's test left (scaffolding) */
     battle_leave_multiply(g, tech, PARTY_TECH_BYTES);
-    charge_machine_accesses(g, 4);
     uint8_t high = (uint8_t)(partner_slot(g, 2, member) << 4);
     /* the original works the partners out in the search's first cell */
-    charge_machine_accesses(g, 1);
     set_battle_tech_records_partners(g, record, (uint8_t)(high | partner_slot(g, 1, member)));
 }
 
@@ -149,7 +144,6 @@ static void set_up_triple_tech(GameState *g, uint8_t member)
 {
     if (!combatant_in_fight(g, member)) {
         battle_note_curtain_noise(g, 0);
-        charge_machine_accesses(g, 10);
         return;
     }
     for (uint8_t tech = FIRST_TRIPLE_TECH; tech < TRIPLE_TECHS_END; tech++) {
@@ -159,13 +153,11 @@ static void set_up_triple_tech(GameState *g, uint8_t member)
         effect_take_tech_members(g, tech);
         if (members_in_battle(g)) {
             battle_note_curtain_noise(g, tech);
-            (charge_machine_accesses(g, 16), charge_machine_rom_accesses(g, 2));
             fill_triple(g, member, tech);
             return;
         }
     }
     battle_note_curtain_noise(g, TRIPLE_TECHS_END);
-    (charge_machine_accesses(g, 16), charge_machine_rom_accesses(g, 2));
 }
 
 void battle_find_triple_tech(GameState *g, uint8_t member) { set_up_triple_tech(g, member); }
@@ -187,8 +179,7 @@ static uint8_t doubles_learned_byte(const GameState *g, unsigned n)
  * the learned byte it was at, where the techs end, the bit in the byte, the
  * doubles filled, and a word the double techs' builder steps by twelve a tech
  * without starting it. */
-enum { COUNTED_AT = 0x00, TECH_TWICE_AT = 0x02, RECORD_PLACE_AT = 0x04, CURRENT_TECH = 0x08, STEPPED = 0x0A,
-       LEARNED_AT = 0x0C, TECHS_END_AT = 0x0E, BIT_IN_BYTE = 0x10, DOUBLES_FILLED = 0x14, STEP_BYTES = 12 };
+enum { COUNTED_AT = 0x00, TECH_TWICE_AT = 0x02, RECORD_PLACE_AT = 0x04, CURRENT_TECH = 0x08, STEPPED = 0x0A, LEARNED_AT = 0x0C, TECHS_END_AT = 0x0E, BIT_IN_BYTE = 0x10, DOUBLES_FILLED = 0x14, STEP_BYTES = 12 };
 
 /* The carry the search for a tech's members ($C1:CB93) leaves, its members'
  * number times three past a byte, which the next multiply is entered with. */
@@ -221,7 +212,6 @@ void battle_set_up_single_techs(GameState *g, uint8_t member)
 {
     if (!combatant_in_fight(g, member)) {
         battle_note_curtain_noise(g, 0);
-        charge_machine_accesses(g, 6);
         return;
     }
     uint8_t character = battle_combatant_fighting(g, member);
@@ -234,7 +224,6 @@ void battle_set_up_single_techs(GameState *g, uint8_t member)
             effect_take_tech_members(g, tech);
             start_record(g, record, tech);
             set_slot_cost(g, record, battle_tech_members(g, 0), part_cost(g, tech, 0));
-            (charge_machine_accesses(g, 1), charge_machine_rom_accesses(g, 4 + 2 * PARTY_TECH_PARTS));
             set_battle_tech_records_partners(g, record, NO_PARTNER_BYTE);
         }
         learned = (uint8_t)(learned << 1);
@@ -242,7 +231,6 @@ void battle_set_up_single_techs(GameState *g, uint8_t member)
         tech++;
     } while (tech < end);
     battle_note_curtain_noise(g, end);
-    (charge_machine_accesses(g, 12), charge_machine_rom_accesses(g, 2));
 }
 
 static bool learned_double(const GameState *g, uint8_t tech)
@@ -276,7 +264,6 @@ static void fill_double(GameState *g, uint8_t member, unsigned record, uint8_t t
     uint8_t first = battle_tech_members(g, 0), second = battle_tech_members(g, 1);
     set_slot_cost(g, record, first, part_cost(g, tech, 0));
     set_slot_cost(g, record, second, part_cost(g, tech, 1));
-    charge_machine_accesses(g, 3);
     uint8_t partner = battle_character_slot(g, second);
     if (partner == member)
         partner = battle_character_slot(g, first);
@@ -291,7 +278,6 @@ void battle_set_up_double_techs(GameState *g, uint8_t member)
 {
     if (!combatant_in_fight(g, member)) {
         battle_note_curtain_noise(g, 0);
-        charge_machine_accesses(g, 10);
         return;
     }
     unsigned filled = 0;
@@ -307,7 +293,6 @@ void battle_set_up_double_techs(GameState *g, uint8_t member)
             break;
     }
     battle_note_curtain_noise(g, tech);
-    (charge_machine_accesses(g, 20), charge_machine_rom_accesses(g, 2));
 }
 
 // $FD:AD09

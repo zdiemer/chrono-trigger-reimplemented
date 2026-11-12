@@ -6,7 +6,6 @@
 #include <stdint.h>
 
 #include "platform/platform.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* Unpack the stream at `stream` to `to`, as the original's call at `site`
@@ -42,19 +41,13 @@ void overworld_clear_the_sign_label(GameState *g);
 /* The unpacker as C (data/decompress.h); and for a machine entry, at the pace
  * its reaching the unpacker's entry had while there was one: run in place
  * (unpack_stream_run), or called on the machine (unpack_stream_called). */
-Unpacker overworld_unpacker_on_the_machine(Snes *s);
-Unpacker overworld_unpacker_called(Snes *s);
 Unpacker overworld_unpacker(GameState *g);
 
 /* The world map set up on the machine where the sprite-object mode's start
  * goes on to it, in the shipping mode: the set up as C and the main loop
  * waiting for its first frame (the original's set up from its start where
  * the state breaks the set up's contract). */
-void overworld_starts_on_the_machine(Snes *s);
-bool overworld_set_up_runs(Snes *s);
 /* The map's tiles' load as a scene's script calls it on the machine
  * (entries.c), and its contract. */
-void overworld_load_the_map_tiles_on_the_machine(Snes *s);
-bool overworld_map_tiles_run(Snes *s);
 
 #endif

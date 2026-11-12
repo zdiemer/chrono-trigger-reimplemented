@@ -1116,10 +1116,10 @@ static VarsRangeFault range_faults[] = {
 static void out_of_range(const GameState *g, unsigned var, const char *accessor, const char *bound,
                          unsigned index, unsigned limit)
 {
+    (void)g;
     VarsRangeFault *f = &range_faults[var];
     if (f->kept < VARS_RANGE_HITS_KEPT) {
         uint32_t pc = 0; /* Native state has no emulated program counter. */
-        (void)g;
         f->first[f->kept++] = (VarsRangeHit){ accessor, bound, index, limit, pc };
     }
     f->count++;

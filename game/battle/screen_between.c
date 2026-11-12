@@ -76,7 +76,6 @@ static uint8_t measure_direction(GameState *g, BattlePoint from, BattlePoint to)
     Run across = run_between(from.x, to.x), down = run_between(from.y, to.y);
     uint8_t direction = direction_between(g, across, down);
     keep_direction_work(g, across, down);
-    charge_machine_accesses(g, 9);
     return direction;
 }
 
@@ -144,7 +143,6 @@ static BandSides band_sides(GameState *g, uint8_t direction)
 {
     uint8_t half_width = battle_script_variables(g, HALF_WIDTH_VARIABLE);
     BandSides s = sides_across(g, direction, half_width);
-    (charge_machine_accesses(g, 4), charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, 1));
     return s;
 }
 
@@ -221,7 +219,6 @@ static ScreenTriangle wedge_corners(BattlePoint first, BattlePoint second, BandS
 static ScreenFlow lay_wedge(GameState *g, uint8_t pair)
 {
     BandSides s = band_sides(g, aim_along(g, WEDGE_KEPT_PAIR, WEDGE_AIM));
-    charge_machine_accesses(g, 2);
     screen_draw_window_triangle(g, WEDGE_WINDOW, wedge_corners(pair_first(g, pair), pair_second(g, pair), s));
     return screen_on();
 }

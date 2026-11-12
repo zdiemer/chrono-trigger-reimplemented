@@ -135,7 +135,6 @@ static uint16_t divided(uint16_t n, uint8_t d) { return d ? (uint16_t)(n / d) : 
  * (screen_motion.c swings it). */
 static ScreenFlow start_swing(GameState *g, ScreenChannel channel, uint8_t frames)
 {
-    charge_machine_io_accesses(g, 3);
     set_battle_screen_layer_swing_rising(g, channel, 0);
     set_battle_screen_swing_speed(g, channel, FASTEST);
     set_battle_screen_swing_position(g, channel, SWING_START);
@@ -212,7 +211,6 @@ static void orbit_layer(GameState *g, ScreenChannel channel, const OrbitSizes *o
     uint8_t circle_y = screen_signed_sine(g, circle, o->circle_down);
     show_point(g, channel, (uint8_t)(screen_signed_cosine(g, sway, o->sway) + across + circle_x),
                (uint8_t)(screen_signed_sine(g, bob, o->bob) + down + circle_y));
-    (charge_machine_accesses(g, 9), charge_machine_io_accesses(g, 4), charge_machine_rom_accesses(g, 1));
 }
 
 static OrbitSizes orbit_sizes(const GameState *g, uint8_t orbit)

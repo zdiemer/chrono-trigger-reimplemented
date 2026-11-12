@@ -16,8 +16,7 @@
  * the driver to take them. Without its panel (the attract sequence's) the race
  * ends behind a curtain.
  *
- * The attract sequence and the playable races use these operations. Their
- * machine forms check the scene program's code image in work RAM. What the
+ * The attract sequence and the playable races use these operations. What the
  * race does each frame -- the bikes, the camera, the drawing -- is in
  * race_rules.c, race_camera.c, race_projection.c and race_drawing.c (race.h). */
 #include "scene/race.h"
@@ -25,7 +24,6 @@
 
 #include "platform/audio.h"
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "charge.h"
 #include "cpu_io.h"
@@ -38,30 +36,14 @@
 static const VidVramPort down_a_column = { .step = 128, .after_high = false };
 
 /* Where the race keeps its graphics in VRAM. */
-enum {
-    PLANE_VRAM = 0x0000,          /* the Mode 7 plane: its name table in the low bytes, its pixels in the high */
-    PLANE_COLUMN_VRAM = 0x0B00,   /* the column of the name table the track scrolls in at */
-    RACERS_MAP_A_VRAM = 0x4000,   /* the two halves of the racers' tilemap, drawn alternately */
-    RACERS_MAP_B_VRAM = 0x4400,
-    ROAD_STRIP_VRAM = 0x5180,
-    SPRITE_TILES_VRAM = 0x5000,   /* the sprites' second page of tiles */
-    BG1_MAP_VRAM = 0x6000,
-    BG2_MAP_VRAM = 0x6400,
-    BG3_MAP_VRAM = 0x6800,
-    LAYER_TILES_VRAM = 0x7000,
-    MORE_LAYER_TILES_VRAM = 0x7100,
-};
+enum { PLANE_VRAM = 0x0000, /* the Mode 7 plane: its name table in the low bytes, its pixels in the high */
+    PLANE_COLUMN_VRAM = 0x0B00, /* the column of the name table the track scrolls in at */
+    RACERS_MAP_A_VRAM = 0x4000, /* the two halves of the racers' tilemap, drawn alternately */
+    RACERS_MAP_B_VRAM = 0x4400, ROAD_STRIP_VRAM = 0x5180, SPRITE_TILES_VRAM = 0x5000, /* the sprites' second page of tiles */
+    BG1_MAP_VRAM = 0x6000, BG2_MAP_VRAM = 0x6400, BG3_MAP_VRAM = 0x6800, LAYER_TILES_VRAM = 0x7000, MORE_LAYER_TILES_VRAM = 0x7100,  };
 
 /* The race's buffers in work RAM. */
-enum {
-    LINE_TABLES = 0x7EF000, LINE_TABLES_BYTES = 0x1000,
-    TILEMAP_BUFFER_BYTES = 0x1200, TILEMAP_HALF_BYTES = 0x0800,
-    ROAD_STRIP = 0x7EE100, ROAD_STRIP_BYTES = 0x0040,
-    SCALER_OUTPUT = 0x7F0300, SCALER_OUTPUT_BYTES = 0x0700,
-    PLANE_COLUMN_COPY = 0x7EC995, PLANE_COLUMN_BYTES = 0x0013, PLANE_COLUMN_READ_BYTES = 0x0014,
-    PLANE_MAP_HALF_BYTES = 0x2000,
-    RACERS_MAP_BYTES = 0x1000,
-};
+enum { LINE_TABLES = 0x7EF000, LINE_TABLES_BYTES = 0x1000, TILEMAP_BUFFER_BYTES = 0x1200, TILEMAP_HALF_BYTES = 0x0800, ROAD_STRIP = 0x7EE100, ROAD_STRIP_BYTES = 0x0040, SCALER_OUTPUT = 0x7F0300, SCALER_OUTPUT_BYTES = 0x0700, PLANE_COLUMN_COPY = 0x7EC995, PLANE_COLUMN_BYTES = 0x0013, PLANE_COLUMN_READ_BYTES = 0x0014, PLANE_MAP_HALF_BYTES = 0x2000, RACERS_MAP_BYTES = 0x1000,  };
 
 /* The plane's name table in the cartridge, whose first column the race sends
  * before it has one of its own. */
@@ -144,89 +126,36 @@ void scene_upload_plane_half(Platform *pf)
 typedef enum { RACE_SONG_STARTS, RACE_GRAPHICS_ENTERED, RACE_GRAPHICS_LEFT, RACE_UNPACK, RACE_UNPACK_HOLDING, RACE_FIRST_STEP } RaceCall;
 typedef bool (*RaceCalls)(void *ctx, RaceCall call, unsigned unpacking, uint16_t resource);
 
-/* The direct page and the data bank the original has at a call. */
-static void on_page(Snes *s, uint16_t page, uint8_t bank)
-{
-    s->cpu.d = page;
-    s->cpu.db = bank;
-}
-
 /* The program's unpacker ($7E:3691): the resource's place in the program's
  * resource list in X, and the unpacking into the destination the caller has
  * set; it reads nothing else but the overflow, the data bank and the direct
  * page, which it hands back. */
-enum { UNPACK = 0x7E3691, UNPACK_IGNORES = DC_A | DC_Y | DC_N | DC_Z | DC_C };
-
-static bool unpack(Snes *s, uint32_t site, uint16_t resource)
-{
-    s->cpu.x = resource;
-    return scene_run_called(s, site, UNPACK, UNPACK_IGNORES, scene_unpack_resource);
-}
+enum { UNPACK = 0x7E3691 };
 
 /* While the setup works on the racers' pictures the program keeps the data
  * bank and the direct page on the stack, works through the work RAM port's
  * registers' page with the data bank on its pictures' bank, and its sums have
  * left the overflow clear. */
-enum { REGISTERS_PAGE = M_DP_PPU };
-
-static bool unpack_holding(Snes *s, uint32_t site, uint16_t resource)
-{
-    uint8_t bank = s->cpu.db;
-    uint16_t page = m_direct_page(s);
-    m_push8(s, bank);
-    m_push16(s, page);
-    on_page(s, REGISTERS_PAGE, SCENE_UPPER_WORK_RAM);
-    m_set_flag(s, CPU_FLAG_V, false);
-    if (!unpack(s, site, resource))
-        return false;
-    page = m_pull16(s);
-    on_page(s, page, m_pull8(s));
-    return true;
-}
 
 /* The camera script's first step: the program's routine for channel 0's
  * ($7E:3749), called with 16-bit A and its data bank kept on the stack. It
  * reads Y and the overflow: Y as the divisors' clear left it, past the table
  * (scene_race_divisors' 256 bytes from $1446, and one), and the overflow clear. */
 enum { FIRST_STEP_CALL = 0x7E3CD8, CHANNEL_0_STEP = 0x7E3749, DIVISORS_CLEARED_TO = 0x1546 };
-enum { FIRST_STEP_IGNORES = DC_A | DC_X | DC_N | DC_Z | DC_C };
-
-static bool first_script_step(Snes *s)
-{
-    uint8_t bank = s->cpu.db;
-    m_push8(s, bank);
-    m_set_flag(s, CPU_FLAG_M, false);
-    s->cpu.y = DIVISORS_CLEARED_TO;
-    m_set_flag(s, CPU_FLAG_V, false);
-    if (!scene_run_called(s, FIRST_STEP_CALL, CHANNEL_0_STEP, FIRST_STEP_IGNORES, scene_run_channel_0_script))
-        return false;
-    on_page(s, m_direct_page(s), m_pull8(s));
-    return true;
-}
 
 /* ---- Setting the race up ------------------------------------------------------------------------- */
 
 /* The race's buffers, where it puts its graphics as it unpacks them, in the
  * program's two banks of work RAM. */
-enum {
-    UNPACKED_PALETTE = 0x002000,         /* the first bank, as the unpacker takes it (a bank byte of 0) */
-    SCENE_PALETTE = 0x7E2200, PALETTE_BYTES = 0x200,
-    PLANE_ROW_BYTES = 0x40, PLANE_ROWS_A_HALF = 0x40,
-};
+enum { UNPACKED_PALETTE = 0x002000, /* the first bank, as the unpacker takes it (a bank byte of 0) */
+    SCENE_PALETTE = 0x7E2200, PALETTE_BYTES = 0x200, PLANE_ROW_BYTES = 0x40, PLANE_ROWS_A_HALF = 0x40,  };
 
 /* The pictures the racers are scaled from (the bank of pictures, in the second
  * bank): rows of 64 pixels, a byte a pixel. Crono's are unpacked in two parts,
  * the second's eight-pixel blocks placed in the first's rows; Johnny's are
  * Crono's mirrored, half a row each, beside 32 empty pixels; the shared
  * pictures' last part is mirrored too. */
-enum {
-    PICTURES = 0x7F0A00, PICTURE_ROW = 0x40,
-    CRONO_PICTURES_SECOND = 0x7F8A00,
-    CRONO_PICTURES_COPY = 0x7F3800, CRONO_PICTURES_COPY_BYTES = 0x2E00,
-    BLOCK_ROWS = 8, BLOCK_PIXELS = 8,
-    MIRRORED_FIRST = 0x7F5A00, MIRRORED_SECOND = 0x7F7800, MIRRORED_THIRD = 0x7FAE00,
-    MIRRORED_PIXELS = 0x20,
-};
+enum { PICTURES = 0x7F0A00, PICTURE_ROW = 0x40, CRONO_PICTURES_SECOND = 0x7F8A00, CRONO_PICTURES_COPY = 0x7F3800, CRONO_PICTURES_COPY_BYTES = 0x2E00, BLOCK_ROWS = 8, BLOCK_PIXELS = 8, MIRRORED_FIRST = 0x7F5A00, MIRRORED_SECOND = 0x7F7800, MIRRORED_THIRD = 0x7FAE00, MIRRORED_PIXELS = 0x20,  };
 
 /* The race's graphics in the program's resources, each unpacked and sent where
  * it goes: the palette, the plane's pixels and its name table (in two halves,
@@ -254,12 +183,6 @@ static const RaceGraphics race_graphics[] = {
     { 0x21, LAYER_MAP, BG2_MAP_VRAM, 0x7E3EA3 },
 };
 
-/* The program's calls that unpack each, beside the table, and then the
- * racers' pictures' three (below). The setup names a call by its place here. */
-static const uint32_t unpacked_at[] = {
-    0x7E3DBF, 0x7E3DD1, 0x7E3DEA, 0x7E3DF7, 0x7E3E19, 0x7E3E29, 0x7E3E39, 0x7E3E7D, 0x7E3E93, 0x7E3EA9,
-    0x7E3B69, 0x7E3B75, 0x7E3BEF,
-};
 enum { CRONO_FIRST_UNPACKED = 10, CRONO_SECOND_UNPACKED = 11, THIRD_UNPACKED = 12 };
 enum { RACE_GRAPHICS = sizeof race_graphics / sizeof race_graphics[0] };
 
@@ -464,10 +387,7 @@ static bool load_racers_pictures(GameState *g, RaceCalls call, void *ctx)
 
 /* The camera's script and the race's, on channels 0 and 1: the race's own, or
  * in the demo one of the two camera scripts in turn, each showing. */
-enum {
-    RACE_CAMERA_SCRIPT = 0x3F14, RACE_SCRIPT = 0x400A,
-    DEMO_CAMERA_SCRIPT = 0x404D, DEMO_OTHER_CAMERA_SCRIPT = 0x40C3, DEMO_SCRIPT = 0x415E,
-};
+enum { RACE_CAMERA_SCRIPT = 0x3F14, RACE_SCRIPT = 0x400A, DEMO_CAMERA_SCRIPT = 0x404D, DEMO_OTHER_CAMERA_SCRIPT = 0x40C3, DEMO_SCRIPT = 0x415E,  };
 
 /* The scene's fade steps every 8 frames. */
 enum { FADE_PERIOD = 8 };
@@ -578,20 +498,6 @@ static bool set_up_the_race(GameState *g, Platform *pf, RaceCalls call, void *ct
     return true;
 }
 
-/* On the machine each from the program's own call. */
-static bool race_on_the_machine(void *ctx, RaceCall call, unsigned unpacking, uint16_t resource)
-{
-    Snes *s = ctx;
-    switch (call) {
-    case RACE_SONG_STARTS: scene_bridge_start_song(s, 0x7E3B5A, (uint8_t)resource); return true;
-    case RACE_GRAPHICS_ENTERED: scene_bridge_enter(s, 0x7E3B5D); return true;
-    case RACE_GRAPHICS_LEFT: scene_bridge_leave(s); return true;
-    case RACE_UNPACK: return unpack(s, unpacked_at[unpacking], resource);
-    case RACE_UNPACK_HOLDING: return unpack_holding(s, unpacked_at[unpacking], resource);
-    default: return first_script_step(s);
-    }
-}
-
 /* As C: the unpacker and the camera script's turn are the program's as C. */
 typedef struct {
     GameState *game;
@@ -621,40 +527,6 @@ bool scene_race_set_up(GameState *g, Platform *pf)
     return set_up_the_race(g, pf, race_call, &c);
 }
 
-/* ---- Entry: the setup ------------------------------------------------------------------------------ */
-
-/* The setup's code and the program's routines it runs inline: the loader and
- * the pictures' arrangers, the bikes' start and the divisors' clear, the
- * descriptors of the per-line effects, the palette's copy, the unpacker's
- * destination, the transfer, the plane's rows doubled and sent, the song's
- * start and the first script step. */
-bool scene_race_set_up_present(Snes *s)
-{
-    return scene_on_scene_page(s) && m_bank_reaches_io(s) && m_code_matches(s, 0x7E3B48, 0x3CC, 0x513F3387F89BAD7Cull) &&
-           m_code_matches(s, 0x7E45D6, 0x6D, 0x6ACAE04A5CF51C92ull) && m_code_matches(s, 0x7E4309, 0x10, 0xA622B4E22F9620ABull) &&
-           m_code_matches(s, 0x7E37A6, 0x24, 0x5FBEEF82E0975340ull) && m_code_matches(s, 0x7E38AF, 0x14, 0xD31DAC893D4743DCull) &&
-           m_code_matches(s, 0x7E89ED, 0x14, 0x22A581F747CC4E58ull) && m_code_matches(s, 0x7E38E7, 36, 0xDD4B67DA62CC8E67ull) &&
-           m_code_matches(s, 0x7E8752, 32, 0xE25F56B609E8320Eull) && m_code_matches(s, 0x7E36CC, 60, 0x45191A42A1EEF6A8ull) &&
-           m_code_matches(s, 0x7E375F, 0x1B, 0x5BCDF92C47B920DDull) && m_code_matches(s, 0x7E3749, 0x0B, 0xA2E313B1BE3A1D93ull);
-}
-
-/* Entered from the program's mode table with 8-bit A; back, the matrix code's
- * writer has left the data bank and the direct page at 0 and the overflow
- * clear, which the program reads. */
-/* The setup leaves Y as the matrix code's writer left it, which the frame's
- * first vblank tasks may read. */
-
-bool scene_race_set_up_scene(Snes *s)
-{
-    if (!set_up_the_race(state_of(s), m_platform(s), race_on_the_machine, s))
-        return false;
-    s->cpu.d = 0x0000;
-    s->cpu.db = 0x00;
-    m_set_flag(s, CPU_FLAG_V, false);
-    s->cpu.p |= CPU_FLAG_M;
-    return true;
-}
-
 /* ---- The curtain ----------------------------------------------------------------------------- */
 
 /* Without its panel, the race ends behind a curtain (the scene engine's,
@@ -662,11 +534,6 @@ bool scene_race_set_up_scene(Snes *s)
  * sweeps. Its window's left edge goes through one of two per-line tables, in
  * the program's data, the other each step. */
 enum { CURTAIN_TABLE_EVEN = 0x3D6B, CURTAIN_TABLE_ODD = 0x3D64, CURTAIN_WINDOW_SLOT = 0 };
-
-bool scene_race_sweep_curtain_present(Snes *s)
-{
-    return scene_on_scene_page(s) && m_bank_reaches_io(s) && m_code_matches(s, 0x7E3D64, 40, 0xF435DB14E38FCB6Eull);
-}
 
 // $7E:3D72
 static uint16_t curtain_table(const GameState *g)
@@ -683,7 +550,7 @@ static void show_curtain_step(const GameState *g, Platform *pf)
 /* The curtain's step saves every register and puts them back, and reads
  * none but X, which it saves where the analysis counts it read: the task's
  * own, handed it as it is. */
-enum { CURTAIN_STEP = 0xC3000E, CURTAIN_IGNORES = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+enum { CURTAIN_STEP = 0xC3000E };
 
 /* What the task leaves: 8-bit A the steps halved, X the table, the carry the
  * step's oddness. */
@@ -697,19 +564,6 @@ static bool sweep_curtain_with(GameState *g, Platform *pf, bool (*step)(void *ct
         return false;
     show_curtain_step(g, pf);
     return true;
-}
-
-static bool curtain_step_on_the_machine(void *ctx)
-{
-    return scene_run_long_called(ctx, 0x7E3D72, CURTAIN_STEP, CURTAIN_IGNORES, scene_curtain_jump);
-}
-
-void scene_race_sweep_curtain_entry(Snes *s)
-{
-    if (!sweep_curtain_with(state_of(s), m_platform(s), curtain_step_on_the_machine, s))
-        return;
-    charge_legacy_accesses(state_of(s), 2);
-    m_rts(s);
 }
 
 /* As C, the step's port, with its guard's state half (scene/curtain.c). Its
@@ -733,13 +587,6 @@ TaskEnd scene_race_sweep_curtain(GameState *g, Platform *pf, unsigned slot)
     if (!sweep_curtain_with(g, pf, curtain_step, &c))
         return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
     return task_goes_on();
-}
-
-/* ---- The race running ----------------------------------------------------------------------- */
-
-bool scene_race_move_camera_present(Snes *s)
-{
-    return m_bank_reaches_low_ram(s) && m_code_matches(s, 0x7E43F2, 0x55, 0xDBEA3A9A200F00DEull);
 }
 
 // $7E:43F2
@@ -776,15 +623,6 @@ TaskEnd scene_race_move_camera(GameState *g, Platform *pf, unsigned slot)
     return task_goes_on();
 }
 
-/* Nothing it leaves in the registers is read. */
-void scene_race_move_camera_entry(Snes *s)
-{
-    scene_race_move_camera(state_of(s), m_platform(s), 0);
-    m_rts(s);
-}
-
-bool scene_race_upload_column_present(Snes *s) { return m_code_matches(s, 0x7E4643, 52, 0xAE7FE41C71F7EB77ull); }
-
 /* A column of the plane's name table down into the low bytes of VRAM, a row
  * (128 words) at a time. The transfer writes the data port's low half alone,
  * which the upload calls model as words, so it goes through the SNES-only
@@ -805,14 +643,6 @@ static TaskEnd send_column_once(Platform *pf, uint32_t column)
     return task_is_done();
 }
 
-/* The transfer's accumulator byte is dead at the vblank list's return,
- * as it is for scene_run_vblank_tasks itself. */
-static void upload_column_entry(Snes *s, uint32_t column)
-{
-    (void)send_column_once(m_platform(s), column);
-    scene_finish_task(s, SCENE_VBLANK_TASKS, task_is_done());
-}
-
 // $7E:4643
 /* The column from the plane's name table in the cartridge. */
 TaskEnd scene_race_upload_column_rom(GameState *g, Platform *pf, unsigned slot)
@@ -821,7 +651,6 @@ TaskEnd scene_race_upload_column_rom(GameState *g, Platform *pf, unsigned slot)
     (void)slot;
     return send_column_once(pf, PLANE_MAP_IN_ROM);
 }
-void scene_race_upload_column_rom_entry(Snes *s) { upload_column_entry(s, PLANE_MAP_IN_ROM); }
 
 // $7E:464D
 /* The column from the race's own copy of it. */
@@ -830,12 +659,6 @@ TaskEnd scene_race_upload_column_ram(GameState *g, Platform *pf, unsigned slot)
     (void)g;
     (void)slot;
     return send_column_once(pf, PLANE_COLUMN_COPY);
-}
-void scene_race_upload_column_ram_entry(Snes *s) { upload_column_entry(s, PLANE_COLUMN_COPY); }
-
-bool scene_race_upload_tilemap_present(Snes *s)
-{
-    return scene_on_scene_page(s) && m_code_matches(s, 0x7E5221, 106, 0x2A63AA398E2A05CBull);
 }
 
 // $7E:5221
@@ -866,51 +689,12 @@ TaskEnd scene_race_upload_tilemap(GameState *g, Platform *pf, unsigned slot)
     return task_goes_on();
 }
 
-/* Nothing it leaves in the registers is read. */
-void scene_race_upload_tilemap_entry(Snes *s)
-{
-    scene_race_upload_tilemap(state_of(s), m_platform(s), 0);
-    m_rts(s);
-}
-
-/* The strip's code is inside the tilemap upload's, and it reaches nothing
- * through the direct page. */
-bool scene_race_upload_strip_present(Snes *s) { return m_code_matches(s, 0x7E5221, 106, 0x2A63AA398E2A05CBull); }
-
 // $7E:5261
 /* The scaled road strip, a word at a time. Also the end of the vblank task that
  * sets the horizon (scene_race_set_horizon, $7E:44FE), which goes on here. */
 void race_upload_road_strip(Platform *pf)
 {
     vid_send_vram(pf, PF_AT(0x7E5287), ROAD_STRIP_VRAM, PF_GAME(ROAD_STRIP), ROAD_STRIP_BYTES, SCENE_VRAM_WHOLE_WORDS);
-}
-
-bool scene_race_wait_for_tilemap_upload_present(Snes *s)
-{
-    return scene_on_scene_page(s) && m_code_matches(s, 0x7E5211, 4, 0x19A0BC775B1B7057ull);
-}
-
-// $7E:5211
-/* One pass of the race's wait for the tilemap it marked finished to be sent,
- * which the vblank upload marks done; then on at $7E:5215. Idle entry, 16-bit
- * A. The wait is for the frame (docs/TODO.md). */
-void scene_race_wait_for_tilemap_upload_loop_entry(Snes *s)
-{
-    uint16_t pending = scene_race_tilemap_pending(state_of(s));
-    s->cpu.a = pending;
-    m_set_nz16(s, pending);
-    if (pending == 0)
-        s->cpu.pc = 0x5215;
-}
-
-// $7E:5211
-/* Wait for vblank to send the racers' finished tilemap. The pending word
- * and saved caller frame reconstruct the loop after loading a state. */
-void scene_race_wait_for_tilemap_upload_loop(Snes *s)
-{
-    do {
-        scene_race_wait_for_tilemap_upload_loop_entry(s);
-    } while (native_idle_held(s));
 }
 
 /* ---- The engine's sound --------------------------------------------------------------------- */
@@ -958,20 +742,6 @@ bool race_send_sound(GameState *g, Platform *pf, RaceSound sound, RaceSends send
  * after. It reads none of the registers but Y and the data bank, which it
  * leaves (and nothing after these calls reads A or the flags it changes). */
 enum { SCENE_SEND = 0x7E377E };
-
-bool race_sound_on_the_machine(void *ctx, GameState *g, Platform *pf, RaceSound sound)
-{
-    (void)g;
-    (void)pf;
-    Snes *s = ctx;
-    bool a_8bit = m_flag(s, CPU_FLAG_M);
-    m_set_flag(s, CPU_FLAG_M, true);
-    if (!scene_run_called(s, race_sounds[sound].site, SCENE_SEND, DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C,
-                    scene_send_sound_command))
-        return false;
-    m_set_flag(s, CPU_FLAG_M, a_8bit);
-    return true;
-}
 
 /* As C, the send's port, timed as the program's send. */
 bool race_sound(void *ctx, GameState *g, Platform *pf, RaceSound sound)

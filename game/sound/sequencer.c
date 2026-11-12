@@ -20,15 +20,9 @@
 #include "core/sound_data.h"
 #include "sound/driver.h"
 
-enum {
-    FIRST_TIE = 0xA8,
-    FIRST_REST = 0xB6,
-    FIRST_EVENT = 0xC4,
-    NOTE_LENGTHS = 14,
-    RELEASE_TICKS = 2,          /* a note not held is released this many ticks before it ends */
-    NOTE_BELOW_OCTAVE = 10,     /* the first note of an octave is this many semitones into it */
-    EFFECT_BEAT = 0x81          /* the effects' tempo */
-};
+enum { FIRST_TIE = 0xA8, FIRST_REST = 0xB6, FIRST_EVENT = 0xC4, NOTE_LENGTHS = 14, RELEASE_TICKS = 2, /* a note not held is released this many ticks before it ends */
+    NOTE_BELOW_OCTAVE = 10, /* the first note of an octave is this many semitones into it */
+    EFFECT_BEAT = 0x81          /* the effects' tempo */ };
 
 typedef enum { TRACK_GOES_ON, TRACK_ENDED } TrackFlow;
 

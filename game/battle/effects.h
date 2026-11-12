@@ -27,59 +27,16 @@
 
 #include "battle/battle.h"
 #include "battle/positions.h"
-#include "snes/system.h"
 #include "state.h"
 #include "vars.h"
 
 enum { BATTLE_EFFECTS = 8, BATTLE_ANCHORS = 8 };
-
-static inline void place_combatant_x(GameState *g, unsigned slot, uint8_t x)
-{
-    set_battle_object_x(g, battle_object_of(slot), x);
-}
-static inline void place_combatant_y(GameState *g, unsigned slot, uint8_t y)
-{
-    set_battle_object_y(g, battle_object_of(slot), y);
-}
-
-/* How far a combatant's sprite is drawn from where it stands, signed: a
- * jump lifts it, an orbit or a flicker moves it about, and its trail records
- * it. */
-static inline int8_t combatant_sprite_offset_x(const GameState *g, unsigned slot)
-{
-    return (int8_t)battle_sprite_offset_x(g, slot);
-}
-static inline int8_t combatant_sprite_offset_y(const GameState *g, unsigned slot)
-{
-    return (int8_t)battle_sprite_offset_y(g, slot);
-}
-static inline void set_combatant_sprite_offset(GameState *g, unsigned slot, int8_t x, int8_t y)
-{
-    set_battle_sprite_offset_x(g, slot, (uint8_t)x);
-    set_battle_sprite_offset_y(g, slot, (uint8_t)y);
-}
-static inline void set_combatant_sprite_offset_y(GameState *g, unsigned slot, uint8_t y)
-{
-    set_battle_sprite_offset_y(g, slot, y);
-}
 
 /* The effects drawn with a combatant: its records, a row an effect and a
  * byte a combatant in each row. A record names an effect (its low three
  * bits) and the side of the combatant it is drawn on: in front of it, or
  * behind it; 0 is none. */
 enum { BATTLE_RECORD_EFFECT = 0x07, BATTLE_RECORD_IN_FRONT = 0x80, BATTLE_RECORD_BEHIND = 0x40 };
-
-static inline unsigned battle_record_of(unsigned slot, unsigned row) { return row * BATTLE_COMBATANTS + slot; }
-
-/* An anchor's position is a word a coordinate: a place on the battlefield
- * whose high byte is 0, unless a chase took it off the edge. */
-static inline int16_t anchor_x(const GameState *g, unsigned anchor) { return (int16_t)battle_anchor_x(g, anchor); }
-static inline int16_t anchor_y(const GameState *g, unsigned anchor) { return (int16_t)battle_anchor_y(g, anchor); }
-static inline void place_anchor(GameState *g, unsigned anchor, int16_t x, int16_t y)
-{
-    set_battle_anchor_x(g, anchor, (uint16_t)x);
-    set_battle_anchor_y(g, anchor, (uint16_t)y);
-}
 
 /* ---- Movers ------------------------------------------------------------------------------- */
 
@@ -94,8 +51,75 @@ typedef struct {
     uint8_t index;
 } Mover;
 
+/* The kinds of path a mover runs (battle/effect_paths.c), by the number its
+ * entry keeps. */
+typedef enum {
+    PATH_LINE, PATH_JUMP, PATH_SPIRAL, PATH_ORBIT, PATH_JUMP_TO_TARGET, PATH_ORBIT_FLAT, PATH_FLICKER, PATH_CHASE,
+    PATH_KINDS
+} PathKind;
+
+/* ---- The guards (registry .guard) ------------------------------------------------------ */
+
+/* On the battle's page with the data bank at $7E, as battle/bridge.h's
+ * battle_on_page; other files' entries take it by this name too. */
+/* ... with A's high byte 0, as the frame's update calls the motion. */
+/* ... and every running mover on one of the eight kinds of path, as the game
+ * starts them (battle/effect_paths.c). */
+/* ... and the effect loop's cells naming a combatant or an anchor, as the loop
+ * sets them for a path's routine. */
+
+static inline void place_combatant_x(GameState *g, unsigned slot, uint8_t x)
+{
+    set_battle_object_x(g, battle_object_of(slot), x);
+}
+
+static inline void place_combatant_y(GameState *g, unsigned slot, uint8_t y)
+{
+    set_battle_object_y(g, battle_object_of(slot), y);
+}
+
+/* How far a combatant's sprite is drawn from where it stands, signed: a
+ * jump lifts it, an orbit or a flicker moves it about, and its trail records
+ * it. */
+static inline int8_t combatant_sprite_offset_x(const GameState *g, unsigned slot)
+{
+    return (int8_t)battle_sprite_offset_x(g, slot);
+}
+
+static inline int8_t combatant_sprite_offset_y(const GameState *g, unsigned slot)
+{
+    return (int8_t)battle_sprite_offset_y(g, slot);
+}
+
+static inline void set_combatant_sprite_offset(GameState *g, unsigned slot, int8_t x, int8_t y)
+{
+    set_battle_sprite_offset_x(g, slot, (uint8_t)x);
+    set_battle_sprite_offset_y(g, slot, (uint8_t)y);
+}
+
+static inline void set_combatant_sprite_offset_y(GameState *g, unsigned slot, uint8_t y)
+{
+    set_battle_sprite_offset_y(g, slot, y);
+}
+
+static inline unsigned battle_record_of(unsigned slot, unsigned row) { return row * BATTLE_COMBATANTS + slot; }
+
+/* An anchor's position is a word a coordinate: a place on the battlefield
+ * whose high byte is 0, unless a chase took it off the edge. */
+static inline int16_t anchor_x(const GameState *g, unsigned anchor) { return (int16_t)battle_anchor_x(g, anchor); }
+
+static inline int16_t anchor_y(const GameState *g, unsigned anchor) { return (int16_t)battle_anchor_y(g, anchor); }
+
+static inline void place_anchor(GameState *g, unsigned anchor, int16_t x, int16_t y)
+{
+    set_battle_anchor_x(g, anchor, (uint16_t)x);
+    set_battle_anchor_y(g, anchor, (uint16_t)y);
+}
+
 static inline Mover combatant_mover(uint8_t slot) { return (Mover){ MOVES_COMBATANT, slot }; }
+
 static inline Mover anchor_mover(uint8_t anchor) { return (Mover){ MOVES_ANCHOR, anchor }; }
+
 static inline bool mover_is_anchor(Mover m) { return m.kind == MOVES_ANCHOR; }
 
 /* The mover's entry in the movers' tables. */
@@ -110,6 +134,7 @@ static inline BattlePoint mover_position(const GameState *g, Mover m)
         return (BattlePoint){ (uint8_t)anchor_x(g, m.index), (uint8_t)anchor_y(g, m.index) };
     return (BattlePoint){ combatant_x(g, m.index), combatant_y(g, m.index) };
 }
+
 static inline void place_mover(GameState *g, Mover m, BattlePoint p)
 {
     if (mover_is_anchor(m)) {
@@ -120,20 +145,15 @@ static inline void place_mover(GameState *g, Mover m, BattlePoint p)
     }
 }
 
-/* The kinds of path a mover runs (battle/effect_paths.c), by the number its
- * entry keeps. */
-typedef enum {
-    PATH_LINE, PATH_JUMP, PATH_SPIRAL, PATH_ORBIT, PATH_JUMP_TO_TARGET, PATH_ORBIT_FLAT, PATH_FLICKER, PATH_CHASE,
-    PATH_KINDS
-} PathKind;
-
 /* Whether the mover's path has come to its end. The flag counts: a path that
  * ends sets it, and the homing jump counts its arrivals on it. */
 static inline uint8_t mover_done_count(const GameState *g, Mover m)
 {
     return mover_is_anchor(m) ? battle_anchor_done(g, m.index) : battle_effect_done(g, m.index);
 }
+
 static inline bool mover_path_done(const GameState *g, Mover m) { return mover_done_count(g, m) != 0; }
+
 static inline void set_mover_done_count(GameState *g, Mover m, uint8_t n)
 {
     if (mover_is_anchor(m))
@@ -141,18 +161,5 @@ static inline void set_mover_done_count(GameState *g, Mover m, uint8_t n)
     else
         set_battle_effect_done(g, m.index, n);
 }
-
-/* ---- The guards (registry .guard) ------------------------------------------------------ */
-
-/* On the battle's page with the data bank at $7E, as battle/bridge.h's
- * battle_on_page; other files' entries take it by this name too. */
-bool battle_effect_page(Snes *s);
-/* ... with A's high byte 0, as the frame's update calls the motion. */
-bool battle_effect_handler_ready(Snes *s);
-/* ... and every running mover on one of the eight kinds of path, as the game
- * starts them (battle/effect_paths.c). */
-bool battle_effect_paths_ready(Snes *s);
-/* ... and the effect loop's cells naming a combatant or an anchor, as the loop
- * sets them for a path's routine. */
 
 #endif

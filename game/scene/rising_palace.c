@@ -33,7 +33,6 @@
 #include "core/program.h"
 #include "cpu_io.h"
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
@@ -94,7 +93,7 @@ bool scene_turn_map(GameState *g)
 {
     unsigned rows = scene_turned_map_rows(g);
     if (!rows || rows > MAP_MAX_ROWS) {
-        program_needs_the_machine(g, 0x7E7441, "a turned map larger than its buffer");
+        program_fail(g, 0x7E7441, "a turned map larger than its buffer");
         return false;
     }
     uint16_t a = scene_turn_matrix(g, 0), b = scene_turn_matrix(g, 1);
@@ -280,15 +279,6 @@ static void finish_the_palace(GameState *g, Platform *pf)
     set_scene_race_ending_sweep(g, CURTAIN_FROM_THE_LEFT);
 }
 
-/* ---- The frame tasks --------------------------------------------------------------------------- */
-
-/* A task's A as its original leaves it, read whole or as its last byte. */
-static TaskLeftovers leaves_a(uint16_t a) { return (TaskLeftovers){ .a_set = true, .a = a }; }
-static TaskLeftovers leaves_a_low(uint8_t low)
-{
-    return (TaskLeftovers){ .a_set = true, .a = low, .a_8bit = true, .a_high_as_called = true };
-}
-
 /* The turn's matrix: a step of the angle's cosine or sine (in 256ths) times
  * a quarter of the scale (its low byte), over 8, the sign kept apart. */
 static int16_t scaled(int16_t trig, uint8_t quarter_scale)
@@ -326,12 +316,6 @@ static TaskEnd work_out_the_turn_task(GameState *g, Platform *pf)
     return task_goes_on();
 }
 
-static TaskLeftovers work_out_the_turn_leaves(const GameState *g, TaskEnd end)
-{
-    (void)end;
-    return leaves_a(scene_channel_register(g, TURN_CHANNEL, TURN_Y));
-}
-
 /* The shimmer: every other line of the palace pushed right by its strength,
  * from the first line on odd frames and from the second on even ones. */
 enum { UNSHIFTED = 0 };
@@ -345,12 +329,6 @@ static TaskEnd shimmer_the_palace_task(GameState *g, Platform *pf)
     for (unsigned line = 0; line < SCENE_PALACE_LINE_SHIFTS_COUNT; line++)
         set_scene_palace_line_shifts(g, line, ((line & 1) == 0) == odd_frame ? strength : UNSHIFTED);
     return task_goes_on();
-}
-
-static TaskLeftovers shimmer_the_palace_leaves(const GameState *g, TaskEnd end)
-{
-    (void)end;
-    return leaves_a(scene_channel_register(g, PALACE_CHANNEL, SHIMMER));
 }
 
 /* The ripple: the columns' offsets a ridge across the picture, rising by the
@@ -403,13 +381,6 @@ static TaskEnd ripple_the_palace_task(GameState *g, Platform *pf)
     return task_goes_on();
 }
 
-/* It leaves the sea's scroll in 8-bit A, whose high byte is read. */
-static TaskLeftovers ripple_the_palace_leaves(const GameState *g, TaskEnd end)
-{
-    (void)end;
-    return (TaskLeftovers){ .a_set = true, .a = scene_palace_sea_scroll(g), .a_8bit = true };
-}
-
 /* The fades, one after another, each when the palette's animations have
  * finished the last: the palace darkens, then from its colors goes to white,
  * then from white comes back to its colors. The last puts the sky and the
@@ -448,16 +419,6 @@ static TaskEnd clear_the_palace_task(GameState *g, Platform *pf)
     return task_is_done();
 }
 
-/* Each works in 8-bit A: waiting, its last load is the slot's kind; started,
- * the fade's period, or its last level for the last. */
-static TaskLeftovers fade_leaves(const GameState *g, TaskEnd end, uint8_t started)
-{
-    return leaves_a_low(end.outcome == TASK_GOES_ON ? palette_animations_kind(g, PALACE_FADE_SLOT) : started);
-}
-static TaskLeftovers darken_the_palace_leaves(const GameState *g, TaskEnd end) { return fade_leaves(g, end, EVERY_FRAME); }
-static TaskLeftovers whiten_the_palace_leaves(const GameState *g, TaskEnd end) { return fade_leaves(g, end, EVERY_FRAME); }
-static TaskLeftovers clear_the_palace_leaves(const GameState *g, TaskEnd end) { return fade_leaves(g, end, AS_LOADED); }
-
 /* ---- The vblank tasks ---------------------------------------------------------------------------- */
 
 /* The column offsets into BG3's map, and the scrolls: BG3's across, which
@@ -480,51 +441,21 @@ static TaskEnd send_the_map_task(GameState *g, Platform *pf)
     return task_goes_on();
 }
 
-/* The vblank list reads nothing a task leaves but the overflow, which these
- * keep. */
-static TaskLeftovers leaves_nothing_read(const GameState *g, TaskEnd end)
-{
-    (void)g;
-    (void)end;
-    return (TaskLeftovers){ 0 };
-}
-
 /* ---- The rows ---------------------------------------------------------------------------------- */
 
-enum {
-    ROW_WORK_OUT_THE_TURN, ROW_SHIMMER, ROW_RIPPLE, ROW_DARKEN, ROW_WHITEN, ROW_CLEAR, ROW_SEND_THE_OFFSETS,
-    ROW_SEND_THE_MAP,
-};
+enum { ROW_WORK_OUT_THE_TURN, ROW_SHIMMER, ROW_RIPPLE, ROW_DARKEN, ROW_WHITEN, ROW_CLEAR, ROW_SEND_THE_OFFSETS, ROW_SEND_THE_MAP,  };
 
 const SceneTaskPort scene_palace_tasks[] = {
-    [ROW_WORK_OUT_THE_TURN] = { SCENE_TASK_WORK_OUT_THE_TURN, SCENE_FRAME_TASKS, work_out_the_turn_task,
-      scene_work_out_the_turn_present, work_out_the_turn_leaves, false },
-    [ROW_SHIMMER] = { SCENE_TASK_SHIMMER_THE_PALACE, SCENE_FRAME_TASKS, shimmer_the_palace_task,
-      scene_shimmer_the_palace_present, shimmer_the_palace_leaves, false },
-    [ROW_RIPPLE] = { SCENE_TASK_RIPPLE_THE_PALACE, SCENE_FRAME_TASKS, ripple_the_palace_task,
-      scene_ripple_the_palace_present, ripple_the_palace_leaves, false },
-    [ROW_DARKEN] = { SCENE_TASK_DARKEN_THE_PALACE, SCENE_FRAME_TASKS, darken_the_palace_task,
-      scene_darken_the_palace_present, darken_the_palace_leaves, false },
-    [ROW_WHITEN] = { SCENE_TASK_WHITEN_THE_PALACE, SCENE_FRAME_TASKS, whiten_the_palace_task,
-      scene_whiten_the_palace_present, whiten_the_palace_leaves, false },
-    [ROW_CLEAR] = { SCENE_TASK_CLEAR_THE_PALACE, SCENE_FRAME_TASKS, clear_the_palace_task,
-      scene_clear_the_palace_present, clear_the_palace_leaves, false },
-    [ROW_SEND_THE_OFFSETS] = { SCENE_TASK_SEND_THE_PALACE_OFFSETS, SCENE_VBLANK_TASKS, send_the_offsets_task,
-      scene_send_the_palace_offsets_present, leaves_nothing_read, false },
-    [ROW_SEND_THE_MAP] = { SCENE_TASK_SEND_THE_MAP, SCENE_VBLANK_TASKS, send_the_map_task, scene_send_the_map_present,
-      leaves_nothing_read, false },
+    [ROW_WORK_OUT_THE_TURN] = { SCENE_TASK_WORK_OUT_THE_TURN, SCENE_FRAME_TASKS, work_out_the_turn_task },
+    [ROW_SHIMMER] = { SCENE_TASK_SHIMMER_THE_PALACE, SCENE_FRAME_TASKS, shimmer_the_palace_task },
+    [ROW_RIPPLE] = { SCENE_TASK_RIPPLE_THE_PALACE, SCENE_FRAME_TASKS, ripple_the_palace_task },
+    [ROW_DARKEN] = { SCENE_TASK_DARKEN_THE_PALACE, SCENE_FRAME_TASKS, darken_the_palace_task },
+    [ROW_WHITEN] = { SCENE_TASK_WHITEN_THE_PALACE, SCENE_FRAME_TASKS, whiten_the_palace_task },
+    [ROW_CLEAR] = { SCENE_TASK_CLEAR_THE_PALACE, SCENE_FRAME_TASKS, clear_the_palace_task },
+    [ROW_SEND_THE_OFFSETS] = { SCENE_TASK_SEND_THE_PALACE_OFFSETS, SCENE_VBLANK_TASKS, send_the_offsets_task },
+    [ROW_SEND_THE_MAP] = { SCENE_TASK_SEND_THE_MAP, SCENE_VBLANK_TASKS, send_the_map_task },
 };
 const unsigned scene_palace_task_count = sizeof scene_palace_tasks / sizeof scene_palace_tasks[0];
-
-/* ---- Entries ----------------------------------------------------------------------------------- */
-
-/* The scripts' first step: channel 0's, which runs the first command of
- * channel 1's too. It reads Y -- the setup's load of channel 1's script -- and
- * the overflow as the dispatch left it. */
-static bool take_the_scripts_first_step(Snes *s)
-{
-    return scene_bridge_first_script_step(s, 0x7E6792, scene_channels_script(state_of(s), PALACE_CHANNEL));
-}
 
 /* The setup: the scene started, the scripts' first step by `first_step`,
  * then the rest. False where the step went no further. */
@@ -534,23 +465,6 @@ static bool set_up_the_palace_with(GameState *g, Platform *pf, bool (*first_step
     if (!first_step(ctx))
         return false;
     finish_the_palace(g, pf);
-    return true;
-}
-
-static bool first_step_on_the_machine(void *ctx)
-{
-    return take_the_scripts_first_step(ctx);
-}
-
-/* Entered with 8-bit A. Back, the direct page is the scene's, the data bank
- * the setup's, and Y and the overflow as the palette's frame left them, which
- * the frame's work reads. */
-bool scene_palace_set_up_scene(Snes *s)
-{
-    if (!set_up_the_palace_with(state_of(s), m_platform(s), first_step_on_the_machine, s))
-        return false;
-    s->cpu.y = palette_animations_leave();
-    m_set_flag(s, CPU_FLAG_V, false);
     return true;
 }
 
@@ -586,7 +500,7 @@ bool scene_palace_set_up(GameState *g, Platform *pf)
  * the registers but X, the list's place of the task, which it is handed as
  * the list hands it. The task is the list's original's for the same reason,
  * and runs as C where the list calls it. */
-enum { CURTAIN_STEP = 0xC301E4, CURTAIN_IGNORES = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+enum { CURTAIN_STEP = 0xC301E4 };
 enum { CURTAIN_RUNS_ODD = 0x688A, CURTAIN_RUNS_EVEN = 0x6891, CURTAIN_WINDOW_SLOT = 0 };
 
 static uint16_t curtain_runs(const GameState *g)
@@ -612,21 +526,6 @@ static bool sweep_the_curtain_with(GameState *g, Platform *pf, bool (*step)(void
     return true;
 }
 
-static bool curtain_step_on_the_machine(void *ctx)
-{
-    return scene_run_long_called(ctx, 0x7E6844, CURTAIN_STEP, CURTAIN_IGNORES, scene_sweep_the_curtain);
-}
-
-/* Back in 8-bit A, as the original returns: its caller may read the width
- * before it sets it again. Nothing else it leaves is read. */
-void scene_sweep_the_palace_curtain_entry(Snes *s)
-{
-    if (!sweep_the_curtain_with(state_of(s), m_platform(s), curtain_step_on_the_machine, s))
-        return;
-    s->cpu.p |= CPU_FLAG_M;
-    m_rts(s);
-}
-
 /* As C, the step's port with its guard's state half (scene/curtain.c), its
  * stir taking the slot's place in the list as the list hands it. */
 typedef struct {
@@ -647,82 +546,4 @@ TaskEnd scene_sweep_the_palace_curtain(GameState *g, Platform *pf, unsigned slot
     if (!sweep_the_curtain_with(g, pf, curtain_step, &c))
         return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
     return task_goes_on();
-}
-
-/* ---- The guards -------------------------------------------------------------------------------- */
-
-/* The map's upload, but for its VRAM address, an operand the setup changes. */
-static bool map_upload_present(Snes *s)
-{
-    return m_code_matches(s, 0x7E783C, 0x05, 0x66C70DDCCCA82B8Aull) && m_code_matches(s, 0x7E7843, 0x25, 0x8BD16C8B6369962Cull);
-}
-
-/* The fades' code, but for their steps, operands the setup changes, and the
- * start of a fade they share. */
-static bool fades_present(Snes *s)
-{
-    return m_code_matches(s, 0x7E6A51, 0x0E, 0x76A269030313F095ull) && m_code_matches(s, 0x7E6A60, 0x22, 0x9CF7C8427464CFB9ull) &&
-           m_code_matches(s, 0x7E6A83, 0x28, 0xFD8500DEDA75E486ull) && m_code_matches(s, 0x7E6AAC, 0x58, 0x140EB672974620E3ull);
-}
-
-/* The setup's code with the per-line effects' descriptors and the curtain's
- * runs after it, the routines it runs inline -- the map's upload, the start of
- * the fades, the per-line effects' setup. Its stores reach the registers and
- * low RAM through the data bank. */
-bool scene_palace_set_up_present(Snes *s)
-{
-    return m_bank_reaches_io(s) && m_code_matches(s, 0x7E671F, 0x179, 0x7F7DD6C50970626Dull) && map_upload_present(s) &&
-           m_code_matches(s, 0x7E6ACD, 0x37, 0x7BD9C42F87390D90ull) && m_code_matches(s, 0x7E36CC, 60, 0x45191A42A1EEF6A8ull);
-}
-
-/* The frame tasks' code, and the sine's for the turn; their cells are the
- * scene's page's and low RAM's, through the data bank. */
-bool scene_work_out_the_turn_present(Snes *s)
-{
-    return scene_on_scene_page_io_bank(s) && m_code_matches(s, 0x7E73C6, 0x7B, 0x36BC8E88DCDF28B4ull) &&
-           m_code_matches(s, 0x7E3461, 0x19, 0xA2486F18B991C163ull);
-}
-bool scene_shimmer_the_palace_present(Snes *s) { return scene_on_scene_page(s) && m_code_matches(s, 0x7E6A23, 0x2E, 0x5E2E94B36E1B51FEull); }
-bool scene_ripple_the_palace_present(Snes *s)
-{
-    return scene_on_scene_page_io_bank(s) && m_code_matches(s, 0x7E69AF, 0x74, 0x8FBF611061CB7DB8ull);
-}
-bool scene_darken_the_palace_present(Snes *s) { return scene_on_scene_page_low_bank(s) && fades_present(s); }
-bool scene_whiten_the_palace_present(Snes *s) { return scene_on_scene_page_low_bank(s) && fades_present(s); }
-bool scene_clear_the_palace_present(Snes *s) { return scene_on_scene_page_io_bank(s) && fades_present(s); }
-
-/* The vblank tasks' code, the registers reached through the data bank; the
- * map's upload's flag is on the scene's page, and the curtain's step is
- * guarded as its own entry is. */
-bool scene_send_the_palace_offsets_present(Snes *s)
-{
-    return m_bank_reaches_io(s) && m_code_matches(s, 0x7E66DD, 0x42, 0x36B301835107C4E7ull);
-}
-bool scene_sweep_the_palace_curtain_present(Snes *s)
-{
-    return m_bank_reaches_io(s) && m_code_matches(s, 0x7E6844, 0x54, 0xAD0EB1A3FDD62E94ull) && scene_sweep_the_curtain_present(s);
-}
-bool scene_send_the_map_present(Snes *s) { return scene_on_scene_page_io_bank(s) && map_upload_present(s); }
-
-bool scene_turn_map_present(Snes *s)
-{
-    if (!scene_on_scene_page_io_bank(s) ||
-        !m_code_matches(s, 0x7E7441, 1, 0xAF64244C860266E4ull) ||
-        !m_code_matches(s, 0x7E7443, 0x5B, 0x6AFB6AD36BCAA34Dull) ||
-        !m_code_matches(s, 0x7E74A0, 7, 0x593E02525E5A3090ull) ||
-        !m_code_matches(s, 0x7E74A9, 7, 0x4C238FE8ACB2B654ull) ||
-        !m_code_matches(s, 0x7E74B2, 9, 0x2C2A69B8D557FE55ull) ||
-        !m_code_matches(s, 0x7E74BD, 0x20, 0x48E3260253F6A993ull))
-        return false;
-    vars_peek(true);
-    unsigned rows = scene_turned_map_rows(state_of(s));
-    vars_peek(false);
-    return rows && rows <= MAP_MAX_ROWS;
-}
-
-void scene_turn_map_entry(Snes *s)
-{
-    (void)scene_turn_map(state_of(s));
-    charge_legacy_accesses(state_of(s), 1);
-    m_rts(s);
 }

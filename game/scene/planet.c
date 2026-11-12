@@ -22,13 +22,10 @@
  * twinkle's frame is drawn as the program's sprite for it, its attributes
  * and its place from the star's, with the frame's tile. */
 #include "scene/scene.h"
-#include "core/console.h"
 
 #include "charge.h"
 #include "core/program.h"
 #include "platform/audio.h"
-#include "port/machine.h"
-#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
@@ -102,20 +99,6 @@ static TaskEnd step_the_planet_s_colours_task(GameState *g, Platform *pf)
     charge_legacy_accesses(g, 16);
     colours_stepped = true;
     return task_goes_on();
-}
-
-/* A step taken leaves its last colour in A and Y past the colours stepped;
- * otherwise A's low byte is the frame counter's place in the period (0 where
- * the steps are all taken), its high byte as the list called it. */
-static TaskLeftovers step_the_planet_s_colours_leaves(const GameState *g, TaskEnd end)
-{
-    (void)end;
-    if (!colours_stepped)
-        return (TaskLeftovers){ .a_set = true, .a = (uint8_t)scene_frame_counter(g) & scene_planet_fade_period(g),
-                                .a_8bit = true, .a_high_as_called = true };
-    uint16_t colours = scene_planet_fade_colours(g), palette = scene_planet_fade_palette(g);
-    return (TaskLeftovers){ .a_set = true, .a = wram_read16(g, colour_at(palette, colours - 1u)), .y_set = true,
-                            .y = (uint16_t)(palette + 2 * colours) };
 }
 
 /* The colours set stepping toward a set of others, which the step's task then
@@ -234,17 +217,6 @@ static void put_out_the_stars(GameState *g)
  * anew (both read it last), and as the list called it otherwise. */
 enum { TWINKLES_END = 0x0CC0 };
 
-static TaskLeftovers twinkle_the_stars_leaves(const GameState *g, TaskEnd end)
-{
-    (void)end;
-    TaskLeftovers l = { .a_set = true, .a = TWINKLES_END, .a_8bit = true };
-    if (last_star_frame == STAR_TWINKLED)
-        l = (TaskLeftovers){ .a_set = true, .a = TWINKLES_END, .a_8bit = true, .y_set = true, .y = scene_sprite_index(g) };
-    else if (last_star_frame == STAR_PUT_ANEW)
-        l = (TaskLeftovers){ .a_set = true, .a = TWINKLES_END, .a_8bit = true, .y_set = true, .y = scene_twinkles_hidden(g) };
-    return l;
-}
-
 /* ---- Where the script fades the planet to -------------------------------------------------------- */
 
 /* The scene's two sets of colours the planet fades toward, unpacked by the
@@ -301,20 +273,12 @@ static void fade_the_planet_out_slowly(GameState *g, Platform *pf, uint8_t chann
     set_scene_planet_fade_period(g, SLOW_FADE_PERIOD);
 }
 
-/* The routines' code. */
-bool scene_fade_the_planet_through_present(Snes *s) { return m_code_matches(s, 0x7E63FE, 0x24, 0x69FB288B5034BD32ull); }
-bool scene_fade_the_planet_out_present(Snes *s) { return m_code_matches(s, 0x7E6403, 0x1F, 0x1D0B762344A2A669ull); }
-bool scene_fade_the_planet_out_slowly_present(Snes *s) { return m_code_matches(s, 0x7E6422, 0x17, 0x49E214FE941AF74Full); }
-
 enum { SCENE_ROW_FADE_THE_PLANET_THROUGH, SCENE_ROW_FADE_THE_PLANET_OUT, SCENE_ROW_FADE_THE_PLANET_OUT_SLOWLY };
 
 const SceneScriptRoutine scene_planet_routines[] = {
-    [SCENE_ROW_FADE_THE_PLANET_THROUGH] = { SCENE_ROUTINE_FADE_THE_PLANET_THROUGH, fade_the_planet_through,
-                                             scene_fade_the_planet_through_present, false },
-    [SCENE_ROW_FADE_THE_PLANET_OUT] = { SCENE_ROUTINE_FADE_THE_PLANET_OUT, fade_the_planet_out,
-                                        scene_fade_the_planet_out_present, false },
-    [SCENE_ROW_FADE_THE_PLANET_OUT_SLOWLY] = { SCENE_ROUTINE_FADE_THE_PLANET_OUT_SLOWLY, fade_the_planet_out_slowly,
-                                                scene_fade_the_planet_out_slowly_present, false },
+    [SCENE_ROW_FADE_THE_PLANET_THROUGH] = { SCENE_ROUTINE_FADE_THE_PLANET_THROUGH, fade_the_planet_through },
+    [SCENE_ROW_FADE_THE_PLANET_OUT] = { SCENE_ROUTINE_FADE_THE_PLANET_OUT, fade_the_planet_out },
+    [SCENE_ROW_FADE_THE_PLANET_OUT_SLOWLY] = { SCENE_ROUTINE_FADE_THE_PLANET_OUT_SLOWLY, fade_the_planet_out_slowly },
 };
 const unsigned scene_planet_routine_count = sizeof scene_planet_routines / sizeof scene_planet_routines[0];
 
@@ -323,14 +287,6 @@ const unsigned scene_planet_routine_count = sizeof scene_planet_routines / sizeo
 /* The scene's caption, the program's text "But... the future refused to
  * change.", drawn every frame by a task of the script's while it is up. */
 enum { THE_FUTURE_REFUSED_TO_CHANGE = 0x6644, CAPTION_DRAWING = 0x7E64CA };
-
-// $7E:64BF
-void scene_show_the_planet_s_caption_entry(Snes *s)
-{
-    s->cpu.x = THE_FUTURE_REFUSED_TO_CHANGE;
-    if (scene_accept_continuation(s, CAPTION_DRAWING, scene_draw_caption_entry))
-        TIMED_AS(state_of(s), CAPTION_DRAWING, scene_draw_caption_entry(s));
-}
 
 TaskEnd scene_show_the_planet_s_caption(GameState *g, Platform *pf, unsigned slot)
 {
@@ -346,7 +302,7 @@ TaskEnd scene_show_the_planet_s_caption(GameState *g, Platform *pf, unsigned slo
  * the task hands its slot to the countdown to the scene's end, after which the
  * game starts again from its reset. */
 enum { RESTART_SOUND = 0x81, RESTART_SOUND_PARAMETER = 0x40, COUNT_DOWN_TO_THE_RESTART = 0x63F5 };
-enum { SCENE_SEND = 0x7E377E, THE_SEND_READS_Y = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C };
+enum { SCENE_SEND = 0x7E377E };
 /* The list's exit that hands the task's slot over reads the task that takes
  * it in X; the reset reads none of the registers but Y, which the countdown
  * leaves as it was (the liveness can't rule it out down the field's start). */
@@ -371,25 +327,6 @@ static TaskEnd wait_for_a_button_with(GameState *g, Platform *pf, bool (*send)(v
         return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
     TIMED_AS(g, 0x7E395E, (void)scene_add_task(g, SCENE_FRAME_TASKS, SCENE_TASK_DARKEN));
     return task_hands_over(COUNT_DOWN_TO_THE_RESTART);
-}
-
-static bool send_on_the_machine(void *ctx, Platform *pf)
-{
-    (void)pf;
-    return scene_run_called(ctx, 0x7E63E5, SCENE_SEND, THE_SEND_READS_Y, scene_send_sound_command);
-}
-
-void scene_wait_for_a_button_to_restart_entry(Snes *s)
-{
-    TaskEnd end = wait_for_a_button_with(state_of(s), m_platform(s), send_on_the_machine, s);
-    if (end.outcome == TASK_LEFT_TO_THE_ORIGINAL)
-        return;
-    if (end.outcome == TASK_GOES_ON) {
-        m_set_nz16(s, 0);
-        m_rts(s);
-        return;
-    }
-    scene_finish_task(s, SCENE_FRAME_TASKS, task_hands_over(end.next));
 }
 
 static bool send(void *ctx, Platform *pf)
@@ -417,18 +354,6 @@ static bool count_down(GameState *g)
     return left == 0;
 }
 
-void scene_count_down_to_the_restart_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    bool over = count_down(g);
-    m_set_nz16(s, scene_end_wait(g));
-    if (!over) {
-        m_rts(s);
-        return;
-    }
-    TIMED_AS(g, CONSOLE_RESET, console_reset(s));
-}
-
 /* As C, the reset the program's main thread takes (core/program.h). */
 TaskEnd scene_count_down_to_the_restart(GameState *g, Platform *pf, unsigned slot)
 {
@@ -437,26 +362,6 @@ TaskEnd scene_count_down_to_the_restart(GameState *g, Platform *pf, unsigned slo
         program_resets_the_console(g);
     return task_goes_on();
 }
-
-/* The tasks' code, on the scene's page; the wait's send's, and the list's
- * room for the darkening. */
-bool scene_planet_s_caption_present(Snes *s)
-{
-    return m_code_matches(s, 0x7E64BF, 0x06, 0x95BAD85F81FC3237ull) &&
-           scene_caption_at_present(s, THE_FUTURE_REFUSED_TO_CHANGE);
-}
-
-bool scene_wait_for_a_button_to_restart_present(Snes *s)
-{
-    if (!scene_on_scene_page(s) || !m_code_matches(s, 0x7E63D5, 0x20, 0x04BAEB7BD16D9B0Eull) || !scene_send_sound_command_present(s))
-        return false;
-    vars_peek(true);
-    bool room = scene_task_listed(state_of(s), SCENE_FRAME_TASKS, NO_TASK);
-    vars_peek(false);
-    return room;
-}
-
-bool scene_count_down_to_the_restart_present(Snes *s) { return m_code_matches(s, 0x7E63F5, 0x09, 0xD8B581955D8D3E20ull); }
 
 /* ---- The setup ------------------------------------------------------------------------------------ */
 
@@ -612,32 +517,7 @@ static bool set_up_the_planet_with(GameState *g, Platform *pf, const PlanetSetUp
 /* Putting the stars out, as its entry runs (scene_put_out_the_stars, which
  * refuses a carry the original would add in); it reads nothing else, and
  * leaves the overflow clear for the setup's callers. */
-enum { PUT_OUT_THE_STARS = 0x7E6598, THE_STARS_READ_THE_CARRY = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z };
-
-static bool unpack_on_the_machine(void *ctx, PlanetUnpack which)
-{
-    return scene_bridge_unpack(ctx, planet_unpacks[which].site, planet_unpacks[which].resource);
-}
-
-static bool first_step_on_the_machine(void *ctx)
-{
-    return scene_bridge_first_script_step(ctx, 0x7E62F0, SCENE_Y_PAST_THE_WORKING_PALETTE);
-}
-
-static bool put_out_the_stars_on_the_machine(void *ctx)
-{
-    return scene_run(ctx, 0x7E62FA, PUT_OUT_THE_STARS, THE_STARS_READ_THE_CARRY, scene_put_out_the_stars);
-}
-
-/* True unless a call-out stopped it. The palette animations' stop leaves Y
- * past their slots, as the original's loop does. */
-bool scene_planet_set_up_scene(Snes *s)
-{
-    static const PlanetSetUpSteps on_the_machine = {
-        unpack_on_the_machine, first_step_on_the_machine, put_out_the_stars_on_the_machine,
-    };
-    return set_up_the_planet_with(state_of(s), m_platform(s), &on_the_machine, s);
-}
+enum { PUT_OUT_THE_STARS = 0x7E6598 };
 
 /* ---- As C ---- */
 
@@ -678,67 +558,20 @@ bool scene_planet_set_up(GameState *g, Platform *pf)
     return set_up_the_planet_with(g, pf, &in_the_program, &c);
 }
 
-/* The setup's code, and the program's routines it runs as C: the unpacker's
- * destination set, the letters' widening, the transfer, the captions'
- * colours, the palette made current. */
-bool scene_planet_set_up_present(Snes *s)
-{
-    return scene_on_scene_page(s) && m_bank_reaches_io(s) && m_code_matches(s, 0x7E6248, 0xF5, 0xC63E429D7ED112C2ull) &&
-           m_code_matches(s, 0x7E89ED, 0x14, 0x22A581F747CC4E58ull) && m_code_matches(s, 0x7E66B0, 0x2D, 0x668182BFFD2B1A5Bull) &&
-           scene_transfer_present(s) && m_code_matches(s, 0x7E8772, 0x1E, 0xACB5DF9A02DD40EAull) &&
-           m_code_matches(s, 0x7E38AF, 0x14, 0xD31DAC893D4743DCull);
-}
-
 /* ---- The rows ------------------------------------------------------------------------------- */
 
 enum { ROW_STEP_THE_COLOURS, ROW_TWINKLE };
 
 const SceneTaskPort scene_planet_tasks[] = {
-    [ROW_STEP_THE_COLOURS] = { SCENE_TASK_STEP_THE_PLANET_S_COLOURS, SCENE_FRAME_TASKS, step_the_planet_s_colours_task,
-      scene_step_the_planet_s_colours_present, step_the_planet_s_colours_leaves, false },
-    [ROW_TWINKLE] = { SCENE_TASK_TWINKLE_THE_STARS, SCENE_FRAME_TASKS, twinkle_the_stars_task,
-      scene_twinkle_the_stars_present, twinkle_the_stars_leaves, false },
+    [ROW_STEP_THE_COLOURS] = { SCENE_TASK_STEP_THE_PLANET_S_COLOURS, SCENE_FRAME_TASKS, step_the_planet_s_colours_task },
+    [ROW_TWINKLE] = { SCENE_TASK_TWINKLE_THE_STARS, SCENE_FRAME_TASKS, twinkle_the_stars_task },
 };
 const unsigned scene_planet_task_count = sizeof scene_planet_tasks / sizeof scene_planet_tasks[0];
-
-/* ---- Entries -------------------------------------------------------------------------------- */
-
-/* Called by the setup with 8-bit A; it leaves the loop's end in X and A, the
- * hiding's word in Y, as the original's last loads do, and the overflow its
- * last step to the end clears. */
-void scene_put_out_the_stars(Snes *s)
-{
-    GameState *g = state_of(s);
-    put_out_the_stars(g);
-    s->cpu.x = TWINKLES_END;
-    s->cpu.a = TWINKLES_END;
-    s->cpu.y = scene_twinkles_hidden(g);
-    m_set_flag(s, CPU_FLAG_V, false);
-    m_rts(s);
-}
-
-/* ---- The guards ----------------------------------------------------------------------------- */
-
-/* The program's next random byte ($7E:3448), which putting a star anew takes. */
-static bool random_byte_present(Snes *s) { return m_code_matches(s, 0x7E3448, 0x19, 0x092856CFEC289766ull); }
-
-/* Putting a star anew adds with the carry its caller leaves, which puts the
- * first star a pass puts anew one pixel further right where it is set: no
- * showing enters with it set, and the port refuses it. */
-static bool put_anew_present(Snes *s)
-{
-    return !m_flag(s, CPU_FLAG_C) && m_code_matches(s, 0x7E65AE, 0x2F, 0x2A8A796676B64834ull) && random_byte_present(s);
-}
 
 /* The step's code, from its start to its return, but for its period, an
  * operand the script changes; and where it keeps its working values, which
  * it writes as each colour steps. */
 enum { STEP_CODE = 0x6439, STEP_CODE_END = 0x64BF, WORKING_CELLS = 0x03F0, WORKING_CELLS_END = 0x0400 };
-
-static bool clear_of(uint32_t from, uint32_t bytes, uint16_t start, uint16_t end)
-{
-    return from + bytes <= start || from >= end;
-}
 
 /* The colours, at least one of each, inside the program's bank and clear of
  * the step's code, its working cells and the top of the stack, where its
@@ -747,45 +580,3 @@ static bool clear_of(uint32_t from, uint32_t bytes, uint16_t start, uint16_t end
  * the original would step its own code or its working values. The list asks
  * before its call pushes the return, an entry's guard after. */
 enum { PUSHED_BELOW = 4 };
-
-static bool colours_step_apart(uint16_t at, uint32_t bytes, uint16_t stack)
-{
-    return bytes > 0 && at + bytes <= 0x10000 && clear_of(at, bytes, STEP_CODE, STEP_CODE_END) &&
-           clear_of(at, bytes, WORKING_CELLS, WORKING_CELLS_END) &&
-           clear_of(at, bytes, (uint16_t)(stack - PUSHED_BELOW + 1), (uint16_t)(stack + 1));
-}
-
-bool scene_step_the_planet_s_colours_present(Snes *s)
-{
-    if (!scene_on_scene_page(s) || !m_code_matches(s, 0x7E6439, 0x05, 0x003641B369165D01ull) ||
-        !m_code_matches(s, 0x7E643F, 0x80, 0xC9E23A0C8E34C0ACull))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    uint32_t bytes = 2u * scene_planet_fade_colours(g);
-    uint16_t stack = s->cpu.s;
-    bool ok = colours_step_apart(scene_planet_fade_toward(g), bytes, stack) &&
-              colours_step_apart(scene_planet_fade_palette(g), bytes, stack);
-    vars_peek(false);
-    return ok;
-}
-
-/* The twinkling's code, on the scene's page with the index registers 16-bit,
- * the star records reached through a data bank that also reaches the
- * sprites' tables; room for every star's sprite from the cursor. */
-bool scene_twinkle_the_stars_present(Snes *s)
-{
-    if (!scene_on_scene_page_io_bank(s) || m_x8(s) || !m_code_matches(s, 0x7E65DD, 0x63, 0x317527917B4521B0ull) ||
-        !put_anew_present(s))
-        return false;
-    vars_peek(true);
-    bool fits = scene_sprites_fit(state_of(s), TWINKLES);
-    vars_peek(false);
-    return fits;
-}
-
-bool scene_put_out_the_stars_present(Snes *s)
-{
-    return m_bank_reaches_low_ram(s) && !m_x8(s) && m_code_matches(s, 0x7E6598, 0x16, 0x18149F6024C885CDull) &&
-           put_anew_present(s);
-}

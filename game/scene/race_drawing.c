@@ -18,7 +18,6 @@
 #include "charge.h"
 #include "cpu_io.h"
 #include "platform/input.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -356,26 +355,6 @@ static void draw(GameState *g, Platform *pf)
     draw_racer(g, farther, pose);
 }
 
-/* What the drawing leaves in the arithmetic's working cells, from the state
- * after it: the pose; the first cell Crono's picture's place where one was
- * asked for (`crono_asked`), else the score shown, where the panel is; the
- * second the distance to go's high word, where the panel shows it. */
-static void charge_racer_drawing_temporaries(GameState *g, bool crono_asked)
-{
-    uint32_t mark = charge_uncounted_begin(g);
-    bool panel = panel_shown(g);
-    unsigned accesses = 7; /* two pose inputs, pose word stored, panel flag */
-    if (panel) {
-        accesses += 2;
-        if (scene_race_stage(g) == RACE_RUNNING)
-            accesses += 6; /* distance read and remaining-distance word */
-    }
-    if (crono_asked || panel)
-        accesses += 4; /* animation or score read and frame word stored */
-    charge_uncounted_end(g, mark);
-    charge_legacy_accesses(g, accesses);
-}
-
 /* ---- Entry ------------------------------------------------------------------------------------- */
 
 /* The most sprites a frame of the race draws: both racers' lists, the
@@ -398,21 +377,6 @@ static bool drawing_fits(const GameState *g)
            scene_race_crono_lean(g) <= MOST_LEAN && scene_sprites_fit(g, MOST_SPRITES);
 }
 
-bool scene_race_draw_present(Snes *s)
-{
-    if (!scene_on_scene_page_low_bank(s) || !m_code_matches(s, 0x7E4F54, 0x20, 0x968623895890694Eull) ||
-        !m_code_matches(s, 0x7E4F76, 0x164, 0xC045241A96FE6193ull) ||
-        !m_code_matches(s, 0x7E50DC, 0x31, 0x2D1D3F4109AB1CBEull) ||
-        !m_code_matches(s, 0x7E510E, 0x63, 0xD196A45821235900ull) ||
-        !m_code_matches(s, 0x7E5173, 0x3E, 0x17E12C9F40FEC15Eull) ||
-        !m_code_matches(s, 0x7E39F5, 0x88, 0x6EE9408DE106F647ull))
-        return false;
-    vars_peek(true);
-    bool fits = drawing_fits(state_of(s));
-    vars_peek(false);
-    return fits;
-}
-
 TaskEnd scene_race_draw(GameState *g, Platform *pf, unsigned slot)
 {
     (void)slot;
@@ -420,20 +384,4 @@ TaskEnd scene_race_draw(GameState *g, Platform *pf, unsigned slot)
         return scene_task_needs_the_machine(g, 0x7E4F54, "a race's frame the port's drawing doesn't take");
     draw(g, pf);
     return task_goes_on();
-}
-
-/* What the drawing leaves in A and Y, which the list's code hands on: the
- * last sprite routine's, from the farther racer's list or, out of sight, its
- * mark; Y the next free sprite, where anything was drawn. */
-
-/* A frame task entered with 16-bit A and the carry clear (the list's own
- * compare, for any slot but the first: the pose's sum takes it in). */
-void scene_race_draw_entry(Snes *s)
-{
-    GameState *g = state_of(s);
-    charge_legacy_accesses(g, 4);
-    bool crono_asked = scene_race_picture_requests_state(g, RACER_CRONO) != PICTURE_WAITING;
-    draw(g, m_platform(s));
-    charge_racer_drawing_temporaries(g, crono_asked);
-    m_rts(s);
 }

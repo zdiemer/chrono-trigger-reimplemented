@@ -119,7 +119,6 @@ static void take_the_spoils(GameState *g, uint8_t slot)
         set_battle_tech_points_won_high(g, (uint8_t)(battle_tech_points_won_high(g) + 1));
     set_battle_tech_points_won_low(g, (uint16_t)points);
     uint8_t item = spoils.items.dropped;
-    charge_machine_accesses(g, item != NO_ITEM ? 5 : 4);
     if (item == NO_ITEM)
         return;
     if (item == spoils.items.charm) {
@@ -194,7 +193,6 @@ static void bring_down(GameState *g, unsigned slot)
 {
     if (!combatant_knocked_out(g, slot) && battle_combatant_fighting(g, slot) != COMBATANT_NONE) {
         if (!battle_slot_is_party(slot)) {
-            charge_machine_accesses(g, 1);
             TIMED_AS(g, 0xFDABA2, take_the_spoils(g, (uint8_t)slot));
         }
         set_battle_stats_condition(g, slot, battle_stats_condition(g, slot) | CONDITION_KNOCKED_OUT);

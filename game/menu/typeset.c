@@ -33,8 +33,6 @@
 #include "menu/bridge.h"
 #include "menu/glyphs.h"
 #include "menu/menu_data.h"
-#include "port/machine.h"
-#include "port/native.h"
 #include "vars.h"
 
 /* ---- Where the setting is ------------------------------------------------------------------ */
@@ -44,10 +42,7 @@ typedef enum { FROM_STRING = 0, FROM_INSERT = 1, FROM_DIGITS = 2, FROM_HEX_DIGIT
 
 /* Why a call stopped (typeset.h's MenuTextStop). The start leaves "go on",
  * the first of the breaks. */
-enum {
-    STOP_FINISHED = MENU_TEXT_ENDED, STOP_WAITING = MENU_TEXT_WAITS, GO_ON = MENU_TEXT_BREAKS,
-    FIRST_NEW_LINE = MENU_TEXT_NEW_LINE, LAST_BREAK = MENU_TEXT_LAST_BREAK, STOP_BUDGET = MENU_TEXT_OUT_OF_BUDGET,
-};
+enum { STOP_FINISHED = MENU_TEXT_ENDED, STOP_WAITING = MENU_TEXT_WAITS, GO_ON = MENU_TEXT_BREAKS, FIRST_NEW_LINE = MENU_TEXT_NEW_LINE, LAST_BREAK = MENU_TEXT_LAST_BREAK, STOP_BUDGET = MENU_TEXT_OUT_OF_BUDGET,  };
 
 /* Where a line starts: a tile in from the edge, or indented. */
 enum { MARGIN = 8, INDENT = 0x14, EDGE = 0 };
@@ -137,7 +132,6 @@ enum { FIRST_GLYPH = 0xA0 };
 static void set_glyph(GameState *g, uint16_t glyph)
 {
     uint8_t pen = menu_text_reading_pen(g);
-    charge_machine_accesses(g, 2);
     TIMED_AS(g, tiles_of_layout(layout(g)) == MENU_TILES_4_COLOUR ? 0xC25E36 : 0xC25F07,
              menu_put_glyph(g, glyph, pen, menu_text_tiles(g), tiles_of_layout(layout(g))));
     set_menu_text_reading_pen(g, (uint8_t)(pen + menu_glyph_width(g, (uint8_t)(glyph - FIRST_GLYPH))));
@@ -210,7 +204,6 @@ static void insert_word(GameState *g, uint8_t code, uint16_t entry)
 {
     (void)code;
     uint32_t at = menu_dictionary_word(g, entry);
-    charge_machine_accesses(g, 1);
     insert(g, FROM_INSERT, stepped(at, 1), menu_text_byte(g, at));
 }
 
@@ -233,18 +226,14 @@ static void insert_name_at(GameState *g, uint16_t place)
  * The original finds a name with the multiplier, which it leaves so. */
 enum { SPACE = 0xEF, NAME_BYTES = MENU_NAME_TABLE_BYTES, NO_ICON = 0x2F };
 
-
-
 static void insert_item_name(GameState *g, uint8_t item)
 {
-    charge_machine_io_accesses(g, 4);
     uint32_t at = stepped(menu_item_name(g, item), 1);   /* past the icon */
     insert(g, FROM_INSERT, at, glyphs_before(g, at, SPACE, NAME_BYTES - 1));
 }
 
 static void insert_tech_name(GameState *g, uint8_t tech)
 {
-    charge_machine_io_accesses(g, 4);
     uint32_t at = menu_tech_name(g, tech);
     uint8_t glyphs = glyphs_before(g, at, SPACE, NAME_BYTES);
     if (menu_text_byte(g, at) == NO_ICON) {
@@ -256,7 +245,6 @@ static void insert_tech_name(GameState *g, uint8_t tech)
 
 static void insert_enemy_name(GameState *g, uint8_t enemy)
 {
-    charge_machine_io_accesses(g, 4);
     insert(g, FROM_INSERT, menu_enemy_name(g, enemy), NAME_BYTES);
 }
 
@@ -298,8 +286,6 @@ static uint8_t hex_digits(GameState *g, uint16_t value, uint8_t bytes)
     return n;
 }
 
-
-
 // $C2:5953, $C2:5985, $C2:59C8
 /* A number from the arguments, one to three bytes, as digits to set. */
 static void insert_number(GameState *g, uint8_t bytes)
@@ -308,24 +294,16 @@ static void insert_number(GameState *g, uint8_t bytes)
     uint32_t value = next_argument(g, bytes);
     bool hex = bytes < 3 && menu_text_hex(g) != 0;
     uint8_t count = hex ? hex_digits(g, (uint16_t)value, bytes) : decimal_digits(g, value, WIDTH[bytes]);
-    charge_machine_accesses(g, (bytes >= 2) + (hex ? 0 : bytes == 2 ? 2 : 4));
     insert(g, hex ? FROM_HEX_DIGITS : FROM_DIGITS, DIGITS, count);
 }
 
 /* ---- The string ---------------------------------------------------------------------------- */
 
 /* The control codes. */
-enum {
-    CODE_END = 0x00, CODE_WAIT = 0x03, CODE_BREAKS_FROM = 0x04, CODE_BREAKS_TO = 0x0C,
-    CODE_NUMBER_BYTE = 0x0D, CODE_NUMBER_WORD = 0x0E, CODE_NUMBER_LONG = 0x0F,
-    /* the pause: ends the call where it is and leaves its stop as it was, so
+enum { CODE_END = 0x00, CODE_WAIT = 0x03, CODE_BREAKS_FROM = 0x04, CODE_BREAKS_TO = 0x0C, CODE_NUMBER_BYTE = 0x0D, CODE_NUMBER_WORD = 0x0E, CODE_NUMBER_LONG = 0x0F, /* the pause: ends the call where it is and leaves its stop as it was, so
      * the caller takes the text up next time; the dialog's typing halts for
      * the rest of the frame */
-    CODE_PAUSE = 0x10,
-    CODE_CHARACTER = 0x11, CODE_NAMED = 0x12, CODE_CRONO = 0x13, CODE_MAGUS = 0x19, CODE_LEADER = 0x1A,
-    CODE_MEMBER_1 = 0x1B, CODE_MEMBER_3 = 0x1D, CODE_NADIA = 0x1E, CODE_ITEM = 0x1F, CODE_EPOCH = 0x20,
-    FIRST_WORD = 0x21,
-};
+    CODE_PAUSE = 0x10, CODE_CHARACTER = 0x11, CODE_NAMED = 0x12, CODE_CRONO = 0x13, CODE_MAGUS = 0x19, CODE_LEADER = 0x1A, CODE_MEMBER_1 = 0x1B, CODE_MEMBER_3 = 0x1D, CODE_NADIA = 0x1E, CODE_ITEM = 0x1F, CODE_EPOCH = 0x20, FIRST_WORD = 0x21,  };
 
 /* After $12: 0 a tech, 1 an enemy, 8 up a word of the dictionary's second
  * part. 2-7 jump into code in the original that isn't a handler; no string
@@ -538,22 +516,6 @@ static Piece piece_at(const GameState *g, uint32_t at)
     return p;
 }
 
-// $C2:57DF
-void menu_text_start_entry(Snes *s)
-{
-    menu_text_start(state_of(s));
-    (void)0;
-    m_rtl(s);
-}
-
-// $C2:5823
-void menu_text_go_on_entry(Snes *s)
-{
-    menu_text_go_on(state_of(s));
-    (void)0;
-    m_rtl(s);
-}
-
 // $C2:F90C
 
 /* ---- The guards -------------------------------------------------------------------------- */
@@ -583,14 +545,6 @@ static bool tiles_are_writable(uint32_t tiles)
 }
 
 bool menu_text_can_start(const GameState *g) { return readable(menu_text_strings(g)); }
-
-bool menu_text_is_startable(Snes *s)
-{
-    vars_peek(true);
-    bool ok = menu_text_can_start(state_of(s));
-    vars_peek(false);
-    return ok;
-}
 
 /* A call keeps its budget in hand, where the original counts it down in its
  * cell on the text page as it goes: the two part only for a text whose call
@@ -667,14 +621,6 @@ bool menu_label_can_be_set(const GameState *g, uint32_t strings, uint8_t string,
     uint32_t line = TILES_BANK | tiles;
     return readable(strings) && tiles_are_writable(line)
            && stays_off_the_budget(g, string_begins(g, strings, string), ARGUMENTS, true, line);
-}
-
-bool menu_text_can_go_on(Snes *s)
-{
-    vars_peek(true);
-    bool ok = can_go_on(state_of(s));
-    vars_peek(false);
-    return ok;
 }
 
 bool menu_text_can_be_typed(const GameState *g, uint32_t strings, uint8_t string, uint32_t tiles)

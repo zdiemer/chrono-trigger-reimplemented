@@ -6,31 +6,16 @@
 
 #include "field/requests.h"
 #include "platform/platform.h"
-#include "snes/system.h"
+#include <stdint.h>
 #include "state.h"
 
-void field_pause_and_menus_entry(Snes *s);
 /* The same as C: false where a step is the machine's yet (the menus), the
  * program going no further there. */
 bool field_pause_and_menus(GameState *g, Platform *pf);
 /* The menu a script asked for, from the main loop's requests
  * (field/requests.c): true where it came back to the main loop's caller's
  * state, false where it stopped. */
-bool field_open_script_menu(Snes *s);
 /* The same as C: where the pass goes after it. */
 FieldPass field_script_menu_opened(GameState *g, Platform *pf);
-void field_press_start(Snes *s);
-void field_back_from_the_main_menu(Snes *s);
-void field_back_from_the_start_menu(Snes *s);
-void field_back_from_a_script_menu(Snes *s);
-void field_back_from_a_menu_fade(Snes *s);
-void field_after_the_start_menu(Snes *s);
-void field_pause_continues(Snes *s);
-void field_menu_fade_continues(Snes *s);
-void field_start_menu_fade_continues(Snes *s);
-void field_script_menu_fade_continues(Snes *s);
-void field_bring_the_party_back(Snes *s);
-bool field_party_can_come_back(Snes *s);
-bool field_start_can_be_pressed(Snes *s);
 
 #endif

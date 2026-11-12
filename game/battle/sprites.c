@@ -93,7 +93,6 @@ static void build_tile(GameState *g, uint16_t descriptor, uint32_t graphics, uin
     uint16_t number = descriptor & TILE_NUMBER;
     if (number == BLANK_TILE) {
         clear_tile(g, to);
-        charge_machine_accesses(g, 2);
         return;
     }
     uint16_t offset = (uint16_t)(number * TILE_BYTES + (uint16_t)graphics);
@@ -103,7 +102,6 @@ static void build_tile(GameState *g, uint16_t descriptor, uint32_t graphics, uin
         copy_tile_mirrored(g, from, to);
     else
         copy_tile(g, from, to);
-    charge_machine_accesses(g, mirrored ? 4 : 2);
 }
 
 /* The offsets of the frame's sprite parts from the object's position follow
@@ -126,10 +124,7 @@ static void set_part_offset(GameState *g, unsigned object, unsigned i, int8_t of
  * object twice over, the tile list and graphics pointers, the part offsets'
  * count and first place, and its pointer to the layout's rows in the ROM's
  * bank $CC. */
-enum {
-    LEFT_OBJECT = 0x08, LEFT_PART_BYTES = 0x00, LEFT_FIRST_PART = 0x02, LEFT_LAYOUT_BANK = 0x04, LEFT_ROWS = 0x05,
-    LEFT_TILE_LIST = 0, LEFT_GRAPHICS = 3, LAYOUT_BANK = 0xCC,
-};
+enum { LEFT_OBJECT = 0x08, LEFT_PART_BYTES = 0x00, LEFT_FIRST_PART = 0x02, LEFT_LAYOUT_BANK = 0x04, LEFT_ROWS = 0x05, LEFT_TILE_LIST = 0, LEFT_GRAPHICS = 3, LAYOUT_BANK = 0xCC,  };
 
 // $C1:1C55
 /* The original counts its rows and tiles in the battle's direct-page cells
@@ -141,7 +136,6 @@ void battle_build_frame_graphics(GameState *g, unsigned object, uint8_t frame)
 {
     set_battle_anim_held(g, object, 0);
     if (frame == battle_object_frame_shown(g, object)) {
-        charge_machine_accesses(g, 2);
         return;
     }
     set_battle_object_frame_shown(g, object, frame);
@@ -168,7 +162,6 @@ void battle_build_frame_graphics(GameState *g, unsigned object, uint8_t frame)
     for (unsigned i = 0; i < part_bytes; i++)
         set_part_offset(g, object, i, (int8_t)battle_tile_list_byte(g, tiles + i));
     set_battle_graphics_built(g, (uint8_t)(battle_graphics_built(g) + 1));
-    charge_machine_accesses(g, 15);
 }
 
 /* ---- The objects' palette animations ------------------------------------------------------ */
@@ -223,7 +216,6 @@ static void show_palette_frame(GameState *g, uint8_t number)
     uint8_t colors = seven ? LARGE_SET_COLORS : SMALL_SET_COLORS;
     (void)battle_multiply(g, colors * COLOR_BYTES, frame.set);
     battle_put_color_set(g, seven, frame.set, frame.place & PLACE_QUARTER);
-    charge_machine_accesses(g, 4);
 }
 
 enum { LEFT_ANIMATION = 0x00 };
@@ -243,7 +235,6 @@ void battle_step_palette_animations(GameState *g)
         set_battle_palette_anim_delay(g, anim, battle_palette_anim_period(g, anim));
         show_palette_frame(g, next_palette_frame(g, anim));
     }
-    charge_machine_accesses(g, 2);
 }
 
 /* ---- An effect's animations ------------------------------------------------------------- */
@@ -290,7 +281,6 @@ void battle_find_effect_animations(GameState *g)
         at = (uint16_t)(at + RECORD_BYTES);
         frames = 1;
     }
-    charge_machine_accesses(g, 4);
 }
 
 /* ---- Bitmap shapes ---------------------------------------------------------------------- */
@@ -343,7 +333,6 @@ static uint16_t build_shape(GameState *g, uint16_t set, uint8_t header, uint16_t
             sprite = (uint16_t)(sprite + EFFECT_SPRITE_BYTES);
         }
     }
-    charge_machine_accesses(g, 8 + (header & SHAPE_ROWS));
     return (uint16_t)(at + SHAPE_TAIL_BYTES);
 }
 
@@ -360,7 +349,6 @@ static void build_bitmap_shapes(GameState *g)
         uint16_t at = battle_bitmap_stream(g);
         uint8_t header = stream_byte(g, at);
         if (header == 0) {
-            (charge_machine_accesses(g, 2), charge_machine_rom_accesses(g, 2));
             break;
         }
         set_battle_bitmap_stream(g, build_shape(g, set, header, (uint16_t)(at + 1)));
@@ -368,7 +356,6 @@ static void build_bitmap_shapes(GameState *g)
         if (++built == SHAPES_AT_A_TIME)
             break;
     }
-    charge_machine_accesses(g, 1);
 }
 
 /* ---- The entries ------------------------------------------------------------------------ */
@@ -414,21 +401,6 @@ static bool build_bitmap_shapes_over_a_frame(GameState *g, bool (*frame)(void *c
         return false;
     build_bitmap_shapes(g);
     return true;
-}
-
-static bool frame_on_the_machine(void *ctx, bool step)
-{
-    Snes *s = ctx;
-    return step ? battle_run(s, 0xC14946, 0xC110FA, battle_frame_step)
-                : battle_wait_frame(s, 0xC14943, 0xC1007E, DC_AL | DC_X | DC_Y | DC_FLAGS);
-}
-
-void battle_build_bitmap_shapes_entry(Snes *s)
-{
-    if (!build_bitmap_shapes_over_a_frame(state_of(s), frame_on_the_machine, s))
-        return;
-    s->cpu.a = 0;
-    m_rts(s);
 }
 
 typedef struct {

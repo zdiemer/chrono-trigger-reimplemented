@@ -20,7 +20,6 @@
 #include "field/bridge.h"
 #include "field/field_data.h"
 #include "field/scratch.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -59,13 +58,11 @@ void object_give_up_palette(GameState *g, FieldObject obj)
          * object has the slot. */
         set_field_palette_slot_newest(g, palette_slot(g, obj), field_link_byte(first ? field_no_link() : before));
         if (!first) {
-            charge_machine_accesses(g, 1); /* the last sharer */
             set_sharer_after(g, field_linked_object(before), field_no_link());
         }
         return;
     }
     /* Otherwise the sharers either side of it close up round it. */
-    charge_machine_accesses(g, 1); /* the last sharer */
     set_sharer_before(g, field_linked_object(after), first ? field_no_link() : before);
     if (!first)
         set_sharer_after(g, field_linked_object(before), after);
@@ -140,23 +137,19 @@ static void join_slot(GameState *g, FieldObject obj, uint8_t slot, FieldLink old
  * with every one taken by other colours, none. */
 static bool take_a_slot(GameState *g, FieldObject obj, SlotRange range)
 {
-    bool looked = false;
+
     for (uint8_t slot = range.first; slot < range.end; slot++) {
         FieldLink newest = field_link_stored(field_palette_slot_newest(g, slot));
         if (!field_link_is_object(newest))
             continue;
-        looked = true;
+
         if (field_object_colours(g, field_linked_object(newest)) == field_object_colours(g, obj)) {
-            charge_machine_accesses(g, 2); /* the last occupied slot and sharer */
             join_slot(g, obj, slot, newest);
             return true;
         }
     }
-    if (looked)
-        charge_machine_accesses(g, 2); /* the last occupied slot and sharer */
     for (uint8_t slot = range.first; slot < range.end; slot++)
         if (!field_link_is_object(field_link_stored(field_palette_slot_newest(g, slot)))) {
-            charge_machine_accesses(g, 1); /* the selected free slot */
             join_slot(g, obj, slot, field_no_link());
             return true;
         }
@@ -193,12 +186,10 @@ static void join_party_place_sharers(GameState *g, FieldObject obj, FieldLink ol
 static bool take_party_place_slot(GameState *g, FieldObject obj, uint8_t slot)
 {
     FieldLink newest = field_link_stored(field_palette_slot_newest(g, slot));
-    charge_machine_accesses(g, 1); /* the selected party slot */
     if (!field_link_is_object(newest)) {
         join_slot(g, obj, slot, field_no_link());
         return true;
     }
-    charge_machine_accesses(g, 1); /* the slot's newest sharer */
     if (field_object_colours(g, field_linked_object(newest)) != field_object_colours(g, obj))
         return false;
     join_party_place_sharers(g, obj, newest);

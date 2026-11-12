@@ -21,7 +21,6 @@
 #include "menu/object.h"
 #include "menu/screen_objects.h"
 #include "overworld/overworld.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -166,68 +165,7 @@ static bool wave(GameState *g, Platform *pf, MenuObject o)
     }
     for (unsigned pair = 0; pair < WAVE_PAIRS; pair++)
         set_menu_top_layer_wave_lines(g, WAVE_PAIRS + pair, menu_top_layer_wave_lines(g, pair));
-    charge_machine_accesses(g, 7);
     return true;
-}
-
-/* ---- The entries ------------------------------------------------------------------------------ */
-
-/* They run on the mode's page with the data bank on the I/O banks, each
- * entered with its slot in X. */
-bool menu_top_layer_object_runs(Snes *s)
-{
-    if (s->cpu.d != RAM_PAGE_MENU || s->cpu.db != 0x00)
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = menu_object_address_names_one(menu_object_current(g)) && s->cpu.x == menu_object_current(g);
-    vars_peek(false);
-    return ok;
-}
-
-/* Each hands back that it goes on, with the carry clear, and 16 bits wide
- * where it moved the layer. */
-static void goes_on(Snes *s, bool moved)
-{
-    m_set_flag(s, CPU_FLAG_C, false);
-    if (moved)
-        m_rep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-// $C2:75C3
-void menu_top_layer_slow_drift(Snes *s)
-{
-    GameState *g = state_of(s);
-    goes_on(s, slow_drift(g, menu_object_running(g)));
-}
-
-// $C2:7702
-void menu_top_layer_drift(Snes *s)
-{
-    GameState *g = state_of(s);
-    goes_on(s, drift(g, menu_object_running(g), DRIFT));
-}
-
-// $C2:77F2
-void menu_top_layer_fast_drift(Snes *s)
-{
-    GameState *g = state_of(s);
-    goes_on(s, drift(g, menu_object_running(g), FAST_DRIFT));
-}
-
-// $C2:75FD
-void menu_top_layer_wave_drift(Snes *s)
-{
-    GameState *g = state_of(s);
-    goes_on(s, wave_drift(g, menu_object_running(g)));
-}
-
-// $C2:7652
-void menu_top_layer_wave(Snes *s)
-{
-    GameState *g = state_of(s);
-    goes_on(s, wave(g, m_platform(s), menu_object_running(g)));
 }
 
 /* ---- As C ------------------------------------------------------------------------------------ */

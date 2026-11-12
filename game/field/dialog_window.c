@@ -35,7 +35,6 @@
 #include "field/field_data.h"
 #include "menu/typeset.h"
 #include "platform/video.h"
-#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -188,7 +187,6 @@ static void after_a_glyph(GameState *g)
         if (units == 0) {
             send_the_text(g, SEND_ONCE);
         } else {
-            charge_machine_io_accesses(g, 4); /* the pause-length multiplication */
             set_field_dialog_hold(g, (uint16_t)(units * FRAMES_A_PAUSE_UNIT));
             send_the_text(g, SEND_EVERY_FRAME);
         }
@@ -240,7 +238,6 @@ static void place_the_window(GameState *g)
     set_dialog_window_position(g, (uint8_t)place_for(g));
     set_dialog_window_state(g, 0);
     set_dialog_text_row(g, 0);
-    charge_machine_accesses(g, 1); /* the former opening-clear marker */
     send_the_text(g, SEND_NOTHING);
     start_the_text(g);
 }
@@ -449,8 +446,7 @@ void field_take_choice_buttons(GameState *g, uint8_t choosing)
  * above and $10 on below, and the pointer's are $28FC on. The field refreshes
  * them in the time after the picture (field/display.c's line interrupt). */
 enum { CHOICE_LINES = 4 };
-enum { LINE_TILES_VRAM = 0x1C02, LINE_OWN_TILE = 0x2902, POINTER_TILE = 0x28FC, LINE_WORDS = 0x40, LOWER_ROW = 0x20,
-       OWN_LOWER_TILES = 0x10, POINTER_LOWER_TILES = 2 };
+enum { LINE_TILES_VRAM = 0x1C02, LINE_OWN_TILE = 0x2902, POINTER_TILE = 0x28FC, LINE_WORDS = 0x40, LOWER_ROW = 0x20, OWN_LOWER_TILES = 0x10, POINTER_LOWER_TILES = 2 };
 
 typedef struct {
     uint32_t address, first, second;   /* the origin tags of the three writes of a pair of tiles */
@@ -527,8 +523,7 @@ enum { ENTRY_PRIORITY = 0x2000, SECOND_PATTERN_TILES = 0x0300, TEXT_AREA_LOOK = 
  * alternating two tiles, the sides' a tile a row), and its interior, a
  * pattern of two tiles by two repeated in blocks that alternate with the
  * same pattern's second tiles. */
-enum { FRAME_TOP_LEFT = 0xF0, FRAME_TOP = 0xF1, FRAME_TOP_RIGHT = 0xF3, FRAME_LEFT = 0xF4, FRAME_RIGHT = 0xF5,
-       FRAME_BOTTOM_LEFT = 0xF8, FRAME_BOTTOM = 0xF9, FRAME_BOTTOM_RIGHT = 0xFB, FRAME_PATTERN = 0xFC };
+enum { FRAME_TOP_LEFT = 0xF0, FRAME_TOP = 0xF1, FRAME_TOP_RIGHT = 0xF3, FRAME_LEFT = 0xF4, FRAME_RIGHT = 0xF5, FRAME_BOTTOM_LEFT = 0xF8, FRAME_BOTTOM = 0xF9, FRAME_BOTTOM_RIGHT = 0xFB, FRAME_PATTERN = 0xFC };
 enum { FRAME_SECOND_ROW_EDGE = 2 };
 
 static uint16_t frame_entry(unsigned row, unsigned column)
@@ -576,7 +571,6 @@ void field_build_the_window_frame(GameState *g)
     for (unsigned row = 0; row < FRAME_ROWS; row++)
         for (unsigned column = 0; column < FRAME_COLUMNS; column++)
             stage_entry(g, row * FRAME_COLUMNS + column, frame_entry(row, column));
-    charge_machine_io_accesses(g, 3); /* the staging cursor */
 }
 
 /* For the original's code and shadow mode: the end of the last run of tiles
@@ -589,8 +583,6 @@ void field_build_the_text_area(GameState *g)
     for (unsigned row = 0; row < TEXT_AREA_ROWS; row++)
         for (unsigned column = 0; column < FRAME_COLUMNS; column++)
             stage_entry(g, row * FRAME_COLUMNS + column, text_area_entry(row, column));
-    charge_machine_io_accesses(g, 3); /* the staging cursor */
-    charge_machine_accesses(g, 1); /* the last text tile */
 }
 
 static FieldTransfer staged_map(uint16_t vram, unsigned rows)
@@ -680,67 +672,4 @@ void field_send_the_choice_pointer(GameState *g, Platform *pf)
 {
     FieldTransfer t = { POINTER_TILES_VRAM, FIELD_TRANSFER_WORDS, FIELD_CHOICE_POINTER_TILES, POINTER_TILES_BYTES };
     TIMED_AS(g, FIELD_VRAM_TRANSFER_ENTRY, field_send_transfer(g, pf, t));
-}
-
-/* ---- Where it meets the original ------------------------------------------------------------------ */
-
-/* Whether the step sets a glyph this frame, and whether it starts the text:
- * for its guard, which takes only text the typesetter's port can set
- * (menu/typeset.h). */
-static bool step_starts_the_text(const GameState *g)
-{
-    return state(g) == DIALOG_OPENS_THE_WINDOW && dialog_window_at(g) == WINDOW_NONE;
-}
-
-static bool step_sets_a_glyph(const GameState *g)
-{
-    DialogState s = state(g);
-    bool sets = s == DIALOG_SETS_TEXT || s == DIALOG_SETS_THE_NEXT_PAGE ||
-                (s == DIALOG_OPENS_THE_WINDOW && dialog_window_at(g) != WINDOW_NONE &&
-                 dialog_window_state(g) <= WINDOW_FULL && dialog_window_state(g) + WINDOW_LINES_A_FRAME >= WINDOW_FULL);
-    MenuTextStop stopped = stopped_at(g);
-    return sets && stopped != MENU_TEXT_ENDED && !(stopped == MENU_TEXT_WAITS && menu_text_wait(g) == 0);
-}
-
-/* The field's page with the data bank $00; the speaker an object the tables
- * hold, as the window's placing reads it (with the byte after it, as a
- * word); and text the typesetter's port takes. */
-bool field_dialog_window_can_step(Snes *s)
-{
-    if (!field_on_page_low_bank(s) || !m_bank_is_zero(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = dialog_speaker_high(g) == 0 && field_names_object(dialog_speaker(g));
-    if (ok && step_starts_the_text(g))
-        ok = menu_text_can_be_typed(g, dialog_strings(g), dialog_string(g), RAM_FIELD_WINDOW_STAGING);
-    if (ok && step_sets_a_glyph(g))
-        ok = menu_text_can_carry_on(g);
-    vars_peek(false);
-    return ok;
-}
-
-/* None of these reads the registers but the choice's state in A; their
- * callers read only the overflow, which they leave as it was. */
-void field_dialog_window_step_entry(Snes *s)
-{
-    field_dialog_window_step(state_of(s));
-    m_rtl(s);
-}
-
-// $C0:F159, $C0:F142, $C0:F12B, $C0:F110
-
-/* The window's looks, on the field's page with the data bank reaching the
- * registers; nothing they leave in the registers is read but Y, which they
- * leave as it was. */
-void field_build_the_window_frame_entry(Snes *s)
-{
-    field_build_the_window_frame(state_of(s));
-    m_rtl(s);
-}
-
-void field_build_the_text_area_entry(Snes *s)
-{
-    field_build_the_text_area(state_of(s));
-    m_rtl(s);
 }

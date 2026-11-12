@@ -14,9 +14,26 @@
 #include "rom.h"
 #include "state.h"
 
+/* The techs' and the items' names, eleven characters each ($CC:15C4,
+ * $CC:0B5E). */
+enum { BATTLE_NAME_CHARACTERS = 11 };
+
+/* The headings of the tech list's sections, the double techs' and the triple
+ * techs', eighteen tiles each ($CC:FB4B). */
+enum { BATTLE_TECH_HEADING_TILES = 18 };
+
+/* The four corners of the frame around the member choosing, a sprite each:
+ * where it goes from the member's position, its tile and its attributes
+ * ($CC:F604). */
+typedef struct {
+    int8_t dx, dy;
+    uint8_t tile, attributes;
+} ChoosingFrameCorner;
+
 /* The window's digit tiles, 0-9 ($CC:F903), and the number sprites' ($CC:F90D).
  * A digit past 9 reads on into what follows, as the original does. */
 static inline uint8_t battle_digit_tile(const GameState *g, uint16_t digit) { return rom_read8(g, 0xCCF903u + digit); }
+
 static inline uint8_t battle_sprite_digit_tile(const GameState *g, uint16_t digit)
 {
     return rom_read8(g, 0xCCF90Du + digit);
@@ -35,6 +52,7 @@ static inline uint8_t battle_command_frame_tile(const GameState *g, unsigned cel
 {
     return rom_read8(g, 0xD159FCu + 2 * cell);
 }
+
 static inline uint8_t battle_command_frame_attributes(const GameState *g, unsigned cell)
 {
     return rom_read8(g, 0xD159FCu + 2 * cell + 1);
@@ -43,6 +61,7 @@ static inline uint8_t battle_command_frame_attributes(const GameState *g, unsign
 /* The frames tilemap as a battle starts it, and as the command page puts it
  * back, a tile and its attributes a cell ($D1:5800). */
 static inline uint8_t battle_first_frames_tile(const GameState *g, unsigned cell) { return rom_read8(g, 0xD15800u + 2 * cell); }
+
 static inline uint8_t battle_first_frames_attributes(const GameState *g, unsigned cell)
 {
     return rom_read8(g, 0xD15800u + 2 * cell + 1);
@@ -54,6 +73,7 @@ static inline uint8_t battle_tech_page_frames_tile(const GameState *g, unsigned 
 {
     return rom_read8(g, 0xD15A50u + 2 * cell);
 }
+
 static inline uint8_t battle_tech_page_frames_attributes(const GameState *g, unsigned cell)
 {
     return rom_read8(g, 0xD15A50u + 2 * cell + 1);
@@ -65,38 +85,27 @@ static inline uint8_t battle_item_page_frames_tile(const GameState *g, unsigned 
 {
     return rom_read8(g, 0xD15BD0u + 2 * cell);
 }
+
 static inline uint8_t battle_item_page_frames_attributes(const GameState *g, unsigned cell)
 {
     return rom_read8(g, 0xD15BD0u + 2 * cell + 1);
 }
 
-/* The techs' and the items' names, eleven characters each ($CC:15C4,
- * $CC:0B5E). */
-enum { BATTLE_NAME_CHARACTERS = 11 };
 static inline uint8_t battle_tech_name_char(const GameState *g, uint8_t tech, unsigned i)
 {
     return rom_read8(g, 0xCC15C4u + (uint32_t)tech * BATTLE_NAME_CHARACTERS + i);
 }
+
 static inline uint8_t battle_item_name_char(const GameState *g, uint8_t item, unsigned i)
 {
     return rom_read8(g, 0xCC0B5Eu + (uint32_t)item * BATTLE_NAME_CHARACTERS + i);
 }
 
-/* The headings of the tech list's sections, the double techs' and the triple
- * techs', eighteen tiles each ($CC:FB4B). */
-enum { BATTLE_TECH_HEADING_TILES = 18 };
 static inline uint8_t battle_tech_heading_tile(const GameState *g, bool triple, unsigned i)
 {
     return rom_read8(g, 0xCCFB4Bu + (triple ? BATTLE_TECH_HEADING_TILES : 0) + i);
 }
 
-/* The four corners of the frame around the member choosing, a sprite each:
- * where it goes from the member's position, its tile and its attributes
- * ($CC:F604). */
-typedef struct {
-    int8_t dx, dy;
-    uint8_t tile, attributes;
-} ChoosingFrameCorner;
 static inline ChoosingFrameCorner battle_choosing_frame_corner(const GameState *g, unsigned corner)
 {
     uint32_t at = 0xCCF604u + 4 * corner;

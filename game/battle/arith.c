@@ -27,8 +27,6 @@ static void leave_multiplier(GameState *g, uint8_t a, uint8_t b)
 {
     set_battle_multiplier_operands(g, 0, a);
     set_battle_multiplier_operands(g, 1, b);
-    charge_machine_io_accesses(g, 1);
-    charge_machine_io_accesses(g, 3);
 }
 
 static void leave_multiply(GameState *g, uint8_t a, uint8_t b, uint16_t product)
@@ -77,8 +75,6 @@ static void leave_divide(GameState *g, uint16_t dividend, uint8_t divisor, Battl
     set_battle_divider_operands(g, 0, (uint8_t)dividend);
     set_battle_divider_operands(g, 1, (uint8_t)(dividend >> 8));
     set_battle_divider_operands(g, 2, divisor);
-    charge_machine_io_accesses(g, 2);
-    charge_machine_io_accesses(g, 1);
     set_battle_divider_busy(g, 0);
 }
 
@@ -121,10 +117,8 @@ static void leave_word_product(GameState *g, uint16_t a, uint32_t product)
 {
     set_wide_word(g, FIRST, a);
     set_battle_wide_math(g, SECOND + 1, 0);
-    charge_machine_accesses(g, 1);
     set_wide_word(g, RESULT_LOW, (uint16_t)product);
 }
-
 
 uint32_t battle_multiply_words(GameState *g, uint16_t a, uint16_t b)
 {

@@ -19,11 +19,7 @@
 /* The two-part characters: those from the first run take the first mark, and
  * move up the font by a quarter of it; those of the second run take the
  * second mark. */
-enum {
-    FIRST_RUN = 0x40, SECOND_RUN = 0x69, PAST_THE_RUNS = 0x73,
-    FIRST_RUN_SHIFT = 0x40, SECOND_RUN_SHIFT = 0x17,
-    FIRST_MARK = 0x71, SECOND_MARK = 0x72,
-};
+enum { FIRST_RUN = 0x40, SECOND_RUN = 0x69, PAST_THE_RUNS = 0x73, FIRST_RUN_SHIFT = 0x40, SECOND_RUN_SHIFT = 0x17, FIRST_MARK = 0x71, SECOND_MARK = 0x72,  };
 
 // $C1:01A9
 NameTiles battle_name_tiles(const uint8_t text[NAME_TILES])

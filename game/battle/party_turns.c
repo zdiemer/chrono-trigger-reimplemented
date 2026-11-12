@@ -41,7 +41,6 @@
 #include "battle/setup_data.h"
 #include "battle/timers.h"
 #include "charge.h"
-#include "port/native.h"
 #include "vars.h"
 
 /* The routines the party's turns call: a member's attack on the action's
@@ -92,7 +91,6 @@ static uint8_t random_enemy(GameState *g)
 enum { CONFUSED_MEMBER_AT = 0x12 };
 static uint8_t random_other(GameState *g, uint8_t member)
 {
-    charge_machine_accesses(g, 2);
     uint8_t slot;
     do
         slot = draw(g, 0, BATTLE_COMBATANTS);
@@ -141,7 +139,6 @@ static void drop_waiting_action(GameState *g, uint8_t member)
 {
     set_battle_member_ready(g, member, MEMBER_NO_ACTION);
     set_battle_step_member(g, member);
-    charge_machine_accesses(g, 2);
     set_battle_timer_flags_byte(g, BATTLE_TIMER_TURN, member, 0);
     set_battle_member_actions_state(g, member, MEMBER_NO_ACTION);
 }
@@ -202,7 +199,6 @@ static bool counter_the_attack(GameState *g, PartyCalls call, void *ctx)
             uint8_t member = battle_reaction_targets(g, entry);
             if (member == COMBATANT_NONE)
                 continue;
-            charge_machine_accesses(g, 2);
             if (!counters(g, member) || draw(g, 0, CHANCES) >= combatant_stat_byte(g, member, STAT_ACCESSORY_SECOND))
                 continue;
             if (!(combatant_stat_byte(g, member, STAT_ACCESSORY_FIRST) & COUNTER_ATTACKS))
@@ -236,7 +232,6 @@ static bool members_hit_are_combatants(const GameState *g)
  * partners forgotten, and its turn's wait started again. */
 static void forget_combination(GameState *g, uint8_t member)
 {
-    charge_machine_accesses(g, 1);
     TIMED_AS(g, 0xC1B6D1, battle_return_chosen_item(g, member));
     set_battle_member_actions_state(g, member, 0);
     set_battle_member_actions_choice_flags(g, member, 0);
@@ -331,7 +326,6 @@ static bool see_to_knocked_out(GameState *g, PartyCalls call, void *ctx)
         uint8_t slot = battle_reaction_targets(g, entry);
         if (slot < BATTLE_FIRST_ENEMY || slot == COMBATANT_NONE)
             continue;
-        charge_machine_accesses(g, 2);
         if (knocked_out_unseen(g, slot) && !has_last_reaction(g, slot))
             count_beaten_now(g, slot - BATTLE_FIRST_ENEMY);
     }
@@ -364,10 +358,7 @@ static bool reaction_targets_are_combatants(const GameState *g)
 
 /* A demo battle's members are ready with an action from the start, waiting
  * with it, their menus open; the demo's records name the action. */
-enum {
-    DEMO_READY = MEMBER_ACTION_CHOSEN | MEMBER_MENU_OPEN,
-    DEMO_ACTION_STATE = MEMBER_ACTION_WAITING | MEMBER_MENU_OPEN,
-};
+enum { DEMO_READY = MEMBER_ACTION_CHOSEN | MEMBER_MENU_OPEN, DEMO_ACTION_STATE = MEMBER_ACTION_WAITING | MEMBER_MENU_OPEN,  };
 
 // $C1:B70E
 void battle_demo_party_ready(GameState *g)
@@ -482,124 +473,4 @@ bool battle_call_off_waiting_combination(GameState *g, Platform *pf)
 {
     PartyTurnContext c = { g, pf };
     return call_off_while_waiting(g, party_call, &c);
-}
-
-/* ---- On the machine ------------------------------------------------------------------------ */
-
-/* The battle's steps read A alone: the overflow flag they save with the flags
- * across their frame waits is read by nothing after (the flag-reader analysis
- * C1:0003), which each call's dc-evidence shows over the states its routine
- * is fuzzed with. A step indexes its table with the whole of A, so A's high
- * byte is part of what the ask hands it (battle_take_step puts the step's
- * number in the low byte) and can't be declared dead: it is clear where the
- * original's code before the step clears it, and otherwise what the step
- * before left there. */
-enum { STEP_READS_A = DC_X | DC_Y | DC_N | DC_Z | DC_C };
-
-static void clear_a_high_byte(Snes *s) { s->cpu.a &= 0x00FF; }
-
-/* Each member is stood down, and seen to while it waited, from its own call. */
-static const uint32_t stand_down_sites[BATTLE_PARTY_SIZE] = { 0xC1B7F7, 0xC1B800, 0xC1B809 };
-static const uint32_t call_off_sites[BATTLE_PARTY_SIZE] = { 0xFDA966, 0xFDA972, 0xFDA97E };
-
-static bool party_on_the_machine(void *ctx, PartyCall call, uint8_t member)
-{
-    Snes *s = ctx;
-    switch (call) {
-    case PARTY_ATTACK_DRIVEN: return battle_run_long(s, 0xFDAB6E, MEMBER_ATTACKS, battle_member_attacks_from_bank_fd);
-    case PARTY_ATTACK_CONFUSED: return battle_run_long(s, 0xFDAB9A, MEMBER_ATTACKS, battle_member_attacks_from_bank_fd);
-    case PARTY_COUNTER_ATTACK: return battle_run_long(s, 0xFDACC9, MEMBER_ATTACKS, battle_member_attacks_from_bank_fd);
-    case PARTY_CALLED_OFF_STEP:
-        clear_a_high_byte(s);
-        return battle_take_step(s, 0xC1B43B, BATTLE_STEP_CALLED_OFF, STEP_READS_A);
-    case PARTY_BEATEN_STEP:
-        clear_a_high_byte(s);
-        return battle_take_step(s, 0xC1B7D7, BATTLE_STEP_ENEMIES_BEATEN, STEP_READS_A);
-    case PARTY_STAND_DOWN_STEP:
-        if (member == 0)
-            clear_a_high_byte(s);
-        return battle_take_step(s, stand_down_sites[member], BATTLE_STEP_CALLED_OFF, STEP_READS_A);
-    case PARTY_CLOSE_THE_MENU: return battle_run_long(s, 0xFDA937, CLOSE_MENU, battle_member_called_off_step);
-    default:
-        return battle_run(s, call_off_sites[member], CALL_OFF_WAITING_MEMBER, battle_call_off_waiting_member_entry);
-    }
-}
-
-/* ---- The entries ------------------------------------------------------------------------- */
-
-/* Each as the original's code calls it: the member in Y and its stat block's
- * place in X for its status turn, the member in X for its waiting action, in
- * its cell for its call off; the others take nothing. */
-static bool peek(Snes *s, bool (*fits)(const GameState *))
-{
-    vars_peek(true);
-    bool ok = fits(state_of(s));
-    vars_peek(false);
-    return battle_on_page(s) && ok;
-}
-
-bool battle_member_status_turn_ready(Snes *s)
-{
-    return battle_on_page(s) && battle_names_stat_block(s->cpu.x) && battle_names_combatant(s->cpu.y);
-}
-
-void battle_member_status_turn_entry(Snes *s)
-{
-    if (status_turn(state_of(s), (uint8_t)s->cpu.y, (uint8_t)battle_slot_of_stat_block(s->cpu.x), party_on_the_machine, s))
-        m_rtl(s);
-}
-
-/* The original finds the member's stat block with A's high byte under the
- * member's number, clear as its callers leave it. */
-bool battle_cancel_if_unable_ready(Snes *s) { return battle_on_page_a_high_clear(s) && s->cpu.x < BATTLE_PARTY_SIZE; }
-void battle_cancel_if_unable_entry(Snes *s)
-{
-    if (cancel_if_unable(state_of(s), (uint8_t)s->cpu.x, party_on_the_machine, s))
-        m_rts(s);
-}
-
-bool battle_party_counters_ready(Snes *s) { return peek(s, members_hit_are_combatants); }
-void battle_party_counters_entry(Snes *s)
-{
-    if (counter_the_attack(state_of(s), party_on_the_machine, s))
-        m_rtl(s);
-}
-
-/* The member is in the cell its caller leaves it in. */
-bool battle_call_off_waiting_member_ready(Snes *s)
-{
-    vars_peek(true);
-    uint8_t member = battle_low_scratch(state_of(s), BATTLE_ITEM_RETURNING_FOR_AT);
-    vars_peek(false);
-    return battle_on_page(s) && member < BATTLE_PARTY_SIZE;
-}
-
-/* The original's code clears A first. */
-void battle_call_off_waiting_member_entry(Snes *s)
-{
-    s->cpu.a = 0;
-    if (call_off_waiting_member(state_of(s), battle_low_scratch(state_of(s), BATTLE_ITEM_RETURNING_FOR_AT),
-                                party_on_the_machine, s))
-        m_rts(s);
-}
-
-void battle_call_off_waiting_combination_entry(Snes *s)
-{
-    if (call_off_while_waiting(state_of(s), party_on_the_machine, s))
-        m_rtl(s);
-}
-
-bool battle_see_to_knocked_out_enemies_ready(Snes *s) { return peek(s, reaction_targets_are_combatants); }
-void battle_see_to_knocked_out_enemies_entry(Snes *s)
-{
-    if (see_to_knocked_out(state_of(s), party_on_the_machine, s))
-        m_rts(s);
-}
-
-/* The demo's party ready leaves the record's state in A. */
-
-void battle_party_stands_down_entry(Snes *s)
-{
-    if (stand_down(state_of(s), party_on_the_machine, s))
-        m_rts(s);
 }

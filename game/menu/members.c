@@ -29,8 +29,6 @@
 #include "menu/tiles.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
-#include "port/machine.h"
-#include "port/native.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -85,7 +83,6 @@ bool menu_load_member(GameState *g, uint8_t member)
 bool menu_load_character(GameState *g, uint8_t character)
 {
     if (character & NO_MEMBER) {
-        charge_machine_io_accesses(g, 1);
         return false;
     }
     set_menu_member_record_at(g, record_place(character));
@@ -94,7 +91,6 @@ bool menu_load_character(GameState *g, uint8_t character)
     uint8_t named = menu_status_record_character(g) & CHARACTER_BITS;
     for (unsigned i = 0; i < NAME_BYTES; i++)
         set_menu_status_record_tail_byte(g, i, character_names_byte(g, named, i));
-    charge_machine_io_accesses(g, 8);
     return true;
 }
 
@@ -118,22 +114,11 @@ void menu_work_out_low_hp_marks(GameState *g)
 {
     for (unsigned character = 0; character < CHARACTERS; character++)
         set_menu_low_hp_marks(g, character, (uint16_t)(character_records_hp_cap(g, character) / LOW_HP_FRACTION));
-    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 3));
 }
 
 /* The original walks the records from the menus' zero word, which their
  * opening clears, on the menus' page with the data bank on work RAM's. */
 bool menu_low_hp_marks_can_be_worked_out(const GameState *g) { return menu_zero(g) == 0; }
-
-bool menu_low_hp_marks_are_workable(Snes *s)
-{
-    if (!menu_on_page_work_ram(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_low_hp_marks_can_be_worked_out(state_of(s));
-    vars_peek(false);
-    return ok;
-}
 
 /* ---- The list's rows ----------------------------------------------------------------------------- */
 
@@ -220,7 +205,6 @@ void menu_colour_member_rows(GameState *g)
     uint8_t chosen = menu_member_row(g);
     for (uint8_t row = 0; row < MENU_MEMBER_ROWS; row++)
         TIMED_AS(g, 0xC29EB0, menu_colour_member_row(g, (uint16_t)(FIRST_ROW_TILES + row * ROW_SPACING), row != chosen));
-    charge_machine_accesses(g, 8);
     menu_queue_fixed_upload(g, UPLOAD_BG2_ROWS);
 }
 
@@ -368,17 +352,6 @@ void menu_draw_member_card(GameState *g, Platform *pf)
     menu_finish_member_card(g);
 }
 
-void menu_draw_member_card_entry(Snes *s)
-{
-    menu_save_p(s);
-    menu_set_widths(s, true, m_x8(s));
-    menu_draw_member_card(state_of(s), m_platform(s));
-    /* A screen continuing into the card observes its final queued upload. */
-    (void)0;
-    menu_restore_p(s);
-    m_rts(s);
-}
-
 // $C2:A21F
 /* The card again, and the member's row drawn at the top of the list's
  * place, from the status record the card's figures were worked out on. */
@@ -393,19 +366,6 @@ static bool redraw_member_card_with(GameState *g, Platform *pf, const CardRedraw
     set_menu_draw_origin(g, FIRST_ROW);
     TIMED_AS(g, 0xC2A216, menu_draw_member_row(g, pf));
     return true;
-}
-
-static bool draw_card_on_the_machine(void *ctx) { return menu_run(ctx, 0xC2A222, 0xC2A22F, menu_draw_member_card_entry); }
-
-void menu_redraw_member_card_entry(Snes *s)
-{
-    static const CardRedrawSteps on_the_machine = { draw_card_on_the_machine };
-    menu_save_p(s);
-    menu_set_widths(s, false, false);
-    if (!redraw_member_card_with(state_of(s), m_platform(s), &on_the_machine, s))
-        return;
-    menu_restore_p(s);
-    m_rts(s);
 }
 
 typedef struct {
@@ -431,20 +391,6 @@ bool menu_redraw_member_card(GameState *g, Platform *pf)
     return redraw_member_card_with(g, pf, &in_c, &c);
 }
 
-/* ---- The guards ---------------------------------------------------------------------------------- */
-
-static bool on_the_menus_page(Snes *s) { return menu_on_page_work_ram(s); }
-
 /* A row the original is asked to colour on its own: in the cursor's colour
  * or dimmed, its twelve tiles in the tilemap buffers on both layers. */
 enum { LOW_RAM_END = 0x2000, BANK_END = 0x10000 };
-
-bool menu_member_card_is_drawable(Snes *s)
-{
-    if (!on_the_menus_page(s))
-        return false;
-    vars_peek(true);
-    bool ok = menu_member_card_can_be_drawn(state_of(s));
-    vars_peek(false);
-    return ok;
-}

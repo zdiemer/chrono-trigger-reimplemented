@@ -100,7 +100,6 @@ static void charge_listed(GameState *g, uint8_t place)
 {
     (void)place;
     charge_block_move(g, ROWS_FILLED);
-    charge_machine_accesses(g, 1);
 }
 
 // $C2:CD2B
@@ -148,7 +147,6 @@ static unsigned first_active_place(const GameState *g) { return active_party_alo
 static void stand_at(GameState *g, uint8_t character, unsigned place)
 {
     MenuSpritePlace at = menu_exchange_sprite_place(g, place);
-    (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4));
     set_menu_record_y(g, character, at.y);
     set_menu_record_x_low(g, character, at.x);
 }
@@ -191,8 +189,6 @@ static void draw_the_rows(GameState *g, Platform *pf)
         if (!row_is_empty(row(g, r)))
             show_member_at(g, pf, member++, place);
     menu_work_on_member(g, member);
-    charge_machine_accesses(g, 2);
-    charge_machine_accesses(g, 2);
 }
 
 // $C2:CE49
@@ -216,14 +212,12 @@ static void stand_the_members(GameState *g)
         if (!row_is_empty(row(g, r)))
             stand_the_member(g, row(g, r), place++);
     if (active_party_alone(g)) {
-        charge_machine_accesses(g, 4);
         return;
     }
     unsigned r = row_at(g, EXCHANGE_FIRST_RESERVE_PLACE);
     for (place = RESERVE_PLACES_AT; place < RESERVE_PLACES_AT + EXCHANGE_RESERVE_SHOWN; r++, place++)
         if (!row_is_empty(row(g, r)))
             stand_the_member(g, row(g, r), place);
-    charge_machine_accesses(g, 4);
 }
 
 /* What the members are doing: standing, walking (the one under the cursor)
@@ -253,7 +247,6 @@ static void animate_the_members(GameState *g)
     uint8_t first = menu_exchange_first(g);
     if (someone_chosen(first))
         animate_the_member_at(g, first, CHOSEN_POSE);
-    charge_machine_accesses(g, 1);
 }
 
 /* The seven characters' records, each standing. */
@@ -281,9 +274,7 @@ static const DimmedWindows ACTIVE_WINDOWS = { 0x2E84, 14 }, MIDDLE_WINDOWS = { 0
  * (docs/TODO.md). */
 static void dim_the_colours_at(GameState *g, uint8_t character)
 {
-    if (party_place_is_empty(character))
-        menu_charge_colours_dimmed_past_the_palette(g, character);
-    else
+    if (!party_place_is_empty(character))
         menu_dim_character_colours(g, character);
 }
 
@@ -308,7 +299,6 @@ static void dim_who_stays(GameState *g)
         TIMED_AS(g, 0xC2EC93, menu_recolour_block(g, at, ROW_TILE_ROWS, windows.tiles, DIMMED));
         TIMED_AS(g, 0xC2EC93, menu_recolour_block(g, (uint16_t)(at + BACK_LAYER), ROW_TILE_ROWS, windows.tiles, DIMMED));
     }
-    charge_machine_accesses(g, 6);
 }
 
 /* ---- The panel --------------------------------------------------------------------------------- */
@@ -321,11 +311,7 @@ enum { PANEL_FRAMES = 3 };
  * to a rule, menu_story_items' first) and the gate's sprite on the screens'
  * eighth record; the label's tiles are sent and laid out in two strips, its
  * top half and its bottom. */
-enum {
-    MAIN_MENU_PANEL_WINDOWS = 0xBF48, GATE_PANEL_WINDOWS = 0xBF05, SCREEN_WINDOWS = 0xBF7B,
-    GATE_LABEL = 4, GATE_LABEL_WITH_A_RULE = 5, GATE_LABEL_AT = 0x5E00, UPLOAD_GATE_LABEL = 0xCAD9,
-    GATE_RECORD = MENU_EXCHANGE_GATE_RECORD, GATE_SPRITE = 0x48, GATE_SPRITE_SET = 1, GATE_SPRITE_Y = 0xCA, GATE_SPRITE_X = 0x20, GATE_SPRITE_COLOURS = 0x20,
-};
+enum { MAIN_MENU_PANEL_WINDOWS = 0xBF48, GATE_PANEL_WINDOWS = 0xBF05, SCREEN_WINDOWS = 0xBF7B, GATE_LABEL = 4, GATE_LABEL_WITH_A_RULE = 5, GATE_LABEL_AT = 0x5E00, UPLOAD_GATE_LABEL = 0xCAD9, GATE_RECORD = MENU_EXCHANGE_GATE_RECORD, GATE_SPRITE = 0x48, GATE_SPRITE_SET = 1, GATE_SPRITE_Y = 0xCA, GATE_SPRITE_X = 0x20, GATE_SPRITE_COLOURS = 0x20,  };
 static const struct {
     uint16_t at, columns, first_tile;
 } GATE_LABEL_STRIPS[] = { { 0x334C, 8, 0x0100 }, { 0x33CC, 8, 0x0121 } };
@@ -344,7 +330,6 @@ void menu_exchange_panel_start(GameState *g, Platform *pf)
         return;
     }
     menu_draw_windows(g, pf, GATE_PANEL_WINDOWS);
-    charge_machine_accesses(g, 2);
     uint8_t label = menu_story_items(g, 0) != 0 ? GATE_LABEL_WITH_A_RULE : GATE_LABEL;
     set_menu_load_destination(g, GATE_LABEL_AT);
     TIMED_AS(g, 0xC2F90C, (void)menu_set_label_laid_out(g, MENU_LABEL_STRINGS, label, GATE_LABEL_AT, MENU_TEXT_SIXTEEN_COLOUR_LABEL));
@@ -439,7 +424,6 @@ void menu_exchange_refuse(GameState *g)
 void menu_exchange_lay_out_for_the_gate(GameState *g, uint8_t argument)
 {
     set_menu_exchange_layout(g, argument);
-    charge_machine_accesses(g, 1);
 }
 
 // $C2:C649
@@ -468,13 +452,11 @@ enum { LINES_A_ROW = 6, BAR_PLACE = 0x12EC, BAR_STEPS = 0xA400 };
 static void show_the_scroll_bar(GameState *g)
 {
     uint8_t rows_past = (uint8_t)(menu_exchange_reserve_count(g) - EXCHANGE_RESERVE_SHOWN);
-    charge_machine_io_accesses(g, 2);
     set_menu_scroll_bar_span(g, rows_past);
     if (menu_exchange_reserve_count(g) <= EXCHANGE_RESERVE_SHOWN)
         return;
     uint8_t span = (uint8_t)(rows_past * LINES_A_ROW);
     set_menu_scroll_bar_span(g, span);
-    charge_machine_io_accesses(g, 1);
     set_menu_scroll_bar_thumb(g, (uint8_t)(menu_reserve_top(g) * LINES_A_ROW));
     TIMED_AS(g, 0xC28B93, menu_start_the_scroll_bar(g));
     set_menu_scroll_bar_place(g, BAR_PLACE);
@@ -549,7 +531,6 @@ static MenuTilePlace tiles_of(GameState *g, uint8_t place)
     at.row = (uint8_t)((place & 7) * TILE_ROWS_A_ROW + FIRST_TILE_ROW);
     if (active_party_alone(g))
         at.column = MIDDLE_COLUMN;
-    charge_machine_accesses(g, 2);
     return at;
 }
 
@@ -568,7 +549,6 @@ void menu_exchange_choose_the_first(GameState *g)
     set_menu_held_cursor(g, place);
     if (on_the_reserve(place)) {
         uint8_t reserve_place = (uint8_t)(place - EXCHANGE_FIRST_RESERVE_PLACE);
-        charge_machine_accesses(g, 1);
         set_menu_draw_origin(g, MENU_FRONT_LAYER_AT);
         MenuTilePlace from = { RIGHT_COLUMN, (uint8_t)(reserve_place * TILE_ROWS_A_ROW + FIRST_TILE_ROW) };
         menu_copy_tile_area(g, from, KEPT_ASIDE, RESERVE_ROW_SIZE);
@@ -646,9 +626,6 @@ static void start_the_slide(GameState *g, Platform *pf, ExchangeSlide *slide, un
     menu_copy_tile_area(g, RESERVE_COLUMN, slide->from, RESERVE_COLUMN_SIZE);
     set_menu_scroll_moved(g, 0);
     slide->frames_left = SLIDE_FRAMES;
-    charge_machine_accesses(g, 6);
-    charge_machine_accesses(g, 1);
-    charge_machine_accesses(g, 2);
 }
 
 /* Pushed past the reserve's first row, it scrolls back a row, its row
@@ -668,7 +645,6 @@ static bool scroll(GameState *g, Platform *pf, ExchangeSlide *slide)
         return true;
     }
     uint8_t last_top = (uint8_t)(menu_exchange_reserve_count(g) - (EXCHANGE_RESERVE_SHOWN - 1));
-    charge_machine_accesses(g, 1);
     set_menu_cursor_index(g, LAST_RESERVE_PLACE);
     uint8_t top = (uint8_t)(menu_reserve_top(g) + 1);
     if (top >= last_top)
@@ -699,7 +675,6 @@ static void move_the_reserve(GameState *g, int8_t step)
 {
     for (unsigned r = menu_exchange_reserve_count(g); r-- > 0;) {
         uint8_t character = party_at(g, place_in_the_party(row(g, EXCHANGE_ACTIVE_ROWS + r)));
-        (charge_machine_accesses(g, 2), charge_machine_io_accesses(g, 4));
         set_menu_record_y(g, character, (uint8_t)(menu_record_y(g, character) - step));
         set_menu_record_animation(g, character, STANDING);
     }
@@ -719,7 +694,6 @@ bool menu_exchange_slide_a_frame(GameState *g, ExchangeSlide *slide)
     menu_copy_tile_area(g, slide->from, RESERVE_COLUMN, RESERVE_COLUMN_SIZE);
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
     slide->frames_left--;
-    charge_machine_accesses(g, 6);
     return slide->frames_left != 0;
 }
 
@@ -727,7 +701,6 @@ bool menu_exchange_slide_a_frame(GameState *g, ExchangeSlide *slide)
 void menu_exchange_end_the_slide(GameState *g)
 {
     set_menu_held_cursor_shift(g, 0);
-    charge_machine_accesses(g, 2);
     stand_the_members(g);
 }
 

@@ -1,5 +1,3 @@
-/* Naming a character, menu screen 13 (game/menu/naming.c), and its steps
- * on the original's machine (game/menu/naming_bridge.c). */
 #ifndef CT_GAME_MENU_NAMING_H
 #define CT_GAME_MENU_NAMING_H
 
@@ -8,7 +6,6 @@
 
 #include "menu/cursor.h"
 #include "platform/video.h"
-#include "snes/system.h"
 #include "state.h"
 
 /* The screen opens on the naming; or, at a new game's first, on the battle
@@ -106,18 +103,5 @@ bool menu_naming_step(GameState *g, Platform *pf);
 /* The steps and entries ($C2:E1ED, $C2:E201, $C2:E209, $C2:E21E, $C2:E236;
  * $C2:E267, $C2:E2F4, $C2:E363, $C2:E3E0; $C2:E40E, $C2:E545, $C2:E34A,
  * $C2:E576, $C2:E5D3), and their guards. */
-void menu_open_naming_screen(Snes *s);
-void menu_open_the_naming(Snes *s);
-void menu_wait_to_name(Snes *s);
-void menu_name_the_character(Snes *s);
-void menu_choose_battle_mode(Snes *s);
-void menu_move_on_the_name_grid(Snes *s);
-void menu_type_on_the_name_grid(Snes *s);
-void menu_accept_the_name(Snes *s);
-void menu_check_the_name(Snes *s);
-bool menu_naming_runs(Snes *s);
-bool menu_naming_opens(Snes *s);
-bool menu_naming_name_is_checkable(Snes *s);
-bool menu_naming_step_runs(Snes *s);
 
 #endif

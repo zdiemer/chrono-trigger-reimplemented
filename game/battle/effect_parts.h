@@ -27,32 +27,6 @@ enum { EFFECT_ARG_1 = 0x16, EFFECT_ARG_2 = 0x18, EFFECT_ARG_3 = 0x1A, EFFECT_ARG
  * cells (battle_wide_math's ninth and tenth bytes). */
 enum { WORKING_WORD = 8 };
 
-static inline void leave_working_word(GameState *g, uint16_t v)
-{
-    set_battle_wide_math(g, WORKING_WORD, (uint8_t)v);
-    set_battle_wide_math(g, WORKING_WORD + 1, (uint8_t)(v >> 8));
-}
-
-/* $0E: the effect code leaves there what it last worked with -- a draw, a
- * number's place, a target's statuses -- which an enemy's tech notes as its
- * hits where its targeting doesn't set them (battle.h): game state, kept
- * plainly, never read back by the work. */
-static inline void effect_leave_last_worked(GameState *g, uint16_t v) { battle_keep_word(g, BATTLE_TECH_HITS_LEFT, v); }
-static inline void effect_leave_last_worked_byte(GameState *g, uint8_t v) { battle_keep_byte(g, BATTLE_TECH_HITS_LEFT, v); }
-
-/* ---- The long arithmetic, as the effect code does it ------------------------------------------ */
-
-/* A word times a word ($C1:C90B), the low word of the product; its high word
- * is the long arithmetic's leftover (battle_long_high_word). */
-static inline uint16_t effect_times(GameState *g, uint16_t a, uint16_t b) { return (uint16_t)battle_multiply_words(g, a, b); }
-
-/* The leftover high word and `low` over `divisor` ($C1:C92A), so that a
- * product just made is divided whole. */
-static inline BattleLongQuotient effect_over(GameState *g, uint16_t low, uint16_t divisor)
-{
-    return battle_divide_leftover(g, low, divisor);
-}
-
 /* ---- Recording what an effect does (battle/effect_amounts.c) ------------------------------ */
 
 /* How a damage table entry is marked (battle_damage.flags). */
@@ -149,20 +123,8 @@ void effect_status_chance(GameState *g, uint8_t chance, uint8_t bits);
  * nothing tried yet, an item taken (with bit 1 where the member keeps it), a
  * miss, or nothing to take. */
 typedef enum { STEAL_TOOK, STEAL_MISSED, STEAL_NOTHING, STEAL_NOT_TRIED } StealOutcome;
-enum {
-    STEAL_OUTCOME_NOT_TRIED = 0x00, STEAL_OUTCOME_TOOK = 0x01, STEAL_OUTCOME_KEPT_BY_MEMBER = 0x02,
-    STEAL_OUTCOME_MISSED = 0xFE, STEAL_OUTCOME_NOTHING = 0xFF,
-};
+enum { STEAL_OUTCOME_NOT_TRIED = 0x00, STEAL_OUTCOME_TOOK = 0x01, STEAL_OUTCOME_KEPT_BY_MEMBER = 0x02, STEAL_OUTCOME_MISSED = 0xFE, STEAL_OUTCOME_NOTHING = 0xFF,  };
 StealOutcome effect_steal(GameState *g, uint8_t chance);
-
-static inline StealOutcome effect_last_steal(const GameState *g)
-{
-    uint8_t kept = battle_steal_outcome(g);
-    return kept == STEAL_OUTCOME_NOT_TRIED ? STEAL_NOT_TRIED
-           : kept == STEAL_OUTCOME_MISSED  ? STEAL_MISSED
-           : kept == STEAL_OUTCOME_NOTHING ? STEAL_NOTHING
-                                           : STEAL_TOOK;
-}
 
 /* ---- Modifiers (battle/effect_modifiers.c) ------------------------------------------------ */
 
@@ -173,5 +135,41 @@ void effect_apply_modifiers(GameState *g, Platform *pf);
 /* $C1:EB1C with the steal's modifier, a charm's chance ($C1:EFC3): whether
  * the steal takes the enemy's charm, where it has one. */
 bool effect_charm_comes(GameState *g);
+
+static inline void leave_working_word(GameState *g, uint16_t v)
+{
+    set_battle_wide_math(g, WORKING_WORD, (uint8_t)v);
+    set_battle_wide_math(g, WORKING_WORD + 1, (uint8_t)(v >> 8));
+}
+
+/* $0E: the effect code leaves there what it last worked with -- a draw, a
+ * number's place, a target's statuses -- which an enemy's tech notes as its
+ * hits where its targeting doesn't set them (battle.h): game state, kept
+ * plainly, never read back by the work. */
+static inline void effect_leave_last_worked(GameState *g, uint16_t v) { battle_keep_word(g, BATTLE_TECH_HITS_LEFT, v); }
+
+static inline void effect_leave_last_worked_byte(GameState *g, uint8_t v) { battle_keep_byte(g, BATTLE_TECH_HITS_LEFT, v); }
+
+/* ---- The long arithmetic, as the effect code does it ------------------------------------------ */
+
+/* A word times a word ($C1:C90B), the low word of the product; its high word
+ * is the long arithmetic's leftover (battle_long_high_word). */
+static inline uint16_t effect_times(GameState *g, uint16_t a, uint16_t b) { return (uint16_t)battle_multiply_words(g, a, b); }
+
+/* The leftover high word and `low` over `divisor` ($C1:C92A), so that a
+ * product just made is divided whole. */
+static inline BattleLongQuotient effect_over(GameState *g, uint16_t low, uint16_t divisor)
+{
+    return battle_divide_leftover(g, low, divisor);
+}
+
+static inline StealOutcome effect_last_steal(const GameState *g)
+{
+    uint8_t kept = battle_steal_outcome(g);
+    return kept == STEAL_OUTCOME_NOT_TRIED ? STEAL_NOT_TRIED
+           : kept == STEAL_OUTCOME_MISSED  ? STEAL_MISSED
+           : kept == STEAL_OUTCOME_NOTHING ? STEAL_NOTHING
+                                           : STEAL_TOOK;
+}
 
 #endif
