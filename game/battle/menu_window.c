@@ -33,6 +33,7 @@
 #include "battle/program.h"
 #include "battle/window_data.h"
 #include "charge.h"
+#include "core/sprite_table.h"
 #include "vars.h"
 
 /* ---- The menu window's tilemap ---------------------------------------------------------- */
@@ -431,6 +432,8 @@ enum { HAND_WIDTH = 16, CURSORS_HIGH_BYTE = 0, ALL_CURSORS_PAST_THE_EDGE = 0x55 
 static void hide_cursors(GameState *g)
 {
     set_oam_high_table_byte(g, CURSORS_HIGH_BYTE, oam_high_table_byte(g, CURSORS_HIGH_BYTE) | ALL_CURSORS_PAST_THE_EDGE);
+    for (unsigned cursor = 0; cursor < CURSORS; cursor++)
+        sprite_table_hide_as_it_stands(g, cursor);
 }
 
 static void show_cursor(GameState *g, unsigned cursor)
@@ -454,8 +457,10 @@ static void point_cursor_at(GameState *g, unsigned cursor, unsigned slot)
 void battle_move_cursors_away(GameState *g)
 {
     hide_cursors(g);
-    for (unsigned cursor = 0; cursor < CURSORS; cursor++)
+    for (unsigned cursor = 0; cursor < CURSORS; cursor++) {
         set_oam_buffer_y(g, cursor, CURSOR_OFF_SCREEN_Y);
+        sprite_table_hide_as_it_stands(g, cursor);
+    }
 }
 
 // $C1:17FE

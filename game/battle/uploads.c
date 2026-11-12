@@ -26,6 +26,7 @@
 #include "battle/entries.h"
 #include "battle/frame_data.h"
 #include "battle/wait.h"
+#include "core/sprite_table.h"
 #include "battle/window.h"
 #include "platform/video.h"
 #include "ram.h"
@@ -262,7 +263,7 @@ static void count_down_to_reupload(GameState *g, Platform *pf)
 /* The sprite table goes from work RAM's mirror in bank $00. */
 void battle_send_vblank_uploads(GameState *g, Platform *pf)
 {
-    vid_send_oam(pf, PF_AT(0xCFE301), PF_GAME((uint16_t)RAM_OAM_BUFFER));
+    vid_send_oam(pf, PF_AT(0xCFE301), PF_GAME((uint16_t)RAM_OAM_BUFFER), sprite_table_places(g));
     if (battle_transfer_pending(g))
         send_described_transfer(g, pf);
     send_window_frames(g, pf);

@@ -56,7 +56,13 @@ typedef struct {
  * so a disabled window with the invert bit set stays distinguishable. */
 typedef enum { VID_WIN_OFF = 0, VID_WIN_OFF_INVERTED = 1, VID_WIN_IN = 2, VID_WIN_OUT = 3 } VidWinUse;
 typedef enum { VID_WIN_OR, VID_WIN_AND, VID_WIN_XOR, VID_WIN_XNOR } VidWinLogic;
+enum { VID_WINDOW_FIRST_DOT = 0x00, VID_WINDOW_LAST_DOT = 0xFF };
 
+/* The two windows. Their edges are dots of the original's screen, 0-255, as
+ * the game's line tables hold them. A window can't reach past the screen, so
+ * an edge on its first or last dot means "on to that side": on a wider view
+ * (vid_view) it reaches on to the view's side, and a window from 0 to 255
+ * covers the whole view. */
 typedef struct {
     VidWinUse w1[6], w2[6];     /* per VidLayer; VID_BACK is the color window */
     VidWinLogic logic[6];       /* per VidLayer; VID_BACK is the color window */
@@ -184,14 +190,31 @@ enum {
     VID_M7_MATRIX_B = 1 << 7,    /* b alone, both bytes */
 };
 
+/* How much of the picture is shown (vid_view, below): the original's screen,
+ * 256 dots by 224 lines, or a wider one, which has the original's screen in
+ * its middle. Screen coordinates stay the original's -- its left edge at 0 --
+ * so a wider view reaches from vid_view_left, a negative X, to short of
+ * vid_view_right. A view is at most VID_MAX_VIEW_WIDTH across, which the
+ * scrolling maps' 64-column tile maps fill (the screen's 33 columns and 15
+ * either side, less the fine scroll); the height stays the original's. */
+enum { VID_ORIGINAL_VIEW_WIDTH = 256, VID_ORIGINAL_VIEW_HEIGHT = 224, VID_MAX_VIEW_WIDTH = 480 };
+typedef struct {
+    uint16_t width, height;
+} VidView;
+static inline int16_t vid_view_left(VidView v) { return (int16_t)(((int)VID_ORIGINAL_VIEW_WIDTH - (int)v.width) / 2); }
+static inline int16_t vid_view_right(VidView v) { return (int16_t)(vid_view_left(v) + (int)v.width); }
+static inline bool vid_view_is_wider(VidView v) { return v.width > VID_ORIGINAL_VIEW_WIDTH; }
+
 /* One OAM entry, as the game builds it. */
 typedef struct {
-    int16_t x;              /* 9 bits, as OAM holds it */
+    int16_t x;              /* 9 bits, as OAM holds it; where `placed`, the X the game placed it at (VidSpritePlace) */
     uint8_t y;
     uint16_t tile;          /* 9-bit name */
     uint8_t palette;        /* 0-7 */
     uint8_t priority;       /* 0-3 */
     bool hflip, vflip, large;
+    bool placed;            /* x is the game's whole signed X, which a wider view shows past 0-255 */
+    bool hidden;            /* the game put the sprite out of sight: shown on no view */
 } VidSprite;
 
 /* ---- The sprite table, as the game builds it in its own memory ----------------
@@ -208,6 +231,7 @@ enum {
     VID_OAM_SPRITES_A_HIGH_BYTE = 4,
     VID_OAM_HIGH_BITS = 2,          /* a sprite's bits in its high byte */
     VID_OAM_HIDDEN_Y = 0xE0,        /* the line an entry is put on to show nowhere */
+    VID_OAM_HIDDEN_X = 0x100,       /* X's ninth bit, which puts an entry off the screen's side */
     VID_OAM_HIGH_BITS_WORD = 0x100, /* the table's word where the high bits start */
 };
 
@@ -223,6 +247,28 @@ static inline int16_t vid_oam_x(uint8_t low, uint8_t high_bits)
     return (int16_t)((high_bits & 0x01) ? low - 0x100 : low);
 }
 static inline bool vid_oam_large(uint8_t high_bits) { return (high_bits & 0x02) != 0; }
+
+/* Where the game put a sprite, beside the table, for a view wider than the
+ * original's screen (vid_view). The table's X is nine bits, -256 to 255, so a
+ * sprite right of the screen reads as one left of it; and the game hides a
+ * sprite by putting it where the original's screen shows nothing (X 256, the
+ * line VID_OAM_HIDDEN_Y), which a wider or taller view would show. A place says
+ * what the entry means: the whole X it stands at, or that it is out of sight.
+ * It holds while the entry keeps the X and Y it was given with, so an entry a
+ * builder fills without a place reads as the table says. The original's
+ * screen draws from the table alone. */
+typedef enum { VID_PLACE_NONE, VID_PLACE_AT, VID_PLACE_HIDDEN } VidPlaceKind;
+typedef struct {
+    int16_t x;              /* the whole X; for VID_PLACE_HIDDEN, the X the entry was left at */
+    uint8_t y;              /* the entry's Y when the place was given */
+    uint8_t kind;           /* VidPlaceKind */
+} VidSpritePlace;
+
+/* Whether a place still describes an entry of X `x9` (its nine bits) and Y `y`. */
+static inline bool vid_place_holds(const VidSpritePlace *p, uint16_t x9, uint8_t y)
+{
+    return p->kind != VID_PLACE_NONE && ((uint16_t)p->x & 0x1FF) == (x9 & 0x1FF) && p->y == y;
+}
 
 typedef struct {
     uint8_t size_select;    /* which pair of sprite sizes (0-7) */
@@ -374,6 +420,8 @@ typedef struct {
 typedef struct {
     VidSprite sprites[VID_SPRITES];
     uint8_t first_sprite;   /* OAM priority rotation */
+    VidView view;           /* how much of the picture to draw (vid_view) */
+    int16_t shown_left, shown_right;   /* the screen X the picture covers (vid_end_the_picture) */
     uint16_t span_count;
     VidSpan spans[VID_MAX_SPANS];   /* spans[0].line == 1 */
     const uint8_t *vram;    /* 64 KiB, SNES layout */
@@ -512,11 +560,12 @@ static inline bool vid_line_effect_decode(uint8_t control, uint8_t dest, VidLine
  * "Layering"). The game asks it where it decides how much to show or where to
  * lay something out, never where a rule of the game's happens to use the
  * screen's size; the gate runs at the original's. */
-enum { VID_ORIGINAL_VIEW_WIDTH = 256, VID_ORIGINAL_VIEW_HEIGHT = 224 };
-typedef struct {
-    uint16_t width, height;
-} VidView;
 PF_API VidView vid_view(const Platform *pf);
+/* Where this frame's picture ends across a wider view: it covers screen X
+ * from `left` to short of `right`, and black shows beyond -- the field's map
+ * where the view reaches past its edges. Each frame starts covering the
+ * whole view, so a mode whose picture ends short says so every frame. */
+PF_API void vid_end_the_picture(Platform *pf, int16_t left, int16_t right);
 
 /* Master brightness and forced blank. */
 PF_API void vid_set_display(Platform *pf, PfOrigin o, const VidDisplay *d);
@@ -603,8 +652,9 @@ PF_API void vid_send_vram_fill(Platform *pf, PfOrigin o, uint16_t vram_addr, PfD
                                const VidVramPort *port);
 /* `count` BGR555 colors from `src` into CGRAM from entry `first`. */
 PF_API void vid_send_palette(Platform *pf, PfOrigin o, uint8_t first, PfData src, uint16_t count);
-/* The sprite table (VID_OAM_*: 128 entries and the high bits), as the game built it. */
-PF_API void vid_send_oam(Platform *pf, PfOrigin o, PfData oam);
+/* The sprite table (VID_OAM_*: 128 entries and the high bits), as the game
+ * built it, with where it put each sprite (VID_SPRITES of them, or NULL). */
+PF_API void vid_send_oam(Platform *pf, PfOrigin o, PfData oam, const VidSpritePlace *places);
 /* `len` bytes of the sprite table from its word `word_addr` (the entries from
  * 0, the high bits from VID_OAM_HIGH_BITS_WORD) all set to `value`: every
  * entry put on one line, or every sprite's high bits cleared. */
@@ -703,7 +753,8 @@ void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32
 void vid_obs_continue_vram(VidObserver *ob, PfData src, uint32_t len, int half);   /* half as vid_obs_write_vram's */
 uint16_t vid_obs_vram_word(const VidObserver *ob, uint16_t vram_addr);
 void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t count);
-void vid_obs_upload_oam(VidObserver *ob, PfData oam);
+void vid_obs_upload_oam(VidObserver *ob, PfData oam, const VidSpritePlace *places);
+void vid_obs_view(VidObserver *ob, VidView view, int16_t shown_left, int16_t shown_right);
 void vid_obs_fill_oam(VidObserver *ob, uint16_t word_addr, uint8_t value, uint32_t len);
 void vid_obs_write_oam(VidObserver *ob, uint8_t v);
 

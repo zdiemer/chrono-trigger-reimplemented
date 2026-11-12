@@ -201,7 +201,7 @@ static bool work_before_the_queue(GameState *g, Platform *pf)
             TIMED_AS(g, FIELD_SEND_DIALOG_TEXT_ENTRY, field_send_dialog_text(g, pf));
     }
     TIMED_AS(g, PALETTE_UPLOAD_ENTRY, palette_send_working(pf));
-    TIMED_AS(g, SEND_SPRITE_TABLE, field_upload_sprite_table(pf));
+    TIMED_AS(g, SEND_SPRITE_TABLE, field_upload_sprite_table(g, pf));
     return false;
 }
 

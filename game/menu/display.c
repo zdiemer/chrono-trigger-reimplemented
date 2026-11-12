@@ -18,6 +18,7 @@
 #include "charge.h"
 #include "field/main_loop.h"
 #include "core/program.h"
+#include "core/sprite_table.h"
 #include "cpu_io.h"
 #include "menu/cursor.h"
 #include "menu/fades.h"
@@ -351,7 +352,7 @@ static void send_the_frame(GameState *g, Platform *pf)
 {
     send_menu_scroll(g, pf);
     send_menu_screen_shadows(g, pf);
-    vid_send_oam(pf, PF_AT(0xC28607), PF_GAME(RAM_OAM_BUFFER));
+    vid_send_oam(pf, PF_AT(0xC28607), PF_GAME(RAM_OAM_BUFFER), sprite_table_places(g));
     if (menu_line_effects(g) & BLOCK_MOVE_ASKED) {
         set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) & ~BLOCK_MOVE_ASKED));
         move_the_block(g);
@@ -678,7 +679,7 @@ static void send_object_frame(GameState *g, Platform *pf)
 {
     vid_set_display(pf, PF_AT(0xC2017D), &BLANK);
     vid_enable_line_effects(pf, PF_AT(0xC20181), 0x00);
-    vid_send_oam(pf, PF_AT(0xC20187), PF_GAME(RAM_ABS(RAM_OAM_BUFFER)));
+    vid_send_oam(pf, PF_AT(0xC20187), PF_GAME(RAM_ABS(RAM_OAM_BUFFER)), sprite_table_places(g));
     if (menu_object_frame_state(g) & PALETTE_TO_SEND)
         vid_send_palette(pf, PF_AT(0xC201AD), 0, PF_GAME(RAM_ABS(RAM_MENU_OBJECT_PALETTE)), 256);
     set_menu_object_frame_state(g, 0);

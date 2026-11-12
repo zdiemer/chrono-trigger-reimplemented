@@ -91,6 +91,7 @@ typedef struct {
     uint8_t line_effects_below;
     uint32_t screens_applied;
     VidView view;                /* vid_host_set_view's; zero: the original's screen */
+    int16_t shown_left, shown_right;   /* vid_end_the_picture's this frame; equal: the whole view */
 } VidHost;
 
 /* The sound: the C sound driver (game/sound/) played in the SPC700's place,

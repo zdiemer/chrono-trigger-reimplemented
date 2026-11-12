@@ -18,8 +18,12 @@
 
 #include "platform/video.h"
 
+/* The picture is the frame's view across (vid_render_width: VID_RENDER_WIDTH,
+ * the original's screen, unless the frame's view is wider) and
+ * VID_RENDER_HEIGHT down; a buffer for any view holds VID_RENDER_MAX_PIXELS. */
 #define VID_RENDER_WIDTH 256
 #define VID_RENDER_HEIGHT 224
+#define VID_RENDER_MAX_PIXELS (VID_MAX_VIEW_WIDTH * VID_RENDER_HEIGHT)
 
 typedef struct VidRenderer VidRenderer;
 
@@ -32,8 +36,12 @@ typedef struct {
 VidRenderer *vid_render_create(void);
 void vid_render_destroy(VidRenderer *r);
 
-/* Draw the whole frame into `out`: 256x224 XRGB8888, row 0 being line 1.
- * `flags` may be NULL.
+/* How many pixels across the frame is drawn: its view's width. */
+int vid_render_width(const VidFrame *f);
+
+/* Draw the whole frame into `out`: vid_render_width(f) by 224 XRGB8888, row 0
+ * being line 1, the original's screen in the middle of a wider view. `flags`
+ * may be NULL.
  *
  * `out` must be the same buffer every frame and must not be written to outside
  * the renderer: a line whose inputs are unchanged keeps the pixels it has. */
