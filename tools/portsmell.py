@@ -492,7 +492,7 @@ CHECKS = (
      "a cited file that no longer exists"),
     ("enum-types-nothing", enum_types_nothing, "33",
      "an enum declared but never used as a type; the type is the vocabulary"),
-    ("flag-note-in-logic", flag_notes_in_control_flow, "93, 105",
+    ("flag-note-in-logic", flag_notes_in_control_flow, "93",
      "a flag noted inside the logic's loop or game branch; work it out once from the final state"),
     ("return-address-pushed", return_address_pushed, "85, 101",
      "a return frame pushed by hand outside a bridge; register the subroutine or port the call-out"),

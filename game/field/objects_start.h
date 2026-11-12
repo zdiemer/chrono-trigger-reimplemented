@@ -20,10 +20,10 @@ void field_objects_let_go(GameState *g, bool forget_the_graphics);
  * ($C0:5709, before the openings). */
 void field_objects_start_afresh(GameState *g, Platform *pf);
 
-/* The objects set up as C: let go and started afresh, their openings run, the
+/* The objects set up: let go and started afresh, their openings run, the
  * party started on the map, the map's own script run and the party's looks
- * shown. False where a script or the party's start is the machine's yet
- * (the program goes no further there: core/program.h). */
+ * shown. False where a script or the party's start is one the port doesn't
+ * take (the program goes no further there: core/program.h). */
 bool field_objects_set_up(GameState *g, Platform *pf);
 
 enum { FIELD_SET_UP_THE_OBJECTS_ENTRY = 0xC056A6, FIELD_START_THE_OBJECTS_ENTRY = 0xC05709 };

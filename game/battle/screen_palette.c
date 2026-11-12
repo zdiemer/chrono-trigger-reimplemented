@@ -36,8 +36,14 @@ static void paint_rows(GameState *g, unsigned first_row, unsigned rows, uint16_t
 /* ---- The palette animation slots ------------------------------------------------------------ */
 
 /* The kinds of animation a slot runs (core/palette.c): the high nibble. */
-enum { ANIMATION_NONE = 0, ANIMATION_FRAMES = 0x10, ANIMATION_ROTATE_UP = 0x30, /* Kinds 8-15 step through frames from a table. */
-    ANIMATION_FRAMES_FROM_TABLE = 0x80, ANIMATION_TYPE = 0xF0,  };
+enum {
+    ANIMATION_NONE = 0,
+    ANIMATION_FRAMES = 0x10,
+    ANIMATION_ROTATE_UP = 0x30,
+    /* Kinds 8-15 step through frames from a table. */
+    ANIMATION_FRAMES_FROM_TABLE = 0x80,
+    ANIMATION_TYPE = 0xF0,
+};
 
 static void copy_animation(GameState *g, unsigned from, unsigned to)
 {

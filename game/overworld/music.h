@@ -40,7 +40,7 @@ typedef struct {
 LocationSong overworld_location_song(GameState *g);
 AudioCommand overworld_song_command(uint8_t song);
 
-/* The guard's: whether the music's object is on one of its steps, and where
+/* What the port checks: whether the music's object is on one of its steps, and where
  * it looks up the party's region, the party is on the region map. */
 bool overworld_region_song_can_play(const GameState *g, MenuObject self);
 

@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 #include "state.h"
+#include "vars.h"
 
 /* A second cursor held where the player's was (menu_held_cursor), blinking
  * as menu_held_cursor_blink says; a frame of it. */
@@ -32,16 +33,10 @@ void menu_draw_cursors_on_every_member(GameState *g);
  * arrows. */
 void menu_start_the_scroll_bar(GameState *g);
 void menu_draw_the_scroll_bar(GameState *g);
-/* The scroll bar's thumb on the screen, which drawing it takes (its task's
- * guard's state half). */
+/* The scroll bar's thumb on the screen, which drawing it takes. */
 bool menu_scroll_bar_can_be_drawn(const GameState *g);
 
-/* The checked legacy adapters ($C2:8A98, $C2:8ABA, $C2:89E4, $C2:89FA,
- * $C2:8A31, $C2:8A45, $C2:8AD5, $C2:8AFD, $C2:8B93) and their guards; the
- * scroll bar's task's (menu_run_the_scroll_bar_task, menu/tasks.c). */
-
-/* What the held cursors' tasks take of the state, as their entries' guards
- * do: the held cursor's place one of the cursor's table, the member's too
+/* What the held cursors' tasks need of the state: the held cursor's place one of the cursor's table, the member's too
  * with the reserve's tops among its six places, and the members' cursors
  * for one to three active members. (The list's takes nothing.) */
 bool menu_held_cursor_can_be_drawn(const GameState *g);

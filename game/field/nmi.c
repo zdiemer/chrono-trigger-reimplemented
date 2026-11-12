@@ -11,10 +11,8 @@
  * layers' deferred edge uploads; and then the per-line effects for the
  * frame, and the frame is marked done.
  *
- * Most of that work is other routines, some still the original's code, so the
- * handler is a bridge: its decisions are plain C over the game's state, and it
- * calls the routines as the original does, with the registers it has saved on
- * the interrupted code's stack. */
+ * Most of that work is other routines, which the handler calls as the
+ * original does; its decisions are plain C over the game's state. */
 #include "field/field.h"
 #include "core/input.h"
 #include "core/palette.h"
@@ -44,11 +42,6 @@ static int screen_transition_step(const GameState *g)
             return step;
     return -1;
 }
-
-/* A map transition (field/field.h, FieldMapMove): a move to a destination,
- * each with its tile map base, or a send of a tile map staged in bank $7E:
- * BG2's left screen, its right screen, a piece of BG3's map
- * (field/display.c). */
 
 /* The first two moves also set BG1's tile map in the line effects' values,
  * two screens wide, from the destination's. */
@@ -124,8 +117,7 @@ static void apply_display_shadows(const GameState *g, Platform *pf)
 /* ---- The frame's work ------------------------------------------------------------------------ */
 
 /* The frame is done: the per-line effects are set up for it, and it is
- * marked done. The field's own sends run as C, timed as the routines they
- * are. */
+ * marked done. The field's own sends are timed as the routines they are. */
 enum { PROGRAM_LINE_EFFECTS = 0xFDC1EE, SEND_SPRITE_TABLE = 0xC0ECA3, SEND_QUEUED_TRANSFERS = 0xC0B1B2 };
 
 static void finish_frame(GameState *g, Platform *pf)
@@ -249,7 +241,7 @@ static void upload_the_edges(GameState *g, Platform *pf)
     no_more_edges_asked(g);
 }
 
-/* ---- The handler, as C ----------------------------------------------------------------------- */
+/* ---- The handler ------------------------------------------------------------------------------ */
 
 enum { MENUS_FRAME = 0xC28002 };   /* the menus' and the controller's per-frame input work */
 
@@ -274,5 +266,3 @@ void field_vblank(GameState *g, Platform *pf)
     }
     apply_display_shadows(g, pf);
 }
-
-/* ---- Where it meets the original ------------------------------------------------------- */

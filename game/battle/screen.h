@@ -62,7 +62,7 @@ enum { SCREEN_HALF_TURN = 0x80, SCREEN_SINE_FRACTION_BITS = 8 };
 enum { SCREEN_QUARTER_TURN = 0x40 };
 
 /* What the original's sine routines leave in the multiplier: the sine's
- * magnitude times the amount's (scaffolding, for ORIGINAL_EFFECT). */
+ * magnitude times the amount's, kept as the original leaves it. */
 void screen_leave_sine_product(GameState *g, uint8_t angle, uint8_t amount);
 
 /* ---- The animation positions and the effect object ------------------------------------------ */
@@ -85,15 +85,13 @@ uint8_t screen_effect_object_rise(const GameState *g);
 
 /* ---- The cells the original works in -------------------------------------------------------
  *
- * The effects' routines keep values in the battle page's scratch cells as they
- * work ($00-$21 and $45-$5B); a port keeps them in C and writes the final
- * values once, as scaffolding (ORIGINAL_EFFECT): nothing but the original's
- * next use of a cell, which writes it first, and shadow mode read them. `cell`
- * is the cell's offset on the page, as the original spells it. A few cells are
- * also a calling convention -- a caller's settings, a callee's input, a
- * result the original's code reads -- which only the entry wrappers and the
- * bridges read or write, through screen_cell and screen_set_cell, each saying
- * which. */
+ * The effects' routines keep values in the battle's low work cells as they
+ * work ($00-$21 and $45-$5B); the port keeps them in locals and writes the
+ * final values once, as the original leaves them; nothing reads most of them
+ * before the original's next use writes them again. `cell` is the cell's
+ * offset, as the original spells it. A few cells carry settings from one
+ * routine to the next, read and written through screen_cell and
+ * screen_set_cell, each saying which. */
 enum { SCREEN_LOW_CELLS_END = BATTLE_LOW_SCRATCH_COUNT, SCREEN_CELLS = 0x45 };
 
 /* ---- What loading a battlefield takes from the screen effects ----------------------------- */
@@ -137,8 +135,8 @@ void screen_draw_window_quad(GameState *g, unsigned quad);
 /* Whether corners drawn this frame stay in the window table: on an odd frame
  * the coming buffer is the table's second, and a quadrilateral reaching below
  * the screen's last line would be drawn on past its end, as the original
- * does into the window's registers' images after it. No quadrilateral the
- * game draws goes there; the commands and entries that draw one ask this. */
+ * does into the window settings' copies after it. No quadrilateral the
+ * game draws goes there; the commands that draw one ask this. */
 bool screen_quad_fits_the_table(const GameState *g, const BattlePoint c[SCREEN_QUAD_CORNERS]);
 
 /* ---- The window triangles (screen_triangles.c) --------------------------------------------- */
@@ -179,66 +177,25 @@ void battle_set_screen_effect_to(GameState *g, const uint8_t settings[SCREEN_EFF
  * counts the ones it gives in its low bits. */
 enum { SCREEN_EFFECT_CHOICES = 6, SCREEN_EFFECT_SETTINGS_GIVEN = 0x0F };
 
-/* ---- The guards (registry .guard) ------------------------------------------------------ */
-
-/* Every entry here runs on the battle's page with the data bank at $7E, as all
- * of their callers have them (battle/bridge.h); most also with A's high byte
- * 0, which the original's indexing takes along into its tables. The screen
- * script's dispatch calls its commands' bodies so. */
-/* ... running a channel (screen_motion.c); the jitter with the carry set, as
- * the dispatch leaves it; the positions saved to one of two slots; a screen
- * effect one of the six. */
-/* ... the HP gradient's phase and rows within its tables (screen_gradient.c). */
-/* ... the window commands' shapes within the window table (screen_window.c). */
-/* ... a window quadrilateral one of the two (screen_beam.c); $D1:F91D and
- * $D1:F972 run with the data bank the rasterizer sets for the work RAM port. */
-/* ... the triangle's drawing on the battle's page, its lines within the
- * window table (screen_triangles.c). */
-/* ... a special effect of the 29, running a channel (screen_specials.c). */
-/* ... a cut through the middle that fits the screen, a window carried over
- * one of the two (screen_divide.c). */
-/* ... a run of a circle's edges within the window table and the worked edges
- * (screen_shapes.c). */
-
-/* ... the screen script's channels, its dispatch and its commands
- * (screen_script.c). */
-
-/* screen_script.c */
 /* screen_palette.c */
 /* The palette animations paused with the battle, or let run again ($D1:F426). */
 void battle_pause_palette_animation(GameState *g);
 enum { BATTLE_PAUSE_PALETTE_ANIMATION_ENTRY = 0xD1F426 };
 /* screen_gradient.c */
-/* The HP gradient's step ($D1:EA4B), and its guard's state half: its phase
- * in range. */
+/* The HP gradient's step ($D1:EA4B), and whether its phase is in range. */
 void battle_step_hp_gradient(GameState *g);
 bool battle_hp_gradient_steps(const GameState *g);
-/* screen_graphics.c */
-/* screen_window.c */
-/* screen_beam.c */
-/* screen_triangles.c */
-/* screen_specials.c */
-/* screen_divide.c */
-/* screen_between.c */
-/* screen_shapes.c */
-/* screen_motion.c */
 /* screen_setup.c */
-/* The screen set up as a battle starts ($D1:F1B0), as C. False where it went
+/* The screen set up as a battle starts ($D1:F1B0). False where it went
  * no further. */
 bool battle_screen_set_up(GameState *g, Platform *pf);
 /* The battle's display closed down as the party leaves ($CD:0006,
- * battle/closing.c), as C. False where it went no further. */
+ * battle/closing.c). False where it went no further. */
 bool battle_display_closed(GameState *g, Platform *pf);
-/* The battle window opened as the battle starts ($CD:000C), as C. */
+/* The battle window opened as the battle starts ($CD:000C). */
 bool battle_window_opened(GameState *g, Platform *pf);
 
 /* ---- The running command ---------------------------------------------------------------- */
-
-/* The running command's `n`th operand, from its first. */
-static inline uint8_t screen_command_operand(const GameState *g, unsigned n)
-{
-    return battle_screen_script_byte(g, battle_screen_script(g) + n);
-}
 
 /* The command took `operands` operands: the channel's step after it lands on
  * the next command. The pointer moves within its bank. */
@@ -281,11 +238,6 @@ static inline void screen_set_cell(GameState *g, uint8_t cell, uint8_t v)
         set_battle_scratch(g, (unsigned)(cell - SCREEN_CELLS), v);
 }
 
-static inline uint16_t screen_cell_word(const GameState *g, uint8_t cell)
-{
-    return (uint16_t)(screen_cell(g, cell) | screen_cell(g, (uint8_t)(cell + 1)) << 8);
-}
-
 static inline void screen_set_cell_word(GameState *g, uint8_t cell, uint16_t v)
 {
     screen_set_cell(g, cell, (uint8_t)v);
@@ -298,7 +250,7 @@ static inline void screen_set_cell_word(GameState *g, uint8_t cell, uint16_t v)
  * plainly, as the layers' scroll writes it each frame (scroll.c). */
 static inline void screen_leave_for_the_drift(GameState *g, uint16_t v) { set_battle_screen_leftover(g, v); }
 
-/* The scaffolding's writes, by the same cells. */
+/* The writes of what the original leaves in its cells, by the same cells. */
 static inline void screen_leave_cell(GameState *g, uint8_t cell, uint8_t v) { screen_set_cell(g, cell, v); }
 
 static inline void screen_leave_word(GameState *g, uint8_t cell, uint16_t v) { screen_set_cell_word(g, cell, v); }

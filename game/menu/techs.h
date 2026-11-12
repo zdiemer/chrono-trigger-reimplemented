@@ -71,7 +71,7 @@ void menu_draw_tech_row(GameState *g, uint16_t at, uint8_t tech, bool waiting);
  * from the first double on, whose parts the members have. */
 bool menu_tech_is_the_games(uint8_t tech, MenuTechKind kind);
 
-/* Its state half. */
+/* Whether the party's techs can be noted as the menus open. */
 bool menu_party_techs_can_be_noted(const GameState *g);
 
 #endif

@@ -11,7 +11,7 @@
  *
  * The screen effects darken or brighten the battlefield line by line through
  * color math: a per-line table gives, for each band of lines, the value the
- * color-math register takes, all color channels at an intensity of 0-31. The
+ * color math takes, all color channels at an intensity of 0-31. The
  * battle builds four such tables at the start, two pairs: in each pair one
  * falls from intensity 8 to nothing down the screen and the other rises from
  * nothing, in steps a third of an intensity apart over 24 lines, or two
@@ -37,13 +37,22 @@
 /* A color-math value: the channels it applies to in the top three bits and the
  * intensity in the low five. The tables step the intensity in 1/256ths of a
  * level, and each entry takes the whole part. */
-enum { ALL_CHANNELS = VID_LINE_FIXED_COLOR_ALL_CHANNELS, INTENSITY_FRACTION_BITS = 8, INTENSITY_ONE = 1 << INTENSITY_FRACTION_BITS };
+enum {
+    ALL_CHANNELS = VID_LINE_FIXED_COLOR_ALL_CHANNELS,
+    INTENSITY_FRACTION_BITS = 8,
+    INTENSITY_ONE = 1 << INTENSITY_FRACTION_BITS,
+};
 
 static uint8_t color_math_value(uint16_t intensity) { return (uint8_t)(ALL_CHANNELS | intensity >> INTENSITY_FRACTION_BITS); }
 
 /* The four tables in battle_fade_line_data, by the byte their first entry
  * starts at. */
-typedef enum { FALL_BY_THIRDS = 0x01, RISE_BY_THIRDS = 0x61, FALL_BY_TWO_THIRDS = 0xC1, RISE_BY_TWO_THIRDS = 0xF1 } FadeTable;
+typedef enum {
+    FALL_BY_THIRDS = 0x01,
+    RISE_BY_THIRDS = 0x61,
+    FALL_BY_TWO_THIRDS = 0xC1,
+    RISE_BY_TWO_THIRDS = 0xF1,
+} FadeTable;
 
 enum { ENTRY_BYTES = 4, ONE_LINE = 1, EVERY_LINE = 0x80, END_OF_TABLE = 0 };
 
@@ -120,7 +129,15 @@ enum { BATTLE_LINE = 211 };
  * screen scripts stopped, every per-line effect on and the screen scripts
  * free to turn any layer on (on a battlefield with the HP gradient, all but
  * BG2). */
-enum { NO_MESSAGE = 0xFF, GRADIENT_FIRST_LEVEL = 8, GRADIENT_EVERY_OTHER_FRAME = 7, BATTLEFIELD_ARRANGEMENT = 8, ALL_LAYERS = 0xFF, ALL_BUT_BG2 = 0xFD, PAUSE_BLOCKED = 0xFF };
+enum {
+    NO_MESSAGE = 0xFF,
+    GRADIENT_FIRST_LEVEL = 8,
+    GRADIENT_EVERY_OTHER_FRAME = 7,
+    BATTLEFIELD_ARRANGEMENT = 8,
+    ALL_LAYERS = 0xFF,
+    ALL_BUT_BG2 = 0xFD,
+    PAUSE_BLOCKED = 0xFF,
+};
 
 static void start_the_frame_work(GameState *g)
 {
@@ -217,7 +234,13 @@ static void start_the_messages(GameState *g)
  * that it moves four lines further on. */
 enum { WINDOW_MAPS = 0x78787878, WINDOW_SCREENS = 0x05050505, WINDOW_MODE = 0x0009 };
 enum { WINDOW_LINES = 48, LAYOUTS = 2, FIRST_TEXT_ROW_LINES = 19, TEXT_ROW_LINES = 12, TEXT_ROW_STEP = 4 };
-enum { BG1_WINDOW_DOWN = 0x0077, BG1_OTHER_LAYOUT_DOWN = 0xFFDF, BG2_WINDOW_DOWN = 0x0077, BG3_FIRST_ROW_DOWN = 0xFFFC, BG3_OTHER_LAYOUT_UP = 0x98 };
+enum {
+    BG1_WINDOW_DOWN = 0x0077,
+    BG1_OTHER_LAYOUT_DOWN = 0xFFDF,
+    BG2_WINDOW_DOWN = 0x0077,
+    BG3_FIRST_ROW_DOWN = 0xFFFC,
+    BG3_OTHER_LAYOUT_UP = 0x98,
+};
 
 static void lay_the_window_lines_out(GameState *g)
 {
@@ -284,8 +307,7 @@ static void keep_the_row_colors(GameState *g)
 
 /* The routines the setup calls: the map's layers that scroll by themselves
  * (the field's, battle/frame.c), the message's tiles cleared
- * (battle/message.c), and the battle's song (field/sounds.c). The program
- * makes them as C, and the machine's entry from the original's calls. */
+ * (battle/message.c), and the battle's song (field/sounds.c). */
 typedef struct {
     bool (*scroll_the_map_layers)(void *ctx);
     bool (*clear_the_message_tiles)(void *ctx);
@@ -297,9 +319,9 @@ typedef struct {
 static bool set_the_screen_up(GameState *g, Platform *pf, const ScreenSetUpCalls *calls, void *ctx)
 {
     program_install_vblank_handler(g, battle_vblank);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     program_install_line_handler(g, battle_line);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     if (!calls->scroll_the_map_layers(ctx))
         return false;
     TIMED_AS(g, 0xCD0C9D, battle_take_the_start_settings(g));
@@ -321,15 +343,14 @@ static bool set_the_screen_up(GameState *g, Platform *pf, const ScreenSetUpCalls
     return true;
 }
 
-/* ---- As C ---------------------------------------------------------------------------------- */
+/* ---- The setup's calls ------------------------------------------------------------------------ */
 
 typedef struct {
     GameState *game;
     Platform *pf;
 } ScreenSetUpContext;
 
-/* None of the three has a guard of the game's state: the message's clear
- * and the scroll's turn away only a page or a bank the program has none of. */
+/* None of the three asks anything of the game's state. */
 static bool scroll_the_map_layers(void *ctx)
 {
     GameState *g = ((ScreenSetUpContext *)ctx)->game;

@@ -98,7 +98,6 @@ add_library(ct_game STATIC
   game/field/interrupts.c
   game/field/layers.c
   game/field/line_effects.c
-  game/field/leaves.c
   game/field/motion.c
   game/field/object.c
   game/field/nmi.c
@@ -204,7 +203,6 @@ add_library(ct_game STATIC
   game/scene/curtain.c
   game/scene/plane.c
   game/scene/frame.c
-  game/scene/guards.c
   game/scene/lavos_falls.c
   game/scene/epoch_dive.c
   game/scene/math.c

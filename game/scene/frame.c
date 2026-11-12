@@ -18,13 +18,11 @@
  * (SceneTask). Scripts put tasks on and take them off (scene/script.c); a task
  * can take itself off, or hand its slot to another, when it is done.
  *
- * The lists run the tasks that are ports (the title's, the screen's fades and
- * the frame's own sprites and palette, the credit pages', the palace
- * rising's and the planet's) from a C table, and any other task, and the program's
- * own send of a sound command, as a call on the machine; so the frame's work
- * is a bridge around the logic here: it makes those calls with the registers
- * the original has there, takes a task off its list where it leaves through
- * the list's exits, and stops where the original waits. */
+ * The lists find each task in the files' tables (the title's, the screen's
+ * fades and the frame's own sprites and palette, the credit pages', the
+ * palace rising's and the planet's) or in the table below, by the program's
+ * routine the list's value is the address of. A task the port doesn't have
+ * stops the scene there (program_fail). */
 #include "scene/scene.h"
 
 #include "charge.h"
@@ -38,10 +36,6 @@
 #include "ram.h"
 #include "vars.h"
 #include "wram.h"
-
-/* The NMI's two handlers, in bank C3: the frame's, and the one that only
- * acknowledges while the frame's work runs. */
-enum { FRAME_HANDLER = 0x08B3, HANDLER_WHILE_WORKING = 0x08C9 };
 
 /* The sound driver commands pausing sends: the effects stop, and unpausing
  * plays sound effect $44, panned to the middle. */
@@ -144,7 +138,7 @@ bool scene_remove_task(GameState *g, SceneTaskList list, SceneTask task) { retur
 static void install_handler(GameState *g, ProgramHandler handler)
 {
     program_install_vblank_handler(g, handler);
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
 }
 
 /* The brightness the scene keeps, where 0 means the screen blank. */
@@ -268,13 +262,6 @@ static bool song_to_send(GameState *g, uint8_t *song)
     return true;
 }
 
-/* Where the original's copy of the task list leaves Y (past the copy), which
- * the frame's tasks and the controller read's stops see. */
-enum { PAST_THE_COPY = 0x0970 };
-
-/* The JSR to the song's send pushes this. */
-enum { SEND_SONG_RETURN = 0x08C0 };
-
 /* ---- The tasks ------------------------------------------------------------------------------ */
 
 /* The tasks that are C (scene/title.c, scene/screen.c, scene/credit_pages.c,
@@ -307,32 +294,20 @@ static void end_the_task(GameState *g, SceneTaskList list, unsigned slot, TaskEn
         set_task_at(g, list, slot, end.next);
 }
 
-/* A list's loop calls a task from its own code (the frame list's at
- * $7E:3998, the vblank list's at $7E:39CF), with the data bank, the slot, P
- * and D saved under the call, and for the vblank list the direct page in
- * 8-bit A. A task that is done jumps to one of two exits in the loop, which
- * take it off the list, or hand its slot to the task in X; they unwind the
- * frames under the call and go on with the list. */
-enum { FRAME_TASK_CALL = 0x7E3998, VBLANK_TASK_CALL = 0x7E39CF };
-enum { THE_TASKS_READ_ANYTHING = 0 };
-
-TaskEnd scene_task_needs_the_machine(GameState *g, uint32_t routine, const char *what)
+TaskEnd scene_task_goes_no_further(GameState *g, uint32_t routine, const char *what)
 {
     program_fail(g, routine, what);
-    return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+    return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
 }
 
-/* The tasks whose ports take the machine, by the program's routine the value
- * on the list is the address of: run as the list's call reaches them, timed
- * as their own routines, where their guards hold (scene_run); a task with no
- * row here or in the tables above is the original's. The rows are the tasks
- * the library's runs reach, in shadow mode and in the shipping mode. Those a
- * build with no machine runs have it as C too. */
+/* The rest of the program's tasks, by the program's routine the value on the
+ * list is the address of, run as the list reaches them. A task with no row
+ * here or in the files' tables is one the port doesn't have. */
 
 static TaskEnd channel_turn(GameState *g, Platform *pf, SceneChannel ch)
 {
     if (scene_channel_turn(g, pf, ch) != SCENE_TURN_ENDED)
-        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+        return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
     return task_goes_on();
 }
 
@@ -378,7 +353,7 @@ static TaskEnd send_the_plane_s_place(GameState *g, Platform *pf, unsigned slot)
     return task_goes_on();
 }
 
-static const struct { uint32_t routine; SceneTaskInC run; } machine_tasks[] = {
+static const struct { uint32_t routine; SceneTaskRun run; } program_tasks[] = {
     /* the scripts' channels' first steps and the vblank list's uploads */
     { 0x7E3176, nothing_this_frame },
     { 0x7E3749, channel_0_turn },
@@ -485,27 +460,27 @@ static const struct { uint32_t routine; SceneTaskInC run; } machine_tasks[] = {
     { 0x7E9F73, scene_blank_the_map },
 };
 
-static int machine_task_row(SceneTask task)
+static int program_task_row(SceneTask task)
 {
-    for (unsigned i = 0; i < sizeof machine_tasks / sizeof machine_tasks[0]; i++)
-        if (machine_tasks[i].routine == (PROGRAM_BANK | task))
+    for (unsigned i = 0; i < sizeof program_tasks / sizeof program_tasks[0]; i++)
+        if (program_tasks[i].routine == (PROGRAM_BANK | task))
             return (int)i;
     return -1;
 }
 
-/* ---- The frame as C, with no machine ------------------------------------------------------------ */
+/* ---- The frame ------------------------------------------------------------------------------------ */
 
-/* A program's routine on a list's slot, as C where its row has it so. */
+/* A program's routine on a list's slot, where a row has it. */
 static TaskEnd program_routine(GameState *g, Platform *pf, SceneTask task, unsigned slot)
 {
-    int row = machine_task_row(task);
-    if (row >= 0 && machine_tasks[row].run)
-        return machine_tasks[row].run(g, pf, slot);
-    return scene_task_needs_the_machine(g, PROGRAM_BANK | task, "a scene's task only the machine runs");
+    int row = program_task_row(task);
+    if (row >= 0 && program_tasks[row].run)
+        return program_tasks[row].run(g, pf, slot);
+    return scene_task_goes_no_further(g, PROGRAM_BANK | task, "a scene's task the port doesn't have");
 }
 
 /* A list's tasks in order, the list read again after each, which can change
- * it; false where a task is the machine's yet. */
+ * it; false where a task goes no further. */
 static bool run_tasks(GameState *g, Platform *pf, SceneTaskList list)
 {
     unsigned count = list_length(list);
@@ -519,7 +494,7 @@ static bool run_tasks(GameState *g, Platform *pf, SceneTaskList list)
             TIMED_AS(g, PROGRAM_BANK | task, end = port->run(g, pf));
         else
             TIMED_AS(g, PROGRAM_BANK | task, end = program_routine(g, pf, task, slot));
-        if (end.outcome == TASK_LEFT_TO_THE_ORIGINAL || program_went_no_further(g))
+        if (end.outcome == TASK_GOES_NO_FURTHER || program_went_no_further(g))
             return false;
         end_the_task(g, list, slot, end);
     }
@@ -570,5 +545,3 @@ void scene_vblank_while_working(GameState *g, Platform *pf)
     (void)g;
     (void)tm_ack_vblank(pf, PF_AT(0xC308CB));
 }
-
-// $7E:399B, $7E:39D2

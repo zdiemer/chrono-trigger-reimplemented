@@ -59,7 +59,10 @@ static PerspectiveStart start_routine(const GameState *g) { return (PerspectiveS
  * (the dive's), the branch the race writes to copy each line into the next (the
  * word at scene_perspective_pair_branch), or the dive's branch to read the
  * next line's distance off the shell's curve. */
-enum { STEP_IMAGE = 0xEAE8, STEP_RACE = 0xE8EA, STEP_PAIRS = 0x3680, STEP_TWO_FARTHER = 0xE8E8, STEP_TWO_NEARER = 0xCACA, STEP_ALONG_THE_CURVE = 0x2C80,  };
+enum {
+    STEP_IMAGE = 0xEAE8, STEP_RACE = 0xE8EA, STEP_PAIRS = 0x3680, STEP_TWO_FARTHER = 0xE8E8, STEP_TWO_NEARER = 0xCACA,
+    STEP_ALONG_THE_CURVE = 0x2C80,
+};
 
 /* How the distance goes from one line to the next. */
 typedef enum { DISTANCE_STEPS, DISTANCE_PAIRED, DISTANCE_ALONG_THE_CURVE, DISTANCE_UNKNOWN } DistanceWay;
@@ -85,9 +88,6 @@ static LineStep line_step(uint16_t step)
 /* Each line is four bytes in each table, and 224 lines end the screen. */
 enum { LINE_BYTES = 4, SCREEN_LINES = 224, SCREEN_END = SCREEN_LINES * LINE_BYTES };
 
-/* The page the loop moves the direct page to, the CPU's registers, to reach the
- * divider. */
-
 /* The line above the screen's first, which an ending's plane starts from when
  * its horizon is 0 (set_line_above_the_screen, below). */
 enum { LINE_ABOVE_THE_SCREEN = -1 };
@@ -97,7 +97,11 @@ enum { LINE_ABOVE_THE_SCREEN = -1 };
  * start. From the cockpit, the shell above runs from the top of the view to
  * line 112, nearest at the top, and the shell below from line 128 to the panel,
  * farthest at its top; each step is two. */
-enum { SHELL_FROM_OUTSIDE_FIRST = 26, SHELL_FROM_OUTSIDE_END = 198, SHELL_ABOVE_FIRST = 0, SHELL_ABOVE_END = 112, SHELL_ABOVE_NEAREST = 0xFF, SHELL_BELOW_FIRST = 128, SHELL_BELOW_FARTHEST = 0x20,  };
+enum {
+    SHELL_FROM_OUTSIDE_FIRST = 26, SHELL_FROM_OUTSIDE_END = 198,
+    SHELL_ABOVE_FIRST = 0, SHELL_ABOVE_END = 112, SHELL_ABOVE_NEAREST = 0xFF,
+    SHELL_BELOW_FIRST = 128, SHELL_BELOW_FARTHEST = 0x20,
+};
 
 /* The lines a build makes: from the first to the end, the first's distance,
  * and how it steps (the loop's instruction for it, which a scene's start may
@@ -143,9 +147,8 @@ static PlaneLines lines_of(const GameState *g, SceneChannel ch, bool shell_above
     return l;
 }
 
-/* The lines the next build makes, and those the last one made. */
+/* The lines the next build makes. */
 static PlaneLines next_lines(const GameState *g, SceneChannel ch) { return lines_of(g, ch, !shell_above_built_last(g)); }
-static PlaneLines lines_built(const GameState *g, SceneChannel ch) { return lines_of(g, ch, shell_above_built_last(g)); }
 
 // $7E:45B0, $7E:9B46, $7E:801F, $7E:8042
 /* The scene's routine at the start of the lines, which sets the program's
@@ -236,8 +239,8 @@ static void charge_perspective_temporaries(GameState *g)
     uint32_t mark = charge_uncounted_begin(g);
     bool outside = start_routine(g) == START_SHELL_FROM_OUTSIDE;
     charge_uncounted_end(g, mark);
-    charge_legacy_accesses(g, 12); /* five words stored, start routine read */
-    charge_legacy_io_accesses(g, outside ? 9 : 6);
+    charge_accesses(g, 12); /* five words stored, start routine read */
+    charge_io_accesses(g, outside ? 9 : 6);
 }
 
 /* The distance of the line (or pair) after `line`, which was at `distance`. */
@@ -278,7 +281,10 @@ void scene_build_perspective(GameState *g, SceneChannel ch)
  * built after it. */
 static const unsigned camera_registers[] = { SCENE_PLANE_HEIGHT, SCENE_PLANE_TURN, SCENE_PLANE_HORIZON, SCENE_PLANE_TOP, SCENE_PLANE_LINES_PAIRED };
 static const unsigned dive_camera_registers[] = { SCENE_PLANE_HEIGHT, SCENE_PLANE_TURN, SCENE_PLANE_SHELL_FRAMES };
-enum { CAMERA_REGISTERS = sizeof camera_registers / sizeof camera_registers[0], DIVE_CAMERA_REGISTERS = sizeof dive_camera_registers / sizeof dive_camera_registers[0],  };
+enum {
+    CAMERA_REGISTERS = sizeof camera_registers / sizeof camera_registers[0],
+    DIVE_CAMERA_REGISTERS = sizeof dive_camera_registers / sizeof dive_camera_registers[0],
+};
 
 static unsigned first_camera_change(const GameState *g, const unsigned *kept, unsigned registers)
 {
@@ -328,8 +334,8 @@ void scene_look_at_the_shell_from_outside(GameState *g)
 
 void scene_look_at_the_shell_from_the_cockpit(GameState *g) { set_scene_perspective_start(g, START_SHELL_FROM_THE_COCKPIT); }
 
-/* The guard's state half: a scene's start of the lines, and the lines the
- * port builds: a step it knows, from a first line on the screen
+/* Whether the port builds the lines: a scene's start of the lines, and
+ * lines a step it knows, from a first line on the screen
  * or the line above it to an end on it that the step reaches (a whole line's
  * place in the tables, and in pairs an even number of lines), and along the
  * curve only from the dive's start that aims the work RAM port at it. Past
@@ -353,27 +359,4 @@ bool scene_perspective_fits(const GameState *g, SceneChannel ch)
     if (l.step.way == DISTANCE_ALONG_THE_CURVE && start != START_SHELL_FROM_OUTSIDE)
         return false;
     return l.step.way != DISTANCE_PAIRED || (l.end - l.first) % 2 == 0;
-}
-
-/* The former result-register reconstruction read the line description,
- * one final matrix entry and the turn. Keep that time without rebuilding
- * register values or reading the discarded scratch operands. */
-void scene_charge_perspective_result(GameState *g, SceneChannel ch)
-{
-    uint32_t mark = charge_uncounted_begin(g);
-    PlaneLines lines = lines_built(g, ch);
-    unsigned accesses = 14; /* line description and final turn */
-    switch (start_routine(g)) {
-    case START_RACE:
-        accesses += 2 + (plane_register(g, ch, SCENE_PLANE_LINES_PAIRED) ? 2 : 0);
-        break;
-    case START_SHELL_FROM_OUTSIDE: accesses++; break;
-    case START_SHELL_FROM_THE_COCKPIT: accesses += shell_above_built_last(g) ? 0 : 2; break;
-    case START_ENDING: break;
-    }
-    if (lines.step.way != DISTANCE_PAIRED)
-        accesses += 2;
-    accesses += lines.step.way == DISTANCE_ALONG_THE_CURVE ? 1 : 2;
-    charge_uncounted_end(g, mark);
-    charge_legacy_accesses(g, accesses);
 }

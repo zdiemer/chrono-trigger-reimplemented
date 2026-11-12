@@ -22,8 +22,8 @@
  *   into a scene. Both run on over frames of their own, and call on the
  *   field's other work between them (BG1 drawn, the effects refreshed, a
  *   frame waited, the field put aside), as the curtain calls on bank $C3's
- *   sweep: one sequence each, whose calls the program makes as C and the
- *   machine's entry from the original's calls.
+ *   sweep: one sequence each, whose calls the program supplies
+ *   (EffectCalls).
  *
  * The window tables are double-buffered with the line effects: a frame's
  * shape goes into the table of the set the line effects aren't reading, which
@@ -490,11 +490,10 @@ void screen_effect_start(GameState *g, ScreenEffect effect) { set_field_screen_e
 /* ---- The steps that run over frames ------------------------------------------------------------
  *
  * The curtain's sweep, the field's close into a scene and the ripple call
- * on the field's other work between their own: bank $C3's sweep, BG1 drawn
- * as at a map's load, the effects refreshed, a frame waited, the battle's
- * start that puts the field aside. Each is one sequence here, whose calls
- * are callbacks: the program makes them as C, and the machine's entry from
- * the original's calls of them. */
+ * on the field's other work between their own: the scene engine's sweep, BG1
+ * drawn as at a map's load, the effects refreshed, a frame waited, the
+ * battle's start that puts the field aside. Each is one sequence here, whose
+ * calls are callbacks. */
 
 /* The moments of the close and the ripple a call is made at. */
 typedef enum {
@@ -628,7 +627,7 @@ static bool play_the_ripple(GameState *g, const EffectCalls *calls, void *ctx)
 /* ---- A frame's step ----------------------------------------------------------------------------- */
 
 // $C0:21E1
-/* False where it went no further: a call the machine's yet, or the field's
+/* False where it went no further: a call the port refused, or the field's
  * close, which ends it. */
 static bool move_on_a_step(GameState *g, Platform *pf, const EffectCalls *calls, void *ctx)
 {
@@ -655,7 +654,7 @@ static bool move_on_a_step(GameState *g, Platform *pf, const EffectCalls *calls,
     }
 }
 
-/* The guard's state half: an effect the original's table has (past them it
+/* The effects the port draws: one the original's table has (past them it
  * runs into its error trap); and for the searchlight, a shape
  * field/window_shape.c draws as the original does. */
 static bool effect_fits(const GameState *g)
@@ -664,15 +663,15 @@ static bool effect_fits(const GameState *g)
     return effect < SCREEN_EFFECTS && (effect != SEARCHLIGHT || field_window_shape_starts_on_a_line(g));
 }
 
-/* ---- As C ---------------------------------------------------------------------------------------- */
+/* ---- The calls ------------------------------------------------------------------------------------ */
 
 typedef struct {
     GameState *game;
     Platform *pf;
 } ScreenEffectContext;
 
-/* The curtain's step, scene/curtain.c's; its stir takes the X the
- * original's dispatch hands it, the curtain's place in the table, doubled. */
+/* The curtain's step, scene/curtain.c's; its stir takes the curtain's place
+ * in the effects' table, doubled, as the original's dispatch hands it on. */
 enum { CURTAIN_INDEX = (CURTAIN - 1) * 2 };
 
 static bool sweep_the_curtain(void *ctx)
@@ -728,18 +727,3 @@ bool field_screen_effect_moved_on(GameState *g, Platform *pf)
     return move_on_a_step(g, pf, &in_the_program, &c);
 }
 
-/* ---- On the machine ------------------------------------------------------------------------------
- *
- * Each call is the original's from its own site, on the field's page; where
- * a call doesn't come back as the original's does, the port stops there. */
-
-enum { CURTAIN_SWEEP = 0xC3000E, /* the scene engine's jump to the curtain's step */
-    DRAW_BG1 = 0xC075E9, /* BG1's tiles drawn into the staging, on the layers' page */ };
-
-/* The original starts the scene on a fresh stack ($C0:2643), which is its
- * own entry. */
-enum { THE_SCENE_STARTS = 0xC02643 };
-
-/* The steps that call on the field run as the original's table runs them,
- * from its JSR. */
-enum { STEP_TABLE_SITE = 0xC021EA };

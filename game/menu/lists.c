@@ -6,7 +6,6 @@
 #include "core/input.h"
 #include "cpu_io.h"
 #include "menu/cursor.h"
-#include "menu/bridge.h"
 #include "menu/display.h"
 #include "port/vars_ram.h"
 #include "ram.h"
@@ -199,20 +198,18 @@ void menu_put_the_list_bands_back(GameState *g)
     menu_ask_for_the_block_move(g);
 }
 
-/* ---- The slide's entries ------------------------------------------------------------------------- */
-
-/* The task switch a frame of the slide goes on to, which waits for the
- * next frame and returns to the frame's caller; it keeps X, Y and the flags
- * for the caller across the wait. */
-
-// $C2:EB9B
+/* ---- What the slide takes ------------------------------------------------------------------------ */
 
 // $C2:EB1F
 
 /* The screens keep their lists' tables among the menus' per-line tables,
  * below the slide's own, and slide up to twelve rows, a table of no more
  * than the slide's staging holds. */
-enum { LINE_TABLES = 0x9000, MOST_ROWS = MENU_SLIDE_BANDS_COUNT - 1, MOST_TABLE_BYTES = MENU_SLIDE_TABLE_AT_REST_BYTES };
+enum {
+    LINE_TABLES = 0x9000,
+    MOST_ROWS = MENU_SLIDE_BANDS_COUNT - 1,
+    MOST_TABLE_BYTES = MENU_SLIDE_TABLE_AT_REST_BYTES,
+};
 
 /* ---- Paging ------------------------------------------------------------------------------------- */
 
@@ -270,8 +267,3 @@ uint8_t menu_page_destination(const GameState *g, uint8_t top)
     bool to_an_end;
     return paged_to(g, top, &to_an_end);
 }
-
-/* The paging's answer in A: whether a page turned. */
-enum { TURNED = 0xFF, NOT_TURNED = 0x00 };
-
-// $C2:93BF

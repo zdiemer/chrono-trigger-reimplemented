@@ -10,10 +10,19 @@
 
 #include "menu/object.h"
 #include "state.h"
+#include "vars.h"
 
 /* The handlers, by the addresses in bank C2 a slot names them with. */
 #define MENU_HANDLER_AT(routine) ((uint16_t)(routine))
-enum { MENU_TILE_STREAMER = MENU_HANDLER_AT(0xC21CF5), MENU_PALETTE_LOADER = MENU_HANDLER_AT(0xC21DD4), MENU_PALETTE_FADE = MENU_HANDLER_AT(0xC21E38), MENU_FADE_OUT = MENU_HANDLER_AT(0xC220A2), MENU_FADE_IN = MENU_HANDLER_AT(0xC22105), MENU_MOSAIC_CLEARS = MENU_HANDLER_AT(0xC22194), MENU_MOSAIC_GROWS = MENU_HANDLER_AT(0xC221F8),  };
+enum {
+    MENU_TILE_STREAMER = MENU_HANDLER_AT(0xC21CF5),
+    MENU_PALETTE_LOADER = MENU_HANDLER_AT(0xC21DD4),
+    MENU_PALETTE_FADE = MENU_HANDLER_AT(0xC21E38),
+    MENU_FADE_OUT = MENU_HANDLER_AT(0xC220A2),
+    MENU_FADE_IN = MENU_HANDLER_AT(0xC22105),
+    MENU_MOSAIC_CLEARS = MENU_HANDLER_AT(0xC22194),
+    MENU_MOSAIC_GROWS = MENU_HANDLER_AT(0xC221F8),
+};
 
 /* The screen's display, as the mode's vblank handler sends it: whether it is
  * off, and how bright. */
@@ -36,14 +45,12 @@ bool menu_fade_in(GameState *g, MenuObject self);
 bool menu_clear_mosaic(GameState *g, MenuObject self);
 bool menu_grow_mosaic(GameState *g, MenuObject self);
 
-/* The guards' state halves: whether each takes the object as it stands. */
+/* Whether each can run for the object as it stands. */
 bool menu_tile_streamer_takes(const GameState *g, MenuObject self);
 bool menu_palette_loader_takes(const GameState *g, MenuObject self);
 bool menu_palette_fade_takes(const GameState *g, MenuObject self);
 bool menu_fade_out_takes(const GameState *g, MenuObject self);
 bool menu_fade_in_takes(const GameState *g, MenuObject self);
 bool menu_mosaic_takes(const GameState *g, MenuObject self);
-
-/* The checked legacy adapters and their guards. */
 
 #endif

@@ -6,8 +6,8 @@
  * by.
  *
  * Commands to the driver go through the audio service (platform/audio.h),
- * which calls the retired C sound driver; the commands that send one are bridges,
- * which check what the driver left before going on. The waits only read the
+ * which calls the retired C sound driver; the commands that send one read their own
+ * operands (event/engine.h), and check what the driver left before going on. The waits only read the
  * driver's status, and are operations like any other. */
 #include "charge.h"
 #include "event/engine.h"
@@ -15,8 +15,6 @@
 #include "platform/audio.h"
 
 /* ---- The commands to the driver ------------------------------------------------------------- */
-
-/* Each command's sends, from its handler's calls of the driver. */
 
 // $C0:3C11
 /* Play a sound effect, from the middle. */
@@ -67,7 +65,7 @@ static void send_the_command(Platform *pf, const EventCommand *c)
     au_command(pf, PF_CALL(0xC03CB4, 0xC70004), command);
 }
 
-/* As C: each command's sends, and the turn over with the script after it. */
+/* Each command's sends, and the turn over with the script after it. */
 static EventCommand command_at(GameState *g, Platform *pf, uint8_t opcode, uint16_t at)
 {
     return event_decode(g, pf, event_opcode(opcode), at);

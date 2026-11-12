@@ -78,7 +78,7 @@ void fight_list_combatants(GameState *g)
  * times eight with the count of the record's last part over its low byte
  * (kept, as later work reads it as it finds it: battle.h; the enemies'
  * loader is also called when one comes into a fight already going). */
-enum { COUNT_AT = BATTLE_CLOCK_READS, ID_AT = 0x04 };
+enum { COUNT_AT = BATTLE_CLOCK_READS };
 
 // $FD:B4D6
 /* An enemy's stat block cleared. */
@@ -135,7 +135,7 @@ void fight_note_enemy_families(GameState *g)
 /* The cells the original counts the enemies in and finds each one's rewards
  * at. The count is the last the fight's start writes to its cell, which later
  * work reads as it finds it (battle.h), so it is kept plainly. */
-enum { ENEMY_AT = BATTLE_CLOCK_READS, REWARDS_AT = 0x02 };
+enum { ENEMY_AT = BATTLE_CLOCK_READS };
 
 enum { CARRIES_CHARM = 0x80, CARRIES_ITEM = 0x40 };
 
@@ -150,8 +150,8 @@ void fight_mark_what_enemies_carry(GameState *g)
         uint8_t id = battle_combatant_fighting(g, slot);
         if (id == COMBATANT_NONE)
             continue;
-        /* the original finds the enemy's rewards by a multiply, and keeps
-         * their place in a cell (scaffolding) */
+        /* the original finds the enemy's rewards by a multiply, whose cells
+         * keep what it leaves */
         battle_multiply_words(g, id, ENEMY_REWARD_BYTES);
         EnemyItems items = enemy_items(g, id);
         uint8_t marks = 0;

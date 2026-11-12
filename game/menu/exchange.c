@@ -26,9 +26,7 @@
  * six; how many members the player may move in each; the row under the
  * cursor; and the two chosen. The cursor's places are the active party's
  * three rows and the reserve's four shown; the reserve's top row
- * (menu_reserve_top) says which of its rows those four are.
- *
- * The bridges on the original's machine are menu/exchange_bridge.c. */
+ * (menu_reserve_top) says which of its rows those four are. */
 #include "menu/exchange.h"
 #include "menu/sound.h"
 #include "menu/gate_screen.h"
@@ -91,9 +89,8 @@ static bool active_party_alone(const GameState *g) { return menu_exchange_layout
 /* The story keeps some characters in the active party, a bit a character. */
 static bool stays(const GameState *g, uint8_t character) { return (story_party_kept(g) & menu_character_bit(g, character)) != 0; }
 
-/* For the original's code and shadow mode: the rows are filled with a block
- * move of the first word over the rest, and its loop leaves its place in
- * the menus' first cell. */
+/* The original fills the rows with a block move of the first word over the
+ * rest; the listing is charged that move's time. */
 enum { ROWS_FILLED = EXCHANGE_ROWS - 2 };
 
 static void charge_listed(GameState *g, uint8_t place)
@@ -232,10 +229,6 @@ static void animate_the_member_at(GameState *g, RecordPlace place, uint8_t anima
         set_menu_record_animation(g, character, animation);
 }
 
-/* For the original's code and shadow mode: its loop over the party's
- * places counts down past the first. */
-enum { COUNTED_PAST_THE_FIRST = 0xFF };
-
 // $C2:C973
 static void animate_the_members(GameState *g)
 {
@@ -311,7 +304,11 @@ enum { PANEL_FRAMES = 3 };
  * to a rule, menu_story_items' first) and the gate's sprite on the screens'
  * eighth record; the label's tiles are sent and laid out in two strips, its
  * top half and its bottom. */
-enum { MAIN_MENU_PANEL_WINDOWS = 0xBF48, GATE_PANEL_WINDOWS = 0xBF05, SCREEN_WINDOWS = 0xBF7B, GATE_LABEL = 4, GATE_LABEL_WITH_A_RULE = 5, GATE_LABEL_AT = 0x5E00, UPLOAD_GATE_LABEL = 0xCAD9, GATE_RECORD = MENU_EXCHANGE_GATE_RECORD, GATE_SPRITE = 0x48, GATE_SPRITE_SET = 1, GATE_SPRITE_Y = 0xCA, GATE_SPRITE_X = 0x20, GATE_SPRITE_COLOURS = 0x20,  };
+enum {
+    MAIN_MENU_PANEL_WINDOWS = 0xBF48, GATE_PANEL_WINDOWS = 0xBF05, SCREEN_WINDOWS = 0xBF7B,
+    GATE_LABEL = 4, GATE_LABEL_WITH_A_RULE = 5, GATE_LABEL_AT = 0x5E00, UPLOAD_GATE_LABEL = 0xCAD9,
+    GATE_RECORD = MENU_EXCHANGE_GATE_RECORD, GATE_SPRITE = 0x48, GATE_SPRITE_SET = 1, GATE_SPRITE_Y = 0xCA, GATE_SPRITE_X = 0x20, GATE_SPRITE_COLOURS = 0x20,
+};
 static const struct {
     uint16_t at, columns, first_tile;
 } GATE_LABEL_STRIPS[] = { { 0x334C, 8, 0x0100 }, { 0x33CC, 8, 0x0121 } };
@@ -360,8 +357,8 @@ void menu_exchange_gate_sprite_loaded(GameState *g)
  * colours dimmed. */
 enum { PANEL_COLOURS = 0x60, HIGHLIGHT = 0x20, DIMMED_COLOURS_AT = 0x40 };
 
-/* For the original's code and shadow mode: it copies row 0's first sixteen
- * into row 4 before the dimming writes over them. */
+/* The original copies row 0's first sixteen colours into row 4 before the
+ * dimming writes over them; the copy's time is charged with the rest. */
 enum { ROW_COPIED = 2 * 16 };
 
 void menu_exchange_panel_colours(GameState *g)
@@ -441,7 +438,13 @@ void menu_exchange_start_choosing(GameState *g, uint8_t from)
 /* The screen's line effect is the colour math's; its third layer stands
  * sixteen lines above its top; with the active party alone, the first
  * window runs from x 64 to 191, over the middle. */
-enum { SCREEN_LINE_EFFECTS = 0x01, THIRD_LAYER = 2, THIRD_LAYER_Y = 0x01F0, MIDDLE_WINDOW_LEFT = 0x40, MIDDLE_WINDOW_RIGHT = 0xBF };
+enum {
+    SCREEN_LINE_EFFECTS = 0x01,
+    THIRD_LAYER = 2,
+    THIRD_LAYER_Y = 0x01F0,
+    MIDDLE_WINDOW_LEFT = 0x40,
+    MIDDLE_WINDOW_RIGHT = 0xBF,
+};
 enum { MIDDLE_WINDOW_EDGES = MIDDLE_WINDOW_RIGHT << 8 | MIDDLE_WINDOW_LEFT };
 
 /* The reserve's scroll bar, where it has more members than its four rows:
@@ -772,17 +775,13 @@ bool menu_move_the_exchange_cursor_with(GameState *g, Platform *pf, const Exchan
 {
     ExchangeSlide slide;
     if (menu_exchange_scrolls(g, pf, &slide)) {
-        n->slide(ctx, slide.step < 0 ? EXCHANGE_SLIDE_BEGINS_BACK : EXCHANGE_SLIDE_BEGINS_ON);
         while (menu_exchange_slide_a_frame(g, &slide))
             if (!n->wait(ctx, EXCHANGE_AT_THE_SLIDE))
                 return false;
         menu_exchange_end_the_slide(g);
-        n->slide(ctx, EXCHANGE_SLIDE_ENDED);
         if (!n->tick(ctx, EXCHANGE_AT_THE_SLIDE_TICK))
             return false;
-        n->slide(ctx, EXCHANGE_SLIDE_LEFT);
     }
-    n->widths(ctx, EXCHANGE_BYTE_WIDE);
     menu_exchange_settle_the_cursor(g);
     return true;
 }
@@ -794,7 +793,6 @@ static bool move_and_tick(GameState *g, const ExchangeSteps *n, void *ctx, Excha
     if (!n->move_the_cursor(ctx, move_at))
         return false;
     bool moved = menu_cursor_frame_start(g) != menu_cursor_index(g);
-    n->note(ctx, EXCHANGE_NOTE_CURSOR_COMPARED);
     return !moved || n->tick(ctx, tick_at);
 }
 
@@ -804,12 +802,9 @@ static bool move_and_tick(GameState *g, const ExchangeSteps *n, void *ctx, Excha
 bool menu_lay_out_the_exchange_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx)
 {
     menu_exchange_draw_the_screen(g, pf);
-    n->widths(ctx, EXCHANGE_WIDE);
-    n->note(ctx, EXCHANGE_NOTE_BAR_WORKED_OUT);
     if (!n->move_the_cursor(ctx, EXCHANGE_AT_THE_FIRST_MOVE))
         return false;
     menu_exchange_show_the_screen(g);
-    n->note(ctx, EXCHANGE_NOTE_SCREEN_SHOWN);
     return true;
 }
 
@@ -822,12 +817,9 @@ bool menu_open_exchange_with(GameState *g, Platform *pf, const ExchangeSteps *n,
     (void)pf;
     if (!menu_exchange_has_two_to_swap(g)) {
         menu_exchange_refuse(g);
-        n->note(ctx, EXCHANGE_NOTE_REFUSED);
         return n->ends(ctx, EXCHANGE_BUZZES);
     }
     menu_exchange_start_choosing(g, menu_exchange_cursor_kept(g));
-    n->widths(ctx, EXCHANGE_INDEX_WIDE);
-    n->note(ctx, EXCHANGE_NOTE_CHOOSING_STARTED);
     if (!n->tick(ctx, EXCHANGE_AT_THE_OPENING_TICK))
         return false;
     return n->ends(ctx, EXCHANGE_LAYS_OUT_THE_SCREEN);
@@ -849,7 +841,6 @@ bool menu_choose_first_to_exchange_with(GameState *g, Platform *pf, const Exchan
 {
     (void)pf;
     n->read_cursor(ctx);
-    n->note(ctx, EXCHANGE_NOTE_INPUT_TESTED);
     switch (menu_exchange_input(g)) {
     case EXCHANGE_CHOSEN: return choose_the_first(g, n, ctx);
     case EXCHANGE_LEFT:
@@ -867,10 +858,8 @@ bool menu_choose_first_at_the_gate_with(GameState *g, Platform *pf, const Exchan
 {
     (void)pf;
     n->read_cursor(ctx);
-    n->note(ctx, EXCHANGE_NOTE_INPUT_TESTED);
     switch (menu_exchange_input(g)) {
     case EXCHANGE_CHOSEN:
-        n->note(ctx, EXCHANGE_NOTE_ROW_TESTED);
         return !menu_exchange_on_someone_free(g) || choose_the_first(g, n, ctx);
     case EXCHANGE_LEFT: return n->place_song_back(ctx) && n->ends(ctx, EXCHANGE_LEAVES_THE_MENUS);
     case EXCHANGE_MOVED: break;
@@ -886,15 +875,12 @@ bool menu_choose_second_to_exchange_with(GameState *g, Platform *pf, const Excha
 {
     (void)pf;
     n->read_cursor(ctx);
-    n->note(ctx, EXCHANGE_NOTE_INPUT_TESTED);
     ExchangeInput input = menu_exchange_input(g);
     if (input == EXCHANGE_MOVED)
         return move_and_tick(g, n, ctx, EXCHANGE_AT_THE_SECOND_S_MOVE, EXCHANGE_AT_THE_SECOND_S_MOVE_TICK);
     if (input == EXCHANGE_CHOSEN) {
-        n->note(ctx, EXCHANGE_NOTE_ROW_TESTED);
         if (menu_exchange_on_someone_free(g)) {
             menu_exchange_choose_the_second(g);
-            n->note(ctx, EXCHANGE_NOTE_SWAPPED);
         }
     }
     if (!n->tick(ctx, EXCHANGE_AT_THE_SECOND_CHOSEN_TICK))
@@ -911,14 +897,11 @@ bool menu_show_exchange_panel_with(GameState *g, Platform *pf, const ExchangeSte
 {
     menu_exchange_panel_start(g, pf);
     if (menu_exchange_panel_shows_the_gate(g)) {
-        n->slide(ctx, EXCHANGE_ON_THE_GATE_S_RECORD);
         menu_exchange_put_the_gate_sprite_on_its_record(g);
         if (!n->gate_sprite(ctx))
             return false;
         menu_exchange_gate_sprite_loaded(g);
-        n->slide(ctx, EXCHANGE_OFF_THE_GATE_S_RECORD);
     }
-    n->widths(ctx, EXCHANGE_WIDE);
     menu_exchange_panel_colours(g);
     if (!n->wait(ctx, EXCHANGE_AT_THE_PANEL_LISTED))
         return false;
@@ -939,18 +922,12 @@ bool menu_open_exchange_at_the_gate_with(GameState *g, Platform *pf, const Excha
     menu_exchange_lay_out_for_the_gate(g, (uint8_t)menu_screen_argument(g));
     if (!n->run(ctx, EXCHANGE_SWITCHES_TO_THE_GATE_SONG) || !n->run(ctx, EXCHANGE_SHOWS_THE_PANEL))
         return false;
-    n->widths(ctx, EXCHANGE_BYTE_WIDE);
     menu_exchange_start_choosing(g, 0);
-    n->widths(ctx, EXCHANGE_INDEX_WIDE);
-    n->note(ctx, EXCHANGE_NOTE_STEP_COUNTED);
     if (!n->run(ctx, EXCHANGE_LAYS_OUT_THE_GATE_SCREEN))
         return false;
-    n->slide(ctx, EXCHANGE_SWIRL_BEGINS);
     if (!n->run(ctx, EXCHANGE_DRAWS_THE_SWIRL))
         return false;
     menu_exchange_show_the_swirl(g);
-    n->note(ctx, EXCHANGE_NOTE_SWIRL_SHOWN);
-    n->slide(ctx, EXCHANGE_SWIRL_ENDS);
     while (menu_tasks_state(g, MENU_DESCRIPTION_TASK) != 0)
         if (!n->wait(ctx, EXCHANGE_AT_THE_GATE_SONG_WAIT))
             return false;
@@ -1097,17 +1074,17 @@ bool menu_exchange_can_open_at_the_gate(const GameState *g)
            && menu_exchange_reserve_count(g) <= EXCHANGE_RESERVE_ROWS && (menu_held_cursor_shift(g) >> 8) == 0;
 }
 
-/* ---- The steps as C ------------------------------------------------------------------------------- */
+/* ---- The steps' services ----------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
     Platform *pf;
 } ExchangeContext;
 
-static const ExchangeSteps in_the_program;
+static const ExchangeSteps the_steps;
 
-/* The routines the steps reach, each where its entry's guard would take the
- * state as the step has left it; otherwise the program goes no further. */
+/* The routines the steps reach, each run only on the state it handles;
+ * otherwise the program goes no further. */
 static bool takes(GameState *g, bool ok, uint32_t routine, const char *what)
 {
     if (!ok)
@@ -1139,7 +1116,7 @@ static bool move_the_cursor(void *ctx, ExchangePlace at)
     if (!takes(c->game, menu_exchange_cursor_can_move(c->game), 0xC2C805, "an exchange cursor the port doesn't move"))
         return false;
     bool back = false;
-    TIMED_AS(c->game, 0xC2C805, back = menu_move_the_exchange_cursor_with(c->game, c->pf, &in_the_program, c));
+    TIMED_AS(c->game, 0xC2C805, back = menu_move_the_exchange_cursor_with(c->game, c->pf, &the_steps, c));
     return back;
 }
 
@@ -1153,8 +1130,7 @@ static bool place_song_back(void *ctx)
     return back;
 }
 
-/* The gate's screen's routines as C, where their entries' guards take the
- * state. */
+/* The gate's screen's routines, where the state is one they handle. */
 static bool run(void *ctx, ExchangeRoutine r)
 {
     ExchangeContext *c = ctx;
@@ -1166,7 +1142,7 @@ static bool run(void *ctx, ExchangeRoutine r)
     case EXCHANGE_LAYS_OUT_THE_GATE_SCREEN:
         if (!takes(g, menu_exchange_can_lay_out(g), 0xC2CAF3, "an exchange the port doesn't lay out"))
             return false;
-        TIMED_AS(g, 0xC2CAF3, done = menu_lay_out_the_exchange_with(g, c->pf, &in_the_program, c));
+        TIMED_AS(g, 0xC2CAF3, done = menu_lay_out_the_exchange_with(g, c->pf, &the_steps, c));
         return done;
     case EXCHANGE_DRAWS_THE_SWIRL: TIMED_AS(g, 0xFFF677, done = menu_draw_gate_screen(g)); return done;
     case EXCHANGE_STARTS_THE_GATE_SCREEN: TIMED_AS(g, 0xC2CE9D, menu_start_gate_screen(g, c->pf)); return true;
@@ -1174,15 +1150,8 @@ static bool run(void *ctx, ExchangeRoutine r)
     return false;
 }
 
-static void slide(void *ctx, ExchangeSlideFrame frame) { (void)ctx, (void)frame; }
-
-static void widths(void *ctx, ExchangeWidths w) { (void)ctx, (void)w; }
-
-static void note(void *ctx, ExchangeNote note) { (void)ctx, (void)note; }
-
-/* The steps' ends, as the menus' own as C: the buzz, the screen laid out
- * (where its entry's guard takes the state), the main menu chosen on
- * again, or the menus closed. */
+/* The steps' ends: the buzz, the screen laid out (where the state is one it
+ * handles), the main menu chosen on again, or the menus closed. */
 static bool ends(void *ctx, ExchangeEnd end)
 {
     ExchangeContext *c = ctx;
@@ -1193,7 +1162,7 @@ static bool ends(void *ctx, ExchangeEnd end)
     case EXCHANGE_LAYS_OUT_THE_SCREEN:
         if (!takes(g, menu_exchange_can_lay_out(g), 0xC2CAF3, "an exchange the port doesn't lay out"))
             return false;
-        TIMED_AS(g, 0xC2CAF3, back = menu_lay_out_the_exchange_with(g, c->pf, &in_the_program, c));
+        TIMED_AS(g, 0xC2CAF3, back = menu_lay_out_the_exchange_with(g, c->pf, &the_steps, c));
         break;
     case EXCHANGE_BACK_TO_THE_MAIN_MENU: back = menu_back_to_the_main_menu(g, c->pf); break;
     case EXCHANGE_LEAVES_THE_MENUS: menu_close(g, c->pf, false); break;
@@ -1202,26 +1171,26 @@ static bool ends(void *ctx, ExchangeEnd end)
     return back;
 }
 
-static const ExchangeSteps in_the_program = { read_cursor, tick, wait, move_the_cursor, gate_sprite, place_song_back,
-                                    slide, widths, note, ends, run };
+static const ExchangeSteps the_steps = { read_cursor, tick, wait, move_the_cursor, gate_sprite, place_song_back,
+                                    ends, run };
 
-/* The panel as C, where its entry's guard would take the state. */
+/* The panel, where the state is one it handles. */
 bool menu_show_exchange_panel(GameState *g, Platform *pf)
 {
     if (!takes(g, menu_exchange_panel_can_show(g), 0xC2C9E5, "an exchange panel the port doesn't show"))
         return false;
     ExchangeContext c = { g, pf };
-    return menu_show_exchange_panel_with(g, pf, &in_the_program, &c);
+    return menu_show_exchange_panel_with(g, pf, &the_steps, &c);
 }
 
-/* A step as C where its entry's guard would take the state. */
+/* A step, run only on the state it handles. */
 static bool step(GameState *g, Platform *pf, bool ok, uint32_t routine,
                  bool (*run)(GameState *, Platform *, const ExchangeSteps *, void *))
 {
     if (!takes(g, ok, routine, "an exchange the port doesn't take"))
         return false;
     ExchangeContext c = { g, pf };
-    return run(g, pf, &in_the_program, &c);
+    return run(g, pf, &the_steps, &c);
 }
 
 bool menu_open_exchange(GameState *g, Platform *pf)

@@ -10,14 +10,10 @@
  * list it, the player's settings unpacked into a cell each, the characters'
  * sprites, the items and the characters' figures, and last each character's
  * low-HP mark (menu/members.c). The screen itself is picked after (the
- * caller's mode), and the menus' tasks start ($C2:8190).
- *
- * Several of those are still the original's; the opening is a bridge that
- * calls them, and the ones in C are run as C. */
+ * caller's mode), and the menus' tasks start ($C2:8190). */
 #include "menu/opening.h"
 
 #include "charge.h"
-#include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/display.h"
 #include "menu/graphics.h"
@@ -27,6 +23,7 @@
 #include "menu/sprites.h"
 #include "platform/audio.h"
 #include "sound/sound.h"
+#include "vars.h"
 
 /* ---- The party, as the menus list it ------------------------------------------------------------ */
 
@@ -60,7 +57,13 @@ void menu_list_party(GameState *g)
 
 /* Where each setting sits in the player's three bytes of settings
  * (game_settings). */
-enum { SOUND_OUTPUT_BIT = 0x08, OWN_BUTTONS_BIT = 0x10, KEEP_MENU_CURSORS_BIT = 0x20, ACTIVE_TIME_BIT = 0x40, DESCRIPTIONS_BIT = 0x80, BATTLE_SPEED_BITS = 0x07, WINDOW_DESIGN_BITS = 0x07, MESSAGE_SPEED_SHIFT = 3, MESSAGE_SPEED_BITS = 0x07, KEEP_BATTLE_COMMAND_BIT = 0x40, KEEP_BATTLE_LISTS_BIT = 0x80, BATTLE_GAUGE_BITS = 0x03,  };
+enum {
+    SOUND_OUTPUT_BIT = 0x08, OWN_BUTTONS_BIT = 0x10, KEEP_MENU_CURSORS_BIT = 0x20, ACTIVE_TIME_BIT = 0x40,
+    DESCRIPTIONS_BIT = 0x80, BATTLE_SPEED_BITS = 0x07,
+    WINDOW_DESIGN_BITS = 0x07, MESSAGE_SPEED_SHIFT = 3, MESSAGE_SPEED_BITS = 0x07, KEEP_BATTLE_COMMAND_BIT = 0x40,
+    KEEP_BATTLE_LISTS_BIT = 0x80,
+    BATTLE_GAUGE_BITS = 0x03,
+};
 
 static uint8_t bit_set(uint8_t byte, uint8_t bit) { return (byte & bit) != 0; }
 
@@ -103,16 +106,12 @@ void menu_pack_settings(GameState *g)
 
 /* ---- The opening ------------------------------------------------------------------------------- */
 
-/* The menus' interrupts: their vblank handler, and a line interrupt handler
- * that returns at once. */
-enum { LONG_JUMP = 0x5C };
-
 static void take_the_interrupts(GameState *g)
 {
     program_install_vblank_handler(g, menu_vblank);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     program_install_line_handler(g, menu_line);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
 }
 
 /* The sound effects quietened and the driver's first set of effects taken:
@@ -154,17 +153,15 @@ static void clear_the_menus_cells(GameState *g)
         set_menu_members(g, i, BLANK);
 }
 
-/* What the opening does that is a routine of the menus' own, run as C or on
- * the machine (below): a quietening command sent, the screen set up, the
- * save slots read, the upload queue sent, the records' sprites loaded, the
- * item tables built, and the low-HP marks worked out where the port takes
- * them; and where the graphics' building leaves what the original's code
- * reads (scaffolding). Each false where it went no further. */
+/* What the opening does that is a routine of the menus' own: a quietening
+ * command sent, the screen set up, the save slots read, the upload queue
+ * sent, the records' sprites loaded, the item tables built, and the low-HP
+ * marks worked out where the port takes them. Each false where it went no
+ * further. */
 typedef enum { OPENING_SCREEN, OPENING_SAVE_SLOTS, OPENING_UPLOADS, OPENING_RECORDS, OPENING_ITEMS } OpeningCall;
 typedef struct {
     bool (*quieten)(void *ctx, unsigned command);
     bool (*call)(void *ctx, OpeningCall call);
-    void (*graphics_built)(void *ctx);
     bool (*low_hp_marks)(void *ctx);
 } OpeningCalls;
 
@@ -187,7 +184,6 @@ static bool open_the_menus(GameState *g, Platform *pf, const OpeningCalls *c, vo
         return false;
     clear_the_menus_cells(g);
     TIMED_AS(g, 0xC2968D, menu_build_graphics(g, pf));
-    c->graphics_built(ctx);
     if (!c->call(ctx, OPENING_SAVE_SLOTS))
         return false;
     TIMED_AS(g, 0xC2984A, menu_clear_sprites(g));
@@ -201,8 +197,6 @@ static bool open_the_menus(GameState *g, Platform *pf, const OpeningCalls *c, vo
     return true;
 }
 
-/* ---- As C ------------------------------------------------------------------------------------- */
-
 typedef struct {
     GameState *game;
     Platform *pf;
@@ -215,8 +209,8 @@ static bool quieten(void *ctx, unsigned command)
     return true;
 }
 
-/* Each where its guard takes it; false where it doesn't, the program going
- * no further there. */
+/* Each where the state is one it handles; false where it isn't, the program
+ * going no further there. */
 static bool call(void *ctx, OpeningCall call)
 {
     MenuOpeningContext *c = ctx;
@@ -232,8 +226,6 @@ static bool call(void *ctx, OpeningCall call)
     return back;
 }
 
-static void graphics_built(void *ctx) { (void)ctx; }
-
 /* The opening clears the zero word the marks' walk starts from. */
 static bool low_hp_marks(void *ctx)
 {
@@ -243,10 +235,7 @@ static bool low_hp_marks(void *ctx)
 
 bool menu_opens(GameState *g, Platform *pf)
 {
-    static const OpeningCalls in_the_program = { quieten, call, graphics_built, low_hp_marks };
+    static const OpeningCalls the_steps = { quieten, call, low_hp_marks };
     MenuOpeningContext c = { g, pf };
-    return open_the_menus(g, pf, &in_the_program, &c);
+    return open_the_menus(g, pf, &the_steps, &c);
 }
-
-/* Registers the routines the opening calls don't read (the calling convention
- * checks each). */

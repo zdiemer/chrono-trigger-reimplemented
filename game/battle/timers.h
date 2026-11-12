@@ -13,8 +13,8 @@
  *
  * The search can take the order's empty place for a combatant: the timer it
  * finds run out is then nobody's (TimerOwner), and the original, reading past
- * the kind's row, sees to it as to any slot's; the port leaves nobody's to
- * the original (docs/TODO.md). */
+ * the kind's row, sees to it as to any slot's; the port refuses nobody's
+ * but a status wearing off (docs/TODO.md). */
 #ifndef CT_GAME_BATTLE_TIMERS_H
 #define CT_GAME_BATTLE_TIMERS_H
 
@@ -87,7 +87,7 @@ void battle_count_timers_down(GameState *g);
 void battle_find_run_out_timers(GameState *g, bool look);
 
 /* The count-down's stretch of the main loop ($C1:8231), and the search with
- * the handlers of the kinds due ($C1:8290), as C: false where a handler went
+ * the handlers of the kinds due ($C1:8290): false where a handler went
  * no further. */
 enum { BATTLE_TICK_TIMERS_ENTRY = 0xC18231 };
 bool battle_timers_seen_to(GameState *g, Platform *pf);

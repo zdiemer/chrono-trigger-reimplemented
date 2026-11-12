@@ -19,8 +19,8 @@
  *
  * The console reads the controller by itself early in the vertical blank, and
  * the game waits for that to finish before it takes the buttons; the port
- * leaves the wait to its idle entry, and other work
- * that runs the frame's input again (input_take_frame) goes on without it. */
+ * leaves the wait to the frame's driver, and other work that runs the frame's
+ * input again (input_take_frame) goes on without it. */
 #include "core/input.h"
 
 #include "charge.h"

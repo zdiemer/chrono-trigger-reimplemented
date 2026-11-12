@@ -49,9 +49,6 @@ static unsigned member_record(const GameState *g, uint8_t member, uint8_t entry)
  * past the second slot the third's. */
 static uint8_t slot_paying(uint8_t slot) { return slot < BATTLE_PARTY_SIZE - 1 ? slot : BATTLE_PARTY_SIZE - 1; }
 
-/* The carry the accessory's test leaves ($C1:CBF6): set for an accessory
- * past the one that quarters the cost. */
-
 // $C1:CC0B, $C1:CC3E
 /* A combination tech's record takes what the member of the character
  * `character` pays for its part, `cost` cut by the member's accessory, in the
@@ -70,10 +67,6 @@ static uint8_t set_slot_cost(GameState *g, unsigned record, uint8_t character, u
 }
 
 /* ---- The triple tech ---------------------------------------------------------------------------- */
-
-/* The direct page's cells the search works in, which the rest of the fight's
- * start overwrites before anything reads them (scaffolding). */
-enum { LOOKED_PAST = BATTLE_CLOCK_READS, TECH_TWICE = 0x02, RECORDS_AT = 0x04, TECH_AT = BATTLE_NUMBER_TESTED, LEARNED_READ = 0x0C, TECHS_END = BATTLE_TECH_HITS_LEFT, PER_BYTE = 0x10, SPARE = 0x14,  };
 
 /* Whether all three of a tech's members are in the battle: each a character
  * in a party slot. */
@@ -117,8 +110,7 @@ static void fill_triple(GameState *g, uint8_t member, uint8_t tech)
     for (unsigned part = 0; part < TECH_MEMBERS; part++)
         set_slot_cost(g, record, battle_tech_members(g, part), party_effect_mp_cost(g, t.effects[part]));
     /* the original finds each part's cost by a multiply (the tech's record's
-     * place), the last entered with the carry the second member's
-     * accessory's test left (scaffolding) */
+     * place), whose cells keep what it leaves */
     battle_leave_multiply(g, tech, PARTY_TECH_BYTES);
     uint8_t high = (uint8_t)(partner_slot(g, 2, member) << 4);
     /* the original works the partners out in the search's first cell */
@@ -130,11 +122,6 @@ static uint8_t learned_byte(const GameState *g, unsigned triple)
     return triple < PARTY_TRIPLE_TECHS_LEARNED_COUNT ? party_triple_techs_learned(g, triple)
                                                      : party_triple_techs_learned_unchecked(g, triple);
 }
-
-/* What the search leaves in the direct page's cells: the tech it stopped at,
- * where the triples end and how many it looked past, twice the tech, the
- * learned byte it read last, its count and where the member's records are. A
- * member out of the fight leaves them clear. */
 
 // $C1:CCCB
 /* The member's triple tech: the first learned one all of whose members are in
@@ -170,27 +157,16 @@ static uint8_t doubles_learned_byte(const GameState *g, unsigned n)
     return n < PARTY_DOUBLE_TECHS_LEARNED_COUNT ? party_double_techs_learned(g, n) : party_double_techs_learned_unchecked(g, n);
 }
 
-/* ---- What the builders leave in the direct page's cells ---------------------------------------- */
+/* ---- What the builders leave in the battle's work cells ---------------------------------------- */
 
-/* The original builds the records in the direct page's cells, which the rest
- * of the fight's start overwrites before anything reads them: scaffolding,
- * worked out here from where each builder ended. The cells: the character or
+/* The original builds the records in the battle's work cells, which the rest
+ * of the fight's start overwrites before anything reads them; what they
+ * hold is worked out here from where each builder ended. The cells: the character or
  * the learned byte's number, twice the tech, the records' place, the tech,
  * the learned byte it was at, where the techs end, the bit in the byte, the
  * doubles filled, and a word the double techs' builder steps by twelve a tech
  * without starting it. */
-enum { COUNTED_AT = 0x00, TECH_TWICE_AT = 0x02, RECORD_PLACE_AT = 0x04, CURRENT_TECH = 0x08, STEPPED = 0x0A, LEARNED_AT = 0x0C, TECHS_END_AT = 0x0E, BIT_IN_BYTE = 0x10, DOUBLES_FILLED = 0x14, STEP_BYTES = 12 };
-
-/* The carry the search for a tech's members ($C1:CB93) leaves, its members'
- * number times three past a byte, which the next multiply is entered with. */
-
-/* The second part's multiply is entered with the carry of the first member's
- * accessory's test. */
-
-/* The double techs' builder stops at the tech it filled the sixth record
- * with, or past the last; the place it steps is the member's records', the
- * tenth's offset in its stores rather than in the cell, and it doesn't step
- * past the sixth. */
+enum { CURRENT_TECH = 0x08, STEPPED = 0x0A, BIT_IN_BYTE = 0x10, DOUBLES_FILLED = 0x14, STEP_BYTES = 12 };
 
 /* ---- The single and double techs ---------------------------------------------------------------- */
 
@@ -311,19 +287,3 @@ void battle_blank_tech_records(GameState *g)
         set_battle_tech_records_third_cost(g, record, BLANK);
     }
 }
-
-/* ---- The entries ------------------------------------------------------------------------------ */
-
-/* The member in the direct page's cell the fight's start hands it in; a
- * member in the party's slots. */
-
-/* A double or triple tech's cost for a member, from the original's builders
- * of the records (the double techs' is still the original's): the character
- * in A, the cost in Y, the member's records' place in its cell ($04), whose
- * record, the first double tech's or the triple tech's, takes it. The cut
- * cost comes back in A's low byte, with the carry of the accessory's test. */
-enum { FIRST_RECORDS_PLACE = 0x1A80 };
-
-/* The single and double techs' builders take the member as the triple
- * tech's does, and the character each is fighting as must be one of the
- * seven, whose techs the ROM lists. */

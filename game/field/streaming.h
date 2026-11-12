@@ -15,8 +15,8 @@ void stream_the_layers(GameState *g);
 /* A layer drawn into the staging buffers at a map's load, which the load
  * sends to VRAM ($C0:75E9, $C0:78EC, $C0:7CB5). */
 void draw_layer_at_the_maps_load(GameState *g, unsigned layer);
-/* The same as C, with its entry's guard's state half first: false where the
- * port doesn't draw it, the program going no further there. */
+/* The same, where the port draws the layer: false where it doesn't, the
+ * program going no further there. */
 bool field_layer_drawn_at_the_load(GameState *g, unsigned layer);
 
 /* The columns right of the view built and sent, as the screen is set up or
@@ -25,12 +25,9 @@ void stream_the_right_columns(GameState *g);
 enum { FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY = 0xC087F1 };
 
 /* Whether each layer's map repeats within the map's tables, and whether a
- * layer's drawing at the map's load fits the staging buffers (the guards'
- * parts). */
+ * layer's drawing at the map's load fits the staging buffers (what the port
+ * draws). */
 bool layers_repeat_within_the_maps(const GameState *g);
 bool layer_drawing_fits(const GameState *g, unsigned layer);
-
-/* The registered entries: the streaming, from the walk and the recentring,
- * and the drawings, from the map's load; and their guard. */
 
 #endif

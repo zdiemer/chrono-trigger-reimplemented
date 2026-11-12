@@ -14,8 +14,8 @@
  * the background may change (battle/battlefield_change.c), the sprite tiles are unpacked (the
  * decompressor) and the bitmap shapes built a few a frame (battle/sprites.c),
  * between waits for the next frame with the frame step between them
- * (battle/frame_step.c). So the loading is a bridge that makes those calls
- * where the original makes them, and each kind of action is an entry of its
+ * (battle/frame_step.c). The loading makes those calls (LoadCall) where the
+ * original makes them, and each kind of action is loaded by a routine of its
  * own, as the original's table of loaders has them. */
 #include "battle/action_animation_data.h"
 #include "battle/animation.h"
@@ -46,9 +46,6 @@ typedef struct {
 } ChosenAnimation;
 
 /* ---- A party member's attack: up close or not -------------------------------------------- */
-
-/* The attack's search for the way leaves its two points in the first work
- * cells, as the original asks with them there. */
 
 // $C1:49FF
 /* A party member's attack is shown up close where the member gets to its
@@ -143,10 +140,6 @@ static uint16_t channels_counted(uint16_t channels)
     return count;
 }
 
-/* The original walks a half's channels out of the first work cells, the
- * second half's left in the next two, and clears the battle's note of the
- * second half as it passes over the first's scripts. */
-
 // $C1:4455
 /* The script set's channels start: those its first half marks, each with
  * its script in turn; or for the second half, those it marks, with the
@@ -169,10 +162,6 @@ static void start_the_scripts(GameState *g, uint8_t bank, uint16_t set, bool sec
 }
 
 /* ---- The animation's cells -------------------------------------------------------------- */
-
-/* The palette animation and the effects' records are what the rest of the
- * battle reads of the animation (battle/sprites.c); the rest the original
- * keeps in cells only the loading reads. */
 
 /* What the loading goes on with over the frames: the parts and where the
  * sprite tiles are. */
@@ -325,7 +314,7 @@ static ChosenAnimation chosen_for(GameState *g, ShowingKind kind)
     }
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The loading's calls ---------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
@@ -361,15 +350,8 @@ static const struct { uint32_t routine; } loaders[SHOWING_KINDS] = {
     [SHOWS_AN_ITEM] = { 0xC1475B },
 };
 
-/* Whether a party member's attack is shown up close, for the original's
- * call; it leaves A's high byte clear, as the way's search does. */
-
-/* The guards. The loaders index the ROM's tables with A's high byte along,
- * clear as the showing has it; the actor is a combatant, and a party member's
- * attack has a target to face. What else the original's loaders read -- the
- * showing's note of the second half, the animation's cells as the loading's
- * start leaves them -- is scaffolding here, which a native build doesn't
- * write; their fuzz runs give it as the showing does (the original input constraints). */
+/* What the loading takes: the actor is a combatant, and a party member's
+ * attack has a target to face. */
 static bool actor_fits(const GameState *g) { return battle_names_combatant(battle_action_actor(g)); }
 
 static bool target_fits(const GameState *g)
@@ -378,8 +360,8 @@ static bool target_fits(const GameState *g)
            || battle_names_combatant(battle_script_subjects(g, FIRST_TARGET_PLACE));
 }
 
-/* Each kind's loading with its guard's state half: the actor a combatant,
- * and a party member's attack a target to face. */
+/* Each kind's loading, refused where the actor isn't a combatant or a party
+ * member's attack has no target to face. */
 static bool load_by_kind(void *ctx, ShowingKind kind)
 {
     AnimationLoadContext *c = ctx;

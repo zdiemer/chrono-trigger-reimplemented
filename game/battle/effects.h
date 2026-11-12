@@ -58,16 +58,6 @@ typedef enum {
     PATH_KINDS
 } PathKind;
 
-/* ---- The guards (registry .guard) ------------------------------------------------------ */
-
-/* On the battle's page with the data bank at $7E, as battle/bridge.h's
- * battle_on_page; other files' entries take it by this name too. */
-/* ... with A's high byte 0, as the frame's update calls the motion. */
-/* ... and every running mover on one of the eight kinds of path, as the game
- * starts them (battle/effect_paths.c). */
-/* ... and the effect loop's cells naming a combatant or an anchor, as the loop
- * sets them for a path's routine. */
-
 static inline void place_combatant_x(GameState *g, unsigned slot, uint8_t x)
 {
     set_battle_object_x(g, battle_object_of(slot), x);

@@ -47,7 +47,12 @@ enum { TECH_COSTS_BYTES = 16 };
  * character in order, three a tech ($CC:2778, five bytes a record, $FF for the
  * characters past the last). A record's number among them is its learned
  * byte's. */
-enum { COMBINATION_RECORD_BYTES = 5, COMBINATION_TECH_ASKS = 3, NO_MORE_COMBINATIONS = 0xFF, COMBINATION_HAS_NO_TECHS = 0xFF };
+enum {
+    COMBINATION_RECORD_BYTES = 5,
+    COMBINATION_TECH_ASKS = 3,
+    NO_MORE_COMBINATIONS = 0xFF,
+    COMBINATION_HAS_NO_TECHS = 0xFF,
+};
 
 typedef struct {
     uint8_t characters, first, count;

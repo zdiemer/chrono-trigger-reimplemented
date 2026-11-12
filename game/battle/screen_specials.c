@@ -24,7 +24,14 @@
 /* The three tables in battle_effect_line_work, a channel's each, 32 bands of
  * four bytes (the band's lines, then its color). */
 typedef enum { BLUE_BANDS, GREEN_BANDS, RED_BANDS, BAND_TABLES } BandTable;
-enum { BANDS = 32, BAND_BYTES = 4, BAND_TABLE_BYTES = BANDS * BAND_BYTES, FIRST_BAND_TABLE = 1, BAND_LINES = 0, BAND_COLOR = 1 };
+enum {
+    BANDS = 32,
+    BAND_BYTES = 4,
+    BAND_TABLE_BYTES = BANDS * BAND_BYTES,
+    FIRST_BAND_TABLE = 1,
+    BAND_LINES = 0,
+    BAND_COLOR = 1,
+};
 
 static const uint8_t band_channel[BAND_TABLES] = { VID_BLUE, VID_GREEN, VID_RED };
 
@@ -47,9 +54,6 @@ static uint8_t band_intensity(unsigned band, uint8_t fade)
     unsigned level = BAND_RISE * from_the_edge;
     return level > fade ? (uint8_t)(level - fade) : 0;
 }
-
-/* What laying the bands leaves in the cells: the bands' lines, the fade, and
- * the last band's level. */
 
 // $CD:2D51
 static void lay_bands_of_light(GameState *g, uint8_t lines)
@@ -211,9 +215,6 @@ static void close_the_windows(GameState *g, ScreenChannel channel)
  * over the table. */
 enum { NUDGE_WAVE_HEIGHT = 12, NUDGE_WAVE_STEP = 4, NUDGES = 0x100 };
 
-/* The original multiplies the wave's height by each step's sine: the
- * multiplier is left with the last. */
-
 // $CD:2B69
 /* Effect 12: lay the window lines' nudges out as a wave. */
 static void lay_out_the_nudge_wave(GameState *g, ScreenChannel channel)
@@ -313,7 +314,17 @@ static void bob_layer_up(GameState *g, ScreenChannel channel) { bob_layer(g, cha
  * dropping off the end); they are large, at the channel's layer, in front of
  * everything, and those that fall below the battlefield (or off the screen)
  * hidden. */
-enum { FIRST_SHOWN = 4, SPRITES_SHOWN = 16, SPRITES = OAM_BUFFER_COUNT, SPRITES_A_HIGH_BYTE = 4, SPRITE_BYTES = 4, IN_FRONT = 0x30, LARGE_SPRITES_BYTE = 0xAA, HIDDEN_LINE = 0xF0, BELOW_THE_BATTLEFIELD = 0xD5 };
+enum {
+    FIRST_SHOWN = 4,
+    SPRITES_SHOWN = 16,
+    SPRITES = OAM_BUFFER_COUNT,
+    SPRITES_A_HIGH_BYTE = 4,
+    SPRITE_BYTES = 4,
+    IN_FRONT = 0x30,
+    LARGE_SPRITES_BYTE = 0xAA,
+    HIDDEN_LINE = 0xF0,
+    BELOW_THE_BATTLEFIELD = 0xD5,
+};
 
 static uint8_t sprite_line(uint16_t down)
 {
@@ -331,8 +342,6 @@ static void move_sprite(GameState *g, unsigned to, unsigned from)
     set_oam_buffer_tile(g, to, oam_buffer_tile(g, from));
     set_oam_buffer_attributes(g, to, oam_buffer_attributes(g, from));
 }
-
-/* What the effect leaves in the cells: the layer's place across and down. */
 
 // $CD:2BFC
 /* Effect 9: show the effect's first sixteen sprites in front of the rest. */
@@ -494,9 +503,3 @@ static bool is_one_of_the_effects(const GameState *g, const ScreenCommand *c)
 SCREEN_OPCODES(screen_special_opcodes,
     { 0x80, OPERATION(special_effect), .needs = is_one_of_the_effects, .length = 1, .special = BYTE(0) },
 );
-
-/* ---- The entries ------------------------------------------------------------------------------ */
-
-/* An effect entered as the command's handler jumps to it: its number doubled
- * in X (the doubling leaves the carry clear, which the window lines' nudge
- * starts its chain of sums with), running a channel. */

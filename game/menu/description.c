@@ -25,7 +25,6 @@
 
 #include "charge.h"
 #include "core/program.h"
-#include "menu/bridge.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/typeset.h"
@@ -36,11 +35,18 @@
 
 /* Where the typing's task starts: a description, the settings' option and
  * then its value, and its value alone. */
-enum { TYPE_A_DESCRIPTION = MENU_TYPE_A_DESCRIPTION, TYPE_A_SETTING = MENU_TYPE_A_SETTING, TYPE_A_VALUE = MENU_TYPE_A_VALUE };
+enum {
+    TYPE_A_DESCRIPTION = MENU_TYPE_A_DESCRIPTION,
+    TYPE_A_SETTING = MENU_TYPE_A_SETTING,
+    TYPE_A_VALUE = MENU_TYPE_A_VALUE,
+};
 
 /* The text layer's tilemap: two bytes a tile, 32 tiles a row. A line of
  * text is two tile rows, its glyphs' top halves and their bottom halves. */
-enum { TILE_BYTES = 2, TILE_ROW_BYTES = 0x40, ROW_START = 0xFFC0, LINE_BYTES = 2 * TILE_ROW_BYTES, TEXT_LAYER_AT = (uint16_t)RAM_MENU_TEXT_TILEMAP,  };
+enum {
+    TILE_BYTES = 2, TILE_ROW_BYTES = 0x40, ROW_START = 0xFFC0, LINE_BYTES = 2 * TILE_ROW_BYTES,
+    TEXT_LAYER_AT = (uint16_t)RAM_MENU_TEXT_TILEMAP,
+};
 
 /* A strip of a line's tiles: sixteen top halves, then their bottom halves. */
 enum { STRIP = 0x10 };
@@ -280,8 +286,8 @@ static void begin_the_value(GameState *g)
 
 /* ---- The typing's tasks ------------------------------------------------------------------------- */
 
-/* The task's wait for the next frame between the typing's frames: as C, or
- * on the machine (below); false where the task never came back. */
+/* The task's wait for the next frame between the typing's frames; false
+ * where the task never came back. */
 typedef bool (*TypingWait)(void *ctx);
 
 // $C2:FAA8
@@ -297,7 +303,7 @@ static bool type_the_text(GameState *g, TypingWait wait, void *ctx)
 /* The typing's three tasks, each from its own start: a description typed; a
  * setting's option typed, then its value after it; and a setting's value
  * typed again where it has changed. Each typing is the text typed to its end
- * (above), as C or on the machine, from the original's call of it at `site`;
+ * (above), from the original's call of it at `site`;
  * false where it went no further. The task ends after. */
 typedef enum { TYPE_THE_DESCRIPTION, TYPE_THE_SETTING, TYPE_THE_VALUE } TypingTask;
 typedef bool (*Typing)(void *ctx, uint32_t site);
@@ -319,20 +325,19 @@ static bool typing_task_with(GameState *g, TypingTask task, Typing type, void *c
     return type(ctx, 0xC2FA43);
 }
 
-/* As C, from inside the task's coroutine (menu/tasks.c), timed as the typing's
- * routine. */
+/* The wait, from inside the task's coroutine (menu/tasks.c). */
 static bool wait(void *ctx)
 {
     menu_task_waits(ctx, 1);
     return true;
 }
 
-/* The guards' state halves, below: the typing laid where it fits, and each
- * task's start. */
+/* What the typing needs of the state (below): the typing laid where it
+ * fits, and each task's start. */
 static bool typing_goes_on(const GameState *g);
 static bool typing_task_can_start(const GameState *g, TypingTask task);
 
-/* Each typing and each task where its guard's state half takes it; otherwise
+/* Each typing and each task, where the state is one it handles; otherwise
  * the program goes no further there. */
 static bool type(void *ctx, uint32_t site)
 {
@@ -375,13 +380,7 @@ void menu_type_the_value_task(GameState *g, Platform *pf)
     typing_task(g, TYPE_THE_VALUE);
 }
 
-/* ---- The entries --------------------------------------------------------------------------------- */
-
-/* The end of a task, which the scheduler goes on from, and which reads none
- * of the registers. */
-enum { END_OF_A_TASK = 0xC28216 };
-
-/* ---- The guards ---------------------------------------------------------------------------------- */
+/* ---- What the typing needs ---------------------------------------------------------------------- */
 
 /* The description's row lies in the text layer's tilemap, its line on it,
  * a whole number of tiles; the typing's counts start from a line's (the

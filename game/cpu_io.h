@@ -5,19 +5,15 @@
  * arithmetic and memory access, not platform services (docs/PLATFORM.md, "Not
  * services"). A port computes in C (`a * b`, `n / d`, a variable read through
  * its accessor) and never uses these to compute. What they are for is the
- * state the original leaves in them: their registers are part of what shadow
- * mode and the fuzzer compare, and a routine can leave an operand or a cursor
- * behind for the next one, so a port leaves the operands, the result and the
- * cursor as the original does, as scaffolding (ORIGINAL_EFFECT;
- * docs/PORTING.md, "Scaffolding"). The few ports that still read a stream
+ * state the original leaves in them: a routine can leave an operand or a cursor
+ * behind for the next one to pick up, so a port leaves the operands, the result
+ * and the cursor as the original does. The few ports that still read a stream
  * through the port, where its data has no entries in the RAM map yet, are
- * listed in docs/TODO.md; that is a debt, not a way to write a port.
- * the state backend is the backing, beside the one for game/vars.h; a
- * native backing keeps what those streams need as values, with no
- * registers.
+ * listed in docs/TODO.md; that is a debt, not a way to write a port. The state
+ * backend keeps what they hold as values, beside the one for game/vars.h.
  *
- * They take the state rather than the machine because that is what they are to
- * a port: values it leaves, like any other variable. */
+ * They take the state because that is what they are to a port: values it
+ * leaves, like any other variable. */
 #ifndef CT_GAME_CPU_IO_H
 #define CT_GAME_CPU_IO_H
 
@@ -30,8 +26,8 @@
 void hw_set_multiplicand(GameState *g, uint8_t a);
 uint16_t hw_multiply_by(GameState *g, uint8_t b);
 /* The first operand a caller left in the multiplier, for a routine that
- * multiplies by it itself (as hw_dividend: no time, the register can't be
- * read on the machine). */
+ * multiplies by it itself (as hw_dividend: it costs no time, the game having
+ * no way to read it back). */
 uint8_t hw_multiplicand(const GameState *g);
 
 /* The divider: the dividend a division starts from (which stays until it is
@@ -48,8 +44,8 @@ void hw_divide_by(GameState *g, uint8_t divisor);
  * "The census", the divider spills). */
 void hw_divide_by_word(GameState *g, uint16_t word);
 /* The dividend a caller left in the divider, for a routine that divides it
- * itself (reading it costs no time: the register can't be read on the
- * machine, so the backing looks at what the divider holds). */
+ * itself (reading it costs no time: the game has no way to read it back, so
+ * the backing looks at what the divider holds). */
 uint16_t hw_dividend(const GameState *g);
 
 /* The work RAM port: a cursor into work RAM that steps on with every byte read
@@ -65,7 +61,7 @@ void hw_port_write(GameState *g, uint8_t v);
  * through the port and leaves its low byte on the sound CPU's port 3, which
  * that address mirrors (no message: the driver reads port 3 only after a
  * message's other bytes; docs/PLATFORM.md, "P1 as built"). This leaves that
- * low byte on port 3, as such a store would: scaffolding only. */
+ * low byte on port 3, as such a store would; nothing in the game reads it. */
 void hw_port_leave_spill(GameState *g, uint8_t low);
 
 #endif

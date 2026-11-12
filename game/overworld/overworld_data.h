@@ -56,20 +56,36 @@ enum { VEHICLE_SECOND_SPRITE_STANDING = 0x4E, VEHICLE_SECOND_SPRITE_IN_FLIGHT = 
 /* The Epoch's sprite scripts: standing with its wings or without them,
  * taking off and landing; and in flight, the way it faces, with its wings
  * ($C2:48C9, a byte a facing) or without ($C2:48C5). */
-enum { EPOCH_STANDS_WITH_ITS_WINGS = 0x18, EPOCH_STANDS_WITHOUT_WINGS = 0x2D, EPOCH_TAKES_OFF = 0x19, EPOCH_LANDS = 0x1A,  };
+enum {
+    EPOCH_STANDS_WITH_ITS_WINGS = 0x18,
+    EPOCH_STANDS_WITHOUT_WINGS = 0x2D,
+    EPOCH_TAKES_OFF = 0x19,
+    EPOCH_LANDS = 0x1A,
+};
 
 /* The scripts the Epoch's scenes run (menu/script.h): arriving through time,
  * leaving through time, taking off in the scene at the story's point $D3,
  * and entering the Black Omen; and the one the vehicles' controller starts
  * instead of boarding at the story's point $D2. */
-enum { EPOCH_ARRIVES_THROUGH_TIME = 0xC24B8C, EPOCH_LEAVES_THROUGH_TIME = 0xC24AAD, EPOCH_TAKES_OFF_IN_A_SCENE = 0xC24A9B, EPOCH_ENTERS_THE_BLACK_OMEN = 0xC24C8F, EPOCH_BOARDED_IN_A_SCENE = 0xC231A8,  };
+enum {
+    EPOCH_ARRIVES_THROUGH_TIME = 0xC24B8C,
+    EPOCH_LEAVES_THROUGH_TIME = 0xC24AAD,
+    EPOCH_TAKES_OFF_IN_A_SCENE = 0xC24A9B,
+    EPOCH_ENTERS_THE_BLACK_OMEN = 0xC24C8F,
+    EPOCH_BOARDED_IN_A_SCENE = 0xC231A8,
+};
 
 /* ---- The dactyls ------------------------------------------------------------------------ */
 
 /* The dactyls' sprite scripts: the leader's standing, and taking off and
  * landing alike; the second's and third's taking off and landing alike, the
  * second member's first. */
-enum { DACTYL_STANDS = 0x24, DACTYL_TAKES_OFF = 0x29, SECOND_S_DACTYL_TAKES_OFF = 0x6F, THIRD_S_DACTYL_TAKES_OFF = 0x74 };
+enum {
+    DACTYL_STANDS = 0x24,
+    DACTYL_TAKES_OFF = 0x29,
+    SECOND_S_DACTYL_TAKES_OFF = 0x6F,
+    THIRD_S_DACTYL_TAKES_OFF = 0x74,
+};
 
 /* The Black Omen's name among the places' names (the sign's). */
 enum { OVERWORLD_BLACK_OMEN_NAME = 0x4C };

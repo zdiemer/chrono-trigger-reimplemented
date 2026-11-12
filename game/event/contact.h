@@ -37,12 +37,12 @@ Touch leaders_touch(const GameState *g);
  * at the most urgent level. */
 bool leader_looks_to_push(const GameState *g, bool touched);
 
-/* The guards' part: the object the leader is up against is one the tables
+/* What the port checks: the object the leader is up against is one the tables
  * hold, at a level the places hold, and a push would look at a tile of the
  * map by a facing of the leader's four. */
 bool event_touch_is_ours(const GameState *g);
 
-/* The confirm button as C: talk to what the leader faces, or open a chest. */
+/* The confirm button: talk to what the leader faces, or open a chest. */
 void field_confirm_pressed(GameState *g);
 
 #endif

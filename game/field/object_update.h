@@ -13,9 +13,9 @@
  * starts ($C0:B204). */
 void field_empty_the_rows(GameState *g);
 
-/* The same as C: false where a step is one the port doesn't take, the
- * program going no further there (core/program.h). A row joined or left,
- * as C, the same. */
+/* The objects' update, once a frame ($C0:A810): false where a step is one
+ * the port doesn't take, the program going no further there
+ * (core/program.h). A row joined or left, the same. */
 bool field_objects_updated(GameState *g);
 bool object_rows_step(GameState *g, FieldObject obj, bool join);
 enum { FIELD_UPDATE_SCREEN_POSITION_ENTRY = 0xC0AB45 };

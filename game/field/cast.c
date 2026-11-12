@@ -27,7 +27,6 @@
 #include "field/graphics.h"
 #include "field/party.h"
 #include "field/bridge.h"
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -35,7 +34,7 @@
 
 /* The four tables a record's fields pick from (field_data.h), where
  * field_sprite_data_tables points them. The game points them all into bank
- * $E4; the guards leave any other place to the original. */
+ * $E4; the port refuses any other place. */
 enum { SPRITE_TABLES_BANK = 0xE4 };
 
 static uint32_t sprite_table(const GameState *g, FieldSpriteTable table) { return field_sprite_data_tables(g, table); }
@@ -100,8 +99,8 @@ static void put_on_character_sprite(GameState *g, FieldObject obj, uint8_t chara
     wear_record(g, obj, r);
     set_graphics(g, obj, long_entry(g, FIELD_SPRITE_GRAPHICS_SETS, r.graphics));
     start_fresh(g, obj);
-    charge_legacy_accesses(g, 4); /* sprite record and last field */
-    charge_legacy_io_accesses(g, 4); /* palette multiplication */
+    charge_accesses(g, 4); /* sprite record and last field */
+    charge_io_accesses(g, 4); /* palette multiplication */
 }
 
 /* ---- Blocks of sprite tiles ---------------------------------------------------------------- *
@@ -166,7 +165,7 @@ static void free_block(GameState *g, unsigned block) { set_field_sprite_block_ow
 
 static void take_block(GameState *g, FieldObject obj, unsigned block, bool pair)
 {
-    charge_legacy_accesses(g, 2); /* selected block and tile row */
+    charge_accesses(g, 2); /* selected block and tile row */
     set_field_sprite_block_owner(g, block, field_link_byte(field_link_to(obj)));
     if (pair)
         set_field_sprite_block_owner(g, block + 1, field_link_byte(field_link_to(obj)));
@@ -350,7 +349,7 @@ static SharedEntry entry_holding(const GameState *g, uint8_t set)
     return (SharedEntry){ false, 0 };
 }
 
-/* The guards': an entry for the set, its unpacker an object the tables hold. */
+/* What the port checks: an entry for the set, its unpacker an object the tables hold. */
 bool cast_graphics_entry_for(const GameState *g, uint8_t set)
 {
     SharedEntry held = entry_holding(g, set);
@@ -361,7 +360,7 @@ bool cast_graphics_entry_for(const GameState *g, uint8_t set)
 
 // $C0:5C90
 /* The set an object of the map has unpacked already, or the first free entry
- * taken for this object's (the guards see there is one). */
+ * taken for this object's (the port has checked there is one). */
 static bool share_graphics(GameState *g, FieldObject obj, uint8_t set)
 {
     SharedEntry held = entry_holding(g, set);
@@ -415,7 +414,7 @@ static void cast_as_another(GameState *g, FieldObject obj, ObjectKind kind, uint
     start_fresh(g, obj);
     object_set_solidity(g, obj, true);
     wear_record(g, obj, r);
-    charge_legacy_accesses(g, 1); /* selected graphics set */
+    charge_accesses(g, 1); /* selected graphics set */
 }
 
 /* Graphics shared with an object of the map, or to unpack. */
@@ -444,8 +443,8 @@ CastGraphics object_cast_as_npc(GameState *g, FieldObject obj, uint8_t npc)
     cast_as_another(g, obj, ROLE_WALKS_ONLY, npc, r);
     CastGraphics found = find_graphics(g, obj, r);
     note_npc_graphics(g, unpacked_end(g));
-    charge_legacy_accesses(g, 4); /* sprite record and last field */
-    charge_legacy_io_accesses(g, 4); /* palette multiplication */
+    charge_accesses(g, 4); /* sprite record and last field */
+    charge_io_accesses(g, 4); /* palette multiplication */
     return found;
 }
 
@@ -464,8 +463,8 @@ CastGraphics object_cast_as_enemy(GameState *g, FieldObject obj, uint8_t enemy)
         set_graphics(g, obj, long_entry(g, FIELD_SPRITE_GRAPHICS_SETS, r.graphics));
     else
         found = find_graphics(g, obj, r);
-    charge_legacy_accesses(g, 4); /* sprite record and last field */
-    charge_legacy_io_accesses(g, 4); /* palette multiplication */
+    charge_accesses(g, 4); /* sprite record and last field */
+    charge_io_accesses(g, 4); /* palette multiplication */
     return found;
 }
 
@@ -480,7 +479,7 @@ void enemy_takes_its_place(GameState *g, Platform *pf, FieldObject obj, uint8_t 
 {
     unsigned block = enemy_block(slot);
     take_enemy_block(g, obj, block);
-    charge_legacy_accesses(g, 3); /* slot, block and tile row */
+    charge_accesses(g, 3); /* slot, block and tile row */
     if (object_sprite_layout(g, obj) == LAYOUT_24) {
         set_field_built_sprite_object(g, field_link_byte(field_link_to(obj)));
         TIMED_AS(g, 0xC0E12A, object_draw_whole_figure(g, pf, obj));
@@ -489,7 +488,7 @@ void enemy_takes_its_place(GameState *g, Platform *pf, FieldObject obj, uint8_t 
         object_become(g, obj, ROLE_ENEMY_SET_APART);
 }
 
-/* The guard's: the block among the blocks, and a figure's drawing one the
+/* What the port checks: the block among the blocks, and a figure's drawing one the
  * port does, with the graphics the enemy will have. */
 bool cast_enemy_fits(const GameState *g, uint8_t enemy, uint8_t slot)
 {

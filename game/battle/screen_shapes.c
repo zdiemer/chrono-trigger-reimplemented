@@ -16,8 +16,8 @@
  *
  * Angles are 256 a turn. The original works with the sine table's magnitudes
  * (battle_sine_magnitude) through the hardware multiplier, keeping the high
- * byte of each product; the port does the same arithmetic in C, and leaves
- * what the original leaves in the multiplier and its cells as scaffolding. */
+ * byte of each product; the port does the same arithmetic, and leaves what
+ * the original leaves in the multiplier and its cells. */
 #include "charge.h"
 #include "battle/screen_script.h"
 
@@ -217,10 +217,6 @@ static uint8_t stretched(const GameState *g, uint8_t angle, uint8_t radius, uint
     return (angle & SCREEN_HALF_TURN) ? (uint8_t)-v : v;
 }
 
-/* What the original leaves after the last corner's stretch across: the
- * scale, the radius and the scale's sine in its cells, and the stretch's
- * product in the multiplier. */
-
 // $CD:28D2
 /* Work a flat triangle's corners out from its center, angles, distances and
  * scales. */
@@ -299,14 +295,6 @@ static SpacePoint turn_point(const GameState *g, SpacePoint p, const uint8_t tur
                          q.depth };
 }
 
-/* The point as the original hands it to the turn, in battle_shape_point: a
- * model's points as words, a flat corner's as the low bytes alone. */
-
-/* What the original leaves of a turn: the point before and after it, its
- * last term (the sine of the depth turn's down part) in its cell, and its
- * last product (the cosine of that turn times the across part) in the
- * multiplier. */
-
 /* Turn a corner by the triangle's turns and place it about its center. */
 static void place_turned_corner(GameState *g, uint8_t shape, unsigned corner, SpacePoint p)
 {
@@ -315,9 +303,6 @@ static void place_turned_corner(GameState *g, uint8_t shape, unsigned corner, Sp
     set_corner(g, shape, corner, (uint8_t)(turned.across + battle_shape_center_x(g, shape)),
                (uint8_t)(turned.down + battle_shape_center_y(g, shape)));
 }
-
-/* What the original leaves of the turns it hands the rotation, and of the
- * size: as bytes, or as words. */
 
 // $CD:2843, $CD:28A1
 /* Work a turning triangle's corners out: each lies at its angle and
@@ -443,14 +428,6 @@ static uint16_t sized(uint8_t corner, uint8_t center, uint8_t size)
     return (uint16_t)(from_center < 0 ? center - moved : center + moved);
 }
 
-/* What the original leaves of the sizing: the size, the last corner down
- * with the center and their difference, and the last product in the
- * multiplier. (The corner's own word, which takes in the controller, the
- * runner leaves: screen_script.c.) */
-
-/* The original hands its drawing the window in battle_window_quad_index, and
- * clears the cell $20 (which nothing reads) before it. */
-
 /* A triangle's corners as it is drawn: brought in toward its center by its
  * size. */
 static ScreenTriangle sized_corners(const GameState *g, uint8_t shape, ScreenTriangle t)
@@ -555,9 +532,6 @@ static void clear_the_turn_slots_low_byte(GameState *g)
 
 /* A model's points are four bytes apart in its sixteen (screen_data.h). */
 enum { MODEL_BYTES = 16 };
-
-/* What the original leaves of a model's drawing: the model and the depth it
- * added in its cells. */
 
 /* A spinning model turns a little further about each axis each time it is
  * drawn. */

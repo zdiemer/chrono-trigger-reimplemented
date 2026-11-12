@@ -11,7 +11,10 @@
 /* The screen's rows: the active party's three, then the reserve's six, of
  * which four show at a time; the cursor's places are the active party's
  * rows, then the reserve's four shown. */
-enum { EXCHANGE_ACTIVE_ROWS = 3, EXCHANGE_RESERVE_ROWS = 6, EXCHANGE_ROWS = 9, EXCHANGE_RESERVE_SHOWN = 4, EXCHANGE_FIRST_RESERVE_PLACE = EXCHANGE_ACTIVE_ROWS,  };
+enum {
+    EXCHANGE_ACTIVE_ROWS = 3, EXCHANGE_RESERVE_ROWS = 6, EXCHANGE_ROWS = 9, EXCHANGE_RESERVE_SHOWN = 4,
+    EXCHANGE_FIRST_RESERVE_PLACE = EXCHANGE_ACTIVE_ROWS,
+};
 
 /* A row (menu_exchange_rows) holds a place of the party's record, with
  * EXCHANGE_ROW_STAYS where the story keeps its member in the active party;
@@ -36,7 +39,7 @@ void menu_exchange_start_choosing(GameState *g, uint8_t from);
 
 /* The screen drawn over the panel: its windows, the members' colours, the
  * reserve's scroll bar where it has more members than rows. Its cursor's
- * first move follows (the bridges run it, since a move can slide the
+ * first move follows (a step of its own, since a move can slide the
  * reserve), then menu_exchange_show_the_screen. */
 void menu_exchange_draw_the_screen(GameState *g, Platform *pf);
 void menu_exchange_show_the_screen(GameState *g);
@@ -108,15 +111,13 @@ bool menu_exchange_slide_a_frame(GameState *g, ExchangeSlide *slide);
 void menu_exchange_end_the_slide(GameState *g);
 void menu_exchange_settle_the_cursor(GameState *g);
 
-/* ---- The steps, one sequence for the machine and for C ---------------------------------------- */
+/* ---- The steps --------------------------------------------------------------------------------- */
 
 /* The main menu's exchange's steps, the gate's choosing of the first, the
  * screen's layout, the cursor's move and the panel are each one sequence,
- * which the machine's entries (exchange_bridge.c) and the program as C both
- * run; what differs is what they ask of the menus, through ExchangeSteps.
+ * which asks what it needs of the menus through ExchangeSteps.
  *
- * The places the sequences tick, wait or move the cursor from (the
- * machine's table gives the original's call at each). */
+ * The places the sequences tick, wait or move the cursor from. */
 typedef enum {
     EXCHANGE_AT_THE_OPENING_TICK,       /* the main menu's exchange opened */
     EXCHANGE_AT_THE_FIRST_MOVE,         /* the screen laid out: the cursor's first move */
@@ -136,22 +137,7 @@ typedef enum {
     EXCHANGE_PLACES
 } ExchangePlace;
 
-/* The register widths the original's code sets between the steps' calls,
- * the machine's alone (a no-op as C). */
-typedef enum { EXCHANGE_BYTE_WIDE, EXCHANGE_INDEX_WIDE, EXCHANGE_WIDE } ExchangeWidths;
-
-/* The reserve's slide runs inside two routines the original's cursor move
- * calls, each saving P: the machine keeps their frames round the slide's
- * frames (the slide begun back or on, ended, and left). */
-typedef enum {
-    EXCHANGE_SLIDE_BEGINS_BACK, EXCHANGE_SLIDE_BEGINS_ON, EXCHANGE_SLIDE_ENDED, EXCHANGE_SLIDE_LEFT,
-    /* the gate's sprite loads inside the panel's window routine, on the
-     * record's page; the swirl is drawn inside a routine of its own */
-    EXCHANGE_ON_THE_GATE_S_RECORD, EXCHANGE_OFF_THE_GATE_S_RECORD, EXCHANGE_SWIRL_BEGINS, EXCHANGE_SWIRL_ENDS,
-} ExchangeSlideFrame;
-
-/* The routines the gate's screen's opening runs (each a checked legacy adapter,
- * run on the machine where the original calls it). */
+/* The routines the gate's screen's opening runs. */
 typedef enum {
     EXCHANGE_SWITCHES_TO_THE_GATE_SONG, /* $C2:CB8B */
     EXCHANGE_SHOWS_THE_PANEL,           /* $C2:C9E5 */
@@ -159,20 +145,6 @@ typedef enum {
     EXCHANGE_DRAWS_THE_SWIRL,           /* $FF:F677 */
     EXCHANGE_STARTS_THE_GATE_SCREEN,    /* $C2:CE9D */
 } ExchangeRoutine;
-
-/* Where the machine leaves what the original's own tests left (scaffolding). */
-typedef enum {
-    EXCHANGE_NOTE_REFUSED,          /* not two to swap */
-    EXCHANGE_NOTE_CHOOSING_STARTED, /* the cursor on the first free row */
-    EXCHANGE_NOTE_BAR_WORKED_OUT,   /* the screen drawn, its scroll bar worked out */
-    EXCHANGE_NOTE_SCREEN_SHOWN,     /* the screen queued */
-    EXCHANGE_NOTE_INPUT_TESTED,     /* the frame's buttons tested */
-    EXCHANGE_NOTE_ROW_TESTED,       /* the row under the cursor tested for someone who stays */
-    EXCHANGE_NOTE_SWAPPED,          /* the two members swapped */
-    EXCHANGE_NOTE_CURSOR_COMPARED,  /* the cursor compared with where the frame found it */
-    EXCHANGE_NOTE_STEP_COUNTED,     /* the gate's choosing started */
-    EXCHANGE_NOTE_SWIRL_SHOWN,      /* the swirl queued */
-} ExchangeNote;
 
 /* How a step ends: a buzz and back to the main menu where there aren't two
  * to swap, on into the screen's layout, back to the main menu, or the menus
@@ -185,8 +157,7 @@ typedef enum {
 /* What the sequences ask: the cursor read, a tick, a frame's wait, the
  * cursor's move ($C2:C805), the gate's sprite loaded onto its record
  * (the panel at the gate), the place's song back (leaving the gate's
- * screen), the machine's frames round the slide, the register widths, a
- * note, and the step's end. Each false where it went no further. */
+ * screen), and the step's end. Each false where it went no further. */
 typedef struct {
     void (*read_cursor)(void *ctx);
     bool (*tick)(void *ctx, ExchangePlace at);
@@ -194,9 +165,6 @@ typedef struct {
     bool (*move_the_cursor)(void *ctx, ExchangePlace at);
     bool (*gate_sprite)(void *ctx);
     bool (*place_song_back)(void *ctx);
-    void (*slide)(void *ctx, ExchangeSlideFrame frame);
-    void (*widths)(void *ctx, ExchangeWidths widths);
-    void (*note)(void *ctx, ExchangeNote note);
     bool (*ends)(void *ctx, ExchangeEnd end);
     bool (*run)(void *ctx, ExchangeRoutine routine);
 } ExchangeSteps;
@@ -214,7 +182,7 @@ bool menu_show_exchange_panel_with(GameState *g, Platform *pf, const ExchangeSte
 /* The gate's screen's opening ($C2:C7AC). */
 bool menu_open_exchange_at_the_gate_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx);
 
-/* What the steps take of the state, as their entries' guards do: the
+/* What the steps need of the state: the
  * opening, the layout, the cursor's move, a choosing step, the panel, and
  * the gate's screen's opening. */
 bool menu_exchange_can_open(const GameState *g);
@@ -224,7 +192,7 @@ bool menu_exchange_step_can_run(const GameState *g);
 bool menu_exchange_panel_can_show(const GameState *g);
 bool menu_exchange_can_open_at_the_gate(const GameState *g);
 
-/* As C: the panel, from the main menu's (false where the program went no
+/* The panel, from the main menu's (false where the program went no
  * further), and the steps, from the menus' main task. */
 bool menu_show_exchange_panel(GameState *g, Platform *pf);
 bool menu_open_exchange(GameState *g, Platform *pf);
@@ -232,9 +200,5 @@ bool menu_choose_first_to_exchange(GameState *g, Platform *pf);
 bool menu_choose_second_to_exchange(GameState *g, Platform *pf);
 bool menu_choose_first_at_the_gate(GameState *g, Platform *pf);
 bool menu_open_exchange_at_the_gate(GameState *g, Platform *pf);
-
-/* The machine's side (exchange_bridge.c). */
-
-extern const ExchangeSteps menu_exchange_on_the_machine;
 
 #endif

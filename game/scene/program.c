@@ -16,17 +16,8 @@
  * (scene/frame.c) and the interrupts on. The program's main loop then makes
  * the call the setup named each pass until a script ends the scene, when the
  * program blanks the screen (scene/screen.c), puts the sound back to normal
- * and hands the game back to the field's start, on the game's fresh stack.
- *
- * The same sequence runs twice here: with no machine under it (scene_runs, the
- * program from the boot to its end), and on the machine in the shipping mode,
- * where the boot starts it, the main loop is a held wait whose passes are the
- * runtime's continuations. Setups, frame work and scene routines are checked
- * C calls, all retired from byte-exact comparison (docs/REIMPLEMENTATION.md,
- * "The scene engine's teardown").
- *
- * All of it is the program's code, in work RAM, where other code and data are
- * at other times, so its contracts check a hash of its code. */
+ * and hands the game back to the field's start, on the game's fresh stack
+ * (scene_runs, the program from the boot to its end). */
 #include "scene/scene.h"
 
 #include "charge.h"
@@ -42,8 +33,6 @@
 /* The fades step every four frames until a scene sets its own pace; the
  * window shapes' last corner starts at the screen's left. */
 enum { FADE_PACE = 4, DARK = 0, NO_LINE_EFFECTS = 0, NO_SONG = 0, LAST_CORNER = 3 };
-
-/* The scene's own direct page, where the program's cells are. */
 
 // $7E:3063
 static void reset_the_program(GameState *g)
@@ -78,11 +67,15 @@ static void start_from_the_first_screen(GameState *g, Platform *pf)
  * to the planet (scene/lavos_falls.c), the Epoch's dive (scene/epoch_dive.c),
  * the planet's (scene/planet.c), the shared endings' (scene/endings.c)
  * and the staff roll's, fast and slow (scene/staff_roll.c). All sixteen
- * modes have C setups, including the ones no movie reaches. */
+ * modes have setups, including the ones no movie reaches. */
 enum { SCENE_MODE_BITS = 0x1F, PROGRAM_BANK = 0x7E0000 };
 
 /* The setups' routines, by which their time is reckoned. */
-enum { RACE_SET_UP = 0x7E3B48, CREDIT_PAGES_SET_UP = 0x7E6B04, TITLE_SET_UP = 0x7E5978, PALACE_SET_UP = 0x7E671F, ENDINGS_SET_UP = 0x7E8538, STAFF_ROLL_SET_UP = 0x7E8EA8, LAVOS_FALLS_SET_UP = 0x7E53BB, EPOCH_DIVE_SET_UP = 0x7E78DD, TURN_SET_UP = 0x7E7092, PLANET_SET_UP = 0x7E6248, SLOW_STAFF_ROLL_SET_UP = 0x7E8E95,  };
+enum {
+    RACE_SET_UP = 0x7E3B48, CREDIT_PAGES_SET_UP = 0x7E6B04, TITLE_SET_UP = 0x7E5978, PALACE_SET_UP = 0x7E671F,
+    ENDINGS_SET_UP = 0x7E8538, STAFF_ROLL_SET_UP = 0x7E8EA8, LAVOS_FALLS_SET_UP = 0x7E53BB, EPOCH_DIVE_SET_UP = 0x7E78DD,
+    TURN_SET_UP = 0x7E7092, PLANET_SET_UP = 0x7E6248, SLOW_STAFF_ROLL_SET_UP = 0x7E8E95,
+};
 
 /* ---- The scene's first frame ------------------------------------------------------------------- */
 
@@ -106,26 +99,17 @@ static void put_the_sound_back(GameState *g, Platform *pf)
 
 static bool main_loop_pass(GameState *g, Platform *pf);
 
-/* The program's end ($7E:302A, and its hand-back $7E:303B): its code in
- * place, and the field's location a number for the field's start the game
- * goes back to. */
+/* ---- The program ---------------------------------------------------------------------------------- */
 
-/* The continuations' guards: the program's loop -- its call, and its test
- * after it -- on the scene's page; the idle pass where there is nothing to
- * call and the scene isn't over, the other everywhere else. Each is a claim
- * the game keeps, which the refusal measure checks over real play
- * (the original hand-back paths --refusals). */
-
-/* ---- The program as C, with no machine ------------------------------------------------------------ */
-
-/* The setups the port has as C for a program with no machine: the title's,
- * the credits' page's, the race's (the attract sequence's too), the rising
- * palace's, Lavos falling's and the planet's. */
+/* The setups, by the scene's mode: the turning map's, the title's, the
+ * credits' page's, the race's (the attract sequence's too), the rising
+ * palace's, Lavos falling's, the Epoch's dive's, the shared endings', the
+ * staff roll's and the planet's. */
 static const struct {
     SceneMode mode;
     uint32_t routine;
     bool (*set_up)(GameState *g, Platform *pf);
-} c_setups[] = {
+} setups[] = {
     { SCENE_MODE_TURNING_MAP, TURN_SET_UP, scene_turn_set_up },
     { SCENE_MODE_TITLE, TITLE_SET_UP, scene_title_set_up },
     { SCENE_MODE_CREDITS_PAGE, CREDIT_PAGES_SET_UP, scene_credit_pages_set_up },
@@ -143,18 +127,18 @@ static const struct {
     { SCENE_MODE_PLANET_LOST, PLANET_SET_UP, scene_planet_set_up },
     { SCENE_MODE_PLANET_ENDING, PLANET_SET_UP, scene_planet_set_up },
 };
-enum { C_SETUPS = sizeof c_setups / sizeof c_setups[0] };
+enum { SETUPS = sizeof setups / sizeof setups[0] };
 
 static bool set_up(GameState *g, Platform *pf, uint8_t mode)
 {
-    for (unsigned n = 0; n < C_SETUPS; n++) {
-        if (c_setups[n].mode != mode)
+    for (unsigned n = 0; n < SETUPS; n++) {
+        if (setups[n].mode != mode)
             continue;
         bool done = false;
-        TIMED_AS(g, c_setups[n].routine, done = c_setups[n].set_up(g, pf));
+        TIMED_AS(g, setups[n].routine, done = setups[n].set_up(g, pf));
         return done;
     }
-    program_fail(g, PROGRAM_BANK | scene_program_setups(g, mode), "a scene's setup only the machine runs");
+    program_fail(g, PROGRAM_BANK | scene_program_setups(g, mode), "a scene's setup the port doesn't have");
     return false;
 }
 
@@ -192,7 +176,7 @@ static bool main_loop_pass(GameState *g, Platform *pf)
     case SCENE_PASS_DIVE_SCALING: TIMED_AS(g, PROGRAM_BANK | call, done = scene_scale_the_epoch(g, pf)); return done;
     case SCENE_PASS_TURN_MAP: TIMED_AS(g, PROGRAM_BANK | call, done = scene_turn_map(g)); return done;
     default:
-        program_fail(g, PROGRAM_BANK | call, "a scene's main loop call only the machine runs");
+        program_fail(g, PROGRAM_BANK | call, "a scene's main loop call the port doesn't have");
         return false;
     }
 }

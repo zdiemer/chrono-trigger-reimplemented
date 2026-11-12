@@ -27,9 +27,6 @@ static uint8_t mirrored_bits(uint8_t bits)
     return (uint8_t)(bits << 4 | bits >> 4);
 }
 
-/* The old loader's patched source and work-port cursor are observable to the
- * oracle, although the C loader uses neither to find or copy a tile. */
-
 // $7E:6E42, $7E:6E9E
 /* Assemble one pose. Source tile indices wrap within their graphics bank;
  * mirrored tiles reverse each bitplane byte, preserving the plane layout. */
@@ -54,8 +51,8 @@ void scene_load_figure_pose(GameState *g, unsigned character, uint16_t pose_offs
         if (mirrored)
             last_mirrored = (int)tile;
     }
-    charge_legacy_accesses(g, 9 + (last_mirrored >= 0 ? 2 : 0));
-    charge_legacy_io_accesses(g, 3);
+    charge_accesses(g, 9 + (last_mirrored >= 0 ? 2 : 0));
+    charge_io_accesses(g, 3);
 }
 
 // $7E:701E
@@ -79,7 +76,7 @@ void scene_draw_figure_pose(GameState *g, unsigned character, uint16_t pose_offs
             set_scene_sprite_high_pointer(g, (uint16_t)(scene_sprite_high_pointer(g) + 1));
     }
     set_scene_sprite_index(g, (uint16_t)(first + FIGURE_SPRITES * 4));
-    charge_legacy_accesses(g, 9);
+    charge_accesses(g, 9);
 }
 
 /* ---- The figures and their animations -------------------------------------------------------- */
@@ -108,8 +105,8 @@ static void find_figure_origin(GameState *g, Platform *pf, unsigned figure)
     uint32_t area = (uint16_t)(across * (int8_t)across) + (uint32_t)(uint16_t)(down * (int8_t)down);
     unsigned radius = scene_radius_from_area(g, (area & 0xFFFF) + (area >> 16));
     set_scene_turn_figures_radius(g, figure, (uint8_t)radius);
-    charge_legacy_accesses(g, 4);
-    charge_legacy_io_accesses(g, 4);
+    charge_accesses(g, 4);
+    charge_io_accesses(g, 4);
 }
 
 // $7E:74F5, $7E:762E
@@ -177,9 +174,9 @@ TaskEnd scene_orbit_turn_figures(GameState *g, Platform *pf, unsigned slot)
         set_scene_turn_figures_x(g, figure, orbit_coordinate(g, (uint16_t)(angle + SCENE_QUARTER_TURN), radius, TURN_CENTER_X));
         set_scene_turn_figures_y(g, figure, orbit_coordinate(g, angle, radius, TURN_CENTER_Y));
     }
-    charge_legacy_accesses(g, 5);
-    charge_legacy_rom_accesses(g, 1);
-    charge_legacy_io_accesses(g, 4);
+    charge_accesses(g, 5);
+    charge_rom_accesses(g, 1);
+    charge_io_accesses(g, 4);
     return task_goes_on();
 }
 
@@ -197,7 +194,7 @@ static void restart_figure_animation(GameState *g, unsigned figure)
     set_scene_turn_figures_delays(g, figure, delays);
     set_scene_turn_figures_active_animation(g, figure, scene_turn_figures_animation(g, figure));
     set_scene_turn_figures_active_facing(g, figure, (uint8_t)facing);
-    charge_legacy_accesses(g, 10);
+    charge_accesses(g, 10);
 }
 
 static bool animation_changed(const GameState *g, unsigned figure)
@@ -237,10 +234,10 @@ TaskEnd scene_update_turn_figures(GameState *g, Platform *pf, unsigned slot)
     (void)slot;
     if (!scene_sprites_fit(g, FIGURES * FIGURE_SPRITES) || scene_turn_next_upload(g) % FIGURE_RECORD_BYTES ||
         scene_turn_next_upload(g) >= FIGURES * FIGURE_RECORD_BYTES)
-        return scene_task_needs_the_machine(g, 0x7E7721, "turning figures outside their sprite or upload slots");
+        return scene_task_goes_no_further(g, 0x7E7721, "turning figures outside their sprite or upload slots");
     for (unsigned figure = 0; figure < FIGURES; figure++)
         if (figure_character(g, figure) >= 7)
-            return scene_task_needs_the_machine(g, 0x7E7721, "a turning figure outside the party graphics");
+            return scene_task_goes_no_further(g, 0x7E7721, "a turning figure outside the party graphics");
     set_scene_turn_upload_vram(g, NO_POSE_UPLOAD);
     unsigned next = scene_turn_next_upload(g) / FIGURE_RECORD_BYTES;
     unsigned left = FIGURES;
@@ -257,12 +254,12 @@ TaskEnd scene_update_turn_figures(GameState *g, Platform *pf, unsigned slot)
         left--;
     }
     set_scene_turn_next_upload(g, (uint16_t)(next * FIGURE_RECORD_BYTES));
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
     for (unsigned figure = 0; figure < FIGURES; figure++) {
         uint16_t appearance = scene_turn_figures_appearance(g, figure);
         scene_draw_lists_at(g, scene_turn_figures_x(g, figure), scene_turn_figures_y(g, figure));
-        charge_legacy_accesses(g, 2);
-        charge_legacy_accesses(g, 4);
+        charge_accesses(g, 2);
+        charge_accesses(g, 4);
         scene_draw_figure_pose(g, figure_character(g, figure),
                                (uint16_t)(scene_turn_figures_loaded_pose(g, figure) * POSE_RECORD_BYTES), appearance);
         animate_figure(g, figure);
@@ -462,7 +459,7 @@ static void show_turn(GameState *g, Platform *pf)
 
 typedef struct { GameState *game; Platform *pf; } TurnSetup;
 
-static bool turn_scripts_in_c(void *context)
+static bool turn_scripts(void *context)
 {
     TurnSetup *setup = context;
     for (SceneChannel channel = 0; channel < 2; channel++) {
@@ -478,7 +475,7 @@ static bool turn_scripts_in_c(void *context)
 bool scene_turn_set_up(GameState *g, Platform *pf)
 {
     TurnSetup setup = { g, pf };
-    if (!prepare_turn(g, pf, turn_scripts_in_c, &setup))
+    if (!prepare_turn(g, pf, turn_scripts, &setup))
         return false;
     show_turn(g, pf);
     return true;

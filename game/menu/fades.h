@@ -14,15 +14,8 @@
  * that started it goes on. */
 void menu_start_the_fade_in(GameState *g);
 
-/* Fade the screen out to black, a step a frame, waiting through it, as the
- * original's routine for it does when the JSR at `site` calls it; false where
- * the port stops (menu/bridge.h, menu_yield). Its last frame's wait is the
- * task switch's ($C2:821E) as if from `site`, with every register as the
- * original leaves them (the calling convention reads it so). */
-enum { MENU_FADE_S_LAST_WAIT_READS_ALL = 0 };
-
-/* The same as C, from inside a task (menu/tasks.c's coroutines): the screen
- * faded out to black and its last frame waited; and the fade in's task, by
+/* From inside a task (menu/tasks.c's coroutines): the screen faded out to
+ * black, a step a frame, and its last frame waited; and the fade in's task, by
  * its start. */
 void menu_fade_to_black(GameState *g);
 enum { MENU_FADE_IN_TASK_START = 0x83BD };

@@ -77,12 +77,6 @@ static uint8_t number_place(GameState *g, uint8_t slot, bool tally_first)
     return (uint8_t)(set_place + slot_place);
 }
 
-/* Where the original keeps the actor's number's place (scaffolding). */
-enum { ACTOR_NUMBER_PLACE_CELL = 0x10 };
-
-/* A record made after a number's place is found is made with the carry of
- * the place's add, which the multiply leaves in its cell (scaffolding). */
-
 // $C1:E89F
 uint8_t effect_target_number(GameState *g)
 {
@@ -189,8 +183,8 @@ void effect_record_status_damage(GameState *g, uint8_t slot, uint16_t damage)
 /* Healing the party is at most 999; any damage at most 9999. */
 enum { MOST_HEALED = 999, MOST_DAMAGE = 9999 };
 
-/* The amount healed or drained is kept in the direct page's first word, which
- * a modifier reads back ($C1:EE27): kept plainly. */
+/* The amount healed or drained is kept in the battle's first work word, which
+ * a modifier reads back ($C1:EE27). */
 static void keep_amount_worked(GameState *g, uint16_t v) { battle_keep_word(g, BATTLE_CLOCK_READS, v); }
 
 /* One restoration: `base` times the multiple, where that isn't all of the
@@ -271,7 +265,6 @@ void effect_drain(GameState *g, Drain what, uint8_t share)
     set_number_value(g, loses, amount);
     set_battle_effect_amount(g, amount);
     effect_record_damage(g, effect_target(g), what == DRAIN_HP ? DAMAGE_PLAIN : DAMAGE_TO_MP);
-    /* the last record is made with the carry of the compare before it, set */
     set_number_kind_word(g, loses, what == DRAIN_HP ? NUMBER_DAMAGE : NUMBER_MP_DAMAGE);
     set_number_kind_word(g, gains, what == DRAIN_HP ? NUMBER_HP_RESTORED : NUMBER_MP_RESTORED);
     effect_wake_target(g);
@@ -710,7 +703,6 @@ void effect_apply_hit(GameState *g, Platform *pf, HitAmounts hit)
         set_battle_effect_amount(g, MOST_DAMAGE);
     if (battle_action_state(g) & ABSORBED) {
         effect_record_damage(g, effect_listed_target(g), DAMAGE_HEALS);
-        /* made with the carry of the compare with 9999 */
         set_number_kind(g, place, NUMBER_HP_RESTORED);
         set_battle_action_state(g, battle_action_state(g) & (uint8_t)~ABSORBED);
         set_battle_effect_amount(g, (uint16_t)-battle_effect_amount(g));

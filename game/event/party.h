@@ -38,7 +38,7 @@ Someone member_in_place(const GameState *g, PartyPlace place, FieldObject asking
 
 /* Whether the port can say what the original finds in a place: the game's
  * places hold a member's object or the marker for none, and a fuzzed state
- * other bytes, which the guard leaves to the original (event/party.c). */
+ * other bytes, which the port refuses (event/party.c). */
 bool member_place_readable(const GameState *g, PartyPlace place);
 
 /* The party's own scripts, which every map load puts after the map's own
@@ -63,7 +63,6 @@ void party_script_face(GameState *g, PartyScript script, Facing facing);
 /* A formation's place gives the way to face there in the top bits of its
  * column and its row. */
 Facing formation_facing(bool column_bit, bool row_bit);
-void formation_facing_bits(Facing facing, bool *column_bit, bool *row_bit);
 
 /* The counts the party's scripts keep, in two of the map's variables. */
 enum { FORMATION_COUNT = 0xFE, GATHERING_COUNT = 0xFF };
@@ -73,7 +72,7 @@ enum { PARTY_ALL_GATHERED = 3 };
 /* After a battle the party comes back together, each member going back to
  * the leader ($C0:034B, $C0:5B1F). */
 void party_back_together(GameState *g);
-/* Its guard's state half: the members there objects the tables hold, at
+/* Whether the port brings them back together: the members there objects the tables hold, at
  * levels the places hold, and the leader's contact cell an offset alone. */
 bool party_can_come_back_together(const GameState *g);
 void member_back_to_the_leader(GameState *g, FieldObject member);
@@ -81,7 +80,7 @@ void member_back_to_the_leader(GameState *g, FieldObject member);
 /* Whether a place of the party is taken, and the object its member walks
  * the map as. An empty place has none: the commands that allow one decode
  * `there` false and don't look at the object, or ask for the member as
- * Someone (below); the guards leave the rest to the original (event/engine.c),
+ * Someone (below); the port refuses the rest (event/engine.c),
  * and the game gives them no empty place. */
 static inline bool place_taken(const GameState *g, PartyPlace place)
 {

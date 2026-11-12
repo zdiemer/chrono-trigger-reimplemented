@@ -132,7 +132,7 @@ static void arrive_at(GameState *g, uint8_t x, uint8_t y, Facing f)
 }
 
 /* Setting off for $1F2 before it has its wings, the original keeps the
- * Epoch's spot through the register it has just loaded with the arrival's
+ * Epoch's spot through the index it has just loaded with the arrival's
  * place rather than the Epoch's slot: what it keeps is the fourth object's
  * goal down and how far down it had to go. The Epoch then leaves the map
  * for location $F3, and its spot is set again before it is seen. */

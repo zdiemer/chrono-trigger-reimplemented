@@ -12,17 +12,14 @@
  * it (battle/sound.c's pause). */
 void battle_sit_out_a_paused_frame(GameState *g, Platform *pf);
 
-/* ---- The frame work's waits, from the original's calls ---------------------------------------- */
+/* ---- The frame work's waits ----------------------------------------------------------------- */
 
 /* The frame work's waits: for its vblank handler's frame ($CD:3E7D), for the
  * next frame, with the menu's turn after ($CD:3E75), and for a number of
- * frames ($CD:3E3B). They carry A's high byte on to the battle's pause, which
- * reads it; the low byte the first two keep for their caller, and the frames'
- * wait takes its count in it, as do the loops that count in A across the
- * others. */
+ * frames ($CD:3E3B). */
 enum { BATTLE_HANDLER_WAIT = 0xCD3E7D, BATTLE_NEXT_FRAME_WAIT = 0xCD3E75, BATTLE_SOME_FRAMES_WAIT = 0xCD3E3B };
 
-/* ---- The waits as C ------------------------------------------------------------------------- */
+/* ---- The waits ------------------------------------------------------------------------------ */
 
 /* The battle's wait for the next frame ($C1:007E); a frame as the battle
  * hands back to the field ($CF:FCFB); the frame work's waits for its
@@ -36,12 +33,5 @@ bool battle_wait_for_the_handler(GameState *g, Platform *pf);
 bool battle_wait_for_the_next_frame(GameState *g, Platform *pf);
 bool battle_wait_some_frames(GameState *g, Platform *pf, uint8_t frames);
 void battle_wait_for_the_small_handler(GameState *g, Platform *pf);
-
-/* A count the original keeps in A and on the stack across a wait, from its
- * first pass's carry on. */
-static inline BattleFrame battle_counting(uint8_t left, BattleCarry carry)
-{
-    return (BattleFrame){ .kept = { left }, .kept_bytes = 1, .carry = carry };
-}
 
 #endif

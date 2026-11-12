@@ -71,9 +71,6 @@ static ScriptFlow all_effects_shown(GameState *g, bool on)
 SCRIPT_OPERATION(all_effects_shown, on)
 
 // $C1:5FC1, $C1:5FD3
-/* The channel's effect is shown, or hidden. Showing shares its body with the
- * wait that shows an effect, which the original tells apart by a work cell. */
-enum { LEFT_SHOWING_FOR_A_WAIT = 0x0E };
 
 static ScriptFlow effect_shown(GameState *g, bool on)
 {

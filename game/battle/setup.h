@@ -10,11 +10,9 @@
 #include "state.h"
 #include "vars.h"
 
-/* The registered entries (battle/setup.c). */
-
 /* The battle's state set up ($CC:E2E4), and the objects' graphics
  * ($CC:ED87), whose load the vblank handler then makes a step a frame; and
- * the state's guard's state half: a party, enemies and remembered cursors
+ * whether the setup takes the state: a party, enemies and remembered cursors
  * the game makes. */
 void battle_setup_state(GameState *g);
 void battle_setup_graphics(GameState *g);
@@ -83,18 +81,11 @@ uint8_t setup_start_frame(const GameState *g, unsigned slot);
 void setup_enemies(GameState *g);
 bool setup_enemies_are_real(const GameState *g);
 
-/* ---- Scaffolding ------------------------------------------------------------------------- */
+/* ---- What the original leaves in its cells ---------------------------------------------- */
 
-/* What the original leaves in the battle page's working cells ($80-$9D,
- * battle_work) as each piece ends, for shadow mode and the original's code
- * after it; `cell` is the original's direct-page address. Nothing in game/
- * reads them back. */
+/* What the original leaves in the battle's working cells ($80-$9D,
+ * battle_work) as each piece ends; `cell` is the cell's address as the
+ * original spells it. Nothing in game/ reads them back. */
 static inline void setup_leave(GameState *g, uint8_t cell, uint8_t v) { set_battle_work(g, cell - 0x80u, v); }
-
-static inline void setup_leave_word(GameState *g, uint8_t cell, uint16_t v)
-{
-    setup_leave(g, cell, (uint8_t)v);
-    setup_leave(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
-}
 
 #endif

@@ -21,12 +21,6 @@
 #include "battle/sprite_data.h"
 #include "vars.h"
 
-/* The loops' counters the original keeps in the effect loops' first cell:
- * each ends at its last value, which the wrapper leaves. */
-
-/* The effect loops' first cell, as a count down past 0 leaves it. */
-enum { COUNTED_PAST_ZERO = 0xFF };
-
 /* ---- The damage numbers --------------------------------------------------------------- */
 
 /* Each combatant's number is four digit sprites. */

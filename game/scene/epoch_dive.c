@@ -397,7 +397,8 @@ static SceneDraw from_the_gauge(uint8_t gauge, bool spilled) { return scene_draw
 // $7E:8079, $7E:80D3, $7E:80A6, $7E:80AF
 /* Each frame from the cockpit: the warning lights and the needles take a
  * picture each at random. The first draw goes on from what the list called
- * the task with -- its own address and the list's carry -- salted with its
+ * the task with -- its own address, and a bit spilled only at the list's
+ * first slot -- salted with its
  * slot; each draw after goes on from the last picture it took (a light's) or
  * the gauge's place (a needle's), salted with where the last picture lies.
  * The right needle's draw starts with nothing spilled: no needle's picture
@@ -422,10 +423,6 @@ static void flicker_the_lights(GameState *g, SceneDraw called_with, uint16_t slo
     d = scene_draw_random_off_the_palette(g, from_the_gauge(RIGHT_GAUGE, false), needle_place(needle + 1), TM_ENTROPY_BYTES);
     set_needle(g, RIGHT_NEEDLE, needle_picture(d), RIGHT_GAUGE);
 }
-
-/* The program rewrites the needles through the work RAM port, which it
- * leaves past the right needle's sprites. */
-enum { NEEDLES_END = 0x8122, WORK_RAM_PORT_BANK = SCENE_LOWER_WORK_RAM };
 
 /* The line effects' tables run Mode 7 and the shell's scroll and color math
  * from the top of the view down to the panel's top line: two entries of 84
@@ -495,7 +492,10 @@ typedef enum {
 static const DiveTask from_outside[] = { CHECK_THE_SHELL, RUN_CHANNEL_0, RUN_CHANNEL_1, PASS_THE_SHELL_ACROSS, DRAW_THE_EPOCH };
 static const DiveTask from_the_cockpit[] = { CHECK_THE_SHELL,   CHECK_THE_SHELL, SHAKE_THE_COCKPIT,
                                              RUN_CHANNEL_0,     RUN_CHANNEL_1,   PASS_THE_SHELL_DOWN };
-enum { OUTSIDE_TASKS = sizeof from_outside / sizeof from_outside[0], COCKPIT_TASKS = sizeof from_the_cockpit / sizeof from_the_cockpit[0] };
+enum {
+    OUTSIDE_TASKS = sizeof from_outside / sizeof from_outside[0],
+    COCKPIT_TASKS = sizeof from_the_cockpit / sizeof from_the_cockpit[0],
+};
 
 // $7E:7EF8
 static void take_every_frame_task_off(GameState *g)
@@ -614,13 +614,21 @@ static void white_out(GameState *g, Platform *pf, uint8_t channel)
  * an entry), as the unpacker takes them: the shell's pixels and its map, the
  * scene's colors, the Epoch's bitmap, the sprites' tiles and the panel's map;
  * and the sprites' colors, copied as they are by their number. */
-enum { SHELL_PIXELS = 0x66, SHELL_MAP = 0x69, DIVE_COLOURS = 0x6C, EPOCH_PICTURE = 0x78, SPRITE_TILES = 0x72, MORE_SPRITE_TILES = 0x7B, PANEL_MAP = 0x75,  };
+enum {
+    SHELL_PIXELS = 0x66, SHELL_MAP = 0x69, DIVE_COLOURS = 0x6C, EPOCH_PICTURE = 0x78,
+    SPRITE_TILES = 0x72, MORE_SPRITE_TILES = 0x7B, PANEL_MAP = 0x75,
+};
 enum { SPRITE_COLOURS = 37 };
 
 /* Where they go: the shell's pixels in VRAM's high bytes from $2000, its map in
  * the low bytes from 0; the scene's colors from color 16; the sprites' tiles
  * at $4400 and $5000; the panel's map, BG1's, at $6000. */
-enum { SHELL_PIXELS_VRAM = 0x2000, SHELL_MAP_VRAM = 0x0000, DIVE_COLOURS_AT = 0x7E2020, SPRITE_TILES_VRAM = 0x4400, MORE_SPRITE_TILES_VRAM = 0x5000, PANEL_MAP_VRAM = 0x6000, SPRITE_COLOURS_AT = 0x2180, SPRITE_COLOURS_BYTES = 0x20, EPOCH_BITMAP_AT = 0x7F0A00,  };
+enum {
+    SHELL_PIXELS_VRAM = 0x2000, SHELL_MAP_VRAM = 0x0000, DIVE_COLOURS_AT = 0x7E2020,
+    SPRITE_TILES_VRAM = 0x4400, MORE_SPRITE_TILES_VRAM = 0x5000, PANEL_MAP_VRAM = 0x6000,
+    SPRITE_COLOURS_AT = 0x2180, SPRITE_COLOURS_BYTES = 0x20,
+    EPOCH_BITMAP_AT = 0x7F0A00,
+};
 
 /* The shell's map is half a plane, each of its rows doubled across the
  * plane's 128 tiles; the half is sent twice, so the shell repeats down the
@@ -629,8 +637,7 @@ enum { PLANE_HALF_BYTES = 0x2000 };
 
 /* The setup's steps that are the program's other routines: a resource
  * unpacked by its unpacker, the camera's script's first step, and the
- * Epoch's first drawing with the main loop's call passed once. The program
- * takes them as C, the machine's entry as calls of the original's. */
+ * Epoch's first drawing with the main loop's call passed once. */
 typedef enum {
     UNPACK_SHELL_PIXELS, UNPACK_SHELL_MAP, UNPACK_DIVE_COLOURS, UNPACK_SPRITE_TILES, UNPACK_MORE_SPRITE_TILES,
     UNPACK_PANEL_MAP, UNPACK_EPOCH_PICTURE, DIVE_UNPACKS
@@ -724,7 +731,13 @@ static void make_the_fog(GameState *g)
  * mirrored, each tile's attributes from the unpacked map in turn; then two
  * runs of three tiles in the middle of its fourth and fifth rows. */
 enum { PANEL_ROWS = 7, HALF_ROW = 16, PANEL_FIRST_TILE = 0x90 };
-enum { PANEL_MIDDLE = 0x6056, PANEL_MIDDLE_BELOW = 0x6076, MIDDLE_TILES = 3, MIDDLE_TILE = 0xB7, MIDDLE_TILE_BELOW = 0xC7 };
+enum {
+    PANEL_MIDDLE = 0x6056,
+    PANEL_MIDDLE_BELOW = 0x6076,
+    MIDDLE_TILES = 3,
+    MIDDLE_TILE = 0xB7,
+    MIDDLE_TILE_BELOW = 0xC7,
+};
 
 static void lay_out_the_panel(GameState *g, Platform *pf)
 {
@@ -736,7 +749,7 @@ static void lay_out_the_panel(GameState *g, Platform *pf)
         for (unsigned n = HALF_ROW; n-- > 0;)
             vid_write_vram(pf, PF_AT(0x7E7B3D), (uint16_t)(wram_read8(g, attributes++) << 8 | (uint8_t)(first + n)));
     }
-    charge_legacy_io_accesses(g, 2);
+    charge_io_accesses(g, 2);
     vid_start_vram_uploads(pf, PF_AT(0x7E7B55), SCENE_VRAM_LOW_BYTES);
     vid_set_vram_address(pf, PF_AT(0x7E7B5B), PANEL_MIDDLE);
     for (unsigned n = 0; n < MIDDLE_TILES; n++)
@@ -745,16 +758,6 @@ static void lay_out_the_panel(GameState *g, Platform *pf)
     for (unsigned n = 0; n < MIDDLE_TILES; n++)
         vid_write_vram_byte(pf, PF_AT(0x7E7B73), false, (uint8_t)(MIDDLE_TILE_BELOW + n));
 }
-
-/* What the original leaves in the scene's cells as it makes the curve: the
- * last half step of the sine, and its count of lines run down. */
-
-/* The program writes the fog through the work RAM port, which it leaves past
- * the falling band. */
-enum { FOG_END = 0xE050 };
-
-/* The panel's tiles count up in the scene's first cell, which ends past the
- * last row. */
 
 /* The scaled picture's output in the second bank cleared, and where the
  * scaler's last output ended. */
@@ -772,10 +775,10 @@ static bool make_the_pieces(GameState *g, Platform *pf, const DiveSetUpSteps *st
     set_scene_dive_epoch_frames_left(g, TAKE_THE_NEXT_FRAME);
     set_epoch_frame(g, BEFORE_THE_FIRST_FRAME);
     make_the_curve(g);
-    charge_legacy_accesses(g, 2);
-    charge_legacy_rom_accesses(g, 1);
+    charge_accesses(g, 2);
+    charge_rom_accesses(g, 1);
     make_the_fog(g);
-    charge_legacy_io_accesses(g, 3);
+    charge_io_accesses(g, 3);
 
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     if (!steps->unpack(ctx, UNPACK_SPRITE_TILES))
@@ -792,7 +795,7 @@ static bool make_the_pieces(GameState *g, Platform *pf, const DiveSetUpSteps *st
         return false;
     vid_set_vram_address(pf, PF_AT(0x7E7B13), PANEL_MAP_VRAM);
     lay_out_the_panel(g, pf);
-    charge_legacy_accesses(g, 1);
+    charge_accesses(g, 1);
     scene_clear_buffer(pf, SCALER_OUTPUT, SCALER_OUTPUT_BYTES, 0x7E7B98);
     return true;
 }
@@ -872,34 +875,23 @@ static bool set_up_the_dive_with(GameState *g, Platform *pf, const DiveSetUpStep
     return true;
 }
 
-/* ---- On the machine ---- */
-
-/* The setup calls its pieces' routine ($7E:7A68) from here, whose unpacking
- * calls the original's unpacker under that call's return. The routine leaves
- * the direct page on the DMA registers', where it programmed the clear, and
- * the unpacker after it is called on that page. */
-
-/* The Epoch's drawing and the main loop's call, through their entries where
- * they hold and the original's otherwise. */
-enum { DRAW_THE_EPOCH_CALL = 0x7E79CA, SCALE_THE_EPOCH_CALL = 0x7E79CD };
-
-/* ---- As C ---- */
+/* ---- The setup's steps ---- */
 
 typedef struct {
     GameState *game;
     Platform *pf;
-} DiveInC;
+} DiveContext;
 
 static bool unpack_the_resource(void *ctx, DiveUnpack which)
 {
-    DiveInC *c = ctx;
+    DiveContext *c = ctx;
     TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, dive_unpacks[which].resource));
     return true;
 }
 
 static bool turn_the_camera_channel(void *ctx)
 {
-    DiveInC *c = ctx;
+    DiveContext *c = ctx;
     SceneTurn turn = SCENE_TURN_ENDED;
     TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, SCENE_CAMERA_CHANNEL));
     return turn == SCENE_TURN_ENDED;
@@ -907,13 +899,12 @@ static bool turn_the_camera_channel(void *ctx)
 
 static bool draw_and_scale_once(void *ctx)
 {
-    DiveInC *c = ctx;
+    DiveContext *c = ctx;
     return scene_draw_the_epoch(c->game, c->pf, 0).outcome == TASK_GOES_ON && scene_scale_the_epoch(c->game, c->pf);
 }
 
-/* As C: where a picture waits already, or the mark isn't the word the
- * setup's increment takes it for, the setup is the machine's, as its entry's
- * guard has it. */
+/* Where a picture waits already, or the mark isn't the word the setup's
+ * increment takes it for, the scene goes no further. */
 static bool no_picture_yet(const GameState *g);
 enum { DIVE_SET_UP = 0x7E78DD };
 
@@ -924,13 +915,13 @@ bool scene_dive_set_up(GameState *g, Platform *pf)
         return false;
     }
     static const DiveSetUpSteps in_the_program = { unpack_the_resource, turn_the_camera_channel, draw_and_scale_once };
-    DiveInC c = { g, pf };
+    DiveContext c = { g, pf };
     return set_up_the_dive_with(g, pf, &in_the_program, &c);
 }
 
-/* ---- Entries ---------------------------------------------------------------------------------- */
+/* ---- The routines the scripts call --------------------------------------------------------------- */
 
-/* The routines the scripts call, as C (scene/script.c). */
+/* The routines the scripts call (scene/script.c). */
 const SceneScriptRoutine scene_dive_routines[] = {
     [SCENE_ROW_LOOK_FROM_OUTSIDE] = { SCENE_ROUTINE_LOOK_FROM_OUTSIDE, look_from_outside },
     [SCENE_ROW_LOOK_FROM_THE_COCKPIT] = { SCENE_ROUTINE_LOOK_FROM_THE_COCKPIT, look_from_the_cockpit },
@@ -939,19 +930,11 @@ const SceneScriptRoutine scene_dive_routines[] = {
 };
 const unsigned scene_dive_routine_count = sizeof scene_dive_routines / sizeof scene_dive_routines[0];
 
-/* Unchanged, A holds the last register compared. A new perspective is built
- * on channel 0's page. The entry guard checks the upcoming half before the
- * saved camera changes. */
-enum { BUILD_PERSPECTIVE = 0x7E357B, CAMERA_PAGE = 0x0A00 };
-
-/* Entered from the program's mode table with 8-bit A; back on the registers'
- * page with the data bank 0, as its last stores leave them, and the overflow
- * the Epoch's drawing left. */
+/* A new perspective is built from channel 0's camera; the port checks the
+ * coming half before the kept camera changes. */
+enum { BUILD_PERSPECTIVE = 0x7E357B };
 
 /* ---- What the ports take ---------------------------------------------------------------------- */
-
-/* The states the tasks below are ports for, which their entries' guards and
- * their C both check: what isn't is the machine's. */
 
 /* The shell's passing: the place past the camera inside the range the port
  * keeps round the shell (from 32767 pixels before its start to 32767 past),
@@ -1047,15 +1030,15 @@ static bool shaking_fits(const GameState *g)
  * line. */
 static bool panel_in_reach(const GameState *g) { return (uint8_t)scene_shell_below_end(g) >= LINES_BEFORE_THE_PANEL; }
 
-/* ---- As C ------------------------------------------------------------------------------------- */
+/* ---- The tasks ---------------------------------------------------------------------------------- */
 
-/* The tasks, for a program with no machine. The list's carry, which some of
- * them add in, is clear at every slot but the first, and none of those is
- * ever at the first; a task called with its own address in A (the lights')
- * goes on from it. */
-static TaskEnd machine_s(GameState *g, uint16_t task, const char *what)
+/* The tasks. The bit the list's call spills, which some of them add in, is
+ * clear at every slot but the first, and none of those is ever at the first;
+ * a task that draws from what it was called with (the lights') goes on from
+ * its own address. */
+static TaskEnd no_further(GameState *g, uint16_t task, const char *what)
 {
-    return scene_task_needs_the_machine(g, PROGRAM_BANK | task, what);
+    return scene_task_goes_no_further(g, PROGRAM_BANK | task, what);
 }
 
 TaskEnd scene_pass_the_shell_across(GameState *g, Platform *pf, unsigned slot)
@@ -1063,7 +1046,7 @@ TaskEnd scene_pass_the_shell_across(GameState *g, Platform *pf, unsigned slot)
     (void)pf;
     (void)slot;
     if (!passes_within_reach(g, ACROSS))
-        return machine_s(g, PASS_THE_SHELL_ACROSS, "the shell passed past where the port keeps it round");
+        return no_further(g, PASS_THE_SHELL_ACROSS, "the shell passed past where the port keeps it round");
     pass_the_shell(g, ACROSS);
     return task_goes_on();
 }
@@ -1073,7 +1056,7 @@ TaskEnd scene_pass_the_shell_down(GameState *g, Platform *pf, unsigned slot)
     (void)pf;
     (void)slot;
     if (!passes_within_reach(g, DOWN))
-        return machine_s(g, PASS_THE_SHELL_DOWN, "the shell passed past where the port keeps it round");
+        return no_further(g, PASS_THE_SHELL_DOWN, "the shell passed past where the port keeps it round");
     pass_the_shell(g, DOWN);
     return task_goes_on();
 }
@@ -1093,7 +1076,7 @@ TaskEnd scene_check_the_shell(GameState *g, Platform *pf, unsigned slot)
     if (!the_camera_moved(g))
         return task_goes_on();
     if (!scene_perspective_fits(g, SCENE_CAMERA_CHANNEL))
-        return scene_task_needs_the_machine(g, BUILD_PERSPECTIVE, "a shell's perspective whose lines the port doesn't build");
+        return scene_task_goes_no_further(g, BUILD_PERSPECTIVE, "a shell's perspective whose lines the port doesn't build");
     TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, SCENE_CAMERA_CHANNEL));
     return task_goes_on();
 }
@@ -1110,7 +1093,7 @@ TaskEnd scene_draw_the_epoch(GameState *g, Platform *pf, unsigned slot)
     (void)pf;
     (void)slot;
     if (!epoch_drawing_fits(g))
-        return machine_s(g, DRAW_THE_EPOCH, "an Epoch the port doesn't draw");
+        return no_further(g, DRAW_THE_EPOCH, "an Epoch the port doesn't draw");
     draw_the_epoch(g);
     return task_goes_on();
 }
@@ -1130,7 +1113,7 @@ TaskEnd scene_draw_the_trail(GameState *g, Platform *pf, unsigned slot)
     (void)pf;
     (void)slot;
     if (!trail_fits(g))
-        return machine_s(g, DRAW_THE_TRAIL, "a trail the port doesn't draw");
+        return no_further(g, DRAW_THE_TRAIL, "a trail the port doesn't draw");
     draw_the_trail(g);
     return task_goes_on();
 }
@@ -1142,7 +1125,7 @@ TaskEnd scene_fly_the_epoch_on(GameState *g, Platform *pf, unsigned slot)
     (void)pf;
     (void)slot;
     if (!flight_fits(g))
-        return machine_s(g, FLY_THE_EPOCH_ON, "an Epoch flying on the port doesn't draw");
+        return no_further(g, FLY_THE_EPOCH_ON, "an Epoch flying on the port doesn't draw");
     fly_the_epoch_on(g);
     return task_goes_on();
 }
@@ -1152,7 +1135,7 @@ enum { SLOT_BYTES = 2 };
 TaskEnd scene_shake_the_cockpit(GameState *g, Platform *pf, unsigned slot)
 {
     if (!shaking_fits(g))
-        return machine_s(g, SHAKE_THE_COCKPIT, "a cockpit the port doesn't shake");
+        return no_further(g, SHAKE_THE_COCKPIT, "a cockpit the port doesn't shake");
     shake_the_cockpit(g, pf, (uint16_t)(slot * SLOT_BYTES));
     return task_goes_on();
 }
@@ -1173,7 +1156,7 @@ TaskEnd scene_follow_the_panel(GameState *g, Platform *pf, unsigned slot)
     (void)pf;
     (void)slot;
     if (!panel_in_reach(g))
-        return machine_s(g, FOLLOW_THE_PANEL, "a panel above the lines the port follows it in");
+        return no_further(g, FOLLOW_THE_PANEL, "a panel above the lines the port follows it in");
     follow_the_panel(g);
     return task_goes_on();
 }
@@ -1222,7 +1205,7 @@ bool scene_scale_the_epoch(GameState *g, Platform *pf)
     return true;
 }
 
-/* The setup's code, and the program's routines it runs as C inline: the
+/* The setup's code, and the program's routines it runs inline: the
  * doubling of the plane's rows, the palette made current, the two transfers,
  * the copy of a resource, the unpacker's destination set; and no picture
  * waiting yet, as the scene's clear leaves the mark, which the setup's word-wide

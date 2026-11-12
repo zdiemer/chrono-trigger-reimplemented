@@ -17,9 +17,9 @@
  * wins. The defeat (the battle's step 9) holds the markers back and waits a
  * frame.
  *
- * The poses wait for frames, so they are a bridge: the waits, the frame
- * work's tail and the menu window are the original's calls as it makes them
- * (battle_wait_frame, battle_run), the rest C. The poses' tables are kept in
+ * The poses wait for frames: the waits, the frame work's tail and the menu
+ * window are calls out of them (PoseCall), made where the original makes
+ * them. The poses' tables are kept in
  * cells the script channels and the numbers use at other times
  * (battle_party_pose_*). */
 #include "battle/animation.h"
@@ -57,7 +57,7 @@ static unsigned pose_at(unsigned member, unsigned frame) { return member * POSE_
 /* What loading the poses leaves in the work cells: the member it counted to,
  * and, where any member is there, the copy's count run out and the last
  * one's row of the tables. */
-enum { MEMBER_CELL = 0x80, COPY_CELL = 0x82, ROW_CELL = 0x84 };
+enum { ROW_CELL = 0x84 };
 
 static void load_the_poses(GameState *g)
 {
@@ -145,10 +145,6 @@ static bool step_the_poses(GameState *g)
     return true;
 }
 
-/* A member's frame steps on from its eight only where its time runs out
- * there, which, a member holding its last frame for 255 steps, never comes
- * in the poses' 32. */
-
 /* ---- The poses' frames -------------------------------------------------------------------- */
 
 /* The poses' calls, each where the original makes it: the battle's wait for
@@ -162,11 +158,6 @@ typedef enum {
     POSES_STRUCK,   /* the poses themselves, a routine of their own */
 } PoseCall;
 typedef bool (*PoseCalls)(void *ctx, PoseCall call);
-
-/* The original counts the poses' frames down in a cell over the script
- * channels' (battle_party_poses_frames_left), which shadow mode compares at
- * each frame's wait; no channel runs during the poses, and nothing else
- * reads it. */
 
 // $C1:35DD
 /* The poses as a whole: loaded, then 64 frames of the battle's, each the
@@ -184,8 +175,6 @@ static bool strike_the_poses(GameState *g, PoseCalls call, void *ctx)
     set_battle_frame_phase(g, NO_PHASE);
     return true;
 }
-
-/* ---- The battle's close ------------------------------------------------------------------- */
 
 /* ---- Which poses ---------------------------------------------------------------------------- */
 
@@ -210,10 +199,6 @@ void battle_give_the_party_poses(GameState *g, PartyPose pose)
 }
 
 static void hold_the_markers(GameState *g) { set_battle_markers_held(g, (uint8_t)(battle_markers_held(g) + 1)); }
-
-/* What taking the looks off leaves in the work cells: the slot it counted
- * down from, gone below the first. */
-enum { LOOK_SLOT_CELL = 0x94 };
 
 // $C1:356D
 /* The victory: the fight's leftovers seen off -- the markers held back, the
@@ -263,9 +248,9 @@ static bool lose(GameState *g, PoseCalls call, void *ctx)
     return call(ctx, POSES_STRUCK);
 }
 
-/* The guards' state halves: the graphics' object a battle slot, as the
+/* What the poses take: the graphics' object a battle slot, as the
  * animations keep its high byte clear, and the members' graphics ones the
- * builders know; the victory's looks as the looks' guard keeps them. */
+ * builders know; the victory's looks as battle_pose_looks_fit keeps them. */
 static bool members_graphics_known(GameState *g)
 {
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
@@ -276,7 +261,7 @@ static bool members_graphics_known(GameState *g)
 
 static bool poses_fit(GameState *g) { return (battle_graphics_object(g) >> 8) == 0 && members_graphics_known(g); }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The poses' calls ------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
@@ -326,11 +311,3 @@ bool battle_loses_the_fight(GameState *g, Platform *pf)
     return lose(g, pose_call, &c);
 }
 
-/* ---- On the machine ------------------------------------------------------------------------ */
-
-/* Wait for the next frame ($C1:007E): the wait reads none of the registers
- * but A's high byte, which it takes along, clear where the loading or the
- * calling off leaves it so. The looks' colours are found by the whole of A
- * with each member's palette, so where the victory's tail leaves A's high
- * byte set, which the game's doesn't, the original goes on from after it. */
-enum { AFTER_THE_TAIL = 0xC13571 };

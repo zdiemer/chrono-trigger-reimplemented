@@ -54,7 +54,6 @@ static const WarpKind kinds[] = {
     [WARP_SHORTEST] = { 0x09F, false, 0xFDDAC4, 0xFDDB00 },
     [WARP_FLICKERING] = { 0x2FF, true, 0xFDDB27, 0xFDDB7A },
 };
-enum { WARP_KINDS = sizeof kinds / sizeof kinds[0] };
 
 /* ---- The story flags ----------------------------------------------------------------------------- */
 
@@ -89,9 +88,9 @@ static void start_the_warp(GameState *g, Platform *pf)
     tm_enable_interrupts(pf, PF_AT(0xFDDBB0), 0);
     set_warp_zero(g, 0);
     program_install_vblank_handler(g, warp_vblank);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     program_install_line_handler(g, warp_line);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     keep_the_story_flags(g);
     warp_draw_picture(g, pf);
     set_warp_circle_tables_built(g, 0);
@@ -141,8 +140,9 @@ static void show_the_tunnel(Platform *pf, const WarpKind *k, WarpPhase phase)
  * over half a step a frame. The pattern's place starts at 0, to which it comes
  * back only after 1024 frames, longer than a warp lasts. On the first frame,
  * the original reads the brightness from far past the pattern: its index takes
- * A's high byte along, which every frame leaves clear but the start leaves
- * holding the bottom line's scale, the last word it writes through the CPU's
+ * along the high byte of the value worked out last, which every frame leaves
+ * clear but the start leaves holding the bottom line's scale, the last word
+ * it writes through the CPU's
  * port to work RAM, a byte at a time. Kept as the original's index
  * arithmetic: it is what the first frame shows. */
 enum { FLICKER_SPEED = 0x98, FLICKER_STEPS_MASK = (WARP_FLICKER_STEPS << 8) - 1, FLICKER_START = 0 };
@@ -212,10 +212,10 @@ static void pulse_the_colours(GameState *g, uint8_t frame)
 }
 
 /* The original steps the circle's point with the multiplier and its waits,
- * where the C steps it in locals: a step takes the original about as long as
- * eight of the frame's own accesses at the frame's rate, measured over the
+ * where the port steps it in locals: a step takes the original about as long
+ * as eight of the frame's own accesses at the frame's rate, measured over the
  * three movies the warp plays in, which is what a frame charges for each
- * (charge.h): the native frame's retained work estimate. */
+ * (charge.h). */
 enum { ACCESSES_A_CIRCLE_STEP = 8 };
 
 /* One frame of the warp: true while it goes on, false on its last frame. */

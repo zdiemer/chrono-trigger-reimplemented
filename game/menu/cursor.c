@@ -19,11 +19,12 @@
 #include "charge.h"
 #include "core/program.h"
 #include "core/input.h"
-#include "menu/bridge.h"
 #include "menu/menu_data.h"
 #include "platform/audio.h"
 #include "platform/input.h"
 #include "sound/sound.h"
+#include "vars.h"
+#include "port/vars_ram.h"
 
 /* ---- The sprites ------------------------------------------------------------------------------ */
 
@@ -77,6 +78,7 @@ void menu_reset_sprites_and_cursor(GameState *g)
     place_cursor(g);
 }
 
+// $C2:E923
 /* Every sprite hidden, and the cursor placed facing its own way. */
 void menu_clear_sprites_but_cursor(GameState *g)
 {
@@ -228,9 +230,6 @@ static bool sound_goes_out(GameState *g, SoundEffectVoices voices, uint8_t sound
     return true;
 }
 
-/* The sounds a screen queued: the first of them, played at once. */
-enum { QUEUED_SOUND_6 = 0x02, QUEUED_SOUND_7 = 0x01 };
-
 /* ---- Places kept --------------------------------------------------------------------------------- */
 
 enum { PLACE_BYTES = 6 };
@@ -268,37 +267,6 @@ void menu_put_cursor_places_back(GameState *g)
     charge_block_move(g, MENU_CURSOR_PLACES_KEPT_COUNT * PLACE_BYTES);
 }
 
-// $C2:984A
-
-// $C2:E92D
-
-// $C2:E923
-
-/* What the cursor's reading leaves in the registers, which the screens'
- * handlers can't be shown not to read (the analysis follows them into the
- * sound driver): the accumulator the last cell it looked at, X and Y where
- * the push's search and the buttons' loop left them, each a byte; and the
- * loop's bit in its cell. */
-MenuCursorRead menu_note_cursor_read(const GameState *g)
-{
-    vars_peek(true);
-    uint8_t pushes = pad_pushes(g);
-    unsigned push = 0;
-    while (push < PUSHES && !(pushes >> push & 1))
-        push++;
-    MenuCursorRead r = { menu_screen_step(g) != menu_cursor_step_seen(g), push < PUSHES,
-                         push < PUSHES && menu_cursor_held(g) == 0, (uint8_t)push, menu_cursor_index(g) };
-    vars_peek(false);
-    return r;
-}
-
-/* Where the controller read doesn't take the buttons, the port stops where
- * the original does, with the stack the original's input has built by then:
- * its caller's flags, data bank, page and flags again (as the fast repeat's
- * test left them, the index registers passed through 8 bits on the way), and
- * the return into the input from the read. */
-enum { RETURN_FROM_THE_READ = 0x8489 };
-
 enum { SECOND_CONTROLLER = 1 };
 
 // $C2:8473
@@ -330,10 +298,6 @@ bool menu_frame_input_taken(GameState *g, Platform *pf)
     return false;
 }
 
-/* The input runs on the menus' vblank page, with a data bank that reaches
- * low work RAM. */
-enum { MENUS_VBLANK_PAGE = 0x0D00 };
-
 void menu_hold_and_read_the_cursor(GameState *g)
 {
     set_menu_cursor_held(g, (uint8_t)(menu_cursor_held(g) + 1));
@@ -342,13 +306,6 @@ void menu_hold_and_read_the_cursor(GameState *g)
 
 // $C2:E984
 
-/* The sounds on the machine. The driver's call is made from the one JSL the
- * original's routines share ($C2:EB1A), so a routine that plays one stands in
- * for its whole chain: the P it saves as it starts, the return of its call to
- * the send, and the call itself. What the driver doesn't read at the call
- * (the calling convention checks it): the accumulator's low byte, X, Y and the
- * flags. The accumulator holds the pan the original loads last before it. */
-
 /* The sound sent to the driver, from the original's one call. */
 static void send_the_sound(Platform *pf, SoundEffectVoices voices, uint8_t sound)
 {
@@ -356,20 +313,16 @@ static void send_the_sound(Platform *pf, SoundEffectVoices voices, uint8_t sound
                (AudioCommand){ .command = voices, .p1 = sound, .p2 = AU_CENTRE, .count = 2 });
 }
 
-/* A sound played where it goes out (sound_goes_out), sent as C or on the
- * machine (below); one that doesn't is dropped, which leaves only what the
- * original's code reads (scaffolding). False where the send went no
- * further. */
+/* A sound played where it goes out (sound_goes_out); one that doesn't is
+ * dropped. False where the send went no further. */
 typedef struct {
     bool (*sent)(void *ctx, SoundEffectVoices voices, uint8_t sound);
-    void (*dropped)(void *ctx);
 } SoundCalls;
 
 static bool play_a_sound(GameState *g, SoundEffectVoices voices, uint8_t sound, const SoundCalls *c, void *ctx)
 {
     if (sound_goes_out(g, voices, sound))
         return c->sent(ctx, voices, sound);
-    c->dropped(ctx);
     return true;
 }
 
@@ -384,13 +337,11 @@ static bool sent(void *ctx, SoundEffectVoices voices, uint8_t sound)
     return true;
 }
 
-static void dropped(void *ctx) { (void)ctx; }
-
 void menu_sound_played(GameState *g, Platform *pf, uint8_t sound)
 {
-    static const SoundCalls in_the_program = { sent, dropped };
+    static const SoundCalls the_steps = { sent };
     MenuSoundContext c = { g, pf };
-    (void)play_a_sound(g, SOUND_EFFECT_ON_VOICES_6_7, sound, &in_the_program, &c);
+    (void)play_a_sound(g, SOUND_EFFECT_ON_VOICES_6_7, sound, &the_steps, &c);
 }
 
 // $C2:EAF9
@@ -403,9 +354,9 @@ static bool play_on_other_voices(GameState *g, uint8_t sound, const SoundCalls *
 
 void menu_sound_played_on_other_voices(GameState *g, Platform *pf, uint8_t sound)
 {
-    static const SoundCalls in_the_program = { sent, dropped };
+    static const SoundCalls the_steps = { sent };
     MenuSoundContext c = { g, pf };
-    (void)play_on_other_voices(g, sound, &in_the_program, &c);
+    (void)play_on_other_voices(g, sound, &the_steps, &c);
 }
 
 void menu_read_the_cursor_for_a_step(GameState *g) { TIMED_AS(g, 0xC2E984, menu_read_cursor(g)); }
@@ -432,7 +383,7 @@ bool menu_cursor_kept_among(const GameState *g, uint8_t first, uint8_t count, bo
     return true;
 }
 
-/* ---- The guards -------------------------------------------------------------------------------- */
+/* ---- Where the cursor can stand ---------------------------------------------------------------- */
 
 /* The cursor stands on one of its menu's places. */
 bool menu_cursor_can_be_placed(const GameState *g) { return menu_cursor_index(g) < MENU_CURSOR_PLACES_COUNT; }

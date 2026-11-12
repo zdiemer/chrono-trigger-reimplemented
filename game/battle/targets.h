@@ -26,15 +26,24 @@
 
 /* A candidate: a battle slot, with the marks. */
 typedef uint8_t Candidate;
-enum { CANDIDATE_SLOT = 0x0F, CANDIDATE_MARKED = 0x80, /* a condition picked it out, or it draws the aim */
+enum {
+    CANDIDATE_SLOT = 0x0F,
+    CANDIDATE_MARKED = 0x80,    /* a condition picked it out, or it draws the aim */
     CANDIDATE_TURNS_AIM = 0x40, /* it turns the aim */
-    NO_CANDIDATE = 0xFF,  };
+    NO_CANDIDATE = 0xFF,
+};
 
 /* A selector names a way of picking, $00-$38; one with bit 7 set names the
  * combatant the first of a block's two conditions settled on
  * (battle_condition_target). */
 typedef uint8_t Selector;
-enum { SELECT_NOBODY = 0x00, SELECT_PARTY = 0x01, SELECT_ENEMIES = 0x16, SELECT_CONDITION_TARGET = 0x80, SELECTORS = 0x39,  };
+enum {
+    SELECT_NOBODY = 0x00,
+    SELECT_PARTY = 0x01,
+    SELECT_ENEMIES = 0x16,
+    SELECT_CONDITION_TARGET = 0x80,
+    SELECTORS = 0x39,
+};
 
 /* $C1:AC46: no candidates, and no targets. */
 void battle_clear_candidates(GameState *g);
@@ -70,7 +79,8 @@ void battle_mark_other_targets(GameState *g);
 Candidate battle_candidate(const GameState *g, unsigned place);
 uint8_t battle_candidates_held(const GameState *g);
 
-/* The candidates are counted as the battle counts them (the guards'). */
+/* The candidates are counted as the battle counts them (a check of what the
+ * port takes). */
 bool battle_candidates_counted(const GameState *g);
 
 #endif

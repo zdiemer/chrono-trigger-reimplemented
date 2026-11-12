@@ -70,9 +70,8 @@ void fight_set_timer_lengths(GameState *g)
  * battle speed setting. */
 enum { FASTEST_SPEED = 16, SETTINGS_SPEED_BITS = 0x07, TICKS_A_SPEED_POINT = 6 };
 
-/* The original multiplies both through the arithmetic's cells, the speed's
- * with the carry of the table's place, a byte, over it (scaffolding). */
-
+/* The original multiplies both through the arithmetic's cells, which keep
+ * what it leaves. */
 static uint8_t first_wait(GameState *g, uint8_t slot)
 {
     uint8_t speed = combatant_stat_byte(g, slot, STAT_SPEED_RATING);
@@ -95,9 +94,8 @@ enum { MAX_MP_HIGH = STAT_MAX_MP + 1, STANDING_MARK_BIT = 0x01, STANDING_MARK = 
 
 /* The cells the original counts in: the combatant and its block's place, and
  * the wait the soonest turn takes off the others. Only the fight's start sets
- * the first turns, and it overwrites them before anything reads them
- * (scaffolding). */
-enum { SLOT_AT = 0x02, PLACE_AT = 0x04, TAKEN_OFF_AT = 0x00 };
+ * the first turns, and it overwrites them before anything reads them. */
+enum { SLOT_AT = 0x02, PLACE_AT = 0x04 };
 
 static void start_turn(GameState *g, uint8_t slot, uint8_t wait)
 {
@@ -111,7 +109,7 @@ void fight_set_first_turns(GameState *g)
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         if (!combatant_in_fight(g, member))
             continue;
-        charge_legacy_rom_accesses(g, 2);
+        charge_rom_accesses(g, 2);
 
         start_turn(g, member, first_wait(g, member));
         battle_restart_timer(g, BATTLE_TIMER_TURN, member);
@@ -120,7 +118,7 @@ void fight_set_first_turns(GameState *g)
         uint8_t slot = (uint8_t)(BATTLE_FIRST_ENEMY + enemy);
         if (battle_combatant_id(g, slot) == COMBATANT_NONE)
             continue;
-        charge_legacy_rom_accesses(g, 2);
+        charge_rom_accesses(g, 2);
 
         uint8_t wait = first_wait(g, slot);
         if (combatant_stat_byte(g, slot, MAX_MP_HIGH) & STANDING_MARK_BIT)

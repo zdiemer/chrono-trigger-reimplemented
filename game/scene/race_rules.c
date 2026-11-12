@@ -20,7 +20,7 @@
  * Then a button ends the scene, and A fades it out first.
  *
  * The rules are plain arithmetic, but for one thing the game does that the
- * gate compares: the original never clears the carry between the sums of a
+ * player can see: the original never clears the carry between the sums of a
  * frame's motion, so several of them take a unit from the comparison or sum
  * before -- a drift a unit longer or slower to die, the lead a 32nd shorter,
  * the touching band a unit wider, a bumped bike a unit farther. Each rule has
@@ -36,10 +36,17 @@
 
 /* ---- The bikes ------------------------------------------------------------------------------ */
 
-enum { SPEED_LOSS = 0x80, /* every frame */
-    CRONO_SPEEDING_UP = 0x100, /* while below his top speed */
-    JOHNNY_SPEEDING_UP = 0xF8, MAX_SPEED = 0x7FFF, BOOST = 0x1700, BOOST_FRAMES = 0x80, LAST_LANE = 0x7000, SPEED_TO_DISTANCE = 6, /* a bike moves on by its speed over 64 */
-    SPEED_TO_DISTANCE_MASK = 0x1FF,  };
+enum {
+    SPEED_LOSS = 0x80,             /* every frame */
+    CRONO_SPEEDING_UP = 0x100,     /* while below his top speed */
+    JOHNNY_SPEEDING_UP = 0xF8,
+    MAX_SPEED = 0x7FFF,
+    BOOST = 0x1700,
+    BOOST_FRAMES = 0x80,
+    LAST_LANE = 0x7000,
+    SPEED_TO_DISTANCE = 6,         /* a bike moves on by its speed over 64 */
+    SPEED_TO_DISTANCE_MASK = 0x1FF,
+};
 
 /* The finish, as the bikes' distances reach it: the high word at 8. */
 enum { FINISHED_HIGH_WORD = RACE_FINISH >> 16 };
@@ -70,7 +77,7 @@ static bool at_least(uint16_t a, uint16_t b) { return (int16_t)(a - b) >= 0; }
 static void leave_working_cells(GameState *g, uint16_t first, uint16_t second)
 {
     (void)first;
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
     set_scene_call_second(g, scene_program_own(), second);
 }
 
@@ -157,9 +164,12 @@ static void drive_johnny(GameState *g)
 
 /* ---- Drifting across the track -------------------------------------------------------------- */
 
-enum { MAX_DRIFT = 0x210, DRIFT_LOSS = 0x11, /* every frame */
-    CRONO_STEERING = 0x28, /* how much a frame's steering builds the drift up */
-    JOHNNY_STEERING = 0x18,  };
+enum {
+    MAX_DRIFT = 0x210,
+    DRIFT_LOSS = 0x11,             /* every frame */
+    CRONO_STEERING = 0x28,         /* how much a frame's steering builds the drift up */
+    JOHNNY_STEERING = 0x18,
+};
 
 /* A bike's four drifts, in the order the race works them out. */
 typedef enum { CRONO_UP, CRONO_DOWN, JOHNNY_UP, JOHNNY_DOWN, DRIFTS } Drift;
@@ -249,7 +259,11 @@ static uint16_t lead(const GameState *g, bool unit)
 /* ---- Touching ------------------------------------------------------------------------------------ */
 
 /* Where Johnny is from Crono (scene_race_contact). */
-enum { CRONO_WELL_AHEAD = 0x01, JOHNNY_WELL_AHEAD = 0x02, JOHNNY_WELL_ABOVE = 0x10, JOHNNY_WELL_BELOW = 0x20, ACROSS_SHIFT = 4,  };
+enum {
+    CRONO_WELL_AHEAD = 0x01, JOHNNY_WELL_AHEAD = 0x02,
+    JOHNNY_WELL_ABOVE = 0x10, JOHNNY_WELL_BELOW = 0x20,
+    ACROSS_SHIFT = 4,
+};
 
 /* How close counts as touching: along the track, Crono's bike from $100 on
  * and Johnny's from $C0 on, $200 and $180 apart; across it, $1000. The
@@ -348,7 +362,7 @@ static uint16_t overlap(const GameState *g, Racer pushing, Racer pushed, const B
 static void bump_across(GameState *g, Racer pushing, Racer pushed, const BumpAcrossUnits *u)
 {
     uint16_t by = overlap(g, pushing, pushed, u);
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
     uint16_t crono = lane(g, RACER_CRONO), johnny = lane(g, RACER_JOHNNY);
     if (pushing == RACER_CRONO) {
         set_scene_race_racers_lane(g, RACER_CRONO, (uint16_t)(crono - by - !u->into_crono));
@@ -365,10 +379,6 @@ static void bump_across(GameState *g, Racer pushing, Racer pushed, const BumpAcr
 }
 
 /* ---- The units the motion hands on ------------------------------------------------------------- */
-
-/* Each function here works out, from the values a step of the motion used,
- * the unit that step leaves for the next sum (see the top of the file). They
- * run in the order the original's sums do, each from the one before. */
 
 /* Out of Johnny's decision, into the drifts: where Crono leads, whether the
  * bikes aren't alongside (alongside, whether Crono is on the track's higher
@@ -592,8 +602,8 @@ static void boost(GameState *g, bool unit)
 
 /* ---- A frame of the bikes ----------------------------------------------------------------------- */
 
-/* What a frame of the bikes asks of the sound driver, which the entry's
- * wrapper sends: the bump's sound, then, while the race runs, the engine's
+/* What a frame of the bikes asks of the sound driver, which the task's
+ * caller sends: the bump's sound, then, while the race runs, the engine's
  * pitch (each unless a song is on its way to the driver at the time). */
 typedef struct {
     bool bumped;
@@ -667,7 +677,10 @@ static void move_bikes(GameState *g)
 enum { WINNER_CRONO = 1, WINNER_JOHNNY = 2 };
 
 /* What Crono's winning score earns (scene_race_prize). */
-enum { PRIZE_REPDIGIT = 1, PRIZE_777 = 2, PRIZE_STRAIGHT = 3, PRIZE_ROUND = 4, PRIZE_OVER_1300 = 0x20, PRIZE_OVER_1500 = 0x40, PRIZE_OVER_2000 = 0x80,  };
+enum {
+    PRIZE_REPDIGIT = 1, PRIZE_777 = 2, PRIZE_STRAIGHT = 3, PRIZE_ROUND = 4,
+    PRIZE_OVER_1300 = 0x20, PRIZE_OVER_1500 = 0x40, PRIZE_OVER_2000 = 0x80,
+};
 enum { LUCKY_SCORES = 11 };
 
 static uint8_t lucky_prize(const GameState *g, uint16_t shown)
@@ -978,7 +991,6 @@ static void leave(GameState *g)
  * 2000, 200, 20 and 2 it still holds; when it holds none the draining stops,
  * and this returns false. */
 static const uint16_t drains[] = { 2000, 200, 20, 2 };
-enum { LAST_DRAIN = 2 };
 
 static bool drain_score(GameState *g)
 {
@@ -994,8 +1006,8 @@ static bool drain_score(GameState *g)
 
 /* ---- The tasks ------------------------------------------------------------------------------------
  *
- * Each task's frame is one sequence, run on the machine and as C alike; the
- * sounds it sends go through the step it is passed (race.h, RaceSends). */
+ * Each task's frame is one sequence; the sounds it sends go through the step
+ * it is passed (race.h, RaceSends). */
 
 /* The bikes' sounds, then their motion. */
 static bool move_and_sound(GameState *g, Platform *pf, BikeSounds sounds, RaceSends send, void *ctx)
@@ -1019,7 +1031,7 @@ static TaskEnd ride_with(GameState *g, Platform *pf, RaceSends send, void *ctx)
     case RIDE_ON: break;
     }
     if (!move_and_sound(g, pf, sounds, send, ctx))
-        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+        return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
     return task_goes_on();
 }
 
@@ -1028,7 +1040,7 @@ static TaskEnd coast_with(GameState *g, Platform *pf, RaceSends send, void *ctx)
 {
     coast(g);
     if (!move_and_sound(g, pf, ride_bikes(g), send, ctx))
-        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+        return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
     return task_goes_on();
 }
 
@@ -1045,7 +1057,7 @@ static TaskEnd wait_to_leave_with(GameState *g, Platform *pf, RaceSends send, vo
     if (!begin_ending(g))
         return task_goes_on();
     if (!race_song_sending(g) && !race_send_sound(g, pf, RACE_LEAVING_SOUND, send, ctx))
-        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+        return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
     count_down_to_end(g);
     return task_hands_over(TASK_LEAVE);
 }
@@ -1062,11 +1074,11 @@ static TaskEnd drain_score_task(GameState *g)
     return task_is_done();
 }
 
-/* ---- The tasks as C -------------------------------------------------------------------------------
+/* ---- The tasks ----------------------------------------------------------------------------------
  *
- * Each checks its guard's state half where the guard has one: the ride's and
- * the coast's, room on the lists for what they add and the tasks they take
- * off there. The others are guarded by their code and the page alone. */
+ * The ride and the coast check for room on the lists for what they add and
+ * the tasks they take off there, and go no further without it; the others
+ * take any state the race makes. */
 
 static bool ride_lists_fit(const GameState *g);
 static bool coast_lists_fit(const GameState *g);
@@ -1075,7 +1087,7 @@ TaskEnd scene_race_ride(GameState *g, Platform *pf, unsigned slot)
 {
     (void)slot;
     if (!ride_lists_fit(g))
-        return scene_task_needs_the_machine(g, 0x7E485D, "a race's frame whose list changes the port doesn't make");
+        return scene_task_goes_no_further(g, 0x7E485D, "a race's frame whose list changes the port doesn't make");
     return ride_with(g, pf, race_sound, NULL);
 }
 
@@ -1083,7 +1095,7 @@ TaskEnd scene_race_coast(GameState *g, Platform *pf, unsigned slot)
 {
     (void)slot;
     if (!coast_lists_fit(g))
-        return scene_task_needs_the_machine(g, 0x7E4677, "a race's coast whose list changes the port doesn't make");
+        return scene_task_goes_no_further(g, 0x7E4677, "a race's coast whose list changes the port doesn't make");
     return coast_with(g, pf, race_sound, NULL);
 }
 
@@ -1114,9 +1126,8 @@ TaskEnd scene_race_drain_score(GameState *g, Platform *pf, unsigned slot)
     return drain_score_task(g);
 }
 
-/* The guard hands the task's list changes to the original where the list has
- * no room or lacks the task taken off, which only states the game never makes
- * reach. */
+/* The task's list changes need room on the list and the task taken off on
+ * it, which only states the game never makes lack. */
 static bool ride_lists_fit(const GameState *g)
 {
     if (finished(g, RACER_CRONO))
@@ -1137,7 +1148,11 @@ static bool coast_lists_fit(const GameState *g)
 /* The bikes as the race starts. Crono is on the higher lanes and Johnny on
  * the lower; Johnny's top speed is lower than Crono's while he leads and higher
  * while he trails. */
-enum { CRONO_START_LANE = 0x6000, JOHNNY_START_LANE = 0x2000, CRONO_TOP_SPEED = 0x4000, JOHNNY_TOP_SPEED_LEADING = 0x3000, JOHNNY_TOP_SPEED_TRAILING = 0x5000, APART = 0x20, /* the bikes start apart, Crono above */ };
+enum {
+    CRONO_START_LANE = 0x6000, JOHNNY_START_LANE = 0x2000,
+    CRONO_TOP_SPEED = 0x4000, JOHNNY_TOP_SPEED_LEADING = 0x3000, JOHNNY_TOP_SPEED_TRAILING = 0x5000,
+    APART = 0x20,   /* the bikes start apart, Crono above */
+};
 
 /* The race's own boosts and their timer, which the demo has none of; the
  * setup writes their low bytes. */

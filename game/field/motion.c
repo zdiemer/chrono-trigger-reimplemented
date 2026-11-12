@@ -26,7 +26,6 @@
 #include "field/field_data.h"
 #include "field/layers.h"
 #include "field/parts.h"
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -206,9 +205,9 @@ Velocity field_velocity_for(const GameState *g, FieldObject obj, Direction direc
 void object_head(GameState *g, FieldObject obj, Direction direction)
 {
     Velocity v = field_velocity_for(g, obj, direction);
-    charge_legacy_accesses(g, 2); /* speed read and vertical-step temporary */
-    charge_legacy_rom_accesses(g, 1); /* direction factor read back */
-    charge_legacy_io_accesses(g, 4); /* multiplier operand and result accesses */
+    charge_accesses(g, 2); /* speed read and vertical-step temporary */
+    charge_rom_accesses(g, 1); /* direction factor read back */
+    charge_io_accesses(g, 4); /* multiplier operand and result accesses */
     set_field_object_velocity_y(g, obj, sign_extended(v.y));
     set_field_object_velocity_x(g, obj, sign_extended(v.x));
 }
@@ -232,11 +231,11 @@ static MapPlace tile_ahead(const GameState *g, FieldObject obj, uint16_t across,
  * as the original does. */
 static void take_priorities_for_the_step(GameState *g, FieldObject obj, TileAttributes ahead)
 {
-    charge_legacy_accesses(g, 1); /* the old result's repeated layering test */
+    charge_accesses(g, 1); /* the old result's repeated layering test */
     if (object_follows_the_map(g, obj))
         object_set_sprite_priorities(g, obj, tile_priority(ahead.lower), tile_priority(ahead.upper));
     else {
-        charge_legacy_accesses(g, 2); /* own priority read and temporary */
+        charge_accesses(g, 2); /* own priority read and temporary */
         object_take_own_priorities(g, obj);
     }
 }
@@ -280,7 +279,7 @@ StepStart object_start_step(GameState *g, FieldObject obj, Direction direction)
         look = look_ahead(g, obj, sign_extended(first.x), first.y);
         if ((field_object_blocking(g, obj) & BLOCKED_BY_THE_MAP) && (look.tile.lower & TILE_BLOCKED)) {
             r.direction = field_draw_random(g);
-            charge_legacy_accesses(g, 4); /* new direction's word read/write */
+            charge_accesses(g, 4); /* new direction's word read/write */
             retry = steps = field_velocity_for(g, obj, r.direction);
             r.outcome = START_TURNED_STILL;
             if (moves(retry)) {
@@ -298,11 +297,11 @@ StepStart object_start_step(GameState *g, FieldObject obj, Direction direction)
         take_priorities_for_the_step(g, obj, look.tile);
     set_step_x(g, obj, steps.x);
     set_step_y(g, obj, steps.y);
-    /* The old result recorded the two steps and their signs, the last
-     * ground probe, and the multiplier's operands and result. */
-    charge_legacy_accesses(g, 4 + (moves(first) ? 5 : 0));
-    charge_legacy_rom_accesses(g, 1);
-    charge_legacy_io_accesses(g, 4);
+    /* The original records the two steps and their signs, the last ground
+     * probe, and the multiplier's operands and result. */
+    charge_accesses(g, 4 + (moves(first) ? 5 : 0));
+    charge_rom_accesses(g, 1);
+    charge_io_accesses(g, 4);
     return r;
 }
 
@@ -345,8 +344,8 @@ static bool can_block_in_view(const GameState *g, FieldObject other, FieldObject
  * starts on the slots past them, which hold nobody but read as slots all the
  * same: the leader's walk (field/walk.c, met_past_the_tables) and the
  * look for an object in the way (below) look at them before the map's
- * objects; the confirm button's guard still leaves such a start to the
- * original. A start of 0 would go round into those slots from slot 0
+ * objects; the port refuses such a start for the confirm button. A start
+ * of 0 would go round into those slots from slot 0
  * (it counts round 128), which no map makes. */
 enum { SEARCH_COUNT_BITS = 0x7F };
 
@@ -467,14 +466,14 @@ ObjectsAhead object_in_the_way(GameState *g, FieldObject obj)
     SearchLength n = { 0, 0, 0 };
     ObjectsAhead r = { false, false, 0 };
     if (field_looks_for_objects(g, obj)) {
-        charge_legacy_accesses(g, 10); /* facing/position read back and selected */
+        charge_accesses(g, 10); /* facing/position read back and selected */
         FieldObject start = object_search_start(g);
         if (start >= FIELD_OBJECTS)
             r = look_past_the_tables(g, obj, start, &n);
         if (!r.blocked)
             r = look_for_objects_ahead(g, obj, r, &n);
     }
-    charge_legacy_accesses(g, r.measured ? 2 : 4); /* the selected target */
+    charge_accesses(g, r.measured ? 2 : 4); /* the selected target */
     charge_search(g, n);
     return r;
 }
@@ -608,7 +607,7 @@ bool object_line_up_with(GameState *g, FieldObject obj, FieldPosition other)
     stand_still(g, obj);
     uint16_t own_x = position_x(g, obj) & ON_TILE, other_x = other.x & ON_TILE;
     uint16_t own_y = position_y(g, obj) & ON_TILE, other_y = other.y & ON_TILE;
-    charge_legacy_accesses(g, 2); /* the alignment's vertical origin */
+    charge_accesses(g, 2); /* the alignment's vertical origin */
     if (other_x == own_x && other_y == own_y)
         return false;
     if (other_x != own_x)
@@ -682,7 +681,7 @@ StepKind object_take_step(GameState *g, FieldObject obj)
     step_axis(g, obj, false, x, stay);
     step_axis(g, obj, true, y, stay);
     if (x < 0 || y < 0)
-        charge_legacy_accesses(g, 1); /* the backward step's magnitude */
+        charge_accesses(g, 1); /* the backward step's magnitude */
     return STEP_TAKEN;
 }
 

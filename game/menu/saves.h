@@ -18,10 +18,16 @@ enum { MENU_SAVE_SLOTS = 3 };
 /* Where things are in save memory. A slot's game is SAVED_GAME_BYTES from its
  * place on; the record of them is at the end. */
 enum { SAVED_GAME_BYTES = 0xA00 };
-enum { SAVES_LAST_SLOT = 0x1FE0, SAVES_TIMES_FINISHED = 0x1FE1, SAVES_FINISHED = 0x1FE2, SAVES_SLOT_SUMS = 0x1FF0, SAVES_SLOT_MARKS = 0x1FF8 };
+enum {
+    SAVES_LAST_SLOT = 0x1FE0,
+    SAVES_TIMES_FINISHED = 0x1FE1,
+    SAVES_FINISHED = 0x1FE2,
+    SAVES_SLOT_SUMS = 0x1FF0,
+    SAVES_SLOT_MARKS = 0x1FF8,
+};
 
-/* The original's code keeps where a slot's game is as it addresses save
- * memory on the bus, from SAVES_ON_THE_BUS on (menu_slot_game_at). */
+/* The original keeps where a slot's game is as it addresses save memory on
+ * the bus, from SAVES_ON_THE_BUS on (menu_slot_game_at). */
 enum { SAVES_ON_THE_BUS = 0x6000 };
 
 /* ---- The save code (menu/saves.c) --------------------------------------------------------- */
@@ -67,10 +73,7 @@ void saves_start_a_new_game(GameState *g);
  * callers do, since the check runs on its caller's page. */
 uint16_t saves_slot_on_the_bus(const GameState *g, uint8_t slot);
 
-/* The checked legacy adapters (the original's code calls them; the menus' ports
- * call the C above). */
-/* What the save code and a New Game+'s carrying over take of the state, as
- * their entries' guards do. */
+/* What the save code and a New Game+'s carrying over need of the state. */
 bool menu_save_code_can_run(const GameState *g);
 bool menu_carry_over_can_run(const GameState *g);
 

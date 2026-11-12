@@ -44,7 +44,14 @@ void setup_sprite_tables(GameState *g)
  * takes the location's map under it: the upper layer's top bit as it is, and
  * the lower layer's (which blocks a move on the field) as the cell's
  * blocked bit. */
-enum { GRID_SIDE = 16, TOP_EDGE_ROWS = 2, BOTTOM_EDGE_ROW = 13, MAP_BIT = 0x80, CELL_UPPER = 0x80, CELL_BLOCKED = 0x40 };
+enum {
+    GRID_SIDE = 16,
+    TOP_EDGE_ROWS = 2,
+    BOTTOM_EDGE_ROW = 13,
+    MAP_BIT = 0x80,
+    CELL_UPPER = 0x80,
+    CELL_BLOCKED = 0x40,
+};
 
 static uint8_t starting_cell(const GameState *g, unsigned row, unsigned column)
 {
@@ -181,9 +188,6 @@ bool setup_objects_parts_fit(const GameState *g)
     return true;
 }
 
-/* What the original counts the extra parts down in, for the last combatant it
- * met: none left after one or two, two fewer than the kind after five. */
-
 /* Every present combatant's sprites and its extra parts' are large. */
 enum { ALL_LARGE = 0xAA };
 
@@ -227,7 +231,13 @@ void setup_enemy_sprite_attributes(GameState *g)
 /* The sixteen two-bitplane tiles go in as four-bitplane tiles whose upper
  * planes are empty, then the 64 four-bitplane tiles as they are, all after
  * the first 512 bytes of the decoded tiles. */
-enum { TILES_AT = 0x200, TWO_PLANE_TILES = 16, TWO_PLANE_BYTES = 16, FOUR_PLANE_BYTES = 32, FOUR_PLANE_TILE_BYTES = 0x800 };
+enum {
+    TILES_AT = 0x200,
+    TWO_PLANE_TILES = 16,
+    TWO_PLANE_BYTES = 16,
+    FOUR_PLANE_BYTES = 32,
+    FOUR_PLANE_TILE_BYTES = 0x800,
+};
 
 // $CC:EE8C
 void setup_tiles(GameState *g)

@@ -336,18 +336,9 @@ static void lay_run_into_the_table(GameState *g, Window w, CircleKind kind, RowR
 
 /* ---- What the original leaves ------------------------------------------------------------------- */
 
-/* The original keeps the circle it draws in battle_circle_drawn, works the
- * first eighth's half widths out into a list (ended by a 0), and the rows in
- * the battle page's cells $45-$52, and leaves them there; it writes the rows
- * below the middle through the work RAM port. */
-
 /* Where the original's copy jumps into its unrolled run: six bytes a row
  * back from its end. */
 enum { UNROLLED_COPY_END = 0xE7C7, UNROLLED_LINE_BYTES = 6, UNROLLED_LINES = 222 };
-
-/* ... and of laying the run into the table: the run's first row and its top
- * line, the circle's line, how far the top was cut where it was (in rows),
- * and where the copy started or the run ended. */
 
 /* ---- Drawing --------------------------------------------------------------------------------- */
 
@@ -400,7 +391,7 @@ static ScreenFlow draw_circle(GameState *g, uint8_t circle)
 }
 SCREEN_OPERATION(draw_circle, circle)
 
-/* A circle is drawn as C where it is one of the two, of one of the kinds,
+/* A circle is drawn where it is one of the two, of one of the kinds,
  * and its run is one the original copies. */
 static bool circle_can_be_drawn(const GameState *g, const ScreenCommand *c)
 {
@@ -420,8 +411,6 @@ static bool circle_can_be_drawn(const GameState *g, const ScreenCommand *c)
 /* A square's half: its rows each side of the middle, as many as a circle's
  * radius, fit the worked rows up to 128. */
 enum { LARGEST_SQUARE = MIDDLE_ROW };
-
-/* An empty square still leaves its row's edges and column in its cells. */
 
 // $CD:1F53
 /* Draw a square into the coming frame's window table: as wide as a circle
@@ -473,15 +462,3 @@ SCREEN_OPCODES(screen_circle_opcodes,
     { 0xB6, OPERATION(draw_square), .needs = square_can_be_drawn, .length = 1, .circle = BYTE(0) },
 );
 
-/* ---- The entries --------------------------------------------------------------------------------- */
-
-/* $CE:E7C8, entered with 16-bit registers as the circles' drawing ($CD:3616)
- * calls it: X the place in the window table of the run's first line and
- * window, Y the place of its first worked row, and the cell $4B where in the
- * original's unrolled copy to start, which counts the lines back from its
- * end. */
-typedef struct {
-    unsigned first, rows;
-    TableLine line;
-    Window w;
-} CopiedRun;

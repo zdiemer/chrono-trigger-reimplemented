@@ -181,8 +181,6 @@ PLAN.md gives the work order; the lean native gate protects each change.
   - the `run_*` rows read operands by position (`operand16(c, 3)`), and
     `(operand8(c, 1) & 0x1E) / 2` is an unnamed "source register" decode:
     decode each command into named parameters;
-  - `CHANNEL_PAGES`/`CHANNEL_PAGE_BYTES` restate what
-    `scene_program_page_of` and the map already know;
   - `sprites.c:260`'s `0x9801` is unnamed, and the comment doesn't say where
     the fixed `$98` comes from;
   - `title.c:332`'s `move_logo` sets channel 0's script through the raw
@@ -380,12 +378,10 @@ PLAN.md gives the work order; the lean native gate protects each change.
     `open_items`' frames instead of one `put_item_page_frames`, and steps
     `battle_targeting`, `attack_by_shortcut` and `item_list_changed` with
     `+1`/`-1` (named set/clear); `area_search.c` writes
-    `set_battle_multiply_factors` unmarked though nothing reads it, and
-    exports `battle_area_search_carry` from the logic (beside the entries);
+    `set_battle_multiply_factors` though nothing reads it;
     `AreaAsked.flag` wants the name `short_beam`; `window_data.h`'s
     `battle_stat_block_place` reads past the table for the menu's nobody;
-    `CHOOSING_FRAME_LEFT_A` in `menu_window.c` repeats `menu_input.c`'s entry
-    derivation; `menu_lists.c`'s `ITEM_WORD` is raw font bytes;
+    `menu_lists.c`'s `ITEM_WORD` is raw font bytes;
     `target_choice.c`'s circle sizes `0x09/0x10/0x19` read better as 3², 4²
     and 5²; `field/walk.c`'s guard comment should say why
     `right_side(at.x) + step.x` near `$FF8F` never feeds a carry the port
@@ -457,11 +453,11 @@ PLAN.md gives the work order; the lean native gate protects each change.
     the stride's cells by hand, and stores a bare 0 for "not animating";
     `nearest_enemy` is in both `opening.c` and `animation.c`, and
     `combatants.c`'s `come_back` repeats `status_timers.c`'s
-    `set_up_status_showing` (with `SHOWN_AS_TECH` beside `ACTION_TECH`);
+    `set_up_status_showing`;
     `from_field.c` names fight-flags bit 1 locally where the map says it
     blocks the stance poses, divides a byte place by `0x50`, and its member
     palette arithmetic doesn't say the byte is in attribute form; `opening.c`
-    writes `LEFT_MEMBER` as address arithmetic and 1/0 for bools;
+    writes 1/0 for bools;
     `enemy_turn.c`'s unreachable `no_turn` row's comment is wrong;
     `m_return_to_caller_long` wants its own comment.
 
@@ -479,8 +475,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
     offsets, and the put-aside `array_starts` table carries a record's
     layout; the BG3 line-scroll flag written `(bg3 & 0xFF00) | value`;
     `battle_screen_command_ready` takes the carry for every command only for
-    the jitter; the old `$D1` entries' positional `screen_command_operand`
-    wrappers duplicate the rows once every row is C.
+    the jitter.
 
   - what battle's review rated "mostly" (no file rated translation):
     - the reactions (`main_loop.c`'s `react()`) hand their choosing to the
@@ -847,7 +842,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
 - **What the boot path's second review left.** Use one operation to end a
   scene (`screen.c`, `script.c`, `race_rules.c`), with a byte-wide flag.
   Consolidate the task-specific leaves helpers and the `run` adapter in
-  `title.c`; share `PROGRAM_DATA_BANK`/`PROGRAM_BANK`. Rename `CALMS_EVERY`
+  `title.c`. Rename `CALMS_EVERY`
   as a mask. Give the setup table a column for the title special case and
   names that distinguish the ending modes.
 
@@ -1090,7 +1085,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
   and writes `animation.c`'s own mode, one-off and half-passes storage, and
   its `clears[]` are RAM addresses spanning variables; `dialog_window.c`
   passes `PairSites` tag tables, has `SEND_ONCE` as `0x81` where `nmi.c` has
-  `0x80`, a dead `TAKEN_ONCE`, a bare-byte `choosing`, `step_sets_a_glyph`
+  `0x80`, a bare-byte `choosing`, `step_sets_a_glyph`
   re-running the window's growth, and handles a row past 127 the game never
   sets; `slots_for_kind[9..11]` uses bare kind numbers and `nmi.c`'s
   `run_screen_transition` has unnamed cases; the map's
@@ -1695,9 +1690,7 @@ PLAN.md gives the work order; the lean native gate protects each change.
     (field/menus.c, `field_open_script_menu`) are named by their numbers
     until the menus' side names them;
   - the pause and the menus (field/menus.c) call the original's frame wait
-    and a character's start (`$C0:597D`); the Start
-    assignment's test leaves the overflow of its subtraction, which the
-    menus' entry and the next frame read (field/leaves.c);
+    and a character's start (`$C0:597D`);
 - **What the screen effects left** (the source review,
   "Phase 3, field and events: the screen effects and the credits"). One old
   fuzz state in 40,000 differed in OAM bytes resembling the original's stack
@@ -1795,15 +1788,6 @@ PLAN.md gives the work order; the lean native gate protects each change.
     close, the battlefield put back and the setting out never. Their fuzz
     runs stop at the first wait, as the battle's waits' do, so what each does
     after it is checked by shadow mode in its caller alone.
-  - Machine shape kept so shadow mode's points line up with the original's
-    stack: the bridges say at each wait and call what the original keeps on
-    the stack and leaves in the carry there (`BattleFrame`, battle/bridge.h:
-    the battle's message's copies of itself, the counted waits' counts, the
-    item's place in the rewards' telling, the battlefield the boss's end
-    changes to), and the counted waits keep their count in A
-    (`message.c`'s `wait_a_frame_counting`, `closing.c`'s
-    `wait_frames_counting`). They go when the waits are called as C from
-    callers that are C.
 - **What the battle frame work's remainders' second chunk left** (the source review,
   "Phase 4a, timing: the battle frame work's remainders, chunk 2"):
   - The rewards' messages are fuzzed only up to the first message, which
@@ -2343,7 +2327,7 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
   data bank, calls out).
 - **The scene program's remaining host interfaces.**
   Every mode's setup a recording reaches is C (`scene/program.c`'s
-  `c_setups`), and so are the story scenes' tasks, the scripts' routines and
+  `setups`), and so are the story scenes' tasks, the scripts' routines and
   the main loop's scalings (the source review, "The native
   program through the story scenes"), and mode 10's picture and the slow
   staff roll, mode 12 (the source review, "The native program's last named
@@ -2378,7 +2362,7 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
   runs yet, `ct_native` stops there and says which: a menu screen with no
   step as C (below), and a party the
   put-aside or the bringing back doesn't take (`field/menus.c`). Every
-  bridge in `EVENT_BRIDGES` has its C (`EVENT_BRIDGES_WITH_WORK`, event/engine.h).
+  undecoded command has its C (`EVENT_UNDECODED_COMMANDS`, event/engine.h).
   Each wants its C as the program meets it.
 - **What the menus the player opens still hand the machine.** The main
   menu's steps and its four panels, and the steps `menu.ctm` reaches of the
@@ -2459,8 +2443,6 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
     when refused (unreachable behind the registry's guard).
   - The credits' `CreditsLettersContext` callback always returns true and
     `event_choose_credits` ignores the sequence's result: ceremony.
-  - `MENU_LABEL_RECORD_BYTES`, scaffolding-only, sits in the public
-    menu/load_screen.h.
   - The scene engine's three `step_the_ground_toward_*` script rows are one-line
     rows over `step_the_ground_toward(g, set)`; folding them into one row wants
     a field on `SceneScriptRoutine`.
@@ -2501,23 +2483,33 @@ and preserve their diagnostics as the remaining machine wrappers leave.
 
 ## Review follow-ups for native interfaces
 
-- **What the machine's removal left** (review of machine-core). CLAUDE.md's
-  Rules still describe the registry, `NATIVE_TIME_AS`, shadow mode and entry
-  wrappers: rewrite them for the machine-free game. About 390 comments and names
-  still describe the machine (`state.h:10`, `race.h:85`, `battle/bridge.h`, the
-  "On the machine" sections, `scene_task_needs_the_machine`, `machine_tasks`,
-  `*_on_the_machine`). Leftovers of the mechanical rewrite: an empty
-  `for (...) ;` at `battle/draw_objects.c:499`, statements like
-  `(void)(mover_is_anchor(m));` (effect_paths, the enemy selector, equipment's
-  `a_member`) and `(void)stopped_at;     ;`; dead declarations
-  (`battle_transfers_apart` in `battle/frame.h`, `BattleFrame`/`BattleCarry`/
-  `battle_keeping_*` in `battle/bridge.h` and `wait.h`), orphaned address
-  comments in `fight_entries.c`, and multi-line enums flattened onto one line
-  (`menu_data.h`, `field/main_loop.c`, `battle.h`). About 215
-  `charge_legacy_*` and 142 `charge_block_move` calls still put per-path access
-  counts in `game/`, against "ports don't carry cycle costs". `core/program.c:124`:
+- **What the machine's removal left** (review of machine-core). Dead carry
+  plumbing the comment cleanup left as code because it changes signatures:
+  `battle_aim_action`'s `carry` and the carry arguments of `ActCalls`,
+  `MemberCalls` and `WindowCalls`; `enemy_turn.c`'s `change_carries` and
+  `aim_carry`; `menu_window.c`'s `WindowLeaves`, `CursorsPlaced` and
+  `tech_page_carry`; `battle/window_leaves.[ch]`; the battle's do-nothing calls
+  (`FIELD_KEEP`/`DROP`, `SONG_KEEP`/`KEPT`, `UPDATE_KEEP_THE_ATTRIBUTES`/
+  `ATTRIBUTES_BACK`, `CALL_CHECKS_BEGIN`/`END`); the event runner's
+  `state_is_ours`/`always_ours`; and the `*_bridge.c`/`bridge.h` file names,
+  which now hold state checks. `core/program.c:124`:
   if the first scenes fail the main thread just returns, relying on the callee
   having called `program_fail`.
+- **Per-path work counts in `game/`.** About 215 `charge_accesses`,
+  `charge_io_accesses` and `charge_rom_accesses` calls and 142
+  `charge_block_move` calls carry access counts in the logic, against "ports
+  don't carry cycle costs". They stand for work the original does that the C
+  no longer does through accessors (scratch cells, multiplier and upload-port
+  traffic, table reads), and ct_native's frame-time model (`state_host.c`:
+  accesses at the operation's rate in `time_rates.c`, owed against the
+  frame's budget) needs them to lag where the game lags. `TIMED_AS` can't
+  stand in: it re-rates counted work, and these counts are the work. With the
+  three access charges made no-ops the lean gate fails: six sampled movies
+  lose places and picture fingerprints (`field` ends 5997 frames late, `menu`
+  and `menus-new-game-plus` miss a place by 2 frames) and `native_time` and
+  `program` tests' totals change. They leave `game/` only with a model that
+  prices each operation's work as a whole, calibrated against the movies: a
+  recalibration, not a cleanup.
 - **What the second state-storage slice's review left.** The save test
   should compare the complete serialized payload, allowing for the counter
   and checksum changes a save makes on purpose.
@@ -2546,8 +2538,7 @@ and preserve their diagnostics as the remaining machine wrappers leave.
   adapters want each C step its own signature.
 - **What the menus' tasks review left** (none rated translation; `naming.c`
   and `save_screen.c` the weakest): their register notes
-  (`BUTTONS_TESTED`, `NOTE_CHAPTER_FOUND` carrying the compare's operands) and
-  call-site addresses ride through the shared logic, where the machine-side
+  and call-site addresses ride through the shared logic, where the machine-side
   callbacks could derive them, and the `site` parameter hides them from
   portsmell's flag-note check; `cursor.c`'s `bool *fast` and
   `screen_setup.c`'s `uint8_t *shown` out-parameters exist only for the
@@ -2594,13 +2585,12 @@ and preserve their diagnostics as the remaining machine wrappers leave.
   `battle_window_fits`, stricter than its registry guard (the page alone).
 - **What the race's tasks' review left** (none rated translation): the
   curtain task is written twice (`scene/race.c` and `scene/rising_palace.c`
-  each define `CurtainInC`, `curtain_step` and a near-identical sweep; one
+  each define a curtain context, `curtain_step` and a near-identical sweep; one
   helper in `curtain.c` taking the slot and how to show the window would do
-  both). `(TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK }` is spelled inline in
-  four files and wants a `task_left_to_the_original()` in `scene.h` beside
-  `task_goes_on`. `race.c`'s `race_sounds` table keeps a column of ROM call
-  addresses that only `race_sound_on_the_machine` uses; it belongs in a table
-  beside that. `rising_palace.c`'s `turn_the_first_channel` runs
+  both). `(TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK }` is spelled inline in
+  several files and wants a helper in `scene.h` beside `task_goes_on`.
+  `race.c`'s `race_sounds` table keeps a column of ROM call addresses no
+  code reads. `rising_palace.c`'s `turn_the_first_channel` runs
   `TURN_CHANNEL`, which names the channel holding the palace's turn registers
   and works only because both are 0. `perspective.c`'s `start_is_a_scene_s` wants
   a better name, `race_camera.c`'s `core/program.h` include sits in the wrong
@@ -2609,10 +2599,7 @@ and preserve their diagnostics as the remaining machine wrappers leave.
 - **What the main menu's review left** (none rated translation): the menus'
   `*Place` enums (`MainMenuPlace`, `EquipmentPlace`, `ItemsPlace`,
   `TechsPlace`, `SettingsPlace`) are the original's call sites one to one, and
-  the C side ignores them (the naming's `NamingNote` is the precedent).
-  `main_menu.h` declares machine types and helpers (`MainMenuOnTheMachine`,
-  `menu_main_menu_on_the_machine`, the `menu_leave_*_panel_*(Snes *)`) that
-  belong in a bridge header. `settings_screen.c`'s `handlers[]` repeats the
+  the C side ignores them. `settings_screen.c`'s `handlers[]` repeats the
   bridge's `OPTION_HANDLERS` routine column; one table, or the bridge takes
   the kind from the logic. `menu_settings_can_open`, `_can_choose` and
   `_option_can_be_taken` are declared in the logic header but defined in
@@ -2621,13 +2608,8 @@ and preserve their diagnostics as the remaining machine wrappers leave.
   `TIMED_AS` tag, where a first-pass flag and two literal tags would read
   better.
 - **What the save screens' review left** (none rated translation):
-  - `saving.c` works around name clashes with `menu_show_the_slot_saved_now`
-    and `menu_put_save_panel_away_now`: the C functions want the plain names
-    and the machine ones `*_entry`. Its two `// $C2:CF21` around a forwarder
-    have `SLOT_HOLDS_A_GAME` stranded between them. Machine entries named
-    nearly like their C logic want `*_entry`: `menu_ask_which_to_carry_on_from`
-    (beside `menu_ask_which_game_to_carry_on_from`), `menu_draw_slot_window`
-    (beside `menu_redraw_slot_window`), `menu_draw_load_screen`.
+  - `saving.c`'s two `// $C2:CF21` around a forwarder have
+    `SLOT_HOLDS_A_GAME` stranded between them.
   - `LoadScreenPlace`, `SavingPlace` and `ExchangePlace` are the original's
     call sites one to one, as the main menu's are, and some notes run only
     under a game branch (`menu_show_save_slot_with`'s fourth row).
@@ -2642,9 +2624,7 @@ and preserve their diagnostics as the remaining machine wrappers leave.
     machine guard lets a location change through, on the fade's last frame,
     without checking the leader is readable.
   - `warp/warp.c`'s `kind_of` spells the warp kinds as `WARP_FIRST_SCENE + n`
-    where the field names them (`SCENE_LONG_WARP`, ...); one definition. The
-    trip's end is still put together twice (`warp_runs`, and the held wait's
-    `end_the_trip_on_the_machine`).
+    where the field's scene numbers could name them.
   - `scene/planet.c`'s `planet_unpacks` keeps the machine's ROM call sites in
     a column beside the resources; a table only the machine step reads. Two
     comments sit back to back above `PlanetUnpack`.
@@ -2659,15 +2639,8 @@ and preserve their diagnostics as the remaining machine wrappers leave.
     `_DOWN`, `ITEMS_OPENS_THE_MEMBER_WINDOW_FOR_A_TONIC`/`_TAB`,
     `ITEMS_USES_ONE_MORE_TONIC`/`_TAB`); the logic's enum wants the routine,
     the machine side working the site out from its own context.
-  - `registers_at` places that only bracket a `run` (`*_SLIDE_STARTING`/
-    `_ENDED`) belong in the machine's `run` for that routine, as the techs'
-    targets reopening now does; equipment has 27 places. The exchange calls
-    the same hook `slide`/`widths` and carries non-slide places on it; one
-    name across the screens.
   - `menu_raise_amount_kind_with` works the kind out from cells and ignores
     the kind `run` passes.
-  - `menu/epoch.c`'s machine steps still `m_jsr` into the file's own
-    registered ports (`$C2:6965`, `$C2:63DF`, `$C2:7389`, `$C2:71F9`).
   - `event/party.c`'s `fill_with` takes a `bool more` only the machine's
     leftover reads; `equipment_bridge.c`'s scaffolding loads unnamed literals
     (`0x42`, `0x62`, `0x2E`).
@@ -2676,13 +2649,7 @@ and preserve their diagnostics as the remaining machine wrappers leave.
     service that gives up with a message is the item under Platform).
 - **What the shops' review left** (`menu/shop_steps.c` mostly, the rest hand):
   - The C callbacks share their `ShopSteps` members' names (`read_cursor`,
-    `tick`, `wait`, `registers_at`, `run`, `note`, `ends`), as the equipment's
-    and the main menu's do; `dontcare_check` misreads a callback named like
-    its member.
-  - Locals kept only for the scaffolding's notes (`left_by_the_last`,
-    `shown_before`, `total_before`), two bytes packed into one note, and the
-    literal register loads (`note(..., LOADED, 0x13/0x80/1)`) belong in the
-    bridge's leave helpers.
+    `tick`, `wait`, `run`, `ends`), as the equipment's and the main menu's do.
   - `DEAL_SOUND` is defined in both `shop_steps.c` and `shop_bridge.c`.
   - Trying on (`$C2:E162`) runs after a move along the list without
     re-checking its own guard; safe while the move leaves that guard's state
@@ -2690,8 +2657,6 @@ and preserve their diagnostics as the remaining machine wrappers leave.
   - `ShopPlace` and `ShopRoutine` have a member per call site (the panel four
     times), and `for_the_list` adds to the enum to reach the selling member:
     the same split as the last save stops' first item.
-  - `menu_figures_are_workable` (`figures.c`) repeats the test of the new
-    `menu_figures_can_be_worked_out` rather than calling it.
 ## Targets beyond the desktop SNES build
 
 These need target-specific designs after the asset, state and machine
@@ -2851,9 +2816,6 @@ persistence seams; game-side representation changes still need explicit work.
   `work_out_the_turn_task`: `set_scene_turn_matrix(g, 0..3, ...)`): the four
   entries want names (which is the cosine, which the sine and its negation),
   in the RAM map or an enum, as the turn's position and centre have theirs.
-- **Share the curtain step's identity.** `CURTAIN_STEP` for `$C3:01E4` is
-  defined in both `rising_palace.c` and `curtain.c`; one definition in
-  `scene.h` would keep the timing and checked call sites together.
 - **The credit pages read byte cells through word accessors**
   (`credit_pages.c`: `next_page`'s `scene_credits_page(g) & 0x00FF`,
   `write_the_jobs`'s `scene_sprite_offset_x(g) & 0xFF00`): narrow the

@@ -30,7 +30,6 @@
 #include "menu/epoch.h"
 
 #include "charge.h"
-#include "menu/bridge.h"
 #include "cpu_io.h"
 #include "core/program.h"
 #include "menu/display.h"
@@ -118,7 +117,12 @@ static void sample_map_colours(GameState *g)
 /* The picture (menu/map_picture.h) is built in the mode's upload buffer
  * four map rows (a row of Mode 7 tiles, twelve) at a time and sent to the
  * plane's tiles from tile 1. */
-enum { MAP_COLUMNS = MENU_MAP_COLUMNS, MAP_ROWS = MENU_MAP_ROWS, PICTURE_TILES_ACROSS = MENU_MAP_PICTURE_TILES_ACROSS, PICTURE_TILES_DOWN = MENU_MAP_PICTURE_TILES_DOWN, TILE_ROW_BYTES = MENU_MAP_PICTURE_TILE_ROW, MAP_ROWS_A_TILE_ROW = MENU_MAP_ROWS_A_TILE_ROW, FIRST_PICTURE_TILE = 1,  };
+enum {
+    MAP_COLUMNS = MENU_MAP_COLUMNS, MAP_ROWS = MENU_MAP_ROWS,
+    PICTURE_TILES_ACROSS = MENU_MAP_PICTURE_TILES_ACROSS, PICTURE_TILES_DOWN = MENU_MAP_PICTURE_TILES_DOWN,
+    TILE_ROW_BYTES = MENU_MAP_PICTURE_TILE_ROW,
+    MAP_ROWS_A_TILE_ROW = MENU_MAP_ROWS_A_TILE_ROW, FIRST_PICTURE_TILE = 1,
+};
 enum { GROUP_BYTES = MENU_MAP_GROUP_BYTES, TOP_RIGHT = MENU_MAP_TOP_RIGHT, BOTTOM_RIGHT = MENU_MAP_BOTTOM_RIGHT };
 enum { BLACK = 0 };
 
@@ -169,8 +173,7 @@ static uint16_t draw_map_tile(GameState *g, uint16_t buffer, uint8_t plane, unsi
 }
 
 /* The first strip clears a full kilobyte. Its storage must stay above
- * low RAM, where the mode's working cells and stacks live, and within its
- * bank. Later strips use less of the same buffer. */
+ * low RAM, where the mode's working cells live, and within its bank. Later strips use less of the same buffer. */
 static bool map_picture_buffer_fits(const GameState *g)
 {
     enum { LOW_RAM_END = 0x2000, FIRST_STRIP_BYTES = TILE_ROW_BYTES + TILE_ROW_BYTES / 3 };
@@ -240,9 +243,6 @@ static void place_map_picture(GameState *g, Platform *pf)
                            PF_GAME(RAM_MENU_MAP_NAME_TABLE + row * NAME_ROWS_SENT), NAME_ROWS_SENT,
                            VID_VRAM_LOW_BYTES, &after_low);
 }
-
-/* What each part of building the view leaves in the mode's cells. */
-enum { CELL_NAMES_LEFT = 0x00, CELL_NAMES_ROW = 0x01, CELL_BUFFER_AT = 0x05, CELL_NEXT_TILE = 0x08, CELL_NEXT_SOURCE = 0x0A, CELL_NEXT_VRAM = 0x0C, CELL_LAST_GROUP = 0x0E, CELL_NAMES_AT = 0x10, CELL_OVER_MAP = 0x13, CELL_LAND_GROUPS = 0x16, CELL_OVER_GROUPS = 0x19 };
 
 // $C2:63DF
 /* The map view's plane, from the world map just loaded: every tile's colour,
@@ -533,10 +533,10 @@ static uint16_t line_value(const GameState *g, uint8_t bank, uint16_t table, uin
 
 /* A signed multiply of a sine's value by a corner's offset, as the
  * original's routine does it: the two made positive, multiplied, and the
- * sign put back, so it leaves both operands positive in its cells. */
+ * sign put back. */
 typedef struct {
     int32_t product;     /* 24 bits */
-    uint8_t by;          /* the operands as it leaves them */
+    uint8_t by;          /* the operands, made positive */
     uint16_t value;
 } SignedProduct;
 
@@ -652,8 +652,7 @@ static void cross_line(GameState *g, unsigned edges, uint8_t line, uint16_t cros
     }
 }
 
-/* What drawing the window leaves in the mode's cells, the divider and the
- * work RAM port: the last line's two crossings, the edge loop's counts and
+/* Where drawing the window stands: the last line's two crossings, the edge loop's counts and
  * places (the last edge's corners, as its swap left them), the lines' span,
  * and the table's place. */
 typedef struct {
@@ -794,7 +793,7 @@ typedef enum {
  * through the periods as the player asks. A period whose location is where
  * the party is is turned past, back at the ends. The player travels to the
  * period the dial stands at, or leaves; asked to travel to where the party
- * is, the dial buzzes (its entry sends the sound). It is never done: the
+ * is, the dial buzzes. It is never done: the
  * screen ends by the menus' mode. */
 static DialOutcome time_dial(GameState *g, Platform *pf, MenuObject dial)
 {
@@ -1036,7 +1035,12 @@ static void keep_dial_palette(GameState *g)
  * digits, one a period (a new object takes on the period of the one that
  * starts it, which counts them). */
 enum { DIAL_HANDLER = 0x6AC8, SPIN_HANDLER = 0x6F85, DIGIT_HANDLER = 0x7143 };
-enum { DIAL_SCRIPT = 0xC274B8, DIAL_SECOND_SCRIPT = 0xC27504, DIAL_LAST_SCRIPT = 0xC274AE, DIAL_ENDING_SCRIPT = 0xC274B3 };
+enum {
+    DIAL_SCRIPT = 0xC274B8,
+    DIAL_SECOND_SCRIPT = 0xC27504,
+    DIAL_LAST_SCRIPT = 0xC274AE,
+    DIAL_ENDING_SCRIPT = 0xC274B3,
+};
 
 static void start_dial_objects(GameState *g)
 {
@@ -1137,8 +1141,7 @@ static const uint8_t gate_stream_bank[] = { [GATE_TILES_STREAM] = 0xC3, [GATE_PA
                                             [GATE_ROWS_STREAM] = 0xC6 };
 
 /* The screen services: graphics and text, then waits while the objects
- * and sound advance. Machine bridges check the complete entry contracts;
- * the native program checks their game-state preconditions. False means
+ * and sound advance. Each checks the game state it needs first; false means
  * the screen stopped before its next step. */
 typedef struct {
     bool (*clear_vram)(void *ctx, EpochScreen screen);
@@ -1150,9 +1153,6 @@ typedef struct {
     bool (*set_glyphs)(void *ctx);
     bool (*wait_a_frame)(void *ctx, EpochScreen screen);
     bool (*wait_frames)(void *ctx, EpochWait wait);
-    /* A script started, which on the machine leaves A what the waits after
-     * it read. */
-    void (*script_begun)(void *ctx, uint32_t script);
 } EpochScreenSteps;
 
 /* What both screens do first: the menus' VRAM cleared, the mode's upload
@@ -1177,10 +1177,9 @@ static bool run_until_the_mode_changes_with(GameState *g, EpochScreen screen, ui
     return true;
 }
 
-static void start_a_script_with(GameState *g, uint32_t script, const EpochScreenSteps *steps, void *ctx)
+static void start_a_script(GameState *g, uint32_t script)
 {
     TIMED_AS(g, 0xC204D9, menu_start_script(g, script, MENU_ORDINARY_SLOT));
-    steps->script_begun(ctx, script);
 }
 
 /* The screen shows from the next frame: the mode sends its frame and palette,
@@ -1276,7 +1275,7 @@ static bool show_the_map_view_with(GameState *g, Platform *pf, const EpochScreen
 
     MenuObject cursor;
     TIMED_AS(g, 0xC2048A, (void)menu_start_object(g, MAP_VIEW_CURSOR, MENU_ORDINARY_SLOT, &cursor));
-    start_a_script_with(g, MAP_VIEW_SCRIPT, steps, ctx);
+    start_a_script(g, MAP_VIEW_SCRIPT);
     show_from_the_next_frame(g, pf, 0xC263B7);
     if (!run_until_the_mode_changes_with(g, THE_MAP_VIEW, MAP_VIEW_MODE, steps, ctx)
         || !steps->wait_frames(ctx, MAP_VIEW_CLOSING))
@@ -1361,41 +1360,41 @@ static bool show_the_time_dial_with(GameState *g, Platform *pf, const EpochScree
     show_from_the_next_frame(g, pf, 0xC26A93);
     if (!steps->wait_frames(ctx, DIAL_OPENING) || !run_until_the_mode_changes_with(g, THE_TIME_DIAL, DIAL_MODE, steps, ctx))
         return false;
-    start_a_script_with(g, DIAL_ENDING_SCRIPT, steps, ctx);
+    start_a_script(g, DIAL_ENDING_SCRIPT);
     if (!steps->wait_frames(ctx, DIAL_CLOSING))
         return false;
     finish_the_time_dial(g, pf);
     return true;
 }
 
-/* ---- As C ---- */
+/* ---- The screens' services -------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
     Platform *pf;
-} ScreenInC;
+} EpochScreenContext;
 
 static bool clear_all_of_vram(void *ctx, EpochScreen screen)
 {
     (void)screen;
-    ScreenInC *c = ctx;
+    EpochScreenContext *c = ctx;
     TIMED_AS(c->game, 0xC226A8, menu_clear_all_of_vram(c->pf));
     return true;
 }
 
-static const EpochScreenSteps screen_steps_in_c;
+static const EpochScreenSteps epoch_screen_steps;
 
 static bool load_the_markers(void *ctx)
 {
-    ScreenInC *c = ctx;
+    EpochScreenContext *c = ctx;
     bool loaded = false;
-    TIMED_AS(c->game, 0xC26965, loaded = load_map_view_graphics_with(c->game, c->pf, &screen_steps_in_c, c));
+    TIMED_AS(c->game, 0xC26965, loaded = load_map_view_graphics_with(c->game, c->pf, &epoch_screen_steps, c));
     return loaded;
 }
 
 static bool build_the_map(void *ctx)
 {
-    ScreenInC *c = ctx;
+    EpochScreenContext *c = ctx;
     if (!overworld_map_tiles_can_load(c->game) || !map_picture_buffer_fits(c->game)) {
         program_breaks_a_contract(c->game, 0xC263DF, "a map view without its map record or a strip buffer clear of low RAM");
         return false;
@@ -1408,19 +1407,19 @@ static bool build_the_map(void *ctx)
 
 static bool build_the_gate(void *ctx)
 {
-    ScreenInC *c = ctx;
+    EpochScreenContext *c = ctx;
     if (!menu_object_address_names_one(menu_object_current(c->game))) {
         program_breaks_a_contract(c->game, 0xC27389, "a time dial built with no object running");
         return false;
     }
     bool built = false;
-    TIMED_AS(c->game, 0xC27389, built = build_the_dial_with(c->game, c->pf, &screen_steps_in_c, c));
+    TIMED_AS(c->game, 0xC27389, built = build_the_dial_with(c->game, c->pf, &epoch_screen_steps, c));
     return built;
 }
 
 static bool load_a_stream(void *ctx, GateStream stream)
 {
-    ScreenInC *c = ctx;
+    EpochScreenContext *c = ctx;
     Unpacker u = overworld_unpacker(c->game);
     bool loaded = false;
     TIMED_AS(c->game, 0xC271F9, loaded = load_gate_stream_from(c->game, &u, (uint8_t)stream, gate_stream_bank[stream]));
@@ -1429,7 +1428,7 @@ static bool load_a_stream(void *ctx, GateStream stream)
 
 static bool start_the_text(void *ctx)
 {
-    ScreenInC *c = ctx;
+    EpochScreenContext *c = ctx;
     if (!menu_text_can_start(c->game)) {
         program_breaks_a_contract(c->game, 0xC257DF, "a text the typesetter doesn't start");
         return false;
@@ -1440,7 +1439,7 @@ static bool start_the_text(void *ctx)
 
 static bool set_the_glyphs(void *ctx)
 {
-    ScreenInC *c = ctx;
+    EpochScreenContext *c = ctx;
     if (!menu_text_can_carry_on(c->game)) {
         program_breaks_a_contract(c->game, 0xC25823, "a text the typesetter doesn't go on with");
         return false;
@@ -1452,35 +1451,33 @@ static bool set_the_glyphs(void *ctx)
 static bool wait_for_the_next_frame(void *ctx, EpochScreen screen)
 {
     (void)screen;
-    ScreenInC *c = ctx;
+    EpochScreenContext *c = ctx;
     menu_wait_for_the_next_frame(c->game, c->pf);
     return true;
 }
 
 static bool wait_frames_sending_the_sound(void *ctx, EpochWait wait)
 {
-    ScreenInC *c = ctx;
+    EpochScreenContext *c = ctx;
     menu_wait_frames_sending_the_sound(c->game, c->pf, epoch_wait_frames[wait]);
     return true;
 }
 
-static void nothing_left(void *ctx, uint32_t script) { (void)ctx, (void)script; }
-
-static const EpochScreenSteps screen_steps_in_c = {
+static const EpochScreenSteps epoch_screen_steps = {
     clear_all_of_vram, load_the_markers, build_the_map, build_the_gate, load_a_stream, start_the_text,
-    set_the_glyphs, wait_for_the_next_frame, wait_frames_sending_the_sound, nothing_left,
+    set_the_glyphs, wait_for_the_next_frame, wait_frames_sending_the_sound,
 };
 
 bool menu_epoch_map_view_shown(GameState *g, Platform *pf)
 {
-    ScreenInC c = { g, pf };
-    return show_the_map_view_with(g, pf, &screen_steps_in_c, &c);
+    EpochScreenContext c = { g, pf };
+    return show_the_map_view_with(g, pf, &epoch_screen_steps, &c);
 }
 
 bool menu_epoch_time_dial_shown(GameState *g, Platform *pf)
 {
-    ScreenInC c = { g, pf };
-    return show_the_time_dial_with(g, pf, &screen_steps_in_c, &c);
+    EpochScreenContext c = { g, pf };
+    return show_the_time_dial_with(g, pf, &epoch_screen_steps, &c);
 }
 
 /* The objects whose handlers go by steps are on one of theirs: the original
@@ -1523,15 +1520,6 @@ static bool digit_takes(const GameState *g, MenuObject digit)
            && menu_given_sprite_script_is_well_formed(g, menu_digit_hide_script(g, period));
 }
 
-/* The Day of Lavos's turning world (menu/turning_world.c) builds its picture
- * of the 1000 A.D. map from the same pieces: its scene's script calls the
- * colours' sampling and the picture's laying out on their own. What each
- * leaves in X, A's high byte and the carry is what liveness keeps live after
- * a script's call (menu/map_scenes.c): the colours' table, the count of
- * tiles, and the carry of the sampling's last count; the laying out's size
- * of a row sent, and the carry of moving past the last row's source. */
-enum { COLOURS_AT = 0xAB25 };
-
 /* ---- What a world map's scene calls of the map view ---------------------------------------- */
 
 /* A scene that lays a world map flat in Mode 7 (the Day of Lavos's turning
@@ -1565,7 +1553,7 @@ MENU_SCRIPT_ROUTINES(menu_map_view_routines,
     { 0xC268F4, "the map view's backdrop", NULL, show_the_backdrop },
 );
 
-/* ---- The screens' objects as C (menu/handlers.h) ------------------------------------------- */
+/* ---- The screens' objects (menu/handlers.h) --------------------------------------------------- */
 
 /* Each object's turn, which the vblank handler runs: the cursor done once it
  * has walked back, a marker once it isn't shown, and the dial, its gate's

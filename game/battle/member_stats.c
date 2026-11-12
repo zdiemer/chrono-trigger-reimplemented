@@ -22,11 +22,19 @@
 #include "battle/equipment_data.h"
 #include "battle/rules_data.h"
 
-/* The direct page's cells the setup works in. The stat block's place, the
+/* The work cells the setup works in. The stat block's place, the
  * record's and what the last boost or affinity added are cells later work
- * reads as it finds them (battle.h), kept plainly; the others are
- * scaffolding. */
-enum { BLOCK_AT = BATTLE_CLOCK_READS, MEMBER_AT = 0x02, BITS_LEFT = 0x04, COPIED = 0x04, RECORD_AT = BATTLE_NUMBER_TESTED, ADDED = BATTLE_STAT_OFFSET_LOW, BOOST_AT = 0x0C, TABLE_AT = BATTLE_TECH_HITS_LEFT,  };
+ * reads as it finds them (battle.h); the others keep the original's
+ * values. */
+enum {
+    BLOCK_AT = BATTLE_CLOCK_READS,
+    MEMBER_AT = 0x02,
+    BITS_LEFT = 0x04,
+    COPIED = 0x04,
+    RECORD_AT = BATTLE_NUMBER_TESTED,
+    ADDED = BATTLE_STAT_OFFSET_LOW,
+    TABLE_AT = BATTLE_TECH_HITS_LEFT,
+};
 
 /* ---- The boosts ------------------------------------------------------------------------------ */
 
@@ -130,8 +138,6 @@ static void set_up_member_stats(GameState *g, uint8_t member)
         uint8_t piece = combatant_stat_byte(g, member, worn_pieces[p].worn_at);
         uint8_t number = (uint8_t)(piece - worn_pieces[p].first);
         uint16_t record = (uint16_t)(boost_records_place(worn_pieces[p].kind) + effect_times(g, number, BOOST_RECORD_BYTES));
-        /* the original finds the armor's and the helmet's record with the
-         * carry of its range's test in (scaffolding) */
         /* the original hands the boost the record's place and the boosts'
          * table's in cells, and names another table before the affinities,
          * which don't read it: kept, as later work reads the cells */
@@ -154,8 +160,6 @@ static uint16_t item_record_place(GameState *g, uint8_t item, uint16_t none)
     if (records.bytes == 0)
         return none;
     uint16_t place = (uint16_t)(records.place + effect_times(g, (uint8_t)(item - records.first), records.bytes));
-    /* the original multiplies with the carry of its range's test in: set
-     * past the weapons (scaffolding) */
     return place;
 }
 
@@ -185,21 +189,13 @@ void battle_take_equipment_records(GameState *g, uint8_t worn_at, uint8_t copy_t
     copy_equipment_records(g, worn_at, copy_to, bytes);
 }
 
-/* ---- The entries ------------------------------------------------------------------------------ */
-
-/* The stat block whose place is in the cell `at`: the combatant's slot, or
- * none where the place is no block's. */
-
-/* The member in its cell ($02), a member of the party's. */
-
-/* A piece's boost and affinities, for the member whose block's place is in
- * its cell ($00), from the record whose place is in its ($08); the boosts'
- * table's place in its cell ($0E). The record is read within the bank. */
-enum { RECORD_LAST_PLACE = 0xFFFA };
-
-/* An item's record's place: the item in A, the place in X (A clear where it
- * has one; where not, X and A are left as they came). */
+/* ---- The equipment records copied -------------------------------------------------------------- */
 
 /* The records to copy: where the item is in a block, in its cell ($06); where
  * they go, in its ($08); how many bytes, in its ($0A). */
-enum { WORN_AT = BATTLE_MEMBER_CELL, COPY_TO = BATTLE_NUMBER_TESTED, BYTES = BATTLE_STAT_OFFSET_LOW, BLOCK_OFFSETS = 0x100 };
+enum {
+    WORN_AT = BATTLE_MEMBER_CELL,
+    COPY_TO = BATTLE_NUMBER_TESTED,
+    BYTES = BATTLE_STAT_OFFSET_LOW,
+    BLOCK_OFFSETS = 0x100,
+};

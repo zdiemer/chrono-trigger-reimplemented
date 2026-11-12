@@ -23,12 +23,7 @@
  * offsets, each sprite's size in its attributes, through another of the
  * program's own ($7E:3A97, the endings' rider of the swept window), where a
  * sprite left of the picture shows with X's 9th bit and one past the right
- * edge or below the picture is put out of sight.
- *
- * The original's registers leave the callers the next free entry, and after a
- * clipped list the A its loop ends with and the overflow of its last Y; the
- * entries' wrappers give them back, working the last two out from the list's
- * last entry, which stays where it is. */
+ * edge or below the picture is put out of sight. */
 #include "scene/scene.h"
 #include "charge.h"
 
@@ -58,7 +53,7 @@ typedef struct {
 } SpriteCursor;
 
 /* The game keeps the high-table cursor as an address; the port, as the byte's
- * place in the table. The guards keep it inside. */
+ * place in the table. The checks below keep it inside. */
 static SpriteCursor cursor(const GameState *g)
 {
     return (SpriteCursor){ scene_sprite_index(g), (uint8_t)(scene_sprite_high_pointer(g) - SCENE_SPRITE_HIGH_TABLE) };
@@ -143,12 +138,6 @@ static ListedSprite listed_sprite(const GameState *g, uint16_t list, unsigned n)
                            listed_byte(g, list, n, LISTED_X), listed_byte(g, list, n, LISTED_Y) };
 }
 
-/* The original reads a list through the work RAM port, which it leaves just
- * past the list's last byte (in the port's second bank, if the list runs
- * over), the port's bank byte as the routine set it: 0, or for the signed
- * list's routine the bank's own number. */
-enum { PORT_BANK_ZERO = 0x00, PORT_BANK_NAMED = SOURCE_BANK };
-
 /* A clipped sprite's X: the list's X plus the scene's 16-bit offset. At or past
  * the right edge -- compared by the sign of the difference, as the original
  * does, so $8000-$80FF counts as past it -- it goes off the right. Left of the
@@ -189,8 +178,8 @@ static void load_sprite_list(GameState *g, uint16_t list, bool clipped)
         next_entry(&c);
     }
     set_cursor(g, c);
-    charge_legacy_io_accesses(g, 3);
-    charge_legacy_accesses(g, 1);
+    charge_io_accesses(g, 3);
+    charge_accesses(g, 1);
 }
 
 /* The lists' offset down as a whole word, which the program's own list of
@@ -208,10 +197,10 @@ enum { BELOW_THE_PICTURE = 0xE0 };
 /* What a sprite written after one was left out leaves besides itself: its
  * attributes again in the next entry's X, and the high byte of its X, worked
  * out as a word, in its own Y (which a sprite placed there writes over). The
- * original goes on from a sprite it left out with its accumulator a word wide,
- * until it places one: its reads of the list then take the port's byte twice
- * (the second from the port's address, which reads back as the bus last held,
- * the same byte), and its stores and its add on X are a word each. */
+ * original goes on from a sprite it left out working in words, until it
+ * places one: its reads of the list then take the stream's byte twice (the
+ * same byte, as the stream reads back), and its stores and its add on X are a
+ * word each. */
 static void leave_word_wide_strays(GameState *g, uint16_t entry, uint8_t attributes, uint8_t list_x)
 {
     uint16_t x = (uint16_t)((list_x | list_x << 8) + scene_sprite_offset_x(g));
@@ -257,8 +246,8 @@ void scene_draw_large_sprite_list(GameState *g, uint16_t list, SceneLargeList fo
         next_entry(&c);
     }
     set_cursor(g, c);
-    charge_legacy_io_accesses(g, 3);
-    charge_legacy_accesses(g, 1);
+    charge_io_accesses(g, 3);
+    charge_accesses(g, 1);
 }
 
 /* A list with signed offsets: an entry's X and Y count from the scene's
@@ -280,10 +269,6 @@ static int16_t signed_list_y(const GameState *g, uint8_t list_y)
  * nowhere: it goes below the picture. */
 static bool past_the_right_edge(int16_t x) { return x >= SCREEN_RIGHT; }
 static uint8_t shown_y(int16_t y) { return y < 0 || y >= BELOW_THE_PICTURE ? BELOW_THE_PICTURE : (uint8_t)y; }
-
-/* What the original's drawing leaves in its cells: the work RAM port past the
- * list, the count run down, and the last sprite's attributes, which it keeps
- * to test the sprite's size. */
 
 // $7E:3A97
 /* Copy the list at `list` into the sprite table, each sprite placed by its
@@ -312,8 +297,8 @@ void scene_draw_signed_sprite_list(GameState *g, uint16_t list)
         next_entry(&c);
     }
     set_cursor(g, c);
-    charge_legacy_io_accesses(g, 3);
-    charge_legacy_accesses(g, 1 + (sprites ? 2 : 0));
+    charge_io_accesses(g, 3);
+    charge_accesses(g, 1 + (sprites ? 2 : 0));
 }
 
 // $C3:0DBC, $C3:0DF3
@@ -383,9 +368,8 @@ void scene_draw_lists_at(GameState *g, uint16_t x, uint16_t y)
     set_scene_sprite_offset_y_high(g, (uint8_t)(y >> 8));
 }
 
-/* As C calls, for the program's routines ported as C: one small sprite from
- * its four bytes in the program, or one the port has as values, each moved by
- * the scene's offset. */
+/* One small sprite from its four bytes in the program, or one the port has as
+ * values, each moved by the scene's offset. */
 void scene_draw_sprite(GameState *g, uint16_t source) { add_sprite(g, source, false); }
 void scene_draw_sprite_moved(GameState *g, SceneSprite sprite)
 {
@@ -401,37 +385,17 @@ uint8_t scene_sprite_place_in_group(const GameState *g)
     return (uint8_t)(scene_sprite_index(g) % (ENTRY_BYTES * SPRITES_PER_HIGH_BYTE));
 }
 
-/* The discarded result registers formerly read the final sprite back.
- * Inspect only the conditions selecting those reads, without charging that
- * inspection, and keep the old access count on the legacy backend. */
-void scene_charge_clipped_list_result(GameState *g, uint16_t list)
-{
-    uint32_t mark = charge_uncounted_begin(g);
-    bool nonempty = list_sprites(g, list) != 0;
-    charge_uncounted_end(g, mark);
-    charge_legacy_accesses(g, nonempty ? 6 : 1);
-}
-
-void scene_charge_signed_list_result(GameState *g, uint16_t list)
-{
-    uint32_t mark = charge_uncounted_begin(g);
-    bool nonempty = list_sprites(g, list) != 0;
-    charge_uncounted_end(g, mark);
-    charge_legacy_accesses(g, nonempty ? 6 : 2);
-}
-
-/* ---- Guards --------------------------------------------------------------------------------- */
+/* ---- What the sprites need ------------------------------------------------------------------ */
 
 /* The port writes through the named sprite tables, so it takes only what the
  * game does: a cursor in them, which the sprites it places stay inside. The
- * original reaches the tables through a data bank of 0, so a cursor anywhere
- * else writes wherever it points, the scene's own cells and the I/O registers
- * past $2000 among them; those calls are the original's. A list stays clear of
+ * original writes wherever a cursor points, so a cursor anywhere else would
+ * write over the scene's own cells or the console's ports; the game never
+ * makes one, and a scene that does goes no further. A list stays clear of
  * the cell the original counts its entries down in, which the port counts in a
  * local; and a clipped list clear of the tables and of all the scene's sprite
  * cells: the original stores its X as a word whose high byte lands in the Y a
- * moment before the Y does, which a list read from the table could see, and the
- * entry's wrapper reads the list's last entry back after the call. */
+ * moment before the Y does, which a list read from the table could see. */
 static bool fits_in_table(uint16_t entry, uint16_t high, unsigned sprites)
 {
     if (sprites == 0)
@@ -444,8 +408,8 @@ static bool fits_in_table(uint16_t entry, uint16_t high, unsigned sprites)
            last_high < SCENE_SPRITE_HIGH_TABLE + SCENE_SPRITE_HIGH_TABLE_BYTES;
 }
 
-/* Whether `sprites` more fit in the tables from the cursor, for the guards of
- * ports that draw through these as C. */
+/* Whether `sprites` more fit in the tables from the cursor, for the scenes
+ * that check before they draw. */
 bool scene_sprites_fit(const GameState *g, unsigned sprites)
 {
     return fits_in_table(scene_sprite_index(g), scene_sprite_high_pointer(g), sprites);
@@ -453,94 +417,17 @@ bool scene_sprites_fit(const GameState *g, unsigned sprites)
 
 /* Where the original counts a list's entries down, the first of the scene's
  * sprite cells before it, and the end of the high table. */
-enum { COUNT_CELL = RAM_SCENE_SPRITE_LIST_LEFT & 0xFFFF, FIRST_SPRITE_CELL = RAM_SCENE_SPRITE_INDEX & 0xFFFF, SPRITE_TABLES_END = SCENE_SPRITE_HIGH_TABLE + SCENE_SPRITE_HIGH_TABLE_BYTES,  };
-
-/* ---- What the lists leave, for the wrappers -------------------------------------------------- */
-
-/* What the program's list routines leave in the registers and flags as they
- * return, worked out from the list and the sprite table: for the entries
- * below, and for the ports that draw a list as C where the original called
- * the routine and hand on what it left (scene.h). None of it is the game's. */
-
-/* What a clipped list leaves, from its last entry: A's high byte is that
- * sprite's X shifted left -- where an X past the right edge is the word $9801,
- * as the original stores it (its high byte overwritten by the Y) -- and V the
- * overflow of adding the scene's offset to its Y. An empty list leaves both. */
-typedef struct {
-    uint16_t a;
-    bool overflow;
-} ClippedListLeaves;
-
-static ClippedListLeaves clipped_list_leaves(const GameState *g, uint16_t list, uint16_t a, bool overflow)
-{
-    uint8_t sprites = list_sprites(g, list);
-    if (sprites) {
-        uint16_t x = clipped_x(g, listed_byte(g, list, sprites - 1u, LISTED_X));
-        uint16_t stored = past_the_right(x) ? 0x9801 : x;
-        uint8_t y = listed_byte(g, list, sprites - 1u, LISTED_Y), offset = (uint8_t)scene_sprite_offset_y(g);
-        uint8_t sum = (uint8_t)(y + offset);
-        a = (uint16_t)(((uint16_t)(stored << 1) & 0xFF00) | (a & 0xFF));
-        overflow = (~(y ^ offset) & (y ^ sum) & 0x80) != 0;
-    }
-    return (ClippedListLeaves){ a, overflow };
-}
-
-/* The A a clipped list leaves, from the A it was called with, for the ports
- * that call it as C and hand A on as the original does. */
-uint16_t scene_clipped_list_leaves_a(const GameState *g, uint16_t list, uint16_t a)
-{
-    return clipped_list_leaves(g, list, a, false).a;
-}
-
-bool scene_clipped_list_leaves_overflow(const GameState *g, uint16_t list)
-{
-    return clipped_list_leaves(g, list, 0, false).overflow;
-}
-
-/* What the program's list of large sprites leaves in A: its last sprite's Y
- * word, where that sprite was left out; otherwise that word's high byte over
- * the next free entry's place in its group of four; with no sprite, the
- * list's high byte over its count. */
-static uint16_t large_list_leaves_a(const GameState *g, uint16_t list, SceneLargeList form)
-{
-    uint8_t sprites = list_sprites(g, list);
-    if (!sprites)
-        return (uint16_t)((list & 0xFF00) | wram_read8(g, list_address(list)));
-    uint16_t y = large_list_y(g, listed_byte(g, list, sprites - 1u, LISTED_Y));
-    if (form == LIST_LEAVES_OUT_BELOW_THE_PICTURE && y >= BELOW_THE_PICTURE)
-        return y;
-    return (uint16_t)((y & 0xFF00) | (scene_sprite_index(g) & (ENTRY_BYTES * SPRITES_PER_HIGH_BYTE - 1)));
-}
-
-/* What the signed list leaves in A: the next free entry's place in its group
- * of four, over the high byte of its last sprite's X where that sprite went
- * past the right edge (0 otherwise); with no sprite, its count. */
-uint16_t scene_signed_list_leaves_a(const GameState *g, uint16_t list)
-{
-    uint8_t sprites = list_sprites(g, list);
-    if (!sprites)
-        return wram_read8(g, list_address(list));
-    int16_t x = signed_list_x(g, listed_byte(g, list, sprites - 1u, LISTED_X));
-    uint16_t high = past_the_right_edge(x) ? (uint16_t)((uint16_t)x & 0xFF00) : 0;
-    return (uint16_t)(high | scene_sprite_place_in_group(g));
-}
-
-/* Back with 8-bit A, holding the byte it left, and the count it reached and
- * the carry of its last compare, as the original leaves them. */
-
-/* The list at A, small sprites; back, Y is the next free entry. The original's
- * A ends with the list's high byte, which it already has (its low byte isn't
- * read). */
-
-/* The list at A, large sprites clipped at the right edge; back, Y is the next
- * free entry, and A and V as above. */
+enum {
+    COUNT_CELL = RAM_SCENE_SPRITE_LIST_LEFT & 0xFFFF,
+    SPRITE_TABLES_END = SCENE_SPRITE_HIGH_TABLE + SCENE_SPRITE_HIGH_TABLE_BYTES,
+};
 
 /* The two forms of the program's list of large sprites, as its code holds
  * them where the callers write it: the test that leaves a sprite out (a
  * branch back to the next sprite where the Y is at the picture's bottom or
  * below, as the program is loaded), or that test written out with two
  * no-operations (the fireworks'). Any other code there is no form the program
- * writes, and the guard hands it to the original. */
+ * writes, and a scene that finds one goes no further. */
 enum { LEAVES_OUT_BELOW_THE_PICTURE_CODE = 0xD8B0, KEEPS_EVERY_SPRITE_CODE = 0xEAEA };
 
 static bool is_a_large_list_form(uint16_t code)
@@ -554,34 +441,6 @@ static SceneLargeList large_list_form(uint16_t code)
 }
 
 SceneLargeList scene_large_list_form_written(const GameState *g) { return large_list_form(scene_large_list_clip(g)); }
-
-void scene_charge_large_list_result(GameState *g, uint16_t list)
-{
-    uint32_t mark = charge_uncounted_begin(g);
-    SceneLargeList form = scene_large_list_form_written(g);
-    uint8_t sprites = list_sprites(g, list);
-    unsigned accesses = 4; /* form, count, empty-list count reread */
-    if (sprites) {
-        uint16_t y = large_list_y(g, listed_byte(g, list, sprites - 1u, LISTED_Y));
-        accesses = 6 + (form == LIST_LEAVES_OUT_BELOW_THE_PICTURE && y >= BELOW_THE_PICTURE ? 0 : 2);
-    }
-    charge_uncounted_end(g, mark);
-    charge_legacy_accesses(g, accesses);
-}
-
-uint16_t scene_large_list_leaves_a(const GameState *g, uint16_t list)
-{
-    return large_list_leaves_a(g, list, scene_large_list_form_written(g));
-}
-
-/* The list at A, in the form the routine's code holds; back, Y is the next
- * free entry, as the routine keeps it in its cells. */
-
-/* The list at A; back, Y is the next free entry, as the routine keeps it in
- * its cells, with 16-bit A, and X as it was. */
-
-/* Where the original keeps a sprite's attributes while it places it. */
-enum { ATTRIBUTES_CELL = RAM_SCENE_SPRITE_LIST_ATTRIBUTES & 0xFFFF };
 
 /* Once the original has left a sprite out it goes on with its accumulator a
  * word wide (leave_word_wide_strays), and takes its count down as a word with
@@ -618,7 +477,7 @@ static bool large_list_form_takes(const GameState *g, uint16_t list)
            (large_list_form(code) == LIST_KEEPS_EVERY_SPRITE || leaves_out_as_ported(g, list));
 }
 
-/* The same, for a port that draws a list in the form the code holds as C:
+/* The same, for a scene that draws a list in the form the code holds:
  * the list clear of the count the original works in, room for its sprites
  * from the cursor, and a form the port takes. */
 bool scene_large_sprite_list_takes(const GameState *g, uint16_t list)
@@ -627,8 +486,3 @@ bool scene_large_sprite_list_takes(const GameState *g, uint16_t list)
     uint32_t end = (uint32_t)list + 1 + sprites * ENTRY_BYTES;
     return !(list <= COUNT_CELL && end > COUNT_CELL) && scene_sprites_fit(g, sprites) && large_list_form_takes(g, list);
 }
-
-/* These save P while they work (PHP, PLP): the byte is on the stack, where a
- * source can reach it. */
-
-/* One small sprite from X; back, Y is the next free entry. */

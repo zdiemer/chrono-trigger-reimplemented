@@ -45,7 +45,12 @@ void screen_circle_opens(GameState *g, ScreenEffect opening, uint8_t x, uint8_t 
 /* The four ways the curtain sweeps: its ragged edge moves from one side of
  * the screen to the other, uncovering the picture or covering it (and leaving
  * it covered). */
-typedef enum { CURTAIN_UNCOVERS_RIGHTWARD, CURTAIN_COVERS_RIGHTWARD, CURTAIN_UNCOVERS_LEFTWARD, CURTAIN_COVERS_LEFTWARD } Curtain;
+typedef enum {
+    CURTAIN_UNCOVERS_RIGHTWARD,
+    CURTAIN_COVERS_RIGHTWARD,
+    CURTAIN_UNCOVERS_LEFTWARD,
+    CURTAIN_COVERS_LEFTWARD,
+} Curtain;
 
 /* A script waiting on a curtain: the curtain started if nothing runs, and
  * once it has swept across, done with. True when it is done. */
@@ -73,11 +78,9 @@ void screen_searchlight_moves(GameState *g, const SearchlightMove *move, uint8_t
  * frames, in 8.8 fixed point; frames 0 is no move the game makes. */
 uint16_t screen_searchlight_speed(uint8_t from, uint8_t to, uint8_t frames);
 
-/* The step the main loop runs ($C0:21E1), and its guard: an effect the port
- * draws as the original does. */
-/* As C, with the guard's state half first: false where a step is the
- * machine's yet, or where the field closes into its scene, which is where
- * the program goes next. */
+/* The step the main loop runs ($C0:21E1), for an effect the port draws as
+ * the original does: false where the port refuses the effect, or where the
+ * field closes into its scene, which is where the program goes next. */
 bool field_screen_effect_moved_on(GameState *g, Platform *pf);
 
 /* Continuations of the field's held frame waits. */

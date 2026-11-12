@@ -12,7 +12,7 @@
  * The clock's modifier runs the frame's input work again, the controller read
  * and the play time's tick, before it reads the seconds: that is the one piece
  * of an effect's work that reaches the host (the platform it is handed). A
- * routine past the table's 21, which no record has, the entries turn away
+ * routine past the table's 21, which no record has, is refused
  * (battle/effect_work.c). */
 #include "battle/effect_parts.h"
 
@@ -143,7 +143,7 @@ static void for_the_fallen(GameState *g)
  * then the last digit of the seconds -- over the long arithmetic's leftover
  * high word as well, which the modifier's own multiply leaves clear -- scales
  * it: 0 to about a tenth, 1 or 2 half, 3 or 4 as it is, 5 or 6 by half of the
- * word the direct page's first cell holds added (the original loads that, not
+ * word the battle's first work cell holds added (the original loads that, not
  * the damage: the game plays it so), 7 or 8 doubled, 9 trebled. Where the
  * console is still reading the controller, or the reset buttons are held, the
  * original waits or resets inside the work; the port goes on with the sets
@@ -172,7 +172,7 @@ static void by_the_clock(GameState *g, Platform *pf)
 // $C1:EFC3
 /* The chance of an enemy's charm, which a steal takes where it comes: a
  * percent drawn below the modifier's number. The original hands the outcome
- * back in the direct page's third cell. */
+ * back in the battle's third work cell. */
 static bool charm_chance(GameState *g, uint8_t percent)
 {
     bool comes = battle_random(g, 0, PERCENT) < percent;
@@ -422,7 +422,7 @@ static void apply(GameState *g, Platform *pf, Modifier m)
 
 // $C1:EB1C
 /* The modifier the action is worked out with (battle_effect_modifier). The
- * original hands the routine its numbers in the direct page, and finds the
+ * original hands the routine its numbers in its work cells, and finds the
  * record by a multiply. */
 static Modifier take_modifier(GameState *g)
 {

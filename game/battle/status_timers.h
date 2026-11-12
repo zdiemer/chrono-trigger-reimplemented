@@ -13,10 +13,7 @@
 #include "platform/platform.h"
 #include "state.h"
 
-/* See to a kind's run-out timer as the original's call at `site` would run
- * its handler (a sibling, battle/bridge.h's battle_run): false where the
- * handler didn't come back (a showing the original's code stopped in). */
-/* A kind's run-out timer seen to, as C: false where it went no further. */
+/* A kind's run-out timer seen to: false where it went no further. */
 bool battle_run_out_timer_seen_to(GameState *g, Platform *pf, BattleTimer kind);
 
 #endif

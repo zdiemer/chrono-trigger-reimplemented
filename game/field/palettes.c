@@ -19,7 +19,6 @@
 #include "charge.h"
 #include "field/bridge.h"
 #include "field/field_data.h"
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -182,7 +181,7 @@ static void join_party_place_sharers(GameState *g, FieldObject obj, FieldLink ol
 
 /* A party place's object takes its place's own slot: joining the sharers
  * there where they have its colours, or the slot if it is free. (Where an
- * object of other colours holds it the guard turns the call away.) */
+ * object of other colours holds it the port refuses the call.) */
 static bool take_party_place_slot(GameState *g, FieldObject obj, uint8_t slot)
 {
     FieldLink newest = field_link_stored(field_palette_slot_newest(g, slot));

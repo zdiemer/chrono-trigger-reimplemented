@@ -1,27 +1,10 @@
-/* The items screen on the original's machine: its checked legacy adapters, the
- * bridges that run what game/menu/item_screen.c decides between the calls to
- * what is still the original's, and their guards.
- *
- * Each step reads the cursor, asks item_screen.c what the frame's input
- * does, and carries it out: the sounds are siblings, run as the original's
- * JSRs reach them (menu_run); the list's frame is C, called as C; a step
- * that waits for the next frame waits in the menus' task switch, parked
- * until its task goes on (menu_wait_a_frame_from). Where a step jumps on to
- * the main menu, it calls that continuation as C behind its guard.
- *
- * The routines a step reaches with a JSR and that call out themselves (the
- * pointing along the list and its description, the use of an item and its
- * handlers, the member window, a tab's member) are entries of their own,
- * run through menu_run so that the original's frames stand under their calls
- * out as the original has them: shadow mode compares the stack there, the
- * flags each of them saves as it starts among it. So before running one, and
- * before a sound (which saves them too), a bridge leaves the flags the
- * original's own tests left, worked out from the state (the leaves at the end
- * of the file): scaffolding, which the native build compiles out. */
+/* What the items screen's steps need of the game's state before they run:
+ * the cursor on the list, an item in hand one of the party's, the members an
+ * item is used on drawable, room in the upload queue for what a step queues.
+ * The steps (game/menu/item_screen.c) go no further where one fails. */
 #include "menu/item_screen.h"
 
 #include "charge.h"
-#include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/description.h"
 #include "menu/display.h"
@@ -41,26 +24,7 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-/* ---- The calls out ----------------------------------------------------------------------------- */
-
-/* The original's routines the steps call, by what they do. */
-enum { MAIN_MENU = 0xC29A98, /* back to the main menu */ };
-
-/* What they read (the calling convention checks each): most nothing but the
- * page, the data bank and memory; the stop of tasks A, the pointing at a
- * member A (its sound's). */
-
-/* The tasks a step stops: the second cursor's (the fourth's bit). */
-enum { HELD_CURSOR_TASK = 0x40 };
-
-/* The sprites' blocks a frame the tab's pointing leaves in A. */
-enum { BLOCKS_A_FRAME = 2 };
-
-/* An item's use found: the figures' first byte shifted up to its first set
- * bit of five (or past the five, counted out). */
-enum { USE_BITS = 5, TOP_BIT = 0x80 };
-
-/* ---- The guards -------------------------------------------------------------------------------- */
+/* ---- The steps --------------------------------------------------------------------------------- */
 
 static bool queue_takes(const GameState *g, unsigned uploads) { return menu_upload_queue_takes(g, uploads); }
 

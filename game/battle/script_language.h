@@ -17,10 +17,9 @@
  * command by its row into a ScriptCommand, and the operation takes the
  * parameters it names. It says how the channel goes on (ScriptFlow): past the
  * command, or staying on it to run it again next frame (a wait); and whether
- * the channel carries on with its next command in this frame. A row whose
- * command still calls out to the original's code (the sound driver) has no
- * operation: it decodes the command for a bridge, which takes the machine,
- * in battle/scripts.c's table beside the dispatch. */
+ * the channel carries on with its next command in this frame. The sound
+ * commands' rows have no operation: they decode the command for
+ * battle/scripts.c, which plays the sound through the audio service. */
 #ifndef CT_GAME_BATTLE_SCRIPT_LANGUAGE_H
 #define CT_GAME_BATTLE_SCRIPT_LANGUAGE_H
 
@@ -66,8 +65,8 @@ bool script_combatant_from(const GameState *g, ScriptChannel ch, unsigned first,
 /* The background's colors, which a rule's cycle runs to the last of. */
 enum { BACKGROUND_COLORS = 128 };
 
-/* What the original leaves in the battle's first work cells ($80 on), its
- * registers as it works: scaffolding only, written under ORIGINAL_EFFECT. */
+/* What the original leaves in the battle's first work cells ($80 on) as it
+ * works, kept as it leaves it. */
 void script_leave(GameState *g, unsigned cell, uint8_t value);
 void script_leave_word(GameState *g, unsigned cell, uint16_t value);
 uint8_t script_left(const GameState *g, unsigned cell);
@@ -96,9 +95,9 @@ void script_go_past(GameState *g, uint8_t length);
  * script is: the ROM or work RAM. */
 uint8_t script_operand(const GameState *g, unsigned k);
 
-/* Whether the script lies over the direct page, whose cells the commands
- * write as they read their operands: the original's to run. */
-bool script_over_the_direct_page(const GameState *g);
+/* Whether the script lies over the battle's low work cells, which the
+ * commands write as they read their operands: a script the port refuses. */
+bool script_over_the_work_cells(const GameState *g);
 
 /* ---- The commands ---------------------------------------------------------------------- */
 
@@ -239,7 +238,7 @@ enum { SCRIPT_NOBODY = 0xFF };
 
 typedef struct {
     uint8_t command;
-    ScriptOperation run; /* none for a bridge's row */
+    ScriptOperation run; /* none for a sound command's row */
     struct {
 #define SCRIPT_PARAMETER_SPEC(type, name) ScriptArg name;
         SCRIPT_PARAMETERS(SCRIPT_PARAMETER_SPEC)
@@ -267,7 +266,7 @@ const ScriptOpcode *script_opcode(uint8_t command);
 
 /* Whether the row's operation runs in this state as the original's handler
  * would; decoding its command; running its operation (a row that has one);
- * and moving the channel on as the operation or the bridge says. */
+ * and moving the channel on as the operation or the sound command says. */
 bool script_runs_here(const GameState *g, const ScriptOpcode *row);
 ScriptCommand script_decode(const GameState *g, const ScriptOpcode *row);
 ScriptFlow script_operate(GameState *g, const ScriptOpcode *row);
@@ -315,7 +314,7 @@ BattlePoint script_point(const GameState *g);
 BattlePoint script_aim(GameState *g, ScriptAim aim, uint8_t x, uint8_t y, uint8_t place);
 
 /* The sound commands' sound played, by the command's byte ($78-$7D,
- * battle/script_sound.c), as C. */
+ * battle/script_sound.c). */
 void script_play_the_sound(GameState *g, Platform *pf, uint8_t byte, const ScriptCommand *command);
 
 static inline bool script_each_combatant(const GameState *g, ScriptChannel ch, unsigned k, uint8_t *combatant)

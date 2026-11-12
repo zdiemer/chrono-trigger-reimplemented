@@ -204,8 +204,7 @@ static void capsule_iris(GameState *g, MenuObject o, uint8_t slot)
     set_menu_object_slots_capsule_frames(g, o, (uint16_t)(frames + 1));
     set_up_circle(g, o, table, true, SCENE_CIRCLE_ROUND);
 
-    /* The object owns the capsule's dimensions. The circle renderer leaves
-     * its input cells as scaffolding, so do not read those cells back. */
+    /* The capsule's dimensions are the object's own, not the circle's cells. */
     MenuPlace place = menu_object_place(g, o);
     uint16_t radius = menu_object_slots_iris_radius(g, o);
     uint16_t stretch = menu_object_slots_iris_stretch(g, o);
@@ -224,15 +223,13 @@ static void capsule_iris(GameState *g, MenuObject o, uint8_t slot)
     fill_lines(g, (uint16_t)(centre_at + 2), (uint16_t)(stretch - 1), value_at(g, centre_at));
 }
 
-/* ---- the entries ----------------------------------------------------------------------------- */
+/* ---- what the routines need ------------------------------------------------------------------ */
 
-/* The scripts' routines run on the mode's page, their object a slot. The
- * starters reach the channel through the data bank, so it is on the I/O
- * registers; the irises reach their object through it, so it is on low RAM,
- * and the game draws them on the screen: a centre line and a radius under
+/* The scripts' routines run with their object a slot, and the game draws the
+ * irises on the screen: a centre line and a radius under
  * 256, a squashed iris of a radius of 2 or more (a smaller one would copy the
  * whole bank), and a capsule stretched 2 lines or more. */
-enum { MODE_PAGE = 0x0000, SCREEN_LINES = 0x100 };
+enum { SCREEN_LINES = 0x100 };
 
 static bool iris_takes(const GameState *g, MenuObject o, bool capsule)
 {
@@ -350,8 +347,7 @@ static void start_the_curtain(GameState *g, Platform *pf, MenuObject o)
     step_the_curtain(g, pf, o, menu_object_current(g));
 }
 
-/* The slot can start, the object's table fits the curtain's, and the stir's
- * cells are reached through a data bank on low RAM. */
+/* The slot can start and the object's table fits the curtain's. */
 static bool curtain_takes(const GameState *g, MenuObject o)
 {
     return scene_curtain_table_fits(LINE_TABLE_BANK, menu_object_slots_curtain_table(g, o));
@@ -362,8 +358,6 @@ static bool curtain_step_takes(const GameState *g, MenuObject o)
     (void)o;
     return scene_curtain_table_fits(scene_curtain_table_bank(g), scene_curtain_table(g));
 }
-
-/* ---- As C ------------------------------------------------------------------------------------- */
 
 /* The routines as the program calls them from a script (menu/handlers.h). */
 static bool advance_routine(GameState *g, Platform *pf, MenuObject self, bool far)
@@ -609,8 +603,6 @@ static void start_scene_gray_ramp(GameState *g, Platform *pf)
     charge_block_move(g, 2u * (MENU_LINE_TABLE_LINES - 1) + SHADES * (LINES_PER_SHADE - 1));
     menu_note_effect_noise(g, at);
 }
-
-enum { SCENE_GRAY_BAND_BYTES = 48 };
 
 /* The narrow band has eight two-line shades followed by eight four-line
  * shades. Its moving destination is a WRAM stream: crossing a bank goes

@@ -40,7 +40,13 @@ void overworld_control_the_vehicles(GameState *g);
  * (EpochStep, DactylStep). */
 enum { VEHICLE_RISES = 2, VEHICLE_FLIES = 3, VEHICLE_FLIES_A_TILE = 4, VEHICLE_COMES_DOWN = 5 };
 
-enum { VEHICLE_RISING_FRAMES = 0x30, VEHICLE_OVER_THE_PARTY_AFTER = 0x08, VEHICLE_COMING_DOWN_FRAMES = 0x31, VEHICLE_UNDER_THE_PARTY_AFTER = 0x20, VEHICLE_HEIGHT_IN_THE_AIR = 0x18,  };
+enum {
+    VEHICLE_RISING_FRAMES = 0x30,
+    VEHICLE_OVER_THE_PARTY_AFTER = 0x08,
+    VEHICLE_COMING_DOWN_FRAMES = 0x31,
+    VEHICLE_UNDER_THE_PARTY_AFTER = 0x20,
+    VEHICLE_HEIGHT_IN_THE_AIR = 0x18,
+};
 
 /* Its state's bits (overworld_vehicle_state): whether any of `bits` is set;
  * set or cleared. */
@@ -102,7 +108,7 @@ typedef struct {
 } EpochScripts;
 bool overworld_fly_the_epoch(GameState *g, MenuObject self, const EpochScripts *scripts);
 
-/* The Epoch's step through its handler, which the entry's wrapper reads. */
+/* The Epoch's step through its handler. */
 typedef enum {
     EPOCH_SETS_DOWN = 0,
     EPOCH_STANDS = 1,
@@ -167,7 +173,7 @@ typedef enum {
 
 /* Whether a following dactyl in flight is near enough its place in the V
  * for the heading's table, and, as the leader's comes down, near enough the
- * leader's to glide down to it (the guards': the game keeps them so). */
+ * leader's to glide down to it (the port checks it; the game keeps them so). */
 bool overworld_following_dactyl_keeps_near(const GameState *g, MenuObject self);
 
 /* The second sprite each dactyl is drawn with, which follows it: above it

@@ -233,8 +233,6 @@ static void load_the_next_step(GameState *g, Platform *pf)
 /* Every per-line effect on, the window's included. */
 enum { ALL_LINE_EFFECTS = 0xFF };
 
-/* The call-outs read nothing of the registers. */
-
 /* The palettes' animation, through the original's jump to it. */
 enum { PALETTE_ANIMATION = 0xFDFFF7 };
 
@@ -272,8 +270,7 @@ typedef struct {
     Platform *pf;
 } DisplaySetUpContext;
 
-/* The pause's guard turns away only a page; the animation's, slots it
- * doesn't take (palette_animated's own). */
+/* The palette animation paused. */
 static bool pause_the_palette_animation(void *ctx)
 {
     GameState *g = ((DisplaySetUpContext *)ctx)->game;
@@ -311,9 +308,6 @@ static void scroll_to_the_base(GameState *g, Platform *pf)
                        VID_SCROLL_H | VID_SCROLL_V);
 }
 
-/* The arrangement in A; the carry comes back as the arrangement's top bit,
- * which the original's indexing shifts out. */
-
 /* The closing handler's calls: the palette sent (battle_send_palette's
  * routine, $CD:09CE), the field's line effects rebuilt for the picture the
  * battle hands back and turned on ($C0:0005, field/line_effects.c), the
@@ -340,14 +334,15 @@ static bool take_the_closing_vblank(GameState *g, Platform *pf, bool (*call)(voi
     return call(ctx, CLOSING_MAP_LAYERS) && call(ctx, CLOSING_PALETTES);
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The closing handler's calls -------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
     Platform *pf;
 } ClosingVblankContext;
 
-/* The line effects' guard's state half: builders that can build them. */
+/* Each call; the line effects are refused where the builders can't build
+ * them. */
 static bool closing_vblank_call(void *ctx, ClosingVblankCall call)
 {
     ClosingVblankContext *c = ctx;

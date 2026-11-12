@@ -20,7 +20,6 @@
 #include "charge.h"
 #include "event/dialog.h"
 #include "event/event_data.h"
-#include "field/scratch.h"
 #include "event/variables.h"
 #include "field/field.h"
 #include "field/field_data.h"
@@ -164,7 +163,7 @@ static ChestBefore chest_before_the_leader(const GameState *g)
 
 /* The inventory holds the items numbered below 256, as every chest of the
  * game's gives: a chest found elsewhere in the bank can name one past them,
- * which only the original gives (the guards'). */
+ * which the port refuses. */
 enum { INVENTORY_ITEMS = 0x100 };
 
 /* ... and with nobody leading, there is none: the message a chest opens

@@ -134,10 +134,6 @@ static void turn_about_the_middle(GameState *g, Window w, WhichEdge edge, bool t
     }
 }
 
-/* What the original leaves in its cells: the run across, twice (its count
- * of the columns still to share out ends where it started), and the run
- * down, with the count of lines still to go, 0. */
-
 // $CE:EA7E, $CE:E885
 /* Shape window `w` in the coming frame as the side of the line `l` that an
  * angle takes. A line pointing straight right leaves the bottom half empty. */
@@ -249,16 +245,3 @@ SCREEN_OPCODES(screen_cut_opcodes,
     { 0xB2, OPERATION(carry_window_over), .needs = names_a_window, .length = 1, .window = BYTE(0) },
 );
 
-/* ---- The entries ------------------------------------------------------------------------- */
-
-/* $CE:EA7E, called with the line in the original's cells (leave_line) and the
- * window in A as the byte its edges start at in a line (0 or 2). */
-
-/* $CE:E000, called with the command's operand at the script's place. */
-
-/* The guards: on the battle's page with A's high byte clear; the cut's window
- * one of the two, its line within the screen, running across no further than
- * the screen's sides and falling no more lines than its run across leaves
- * room to share out in a byte (the original's count of the columns to share
- * out is one); the carried window one of the two. */
-enum { A_BYTE_HOLDS = 0x100 };

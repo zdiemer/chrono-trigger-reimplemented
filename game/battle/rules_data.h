@@ -20,8 +20,8 @@ typedef uint16_t ScriptPlace;
  * ($CC:8D08, $CC:8D1E). */
 enum { SCRIPT_ATTACK_NEAREST = 0x8D08, SCRIPT_ATTACK_ANYONE = 0x8D1E };
 
-/* Where the scripts are, for the guards: the first enemy's script to the
- * table that follows the last ($CC:CBC9). */
+/* Where the scripts are, for the checks of what the port takes: the first
+ * enemy's script to the table that follows the last ($CC:CBC9). */
 enum { ENEMY_SCRIPTS_START = 0x8D08, ENEMY_SCRIPTS_END = 0xCBC9 };
 
 /* Whether the battle's debugging path at the end of a pass is on: the bank's
@@ -42,13 +42,6 @@ static inline uint16_t battle_stat_block_place(const GameState *g, uint8_t slot)
 static inline uint16_t battle_member_record_place(const GameState *g, uint8_t member)
 {
     return rom_read16(g, 0xFDA849u + (uint16_t)(member * 2));
-}
-
-/* Where each party member's tech records are in work RAM ($FD:A84F, a word a
- * member), which the setup leaves in its cells as it builds them. */
-static inline uint16_t battle_member_tech_records_place(const GameState *g, uint8_t member)
-{
-    return rom_read16(g, 0xFDA84Fu + (uint16_t)(member * 2));
 }
 
 /* A character's single techs, from its first: the next character's first

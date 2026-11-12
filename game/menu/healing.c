@@ -21,7 +21,6 @@
 #include "charge.h"
 #include "core/program.h"
 #include "cpu_io.h"
-#include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/digits.h"
 #include "menu/item_screen.h"
@@ -48,7 +47,14 @@ enum { NOT_A_NUMBER = 0x8000 };
  * factor's low nibble), or the power times the factor's low five bits and a
  * share of the power drawn at random, taken away instead of given where the
  * factor's top bit is set. The factor's bit 6 says all of it. */
-enum { FIXED = 0x80, POWER_BITS = 0x7F, FIXED_FACTOR_BITS = 0x0F, DRAWN_FACTOR_BITS = 0x1F, TAKEN = 0x80, ALL_OF_IT = 0x40 };
+enum {
+    FIXED = 0x80,
+    POWER_BITS = 0x7F,
+    FIXED_FACTOR_BITS = 0x0F,
+    DRAWN_FACTOR_BITS = 0x1F,
+    TAKEN = 0x80,
+    ALL_OF_IT = 0x40,
+};
 
 // $C2:8ECC
 static void work_out_amounts(GameState *g, uint16_t amounts[DRAWS])
@@ -234,7 +240,7 @@ uint8_t menu_amounts_path_start(MenuAmountKind kind) { return kinds[kind].path; 
 uint8_t menu_amounts_digits(MenuAmountKind kind) { return kinds[kind].digits; }
 uint8_t menu_amounts_shown_from(MenuAmountKind kind) { return kinds[kind].shown; }
 
-/* ---- The healing shown, one sequence for the machine and for C ----------------------------------- */
+/* ---- The healing shown ------------------------------------------------------------------------- */
 
 /* The healing's numbers' colours, which the showing uses. */
 static void colour_the_amounts(GameState *g)
@@ -250,7 +256,6 @@ bool menu_heal_and_show_with(GameState *g, const HealingSteps *n, void *ctx)
 {
     TIMED_AS(g, 0xC28E2D, menu_heal(g));
     colour_the_amounts(g);
-    n->registers_at(ctx, HEALING_AT_THE_COLOURS);
     return n->run(ctx, HEALING_SHOWS_THE_AMOUNTS, 0);
 }
 
@@ -265,7 +270,6 @@ bool menu_show_amounts_with(GameState *g, const HealingSteps *n, void *ctx)
         if (!n->wait(ctx, HEALING_AT_THE_AMOUNTS_SHOWN))
             return false;
     while (menu_tasks_state(g, MENU_AMOUNTS_TASK) != 0);
-    n->note(ctx, HEALING_NOTE_WAITED, 0);
     return true;
 }
 
@@ -275,17 +279,14 @@ bool menu_raise_amounts_with(GameState *g, const HealingSteps *n, void *ctx)
 {
     uint8_t kinds = (uint8_t)menu_amounts_kinds(g);
     for (unsigned k = 0; k < MENU_AMOUNT_KINDS; k++) {
-        n->note(ctx, HEALING_NOTE_KINDS_LEFT, (uint8_t)(kinds >> (k + 1)));
         if (!(kinds & 1u << k))
             continue;
         set_menu_amounts_step(g, menu_amounts_path_start((MenuAmountKind)k));
         set_menu_amounts_last_digit(g, (uint8_t)(menu_amounts_digits((MenuAmountKind)k) - 1));
         set_menu_amounts_from(g, (uint8_t)(2 * menu_amounts_shown_from((MenuAmountKind)k)));
-        n->registers_at(ctx, HEALING_AT_A_KIND);
         if (!n->run(ctx, HEALING_RAISES_A_KIND, (uint8_t)k))
             return false;
     }
-    n->registers_at(ctx, HEALING_AT_THE_RISE_S_END);
     return n->ends(ctx);
 }
 
@@ -308,39 +309,31 @@ bool menu_raise_amount_kind_with(GameState *g, const HealingSteps *n, void *ctx)
         return false;
     uint8_t step = menu_amounts_step(g), last_digit = menu_amounts_last_digit(g), from = menu_amounts_from(g);
     for (;;) {
-        n->registers_at(ctx, HEALING_AT_A_RISING_FRAME);
         set_menu_amounts_step(g, (uint8_t)(step + 1));
         if (!menu_raise_numbers_a_frame(g, (uint8_t)(from / 2), (uint8_t)(last_digit + 1), step)) {
-            n->note(ctx, HEALING_NOTE_RISEN, step);
             return true;
         }
-        n->note(ctx, HEALING_NOTE_A_FRAME_RISEN, step);
         step++;
-        n->registers_at(ctx, HEALING_AT_THE_RISING_WAIT);
         if (!n->wait(ctx, HEALING_AT_THE_RISING_WAIT))
             return false;
     }
 }
 
-/* ---- As C ---- */
-
 typedef struct {
     GameState *game;
     Platform *pf;
-} HealingInC;
+} HealingContext;
 
 static bool wait_a_frame(void *ctx, HealingPlace at)
 {
     (void)at;
-    menu_task_waits(((HealingInC *)ctx)->game, 1);
+    menu_task_waits(((HealingContext *)ctx)->game, 1);
     return true;
 }
 
-static void no_registers(void *ctx, HealingPlace at) { (void)ctx, (void)at; }
-static void no_note(void *ctx, HealingNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
 static bool task_ends(void *ctx) { return (void)ctx, true; }
 
-static const HealingSteps healing_in_c;
+static const HealingSteps healing_steps;
 
 static bool not_taken(GameState *g, uint32_t routine, const char *what)
 {
@@ -348,21 +341,21 @@ static bool not_taken(GameState *g, uint32_t routine, const char *what)
     return false;
 }
 
-static bool run_in_c(void *ctx, HealingRoutine r, uint8_t value)
+static bool run_a_routine(void *ctx, HealingRoutine r, uint8_t value)
 {
-    HealingInC *c = ctx;
+    HealingContext *c = ctx;
     GameState *g = c->game;
     bool done = false;
     switch (r) {
     case HEALING_SHOWS_THE_AMOUNTS:
         if (!menu_amounts_can_show(g))
             return not_taken(g, 0xC28F6C, "amounts the port doesn't show");
-        TIMED_AS(g, 0xC28F6C, done = menu_show_amounts_with(g, &healing_in_c, c));
+        TIMED_AS(g, 0xC28F6C, done = menu_show_amounts_with(g, &healing_steps, c));
         return done;
     case HEALING_RAISES_A_KIND:
         if (!menu_amounts_kind_can_rise(g))
             return not_taken(g, 0xC29047, "amounts the port doesn't raise");
-        TIMED_AS(g, 0xC29047, done = menu_raise_amount_kind_with(g, &healing_in_c, c));
+        TIMED_AS(g, 0xC29047, done = menu_raise_amount_kind_with(g, &healing_steps, c));
         return done;
     case HEALING_SENDS_THE_KIND_S_SOUND:
         TIMED_AS(g, 0xC2EAF9, menu_sound_played_on_other_voices(g, c->pf, value));
@@ -371,22 +364,22 @@ static bool run_in_c(void *ctx, HealingRoutine r, uint8_t value)
     return false;
 }
 
-static const HealingSteps healing_in_c = { wait_a_frame, no_registers, run_in_c, no_note, task_ends };
+static const HealingSteps healing_steps = { wait_a_frame, run_a_routine, task_ends };
 
 bool menu_heal_and_show(GameState *g, Platform *pf)
 {
     if (!menu_healing_can_run(g))
         return not_taken(g, 0xC28F55, "a healing the port doesn't take");
-    HealingInC c = { g, pf };
-    return menu_heal_and_show_with(g, &healing_in_c, &c);
+    HealingContext c = { g, pf };
+    return menu_heal_and_show_with(g, &healing_steps, &c);
 }
 
 bool menu_show_amounts(GameState *g, Platform *pf)
 {
     if (!menu_amounts_can_show(g))
         return not_taken(g, 0xC28F6C, "amounts the port doesn't show");
-    HealingInC c = { g, pf };
-    return menu_show_amounts_with(g, &healing_in_c, &c);
+    HealingContext c = { g, pf };
+    return menu_show_amounts_with(g, &healing_steps, &c);
 }
 
 void menu_raise_amounts_task(GameState *g, Platform *pf)
@@ -395,11 +388,11 @@ void menu_raise_amounts_task(GameState *g, Platform *pf)
         (void)not_taken(g, 0xC29016, "amounts the port doesn't raise");
         return;
     }
-    HealingInC c = { g, pf };
-    (void)menu_raise_amounts_with(g, &healing_in_c, &c);
+    HealingContext c = { g, pf };
+    (void)menu_raise_amounts_with(g, &healing_steps, &c);
 }
 
-/* The guards' state halves: the healing for at most the three active
+/* What each needs of the state: the healing for at most the three active
  * members, each loaded from a character's record; the showing's numbers for
  * at most the three active members; a kind's rise one of the two kinds as
  * the task sets them up, for the members the showing listed. */

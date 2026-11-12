@@ -20,9 +20,8 @@
  * the members in it can no longer act.
  *
  * The description and the target's name are battle messages (battle/
- * message.c), run as the original calls them; the item page's list and
- * asking for the tilemaps' uploads are still the original's, which the
- * entries call between their own parts. */
+ * message.c), and the window's rows are sent by battle/uploads.c, called
+ * where the original calls them. */
 #include "battle/window.h"
 
 #include "battle/bridge.h"
@@ -78,7 +77,7 @@ static uint8_t list_entry(const GameState *g, unsigned member, unsigned row)
 
 /* The record a member's list entry names. (The original finds its place in
  * a table of the records' offsets, which an entry past the twenty would read
- * past its end; no list has one, and the entry's guard holds to that.) */
+ * past its end; no list has one, and tech_lists_kept holds to that.) */
 static unsigned tech_record(unsigned member, uint8_t entry) { return member * TECHS_PER_MEMBER + entry; }
 
 /* What the tech costs the member in each party slot. */
@@ -205,9 +204,6 @@ enum { MP_COLUMN = 24, SEPARATOR_COLUMN = 27, COST_COLUMN = 29 };
 
 static WindowCell slot_line_cell(unsigned slot, unsigned column) { return window_cell(1 + 2 * slot, column); }
 
-/* The original counts the column's rows and cells in two work cells. */
-enum { ROWS_COUNTED = 0x80, CELLS_COUNTED = 0x81 };
-
 /* The list the original laid out, and the column beside it. */
 static void show_tech_list(GameState *g)
 {
@@ -277,11 +273,6 @@ static void show_cost(GameState *g, unsigned slot, uint8_t cost)
     menu_set_tile(g, slot_line_cell(slot, COST_COLUMN + 1), one_digit ? TILE_BLANK : d.ones);
 }
 
-/* Where the original works out the record: the place of the member's
- * records, or the record's (bytes, in the multiplier's cell again), and the
- * record's among the member's. */
-enum { RECORD_OFFSET = 0x80 };
-
 /* The tech under the member's cursor, and what it costs each member. A blank
  * row selects no tech (and clears the second member's costs). */
 static void show_tech_costs(GameState *g, unsigned member)
@@ -347,33 +338,28 @@ void battle_reset_frames(GameState *g)
     }
 }
 
-/* ---- The pages, with the original's parts ------------------------------------------------ */
-
-/* The calls to the original's code, the uploads of the window's tilemaps
- * ($CF:FD02, $CF:FD36), read only what the window left in memory. (A tech's
- * description, $CD:0027, is the battle message's, battle/message.c, which
- * takes the tech in A.) */
+/* ---- The pages ----------------------------------------------------------------------------- */
 
 /* The settings' bit that asks for the descriptions. */
 enum { DESCRIPTIONS_ON = 0x80 };
 
 /* The menu window's calls: the window's rows sent ($CF:FD02, the saved rows
  * $CF:FD36, battle/uploads.c), and a tech's description ($CD:0027,
- * battle/message.c), each with the carry the original has there, which the
- * request passes on to the menu's callers, and the description with the
- * tech. */
+ * battle/message.c), the description with the tech. Each is handed the flag
+ * the original's drawing leaves there (`carry`), which nothing reads now. */
 typedef enum { WINDOW_ROWS, WINDOW_SAVED_ROWS, WINDOW_DESCRIPTION } WindowCall;
 typedef bool (*WindowCalls)(void *ctx, WindowCall call, uint8_t tech, bool carry);
 
-/* What the window leaves for the original's callers: the carry, where the
- * drawing set it last, and A cleared where the frames were reloaded. */
+/* What the original's drawing leaves its callers, which nothing reads now:
+ * its last flag, where the drawing set it, and whether it cleared its
+ * result where the frames were reloaded. */
 typedef struct {
     bool carry_set, carry, a_cleared;
 } WindowLeaves;
 
 // $C1:0C49
-/* The carry the request is handed is the redraw's, the party status's, or
- * the command cursor's (clear) (window_leaves.h). */
+/* The flag the rows' request is handed is the redraw's, the party
+ * status's, or the command cursor's (clear) (window_leaves.h). */
 static bool show_command_page(GameState *g, WindowCalls call, void *ctx)
 {
     bool carry;
@@ -397,7 +383,7 @@ static bool show_command_page(GameState *g, WindowCalls call, void *ctx)
             carry = false;
         }
     }
-    /* the frames' reset ends on a compare that leaves the carry set */
+    /* the frames' reset ends on a compare that leaves the flag set */
     if (menu_nobody(battle_menu_member(g))) {
         TIMED_AS(g, 0xC11C3A, battle_reset_frames(g));
         carry = true;
@@ -408,8 +394,8 @@ static bool show_command_page(GameState *g, WindowCalls call, void *ctx)
     return true;
 }
 
-/* The carry the original has after the page's own drawing, which the
- * description and the upload request pass on: clear from placing the hand,
+/* The flag the original has after the page's own drawing, which the
+ * description and the upload request are handed: clear from placing the hand,
  * or where a target is being chosen, set on a blank row and else the last
  * cost's tens compared with the zero (clear where no cost shows). */
 static bool tech_page_carry(const GameState *g, unsigned member)
@@ -444,14 +430,14 @@ static bool show_tech_page(GameState *g, WindowCalls call, void *ctx, WindowLeav
         return false;
     if (battle_frames_reload_request(g)) {
         reload_tech_page_frames(g);
-        *left = (WindowLeaves){ true, true, true };   /* the reload's last count, and its A */
+        *left = (WindowLeaves){ true, true, true };   /* the reload's last count, and its result */
     }
     return true;
 }
 
 // $C1:0C2D
 /* Draw the menu window for the page that is open, the member's stat block
- * noted first. A page past the techs leaves the carry of comparing it with
+ * noted first. A page past the techs leaves the flag of comparing it with
  * the tech page's. */
 static bool draw_menu_window(GameState *g, WindowCalls call, void *ctx, WindowLeaves *left)
 {
@@ -463,12 +449,6 @@ static bool draw_menu_window(GameState *g, WindowCalls call, void *ctx, WindowLe
     default: *left = (WindowLeaves){ true, true, false }; return true;
     }
 }
-
-/* On the machine, each call from the original's, with the carry it is
- * handed; the description takes the tech in A, and where there is none the
- * saved rows take what laying out the list left in A (the list tilemap's
- * place after its four rows). */
-enum { TECH_LIST_LAID_OUT_A = 0x0200 };
 
 /* The tech lists as the game keeps them, which the tech page takes on trust:
  * each member's scroll leaves its three rows, and the cursor's, inside its
@@ -562,9 +542,6 @@ static bool combination_tech_selected(const GameState *g)
  * takes. */
 enum { TARGETS_A_ROUND = 3 };
 
-/* The original counts the targets and the cursors in two work cells. */
-enum { TARGET_COUNTED = 0x80, CURSOR_COUNTED = 0x82 };
-
 // $C1:1A7B
 /* A group of targets: the first always has a cursor, and the other three go
  * round the rest from where they stopped last time, a round at a time, so a
@@ -593,8 +570,6 @@ static void place_group_cursors(GameState *g)
 /* A lone enemy target is named ($CD:0030), with its HP where the party can
  * see it ($CD:002D, from battle_target_display); some enemies go unnamed. */
 enum { UNNAMED = 0xFF, TARGET_STAT_BLOCK = 0x80 };
-
-/* Set out what the target display shows; the name to show. */
 
 /* When the player moves a lone target and the frame may change, a cursor near
  * the screen's top brings the other frame on and one near its bottom takes it
@@ -703,17 +678,10 @@ static bool show_item_cursor(GameState *g)
     return drawn != 0;
 }
 
-/* What the callees read of the machine: $CD:002D and $CD:0030 the name in
- * A's low byte. */
-
-/* What the frame around the member leaves in A: the high table's byte it
- * wrote, its high byte clear. */
-enum { CHOOSING_FRAME_LEFT_A = 0x00AA };
-
-/* How the cursors were placed: the path through the placing, which the
- * machine's wrapper works the registers it hands back out from. */
+/* How the cursors were placed: the path through the placing, which nothing
+ * reads now. */
 typedef enum {
-    PLACED_AS_THEY_WERE,    /* nobody choosing, or no targets: the registers as they came */
+    PLACED_AS_THEY_WERE,    /* nobody choosing, or no targets */
     PLACED_ON_A_GROUP,      /* a group's cursors, which may have gone round */
     PLACED_ON_A_LONE_TARGET,
     PLACED_ON_A_NAMED_ENEMY,
@@ -727,9 +695,6 @@ typedef enum {
 /* The one call placing the cursors makes: a lone enemy target named
  * ($CD:0030, with its HP $CD:002D, battle/message.c). */
 typedef bool (*NameTarget)(void *ctx, uint8_t name, bool with_hp);
-
-// $C1:19B4
-/* A lone target: its cursor, and on the command page an enemy's name. */
 
 // $C1:1979
 /* While targets are chosen the cursors go on them, unless there were none to
@@ -874,10 +839,7 @@ static bool update_combo_members(GameState *g, bool (*call_off)(void *ctx), void
     return call_off(ctx);
 }
 
-/* It leaves A's high byte the direct page's (a TDC) and the carry of its
- * loop's last compare, set. */
-
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The window's calls ----------------------------------------------------------------------- */
 
 static bool window_call(void *ctx, WindowCall call, uint8_t tech, bool carry)
 {
@@ -890,8 +852,8 @@ static bool window_call(void *ctx, WindowCall call, uint8_t tech, bool carry)
     }
 }
 
-/* The window's guard's state half: the menu's state as the game keeps it,
- * and the tech lists. */
+/* Refused unless the menu's state and the tech lists are as the game keeps
+ * them. */
 bool battle_menu_window_drawn(GameState *g, Platform *pf)
 {
     (void)pf;
@@ -914,7 +876,7 @@ static bool call_off_the_combination(void *ctx)
     return done;
 }
 
-/* The guard's state half: a menu state the window's port takes. */
+/* Refused unless the menu's state is one the window's port takes. */
 bool battle_update_combo_members(GameState *g, Platform *pf)
 {
     if (!battle_window_fits(g))

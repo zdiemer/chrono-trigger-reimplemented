@@ -93,6 +93,4 @@ static inline void set_story_word(GameState *g, StoryOffset at, uint16_t v)
  * scripts compare against and set as the story moves on. */
 static inline uint8_t story_progress(const GameState *g) { return story_byte(g, 0); }
 
-static inline void set_story_progress(GameState *g, uint8_t v) { set_story_byte(g, 0, v); }
-
 #endif

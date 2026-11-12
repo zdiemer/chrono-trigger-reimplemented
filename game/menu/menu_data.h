@@ -3,7 +3,7 @@
  * Every such read goes through an accessor here, named for what the data is,
  * so a build that loads it from somewhere other than the ROM image changes
  * this file and nothing that uses it. The accessors take the game's state
- * (game/rom.h), not the machine. */
+ * (game/rom.h). */
 #ifndef CT_GAME_MENU_DATA_H
 #define CT_GAME_MENU_DATA_H
 
@@ -15,15 +15,6 @@
 #include "rom.h"
 #include "state.h"
 
-/* The tile columns of a line of text, where the glyph drawer puts a glyph's
- * lines: the byte offset of each column's tile in the text's tile buffer, a
- * word each. A line of text is two rows of tiles; the first 16 columns are
- * its left half, a tile after another, and the next 16 its right half, two
- * rows of tiles on. In four-colour tiles ($C2:5FE6) a tile is $10 bytes and
- * a row $100; in sixteen-colour ones ($C2:6066) $20 and $200. The tables go
- * on to 64 columns, which no line reaches. */
-enum { MENU_TEXT_COLUMNS = 32 };
-
 /* ---- The menus' graphics ------------------------------------------------------------------- */
 
 /* The graphics the menus build their tile sets from (game/menu/graphics.c),
@@ -31,20 +22,39 @@ enum { MENU_TEXT_COLUMNS = 32 };
  * bytes then replaced from $C9FC; more from $D5E4), three-plane tiles
  * ($DBE4), the eight windows' designs ($9E10, $280 bytes a design), and four
  * sixteen-colour tiles at $9CF0. */
-enum { MENU_ROM_BANK = 0xFF0000u, MENU_ROM_FOUR_COLOUR_TILES = 0x8E60, MENU_ROM_FOUR_COLOUR_TILES_BYTES = 0x0E00, MENU_ROM_REPLACED_TILES = 0xC9FC, MENU_ROM_REPLACED_TILES_BYTES = 0x0100, MENU_ROM_MORE_FOUR_COLOUR_TILES = 0xD5E4, MENU_ROM_MORE_FOUR_COLOUR_TILES_BYTES = 0x0600, MENU_ROM_THREE_PLANE_TILES = 0xDBE4, MENU_THREE_PLANE_TILES = 0x95, MENU_ROM_WINDOW_DESIGNS = 0x9E10, MENU_WINDOW_DESIGN_BYTES = 0x280, MENU_WINDOW_DESIGNS = 8, MENU_ROM_SIXTEEN_COLOUR_TILES = 0x9CF0,  };
+enum {
+    MENU_ROM_BANK = 0xFF0000u,
+    MENU_ROM_FOUR_COLOUR_TILES = 0x8E60, MENU_ROM_FOUR_COLOUR_TILES_BYTES = 0x0E00,
+    MENU_ROM_REPLACED_TILES = 0xC9FC, MENU_ROM_REPLACED_TILES_BYTES = 0x0100,
+    MENU_ROM_MORE_FOUR_COLOUR_TILES = 0xD5E4, MENU_ROM_MORE_FOUR_COLOUR_TILES_BYTES = 0x0600,
+    MENU_ROM_THREE_PLANE_TILES = 0xDBE4, MENU_THREE_PLANE_TILES = 0x95,
+    MENU_ROM_WINDOW_DESIGNS = 0x9E10, MENU_WINDOW_DESIGN_BYTES = 0x280, MENU_WINDOW_DESIGNS = 8,
+    MENU_ROM_SIXTEEN_COLOUR_TILES = 0x9CF0,
+};
 
 /* The menus' colours in bank $FF, a word each: two sets of four for the
  * palette's first rows ($9C68, $9C78, $CBBC) and two of sixteen ($CBC4,
  * $9DF0). */
-enum { MENU_ROM_FIRST_COLOURS = 0x9C68, MENU_ROM_SECOND_COLOURS = 0x9C78, MENU_ROM_THIRD_COLOURS = 0xCBBC, MENU_ROM_ROW_7_COLOURS = 0xCBC4, MENU_ROM_ROW_8_COLOURS = 0x9DF0,  };
+enum {
+    MENU_ROM_FIRST_COLOURS = 0x9C68, MENU_ROM_SECOND_COLOURS = 0x9C78, MENU_ROM_THIRD_COLOURS = 0xCBBC,
+    MENU_ROM_ROW_7_COLOURS = 0xCBC4, MENU_ROM_ROW_8_COLOURS = 0x9DF0,
+};
 
 /* The healing's rising numbers: their four colours ($FF:CB9C), the first
  * sprite palette's fifth to eighth, and the upload of their digits' tiles
  * ($C2:FC5A, a record of menu_upload_record's). */
-enum { MENU_ROM_AMOUNT_COLOURS = 0xCB9C, MENU_AMOUNT_COLOURS = 4, MENU_FIRST_AMOUNT_COLOUR = 0x84, MENU_UPLOAD_AMOUNT_DIGITS = 0xFC5A };
+enum {
+    MENU_ROM_AMOUNT_COLOURS = 0xCB9C,
+    MENU_AMOUNT_COLOURS = 4,
+    MENU_FIRST_AMOUNT_COLOUR = 0x84,
+    MENU_UPLOAD_AMOUNT_DIGITS = 0xFC5A,
+};
 
 /* The upload records the sets are sent with (bank C2, menu_upload_record). */
-enum { MENU_UPLOADS_FIRST_SETS = 0xFC6F, MENU_UPLOAD_SECOND_SET = 0xFC7F, MENU_UPLOAD_LAST_SET = 0xFC87, MENU_UPLOADS_WINDOW_SETS = 0xFC8F, MENU_UPLOAD_WINDOW_DESIGN = 0xC548,  };
+enum {
+    MENU_UPLOADS_FIRST_SETS = 0xFC6F, MENU_UPLOAD_SECOND_SET = 0xFC7F, MENU_UPLOAD_LAST_SET = 0xFC87,
+    MENU_UPLOADS_WINDOW_SETS = 0xFC8F, MENU_UPLOAD_WINDOW_DESIGN = 0xC548,
+};
 
 /* ---- The items ------------------------------------------------------------------------------ */
 
@@ -128,7 +138,12 @@ enum { MENU_ERA_LABELS = 0xFFD396 };
  * top, each its place, tile and attributes ($BD5C), the lit icon's tile $20
  * on; the icons' colours, eight ($CC14), and the lit option's own eight
  * ($CC24, a set an option); and the arrows' three ($9E0A). */
-enum { MENU_WINDOWS_MAIN_MENU = 0xBD2E, MENU_WINDOWS_OPTION_OPENING = 0xBD51, MENU_MAIN_MENU_OPTIONS = 6, MENU_LIT_ICON_TILES = 0x20, MENU_ROM_MAIN_MENU_COLOURS = 0xCC14, MENU_ROM_OPTION_COLOURS = 0xCC24, MENU_ROM_ARROW_COLOURS = 0x9E0A, MENU_MAIN_MENU_COLOURS = 8, MENU_ARROW_COLOURS = 3,  };
+enum {
+    MENU_WINDOWS_MAIN_MENU = 0xBD2E, MENU_WINDOWS_OPTION_OPENING = 0xBD51,
+    MENU_MAIN_MENU_OPTIONS = 6, MENU_LIT_ICON_TILES = 0x20,
+    MENU_ROM_MAIN_MENU_COLOURS = 0xCC14, MENU_ROM_OPTION_COLOURS = 0xCC24, MENU_ROM_ARROW_COLOURS = 0x9E0A,
+    MENU_MAIN_MENU_COLOURS = 8, MENU_ARROW_COLOURS = 3,
+};
 
 typedef struct {
     uint8_t x, y, tile, attributes;
@@ -150,12 +165,29 @@ enum { MENU_NAME_GRID_COLUMNS = 10 };
  * bytes) where a window over the list keeps its lines, and the text
  * layer's whole ($1000 bytes) to the third layer's tilemap where the gate's
  * screen moves it. */
-enum { MENU_UPLOAD_FRONT_LAYER_WHOLE = 0xFBCE, MENU_UPLOAD_BACK_LAYER_WHOLE = 0xFBF8, MENU_UPLOAD_FRONT_LAYER = 0xFBE3, MENU_UPLOAD_FRONT_LAYER_LOWER_HALF = 0xFBEA, MENU_UPLOAD_FRONT_LAYER_STRIPS = 0xFBF1, MENU_UPLOAD_BACK_LAYER = 0xFBFF, MENU_UPLOAD_TEXT_LAYER = 0xFC1B, MENU_UPLOAD_LINE_TABLES = 0xFC3E, MENU_UPLOAD_WINDOW_LINES = 0xFC37, MENU_UPLOAD_TEXT_LAYER_WHOLE = 0xFC14,  };
+enum {
+    MENU_UPLOAD_FRONT_LAYER_WHOLE = 0xFBCE,
+    MENU_UPLOAD_BACK_LAYER_WHOLE = 0xFBF8,
+    MENU_UPLOAD_FRONT_LAYER = 0xFBE3,
+    MENU_UPLOAD_FRONT_LAYER_LOWER_HALF = 0xFBEA,
+    MENU_UPLOAD_FRONT_LAYER_STRIPS = 0xFBF1,
+    MENU_UPLOAD_BACK_LAYER = 0xFBFF,
+    MENU_UPLOAD_TEXT_LAYER = 0xFC1B,
+    MENU_UPLOAD_LINE_TABLES = 0xFC3E,
+    MENU_UPLOAD_WINDOW_LINES = 0xFC37,
+    MENU_UPLOAD_TEXT_LAYER_WHOLE = 0xFC14,
+};
 
 /* The load screen's uploads: the era label's graphic, the slot's tilemap in
  * three parts, and the label of the question which finished game to carry
  * on from ($7E:5E00, $600 bytes). */
-enum { MENU_UPLOAD_ERA_LABEL = 0xD45F, MENU_UPLOAD_SLOT_TILEMAP = 0xFBDC, MENU_UPLOAD_SLOT_TILEMAP_2 = 0xFC0D, MENU_UPLOAD_SLOT_TILEMAP_3 = 0xFC29, MENU_UPLOAD_CARRY_ON_LABEL = 0xE88A,  };
+enum {
+    MENU_UPLOAD_ERA_LABEL = 0xD45F,
+    MENU_UPLOAD_SLOT_TILEMAP = 0xFBDC,
+    MENU_UPLOAD_SLOT_TILEMAP_2 = 0xFC0D,
+    MENU_UPLOAD_SLOT_TILEMAP_3 = 0xFC29,
+    MENU_UPLOAD_CARRY_ON_LABEL = 0xE88A,
+};
 
 /* The graphic the load and save screens set the slots' labels into
  * (menu/save_screen.c), from $7E:6E00: each slot's name, $20 bytes a slot
@@ -165,7 +197,11 @@ enum { MENU_UPLOAD_ERA_LABEL = 0xD45F, MENU_UPLOAD_SLOT_TILEMAP = 0xFBDC, MENU_U
  * open; the chapters' alone ($600 bytes), as the save screen sends them once
  * it has saved in a slot; and its first $200 bytes, the names', to VRAM
  * $7000, once the summary has set them. */
-enum { MENU_SLOT_NAMES_AT = 0x6E10, MENU_SLOT_NAME_BYTES = 0x20, MENU_CHAPTER_LABELS_AT = 0x7000, MENU_CHAPTER_LABEL_BYTES = 0x200, MENU_CHAPTER_LABELS_VRAM = 0x7900, MENU_CHAPTER_LABEL_VRAM_WORDS = 0x100,  };
+enum {
+    MENU_SLOT_NAMES_AT = 0x6E10, MENU_SLOT_NAME_BYTES = 0x20,
+    MENU_CHAPTER_LABELS_AT = 0x7000, MENU_CHAPTER_LABEL_BYTES = 0x200,
+    MENU_CHAPTER_LABELS_VRAM = 0x7900, MENU_CHAPTER_LABEL_VRAM_WORDS = 0x100,
+};
 enum { MENU_UPLOAD_SLOT_LABELS = 0xFC53, MENU_UPLOAD_CHAPTER_LABELS = 0xCF30, MENU_UPLOAD_SLOT_NAMES = 0xD198 };
 
 /* The sprite scripts an object script gives its object, by number: where each
@@ -186,7 +222,7 @@ enum { MENU_SINE_STEPS = 0x400 };
 
 /* The tilts the Day of Lavos's turning world leans back by
  * (menu/turning_world.c): how much its distances grow a line pair down the
- * screen, in 256ths ($C6:EB23, the steeper the later). The frame's guard
+ * screen, in 256ths ($C6:EB23, the steeper the later). The frame's check
  * keeps the tilt among them; the original's index would read on into the
  * code after the table. */
 enum { MENU_WORLD_TILTS = 24 };
@@ -297,14 +333,6 @@ enum { MENU_ROM_TECH_PANEL_COLOURS = 0xCE04, MENU_ROM_TECH_PANEL_LIST_COLOURS = 
 
 /* ---- The party exchange -------------------------------------------------------------------- */
 
-/* The places a member's row and sprite go to on the exchange's screen
- * (menu/exchange.c), twelve: the active party's three, the reserve's four
- * shown, the reserve's rows above and below those (where a slide brings one
- * in from), and the active party's three in the middle. Where the row's
- * status window is drawn on the front layer ($C2:CDCB, a word each) and
- * where the sprite stands ($C2:CE6E, its Y then its X's low byte). */
-enum { MENU_EXCHANGE_PLACES = 12 };
-
 /* Its panel's colours ($FF:CC64, eight, palette row 6's first half); its
  * highlight takes the items screen's four. */
 enum { MENU_ROM_EXCHANGE_PANEL_COLOURS = 0xCC64, MENU_EXCHANGE_PANEL_COLOURS = 8, MENU_EXCHANGE_HIGHLIGHT_COLOURS = 4 };
@@ -364,12 +392,6 @@ enum { MENU_DIGITS = 10, MENU_DIGIT_BYTES = 16 };
 
 /* ---- The settings screen ------------------------------------------------------------------ */
 
-/* Each option's place among the settings' cells ($C2:C4F9: the sound output
- * first, as the menus unpack them, the byte after the last for the speeds,
- * which have no value of their own), and the first of its value texts among
- * the descriptions ($C2:C505): the text shown is the first plus the value. */
-enum { MENU_SETTINGS_OPTIONS = 12 };
-
 /* Each option's icon at the description window's left ($FF:D562): the tile
  * word of its top left, the four tiles on from it. The descriptions' strings
  * ($FF:D3FE), an option's first, then the values' texts. */
@@ -400,10 +422,6 @@ enum { MENU_ROM_SETTINGS_PANEL_COLOURS = 0xCBE4 };
  * list is the items it sells, 0 after the last, thirty-two bytes read). */
 enum { MENU_SHOP_LIST_BYTES = 32 };
 
-/* The seven figures the shop's members' window compares, by their places in
- * a character's record ($C2:E1DC). */
-enum { MENU_COMPARED_FIGURES = 7 };
-
 /* The upload of the member sprites' graphics the shop unpacks ($C2:DB98, a
  * record of menu_upload_record's). */
 enum { MENU_UPLOAD_SHOP_SPRITES = 0xDB98 };
@@ -414,20 +432,13 @@ enum { MENU_UPLOAD_SHOP_SPRITES = 0xDB98 };
  * rows ($FF:F6F2, a tilemap word each); its eight colours ($FF:F706) and four
  * more ($FF:F6FE); and the wave its bands of lines follow ($FF:F759, 64
  * words). */
-enum { MENU_GATE_PACKED_GRAPHICS = 0xFFE8DC, MENU_GATE_ROWS = 6, MENU_GATE_PALETTE_COLOURS = 8, MENU_GATE_COLOURS = 4, MENU_GATE_WAVE = 64 };
-
-/* ---- The menus' way in ------------------------------------------------------------------- */
-
-/* The screen the menus open on for each of the openings their callers ask
- * for ($C2:808F, a byte each: MenuOpening to MenuScreen). */
-enum { MENU_OPENINGS = 7 };
-
-/* ---- The screens' steps ------------------------------------------------------------------- */
-
-/* Where the original keeps each screen's list of steps, by the screen's
- * number ($C2:8292, a word each, in bank $C2): the menus' main task looks a
- * step up through it, and menu/screens.c's own table stands for it. */
-enum { MENU_STEP_LISTS_BANK = 0xC2 };
+enum {
+    MENU_GATE_PACKED_GRAPHICS = 0xFFE8DC,
+    MENU_GATE_ROWS = 6,
+    MENU_GATE_PALETTE_COLOURS = 8,
+    MENU_GATE_COLOURS = 4,
+    MENU_GATE_WAVE = 64,
+};
 
 /* ---- The font ---------------------------------------------------------------------------- */
 
@@ -666,7 +677,7 @@ static inline MenuUpload menu_upload_record(const GameState *g, uint16_t at)
     for (unsigned i = 0; i < 7; i++)
         b[i] = rom_read8(g, 0xC20000u | (uint16_t)(at + i));
     /* The old queue copied an unused eighth byte, sometimes from code. */
-    charge_legacy_rom_accesses((GameState *)g, 1);
+    charge_rom_accesses((GameState *)g, 1);
     return (MenuUpload){ (uint16_t)(b[0] | b[1] << 8), (uint32_t)b[4] << 16 | (uint16_t)(b[2] | b[3] << 8),
                          (uint16_t)(b[5] | b[6] << 8), 0 };
 }
@@ -720,7 +731,7 @@ static inline uint8_t menu_sprite_script_byte(const GameState *g, uint32_t at) {
 static inline uint8_t menu_sprite_group_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
 
 /* The address in bank C2 of each object script command's handler ($C2:0F91),
- * which names the command's time and its checked legacy adapter. */
+ * by which the port finds the command's own handler and its time. */
 static inline uint16_t menu_script_handler(const GameState *g, uint8_t opcode)
 {
     return rom_read16(g, 0xC20F91u + 2u * opcode);
@@ -778,7 +789,7 @@ static inline uint8_t menu_world_tilt_step(const GameState *g, uint16_t tilt) { 
 
 /* A sine wave of 256 steps a turn ($C0:F800), as signed bytes: the table the
  * field reads as its directions' velocity factors, read whole by the scenes'
- * objects, through the data bank. */
+ * objects. */
 static inline int8_t menu_sine_step(const GameState *g, uint8_t angle) { return (int8_t)rom_read8(g, 0xC0F800u + angle); }
 
 static inline uint8_t menu_equipment_figure_shown(const GameState *g, unsigned i)
@@ -878,7 +889,7 @@ static inline uint16_t menu_gate_tile_row(const GameState *g, unsigned row) { re
 static inline uint8_t menu_gate_row_pick(const GameState *g, uint32_t at)
 {
     uint8_t row = rom_read8(g, at & 0xFFFFFFu);
-    charge_legacy_rom_accesses((GameState *)g, 1);
+    charge_rom_accesses((GameState *)g, 1);
     return row;
 }
 
@@ -1075,8 +1086,8 @@ static inline MenuCarriedRun menu_carried_run(const GameState *g, unsigned run)
                              rom_read16(g, at + 5) };
 }
 
-/* Where each slot's game is in save memory, as the original's code addresses
- * it on the bus ($FF:FBE1, a word a slot). */
+/* Where each slot's game is in save memory, as the original addresses it on
+ * the bus ($FF:FBE1, a word a slot). */
 static inline uint16_t menu_saved_game_on_the_bus(const GameState *g, uint8_t slot) { return rom_read16(g, 0xFFFBE1u + 2u * slot); }
 
 static inline uint8_t menu_starting_record_byte(const GameState *g, uint8_t character, uint8_t at)
@@ -1206,8 +1217,6 @@ static inline uint8_t menu_shop_member_x(const GameState *g, unsigned member) { 
  * byte past the table, the first of the routine after it in both copies, 8,
  * a byte of the record that is no slot. */
 static inline uint8_t menu_category_slot_place(const GameState *g, uint8_t category) { return rom_read8(g, 0xC2DE1Du + category); }
-
-static inline uint8_t menu_compared_figure_place(const GameState *g, unsigned figure) { return rom_read8(g, 0xC2E1DCu + figure); }
 
 /* The quantity window's list of what an item of each category shows beside
  * its count ($C2:DFC5, a window list in bank $FF each). */

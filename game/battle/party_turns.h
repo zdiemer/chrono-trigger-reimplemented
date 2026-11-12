@@ -19,8 +19,8 @@ void battle_call_off_combination(GameState *g);
 void battle_demo_party_ready(GameState *g);
 void battle_demo_next_turn(GameState *g);
 
-/* The siblings that reach the battle's steps or a member's attack, as C,
- * each with its entry in battle/entries.h: a member's status turn ($FD:AB30),
+/* The siblings that reach the battle's steps or a member's attack: a
+ * member's status turn ($FD:AB30),
  * its waiting action dropped ($C1:B3F9), the party's counters ($FD:AC6E), the
  * enemies knocked out ($C1:B762), the party standing down ($C1:B7F2), and a
  * combination called off while its members waited ($FD:A95F). False where the

@@ -11,8 +11,7 @@
 
 /* ---- The bytes a command names ---------------------------------------------------------------- */
 
-/* A cell is low RAM, which the mode reaches through a data bank on it
- * (menu_script_runs_here sees to it). */
+/* A cell is in low RAM (menu_script_runs_here sees to it). */
 static uint32_t cell_address(uint16_t at) { return 0x7E0000u + at; }
 
 uint8_t script_byte_at(const GameState *g, MenuObject self, ByteRef b)

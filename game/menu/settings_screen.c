@@ -129,7 +129,11 @@ static void go_to_step(GameState *g, SettingsStep step) { set_menu_screen_step(g
  * cell holds a number rather than an on-off (the gauge, the battle speed,
  * the window design) its box says instead whether the cursor is choosing
  * it. */
-enum { BOX_CHOOSING_GAUGE = SETTINGS_CHOOSING_GAUGE, BOX_SETTING_SPEEDS = SETTINGS_SETTING_SPEEDS, BOX_CHOOSING_DESIGN = SETTINGS_CHOOSING_DESIGN };
+enum {
+    BOX_CHOOSING_GAUGE = SETTINGS_CHOOSING_GAUGE,
+    BOX_SETTING_SPEEDS = SETTINGS_SETTING_SPEEDS,
+    BOX_CHOOSING_DESIGN = SETTINGS_CHOOSING_DESIGN,
+};
 
 static bool box_ticked(const GameState *g, unsigned box) { return menu_settings_boxes(g, box) != 0; }
 static void tick_box(GameState *g, unsigned box, bool on) { set_menu_settings_boxes(g, box, on); }
@@ -216,7 +220,13 @@ static void show_gauge(GameState *g)
 /* Nine assignments: the six rows', the shoulders' two, which page lists one
  * way and the other, and a ninth that is copied with them and nothing
  * reads. */
-enum { ASSIGNMENTS = 9, ROWS_ASSIGNMENTS = MENU_SETTINGS_BUTTON_ROWS, PAGE_ONE_WAY = SETTINGS_PAGE_ONE_WAY, PAGE_THE_OTHER = 7, CHANGE_MARKS = 8 };
+enum {
+    ASSIGNMENTS = 9,
+    ROWS_ASSIGNMENTS = MENU_SETTINGS_BUTTON_ROWS,
+    PAGE_ONE_WAY = SETTINGS_PAGE_ONE_WAY,
+    PAGE_THE_OTHER = 7,
+    CHANGE_MARKS = 8,
+};
 enum { BUTTON_R = 0x10, BUTTON_L = 0x20 };
 
 /* A button's glyph, by its bit from the top (none, the ninth). */
@@ -616,7 +626,12 @@ void menu_settings_show_design(GameState *g)
 
 /* Choosing (or going back) starts or ends the choosing: the cursor points
  * at the design's meter meanwhile, and holds there against pushes. */
-enum { ON_THE_DESIGN_OPTION_X = 0x38, ON_THE_DESIGN_OPTION_Y = 0x3B, ON_THE_DESIGN_METER_X = 0x88, ON_THE_DESIGN_METER_Y = 0x37 };
+enum {
+    ON_THE_DESIGN_OPTION_X = 0x38,
+    ON_THE_DESIGN_OPTION_Y = 0x3B,
+    ON_THE_DESIGN_METER_X = 0x88,
+    ON_THE_DESIGN_METER_Y = 0x37,
+};
 
 bool menu_settings_toggle_design_choice(GameState *g)
 {
@@ -712,7 +727,15 @@ void menu_settings_take_gauge_layout(GameState *g)
 /* ---- The panel ------------------------------------------------------------------------------------ */
 
 enum { PANEL_FRAME = 0xC19C, PANEL_WINDOWS = 0xC1B9, PANEL_LINE_EFFECTS = 0x1C };
-enum { CAPTION_AT = 0x22, CAPTION_TILES = 12, CAPTION_LINE = 0x21FF, CAPTION_END_AT = 0x2E, CAPTION_END_TILES = 2, CAPTION_END = 0x21FB, UPLOAD_CAPTION = 0xFC4C };
+enum {
+    CAPTION_AT = 0x22,
+    CAPTION_TILES = 12,
+    CAPTION_LINE = 0x21FF,
+    CAPTION_END_AT = 0x2E,
+    CAPTION_END_TILES = 2,
+    CAPTION_END = 0x21FB,
+    UPLOAD_CAPTION = 0xFC4C,
+};
 
 // $C2:C2FF
 /* The main menu's fourth task held a frame longer while the panel draws;
@@ -772,7 +795,6 @@ void menu_settings_panel_show(GameState *g, Platform *pf)
 bool menu_show_settings_panel_with(GameState *g, Platform *pf, const MainMenuSteps *n, void *ctx)
 {
     menu_settings_panel_frame(g, pf);
-    n->note(ctx, MAIN_MENU_NOTE_SETTINGS_FRAMED, 0);
     if (!n->wait(ctx, MAIN_MENU_AT_THE_SETTINGS_FRAMED))
         return false;
     menu_settings_panel_show(g, pf);
@@ -819,16 +841,12 @@ bool menu_choose_setting_with(GameState *g, Platform *pf, const SettingsSteps *n
     menu_settings_hold_line_effects(g);
     n->read_cursor(ctx);
     if (menu_settings_leaving(g)) {
-        n->note(ctx, SETTINGS_NOTE_EDITING_TESTED, 0);
         menu_settings_leave(g);
-        n->note(ctx, SETTINGS_NOTE_PACKED, 0);
         return n->back_to_the_main_menu(ctx);
     }
-    n->note(ctx, menu_asked(g, MENU_GO_BACK) ? SETTINGS_NOTE_EDITING_TESTED : SETTINGS_NOTE_BUTTONS_TESTED, 0);
     if (!n->take_the_option(ctx))
         return false;
     bool moved = menu_cursor_index(g) != menu_cursor_frame_start(g);
-    n->note(ctx, SETTINGS_NOTE_CURSOR_COMPARED, 0);
     return !moved || n->tick(ctx, SETTINGS_AT_THE_CURSOR_MOVED);
 }
 
@@ -839,12 +857,9 @@ bool menu_take_setting_option_with(GameState *g, Platform *pf, const SettingsSte
 {
     (void)pf;
     SettingsOption option = menu_settings_take_option(g);
-    n->note(ctx, SETTINGS_NOTE_OPTION_PICKED, option);
     if (!n->handle(ctx, option))
         return false;
-    n->note(ctx, SETTINGS_NOTE_HANDLED, 0);
     menu_settings_show_option(g);
-    n->note(ctx, SETTINGS_NOTE_SHOWN, 0);
     return !menu_asked(g, MENU_CHOOSE) || n->tick(ctx, SETTINGS_AT_AN_OPTION_CHOSEN);
 }
 
@@ -854,10 +869,8 @@ bool menu_step_setting_meter_with(GameState *g, SettingsOption meter, const Sett
 {
     bool stepped = meter == SETTINGS_WINDOW_DESIGN ? menu_settings_step_design(g) : menu_settings_step_meter(g, meter);
     if (!stepped) {
-        n->note(ctx, SETTINGS_NOTE_METER_UNMOVED, 0);
         return true;
     }
-    n->note(ctx, SETTINGS_NOTE_METER_SHOWN, 0);
     return n->tick(ctx, SETTINGS_AT_A_METER_STEPPED);
 }
 
@@ -882,10 +895,8 @@ bool menu_step_window_design_with(GameState *g, const SettingsSteps *n, void *ct
         if (!n->step_meter(ctx, SETTINGS_WINDOW_DESIGN))
             return false;
         menu_settings_show_design(g);
-        n->note(ctx, SETTINGS_NOTE_DESIGN_LOADED, 0);
     }
     if (menu_settings_toggle_design_choice(g)) {
-        n->note(ctx, SETTINGS_NOTE_DESIGN_TOGGLED, was_choosing);
         if (!n->tick(ctx, SETTINGS_AT_THE_DESIGN_TOGGLED))
             return false;
     }
@@ -903,12 +914,10 @@ bool menu_choose_gauge_layout_with(GameState *g, Platform *pf, const SettingsSte
     switch (menu_settings_choose_gauge_layout(g)) {
     case GAUGE_CHOSEN:
         menu_settings_back_from_the_gauge(g);
-        n->note(ctx, SETTINGS_NOTE_GAUGE_LEFT, 0);
         return n->ends_with_a_tick(ctx);
-    case GAUGE_POINTED_AT: n->note(ctx, SETTINGS_NOTE_GAUGE_POINTED, 0); return true;
+    case GAUGE_POINTED_AT: return true;
     case GAUGE_MOVED:
         menu_settings_take_gauge_layout(g);
-        n->note(ctx, SETTINGS_NOTE_GAUGE_TAKEN, 0);
         return n->tick(ctx, SETTINGS_AT_A_GAUGE_TAKEN);
     }
     return false;
@@ -924,46 +933,32 @@ bool menu_choose_buttons_with(GameState *g, Platform *pf, const SettingsSteps *n
     n->read_cursor(ctx);
     SettingsButtonsInput input = menu_settings_take_buttons_input(g);
     if (input == BUTTONS_KEPT_AND_LEFT || input == BUTTONS_LEFT) {
-        if (input == BUTTONS_KEPT_AND_LEFT) {
+        if (input == BUTTONS_KEPT_AND_LEFT)
             menu_settings_keep_the_rows(g);
-            n->note(ctx, SETTINGS_NOTE_ROWS_KEPT, 0);
-        } else {
-            n->note(ctx, SETTINGS_NOTE_ROWS_LEFT_UNKEPT, 0);
-        }
         if (!n->tick(ctx, SETTINGS_AT_THE_BUTTONS_LEFT))
             return false;
         menu_settings_leave_the_buttons(g);
-        n->note(ctx, SETTINGS_NOTE_QUEUED, 0);
         return true;
     }
-    n->note(ctx, SETTINGS_NOTE_BUTTONS_TESTED, 0);
-    n->registers_at(ctx, SETTINGS_AT_THE_BUTTONS_TAKEN);
     if (input == BUTTONS_RESET) {
-        n->note(ctx, SETTINGS_NOTE_START_TESTED, 0);
         if (!n->tick(ctx, SETTINGS_AT_THE_BUTTONS_RESET))
             return false;
         menu_settings_reset_buttons(g);
     } else if (input == BUTTONS_KEPT) {
-        n->note(ctx, SETTINGS_NOTE_UP_OR_DOWN_TESTED, 0);
         if (!n->tick(ctx, SETTINGS_AT_THE_BUTTONS_KEPT))
             return false;
         menu_settings_keep_buttons(g);
     }
-    n->registers_at(ctx, SETTINGS_AT_A_ROW_S_BUTTON);
     if (menu_settings_give_row_button(g)) {
-        uint8_t paging_before = menu_settings_buttons(g, SETTINGS_PAGE_ONE_WAY);
         menu_settings_show_row_change(g);
-        n->note(ctx, SETTINGS_NOTE_ROW_CHANGED, paging_before);
         if (!n->tick(ctx, SETTINGS_AT_A_ROW_CHANGED))
             return false;
     }
-    n->registers_at(ctx, SETTINGS_AT_THE_BUTTONS_DONE);
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
-    n->note(ctx, SETTINGS_NOTE_QUEUED, 0);
     return true;
 }
 
-/* ---- The opening and the options as C ----------------------------------------------------------- */
+/* ---- The steps' services ------------------------------------------------------------------------ */
 
 typedef struct {
     GameState *game;
@@ -980,7 +975,7 @@ static bool tick(void *ctx, SettingsPlace at)
     return true;
 }
 
-static const SettingsSteps in_the_program;
+static const SettingsSteps the_steps;
 
 static bool take_the_option(void *ctx)
 {
@@ -990,7 +985,7 @@ static bool take_the_option(void *ctx)
         return false;
     }
     bool back = false;
-    TIMED_AS(c->game, 0xC2BFD4, back = menu_take_setting_option_with(c->game, c->pf, &in_the_program, c));
+    TIMED_AS(c->game, 0xC2BFD4, back = menu_take_setting_option_with(c->game, c->pf, &the_steps, c));
     return back;
 }
 
@@ -1001,8 +996,16 @@ static bool send(void *ctx)
     return true;
 }
 
-/* Each option's handler as C, timed as its routine. */
-typedef enum { HANDLER_STEREO, HANDLER_FLIP, HANDLER_SPEEDS, HANDLER_GAUGE, HANDLER_CONTROLS, HANDLER_METER, HANDLER_DESIGN } HandlerKind;
+/* Each option's handler, timed as its routine. */
+typedef enum {
+    HANDLER_STEREO,
+    HANDLER_FLIP,
+    HANDLER_SPEEDS,
+    HANDLER_GAUGE,
+    HANDLER_CONTROLS,
+    HANDLER_METER,
+    HANDLER_DESIGN,
+} HandlerKind;
 static const struct {
     uint32_t routine;
     HandlerKind kind;
@@ -1030,8 +1033,8 @@ static bool run_the_handler(SettingsContext *c, SettingsOption option)
     case HANDLER_SPEEDS: menu_settings_take_speeds(g); break;
     case HANDLER_GAUGE: menu_settings_take_gauge(g); break;
     case HANDLER_CONTROLS: (void)menu_settings_take_controls(g); break;
-    case HANDLER_METER: return menu_step_speed_with(g, option, &in_the_program, c);
-    case HANDLER_DESIGN: return menu_step_window_design_with(g, &in_the_program, c);
+    case HANDLER_METER: return menu_step_speed_with(g, option, &the_steps, c);
+    case HANDLER_DESIGN: return menu_step_window_design_with(g, &the_steps, c);
     }
     return true;
 }
@@ -1049,7 +1052,7 @@ static bool a_meter_stepped(void *ctx, SettingsOption meter)
 {
     SettingsContext *c = ctx;
     bool stepped = false;
-    TIMED_AS(c->game, 0xC2C164, stepped = menu_step_setting_meter_with(c->game, meter, &in_the_program, c));
+    TIMED_AS(c->game, 0xC2C164, stepped = menu_step_setting_meter_with(c->game, meter, &the_steps, c));
     return stepped;
 }
 
@@ -1059,10 +1062,6 @@ static bool back_to_the_main_menu(void *ctx)
     return menu_back_to_the_main_menu(c->game, c->pf);
 }
 
-static void note(void *ctx, SettingsNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
-
-static void registers_at(void *ctx, SettingsPlace at) { (void)ctx, (void)at; }
-
 static bool ends_with_a_tick(void *ctx)
 {
     SettingsContext *c = ctx;
@@ -1070,8 +1069,8 @@ static bool ends_with_a_tick(void *ctx)
     return true;
 }
 
-static const SettingsSteps in_the_program = {
-    read_cursor, tick, take_the_option, handle, back_to_the_main_menu, note, a_meter_stepped, registers_at, ends_with_a_tick,
+static const SettingsSteps the_steps = {
+    read_cursor, tick, take_the_option, handle, back_to_the_main_menu, a_meter_stepped, ends_with_a_tick,
 };
 
 static bool step(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(const GameState *),
@@ -1082,7 +1081,7 @@ static bool step(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(con
         return false;
     }
     SettingsContext c = { g, pf };
-    return run(g, pf, &in_the_program, &c);
+    return run(g, pf, &the_steps, &c);
 }
 
 bool menu_open_settings(GameState *g, Platform *pf)

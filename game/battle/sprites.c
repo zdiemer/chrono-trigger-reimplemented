@@ -124,14 +124,14 @@ static void set_part_offset(GameState *g, unsigned object, unsigned i, int8_t of
  * object twice over, the tile list and graphics pointers, the part offsets'
  * count and first place, and its pointer to the layout's rows in the ROM's
  * bank $CC. */
-enum { LEFT_OBJECT = 0x08, LEFT_PART_BYTES = 0x00, LEFT_FIRST_PART = 0x02, LEFT_LAYOUT_BANK = 0x04, LEFT_ROWS = 0x05, LEFT_TILE_LIST = 0, LEFT_GRAPHICS = 3, LAYOUT_BANK = 0xCC,  };
+enum { LEFT_OBJECT = 0x08, LAYOUT_BANK = 0xCC };
 
 // $C1:1C55
-/* The original counts its rows and tiles in the battle's direct-page cells
- * as it builds, which this leaves once at the end, and keeps the data bank on
- * the stack meanwhile: a graphics set placed over those cells or the stack
- * would read other bytes here. The resource-bank contract excludes that
- * aliasing: graphics are cartridge data or the field's unpacked sets. */
+/* The original counts its rows and tiles in the battle's work cells as it
+ * builds, which this leaves once at the end: a graphics set placed over
+ * those cells would read other bytes here. The resource-bank contract
+ * excludes that aliasing: graphics are cartridge data or the field's
+ * unpacked sets. */
 void battle_build_frame_graphics(GameState *g, unsigned object, uint8_t frame)
 {
     set_battle_anim_held(g, object, 0);
@@ -175,7 +175,12 @@ enum { PALETTE_ANIMATIONS = 4 };
  * into, from color 1 of it, and whether the set has seven colors rather than
  * three. */
 enum { PLACE_QUARTER = 0x03, PLACE_SEVEN_COLORS = 0x80, COLORS_PER_QUARTER = 4 };
-enum { FIRST_SPRITE_PALETTE = 128, SMALL_SET_COLORS = BATTLE_SMALL_SET_COLORS, LARGE_SET_COLORS = BATTLE_LARGE_SET_COLORS, COLOR_BYTES = 2 };
+enum {
+    FIRST_SPRITE_PALETTE = 128,
+    SMALL_SET_COLORS = BATTLE_SMALL_SET_COLORS,
+    LARGE_SET_COLORS = BATTLE_LARGE_SET_COLORS,
+    COLOR_BYTES = 2,
+};
 
 /* The frame after the one the animation shows, starting over after its
  * last. */
@@ -194,7 +199,7 @@ static uint8_t next_palette_frame(GameState *g, unsigned anim)
 
 /* What the original leaves in its cells of the last frame it showed: the
  * set, the place, and the count of bytes copied down to 0. */
-enum { LEFT_SET = 0x02, LEFT_PLACE = 0x04 };
+enum { LEFT_PLACE = 0x04 };
 
 void battle_put_color_set(GameState *g, bool seven, uint8_t set, uint8_t quarter)
 {
@@ -249,7 +254,7 @@ void battle_step_palette_animations(GameState *g)
 enum { RECORD_BYTES = 4, EFFECT_ANIMATIONS = 16 };
 enum { RECORD_MARKS = 0xE0, SEPARATOR = 0x80, LAST_FRAME = 0x40, EMPTY = 0x20 };
 
-enum { LEFT_COUNT = 0x00, LEFT_ANIMATION_NUMBER = 0x02 };
+enum { LEFT_COUNT = 0x00 };
 
 // $C1:48EC
 /* Find where each of the effect's animations starts and how many frames it
@@ -312,8 +317,7 @@ static void add_sprite(GameState *g, uint16_t set, uint16_t at, unsigned row, un
  * width, its rows counted down and up, the place after its last sprite, the
  * columns walked and the shapes built; and each row's bits shifted out to
  * nothing. */
-enum { LEFT_WIDTH = 0x00, LEFT_ROWS_LEFT = 0x01, LEFT_ROW = 0x02, LEFT_SPRITE = 0x04, LEFT_COLUMN = 0x06 };
-enum { LEFT_SHAPES = 0x0C };
+enum { LEFT_ROWS_LEFT = 0x01, LEFT_ROW = 0x02, LEFT_COLUMN = 0x06 };
 
 /* Build a shape into the set from the stream at `at` (after its header),
  * returning where the stream goes on. */
@@ -358,22 +362,12 @@ static void build_bitmap_shapes(GameState *g)
     }
 }
 
-/* ---- The entries ------------------------------------------------------------------------ */
-
-/* The object and frame come in the cells the original's callers set, which
- * the upload reads too. */
-
-/* Building leaves A's high byte clear and the carry set, as its last test
- * does; returning early leaves them as they came. */
-
-// $C1:1C4A
-/* The same, for objects whose graphics are built this way. */
+/* ---- What the builders know ------------------------------------------------------------- */
 
 /* Only an object whose graphics kind has a layout, as every object the
  * battle builds has, and whose frame's part offsets stay in the table (a
  * large kind's run on into the next objects', and the last objects are the
- * smallest); and A's high byte clear, as the game has it, since the original
- * picks the kind's sizes with the whole of A as its index. */
+ * smallest). */
 enum { GRAPHICS_KINDS = 5, PART_OFFSET_WORDS = BATTLE_COMBATANTS * PARTS_PER_OBJECT * OFFSETS_PER_PART };
 
 bool battle_object_graphics_known(GameState *g, unsigned object)

@@ -69,7 +69,7 @@ enum { PERCENT = 100, DROPS_IN_A_HUNDRED = 90 };
 
 /* The original keeps the enemy's place among the rewards, its place among the
  * enemies and the item in its first cells. */
-enum { LEFT_ENEMY = 0x04, LEFT_PLACE = 0x06, LEFT_ITEM = 0x10, LEFT_FELLED = 0x0E };
+enum { LEFT_ENEMY = 0x04, LEFT_PLACE = 0x06, LEFT_FELLED = 0x0E };
 
 /* The felled enemy as the spoils find it. What the player gets from the
  * quirk this keeps: where the byte after the felled enemy's cell ($0E, read

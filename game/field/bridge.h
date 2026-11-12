@@ -1,4 +1,6 @@
-/* Field object and row validation shared by native callers. */
+/* The field's checks of what the port runs, shared by the field's steps: an
+ * object's animation tick, its rows, and its coming into view or leaving
+ * it. Where a check fails, the caller breaks the program's contract. */
 #ifndef CT_GAME_FIELD_BRIDGE_H
 #define CT_GAME_FIELD_BRIDGE_H
 
@@ -6,14 +8,13 @@
 #include <stdint.h>
 
 #include "field/object.h"
-#include "field/scratch.h"
+#include "field/cast.h"
+#include "field/field_data.h"
 #include "port/vars_ram.h"
 #include "state.h"
 #include "vars.h"
 
-enum { FIELD_PAGE = 0x0100, FIELD_LAYERS_PAGE = 0x1D00 };
-
-enum { JSR_SIZE = 3, JSL_SIZE = 4 };
+enum { FIELD_LAYERS_PAGE = 0x1D00 };
 
 bool field_tick_is_exact(const GameState *g, unsigned obj);
 bool field_rows_are_exact(const GameState *g, unsigned obj);

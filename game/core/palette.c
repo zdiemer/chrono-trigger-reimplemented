@@ -22,10 +22,7 @@
  * A fade or pulse can change some of the channels and leave the others
  * (FadeChannels). Each location has a set of animations in the ROM, which
  * palette_load_location_animations starts in the first six slots when the location is entered;
- * the modes put their own in the others.
- *
- * The functions here take the game's state; the compatibility entries at
- * the end translate the original's registers. */
+ * the modes put their own in the others. */
 #include "core/palette.h"
 
 #include "charge.h"
@@ -79,8 +76,8 @@ static uint8_t color_count(const GameState *g, unsigned slot) { return palette_a
  * rotation takes the color after its count too, and the frame types keep a
  * frame's size as a byte (2 per color). The frame table is in the cartridge.
  * The original's loops take a count of 0 as 65536 and run on past the palette
- * into what follows it, and the game makes neither: the entries refuse those
- * slots (their guards), so the original runs them. */
+ * into what follows it, and the game makes neither: a frame with such a slot
+ * breaks the game's contract and goes no further (palette_animated). */
 static bool slot_fits(const GameState *g, unsigned slot, AnimationType type)
 {
     enum { LARGEST_FRAME = 127, CARTRIDGE_BANKS = 0xC0 };

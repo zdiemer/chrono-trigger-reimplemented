@@ -23,17 +23,14 @@ void screen_starts_recentring(GameState *g);
 bool screen_is_recentred(const GameState *g);
 
 /* A map's start, after the objects' openings ($C0:9DC3); and whether the
- * port can make it (the openings' entry hands it to the original where not:
- * event/bridge.c). */
+ * port can make it. */
 void party_start_on_the_map(GameState *g);
 bool party_start_fits(const GameState *g);
 
-/* The registered entries: the walk and the recentring, which run the
- * original's layers' scroll and screen edges after them; and their guards. */
-/* The same as C, the layers scrolled and streamed after the leader; false
+/* The leader's walk, the layers scrolled and streamed after it; false
  * where the layers are none the port streams, the program going no further. */
 bool field_the_leader_walks(GameState *g);
-/* The screen's step back toward the party as C, with the layers scrolled
+/* The screen's step back toward the party, with the layers scrolled
  * after it; false where the program goes no further. */
 bool field_the_screen_recentres(GameState *g);
 

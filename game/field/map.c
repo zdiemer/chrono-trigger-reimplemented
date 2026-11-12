@@ -22,7 +22,6 @@
 #include "field/bridge.h"
 #include "core/program.h"
 #include "field/field_data.h"
-#include "field/scratch.h"
 #include "platform/video.h"
 #include "port/vars_ram.h"
 #include "ram.h"
@@ -207,8 +206,7 @@ static void mark_the_exits(GameState *g)
 
 /* ---- The map unpacked ------------------------------------------------------------------------- */
 
-/* Where the map is unpacked, from its header on; and where the map's number
- * stays for the original's code and shadow mode. */
+/* Where the map is unpacked, from its header on. */
 enum { UNPACKED_MAP = RAM_FIELD_MAP_HEADER };
 
 void field_ask_to_unpack_the_map(GameState *g)
@@ -222,8 +220,8 @@ void field_take_the_map_in(GameState *g) { take_the_header(g); take_the_repeats_
 
 void field_mark_the_exits(GameState *g) { mark_the_exits(g); }
 
-/* The tile maps' unpacking is a port run as C where its sizes are ones its
- * guard takes: every map the game loads. */
+/* The tile maps' unpacking, where the port takes their sizes: every map the
+ * game loads. */
 static void unpack_the_map(GameState *g)
 {
     field_ask_to_unpack_the_map(g);
@@ -241,9 +239,3 @@ bool field_load_the_map(GameState *g)
     field_mark_the_exits(g);
     return true;
 }
-
-/* ---- Where it meets the original ---------------------------------------------------------------- */
-
-/* Tile maps the port doesn't take are the original's, on the layers' page;
- * it is entered with the layers' page's high byte in A's, which the original
- * set D through. */

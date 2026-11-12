@@ -88,7 +88,13 @@ static void start_timer_for(GameState *g, uint8_t which, uint8_t bits)
 /* The status bytes by number: 0 the condition, 1-4 the four status bytes, 5
  * the byte after; the first three's bits it shrugs off are its own. A status
  * of the first byte shrugged off is marked for the screen script. */
-enum { SHRUGS_OFF_BYTES = 2, OTHER_STATUS_BYTES = 4, LAST_STATUS_BYTE = 5, NO_STATUS_BYTE = 0xFF, SHRUGGED_OFF_MARK = 0x80 };
+enum {
+    SHRUGS_OFF_BYTES = 2,
+    OTHER_STATUS_BYTES = 4,
+    LAST_STATUS_BYTE = 5,
+    NO_STATUS_BYTE = 0xFF,
+    SHRUGGED_OFF_MARK = 0x80,
+};
 
 static uint16_t status_byte(uint16_t which) { return (uint16_t)(STAT_CONDITION + which); }
 

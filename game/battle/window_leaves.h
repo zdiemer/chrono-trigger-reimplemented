@@ -1,13 +1,9 @@
-/* Battle: what the window's routines leave in the registers for the
- * original's code.
+/* Battle: the flag the window's routines leave their callers, as the
+ * original's leave it.
  *
- * Some of the original's callers of the window's routines go on with the
- * carry (and A) as the routine left it, and liveness can't show that they
- * don't read it; the menu window's calls to the original's code, which pass
- * the carry through, carry it on to where it is read. It follows the path the
- * routine took, so it is worked out here, beside the entries, from the state
- * before the call (noted first, under vars_peek) and after it. The game's
- * logic never looks at any of it. */
+ * It follows the path the routine took, so it is worked out here from the
+ * state before the call (noted first, under vars_peek) and after it. The
+ * menu window hands it on to its calls, and nothing reads it now. */
 #ifndef CT_GAME_BATTLE_WINDOW_LEAVES_H
 #define CT_GAME_BATTLE_WINDOW_LEAVES_H
 
@@ -26,8 +22,7 @@ typedef struct {
 } PartyStatusNote;
 
 PartyStatusNote note_party_status(const GameState *g);
-/* The carry, and whether A was left clear (anything drawn). */
+/* The flag it leaves. */
 bool party_status_carry(const GameState *g, PartyStatusNote note);
-bool party_status_clears_a(const GameState *g, PartyStatusNote note);
 
 #endif

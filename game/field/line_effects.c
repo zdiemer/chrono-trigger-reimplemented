@@ -40,7 +40,6 @@
 #include "field/bridge.h"
 #include "field/field.h"
 #include "field/field_data.h"
-#include "field/scratch.h"
 #include "platform/video.h"
 #include "port/vars_ram.h"
 #include "ram.h"
@@ -48,10 +47,11 @@
 
 /* ---- Tables ------------------------------------------------------------------------- */
 
-enum { LINES_EACH = 0x80, /* a count with this bit: each line has values of its own */
-    TABLE_END = 0x00, ENTRY_SIZE = 3, /* a count, then a 16-bit pointer */ };
-
-/* The eight effects, in the order of their tables within a set. */
+enum {
+    LINES_EACH = 0x80,  /* a count with this bit: each line has values of its own */
+    TABLE_END = 0x00,
+    ENTRY_SIZE = 3,     /* a count, then a 16-bit pointer */
+};
 
 /* A table being written: which one, and the offset of its next entry. */
 typedef struct {
@@ -410,9 +410,13 @@ static void color_math_table(GameState *g, TableWriter t, uint8_t set, const Lay
 /* Where the two windows lie. The top one: 7 lines, then (41 - half) above the
  * band and (100 - half) below it, then 30. The bottom one: 100 + 29 lines, then
  * (42 - half) above the band and (40 - half) below it. */
-enum { TOP_START = 7, TOP_ABOVE = 0x29, TOP_BELOW = 0x64, TOP_END = 0x1E, TOP_WAVE_BELOW = 0x82, /* what a waving BG3's table has below the top window */
-    TOP_WINDOW1_END = 0x47, /* and window 1's last part */
-    BOTTOM_START = 0x64, BOTTOM_NEXT = 0x1D, BOTTOM_EDGE = 0x29, BOTTOM_WAVE_START = 0x58, /* a waving BG3's table divides the first 129 lines 88 + 41 */ };
+enum {
+    TOP_START = 7, TOP_ABOVE = 0x29, TOP_BELOW = 0x64, TOP_END = 0x1E,
+    TOP_WAVE_BELOW = 0x82,      /* what a waving BG3's table has below the top window */
+    TOP_WINDOW1_END = 0x47,     /* and window 1's last part */
+    BOTTOM_START = 0x64, BOTTOM_NEXT = 0x1D, BOTTOM_EDGE = 0x29,
+    BOTTOM_WAVE_START = 0x58,   /* a waving BG3's table divides the first 129 lines 88 + 41 */
+};
 
 /* Window 1 follows its per-line table (two bytes a line) outside the band,
  * reading on past the band's lines, and covers the whole line inside it. The
@@ -510,8 +514,11 @@ static void build_line_effect_tables(GameState *g)
  * 256 bytes up into its own source, so its last $38 bytes repeat its first. */
 static const VidColorMath SHADING_ADD = { .layers = VID_BG1_BIT };
 static const VidColorMath SHADING_SUBTRACT = { .subtract = true, .layers = VID_BG1_BIT };
-enum { ALL_CHANNELS = VID_RED | VID_GREEN | VID_BLUE, /* the fixed color is a gray */
-    SHADING_LINES = 0x28, SHADING_STEPS = 8, SHADING_DEEPEST = 9, SHADING_COPY_BYTES = 0x100,  };
+enum {
+    ALL_CHANNELS = VID_RED | VID_GREEN | VID_BLUE,   /* the fixed color is a gray */
+    SHADING_LINES = 0x28, SHADING_STEPS = 8, SHADING_DEEPEST = 9,
+    SHADING_COPY_BYTES = 0x100,
+};
 
 /* `lines` lines of shading from `*line` on. */
 static void shade(GameState *g, uint8_t *line, uint8_t lines, const VidColorMath *math, uint8_t intensity)
@@ -524,7 +531,11 @@ static void shade(GameState *g, uint8_t *line, uint8_t lines, const VidColorMath
 
 /* Each intensity's lines, the lines past them the unshaded middle takes, and
  * the lines the shading covers. */
-enum { SHADING_STEP = SHADING_LINES / SHADING_STEPS, SHADING_REST = SHADING_LINES % SHADING_STEPS, SHADED_LINES = SHADING_STEPS * SHADING_STEP + SHADING_STEP + SHADING_REST + SHADING_DEEPEST * SHADING_STEP,  };
+enum {
+    SHADING_STEP = SHADING_LINES / SHADING_STEPS,
+    SHADING_REST = SHADING_LINES % SHADING_STEPS,
+    SHADED_LINES = SHADING_STEPS * SHADING_STEP + SHADING_STEP + SHADING_REST + SHADING_DEEPEST * SHADING_STEP,
+};
 
 /* Table set 1's copy of the shading. The copy runs on past the shading's lines
  * into the start of the copy itself, which lies right after them, so its lines
@@ -644,25 +655,6 @@ uint8_t field_set_up_line_effects(GameState *g, Platform *pf)
 /* The builders dispatch on the dialog window's place through a table of
  * three; a place past it jumps into bytes that aren't code. */
 bool field_line_effects_can_be_built(const GameState *g) { return dialog_window_position(g) < WINDOW_POSITIONS; }
-
-/* What sending the scroll leaves in the registers: X the last pointer of
- * window 2's table (or, where a layer waves, where the wave's copy ended), A
- * the color math layers with the last scroll's high byte ($FF after a wave),
- * the carry and overflow of the wave's last line's sum (or window 2's table
- * choice, which the sum starts from, and what came in). */
-typedef struct {
-    uint16_t x;
-    uint8_t a_low, a_high;
-    bool carry, overflow;
-} Leaves;
-
-/* The guards: the routines reach the field's page through the direct page and
- * the tables through the data bank $7F, which their callers set. $FD:C2C1
- * runs with the caller's data bank, through which the builders read
- * dialog_window_state once ($FD:C995), and dispatches on
- * dialog_window_position through a table of three; a position past it jumps
- * into bytes that aren't code, which stays the original's. */
-enum { LINE_BANK = 0x7F };
 
 /* The line effects readied for a screen's first frame: their values, their
  * tables built and set up, each timed as the routine it is. */

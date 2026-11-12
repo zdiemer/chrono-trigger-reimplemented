@@ -67,12 +67,3 @@ uint8_t battle_random_other(GameState *g, uint8_t lowest, uint8_t limit)
     return draw(g, OTHER_POSITION, lowest, limit);
 }
 
-/* ---- The entries ------------------------------------------------------------------------ */
-
-/* The lowest number comes in X's low byte and the limit in A's; the number
- * goes back in A's low byte. The original works with 8-bit index registers
- * inside, which clears their high bytes, and saves and puts back the long
- * division's quotient cell around its division, leaving that word in X. The
- * carry is its last compare's, or the add of the lowest number's. */
-
-enum { QUOTIENT_CELL = 4 };

@@ -34,24 +34,17 @@ bool field_is_one_by_two_switch(const GameState *g, uint16_t step);
 uint8_t field_map_byte(const GameState *g, uint16_t at);
 SwitchPress field_press_switch(GameState *g, uint16_t step);
 void field_queue_switch_redraw(GameState *g, SwitchPress p, uint16_t step);
-/* For what the original leaves (field/leaves.c): how many entries the
- * pressed switch's shape redraws, and how many rows a shape has. */
-unsigned field_switch_entry_count(const GameState *g);
-unsigned field_switch_rows(SwitchShape shape);
 void field_redraw_changed_tiles(GameState *g, Platform *pf);
 void field_remember_step(GameState *g, uint16_t step);
 /* The switches the leader pressed on the map shown pressed again, as the
  * map's screen is set up again ($C0:28E1); and whether the steps remembered
- * and their switches are on the map (the guard's). */
+ * and their switches are on the map (which the port checks). */
 void field_press_the_remembered_switches(GameState *g);
 /* A new location forgets the steps remembered on the last ($C0:28AA). */
 void field_forget_the_steps(GameState *g);
 enum { FIELD_FORGET_THE_STEPS_ENTRY = 0xC028AA };
 bool field_remembered_switches_on_the_map(const GameState *g);
 enum { FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY = 0xC028E1 };
-/* Where remembering `step` stopped in the list: the step, kept or found
- * there, or, the list full of others, its last. */
-uint16_t field_step_kept_at(const GameState *g, uint16_t step);
 
 /* The map's rows the field keeps (field_layer_maps, field_tile_properties). */
 enum { FIELD_MAP_ROWS = 64 };

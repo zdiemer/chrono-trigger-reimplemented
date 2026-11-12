@@ -42,22 +42,19 @@
  *   random.c      the program's random numbers
  *   endings.c     the endings modes 10, 11, 14 and 15 share: their setup, the
  *                 zooming picture, and the scenes their scripts start
- *   bridge.c      where ports meet the program's calling conventions
+ *   bridge.c      a scene's song, as a setup starts it
  *   sound.c       the program's messages to the sound driver
  *   sprites.c, circle.c, scaler.c, math.c
  *                 what the scenes share: sprites, the iris, the bitmap
  *                 scaler, the arithmetic
- *   guards.c      what the ports assume of the machine they're entered on
  *
  * The endings are the program's scripts, using the iris, the scaler and the
  * arithmetic, with the perspective, the shared endings' setup and scenes and
  * the staff roll's setup and tasks.
  *
- * The program itself -- its start, its main loop and its end (program.c), the
- * sound put back to normal (sound.c) and the work RAM's clear (screen.c) -- is
- * off the byte-exact gate (docs/REIMPLEMENTATION.md, "The scene program's
- * teardown"); the setups, the frame's work and the scenes' routines it calls
- * are still under it. */
+ * The program itself -- its start, its main loop and its end -- is
+ * program.c, with the sound put back to normal (sound.c) and the work RAM's
+ * clear (screen.c). */
 #ifndef CT_GAME_SCENE_H
 #define CT_GAME_SCENE_H
 
@@ -69,17 +66,22 @@
 #include "state.h"
 #include "vars.h"
 
-/* scene_flags, which whoever starts a scene sets (the boot takes them in A). */
-enum { /* The scene is the title as the game comes back to it (after a reset or a
+/* scene_flags, which whoever starts a scene sets (the boot takes them). */
+enum {
+    /* The scene is the title as the game comes back to it (after a reset or a
      * game over, never from the field), which runs with the line interrupt:
      * the boot starts it, the frame's work leaves interrupts enabled so it can
      * fire, and the program's clear of its work RAM keeps what lies below $0920. */
-    SCENE_FLAG_TITLE_WITH_LINE_IRQ = 0x80, /* The scene is the attract sequence's showing of it. The race is drawn
-     * without its panel, runs the attract's scripts (its camera one of two, * by turns) and closes behind a curtain (scene/race.c, race_drawing.c);
+    SCENE_FLAG_TITLE_WITH_LINE_IRQ = 0x80,
+    /* The scene is the attract sequence's showing of it. The race is drawn
+     * without its panel, runs the attract's scripts (its camera one of two,
+     * by turns) and closes behind a curtain (scene/race.c, race_drawing.c);
      * the palace rising runs the attract's scripts, opens and closes behind a
      * curtain and fades faster (scene/rising_palace.c). */
-    SCENE_FLAG_ATTRACT_SEQUENCE = 0x40, /* The frame's work doesn't send the sound driver song changes. */
-    SCENE_FLAG_NO_SONGS = 0x20,  };
+    SCENE_FLAG_ATTRACT_SEQUENCE = 0x40,
+    /* The frame's work doesn't send the sound driver song changes. */
+    SCENE_FLAG_NO_SONGS = 0x20,
+};
 
 /* A scene's mode, the low bits of scene_flags, which picks its setup from the
  * program's table (scene/program.c). */
@@ -93,11 +95,13 @@ typedef enum {
 
 /* The main loop's call each pass, which a setup names (scene_main_loop_call):
  * nothing, or the scaling of a picture the scene draws as it goes. */
-typedef enum {
-    SCENE_PASS_NOTHING = 0x3176, SCENE_PASS_RACE_SCALING = 0x51D1, SCENE_PASS_ENDING_SCALING = 0x8930,
+enum {
+    SCENE_PASS_NOTHING = 0x3176,
+    SCENE_PASS_RACE_SCALING = 0x51D1,
+    SCENE_PASS_ENDING_SCALING = 0x8930,
     SCENE_PASS_DIVE_SCALING = 0x8278,
     SCENE_PASS_TURN_MAP = 0x7441,
-} ScenePass;
+};
 
 /* ---- The scene program's memory and transfers ------------------------------------------------ */
 
@@ -161,42 +165,55 @@ bool scene_task_listed(const GameState *g, SceneTaskList list, SceneTask task);
 /* The tasks that are C, by the values the lists hold for them (the program's
  * routines, by their addresses: the lists' own encoding, which the scripts
  * write). */
-enum { SCENE_TASK_ANIMATE_PALETTES = 0x37FA, /* scene/screen.c */
-    SCENE_TASK_FINISH_SPRITES = 0x380B, SCENE_TASK_BRIGHTEN = 0x347A, /* scene/screen.c: the screen's fades */
-    SCENE_TASK_DARKEN = 0x3495, SCENE_TASK_MUSIC_FADES = 0x34AB, SCENE_TASK_DARKEN_IN_SILENCE_AND_END = 0x34C2, SCENE_TASK_DARKEN_AND_END = 0x34E3, SCENE_TASK_WATCH_FOR_A_BUTTON = 0x5B99, /* scene/title.c */
-    SCENE_TASK_CALM_THE_RIPPLE = 0x5BBF, SCENE_TASK_SWING_PENDULUM = 0x5BCF, SCENE_TASK_PLACE_PENDULUM = 0x5C57, SCENE_TASK_MOVE_LOGO = 0x5C98, SCENE_TASK_DRAW_THE_CLOCK = 0x5D01, SCENE_TASK_DRAW_THE_HANDS = 0x5D20, SCENE_TASK_COUNT_THE_WAIT_DOWN = 0x5D32, SCENE_TASK_SLIDE_THE_NAME = 0x5D71, SCENE_TASK_DRAW_THE_COPYRIGHT = 0x5E1E, SCENE_TASK_RIPPLE = 0x5FFE, SCENE_TASK_UPLOAD_RIPPLE = 0x6212, SCENE_TASK_SHOW_THE_CREDITS_PAGE = 0x6BE5, /* scene/credit_pages.c */
-    SCENE_TASK_SEND_THE_PALACE_OFFSETS = 0x66DD, /* scene/rising_palace.c */
-    SCENE_TASK_RIPPLE_THE_PALACE = 0x69AF, SCENE_TASK_SHIMMER_THE_PALACE = 0x6A23, SCENE_TASK_DARKEN_THE_PALACE = 0x6A51, SCENE_TASK_WHITEN_THE_PALACE = 0x6A74, SCENE_TASK_CLEAR_THE_PALACE = 0x6A97, SCENE_TASK_WORK_OUT_THE_TURN = 0x73C6, SCENE_TASK_SEND_THE_MAP = 0x783C, SCENE_TASK_STEP_THE_PLANET_S_COLOURS = 0x6439, /* scene/planet.c */
-    SCENE_TASK_TWINKLE_THE_STARS = 0x65DD,  };
+enum {
+    SCENE_TASK_ANIMATE_PALETTES = 0x37FA,     /* scene/screen.c */
+    SCENE_TASK_FINISH_SPRITES = 0x380B,
+    SCENE_TASK_BRIGHTEN = 0x347A,             /* scene/screen.c: the screen's fades */
+    SCENE_TASK_DARKEN = 0x3495,
+    SCENE_TASK_MUSIC_FADES = 0x34AB,
+    SCENE_TASK_DARKEN_IN_SILENCE_AND_END = 0x34C2,
+    SCENE_TASK_DARKEN_AND_END = 0x34E3,
+    SCENE_TASK_WATCH_FOR_A_BUTTON = 0x5B99,   /* scene/title.c */
+    SCENE_TASK_CALM_THE_RIPPLE = 0x5BBF,
+    SCENE_TASK_SWING_PENDULUM = 0x5BCF,
+    SCENE_TASK_PLACE_PENDULUM = 0x5C57,
+    SCENE_TASK_MOVE_LOGO = 0x5C98,
+    SCENE_TASK_DRAW_THE_CLOCK = 0x5D01,
+    SCENE_TASK_DRAW_THE_HANDS = 0x5D20,
+    SCENE_TASK_COUNT_THE_WAIT_DOWN = 0x5D32,
+    SCENE_TASK_SLIDE_THE_NAME = 0x5D71,
+    SCENE_TASK_DRAW_THE_COPYRIGHT = 0x5E1E,
+    SCENE_TASK_RIPPLE = 0x5FFE,
+    SCENE_TASK_UPLOAD_RIPPLE = 0x6212,
+    SCENE_TASK_SHOW_THE_CREDITS_PAGE = 0x6BE5,  /* scene/credit_pages.c */
+    SCENE_TASK_SEND_THE_PALACE_OFFSETS = 0x66DD,   /* scene/rising_palace.c */
+    SCENE_TASK_RIPPLE_THE_PALACE = 0x69AF,
+    SCENE_TASK_SHIMMER_THE_PALACE = 0x6A23,
+    SCENE_TASK_DARKEN_THE_PALACE = 0x6A51,
+    SCENE_TASK_WHITEN_THE_PALACE = 0x6A74,
+    SCENE_TASK_CLEAR_THE_PALACE = 0x6A97,
+    SCENE_TASK_WORK_OUT_THE_TURN = 0x73C6,
+    SCENE_TASK_SEND_THE_MAP = 0x783C,
+    SCENE_TASK_STEP_THE_PLANET_S_COLOURS = 0x6439,   /* scene/planet.c */
+    SCENE_TASK_TWINKLE_THE_STARS = 0x65DD,
+};
 
 /* How a task's frame ends: it stays on its list, it is done (its slot
- * empties), or it hands its slot to another task; or, for a task the
- * original runs, it left the list some other way, and the original goes on
- * from there. */
-typedef enum { TASK_GOES_ON, TASK_IS_DONE, TASK_HANDS_OVER, TASK_LEFT_TO_THE_ORIGINAL } TaskOutcome;
+ * empties), or it hands its slot to another task; or the scene goes no
+ * further, the task having met a case the port doesn't take. */
+typedef enum { TASK_GOES_ON, TASK_IS_DONE, TASK_HANDS_OVER, TASK_GOES_NO_FURTHER } TaskOutcome;
 typedef struct {
     TaskOutcome outcome;
     SceneTask next;   /* TASK_HANDS_OVER: the task that takes the slot */
 } TaskEnd;
 
-/* A program's task as C, in the build with no machine (scene/frame.c's
- * table of the tasks whose entries take the machine): its frame on the
- * list's slot, and how it ends. One that needs the machine says where
- * (program_fail) and ends TASK_LEFT_TO_THE_ORIGINAL. */
-typedef TaskEnd (*SceneTaskInC)(GameState *g, Platform *pf, unsigned slot);
-TaskEnd scene_task_needs_the_machine(GameState *g, uint32_t routine, const char *what);
+/* A program's task (a row of scene/frame.c's table): its frame on the
+ * list's slot, and how it ends. One that meets a case the port doesn't take
+ * says where (program_fail) and ends TASK_GOES_NO_FURTHER. */
+typedef TaskEnd (*SceneTaskRun)(GameState *g, Platform *pf, unsigned slot);
+TaskEnd scene_task_goes_no_further(GameState *g, uint32_t routine, const char *what);
 
-/* What a task leaves in the registers for the code after it, which the lists
- * hand on (scaffolding: the frame's work reads A's high byte after the last
- * frame task, and an original task Y, the next free sprite entry). */
-
-
-/* A task that is C: its frame, on the list it runs on; the guard that says
- * the program's code for it is the one the port stands for (it takes the
- * machine, for the code's hash and the page the lists run on); and what it
- * leaves. */
-
-/* The tasks each file has as C (scene/title.c, scene/screen.c,
+/* The tasks each file has (scene/title.c, scene/screen.c,
  * scene/credit_pages.c, scene/rising_palace.c, scene/planet.c), which the lists' runner looks
  * a task up in. */
 typedef struct {
@@ -215,26 +232,52 @@ extern const unsigned scene_palace_task_count;
 extern const SceneTaskPort scene_planet_tasks[];
 extern const unsigned scene_planet_task_count;
 
-/* The program's routines the scripts call (their command $A0), which are C,
- * by the values the scripts hold for them (the routines' addresses). */
-enum { SCENE_ROUTINE_START_RIPPLE = 0x5DA7, /* scene/title.c */
-    SCENE_ROUTINE_DARKEN_SPRITE_PALETTE_4 = 0x5DB4, SCENE_ROUTINE_UNTINT_SPRITE_PALETTE_3 = 0x5DE9, SCENE_ROUTINE_LET_LAVOS_FALL = 0x5640, /* scene/lavos_falls.c */
-    SCENE_ROUTINE_SEND_LAVOS_BACK = 0x564D, SCENE_ROUTINE_LOOK_FROM_OUTSIDE = 0x7ED1, /* scene/epoch_dive.c */
-    SCENE_ROUTINE_LOOK_FROM_THE_COCKPIT = 0x7EE8, SCENE_ROUTINE_FADE_THE_SHELL_IN = 0x82F5, SCENE_ROUTINE_WHITE_OUT = 0x831F, SCENE_ROUTINE_FADE_THE_PLANET_THROUGH = 0x63FE, /* scene/planet.c */
-    SCENE_ROUTINE_FADE_THE_PLANET_OUT = 0x6403, SCENE_ROUTINE_FADE_THE_PLANET_OUT_SLOWLY = 0x6422, SCENE_ROUTINE_PICK_THE_RACE_S_OPENING = 0x3F59, /* scene/race_camera.c */
-    SCENE_ROUTINE_LOAD_THE_GROUND_AND_PICTURE = 0x8790, /* scene/endings.c */
-    SCENE_ROUTINE_LOAD_THE_PICTURE = 0x87CC, SCENE_ROUTINE_LOAD_THE_PANORAMA = 0x8A01, SCENE_ROUTINE_SHOW_THE_LAYERED_PANORAMA = 0x8AF5, SCENE_ROUTINE_START_THE_STARS = 0x8BAF, SCENE_ROUTINE_START_THE_MODE7_PICTURE = 0x8C14, SCENE_ROUTINE_PREPARE_THE_CREDITS = 0x8CD0, SCENE_ROUTINE_SET_THE_LAST_COLOURS = 0x8DF3, SCENE_ROUTINE_STOP_THE_PICTURE = 0x96FB, SCENE_ROUTINE_SHOW_THE_GROUND_S_FIRST_LATER_COLORS = 0x9702, SCENE_ROUTINE_STEP_THE_GROUND_TOWARD_THE_FIRST = 0x98F6, SCENE_ROUTINE_STEP_THE_GROUND_TOWARD_THE_SECOND = 0x98FB, SCENE_ROUTINE_STEP_THE_GROUND_TOWARD_THE_THIRD = 0x9900, SCENE_ROUTINE_PLACE_THE_CAPTIONS = 0x9919, SCENE_ROUTINE_FADE_THE_SPRITES_OUT = 0x9F8A, SCENE_ROUTINE_FADE_THE_FIRST_LAYER_COLORS_OUT = 0x9FC8, SCENE_ROUTINE_FADE_MORE_LAYER_COLORS_OUT = 0x9FEA, SCENE_ROUTINE_GO_ON_AFTER_THE_CREDITS = 0x996F, /* scene/staff_roll.c */
-    SCENE_ROUTINE_FADE_IN_THE_PICTURE = 0x9FA9,  };
-
-/* A routine a script calls, as C: its work on the calling channel; and the
- * guard that says the program's code for it is the code the port stands
- * for. */
+/* The program's routines the scripts call (their command $A0), by the values
+ * the scripts hold for them (the routines' addresses). */
+enum {
+    SCENE_ROUTINE_START_RIPPLE = 0x5DA7,          /* scene/title.c */
+    SCENE_ROUTINE_DARKEN_SPRITE_PALETTE_4 = 0x5DB4,
+    SCENE_ROUTINE_UNTINT_SPRITE_PALETTE_3 = 0x5DE9,
+    SCENE_ROUTINE_LET_LAVOS_FALL = 0x5640,        /* scene/lavos_falls.c */
+    SCENE_ROUTINE_SEND_LAVOS_BACK = 0x564D,
+    SCENE_ROUTINE_LOOK_FROM_OUTSIDE = 0x7ED1,     /* scene/epoch_dive.c */
+    SCENE_ROUTINE_LOOK_FROM_THE_COCKPIT = 0x7EE8,
+    SCENE_ROUTINE_FADE_THE_SHELL_IN = 0x82F5,
+    SCENE_ROUTINE_WHITE_OUT = 0x831F,
+    SCENE_ROUTINE_FADE_THE_PLANET_THROUGH = 0x63FE,     /* scene/planet.c */
+    SCENE_ROUTINE_FADE_THE_PLANET_OUT = 0x6403,
+    SCENE_ROUTINE_FADE_THE_PLANET_OUT_SLOWLY = 0x6422,
+    SCENE_ROUTINE_PICK_THE_RACE_S_OPENING = 0x3F59,     /* scene/race_camera.c */
+    SCENE_ROUTINE_LOAD_THE_GROUND_AND_PICTURE = 0x8790,     /* scene/endings.c */
+    SCENE_ROUTINE_LOAD_THE_PICTURE = 0x87CC,
+    SCENE_ROUTINE_LOAD_THE_PANORAMA = 0x8A01,
+    SCENE_ROUTINE_SHOW_THE_LAYERED_PANORAMA = 0x8AF5,
+    SCENE_ROUTINE_START_THE_STARS = 0x8BAF,
+    SCENE_ROUTINE_START_THE_MODE7_PICTURE = 0x8C14,
+    SCENE_ROUTINE_PREPARE_THE_CREDITS = 0x8CD0,
+    SCENE_ROUTINE_SET_THE_LAST_COLOURS = 0x8DF3,
+    SCENE_ROUTINE_STOP_THE_PICTURE = 0x96FB,
+    SCENE_ROUTINE_SHOW_THE_GROUND_S_FIRST_LATER_COLORS = 0x9702,
+    SCENE_ROUTINE_STEP_THE_GROUND_TOWARD_THE_FIRST = 0x98F6,
+    SCENE_ROUTINE_STEP_THE_GROUND_TOWARD_THE_SECOND = 0x98FB,
+    SCENE_ROUTINE_STEP_THE_GROUND_TOWARD_THE_THIRD = 0x9900,
+    SCENE_ROUTINE_PLACE_THE_CAPTIONS = 0x9919,
+    SCENE_ROUTINE_FADE_THE_SPRITES_OUT = 0x9F8A,
+    SCENE_ROUTINE_FADE_THE_FIRST_LAYER_COLORS_OUT = 0x9FC8,
+    SCENE_ROUTINE_FADE_MORE_LAYER_COLORS_OUT = 0x9FEA,
+    SCENE_ROUTINE_GO_ON_AFTER_THE_CREDITS = 0x996F,     /* scene/staff_roll.c */
+    SCENE_ROUTINE_FADE_IN_THE_PICTURE = 0x9FA9,
+};
 
 /* The tables' rows, by routine. */
 enum { SCENE_ROW_START_RIPPLE, SCENE_ROW_DARKEN_SPRITE_PALETTE_4, SCENE_ROW_UNTINT_SPRITE_PALETTE_3 };
 enum { SCENE_ROW_SEND_LAVOS_BACK, SCENE_ROW_LET_LAVOS_FALL };
 enum { SCENE_ROW_LOOK_FROM_OUTSIDE, SCENE_ROW_LOOK_FROM_THE_COCKPIT, SCENE_ROW_FADE_THE_SHELL_IN, SCENE_ROW_WHITE_OUT };
-enum { SCENE_ROW_STOP_THE_PICTURE, SCENE_ROW_STEP_TOWARD_THE_FIRST, SCENE_ROW_STEP_TOWARD_THE_SECOND, SCENE_ROW_STEP_TOWARD_THE_THIRD, SCENE_ROW_SHOW_THE_FIRST_LATER_COLORS, SCENE_ROW_PLACE_THE_CAPTIONS, SCENE_ROW_FADE_THE_SPRITES_OUT, SCENE_ROW_FADE_THE_FIRST_LAYER_COLORS_OUT, SCENE_ROW_FADE_MORE_LAYER_COLORS_OUT,  };
+enum {
+    SCENE_ROW_STOP_THE_PICTURE, SCENE_ROW_STEP_TOWARD_THE_FIRST, SCENE_ROW_STEP_TOWARD_THE_SECOND,
+    SCENE_ROW_STEP_TOWARD_THE_THIRD, SCENE_ROW_SHOW_THE_FIRST_LATER_COLORS, SCENE_ROW_PLACE_THE_CAPTIONS,
+    SCENE_ROW_FADE_THE_SPRITES_OUT, SCENE_ROW_FADE_THE_FIRST_LAYER_COLORS_OUT, SCENE_ROW_FADE_MORE_LAYER_COLORS_OUT,
+};
 typedef struct {
     uint16_t routine;
     void (*run)(GameState *g, Platform *pf, uint8_t channel);
@@ -284,21 +327,18 @@ void scene_load_figure_pose(GameState *g, unsigned character, uint16_t pose_offs
 void scene_draw_figure_pose(GameState *g, unsigned character, uint16_t pose_offset, uint16_t appearance);
 bool scene_sprites_fit(const GameState *g, unsigned sprites);
 /* How many sprites a list in the program holds; and where the lists are
- * drawn from next (X's 9th bit kept). */
+ * drawn from next (the across position's 9th bit kept). */
 uint8_t scene_sprite_list_length(const GameState *g, uint16_t list);
 void scene_move_sprite_offset(GameState *g, uint8_t x, uint8_t y);
 /* Where the lists are drawn from, both words as the program stores them. */
 void scene_draw_lists_at(GameState *g, uint16_t x, uint16_t y);
-/* A list drawn as the program's list routines draw it (scene_load_sprite_list,
- * its clipped form): for the program's routines ported as C. */
+/* A list drawn as the program's list routines draw it, small or large and
+ * clipped at the right edge. */
 void scene_draw_sprite_list(GameState *g, uint16_t list, bool clipped);
 /* A small sprite drawn at the cursor as the program's routine draws one
- * (scene_add_sprite, as C scene_draw_sprite), moved by the offset, for a port
- * that has it as values. */
+ * (scene_draw_sprite), moved by the offset, for a scene that has it as
+ * values. */
 void scene_draw_sprite_moved(GameState *g, SceneSprite sprite);
-uint16_t scene_clipped_list_leaves_a(const GameState *g, uint16_t list, uint16_t a);
-/* The overflow a clipped list leaves (of its last sprite's Y). */
-bool scene_clipped_list_leaves_overflow(const GameState *g, uint16_t list);
 /* The rest of the cursor's group of four sprites put off the screen, as the
  * frame's last sprites leave it. */
 void scene_hide_rest_of_group(GameState *g);
@@ -314,9 +354,9 @@ typedef uint32_t SceneDraw;
 
 uint8_t scene_next_random_byte(GameState *g);
 SceneDraw scene_draw_random(GameState *g, Platform *pf, PfOrigin o, SceneDraw last, uint16_t salt, TmEntropyWidth width);
-/* The same draw with the palette's bytes for noise, as the program's code
- * draws with the data bank on work RAM, where the stir's reads of the beam
- * land on the palette. */
+/* The same draw with the palette's bytes for noise, as the program draws
+ * where its stir's reads, meant for the beam's position, land on the
+ * palette instead. */
 SceneDraw scene_draw_random_off_the_palette(GameState *g, SceneDraw last, uint16_t salt, TmEntropyWidth width);
 /* Something left for the draws after it to stir in (scene_call_stirred), as
  * wide as the draw that takes it. */
@@ -326,7 +366,10 @@ void scene_leave_for_the_draws(GameState *g, uint16_t value, TmEntropyWidth widt
  * scenes' tasks set in channel 1's registers, and how its drawing is set: the
  * near stars in front of the layers, as the program comes, or every star
  * behind them (the branch in its code a scene writes). */
-enum { SCENE_STAR_FIELD_CHANNEL = 1, SCENE_STAR_FIELD_SPEED = 0, SCENE_STAR_FIELD_DRIFT_ACROSS = 1, SCENE_STAR_FIELD_DRIFT_DOWN = 2,  };
+enum {
+    SCENE_STAR_FIELD_CHANNEL = 1, SCENE_STAR_FIELD_SPEED = 0, SCENE_STAR_FIELD_DRIFT_ACROSS = 1,
+    SCENE_STAR_FIELD_DRIFT_DOWN = 2,
+};
 enum { SCENE_NEAR_STARS_IN_FRONT = 0x0430, SCENE_EVERY_STAR_BEHIND = 0x0080 };
 
 /* scene/stars.c: every star of the field scattered at random, from a first
@@ -334,18 +377,17 @@ enum { SCENE_NEAR_STARS_IN_FRONT = 0x0430, SCENE_EVERY_STAR_BEHIND = 0x0080 };
 void scene_scatter_stars(GameState *g, Platform *pf, SceneDraw first);
 
 /* A sequence channel: one of the two the program runs a script on
- * (scene_channels), whose page its routines run on when a script calls them. */
+ * (scene_channels), whose cells its routines work on when a script calls them. */
 typedef unsigned SceneChannel;
 
 /* scene/script.c: a channel's registers, 0-15. */
 uint16_t scene_channel_register(const GameState *g, SceneChannel ch, unsigned n);
 void set_scene_channel_register(GameState *g, SceneChannel ch, unsigned n, uint16_t v);
 
-/* scene/script.c: a channel's turn as C, for a program with no machine under
- * it: its script run until a command ends the turn; or until a command, or a
- * routine it calls, is one only the machine runs yet, where the program goes
- * no further (core/program.h). */
-typedef enum { SCENE_TURN_ENDED, SCENE_TURN_NEEDS_THE_MACHINE } SceneTurn;
+/* scene/script.c: a channel's turn: its script run until a command ends the
+ * turn; or until a command, or a routine it calls, is one the port doesn't
+ * take, where the program goes no further (core/program.h). */
+typedef enum { SCENE_TURN_ENDED, SCENE_TURN_GOES_NO_FURTHER } SceneTurn;
 SceneTurn scene_channel_turn(GameState *g, Platform *pf, SceneChannel ch);
 
 /* scene/sound.c: how far the music has got. The sound driver shows it on a
@@ -356,7 +398,7 @@ typedef struct {
     bool steady;
 } MusicStatus;
 MusicStatus scene_music_status(Platform *pf);
-/* As C, with or without a machine under it: the sound put back to normal
+/* The sound put back to normal
  * as a scene starts and ends, each command sent through the program's own
  * send and its echo waited for; that send alone, of the command in the
  * buffer; and whether the music has started playing. */
@@ -366,7 +408,7 @@ bool scene_music_is_playing(Platform *pf);
 uint8_t scene_music_progress(MusicStatus music);
 bool scene_music_reached(MusicStatus music, uint8_t level);
 
-/* scene/circle.c: the iris, as a C call for the menus' sprite objects and the
+/* scene/circle.c: the iris, drawn for the menus' sprite objects and the
  * field's screen effects. The mode says how the lower half is made from the
  * upper one -- mirrored, or from every other line of it for a circle squashed
  * to half its height -- and, with SCENE_CIRCLE_KEEPS_OUTSIDE, that the lines
@@ -378,7 +420,7 @@ void scene_circle_draw(GameState *g, uint8_t mode);
  * turn, the magnitude in 256ths from the table at $C0:F900, negative for the
  * first half turn; the cosine a quarter turn on. The lookup also leaves
  * whether the step is in the second half of the turn (scene_sine_second_half),
- * the carry its compare leaves, which some callers carry on into a divide. */
+ * which some callers take on into a divide. */
 enum { SCENE_FULL_TURN = 0x400, SCENE_HALF_TURN = 0x200, SCENE_QUARTER_TURN = 0x100 };
 int16_t scene_sine(const GameState *g, uint16_t angle);
 int16_t scene_cosine(const GameState *g, uint16_t angle);
@@ -387,14 +429,15 @@ uint16_t scene_radius_from_area(GameState *g, uint32_t area);
 bool scene_turn_map(GameState *g);
 bool scene_sine_second_half(uint16_t angle);
 
-/* scene/math.c: the program's arithmetic as C calls, on a page's cells, each
+/* scene/math.c: the program's arithmetic, on a page's cells, each
  * timed as the routine it stands for: a 16 x 16-bit product; a signed 16-bit
  * value times a signed byte (the low word of the product); the 8.8 fraction of
  * a value's high byte over a divisor; and the first divisor from `from` whose
  * quotient of `dividend` falls under `limit`. */
 uint32_t scene_multiply16(GameState *g, SceneProgramPage page, uint16_t a, uint16_t b);
 /* Whether the program's multiply comes out as the product, with or without the
- * byte after the product's top bit carried in (the multiply's guard). */
+ * byte after the product's top bit carried in; a multiply that doesn't goes
+ * no further. */
 bool scene_multiplies_exactly(uint16_t a, uint16_t b, bool carried);
 /* The 32-bit divide's quotient and remainder of `dividend` over `divisor`.
  * The divisor must be nonzero and below $80000000. Returns the quotient. */
@@ -493,9 +536,6 @@ void scene_blank_credits_map(Platform *pf, PfOrigin in_front_site);
 /* scene/race_matrix.c: the regrouping routine written into its place in the
  * program, for a picture at `source` into the page at `destination`. */
 void scene_write_matrix_code_for(GameState *g, uint16_t destination, uint16_t source);
-/* The writer's Y as it comes back: past its table of strips, two bytes each
- * (scaffolding, for the code after a setup that ends with it). */
-uint16_t scene_matrix_writer_leaves_y(void);
 
 /* scene/plane.c: the Mode 7 plane under channel 0's camera, in its
  * registers: the camera's height (the higher, the smaller the picture), its
@@ -510,7 +550,11 @@ uint16_t scene_matrix_writer_leaves_y(void);
  * nonzero); in the Epoch's dive, seen from the cockpit, the frames counted
  * as the shell above is built. */
 enum { SCENE_CAMERA_CHANNEL = 0 };
-enum { SCENE_PLANE_HEIGHT = 0, SCENE_PLANE_X = 1, SCENE_PLANE_Y = 2, SCENE_PLANE_CENTRE_X = 3, SCENE_PLANE_CENTRE_Y = 4, SCENE_PLANE_TURN = 5, SCENE_PLANE_HORIZON = 6, SCENE_PLANE_SHELL_FRAMES = 7, SCENE_PLANE_TOP = 8, SCENE_PLANE_A = 10, SCENE_PLANE_B = 11, SCENE_PLANE_LINES_PAIRED = 11, SCENE_PLANE_C = 12, SCENE_PLANE_D = 13,  };
+enum {
+    SCENE_PLANE_HEIGHT = 0, SCENE_PLANE_X = 1, SCENE_PLANE_Y = 2, SCENE_PLANE_CENTRE_X = 3, SCENE_PLANE_CENTRE_Y = 4,
+    SCENE_PLANE_TURN = 5, SCENE_PLANE_HORIZON = 6, SCENE_PLANE_SHELL_FRAMES = 7, SCENE_PLANE_TOP = 8, SCENE_PLANE_A = 10,
+    SCENE_PLANE_B = 11, SCENE_PLANE_LINES_PAIRED = 11, SCENE_PLANE_C = 12, SCENE_PLANE_D = 13,
+};
 void scene_turn_the_flat_plane(GameState *g);
 void scene_send_the_flat_plane(const GameState *g, Platform *pf);
 void scene_send_the_plane_s_place(const GameState *g, Platform *pf);
@@ -535,13 +579,10 @@ bool scene_dive_camera_changed(const GameState *g);
 void scene_look_at_the_shell_from_outside(GameState *g);
 void scene_look_at_the_shell_from_the_cockpit(GameState *g);
 
-/* ---- Entries, by file ------------------------------------------------------------------------ */
-
-/* scene/guards.c */
-bool scene_channel_at(uint16_t d, SceneChannel *ch);
+/* ---- The program's parts, by file -------------------------------------------------------------- */
 
 /* scene/boot.c */
-/* As C, for a program with no machine under it: the boot with its flags,
+/* The boot with its flags,
  * the program unpacked into work RAM (true where the scene runs with the line
  * interrupt); the boot's two handlers; and a resource unpacked by its place
  * in the program's table. */
@@ -554,36 +595,24 @@ void scene_unpacks(GameState *g, uint16_t resource);
 void scene_copy_resource_bytes(GameState *g, uint8_t bank, uint16_t from, uint16_t to, uint32_t count);
 
 /* scene/frame.c */
-/* As C, for a program with no machine under it: the frame's work, and the
- * NMI handlers -- the frame's (the work, then the song), and the one that
- * only acknowledges while it runs. The work is false where a task is one
- * only the machine runs yet, the program going no further there. */
+/* The frame's work, and the NMI handlers -- the frame's (the work, then the
+ * song), and the one that only acknowledges while it runs. The work is false
+ * where a task meets a case the port doesn't take, the program going no
+ * further there. */
 bool scene_frame_work(GameState *g, Platform *pf);
 void scene_vblank(GameState *g, Platform *pf);
 void scene_vblank_while_working(GameState *g, Platform *pf);
-enum { SCENE_FRAME_HANDLER = 0xC308B3, SCENE_HANDLER_WHILE_WORKING = 0xC308C9, SCENE_BOOT_VBLANK = 0xC30548, SCENE_BOOT_LINE = 0xC30529 };
-/* A list going on where a task it called came back to it, frames after the
- * call, from under the frame the list keeps under each call (its data bank,
- * the slot, P and D), which the entries pull. */
-enum { SCENE_TASK_CALL_FRAME = 6, SCENE_FINISHED_TASK_FRAME = SCENE_TASK_CALL_FRAME + 2 };
-
-/* scene/script.c */
-
-/* scene/screen.c (the program in RAM; each guarded by a hash of its code) */
 
 /* scene/title.c (the program in RAM) */
-/* The setups as the program's dispatch runs them (scene/program.c): each
- * leaves the registers as its routine returns them, and is true unless a
- * call-out of its stopped. The title's then waits for its song, in the
- * original's loop. */
-/* The title's setup as C, for a program with no machine under it (the song
- * started, not waited for); false where a step is the machine's yet. */
+/* The setups as the program's dispatch runs them (scene/program.c), each
+ * false where a step goes no further. The title's (the song started, not
+ * waited for). */
 bool scene_title_set_up(GameState *g, Platform *pf);
-/* The credits' page's setup as C, the letters unpacked by the unpacker as C. */
+/* The credits' page's setup, the letters unpacked. */
 bool scene_credit_pages_set_up(GameState *g, Platform *pf);
 
 /* scene/race.c (the program in RAM) */
-/* The race's setup as C (scene/program.c's setups with no machine). */
+/* The race's setup. */
 bool scene_race_set_up(GameState *g, Platform *pf);
 TaskEnd scene_race_sweep_curtain(GameState *g, Platform *pf, unsigned slot);
 TaskEnd scene_race_move_camera(GameState *g, Platform *pf, unsigned slot);
@@ -591,69 +620,35 @@ TaskEnd scene_race_upload_column_rom(GameState *g, Platform *pf, unsigned slot);
 TaskEnd scene_race_upload_column_ram(GameState *g, Platform *pf, unsigned slot);
 TaskEnd scene_race_upload_tilemap(GameState *g, Platform *pf, unsigned slot);
 
-/* scene/perspective.c (the program in RAM): the entry the endings jump to,
- * and for the race's camera check, whether the port builds the perspective
- * for the channel at a page and what the original leaves in the registers. */
-/* Its state half, which the C path checks: the lines are ones the port builds. */
+/* scene/perspective.c (the program in RAM): whether the port builds the
+ * perspective for the channel's lines; a scene that finds it doesn't goes no
+ * further. */
 bool scene_perspective_fits(const GameState *g, SceneChannel ch);
 
-/* scene/bridge.c: a scene's song, from the program's routine that starts one,
- * called from a setup at `call`. */
-/* The song started, as the program's call of the sound driver starts it. */
+/* scene/bridge.c: a scene's song started, as the program's call of the sound
+ * driver starts it. */
 void scene_start_song(Platform *pf, uint8_t song);
-/* scene/bridge.c: the frame a call from `call` leaves on the stack, for the
- * calls a port makes as the routine the call reached would. */
-/* scene/bridge.c: the stars scattered as a setup has them scattered, with
- * what the setup's last call left in A (`left_in_a`) and the carry. */
-/* scene/bridge.c: the program's unpacker ($7E:3691) from the JSR at `site`:
- * the resource's place in the program's list in X, unpacked into the
- * destination set; it reads X and the overflow, the data bank and the direct
- * page, which it hands back. And a script's first step ($7E:3749), from the
- * JSR at `site`, with 16-bit A and the bank the setup goes on with kept under
- * it (most keep their own data bank; the staff roll's 0), which reads Y (`y`,
- * as the setup's last load left it) and the overflow, as the setup leaves it;
- * the setups then go back on the scene's page with 8-bit A, all but the
- * Epoch's dive's, which goes on in 16-bit A. */
+/* The routines the setups' steps are timed as: the program's unpacker
+ * ($7E:3691), a resource unpacked by its place in the program's list, and a
+ * script's first step ($7E:3749). */
 enum { SCENE_UNPACK = 0x7E3691 };
 enum { SCENE_FIRST_STEP = 0x7E3749 };
-/* Both, keeping the setup's own data bank. */
 
-/* What the program's palette made current ($7E:38AF) and the palette
- * animations' stop ($FD:FFEE) leave in Y, which a script's first step and the
- * driver's call after them read: past the working palette's copy, and past
- * the animations' last slot (scaffolding). */
-enum { SCENE_Y_PAST_THE_WORKING_PALETTE = 0x2400, SCENE_Y_PAST_THE_ANIMATIONS_SLOTS = 0x0090 };
-/* scene/bridge.c: checked C calls with the legacy return frame and timing.
- * A broken contract reports the fault and stops at the original entry with
- * that frame intact. The called variants also synchronize time at both
- * sides of a former call-out. True only after returning to the call site. */
-void scene_charge_clipped_list_result(GameState *g, uint16_t list);
-void scene_charge_signed_list_result(GameState *g, uint16_t list);
-void scene_charge_large_list_result(GameState *g, uint16_t list);
-void scene_charge_perspective_result(GameState *g, SceneChannel ch);
-
-/* scene/program.c: the scene program as C, for a program with no machine
- * under it: booted with its flags, started, set up, its frames run until a
- * script ends it, and ended, the game going back to the field's start; false
- * where a step is the machine's yet, the program going no further there
- * (core/program.h). And the program's end's display stopped (screen.c). */
+/* scene/program.c: the scene program: booted with its flags, started, set
+ * up, its frames run until a script ends it, and ended, the game going back
+ * to the field's start; false where a step goes no further (core/program.h).
+ * And the program's end's display stopped (screen.c). */
 bool scene_runs(GameState *g, Platform *pf, uint8_t flags);
 void scene_stops_the_display(Platform *pf);
 
-/* scene/program.c, on the machine in the shipping mode (the program is
- * retired): its start, which the boot calls, and its main loop's held wait's
- * continuations (holds.h, HOLD_SCENE_MAIN_LOOP) with their guards -- a pass,
- * which makes the call a setup named and ends the program once a script has
- * ended the scene, and the idle pass with nothing to call. */
 /* scene/curtain.c: a frame's step of the curtain (the scene engine's $C3:01E4,
  * and its jump $C3:000E) */
 void scene_curtain_step(GameState *g, Platform *pf, uint16_t salt);
 void scene_curtain_start(GameState *g, uint8_t sweep, uint16_t table, uint8_t bank);
 bool scene_curtain_table_fits(uint8_t bank, uint16_t table);
-/* The step as a scene's C path takes it, false where only the machine
- * sweeps its table. */
+/* The step as a scene takes it, false (the scene going no further) where
+ * the table is not one the step sweeps. */
 bool scene_curtain_stepped(GameState *g, Platform *pf, uint16_t salt);
-/* scene/credit_pages.c (the program in RAM) */
 /* scene/planet.c (the program in RAM) */
 /* Colours that step toward others a step at a time, by the planet's step's
  * task: `colours` colours of the palette at `palette` (the program's bank),
@@ -663,16 +658,16 @@ typedef struct {
     uint8_t steps;
 } SceneColourStep;
 void scene_step_the_colours_toward(GameState *g, SceneColourStep step);
-/* As C, for a program with no machine (scene/program.c). */
+/* The planet's setup (scene/program.c). */
 bool scene_planet_set_up(GameState *g, Platform *pf);
-/* The planet's end's tasks as C (scene/frame.c's table): the caption, the
+/* The planet's end's tasks (scene/frame.c's table): the caption, the
  * wait for a button and the countdown to the console's reset. */
 TaskEnd scene_show_the_planet_s_caption(GameState *g, Platform *pf, unsigned slot);
 TaskEnd scene_wait_for_a_button_to_restart(GameState *g, Platform *pf, unsigned slot);
 TaskEnd scene_count_down_to_the_restart(GameState *g, Platform *pf, unsigned slot);
 
 /* scene/rising_palace.c (the program in RAM) */
-/* The setup as C (scene/program.c's setups with no machine). */
+/* The setup (scene/program.c). */
 bool scene_palace_set_up(GameState *g, Platform *pf);
 TaskEnd scene_sweep_the_palace_curtain(GameState *g, Platform *pf, unsigned slot);
 /* scene/staff_roll.c (the program in RAM) */
@@ -689,8 +684,8 @@ void scene_send_letters_widened(GameState *g, Platform *pf);
 void scene_set_caption_colours(GameState *g);
 
 /* scene/endings.c (the program in RAM) */
-/* The endings' tasks and the main loop's scaling of their picture as C, for a
- * program with no machine (each task a column of scene/frame.c's table). */
+/* The endings' tasks and the main loop's scaling of their picture (each task
+ * a row of scene/frame.c's table). */
 TaskEnd scene_ending_place_picture(GameState *g, Platform *pf, unsigned slot);
 TaskEnd scene_ending_pick_picture_frame(GameState *g, Platform *pf, unsigned slot);
 TaskEnd scene_ending_upload_picture(GameState *g, Platform *pf, unsigned slot);
@@ -708,10 +703,6 @@ TaskEnd scene_ending_sweep_window(GameState *g, Platform *pf, unsigned slot);
 bool scene_ending_scale_picture(GameState *g, Platform *pf);
 bool scene_ending_set_up(GameState *g, Platform *pf);
 TaskEnd scene_ending_panorama_horizon(GameState *g, Platform *pf, unsigned slot);
-/* The scripts' other routines' entries and guards (scene_ending_routines). */
-/* scene/bridge.c: where a scene's scaling of its picture goes on in the
- * original's scaler: the shared endings' or the Epoch's dive's. */
-
 /* scene/lavos_falls.c */
 bool scene_lavos_falls_set_up(GameState *g, Platform *pf);
 TaskEnd scene_turn_lavos(GameState *g, Platform *pf, unsigned slot);
@@ -720,8 +711,7 @@ TaskEnd scene_swing_the_field(GameState *g, Platform *pf, unsigned slot);
 TaskEnd scene_draw_the_planet(GameState *g, Platform *pf, unsigned slot);
 
 /* scene/epoch_dive.c: the setup, the frame's tasks and the main loop's
- * scaling as C (each task a column of scene/frame.c's table), and their
- * machine entries. */
+ * scaling (each task a row of scene/frame.c's table). */
 bool scene_dive_set_up(GameState *g, Platform *pf);
 TaskEnd scene_pass_the_shell_across(GameState *g, Platform *pf, unsigned slot);
 TaskEnd scene_pass_the_shell_down(GameState *g, Platform *pf, unsigned slot);
@@ -740,8 +730,6 @@ TaskEnd scene_set_the_screen_outside(GameState *g, Platform *pf, unsigned slot);
 TaskEnd scene_set_the_screen_in_the_cockpit(GameState *g, Platform *pf, unsigned slot);
 bool scene_scale_the_epoch(GameState *g, Platform *pf);
 
-/* scene/plane.c */
-
 /* scene/endings.c: the zooming picture's frame for a turn of its animation
  * (1024 steps a turn, a frame each 32nd). */
 void scene_ending_show_picture_frame(GameState *g, uint16_t turn);
@@ -749,7 +737,7 @@ void scene_ending_show_picture_frame(GameState *g, uint16_t turn);
 /* scene/beyond_time.c (the program in RAM): the fireworks placed and their
  * first bursts picked (the shared setup's), and the night's tasks. */
 void scene_set_the_fireworks_up(GameState *g);
-/* The night's tasks as C, for a program with no machine. */
+/* The night's tasks. */
 TaskEnd scene_keep_the_orbit(GameState *g, Platform *pf, unsigned slot);
 TaskEnd scene_pass_the_map(GameState *g, Platform *pf, unsigned slot);
 TaskEnd scene_check_the_flight_view(GameState *g, Platform *pf, unsigned slot);
@@ -771,9 +759,9 @@ TaskEnd scene_stars_start_drift(GameState *g, Platform *pf, unsigned slot);
 TaskEnd scene_stars_keep_drifting(GameState *g, Platform *pf, unsigned slot);
 
 /* scene/captions.c (the program in RAM) */
-/* A caption drawn from its text, as C, where its guard's state half takes
- * it: its text ends inside the program's bank and its letters fit the
- * sprite table. */
+/* Whether a caption can be drawn from its text: its text ends inside the
+ * program's bank and its letters fit the sprite table (a scene whose caption
+ * doesn't goes no further); and the caption drawn. */
 bool scene_caption_fits(const GameState *g, uint16_t text);
 void scene_draw_caption(GameState *g, uint16_t text);
 TaskEnd scene_turn_captions(GameState *g, Platform *pf, unsigned slot);
@@ -805,27 +793,21 @@ TaskEnd scene_race_aim_camera(GameState *g, Platform *pf, unsigned slot);
 TaskEnd scene_race_follow_finish(GameState *g, Platform *pf, unsigned slot);
 TaskEnd scene_race_set_horizon(GameState *g, Platform *pf, unsigned slot);
 
-/* scene/sound.c (the program in RAM) */
-
 /* scene/sprites.c */
-/* The program's own list of large sprites ($7E:A03D), as a C call and as its
- * entry: every sprite kept (the fireworks' bursts), or those at the picture's
+/* The program's own list of large sprites ($7E:A03D): every sprite kept (the
+ * fireworks' bursts), or those at the picture's
  * bottom or below left out, the form the callers write into its code. */
 typedef enum { LIST_KEEPS_EVERY_SPRITE, LIST_LEAVES_OUT_BELOW_THE_PICTURE } SceneLargeList;
 void scene_draw_large_sprite_list(GameState *g, uint16_t list, SceneLargeList form);
 SceneLargeList scene_large_list_form_written(const GameState *g);
 bool scene_large_sprite_list_takes(const GameState *g, uint16_t list);
-uint16_t scene_large_list_leaves_a(const GameState *g, uint16_t list);
 void scene_set_listed_tile(GameState *g, uint16_t list, unsigned n, uint8_t tile);
 /* The program's list with signed offsets ($7E:3A97), each sprite's size in its
- * attributes, as a C call and as its entry: the endings' rider of the swept
- * window. */
+ * attributes: the endings' rider of the swept window. */
 void scene_draw_signed_sprite_list(GameState *g, uint16_t list);
-/* What the signed list leaves in A, for the ports' wrappers. */
-uint16_t scene_signed_list_leaves_a(const GameState *g, uint16_t list);
 
-/* scene/circle.c: whether the iris's table keeps clear of the cells its
- * original reads back (the guard's state half), and the guard. */
+/* scene/circle.c: whether the iris's table keeps clear of the cells the
+ * original reads back as it draws, which a scene checks before it opens one. */
 bool scene_circle_table_clear_of_the_cells(const GameState *g);
 
 /* scene/scaler.c: a bitmap handed to the scaler, which draws it from the
@@ -837,17 +819,12 @@ typedef struct {
     uint16_t source, rows, pairs, row_step, limit;
 } SceneScaling;
 void scene_scaler_start(GameState *g, SceneScaling bitmap);
-/* Whether the port draws the bitmap handed over (the scaler's guard's state
- * half); and the whole of it drawn at once, its first row nudged by
- * `row_nudge`, for a program with no machine (false where the port draws a
- * row no further, having asked for the machine). */
+/* Whether the port draws the bitmap handed over; and the whole of it drawn
+ * at once, its first row nudged by `row_nudge` (false where a row goes no
+ * further). Timed as the scaler's rows ($C3:0309). */
 enum { SCENE_SCALER_ROWS = 0xC30309 };
 bool scene_scaler_draws(const GameState *g);
-bool scene_scaling_fits(SceneScaling picture);
 bool scene_scale_the_bitmap(GameState *g, bool row_nudge);
-
-/* scene/random.c: the draw as the program's code calls it, through its own
- * call ($7E:3443) or the stir's ($C3:02DD). */
 
 /* scene/math.c */
 

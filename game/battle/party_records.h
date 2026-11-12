@@ -1,7 +1,7 @@
 /* Battle: the party's records as a fight starts them -- each member's stats
  * with its equipment (battle/member_stats.c) and its tech records
  * (battle/tech_records.c) -- for the fight's start (battle/fight_start.c) to
- * call as C. */
+ * call. */
 #ifndef CT_GAME_BATTLE_PARTY_RECORDS_H
 #define CT_GAME_BATTLE_PARTY_RECORDS_H
 

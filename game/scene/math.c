@@ -68,7 +68,7 @@ static uint32_t multiply(GameState *g, SceneProgramPage page)
     shift_the_byte_after(g, page);
     uint32_t product = (uint32_t)a * b + (carried ? CARRIED_IN : 0);
     set_scene_call_product(g, page, product);
-    charge_legacy_io_accesses(g, 4);
+    charge_io_accesses(g, 4);
     return product;
 }
 
@@ -111,7 +111,7 @@ static uint32_t multiply_signed(GameState *g, SceneProgramPage page)
     if (negative)
         product = (uint32_t)-product;
     set_scene_call_product(g, page, product);
-    charge_legacy_io_accesses(g, 4);
+    charge_io_accesses(g, 4);
     return product;
 }
 
@@ -161,14 +161,14 @@ uint16_t scene_offset_angle(GameState *g, int16_t across, int16_t down)
 {
     uint16_t x = magnitude16((uint16_t)across), y = magnitude16((uint16_t)down);
     uint16_t dividend = (uint16_t)(y << 8);
-    charge_legacy_accesses(g, 2);
-    charge_legacy_accesses(g, 2);
-    charge_legacy_io_accesses(g, 2);
+    charge_accesses(g, 2);
+    charge_accesses(g, 2);
+    charge_io_accesses(g, 2);
     if (x <= 1)
         return down < 0 ? SCENE_QUARTER_TURN : 3 * SCENE_QUARTER_TURN;
     uint8_t divisor = (uint8_t)(x - 1);
     uint16_t slope = scene_divider_quotient(dividend, divisor);
-    charge_legacy_io_accesses(g, 1);
+    charge_io_accesses(g, 1);
     unsigned step = 1;
     while (step < 64 && slope >= scene_angle_thresholds(g, step))
         step++;
@@ -196,15 +196,11 @@ uint16_t scene_radius_from_area(GameState *g, uint32_t area)
         else
             high = middle;
     }
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
     return (uint16_t)low;
 }
 
-/* ---- The arithmetic as C calls -------------------------------------------------------------- */
-
-/* For the ports that do the program's arithmetic where it calls it: each sets
- * the operands' cells as the caller does, works on the page's cells as the
- * routine does (its quirks and its leftovers with it) and is timed as it. */
+/* ---- The arithmetic -------------------------------------------------------------------------- */
 
 /* A product of two 16-bit operands whose middle partial sums fit
  * (multiplies_exactly), as every caller here gives it. */
@@ -260,7 +256,7 @@ uint32_t scene_divide32(GameState *g, SceneProgramPage page, uint32_t dividend, 
     set_scene_call_divisor(g, page, divisor);
     uint32_t quotient;
     TIMED_AS(g, 0x7E339F, quotient = divide(g, page));
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     return quotient;
 }
 
@@ -349,10 +345,9 @@ uint8_t scene_find_divisor_from(GameState *g, uint16_t dividend, uint8_t from, u
         program_breaks_a_contract(g, FIND_DIVISOR, "a scene divisor search without a solution");
         return from;
     }
-    /* These divider polls were part of the machine's comparison bookkeeping.
-     * Preserve that estimate without adding work to the native program,
-     * which has always computed the divisor directly. */
-    TIMED_AS(g, FIND_DIVISOR, charge_legacy_accesses(g, f.tried * ACCESSES_PER_PASS));
-    charge_legacy_io_accesses(g, 1);
+    /* The time the original spends trying each divisor on the divider: the
+     * port works the divisor out directly. */
+    TIMED_AS(g, FIND_DIVISOR, charge_accesses(g, f.tried * ACCESSES_PER_PASS));
+    charge_io_accesses(g, 1);
     return f.divisor;
 }

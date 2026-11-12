@@ -21,13 +21,15 @@
 
 #include "cpu_io.h"
 #include "charge.h"
-#include "menu/bridge.h"
 #include "menu/menu.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
 /* Where the tasks start. */
-enum { DRAW_THE_SCROLL_BAR = 0x8BB8, DRAW_THE_HELD_CURSOR = 0x8AB2, DRAW_THE_MEMBERS_CURSORS = 0x8AF5, DRAW_THE_CURSOR_ON_THE_LIST = 0x89F2, DRAW_THE_CURSOR_ON_A_MEMBER = 0x8A45,  };
+enum {
+    DRAW_THE_SCROLL_BAR = 0x8BB8, DRAW_THE_HELD_CURSOR = 0x8AB2, DRAW_THE_MEMBERS_CURSORS = 0x8AF5,
+    DRAW_THE_CURSOR_ON_THE_LIST = 0x89F2, DRAW_THE_CURSOR_ON_A_MEMBER = 0x8A45,
+};
 
 /* The player's cursor is the 29th sprite; the held cursors follow it. */
 enum { PLAYERS_CURSOR = 28, FIRST_HELD_CURSOR = 29 };
@@ -274,31 +276,9 @@ bool menu_scroll_bar_can_be_drawn(const GameState *g)
     return thumb_line(g) < LINES;
 }
 
-// $C2:8A98
-
-// $C2:8ABA
-
-// $C2:8AD5
-
-// $C2:8AFD
-
-// $C2:89E4
-
-// $C2:89FA
-
-// $C2:8A31
-
 /* ---- Their tasks -------------------------------------------------------------------------------- */
 
-/* The held cursors' tasks (MENU_HELD_CURSORS_TASK), each from its start and
- * from its wait: the cursor a screen holds on what was picked (an item on the
- * list, a member), or on each active member, drawn a frame at a time. They
- * wait in the task's 16-bit widths, but the member's, whose drawing makes A
- * 8-bit. */
-enum { HELD_CURSOR_WAIT = 0xC28AB5, LIST_CURSOR_WAIT = 0xC289F5, MEMBER_CURSOR_WAIT = 0xC28A91, MEMBERS_CURSORS_WAIT = 0xC28AF8 };
-
-/* The cursors are drawn on the menus' page with the data bank on work
- * RAM's, at places of the cursor's table (its 42); the members' for the
+/* The cursors are drawn at places of the cursor's table (its 42); the members' for the
  * one to three active ones (with none, the original's loop runs round its
  * count's 65536). */
 bool menu_held_cursor_can_be_drawn(const GameState *g) { return menu_held_cursor(g) < MENU_CURSOR_PLACES_COUNT; }

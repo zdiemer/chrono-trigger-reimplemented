@@ -210,9 +210,6 @@ static ScreenTriangle wedge_corners(BattlePoint first, BattlePoint second, BandS
     return t;
 }
 
-/* The original hands the triangles' drawing window 1 (whatever the command's
- * first operand says, which it doesn't read) and clears the cell $20. */
-
 // $CD:1937
 /* Screen command $DA: draw window 1 as a wedge from a pair's first position
  * to the band's width across its second. */
@@ -269,9 +266,3 @@ SCREEN_OPCODES(screen_between_opcodes,
     { 0xD9, OPERATION(lay_band), .needs = lays_a_band_that_fits, .length = 2, .quad = BYTE(0), .pair = BYTE(1),
       .aim = BYTE(1), .kept_pair = BYTE(1) },
 );
-
-/* ---- The entry ------------------------------------------------------------------------------ */
-
-/* $CE:E7CF, called with the two points in the cells $23-$26, the first
- * across and down, then the second; the direction comes back in A and in
- * the cell $45. */

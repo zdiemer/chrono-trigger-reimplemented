@@ -49,11 +49,8 @@ static bool all_learned(const GameState *g, uint8_t member)
 /* Where a locked tech waits for its character's bit, Crono's the lowest. */
 static uint8_t unlock_bit(uint8_t character) { return character < 8 ? (uint8_t)(1u << character) : 0; }
 
-/* What the original leaves in battle_tech_learned. */
-enum { TECH_REACHED = 0x00, TECH_NOT_REACHED = 0xFF };
-
-/* The original finds the tech's record by multiplying, the carry of its sum
- * of the character's first tech and its count coming in with it. */
+/* The original finds the tech's record by multiplying, whose cells keep
+ * what it leaves. */
 enum { MULTIPLY_WORDS = 0xC1C90B };
 
 static void leave_tech_record_found(GameState *g, uint8_t known, uint8_t first)
@@ -115,10 +112,6 @@ static void add_tech_points(GameState *g, uint8_t member, uint16_t points)
     uint32_t total = (record_long(g, who, STAT_TECH_POINTS) + points) & 0xFFFFFF;
     set_record_long(g, who, STAT_TECH_POINTS, capped_tech_points(total));
 }
-
-/* The cell where the original keeps the battle's tech points while it spends
- * them. */
-enum { POINTS_KEPT_AT = 8 };
 
 // $C1:F39A
 /* The battle's tech points towards the member's single techs, as many as they
@@ -227,8 +220,7 @@ void rewards_learn_combination_techs(GameState *g, Combination c, uint8_t member
         last = asks_met(g, &list, c.asks, n);
         if (last.short_of_techs)
             continue;
-        /* the original finds the tech's record by multiplying, its carry set
-         * from the end of the list */
+        /* the original finds the tech's record by multiplying */
         TIMED_AS(g, MULTIPLY_WORDS, battle_leave_multiply(g, tech, PARTY_TECH_BYTES));
         if (party_tech_locked(g, tech))
             continue;

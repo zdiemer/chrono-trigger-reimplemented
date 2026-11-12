@@ -7,13 +7,19 @@
 #include <stdint.h>
 
 #include "state.h"
+#include "vars.h"
 
 /* How a text is laid out in its tiles (menu_text_layout): the low four bits
  * the kind of tiles (none four-colour, any sixteen-colour; a tile further
  * left sixteen-colour tiles whose lines start a tile further in), and the top
  * bit lines that start at the tiles' very edge. */
 typedef uint8_t MenuTextLayout;
-enum { MENU_TEXT_FOUR_COLOUR = 0x00, MENU_TEXT_A_TILE_FURTHER_LEFT = 0x02, MENU_TEXT_TILE_KIND = 0x0F, MENU_TEXT_LINES_AT_THE_EDGE = 0x80,  };
+enum {
+    MENU_TEXT_FOUR_COLOUR = 0x00,
+    MENU_TEXT_A_TILE_FURTHER_LEFT = 0x02,
+    MENU_TEXT_TILE_KIND = 0x0F,
+    MENU_TEXT_LINES_AT_THE_EDGE = 0x80,
+};
 
 /* Why a call stopped (menu_text_stop): the string ended; a wait; a line or
  * page break the caller acts on (from the first new line on, each starts a
@@ -46,18 +52,16 @@ enum { MENU_TEXT_SIXTEEN_COLOUR_LABEL = MENU_TEXT_LINES_AT_THE_EDGE | 0x01 };
 uint8_t menu_set_label_laid_out(GameState *g, uint32_t strings, uint8_t string, uint16_t tiles, MenuTextLayout layout);
 
 /* Whether a label can be set: from memory, into work RAM, with none of its
- * names or lines on the text page (typeset.c's guards say why). */
+ * names or lines on the text page (typeset.c's checks say why). */
 bool menu_label_can_be_set(const GameState *g, uint32_t strings, uint8_t string, uint16_t tiles);
 
-/* For a C caller's guard: whether string `string` of the table at `strings`
+/* For a caller's check: whether string `string` of the table at `strings`
  * can be typed a few glyphs a call into the tiles at `tiles` (a 24-bit
- * address), and whether the text being typed can carry on (typeset.c's guards
+ * address), and whether the text being typed can carry on (typeset.c's checks
  * say what they keep it from). */
 bool menu_text_can_be_typed(const GameState *g, uint32_t strings, uint8_t string, uint32_t tiles);
 bool menu_text_can_carry_on(const GameState *g);
-/* The text's start's guard, its state half: strings the typesetter reads. */
+/* Whether the text can start: strings the typesetter reads. */
 bool menu_text_can_start(const GameState *g);
-
-/* The entries, and their guards. */
 
 #endif

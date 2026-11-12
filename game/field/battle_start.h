@@ -15,9 +15,8 @@ void field_hand_over_to_a_battle(GameState *g);
 
 /* The battle's start ($C0:024C): the enemies on the screen found, and with
  * none the party brought back together, a frame of its walk run; otherwise
- * the field handed over and put aside. As C, with its guard's state half
- * first; STOPPED where a step is the machine's yet, the program going no
- * further there. */
+ * the field handed over and put aside. STOPPED where a step is one the port
+ * doesn't take, the program going no further there. */
 typedef enum { FIELD_BATTLE_SET, FIELD_NO_BATTLE, FIELD_BATTLE_START_STOPPED } FieldBattleStart;
 FieldBattleStart field_battle_set_up(GameState *g, Platform *pf);
 enum { FIELD_BATTLE_BEGINS_ENTRY = 0xC0024C, FIELD_AFTER_BATTLE_ENTRY = 0xC00283 };

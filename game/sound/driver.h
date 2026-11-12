@@ -19,8 +19,11 @@ enum { NO_SONG = 0xFF };
  * buffer each: a command or a song asks for one in the low four bits. */
 enum { ECHO_DELAYS = 16 };
 
-enum { ALL_VOICES = 0xFF, EFFECT_PAIR_67 = 0xC0, /* the voices the effects of command $18 play on */
-    EFFECT_PAIR_45 = 0x30     /* ... of command $19 */ };
+enum {
+    ALL_VOICES = 0xFF,
+    EFFECT_PAIR_67 = 0xC0,    /* the voices the effects of command $18 play on */
+    EFFECT_PAIR_45 = 0x30     /* ... of command $19 */
+};
 
 /* The fades: the music's, and the effects' on each pair of voices. */
 enum { FADE_MUSIC, FADE_EFFECTS_67, FADE_EFFECTS_45 };

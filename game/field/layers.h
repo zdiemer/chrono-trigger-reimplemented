@@ -21,14 +21,18 @@
  * (field_layer_edge_vram, ten a layer) and the parts' sizes
  * (field_layer_edge_sizes, five): these say which word is which. The two
  * rows share their sizes, as do the two columns. */
-enum { EDGE_TOP_ROW = 0, /* three addresses: from the start, the other half, the wrap */
-    EDGE_BOTTOM_ROW = 3, /* the same three */
-    EDGE_LEFT_COLUMN = 6, /* two addresses: from the start, the wrap */
-    EDGE_RIGHT_COLUMN = 8, /* the same two */
-    EDGE_ADDRESSES = 10,  };
-enum { EDGE_ROW_SIZES = 0, /* three sizes, the rows' parts */
-    EDGE_COLUMN_SIZES = 3, /* two, the columns' */
-    EDGE_SIZES = 5,  };
+enum {
+    EDGE_TOP_ROW = 0,          /* three addresses: from the start, the other half, the wrap */
+    EDGE_BOTTOM_ROW = 3,       /* the same three */
+    EDGE_LEFT_COLUMN = 6,      /* two addresses: from the start, the wrap */
+    EDGE_RIGHT_COLUMN = 8,     /* the same two */
+    EDGE_ADDRESSES = 10,
+};
+enum {
+    EDGE_ROW_SIZES = 0,        /* three sizes, the rows' parts */
+    EDGE_COLUMN_SIZES = 3,     /* two, the columns' */
+    EDGE_SIZES = 5,
+};
 
 /* A map's settings for its layers, a bit for each of BG2 and BG3 (bit n for
  * layer n): which stay still as the screen scrolls (field_layer_still), and
@@ -111,51 +115,31 @@ TileAttributes map_tile_attributes_past_the_map(const GameState *g, MapPlace p);
 /* A script's change to the map (field/tile_copy.c): make the copy
  * field_tile_copy describes; and whether a copy of the rectangle from one
  * tile to another to a destination stays on the map, as the game's copies
- * do (the guards'). */
+ * do (which the port checks). */
 void map_copy_tiles(GameState *g);
 /* The index of a column and a row of a layer's tile map in VRAM, which is
  * two halves of 32 columns side by side. */
 uint16_t field_tile_map_index(uint16_t column, uint16_t row);
 bool map_tile_copy_fits(uint16_t from, uint16_t to, uint16_t destination);
-/* The copy the game queued fits so (the guard's state half). */
+/* The copy the game queued fits so. */
 bool field_tile_copy_is_on_the_map(const GameState *g);
 
-/* What the copy leaves its callers, worked out beside the other field
- * routines' (field/leaves.c): Y and the overflow, as its last table's copy
- * leaves them, or as it found them where it copied nothing. */
-uint16_t field_tile_copy_y(const GameState *g, uint16_t before);
-bool field_tile_copy_overflow(const GameState *g, bool before);
-
 /* Every frame: each layer's edge runs around its place in its tile map
- * ($C0:7F9A); and the overflow of the runs' last sum, which the original
- * leaves its callers. */
+ * ($C0:7F9A). */
 void field_find_layer_edges(GameState *g);
-bool field_layer_edges_overflow(const GameState *g);
 /* A layer put back at the top left of its tile map (its place and scroll 0),
  * and the edges found again, as a whole map drawn afresh is sent. */
 void field_put_the_layer_at_its_start(GameState *g, FieldLayer layer);
-/* For the original's code (field/leaves.c): what the edges' working out
- * leaves in the registers -- where in its tile map the last layer's column
- * right of the view starts and the row above the view it starts on
- * ($C0:8218), and the carry and overflow of that start's VRAM address. */
-typedef struct {
-    uint16_t right_column_start, row_above;
-    bool carry, overflow;
-} FieldEdgesLeave;
-FieldEdgesLeave field_edges_leave(const GameState *g);
-
-/* field/tile_copy.c */
-
 /* When a map loads ($C0:A521): its tile maps and tile attributes unpacked
  * from the map's decompressed data; and whether its sizes are ones the
  * tables hold, and its data can't come round the banks to the layers' page
- * (the guard's game part: field/layers.c says why). */
+ * (which the port checks: field/layers.c says why). */
 void field_unpack_the_tile_maps(GameState *g);
 bool field_tile_maps_fit(const GameState *g);
 enum { FIELD_UNPACK_TILE_MAPS_ENTRY = 0xC0A521 };
 
 /* field/layers.c */
-/* The layers' scroll moved on for the frame ($C0:91AC), as C. */
+/* The layers' scroll moved on for the frame ($C0:91AC). */
 void field_layer_scroll_updated(GameState *g);
 
 static inline MapPlace map_place_at(uint16_t index) { return (MapPlace){ (uint8_t)(index >> 8), (uint8_t)index }; }

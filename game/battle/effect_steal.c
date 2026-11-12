@@ -19,11 +19,6 @@
 /* The accessory that makes its wearer's steals three times as likely to land. */
 enum { THIEFS_ACCESSORY = 0xA5 };
 
-/* The original hands the outcome back in the cell it took the chance in
- * ($16), and the item taken in $06, where the member's turn reads it to name
- * in its message (battle.h, kept plainly). */
-enum { ENEMY_PLACE_CELL = 0x0C };
-
 /* How the steal came out, kept for the member's turn (battle_steal_outcome)
  * and handed back: a miss and nothing to take as themselves; an item taken as
  * its giving left it, and 0 handed back. */
@@ -54,11 +49,11 @@ static void set_marks_of(GameState *g, uint8_t slot, uint8_t marks)
  * marks so, to the thief, kept apart until the battle ends; any other to the
  * inventory. The giving clears the flag the battle's code shares
  * (battle_action_came_to_nothing), which the member's turn reads after. The
- * original works in the direct page's cells as it goes: the thief's record
+ * original works in the battle's work cells as it goes: the thief's record
  * by a multiply, the item's record's place, which the scripts' stat test may
  * read after ($08 and $0A, kept plainly), and $00, which the clock's modifier
  * may read (battle.h). */
-enum { KEPT_ITEM_BYTES = 8, RECORD_PLACE_CELL = 0x02, THIEF_RECORD_CELL = 0x04 };
+enum { KEPT_ITEM_BYTES = 8 };
 
 /* One of an item kept for a party member until the battle ends, with the
  * detail and kind its record gives it. */
@@ -77,7 +72,6 @@ static void give_stolen(GameState *g, uint8_t item)
     battle_keep_stat_offset_word(g, 0);
     uint8_t thief = battle_actor(g);
     effect_times(g, thief, KEPT_ITEM_BYTES);
-    /* entered with the carry the item's test left, set */
     set_battle_action_came_to_nothing(g, 0);
     if (item >= FIRST_RECORDED_ITEM) {
         uint8_t past = (uint8_t)(item - FIRST_RECORDED_ITEM);

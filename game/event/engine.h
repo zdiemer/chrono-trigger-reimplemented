@@ -9,9 +9,8 @@
  * and says where the script goes (false: it handed the rest of the turn to
  * another game mode). `state_is_ours`
  * says whether the game's state is still one the port reaches as it expects
- * after what `run` ran (on the development system, whether a command the
- * original ran left the data bank elsewhere); a native runner is always
- * true. */
+ * after what `run` ran; the program's runner (event_runner) always says it
+ * is. */
 typedef struct {
     bool (*run)(void *ctx, uint16_t at, EventStep *step);
     bool (*state_is_ours)(void *ctx);
@@ -45,7 +44,7 @@ EventTurnEnd event_restart_the_running_object(GameState *g, const EventRunner *r
  * function, up to its first zero byte, all at once. */
 EventTurnEnd event_run_map_script_commands(GameState *g, const EventRunner *r, uint16_t *stopped_at);
 
-/* Each command as C, timed at its retained estimate. An invalid opcode
+/* The program's runner: each command timed at its retained estimate. An invalid opcode
  * or a state outside its contract reports a broken contract and stops the
  * turn (core/program.h, program_breaks_a_contract). */
 typedef struct {
@@ -54,12 +53,11 @@ typedef struct {
 } EventScriptContext;
 EventRunner event_runner(EventScriptContext *c);
 
-/* The bridges' work as C, for a program with no machine under it (the
- * runner as C, above): each takes the command at `at` and says where the
+/* The commands whose rows have no operation, which read their operands from
+ * the script themselves: each takes the command at `at` and says where the
  * script goes, or false where the turn ends with the field (the program going
- * on, or no further, from where the command said: core/program.h). A bridge
- * with none here is the machine's yet. */
-#define EVENT_BRIDGES_WITH_WORK(X) \
+ * on, or no further, from where the command said: core/program.h). */
+#define EVENT_UNDECODED_COMMANDS(X) \
     X(event_play_effect, 0xE8) \
     X(event_play_song, 0xEA) \
     X(event_fade_music, 0xEB) \
@@ -84,7 +82,7 @@ EventRunner event_runner(EventScriptContext *c);
     X(event_take_out_of_party, 0xD6) \
     X(event_choose_credits, 0x29)
 
-#define EVENT_DECLARE_BRIDGE_WORK(name, opcode) bool name(GameState *g, Platform *pf, uint16_t at, EventStep *step);
-EVENT_BRIDGES_WITH_WORK(EVENT_DECLARE_BRIDGE_WORK)
+#define EVENT_DECLARE_UNDECODED_COMMAND(name, opcode) bool name(GameState *g, Platform *pf, uint16_t at, EventStep *step);
+EVENT_UNDECODED_COMMANDS(EVENT_DECLARE_UNDECODED_COMMAND)
 
 #endif

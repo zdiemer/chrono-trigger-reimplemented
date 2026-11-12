@@ -58,10 +58,6 @@ typedef struct {
     uint8_t tile, plane_pair, row;
 } Offsets;
 
-/* The offsets as the generator leaves them in the scene's cells, the
- * destination's page moved on past the last; nothing reads them again but the
- * row step (below). */
-
 // $C3:09E9
 /* Write the routine: pairs store from the page in `destination` on, and load
  * from `source` on. The source base stays in the scene's cells, where the
@@ -106,24 +102,16 @@ static void write_matrix_code(GameState *g, uint16_t destination, uint16_t sourc
      * the program's next signed multiply adds into its product
      * (scene/math.c): the step as the loop leaves it is game state. */
     set_scene_call_matrix_row_step(g, scene, o.row);
-    charge_legacy_accesses(g, 8);
+    charge_accesses(g, 8);
 }
 
 /* The scenes' setups have it written into its place in the program
- * (scene_matrix_code); the generator's own entry, wherever its caller pointed
- * the port. */
+ * (scene_matrix_code). */
 void scene_write_matrix_code_for(GameState *g, uint16_t destination, uint16_t source)
 {
     hw_port_seek(g, (uint16_t)RAM_SCENE_MATRIX_CODE, (uint8_t)(RAM_SCENE_MATRIX_CODE >> 16));
     write_matrix_code(g, destination, source);
 }
-
-uint16_t scene_matrix_writer_leaves_y(void) { return STRIPS * 2; }
-
-/* Entered with 16-bit index registers: X the first destination page's
- * address, Y the source base. The routine sets the direct page and the data
- * bank to 0 itself, and the overflow is its last sum's, the tile step's 28 + 4,
- * which is clear. */
 
 /* ---- The regrouping --------------------------------------------------------------------------- */
 
@@ -153,9 +141,6 @@ void scene_gather_picture_into_tiles(GameState *g)
         }
     }
 }
-
-/* Entered with 16-bit A. The routine moves the direct page as it goes, which
- * its callers put back; nothing it leaves in the registers is read. */
 
 /* ---- The main loop's scaling ------------------------------------------------------------------- */
 
@@ -206,7 +191,7 @@ static void gather_scaled_picture(GameState *g)
     TIMED_AS(g, 0x7EB574, scene_gather_picture_into_tiles(g));
 }
 
-/* As C, for a program with no machine: each racer's waiting picture handed
+/* The main loop's call each pass: each racer's waiting picture handed
  * over and drawn whole, the racer's last tiles waited for a frame at a time,
  * and the new picture gathered. False where the program goes no further. */
 enum { TILEMAP_SENT_WAIT = 0x7E5211 };

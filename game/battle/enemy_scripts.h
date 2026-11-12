@@ -79,12 +79,6 @@ typedef struct {
     ScriptPlace actions_from; /* the actions being chosen from */
 } ScriptChoosing;
 
-/* How far the script has been read: each condition and action reads its
- * operands in order and the original keeps the place of the last it read.
- * The block's actions are looked for from there, after the first end marker
- * past it, and so is the next block; an operand byte that is the marker
- * (a number, an offset) moves where they are found, as in the original. */
-
 /* A choosing for `enemy`, with no pair under way and nothing failed. */
 ScriptChoosing enemy_choosing(GameState *g, uint8_t enemy);
 
@@ -129,7 +123,12 @@ enum { CONDITION_KINDS = 0x29, ACTION_KINDS = 0x17 };
 /* How a condition came out, for the block's testing to act on: the block
  * fails; its actions are chosen; it holds with nothing chosen; or its actions
  * are chosen and it fails all the same. */
-typedef enum { CONDITION_FAILS, CONDITION_HOLDS, CONDITION_HOLDS_UNCHOSEN, CONDITION_CHOOSES_BUT_FAILS } ConditionVerdict;
+typedef enum {
+    CONDITION_FAILS,
+    CONDITION_HOLDS,
+    CONDITION_HOLDS_UNCHOSEN,
+    CONDITION_CHOOSES_BUT_FAILS,
+} ConditionVerdict;
 
 typedef struct {
     ConditionVerdict verdict;
@@ -169,20 +168,15 @@ DrawnAction enemy_draw_one_of_four(GameState *g, ScriptPlace at);
  * enemy_choose_actions chooses, drawing again where it is a draw itself. */
 void enemy_choose_after_draw(GameState *g, ScriptChoosing *c, DrawnAction drawn);
 
-/* What the choosing hands its caller in A: the action's byte where the
- * actions had run out, the enemy's number where it names none, or the mark
- * that it chose. */
-uint8_t enemy_choosing_result(const GameState *g, uint8_t enemy);
-
 /* Whether a condition of `kind`, or the action, at `at` is one the tables
- * have, naming only selectors and searches there are (the guards'): a place
+ * have, naming only selectors and searches there are: a place
  * the game never leaves a script at can land on bytes that aren't. */
 bool enemy_condition_in_tables(const GameState *g, uint8_t kind, ScriptPlace at);
 bool enemy_action_in_tables(const GameState *g, uint8_t action, ScriptPlace at);
-/* An action's turn's guard's state half (battle_script_entry_ready's, for
- * the action): an enemy at work in the scripts, the action's entry at the
+/* Whether the port takes an action's turn: an enemy at work in the scripts,
+ * the action's entry at the
  * script's place in the tables, and for choosing again the choosing's actions
  * too. */
-bool enemy_action_entry_fits(const GameState *g, uint8_t action);
+bool enemy_action_turn_fits(const GameState *g, uint8_t action);
 
 #endif

@@ -36,12 +36,13 @@
 enum { SOUND_PLAY_SONG = 0x10 };
 typedef enum { SOUND_EFFECT_ON_VOICES_6_7 = 0x18, SOUND_EFFECT_ON_VOICES_4_5 = 0x19 } SoundEffectVoices;
 
-/* The driver's tick: its timer runs at 8 kHz and ticks every 42nd count; fast
- * forward ticks at every count. */
-enum { SOUND_TIMER_HZ = 8000, SOUND_TIMER_COUNTS_PER_TICK = 42 };
-
-enum { SOUND_TRACKS = 16, /* 0-7 the music, one per voice; 12-15 the effects, on voices 4-7 */
-    SOUND_MUSIC_TRACKS = 8, SOUND_FIRST_EFFECT_TRACK = 12, SOUND_LOOP_LEVELS = 4, SOUND_QUEUE = 16 };
+enum {
+    SOUND_TRACKS = 16,       /* 0-7 the music, one per voice; 12-15 the effects, on voices 4-7 */
+    SOUND_MUSIC_TRACKS = 8,
+    SOUND_FIRST_EFFECT_TRACK = 12,
+    SOUND_LOOP_LEVELS = 4,
+    SOUND_QUEUE = 16
+};
 
 /* A value that moves toward another in equal steps: an 8.8 level, the step,
  * and how many steps are left. */
@@ -148,7 +149,13 @@ typedef struct {
  * the instruments' tunings and envelopes, the song with the sound effects
  * after it, and the song's percussion. The data's own pointers are addresses
  * in it, which is why it is kept by address. */
-enum { SOUND_INSTRUMENT_TABLES = 0x1F00, SOUND_SEQUENCES = 0x2000, SOUND_EFFECTS = 0x2F00, SOUND_SEQUENCES_END = 0x4700, SOUND_PERCUSSION = 0xF120 };
+enum {
+    SOUND_INSTRUMENT_TABLES = 0x1F00,
+    SOUND_SEQUENCES = 0x2000,
+    SOUND_EFFECTS = 0x2F00,
+    SOUND_SEQUENCES_END = 0x4700,
+    SOUND_PERCUSSION = 0xF120,
+};
 
 /* The game's samples in sound memory (loads.c): sixteen places after the
  * boot's own samples, each holding one sample block of the cartridge, laid

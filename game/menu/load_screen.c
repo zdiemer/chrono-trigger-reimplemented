@@ -23,9 +23,8 @@
  * (menu/saves.c); leaving the menus for the game is the menus' own exit
  * ($C2:8320).
  *
- * Each step is one sequence (LoadScreenSteps, load_screen.h) that the
- * program runs as C, below, and the machine's entries run with the
- * original's calls (load_screen_bridge.c). */
+ * Each step is one sequence (LoadScreenSteps, load_screen.h) that asks what
+ * it needs of the menus through its steps (below). */
 #include "menu/load_screen.h"
 
 #include "charge.h"
@@ -47,7 +46,13 @@
 /* The screen's window command lists: its windows; the panel the chosen slot's
  * summary sits in; the fourth row's two choices; the erase question, and the
  * panel it covers put back. */
-enum { SCREEN_WINDOWS = 0xC0ED, SUMMARY_PANEL = 0xC322, NEW_GAME_CHOICES = 0xC36B, ERASE_QUESTION = 0xC391, ERASE_QUESTION_CLOSED = 0xC191 };
+enum {
+    SCREEN_WINDOWS = 0xC0ED,
+    SUMMARY_PANEL = 0xC322,
+    NEW_GAME_CHOICES = 0xC36B,
+    ERASE_QUESTION = 0xC391,
+    ERASE_QUESTION_CLOSED = 0xC191,
+};
 
 /* ---- The slots' rows --------------------------------------------------------------------------- */
 
@@ -189,7 +194,6 @@ bool menu_draw_load_screen_with(GameState *g, Platform *pf, const LoadScreenStep
     uint8_t slot = slot_to_start_on(g, pf);
     set_menu_save_slot_shown(g, slot);
     set_menu_cursor_index(g, slot);
-    n->note(ctx, LOAD_NOTE_START_SLOT, slot);
     TIMED_AS(g, 0xC2D36C, menu_draw_the_slot_shown(g, pf));
     set_menu_text_attribute(g, 0);
     menu_draw_windows(g, pf, SUMMARY_PANEL);
@@ -272,7 +276,14 @@ static void start_the_new_game(GameState *g, Platform *pf)
 enum { QUESTION_LABEL = 3, QUESTION_LABEL_AT = 0x5E00, QUESTION_LABEL_TABLE = 0xFFCF3B };
 
 /* The question's label, once drawn: two strips of it over the header. */
-enum { LABEL_TOP_AT = 0x52C8, LABEL_TOP_COLUMNS = 8, LABEL_TOP_TILE = 0x3021, LABEL_BOTTOM_AT = 0x5348, LABEL_BOTTOM_COLUMNS = 9, LABEL_BOTTOM_TILE = 0x3062 };
+enum {
+    LABEL_TOP_AT = 0x52C8,
+    LABEL_TOP_COLUMNS = 8,
+    LABEL_TOP_TILE = 0x3021,
+    LABEL_BOTTOM_AT = 0x5348,
+    LABEL_BOTTOM_COLUMNS = 9,
+    LABEL_BOTTOM_TILE = 0x3062,
+};
 
 void menu_ask_which_game_to_carry_on_from(GameState *g)
 {
@@ -315,7 +326,6 @@ static bool show_and_tick(GameState *g, const LoadScreenSteps *n, void *ctx, Loa
         return false;
     if (menu_cursor_frame_start(g) == menu_cursor_index(g))
         return true;
-    n->note(ctx, LOAD_NOTE_MOVED, 0);
     return n->tick(ctx, tick_at);
 }
 
@@ -332,7 +342,6 @@ static bool load_and_leave(GameState *g, const LoadScreenSteps *n, void *ctx, ui
     choose_slot(g, slot);
     if (!n->load(ctx))
         return false;
-    n->note(ctx, LOAD_NOTE_LOADED, 0);
     return leave_for_the_game(g, n, ctx);
 }
 
@@ -355,11 +364,9 @@ static bool leave_for_a_new_game(GameState *g, const LoadScreenSteps *n, void *c
 static bool start_new_game(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx)
 {
     start_the_new_game(g, pf);
-    n->note(ctx, LOAD_NOTE_NEW_GAME_SET_UP, 0);
     if (!new_game_plus_chosen(g, pf))
         return leave_for_a_new_game(g, n, ctx);
     set_menu_save_slot_in_use(g, FOURTH_ROW, 0);
-    n->note(ctx, LOAD_NOTE_NEW_GAME_PLUS, 0);
     if (!n->ask_which_to_carry_on_from(ctx))
         return false;
     set_menu_screen_step(g, (uint8_t)(menu_screen_step(g) + 1));
@@ -374,19 +381,16 @@ bool menu_choose_on_load_screen_with(GameState *g, Platform *pf, const LoadScree
 {
     if (erase_asked(g) && menu_cursor_index(g) < FOURTH_ROW) {
         set_menu_screen_step(g, STEP_ERASING);
-        n->note(ctx, LOAD_NOTE_ERASE_ASKED, STEP_ERASING);
         if (!n->tick(ctx, LOAD_AT_THE_ERASE_ASKED_TICK))
             return false;
         ask_to_erase(g, pf);
         return true;
     }
-    n->note(ctx, LOAD_NOTE_NOT_ERASING, 0);
     n->read_cursor(ctx);
     if (!menu_asked(g, MENU_CHOOSE))
         return show_and_tick(g, n, ctx, LOAD_AT_THE_CHOOSING_SHOW, LOAD_AT_THE_CHOOSING_MOVE_TICK);
     if (!n->tick(ctx, LOAD_AT_THE_CHOSEN_TICK))
         return false;
-    n->byte_wide(ctx);
     uint8_t slot = menu_cursor_index(g);
     return slot < FOURTH_ROW ? load_and_leave(g, n, ctx, slot) : start_new_game(g, pf, n, ctx);
 }
@@ -419,10 +423,8 @@ bool menu_choose_game_to_carry_on_from_with(GameState *g, Platform *pf, const Lo
         return false;
     if (!chose) {
         back_to_choosing(g);
-        n->note(ctx, LOAD_NOTE_BACK_TO_CHOOSING, 0);
         return true;
     }
-    n->byte_wide(ctx);
     uint8_t slot = menu_cursor_index(g);
     return slot < FOURTH_ROW ? carry_on_and_leave(g, n, ctx, slot) : leave_for_a_new_game(g, n, ctx);
 }
@@ -437,22 +439,18 @@ bool menu_answer_erase_with(GameState *g, Platform *pf, const LoadScreenSteps *n
     if (!chose && !menu_asked(g, MENU_GO_BACK)) {
         if (menu_cursor_index(g) == menu_cursor_frame_start(g))
             return true;
-        n->note(ctx, LOAD_NOTE_ANSWER_MOVED, 0);
         return n->tick(ctx, LOAD_AT_THE_ERASE_MOVE_TICK);
     }
     if (!chose)
         set_menu_cursor_index(g, ERASE_NO);
     menu_draw_windows(g, pf, ERASE_QUESTION_CLOSED);
-    n->note(ctx, LOAD_NOTE_ANSWERED, 0);
     if (menu_cursor_index(g) == ERASE_YES) {
-        n->note(ctx, LOAD_NOTE_ERASE_YES, 0);
         if (!n->erase(ctx))
             return false;
     }
     set_menu_line_effects(g, ANSWERED_LINE_EFFECTS);
     set_menu_cursor_index(g, menu_kept_cursor(g));
     set_menu_screen_step(g, STEP_CHOOSING);
-    n->note(ctx, LOAD_NOTE_CHOOSING_AGAIN, STEP_CHOOSING);
     if (!n->tick(ctx, LOAD_AT_THE_ERASE_ANSWERED_TICK))
         return false;
     menu_queue_fixed_upload(g, MENU_UPLOAD_SLOT_TILEMAP_2);
@@ -484,15 +482,12 @@ void menu_forget_slot(GameState *g, Platform *pf, uint8_t slot)
 bool menu_erase_slot_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx)
 {
     uint8_t slot = menu_save_slot_shown(g);
-    n->note(ctx, LOAD_NOTE_ERASING, 0);
     menu_forget_slot(g, pf, slot);
-    n->note(ctx, LOAD_NOTE_SLOT_FORGOTTEN, slot);
     if (!n->empty_label(ctx) || !n->wait_a_frame(ctx))
         return false;
     MenuUpload label = menu_slot_label_upload(slot);
     TIMED_AS(g, 0xC2838E, menu_queue_upload(g, label));
     TIMED_AS(g, 0xC2D32C, menu_redraw_slot_window(g, slot));
-    n->note(ctx, LOAD_NOTE_ERASED, 0);
     return true;
 }
 
@@ -568,14 +563,14 @@ bool menu_erase_can_be_answered(const GameState *g)
            && menu_save_slot_shown(g) < MENU_SAVE_SLOTS && menu_kept_cursor(g) <= FOURTH_ROW;
 }
 
-/* ---- The steps as C ------------------------------------------------------------------------------- */
+/* ---- The steps' services ----------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
     Platform *pf;
 } LoadScreenContext;
 
-static const LoadScreenSteps in_the_program;
+static const LoadScreenSteps the_steps;
 
 static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((LoadScreenContext *)ctx)->game); }
 
@@ -587,8 +582,8 @@ static bool tick(void *ctx, LoadScreenPlace at)
     return true;
 }
 
-/* The routines the steps reach, each where its entry's guard would take the
- * state as the step has left it; otherwise the program goes no further. */
+/* The routines the steps reach, each run only on the state it handles;
+ * otherwise the program goes no further. */
 static bool takes(GameState *g, bool ok, uint32_t routine, const char *what)
 {
     if (!ok)
@@ -603,7 +598,7 @@ static bool show_the_slot(void *ctx, LoadScreenPlace at)
     if (!takes(c->game, menu_load_screen_slot_can_show(c->game), 0xC2E743, "a save slot the port doesn't show"))
         return false;
     bool back = false;
-    TIMED_AS(c->game, 0xC2E743, back = menu_show_save_slot_with(c->game, c->pf, &in_the_program, c));
+    TIMED_AS(c->game, 0xC2E743, back = menu_show_save_slot_with(c->game, c->pf, &the_steps, c));
     return back;
 }
 
@@ -613,7 +608,7 @@ static bool draw(void *ctx)
     if (!takes(c->game, menu_load_screen_can_draw(c->game, c->pf), 0xC2E7C3, "a load screen the port doesn't draw"))
         return false;
     bool back = false;
-    TIMED_AS(c->game, 0xC2E7C3, back = menu_draw_load_screen_with(c->game, c->pf, &in_the_program, c));
+    TIMED_AS(c->game, 0xC2E7C3, back = menu_draw_load_screen_with(c->game, c->pf, &the_steps, c));
     return back;
 }
 
@@ -670,11 +665,7 @@ static bool sound_output_sent(void *ctx)
     return true;
 }
 
-static void byte_wide(void *ctx) { (void)ctx; }
-
-static void note(void *ctx, LoadScreenNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
-
-/* The steps' ends, as the menus' own as C: the fade in's task started, or
+/* The steps' ends: the fade in's task started, or
  * the menus closed for the game (which never comes back to the screen). */
 static bool ends(void *ctx, LoadScreenEnd end)
 {
@@ -686,18 +677,18 @@ static bool ends(void *ctx, LoadScreenEnd end)
     return true;
 }
 
-static const LoadScreenSteps in_the_program = { read_cursor, tick, show_the_slot, draw, ask_which_to_carry_on_from, load,
-                                      carry_on, erase, empty_label, wait_a_frame, sound_output_sent, byte_wide, note,
+static const LoadScreenSteps the_steps = { read_cursor, tick, show_the_slot, draw, ask_which_to_carry_on_from, load,
+                                      carry_on, erase, empty_label, wait_a_frame, sound_output_sent,
                                       ends };
 
-/* A step as C where its entry's guard would take the state. */
+/* A step, run only on the state it handles. */
 static bool step(GameState *g, Platform *pf, bool ok, uint32_t routine,
                  bool (*run)(GameState *, Platform *, const LoadScreenSteps *, void *))
 {
     if (!takes(g, ok, routine, "a load screen the port doesn't take"))
         return false;
     LoadScreenContext c = { g, pf };
-    return run(g, pf, &in_the_program, &c);
+    return run(g, pf, &the_steps, &c);
 }
 
 bool menu_open_load_screen(GameState *g, Platform *pf)

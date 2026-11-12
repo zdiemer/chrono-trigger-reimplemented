@@ -8,6 +8,7 @@
 
 #include "platform/platform.h"
 #include "state.h"
+#include "vars.h"
 
 /* What a screen describes -- an item, a tech, a tech kind's caption, a
  * setting -- is a text of the screen's table, by number. A screen asks for
@@ -40,12 +41,9 @@ void menu_describe_setting(GameState *g, uint8_t option, uint8_t value_text);
  * laid on the row as far as the pen got. */
 void menu_send_the_typing(GameState *g);
 
-/* The typing's three tasks, by their starts, as C (menu/tasks.c's
- * coroutines): a description, a setting's option and value, a value. */
+/* The typing's three tasks, by their starts (menu/tasks.c's coroutines): a description, a setting's option and value, a value. */
 enum { MENU_TYPE_A_DESCRIPTION = 0xFA9F, MENU_TYPE_A_SETTING = 0xF9B2, MENU_TYPE_A_VALUE = 0xFA06 };
 void menu_type_the_description_task(GameState *g, Platform *pf);
 void menu_type_the_setting_task(GameState *g, Platform *pf);
 void menu_type_the_value_task(GameState *g, Platform *pf);
-/* Held returns after the typing, keeping the task's phase in game state. */
-
 #endif

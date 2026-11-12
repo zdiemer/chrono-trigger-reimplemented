@@ -32,17 +32,12 @@
  * changed or stepped toward a later set, the captions' place, the fades to
  * black; and the credits' pictures sent in the vblank.
  *
- * Every entry is the scene program's code in work RAM, guarded by a hash of
- * it. What the scripts call runs on the calling channel's page with the
- * scripts' data bank, and works on its own: the routine keeps the page and a
- * byte of the bank on the stack while it works, as the original does, so the
- * original's code it calls out to finds the stack where it expects.
+ * What the scripts call works on the calling channel's cells.
  *
  * The setup and the routines that load are one sequence each (`*_with`),
  * whose steps that are the program's other routines -- its unpacker
- * ($7E:3691), a script's first step ($7E:3749), the stars' scatter -- the
- * machine's entries take as calls of the original's and the native program
- * as C (EndingSteps). */
+ * ($7E:3691), a script's first step ($7E:3749), the stars' scatter -- come in
+ * as calls (EndingSteps). */
 #include "scene/race.h"
 
 #include "charge.h"
@@ -50,7 +45,6 @@
 #include "core/program.h"
 #include "cpu_io.h"
 #include "field/field.h"
-#include "field/scratch.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/vars_ram.h"
@@ -295,7 +289,7 @@ void scene_send_letters_widened(GameState *g, Platform *pf)
             vid_write_vram(pf, PF_AT(0x7E66C8), 0);
     }
     /* the original reads the tiles through the work RAM port */
-    charge_legacy_io_accesses(g, 2);
+    charge_io_accesses(g, 2);
 }
 
 /* Past the plane's name table (which the two halves leave VRAM's address at
@@ -306,9 +300,14 @@ enum { BLANKED_PAST_THE_PLANE = 0x1000 };
  * unpacked tiles, laid out in turn from $D800 in the second bank; the last
  * $800 bytes of it go to VRAM $5C00, and a vblank task of the program's goes on
  * with it. */
-enum { MOSAIC_TILES = 0x140, MOSAIC_TILE_BYTES = 0x20, MOSAIC_TILESET = SCENE_UNPACK_BUFFER, MOSAIC_NUMBERS = 0x7F2200 };
+enum {
+    MOSAIC_TILES = 0x140,
+    MOSAIC_TILE_BYTES = 0x20,
+    MOSAIC_TILESET = SCENE_UNPACK_BUFFER,
+    MOSAIC_NUMBERS = 0x7F2200,
+};
 enum { MOSAIC = 0x7FD800, MOSAIC_SENT = 0x7FE000, MOSAIC_SENT_BYTES = 0x800, MOSAIC_VRAM = 0x5C00 };
-enum { MOSAIC_TASK = 0x9CE2, MOSAIC_COUNTER = 0x7F8000 };
+enum { MOSAIC_TASK = 0x9CE2 };
 
 // $7E:860C
 static void lay_out_mosaic(GameState *g)
@@ -319,8 +318,8 @@ static void lay_out_mosaic(GameState *g)
     }
     /* the original reads the numbers through the work RAM port and counts them
      * down in a word of the second bank */
-    charge_legacy_io_accesses(g, 2);
-    charge_legacy_accesses(g, 2);
+    charge_io_accesses(g, 2);
+    charge_accesses(g, 2);
     charge_block_move(g, MOSAIC_TILES * MOSAIC_TILE_BYTES);
 }
 
@@ -360,7 +359,7 @@ void scene_set_caption_colours(GameState *g)
 
 /* The working palette's first 120 colors made the clear color's first byte
  * (black): a copy of each byte onto the next. The original's store of a 0
- * before it lands outside work RAM, through a data bank of 0. */
+ * before it lands outside work RAM, where nothing keeps it. */
 enum { DARKENED_BYTES = 0xEF, WORKING_PALETTE = 0x7E2200 };
 
 static void darken_first_colors(GameState *g)
@@ -483,8 +482,7 @@ static const struct {
 
 /* The endings' steps that are the program's other routines: a resource
  * unpacked, the steering script's first step (with the picture script's
- * start, which it reads), and the stars scattered. The machine's entries take
- * them as calls of the original's, the native program as C. */
+ * start, which it reads), and the stars scattered. */
 typedef struct {
     bool (*unpack)(void *ctx, EndingUnpack which);
     bool (*first_step)(void *ctx, uint16_t picture_script);
@@ -613,8 +611,14 @@ static uint16_t set_up_ending_with(GameState *g, Platform *pf, const EndingSteps
 /* The picture's frames, unpacked in the second bank and mirrored into place
  * from $5600: fifteen runs of sixteen rows, from the last run's rows up, each
  * row's 32 pixels from its 32nd back. */
-enum { MIRRORED_FRAMES = 0x7F5600, FIRST_RUN = 0x4E00, RUNS = 15, RUN_ROWS = 16, RUN_BYTES = 0x400, MIRROR_LAST = 0x20 };
-enum { PICTURE_ROW_BYTES = 0x40 };
+enum {
+    MIRRORED_FRAMES = 0x7F5600,
+    FIRST_RUN = 0x4E00,
+    RUNS = 15,
+    RUN_ROWS = 16,
+    RUN_BYTES = 0x400,
+    MIRROR_LAST = 0x20,
+};
 
 /* The scaler's output taken as full before the first picture, which so clears
  * all of it past its own end. */
@@ -635,8 +639,8 @@ static void mirror_picture_frames(GameState *g)
         to = scene_mirror_rows(g, to, (uint32_t)SCENE_UPPER_WORK_RAM << 16 | run, MIRROR_LAST, RUN_ROWS);
         run = (uint16_t)(run - RUN_BYTES);
     }
-    charge_legacy_accesses(g, 6);
-    charge_legacy_io_accesses(g, 3);
+    charge_accesses(g, 6);
+    charge_io_accesses(g, 3);
 }
 
 /* What the picture's loading leaves for the scene: the scaler's output full,
@@ -684,7 +688,7 @@ static bool load_new_ground(GameState *g, Platform *pf, SceneProgramPage page, c
         return false;
     scene_double_plane_rows(g);
     /* the original counts the rows down in its page's first cell */
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
     vid_start_vram_uploads(pf, PF_AT(0x7E87B8), SCENE_VRAM_LOW_BYTES);
     vid_set_vram_address(pf, PF_AT(0x7E87BB), 0x0000);
     vid_set_mode7(pf, PF_AT(0x7E87C1), &(VidMode7){ .outside = VID_M7_WRAP }, VID_M7_SELECT);
@@ -736,7 +740,7 @@ static bool start_stars_with(GameState *g, Platform *pf, const EndingSteps *step
  * the program's loop over tiles ($7E:5E3C) takes once its code is made to
  * call the eight-plane expansion and to move on from the end of a tile's
  * first pair of planes (where the expansion leaves it) to the next tile; the
- * port expands them as C, and makes the code the same, which is the
+ * port expands them itself, and makes the code the same, which is the
  * program's state. */
 enum { PLANE_TILES_VRAM = 0x6000, PLANE_TILES_TO_EXPAND = 0xA4 };
 enum { EXPAND_WIDE_TILE = 0x5EF8, UNPACKED_TILES = 0x0200 };
@@ -790,10 +794,6 @@ static bool start_mode7_picture_with(GameState *g, Platform *pf, const EndingSte
  * and over: row r's tiles are 4(r mod 4) to 4(r mod 4) + 3, round again. */
 enum { MAP_SIDE = 32, BLOCK_SIDE = 4 };
 
-/* The original writes the map a word at a time through the work RAM port, the
- * word's low byte through the address before the port's -- the sound CPU's
- * port 3, which it mirrors -- and leaves its counts at 0 in the scene's cells. */
-
 // $7E:8D24
 static void write_pattern_map(GameState *g)
 {
@@ -805,8 +805,8 @@ static void write_pattern_map(GameState *g)
             at += 2;
         }
     }
-    charge_legacy_accesses(g, 4);
-    charge_legacy_io_accesses(g, 3);
+    charge_accesses(g, 4);
+    charge_io_accesses(g, 3);
     /* the rows' count, run down to 0 in the scene's second cell, which the next
      * frame's controller read takes for the buttons held before */
     SceneProgramPage own = scene_program_own();
@@ -1079,30 +1079,29 @@ static void show_last_scene(GameState *g, Platform *pf)
     set_scene_line_effects(g, SWEEP_LINE_CHANNELS);
 }
 
-/* ---- The steps on the machine, and as C ----------------------------------------------------------- */
+/* ---- The steps ------------------------------------------------------------------------------------ */
 
-/* On the machine: the original's unpacker and first script step, and the
- * stars' scatter starting its draws from A as the screen's blanking left it,
- * and the carry the script's call came with, which nothing here touches. */
-enum { BLANKING_LEFT_IN_A = 0x0080 };
+/* The stars' first draw starts from $80, what the original has from blanking
+ * the screen just before, with nothing spilled. */
+enum { STARS_FIRST_DRAW = 0x0080 };
 
-/* As C, for a program with no machine. The stars' first draw starts from
- * what the original's does, the carry clear. */
+/* The steps: the program's unpacker, the steering script's first step and
+ * the stars' scatter. */
 typedef struct {
     GameState *game;
     Platform *pf;
-} EndingInC;
+} EndingContext;
 
 static bool unpack_the_resource(void *ctx, EndingUnpack which)
 {
-    EndingInC *c = ctx;
+    EndingContext *c = ctx;
     TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, ending_unpacks[which].resource));
     return true;
 }
 
 static bool turn_the_steering_channel(void *ctx, uint16_t picture_script)
 {
-    EndingInC *c = ctx;
+    EndingContext *c = ctx;
     (void)picture_script;
     SceneTurn turn = SCENE_TURN_ENDED;
     TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, STEERING_CHANNEL));
@@ -1113,9 +1112,9 @@ enum { SCATTER_STARS = 0x7E5777 };
 
 static void scatter_the_stars(void *ctx)
 {
-    EndingInC *c = ctx;
+    EndingContext *c = ctx;
     TIMED_AS(c->game, SCATTER_STARS,
-             scene_scatter_stars(c->game, c->pf, scene_draw_from(BLANKING_LEFT_IN_A, false, TM_ENTROPY_BYTES)));
+             scene_scatter_stars(c->game, c->pf, scene_draw_from(STARS_FIRST_DRAW, false, TM_ENTROPY_BYTES)));
 }
 
 static const EndingSteps in_the_program = { unpack_the_resource, turn_the_steering_channel, scatter_the_stars, NULL };
@@ -1137,7 +1136,7 @@ static void expand_packed_pixels(GameState *g, Platform *pf, unsigned bytes)
         vid_write_vram_byte(pf, PF_AT(0x7E3551), true, pair & 15);
         vid_write_vram_byte(pf, PF_AT(0x7E3558), true, pair >> 4);
     }
-    charge_legacy_io_accesses(g, 3);
+    charge_io_accesses(g, 3);
 }
 
 /* Each layer's map occupies the beginning of a 32 by 32 tilemap; the rest
@@ -1253,42 +1252,42 @@ bool scene_ending_set_up(GameState *g, Platform *pf)
         program_fail(g, ENDINGS_SET_UP, "an ending's picture with no room on the vblank list");
         return false;
     }
-    EndingInC c = { g, pf };
+    EndingContext c = { g, pf };
     return set_up_ending_with(g, pf, &in_the_program, &c) != 0;
 }
 
-/* The routines the scripts call, as the native program's rows (scene/script.c):
- * each on the calling channel's page. */
+/* The routines the scripts call, as rows of the interpreter's table
+ * (scene/script.c): each on the calling channel's cells. */
 static void load_the_picture(GameState *g, Platform *pf, uint8_t channel)
 {
-    EndingInC c = { g, pf };
+    EndingContext c = { g, pf };
     (void)load_the_picture_with(g, pf, scene_program_channel(channel), &in_the_program, &c);
 }
 
 static void load_the_ground_and_picture(GameState *g, Platform *pf, uint8_t channel)
 {
-    EndingInC c = { g, pf };
+    EndingContext c = { g, pf };
     (void)load_the_ground_and_picture_with(g, pf, scene_program_channel(channel), &in_the_program, &c);
 }
 
 static void start_the_stars(GameState *g, Platform *pf, uint8_t channel)
 {
     (void)channel;
-    EndingInC c = { g, pf };
+    EndingContext c = { g, pf };
     (void)start_stars_with(g, pf, &in_the_program, &c);
 }
 
 static void start_the_mode7_picture(GameState *g, Platform *pf, uint8_t channel)
 {
     (void)channel;
-    EndingInC c = { g, pf };
+    EndingContext c = { g, pf };
     (void)start_mode7_picture_with(g, pf, &in_the_program, &c);
 }
 
 static void prepare_the_credits(GameState *g, Platform *pf, uint8_t channel)
 {
     (void)channel;
-    EndingInC c = { g, pf };
+    EndingContext c = { g, pf };
     (void)prepare_credits_with(g, pf, &in_the_program, &c);
 }
 
@@ -1298,8 +1297,8 @@ static void set_the_last_colours(GameState *g, Platform *pf, uint8_t channel)
     (void)set_last_colors(g, scene_program_channel(channel));
 }
 
-/* Resource-loading script operations, which load through the C unpacker and
- * the resource callbacks. */
+/* Resource-loading script operations, which load through the program's
+ * unpacker and the setup's steps. */
 const SceneScriptRoutine scene_ending_loading_routines[] = {
     { SCENE_ROUTINE_LOAD_THE_PANORAMA, load_the_panorama },
     { SCENE_ROUTINE_SHOW_THE_LAYERED_PANORAMA, show_the_layered_panorama },
@@ -1539,9 +1538,6 @@ static void scroll_bg2(const GameState *g, Platform *pf)
 
 /* ---- What the tasks take ----------------------------------------------------------------------- */
 
-/* The states the tasks are ports for, which their entries' guards and their
- * C both check: what isn't is the machine's. */
-
 /* The placing draws the tall picture's sixteen sprites at most. */
 enum { MOST_SPRITES = 16 };
 
@@ -1555,9 +1551,6 @@ static bool picture_upload_sized(const GameState *g)
 }
 
 static bool room_for_the_end(const GameState *g) { return scene_sprites_fit(g, scene_sprite_list_length(g, THE_END)); }
-
-/* The rider (RIDER), a sprite list of the program's with signed offsets,
- * behind the window's left edge and level with its top. */
 
 /* The sweep: the window's edges where it keeps them, and no corner on the
  * last line, nor the table's right side, which its drawing reads first: from
@@ -1593,16 +1586,14 @@ static Sweep sweep_the_window(GameState *g, Platform *pf)
     return move_sweep_window(g, pf);
 }
 
-/* ---- The tasks as C ---------------------------------------------------------------------------- */
-
-static TaskEnd machine_s(GameState *g, uint32_t routine, const char *what) { return scene_task_needs_the_machine(g, routine, what); }
+/* ---- The tasks ----------------------------------------------------------------------------------- */
 
 TaskEnd scene_ending_place_picture(GameState *g, Platform *pf, unsigned slot)
 {
     (void)pf;
     (void)slot;
     if (!room_for_the_picture(g))
-        return machine_s(g, 0x7E8850, "an ending's picture with no room for its sprites");
+        return scene_task_goes_no_further(g, 0x7E8850, "an ending's picture with no room for its sprites");
     (void)place_picture(g);
     return task_goes_on();
 }
@@ -1619,7 +1610,7 @@ TaskEnd scene_ending_upload_picture(GameState *g, Platform *pf, unsigned slot)
 {
     (void)slot;
     if (!picture_upload_sized(g))
-        return machine_s(g, 0x7E89C0, "an ending's picture of no size");
+        return scene_task_goes_no_further(g, 0x7E89C0, "an ending's picture of no size");
     upload_picture(g, pf);
     return task_goes_on();
 }
@@ -1651,7 +1642,7 @@ TaskEnd scene_show_the_mosaic(GameState *g, Platform *pf, unsigned slot)
     (void)pf;
     (void)slot;
     if (!mosaic_fits(g))
-        return machine_s(g, 0x7E9C58, "a picture of mode 10's whose sprites the port doesn't draw");
+        return scene_task_goes_no_further(g, 0x7E9C58, "a picture of mode 10's whose sprites the port doesn't draw");
     (void)show_the_mosaic(g);
     return task_goes_on();
 }
@@ -1699,7 +1690,7 @@ TaskEnd scene_ending_draw_the_end(GameState *g, Platform *pf, unsigned slot)
     (void)pf;
     (void)slot;
     if (!room_for_the_end(g))
-        return machine_s(g, 0x7E99FA, "The End with no room for its sprites");
+        return scene_task_goes_no_further(g, 0x7E99FA, "The End with no room for its sprites");
     draw_the_end(g);
     return task_goes_on();
 }
@@ -1708,13 +1699,9 @@ TaskEnd scene_ending_sweep_window(GameState *g, Platform *pf, unsigned slot)
 {
     (void)slot;
     if (!sweep_fits(g))
-        return machine_s(g, 0x7E9A0C, "a last scene's window the port doesn't sweep");
+        return scene_task_goes_no_further(g, 0x7E9A0C, "a last scene's window the port doesn't sweep");
     return sweep_the_window(g, pf) == SWEEP_OVER ? task_is_done() : task_goes_on();
 }
-
-/* Back, Y is 0 as the pattern's writing left it, or without credits past the
- * frame tasks' list, as the block move that stopped them left it. */
-enum { PAST_THE_FRAME_TASKS = 0x0920 + FRAME_TASK_SLOTS * 2 };
 
 /* The scaling reads the picture's shape as a word, the gathering and placing
  * its low byte, which agree while the byte after it is 0, as every ending
@@ -1722,7 +1709,7 @@ enum { PAST_THE_FRAME_TASKS = 0x0920 + FRAME_TASK_SLOTS * 2 };
 static bool picture_waiting(const GameState *g) { return scene_ending_picture_ready(g) != 0; }
 static bool shape_word_agrees(const GameState *g) { return (scene_ending_picture_tall(g) >> 8) == 0; }
 
-/* As C, the main loop's call each pass: unless the last picture still waits
+/* The main loop's call each pass: unless the last picture still waits
  * to be sent, the animation's frame scaled whole at the zoom channel 1 asks
  * for, its first row nudged by nothing (a zoom under $8000 leaves the carry
  * clear), and gathered. False where the program goes no further. */

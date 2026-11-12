@@ -25,8 +25,7 @@
  * member's menu closes in turn.
  *
  * The decisions are made on the game's state; the battle's steps and a
- * member's attack run between them, and the functions that reach those are
- * the bridges at the end of the file's sections. */
+ * member's attack run between them, as calls out of the turns (PartyCall). */
 #include "battle/party_turns.h"
 
 #include "battle/battle.h"
@@ -49,8 +48,7 @@
  * battle's steps -- an action called off (step 2), the enemies beaten seen to
  * (step 6), each member's menu closed as the party stands down -- and a
  * waiting member's menu closed ($C1:B961), and a member of a combination
- * called off while it waited ($FD:A8FE, below). The program makes them as C,
- * and the machine's entries from the original's calls. */
+ * called off while it waited ($FD:A8FE, below). */
 typedef enum {
     PARTY_ATTACK_DRIVEN, PARTY_ATTACK_CONFUSED, PARTY_COUNTER_ATTACK,
     PARTY_CALLED_OFF_STEP, PARTY_BEATEN_STEP, PARTY_STAND_DOWN_STEP,
@@ -86,9 +84,6 @@ static uint8_t random_enemy(GameState *g)
     return slot;
 }
 
-/* Anyone in the fight at random, but the member itself (which the original
- * keeps in a cell to compare). */
-enum { CONFUSED_MEMBER_AT = 0x12 };
 static uint8_t random_other(GameState *g, uint8_t member)
 {
     uint8_t slot;
@@ -173,9 +168,6 @@ static bool counters(const GameState *g, uint8_t member)
            && (combatant_stat_byte(g, member, STAT_ACCESSORY_RECORD) & ACCESSORY_COUNTERS);
 }
 
-/* The original keeps the member's stat block's place in a cell. */
-enum { COUNTERING_BLOCK_AT = 0x0C };
-
 /* The members it hit are the action's first three targets. */
 enum { MEMBERS_HIT = BATTLE_PARTY_SIZE };
 
@@ -215,7 +207,8 @@ static bool counter_the_attack(GameState *g, PartyCalls call, void *ctx)
 
 /* The original reads the members hit as stat blocks by the whole slot, so a
  * target past the combatants (none, for an enemy's action on the party, which
- * leaves its first three targets party members or none) is the original's. */
+ * leaves its first three targets party members or none) is one the port
+ * refuses. */
 static bool members_hit_are_combatants(const GameState *g)
 {
     for (unsigned entry = 0; entry < MEMBERS_HIT; entry++) {
@@ -310,9 +303,6 @@ static void count_beaten_now(GameState *g, unsigned enemy)
     set_battle_enemy_beaten_before(g, enemy, 0);
 }
 
-/* The original keeps the target it is at in a cell. */
-enum { TARGET_AT = 0x10 };
-
 // $C1:B762
 static bool see_to_knocked_out(GameState *g, PartyCalls call, void *ctx)
 {
@@ -358,7 +348,10 @@ static bool reaction_targets_are_combatants(const GameState *g)
 
 /* A demo battle's members are ready with an action from the start, waiting
  * with it, their menus open; the demo's records name the action. */
-enum { DEMO_READY = MEMBER_ACTION_CHOSEN | MEMBER_MENU_OPEN, DEMO_ACTION_STATE = MEMBER_ACTION_WAITING | MEMBER_MENU_OPEN,  };
+enum {
+    DEMO_READY = MEMBER_ACTION_CHOSEN | MEMBER_MENU_OPEN,
+    DEMO_ACTION_STATE = MEMBER_ACTION_WAITING | MEMBER_MENU_OPEN,
+};
 
 // $C1:B70E
 void battle_demo_party_ready(GameState *g)
@@ -399,7 +392,7 @@ static bool stand_down(GameState *g, PartyCalls call, void *ctx)
     return true;
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The turns' calls ------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
@@ -429,8 +422,8 @@ static bool party_call(void *ctx, PartyCall call, uint8_t member)
     }
 }
 
-/* Each with its guard's state half: the slot a combatant, the members
- * hit and the reactions' targets combatants or none. */
+/* Each refused unless the slot is a combatant, and the members hit and the
+ * reactions' targets combatants or none. */
 bool battle_member_status_turn(GameState *g, Platform *pf, uint8_t member)
 {
     if (member >= BATTLE_COMBATANTS)

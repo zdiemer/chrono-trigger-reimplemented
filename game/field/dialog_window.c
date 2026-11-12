@@ -27,7 +27,6 @@
 #include "field/object.h"
 
 #include "charge.h"
-#include "field/scratch.h"
 #include "core/input.h"
 #include "cpu_io.h"
 #include "event/script.h"
@@ -72,7 +71,6 @@ void dialog_forget(GameState *g) { set_state(g, DIALOG_IDLE); }
 enum { TEXT_ROWS = 4, LAST_TEXT_ROW = TEXT_ROWS - 1 };
 enum { TEXT_TILES_VRAM = 0x5800, TEXT_ROW_WORDS = 0x0200, TEXT_ROW_BYTES = 0x0400, BLANK_TILE_BYTES = 0x20 };
 typedef enum { SEND_NOTHING = 0, SEND_EVERY_FRAME = 1, SEND_ONCE = 0x81 } TextSending;
-enum { TAKEN_ONCE = 0x80 };
 
 static uint8_t text_row(const GameState *g) { return dialog_text_row(g); }
 static void send_the_text(GameState *g, TextSending how) { set_dialog_text_sending(g, (uint8_t)how); }
@@ -446,7 +444,15 @@ void field_take_choice_buttons(GameState *g, uint8_t choosing)
  * above and $10 on below, and the pointer's are $28FC on. The field refreshes
  * them in the time after the picture (field/display.c's line interrupt). */
 enum { CHOICE_LINES = 4 };
-enum { LINE_TILES_VRAM = 0x1C02, LINE_OWN_TILE = 0x2902, POINTER_TILE = 0x28FC, LINE_WORDS = 0x40, LOWER_ROW = 0x20, OWN_LOWER_TILES = 0x10, POINTER_LOWER_TILES = 2 };
+enum {
+    LINE_TILES_VRAM = 0x1C02,
+    LINE_OWN_TILE = 0x2902,
+    POINTER_TILE = 0x28FC,
+    LINE_WORDS = 0x40,
+    LOWER_ROW = 0x20,
+    OWN_LOWER_TILES = 0x10,
+    POINTER_LOWER_TILES = 2,
+};
 
 typedef struct {
     uint32_t address, first, second;   /* the origin tags of the three writes of a pair of tiles */
@@ -523,7 +529,17 @@ enum { ENTRY_PRIORITY = 0x2000, SECOND_PATTERN_TILES = 0x0300, TEXT_AREA_LOOK = 
  * alternating two tiles, the sides' a tile a row), and its interior, a
  * pattern of two tiles by two repeated in blocks that alternate with the
  * same pattern's second tiles. */
-enum { FRAME_TOP_LEFT = 0xF0, FRAME_TOP = 0xF1, FRAME_TOP_RIGHT = 0xF3, FRAME_LEFT = 0xF4, FRAME_RIGHT = 0xF5, FRAME_BOTTOM_LEFT = 0xF8, FRAME_BOTTOM = 0xF9, FRAME_BOTTOM_RIGHT = 0xFB, FRAME_PATTERN = 0xFC };
+enum {
+    FRAME_TOP_LEFT = 0xF0,
+    FRAME_TOP = 0xF1,
+    FRAME_TOP_RIGHT = 0xF3,
+    FRAME_LEFT = 0xF4,
+    FRAME_RIGHT = 0xF5,
+    FRAME_BOTTOM_LEFT = 0xF8,
+    FRAME_BOTTOM = 0xF9,
+    FRAME_BOTTOM_RIGHT = 0xFB,
+    FRAME_PATTERN = 0xFC,
+};
 enum { FRAME_SECOND_ROW_EDGE = 2 };
 
 static uint16_t frame_entry(unsigned row, unsigned column)
@@ -573,10 +589,6 @@ void field_build_the_window_frame(GameState *g)
             stage_entry(g, row * FRAME_COLUMNS + column, frame_entry(row, column));
 }
 
-/* For the original's code and shadow mode: the end of the last run of tiles
- * it wrote, which it keeps in a scratch cell. */
-enum { LAST_TEXT_AREA_TILE = 0xFF };
-
 // $C0:2B78
 void field_build_the_text_area(GameState *g)
 {
@@ -610,7 +622,12 @@ static uint8_t window_design(const GameState *g) { return (uint8_t)(game_setting
 // $C0:6E5C
 /* The design's frame tiles, among BG1's and BG2's tiles from $F0 (which no
  * map uses), and its interior's pattern, tiles $3FC-$3FF. */
-enum { DESIGN_FRAME_VRAM = 0x1F00, DESIGN_FRAME_BYTES = 0x200, DESIGN_PATTERN_VRAM = 0x4FC0, DESIGN_PATTERN_BYTES = 0x80 };
+enum {
+    DESIGN_FRAME_VRAM = 0x1F00,
+    DESIGN_FRAME_BYTES = 0x200,
+    DESIGN_PATTERN_VRAM = 0x4FC0,
+    DESIGN_PATTERN_BYTES = 0x80,
+};
 
 void field_send_the_window_design(GameState *g, Platform *pf)
 {

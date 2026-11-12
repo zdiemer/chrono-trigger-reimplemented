@@ -95,7 +95,7 @@ static void follow_finish(GameState *g)
     set_scene_race_bg3_scroll_x(g, (uint16_t)((quarter >> 1) + quarter + (quarter & 1)));
     /* the program works the three eighths out in its first cell, which the
      * next routine to use the cells writes over */
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
 }
 
 /* ---- The horizon ------------------------------------------------------------------------------ */
@@ -202,8 +202,8 @@ static void turn_camera(GameState *g)
         set_scene_race_turning(g, 1, other_way);
         /* the program sums the turn in channel 0's first two cells, which the
          * camera's next multiply writes over */
-        charge_legacy_accesses(g, 2);
-        charge_legacy_accesses(g, 2);
+        charge_accesses(g, 2);
+        charge_accesses(g, 2);
         set_race_camera(g, CAMERA_ANGLE, (uint16_t)(race_camera(g, CAMERA_ANGLE) + (one_way >> TURNING_SHIFT) -
                                                    (other_way >> TURNING_SHIFT)));
     }
@@ -217,11 +217,6 @@ static void turn_camera(GameState *g)
     if (lowering(g) && at_least(height, LOWEST))
         raise_camera(g, -1);
 }
-
-/* What the camera's height control leaves in A, from the controller, the
- * frame and the height before it ran: the height where it tried a step, the
- * frame count halved where A waited for the odd frame, the controller where
- * neither button was acted on. */
 
 /* ---- After Crono's finish ------------------------------------------------------------------- */
 
@@ -258,7 +253,7 @@ static bool settle_camera(GameState *g)
 static void keep_controller(GameState *g)
 {
     PadBits now = scene_joypad(g);
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
     set_scene_joypad(g, scene_race_buttons_before(g));
     set_scene_race_buttons_before(g, scene_race_buttons(g));
     set_scene_race_buttons(g, now);
@@ -285,11 +280,10 @@ const SceneScriptRoutine scene_race_routines[] = {
 };
 const unsigned scene_race_routine_count = sizeof scene_race_routines / sizeof scene_race_routines[0];
 
-/* ---- The tasks as C ---------------------------------------------------------------------------
+/* ---- The tasks ---------------------------------------------------------------------------------
  *
- * The camera's tasks are guarded by their code and the page alone, so as C
- * there is nothing of their guards to check, but for the perspective's build,
- * whose lines the port must know (scene_perspective_fits). */
+ * The camera's tasks take any state the race makes, but for the perspective's
+ * build, whose lines the port must know (scene_perspective_fits). */
 
 TaskEnd scene_race_settle_camera(GameState *g, Platform *pf, unsigned slot)
 {
@@ -358,7 +352,7 @@ TaskEnd scene_race_check_perspective(GameState *g, Platform *pf, unsigned slot)
     if (!camera_changed(g))
         return task_goes_on();
     if (!scene_perspective_fits(g, 0))
-        return scene_task_needs_the_machine(g, BUILD_PERSPECTIVE, "a race's perspective whose lines the port doesn't build");
+        return scene_task_goes_no_further(g, BUILD_PERSPECTIVE, "a race's perspective whose lines the port doesn't build");
     TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, 0));
     return task_goes_on();
 }

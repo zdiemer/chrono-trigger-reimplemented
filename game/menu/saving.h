@@ -8,19 +8,17 @@
 #include "state.h"
 
 /* The panel put away, and a save point's save screen laid out over it. */
-void menu_put_save_panel_away_now(GameState *g);
+void menu_put_save_panel_away(GameState *g);
 void menu_lay_out_save_screen(GameState *g, Platform *pf);
 
-/* ---- The steps, one sequence for the machine and for C ---------------------------------------- */
+/* ---- The steps --------------------------------------------------------------------------------- */
 
 /* The panel ($C2:D065), the save screens' steps, saving in a slot and the
  * slots' frame as the cursor moves among them ($C2:CFA2, save_screen.c) are
- * each one sequence, which the machine's entries (saving_bridge.c) and the
- * program as C both run; what differs is what they ask of the menus, through
+ * each one sequence, which asks what it needs of the menus through
  * SavingSteps.
  *
- * The places the sequences tick, wait or save from (the machine's table
- * gives the original's call at each). */
+ * The places the sequences tick, wait or save from. */
 typedef enum {
     SAVING_AT_THE_SLOTS_DRAWN,        /* the panel: a frame after the slots */
     SAVING_AT_THE_SUMMARY_DRAWN,      /* ... and after the summary */
@@ -35,19 +33,6 @@ typedef enum {
     SAVING_PLACES
 } SavingPlace;
 
-/* Where the machine leaves what the original's own tests left (scaffolding),
- * with the value the sequence had then. */
-typedef enum {
-    SAVING_NOTE_NOT_REFUSED,      /* the main menu's save screen may save here */
-    SAVING_NOTE_LAID_OUT,         /* ... and is laid out, a step on */
-    SAVING_NOTE_SLOT_HOLDS,       /* the slot chosen tested: whether it holds a game */
-    SAVING_NOTE_QUESTION_ASKED,   /* the question put up */
-    SAVING_NOTE_ANSWER_COMPARED,  /* the question's answer compared with "yes" */
-    SAVING_NOTE_ANSWER_MOVED,     /* the question's cursor compared with where it was */
-    SAVING_NOTE_QUESTION_PUT_AWAY, /* "no": the question put away */
-    SAVING_NOTE_MOVED_AMONG,      /* the slots' cursor came from this slot */
-} SavingNote;
-
 /* How a step ends: on to choosing as the screen fades in, the menus left,
  * back to the main menu, on into saving in the slot chosen (as a jump or as
  * a call), on into the slots' frame, or a buzz where the game can't be saved
@@ -61,8 +46,8 @@ typedef enum {
  * panel shown, the save screen laid out over it ($C2:D0E5), the game saved
  * in the slot shown (the sound, the write, a frame, the summary read back, a
  * frame), the saved sound sent, the slot's summary read back, the slot
- * saved in shown ($C2:CF21), a note, and the step's end. Each false where it went no
- * further. */
+ * saved in shown ($C2:CF21), and the step's end. Each false where it went
+ * no further. */
 typedef struct {
     void (*read_cursor)(void *ctx);
     bool (*tick)(void *ctx, SavingPlace at);
@@ -73,7 +58,6 @@ typedef struct {
     bool (*saved_sound)(void *ctx);
     bool (*summary_read_back)(void *ctx);
     bool (*show_the_slot_saved)(void *ctx);
-    void (*note)(void *ctx, SavingNote note, uint8_t value);
     bool (*ends)(void *ctx, SavingEnd end);
 } SavingSteps;
 
@@ -95,12 +79,12 @@ bool menu_move_among_the_slots_with(GameState *g, Platform *pf, const SavingStep
 
 /* The slot saved in shown: its window drawn afresh, and its tilemap and the
  * slots' chapters sent ($C2:CF21). */
-void menu_show_the_slot_saved_now(GameState *g);
+void menu_show_the_slot_saved(GameState *g);
 
 /* The saved sound sent to the driver. */
 void menu_send_the_saved_sound(Platform *pf);
 
-/* What the steps take of the state, as their entries' guards do: the panel
+/* What the steps need of the state: the panel
  * and a save point's screen, the main menu's screen's opening, the slot shown
  * saved in, the slot saved shown. */
 bool menu_save_panel_can_show(const GameState *g);
@@ -109,7 +93,7 @@ bool menu_save_screen_can_lay_out(const GameState *g);
 bool menu_slot_can_be_saved(const GameState *g);
 bool menu_slot_saved_can_show(const GameState *g);
 
-/* As C: the panel, from the main menu's (false where the program went no
+/* The panel, from the main menu's (false where the program went no
  * further), and the save screens' steps, from the menus' main task. */
 bool menu_show_save_panel(GameState *g, Platform *pf);
 bool menu_open_save_screen(GameState *g, Platform *pf);
@@ -118,16 +102,5 @@ bool menu_open_saving(GameState *g, Platform *pf);
 bool menu_choose_slot_to_save_in(GameState *g, Platform *pf);
 bool menu_answer_whether_to_save_over(GameState *g, Platform *pf);
 bool menu_close_the_question_on_a_button(GameState *g, Platform *pf);
-
-/* The machine's side (saving_bridge.c): its answers to the sequences, which
- * the slots' frame ($C2:CFA2, save_screen.c) runs with too. */
-
-extern const SavingSteps menu_saving_on_the_machine;
-
-/* The entries ($C2:D065 the panel, $C2:D0DB, $C2:D0E5; a save point's save
- * screen's steps $C2:D4F8 and $C2:D506; the main menu's save screen's
- * $C2:CEDC and $C2:CEFD, and the two steps both share, $C2:CF61 and
- * $C2:CF92; saving in the slot $C2:CF0A, $C2:CF37 and $C2:CF21), and their
- * guards. */
 
 #endif

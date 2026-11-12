@@ -1,6 +1,6 @@
 /* The techs screen and the main menu's panel for it: what the game does
- * (game/menu/tech_screen.c) and the entries that run it on the original's
- * machine (game/menu/tech_screen_bridge.c). */
+ * (game/menu/tech_screen.c) and what each step needs of the state before it
+ * runs (game/menu/tech_screen_bridge.c). */
 #ifndef CT_GAME_MENU_TECH_SCREEN_H
 #define CT_GAME_MENU_TECH_SCREEN_H
 
@@ -11,6 +11,7 @@
 #include "menu/techs.h"
 #include "platform/video.h"
 #include "state.h"
+#include "vars.h"
 
 /* The screen's steps, as its main task runs them (menu_screen_step). */
 typedef enum {
@@ -165,7 +166,7 @@ bool menu_techs_use_helps(const GameState *g);
  * original's, which waits it out); after, the pose dropped and the cost
  * taken from the user's MP. */
 void menu_techs_cast(GameState *g);
-uint8_t menu_techs_after_casting(GameState *g);
+void menu_techs_after_casting(GameState *g);
 
 /* Back from the window to the list: its cursors stopped (the original's),
  * then the window's lines cleared. */
@@ -182,19 +183,16 @@ void menu_restoring_look_for_help(GameState *g);
 bool menu_restoring_every_member(const GameState *g);
 
 /* The cursor among the members a healing (a tonic's or a tech's) is used on
- * ($C2:B83E) and the member it is on noted ($C2:B870), one sequence each for
- * the machine and for C: a tick, the noting as its own routine, and where
- * the machine leaves what the original's tests left. */
-typedef enum { RESTORING_NOTE_POINTED, RESTORING_NOTE_HELP_LOOKED_FOR, RESTORING_NOTE_BLOCKS_SET } RestoringNote;
+ * ($C2:B83E) and the member it is on noted ($C2:B870), one sequence each,
+ * asking for a tick and for the noting as its own routine. */
 typedef struct {
     bool (*tick)(void *ctx);
     bool (*note_the_member)(void *ctx);
-    void (*note)(void *ctx, RestoringNote note, uint8_t value);
 } RestoringSteps;
 bool menu_point_at_member_to_restore_with(GameState *g, const RestoringSteps *n, void *ctx);
 bool menu_note_member_to_restore_with(GameState *g, const RestoringSteps *n, void *ctx);
-/* As C, where the pointing's guard's state half takes the state; false where
- * the program went no further. */
+/* Where the state is one the pointing handles; false where the program went
+ * no further. */
 bool menu_point_at_member_to_restore(GameState *g, Platform *pf);
 bool menu_restoring_can_point(const GameState *g);
 
@@ -208,45 +206,36 @@ void menu_techs_panel_lay_out(GameState *g, Platform *pf);
 void menu_techs_panel_show(GameState *g, Platform *pf);
 void menu_techs_panel_put_away(GameState *g, Platform *pf);
 
-/* ---- What the steps can run on (the guards') -------------------------------------------------- */
+/* ---- What the steps can run on ---------------------------------------------------------------- */
 
 bool menu_techs_members_are_drawable(const GameState *g);
 bool menu_techs_list_is_pointable(const GameState *g);
 bool menu_techs_member_is_listable(const GameState *g);
 
-/* What the steps below take of the state, as their entries' guards do: the
+/* What the steps below need of the state: the
  * opening; the members' step (and the moves among them). */
 bool menu_techs_can_open(const GameState *g);
 bool menu_techs_can_move_among_members(const GameState *g);
 
-/* ---- The opening and the members, one sequence for the machine and for C ---------------------- */
+/* ---- The opening and the members -------------------------------------------------------------- */
 
 /* The screen's opening ($C2:B35D), its member list laid out ($C2:B365), the
  * choice among the members ($C2:B36D) and the moves among them ($C2:B520)
- * are each one sequence, which the machine's entries (tech_screen_bridge.c)
- * and the program as C both run, asking the menus for what differs through
+ * are each one sequence, asking the menus for what it needs through
  * TechsSteps.
  *
  * The places the sequences tick from. */
 typedef enum {
     TECHS_AT_THE_OPENING, TECHS_AT_ANOTHER_LIST, TECHS_AT_A_MEMBER_CHOSEN,
     TECHS_AT_THE_MEMBERS_SLIDING,   /* the member rows sliding, a frame at a time */
-    TECHS_AT_THE_MEMBERS_SLID,      /* ... and at rest */
-    TECHS_AT_THE_SLIDE_STARTING,    /* the member list's slide about to run */
-    TECHS_AT_THE_SLIDE_ENDED,       /* ... and run */
-    TECHS_AT_THE_LISTER_S_RECORD,   /* the lister's record about to take its sprite */
-    TECHS_AT_THE_LIST_POINTING,     /* the cursor along the list, starting */
-    TECHS_AT_THE_LIST_POINTED,      /* ... and done */
     TECHS_AT_A_PAGE_TURNED,         /* the list paged, a frame on */
     TECHS_AT_A_TECH_POINTED,        /* the cursor on another tech */
     TECHS_AT_A_TECH_BROUGHT_IN,     /* a tech brought in past the list's end */
     TECHS_AT_THE_LIST_SLIDING,      /* ... the list sliding a frame at a time */
-    TECHS_AT_THE_LIST_SLID,         /* ... and at rest */
     TECHS_AT_A_TECH_CHOSEN,         /* a tech chosen to use */
     TECHS_AT_THE_LIST_LEFT,         /* back from the list to the members */
     TECHS_AT_THE_TARGETS_OPENING,   /* the window of the members it is used on, a frame on */
     TECHS_AT_THE_TARGETS_LEFT,      /* back from that window */
-    TECHS_AT_THE_TARGETS_CLOSING,   /* ... the window closing */
     TECHS_AT_THE_CAST,              /* the user casting, the cast's frames */
 } TechsPlace;
 
@@ -266,46 +255,10 @@ typedef enum {
     TECHS_REOPENS_THE_TARGETS,         /* $C2:BE79, run on into after the healing */
 } TechsRoutine;
 
-/* Where the machine does what only it needs: the flags the original's tests
- * left, the P a routine saves and the widths it sets. */
-typedef enum {
-    TECHS_NOTE_OPENED,             /* the screen opened (the step), its set-up starting */
-    TECHS_NOTE_ROCKS_NOTED,        /* the rocks' techs noted */
-    TECHS_NOTE_SET_UP,             /* the scroll bar started, the set-up done */
-    TECHS_NOTE_BUTTONS_TESTED,     /* the cursor's buttons tested */
-    TECHS_NOTE_SHOWN_COMPARED,     /* the list shown compared with this one before */
-    TECHS_NOTE_LISTED,             /* the member's techs listed (how many) */
-    TECHS_NOTE_DESCRIPTION_STALE,  /* on to the list, the description's state loaded */
-    TECHS_NOTE_KIND_SWITCHED,      /* the kind switched, from this one */
-    TECHS_NOTE_CURSOR_KEPT,        /* the cursor kept on the members */
-    TECHS_NOTE_LIST_MADE,          /* the member's list made, this one shown before */
-    TECHS_NOTE_KIND_DESCRIBED,     /* the kind's caption shown */
-    TECHS_NOTE_ROWS_QUEUED,        /* the rows queued */
-    TECHS_NOTE_MEMBERS_SLIDING,    /* the member list's slide started, its way */
-    TECHS_NOTE_INTO_THE_LIST,      /* the lister shown */
-    TECHS_NOTE_LISTER_TESTED,      /* the lister's sprite compared, the one it had */
-    TECHS_NOTE_LINE_EFFECTS_HELD,  /* the list step's line effects held */
-    TECHS_NOTE_LIST_ROW_COMPARED,  /* the cursor's row kept and compared */
-    TECHS_NOTE_LIST_TOP_LOADED,    /* no slide: the list's top loaded */
-    TECHS_NOTE_TECH_ROW_BROUGHT_IN, /* a tech's row brought in */
-    TECHS_NOTE_LIST_SLID,          /* the list slid (up: 1) */
-    TECHS_NOTE_DESCRIPTION_ASKED,  /* another tech's description asked for */
-    TECHS_NOTE_TECH_LOOKED_AT,     /* the tech's use looked at (the use) */
-    TECHS_NOTE_TECH_USED,          /* the tech used (on every member: 1) */
-    TECHS_NOTE_TASKS_STOPPED,      /* tasks stopped (their bits) */
-    TECHS_NOTE_OFF_THE_MEMBERS,    /* the cursor moved off the members */
-    TECHS_NOTE_A_CLEARED,          /* the accumulator cleared */
-    TECHS_NOTE_LINE_TABLES_QUEUED, /* the line tables' upload queued */
-    TECHS_NOTE_NO_HELP,            /* the healing doesn't help */
-    TECHS_NOTE_CAST,               /* the user cast */
-    TECHS_NOTE_COST_TAKEN,         /* the MP taken (the MP before) */
-    TECHS_NOTE_USERS_MP_LOOKED_AT, /* the user's MP looked at */
-} TechsNote;
-
 /* What the sequences ask: the cursor read, a tick, the refusal the step ends
  * on, the moves among the members, the member list slid, the kind's caption,
- * the lister shown, the way back to the main menu, a note. Each false where
- * it went no further. */
+ * the lister shown, the way back to the main menu, a frame's wait, a routine
+ * run. Each false where it went no further. */
 typedef struct {
     void (*read_cursor)(void *ctx);
     bool (*tick)(void *ctx, TechsPlace at);
@@ -315,9 +268,7 @@ typedef struct {
     bool (*describe_the_kind)(void *ctx);
     bool (*show_the_lister)(void *ctx);
     bool (*back_to_the_main_menu)(void *ctx);
-    void (*note)(void *ctx, TechsNote note, uint8_t value);
     bool (*wait)(void *ctx, TechsPlace at);
-    void (*registers_at)(void *ctx, TechsPlace at);
     bool (*run)(void *ctx, TechsRoutine routine);
 } TechsSteps;
 
@@ -342,19 +293,17 @@ bool menu_open_tech_targets_with(GameState *g, Platform *pf, const TechsSteps *n
 bool menu_point_at_tech_target_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
 bool menu_choose_tech(GameState *g, Platform *pf);
 bool menu_choose_tech_target(GameState *g, Platform *pf);
-/* The targets' guard's state half (tech_screen_bridge.c). */
+/* What the targets need of the state (tech_screen_bridge.c). */
 bool menu_techs_targets_can_run(const GameState *g);
-/* The lister's guard's state half (tech_screen_bridge.c). */
+/* What the lister needs of the state (tech_screen_bridge.c). */
 bool menu_techs_lister_can_show(const GameState *g);
 /* The record the lister shows the member on. */
 enum { MENU_TECHS_LISTER_RECORD = 7 };
 
-/* As C, from the menus' main task; false where the program went no
+/* From the menus' main task; false where the program went no
  * further. */
 bool menu_open_techs(GameState *g, Platform *pf);
 bool menu_lay_out_tech_members(GameState *g, Platform *pf);
 bool menu_choose_tech_member(GameState *g, Platform *pf);
-
-/* ---- The entries (game/menu/tech_screen_bridge.c) --------------------------------------------- */
 
 #endif

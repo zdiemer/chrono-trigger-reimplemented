@@ -88,11 +88,6 @@ void fight_load_demo_party(GameState *g)
 
 /* ---- Who fights, and with what ------------------------------------------------------------------ */
 
-/* The cells the record's copy leaves: its count and the character. Only the
- * fight's start copies records, and it overwrites both before anything reads
- * them (scaffolding). */
-enum { COPIED_AT = 0x00, CHARACTER_AT = 0x02, COPY_ENDS_AT = 0x80 };
-
 // $FD:AE52
 /* A member's stat block, its character's record copied in and the rest of it
  * clear; a member out of the fight keeps its block as it is. */
@@ -110,8 +105,8 @@ void fight_take_member_record(GameState *g, uint8_t member)
 
 // $C1:FDAE
 /* Ayla's fists, the weapon she fights with: a better one every 24 levels, from
- * the first ($44). The original divides with the carry its caller's test for
- * Ayla left set. */
+ * the first ($44). The original divides with the top bit of the leftover
+ * high word set (battle_divide_leftover_marked). */
 enum { FIRST_FISTS = 0x44, LEVELS_A_FIST = 24 };
 
 uint8_t fight_aylas_fists(GameState *g, uint8_t level)
@@ -168,7 +163,10 @@ void fight_set_up_affinities(GameState *g, uint8_t member)
  * the battle gives into gold (battle_members_turning_experience_to_gold),
  * two raise the most HP by a quarter and a half, one makes two of the weapons
  * strike critically more often, and one wards off confusion. */
-enum { EXPERIENCE_TO_GOLD = 0xA9, QUARTER_MORE_HP = 0xA0, HALF_MORE_HP = 0xA1, SHARPER_WEAPONS = 0xB3, WARDS_OFF_CONFUSION = 0xAB,  };
+enum {
+    EXPERIENCE_TO_GOLD = 0xA9, QUARTER_MORE_HP = 0xA0, HALF_MORE_HP = 0xA1, SHARPER_WEAPONS = 0xB3,
+    WARDS_OFF_CONFUSION = 0xAB,
+};
 
 // $FD:AE99
 /* Each member's accessory noted, and how many wear the one that turns the
@@ -248,11 +246,6 @@ void fight_apply_equipment_effects(GameState *g)
  * its stats. */
 enum { GIVES_STATUS = 0x80, GIVES_BOOST = 0x40, MOST_HP = 999 };
 
-/* The cells the original works in: the status's bits, where the block is,
- * and which status byte. Only the fight's start sees to the bonuses, and it
- * overwrites them before anything reads them (scaffolding). */
-enum { STATUS_BITS_AT = 0x00, BLOCK_OFFSET_AT = 0x02, STATUS_BYTE_AT = 0x04 };
-
 // $FD:B363
 /* What a member's accessory gives it from the start: the status its record
  * names, and the accessories that raise its most HP by a quarter or by half,
@@ -287,8 +280,8 @@ void fight_ward_off_confusion(GameState *g)
 
 /* ---- The weapons -------------------------------------------------------------------------------- */
 
-/* The marks the battle keeps beside a carried weapon, which nothing reads
- * (scaffolding): $80, 1, and the party-slot bit of the character the weapon
+/* The marks the battle keeps beside a carried weapon, which nothing reads:
+ * $80, 1, and the party-slot bit of the character the weapon
  * is made for, where that character is in the party. The character is the
  * first of the weapon's bits from the top; a weapon made for none reads past
  * the characters' slots, as the original does. */
@@ -297,7 +290,7 @@ enum { WEAPON_MARK = 0x80, WEAPON_COUNT = 1, CARRIED_BYTES = 5, OWNERS = 8 };
 /* The cells the original counts in: each member's weapon and the carried
  * bytes' place, which later work reads as it finds them (battle.h; the
  * weapons are also noted outside the fight's start), and the weapon's record
- * and the member (scaffolding). */
+ * and the member, which nothing reads after. */
 enum { WEAPON_AT = BATTLE_MEMBER_CELL, RECORD_AT = 0x04, MEMBER_AT = 0x02, CARRIED_AT = BATTLE_STAT_OFFSET_LOW };
 
 void fight_note_weapons(GameState *g)
@@ -321,10 +314,10 @@ void fight_note_weapons(GameState *g)
 enum { MOST_DEFENCE = 0xFF, MARLE = 1, LUCCA = 2 };
 
 /* The cells the original adds in: the member's block's place, and what it
- * hands the boost: the block (scaffolding: the start overwrites it), and the
+ * hands the boost: the block (the start overwrites it), and the
  * boosts' table, which later work reads as it finds it (battle.h) and which
  * nothing in the start writes after. */
-enum { BLOCK_PLACE_AT = 0x12, BOOST_BLOCK_AT = 0x00, BOOST_TABLE_AT = BATTLE_TECH_HITS_LEFT };
+enum { BOOST_TABLE_AT = BATTLE_TECH_HITS_LEFT };
 
 /* The original adds the two in the arithmetic's cells, which are game state
  * (battle/arith.h): the next multiply's or division's caller finds them. */

@@ -16,7 +16,6 @@
 #include "menu/graphics.h"
 
 #include "charge.h"
-#include "menu/bridge.h"
 #include "menu/display.h"
 #include "menu/menu_data.h"
 #include "menu/vram.h"
@@ -139,7 +138,12 @@ static void queue_in_place_of(GameState *g, uint16_t first, unsigned count)
 /* ---- The sets ------------------------------------------------------------------------------ */
 
 /* Where the sets are built. */
-enum { BUFFER = 0x2E00, WIDENED_AT = 0x3000, WIDENED_FROM = 0x4F00, WIDENED_TILES = 0xF0, FOUR_COLOUR_AT = 0x4E00, FIRST_TILES_AT = 0x5000, REPLACED_AT = 0x5100, INKED_TILE = 0x33E0, INKED_TILES_FROM = 0x4880, INKED_TILES_TO = 0x49C0, THREE_PLANE_AT = 0x5400, INKED_THREE_PLANE_TILES = 8, SECOND_SET_BYTES = 0x12A0, DESIGN_TILES_PLACE = BUFFER + MENU_WINDOW_DESIGNS * MENU_WINDOW_DESIGN_BYTES, DESIGN_TILES_FROM = 0x5F00, DESIGN_TILES_BYTES = 0x1A0, INKED_WINDOW_TILES = 0xA4,  };
+enum {
+    BUFFER = 0x2E00, WIDENED_AT = 0x3000, WIDENED_FROM = 0x4F00, WIDENED_TILES = 0xF0, FOUR_COLOUR_AT = 0x4E00,
+    FIRST_TILES_AT = 0x5000, REPLACED_AT = 0x5100, INKED_TILE = 0x33E0, INKED_TILES_FROM = 0x4880,
+    INKED_TILES_TO = 0x49C0, THREE_PLANE_AT = 0x5400, INKED_THREE_PLANE_TILES = 8, SECOND_SET_BYTES = 0x12A0,
+    DESIGN_TILES_PLACE = BUFFER + MENU_WINDOW_DESIGNS * MENU_WINDOW_DESIGN_BYTES, DESIGN_TILES_FROM = 0x5F00, DESIGN_TILES_BYTES = 0x1A0, INKED_WINDOW_TILES = 0xA4,
+};
 
 // $C2:968D-$C2:96EB
 /* The first sets: four-colour tiles laid out as sixteen-colour ones, eleven
@@ -209,7 +213,13 @@ static void load_menu_colours(GameState *g)
 /* The last set: tiles moved into place over a cleared buffer, the first 32
  * inked in their fourth plane, and four sixteen-colour tiles from the ROM
  * with their ink in both their last planes. */
-enum { LAST_SET_CLEARED = 0x1000, MOVED_FROM = 0x5C00, MOVED_TO = 0x2E80, SECOND_MOVED_TO = 0x3080, MOVED_BYTES = 0x180 };
+enum {
+    LAST_SET_CLEARED = 0x1000,
+    MOVED_FROM = 0x5C00,
+    MOVED_TO = 0x2E80,
+    SECOND_MOVED_TO = 0x3080,
+    MOVED_BYTES = 0x180,
+};
 enum { SPREAD_TO = 0x3200, SPREAD_BYTES = 0x400, INKED_LAST_TILES = 0x20, ROM_TILE_PAIR = 0x40, ROWS_APART = 0x200 };
 
 static void build_last_set(GameState *g, Platform *pf)
@@ -267,6 +277,5 @@ void menu_load_window_design(GameState *g)
     TIMED_AS(g, 0xC2ED08, menu_load_window_colours(g, menu_window_style(g)));
 }
 
-/* Both write work RAM's buffers through a data bank on it or its mirrors,
- * with the queue empty enough for what they queue. */
-enum { QUEUE_BYTES = 0x100 };
+/* Both write work RAM's buffers, with the queue empty enough for what they
+ * queue. */

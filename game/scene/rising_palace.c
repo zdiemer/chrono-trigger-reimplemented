@@ -48,7 +48,7 @@ enum { PALACE_CHANNEL = 1, SHIMMER = 0, PALACE_SCROLL_Y = 1, SEA_SCROLL = 2 };
 enum { MAP_BUFFER = 0x001400, MAP_BYTES = 0x0800 };
 
 /* The source map and the transformed map are both 32 by 32 tile words. */
-enum { MAP_SOURCE = 0x000C00, MAP_COLUMNS = 32, MAP_ROW_BYTES = 64, MAP_MAX_ROWS = 32 };
+enum { MAP_COLUMNS = 32, MAP_ROW_BYTES = 64, MAP_MAX_ROWS = 32 };
 
 typedef struct { uint16_t across, down; } MapPoint;
 typedef struct {
@@ -82,9 +82,6 @@ static MapSample rounded_map_sample(const MapTransform *t, unsigned row, unsigne
     return (MapSample){ row_start, point, tile_byte };
 }
 
-/* The original's local positions, exhausted counts, patched steps, and the
- * multiplication used to address the last sampled tile. None drive C work. */
-
 // $7E:7441
 /* Sample the source map along the turn's rows and columns. Across is in
  * byte offsets (two bytes per tile); down is in rows. The index wraps over
@@ -113,8 +110,8 @@ bool scene_turn_map(GameState *g)
         }
     }
     set_scene_map_pending_count(g, (uint16_t)(scene_map_pending_count(g) + 1));
-    charge_legacy_accesses(g, 20);
-    charge_legacy_io_accesses(g, 6);
+    charge_accesses(g, 20);
+    charge_io_accesses(g, 6);
     return true;
 }
 
@@ -143,7 +140,10 @@ static void send_the_map_if_waiting(GameState *g, Platform *pf)
  * map's from its 322nd word, one word on from where they were. Both are
  * transfers out of the registers, which go through the SNES-only escape. */
 enum { BLANK_ROWS_BYTES = 0x0280, BLANK_TILE_WORD = 0x0100, FIELD_MAP_VRAM = 0x6000 };
-enum { BELOW_THE_BLANK_ROWS_VRAM = FIELD_MAP_VRAM + BLANK_ROWS_BYTES / 2, REST_OF_THE_MAP_BYTES = MAP_BYTES - BLANK_ROWS_BYTES };
+enum {
+    BELOW_THE_BLANK_ROWS_VRAM = FIELD_MAP_VRAM + BLANK_ROWS_BYTES / 2,
+    REST_OF_THE_MAP_BYTES = MAP_BYTES - BLANK_ROWS_BYTES,
+};
 
 static void build_the_map(Platform *pf)
 {
@@ -288,10 +288,6 @@ static int16_t scaled(int16_t trig, uint8_t quarter_scale)
     return trig < 0 ? (int16_t)-product : (int16_t)product;
 }
 
-/* The original multiplies on the Mode 7 matrix's registers, which it leaves
- * with the sine's magnitude and the scale (scaffolding: mode 2 draws none of
- * it, and the next scene that turns a map sets them again). */
-
 // $7E:73C6
 /* The turn's matrix from channel 0's angle and scale, and the point it turns
  * about and where it is placed, both channel 0's registers 1 and 2. */
@@ -311,8 +307,8 @@ static TaskEnd work_out_the_turn_task(GameState *g, Platform *pf)
     set_scene_turn_center(g, 0, x);
     set_scene_turn_position(g, 1, y);
     set_scene_turn_center(g, 1, y);
-    charge_legacy_rom_accesses(g, 1);
-    charge_legacy_io_accesses(g, 4);
+    charge_rom_accesses(g, 1);
+    charge_io_accesses(g, 4);
     return task_goes_on();
 }
 
@@ -372,7 +368,7 @@ static TaskEnd ripple_the_palace_task(GameState *g, Platform *pf)
         ridge = (uint16_t)(ridge - strength);
         set_scene_palace_column_offsets(g, column, column_offset(ridge));
     }
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
     set_scene_palace_ripple_scroll(g, (uint16_t)(scene_palace_ripple_scroll(g) + strength));
     uint16_t sea = scene_channel_register(g, PALACE_CHANNEL, SEA_SCROLL);
     set_scene_palace_sea_scroll(g, (uint16_t)(sea >> 2));
@@ -443,7 +439,10 @@ static TaskEnd send_the_map_task(GameState *g, Platform *pf)
 
 /* ---- The rows ---------------------------------------------------------------------------------- */
 
-enum { ROW_WORK_OUT_THE_TURN, ROW_SHIMMER, ROW_RIPPLE, ROW_DARKEN, ROW_WHITEN, ROW_CLEAR, ROW_SEND_THE_OFFSETS, ROW_SEND_THE_MAP,  };
+enum {
+    ROW_WORK_OUT_THE_TURN, ROW_SHIMMER, ROW_RIPPLE, ROW_DARKEN, ROW_WHITEN, ROW_CLEAR, ROW_SEND_THE_OFFSETS,
+    ROW_SEND_THE_MAP,
+};
 
 const SceneTaskPort scene_palace_tasks[] = {
     [ROW_WORK_OUT_THE_TURN] = { SCENE_TASK_WORK_OUT_THE_TURN, SCENE_FRAME_TASKS, work_out_the_turn_task },
@@ -468,16 +467,16 @@ static bool set_up_the_palace_with(GameState *g, Platform *pf, bool (*first_step
     return true;
 }
 
-/* As C (scene/program.c's setups with no machine): channel 0's turn, which
- * runs channel 1's first command too. The setup's guard is its code alone. */
+/* The setup's step that is another routine (for scene/program.c's setups):
+ * channel 0's turn, which runs channel 1's first command too. */
 typedef struct {
     GameState *game;
     Platform *pf;
-} PalaceInC;
+} PalaceContext;
 
 static bool turn_the_first_channel(void *ctx)
 {
-    PalaceInC *c = ctx;
+    PalaceContext *c = ctx;
     SceneTurn turn = SCENE_TURN_ENDED;
     TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, TURN_CHANNEL));
     return turn == SCENE_TURN_ENDED;
@@ -485,7 +484,7 @@ static bool turn_the_first_channel(void *ctx)
 
 bool scene_palace_set_up(GameState *g, Platform *pf)
 {
-    PalaceInC c = { g, pf };
+    PalaceContext c = { g, pf };
     return set_up_the_palace_with(g, pf, turn_the_first_channel, &c);
 }
 
@@ -494,13 +493,8 @@ bool scene_palace_set_up(GameState *g, Platform *pf)
 /* With the curtain, a frame task sweeps it ($7E:6844): the curtain's step,
  * and its window's edge read from the half of its table the step didn't
  * write -- the table on odd steps, the half after it on even ones -- through
- * the per-line effect's two lists of the table's runs. The step is a port of
- * its own, called through the machine, so that a comparison of it is its own
- * (the stir waits there for the beam the original latches); it reads none of
- * the registers but X, the list's place of the task, which it is handed as
- * the list hands it. The task is the list's original's for the same reason,
- * and runs as C where the list calls it. */
-enum { CURTAIN_STEP = 0xC301E4 };
+ * the per-line effect's two lists of the table's runs. The step's stir takes
+ * the list's place of the task. */
 enum { CURTAIN_RUNS_ODD = 0x688A, CURTAIN_RUNS_EVEN = 0x6891, CURTAIN_WINDOW_SLOT = 0 };
 
 static uint16_t curtain_runs(const GameState *g)
@@ -526,24 +520,24 @@ static bool sweep_the_curtain_with(GameState *g, Platform *pf, bool (*step)(void
     return true;
 }
 
-/* As C, the step's port with its guard's state half (scene/curtain.c), its
- * stir taking the slot's place in the list as the list hands it. */
+/* The curtain's step (scene/curtain.c), which goes no further where its
+ * table is not one it sweeps, its stir taking the slot's place in the list. */
 typedef struct {
     GameState *game;
     Platform *pf;
     uint16_t salt;
-} CurtainInC;
+} CurtainContext;
 
 static bool curtain_step(void *ctx)
 {
-    CurtainInC *c = ctx;
+    CurtainContext *c = ctx;
     return scene_curtain_stepped(c->game, c->pf, c->salt);
 }
 
 TaskEnd scene_sweep_the_palace_curtain(GameState *g, Platform *pf, unsigned slot)
 {
-    CurtainInC c = { g, pf, (uint16_t)(slot * 2) };
+    CurtainContext c = { g, pf, (uint16_t)(slot * 2) };
     if (!sweep_the_curtain_with(g, pf, curtain_step, &c))
-        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+        return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
     return task_goes_on();
 }

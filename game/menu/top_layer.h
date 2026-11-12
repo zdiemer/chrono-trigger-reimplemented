@@ -7,7 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* The objects' turns as C (menu/handlers.c). */
+/* The objects' turns (menu/handlers.c). */
 MenuTurn menu_top_layer_slow_drift_turn(GameState *g, Platform *pf, MenuObject o);
 MenuTurn menu_top_layer_drift_turn(GameState *g, Platform *pf, MenuObject o);
 MenuTurn menu_top_layer_fast_drift_turn(GameState *g, Platform *pf, MenuObject o);

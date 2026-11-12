@@ -46,10 +46,10 @@ enum { FIELD_OBJECTS = 64 };
  * and the party name an object. A link is a value to pass on and compare.
  *
  * What one is made of is the storage's: the original keeps it as a byte, the
- * object's slot doubled (its offset in the object tables, as the original's
- * index registers hold it), or any byte with the top bit set for none. Only
- * the storage functions that read and write links, and the guards
- * (field/bridge.h), see the byte, through the last two functions here. */
+ * object's slot doubled (its offset in the object tables), or any byte with
+ * the top bit set for none. Only the storage functions that read and write
+ * links, and the checks of what the port runs (field/bridge.h), see the
+ * byte, through the last two functions here. */
 typedef struct {
     uint8_t stored;
 } FieldLink;
@@ -62,7 +62,7 @@ enum { LINK_NONE_BIT = 0x80 };
  * object update, the sprite table and the original's routines work on it.
  * The original keeps it as a word whose low byte is the object's link, and
  * whether a word is one of the objects the tables hold takes the whole word
- * (the guards', and the per-frame turn's), so a byte left after the link
+ * (the port's checks, and the per-frame turn's), so a byte left after the link
  * makes the current object unrecognised: they see no object. Making an
  * object current changes the link alone, as the per-frame turn does; the
  * map's openings and the sprite table's building make it recognised,
@@ -74,7 +74,7 @@ void object_make_current_recognised(GameState *g, FieldObject obj);
 void object_recognise_current(GameState *g);
 /* Whether the byte after the link is clear, so that making an object current
  * leaves it recognised: the frame put-back's layouts read the whole word
- * under 16-bit index registers ($C0:CE57, $C0:D21C, $C0:DE91, $C0:E08C), so
+ * ($C0:CE57, $C0:D21C, $C0:DE91, $C0:E08C), so
  * the put-back and the battle's return, which makes each object current by
  * its link alone, take that byte clear. */
 bool object_making_current_recognises(const GameState *g);
@@ -251,8 +251,8 @@ void object_put_on_tile(GameState *g, FieldObject obj, MapTile tile, bool centre
 typedef enum { FACING_UP, FACING_DOWN, FACING_LEFT, FACING_RIGHT } Facing;
 
 Facing object_facing(const GameState *g, FieldObject obj);
-/* Whether what the object keeps as its facing is one of the four (the
- * guards': the game sets no other). */
+/* Whether what the object keeps as its facing is one of the four (the port
+ * runs no other; the game sets no other). */
 bool object_facing_is_one(const GameState *g, FieldObject obj);
 /* It faces a way as it moves (its walk shows the facing). */
 void object_set_facing(GameState *g, FieldObject obj, Facing facing);
@@ -287,9 +287,8 @@ typedef struct {
 
 /* A script gives the layering as the byte the object keeps it in: bit 7
  * follows the map, bits 4-5 the upper half's priority, bits 2-3 the range
- * and bits 0-1 the lower half's priority. Bit 6 is no part of it: a byte
- * with it set is left to the original (the guards'), and none the game
- * gives has it. */
+ * and bits 0-1 the lower half's priority. Bit 6 is no part of it: the port
+ * refuses a byte with it set, and none the game gives has it. */
 ObjectLayering layering_of_byte(uint8_t byte);
 bool layering_byte_is_one(uint8_t byte);
 
@@ -333,7 +332,15 @@ typedef enum {
  * and those the party also shows on its own (field/party.h): running against
  * something that stops it, the pose the leader holds while the player picks
  * an answer, climbing, and a fidget when it has stood about a while. */
-enum { ANIMATION_STAND = 0, ANIMATION_WALK = 1, ANIMATION_RUN = 6, ANIMATION_RUN_ON_THE_SPOT = 0x17, ANIMATION_CHOOSING = 0x19, ANIMATION_CLIMB = 0x1B, ANIMATION_FIDGET = 0x21,  };
+enum {
+    ANIMATION_STAND = 0,
+    ANIMATION_WALK = 1,
+    ANIMATION_RUN = 6,
+    ANIMATION_RUN_ON_THE_SPOT = 0x17,
+    ANIMATION_CHOOSING = 0x19,
+    ANIMATION_CLIMB = 0x1B,
+    ANIMATION_FIDGET = 0x21,
+};
 
 ObjectAnimationMode object_animation_mode(const GameState *g, FieldObject obj);
 /* Hold a frame, as a script's holding does, with nothing else of its
@@ -342,9 +349,6 @@ void object_hold_frame(GameState *g, FieldObject obj, uint8_t frame);
 /* Whether a script has it hold a frame (ANIMATE_SHOW_FRAME), and which. */
 bool object_holds_frame(const GameState *g, FieldObject obj);
 uint8_t object_held_frame(const GameState *g, FieldObject obj);
-/* Whether its frame tables lie in their bank, where taking its next frame
- * (object_take_next_frame) reads them as the original does. */
-bool object_frame_tables_in_bank(const GameState *g, FieldObject obj);
 
 /* What a script does with an object's animation. A one-off plays for a
  * number of half passes: a pass is the animation's times run through once,
@@ -396,9 +400,6 @@ typedef struct {
 } FrameQueueFront;
 FrameQueueFront object_frame_queue_front(const GameState *g);
 void object_frame_queue_take_first(GameState *g, bool alone);
-/* Whether the queue's objects are in the object tables, each named by its
- * slot doubled from the head to the tail (the frame builder's guard). */
-bool object_frame_queue_in_the_tables(const GameState *g);
 
 /* The frame builder takes the object's next frame to draw, if there is one:
  * a one-off animation at the end of its frames counts half a pass and has
@@ -408,7 +409,6 @@ typedef struct {
     uint8_t frame;
 } ObjectFrame;
 ObjectFrame object_take_next_frame(GameState *g, FieldObject obj, uint8_t tables_bank);
-ObjectFrame object_next_frame(const GameState *g, FieldObject obj, uint8_t tables_bank);
 
 /* ---- Motion (field/motion.c, field/object.c) ------------------------------------------- */
 
@@ -560,8 +560,8 @@ ObjectsAhead object_in_the_way(GameState *g, FieldObject obj);
 /* Where the field's searches over the map's objects start -- this one, the
  * leader's walk's and the confirm button's -- one slot past the map's
  * objects, down to the second; whether there is a start (a count of 0 or 128
- * has none, which no map makes), which this search's guards require; and
- * whether it is inside the tables, which the confirm button's guard requires
+ * has none, which no map makes), which the port requires of this search; and
+ * whether it is inside the tables, which it requires of the confirm button
  * (this search and the walk handle a start past them, field/motion.c). */
 FieldObject object_search_start(const GameState *g);
 bool object_search_starts(const GameState *g);
@@ -698,8 +698,8 @@ static inline uint8_t field_link_byte(FieldLink link) { return link.stored; }
 /* Whether an offset as the original's tables are indexed -- a stored link, a
  * script's operand naming an object, the current object -- names an object
  * the tables hold: even, and inside them. Past them the original's index
- * reads the tables' neighbours, which only the original runs (the guards
- * check this, and the scripts' operands). */
+ * reads the tables' neighbours, which the port doesn't reproduce (its checks
+ * refuse such a link, and such a script operand). */
 static inline bool field_names_object(uint16_t offset) { return !(offset & 1) && offset < 2 * FIELD_OBJECTS; }
 
 static inline bool field_link_names_object(FieldLink link)
@@ -716,8 +716,8 @@ static inline bool field_link_readable(FieldLink link)
     return field_link_is_object(link) ? field_link_names_object(link) : !(link.stored & 1);
 }
 
-/* The object as the original's index registers hold it (its link's byte), for
- * scaffolding that keeps it in a scratch cell and for the machine side. */
+/* The object's offset in the object tables (its link's byte), which the
+ * walk compares slots by. */
 static inline uint8_t field_object_offset(FieldObject obj) { return field_link_to(obj).stored; }
 
 /* The layout is a byte's low two bits, as a sprite record gives it and the

@@ -62,7 +62,10 @@ typedef enum {
  * that can't miss, a barrier and a shield passed; a hit's chances of a status
  * and to steal. The second: the attacker's weapon's modifier as well, and the
  * defence scaled by quarters. */
-enum { EFFECT_STEALS = 0x02, EFFECT_GIVES_STATUS = 0x04, EFFECT_CANT_BE_TURNED_AWAY = 0x10, EFFECT_CANT_MISS = 0x20, EFFECT_PASSES_BARRIER = 0x40, EFFECT_PASSES_SHIELD = 0x80,  };
+enum {
+    EFFECT_STEALS = 0x02, EFFECT_GIVES_STATUS = 0x04, EFFECT_CANT_BE_TURNED_AWAY = 0x10, EFFECT_CANT_MISS = 0x20,
+    EFFECT_PASSES_BARRIER = 0x40, EFFECT_PASSES_SHIELD = 0x80,
+};
 enum { EFFECT_WITH_WEAPON_MODIFIER = 0x80, EFFECT_DEFENCE_QUARTERS = 0x03 };
 
 /* What a cure does: bit 7 revives, bit 6 heals as well; a healing's multiple

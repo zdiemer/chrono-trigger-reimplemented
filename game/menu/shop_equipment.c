@@ -48,7 +48,13 @@ enum { EQUIPPED_AT = 0x3664, SLOTS_AT = 0x3624 };
 /* A member's strip (shop.h): two rows of four tiles; the whole row's 28
  * tiles from the first's. A dimmed strip takes the dimmed palette, its
  * member's sprite the dimmed colours. */
-enum { STRIPS_AT = SHOP_MEMBER_STRIPS_AT, STRIP_BYTES = SHOP_MEMBER_STRIP_BYTES, STRIP_ROWS = 2, STRIP_TILES = 4, ALL_STRIPS_TILES = 0x1C };
+enum {
+    STRIPS_AT = SHOP_MEMBER_STRIPS_AT,
+    STRIP_BYTES = SHOP_MEMBER_STRIP_BYTES,
+    STRIP_ROWS = 2,
+    STRIP_TILES = 4,
+    ALL_STRIPS_TILES = 0x1C,
+};
 enum { BRIGHT = 0x00, DIMMED = 0x10 };
 
 // $C2:E058

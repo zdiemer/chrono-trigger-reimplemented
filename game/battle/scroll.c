@@ -96,14 +96,6 @@ static bool waved_layer(const GameState *g, BattleScrollMode mode, unsigned laye
     return waves && battle_line_scroll_layers(g, layer) != 0;
 }
 
-/* The original works the six values out in the scratch cells from $45 on,
- * BG1's across first, and leaves them there; in the wave modes, which layers
- * the wave moves in the low cells $1A, $1C and $1E. BG1's across is the
- * first word, which the screen scripts' drift tests the high byte of
- * (battle_screen_leftover, screen_motion.c): game state, written plainly
- * (battle_scroll_layers); the rest only the original's code reads. */
-enum { WAVED_LAYER_CELLS = 0x1A };
-
 // $CD:06C4 (steady), $CD:076C (BG3 moving), $CD:07E2 (the wave), $CD:07B9 (the finer wave)
 void battle_scroll_layers(GameState *g, BattleScrollMode mode)
 {
@@ -134,9 +126,6 @@ static uint8_t random_magnitude(const GameState *g, uint8_t from)
 
 /* The offset is the magnitude times the amplitude, in 256ths. */
 enum { OFFSET_FRACTION_BITS = 8 };
-
-/* The multiplier's operands, as the original leaves them after an axis's
- * product. */
 
 /* The amplitude steps toward where it settles; dying away to nothing, it
  * stops the axis (whose offset this frame is then nothing). */
@@ -190,15 +179,19 @@ static bool shakes(uint8_t layers, unsigned layer, unsigned axis)
     return (layers & (SHAKEN_BG1_ACROSS >> (layer * 2 + axis))) != 0;
 }
 
-/* The shake's offsets on the axes are left in the scratch cells $45 and
- * $47. */
-
 /* ---- Palette presets ---------------------------------------------------------------------- */
 
 /* A screen effect asks for a preset's fades to start: bit 7 of the request
  * for preset slot 2's over palette animation slot 10, any other bit for slots
  * 0 and 1's over 8 and 9 (and only bit 0 is taken back after). */
-enum { REQUEST_SLOT_10 = 0x80, REQUEST_SLOTS_8_9 = 0x01, PRESET_SLOTS_8_9 = 0, PRESET_SLOT_10 = 2, FIRST_PRESET_SLOT = 8, PRESET_SLOT_BYTES = 12 };
+enum {
+    REQUEST_SLOT_10 = 0x80,
+    REQUEST_SLOTS_8_9 = 0x01,
+    PRESET_SLOTS_8_9 = 0,
+    PRESET_SLOT_10 = 2,
+    FIRST_PRESET_SLOT = 8,
+    PRESET_SLOT_BYTES = 12,
+};
 
 /* A preset slot is laid out as a palette animation slot, and copied whole. */
 static void start_preset(GameState *g, unsigned preset, unsigned slot)
@@ -244,32 +237,18 @@ void battle_shake_screen(GameState *g)
     start_requested_presets(g);
 }
 
-/* ---- The entries ------------------------------------------------------------------------ */
+/* ---- The frame's scroll by the mode ----------------------------------------------------------- */
 
 /* The scroll modes' routines, which the original's dispatch jumps to through
  * its table at $CD:06BC, whose time each mode's fill takes. */
 static const uint32_t scroll_routines[BATTLE_SCROLL_MODES] = { 0xCD06C4, 0xCD076C, 0xCD07E2, 0xCD07B9 };
 
-/* The fills finish as the original's do: A's high byte the page's (0), which
- * their callers read, and 8-bit A with 16-bit index registers. */
-
-/* The wave's fill leaves X at BG3's second 32 entries, where the finer
- * wave's ($CD:07B9, which calls it) goes on. */
-enum { SECOND_HALF_OF_BG3 = 0x80 };
-
 static BattleScrollMode scroll_mode(const GameState *g) { return (BattleScrollMode)battle_scroll_mode(g); }
 
-// $CD:06B4
-/* The frame work's scroll: the mode's fill, each timed as its own routine. */
-
-/* The frame's scroll by the mode, as C. */
+/* The frame's scroll by the mode. */
 void battle_scroll_by_the_mode(GameState *g)
 {
     BattleScrollMode mode = scroll_mode(g);
     TIMED_AS(g, scroll_routines[mode], battle_scroll_layers(g, mode));
 }
 
-/* The frame work's call of the dispatch, which indexes its table with A's
- * high byte too: 0 wherever the game calls it, and anything else is the
- * original's. */
-enum { FRAME_WORK_SCROLLS = 0xCD0929, SCROLL_DISPATCH = 0xCD06B4 };

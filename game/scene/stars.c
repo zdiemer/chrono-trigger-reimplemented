@@ -287,10 +287,9 @@ static bool flies_after_the_captions(const GameState *g)
                                         : flies_from(g, first);
 }
 
-/* As C: the list's carry is its compare's, clear past its first slot; at the
- * first, what the frame's work left, which the native program doesn't keep,
- * and the stars start clean there too. Where the flight's first star isn't
- * one the port draws from, it is the machine's, as its entry's guard has it. */
+/* The flight. The bit the list's call spills is clear past its first slot,
+ * and the stars start clean at the first too. Where the flight's first star
+ * isn't one the port draws from, the scene goes no further. */
 enum { SLOT_BYTES = 2 };
 
 static bool flies_from(const GameState *g, uint16_t first);
@@ -298,7 +297,7 @@ static bool flies_from(const GameState *g, uint16_t first);
 TaskEnd scene_stars_fly(GameState *g, Platform *pf, unsigned slot)
 {
     if (!flies_from(g, scene_sprite_index(g)))
-        return scene_task_needs_the_machine(g, 0x7E579B, "a star field the port doesn't fly");
+        return scene_task_goes_no_further(g, 0x7E579B, "a star field the port doesn't fly");
     (void)fly_stars(g, pf, false, (uint16_t)(slot * SLOT_BYTES));
     return task_goes_on();
 }
@@ -309,20 +308,19 @@ TaskEnd scene_stars_fly(GameState *g, Platform *pf, unsigned slot)
  * place of the slot. */
 enum { HIDING_LEAVES = 4 };
 
-/* The list's exit for a task that hands its slot to another, the task in X. */
+/* The task the drift's start hands its slot to. */
 enum { KEEP_DRIFTING = 0x98AC };
 
-/* ---- The flight after the captions and the drift, as C ------------------------------------------- */
+/* ---- The flight after the captions and the drift ---------------------------------------------------- */
 
-/* For a program with no machine. The list calls a task with its own address
- * in A, which the drift's first draw goes on from, and the carry its compare
- * leaves clear past its first slot. */
+/* The drift's first draw goes on from the task's own address, with nothing
+ * spilled past the list's first slot. */
 enum { FLY_AFTER_THE_CAPTIONS = 0x7E999C, START_DRIFT = 0x9897 };
 
 TaskEnd scene_stars_fly_after_captions(GameState *g, Platform *pf, unsigned slot)
 {
     if (!flies_after_the_captions(g))
-        return scene_task_needs_the_machine(g, FLY_AFTER_THE_CAPTIONS, "a star field the port doesn't fly");
+        return scene_task_goes_no_further(g, FLY_AFTER_THE_CAPTIONS, "a star field the port doesn't fly");
     bool made_room = make_room_after_the_captions(g);
     (void)fly_stars(g, pf, true, made_room ? HIDING_LEAVES : (uint16_t)(slot * SLOT_BYTES));
     return task_goes_on();

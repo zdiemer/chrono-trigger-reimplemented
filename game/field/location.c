@@ -42,7 +42,6 @@
 #include "event/variables.h"
 #include "field/bridge.h"
 #include "field/display.h"
-#include "field/scratch.h"
 #include "platform/audio.h"
 #include "platform/timing.h"
 #include "port/vars_ram.h"
@@ -55,7 +54,11 @@
  * work RAM, from the graphics sets the map's people share to the ripple's
  * count, which the field moves aside as one block, to where the event script
  * lives (the script is unpacked again after). */
-enum { FIELD_STATE_FROM = RAM_FIELD_SHARED_GRAPHICS, FIELD_STATE_BYTES = RAM_FIELD_RIPPLE_FRAMES_LEFT + 1 - RAM_FIELD_SHARED_GRAPHICS, FIELD_STATE_ASIDE = RAM_EVENT_OBJECT_COUNT,  };
+enum {
+    FIELD_STATE_FROM = RAM_FIELD_SHARED_GRAPHICS,
+    FIELD_STATE_BYTES = RAM_FIELD_RIPPLE_FRAMES_LEFT + 1 - RAM_FIELD_SHARED_GRAPHICS,
+    FIELD_STATE_ASIDE = RAM_EVENT_OBJECT_COUNT,
+};
 
 // $C0:0918
 void field_put_the_state_aside(GameState *g)
@@ -178,10 +181,6 @@ static void finish_the_gathering(GameState *g)
 
 /* ---- The location's record and its song ------------------------------------------------------ */
 
-/* Where the location's record is, which the field keeps: the original works
- * it out on the multiplier, which only the comparison with it sees. */
-enum { LOCATION_LOW_BITS = 0x00FF };
-
 // $C0:092B
 static LocationDescription find_the_record(GameState *g)
 {
@@ -199,7 +198,16 @@ static LocationDescription the_record(const GameState *g) { return location_desc
  * each sent from there to its own place among BG1's and BG2's tiles in VRAM
  * (the last a little short of a full block), the last two unpacked to bank
  * $7F; BG3's block unpacked to bank $7F and sent to BG3's tiles. */
-enum { UNPACKED_TILES = RAM_FIELD_LAYER_MAPS, BLOCK_TILES = 0x1000, LAST_BLOCK_TILES = 0x0F80, VRAM_TILES_FROM = 0x2000, VRAM_BLOCK_WORDS = 0x0800, BG3_UNPACKED_TILES = RAM_FIELD_BG3_TILES_UNPACKED, BG3_VRAM_TILES = 0x5000, TRANSFER_WORDS = 1 };
+enum {
+    UNPACKED_TILES = RAM_FIELD_LAYER_MAPS,
+    BLOCK_TILES = 0x1000,
+    LAST_BLOCK_TILES = 0x0F80,
+    VRAM_TILES_FROM = 0x2000,
+    VRAM_BLOCK_WORDS = 0x0800,
+    BG3_UNPACKED_TILES = RAM_FIELD_BG3_TILES_UNPACKED,
+    BG3_VRAM_TILES = 0x5000,
+    TRANSFER_WORDS = 1,
+};
 static const uint32_t kept_blocks[TILE_SET_BLOCKS - TILE_SET_BLOCKS_IN_VRAM] = { 0x7F6000, 0x7F7000 };
 
 /* How the map's tiles are made of the tiles, unpacked: BG1's and BG2's, and
@@ -285,10 +293,15 @@ void field_load_bg3_tile_looks(GameState *g)
 static const AudioCommand full_volume = { .command = AU_FADE_MUSIC, .p1 = 0, .p2 = AU_FULL_VOLUME,
                                           .p3 = AU_FULL_VOLUME, .count = 3 };
 
-/* The driver ($C7:0004, through the audio service) reads nothing of the
- * registers, and hands A's high byte back as it found it, which the loading
- * after it ANDs away. */
-enum { SOUND_DRIVER = 0xC70004, SONG_SITE = 0xC01B8B, SONG_RETURNS = 0xC01B8F, FADE_SITE = 0xC01B73, FADE_RETURNS = 0xC01B77 };
+/* The sound driver ($C7:0004), reached through the audio service, and where
+ * the loading calls it and goes on. */
+enum {
+    SOUND_DRIVER = 0xC70004,
+    SONG_SITE = 0xC01B8B,
+    SONG_RETURNS = 0xC01B8F,
+    FADE_SITE = 0xC01B73,
+    FADE_RETURNS = 0xC01B77,
+};
 
 static void play(Platform *pf, uint8_t song)
 {
@@ -312,8 +325,7 @@ static bool keep_the_locations_song(GameState *g)
 }
 
 /* Whether a call to the sound driver came back to the song's start, at
- * `returns`: always as C; on the machine, the driver's call is a call-out
- * whose return the bridge checks. */
+ * `returns` (the program's always does). */
 typedef bool (*DriverCameBack)(void *ctx, uint32_t returns);
 
 // $C0:1B53
@@ -441,7 +453,11 @@ bool field_load_the_script(GameState *g)
 /* ---- The location loaded ---------------------------------------------------------------------- */
 
 /* The routines its steps stand for, which time them. */
-enum { LOCATION_SONG = 0xC01B53, TILE_GRAPHICS = 0xC00960, BG3_GRAPHICS = 0xC06DCF, TILE_LOOKS_ROUTINE = 0xC009DD, BG3_TILE_LOOKS_ROUTINE = 0xC00A14, PALETTE_LOADED = 0xC07084, LAYERS_STATE_CLEARED = 0xC07F7E, SCRIPT_UNPACKED = 0xC056D4, TILE_ANIMATIONS = 0xFDDE98, PALETTE_ANIMATIONS = 0xFDE292,  };
+enum {
+    LOCATION_SONG = 0xC01B53, TILE_GRAPHICS = 0xC00960, BG3_GRAPHICS = 0xC06DCF, TILE_LOOKS_ROUTINE = 0xC009DD,
+    BG3_TILE_LOOKS_ROUTINE = 0xC00A14, PALETTE_LOADED = 0xC07084, LAYERS_STATE_CLEARED = 0xC07F7E,
+    SCRIPT_UNPACKED = 0xC056D4, TILE_ANIMATIONS = 0xFDDE98, PALETTE_ANIMATIONS = 0xFDE292,
+};
 
 /* The tile set's graphics, the palette and the layers' state, which come
  * before the map; and the tiles' looks, which come after it. */
@@ -465,13 +481,11 @@ static void load_the_animations(GameState *g)
     TIMED_AS(g, PALETTE_ANIMATIONS, palette_load_location_animations(g));
 }
 
-/* The location's loading, entering it and after a menu, whose steps that
- * are entries of their own run as C or on the machine (below): the song, the
- * map and the script; and after a menu the line effects' tables built and
- * set up, the map's script started and the figure an event command built
- * drawn again. Each is false where it went no further: as C, a step the port
- * doesn't take; on the machine, a call that didn't come back as the field
- * runs. */
+/* The location's loading, entering it and after a menu, whose steps are
+ * routines of their own (below): the song, the map and the script; and
+ * after a menu the line effects' tables built and set up, the map's script
+ * started and the figure an event command built drawn again. Each is false
+ * where it went no further: a step the port doesn't take. */
 typedef enum { ENTERING, AFTER_A_MENU } Loading;
 typedef struct {
     bool (*song)(void *ctx);
@@ -539,7 +553,7 @@ static bool set_up_after_a_menu(GameState *g, Platform *pf, const LoadSteps *ste
  * for. */
 enum { LINE_EFFECTS = 0xFDC2C1, LINE_EFFECTS_SET_UP = 0xFDC1EE, WHOLE_FIGURE = 0xC0E12A, MAP_SCRIPT_STARTS = 0xC0595C };
 
-/* ---- As C ------------------------------------------------------------------------------------- */
+/* ---- The steps -------------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
@@ -630,22 +644,9 @@ bool field_set_up_again(GameState *g, Platform *pf)
     return set_up_after_a_menu(g, pf, &in_the_program, &c);
 }
 
-/* ---- The routines it calls on the machine ---------------------------------------------------- */
+/* ---- What the port keeps -------------------------------------------------------------------- */
 
-/* The song, the map and the script from the original's calls at the sites
- * given, by loading: the map and the script are entries of their own, where
- * the original's code takes over a map or a script the port doesn't. */
-enum { SONG_SITE_ENTERING = 0xC000F7 };
-
-/* Where the script doesn't fit, the original's check and its error screen,
- * from its call, which reads nothing but the overflow its callers keep. */
-enum { SCRIPT_CHECKED = 0xC05703 };
-
-/* What it leaves for the menu: X past the party's places (the main menu takes
- * it as its argument), and the carry its last comparison set. */
-enum { PAST_THE_PLACES = 2 * PARTY_PLACES };
-
-/* The guards: on the field's page with the data bank $00, the party's places
+/* The party the port keeps for a menu: the party's places
  * objects or none (the leader's an object or none, its word's high byte clear); and,
  * after a menu, a gathering cut short with both members there, their words'
  * high bytes clear too (the original moves them through the words). */

@@ -15,15 +15,13 @@
  * the party, draws the map's two planes whole and starts the scene's script.
  *
  * Unpacking is the decompressor's (data/decompress.c): the loads reach it
- * through an Unpacker, which says where the original calls it from, and which
- * is C on the machine as off it since the decompressor's gate retired.
+ * through an Unpacker, which says where the original calls it from.
  * Everything else is the game's state and the video service. */
 #include "overworld/setup.h"
 
 #include "charge.h"
 #include "core/program.h"
 #include "data/decompress.h"
-#include "menu/bridge.h"
 #include "menu/display.h"
 #include "menu/map.h"
 #include "menu/object.h"
@@ -51,14 +49,28 @@ enum { STAGING = RAM_MENU_WORLD_MAP_TILES, BLOCK_BYTES = 0x1000 };
 /* Where the mode keeps what the map is made of, and the graphics and colours
  * the scene's script sends to VRAM as it plays (its upload command names
  * them). */
-enum { TILE_GROUPS = 0x7E3000, MAPS = 0x7E4000, SCENE_STAGE = RAM_TILE_ANIMATION_TABLES, /* the scene's script, and the lists before it */
-    SCENE_TILES = 0x7EB800, SCENE_COLOURS = 0x7EC000, SCENE_SPRITES = 0x7EC800, LATE_SCENE_COLOURS = 0x7EC600,  };
+enum {
+    TILE_GROUPS = 0x7E3000,
+    MAPS = 0x7E4000,
+    SCENE_STAGE = RAM_TILE_ANIMATION_TABLES,   /* the scene's script, and the lists before it */
+    SCENE_TILES = 0x7EB800,
+    SCENE_COLOURS = 0x7EC000,
+    SCENE_SPRITES = 0x7EC800,
+    LATE_SCENE_COLOURS = 0x7EC600,
+};
 
 /* Where in VRAM the mode's screen reads its tiles (menu/display.c's
  * object_mode_screen): the sprites' from word 0, the party's among them from
  * $1000; the map's from $2000; the top layer's from $7000, and its tilemap
  * at $7800. */
-enum { SPRITE_TILES_VRAM = 0x0000, PARTY_TILES_VRAM = 0x1000, LATE_SPRITE_TILES_VRAM = 0x0C00, MAP_TILES_VRAM = 0x2000, TOP_LAYER_TILES_VRAM = 0x7000, TOP_LAYER_TILEMAP_VRAM = 0x7800,  };
+enum {
+    SPRITE_TILES_VRAM = 0x0000,
+    PARTY_TILES_VRAM = 0x1000,
+    LATE_SPRITE_TILES_VRAM = 0x0C00,
+    MAP_TILES_VRAM = 0x2000,
+    TOP_LAYER_TILES_VRAM = 0x7000,
+    TOP_LAYER_TILEMAP_VRAM = 0x7800,
+};
 
 /* Send graphics from bank $7F, where they are staged, to VRAM. */
 static void send_staged(Platform *pf, uint16_t vram, uint32_t from, uint16_t bytes)
@@ -71,7 +83,21 @@ static void send_staged(Platform *pf, uint16_t vram, uint32_t from, uint16_t byt
 /* What each byte of a world map's record names, and which table it names it
  * in: the four pages of the sprites' graphics; the map's seven blocks of
  * tiles; the top layer's tiles and its tilemap; the palette; and the rest. */
-enum { RECORD_SPRITE_PAGES = 0x0C, RECORD_MAP_TILES = 0x00, RECORD_SCENE_TILES = 0x07, RECORD_TOP_LAYER_TILES = 0x08, RECORD_PALETTE = 0x0A, RECORD_SCENE_COLOURS = 0x0B, RECORD_TILE_GROUPS = 0x10, RECORD_MAPS = 0x11, RECORD_GROUND_KINDS = 0x12, RECORD_REGIONS = 0x13, RECORD_TOP_LAYER_TILEMAP = 0x14, RECORD_PLACE_LISTS = 0x15, RECORD_SCENE_SCRIPT = 0x16,  };
+enum {
+    RECORD_SPRITE_PAGES = 0x0C,
+    RECORD_MAP_TILES = 0x00,
+    RECORD_SCENE_TILES = 0x07,
+    RECORD_TOP_LAYER_TILES = 0x08,
+    RECORD_PALETTE = 0x0A,
+    RECORD_SCENE_COLOURS = 0x0B,
+    RECORD_TILE_GROUPS = 0x10,
+    RECORD_MAPS = 0x11,
+    RECORD_GROUND_KINDS = 0x12,
+    RECORD_REGIONS = 0x13,
+    RECORD_TOP_LAYER_TILEMAP = 0x14,
+    RECORD_PLACE_LISTS = 0x15,
+    RECORD_SCENE_SCRIPT = 0x16,
+};
 enum { SPRITE_PAGES = 4, MAP_TILE_BLOCKS = 7 };
 
 /* A byte with its top bit set names no stream. */
@@ -83,7 +109,7 @@ static uint8_t record_byte(const GameState *g, uint8_t field)
 }
 
 /* Unpack a stream to `to`; `site` is where the original's call to the
- * unpacker stands, which the machine's unpacker makes its call from. */
+ * unpacker stands. */
 static bool unpack(const Unpacker *u, uint32_t site, uint32_t stream, uint32_t to)
 {
     return u->unpack(u->ctx, site, stream, to);
@@ -552,14 +578,10 @@ static bool unpack_the_stream(void *ctx, uint32_t site, uint32_t stream, uint32_
 
 Unpacker overworld_unpacker(GameState *g) { return (Unpacker){ unpack_the_stream, g }; }
 
-/* Where the set up starts; the original's code from there reads nothing of
- * the registers but the mode's page and bank. */
-enum { SET_UP = 0xC223A8 };
-
 /* ---- The contracts ------------------------------------------------------------------------- */
 
-/* The loads run on the mode's page with the data bank on low RAM, on a world
- * map whose record is in the ROM; the record noted where they read it. */
+/* The loads run on a world map whose record is in the ROM; the record noted
+ * where they read it. */
 static bool on_a_world_map(const GameState *g)
 {
     uint16_t location = (uint16_t)(location_id(g) & 0x1FF);

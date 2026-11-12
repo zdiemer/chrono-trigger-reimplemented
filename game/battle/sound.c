@@ -27,8 +27,6 @@ static void silence(GameState *g, Platform *pf, PfOrigin o, uint8_t on)
     au_command(pf, o, (AudioCommand){ .command = SILENCE, .p1 = on, .count = 1 });
 }
 
-/* The sound driver's command reads none of the registers. */
-
 // $CD:3E44
 /* The pause's turn: a paused battle is silenced, waits a frame at a time for
  * the pause to end (the vblank handler still reads Start), and carries on

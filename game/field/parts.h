@@ -1,12 +1,11 @@
-/* The parts of the field's motion, animation and party (field/motion.c,
- * field/animation.c, field/party_trail.c) that what their routines leave the
- * original's code is worked out from (field/leaves.c): the direction
- * routine's quarter and scale, a direction's steps at the object's speed,
- * whether the check for objects in the way looks at all, where the frame
- * read reads, and the party's footprints and the pad's walk. Nothing else of
- * the game calls these but the derivations of what the original leaves
- * (field/leaves.c, and event/leaves.c for the party's step); object.h and
- * party.h are the vocabulary. */
+/* The parts of the field's motion, animation, frames and party
+ * (field/motion.c, field/animation.c, field/frames.c, field/party_trail.c,
+ * field/walk.c, field/tile_copy.c) that their routines are built from: the
+ * direction routine's quarter and scale, a direction's steps at the object's
+ * speed, whether the check for objects in the way looks at all, what drawing
+ * a frame came to, the party's footprints and the pad's walk, a tile copy's
+ * tables and a slope's line. object.h and party.h are the vocabulary the rest
+ * of the game calls. */
 #ifndef CT_GAME_FIELD_PARTS_H
 #define CT_GAME_FIELD_PARTS_H
 
@@ -41,23 +40,11 @@ Velocity field_velocity_for(const GameState *g, FieldObject obj, Direction direc
  * view and minds other objects. */
 bool field_looks_for_objects(const GameState *g, FieldObject obj);
 
-/* The start of the object's frame table for its facing, where its current
- * animation's first frame is in it, whether the animation was put a frame
- * before its first (starting over), and whether a frame number is that. */
-uint16_t field_facing_frame_table(const GameState *g, FieldObject obj);
-uint16_t field_first_frame_place(const GameState *g, FieldObject obj);
-bool field_animation_rewound(const GameState *g, FieldObject obj);
-bool field_frame_before_the_first(uint8_t frame);
-
 /* The frame builder (field/frames.c): what drawing came to -- the object not
  * drawn (hidden, out of view, or of the 24-sprite layout, whose frames are
  * its records), no next frame to draw, the frame already drawn, no areas
  * free for it, a 12-sprite object holding a frame (never drawn), a part drawn
- * with more to come, or the frame whole -- and what it had before; where the
- * last tile of a part of the object's frame went in bank $7F, and whether it
- * was mirrored; and what a whole frame sends to VRAM: where the second
- * stretch starts in the areas, and whether the sprites' tiles skip a row of
- * VRAM's, from which tile and by how much. */
+ * with more to come, or the frame whole. */
 typedef enum {
     FRAME_NOT_DUE,
     FRAME_NO_NEXT,
@@ -67,42 +54,6 @@ typedef enum {
     FRAME_PART_DRAWN,
     FRAME_DRAWN,
 } FrameBuild;
-typedef struct {
-    bool overflow;
-    uint8_t animation_frame;
-} FrameBuildBefore;
-typedef struct {
-    uint16_t at;
-    bool mirrored;
-} FieldDrawnTile;
-FieldDrawnTile field_frame_part_last_tile(const GameState *g, FieldObject obj, unsigned part);
-typedef struct {
-    uint16_t second_stretch;
-    bool skips_a_row;
-    uint8_t tile_before_the_skip, row;
-} FieldFrameSent;
-FieldFrameSent field_frame_sent(const GameState *g, FieldObject obj);
-/* The overflow the builder's entry hands on, worked out from those
- * (field/leaves.c). */
-bool field_frame_build_overflow(const GameState *g, FieldObject obj, FrameBuild outcome, FrameBuildBefore before);
-
-/* The main loop's switches (field/switches.c): the overflow of the last
- * entry's sum with BG1's base that pressing one leaves, and A's high byte at
- * its sound (field/leaves.c). */
-bool field_switch_redraw_overflow(const GameState *g);
-bool field_chest_redraw_overflow(const GameState *g);
-/* A's high byte as a step event leaves it, which a chest's sound after it reads. */
-uint8_t field_step_event_high_a(const GameState *g, uint16_t step, bool pressed);
-/* The frame wait's A, which the battle reads after it (field/requests.c). */
-uint16_t field_frame_wait_leaves_a(const GameState *g);
-/* The overflow the searchlight's step leaves (field/screen_effects.c). */
-bool field_searchlight_overflow(const GameState *g);
-uint8_t field_switch_sound_high_a(const GameState *g, SwitchPress p, uint16_t step);
-
-/* The Start assignment's test of the story's progress (field/menus.c): the
- * overflow of its subtraction, which the menus' entry and the field's main
- * loop read after it (field/leaves.c). */
-bool field_story_test_overflow(const GameState *g);
 
 /* A footprint of the leader's trail (field/party_trail.c): how far it moved
  * that frame, how the pad walked it, its sprite's priorities and the ground
@@ -114,13 +65,6 @@ typedef struct {
     LeaderGround ground;
 } Footprint;
 Footprint field_footprint(const GameState *g, uint8_t at);
-
-/* What the party's steps leave the original's callers (field/leaves.c): the
- * overflow of the leader's step, and of a member's, which follows from
- * whether it moved on. */
-/* The object a member's step leaves Y on: the member's own, which its gait
- * looks up, where it moved on; the one in its place, which it posed, where
- * it waited (field/party_trail.c). */
 
 /* A tile copy (field/tile_copy.c): the map's tables it can take whole, in
  * the order it takes them; what the copy's description names, a table's bit

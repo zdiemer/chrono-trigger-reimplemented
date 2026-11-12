@@ -24,10 +24,9 @@
  * table; the battle keeps tables of which high-table byte and bit go with
  * each sprite.
  *
- * Each part of the drawing is a routine of the original's, which the
- * original's pass calls with the combatant and the next free sprite in cells
- * of the objects' page; the port's pass runs them as C, each in its routine's
- * own time (native_time_as), and they stay entries of their own. */
+ * Each part of the drawing is a routine of its own in the original, called
+ * with the combatant and the next free sprite; the pass here calls them in
+ * turn, each charged at its routine's own rate (TIMED_AS). */
 #include "battle/effects.h"
 
 #include "battle/bridge.h"
@@ -85,9 +84,10 @@ static void put_sprite(GameState *g, unsigned sprite, uint8_t x, uint8_t y, uint
 
 /* ---- What the original leaves in its cells -------------------------------------------- */
 
-/* The original keeps its working values in cells of the objects' page
- * ($2E-$44) and of the battle's ($A1, $C6-$D1); the ports leave there what
- * it leaves, for shadow mode. `cell` is the original's direct-page address. */
+/* The original keeps its working values in cells of the objects' work area
+ * ($2E-$44) and of the battle's ($A1, $C6-$D1); the drawing leaves there
+ * what it leaves, which the grid reads (below). `cell` is the cell's
+ * address as the original spells it. */
 static void leave_draw_cell16(GameState *g, uint8_t cell, uint16_t v)
 {
     set_battle_draw_scratch(g, (unsigned)(cell - 0x2E), (uint8_t)v);
@@ -115,9 +115,6 @@ static unsigned frame_parts(const GameState *g, unsigned slot)
     uint8_t parts = battle_frame_parts(g, battle_object_kind(g, slot));
     return parts ? parts : 256;
 }
-
-/* The original leaves the frame's point, its last part's, the attributes and
- * the offset in its cells, and the part it came to. */
 
 // $CF:EAC5 (from $CF:EB1B), $CF:E99C (from $CF:EA11)
 /* Draw the combatant's frame from `sprite` on, with its point at `at` moved
@@ -204,9 +201,6 @@ enum { RECORD_ROWS = BATTLE_EFFECTS };
  * draws 256), each an X and a Y from the effect's point, a tile and
  * attributes. The effect's own attribute bits are its sprites' priority. */
 enum { SET_OF_EFFECT = 0x3F, EFFECT_SPRITE_KEEPS = 0xCF };
-
-/* The original leaves where in the set it came to, its count run out, and
- * the last sprite's point. */
 
 // $CF:EEEB
 /* Draw the effect the record names, at its anchor moved by its frame's
@@ -323,10 +317,6 @@ static TrailPoint trail_point(const GameState *g, unsigned point, unsigned slot)
                          battle_trail_high_x_byte(g, point, slot), battle_trail_high_y_byte(g, point, slot) };
 }
 
-// $CF:E99C
-/* One afterimage: the combatant's frame at a point of its trail, unless it
- * is hidden. Returns the next free sprite. */
-
 /* Whether the afterimages show this frame: one frame in so many. */
 static uint16_t sign_of(uint8_t high) { return (high & 0x80) ? 0xFF00 : 0; }
 
@@ -389,10 +379,6 @@ static void sort_draw_list(DrawList *list)
             }
 }
 
-/* A combatant's second entry, as the original marks it: none, one to come,
- * or drawn at its first entry. */
-enum { NO_SECOND_ENTRY = 0x00, SECOND_ENTRY = 0x01, DRAWN_AT_FIRST_ENTRY = 0x80 };
-
 // $CF:E83A (to $CF:E8A6)
 /* List the combatants on the battlefield, those with a second entry twice,
  * and sort the list. */
@@ -413,7 +399,11 @@ static DrawList build_draw_list(const GameState *g)
 
 /* ---- The pass, each part in the time of the original's routine for it ------------------ */
 
-enum { DRAW_IN_FRONT = 0xCFEDB8, DRAW_BEHIND = 0xCFEDF7, DRAW_COMBATANT = 0xCFEAC5, COPY_TILES = 0xCFEB94, DRAW_SHADOW = 0xCFEA8A, DRAW_AFTERIMAGES = 0xCFE92C, DRAW_AFTERIMAGE = 0xCFE99C, DRAW_EFFECT = 0xCFEEEB, DRAW_NUMBERS = 0xCFEE9F, DRAW_MARKER = 0xCFEE2C,  };
+enum {
+    DRAW_IN_FRONT = 0xCFEDB8, DRAW_BEHIND = 0xCFEDF7, DRAW_COMBATANT = 0xCFEAC5, COPY_TILES = 0xCFEB94,
+    DRAW_SHADOW = 0xCFEA8A, DRAW_AFTERIMAGES = 0xCFE92C, DRAW_AFTERIMAGE = 0xCFE99C, DRAW_EFFECT = 0xCFEEEB,
+    DRAW_NUMBERS = 0xCFEE9F, DRAW_MARKER = 0xCFEE2C,
+};
 
 /* The effects the combatant's records put on one side of it. */
 static unsigned draw_effects(GameState *g, unsigned slot, unsigned sprite, bool in_front)
@@ -480,10 +470,6 @@ static unsigned draw_with_effects(GameState *g, unsigned slot, unsigned sprite, 
     return sprite;
 }
 
-/* What the pass leaves in its cells: the entry it stopped at (the list's
- * end), the last combatant it came to, the parts of the last whose frame it
- * drew, and the next free sprite. */
-
 // $CF:E83A
 /* Draw every combatant on the battlefield (the file's header).
  *
@@ -496,8 +482,6 @@ static unsigned draw_with_effects(GameState *g, unsigned slot, unsigned sprite, 
 static void draw_objects(GameState *g)
 {
     DrawList list = build_draw_list(g);
-    for (unsigned i = 0; i < list.count; i++)
-        ;
     bool drawn_early[BATTLE_COMBATANTS] = { false };
     unsigned sprite = FIRST_FREE_SPRITE;
     uint8_t last_parts = 0;
@@ -608,19 +592,7 @@ static bool draw_pass_fits(const GameState *g)
     return true;
 }
 
-/* X the combatant's object. */
-
-/* Entered with 16-bit A; leaves 8-bit A. */
-
-/* The afterimage at the trail's point in the cells the original puts it in. */
-
-/* X the record. */
-
-/* X and Y the sprite entry and the buffer's sprite to copy from and to, as
- * addresses in the data bank, and the count of groups in its cell. */
-enum { SPRITE_ENTRIES_AT = 0x11B0, SPRITE_BUFFER_AT = 0x0700 };
-
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The draw pass ------------------------------------------------------------------------------ */
 
 /* The presence check is game work charged at the drawing's rate. The
  * deeper resource audit below is a preflight: extending it must neither

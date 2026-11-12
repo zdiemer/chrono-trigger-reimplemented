@@ -103,7 +103,7 @@ static bool enemy_waits_for_upload(const GameState *g, unsigned slot)
 
 /* The battle's working cells (battle_work, by their offset from $80), and
  * what the party's step and its pose choice leave in them. */
-enum { LEFT_STANCE = 0x04, LEFT_FACING_PART = 0x02, LEFT_PLACE = 0x12, LEFT_TURNED = 0x00, LEFT_TURN_HOLDER = 0x01 };
+enum { LEFT_FACING_PART = 0x02, LEFT_PLACE = 0x12 };
 
 static void set_work_word(GameState *g, unsigned cell, uint16_t v)
 {
@@ -244,8 +244,6 @@ static uint8_t direction_to(GameState *g, unsigned member, uint8_t enemy)
     return direction;
 }
 
-/* Face the way the direction found gives; true if the member turned. */
-
 /* ---- An enemy's frames ------------------------------------------------------------------ */
 
 /* An enemy's loaded frame list: eight entries an enemy, of which its
@@ -282,7 +280,7 @@ static bool enemy_list_stale(const GameState *g, unsigned enemy)
 
 /* What the original leaves of a frame list it loaded: the list pointers,
  * the part and where the frames were copied from and to. */
-enum { LEFT_FRAMES_POINTER = 6, LEFT_TIMES_POINTER = 9, LEFT_LIST_PART = 0x06, LEFT_LIST_START = 0x02, LEFT_LIST_END = 0x04, LEFT_COUNT = 0x00 };
+enum { LEFT_COUNT = 0x00 };
 
 // $C1:3364
 /* Load the enemy's frame list for its animation and facing: the frames'
@@ -354,9 +352,6 @@ static bool enemy_frame_built(const GameState *g, unsigned enemy)
 {
     return battle_object_kind(g, enemy_slot(enemy)) < FIRST_KIND_NOT_BUILT;
 }
-
-/* The original's cells the enemies' step leaves: the enemy it is at and its
- * place in the order. */
 
 /* The frame phase picks the group: the party at 0, enemy groups at 1-3. The
  * original counts the phase down to the group while it steps it, and back up
@@ -480,10 +475,7 @@ static void note_target(GameState *g, unsigned enemy)
     set_battle_enemy_target_seen(g, enemy, battle_enemy_target(g, enemy));
 }
 
-/* ---- The bridges and the entries ------------------------------------------------------- */
-
-/* The steps run as C; the pose's choice, its look (battle/pose_looks.c) and
- * the frames' graphics are timed as their own routines. */
+/* ---- The party's and the enemies' frames ----------------------------------------------- */
 
 // $C1:2F22
 /* The member faces its nearest enemy, when it has the turn to; true if it
@@ -633,19 +625,13 @@ bool battle_animations_fit(GameState *g)
     return fits;
 }
 
-/* The combatant comes in its cell; the animation goes back in A. */
-
-/* The original finds the combatant's stat block by the whole of A as its
- * index, so it is the combatant's only while A's high byte is clear, as the
- * game has it. */
-
 /* The movements' routines in the original, by movement ($C1:3760's table),
  * which each movement's work is timed as. */
 static const uint32_t movement_routines[ENEMY_MOVEMENTS] = {
     0xC13772, 0xC1379A, 0xC138BF, 0xC13959, 0xC13A3D, 0xC13BC2, 0xC13E33, 0xC13F5A, 0xC14021,
 };
 
-/* The movement runs as C unless the table names none for the animation (an
+/* The movement runs unless the table names none for the animation (an
  * animation past those the battle gives, where the original's table runs on
  * into other code), or it goes by a target the enemy hasn't got. */
 static bool movement_runs(const GameState *g, unsigned enemy, uint8_t movement)
@@ -658,9 +644,8 @@ static bool movement_runs(const GameState *g, unsigned enemy, uint8_t movement)
 
 // $C1:3714
 /* Run the enemies' animation effects that are due, unless they stand still
- * for the battle menu: each enemy's animation's movement, as C where it
- * runs (movement_runs), or else (a routine of the original's, `handler`)
- * the handler the ROM's table names, which finds the enemy in its cell. */
+ * for the battle menu: each enemy's animation's movement where it runs
+ * (movement_runs), or else `handler`, which refuses the movement. */
 static bool step_enemy_effects(GameState *g, bool (*handler)(void *ctx, uint8_t movement), void *ctx)
 {
     if (battle_timers_held(g))
@@ -685,9 +670,9 @@ static bool step_enemy_effects(GameState *g, bool (*handler)(void *ctx, uint8_t 
     return true;
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The enemies' effects, a frame on --------------------------------------------------------- */
 
-/* A movement the table names none for is the original's. */
+/* A movement the table names none for is one the port doesn't run. */
 static bool movement_with_no_port(void *ctx, uint8_t movement)
 {
     (void)movement;

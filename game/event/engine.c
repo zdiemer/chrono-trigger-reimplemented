@@ -16,14 +16,13 @@
  * opcode.
  *
  * How each command of a turn runs is the caller's (event/engine.h,
- * EventRunner): on the development system, event/bridge.c runs the rows as C,
- * the bridges on the machine, and hands what the port doesn't have to the
- * original. */
+ * EventRunner); the program's runner (event_runner, below) runs each row, or
+ * the command's own function where the row reads its operands itself, and
+ * reports a command outside its contract. */
 #include "event/engine.h"
 #include "charge.h"
 #include "event/calls.h"
 #include "event/event_data.h"
-#include "field/scratch.h"
 #include "event/party.h"
 #include "event/variables.h"
 
@@ -56,17 +55,15 @@ const EventOpcode *event_opcode(uint8_t opcode)
     return by_opcode[opcode];
 }
 
-/* ---- What the port takes -----------------------------------------------------------------
+/* ---- What a command may reach -----------------------------------------------------------
  *
  * The operations reach the object tables by object, where the original
  * indexes them with the object's offset (field/object.h); the two agree for
  * the objects the game makes, which are all even offsets inside the tables.
- * An odd offset, or one past a table, reads the tables' neighbours in the
- * original's memory. And they read operands from the script buffer, which
- * ends with the bank: a command in its last bytes would read its operands
- * through the next bank's mirror of low RAM, where they could be the cells it
- * writes. No script is that long, and no game object odd or past the 64, so
- * a command outside these bounds breaks a checked contract. */
+ * And they read operands from the script buffer, which ends with the bank: a
+ * command in its last bytes would read past it. No script is that long, and
+ * no game object odd or past the 64, so a command outside these bounds breaks
+ * a checked contract. */
 
 /* The bytes a command's operands are read from: its own, and at least
  * eight (a row may decode operands its shorter forms don't have). */
@@ -91,7 +88,7 @@ static bool member_named(const GameState *g, uint8_t place, bool may_be_absent)
 }
 
 /* The bit tables hold 8 masks each, and a bit number past them reads on
- * through the bank; one that would leave it is the original's. */
+ * through the bank; the port refuses one that would leave it. */
 enum { LAST_BIT_READ = 0xDF, LAST_CLEAR_BIT_READ = 0xD7 };
 
 /* Whether one of the command's operands names what its kind says. */
@@ -166,7 +163,16 @@ enum { FACING_BIT = 0x80, TILE_BITS = 0x7F };
  * writes its own over them from the low nibble's on; the screen's names the
  * run's first of the 256, and its length in colours or the bytes of its own.
  * Colours of the script's own follow a word, their bytes' count plus two. */
-enum { STOP_FORM = 0x00, ROTATE_DOWN_FORM = 0x20, ROTATE_UP_FORM = 0x30, FADE_TO_WHITE_FORM = 0x40, FADE_TO_BLACK_FORM = 0x50, COLOURS_FORM = 0x80, FORM_TYPE = 0xF0, FORM_LOW = 0x0F };
+enum {
+    STOP_FORM = 0x00,
+    ROTATE_DOWN_FORM = 0x20,
+    ROTATE_UP_FORM = 0x30,
+    FADE_TO_WHITE_FORM = 0x40,
+    FADE_TO_BLACK_FORM = 0x50,
+    COLOURS_FORM = 0x80,
+    FORM_TYPE = 0xF0,
+    FORM_LOW = 0x0F,
+};
 
 /* A jump is by the distance in its jump byte, forward or back from that byte. */
 static EventStep jump(GameState *g, const EventOpcode *row, uint16_t at)
@@ -265,12 +271,10 @@ EventCommand event_decode(const GameState *g, Platform *pf, const EventOpcode *r
     return c;
 }
 
-/* The old machine adapter saved decoded operands before running a command.
- * Reads used to derive its dead registers were uncounted, but these writes
- * were part of the handler's calibrated estimate. Keep only their work;
- * there are no operand copies or scratch addresses here. The following
- * commands' remaining wave-phase byte is written by the machine bridge. */
-static uint8_t legacy_parse_work(uint8_t opcode)
+/* The work the original's handlers spend copying a command's operands
+ * before acting on them, kept as part of each handler's time; the port
+ * copies nothing. */
+static uint8_t operand_copy_work(uint8_t opcode)
 {
     switch (opcode) {
     case 0x12: case 0x14: return 4; /* byte comparison and resume offset */
@@ -296,10 +300,10 @@ static uint8_t legacy_parse_work(uint8_t opcode)
 EventStep event_perform(GameState *g, Platform *pf, const EventOpcode *row, uint16_t at)
 {
     EventCommand c = event_decode(g, pf, row, at);
-    charge_legacy_accesses(g, legacy_parse_work(row->opcode));
+    charge_accesses(g, operand_copy_work(row->opcode));
     EventFlow flow = row->run(g, &c);
     if (flow.kind == FLOW_JUMP)
-        charge_legacy_accesses(g, 2); /* the selected jump distance */
+        charge_accesses(g, 2); /* the selected jump distance */
     return event_follow(g, row, at, flow);
 }
 
@@ -316,10 +320,8 @@ static EventTurnEnd broken_turn(GameState *g, EventTurnEnd end)
     return end;
 }
 
-/* The turn's budget of commands is the game's, in event_commands_left: the
- * commands still run by the original's code can spend it too (fuzzing finds
- * them doing so), and the original's loop, which takes the turn over when a
- * command hands back, counts on in it. So the turn counts in the cell. */
+/* The turn's budget of commands is the game's, in event_commands_left, which
+ * the turn counts down in the cell. */
 static bool spend_command(GameState *g)
 {
     uint8_t left = (uint8_t)(event_commands_left(g) - 1);
@@ -432,7 +434,6 @@ EventTurnEnd event_run_map_script_commands(GameState *g, const EventRunner *r, u
             return broken_turn(g, TURN_OFF_THE_SCRIPT);
         if (script_byte(g, at) == 0)
             return TURN_OVER;
-        /* a command the original ran may have left the data bank elsewhere */
         if (!r->state_is_ours(r->ctx))
             return broken_turn(g, TURN_NOT_OURS);
         if (!r->run(r->ctx, at, &st))
@@ -453,8 +454,6 @@ EventTurnEnd event_run_openings(GameState *g, const EventRunner *r, FieldObject 
     FieldObject next = 0;
     do {
         *object = next;
-        /* the object's cells are reached through the data bank, which a
-         * command the original ran may have left elsewhere */
         if (!r->state_is_ours(r->ctx))
             return broken_turn(g, TURN_NOT_OURS_BEFORE);
         object_start_on_the_map(g, next);
@@ -472,20 +471,20 @@ EventTurnEnd event_run_openings(GameState *g, const EventRunner *r, FieldObject 
     return TURN_OVER;
 }
 
-/* ---- The commands as C, with no machine ------------------------------------------------------ */
+/* ---- The program's runner -------------------------------------------------------------------- */
 
 /* The handlers are in bank $C0, where the table names them; a command's time
  * is its handler's. */
 enum { HANDLERS_BANK = 0xC00000 };
 
-typedef bool (*BridgeWork)(GameState *g, Platform *pf, uint16_t at, EventStep *step);
+typedef bool (*UndecodedCommand)(GameState *g, Platform *pf, uint16_t at, EventStep *step);
 
-static BridgeWork bridge_for(uint8_t opcode)
+static UndecodedCommand undecoded_command_for(uint8_t opcode)
 {
     switch (opcode) {
-#define EVENT_BRIDGE_WORK_CASE(name, op) case op: return name;
-    EVENT_BRIDGES_WITH_WORK(EVENT_BRIDGE_WORK_CASE)
-#undef EVENT_BRIDGE_WORK_CASE
+#define EVENT_UNDECODED_COMMAND_CASE(name, op) case op: return name;
+    EVENT_UNDECODED_COMMANDS(EVENT_UNDECODED_COMMAND_CASE)
+#undef EVENT_UNDECODED_COMMAND_CASE
     default: return NULL;
     }
 }
@@ -496,15 +495,15 @@ static bool run(void *ctx, uint16_t at, EventStep *step)
     uint8_t opcode = script_byte(c->game, at);
     const EventOpcode *row = event_opcode(opcode);
     uint32_t handler = HANDLERS_BANK | command_handler(c->game, opcode);
-    BridgeWork bridge = bridge_for(opcode);
+    UndecodedCommand undecoded = undecoded_command_for(opcode);
     /* whether the port runs it is the program's question, not the game's
      * work: it takes none of the original's time (port/vars_ram.h) */
     vars_peek(true);
     bool runs_here = row && event_runs_here(c->game, row, at);
     vars_peek(false);
-    if (row && !row->run && bridge && runs_here) {
+    if (row && !row->run && undecoded && runs_here) {
         bool goes_on = false;
-        TIMED_AS(c->game, handler, goes_on = bridge(c->game, c->pf, at, step));
+        TIMED_AS(c->game, handler, goes_on = undecoded(c->game, c->pf, at, step));
         return goes_on;
     }
     if (!row || !row->run || !runs_here) {

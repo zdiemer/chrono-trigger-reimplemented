@@ -17,10 +17,8 @@
  * copied: so what the port leaves pointing at is where unpacking stopped.
  * The unpacked length is kept for the callers (decompress_length).
  *
- * The gate no longer compares it with the original's routine (REIMPLEMENTATION.md,
- * "The data subsystem's teardown"): it has no registered entry, every port
- * calls it as C, and the cells the original keeps its place in as it works
- * ($0309-$0316), which nothing else reads, it doesn't keep at all. */
+ * The cells the original keeps its place in as it works ($0309-$0316), which
+ * nothing else reads, it doesn't keep at all. */
 #include "data/decompress.h"
 
 #include <stdbool.h>
@@ -88,24 +86,26 @@ static void copy_run(Output *out, Reference r)
     hw_port_seek_address(out->g, out->at);
 }
 
-/* The unpacking keeps the rates its entries were calibrated at (charge.h,
- * charge_retired): the port's own accesses at the rate of the
- * entry it was reached through, and the accesses the original makes besides
- * at the jump's entry's, as its charge was made. Both backends use those
- * retained rates. The original reads the stream
+/* The unpacking keeps the rates it was calibrated at (charge.h,
+ * charge_retired): the port's own accesses at the rate of the routine it
+ * was reached through, and the accesses the original makes besides at the
+ * jump's, as its charge was made. The original reads the stream
  * and writes the output as the port does, but keeps its place, its bits and
- * its counts in its direct page's cells, reading and writing them at each
+ * its counts in work RAM cells, reading and writing them at each
  * step where the port keeps them in locals. Those accesses, by what
  * it does: its cells set up, and read again at the end; a look at whether
  * the segment ends, at every turn of its loop; a segment's header; a control
  * byte; a reference, the run's length and its place kept and read back, and
- * the data bank kept on the stack over the copy; and an item done, with the
+ * the bank it reads from kept over the copy; and an item done, with the
  * control byte going on or done. */
-enum { ORIGINAL_START_AND_END = 9, ORIGINAL_LOOK_AT_THE_SEGMENT = 2, ORIGINAL_SEGMENT = 5, ORIGINAL_CONTROL = 1, ORIGINAL_REFERENCE = 11, ORIGINAL_ITEM_GOES_ON = 4, ORIGINAL_CONTROL_DONE = 3,  };
+enum {
+    ORIGINAL_START_AND_END = 9, ORIGINAL_LOOK_AT_THE_SEGMENT = 2, ORIGINAL_SEGMENT = 5, ORIGINAL_CONTROL = 1,
+    ORIGINAL_REFERENCE = 11, ORIGINAL_ITEM_GOES_ON = 4, ORIGINAL_CONTROL_DONE = 3,
+};
 
 /* The routines the unpacking is timed as: the jump the game's code calls, or
- * the routine itself, which the scene engine calls directly; their entries
- * were calibrated apart. */
+ * the routine itself, which the scene engine calls directly; the two were
+ * calibrated apart. */
 enum { THE_UNPACKER = 0xC30002, THE_UNPACKER_DIRECT = 0xC30557 };
 
 /* What the unpacking came to, counted as it goes: the turns of its loop,
@@ -128,7 +128,7 @@ enum { FIRST_LENGTH_BYTES = 2, HEADER_BYTES = 3, BITS_IN_A_CONTROL = 8, HEADER_B
 
 /* Check a packed resource's output extent without changing the destination or
  * the unpacker's state. Input is bounded to one bank as well, so a malformed
- * stream whose headers cycle cannot make a resource guard run forever. */
+ * stream whose headers cycle cannot make the check run forever. */
 static bool stream_fits(const GameState *g, uint32_t from, uint16_t capacity)
 {
     Stream in = { g, (uint8_t)(from >> 16), (uint16_t)(from + FIRST_LENGTH_BYTES) };
@@ -180,8 +180,8 @@ static bool stream_fits(const GameState *g, uint32_t from, uint16_t capacity)
     }
 }
 
-/* Validation is outside the game's work estimate, as it is when the
- * runtime asks an entry guard. The unpacking itself keeps its existing time. */
+/* Validation is outside the game's work estimate: the original makes no such
+ * check. The unpacking itself keeps its existing time. */
 bool unpack_stream_fits(GameState *g, uint32_t from, uint16_t capacity)
 {
     uint32_t mark = charge_uncounted_begin(g);
@@ -247,7 +247,7 @@ static uint16_t unpack(GameState *g, Counts *n)
 
 // $C3:0557 (entered through the jump at $C3:0002)
 /* The stream unpacked, timed as `routine`, with `besides` accesses of the
- * entry it was reached through. */
+ * way it was reached. */
 static uint16_t unpack_timed_as(GameState *g, uint32_t routine, uint32_t besides)
 {
     Counts n = { 0 };
@@ -263,9 +263,9 @@ uint16_t unpack_stream(GameState *g) { return unpack_timed_as(g, THE_UNPACKER, 0
 
 uint16_t unpack_stream_direct(GameState *g) { return unpack_timed_as(g, THE_UNPACKER_DIRECT, 0); }
 
-/* Where a machine half reached it through its entry, the entry's own time
- * goes with it: it saved every register on the stack and gave them back, and
- * returned, 25 accesses. */
+/* The time of the original's way in for callers that reach the unpacker
+ * through it: the caller's state saved and given back around the call, and
+ * the return, 25 accesses. */
 enum { THE_ENTRY_S_OWN = 25 };
 
 uint16_t unpack_stream_run(GameState *g, bool direct)

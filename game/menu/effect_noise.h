@@ -1,7 +1,7 @@
 /* Object work contributes to the curtain's random edge. The scene stir reads
  * this word under its frame-counter alias. Keep the live value without adding
- * a new host timing charge: the machine's old estimate included these writes,
- * while the native program estimated the drawing/setup work alone. */
+ * a timing charge: the drawing and set-up's own charges already cover these
+ * writes. */
 #ifndef CT_GAME_MENU_EFFECT_NOISE_H
 #define CT_GAME_MENU_EFFECT_NOISE_H
 

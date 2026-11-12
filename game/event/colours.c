@@ -16,7 +16,6 @@
  * event/script.h); the object's form names colours in its palette, the
  * screen's form among the 256. */
 #include "charge.h"
-#include "field/scratch.h"
 #include "event/script.h"
 #include "field/palettes.h"
 

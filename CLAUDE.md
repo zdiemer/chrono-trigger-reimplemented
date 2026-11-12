@@ -62,26 +62,27 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
     that still moves an emulated A, X and P about, spells its variables as addresses and
     follows the original's basic blocks has translated the assembly rather than
     reimplemented the routine, however well it passes. Judge a finished port by whether
-    someone who has never seen the ROM can read it and say what the game does.
-  - **Keep the machine out of the logic.** Operations take `GameState *`, the
-    `Platform *` services they need, and plain values, returning C results.
-    There is no CPU, entry wrapper or registry. Use typed accessors generated
-    from `re/ram.toml`; storage can migrate behind them independently. See
-    docs/PORTING.md for native callbacks, mode hand-offs and work accounting.
+    someone who has never seen the ROM can read it and say what the game does. Keep the
+    `// $BB:AAAA` comment and nothing else mechanical.
+  - **Operations on game state.** Functions take `GameState *`, the `Platform *`
+    services they need and plain values, and return C results. Don't recreate
+    registers, flags, a stack or entry wrappers. See docs/PORTING.md for callbacks,
+    mode hand-offs and work accounting.
   - **Build a vocabulary and call it.** The routine's work belongs in named functions --
-    `draw_window_frame`, `load_slot_summary`, `hide_sprites` -- not in a run of machine
-    operations the reader has to simulate. If a port is a long straight line of
-    `m_lda16`/`m_write16`/`c->a`, the abstraction it needed hasn't been written yet: write
-    it, in the port's own file if it is local, in the subsystem's header if shared, in
-    `runtime/platform/` if it is the host. Do not recreate machine registers or entry wrappers.
+    `draw_window_frame`, `load_slot_summary`, `hide_sprites` -- not in a run of
+    accessor calls and bit operations the reader has to simulate. If a function is a long
+    straight line of them, the abstraction it needed hasn't been written yet: write it, in
+    the file if it is local, in the subsystem's header if shared, in `runtime/platform/` if
+    it is the host.
   - **The accessors are the storage, not the vocabulary.** A function that is a run of
     `set_field_object_*` calls in the original's order has renamed the addresses and kept
     the translation. Model the game's concepts above the accessors -- an object's animation
     as a state machine with named states, its movement, the story flags, the party -- as
-    modules whose operations are named in game terms, and have ports call those. Storage details live inside the operations, one place per concept. An in-band encoding the
+    modules whose operations are named in game terms, and have ports call those. Storage
+    details live inside the operations, one place per concept. An in-band encoding the
     original uses (`$FF` for "none") becomes a named state inside the implementation.
-  - **An interpreter dispatches through a C table**, never through the ROM's pointer table
-    and an emulated `JSR`. Opcodes that differ only in how their operands are encoded (a short
+  - **An interpreter dispatches through a C table**, never through the ROM's pointer table.
+    Opcodes that differ only in how their operands are encoded (a short
     form, a constant against an operand, 8- and 16-bit) are one operation and several table
     rows, and the table decodes operands into typed, named parameters, so a handler reads
     `play_animation(g, obj, animation, frames)`, not `operand(g, c, 1)`. Inlined handlers
@@ -93,20 +94,17 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
     what part of the game it is and how its pieces fit together.
   - **ROM data is loaded, not addressed.** Reads of ROM go through a named accessor for the
     resource (`sound_data.h`, `scene_data.h`, `screen_data.h`, `field_data.h`,
-    `palette_data.h`), never `m_read8(s, 0xD15E10 + i)` in the middle of a routine. Where
+    `palette_data.h`), never a cartridge address in the middle of a routine. Where
     the resource catalogue declares a type, the accessor takes that type's name. This
     is what lets a later build load the same asset from an extracted file or a converted
     format without revisiting the port.
-  - Write what the routine *does*, not what the draft says. Don't carry over the draft's
-    shape: emulated register variables, dead flag updates, block boundaries, or a name from
-    its address. Keep the `// $BB:AAAA` comment and nothing else mechanical.
   - Reach work RAM through the accessors in `game/vars.h` (`battle_menu_member(g)`, not
     `0x95D5` and not `RAM_BATTLE_MENU_MEMBER`), generated from `re/ram.toml`; `game/ram.h`
-    is the older, address-shaped form, for legacy wrappers not removed yet.
+    is the older, address-shaped form that unconverted code still uses.
     Add what the port learns to the map and regenerate both (docs/STATE.md).
   - Reach the host only through `runtime/platform/` (a lint test enforces it). No PPU, DMA,
     HDMA or APU register number appears in `game/`. Use typed state accessors, named
-    resources and platform services, never a mapped machine image.
+    resources and platform services, never a mapped memory image.
   - Keep SNES *semantics* -- tiles, palettes, priority, window logic -- and drop SNES
     *mechanics*: which register latches what, channel programming, write order, the timing
     of a write. The services exist to express the first and hide the second.
@@ -132,7 +130,7 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
   - Keep working state in C values. Comparison-only scratch writes retired with
     the byte-exact gate; do not reintroduce them (docs/PORTING.md, "Scaffolding").
   - Keep the original's index arithmetic, wraparound and odd offsets included, rather than
-    tidying it: fuzzing reaches the inputs where it differs, and so can the game.
+    tidying it: the game can reach the inputs where it differs.
 - **Writing host-side code** (docs/PLAYING.md, "How the player is built"). `game/` is kept
   portable by the platform services; what a host that isn't a desktop runs into instead is
   the frontend, so hold the line there too. A host that calls back once a frame, with no
@@ -190,9 +188,8 @@ worktree under `.claude/worktrees/`. `AGENTS.md` is this file.
   to get a check to pass without a reason on the line that a reviewer would
   accept; fix the cause where it can be fixed. Never claim a fix the diff
   doesn't contain.
-- **Calling the next step as C.** Preserve the callee's real game-state
-  requirements, work charges and observable order. Do not recreate registry
-  guards for CPU flags, banks, pages or code images.
+- **Calling another operation.** Preserve the callee's real game-state
+  requirements, work charges and observable order.
 - **Names.** No `_as_c`, `_now` or similar suffix: the C function takes the plain
   name. A sequence two callers share is `*_with`.
 - **Commits.** Plain messages with no `Co-Authored-By`, session or other trailers.

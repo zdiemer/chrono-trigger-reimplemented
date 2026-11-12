@@ -166,8 +166,8 @@ static void rest_the_enemies(GameState *g)
 }
 
 /* What the original sets as it starts that nothing in the battle is known to
- * read (docs/TODO.md): a mark on the battle's page, and the work RAM port
- * pointed at the lower bank. */
+ * read (docs/TODO.md): a mark among the battle's low work cells, and the
+ * work RAM port pointed at the lower bank. */
 enum { START_MARK = 0x40, LOWER_BANK = 0 };
 
 // $CC:E2E4

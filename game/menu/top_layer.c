@@ -168,8 +168,6 @@ static bool wave(GameState *g, Platform *pf, MenuObject o)
     return true;
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
-
 /* Each takes its turn and goes on, never done (menu/handlers.c). */
 MenuTurn menu_top_layer_slow_drift_turn(GameState *g, Platform *pf, MenuObject o)
 {

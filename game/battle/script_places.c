@@ -19,7 +19,7 @@
  * effect's anchor.
  *
  * The original works out a place in the battle's first work cells; what it
- * leaves there is scaffolding, each kind's in its own leaves helper. */
+ * leaves there is kept as it leaves it, each kind's by its own leave helper. */
 #include "charge.h"
 #include "battle/script_language.h"
 
@@ -159,9 +159,7 @@ enum { THE_ANCHOR = 0, MIDDLE = 0x80, OUT_ALONG = 24, QUARTER_TURN = 0x40, EIGHT
 /* What working out a place leaves in the work cells: the two ends' X and Y
  * as words (a halfway point's own), the three ends of the center, the
  * along-the-heading's subject and steps, and the blend's weights and ends. */
-enum { LEFT_FIRST = 0x00, LEFT_SECOND = 0x02, LEFT_THIRD = 0x04, LEFT_FOURTH = 0x06, LEFT_FIFTH = 0x08, LEFT_SIXTH = 0x0A };
-
-/* The radius goes to the sine's multiply in its operand cell. */
+enum { LEFT_FIRST = 0x00, LEFT_SECOND = 0x02, LEFT_THIRD = 0x04 };
 
 /* Halfway between two points, in words (no carry lost). */
 static BattlePoint halfway(BattlePoint a, BattlePoint b)
@@ -328,10 +326,12 @@ BattlePoint script_aim(GameState *g, ScriptAim aim, uint8_t x, uint8_t y, uint8_
 /* ---- Facings ----------------------------------------------------------------------------- */
 
 /* The facing codes, by their first number. */
-enum { THE_WAY_A_SUBJECT_FACES = 0x00, /* 0-9: the way channel n's subject faces */
-    TOWARD_A_SUBJECT = 0x0A, /* $A-$13: toward channel n's subject */
-    A_FIXED_WAY = 0x14, /* $14-$17: facing 0-3 */
-    TOWARD_THE_MIDDLE = 0x18, /* toward the middle of the battlefield, a little up */ };
+enum {
+    THE_WAY_A_SUBJECT_FACES = 0x00, /* 0-9: the way channel n's subject faces */
+    TOWARD_A_SUBJECT = 0x0A,        /* $A-$13: toward channel n's subject */
+    A_FIXED_WAY = 0x14,             /* $14-$17: facing 0-3 */
+    TOWARD_THE_MIDDLE = 0x18,       /* toward the middle of the battlefield, a little up */
+};
 
 enum { MIDDLE_ROW = 0x70 };
 
@@ -344,11 +344,6 @@ static uint8_t facing_toward(GameState *g, BattlePoint from, BattlePoint to)
 {
     return battle_facing_for_angle(g, battle_direction(g, from, to));
 }
-
-/* A code past the facings (Flea's scripts turn their channels with $1F) is
- * no way to face: the original's facings run on into its places, so the
- * code finds where the subject it numbers stands, as the place code
- * would, and the one turned keeps the way found last. */
 
 // $C1:75CC
 static uint8_t no_way_found(GameState *g, uint8_t facing)
@@ -399,10 +394,6 @@ static ScriptFlow point_off_place(GameState *g, uint8_t place, uint8_t x, uint8_
 SCRIPT_OPERATION(point_off_place, place, x, y)
 
 // $C1:5A3E
-/* The script's point is put where what the channel moves stands: its
- * combatant (the first of the other targets, on theirs), or its effect's
- * anchor. */
-enum { LEFT_SUBJECT = 0x02 };
 
 static ScriptFlow point_at_the_mover(GameState *g, ScriptChannel channel)
 {
@@ -437,13 +428,6 @@ static ScriptFlow slot_follows_place(GameState *g, uint8_t slot, uint8_t followe
 SCRIPT_OPERATION(slot_follows_place, slot, followed)
 
 /* ---- Facing ----------------------------------------------------------------------------- */
-
-/* The original keeps where the turning combatant stands and which it is in
- * its work cells, and the facing code. */
-enum { LEFT_STANDING = 0x00, LEFT_TURNING = 0x02, LEFT_FACING = 0x0E };
-
-/* Of the combatants turned, the original's cells keep the last: where it
- * stands and which it is (nothing, if none was). */
 
 // $C1:5FDE
 /* What the channel moves turns the way a facing code names: its combatant,
@@ -502,9 +486,6 @@ static void turn_movers(GameState *g, ScriptChannel channel, unsigned first, uin
     for (unsigned k = 0; script_combatant_from(g, channel, first, k, &slot); k++)
         set_battle_effect_angle_used(g, slot, by ? (uint8_t)(battle_effect_angle_used(g, slot) + heading) : heading);
 }
-
-/* The original keeps the heading (or the turn) in the first work cell. */
-enum { LEFT_HEADING = 0x00 };
 
 // $C1:6093
 /* The movers take another's heading. */

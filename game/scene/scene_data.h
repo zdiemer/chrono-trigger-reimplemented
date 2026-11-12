@@ -2,10 +2,7 @@
  * Phase 3). Every read goes through here, so a build that loads the scenes'
  * data from files maps these addresses and nothing else.
  *
- * The scene ports' logic reads the data with the game's state in hand, not the
- * machine (game/rom.h). The menu mode's stream tables are still read by a port
- * on the machine (menu/object_commands.c), so theirs take the machine until
- * that port is rewritten. */
+ * The scenes read the data with the game's state in hand (game/rom.h). */
 #ifndef CT_GAME_SCENE_DATA_H
 #define CT_GAME_SCENE_DATA_H
 
@@ -45,11 +42,6 @@ static inline uint32_t scene_figure_pose_table(const GameState *g, unsigned char
 {
     uint32_t at = 0xE42300 + character * 3;
     return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
-}
-
-static inline uint8_t scene_figure_pose_table_extra(const GameState *g, unsigned character)
-{
-    return rom_read8(g, 0xE42303 + character * 3);
 }
 
 static inline uint16_t scene_figure_tile(const GameState *g, uint32_t at) { return rom_read16(g, at); }

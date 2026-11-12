@@ -22,10 +22,9 @@
  * out, and a knocked-out member's choice loses it, battle/combatants.c), the
  * turn leaves them as they are.
  *
- * The targeting ($C1:C1DD), the showing ($C1:AC57) and the attack are
- * siblings run as the original's JSRs call them; the calling off and the
- * messages are the original's still, call-outs from the entry's bridge. The
- * entries are at the end. */
+ * The targeting ($C1:C1DD), the showing ($C1:AC57), the attack, the calling
+ * off and the messages are routines of their own, which the turn calls out
+ * to (MemberCall); they are at the end. */
 #include "battle/effect_parts.h"
 
 #include "battle/bridge.h"
@@ -58,8 +57,7 @@ static uint8_t take_waiting_member(GameState *g)
 }
 
 /* The member and its partners marked as taking part (battle_members_taking_part,
- * which the calling off drops the queued actions of if one can't act). The
- * original keeps the partners in a cell as it marks them (scaffolding). */
+ * which the calling off drops the queued actions of if one can't act). */
 static void mark_those_taking_part(GameState *g, uint8_t member)
 {
     for (unsigned m = 0; m < BATTLE_PARTY_SIZE; m++)
@@ -75,7 +73,7 @@ static void mark_those_taking_part(GameState *g, uint8_t member)
 
 // $FD:A8A5
 /* Whether all those taking part can act, asked of each in turn until one
- * can't (the original leaves the last answer in a cell: scaffolding). */
+ * can't. */
 static bool all_can_act(GameState *g)
 {
     for (unsigned m = 0; m < BATTLE_PARTY_SIZE; m++) {
@@ -285,9 +283,9 @@ static void pay_for_tech(GameState *g)
 /* ---- The turn, as one sequence --------------------------------------------------------------- */
 
 /* The turn's calls, each where the original makes it: the targeting
- * ($C1:C1DD, battle/aim.c), which takes the carry the code before leaves, and
- * where what it left is past what the port reads, the original's to go on
- * from; an item used ($C1:BF46, battle/party_work.c), a tech worked out
+ * ($C1:C1DD, battle/aim.c), with the flag the code before leaves (`carry`,
+ * no longer read), and where what it left is past what the port reads, a
+ * refusal; an item used ($C1:BF46, battle/party_work.c), a tech worked out
  * ($C1:BF79), the action shown ($C1:AC57), the messages a steal tells
  * ($CD:0021), and the attack ($C1:BFAA, below). */
 typedef enum {
@@ -356,9 +354,8 @@ static bool members_read_fit(const GameState *g, bool tech)
     return (!tech && nothing) || last_tech_fits(g, tech && nothing);
 }
 
-/* The targeting, with the carry its lookup of the tech's members leaves in
- * a cell; where what it left is past what the port reads, the original goes
- * on. */
+/* The targeting; where what it left is past what the port reads, the port
+ * refuses to go on. */
 static bool aim(GameState *g, bool carry, bool tech, MemberCalls call, void *ctx)
 {
     if (!call(ctx, tech ? MEMBER_AIM_TECH : MEMBER_AIM_ITEM, carry))
@@ -382,7 +379,6 @@ static bool use_item(GameState *g, uint8_t member, MemberCalls call, void *ctx)
     uint8_t what = battle_member_actions_what(g, member);
     set_battle_action_detail(g, (uint8_t)(what - BATTLE_FIRST_ITEM_NUMBER));
     set_battle_action_what(g, (uint8_t)(what - BATTLE_FIRST_ITEM_NUMBER));
-    /* the targeting takes the carry of the item's number's subtraction */
     if (!aim(g, what >= BATTLE_FIRST_ITEM_NUMBER, false, call, ctx))
         return false;
     if (!battle_action_came_to_nothing(g)) {
@@ -420,7 +416,6 @@ static bool perform_tech(GameState *g, uint8_t member, MemberCalls call, void *c
     aim_at_the_choice(g, member);
     uint8_t tech = battle_member_actions_what(g, member);
     set_battle_action_detail(g, tech);
-    /* the targeting takes the carry of the test of the record's aim, set */
     if (!aim(g, true, true, call, ctx))
         return false;
     bool performed = false;
@@ -522,7 +517,7 @@ static bool attack(GameState *g, MemberCalls call, void *ctx)
     return true;
 }
 
-/* The guards' state halves: a waiting member in the party (the original
+/* What the turn takes: a waiting member in the party (the original
  * looks round the party until it finds one), partners in the party's places,
  * and records reached as the ROM places them; the attacker in the party's
  * slots. */
@@ -543,14 +538,18 @@ static bool action_fits(const GameState *g)
 
 static bool attacker_fits(const GameState *g) { return battle_actor(g) < BATTLE_PARTY_SIZE; }
 
-/* ---- On the machine ------------------------------------------------------------------------ */
+/* ---- The routines the turn calls ------------------------------------------------------------- */
 
-enum { AIM = 0xC1C1DD, SHOW_MESSAGE = 0xCD0021, SHOWING = 0xC1AC57, MEMBER_ATTACKS = 0xC1BFAA, USE_ITEM = 0xC1BF46, WORK_OUT_TECH = 0xC1BF79,  };
+enum {
+    AIM = 0xC1C1DD,
+    SHOW_MESSAGE = 0xCD0021,
+    SHOWING = 0xC1AC57,
+    MEMBER_ATTACKS = 0xC1BFAA,
+    USE_ITEM = 0xC1BF46,
+    WORK_OUT_TECH = 0xC1BF79,
+};
 
-/* Each call from the original's own: the targeting with the carry it is
- * handed, the showing taking A's high byte along to the battle's step,
- * clear here as the original's code leaves it, the messages with theirs in
- * A. */
+/* Where the original makes each call, which a refusal names. */
 static const uint32_t member_sites[] = {
     [MEMBER_ATTACK] = 0xC1BA7D, [MEMBER_AIM_ITEM] = 0xC1BABE, [MEMBER_AIM_TECH] = 0xC1BB88,
     [MEMBER_ITEM_AIMED_PAST] = 0xC1BABE, [MEMBER_TECH_AIMED_PAST] = 0xC1BB88, [MEMBER_USE_ITEM] = 0xC1BB0C,
@@ -559,8 +558,8 @@ static const uint32_t member_sites[] = {
     [MEMBER_NOTHING_TO_TAKE] = 0xC1BC46,
 };
 
-/* The main loop's end of a member's turn whose status picked its action,
- * entered with A's high byte clear, which the original indexes by. */
+/* The main loop's end of a member's turn whose status picked its action:
+ * the actor, the turn's member and its partners in the party. */
 static bool member_turn_end_fits(const GameState *g)
 {
     uint8_t partners = battle_member_actions_partners(g, battle_turn_member(g));
@@ -578,14 +577,14 @@ bool battle_end_member_turn(GameState *g)
     return true;
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The turn's calls ------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
     Platform *pf;
 } MemberTurnContext;
 
-/* Each with its guard's state half where it has one. */
+/* Each call, refused where the port doesn't take its state. */
 static bool carry_out_a_part(void *ctx, MemberCall call, bool carry)
 {
     MemberTurnContext *c = ctx;

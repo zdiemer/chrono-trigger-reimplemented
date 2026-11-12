@@ -532,12 +532,10 @@ bool menu_stream_tiles(GameState *g, MenuObject self)
 /* How long the commands that start them are. */
 enum { FADE_COMMAND_BYTES = 2, MOSAIC_COMMAND_BYTES = 3, STREAM_COMMAND_BYTES = 10 };
 
-// $C2:1DB5
+/* ---- What the objects need ---------------------------------------------------------------- */
 
-/* ---- The guards ------------------------------------------------------------------------------ */
-
-/* What a screen object reads is memory, not the machine's registers, and
- * apart from the mode's page, the palette and the objects it writes: the
+/* What a screen object reads is memory, not the console's I/O, and
+ * apart from the mode's own cells, the palette and the objects it writes: the
  * game's commands and colours are. */
 static bool apart_at(uint32_t at)
 {

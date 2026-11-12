@@ -38,7 +38,13 @@
 
 /* ---- The language ----------------------------------------------------------------------- */
 
-enum { STEP_ENDS = 0x7F, FIRST_COMMAND = 0x80, LAST_COMMAND = 0xF9, SCRIPT_ENDS = 0xFF, COMMANDS = LAST_COMMAND - FIRST_COMMAND + 1 };
+enum {
+    STEP_ENDS = 0x7F,
+    FIRST_COMMAND = 0x80,
+    LAST_COMMAND = 0xF9,
+    SCRIPT_ENDS = 0xFF,
+    COMMANDS = LAST_COMMAND - FIRST_COMMAND + 1,
+};
 
 /* The original's handlers, by command byte from $80: its dispatch table
  * ($CD:16B5), whose time each command takes, and which runs a command that
@@ -127,22 +133,20 @@ static ScreenCommand decode(const GameState *g, const ScreenOpcode *row, ScreenC
     return c;
 }
 
-/* Filling window 1 ($88's fills from the fourth) returns A's high byte set,
- * which the original's runner takes into the place of the next frame of the
- * effect's graphics, should one follow: no script of the game's asks for it,
- * and the original's handler runs it, so that the runner's machine is the
- * original's. */
+/* Filling window 1 ($88's fills from the fourth) hands back a value the
+ * original's runner takes into the place of the next frame of the effect's
+ * graphics, should one follow: no script of the game's asks for it, and the
+ * port refuses it. */
 enum { FILL_WINDOWS = 0x88, FILL_WINDOW_1 = 3 };
 
-static bool leaves_a_high_byte(const ScreenCommand *c, uint8_t opcode) { return opcode == FILL_WINDOWS && c->fill >= FILL_WINDOW_1; }
+static bool fills_window_1(const ScreenCommand *c, uint8_t opcode) { return opcode == FILL_WINDOWS && c->fill >= FILL_WINDOW_1; }
 
-/* Whether a command runs here: it has an operation (or a bridge), the state
- * meets its needs, and the original's runner reads nothing of the machine
- * after it. */
+/* Whether a command runs here: it has an operation (or waits for a line),
+ * the state meets its needs, and it isn't a fill of window 1. */
 static bool runs_here(const GameState *g, const ScreenOpcode *row, const ScreenCommand *c)
 {
     return row && (row->operation || row->waits_for_line) && (!row->needs || row->needs(g, c))
-           && !leaves_a_high_byte(c, row->opcode);
+           && !fills_window_1(c, row->opcode);
 }
 
 /* Where the channel's place is left once a command is done: on its last
@@ -234,9 +238,6 @@ static ScreenFlow jump(GameState *g, uint16_t to)
     return screen_go_to(to);
 }
 SCREEN_OPERATION(jump, to)
-
-/* The battle's rule ($E1:DE00) that some fights bring in: a script takes
- * another way in the fight that has the first. */
 
 // $CD:1B5E
 static ScreenFlow jump_in_the_first_rule(GameState *g, uint16_t to)
@@ -394,13 +395,10 @@ SCREEN_OPCODES(screen_flow_opcodes,
     { 0xC1, .waits_for_line = true, .length = 1, .line = BYTE(0) },
 );
 
-/* What the original's handler leaves of the machine beside what its
- * operation does. */
-
 // $CD:16A6
-/* Run a command: its operation, timed as the original's handler; or, where
- * it has none here, the handler, or a bridge the runner calls with the
- * machine (BRIDGED, NOT_OURS, the command decoded into `c`). */
+/* Run a command: its operation, timed as the original's handler; or the
+ * wait for a line, which the runner makes; or, where it has none here, a
+ * refusal (COMMAND_NOT_OURS). The command is decoded into `c`. */
 typedef enum { COMMAND_RAN, COMMAND_WAITS_FOR_LINE, COMMAND_NOT_OURS } CommandRun;
 
 static CommandRun run_command(GameState *g, uint8_t opcode, ScreenChannel channel, ScreenCommand *c,
@@ -469,7 +467,12 @@ static NextByte next_byte_is(uint8_t byte)
  * game's has one: the original's runner goes on from the byte, at the head
  * of its loop, as its own step would come to it), or at a command whose
  * operand runs its handler's table past its end. */
-typedef enum { CHANNEL_STEPPED, CHANNEL_STOPPED, CHANNEL_BYTE_PAST_THE_LANGUAGE, CHANNEL_COMMAND_PAST_ITS_TABLE } ChannelStep;
+typedef enum {
+    CHANNEL_STEPPED,
+    CHANNEL_STOPPED,
+    CHANNEL_BYTE_PAST_THE_LANGUAGE,
+    CHANNEL_COMMAND_PAST_ITS_TABLE,
+} ChannelStep;
 
 /* The swing's kept word ($8C, $8D) names one of four words; the original's
  * handler jumps through a table of four by the operand's low seven bits, and
@@ -604,18 +607,7 @@ void battle_start_battlefield_scripts(GameState *g)
     }
 }
 
-/* A command whose operation is C, entered as its handler: the command found
- * from its table's index in X, its operands at the place. */
-
-/* The triangle drawn at its size, entered as its handler from the dispatch or
- * from a model's command, whose original goes on into the triangle's code
- * once it has placed the corners: either way the triangle the command's
- * operand numbers (draw_model, screen_shapes.c, does the same in C). */
-enum { DRAW_TRIANGLE = 0xAE };
-
-/* The triangle reads neither the index nor the carry it is entered with. */
-
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The scripts run ---------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
@@ -623,7 +615,7 @@ typedef struct {
 } ScreenScriptsContext;
 
 /* A command the port runs, or the program goes no further at its handler.
- * The one bridge is the wait for a line, the timing service's own. */
+ * The wait for a line is the timing service's own. */
 
 static bool run_a_command(void *ctx, uint8_t opcode, ScreenChannel channel)
 {

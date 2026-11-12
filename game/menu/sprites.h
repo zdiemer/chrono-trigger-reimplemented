@@ -33,9 +33,9 @@ bool menu_sprite_list_is_sound(const GameState *g);
 /* The list as the vblank handler works it each frame, around the objects'
  * turns: emptied, every node back on the free list from the links the mode's
  * start laid out; the sprite table's sprites all hidden; and, once the
- * objects have shown their groups, drawn into the sprite table. And the
- * guards' state halves: the links laid out as the start lays them, and the
- * list as the mode keeps it. */
+ * objects have shown their groups, drawn into the sprite table. And what
+ * those need: the links laid out as the start lays them, and the list as
+ * the mode keeps it. */
 void menu_empty_the_sprite_list(GameState *g);
 void menu_hide_the_sprites(GameState *g);
 void menu_draw_the_sprite_list(GameState *g);
@@ -44,12 +44,9 @@ bool menu_sprite_list_can_be_drawn(const GameState *g);
 
 /* The menus' records' sprites (the characters on the load screen and the
  * menus' screens): the opening's seven, a record's load, and its animation a
- * frame on, or carried on; and their guards. */
-/* The same as C ($C2:F3CA): the records set up and loaded as the menus open;
- * false where a guard's state half doesn't take them, the program going no
- * further there. */
-/* One record's sprite loaded as C ($C2:F422), where its guard's state half
- * takes it; false where the program went no further. */
+ * frame on, or carried on. One record's sprite loaded ($C2:F422), and the
+ * records set up and loaded as the menus open ($C2:F3CA); false where the
+ * state is none the loading handles, the program going no further there. */
 bool menu_record_sprite_loaded(GameState *g, unsigned record);
 bool menu_record_sprites_loaded(GameState *g);
 
@@ -66,7 +63,7 @@ void menu_start_the_records(GameState *g);
 void menu_load_character_colours(GameState *g);
 
 /* A frame of the records' task ($C2:F657): each record's sprite drawn and
- * animated; and what a frame of it takes (its entry's guard's state half). */
+ * animated; and what a frame of it needs of the state. */
 void menu_run_the_records(GameState *g);
 bool menu_records_can_run(const GameState *g);
 
@@ -81,8 +78,7 @@ MenuWeaponColours menu_weapon_colours(GameState *g, uint8_t character);
  * weapon's) dimmed to half where they are: the party exchange dims the
  * members the story keeps. And what the original does with an emptied
  * place's byte there, which it takes for a character, halving fifteen words
- * past the palette (for the original's code and shadow mode:
- * ORIGINAL_EFFECT; the palette's `unchecked` accessors). */
+ * past the palette. */
 void menu_dim_character_colours(GameState *g, uint8_t character);
 
 /* A character's sprite colours put in its sprite palette, dimmed to half

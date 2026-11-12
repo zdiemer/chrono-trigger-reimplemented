@@ -65,12 +65,12 @@ SidesDrawn draw_window_sides(GameState *g, Window w, const WindowSides *shape);
 /* Whether the lines a shape covers, down to `bottom`, stay in the window
  * table: on an odd frame the coming buffer is the table's second, and a shape
  * reaching below the screen's last line would be drawn on past its end, as
- * the original does into the window's registers' images after it. */
+ * the original does into the window settings' copies after it. */
 bool sides_fit_the_table(const GameState *g, uint8_t bottom);
 
 /* What the original leaves of the work RAM port it draws through: where it
  * stops, the line after the last, and the low byte of the last column its
- * word stores put on the sound port (scaffolding, for ORIGINAL_EFFECT). */
+ * word stores put on the sound port, kept as the original leaves them. */
 void sides_leave_port(GameState *g, Window w, unsigned line_after, SidesDrawn drawn);
 
 /* Whether the edge from `from` to `to` runs leftward (its slope negative). */

@@ -124,9 +124,6 @@ static void give_up_the_open_menu(GameState *g, uint8_t member)
     battle_hand_the_menu_on(g, member);
 }
 
-/* The work cell the original keeps the member in as it calls the menu off. */
-enum { CALLED_OFF_CELL = 0x80 };
-
 // $C1:1BAA
 /* A member's action is called off: out of the line, or out of its slot of
  * the menu, the window's frames put back as the battle starts them. */
@@ -147,10 +144,10 @@ void battle_call_off_the_menu(GameState *g, uint8_t member)
     set_battle_tech_list_being_laid_out(g, 0);
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The steps -------------------------------------------------------------------------------- */
 
-/* The steps with their guards' state halves: a party member, and for the
- * turn a place in the line for it to join. */
+/* The steps, refused unless they are for a party member, and for the turn,
+ * unless the line has a place for it to join. */
 bool battle_turn_comes(GameState *g, Platform *pf)
 {
     if (battle_step_member(g) >= BATTLE_PARTY_SIZE || battle_menu_queue_length(g) >= BATTLE_MENU_QUEUE_COUNT)

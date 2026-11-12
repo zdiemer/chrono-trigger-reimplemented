@@ -11,8 +11,8 @@
  * moving everyone a place back as far as its first empty place; a full
  * reserve loses its last.
  *
- * The services (the original's code calls them by number through $C2:8004,
- * menu/party_bridge.c; the ports call the operations here) look a character
+ * The services (the original calls them by number through $C2:8004; the
+ * ports call the operations here) look a character
  * up, recruit one,
  * dismiss one, bring one into the active party or send one to the reserve;
  * equip a character or strip it; fill every character's HP or MP; count an
@@ -29,6 +29,7 @@
 
 #include "platform/save.h"
 #include "state.h"
+#include "vars.h"
 
 /* The record's places: the active party's, then the reserve's. */
 enum { PARTY_ACTIVE_PLACES = 3, PARTY_RECORD_PLACES = 9 };
@@ -51,7 +52,7 @@ void party_exchange(GameState *g, RecordPlace one, RecordPlace other);
 
 /* Whether the active party is characters (or empty places), as the
  * services that show what it wears read it: the game's always is. For the
- * guards of their callers. */
+ * checks of their callers. */
 bool party_record_shows_characters(const GameState *g);
 
 /* Where a character is among the record's first `places` (the active
@@ -109,7 +110,5 @@ void party_rocks_teach(GameState *g);
 /* The game finished: the cartridge notes it, so that its load screen offers
  * a New Game+. */
 void party_note_the_game_finished(Platform *pf);
-
-/* ---- The checked legacy adapters (menu/party_bridge.c) ------------------------------------------- */
 
 #endif

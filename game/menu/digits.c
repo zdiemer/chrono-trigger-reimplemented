@@ -18,7 +18,6 @@
 #include "charge.h"
 #include "menu/digits.h"
 
-#include "menu/bridge.h"
 #include "menu/menu_data.h"
 #include "ram.h"
 #include "vars.h"
@@ -84,11 +83,6 @@ static void blank_first_start(GameState *g)
     for (unsigned at = 0; at < PLANES_BYTES; at++)
         set_menu_hundreds_tiles_byte(g, 0, at, 0);
 }
-
-/* What the original's drawing leaves in its cells: the hundreds digits it
- * reads from, the digit it got to past the last start tile's, the counts run
- * out, and the last font byte as far as it shifted it. */
-enum { PIXELS_SHIFTED = 5 };
 
 // $FF:F548
 void menu_build_number_tiles(GameState *g)

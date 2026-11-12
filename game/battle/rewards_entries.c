@@ -1,7 +1,5 @@
-/* Battle: the rewards' machine side -- each piece's registered entry, taking
- * what the original's callers hand it in the registers and in the cells the
- * original keeps its work in, and the guards that turn away what the game
- * never hands it (battle/rewards_levels.c says what the pieces are). */
+/* Battle: finding a record that grows, and whether the port takes the
+ * experience's share (battle/rewards_levels.c says what the pieces are). */
 #include "battle/rewards.h"
 
 #include "battle/bridge.h"
@@ -26,19 +24,10 @@ bool grower_at(uint16_t place, Grower *who)
     return false;
 }
 
-/* What the original leaves in A as the experience's share is done: the count
- * of the characters it went through, and the carry of its last test of it,
- * set. */
-enum { CHARACTERS_GONE_THROUGH = SETUP_CHARACTERS };
-
-/* ---- What the guards ask ----------------------------------------------------------------- */
+/* ---- What the share takes ----------------------------------------------------------------- */
 
 /* A record whose character the growth tables have. */
 static bool grows(const GameState *g, Grower who) { return grower_character(g, who) < SETUP_CHARACTERS; }
-
-/* The record the level-up works on, where the original keeps its place. */
-
-/* The member the rewards note for: a party member, or the reserve. */
 
 /* The members fighting: characters the tables have, each with fewer single
  * techs known than it has, or all learned (its techs stay in its eight places

@@ -1,6 +1,5 @@
-/* Sprite-object handlers and script services for the native program.
- * They share game-state operations with the machine-facing C forms.
- * Invalid state or an unrecognized command reports a broken contract. */
+/* The sprite-object mode's handlers and the services its command scripts
+ * call. Invalid state or an unrecognized command reports a broken contract. */
 #include "menu/handlers.h"
 
 #include "charge.h"
@@ -22,7 +21,7 @@ enum { HANDLERS_BANK = 0xC20000 };
 
 /* ---- The command scripts ------------------------------------------------------------------ */
 
-/* The runner's state while a script runs: the machine it runs for, and the
+/* The runner's state while a script runs: the game it runs for, and the
  * command running (a register of the picture's a command sets is written as
  * that command's handler writes it). */
 typedef struct {
@@ -34,8 +33,8 @@ typedef struct {
 
 static uint32_t handler_of(const GameState *g, uint8_t opcode) { return HANDLERS_BANK | menu_script_handler(g, opcode); }
 
-/* The map's planes scroll as C where the scroll's guard takes the plane and
- * the strips it queues. */
+/* The map's planes scroll where the scroll can take the plane and the strips
+ * it queues. */
 static bool scroll_map(void *ctx, MenuAxis axis, uint8_t plane, int8_t step)
 {
     ObjectScriptContext *c = ctx;

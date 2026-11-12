@@ -18,12 +18,11 @@ bool unpack_stream_fits(GameState *g, uint32_t from, uint16_t capacity);
 /* The same, as the scene engine calls it, at the routine rather than its
  * jump, which it is timed as. */
 uint16_t unpack_stream_direct(GameState *g);
-/* Either, for a caller's machine half, which reached the unpacker through its
- * entry while it had one, and keeps the pace it had (the strict and native
- * plays' recorded outcomes hold it to that): run, as the bridges ran the
- * entry in place, the entry's own time with it; called, as a call on the
- * machine, the time charged before it and its own also passing on the machine
- * either side of it (charge_settle). */
+/* Either, for a caller whose original reaches the unpacker with its state
+ * saved and given back around the call, and keeps the pace that takes (the
+ * native plays' recorded outcomes hold it to that): the unpacking with the
+ * time of that way in. `called` is the same work, for a caller that names
+ * the call rather than the run. */
 uint16_t unpack_stream_run(GameState *g, bool direct);
 uint16_t unpack_stream_called(GameState *g, bool direct);
 

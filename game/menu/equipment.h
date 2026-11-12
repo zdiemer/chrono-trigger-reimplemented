@@ -1,6 +1,6 @@
 /* The equipment screen and the main menu's panel for it: what the game does
- * (game/menu/equipment.c) and the entries that run it on the original's
- * machine (game/menu/equipment_bridge.c). */
+ * (game/menu/equipment.c) and what each step needs of the state before it
+ * runs (game/menu/equipment_bridge.c). */
 #ifndef CT_GAME_MENU_EQUIPMENT_H
 #define CT_GAME_MENU_EQUIPMENT_H
 
@@ -35,8 +35,8 @@ void menu_equip_panel_dim(GameState *g);
 void menu_equip_dim_colours(GameState *g, unsigned first);
 
 /* The list of what fits the screen's slot and the loaded member, the most
- * powerful first, and the guard's: whether the original's list can be made
- * as it makes it. */
+ * powerful first, and whether the list can be made as the original makes
+ * it. */
 enum { MENU_EQUIP_SLOTS = 4 };
 void menu_list_what_fits(GameState *g);
 bool menu_list_what_fits_can_be_made(const GameState *g);
@@ -140,7 +140,7 @@ void menu_equip_panel_put_away(GameState *g);
 /* The list's rows' upload, queued as the list is drawn. */
 enum { MENU_EQUIP_LIST_ROWS_UPLOAD = 0xFC1B };
 
-/* What the steps can run on, for their guards: the screen's set-up, the
+/* What the steps can run on: the screen's set-up, the
  * member list's slide as its start (menu_equip_slide_members) left it, the
  * panel. */
 bool menu_equip_screen_can_be_set_up(const GameState *g);
@@ -163,7 +163,7 @@ void menu_equip_mark_slots_at(GameState *g, uint16_t at);
 
 /* A window's slide, a frame at a time: the slots window's band heights,
  * frames and the member rows' wait and step; the list window's two lines
- * and its step. The bridges keep it between the frames they wait. */
+ * and its step. The sequences keep it between the frames they wait. */
 typedef struct {
     uint8_t top, middle, bottom;
     uint8_t frame, rows_from;
@@ -220,15 +220,14 @@ void menu_equip_slots_at_rest(GameState *g);
  * the windows and the member list, its scroll bar, and the screen shown. */
 void menu_equip_set_up(GameState *g, Platform *pf);
 
-/* ---- The screen's steps, one sequence each for the machine and for C ---------------------------- */
+/* ---- The screen's steps ----------------------------------------------------------------------- */
 
 /* Each of the screen's steps -- the opening ($C2:9C31), choosing a member
  * ($C2:9C39), a slot ($C2:9C70) or an item ($C2:9CA5) -- and the routines
- * they go on to is one sequence, which the machine's entries
- * (equipment_bridge.c) and the program as C both run, asking the menus for
- * what differs through EquipmentSteps.
+ * they go on to is one sequence, which asks the menus for what it needs
+ * through EquipmentSteps.
  *
- * The places the sequences tick, wait or set the machine's registers from. */
+ * The places the sequences tick or wait from. */
 typedef enum {
     EQUIPMENT_AT_THE_OPENING,       /* the screen opening */
     EQUIPMENT_AT_THE_MEMBER_CHOSEN, /* a member chosen */
@@ -245,18 +244,13 @@ typedef enum {
     EQUIPMENT_AT_THE_MEMBERS_SLIDING_BACK, /* ... then the member rows back down */
     EQUIPMENT_AT_THE_LIST_SLIDING_IN, /* the list's window sliding in */
     EQUIPMENT_AT_THE_LIST_SLIDING_OUT, /* ... and out */
-    EQUIPMENT_AT_THE_LIST_BEING_MADE, /* the list of what fits made */
-    EQUIPMENT_AT_THE_LIST_FRAMED,   /* ... and its frame laid out */
     EQUIPMENT_AT_THE_SLOTS_REDRAWN, /* back on the slots, a frame on */
     EQUIPMENT_AT_THE_ITEM_LEFT,     /* back from the list to the slots */
     EQUIPMENT_AT_THE_ITEM_POINTED,  /* the cursor along the list */
     EQUIPMENT_AT_THE_PAGE_TURNED,   /* the list paged */
     EQUIPMENT_AT_THE_ROW_BROUGHT_IN, /* a row brought in past the list's end */
     EQUIPMENT_AT_THE_LIST_ROWS_SLIDING, /* ... and the rows sliding a frame at a time */
-    EQUIPMENT_AT_THE_MEMBER_SLIDE_STARTING, /* the member list's slide about to run */
-    EQUIPMENT_AT_THE_MEMBER_SLIDE_ENDED, /* ... and run */
     EQUIPMENT_AT_THE_MEMBERS_SLIDING, /* the member rows sliding, a frame at a time */
-    EQUIPMENT_AT_THE_MEMBERS_SLID,  /* ... and at rest */
 } EquipmentPlace;
 
 /* The operations a screen step calls and returns from. */
@@ -292,28 +286,13 @@ typedef enum {
     EQUIPMENT_TICKS_ON_THE_LIST,
 } EquipmentEnd;
 
-/* Where the machine leaves what the original's tests and loads left
- * (scaffolding). */
-typedef enum {
-    EQUIPMENT_NOTE_MEMBER_STEP_TESTED, EQUIPMENT_NOTE_MEMBER_POINTED, EQUIPMENT_NOTE_SLOT_STEP_TESTED,
-    EQUIPMENT_NOTE_LABEL_COPIED, EQUIPMENT_NOTE_SLOT_KEPT, EQUIPMENT_NOTE_LIST_SUM, EQUIPMENT_NOTE_MEMBER_SWITCHED,
-    EQUIPMENT_NOTE_BUTTONS_TESTED, EQUIPMENT_NOTE_INVENTORY_CHANGED, EQUIPMENT_NOTE_CURSOR_LOADED,
-    EQUIPMENT_NOTE_CURSOR_COMPARED, EQUIPMENT_NOTE_CURSOR_KEPT, EQUIPMENT_NOTE_PAGE_TURNED, EQUIPMENT_NOTE_LIST_DRAWN,
-    EQUIPMENT_NOTE_ROW_NOTED, EQUIPMENT_NOTE_ROW_FOUND, EQUIPMENT_NOTE_LIST_ROWS_QUEUED, EQUIPMENT_NOTE_LIST_FRAMED,
-    EQUIPMENT_NOTE_LIST_OPENED, EQUIPMENT_NOTE_LIST_WINDOW_SHOWN, EQUIPMENT_NOTE_LIST_BAR_PLACED,
-    EQUIPMENT_NOTE_SLOTS_REDRAWN, EQUIPMENT_NOTE_MEMBER_SLIDE_STARTED,
-} EquipmentNote;
-
-/* What the sequences ask: the cursor read, a tick, a frame's wait, the
- * machine's registers as the original's code sets them, a routine run, a
- * note, the end. Each false where it went no further. */
+/* What the sequences ask: the cursor read, a tick, a frame's wait, a routine
+ * run, the end. Each false where it went no further. */
 typedef struct {
     void (*read_cursor)(void *ctx);
     bool (*tick)(void *ctx, EquipmentPlace at);
     bool (*wait)(void *ctx, EquipmentPlace at);
-    void (*registers_at)(void *ctx, EquipmentPlace at);
     bool (*run)(void *ctx, EquipmentRoutine routine);
-    void (*note)(void *ctx, EquipmentNote note, uint8_t value);
     bool (*ends)(void *ctx, EquipmentEnd end);
 } EquipmentSteps;
 
@@ -333,12 +312,12 @@ void menu_equip_back_to_the_members(GameState *g, Platform *pf);
 /* The sound of an item put on. */
 enum { MENU_EQUIP_PUT_ON_SOUND = 0xB5 };
 
-/* What they take of the state, as their entries' guards do: the set-up,
+/* What they need of the state: the set-up,
  * choosing a member, pointing at one. */
 bool menu_equip_can_set_up(const GameState *g);
 bool menu_equip_can_choose_a_member(const GameState *g);
 bool menu_equip_can_point_at_a_member(const GameState *g);
-/* And the guards' state halves of the rest (equipment_bridge.c): the slots'
+/* And what the rest need (equipment_bridge.c): the slots'
  * window sliding in and out, pointing at a slot or switching members,
  * back on the members, the list's opening, drawing, sliding and pointing,
  * back on the slots, choosing an item, the weapon's byte forgotten. */
@@ -354,7 +333,7 @@ bool menu_equip_slots_can_come_back(const GameState *g);
 bool menu_equip_can_choose_an_item(const GameState *g);
 bool menu_equip_weapon_can_be_forgotten(const GameState *g);
 
-/* As C, from the menus' main task; false where the program went no
+/* From the menus' main task; false where the program went no
  * further. */
 bool menu_open_equipment(GameState *g, Platform *pf);
 bool menu_choose_equipment_member(GameState *g, Platform *pf);
@@ -364,12 +343,5 @@ bool menu_choose_equipment_item(GameState *g, Platform *pf);
  * equipping shares. */
 bool menu_make_equipment_list(GameState *g, Platform *pf);
 bool menu_point_along_equipment_list(GameState *g, Platform *pf);
-
-/* ---- The entries (game/menu/equipment_bridge.c) ----------------------------------------------- */
-
-/* For the entries' leaves (scaffolding): whether the list's opening starts
- * typing a description, the item it describes being another than the one
- * shown, which decides what the original's description leaves in A. */
-bool menu_equip_opening_starts_typing(const GameState *g);
 
 #endif

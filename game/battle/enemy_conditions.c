@@ -38,9 +38,6 @@ static ConditionResult fails(void) { return (ConditionResult){ .verdict = CONDIT
 static ConditionResult holds(void) { return (ConditionResult){ .verdict = CONDITION_HOLDS }; }
 static ConditionResult holds_if(bool held) { return held ? holds() : fails(); }
 
-/* Nobody picked: the condition fails, having read no further than its
- * selector. */
-
 /* It holds for the target it took, if it could take one; a block no longer
  * held comes out `otherwise`. */
 static ConditionResult holds_unchosen(void) { return (ConditionResult){ .verdict = CONDITION_HOLDS_UNCHOSEN }; }
@@ -207,13 +204,6 @@ static ConditionResult stat_at_most(GameState *g, const ScriptChoosing *c, Selec
 {
     return stat_compared(g, c, who, offset, value, AT_MOST);
 }
-
-/* The test of a stat's value goes on from the first candidate to the one at
- * twice its slot in the list, and so on: the original keeps the doubled slot
- * it indexes the places with for the list as well, so the walk reaches past
- * the candidates to slots past the combatants. It counts in $0E, which such
- * a slot's stat can be read from (battle.h), so the count is kept there as it
- * goes. */
 
 /* The stat is named by its offset's low byte; its high byte is whatever the
  * last word kept at $0A left (battle.h), as the original's pointer reads it. */
@@ -671,8 +661,7 @@ typedef struct {
     /* How far the original reads the script for it, the operand whose place
      * it leaves (0 for the kind's own): past where a nobody-picked stops. */
     uint8_t reads_to;
-    /* Its third operand names a side, a search past the searches (the
-     * guards'). */
+    /* Its third operand names a side, a search past the searches. */
     bool names_side;
     uint32_t timed_as; /* the original's routine, whose time it is */
 } ConditionRow;

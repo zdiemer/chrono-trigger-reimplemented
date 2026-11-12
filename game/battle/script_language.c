@@ -82,37 +82,21 @@ static uint8_t script_byte(const GameState *g, uint32_t at)
 
 uint8_t script_operand(const GameState *g, unsigned k) { return script_byte(g, (battle_script_pointer(g) + k) & 0xFFFFFF); }
 
-/* Low RAM, the direct page's among it, is bank $7E's start and mirrored in
- * the first quarter of each half of the banks. */
-enum { WORK_RAM_BANK = 0x7E, HALF_OF_THE_BANKS = 0x7F, LOW_RAM_MIRRORS_END = 0x40, DIRECT_PAGE_END = 0x100 };
+/* Low RAM, the battle's low work cells among it, is bank $7E's start and
+ * mirrored in the first quarter of each half of the banks. */
+enum { WORK_RAM_BANK = 0x7E, HALF_OF_THE_BANKS = 0x7F, LOW_RAM_MIRRORS_END = 0x40, WORK_CELLS_END = 0x100 };
 
-bool script_over_the_direct_page(const GameState *g)
+bool script_over_the_work_cells(const GameState *g)
 {
     uint32_t at = battle_script_pointer(g);
     uint8_t bank = (uint8_t)(at >> 16);
-    return (at & 0xFFFF) < DIRECT_PAGE_END && (bank == WORK_RAM_BANK || (bank & HALF_OF_THE_BANKS) < LOW_RAM_MIRRORS_END);
+    return (at & 0xFFFF) < WORK_CELLS_END && (bank == WORK_RAM_BANK || (bank & HALF_OF_THE_BANKS) < LOW_RAM_MIRRORS_END);
 }
 
 /* ---- What a command in C needs -------------------------------------------------------- */
 
 /* A list of combatants from `first`, ended in reach (and with one, if asked). */
 enum { LIST_MOST = 16 };
-
-/* The original reads the channel's effect as a word. */
-
-/* A combatant's battle slot for a combatant channel; on the other targets'
- * channels a list with a first target, from the list's own start and from the
- * shadows', each a combatant; on an effect channel, one of the effects. */
-
-/* A combatant channel whose subject is nobody. */
-
-/* The colors change the other targets on every channel from the fourth on (an
- * effect channel's included), look for a flashed enemy from the rotation's
- * start, and copy the cycled background colors from the one the rule names to
- * the last background color. */
-
-/* The screen effect's command gives at least one setting (the original
- * copies 256 for none), and names one of the effects there are. */
 
 /* A place or a facing the command names is one of the original's. */
 static bool list_of_combatants(const GameState *g, unsigned first, bool needs_one)
@@ -194,7 +178,7 @@ static bool names_known_places(const GameState *g, const ScriptOpcode *row)
 
 bool script_runs_here(const GameState *g, const ScriptOpcode *row)
 {
-    if (script_over_the_direct_page(g))
+    if (script_over_the_work_cells(g))
         return false;
     return needs_met(g, row) && names_known_places(g, row);
 }

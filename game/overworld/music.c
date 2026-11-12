@@ -55,8 +55,7 @@ void overworld_waiting_sound_sent(GameState *g) { overworld_mark_sound_sending(g
 
 // $C2:2ED9
 /* Pass the request on to the driver's cells, unless one is being sent, or
- * one waits there that is younger than it (overworld_pass_on_sound_entry
- * hands the answer to the original's callers). */
+ * one waits there that is younger than it. */
 bool overworld_pass_on_sound(GameState *g)
 {
     if (overworld_sound_waits(g)

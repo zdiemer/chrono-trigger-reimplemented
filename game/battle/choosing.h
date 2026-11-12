@@ -114,8 +114,7 @@ bool battle_can_be_aimed_at(const GameState *g, unsigned slot, bool fallen_too);
 
 /* The cursor clicks as it moves, and as the player chooses, goes back, turns
  * the item list's page or moves among the targets. Playing it is the host's
- * (the SNES machine's, battle/menu_bridge.c): the logic says when, and for
- * which move. */
+ * (battle/menu_bridge.c): the logic says when, and for which move. */
 typedef enum {
     CLICK_COMMAND_UP, CLICK_COMMAND_DOWN, CLICK_COMMAND_CHOSEN, CLICK_MEMBER_BACK, CLICK_MEMBER_ON,
     CLICK_TECH_CHOSEN, CLICK_TECH_BACK, CLICK_TECH_UP, CLICK_TECH_DOWN,
@@ -170,7 +169,8 @@ void battle_list_stolen_item(GameState *g);
 /* $C1:1153: the menu's frame: the buttons the menu took, the clicks played on
  * `host`. */
 void battle_menu_frame(GameState *g, Buttons pressed, MenuHost *host);
-/* Its guard's state half: the menu as the game keeps it (battle/menu_input.c). */
+/* Whether the menu is as the game keeps it, which the frame takes
+ * (battle/menu_input.c). */
 bool battle_menu_frame_fits(const GameState *g);
 
 /* Note the stat block of the member whose menu is open (battle_current_stat_block,

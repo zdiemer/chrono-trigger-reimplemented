@@ -42,8 +42,8 @@ typedef struct {
 } AssetStore;
 
 /* Read the resources from `store` from now on: the driver's to call, before
- * the game runs or between frames. NULL reads them from the cartridge the
- * machine maps, as there was no store before. The store must outlive its use;
+ * the game runs or between frames. NULL leaves the game with no store, so a
+ * read of the cartridge has nothing to answer it. The store must outlive its use;
  * each resource is asked for once, and what the store answers kept. */
 void assets_use(const AssetStore *store);
 

@@ -17,7 +17,6 @@
 #include "charge.h"
 #include "core/program.h"
 #include "cpu_io.h"
-#include "menu/bridge.h"
 #include "menu/figures.h"
 #include "menu/menu_data.h"
 #include "menu/techs.h"
@@ -320,7 +319,7 @@ void menu_build_item_tables(GameState *g)
 }
 
 /* The copy the menus take of the bytes after the characters' names. */
-void menu_copy_past_the_names_now(GameState *g) { set_menu_copy_past_the_names(g, menu_past_the_names(g)); }
+void menu_take_the_bytes_past_the_names(GameState *g) { set_menu_copy_past_the_names(g, menu_past_the_names(g)); }
 
 // $C2:9875
 /* The menus' item tables built as they open, the party's techs and
@@ -330,19 +329,14 @@ void menu_build_the_items(GameState *g)
     menu_build_item_tables(g);
     TIMED_AS(g, 0xFFF813, menu_note_party_techs(g));
     TIMED_AS(g, 0xC299B2, menu_note_everyones_figures(g));
-    menu_copy_past_the_names_now(g);
+    menu_take_the_bytes_past_the_names(g);
 }
-
-// $C2:8881
-
-// $C2:88AD
 
 // $C2:88D8
 
-/* The tables run on the menus' page with the data bank on work RAM's, their
- * name places counted from the zero word the menus keep 0; every
- * character's figures and the party's techs are noted after them
- * (menu/figures.c and menu/techs.c, whose guards this takes). */
+/* The tables' name places are counted from the zero word the menus keep 0;
+ * every character's figures and the party's techs are noted after them
+ * (menu/figures.c and menu/techs.c, whose checks this takes). */
 bool menu_items_can_be_built(const GameState *g)
 {
     return menu_everyones_figures_can_be_noted(g) && menu_party_techs_can_be_noted(g) && menu_zero(g) == 0;
@@ -358,23 +352,3 @@ bool menu_items_built(GameState *g)
     return true;
 }
 
-/* ---- The inventory's entries --------------------------------------------------------------------- */
-
-/* The original's routines take the item and how many in the menus' cells
- * (menu_item_operand, menu_item_operand_quantity), and hand back in A what
- * came of it: the add 0, or the item where it is a slot's nothing, or $FF
- * with no room; the take 0, or $FF where the party has none of it and $FE
- * where too few. They run with 8-bit index registers, which leaves Y's high
- * byte clear; X they save and put back. */
-enum { ANSWER_DONE = 0x00, ANSWER_NO_ROOM = 0xFF, ANSWER_NOT_HELD = 0xFF, ANSWER_TOO_FEW = 0xFE };
-
-// $C2:8791
-
-// $C2:87D5
-
-// $C2:93A8
-
-/* They reach the menus' tables through the data bank, on work RAM's; the
- * item's users are noted for an item of the game's; and the loaded
- * character's bit is one of the table's nine. */
-enum { CHARACTER_BITS_COUNT = 9 };

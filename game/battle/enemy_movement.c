@@ -101,12 +101,6 @@ static void face_heading(GameState *g, unsigned enemy, uint8_t heading)
     face(g, enemy, battle_facing_of_direction(g, heading));
 }
 
-/* What the original leaves in its work cells (battle_work, from $80) after a
- * step's look: the step's reach down and across and the radius it worked
- * them out with; and once a movement is done, the combatant whose box it
- * looked at, a word. */
-enum { LEFT_LOOKED_AT = 0x00, LEFT_DOWN = 0x0C, LEFT_ACROSS = 0x0E };
-
 /* Whether the enemy's way is blocked where the step would take it: by the
  * grid, or by another combatant's box unless it passes through them (and
  * then over the grid's marked cells too). Its box is left there. */
@@ -310,13 +304,6 @@ static SpotSide side_of_spot(BattlePoint at, BattlePoint spot)
     return (SpotSide){ left, at.y < spot.y + (left ? 1 : 0) };
 }
 
-/* Whether the enemy stands short of the spot, between it and its target, as
- * the heading's quarter has the spot from the target. */
-
-/* What the original leaves of the test: the spot's down, the test down, and
- * the heading's quarter. */
-enum { LEFT_SPOT_Y = 0x02, LEFT_ABOVE = 0x03, LEFT_QUARTER = 0x04 };
-
 /* The spot `distance` from the target on the enemy's side, kept; and the
  * heading to it from where the enemy stands: away from the target while the
  * enemy is short of it, back toward it beyond. */
@@ -346,11 +333,6 @@ static BattlePoint spot_of(const GameState *g, unsigned enemy)
 {
     return (BattlePoint){ battle_enemy_spot_x(g, enemy), battle_enemy_spot_y(g, enemy) };
 }
-
-/* The original measures to the spot as to a box past the combatants', whose
- * place it writes into the table's next row: past the table, into the cells
- * after it. */
-enum { SPOT_BOX_ROW = 11 };
 
 /* Whether the enemy's box, where its last look left it, is within `reach` of
  * its spot. */
@@ -455,7 +437,16 @@ static void circle(GameState *g, unsigned enemy, uint8_t animation)
  * loop is 32 pixels high and 64 wide, half that high for the small one; a
  * blocked weave jumps back round the loop and turns the other way. */
 enum { WEAVE_SMALL = 0x0A, WEAVE_THROUGH = 0x0C };
-enum { WEAVE_HOME_BELOW = 16, WEAVE_START = 0xC0, WEAVE_STEP = 0x10, WEAVE_HEIGHT = 0x20, WEAVE_SMALL_HEIGHT = 0x10, WEAVE_WIDER_BY = 0x20, WEAVE_JUMP = 0x58, WEAVE_SMALL_JUMP = 0x30 };
+enum {
+    WEAVE_HOME_BELOW = 16,
+    WEAVE_START = 0xC0,
+    WEAVE_STEP = 0x10,
+    WEAVE_HEIGHT = 0x20,
+    WEAVE_SMALL_HEIGHT = 0x10,
+    WEAVE_WIDER_BY = 0x20,
+    WEAVE_JUMP = 0x58,
+    WEAVE_SMALL_JUMP = 0x30,
+};
 
 static void start_weave(GameState *g, unsigned enemy, BattlePoint at)
 {
@@ -485,9 +476,6 @@ static void weave_the_other_way(GameState *g, unsigned enemy)
 {
     set_battle_enemy_weave_back(g, enemy, (uint8_t)(battle_enemy_weave_back(g, enemy) ^ 1));
 }
-
-/* What the original leaves of a blocked weave: how far it jumped back. */
-enum { LEFT_JUMP = 0x02 };
 
 // $C1:3E33
 static void weave(GameState *g, unsigned enemy, uint8_t animation)

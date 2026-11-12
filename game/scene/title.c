@@ -8,24 +8,21 @@
  * the left, so a wave runs across the picture. The endings come back to it.
  *
  * Its pieces here:
- * - the setup (scene_title_set_up_entry), as the program's dispatch calls it: the
+ * - the setup (scene_title_set_up), as the program's dispatch calls it: the
  *   title's resources unpacked (scene/boot.c) and sent to VRAM -- the sprites'
  *   tiles, the layers' tiles, the plane's pixels (built from 4-bit tiles, a
  *   row at a time: expand_plane_tile) and its name table, and BG1's and BG2's
  *   tilemaps -- the palette, channel 0's first script, the title's state, the
  *   pendulum's screen (set_up_pendulum) and the title's song, whose start the
  *   original waits for; the loader owns all of its resource steps;
- * - the frame's tasks, which the task list runs as C (scene/frame.c): the
+ * - the frame's tasks, which the task list runs (scene/frame.c): the
  *   pendulum's swing (swing_the_pendulum) and its place (place_pendulum), the
  *   logo's sweep and landing (move_logo), the sprites drawn over the picture
  *   -- the clock, its hands, the copyright and the name sliding in -- the
  *   wait for the bottom right picture to go, and the watch for a button that
  *   ends the title;
  * - the ripple: mode 2 (start_ripple), the offsets moved on each frame
- *   (ripple_columns) and sent to VRAM with BG3's scroll (upload_ripple).
- *
- * All of it is the scene program's code, in work RAM, so every entry is guarded
- * by a hash of its code. */
+ *   (ripple_columns) and sent to VRAM with BG3's scroll (upload_ripple). */
 #include "scene/scene.h"
 
 #include "charge.h"
@@ -37,12 +34,31 @@
 #include "vars.h"
 #include "wram.h"
 
-/* The rows of this file's tasks (below), which their entries run. */
-enum TitleTaskRow { ROW_SWING_PENDULUM, ROW_MOVE_LOGO, ROW_DRAW_THE_CLOCK, ROW_DRAW_THE_HANDS, ROW_DRAW_THE_COPYRIGHT, ROW_SLIDE_THE_NAME, ROW_COUNT_THE_WAIT_DOWN, ROW_WATCH_FOR_A_BUTTON, ROW_RIPPLE, ROW_CALM_THE_RIPPLE, ROW_PLACE_PENDULUM, ROW_UPLOAD_RIPPLE };
+/* The rows of this file's tasks (below), where the task lists find them. */
+enum TitleTaskRow {
+    ROW_SWING_PENDULUM,
+    ROW_MOVE_LOGO,
+    ROW_DRAW_THE_CLOCK,
+    ROW_DRAW_THE_HANDS,
+    ROW_DRAW_THE_COPYRIGHT,
+    ROW_SLIDE_THE_NAME,
+    ROW_COUNT_THE_WAIT_DOWN,
+    ROW_WATCH_FOR_A_BUTTON,
+    ROW_RIPPLE,
+    ROW_CALM_THE_RIPPLE,
+    ROW_PLACE_PENDULUM,
+    ROW_UPLOAD_RIPPLE,
+};
 
 /* Where the title keeps its graphics in VRAM. */
-enum { PLANE_VRAM = 0x0000, /* the Mode 7 plane: its name table in the low bytes, its pixels in the high */
-    SPRITE_TILES_VRAM = 0x4000, LAYER_TILES_VRAM = 0x5000, BG2_MAP_VRAM = 0x6000, BG1_MAP_VRAM = 0x6400, BG3_MAP_VRAM = 0x7000, /* in mode 2, its first two rows are the columns' offsets */ };
+enum {
+    PLANE_VRAM = 0x0000,         /* the Mode 7 plane: its name table in the low bytes, its pixels in the high */
+    SPRITE_TILES_VRAM = 0x4000,
+    LAYER_TILES_VRAM = 0x5000,
+    BG2_MAP_VRAM = 0x6000,
+    BG1_MAP_VRAM = 0x6400,
+    BG3_MAP_VRAM = 0x7000,       /* in mode 2, its first two rows are the columns' offsets */
+};
 
 /* The rest of BG1's tilemap: from the second of its rows the block before
  * didn't cover, $F00 bytes. */
@@ -65,20 +81,6 @@ static void fill_bg1_map(GameState *g, Platform *pf, uint8_t port)
 /* ---- The plane's pixels ------------------------------------------------------------------------ */
 
 enum { TILE_ROWS = 8, TILE_PIXELS = 8, TILE_PLANES = 4, ROW_BYTES = 2 };
-
-/* The port reads the tile where the original does, through the data bank, and
- * keeps the rows it unpacks in locals where the original shifts them in the
- * scene's scratch: the same only while the tile doesn't lie over that scratch,
- * which no tile does. In a bank whose low addresses are low RAM, the tile
- * lies within it, as every tile the game expands does (past it, the
- * original reads the bus's open values). */
-enum { SCRATCH_FIRST = 0x003B, SCRATCH_END = 0x0040, LOW_RAM_END = 0x2000 };
-
-/* The tile's `bytes` from `tile` clear of the cells from `first` to `end`. */
-
-/* The scratch the original unpacks each row in, as it leaves it: every bit
- * shifted out of the planes; and the four-plane form's row count, run down,
- * which it keeps after the planes. */
 
 /* The two forms of the expansion, by the program's routine that does each:
  * the title's tiles of four planes and the endings' of eight. */
@@ -118,17 +120,12 @@ void scene_expand_plane_tile(GameState *g, Platform *pf, uint8_t bank, uint16_t 
             vid_write_vram_byte(pf, PF_AT(expansion_of(planes)->site), true, color);
         }
     }
-    charge_legacy_accesses(g, planes + (planes == TILE_PLANES));
+    charge_accesses(g, planes + (planes == TILE_PLANES));
     /* The eight-plane form counts its rows in the bitmap scaler's cell, which
      * the scaler reads before it writes: the count run out stays there. */
     if (planes == SCENE_MOST_PLANES)
         set_scene_wide_tile_rows_left(g, 0);
 }
-
-/* X is the tile, in the data bank; back, it is where the tile's first pair
- * of planes ends, which the original's loop over the tiles moves on from. */
-
-// $7E:5EF8
 
 // $7E:5E3C
 /* A picture's tiles in the second bank, `count` of them from `first`, each
@@ -145,25 +142,10 @@ uint16_t scene_expand_tiles(GameState *g, Platform *pf, uint16_t first, uint16_t
     return tile;
 }
 
-/* The program's loop over a picture's tiles, as its code holds it: the tiles
- * unpacked from $0200 of the second bank, each expanded by the routine the
- * loop's call names, which leaves it past the tile's first pair of planes, and
- * moved on from there by the stride the loop's add holds. The title's loader
- * runs it as the program's code, with the count of tiles in Y. */
-enum { LOOP_TILES = 0x0200 };
-
-/* Y the count; back with A and X past the last tile, Y run down to 0, 8-bit
- * A, the data bank 0 (the byte under the second bank's, which the loop
- * pushed to set it) and the overflow clear. */
-
 /* The loop's code but for its call's target and its stride, which the scenes
  * write; a target that is one of the two expansions, whose code is there; a
  * count of tiles that stays in the bank (a tile is at most 64 bytes). */
 enum { MOST_TILE_BYTES = 0x40, BANK_BYTES = 0x10000 };
-
-/* The eight-plane form keeps its row count apart, in the scaler's cell, and
- * reads its tile's sixty-four bytes: the same tile over neither. */
-enum { WIDE_ROWS_CELL = 0x0031, WIDE_SCRATCH_END = 0x0043 };
 
 /* The plane's name table is 128 tiles a row. The title's picture is 32 rows of
  * 32, which the loader has put at $0200 in a bank of work RAM (the second, in
@@ -192,7 +174,7 @@ void scene_load_plane_map(GameState *g, Platform *pf, uint8_t picture_bank)
     }
     vid_fill_vram_half(pf, PF_AT(0x7E5AEB), PF_GAME(SCENE_BLANK_TILE), REST_OF_PLANE_BYTES, VID_VRAM_LOW_BYTES);
     /* the port, where the original's reads of the picture leave it */
-    charge_legacy_io_accesses(g, 2);
+    charge_io_accesses(g, 2);
 }
 
 /* The pendulum's screen: the plane (BG1 in mode 7, transparent outside it)
@@ -401,9 +383,6 @@ static void untint_sprite_palette_3(GameState *g, Platform *pf, uint8_t channel)
     palette_start_fade_to_white(g, TITLE_FADE_SLOT, palette_3_untints);
 }
 
-/* The task, the sine's lookup and the multiply; the multiply comes out as the
- * product for the wave the task gives it. */
-
 /* BG3's map, which the scene builds in its tilemap buffer: its second row is
  * the columns' vertical offsets. */
 enum { VERTICAL_OFFSETS = 0x40, COLUMNS = 32, OFFSET_BYTES = 2 };
@@ -423,8 +402,8 @@ static void set_column_offset(GameState *g, unsigned column, uint16_t offset)
 
 // $7E:5FFE
 /* The ripple's frame: every column takes the offset of the column to its left,
- * the rightmost first. The new offset of the first column is worked out after
- * this, by the original's code, where the port stops. */
+ * the rightmost first. The first column's new offset is worked out after
+ * this (below). */
 static void ripple_columns(GameState *g)
 {
     for (unsigned column = COLUMNS - 1; column > 0; column--)
@@ -434,7 +413,13 @@ static void ripple_columns(GameState *g)
 /* The first column's new offset: the wave, sixteen sine steps a frame, times
  * the ripple's height (channel 0's seventh register), about the column's
  * place in the picture, as an entry that offsets BG1. */
-enum { RIPPLE_HEIGHT = 6, WAVE_STEPS_A_FRAME_SHIFT = 4, PICTURE_PLACE = 0x4A, OFFSET_BITS = 0x03FF, OFFSETS_BG1 = 0x2000 };
+enum {
+    RIPPLE_HEIGHT = 6,
+    WAVE_STEPS_A_FRAME_SHIFT = 4,
+    PICTURE_PLACE = 0x4A,
+    OFFSET_BITS = 0x03FF,
+    OFFSETS_BG1 = 0x2000,
+};
 
 static uint16_t wave(GameState *g)
 {
@@ -496,7 +481,10 @@ static TaskEnd upload_ripple_task(GameState *g, Platform *pf)
  * sprites' tiles, the layers' tiles (which the plane's pixels are built from
  * too), BG1's map, BG2's map (whose first rows are the plane's picture too)
  * and the palette. */
-enum { SPRITE_TILES_RESOURCE = 0x48, LAYER_TILES_RESOURCE = 0x45, BG1_MAP_RESOURCE = 0x4E, BG2_MAP_RESOURCE = 0x4B, PALETTE_RESOURCE = 0x51,  };
+enum {
+    SPRITE_TILES_RESOURCE = 0x48, LAYER_TILES_RESOURCE = 0x45, BG1_MAP_RESOURCE = 0x4E, BG2_MAP_RESOURCE = 0x4B,
+    PALETTE_RESOURCE = 0x51,
+};
 
 /* Where the unpacker puts them: the second bank's $0200 for what goes on to
  * VRAM; the palette at $2000 in the bank the fill of BG1's map leaves the
@@ -504,14 +492,14 @@ enum { SPRITE_TILES_RESOURCE = 0x48, LAYER_TILES_RESOURCE = 0x45, BG1_MAP_RESOUR
 enum { UNPACKED_GRAPHICS = SCENE_UNPACK_BUFFER, UNPACKED_PALETTE_AT = 0x2000 };
 
 /* The program's transfer sends what was unpacked a word at a time into
- * VRAM's data port, a byte to each of its two registers. */
+ * VRAM, a byte to each half of the word. */
 enum { WORDS_TO_TWO_REGISTERS = 0x01 };
 
 /* The plane's pixels: the first 160 of the layers' tiles, 32 bytes each. */
 enum { PLANE_TILES = 0xA0 };
 
 /* The title's resources are unpacked by the program's unpacker (scene/boot.c),
- * from the setup's own calls; it reads X, the resource, and the overflow. */
+ * from the setup's own calls. */
 enum { UNPACKER = 0x7E3691 };
 
 static void send_unpacked(GameState *g, Platform *pf) { TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf)); }
@@ -549,29 +537,19 @@ static void the_title_starts(GameState *g)
  * screen. */
 enum { LOGO_HIGHLIGHT = 0xF1, WHITE = 0xFFFF };
 
-/* Channel 0's first script, the pendulum's, run a turn from the setup ($7E:3749
- * on the channel's page); the setup keeps its page and data bank on the stack
- * across it, and the script's first commands read Y as the palette's copy left
- * it, past the working palette. */
-enum { FIRST_SCRIPT = 0x5B05, CHANNEL_0_CALL = 0x7E5A0A, CHANNEL_0_STEP = 0x7E3749, PAST_THE_WORKING_PALETTE = 0x2400 };
+/* Channel 0's first script, the pendulum's, run a turn from the setup
+ * ($7E:3749). */
+enum { FIRST_SCRIPT = 0x5B05, CHANNEL_0_STEP = 0x7E3749 };
 
-/* The palette animations' stop leaves Y past their last slot, which the
- * song's call to the driver reads. */
-enum { PAST_THE_ANIMATIONS_SLOTS = 0x0090 };
-
-/* The title's music, which the setup waits for. */
-enum { TITLE_SONG = 0x30, SONG_CALL = 0x7E5AA7, MUSIC_WAIT = 0x7E5AAA };
+/* The title's music, which the program waits for (scene/program.c). */
+enum { TITLE_SONG = 0x30 };
 enum { FULL_BRIGHTNESS = 0x0F, FADE_EVERY_FRAME = 1 };
 
-/* What the pendulum's screen leaves in A's high byte, written through a
- * direct page on the register block: the song's call hands it on to the
- * program's first frame. */
-
-/* The name table's transfer leaves the VRAM port's setting for whole words in
- * A, which the fill takes as its own. */
+/* The fill of BG1's map steps VRAM whole words at a time, as the name
+ * table's transfer before it did. */
 enum { WHOLE_WORDS_PORT = 0x80 };
 
-/* ---- The setup as C, with no machine ------------------------------------------------------------ */
+/* ---- The setup --------------------------------------------------------------------------------- */
 
 /* Each resource unpacked by the program's unpacker, to where the setup has
  * pointed it, then sent to VRAM where the next step says. */
@@ -633,8 +611,8 @@ bool scene_title_set_up(GameState *g, Platform *pf)
 /* ---- The title's sprites --------------------------------------------------------------------------- */
 
 /* The title's frame tasks that draw its sprites, each a list or two of the
- * program's (scene/sprites.c) where the title puts them. A list's routine
- * leaves the next free entry in Y, which the next task takes on. */
+ * program's (scene/sprites.c) where the title puts them, each going on from
+ * the next free entry the last left. */
 static void draw_list_at(GameState *g, uint16_t x, uint16_t y, uint16_t list)
 {
     scene_draw_lists_at(g, x, y);
@@ -672,7 +650,13 @@ static TaskEnd draw_the_hands_task(GameState *g, Platform *pf)
 }
 
 /* The copyright line, in two lists. */
-enum { COPYRIGHT_Y = 0xD0, COPYRIGHT_LEFT = 0x6186, COPYRIGHT_LEFT_X = 0x78, COPYRIGHT_RIGHT = 0x61A7, COPYRIGHT_RIGHT_X = 0xB8 };
+enum {
+    COPYRIGHT_Y = 0xD0,
+    COPYRIGHT_LEFT = 0x6186,
+    COPYRIGHT_LEFT_X = 0x78,
+    COPYRIGHT_RIGHT = 0x61A7,
+    COPYRIGHT_RIGHT_X = 0xB8,
+};
 
 // $7E:5E1E
 static TaskEnd draw_the_copyright_task(GameState *g, Platform *pf)

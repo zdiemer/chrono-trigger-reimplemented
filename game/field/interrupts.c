@@ -11,8 +11,8 @@
 
 // $C0:0B64
 void field_take_the_vblank_interrupt(GameState *g) { program_install_vblank_handler(g, field_vblank);
-    charge_legacy_accesses(g, 4); }
+    charge_accesses(g, 4); }
 
 // $C0:0B75
 void field_take_the_line_interrupt(GameState *g) { program_install_line_handler(g, field_line);
-    charge_legacy_accesses(g, 4); }
+    charge_accesses(g, 4); }

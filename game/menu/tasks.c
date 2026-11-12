@@ -14,12 +14,9 @@
  * starting; its turn lasts until it waits or ends. Once every task has had
  * its turn this frame, the menus wait for the next one.
  *
- * On the original's machine each task runs on a stack of its own, and where
- * a task waits is its stack: the registers it had go onto it and its stack
- * pointer into its record, and going on puts them back. That is the entries'
- * part, at the bottom of this file; which task goes on, and how, is the
- * scheduler's, over the tasks' records. A build with no machine runs each
- * task as a coroutine (runtime/port/fiber.h). */
+ * Which task goes on, and how, is the scheduler's, over the tasks' records;
+ * each task runs as a coroutine (core/tasks.h), whose own stack is where it
+ * goes on from. */
 #include "menu/menu.h"
 
 #include "charge.h"
@@ -27,7 +24,6 @@
 #include "core/tasks.h"
 #include "menu/description.h"
 #include "menu/fades.h"
-#include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/gate_screen.h"
 #include "menu/healing.h"
@@ -46,7 +42,7 @@ enum { TAKES_NO_TURNS = 0x80 };
 
 static bool takes_turns(uint8_t state) { return !((uint8_t)(state - 1) & TAKES_NO_TURNS); }
 
-/* The task's record, as the original's index registers name it. */
+/* The running task's record, by its offset among the records. */
 enum { RECORD_BYTES = 8 };
 static unsigned running_task(const GameState *g) { return menu_current_task(g) / RECORD_BYTES; }
 
@@ -85,8 +81,8 @@ static TaskTurn next_turn(GameState *g, unsigned task)
 
 // $C2:821E, $C2:822B
 /* The running task waits `frames` frames (a frame, mostly), in the screen
- * step it is in; the next task goes on. Where it goes on from is the
- * machine's stack, or the task's coroutine. The task that waited. */
+ * step it is in; the next task goes on, and the waiting one goes on from
+ * its coroutine. The task that waited. */
 static unsigned record_the_wait(GameState *g, uint8_t frames)
 {
     unsigned task = running_task(g);
@@ -158,39 +154,14 @@ static void start_the_tasks(GameState *g)
 
 /* ---- The tasks that run all the time ------------------------------------------------------- */
 
-/* The two tasks the menus start as they open and stop only as they close are
- * each a loop: a frame's work, then the wait for the next frame. The main
- * task's work is the running screen's step (menu/screens.c), which may wait
- * for frames of its own inside; the cursor's is the menus' sprites hidden and
- * the cursor placed (menu/cursor.c). The scroll bar's task, which a list's
- * screen starts and stops, is the same loop over a frame of the bar's arrows
- * (menu/held_cursors.c), and so is the records' (menu/sprites.c). A task's
- * wait in the middle of its work, which goes on after it rather than round
- * its loop, is menu_yield's (menu/bridge.h). */
-enum { MAIN_TASK_WAIT = 0xC2826C, CURSOR_TASK_WAIT = 0xC2E91E, SCROLL_BAR_TASK_WAIT = 0xC28C30 };
-
-/* The loop's wait, from its JSR at `site`: run as the JSR reaches it where
- * the runtime would run it, and otherwise left to the JSR. Either way the
- * next task goes on, and this one goes on from the JSR's return on its next
- * turn, into its work again. The wait keeps the registers on the task's
- * stack for that return, where the loops read none of them. */
-
-/* The same for frames, A's low byte of them: the task switch's wait for
- * frames ($C2:822B) reads A, and nothing else. */
-
-/* The records' task's loop: a frame of the records' sprites (menu/sprites.c),
- * then the wait, which it waits in with A 16-bit and the index registers
- * 8-bit, set at its head. */
-enum { RECORDS_TASK_WAIT = 0xC2F696 };
-
-/* A loop's turn takes a wait for the next frame, as C or on the machine;
- * false where the task never came back to it. */
+/* A loop's turn takes a wait for the next frame; false where the task never
+ * came back to it. */
 typedef bool (*LoopWait)(void *ctx);
 
 // $C2:826F
 /* The main task's turn, from its start and from its wait: the screen's step,
- * then the wait. The step is the screen's (menu/screens.c), as C or on the
- * machine; false where either went no further. */
+ * then the wait. The step is the screen's (menu/screens.c); false where
+ * either went no further. */
 static bool main_task_turn(bool (*screen_step)(void *ctx), LoopWait wait, void *ctx)
 {
     return screen_step(ctx) && wait(ctx);
@@ -205,12 +176,12 @@ static bool cursor_task_turn(GameState *g, LoopWait wait, void *ctx)
     return wait(ctx);
 }
 
-/* ---- As C, on coroutines -------------------------------------------------------------------- */
+/* ---- The tasks' coroutines ------------------------------------------------------------------ */
 
-/* With no machine each task is a coroutine (core/tasks.h), whose stack is
- * where it goes on from; the records say which takes its turn and when, as
- * they do on the machine, and the scheduler above is the same one. A task's
- * work as C is found by its start, as the original's is by its address. */
+/* Each task is a coroutine (core/tasks.h), whose stack is where it goes on
+ * from; the records say which takes its turn and when (the scheduler
+ * above). A task's work is found by its start, as the original's is by its
+ * address. */
 typedef void (*MenuTaskBody)(GameState *g, Platform *pf);
 
 static void main_task(GameState *g, Platform *pf);
@@ -223,7 +194,12 @@ static void member_cursor_task(GameState *g, Platform *pf);
 static void members_cursors_task(GameState *g, Platform *pf);
 
 enum { SCROLL_BAR_TASK_HEAD = 0x8BB8, RECORDS_TASK_HEAD = 0xF657 };
-enum { HELD_CURSOR_TASK_HEAD = 0x8AB2, LIST_CURSOR_TASK_HEAD = 0x89F2, MEMBER_CURSOR_TASK_HEAD = 0x8A45, MEMBERS_CURSORS_TASK_HEAD = 0x8AF5 };
+enum {
+    HELD_CURSOR_TASK_HEAD = 0x8AB2,
+    LIST_CURSOR_TASK_HEAD = 0x89F2,
+    MEMBER_CURSOR_TASK_HEAD = 0x8A45,
+    MEMBERS_CURSORS_TASK_HEAD = 0x8AF5,
+};
 
 static const struct {
     uint16_t start;
@@ -281,7 +257,7 @@ void menu_tasks_closed(GameState *g)
 
 /* A task's turn: from its start, its work found by it, or from where it
  * waited, in the screen step it waited in. False where its work is none the
- * port has as C, or the turn closed the menus. */
+ * port has, or the turn closed the menus. */
 static bool take_a_turn(GameState *g, const TaskTurn *turn)
 {
     if (turn_starts(turn)) {
@@ -290,7 +266,7 @@ static bool take_a_turn(GameState *g, const TaskTurn *turn)
         while (i < TASK_COUNT && tasks[i].start != at)
             i++;
         if (i == TASK_COUNT) {
-            program_breaks_a_contract(g, (uint32_t)MENUS_BANK << 16 | at, "a menus' task only the machine runs");
+            program_breaks_a_contract(g, (uint32_t)MENUS_BANK << 16 | at, "a menus' task the port doesn't run");
             return false;
         }
         tasks_start(&menu_coroutines(g)->tasks, (uint8_t)turn->task, run_a_task, (void *)&tasks[i].run);
@@ -312,7 +288,7 @@ MenuTurns menu_tasks_take_the_turns(GameState *g)
 
 void menu_tasks_end(GameState *g) { tasks_end(&menu_coroutines(g)->tasks); }
 
-/* The two tasks that run all the time, as C: their turns over and over, the
+/* The two tasks that run all the time: their turns over and over, the
  * wait coming back each next frame, until a step goes no further. */
 typedef struct {
     GameState *game;
@@ -339,8 +315,8 @@ static void main_task(GameState *g, Platform *pf)
         ;
 }
 
-/* The cursor's turns while its guard's state half takes them; otherwise the
- * program goes no further there. */
+/* The cursor's turns while it can be placed; otherwise the program goes no
+ * further there. */
 static void cursor_task(GameState *g, Platform *pf)
 {
     MenuTasksContext c = { g, pf };
@@ -350,8 +326,8 @@ static void cursor_task(GameState *g, Platform *pf)
         program_breaks_a_contract(g, (uint32_t)MENUS_BANK << 16 | CURSOR_TASK_HEAD, "a cursor the port doesn't place");
 }
 
-/* The scroll bar's turns while its guard's state half takes them, each
- * frame's arrows timed as its entry's. */
+/* The scroll bar's turns while it can be drawn, each frame's arrows timed
+ * as the original's routine. */
 static void scroll_bar_task(GameState *g, Platform *pf)
 {
     (void)pf;
@@ -376,7 +352,7 @@ static void records_task(GameState *g, Platform *pf)
 }
 
 /* The held cursors' turns, the same way: a frame's drawing timed as the
- * task's entry from its start, then from its wait. */
+ * task's own routine from its start, then from its wait. */
 typedef struct {
     uint16_t head, later;
     bool (*can_be_drawn)(const GameState *g);
@@ -427,8 +403,3 @@ static void members_cursors_task(GameState *g, Platform *pf)
                                       menu_draw_cursors_on_every_member, "the members' cursors the port doesn't draw" };
     held_cursor_turns(g, &t);
 }
-
-/* Every waiting task's stack in low RAM, where the game keeps the tasks'
- * stacks: past it, going back into a task would take its registers from the
- * bus's open reads, which the port doesn't make as the original does. */
-enum { LOW_RAM_END = 0x2000, KEPT_BYTES = 7 };

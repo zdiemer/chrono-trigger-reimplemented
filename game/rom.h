@@ -26,13 +26,11 @@ PfData rom_data(uint32_t at, uint32_t length);
 /* A script-selected transfer may repeat one byte or walk backwards. */
 PfData rom_data_mode(uint32_t at, uint32_t length, uint8_t mode);
 
-/* The backing's side of each of those reads: the machine's read of the
- * cartridge at `at` where there is a machine (the state backend), with
- * the time it takes. `served` is the store's copy of the byte, which is what
- * the read gives, the machine's own checked against it; NULL where the store
- * has none (no store, or `at` not the cartridge's: work RAM a pointer in the
- * data names), when the machine's own is what it gives. A build without a
- * machine gives the store's byte, and reads its work RAM where `at` is that. */
+/* The backing's side of each of those reads, with the time it takes.
+ * `served` is the store's copy of the byte, which is what the read gives;
+ * NULL where the store has none (`at` not the cartridge's: work RAM or save
+ * RAM a pointer in the data names), when the backing reads its own memory at
+ * `at`, and a cartridge byte no resource holds stops the program there. */
 uint8_t rom_cartridge_read(const GameState *g, uint32_t at, const uint8_t *served);
 
 #endif

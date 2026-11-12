@@ -35,7 +35,6 @@
 #include "charge.h"
 #include "cpu_io.h"
 #include "field/bridge.h"
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
@@ -64,7 +63,11 @@ static Layout layout_of(const GameState *g, FieldObject obj) { return layouts[ob
 /* The table is in low RAM at FIELD_SPRITE_TABLE_ADDRESS, in the video
  * service's form (VID_OAM_*): the entries, then the high table. The ranges'
  * cursors are kept as the table's addresses; here they are offsets into it. */
-enum { OAM_ENTRY = VID_OAM_ENTRY_BYTES, BITS_A_SPRITE = VID_OAM_HIGH_BITS, SPRITES_A_HIGH_BYTE = VID_OAM_SPRITES_A_HIGH_BYTE };
+enum {
+    OAM_ENTRY = VID_OAM_ENTRY_BYTES,
+    BITS_A_SPRITE = VID_OAM_HIGH_BITS,
+    SPRITES_A_HIGH_BYTE = VID_OAM_SPRITES_A_HIGH_BYTE,
+};
 
 enum { RANGES = 3 };   /* by SpriteRange, as field_sprite_range_* index them */
 
@@ -114,7 +117,7 @@ static void write_sprites(GameState *g, unsigned range, const Sprite *sprites, u
         hw_port_write(g, sprites[n].tile);
         hw_port_write(g, sprites[n].attributes);
     }
-    charge_legacy_accesses(g, 1); /* the completed sprite count */
+    charge_accesses(g, 1); /* the completed sprite count */
 }
 
 /* Hide the entries each range used last frame beyond this frame's last, and
@@ -166,7 +169,15 @@ typedef struct {
     uint16_t at;   /* where the record is among the records */
 } SpriteRecord;
 
-enum { RECORD_BYTES = 8, RECORD_X = 0, RECORD_Y = 1, RECORD_X_OFFSET = 2, RECORD_Y_OFFSET = 4, RECORD_TILE = 6, RECORD_ATTRIBUTES = 7 };
+enum {
+    RECORD_BYTES = 8,
+    RECORD_X = 0,
+    RECORD_Y = 1,
+    RECORD_X_OFFSET = 2,
+    RECORD_Y_OFFSET = 4,
+    RECORD_TILE = 6,
+    RECORD_ATTRIBUTES = 7,
+};
 
 static SpriteRecord sprite_record(const GameState *g, FieldObject obj, unsigned n)
 {
@@ -281,7 +292,13 @@ static void draw_object(GameState *g, FieldObject obj)
 typedef enum { ABOVE_THE_SCREEN, LOWER_HALF, UPPER_HALF, ZONES } Zone;
 
 /* The table's hiding line is the first below the screen. */
-enum { HIDDEN = VID_OAM_HIDDEN_Y, BELOW_THE_SCREEN = VID_OAM_HIDDEN_Y, SPRITE_LINES = 32, TABLE_LINES = 256, SCREEN_MIDDLE_LINE = 128 };
+enum {
+    HIDDEN = VID_OAM_HIDDEN_Y,
+    BELOW_THE_SCREEN = VID_OAM_HIDDEN_Y,
+    SPRITE_LINES = 32,
+    TABLE_LINES = 256,
+    SCREEN_MIDDLE_LINE = 128,
+};
 
 static Zone zone_of(int16_t screen_y)
 {
@@ -414,19 +431,14 @@ static void place_sprites(GameState *g, FieldObject obj, bool reload)
             SpriteRecord r = sprite_record(g, obj, n);
             set_record_look(g, r, frame_look(g, r));
         }
-    /* Position/record reads and their temporary words, plus the two high
-     * bit bytes: 14 accesses. Above the screen the old fifth-sprite write
-     * also read the record pointer twice and its offset: six more. */
-    charge_legacy_accesses(g, 14 + (zone_of(at.y) == ABOVE_THE_SCREEN ? 6 : 0));
+    /* Position and record reads and their temporary words, plus the two
+     * high bit bytes: 14 accesses. Above the screen the original's
+     * fifth-sprite write also reads the record pointer twice and its
+     * offset: six more. */
+    charge_accesses(g, 14 + (zone_of(at.y) == ABOVE_THE_SCREEN ? 6 : 0));
 }
 
 /* ---- Placing the larger layouts --------------------------------------------------------- */
-
-/* The 8-, 12- and 24-sprite layouts are placed as the 4-sprite one is, four
- * sprites at a time for their X (each four's ninth bits a high byte of the
- * object's) and then every sprite's Y, by their own rules for which show
- * (above); a rebuild first takes the offsets and, after the Y, the looks from
- * the object's new frame. */
 
 /* Four sprites' X at the object's screen X, and their ninth bits, with every
  * sprite large, as one of the object's high bytes. */
@@ -452,8 +464,8 @@ static uint8_t place_four_across(GameState *g, FieldObject obj, unsigned first, 
  * layout is only ever placed (its frame's sprites are its records). False
  * where the object isn't drawn this frame: a 24-sprite object above the
  * screen whose last sprite starts on the screen or reaches up no more than
- * 256 lines above it (the original answers "nothing to draw" with the carry
- * its last sprite's place leaves). */
+ * 256 lines above it (the original judges it by where its last sprite
+ * lands). */
 static bool place_larger(GameState *g, FieldObject obj, SpriteLayout layout, bool reload)
 {
     ScreenPoint at = object_screen_position(g, obj);
@@ -475,9 +487,10 @@ static bool place_larger(GameState *g, FieldObject obj, SpriteLayout layout, boo
             SpriteRecord r = sprite_record(g, obj, n);
             set_record_look(g, r, frame_look(g, r));
         }
-    /* Position, records and high bits used to be read back into temporaries;
-     * the 24-sprite count was written only on or below the screen. */
-    charge_legacy_accesses(g, layout == LAYOUT_24 && zone == ABOVE_THE_SCREEN ? 16 : 17);
+    /* The original reads the position, records and high bits back into
+     * temporaries, and writes the 24-sprite count only on or below the
+     * screen. */
+    charge_accesses(g, layout == LAYOUT_24 && zone == ABOVE_THE_SCREEN ? 16 : 17);
     if (layout != LAYOUT_24 || zone != ABOVE_THE_SCREEN)
         return true;
     int16_t last_top = (int16_t)(at.y + (int8_t)last_offset);
@@ -618,7 +631,14 @@ typedef enum { RECORDS_NONE_TO_DRAW, RECORDS_READY } RecordsOutcome;
  * timed as its routine: the 4-sprite layout's with the fifth sprite's stray Y
  * (place_sprites), the larger ones' with their own rules (place_larger).
  * False where the object isn't drawn this frame. */
-enum { PLACE_4 = 0xC0B788, REBUILD_4 = 0xC0B8CA, PLACE_8 = 0xC0BA65, REBUILD_8 = 0xC0BCDC, PLACE_12 = 0xC0BFF2, REBUILD_12 = 0xC0C2BF };
+enum {
+    PLACE_4 = 0xC0B788,
+    REBUILD_4 = 0xC0B8CA,
+    PLACE_8 = 0xC0BA65,
+    REBUILD_8 = 0xC0BCDC,
+    PLACE_12 = 0xC0BFF2,
+    REBUILD_12 = 0xC0C2BF,
+};
 
 static bool place_layout(GameState *g, FieldObject obj, SpriteLayout layout, bool reload)
 {
@@ -673,17 +693,14 @@ static RecordsOutcome update_and_draw(GameState *g, FieldObject obj)
     return r;
 }
 
-/* The table's building draws its objects as C, each timed as the draw it is,
- * where no object's draw calls anything of the original's; otherwise it
- * calls the draw's entry for every object, as the original does. It is all
- * or none because shadow mode matches a bridge's calls to the original's in
- * order: drawing one object as C and calling the next would pair that call
- * with the original's draw of the first. So the rows are walked once first,
- * to see whether every draw is one of this file's. The ranges start at
- * their first entries every frame, and no layout this file draws can run a
- * range's cursors out of low RAM: 64 objects of 12 sprites from the back
- * range's start end at $14A0. Rows that name more draws than there are
- * objects (a link round in a circle) are left to the original. */
+/* The table is built only where every object's draw is one this file makes:
+ * each row's links name objects, and each object's records lie inside the
+ * tables. So the rows are walked once first; where one isn't, nothing is
+ * built and the caller reports it. The ranges start at their first entries
+ * every frame, and no layout this file draws can run a range's cursors out
+ * of the table's memory: 64 objects of 12 sprites from the back range's
+ * start end at $14A0. Rows that name more draws than there are objects (a
+ * link round in a circle) are refused too. */
 enum { MOST_DRAWS = FIELD_OBJECTS };
 
 static bool draw_is_own(const GameState *g, FieldLink link)
@@ -717,7 +734,7 @@ static void start_ranges(GameState *g)
 
 // $C0:B271
 /* Build the frame's sprite table: every object in view, the rows from the
- * bottom of the screen up, then the ranges' leftovers hidden. As C where
+ * bottom of the screen up, then the ranges' leftovers hidden. Built where
  * every draw is one the port makes; false otherwise, with nothing built. */
 bool field_sprite_table_built(GameState *g)
 {
@@ -737,22 +754,12 @@ bool field_sprite_table_built(GameState *g)
     return true;
 }
 
-/* ---- Guards ------------------------------------------------------------------------------- */
-
-/* The table's cursors past its start and in low RAM, where the table is
- * reached through a data bank of 0 the same as in bank $7E (a busy frame
- * runs a range's cursors past the table's end, which the port writes as the
- * original does). Below it they would land on the building's own cells, and
- * past low RAM on the I/O registers; no frame has them there. A draw writes
- * at most LARGEST_DRAW bytes. */
-enum { LOW_RAM_END = 0x2000, LARGEST_DRAW = MOST_SPRITES * OAM_ENTRY };
+/* ---- Records the port draws from -------------------------------------------------------- */
 
 /* An object's records inside the records, and its frame's data inside the
  * frames': an offset past them has the original read and write on into what
- * follows (the objects' high bits, the rest of bank $7F, and past its end
- * bank $80's low RAM and I/O registers). The game puts every object's records
- * inside them. The original's stray fifth-sprite write was comparison
- * scaffolding and has retired. */
+ * follows (the objects' high bits and the rest of the bank), which the port
+ * doesn't reproduce. The game puts every object's records inside them. */
 bool sprites_records_fit(uint16_t records, SpriteLayout layout)
 {
     return (uint32_t)records + layouts[layout].sprites * RECORD_BYTES <= FIELD_SPRITE_RECORDS_BYTES;

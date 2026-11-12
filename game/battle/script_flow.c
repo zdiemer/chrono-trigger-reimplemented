@@ -218,7 +218,7 @@ SCRIPT_OPERATION(store_mark_a, variable)
 /* A signed amount added to a variable, held within a byte: a sum past its
  * most stops there, and one taken below nothing stops at nothing. The
  * original leaves the amount in the first work cell. */
-enum { HELD_MOST = 0xFF, HELD_LEAST = 0x00, LEFT_AMOUNT = 0x00 };
+enum { HELD_MOST = 0xFF, HELD_LEAST = 0x00 };
 
 static ScriptFlow add_held(GameState *g, uint8_t variable, uint8_t amount)
 {

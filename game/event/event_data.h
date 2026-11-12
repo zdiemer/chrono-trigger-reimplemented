@@ -1,6 +1,5 @@
 /* What the event commands read from the ROM: small tables in bank $C0, which
- * the original reaches through a data bank of $00 (its upper half is the
- * start of the ROM's first bank). Every read goes through an accessor named
+ * the original reads where the ROM's first bank starts. Every read goes through an accessor named
  * for what the table is, so a build that loads them from elsewhere changes
  * this file and nothing that uses it. */
 #ifndef CT_GAME_EVENT_DATA_H
@@ -10,12 +9,6 @@
 
 #include "rom.h"
 #include "state.h"
-
-/* The built-in commands ($C0:5D37-$C0:5D6D): three runs of commands with no
- * header, which every script load copies to the end of the script buffer for
- * the commands and routines that point an object at them. `at` is the byte's
- * offset from the first run. */
-enum { BUILT_IN_COMMANDS_BYTES = 0x37 };
 
 /* The byte with bit n set ($C0:FF20), and the byte with every bit but n set
  * ($C0:FF28), for n = 0-7; the scripts' bit numbers index them directly, so a

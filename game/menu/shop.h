@@ -1,7 +1,7 @@
 /* A shop: what the game does (game/menu/shop.c, and the equipping from it
- * in game/menu/shop_equipment.c), its steps as one sequence each for the
- * machine and for C (game/menu/shop_steps.c), and the entries that run them
- * on the original's machine (game/menu/shop_bridge.c). */
+ * in game/menu/shop_equipment.c), its steps as one sequence each
+ * (game/menu/shop_steps.c), and what each step needs of the state before it
+ * runs (game/menu/shop_bridge.c). */
 #ifndef CT_GAME_MENU_SHOP_H
 #define CT_GAME_MENU_SHOP_H
 
@@ -10,6 +10,7 @@
 
 #include "platform/video.h"
 #include "state.h"
+#include "vars.h"
 
 /* The shop's steps, as its main task runs them (menu_screen_step). */
 typedef enum {
@@ -192,14 +193,14 @@ void menu_shop_describe_nothing(GameState *g);
 void menu_shop_open_the_goods(GameState *g, Platform *pf);
 void menu_shop_open_the_list_for_sale(GameState *g, Platform *pf);
 
-/* ---- What the steps can run on (the guards') ----------------------------------------------------- */
+/* ---- What the steps can run on ------------------------------------------------------------------ */
 
 bool menu_shop_can_open(const GameState *g);
 bool menu_shop_members_are_shown(const GameState *g);
 bool menu_shop_on_a_list(const GameState *g, bool selling);
 bool menu_shop_gold_within_the_most(const GameState *g);
 
-/* The guards' state halves (shop_bridge.c), for the program as C: the shop
+/* What each step needs (shop_bridge.c): the shop
  * opened or set up; on the tabs (the panel, a list opened, down to the
  * members); on the goods or the list for sale; on the quantity; on the
  * members; a member chosen; the member's slots and its list (the figures
@@ -212,20 +213,16 @@ bool menu_shop_is_on_the_members(const GameState *g);
 bool menu_shop_member_can_be_chosen(const GameState *g);
 bool menu_shop_member_can_be_equipped(const GameState *g);
 
-/* ---- The shop's steps, one sequence each for the machine and for C ------------------------------ */
+/* ---- The shop's steps --------------------------------------------------------------------------- */
 
 /* Each of the shop's steps ($C2:D52B to $C2:D778) and the routines they go
- * on to is one sequence (game/menu/shop_steps.c), which the machine's entries
- * (shop_bridge.c) and the program as C both run, asking for what differs
+ * on to is one sequence (game/menu/shop_steps.c), asking for what it needs
  * through ShopSteps.
  *
- * The places the sequences tick, wait or set the machine's registers from;
+ * The places the sequences tick or wait from;
  * where buying and selling run the same code from two places, the selling's
  * follows the buying's. */
 typedef enum {
-    SHOP_AT_THE_SET_UP_DRAWN,          /* the shop's windows drawn as it opens */
-    SHOP_AT_THE_SET_UP_STANDING,       /* ... its members standing, before the panel */
-    SHOP_AT_THE_PANEL_MEMBERS,         /* the panel's members, one by one */
     SHOP_AT_THE_TAB_CHOSEN,            /* a tab chosen */
     SHOP_AT_THE_TABS_POINTED,          /* the cursor moved on the tabs */
     SHOP_AT_THE_ROW_TAKEN,             /* the row on the cursor taken, buying */
@@ -236,14 +233,12 @@ typedef enum {
     SHOP_AT_THE_LIST_SLIDING_FOR_SALE,
     SHOP_AT_THE_PAGE_TURNED,           /* the list paged, buying */
     SHOP_AT_THE_PAGE_TURNED_FOR_SALE,
-    SHOP_AT_THE_POINTING,              /* the cursor along a list */
     SHOP_AT_THE_TABS_AGAIN,            /* back from a list to the tabs */
     SHOP_AT_THE_OFFER,                 /* the quantity window opening, buying */
     SHOP_AT_THE_OFFER_FOR_SALE,
     SHOP_AT_THE_QUANTITY_CLOSED,       /* back on the list from the quantity, buying */
     SHOP_AT_THE_QUANTITY_CLOSED_FOR_SALE,
     SHOP_AT_THE_QUANTITY_CHANGING,     /* the quantity's change by a push */
-    SHOP_AT_THE_QUANTITY_CHANGED,      /* ... made */
     SHOP_AT_THE_MEMBER_CHOSEN,         /* a member chosen */
     SHOP_AT_THE_MEMBERS_LEFT,          /* back up from the members */
     SHOP_AT_THE_MEMBER_POINTED,        /* the cursor among the members */
@@ -257,8 +252,7 @@ typedef enum {
     SHOP_AT_THE_ITEM_LEFT,             /* out of the list of what fits */
 } ShopPlace;
 
-/* The routines the steps go on to and come back from (each a registered
- * entry, or a sound, run on the machine where the original calls it). */
+/* The routines the steps go on to and come back from. */
 typedef enum {
     SHOP_SETS_UP,                      /* the shop set up ($C2:DACA) */
     SHOP_SHOWS_THE_PANEL_AS_IT_OPENS,  /* the panel ($C2:DD7C), as the shop opens */
@@ -284,29 +278,13 @@ typedef enum {
     SHOP_REFUSES_A_SLOT,
 } ShopEnd;
 
-/* Where the machine leaves what the original's tests and loads left
- * (scaffolding); the value says what the note needs of the state before. */
-typedef enum {
-    SHOP_NOTE_GOODS_TAKEN, SHOP_NOTE_LOADED, SHOP_NOTE_PANEL_DONE, SHOP_NOTE_BUTTONS_TESTED, SHOP_NOTE_TAB_CHOSEN,
-    SHOP_NOTE_STEP_SET, SHOP_NOTE_FRONT_LAYER_QUEUED, SHOP_NOTE_STRIPS_QUEUED, SHOP_NOTE_CURSOR_COMPARED,
-    SHOP_NOTE_CURSOR_COMPARED_AS_WORDS, SHOP_NOTE_CURSOR_COMPARED_WITH_THE_START, SHOP_NOTE_PLACE_ADDED,
-    SHOP_NOTE_PLACE_COMPARED, SHOP_NOTE_SLIDE_TESTED, SHOP_NOTE_CURSOR_KEPT, SHOP_NOTE_BACK_FROM_THE_LIST,
-    SHOP_NOTE_ROOM_REFUSED, SHOP_NOTE_GOLD_REFUSED, SHOP_NOTE_OFFER_TO_BUY, SHOP_NOTE_SALE_REFUSED,
-    SHOP_NOTE_OFFER_TO_SELL, SHOP_NOTE_INVENTORY_CHANGED, SHOP_NOTE_GOLD_WORD, SHOP_NOTE_QUANTITY_QUEUED,
-    SHOP_NOTE_QUANTITY_COMPARED, SHOP_NOTE_TOTAL_ADDED, SHOP_NOTE_PUSHED_UP_OR_DOWN, SHOP_NOTE_MEMBERS_COMPARED,
-    SHOP_NOTE_BAR_PLACE_LOADED,
-} ShopNote;
-
-/* What the sequences ask: the cursor read, a tick, a frame's wait, the
- * machine's registers as the original's code sets them, a routine run, a
- * note, the end. Each false where it went no further. */
+/* What the sequences ask: the cursor read, a tick, a frame's wait, a routine
+ * run, the end. Each false where it went no further. */
 typedef struct {
     void (*read_cursor)(void *ctx);
     bool (*tick)(void *ctx, ShopPlace at);
     bool (*wait)(void *ctx, ShopPlace at);
-    void (*registers_at)(void *ctx, ShopPlace at);
     bool (*run)(void *ctx, ShopRoutine routine);
-    void (*note)(void *ctx, ShopNote note, uint32_t value);
     bool (*ends)(void *ctx, ShopEnd end);
 } ShopSteps;
 
@@ -317,7 +295,7 @@ ShopSequence menu_open_shop_with, menu_set_up_shop_with, menu_show_shop_item_pan
     menu_show_shop_member_slots_with, menu_switch_shop_member_with, menu_choose_shop_slot_with,
     menu_choose_shop_equipment_with;
 
-/* The shop's steps as C, from the menus' main task; false where the program
+/* The shop's steps, from the menus' main task; false where the program
  * went no further. */
 bool menu_open_shop(GameState *g, Platform *pf);
 bool menu_choose_shop_tab(GameState *g, Platform *pf);
@@ -328,7 +306,5 @@ bool menu_choose_how_many_to_buy(GameState *g, Platform *pf);
 bool menu_choose_shop_member(GameState *g, Platform *pf);
 bool menu_choose_shop_slot(GameState *g, Platform *pf);
 bool menu_choose_shop_equipment(GameState *g, Platform *pf);
-
-/* ---- The entries (game/menu/shop_bridge.c) ------------------------------------------------------- */
 
 #endif

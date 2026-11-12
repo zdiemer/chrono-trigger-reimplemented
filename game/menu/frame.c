@@ -2,19 +2,14 @@
  *
  * Each of bank C2's two modes has a main loop that does a frame's work and
  * then waits for its vblank handler: the sprite-object mode's for the next
- * frame to be counted (game/menu/display.c, menu_object_nmi), the menus'
- * for the handler to have sent the uploads the frame queued
- * (menu_nmi_work). Each mode is in its wait at nearly every frame's end, so
- * their waits run as restartable C loops in shipping mode, with the caller
- * frame held on the saved stack. One-pass entries remain for saved addresses
- * and tools; native_idle_held keeps their polling and exit time.
- * Between its waits the menus' loop runs a turn of each of their tasks
+ * frame to be counted (game/menu/display.c, menu_object_vblank), the menus'
+ * for the handler to have sent the uploads the frame queued (menu_vblank).
+ * Each mode is in its wait at nearly every frame's end. Between its waits the menus' loop runs a turn of each of their tasks
  * (menu/tasks.c), which a screen starts and stops. */
 #include "menu/menu.h"
 
 #include "charge.h"
 #include "core/input.h"
-#include "menu/bridge.h"
 #include "overworld/music.h"
 #include "platform/audio.h"
 #include "platform/timing.h"
@@ -23,13 +18,8 @@
 
 // $C2:0346, $C2:046E (the wait's start, and the jump to it)
 /* The sprite-object mode's wait for the next frame: until the vblank handler
- * has counted a frame past the one it sees now. The mode is in it at nearly
- * every frame's end, so a saved machine has to hold it: the shipping mode
- * leaves it to the loop's named idle continuation, below, which goes on as
- * this does. Its registry alias keeps shadow comparisons. The loop keeps the
- * count it saw in A, comparing the count with it, and the comparison's flags
- * are dead after it (the entries' set). */
-enum { FRAME_WAIT = 0xC20346, FRAME_WAIT_LOOP = 0xC20348, FRAME_WAIT_RETURN = 0xC2034C };
+ * has counted a frame past the one it sees now. */
+enum { FRAME_WAIT = 0xC20346, FRAME_WAIT_LOOP = 0xC20348 };
 
 /* The wait, a frame at a time, past the count it `seen`: `a_frame` lets one
  * go by, false where the program doesn't come back to the wait. */
@@ -59,20 +49,12 @@ void menu_wait_for_the_next_frame(GameState *g, Platform *pf)
 }
 
 // $C2:0454
-/* The sprite-object mode waits `frames` frames (X), sending the sound command
- * a request left waiting to the driver after each, as its screens do while a
- * scene plays out on them. The waits read nothing; the driver reads A's high byte,
- * which the port leaves as it came. It leaves X at 0, with the flags of its
- * count's last step, and in A's low byte the mailbox as the last frame read
- * it (empty), or the busy mark it sent the last sound under. */
-enum { MAILBOX_READ_EMPTY = 0x00, MAILBOX_MARKED_BUSY = 0xFF };
 
 /* The frames waited, each by `a_frame` (false where the program doesn't come
  * back to the wait); whether the last frame sent a sound. A count of 0 is
  * 65,536 frames, as the original counts it down. */
 typedef struct {
     bool (*a_frame)(void *ctx, uint16_t left);
-    void (*frame_done)(void *ctx);
 } FramesLeft;
 
 static bool wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t frames, const FramesLeft *f, void *ctx,
@@ -88,7 +70,6 @@ static bool wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t f
             au_command(pf, PF_CALL(0xC20462, 0xC70004), waiting);
             overworld_waiting_sound_sent(g);
         }
-        f->frame_done(ctx);
         left--;
     } while (left != 0);
     return true;
@@ -102,14 +83,12 @@ static bool a_frame_left(void *ctx, uint16_t left)
     return true;
 }
 
-static void frame_done(void *ctx) { (void)ctx; }
-
 void menu_wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t frames)
 {
-    static const FramesLeft in_the_program = { a_frame_left, frame_done };
+    static const FramesLeft the_steps = { a_frame_left };
     MenuFrameContext c = { g, pf };
     bool sent = false;
-    TIMED_AS(g, 0xC20454, (void)wait_frames_sending_the_sound(g, pf, frames, &in_the_program, &c, &sent));
+    TIMED_AS(g, 0xC20454, (void)wait_frames_sending_the_sound(g, pf, frames, &the_steps, &c, &sent));
 }
 
 void menu_stop_tasks(GameState *g, uint8_t tasks)
@@ -118,16 +97,3 @@ void menu_stop_tasks(GameState *g, uint8_t tasks)
         if (tasks >> task & 1)
             set_menu_tasks_state(g, task, 0);
 }
-
-// $C2:8255
-
-/* ---- The frame's input, from another bank ------------------------------------------------------- */
-
-// $C2:8002
-/* The long entry the field's and the battle's vblank handlers, and the
- * sprite-object mode's, take the frame's input through: the controller, the
- * button assignments and the play time clock (core/input.c), run as its call
- * at $C2:8006 reaches it. Where the controller isn't read yet, the input work
- * stops where the original goes on waiting for it, and the original returns
- * from there. */
-enum { INPUT_CALL = 0xC28006, INPUT_WORK = 0xC284D2 };

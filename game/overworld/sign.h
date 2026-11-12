@@ -6,7 +6,7 @@
 
 #include "overworld/overworld.h"
 
-/* The guard's: whether the sign is on one of its steps, and what it does
+/* What the port checks: whether the sign is on one of its steps, and what it does
  * there the typesetter, the upload queue and the sprites take: the name one
  * it can type, room for its two lines, and its sprite script one the sprites
  * read. */

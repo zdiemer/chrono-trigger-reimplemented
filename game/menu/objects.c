@@ -16,7 +16,6 @@
 
 #include "charge.h"
 #include "core/program.h"
-#include "menu/bridge.h"
 #include "menu/handlers.h"
 #include "platform/timing.h"
 #include "port/vars_ram.h"
@@ -25,8 +24,7 @@
 
 /* ---- Storage: the slots by their address -------------------------------------------------- */
 
-/* The original names a slot by its address in low RAM, and reaches its bytes
- * through the data bank, which the mode keeps on low RAM; an address that
+/* The original names a slot by its address in low RAM; an address that
  * isn't a slot's (the running object before any has run, a byte named past
  * the last slot) is low RAM like any other. */
 enum { FIRST_SLOT_ADDRESS = 0x0B30, SLOT_BYTES = 0x40 };
@@ -232,17 +230,14 @@ static bool run_the_objects(GameState *g, TakeATurn turn, void *ctx)
     return true;
 }
 
-/* ---- As C ---- */
-
 typedef struct {
     GameState *game;
     Platform *pf;
 } ObjectTurnsContext;
 
-/* A handler with a C row of its own (menu/handlers.h) runs as C where its
- * guard's state half takes the object; any other, or one that leaves the
- * running object elsewhere than a slot, is the machine's yet, and the
- * program goes no further there. */
+/* A handler with a row of its own (menu/handlers.h) runs where the object is
+ * one it handles; any other, or one that leaves the running object elsewhere
+ * than a slot, goes no further, and nor does the program. */
 static bool turn(void *ctx, uint16_t address, uint16_t handler, bool *done)
 {
     ObjectTurnsContext *c = ctx;
@@ -250,7 +245,7 @@ static bool turn(void *ctx, uint16_t address, uint16_t handler, bool *done)
     MenuObject self = menu_object_at_address(address);
     const MenuHandler *h = menu_handler(handler);
     if (!h || !h->run) {
-        program_breaks_a_contract(g, HANDLERS_BANK | handler, h ? h->name : "an object's handler with no C");
+        program_breaks_a_contract(g, HANDLERS_BANK | handler, h ? h->name : "an object's handler the port doesn't have");
         return false;
     }
     if (h->takes && !h->takes(g, self)) {
@@ -275,26 +270,9 @@ bool menu_objects_run(GameState *g, Platform *pf)
     return run_the_objects(g, turn, &c);
 }
 
-/* ---- On the machine ---- */
-
-/* The handler runs as the original's JSR at $C2:053E calls its jump through
- * the slot's handler (menu_object_handler, $C2:0553), which adds nothing to
- * the call but the jump: a ported handler as C, called here where the
- * registry would run its entry (its widths, decimal mode and guard), or the
- * retired overworld's where the shipping mode runs it and its contract holds
- * (overworld/entries.h), any other by the call, as the original. It says it
- * is done with the carry.
- * False where it came back in a way the loop can't go on from, or left the
- * running object elsewhere than a slot: the original then carries on from
- * the call. */
-enum { TURN_SITE = 0xC2053E };
-
-// $C2:048A
-
-// $C2:04D9
+/* ---- Freeing the slots -------------------------------------------------------------------- */
 
 // $C2:0F38
-
 /* Free every object slot: none of them runs a handler, and the first is the
  * one running. */
 void menu_free_every_object(GameState *g)
@@ -303,5 +281,3 @@ void menu_free_every_object(GameState *g)
     for (unsigned o = 0; o < MENU_OBJECTS; o++)
         set_menu_object_slots_handler(g, o, 0);
 }
-
-// $C2:0471

@@ -30,7 +30,6 @@
 
 #include "charge.h"
 #include "cpu_io.h"
-#include "menu/bridge.h"
 #include "menu/glyphs.h"
 #include "menu/menu_data.h"
 #include "vars.h"
@@ -42,7 +41,10 @@ typedef enum { FROM_STRING = 0, FROM_INSERT = 1, FROM_DIGITS = 2, FROM_HEX_DIGIT
 
 /* Why a call stopped (typeset.h's MenuTextStop). The start leaves "go on",
  * the first of the breaks. */
-enum { STOP_FINISHED = MENU_TEXT_ENDED, STOP_WAITING = MENU_TEXT_WAITS, GO_ON = MENU_TEXT_BREAKS, FIRST_NEW_LINE = MENU_TEXT_NEW_LINE, LAST_BREAK = MENU_TEXT_LAST_BREAK, STOP_BUDGET = MENU_TEXT_OUT_OF_BUDGET,  };
+enum {
+    STOP_FINISHED = MENU_TEXT_ENDED, STOP_WAITING = MENU_TEXT_WAITS, GO_ON = MENU_TEXT_BREAKS,
+    FIRST_NEW_LINE = MENU_TEXT_NEW_LINE, LAST_BREAK = MENU_TEXT_LAST_BREAK, STOP_BUDGET = MENU_TEXT_OUT_OF_BUDGET,
+};
 
 /* Where a line starts: a tile in from the edge, or indented. */
 enum { MARGIN = 8, INDENT = 0x14, EDGE = 0 };
@@ -140,7 +142,8 @@ static void set_glyph(GameState *g, uint16_t glyph)
 
 /* One glyph of the call's budget spent: true while some is left. A budget
  * of 0 is taken as 256 glyphs. A call keeps its budget in hand and leaves
- * what is left on the text page as it stops; the guards keep away the texts
+ * what is left on the text page as it stops; the checks before a call keep
+ * away the texts
  * that would read or draw over the page's budget meanwhile (a name past the
  * table of names' places, a label whose lines wrap round onto the page). */
 static bool spend(uint8_t *budget) { return --*budget != 0; }
@@ -300,10 +303,17 @@ static void insert_number(GameState *g, uint8_t bytes)
 /* ---- The string ---------------------------------------------------------------------------- */
 
 /* The control codes. */
-enum { CODE_END = 0x00, CODE_WAIT = 0x03, CODE_BREAKS_FROM = 0x04, CODE_BREAKS_TO = 0x0C, CODE_NUMBER_BYTE = 0x0D, CODE_NUMBER_WORD = 0x0E, CODE_NUMBER_LONG = 0x0F, /* the pause: ends the call where it is and leaves its stop as it was, so
+enum {
+    CODE_END = 0x00, CODE_WAIT = 0x03, CODE_BREAKS_FROM = 0x04, CODE_BREAKS_TO = 0x0C,
+    CODE_NUMBER_BYTE = 0x0D, CODE_NUMBER_WORD = 0x0E, CODE_NUMBER_LONG = 0x0F,
+    /* the pause: ends the call where it is and leaves its stop as it was, so
      * the caller takes the text up next time; the dialog's typing halts for
      * the rest of the frame */
-    CODE_PAUSE = 0x10, CODE_CHARACTER = 0x11, CODE_NAMED = 0x12, CODE_CRONO = 0x13, CODE_MAGUS = 0x19, CODE_LEADER = 0x1A, CODE_MEMBER_1 = 0x1B, CODE_MEMBER_3 = 0x1D, CODE_NADIA = 0x1E, CODE_ITEM = 0x1F, CODE_EPOCH = 0x20, FIRST_WORD = 0x21,  };
+    CODE_PAUSE = 0x10,
+    CODE_CHARACTER = 0x11, CODE_NAMED = 0x12, CODE_CRONO = 0x13, CODE_MAGUS = 0x19, CODE_LEADER = 0x1A,
+    CODE_MEMBER_1 = 0x1B, CODE_MEMBER_3 = 0x1D, CODE_NADIA = 0x1E, CODE_ITEM = 0x1F, CODE_EPOCH = 0x20,
+    FIRST_WORD = 0x21,
+};
 
 /* After $12: 0 a tech, 1 an enemy, 8 up a word of the dictionary's second
  * part. 2-7 jump into code in the original that isn't a handler; no string
@@ -471,7 +481,7 @@ uint8_t menu_set_label_laid_out(GameState *g, uint32_t strings, uint8_t string, 
 
 /* ---- Reading a string without setting it -------------------------------------------------- */
 
-/* A string read a piece at a time without being set, for the guards, which
+/* A string read a piece at a time without being set, for the checks, which
  * read ahead of a call: a glyph; what starts an insert (a word of the
  * dictionary, a number, a name); or a code the setting stops a call at (the
  * end, a wait, a break, a pause, and $12's choices that aren't a name or a
@@ -516,12 +526,10 @@ static Piece piece_at(const GameState *g, uint32_t at)
     return p;
 }
 
-// $C2:F90C
+/* ---- What the typesetter takes ------------------------------------------------------------ */
 
-/* ---- The guards -------------------------------------------------------------------------- */
-
-/* What the game sets text from is the ROM or work RAM, never the I/O
- * registers or open bus, where a read changes what it reads. */
+/* What the game sets text from is the ROM or work RAM, never the console's
+ * I/O or open bus, where a read changes what it reads. */
 static bool readable(uint32_t at)
 {
     uint8_t bank = (uint8_t)(at >> 16);
@@ -552,7 +560,7 @@ bool menu_text_can_start(const GameState *g) { return readable(menu_text_strings
  * never do; one could through a name past the seven places of the table of
  * names ($C2:5FD8, read through the table's neighbours from anywhere), more
  * than 19 arguments' worth of bytes, or a pointer onto the page. So the
- * guards read a text ahead to where its call (or a label's last line) would
+ * checks read a text ahead to where its call (or a label's last line) would
  * stop, and turn away a text that reads the budget's cell, whose label lines
  * come round onto the page, or that doesn't stop within MOST_PIECES_AHEAD of
  * its pieces. A label goes on past a new line, and past a pause, which leaves

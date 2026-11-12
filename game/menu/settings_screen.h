@@ -1,6 +1,6 @@
 /* The settings screen and the main menu's panel for it: what the game does
- * (game/menu/settings_screen.c) and the entries that run it on the original's
- * machine (game/menu/settings_screen_bridge.c). */
+ * (game/menu/settings_screen.c) and what each step needs of the state before
+ * it runs (game/menu/settings_screen_bridge.c). */
 #ifndef CT_GAME_MENU_SETTINGS_SCREEN_H
 #define CT_GAME_MENU_SETTINGS_SCREEN_H
 
@@ -10,6 +10,7 @@
 #include "platform/audio.h"
 #include "platform/video.h"
 #include "state.h"
+#include "vars.h"
 
 /* The screen's options, as its cursor's places number them: the ten in the
  * left window, then the two speeds' meters the speeds option leads to. The
@@ -64,8 +65,8 @@ bool menu_settings_leaving(const GameState *g);
 void menu_settings_leave(GameState *g);
 
 /* The option the cursor is on is kept, then what the frame's input does to
- * it: each option has its kind's handler (the bridge's table of them,
- * settings_screen_bridge.c), and then it is shown (its description, the
+ * it: each option has its kind's handler (settings_screen.c's table of
+ * them), and then it is shown (its description, the
  * boxes). */
 SettingsOption menu_settings_take_option(GameState *g);
 void menu_settings_show_option(GameState *g);
@@ -161,24 +162,23 @@ void menu_settings_panel_frame(GameState *g, Platform *pf);
 void menu_settings_panel_show(GameState *g, Platform *pf);
 void menu_settings_panel_put_away(GameState *g);
 
-/* ---- What the steps can run on (the guards') ----------------------------------------------------- */
+/* ---- What the steps can run on ------------------------------------------------------------------ */
 
 bool menu_settings_on_an_option(const GameState *g);
 bool menu_settings_on_a_layout(const GameState *g);
 bool menu_settings_on_a_button_row(const GameState *g);
 bool menu_settings_describable(const GameState *g);
 /* The opening, the options' step (the cursor movable besides), an option
- * taken: what their entries' guards take of the state. */
+ * taken: what they need of the state. */
 bool menu_settings_can_open(const GameState *g);
 bool menu_settings_can_choose(const GameState *g);
 bool menu_settings_option_can_be_taken(const GameState *g);
 
-/* ---- The opening and the options, one sequence for the machine and for C ---------------------- */
+/* ---- The opening and the options ---------------------------------------------------------------- */
 
 /* The screen's opening ($C2:BF3D), the options' step ($C2:BF45) and an
- * option taken ($C2:BFD4) are each one sequence, which the machine's entries
- * (settings_screen_bridge.c) and the program as C both run, asking the menus
- * for what differs through SettingsSteps.
+ * option taken ($C2:BFD4) are each one sequence, asking the menus for what it
+ * needs through SettingsSteps.
  *
  * The places the sequences tick from. */
 typedef enum {
@@ -187,51 +187,21 @@ typedef enum {
     SETTINGS_AT_THE_DESIGN_TOGGLED, /* the design's choosing started or ended */
     SETTINGS_AT_A_GAUGE_TAKEN,      /* another gauge layout taken */
     SETTINGS_AT_THE_BUTTONS_LEFT,   /* back from the button rows to the controls */
-    SETTINGS_AT_THE_BUTTONS_TAKEN,  /* the button rows' input taken */
     SETTINGS_AT_THE_BUTTONS_RESET,  /* the buttons put back as they were */
     SETTINGS_AT_THE_BUTTONS_KEPT,   /* the buttons kept, the cursor moved */
-    SETTINGS_AT_A_ROW_S_BUTTON,     /* a row's button stepped */
-    SETTINGS_AT_A_ROW_CHANGED,      /* ... and shown changed */
-    SETTINGS_AT_THE_BUTTONS_DONE,   /* the rows' step done */
+    SETTINGS_AT_A_ROW_CHANGED,      /* a row's button stepped and shown changed */
 } SettingsPlace;
 
-/* Where the machine leaves what the original's tests left (scaffolding),
- * and the P an option's taking saves round its handler. */
-typedef enum {
-    SETTINGS_NOTE_EDITING_TESTED,  /* whether a speed or the design is being set, tested */
-    SETTINGS_NOTE_PACKED,          /* the settings packed as the screen is left */
-    SETTINGS_NOTE_BUTTONS_TESTED,  /* the cursor's buttons tested */
-    SETTINGS_NOTE_CURSOR_COMPARED, /* the cursor compared with where it started */
-    SETTINGS_NOTE_OPTION_PICKED,   /* this option's handler picked */
-    SETTINGS_NOTE_HANDLED,         /* its handler done */
-    SETTINGS_NOTE_SHOWN,           /* the option shown, the buttons loaded */
-    SETTINGS_NOTE_METER_UNMOVED,   /* a meter not stepped */
-    SETTINGS_NOTE_METER_SHOWN,     /* a meter stepped and drawn */
-    SETTINGS_NOTE_DESIGN_LOADED,   /* the design taken by the windows */
-    SETTINGS_NOTE_DESIGN_TOGGLED,  /* the design's choosing toggled (it was on: 1) */
-    SETTINGS_NOTE_GAUGE_LEFT,      /* back from the gauge layouts */
-    SETTINGS_NOTE_GAUGE_POINTED,   /* the cursor compared with where it started */
-    SETTINGS_NOTE_GAUGE_TAKEN,     /* a gauge layout taken */
-    SETTINGS_NOTE_ROWS_KEPT,       /* the button rows kept as the player leaves */
-    SETTINGS_NOTE_ROWS_LEFT_UNKEPT, /* ... or left as they were */
-    SETTINGS_NOTE_QUEUED,          /* the front layer queued */
-    SETTINGS_NOTE_START_TESTED,    /* Start tested */
-    SETTINGS_NOTE_UP_OR_DOWN_TESTED, /* a push up or down tested */
-    SETTINGS_NOTE_ROW_CHANGED,     /* a row's button changed (the paging's before) */
-} SettingsNote;
-
 /* What the sequences ask: the cursor read, a tick, the option taken, the
- * option's handler, the way back to the main menu, a note, a meter stepped
- * ($C2:C164). Each false where it went no further. */
+ * option's handler, the way back to the main menu, a meter stepped
+ * ($C2:C164), the tick the step ends on. Each false where it went no further. */
 typedef struct {
     void (*read_cursor)(void *ctx);
     bool (*tick)(void *ctx, SettingsPlace at);
     bool (*take_the_option)(void *ctx);
     bool (*handle)(void *ctx, SettingsOption option);
     bool (*back_to_the_main_menu)(void *ctx);
-    void (*note)(void *ctx, SettingsNote note, uint8_t value);
     bool (*step_meter)(void *ctx, SettingsOption meter);
-    void (*registers_at)(void *ctx, SettingsPlace at);
     /* The step ends on the cursor's sound, its last. */
     bool (*ends_with_a_tick)(void *ctx);
 } SettingsSteps;
@@ -249,7 +219,7 @@ bool menu_choose_gauge_layout_with(GameState *g, Platform *pf, const SettingsSte
 bool menu_choose_buttons_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx);
 bool menu_choose_gauge_layout(GameState *g, Platform *pf);
 bool menu_choose_buttons(GameState *g, Platform *pf);
-/* Their guards' state halves (settings_screen_bridge.c). */
+/* What they need of the state (settings_screen_bridge.c). */
 bool menu_settings_can_choose_buttons(const GameState *g);
 bool menu_settings_can_choose_a_layout(const GameState *g);
 
@@ -259,11 +229,9 @@ bool menu_settings_can_choose_a_layout(const GameState *g);
 bool menu_settings_set_sound_output(GameState *g, bool (*send)(void *ctx), void *ctx);
 void menu_settings_send_sound_output(GameState *g, Platform *pf);
 
-/* As C, from the menus' main task; false where the program went no
+/* From the menus' main task; false where the program went no
  * further. */
 bool menu_open_settings(GameState *g, Platform *pf);
 bool menu_choose_setting(GameState *g, Platform *pf);
-
-/* ---- The entries (game/menu/settings_screen_bridge.c) ------------------------------------------- */
 
 #endif

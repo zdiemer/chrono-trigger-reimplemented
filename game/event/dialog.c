@@ -10,7 +10,6 @@
  * decides, the top or the bottom of the screen -- is part of the command. */
 #include "event/dialog.h"
 
-#include "field/scratch.h"
 #include "event/script.h"
 #include "field/dialog_window.h"
 #include "field/field.h"
@@ -133,7 +132,7 @@ static EventFlow if_answer(GameState *g, FieldObject self, uint8_t answer)
 }
 EVENT_OPERATION(if_answer, self, answer)
 
-/* The guard's part: without a table of text the original goes to an error
+/* What the port checks: without a table of text the original goes to an error
  * handler, which is its own business. */
 static bool text_chosen(const GameState *g)
 {

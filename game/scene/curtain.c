@@ -27,10 +27,14 @@
 
 typedef enum { NO_SWEEP = 0, FROM_THE_LEFT = 1, FROM_THE_RIGHT = 2 } CurtainSweep;
 
-enum { CURTAIN_LINES = 0xE0, /* the picture's 224 lines */
-    EDGES_KEPT_AT = 0x1C0, /* where the edges are kept, past the table's start */
-    LAST_STEP = 0x20, /* the sweep ends when its step count gets here */
-    FIRST_BANK = 0x7E, SECOND_BANK = 0x7F, CLOSED_AT_THE_LEFT = 0x00, CLOSED_AT_THE_RIGHT = 0xFF, RUN_SHORTEST = 3, RUN_SPREAD = 0x1F, MOVE_LEAST = 8, MOVE_SPREAD = 0x03,  };
+enum {
+    CURTAIN_LINES = 0xE0,      /* the picture's 224 lines */
+    EDGES_KEPT_AT = 0x1C0,     /* where the edges are kept, past the table's start */
+    LAST_STEP = 0x20,          /* the sweep ends when its step count gets here */
+    FIRST_BANK = 0x7E, SECOND_BANK = 0x7F,
+    CLOSED_AT_THE_LEFT = 0x00, CLOSED_AT_THE_RIGHT = 0xFF,
+    RUN_SHORTEST = 3, RUN_SPREAD = 0x1F, MOVE_LEAST = 8, MOVE_SPREAD = 0x03,
+};
 
 /* The pointer the original keeps into the random bytes: their page and bank. */
 enum { RANDOM_BYTES_PAGE_AND_BANK = 0xC0FE };
@@ -51,9 +55,9 @@ typedef struct {
 
 /* The next run, from the next two random bytes on from where the last left
  * off. Once an edge has been stopped at 0, every run after it lasts past the
- * picture's bottom: the original stops the edge with its direct page's low
- * byte, which leaves A's high byte at the page's, 3, and the runs' lengths it
- * loads after that take it in. `extra` is the carry the length's add takes in
+ * picture's bottom: the original stops the edge with the low byte of the
+ * scene's cells' address, $03xx, whose high byte, 3, stays in the word it
+ * works the runs' lengths out in after that. `extra` is the carry the length's add takes in
  * (below). */
 enum { PAGE_IN_THE_LENGTH = 0x300 };
 
@@ -100,7 +104,7 @@ static bool carried_in(uint16_t edges, unsigned line, CurtainSweep sweep)
 
 // $C3:01E4
 /* A frame's step of the curtain. `salt` is what the stir takes from its
- * caller's X (the scene engine's call hands it on). */
+ * caller (the scene engine's call hands it on). */
 void scene_curtain_step(GameState *g, Platform *pf, uint16_t salt)
 {
     CurtainSweep sweep = (CurtainSweep)scene_curtain_sweep(g);
@@ -114,7 +118,7 @@ void scene_curtain_step(GameState *g, Platform *pf, uint16_t salt)
     uint8_t steps = scene_curtain_steps(g);
     if (steps == 0) {
         close_every_line(g, edges, bank, sweep == FROM_THE_LEFT ? CLOSED_AT_THE_LEFT : CLOSED_AT_THE_RIGHT);
-        salt = (uint16_t)(edges + CURTAIN_LINES - 1);   /* where the fill's block move left X, at its last byte */
+        salt = (uint16_t)(edges + CURTAIN_LINES - 1);   /* where the fill ended, at its last byte */
     }
     steps = (uint8_t)(steps + 1);
     set_scene_curtain_steps(g, steps);
@@ -148,9 +152,9 @@ void scene_curtain_step(GameState *g, Platform *pf, uint16_t salt)
     }
 }
 
-/* The step as the scenes' C paths take it, with its entry's guard's state
- * half: a table the step sweeps (scene_curtain_table_fits). Anywhere else the
- * step is the machine's, and this is false. */
+/* The step as the scenes take it: a table the step sweeps
+ * (scene_curtain_table_fits). Anywhere else the scene goes no further, and
+ * this is false. */
 enum { CURTAIN_STEP_ROUTINE = 0xC301E4 };
 
 bool scene_curtain_stepped(GameState *g, Platform *pf, uint16_t salt)
@@ -174,15 +178,11 @@ void scene_curtain_start(GameState *g, uint8_t sweep, uint16_t table, uint8_t ba
 }
 
 // $C3:000E
-/* The scene engine's public entry shares the sweep's guard and calls the
- * step directly. The platform still synchronizes the noise's beam latch. */
-enum { CURTAIN_STEP = 0xC301E4 };
-
-/* The edges in either work RAM bank, clear of low RAM's first $2000 bytes
- * (the stack and the curtain's own cells, which the original's saved
- * registers and the step would write over); in the second bank, the halves
- * the steps send to short of its end, where the work RAM port would run on
- * into low RAM; and the stir's cells reached through a data bank on low RAM. */
+/* The tables a sweep can use: the edges in either work RAM bank, clear of low
+ * RAM's first $2000 bytes (the game's working cells and the curtain's own,
+ * which the step would write over); in the second bank, the halves the steps
+ * send to short of its end, where the work RAM port would run on into low
+ * RAM. */
 enum { LOW_RAM_END = 0x2000, TABLE_REACH = EDGES_KEPT_AT + CURTAIN_LINES, HALVES_REACH = 2 * CURTAIN_LINES };
 
 bool scene_curtain_table_fits(uint8_t bank, uint16_t table)

@@ -1,6 +1,6 @@
 /* Battle: the arithmetic the battle's code shares (battle/arith.h), and the
- * original's two bit-serial routines for numbers wider than the multiplier and
- * divider take, which only the original's code calls. */
+ * two routines for numbers wider than the multiplier and divider take, which
+ * the effect code and the random draw use. */
 #include "charge.h"
 #include "battle/arith.h"
 
@@ -87,7 +87,7 @@ BattleQuotient battle_divide_by(GameState *g, uint16_t dividend, uint8_t divisor
     return q;
 }
 
-/* ---- Wider numbers, for the original's code ----------------------------------------------- */
+/* ---- Wider numbers -------------------------------------------------------------------------- */
 
 /* The cells of battle_wide_math, by the byte. */
 enum { FIRST = 0, SECOND = 2, RESULT_LOW = 4, RESULT_HIGH = 6, WIDE_REMAINDER = 10 };
@@ -105,14 +105,14 @@ static uint32_t multiply_words(uint16_t a, uint16_t b) { return (uint32_t)a * b;
 /* The long arithmetic's leftover high word ($2E): a word-by-word product's
  * high word, or what a long division left of its dividend's (below). The
  * random draw (battle/random.c) divides with it as its dividend's high word,
- * so it is game state, kept by every producer, not scaffolding. */
+ * so it is game state, kept by every producer. */
 static void keep_high_word_left(GameState *g, uint16_t v) { set_wide_word(g, RESULT_HIGH, v); }
 
 uint16_t battle_long_high_word(const GameState *g) { return wide_word(g, RESULT_HIGH); }
 
-/* It shifts its second number out bit by bit, and the carry the caller had in
- * as its first bit, which is all of it that is left: the cell is clear but for
- * that bit, whose value nothing reads (battle_leave_multiply_carry). */
+/* The original shifts its second number out bit by bit, so its cell is left
+ * clear (but for a bit nothing reads); the first number and the product's
+ * low word stay in theirs. */
 static void leave_word_product(GameState *g, uint16_t a, uint32_t product)
 {
     set_wide_word(g, FIRST, a);
@@ -206,16 +206,7 @@ BattleLongQuotient battle_divide_long(GameState *g, uint32_t dividend, uint16_t 
     return (BattleLongQuotient){ q.quotient, q.remainder };
 }
 
-/* ---- The entries ------------------------------------------------------------------------ */
-
-/* Each takes its numbers from its cells, as the original's callers hand them,
- * and leaves A as the original's last TDC leaves it: the battle's page. */
-
-/* It leaves the product by the word's low byte in X. */
-
-/* It shifts the dividend out through its cells, the quotient's top fifteen
- * bits coming in behind it (the next one is lost) and the caller's carry in at
- * the top; its flags come back as they were. */
+/* ---- The leftover divided --------------------------------------------------------------- */
 
 /* The bit-serial division loses the remainder's top bit when the divisor has
  * its own set: the game divides by less. */

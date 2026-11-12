@@ -32,22 +32,26 @@ typedef enum { RACER_CRONO, RACER_JOHNNY } Racer;
 
 /* Channel 0's registers, as the race's camera script sets them and the race
  * reads them: those the perspective is built from are the plane's (scene.h). */
-enum { CAMERA_HEIGHT = SCENE_PLANE_HEIGHT, /* how high the camera is: the plane's scale (its low byte) */
-    CAMERA_PLACE = 1, /* where along the track it is, 0-$3FF around */
-    CAMERA_DISTANCE = 2, /* how far it stands from that place */
+enum {
+    CAMERA_HEIGHT = SCENE_PLANE_HEIGHT, /* how high the camera is: the plane's scale (its low byte) */
+    CAMERA_PLACE = 1,      /* where along the track it is, 0-$3FF around */
+    CAMERA_DISTANCE = 2,   /* how far it stands from that place */
     CAMERA_ANGLE = SCENE_PLANE_TURN, /* which way it faces, 0-$3FF around */
     CAMERA_PITCH = SCENE_PLANE_HORIZON, /* how far down the screen the horizon is */
     CAMERA_PLANE_TOP = SCENE_PLANE_TOP, /* where below the horizon the plane's perspective starts */
-    CAMERA_SPEED = 9, /* how far it moves along each frame */
-    RACE_ANIMATION = 10, /* the bikes' animation: they change frame every other count */
+    CAMERA_SPEED = 9,      /* how far it moves along each frame */
+    RACE_ANIMATION = 10,   /* the bikes' animation: they change frame every other count */
     CAMERA_LINES_PAIRED = SCENE_PLANE_LINES_PAIRED, /* nonzero while the perspective is built a pair of lines at a time */
-    CAMERA_LEAN = 12, /* turned into the bikes' poses with the angle */ };
+    CAMERA_LEAN = 12,      /* turned into the bikes' poses with the angle */
+};
 
 /* Channel 1's registers the race reads. */
-enum { RACE_CRONO_SCALE = 0, /* how far off Crono is drawn: the larger, the smaller his picture */
-    CAMERA_SIDE = 2, /* where the camera is down the plane, across the track */
+enum {
+    RACE_CRONO_SCALE = 0,  /* how far off Crono is drawn: the larger, the smaller his picture */
+    CAMERA_SIDE = 2,       /* where the camera is down the plane, across the track */
     RACE_JOHNNY_SCALE = 6, /* the same for Johnny */
-    RACE_STARTED = 13, /* set when the countdown ends */ };
+    RACE_STARTED = 13,     /* set when the countdown ends */
+};
 
 /* The per-line tables split at the horizon, by the camera's pitch, as the
  * race's and the Beyond Time ending's flight's are: the lines above it, half
@@ -74,31 +78,37 @@ typedef enum { RACE_RUNNING = 0, RACE_CRONO_COASTING = 1, RACE_CRONO_PULLED_AWAY
 
 /* The scene's tasks this part of the program adds and removes: their
  * addresses in the program, as the lists hold them (within bank $7E). */
-enum { TASK_FADE_OUT_AND_END = (uint16_t)0x7E34E3, TASK_SETTLE_CAMERA = (uint16_t)0x7E416D, TASK_LEAVE = (uint16_t)0x7E4283, TASK_TURN_CAMERA = (uint16_t)0x7E4339, TASK_FOLLOW_FINISH = (uint16_t)0x7E449C, TASK_DRAIN_SCORE = (uint16_t)0x7E44CE, TASK_COLUMN_FROM_CARTRIDGE = (uint16_t)0x7E4643, TASK_COLUMN_FROM_COPY = (uint16_t)0x7E464D, TASK_COAST = (uint16_t)0x7E4677, TASK_AWAIT_VICTORY_SONG = (uint16_t)0x7E4755,  };
+enum {
+    TASK_FADE_OUT_AND_END = (uint16_t)0x7E34E3,
+    TASK_SETTLE_CAMERA = (uint16_t)0x7E416D,
+    TASK_LEAVE = (uint16_t)0x7E4283,
+    TASK_TURN_CAMERA = (uint16_t)0x7E4339,
+    TASK_FOLLOW_FINISH = (uint16_t)0x7E449C,
+    TASK_DRAIN_SCORE = (uint16_t)0x7E44CE,
+    TASK_COLUMN_FROM_CARTRIDGE = (uint16_t)0x7E4643,
+    TASK_COLUMN_FROM_COPY = (uint16_t)0x7E464D,
+    TASK_COAST = (uint16_t)0x7E4677,
+    TASK_AWAIT_VICTORY_SONG = (uint16_t)0x7E4755,
+};
 
 /* scene/race.c: what the race sends the sound driver -- the engine's pitch
  * (Crono's speed's high byte), and the effects it sends from its own calls,
  * which wait for the driver to take them -- and the road strip to VRAM.
  *
  * An effect is put in the sound command buffer by race_send_sound and sent
- * by a step the caller passes: on the machine the program's send from the
- * race's own call (race_sound_on_the_machine, its context the Snes), as C
- * the send's port (race_sound, no context). */
+ * by a step the caller passes: the program's send (race_sound, no context). */
 typedef enum { RACE_BUMP_SOUND, RACE_LEAVING_SOUND } RaceSound;
 typedef bool (*RaceSends)(void *ctx, GameState *g, Platform *pf, RaceSound sound);
 bool race_send_sound(GameState *g, Platform *pf, RaceSound sound, RaceSends send, void *ctx);
-bool race_sound_on_the_machine(void *ctx, GameState *g, Platform *pf, RaceSound sound);
 bool race_sound(void *ctx, GameState *g, Platform *pf, RaceSound sound);
 void race_send_engine_pitch(const GameState *g, Platform *pf);
 void race_upload_road_strip(Platform *pf);
 
-/* scene/sprites.c: the scene's sprites as C calls (small sprites from a
- * source, a list small or large and clipped), whether more fit in the tables,
- * and the A a clipped list leaves. */
+/* scene/sprites.c: the scene's sprites (small sprites from a source, a list
+ * small or large and clipped), and whether more fit in the tables. */
 void scene_draw_sprite(GameState *g, uint16_t source);
 void scene_draw_sprite_list(GameState *g, uint16_t list, bool clipped);
 bool scene_sprites_fit(const GameState *g, unsigned sprites);
-uint16_t scene_clipped_list_leaves_a(const GameState *g, uint16_t list, uint16_t a);
 
 /* scene/race_rules.c: the bikes as the race starts. */
 void race_start(GameState *g);
@@ -106,12 +116,6 @@ void race_start(GameState *g);
 /* scene/race_camera.c: the distances' divisors forgotten, for the perspective
  * of a new camera height. */
 void race_forget_divisors(GameState *g);
-
-/* scene/bridge.c: the frame of a subroutine the race's setup runs inline,
- * entered and left, under the call-outs it makes. */
-
-/* scene/bridge.c: where the main loop's scaling of a racer's picture goes on
- * in the original's scaler, with the carry its first row takes. */
 
 /* scene/math.c: the program's signed 16-bit multiply ($7E:33D6), on a page's
  * cells; returns the product. */

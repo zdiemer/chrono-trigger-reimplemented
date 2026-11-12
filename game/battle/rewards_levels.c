@@ -52,8 +52,8 @@ void rewards_gain_experience(GameState *g, Grower who, uint16_t amount)
 
 /* ---- A level ----------------------------------------------------------------------------- */
 
-/* What the level-up leaves for the original's code: whether a level was
- * reached (battle_growth_no_level). */
+/* What the level-up leaves its callers: whether a level was reached
+ * (battle_growth_no_level). */
 enum { LEVEL_REACHED = 0x00, NO_LEVEL = 0xFF };
 
 /* A level gained is counted for the messages. The original counts it as a

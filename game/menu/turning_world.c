@@ -26,10 +26,8 @@
  * - **turn it on** ($C6:EE23): the angle moved by the turn the frame's work
  *   handed on.
  *
- * The original keeps its working values in the mode's direct-page cells and
- * the CPU's multiplier and divider; this port works in C and leaves those
- * once, as scaffolding, at the end of each routine (the leave_* functions).
- * Two uses of the cells are more than that: the scene names the planes the
+ * The original keeps its working values in the mode's own cells; this port
+ * keeps them in C values. Two uses of the cells are more than working values: the scene names the planes the
  * drawing draws in them, and the frame's work hands the turn on there to the
  * routine that turns the picture by it (menu_object_scratch's world_* cells). */
 #include "menu/turning_world.h"
@@ -70,7 +68,7 @@ static Plane over_the_land(const GameState *g)
 enum { MAP_BANK = 0x7E };
 
 /* An address in the maps' bank: a plane's map or groups, and an index into
- * them, which the drawing's guard keeps inside the bank (above_low_ram). */
+ * them, which the drawing's check keeps inside the bank (above_low_ram). */
 static uint32_t in_map_bank(uint16_t at, unsigned past) { return ((uint32_t)MAP_BANK << 16 | at) + past; }
 
 static uint16_t map_word(const GameState *g, uint16_t at, unsigned past)
@@ -265,7 +263,14 @@ static void turn_a_frame(GameState *g, MenuObject o)
 
 /* How the turn starts: unturned, at the zoom, distances, pivot and reach the
  * scene opens with, level, and still. */
-enum { START_ZOOM = 0x80, START_ACROSS = 0xA0, START_DOWN = 0x60, START_PIVOT_X = 0x40, START_PIVOT_Y = 0x70, START_REACH = 0x70 };
+enum {
+    START_ZOOM = 0x80,
+    START_ACROSS = 0xA0,
+    START_DOWN = 0x60,
+    START_PIVOT_X = 0x40,
+    START_PIVOT_Y = 0x70,
+    START_REACH = 0x70,
+};
 
 /* The original keeps the zoom, the distances and the reach as words, and
  * clears the bytes after them as it sets them. The turn reads none of them,
@@ -304,14 +309,17 @@ static void start_the_world_turning(GameState *g, Platform *pf, MenuObject o)
     clear_after_the_turns_bytes(g, o);
 }
 
-/* ---- the entries ------------------------------------------------------------------------------ */
+/* ---- what the routines need ------------------------------------------------------------------ */
 
-/* The drawing keeps its working values in the mode's first cells ($00-$1A)
- * and its return on the stack, which the original reads the maps and groups
- * past: a plane in low RAM could be read changing under it. The scene's
+/* The original keeps its working values in low RAM's first cells as it reads
+ * the maps and groups: a plane in low RAM could be read changing under it. The scene's
  * planes are well above it (the land's at $5800 and $3800, the other's at
  * $4000 and $3000). */
-enum { LOW_RAM_END = 0x2000, MAP_BYTES = MENU_MAP_ROWS * MENU_MAP_COLUMNS + 1, GROUPS_BYTES = 0x100 * MENU_MAP_GROUP_BYTES };
+enum {
+    LOW_RAM_END = 0x2000,
+    MAP_BYTES = MENU_MAP_ROWS * MENU_MAP_COLUMNS + 1,
+    GROUPS_BYTES = 0x100 * MENU_MAP_GROUP_BYTES,
+};
 
 static bool above_low_ram(uint16_t at, uint32_t bytes) { return at >= LOW_RAM_END && (uint32_t)at + bytes <= 0x10000; }
 
@@ -325,8 +333,7 @@ static bool world_can_be_drawn(const GameState *g, MenuObject self)
     return ok;
 }
 
-/* The turn reaches the CPU's multiplier and divider through a data bank of
- * $00, on the mode's page, for the object running. */
+/* The turn works on the object running. */
 static bool world_can_be_turned(const GameState *g, MenuObject self)
 {
     (void)self;

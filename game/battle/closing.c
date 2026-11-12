@@ -25,11 +25,8 @@
  *     (battle/display.c), and once the music's fade has run out the field's
  *     music is put back (field/sounds.c).
  *
- * The steps are C on the game's state; what reaches the machine is the bridge
- * that makes the frame work's waits where the original makes them (battle/
- * wait.c), from the original's call sites and with what it keeps on the stack
- * there (battle/bridge.h, BattleFrame), since shadow mode pairs a call with
- * the original's by its site and its stack. */
+ * The frame work's waits (battle/wait.c) are calls out of the steps
+ * (ClosingCall), each made where the original makes it. */
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/frame.h"
@@ -97,10 +94,11 @@ bool battle_window_opened(GameState *g, Platform *pf)
  * frame, the frame work's tail ($CD:0009), the battlefield put back
  * (battle/battlefield_restore.c) and changed (battle/battlefield_change.c),
  * the field's music back (field/sounds.c), and the steps that are routines of
- * their own on the machine: the music's fade, the window's closing, the
- * boss's end and the defeat's, the screen's settling, the change to another
- * battlefield; and what the original keeps on the stack and in the registers
- * around them. `arg` is the frames counted, or the battlefield. */
+ * their own: the music's fade, the window's closing, the boss's end and the
+ * defeat's, the screen's settling, the change to another battlefield; and
+ * where the original saves and restores the battlefield around the song's
+ * frame (SONG_KEEP, SONG_KEPT), which the port passes over. `arg` is the
+ * frames counted, or the battlefield. */
 typedef enum {
     CLOSING_WINDOW_FIRST_FRAME, CLOSING_WINDOW_SECOND_FRAME,
     CLOSING_PUT_BACK, CLOSING_FADE, CLOSING_THE_WINDOW, CLOSING_SLIDE_FRAME, CLOSING_GONE_FRAME,
@@ -131,8 +129,6 @@ static bool close_the_window(GameState *g, ClosingCalls call, void *ctx)
 }
 
 /* ---- The music ------------------------------------------------------------------------------- */
-
-/* The sound driver's command reads only A's high byte. */
 
 /* The music fades out over 16 of the driver's steps. */
 enum { MUSIC_FADE_STEPS = 0x10, SILENT = 0x00 };
@@ -204,9 +200,8 @@ static void full_volume(Platform *pf)
 
 // $CD:0D62
 /* Change to another battlefield as the battle ends, with its song, from the
- * music's volume back to full a frame before (the original keeps the
- * battlefield on the stack meanwhile): the battlefield is loaded as an
- * effect loads one, and its own screen scripts start. */
+ * music's volume back to full a frame before: the battlefield is loaded as
+ * an effect loads one, and its own screen scripts start. */
 static bool change_to_the_battlefield(Platform *pf, uint16_t battlefield, ClosingCalls call, void *ctx)
 {
     if (!call(ctx, SONG_KEEP, battlefield))
@@ -218,7 +213,7 @@ static bool change_to_the_battlefield(Platform *pf, uint16_t battlefield, Closin
     return call(ctx, SONG_KEPT, battlefield) && call(ctx, CHANGE_LOAD, battlefield);
 }
 
-/* A run of frames the original counts down in A across the handler's waits. */
+/* A run of frames counted down across the handler's waits. */
 static bool hold_the_screen(ClosingCalls call, void *ctx)
 {
     for (uint8_t left = HOLD_FRAMES; left != 0; left--)
@@ -320,7 +315,7 @@ static bool close_the_display(GameState *g, Platform *pf, ClosingCalls call, voi
     if (!closing_call(call, ctx, CLOSING_LEAVING_FRAME))
         return false;
     program_install_vblank_handler(g, battle_closing_vblank);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     set_battle_scratch(g, FADE_FROM, battle_brightness(g));
     do
         if (!closing_call(call, ctx, CLOSING_SMALL_FRAME))
@@ -330,25 +325,11 @@ static bool close_the_display(GameState *g, Platform *pf, ClosingCalls call, voi
     return closing_call(call, ctx, CLOSING_MUSIC_BACK) && closing_call(call, ctx, CLOSING_LAST_SMALL_FRAME);
 }
 
-/* ---- On the machine ------------------------------------------------------------------------ */
+/* ---- The closing's calls -------------------------------------------------------------------- */
 
-/* What the display's steps don't read of the registers where they are
- * called: each loads A's low byte and the index registers before it reads
- * them; the music's fade and the window's closing hand only A's high byte on,
- * to waits that read none of the flags (battle/wait.h). */
-
-/* The field's music after a battle takes the data bank and its page back in
- * the wrong order, so the battle keeps its own data bank, page and flags on
- * the stack around the call and takes them back after: the call comes back
- * to its return with any page and bank, and goes on as the battle runs once
- * they are pulled. */
-enum { FIELD_MUSIC_CALL = 0xCD043E, KEPT_AGAIN = 0xCD0445 };
-
-/* ---- As C ------------------------------------------------------------------------------------ */
-
-/* Each with its guard's state half: the music's fade's, whose wait types the
- * message's next letter, a message the menus' text code goes on from; the
- * battlefield's change's, a layout the port builds. */
+/* Each call. The music's fade, whose wait types the message's next letter,
+ * is refused for a message the menus' text code doesn't go on from; the
+ * battlefield's change, for a layout the port doesn't build. */
 static bool close_a_part(void *ctx, ClosingCall call, uint16_t arg)
 {
     BattleClosingContext *c = ctx;

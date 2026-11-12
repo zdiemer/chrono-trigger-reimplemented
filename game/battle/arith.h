@@ -1,9 +1,8 @@
 /* Battle: the arithmetic the battle's code shares.
  *
- * The original multiplies and divides small numbers with the CPU's multiplier
- * and divider. These functions compute in C and retain the operands and
- * results that callers use as game state. Hardware-only comparison effects
- * retired with the byte-exact gate. */
+ * The original multiplies and divides small numbers with the console's
+ * multiplier and divider. These functions compute the results and keep the
+ * operands and results that later work reads as game state. */
 #ifndef CT_GAME_BATTLE_ARITH_H
 #define CT_GAME_BATTLE_ARITH_H
 
@@ -28,8 +27,8 @@ BattleQuotient battle_divide_by(GameState *g, uint16_t dividend, uint8_t divisor
 /* $C1:C92A: a long divided by a word, with the remainder. Nothing is divided
  * when the dividend's low word is 0, whatever its high word, nor by 0: the
  * quotient and the remainder are 0 then. The numbers are left in the cells
- * the original's callers hand them over in, as its code leaves them, except
- * the quotient's cell, which the random draw (battle/random.h) saves and puts
+ * the original's callers hand them over in, as it leaves them, except the
+ * quotient's cell, which the random draw (battle/random.h) saves and puts
  * back around its division. */
 typedef struct {
     uint32_t quotient;
@@ -38,8 +37,7 @@ typedef struct {
 BattleLongQuotient battle_divide_long(GameState *g, uint32_t dividend, uint16_t divisor);
 
 /* $C1:C90B: a word times a word, a 32-bit product, the numbers and the
- * product left in the cells the original's callers use, as its code leaves
- * them with the caller's carry clear. */
+ * product left in the cells the original's callers use, as it leaves them. */
 uint32_t battle_multiply_words(GameState *g, uint16_t a, uint16_t b);
 
 /* The long arithmetic's leftover high word: the last word-by-word product's

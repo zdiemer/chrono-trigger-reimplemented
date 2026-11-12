@@ -65,7 +65,7 @@ void enemy_takes_its_place(GameState *g, Platform *pf, FieldObject obj, uint8_t 
 void ask_to_unpack(GameState *g, uint8_t set);
 bool graphics_unpacked(GameState *g);
 
-/* What casting needs of the state, the guards': the record tables where the
+/* What casting needs of the state, which the port checks: the record tables where the
  * game points them; an entry of the shared graphics for the set (one that
  * has it, or a free one: with none the original stops the game); the block
  * an enemy's script names, among the blocks; and a figure of 24 sprites one
@@ -76,7 +76,7 @@ bool cast_tables_in_the_rom(const GameState *g);
  * block of sprite tiles for its frames (two side by side for a larger
  * figure), where one is free; true where it took one ($C0:6F9A). Leaving
  * view, an object gives up the block its records are in ($C0:7056); and
- * whether that block is one of the blocks (the guards'). */
+ * whether that block is one of the blocks (which the port checks). */
 bool object_take_sprite_block(GameState *g, FieldObject obj);
 /* Every block free, as a map's screen is set up ($C0:6F79). */
 void sprite_blocks_all_free(GameState *g);

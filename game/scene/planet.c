@@ -83,8 +83,8 @@ static void step_the_colours(GameState *g)
     charge_as(g, 0x7E6439, (uint32_t)WORKING_CELL_BYTES_A_COLOUR * colours);
 }
 
-/* The legacy task boundary accounts for different work when a palette step
- * was due. Remember the branch without reconstructing its scratch cells. */
+/* Whether this frame's step of the colours was due, which decides the time
+ * the task is charged. */
 static bool colours_stepped;
 
 // $7E:6439
@@ -96,7 +96,7 @@ static TaskEnd step_the_planet_s_colours_task(GameState *g, Platform *pf)
         return task_goes_on();
     set_scene_planet_fade_steps(g, (uint8_t)(scene_planet_fade_steps(g) - 1));
     step_the_colours(g);
-    charge_legacy_accesses(g, 16);
+    charge_accesses(g, 16);
     colours_stepped = true;
     return task_goes_on();
 }
@@ -110,7 +110,7 @@ void scene_step_the_colours_toward(GameState *g, SceneColourStep step)
     set_scene_planet_fade_toward(g, step.toward);
     set_scene_planet_fade_palette(g, step.palette);
     set_scene_planet_fade_steps(g, step.steps);
-    charge_legacy_accesses(g, 1);
+    charge_accesses(g, 1);
     set_scene_planet_fade_colours(g, step.colours);
 }
 
@@ -144,8 +144,8 @@ static void put_the_star_anew(GameState *g, unsigned star)
     set_scene_twinkles_ticks(g, star, TICKS_A_FRAME);
 }
 
-/* The legacy list's return and estimate depend on whether its final visible
- * star was drawn or renewed. No work-RAM scratch is needed for that choice. */
+/* How the frame's last star went -- twinkled, or put anew -- which decides
+ * the time the twinkling is charged. */
 typedef enum { NO_STAR_TWINKLED, STAR_TWINKLED, STAR_PUT_ANEW } StarFrame;
 static StarFrame last_star_frame;
 
@@ -212,11 +212,6 @@ static void put_out_the_stars(GameState *g)
         put_the_star_anew(g, star);
 }
 
-/* The loop's end: the star records' end in A, 8-bit. Y is the next free
- * sprite entry after a twinkle drawn, the hiding's word after a star put
- * anew (both read it last), and as the list called it otherwise. */
-enum { TWINKLES_END = 0x0CC0 };
-
 /* ---- Where the script fades the planet to -------------------------------------------------------- */
 
 /* The scene's two sets of colours the planet fades toward, unpacked by the
@@ -233,7 +228,7 @@ static void fade_toward(GameState *g, uint16_t colours)
 {
     set_scene_planet_fade_toward(g, (uint16_t)(colours + FROM_THE_32ND));
     set_scene_planet_fade_steps(g, FADE_STEPS);
-    charge_legacy_accesses(g, 1);   /* the original sets the steps as a word */
+    charge_accesses(g, 1);   /* the original sets the steps as a word */
 }
 
 // $7E:63FE, $7E:6403
@@ -292,7 +287,7 @@ TaskEnd scene_show_the_planet_s_caption(GameState *g, Platform *pf, unsigned slo
 {
     (void)pf, (void)slot;
     if (!scene_caption_fits(g, THE_FUTURE_REFUSED_TO_CHANGE))
-        return scene_task_needs_the_machine(g, CAPTION_DRAWING, "a caption the port doesn't draw");
+        return scene_task_goes_no_further(g, CAPTION_DRAWING, "a caption the port doesn't draw");
     TIMED_AS(g, CAPTION_DRAWING, scene_draw_caption(g, THE_FUTURE_REFUSED_TO_CHANGE));
     return task_goes_on();
 }
@@ -302,11 +297,6 @@ TaskEnd scene_show_the_planet_s_caption(GameState *g, Platform *pf, unsigned slo
  * the task hands its slot to the countdown to the scene's end, after which the
  * game starts again from its reset. */
 enum { RESTART_SOUND = 0x81, RESTART_SOUND_PARAMETER = 0x40, COUNT_DOWN_TO_THE_RESTART = 0x63F5 };
-enum { SCENE_SEND = 0x7E377E };
-/* The list's exit that hands the task's slot over reads the task that takes
- * it in X; the reset reads none of the registers but Y, which the countdown
- * leaves as it was (the liveness can't rule it out down the field's start). */
-enum { CONSOLE_RESET = 0x00FF00 };
 
 static void ask_for_the_restart_sound(GameState *g)
 {
@@ -316,15 +306,15 @@ static void ask_for_the_restart_sound(GameState *g)
 }
 
 // $7E:63D5
-/* The send (`send`, on the machine the program's own from the task's call)
- * waits for the driver to take the sound. */
+/* The send (`send`, the program's own) waits for the driver to take the
+ * sound. */
 static TaskEnd wait_for_a_button_with(GameState *g, Platform *pf, bool (*send)(void *ctx, Platform *pf), void *ctx)
 {
     if (scene_joypad(g) == 0)
         return task_goes_on();
     ask_for_the_restart_sound(g);
     if (!send(ctx, pf))
-        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+        return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
     TIMED_AS(g, 0x7E395E, (void)scene_add_task(g, SCENE_FRAME_TASKS, SCENE_TASK_DARKEN));
     return task_hands_over(COUNT_DOWN_TO_THE_RESTART);
 }
@@ -335,13 +325,13 @@ static bool send(void *ctx, Platform *pf)
     return true;
 }
 
-/* As C, with its guard's state half: room on the frame's list for the
- * darkening. */
+/* The wait, where the frame's list has room for the darkening; otherwise
+ * the scene goes no further. */
 TaskEnd scene_wait_for_a_button_to_restart(GameState *g, Platform *pf, unsigned slot)
 {
     (void)slot;
     if (!scene_task_listed(g, SCENE_FRAME_TASKS, NO_TASK))
-        return scene_task_needs_the_machine(g, 0x7E63D5, "no room on the frame's list for the darkening");
+        return scene_task_goes_no_further(g, 0x7E63D5, "no room on the frame's list for the darkening");
     return wait_for_a_button_with(g, pf, send, g);
 }
 
@@ -354,7 +344,8 @@ static bool count_down(GameState *g)
     return left == 0;
 }
 
-/* As C, the reset the program's main thread takes (core/program.h). */
+/* The countdown, ending in the reset the program's main thread takes
+ * (core/program.h). */
 TaskEnd scene_count_down_to_the_restart(GameState *g, Platform *pf, unsigned slot)
 {
     (void)pf, (void)slot;
@@ -395,8 +386,7 @@ static void send_unpacked_words(GameState *g, Platform *pf)
 }
 
 /* The setup's steps that are other routines: a resource unpacked by the
- * program's unpacker, the scripts' first step and the stars put out. The program makes them as C, the machine's entry
- * from the original's calls. */
+ * program's unpacker, the scripts' first step and the stars put out. */
 /* What the setup unpacks, in its order, each from its own call of the
  * program's unpacker. */
 typedef enum {
@@ -453,7 +443,7 @@ static bool load_the_graphics(GameState *g, Platform *pf, const PlanetSetUpSteps
 static bool load_the_colours(GameState *g, const PlanetSetUpSteps *steps, void *ctx)
 {
     set_decompress_dest(g, COLOURS_AT);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     if (!steps->unpack(ctx, UNPACK_COLOURS))
         return false;
     unpack_at(g, LAST_COLOURS);
@@ -512,33 +502,28 @@ static bool set_up_the_planet_with(GameState *g, Platform *pf, const PlanetSetUp
     return true;
 }
 
-/* ---- On the machine ---- */
+/* ---- The setup's steps ---- */
 
-/* Putting the stars out, as its entry runs (scene_put_out_the_stars, which
- * refuses a carry the original would add in); it reads nothing else, and
- * leaves the overflow clear for the setup's callers. */
+/* Putting the stars out, timed as its routine. */
 enum { PUT_OUT_THE_STARS = 0x7E6598 };
 
-/* ---- As C ---- */
-
-/* scene/program.c's setups with no machine: the setup's and the stars'
- * guards are their code alone. The scripts' first step is the camera
- * channel's turn. */
+/* The setup's steps, for scene/program.c's setups. The scripts' first step
+ * is the camera channel's turn. */
 typedef struct {
     GameState *game;
     Platform *pf;
-} PlanetInC;
+} PlanetContext;
 
 static bool unpack_the_resource(void *ctx, PlanetUnpack which)
 {
-    PlanetInC *c = ctx;
+    PlanetContext *c = ctx;
     TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, planet_unpacks[which].resource));
     return true;
 }
 
 static bool turn_the_camera_channel(void *ctx)
 {
-    PlanetInC *c = ctx;
+    PlanetContext *c = ctx;
     SceneTurn turn = SCENE_TURN_ENDED;
     TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, SCENE_CAMERA_CHANNEL));
     return turn == SCENE_TURN_ENDED;
@@ -546,7 +531,7 @@ static bool turn_the_camera_channel(void *ctx)
 
 static bool stars_put_out(void *ctx)
 {
-    PlanetInC *c = ctx;
+    PlanetContext *c = ctx;
     TIMED_AS(c->game, PUT_OUT_THE_STARS, put_out_the_stars(c->game));
     return true;
 }
@@ -554,7 +539,7 @@ static bool stars_put_out(void *ctx)
 bool scene_planet_set_up(GameState *g, Platform *pf)
 {
     static const PlanetSetUpSteps in_the_program = { unpack_the_resource, turn_the_camera_channel, stars_put_out };
-    PlanetInC c = { g, pf };
+    PlanetContext c = { g, pf };
     return set_up_the_planet_with(g, pf, &in_the_program, &c);
 }
 
@@ -568,15 +553,3 @@ const SceneTaskPort scene_planet_tasks[] = {
 };
 const unsigned scene_planet_task_count = sizeof scene_planet_tasks / sizeof scene_planet_tasks[0];
 
-/* The step's code, from its start to its return, but for its period, an
- * operand the script changes; and where it keeps its working values, which
- * it writes as each colour steps. */
-enum { STEP_CODE = 0x6439, STEP_CODE_END = 0x64BF, WORKING_CELLS = 0x03F0, WORKING_CELLS_END = 0x0400 };
-
-/* The colours, at least one of each, inside the program's bank and clear of
- * the step's code, its working cells and the top of the stack, where its
- * call's return and the page and bank it sets go: the game's are the scene's
- * palette and colours the setup loaded, and where they lay over any of those
- * the original would step its own code or its working values. The list asks
- * before its call pushes the return, an entry's guard after. */
-enum { PUSHED_BELOW = 4 };

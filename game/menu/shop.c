@@ -309,17 +309,14 @@ static bool can_use(GameState *g, uint8_t item)
 /* The slot in a character's record an item of the category goes in. */
 static uint8_t slot_place(const GameState *g, uint8_t category) { return menu_category_slot_place(g, category); }
 
-/* The original finds each member's record with the multiplier, a record
- * $50 bytes, and leaves the slot and a byte of the party's in its cells. */
-enum { CHARACTER_RECORD_BYTES = 0x50 };
-
-static void charge_worn_counted(GameState *g, uint8_t slot)
+/* The work the original does after the count: it finds the last member,
+ * then looks at the first again. */
+static void charge_worn_counted(GameState *g)
 {
-    (void)slot;
     unsigned last = 0;
     while (last + 1 < MENU_MEMBER_WEARS_ITEM_COUNT && a_member(g, last + 1))
         last++;
-    (void)(a_member(g, 0));
+    charge_accesses(g, 1);
 }
 
 // $C2:8900
@@ -334,7 +331,7 @@ static void count_the_item_worn(GameState *g, uint8_t item, uint8_t category)
         worn = (uint8_t)(worn + wears);
     }
     set_menu_item_worn_count(g, worn);
-    charge_worn_counted(g, slot);
+    charge_worn_counted(g);
 }
 
 /* The two figures the members' window shows: the record's attack and
@@ -1048,7 +1045,6 @@ bool menu_shop_quantity_pushed(const GameState *g) { return !(menu_cursor_direct
 // $C2:DA01
 bool menu_shop_change_quantity(GameState *g, Platform *pf)
 {
-    enum { WORDS_OF_THE_PRICE = 3 };
     menu_shop_hold_the_quantity(g);
     uint8_t way = menu_cursor_direction(g);
     if (way & MENU_CURSOR_NOT_PUSHED)
@@ -1141,7 +1137,7 @@ void menu_shop_back_on_the_tabs(GameState *g, Platform *pf)
     go_to_step(g, SHOP_ON_THE_TABS);
 }
 
-/* ---- What the steps can run on (the guards') ----------------------------------------------------- */
+/* ---- What the steps can run on ------------------------------------------------------------------ */
 
 /* The shop's goods end within its list, its members are characters with
  * records, and the members it lets the cursor reach are some of them. */

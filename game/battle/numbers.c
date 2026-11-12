@@ -57,10 +57,6 @@ static unsigned blanks_in_front(SpriteDigits d)
     return blanks;
 }
 
-/* The original turns the number into digits in the window's digit buffer
- * ($CF:FDAD), leaving it holding the ones less ten, and writes a miss's
- * tiles there with a blank before them too. */
-
 /* A combatant's four sprites, and the bits of each in its high table byte:
  * all past the screen's edge until a digit shows. */
 enum { SPRITES_PAST_THE_EDGE = 0x55, SPRITE_BITS = 0x03 };
@@ -72,7 +68,17 @@ typedef struct {
 /* The original's work cells: the record's place and the sprites' (bytes);
  * the combatant's high bits; the attributes; the digits' offsets (after the
  * count of blanks); a word it clears; where the number stands. */
-enum { RECORD_PLACE = 0x80, SPRITE_PLACE = 0x82, HIGH_BITS = 0x84, ATTRIBUTES = 0x8C, OFFSETS = 0x8E, CLEARED = 0x92, PLACE = 0x94, RECORD_BYTES = 4, SPRITE_BYTES = 4 };
+enum {
+    RECORD_PLACE = 0x80,
+    SPRITE_PLACE = 0x82,
+    HIGH_BITS = 0x84,
+    ATTRIBUTES = 0x8C,
+    OFFSETS = 0x8E,
+    CLEARED = 0x92,
+    PLACE = 0x94,
+    RECORD_BYTES = 4,
+    SPRITE_BYTES = 4,
+};
 
 /* Show a combatant's number: the digits after the blanks in front, each
  * where its offset puts it. */

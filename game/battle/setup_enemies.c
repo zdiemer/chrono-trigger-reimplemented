@@ -27,10 +27,12 @@ enum { TILE_PIXELS = 16, ENEMY_RECORD_BYTES = 12 };
 enum { KIND_BITS = 0x07, STARTS_HIDDEN = 0x80, NO_ENEMY = 0x8000 };
 
 /* An enemy header's flags. */
-enum { DRAWN_ON_TOP = 0x80, /* a second, topmost entry in the draw list */
+enum {
+    DRAWN_ON_TOP = 0x80,      /* a second, topmost entry in the draw list */
     NUMBERS_AT_CURSOR = 0x20, /* its numbers show at its cursor point */
-    LEADS_FORMATION = 0x08, /* the formation keeps its places around it */
-    UNDER_THE_RULE = 0x04, /* the battle's rule applies to it */ };
+    LEADS_FORMATION = 0x08,   /* the formation keeps its places around it */
+    UNDER_THE_RULE = 0x04,    /* the battle's rule applies to it */
+};
 
 /* Enemies drawn a pixel lower than their records place them. */
 static bool stands_lower(uint16_t number) { return number == 0xD8 || number == 0x94 || number == 0xAD; }

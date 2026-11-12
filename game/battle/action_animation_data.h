@@ -80,7 +80,12 @@ enum { ONE_SPRITE_SHAPE_BYTES = 6 };
 /* Three bytes of the ROM ($CF:FFFD-$CF:FFFF), all 0 in the released game, by
  * which the developers forced every action's animation: as a critical hit, as
  * its second script set, or as neither. */
-typedef enum { ANIMATIONS_AS_THEY_ARE, ANIMATIONS_ALL_CRITICAL, ANIMATIONS_ALL_SECOND, ANIMATIONS_ALL_PLAIN } AnimationSwitch;
+typedef enum {
+    ANIMATIONS_AS_THEY_ARE,
+    ANIMATIONS_ALL_CRITICAL,
+    ANIMATIONS_ALL_SECOND,
+    ANIMATIONS_ALL_PLAIN,
+} AnimationSwitch;
 
 /* ---- A party member's frames ---------------------------------------------------------------- */
 

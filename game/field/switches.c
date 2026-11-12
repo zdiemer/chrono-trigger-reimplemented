@@ -22,7 +22,6 @@
 #include "field/object.h"
 
 #include "field/bridge.h"
-#include "field/scratch.h"
 #include "platform/video.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -122,14 +121,15 @@ static uint16_t switch_tile_at(uint16_t step, unsigned step_column, unsigned col
     return (uint16_t)(step + column - step_column - up * MAP_ROW);
 }
 
-/* The one-by-two switch's upper tile, as the guard asks. */
+/* The one-by-two switch's upper tile, which the main loop's requests check
+ * (field/requests.c). */
 uint16_t field_switch_upper_tile(uint16_t step) { return switch_tile_at(step, 0, 0, 1); }
 
 // $C0:0D45-$C0:16DB (the step event's switches)
 /* Press the switch the leader stepped on, if the tile is one: its tiles move
  * on in the map. (The original moves the one-by-two switch's upper tile on
- * as a word with the tile to its right, which only a tile of $FF would carry
- * into; the guard refuses one.) */
+ * as a word with the tile to its right, which only a tile of $FF would run
+ * into; the port refuses one.) */
 SwitchPress field_press_switch(GameState *g, uint16_t step)
 {
     SwitchPress p = { false, SWITCH_ONE_BY_TWO, 0 };
@@ -149,7 +149,12 @@ SwitchPress field_press_switch(GameState *g, uint16_t step)
 /* A map tile's four entries in BG1's tile map in VRAM: where the tile is
  * from the screen's top left edge, on BG1's place in its tile map (which
  * wraps), with the layer's base. */
-enum { BG1 = 0, ENTRIES_A_TILE = FIELD_ENTRIES_A_MAP_TILE, COLUMN_BITS = FIELD_TILE_MAP_COLUMNS - 1, ROW_BITS = FIELD_TILE_MAP_ROWS - 1 };
+enum {
+    BG1 = 0,
+    ENTRIES_A_TILE = FIELD_ENTRIES_A_MAP_TILE,
+    COLUMN_BITS = FIELD_TILE_MAP_COLUMNS - 1,
+    ROW_BITS = FIELD_TILE_MAP_ROWS - 1,
+};
 
 /* A map tile's four tile map entries, as a chest's are kept. */
 enum { QUARTERS = FIELD_CHEST_ENTRIES_COUNT };
@@ -167,11 +172,6 @@ static TileEntries tile_entries(const GameState *g, int column, int row)
                             (uint16_t)(field_tile_map_index(x, below) + base),
                             (uint16_t)(field_tile_map_index(right, below) + base) } };
 }
-
-/* For the original's code and shadow mode: working out the entries leaves
- * the screen's edges as words in two of the page's scratch cells, and the
- * last entry's row times 32. */
-enum { ENTRIES_A_ROW = FIELD_TILE_MAP_HALF_COLUMNS };
 
 enum { REDRAW_CHEST = 0x02, REDRAW_SWITCH = 0x10 };
 
@@ -277,8 +277,6 @@ void field_redraw_changed_tiles(GameState *g, Platform *pf)
     }
 }
 
-/* ---- The step, remembered ------------------------------------------------------------------ */
-
 /* ---- The steps remembered --------------------------------------------------------------- */
 
 /* A free place in the list: none, its word's top bit set (the original
@@ -349,7 +347,7 @@ void field_press_the_remembered_switches(GameState *g)
     }
 }
 
-/* Its guard's part: each step remembered is on the map, and so is each tile
+/* What the port checks: each step remembered is on the map, and so is each tile
  * of the switch it presses. */
 bool field_remembered_switches_on_the_map(const GameState *g)
 {
@@ -362,19 +360,3 @@ bool field_remembered_switches_on_the_map(const GameState *g)
     }
     return true;
 }
-
-uint16_t field_step_kept_at(const GameState *g, uint16_t step)
-{
-    for (unsigned i = 0; i < FIELD_PRESSED_TILES_COUNT; i++)
-        if (field_pressed_tiles(g, i) == step)
-            return step;
-    return field_pressed_tiles(g, FIELD_PRESSED_TILES_COUNT - 1);
-}
-
-unsigned field_switch_entry_count(const GameState *g)
-{
-    const SwitchShapeTiles *s = pressed_shape(g);
-    return (unsigned)s->columns * s->rows * 4u;
-}
-
-unsigned field_switch_rows(SwitchShape shape) { return shapes[shape].rows; }

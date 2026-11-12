@@ -22,8 +22,7 @@ bool menu_list_scrolls(const GameState *g);
 /* The cursor pushed along the list ($C2:EA53): a list that scrolls scrolls a
  * row where the push took the cursor past its rows (menu_list_scrolls_a_row),
  * which its screen does, and keeps a held Start repeating fast; one that
- * doesn't wraps the cursor round its places. Its entry and the screens'
- * steps' run of it are in menu/bridge.h. */
+ * doesn't wraps the cursor round its places. */
 void menu_keep_the_cursor_on_the_list(GameState *g);
 bool menu_list_scrolls_a_row(const GameState *g);
 
@@ -56,10 +55,7 @@ void menu_put_the_list_bands_back(GameState *g);
 
 /* A scrolling list's frame ($C2:EA81): the list laid out for its paging, its
  * cursor and its scroll bar, `places` places, `rows` of them in view at once,
- * and the bar's thumb moving over `track` lines (menu_frame_the_list, below).
- * The entry takes the places in Y and the rows and track where its callers
- * leave them, and the bridges that run it as C leave the registers as it
- * does. */
+ * and the bar's thumb moving over `track` lines (menu_frame_the_list, below). */
 void menu_frame_the_list(GameState *g, uint8_t places, uint8_t rows, uint16_t track);
 
 /* A scrolling list paged with the shoulder assignments, its first row at

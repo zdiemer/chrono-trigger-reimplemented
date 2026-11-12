@@ -36,20 +36,34 @@
 static const VidVramPort down_a_column = { .step = 128, .after_high = false };
 
 /* Where the race keeps its graphics in VRAM. */
-enum { PLANE_VRAM = 0x0000, /* the Mode 7 plane: its name table in the low bytes, its pixels in the high */
-    PLANE_COLUMN_VRAM = 0x0B00, /* the column of the name table the track scrolls in at */
-    RACERS_MAP_A_VRAM = 0x4000, /* the two halves of the racers' tilemap, drawn alternately */
-    RACERS_MAP_B_VRAM = 0x4400, ROAD_STRIP_VRAM = 0x5180, SPRITE_TILES_VRAM = 0x5000, /* the sprites' second page of tiles */
-    BG1_MAP_VRAM = 0x6000, BG2_MAP_VRAM = 0x6400, BG3_MAP_VRAM = 0x6800, LAYER_TILES_VRAM = 0x7000, MORE_LAYER_TILES_VRAM = 0x7100,  };
+enum {
+    PLANE_VRAM = 0x0000,          /* the Mode 7 plane: its name table in the low bytes, its pixels in the high */
+    PLANE_COLUMN_VRAM = 0x0B00,   /* the column of the name table the track scrolls in at */
+    RACERS_MAP_A_VRAM = 0x4000,   /* the two halves of the racers' tilemap, drawn alternately */
+    RACERS_MAP_B_VRAM = 0x4400,
+    ROAD_STRIP_VRAM = 0x5180,
+    SPRITE_TILES_VRAM = 0x5000,   /* the sprites' second page of tiles */
+    BG1_MAP_VRAM = 0x6000,
+    BG2_MAP_VRAM = 0x6400,
+    BG3_MAP_VRAM = 0x6800,
+    LAYER_TILES_VRAM = 0x7000,
+    MORE_LAYER_TILES_VRAM = 0x7100,
+};
 
 /* The race's buffers in work RAM. */
-enum { LINE_TABLES = 0x7EF000, LINE_TABLES_BYTES = 0x1000, TILEMAP_BUFFER_BYTES = 0x1200, TILEMAP_HALF_BYTES = 0x0800, ROAD_STRIP = 0x7EE100, ROAD_STRIP_BYTES = 0x0040, SCALER_OUTPUT = 0x7F0300, SCALER_OUTPUT_BYTES = 0x0700, PLANE_COLUMN_COPY = 0x7EC995, PLANE_COLUMN_BYTES = 0x0013, PLANE_COLUMN_READ_BYTES = 0x0014, PLANE_MAP_HALF_BYTES = 0x2000, RACERS_MAP_BYTES = 0x1000,  };
+enum {
+    LINE_TABLES = 0x7EF000, LINE_TABLES_BYTES = 0x1000,
+    TILEMAP_BUFFER_BYTES = 0x1200, TILEMAP_HALF_BYTES = 0x0800,
+    ROAD_STRIP = 0x7EE100, ROAD_STRIP_BYTES = 0x0040,
+    SCALER_OUTPUT = 0x7F0300, SCALER_OUTPUT_BYTES = 0x0700,
+    PLANE_COLUMN_COPY = 0x7EC995, PLANE_COLUMN_BYTES = 0x0013, PLANE_COLUMN_READ_BYTES = 0x0014,
+    PLANE_MAP_HALF_BYTES = 0x2000,
+    RACERS_MAP_BYTES = 0x1000,
+};
 
 /* The plane's name table in the cartridge, whose first column the race sends
  * before it has one of its own. */
 enum { PLANE_MAP_IN_ROM = 0xD20000 };
-
-/* The registers a stop leaves nothing in that the program reads. */
 
 /* ---- The setup's pieces ------------------------------------------------------------------------ */
 
@@ -114,48 +128,55 @@ void scene_upload_plane_half(Platform *pf)
     vid_snes_copy(pf, PF_AT(0x7E876E), &t);
 }
 
-/* ---- Where the setup calls the original's code ------------------------------------------------- */
+/* ---- The setup's calls ------------------------------------------------------------------------ */
 
 /* The setup's calls: the race's song started (the program's call of the
- * driver), the graphics' loading entered and left as a call of the program's
- * own (on the machine, its return on the stack), a resource unpacked by the
+ * driver), the graphics' loading entered and left, a resource unpacked by the
  * program's unpacker (scene/boot.c) from the setup's call (`unpacking`, its
- * place in unpacked_at, below), or with the data bank and direct page kept
- * across it, and the camera script's first step. False where one went no
+ * place in unpacked_at, below), or while the racers' pictures are worked
+ * on, and the camera script's first step. False where one went no
  * further. */
-typedef enum { RACE_SONG_STARTS, RACE_GRAPHICS_ENTERED, RACE_GRAPHICS_LEFT, RACE_UNPACK, RACE_UNPACK_HOLDING, RACE_FIRST_STEP } RaceCall;
+typedef enum {
+    RACE_SONG_STARTS,
+    RACE_GRAPHICS_ENTERED,
+    RACE_GRAPHICS_LEFT,
+    RACE_UNPACK,
+    RACE_UNPACK_HOLDING,
+    RACE_FIRST_STEP,
+} RaceCall;
 typedef bool (*RaceCalls)(void *ctx, RaceCall call, unsigned unpacking, uint16_t resource);
 
-/* The program's unpacker ($7E:3691): the resource's place in the program's
- * resource list in X, and the unpacking into the destination the caller has
- * set; it reads nothing else but the overflow, the data bank and the direct
- * page, which it hands back. */
+/* The program's unpacker ($7E:3691): a resource, by its place in the
+ * program's resource list, unpacked into the destination the caller has set. */
 enum { UNPACK = 0x7E3691 };
 
-/* While the setup works on the racers' pictures the program keeps the data
- * bank and the direct page on the stack, works through the work RAM port's
- * registers' page with the data bank on its pictures' bank, and its sums have
- * left the overflow clear. */
-
 /* The camera script's first step: the program's routine for channel 0's
- * ($7E:3749), called with 16-bit A and its data bank kept on the stack. It
- * reads Y and the overflow: Y as the divisors' clear left it, past the table
- * (scene_race_divisors' 256 bytes from $1446, and one), and the overflow clear. */
-enum { FIRST_STEP_CALL = 0x7E3CD8, CHANNEL_0_STEP = 0x7E3749, DIVISORS_CLEARED_TO = 0x1546 };
+ * ($7E:3749). */
+enum { CHANNEL_0_STEP = 0x7E3749 };
 
 /* ---- Setting the race up ------------------------------------------------------------------------- */
 
 /* The race's buffers, where it puts its graphics as it unpacks them, in the
  * program's two banks of work RAM. */
-enum { UNPACKED_PALETTE = 0x002000, /* the first bank, as the unpacker takes it (a bank byte of 0) */
-    SCENE_PALETTE = 0x7E2200, PALETTE_BYTES = 0x200, PLANE_ROW_BYTES = 0x40, PLANE_ROWS_A_HALF = 0x40,  };
+enum {
+    UNPACKED_PALETTE = 0x002000,         /* the first bank, as the unpacker takes it (a bank byte of 0) */
+    SCENE_PALETTE = 0x7E2200, PALETTE_BYTES = 0x200,
+    PLANE_ROW_BYTES = 0x40, PLANE_ROWS_A_HALF = 0x40,
+};
 
 /* The pictures the racers are scaled from (the bank of pictures, in the second
  * bank): rows of 64 pixels, a byte a pixel. Crono's are unpacked in two parts,
  * the second's eight-pixel blocks placed in the first's rows; Johnny's are
  * Crono's mirrored, half a row each, beside 32 empty pixels; the shared
  * pictures' last part is mirrored too. */
-enum { PICTURES = 0x7F0A00, PICTURE_ROW = 0x40, CRONO_PICTURES_SECOND = 0x7F8A00, CRONO_PICTURES_COPY = 0x7F3800, CRONO_PICTURES_COPY_BYTES = 0x2E00, BLOCK_ROWS = 8, BLOCK_PIXELS = 8, MIRRORED_FIRST = 0x7F5A00, MIRRORED_SECOND = 0x7F7800, MIRRORED_THIRD = 0x7FAE00, MIRRORED_PIXELS = 0x20,  };
+enum {
+    PICTURES = 0x7F0A00, PICTURE_ROW = 0x40,
+    CRONO_PICTURES_SECOND = 0x7F8A00,
+    CRONO_PICTURES_COPY = 0x7F3800, CRONO_PICTURES_COPY_BYTES = 0x2E00,
+    BLOCK_ROWS = 8, BLOCK_PIXELS = 8,
+    MIRRORED_FIRST = 0x7F5A00, MIRRORED_SECOND = 0x7F7800, MIRRORED_THIRD = 0x7FAE00,
+    MIRRORED_PIXELS = 0x20,
+};
 
 /* The race's graphics in the program's resources, each unpacked and sent where
  * it goes: the palette, the plane's pixels and its name table (in two halves,
@@ -213,9 +234,8 @@ void scene_double_plane_rows(GameState *g)
     }
 }
 
-/* One of the race's graphics: VRAM pointed at it, unpacked (a call-out: the
- * unpacker is still the original's, from the program's call at
- * `unpack_site`), and sent or kept. */
+/* One of the race's graphics: VRAM pointed at it, unpacked, and sent or
+ * kept. */
 static bool load_graphics(GameState *g, Platform *pf, unsigned unpacking, const RaceGraphics *r, RaceCalls call, void *ctx)
 {
     if (r->vram_site)
@@ -311,7 +331,7 @@ static void place_crono_blocks(GameState *g)
     for (unsigned i = 0; i < CRONO_BLOCKS; i++)
         place_block(g, CRONO_PICTURES_SECOND + crono_block_of[i] * BLOCK_BYTES,
                     (uint32_t)SCENE_UPPER_WORK_RAM << 16 | crono_blocks[i]);
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
 }
 
 // $7E:3ED3
@@ -349,16 +369,9 @@ static void mirror_crono(GameState *g)
 /* The last part, unpacked over Crono's second, mirrored from its 24th pixel. */
 enum { THIRD_RESOURCE = 0x0C, THIRD_LAST = 0x18, THIRD_RUNS = 12 };
 
-/* The work RAM port as the mirroring leaves it, writing the rows: after
- * Crono's pictures, in the second bank (which the program names by the bank
- * register's one bit), and after the last part's, in the bank the unpacker
- * left it in. */
-enum { AFTER_CRONO_MIRRORED = 0x8A00, AFTER_THIRD_MIRRORED = 0xC600, PORT_SECOND_BANK = 0x01 };
-
 /* The racers' pictures: Crono's unpacked in two parts and the first copied on,
  * the second's blocks placed in it, Johnny's mirrored from them, and the last
- * part unpacked and mirrored. The program keeps the data bank and the direct
- * page on the stack while it works on them, through the last part's unpacking. */
+ * part unpacked and mirrored. */
 enum { CRONO_FIRST_RESOURCE = 0x06, CRONO_SECOND_RESOURCE = 0x09 };
 
 static bool load_racers_pictures(GameState *g, RaceCalls call, void *ctx)
@@ -373,13 +386,13 @@ static bool load_racers_pictures(GameState *g, RaceCalls call, void *ctx)
     charge_block_move(g, CRONO_PICTURES_COPY_BYTES);
     place_crono_blocks(g);
     mirror_crono(g);
-    charge_legacy_accesses(g, 2);
-    charge_legacy_io_accesses(g, 3);
+    charge_accesses(g, 2);
+    charge_io_accesses(g, 3);
     if (!call(ctx, RACE_UNPACK_HOLDING, THIRD_UNPACKED, THIRD_RESOURCE))
         return false;
     scene_mirror_rows(g, MIRRORED_THIRD, CRONO_PICTURES_SECOND, THIRD_LAST, THIRD_RUNS * MIRROR_RUN_ROWS);
-    charge_legacy_accesses(g, 1);
-    charge_legacy_io_accesses(g, 2);
+    charge_accesses(g, 1);
+    charge_io_accesses(g, 2);
     return true;
 }
 
@@ -387,7 +400,10 @@ static bool load_racers_pictures(GameState *g, RaceCalls call, void *ctx)
 
 /* The camera's script and the race's, on channels 0 and 1: the race's own, or
  * in the demo one of the two camera scripts in turn, each showing. */
-enum { RACE_CAMERA_SCRIPT = 0x3F14, RACE_SCRIPT = 0x400A, DEMO_CAMERA_SCRIPT = 0x404D, DEMO_OTHER_CAMERA_SCRIPT = 0x40C3, DEMO_SCRIPT = 0x415E,  };
+enum {
+    RACE_CAMERA_SCRIPT = 0x3F14, RACE_SCRIPT = 0x400A,
+    DEMO_CAMERA_SCRIPT = 0x404D, DEMO_OTHER_CAMERA_SCRIPT = 0x40C3, DEMO_SCRIPT = 0x415E,
+};
 
 /* The scene's fade steps every 8 frames. */
 enum { FADE_PERIOD = 8 };
@@ -498,7 +514,8 @@ static bool set_up_the_race(GameState *g, Platform *pf, RaceCalls call, void *ct
     return true;
 }
 
-/* As C: the unpacker and the camera script's turn are the program's as C. */
+/* The setup's calls made: the song, the unpacker and the camera script's
+ * turn. */
 typedef struct {
     GameState *game;
     Platform *pf;
@@ -547,14 +564,6 @@ static void show_curtain_step(const GameState *g, Platform *pf)
     vid_set_line_table(pf, PF_AT(odd ? 0x7E3D81 : 0x7E3D88), CURTAIN_WINDOW_SLOT, curtain_table(g));
 }
 
-/* The curtain's step saves every register and puts them back, and reads
- * none but X, which it saves where the analysis counts it read: the task's
- * own, handed it as it is. */
-enum { CURTAIN_STEP = 0xC3000E };
-
-/* What the task leaves: 8-bit A the steps halved, X the table, the carry the
- * step's oddness. */
-
 /* A frame of the sweep: the curtain's step, by `step`, then the window's
  * edges shown from the table it filled. False where the step went no
  * further. */
@@ -566,26 +575,26 @@ static bool sweep_curtain_with(GameState *g, Platform *pf, bool (*step)(void *ct
     return true;
 }
 
-/* As C, the step's port, with its guard's state half (scene/curtain.c). Its
- * stir takes X as the list called the task with, the slot's place in the
+/* The curtain's step (scene/curtain.c), which goes no further where its
+ * table is not one it sweeps. Its stir takes the slot's place in the task
  * list. */
 typedef struct {
     GameState *game;
     Platform *pf;
     uint16_t salt;
-} CurtainInC;
+} CurtainContext;
 
 static bool curtain_step(void *ctx)
 {
-    CurtainInC *c = ctx;
+    CurtainContext *c = ctx;
     return scene_curtain_stepped(c->game, c->pf, c->salt);
 }
 
 TaskEnd scene_race_sweep_curtain(GameState *g, Platform *pf, unsigned slot)
 {
-    CurtainInC c = { g, pf, (uint16_t)(slot * 2) };
+    CurtainContext c = { g, pf, (uint16_t)(slot * 2) };
     if (!sweep_curtain_with(g, pf, curtain_step, &c))
-        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+        return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
     return task_goes_on();
 }
 
@@ -613,8 +622,6 @@ static void keep_camera_sent(GameState *g)
     set_scene_race_view_sent(g, 3, scene_race_view_position(g, 1));
 }
 
-/* The display's tasks below are guarded by their code and the page alone:
- * as C there is nothing of their guards to check. */
 TaskEnd scene_race_move_camera(GameState *g, Platform *pf, unsigned slot)
 {
     (void)slot;
@@ -635,8 +642,8 @@ static void upload_column(Platform *pf, uint32_t column)
     vid_snes_copy(pf, PF_AT(0x7E4671), &t);
 }
 
-/* A column is sent once: the task is done, and both entries end by jumping
- * into the vblank list's exit that takes it off. */
+/* A column is sent once: the task is done, and takes itself off the vblank
+ * list. */
 static TaskEnd send_column_once(Platform *pf, uint32_t column)
 {
     upload_column(pf, column);
@@ -737,13 +744,8 @@ bool race_send_sound(GameState *g, Platform *pf, RaceSound sound, RaceSends send
     return send(ctx, g, pf, sound);
 }
 
-/* On the machine, the program's send ($7E:377E), which waits for the driver
- * to take the command: called with 8-bit A, and the caller's width put back
- * after. It reads none of the registers but Y and the data bank, which it
- * leaves (and nothing after these calls reads A or the flags it changes). */
-enum { SCENE_SEND = 0x7E377E };
-
-/* As C, the send's port, timed as the program's send. */
+// $7E:377E
+/* The program's send, which waits for the driver to take the command. */
 bool race_sound(void *ctx, GameState *g, Platform *pf, RaceSound sound)
 {
     (void)ctx;

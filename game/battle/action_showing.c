@@ -15,11 +15,8 @@
  * takes to nothing falls at once, before its HP says so (the damage is
  * applied after, battle/damage.c).
  *
- * The showing waits for the next frame between its steps (the original's
- * wait at $C1:007E), and runs the steps that call the original's code as the
- * original's calls make them (battle_run): so the showing is a bridge, its
- * steps C where they are. While it runs it keeps the frame's phase on the
- * stack, where the original keeps it across its calls. */
+ * The showing waits for the next frame between its steps (the battle's wait,
+ * $C1:007E), and keeps the frame's phase across them. */
 #include "battle/action_animation_data.h"
 #include "battle/animation.h"
 #include "battle/battle.h"
@@ -95,9 +92,6 @@ static uint8_t first_target(uint16_t bits)
     return slot;
 }
 
-/* The original walks the target bits out of the first work cells, the other
- * targets' last. */
-
 // $CC:F156
 /* The showing's subjects for the scripts' channels: the actor; the two
  * others taking part in its tech, or for a member acting alone the other two
@@ -163,9 +157,6 @@ static bool damage_shown_takes_all(const GameState *g, unsigned member)
     return damage && hp != 0 && shown != 0 && shown >= hp;
 }
 
-/* The original counts the members in its first work cell, and each one
- * falling in a cell of its own after it. */
-
 // $C1:41BE
 /* A party member falls where the damage shown over it takes all the HP it
  * has. */
@@ -230,8 +221,7 @@ static void apply_the_animation_switch(GameState *g)
  * battle/frame_step.c), the animation's loading ($C1:4310,
  * battle/action_animation.c), the places the scripts follow ($C1:4212) and
  * the scripts' step ($C1:4BBE, battle/scripts.c), the sound effects cut off,
- * and the frame's phase kept across them (the original keeps it on the
- * stack). */
+ * and the frame's phase kept across them. */
 typedef enum {
     SHOW_FIRST_FRAME, SHOW_FRAME_AFTER_THE_POSES, SHOW_PLAYING_FRAME, SHOW_FINISHING_FRAME, SHOW_LAST_FRAME,
     SHOW_FALLING_FRAME, SHOW_FALL_SENT_FRAME, SHOW_FALL_SENT_SECOND_FRAME,
@@ -333,7 +323,7 @@ static bool show_the_action(GameState *g, ShowCalls call, void *ctx)
 }
 
 /* The sound effects are cut off: the driver starts an effect of none on
- * their voices. The driver's command routine reads none of the registers. */
+ * their voices. */
 enum { NO_SOUND_EFFECT = 0xFF };
 
 static void cut_off_the_sounds(Platform *pf)
@@ -342,11 +332,11 @@ static void cut_off_the_sounds(Platform *pf)
                (AudioCommand){ .command = AU_START_EFFECT, .p1 = NO_SOUND_EFFECT, .count = 1 });
 }
 
-/* The guard's state half: the actor is a combatant (the action's subjects
+/* The showing takes an actor that is a combatant (the action's subjects
  * index the objects' places by it). */
 static bool showing_fits(const GameState *g) { return battle_names_combatant(battle_action_actor(g)); }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The showing's calls ----------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;

@@ -11,19 +11,18 @@
  * left of the previous bitmap's output beyond this one's is cleared. Both live in
  * the second bank of work RAM, where the scene programs put them.
  *
- * Both entry points draw the whole bitmap in C. Their guards check the
- * complete output extent before drawing, including the initial row's
- * carry-dependent nudge; the runtime schedules any intervening interrupts.
+ * The whole bitmap is drawn at once, after a check of the complete output
+ * extent, the first row's nudge included.
  *
  * The original never clears the carry between its sums, and three of them move
  * what the player sees: a row's samples start 1/256 of a pixel further on when
  * its source row lies further along the bitmap than the last row's, a sample
  * whose position wrapped past the row's 256th pixel moves those after it on by
  * 1/256 (group_positions), and a row's source is picked 1/128
- * of a row further on when the call before left the carry set (the entry's
+ * of a row further on when the call before left the carry set (the caller's
  * `row_nudge`). The rest of its carries come from sums that wrap past the end
- * of the bank, which no scene's bitmap reaches, and the entry's guard hands
- * such bitmaps to the original. */
+ * of the bank, which no scene's bitmap reaches; a scene that hands the scaler
+ * such a bitmap goes no further. */
 #include "scene/scene.h"
 
 #include "charge.h"
@@ -89,11 +88,6 @@ static void pack_planes(GameState *g, uint16_t planes, const uint8_t pixels[GROU
     }
 }
 
-/* The original packs the last group's pixels in the scene's scratch, a word a
- * sample, and shifts each plane out of them: the scratch ends with each pixel
- * shifted down a nibble and the last sample's second byte, and its count of
- * pairs run down to 0. */
-
 /* Where a group of eight samples falls along its source row, each a step on
  * from the last (in PIXEL_UNITS), the first from `last`. A bitmap stretched so
  * wide that its samples run past the row's 256th pixel wraps back to the row's
@@ -132,7 +126,7 @@ static void sample_row(GameState *g, uint16_t source, bool row_moved_on)
         pack_planes(g, planes, pixels);
         planes = (uint16_t)(planes + PLANES);
     }
-    charge_legacy_accesses(g, GROUP + 4);
+    charge_accesses(g, GROUP + 4);
 }
 
 /* The row the same as the last one: its 32 bytes copied. */
@@ -219,18 +213,8 @@ static RowOutcome scale_row(GameState *g, bool row_nudge)
  * and a source limit a row's position can be compared with either way (at
  * most $8000; the original compares by the sign of the difference). Past
  * those the original's carries reach its plane pointer and its reads its own
- * scratch, and the bitmap is the original's to draw. No scene's reaches them. */
+ * scratch, and the port draws no such bitmap. No scene's reaches them. */
 enum { LARGEST_LIMIT = 0x8000, SAMPLES_REACH = 0x0101 };
-
-/* Check a caller's request before it replaces the current scaler workspace.
- * These fixed-size scene pictures fit even if every requested row is drawn. */
-bool scene_scaling_fits(SceneScaling picture)
-{
-    return picture.pairs && picture.rows && picture.limit <= LARGEST_LIMIT &&
-           (!picture.limit || (uint32_t)picture.source + picture.limit - 1 + SAMPLES_REACH <= POSITIONS) &&
-           OUTPUT_START + (uint32_t)(picture.rows - 1) * ROW_BYTES +
-               (uint32_t)picture.pairs * GROUPS_PER_PAIR * PLANES <= POSITIONS;
-}
 
 bool scene_scaler_draws(const GameState *g)
 {
@@ -243,7 +227,7 @@ bool scene_scaler_draws(const GameState *g)
     return planes_fit && limit_compares && source_in_bank;
 }
 
-/* The whole bitmap at once, as a program with no machine draws it: the first
+/* The whole bitmap at once: the first
  * row nudged by `row_nudge`, each after it by the carry of the output's step
  * before it, which only a step past the bank's end leaves. False where a row
  * is one the port doesn't draw, which the program can't go on from. */
@@ -269,8 +253,6 @@ bool scene_scale_the_bitmap(GameState *g, bool row_nudge)
     return true;
 }
 
-/* ---- Entries: 16-bit A and index registers, on the scene's page, bank $7F ------------------- */
-
 /* Follow the output extents without drawing. A short source can end a tall
  * requested picture early, so checking only rows * stride would refuse
  * valid pictures. No bitmap pixels or persistent state change here. */
@@ -294,8 +276,3 @@ static bool bitmap_fits(const GameState *g, uint16_t position, bool row_nudge)
         row_nudge = output < ROW_BYTES;
     }
 }
-
-// $C3:0307
-/* A bitmap starts with the row accumulator at 0; its rows are the loop's. */
-
-// $C3:034A

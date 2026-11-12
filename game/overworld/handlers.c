@@ -1,14 +1,12 @@
 /* The overworld's objects as the game runs them: the walkers, the vehicles,
  * the places' watcher, the music and the sign -- what each takes of the
- * game's state, its turn as the program runs it with no machine, and the
- * routines the world maps' scenes call of the overworld's.
+ * game's state, its turn, and the routines the world maps' scenes call of
+ * the overworld's.
  *
- * Each turn is the same function of the game's state the machine's form runs
- * (entries.c); the walkers and the Epoch run a script of their own through
- * the command scripts' interpreter, which here is the interpreter as C
- * (menu/handlers.h). What each takes is the state half of the form's
- * contract, which the program checks first (menu/handlers.c) and the forms'
- * contracts check after the machine's half. */
+ * The walkers and the Epoch run a script of their own through the command
+ * scripts' interpreter (menu/handlers.h). What each takes of the game's
+ * state is its contract, which the program checks before its turn
+ * (menu/handlers.c). */
 #include "overworld/handlers.h"
 
 #include "charge.h"
@@ -293,8 +291,7 @@ bool overworld_location_song_takes(const GameState *g, MenuObject self)
 
 /* ---- The location's song --------------------------------------------------------------------- */
 
-/* The driver ($C7:0004) reads nothing of the registers, and hands back X,
- * the carry and A's high byte as it found them. */
+/* The sound driver ($C7:0004), and where the song is sent. */
 enum { SOUND_DRIVER = 0xC70004, LOCATION_SONG_SENT = 0xC22F49 };
 
 // $C2:2F0F
@@ -304,9 +301,9 @@ void overworld_start_the_location_song(GameState *g, Platform *pf)
     au_command(pf, PF_CALL(LOCATION_SONG_SENT, SOUND_DRIVER), overworld_song_command(song.song));
 }
 
-/* ---- As C ------------------------------------------------------------------------------------- */
+/* ---- The scripts ------------------------------------------------------------------------------ */
 
-/* A walker's or the Epoch's script, run by the interpreter as C. */
+/* A walker's or the Epoch's script, run by the interpreter. */
 typedef struct {
     GameState *game;
     Platform *pf;

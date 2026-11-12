@@ -18,10 +18,7 @@
  * 0 or $E0, out of the PPU: a transfer that reads a register rather than
  * writing one, which no video call expresses, so it goes through the
  * SNES-only escape (vid_snes_copy); the matrix values they leave behind are
- * the video state.
- *
- * The program is in work RAM, where other code and data are at other times, so
- * every entry is guarded by a hash of its code. */
+ * the video state. */
 #include "scene/scene.h"
 
 #include "charge.h"
@@ -42,14 +39,22 @@ enum { COLORS = 256 };
 /* Where the scene keeps the sprites' graphics. */
 enum { SPRITE_GRAPHICS = 0x4000 };
 
-/* The rows of this file's tasks (below), which their entries run. */
-enum ScreenTaskRow { ROW_ANIMATE_PALETTES, ROW_FINISH_SPRITES, ROW_BRIGHTEN, ROW_DARKEN, ROW_MUSIC_FADES, ROW_DARKEN_IN_SILENCE_AND_END, ROW_DARKEN_AND_END };
+/* The rows of this file's tasks (below), where the task lists find them. */
+enum ScreenTaskRow {
+    ROW_ANIMATE_PALETTES,
+    ROW_FINISH_SPRITES,
+    ROW_BRIGHTEN,
+    ROW_DARKEN,
+    ROW_MUSIC_FADES,
+    ROW_DARKEN_IN_SILENCE_AND_END,
+    ROW_DARKEN_AND_END,
+};
 
 /* ---- The program stops ---------------------------------------------------------------------- */
 
 // $7E:302A
 /* The program stops: interrupts and per-line effects off and the screen
- * blanked, before it moves the stack and jumps to the reset code. */
+ * blanked, before the game goes back to the field's start. */
 void scene_stops_the_display(Platform *pf)
 {
     tm_enable_interrupts(pf, PF_AT(0x7E302F), 0);
@@ -59,24 +64,25 @@ void scene_stops_the_display(Platform *pf)
 
 /* ---- The program's work RAM cleared --------------------------------------------------------- */
 
-/* What the clear covers: the direct page, then low RAM from past the stack up
- * to the sound driver interface's page -- or, for the title coming back, from
- * the task lists, keeping what lies between. */
-enum { DIRECT_PAGE_BYTES = 0x0100, FROM_THE_STACK = 0x000900, FROM_THE_TASKS = 0x000920, SOUND_PAGE = 0x1E00 };
+/* What the clear covers: the first page of low RAM, the scene's own cells,
+ * then low RAM from past the stack up to the sound driver interface's page --
+ * or, for the title coming back, from the task lists, keeping what lies
+ * between. */
+enum { SCENE_CELLS_BYTES = 0x0100, FROM_THE_STACK = 0x000900, FROM_THE_TASKS = 0x000920, SOUND_PAGE = 0x1E00 };
 
 // $7E:3092
 /* Clear the program's work RAM: every byte set to the product the Mode 7
- * multiplier offers, with the matrix set so that it is 0 -- A times 0, where A
- * is `matrix_left`, whatever the caller had in the accumulator, which the
- * multiplier keeps afterwards. The second transfer keeps the first one's mode,
+ * multiplier offers, with the matrix set so that it is 0 -- `matrix_left`
+ * times 0, `matrix_left` being what the caller hands on (the fades' pace),
+ * which the multiplier keeps afterwards. The second transfer keeps the first one's mode,
  * destination and bank, so it programs only its source and size. Returns
  * whether it was the title's shorter clear. */
 bool scene_clear_the_work_ram(GameState *g, Platform *pf, uint8_t matrix_left)
 {
     vid_set_mode7(pf, PF_AT(0x7E3096), &(VidMode7){ .a = (int16_t)(matrix_left << 8 | matrix_left) }, VID_M7_MATRIX_A);
     vid_set_mode7(pf, PF_AT(0x7E309D), &(VidMode7){ .b = 0 }, VID_M7_MATRIX_B);
-    const VidSnesTransfer direct_page = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = 0x000000, .size = DIRECT_PAGE_BYTES };
-    vid_snes_copy(pf, PF_AT(0x7E30B6), &direct_page);
+    const VidSnesTransfer scene_cells = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = 0x000000, .size = SCENE_CELLS_BYTES };
+    vid_snes_copy(pf, PF_AT(0x7E30B6), &scene_cells);
     bool keep_below_tasks = scene_flags(g) & SCENE_FLAG_TITLE_WITH_LINE_IRQ;
     uint32_t from = keep_below_tasks ? FROM_THE_TASKS : FROM_THE_STACK;
     const VidSnesTransfer rest = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = from, .size = (uint16_t)(SOUND_PAGE - from) };
@@ -120,8 +126,6 @@ static void upload_sprites(GameState *g, Platform *pf)
     set_scene_sprite_high_pointer(g, SCENE_SPRITE_HIGH_TABLE);
 }
 
-/* Nothing it leaves in the registers is read. */
-
 // $7E:380B
 /* The vblank task that sends the frame's sprites: the frame's last group of
  * four finished (scene/sprites.c), then the table sent. */
@@ -157,20 +161,18 @@ void scene_send_palette(Platform *pf)
 
 /* ---- The palettes' animations, a frame at a time ---------------------------------------------- */
 
-/* The task reads the multiplier's operands into its first scratch word before
- * the animations, which multiply, and writes them back after. The registers
- * can't be read: both bytes read back as the bus last had them, the read's own
- * address's high byte, and the write multiplies them. The word stays where
- * the Epoch's dive's random draws stir it in after it; the multiplier left as
- * the original leaves it is scaffolding. */
+/* The task keeps the multiplier's operands aside in its first scratch word
+ * around the animations, which multiply. The game can't read them back: both
+ * bytes come out as $42. The word stays where the Epoch's dive's random draws
+ * stir it in after it. */
 enum { MULTIPLIER_READ_BACK = 0x4242 };
 
 static void keep_the_multiplier_s_word(GameState *g, uint16_t kept) { scene_leave_for_the_draws(g, kept, TM_ENTROPY_WORDS); }
 
 // $7E:37FA
 /* A frame task: the palettes animate a frame (core/palette.c, through bank
- * $FD's jump to them), where every slot holds an animation the port takes,
- * as the task's guard has it; otherwise the program goes no further. */
+ * $FD's jump to them), where every slot holds an animation the game makes;
+ * otherwise the program goes no further (palette_animated). */
 static TaskEnd animate_the_palettes_task(GameState *g, Platform *pf)
 {
     (void)pf;
@@ -179,15 +181,14 @@ static TaskEnd animate_the_palettes_task(GameState *g, Platform *pf)
     if (!animated)
         return task_goes_on();
     keep_the_multiplier_s_word(g, MULTIPLIER_READ_BACK);
-    charge_legacy_io_accesses(g, 4);
+    charge_io_accesses(g, 4);
     return task_goes_on();
 }
 
 /* The Epoch's dive into Lavos (scene/epoch_dive.c) has its sequence run a
- * frame of the animations itself as it starts a fade, from a channel's page
- * with the data bank on work RAM's, where the word the routine keeps aside is
- * two bytes of the program's own code, put back as they were; the copy stays
- * in the channel's call cell. */
+ * frame of the animations itself as it starts a fade, where the word the
+ * routine keeps aside is two bytes of the program's own code, put back as
+ * they were; the copy stays in the channel's call cell. */
 
 void scene_animate_the_palettes_for(GameState *g, SceneChannel ch)
 {
@@ -195,7 +196,7 @@ void scene_animate_the_palettes_for(GameState *g, SceneChannel ch)
     bool animated = false;
     TIMED_AS(g, 0xFDFFF7, animated = palette_animated(g));
     if (animated)
-        charge_legacy_accesses(g, 4);
+        charge_accesses(g, 4);
 }
 
 /* ---- The screen's fades ---------------------------------------------------------------------- */
@@ -252,7 +253,7 @@ static TaskEnd darken_task(GameState *g, Platform *pf)
     return fade_steps(g) && darker(g) ? task_is_done() : task_goes_on();
 }
 
-/* The driver's command reads A's high byte, the list's task, as it called. */
+/* The sound driver's entry. */
 enum { DRIVER = 0xC70004 };
 
 // $7E:34AB
@@ -363,8 +364,6 @@ void scene_send_unpacked(const GameState *g, Platform *pf)
     scene_send_unpacked_as(g, pf, scene_call_transfer_control(g, scene), scene_call_transfer_register(g, scene));
 }
 
-/* Returns with RTL; nothing it leaves in the registers is read. */
-
 /* ---- Resources copied as they are, and the palette made current ------------------------------ */
 
 /* The bank of work RAM the unpacker's destination names, by its bank byte's
@@ -381,7 +380,7 @@ uint8_t scene_unpacked_bank(const GameState *g)
 void scene_copy_resource_to(GameState *g, SceneProgramPage page, unsigned resource, uint16_t to, uint16_t bytes)
 {
     (void)page;
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
     scene_copy_resource_bytes(g, scene_unpacked_bank(g), scene_resource_offset(g, resource), to, bytes);
     charge_block_move(g, bytes);
 }
@@ -405,7 +404,7 @@ void scene_widen_the_plane_map(GameState *g)
          * tile and moves it on over the other 63, one byte on. */
         charge_block_move(g, UNPACKED_ROW_BYTES + (UNPACKED_ROW_BYTES - 1));
     }
-    charge_legacy_accesses(g, 2);
+    charge_accesses(g, 2);
 }
 
 // $7E:90A7
@@ -426,10 +425,6 @@ void scene_use_loaded_palette(GameState *g)
     wram_copy(g, LOADED_PALETTE, WORKING_PALETTE, PALETTE_BYTES);
     charge_block_move(g, PALETTE_BYTES);
 }
-
-/* As the program's code calls it, with 16-bit index registers: back with
- * 8-bit A, and A, X and Y as the block move and its count's step on leave
- * them, past the palettes. */
 
 /* ---- Per-line effects from descriptors --------------------------------------------------- */
 
@@ -457,18 +452,12 @@ static LineEffectDescriptor read_descriptor(const GameState *g, uint16_t at)
     return (LineEffectDescriptor){ (uint8_t)head, (uint8_t)(head >> 8), table, (uint8_t)bank, (uint8_t)(bank >> 8) };
 }
 
-/* A `VidLineEffect` carries the transfer mode and the indirect bit and nothing
- * else, so a mode byte with any other bit set would be written back as a
- * different one. */
-enum { LINE_EFFECT_MODE_BITS = 0x47 };
-
 // $7E:36CC
 /* Program the per-line effects from the descriptors at `at`, one to each
  * channel from 0 up. The race's table drives window 1's left edge, the Mode 7
  * matrix in two halves, BG1's scroll, the color math layers and the BG mode.
- * The guard has walked the table and refused one a descriptor of which no
- * target names, so every descriptor decodes. Returns where the descriptors
- * end. */
+ * A descriptor no target names ends the table there; the game's tables
+ * have none. Returns where the descriptors end. */
 uint16_t scene_set_up_line_effects(const GameState *g, Platform *pf, uint16_t at)
 {
     for (uint8_t channel = 0;; channel++) {
@@ -483,5 +472,3 @@ uint16_t scene_set_up_line_effects(const GameState *g, Platform *pf, uint16_t at
         at = (uint16_t)(at + DESCRIPTOR_BYTES);
     }
 }
-
-/* The overflow of stepping past a descriptor, which the program reads after. */

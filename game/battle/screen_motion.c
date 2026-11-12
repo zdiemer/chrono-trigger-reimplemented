@@ -13,10 +13,6 @@
 
 /* ---- The channel's layer ----------------------------------------------------------------- */
 
-// $D1:F474
-/* A random byte, picked from the battle's table by a seed moved on by the
- * frame count. */
-
 /* The original's pick also adds in the carry its caller's last addition left:
  * a pick right after an amount that went past 255 is taken one further on.
  * The jitter's first pick comes right after the screen script's dispatch,
@@ -31,8 +27,6 @@ static uint8_t random_pick_after_overflow(const GameState *g, uint8_t seed, bool
     return random_pick(g, (uint8_t)(seed + overflowed));
 }
 
-/* What the jitter leaves in its cells: the two amounts and the spread. */
-
 // $D1:F47C
 /* Shake the channel's layer to a random spot near a point: right by `across`
  * and down by `down`, each plus a random amount within the `spread` mask. The
@@ -44,9 +38,6 @@ static void jitter_layer(GameState *g, ScreenChannel ch, uint8_t across, uint8_t
     set_battle_screen_layer_x(g, ch, (uint16_t)-(uint8_t)right);
     set_battle_screen_layer_y(g, ch, (uint16_t)-lower);
 }
-
-/* Screen command $DF: jitter the layer about a point (three operands: across,
- * down, spread). */
 
 /* The swing's state: which way it is going (the original tests the flag's
  * low byte, and sets it with a word's increment), its speed and its
@@ -287,8 +278,8 @@ static bool passes_the_end(const GameState *g, uint8_t seed, bool overflowed)
 
 // $CD:1A14
 /* Pick the six amounts at random, each from the last, the first from the
- * command's operand. The dispatch always leaves the first pick a step on
- * (battle_screen_command_ready asks it, as for the jitter). */
+ * command's operand. The dispatch always leaves the first pick a step on,
+ * as for the jitter. */
 static void pick_drifts(GameState *g, ScreenChannel channel, uint8_t seed)
 {
     bool overflowed = true;
@@ -373,17 +364,7 @@ SCREEN_OPCODES(screen_motion_opcodes,
     { 0xC0, OPERATION(shake_screen), .length = 8, .stop = TOP_BIT(0), .shake_across = TRIPLE(1), .shake_down = TRIPLE(4), .layers = BYTE(7) },
 );
 
-/* ---- The entries ------------------------------------------------------------------------ */
-
-/* The guards. The screen script's dispatch calls its commands' bodies with
- * A's high byte clear and the carry set, running a channel. */
-
-/* ... and the slots the positions are saved in are two. */
-
-/* The caller hands the settings in five of the page's cells, $53-$57, and the
- * effect is one of the six the original's table has. */
-
-// $D1:F474
+/* ---- The screen effect the settings name ---------------------------------------------------- */
 
 // $D1:F67A
 /* Set the screen effect the settings name, each effect's work timed as its

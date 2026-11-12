@@ -6,7 +6,6 @@
  * A facing is one of four directions, the way the object's sprite looks
  * (field/object.h). A turn shows from the next frame, and ends the object's
  * turn so the new facing shows before the script goes on. */
-#include "field/scratch.h"
 #include "charge.h"
 #include "event/script.h"
 #include "event/variables.h"
@@ -25,13 +24,13 @@ EVENT_OPERATION(face, object, facing)
 static EventFlow note_facing(GameState *g, FieldObject object, EventVariable variable)
 {
     Facing facing = object_facing(g, object);
-    charge_legacy_accesses(g, 1); /* the selected facing */
+    charge_accesses(g, 1); /* the selected facing */
     set_variable_byte(g, variable, (uint8_t)facing);
     return next_command();
 }
 EVENT_OPERATION(note_facing, object, variable)
 
-/* The guard's part: the object faces one of the four ways (field/object.h;
+/* What the port checks: the object faces one of the four ways (field/object.h;
  * the original would note whatever byte it keeps). */
 static bool faces_a_way(const GameState *g, FieldObject object) { return object_facing_is_one(g, object); }
 EVENT_CHECK(faces_a_way, object)

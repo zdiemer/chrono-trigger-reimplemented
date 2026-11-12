@@ -46,8 +46,8 @@ static uint32_t frame_tiles(const GameState *g, unsigned slot, uint8_t frame)
     return (uint32_t)tile_animations_bank(g, slot) << 16 | table_word(tile_animation_tables_sources_byte, g, slot, frame);
 }
 
-/* A slot in use sends the frame it is on and steps on. `at` is the copy of the
- * original's code that sends this slot: it has one for each. */
+/* A slot in use sends the frame it is on and steps on. `at` names the
+ * original's send for this slot: it has one for each. */
 static void send_slot(GameState *g, Platform *pf, unsigned slot, PfOrigin at)
 {
     if (!in_use(g, slot))

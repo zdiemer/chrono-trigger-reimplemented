@@ -104,9 +104,8 @@ bool map_tile_copy_fits(uint16_t from, uint16_t to, uint16_t destination)
            there.column + (last.column - first.column) < COLUMNS && there.row + (last.row - first.row) < ROWS;
 }
 
-/* Its guard: the rectangle and where it goes are on the map (past its edges
- * the original's block moves run on into the next table), and the data bank
- * reaches low RAM. */
+/* The copy the port makes: the rectangle and where it goes are on the map
+ * (past its edges the original's block moves run on into the next table). */
 bool field_tile_copy_is_on_the_map(const GameState *g)
 {
     return map_tile_copy_fits(field_tile_copy_from(g), field_tile_copy_to(g), field_tile_copy_destination(g));

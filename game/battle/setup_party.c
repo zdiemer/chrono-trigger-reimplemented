@@ -52,9 +52,6 @@ static void keep_frogs_slot_as_record(GameState *g)
     set_battle_frog_slot(g, (uint16_t)((slot & 0xFF00) | (uint8_t)(slot * MEMBER_CARRIED_BYTES)));
 }
 
-/* The original steps through the members' names five bytes at a time in its
- * working cells, which the names' conversion finds them at. */
-
 // $CC:E5F3
 void setup_party_slots(GameState *g)
 {
@@ -166,9 +163,6 @@ static uint8_t list_length(const GameState *g, uint8_t member)
     }
     return length;
 }
-
-/* The original keeps the last member's list end in its working cells, and
- * how many double techs it listed. */
 
 // $CC:E755
 void setup_tech_lists(GameState *g)

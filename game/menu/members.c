@@ -12,15 +12,13 @@
  * beside it shows how far (menu/equipment.c slides it).
  *
  * Beside the list, the chosen member's card: the time played, the member's
- * figures and stats (worked out and drawn by the original's routines, which
- * the card's bridge calls out to), the face as a large portrait, and a label
+ * figures and stats (worked out by menu/figures.c), the face as a large portrait, and a label
  * of the member's element. */
 #include "menu/members.h"
 
 #include "charge.h"
 #include "core/program.h"
 #include "cpu_io.h"
-#include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/equipment.h"
 #include "menu/figures.h"
@@ -117,7 +115,7 @@ void menu_work_out_low_hp_marks(GameState *g)
 }
 
 /* The original walks the records from the menus' zero word, which their
- * opening clears, on the menus' page with the data bank on work RAM's. */
+ * opening clears. */
 bool menu_low_hp_marks_can_be_worked_out(const GameState *g) { return menu_zero(g) == 0; }
 
 /* ---- The list's rows ----------------------------------------------------------------------------- */
@@ -330,10 +328,6 @@ bool menu_member_rows_can_be_drawn_from(const GameState *g, uint8_t first)
 }
 
 bool menu_member_rows_can_be_drawn(const GameState *g) { return menu_member_rows_can_be_drawn_from(g, menu_member_scroll(g)); }
-
-// $C2:9E76
-
-// $C2:9EB0
 
 // $C2:A273
 

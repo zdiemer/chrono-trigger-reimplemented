@@ -72,8 +72,8 @@ void menu_draw_member_rows(GameState *g, Platform *pf);
 void menu_colour_member_rows(GameState *g);
 void menu_colour_member_row(GameState *g, uint16_t at, bool dimmed);
 
-/* The card's parts on either side of the original's figures and stats,
- * which the card's bridge calls out to between them: the time played and the
+/* The card's parts on either side of the member's figures and stats: the
+ * time played and the
  * member on the cursor loaded; then the card's window, and after the stats
  * the large portrait and the member's element. */
 void menu_start_member_card(GameState *g);
@@ -83,7 +83,7 @@ void menu_finish_member_card(GameState *g);
 /* Whether a place of the list loads a character or is past the last member;
  * whether the card can be drawn for the member on the cursor (or another),
  * and the list's rows from its first (or another): every member they load is
- * a character or the end of the list. For the guards of the screens that
+ * a character or the end of the list. For the checks of the screens that
  * draw them. */
 bool menu_member_can_be_loaded(const GameState *g, uint8_t member);
 bool menu_character_can_be_loaded(const GameState *g, uint8_t character);
@@ -92,14 +92,12 @@ bool menu_member_card_can_be_drawn_for(const GameState *g, uint8_t member);
 bool menu_member_rows_can_be_drawn(const GameState *g);
 bool menu_member_rows_can_be_drawn_from(const GameState *g, uint8_t first);
 
-/* The checked legacy adapters. */
-/* The card of the member the cursor is on, as C ($C2:A22F). */
+/* The card of the member the cursor is on ($C2:A22F). */
 void menu_draw_member_card(GameState *g, Platform *pf);
-/* The card drawn again and the member's row at the list's top ($C2:A21F),
- * as C: false where the program went no further. */
+/* The card drawn again and the member's row at the list's top ($C2:A21F):
+ * false where the program went no further. */
 bool menu_redraw_member_card(GameState *g, Platform *pf);
-/* Whether the low-HP marks can be worked out as C (their entry's guard's
- * state half). */
+/* Whether the low-HP marks can be worked out. */
 bool menu_low_hp_marks_can_be_worked_out(const GameState *g);
 
 #endif

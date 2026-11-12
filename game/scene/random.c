@@ -27,11 +27,8 @@
  * low byte and leaves its high byte as it was.
  *
  * This is the original's mix exactly, so given the same noise it draws the
- * same numbers. On the SNES backend the noise is where the beam is, read as
- * the original reads it, and shadow mode hands the port the beam position the
- * original latched, so it compares everything the stars do with their
- * numbers. A host's noise comes from a generator its driver seeds, so a replay
- * draws the same stars. */
+ * same numbers. A host's noise comes from a generator its driver seeds, so a
+ * replay draws the same stars. */
 #include "charge.h"
 #include "scene/scene.h"
 
@@ -137,11 +134,9 @@ SceneDraw scene_draw_random(GameState *g, Platform *pf, PfOrigin o, SceneDraw la
     return stir_in_the_noise(g, st, tm_entropy(pf, o, width));
 }
 
-/* The stir reads the beam through the data bank. Called with the data bank on
- * work RAM, its reads land on the palette as loaded instead, the high byte of
- * one color and the next color, which are then the noise: what the program
- * has there in place of the beam's registers, bytes this far into the
- * palette. */
+/* Some of the program's draws are made where the stir's reads of the beam
+ * land on the palette as loaded instead, the high byte of one color and the
+ * next color, which are then the noise: bytes this far into the palette. */
 enum { LATCH_BYTE = 0x137, ACROSS_BYTE = 0x13C, DOWN_BYTE = 0x13D };
 
 static uint8_t palette_byte(const GameState *g, uint16_t offset)
@@ -162,12 +157,3 @@ SceneDraw scene_draw_random_off_the_palette(GameState *g, SceneDraw last, uint16
     TmEntropy noise = { { palette_noise(g, LATCH_BYTE, width), palette_noise(g, ACROSS_BYTE, width), down, down } };
     return stir_in_the_noise(g, st, noise);
 }
-
-/* ---- The draw for the program's own code ----------------------------------------------------- */
-
-/* The program's code hands the draw its number to go on from in A, the bit
- * spilled above it in the carry and its salt in X, a byte or a word as A is
- * wide (its call at $7E:3443, or the stir itself, $C3:02DD), and takes the
- * number drawn back in A with the spilled bit in the carry. A byte draw
- * leaves A's high byte as it was. The flags the stir's last step leaves are
- * worked out from the number drawn; its overflow is the draw's own record. */

@@ -6,17 +6,15 @@
 
 #include <stdint.h>
 
-/* field/frames.c */
+/* field/frames.c: the frame builder's timing key (TIMED_AS). */
 enum { FIELD_DRAW_NEXT_FRAME_ENTRY = 0xC0CAD9 };
-/* The frame queue drawn through, while the frame has time. */
 #include "field/object.h"
 #include "platform/platform.h"
 
-/* A part of the object's next frame drawn (field_draw_next_frame's work),
- * as C: true while more of it is to draw; false too where the object holds
+/* A part of the object's next frame drawn: true while more of it is to draw; false too where the object holds
  * a frame it never draws (field/frames.c). */
 bool field_frame_part_drawn(GameState *g, FieldObject obj);
-/* The frame queue drawn through, while the frame has time, as C. */
+/* The frame queue drawn through, while the frame has time. */
 void field_queued_frames_drawn(GameState *g, Platform *pf);
 
 /* The frame an object's tiles show put straight onto its records (after a
@@ -26,8 +24,7 @@ bool object_drawn_frame_can_go_back(const GameState *g, FieldObject obj);
 
 /* A 24-sprite figure's frame drawn whole (field/frames.c); and whether the
  * port draws one with these graphics, frame descriptions and records as the
- * original does (the guards'). What the drawing leaves in Y, which the event
- * engine has live after the command that loads a figure. */
+ * original does. */
 void object_draw_whole_figure(GameState *g, Platform *pf, FieldObject obj);
 bool field_figure_drawable(const GameState *g, ObjectGraphics set, ObjectGraphics descriptions, uint16_t records);
 

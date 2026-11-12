@@ -17,7 +17,11 @@
 
 /* ---- The gradient's colors ------------------------------------------------------------------ */
 
-enum { GRADIENT_COLORS = GRADIENT_SET_COLORS, ROW_COLORS = SCREEN_ROW_COLORS, GRADIENT_FIRST_COLOR = 5 * ROW_COLORS + 1 };
+enum {
+    GRADIENT_COLORS = GRADIENT_SET_COLORS,
+    ROW_COLORS = SCREEN_ROW_COLORS,
+    GRADIENT_FIRST_COLOR = 5 * ROW_COLORS + 1,
+};
 
 /* The fading colors, and after them the same again, so that 14 colors from
  * any point of the turn run on without wrapping. */
@@ -49,9 +53,6 @@ static uint16_t step_toward(uint16_t color, uint16_t target)
     color = step_channel(color, target, GREEN, GREEN_LEVEL);
     return step_channel(color, target, BLUE, BLUE_LEVEL);
 }
-
-/* The original compares each channel through a cell, and leaves the last
- * color's blue there over the high byte of its green. */
 
 /* ---- The HP level -------------------------------------------------------------------------- */
 
@@ -183,13 +184,13 @@ void battle_step_hp_gradient(GameState *g)
         follow_hp(g);
 }
 
-/* ---- The entries ------------------------------------------------------------------------ */
+/* ---- The gradient's step ------------------------------------------------------------------ */
 
 /* The phase picks a turn from 14; the rows start within the colors' repeat. */
 bool battle_hp_gradient_steps(const GameState *g) { return battle_gradient_phase(g) < GRADIENT_PHASES; }
 
-/* A row is one of the three (Y its first color's byte offset from color $51),
- * and its start (A) within the repeat. */
+/* A row is one of the three (its first color's byte offset from color $51),
+ * and its start within the repeat. */
 enum { ROW_BYTES = 2 * ROW_COLORS };
 
 void battle_start_gradient_phase(GameState *g) { set_battle_gradient_phase(g, starting_phase(g)); }

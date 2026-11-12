@@ -19,11 +19,9 @@
  * what the operation needs of the state to run as the original does. The
  * runner decodes a command by its row into a ScreenCommand and calls the
  * operation with the parameters it names; the operation says where the
- * channel goes on (ScreenFlow). A row whose work is still the original's code
- * has a bridge instead, which the runner calls with the machine (the wait for
- * a line of the picture, $C1); and a command whose row's needs the state
- * doesn't meet runs as the original's handler, which the runner calls as the
- * original's dispatch does. */
+ * channel goes on (ScreenFlow). The wait for a line of the picture ($C1) has
+ * no operation: the runner makes it with the timing service; and a command
+ * whose row's needs the state doesn't meet is refused. */
 #ifndef CT_GAME_BATTLE_SCREEN_SCRIPT_H
 #define CT_GAME_BATTLE_SCREEN_SCRIPT_H
 
@@ -166,8 +164,6 @@ typedef ScreenFlow (*ScreenOperation)(GameState *g, const ScreenCommand *command
     }
 #define OPERATION(op) .operation = op##_command
 
-#define BRIDGE(b) .bridge = (b)
-
 /* ---- How a row decodes its operands ----------------------------------------------------------- */
 
 typedef enum {
@@ -208,18 +204,13 @@ typedef struct {
 #define BIT(n, bit) { ARG_BIT, (n), (bit) }
 
 /* What an operation needs of the state to run as the original does; where a
- * row's isn't met, the original's handler runs the command. */
+ * row's isn't met, the command is refused. */
 typedef bool (*ScreenNeeds)(const GameState *g, const ScreenCommand *command);
 
-/* A command whose work is still the original's code: the runner moves the
- * channel on past it, then calls this with the machine; false where the
- * original's code carried on. */
-
-/* A row: the command byte, the operation (or the bridge), what it needs, the
- * operand bytes it takes, and how each parameter it reads decodes. (The
- * original's handler, whose time the operation takes, and which runs the
- * command where the row has neither or its needs aren't met, is
- * screen_script.c's.) */
+/* A row: the command byte, the operation (or the wait for a line), what it
+ * needs, the operand bytes it takes, and how each parameter it reads
+ * decodes. (The original's handler, whose time the operation takes, and
+ * which a refusal names, is screen_script.c's.) */
 typedef struct {
     uint8_t opcode;
     ScreenOperation operation;
@@ -254,15 +245,13 @@ const ScreenOpcode *screen_opcode(uint8_t opcode);
 /* The two triangles and the two circles are each one of two. */
 enum { SCREEN_SHAPES = 2, SCREEN_CIRCLES = 2 };
 
-/* The screen scripts' frame ($CD:1609), as C: false where it went no
+/* The screen scripts' frame ($CD:1609): false where it went no
  * further. */
 bool battle_screen_scripts_run(GameState *g, Platform *pf);
 
 static inline ScreenFlow screen_on(void) { return (ScreenFlow){ SCREEN_ON, 0 }; }
 
 static inline ScreenFlow screen_go_to(uint16_t to) { return (ScreenFlow){ SCREEN_GO_TO, to }; }
-
-static inline ScreenFlow screen_moved(void) { return (ScreenFlow){ SCREEN_MOVED, 0 }; }
 
 /* ---- Places in the script ------------------------------------------------------------------- */
 
@@ -273,14 +262,6 @@ static inline uint16_t screen_place(const GameState *g) { return (uint16_t)battl
 static inline uint8_t screen_script_byte_at(const GameState *g, uint16_t at)
 {
     return battle_screen_script_byte(g, (battle_screen_script(g) & 0xFF0000u) | at);
-}
-
-/* ---- The running channel ------------------------------------------------------------------- */
-
-/* The running channel, as the dispatch leaves it for the commands. */
-static inline ScreenChannel screen_running_channel(const GameState *g)
-{
-    return (ScreenChannel)(battle_screen_channel(g) / SCREEN_CHANNEL_RECORD_BYTES);
 }
 
 #endif

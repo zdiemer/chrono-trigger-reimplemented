@@ -55,11 +55,6 @@ static uint8_t sprite_set_of(BattleEffectFrame frame, bool ended)
     return (uint8_t)((frame.marks & SET_LOW_BITS) | (frame.high_set ? SET_HIGH_BIT : 0) | (ended ? SET_ANIMATION_ENDED : 0));
 }
 
-/* What the original leaves in its cells of the last frame it took: the
- * facing's run's place, the effect doubled, and the frame's end and high
- * bit. */
-enum { LEFT_FACING_RUN = 0x02, LEFT_EFFECT_WORD = 0x04, LEFT_ENDED = 0x0E, LEFT_HIGH_SET = 0x0F };
-
 typedef struct {
     uint16_t facing_run;
     uint8_t effect;
@@ -109,10 +104,7 @@ static TakenFrame take_next_frame(GameState *g, unsigned effect)
     return (TakenFrame){ facing_run, (uint8_t)effect, ended, frame.high_set };
 }
 
-/* ---- The entries ------------------------------------------------------------------------- */
-
-/* The effect stepping, which the original keeps in the battle's first work
- * cells (a word) as it goes round them. */
+/* ---- A frame of the effects' animations -------------------------------------------------- */
 
 // $CC:F278
 /* Step the effects' animations a frame: count their frame times down, then

@@ -15,26 +15,18 @@
  *   overworld back and fades it in again, its sign set afresh;
  * - halted (the leader stepped onto a halt, places.c), it stops the game.
  *
- * A pass of the loop is one sequence, which the program runs as C
- * (overworld_runs, the world map from the mode's start to the field it
- * leaves for) and the shipping mode runs on the machine a frame at a time,
- * as the continuation of the loop's held wait for the next frame
- * (overworld_next_frame; the overworld is off the byte-exact gate, so
- * nowhere else: docs/REIMPLEMENTATION.md, "The overworld's teardown"). What
- * only the machine can do is a step's callback: the fades' waits (calls to
- * the mode's waits, which the runtime holds over the frame's end), the map's
- * loading again (the unpacker), the screens the loop opens, still under the
- * gate, and the registers they read. The menus move the stack, so on the
- * machine the pass waits in its call to them, and goes on where the original
- * comes back from them. A mode the loop doesn't know, or entering a place
- * past the map's lists (neither a state the game makes), breaks the loop's
- * contract, and the original's code goes on. */
+ * A pass of the loop is one sequence (run_a_pass), which overworld_runs
+ * repeats from the mode's start until the world map leaves for the field;
+ * the steps that are other routines -- the fades' waits, the map's loading
+ * again, the screens the loop opens -- it calls through LoopSteps. A mode
+ * the loop doesn't know, or entering a place past the map's lists (neither
+ * a state the game makes), breaks the loop's contract, and the program goes
+ * no further. */
 #include "overworld/main_loop.h"
 
 #include "charge.h"
 #include "field/main_loop.h"
 #include "core/program.h"
-#include "menu/bridge.h"
 #include "menu/display.h"
 #include "menu/epoch.h"
 #include "menu/menu.h"
@@ -52,17 +44,13 @@
 #include "vars.h"
 #include "wram.h"
 
-/* What the routines the loop calls read of the registers (the calling convention
- * checks each): nothing; the frames to wait in X and A's high byte, which the
- * wait hands on; and what the sound driver passes back. */
-
 /* ---- Putting the overworld aside -------------------------------------------------------- */
 
 /* What goes where in overworld_put_aside while the menus or the time dial
- * run: low RAM from $0700 (the objects among it), the mode's direct page,
+ * run: low RAM from $0700 (the objects among it), the mode's own cells,
  * bank $7E's from $B000 and from $4000 to the map's end, the map's regions
  * and its lists of places. The map view keeps the objects' slots alone, in
- * the same place, beside the direct page. */
+ * the same place, beside the mode's own cells. */
 typedef struct {
     uint32_t from;
     uint16_t to;    /* bytes into overworld_put_aside */
@@ -70,7 +58,7 @@ typedef struct {
 } Aside;
 
 static const Aside OVERWORLD_ASIDE[] = {
-    { 0x7E0000, 0x1700, 0x00F0 },                        /* the mode's direct page */
+    { 0x7E0000, 0x1700, 0x00F0 },                        /* the mode's own cells */
     { 0x7E0700, 0x0000, 0x1700 },                        /* low RAM from $0700 */
     { 0x7EB000, 0x1800, 0x0508 },
     { 0x7E4000, 0x1E00, 0x3000 },                        /* to the map's end */
@@ -79,7 +67,7 @@ static const Aside OVERWORLD_ASIDE[] = {
 };
 
 static const Aside MAP_VIEW_ASIDE[] = {
-    { 0x7E0000, 0x1700, 0x00F0 },                        /* the mode's direct page */
+    { 0x7E0000, 0x1700, 0x00F0 },                        /* the mode's own cells */
     { RAM_MENU_OBJECT_SLOTS, 0x0000, 0x1000 },           /* the objects */
 };
 
@@ -142,8 +130,8 @@ static void set_the_sign_again(GameState *g)
 /* ---- The loop's steps ------------------------------------------------------------------- */
 
 /* Where a pass goes: round to the next frame; out of the world map, for the
- * field at the location left for; to the halt; or no further (a step only
- * the machine runs, or one the original's code goes on from). */
+ * field at the location left for; to the halt; or no further (a step the
+ * port refused). */
 typedef enum { PASS_GOES_ON, PASS_LEAVES, PASS_HALTS, PASS_STOPS } Pass;
 
 /* The loop's waits while a screen of its own fades the map out or in, each
@@ -164,8 +152,8 @@ static const struct {
 
 typedef enum { LOAD_BACK_FROM_THE_MENUS, LOAD_BACK_FROM_THE_MAP_VIEW, LOAD_BACK_FROM_THE_DIAL, MAP_LOADS } MapLoad;
 
-/* The steps that are the machine's on the development system, as C or on
- * the machine (below): each false where it went no further. */
+/* The loop's steps that are other routines (below): each false where it went
+ * no further. */
 typedef struct {
     bool (*frames)(void *ctx, LoopWait wait);                  /* frames waited, the sound sent meanwhile */
     bool (*a_fade_frame)(void *ctx, uint16_t left);            /* a frame of the fade into a place */
@@ -192,7 +180,12 @@ static void interrupts(const Loop *l, uint32_t site, bool on)
 }
 
 /* The scripts that fade the map out and in, and the map view's own. */
-enum { FADE_OUT = 0xC22EC1, FADE_IN = 0xC22EC4, FADE_OUT_TO_THE_MAP_VIEW = 0xC22EC7, FADE_IN_FROM_THE_MAP_VIEW = 0xC22ED0,  };
+enum {
+    FADE_OUT = 0xC22EC1,
+    FADE_IN = 0xC22EC4,
+    FADE_OUT_TO_THE_MAP_VIEW = 0xC22EC7,
+    FADE_IN_FROM_THE_MAP_VIEW = 0xC22ED0,
+};
 
 static void start_a_script(const Loop *l, uint32_t script)
 {
@@ -316,9 +309,8 @@ static Pass come_back_from_the_menus(const Loop *l)
     return PASS_GOES_ON;
 }
 
-/* Screen transitions are phases around their display waits. The native
- * program calls them in sequence; held machine continuations resume the
- * same operations from saved frame boundaries. */
+/* Screen transitions are phases around their display waits, called in
+ * sequence. */
 static Pass enter_the_menus(const Loop *l, OverworldMode mode)
 {
     stop_the_screen(l, (StopSites){ 0xC22537, 0xC2253A, 0xC2253D }, true);
@@ -449,11 +441,11 @@ static Pass after_the_frame(const Loop *l)
     }
 }
 
-/* The menus take the screen in A and its argument in X. */
+/* The screen the menus open on: the main menu, or the party's exchange. */
 enum { MAIN_MENU = 1, EXCHANGE_SCREEN = 5 };
 static uint8_t the_menus_screen(OverworldMode mode) { return mode == OVERWORLD_OPENING_THE_MENUS ? MAIN_MENU : EXCHANGE_SCREEN; }
 
-/* ---- As C ---- */
+/* ---- The steps ---- */
 
 typedef struct {
     GameState *game;
@@ -576,29 +568,3 @@ OverworldEnd overworld_runs(GameState *g, Platform *pf)
     }
     return OVERWORLD_WENT_NO_FURTHER;
 }
-
-/* Where the original comes back from the menus, and its dispatch on the mode. */
-enum { BACK_FROM_THE_MENUS = 0xC22556, DISPATCH = 0xC223D2 };
-
-/* ---- The held waits ---- */
-
-/* Each pass starts with the mode's wait for the next frame ($C2:23CF calls
- * $C2:046E, which jumps to $C2:0346): the call's return to the pass pushed,
- * the frame count it sees in A, and then its loop ($C2:0348) until the vblank
- * handler counts a frame past it. The main thread rests there at every frame
- * end on the map, so it is a held wait (holds.h, HOLD_OVERWORLD_FRAME;
- * docs/RUNTIME.md, "Held waits"): the port stops at the wait's loop with
- * nothing suspended, and the runtime goes on with overworld_next_frame once
- * the frame is counted. From the loop's head on, the code reads A's low byte,
- * the count it saw, and not X, Y or the flags the loop sets: the pass after
- * the wait loads A afresh (TDC) and X from the mode. (The wait's code returns
- * to the mode's other waits too, some of which read A's high byte and the
- * overflow, so those are left as they are.)
- *
- * The halt, where the original spins with the interrupts off, is a held wait
- * of its own (HOLD_OVERWORLD_HALT): each pass stops at its head and the
- * runtime runs overworld_halt_entry again. */
-enum { FRAME_WAIT_LOOP = 0xC20348, AFTER_THE_WAIT = 0xC223D2,  };
-
-/* The field's start, which the world map leaves for, and the halt. */
-enum { HALT = 0xC2250D };

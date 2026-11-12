@@ -14,8 +14,8 @@
  * Nobody has a status: in the game nothing happens but the kind being seen
  * to, and for a status that wears off the original's writes past the tables
  * are made in one place (battle_timer_wears_off_past_the_rows); the other
- * kinds of nobody's the entries' guards leave to the original, and the game
- * makes none of them (docs/TODO.md). */
+ * kinds of nobody's the port refuses (handler_takes), and the game makes
+ * none of them (docs/TODO.md). */
 #include "battle/status_timers.h"
 
 #include "battle/battle.h"
@@ -95,11 +95,6 @@ static uint8_t paced_length(const GameState *g, BattleTimer kind, uint8_t slot, 
     return slowed(g, slot) ? (uint8_t)(length << 1) : paced;
 }
 
-/* The carry the original records a point of HP with, which the multiply
- * leaves in its cell (scaffolding): the bit its pacing shifted out of the
- * length last (slowed, the top; hasted, the bottom), or none, which finding
- * the stat block's place leaves. */
-
 /* The runs of a timer count in cycles of ten: true on the tenth, when the
  * count starts again. */
 static bool tenth_run(GameState *g, BattleTimer kind, uint8_t slot)
@@ -128,10 +123,6 @@ static uint16_t poison_damage(GameState *g, uint8_t slot)
 
 /* What the status's doing leaves to show. */
 typedef enum { NOTHING_TO_SHOW, NUMBER_TO_SHOW, DAMAGE_TO_APPLY } TimerOutcome;
-
-/* The handlers of the statuses that act leave the combatant's stat block's
- * place in $10, as the original's do: scaffolding. */
-enum { STAT_BLOCK_PLACE_CELL = 0x10 };
 
 static TimerOutcome timer_ran_out(GameState *g, BattleTimer kind, uint8_t slot)
 {
@@ -203,12 +194,9 @@ static void set_up_status_showing(GameState *g, uint8_t showing)
     set_battle_action_target_bits(g, FIRST_SLOT_BIT);
 }
 
-/* ---- The entries ----------------------------------------------------------------------- */
+/* ---- A status's number shown -------------------------------------------------------------- */
 
-/* The showing a status's number asks for ($C1:AC57, a sibling), from
- * $C1:895B's call. */
-enum { SHOWING_CALL = 0xC18971 };
-
+/* The showing a status's number asks for ($C1:AC57). */
 bool battle_show_status_number(GameState *g, Platform *pf, uint8_t showing)
 {
     set_up_status_showing(g, showing);
@@ -218,7 +206,7 @@ bool battle_show_status_number(GameState *g, Platform *pf, uint8_t showing)
 }
 
 /* The handlers' calls of $C1:895B, by the kind whose number they show. */
-enum { POISON_SHOWS_CALL = 0xC18945, MAGIC_SHOWS_CALL = 0xC18BB1, SHOW_NUMBER = 0xC1895B };
+enum { SHOW_NUMBER = 0xC1895B };
 
 // $C1:8876, $C1:88C5, $C1:8975, $C1:89B9, $C1:8A05, $C1:8A51, $C1:8A9D-$C1:8A9F, $C1:8B10, $C1:8BB9, $C1:8C08
 /* A run-out timer seen to, the number its status shows shown as an action
@@ -240,17 +228,14 @@ static bool see_to_the_timer(GameState *g, BattleTimer kind, bool (*show)(void *
     return true;
 }
 
-/* The guard's state half: a timer of nobody's that does anything but wear
- * off is the original's: its handler works past every table it touches
- * (battle/timers.h). */
+/* A timer of nobody's that does anything but wear off is one the port
+ * refuses: its handler works past every table it touches (battle/timers.h). */
 static bool handler_takes(const GameState *g, BattleTimer kind)
 {
     return !battle_timer_found_run_out(g, kind).nobody || timed_statuses[kind].effect == WEARS_OFF;
 }
 
-/* The original's handlers (its table at $C1:B92D), by kind, and their entries. */
-
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The handlers --------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;

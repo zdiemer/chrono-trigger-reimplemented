@@ -10,7 +10,7 @@
  * that also serve cartridge resources; writes reach work RAM through wram.h. The original keeps the address
  * it last read through, and the one it last wrote through (the cells
  * event_source_pointer and event_target_pointer); nothing but the command
- * itself reads them back, so they are kept as scaffolding. */
+ * itself reads them back, so the port doesn't keep them. */
 #include "charge.h"
 #include "event/engine.h"
 #include "event/memory_data.h"
@@ -22,7 +22,7 @@
 /* A variable learns the byte or the word at an address. */
 static EventFlow peek(GameState *g, Platform *pf, EventVariable variable, Address address, Width width)
 {
-    charge_legacy_accesses(g, 3); /* source address selection */
+    charge_accesses(g, 3); /* source address selection */
     uint16_t value = width == AS_BYTE ? event_selected_data_byte(g, pf, address) : event_selected_data_word(g, pf, address);
     set_variable(g, variable, value, width);
     return next_command();
@@ -33,7 +33,7 @@ EVENT_OPERATION(peek, platform, variable, address, width)
 /* Write a byte or a word at an address: a number, or a variable's value. */
 static EventFlow poke(GameState *g, Address address, uint16_t value, Width width)
 {
-    charge_legacy_accesses(g, 3); /* destination address selection */
+    charge_accesses(g, 3); /* destination address selection */
     if (width == AS_BYTE)
         wram_write8(g, address, (uint8_t)value);
     else
@@ -65,10 +65,6 @@ static DataBlock data_block(uint16_t destination, uint8_t bank, uint16_t size, u
     return (DataBlock){ to_bank, destination, length, (uint16_t)(at + COPY_DATA_LENGTH) };
 }
 
-/* For the original's code and shadow mode: the block move leaves Y where the
- * destination ended, and turning the source's end back into a script offset
- * leaves V. Both follow from the block. */
-enum { SCRIPT_ADDRESS = 0x2001 };   // $C0:6846
 /* Copy the data that follows the command into work RAM (a table of positions
  * for a cutscene, a patch to some state), and go on after it. The copy goes a
  * byte at a time with the destination wrapping in its bank, as the original's
@@ -91,7 +87,7 @@ bool event_copy_data(GameState *g, Platform *pf, uint16_t at, EventStep *step)
     return true;
 }
 
-/* The guard's part: the data lies in the script, and there is some (the
+/* What the port checks: the data lies in the script, and there is some (the
  * original's block move takes no length as the whole bank, and past the
  * script's end reads on round the bank; no script does either). */
 static bool data_in_the_script(const GameState *g, uint16_t size, uint16_t at)

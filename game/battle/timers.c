@@ -193,9 +193,6 @@ void battle_timer_seen_to(GameState *g, BattleTimer kind)
     set_battle_timer_kinds_due(g, battle_timer_kinds_due(g) & (uint16_t)(DUE_BITS & ~due_bit(kind)));
 }
 
-/* What the search leaves in its cells: the kind after the last (a word), the
- * battle slot it looked at last, and the due bit shifted past kind 12. */
-
 // $C1:8290
 /* The party's turn timers go on their gauges. Then, on the passes that look,
  * each kind of timer is searched for one that has run out, from where its
@@ -226,20 +223,18 @@ void battle_find_run_out_timers(GameState *g, bool look)
     }
 }
 
-/* ---- The entries ------------------------------------------------------------------------ */
+/* ---- The search, a stretch of the main loop ----------------------------------------------- */
 
-/* Both are stretches of the main loop, which each hands on to the next: the
- * count-down to the search ($C1:8290), and the search, with the handlers of
- * the kinds due, to the rest of the pass ($C1:8345). */
-enum { SEARCH = 0xC18290, REST_OF_PASS = 0xC18345, THE_HANDLERS_CALL = 0xC18333 };
+/* The search, with the handlers of the kinds due ($C1:8290), which goes on
+ * to the rest of the pass ($C1:8345). */
+enum { SEARCH = 0xC18290 };
 
 /* The main loop counts its passes; the search looks on the odd ones. */
 static bool pass_looks(const GameState *g) { return battle_loop_count(g) & 0x01; }
 
 /* Each due kind's handler run: the timed statuses' (battle/status_timers.c),
- * the turn's the main loop's (battle/main_loop.c), each a routine of its own
- * that the program calls as C and the machine's entry from the original's
- * loop. */
+ * the turn's the main loop's (battle/main_loop.c), each a routine of its
+ * own. */
 typedef struct {
     void (*handlers_begin)(void *ctx);
     bool (*see_to)(void *ctx, BattleTimer kind);
@@ -267,7 +262,7 @@ static bool see_to_the_timers(GameState *g, const DueCalls *calls, void *ctx)
     return !look || run_due_handlers(g, calls, ctx);
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The handlers' calls ---------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
@@ -293,12 +288,3 @@ bool battle_timers_seen_to(GameState *g, Platform *pf)
     return done;
 }
 
-/* ---- On the machine ------------------------------------------------------------------------ */
-
-/* Each handler is called as the original's loop calls it: the kind on the
- * stack under the call and its bit in its cell. The timed statuses'
- * handlers are run as the loop's JSR calls them; where the turn's is the
- * original's (a turn that names no combatant), it reads Y, which the search
- * left at the last kind and a handler before it leaves as it likes, and the
- * overflow flag, which the test of the due bits sets from their bit 14. */
-enum { DUE_TEST_OVERFLOW = 0x4000 };

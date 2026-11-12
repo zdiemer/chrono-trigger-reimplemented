@@ -5,8 +5,7 @@
  * the cursor is on lit, with an arrow above it and one below. Under them is
  * the option's panel, a view of its screen (the equipment's member list
  * with the time played, the party's items, ...), which the option's own
- * screen draws and puts away as the cursor comes and goes
- * (menu/main_menu_bridge.c runs them). Behind it all is a backdrop of the
+ * screen draws and puts away as the cursor comes and goes. Behind it all is a backdrop of the
  * main menu's own tiles. Choosing an option opens its screen, and going back
  * closes the menus; a screen the player goes back from comes back to the
  * main menu's choosing, its panel put away.
@@ -62,8 +61,7 @@ static void lay_box_row(GameState *g, unsigned row, BoxRow r)
     set_menu_main_menu_box(g, row * TILES_A_ROW + BOX_COLUMNS - 1, r.right);
 }
 
-/* For the original's code and shadow mode: it repeats the tiles with block
- * moves. */
+/* The original repeats the tiles with block moves; their time is charged. */
 enum { ROW_BYTES = 2 * TILES_A_ROW, BOX_REPEAT_BYTES = 2 * (BOX_COLUMNS - 3) };
 static void charge_the_repeats(GameState *g)
 {
@@ -97,7 +95,13 @@ enum { MAIN_MENU_LINE_EFFECTS = 0x03, BANDS_STAGED = 0x9750, BANDS = 0x9080, BAN
  * one the next two, the one above flipped upside down. An arrow stands a
  * pixel right of the icon, sixteen lines below it or above it. */
 enum { ARROW_BELOW = MENU_MAIN_MENU_OPTIONS, ARROW_ABOVE = MENU_MAIN_MENU_OPTIONS + 1 };
-enum { ARROW_TILE = 0x22, ARROW_BELOW_ATTRIBUTES = 0x3E, ARROW_ABOVE_ATTRIBUTES = 0xBE, ARROW_RIGHT = 1, ARROW_LINES = 16 };
+enum {
+    ARROW_TILE = 0x22,
+    ARROW_BELOW_ATTRIBUTES = 0x3E,
+    ARROW_ABOVE_ATTRIBUTES = 0xBE,
+    ARROW_RIGHT = 1,
+    ARROW_LINES = 16,
+};
 
 /* The arrows' colours go to the last three of the palette. */
 enum { PALETTE_COLOURS = 256, ICON_COLOURS = 0x80 };
@@ -278,7 +282,7 @@ static void put_the_option_s_panel_away(GameState *g, Platform *pf, MainMenuOpti
     case MAIN_MENU_TECHS: TIMED_AS(g, 0xC2B960, menu_techs_panel_put_away(g, pf)); break;
     case MAIN_MENU_SETTINGS: TIMED_AS(g, 0xC2C397, menu_settings_panel_put_away(g)); break;
     case MAIN_MENU_EXCHANGE: TIMED_AS(g, 0xC2CAE6, menu_exchange_panel_put_away(g)); break;
-    case MAIN_MENU_SAVING: TIMED_AS(g, 0xC2D0DB, menu_put_save_panel_away_now(g)); break;
+    case MAIN_MENU_SAVING: TIMED_AS(g, 0xC2D0DB, menu_put_save_panel_away(g)); break;
     }
 }
 
@@ -297,11 +301,9 @@ void menu_put_main_menu_panel_away(GameState *g, Platform *pf)
 bool menu_show_main_menu_panel_with(GameState *g, Platform *pf, const MainMenuSteps *n, void *ctx)
 {
     MainMenuOption option = (MainMenuOption)menu_main_menu_option(g);
-    n->note(ctx, MAIN_MENU_NOTE_OPTION_PICKED, option);
     if (!n->option_panel(ctx, option))
         return false;
     TIMED_AS(g, 0xC29B8F, menu_draw_main_menu(g, pf));
-    n->note(ctx, MAIN_MENU_NOTE_DRAWN, 0);
     return true;
 }
 
@@ -313,10 +315,8 @@ bool menu_show_main_menu_panel_with(GameState *g, Platform *pf, const MainMenuSt
 bool menu_open_main_menu_with(GameState *g, Platform *pf, const MainMenuSteps *n, void *ctx)
 {
     (void)pf;
-    n->note(ctx, MAIN_MENU_NOTE_OPENING, 0);
     if (!menu_main_menu_open(g))
         return n->ends(ctx, MAIN_MENU_LEAVES_THE_MENUS);
-    n->note(ctx, MAIN_MENU_NOTE_TECHS_ROW_FOLDED, 0);
     if (!n->show_the_panel(ctx, MAIN_MENU_AT_THE_OPENING_PANEL))
         return false;
     set_menu_screen_step(g, (uint8_t)(menu_screen_step(g) + 1));
@@ -336,7 +336,6 @@ bool menu_choose_on_main_menu_with(GameState *g, Platform *pf, const MainMenuSte
     case MAIN_MENU_STAYED: menu_main_menu_keep_the_time(g); return true;
     case MAIN_MENU_MOVED: break;
     }
-    n->note(ctx, MAIN_MENU_NOTE_MOVED_FROM, menu_main_menu_option(g));
     menu_main_menu_move_to(g, (MainMenuOption)menu_cursor_index(g));
     return n->show_the_panel(ctx, MAIN_MENU_AT_THE_NEW_OPTION_PANEL) && n->tick(ctx, MAIN_MENU_AT_THE_NEW_OPTION_TICK);
 }
@@ -347,9 +346,7 @@ bool menu_choose_on_main_menu_with(GameState *g, Platform *pf, const MainMenuSte
 bool menu_back_to_the_main_menu_with(GameState *g, Platform *pf, const MainMenuSteps *n, void *ctx)
 {
     menu_main_menu_come_back(g);
-    uint8_t option = menu_main_menu_option(g);
     TIMED_AS(g, 0xC29B71, menu_put_main_menu_panel_away(g, pf));
-    n->note(ctx, MAIN_MENU_NOTE_PANEL_PUT_AWAY, option);
     return n->ends(ctx, MAIN_MENU_TICKS_AS_IT_ENDS);
 }
 
@@ -372,7 +369,7 @@ bool menu_main_menu_can_choose(const GameState *g)
 
 static bool drawable_on_an_option(const GameState *g) { return on_an_option(g) && menu_main_menu_drawable(g); }
 
-/* The option's panel can be shown by its screen as C, or put away (only the
+/* The option's panel can be shown by its screen, or put away (only the
  * techs' takes anything for that: room for its upload). */
 static bool option_panel_can_show(const GameState *g, MainMenuOption option)
 {
@@ -397,7 +394,7 @@ bool menu_main_menu_can_come_back(const GameState *g)
     return drawable_on_an_option(g) && (menu_main_menu_option(g) != MAIN_MENU_TECHS || menu_techs_panel_can_go(g));
 }
 
-/* ---- The steps as C ------------------------------------------------------------------------------- */
+/* ---- The steps' services ------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
@@ -422,23 +419,23 @@ static bool wait(void *ctx, MainMenuPlace at)
     return true;
 }
 
-static const MainMenuSteps in_the_program;
+static const MainMenuSteps the_steps;
 
 static bool show_the_panel(void *ctx, MainMenuPlace at)
 {
     (void)at;
     MainMenuContext *c = ctx;
     if (!menu_main_menu_panel_can_show(c->game)) {
-        program_breaks_a_contract(c->game, 0xC29B54, "a main menu panel the port doesn't show as C");
+        program_breaks_a_contract(c->game, 0xC29B54, "a main menu panel the port doesn't show");
         return false;
     }
     bool back = false;
-    TIMED_AS(c->game, 0xC29B54, back = menu_show_main_menu_panel_with(c->game, c->pf, &in_the_program, c));
+    TIMED_AS(c->game, 0xC29B54, back = menu_show_main_menu_panel_with(c->game, c->pf, &the_steps, c));
     return back;
 }
 
 /* The exchange's and saving's panels wait for their frames as their own
- * sequences do, as C (menu/exchange.c, menu/saving.c). */
+ * sequences do (menu/exchange.c, menu/saving.c). */
 static bool show_exchange_panel(GameState *g, Platform *pf, const MainMenuSteps *n, void *ctx)
 {
     (void)n, (void)ctx;
@@ -451,7 +448,7 @@ static bool show_save_panel(GameState *g, Platform *pf, const MainMenuSteps *n, 
     return menu_show_save_panel(g, pf);
 }
 
-/* The panels shown as C, by option (show_the_panel has turned away the
+/* The panels shown, by option (show_the_panel has turned away the
  * others). */
 static const struct {
     uint32_t routine;
@@ -469,7 +466,7 @@ static bool option_panel(void *ctx, MainMenuOption option)
 {
     MainMenuContext *c = ctx;
     bool back = false;
-    TIMED_AS(c->game, panels[option].routine, back = panels[option].show(c->game, c->pf, &in_the_program, c));
+    TIMED_AS(c->game, panels[option].routine, back = panels[option].show(c->game, c->pf, &the_steps, c));
     return back;
 }
 
@@ -484,10 +481,8 @@ static bool member_card(void *ctx)
     return true;
 }
 
-static void note(void *ctx, MainMenuNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
-
-/* The steps' ends, as the menus' own as C: the fade in's task started, the
- * menus closed (which never comes back), or the tick. */
+/* The steps' ends: the fade in's task started, the menus closed (which never
+ * comes back), or the tick. */
 static bool ends(void *ctx, MainMenuEnd end)
 {
     MainMenuContext *c = ctx;
@@ -499,10 +494,10 @@ static bool ends(void *ctx, MainMenuEnd end)
     return true;
 }
 
-static const MainMenuSteps in_the_program = { read_cursor, tick, wait, show_the_panel, option_panel, member_card, note, ends };
+static const MainMenuSteps the_steps = { read_cursor, tick, wait, show_the_panel, option_panel, member_card, ends };
 
-/* A step as C where its entry's guard would take the state; otherwise the
- * program goes no further there. */
+/* A step, run only on the state it handles; otherwise the program goes no
+ * further there. */
 static bool step(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(const GameState *),
                  bool (*run)(GameState *, Platform *, const MainMenuSteps *, void *))
 {
@@ -511,7 +506,7 @@ static bool step(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(con
         return false;
     }
     MainMenuContext c = { g, pf };
-    return run(g, pf, &in_the_program, &c);
+    return run(g, pf, &the_steps, &c);
 }
 
 bool menu_open_main_menu(GameState *g, Platform *pf)

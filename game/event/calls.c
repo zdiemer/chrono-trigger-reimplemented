@@ -24,7 +24,6 @@
 #include "cpu_io.h"
 #include "event/calls.h"
 #include "charge.h"
-#include "field/scratch.h"
 #include "event/script.h"
 
 enum { LOWEST_LEVEL = EVENT_LEVELS - 1, FUNCTIONS = 16 };
@@ -43,17 +42,15 @@ enum { OBJECTS_PER_LEVEL = 64, BYTES_PER_LEVEL = OBJECTS_PER_LEVEL * 2 };
 
 typedef uint16_t Place;   /* an entry of event_saved_positions */
 
-/* The offset of an object's place at a level among the places, which the
- * original works out in a scratch cell. */
-
+/* The offset of an object's place at a level among the places. */
 static Place place_of(FieldObject object, uint8_t level) { return (Place)(level * OBJECTS_PER_LEVEL + object); }
 
-/* ... and the calls keep its offset in a scratch cell. */
+/* ... as the calls find it, timed as the original's working out. */
 static Place place_found(GameState *g, FieldObject object, uint8_t level)
 {
-    charge_legacy_accesses(g, 1); /* the low offset byte */
-    charge_legacy_io_accesses(g, 4); /* level multiplication */
-    charge_legacy_accesses(g, 1);
+    charge_accesses(g, 1); /* the low offset byte */
+    charge_io_accesses(g, 4); /* level multiplication */
+    charge_accesses(g, 1);
     return place_of(object, level);
 }
 
@@ -88,8 +85,8 @@ uint16_t object_function_start(const GameState *g, FieldObject object, uint8_t f
 /* A call keeps where the target's functions are as it looks one up. */
 static uint16_t function_start(GameState *g, FieldObject object, uint8_t function)
 {
-    charge_legacy_accesses(g, 1); /* the high table byte */
-    charge_legacy_accesses(g, 1);
+    charge_accesses(g, 1); /* the high table byte */
+    charge_accesses(g, 1);
     return object_function_start(g, object, function);
 }
 
@@ -115,7 +112,7 @@ static Answer answer_of(const GameState *g, FieldObject target)
 
 static Answer answer(GameState *g, FieldObject target)
 {
-    charge_legacy_accesses(g, 2); /* selected target */
+    charge_accesses(g, 2); /* selected target */
     return answer_of(g, target);
 }
 
@@ -129,7 +126,7 @@ static int urgency_of(const GameState *g, FieldObject target, uint8_t level)
 
 static int urgency(GameState *g, FieldObject target, uint8_t level, uint8_t function)
 {
-    charge_legacy_accesses(g, 4); /* level read and three decoded selections */
+    charge_accesses(g, 4); /* level read and three decoded selections */
     (void)function;
     return urgency_of(g, target, level);
 }
@@ -151,13 +148,13 @@ static void interrupt(GameState *g, FieldObject target, uint8_t level, uint8_t f
     run_from(g, target, own, level, function_start(g, target, function));
 }
 
-/* The field's hand-overs keep the place's offset in another scratch cell
- * than the calls do. */
+/* The field hands an object's script over (event/calls.h): its place at its
+ * own level kept, it runs from `start` at `level`, its turn now. */
 void object_run_script_from(GameState *g, FieldObject object, uint8_t level, uint16_t start)
 {
     uint8_t own = event_object_call_state_level(g, object);
-    charge_legacy_accesses(g, 2); /* suspended place */
-    charge_legacy_io_accesses(g, 4); /* level multiplication */
+    charge_accesses(g, 2); /* suspended place */
+    charge_io_accesses(g, 4); /* level multiplication */
     run_from(g, object, place_of(object, own), level, start);
     object_turn_now(g, object);
 }
@@ -235,7 +232,7 @@ static EventFlow call_and_wait(GameState *g, FieldObject self, FieldObject targe
                                uint8_t function)
 {
     if (waiting(g, self)) {
-        charge_legacy_accesses(g, 2); /* selected target while waiting */
+        charge_accesses(g, 2); /* selected target while waiting */
         if (!object_unreachable(g, target) && urgency(g, target, level, function) >= 0)
             return stay();
         set_waiting(g, self, false);
@@ -252,15 +249,14 @@ EVENT_OPERATION(call_and_wait, self, target, there, level, function)
 // $C0:5F74
 /* A function ends: the object clears the place of the level it ran at and
  * resumes the most urgent unfinished thing below it. At the lowest level
- * there is nothing below, and the script stays here. (The guard has turned
- * away an object with nothing to resume.) */
+ * there is nothing below, and the script stays here. (The port's check has
+ * refused an object with nothing to resume.) */
 static EventFlow return_from_function(GameState *g, FieldObject self)
 {
     uint8_t level = event_object_call_state_level(g, self);
     if (level == LOWEST_LEVEL)
         return stay();
-    charge_legacy_io_accesses(g, 4); /* resumed level's multiplication */
-    ((void)0);   /* the original multiplies in hardware */
+    charge_io_accesses(g, 4); /* resumed level's multiplication */
     set_place(g, place_of(self, level), 0);
     Resumption r = resumption_below(g, self, level);
     set_event_object_call_state_level(g, self, r.level);
@@ -305,9 +301,9 @@ static EventFlow make_reachable(GameState *g, FieldObject object)
 }
 EVENT_OPERATION(make_reachable, object)
 
-/* The guard's part for a return: at the lowest level, or with something to
- * resume in the levels below it. Past them the original's search reads on
- * past the places, round its 16-bit offset, which only the original runs. */
+/* What the port checks of a return: at the lowest level, or with something
+ * to resume in the levels below it. Past them the original's search reads on
+ * past the places, round its 16-bit offset, which the port doesn't reproduce. */
 static bool has_something_to_resume(const GameState *g, FieldObject self)
 {
     uint8_t level = event_object_call_state_level(g, self);

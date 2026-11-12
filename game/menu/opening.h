@@ -23,7 +23,8 @@ void menu_unpack_settings(GameState *g);
 /* The settings screen's cells packed back into the player's settings. */
 void menu_pack_settings(GameState *g);
 
-/* The same as C: false where a step is the machine's yet. */
+/* The menus opened ($C2:8096): false where a step meets a state the port
+ * doesn't handle. */
 bool menu_opens(GameState *g, Platform *pf);
 
 #endif

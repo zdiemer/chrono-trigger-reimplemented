@@ -35,9 +35,6 @@ static void leave_last_member_acting(GameState *g)
     set_battle_effect_actor_block(g, effect_times(g, BATTLE_STAT_BLOCK_BYTES, LAST_MEMBER));
 }
 
-/* The member it counted in a cell, left at the party's size once it is done. */
-enum { MEMBER_COUNTED_AT = 0x16 };
-
 /* The block's bytes past the four status bytes the clearing takes too: what
  * the member shrugs off and ignores, the next byte, and the statuses it keeps
  * whatever happens. */
@@ -90,10 +87,6 @@ static void copy_past_the_records(GameState *g, uint8_t member, uint8_t characte
     for (unsigned at = 0; at < RECORD_BYTES; at++)
         set_character_records_record_byte_unchecked(g, character, at, battle_stats_block_byte(g, member, at));
 }
-
-/* Where the copy ended, in the record and in the block, as the original's
- * cells keep them. */
-enum { RECORD_END_AT = 0x02, BLOCK_END_AT = 0x04 };
 
 // $C1:B442
 /* Each member's stat block is kept in its character's record. */
@@ -159,10 +152,3 @@ void battle_note_beaten_enemies(GameState *g)
     battle_keep_byte(g, 0, 0);
 }
 
-/* ---- The entries ------------------------------------------------------------------------- */
-
-/* As the original's code calls each, which takes nothing in; where its
- * callers read what it leaves in A or the carry, that is worked out here:
- * the party's count or the enemies' table's end, the loop's last compare's
- * carry, and a clear A where the original clears it. */
-enum { PLACEMENT_BYTES = 12 };

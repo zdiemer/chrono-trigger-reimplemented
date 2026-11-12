@@ -83,7 +83,7 @@ enum { CREDITS_UPLOAD_TASK = 0x9EFC };
 /* The next line of the credits, when one is due: the row blanked, the line's
  * letters written into it from the ninth tile, and the row of the map it goes
  * to moved on. The end of the text instead ends the credits: the upload is
- * taken off its list (the roll takes itself off its own, from its entry). */
+ * taken off its list (the roll takes itself off its own, as it ends). */
 static void write_next_line(GameState *g)
 {
     if (!line_due(g))
@@ -100,7 +100,7 @@ static void write_next_line(GameState *g)
             set_scene_credits_row_byte(g, tile++, letter_tile(code));
     }
     /* the original writes the letters through the work RAM port */
-    charge_legacy_io_accesses(g, 3);
+    charge_io_accesses(g, 3);
     if (code == END_OF_CREDITS) {
         set_scene_credits_over(g, (uint8_t)(scene_credits_over(g) + 1));
         scene_remove_task(g, SCENE_VBLANK_TASKS, CREDITS_UPLOAD_TASK);
@@ -323,8 +323,7 @@ enum { STAFF_ROLL_SCRIPT = 0x93E3, STAFF_ROLL_SONG = 0x1B };
  * sound command it has put in the buffer, the stars' scatter (which goes on
  * from what the send leaves), a graphic unpacked, the script's first step
  * (which reads where the per-line effects' descriptors ended), and the song's
- * start. The machine's entry takes them as calls of the original's, the
- * native program as C. */
+ * start. */
 typedef struct {
     bool (*send_the_command)(void *ctx);
     void (*scatter_the_stars)(void *ctx);
@@ -423,32 +422,16 @@ static bool set_up_staff_roll_with(GameState *g, Platform *pf, StaffRollPace pac
     return true;
 }
 
-/* ---- On the machine ---- */
-
-/* The program's own send of the command in the sound command buffer
- * ($7E:377E), called with 8-bit A: it waits for the driver to take it. It
- * reads none of the registers but Y and the data bank. What it leaves in A and
- * the carry the stars' scatter mixes into its random numbers, so nothing
- * touches them between the two. */
-enum { SCENE_SEND = 0x7E377E };
-
-/* The script's first step, with the program's bank as the data bank, which
- * the program sets from a word it pushes: the word's other byte, 0, waits on
- * the stack to be the data bank again after. It reads Y and the overflow as
- * the per-line effects' setup leaves them: where the descriptors end, and
- * clear. */
-enum { BANK_AFTER_THE_STEP = 0x00 };
-
-/* ---- As C ---- */
+/* ---- The setup's steps ---- */
 
 typedef struct {
     GameState *game;
     Platform *pf;
-} StaffRollInC;
+} StaffRollContext;
 
 static bool send_the_command(void *ctx)
 {
-    StaffRollInC *c = ctx;
+    StaffRollContext *c = ctx;
     scene_sends_the_command(c->game, c->pf);
     return true;
 }
@@ -459,20 +442,20 @@ enum { SCATTER_STARS = 0x7E5777 };
 
 static void scatter_the_stars(void *ctx)
 {
-    StaffRollInC *c = ctx;
+    StaffRollContext *c = ctx;
     TIMED_AS(c->game, SCATTER_STARS, scene_scatter_stars(c->game, c->pf, scene_draw_from(0, false, TM_ENTROPY_BYTES)));
 }
 
 static bool unpack_the_graphic(void *ctx, unsigned graphic)
 {
-    StaffRollInC *c = ctx;
+    StaffRollContext *c = ctx;
     TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, staff_roll_graphics[graphic].resource));
     return true;
 }
 
 static bool turn_the_credits_channel(void *ctx, uint16_t descriptors_end)
 {
-    StaffRollInC *c = ctx;
+    StaffRollContext *c = ctx;
     (void)descriptors_end;
     SceneTurn turn = SCENE_TURN_ENDED;
     TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, 0));
@@ -481,7 +464,7 @@ static bool turn_the_credits_channel(void *ctx, uint16_t descriptors_end)
 
 static void start_the_song(void *ctx, uint8_t song)
 {
-    StaffRollInC *c = ctx;
+    StaffRollContext *c = ctx;
     scene_start_song(c->pf, song);
 }
 
@@ -489,7 +472,7 @@ static bool set_up_in_the_program(GameState *g, Platform *pf, StaffRollPace pace
 {
     static const StaffRollSteps in_the_program = { send_the_command, scatter_the_stars, unpack_the_graphic, turn_the_credits_channel,
                                          start_the_song };
-    StaffRollInC c = { g, pf };
+    StaffRollContext c = { g, pf };
     return set_up_staff_roll_with(g, pf, pace, &in_the_program, &c);
 }
 
@@ -497,9 +480,8 @@ bool scene_staff_roll_set_up(GameState *g, Platform *pf) { return set_up_in_the_
 
 bool scene_slow_staff_roll_set_up(GameState *g, Platform *pf) { return set_up_in_the_program(g, pf, STAFF_ROLL_SLOW); }
 
-/* The roll and its scroll run on the scene's page with the data bank on the
- * registers, from the frame's list. A line must fit its row: the guard reads
- * the next line as the roll will, to its end or the credits', within the
+/* The roll and its scroll run from the frame's list. A line must fit its
+ * row: the port reads the next line as the roll will, to its end or the credits', within the
  * row's tiles. The end takes the upload off the vblank list, which has it
  * whenever the roll runs. The speed's word is tested where the roll's line is
  * due and its low byte where the scroll is, which agree while its high byte is
@@ -525,20 +507,12 @@ static bool next_line_fits(const GameState *g)
 static bool roll_takes(const GameState *g, bool with_line);
 static bool upload_takes(const GameState *g);
 
-/* Where the roll goes on: its scroll, a routine of its own, which reads the
- * data bank and Y; and the frame list's exit for a task that takes itself
- * off. */
-enum { SCROLL_THE_CREDITS = 0x7E9ED6,  };
+/* Where the roll goes on: its scroll, a routine of its own. */
+enum { SCROLL_THE_CREDITS = 0x7E9ED6 };
 
-/* What a line leaves: Y past the row buffer, which the original blanks with a
- * block move, and the data bank the move's, 0. */
-enum { PAST_THE_ROW = 0x1434 };
+/* ---- The script's routines and the tasks ---------------------------------------------------------- */
 
-/* ---- As C ------------------------------------------------------------------------------------------ */
-
-/* The script's routines as rows of the interpreter's table (scene/script.c),
- * which on the machine it runs inline where their code holds; each leaves the
- * registers as its entry does. */
+/* The script's routines as rows of the interpreter's table (scene/script.c). */
 static void go_on_after_the_credits_routine(GameState *g, Platform *pf, uint8_t channel)
 {
     (void)pf;
@@ -558,8 +532,7 @@ const SceneScriptRoutine scene_staff_roll_routines[] = {
 };
 const unsigned scene_staff_roll_routine_count = sizeof scene_staff_roll_routines / sizeof scene_staff_roll_routines[0];
 
-/* The roll's tasks, for a program with no machine (each a column of
- * scene/frame.c's table): the roll writes its line and scrolls, done at the
+/* The roll's tasks (each a row of scene/frame.c's table): the roll writes its line and scrolls, done at the
  * credits' end; the upload sends the row; the sprites' high bits cleared. */
 static bool roll_takes(const GameState *g, bool with_line)
 {
@@ -579,7 +552,7 @@ TaskEnd scene_roll_credits(GameState *g, Platform *pf, unsigned slot)
 {
     (void)slot;
     if (!roll_takes(g, true))
-        return scene_task_needs_the_machine(g, ROLL_CREDITS, "credits the port doesn't roll");
+        return scene_task_goes_no_further(g, ROLL_CREDITS, "credits the port doesn't roll");
     uint8_t over = scene_credits_over(g);
     write_next_line(g);
     if (scene_credits_over(g) != over)
@@ -593,7 +566,7 @@ TaskEnd scene_upload_credits(GameState *g, Platform *pf, unsigned slot)
 {
     (void)slot;
     if (!upload_takes(g))
-        return scene_task_needs_the_machine(g, UPLOAD_CREDITS, "a credits' row whose scroll the port doesn't send");
+        return scene_task_goes_no_further(g, UPLOAD_CREDITS, "a credits' row whose scroll the port doesn't send");
     send_credits_row(g, pf);
     return task_goes_on();
 }

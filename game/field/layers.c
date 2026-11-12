@@ -19,12 +19,13 @@
 #include "field/bridge.h"
 #include "field/field.h"
 #include "charge.h"
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
-enum { SECOND_HALF = FIELD_TILE_MAP_HALF_COLUMNS * FIELD_TILE_MAP_ROWS, /* a half's entries: where the second starts */
-    LAST_ROW_OF_HALF = (FIELD_TILE_MAP_ROWS - 1) * FIELD_TILE_MAP_HALF_COLUMNS,  };
+enum {
+    SECOND_HALF = FIELD_TILE_MAP_HALF_COLUMNS * FIELD_TILE_MAP_ROWS,   /* a half's entries: where the second starts */
+    LAST_ROW_OF_HALF = (FIELD_TILE_MAP_ROWS - 1) * FIELD_TILE_MAP_HALF_COLUMNS,
+};
 enum { COLUMN_MASK = FIELD_TILE_MAP_COLUMNS - 1, ROW_MASK = FIELD_TILE_MAP_ROWS - 1 };
 
 /* ---- The edges -------------------------------------------------------------------------- */
@@ -174,7 +175,7 @@ void field_find_layer_edges(GameState *g)
         right_column(&e, right, above);
         store_layer_edges(g, layer, field_layer_map_base(g, layer), &e);
     }
-    charge_legacy_accesses(g, 12); /* six temporary edge words */
+    charge_accesses(g, 12); /* six temporary edge words */
 }
 
 static void put_the_layer_at_its_start(GameState *g, FieldLayer layer)
@@ -467,14 +468,14 @@ static bool fits_the_tables(MapSize s)
     return s.rows <= FIELD_LAYER_MAPS_ROWS && s.columns <= FIELD_LAYER_MAPS_COLUMNS;
 }
 
-/* The unpacking's guard: every layer it unpacks fits the tables, and a map
+/* The unpacking the port takes: every layer it unpacks fits the tables, and a map
  * whose data can't come round the banks to the layers' page before it is
  * unpacked. The data starts at MAP_DATA in bank
  * $7E and the stream runs on through bank $7F and back into $7E; the port
  * leaves its cells on the layers' page when it is done, where the original
  * writes them as it goes, so a stream long enough to read them back would
  * differ. A tile takes a byte of each layer's map and at most four of
- * attributes (a run of one). The guard is a claim about every map the game
+ * attributes (a run of one). The check is a claim about every map the game
  * loads, which the movies check: none is turned away. */
 enum { STREAM_REACHES_LAYERS_PAGE = 0x10000 - MAP_DATA + 0x10000 + 0x1D50 };
 
@@ -491,16 +492,5 @@ bool field_tile_maps_fit(const GameState *g)
     return fits && bytes < STREAM_REACHES_LAYERS_PAGE;
 }
 
-/* The overflow of BG3's right column's address, the last sum, is the one
- * thing its callers read; and it leaves A 8-bit, whatever it came with. */
-bool field_layer_edges_overflow(const GameState *g)
-{
-    uint16_t base = field_layer_map_base(g, FIELD_BG3);
-    uint16_t sum = (uint16_t)(field_layer_edge_vram_byte(g, FIELD_BG3, 2 * EDGE_RIGHT_COLUMN) |
-                              field_layer_edge_vram_byte(g, FIELD_BG3, 2 * EDGE_RIGHT_COLUMN + 1) << 8);
-    return field_add_overflows16((uint16_t)(sum - base), base);
-}
-
-/* Nothing they leave in the registers is read after (the entries' don't-care
- * sets). */
+/* The layers' scroll moved on for the frame. */
 void field_layer_scroll_updated(GameState *g) { update_layer_scroll(g); }

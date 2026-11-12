@@ -33,7 +33,6 @@
 #include "field/bridge.h"
 #include "field/field.h"
 #include "field/parts.h"
-#include "field/scratch.h"
 #include "vars.h"
 
 /* ---- Storage: the trail, and what the walk leaves for the party ----------------------- */
@@ -126,8 +125,6 @@ bool party_trail_places_hold(const GameState *g)
             return false;
     return true;
 }
-
-/* ---- What the original leaves (field/scratch.h) --------------------------------------- */
 
 /* ---- The gait a walk shows ------------------------------------------------------------ */
 
@@ -257,7 +254,7 @@ static void stand_or_fidget(GameState *g, FieldObject obj)
  * floor carries it, where a run against something is no run on the spot. */
 static void take_pose(GameState *g, FieldObject turns, FieldObject shows, Pose p, bool carried)
 {
-    charge_legacy_accesses(g, 1); /* the pose's horizontal gait selection */
+    charge_accesses(g, 1); /* the pose's horizontal gait selection */
     if (p.gait == STANDS) {
         stand_or_fidget(g, shows);
         return;
@@ -287,7 +284,7 @@ void party_leader_steps(GameState *g, FieldObject leader)
     LeaderGround ground = leader_ground(g);
     GroundKind kind = ground_kind(ground);
     Velocity walk = field_pad_walk(g);
-    charge_legacy_accesses(g, 1); /* moving-floor selection */
+    charge_accesses(g, 1); /* moving-floor selection */
     if (kind == GROUND_CLIMB)
         climb(g, leader, walk.y != 0);
     else
@@ -388,7 +385,7 @@ bool party_place_steps(const GameState *g, PartyPlace place)
 // $C0:A26B (the first member), $C0:A2CE (the second), and their gait $C0:9ED1, $C0:9F20
 void party_member_follows(GameState *g, FieldObject member, PartyPlace place)
 {
-    charge_legacy_accesses(g, 1); /* the member is not carried */
+    charge_accesses(g, 1); /* the member is not carried */
     step_the_place(g, place, (Velocity){ 0, 0 });
     if (!party_member_moves_on(g, place)) {
         FieldObject in_the_place = field_linked_object(party_member_link(g, place));

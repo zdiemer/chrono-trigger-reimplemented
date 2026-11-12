@@ -1,29 +1,11 @@
-/* The settings screen on the original's machine: its checked legacy adapters, the
- * bridges that run what game/menu/settings_screen.c decides between the
- * calls that are still the original's, and their guards.
- *
- * Each step reads the cursor and asks settings_screen.c what the frame's
- * input does. The ticks are the cursor's sound, a sibling run as the
- * original's JSR reaches it (menu_run): it saves P as it starts and calls
- * the sound driver, so the flags the original has at each tick are on the
- * stack there, where shadow mode compares them, and A's high byte goes to
- * the driver. The options' handling is an entry of its own, run as the
- * original's JSR from the options' step reaches it, and it runs each
- * option's handler the same way through a C table (the original's JSR
- * through its table at $C2:BFFF): the stereo's handler sends the sound
- * driver the mode, and the meters' and the design's step their meter
- * through a sibling of their own that ticks. Going back from the options
- * calls the main menu's return as C behind its guard, and the panel waits a frame
- * between its frame and the rest (the menus' task switch).
- *
- * Before each of those calls a bridge leaves the registers and flags the
- * original's own instructions left there, worked out from the state (the
- * leaves at the end of the file): scaffolding, which the native build
- * compiles out. */
+/* The settings screen's sound output sent to the sound driver, and what its
+ * steps need of the game's state before they run: the cursor on an option,
+ * a gauge layout or a button row, and the description typed no further than
+ * its row. The steps (game/menu/settings_screen.c) go no further where one
+ * fails. */
 #include "menu/settings_screen.h"
 
 #include "charge.h"
-#include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/main_menu.h"
 #include "menu/menu_data.h"
@@ -33,17 +15,11 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-/* ---- The calls out ------------------------------------------------------------------------------- */
+/* ---- The sound output -------------------------------------------------------------------------- */
 
-enum { MAIN_MENU = 0xC29A98, /* back to the main menu */
-    CURSOR_SOUND = 0xC2EAC2, TAKE_OPTION = 0xC2BFD4, STEP_METER = 0xC2C164, SOUND_DRIVER = 0xC70004,  };
+enum { SOUND_DRIVER = 0xC70004 };
 
-/* The meter a call steps is its setting's cell, as the original's callers
- * hand it over in X, from each meter's call. */
-enum { BATTLE_SPEED_CELL = 0x0D8B, MESSAGE_SPEED_CELL = 0x0D90, WINDOW_DESIGN_CELL = 0x0D8C };
-
-/* The sound driver told the mode the player chose (stereo or mono), from
- * the original's call, as C and on the machine. */
+/* The sound driver told the mode the player chose (stereo or mono). */
 enum { SOUND_OUTPUT = 0xF3 };
 
 void menu_settings_send_sound_output(GameState *g, Platform *pf)
@@ -52,7 +28,7 @@ void menu_settings_send_sound_output(GameState *g, Platform *pf)
                (AudioCommand){ .command = SOUND_OUTPUT, .p1 = menu_settings_sound_output(g), .count = 1 });
 }
 
-/* ---- The guards ---------------------------------------------------------------------------------- */
+/* ---- The steps --------------------------------------------------------------------------------- */
 
 static bool place_among(uint8_t place, uint8_t first, uint8_t count) { return place >= first && place < first + count; }
 

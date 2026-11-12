@@ -37,10 +37,7 @@ void menu_queue_fixed_upload(GameState *g, uint16_t record)
     TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, record)));
 }
 
-/* ---- The entries ------------------------------------------------------------------------- */
-
-/* Where the queue is, as the original's block move addresses it. */
-enum { QUEUE_ADDRESS = 0x0C00 };
+/* ---- Room in the queue -------------------------------------------------------------------- */
 
 /* A step that queues `uploads` finds the queue holding whole records, with
  * room for them (it holds 32). */
@@ -54,7 +51,7 @@ bool menu_upload_queue_takes(const GameState *g, unsigned uploads)
 
 /* ---- The sprite-object mode's queue --------------------------------------------------------- */
 
-/* The sprite-object mode keeps a queue of its own on its direct page, which
+/* The sprite-object mode keeps a queue of its own in its own cells, which
  * its vblank handler sends (game/menu/display.c, menu_object_upload_vram_queue)
  * unless something is queueing at that moment. Its records are counted by the
  * byte offset of the queue's end. The queue holds sixteen; one filled past

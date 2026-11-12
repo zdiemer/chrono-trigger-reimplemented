@@ -40,19 +40,23 @@
 
 /* ---- the shape of a plane ------------------------------------------------------------------ */
 
-enum { TILE_PIXELS = 8, /* pixels across a background tile, and down it */
-    MAP_COLUMNS = 96, /* map tiles across a plane: one row of map bytes */
-    MAP_ROWS = 64, /* and down it */
-    MAP_BYTES = MAP_COLUMNS * MAP_ROWS, TILE_COLUMNS = 2 * MAP_COLUMNS, /* background tiles across it, two a map tile ... */
-    TILE_ROWS = 2 * MAP_ROWS, /* ... and down */
-    TILEMAP_COLUMNS = 32, /* background tiles across one tilemap screen ... */
-    TILEMAP_ROWS = 32, /* ... and down */
-    TILEMAP_WIDTH = 2 * TILEMAP_COLUMNS * TILE_PIXELS, /* pixels across both screens ... */
-    TILEMAP_HEIGHT = TILEMAP_ROWS * TILE_PIXELS, /* ... and down one */
-    TILEMAP_SCREEN = 0x400, /* words from one tilemap screen to the next */
-    STRIP_WORDS = TILEMAP_ROWS, /* tilemap words in one strip: a whole tilemap column */
-    STRIP_BYTES = 2 * STRIP_WORDS, SCREEN_COLUMNS = TILEMAP_COLUMNS, /* tiles across the screen, which a scroll looks ahead by ... */
-    SCREEN_ROWS = 28, /* ... and down it */ };
+enum {
+    TILE_PIXELS = 8,              /* pixels across a background tile, and down it */
+    MAP_COLUMNS = 96,             /* map tiles across a plane: one row of map bytes */
+    MAP_ROWS = 64,                /* and down it */
+    MAP_BYTES = MAP_COLUMNS * MAP_ROWS,
+    TILE_COLUMNS = 2 * MAP_COLUMNS,   /* background tiles across it, two a map tile ... */
+    TILE_ROWS = 2 * MAP_ROWS,         /* ... and down */
+    TILEMAP_COLUMNS = 32,         /* background tiles across one tilemap screen ... */
+    TILEMAP_ROWS = 32,            /* ... and down */
+    TILEMAP_WIDTH = 2 * TILEMAP_COLUMNS * TILE_PIXELS,  /* pixels across both screens ... */
+    TILEMAP_HEIGHT = TILEMAP_ROWS * TILE_PIXELS,        /* ... and down one */
+    TILEMAP_SCREEN = 0x400,       /* words from one tilemap screen to the next */
+    STRIP_WORDS = TILEMAP_ROWS,   /* tilemap words in one strip: a whole tilemap column */
+    STRIP_BYTES = 2 * STRIP_WORDS,
+    SCREEN_COLUMNS = TILEMAP_COLUMNS,  /* tiles across the screen, which a scroll looks ahead by ... */
+    SCREEN_ROWS = 28,                  /* ... and down it */
+};
 
 /* A tile group: the four background tiles of one map tile, as words. */
 enum { GROUP_BYTES = 8 };
@@ -283,7 +287,14 @@ static uint16_t queue_row_strip(GameState *g, const MapPlane *p, uint16_t pixel)
 /* The original's routines that build a strip (from the groups' left or right
  * tiles, or their top or bottom ones) and queue it: a strip's work is
  * estimated at their rates, a pixel's move at the scroll's. */
-enum { BUILD_COLUMN_STRIP = 0xC20773, BUILD_COLUMN_STRIP_RIGHT = 0xC207C2, BUILD_ROW_STRIP = 0xC20843, BUILD_ROW_STRIP_BOTTOM = 0xC2088F, QUEUE_COLUMN_STRIP = 0xC2090D, QUEUE_ROW_STRIP = 0xC20961,  };
+enum {
+    BUILD_COLUMN_STRIP = 0xC20773,
+    BUILD_COLUMN_STRIP_RIGHT = 0xC207C2,
+    BUILD_ROW_STRIP = 0xC20843,
+    BUILD_ROW_STRIP_BOTTOM = 0xC2088F,
+    QUEUE_COLUMN_STRIP = 0xC2090D,
+    QUEUE_ROW_STRIP = 0xC20961,
+};
 
 /* How a plane scrolls along each axis: how many tiles and pixels round the
  * map, and how far ahead of the top-left tile the screen's far edge is. */
@@ -455,10 +466,6 @@ typedef struct {
     uint16_t column, row, x, y, at, out, vram, map;
 } Redraw;
 
-/* The original multiplies a row by 96 as a quarter of the row's word swapped
- * (the row times 64) and a half of that, and leaves the quarter. */
-enum { ROW_QUARTER = MAP_COLUMNS * 2 / 3 };
-
 // $C2:09C5
 /* Redraw a whole plane: put its scroll where its top-left tile says, then
  * walk eighteen blocks across it from the map tile the screen's left edge
@@ -488,10 +495,7 @@ void menu_map_draw_plane(GameState *g, Platform *pf, uint8_t plane)
     menu_note_effect_noise(g, r.column);
 }
 
-/* ---- the entries ----------------------------------------------------------------------------- */
-
-/* The mode's direct page, where its cells are. */
-enum { MODE_PAGE = 0x0000 };
+/* ---- what a scroll and a redraw need ------------------------------------------------------- */
 
 static bool plane_is_on_the_map(const GameState *g, uint8_t plane)
 {

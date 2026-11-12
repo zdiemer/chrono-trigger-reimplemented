@@ -17,7 +17,7 @@
  * points the plane's line effects and the circle's at their tables. The video
  * goes through the video service; the work RAM the original streams through the
  * CPU's port is written through its variables, the port's cursor left where the
- * original leaves it as scaffolding. */
+ * original leaves it. */
 #include "warp/warp.h"
 #include "warp/warp_data.h"
 

@@ -23,7 +23,6 @@
 
 #include "charge.h"
 #include "cpu_io.h"
-#include "menu/bridge.h"
 #include "menu/items.h"
 #include "menu/members.h"
 #include "menu/menu_data.h"
@@ -150,14 +149,6 @@ enum { MOST = 0xFF };
 
 static uint8_t held_to_a_byte(unsigned v) { return v > MOST ? MOST : (uint8_t)v; }
 
-/* For the original's code and shadow mode: the slot the working out counts
- * down to, past the weapon's; the menus' first cells, where it shifts each
- * boost's stats out (leaving 0 beside the last boost's amount) and then
- * keeps the weapon's part of the attack's sum (five times its attack, or an
- * aimed weapon's attack); the multiplier as the attack's sum leaves it; and
- * the divider. */
-enum { PAST_THE_WEAPON = 0xFF };
-
 static void charge_divided(GameState *g, uint8_t weapon_attack, const uint8_t *figures, AttackSum a)
 {
     (void)weapon_attack, (void)figures, (void)a;
@@ -249,20 +240,9 @@ void menu_put_items_back(GameState *g)
     charge_block_move(g, INVENTORY_BYTES);
 }
 
-enum { BLOCK_MOVED = 0xFFFF };
-
-// $C2:916E
-
-// $C2:9137
-
-// $C2:99B2
-
-// $C2:90FC
-
 // $C2:9121
 
-/* The working out runs on the menus' page with the data bank on work RAM's,
- * for a loaded record whose weapon, armour and helmet have a power in the
+/* The working out runs for a loaded record whose weapon, armour and helmet have a power in the
  * menus' table (menu_item_powers) and whose equipment has data
  * (menu_item_amounts): the game's always have. */
 static bool an_item_of_the_games(uint8_t item, MenuItemCategory slot)

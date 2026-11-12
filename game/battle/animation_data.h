@@ -4,9 +4,9 @@
  * Every read of cartridge data battle/animation.c, objects.c, sprites.c,
  * tiles.c and beaten_enemies.c make goes through here, named for what the data is (the asset
  * seam, docs/PLAN.md Phase 3), at the index the original uses, 16-bit
- * wraparound and all. The accessors take the game's state (game/rom.h), not
- * the machine, so a build that loads these tables from elsewhere changes this
- * file and nothing that uses it. */
+ * wraparound and all. The accessors take the game's state (game/rom.h), so a
+ * build that loads these tables from elsewhere changes this file and nothing
+ * that uses it. */
 #ifndef CT_GAME_BATTLE_ANIMATION_DATA_H
 #define CT_GAME_BATTLE_ANIMATION_DATA_H
 
@@ -86,7 +86,7 @@ typedef struct {
 
 /* A long pointer's bank and offset, as the game keeps it in work RAM. The
  * original indexes from the offset in 16 bits within the bank for the lists
- * below, as its [dp],Y reads and its 16-bit sums do. */
+ * below, wrapping within the bank. */
 static inline uint32_t battle_at(uint8_t bank, uint16_t offset) { return (uint32_t)bank << 16 | offset; }
 
 static inline bool battle_status_pose_ends(const GameState *g, uint16_t entry)
@@ -152,7 +152,7 @@ static inline uint8_t battle_script_speed_steps(const GameState *g, uint8_t spee
 
 /* The field supplies creature graphics unpacked in its second work-RAM
  * bank; the party and uncompressed creatures use cartridge resources. A
- * source bank must stay away from the battle's scratch and stack even when
+ * source bank must stay away from the battle's low work RAM even when
  * a tile's offset wraps. The lower cartridge mirrors also satisfy this. */
 static inline bool battle_sprite_graphics_storage(uint32_t source)
 {

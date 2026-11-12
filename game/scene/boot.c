@@ -2,8 +2,8 @@
 /* Scenes: starting a scene program, and copying its resources.
  *
  * The field starts a scene -- the race, an ending -- and the game comes back
- * to the title the same way: by jumping to $C3:0000 with the scene's flags in
- * A (scene.h). The boot points the interrupts at its own handlers, which keep
+ * to the title the same way: by starting $C3:0000 with the scene's flags
+ * (scene.h). The boot points the interrupts at its own handlers, which keep
  * the screen on until the program installs its frame's work, starts the line
  * interrupt for a scene that uses it, and decompresses the program into work
  * RAM, where it runs.
@@ -27,9 +27,6 @@ enum { FULL_BRIGHTNESS = 15 };
 
 /* Where the program runs, in the first bank of work RAM. */
 enum { PROGRAM_START = 0x7E3000, PROGRAM_ADDRESS = 0x3000 };
-/* The program's start sets every register it uses: the fades' pace in A
- * before the clear takes it, the mode from the flags it was booted with. */
-
 // $C3:0000
 /* Point the interrupts at the boot's handlers, keep the scene's flags, start
  * the line interrupt where the scene uses it, and set the decompressor on the
@@ -38,9 +35,9 @@ enum { PROGRAM_START = 0x7E3000, PROGRAM_ADDRESS = 0x3000 };
 static bool boot(GameState *g, Platform *pf, uint8_t flags)
 {
     program_install_vblank_handler(g, scene_boot_vblank);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     program_install_line_handler(g, scene_boot_line);
-    charge_legacy_accesses(g, 4);
+    charge_accesses(g, 4);
     tm_enable_interrupts(pf, PF_AT(0xC30034), TM_INT_AUTO_JOYPAD);
     set_scene_flags(g, flags);
     bool line_irq = flags & SCENE_FLAG_TITLE_WITH_LINE_IRQ;
@@ -58,7 +55,7 @@ static bool boot(GameState *g, Platform *pf, uint8_t flags)
 
 /* The program unpacked into work RAM (the decompressor's call from the boot,
  * $C3:006F): the program's code isn't run, but its data -- the scripts, the
- * sprite lists, the tables -- is what the C reads. */
+ * sprite lists, the tables -- is what the port reads. */
 bool scene_boots(GameState *g, Platform *pf, uint8_t flags)
 {
     bool line_irq = boot(g, pf, flags);
@@ -82,17 +79,7 @@ void scene_boot_vblank(GameState *g, Platform *pf)
     boot_vblank(pf);
 }
 
-/* The status the waits load into A: bits 1-5 are open bus, which the original
- * reads as the load's last operand byte, 0. The load sets N, and the test of
- * hblank Z. */
-
-// $C3:0530
-/* One pass of the wait for the current hblank to end. Idle entry. */
-
-// $C3:0538
-/* One pass of the wait for the next hblank to start. Idle entry. */
-
-/* The line interrupt as C: acknowledged, and the rest of the picture blank
+/* The line interrupt: acknowledged, and the rest of the picture blank
  * below the line it came on (a host has no beam to wait for the hblank on, so
  * the blank is the line handler's, not the whole frame's). */
 void scene_boot_line(GameState *g, Platform *pf)
@@ -113,17 +100,10 @@ void scene_copy_resource_bytes(GameState *g, uint8_t bank, uint16_t from, uint16
         wram_write8(g, (uint32_t)bank << 16 | (uint16_t)(to + i), scene_data_byte(g, (uint16_t)(from + i)));
 }
 
-/* A + 1 bytes from X in bank $FE to Y; of what the block move leaves, the
- * callers read only Y, past the bytes. */
-
-/* A resource into the first bank of work RAM. */
-
-/* A resource into the second bank of work RAM. */
-
 /* ---- Resources unpacked ------------------------------------------------------------------------ */
 
 // $7E:3691
-/* One of the program's resources unpacked as C, by its place in the
+/* One of the program's resources unpacked, by its place in the
  * resource table, to where the caller has set the unpacker's destination. */
 void scene_unpacks(GameState *g, uint16_t resource)
 {

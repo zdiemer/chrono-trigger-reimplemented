@@ -23,7 +23,4 @@ bool field_load_the_map(GameState *g);
 
 // $C0:A33B
 enum { FIELD_UNPACK_THE_MAP_ENTRY = 0xC0A33B };
-/* The map's chests and walkable tiles marked, as its screen is set up
- * (event/chests.h). */
-
 #endif

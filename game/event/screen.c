@@ -63,7 +63,7 @@ static EventFlow wait_for_screen(GameState *g, uint8_t changes)
 EVENT_OPERATION(wait_for_screen, changes)
 
 /* A tint: a colour mixed into the whole picture, added to it or taken away.
- * The field keeps it as the hardware has it -- the fixed colour's shadow
+ * The field keeps it as the hardware has it -- the fixed colour's copy
  * (which colour channels in bits 5-7, the strength in bits 0-4) and the
  * colour-math setting it applies with -- and its interrupt hands both on each
  * frame; so for now the tint is written in those terms here, the field's
@@ -74,12 +74,11 @@ enum { CHANNELS = VID_LINE_FIXED_COLOR_ALL_CHANNELS, STRENGTH = 0x1F };
  * sprites, added or taken away. */
 static uint8_t tint_math(TintMix mix) { return mix == TINT_ADDED ? 0x17 : 0x97; }
 
-/* The tint's colour channels become the target's, its strength stays. The
- * original keeps the channels in its scratch cell. */
+/* The tint's colour channels become the target's, its strength stays. */
 static void take_target_channels(GameState *g)
 {
     uint8_t channels = field_fixed_color_target(g) & CHANNELS;
-    charge_legacy_accesses(g, 1); /* selected tint channels */
+    charge_accesses(g, 1); /* selected tint channels */
     set_field_fixed_color(g, (uint8_t)((field_fixed_color(g) & STRENGTH) | channels));
 }
 
@@ -206,9 +205,9 @@ static EventFlow copy_tiles(GameState *g, uint16_t from, uint16_t to, uint16_t d
 }
 EVENT_OPERATION(copy_tiles, from, to, destination, maps)
 
-/* Its guard: the rectangle and where it goes are on the map, as the game's
- * copies are; past its edges the original's block moves run on into the
- * next table, and on into the cell the command keeps its offset in. */
+/* The port copies only a rectangle that stays on the map with where it goes,
+ * as the game's copies do; past its edges the original's block moves run on
+ * into the next table, and on into the cell the command keeps its offset in. */
 static bool copy_stays_on_the_map(const GameState *g, uint16_t from, uint16_t to, uint16_t destination)
 {
     (void)g;
@@ -266,10 +265,6 @@ static void hold_bg3_for_the_credits(GameState *g)
 /* BG3's tile map two screens wide, or two screens tall (field_bg3_map_size). */
 enum { BG3_TWO_SCREENS_WIDE = 1, BG3_TWO_SCREENS_TALL = 2 };
 
-/* What the credits' choice calls (field/script_layers.c): the credits'
- * letters loaded into BG3's tiles, through the unpacker, and the layers'
- * staging blanked. */
-
 // $C0:3E84
 /* Choose which of the credits' texts BG3 shows next, and how BG3's tile map
  * is laid out for it: BG3 held for them, its letters loaded (by
@@ -326,7 +321,8 @@ static EventFlow move_searchlight(GameState *g, uint8_t frames, SearchlightMove 
 }
 EVENT_OPERATION(move_searchlight, frames, searchlight)
 
-/* Its guard: a move that takes frames (none would divide by nothing). */
+/* The port moves the searchlight only over some frames (none would divide by
+ * nothing). */
 static bool searchlight_moves_over_frames(const GameState *g, uint8_t frames)
 {
     (void)g;
@@ -391,18 +387,11 @@ static bool run_screen_command(GameState *g, uint8_t command, uint8_t x, uint8_t
     }
 }
 
-/* The routines the field's end calls, including the scene's fresh stack. */
+/* The routines the field's end calls, by their timing keys (TIMED_AS). */
 enum { WALK_THE_LEADER = 0xC0881E, PALETTE_ANIMATION = 0xFDFFF7, FRAME_WAIT = 0xC0EC60 };
-enum { THE_SCENE_STARTS = 0xC03FD6 };
 
-/* The original's dispatch of the screen commands, a JSR through its table
- * ($C0:4009), with the registers it has there: the command's index doubled
- * in A and X, the carry and the overflow its working out left clear. The
- * restart resumes here after the event entry ends its comparison. */
-enum { SCREEN_DISPATCH = 0xC04009 };
-
-/* Entry addresses are only the machine bridge's calling convention. The
- * operation table above describes the effects themselves. */
+/* Each screen command's handler, the timing key of its work. The operation
+ * table above describes the effects themselves. */
 static const struct { uint32_t entry; } screen_entries[SCREEN_COMMANDS] = {
     [0] = { 0xC04036 },
     [1] = { 0xC04055 },
@@ -426,17 +415,16 @@ static const struct { uint32_t entry; } screen_entries[SCREEN_COMMANDS] = {
 /* The game finished: the cartridge notes it, for the load screen's New
  * Game+ (menu/party.h), through the menus' services, which the command's
  * dispatch reaches through its table; the script goes on after the
- * command. For the original's code and shadow mode, the services keep the
- * command's offset and the dispatch's X as their call's. */
+ * command. */
 enum { SCREEN_COMMAND_LENGTH = 2, MENUS_SERVICES = 0xC28004 };
 
-/* ---- As C, with no machine ------------------------------------------------------------------ */
+/* ---- The field's end, the game's restart, and the command ------------------------------------ */
 
 // $C0:3FBB
-/* The field ends for a scene, as C: the fade out a frame at a time, the
- * leader walking and the palettes animating, and the screen dark; the scene
- * the field ends into is the program's next step (field/main_loop.h), which
- * only the machine runs yet. False where the walk is the machine's. */
+/* The field ends for a scene: the fade out a frame at a time, the leader
+ * walking and the palettes animating, and the screen dark; the scene the
+ * field ends into is the program's next step (field/main_loop.h). Always
+ * false: the turn ends with the field. */
 static bool end_the_field_for_a_scene(GameState *g, Platform *pf, uint8_t scene)
 {
     set_field_scene_to_start(g, scene);
@@ -488,8 +476,8 @@ bool event_screen_command(GameState *g, Platform *pf, uint16_t at, EventStep *st
     return true;
 }
 
-/* Its guard: a command the original's table has (past it the table runs on
- * into code). */
+/* The port runs only a command the original's table has (past it the table
+ * runs on into code). */
 static bool a_screen_command(const GameState *g, uint8_t screen_command)
 {
     (void)g;

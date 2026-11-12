@@ -26,8 +26,10 @@ typedef enum {
     SLOT_WINDOW2,
     SLOTS,
 } FieldLineSlot;
-enum { FIELD_LINE_EFFECTS_KEPT_ON = 1 << SLOT_BG_MAPS | 1 << SLOT_BG1_SCROLL | 1 << SLOT_BG2_SCROLL |
-                                 1 << SLOT_BG3_SCROLL | 1 << SLOT_SCREENS | 1 << SLOT_COLOR_MATH,  };
+enum {
+    FIELD_LINE_EFFECTS_KEPT_ON = 1 << SLOT_BG_MAPS | 1 << SLOT_BG1_SCROLL | 1 << SLOT_BG2_SCROLL |
+                                 1 << SLOT_BG3_SCROLL | 1 << SLOT_SCREENS | 1 << SLOT_COLOR_MATH,
+};
 
 /* The field's tint (field_fixed_color): no tint is every channel at no
  * strength, as the hardware's one-byte form keeps it. */
@@ -39,24 +41,31 @@ typedef enum { NO_LEVEL = 0, FIRST_LEVEL = 1, STAIRS = 3 } MapLevel;
 
 /* field_display_flags, which the line effects' builders, the vblank handler
  * and the line interrupt share. */
-enum { /* The line effects read table set 1 (the builders build the other set and
+enum {
+    /* The line effects read table set 1 (the builders build the other set and
      * flip this every frame); the line interrupt's late work alternates with
      * it, one job each frame (field/display.c). */
-    FIELD_SECOND_TABLE_SET = 0x01, /* What the vblank tests to program set 1: any bit of the low nibble. The
+    FIELD_SECOND_TABLE_SET = 0x01,
+    /* What the vblank tests to program set 1: any bit of the low nibble. The
      * game only ever keeps bit 0 there. */
-    FIELD_TABLE_SET_BITS = 0x0F, /* The field's setup builds both sets from its own scroll and color math
+    FIELD_TABLE_SET_BITS = 0x0F,
+    /* The field's setup builds both sets from its own scroll and color math
      * values, and nothing waves (field/line_effects.c). */
-    FIELD_DISPLAY_SETUP = 0x80,  };
+    FIELD_DISPLAY_SETUP = 0x80,
+};
 
 /* field_requests: what the event scripts and the leader's walk ask of the
  * field's main loop. A battle is asked for with a tile copy: the main loop
  * copies the queued tiles (as the last queued copy described them) along with
  * it. */
-enum { FIELD_REQUEST_BATTLE = 0x01, FIELD_REQUEST_OPEN_CHEST = 0x02, /* show the chest at field_opened_chest_tile open */
-    FIELD_REQUEST_STEP_EVENT = 0x10, /* run the step event at field_step_tile */
-    FIELD_REQUEST_TILE_COPY = 0x20, /* copy the queued tiles into the maps */
-    FIELD_REQUEST_MENUS = 0x40, /* open the menus a script asked for */
-    FIELD_REQUEST_LOCATION_CHANGE = 0x80, /* go where location_next says */ };
+enum {
+    FIELD_REQUEST_BATTLE = 0x01,
+    FIELD_REQUEST_OPEN_CHEST = 0x02,        /* show the chest at field_opened_chest_tile open */
+    FIELD_REQUEST_STEP_EVENT = 0x10,        /* run the step event at field_step_tile */
+    FIELD_REQUEST_TILE_COPY = 0x20,         /* copy the queued tiles into the maps */
+    FIELD_REQUEST_MENUS = 0x40,             /* open the menus a script asked for */
+    FIELD_REQUEST_LOCATION_CHANGE = 0x80,   /* go where location_next says */
+};
 
 /* A location, as scripts and the map's exits give one: the map in the low 9
  * bits of a word whose high byte says how the change is made, and the tile the
@@ -88,14 +97,22 @@ enum { FIELD_MAP_MOVES = 4, FIELD_SEND_BG2_LEFT = 0x08, FIELD_SEND_BG2_RIGHT = 0
  * a frame, the lowest first (field/nmi.c): the tile map staged at $7E:F000 to
  * the first of its two places in VRAM or to the second, the tiles of the
  * window style the player chose, and four tiles of bank $FF's. */
-enum { FIELD_SEND_STAGED_MAP_FIRST = 0x01, FIELD_SEND_STAGED_MAP_SECOND = 0x02, FIELD_SEND_WINDOW_STYLE = 0x04, FIELD_SEND_FOUR_TILES = 0x08 };
+enum {
+    FIELD_SEND_STAGED_MAP_FIRST = 0x01,
+    FIELD_SEND_STAGED_MAP_SECOND = 0x02,
+    FIELD_SEND_WINDOW_STYLE = 0x04,
+    FIELD_SEND_FOUR_TILES = 0x08,
+};
 
 /* field_effect_status: what the field has running, or has finished, that a
  * script waits on. */
-enum { FIELD_BATTLE_OVER = 0x01, FIELD_FADING = 0x02, /* the brightness moves to its target */
-    FIELD_TINTING = 0x08, /* the tint moves to its target */
-    FIELD_TINT_CHANGES = 0x18, /* what a tint with a rate sets running */
-    FIELD_SCRIPT_MENU_SHOWN = 0x40, /* the menus a script asked for (event $C8) were shown */ };
+enum {
+    FIELD_BATTLE_OVER = 0x01,
+    FIELD_FADING = 0x02,                    /* the brightness moves to its target */
+    FIELD_TINTING = 0x08,                   /* the tint moves to its target */
+    FIELD_TINT_CHANGES = 0x18,              /* what a tint with a rate sets running */
+    FIELD_SCRIPT_MENU_SHOWN = 0x40,         /* the menus a script asked for (event $C8) were shown */
+};
 
 /* What the field has under way that scripts and the field's own routines
  * look at (field_mode_flags): the party gathering to its leader (event $DA:
@@ -105,7 +122,15 @@ enum { FIELD_BATTLE_OVER = 0x01, FIELD_FADING = 0x02, /* the brightness moves to
  * a dialog the field opened itself rather than a script (event/dialog.c), and
  * palettes a script loaded itself, which keeps the objects out of the shared
  * palette slots until the next map (field/palettes.c). */
-enum { FIELD_PARTY_GATHERING = 0x01, FIELD_OBJECT_PUSHED = 0x02, FIELD_CLEAR_BG2_LEFT = 0x04, FIELD_CLEAR_BG2_RIGHT = 0x08, FIELD_WRITING_CREDITS = 0x10, FIELD_DIALOG_OPENED_BY_THE_FIELD = 0x20, FIELD_PALETTES_SET_BY_SCRIPT = 0x80 };
+enum {
+    FIELD_PARTY_GATHERING = 0x01,
+    FIELD_OBJECT_PUSHED = 0x02,
+    FIELD_CLEAR_BG2_LEFT = 0x04,
+    FIELD_CLEAR_BG2_RIGHT = 0x08,
+    FIELD_WRITING_CREDITS = 0x10,
+    FIELD_DIALOG_OPENED_BY_THE_FIELD = 0x20,
+    FIELD_PALETTES_SET_BY_SCRIPT = 0x80,
+};
 
 /* The play clock stops while the field is put aside for a menu, and runs
  * again once it is faded back in (play_time_stopped). */
@@ -140,7 +165,18 @@ enum { FIELD_START_MENU_FROM_STORY = 0x49 };
  * lines that stream in as the screen scrolls reach a map tile past the
  * screen: a row from a tile left of it to a tile right of it, a column from a
  * tile above it (field/streaming.c). */
-enum { FIELD_MAP_TILE_PIXELS = 16, FIELD_ENTRY_PIXELS = 8, FIELD_TILE_MAP_COLUMNS = 64, FIELD_TILE_MAP_HALF_COLUMNS = 32, FIELD_TILE_MAP_ROWS = 32, FIELD_SCREEN_COLUMNS = 32, FIELD_SCREEN_ROWS = 28, FIELD_ENTRIES_A_MAP_TILE = FIELD_MAP_TILE_PIXELS / FIELD_ENTRY_PIXELS, FIELD_ROW_MAP_TILES = FIELD_SCREEN_COLUMNS / FIELD_ENTRIES_A_MAP_TILE + 2, FIELD_COLUMN_MAP_TILES = FIELD_SCREEN_ROWS / FIELD_ENTRIES_A_MAP_TILE + 1,  };
+enum {
+    FIELD_MAP_TILE_PIXELS = 16,
+    FIELD_ENTRY_PIXELS = 8,
+    FIELD_TILE_MAP_COLUMNS = 64,
+    FIELD_TILE_MAP_HALF_COLUMNS = 32,
+    FIELD_TILE_MAP_ROWS = 32,
+    FIELD_SCREEN_COLUMNS = 32,
+    FIELD_SCREEN_ROWS = 28,
+    FIELD_ENTRIES_A_MAP_TILE = FIELD_MAP_TILE_PIXELS / FIELD_ENTRY_PIXELS,
+    FIELD_ROW_MAP_TILES = FIELD_SCREEN_COLUMNS / FIELD_ENTRIES_A_MAP_TILE + 2,
+    FIELD_COLUMN_MAP_TILES = FIELD_SCREEN_ROWS / FIELD_ENTRIES_A_MAP_TILE + 1,
+};
 
 /* The frame builder's areas in bank $7F (field_frame_staging), where an
  * object's new frame is drawn before it goes to VRAM (field/sprites.c). */
@@ -176,15 +212,12 @@ void field_take_the_vblank_interrupt(GameState *g);
 void field_take_the_line_interrupt(GameState *g);
 enum { FIELD_INSTALL_NMI_ENTRY = 0xC00B64, FIELD_INSTALL_IRQ_ENTRY = 0xC00B75 };
 
-/* The handlers they install, as C for a program with no machine under it:
- * the vblank's (field/nmi.c), which sends the frame's work and takes the
+/* The handlers they install: the vblank's (field/nmi.c), which sends the frame's work and takes the
  * frame's input, and the line's (field/display.c), which ends the picture
  * and sends the dialog's pointer or the animated tiles after it. */
-enum { FIELD_VBLANK_HANDLER = 0xC0EA63, FIELD_LINE_HANDLER = 0xC0ECCC };
+enum { FIELD_VBLANK_HANDLER = 0xC0EA63 };
 void field_vblank(GameState *g, Platform *pf);
 void field_line(GameState *g, Platform *pf);
-
-/* field/nmi.c */
 
 /* field/main_loop.c. The timing key of the main loop's wait for the vblank
  * to take the frame ($C0:EC60). */
@@ -196,16 +229,14 @@ enum { FIELD_FRAME_WAIT_LOOP = 0xC0EC71 };
 void field_queue_the_due_turns(GameState *g);
 bool field_queued_turns_run(GameState *g, Platform *pf);
 
-/* field/animation.c */
-
-/* field/object_view.c. The view step as C (false where a row's links are
+/* field/object_view.c. The view step (false where a row's links are
  * none the port takes, the program going no further there), and an object
  * that matters only on the screen checked against it. */
 bool object_view_updated(GameState *g, FieldObject obj);
 void object_window_only_checked(GameState *g, FieldObject obj);
 
 /* field/window_shape.c: the quadrilateral in field_window_shape_corners drawn
- * into the table field_window_shape_table points at, as C, and whether the
+ * into the table field_window_shape_table points at, and whether the
  * table is one the port draws as the original does (in bank $7F, clear of its
  * end, the right side starting on a line, which the rasterizer reads before
  * it finds one of its own). */

@@ -18,13 +18,11 @@
  * design's colours go into the upper half of that palette row
  * (menu_load_window_colours).
  *
- * The interpreter runs a list as C, through a table of the commands; each
- * command's handler stays an entry of its own, so the original's calls and
- * fuzzing still find it. */
+ * The interpreter runs a list through a table of the commands, each
+ * command's work charged at its original handler's time. */
 #include "menu/windows.h"
 
 #include "charge.h"
-#include "menu/bridge.h"
 #include "menu/menu_data.h"
 #include "menu/text.h"
 #include "port/vars_ram.h"
@@ -309,8 +307,8 @@ static void copy_bytes(GameState *g, uint16_t run)
 /* A per-line effect set up on the line-effect slot a channel names, reading
  * its table where the slot's is kept (128 bytes a slot at $7E:9000), and the
  * commands after it drawing that table. The command holds the channel's own
- * two control bytes (vid_line_effect_decode); the guard takes only those a
- * target has. */
+ * two control bytes (vid_line_effect_decode); a list is drawn only with
+ * those a target has (menu_window_list_drawable). */
 enum { LINE_TABLES = 0x9000, LINE_TABLE_BYTES = 0x80, SLOT_BITS = 7, SLOT_SHIFT = 4 };
 
 static uint8_t line_slot_of(uint16_t channel) { return (uint8_t)((channel >> SLOT_SHIFT) & SLOT_BITS); }
@@ -379,9 +377,8 @@ typedef enum { FILL, COPY_AREA, SWAP_AREAS, WINDOW, STRING, SET_ORIGIN, COPY_BYT
 /* Which parts of a window a window command draws. */
 enum { FRAME = 1, INSIDE = 2 };
 
-/* What each command is, how many operand bytes follow it, and the handler
- * (a checked legacy adapter, windows.h) whose calibrated time its work is charged
- * at. */
+/* What each command is, how many operand bytes follow it, and the original's
+ * handler whose time its work is charged at. */
 static const struct {
     WindowOperation operation;
     uint8_t parts;
@@ -439,24 +436,6 @@ static void run_command(GameState *g, Platform *pf, uint8_t command, const Opera
     }
 }
 
-/* ---- What the original leaves in the drawing's cells -------------------------------------------- */
-
-/* The original's handlers keep their working values in the menus' cells: the
- * command's operands, which they are copied into; a window's columns and
- * rows, the rows its drawing walked, the tile its frame got to, the row of
- * the inside's pattern. Nothing reads them after the list but the next
- * command's handler, over again, so they are left once a command is done as
- * the original leaves them, worked out from the command. */
-typedef struct {
-    uint16_t place;       /* menu_window_place */
-    uint16_t line;        /* menu_line_start */
-    uint16_t columns;     /* menu_text_work_window_columns */
-    uint16_t rows;        /* menu_text_work_window_rows */
-    uint16_t right_side;  /* menu_scratch_window_right_side */
-    uint16_t tile;        /* menu_scratch_window_tile */
-    uint16_t pattern_row; /* menu_scratch_window_pattern_row */
-} DrawingCells;
-
 /* ---- The interpreter ---------------------------------------------------------------------------- */
 
 static Operands operands_at(const GameState *g, uint16_t at, uint8_t command)
@@ -472,7 +451,7 @@ void menu_draw_window_list(GameState *g, Platform *pf, uint16_t list)
     uint16_t at = list;
     for (uint8_t command = menu_window_byte(g, at); !(command & END_OF_LIST); command = menu_window_byte(g, at)) {
         if (!is_command(command))
-            return;   /* no list of the game's has one: the guard hands such a list to the original */
+            return;   /* no list of the game's has one, and menu_window_list_drawable turns such a list away */
         Operands o = operands_at(g, (uint16_t)(at + 1), command);
         at = (uint16_t)(at + 1 + LANGUAGE[command / 2].operands);
         TIMED_AS(g, LANGUAGE[command / 2].timed_as, run_command(g, pf, command, &o));
@@ -605,8 +584,6 @@ bool menu_tile_area_can_be_copied(const GameState *g, uint16_t origin, MenuTileP
     Operands o = { { from.column, from.row, to.column, to.row, size.columns, size.rows } };
     return command_is_drawable(g, COPY_AREA_COMMAND, &o, origin);
 }
-
-// $C2:ED08
 
 // $C2:ECDB
 /* A save slot's window, in the player's design and the slot's own palette
