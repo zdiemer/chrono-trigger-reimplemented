@@ -184,4 +184,11 @@ void tm_host_game_access(Platform *pf, uint32_t clocks);
 /* Lag frames so far. */
 uint32_t tm_host_lag_frames(const Platform *pf);
 
+/* The services' state as bytes for a snapshot, taken at a frame's end, and
+ * put back from them (platform/native/snapshot.c); writes when `room` is
+ * enough and answers the bytes it needs either way. What binds the services
+ * to the run -- callbacks, the observer, the sound and save hosts -- stays. */
+size_t pf_host_snapshot(const Platform *pf, uint8_t *out, size_t room);
+bool pf_host_restore(Platform *pf, const uint8_t *in, size_t len);
+
 #endif

@@ -33,11 +33,9 @@ typedef struct {
     /* NULL while running, otherwise a message for the stop dialog. */
     const char *(*halt)(void *ctx);
     bool (*done)(void *ctx);
-    bool (*fast)(void *ctx);
     void (*quick_save)(void *ctx);   /* optional */
     void (*quick_load)(void *ctx);   /* optional */
     int (*flush)(void *ctx);
-    bool (*loading)(void *ctx); /* optional: reconstruction progresses even while paused */
 } WindowClient;
 
 int window_run(const WindowClient *client, const WindowOptions *options);

@@ -223,39 +223,36 @@ static const struct {
 };
 enum { TASK_COUNT = sizeof tasks / sizeof tasks[0] };
 
-/* The menus' coroutines while they are open, and whether a task has closed
- * them: the one closing them waits for good, and the turns end there. */
-static Tasks the_tasks;
-static bool closed;
-
 /* A task's coroutine: its work, then its end, which the next turn reads in
  * its record. */
 static void run_a_task(GameState *g, Platform *pf, void *arg)
 {
     const MenuTaskBody *run = arg;
     (*run)(g, pf);
-    if (!closed && !program_went_no_further(g))
+    if (!menu_coroutines(g)->closed && !program_went_no_further(g))
         (void)record_the_end(g);
 }
 
 void menu_tasks_open(GameState *g, Platform *pf)
 {
-    tasks_init(&the_tasks, g, pf);
-    closed = false;
+    MenuCoroutines *m = menu_coroutines(g);
+    tasks_init(&m->tasks, g, pf);
+    m->closed = false;
     start_the_tasks(g);
 }
 
 void menu_task_waits(GameState *g, uint8_t frames)
 {
     (void)record_the_wait(g, frames);
-    tasks_wait_a_frame(&the_tasks);
+    tasks_wait_a_frame(&menu_coroutines(g)->tasks);
 }
 
-void menu_tasks_closed(void)
+void menu_tasks_closed(GameState *g)
 {
-    closed = true;
+    MenuCoroutines *m = menu_coroutines(g);
+    m->closed = true;
     for (;;)
-        tasks_wait_a_frame(&the_tasks);
+        tasks_wait_a_frame(&m->tasks);
 }
 
 /* A task's turn: from its start, its work found by it, or from where it
@@ -272,12 +269,12 @@ static bool take_a_turn(GameState *g, const TaskTurn *turn)
             program_breaks_a_contract(g, (uint32_t)MENUS_BANK << 16 | at, "a menus' task the port doesn't run");
             return false;
         }
-        tasks_start(&the_tasks, (uint8_t)turn->task, run_a_task, (void *)&tasks[i].run);
+        tasks_start(&menu_coroutines(g)->tasks, (uint8_t)turn->task, run_a_task, (void *)&tasks[i].run);
     } else {
         task_goes_on(g, turn->task);
     }
-    tasks_take_a_turn(&the_tasks, (uint8_t)turn->task);
-    return !closed && !program_went_no_further(g);
+    tasks_take_a_turn(&menu_coroutines(g)->tasks, (uint8_t)turn->task);
+    return !menu_coroutines(g)->closed && !program_went_no_further(g);
 }
 
 // $C2:81CF
@@ -285,11 +282,11 @@ MenuTurns menu_tasks_take_the_turns(GameState *g)
 {
     for (TaskTurn turn = next_turn(g, 0); turn.due; turn = next_turn(g, turn.task + 1))
         if (!take_a_turn(g, &turn))
-            return closed ? MENU_TURNS_CLOSED : MENU_TURNS_WENT_NO_FURTHER;
+            return menu_coroutines(g)->closed ? MENU_TURNS_CLOSED : MENU_TURNS_WENT_NO_FURTHER;
     return MENU_TURNS_TAKEN;
 }
 
-void menu_tasks_end(void) { tasks_end(&the_tasks); }
+void menu_tasks_end(GameState *g) { tasks_end(&menu_coroutines(g)->tasks); }
 
 /* The two tasks that run all the time: their turns over and over, the
  * wait coming back each next frame, until a step goes no further. */

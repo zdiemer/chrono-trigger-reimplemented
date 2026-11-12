@@ -1,11 +1,13 @@
 #include "port/state_host.h"
 #include "port/vars_host.h"
+#include "port/arena.h"
 
 #include <stdlib.h>
 #include <string.h>
 
 #include "charge.h"
 #include "core/program.h"
+#include "menu/menu.h"
 #include "cpu_io.h"
 #include "platform/time_model.h"
 #include "port/time_rates.h"
@@ -15,6 +17,7 @@
 struct GameState {
     VarsHost vars;
     ProgramHandlers handlers;
+    MenuCoroutines menus;
     uint8_t sram[STATE_HOST_SRAM_BYTES];
     /* the multiplier and divider: their operands, and the result the
      * product-or-remainder register shows */
@@ -42,11 +45,11 @@ struct GameState {
     StateHostTime *time;      /* optional diagnostic totals; never used to schedule work */
     unsigned uncounted;       /* nested stretches whose accesses aren't the game's own time */
     uint64_t work_milli;      /* the game's own accesses' time since it was last taken (master clocks x 1000) */
+    bool lasting;             /* in the arena, for the run's whole life (state_host_create_lasting) */
 };
 
-GameState *state_host_create(const uint8_t *sram)
+static GameState *start(GameState *g, const uint8_t *sram)
 {
-    GameState *g = calloc(1, sizeof *g);
     if (!g)
         return NULL;
     g->timed = time_rate_count;
@@ -56,14 +59,41 @@ GameState *state_host_create(const uint8_t *sram)
     return g;
 }
 
+GameState *state_host_create(const uint8_t *sram) { return start(calloc(1, sizeof(GameState)), sram); }
+
+GameState *state_host_create_lasting(const uint8_t *sram)
+{
+    GameState *g = start(arena_take(sizeof(GameState)), sram);
+    if (g)
+        g->lasting = true;
+    return g;
+}
+
 void state_host_destroy(GameState *g)
 {
-    if (g)
-        free(g->time);
-    free(g);
+    if (!g)
+        return;
+    free(g->time);
+    if (!g->lasting)
+        free(g);
+}
+
+/* The whole record, but the diagnostic totals the run keeps for itself. */
+size_t state_host_snapshot_bytes(void) { return sizeof(GameState); }
+
+void state_host_snapshot(const GameState *g, uint8_t *out) { memcpy(out, g, sizeof *g); }
+
+void state_host_restore(GameState *g, const uint8_t *in)
+{
+    StateHostTime *time = g->time;
+    bool lasting = g->lasting;
+    memcpy(g, in, sizeof *g);
+    g->time = time;
+    g->lasting = lasting;
 }
 
 ProgramHandlers *program_handlers(GameState *g) { return &g->handlers; }
+MenuCoroutines *menu_coroutines(GameState *g) { return &g->menus; }
 
 uint8_t *state_host_sram(GameState *g) { return g->sram; }
 VarsHost *state_host_vars(GameState *g) { return &g->vars; }

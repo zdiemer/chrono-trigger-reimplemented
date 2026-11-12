@@ -245,11 +245,31 @@ static void records_and_composed_views(void)
     }
     CHECK(state_host_read8(g, 0x7E0AF6) == 0x11);
     CHECK(state_host_read8(g, 0x7E0BF6) == 0x12);
-    /* A word spanning two independent owners updates each immediately. */
+    /* The battle's product keeps its own word beside the menu tasks whose bytes
+     * the original reuses for it: writing it leaves the tasks alone, and the
+     * address view answers with whichever owner wrote last. */
+    set_menu_tasks_state(g, 0, 0x11);
     set_battle_product(g, 0xBEEF);
+    CHECK(h->battle.battle_product == 0xBEEF);
+    CHECK(h->menu.tasks[0].state == 0x11);
+    CHECK(menu_tasks_state(g, 0) == 0x11);
     CHECK(state_host_read8(g, 0x7E00AF) == 0xEF);
-    CHECK(h->menu.tasks[0].state == 0xBE);
+    CHECK(state_host_read8(g, 0x7E00B0) == 0xBE);
+    set_menu_tasks_state(g, 0, 0x22);
+    CHECK(state_host_read8(g, 0x7E00B0) == 0x22);
     CHECK(battle_product(g) == 0xBEEF);
+    /* A write by address is the original's one byte: every owner takes it. */
+    state_host_write8(g, 0x7E00B0, 0x33);
+    CHECK(h->menu.tasks[0].state == 0x33);
+    CHECK(battle_product(g) == 0x33EF);
+    /* Reading a byte another owner wrote last is a crossing: counted, not
+     * answered with that owner's value. */
+    vars_host_crossings_reset();
+    set_menu_tasks_state(g, 0, 0x44);
+    CHECK(battle_product(g) == 0x33EF);
+    CHECK(vars_host_crossings(NULL, NULL) == 1);
+    vars_host_crossings_reset();
+    CHECK(vars_host_crossings(NULL, NULL) == 0);
     CHECK(range_fault_count() == 0);
     state_host_destroy(g);
 }
@@ -337,11 +357,13 @@ static void designed_records(void)
     CHECK(object->velocity_y == 0xABCD);
     CHECK(h->field.objects[16].velocity_y == 0x5555);
 
-    /* Menu pointer bytes overlay field coordinates; neither mode owns a copy. */
+    /* The menu record's graphics pointer has its own field beside the field
+     * objects' coordinates the original keeps in the same bytes. */
+    h->field.objects[2].x.fine = 0x77;
     set_menu_record_graphics(g, 0, 0x563412);
-    CHECK(h->field.objects[2].x.fine == 0x12);
-    CHECK(h->field.objects[2].x.tile == 0x34);
-    CHECK(h->field.objects[3].x.fine == 0x56);
+    CHECK(h->menu.menu_record_graphics[0] == 0x563412);
+    CHECK(h->field.objects[2].x.fine == 0x77);
+    CHECK(state_host_read8(g, 0x7E1804) == 0x12);
     h->battle.draw_objects[4] = (BattleDrawObject){ 12, 34, 2 };
     CHECK(battle_object_x(g, 4) == 12 && battle_object_y(g, 4) == 34);
     CHECK(battle_object_part_count(g, 4) == 2);

@@ -315,20 +315,23 @@ void sound_native_destroy(SoundNative *n)
     free(n);
 }
 
-SoundNative *sound_native_copy(const SoundNative *n)
-{
-    SoundNative *copy = malloc(sizeof *copy);
-    if (copy) *copy = *n;
-    return copy;
-}
+size_t sound_native_snapshot_bytes(void) { return sizeof(SoundNative); }
 
-void sound_native_restore(SoundNative *n, const SoundNative *copy)
+void sound_native_snapshot(const SoundNative *n, uint8_t *out) { memcpy(out, n, sizeof *n); }
+
+void sound_native_restore(SoundNative *n, const uint8_t *in)
 {
     GameState *game = n->game;
     Platform *pf = n->pf;
-    *n = *copy;
+    AuVoices voices = n->mixer.voices;
+    void (*watch)(void *ctx, uint16_t at) = n->mixer.watch;
+    void *watch_ctx = n->mixer.watch_ctx;
+    memcpy(n, in, sizeof *n);
     n->game = game;
     n->pf = pf;
+    n->mixer.voices = voices;
+    n->mixer.watch = watch;
+    n->mixer.watch_ctx = watch_ctx;
     n->driver.game = game;
     n->driver.voices = mixer_voices(&n->mixer);
 }

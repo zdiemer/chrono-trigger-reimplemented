@@ -150,13 +150,10 @@ class Run:
         Tested against a no-input baseline in both directions, so an object the
         script happens to walk in a cutscene doesn't pass for the player.
 
-        Wait for script-controlled movement to release the party before probing.
-        Restoring a native checkpoint replays input, so a futile search is costly.
+        Wait for script-controlled movement to release the party before probing:
+        while a script owns the party the pad can't walk it.
         """
         machine = self.machine
-        # The standalone program has no suspended machine call-out to report.
-        # While a script owns the party, rebuilding every live C stack merely
-        # to prove the pad cannot walk it costs five whole-run replays.
         if not machine.b(A.FIELD_PLAYER_CONTROL):
             return None
         machine.mark(PLAYER_SLOT)

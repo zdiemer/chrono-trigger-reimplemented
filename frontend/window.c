@@ -276,8 +276,7 @@ int window_run(const WindowClient *client, const WindowOptions *o)
         } else if (!halt) {
             halt_shown = false;
         }
-        bool loading = client->loading && client->loading(client->ctx);
-        if ((!paused || loading) && !halt) {
+        if (!paused && !halt) {
             /* Fast forward runs frames unpaced for up to a display frame. */
             Uint64 budget_end = SDL_GetPerformanceCounter() + period;
             do {
@@ -288,8 +287,7 @@ int window_run(const WindowClient *client, const WindowOptions *o)
                     frames_since_flush = 0;
                     client->flush(client->ctx);
                 }
-                fast = client->fast(client->ctx) ||
-                       bindings_held(ACT_FAST_FORWARD, pads.open, pads.count, true);
+                fast = bindings_held(ACT_FAST_FORWARD, pads.open, pads.count, true);
             } while (fast && SDL_GetPerformanceCounter() < budget_end);
             if (fast)
                 deadline = SDL_GetPerformanceCounter();
@@ -297,7 +295,7 @@ int window_run(const WindowClient *client, const WindowOptions *o)
             update_title(window, client, paused);
         }
         /* Fast frames aren't played: the device stays silent until normal speed. */
-        audio_frame(&audio, client, paused || loading || fast || client->halt(client->ctx));
+        audio_frame(&audio, client, paused || fast || client->halt(client->ctx));
         SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, 255);
         SDL_RenderClear(sdl_renderer);
         int out_w, out_h;

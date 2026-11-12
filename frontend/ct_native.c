@@ -44,7 +44,7 @@
 #include "file_store.h"
 #include "storage.h"
 #include "track.h"
-#include "resume.h"
+#include "snapshot.h"
 #include "native_build.h"
 #include "checksum.h"
 #include "sram_find.h"
@@ -56,7 +56,9 @@
 #include "data/assets.h"
 #include "platform/native/host.h"
 #include "platform/native/render.h"
+#include "port/arena.h"
 #include "port/state_host.h"
+#include "port/vars_host.h"
 #ifdef CT_HAVE_SDL
 #define SDL_MAIN_HANDLED
 #include "window.h"
@@ -65,7 +67,6 @@
 #include "vars.h"
 #include "sound_native.h"
 #include "route_driver.h"
-#include "audio_replay.h"
 
 enum { ROM_BYTES = 0x400000 };
 
@@ -155,8 +156,18 @@ static int write_end_state(const char *path, GameState *g)
     return fclose(f) == 0 ? 0 : -1;
 }
 
+static void report_crossing(const char *reader, const char *writer, uint32_t times, void *ctx)
+{
+    (void)ctx;
+    fprintf(stderr, "overlay crossed: %s read bytes %s wrote, %lu time(s)\n", reader, writer, (unsigned long)times);
+}
+
 static void report_strays(const GameState *g, const Platform *pf)
 {
+    /* Owners the reimplementation keeps apart where the original shares bytes
+     * (re/ram.toml's `overlays`): a read of bytes another owner wrote last is
+     * one the original answered with that owner's value. */
+    vars_host_crossings(report_crossing, 0);
     uint32_t first[STATE_HOST_STRAYS_KEPT];
     unsigned kept;
     unsigned long n = state_host_strays(g, first, &kept);
@@ -176,6 +187,20 @@ static void report_strays(const GameState *g, const Platform *pf)
                 out->count, (unsigned)(out->first >> 16), (unsigned)(out->first & 0xFFFF));
 }
 
+/* The pack's bytes moved into the arena, where a snapshot's pointers into
+ * them come back at the same place in a run laid out the same. */
+static uint8_t *lasting(uint8_t *bytes, size_t len, AssetPack **pack)
+{
+    asset_pack_close(*pack);
+    uint8_t *copy = arena_take(len);
+    if (copy)
+        memcpy(copy, bytes, len);
+    free(bytes);
+    const char *why = "";
+    *pack = copy ? asset_pack_open(copy, len, &why) : NULL;
+    return *pack ? copy : NULL;
+}
+
 /* Read the shared pack, importing only when missing or incompatible. */
 static uint8_t *load_pack(const Files *files, const char *rom_path, bool fresh, AssetPack **pack)
 {
@@ -183,7 +208,7 @@ static uint8_t *load_pack(const Files *files, const char *rom_path, bool fresh, 
     const char *why = "";
     uint8_t *bytes = fresh ? NULL : files_read(files->assets, &len, false, NULL);
     *pack = bytes ? asset_pack_open(bytes, len, &why) : NULL;
-    if (*pack) return bytes;
+    if (*pack) return lasting(bytes, len, pack);
     if (bytes) fprintf(stderr, "ct_native: %s: %s; importing again\n", files->assets, why);
     free(bytes);
     uint8_t *rom = rom_path ? files_read(rom_path, &len, false, NULL) : NULL;
@@ -197,7 +222,7 @@ static uint8_t *load_pack(const Files *files, const char *rom_path, bool fresh, 
     free(rom);
     *pack = bytes ? asset_pack_open(bytes, len, &why) : NULL;
     if (!*pack) { free(bytes); return NULL; }
-    return bytes;
+    return lasting(bytes, len, pack);
 }
 
 /* A byte written out whole, in any base strtol takes, ending at `end`. */
@@ -230,12 +255,11 @@ typedef struct {
     SoundNative *sound;
     Picture *picture;
     ct_movie *movie;
+    const void *pack;
     Track track;
-    Resume history;
-    ResumeReplay replay;
     const char *state_path;
-    uint32_t restore_frames, state_crc;
-    bool restoring, state_ours, quick_pending, lag_log, timing_report;
+    uint32_t state_crc;
+    bool state_ours, lag_log, timing_report;
     const char *record_path;
     const char *sram_path, *shot_dir;
     unsigned long frame, frames, shot_every;
@@ -245,70 +269,91 @@ typedef struct {
     int result;
     bool drive;
     uint16_t second_pad;
-    AudioReplay *audio_replay;
+    unsigned long checks;       /* --check-snapshots' snapshots put back and played again */
 } NativeDriver;
 
-static uint32_t native_outcome(void *ctx)
+/* What the driver keeps in a snapshot beside the program: the frame it is
+ * at, the picture's dark runs and the place last reported. */
+typedef struct {
+    uint64_t frame, dark_since, longest_from, longest;
+    uint16_t location;
+} DriverMark;
+
+static SnapshotParts parts_of(const NativeDriver *d)
 {
-    NativeDriver *d = ctx;
-    uint8_t bytes[WORK_RAM_BYTES + STATE_HOST_SRAM_BYTES];
-    for (uint32_t i = 0; i < WORK_RAM_BYTES; i++) bytes[i] = state_host_read8(d->game, WORK_RAM + i);
-    memcpy(bytes + WORK_RAM_BYTES, state_host_sram(d->game), STATE_HOST_SRAM_BYTES);
-    return ct_crc32(bytes, sizeof bytes) ^ ct_crc32((const uint8_t *)d->picture->pixels, VID_RENDER_WIDTH * VID_RENDER_HEIGHT * sizeof(uint32_t));
+    return (SnapshotParts){ d->game, d->pf, d->sound, d->pack };
+}
+
+/* The program at the end of the last frame, as a snapshot's bytes. */
+static uint8_t *native_snapshot(NativeDriver *d, size_t *len)
+{
+    if (d->result)
+        return NULL;
+    DriverMark mark = { d->frame, d->picture->dark_since, d->picture->longest_from, d->picture->longest, d->location };
+    SnapshotParts parts = parts_of(d);
+    return snapshot_take(&parts, CT_SNAPSHOT_BUILD, &mark, sizeof mark, len);
+}
+
+/* The program put back as a snapshot had it, and the picture drawn again
+ * from the restored frame where the driver keeps one: the renderer's caches
+ * describe the picture it drew last, so it starts afresh. */
+static bool native_restore(NativeDriver *d, const uint8_t *bytes, size_t len)
+{
+    DriverMark mark;
+    SnapshotParts parts = parts_of(d);
+    if (!snapshot_restore(&parts, CT_SNAPSHOT_BUILD, bytes, len, &mark, sizeof mark))
+        return false;
+    d->frame = (unsigned long)mark.frame;
+    d->picture->dark_since = (unsigned long)mark.dark_since;
+    d->picture->longest_from = (unsigned long)mark.longest_from;
+    d->picture->longest = (unsigned long)mark.longest;
+    d->location = mark.location;
+    d->result = 0;
+    if (d->record_path)
+        d->track.frames = (uint32_t)mark.frame;
+    VidRenderer *renderer = vid_render_create();
+    if (renderer) {
+        vid_render_destroy(d->picture->renderer);
+        d->picture->renderer = renderer;
+    }
+    if (!d->drive)
+        vid_render_frame(d->picture->renderer, vid_host_picture(d->pf), d->picture->pixels, NULL);
+    d->save_pending = true;
+    return true;
 }
 
 static bool native_save_state(NativeDriver *d, const char *path)
 {
-    if (d->restoring || d->result) {
-        fprintf(stderr, "ct_native: quick save waits for a complete running frame\n");
-        d->quick_pending = true;
+    size_t len = 0, file_len = 0;
+    uint8_t *snapshot = native_snapshot(d, &len);
+    uint8_t *file = snapshot ? snapshot_file(snapshot, len, &file_len) : NULL;
+    free(snapshot);
+    if (!file || file_store_replace(path, file, file_len)) {
+        fprintf(stderr, "ct_native: cannot save state %s%s\n", path, d->result ? ": the program has stopped" : "");
+        free(file);
         return false;
     }
-    d->history.outcome = native_outcome(d);
-    size_t len;
-    uint8_t *data = resume_write(&d->history, CT_RESUME_BUILD, &len);
-    if (!data || file_store_replace(path, data, len)) {
-        fprintf(stderr, "ct_native: cannot save state %s\n", path);
-        free(data);
-        return false;
-    }
-    d->state_crc = ct_crc32(data, len);
+    d->state_crc = ct_crc32(file, file_len);
     d->state_ours = true;
-    free(data);
-    d->quick_pending = false;
-    fprintf(stderr, "ct_native: saved frame %lu to %s (load reconstructs execution from power-on)\n", d->frame, path);
+    free(file);
+    fprintf(stderr, "ct_native: saved frame %lu to %s\n", d->frame, path);
     return true;
 }
 
-static void native_save_written(void *ctx, uint16_t offset);
-static bool native_restart(void *ctx, const Resume *base);
-static bool native_frame(void *ctx, uint32_t pads);
 static int native_load_state(NativeDriver *d, const char *path)
 {
-    size_t len = 0;
+    size_t len = 0, snapshot_len = 0;
     uint8_t *data = files_read(path, &len, false, NULL);
-    Resume loaded = { 0 };
-    if (!data || (d->record_path && (!d->state_ours || ct_crc32(data, len) != d->state_crc)) ||
-        !resume_read(&loaded, data, len, CT_RESUME_BUILD)) {
-        fprintf(stderr, "ct_native: cannot load %s: missing, damaged, another build, or outside this recording\n", path);
+    const uint8_t *snapshot = data ? snapshot_in_file(data, len, &snapshot_len) : NULL;
+    bool ours = !d->record_path || (d->state_ours && ct_crc32(data, len) == d->state_crc);
+    if (!snapshot || !ours || !native_restore(d, snapshot, snapshot_len)) {
+        fprintf(stderr, "ct_native: cannot load %s: missing, damaged, of another build or memory layout, "
+                        "or outside this recording\n", path);
         free(data);
         return -1;
     }
     free(data);
-    resume_free(&d->history);
-    d->history = loaded;
-    d->restore_frames = loaded.frames;
-    d->quick_pending = false;
-    if (d->record_path) d->track.frames = loaded.frames;
-    ResumeHost host = { .ctx = d, .reset = native_restart, .step = native_frame, .checksum = native_outcome };
-    if (!resume_start(&d->replay, host, &d->history, 0, true, NULL)) {
-        fprintf(stderr, "ct_native: cannot reconstruct checkpoint or its initial checksum differs\n");
-        d->result = 2;
-        return -1;
-    }
-    d->restoring = d->replay.active;
-    if (!d->restoring) d->save_pending = true;
-    fprintf(stderr, "ct_native: restoring frame %u; reconstructing suspended routines\n", (unsigned)loaded.frames);
+    fprintf(stderr, "ct_native: loaded frame %lu from %s\n", d->frame, path);
     return 0;
 }
 
@@ -323,7 +368,6 @@ static void native_quick_load(void *ctx)
     NativeDriver *d = ctx;
     (void)native_load_state(d, d->state_path);
 }
-static bool native_loading(void *ctx) { return ((NativeDriver *)ctx)->restoring; }
 #endif
 
 /* saves_save_game writes this marker after the entire slot and its checksum.
@@ -339,7 +383,6 @@ static void native_save_written(void *ctx, uint16_t offset)
 static int native_flush(void *ctx)
 {
     NativeDriver *d = ctx;
-    if (d->restoring) return 0;
     if (d->result) return 1;
     if (d->record_path && d->track.frames != d->track.written_frames) {
         size_t len;
@@ -371,19 +414,14 @@ static int native_flush(void *ctx)
     return 0;
 }
 
-
-
-/* Both checkpoint callers reconstruct through this exact frame boundary. */
+/* One frame of the program, with the pads it reads. */
 static bool native_frame(void *ctx, uint32_t pads)
 {
     NativeDriver *d = ctx;
     in_host_set(d->pf, 0, (uint16_t)pads);
     in_host_set(d->pf, 1, (uint16_t)(pads >> 16));
     tm_host_frame(d->pf);
-    if (d->audio_replay)
-        audio_replay_frame(d->audio_replay);
-    else
-        sound_native_frame(d->sound);
+    sound_native_frame(d->sound);
     d->frame++;
     if (!d->drive)
         picture_frame(d->picture, d->pf, d->frame);
@@ -412,37 +450,18 @@ static bool native_frame(void *ctx, uint32_t pads)
 static void native_step(void *ctx, uint16_t buttons)
 {
     NativeDriver *d = ctx;
-    if (d->restoring) {
-        if (!resume_advance(&d->replay)) {
-            fprintf(stderr, "ct_native: restored state failed its frame or outcome check\n");
-            d->result = 2;
-        }
-        d->restoring = d->replay.active;
-        if (!d->restoring && !d->result) {
-            fprintf(stderr, "ct_native: resumed frame %lu, including suspended routines and sound\n", d->frame);
-            d->save_pending = true;
-        }
-    } else {
-        uint16_t second = d->second_pad;
-        /* A movie owns input through its last event; live play then takes over. */
-        if (d->movie && d->frame < d->movie->length) {
-            buttons = ct_movie_buttons(d->movie, (uint32_t)d->frame);
-            second = ct_movie_buttons2(d->movie, (uint32_t)d->frame);
-        }
-        /* The route driver owns its history; window/headless play owns this one. */
-        if (!d->drive && !resume_append(&d->history, buttons, second)) {
-            fprintf(stderr, "ct_native: cannot retain quick-save history\n");
-            d->result = 2;
-            return;
-        }
-        if (d->record_path && (d->frame >= UINT32_MAX || !track_set(&d->track, (uint32_t)d->frame, buttons))) {
-            fprintf(stderr, "ct_native: cannot extend recording\n");
-            d->result = 2;
-            return;
-        }
-        (void)native_frame(d, buttons | (uint32_t)second << 16);
+    uint16_t second = d->second_pad;
+    /* A movie owns input through its last event; live play then takes over. */
+    if (d->movie && d->frame < d->movie->length) {
+        buttons = ct_movie_buttons(d->movie, (uint32_t)d->frame);
+        second = ct_movie_buttons2(d->movie, (uint32_t)d->frame);
     }
-    if (d->quick_pending && !d->restoring && !d->result) native_save_state(d, d->state_path);
+    if (d->record_path && (d->frame >= UINT32_MAX || !track_set(&d->track, (uint32_t)d->frame, buttons))) {
+        fprintf(stderr, "ct_native: cannot extend recording\n");
+        d->result = 2;
+        return;
+    }
+    (void)native_frame(d, buttons | (uint32_t)second << 16);
     /* Persist only complete frames, immediately after the game saves. */
     if (d->save_pending || (d->record_path && d->frame % 600 == 0))
         native_flush(d);
@@ -451,49 +470,7 @@ static void native_step(void *ctx, uint16_t buttons)
 static bool native_done(void *ctx)
 {
     NativeDriver *d = ctx;
-    return d->result || (!d->restoring && d->frame >= d->frames);
-}
-
-/* Restart only from the driver's stack. Parent links discard the suspended
- * main routine and every task it owns while preserving other programs. */
-static bool native_restart(void *ctx, const Resume *base)
-{
-    NativeDriver *d = ctx;
-    GameState *game = state_host_create(base->sram);
-    if (!game) return false;
-    VidRenderer *renderer = vid_render_create();
-    if (!renderer) { state_host_destroy(game); return false; }
-    /* The line cache owns pixels in the old framebuffer, which is cleared
-     * below. A route may next draw only after the entire replay finishes. */
-    vid_render_destroy(d->picture->renderer);
-    d->picture->renderer = renderer;
-    fiber_destroy_tree(d->pf->timing.main);
-    sound_native_destroy(d->sound);
-    vid_host_stop(d->pf);
-    state_host_destroy(d->game);
-    *d->pf = (Platform){0};
-    d->game = game;
-    d->pf->save.bytes = state_host_sram(game);
-    d->pf->save.ctx = d;
-    d->pf->save.written = native_save_written;
-    for (unsigned i = 0; i < base->scenes; i++) program_starts_in_a_scene(game, base->scene[i], base->song[i]);
-    vid_host_start(d->pf, read_game, write_game, game);
-    d->sound = sound_native_create(game, d->pf);
-    if (!d->sound || (d->timing_report && !state_host_record_time(game))) return false;
-    if (d->audio_replay) audio_replay_bind(d->audio_replay, game, d->pf, d->sound);
-    tm_host_start(d->pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, game,
-                                         take_owed, game_accessed, d->lag_log ? lagged : NULL }, 1);
-    d->frame = 0;
-    d->result = 0;
-    d->save_pending = false;
-    memset(d->picture->pixels, 0, VID_RENDER_WIDTH * VID_RENDER_HEIGHT * sizeof(uint32_t));
-    d->picture->dark_since = d->picture->longest = d->picture->longest_from = 0;
-    return true;
-}
-static bool route_reset(void *ctx)
-{
-    NativeDriver *d = ctx;
-    return native_restart(d, &d->history);
+    return d->result || d->frame >= d->frames;
 }
 
 static bool route_step(void *ctx, uint32_t pads)
@@ -512,37 +489,90 @@ static bool route_shot(void *ctx, const char *path)
     picture_frame(d->picture, d->pf, d->frame);
     return ct_png_write(path, d->picture->pixels, VID_RENDER_WIDTH, VID_RENDER_HEIGHT) == 0;
 }
-static void *route_audio_save(void *ctx) { return audio_replay_save(((NativeDriver *)ctx)->audio_replay); }
-static bool route_audio_begin(void *ctx, const void *copy) { return audio_replay_begin(((NativeDriver *)ctx)->audio_replay, copy); }
-static bool route_audio_end(void *ctx, const void *copy) { return audio_replay_end(((NativeDriver *)ctx)->audio_replay, copy); }
+static uint8_t *route_snapshot(void *ctx, size_t *len) { return native_snapshot(ctx, len); }
+static bool route_restore(void *ctx, const uint8_t *bytes, size_t len) { return native_restore(ctx, bytes, len); }
 
 #ifdef CT_HAVE_SDL
 static const uint32_t *native_pixels(void *ctx) { return ((NativeDriver *)ctx)->picture->pixels; }
 static size_t native_audio(void *ctx, int16_t *out, size_t frames) { return sound_native_take_audio(((NativeDriver *)ctx)->sound, out, frames); }
 static void native_discard(void *ctx) { sound_native_discard_audio(((NativeDriver *)ctx)->sound); }
 static const char *native_halt(void *ctx) { (void)ctx; return NULL; } /* stops are printed, then exit 1 */
-static bool native_fast(void *ctx) { return ((NativeDriver *)ctx)->restoring; }
 static void native_title(void *ctx, bool paused, char *out, size_t size)
 {
     NativeDriver *d = ctx;
-    if (d->restoring) {
-        snprintf(out, size, "ct_native - restoring frame %lu/%u", d->frame, (unsigned)d->restore_frames);
-        return;
-    }
     snprintf(out, size, "ct_native - frame %lu%s%s", d->frame, paused ? " [paused]" : "",
-             d->restoring ? " [restoring state]" : d->record_path ? " [recording]" : d->movie && d->frame < d->movie->length ? " [movie]" : "");
+             d->record_path ? " [recording]" : d->movie && d->frame < d->movie->length ? " [movie]" : "");
 }
 #endif
+
+/* --check-snapshots: every `every` frames, a snapshot is taken (through a
+ * file's bytes), the next `span` frames played, the snapshot put back and the
+ * same frames played again; each frame's game state, picture and sound must
+ * come out the same both times. */
+typedef struct {
+    uint32_t state, picture, sound;
+} FrameDigest;
+
+static FrameDigest frame_digest(NativeDriver *d, uint8_t *state)
+{
+    state_host_snapshot(d->game, state);
+    int16_t audio[8192 * 2];
+    size_t count = sound_native_take_audio(d->sound, audio, 8192);
+    return (FrameDigest){ ct_crc32(state, state_host_snapshot_bytes()),
+                          ct_crc32((const uint8_t *)d->picture->pixels, VID_RENDER_WIDTH * VID_RENDER_HEIGHT * sizeof(uint32_t)),
+                          ct_crc32((const uint8_t *)audio, count * 2 * sizeof *audio) };
+}
+
+static void check_snapshot(NativeDriver *d, unsigned long span)
+{
+    size_t len = 0, file_len = 0, back_len = 0;
+    uint8_t *snapshot = native_snapshot(d, &len);
+    uint8_t *file = snapshot ? snapshot_file(snapshot, len, &file_len) : NULL;
+    const uint8_t *back = file ? snapshot_in_file(file, file_len, &back_len) : NULL;
+    FrameDigest *first = calloc(span, sizeof *first);
+    uint8_t *state = malloc(state_host_snapshot_bytes());
+    unsigned long from = d->frame, played = 0;
+    if (!back || !first || !state) {
+        fprintf(stderr, "snapshot check: no snapshot at frame %lu\n", from);
+        d->result = 1;
+    }
+    sound_native_discard_audio(d->sound);
+    for (; !d->result && played < span && !native_done(d); played++) {
+        native_step(d, 0);
+        first[played] = frame_digest(d, state);
+    }
+    if (!d->result && !native_restore(d, back, back_len)) {
+        fprintf(stderr, "snapshot check: the snapshot of frame %lu didn't restore\n", from);
+        d->result = 1;
+    }
+    sound_native_discard_audio(d->sound);
+    for (unsigned long i = 0; !d->result && i < played; i++) {
+        native_step(d, 0);
+        FrameDigest again = frame_digest(d, state);
+        const char *what = again.state != first[i].state ? "game state" : again.picture != first[i].picture ? "picture"
+                         : again.sound != first[i].sound ? "sound" : NULL;
+        if (what) {
+            fprintf(stderr, "snapshot check: frame %lu's %s differs after restoring frame %lu\n", d->frame, what, from);
+            d->result = 1;
+        }
+    }
+    if (!d->result)
+        d->checks++;
+    free(state);
+    free(first);
+    free(file);
+    free(snapshot);
+}
 
 static void usage(FILE *out)
 {
     fprintf(out, "usage: ct_native [ROM | --rom ROM] [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]\n"
                  "                 [--load-state FILE] [--save-state FILE] [--record out.ctm] [--save-dir DIR] [--import ROM] [--keys FILE] [--bind INPUT=ACTION]\n"
                  "                 [--headless | --window | --drive] [--scale N] [--fullscreen] [--mute]\n"
-                 "                 [--screenshot FILE] [--wav FILE] [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--lag-log] [--timing-report] [--outcomes] [--scene flags[,song]]...\n"
+                 "                 [--check-snapshots EVERY[,SPAN]] [--screenshot FILE] [--wav FILE] [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--lag-log] [--timing-report] [--outcomes] [--scene flags[,song]]...\n"
                  "The first launch imports your ROM; later launches use the remembered asset pack.\n"
                  "--frames selects headless unless --window is given; --headless defaults to 600 frames.\n"
-                 "Window play writes cartridge saves; headless runs only read them. F5 saves a complete frame; F7 reconstructs it on load.\n");
+                 "Window play writes cartridge saves; headless runs only read them. F5 saves a snapshot of the frame; F7 loads it.\n");
 #ifdef CT_HAVE_SDL
     window_print_controls(out);
 #else
@@ -560,6 +590,19 @@ static bool count_from(const char *text, unsigned long *out)
     return !errno && !*end;
 }
 
+/* --check-snapshots EVERY[,SPAN]: both whole numbers above 0. */
+static bool checks_from(const char *text, unsigned long *every, unsigned long *span)
+{
+    char head[32];
+    const char *comma = strchr(text, ',');
+    size_t n = comma ? (size_t)(comma - text) : strlen(text);
+    if (n >= sizeof head)
+        return false;
+    memcpy(head, text, n);
+    head[n] = 0;
+    return count_from(head, every) && *every && (!comma || (count_from(comma + 1, span) && *span));
+}
+
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *sram_path = NULL, *pack_path = NULL, *movie_path = NULL, *shot_dir = NULL;
@@ -571,7 +614,7 @@ int main(int argc, char **argv)
     int nbinds = 0;
 #endif
     Files files = { 0 };
-    unsigned long frames = 600, shot_every = 0, scale = 3;
+    unsigned long frames = 600, shot_every = 0, scale = 3, check_every = 0, check_span = 60;
     bool frames_given = false, fullscreen = false, mute = false;
     bool drive = false;
     int display_mode = 0;   /* auto, headless, window */
@@ -611,6 +654,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--help")) help = true;
         else if (!strcmp(a, "--shot-every") && v && count_from(v, &shot_every)) i++;
         else if (!strcmp(a, "--shot-dir") && v) shot_dir = v, i++;
+        else if (!strcmp(a, "--check-snapshots") && v && checks_from(v, &check_every, &check_span)) i++;
         else if (!strcmp(a, "--end-state") && v) end_state = v, i++;
         else if (!strcmp(a, "--locations")) locations = true;
         else if (!strcmp(a, "--lag-log")) lag_log = true;
@@ -653,6 +697,10 @@ int main(int argc, char **argv)
     if (display_mode == 1)
         windowed = false;
     if (windowed && wav_path) { fprintf(stderr, "ct_native: --wav needs headless mode\n"); return 2; }
+    if (check_every && (windowed || drive || wav_path || record_path)) {
+        fprintf(stderr, "ct_native: --check-snapshots runs headless, without --wav or --record\n");
+        return 2;
+    }
     if (windowed && !frames_given)
         frames = ULONG_MAX;
     /* A stable per-user location lets later launches omit the ROM entirely.
@@ -706,7 +754,7 @@ int main(int argc, char **argv)
 #ifdef CT_HAVE_SDL
     SDL_free(system_preferences);
 #endif
-    if (import_only) { asset_pack_close(pack); free(pack_bytes); return 0; }
+    if (import_only) { asset_pack_close(pack); return 0; }
     ct_movie movie;
     if (movie_path && ct_movie_load(&movie, movie_path) != 0) return 2;
     if (record_path && movie_path && ct_movie_uses_controller2(&movie)) {
@@ -734,7 +782,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "ct_native: movie needs --sram with CRC-32 %08X\n", (unsigned)movie.sram_crc);
         return 2;
     }
-    GameState *g = state_host_create(sram);
+    GameState *g = state_host_create_lasting(sram);
     static Platform pf;
     if (!g || (timing_report && !state_host_record_time(g))) {
         fprintf(stderr, "ct_native: out of memory\n");
@@ -760,17 +808,13 @@ int main(int argc, char **argv)
                                          lag_log ? lagged : NULL }, 1);
     NativeDriver driver = {
         .game = g, .pf = &pf, .sound = sound, .picture = &picture,
-        .movie = movie_path ? &movie : NULL, .sram_path = sram_path,
+        .movie = movie_path ? &movie : NULL, .pack = pack_bytes, .sram_path = sram_path,
         .shot_dir = shot_dir, .frames = frames, .shot_every = shot_every,
         .locations = locations, .outcomes = outcomes, .persist = windowed && !movie_path && !record_path, .location = 0xFFFF, .drive = drive
     };
     driver.state_path = files.state;
     driver.lag_log = lag_log;
     driver.timing_report = timing_report;
-    memcpy(driver.history.sram, state_host_sram(g), RESUME_SRAM);
-    driver.history.scenes = (uint8_t)scenes;
-    memcpy(driver.history.scene, scene, scenes);
-    memcpy(driver.history.song, song, scenes);
     driver.record_path = record_path;
     driver.track.record_name = record_path ? files_name(record_path) : NULL;
     driver.track.sram_name = fixed_sram ? files_name(sram_path) : NULL;
@@ -782,11 +826,7 @@ int main(int argc, char **argv)
     int rc = 0;
     if (load_state && native_load_state(&driver, load_state)) return 2;
     if (drive) {
-        driver.audio_replay = audio_replay_create();
-        if (!driver.audio_replay) { fprintf(stderr, "ct_native: out of memory\n"); return 2; }
-        audio_replay_bind(driver.audio_replay, g, &pf, sound);
-        RouteReplay replay = { route_audio_save, audio_replay_drop, route_audio_begin, route_audio_end };
-        RouteHost host = { &driver, route_reset, route_step, route_read, route_write, route_shot, &replay };
+        RouteHost host = { &driver, route_step, route_read, route_write, route_shot, route_snapshot, route_restore };
         rc = route_driver(&host, driver.saved, sizeof driver.saved, asset_catalogue_version, stdin, stdout);
         g = driver.game;
         sound = driver.sound;
@@ -801,8 +841,8 @@ int main(int argc, char **argv)
         WindowClient client = {
             .ctx = &driver, .name = "ct_native", .step = native_step, .pixels = native_pixels,
             .audio = { &driver, native_audio, native_discard }, .title = native_title,
-            .halt = native_halt, .done = native_done, .fast = native_fast, .flush = native_flush,
-            .quick_save = native_quick_save, .quick_load = native_quick_load, .loading = native_loading
+            .halt = native_halt, .done = native_done, .flush = native_flush,
+            .quick_save = native_quick_save, .quick_load = native_quick_load
         };
         rc = window_run(&client, &options);
     } else
@@ -811,9 +851,12 @@ int main(int argc, char **argv)
         ct_wav wav = { 0 };
         if (wav_path && ct_wav_open(&wav, wav_path, 32000)) return 2;
         while (!native_done(&driver)) {
-            bool loading = driver.restoring;
+            if (check_every && driver.frame && driver.frame % check_every == 0)
+                check_snapshot(&driver, check_span);
+            if (native_done(&driver))
+                break;
             native_step(&driver, 0);
-            if (wav_path && !loading) {
+            if (wav_path) {
                 int16_t audio[8192 * 2];
                 size_t count = sound_native_take_audio(driver.sound, audio, 8192);
                 ct_wav_write(&wav, audio, count);
@@ -825,7 +868,6 @@ int main(int argc, char **argv)
     if (save_state && !driver.result && !native_save_state(&driver, save_state)) driver.result = 2;
     native_flush(&driver);
     free(driver.track.pads);
-    resume_free(&driver.history);
     g = driver.game;
     sound = driver.sound;
     if (driver.result)
@@ -842,13 +884,14 @@ int main(int argc, char **argv)
         fprintf(stderr, "picture: showing at the end\n");
     if (picture.longest)
         fprintf(stderr, "picture: longest dark run %lu frame(s), from frame %lu\n", picture.longest, picture.longest_from);
+    if (check_every)
+        fprintf(stderr, "snapshots: %lu put back and played again, each frame the same\n", driver.checks);
     report_strays(g, &pf);
     if (end_state && write_end_state(end_state, g) != 0) {
         fprintf(stderr, "ct_native: cannot write %s\n", end_state);
         rc = 2;
     }
     vid_render_destroy(picture.renderer);
-    audio_replay_destroy(driver.audio_replay);
     fiber_destroy_tree(pf.timing.main);
     sound_native_destroy(sound);
     vid_host_stop(&pf);
@@ -869,6 +912,5 @@ int main(int argc, char **argv)
         ct_movie_free(&movie);
     assets_use(NULL);
     asset_pack_close(pack);
-    free(pack_bytes);
     return rc;
 }

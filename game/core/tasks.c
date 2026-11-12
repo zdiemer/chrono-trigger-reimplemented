@@ -54,10 +54,6 @@ void tasks_take_a_turn(Tasks *t, uint8_t slot)
         return;
     if (!t->started[slot]) {
         t->fiber[slot] = fiber_create(task_body, &t->self[slot]);
-        if (!t->fiber[slot]) {
-            t->running[slot] = false;   /* no stack for it: it never runs */
-            return;
-        }
         t->started[slot] = true;
     }
     t->turns = fiber_current();

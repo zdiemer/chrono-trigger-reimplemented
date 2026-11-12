@@ -20,6 +20,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "core/tasks.h"
 #include "platform/platform.h"
 #include "state.h"
 #include "vars.h"
@@ -60,8 +61,21 @@ void menu_tasks_open(GameState *g, Platform *pf);
 typedef enum { MENU_TURNS_TAKEN, MENU_TURNS_CLOSED, MENU_TURNS_WENT_NO_FURTHER } MenuTurns;
 MenuTurns menu_tasks_take_the_turns(GameState *g);
 void menu_task_waits(GameState *g, uint8_t frames);
-void menu_tasks_closed(void);
-void menu_tasks_end(void);
+void menu_tasks_closed(GameState *g);
+void menu_tasks_end(GameState *g);
+
+/* The menus' coroutines while they are open, whether a task has closed them
+ * (the one closing them waits for good, and the turns end there), and the
+ * mode running them, which the closing tells how it ended. The program's own
+ * state, kept beside the game's (runtime/port/state_host.c) so that a
+ * snapshot of the game holds the open menus with it. */
+typedef struct MenuModeContext MenuModeContext;
+typedef struct {
+    Tasks tasks;
+    bool closed;
+    MenuModeContext *running;
+} MenuCoroutines;
+MenuCoroutines *menu_coroutines(GameState *g);
 
 /* menu/screens.c: the running screen's step, as the main task's turn runs
  * it, from inside the main task: false where the step is one the port

@@ -39,7 +39,7 @@ add_library(ct_platform_native STATIC
   runtime/platform/native/timing.c runtime/platform/native/input.c
   runtime/platform/native/video.c runtime/platform/native/audio.c runtime/platform/native/save.c
   runtime/platform/native_escapes.c runtime/platform/observe.c runtime/platform/voices.c
-  runtime/platform/native/mixer.c runtime/port/fiber.c)
+  runtime/platform/native/mixer.c runtime/platform/native/snapshot.c runtime/port/fiber.c runtime/port/arena.c)
 target_include_directories(ct_platform_native PUBLIC runtime)
 add_library(ct_state_host STATIC runtime/port/vars_ram.c runtime/port/vars_host.c
   runtime/port/state_host.c runtime/port/rom_host.c runtime/port/time_rates.c)
@@ -346,8 +346,8 @@ add_library(ct_game STATIC
   game/battle/window.c
   game/battle/window_leaves.c)
 target_link_libraries(ct_game PUBLIC ct_state_host)
-add_executable(ct_native frontend/ct_native.c frontend/route_driver.c frontend/audio_replay.c
-  frontend/resume.c frontend/storage.c frontend/asset_files.c frontend/track.c frontend/sram_find.c
+add_executable(ct_native frontend/ct_native.c frontend/route_driver.c frontend/snapshot.c
+  frontend/storage.c frontend/asset_files.c frontend/track.c frontend/sram_find.c
   frontend/file_store.c frontend/assets.c frontend/sound_native.c
   runtime/platform/native/render.c)
 target_include_directories(ct_native PRIVATE frontend)
@@ -375,19 +375,24 @@ endif()
 if(MINGW)
   target_link_options(ct_native PRIVATE -static-libgcc)
 endif()
+# A snapshot file holds the fibers' stacks, whose return addresses and
+# pointers name the program's code and statics: loaded in another run, they
+# hold only where the image is where it was (frontend/snapshot.h). Elsewhere a
+# snapshot file loads only in the run that wrote it.
+if(MINGW)
+  target_link_options(ct_native PRIVATE -Wl,--disable-dynamicbase,--disable-high-entropy-va)
+endif()
 install(TARGETS ct_native RUNTIME DESTINATION .)
 if(WIN32 AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
   install(FILES $<TARGET_RUNTIME_DLLS:ct_native> DESTINATION .)
 endif()
 
 if(BUILD_TESTING)
-  add_executable(fiber_test tests/port/fiber_test.c runtime/port/fiber.c)
+  add_executable(fiber_test tests/port/fiber_test.c runtime/port/fiber.c runtime/port/arena.c)
   target_include_directories(fiber_test PRIVATE runtime)
-  add_executable(route_driver_test tests/frontend/route_driver_test.c frontend/route_driver.c frontend/resume.c runtime/port/fiber.c)
-  target_include_directories(route_driver_test PRIVATE frontend runtime)
+  add_executable(route_driver_test tests/frontend/route_driver_test.c frontend/route_driver.c)
+  target_include_directories(route_driver_test PRIVATE frontend)
   target_link_libraries(route_driver_test PRIVATE ct_media)
-  add_executable(audio_replay_test tests/frontend/audio_replay_test.c frontend/audio_replay.c)
-  target_include_directories(audio_replay_test PRIVATE frontend runtime game)
   add_executable(file_store_test tests/frontend/file_store_test.c)
   add_executable(timing_test tests/port/timing_test.c)
   target_link_libraries(timing_test PRIVATE ct_platform_native)
@@ -396,7 +401,8 @@ if(BUILD_TESTING)
   add_executable(tasks_test tests/port/tasks_test.c game/core/tasks.c)
   target_include_directories(tasks_test PRIVATE game)
   target_link_libraries(tasks_test PRIVATE ct_platform_native)
-  add_executable(native_time_test tests/port/native_time_test.c runtime/port/state_host.c runtime/port/vars_host.c)
+  add_executable(native_time_test tests/port/native_time_test.c runtime/port/state_host.c runtime/port/vars_host.c
+  runtime/port/arena.c)
   target_include_directories(native_time_test PRIVATE game runtime)
   add_executable(program_test tests/port/program_test.c game/core/program.c)
   target_link_libraries(program_test PRIVATE ct_state_host)
@@ -417,9 +423,7 @@ if(BUILD_TESTING)
   target_include_directories(player_files_test PRIVATE frontend)
   add_executable(recorder_test tests/frontend/recorder_test.c frontend/track.c)
   target_link_libraries(recorder_test PRIVATE ct_media)
-  add_executable(resume_test tests/frontend/resume_test.c frontend/resume.c)
-  target_link_libraries(resume_test PRIVATE ct_media)
-  foreach(test player_files recorder resume fiber route_driver audio_replay file_store timing video tasks native_time program vars_host unpack_time assets)
+  foreach(test player_files recorder fiber route_driver file_store timing video tasks native_time program vars_host unpack_time assets)
     if(test STREQUAL "file_store")
       add_test(NAME file_store COMMAND file_store_test ${CMAKE_CURRENT_BINARY_DIR}/file-store-test.bin)
     else()
@@ -435,15 +439,15 @@ if(BUILD_TESTING)
   endif()
 endif()
 
-file(GLOB_RECURSE CT_RESUME_SOURCES CONFIGURE_DEPENDS game/*.c game/*.h runtime/*.c runtime/*.h frontend/*.c frontend/*.h)
-set(CT_RESUME_HASHES "")
-foreach(source IN LISTS CT_RESUME_SOURCES)
+file(GLOB_RECURSE CT_SNAPSHOT_SOURCES CONFIGURE_DEPENDS game/*.c game/*.h runtime/*.c runtime/*.h frontend/*.c frontend/*.h)
+set(CT_SNAPSHOT_HASHES "")
+foreach(source IN LISTS CT_SNAPSHOT_SOURCES)
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${source}")
   file(MD5 "${source}" digest)
-  string(APPEND CT_RESUME_HASHES "${digest}")
+  string(APPEND CT_SNAPSHOT_HASHES "${digest}")
 endforeach()
 file(MD5 "${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt" digest)
-string(APPEND CT_RESUME_HASHES "${digest}")
-string(MD5 CT_RESUME_BUILD "${CT_RESUME_HASHES}")
+string(APPEND CT_SNAPSHOT_HASHES "${digest}")
+string(MD5 CT_SNAPSHOT_BUILD "${CT_SNAPSHOT_HASHES}")
 configure_file(cmake/native_build.h.in native_build.h @ONLY)
 target_include_directories(ct_native PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")

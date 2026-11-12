@@ -347,6 +347,40 @@ host_alias = "items"''', "menu"))
         self.assertIn("1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0", projection)
         self.assertEqual(len(ram_map.owner_accessors(m)), 1)
 
+    def test_an_overlay_keeps_its_own_typed_storage(self):
+        """A mode whose bytes the original reuses for another's variables gets a
+        field of its own; the address view writes a shared byte to every owner
+        and reads it from the one that wrote it last."""
+        m = ram_map.RamMap(text=var("items", 'addr = "7E:1000"\nsize = 2\nhost_module = "items"')
+                           + var("view", 'addr = "7E:1001"\nhost_module = "menu"\noverlays = "items"', "menu"))
+        self.assertEqual(ram_map.storage_counts(m), (0, 0, 2))
+        h, c, backing = ram_map.render_host_header(m), ram_map.render_backing(m), ram_map.render_host_backing(m)
+        self.assertIn("uint8_t view;", h)
+        self.assertIn("uint16_t overlay_writer[256];", h)
+        setter = c[c.index("void set_view(GameState *g"):]
+        self.assertIn("h->menu.view = v;", setter[:setter.index("}")])
+        self.assertIn("vars_host_claim(h, 0x7E1001u, 1u, 2u);", setter[:setter.index("}")])
+        getter = c[c.index("uint8_t view(const GameState *g"):]
+        self.assertIn("vars_host_check(h, 0x7E1001u, 1u, 2u);", getter[:getter.index("}")])
+        self.assertIn("{ 1, 2, 0 },", backing)
+        self.assertIn("place = h->overlay_writer[slot - 1];", backing)
+        self.assertIn("for (const uint16_t *owner = overlay_owner_sets[set]; *owner; owner++)", backing)
+
+    def test_overlay_validation(self):
+        owner = var("items", 'addr = "7E:1000"\nsize = 2\nhost_module = "items"')
+        for why, tail in {
+            "names no base owner": var("view", 'addr = "7E:1000"\nhost_module = "menu"\noverlays = "missing"', "menu"),
+            "an alias cannot overlay": var("view", 'addr = "7E:1000"\nhost_alias = "items"\noverlays = "items"', "menu"),
+            "shares no byte": var("view", 'addr = "7E:1002"\nhost_module = "menu"\noverlays = "items"', "menu"),
+            "leaves an owner out": var("more", 'addr = "7E:1002"\nhost_module = "scene"', "scene")
+                                   + var("view", 'addr = "7E:1001"\nsize = 2\nhost_module = "menu"\noverlays = "items"', "menu"),
+            "overlays an overlay": var("view", 'addr = "7E:1000"\nhost_module = "menu"\noverlays = "items"', "menu")
+                                   + var("again", 'addr = "7E:1000"\nhost_module = "scene"\noverlays = "view"', "scene"),
+            "one mode at once": var("view", 'addr = "7E:1000"\nhost_module = "items"\noverlays = "items"'),
+        }.items():
+            with self.subTest(why=why), self.assertRaises(ram_map.MapError):
+                ram_map.RamMap(text=owner + tail)
+
     def test_alias_owner_validation(self):
         owner = var("items", 'addr = "7E:1000"\nsize = 2\nhost_module = "items"')
         for why, tail in {
