@@ -2472,7 +2472,8 @@
 #define RAM_MENU_BYTE_THE_MODE_BEFORE_LEFT 0x7E0082u
 #define RAM_MENU_BYTE_THE_MODE_BEFORE_LEFT_DP 0x82u /* page menu */
 /* The member the equipment screen's member list pointed at last, which it compares with to tick
- * the cursor's sound when it points at another */
+ * the cursor's sound when it points at another. It is the techs screen's
+ * menu_tech_list_shown_before: each screen compares with what the other left there. */
 #define RAM_MENU_MEMBER_POINTED 0x7E0083u
 #define RAM_MENU_MEMBER_POINTED_DP 0x83u     /* page menu */
 /* The place in a shop's list whose item the panel of counts and members' figures shows, $FF for
@@ -2928,7 +2929,8 @@
  * something else */
 #define RAM_MENU_DESCRIPTION_ITEM 0x7E0D77u
 /* The era whose label the load screen has loaded (the ROM's table at $FF:D296 gives a location's
- * era), loaded again (through $C2:F90C) when a slot shows another */
+ * era), loaded again (through $C2:F90C) when a slot shows another. It is the description
+ * window's menu_description_item: the load screen compares with whatever that left. */
 #define RAM_MENU_SAVE_SLOT_ERA 0x7E0D77u
 /* Bit 7 set has the description window typed again whatever it shows (a request clears it); the
  * settings' description keeps here which of the value texts its value shows */
@@ -4866,7 +4868,8 @@
  * is */
 #define RAM_BATTLE_TRANSFER_PENDING 0x7E00A0u
 #define RAM_BATTLE_TRANSFER_PENDING_DP 0xA0u /* page battle */
-/* The attribute bits of the effect whose sprites are being drawn */
+/* The attribute bits of the effect whose sprites are being drawn. It is battle_step_member:
+ * where a step left its member, the effect drawer reads that as the attribute bits. */
 #define RAM_BATTLE_EFFECT_SPRITE_ATTRIBUTES 0x7E00A1u
 #define RAM_BATTLE_EFFECT_SPRITE_ATTRIBUTES_DP 0xA1u /* page battle */
 /* The party member a battle step is about (its menu opened or closed, its action called off), as
@@ -4951,7 +4954,8 @@
  * and placing the menu cursors clears it [2 bytes] */
 #define RAM_BATTLE_MENU_BUTTONS 0x7E00EEu
 #define RAM_BATTLE_MENU_BUTTONS_DP 0xEEu     /* page battle */
-/* The controller's buttons held this frame, as the battle reads them [2 bytes] */
+/* The controller's buttons held this frame, as the battle reads them. It is the core's held
+ * buttons, input_mapped's second value, which the battle reads as they are. [2 bytes] */
 #define RAM_BATTLE_JOYPAD 0x7E00F8u
 #define RAM_BATTLE_JOYPAD_DP 0xF8u           /* page battle */
 /* The enemy the single target cursor is on, for $CD:002D and $CD:0030, which show its name and,
@@ -7749,7 +7753,8 @@
 /* The party member whose status picks its action */
 #define RAM_BATTLE_ACTING_FOR_ITSELF 0x7EB3F4u
 /* The party member whose chosen action is carried out, whose record the turn clears as it ends
- * ($C1:B9C4, $C1:BCF9) */
+ * ($C1:B9C4, $C1:BCF9). It is battle_acting_for_itself: the member whose status picked its
+ * action is the one the turn carries out. */
 #define RAM_BATTLE_TURN_MEMBER 0x7EB3F4u
 /* A battle message's text, drawn as tiles, in two halves the vblank sends to VRAM in turn while
  * the message shows [2 x $200 bytes, by half (the first goes to VRAM $5800 on odd frames, the

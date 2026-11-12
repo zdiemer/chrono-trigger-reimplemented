@@ -1,7 +1,7 @@
 # Native state storage
 
-Every live map variable has module-owned C storage, and 1,511 of the 2,236 have
-typed storage; the other 725 are still blob-backed. `GameState` has no work-RAM
+Every live map variable has module-owned C storage, and 2,083 of the 2,236 have
+typed storage; the other 153 are still blob-backed. `GameState` has no work-RAM
 image; the generated address view serializes the owning fields directly. Generated
 files come only from `tools/ram_map.py` and `re/ram.toml`.
 
@@ -22,24 +22,34 @@ original reuses at another mode's widths is blob-backed, though the bytes sit
 in typed C fields. `storage --list` names each blob-backed variable and the
 owner fields it depends on.
 
-| Measure | Before | After |
-|---|---:|---:|
-| Typed variables | 1,953 | 1,511 |
-| Blob-backed variables | 283 | 725 |
-| Image-backed variables | 27 | 0 |
-| Total public variables | 2,263 | 2,236 |
+| Module | Blob-backed with shared owners | Blob-backed with overlays | Typed / total |
+|---|---:|---:|---:|
+| menu | 245 | 40 | 427 / 467 |
+| battle | 234 | 30 | 892 / 922 |
+| scene | 132 | 38 | 308 / 346 |
+| field | 55 | 24 | 284 / 308 |
+| menu_object | 23 | 6 | 33 / 39 |
+| core | 12 | 5 | 57 / 62 |
+| overworld | 12 | 2 | 40 / 42 |
+| warp | 7 | 5 | 17 / 22 |
+| event | 5 | 3 | 17 / 20 |
+| all | 725 | 153 | 2,083 / 2,236 |
 
-The "before" column was counted by a laxer rule, which took any byte held by a
-scalar field as typed; the "after" column is the rule above, so the two do not
-compare directly. Of the 725 blob-backed variables, 610 depend only on scalar
-owner fields read at another width or place, 24 only on buffers and 91 on both.
-Nearly all are overlays: a mode reading, at its own widths, memory whose owner
-fields another mode declared (battle cells over the field's tile looks, menu
-tilemaps over the field's map rows, scene scratch over the menu object shadows).
-Typing them needs each overlay split into a union of every mode's own fields.
-15 readers are typed by declaring their own byte or word elements where the
-meaning gives them (tile layers, tile attribute tables, timers, names, a Mode 7
-map and a palette).
+The first column is the map before overlays (every mode reading another's
+owner fields at its own widths); the second is after them, by the same rule.
+632 owners now keep their own fields beside other modes' (see "Overlays");
+four tilemap and palette buffers among them declare their word elements. The
+153 left are, by `storage --list`:
+
+- 57 byte buffers with storage of their own and no element structure (sprite
+  tables, line-effect tables, tile graphics, scratch runs). A byte label would
+  not type them; records or word elements would, where the meaning has them.
+- 48 views of their own mode's owners at another width (a word and its high
+  byte, a record field read as two). Splitting them changes the ports' reads.
+- 30 variables that share another mode's bytes at the same time or hand data
+  across a mode change, kept as `host_alias` views (examples under "Overlays").
+- 11 owners with a field read at two widths inside the record, and 7 records
+  with a byte-buffer field.
 
 The denominator fell by 27 because the retired sound loader has no live clients.
 Its declarations and generated accessors were deleted. Its 257 bytes and 1,138
@@ -131,6 +141,36 @@ a sampled or library movie that crosses fails the gate. A variable whose mode
 really reads another's bytes is not separated: it keeps a `host_alias` view of
 the owner whose bytes it reads, which names the hand-off.
 
+The cross-mode views became overlays by mechanical conversion (`host_alias`
+to `host_module` plus `overlays`; a record's field read at two widths became a
+view of the wider), except five scratch records whose fields cross each
+other's bounds. Over the sampled movies 31 of them then crossed, and each went
+back to a view:
+
+- The same cell under two names. `battle_joypad` is the core's held buttons
+  (`input_mapped[1]`); `menu_member_pointed` and `menu_tech_list_shown_before`,
+  `menu_save_slot_era` and `menu_description_item`, `battle_turn_member` and
+  `battle_acting_for_itself`, `battle_effect_sprite_attributes` and
+  `battle_step_member` are one byte the two screens or routines both use. Each
+  first name is now an alias of the second, which types it.
+- Data handed across a mode change: the title leaves how it was left in event
+  memory for the scripts (`event_memory` over `scene_title_left_with_a_button`),
+  a steal's item reaches the scripts as event variable 0's low byte
+  (`battle_message_item`), and the warp's pixel masks stay as palette
+  animation parameters (`warp_pixel_clear_masks`, `warp_pixel_set_masks`).
+- Deliberate overruns: the menus copy the three bytes past the names, which are
+  the party's gold (`menu_past_the_names`); the rewards' level and tech marks
+  share a byte.
+- Modes running together over the same memory: the menus' sprite nodes over the
+  field's tile looks, the field's layer maps under the battle's decoded tiles
+  and the load screen's tilemap, the menus' top-layer wave over battle effect
+  and field attribute cells, the field's line waves over the battle's drawing
+  page, and within one mode the record coordinate and tile words read as bytes.
+
+96 `[[owner]]` fragments that only gave the views storage (field map rows cut
+around battle records, menu object remainders) had no reader left and were
+deleted; the overlays at their bytes name each other instead.
+
 ## What still uses addresses
 
 - Cartridge `.srm` projection retains the original eight-run layout below.
@@ -181,12 +221,16 @@ against an actual cartridge save after loading, editing and saving it.
 
 ## Validation
 
-Map tests cover typed elements, sliced words, records, aliases, page instances,
-invalid declarations and generated-file freshness. `vars_host_test` fills all
+Map tests cover typed elements, sliced words, records, aliases, overlays and
+their linking rules, page instances, invalid declarations and generated-file
+freshness. `vars_host_test` fills all
 owned addresses before reading them back, verifies that all 1,395 unowned
 addresses discard writes, and exercises aliases, partial writes, independent
 states, unchecked tails and video sources. Record tests mutate the native
-structs directly and verify both accessors and cross-mode address aliases. The
+structs directly and verify both accessors and cross-mode address aliases; an
+overlay test checks that an owner's write leaves the other mode's fields alone,
+that the address view answers with the last writer, that an address write
+reaches every owner and that a read of another owner's bytes is counted. The
 test invokes the actual cartridge save/load/checksum routines on a committed `.srm`, edits typed state, saves,
 checks reserved bytes and loads the result into a fresh state.
 
@@ -194,5 +238,5 @@ The Windows MinGW Release build uses warnings as errors. The lean gate runs
 Python/native tests, 58 sampled movies, saved outcomes, picture fingerprints,
 both fast routes, portstyle and portsmell. No baseline or exception changes.
 
-With the designed records, the lean gate ends `suite OK` in 299.1 seconds,
-including 214 Python tests and 15 native tests.
+With the overlays, the lean gate ends `suite OK` in 354.9 seconds (movies 160.8
+seconds, against 149.7 before them), with no `overlay crossed:` line.

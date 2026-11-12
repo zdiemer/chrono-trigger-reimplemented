@@ -3651,7 +3651,8 @@ uint8_t menu_byte_the_mode_before_left(const GameState *g);
 void set_menu_byte_the_mode_before_left(GameState *g, uint8_t v);
 
 /* The member the equipment screen's member list pointed at last, which it compares with to tick
- * the cursor's sound when it points at another */
+ * the cursor's sound when it points at another. It is the techs screen's
+ * menu_tech_list_shown_before: each screen compares with what the other left there. */
 uint8_t menu_member_pointed(const GameState *g);
 void set_menu_member_pointed(GameState *g, uint8_t v);
 
@@ -4363,7 +4364,8 @@ uint8_t menu_description_item(const GameState *g);
 void set_menu_description_item(GameState *g, uint8_t v);
 
 /* The era whose label the load screen has loaded (the ROM's table at $FF:D296 gives a location's
- * era), loaded again (through $C2:F90C) when a slot shows another */
+ * era), loaded again (through $C2:F90C) when a slot shows another. It is the description
+ * window's menu_description_item: the load screen compares with whatever that left. */
 uint8_t menu_save_slot_era(const GameState *g);
 void set_menu_save_slot_era(GameState *g, uint8_t v);
 
@@ -7665,7 +7667,8 @@ void set_battle_frame_pending_next(GameState *g, uint8_t v);
 uint8_t battle_transfer_pending(const GameState *g);
 void set_battle_transfer_pending(GameState *g, uint8_t v);
 
-/* The attribute bits of the effect whose sprites are being drawn */
+/* The attribute bits of the effect whose sprites are being drawn. It is battle_step_member:
+ * where a step left its member, the effect drawer reads that as the attribute bits. */
 uint8_t battle_effect_sprite_attributes(const GameState *g);
 void set_battle_effect_sprite_attributes(GameState *g, uint8_t v);
 
@@ -7757,7 +7760,8 @@ void set_battle_alternate_frame(GameState *g, uint8_t v);
 uint16_t battle_menu_buttons(const GameState *g);
 void set_battle_menu_buttons(GameState *g, uint16_t v);
 
-/* The controller's buttons held this frame, as the battle reads them */
+/* The controller's buttons held this frame, as the battle reads them. It is the core's held
+ * buttons, input_mapped's second value, which the battle reads as they are. */
 uint16_t battle_joypad(const GameState *g);
 void set_battle_joypad(GameState *g, uint16_t v);
 
@@ -11966,7 +11970,8 @@ uint8_t battle_acting_for_itself(const GameState *g);
 void set_battle_acting_for_itself(GameState *g, uint8_t v);
 
 /* The party member whose chosen action is carried out, whose record the turn clears as it ends
- * ($C1:B9C4, $C1:BCF9) */
+ * ($C1:B9C4, $C1:BCF9). It is battle_acting_for_itself: the member whose status picked its
+ * action is the one the turn carries out. */
 uint8_t battle_turn_member(const GameState *g);
 void set_battle_turn_member(GameState *g, uint8_t v);
 
