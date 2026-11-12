@@ -1497,11 +1497,21 @@ void set_field_main_screen(GameState *g, uint8_t v);
 uint8_t field_sub_screen(const GameState *g);
 void set_field_sub_screen(GameState *g, uint8_t v);
 
-/* Window shadows the field NMI copies every frame: BG1/BG2 and BG3/BG4 masks, sprite and
- * backdrop masks, window 2 left and right [5 bytes, one at a time] */
-enum { FIELD_WINDOW_SHADOWS_BYTES = 5 };
-uint8_t field_window_shadows_byte(const GameState *g, unsigned at);
-void set_field_window_shadows_byte(GameState *g, unsigned at, uint8_t v);
+/* Which windows mask BG1 and BG2, and how (a nibble a layer) */
+uint8_t field_window_shadows_bg1_bg2(const GameState *g);
+void set_field_window_shadows_bg1_bg2(GameState *g, uint8_t v);
+/* Which windows mask BG3 and BG4 */
+uint8_t field_window_shadows_bg3_bg4(const GameState *g);
+void set_field_window_shadows_bg3_bg4(GameState *g, uint8_t v);
+/* Which windows mask the sprites, and where colour math applies */
+uint8_t field_window_shadows_obj_colour(const GameState *g);
+void set_field_window_shadows_obj_colour(GameState *g, uint8_t v);
+/* Window 2's left edge */
+uint8_t field_window_shadows_window2_left(const GameState *g);
+void set_field_window_shadows_window2_left(GameState *g, uint8_t v);
+/* Window 2's right edge */
+uint8_t field_window_shadows_window2_right(const GameState *g);
+void set_field_window_shadows_window2_right(GameState *g, uint8_t v);
 
 /* Color math control shadow the field NMI copies every frame */
 uint8_t field_color_math_control(const GameState *g);

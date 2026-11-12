@@ -97,9 +97,13 @@ static void apply_display_shadows(const GameState *g, Platform *pf)
         { VID_WINDOWS_BG1_BG2, 0xC0EC1C }, { VID_WINDOWS_BG3_BG4, 0xC0EC22 }, { VID_WINDOWS_OBJ_BACK, 0xC0EC28 },
         { VID_WINDOWS_W2_LEFT, 0xC0EC2E }, { VID_WINDOWS_W2_RIGHT, 0xC0EC34 },
     };
+    const uint8_t shadows[] = {
+        field_window_shadows_bg1_bg2(g), field_window_shadows_bg3_bg4(g), field_window_shadows_obj_colour(g),
+        field_window_shadows_window2_left(g), field_window_shadows_window2_right(g),
+    };
     VidWindows w = { 0 };
     for (unsigned i = 0; i < sizeof windows / sizeof windows[0]; i++) {
-        vid_windows_decode(&w, windows[i].field, field_window_shadows_byte(g, i));
+        vid_windows_decode(&w, windows[i].field, shadows[i]);
         vid_set_windows(pf, PF_AT(windows[i].site), &w, windows[i].field);
     }
     VidColorMath math = { 0 };

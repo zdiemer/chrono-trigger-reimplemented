@@ -1619,7 +1619,13 @@ typedef struct {
         uint8_t height_high;
     } field_map_layer_sizes[3];
     uint8_t field_map_flags;
-    uint8_t field_window_shadows[5];
+    struct {
+        uint8_t bg1_bg2;
+        uint8_t bg3_bg4;
+        uint8_t obj_colour;
+        uint8_t window2_left;
+        uint8_t window2_right;
+    } field_window_shadows;
     struct { uint8_t properties[64]; } field_tile_properties[64];
     struct {
         uint8_t sizes;
@@ -3775,8 +3781,8 @@ typedef struct {
     uint16_t scene_circle_decision;
     uint16_t scene_circle_row;
     uint16_t scene_circle_center_row_half;
-    uint8_t scene_turn_saved_map[2048];
-    uint8_t scene_turn_output_map[2048];
+    struct { uint16_t tiles[1024]; } scene_turn_saved_map;
+    struct { uint16_t tiles[1024]; } scene_turn_output_map;
     struct {
         uint8_t tile_x;
         uint8_t tile_y;
@@ -3888,8 +3894,14 @@ typedef struct {
     VarsHostSound sound;
     VarsHostWarp warp;
     /* For each byte owners keep beside each other, the owner that wrote it
-     * last, which the address view reads; 0 when every owner holds it. */
-    uint16_t overlay_writer[119296];
+     * last, which the address view reads: its place among the byte's
+     * owners, from 1; 0 when every owner holds it. */
+    uint8_t overlay_writer[119296];
+    /* The reads that found another owner's bytes, by reader: how often, and
+     * the owner that wrote them the first time (vars_host_crossings). A
+     * diagnostic tally, kept with the state it describes. */
+    uint32_t crossed[3366];
+    uint16_t crossed_writer[3366];
 } VarsHost;
 
 /* Byte views of battle_acting_for_itself's storage; no independent alias fields. */
@@ -4400,9 +4412,10 @@ void vars_host_claim(VarsHost *h, uint32_t addr, unsigned bytes, unsigned place)
 void vars_host_check(const VarsHost *h, uint32_t addr, unsigned bytes, unsigned place);
 /* The reads that found another owner's bytes: each reader, the owner that
  * wrote them and how often, through `each`; returns how many readers. */
-unsigned vars_host_crossings(void (*each)(const char *reader, const char *writer, uint32_t times, void *ctx),
+unsigned vars_host_crossings(const VarsHost *h,
+                             void (*each)(const char *reader, const char *writer, uint32_t times, void *ctx),
                              void *ctx);
-void vars_host_crossings_reset(void);
+void vars_host_crossings_reset(VarsHost *h);
 
 void vars_host_init(VarsHost *h);
 bool vars_host_read8(const VarsHost *h, uint32_t addr, uint8_t *value);

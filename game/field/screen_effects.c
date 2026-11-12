@@ -55,7 +55,6 @@
  * inside its shape or outside it, or window 2 inside. */
 enum { W1_INSIDE = VID_WIN_IN, W1_OUTSIDE = VID_WIN_OUT, W2_INSIDE = VID_WIN_IN << 2 };
 #define PAIR(first, second) ((uint8_t)((first) | (second) << 4))
-enum { BG1_BG2, BG3_BG4, OBJ_COLOUR, WINDOW2_LEFT, WINDOW2_RIGHT };
 
 /* What an effect's window does: the layers it can hide on the main screen
  * and on the sub screen, and for each pair of layers which window decides
@@ -80,9 +79,9 @@ enum { SCREENS_OUTSIDE = 0 };
 
 static void choose_windows(GameState *g, const WindowCut *c)
 {
-    set_field_window_shadows_byte(g, BG1_BG2, c->bg1_bg2);
-    set_field_window_shadows_byte(g, BG3_BG4, c->bg3_bg4);
-    set_field_window_shadows_byte(g, OBJ_COLOUR, c->obj_colour);
+    set_field_window_shadows_bg1_bg2(g, c->bg1_bg2);
+    set_field_window_shadows_bg3_bg4(g, c->bg3_bg4);
+    set_field_window_shadows_obj_colour(g, c->obj_colour);
 }
 
 static void cut(GameState *g, const WindowCut *c)
@@ -250,8 +249,8 @@ enum { SCREEN_LEFT_EDGE = 0, SCREEN_RIGHT_EDGE = 0xFF, FULL_BRIGHTNESS = 0x0F };
 static void cut_with_the_curtain(GameState *g)
 {
     cut(g, &CURTAIN_CUT);
-    set_field_window_shadows_byte(g, WINDOW2_LEFT, SCREEN_LEFT_EDGE);
-    set_field_window_shadows_byte(g, WINDOW2_RIGHT, SCREEN_RIGHT_EDGE);
+    set_field_window_shadows_window2_left(g, SCREEN_LEFT_EDGE);
+    set_field_window_shadows_window2_right(g, SCREEN_RIGHT_EDGE);
 }
 
 /* After its sweep each frame: window 2's line effect on, the picture at full
@@ -267,7 +266,7 @@ static void curtain_swept_a_step(GameState *g)
 static void take_the_curtain_away(GameState *g)
 {
     cut(g, &NO_CUT);
-    set_field_window_shadows_byte(g, WINDOW2_RIGHT, SCREEN_LEFT_EDGE);
+    set_field_window_shadows_window2_right(g, SCREEN_LEFT_EDGE);
     window_line_effect(g, SLOT_WINDOW2, false);
 }
 

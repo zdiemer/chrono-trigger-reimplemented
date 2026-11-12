@@ -1114,6 +1114,11 @@
 /* Window shadows the field NMI copies every frame: BG1/BG2 and BG3/BG4 masks, sprite and
  * backdrop masks, window 2 left and right [5 bytes] */
 #define RAM_FIELD_WINDOW_SHADOWS 0x7E0BD9u
+#define RAM_FIELD_WINDOW_SHADOWS_BG1_BG2 0x7E0BD9u /* Which windows mask BG1 and BG2, and how (a nibble a layer) */
+#define RAM_FIELD_WINDOW_SHADOWS_BG3_BG4 0x7E0BDAu /* Which windows mask BG3 and BG4 */
+#define RAM_FIELD_WINDOW_SHADOWS_OBJ_COLOUR 0x7E0BDBu /* Which windows mask the sprites, and where colour math applies */
+#define RAM_FIELD_WINDOW_SHADOWS_WINDOW2_LEFT 0x7E0BDCu /* Window 2's left edge */
+#define RAM_FIELD_WINDOW_SHADOWS_WINDOW2_RIGHT 0x7E0BDDu /* Window 2's right edge */
 /* Color math control shadow the field NMI copies every frame */
 #define RAM_FIELD_COLOR_MATH_CONTROL 0x7E0BDEu
 /* Color math layers shadow field_set_screens writes */

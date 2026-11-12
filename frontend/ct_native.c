@@ -166,7 +166,7 @@ static void report_strays(const GameState *g)
     /* Owners the reimplementation keeps apart where the original shares bytes
      * (re/ram.toml's `overlays`): a read of bytes another owner wrote last is
      * one the original answered with that owner's value. */
-    vars_host_crossings(report_crossing, 0);
+    vars_host_crossings(state_host_vars_const(g), report_crossing, 0);
     uint32_t first[STATE_HOST_STRAYS_KEPT];
     unsigned kept;
     unsigned long n = state_host_strays(g, first, &kept);

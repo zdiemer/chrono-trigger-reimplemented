@@ -6944,10 +6944,30 @@ name = "field_window_shadows"
 host_module = "field"
 overlays = "menu_objects_between_channels_part_2"
 addr = "7E:0BD9"
-size = 5
+stride = 5
 subsystem = "field"
 meaning = "Window shadows the field NMI copies every frame: BG1/BG2 and BG3/BG4 masks, sprite and backdrop masks, window 2 left and right"
 source = "game/field/nmi.c field_nmi $C0:EA63; docs/PLATFORM.md (Windows)"
+  [[var.field]]
+  name = "bg1_bg2"
+  offset = 0
+  meaning = "Which windows mask BG1 and BG2, and how (a nibble a layer)"
+  [[var.field]]
+  name = "bg3_bg4"
+  offset = 1
+  meaning = "Which windows mask BG3 and BG4"
+  [[var.field]]
+  name = "obj_colour"
+  offset = 2
+  meaning = "Which windows mask the sprites, and where colour math applies"
+  [[var.field]]
+  name = "window2_left"
+  offset = 3
+  meaning = "Window 2's left edge"
+  [[var.field]]
+  name = "window2_right"
+  offset = 4
+  meaning = "Window 2's right edge"
 
 [[var]]
 name = "field_color_math_control"
@@ -27710,6 +27730,7 @@ source = "game/battle/script_moves.c jump $C1:6299; game/battle/objects.c battle
 
 [[var]]
 name = "scene_turn_saved_map"
+elements = { name = "tiles", size = 2, meaning = "Tilemap entries: tile number, palette, priority and flips." }
 host_module = "scene"
 overlays = ["battle_alternate_apply", "battle_alternate_base", "battle_alternate_latched", "battle_alternate_request", "battle_alternate_toggle_held", "battle_background", "battle_background_restore_request", "battle_background_ripple", "battle_band_fade", "battle_battlefield_kept_word", "battle_battlefield_layout_values", "battle_battlefield_scripts", "battle_battlefield_tiles_replaced", "battle_block_upload_request", "battle_block_upload_row", "battle_block_upload_source", "battle_block_uploaded_pad", "battle_block_uploaded_row", "battle_block_uploaded_source", "battle_buttons_held", "battle_circle_drawn", "battle_column_band_half_height", "battle_column_band_left", "battle_cut_angle", "battle_cut_ends_values", "battle_cut_run", "battle_cut_steps", "battle_dissolve_frames", "battle_dissolve_pace", "battle_dissolve_place", "battle_effect_graphics_block", "battle_effect_graphics_effect", "battle_effect_graphics_id", "battle_effect_graphics_list", "battle_effect_graphics_loading", "battle_effect_graphics_vram", "battle_effect_graphics_wanted", "battle_effect_line_wait_off", "battle_ended_effect_object", "battle_fixed_color", "battle_frame_advance_count", "battle_frame_advance_count_high", "battle_frame_work_reduced", "battle_gradient_colors", "battle_gradient_fade_frames", "battle_gradient_fading", "battle_gradient_frame_mask", "battle_gradient_level", "battle_gradient_level_override", "battle_gradient_level_shown", "battle_gradient_phase", "battle_gradient_reversed", "battle_graphics_load_in_vblank", "battle_keep_sprites", "battle_kept_row_colors", "battle_line_effects_on", "battle_line_scroll_layers", "battle_line_sway", "battle_line_wave_phase", "battle_map_cycle", "battle_map_strip_step", "battle_message_asked", "battle_message_by_id", "battle_message_by_id_high", "battle_message_drawing", "battle_message_frames", "battle_message_opening", "battle_message_shown", "battle_message_timed", "battle_nmi_pending", "battle_palette_pause_request", "battle_palette_paused", "battle_palette_preset_request", "battle_palette_rows_moved", "battle_palette_slot_presets_values", "battle_pause_blocked", "battle_pause_held", "battle_paused", "battle_repeat_buttons", "battle_repeat_delay", "battle_restore_keeps_screen", "battle_ripple_frames", "battle_saved_direct_page", "battle_saved_palette_types", "battle_screen_background_colors", "battle_screen_channels_values", "battle_screen_circle_kind", "battle_screen_circle_radius", "battle_screen_circle_x", "battle_screen_circle_y", "battle_screen_direction", "battle_screen_kept_word", "battle_screen_layer_mask", "battle_screen_layer_values", "battle_screen_loop_count", "battle_screen_loop_place", "battle_screen_orbit_growth", "battle_screen_palette_stop_count", "battle_screen_return_place", "battle_screen_swing_position", "battle_screen_swing_speed", "battle_screen_swing_step", "battle_screen_wave_step", "battle_script_sound", "battle_script_sound_pan", "battle_script_sound_request", "battle_scroll_mode", "battle_setup_flags_copy", "battle_shake_layers", "battle_shake_offsets", "battle_shake_values", "battle_shape_angles", "battle_shape_center_x", "battle_shape_center_y", "battle_shape_corners", "battle_shape_depth", "battle_shape_point", "battle_shape_point_high", "battle_shape_radii", "battle_shape_scale_x", "battle_shape_scale_y", "battle_shape_size", "battle_shape_turned_point", "battle_shape_turns", "battle_short_window_scroll_values", "battle_sprites_frozen_setting", "battle_start_cleared", "battle_start_cleared_byte", "battle_start_layout", "battle_tile_row_palettes", "battle_tile_rows_end", "battle_tile_rows_next", "battle_tile_rows_slot", "battle_vram_alternate", "battle_vram_copy_mode", "battle_vram_request_busy", "battle_vram_request_values", "battle_vram_send_last", "battle_vram_send_left", "battle_window_lines_values", "battle_window_quad_index", "battle_window_quads", "battle_window_registers", "battle_window_slide", "battle_window_slide_frames", "battle_window_steps", "field_layer_staging_head"]
 addr = "7E:C800"
@@ -27721,6 +27742,7 @@ source = "game/scene/turning.c and game/scene/rising_palace.c, mode 5 map"
 
 [[var]]
 name = "scene_turn_output_map"
+elements = { name = "tiles", size = 2, meaning = "Tilemap entries: tile number, palette, priority and flips." }
 host_module = "scene"
 overlays = ["field_object_accelerating_values", "field_object_acceleration_values", "field_object_animation_frame_values", "field_object_animation_mode_values", "field_object_colours_values", "field_object_counted_move_values", "field_object_delay_table_values", "field_object_facing_table_size_values", "field_object_facing_values", "field_object_frame_delay_values", "field_object_frame_table_values", "field_object_looped_animation_values", "field_object_one_off_animation_values", "field_object_solid_values", "field_object_speed_values", "field_object_sprite_flag_values", "field_object_sprite_records_values", "field_object_sprite_state_values", "field_object_steps_left_values", "field_object_velocity_x_values", "field_object_velocity_y_values", "field_object_x_values", "field_object_y_values"]
 addr = "7E:1400"

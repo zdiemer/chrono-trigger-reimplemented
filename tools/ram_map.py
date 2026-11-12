@@ -1520,13 +1520,15 @@ def render_host_accessor(a, ids, ov):
                 out += ["    %s = %s;" % (member, "v & 0xFFFFFFu" if width == 3 else "v"),
                         "    vars_host_claim(h, %s, %du, %s);" % (a.address(), width, place)]
             else:
-                out += ["    vars_host_check(h, %s, %du, %s);" % (a.address(), width, place),
+                out += ["    if (!peeking)",
+                        "        vars_host_check(h, %s, %du, %s);" % (a.address(), width, place),
                         "    return %s;" % member]
             out += ["}"]
         return out
     overlaid = ov.touches(a) and not (a.var.host_alias or (a.field and a.field.host_alias))
     claim = "    vars_host_claim(h, %s, %du, %s);" % (a.address(), width_of(a), ov.place(a)) if overlaid else None
-    check = "    vars_host_check(h, %s, %du, %s);" % (a.address(), width_of(a), ov.place(a)) if overlaid else None
+    check = ("    if (!peeking)\n        vars_host_check(h, %s, %du, %s);" % (a.address(), width_of(a), ov.place(a))
+             if overlaid else None)
     width = 1 if a.blob or a.table else a.size
     for write in (False, True):
         out += [a.signature(write), "{"]
@@ -1689,11 +1691,18 @@ def render_host_header(m):
         out += ["    VarsHost%s %s;" % (camel(module), module)]
     if not groups:
         out += ["    uint8_t unused; /* C has no empty structs. */"]
-    slots = len(Overlays.of(m).pages) * 256
+    ov = Overlays.of(m)
+    slots = len(ov.pages) * 256
     if slots:
         out += ["    /* For each byte owners keep beside each other, the owner that wrote it",
-                "     * last, which the address view reads; 0 when every owner holds it. */",
-                "    uint16_t overlay_writer[%d];" % slots]
+                "     * last, which the address view reads: its place among the byte's",
+                "     * owners, from 1; 0 when every owner holds it. */",
+                "    uint8_t overlay_writer[%d];" % slots]
+    out += ["    /* The reads that found another owner's bytes, by reader: how often, and",
+            "     * the owner that wrote them the first time (vars_host_crossings). A",
+            "     * diagnostic tally, kept with the state it describes. */",
+            "    uint32_t crossed[%d];" % (len(ov.placed) + 1),
+            "    uint16_t crossed_writer[%d];" % (len(ov.placed) + 1)]
     out += ["} VarsHost;", ""]
     for v in alias_owners(m):
         out += ["/* Byte views of %s's storage; no independent alias fields. */" % v.name,
@@ -1705,9 +1714,10 @@ def render_host_header(m):
             "void vars_host_check(const VarsHost *h, uint32_t addr, unsigned bytes, unsigned place);",
             "/* The reads that found another owner's bytes: each reader, the owner that",
             " * wrote them and how often, through `each`; returns how many readers. */",
-            "unsigned vars_host_crossings(void (*each)(const char *reader, const char *writer, uint32_t times, void *ctx),",
+            "unsigned vars_host_crossings(const VarsHost *h,",
+            "                             void (*each)(const char *reader, const char *writer, uint32_t times, void *ctx),",
             "                             void *ctx);",
-            "void vars_host_crossings_reset(void);"]
+            "void vars_host_crossings_reset(VarsHost *h);"]
     out += ["", "void vars_host_init(VarsHost *h);",
             "bool vars_host_read8(const VarsHost *h, uint32_t addr, uint8_t *value);",
             "bool vars_host_write8(VarsHost *h, uint32_t addr, uint8_t value);", "", "#endif", ""]
@@ -1840,7 +1850,7 @@ def render_host_backing(m):
             out += ["    %s%s = 0x555555u;" % ("    " if a.var.count > 1 or a.var.on_instances() else "", host_member(a, element="i", instance="instance"))]
     if Overlays.of(m).shared:
         out += ["    memset(h->overlay_writer, 0, sizeof h->overlay_writer);"]
-    out += ["}", ""]
+    out += ["    vars_host_crossings_reset(h);", "}", ""]
     # Aliases use named owners, with offsets in the owner's serialized layout.
     # No host pointer cast, union type punning, padding or endian assumption.
     for v in alias_owners(m):
@@ -1921,11 +1931,7 @@ def render_host_backing(m):
     out += ["    \"%s%s\"," % (a.var.name + ("." + a.field.name if a.field else ""),
                                "[%d]" % instance if a.var.on_instances() else "")
             for a, instance, _ in placed]
-    out += ["};", "",
-            "/* The reads that found another owner's bytes, by reader: how often, and the",
-            " * owner that wrote them the first time. */",
-            "static uint32_t crossed[%d];" % (len(placed) + 1),
-            "static uint16_t crossed_writer[%d];" % (len(placed) + 1), ""]
+    out += ["};", ""]
     for write in (False, True):
         out += ["static void place_%s8(%sVarsHost *h, unsigned place, uint32_t addr, uint8_t %svalue)" %
                 ("write" if write else "read", "" if write else "const ", "" if write else "*"), "{"]
@@ -1945,7 +1951,7 @@ def render_host_backing(m):
         if ov.shared:
             out += ["    unsigned set, slot = overlay_at(addr, &set);",
                     "    if (slot && h->overlay_writer[slot - 1])",
-                    "        place = h->overlay_writer[slot - 1];"]
+                    "        place = overlay_owner_sets[set][h->overlay_writer[slot - 1] - 1u];"]
         out += ["    place_read8(h, place, addr, value);", "    return true;", "}", ""]
     else:
         out += ["    (void)h; (void)addr; (void)value;", "    return false;", "}", ""]
@@ -1966,29 +1972,38 @@ def render_host_backing(m):
     if ov.shared:
         out += ["    for (unsigned i = 0; i < bytes; i++) {",
                 "        unsigned set, slot = overlay_at(addr + i, &set);",
-                "        if (slot)",
-                "            h->overlay_writer[slot - 1] = (uint16_t)place;", "    }", "}", ""]
+                "        if (!slot)",
+                "            continue;",
+                "        for (unsigned k = 0; overlay_owner_sets[set][k]; k++)",
+                "            if (overlay_owner_sets[set][k] == place)",
+                "                h->overlay_writer[slot - 1] = (uint8_t)(k + 1u);",
+                "    }", "}", ""]
     else:
         out += ["    (void)h; (void)addr; (void)bytes; (void)place;", "}", ""]
     out += ["void vars_host_check(const VarsHost *h, uint32_t addr, unsigned bytes, unsigned place)", "{"]
     if ov.shared:
-        out += ["    for (unsigned i = 0; i < bytes; i++) {",
+        out += ["    /* The tally is the diagnostics' own, not the game's: a read counts it. */",
+                "    VarsHost *tally = (VarsHost *)h;",
+                "    for (unsigned i = 0; i < bytes; i++) {",
                 "        unsigned set, slot = overlay_at(addr + i, &set);",
-                "        unsigned writer = slot ? h->overlay_writer[slot - 1] : 0u;",
+                "        unsigned writer = slot && h->overlay_writer[slot - 1] ?",
+                "            overlay_owner_sets[set][h->overlay_writer[slot - 1] - 1u] : 0u;",
                 "        if (writer && writer != place) {",
-                "            if (!crossed[place]++)",
-                "                crossed_writer[place] = (uint16_t)writer;",
+                "            if (!tally->crossed[place]++)",
+                "                tally->crossed_writer[place] = (uint16_t)writer;",
                 "            return;", "        }", "    }", "}", ""]
     else:
         out += ["    (void)h; (void)addr; (void)bytes; (void)place;", "}", ""]
-    out += ["unsigned vars_host_crossings(void (*each)(const char *reader, const char *writer, uint32_t times, void *ctx),",
+    out += ["unsigned vars_host_crossings(const VarsHost *h,",
+            "                             void (*each)(const char *reader, const char *writer, uint32_t times, void *ctx),",
             "                             void *ctx)", "{", "    unsigned readers = 0;",
-            "    for (unsigned place = 1; place < sizeof crossed / sizeof crossed[0]; place++) {",
-            "        if (!crossed[place])", "            continue;", "        readers++;",
-            "        if (each)", "            each(place_names[place], place_names[crossed_writer[place]], crossed[place], ctx);",
+            "    for (unsigned place = 1; place < sizeof h->crossed / sizeof h->crossed[0]; place++) {",
+            "        if (!h->crossed[place])", "            continue;", "        readers++;",
+            "        if (each)",
+            "            each(place_names[place], place_names[h->crossed_writer[place]], h->crossed[place], ctx);",
             "    }", "    return readers;", "}", "",
-            "void vars_host_crossings_reset(void)", "{",
-            "    memset(crossed, 0, sizeof crossed);", "    memset(crossed_writer, 0, sizeof crossed_writer);", "}", ""]
+            "void vars_host_crossings_reset(VarsHost *h)", "{",
+            "    memset(h->crossed, 0, sizeof h->crossed);", "    memset(h->crossed_writer, 0, sizeof h->crossed_writer);", "}", ""]
     return "\n".join(out)
 
 

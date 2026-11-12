@@ -868,13 +868,13 @@ game/field/object_view.c	59	unchecked-accessor	field_object_in_view_unchecked(g,
 game/field/objects_start.c	117	layout-expression	RAM_EVENT_VARIABLES, 0x0200 },
 game/field/objects_start.c	118	layout-expression	RAM_FIELD_OBJECT_VELOCITY_X, 0x0100 },
 game/field/objects_start.c	119	layout-expression	RAM_EVENT_SAVED_POSITIONS, 0x15C0 },
-game/field/screen_effects.c	119	layout-expression	RAM_FIELD_WINDOW_EDGE_LINES >> 16 };
-game/field/screen_effects.c	123	layout-expression	RAM_ABS(RAM_FIELD_WINDOW_EDGE_LINES)
-game/field/screen_effects.c	123	layout-expression	RAM_FIELD_WINDOW_EDGE_LINES)
-game/field/screen_effects.c	124	layout-expression	RAM_ABS(RAM_FIELD_WINDOW_EDGE_LINES_COPY);
-game/field/screen_effects.c	124	layout-expression	RAM_FIELD_WINDOW_EDGE_LINES_COPY);
-game/field/screen_effects.c	288	layout-expression	RAM_ABS(RAM_FIELD_WINDOW_EDGE_LINES));
-game/field/screen_effects.c	288	layout-expression	RAM_FIELD_WINDOW_EDGE_LINES));
+game/field/screen_effects.c	118	layout-expression	RAM_FIELD_WINDOW_EDGE_LINES >> 16 };
+game/field/screen_effects.c	122	layout-expression	RAM_ABS(RAM_FIELD_WINDOW_EDGE_LINES)
+game/field/screen_effects.c	122	layout-expression	RAM_FIELD_WINDOW_EDGE_LINES)
+game/field/screen_effects.c	123	layout-expression	RAM_ABS(RAM_FIELD_WINDOW_EDGE_LINES_COPY);
+game/field/screen_effects.c	123	layout-expression	RAM_FIELD_WINDOW_EDGE_LINES_COPY);
+game/field/screen_effects.c	287	layout-expression	RAM_ABS(RAM_FIELD_WINDOW_EDGE_LINES));
+game/field/screen_effects.c	287	layout-expression	RAM_FIELD_WINDOW_EDGE_LINES));
 game/field/script_layers.c	163	layout-expression	RAM_FIELD_BG3_TILES_UNPACKED);
 game/field/script_layers.c	165	layout-expression	RAM_FIELD_BG3_TILES_UNPACKED, LETTERS_BYTES };
 game/field/sounds.c	41	unchecked-accessor	field_object_screen_x_unchecked(g, leader.obj)
