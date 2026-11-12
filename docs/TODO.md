@@ -3007,9 +3007,18 @@ persistence seams; game-side representation changes still need explicit work.
 - CI: the macOS job costs 10x minutes on a private repo.
 ## State records
 
-- Gather field objects, combatants, characters and menu state into designed
-  records using `re/ram.toml` record declarations. Storage ownership and image
-  removal are described in [STATE.md](STATE.md).
+The live variables all have typed storage and the big field, battle, character,
+menu and submitted-sprite records are declared in `re/ram.toml`; see
+[STATE.md](STATE.md). Remaining record design:
+
+- Event object call/wait state and command queues; field layer scrolling and
+  edge-upload state.
+- Battle enemy AI, effect/anchor motion, status timers and script channels.
+- Scene program channels, racers, task/effect state and palette/tile animations.
+- Overworld actors and vehicles, menu-object command state and warp raster state.
+- Replace alternate mode views with separate logical owners as their remaining
+  scripted/bulk address consumers are removed. Preserve the shared projection
+  until those consumers no longer observe the overlap.
 
 ## Player integration checks
 

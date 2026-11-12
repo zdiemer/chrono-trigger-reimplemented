@@ -95,4 +95,6 @@ and script buffers. The 27 retired sound-loader variables and the residual
 128 KiB work-RAM image were removed. The baseline was 1,953 typed, 283
 blob-backed and 27 image-backed variables. The generated address view supports
 cartridge saves, route inspection and remaining dynamic/bulk operations;
+The generator also emits designed field-object, combatant, character, menu
+and sprite records without changing the public accessors.
 [STATE.md](STATE.md) describes the ownership rules and validation.

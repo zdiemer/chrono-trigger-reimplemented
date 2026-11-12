@@ -145,6 +145,27 @@ elements = { name = "entries", size = 2, start = 1, meaning = "Tilemap entries."
             with self.subTest(new=new), self.assertRaises(ram_map.MapError):
                 ram_map.RamMap(text=text.replace(old, new))
 
+    def test_single_record_can_own_an_array_member(self):
+        text = var("line_values", '''addr = "7E:1000"
+size = 2
+count = 12
+index = "line"
+host_module = "menu"
+''') + '''
+[[record]]
+name = "window"
+type = "MenuWindow"
+module = "menu"
+count = 1
+meaning = "Window raster lines."
+members = [{owner = "line_values", name = "lines", array = true}]
+'''
+        m = ram_map.RamMap(text=text)
+        self.assertIn("uint16_t lines[12];", ram_map.render_host_header(m))
+        self.assertIn("h->menu.window.lines[element]", ram_map.render_host_backing(m))
+        with self.assertRaises(ram_map.MapError):
+            ram_map.RamMap(text=text.replace("array = true", "array = false"))
+
     def test_small_buffers_and_byte_indexed_storage_are_not_typed(self):
         text = var("raw", '''addr = "7E:1000"
 stride = 3

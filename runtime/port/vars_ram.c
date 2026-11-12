@@ -1176,13 +1176,10 @@ uint16_t input_pressed(const GameState *g)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E00F0u;
+    uint32_t offset = 0u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_scene_call_remainder_1_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_scene_call_remainder_1_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_input_pressed(GameState *g, uint16_t v)
@@ -1190,22 +1187,19 @@ void set_input_pressed(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E00F0u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u;
+    vars_host_scene_call_remainder_1_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_scene_call_remainder_1_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t input_held(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E00F2u;
+    uint32_t offset = 2u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_scene_call_remainder_1_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_scene_call_remainder_1_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_input_held(GameState *g, uint16_t v)
@@ -1213,22 +1207,19 @@ void set_input_held(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E00F2u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 2u;
+    vars_host_scene_call_remainder_1_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_scene_call_remainder_1_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t input_repeat(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E00F4u;
+    uint32_t offset = 4u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_scene_call_remainder_1_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_scene_call_remainder_1_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_input_repeat(GameState *g, uint16_t v)
@@ -1236,9 +1227,9 @@ void set_input_repeat(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E00F4u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 4u;
+    vars_host_scene_call_remainder_1_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_scene_call_remainder_1_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t input_mapped(const GameState *g, unsigned i)
 {
@@ -1247,13 +1238,10 @@ uint16_t input_mapped(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E00F6u + (uint32_t)i * 0x02u;
+    uint32_t offset = 6u + (uint32_t)i * 2u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_scene_call_remainder_1_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_scene_call_remainder_1_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_input_mapped(GameState *g, unsigned i, uint16_t v)
@@ -1263,20 +1251,18 @@ void set_input_mapped(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E00F6u + (uint32_t)i * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 6u + (uint32_t)i * 2u;
+    vars_host_scene_call_remainder_1_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_scene_call_remainder_1_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t input_repeat_delay(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E00FCu;
+    uint32_t offset = 12u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_scene_call_remainder_1_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_input_repeat_delay(GameState *g, uint8_t v)
@@ -1284,19 +1270,17 @@ void set_input_repeat_delay(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E00FCu;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 12u;
+    vars_host_scene_call_remainder_1_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t input_repeat_countdown(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E00FDu;
+    uint32_t offset = 13u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_scene_call_remainder_1_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_input_repeat_countdown(GameState *g, uint8_t v)
@@ -1304,21 +1288,18 @@ void set_input_repeat_countdown(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E00FDu;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 13u;
+    vars_host_scene_call_remainder_1_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t input_previous(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E00FEu;
+    uint32_t offset = 14u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_scene_call_remainder_1_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_scene_call_remainder_1_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_input_previous(GameState *g, uint16_t v)
@@ -1326,9 +1307,9 @@ void set_input_previous(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E00FEu;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 14u;
+    vars_host_scene_call_remainder_1_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_scene_call_remainder_1_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t location_id(const GameState *g)
 {
@@ -2707,7 +2688,7 @@ uint8_t party_single_techs_known(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->core.party_single_techs_known[i];
+    return h->core.characters[i].single_techs_known;
 }
 void set_party_single_techs_known(GameState *g, unsigned i, uint8_t v)
 {
@@ -2716,7 +2697,7 @@ void set_party_single_techs_known(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->core.party_single_techs_known[i] = v;
+    h->core.characters[i].single_techs_known = v;
 }
 uint8_t party_single_techs_learned(const GameState *g, unsigned i)
 {
@@ -2725,7 +2706,7 @@ uint8_t party_single_techs_learned(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->core.party_single_techs_learned[i];
+    return h->core.characters[i].single_techs_learned;
 }
 void set_party_single_techs_learned(GameState *g, unsigned i, uint8_t v)
 {
@@ -2734,7 +2715,7 @@ void set_party_single_techs_learned(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->core.party_single_techs_learned[i] = v;
+    h->core.characters[i].single_techs_learned = v;
 }
 uint8_t party_double_techs_learned(const GameState *g, unsigned i)
 {
@@ -2985,7 +2966,7 @@ uint8_t character_names_byte(const GameState *g, unsigned i, unsigned at)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)(uint8_t)(h->core.character_names[i].letters[((at + 0u) + 0u) / 1u] >> (((at + 0u) + 0u) % 1u * 8)) << 0);
+    value |= (uint8_t)((uint8_t)(uint8_t)(h->core.characters[i].name.letters[((at + 0u) + 0u) / 1u] >> (((at + 0u) + 0u) % 1u * 8)) << 0);
     return value;
 }
 void set_character_names_byte(GameState *g, unsigned i, unsigned at, uint8_t v)
@@ -2996,7 +2977,7 @@ void set_character_names_byte(GameState *g, unsigned i, unsigned at, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->core.character_names[i].letters[((at + 0u) + 0u) / 1u] = (uint8_t)((h->core.character_names[i].letters[((at + 0u) + 0u) / 1u] & ~((uint32_t)0xFFu << (((at + 0u) + 0u) % 1u * 8))) | (uint32_t)(uint8_t)(v >> 0) << (((at + 0u) + 0u) % 1u * 8));
+    h->core.characters[i].name.letters[((at + 0u) + 0u) / 1u] = (uint8_t)((h->core.characters[i].name.letters[((at + 0u) + 0u) / 1u] & ~((uint32_t)0xFFu << (((at + 0u) + 0u) % 1u * 8))) | (uint32_t)(uint8_t)(v >> 0) << (((at + 0u) + 0u) % 1u * 8));
 }
 uint8_t epoch_name_byte(const GameState *g, unsigned at)
 {
@@ -3583,10 +3564,13 @@ uint16_t event_object_script_position(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 528u + (uint32_t)slot * 2u;
+    uint32_t address = 0x7E1180u + (uint32_t)slot * 0x02u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_event_object_script_position(GameState *g, unsigned slot, uint16_t v)
@@ -3596,9 +3580,9 @@ void set_event_object_script_position(GameState *g, unsigned slot, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 528u + (uint32_t)slot * 2u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E1180u + (uint32_t)slot * 0x02u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint8_t event_object_call_state_level(const GameState *g, unsigned slot)
 {
@@ -6141,13 +6125,10 @@ uint16_t field_object_screen_x(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0A00u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_screen_x_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_screen_x_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_screen_x(GameState *g, unsigned slot, uint16_t v)
@@ -6157,9 +6138,9 @@ void set_field_object_screen_x(GameState *g, unsigned slot, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0A00u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_screen_x_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_screen_x_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t field_object_screen_x_unchecked(const GameState *g, unsigned slot)
 {
@@ -6167,13 +6148,10 @@ uint16_t field_object_screen_x_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0A00u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_screen_x_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_screen_x_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_screen_x_unchecked(GameState *g, unsigned slot, uint16_t v)
@@ -6182,9 +6160,9 @@ void set_field_object_screen_x_unchecked(GameState *g, unsigned slot, uint16_t v
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0A00u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_screen_x_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_screen_x_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t field_object_screen_y(const GameState *g, unsigned slot)
 {
@@ -6193,13 +6171,10 @@ uint16_t field_object_screen_y(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0A80u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_screen_y_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_screen_y_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_screen_y(GameState *g, unsigned slot, uint16_t v)
@@ -6209,9 +6184,9 @@ void set_field_object_screen_y(GameState *g, unsigned slot, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0A80u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_screen_y_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_screen_y_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t field_object_screen_y_unchecked(const GameState *g, unsigned slot)
 {
@@ -6219,13 +6194,10 @@ uint16_t field_object_screen_y_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0A80u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_screen_y_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_screen_y_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_screen_y_unchecked(GameState *g, unsigned slot, uint16_t v)
@@ -6234,9 +6206,9 @@ void set_field_object_screen_y_unchecked(GameState *g, unsigned slot, uint16_t v
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0A80u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_screen_y_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_screen_y_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t field_object_palette_older(const GameState *g, unsigned slot)
 {
@@ -6245,11 +6217,9 @@ uint8_t field_object_palette_older(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0B00u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_palette_older_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_palette_older(GameState *g, unsigned slot, uint8_t v)
@@ -6259,8 +6229,8 @@ void set_field_object_palette_older(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0B00u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_palette_older_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_palette_newer(const GameState *g, unsigned slot)
 {
@@ -6269,11 +6239,9 @@ uint8_t field_object_palette_newer(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0B01u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_palette_newer_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_palette_newer(GameState *g, unsigned slot, uint8_t v)
@@ -6283,8 +6251,8 @@ void set_field_object_palette_newer(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0B01u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_palette_newer_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_palette_slot_newest(const GameState *g, unsigned slot)
 {
@@ -6295,7 +6263,7 @@ uint8_t field_palette_slot_newest(const GameState *g, unsigned slot)
     const VarsHost *h = state_host_vars_const(g);
     uint32_t offset = 16u + (uint32_t)slot * 1u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_between_channels_part_1_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_menu_objects_between_channels_part_1_remainder_1_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_palette_slot_newest(GameState *g, unsigned slot, uint8_t v)
@@ -6306,7 +6274,7 @@ void set_field_palette_slot_newest(GameState *g, unsigned slot, uint8_t v)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
     uint32_t offset = 16u + (uint32_t)slot * 1u;
-    vars_host_menu_objects_between_channels_part_1_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_menu_objects_between_channels_part_1_remainder_1_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_sprite_block_owner(const GameState *g, unsigned i)
 {
@@ -6317,7 +6285,7 @@ uint8_t field_sprite_block_owner(const GameState *g, unsigned i)
     const VarsHost *h = state_host_vars_const(g);
     uint32_t offset = 24u + (uint32_t)i * 1u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_between_channels_part_1_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_menu_objects_between_channels_part_1_remainder_1_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_sprite_block_owner(GameState *g, unsigned i, uint8_t v)
@@ -6328,7 +6296,7 @@ void set_field_sprite_block_owner(GameState *g, unsigned i, uint8_t v)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
     uint32_t offset = 24u + (uint32_t)i * 1u;
-    vars_host_menu_objects_between_channels_part_1_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_menu_objects_between_channels_part_1_remainder_1_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_frame_staging_claims(const GameState *g, unsigned i)
 {
@@ -6705,13 +6673,10 @@ uint16_t field_object_sprite_priority(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0C00u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_priority_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_priority_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_sprite_priority(GameState *g, unsigned slot, uint16_t v)
@@ -6721,9 +6686,9 @@ void set_field_object_sprite_priority(GameState *g, unsigned slot, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0C00u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_sprite_priority_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_priority_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t field_object_sprite_priority_unchecked(const GameState *g, unsigned slot)
 {
@@ -6731,13 +6696,10 @@ uint16_t field_object_sprite_priority_unchecked(const GameState *g, unsigned slo
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0C00u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_priority_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_priority_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_sprite_priority_unchecked(GameState *g, unsigned slot, uint16_t v)
@@ -6746,9 +6708,9 @@ void set_field_object_sprite_priority_unchecked(GameState *g, unsigned slot, uin
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0C00u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_sprite_priority_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_priority_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t field_object_sprite_tiles(const GameState *g, unsigned slot)
 {
@@ -6757,13 +6719,10 @@ uint16_t field_object_sprite_tiles(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0D00u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_sprite_tiles(GameState *g, unsigned slot, uint16_t v)
@@ -6773,9 +6732,9 @@ void set_field_object_sprite_tiles(GameState *g, unsigned slot, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0D00u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t field_object_frame_staging(const GameState *g, unsigned slot)
 {
@@ -6784,13 +6743,10 @@ uint16_t field_object_frame_staging(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0D80u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_frame_staging(GameState *g, unsigned slot, uint16_t v)
@@ -6800,9 +6756,9 @@ void set_field_object_frame_staging(GameState *g, unsigned slot, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0D80u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_staging_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t field_row_first_object(const GameState *g, unsigned row)
 {
@@ -6811,9 +6767,11 @@ uint8_t field_row_first_object(const GameState *g, unsigned row)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 16u + (uint32_t)row * 2u;
+    uint32_t address = 0x7E0E00u + (uint32_t)row * 0x02u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_6_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_field_row_first_object(GameState *g, unsigned row, uint8_t v)
@@ -6823,8 +6781,8 @@ void set_field_row_first_object(GameState *g, unsigned row, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 16u + (uint32_t)row * 2u;
-    vars_host_menu_objects_after_channels_part_6_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E0E00u + (uint32_t)row * 0x02u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_row_mark(const GameState *g, unsigned slot)
 {
@@ -6833,9 +6791,9 @@ uint8_t field_object_row_mark(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 17u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_6_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_row_mark_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_row_mark(GameState *g, unsigned slot, uint8_t v)
@@ -6845,8 +6803,8 @@ void set_field_object_row_mark(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 17u + (uint32_t)slot * 2u;
-    vars_host_menu_objects_after_channels_part_6_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_row_mark_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_row_link_previous(const GameState *g, unsigned slot)
 {
@@ -6855,11 +6813,9 @@ uint8_t field_object_row_link_previous(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0E80u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_row_link_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_row_link_previous(GameState *g, unsigned slot, uint8_t v)
@@ -6869,8 +6825,8 @@ void set_field_object_row_link_previous(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0E80u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_row_link_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_row_link_next(const GameState *g, unsigned slot)
 {
@@ -6879,11 +6835,9 @@ uint8_t field_object_row_link_next(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0E81u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 1u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_row_link_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_row_link_next(GameState *g, unsigned slot, uint8_t v)
@@ -6893,8 +6847,8 @@ void set_field_object_row_link_next(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0E81u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 1u + (uint32_t)slot * 2u;
+    vars_host_field_object_row_link_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_in_view(const GameState *g, unsigned slot)
 {
@@ -6903,11 +6857,9 @@ uint8_t field_object_in_view(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0F00u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_in_view_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_in_view(GameState *g, unsigned slot, uint8_t v)
@@ -6917,8 +6869,8 @@ void set_field_object_in_view(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0F00u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_in_view_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_in_view_unchecked(const GameState *g, unsigned slot)
 {
@@ -6926,11 +6878,9 @@ uint8_t field_object_in_view_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0F00u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_in_view_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_in_view_unchecked(GameState *g, unsigned slot, uint8_t v)
@@ -6939,8 +6889,8 @@ void set_field_object_in_view_unchecked(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0F00u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_in_view_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_frame_drawn(const GameState *g, unsigned slot)
 {
@@ -6949,11 +6899,9 @@ uint8_t field_object_frame_drawn(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0F01u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_drawn_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_frame_drawn(GameState *g, unsigned slot, uint8_t v)
@@ -6963,8 +6911,8 @@ void set_field_object_frame_drawn(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0F01u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_frame_drawn_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_priority_mode(const GameState *g, unsigned slot)
 {
@@ -6973,9 +6921,9 @@ uint8_t field_object_priority_mode(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 16u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_priority_mode_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_priority_mode(GameState *g, unsigned slot, uint8_t v)
@@ -6985,8 +6933,8 @@ void set_field_object_priority_mode(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 16u + (uint32_t)slot * 2u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_priority_mode_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_palette(const GameState *g, unsigned slot)
 {
@@ -6995,9 +6943,9 @@ uint8_t field_object_palette(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 17u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_palette_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_palette(GameState *g, unsigned slot, uint8_t v)
@@ -7007,8 +6955,8 @@ void set_field_object_palette(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 17u + (uint32_t)slot * 2u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_palette_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_step_length(const GameState *g, unsigned slot)
 {
@@ -7017,9 +6965,9 @@ uint8_t field_object_step_length(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 144u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_step_length_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_step_length(GameState *g, unsigned slot, uint8_t v)
@@ -7029,8 +6977,8 @@ void set_field_object_step_length(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 144u + (uint32_t)slot * 2u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_step_length_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_turn_countdown(const GameState *g, unsigned slot)
 {
@@ -7039,9 +6987,9 @@ uint8_t field_object_turn_countdown(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 145u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_turn_countdown_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_turn_countdown(GameState *g, unsigned slot, uint8_t v)
@@ -7051,8 +6999,8 @@ void set_field_object_turn_countdown(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 145u + (uint32_t)slot * 2u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_turn_countdown_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_script_link(const GameState *g, unsigned slot)
 {
@@ -7061,9 +7009,9 @@ uint8_t field_object_script_link(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 272u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_script_link_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_script_link(GameState *g, unsigned slot, uint8_t v)
@@ -7073,8 +7021,8 @@ void set_field_object_script_link(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 272u + (uint32_t)slot * 2u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_script_link_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_animation_link(const GameState *g, unsigned slot)
 {
@@ -7083,9 +7031,9 @@ uint8_t field_object_animation_link(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 273u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_animation_link_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_animation_link(GameState *g, unsigned slot, uint8_t v)
@@ -7095,8 +7043,8 @@ void set_field_object_animation_link(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 273u + (uint32_t)slot * 2u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_animation_link_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_role(const GameState *g, unsigned slot)
 {
@@ -7105,9 +7053,9 @@ uint8_t field_object_role(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 400u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_role_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_role(GameState *g, unsigned slot, uint8_t v)
@@ -7117,8 +7065,8 @@ void set_field_object_role(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 400u + (uint32_t)slot * 2u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_role_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_role_unchecked(const GameState *g, unsigned slot)
 {
@@ -7126,9 +7074,9 @@ uint8_t field_object_role_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 400u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_role_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_role_unchecked(GameState *g, unsigned slot, uint8_t v)
@@ -7137,8 +7085,8 @@ void set_field_object_role_unchecked(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 400u + (uint32_t)slot * 2u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_role_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_character(const GameState *g, unsigned slot)
 {
@@ -7147,9 +7095,9 @@ uint8_t field_object_character(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 401u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_character_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_character(GameState *g, unsigned slot, uint8_t v)
@@ -7159,8 +7107,8 @@ void set_field_object_character(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 401u + (uint32_t)slot * 2u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_character_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_graphics_bank(const GameState *g, unsigned slot)
 {
@@ -7169,9 +7117,9 @@ uint8_t field_object_graphics_bank(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 656u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_graphics_bank_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_graphics_bank(GameState *g, unsigned slot, uint8_t v)
@@ -7181,8 +7129,8 @@ void set_field_object_graphics_bank(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 656u + (uint32_t)slot * 2u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_graphics_bank_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_sprite_layout(const GameState *g, unsigned slot)
 {
@@ -7191,9 +7139,9 @@ uint8_t field_object_sprite_layout(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 657u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_layout_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_sprite_layout(GameState *g, unsigned slot, uint8_t v)
@@ -7203,8 +7151,8 @@ void set_field_object_sprite_layout(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 657u + (uint32_t)slot * 2u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_sprite_layout_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t field_object_graphics_address(const GameState *g, unsigned slot)
 {
@@ -7213,10 +7161,10 @@ uint16_t field_object_graphics_address(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 784u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_graphics_address_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_graphics_address_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_graphics_address(GameState *g, unsigned slot, uint16_t v)
@@ -7226,9 +7174,9 @@ void set_field_object_graphics_address(GameState *g, unsigned slot, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 784u + (uint32_t)slot * 2u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_graphics_address_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_graphics_address_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t field_object_frames_bank(const GameState *g, unsigned slot)
 {
@@ -7237,9 +7185,9 @@ uint8_t field_object_frames_bank(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 912u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frames_bank_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_frames_bank(GameState *g, unsigned slot, uint8_t v)
@@ -7249,8 +7197,8 @@ void set_field_object_frames_bank(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 912u + (uint32_t)slot * 2u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_frames_bank_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_static_frame(const GameState *g, unsigned slot)
 {
@@ -7259,9 +7207,9 @@ uint8_t field_object_static_frame(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 913u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_static_frame_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_static_frame(GameState *g, unsigned slot, uint8_t v)
@@ -7271,8 +7219,8 @@ void set_field_object_static_frame(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 913u + (uint32_t)slot * 2u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_static_frame_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t field_object_frames_address(const GameState *g, unsigned slot)
 {
@@ -7281,13 +7229,10 @@ uint16_t field_object_frames_address(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1380u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frames_address_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frames_address_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_frames_address(GameState *g, unsigned slot, uint16_t v)
@@ -7297,9 +7242,9 @@ void set_field_object_frames_address(GameState *g, unsigned slot, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1380u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_frames_address_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frames_address_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t field_object_colours(const GameState *g, unsigned slot)
 {
@@ -7308,13 +7253,10 @@ uint16_t field_object_colours(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1400u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_colours(GameState *g, unsigned slot, uint16_t v)
@@ -7324,9 +7266,9 @@ void set_field_object_colours(GameState *g, unsigned slot, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1400u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t field_object_facing_table_size(const GameState *g, unsigned slot)
 {
@@ -7335,10 +7277,10 @@ uint16_t field_object_facing_table_size(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 80u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_10_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_10_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_facing_table_size_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_facing_table_size_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_facing_table_size(GameState *g, unsigned slot, uint16_t v)
@@ -7348,9 +7290,9 @@ void set_field_object_facing_table_size(GameState *g, unsigned slot, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 80u + (uint32_t)slot * 2u;
-    vars_host_menu_objects_after_channels_part_10_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_10_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_facing_table_size_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_facing_table_size_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t field_object_frame_table(const GameState *g, unsigned slot)
 {
@@ -7359,13 +7301,10 @@ uint16_t field_object_frame_table(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1500u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_table_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_table_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_frame_table(GameState *g, unsigned slot, uint16_t v)
@@ -7375,9 +7314,9 @@ void set_field_object_frame_table(GameState *g, unsigned slot, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1500u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_frame_table_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_table_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t field_object_delay_table(const GameState *g, unsigned slot)
 {
@@ -7388,8 +7327,8 @@ uint16_t field_object_delay_table(const GameState *g, unsigned slot)
     const VarsHost *h = state_host_vars_const(g);
     uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_battle_item_rows_before_menu_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_battle_item_rows_before_menu_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_delay_table_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_delay_table_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_delay_table(GameState *g, unsigned slot, uint16_t v)
@@ -7400,8 +7339,8 @@ void set_field_object_delay_table(GameState *g, unsigned slot, uint16_t v)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
     uint32_t offset = 0u + (uint32_t)slot * 2u;
-    vars_host_battle_item_rows_before_menu_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_battle_item_rows_before_menu_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    vars_host_field_object_delay_table_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_delay_table_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t field_object_facing(const GameState *g, unsigned slot)
 {
@@ -7410,9 +7349,9 @@ uint8_t field_object_facing(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 128u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_item_rows_before_menu_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_facing_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_facing(GameState *g, unsigned slot, uint8_t v)
@@ -7422,8 +7361,8 @@ void set_field_object_facing(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 128u + (uint32_t)slot * 2u;
-    vars_host_battle_item_rows_before_menu_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_facing_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_facing_unchecked(const GameState *g, unsigned slot)
 {
@@ -7431,9 +7370,9 @@ uint8_t field_object_facing_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 128u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_item_rows_before_menu_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_facing_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_facing_unchecked(GameState *g, unsigned slot, uint8_t v)
@@ -7442,8 +7381,8 @@ void set_field_object_facing_unchecked(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 128u + (uint32_t)slot * 2u;
-    vars_host_battle_item_rows_before_menu_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_facing_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_frame_delay(const GameState *g, unsigned slot)
 {
@@ -7452,9 +7391,9 @@ uint8_t field_object_frame_delay(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 129u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_item_rows_before_menu_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_delay_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_frame_delay(GameState *g, unsigned slot, uint8_t v)
@@ -7464,8 +7403,8 @@ void set_field_object_frame_delay(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 129u + (uint32_t)slot * 2u;
-    vars_host_battle_item_rows_before_menu_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_frame_delay_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_looped_animation(const GameState *g, unsigned slot)
 {
@@ -7474,9 +7413,9 @@ uint8_t field_object_looped_animation(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 256u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_item_rows_before_menu_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_looped_animation_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_looped_animation(GameState *g, unsigned slot, uint8_t v)
@@ -7486,8 +7425,8 @@ void set_field_object_looped_animation(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 256u + (uint32_t)slot * 2u;
-    vars_host_battle_item_rows_before_menu_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_looped_animation_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_animation_frame(const GameState *g, unsigned slot)
 {
@@ -7496,9 +7435,9 @@ uint8_t field_object_animation_frame(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 257u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_item_rows_before_menu_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_animation_frame_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_animation_frame(GameState *g, unsigned slot, uint8_t v)
@@ -7508,8 +7447,8 @@ void set_field_object_animation_frame(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 257u + (uint32_t)slot * 2u;
-    vars_host_battle_item_rows_before_menu_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_animation_frame_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t field_object_sprite_records(const GameState *g, unsigned slot)
 {
@@ -7518,10 +7457,10 @@ uint16_t field_object_sprite_records(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 384u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_battle_item_rows_before_menu_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_battle_item_rows_before_menu_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_records_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_records_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_sprite_records(GameState *g, unsigned slot, uint16_t v)
@@ -7531,9 +7470,9 @@ void set_field_object_sprite_records(GameState *g, unsigned slot, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 384u + (uint32_t)slot * 2u;
-    vars_host_battle_item_rows_before_menu_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_battle_item_rows_before_menu_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_sprite_records_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_records_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t field_object_animation_mode(const GameState *g, unsigned slot)
 {
@@ -7542,9 +7481,9 @@ uint8_t field_object_animation_mode(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 512u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_item_rows_before_menu_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_animation_mode_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_animation_mode(GameState *g, unsigned slot, uint8_t v)
@@ -7554,8 +7493,8 @@ void set_field_object_animation_mode(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 512u + (uint32_t)slot * 2u;
-    vars_host_battle_item_rows_before_menu_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_animation_mode_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_one_off_animation(const GameState *g, unsigned slot)
 {
@@ -7564,9 +7503,9 @@ uint8_t field_object_one_off_animation(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 513u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_item_rows_before_menu_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_one_off_animation_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_one_off_animation(GameState *g, unsigned slot, uint8_t v)
@@ -7576,8 +7515,8 @@ void set_field_object_one_off_animation(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 513u + (uint32_t)slot * 2u;
-    vars_host_battle_item_rows_before_menu_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_one_off_animation_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_x_fine(const GameState *g, unsigned slot)
 {
@@ -7586,11 +7525,9 @@ uint8_t field_object_x_fine(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1800u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_x_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_x_fine(GameState *g, unsigned slot, uint8_t v)
@@ -7600,8 +7537,8 @@ void set_field_object_x_fine(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1800u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_x_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_x_tile(const GameState *g, unsigned slot)
 {
@@ -7610,11 +7547,9 @@ uint8_t field_object_x_tile(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1801u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 1u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_x_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_x_tile(GameState *g, unsigned slot, uint8_t v)
@@ -7624,8 +7559,8 @@ void set_field_object_x_tile(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1801u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 1u + (uint32_t)slot * 2u;
+    vars_host_field_object_x_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_x_fine_unchecked(const GameState *g, unsigned slot)
 {
@@ -7633,11 +7568,9 @@ uint8_t field_object_x_fine_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1800u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_x_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_x_fine_unchecked(GameState *g, unsigned slot, uint8_t v)
@@ -7646,8 +7579,8 @@ void set_field_object_x_fine_unchecked(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1800u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_x_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_x_tile_unchecked(const GameState *g, unsigned slot)
 {
@@ -7655,11 +7588,9 @@ uint8_t field_object_x_tile_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1801u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 1u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_x_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_x_tile_unchecked(GameState *g, unsigned slot, uint8_t v)
@@ -7668,8 +7599,8 @@ void set_field_object_x_tile_unchecked(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1801u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 1u + (uint32_t)slot * 2u;
+    vars_host_field_object_x_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_y_fine(const GameState *g, unsigned slot)
 {
@@ -7678,11 +7609,9 @@ uint8_t field_object_y_fine(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1880u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_y_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_y_fine(GameState *g, unsigned slot, uint8_t v)
@@ -7692,8 +7621,8 @@ void set_field_object_y_fine(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1880u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_y_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_y_tile(const GameState *g, unsigned slot)
 {
@@ -7702,11 +7631,9 @@ uint8_t field_object_y_tile(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1881u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 1u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_y_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_y_tile(GameState *g, unsigned slot, uint8_t v)
@@ -7716,8 +7643,8 @@ void set_field_object_y_tile(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1881u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 1u + (uint32_t)slot * 2u;
+    vars_host_field_object_y_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_y_fine_unchecked(const GameState *g, unsigned slot)
 {
@@ -7725,11 +7652,9 @@ uint8_t field_object_y_fine_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1880u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_y_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_y_fine_unchecked(GameState *g, unsigned slot, uint8_t v)
@@ -7738,8 +7663,8 @@ void set_field_object_y_fine_unchecked(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1880u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_y_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_y_tile_unchecked(const GameState *g, unsigned slot)
 {
@@ -7747,11 +7672,9 @@ uint8_t field_object_y_tile_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1881u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 1u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_y_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_y_tile_unchecked(GameState *g, unsigned slot, uint8_t v)
@@ -7760,8 +7683,8 @@ void set_field_object_y_tile_unchecked(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1881u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 1u + (uint32_t)slot * 2u;
+    vars_host_field_object_y_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t field_object_velocity_x(const GameState *g, unsigned slot)
 {
@@ -7770,13 +7693,10 @@ uint16_t field_object_velocity_x(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1900u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_velocity_x_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_velocity_x_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_velocity_x(GameState *g, unsigned slot, uint16_t v)
@@ -7786,9 +7706,9 @@ void set_field_object_velocity_x(GameState *g, unsigned slot, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1900u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_velocity_x_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_velocity_x_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t field_object_velocity_x_unchecked(const GameState *g, unsigned slot)
 {
@@ -7796,13 +7716,10 @@ uint16_t field_object_velocity_x_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1900u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_velocity_x_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_velocity_x_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_velocity_x_unchecked(GameState *g, unsigned slot, uint16_t v)
@@ -7811,9 +7728,9 @@ void set_field_object_velocity_x_unchecked(GameState *g, unsigned slot, uint16_t
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1900u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_velocity_x_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_velocity_x_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t field_object_velocity_y(const GameState *g, unsigned slot)
 {
@@ -7822,13 +7739,10 @@ uint16_t field_object_velocity_y(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1980u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_velocity_y_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_velocity_y_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_velocity_y(GameState *g, unsigned slot, uint16_t v)
@@ -7838,9 +7752,9 @@ void set_field_object_velocity_y(GameState *g, unsigned slot, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1980u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_velocity_y_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_velocity_y_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t field_object_velocity_y_unchecked(const GameState *g, unsigned slot)
 {
@@ -7848,13 +7762,10 @@ uint16_t field_object_velocity_y_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1980u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_velocity_y_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_velocity_y_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_field_object_velocity_y_unchecked(GameState *g, unsigned slot, uint16_t v)
@@ -7863,9 +7774,9 @@ void set_field_object_velocity_y_unchecked(GameState *g, unsigned slot, uint16_t
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1980u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_velocity_y_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_velocity_y_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t field_object_speed(const GameState *g, unsigned slot)
 {
@@ -7874,11 +7785,9 @@ uint8_t field_object_speed(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1A00u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_speed_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_speed(GameState *g, unsigned slot, uint8_t v)
@@ -7888,8 +7797,8 @@ void set_field_object_speed(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1A00u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_speed_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_steps_left(const GameState *g, unsigned slot)
 {
@@ -7898,11 +7807,9 @@ uint8_t field_object_steps_left(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1A01u + (uint32_t)slot * 0x02u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_steps_left_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_steps_left(GameState *g, unsigned slot, uint8_t v)
@@ -7912,8 +7819,8 @@ void set_field_object_steps_left(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1A01u + (uint32_t)slot * 0x02u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_steps_left_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_counted_move(const GameState *g, unsigned slot)
 {
@@ -7924,7 +7831,7 @@ uint8_t field_object_counted_move(const GameState *g, unsigned slot)
     const VarsHost *h = state_host_vars_const(g);
     uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_counted_move_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_counted_move(GameState *g, unsigned slot, uint8_t v)
@@ -7935,7 +7842,7 @@ void set_field_object_counted_move(GameState *g, unsigned slot, uint8_t v)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
     uint32_t offset = 0u + (uint32_t)slot * 2u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_counted_move_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_sprite_flag(const GameState *g, unsigned slot)
 {
@@ -7944,9 +7851,9 @@ uint8_t field_object_sprite_flag(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 1u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_flag_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_sprite_flag(GameState *g, unsigned slot, uint8_t v)
@@ -7956,8 +7863,8 @@ void set_field_object_sprite_flag(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 1u + (uint32_t)slot * 2u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_sprite_flag_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_sprite_flag_unchecked(const GameState *g, unsigned slot)
 {
@@ -7965,9 +7872,9 @@ uint8_t field_object_sprite_flag_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 1u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_flag_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_sprite_flag_unchecked(GameState *g, unsigned slot, uint8_t v)
@@ -7976,8 +7883,8 @@ void set_field_object_sprite_flag_unchecked(GameState *g, unsigned slot, uint8_t
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 1u + (uint32_t)slot * 2u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_sprite_flag_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_sprite_state(const GameState *g, unsigned slot)
 {
@@ -7986,9 +7893,9 @@ uint8_t field_object_sprite_state(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 128u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_state_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_sprite_state(GameState *g, unsigned slot, uint8_t v)
@@ -7998,8 +7905,8 @@ void set_field_object_sprite_state(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 128u + (uint32_t)slot * 2u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_sprite_state_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_solid(const GameState *g, unsigned slot)
 {
@@ -8008,9 +7915,9 @@ uint8_t field_object_solid(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 129u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_solid_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_solid(GameState *g, unsigned slot, uint8_t v)
@@ -8020,8 +7927,8 @@ void set_field_object_solid(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 129u + (uint32_t)slot * 2u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_solid_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_solid_unchecked(const GameState *g, unsigned slot)
 {
@@ -8029,9 +7936,9 @@ uint8_t field_object_solid_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 129u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_solid_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_solid_unchecked(GameState *g, unsigned slot, uint8_t v)
@@ -8040,8 +7947,8 @@ void set_field_object_solid_unchecked(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 129u + (uint32_t)slot * 2u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_solid_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_accelerating(const GameState *g, unsigned slot)
 {
@@ -8050,9 +7957,9 @@ uint8_t field_object_accelerating(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 256u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_accelerating_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_accelerating(GameState *g, unsigned slot, uint8_t v)
@@ -8062,8 +7969,8 @@ void set_field_object_accelerating(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 256u + (uint32_t)slot * 2u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_accelerating_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_acceleration(const GameState *g, unsigned slot)
 {
@@ -8072,9 +7979,9 @@ uint8_t field_object_acceleration(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 257u + (uint32_t)slot * 2u;
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_acceleration_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_field_object_acceleration(GameState *g, unsigned slot, uint8_t v)
@@ -8084,8 +7991,8 @@ void set_field_object_acceleration(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 257u + (uint32_t)slot * 2u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)slot * 2u;
+    vars_host_field_object_acceleration_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t field_object_blocking(const GameState *g, unsigned slot)
 {
@@ -8094,7 +8001,7 @@ uint8_t field_object_blocking(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->field.field_object_blocking[slot];
+    return h->field.objects[slot].blocking;
 }
 void set_field_object_blocking(GameState *g, unsigned slot, uint8_t v)
 {
@@ -8103,7 +8010,7 @@ void set_field_object_blocking(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->field.field_object_blocking[slot] = v;
+    h->field.objects[slot].blocking = v;
 }
 uint8_t field_object_arrival_flags(const GameState *g, unsigned slot)
 {
@@ -8112,7 +8019,7 @@ uint8_t field_object_arrival_flags(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->field.field_object_arrival_flags[slot];
+    return h->field.objects[slot].arrival_flags;
 }
 void set_field_object_arrival_flags(GameState *g, unsigned slot, uint8_t v)
 {
@@ -8121,7 +8028,7 @@ void set_field_object_arrival_flags(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->field.field_object_arrival_flags[slot] = v;
+    h->field.objects[slot].arrival_flags = v;
 }
 uint8_t field_screen_scroll_state(const GameState *g)
 {
@@ -10066,7 +9973,7 @@ uint8_t field_object_tile_crossing(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->field.field_object_tile_crossing[slot];
+    return h->field.objects[slot].tile_crossing;
 }
 void set_field_object_tile_crossing(GameState *g, unsigned slot, uint8_t v)
 {
@@ -10075,7 +9982,7 @@ void set_field_object_tile_crossing(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->field.field_object_tile_crossing[slot] = v;
+    h->field.objects[slot].tile_crossing = v;
 }
 uint8_t field_object_one_off_half_passes(const GameState *g, unsigned slot)
 {
@@ -10084,7 +9991,7 @@ uint8_t field_object_one_off_half_passes(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->field.field_object_one_off_half_passes[slot];
+    return h->field.objects[slot].one_off_half_passes;
 }
 void set_field_object_one_off_half_passes(GameState *g, unsigned slot, uint8_t v)
 {
@@ -10093,7 +10000,7 @@ void set_field_object_one_off_half_passes(GameState *g, unsigned slot, uint8_t v
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->field.field_object_one_off_half_passes[slot] = v;
+    h->field.objects[slot].one_off_half_passes = v;
 }
 uint16_t field_object_colour_effect(const GameState *g, unsigned slot)
 {
@@ -10102,7 +10009,7 @@ uint16_t field_object_colour_effect(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->field.field_object_colour_effect[slot];
+    return h->field.objects[slot].colour_effect;
 }
 void set_field_object_colour_effect(GameState *g, unsigned slot, uint16_t v)
 {
@@ -10111,7 +10018,7 @@ void set_field_object_colour_effect(GameState *g, unsigned slot, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->field.field_object_colour_effect[slot] = v;
+    h->field.objects[slot].colour_effect = v;
 }
 uint8_t field_trail_movement_x(const GameState *g, unsigned i)
 {
@@ -15713,14 +15620,14 @@ uint16_t menu_window_place(const GameState *g)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_window_place;
+    return h->menu.window.place;
 }
 void set_menu_window_place(GameState *g, uint16_t v)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_window_place = v;
+    h->menu.window.place = v;
 }
 uint16_t menu_line_start(const GameState *g)
 {
@@ -16498,7 +16405,7 @@ uint8_t menu_tasks_state(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_tasks[i].state;
+    return h->menu.tasks[i].state;
 }
 void set_menu_tasks_state(GameState *g, unsigned i, uint8_t v)
 {
@@ -16507,7 +16414,7 @@ void set_menu_tasks_state(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_tasks[i].state = v;
+    h->menu.tasks[i].state = v;
 }
 uint8_t menu_tasks_countdown(const GameState *g, unsigned i)
 {
@@ -16516,7 +16423,7 @@ uint8_t menu_tasks_countdown(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_tasks[i].countdown;
+    return h->menu.tasks[i].countdown;
 }
 void set_menu_tasks_countdown(GameState *g, unsigned i, uint8_t v)
 {
@@ -16525,7 +16432,7 @@ void set_menu_tasks_countdown(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_tasks[i].countdown = v;
+    h->menu.tasks[i].countdown = v;
 }
 uint16_t menu_tasks_start(const GameState *g, unsigned i)
 {
@@ -16534,7 +16441,7 @@ uint16_t menu_tasks_start(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_tasks[i].start;
+    return h->menu.tasks[i].start;
 }
 void set_menu_tasks_start(GameState *g, unsigned i, uint16_t v)
 {
@@ -16543,7 +16450,7 @@ void set_menu_tasks_start(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_tasks[i].start = v;
+    h->menu.tasks[i].start = v;
 }
 uint16_t menu_tasks_stack(const GameState *g, unsigned i)
 {
@@ -16552,7 +16459,7 @@ uint16_t menu_tasks_stack(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_tasks[i].stack;
+    return h->menu.tasks[i].stack;
 }
 void set_menu_tasks_stack(GameState *g, unsigned i, uint16_t v)
 {
@@ -16561,7 +16468,7 @@ void set_menu_tasks_stack(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_tasks[i].stack = v;
+    h->menu.tasks[i].stack = v;
 }
 uint8_t menu_tasks_step(const GameState *g, unsigned i)
 {
@@ -16570,7 +16477,7 @@ uint8_t menu_tasks_step(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_tasks[i].step;
+    return h->menu.tasks[i].step;
 }
 void set_menu_tasks_step(GameState *g, unsigned i, uint8_t v)
 {
@@ -16579,7 +16486,7 @@ void set_menu_tasks_step(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_tasks[i].step = v;
+    h->menu.tasks[i].step = v;
 }
 uint8_t menu_tasks_step_high(const GameState *g, unsigned i)
 {
@@ -16588,7 +16495,7 @@ uint8_t menu_tasks_step_high(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_tasks[i].step_high;
+    return h->menu.tasks[i].step_high;
 }
 void set_menu_tasks_step_high(GameState *g, unsigned i, uint8_t v)
 {
@@ -16597,7 +16504,7 @@ void set_menu_tasks_step_high(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_tasks[i].step_high = v;
+    h->menu.tasks[i].step_high = v;
 }
 uint16_t menu_wave_phase(const GameState *g)
 {
@@ -17626,28 +17533,38 @@ uint8_t menu_asked_for(const GameState *g)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_asked_for;
+    uint32_t offset = 0u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_screen_x_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_asked_for(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_asked_for = v;
+    uint32_t offset = 0u;
+    vars_host_field_object_screen_x_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_asked_with(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_asked_with;
+    uint32_t offset = 1u;
+    uint16_t value = 0;
+    value |= (uint16_t)((uint16_t)vars_host_field_object_screen_x_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_screen_x_values_read8(h, offset + 1u) << 8);
+    return value;
 }
 void set_menu_asked_with(GameState *g, uint16_t v)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_asked_with = v;
+    uint32_t offset = 1u;
+    vars_host_field_object_screen_x_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_screen_x_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_vram_queue_vram(const GameState *g, unsigned i)
 {
@@ -17783,9 +17700,9 @@ uint8_t menu_frame_counter(const GameState *g)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 16u;
+    uint32_t offset = 0u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_frame_counter(GameState *g, uint8_t v)
@@ -17793,17 +17710,17 @@ void set_menu_frame_counter(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 16u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_vblank_done(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 17u;
+    uint32_t offset = 1u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_vblank_done(GameState *g, uint8_t v)
@@ -17811,8 +17728,8 @@ void set_menu_vblank_done(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 17u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 1u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_scroll_x(const GameState *g, unsigned layer)
 {
@@ -17821,10 +17738,10 @@ uint16_t menu_scroll_x(const GameState *g, unsigned layer)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 20u + (uint32_t)layer * 4u;
+    uint32_t offset = 4u + (uint32_t)layer * 4u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_scroll_x(GameState *g, unsigned layer, uint16_t v)
@@ -17834,9 +17751,9 @@ void set_menu_scroll_x(GameState *g, unsigned layer, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 20u + (uint32_t)layer * 4u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 4u + (uint32_t)layer * 4u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_scroll_y(const GameState *g, unsigned layer)
 {
@@ -17845,10 +17762,10 @@ uint16_t menu_scroll_y(const GameState *g, unsigned layer)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 22u + (uint32_t)layer * 4u;
+    uint32_t offset = 6u + (uint32_t)layer * 4u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_scroll_y(GameState *g, unsigned layer, uint16_t v)
@@ -17858,18 +17775,18 @@ void set_menu_scroll_y(GameState *g, unsigned layer, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 22u + (uint32_t)layer * 4u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 6u + (uint32_t)layer * 4u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_brightness(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 32u;
+    uint32_t offset = 16u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_brightness(GameState *g, uint8_t v)
@@ -17877,17 +17794,17 @@ void set_menu_brightness(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 32u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 16u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_vram_queue_bytes(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 33u;
+    uint32_t offset = 17u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_vram_queue_bytes(GameState *g, uint8_t v)
@@ -17895,17 +17812,17 @@ void set_menu_vram_queue_bytes(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 33u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 17u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_vram_queue_bytes_high(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 34u;
+    uint32_t offset = 18u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_vram_queue_bytes_high(GameState *g, uint8_t v)
@@ -17913,17 +17830,17 @@ void set_menu_vram_queue_bytes_high(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 34u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 18u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_line_effects(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 35u;
+    uint32_t offset = 19u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_line_effects(GameState *g, uint8_t v)
@@ -17931,17 +17848,17 @@ void set_menu_line_effects(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 35u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 19u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_palette_changed(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 37u;
+    uint32_t offset = 21u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_palette_changed(GameState *g, uint8_t v)
@@ -17949,17 +17866,17 @@ void set_menu_palette_changed(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 37u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 21u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_cursor_step_seen(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 39u;
+    uint32_t offset = 23u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_cursor_step_seen(GameState *g, uint8_t v)
@@ -17967,17 +17884,17 @@ void set_menu_cursor_step_seen(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 39u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 23u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_fast_repeat(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 40u;
+    uint32_t offset = 24u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_fast_repeat(GameState *g, uint8_t v)
@@ -17985,18 +17902,18 @@ void set_menu_fast_repeat(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 40u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 24u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_repeat_phase(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 41u;
+    uint32_t offset = 25u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_repeat_phase(GameState *g, uint16_t v)
@@ -18004,18 +17921,18 @@ void set_menu_repeat_phase(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 41u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 25u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_cursor_buttons(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 45u;
+    uint32_t offset = 29u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_cursor_buttons(GameState *g, uint8_t v)
@@ -18023,17 +17940,17 @@ void set_menu_cursor_buttons(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 45u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 29u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_cursor_direction(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 46u;
+    uint32_t offset = 30u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_cursor_direction(GameState *g, uint8_t v)
@@ -18041,17 +17958,17 @@ void set_menu_cursor_direction(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 46u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 30u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_cursor_held(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 47u;
+    uint32_t offset = 31u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_cursor_held(GameState *g, uint8_t v)
@@ -18059,17 +17976,17 @@ void set_menu_cursor_held(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 47u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 31u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_fade_step(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 48u;
+    uint32_t offset = 32u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_fade_step(GameState *g, uint8_t v)
@@ -18077,17 +17994,17 @@ void set_menu_fade_step(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 48u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 32u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_fade_frames(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 49u;
+    uint32_t offset = 33u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_fade_frames(GameState *g, uint8_t v)
@@ -18095,18 +18012,18 @@ void set_menu_fade_frames(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 49u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 33u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_scroll_step(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 50u;
+    uint32_t offset = 34u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_scroll_step(GameState *g, uint16_t v)
@@ -18114,19 +18031,19 @@ void set_menu_scroll_step(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 50u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 34u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_scroll_frames(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 52u;
+    uint32_t offset = 36u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_scroll_frames(GameState *g, uint16_t v)
@@ -18134,18 +18051,18 @@ void set_menu_scroll_frames(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 52u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 36u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_window_frames_slid(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 52u;
+    uint32_t offset = 36u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_window_frames_slid(GameState *g, uint8_t v)
@@ -18153,17 +18070,17 @@ void set_menu_window_frames_slid(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 52u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 36u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_window_rows_wait(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 53u;
+    uint32_t offset = 37u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_window_rows_wait(GameState *g, uint8_t v)
@@ -18171,18 +18088,18 @@ void set_menu_window_rows_wait(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 53u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 37u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_equip_record_place(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 54u;
+    uint32_t offset = 38u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_equip_record_place(GameState *g, uint16_t v)
@@ -18190,19 +18107,19 @@ void set_menu_equip_record_place(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 54u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 38u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_item_list_place(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 54u;
+    uint32_t offset = 38u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_2_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_item_list_place(GameState *g, uint16_t v)
@@ -18210,74 +18127,98 @@ void set_menu_item_list_place(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 54u;
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_2_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 38u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_item_data_at(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_item_data_at;
+    uint32_t offset = 40u;
+    uint16_t value = 0;
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 1u) << 8);
+    return value;
 }
 void set_menu_item_data_at(GameState *g, uint16_t v)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_item_data_at = v;
+    uint32_t offset = 40u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_item_figures_at(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_item_figures_at;
+    uint32_t offset = 42u;
+    uint16_t value = 0;
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 1u) << 8);
+    return value;
 }
 void set_menu_item_figures_at(GameState *g, uint16_t v)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_item_figures_at = v;
+    uint32_t offset = 42u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_record_offset(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_record_offset;
+    uint32_t offset = 44u;
+    uint16_t value = 0;
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 1u) << 8);
+    return value;
 }
 void set_menu_record_offset(GameState *g, uint16_t v)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_record_offset = v;
+    uint32_t offset = 44u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_record_origin_x(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_record_origin_x;
+    uint32_t offset = 46u;
+    uint16_t value = 0;
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 1u) << 8);
+    return value;
 }
 void set_menu_record_origin_x(GameState *g, uint16_t v)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_record_origin_x = v;
+    uint32_t offset = 46u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_record_origin_y(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 0u;
+    uint32_t offset = 48u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_3_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_record_origin_y(GameState *g, uint8_t v)
@@ -18285,17 +18226,17 @@ void set_menu_record_origin_y(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 0u;
-    vars_host_menu_objects_after_channels_part_3_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 48u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_record_origin_y_high(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 1u;
+    uint32_t offset = 49u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_3_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_record_origin_y_high(GameState *g, uint8_t v)
@@ -18303,8 +18244,8 @@ void set_menu_record_origin_y_high(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 1u;
-    vars_host_menu_objects_after_channels_part_3_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 49u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_place_items(const GameState *g, unsigned i)
 {
@@ -18313,10 +18254,10 @@ uint16_t menu_place_items(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 2u + (uint32_t)i * 2u;
+    uint32_t offset = 50u + (uint32_t)i * 2u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_3_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_3_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_place_items(GameState *g, unsigned i, uint16_t v)
@@ -18326,18 +18267,18 @@ void set_menu_place_items(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 2u + (uint32_t)i * 2u;
-    vars_host_menu_objects_after_channels_part_3_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_3_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 50u + (uint32_t)i * 2u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_exchange_layout(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 6u;
+    uint32_t offset = 54u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_3_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_exchange_layout(GameState *g, uint8_t v)
@@ -18345,17 +18286,17 @@ void set_menu_exchange_layout(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 6u;
-    vars_host_menu_objects_after_channels_part_3_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 54u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_exchange_layout_high(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 7u;
+    uint32_t offset = 55u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_3_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_exchange_layout_high(GameState *g, uint8_t v)
@@ -18363,8 +18304,8 @@ void set_menu_exchange_layout_high(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 7u;
-    vars_host_menu_objects_after_channels_part_3_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 55u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_low_hp_marks(const GameState *g, unsigned i)
 {
@@ -18373,10 +18314,10 @@ uint16_t menu_low_hp_marks(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 8u + (uint32_t)i * 2u;
+    uint32_t offset = 56u + (uint32_t)i * 2u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_3_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_3_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_low_hp_marks(GameState *g, unsigned i, uint16_t v)
@@ -18386,9 +18327,9 @@ void set_menu_low_hp_marks(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 8u + (uint32_t)i * 2u;
-    vars_host_menu_objects_after_channels_part_3_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_3_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 56u + (uint32_t)i * 2u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_low_hp_marks_unchecked(const GameState *g, unsigned i)
 {
@@ -18396,10 +18337,10 @@ uint16_t menu_low_hp_marks_unchecked(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 8u + (uint32_t)i * 2u;
+    uint32_t offset = 56u + (uint32_t)i * 2u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_3_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_3_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_low_hp_marks_unchecked(GameState *g, unsigned i, uint16_t v)
@@ -18408,18 +18349,18 @@ void set_menu_low_hp_marks_unchecked(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 8u + (uint32_t)i * 2u;
-    vars_host_menu_objects_after_channels_part_3_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_3_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 56u + (uint32_t)i * 2u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_portrait_character(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 22u;
+    uint32_t offset = 70u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_3_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_portrait_character(GameState *g, uint8_t v)
@@ -18427,18 +18368,18 @@ void set_menu_portrait_character(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 22u;
-    vars_host_menu_objects_after_channels_part_3_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 70u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_window_style(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 23u;
+    uint32_t offset = 71u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_3_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_3_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_window_style(GameState *g, uint16_t v)
@@ -18446,9 +18387,9 @@ void set_menu_window_style(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 23u;
-    vars_host_menu_objects_after_channels_part_3_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_3_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 71u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_save_slot_in_use(const GameState *g, unsigned slot)
 {
@@ -18457,9 +18398,9 @@ uint8_t menu_save_slot_in_use(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 25u + (uint32_t)slot * 1u;
+    uint32_t offset = 73u + (uint32_t)slot * 1u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_3_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_save_slot_in_use(GameState *g, unsigned slot, uint8_t v)
@@ -18469,8 +18410,8 @@ void set_menu_save_slot_in_use(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 25u + (uint32_t)slot * 1u;
-    vars_host_menu_objects_after_channels_part_3_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 73u + (uint32_t)slot * 1u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_figure_marks(const GameState *g, unsigned i)
 {
@@ -18479,11 +18420,9 @@ uint8_t menu_figure_marks(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0D4Du + (uint32_t)i * 0x01u;
+    uint32_t offset = 77u + (uint32_t)i * 1u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_figure_marks(GameState *g, unsigned i, uint8_t v)
@@ -18493,17 +18432,17 @@ void set_menu_figure_marks(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0D4Du + (uint32_t)i * 0x01u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 77u + (uint32_t)i * 1u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_item_power(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 0u;
+    uint32_t offset = 77u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_member_face_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_item_power(GameState *g, uint8_t v)
@@ -18511,17 +18450,17 @@ void set_menu_item_power(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 0u;
-    vars_host_menu_member_face_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 77u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_item_row_item(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 0u;
+    uint32_t offset = 77u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_member_face_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_item_row_item(GameState *g, uint8_t v)
@@ -18529,31 +18468,37 @@ void set_menu_item_row_item(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 0u;
-    vars_host_menu_member_face_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 77u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_member_face(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_member_face;
+    uint32_t offset = 77u;
+    uint16_t value = 0;
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 1u) << 8);
+    return value;
 }
 void set_menu_member_face(GameState *g, uint16_t v)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_member_face = v;
+    uint32_t offset = 77u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_item_row_count(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 1u;
+    uint32_t offset = 78u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_member_face_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_item_row_count(GameState *g, uint8_t v)
@@ -18561,17 +18506,17 @@ void set_menu_item_row_count(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 1u;
-    vars_host_menu_member_face_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 78u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_member_marked(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 45u;
+    uint32_t offset = 93u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_3_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_member_marked(GameState *g, uint8_t v)
@@ -18579,17 +18524,17 @@ void set_menu_member_marked(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 45u;
-    vars_host_menu_objects_after_channels_part_3_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 93u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_member_marked_high(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 46u;
+    uint32_t offset = 94u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_3_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_member_marked_high(GameState *g, uint8_t v)
@@ -18597,8 +18542,8 @@ void set_menu_member_marked_high(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 46u;
-    vars_host_menu_objects_after_channels_part_3_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 94u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_members(const GameState *g, unsigned member)
 {
@@ -18607,9 +18552,9 @@ uint8_t menu_members(const GameState *g, unsigned member)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 47u + (uint32_t)member * 1u;
+    uint32_t offset = 95u + (uint32_t)member * 1u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_3_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_members(GameState *g, unsigned member, uint8_t v)
@@ -18619,8 +18564,8 @@ void set_menu_members(GameState *g, unsigned member, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 47u + (uint32_t)member * 1u;
-    vars_host_menu_objects_after_channels_part_3_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 95u + (uint32_t)member * 1u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_member_places(const GameState *g, unsigned member)
 {
@@ -18629,11 +18574,9 @@ uint8_t menu_member_places(const GameState *g, unsigned member)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0D68u + (uint32_t)member * 0x01u;
+    uint32_t offset = 104u + (uint32_t)member * 1u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_member_places(GameState *g, unsigned member, uint8_t v)
@@ -18643,17 +18586,17 @@ void set_menu_member_places(GameState *g, unsigned member, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0D68u + (uint32_t)member * 0x01u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 104u + (uint32_t)member * 1u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_item_users_noted(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 1u;
+    uint32_t offset = 113u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_item_users_noted(GameState *g, uint8_t v)
@@ -18661,17 +18604,17 @@ void set_menu_item_users_noted(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 1u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 113u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_record_buffer_half(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 2u;
+    uint32_t offset = 114u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_record_buffer_half(GameState *g, uint8_t v)
@@ -18679,17 +18622,17 @@ void set_menu_record_buffer_half(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 2u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 114u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_record_blocks_sent(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 3u;
+    uint32_t offset = 115u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_record_blocks_sent(GameState *g, uint8_t v)
@@ -18697,31 +18640,35 @@ void set_menu_record_blocks_sent(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 3u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 115u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_record_blocks_sent_high(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_record_blocks_sent_high;
+    uint32_t offset = 116u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_record_blocks_sent_high(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_record_blocks_sent_high = v;
+    uint32_t offset = 116u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_record_block_limit(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 5u;
+    uint32_t offset = 117u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_record_block_limit(GameState *g, uint8_t v)
@@ -18729,17 +18676,17 @@ void set_menu_record_block_limit(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 5u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 117u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_wait_frames(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 6u;
+    uint32_t offset = 118u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_wait_frames(GameState *g, uint8_t v)
@@ -18747,17 +18694,17 @@ void set_menu_wait_frames(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 6u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 118u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_description_item(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 7u;
+    uint32_t offset = 119u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_description_item(GameState *g, uint8_t v)
@@ -18765,17 +18712,17 @@ void set_menu_description_item(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 7u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 119u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_save_slot_era(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 7u;
+    uint32_t offset = 119u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_save_slot_era(GameState *g, uint8_t v)
@@ -18783,17 +18730,17 @@ void set_menu_save_slot_era(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 7u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 119u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_description_stale(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 8u;
+    uint32_t offset = 120u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_description_stale(GameState *g, uint8_t v)
@@ -18801,8 +18748,8 @@ void set_menu_description_stale(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 8u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 120u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_save_slot_design(const GameState *g, unsigned slot)
 {
@@ -18811,9 +18758,9 @@ uint8_t menu_save_slot_design(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 9u + (uint32_t)slot * 1u;
+    uint32_t offset = 121u + (uint32_t)slot * 1u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_save_slot_design(GameState *g, unsigned slot, uint8_t v)
@@ -18823,8 +18770,8 @@ void set_menu_save_slot_design(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 9u + (uint32_t)slot * 1u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 121u + (uint32_t)slot * 1u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_story_items(const GameState *g, unsigned i)
 {
@@ -18833,10 +18780,10 @@ uint16_t menu_story_items(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 12u + (uint32_t)i * 2u;
+    uint32_t offset = 124u + (uint32_t)i * 2u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_sprite_tiles_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_story_items(GameState *g, unsigned i, uint16_t v)
@@ -18846,18 +18793,18 @@ void set_menu_story_items(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 12u + (uint32_t)i * 2u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 124u + (uint32_t)i * 2u;
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_sprite_tiles_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_item_worn_count(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 18u;
+    uint32_t offset = 2u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_item_worn_count(GameState *g, uint8_t v)
@@ -18865,17 +18812,17 @@ void set_menu_item_worn_count(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 18u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 2u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_cursor_always_back(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 19u;
+    uint32_t offset = 3u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_cursor_always_back(GameState *g, uint8_t v)
@@ -18883,18 +18830,18 @@ void set_menu_cursor_always_back(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 19u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 3u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_save_header_taken(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 20u;
+    uint32_t offset = 4u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_save_header_taken(GameState *g, uint16_t v)
@@ -18902,18 +18849,18 @@ void set_menu_save_header_taken(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 20u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 4u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_staging_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_setting_sound_output(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 22u;
+    uint32_t offset = 6u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_setting_sound_output(GameState *g, uint8_t v)
@@ -18921,17 +18868,17 @@ void set_menu_setting_sound_output(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 22u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 6u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_setting_own_buttons(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 23u;
+    uint32_t offset = 7u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_setting_own_buttons(GameState *g, uint8_t v)
@@ -18939,17 +18886,17 @@ void set_menu_setting_own_buttons(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 23u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 7u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_setting_keep_menu_cursors(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 24u;
+    uint32_t offset = 8u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_setting_keep_menu_cursors(GameState *g, uint8_t v)
@@ -18957,17 +18904,17 @@ void set_menu_setting_keep_menu_cursors(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 24u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 8u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_setting_active_time(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 25u;
+    uint32_t offset = 9u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_setting_active_time(GameState *g, uint8_t v)
@@ -18975,17 +18922,17 @@ void set_menu_setting_active_time(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 25u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 9u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_setting_battle_gauge(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 26u;
+    uint32_t offset = 10u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_setting_battle_gauge(GameState *g, uint8_t v)
@@ -18993,17 +18940,17 @@ void set_menu_setting_battle_gauge(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 26u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 10u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_setting_battle_speed(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 27u;
+    uint32_t offset = 11u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_setting_battle_speed(GameState *g, uint8_t v)
@@ -19011,73 +18958,89 @@ void set_menu_setting_battle_speed(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 27u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 11u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_window_design(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_window_design;
+    uint32_t offset = 12u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_window_design(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_window_design = v;
+    uint32_t offset = 12u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_setting_keep_battle_command(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_setting_keep_battle_command;
+    uint32_t offset = 13u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_setting_keep_battle_command(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_setting_keep_battle_command = v;
+    uint32_t offset = 13u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_setting_keep_battle_lists(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_setting_keep_battle_lists;
+    uint32_t offset = 14u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_setting_keep_battle_lists(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_setting_keep_battle_lists = v;
+    uint32_t offset = 14u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_setting_descriptions(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_setting_descriptions;
+    uint32_t offset = 15u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_setting_descriptions(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_setting_descriptions = v;
+    uint32_t offset = 15u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_setting_message_speed(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 32u;
+    uint32_t offset = 16u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_setting_message_speed(GameState *g, uint8_t v)
@@ -19085,17 +19048,17 @@ void set_menu_setting_message_speed(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 32u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 16u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_setting_spare(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 33u;
+    uint32_t offset = 17u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_setting_spare(GameState *g, uint8_t v)
@@ -19103,18 +19066,18 @@ void set_menu_setting_spare(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 33u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 17u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_scroll_bar_place(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 34u;
+    uint32_t offset = 18u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_scroll_bar_place(GameState *g, uint16_t v)
@@ -19122,18 +19085,18 @@ void set_menu_scroll_bar_place(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 34u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 18u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_staging_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_scroll_bar_span(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 36u;
+    uint32_t offset = 20u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_scroll_bar_span(GameState *g, uint8_t v)
@@ -19141,17 +19104,17 @@ void set_menu_scroll_bar_span(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 36u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 20u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_scroll_bar_thumb(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 37u;
+    uint32_t offset = 21u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_scroll_bar_thumb(GameState *g, uint8_t v)
@@ -19159,18 +19122,18 @@ void set_menu_scroll_bar_thumb(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 37u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 21u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_scroll_bar_thumb_word(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 37u;
+    uint32_t offset = 21u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_scroll_bar_thumb_word(GameState *g, uint16_t v)
@@ -19178,19 +19141,19 @@ void set_menu_scroll_bar_thumb_word(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 37u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 21u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_staging_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_scroll_bar_step(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 40u;
+    uint32_t offset = 24u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_scroll_bar_step(GameState *g, uint16_t v)
@@ -19198,18 +19161,18 @@ void set_menu_scroll_bar_step(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 40u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 24u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_staging_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_scroll_bar_blink(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 39u;
+    uint32_t offset = 23u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_scroll_bar_blink(GameState *g, uint8_t v)
@@ -19217,17 +19180,17 @@ void set_menu_scroll_bar_blink(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 39u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 23u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_scroll_bar_blink_count(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 38u;
+    uint32_t offset = 22u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_scroll_bar_blink_count(GameState *g, uint8_t v)
@@ -19235,17 +19198,17 @@ void set_menu_scroll_bar_blink_count(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 38u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 22u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_scroll_bar_hidden(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 42u;
+    uint32_t offset = 26u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_scroll_bar_hidden(GameState *g, uint8_t v)
@@ -19253,17 +19216,17 @@ void set_menu_scroll_bar_hidden(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 42u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 26u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_cursor_hidden(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 43u;
+    uint32_t offset = 27u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_cursor_hidden(GameState *g, uint8_t v)
@@ -19271,17 +19234,17 @@ void set_menu_cursor_hidden(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 43u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 27u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_held_cursor(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 44u;
+    uint32_t offset = 28u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_held_cursor(GameState *g, uint8_t v)
@@ -19289,17 +19252,17 @@ void set_menu_held_cursor(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 44u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 28u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_held_cursor_top(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 45u;
+    uint32_t offset = 29u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_held_cursor_top(GameState *g, uint8_t v)
@@ -19307,18 +19270,18 @@ void set_menu_held_cursor_top(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 45u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 29u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_held_cursor_shift(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 46u;
+    uint32_t offset = 30u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_held_cursor_shift(GameState *g, uint16_t v)
@@ -19326,18 +19289,18 @@ void set_menu_held_cursor_shift(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 46u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 30u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_staging_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_held_cursor_shift_low(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 46u;
+    uint32_t offset = 30u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_held_cursor_shift_low(GameState *g, uint8_t v)
@@ -19345,17 +19308,17 @@ void set_menu_held_cursor_shift_low(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 46u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 30u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_cursors_out(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 48u;
+    uint32_t offset = 32u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_cursors_out(GameState *g, uint8_t v)
@@ -19363,18 +19326,18 @@ void set_menu_cursors_out(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 48u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 32u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_held_cursor_sprite(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 49u;
+    uint32_t offset = 33u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_held_cursor_sprite(GameState *g, uint16_t v)
@@ -19382,9 +19345,9 @@ void set_menu_held_cursor_sprite(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 49u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 33u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_staging_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_cursor_blinks(const GameState *g, unsigned i)
 {
@@ -19393,9 +19356,9 @@ uint8_t menu_cursor_blinks(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 51u + (uint32_t)i * 1u;
+    uint32_t offset = 35u + (uint32_t)i * 1u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_cursor_blinks(GameState *g, unsigned i, uint8_t v)
@@ -19405,18 +19368,18 @@ void set_menu_cursor_blinks(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 51u + (uint32_t)i * 1u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 35u + (uint32_t)i * 1u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_held_cursor_blink(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 54u;
+    uint32_t offset = 38u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_4_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_held_cursor_blink(GameState *g, uint16_t v)
@@ -19424,75 +19387,93 @@ void set_menu_held_cursor_blink(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 54u;
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_4_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 38u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_staging_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_held_reserve_top(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_held_reserve_top;
+    uint32_t offset = 40u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_held_reserve_top(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_held_reserve_top = v;
+    uint32_t offset = 40u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_slide_first_band(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_slide_first_band;
+    uint32_t offset = 41u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_slide_first_band(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_slide_first_band = v;
+    uint32_t offset = 41u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_slide_rows(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_slide_rows;
+    uint32_t offset = 42u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_slide_rows(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_slide_rows = v;
+    uint32_t offset = 42u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_scroll_moved(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_scroll_moved;
+    uint32_t offset = 43u;
+    uint16_t value = 0;
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 1u) << 8);
+    return value;
 }
 void set_menu_scroll_moved(GameState *g, uint16_t v)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_scroll_moved = v;
+    uint32_t offset = 43u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_staging_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_window_rows_step(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 0u;
+    uint32_t offset = 43u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_scroll_moved_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_scroll_moved_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_window_rows_step(GameState *g, uint16_t v)
@@ -19500,23 +19481,27 @@ void set_menu_window_rows_step(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 0u;
-    vars_host_menu_scroll_moved_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_scroll_moved_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 43u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_staging_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_figures_slot(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_figures_slot;
+    uint32_t offset = 45u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_figures_slot(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_figures_slot = v;
+    uint32_t offset = 45u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_figures_boosts(const GameState *g, unsigned i)
 {
@@ -19525,11 +19510,9 @@ uint8_t menu_figures_boosts(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0DAEu + (uint32_t)i * 0x01u;
+    uint32_t offset = 46u + (uint32_t)i * 1u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_figures_boosts(GameState *g, unsigned i, uint8_t v)
@@ -19539,17 +19522,17 @@ void set_menu_figures_boosts(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0DAEu + (uint32_t)i * 0x01u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 46u + (uint32_t)i * 1u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_figures_weapon_attack(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 5u;
+    uint32_t offset = 53u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_figures_weapon_attack(GameState *g, uint8_t v)
@@ -19557,17 +19540,17 @@ void set_menu_figures_weapon_attack(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 5u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 53u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_figures_armour_defence(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 6u;
+    uint32_t offset = 54u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_figures_armour_defence(GameState *g, uint8_t v)
@@ -19575,17 +19558,17 @@ void set_menu_figures_armour_defence(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 6u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 54u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_use_first_member(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 11u;
+    uint32_t offset = 59u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_use_first_member(GameState *g, uint8_t v)
@@ -19593,17 +19576,17 @@ void set_menu_use_first_member(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 11u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 59u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_queued_sounds(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 12u;
+    uint32_t offset = 60u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_queued_sounds(GameState *g, uint8_t v)
@@ -19611,17 +19594,17 @@ void set_menu_queued_sounds(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 12u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 60u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_use_helps(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 12u;
+    uint32_t offset = 60u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_use_helps(GameState *g, uint8_t v)
@@ -19629,31 +19612,35 @@ void set_menu_use_helps(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 12u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 60u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_use_effect(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_use_effect;
+    uint32_t offset = 61u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_use_effect(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_use_effect = v;
+    uint32_t offset = 61u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_use_member(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 14u;
+    uint32_t offset = 62u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_use_member(GameState *g, uint8_t v)
@@ -19661,17 +19648,17 @@ void set_menu_use_member(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 14u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 62u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_heal_power(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 15u;
+    uint32_t offset = 63u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_heal_power(GameState *g, uint8_t v)
@@ -19679,17 +19666,17 @@ void set_menu_heal_power(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 15u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 63u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_heal_factor(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 16u;
+    uint32_t offset = 64u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_heal_factor(GameState *g, uint8_t v)
@@ -19697,18 +19684,18 @@ void set_menu_heal_factor(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 16u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 64u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_description_line_from(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 17u;
+    uint32_t offset = 65u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_description_line_from(GameState *g, uint16_t v)
@@ -19716,18 +19703,18 @@ void set_menu_description_line_from(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 17u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 65u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_staging_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_description_glyphs_sent(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 19u;
+    uint32_t offset = 67u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_description_glyphs_sent(GameState *g, uint8_t v)
@@ -19735,17 +19722,17 @@ void set_menu_description_glyphs_sent(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 19u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 67u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_description_glyphs_sent_pad(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 20u;
+    uint32_t offset = 68u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_description_glyphs_sent_pad(GameState *g, uint8_t v)
@@ -19753,18 +19740,18 @@ void set_menu_description_glyphs_sent_pad(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 20u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 68u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_description_line(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 21u;
+    uint32_t offset = 69u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_description_line(GameState *g, uint16_t v)
@@ -19772,19 +19759,19 @@ void set_menu_description_line(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 21u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 69u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_staging_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_load_destination(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 21u;
+    uint32_t offset = 69u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_load_destination(GameState *g, uint16_t v)
@@ -19792,19 +19779,19 @@ void set_menu_load_destination(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 21u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 69u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_staging_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_graphic_first_tile(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 23u;
+    uint32_t offset = 71u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_graphic_first_tile(GameState *g, uint16_t v)
@@ -19812,18 +19799,18 @@ void set_menu_graphic_first_tile(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 23u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 71u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_staging_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_description_pace(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 25u;
+    uint32_t offset = 73u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_description_pace(GameState *g, uint8_t v)
@@ -19831,60 +19818,74 @@ void set_menu_description_pace(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 25u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 73u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_description_row_vram(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_description_row_vram;
+    uint32_t offset = 76u;
+    uint16_t value = 0;
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 1u) << 8);
+    return value;
 }
 void set_menu_description_row_vram(GameState *g, uint16_t v)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_description_row_vram = v;
+    uint32_t offset = 76u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_staging_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_settings_described_option(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_settings_described_option;
+    uint32_t offset = 78u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_settings_described_option(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_settings_described_option = v;
+    uint32_t offset = 78u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_settings_description(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_settings_description;
+    uint32_t offset = 79u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_settings_description(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_settings_description = v;
+    uint32_t offset = 79u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_description_row_bytes(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 32u;
+    uint32_t offset = 80u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_description_row_bytes(GameState *g, uint16_t v)
@@ -19892,18 +19893,18 @@ void set_menu_description_row_bytes(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 32u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 80u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_staging_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_description_laid_to(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 34u;
+    uint32_t offset = 82u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_description_laid_to(GameState *g, uint8_t v)
@@ -19911,17 +19912,17 @@ void set_menu_description_laid_to(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 34u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 82u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_description_laid_to_pad(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 35u;
+    uint32_t offset = 83u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_description_laid_to_pad(GameState *g, uint8_t v)
@@ -19929,18 +19930,18 @@ void set_menu_description_laid_to_pad(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 35u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 83u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_description_tiles_vram(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 36u;
+    uint32_t offset = 84u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_description_tiles_vram(GameState *g, uint16_t v)
@@ -19948,19 +19949,19 @@ void set_menu_description_tiles_vram(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 36u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 84u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_staging_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_description_tiles_at(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 38u;
+    uint32_t offset = 86u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_frame_staging_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_menu_description_tiles_at(GameState *g, uint16_t v)
@@ -19968,18 +19969,18 @@ void set_menu_description_tiles_at(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 38u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 86u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_frame_staging_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_paging_rows(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 40u;
+    uint32_t offset = 88u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_paging_rows(GameState *g, uint8_t v)
@@ -19987,17 +19988,17 @@ void set_menu_paging_rows(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 40u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 88u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_paging_top(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 41u;
+    uint32_t offset = 89u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_paging_top(GameState *g, uint8_t v)
@@ -20005,17 +20006,17 @@ void set_menu_paging_top(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 41u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 89u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_paging_last_top(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 42u;
+    uint32_t offset = 90u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_paging_last_top(GameState *g, uint8_t v)
@@ -20023,17 +20024,17 @@ void set_menu_paging_last_top(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 42u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 90u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_list_first_place(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 43u;
+    uint32_t offset = 91u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_list_first_place(GameState *g, uint8_t v)
@@ -20041,17 +20042,17 @@ void set_menu_list_first_place(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 43u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 91u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_list_last_place(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 44u;
+    uint32_t offset = 92u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_5_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_staging_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_list_last_place(GameState *g, uint8_t v)
@@ -20059,17 +20060,17 @@ void set_menu_list_last_place(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 44u;
-    vars_host_menu_objects_after_channels_part_5_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 92u;
+    vars_host_field_object_frame_staging_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_exchange_first(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 16u;
+    uint32_t offset = 0u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_in_view_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_exchange_first(GameState *g, uint8_t v)
@@ -20077,18 +20078,21 @@ void set_menu_exchange_first(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 16u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u;
+    vars_host_field_object_in_view_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_item_picked(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 16u;
+    uint32_t address = 0x7E0F00u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_item_picked(GameState *g, uint16_t v)
@@ -20096,18 +20100,18 @@ void set_menu_item_picked(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 16u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E0F00u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_kept_cursor(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 16u;
+    uint32_t offset = 0u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_in_view_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_kept_cursor(GameState *g, uint8_t v)
@@ -20115,8 +20119,8 @@ void set_menu_kept_cursor(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 16u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u;
+    vars_host_field_object_in_view_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_list_items(const GameState *g, unsigned row)
 {
@@ -20171,9 +20175,11 @@ uint8_t menu_name_typed_byte(const GameState *g, unsigned at)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 16u + at;
+    uint32_t address = 0x7E0F00u + at;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_name_typed_byte(GameState *g, unsigned at, uint8_t v)
@@ -20183,8 +20189,8 @@ void set_menu_name_typed_byte(GameState *g, unsigned at, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 16u + at;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E0F00u + at;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_settings_buttons(const GameState *g, unsigned i)
 {
@@ -20193,9 +20199,11 @@ uint8_t menu_settings_buttons(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 16u + (uint32_t)i * 1u;
+    uint32_t address = 0x7E0F00u + (uint32_t)i * 0x01u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_settings_buttons(GameState *g, unsigned i, uint8_t v)
@@ -20205,8 +20213,8 @@ void set_menu_settings_buttons(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 16u + (uint32_t)i * 1u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E0F00u + (uint32_t)i * 0x01u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_settings_buttons_unchecked(const GameState *g, unsigned i)
 {
@@ -20214,9 +20222,11 @@ uint8_t menu_settings_buttons_unchecked(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 16u + (uint32_t)i * 1u;
+    uint32_t address = 0x7E0F00u + (uint32_t)i * 0x01u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_settings_buttons_unchecked(GameState *g, unsigned i, uint8_t v)
@@ -20225,8 +20235,8 @@ void set_menu_settings_buttons_unchecked(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 16u + (uint32_t)i * 1u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E0F00u + (uint32_t)i * 0x01u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_tech_list(const GameState *g, unsigned row)
 {
@@ -20257,9 +20267,9 @@ uint8_t menu_exchange_second(const GameState *g)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 17u;
+    uint32_t offset = 0u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_drawn_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_exchange_second(GameState *g, uint8_t v)
@@ -20267,8 +20277,8 @@ void set_menu_exchange_second(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 17u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u;
+    vars_host_field_object_frame_drawn_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_exchange_rows(const GameState *g, unsigned row)
 {
@@ -20277,9 +20287,11 @@ uint8_t menu_exchange_rows(const GameState *g, unsigned row)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 18u + (uint32_t)row * 1u;
+    uint32_t address = 0x7E0F02u + (uint32_t)row * 0x01u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_exchange_rows(GameState *g, unsigned row, uint8_t v)
@@ -20289,18 +20301,21 @@ void set_menu_exchange_rows(GameState *g, unsigned row, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 18u + (uint32_t)row * 1u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E0F02u + (uint32_t)row * 0x01u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_name_letters(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 22u;
+    uint32_t address = 0x7E0F06u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_name_letters(GameState *g, uint16_t v)
@@ -20308,18 +20323,18 @@ void set_menu_name_letters(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 22u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E0F06u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_name_grid_column(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 24u;
+    uint32_t offset = 8u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_in_view_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_name_grid_column(GameState *g, uint8_t v)
@@ -20327,17 +20342,17 @@ void set_menu_name_grid_column(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 24u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 8u;
+    vars_host_field_object_in_view_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_name_grid_row(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 25u;
+    uint32_t offset = 8u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_drawn_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_name_grid_row(GameState *g, uint8_t v)
@@ -20345,8 +20360,8 @@ void set_menu_name_grid_row(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 25u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 8u;
+    vars_host_field_object_frame_drawn_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_settings_boxes(const GameState *g, unsigned i)
 {
@@ -20377,10 +20392,13 @@ uint16_t menu_name_grid_line(const GameState *g)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 26u;
+    uint32_t address = 0x7E0F0Au;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_name_grid_line(GameState *g, uint16_t v)
@@ -20388,18 +20406,18 @@ void set_menu_name_grid_line(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 26u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E0F0Au;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_exchange_active_free(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 27u;
+    uint32_t offset = 10u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_drawn_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_exchange_active_free(GameState *g, uint8_t v)
@@ -20407,17 +20425,17 @@ void set_menu_exchange_active_free(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 27u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 10u;
+    vars_host_field_object_frame_drawn_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_exchange_reserve_count(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 0u;
+    uint32_t offset = 12u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_name_record_at_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_in_view_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_exchange_reserve_count(GameState *g, uint8_t v)
@@ -20425,31 +20443,40 @@ void set_menu_exchange_reserve_count(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 0u;
-    vars_host_menu_name_record_at_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 12u;
+    vars_host_field_object_in_view_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_name_record_at(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_name_record_at;
+    uint32_t address = 0x7E0F0Cu;
+    uint16_t value = 0;
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
+    return value;
 }
 void set_menu_name_record_at(GameState *g, uint16_t v)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_name_record_at = v;
+    uint32_t address = 0x7E0F0Cu;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_exchange_on_cursor(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 1u;
+    uint32_t offset = 12u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_name_record_at_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_drawn_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_exchange_on_cursor(GameState *g, uint8_t v)
@@ -20457,36 +20484,44 @@ void set_menu_exchange_on_cursor(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 1u;
-    vars_host_menu_name_record_at_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 12u;
+    vars_host_field_object_frame_drawn_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_exchange_song_before(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_exchange_song_before;
+    uint32_t offset = 14u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_in_view_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_exchange_song_before(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_exchange_song_before = v;
+    uint32_t offset = 14u;
+    vars_host_field_object_in_view_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_exchange_song_changed(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_exchange_song_changed;
+    uint32_t offset = 14u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_drawn_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_exchange_song_changed(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_exchange_song_changed = v;
+    uint32_t offset = 14u;
+    vars_host_field_object_frame_drawn_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_gate_screen_state(const GameState *g, unsigned i)
 {
@@ -20495,9 +20530,11 @@ uint8_t menu_gate_screen_state(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 32u + (uint32_t)i * 1u;
+    uint32_t address = 0x7E0F10u + (uint32_t)i * 0x01u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_gate_screen_state(GameState *g, unsigned i, uint8_t v)
@@ -20507,8 +20544,8 @@ void set_menu_gate_screen_state(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 32u + (uint32_t)i * 1u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E0F10u + (uint32_t)i * 0x01u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_tech_list_groups(const GameState *g, unsigned row)
 {
@@ -20517,9 +20554,11 @@ uint8_t menu_tech_list_groups(const GameState *g, unsigned row)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 64u + (uint32_t)row * 1u;
+    uint32_t address = 0x7E0F30u + (uint32_t)row * 0x01u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_tech_list_groups(GameState *g, unsigned row, uint8_t v)
@@ -20529,17 +20568,17 @@ void set_menu_tech_list_groups(GameState *g, unsigned row, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 64u + (uint32_t)row * 1u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E0F30u + (uint32_t)row * 0x01u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_tech_list_row(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 88u;
+    uint32_t offset = 72u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_in_view_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_tech_list_row(GameState *g, uint8_t v)
@@ -20547,17 +20586,17 @@ void set_menu_tech_list_row(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 88u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 72u;
+    vars_host_field_object_in_view_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_techs_listed(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 89u;
+    uint32_t offset = 72u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_drawn_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_techs_listed(GameState *g, uint8_t v)
@@ -20565,17 +20604,17 @@ void set_menu_techs_listed(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 89u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 72u;
+    vars_host_field_object_frame_drawn_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_tech_list_top(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 90u;
+    uint32_t offset = 74u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_in_view_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_tech_list_top(GameState *g, uint8_t v)
@@ -20583,74 +20622,93 @@ void set_menu_tech_list_top(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 90u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 74u;
+    vars_host_field_object_in_view_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_tech_pointed(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_tech_pointed;
+    uint32_t offset = 76u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_in_view_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_tech_pointed(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_tech_pointed = v;
+    uint32_t offset = 76u;
+    vars_host_field_object_in_view_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_tech_user(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_tech_user;
+    uint32_t offset = 76u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_drawn_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_tech_user(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_tech_user = v;
+    uint32_t offset = 76u;
+    vars_host_field_object_frame_drawn_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_tech_spare(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_tech_spare;
+    uint32_t offset = 78u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_in_view_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_tech_spare(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_tech_spare = v;
+    uint32_t offset = 78u;
+    vars_host_field_object_in_view_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_tech_cost(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_tech_cost;
+    uint32_t offset = 78u;
+    uint8_t value = 0;
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_drawn_values_read8(h, offset + 0u) << 0);
+    return value;
 }
 void set_menu_tech_cost(GameState *g, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_tech_cost = v;
+    uint32_t offset = 78u;
+    vars_host_field_object_frame_drawn_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_tech_row_partners(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 97u;
+    uint32_t address = 0x7E0F51u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_tech_row_partners(GameState *g, uint16_t v)
@@ -20658,19 +20716,22 @@ void set_menu_tech_row_partners(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 97u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E0F51u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_amounts_listed(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 99u;
+    uint32_t address = 0x7E0F53u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_amounts_listed(GameState *g, uint16_t v)
@@ -20678,9 +20739,9 @@ void set_menu_amounts_listed(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 99u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E0F53u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_amounts_places_y(const GameState *g, unsigned member)
 {
@@ -20689,9 +20750,11 @@ uint8_t menu_amounts_places_y(const GameState *g, unsigned member)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 103u + (uint32_t)member * 2u;
+    uint32_t address = 0x7E0F57u + (uint32_t)member * 0x02u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_amounts_places_y(GameState *g, unsigned member, uint8_t v)
@@ -20701,8 +20764,8 @@ void set_menu_amounts_places_y(GameState *g, unsigned member, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 103u + (uint32_t)member * 2u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E0F57u + (uint32_t)member * 0x02u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_amounts_places_x(const GameState *g, unsigned member)
 {
@@ -20711,9 +20774,11 @@ uint8_t menu_amounts_places_x(const GameState *g, unsigned member)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 104u + (uint32_t)member * 2u;
+    uint32_t address = 0x7E0F58u + (uint32_t)member * 0x02u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_amounts_places_x(GameState *g, unsigned member, uint8_t v)
@@ -20723,18 +20788,21 @@ void set_menu_amounts_places_x(GameState *g, unsigned member, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 104u + (uint32_t)member * 2u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E0F58u + (uint32_t)member * 0x02u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_amounts_kinds(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 109u;
+    uint32_t address = 0x7E0F5Du;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_amounts_kinds(GameState *g, uint16_t v)
@@ -20742,18 +20810,18 @@ void set_menu_amounts_kinds(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 109u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E0F5Du;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_amounts_step(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 112u;
+    uint32_t offset = 96u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_in_view_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_amounts_step(GameState *g, uint8_t v)
@@ -20761,17 +20829,17 @@ void set_menu_amounts_step(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 112u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 96u;
+    vars_host_field_object_in_view_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_amounts_last_digit(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 113u;
+    uint32_t offset = 96u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_frame_drawn_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_amounts_last_digit(GameState *g, uint8_t v)
@@ -20779,8 +20847,8 @@ void set_menu_amounts_last_digit(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 113u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 96u;
+    vars_host_field_object_frame_drawn_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_list_item_counts(const GameState *g, unsigned row)
 {
@@ -20813,10 +20881,13 @@ uint16_t menu_heal_shown(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 115u + (uint32_t)i * 2u;
+    uint32_t address = 0x7E0F63u + (uint32_t)i * 0x02u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_7_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_heal_shown(GameState *g, unsigned i, uint16_t v)
@@ -20826,9 +20897,9 @@ void set_menu_heal_shown(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 115u + (uint32_t)i * 2u;
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_7_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E0F63u + (uint32_t)i * 0x02u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_tech_part_costs(const GameState *g, unsigned member)
 {
@@ -20859,10 +20930,13 @@ uint16_t menu_tech_description_spare(const GameState *g)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 3u;
+    uint32_t address = 0x7E0F73u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_tech_description_spare(GameState *g, uint16_t v)
@@ -20870,18 +20944,18 @@ void set_menu_tech_description_spare(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 3u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E0F73u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_member_scroll_most(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 84u;
+    uint32_t offset = 68u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_priority_mode_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_member_scroll_most(GameState *g, uint8_t v)
@@ -20889,17 +20963,17 @@ void set_menu_member_scroll_most(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 84u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 68u;
+    vars_host_field_object_priority_mode_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_equip_kept_slot(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 85u;
+    uint32_t offset = 68u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_palette_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_equip_kept_slot(GameState *g, uint8_t v)
@@ -20907,17 +20981,17 @@ void set_menu_equip_kept_slot(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 85u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 68u;
+    vars_host_field_object_palette_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_equip_choices(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 86u;
+    uint32_t offset = 70u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_priority_mode_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_equip_choices(GameState *g, uint8_t v)
@@ -20925,17 +20999,17 @@ void set_menu_equip_choices(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 86u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 70u;
+    vars_host_field_object_priority_mode_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_equip_list_top(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 88u;
+    uint32_t offset = 72u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_priority_mode_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_equip_list_top(GameState *g, uint8_t v)
@@ -20943,8 +21017,8 @@ void set_menu_equip_list_top(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 88u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 72u;
+    vars_host_field_object_priority_mode_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_shop_goods(const GameState *g, unsigned i)
 {
@@ -20953,9 +21027,11 @@ uint8_t menu_shop_goods(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 144u + (uint32_t)i * 1u;
+    uint32_t address = 0x7E1000u + (uint32_t)i * 0x01u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_shop_goods(GameState *g, unsigned i, uint8_t v)
@@ -20965,8 +21041,8 @@ void set_menu_shop_goods(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 144u + (uint32_t)i * 1u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1000u + (uint32_t)i * 0x01u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_shop_goods_owned(const GameState *g, unsigned i)
 {
@@ -20975,9 +21051,11 @@ uint8_t menu_shop_goods_owned(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 176u + (uint32_t)i * 1u;
+    uint32_t address = 0x7E1020u + (uint32_t)i * 0x01u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_shop_goods_owned(GameState *g, unsigned i, uint8_t v)
@@ -20987,17 +21065,17 @@ void set_menu_shop_goods_owned(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 176u + (uint32_t)i * 1u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1020u + (uint32_t)i * 0x01u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_shop_buy_row(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 208u;
+    uint32_t offset = 64u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_step_length_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_shop_buy_row(GameState *g, uint8_t v)
@@ -21005,17 +21083,17 @@ void set_menu_shop_buy_row(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 208u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 64u;
+    vars_host_field_object_step_length_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_shop_buy_top(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 209u;
+    uint32_t offset = 64u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_turn_countdown_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_shop_buy_top(GameState *g, uint8_t v)
@@ -21023,17 +21101,17 @@ void set_menu_shop_buy_top(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 209u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 64u;
+    vars_host_field_object_turn_countdown_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_shop_sell_row(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 210u;
+    uint32_t offset = 66u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_step_length_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_shop_sell_row(GameState *g, uint8_t v)
@@ -21041,17 +21119,17 @@ void set_menu_shop_sell_row(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 210u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 66u;
+    vars_host_field_object_step_length_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_shop_sell_top(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 211u;
+    uint32_t offset = 66u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_turn_countdown_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_shop_sell_top(GameState *g, uint8_t v)
@@ -21059,18 +21137,21 @@ void set_menu_shop_sell_top(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 211u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 66u;
+    vars_host_field_object_turn_countdown_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_shop_row_price(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 212u;
+    uint32_t address = 0x7E1044u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_shop_row_price(GameState *g, uint16_t v)
@@ -21078,20 +21159,24 @@ void set_menu_shop_row_price(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 212u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E1044u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint32_t menu_shop_total(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 24);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 212u;
+    uint32_t address = 0x7E1044u;
     uint32_t value = 0;
-    value |= (uint32_t)((uint32_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
-    value |= (uint32_t)((uint32_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 1u) << 8);
-    value |= (uint32_t)((uint32_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 2u) << 16);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 8);
+    vars_host_read8(h, address + 2u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 16);
     return value;
 }
 void set_menu_shop_total(GameState *g, uint32_t v)
@@ -21099,20 +21184,23 @@ void set_menu_shop_total(GameState *g, uint32_t v)
     if (!peeking)
         state_host_game_access(g, 24);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 212u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 1u, (uint8_t)(v >> 8));
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 2u, (uint8_t)(v >> 16));
+    uint32_t address = 0x7E1044u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    vars_host_write8(h, address + 2u, (uint8_t)(v >> 16));
 }
 uint16_t menu_shop_unit_price(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 215u;
+    uint32_t address = 0x7E1047u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_shop_unit_price(GameState *g, uint16_t v)
@@ -21120,18 +21208,18 @@ void set_menu_shop_unit_price(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 215u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E1047u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_shop_for_sale_listed(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 217u;
+    uint32_t offset = 72u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_turn_countdown_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_shop_for_sale_listed(GameState *g, uint8_t v)
@@ -21139,17 +21227,17 @@ void set_menu_shop_for_sale_listed(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 217u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 72u;
+    vars_host_field_object_turn_countdown_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_shop_goods_offered(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 218u;
+    uint32_t offset = 74u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_step_length_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_shop_goods_offered(GameState *g, uint8_t v)
@@ -21157,17 +21245,17 @@ void set_menu_shop_goods_offered(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 218u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 74u;
+    vars_host_field_object_step_length_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_shop_after_the_counts(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 219u;
+    uint32_t offset = 74u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_turn_countdown_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_shop_after_the_counts(GameState *g, uint8_t v)
@@ -21175,8 +21263,8 @@ void set_menu_shop_after_the_counts(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 219u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 74u;
+    vars_host_field_object_turn_countdown_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_shop_members(const GameState *g, unsigned member)
 {
@@ -21185,9 +21273,11 @@ uint8_t menu_shop_members(const GameState *g, unsigned member)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 221u + (uint32_t)member * 1u;
+    uint32_t address = 0x7E104Du + (uint32_t)member * 0x01u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_shop_members(GameState *g, unsigned member, uint8_t v)
@@ -21197,17 +21287,17 @@ void set_menu_shop_members(GameState *g, unsigned member, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 221u + (uint32_t)member * 1u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E104Du + (uint32_t)member * 0x01u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_shop_member_count(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 229u;
+    uint32_t offset = 84u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_turn_countdown_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_shop_member_count(GameState *g, uint8_t v)
@@ -21215,8 +21305,8 @@ void set_menu_shop_member_count(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 229u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 84u;
+    vars_host_field_object_turn_countdown_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_member_wears_item(const GameState *g, unsigned member)
 {
@@ -21225,9 +21315,11 @@ uint8_t menu_member_wears_item(const GameState *g, unsigned member)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 230u + (uint32_t)member * 1u;
+    uint32_t address = 0x7E1056u + (uint32_t)member * 0x01u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_member_wears_item(GameState *g, unsigned member, uint8_t v)
@@ -21237,8 +21329,8 @@ void set_menu_member_wears_item(GameState *g, unsigned member, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 230u + (uint32_t)member * 1u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1056u + (uint32_t)member * 0x01u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_tech_parts(const GameState *g, unsigned row, unsigned column)
 {
@@ -21248,9 +21340,11 @@ uint8_t menu_tech_parts(const GameState *g, unsigned row, unsigned column)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 192u + (uint32_t)row * 64u + column;
+    uint32_t address = 0x7E1640u + (uint32_t)row * 0x40u + column;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_item_rows_before_menu_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_tech_parts(GameState *g, unsigned row, unsigned column, uint8_t v)
@@ -21261,17 +21355,17 @@ void set_menu_tech_parts(GameState *g, unsigned row, unsigned column, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 192u + (uint32_t)row * 64u + column;
-    vars_host_battle_item_rows_before_menu_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1640u + (uint32_t)row * 0x40u + column;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_random_index(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 176u;
+    uint32_t offset = 48u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_state_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_random_index(GameState *g, uint8_t v)
@@ -21279,17 +21373,17 @@ void set_menu_random_index(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 176u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 48u;
+    vars_host_field_object_sprite_state_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_random_beside(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 177u;
+    uint32_t offset = 48u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_solid_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_random_beside(GameState *g, uint8_t v)
@@ -21297,8 +21391,8 @@ void set_menu_random_beside(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 177u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 48u;
+    vars_host_field_object_solid_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_member_scripts(const GameState *g, unsigned slot)
 {
@@ -21307,10 +21401,13 @@ uint16_t menu_member_scripts(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 187u + (uint32_t)slot * 2u;
+    uint32_t address = 0x7E1B3Bu + (uint32_t)slot * 0x02u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_member_scripts(GameState *g, unsigned slot, uint16_t v)
@@ -21320,18 +21417,18 @@ void set_menu_member_scripts(GameState *g, unsigned slot, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 187u + (uint32_t)slot * 2u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_battle_tech_records_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E1B3Bu + (uint32_t)slot * 0x02u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_sprite_script_busy(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 200u;
+    uint32_t offset = 72u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_state_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_sprite_script_busy(GameState *g, uint8_t v)
@@ -21339,8 +21436,8 @@ void set_menu_sprite_script_busy(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 200u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 72u;
+    vars_host_field_object_sprite_state_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_kept_party(const GameState *g, unsigned slot)
 {
@@ -21349,9 +21446,11 @@ uint8_t menu_kept_party(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 291u + (uint32_t)slot * 1u;
+    uint32_t address = 0x7E1BA3u + (uint32_t)slot * 0x01u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_kept_party(GameState *g, unsigned slot, uint8_t v)
@@ -21361,17 +21460,17 @@ void set_menu_kept_party(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 291u + (uint32_t)slot * 1u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1BA3u + (uint32_t)slot * 0x01u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_story_progress(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 294u;
+    uint32_t offset = 38u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_accelerating_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_story_progress(GameState *g, uint8_t v)
@@ -21379,8 +21478,8 @@ void set_menu_story_progress(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 294u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 38u;
+    vars_host_field_object_accelerating_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_story_flags_bytes_byte(const GameState *g, unsigned at)
 {
@@ -21389,9 +21488,11 @@ uint8_t menu_story_flags_bytes_byte(const GameState *g, unsigned at)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 295u + at;
+    uint32_t address = 0x7E1BA7u + at;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_story_flags_bytes_byte(GameState *g, unsigned at, uint8_t v)
@@ -21401,17 +21502,19 @@ void set_menu_story_flags_bytes_byte(GameState *g, unsigned at, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 295u + at;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1BA7u + at;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_story_flags_top_layer_first(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 295u;
+    uint32_t address = 0x7E1BA7u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_story_flags_top_layer_first(GameState *g, uint8_t v)
@@ -21419,17 +21522,19 @@ void set_menu_story_flags_top_layer_first(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 295u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1BA7u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_story_flags_top_layer_second(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 298u;
+    uint32_t address = 0x7E1BAAu;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_story_flags_top_layer_second(GameState *g, uint8_t v)
@@ -21437,17 +21542,19 @@ void set_menu_story_flags_top_layer_second(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 298u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1BAAu;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_story_flags_scene_mode_bits(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 297u;
+    uint32_t address = 0x7E1BA9u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_story_flags_scene_mode_bits(GameState *g, uint8_t v)
@@ -21455,17 +21562,19 @@ void set_menu_story_flags_scene_mode_bits(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 297u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1BA9u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_story_flags_epoch(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 301u;
+    uint32_t address = 0x7E1BADu;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_story_flags_epoch(GameState *g, uint8_t v)
@@ -21473,17 +21582,19 @@ void set_menu_story_flags_epoch(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 301u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1BADu;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_story_flags_top_layer_third(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 303u;
+    uint32_t address = 0x7E1BAFu;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_story_flags_top_layer_third(GameState *g, uint8_t v)
@@ -21491,17 +21602,17 @@ void set_menu_story_flags_top_layer_third(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 303u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1BAFu;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_time_period(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 311u;
+    uint32_t offset = 54u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_acceleration_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_time_period(GameState *g, uint8_t v)
@@ -21509,8 +21620,8 @@ void set_menu_time_period(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 311u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 54u;
+    vars_host_field_object_acceleration_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_gate_corners(const GameState *g, unsigned corner)
 {
@@ -21519,9 +21630,11 @@ uint8_t menu_gate_corners(const GameState *g, unsigned corner)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 312u + (uint32_t)corner * 1u;
+    uint32_t address = 0x7E1BB8u + (uint32_t)corner * 0x01u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_gate_corners(GameState *g, unsigned corner, uint8_t v)
@@ -21531,8 +21644,8 @@ void set_menu_gate_corners(GameState *g, unsigned corner, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 312u + (uint32_t)corner * 1u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1BB8u + (uint32_t)corner * 0x01u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_gate_edge_active(const GameState *g, unsigned i)
 {
@@ -21541,10 +21654,13 @@ uint16_t menu_gate_edge_active(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 324u + (uint32_t)i * 2u;
+    uint32_t address = 0x7E1BC4u + (uint32_t)i * 0x02u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_gate_edge_active(GameState *g, unsigned i, uint16_t v)
@@ -21554,9 +21670,9 @@ void set_menu_gate_edge_active(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 324u + (uint32_t)i * 2u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_battle_tech_records_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E1BC4u + (uint32_t)i * 0x02u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_gate_edge_step(const GameState *g, unsigned i)
 {
@@ -21565,10 +21681,13 @@ uint16_t menu_gate_edge_step(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 330u + (uint32_t)i * 2u;
+    uint32_t address = 0x7E1BCAu + (uint32_t)i * 0x02u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_gate_edge_step(GameState *g, unsigned i, uint16_t v)
@@ -21578,9 +21697,9 @@ void set_menu_gate_edge_step(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 330u + (uint32_t)i * 2u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_battle_tech_records_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E1BCAu + (uint32_t)i * 0x02u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_gate_edge_top(const GameState *g, unsigned i)
 {
@@ -21589,10 +21708,13 @@ uint16_t menu_gate_edge_top(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 336u + (uint32_t)i * 2u;
+    uint32_t address = 0x7E1BD0u + (uint32_t)i * 0x02u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_gate_edge_top(GameState *g, unsigned i, uint16_t v)
@@ -21602,9 +21724,9 @@ void set_menu_gate_edge_top(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 336u + (uint32_t)i * 2u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_battle_tech_records_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E1BD0u + (uint32_t)i * 0x02u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_gate_edge_bottom(const GameState *g, unsigned i)
 {
@@ -21613,10 +21735,13 @@ uint16_t menu_gate_edge_bottom(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 342u + (uint32_t)i * 2u;
+    uint32_t address = 0x7E1BD6u + (uint32_t)i * 0x02u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_gate_edge_bottom(GameState *g, unsigned i, uint16_t v)
@@ -21626,9 +21751,9 @@ void set_menu_gate_edge_bottom(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 342u + (uint32_t)i * 2u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_battle_tech_records_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E1BD6u + (uint32_t)i * 0x02u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_gate_edge_x(const GameState *g, unsigned i)
 {
@@ -21637,10 +21762,13 @@ uint16_t menu_gate_edge_x(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 348u + (uint32_t)i * 2u;
+    uint32_t address = 0x7E1BDCu + (uint32_t)i * 0x02u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_gate_edge_x(GameState *g, unsigned i, uint16_t v)
@@ -21650,9 +21778,9 @@ void set_menu_gate_edge_x(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 348u + (uint32_t)i * 2u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_battle_tech_records_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E1BDCu + (uint32_t)i * 0x02u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_gate_edge_lines(const GameState *g, unsigned i)
 {
@@ -21661,10 +21789,13 @@ uint16_t menu_gate_edge_lines(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 354u + (uint32_t)i * 2u;
+    uint32_t address = 0x7E1BE2u + (uint32_t)i * 0x02u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_gate_edge_lines(GameState *g, unsigned i, uint16_t v)
@@ -21674,18 +21805,20 @@ void set_menu_gate_edge_lines(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 354u + (uint32_t)i * 2u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_battle_tech_records_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E1BE2u + (uint32_t)i * 0x02u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_sound_request_command(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 360u;
+    uint32_t address = 0x7E1BE8u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_sound_request_command(GameState *g, uint8_t v)
@@ -21693,17 +21826,19 @@ void set_menu_sound_request_command(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 360u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1BE8u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_sound_request_first(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 361u;
+    uint32_t address = 0x7E1BE9u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_sound_request_first(GameState *g, uint8_t v)
@@ -21711,17 +21846,19 @@ void set_menu_sound_request_first(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 361u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1BE9u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_sound_request_second(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 362u;
+    uint32_t address = 0x7E1BEAu;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_sound_request_second(GameState *g, uint8_t v)
@@ -21729,17 +21866,19 @@ void set_menu_sound_request_second(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 362u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1BEAu;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_sound_request_third(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 363u;
+    uint32_t address = 0x7E1BEBu;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_menu_sound_request_third(GameState *g, uint8_t v)
@@ -21747,17 +21886,17 @@ void set_menu_sound_request_third(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 363u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1BEBu;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_sound_mailbox(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 364u;
+    uint32_t offset = 108u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_accelerating_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_sound_mailbox(GameState *g, uint8_t v)
@@ -21765,17 +21904,17 @@ void set_menu_sound_mailbox(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 364u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 108u;
+    vars_host_field_object_accelerating_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_sound_request_age(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 365u;
+    uint32_t offset = 108u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_acceleration_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_sound_request_age(GameState *g, uint8_t v)
@@ -21783,17 +21922,17 @@ void set_menu_sound_request_age(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 365u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 108u;
+    vars_host_field_object_acceleration_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_sound_waiting_age(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 366u;
+    uint32_t offset = 110u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_accelerating_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_sound_waiting_age(GameState *g, uint8_t v)
@@ -21801,18 +21940,21 @@ void set_menu_sound_waiting_age(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 366u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 110u;
+    vars_host_field_object_accelerating_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_pending_scroll_x(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 369u;
+    uint32_t address = 0x7E1BF1u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_pending_scroll_x(GameState *g, uint16_t v)
@@ -21820,19 +21962,22 @@ void set_menu_pending_scroll_x(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 369u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_battle_tech_records_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E1BF1u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint16_t menu_pending_scroll_y(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 371u;
+    uint32_t address = 0x7E1BF3u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_menu_pending_scroll_y(GameState *g, uint16_t v)
@@ -21840,18 +21985,18 @@ void set_menu_pending_scroll_y(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 371u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_battle_tech_records_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E1BF3u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint8_t menu_gate_flags(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 373u;
+    uint32_t offset = 116u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_acceleration_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_gate_flags(GameState *g, uint8_t v)
@@ -21859,17 +22004,17 @@ void set_menu_gate_flags(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 373u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 116u;
+    vars_host_field_object_acceleration_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t menu_world_frames(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 373u;
+    uint32_t offset = 116u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_acceleration_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_world_frames(GameState *g, uint8_t v)
@@ -21877,8 +22022,8 @@ void set_menu_world_frames(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 373u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 116u;
+    vars_host_field_object_acceleration_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_interrupted_stack(const GameState *g)
 {
@@ -22237,7 +22382,7 @@ uint16_t menu_window_line_values(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->menu.menu_window_line_values[i];
+    return h->menu.window.lines[i];
 }
 void set_menu_window_line_values(GameState *g, unsigned i, uint16_t v)
 {
@@ -22246,7 +22391,7 @@ void set_menu_window_line_values(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->menu.menu_window_line_values[i] = v;
+    h->menu.window.lines[i] = v;
 }
 uint16_t menu_row_line_values(const GameState *g, unsigned i)
 {
@@ -31795,9 +31940,9 @@ uint8_t menu_fades_running(const GameState *g)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 374u;
+    uint32_t offset = 118u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_accelerating_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_menu_fades_running(GameState *g, uint8_t v)
@@ -31805,8 +31950,8 @@ void set_menu_fades_running(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 374u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 118u;
+    vars_host_field_object_accelerating_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t menu_slot1_line_values(const GameState *g, unsigned line)
 {
@@ -33669,10 +33814,13 @@ uint16_t overworld_found(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 178u + (uint32_t)i * 2u;
+    uint32_t address = 0x7E1B32u + (uint32_t)i * 0x02u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_overworld_found(GameState *g, unsigned i, uint16_t v)
@@ -33682,9 +33830,9 @@ void set_overworld_found(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 178u + (uint32_t)i * 2u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_battle_tech_records_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E1B32u + (uint32_t)i * 0x02u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint8_t overworld_list_lengths(const GameState *g, unsigned i)
 {
@@ -33693,9 +33841,11 @@ uint8_t overworld_list_lengths(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 184u + (uint32_t)i * 1u;
+    uint32_t address = 0x7E1B38u + (uint32_t)i * 0x01u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_overworld_list_lengths(GameState *g, unsigned i, uint8_t v)
@@ -33705,17 +33855,17 @@ void set_overworld_list_lengths(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 184u + (uint32_t)i * 1u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1B38u + (uint32_t)i * 0x01u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t overworld_event_over(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 195u;
+    uint32_t offset = 66u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_solid_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_overworld_event_over(GameState *g, uint8_t v)
@@ -33723,17 +33873,17 @@ void set_overworld_event_over(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 195u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 66u;
+    vars_host_field_object_solid_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t overworld_lists_found(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 196u;
+    uint32_t offset = 68u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_state_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_overworld_lists_found(GameState *g, uint8_t v)
@@ -33741,18 +33891,21 @@ void set_overworld_lists_found(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 196u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 68u;
+    vars_host_field_object_sprite_state_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t overworld_event_script(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 197u;
+    uint32_t address = 0x7E1B45u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_overworld_event_script(GameState *g, uint16_t v)
@@ -33760,18 +33913,18 @@ void set_overworld_event_script(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 197u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_battle_tech_records_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E1B45u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint8_t overworld_halt_note(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 199u;
+    uint32_t offset = 70u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_solid_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_overworld_halt_note(GameState *g, uint8_t v)
@@ -33779,17 +33932,17 @@ void set_overworld_halt_note(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 199u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 70u;
+    vars_host_field_object_solid_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t overworld_sign(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 216u;
+    uint32_t offset = 88u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_state_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_overworld_sign(GameState *g, uint8_t v)
@@ -33797,17 +33950,17 @@ void set_overworld_sign(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 216u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 88u;
+    vars_host_field_object_sprite_state_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t overworld_sign_again(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 217u;
+    uint32_t offset = 88u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_solid_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_overworld_sign_again(GameState *g, uint8_t v)
@@ -33815,17 +33968,17 @@ void set_overworld_sign_again(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 217u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 88u;
+    vars_host_field_object_solid_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t overworld_trail_next(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 218u;
+    uint32_t offset = 90u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_state_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_overworld_trail_next(GameState *g, uint8_t v)
@@ -33833,8 +33986,8 @@ void set_overworld_trail_next(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 218u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 90u;
+    vars_host_field_object_sprite_state_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t overworld_trail_x(const GameState *g, unsigned i)
 {
@@ -33843,10 +33996,13 @@ uint16_t overworld_trail_x(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 219u + (uint32_t)i * 2u;
+    uint32_t address = 0x7E1B5Bu + (uint32_t)i * 0x02u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_overworld_trail_x(GameState *g, unsigned i, uint16_t v)
@@ -33856,9 +34012,9 @@ void set_overworld_trail_x(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 219u + (uint32_t)i * 2u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_battle_tech_records_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E1B5Bu + (uint32_t)i * 0x02u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint16_t overworld_trail_y(const GameState *g, unsigned i)
 {
@@ -33867,10 +34023,13 @@ uint16_t overworld_trail_y(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 251u + (uint32_t)i * 2u;
+    uint32_t address = 0x7E1B7Bu + (uint32_t)i * 0x02u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_battle_tech_records_read8(h, offset + 1u) << 8);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
     return value;
 }
 void set_overworld_trail_y(GameState *g, unsigned i, uint16_t v)
@@ -33880,9 +34039,9 @@ void set_overworld_trail_y(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 251u + (uint32_t)i * 2u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_battle_tech_records_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t address = 0x7E1B7Bu + (uint32_t)i * 0x02u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint8_t overworld_region_songs(const GameState *g, unsigned i)
 {
@@ -33891,9 +34050,11 @@ uint8_t overworld_region_songs(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 283u + (uint32_t)i * 1u;
+    uint32_t address = 0x7E1B9Bu + (uint32_t)i * 0x01u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_overworld_region_songs(GameState *g, unsigned i, uint8_t v)
@@ -33903,17 +34064,17 @@ void set_overworld_region_songs(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 283u + (uint32_t)i * 1u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1B9Bu + (uint32_t)i * 0x01u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t overworld_epoch_flying(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 367u;
+    uint32_t offset = 110u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_acceleration_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_overworld_epoch_flying(GameState *g, uint8_t v)
@@ -33921,17 +34082,17 @@ void set_overworld_epoch_flying(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 367u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 110u;
+    vars_host_field_object_acceleration_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t overworld_dactyl_flying(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 368u;
+    uint32_t offset = 112u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_accelerating_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_overworld_dactyl_flying(GameState *g, uint8_t v)
@@ -33939,17 +34100,17 @@ void set_overworld_dactyl_flying(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 368u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 112u;
+    vars_host_field_object_accelerating_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t overworld_step_begun(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 375u;
+    uint32_t offset = 118u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_acceleration_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_overworld_step_begun(GameState *g, uint8_t v)
@@ -33957,17 +34118,17 @@ void set_overworld_step_begun(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 375u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 118u;
+    vars_host_field_object_acceleration_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t overworld_after_step_begun(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 376u;
+    uint32_t offset = 120u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_battle_tech_records_read8(h, offset + 0u) << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_accelerating_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_overworld_after_step_begun(GameState *g, uint8_t v)
@@ -33975,8 +34136,8 @@ void set_overworld_after_step_begun(GameState *g, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 376u;
-    vars_host_battle_tech_records_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 120u;
+    vars_host_field_object_accelerating_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t overworld_map(const GameState *g, unsigned i)
 {
@@ -35529,13 +35690,10 @@ uint16_t battle_joypad(const GameState *g)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E00F8u;
+    uint32_t offset = 8u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_scene_call_remainder_1_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_scene_call_remainder_1_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_battle_joypad(GameState *g, uint16_t v)
@@ -35543,9 +35701,9 @@ void set_battle_joypad(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E00F8u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 8u;
+    vars_host_scene_call_remainder_1_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_scene_call_remainder_1_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t battle_target_display(const GameState *g, unsigned i)
 {
@@ -35656,7 +35814,12 @@ uint8_t battle_object_size_bits(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_size_bits[slot];
+    uint32_t address = 0x7E0B24u + (uint32_t)slot * 0x01u;
+    uint8_t value = 0;
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
+    return value;
 }
 void set_battle_object_size_bits(GameState *g, unsigned slot, uint8_t v)
 {
@@ -35665,7 +35828,8 @@ void set_battle_object_size_bits(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_size_bits[slot] = v;
+    uint32_t address = 0x7E0B24u + (uint32_t)slot * 0x01u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t battle_window_frames_tilemap_tile(const GameState *g, unsigned column)
 {
@@ -35770,9 +35934,11 @@ uint8_t battle_object_sprite_entries_tile(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 578u + (uint32_t)slot * 4u;
+    uint32_t address = 0x7E11B2u + (uint32_t)slot * 0x04u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_battle_object_sprite_entries_tile(GameState *g, unsigned slot, uint8_t v)
@@ -35782,8 +35948,8 @@ void set_battle_object_sprite_entries_tile(GameState *g, unsigned slot, uint8_t 
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 578u + (uint32_t)slot * 4u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E11B2u + (uint32_t)slot * 0x04u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t battle_object_sprite_entries_attributes(const GameState *g, unsigned slot)
 {
@@ -35792,9 +35958,11 @@ uint8_t battle_object_sprite_entries_attributes(const GameState *g, unsigned slo
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 579u + (uint32_t)slot * 4u;
+    uint32_t address = 0x7E11B3u + (uint32_t)slot * 0x04u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_battle_object_sprite_entries_attributes(GameState *g, unsigned slot, uint8_t v)
@@ -35804,8 +35972,8 @@ void set_battle_object_sprite_entries_attributes(GameState *g, unsigned slot, ui
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 579u + (uint32_t)slot * 4u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E11B3u + (uint32_t)slot * 0x04u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t battle_object_sprite_entries_x_offset(const GameState *g, unsigned slot)
 {
@@ -35814,9 +35982,11 @@ uint8_t battle_object_sprite_entries_x_offset(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 576u + (uint32_t)slot * 4u;
+    uint32_t address = 0x7E11B0u + (uint32_t)slot * 0x04u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_battle_object_sprite_entries_x_offset(GameState *g, unsigned slot, uint8_t v)
@@ -35826,8 +35996,8 @@ void set_battle_object_sprite_entries_x_offset(GameState *g, unsigned slot, uint
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 576u + (uint32_t)slot * 4u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E11B0u + (uint32_t)slot * 0x04u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t battle_object_sprite_entries_y_offset(const GameState *g, unsigned slot)
 {
@@ -35836,9 +36006,11 @@ uint8_t battle_object_sprite_entries_y_offset(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 577u + (uint32_t)slot * 4u;
+    uint32_t address = 0x7E11B1u + (uint32_t)slot * 0x04u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_8_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_battle_object_sprite_entries_y_offset(GameState *g, unsigned slot, uint8_t v)
@@ -35848,8 +36020,8 @@ void set_battle_object_sprite_entries_y_offset(GameState *g, unsigned slot, uint
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 577u + (uint32_t)slot * 4u;
-    vars_host_menu_objects_after_channels_part_8_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E11B1u + (uint32_t)slot * 0x04u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t battle_item_list_item(const GameState *g, unsigned i)
 {
@@ -35978,7 +36150,12 @@ uint8_t battle_tech_records_id(const GameState *g, unsigned member)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_tech_records[member].id;
+    uint32_t address = 0x7E1A80u + (uint32_t)member * 0x07u;
+    uint8_t value = 0;
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
+    return value;
 }
 void set_battle_tech_records_id(GameState *g, unsigned member, uint8_t v)
 {
@@ -35987,7 +36164,8 @@ void set_battle_tech_records_id(GameState *g, unsigned member, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_tech_records[member].id = v;
+    uint32_t address = 0x7E1A80u + (uint32_t)member * 0x07u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t battle_tech_records_menu_detail(const GameState *g, unsigned member)
 {
@@ -35996,7 +36174,12 @@ uint8_t battle_tech_records_menu_detail(const GameState *g, unsigned member)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_tech_records[member].menu_detail;
+    uint32_t address = 0x7E1A81u + (uint32_t)member * 0x07u;
+    uint8_t value = 0;
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
+    return value;
 }
 void set_battle_tech_records_menu_detail(GameState *g, unsigned member, uint8_t v)
 {
@@ -36005,7 +36188,8 @@ void set_battle_tech_records_menu_detail(GameState *g, unsigned member, uint8_t 
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_tech_records[member].menu_detail = v;
+    uint32_t address = 0x7E1A81u + (uint32_t)member * 0x07u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t battle_tech_records_flags(const GameState *g, unsigned member)
 {
@@ -36014,7 +36198,12 @@ uint8_t battle_tech_records_flags(const GameState *g, unsigned member)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_tech_records[member].flags;
+    uint32_t address = 0x7E1A82u + (uint32_t)member * 0x07u;
+    uint8_t value = 0;
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
+    return value;
 }
 void set_battle_tech_records_flags(GameState *g, unsigned member, uint8_t v)
 {
@@ -36023,7 +36212,8 @@ void set_battle_tech_records_flags(GameState *g, unsigned member, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_tech_records[member].flags = v;
+    uint32_t address = 0x7E1A82u + (uint32_t)member * 0x07u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t battle_tech_records_cost(const GameState *g, unsigned member)
 {
@@ -36032,7 +36222,12 @@ uint8_t battle_tech_records_cost(const GameState *g, unsigned member)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_tech_records[member].cost;
+    uint32_t address = 0x7E1A83u + (uint32_t)member * 0x07u;
+    uint8_t value = 0;
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
+    return value;
 }
 void set_battle_tech_records_cost(GameState *g, unsigned member, uint8_t v)
 {
@@ -36041,7 +36236,8 @@ void set_battle_tech_records_cost(GameState *g, unsigned member, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_tech_records[member].cost = v;
+    uint32_t address = 0x7E1A83u + (uint32_t)member * 0x07u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t battle_tech_records_partners(const GameState *g, unsigned member)
 {
@@ -36050,7 +36246,12 @@ uint8_t battle_tech_records_partners(const GameState *g, unsigned member)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_tech_records[member].partners;
+    uint32_t address = 0x7E1A84u + (uint32_t)member * 0x07u;
+    uint8_t value = 0;
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
+    return value;
 }
 void set_battle_tech_records_partners(GameState *g, unsigned member, uint8_t v)
 {
@@ -36059,7 +36260,8 @@ void set_battle_tech_records_partners(GameState *g, unsigned member, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_tech_records[member].partners = v;
+    uint32_t address = 0x7E1A84u + (uint32_t)member * 0x07u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t battle_tech_records_second_cost(const GameState *g, unsigned member)
 {
@@ -36068,7 +36270,12 @@ uint8_t battle_tech_records_second_cost(const GameState *g, unsigned member)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_tech_records[member].second_cost;
+    uint32_t address = 0x7E1A85u + (uint32_t)member * 0x07u;
+    uint8_t value = 0;
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
+    return value;
 }
 void set_battle_tech_records_second_cost(GameState *g, unsigned member, uint8_t v)
 {
@@ -36077,7 +36284,8 @@ void set_battle_tech_records_second_cost(GameState *g, unsigned member, uint8_t 
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_tech_records[member].second_cost = v;
+    uint32_t address = 0x7E1A85u + (uint32_t)member * 0x07u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t battle_tech_records_third_cost(const GameState *g, unsigned member)
 {
@@ -36086,7 +36294,12 @@ uint8_t battle_tech_records_third_cost(const GameState *g, unsigned member)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_tech_records[member].third_cost;
+    uint32_t address = 0x7E1A86u + (uint32_t)member * 0x07u;
+    uint8_t value = 0;
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
+    return value;
 }
 void set_battle_tech_records_third_cost(GameState *g, unsigned member, uint8_t v)
 {
@@ -36095,7 +36308,8 @@ void set_battle_tech_records_third_cost(GameState *g, unsigned member, uint8_t v
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_tech_records[member].third_cost = v;
+    uint32_t address = 0x7E1A86u + (uint32_t)member * 0x07u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t battle_member_carried_weapon(const GameState *g, unsigned member)
 {
@@ -36410,7 +36624,7 @@ uint8_t battle_object_x(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_x[i];
+    return h->battle.draw_objects[i].x;
 }
 void set_battle_object_x(GameState *g, unsigned i, uint8_t v)
 {
@@ -36419,7 +36633,7 @@ void set_battle_object_x(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_x[i] = v;
+    h->battle.draw_objects[i].x = v;
 }
 uint8_t battle_object_x_unchecked(const GameState *g, unsigned i)
 {
@@ -36427,7 +36641,7 @@ uint8_t battle_object_x_unchecked(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_x[i];
+    return h->battle.draw_objects[i].x;
 }
 void set_battle_object_x_unchecked(GameState *g, unsigned i, uint8_t v)
 {
@@ -36435,7 +36649,7 @@ void set_battle_object_x_unchecked(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_x[i] = v;
+    h->battle.draw_objects[i].x = v;
 }
 uint8_t battle_object_y(const GameState *g, unsigned i)
 {
@@ -36444,7 +36658,7 @@ uint8_t battle_object_y(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_y[i];
+    return h->battle.draw_objects[i].y;
 }
 void set_battle_object_y(GameState *g, unsigned i, uint8_t v)
 {
@@ -36453,7 +36667,7 @@ void set_battle_object_y(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_y[i] = v;
+    h->battle.draw_objects[i].y = v;
 }
 uint8_t battle_object_y_unchecked(const GameState *g, unsigned i)
 {
@@ -36461,7 +36675,7 @@ uint8_t battle_object_y_unchecked(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_y[i];
+    return h->battle.draw_objects[i].y;
 }
 void set_battle_object_y_unchecked(GameState *g, unsigned i, uint8_t v)
 {
@@ -36469,7 +36683,7 @@ void set_battle_object_y_unchecked(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_y[i] = v;
+    h->battle.draw_objects[i].y = v;
 }
 uint8_t battle_draw_scratch(const GameState *g, unsigned i)
 {
@@ -36550,7 +36764,7 @@ uint8_t battle_object_part_count(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_part_count[i];
+    return h->battle.draw_objects[i].part_count;
 }
 void set_battle_object_part_count(GameState *g, unsigned i, uint8_t v)
 {
@@ -36559,7 +36773,7 @@ void set_battle_object_part_count(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_part_count[i] = v;
+    h->battle.draw_objects[i].part_count = v;
 }
 uint8_t battle_draw_list_depth(const GameState *g, unsigned i)
 {
@@ -37360,7 +37574,7 @@ uint8_t battle_remembered_cursors_command(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_remembered_cursors[i].command;
+    return h->core.characters[i].menu_cursor.command;
 }
 void set_battle_remembered_cursors_command(GameState *g, unsigned i, uint8_t v)
 {
@@ -37369,7 +37583,7 @@ void set_battle_remembered_cursors_command(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_remembered_cursors[i].command = v;
+    h->core.characters[i].menu_cursor.command = v;
 }
 uint8_t battle_remembered_cursors_tech_scroll(const GameState *g, unsigned i)
 {
@@ -37378,7 +37592,7 @@ uint8_t battle_remembered_cursors_tech_scroll(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_remembered_cursors[i].tech_scroll;
+    return h->core.characters[i].menu_cursor.tech_scroll;
 }
 void set_battle_remembered_cursors_tech_scroll(GameState *g, unsigned i, uint8_t v)
 {
@@ -37387,7 +37601,7 @@ void set_battle_remembered_cursors_tech_scroll(GameState *g, unsigned i, uint8_t
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_remembered_cursors[i].tech_scroll = v;
+    h->core.characters[i].menu_cursor.tech_scroll = v;
 }
 uint8_t battle_remembered_cursors_tech_row(const GameState *g, unsigned i)
 {
@@ -37396,7 +37610,7 @@ uint8_t battle_remembered_cursors_tech_row(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_remembered_cursors[i].tech_row;
+    return h->core.characters[i].menu_cursor.tech_row;
 }
 void set_battle_remembered_cursors_tech_row(GameState *g, unsigned i, uint8_t v)
 {
@@ -37405,7 +37619,7 @@ void set_battle_remembered_cursors_tech_row(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_remembered_cursors[i].tech_row = v;
+    h->core.characters[i].menu_cursor.tech_row = v;
 }
 uint8_t battle_remembered_cursors_tech(const GameState *g, unsigned i)
 {
@@ -37414,7 +37628,7 @@ uint8_t battle_remembered_cursors_tech(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_remembered_cursors[i].tech;
+    return h->core.characters[i].menu_cursor.tech;
 }
 void set_battle_remembered_cursors_tech(GameState *g, unsigned i, uint8_t v)
 {
@@ -37423,7 +37637,7 @@ void set_battle_remembered_cursors_tech(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_remembered_cursors[i].tech = v;
+    h->core.characters[i].menu_cursor.tech = v;
 }
 uint8_t battle_remembered_item_top(const GameState *g)
 {
@@ -39996,7 +40210,7 @@ uint8_t battle_object_facing(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_facing[slot];
+    return h->battle.combatants[slot].facing;
 }
 void set_battle_object_facing(GameState *g, unsigned slot, uint8_t v)
 {
@@ -40005,7 +40219,7 @@ void set_battle_object_facing(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_facing[slot] = v;
+    h->battle.combatants[slot].facing = v;
 }
 uint8_t battle_object_facing_unchecked(const GameState *g, unsigned slot)
 {
@@ -40013,7 +40227,7 @@ uint8_t battle_object_facing_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_facing[slot];
+    return h->battle.combatants[slot].facing;
 }
 void set_battle_object_facing_unchecked(GameState *g, unsigned slot, uint8_t v)
 {
@@ -40021,7 +40235,7 @@ void set_battle_object_facing_unchecked(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_facing[slot] = v;
+    h->battle.combatants[slot].facing = v;
 }
 uint8_t battle_object_facing_loaded(const GameState *g, unsigned slot)
 {
@@ -40030,7 +40244,7 @@ uint8_t battle_object_facing_loaded(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_facing_loaded[slot];
+    return h->battle.combatants[slot].facing_loaded;
 }
 void set_battle_object_facing_loaded(GameState *g, unsigned slot, uint8_t v)
 {
@@ -40039,7 +40253,7 @@ void set_battle_object_facing_loaded(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_facing_loaded[slot] = v;
+    h->battle.combatants[slot].facing_loaded = v;
 }
 uint32_t battle_frames(const GameState *g)
 {
@@ -40226,7 +40440,7 @@ uint8_t battle_object_half_height(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_half_height[slot];
+    return h->battle.combatants[slot].half_height;
 }
 void set_battle_object_half_height(GameState *g, unsigned slot, uint8_t v)
 {
@@ -40235,7 +40449,7 @@ void set_battle_object_half_height(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_half_height[slot] = v;
+    h->battle.combatants[slot].half_height = v;
 }
 uint8_t battle_orbit_radius(const GameState *g, unsigned slot)
 {
@@ -40334,7 +40548,7 @@ uint8_t battle_bounds_left(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_bounds_left[slot];
+    return h->battle.combatants[slot].bounds_left;
 }
 void set_battle_bounds_left(GameState *g, unsigned slot, uint8_t v)
 {
@@ -40343,7 +40557,7 @@ void set_battle_bounds_left(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_bounds_left[slot] = v;
+    h->battle.combatants[slot].bounds_left = v;
 }
 uint8_t battle_bounds_top(const GameState *g, unsigned slot)
 {
@@ -40352,7 +40566,7 @@ uint8_t battle_bounds_top(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_bounds_top[slot];
+    return h->battle.combatants[slot].bounds_top;
 }
 void set_battle_bounds_top(GameState *g, unsigned slot, uint8_t v)
 {
@@ -40361,7 +40575,7 @@ void set_battle_bounds_top(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_bounds_top[slot] = v;
+    h->battle.combatants[slot].bounds_top = v;
 }
 uint8_t battle_bounds_right(const GameState *g, unsigned slot)
 {
@@ -40370,7 +40584,7 @@ uint8_t battle_bounds_right(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_bounds_right[slot];
+    return h->battle.combatants[slot].bounds_right;
 }
 void set_battle_bounds_right(GameState *g, unsigned slot, uint8_t v)
 {
@@ -40379,7 +40593,7 @@ void set_battle_bounds_right(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_bounds_right[slot] = v;
+    h->battle.combatants[slot].bounds_right = v;
 }
 uint8_t battle_bounds_bottom(const GameState *g, unsigned slot)
 {
@@ -40388,7 +40602,7 @@ uint8_t battle_bounds_bottom(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_bounds_bottom[slot];
+    return h->battle.combatants[slot].bounds_bottom;
 }
 void set_battle_bounds_bottom(GameState *g, unsigned slot, uint8_t v)
 {
@@ -40397,7 +40611,7 @@ void set_battle_bounds_bottom(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_bounds_bottom[slot] = v;
+    h->battle.combatants[slot].bounds_bottom = v;
 }
 uint8_t battle_enemy_heading(const GameState *g, unsigned i)
 {
@@ -41146,7 +41360,7 @@ uint8_t battle_object_frame_shown(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_frame_shown[slot];
+    return h->battle.combatants[slot].frame_shown;
 }
 void set_battle_object_frame_shown(GameState *g, unsigned slot, uint8_t v)
 {
@@ -41155,7 +41369,7 @@ void set_battle_object_frame_shown(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_frame_shown[slot] = v;
+    h->battle.combatants[slot].frame_shown = v;
 }
 uint8_t battle_graphics_built(const GameState *g)
 {
@@ -41338,7 +41552,7 @@ uint8_t battle_object_palette(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_palette[slot];
+    return h->battle.combatants[slot].palette;
 }
 void set_battle_object_palette(GameState *g, unsigned slot, uint8_t v)
 {
@@ -41347,7 +41561,7 @@ void set_battle_object_palette(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_palette[slot] = v;
+    h->battle.combatants[slot].palette = v;
 }
 uint16_t battle_number_colors(const GameState *g, unsigned i)
 {
@@ -41410,7 +41624,7 @@ uint8_t battle_object_attribute_bits(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_attribute_bits[slot];
+    return h->battle.combatants[slot].attribute_bits;
 }
 void set_battle_object_attribute_bits(GameState *g, unsigned slot, uint8_t v)
 {
@@ -41419,7 +41633,7 @@ void set_battle_object_attribute_bits(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_attribute_bits[slot] = v;
+    h->battle.combatants[slot].attribute_bits = v;
 }
 uint8_t battle_area_found(const GameState *g, unsigned i)
 {
@@ -42086,7 +42300,7 @@ uint8_t battle_object_hidden(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_hidden[slot];
+    return h->battle.combatants[slot].hidden;
 }
 void set_battle_object_hidden(GameState *g, unsigned slot, uint8_t v)
 {
@@ -42095,7 +42309,7 @@ void set_battle_object_hidden(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_hidden[slot] = v;
+    h->battle.combatants[slot].hidden = v;
 }
 uint8_t battle_formation_leader(const GameState *g)
 {
@@ -42330,7 +42544,7 @@ uint8_t battle_bounds_x(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_bounds_x[slot];
+    return h->battle.combatants[slot].bounds_x;
 }
 void set_battle_bounds_x(GameState *g, unsigned slot, uint8_t v)
 {
@@ -42339,7 +42553,7 @@ void set_battle_bounds_x(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_bounds_x[slot] = v;
+    h->battle.combatants[slot].bounds_x = v;
 }
 uint8_t battle_bounds_x_unchecked(const GameState *g, unsigned slot)
 {
@@ -42347,7 +42561,7 @@ uint8_t battle_bounds_x_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_bounds_x[slot];
+    return h->battle.combatants[slot].bounds_x;
 }
 void set_battle_bounds_x_unchecked(GameState *g, unsigned slot, uint8_t v)
 {
@@ -42355,7 +42569,7 @@ void set_battle_bounds_x_unchecked(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_bounds_x[slot] = v;
+    h->battle.combatants[slot].bounds_x = v;
 }
 uint8_t battle_bounds_y(const GameState *g, unsigned slot)
 {
@@ -42364,7 +42578,7 @@ uint8_t battle_bounds_y(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_bounds_y[slot];
+    return h->battle.combatants[slot].bounds_y;
 }
 void set_battle_bounds_y(GameState *g, unsigned slot, uint8_t v)
 {
@@ -42373,7 +42587,7 @@ void set_battle_bounds_y(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_bounds_y[slot] = v;
+    h->battle.combatants[slot].bounds_y = v;
 }
 uint8_t battle_bounds_y_unchecked(const GameState *g, unsigned slot)
 {
@@ -42381,7 +42595,7 @@ uint8_t battle_bounds_y_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_bounds_y[slot];
+    return h->battle.combatants[slot].bounds_y;
 }
 void set_battle_bounds_y_unchecked(GameState *g, unsigned slot, uint8_t v)
 {
@@ -42389,7 +42603,7 @@ void set_battle_bounds_y_unchecked(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_bounds_y[slot] = v;
+    h->battle.combatants[slot].bounds_y = v;
 }
 uint8_t battle_bitmap_counts(const GameState *g, unsigned i)
 {
@@ -42562,7 +42776,7 @@ uint8_t battle_combatant_down(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_combatant_down[slot];
+    return h->battle.combatants[slot].combatant_down;
 }
 void set_battle_combatant_down(GameState *g, unsigned slot, uint8_t v)
 {
@@ -42571,7 +42785,7 @@ void set_battle_combatant_down(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_combatant_down[slot] = v;
+    h->battle.combatants[slot].combatant_down = v;
 }
 uint16_t battle_animation_second_set(const GameState *g)
 {
@@ -43146,7 +43360,7 @@ uint8_t battle_animation_delay(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_animation_delay[slot];
+    return h->battle.combatants[slot].animation_delay;
 }
 void set_battle_animation_delay(GameState *g, unsigned slot, uint8_t v)
 {
@@ -43155,7 +43369,7 @@ void set_battle_animation_delay(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_animation_delay[slot] = v;
+    h->battle.combatants[slot].animation_delay = v;
 }
 uint8_t battle_animation_delay_unchecked(const GameState *g, unsigned slot)
 {
@@ -43163,7 +43377,7 @@ uint8_t battle_animation_delay_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_animation_delay[slot];
+    return h->battle.combatants[slot].animation_delay;
 }
 void set_battle_animation_delay_unchecked(GameState *g, unsigned slot, uint8_t v)
 {
@@ -43171,7 +43385,7 @@ void set_battle_animation_delay_unchecked(GameState *g, unsigned slot, uint8_t v
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_animation_delay[slot] = v;
+    h->battle.combatants[slot].animation_delay = v;
 }
 uint8_t battle_animation_frame(const GameState *g, unsigned slot)
 {
@@ -43180,7 +43394,7 @@ uint8_t battle_animation_frame(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_animation_frame[slot];
+    return h->battle.combatants[slot].animation_frame;
 }
 void set_battle_animation_frame(GameState *g, unsigned slot, uint8_t v)
 {
@@ -43189,7 +43403,7 @@ void set_battle_animation_frame(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_animation_frame[slot] = v;
+    h->battle.combatants[slot].animation_frame = v;
 }
 uint8_t battle_animation_frame_unchecked(const GameState *g, unsigned slot)
 {
@@ -43197,7 +43411,7 @@ uint8_t battle_animation_frame_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_animation_frame[slot];
+    return h->battle.combatants[slot].animation_frame;
 }
 void set_battle_animation_frame_unchecked(GameState *g, unsigned slot, uint8_t v)
 {
@@ -43205,7 +43419,7 @@ void set_battle_animation_frame_unchecked(GameState *g, unsigned slot, uint8_t v
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_animation_frame[slot] = v;
+    h->battle.combatants[slot].animation_frame = v;
 }
 uint8_t battle_animation_shown_wait(const GameState *g, unsigned slot)
 {
@@ -43214,7 +43428,7 @@ uint8_t battle_animation_shown_wait(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_animation_shown_wait[slot];
+    return h->battle.combatants[slot].animation_shown_wait;
 }
 void set_battle_animation_shown_wait(GameState *g, unsigned slot, uint8_t v)
 {
@@ -43223,7 +43437,7 @@ void set_battle_animation_shown_wait(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_animation_shown_wait[slot] = v;
+    h->battle.combatants[slot].animation_shown_wait = v;
 }
 uint8_t battle_animation_wait(const GameState *g, unsigned slot)
 {
@@ -43232,7 +43446,7 @@ uint8_t battle_animation_wait(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_animation_wait[slot];
+    return h->battle.combatants[slot].animation_wait;
 }
 void set_battle_animation_wait(GameState *g, unsigned slot, uint8_t v)
 {
@@ -43241,7 +43455,7 @@ void set_battle_animation_wait(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_animation_wait[slot] = v;
+    h->battle.combatants[slot].animation_wait = v;
 }
 uint8_t battle_animation_wait_unchecked(const GameState *g, unsigned slot)
 {
@@ -43249,7 +43463,7 @@ uint8_t battle_animation_wait_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_animation_wait[slot];
+    return h->battle.combatants[slot].animation_wait;
 }
 void set_battle_animation_wait_unchecked(GameState *g, unsigned slot, uint8_t v)
 {
@@ -43257,7 +43471,7 @@ void set_battle_animation_wait_unchecked(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_animation_wait[slot] = v;
+    h->battle.combatants[slot].animation_wait = v;
 }
 uint8_t battle_path_active(const GameState *g, unsigned slot)
 {
@@ -43266,7 +43480,7 @@ uint8_t battle_path_active(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_path_active[slot];
+    return h->battle.combatants[slot].path_active;
 }
 void set_battle_path_active(GameState *g, unsigned slot, uint8_t v)
 {
@@ -43275,7 +43489,7 @@ void set_battle_path_active(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_path_active[slot] = v;
+    h->battle.combatants[slot].path_active = v;
 }
 uint8_t battle_script_command_cells(const GameState *g, unsigned slot)
 {
@@ -43618,7 +43832,7 @@ uint8_t battle_object_facing_shown(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_facing_shown[slot];
+    return h->battle.combatants[slot].facing_shown;
 }
 void set_battle_object_facing_shown(GameState *g, unsigned slot, uint8_t v)
 {
@@ -43627,7 +43841,7 @@ void set_battle_object_facing_shown(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_facing_shown[slot] = v;
+    h->battle.combatants[slot].facing_shown = v;
 }
 uint8_t battle_object_facing_shown_unchecked(const GameState *g, unsigned slot)
 {
@@ -43635,7 +43849,7 @@ uint8_t battle_object_facing_shown_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_facing_shown[slot];
+    return h->battle.combatants[slot].facing_shown;
 }
 void set_battle_object_facing_shown_unchecked(GameState *g, unsigned slot, uint8_t v)
 {
@@ -43643,7 +43857,7 @@ void set_battle_object_facing_shown_unchecked(GameState *g, unsigned slot, uint8
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_facing_shown[slot] = v;
+    h->battle.combatants[slot].facing_shown = v;
 }
 uint8_t battle_animation_cursor(const GameState *g)
 {
@@ -44538,7 +44752,7 @@ uint8_t battle_object_pose(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_pose[slot];
+    return h->battle.combatants[slot].pose;
 }
 void set_battle_object_pose(GameState *g, unsigned slot, uint8_t v)
 {
@@ -44547,7 +44761,7 @@ void set_battle_object_pose(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_pose[slot] = v;
+    h->battle.combatants[slot].pose = v;
 }
 uint8_t battle_object_pose_last(const GameState *g, unsigned slot)
 {
@@ -44556,7 +44770,7 @@ uint8_t battle_object_pose_last(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_pose_last[slot];
+    return h->battle.combatants[slot].pose_last;
 }
 void set_battle_object_pose_last(GameState *g, unsigned slot, uint8_t v)
 {
@@ -44565,7 +44779,7 @@ void set_battle_object_pose_last(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_pose_last[slot] = v;
+    h->battle.combatants[slot].pose_last = v;
 }
 uint8_t battle_pose_look_unread_second(const GameState *g, unsigned slot)
 {
@@ -44884,7 +45098,7 @@ uint8_t battle_path_steps(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_path_steps[slot];
+    return h->battle.combatants[slot].path_steps;
 }
 void set_battle_path_steps(GameState *g, unsigned slot, uint8_t v)
 {
@@ -44893,7 +45107,7 @@ void set_battle_path_steps(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_path_steps[slot] = v;
+    h->battle.combatants[slot].path_steps = v;
 }
 uint8_t battle_walk_from_cell(const GameState *g)
 {
@@ -45228,7 +45442,7 @@ uint8_t battle_object_extra_draw_on(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_extra_draw_on[slot];
+    return h->battle.combatants[slot].extra_draw_on;
 }
 void set_battle_object_extra_draw_on(GameState *g, unsigned slot, uint8_t v)
 {
@@ -45237,7 +45451,7 @@ void set_battle_object_extra_draw_on(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_extra_draw_on[slot] = v;
+    h->battle.combatants[slot].extra_draw_on = v;
 }
 uint8_t battle_object_shadow(const GameState *g, unsigned slot)
 {
@@ -45246,7 +45460,7 @@ uint8_t battle_object_shadow(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_object_shadow[slot];
+    return h->battle.combatants[slot].shadow;
 }
 void set_battle_object_shadow(GameState *g, unsigned slot, uint8_t v)
 {
@@ -45255,7 +45469,7 @@ void set_battle_object_shadow(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_object_shadow[slot] = v;
+    h->battle.combatants[slot].shadow = v;
 }
 uint8_t battle_sprite_attributes(const GameState *g)
 {
@@ -46168,7 +46382,7 @@ uint8_t battle_combatant_orbit_center_x(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_combatant_orbit_center_x[slot];
+    return h->battle.combatants[slot].combatant_orbit_center_x;
 }
 void set_battle_combatant_orbit_center_x(GameState *g, unsigned slot, uint8_t v)
 {
@@ -46177,7 +46391,7 @@ void set_battle_combatant_orbit_center_x(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_combatant_orbit_center_x[slot] = v;
+    h->battle.combatants[slot].combatant_orbit_center_x = v;
 }
 uint8_t battle_anchor_orbit_center_x(const GameState *g, unsigned i)
 {
@@ -46204,7 +46418,7 @@ uint8_t battle_combatant_orbit_center_y(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_combatant_orbit_center_y[slot];
+    return h->battle.combatants[slot].combatant_orbit_center_y;
 }
 void set_battle_combatant_orbit_center_y(GameState *g, unsigned slot, uint8_t v)
 {
@@ -46213,7 +46427,7 @@ void set_battle_combatant_orbit_center_y(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_combatant_orbit_center_y[slot] = v;
+    h->battle.combatants[slot].combatant_orbit_center_y = v;
 }
 uint8_t battle_anchor_orbit_center_y(const GameState *g, unsigned i)
 {
@@ -48022,7 +48236,7 @@ uint8_t battle_combatant_fighting(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_combatant_fighting[slot];
+    return h->battle.combatants[slot].combatant_fighting;
 }
 void set_battle_combatant_fighting(GameState *g, unsigned slot, uint8_t v)
 {
@@ -48031,7 +48245,7 @@ void set_battle_combatant_fighting(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_combatant_fighting[slot] = v;
+    h->battle.combatants[slot].combatant_fighting = v;
 }
 uint8_t battle_combatant_fighting_unchecked(const GameState *g, unsigned slot)
 {
@@ -48039,7 +48253,7 @@ uint8_t battle_combatant_fighting_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_combatant_fighting[slot];
+    return h->battle.combatants[slot].combatant_fighting;
 }
 void set_battle_combatant_fighting_unchecked(GameState *g, unsigned slot, uint8_t v)
 {
@@ -48047,7 +48261,7 @@ void set_battle_combatant_fighting_unchecked(GameState *g, unsigned slot, uint8_
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_combatant_fighting[slot] = v;
+    h->battle.combatants[slot].combatant_fighting = v;
 }
 uint8_t battle_combatant_id(const GameState *g, unsigned slot)
 {
@@ -48056,7 +48270,7 @@ uint8_t battle_combatant_id(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_combatant_id[slot];
+    return h->battle.combatants[slot].combatant_id;
 }
 void set_battle_combatant_id(GameState *g, unsigned slot, uint8_t v)
 {
@@ -48065,7 +48279,7 @@ void set_battle_combatant_id(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_combatant_id[slot] = v;
+    h->battle.combatants[slot].combatant_id = v;
 }
 uint8_t battle_combatant_id_unchecked(const GameState *g, unsigned slot)
 {
@@ -48073,7 +48287,7 @@ uint8_t battle_combatant_id_unchecked(const GameState *g, unsigned slot)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    return h->battle.battle_combatant_id[slot];
+    return h->battle.combatants[slot].combatant_id;
 }
 void set_battle_combatant_id_unchecked(GameState *g, unsigned slot, uint8_t v)
 {
@@ -48081,7 +48295,7 @@ void set_battle_combatant_id_unchecked(GameState *g, unsigned slot, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    h->battle.battle_combatant_id[slot] = v;
+    h->battle.combatants[slot].combatant_id = v;
 }
 uint8_t battle_enemy_standing(const GameState *g, unsigned i)
 {
@@ -59933,7 +60147,11 @@ uint16_t scene_perspective_camera(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->scene.scene_perspective_camera[i];
+    uint32_t offset = 48u + (uint32_t)i * 2u;
+    uint16_t value = 0;
+    value |= (uint16_t)((uint16_t)vars_host_field_object_screen_x_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_screen_x_values_read8(h, offset + 1u) << 8);
+    return value;
 }
 void set_scene_perspective_camera(GameState *g, unsigned i, uint16_t v)
 {
@@ -59942,7 +60160,9 @@ void set_scene_perspective_camera(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->scene.scene_perspective_camera[i] = v;
+    uint32_t offset = 48u + (uint32_t)i * 2u;
+    vars_host_field_object_screen_x_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_screen_x_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_turning(const GameState *g, unsigned i)
 {
@@ -59951,7 +60171,11 @@ uint16_t scene_race_turning(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->scene.scene_race_turning[i];
+    uint32_t offset = 58u + (uint32_t)i * 2u;
+    uint16_t value = 0;
+    value |= (uint16_t)((uint16_t)vars_host_field_object_screen_x_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_screen_x_values_read8(h, offset + 1u) << 8);
+    return value;
 }
 void set_scene_race_turning(GameState *g, unsigned i, uint16_t v)
 {
@@ -59960,21 +60184,32 @@ void set_scene_race_turning(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->scene.scene_race_turning[i] = v;
+    uint32_t offset = 58u + (uint32_t)i * 2u;
+    vars_host_field_object_screen_x_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_screen_x_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_dive_trail_radius(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->scene.scene_dive_trail_radius;
+    uint32_t address = 0x7E0B38u;
+    uint16_t value = 0;
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint16_t)((uint16_t)byte << 8);
+    return value;
 }
 void set_scene_dive_trail_radius(GameState *g, uint16_t v)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->scene.scene_dive_trail_radius = v;
+    uint32_t address = 0x7E0B38u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
 }
 uint8_t scene_planet_tile_order(const GameState *g, unsigned i)
 {
@@ -59983,11 +60218,9 @@ uint8_t scene_planet_tile_order(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E0C00u + (uint32_t)i * 0x01u;
+    uint32_t offset = 0u + (uint32_t)i * 1u;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_sprite_priority_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_scene_planet_tile_order(GameState *g, unsigned i, uint8_t v)
@@ -59997,8 +60230,8 @@ void set_scene_planet_tile_order(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E0C00u + (uint32_t)i * 0x01u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 0u + (uint32_t)i * 1u;
+    vars_host_field_object_sprite_priority_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint8_t scene_stars_across(const GameState *g, unsigned i)
 {
@@ -60221,13 +60454,10 @@ uint16_t scene_flight_view_x(const GameState *g)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1400u;
+    uint32_t offset = 0u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_flight_view_x(GameState *g, uint16_t v)
@@ -60235,22 +60465,19 @@ void set_scene_flight_view_x(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1400u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_flight_view_y(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1402u;
+    uint32_t offset = 2u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_flight_view_y(GameState *g, uint16_t v)
@@ -60258,22 +60485,19 @@ void set_scene_flight_view_y(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1402u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 2u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_flight_view_line_x(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1404u;
+    uint32_t offset = 4u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_flight_view_line_x(GameState *g, uint16_t v)
@@ -60281,22 +60505,19 @@ void set_scene_flight_view_line_x(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1404u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 4u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_flight_view_line_y(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1406u;
+    uint32_t offset = 6u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_flight_view_line_y(GameState *g, uint16_t v)
@@ -60304,22 +60525,19 @@ void set_scene_flight_view_line_y(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1406u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 6u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_flight_view_centre_x(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1408u;
+    uint32_t offset = 8u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_flight_view_centre_x(GameState *g, uint16_t v)
@@ -60327,22 +60545,19 @@ void set_scene_flight_view_centre_x(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1408u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 8u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_flight_view_centre_y(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E140Au;
+    uint32_t offset = 10u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_flight_view_centre_y(GameState *g, uint16_t v)
@@ -60350,22 +60565,19 @@ void set_scene_flight_view_centre_y(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E140Au;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 10u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_flight_view_sky_x(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E140Cu;
+    uint32_t offset = 12u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_flight_view_sky_x(GameState *g, uint16_t v)
@@ -60373,22 +60585,19 @@ void set_scene_flight_view_sky_x(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E140Cu;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 12u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_flight_view_sky_y(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E140Eu;
+    uint32_t offset = 14u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_flight_view_sky_y(GameState *g, uint16_t v)
@@ -60396,22 +60605,19 @@ void set_scene_flight_view_sky_y(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E140Eu;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 14u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_flight_view_turned_x(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1410u;
+    uint32_t offset = 16u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_flight_view_turned_x(GameState *g, uint16_t v)
@@ -60419,22 +60625,19 @@ void set_scene_flight_view_turned_x(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1410u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 16u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_flight_view_turned_y(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1412u;
+    uint32_t offset = 18u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_flight_view_turned_y(GameState *g, uint16_t v)
@@ -60442,9 +60645,9 @@ void set_scene_flight_view_turned_y(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1412u;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 18u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_picture_requests_pairs(const GameState *g, unsigned i)
 {
@@ -60453,13 +60656,10 @@ uint16_t scene_race_picture_requests_pairs(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1400u + (uint32_t)i * 0x0Eu;
+    uint32_t offset = 0u + (uint32_t)i * 14u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_race_picture_requests_pairs(GameState *g, unsigned i, uint16_t v)
@@ -60469,9 +60669,9 @@ void set_scene_race_picture_requests_pairs(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1400u + (uint32_t)i * 0x0Eu;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 0u + (uint32_t)i * 14u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_picture_requests_state(const GameState *g, unsigned i)
 {
@@ -60480,13 +60680,10 @@ uint16_t scene_race_picture_requests_state(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1402u + (uint32_t)i * 0x0Eu;
+    uint32_t offset = 2u + (uint32_t)i * 14u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_race_picture_requests_state(GameState *g, unsigned i, uint16_t v)
@@ -60496,9 +60693,9 @@ void set_scene_race_picture_requests_state(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1402u + (uint32_t)i * 0x0Eu;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 2u + (uint32_t)i * 14u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_picture_requests_source(const GameState *g, unsigned i)
 {
@@ -60507,13 +60704,10 @@ uint16_t scene_race_picture_requests_source(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1404u + (uint32_t)i * 0x0Eu;
+    uint32_t offset = 4u + (uint32_t)i * 14u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_race_picture_requests_source(GameState *g, unsigned i, uint16_t v)
@@ -60523,9 +60717,9 @@ void set_scene_race_picture_requests_source(GameState *g, unsigned i, uint16_t v
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1404u + (uint32_t)i * 0x0Eu;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 4u + (uint32_t)i * 14u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_picture_requests_rows(const GameState *g, unsigned i)
 {
@@ -60534,13 +60728,10 @@ uint16_t scene_race_picture_requests_rows(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1406u + (uint32_t)i * 0x0Eu;
+    uint32_t offset = 6u + (uint32_t)i * 14u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_race_picture_requests_rows(GameState *g, unsigned i, uint16_t v)
@@ -60550,9 +60741,9 @@ void set_scene_race_picture_requests_rows(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1406u + (uint32_t)i * 0x0Eu;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 6u + (uint32_t)i * 14u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_picture_requests_row_step(const GameState *g, unsigned i)
 {
@@ -60561,13 +60752,10 @@ uint16_t scene_race_picture_requests_row_step(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1408u + (uint32_t)i * 0x0Eu;
+    uint32_t offset = 8u + (uint32_t)i * 14u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_race_picture_requests_row_step(GameState *g, unsigned i, uint16_t v)
@@ -60577,9 +60765,9 @@ void set_scene_race_picture_requests_row_step(GameState *g, unsigned i, uint16_t
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1408u + (uint32_t)i * 0x0Eu;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 8u + (uint32_t)i * 14u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_picture_requests_column_step(const GameState *g, unsigned i)
 {
@@ -60588,13 +60776,10 @@ uint16_t scene_race_picture_requests_column_step(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E140Au + (uint32_t)i * 0x0Eu;
+    uint32_t offset = 10u + (uint32_t)i * 14u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_race_picture_requests_column_step(GameState *g, unsigned i, uint16_t v)
@@ -60604,9 +60789,9 @@ void set_scene_race_picture_requests_column_step(GameState *g, unsigned i, uint1
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E140Au + (uint32_t)i * 0x0Eu;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 10u + (uint32_t)i * 14u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_picture_requests_source_limit(const GameState *g, unsigned i)
 {
@@ -60615,13 +60800,10 @@ uint16_t scene_race_picture_requests_source_limit(const GameState *g, unsigned i
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E140Cu + (uint32_t)i * 0x0Eu;
+    uint32_t offset = 12u + (uint32_t)i * 14u;
     uint16_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 0);
-    vars_host_read8(h, address + 1u, &byte);
-    value |= (uint16_t)((uint16_t)byte << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_race_picture_requests_source_limit(GameState *g, unsigned i, uint16_t v)
@@ -60631,9 +60813,9 @@ void set_scene_race_picture_requests_source_limit(GameState *g, unsigned i, uint
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E140Cu + (uint32_t)i * 0x0Eu;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
-    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 12u + (uint32_t)i * 14u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t scene_turn_output_map_byte(const GameState *g, unsigned at)
 {
@@ -60666,11 +60848,9 @@ uint8_t scene_credits_row_byte(const GameState *g, unsigned at)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t address = 0x7E1414u + at;
+    uint32_t offset = 20u + at;
     uint8_t value = 0;
-    uint8_t byte = 0;
-    vars_host_read8(h, address + 0u, &byte);
-    value |= (uint8_t)((uint8_t)byte << 0);
+    value |= (uint8_t)((uint8_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
     return value;
 }
 void set_scene_credits_row_byte(GameState *g, unsigned at, uint8_t v)
@@ -60680,18 +60860,18 @@ void set_scene_credits_row_byte(GameState *g, unsigned at, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t address = 0x7E1414u + at;
-    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    uint32_t offset = 20u + at;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
 }
 uint16_t scene_race_plane_turn(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 44u;
+    uint32_t offset = 28u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_9_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_9_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_race_plane_turn(GameState *g, uint16_t v)
@@ -60699,19 +60879,19 @@ void set_scene_race_plane_turn(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 44u;
-    vars_host_menu_objects_after_channels_part_9_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_9_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 28u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_horizon(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 46u;
+    uint32_t offset = 30u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_9_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_9_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_race_horizon(GameState *g, uint16_t v)
@@ -60719,9 +60899,9 @@ void set_scene_race_horizon(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 46u;
-    vars_host_menu_objects_after_channels_part_9_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_9_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 30u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_view_position(const GameState *g, unsigned i)
 {
@@ -60730,10 +60910,10 @@ uint16_t scene_race_view_position(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 48u + (uint32_t)i * 2u;
+    uint32_t offset = 32u + (uint32_t)i * 2u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_9_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_9_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_race_view_position(GameState *g, unsigned i, uint16_t v)
@@ -60743,9 +60923,9 @@ void set_scene_race_view_position(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 48u + (uint32_t)i * 2u;
-    vars_host_menu_objects_after_channels_part_9_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_9_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 32u + (uint32_t)i * 2u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_view_sent(const GameState *g, unsigned i)
 {
@@ -60754,10 +60934,10 @@ uint16_t scene_race_view_sent(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 52u + (uint32_t)i * 2u;
+    uint32_t offset = 36u + (uint32_t)i * 2u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_9_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_9_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_race_view_sent(GameState *g, unsigned i, uint16_t v)
@@ -60767,47 +60947,59 @@ void set_scene_race_view_sent(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 52u + (uint32_t)i * 2u;
-    vars_host_menu_objects_after_channels_part_9_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_9_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 36u + (uint32_t)i * 2u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_center_x(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->scene.scene_race_center_x;
+    uint32_t offset = 44u;
+    uint16_t value = 0;
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
+    return value;
 }
 void set_scene_race_center_x(GameState *g, uint16_t v)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->scene.scene_race_center_x = v;
+    uint32_t offset = 44u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_center_y(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    return h->scene.scene_race_center_y;
+    uint32_t offset = 46u;
+    uint16_t value = 0;
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
+    return value;
 }
 void set_scene_race_center_y(GameState *g, uint16_t v)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    h->scene.scene_race_center_y = v;
+    uint32_t offset = 46u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_bg2_scroll_x(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 0u;
+    uint32_t offset = 48u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_10_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_10_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_race_bg2_scroll_x(GameState *g, uint16_t v)
@@ -60815,19 +61007,19 @@ void set_scene_race_bg2_scroll_x(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 0u;
-    vars_host_menu_objects_after_channels_part_10_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_10_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 48u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_bg3_scroll_x(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 4u;
+    uint32_t offset = 52u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_10_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_10_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_race_bg3_scroll_x(GameState *g, uint16_t v)
@@ -60835,19 +61027,19 @@ void set_scene_race_bg3_scroll_x(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 4u;
-    vars_host_menu_objects_after_channels_part_10_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_10_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 52u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_bg3_scroll_y(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 6u;
+    uint32_t offset = 54u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_10_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_10_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_race_bg3_scroll_y(GameState *g, uint16_t v)
@@ -60855,19 +61047,19 @@ void set_scene_race_bg3_scroll_y(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 6u;
-    vars_host_menu_objects_after_channels_part_10_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_10_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 54u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_scenery_drift(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 14u;
+    uint32_t offset = 62u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_10_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_10_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_race_scenery_drift(GameState *g, uint16_t v)
@@ -60875,9 +61067,9 @@ void set_scene_race_scenery_drift(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 14u;
-    vars_host_menu_objects_after_channels_part_10_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_10_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 62u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_camera_offset(const GameState *g, unsigned i)
 {
@@ -60886,10 +61078,10 @@ uint16_t scene_race_camera_offset(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 16u + (uint32_t)i * 2u;
+    uint32_t offset = 64u + (uint32_t)i * 2u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_10_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_10_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_race_camera_offset(GameState *g, unsigned i, uint16_t v)
@@ -60899,19 +61091,19 @@ void set_scene_race_camera_offset(GameState *g, unsigned i, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 16u + (uint32_t)i * 2u;
-    vars_host_menu_objects_after_channels_part_10_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_10_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 64u + (uint32_t)i * 2u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint16_t scene_race_johnny_gone(const GameState *g)
 {
     if (!peeking)
         state_host_game_access(g, 16);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 20u;
+    uint32_t offset = 68u;
     uint16_t value = 0;
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_10_read8(h, offset + 0u) << 0);
-    value |= (uint16_t)((uint16_t)vars_host_menu_objects_after_channels_part_10_read8(h, offset + 1u) << 8);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 0u) << 0);
+    value |= (uint16_t)((uint16_t)vars_host_field_object_colours_values_read8(h, offset + 1u) << 8);
     return value;
 }
 void set_scene_race_johnny_gone(GameState *g, uint16_t v)
@@ -60919,9 +61111,9 @@ void set_scene_race_johnny_gone(GameState *g, uint16_t v)
     if (!peeking)
         state_host_game_access(g, 16);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 20u;
-    vars_host_menu_objects_after_channels_part_10_write8(h, offset + 0u, (uint8_t)(v >> 0));
-    vars_host_menu_objects_after_channels_part_10_write8(h, offset + 1u, (uint8_t)(v >> 8));
+    uint32_t offset = 68u;
+    vars_host_field_object_colours_values_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    vars_host_field_object_colours_values_write8(h, offset + 1u, (uint8_t)(v >> 8));
 }
 uint8_t scene_race_divisors(const GameState *g, unsigned i)
 {
@@ -60930,9 +61122,11 @@ uint8_t scene_race_divisors(const GameState *g, unsigned i)
     if (!peeking)
         state_host_game_access(g, 8);
     const VarsHost *h = state_host_vars_const(g);
-    uint32_t offset = 22u + (uint32_t)i * 1u;
+    uint32_t address = 0x7E1446u + (uint32_t)i * 0x01u;
     uint8_t value = 0;
-    value |= (uint8_t)((uint8_t)vars_host_menu_objects_after_channels_part_10_read8(h, offset + 0u) << 0);
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
     return value;
 }
 void set_scene_race_divisors(GameState *g, unsigned i, uint8_t v)
@@ -60942,8 +61136,8 @@ void set_scene_race_divisors(GameState *g, unsigned i, uint8_t v)
     if (!peeking)
         state_host_game_access(g, 8);
     VarsHost *h = state_host_vars(g);
-    uint32_t offset = 22u + (uint32_t)i * 1u;
-    vars_host_menu_objects_after_channels_part_10_write8(h, offset + 0u, (uint8_t)(v >> 0));
+    uint32_t address = 0x7E1446u + (uint32_t)i * 0x01u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
 uint8_t scene_palette_byte(const GameState *g, unsigned at)
 {
@@ -63544,7 +63738,18 @@ uint32_t scene_call_dividend(const GameState *g, SceneProgramPage page)
     if (!peeking)
         state_host_game_access(g, 32);
     const VarsHost *h = state_host_vars_const(g);
-    return h->scene.scene_call[(page.kind == SCENE_PROGRAM_OWN ? 0u + page.index : page.kind == SCENE_PROGRAM_CHANNEL ? 1u + page.index : 0u)].dividend;
+    uint32_t address = scene_program_page_base(page) + 0xF0u;
+    uint32_t value = 0;
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 8);
+    vars_host_read8(h, address + 2u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 16);
+    vars_host_read8(h, address + 3u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 24);
+    return value;
 }
 void set_scene_call_dividend(GameState *g, SceneProgramPage page, uint32_t v)
 {
@@ -63553,7 +63758,11 @@ void set_scene_call_dividend(GameState *g, SceneProgramPage page, uint32_t v)
     if (!peeking)
         state_host_game_access(g, 32);
     VarsHost *h = state_host_vars(g);
-    h->scene.scene_call[(page.kind == SCENE_PROGRAM_OWN ? 0u + page.index : page.kind == SCENE_PROGRAM_CHANNEL ? 1u + page.index : 0u)].dividend = v;
+    uint32_t address = scene_program_page_base(page) + 0xF0u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    vars_host_write8(h, address + 2u, (uint8_t)(v >> 16));
+    vars_host_write8(h, address + 3u, (uint8_t)(v >> 24));
 }
 uint32_t scene_call_product(const GameState *g, SceneProgramPage page)
 {
@@ -63562,7 +63771,18 @@ uint32_t scene_call_product(const GameState *g, SceneProgramPage page)
     if (!peeking)
         state_host_game_access(g, 32);
     const VarsHost *h = state_host_vars_const(g);
-    return h->scene.scene_call[(page.kind == SCENE_PROGRAM_OWN ? 0u + page.index : page.kind == SCENE_PROGRAM_CHANNEL ? 1u + page.index : 0u)].product;
+    uint32_t address = scene_program_page_base(page) + 0xF4u;
+    uint32_t value = 0;
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 8);
+    vars_host_read8(h, address + 2u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 16);
+    vars_host_read8(h, address + 3u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 24);
+    return value;
 }
 void set_scene_call_product(GameState *g, SceneProgramPage page, uint32_t v)
 {
@@ -63571,7 +63791,11 @@ void set_scene_call_product(GameState *g, SceneProgramPage page, uint32_t v)
     if (!peeking)
         state_host_game_access(g, 32);
     VarsHost *h = state_host_vars(g);
-    h->scene.scene_call[(page.kind == SCENE_PROGRAM_OWN ? 0u + page.index : page.kind == SCENE_PROGRAM_CHANNEL ? 1u + page.index : 0u)].product = v;
+    uint32_t address = scene_program_page_base(page) + 0xF4u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    vars_host_write8(h, address + 2u, (uint8_t)(v >> 16));
+    vars_host_write8(h, address + 3u, (uint8_t)(v >> 24));
 }
 uint8_t scene_call_product_third_byte(const GameState *g, SceneProgramPage page)
 {
@@ -63691,7 +63915,18 @@ uint32_t scene_call_quotient(const GameState *g, SceneProgramPage page)
     if (!peeking)
         state_host_game_access(g, 32);
     const VarsHost *h = state_host_vars_const(g);
-    return h->scene.scene_call[(page.kind == SCENE_PROGRAM_OWN ? 0u + page.index : page.kind == SCENE_PROGRAM_CHANNEL ? 1u + page.index : 0u)].quotient;
+    uint32_t address = scene_program_page_base(page) + 0xF8u;
+    uint32_t value = 0;
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 8);
+    vars_host_read8(h, address + 2u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 16);
+    vars_host_read8(h, address + 3u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 24);
+    return value;
 }
 void set_scene_call_quotient(GameState *g, SceneProgramPage page, uint32_t v)
 {
@@ -63700,7 +63935,11 @@ void set_scene_call_quotient(GameState *g, SceneProgramPage page, uint32_t v)
     if (!peeking)
         state_host_game_access(g, 32);
     VarsHost *h = state_host_vars(g);
-    h->scene.scene_call[(page.kind == SCENE_PROGRAM_OWN ? 0u + page.index : page.kind == SCENE_PROGRAM_CHANNEL ? 1u + page.index : 0u)].quotient = v;
+    uint32_t address = scene_program_page_base(page) + 0xF8u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    vars_host_write8(h, address + 2u, (uint8_t)(v >> 16));
+    vars_host_write8(h, address + 3u, (uint8_t)(v >> 24));
 }
 uint8_t scene_call_after_the_product(const GameState *g, SceneProgramPage page)
 {
@@ -63760,7 +63999,18 @@ uint32_t scene_call_remainder(const GameState *g, SceneProgramPage page)
     if (!peeking)
         state_host_game_access(g, 32);
     const VarsHost *h = state_host_vars_const(g);
-    return h->scene.scene_call[(page.kind == SCENE_PROGRAM_OWN ? 0u + page.index : page.kind == SCENE_PROGRAM_CHANNEL ? 1u + page.index : 0u)].remainder;
+    uint32_t address = scene_program_page_base(page) + 0xFCu;
+    uint32_t value = 0;
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 0);
+    vars_host_read8(h, address + 1u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 8);
+    vars_host_read8(h, address + 2u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 16);
+    vars_host_read8(h, address + 3u, &byte);
+    value |= (uint32_t)((uint32_t)byte << 24);
+    return value;
 }
 void set_scene_call_remainder(GameState *g, SceneProgramPage page, uint32_t v)
 {
@@ -63769,7 +64019,11 @@ void set_scene_call_remainder(GameState *g, SceneProgramPage page, uint32_t v)
     if (!peeking)
         state_host_game_access(g, 32);
     VarsHost *h = state_host_vars(g);
-    h->scene.scene_call[(page.kind == SCENE_PROGRAM_OWN ? 0u + page.index : page.kind == SCENE_PROGRAM_CHANNEL ? 1u + page.index : 0u)].remainder = v;
+    uint32_t address = scene_program_page_base(page) + 0xFCu;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+    vars_host_write8(h, address + 1u, (uint8_t)(v >> 8));
+    vars_host_write8(h, address + 2u, (uint8_t)(v >> 16));
+    vars_host_write8(h, address + 3u, (uint8_t)(v >> 24));
 }
 uint8_t scene_call_transfer_control(const GameState *g, SceneProgramPage page)
 {

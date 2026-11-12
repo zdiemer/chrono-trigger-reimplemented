@@ -133,7 +133,7 @@ static void alias_views(void)
     /* Internal views and cross-mode views must share initial contents and
      * partial writes, not just synchronize at a mode transition. */
     set_character_records_hp(g, 2, 0xABCD);
-    CHECK(h->core.character_records_values[2].hp == 0xABCD);
+    CHECK(h->core.characters[2].hp == 0xABCD);
     CHECK(character_records_record_byte(g, 2, 4) == 0xAB);
     set_character_records_record_byte(g, 2, 4, 0x12);
     CHECK(character_records_hp(g, 2) == 0x12CD);
@@ -155,7 +155,7 @@ static void alias_views(void)
     set_party_gold_high(g, 0x78);
     CHECK(menu_past_the_names(g) == 0x783412);
     set_oam_buffer_tile(g, 3, 0x9A);
-    CHECK(h->core.oam_buffer_values[3].tile == 0x9A);
+    CHECK(h->core.sprites[3].tile == 0x9A);
     CHECK(scene_sprite_table_byte(g, 14) == 0x9A);
     hw_port_seek(g, 0x070E, 0);
     hw_port_write(g, 0xBC);
@@ -183,7 +183,7 @@ static void alias_views(void)
     CHECK(h->menu.menu_inventory_past_the_items[0] == 0x73);
     CHECK(range_fault_count() == 1);
     set_character_records_record_byte(g, 0, CHARACTER_RECORDS_RECORD_BYTES, 0xA5);
-    CHECK(h->core.character_records_storage[1].id == 0xA5);
+    CHECK(h->core.characters[1].id == 0xA5);
     CHECK(range_fault_count() == 2);
     set_oam_buffer_x(g, OAM_BUFFER_COUNT, 0x5A);
     CHECK(oam_high_table_byte(g, 0) == 0x5A);
@@ -206,29 +206,29 @@ static void records_and_composed_views(void)
     VarsHost *h = state_host_vars(g);
     /* Script offsets and typed combatant fields are two views of one record. */
     set_battle_stats_hp(g, 10, 0x1234);
-    CHECK(h->battle.battle_combatants[10].hp == 0x1234);
+    CHECK(h->battle.combatants[10].hp == 0x1234);
     CHECK(battle_stats_block_byte(g, 10, 3) == 0x34);
     set_battle_stats_block_byte(g, 10, 4, 0xAB);
-    CHECK(h->battle.battle_combatants[10].hp == 0xAB34);
-    h->battle.battle_combatants[10].experience = 0x654321;
+    CHECK(h->battle.combatants[10].hp == 0xAB34);
+    h->battle.combatants[10].experience = 0x654321;
     CHECK(battle_stats_block_byte(g, 10, 0x15) == 0x65);
     CHECK(state_host_read8(g, 0x7E6340) == 0x21);
 
-    /* Menu direct pages select records, including unaligned words and 24-bit
-     * pointers. Neither their original stride nor host padding is storage. */
+    /* Menu direct pages are alternate views over field objects. Unaligned
+     * words and 24-bit pointers still span those typed fields correctly. */
     for (unsigned record = 0; record < 9; record++) {
         set_menu_record_graphics(g, record, 0x123400u + record);
-        CHECK(h->menu.menu_records[record].graphics == 0x123400u + record);
+        CHECK(menu_record_graphics(g, record) == 0x123400u + record);
         CHECK(state_host_read8(g, 0x7E1804 + record * 64) == record);
     }
     set_menu_record_graphics(g, 8, 0xFE123456);
-    CHECK(h->menu.menu_records[8].graphics == 0x123456);
+    CHECK(menu_record_graphics(g, 8) == 0x123456);
     CHECK(state_host_read8(g, 0x7E1A06) == 0x12);
     set_menu_record_tile(g, 8, 0xABCD);
     CHECK(menu_record_colours(g, 8) == 0xAB);
     set_menu_record_x(g, 8, 0x2345);
     CHECK(menu_record_x_low(g, 8) == 0x45);
-    CHECK(h->menu.menu_records[7].x == 0x5555);
+    CHECK(menu_record_x(g, 7) == 0x5555);
     vars_range_reset();
     set_menu_record_x(g, 9, 0x6789);
     CHECK(state_host_read8(g, 0x7E1A4F) == 0x89);
@@ -241,8 +241,8 @@ static void records_and_composed_views(void)
         set_scene_call_quotient(g, pages[i], 0xABCDEF00u + i);
         /* This four-byte view crosses two owning words within each record. */
         set_scene_call_bump_push(g, pages[i], 0x76543210u + i);
-        CHECK(h->scene.scene_call[i].product == (0x32105678u + i * 0x10001u));
-        CHECK(h->scene.scene_call[i].quotient == 0xABCD7654u);
+        CHECK(scene_call_product(g, pages[i]) == (0x32105678u + i * 0x10001u));
+        CHECK(scene_call_quotient(g, pages[i]) == 0xABCD7654u);
         CHECK(scene_call_bump_push(g, pages[i]) == 0x76543210u + i);
     }
     CHECK(state_host_read8(g, 0x7E0AF6) == 0x11);
@@ -250,7 +250,7 @@ static void records_and_composed_views(void)
     /* A word spanning two independent owners updates each immediately. */
     set_battle_product(g, 0xBEEF);
     CHECK(state_host_read8(g, 0x7E00AF) == 0xEF);
-    CHECK(h->menu.menu_tasks[0].state == 0xBE);
+    CHECK(h->menu.tasks[0].state == 0xBE);
     CHECK(battle_product(g) == 0xBEEF);
     CHECK(range_fault_count() == 0);
     state_host_destroy(g);
@@ -319,6 +319,45 @@ static void promoted_scalar_storage(void)
     state_host_destroy(g);
 }
 
+static void designed_records(void)
+{
+    GameState *g = state_host_create(NULL);
+    CHECK(g);
+    if (!g) return;
+    VarsHost *h = state_host_vars(g);
+    FieldObjectState *object = &h->field.objects[17];
+    object->x.fine = 0x23;
+    object->x.tile = 0x45;
+    object->y.tile = 0x67;
+    object->role = 9;
+    CHECK(field_object_x_fine(g, 17) == 0x23);
+    CHECK(field_object_x_tile(g, 17) == 0x45);
+    CHECK(field_object_y_tile(g, 17) == 0x67);
+    CHECK(field_object_role(g, 17) == 9);
+    CHECK(state_host_read8(g, 0x7E1823) == 0x45);
+    set_field_object_velocity_y(g, 17, 0xABCD);
+    CHECK(object->velocity_y == 0xABCD);
+    CHECK(h->field.objects[16].velocity_y == 0x5555);
+
+    /* Menu pointer bytes overlay field coordinates; neither mode owns a copy. */
+    set_menu_record_graphics(g, 0, 0x563412);
+    CHECK(h->field.objects[2].x.fine == 0x12);
+    CHECK(h->field.objects[2].x.tile == 0x34);
+    CHECK(h->field.objects[3].x.fine == 0x56);
+    h->battle.draw_objects[4] = (BattleDrawObject){ 12, 34, 2 };
+    CHECK(battle_object_x(g, 4) == 12 && battle_object_y(g, 4) == 34);
+    CHECK(battle_object_part_count(g, 4) == 2);
+    set_character_records_record_byte(g, 3, 0x0B, 77);
+    CHECK(h->core.characters[3].base_power == 77);
+    h->core.characters[3].name.letters[0] = 0x42;
+    CHECK(character_names_byte(g, 3, 0) == 0x42);
+    h->menu.window.lines[2] = 0xFACE;
+    CHECK(menu_window_line_values(g, 2) == 0xFACE);
+    h->menu.tasks[2].countdown = 13;
+    CHECK(menu_tasks_countdown(g, 2) == 13);
+    state_host_destroy(g);
+}
+
 static void cartridge_save(const char *path)
 {
     static uint8_t cartridge[STATE_HOST_SRAM_BYTES], exported[STATE_HOST_SRAM_BYTES];
@@ -352,11 +391,11 @@ static void cartridge_save(const char *path)
          * whole-record owner whose typed fields are aliases. */
         for (unsigned byte = 0; byte < CHARACTER_RECORDS_RECORD_BYTES; byte++)
             CHECK(character_records_record_byte(g, 0, byte) == cartridge[slot * SAVED_GAME_BYTES + 0x200 + byte]);
-        CHECK(state_host_vars_const(g)->core.character_records_values[0].hp ==
+        CHECK(state_host_vars_const(g)->core.characters[0].hp ==
               (uint16_t)(cartridge[slot * SAVED_GAME_BYTES + 0x203] | cartridge[slot * SAVED_GAME_BYTES + 0x204] << 8));
         CHECK(memcmp(state_host_vars_const(g)->core.inventory_items,
                      cartridge + slot * SAVED_GAME_BYTES, INVENTORY_ITEMS_COUNT) == 0);
-        state_host_vars(g)->core.character_records_values[0].hp = 0x1234;
+        state_host_vars(g)->core.characters[0].hp = 0x1234;
         state_host_vars(g)->core.inventory_items[0] = 0x56;
         set_location_id(g, 0x0123);
         set_location_x(g, 0x45);
@@ -403,6 +442,7 @@ int main(int argc, char **argv)
     records_and_composed_views();
     projection_boundaries();
     promoted_scalar_storage();
+    designed_records();
     cartridge_save(argc > 1 ? argv[1] : "saves/fantasyanime/ctsave12-side_quests1.srm");
     printf("vars_host_test: %d failures\n", failures);
     return failures ? 1 : 0;

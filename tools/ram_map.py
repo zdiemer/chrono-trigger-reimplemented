@@ -619,22 +619,28 @@ class RamMap:
             if not r["members"]:
                 raise MapError("a record needs members")
             for member in r["members"]:
-                if set(member) - {"owner", "name", "flatten"} or "owner" not in member:
+                if set(member) - {"owner", "name", "flatten", "array"} or "owner" not in member:
                     raise MapError("record member needs owner and name, or flatten")
                 v = owners.get(member["owner"])
                 if v is None or v.record:
-                    raise MapError("record member needs an unbound storage owner")
+                    raise MapError("%s: record member needs an unbound storage owner" % member["owner"])
                 count = len(v.bases()) if v.on_instances() else v.count
-                if v.rows or count != r["count"] or (v.on_instances() and v.count != 1):
+                array = member.get("array", False)
+                if not isinstance(array, bool) or (array and (r["count"] != 1 or v.on_instances())):
+                    raise MapError("an array member belongs to one record")
+                if v.rows or (not array and count != r["count"]) or (v.on_instances() and v.count != 1):
                     raise MapError("record members must have the same element count")
                 flatten = member.get("flatten", False)
-                if not isinstance(flatten, bool) or (flatten and (not v.fields or "name" in member)):
+                if not isinstance(flatten, bool) or (flatten and (not v.fields or "name" in member or array)):
                     raise MapError("only record fields can be flattened")
                 declared = [f.name for f in v.fields if not f.host_alias] if flatten else [member.get("name", "")]
                 if any(not NAME.fullmatch(n) or n in fields for n in declared):
                     raise MapError("record members must have distinct field names")
                 fields.update(declared)
                 v.record = (r, member)
+        for r in self.records:
+            if any(v.host_module == r["module"] and v.name == r["name"] and not v.record for v in owners.values()):
+                raise MapError("record name collides with an unbound owner")
 
     def _check_host_owners(self):
         by_name = {v.name: v for v in self.vars + self.owners}
@@ -1301,6 +1307,8 @@ def host_member(a, root="h", element=None, row="row", byte="at", instance=None):
             member += "[%s]" % index
         if not binding.get("flatten"):
             member += "." + binding["name"]
+            if binding.get("array") and v.count > 1:
+                member += "[%s]" % index
     else:
         member = "%s->%s.%s" % (root, v.host_module, v.name)
         if v.on_instances():
@@ -1454,7 +1462,9 @@ def render_host_header(m):
     for r in m.records:
         out += ["/* %s */" % r["meaning"], "typedef struct {"]
         for binding in r["members"]:
-            out += host_declaration(owners[binding["owner"]], binding.get("name"),
+            v = owners[binding["owner"]]
+            dims = "[%d]" % v.count if binding.get("array") and v.count > 1 else ""
+            out += host_declaration(v, binding.get("name"), dims,
                                     flatten=binding.get("flatten", False))
         out += ["} %s;" % r["type"], ""]
     for module, vs in groups:

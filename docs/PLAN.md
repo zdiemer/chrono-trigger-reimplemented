@@ -11,10 +11,9 @@ C. Observable divergence is accepted where the game stays structurally the same.
    Land coherent changes with current docs; one qualitative review per merge,
    then push and CI. The full-library/every-route batch is non-blocking: findings
    become fixes and never hold up a commit, merge or push.
-2. **The machine out of game/ and the state as C, side by side.** Work module
+2. **The machine out of game/.** Work module
    by module under the lean gate. Remove wrappers, registry, held-wait rows,
-   emulated stack operations, register escapes and `Snes *` parameters while
-   designing subsystem records over the typed owners (STATE.md). Preserve
+   emulated stack operations, register escapes and `Snes *` parameters. Preserve
    contracts, timing charges, cartridge saves, route queries and recorded
    save/place protections. Measure progress with the source and storage inventories.
 3. **ct_native plays the game by its own checks.** Add complete mid-route
