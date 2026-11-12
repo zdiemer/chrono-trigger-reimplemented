@@ -28,7 +28,7 @@
 /* What the driver's command routine reads of the registers it is called
  * with: nothing (it takes the command from its buffer), and nothing reads X,
  * Y, A's low byte or the flags after it returns either (checked against
- * liveness by tools/dontcare_check.py). A's high byte, which the command's
+ * liveness by the calling convention). A's high byte, which the command's
  * move past itself adds with, it hands back as it found it. */
 #define DRIVER_IGNORES (DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C)
 

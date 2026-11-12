@@ -1,49 +1,4 @@
-"""How each library movie plays in the native program, and the gate's check
-that none ends on a dark screen.
-
-    python3 tools/native_check.py --ct-native build/main/ct_native            # every movie: how it ends
-    python3 tools/native_check.py --ct-native build/main/ct_native --check    # the gate
-    python3 tools/native_check.py --ct-native build/main/ct_native --movies battle-magus -j 2
-
-`ct_native` is the game with no emulator under it (docs/PLAYING.md, "The
-native program"); it says where its C goes no further, and getting to a
-movie's last frame says no more than that: a run can get there with its
-picture blanked, or somewhere the reference play never went. This runs every
-movie in it (a save movie from the save its header names, found by its sum
-among oracle/saves) and reports, per movie, one of:
-
-- the frame and the routine where the program's C went no further;
-- `dark`: the run got to its last frame, but its picture had been black for
-  the last DARK_FRAMES frames or more (`ct_native` draws each frame with the
-  native renderer and says how long it has been dark). Small differences in the
-  picture are acceptable; a screen gone blank is not, whatever the game is
-  doing under it, unless tools/native_dark_exceptions.txt names the movie: a
-  run whose time carries it late into a stretch the reference play is itself
-  black for, which the line's reason shows;
-- `end`: it got to its last frame, showing, and ends where the reference play
-  (the original's code) ends: the saved game and save RAM, compared as
-  tools/strict_check.py compares them (`ct_native --end-state`);
-- `drifts`: the same, but the saved game or save RAM differs from the
-  reference's. `ct_native`'s frames keep the original's time only as well as
-  the frame-level time model does (docs/REIMPLEMENTATION.md), so a movie's
-  presses, recorded against the original, can land on other frames, and a
-  long movie go elsewhere: a battle lost, a place entered early. The report
-  names what differs.
-
-With each, the places the run entered against the reference's
-(tools/places.py): how many it entered on time, among those in the
-reference's order, and where it parted from them.
-
-**The check** (`--check`) fails on a run that ends `dark` or crashes (an exit
-status other than 0, or a hang), and on one that enters fewer of the
-reference's places on time than tools/places_baseline.txt says (the ratchet
-the time model is held to; `--update-places` takes what a change brings); the
-rest is reported. The reference end states and places come from the suite's
-shadow runs (`--reference DIR`, which run with `--locations`), or from a
-`--native off` run of `ct_dev` here (`--ct-dev`); with neither, they aren't
-compared.
-"""
-
+"""Run sampled native movies to completion and check saves, places and dark screens."""
 import argparse
 import concurrent.futures
 import pathlib
@@ -53,192 +8,48 @@ import sys
 import tempfile
 import zlib
 
-import places
-import outcomes
-from strict_check import ROOT, SavedGame, differences, movies, ram_names, reference_play, seconds_for
+if __package__ in (None, ''):
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+from tools import outcomes, places
+from tools.native_state import ROOT, SavedGame, seconds_for
 
+DARK_EXCEPTIONS = ROOT / 'tools/native_dark_exceptions.txt'
 PLACES_BASELINE = ROOT / "tools/places_baseline.txt"
-# Movies that may end dark, each with why: a run the native program's time
-# carries late into a stretch the reference play is itself black for.
-DARK_EXCEPTIONS = ROOT / "tools/native_dark_exceptions.txt"
-
-# A picture black this long at the end has gone blank (10 seconds).
 DARK_FRAMES = 600
-SRAM_CRC = re.compile(r"^# sram crc32 ([0-9A-Fa-f]{8})", re.M)
-STOP = re.compile(r"^frame (\d+): the program's C goes no further: (\S+), (.*), runs only on the machine", re.M)
-DARK = re.compile(r"^picture: dark since frame (\d+) \((\d+) frame\(s\), to the end\)", re.M)
-
+SRAM_CRC = re.compile(r'^# sram crc32 ([0-9A-Fa-f]{8})', re.M)
+DARK = re.compile(r'^picture: dark since frame (\d+) \((\d+) frame\(s\), to the end\)', re.M)
 
 def saves_by_sum():
-    """{crc32: path} of the cartridge saves under oracle/saves."""
-    return {zlib.crc32(p.read_bytes()): p for p in sorted((ROOT / "oracle/saves").rglob("*.srm"))}
-
+    return {zlib.crc32(p.read_bytes()): p for p in sorted((ROOT / 'saves').rglob('*.srm'))}
 
 def save_for(path, saves):
-    """The save a movie starts from, None for a power-on movie, or False where it isn't here."""
-    m = SRAM_CRC.search(path.read_text(errors="replace"))
-    if not m:
-        return None
-    return saves.get(int(m.group(1), 16), False)
-
+    m = SRAM_CRC.search(path.read_text(errors='replace'))
+    return saves.get(int(m.group(1), 16), False) if m else None
 
 def run_native(binary, rom, path, frames, sram, extra):
-    cmd = [str(binary), "--rom", str(rom), "--movie", str(path), "--frames", str(frames)] + extra
+    command = [str(binary), '--rom', str(rom), '--movie', str(path), '--frames', str(frames)] + extra
     if sram:
-        cmd += ["--sram", str(sram)]
+        command += ['--sram', str(sram)]
     try:
-        proc = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=seconds_for(frames))
-        return proc.stderr.decode(errors="replace"), proc.returncode
+        p = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=seconds_for(frames))
+        return p.stderr.decode(errors='replace'), p.returncode
     except subprocess.TimeoutExpired as e:
-        return (e.stderr or b"").decode(errors="replace"), None
+        return (e.stderr or b'').decode(errors='replace'), None
 
-
-def reference(args, name, path, frames, work):
-    """The reference play's end state and places: the suite's shadow run's, or
-    a run of the original's code here (--ct-dev); (None, None) with neither."""
-    if not args.ct_dev:
-        end = args.reference / ("end-%s.bin" % name) if args.reference else None
-        return (end.read_bytes() if end and end.exists() else None), places.reference_places(args.reference, name)
-    return reference_play(args.ct_dev.resolve(), args.rom, name, path, frames, args.reference, work)
-
-
-def run_one(args, name, path, frames, sram, extra, saved, names, work):
-    """((how, detail), places.Kept or None): how the movie ended in ct_native,
-    and its places against the reference's."""
-    if sram is False:
-        return ("no save", "its save isn't under oracle/saves"), None
-    end = work / ("%s.native.bin" % name)
-    text, rc = run_native(args.ct_native.resolve(), args.rom, path, frames, sram,
-                          extra + ["--end-state", str(end), "--locations"] + (["--outcomes"] if args.outcomes else []))
-    if args.outcomes:
-        outcomes.capture(args.outcomes, name, path, frames, text, rc, end, saved, "native")
-    if args.logs:
-        (args.logs / ("%s.log" % name)).write_text(text)
-    ref_end, ref_places = reference(args, name, path, frames, work)
-    kept = places.Kept(ref_places, places.parse(text)) if ref_places is not None else None
-    return ended(text, rc, end, frames, ref_end, saved, names), kept
-
-
-def ended(text, rc, end, frames, reference, saved, names):
-    """(how, detail) for a ct_native run, its end state against the reference's."""
+def ended(text, rc, frames):
     if rc is None:
-        return "hung", None
-    fault = re.search(r"^.*(?:asset outside the catalogue|cartridge read\(s\) outside the catalogue|"
-                      r"cartridge byte in no resource).*$", text, re.M)
-    if fault and rc in (0, 1):
-        return "unserved", fault.group(0)
-    # Only a deliberate program stop exits 1. A fatal machine entry exits 3;
-    # a signal/OS crash or timeout must win even if a stop was printed first.
-    m = STOP.search(text)
-    if rc == 1 and m:
-        return "stopped", "at frame %s of %d, %s (%s)" % (m.group(1), frames, m.group(2), m.group(3))
-    if rc != 0:
-        return "crashed", "exit status %d" % rc
+        return 'hung', 'timeout'
+    if rc != 0 or outcomes.FAULT.search(text):
+        return 'crashed', 'exit status %s or runtime diagnostic' % rc
+    if not re.search(r'^ct_native: %d frame\(s\);' % frames, text, re.M):
+        return 'incomplete', 'missing completed-frame report'
     m = DARK.search(text)
     if m and int(m.group(2)) >= DARK_FRAMES:
         start = int(m.group(1))
         entered = [p for f, p in places.parse(text) if f <= start]
-        where = " in $%03X" % entered[-1] if entered else ""
-        return "dark", "the picture black from frame %d%s to the end (%s frames)" % (start, where, m.group(2))
-    if reference is None:
-        return "end", "not compared"
-    drift = differences(end.read_bytes() if end.exists() else b"", reference, saved, names)
-    return ("drifts", drift) if drift else ("end", None)
-
-
-def main():
-    ap = argparse.ArgumentParser(prog="python3 tools/native_check.py")
-    ap.add_argument("--ct-native", type=pathlib.Path, required=True)
-    ap.add_argument("--ct-dev", type=pathlib.Path, help="for the reference end states the --reference runs don't have")
-    ap.add_argument("--rom", type=pathlib.Path, default=ROOT / "roms/ct-usa.sfc")
-    ap.add_argument("--assets", type=pathlib.Path, help="the asset pack (ct_native --assets)")
-    ap.add_argument("--movies", nargs="*", default=[])
-    ap.add_argument("-j", "--jobs", type=int, default=2)
-    ap.add_argument("--logs", type=pathlib.Path, help="keep each run's stderr, with the places it went, as <movie>.log")
-    ap.add_argument("--outcomes", type=pathlib.Path, help="write digest artifacts for outcomes.py")
-    ap.add_argument("--timing-report", action="store_true", help="include per-routine native time in --logs")
-    ap.add_argument("--reference", type=pathlib.Path,
-                    help="the reference end states, end-<movie>.bin (the suite's shadow runs write them)")
-    ap.add_argument("--check", action="store_true",
-                    help="fail on a run that ends dark or crashes, or enters fewer places on time than its baseline")
-    ap.add_argument("--update-places", action="store_true",
-                    help="write the places each movie enters on time as their baseline (tools/places_baseline.txt)")
-    args = ap.parse_args()
-
-    rows = movies(set(args.movies))
-    if not rows:
-        sys.exit("no movies to run")
-    if args.logs:
-        args.logs.mkdir(parents=True, exist_ok=True)
-    extra = ["--assets", str(args.assets)] if args.assets else []
-    if args.timing_report:
-        extra += ["--timing-report"]
-    saves = saves_by_sum()
-    saved, names = SavedGame(args.rom), ram_names()
-    with tempfile.TemporaryDirectory(prefix="native-") as scratch:
-        work = pathlib.Path(scratch)
-        if not args.assets:
-            # one pack for every run, imported by the first
-            extra += ["--assets", str(work / "ct.assets")]
-            run_native(args.ct_native.resolve(), args.rom, rows[0][1], 1, None, extra)
-
-        def one(row):
-            name, path, frames = row
-            return name, run_one(args, name, path, frames, save_for(path, saves), extra, saved, names, work)
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
-            done = dict(pool.map(one, rows))
-    results = {name: outcome for name, (outcome, _kept) in done.items()}
-    kept = {name: k for name, (_outcome, k) in done.items() if k is not None}
-
-    failed, late = [], []
-    base = read_places_baseline()
-    excepted = read_dark_exceptions()
-    for name, _path, frames in rows:
-        how, detail = results[name]
-        line = "%s: %s%s" % (name, how, (": " + detail) if detail else "")
-        if name in kept:
-            line += "; " + kept[name].summary()
-            must = base.get(name)
-            if must is None:
-                late.append(name)
-                line += "  (not in the places' baseline)"
-            elif kept[name].kept < must:
-                late.append(name)
-                line += "  <-- fewer on time than its baseline (%d)" % must
-        if how == "dark" and dark_is_excepted(excepted.get(name), detail):
-            line += "  (excepted: tools/native_dark_exceptions.txt)"
-        elif how in ("dark", "crashed", "hung", "unserved"):
-            failed.append(name)
-        print(line)
-    reached = sum(1 for n, _p, _f in rows if results[n][0] in ("end", "drifts"))
-    same = sum(1 for n, _p, _f in rows if results[n] == ("end", None))
-    compared = sum(1 for n, _p, _f in rows if results[n][0] == "drifts" or results[n] == ("end", None))
-    summary = "%d of %d movies reach their end in the native program, showing; %d of the %d compared as the " \
-              "reference play ends" % (reached, len(rows), same, compared)
-    if kept:
-        summary += "; %d of the reference's %d places entered on time" % (
-            sum(k.kept for k in kept.values()), sum(k.total for k in kept.values()))
-    if args.update_places:
-        base.update({name: k.kept for name, k in kept.items()})
-        write_places_baseline(base)
-        print(summary + "; places' baseline written")
-        return 0
-    if args.check and (failed or late):
-        print(summary + "; FAILED: " + "; ".join((["dark or crashed: " + ", ".join(failed)] if failed else []) +
-                                                (["places: " + ", ".join(late)] if late else [])))
-        return 1
-    print(summary)
-    return 0
-
-
-PLACES_HEADER = """# How many of the reference play's places each library movie enters on time in
-# the native program (tools/native_check.py, tools/places.py): within
-# places.ON_TIME frames of the reference's frame, among the places it enters in
-# the reference's order. The gate fails a movie that enters fewer;
-# `tools/native_check.py --update-places` takes the counts a change brings.
-"""
-
+        where = ' in $%03X' % entered[-1] if entered else ''
+        return 'dark', 'the picture black from frame %d%s to the end (%s frames)' % (start, where, m.group(2))
+    return 'end', ''
 
 def read_dark_exceptions():
     """The dark stretches tools/native_dark_exceptions.txt excuses, by movie:
@@ -277,11 +88,54 @@ def read_places_baseline():
     return base
 
 
-def write_places_baseline(base):
-    order = [name for name, _p, _f in movies(set())]
-    lines = [PLACES_HEADER.rstrip("\n")] + ["%s %d" % (name, base[name]) for name in order if name in base]
-    PLACES_BASELINE.write_text("\n".join(lines) + "\n", newline="\n")
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--ct-native', type=pathlib.Path, required=True)
+    ap.add_argument('--rom', type=pathlib.Path, default=ROOT / 'roms/ct-usa.sfc')
+    ap.add_argument('--assets', type=pathlib.Path)
+    ap.add_argument('--movies', nargs='*', default=[])
+    ap.add_argument('--outcomes', type=pathlib.Path, required=True)
+    ap.add_argument('--check', action='store_true')
+    ap.add_argument('-j', '--jobs', type=int, default=2)
+    args = ap.parse_args(argv)
+    try:
+        rows = outcomes.movie_library(args.movies, set())
+        if not rows:
+            raise ValueError('no movies selected')
+        args.outcomes.mkdir(parents=True, exist_ok=True)
+        saved, saves, exceptions = SavedGame(args.rom), saves_by_sum(), read_dark_exceptions()
+        ledger, baseline = outcomes.read(outcomes.LEDGER), read_places_baseline()
+        with tempfile.TemporaryDirectory(prefix='native-') as scratch:
+            work = pathlib.Path(scratch)
+            pack = args.assets or work / 'ct.assets'
+            extra = ['--assets', str(pack)]
+            if not pack.exists():
+                _, rc = run_native(args.ct_native.resolve(), args.rom, rows[0][1], 1, None, extra)
+                if rc or not pack.exists():
+                    raise ValueError('could not import native assets')
+            def one(row):
+                name, movie, frames = row
+                sram = save_for(movie, saves)
+                if sram is False:
+                    return name, False, 'missing cartridge save'
+                end = work / (name + '.bin')
+                text, rc = run_native(args.ct_native.resolve(), args.rom, movie, frames, sram,
+                                     extra + ['--locations', '--end-state', str(end)])
+                outcomes.capture(args.outcomes, name, movie, frames, text, rc, end, saved, 'native')
+                how, detail = ended(text, rc, frames)
+                ok = how == 'end' or how == 'dark' and dark_is_excepted(exceptions.get(name), detail)
+                kept = places.Kept(outcomes.pairs(ledger[name, 'places']), places.parse(text))
+                ok = ok and name in baseline and kept.kept >= baseline[name]
+                return name, ok, how + (': ' + detail if detail else '') + '; ' + kept.summary()
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, min(args.jobs, 2))) as pool:
+                results = list(pool.map(one, rows))
+        for name, ok, detail in results:
+            print('%s: %s%s' % (name, detail, '' if ok else ' <-- FAILED'))
+        print('native: %d/%d movies complete without unexplained dark screens' % (sum(ok for _, ok, _ in results), len(results)))
+        return int(any(not ok for _, ok, _ in results))
+    except (OSError, ValueError) as error:
+        print('native: FAILED: %s' % error, file=sys.stderr)
+        return 1
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     sys.exit(main())

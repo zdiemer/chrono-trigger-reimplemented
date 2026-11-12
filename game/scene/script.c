@@ -921,7 +921,7 @@ bool scene_sequence_bank_is_scripts(Snes *s)
  * turn, as the interpreter's run has it, back to the interpreter's own return.
  * The store command's own path runs through here too, inside a run shadow
  * mode compares, where the run's comparison takes the original's call-outs
- * first (settle_nested, runtime/port/native.c) and this one goes uncompared. */
+ * first (settle_nested, the former machine dispatcher) and this one goes uncompared. */
 
 // $C3:0B02
 /* The interpreter's own return to its caller, where a turn that went on after

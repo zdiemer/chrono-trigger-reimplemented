@@ -7,7 +7,7 @@ carry the party out of shelter. Search crossings on machine copies.
 """
 from ..campaign import Run, route_arguments, run_route
 
-SAVE = "oracle/saves/fantasyanime/ctsave11-crono_gone.srm"
+SAVE = "saves/fantasyanime/ctsave11-crono_gone.srm"
 PHASES = ["loaded", "entered", "tree", "second", "after"]
 WIND = 0x7F0218
 GUIDES = 0x7F007C
@@ -16,7 +16,7 @@ HEADER = """\
 # Death Peak, 2300 A.D.: enter the wind slope, reach the first shelter and speak to the guide,
 # turn it into a tree, cross to the second tree and climb to the next field (route death_peak_wind).
 # Crossings are searched on machine copies; only successful inputs are kept.
-# Save: ctsave11 slot 3 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave11 slot 3 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -67,7 +67,7 @@ def crossing(run, side_frames, goal, limit):
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     m = run.machine
     try:
         start = run.start_at(PHASES)

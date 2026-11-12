@@ -14,12 +14,12 @@ HEADER = """\
 # chamber, then fight it and the Lavos Core with a policy that walks each member's tech list for the next
 # tech not yet cast (singles, then the double techs its party can make) instead of always attacking,
 # healing and reviving with items to keep the fight going.
-# Save: zophar chrono-trigger (oracle/saves/zophar, zophar.net Chrono Trigger saves), slot 1.
+# Save: zophar chrono-trigger (saves/zophar, zophar.net Chrono Trigger saves), slot 1.
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
-SAVE = "oracle/saves/zophar/chrono-trigger.srm"
+SAVE = "saves/zophar/chrono-trigger.srm"
 SLOT = 0
 PHASES = ["inside", "form2", "core"]
 
@@ -30,8 +30,7 @@ def core_beaten(run, state):
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 

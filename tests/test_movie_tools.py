@@ -1,18 +1,11 @@
-"""The parts of tools/movies that don't need a ROM.
-
-Buttons and the .ctm encoding, the walking search against a fake machine (a grid
-with walls and a door), where talk() aims at a walking object, and the battle
-policies against synthetic battle state. The driver itself (dev/ct_drive.c) is
-checked against `ct_dev --native off` by hand, as docs/MOVIES.md describes;
-nothing here runs the machine.
-"""
+"""Movie format, native route searches and kept input; no ROM required."""
 import os
 import random
 import tempfile
 import unittest
 from unittest.mock import Mock
 
-from tools.movies import addresses, bfs, ctdrv, mkmovie, policies
+from tools.movies import addresses, bfs, driver, mkmovie, policies
 from tools.movies.bot import BattleState, Bot
 from tools.movies.campaign import Run
 
@@ -73,7 +66,7 @@ class TestMovieFormat(unittest.TestCase):
             self.assertEqual(mkmovie.load_movie_pads(path, 4), [0, 0, 128, 128])
 
 
-class FakeMachine:
+class FakeDriver:
     """A grid the search can walk: '#' is a wall, 'D' is a door to another map."""
 
     def __init__(self, rows, start, step=8, cell=6):
@@ -149,7 +142,7 @@ MAZE = [
 
 class TestWalkingSearch(unittest.TestCase):
     def machine(self, start=(0, 0)):
-        return FakeMachine(MAZE, (start[0] * 6, start[1] * 6))
+        return FakeDriver(MAZE, (start[0] * 6, start[1] * 6))
 
     def test_finds_a_path_and_logs_only_that_path(self):
         machine = self.machine()
@@ -182,7 +175,7 @@ class TestWalkingSearch(unittest.TestCase):
         self.assertTrue(visited)
 
     def test_cell_size_sets_the_step(self):
-        machine = FakeMachine(MAZE, (0, 0), step=8, cell=6)
+        machine = FakeDriver(MAZE, (0, 0), step=8, cell=6)
         bfs.bfs_walk(machine, lambda m, x, y: (x, y) == (0, 6 * 6), lambda m: m.position(),
                      lambda m: m.map_id(), step=8, cell=6)
         self.assertEqual([pad for _, pad in machine.pads], ["DOWN"] * 6)
@@ -194,7 +187,7 @@ class TestWalkingSearch(unittest.TestCase):
         self.assertEqual(machine.slots, {})
 
     def test_goal_inside_an_already_visited_cell(self):
-        machine = FakeMachine(["...."], (0, 0), cell=1)
+        machine = FakeDriver(["...."], (0, 0), cell=1)
         moves, _ = bfs.bfs_walk(machine, lambda m, x, y: (x, y) == (1, 0),
                                 lambda m: m.position(), lambda m: m.map_id(), cell=6)
         self.assertEqual(moves, ["RIGHT"])
@@ -202,7 +195,7 @@ class TestWalkingSearch(unittest.TestCase):
         self.assertEqual(machine.slots, {})
 
     def test_held_goal_inside_an_already_visited_cell(self):
-        machine = FakeMachine(["...."], (0, 0), cell=1)
+        machine = FakeDriver(["...."], (0, 0), cell=1)
         moves, _ = bfs.bfs_walk(machine, lambda m, x, y: (x, y) == (3, 0),
                                 lambda m: m.position(), lambda m: m.map_id(), cell=6, push=16)
         self.assertEqual(moves, ["RIGHT*"])
@@ -239,7 +232,7 @@ class PacingRoom:
         self.frame = 0
         self.saved = None
 
-    # the Machine side
+    # the Driver side
     def mark(self, slot):
         self.saved = self.frame
 
@@ -289,7 +282,7 @@ class TestTalkAims(unittest.TestCase):
 
 
 class FakeMemory:
-    """Enough of a Machine for the policies: the tech list and the party."""
+    """Enough of a Driver for the policies: the tech list and the party."""
 
     def __init__(self, party=(0, 1, 0x80), techs=None):
         self.party = bytes(party)
@@ -480,11 +473,11 @@ class TestAddresses(unittest.TestCase):
 
 
 class TestKeptInput(unittest.TestCase):
-    """The input a Machine keeps is what the route count replays, so frames
+    """The input a Driver keeps is what the route count replays, so frames
     with no buttons kept for them are errors, not frames of no buttons."""
 
     def machine(self):
-        m = ctdrv.Machine.__new__(ctdrv.Machine)
+        m = driver.Driver.__new__(driver.Driver)
         m.frame, m.pads, m.counted = 0, [], None
         m.answers = []
 
@@ -501,9 +494,9 @@ class TestKeptInput(unittest.TestCase):
         m = self.machine()
         m.run(3, "A")
         m.probe(2, "B")
-        with self.assertRaises(ctdrv.DriveError):
+        with self.assertRaises(driver.DriverError):
             m.run(1)
-        with self.assertRaises(ctdrv.DriveError):
+        with self.assertRaises(driver.DriverError):
             m.runw(1)
         self.assertEqual(m.pads, [mkmovie.pad_of("A")] * 3)
 
@@ -515,14 +508,14 @@ class TestKeptInput(unittest.TestCase):
             m.loaded = 2
             self.assertEqual(m.load_state(state), 2)
             self.assertEqual(m.pads, [])
-            with self.assertRaises(ctdrv.DriveError):
+            with self.assertRaises(driver.DriverError):
                 m.run(1)
             with open(state + ".pads", "w", encoding="utf-8") as handle:
                 handle.write("1 2")
             self.assertEqual(m.load_state(state), 2)
             self.assertEqual(m.pads, [1, 2])
             m.loaded = 3
-            with self.assertRaises(ctdrv.DriveError):
+            with self.assertRaises(driver.DriverError):
                 m.load_state(state)
 
 

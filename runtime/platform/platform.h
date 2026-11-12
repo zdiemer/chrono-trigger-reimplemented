@@ -1,15 +1,4 @@
-/* Platform services: what game code calls instead of touching SNES hardware
- * registers (docs/PLATFORM.md). Five services, one header each: video.h,
- * audio.h, timing.h, input.h, save.h.
- *
- * One backend per build, bound at compile time. The development system (ct_dev,
- * ct_play, ct_fuzz) uses the SNES backend: `Platform` is the machine itself
- * (m_platform(s) in port/machine.h), every call performs the writes the
- * original code made at that point, through the bus, and the functions are
- * static inline, so a call costs what the direct writes cost. A build defining
- * CT_PLATFORM_EXTERN gets plain declarations instead, for a backend compiled
- * elsewhere (runtime/platform/native/ is the host backend).
- */
+/* Native platform services: video, audio, timing, input and saves. */
 #ifndef CT_PLATFORM_PLATFORM_H
 #define CT_PLATFORM_PLATFORM_H
 
@@ -19,29 +8,19 @@
 
 typedef struct Platform Platform;
 
-/* Where the call stands in the original: the instruction whose hardware access
- * it replaces (PF_AT), or the JSR/JSL site and target for services the original
- * reaches by calling a routine (PF_CALL). The SNES backend uses it for
- * call-outs and ct_dev --io-log reports it; other backends ignore it. It keeps
- * `// $BB:AAAA` traceable below the routine level. */
+/* Source identity retained until machine-removal work retires the wrappers. */
 typedef struct {
     uint32_t site, target;
     uint16_t dont_care;   /* PF_CALL_DC: registers and flags the callee doesn't read */
 } PfOrigin;
 #define PF_AT(addr) ((PfOrigin){ (addr), 0, 0 })
 #define PF_CALL(site, target) ((PfOrigin){ (site), (target), 0 })
-/* A call whose callee doesn't read the registers and flags in `dont_care`
- * (DC_* bits, port/native.h), which shadow mode then doesn't compare at the
- * call: a port written as logic apart from the registers sets only what the
- * callee takes. tools/dontcare_check.py checks the set against liveness. */
+/* Retained wrapper contract metadata. */
 #define PF_CALL_DC(site, target, dont_care) ((PfOrigin){ (site), (target), (dont_care) })
 /* A loop of the original's that a call stands in for: the instruction it
  * comes back to (`head`) and the first after it (`exit`). */
 #define PF_LOOP(head, exit) ((PfOrigin){ (head), (exit), 0 })
-/* The same for a wait the SNES backend's shipping mode leaves to the
- * original's loop (tm_wait_for_handlers_held): what the code from `head`
- * doesn't read, where the port stops there (as m_stop_at's set, which
- * tools/dontcare_check.py checks the same way). */
+/* Retained held-wait metadata. */
 #define PF_LOOP_HELD(head, exit, dont_care) ((PfOrigin){ (head), (exit), (dont_care) })
 
 /* The data a call refers to: a 24-bit game address while the WRAM layout is
@@ -67,11 +46,6 @@ static inline const uint8_t *pf_data_pointer(PfData src, uint32_t i)
     return src.ptr ? src.ptr + i : src.byte_at ? src.byte_at(pf_data_address(src, i)) : NULL;
 }
 
-#ifdef CT_PLATFORM_EXTERN
 #define PF_API extern
-#else
-#define CT_PLATFORM_SNES 1
-#define PF_API static inline
-#endif
 
 #endif

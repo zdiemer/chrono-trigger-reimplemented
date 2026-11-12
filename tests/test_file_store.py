@@ -1,12 +1,13 @@
 """Run the portable storage fault probe, including abrupt process termination."""
+import os
 import pathlib
 import subprocess
 import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-CANDIDATES = [ROOT / "build" / build / ("file_store_test" + suffix)
-              for build in ("main", "ci") for suffix in ("", ".exe")]
+BUILDS = [pathlib.Path(os.environ['CT_TEST_BUILD'])] if 'CT_TEST_BUILD' in os.environ else [ROOT / 'build' / name for name in ('main', 'ci')]
+CANDIDATES = [directory / ('file_store_test.exe' if os.name == 'nt' else 'file_store_test') for directory in BUILDS]
 BINARY = next((path for path in CANDIDATES if path.exists()), CANDIDATES[0])
 
 

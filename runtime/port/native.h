@@ -328,7 +328,7 @@ void native_set_page_report(NativeRuntime *rt, bool on);
  * with; or (SHADOW) the comparisons nested in a port's stretch were set aside
  * at its point, and its own goes on. `entry_s` is S as it was when the port
  * was entered. */
-typedef struct NativeObserver {
+typedef struct NativeObdriver {
     void *ctx;
     void (*refused)(void *ctx, Snes *s, const NativeEntry *entry, const char *why);
     void (*skipped)(void *ctx, Snes *s, const NativeEntry *entry);
@@ -346,9 +346,9 @@ typedef struct NativeObserver {
     void (*given_up)(void *ctx, const NativeEntry *entry, bool returned, uint32_t stop_pc, uint16_t stop_s);
     void (*parked)(void *ctx, Snes *s, const NativeEntry *entry);
     void (*resumed)(void *ctx, Snes *s, const NativeEntry *entry, uint16_t entry_s);
-} NativeObserver;
-/* Observe ON mode's hand-offs (NULL: stop). The observer is copied. */
-void native_set_observer(NativeRuntime *rt, const NativeObserver *observer);
+} NativeObdriver;
+/* Observe ON mode's hand-offs (NULL: stop). The obdriver is copied. */
+void native_set_obdriver(NativeRuntime *rt, const NativeObdriver *obdriver);
 
 /* Called at the start of every instruction a generated block executes, with
  * PC at it (PB:pc24), for a tool that counts what runs where (ct_dev
@@ -509,7 +509,7 @@ bool native_is_return(const Snes *s, uint32_t at);
  * against liveness where it applies (tools/dontcare_check.py), which needs to
  * know where that is. Outside the runtime it sets native_returned_direct. */
 void native_note_return(Snes *s);
-/* The same for m_rti, which also tells the observer (NativeObserver) the
+/* The same for m_rti, which also tells the obdriver (NativeObdriver) the
  * port returned from an interrupt. */
 void native_note_rti(Snes *s);
 extern bool native_returned_direct;
@@ -521,8 +521,8 @@ int native_failed(const NativeRuntime *rt);
  * none), and the i-th of the details native_report prints after them (the
  * first mismatches; NULL past the last). */
 const NativeStats *native_stats_named(const NativeRuntime *rt, const char *name);
-/* An observer's exact entry, without flushing generated replay. Names may
- * be shared by aliases, so observers must not use the name-only lookup. */
+/* An obdriver's exact entry, without flushing generated replay. Names may
+ * be shared by aliases, so obdrivers must not use the name-only lookup. */
 const NativeStats *native_stats_for(const NativeRuntime *rt, const NativeEntry *entry);
 const char *native_detail(const NativeRuntime *rt, int i);
 
@@ -576,7 +576,7 @@ int native_suspended(const NativeRuntime *rt);
 /* Of those, the ones parked in a yield (native_yield_call_dc). */
 int native_parked(const NativeRuntime *rt);
 /* SHADOW: whether the routine registered at `addr` has a comparison under
- * way: entered and not yet left, or parked in a yield. For an observer that
+ * way: entered and not yet left, or parked in a yield. For an obdriver that
  * keeps its own account of the comparisons (dev/fallbacks.c). */
 bool native_compares(const NativeRuntime *rt, uint32_t addr);
 
@@ -630,7 +630,7 @@ void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uin
  * anyway (stopped, then set waiting again) has the original's code run the
  * rest, as for a routine abandoned. A second yield to the same return and S
  * drops the first: its stack has been used again. Parked routines count in
- * native_suspended: a save state can't hold them, and ct_drive's bases and
+ * native_suspended: a save state can't hold them, and the route driver's bases and
  * ct_play's quick saves wait for a frame end with none (docs/MOVIES.md,
  * "Suspended routines and owed time").
  *
@@ -716,7 +716,7 @@ void native_await_latch(Snes *s);
  * that only waits (the battle's wait for a line): ON mode waits as above,
  * without the call; SHADOW mode and outside the runtime make the call, as
  * native_call_dc does, but the callee counts as the port's own work (no
- * observer is told of a call-out). */
+ * obdriver is told of a call-out). */
 enum {
     NATIVE_WAKE_HANDLER = -1, NATIVE_WAKE_HBLANK = -2, NATIVE_WAKE_TIME = -3,
     NATIVE_WAKE_HBLANK_END = -4, NATIVE_WAKE_MUSIC_START = -5, NATIVE_WAKE_VBLANK = -6,
@@ -759,7 +759,7 @@ void native_wait_call(Snes *s, uint32_t site, uint32_t target, bool long_call, u
  * is in at nearly every frame's end (the field's and the sprite-object mode's
  * frame waits, the menus' wait for the frame's uploads), where a port waiting
  * would leave a routine suspended at every frame end, which no save state or
- * ct_drive base could keep. The loop has an idle entry registered at its head,
+ * the route driver base could keep. The loop has an idle entry registered at its head,
  * and the code its exit goes on to does what the port does after the wait: so
  * the port's continuation is the idle entry. In ON mode the port doesn't wait:
  * it stops at the head, `dont_care` being what the code from there doesn't
@@ -777,7 +777,7 @@ bool native_wait_loop_held(Snes *s, uint32_t head, uint32_t exit, int32_t wake, 
  * port has stopped at its head: in ON mode, in a port the runtime runs, the
  * machine names the wait (Snes.held_wait, with the S it rests with), so that
  * the runtime runs the wait's continuations there as C and a copy of the
- * machine taken meanwhile -- a ct_drive base, a quick save, which nothing
+ * machine taken meanwhile -- a the route driver base, a quick save, which nothing
  * suspended allows -- names it too. Nothing in the other modes, where the
  * stop is an ordinary stop. A port calls it through m_hold_at. */
 void native_hold(Snes *s, uint8_t wait);

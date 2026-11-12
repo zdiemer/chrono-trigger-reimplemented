@@ -1,18 +1,18 @@
 """Meet Schala in Zeal Palace, watch her open the sealed door and charge the pendant.
 
 Ctsave08 slot 2 is in the snowfield at story $9F. Slot 3 is already at $AB,
-after the palace and exile. The route stops at $A5 with the Mammon Machine
+after the palace and exile. The route stops at $A5 with the Mammon Driver
 room back in hand, before entering the throne room.
 """
 from ..campaign import Run, route_arguments, run_route
 from ._zeal_navigation import approach
 
-SAVE = "oracle/saves/fantasyanime/ctsave08-zeal.srm"
+SAVE = "saves/fantasyanime/ctsave08-zeal.srm"
 PHASES = ["loaded", "island", "snow2", "mainland", "mountain", "palace", "schala", "door", "charged"]
 HEADER = """\
 # Zeal Palace: the Skyways and mountain passages, Schala and Janus, the sealed door,
-# and charging the pendant at the Mammon Machine, until the field returns (route zeal_palace).
-# Save: ctsave08 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# and charging the pendant at the Mammon Driver, until the field returns (route zeal_palace).
+# Save: ctsave08 slot 2 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -48,8 +48,7 @@ def doorway(run, x, y, direction, destination):
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
     try:
@@ -122,7 +121,7 @@ def main():
             assert run.wait_control()
             assert run.map_id() == "4b01" and machine.b(0x7F0000) == 0xA5
             run.checkpoint("charged")
-        run.finish("Schala's sealed door opened and the pendant charged at the Mammon Machine")
+        run.finish("Schala's sealed door opened and the pendant charged at the Mammon Driver")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())
     finally:

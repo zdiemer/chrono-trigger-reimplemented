@@ -31,7 +31,7 @@ the overworld on foot landed (docs/history/reimplementation-chunks.md, "Phase 3,
     (`tools/disasm/battlescript.py`, names from `$CC:6500`);
   - event commands: the locations whose event scripts use the opcode
     (`tools/disasm/derive.py`'s `event_scripts`);
-  - the attract demo: `ct_drive` idling at the title, `$7E:0384` (the scene
+  - the attract demo: `the route driver` idling at the title, `$7E:0384` (the scene
     mode) and `$7E:0100` (the location) read every 50 frames.
 - A save's location is the word at `$5F3` of its slot in the `.srm`.
 
@@ -51,7 +51,7 @@ trials cover 3,371, reviewed safety arguments account for 143, and 216 of
 the field's are still open. Exact entries, byte runs and evidence are in
 `tools/unreached_baseline.txt`; mechanisms and limits are in
 REIMPLEMENTATION.md, "The code the movie library does not reach". Optional
-`oracle/movies/hand/` recordings are outside the suite's standard library.
+`movies/hand/` recordings are outside the suite's standard library.
 
 | | KiB unexecuted | ported | unported |
 |---|--:|--:|--:|
@@ -321,7 +321,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 - **Reaches**: 0.62 KiB (ported), about 0.3 KiB a minute.
 - **Route**: yes (load screen presses read from RAM).
 - **Movie**: `menus-new-game-plus` (route `new_game_plus`, 3116 frames): on the second slot, Select
-  and Start on the second controller (`P2:` buttons, through `ct_drive`'s second pad) ask to erase it,
+  and Start on the second controller (`P2:` buttons, through `the route driver`'s second pad) ask to erase it,
   no keeps it, a second ask and yes erases it; then the fourth row's New Game+, carrying on from the
   first slot, the default battle mode and Crono's own name, onto the 1000 A.D. world map. It reaches
   0.67 KiB of code no other movie runs (`$C2` and `$FF`). Shadow mode found four port bugs on the
@@ -378,7 +378,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   Mode 7's loss sequence and mode 6's Epoch dive already have separate movies
   (target 8). None of these nine routes starts modes 5, 10, 14 or 12.
 - **Route**: yes (`bucket_lavos`, `telepod_lavos` and `beyond_time` are the pattern).
-- **Hand-run routes**: these long recordings stay in scratch storage, outside `oracle/movies`.
+- **Hand-run routes**: these long recordings stay in scratch storage, outside `movies`.
   Their routes are in `tools/suite.py`'s `HAND_RUN_ROUTES`, excluded even from `--long-routes`;
   regenerate and check them explicitly (MOVIES.md). `tools/movies/other_endings.py` shares the
   Lavos fights and recording setup, and reuses `telepod_lavos.to_the_shell` for the fair.
@@ -711,7 +711,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 ### 13. The story events no movie plays
 The library now plays the story from the Cathedral to Lavos, the side quests and the fair's games
 (their accounts are in history/movie-routes.md). Of the story's events with a save just before
-them (oracle/saves/README.md), one is left:
+them (saves/README.md), one is left:
 
 | Era | Event | Save before it | Boss |
 |---|---|---|---|
@@ -720,14 +720,14 @@ them (oracle/saves/README.md), one is left:
 ### 14. The original's known glitches
 A faithful port reproduces the original's mistakes, so plays that lean on its documented glitches
 test the ports where no ordinary play goes. The speedruns' inputs come from other emulators and
-won't sync here; each is a `ct_drive` route from a save, written from the glitch's description
+won't sync here; each is a `the route driver` route from a save, written from the glitch's description
 (chrono.wikidot.com/glitches; TASVideos submission 2240 and its forum thread).
 
 | Glitch | What it does | Status |
 |---|---|---|
 | 98 slots of one kind of equipment | the equipment screen reaches memory far outside the inventory | waits on the native program's reads past a table's end (TODO.md, "The native program") |
-| Item duplication | interrupt a save after item IDs change but before their quantities do; load the invalid slot with A+Up/Down to retain the mixed inventory | researched below: the TAS uses an external reset during saving, which `ct_drive` and `.ctm` cannot request; no `menus-item-duplication.ctm` recorded |
-| New Game+ save corruption | a reset in the middle of a frame leaves a half-written value in the save: maxed stats, nearly any equipment | needs a reset mid-frame, which neither `ct_drive` nor `ct_native` models |
+| Item duplication | interrupt a save after item IDs change but before their quantities do; load the invalid slot with A+Up/Down to retain the mixed inventory | researched below: the TAS uses an external reset during saving, which `the route driver` and `.ctm` cannot request; no `menus-item-duplication.ctm` recorded |
+| New Game+ save corruption | a reset in the middle of a frame leaves a half-written value in the save: maxed stats, nearly any equipment | needs a reset mid-frame, which neither `the route driver` nor `ct_native` models |
 
 **Item duplication research (no movie).** [Submission 2240](https://tasvideos.org/2240S),
 "Item duplication", describes three save-corruption methods. The save spans two frames;
@@ -766,8 +766,8 @@ The menu code and the original, inspected with `tools.disasm.linear`, establish 
   The C guard `menu_list_what_fits_can_be_made` requires fewer than 98 entries, reserving room
   for that terminator. This is a static limit, not a newly observed real-play refusal.
 
-**Recording blocker:** `dev/ct_drive.c` advances whole frames with controller input and has
-no external reset command; `oracle/src/movie.c` records only controller buttons, with no reset
+**Recording blocker:** `frontend/route_driver.c` advances whole frames with controller input and has
+no external reset command; `frontend/movie.c` records only controller buttons, with no reset
 event. Its machine copies restore a whole machine, rather than rebooting it with partially
 written SRAM. The game's L+R+Select+Start reset does exist (`game/core/input.c`, `$C2:851B`-
 `$8523`), but is polled by the menus' vblank handler; it is not the host reset used by the TAS,

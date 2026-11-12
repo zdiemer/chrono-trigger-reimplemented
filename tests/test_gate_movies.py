@@ -8,63 +8,10 @@ import pathlib
 import tempfile
 from unittest.mock import patch
 
-from tools import suite
+from tools import suite, outcomes
 from types import SimpleNamespace
-
-
-class GateStages(unittest.TestCase):
-    def stages(self, batch=False, complete=False, **overrides):
-        flags = {"no_" + name.replace("-", "_"): False for name, _, _ in suite.CHECKS}
-        flags.update(overrides)
-        args = SimpleNamespace(all_movies=batch, **flags)
-        return {name for name, _, _ in suite.selected_checks(args, complete)}
-
-    def test_calibration_requires_an_explicit_whole_library_batch(self):
-        calibration = {"timing", "vblank"}
-        for batch, complete in ((False, False), (False, True), (True, False)):
-            self.assertFalse(self.stages(batch, complete) & calibration)
-        self.assertTrue(calibration <= self.stages(True, True))
-        self.assertNotIn("timing", self.stages(True, True, no_timing=True))
-
-    def test_sample_keeps_product_checks_and_phase_b_checks(self):
-        self.assertEqual(self.stages(), {"routes", "native-routes", "native-shape",
-                         "sound-fuzz", "strict", "native", "outcomes", "portstyle",
-                         "portsmell", "unreached", "assets"})
-
-
-class NativeRoutesTest(unittest.TestCase):
-    def test_exceptions_have_known_names_and_reasons(self):
-        suite.native_route_exceptions()
-
-    def test_invalid_or_duplicate_exceptions_fail(self):
-        with tempfile.TemporaryDirectory() as where:
-            path = pathlib.Path(where) / "exceptions.txt"
-            for text in ("no_such_route # reason", "beyond_time", "beyond_time #",
-                         "beyond_time # first\nbeyond_time # second"):
-                path.write_text(text)
-                with self.subTest(text=text), self.assertRaises(ValueError):
-                    suite.native_route_exceptions(path)
-
-    def test_full_route_exception_does_not_exempt_fast_prefix(self):
-        with tempfile.TemporaryDirectory() as where:
-            path = pathlib.Path(where) / "exceptions.txt"
-            path.write_text("beyond_time # ending diverges\n")
-            exceptions = suite.native_route_exceptions(path)
-            self.assertNotIn("beyond_time:form2", exceptions)
-
-    def test_long_gate_keeps_the_fast_prefix_of_an_excepted_ending(self):
-        selected = suite.native_route_selection(True, {"beyond_time": "ending timeout"})
-        self.assertIn("beyond_time", selected)  # Still reported with its reason.
-        self.assertIn("beyond_time:form2", selected)
-        self.assertIn("telepod_lavos", selected)
-        self.assertNotIn("telepod_lavos:shell", selected)  # Its full run covers it.
-
-    def test_both_excepted_endings_keep_their_passing_prefixes(self):
-        exceptions = {"beyond_time": "ending timeout", "telepod_lavos": "ending not run"}
-        selected = suite.native_route_selection(True, exceptions)
-        runnable = [route for route in selected if route not in exceptions]
-        self.assertTrue(set(suite.FAST_ROUTES).issubset(runnable))
-        self.assertTrue(set(exceptions).issubset(selected))  # Reasons remain reportable.
+import contextlib
+import io
 
 
 class GateMoviesTest(unittest.TestCase):
@@ -76,46 +23,52 @@ class GateMoviesTest(unittest.TestCase):
 
     def test_the_sample_is_part_of_the_library(self):
         names, _ = suite.gate_movies()
-        library = suite.collect("all", set())
-        self.assertEqual(suite.collect("all", None), library)
+        library = outcomes.movie_library([], set())
+        self.assertEqual(outcomes.movie_library([], set()), library)
         self.assertLess(len(names), len(library))
-        self.assertEqual(sorted(m[0] for m in suite.collect("all", set(names))), sorted(names))
+        self.assertEqual(sorted(m[0] for m in outcomes.movie_library(names, set())), sorted(names))
 
-    def test_preflight_rejects_missing_or_bad_recorded_and_sample_movies(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = pathlib.Path(temporary)
-            movies = root / "oracle/movies"
-            movies.mkdir(parents=True)
-            (movies / "good.ctm").write_text("# frames 1\n")
-            damaged = movies / "damaged.ctm"
-            sample, ledger = root / "sample", root / "ledger"
-            read_text = pathlib.Path.read_text
-            for source in ("recorded", "sample"):
-                sample.write_text("good # selected\n" + ("damaged # coverage\n" if source == "sample" else ""))
-                ledger.write_text("damaged game digest\n" if source == "recorded" else "# empty\n")
-                for contents in (None, "# frames broken\n", "# frames 1oops\n", "unreadable"):
-                    damaged.unlink(missing_ok=True)
-                    if contents is not None:
-                        damaged.write_text(contents)
-                    def read(path, *args, **kwargs):
-                        if contents == "unreadable" and path == damaged:
-                            raise PermissionError("damaged movie unreadable")
-                        return read_text(path, *args, **kwargs)
-                    with self.subTest(source=source, contents=contents), \
-                            patch.object(suite, "ROOT", root), patch.object(suite, "GATE_MOVIES", sample), \
-                            patch.object(suite.outcomes, "LEDGER", ledger), patch.object(pathlib.Path, "read_text", read):
-                        # Even an explicit subset cannot hide broken membership.
-                        with self.assertRaisesRegex((ValueError, OSError), "damaged"):
-                            suite.select_movies("all", ["good"])
 
-    def test_collect_does_not_skip_a_malformed_header(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = pathlib.Path(temporary)
-            movies = root / "oracle/movies"
-            movies.mkdir(parents=True)
-            (movies / "damaged.ctm").write_text("# frames broken\n")
-            with patch.object(suite, "ROOT", root), self.assertRaisesRegex(ValueError, "malformed"):
-                suite.collect("all", set())
+
+
+class GateFailureTest(unittest.TestCase):
+    def run_gate(self, elapsed, failure=0):
+        with tempfile.TemporaryDirectory() as where:
+            root = pathlib.Path(where)
+            binary = root / 'ct_native'
+            binary.touch()
+            (root / 'CTestTestfile.cmake').touch()
+            output = io.StringIO()
+            with patch.object(suite, 'gate_movies', return_value=(['sample'], [])), \
+                    patch.object(suite.shutil, 'which', return_value='ctest'), \
+                    patch.object(suite.subprocess, 'run', return_value=SimpleNamespace(returncode=failure)), \
+                    patch.object(suite.time, 'monotonic', side_effect=[0, *range(1, 15), elapsed]), \
+                    contextlib.redirect_stdout(output):
+                rc = suite.main(['--ct-native', str(binary), '--out', str(root / 'runs')])
+            return rc, output.getvalue().splitlines()
+
+    def test_failure_cannot_report_suite_ok(self):
+        rc, lines = self.run_gate(20, failure=1)
+        self.assertEqual(rc, 1)
+        self.assertTrue(lines[-1].startswith('FAILED:'))
+
+    def test_budget_includes_unit_test_time(self):
+        rc, lines = self.run_gate(600)
+        self.assertEqual(rc, 1)
+        self.assertIn('wall-time budget', lines[-1])
+        rc, lines = self.run_gate(599.9)
+        self.assertEqual(rc, 0)
+        self.assertEqual(lines[-1], 'suite OK')
+        self.assertIn('unit tests included', lines[-2])
+
+    def test_empty_or_duplicate_sample_fails(self):
+        with tempfile.TemporaryDirectory() as where:
+            path = pathlib.Path(where) / 'sample.txt'
+            name = suite.gate_movies()[0][0]
+            for text in ('# no sample', f'{name} # one\n{name} # duplicate\n'):
+                path.write_text(text)
+                with patch.object(suite, 'GATE_MOVIES', path):
+                    self.assertTrue(suite.gate_movies()[1])
 
 
 if __name__ == "__main__":

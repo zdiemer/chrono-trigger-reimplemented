@@ -23,12 +23,12 @@ HEADER = """\
 # weapon changed, the shoulder buttons switching member from the slots), settings (the window design stepped and put
 # back, the controls set to custom with two assignments changed, Start putting the game's buttons back), and out of the
 # controls' rows (route menu_sweep).
-# Save: ctsave14 slot 1 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave14 slot 1 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
-SAVE = "oracle/saves/fantasyanime/ctsave14-side_quests3.srm"
+SAVE = "saves/fantasyanime/ctsave14-side_quests3.srm"
 SLOT = 0
 PHASES = ["loaded", "items", "techs", "equipment", "settings"]
 
@@ -122,8 +122,7 @@ def use_item(run, item, choose_member=None, extra=()):
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 

@@ -8,7 +8,7 @@ import heapq
 from . import policies
 from .campaign import Run
 
-SAVE = "oracle/saves/fantasyanime/ctsave06-magus_castle.srm"
+SAVE = "saves/fantasyanime/ctsave06-magus_castle.srm"
 FLAGS = 0x7F00A3
 MENU_MEMBER = 0x7E95D5
 CONTROL = 0x7E011F

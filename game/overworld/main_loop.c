@@ -54,7 +54,7 @@
 #include "vars.h"
 #include "wram.h"
 
-/* What the routines the loop calls read of the registers (tools/dontcare_check.py
+/* What the routines the loop calls read of the registers (the calling convention
  * checks each): nothing; the frames to wait in X and A's high byte, which the
  * wait hands on; and what the sound driver passes back. */
 enum {
@@ -859,7 +859,7 @@ static bool waits_in_the_main_loop(const Snes *s)
 /* The held wait's continuations' guards: on the mode's page, the wait's
  * return to the main loop's pass, and the frame counted past the one the wait
  * saw (A's low byte), or not yet. Each is a claim the game keeps, which the
- * refusal measure checks over real play (tools/fallbacks.py --refusals). */
+ * refusal measure checks over real play (the original hand-back paths --refusals). */
 static bool frame_counted(Snes *s)
 {
     vars_peek(true);

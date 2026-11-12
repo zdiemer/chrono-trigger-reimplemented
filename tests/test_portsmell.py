@@ -8,8 +8,14 @@ carries no line for a file that is already clean, and `--check` passes on the
 committed tree, all without a ROM so CI holds it.
 """
 import unittest
+from functools import cache
 
 from tools import portsmell
+
+
+@cache
+def committed_findings():
+    return portsmell.scan()
 
 
 class TestChecks(unittest.TestCase):
@@ -141,14 +147,14 @@ class TestChecks(unittest.TestCase):
     def test_a_generated_header_is_not_a_port(self):
         """game/ram.h and game/vars.h come from re/ram.toml, so a finding in one
         is a finding in the map and can't be fixed in the file."""
-        found = portsmell.scan()
+        found = committed_findings()
         self.assertNotIn(("game/vars.h", "asm-in-comments"), found)
         self.assertNotIn(("game/ram.h", "asm-in-comments"), found)
 
 
 class TestBaseline(unittest.TestCase):
     def setUp(self):
-        self.found = portsmell.scan()
+        self.found = committed_findings()
         self.base = portsmell.read_baseline()
 
     def test_every_listed_file_exists(self):

@@ -119,11 +119,11 @@
 
 /* Entries are keyed by the original entry address. cost_milli is the
  * original's time per native bus-access clock, x1000, DMA's time left out:
- * calibrated from the movie library by `tools/timing_gate.py --calibrate`
+ * calibrated from the movie library by `the frozen timing estimates --calibrate`
  * (docs/REIMPLEMENTATION.md, "The timing gate"). dont_care comes from
  * disasm/out/liveness.json ("dont_care"), and applies wherever the port
  * finishes: after it returns and at every stop it declares with m_stop_at.
- * tools/dontcare_check.py checks it against liveness. */
+ * the calling convention checks it against liveness. */
 const NativeEntry game_natives[] = {
     { .addr = 0xC0712E, .name = "palette_upload", .fn = palette_upload, .p_mask = CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M, .cost_milli = 4514,
       .dont_care = DC_A | DC_X | DC_FLAGS, .guard = palette_bank_is_io },
@@ -153,7 +153,7 @@ const int game_native_count = (int)(sizeof game_natives / sizeof game_natives[0]
  * and NativeEntry.hold). Where the machine names their wait, with the main
  * thread resting in it at a frame end, the runtime runs them by the wait's
  * number. The runtime's table holds them beside the registry's rows (the
- * hosts add them, frontend/natives.c), but only for the address path: where
+ * hosts add them, the former entry dispatcher), but only for the address path: where
  * no wait is named (a caller still on the gate whose code comes to the loop's
  * head, a state from before the wait was held), the machine finds one by its
  * address, enters it as any entry and it holds the wait from there. */

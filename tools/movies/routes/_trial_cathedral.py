@@ -3,7 +3,7 @@ from .. import addresses as A
 from .. import bfs
 from . import _trial_party as early
 
-SAVE = "oracle/saves/fantasyanime/ctsave01-kidnapping.srm"
+SAVE = "saves/fantasyanime/ctsave01-kidnapping.srm"
 SLOT = 1
 PHASES = ["loaded", "settings", "cathedral", "nun", "nagas", "frog", "organ", "hall", "inner",
           "right_switch", "organ_room", "inner_organ", "corridor", "room", "battle", "after"]

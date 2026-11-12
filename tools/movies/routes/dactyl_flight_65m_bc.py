@@ -18,12 +18,12 @@ HEADER = """\
 # A longer dactyl flight on the 65,000,000 B.C. world map: load the save (standing beside a dactyl at Tyrano Lair), board
 # it, fly the eight ways in turn, press confirm over ground no dactyl lands on, open the menus in the air and close them,
 # press the map view's button, then land and get off (route dactyl_flight_65m_bc).
-# Save: ctsave07 slot 3 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave07 slot 3 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
-SAVE = "oracle/saves/fantasyanime/ctsave07-azala.srm"
+SAVE = "saves/fantasyanime/ctsave07-azala.srm"
 SLOT = 2
 PHASES = ["loaded", "boarded", "flew", "refused", "menus", "map_view", "landed"]
 
@@ -60,8 +60,7 @@ def lands_here(machine):
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 

@@ -16,12 +16,12 @@ from ..campaign import Run, route_arguments, run_route
 HEADER = """\
 # Arris Dome, 2300 A.D.: from the hall through the inner rooms into the Guardian's room; confirm before the sealed door
 # wakes the Guardian and its Bits, and the battle bot fights it to a win; then the field back in hand (route guardian).
-# Save: ctsave02 slot 3 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave02 slot 3 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
-SAVE = "oracle/saves/fantasyanime/ctsave02-future.srm"
+SAVE = "saves/fantasyanime/ctsave02-future.srm"
 SLOT = 2
 PHASES = ["loaded", "inner", "lower", "room", "battle", "won", "after"]
 
@@ -32,8 +32,7 @@ BATTLE_MENU_MEMBER = 0x7E95D5   # whose battle menu is open, $80 and up for none
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 

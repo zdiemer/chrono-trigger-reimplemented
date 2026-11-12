@@ -27,7 +27,7 @@ PfData rom_data(uint32_t at, uint32_t length);
 PfData rom_data_mode(uint32_t at, uint32_t length, uint8_t mode);
 
 /* The backing's side of each of those reads: the machine's read of the
- * cartridge at `at` where there is a machine (runtime/port/state_io.c), with
+ * cartridge at `at` where there is a machine (the state backend), with
  * the time it takes. `served` is the store's copy of the byte, which is what
  * the read gives, the machine's own checked against it; NULL where the store
  * has none (no store, or `at` not the cartridge's: work RAM a pointer in the

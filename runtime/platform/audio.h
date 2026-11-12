@@ -201,8 +201,5 @@ void au_sample_place(AuVoices *v, uint8_t sample, uint16_t start, uint16_t loop)
  * command that asks for exactly that ($FD). */
 void au_voices_snes_register(AuVoices *v, uint8_t reg, uint8_t value);
 
-#ifdef CT_PLATFORM_SNES
-#include "platform/snes/audio.h"
-#endif
 
 #endif

@@ -18,12 +18,12 @@ HEADER = """\
 # The winged Epoch flown into Lavos: load the save on the 1000 A.D. world map, board the Epoch, turn the time dial up to
 # 1999 A.D. and travel; over Lavos, answer Lucca's "Are we REALLY going on?" with Fight!, and the scene program's mode 6
 # (event $FF $26) plays the Epoch breaking through, until the first window of Lavos's field (route epoch_lavos).
-# Save: ctsave14 slot 1 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave14 slot 1 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
-SAVE = "oracle/saves/fantasyanime/ctsave14-side_quests3.srm"
+SAVE = "saves/fantasyanime/ctsave14-side_quests3.srm"
 SLOT = 0
 PHASES = ["loaded", "boarded", "dialed", "asked", "breaking", "through"]
 
@@ -46,8 +46,7 @@ def wait_until(machine, condition, frames, step=10):
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 

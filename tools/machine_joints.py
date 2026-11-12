@@ -50,12 +50,15 @@ JOINTS = [
 ENTRY = re.compile(r"0x[0-9A-Fa-f]{6}")
 
 
-NATIVE_LEAVES_OUT = re.compile(r"list\(REMOVE_ITEM CT_NATIVE_GAME_SOURCES ([^)]*)\)")
 
 
 def native_left_out():
     text = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
-    return {f for m in NATIVE_LEAVES_OUT.finditer(text) for f in m.group(1).split()}
+    library = re.search(r"add_library\(ct_game STATIC(.*?)\)", text, re.S)
+    if not library:
+        raise ValueError("ct_game source list is missing")
+    built = set(re.findall(r"game/[\w/]+\.c", library.group(1)))
+    return {p.relative_to(ROOT).as_posix() for p in GAME.rglob("*.c")} - built
 
 
 def sources():

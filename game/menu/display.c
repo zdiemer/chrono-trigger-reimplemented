@@ -56,7 +56,7 @@ static const VidDisplay BLANK = { .blank = true };
 
 bool menu_display_bank_is_io(Snes *s) { return m_io_bank(s->cpu.db); }
 
-/* Registers the entries' callees don't read, and the stops' (tools/dontcare_check.py
+/* Registers the entries' callees don't read, and the stops' (the calling convention
  * checks each). */
 enum {
     NOTHING_READ = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
@@ -182,7 +182,7 @@ static void open_on_the_screen(GameState *g, Platform *pf)
 }
 
 /* What the routines the entry runs as C or calls read of the registers
- * (tools/dontcare_check.py checks each): the opening moves to the menus'
+ * (the calling convention checks each): the opening moves to the menus'
  * page as it starts, which the port moves to first, and reads none of them;
  * nor does the tasks' start. */
 enum {

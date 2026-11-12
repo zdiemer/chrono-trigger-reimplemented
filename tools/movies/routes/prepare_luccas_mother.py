@@ -10,7 +10,7 @@ from pathlib import Path
 from .. import addresses as A, bfs, policies
 from ..campaign import Run, route_arguments, run_route
 
-SAVE = "oracle/saves/technoplaza/ct-state11.srm"
+SAVE = "saves/technoplaza/ct-state11.srm"
 PHASES = ["loaded", "desert", "upper", "upper_won", "lower", "retinite",
           "outside", "forest", "present", "saved"]
 
@@ -138,8 +138,7 @@ def fight(run, policy, seed):
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     m = run.machine
     try:
         start = run.start_at(PHASES)

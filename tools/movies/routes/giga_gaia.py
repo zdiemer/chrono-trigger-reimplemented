@@ -8,12 +8,12 @@ from .. import addresses as A, policies
 from ..campaign import Run, route_arguments, run_route
 from ._zeal_navigation import approach
 
-SAVE = "oracle/saves/fantasyanime/ctsave09-epoch.srm"
+SAVE = "saves/fantasyanime/ctsave09-epoch.srm"
 PHASES = ["loaded", "bridge", "summit", "battle", "won", "after"]
 HEADER = """\
 # Mt. Woe: from the last save point over the bridges to Giga Gaia; defeat the head and arms,
 # free Melchior, watch the mountain fall, then the Terra Cave conversation until control returns (route giga_gaia).
-# Save: ctsave09 slot 3 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave09 slot 3 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -38,8 +38,7 @@ def fight_policy(bot, state, rng, inventory):
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
     try:

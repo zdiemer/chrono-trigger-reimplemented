@@ -1,7 +1,7 @@
 """Shared approach and dialogue helpers for the Millennial Fair games."""
 from .. import bfs
 
-SAVE = "oracle/saves/fantasyanime/ctsave14-side_quests3.srm"
+SAVE = "saves/fantasyanime/ctsave14-side_quests3.srm"
 SQUARE, TENT = "0500", "b201"
 POINTS = 0x7F0052
 CONTROL = 0x7E011F
@@ -88,5 +88,5 @@ def greet(run):
 
 def header(game, description):
     return ("# " + description + " (route fair_" + game + ").\n"
-            "# Save: ctsave14 slot 1 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).\n"
+            "# Save: ctsave14 slot 1 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).\n"
             "# frames {FRAMES}\n# sram crc32 {CRC}\n# <start_frame> <frame_count> <buttons>").splitlines()

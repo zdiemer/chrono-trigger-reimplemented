@@ -7,10 +7,10 @@ from .save_point import press, to_slot
 from .rainbow_shell_trial import fast_messages
 from .menu_sweep import open_menu, open_option, use_item, back_to_main_menu, ITEMS, SHELTER
 
-SAVE = "oracle/saves/fantasyanime/ctsave11-crono_gone.srm"
+SAVE = "saves/fantasyanime/ctsave11-crono_gone.srm"
 HEADER = """\
 # Prepare the Blackbird cartridge save for Dalton (route blackbird_save; hand-run only).
-# Save: ctsave11 slot 1 (oracle/saves/fantasyanime).
+# Save: ctsave11 slot 1 (saves/fantasyanime).
 # Opening, equipment and inventory recovery, return to the cell, Shelter and normal save.
 # frames {FRAMES}
 # sram crc32 {CRC}
@@ -57,12 +57,12 @@ def travel(run, want):
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     m = run.machine
     try:
         start = run.start_at(PHASES)
         if start <= 0:
-            m.play_movie(str(Path(REPO) / "oracle/movies/saves/events-blackbird.ctm"), 4400)
+            m.play_movie(str(Path(REPO) / "movies/saves/events-blackbird.ctm"), 4400)
             assert m.b(0x7F0000) == 0xCF
             assert m.b(0x7F00D2) == 0 and not m.b(0x7F00BA) & 0x80
             # The narrow hull ledge blocks three directions, so find_player's
@@ -164,7 +164,7 @@ def main():
             assert m.b(0x7F00AF) & 7 == 7 and m.b(0x7F00BA) & 2
             assert m.b(0x7F00D2) == 0 and not m.b(0x7F00BA) & 0x80
             run.checkpoint("saved")
-        destination = Path(REPO) / "oracle/saves/recorded/blackbird-before-dalton.srm"
+        destination = Path(REPO) / "saves/recorded/blackbird-before-dalton.srm"
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(m.peek(0x306000, 8192))
         run.finish("a normal cartridge save after the Blackbird opening and equipment recovery")

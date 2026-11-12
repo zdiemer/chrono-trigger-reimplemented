@@ -3,8 +3,7 @@
 `python3 tools/ram_map.py storage` measures Phase 4a by **variables** in
 `re/ram.toml`: each `[[var]]` counts once, regardless of fields, array length,
 page instances or bytes. Before migration all 2,263/2,263 (100%) use the work-RAM
-image in `ct_native`. Emulator-backed builds must retain that backing while
-generated code and byte comparisons use it.
+image in `ct_native`. The remaining image is a compatibility projection during storage migration.
 
 ## Inventory
 
@@ -162,18 +161,7 @@ to move. The overlap ledgers and TODO.md describe that remaining work.
 
 ## Validation
 
-The sampled gate (`tools/suite.py --ct-dev build/main/ct_dev -j 2 --evidence`)
-ended with **`suite OK`**: 37/37 shadow movies clean, 37/37 native movies ending
-with a picture, and 37/37 recorded-outcome ratchet passes in both strict and
-native modes. These preserve the recorded tolerances; they do not assert that
-native playback matches every reference outcome. The generated-only trace
-comparison was identical over 7,200 frames. No baseline or exception was added.
-
-The warning-as-error build passed. The Python suite passed 593 tests; the
-subsequent inventory regression tests and RAM-map tests passed together (37
-tests). `ram_map.py accessors --check`, `vars_host_test`, `native_time_test`
-and the emulator-backed `vars_test` passed. The `field` movie with
-`ct_dev --native on --px-check-services` reported 11,402/11,402 frames
-identical, zero differing lines and zero pixels. Gate logs and derived
-artifacts remain under the ignored build directory; the evidence cache is
-local to the worktree.
+The lean native gate protects saved-game/save-RAM projections and visited places.
+`vars_host_test` loads and saves a committed cartridge fixture through the actual
+slot routines without a ROM. `ram_map.py accessors --check` checks the generated
+accessors, and the Python inventory tests check alias and storage rules.

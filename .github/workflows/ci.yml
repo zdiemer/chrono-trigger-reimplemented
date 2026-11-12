@@ -1,14 +1,10 @@
-# Builds everything that builds without a ROM and runs the ROM-free tests.
-# No ROM or ROM-derived data is ever used here: CT_ROM points nowhere, so the
-# generated block table is the empty stub and ct_matching isn't configured.
-
 name: CI
 
 on:
   push:
-    paths-ignore: ['**.md', 'docs/**', 'oracle/movies/**']
+    paths-ignore: ['**.md', 'docs/**', 'movies/**']
   pull_request:
-    paths-ignore: ['**.md', 'docs/**', 'oracle/movies/**']
+    paths-ignore: ['**.md', 'docs/**', 'movies/**']
   workflow_dispatch:
 
 concurrency:
@@ -19,40 +15,7 @@ permissions:
   contents: read
 
 jobs:
-  # SingleStepTests data (65816 and SPC700), downloaded once and cached for
-  # every OS. Pull requests from branches of this repository are already built
-  # by their push, so only pull requests from forks run again.
-  sst-data:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-      - id: cache
-        uses: actions/cache@v6
-        with:
-          path: |
-            tests/cpu/data
-            tests/apu/data
-          # Bump v1 to download the data again; the build jobs use the same key.
-          key: sst-v1-${{ hashFiles('tests/cpu/fetch_sst.py', 'tests/apu/fetch_sst_spc700.py') }}
-          enableCrossOsArchive: true
-          lookup-only: true
-      - if: steps.cache.outputs.cache-hit != 'true'
-        uses: actions/setup-python@v7
-        with:
-          python-version: '3.12'
-      - name: Fetch test data
-        if: steps.cache.outputs.cache-hit != 'true'
-        # The scripts fetch only what's missing, so a second pass retries failures.
-        run: |
-          python3 tests/cpu/fetch_sst.py > /dev/null || python3 tests/cpu/fetch_sst.py > /dev/null
-          python3 tests/apu/fetch_sst_spc700.py > /dev/null || python3 tests/apu/fetch_sst_spc700.py > /dev/null
-          ls tests/cpu/data | wc -l
-          ls tests/apu/data | wc -l
-
   build:
-    needs: sst-data
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -68,8 +31,6 @@ jobs:
             os: ubuntu-latest
             cc: clang
             shell: bash
-            # the player without the interpreter (docs/PLAYING.md)
-            configure: -DCT_PLAYER_INTERPRETER=OFF
           - name: macos-clang
             os: macos-latest
             cc: clang
@@ -112,96 +73,11 @@ jobs:
             mingw-w64-x86_64-python
             mingw-w64-x86_64-SDL2
 
-      - name: Restore test data
-        uses: actions/cache/restore@v6
-        with:
-          path: |
-            tests/cpu/data
-            tests/apu/data
-          key: sst-v1-${{ hashFiles('tests/cpu/fetch_sst.py', 'tests/apu/fetch_sst_spc700.py') }}
-          enableCrossOsArchive: true
-          fail-on-cache-miss: true
-
       - name: Configure
-        run: >-
-          cmake -S . -B build/ci -G Ninja -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCT_WERROR=ON -DCT_ROM= ${{ matrix.configure }}
-      - name: Build
-        run: cmake --build build/ci
-      - name: Check that ct_play was built
-        run: test -f build/ci/ct_play || test -f build/ci/ct_play.exe
-      # The native program (docs/PLAYING.md, "The native program"): the game linked
-      # with no emulator, generated code or registry, which its target doesn't link.
-      - name: Check that ct_native was built
-        run: test -f build/ci/ct_native || test -f build/ci/ct_native.exe
-      - name: Check that the interpreter isn't linked into ct_play
-        if: contains(matrix.configure, 'CT_PLAYER_INTERPRETER=OFF')
-        run: |
-          nm build/ci/ct_dev | grep -qw cpu_step
-          if nm build/ci/ct_play | grep -w cpu_step; then exit 1; fi
-      - name: Build oracle harness
-        run: |
-          cmake -S oracle -B build/oracle -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCT_WERROR=ON
-          cmake --build build/oracle
-
-      - name: Unit tests
+        run: cmake -S . -B build/ci -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCT_WERROR=ON
+      - name: Build native game and tests
+        run: cmake --build build/ci -j 2
+      - name: Native tests
+        run: ctest --test-dir build/ci --output-on-failure --no-tests=error -j 2
+      - name: ROM-free Python tests
         run: python3 -m unittest discover tests
-      - name: dsp_test
-        run: build/ci/dsp_test
-      - name: fiber_test
-        run: build/ci/fiber_test
-      - name: route_server_test
-        run: build/ci/route_server_test
-      - name: audio_replay_test
-        run: build/ci/audio_replay_test
-      - name: timing_test
-        run: build/ci/timing_test
-      - name: video_test
-        run: build/ci/video_test
-      - name: native_time_test
-        run: build/ci/native_time_test
-      - name: vars_host_test
-        run: build/ci/vars_host_test
-      - name: unpack_time_test
-        run: build/ci/unpack_time_test
-      - name: tasks_test
-        run: build/ci/tasks_test
-      - name: state_test
-        run: build/ci/state_test
-      - name: shadow_test
-        run: build/ci/shadow_test
-      - name: debt_test
-        run: build/ci/debt_test
-      - name: suspend_test
-        run: build/ci/suspend_test
-      - name: fuzz_test
-        run: build/ci/fuzz_test
-      - name: time_parts_test
-        run: build/ci/time_parts_test
-      - name: vars_test
-        run: build/ci/vars_test
-      - name: sound_test
-        run: build/ci/sound_test
-      - name: unpack_test
-        run: build/ci/unpack_test
-      - name: field_test
-        run: build/ci/field_test
-      - name: event_contract_test
-        run: build/ci/event_contract_test
-      - name: scene_contract_test
-        run: build/ci/scene_contract_test
-      - name: battle_contract_test
-        run: build/ci/battle_contract_test
-      - name: bindings_test
-        run: build/ci/bindings_test
-      - name: assets_test
-        run: build/ci/assets_test
-      # The full suites (5.12M and 256k cases) take seconds, so every job runs them.
-      - name: 65816 SingleStepTests (interpreter)
-        run: build/ci/sst_runner tests/cpu/data/*.bin
-      - name: 65816 SingleStepTests (generated code)
-        run: build/ci/sst_generated_runner tests/cpu/data/*.bin
-      - name: SPC700 SingleStepTests
-        run: build/ci/spc700_runner tests/apu/data/*.bin
-      - name: Generated code against the interpreter on the SNES bus
-        run: build/ci/generated_bus_diff

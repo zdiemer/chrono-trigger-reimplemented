@@ -9,12 +9,12 @@ from .heckran import fight
 from .save_point import press, to_slot, MENU_SCREEN, SAVE_POINT_SCREEN
 from ..campaign import Run, route_arguments, run_route
 
-SAVE = "oracle/saves/fantasyanime/ctsave03-future_more.srm"
+SAVE = "saves/fantasyanime/ctsave03-future_more.srm"
 PHASES = ["loaded", "medina", "world", "entrance", "inner", "passage", "return", "south", "bend", "water", "saved"]
 HEADER = """\
 # Heckran's Cave, 1000 A.D.: from the End of Time through the Medina gate and the cave,
 # save normally at the cave save point before Heckran (hand-run route heckran_prepare).
-# Save: ctsave03 slot 3 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave03 slot 3 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -50,7 +50,7 @@ def cave_exit(run, want, seed):
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     m = run.machine
     try:
         start = run.start_at(PHASES)

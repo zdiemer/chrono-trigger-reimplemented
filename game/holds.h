@@ -2,7 +2,7 @@
  * the original's loop head with nothing suspended, and the runtime runs the
  * wait's continuation as C when it goes on (runtime/port/native.h,
  * native_hold; docs/RUNTIME.md, "Held waits"). Each has a number, which the
- * machine's state keeps (Snes.held_wait) so that a ct_drive base or a quick
+ * machine's state keeps (Snes.held_wait) so that a the route driver base or a quick
  * save taken there names the wait; a number is never given to another wait. */
 #ifndef CT_GAME_HOLDS_H
 #define CT_GAME_HOLDS_H

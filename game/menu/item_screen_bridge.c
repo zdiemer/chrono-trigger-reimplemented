@@ -51,7 +51,7 @@ enum {
     MAIN_MENU = 0xC29A98,            /* back to the main menu */
 };
 
-/* What they read (tools/dontcare_check.py checks each): most nothing but the
+/* What they read (the calling convention checks each): most nothing but the
  * page, the data bank and memory; the stop of tasks A, the pointing at a
  * member A (its sound's). */
 enum {

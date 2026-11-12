@@ -428,7 +428,7 @@ void scene_program_waits(Snes *s)
  * after it -- on the scene's page; the idle pass where there is nothing to
  * call and the scene isn't over, the other everywhere else. Each is a claim
  * the game keeps, which the refusal measure checks over real play
- * (tools/fallbacks.py --refusals). */
+ * (the original hand-back paths --refusals). */
 enum { JSR = 0x20 };
 
 static bool loop_present(Snes *s)

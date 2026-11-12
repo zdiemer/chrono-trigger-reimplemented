@@ -5,9 +5,9 @@ roms/
 *.swc
 *.fig
 *.srm
-# The asset pack ct_play and ct_dev import from the ROM (frontend/assets.h)
+# The asset pack ct_native imports from the ROM (frontend/assets.h)
 *.assets
-!oracle/saves/**/*.srm
+!saves/**/*.srm
 *.spc
 
 # Extracted assets, disassembly output, traces and captures
@@ -41,10 +41,6 @@ __pycache__/
 .vscode/
 .idea/
 *.user
-
-# Downloaded test suites
-tests/cpu/data/
-tests/apu/data/
 
 # Player binaries built by tools/dist.py
 dist/

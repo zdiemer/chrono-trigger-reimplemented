@@ -3,8 +3,8 @@
 Instead of timing a walk, try the four directions from a checkpoint, keep the
 positions they reach, and search until the goal holds. The machine is the map:
 walls, NPCs and one-way exits need no model. Each node is one in-memory slot
-(`Machine.mark`), so the search costs slots, not frames, and only the path that
-wins is replayed with `Machine.run` - that is what ends up in the movie.
+(`Driver.mark`), so the search costs slots, not frames, and only the path that
+wins is replayed with `Driver.run` - that is what ends up in the movie.
 
 Two flavors:
 

@@ -480,7 +480,7 @@ bool field_frame_part_drawn(GameState *g, FieldObject obj)
  * after the frame queue leaves it as it is, and it goes round the main loop
  * to the next frame's pause and menu opening ($C0:18D9), which reach the
  * sound driver's saved flags ($C7:0A39's PHP, taken back other than by PLP)
- * and the menus' BVC at $C2:F7D9; tools/v_readers.py --after C0:CAD9 has it
+ * and the menus' BVC at $C2:F7D9; the flag-reader analysis --after C0:CAD9 has it
  * read. No decision of the field's reads it (banks $C0 and $FD have no
  * branch on it). */
 void field_draw_next_frame(Snes *s)

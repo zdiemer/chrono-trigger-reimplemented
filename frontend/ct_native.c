@@ -63,7 +63,7 @@
 #endif
 #include "vars.h"
 #include "sound_native.h"
-#include "route_server.h"
+#include "route_driver.h"
 #include "audio_replay.h"
 
 enum { ROM_BYTES = 0x400000 };
@@ -139,7 +139,7 @@ static void picture_frame(Picture *p, Platform *pf, unsigned long frame)
     }
 }
 
-/* --end-state: work RAM, then save RAM, as ct_dev --end-state writes them, for
+/* --end-state: work RAM, then save RAM, as the outcome projection expects, for
  * tools/native_check.py to compare with the reference play's. */
 enum { WORK_RAM = 0x7E0000, WORK_RAM_BYTES = 0x20000 };
 enum { LOCATION_BITS = 0x1FF };   /* location_id's location number */
@@ -264,7 +264,7 @@ typedef struct {
     uint16_t location;
     uint8_t saved[STATE_HOST_SRAM_BYTES];
     int result;
-    bool server;
+    bool drive;
     uint16_t second_pad;
     const uint8_t *initial_sram;
     AudioReplay *audio_replay;
@@ -325,7 +325,7 @@ static void native_step(void *ctx, uint16_t buttons)
     else
         sound_native_frame(d->sound);
     d->frame++;
-    if (!d->server)
+    if (!d->drive)
         picture_frame(d->picture, d->pf, d->frame);
     if (d->outcomes && outcome_picture_due(d->frame, d->frames))
         outcome_picture(d->picture->pixels, VID_RENDER_WIDTH, VID_RENDER_HEIGHT, d->frame);
@@ -357,7 +357,7 @@ static bool native_done(void *ctx)
 }
 
 /* Power-on is the only base with no live C continuations. Recreate all host
- * services and stacks, then the server replays input to the saved frame. */
+ * services and stacks, then the drive replays input to the saved frame. */
 static bool route_reset(void *ctx)
 {
     NativeDriver *d = ctx;
@@ -418,7 +418,7 @@ static void native_title(void *ctx, bool paused, char *out, size_t size)
 static void usage(FILE *out)
 {
     fprintf(out, "usage: ct_native --rom ct.sfc [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]\n"
-                 "                 [--headless | --window | --server] [--scale N] [--fullscreen] [--mute]\n"
+                 "                 [--headless | --window | --drive] [--scale N] [--fullscreen] [--mute]\n"
                  "                 [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--lag-log] [--timing-report] [--outcomes] [--scene flags[,song]]...\n"
                  "--frames selects headless unless --window is given; --headless defaults to 600 frames.\n"
                  "Window play writes cartridge saves; headless runs only read them. No quick save/load.\n");
@@ -445,7 +445,7 @@ int main(int argc, char **argv)
     const char *end_state = NULL;
     unsigned long frames = 600, shot_every = 0, scale = 3;
     bool frames_given = false, fullscreen = false, mute = false;
-    bool server = false;
+    bool drive = false;
     int display_mode = 0;   /* auto, headless, window */
 #ifdef CT_HAVE_SDL
     SDL_SetMainReady();
@@ -465,7 +465,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--movie") && v) movie_path = v, i++;
         else if (!strcmp(a, "--frames") && v && count_from(v, &frames)) frames_given = true, i++;
         else if (!strcmp(a, "--headless")) display_mode = 1;
-        else if (!strcmp(a, "--server")) server = true;
+        else if (!strcmp(a, "--drive")) drive = true;
         else if (!strcmp(a, "--window")) display_mode = 2;
         else if (!strcmp(a, "--scale") && v && count_from(v, &scale) && scale >= 1 && scale <= 10) i++;
         else if (!strcmp(a, "--fullscreen")) fullscreen = true;
@@ -489,11 +489,11 @@ int main(int argc, char **argv)
         fprintf(stderr, "ct_native: %s\n", rom_path ? "--shot-every needs --shot-dir" : "--rom is required");
         return 2;
     }
-    if (server && (movie_path || scenes || timing_report || display_mode == 2)) {
-        fprintf(stderr, "ct_native: --server cannot combine with --movie, --scene, --timing-report or --window\n");
+    if (drive && (movie_path || scenes || timing_report || display_mode == 2)) {
+        fprintf(stderr, "ct_native: --drive cannot combine with --movie, --scene, --timing-report or --window\n");
         return 2;
     }
-    if (server) display_mode = 1;
+    if (drive) display_mode = 1;
     bool windowed = display_mode == 2 || (display_mode == 0 && !frames_given);
 #ifndef CT_HAVE_SDL
     if (display_mode == 2) {
@@ -568,20 +568,20 @@ int main(int argc, char **argv)
         .movie = movie_path ? &movie : NULL, .sram_path = sram_path,
         .shot_dir = shot_dir, .frames = frames, .shot_every = shot_every,
         .locations = locations, .outcomes = outcomes, .persist = windowed, .location = 0xFFFF,
-        .server = server, .initial_sram = sram
+        .drive = drive, .initial_sram = sram
     };
     memcpy(driver.saved, state_host_sram(g), sizeof driver.saved);
     pf.save.ctx = &driver;
     pf.save.written = native_save_written;
     no_machine_report_with(machine_failure, &driver);
     int rc = 0;
-    if (server) {
+    if (drive) {
         driver.audio_replay = audio_replay_create();
         if (!driver.audio_replay) { fprintf(stderr, "ct_native: out of memory\n"); return 2; }
         audio_replay_bind(driver.audio_replay, g, &pf, sound);
         RouteReplay replay = { route_audio_save, audio_replay_drop, route_audio_begin, route_audio_end };
         RouteHost host = { &driver, route_reset, route_step, route_read, route_write, route_shot, &replay };
-        rc = route_server(&host, driver.saved, sizeof driver.saved, asset_catalogue_version, stdin, stdout);
+        rc = route_driver(&host, driver.saved, sizeof driver.saved, asset_catalogue_version, stdin, stdout);
         g = driver.game;
         sound = driver.sound;
         picture_frame(&picture, &pf, driver.frame);

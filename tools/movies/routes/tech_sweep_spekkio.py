@@ -23,12 +23,12 @@ HEADER = """\
 # Marle and Frog, change the party at the End of Time's exchange (Y), walk into Spekkio's room and fight him, twice, with
 # the tech-sweep policy casting each tech the trio's lists show once (double and triple techs first, then the singles),
 # healing and reviving with items (route tech_sweep_spekkio).
-# Save: zophar chrono slot 1 (oracle/saves/zophar, zophar.net Chrono Trigger saves).
+# Save: zophar chrono slot 1 (saves/zophar, zophar.net Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
-SAVE = "oracle/saves/zophar/chrono.srm"
+SAVE = "saves/zophar/chrono.srm"
 SLOT = 0
 END_OF_TIME, SPEKKIO_ROOM = "d001", "d101"
 SPEKKIO = 8                     # his object in $1D1's script
@@ -182,8 +182,7 @@ def fight_spekkio(run, policy, setup, seed):
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     phases = ["loaded"] + ["trio%d" % n for n in range(len(TRIOS))]
     start = run.start_at(phases)

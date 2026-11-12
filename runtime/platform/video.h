@@ -788,8 +788,5 @@ void vid_obs_fill_oam(VidObserver *ob, uint16_t word_addr, uint8_t value, uint32
 void vid_obs_write_oam(VidObserver *ob, uint8_t v);
 void vid_obs_snes_transfer(VidObserver *ob, const VidSnesTransfer *t, uint8_t control);
 
-#ifdef CT_PLATFORM_SNES
-#include "platform/snes/video.h"
-#endif
 
 #endif

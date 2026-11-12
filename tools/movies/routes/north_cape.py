@@ -2,14 +2,14 @@
 
 ctsave11 slot 2 has story progress $D2 and $7F:0138 clear; slot 3 and
 ctsave12 already have recruitment bit 0 set. Marle, Lucca and Robo are active,
-so this is the party fight, rather than Frog's duel. Machine copies keep the
+so this is the party fight, rather than Frog's duel. Driver copies keep the
 walk searches and fight retries out of the movie. magus_joins uses the same
 opening and refuses the fight instead.
 """
 from .. import addresses as A, bfs, policies
 from ..campaign import Run, route_arguments, run_route
 
-SAVE = "oracle/saves/fantasyanime/ctsave11-crono_gone.srm"
+SAVE = "saves/fantasyanime/ctsave11-crono_gone.srm"
 SLOT = 1
 CAPE = "ac01"
 OUTCOME = 0x7F0138
@@ -18,7 +18,7 @@ PHASES = ["loaded", "world", "cape", "choice", "branch", "after"]
 HEADER = """\
 # North Cape, 12,000 B.C.: leave the Earthbound Village, meet Magus, and see his flashback.
 # {BRANCH} The movie ends with the field back in hand (route {ROUTE}).
-# Save: ctsave11 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave11 slot 2 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -27,7 +27,7 @@ HEADER = """\
 def main(join=False):
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     machine = run.machine
     try:
         start = run.start_at(PHASES)

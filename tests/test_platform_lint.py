@@ -122,25 +122,6 @@ class PlatformLint(unittest.TestCase):
                 users.add(path.relative_to(GAME).as_posix())
         self.assertEqual(users, WRITE_ORDER)
 
-    def test_sites_have_encodings(self):
-        """A call that takes its write order from the SNES backend at a literal
-        site has that site in the backend's table, so no movie is needed to find
-        one missing (the backend stops the program on an unknown site)."""
-        table = (ROOT / "runtime/platform/snes/encodings.c").read_text(encoding="utf-8")
-        known = {int(m, 16) for m in re.findall(r"\b0x([0-9A-Fa-f]{6})\b", table)}
-        runs = [(int(a, 16), int(n), int(st, 16)) for a, n, st in
-                re.findall(r"\{ 0x([0-9A-Fa-f]{6}), ([1-9]\d*), 0x([0-9A-Fa-f]+),", table)]
-        call = re.compile(r"\bvid_(?:send_\w+|set_line_slot|set_line_table|snes_copy|apply_screen|start_vram_uploads)"
-                          r"\s*\([^,]+,\s*PF_AT\(0x([0-9A-Fa-f]{6})\)")
-        missing = []
-        for path in self.sources():
-            for m in call.finditer(strip(path.read_text(encoding="utf-8"))):
-                site = int(m.group(1), 16)
-                if "start_vram_uploads" in m.group(0):
-                    continue   # a VRAM port on its own needs no encoding
-                if site not in known and not any(a <= site < a + n * st and (site - a) % st == 0 for a, n, st in runs):
-                    missing.append(f"{path.relative_to(ROOT).as_posix()}: ${site >> 16:02X}:{site & 0xFFFF:04X}")
-        self.assertEqual(missing, [], "calls whose site has no encoding in runtime/platform/snes/encodings.c")
 
     def test_audio_driver_calls_only_where_allowed(self):
         users = set()

@@ -3,11 +3,11 @@ from .. import policies
 from ..campaign import Run, route_arguments, run_route
 from . import _early_bosses as early
 
-SAVE = "oracle/saves/fantasyanime/ctsave05-prehistoric.srm"
+SAVE = "saves/fantasyanime/ctsave05-prehistoric.srm"
 SLOT = 1
 PHASES = ["loaded", "settings", "entrance", "top", "middle", "lower", "bottom", "hall", "chamber", "battle", "won", "after"]
 HEADER = """# Reptite Lair: defeat Nizbel, recover the Gate Key, regain field control.
-# Save: ctsave05 slot 2 (oracle/saves/fantasyanime/ctsave05-prehistoric.srm).
+# Save: ctsave05 slot 2 (saves/fantasyanime/ctsave05-prehistoric.srm).
 # Route: nizbel
 # frames {FRAMES}
 # sram crc32 {CRC}
@@ -69,7 +69,7 @@ def descend(run, hole, destination, seed):
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     try:
         start = run.start_at(PHASES)
         if start <= 0:

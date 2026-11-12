@@ -6,7 +6,7 @@ PHASES = APPROACH + ["slash_hall", "slash_room", "henchmen", "slash", "won", "af
 HEADER = """\
 # Magus's castle, 600 A.D.: explore the wings, Ozzie's ambush, Slash's henchmen,
 # then Slash unarmed and with his sword, ending with the field back in hand (route castle_slash).
-# Save: ctsave06 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave06 slot 2 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -14,8 +14,7 @@ HEADER = """\
 
 def main():
     args = route_arguments(__doc__, save=SAVE)
-    run = CastleRun(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = CastleRun(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     try:
         start = run.start_at(PHASES)
         approach(run, start, args.seed)

@@ -266,7 +266,7 @@ static bool quieten_on_the_machine(void *ctx, unsigned command)
     return menu_back(s, QUIETING[command].site + MENU_JSL_SIZE, m);
 }
 
-/* Registers the routines the opening calls don't read (tools/dontcare_check.py
+/* Registers the routines the opening calls don't read (the calling convention
  * checks each). */
 enum { SETUP_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 enum { OPENING_ENDS = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };

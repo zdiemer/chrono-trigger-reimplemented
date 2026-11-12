@@ -1,2 +1,0 @@
-# Compatibility route failures accepted with a concrete reason.
-# tools/suite.py native-shape: route NAME # reason

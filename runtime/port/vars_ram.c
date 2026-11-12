@@ -180,13 +180,11 @@ bool scene_program_page_of(uint16_t d, SceneProgramPage *page)
 
 /* ---- bounds ---------------------------------------------------------------------------- */
 
-/* An accessor's index past what re/ram.toml declares reaches whatever comes next in work RAM,
- * which works only while the storage is the original's layout. With CT_ACCESSOR_CHECKS (ct_dev,
- * ct_fuzz, the tests) each is counted, per variable, with the first few indices and where the
- * port was, and the access still happens as it did, so shadow mode compares the same bytes;
- * ct_dev reports the counts and the gate fails a movie with any. Without it (ct_play) the check
- * is not compiled. Marked scaffolding that goes out of range on purpose uses a variable's
- * `_unchecked` pair, which the map declares with a reason, or game/wram.h. */
+/* An accessor's index past what re/ram.toml declares reaches whatever comes next in the
+ * compatibility image. CT_ACCESSOR_CHECKS counts such accesses per variable, with the first few
+ * indices and their source. An explicitly documented `_unchecked` accessor is reserved for a
+ * declared extended range; native storage migrations must resolve these ranges before removing
+ * the compatibility image. */
 #ifdef CT_ACCESSOR_CHECKS
 
 static VarsRangeFault range_faults[] = {

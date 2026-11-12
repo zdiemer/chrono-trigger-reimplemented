@@ -14,7 +14,7 @@
  * direct page's cells, is charge_retired, since its entry retired. An
  * uncounted stretch (charge_uncounted_begin) is plain for the same reason:
  * the charge after it stands for the accesses it leaves out.
- * runtime/port/state_io.c is the backing (runtime/port/native.h,
+ * the state backend is the backing (runtime/port/native.h,
  * native_charge_as). */
 #ifndef CT_GAME_CHARGE_H
 #define CT_GAME_CHARGE_H

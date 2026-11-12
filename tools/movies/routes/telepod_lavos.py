@@ -24,7 +24,7 @@ HEADER = """\
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
-SAVE = "oracle/saves/technoplaza/ct-state16.srm"
+SAVE = "saves/technoplaza/ct-state16.srm"
 PHASES = ["fair", "exhibit", "shell", "cavern", "inner", "core", "ending", "devroom", "tour", "kokubo", "credits"]
 
 # The development room: which object in which map sets which bit of $7F:0078.
@@ -82,8 +82,7 @@ def to_the_shell(run, start):
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     developers = lambda: machine.b(A.DEVELOPERS_TALKED)
     dream_team = lambda: machine.b(A.DREAM_TEAM_TALKED)

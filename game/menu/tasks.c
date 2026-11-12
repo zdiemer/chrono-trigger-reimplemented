@@ -162,7 +162,7 @@ static void go_back_into(Snes *s, unsigned task)
  * healing's numbers, the gate's song): what each reads of the registers the
  * scheduler's jump leaves is its page, its data bank and, two of them, A's
  * high byte, which the start's address leaves there. The rest are dead
- * (tools/dontcare_check.py checks each row). */
+ * (the calling convention checks each row). */
 static const uint16_t task_starts_known[] = {
     0x826F, 0x83BD, 0x89F2, 0x8A45, 0x8AB2, 0x8AF5, 0x8BB8, 0x9016, 0xCBBF, 0xCECE, 0xE91B, 0xF657, 0xF9B2, 0xFA06, 0xFA9F,
 };
@@ -387,7 +387,7 @@ enum { THE_LOOPS_READ_NOTHING_AFTER_IT = MENU_TASK_WAIT_READS_NOTHING };
 
 /* The index registers the wait keeps, just under the loop's return (X, then
  * Y below it, each a byte or a word), are what the loop's stop declares it
- * doesn't read after the wait (tools/dontcare_check.py checks the
+ * doesn't read after the wait (the calling convention checks the
  * declaration at the wait's JSR, through the wait's keeping them, and
  * tests/test_menu_task_waits.py at the loops' returns): the loops load both
  * before they read either. So where the declaration has them, the port's

@@ -31,7 +31,7 @@
 /* The click: the driver's effect 0 on its second pair of effect voices, from
  * the middle. What the driver's command routine reads of the registers it is
  * called with, and what is read after it returns: nothing but A's high byte,
- * which it hands back (checked against liveness by tools/dontcare_check.py). */
+ * which it hands back (checked against liveness by the calling convention). */
 enum { CURSOR_CLICK_EFFECT = 0x00, CLICK_CALL = 0xC11B62, CLICK_RETURN = 0xC11B66, CLICK = 0xC11B55 };
 #define DRIVER_IGNORES (DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C)
 

@@ -677,7 +677,7 @@ static FieldPass pass_step_on_the_machine(void *ctx, PassStep step)
 /* On the machine the pass ends in the wait for the next frame, held at its
  * loop rather than waited in: a pass still running over the frame's end would
  * be a native routine held over every frame, which a machine copy can only
- * rebuild by replaying input (ct_drive, docs/MOVIES.md). Where the machine
+ * rebuild by replaying input (the route driver, docs/MOVIES.md). Where the machine
  * came to the pass by its address, the pass stops at the wait, an entry of its
  * own; the held wait's continuation calls it (field_next_frame). */
 static bool pass_on_the_machine_from(Snes *s, PassStep first)
