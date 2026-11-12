@@ -780,8 +780,10 @@ def access_units(v):
 
 
 def storage_holders(m):
-    """Each owned byte: (owner field, element width or None for a scalar field
-    or 0 for an unlabelled buffer, first byte of its element)."""
+    """Each owned byte: (owner field, the width of the value holding it, the
+    value's first byte). A scalar field is one value of its size; a labelled
+    buffer is a run of its elements; an unlabelled buffer is width 0 (bytes
+    nothing gives a meaning), which no value matches."""
     holder = {}
     for a in owner_accessors(m):
         label = a.var.name + ("." + a.field.name if a.field else "")
@@ -793,7 +795,7 @@ def storage_holders(m):
                     start = base + row * (a.var.row_stride or 0) + element * a.var.stride + a.offset
                     for addr in range(start, start + a.size):
                         if not buffer:
-                            holder[addr] = (label, None, start)
+                            holder[addr] = (label, a.size, start)
                         elif unit is None:
                             holder[addr] = (label, 0, None)
                         else:
@@ -806,15 +808,14 @@ def storage_holders(m):
 def storage_kinds(m):
     """Classify actual backing, not merely the presence of ownership metadata.
 
-    A variable is typed only if each of its values is held by typed storage:
-    a scalar owner field, or one whole element of an owner buffer whose
-    elements are that value's width. A byte buffer with no elements is a blob;
-    so is a labelled buffer whose element is not the value's width or not
-    aligned with it (a word kept in byte elements, a byte read out of half a
-    word), and so is a value split across owner fields or elements. A partial
-    blob dependency makes the whole variable blob-backed. A scalar owner field
-    of one mode read through an alias of another (memory the original reuses)
-    still counts as typed: the bytes live in a typed C field either way.
+    A variable is typed only if each of its values is held by exactly one
+    typed value of its own width and place: a scalar owner field, or one whole
+    element of an owner buffer whose elements are that width. A byte buffer
+    with no elements is a blob; so is any value split across owner fields or
+    elements, misaligned with one, or a fragment of a wider one (a word kept in
+    two byte fields, a byte of a word field, a byte read out of half a word),
+    including where another mode's alias reads memory the original reuses. A
+    partial blob dependency makes the whole variable blob-backed.
     """
     holder = storage_holders(m)
     return {v.name: variable_storage(v, holder) for v in m.vars}
@@ -829,14 +830,10 @@ def variable_storage(v, holder):
         held = [holder.get(addr) for addr in range(lo, hi)]
         if any(h is None for h in held):
             continue
-        labels = {h[0] for h in held}
-        units = {h[1] for h in held}
-        if units == {None}:
-            continue        # scalar owner fields
-        whole = (len(labels) == 1 and units == {width} and
+        whole = ({h[0] for h in held} == {held[0][0]} and {h[1] for h in held} == {width} and
                  {h[2] for h in held} == {start})
         if not whole:
-            dependencies |= {h[0] for h in held if h[1] is not None}
+            dependencies |= {h[0] for h in held}
     return ("blob" if dependencies else "typed"), sorted(dependencies)
 
 

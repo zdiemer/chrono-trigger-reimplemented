@@ -3007,14 +3007,15 @@ persistence seams; game-side representation changes still need explicit work.
 - CI: the macOS job costs 10x minutes on a private repo.
 ## State records
 
-The live variables all have module-owned storage, 115 of them still blob-backed
+The live variables all have module-owned storage, 725 of them still blob-backed
 (`tools/ram_map.py storage --list`), and the big field, battle, character, menu
 and submitted-sprite records are declared in `re/ram.toml`; see
 [STATE.md](STATE.md). Remaining record design:
 
-- Type the 115 blob-backed variables. Nearly all are overlays where one mode's
-  word buffer holds another mode's bytes, or scratch cells with no element
-  structure; each needs the overlay split into the modes' own fields.
+- Type the 725 blob-backed variables. Nearly all are overlays where one mode
+  reads, at its own widths, fields another mode declared (610 through scalar
+  fields alone), or scratch cells with no element structure; each needs the
+  overlay split into a union of the modes' own fields.
 - Unowned addresses in `runtime/port/state_host.c`: the address view reads the
   1,395 bytes no variable owns as 0, where the hardware's power-on value is
   $55, and drops writes that overrun into them. The audit that found no gameplay

@@ -1,7 +1,7 @@
 # Native state storage
 
-Every live map variable has module-owned C storage, and 2,121 of the 2,236 have
-typed storage; the other 115 are still blob-backed. `GameState` has no work-RAM
+Every live map variable has module-owned C storage, and 1,511 of the 2,236 have
+typed storage; the other 725 are still blob-backed. `GameState` has no work-RAM
 image; the generated address view serializes the owning fields directly. Generated
 files come only from `tools/ram_map.py` and `re/ram.toml`.
 
@@ -10,31 +10,36 @@ files come only from `tools/ram_map.py` and `re/ram.toml`.
 `python3 tools/ram_map.py storage` counts each public `[[var]]` once, regardless
 of its fields, elements or page instances. A variable is typed only when each
 value it names (a scalar, or each element of a buffer that declares its
-`elements`) is held by a scalar owner field or by one whole element of an owner
-buffer whose elements are that value's width. A byte buffer with no elements is
-a blob; so is a labelled buffer read at another width or alignment (a word kept
-in byte elements, a byte read out of half a word), a value split across two
-owner fields, and a reader buffer that declares no elements of its own: a label
-on the owner does not type bytes nothing says the meaning of. A scalar owner
-field of one mode read through an alias of another (memory the original reuses
-between modes) counts as typed: the bytes are in a typed C field either way.
-`storage --list` names each blob-backed variable and the owner buffers it
-depends on.
+`elements`) is exactly one typed value of its own width and place: one scalar
+owner field, or one whole element of an owner buffer whose elements are that
+width. Everything else is blob-backed: a byte buffer with no elements; a value
+split across two owner fields or elements; a fragment of a wider one or a value
+misaligned with it (a byte of a word field, a word over two byte fields, a byte
+read out of half a word element); and a reader buffer that declares no elements
+of its own, since a label on the owner does not type bytes nothing says the
+meaning of. The rule holds for aliases too: a mode that reads memory the
+original reuses at another mode's widths is blob-backed, though the bytes sit
+in typed C fields. `storage --list` names each blob-backed variable and the
+owner fields it depends on.
 
 | Measure | Before | After |
 |---|---:|---:|
-| Typed variables | 1,953 | 2,121 |
-| Blob-backed variables | 283 | 115 |
+| Typed variables | 1,953 | 1,511 |
+| Blob-backed variables | 283 | 725 |
 | Image-backed variables | 27 | 0 |
 | Total public variables | 2,263 | 2,236 |
 
-197 variables read through labelled owner buffers. 82 of them pass (15 after declaring the byte or word
-elements of the reading variable itself: tile layers, tile attribute tables,
-timers, names, a Mode 7 map and a palette), and 115 remain blob-backed. Most of
-those are overlays where one mode's word buffer holds another mode's bytes
-(menu tilemaps over the field's map rows, battle scratch over the palace's
-column words) or scratch cells nobody has given element structure; typing them
-needs the overlay split into a union of each mode's own fields.
+The "before" column was counted by a laxer rule, which took any byte held by a
+scalar field as typed; the "after" column is the rule above, so the two do not
+compare directly. Of the 725 blob-backed variables, 610 depend only on scalar
+owner fields read at another width or place, 24 only on buffers and 91 on both.
+Nearly all are overlays: a mode reading, at its own widths, memory whose owner
+fields another mode declared (battle cells over the field's tile looks, menu
+tilemaps over the field's map rows, scene scratch over the menu object shadows).
+Typing them needs each overlay split into a union of every mode's own fields.
+15 readers are typed by declaring their own byte or word elements where the
+meaning gives them (tile layers, tile attribute tables, timers, names, a Mode 7
+map and a palette).
 
 The denominator fell by 27 because the retired sound loader has no live clients.
 Its declarations and generated accessors were deleted. Its 257 bytes and 1,138
