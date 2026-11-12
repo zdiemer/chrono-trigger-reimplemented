@@ -217,7 +217,9 @@ worktree under `.claude/worktrees/`. `AGENTS.md` is this file.
   - CI runs the ROM-free checks on the PR: the build with warnings as errors on
     four platforms, the native tests and the Python tests. CI has no cartridge, so
     the coordinator runs the gate locally on the PR's exact head and posts the
-    result on the PR. It reviews there and merges once both have passed.
+    result on the PR. A fresh reviewer loading the `review-pr` skill posts its
+    verdict there, and the coordinator merges once all three have passed. A fix
+    gets one scoped re-review.
   - Fix review findings and conflicts with main on your branch, and push.
   - A PR from outside the coordinator's own agents is untrusted code. The gate
     builds and runs it beside the cartridge, so the coordinator reads the whole

@@ -9,6 +9,7 @@ typedef struct {
     char sram[1024];      /* <rom name>.srm */
     char state[1024];     /* quick saves: <rom name>.state, or <movie name>.state while recording */
     char assets[1024];    /* the asset pack (frontend/assets.h): <rom name>.assets */
+    char palettes[1024];  /* the pack's palettes as text (frontend/palettes.h): beside it, .palettes */
     const char *movie;    /* the movie being recorded, or NULL */
 } Files;
 

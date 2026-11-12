@@ -90,6 +90,7 @@ typedef struct {
     VidDisplay display_below;
     uint8_t line_effects_below;
     uint32_t screens_applied;
+    VidView view;                /* vid_host_set_view's; zero: the original's screen */
 } VidHost;
 
 /* The sound: the C sound driver (game/sound/) played in the SPC700's place,
@@ -133,6 +134,9 @@ struct Platform {
  * callback; and the frame it makes, its line effects run down the picture. */
 void vid_host_start(Platform *pf, uint8_t (*read)(void *ctx, uint32_t addr), void *ctx);
 void vid_host_stop(Platform *pf);
+/* How much of the picture the game shows (vid_view): the driver's to choose,
+ * the original's screen until it does. A snapshot leaves it as it is. */
+void vid_host_set_view(Platform *pf, VidView view);
 const VidFrame *vid_host_picture(Platform *pf);
 /* A new frame begins: what the last one changed below a line holds from its
  * top (tm_host_frame calls it). */

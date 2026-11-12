@@ -61,11 +61,49 @@ the frontend verifies the user's cartridge and imports a local pack. Game code
 loads named resources from that store, never an embedded ROM. Packs and decoded
 assets are not committed.
 
+### Palettes, the first decoded resource
+
+A catalogue row whose codec is `palette:N` (or `palette:NxM`) is BGR555
+colors, N a row and M rows a palette: the field's location palettes
+(`palette:15x7`, 88 of them) and sprite palettes (`palette:12`), the battle
+sprites' three- and seven-color sets, the battle screen's effect, gradient and
+background colors, and the party's color cycles. Each was split out of the
+mixed or untyped region that held it, its extent where the accessor's indexing
+and the data agree (every word below `$8000`; the cycle's `$FFFF` tail is its
+own padding row). `tools/assets.py check` holds a palette row to whole words.
+
+`frontend/palettes.c` writes every palette resource a store serves as text, a
+color a line (`red green blue`, 0-31, and `+` where the word's unused top bit
+is set, so any word survives), under a `[name]` line and row comments, and
+reads such text back into a store over the pack. `ct_native` keeps the text
+beside the pack (`<pack>.palettes`): where there is none it checks that every
+palette written and read again gives back its bytes, writes the file, and on
+every start remakes the pack in memory from the store over the text, so the
+game's existing accessors read the decoded palettes with `game/` unchanged.
+The text is from the user's cartridge and, like the pack, never committed.
+
+Measured: `palettes_test` (ROM-free) writes and reads back a made-up store's
+six palettes, serves an edited color and only the palettes a text names, and
+refuses wrong text at its line; with `roms/ct-usa.sfc` staged it reads back
+every cartridge palette as its bytes. The lean gate runs every movie, route
+and snapshot on the decoded palettes, since each run imports its pack and
+text. Swapping red and blue in the field's palettes shows in the first field
+scene's picture.
+
 ## Further targets
 
-Widescreen must review coordinate clipping and field activation bounds. It
-reaches the game as the video service's view size, with the original screen as
-the default the gate measures (docs/PLAN.md, "Layering"). GPU
+Widescreen reaches the game as the video service's view, `vid_view`: how much
+of the picture is shown, the original's 256x224 unless the driver chose another
+with `vid_host_set_view` (a snapshot keeps the driver's choice). The gate runs
+at the original's (docs/PLAN.md, "Layering"). A port asks it where it decides
+how much to show or where to lay something out, never where a rule of the
+game's uses the screen's size: the field's object window at `$C0:A88D` decides
+which objects run, so a wider picture needs a draw-only test beside it rather
+than a wider window; the sprite-object mode's in-view test
+(`menu_scene_object_in_view`) is such a rule too, its scripts branching on it.
+As built, no site asks it yet: the screen-bound sites still hold positions and
+window edges in bytes and the OAM's ninth X bit, which a wider view has to
+widen first. GPU
 backends must preserve line effects and color math. Smaller targets need measured
 memory and coroutine stack budgets; a callback-based frontend needs an appropriate
 fiber backend or resumable game tasks.

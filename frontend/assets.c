@@ -140,6 +140,7 @@ typedef struct {
 
 struct AssetPack {
     uint16_t count;
+    uint16_t next;   /* the entry after the one found last: a pack is read in its order */
     PackEntry *entries;
 };
 
@@ -196,12 +197,14 @@ static int same(const char *s, uint8_t n, const char *z) { return strlen(z) == n
 
 static const uint8_t *pack_find(void *ctx, const char *name, const char *type, uint32_t *length)
 {
-    const AssetPack *pack = ctx;
-    for (uint16_t i = 0; i < pack->count; i++) {
+    AssetPack *pack = ctx;
+    for (uint16_t k = 0; k < pack->count; k++) {
+        uint16_t i = (uint16_t)((pack->next + k) % pack->count);
         const PackEntry *e = &pack->entries[i];
         if (same(e->name, e->name_len, name)) {
             if (!same(e->type, e->type_len, type))
                 return NULL;
+            pack->next = (uint16_t)(i + 1);
             *length = e->length;
             return e->bytes;
         }
