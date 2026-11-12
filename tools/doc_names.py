@@ -98,14 +98,20 @@ def citations(root: pathlib.Path):
     def add(kind, name, where):
         found.setdefault((kind, name), []).append(where)
 
+    def lines(text, matches):
+        """Each match with its line number, counted as the matches go."""
+        line, at = 1, 0
+        for mo in matches:
+            line += text.count('\n', at, mo.start())
+            at = mo.start()
+            yield line, mo
+
     for path in doc_files(root):
         rel = path.relative_to(root).as_posix()
         text = path.read_text(encoding='utf-8')
-        for mo in SPAN.finditer(text):
-            line = text.count('\n', 0, mo.start()) + 1
+        for line, mo in lines(text, SPAN.finditer(text)):
             span = mo.group(1)
-            paths = list(PATH.finditer(span))
-            for p in paths:
+            for p in PATH.finditer(span):
                 add('path', p.group(1), '%s:%d' % (rel, line))
             rest = PATH.sub(' ', span)
             if '://' in rest:
@@ -115,8 +121,7 @@ def citations(root: pathlib.Path):
     ram = root / 're' / 'ram.toml'
     if ram.is_file():
         text = ram.read_text(encoding='utf-8')
-        for mo in TOML_PROSE_STRING.finditer(text):
-            line = text.count('\n', 0, mo.start()) + 1
+        for line, mo in lines(text, TOML_PROSE_STRING.finditer(text)):
             prose = mo.group(1)
             for p in PATH.finditer(prose):
                 add('path', p.group(1), 're/ram.toml:%d' % line)
@@ -137,11 +142,10 @@ def code_files(root: pathlib.Path):
 
 
 def code_words(root: pathlib.Path):
-    """(the code's words, every file's path relative to the root)."""
-    words, files = set(), set()
+    """The words of the code, and of its files' names."""
+    words = set()
     for path in code_files(root):
         rel = path.relative_to(root).as_posix()
-        files.add(rel)
         words.update(WORD.findall(path.stem))
         if rel in SELF or path.suffix not in CODE_SUFFIXES and path.name != 'CMakeLists.txt':
             continue
@@ -153,7 +157,7 @@ def code_words(root: pathlib.Path):
         elif path.suffix == '.toml':
             text = TOML_PROSE.sub(' ', text)
         words.update(WORD.findall(text))
-    return words, files
+    return words
 
 
 def all_files(root: pathlib.Path):
@@ -185,7 +189,7 @@ def exceptions(root: pathlib.Path):
 def stale(root: pathlib.Path = ROOT):
     """([(name, [where])] cited but not in the code, [problems with the
     exceptions file])."""
-    words, _ = code_words(root)
+    words = code_words(root)
     files = all_files(root)
     allowed = exceptions(root)
     out, used = [], set()
