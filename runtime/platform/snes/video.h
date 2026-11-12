@@ -716,6 +716,14 @@ PF_API void vid_set_line_table(Platform *pf, PfOrigin o, uint8_t slot, uint16_t 
     pf_snes_end();
 }
 
+PF_API void vid_fill_vram_half(Platform *pf, PfOrigin o, PfData value, uint32_t len, VidVramHalf half)
+{
+    pf_snes_send(pf, o, "vid_fill_vram_half", half == VID_VRAM_HIGH_BYTES ? 0x19 : 0x18,
+                 0, 0, value, len, NULL, false, 0);
+    if (vid_observer)
+        vid_obs_fill_vram_half(vid_observer, value, len, half);
+}
+
 PF_API void vid_snes_copy(Platform *pf, PfOrigin o, const VidSnesTransfer *t)
 {
     const PfSnesEncoding *e = pf_snes_encoding(o.site, "vid_snes_copy");

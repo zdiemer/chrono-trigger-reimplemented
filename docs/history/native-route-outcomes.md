@@ -8,7 +8,7 @@ The audit ended by request on 2026-11-11. Stopped and unstarted runs are
 explicit exceptions, not passes; rerun them after native saves can use
 complete frame-end bases during a route instead of replaying from power-on.
 
-All runs use the native implementation in `5aa8489c`. Successful early runs
+The original audit uses the native implementation in `5aa8489c`. Successful early runs
 are retained from before the search correction described in [MOVIES.md](../MOVIES.md).
 Later runs use the corrected search. The false telepod prefix result was
 discarded; its shared approach and the complete Lavos-loss route were rerun.
@@ -19,8 +19,9 @@ Phase continuations reconstruct their full input histories and verify the
 resulting RAM digest before continuing.
 
 Observed outcomes: native 42 passes, 2 failures, 3 timeouts, 3 stopped, 6 not run; shipping 49 passes, 7 not run.
-The native long-route gate selects the 42 passing full routes and both fast
-prefixes, and reports all 14 exceptions with their reasons.
+Subsequent fixes pass Epoch into Lavos and Son of Sun (below). The native
+long-route gate now selects 44 passing full routes and both fast prefixes,
+and reports the 12 remaining exceptions with their reasons.
 
 | Fast prefix | Native | Shipping |
 |---|---|---|
@@ -44,7 +45,7 @@ prefixes, and reports all 14 exceptions with their reasons.
 | `death_peak_wind` | pass (4696) | pass (4676) |  |
 | `denadoro_fight` | pass (9145) | pass (8553) |  |
 | `dragon_tank` | pass (16008) | pass (17597) |  |
-| `epoch_lavos` | FAIL | pass (7762) | Waits over Lavos at frame 9587, scene $02; unserved music-marker read. See divergences below. |
+| `epoch_lavos` | pass (7802) | pass (7762) | Retested after serving the event's sound-status read; see below. |
 | `factory_switch` | pass (6875) | pass (6869) |  |
 | `fair_clone` | pass (8394) | pass (8333) |  |
 | `fair_rescue` | pass (6635) | pass (7297) |  |
@@ -77,7 +78,7 @@ prefixes, and reports all 14 exceptions with their reasons.
 | `r_series` | stopped | pass (63684) | Stopped by request after the shutter escape (33288); last completed probe 33504, lower lab $0E6. |
 | `rust_tyrano` | pass (22306) | pass (23329) |  |
 | `save_point` | pass (3270) | pass (3270) |  |
-| `son_of_sun` | FAIL | pass (18206) | Fails the landing check at frame 5794, still flying. Fixed coast settles at X=536 versus shipping 544. |
+| `son_of_sun` | pass (16041) | pass (18226) | Retested with the settled-position flight approach; both win without retries. |
 | `sun_stone_finish` | stopped | not run | Stopped by request after recovering the Moon Stone (12881); last completed probe 13099, mayor's house $032. |
 | `tech_sweep_spekkio` | not run | not run | Deferred because power-on slot replay makes searches too slow; rerun after bases can be taken during play. |
 | `telepod_lavos` | not run | not run | Deferred because power-on slot replay makes searches too slow; rerun after bases can be taken during play. |
@@ -133,6 +134,23 @@ prefixes, and reports all 14 exceptions with their reasons.
   Native never leaves flight mode 2 and fails the landing check at frame
   5794. Shipping wins the fight and regains field control at frame 18206.
   This is a landing-approach failure, not evidence about the boss fight.
+  A subsequent per-frame replay of `battle-son-of-sun` resolves the earlier
+  sparse observation: the first differing location is the load-screen
+  transition at frame 1668 (native `$000`, shipping still `$1B1` until 1669).
+  After loading, boarding first differs at 3045 (native travel 4, shipping
+  still 0); the future location changes at 3783 versus 3753. These input and
+  load phases precede the landing symptom. From each route's future checkpoint,
+  releasing RIGHT at X=534 leaves the same tile goal, 536. One frame later
+  shipping has queued goal 544 while native has stopped at 536. After twelve
+  released frames both remain still. `overworld_vehicle_flies_a_tile` finishes
+  a tile, and `overworld_vehicle_flies` starts another from the sampled pad;
+  the different input phase accounts for the extra tile, without a different
+  speed or coasting rule. The helper now approaches the target, then taps and
+  checks the settled coordinate before landing. Both full routes pass:
+  native lands at 4984 and finishes at 16041 (41 seconds); shipping lands at
+  4956 and finishes at 18226 (94 seconds). Regression tests cover immediate
+  and delayed pad sampling, reverse approaches, and blocked movement. The
+  Son of Sun exception is removed; no recording was changed.
 - **R Series (stopped):** the first common-input difference is frame
   2658: world X (`peek 7E0283 2`) is `a003` in native and `9f03` in
   shipping, 928 versus 927 pixels. Native restored power and escaped the
@@ -154,7 +172,153 @@ that discard, and the shell checkpoint requires location $1D3. Native enters
 the shell at frame 5162 and reaches the loss ending at 15637; shipping uses
 5102 and 16332. [TODO.md](../TODO.md) holds the open game and restore-cost debts.
 
-## Validation
+## Ocean Palace playback investigation
+
+Per-frame replay of the unchanged recordings in native and shipping first
+differs at the load-screen transition (1668 versus 1669). After loading,
+the first party movement differs at 3215 in `battle-golem-twins` (native
+X=217, shipping 216) and 3305 in `events-ocean-palace-lavos` (native
+Y=110.9375, shipping 111.9375). The first finale dialogue opens at 4355
+versus 4356; recorded A presses subsequently see different dialogue states,
+first at 4929. The native Mammon room return is 16966, shipping 16967;
+the older claim that this visit is missing no longer describes this build.
+
+The video escapes are title-map fills at `$7E:5AEB` and `$7E:59DD`, before the palace.
+The Twins recording loses its battle and returns to the title at 15493,
+accounting for its second pair of escapes. The new `vid_fill_vram_half`
+service preserves the pixel half and continues the tile-map cursor in both
+backends; it replaces that fill and the shared unused-plane fill. The next
+BG1 fill retains the source that both callers have just supplied, the blank
+tile, and now uses `vid_send_vram_fill` instead of a channel-state escape.
+
+The finale's black ending is a timed fade, not a missing display-enable
+call. Without changing input, native goes dark at 29819 and leaves the
+scene for `$10F` at 30767; shipping leaves at 30724. Both are beyond the
+recording's 30364-frame end and its last two B presses (30088 and 30181).
+Continuing dialogue from there reaches the Last Village, whose party
+exchange needs B. The focused native continuation accepts it and regains
+visible field control at 37213. No fade duration, recording, or exception
+was changed.
+
+The shipping routes pass the finale at 30549 and the Twins with slot 3
+saved at 21361. A fresh native Twins route wins at 15247 and regains field
+control at 18257; its subsequent exit search was stopped after minutes of
+power-on replays. The native finale rerun was likewise stopped during its
+early Mammon-room exit search. These are bounded continuations, not new
+full-route passes; the original audit's full native passes remain above.
+
+## Fixed-input timing losses
+
+The follow-up to `253d674c`, based on `a1fcd274` with the landing helper and
+video fills corrected, replays the unchanged five recordings through
+both servers, observing location, world and party positions, dialogue,
+control, travel mode, story and battle-menu state after **every frame**.
+The first observed location difference is the common load-screen transition
+at 1668 (native) versus 1669 (shipping). Uninitialized scratch bytes are not
+gameplay evidence. After loading, the first movement differences are:
+
+| Recording | Frame | Native | Shipping |
+|---|---:|---|---|
+| `events-cyrus` | 3031 | world X 345 | 344 |
+| `events-fionas-forest` | 3667 | world Y 439 | 440 |
+| `events-sun-stone` | 2634 | leader Y 368.9375 | 367.9375 |
+| `battle-dalton` | 2815 | leader Y 174.9375 | 175.9375 |
+| `late-omen-zeal` | 3201 | leader X 57 | 56 |
+
+These precede the lost outcomes. The native backend runs handlers once per
+frame and accounts main-thread work at waits and budget queries; the
+shipping backend can interrupt that work. Their input phase need not be
+identical. `native_time_test` and `timing_test` still pass the budget,
+handler-charge and wait boundaries. The continuations below test whether
+the game can perform the missed actions; they do not establish equal
+frame counts or calibrate away a recorded input's failure.
+
+**Cyrus and Fiona.** Cyrus enters the past at 3737 and 12692, versus 3706
+and 12661, both 31 frames later. The targeted `cyrus:repaired` route passes
+at 16404 and 16375, after both era trips, obtaining and delivering the
+tools, and paying for the first repairs. Its earlier `asked` and `tools`
+checkpoints are 6364/6365 and 11466/11467. This isolates the two late
+arrivals without repeating the full grave route. Fiona's recording reaches
+the present at 4402 versus 4371, then misses the village entrance. The
+`fionas_forest:village` prefix enters location 424 and proves control in
+both builds, at 5402 and 5343. Run these with `route_check --mode native
+--mode on:on cyrus:repaired fionas_forest:village`. Neither is a blocked
+frame-budget loop. The current Cyrus recording ends showing in the ruins'
+entry room `$041`, without video escapes; the old blank-ending report no
+longer describes it. This prefix does not claim that its later recorded
+battle inputs complete the quest.
+
+**Sun Stone.** Both recordings reach the present-day Keep. At frame 9986,
+when the recorded downward walk starts, native's leader is at Y=199.9375
+and shipping's at 203.9375. At 10282 the recording turns upward: native has
+only reached 495.9375, shipping 498.9375. Shipping has triggered the exit
+and enters the world at 10296; native turns away and only exits at 10635,
+after later downward presses. The subsequent boarding and flight inputs
+therefore start from the wrong position. The recorded native path has 13
+location transitions, shipping 21; this is a missed door, not evidence of
+a missing map or quest operation.
+
+A focused continuation keeps each recording's inputs through that exit,
+then uses the corrected flight helper, `sun_stone_finish`'s boarding and
+entrance helpers, and position-driven walks around the mayor's counter and
+to the Keep's stone. The walks target observed room coordinates and wait
+for dialogue and control, without writing game state. It recovers the Moon
+Stone at 13403/13040, replaces it at 16235/15948, enters the charged Keep
+at 18839/18465, and receives Wondershot and Sunshades with world-map control
+at 22278/21951. The checks require quest states `$17`, `$37` and `$F7`,
+the Moon Stone entering and leaving the bag, and both rewards in it.
+This completes the portion the recording misses. The full
+`sun_stone_finish` route's search-cost exception remains: this continuation
+does not rerun its earlier general-purpose searches.
+
+**Dalton and Queen Zeal.** Both fixed-input recordings lose battles before
+their final progress differs. At the Dalton Plus and Queen Zeal setups,
+their battle-menu state differs at 25527 and 5324 respectively. Later
+identical A inputs reach different active members: Dalton at 25938 selects
+member 2 in native and 1 in shipping; Zeal at 6554 selects 0 and 1. Dalton
+returns to the title at 36560 versus 31686; the later fixed inputs reload the Blackbird in native and the Last
+Village in shipping. The full state-driven `dalton` route passes at 35288
+and 39541, including the Blackbird's destruction, the winged Epoch and
+world-map control. Queen Zeal's recording returns to the title at 24145
+versus 17469, before Mammon Machine. A focused continuation uses the same
+recording through frame 5000, waits for `battle_menu_open`, then calls
+`Run.fight("party", ...)` until living party members have defeated the
+enemies. It wins at 17232 and 15194 with zero retries. Advancing dialogue
+with an eight-frame press interval opens the next battle at `$1A6` at
+18486 and 16470. That proves the first recorded loss is avoidable in both
+builds; it is not a claim about the remainder of the Black Omen ending.
+No movie, timing estimate or outcome exception was refreshed.
+
+## Video-clear fingerprint check
+
+The follow-up sampled gate passes shadow comparison on all 58 movies,
+trace identity, timing, video-write placement, both shipping and native
+route prefixes, fallbacks, refusals, all 58 strict and native runs, the
+scaffolding-free build, sound, liveness, source checks and evidence. Its
+only failure is three native picture fingerprints: `attract-demo`,
+`battle-golem-twins` and `battle-golem-twins-gameover`.
+
+Isolated binaries identify `$7E:59DD`'s BG1 clear as the entire cause.
+Disabling only that clear reproduces all three prior fingerprints; undoing
+the half-plane service or the fixed-source-byte correction does not. The
+first changed sampled neighbours are 11998, 16798 and 12598 respectively,
+all on a return to the title; 20, 15 and 13 picture neighbours change.
+Game state, SRAM, the complete place observations and every protected
+picture remain unchanged. At frame 12600 of the game-over recording, the
+old title visibly contains stale field tiles; the clear removes them.
+The shipping native renderer and PPU decoder agree on all 12970 frames
+of that recording, as on all 30366 frames of the Ocean Palace finale.
+
+The 625 Python unit tests pass, as do `video_test`, `native_time_test` and
+`timing_test`; `portstyle` and `portsmell` have no new findings. The build
+uses `CT_WERROR=ON`. That gate ended `FAILED: outcomes`; review then
+authorized updating only the three picture pins, with the specific A/B
+reason on each line. Follow-up validation checks the saved native and
+strict outcome artifacts from that run, without rerunning the whole gate.
+This is separate from the fixed-input losses above, whose movies, timing
+estimates and exceptions remain unchanged.
+
+## Original audit validation
 
 The sampled gate (`tools/suite.py --ct-dev build/main/ct_dev.exe -j 2
 --evidence`) ended with `suite OK`, including both native fast prefixes at

@@ -1213,12 +1213,20 @@ color three times, one channel each.
   address high byte before its low one; `vid_set_oam_address` writes the low one
   first, which leaves the same address, the same rotation and the same reload.
   It is the only caller that turns the priority rotation on.
-- **A third SNES-only escape in the scenes.** `$7E:5AEB` repeats two bytes into
-  the VRAM data port's low half alone, which `vid_fill_vram` would model as
-  words, so it goes through `vid_snes_transfer` like `$7E:3843` and `$7E:38E7`
-  (whose mode and destination are game data). It also carries on from the VRAM
-  address the loop before it left, which the port passes as the address it
-  counted rather than one it programs.
+- **Continuing a plane-map fill.** `vid_fill_vram_half` repeats one byte into
+  the chosen half of each word from the current VRAM cursor. It preserves the
+  other half, the active stride and the cursor left by the preceding upload.
+  The title's `$7E:5AEB` and the scenes' `$7E:5476`/`$7E:85B2` now use it
+  instead of an unsupported escape. The SNES backend retains each site's
+  channel program; the host observer fills the same bytes and charges the
+  transfer through the timing service. `video_test` covers both halves,
+  continuation, stride, wraparound, and an empty fill. The following BG1 fill
+  at `$7E:59DD` uses `vid_send_vram_fill`: both callers just supplied the
+  blank-tile source, so retaining it requires no host channel emulation.
+  Whole-word fills repeat that one source byte in both halves; a regression
+  uses unequal adjacent source bytes to check this. This fixes the missing
+  title-map clears reported by Ocean Palace playback; it does not alter the
+  finale's scripted fade or make its fixed input timing independent.
 - **The scenes' NMI now calls out to its own frame work.** `scene_nmi` inlined
   `$C3:08D0`; with that address an entry of its own, the inlined copy and the
   entry both waited for the same call and neither could be compared, so the

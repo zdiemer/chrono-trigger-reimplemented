@@ -32,18 +32,6 @@ rest waits, is [PLAN.md](PLAN.md).
   should load a state that really lacks `frame_interrupt` rather than clear
   the field after loading.
 
-- **Son of Sun's native landing approach.** The native route reaches the
-  future, but fails to land east of the palace at frame 5794; travel mode
-  remains 2. The first differing observation with identical input is at
-  frame 3756: native still reports world map `$1F0`, shipping `$1F2`.
-  Later, `fly_to` releases RIGHT at X=534 and waits twelve frames: native
-  settles at X=536, shipping at X=544. The helper assumes this fixed coast
-  will reach its intended landing tile. Make the landing approach depend
-  on the settled position and investigate whether the coast difference
-  is expected under native timing. Shipping wins the fight and regains
-  field control at frame 18206. No replay or machine-only stop precedes
-  the native failure; it does not establish a difference in the boss fight.
-
 - **Native bases during play.** Player quick load and `ct_native --server`
   slot load share reconstruction of the main and menu coroutines from
   power-on input; neither has a later complete base, so load time grows with
@@ -2812,13 +2800,23 @@ list, by kind, is what `game/` still asks of one.
     SRAM still matches and all five places remain on time. Follow the first
     shifted battle input; the re-recorded
     outcome is not a claim that the fight is equivalent.
-    Follow the native fixed-input losses isolated at `253d674c`: Cyrus's
-    two arrivals just outside the 30-frame tolerance, Fiona's missing
-    location 424, and Sun Stone's 13-location path instead of 21. Dalton
-    and late Omen Zeal also save different progress after that model change.
-    The batched attribution establishes the changed accounting, not that
-    these outcomes are equivalent; use state-driven routes to distinguish
-    missed recorded inputs from remaining frame-budget errors.
+    The native fixed-input losses isolated at `253d674c` are not timing
+    calibration targets by themselves. Despite Cyrus's two 31-frame-late
+    arrivals, its state-driven tools and first-repairs prefix passes
+    (native/shipping 16404/16375); Fiona's route reaches location 424 with
+    control (5402/5343). Sun Stone turns away at frame
+    10282 with native Y=495.9375 versus shipping 498.9375, missing the
+    Keep's door and leaving at 10635 instead of 10296, before its recorded
+    flight misses the rest of the 21-place path. A state-driven continuation
+    receives both rewards with world control (22278/21951). Dalton's full
+    route completes (35288/39541), while a state-driven continuation of
+    late Omen Zeal beats the first Queen and reaches Mammon
+    Machine (18486/16470); both recordings lose battles before their saved
+    progress differs. These are missed recorded inputs, not evidence for
+    changing the frame budget. The per-frame comparisons and the scope of
+    the continuations are in history/native-route-outcomes.md, "Fixed-input
+    timing losses". Later recorded inputs remain unsuitable as proof of
+    the whole Cyrus or Black Omen quest; no movie or exception was refreshed.
     Trace late Lavos's strict battle/save inputs too: its `54099ed8` timing
     leaves 49 compared SRAM bytes different at the end.
   - *The handlers' share of an upload.* The sound driver's upload time is
@@ -2861,11 +2859,6 @@ list, by kind, is what `game/` still asks of one.
     original-timed end-state proofs match game and save RAM while reporting
     sound-queue overruns. State agreement is evidence about that state,
     not a passing run; keep the fault visible in the diagnostic verdict.
-  - *Dialog presses.* In `events-ocean-palace-lavos`, recorded presses still
-    land on different dialog states. After the whole-library rate fit, the
-    native replay misses the reference's Mammon Machine room visit (`$19F`
-    at frame 16965). Follow the first shifted dialog before adjusting the
-    later scene's timing.
 
   Meanwhile drive the long movies' native runs by their routes (`ct_drive`'s
   scripts react to the game's state, MOVIES.md) rather than recorded presses,
@@ -2909,15 +2902,6 @@ list, by kind, is what `game/` still asks of one.
   `native/audio.c` can advance startup sound before its charged frames pass;
   reconcile those clocks.
 
-- **Cyrus's fixed movie ends blanked in `ct_native`.** `events-cyrus`
-  (ctsave14 slot 1, 39872 frames) consumes all its inputs without a reported
-  missing C handler, but the display is blanked after 12 screen setups.
-  It reports two SNES-only video escapes, first `$7E:5AEB`. Establish how
-  far the input gets and whether the native timing misses an interaction;
-  consuming the frames does not establish the repaired ruins or restored
-  Masamune. The reference route reaches both and returns field control;
-  strict `ct_dev` reaches the movie's end with five character-record bytes
-  differing from the reference, not a handler stop.
 - **Ozzie's Fort movie on the native program.** `battle-ozzies-fort` from ctsave12
   slot 2 plays to its 39237-frame end in `ct_native`, showing, but parts from the
   reference in the field before Flea (`$0B7` entered at 12370 against 7110): the
@@ -2976,11 +2960,11 @@ list, by kind, is what `game/` still asks of one.
   (a host's draws take its own noise). The C reads the program's data where
   the boot unpacks it, and doesn't check, as the entries' guards do on the
   machine, that the unpacked code is the one the ports were written for. The
-  plane's map halves (`scene_upload_plane_half`, `$7E:876E`), its rest
-  blanked (`$7E:5476`, `$7E:5AEB`) and the credits' map blanked (`$7E:90BD`)
-  are `vid_snes_copy` escapes the host counts: a send of one byte of each
-  VRAM word, from a cursor or a fixed byte, which the video service has no
-  call for yet. The scene teardown's census finds no ordinary scene entry
+  plane's map halves (`scene_upload_plane_half`, `$7E:876E`) and the
+  credits' map blanked (`$7E:90BD`) still use `vid_snes_copy` escapes.
+  Convert these remaining callers to semantic half-word uploads and fills;
+  the title and unused-plane fills now use `vid_fill_vram_half` (PLATFORM.md).
+  The scene teardown's census finds no ordinary scene entry
   entered by the machine; these host gaps are separate from its retired
   byte-exact comparisons.
 - **A meaningful native run of mode 5.** Its setup, map and figure animation
@@ -3184,6 +3168,12 @@ need diagnosis; they are not allowlist entries or passing contract evidence.
 
 ## Review follow-ups for native interfaces
 
+- **What the second state-storage slice's review left.** The save test
+  should compare the complete serialized payload, allowing for the counter
+  and checksum changes a save makes on purpose.
+- **What the native divergences' review left.** Keep the Sun Stone and Queen
+  Zeal state-driven continuation scripts as reproducible route checks rather
+  than one-off evidence.
 - **What the native route server's review left.** `route_server_test` has no
   deliberately divergent replay, asserting `err replay` and a nonzero exit;
   `test_gate_movies` doesn't test `check_native_routes` with a failed
