@@ -37,8 +37,8 @@ B.C., 6 the Black Omen, 7 the End of Time, 0 1999 A.D. and the title's).
 
 Re-measured at the start of the second batch of movies (commit 7ad4bbe, the 42 movies, each
 `--native shadow --coverage`, all clean): 40.92 KiB unexecuted, 37.25 ported. Owners as above; the
-cluster is read from the owner's name and bank -- `script_*`, `battle_screen_*`, `battle_special_*`
-and banks `$CD`/`$CF`/`$D1` the animation commands, `battle_effect_*` the action effects,
+cluster is read from the owner's name and bank -- the battle scripts', the screen scripts' and the
+special effects' routines and banks `$CD`/`$CF`/`$D1` the animation commands, `battle_effect_*` the action effects,
 `battle_condition_*`/`battle_select_*` the AI no script names, `battle_enemy_*_turn` the AI by
 enemy, the other `battle_enemy_*` and `battle_search_*` movement, `menu_object_*`, `overworld_*`
 and bank `$C2` below `$8000` (but the typesetter) the world maps, bank `$7E` the scene program --
@@ -47,28 +47,28 @@ the aiming (`battle targeting`) were counted with the animation commands before.
 
 | Cluster | KiB | Ported | Trigger |
 |---|--:|--:|---|
-| battle animation commands | 5.94 | 5.91 | rare commands of tech, attack and item animation scripts (`script_line_to_a_place`, `script_spiral_*`, `script_chase_to_coordinates`, `battle_screen_script_*`); which techs use them isn't mapped (the five header tables at `$CD:5EC6`-`$CD:63F0` aren't tied to tech ids) |
+| battle animation commands | 5.94 | 5.91 | rare commands of tech, attack and item animation scripts (the line to a place `$C1:4FE3`, the spirals, `chase` `$C1:51EE`, the screen scripts' commands); which techs use them isn't mapped (the five header tables at `$CD:5EC6`-`$CD:63F0` aren't tied to tech ids) |
 | world-map objects | 5.14 | 5.14 | see the world map rows below |
-| field engine | 4.12 | 3.98 | paths no map in the library needs: `field_redraw_after_picture` `$C0:ED31`, large objects' frames put back after a battle or menu (`field_put_drawn_frame` `$C0:CB11`), `field_walk_the_leader`, `field_update_object_sprites`, `field_draw_object_sprites`; maps unknown |
+| field engine | 4.12 | 3.98 | paths no map in the library needs: `redraw_after_the_picture` `$C0:ED31`, large objects' frames put back after a battle or menu (`object_put_drawn_frame_back` `$C0:CB11`), `walk_the_leader` `$C0:881E`, `bring_records_up_to_date`, `draw_object`; maps unknown |
 | scene modes | 3.57 | 0.65 | see the scene program rows below (older than this total) |
-| enemy AI no script names | 3.29 | 3.29 | conditions and target selectors no enemy script uses (`battle_select_members_by_condition`, `battle_condition_acted_on_by_member`, `stands_beside`, `level_with`, `stat_bits`, `could_walk_to`, `is_party_member`, `is_enemy`); reachable only through techs' targeting, if at all -- unknown |
+| enemy AI no script names | 3.29 | 3.29 | conditions and target selectors no enemy script uses (`$C1:A541`, `acted_on_by_member`, `stands_beside`, `level_with`, `stat_bits`, `could_walk_to`, `is_party_member`, `is_enemy`); reachable only through techs' targeting, if at all -- unknown |
 | event commands | 2.86 | 2.86 | see Event commands below |
-| battle other | 2.55 | 2.55 | `battle_take_menu_input`, `battle_draw_window`, `battle_show_pose_look`, `battle_update_combatant`, `battle_update_combo_members` branches; unknown |
-| floor switches | 2.19 | 2.19 | stepping on a floor switch of a shape no movie presses (`field_handle_requests`'s `$C0:0D45`-`$C0:16DB`) and the map's pressed switches put back as it loads (`field_press_the_remembered_switches` `$C0:28EC`); see Targets, 10 |
-| battle action effects | 1.61 | 1.61 | `battle_effect_hit` (1.2 KiB of branches), `inflict`, `restore_showing_hp`, `steal`, `restore`: uncommon tech and item effects |
-| menus: other | 1.57 | 1.11 | the party exchange's reserve scroll (`$C2:C85B`-`$C2:C972`, generated; not reachable, Targets 3), a shop's how-many question (`menu_choose_how_many_to_buy`), `menu_draw_text`, the naming grid's moves |
-| battle targeting | 1.57 | 1.57 | areas no cast tech's targeting has searched (`battle_find_the_noted_area` `$C1:2332`: beams, circles, the party's triangle, rows), `battle_aim_action`, `battle_choose_targets`: area techs and items |
-| enemy movement | 1.33 | 1.33 | enemies that line up, march, charge, keep their distance (`$C1:375C` family) and the walk searches (`$C1:2C02`, `battle_search_nearer_to_third`); which enemies is unknown (movement types aren't in the AI scripts) |
+| battle other | 2.55 | 2.55 | `battle_menu_frame`, `battle_redraw_window`, `battle_show_pose_look`, `leave_fight`, `battle_update_combo_members` branches; unknown |
+| floor switches | 2.19 | 2.19 | stepping on a floor switch of a shape no movie presses (the main loop's requests, `$C0:0D45`-`$C0:16DB`) and the map's pressed switches put back as it loads (`field_press_the_remembered_switches` `$C0:28EC`); see Targets, 10 |
+| battle action effects | 1.61 | 1.61 | `hit_target` (`$C1:D2DE`, 1.2 KiB of branches), `inflict`, `restore_showing_hp`, `steal`, `restore`: uncommon tech and item effects |
+| menus: other | 1.57 | 1.11 | the party exchange's reserve scroll (`$C2:C85B`-`$C2:C972`, generated; not reachable, Targets 3), a shop's how-many question (`menu_choose_how_many_to_buy`), the windows' text (`$C2:EF65`), the naming grid's moves |
+| battle targeting | 1.57 | 1.57 | areas no cast tech's targeting has searched (`battle_find_area` `$C1:2332`: beams, circles, the party's triangle, rows), `battle_aim_action`, `battle_choose_targets`: area techs and items |
+| enemy movement | 1.33 | 1.33 | enemies that line up, march, charge, keep their distance (`$C1:375C` family) and the walk searches (`$C1:2C02`, `nearer_to_third`); which enemies is unknown (movement types aren't in the AI scripts) |
 | enemy AI, by enemy | 1.16 | 1.16 | see Bosses below |
-| field screen effects | 0.65 | 0.63 | event `$FF` screen forms: `field_move_screen_effect_on` `$C0:2307` (the ripple `$C0:264F` and the effects beside it), `$C0:28C0`; see Targets, 10 |
-| sound driver | 0.59 | 0.57 | `sound_driver_command` branches (`$C7:02E2`, `$C7:0181`): commands no movie's scene sends |
+| field screen effects | 0.65 | 0.63 | event `$FF` screen forms: the screen effect's step `$C0:2307` (the ripple `$C0:264F` and the effects beside it), `$C0:28C0`; see Targets, 10 |
+| sound driver | 0.59 | 0.57 | `sound_driver_hand_the_buffer_to_the_host` branches (`$C7:02E2`, `$C7:0181`): commands no movie's scene sends |
 | battle rewards | 0.52 | 0.52 | tech points counted to a new tech, learning a single or combination tech (`rewards_count_tech_points`, `rewards_learn_*`), `battle_show_the_rewards` `$FD:AD41` |
-| palette effects | 0.46 | 0.46 | `palette_lighten_*`/`darken_*`: the channel modes of event command `$2E`/`$88` fades (Targets, 10) |
+| palette effects | 0.46 | 0.46 | the palette's lightening and darkening: the channel modes of event command `$2E`/`$88` fades (Targets, 10) |
 | text control codes | 0.45 | 0.45 | typesetter codes no movie's text uses (`menu_text_go_on`, `$C2:5953`-`$5C77`) |
-| menus: items | 0.37 | 0.37 | `menu_choose_on_item_list`, `menu_use_one_more` (a second of an item used at once), setting items aside |
+| menus: items | 0.37 | 0.37 | `menu_choose_on_item_list`, `menu_items_use_one_more` (a second of an item used at once), setting items aside |
 | battle status timers | 0.23 | 0.23 | MP regained (`$C1:8B10`), evasion, HP lost, poison and Stop timers running out: statuses no movie's fights inflict |
-| epoch screens | 0.20 | 0.20 | time dial and map view branches (`menu_epoch_time_dial_object` `$C2:6B95`, `menu_epoch_map_matrix`) |
-| menus: exchange | 0.16 | 0.16 | the exchange laid out and its cursor moved where no movie's exchange goes (`menu_lay_out_the_exchange` `$C2:CB3F`) |
+| epoch screens | 0.20 | 0.20 | time dial and map view branches (`time_dial` `$C2:6B95`, `turn_map_view`) |
+| menus: exchange | 0.16 | 0.16 | the exchange laid out and its cursor moved where no movie's exchange goes (`menu_exchange_draw_the_screen`, `$C2:CB3F`) |
 | menus: equipment, tech screen, settings buttons, load screen erase | 0.21 | 0.21 | the leftovers of the menu sweep's rows: the equipment list's slide, a tech chosen, a button's question closed, the erase |
 | other | 0.21 | 0.12 | `$C3:0A8E`, the scene program's boot and frame |
 
@@ -101,7 +101,7 @@ to that routine's scenes; the rest is the object commands' own handlers and the 
 | 1000 A.D. (`$1F0`, scene 0) | 0.10 | every 1000 A.D. save: `$C2:48CD`, `$C2:27DE`, `$C2:7B4F` |
 | 600 A.D. (`$1F1`, scene 1) | 0.07 | `$C2:7911`'s first routine |
 | shared by several maps | 0.97 | the overworld's routines several scenes start: `$C2:3AE2` (`overworld_follow`), `$C2:2F94` (the region's song), `$C2:3264` (`overworld_watch_the_ground`), `$C2:3404` (`overworld_lead`), `$C2:42DD`, `$C2:309E` (the vehicles) |
-| the object commands themselves | 2.63 | handlers whose paths no scene's script reaches in play (`overworld_epoch` 0.33, the irises `$C6:E368`/`$E498`, `show_tile_group`, `move_to_across`/`_down`, `scroll_map_plane`, `drift`, the window lines) |
+| the object commands themselves | 2.63 | handlers whose paths no scene's script reaches in play (`overworld_epoch` 0.33, the irises `$C6:E368`/`$E498`, `show_tile_group`, the moves across and down, the map plane's scroll, `drift`, the window lines) |
 
 ### Bosses (enemy AI by script)
 
@@ -132,7 +132,7 @@ records' script word.
 | `$D7`, `$C7`, `$CD`, `$CB` items and gold | 0.14 | `$115`; `$175`-`$1BC`; `$1B7`, `$032`, `$09A` |
 | `$DC` location put aside | 0.04 | `$0E4`, `$0E5` |
 | `$7B` launch, `$5D` add variable | 0.12 | no event script uses them |
-| touching an object (`event_touch_contact` `$C0:31B9`), `say` `$C0:2E1E`, sending a member to the reserve `$C0:3967`, `if in view`, the pad tests (`if_pressed_*`, `if_held_*`) | 0.48 | the touch's other paths and the minigames' pad tests; locations not mapped |
+| touching an object (`touch_what_the_leader_met` `$C0:31B9`), `say` `$C0:2E1E`, sending a member to the reserve `$C0:3967`, `if in view`, the pad tests (`if_held` and the press tests) | 0.48 | the touch's other paths and the minigames' pad tests; locations not mapped |
 
 The fair's games now run (`events-fair-*`, history/movie-routes.md); its locations (`$005` the lower square,
 `$008` the telepod exhibit, `$1B2` Norstein Bekkler's tent, `$1B7` the bell plaza) hold several of
@@ -156,13 +156,12 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   bank `$C3`'s sweep and event `$FF` `$92`-`$95` (`$C0:405D`-`$C0:4145`); the
   demo battle (`fight_load_demo_party`, `battle_demo_party_ready`,
   `battle_demo_next_turn`, now calibrated) and its screen scripts' swing and
-  bob (`battle_screen_script_swing`, `battle_screen_swing`,
-  `battle_special_bob_layer_up`); and field and world-map paths beside them
-  (`field_read_animation_frame`, `field_stream_the_layers`,
-  `menu_object_read_scene_mode`). Mode 5's and mode 6's own code and the race's
+  bob (`$CD:1AE6`, `swing_layer`, `$CD:2BA8`); and field and world-map paths beside them
+  (`object_take_next_frame`, `stream_the_layers`,
+  `read_the_scene_mode`). Mode 5's and mode 6's own code and the race's
   finish stay unreached.
 - **Shadow**: found the curtain's call made a frame above the original's, 31
-  mismatches (`field_run_table_step`, PORTING.md); every call matches now.
+  mismatches (PORTING.md); every call matches now.
 
 ### 2. Every tech
 - **Save**: zophar chrono-5 (all but Magus maxed) and zophar chrono-trigger (all techs).
@@ -183,13 +182,13 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   fight; no triple tech appears for this trio. Its recording, cut to the shortest length (found by
   bisecting the `--coverage` cutoff) that still reaches everything it reaches -- the Lavos Core down to
   its last few hits, not beaten outright, since that's as early as two of its addresses (inside
-  `battle_select_random_member`, an enemy target selector) are reached, an artifact of the Core's own AI
+  `$C1:A452`, an enemy target selector) are reached, an artifact of the Core's own AI
   nearing death rather than of the sweep's tech order -- is 140500 frames and would reach 0.84 KiB (406
   addresses) no other movie runs, in 28 routines, mostly in `$C1`: the three largest are
-  `battle_work_out_enemy_attack`, `script_point_along` and `battle_apply_damage` (uncommon branches
+  `$C1:D8D1` (the enemy's attack worked out), `point_along` and `battle_apply_damage` (uncommon branches
   inside routines every battle already reaches), plus a few reached for the first time outright,
-  `battle_effect_anchor_chase` and `fight_apply_accessory_effects` among them. Recorded again whole once
-  `script_return_from_call`'s guard took the return at the top's going on into it
+  `$CF:F884` (the anchor's chase) and `fight_apply_equipment_effects` among them. Recorded again whole once
+  `return_from_call`'s guard took the return at the top's going on into it
   (history/reimplementation-chunks.md, "Phase 4a, the shipping mode's fallbacks, chunk 9"): 118090 frames to the Core beaten, all 20 techs
   cast; shadow clean, no refusal, and in the library.
 - **What the first sweep cast** (read again for the second): ids 1-5 are Crono's singles, 9-15
@@ -210,22 +209,22 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   (`finish_with_techs`, `damage`). 62 techs cast: Crono 1-5, 7, 8; Marle 9-16; Lucca 17-23; Robo
   25-30; Frog 33-40; Ayla 41-48; double and triple techs 57-59, 66-68, 78-80, 84, 85, 87-89, 93-95,
   104. Left: 6 (Crono's revive, nobody down at his turns), 24, 31, 32, 86. Reaches 1.92 KiB no
-  other movie runs, all ported: battle screen scripts (`battle_screen_script_ripple_windows`,
-  `battle_screen_open_band`, `..._orbit_middle`, `..._drift`, `..._orbit_position`,
-  `battle_screen_random_byte`), `battle_draw_window`, the area searches (`$C1:2203`, `$22A4`,
-  `$25A3`), `battle_effect_combatant_orbit`, `battle_effect_steal` (Ayla's Charm),
-  `palette_lighten_red_blue`, `rewards_learn_combination_techs` (the second trio learns a triple
-  tech at the last win), the bottom window's question at Spekkio's (`event_cmd_ask_bottom`) and a
+  other movie runs, all ported: battle screen scripts (`ripple_windows`,
+  `open_band_across`, `..._orbit_middle`, `..._drift`, `..._orbit_position`,
+  `$D1:F474`), `battle_redraw_window`, the area searches (`$C1:2203`, `$22A4`,
+  `$25A3`), `orbit` (`$CF:F1F8`), `steal` (Ayla's Charm),
+  the palette's red and blue lightening (`$FD:E9CA`), `rewards_learn_combination_techs` (the second trio learns a triple
+  tech at the last win), the bottom window's question at Spekkio's (`$C0:36DD`) and a
   text code (`$C2:58B2`). The coverage cutoff is 126855, the rewards' learning; the movie keeps the
   field back in hand after it. Shadow: no mismatch, no `page refused`, no `accessor out of range`;
-  **`script_jump_to_the_point`'s guard (`$C1:672E`) refused 208 calls**, from frame 108588 (the
+  **the jump to the point's guard (`$C1:672E`) refused 208 calls**, from frame 108588 (the
   second trio's first fight; 6674 instructions run as the original). The route reaches its end in
   the shipping mode (`route_check --mode on:on`, frame 192208).
 - **Movie**: `battle-menu-buttons` (route `battle_menu_buttons`, zophar chrono slot 1, 5086 frames;
   cutoff 4515): Spekkio's fight started as the sweep does, then at the first menu the buttons the
   bot never presses -- right and left to the other members waiting, the item list paged with L and
   R and left with B, across the tech list and out, X -- and the movie stops in the fight. It reaches
-  0.36 KiB the 42 movies don't, 0.10 beyond the tech sweep's (`battle_take_menu_input`'s member
+  0.36 KiB the 42 movies don't, 0.10 beyond the tech sweep's (`battle_menu_frame`'s member
   switch and paging, `$C1:11AE`-`$120E`, `$C1:147B`-`$154A`), all ported. Folded into the sweep's
   last fight it made that fight 26000 frames longer (its choices went another way), so it stands
   alone. Shadow: no mismatch, refusal, `page refused` or `accessor out of range`; comparisons still
@@ -253,12 +252,12 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   members slid to a reserve member, a weapon changed, R/L switching member from the slots) and
   Settings (the window design stepped along its meter and back, the controls set to the player's own
   with two assignments stepped, Start putting the game's buttons back). It reaches 2.01 KiB of live
-  code no other movie runs, 1.67 ported (`menu_slide_tech_members`, `menu_slide_tech_list`,
-  `menu_point_at_tab_member`, `menu_show_item_users`, `menu_put_cursors_on_every_member`,
-  `menu_step_setting_meter`, `menu_use_tab`, `menu_turn_page`, `menu_switch_equipment_member`,
+  code no other movie runs, 1.67 ported (`menu_techs_slide_members`, `menu_techs_list_slide_brings_a_tech`,
+  `menu_items_take_the_cursor_round`, `menu_items_show_users`, `menu_put_cursors_on_every_member`,
+  `step_meter`, `menu_use_tab_with`, `menu_turn_page`, `menu_equip_switch_member`,
   `menu_choose_buttons`) and 0.34 unported (the equipment members' slide `$C2:9D87`-`$9E75`, the
   button rows `$C2:C20F`-`$C296` and `$C29D`, the window design's `$C2:C5C7`-`$C620`).
-  Shadow found a port bug, fixed in chunk 9: `menu_slide_tech_list` (`$C2:B72F`) left the
+  Shadow found a port bug, fixed in chunk 9: the tech list's slide (`$C2:B72F`) left the
   sign clear in the P its tick saves (`$7E:0A78`, `$20` where the original has `$A0`). Of the 0.34
   unported, the equipment members' slide start is a port now, and the button rows and the window
   design were C already (`menu/settings_screen.c`), uncredited by the burndown until its reading of
@@ -326,8 +325,8 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   Azala's last words and event `$FF $24`, the scene program's mode 4 (Lavos falling) from frame
   47469, and the field back at `$12D`. It reaches 0.80 KiB no other movie runs, 0.48 unported:
   mode 4 whole (`$7E:53BB`-`$5529`) and code beside it (`$7E:350E`, `$5855`, `$56EB`, `$55F9`,
-  `$56A9`); ported, `script_point_along`'s branches (`$C1:7447`), field paths (`$C0:964D`, `$9890`,
-  `$8285`) and the battle screen's framed wave. Shadow: no mismatch; `script_return_from_call`'s guard
+  `$56A9`); ported, `point_along`'s branches (`$C1:7447`), field paths (`$C0:964D`, `$9890`,
+  `$8285`) and the battle screen's framed wave. Shadow: no mismatch; `return_from_call`'s guard
   (`$C1:56FB`) refused 24 calls, the gap `tech_sweep` found, until chunk 9 took the return at the top's
   going on into it. Mode 4 is a port since (`scene/lavos_falls.c`, its pixels' spread
   too). No `page refused` or `accessor out of range`. The route reaches its end in the shipping
@@ -347,7 +346,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   (target 8). None of these nine routes starts modes 5, 10, 14 or 12.
 - **Route**: yes (`bucket_lavos`, `telepod_lavos` and `beyond_time` are the pattern).
 - **Hand-run routes**: these long recordings stay in scratch storage, outside `movies`.
-  Their routes are in `tools/suite.py`'s `HAND_RUN_ROUTES`, excluded even from `--long-routes`;
+  Their routes are kept out of the suite, even its `--long` batch;
   regenerate and check them explicitly (MOVIES.md). `tools/movies/other_endings.py` shares the
   Lavos fights and recording setup, and reuses `telepod_lavos.to_the_shell` for the fair.
 - **The Successor of Guardia**: `successor_of_guardia`, technoplaza ct-state17 slot 2,
@@ -461,7 +460,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   and `$CD`, **no new `$7E` scene-program code**. None of modes 5, 6, 10/11/14/15
   or 12 starts. Shadow exits 0 with zero mismatches and refusals, no page/accessor/asset
   diagnostics, and identical sound lockstep (553865 ticks, 24 loads). Core seed 2 is
-  the default. Seed 1 finishes at 193389 but has one shadow mismatch in `battle_irq`
+  the default. Seed 1 finishes at 193389 but has one shadow mismatch in `battle_line`
   (`$D1:FE97`): at the wait, PPU `$210F` is `FF` in the original and `00` in native
   code, also at 15 later passes before the original leaves. That failure reproduces
   from the Core checkpoint with generated comparisons off; TODO.md keeps it open.
@@ -480,8 +479,8 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   then keeps 120 more frames. The final The End picture was inspected.
   Shadow exits 0 with zero mismatches, no page/accessor/asset diagnostics, and
   identical sound lockstep (411801 ticks, 24 loads). Two guards refuse three calls
-  each at frames 119033-119035 in `$190`: `event_cmd_walk_with_the_party` (`$C0:3002`)
-  and `field_second_member_follows` (`$C0:A2CE`). The second party link is `$80`,
+  each at frames 119033-119035 in `$190`: `step_with_the_party` (`$C0:3002`)
+  and the second member's following (`$C0:A2CE`). The second party link is `$80`,
   empty; their `gap` allowlist entries and RAM evidence are in TODO.md's Refusals
   in real play. Coverage adds 377 instruction bytes over the 48-movie library,
   **no new `$7E` scene-program code**; none of modes 5, 6, 10/11/14/15 or 12 starts.
@@ -501,7 +500,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   after its call-and-wait for the final reveal, plus 120 frames; the final picture
   was inspected.
   Shadow exits 0 with zero mismatches, no page/accessor/asset diagnostics and identical
-  sound lockstep (525128 ticks, 24 loads). Seven `field_walk_the_leader` (`$C0:881E`)
+  sound lockstep (525128 ticks, 24 loads). Seven `walk_the_leader` (`$C0:881E`)
   refusals at frames 166496-166502 are a `gap` in the allowlist and TODO.md: the
   ending's upward exit carries the leader through Y `$FFxx`, which its guard rejects.
   Coverage adds 111 instruction bytes over the 48-movie library, **no new `$7E`
@@ -555,14 +554,14 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   which sends it back to `$3F0` before any window.
 - **Movie**: `events-epoch-lavos` (route `epoch_lavos`, ctsave14 slot 1, 7792 frames; cutoff 7072,
   the end stays at the Lavos field's first window because a movie stopped while the field is
-  loading leaves shadow mode's comparison of `field_enter` open and fails): board the Epoch, the
+  loading leaves shadow mode's comparison of `field_runs` open and fails): board the Epoch, the
   time dial one period up from 1000 A.D. (`$7E:0C52` 3 to 2), travel, Fight!, and the dive (mode 6
   from frame 5502 to about 7140). It reaches 1.57 KiB no other movie runs, 1.40 unported: mode 6's
   own code (`$7E:78DD`-`$7B9B`, `$7FC4`-`$80E0`, `$8205`-`$82AF`, `$82F5`-`$838A`, `$7BF2`-`$7C2F`,
   `$81C4`-`$81FA`, `$7F58`-`$7F7C`) and `$7E:38C3`; ported, `overworld_epoch`'s branch and bits of
   `$C3`. Shadow: no mismatch; three guards refused calls this play makes --
-  `scene_build_perspective` (`$7E:357B`, 202 calls), `scene_animate_the_palettes` (`$7E:37FA`, 2) and
-  `scene_setup_line_effects` (`$7E:36CC`, 2) -- until chunk 9 ported what they turned away (the dive's
+  `scene_build_perspective` (`$7E:357B`, 202 calls), `animate_the_palettes_task` (`$7E:37FA`, 2) and
+  `scene_set_up_line_effects` (`$7E:36CC`, 2) -- until chunk 9 ported what they turned away (the dive's
   starts of the lines, the palettes' frame called by a channel's sequence, color math's control and
   layers by the line). The rest of mode 6 is still the program's (docs/TODO.md). No `page refused` or
   `accessor out of range`. The route reaches its end in the
@@ -579,7 +578,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   scene program (`$C3:1313` to `$7E:3000`), which takes the mode from `$0384` & `$1F` (table
   `$7E:3043`). Event `$FF` with operands `$00`-`$7F` reaches it with the operand as the mode
   (`$C0:3FE0`), and no event script uses `$05`, `$25`, `$45` or `$65`. The only other entry is
-  `$C0:2649` (`LDA #$85`, `JML $C3:0000`), the end of `field_close_into_the_scene` (`$C0:260E`),
+  `$C0:2649` (`LDA #$85`, `JML $C3:0000`), the end of `field_closed_into_the_scene` (`$C0:260E`),
   the field's screen effect 11 in the table at `$C0:21EE`, keyed on `$7E:0139`; nothing found
   stores 11 there (bank `$C0`'s stores write `$01`-`$04`, `$06`, `$09`, `$0C`, `$0D`, its
   increments go 7 to 8 and 9 to 10, no long store, no script poke). An indexed store or block
@@ -637,8 +636,8 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   the `party` policy wins without a wipe), the left door (object `$09`, tile (4, 5), confirm then up)
   to the lab side (`$0E5`), and onto its two by three at (25, 15)-(26, 15), which the search steps
   onto from the right column. Reaches 1.27 KiB no other movie runs, all ported: the two by three's
-  right column (`$C0:1454`-`$16DB`), `field_redraw_after_picture` (`$C0:EE8B`-`$EFD0`, as the door's
-  scene hands the field back), `event_cmd_set_location_put_aside` (`$DC`, the door's), the main
+  right column (`$C0:1454`-`$16DB`), `redraw_after_the_picture` (`$C0:EE8B`-`$EFD0`, as the door's
+  scene hands the field back), `set_location` (`$DC`, the door's), the main
   menu's exchange laid out for a reorder (`$C2:CC4F`-`$CD2B`), `$C2:6180`, the battle's cursors.
   Shadow clean (no mismatch, refusal, `page refused` or `accessor out of range`); the route reaches
   its end in the shipping mode (frame 7329). The lab side's other exits weren't found by a walk
@@ -653,7 +652,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   end in the shipping mode (frame 3811). `$042`'s two by three is pressed from the left as well, 66
   steps in. Left of the floor switches: the one by two (only on the title's maps and `$1FE`).
 
-- **Palette commands** (`palette_lighten_*`/`darken_*`): event commands `$2E` (the screen's colours)
+- **Palette commands** (the palette's lightening and darkening): event commands `$2E` (the screen's colours)
   and `$88` (an object's) with a fade form, `$4n` lightening or `$5n` darkening, `n` the channels
   (`game/core/palette.c`'s tables: lightening 1 red, 2 green, 3 red and green, 4 blue; darkening 1
   green and blue, 3 blue, 4 red and green, 5 green, 6 red); pulses come from location sets and the
@@ -662,9 +661,9 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   Black Omen, `$88`); lighten blue at `$049`, `$188`-`$190`; darken blue at `$057`, `$09B`, `$0CB`,
   `$0CC`, `$0CE`, `$14E`, `$18E`, `$18F`, `$192`; darken red and green at `$004`, `$056`, `$0CD`,
   `$123`, `$18C`, `$1A3`, `$1A0`; darken green at `$0CC`; darken red at `$07A`. Left after this batch:
-  `darken_red_blue` (no event script's form; the battle's), `lighten_green`, `darken_green`,
-  `darken_red`, `darken_blue` and the pulses, 0.38 KiB. `battle-tech-sweep-spekkio` reaches
-  `lighten_red_blue`, a battle script's.
+  darkening red and blue (no event script's form; the battle's), lightening green, darkening
+  green, red and blue, and the pulses, 0.38 KiB. `battle-tech-sweep-spekkio` reaches
+  lightening red and blue, a battle script's.
 - **Screen effects** (`$C0:2307`, effects 6-12 of `$C0:21EE`): event `$FF`'s modes `$95` (at `$01A`,
   `$1B6`, `$1B8`, `$1B9`: the Gate opened at the fair's telepod and its arrivals), `$96`, `$9B`, `$9E`
   (`$0AC`), `$99` (`$109`) and `$9A` (`$1AD`) are the ones no movie runs; `$9D` no script uses.

@@ -658,8 +658,7 @@
 /* Screen transition jobs for the field NMI, one bit each (bits 0-3), cleared as they run */
 #define RAM_FIELD_SCREEN_TRANSITION 0x7E0147u
 #define RAM_FIELD_SCREEN_TRANSITION_DP 0x47u /* page field */
-/* A transfer the screen transition routines describe for field_vram_transfer and
- * field_fill_memory [8 bytes] */
+/* A transfer the screen transition routines describe for vram_transfer and fill_memory [8 bytes] */
 #define RAM_FIELD_TRANSFER 0x7E0148u
 #define RAM_FIELD_TRANSFER_DP 0x48u          /* page field */
 #define RAM_FIELD_TRANSFER_VRAM 0x7E0148u    /* VRAM word address */
@@ -931,7 +930,7 @@
 #define RAM_FIELD_SCRATCH_MORE_STRIDE 0x01u
 #define RAM_FIELD_SCRATCH_MORE_DP 0xE7u      /* page field */
 /* Slot of the object a move approaches (doubled, a word, as the event moves keep it), or that
- * field_object_in_the_way found blocking [2 bytes] */
+ * object_in_the_way found blocking [2 bytes] */
 #define RAM_FIELD_TARGET_OBJECT 0x7E01E9u
 #define RAM_FIELD_TARGET_OBJECT_DP 0xE9u     /* page field */
 /* The object the leader is up against (its offset in the object tables; negative for none): the
@@ -944,9 +943,9 @@
  * whole word into a place's offset and a function's */
 #define RAM_FIELD_LEADER_CONTACT_HIGH 0x7E01ECu
 #define RAM_FIELD_LEADER_CONTACT_HIGH_DP 0xECu /* page field */
-/* Direction ($00/$40/$80/$C0 quadrants, a byte to a turn) field_direction_to_target computes and
- * field_start_step moves in; a word whose high byte field_direction_to_target clears, which the
- * facing lookups index with [2 bytes] */
+/* Direction ($00/$40/$80/$C0 quadrants, a byte to a turn) direction_between computes and
+ * object_start_step moves in; a word whose high byte direction_between clears, which the facing
+ * lookups index with [2 bytes] */
 #define RAM_FIELD_DIRECTION 0x7E01EEu
 #define RAM_FIELD_DIRECTION_DP 0xEEu         /* page field */
 /* Tile the direction is computed from; the tile copy keeps the word here too [2 bytes] */
@@ -1038,8 +1037,8 @@
 #define RAM_FIELD_SHARED_GRAPHICS_OBJECT 0x7E0930u
 #define RAM_FIELD_SHARED_GRAPHICS_OBJECT_COUNT 16u
 #define RAM_FIELD_SHARED_GRAPHICS_OBJECT_STRIDE 0x01u
-/* Queued VRAM uploads from bank $7F, two transfers per entry, run by field_upload_vram_queue:
- * the first transfer's source [8 x $2 bytes, by queue entry] */
+/* Queued VRAM uploads from bank $7F, two transfers per entry, run by
+ * field_upload_queued_transfers: the first transfer's source [8 x $2 bytes, by queue entry] */
 #define RAM_FIELD_VRAM_QUEUE_SOURCE 0x7E0940u
 #define RAM_FIELD_VRAM_QUEUE_SOURCE_COUNT 8u
 #define RAM_FIELD_VRAM_QUEUE_SOURCE_STRIDE 0x02u
@@ -1152,7 +1151,7 @@
 #define RAM_FIELD_WINDOW_SHADOWS 0x7E0BD9u
 /* Color math control shadow the field NMI copies every frame */
 #define RAM_FIELD_COLOR_MATH_CONTROL 0x7E0BDEu
-/* Color math layers shadow field_set_screens writes */
+/* Color math layers shadow field_show_the_maps_screens writes */
 #define RAM_FIELD_COLOR_MATH_LAYERS 0x7E0BDFu
 /* Color math layers for event $F1's fixed color: $17 add, $97 subtract, back to
  * field_color_math_layers when the color is cleared */
@@ -1747,7 +1746,8 @@
 #define RAM_FIELD_MAP_HEADER_BG3_DRIFT 0x7EB503u /* BG3's drift, as bg2_drift */
 #define RAM_FIELD_MAP_HEADER_SCREENS 0x7EB504u /* The layers on the screens: bits 0-2 BG1-BG3 and bit 3 the sprites on the main screen, bits 4-7 the same on the sub screen */
 #define RAM_FIELD_MAP_HEADER_COLOR_MATH 0x7EB505u /* The layers color math applies to, as the field keeps it (field_color_math_layers) */
-/* Start of the decompressed map layer data field_unpack_tile_maps reads through the WRAM port */
+/* Start of the decompressed map layer data field_unpack_the_tile_maps reads through the WRAM
+ * port */
 #define RAM_FIELD_MAP_DATA 0x7EB506u
 /* BG3's map tiles as 8-pixel tile map entries, four each as field_tile_looks [256 x $8 bytes, by
  * look: BG3's map tile] */
@@ -4794,7 +4794,7 @@
 #define RAM_BATTLE_SCREEN_LEFTOVER 0x7E0045u
 #define RAM_BATTLE_SCREEN_LEFTOVER_DP 0x45u  /* page battle */
 /* Set by the battle's start and end to wait for the small vblank handler they run
- * (battle_nmi_alternate), which clears it once it has finished a frame */
+ * (battle_closing_vblank), which clears it once it has finished a frame */
 #define RAM_BATTLE_ALTERNATE_FRAME_PENDING 0x7E0047u
 #define RAM_BATTLE_ALTERNATE_FRAME_PENDING_DP 0x47u /* page battle */
 /* Which window a battle message call that names a combatant asks for ($0B with its HP, $0C
@@ -4829,7 +4829,7 @@
  * even-frame work [2 bytes] */
 #define RAM_BATTLE_FRAME_COUNT 0x7E007Cu
 #define RAM_BATTLE_FRAME_COUNT_DP 0x7Cu      /* page battle */
-/* Battle mode: selects the NMI handler's per-frame work (modes 1 and 2 run battle_frame_work);
+/* Battle mode: selects the NMI handler's per-frame work (modes 1 and 2 run battle_frame_worked);
  * Start pauses only in mode 1 */
 #define RAM_BATTLE_MODE 0x7E007Eu
 #define RAM_BATTLE_MODE_DP 0x7Eu             /* page battle */
@@ -5590,7 +5590,7 @@
 #define RAM_BATTLE_FACING_STRIDE_LOW_STRIDE 0x01u
 /* Battle slot whose sprite graphics are built next (and uploaded when $A012 is 1) [2 bytes] */
 #define RAM_BATTLE_GRAPHICS_OBJECT 0x7E9679u
-/* Animation frame whose graphics battle_build_object_graphics builds */
+/* Animation frame whose graphics battle_build_frame_graphics builds */
 #define RAM_BATTLE_GRAPHICS_FRAME 0x7E967Bu
 /* Object's graphics kind, also its count of extra parts (2: fixed upload descriptors, 3 and up:
  * no graphics built) [11 x $1 bytes, by battle slot] */
@@ -5811,8 +5811,8 @@
 /* Which animation records the action's animation's effects take their frames from (an entry of
  * its kind's table, which gives battle_effect_records), as its loading leaves it */
 #define RAM_BATTLE_ANIMATION_RECORDS 0x7E9884u
-/* Offset in bank $CE of the effect's animation records, which battle_index_effect_animations
- * divides into its sixteen animations [2 bytes] */
+/* Offset in bank $CE of the effect's animation records, which the effect's loading divides into
+ * its sixteen animations [2 bytes] */
 #define RAM_BATTLE_EFFECT_RECORDS 0x7E9885u
 /* The palette each object starts with (as battle_object_palette); enemies' sprite entries at
  * $11B0 take theirs from it [11 x $1 bytes, by battle slot] */
@@ -6010,9 +6010,9 @@
 #define RAM_BATTLE_SELECTED_TECH_PARTNERS 0x7E9EE7u /* Combination partners, one party slot per nibble ($F: none, $FF: single tech) */
 #define RAM_BATTLE_SELECTED_TECH_SECOND_COST 0x7E9EE8u /* MP it costs the member in the second slot (negative: none) */
 #define RAM_BATTLE_SELECTED_TECH_THIRD_COST 0x7E9EE9u /* MP it costs the member in the third slot (negative: none) */
-/* The transfer battle_upload_vram makes when $A0 is set, one value in every sixth byte [9 x $6
- * bytes, by channel value (mode, destination, source low, high, bank, size low, high, VRAM low,
- * high)] */
+/* The transfer battle_send_vblank_uploads makes when $A0 is set, one value in every sixth byte
+ * [9 x $6 bytes, by channel value (mode, destination, source low, high, bank, size low, high,
+ * VRAM low, high)] */
 #define RAM_BATTLE_PENDING_TRANSFER 0x7E9EEAu
 #define RAM_BATTLE_PENDING_TRANSFER_COUNT 9u
 #define RAM_BATTLE_PENDING_TRANSFER_STRIDE 0x06u
@@ -7475,9 +7475,9 @@
 #define RAM_BATTLE_ENEMY_SCRIPT_BLOCK 0x7EB263u
 #define RAM_BATTLE_ENEMY_SCRIPT_BLOCK_COUNT 8u
 #define RAM_BATTLE_ENEMY_SCRIPT_BLOCK_STRIDE 0x01u
-/* The block whose actions the enemy is going through (battle_enemy_script_blocks as it chose
- * it): choosing the same block again goes on with its next action; $FF chooses afresh [8 x $1
- * bytes, by enemy (battle slot - 3)] */
+/* The block whose actions the enemy is going through (as the enemy's script chose it): choosing
+ * the same block again goes on with its next action; $FF chooses afresh [8 x $1 bytes, by enemy
+ * (battle slot - 3)] */
 #define RAM_BATTLE_ENEMY_ACTIONS_BLOCK 0x7EB26Bu
 #define RAM_BATTLE_ENEMY_ACTIONS_BLOCK_COUNT 8u
 #define RAM_BATTLE_ENEMY_ACTIONS_BLOCK_STRIDE 0x01u
@@ -8123,7 +8123,7 @@
 #define RAM_BATTLE_SCREEN_CIRCLE_KIND_COUNT 2u
 #define RAM_BATTLE_SCREEN_CIRCLE_KIND_STRIDE 0x01u
 /* Nonzero while the display setup loads a step of the battle's graphics each frame
- * (battle_load_graphics) */
+ * (load_the_next_step) */
 #define RAM_BATTLE_GRAPHICS_LOAD_IN_VBLANK 0x7ECAD3u
 /* Where a triangle the screen script draws as a window is centered, across [2 x $1 bytes, by
  * shape] */
@@ -10027,7 +10027,7 @@
 
 /* A zero the warp keeps on its page and starts its indexes from: the original's routines index
  * from it, and the ports' guards take only a page that holds it (game/warp/warp.c
- * warp_on_its_page) [2 bytes] */
+ * keeps_its_zero) [2 bytes] */
 #define RAM_WARP_ZERO 0x7E0508u
 /* The warp's working cells, which its routines take in turn: the circle's builder (its radius,
  * the area left and the run down its edge, the lines of its lower half), the light's rays (a

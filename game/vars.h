@@ -1266,7 +1266,7 @@ uint8_t field_scratch_more(const GameState *g, unsigned i);
 void set_field_scratch_more(GameState *g, unsigned i, uint8_t v);
 
 /* Slot of the object a move approaches (doubled, a word, as the event moves keep it), or that
- * field_object_in_the_way found blocking */
+ * object_in_the_way found blocking */
 uint16_t field_target_object(const GameState *g);
 void set_field_target_object(GameState *g, uint16_t v);
 
@@ -1282,9 +1282,9 @@ void set_field_leader_contact(GameState *g, uint8_t v);
 uint8_t field_leader_contact_high(const GameState *g);
 void set_field_leader_contact_high(GameState *g, uint8_t v);
 
-/* Direction ($00/$40/$80/$C0 quadrants, a byte to a turn) field_direction_to_target computes and
- * field_start_step moves in; a word whose high byte field_direction_to_target clears, which the
- * facing lookups index with */
+/* Direction ($00/$40/$80/$C0 quadrants, a byte to a turn) direction_between computes and
+ * object_start_step moves in; a word whose high byte direction_between clears, which the facing
+ * lookups index with */
 uint16_t field_direction(const GameState *g);
 void set_field_direction(GameState *g, uint16_t v);
 
@@ -1409,8 +1409,8 @@ uint8_t field_shared_graphics_object(const GameState *g, unsigned i);
 void set_field_shared_graphics_object(GameState *g, unsigned i, uint8_t v);
 
 enum { FIELD_VRAM_QUEUE_SOURCE_COUNT = 8 };   /* by queue entry */
-/* Queued VRAM uploads from bank $7F, two transfers per entry, run by field_upload_vram_queue:
- * the first transfer's source */
+/* Queued VRAM uploads from bank $7F, two transfers per entry, run by
+ * field_upload_queued_transfers: the first transfer's source */
 uint16_t field_vram_queue_source(const GameState *g, unsigned i);
 void set_field_vram_queue_source(GameState *g, unsigned i, uint16_t v);
 
@@ -1563,7 +1563,7 @@ void set_field_window_shadows_byte(GameState *g, unsigned at, uint8_t v);
 uint8_t field_color_math_control(const GameState *g);
 void set_field_color_math_control(GameState *g, uint8_t v);
 
-/* Color math layers shadow field_set_screens writes */
+/* Color math layers shadow field_show_the_maps_screens writes */
 uint8_t field_color_math_layers(const GameState *g);
 void set_field_color_math_layers(GameState *g, uint8_t v);
 
@@ -2401,7 +2401,8 @@ void set_field_map_header_screens(GameState *g, uint8_t v);
 uint8_t field_map_header_color_math(const GameState *g);
 void set_field_map_header_color_math(GameState *g, uint8_t v);
 
-/* Start of the decompressed map layer data field_unpack_tile_maps reads through the WRAM port */
+/* Start of the decompressed map layer data field_unpack_the_tile_maps reads through the WRAM
+ * port */
 uint8_t field_map_data(const GameState *g);
 void set_field_map_data(GameState *g, uint8_t v);
 
@@ -7583,7 +7584,7 @@ uint16_t battle_screen_leftover(const GameState *g);
 void set_battle_screen_leftover(GameState *g, uint16_t v);
 
 /* Set by the battle's start and end to wait for the small vblank handler they run
- * (battle_nmi_alternate), which clears it once it has finished a frame */
+ * (battle_closing_vblank), which clears it once it has finished a frame */
 uint8_t battle_alternate_frame_pending(const GameState *g);
 void set_battle_alternate_frame_pending(GameState *g, uint8_t v);
 
@@ -7622,7 +7623,7 @@ void set_battle_divider_operands(GameState *g, unsigned i, uint8_t v);
 uint16_t battle_frame_count(const GameState *g);
 void set_battle_frame_count(GameState *g, uint16_t v);
 
-/* Battle mode: selects the NMI handler's per-frame work (modes 1 and 2 run battle_frame_work);
+/* Battle mode: selects the NMI handler's per-frame work (modes 1 and 2 run battle_frame_worked);
  * Start pauses only in mode 1 */
 uint8_t battle_mode(const GameState *g);
 void set_battle_mode(GameState *g, uint8_t v);
@@ -8753,7 +8754,7 @@ void set_battle_facing_stride_low(GameState *g, unsigned slot, uint8_t v);
 uint16_t battle_graphics_object(const GameState *g);
 void set_battle_graphics_object(GameState *g, uint16_t v);
 
-/* Animation frame whose graphics battle_build_object_graphics builds */
+/* Animation frame whose graphics battle_build_frame_graphics builds */
 uint8_t battle_graphics_frame(const GameState *g);
 void set_battle_graphics_frame(GameState *g, uint8_t v);
 
@@ -9072,8 +9073,8 @@ void set_battle_palette_anim_frames(GameState *g, uint16_t v);
 uint8_t battle_animation_records(const GameState *g);
 void set_battle_animation_records(GameState *g, uint8_t v);
 
-/* Offset in bank $CE of the effect's animation records, which battle_index_effect_animations
- * divides into its sixteen animations */
+/* Offset in bank $CE of the effect's animation records, which the effect's loading divides into
+ * its sixteen animations */
 uint16_t battle_effect_records(const GameState *g);
 void set_battle_effect_records(GameState *g, uint16_t v);
 
@@ -9348,7 +9349,7 @@ uint8_t battle_selected_tech_third_cost(const GameState *g);
 void set_battle_selected_tech_third_cost(GameState *g, uint8_t v);
 
 enum { BATTLE_PENDING_TRANSFER_COUNT = 9 };   /* by channel value (mode, destination, source low, high, bank, size low, high, VRAM low, high) */
-/* The transfer battle_upload_vram makes when $A0 is set, one value in every sixth byte */
+/* The transfer battle_send_vblank_uploads makes when $A0 is set, one value in every sixth byte */
 uint8_t battle_pending_transfer(const GameState *g, unsigned channel);
 void set_battle_pending_transfer(GameState *g, unsigned channel, uint8_t v);
 
@@ -11537,8 +11538,8 @@ uint8_t battle_enemy_script_block(const GameState *g, unsigned i);
 void set_battle_enemy_script_block(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_ENEMY_ACTIONS_BLOCK_COUNT = 8 };   /* by enemy (battle slot - 3) */
-/* The block whose actions the enemy is going through (battle_enemy_script_blocks as it chose
- * it): choosing the same block again goes on with its next action; $FF chooses afresh */
+/* The block whose actions the enemy is going through (as the enemy's script chose it): choosing
+ * the same block again goes on with its next action; $FF chooses afresh */
 uint8_t battle_enemy_actions_block(const GameState *g, unsigned i);
 void set_battle_enemy_actions_block(GameState *g, unsigned i, uint8_t v);
 
@@ -12471,7 +12472,7 @@ uint8_t battle_screen_circle_kind(const GameState *g, unsigned i);
 void set_battle_screen_circle_kind(GameState *g, unsigned i, uint8_t v);
 
 /* Nonzero while the display setup loads a step of the battle's graphics each frame
- * (battle_load_graphics) */
+ * (load_the_next_step) */
 uint8_t battle_graphics_load_in_vblank(const GameState *g);
 void set_battle_graphics_load_in_vblank(GameState *g, uint8_t v);
 
@@ -15211,7 +15212,7 @@ void set_scene_call_orbit_frame(GameState *g, SceneProgramPage page, uint16_t v)
 
 /* A zero the warp keeps on its page and starts its indexes from: the original's routines index
  * from it, and the ports' guards take only a page that holds it (game/warp/warp.c
- * warp_on_its_page) */
+ * keeps_its_zero) */
 uint16_t warp_zero(const GameState *g);
 void set_warp_zero(GameState *g, uint16_t v);
 

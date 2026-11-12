@@ -21,7 +21,7 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
 - Validation: `python3 tools/suite.py --ct-native build/main/ct_native -j 2` runs
   sampled native movies to completion, dark-screen checks, recorded save/place
   ratchets, three native picture fingerprints, fast native routes, snapshot continuations
-  (`tools/player_check.py`), portstyle, portsmell, and Python/native unit tests.
+  (`tools/player_check.py`), portstyle, portsmell, doc-names, and Python/native unit tests.
   Only the last line `suite OK` passes. The final `times:` and `wall time:` lines
   include unit tests; the gate fails at 600 seconds. Use `.exe` on Windows.
   `--movies <name>...` narrows iteration without pruning unseen outcome rows.
@@ -41,6 +41,10 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
 - Source checks: `python3 tools/portstyle.py --check` and
   `python3 tools/portsmell.py --check`. Read their findings before qualitative
   review; neither can establish that a port reads as a hand reimplementation.
+  `python3 tools/doc_names.py --check` fails where docs/*.md, CLAUDE.md, a
+  skill or a `source`/`meaning` string in re/ram.toml names a function, constant
+  or file the code no longer has: rename or delete the mention in the branch that
+  removes the name (deliberate mentions: `tools/doc_names_exceptions.txt`).
 - Source inventories: `python3 tools/machine_joints.py`,
   `python3 tools/state_inventory.py`, and `python3 tools/ram_map.py storage`.
   `ram_map.py accessors --check` checks generated state accessors;
