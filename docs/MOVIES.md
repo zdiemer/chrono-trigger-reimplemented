@@ -29,11 +29,13 @@ overlay crossing, an accessor out of range) fails, as a movie does.
 
 `playthrough` starts from a blank cartridge and plays the story on from a new
 game. Its own phases cover what no save-based route plays (the opening, the
-fair, 600 A.D.'s castle, shopping, the prison escape); where a save-based
-route already plays a stretch, the route calls that route's `play(run, start)`
-from the state it reached instead of a save (`_trial_cathedral`,
-`cronos_trial`, `dragon_tank`). Its checkpoint names are unique across the
-pieces it composes. Where it stops is in issue #4.
+fair, 600 A.D.'s castle, shopping, the prison escape, the chase through
+Guardia Forest to the Gate, Lab 16); where a save-based route already plays a
+stretch, the route calls that route's `play(run, start)` from the state it
+reached instead of a save (`_trial_cathedral`, `cronos_trial`, `dragon_tank`,
+`guardian`). Its checkpoint names are unique across the pieces it composes. It
+ends with the Guardian beaten in Arris Dome, 2300 A.D. (frame 356087).
+A fight with no enemy the bot can hurt (Lab 16's 1-HP Shadows) is run from.
 `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
 whole library and every public route module as a non-blocking batch. Findings
 become fixes; the batch never blocks a commit, merge or push. Its stage logs,
