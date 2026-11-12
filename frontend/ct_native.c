@@ -57,6 +57,7 @@
 #include "platform/native/host.h"
 #include "platform/native/render.h"
 #include "port/state_host.h"
+#include "port/vars_host.h"
 #ifdef CT_HAVE_SDL
 #define SDL_MAIN_HANDLED
 #include "window.h"
@@ -155,8 +156,18 @@ static int write_end_state(const char *path, GameState *g)
     return fclose(f) == 0 ? 0 : -1;
 }
 
+static void report_crossing(const char *reader, const char *writer, uint32_t times, void *ctx)
+{
+    (void)ctx;
+    fprintf(stderr, "overlay crossed: %s read bytes %s wrote, %lu time(s)\n", reader, writer, (unsigned long)times);
+}
+
 static void report_strays(const GameState *g, const Platform *pf)
 {
+    /* Owners the reimplementation keeps apart where the original shares bytes
+     * (re/ram.toml's `overlays`): a read of bytes another owner wrote last is
+     * one the original answered with that owner's value. */
+    vars_host_crossings(report_crossing, 0);
     uint32_t first[STATE_HOST_STRAYS_KEPT];
     unsigned kept;
     unsigned long n = state_host_strays(g, first, &kept);

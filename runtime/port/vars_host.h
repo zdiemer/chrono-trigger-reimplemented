@@ -4034,6 +4034,16 @@ void vars_host_warp_plane_matrix_second_row_values_write8(VarsHost *h, uint32_t 
 uint8_t vars_host_warp_plane_scrolls_values_read8(const VarsHost *h, uint32_t offset);
 void vars_host_warp_plane_scrolls_values_write8(VarsHost *h, uint32_t offset, uint8_t value);
 
+/* An owner beside others (re/ram.toml's `overlays`) wrote these bytes. */
+void vars_host_claim(VarsHost *h, uint32_t addr, unsigned bytes, unsigned place);
+/* An owner beside others reads these bytes: count any another owner wrote last. */
+void vars_host_check(const VarsHost *h, uint32_t addr, unsigned bytes, unsigned place);
+/* The reads that found another owner's bytes: each reader, the owner that
+ * wrote them and how often, through `each`; returns how many readers. */
+unsigned vars_host_crossings(void (*each)(const char *reader, const char *writer, uint32_t times, void *ctx),
+                             void *ctx);
+void vars_host_crossings_reset(void);
+
 void vars_host_init(VarsHost *h);
 bool vars_host_read8(const VarsHost *h, uint32_t addr, uint8_t *value);
 bool vars_host_write8(VarsHost *h, uint32_t addr, uint8_t value);

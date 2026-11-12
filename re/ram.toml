@@ -28,7 +28,7 @@
 #       (docs/STATE.md, "The accessors").
 #
 #   [[var]]    name, addr | dp, [size], [count, stride, index], [rows, row_stride],
-#              [page], [unchecked], [reuses], [host_module | host_alias], subsystem, meaning, source, [[var.field]]
+#              [page], [unchecked], [reuses], [host_module [overlays] | host_alias], subsystem, meaning, source, [[var.field]]
 #       A variable. addr is "7E:AAAA" or "7F:AAAA" (low RAM $0000-$1FFF is
 #       $7E:0000-$1FFF, which banks $00-$3F mirror). size is the element's width
 #       in bytes (default 1); an array has count elements `stride` bytes apart
@@ -61,6 +61,15 @@
 #       coverage and duplicate owners are errors. Page owners allocate an array
 #       of records in instance order. Unchecked tails use the address view, never
 #       an out-of-bounds C index (docs/STATE.md). No work-RAM image is allocated.
+#       `overlays`, beside `host_module`, names the owners whose bytes the
+#       original also uses for this variable in another mode (or at another
+#       time in its own, with `reuses`): it gets fields of its own instead of a
+#       view of theirs. Every two owners of a byte are declared beside each
+#       other, one naming the other or both naming a third. The address view
+#       writes such a byte to every owner and reads it from the owner that
+#       wrote it last; a read of bytes another owner wrote last is reported
+#       (`overlay crossed:`), since the original answered it with that owner's
+#       value: such a variable shares its owner's bytes (host_alias) instead.
 #
 #   [[var.field]]  name, offset, [size], [host_alias], meaning
 #       A record: the element is `stride` bytes and the fields are at these
