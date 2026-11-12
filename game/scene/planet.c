@@ -83,21 +83,15 @@ static void step_the_colours(GameState *g)
     charge_as(g, 0x7E6439, (uint32_t)WORKING_CELL_BYTES_A_COLOUR * colours);
 }
 
-/* Whether this frame's step of the colours was due, which decides the time
- * the task is charged. */
-static bool colours_stepped;
-
 // $7E:6439
 static TaskEnd step_the_planet_s_colours_task(GameState *g, Platform *pf)
 {
     (void)pf;
-    colours_stepped = false;
     if (!step_is_due(g) || scene_planet_fade_steps(g) == 0)
         return task_goes_on();
     set_scene_planet_fade_steps(g, (uint8_t)(scene_planet_fade_steps(g) - 1));
     step_the_colours(g);
     charge_accesses(g, 16);
-    colours_stepped = true;
     return task_goes_on();
 }
 
@@ -144,10 +138,6 @@ static void put_the_star_anew(GameState *g, unsigned star)
     set_scene_twinkles_ticks(g, star, TICKS_A_FRAME);
 }
 
-/* How the frame's last star went -- twinkled, or put anew -- which decides
- * the time the twinkling is charged. */
-typedef enum { NO_STAR_TWINKLED, STAR_TWINKLED, STAR_PUT_ANEW } StarFrame;
-static StarFrame last_star_frame;
 
 /* The program's sprite for a twinkle, with the frame's tile. */
 static SceneSprite twinkle_sprite(const GameState *g, uint8_t tile)
@@ -185,19 +175,16 @@ static void twinkle_a_star(GameState *g, unsigned star)
         set_scene_twinkles_frames_left(g, star, frames_left);
         if (frames_left == 0) {
             put_the_star_anew(g, star);
-            last_star_frame = STAR_PUT_ANEW;
             return;
         }
     }
     draw_the_twinkle(g, star);
-    last_star_frame = STAR_TWINKLED;
 }
 
 // $7E:65DD
 static TaskEnd twinkle_the_stars_task(GameState *g, Platform *pf)
 {
     (void)pf;
-    last_star_frame = NO_STAR_TWINKLED;
     scene_draw_lists_at(g, 0, 0);
     for (unsigned star = 0; star < TWINKLES; star++)
         twinkle_a_star(g, star);

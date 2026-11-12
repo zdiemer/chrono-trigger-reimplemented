@@ -43,7 +43,7 @@ enum {
 /* ---- The places -------------------------------------------------------------------------- */
 
 /* The echo's buffer, at a delay of `delay`, starts this many pages below the
- * top of what the samples may use (platform/voices_dsp.h keeps it there). */
+ * top of what the samples may use (platform/voices.h keeps it there). */
 enum { TOP_PAGE = 0xF1, PAGES_PER_ECHO_STEP = 8 };
 
 static SoundSamples *places(SoundDriver *d) { return &d->samples; }

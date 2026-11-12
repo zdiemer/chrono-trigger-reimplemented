@@ -43,7 +43,7 @@ class GateFailureTest(unittest.TestCase):
             with patch.object(suite, 'gate_movies', return_value=(['sample'], [])), \
                     patch.object(suite.shutil, 'which', return_value='ctest'), \
                     patch.object(suite.subprocess, 'run', return_value=SimpleNamespace(returncode=failure)), \
-                    patch.object(suite.time, 'monotonic', side_effect=[0, *range(1, 17), elapsed]), \
+                    patch.object(suite.time, 'monotonic', side_effect=[0, *range(1, 19), elapsed]), \
                     contextlib.redirect_stdout(output):
                 rc = suite.main(['--ct-native', str(binary), '--out', str(root / 'runs')])
             return rc, output.getvalue().splitlines()

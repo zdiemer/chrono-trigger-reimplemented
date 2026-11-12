@@ -6,7 +6,7 @@ ct_native is the product. The last commit containing the emulator and oracle too
 
 `tools/suite.py --ct-native build/main/ct_native -j 2` runs the sample in
 `tools/gate_movies.txt`, the New Game+ and inventory item-use routes, portstyle,
-portsmell, Python unit tests and the native CTest tests. Every sampled movie
+portsmell, doc-names (no doc or RAM-map prose naming code that is gone), Python unit tests and the native CTest tests. Every sampled movie
 must reach its declared frame count, exit successfully and avoid an unexplained
 dark ending. `suite OK` is the final pass line; wall time includes every stage
 and must be below 600 seconds. The separate `--long` batch runs the whole library and every public route
@@ -73,15 +73,16 @@ disabling, mode hand-offs and failed initial scenes without a ROM.
 The former machine entry graph had no native callers. Deleting it across all
 subsystems removed the registry, held-continuation ledger, game time-tag rows,
 console vectors, entry macros, machine access helpers, CPU shell headers and
-`no_machine.c`. Native C tables retain their real operations and timing keys.
+the no-machine stubs. Native C tables retain their real operations and timing keys.
 Machine-only cost APIs and their dead calculations were removed too. These
 deletions do not finish the vocabulary and storage work in every subsystem:
 the video escapes have named services (PLATFORM.md, "Memory moves and VRAM
-read-backs"); the sound driver's register write is the one escape left.
+read-backs"), and the sound driver's register write became the voice calls
+it means (PLATFORM.md, "Audio"): no register escape is left.
 
 The callback tables that stood between a sequence and its one implementation
 went next, a module at a time (event, overworld, scene, battle, field, menu):
-the menus' main menu, for one, asked a `MainMenuSteps` table for its tick, its
+the menus' main menu, for one, asked a table of its steps for its tick, its
 wait, its panel and its end, and now calls `menu_tick`, `menu_task_waits`, its
 `show_the_panel` and `menu_close` itself, each timed where the table's entry
 was. Callbacks through an opaque context went from 312 to 2 (a coroutine's
@@ -160,11 +161,26 @@ after the first Queen Zeal fight. These distinguish missed fixed-movie inputs
 from a timing-model defect; they do not justify changing work rates. Keep the
 Sun Stone and Queen Zeal continuations reproducible as route checks (TODO.md).
 
-All 2,236 live variables now have module-owned storage, and 1,511 of them
+With slot loads as snapshots every route runs in minutes. `motherbrain`'s
+escort-pod charge and `telepod_lavos`'s reaper statue were route assumptions,
+not game faults: the escort counts the charge down a step a turn (every four
+frames, the same in the last emulator build) while it stands by the party, so
+the axis-only dash round Geno Dome's floor (about 750 frames) arrived a count
+or two either side of the limit; the route now dashes on the diagonals as
+well (about 600 frames). The reaper statue is reached by a jump off the
+platform's edge, which the route now waits out instead of searching for a
+point inside it. The new-game `playthrough` route found a refusal: the
+overworld leader's guard required the trail index to be in range even for a
+leader setting off, which lays the trail afresh, and leaving Guardia Castle in
+600 A.D. leaves the index at `$80` (fixed in `game/overworld/handlers.c`).
+
+All 2,213 live variables now have module-owned storage, and 2,148 of them
 typed storage, counting a value as typed only when it is exactly one owner field
-or element of its own width; 725 remain blob-backed, nearly all overlays where
-one mode reads another mode's fields at other widths, and none is image-backed. The 27 retired
-sound-loader variables and the residual 128 KiB work-RAM image were removed.
+or element of its own width; 65 remain blob-backed (tile graphics and line
+tables in the hardware's formats, byte-copied records, two-width record views
+and views of bytes another mode shares), and none is image-backed. The 27
+retired sound-loader variables, 20 dead scratch declarations and the residual
+128 KiB work-RAM image were removed.
 The baseline was 1,953 typed, 283 blob-backed and 27 image-backed variables.
 The generated address view supports cartridge saves, route inspection and
 remaining dynamic/bulk operations. The generator also emits designed field-object, combatant, character, menu

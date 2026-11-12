@@ -99,7 +99,7 @@ half handles `$70` and `$71` itself, with uploads).
 | `$F5` | `$0FBE` | Pause (voices to GAIN, volumes zero) and resume |
 | `$F6` | `$129D` | Run the timer at 8 kHz (fast forward) or back at 190 Hz |
 | `$FC` | `$132E` | Change the echo delay, reallocating and waiting for the buffer |
-| `$FD` | `$12F2` | Write a DSP register directly |
+| `$FD` | `$12F2` | Set one of the voices' or the mix's settings by hand, named by its S-DSP register number; a part of a setting (a pitch byte, an envelope half, one side's volume) keeps the rest |
 | `$FE` | `$100E` | Receive an upload |
 | `$FF` | `$12BD` | Meter mode on or off (p1 1), or jump back to the boot ROM (p1 `$F0`), which is how the game reloads the driver |
 
@@ -197,7 +197,7 @@ The driver's status, put on the ports each tick (`$02C2-$02DB`) and read through
 (Ports 2 and 3 are written with one word store, the marker in port 2. This
 page first had them the other way round, which the port's lockstep found; the
 names that followed the old reading are now `au_music_playing`, event `$EE`'s
-`wait_for_music_to_end` and the scene program's `scene_wait_for_music_loop`.)
+`wait_for_music_to_end` and the scene program's `music_playing`.)
 
 So the game-facing interface is small: the commands above, and three status
 values. The protocol under them (echoes, counters, uploads) exists because two

@@ -14,8 +14,8 @@ between frames. VRAM remains a 64 KiB tile store, with palette and sprite memory
 and per-line effects. The native renderer implements background modes, priority,
 windows and color math. Dirty tracking avoids rebuilding unchanged material.
 No emulated PPU is used, and no call names a register: the SNES-only escapes
-(`vid_snes_copy`, `vid_snes_write_register`) and the older forms that took the
-SNES's write order (`vid_upload_*`, `VidSnesXfer`) are gone. Two transfer
+(a raw copy and a register write) and the older forms that took the SNES's
+write order (an upload per transfer, a transfer record) are gone. Two transfer
 descriptions the game keeps in its state still hold the VRAM data port's low
 address byte as the original stored it (TODO.md, Platform).
 
@@ -26,6 +26,15 @@ supply sample playback, envelopes, pitch, noise and echo to the native mixer.
 The SDL driver pulls buffered output; game code never polls an audio device.
 A snapshot keeps the whole sound driver and mixer (docs/PLAYING.md,
 "Snapshots"). See SOUND.md.
+
+No register write reaches the mixer. The driver's command `$FD`, which sets
+one setting by its S-DSP register number, is decoded in the driver
+(`game/sound/driver.c`, `set_by_hand`) into the voice calls that mean it; a
+write to part of a setting reads what the voices are set to
+(`au_voice_settings`, `au_mix_settings`) and sets the whole. The mixer's
+switches became separate calls (`au_output_muted`, `au_voices_reset`) and the
+echo's buffer can be placed by hand (`au_echo_buffer`), as the command can.
+`sound_setting_test` checks each setting against the mixer.
 
 ## Timing without a beam
 
@@ -71,8 +80,8 @@ native picture fingerprints protect this change (REIMPLEMENTATION.md).
 ## Memory moves and VRAM read-backs
 
 Eighteen of the last nineteen register escapes were video transfers and a
-setting the original programmed from its own tables (the nineteenth is the
-sound driver's register write, TODO.md). Each is now one of four things:
+setting the original programmed from its own tables (the nineteenth, the
+sound driver's register write, is under Audio). Each is now one of four things:
 
 - **Memory the game moves itself.** The scenes' clears copied the Mode 7
   multiplier's product over memory, and the menus filled and copied work RAM

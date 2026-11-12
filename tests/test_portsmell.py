@@ -78,8 +78,8 @@ class TestChecks(unittest.TestCase):
         self.assertFalse(self.hits("sign-bit-compare", "if ((int16_t)(x - LIMIT) < 0)\n"))
 
     def test_stale_provenance(self):
-        self.assertTrue(self.hits("stale-provenance", '# source = "game/battle/gone.c"\n', "re/ram.toml"))
-        self.assertFalse(self.hits("stale-provenance", '# source = "tools/portsmell.py"\n', "re/ram.toml"))
+        self.assertTrue(self.hits("stale-provenance", '/* see game/battle/gone.c */\n', "game/battle/x.h"))
+        self.assertFalse(self.hits("stale-provenance", '/* see tools/portsmell.py */\n', "game/battle/x.h"))
 
     def test_an_enum_nothing_takes_as_a_type(self):
         src = "typedef enum { MENU_SOUND_CURSOR = 0 } MenuSoundNobodyTakes;\n"

@@ -119,6 +119,20 @@ SDL's moved images (the `ucontext` trampoline), and stack-protector canaries
 -- so a snapshot there also records its run, and a file loads only in the run
 that wrote it.
 
+What a snapshot leaves out has to hold nothing a frame goes on from. The
+game's code keeps no state of its own outside the game's state record: the
+only mutable statics in `game/` are lookups built from constant tables (the
+script interpreters' opcode indexes) or from the run (the asset store, what it
+served, its last resource and its count of reads outside the catalogue). A
+suspended frame can hold no pointer into the services' heap -- the video
+observer, the sound driver, the save's bytes -- because `Platform` is opaque
+to `game/`: the game reaches the host only through service calls, which read
+those pointers afresh, and the restore keeps them as the run has them. The
+fibers' records are checked before anything changes, the services (which can
+fail only where memory for the observer's copies runs out) are restored next,
+and only then do the fibers switch, so a refused restore leaves the run as it
+was.
+
 `ct_native --check-snapshots EVERY[,SPAN]` (headless) takes a snapshot every
 EVERY frames, plays SPAN frames, loads the snapshot through a file's bytes and
 plays them again, failing on the first frame whose game state, picture or

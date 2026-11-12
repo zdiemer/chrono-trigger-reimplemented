@@ -31,7 +31,6 @@ JOINTS = [
      "the callee called as C"),
     ("siblings found in the registry", None, "the sibling called as C"),
     ("time tags that take the machine", r"\bNATIVE_TIME_AS\(", "a tag with no machine"),
-    ("register escapes", r"\bvid_snes_\w+\(|\bau_voices_snes_register\(", "a service call"),
     ("video service calls", r"\bvid_(?!snes_)\w+\(", "inventory, including inline value helpers"),
     ("video calls without host backend", None, "the named service implemented on the host"),
     ("cartridge reads by address", None, "named resource accessors serving the store's bytes"),

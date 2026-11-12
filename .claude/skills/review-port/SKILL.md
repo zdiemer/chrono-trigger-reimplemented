@@ -437,9 +437,9 @@ emulated machine.
     (`(arg[2], arg[0], arg[1], arg[3])`). This is smell 3 moved into the
     interpreter; decode into a named struct.
 25. **Stale provenance.** `re/ram.toml` `source` lines and header declarations
-    naming files or functions that no longer exist. The file half is
-    machine-checked, `portsmell.py stale-provenance`; a named *function* that is
-    gone is still yours.
+    naming files or functions that no longer exist. Machine-checked:
+    `portsmell.py stale-provenance` for files a port's comments cite,
+    `doc_names.py` for the map's and the docs' files and functions.
 26. **Traces as out-parameters, with twin functions.** Machine-checked in its
     named form, `portsmell.py register-out-params`. A public logic function
     that wraps a private one taking `SomethingTrace *` or `bool *x_for_wrapper`

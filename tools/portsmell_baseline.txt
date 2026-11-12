@@ -5,4 +5,3 @@
 # its reason as a `#` comment on its line.
 
 game/menu/epoch.c                            enum-types-nothing       1
-re/ram.toml                                  stale-provenance         20

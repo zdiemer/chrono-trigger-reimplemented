@@ -5,7 +5,7 @@ from . import _early_bosses as early
 
 SAVE = "saves/fantasyanime/ctsave02-future.srm"
 SLOT = 0
-PHASES = ["loaded", "settings", "bridge", "battle", "after"]
+PHASES = ["loaded", "settings", "bridge", "tank", "tank_won"]
 HEADER = """# Guardia Castle escape: Crono and Lucca defeat the Dragon Tank, then regain the field.
 # Save: ctsave02 slot 1 (saves/fantasyanime/ctsave02-future.srm).
 # Route: dragon_tank
@@ -23,6 +23,21 @@ def tank_party(bot, state, rng, inventory):
     return ("attack", max(living, key=state.max_hp) if living else None)
 
 
+def play(run, start=2, seed=1):
+    """The bridge and the Dragon Tank, Crono and Lucca escaping the castle;
+    `start` is the index in PHASES of the first phase to run."""
+    if start <= 2:
+        assert run.exit_to("1c00"), "the castle bridge"
+        run.checkpoint("bridge")
+    if start <= 3:
+        early.approach_battle(run, "LEFT")
+        run.checkpoint("tank")
+    if start <= 4:
+        early.fight(run, seed=seed, party=2, policy=tank_party)
+        assert run.machine.b(0x7F0199) & 4, "the Dragon Tank is destroyed"
+        run.checkpoint("tank_won")
+
+
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
@@ -36,16 +51,7 @@ def main():
         if start <= 1:
             early.fast_settings(run)
             run.checkpoint("settings")
-        if start <= 2:
-            assert run.exit_to("1c00"), "the castle bridge"
-            run.checkpoint("bridge")
-        if start <= 3:
-            early.approach_battle(run, "LEFT")
-            run.checkpoint("battle")
-        if start <= 4:
-            early.fight(run, seed=args.seed, party=2, policy=tank_party)
-            assert run.machine.b(0x7F0199) & 4, "the Dragon Tank is destroyed"
-            run.checkpoint("after")
+        play(run, start, args.seed)
         run.finish("the Dragon Tank destroyed and the field in hand")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())
