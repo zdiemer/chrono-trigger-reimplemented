@@ -36,8 +36,8 @@
  * Stacks switched by a task (S far below the innermost extent's) are counted
  * as unported, since the extent can't be followed there.
  *
- * Refusals are also recorded per entry with the first few machine states, for
- * the gate's refusal check (tools/fallbacks.py --refusals).
+ * Refusals are also recorded per entry with the first few machine states,
+ * for manual diagnosis of hybrid calls that hand back to the original.
  *
  * SHADOW: a covered stretch ends where its comparison is over, however it
  * ended (set aside inside another's included); one still open when the run

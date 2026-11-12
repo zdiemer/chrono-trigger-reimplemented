@@ -45,7 +45,6 @@ add_library(ct_runtime STATIC
   runtime/snes/zst.c
   runtime/port/fiber.c
   runtime/port/native.c
-  runtime/port/scaffold_reads.c
   runtime/platform/snes/backend.c
   runtime/platform/observe.c
   runtime/platform/voices.c
@@ -399,23 +398,8 @@ add_library(ct_game STATIC
 target_include_directories(ct_game PUBLIC game)
 target_link_libraries(ct_game PUBLIC ct_runtime)
 
-# The ports' scaffolding (game/original_effects.h): what they write only because
-# the original does and shadow mode or the original's still-generated code
-# looks. -DCT_ORIGINAL_EFFECTS=OFF builds without it, which is the shape of a
-# native build and is not expected to pass the gate. Either way the game's code
-# is also compiled once without it (ct_game_native_shape), so a port whose
-# logic leans on its scaffolding fails to build, and linked into
-# ct_dev_native_shape and ct_drive_native_shape, which the gate runs in the
-# shipping mode over the movies and the routes (tools/suite.py, "native-shape").
-option(CT_ORIGINAL_EFFECTS "Reproduce the original's effects the gate compares (scaffolding)" ON)
-if(NOT CT_ORIGINAL_EFFECTS)
-  target_compile_definitions(ct_game PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
-endif()
+# The native program and compatibility drivers share these game sources.
 get_target_property(CT_GAME_SOURCES ct_game SOURCES)
-add_library(ct_game_native_shape STATIC ${CT_GAME_SOURCES})
-target_compile_definitions(ct_game_native_shape PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
-target_include_directories(ct_game_native_shape PUBLIC game)
-target_link_libraries(ct_game_native_shape PUBLIC ct_runtime)
 
 # Trace and movie formats and PNG/WAV capture, shared with the oracle harness.
 add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/media.c oracle/src/sram_find.c)
@@ -446,15 +430,11 @@ add_executable(ct_drive ${CT_DRIVE_SOURCES})
 target_include_directories(ct_drive PRIVATE frontend)
 target_link_libraries(ct_drive PRIVATE ct_game ct_vars ct_generated ct_runtime ct_trace)
 
-# The same two with the ports' scaffolding compiled out (ct_game_native_shape):
-# the native build's shape, run by the gate's native-shape check in the
-# shipping mode, where nothing compares bytes and only outcomes are checked.
-add_executable(ct_dev_native_shape ${CT_DEV_SOURCES})
-target_include_directories(ct_dev_native_shape PRIVATE frontend)
-target_link_libraries(ct_dev_native_shape PRIVATE ct_game_native_shape ct_vars_checked ct_generated ct_runtime ct_trace)
+# Retain this route target until the native route audit retires it. Comparison
+# scaffolding is gone, so it links the same game library as ct_drive.
 add_executable(ct_drive_native_shape ${CT_DRIVE_SOURCES})
 target_include_directories(ct_drive_native_shape PRIVATE frontend)
-target_link_libraries(ct_drive_native_shape PRIVATE ct_game_native_shape ct_vars ct_generated ct_runtime ct_trace)
+target_link_libraries(ct_drive_native_shape PRIVATE ct_game ct_vars ct_generated ct_runtime ct_trace)
 
 # CPU conformance runners (test data: tests/cpu/fetch_sst.py, tests/apu/fetch_sst_spc700.py).
 add_executable(sst_runner tests/cpu/sst_runner.c runtime/cpu/cpu65816.c runtime/cpu/cpu_entry.c)
@@ -510,13 +490,12 @@ else()
   file(WRITE ${CT_TIME_RATES} "#include \"port/time_rates.h\"\n#include \"port/retired_time_rates.h\"\n#define RATE(addr, name, cost) { addr, cost },\nconst TimeRate time_rates[] = { CT_RETIRED_TIME_RATES(RATE) };\nconst unsigned time_rate_count = sizeof time_rates / sizeof time_rates[0];\n")
 endif()
 add_library(ct_state_host STATIC runtime/port/vars_ram.c runtime/port/vars_host.c runtime/port/state_host.c runtime/port/rom_host.c ${CT_TIME_RATES})
-target_compile_definitions(ct_state_host PRIVATE CT_VARS_HOST CT_WITHOUT_ORIGINAL_EFFECTS)
+target_compile_definitions(ct_state_host PRIVATE CT_VARS_HOST)
 target_include_directories(ct_state_host PUBLIC game)
 target_link_libraries(ct_state_host PUBLIC ct_platform_native)
 add_executable(native_time_test tests/port/native_time_test.c runtime/port/state_host.c runtime/port/vars_host.c)
 target_include_directories(native_time_test PRIVATE game runtime)
 add_executable(vars_host_test tests/port/vars_host_test.c game/menu/saves.c runtime/port/no_machine.c)
-target_compile_definitions(vars_host_test PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
 target_link_libraries(vars_host_test PRIVATE ct_state_host)
 add_executable(unpack_time_test tests/port/unpack_time_test.c game/data/decompress.c)
 target_link_libraries(unpack_time_test PRIVATE ct_state_host)
@@ -526,7 +505,6 @@ set(CT_NATIVE_GAME_SOURCES ${CT_GAME_SOURCES})
 list(REMOVE_ITEM CT_NATIVE_GAME_SOURCES game/registry.c game/time_tags.c)
 add_executable(ct_native frontend/ct_native.c frontend/route_server.c frontend/audio_replay.c frontend/file_store.c frontend/assets.c frontend/sound_native.c runtime/port/no_machine.c
   runtime/platform/native/render.c ${CT_NATIVE_GAME_SOURCES})
-target_compile_definitions(ct_native PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
 target_include_directories(ct_native PRIVATE frontend)
 target_link_libraries(ct_native PRIVATE ct_state_host ct_platform_native ct_trace)
 add_executable(file_store_test tests/frontend/file_store_test.c)
@@ -578,13 +556,13 @@ target_link_libraries(vars_test PRIVATE ct_vars_checked ct_runtime)
 
 # Field visibility must survive with all comparison scaffolding removed.
 add_executable(event_contract_test tests/port/event_contract_test.c)
-target_link_libraries(event_contract_test PRIVATE ct_game_native_shape ct_vars_checked ct_runtime)
+target_link_libraries(event_contract_test PRIVATE ct_game ct_vars_checked ct_runtime)
 add_executable(scene_contract_test tests/port/scene_contract_test.c)
-target_link_libraries(scene_contract_test PRIVATE ct_game_native_shape ct_vars_checked ct_runtime)
+target_link_libraries(scene_contract_test PRIVATE ct_game ct_vars_checked ct_runtime)
 add_executable(field_test tests/port/field_test.c)
-target_link_libraries(field_test PRIVATE ct_game_native_shape ct_vars_checked ct_runtime)
+target_link_libraries(field_test PRIVATE ct_game ct_vars_checked ct_runtime)
 add_executable(battle_contract_test tests/port/battle_contract_test.c)
-target_link_libraries(battle_contract_test PRIVATE ct_game_native_shape ct_vars_checked ct_runtime)
+target_link_libraries(battle_contract_test PRIVATE ct_game ct_vars_checked ct_runtime)
 
 # Instruction translation (tools/generate, docs/GENERATED.md), with C generated into
 # the build tree for every opcode and context: sst_generated_runner runs it on the

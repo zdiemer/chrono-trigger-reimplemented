@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Read, inspect and diff .cttr per-frame state traces (docs/ORACLE.md).
 
+Development tool for locating divergences against the original; trace
+identity is no longer a product-gate check.
+
     python3 tools/trace.py info  run.cttr
     python3 tools/trace.py peek  run.cttr '$7E:0100' --len 4 --frames 0:600
     python3 tools/trace.py peek  run.cttr 0x2000 --region VRAM

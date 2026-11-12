@@ -19,13 +19,11 @@
 #include "core/program.h"
 
 #include "battle/program.h"
-#include "cpu_io.h"
 #include "field/field.h"
 #include "field/main_loop.h"
 #include "menu/display.h"
 #include "scene/scene.h"
 #include "warp/warp.h"
-#include "original_effects.h"
 #include "platform/input.h"
 #include "platform/timing.h"
 #include "platform/video.h"
@@ -58,24 +56,15 @@ static const VidScreen power_on_screen = {
 /* The controller port's programmable lines, all high: nothing latched. */
 enum { IO_LINES_RELEASED = 0xFF };
 
-/* The multiplier and the divider start from nothing, which only the
- * comparison with the original sees: nothing reads them before setting them. */
-static void clear_arithmetic(GameState *g)
-{
-    hw_set_multiplicand(g, 0);
-    (void)hw_multiply_by(g, 0);
-    hw_set_dividend(g, 0);
-    hw_divide_by(g, 0);
-}
-
 // $FD:C016 (the boot's work, after it sets the stack and the registers' widths)
 void program_boot(GameState *g, Platform *pf)
 {
+    (void)g;
     tm_fast_rom(pf, PF_AT(0xFDC016), true);
     tm_enable_interrupts(pf, PF_AT(0xFDC01A), 0);
     vid_stop_uploads(pf, PF_AT(0xFDC01C));
     vid_enable_line_effects(pf, PF_AT(0xFDC01E), 0);
-    ORIGINAL_EFFECT(clear_arithmetic(g));
+
     tm_reset_timers(pf, PF_AT(0xFDC02A));
     in_set_io_lines(pf, PF_AT(0xFDC034), IO_LINES_RELEASED);
     vid_apply_screen(pf, PF_AT(0xFDC036), &power_on_screen);

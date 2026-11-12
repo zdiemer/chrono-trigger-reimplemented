@@ -1,17 +1,9 @@
 /* Battle: the arithmetic the battle's code shares.
  *
  * The original multiplies and divides small numbers with the CPU's multiplier
- * and divider, through subroutines that take their numbers in direct-page
- * cells and leave the result there, keeping copies of the operands for the
- * interrupt handlers, which do arithmetic of their own and put the operands
- * back (battle/nmi.c). A port computes in C; these return the result, and
- * leave what the original's routine leaves -- the cells, the copies, the
- * multiplier's and divider's state. The cells and the copies are game state,
- * kept plainly: the original's callers multiply and divide what the last
- * multiply or divide left in them, and the interrupt handlers put the copies
- * back; only the hardware's state is scaffolding (game/original_effects.h). A
- * port that ran the routine's work inline in a caller's call to it leaves the
- * same, so the caller's port matches the original's caller. */
+ * and divider. These functions compute in C and retain the operands and
+ * results that callers use as game state. Hardware-only comparison effects
+ * retired with the byte-exact gate. */
 #ifndef CT_GAME_BATTLE_ARITH_H
 #define CT_GAME_BATTLE_ARITH_H
 

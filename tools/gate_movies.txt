@@ -62,7 +62,7 @@ events-jetbike-race  # the race's start and its RAM code
 menus-save-point  # a save point's save
 title-start  # power-on: the title to the load screen, a strict `end`
 field-12kbc-1f6  # the 12,000 B.C. world map's other part
-new-game  # power-on: the trace identity check's movie, and a new game's opening
+new-game  # power-on: a new game's opening
 field  # power-on: the field from a new game, a strict `end`
 menu  # power-on: the menu from a new game, a strict `end`
 

@@ -303,7 +303,7 @@ rest waits, is [PLAN.md](PLAN.md).
     (`$C6:EE31`). Strict mode's own timing reached them; a movie that plays
     them would compare them.
   - Entries that run nested inside another port's stretch and are compared
-    only through it (tools/uncompared_baseline.txt): the field frame's
+    only through it: the field frame's
     continuations (`$C0:00A4`-`$C0:00B7`) and the planet's setup (`$7E:6248`,
     one call, inside the scene's first frame).
   - The scene scripts' interpreter differs from the original in about one
@@ -332,18 +332,6 @@ rest waits, is [PLAN.md](PLAN.md).
   setting (`VidObjConfig`) the service takes, and drop the escape.
 ## Port and review follow-ups
 
-- **Prune the evidence cache.** The shared store, `build/evidence-cache` in
-  the main checkout, gains a set of entries for every ct_dev binary any
-  worktree gates and drops none; keep only the newest few binaries'.
-- **Narrow the evidence cache's key.** A dc-evidence movie's result is keyed
-  on the whole `ct_dev` binary (docs/PORTING.md, "Declarations liveness can't
-  prove"), so any change to the C makes all 84 movies again (about 48
-  minutes). A sound narrower key needs to know what C a movie's runs
-  executed: `ct_dev` would record the registered entries each run calls and
-  the key would take the objects those reach (their symbol references, with
-  `game/registry.c`'s table cut and its time model kept), plus `runtime/`,
-  `dev/` and the generated C whole. Until a run records that, the binary is
-  the narrowest key that can't go stale.
 - **What the data teardown's review left.** `$CE:E326-$CE:E332` writes
   `$030C`/`$0310`/`$0314` absolute indexed by X, within the unpacker's
   uncompared `$0309-$0316` range. Establish that its X and data bank cannot
@@ -352,9 +340,6 @@ rest waits, is [PLAN.md](PLAN.md).
   (REIMPLEMENTATION.md, "The data subsystem's teardown").
 
 - **What the whole-library fixes' review left** (not blocking):
-  - `tools/uncompared_evidence.py`'s `compared()` reads only the first row
-    for a name; aggregate duplicate names when judging the remaining
-    subsystems' isolated comparisons.
   - `dev/fallbacks.c`: a nested or yielded invocation can certify the outer
     one and cancel its open count; count each invocation by its own frame.
   - `ct_dev`: a halt during the comparison tail doesn't set the exit code.
@@ -1420,45 +1405,6 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Generator
 
-- **What the dc-evidence tooling doesn't check yet** (PORTING.md,
-  "Declarations liveness can't prove"; the audit of `tools/v_readers.py`):
-  - a registry entry's `.dont_care` is held only to the trusting solve (the
-    work-outs' `DC_V` among them): hold it to the strict one, with the same
-    notes allowed (and see "Stops and entries don't get the strict solve yet"
-    below);
-  - the library run masks the whole stack page (`$7E:0600-06FF`) where only
-    the bytes the scrambled registers were pushed to need it: mask those;
-  - a bounded table's targets are matched to the analysis's contexts by
-    address alone, not by the widths the dispatch enters them with;
-  - an interrupt handler reads the interrupted code's P from the stack, which
-    neither `tools/v_readers.py` nor the run looks for;
-  - `tools/disasm/high_byte.py` takes a `TDC` to clear A's high byte, which
-    rests on D's high byte being zero there (the battle's direct page
-    `$0000`); following D itself through the program (it is unknown at every
-    vector, and `PHD`/`PLD` only pair within a routine) would make that static
-    too. `ct_dev --index-check` shows it over the library meanwhile.
-  - The enemies' condition dispatches after the first (`$C1:8769`,
-    `$C1:B021`) have no `index_reach`: A's high byte there is whatever the
-    dispatch above them returns with, and 44 of the routines its 128 words
-    reach return with it unknown (`$C1:925D` ... `$C1:AA25`;
-    `tools/v_readers.py`'s `high_byte_findings` lists them). The evidence
-    doesn't need them today; a later note that does will want those routines'
-    returns shown to clear it, or a guard at the dispatch.
-
-- **Stops and entries don't get the strict solve yet.** The don't-care check
-  holds call-outs to liveness that trusts no target set the machine picks at
-  run time (REIMPLEMENTATION.md, "Call-outs into targets the machine picks"), but not a
-  registry entry's set after its return or a stop's. Held to it, 132 would be
-  findings: 108 menu entries (the menus' `JMP (abs)` through RAM, `$C2:0553`,
-  `$C2:1819`, `$C2:1836`, `$C2:8203`, `$C2:828E`, `$C2:EFD0`, in the callers
-  they return to), 15 scene entries and 9 scene stops (the task lists at
-  `$7E:39CF`/`$7E:3998` and `$00F0`'s dispatch after the return). Unlike the
-  call-outs, there the dispatch runs on the game's own state after the port
-  has finished, so the trusting solve is sound for any state the game makes;
-  what it isn't sound for is a port that leaves a task list or pointer the
-  original wouldn't, which shadow mode compares in memory anyway. Deciding
-  whether to fuzz them with the rule (and scrambling the entry's own set at
-  its return, as `--poison-dc` does at call-outs) is the open part.
 - **Code the program writes over itself.** A `[[ramcode]]` section with `over`
   or `patch` has an image per alternative, and liveness reads the patched
   one. A call-out into such a section is checked against that image only; one
@@ -1468,19 +1414,6 @@ rest waits, is [PLAN.md](PLAN.md).
   the last row for an opcode win. Reject duplicates when building the table
   (`game/event/engine.c`).
 
-- **Reads of scaffolding the effects check holds in its baseline**
-  (`tools/effects_baseline.txt`; REIMPLEMENTATION.md, "The tooling pass after Phase 3's
-  first chunks"). Each is a value the native build reads stale unless shown
-  otherwise; answering one deletes its line. What the library's shipping-mode
-  runs catch (`ct_dev --native on --scaffold-reads`), by subsystem:
-  - menus: `menu_scratch` (`$0001`), read by `menu_draw_member_portrait`
-    where its own scaffolding wrote it last.
-  The source check's findings on main are broader (battle 87, field 29,
-  event 3, menu 103, scene 15, core 1, by element, after the battle's and the
-  menus' first chunks; `python3 tools/effects_check.py`): most
-  are the entry wrappers reading the operands the original's callers hand
-  them, which a line with that reason answers, but the `[only]` ones in logic
-  (`python3 tools/effects_check.py | grep only`) are where to look first.
 - **A debt waits a frame at most for a handler taken at its boundary**
   (`runtime/port/native.c`, `DEBT_HANDLER_CLOCKS`): a handler that moves the
   stack and doesn't come back within a frame, but does later, gets the rest of
@@ -2222,14 +2155,6 @@ rest waits, is [PLAN.md](PLAN.md).
   likely meant). Both are game state a native storage would not have: decide
   the ground past the map (the bytes the battle reads there) and the test's
   bit when the gate retires.
-- **`dontcare_check.py` takes a helper's parameters as a cross product.** A
-  call-out's or stop's address passed down through helpers is evaluated over
-  every value every caller passes, so a helper shared by two kinds of caller
-  (the turning and the keep-facing moves) is checked at addresses no call
-  makes, and a site read from a struct through a pointer isn't read at all.
-  Event's movement bridges were reshaped around it (tables of rows, no zero
-  sites); following a table row's index through the callers would let them
-  say it plainly.
 - **Frame waits still made on the machine**: the races `$C0:3B71` and
   `$C0:4181` (`field/frame.c`), the field's waits for the vblank before a
   change of place made at once (the change after `$C0:3B71` is C,
@@ -2386,7 +2311,7 @@ rest waits, is [PLAN.md](PLAN.md).
     variables on the same bytes or give the effect what the dissolve leaves;
   - the fireworks' leftover offset (the last firework's place read as words,
     its Y's high byte the byte past the places) is scaffolding the readers
-    are shown not to read (`tools/effects_baseline.txt`, `scene/sprites.c`);
+    are shown not to read (`scene/sprites.c`);
     a native build keeps the offset's high bytes clear there;
   - the screen scripts' drift (`$D7`, `battle/screen_motion.c`) tests the
     high byte of its amount in `$46`, which the last screen work left there.
@@ -2398,7 +2323,7 @@ rest waits, is [PLAN.md](PLAN.md).
     `screen_shapes.c`), and a drift after one, which no run makes, would
     test what was there before in a native build: their leftovers want
     writing plainly too, or the drift's test its own source
-    (`tools/effects_baseline.txt`, `drift_high_byte`);
+    (`drift_high_byte`);
   - what the endings still hand back to the original in the reference play:
     the program's first script step (`$7E:3749`) and `$7E:37CA`.
 - **What the shipping mode's fallbacks' fifth chunk left** (history/reimplementation-chunks.md
@@ -2533,12 +2458,9 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Scene continuation boundaries
 
-- **Clean the retired scene entries from the uncompared ledger.**
-  Reconcile obsolete scene comparisons, including `scene_race_scale_pictures`
-  and the bitmap routines, with the retirement. Audit the timing exceptions
-  too: `scene_curtain_jump` still describes a zero-access jump whose comparison
-  is gone. Keep any evidence needed by held continuations and native timing;
-  remove stale rows only in the appropriate ledger update.
+- **Audit retired timing exceptions in the whole-library batch.**
+  `scene_curtain_jump` still describes a zero-access jump whose comparison is
+  gone. Preserve evidence needed by held continuations and native timing.
 
 - **Remove orphaned scene wrapper comments and constants.** Deleted entry
   wrappers left their explanatory comments and constants behind, including
@@ -2566,9 +2488,7 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
 
 ## The native program
 
-- **What the field and events' teardown review left.** Remove the three
-  `tools/uncompared_baseline.txt` rows for `field_nmi`, `field_irq` and
-  `field_walk_a_frame`, whose comparisons retired with the field. Update
+- **What the field and events' teardown review left.** Update
   `game/event/entries.c` and `bridge.h`'s comments, which still describe the field
   as gated. Remove the empty control-flow blocks the scaffolding's deletion left
   in `game/field/map.c`.
@@ -2580,10 +2500,8 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
   The held adapters and called machine forms remain until the legacy driver
   gives way to the native program. REIMPLEMENTATION.md lists each caller.
 
-- **What the batched library ledger's review left.**
-  `tools/uncompared_evidence.py` counts a matched trial as complete even when it
-  is an intentional early stop: require an explicit count of full returns.
-  Separate the dispatchers' ordinary and interrupted timing paths before they are
+- **What the batched library ledger's review left.** Separate the dispatchers'
+  ordinary and interrupted timing paths before they are
   recalibrated again.
 - **The field's arbitrary-state validation.** Define coherent object/script
   invariants for whole-field property tests. The earlier loose-RAM loop fuzzing
@@ -2591,8 +2509,7 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
   its three shared failures and interrupted comparisons are recorded in
   history/field-teardown.md. The passing coherent-state recipes are not proof
   for arbitrary RAM. Preserve the empty dispatch boundary and interrupt poll
-  while changing the driver. The old `open C0:00BD` and `open C0:18A7` ledger
-  allowances await the batched library update; do not prune them on the sample.
+  while changing the driver.
 - **What the overworld teardown's review left.** `the_cartridges_overworld`
   (`dev/fallbacks.c`) says the menus' helpers the overworld calls are left out,
   which doesn't hold for helpers a handler calls directly (their caller's frame
@@ -2635,11 +2552,6 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
 - **What the map scroll's review left.** `menu_run_sprite_script` underestimates
   the frames that only run a sprite script inline. Its older re-recorded
   outcome lines no longer say whether a protected match was lost; say so.
-
-- **The `dc-evidence:` notes' cited counts are stale.** The notes name how many
-  calls their `ct_fuzz --poison-dc` run made, and the current runs make more
-  (`game/battle/main_loop.c`'s `$C1:856D` note cites 285; the evidence run made
-  697). `dc_evidence.py` still passes; refresh the counts from a run.
 
 - **What the scene frame wait's review left.** `pf_snes_vblank_wait` names
   `$7E:31B0`, not the alternate entry `$7E:31B7`. Establish whether any
@@ -2884,11 +2796,6 @@ list, by kind, is what `game/` still asks of one.
   `equipment_is_the_games` and its comment still turn them away on the other
   entries: make the two agree. `menu_describe_item` with a stray item wasn't
   audited for an index past its table.
-- **What the sound teardown's review left** (none blocking): the fallback
-  measure now skips `$C7` code where the cartridge's driver plays
-  (`dev/fallbacks.c`); nothing tests that the skip keeps the interrupt and
-  callee counts of the code around it, or that `$C7` run under the C host is
-  still counted. Add a focused test.
 - **What the menu joints' review left** (rated mostly): `script_bridge.c`
   (around the song kept and its neighbour) still routes pure C operations
   through emulated return frames; call their game-state operations directly
@@ -3076,11 +2983,6 @@ list, by kind, is what `game/` still asks of one.
   Overworld startup's direct first frame also needs a fuzz harness that supplies
   interrupts: all 200 existing setup states now exceed its comparison budget,
   although seven targeted movie calls compare cleanly.
-- **Evidence worker count is not a process cap.** `tools/dc_evidence.py`
-  can start four processes per movie, so `suite.py -j 2 --evidence` can run
-  eight. Share one process budget across variants and movie workers; a
-  worker count alone does not enforce the repository's two-process limit.
-
 - **The machine's memory and registers.** Remove the wrappers' bus accesses,
   register/page/bank/stack state and guard peeks with the legacy driver.
   `ct_native` uses host memory but still backs accessors with the original
@@ -3166,10 +3068,10 @@ list, by kind, is what `game/` still asks of one.
 
 Guards that turn away a call real play makes. On the machine the original
 runs the call, so shadow mode and the shipping mode pass; the hand ports
-alone (`strict_check.py`) and `ct_native` stop there. Each is a gap line in
-`tools/refusal_allowlist.txt`, which comes out when the port takes the state.
-The standard library has no allowed refusal. These hand-run findings still
-need diagnosis; they are not allowlist entries or passing contract evidence.
+alone (`strict_check.py`) and `ct_native` stop there. These hand-run findings
+still need diagnosis; they are not passing contract evidence. Retired guards
+are assertions, and phase B carries their diagnostics into a checking native
+build before retiring the emulator-build checks.
 
 - **600 A.D. Guardia Forest's object searches.** In
   `events-cronos-trial-long`, `field_object_in_the_way` (`C05B95`, 320
@@ -3466,53 +3368,12 @@ persistence seams; game-side representation changes still need explicit work.
   a sibling with no call-outs is item 123. The check needs to know which
   calls are a refusal's (a helper's body, or a branch on the guard) and which
   siblings call out.
-- **The fallback measure's edges** (REIMPLEMENTATION.md, "The fallback measure"):
-  - it follows extents by the stack, so a task switch to a stack within
-    `STACK_SPAN` of the one it left (`dev/fallbacks.c`) keeps the extent it
-    was in, and a routine reached by a jump rather than a call is filed under
-    its caller;
-  - an interrupt whose handler moves to a stack of its own (the menus'
-    vblank handler) keeps the extents under it until S is back above where
-    it was taken (`handler_away`); a handler that never comes back leaves
-    them under the code that follows, which then counts as code with no
-    call on record. None in the library does, and the runtime's rule for a
-    call-out under such a handler, and for a port's own stretch under one,
-    is the same (`Active.handler_away`);
-  - a comparison the runtime gives up under such a handler keeps its
-    stretch, uncompared, until its routine returns or reaches where the port
-    stopped (`abandon_under_the_handler`), and only where the port's run had
-    ended when it was given up; a port that calls out after its stretch's
-    vblank would hide the callee, which the shipping mode's ratchet
-    (`tools/fallback_shipping_baseline.txt`) is there to catch. The measure's reasons in
-    tools/fallback_baseline.txt for `C2:----`, `7E:----` and the other lines
-    the sample lowered still hold the movies outside the sample at the old
-    measure's counts until the library's batched run takes them;
-  - an idle entry's pass that leaves its wait is taken back only where it
-    ran nothing but the loop and a port takes over at the exit, or the entry
-    returned within its entry's bytes (`idle_return_span`, set on the scene
-    scripts' wait for the music); the other idle entries' leaving
-    passes (an exit that goes on into the routine) stay counted;
-  - the Beyond Time route's replays from a base grew from 30,056 frames to
-    44,660 with the battle frame work's remainders' second chunk
-    (REIMPLEMENTATION.md, that chunk's "Measured"), which the route measure no longer counts
-    (it counts the frames kept) but which still cost the route's run its
-    time: check whether the new ending ports (`$C0:75A0`, `$C0:6E27`,
-    `$C0:0AFF`) leave estimated time owed at frame ends, which thins out the
-    bases the search replays from (the likely, unconfirmed cause);
-  - the shipping mode's count is ratcheted only loosely, as a subset with
-    slack: it moves with every port's timing (99 of 1068 keys between the
-    default and the native-shape build), and its baseline was seeded over the
-    gate's sample and the long routes, so the library's batched run may add
-    lines for the movies outside it. A shipping-mode run that played the movies at the original's timing
-    (`--port-timing oracle`, where it fits) would be the closer measure of
-    what a player runs.
 - **The movie suite's wall time is the longest movie's.** Measure the
   current sample's critical path before optimizing the gate. Remaining ideas:
   split long movies at reference-state checkpoints and account for in-flight
   comparisons; share a boot-prefix snapshot; avoid copying irrelevant sound
   memory; select movies by changed-code reach and reuse verified evidence.
-  The sampled gate and evidence cache already reduce repeated work. Their
-  keys and process budget have separate follow-ups; do not require a whole
+  The sampled gate already reduces repeated work; do not require a whole
   library run on every branch (PORTING.md, "What shadow mode costs").
 
 - **The burndown ranks by bytes, and can't say a run is blocked.** Show

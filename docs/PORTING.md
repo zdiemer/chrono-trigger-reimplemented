@@ -619,98 +619,16 @@ new parts of the game, before relaxing a routine further.
 
 ## Scaffolding
 
-Some of what a port does is there only because the original does it and
-something that isn't the game still looks: a scratch cell the original writes
-and nothing reads again, which shadow mode compares; a register or flag the
-original leaves and liveness can't show dead, so no don't-care can drop it; a
-cell or register the original's still-generated code expects filled. That is
-scaffolding. It stands while the gate is byte-exact and comes down when the
-subsystem retires the gate (PLAN.md, "After the byte-exact gate").
-Until then it is written apart from the logic, marked, and never read back by
-it:
+Every subsystem has retired its byte-exact comparison. The remaining
+comparison-only writes, `ORIGINAL_EFFECT`, the build switch and scaffold-read
+instrumentation are gone. Working state belongs in C values and game state;
+do not recreate scratch writes for the original's register or memory image.
+The calibrated timing charges remain: they pace native play.
 
-```c
-uint8_t value = draw_random(g);
-ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, value));   /* the original keeps it in a scratch cell */
-set_variable_byte(g, v, value);
-```
-
-- **One mechanism.** `ORIGINAL_EFFECT(expr)` (`game/original_effects.h`)
-  evaluates `expr` in the default build. With `CT_WITHOUT_ORIGINAL_EFFECTS`
-  defined it compiles the expression and evaluates nothing: that is the
-  native build's shape. `ct_game_native_shape` compiles every port that way
-  in every build, CI included, so logic that leans on its scaffolding stops
-  building; `-DCT_ORIGINAL_EFFECTS=OFF` builds the whole tree that way, which
-  is not expected to pass the gate (shadow mode then sees exactly what was
-  left out). Clang warns about an assignment in an unevaluated context, so
-  what goes inside is a call.
-- **Evidence first.** A write is scaffolding when nothing but the command
-  that made it, or shadow mode, reads it: establish that over the whole movie
-  library (`ct_dev --event-reads` is event's instrument; history/reimplementation-phase3a.md, "The event
-  language") and by reading the listing. A value some other code reads for a
-  reason has a meaning: name it in `re/ram.toml` and keep it in the logic. A
-  reader that reads it without a reason (an uninitialized variable elsewhere)
-  goes in docs/TODO.md: the native build has to decide it.
-- **Final values, once.** The logic keeps its working state in locals and
-  writes each cell the original leaves once, with the value it ends with.
-  Reading a scratch cell back as working state is memory used as a register.
-- **Where it is static, it is a table of its own.** What a command leaves
-  the same way every time (event's parse position in Y, the operand it keeps)
-  goes in a table parallel to the language's, by opcode (`event/leaves.c`),
-  which the build without the original's effects leaves out; the engine and
-  the entries reproduce it around the operation, which never mentions it. It
-  is never a column of the language's rows: those say what a command is.
-- **Derived where it can be, beside the wrappers.** A register or flag the
-  original leaves is worked out after the operation, from its parameters, the
-  state before (noted first) and after: event's by opcode, in the same table
-  (`event/leaves.c`, `note` and `derive`), the field's routines' in
-  `field/leaves.c`. The logic never holds the record it goes into, nor the
-  command's offset. What only the path taken knows (how a move's step
-  started) is one marked call on that path, through a function of the
-  scaffolding's that reads its own record; `event/leaves.h` lists them and
-  says why each can't be derived.
-- **A working cell is a local.** A cell the original keeps a value in across
-  its own calls and reads back itself (a saved position, a count) is a local
-  in the port, written to the cell once, marked, where the original writes it.
-- **Registers a callee doesn't read are declared, not set.** A call-out
-  through a service takes `PF_CALL_DC(site, target, set)`, which the
-  don't-care check verifies like `m_jsr_dc`; what the callee does read, or
-  hands back to what reads it, is set in one helper that names the reader.
-- **A sibling is called as C.** A port that calls another port of its
-  subsystem calls its function (`event_call_bridge` for a machine-shaped one),
-  never its ROM address through an emulated `JSR`.
-- **Flags from their operands.** A V or carry the original's callers can see
-  is derived where it is handed back, from the operands and the result
-  (`field_add_overflows16(a, b)`), not computed in the logic as an ALU
-  would.
-- **Counted.** `tools/portstyle.py` reports each subsystem's and file's
-  `ORIGINAL_EFFECT` uses, and the identifiers named after an address, beside
-  its other two numbers.
-- **Checked never read back.** `tools/effects_check.py` finds, in the source,
-  every read by the logic of bytes some port writes only as scaffolding
-  (inside `ORIGINAL_EFFECT`, `#if ORIGINAL_EFFECTS` code, or a helper they
-  call), and `ct_dev --native on --scaffold-reads` catches the same in a
-  running game, in order: a port reading a byte whose latest write was
-  scaffolding, which the native build would read stale. The gate runs both,
-  the second over the vblank check's shipping-mode runs, as a ratchet on
-  `tools/effects_baseline.txt`. A new finding is answered before it merges:
-  the write is the game's, so make it plain; or the read takes a value
-  something else sets (the original's caller, before every call), and its
-  line goes in the baseline with the reason after a `#`. `python3
-  tools/effects_check.py --new` lists what the baseline doesn't have
-  (REIMPLEMENTATION.md, "The tooling pass after Phase 3's first chunks").
-
-- **Run, in the native shape.** `ct_dev_native_shape` and
-  `ct_drive_native_shape` are the ports with their scaffolding compiled out,
-  and the gate runs them over the movies and routes in the shipping mode
-  (tools/suite.py's `native-shape` check; REIMPLEMENTATION.md, "The fallback
-  measure"). What the original's still-generated code reads of scaffolding
-  is listed by `ct_dev --native on
-  --scaffold-reads original` and `tools/effects_check.py --originals`, with
-  the source of each write: a cell there is one the native build needs the
-  reader ported or the write made plain for, and it is what a failure of the
-  native shape is traced through. A failure the gate lets stand is a line in
-  `tools/native_shape_exceptions.txt` with its trace.
+`ct_native` already ran without those writes. The gate checks its movies and
+recorded outcomes, and temporarily retains native-shape routes until the native
+route audit finishes (PLAN.md, phase B). The previous scaffolding mechanism is
+preserved in history/gate-comparisons.md.
 
 ## A port that spans frames
 
@@ -943,10 +861,8 @@ can distinguish a pending worker from a pause or another wait. These skipped
 trials still provide no comparison evidence. The effect graphics loader needs
 both its frame and upload counters notified at the same wait: its
 `notifications` recipe compares all six effects and both upload chunk sizes.
-After the unpacker's teardown made all 102 library calls cross interrupts,
-`uncompared_evidence.py` supplies two seeds of 1,024 complete comparisons
-instead, requiring zero skips as well as zero mismatches. The sampled gate
-runs them for the Beyond Time ending; `--evidence` always runs them.
+The loader's `notifications` recipe remains available for manual diagnosis
+with `ct_fuzz`; its isolated comparison replay is no longer a gate check.
 
 `--compare-entry BBAAAA` compares a reviewed original alias against the
 named routine's C implementation. It retains that routine's complete guard,
@@ -1045,194 +961,14 @@ gives it streams made for it.)
 
 ### Declarations liveness can't prove
 
-`tools/dontcare_check.py` checks a call-out's don't-care set twice: against
-liveness as the analysis follows the game, and against liveness that trusts no
-target set the machine decides at run time. A callee that reaches a transfer
-whose targets are read from work RAM (a jump table or a pointer there, a call
-whose operand the program writes) or come from data (a `derive` hint) has its
-targets followed as they were argued for the game's own data, and a port that
-stores the target itself, as the scene interpreter stores a script's routine
-in `$00F0` before calling `$7E:37F3`, can send it anywhere; so can the fuzzer.
-The second solve keeps everything live at such a transfer. A set only the
-first solve supports is a finding: pass what may be read (usually the port
-already has the original's value there, as the scene's calls did), or, where
-the declaration is right and only the analysis can't show it, fuzz the
-call-out with its declared registers scrambled and note the run beside it.
-
-`ct_fuzz --poison-dc` scrambles, at each call-out the port makes with a
-don't-care set, the registers and flags the set names, each to a value other
-than the port's, so a callee that reads one runs on something other than the
-original's value and the state mismatches (`--poison-site BBAAAA` does it at
-the call-outs from one site only, to tell which declaration a mismatch is in).
-Without it a port that happens to pass the original's value hides a wrong
-declaration: the scene's call to `$7E:37F3` declared Y and V dead, passed the
-original's, and matched on every state until they were scrambled (2 of 1390
-states then read them, through routines random scripts named). The callee runs
-twice from the same machine, first with the port's values on a copy, and what
-it left alone is the port's again afterwards, as shadow mode keeps it; the run
-reports how many call-outs it scrambled in the states it compared.
-
-The note goes in the comment block just above the statement that makes the
-declaration, or on its lines, in exactly this form:
-
-```c
-/* dc-evidence: ct_fuzz --poison-dc ROUTINE[:VARIANT], seed S: N states,
-   M call-outs scrambled, 0 mismatched */
-m_jsl_dc(s, site, target, set);
-```
-
-with the run's routine, seed and counts in place of the capitals. `:VARIANT`
-names a variant of `tools/fuzz_routines.toml`, run with that
-entry's arguments, and `--poison-site BBAAAA` may stand for `--poison-dc`. The
-check reads the note: the routine must be listed there and be a registered
-entry that reaches the declaration; the run must have compared states,
-scrambled at least 100 call-outs (a run whose states mostly stop before the
-call, a callee past the budget, says little: narrow the states until they
-reach it) and mismatched none. A note on a declaration liveness proves without
-one is a finding too. `grep -rn "dc-evidence:" game/` lists every declaration
-that rests on fuzzing rather than on the analysis.
-
-Fuzzing can't settle a declaration whose callee runs for frames: a call-out to
-a routine that waits on the next frame, again and again, runs past any budget
-from every state. Where the one register such a call leaves unproven is the
-overflow flag, the evidence is instead the flag followed as far as the
-dispatch can reach, and the whole library run with the flag inverted at each
-site of the declaration:
-
-```c
-/* dc-evidence: tools/v_readers.py BB:AAAA: V dead, its tables' indexes at
-   most $FE (what that rests on); ct_dev --poison-set V at each site over the
-   library, calls with V inverted: BBAAAA N, BBAAAA N; 0 differing[; a site
-   under 100 rests on the static result] */
-```
-
-`tools/v_readers.py` solves liveness as strictly as the check does, but
-follows each jump table the strict solve gives up on (its targets derived from
-data) that carries an `index_reach` hint in `re/hints.toml` to every word its
-dispatch can index, whatever the data picks. The hint is argued from the
-dispatch, and the tool checks each part against the analysis (and
-`tests/test_v_readers.py` against the ROM): `ASL A` with an 8-bit A, `TAX`,
-`JSR` or `JMP (abs,X)`, nothing jumping past the `ASL`, 128 words for a doubled
-byte, every word code the analysis traced, and A's high byte, which `TAX`
-carries into X, known clear at the `ASL` (`tools/disasm/high_byte.py` follows
-it through every path and call the analysis traced: a `TDC` clears it on the
-battle's direct page `$0000`, which the note's parenthesis says it rests on,
-and a 16-bit load or transfer, an `XBA` or a callee that returns with it
-unknown make it unknown). A hint that fails any of these is a finding, and the
-tool lists why. `ct_dev --index-check BBAAAA` (on the interpreter alone,
-`--native off --generated off`) also records X at each dispatch over the library,
-which must never pass `$FE`. The tool lists what reads V in the code the
-callee reaches: a `BVS` or `BVC`, or a `PHP` whose byte is taken back other
-than by `PLP` (liveness follows where it goes). `ct_dev --poison-site BBAAAA`
-(with `--native on`) scrambles, at each call-out made from that site, what its
-don't-care set names, as `ct_fuzz --poison-dc` does, and `--poison-set V`
-narrows that to the flag; it counts, per site, the calls where V was inverted.
-The run is every movie in the shipping mode with and without it, each trace,
-the picture's hash included, the same outside the stack's page
-(`$7E:0600-06FF`: a register pushed and pulled again lies there until
-something overwrites it, which is all a scrambled one leaves where nothing
-reads it).
-
-The check runs `tools/v_readers.py`'s solve itself: the note must name the
-call's target and have V dead into it, and every bounded dispatch must pass
-the checks above; the call's own site must be among the sites the note counts,
-V in the set and no trace differing; and the call's own site must have had V
-inverted at least 100 times. A declaration made at several sites (a helper's
-parameter) counts them all, and one the library reaches fewer than 100 times
-rests on the static result alone: the note says so ("a site under 100 rests on
-the static result"), and then some other site of the note must have made 100.
-It speaks for V alone: any other register the strict solve leaves unproven
-still needs a fuzz note. `python3 tools/dc_evidence.py --ct-dev
-build/main/ct_dev` (or the suite with `--evidence`) makes both runs and the
-index check again, over every site the notes name and every bounded dispatch,
-prints each site's cited count beside the run's, and exits 1 on a differing
-trace, an index past `$FE`, a bounded dispatch the library never ran
-(unexercised), or a site under 100 its note doesn't rest on the static result.
-**Whoever merges a change that touches `game/battle/`, `runtime/port/`, an
-`index_reach` hint or a dc-evidence note runs `tools/suite.py --evidence`
-first**: the notes' counts are the library's, and a change there can move them.
-
-Those runs are most of the `--evidence` gate's time (four runs of each of the
-library's 84 movies, the index check's on the interpreter), so a movie whose
-runs all passed keeps its counts in one store every worktree of the checkout
-shares, `build/evidence-cache/dc/<key>.json` in the main checkout
-(`tools/evidence_cache.py`), and the next run anywhere takes them from there
-when nothing they depend on has changed. The key is the SHA-256 of:
-`ct_dev`'s bytes, the ROM's, the movie's text with CRLF made LF (a save the
-movie starts from is in it, by the CRC `ct_dev` checks), its frame count, each
-run's options (the sites, entries and dispatches it poisons or checks), and the
-syntax trees of `tools/dc_evidence.py` and `tools/trace.py`, which judge the
-runs, with their docstrings and comments left out. Nothing in it names a path,
-so a store shared between worktrees is as sound as one per build directory,
-and it is what lets a worktree's first gate, or main's after merging a branch
-whose binary has already passed, take the results instead of making all 84
-movies again (about 48 minutes at `-j 1`). The binary stands for the C of
-`game/`, `runtime/` and `dev/`, the generated C and its generator, the build's
-options and the compiler at once: `ct_dev` reads no environment variable and
-no file its command line doesn't name, and a MinGW relink of the same objects
-differs from the last only in the executable's link time and checksum, which
-are zeroed before hashing, so a merge that touches only tools or docs keeps
-its binary and pays a few seconds for the stage, while one that rebuilds
-`ct_dev` differently makes everything again. The key is the whole binary, not
-the entries a declaration names, because a movie's runs poison every site and
-entry at once and compare its whole trace in the shipping mode: the result
-depends on every routine the movie plays, the time model in `game/registry.c`
-included, and nothing records which C a run executed, so a narrower key could
-only guess (docs/TODO.md, "Narrow the evidence cache's key"). A result with a failed run, a
-differing trace or an index past `$FE` is never stored, so it is made again
-every time; the counts are summed over the library and judged against the
-notes afresh on every run, cached or not, so a note's edited count is still
-checked. `tools/uncompared_evidence.py`'s isolated comparisons keep their
-verdicts the same way (`build/evidence-cache/uncompared/` in the same shared
-store, keyed on the binary, ROM, movie, frames, the case's options and the
-tool's syntax tree). `--no-cache` on either
-tool, `--no-evidence-cache` on the suite or `CT_EVIDENCE_CACHE=off` makes every
-run again (and still stores what passes). When the main checkout is read-only,
-`CT_EVIDENCE_CACHE_DIR` selects a writable store; the tools use their `dc/`
-and `uncompared/` subdirectories there, with the same keys and checks.
-The unreached ledger's fuzz trials
-(`tools/unreached_fuzz.py`) aren't cached: they take half a minute, and their
-game states already are, keyed on the binary that made them.
-The effect worked out for an enemy's action hands the action's showing
-(`$C1:BFA4`) and the battle's step (`$C1:0003`) an overflow flag they only
-save and restore across their frame waits (history/reimplementation-chunks.md, "Phase 3, battle chunk 2: an effect worked out"), which is
-the case it was made for.
-
-The third form is an entry's own carry after it returns, where liveness
-follows it out through the original's callers to a reader whose result
-nothing then acts on. Fuzzing compares only up to the entry's return, so it
-can't show that; the library can. The note sits in the comment block just
-above the entry in `game/registry.c`, beside the reader named:
-
-```c
-/* ...the reader, and why nothing acts on what it reads...
- * dc-evidence: ct_dev --poison-return BBAAAA --poison-set C over the library:
- * N returns (B to a bridge), C inverted M; 0 differing */
-```
-
-`ct_dev --poison-return BBAAAA` (with `--native on`) scrambles, wherever the
-port registered there returns to the original's code in the shipping mode, or
-to a battle bridge that ran it as C in place of a call and goes on with its
-registers (a sibling, `battle/bridge.c`), the registers its entry declares
-don't-care (only those `--poison-set` names), and prints how many returns it
-made, how many of them were to a bridge, and how many had the carry
-inverted. A return to a bridge is counted apart because the bridge may set
-the registers again at once (the battle's step dispatch does, `steps.c`), so
-it tests less than a return to the original's code; the note says how many of
-its returns were such. The check takes the note where
-liveness has the carry alone read after the entry returns, the entry named,
-C in the set, no trace differing and at least 100 returns inverted;
-`tools/dc_evidence.py` makes the run again beside the other two, and compares
-its trace with the unscrambled one's. The menu's frame (`$C1:1153`) was the
-case: its carry runs out through the frame step into a battle message's frame
-waits, and the first multiply of the party's statuses cleared after the
-message takes it into a product's high word the next pass clears
-(history/reimplementation-chunks.md, "Phase 3, battle: the player choosing").
-Since the menu's turn is C, the frame's returns are all to bridges (its note
-says so), and the
-frame waits that the turn's carry leaves through (`$CD:3E75`, `$CD:3E3B`)
-carry notes of their own (history/reimplementation-chunks.md "Phase 4a, the shipping
-mode's fallbacks, chunk 5").
+`tools/dontcare_check.py` remains an optional development diagnostic, not a
+gate check. Its C parser is also used by the generator and unreached audit.
+When tracing a machine calling-convention problem, liveness and
+`tools/v_readers.py` can identify registers the original's callers read;
+`ct_fuzz --poison-dc` can probe declarations at call-outs. Existing
+`dc-evidence:` comments record historical evidence, with their grammar still
+understood by the manual diagnostic. The automated replay and evidence cache
+retired in phase A; the former procedures are in history/gate-comparisons.md.
 
 ## Status
 

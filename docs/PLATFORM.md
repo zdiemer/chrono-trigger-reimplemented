@@ -2323,10 +2323,10 @@ something reads them), and the port goes on at the first such point after a
 handler has run, with the handler's work taken from the original, or where
 the original leaves the loop. A stretch a handler fell in is counted
 interrupted, as any is; an entry the original reaches in the passes (the
-pause's, on every pass) is compared on its own, nested, and the fallback
-measure counts it as the port's. `tools/uncompared.py`, which the suite runs,
-fails on an entry past half its calls uncompared that
-`tools/uncompared_baseline.txt` doesn't list with its reason.
+pause's, on every pass) is compared on its own, nested. These are development
+diagnostics: the fallback and uncompared-call gate checks retired with the
+subsystem comparisons (REIMPLEMENTATION.md, "The gate after the comparisons,
+phase A").
 Outside the runtime the original's loop runs in place, and `ct_fuzz
 --stop-at-call` with the loop's head ends a run there. `native_wait_call` is
 the same for a call of a routine that only waits (the battle's wait for a

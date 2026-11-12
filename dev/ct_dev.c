@@ -11,7 +11,7 @@
  *          [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] [--vid-check-from N]
  *          [--px-check [out.txt]] [--px-check-services] [--spc-coverage out.txt] [--dsp-log out.txt] [--timing-report]
  *          [--page-report] [--event-reads out.txt] [--mixer dsp|native|check]
- *          [--scaffold-reads [original]] [--fallbacks out.txt] [--census out.txt]
+ *          [--fallbacks out.txt] [--census out.txt]
  *          [--as-port BBAAAA[,BBAAAA...]] [--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC]
  *          [--index-check BBAAAA]... [--asset-reads out.txt] [--assets pack] [--locations]
  *          [--state-trace out.cttr]
@@ -101,15 +101,6 @@
  * --shadow-details N describes up to N mismatches in the native report, and
  * apart from them up to N notes (abandoned comparisons, timing), mismatches
  * first (default 16 each, at most 256).
- * --scaffold-reads (with --native on) prints a `scaffold read:` line for each
- * work RAM byte a port read whose latest write was scaffolding, a port's inside
- * ORIGINAL_EFFECT: what the native build would read stale (runtime/port/
- * scaffold_reads.h, tools/effects_check.py --runs). --scaffold-reads original
- * also prints a `scaffold read by the original:` line for each read the
- * original's code made of such a byte, by the instruction: what the
- * still-generated code reads of the scaffolding, which is where a failure of
- * the native-shape build is traced (not with --event-reads, whose observer it
- * takes).
  * --fallbacks out.txt (with --native on or shadow) counts every instruction
  * the original's code executes in place of hand ports -- generated or
  * interpreted -- by address and why: a call every hand entry refused, what a
@@ -117,7 +108,7 @@
  * port at all; and records each refusal with its first few machine states
  * (dev/fallbacks.h). In shadow mode the original runs everything and what the
  * ports stand for isn't counted, so a movie measures its own play, the same
- * whatever the ports' timing (the gate's ratchet); in the shipping mode it
+ * whatever the ports' timing; in the shipping mode it
  * measures where the run went. tools/fallbacks.py reads the file.
  * --finish-fallbacks N (shadow only, 1-120) freezes those counts and the saved
  * end state at the movie cutoff, then allows up to N input-free frames for
@@ -139,8 +130,7 @@
  * read a byte the catalogue doesn't hold prints an `asset outside the
  * catalogue` line (dev/asset_report.h), and tools/suite.py fails it.
  * Every run also prints a `halted:` line if the machine ended stopped (STP, or
- * without the interpreter at an instruction nothing runs), which the gate's
- * native-shape check fails on.
+ * without the interpreter at an instruction nothing runs).
  * --as-port BBAAAA[,...] runs each of those routines of the original as one
  * hand port would run: all at once with time stopped, its time owed after
  * (dev/as_port.h). For trying what the shipping mode does with a port of a
@@ -161,7 +151,7 @@
  * and prints the largest and how often it was past $FE: the check of a jump
  * table's `index_reach` hint (re/hints.toml). Both are the evidence for a
  * declaration liveness can't prove (docs/PORTING.md, "Declarations liveness
- * can't prove"; tools/dc_evidence.py runs them).
+ * can't prove").
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -184,7 +174,6 @@
 #include "sram_find.h"
 #include "platform/audio.h"
 #include "port/machine.h"
-#include "port/scaffold_reads.h"
 #include "port/vars_pages.h"
 #include "snes/render.h"
 #include "outcome_picture.h"
@@ -206,7 +195,6 @@ static EventReads *event_reads;
 static Misses *misses;
 static Fallbacks *fallbacks;
 static Census *census;
-static bool scaffold_reads_original;   /* --scaffold-reads original */
 static VidCheck *vid_check;
 static PxCheck *px_check;
 
@@ -350,8 +338,6 @@ static void on_insn(void *ctx, uint32_t pc, uint8_t p, bool e)
         fallbacks_note(fallbacks, pc, p, e);
     if (census)
         census_note(census, pc);
-    if (scaffold_reads_original)
-        scaffold_reads_note_pc(pc);
     bool m = e || (p & CPU_FLAG_M), x = e || (p & CPU_FLAG_X);
     cov->insns++;
     if ((pc >> 16 & 0xFE) == 0x7E || (!(pc & 0x400000) && (pc & 0xFFFF) < 0x8000))
@@ -594,7 +580,7 @@ int main(int argc, char **argv)
     int shadow_details = -1;
     int finish_fallbacks = 0;
     PortTiming port_timing = PORT_TIMING_ESTIMATE;
-    bool timing_report = false, page_report = false, port_horizon_interrupts = false, scaffold_reads = false;
+    bool timing_report = false, page_report = false, port_horizon_interrupts = false;
     bool locations = false, outcomes = false;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
@@ -616,14 +602,6 @@ int main(int argc, char **argv)
         }
         if (!strcmp(a, "--insn-stats")) {
             insn_stats = true;
-            continue;
-        }
-        if (!strcmp(a, "--scaffold-reads")) {
-            scaffold_reads = true;
-            if (v && !strcmp(v, "original")) {
-                scaffold_reads_original = true;
-                i++;
-            }
             continue;
         }
         if (!strcmp(a, "--vid-check") && (!v || v[0] == '-')) {
@@ -761,7 +739,7 @@ int main(int argc, char **argv)
                         "[--timing-report] [--page-report] [--event-reads out.txt] "
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
                         "[--mixer dsp|native|check] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
-                        "[--vid-check-from N] [--px-check [out.txt]] [--px-check-services] [--scaffold-reads [original]] [--fallbacks out.txt] [--finish-fallbacks N] [--census out.txt] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
+                        "[--vid-check-from N] [--px-check [out.txt]] [--px-check-services] [--fallbacks out.txt] [--finish-fallbacks N] [--census out.txt] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
                         "[--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC] [--index-check BBAAAA]... "
                         "[--asset-reads out.txt] [--assets pack] [--locations] [--outcomes] [--state-trace out.cttr]\n");
         return 2;
@@ -942,7 +920,7 @@ int main(int argc, char **argv)
     if (nindex_checks && (native_mode != NATIVE_OFF || use_generated))
         fprintf(stderr, "warning: --index-check sees only what the interpreter runs; use --native off --generated off\n");
     if (coverage_path || calls_path || insn_stats || io_log_path || misses_path || event_reads_path || nindex_checks ||
-        fallbacks_path || census_path || scaffold_reads_original) {
+        fallbacks_path || census_path) {
         snes.cpu.on_insn = on_insn;
         snes.cpu.on_insn_ctx = &cov;
     }
@@ -989,15 +967,7 @@ int main(int argc, char **argv)
         }
         native_return_poison = poison_return;
     }
-    if (scaffold_reads) {
-        if (native_mode != NATIVE_ON) {
-            fprintf(stderr, "--scaffold-reads needs --native on (shadow mode runs ports on a copy)\n");
-            return 2;
-        }
-        scaffold_reads_start(&snes);
-        if (scaffold_reads_original)
-            scaffold_reads_watch_original();
-    }
+
     static const ct_region_desc state_regions[] = {
         { CT_REGION_WRAM, "WRAM", SNES_WRAM_SIZE },
         { CT_REGION_SRAM, "SRAM", SNES_SRAM_SIZE },
@@ -1160,10 +1130,6 @@ int main(int argc, char **argv)
     asset_report(stderr);
     if (asset_reads_path && asset_reads_write(asset_reads_path) != 0)
         rc = 1;
-    if (scaffold_reads)
-        scaffold_reads_report(stderr);
-    if (scaffold_reads_original)
-        scaffold_reads_original_report(stderr);
     for (int i = 0; i < npoison_sites; i++)
         fprintf(stderr, "poison-site: %06X calls %lu, V inverted %lu\n", (unsigned)poison_sites[i].site,
                 poison_sites[i].calls, poison_sites[i].v_inverted);

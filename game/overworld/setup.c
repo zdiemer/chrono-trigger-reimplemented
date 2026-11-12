@@ -30,7 +30,6 @@
 #include "menu/objects.h"
 #include "menu/screen_objects.h"
 #include "menu/sprites.h"
-#include "original_effects.h"
 #include "overworld/overworld.h"
 #include "overworld/main_loop.h"
 #include "overworld/music.h"
@@ -132,17 +131,6 @@ static bool load_named(GameState *g, const Unpacker *u, uint32_t site, uint8_t f
     return unpack(u, site, overworld_stream(g, table, number), to);
 }
 
-/* For the original's code and shadow mode: the count of blocks the block
- * loads work with, in the mode's ninth and tenth bytes. It outlived the
- * overworld's gate: the Epoch's map view, still under it, loads the map's
- * tiles through here (menu/epoch.c), and its comparison sees the cells. */
-static void leave_blocks_counted(GameState *g, uint16_t blocks)
-{
-    enum { COUNT_CELL = 0x08 };
-    set_menu_object_scratch_bytes_byte(g, COUNT_CELL, (uint8_t)blocks);
-    set_menu_object_scratch_bytes_byte(g, COUNT_CELL + 1, (uint8_t)(blocks >> 8));
-}
-
 /* Several blocks the record names in a row, each to the staging buffer's
  * next $1000 bytes. */
 static bool load_blocks(GameState *g, const Unpacker *u, uint32_t site, uint8_t first_field, unsigned blocks,
@@ -153,7 +141,7 @@ static bool load_blocks(GameState *g, const Unpacker *u, uint32_t site, uint8_t 
             return false;
     /* the destination is moved on past each block, round the bank */
     set_decompress_dest(g, (STAGING & 0xFF0000u) | (uint16_t)(STAGING + blocks * BLOCK_BYTES));
-    ORIGINAL_EFFECT(leave_blocks_counted(g, (uint16_t)blocks));
+
     return true;
 }
 

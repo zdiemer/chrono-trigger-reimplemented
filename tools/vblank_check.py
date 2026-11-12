@@ -43,10 +43,6 @@ runs from the entry to its last service call site, and generated code there is
 the same routine) or, outside every port's region, the generated block
 containing the address (`--blocks`, the build's generated C).
 
-The shipping run also takes `--scaffold-reads`, so its log (`<movie>-ship.log`)
-lists the ports' reads of work RAM whose latest write was scaffolding, which
-tools/effects_check.py --runs checks; this tool ignores them.
-
 Exit status is 0 only when every failing finding is listed in the exceptions
 file (tools/vblank_check_exceptions.txt: `routine group category reason...`).
 Logs go under --out (default build/vblank): they name ROM addresses and stay
@@ -396,12 +392,11 @@ def report(per_movie, routines, exceptions, out=sys.stdout, show_info=True):
 
 
 def run_one(binary, rom, out, name, path, frames, mode):
-    # The shipping mode's run also notes the ports' reads of scaffolding, which
-    # tools/effects_check.py --runs reads from its log; it plays the C sound
+    # The shipping mode plays the C sound
     # driver, whose host's own faults (a sample where the echo writes, a
     # command dropped) exit 1.
     extra = {"ref": ["--generated", "only"],
-             "ship": ["--generated", "on", "--scaffold-reads"]}[mode]
+             "ship": ["--generated", "on"]}[mode]
     cmd = [str(binary), "--rom", str(rom), "--movie", str(path), "--frames", str(frames),
            "--native", "on", "--io-log", str(out / ("%s-%s.txt" % (name, mode)))] + extra
     started = time.time()

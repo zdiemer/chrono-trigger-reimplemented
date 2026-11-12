@@ -137,7 +137,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0x00FF00, .name = "console_reset", .fn = console_reset, .emulation = true, .cost_milli = 1000 },
     { .addr = 0x00FF00, .name = "console_reset", .fn = console_reset, .cost_milli = 1000 },
     { .addr = 0xC0FF00, .name = "console_reset", .fn = console_reset, .cost_milli = 1000 },
-    { .addr = 0xFDC000, .name = "console_boot", .fn = console_boot, .cost_milli = 4060 },
+    { .addr = 0xFDC000, .name = "console_boot", .fn = console_boot, .cost_milli = 4060, .retired = true },
     { .addr = 0x00FF10, .name = "console_vblank_vector", .fn = console_vblank_vector, .cost_milli = 1000 },
     { .addr = 0x00FF14, .name = "console_line_vector", .fn = console_line_vector, .cost_milli = 1000 },
     { .addr = 0x000500, .name = "console_vblank_stub", .fn = console_vblank_stub, .cost_milli = 1000,

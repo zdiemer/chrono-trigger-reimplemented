@@ -71,79 +71,28 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   stdout, never into the repo. **Ask for every routine of a chunk in one run**: the analysis is solved
   once for the whole run and is nearly all of its time, so four drafts cost the same 27 seconds as one.
   `tools.generate.draftcheck` shadows drafts in a scratch tree (docs/PORTING.md, "From a draft to a port").
-- Validation: `python3 tools/suite.py --ct-dev build/main/ct_dev` runs the gate and exits 0 only when
-  it passes (`--only core|saves`, `--movies <name>...` and `-j N` narrow it while iterating). By default
-  it runs the gate's sample of the movie library, `tools/gate_movies.txt` (a greedy cover of the
-  library's shadow coverage per frame played, plus what each check needs, each line with its reason);
-  `--all-movies` runs the whole library. A branch passes on the sample, without `--long-routes`. The long routes are
-  most of the gate's wall time (its `times:` line says where it went), so main runs them once per
-  batch of merges: the merge gate takes `--long-routes` when anything merged since main's last
-  long-routes pass can move timing or the native runtime (a port, a `cost_milli`, the time model,
-  `runtime/`), and that pass is what lets the batch push. The whole library (8 hours and more at `-j 2`) runs
-  batched: once over everything merged since its last run, when the machine is free and at a higher
-  `-j`, and recalibration and baseline updates (`--calibrate`, `--update`, `--prune`), which take
-  the whole library's numbers, come from that run as one ledger commit; on the sample the ratchets drop no baseline
-  line and report nothing gone for a movie it doesn't run, and the timing gate judges only its worst
-  cases (drift and the vblank tail are means over the library, judged by `--all-movies`). "Every movie" below means every movie run. The gate
-  is: every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines, no `page refused` line (a
-  guard that turned away a call whose direct page is no instance `re/ram.toml` declares), no `contract broken:` line (a retired routine
-  called with a state its contract, the guard it had, doesn't take; docs/REIMPLEMENTATION.md, "The core
-  services' teardown") and no `accessor out
-  of range` line (a port that called an accessor with an index past what the map declares, reaching the next
-  variable in work RAM; both in docs/DISASSEMBLY.md, "The accessors") and no `asset outside the
-  catalogue` line (a cartridge read in no resource of `re/assets.tsv`, which `tools/assets.py check`
-  also holds to the matching build's regions; docs/PLATFORM.md, "The assets, as built");
-  `--native on --generated only` produces traces identical to `--native off` (`python3 tools/trace.py
-  diff`); every hand port's estimated time stays within the timing gate's limits over the shadow runs
-  or is in `tools/timing_exceptions.txt` with a reason (`tools/timing_gate.py`, run by the suite; after
-  adding a port, recalibrate with its `--calibrate game/registry.c` over an `--all-movies` run's logs, and after adding a movie with
-  `--calibrate game/registry.c --drifted`, which rewrites only the entries a new movie moved; docs/REIMPLEMENTATION.md, "The
-  timing gate"); no video write in the shipping mode (`--generated on`, `ct_play`'s default) lands on the
-  picture where the reference's doesn't, or it is in `tools/vblank_check_exceptions.txt`
-  (`tools/vblank_check.py`); the route scripts reach their outcomes in the shipping mode, with the C
-  sound driver that ships (`tools/movies/route_check.py`, `ct_drive --native on`; the suite runs
-  the fast route, `--long-routes` all of them, which is worth doing before a change to timing or to
-  the native runtime lands); the C sound driver, over a short `ct_sound_fuzz` with the game's songs and
-  with made-up ones, answers every command, places no sample where the echo writes, drops none, the
-  native mixer makes the S-DSP's every frame (`--mixer check`; docs/PLATFORM.md "The native mixer, as
-  built") and each kind of run's sound is the digest `tools/sound_golden.txt` keeps (sound is no longer
-  compared with the original's: docs/REIMPLEMENTATION.md, "The sound driver's teardown"); every
-  don't-care declaration in `game/` is one the liveness analysis agrees with
-  (`tools/dontcare_check.py`, run by the suite, static; docs/REIMPLEMENTATION.md, "Before the bulk"); no
-  port's logic reads what some port writes only inside `ORIGINAL_EFFECT` where none did before
-  (`tools/effects_check.py`, run by the suite, in the source and over the vblank check's shipping-mode
-  runs with `ct_dev --scaffold-reads`, a ratchet on `tools/effects_baseline.txt`; docs/PORTING.md,
-  "Scaffolding"); no port transliterates the assembly where one didn't before
-  (`tools/portstyle.py --check`, run by the suite, static; docs/PORTING.md, "Writing a port"); no port
-  carries one of the review rubric's mechanical smells where one didn't before
-  (`tools/portsmell.py --check`, run by the suite, static); the original's code runs in place of
-  hand ports nowhere new, and no more of it where it did, over every movie's reference play
-  (`ct_dev --fallbacks` in the shadow runs; `tools/fallbacks.py --check`, a ratchet on
-  `tools/fallback_baseline.txt`, and the shipping mode's count over the movies and routes run on
-  `tools/fallback_shipping_baseline.txt`, as a subset (its counts move with timing), the backstop for
-  anything the shadow runs' measure counts as a port's; docs/REIMPLEMENTATION.md, "The fallback measure"); no hand port's guard refuses a call real play
-  makes -- in the shadow runs, the movies in the shipping mode or the routes -- unless
-  `tools/refusal_allowlist.txt` says why (`tools/fallbacks.py --refusals`); every movie gets as far on the
-  hand ports alone -- no generated code, no interpreter, the C sound driver -- as `tools/strict_baseline.txt`
-  says, a movie that reaches its end doing so with no failed exit, hang, `halted:`, `accessor out of range`,
-  `page refused` or `contract broken:` line, and one the line marks `end` ending with the saved game and save RAM the reference
-  play's (`tools/strict_check.py --check`, a ratchet run by the suite, against the shadow runs' `ct_dev
-  --end-state`; `ct_dev --native on --generated off --no-interpreter strict`; docs/PLAYING.md,
-  "Without the interpreter"); and the build with the
-  ports' scaffolding compiled out (`ct_dev_native_shape`, `ct_drive_native_shape`) runs every movie
-  to its end in the shipping mode with no failed exit, hang, `halted:` line, `accessor out of range`,
-  `page refused` or `contract broken:` line the default build's run doesn't show, and its routes reach their outcomes
-  (the fast set; all of them with `--long-routes`); and every movie in `ct_native` (the game with no
-  emulator) runs without crashing and doesn't end on a dark screen (or is in `tools/native_dark_exceptions.txt`,
-  a run whose time carries it into the reference's own black), its picture drawn every frame by
-  the native renderer (`tools/native_check.py --check`, which also reports where each stops and
-  whether it ends as the reference play does; docs/PLAYING.md, "The native program").
-  Recorded end states, checkpoint pictures and places also hold in strict mode and `ct_native`
-  (`tools/outcomes.py --check`, with per-movie reasons and a ratchet; docs/REIMPLEMENTATION.md, "Recorded outcomes").
-  Two checks the suite doesn't run, so run them by hand when a change could move them:
-  `ct_dev --native on --generated only --misses out.txt` lists anything still interpreted, and
-  `ct_dev --px-check` must report every frame identical (the native renderer against `render.c`,
-  docs/PLATFORM.md P3).
+- Validation: `python3 tools/suite.py --ct-dev build/main/ct_dev -j 2 --evidence`
+  runs the gate; only its last line `suite OK` is a pass (failure also exits nonzero).
+  Branches run the sample in `tools/gate_movies.txt`, without `--long-routes` or
+  `--all-movies`. `--only core|saves` and `--movies <name>...` narrow iteration.
+  Main runs long routes once per timing/runtime merge batch, and the whole
+  library in a separate batch; timing calibration and baseline updates use that
+  whole-library run. The `times:` line reports wall time by stage.
+  The gate keeps shadow movies' contract, page, accessor and asset diagnostics;
+  strict and `ct_native` movies, with their saved-game, save-RAM, picture and
+  place outcomes; shipping, native-shape and native routes (fast routes on a
+  branch); sound fuzz and digests; source style and smell ratchets; unreached-path
+  evidence; and the asset catalogue check. Native route failures need a reason
+  in `tools/native_route_exceptions.txt`. Every movie means every selected movie;
+  subset runs neither prune unseen baseline rows nor report them gone.
+  Timing and vblank checks run only with `--all-movies`: the timing model still
+  uses rates calibrated against the emulator over the whole library. Native
+  movies reject crashes and unexplained dark screens; `tools/outcomes.py` holds
+  recorded outcomes in strict and native modes. See docs/REIMPLEMENTATION.md,
+  "The gate after the comparisons, phase A", for the retained checks and tools.
+  `ct_dev` with its interpreter and generated C remains a development tool for
+  tracing divergences against the original and calibrating time; PLAN.md records
+  the remaining emulator-build checks' retirement after the native route audit.
 
 - Porting: add routines under `game/<subsystem>/` (named by what they do, not by ROM bank), register in
   `game/registry.c`, validate with `ct_dev ... --native shadow` over the movie library (0 mismatches),
@@ -263,19 +212,10 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
     either byte of A (`DC_AH`, `DC_AL`), a subroutine's stack frame. An entry's don't-care
     set, `m_stop_at` where a port stops (`m_stop_at_own` where the stop's set is its own,
     not the entry's too), and the don't-care sets of call-outs say so, and shadow mode doesn't compare
-    them (docs/PORTING.md). A declaration is a claim about the original, so it must be one the
-    liveness analysis agrees with: `tools/dontcare_check.py` checks every one, and the gate runs
-    it. A call-out's set must hold even where the callee's targets are picked at run time (a
-    dispatcher reading RAM); where only fuzzing can show that, the declaration carries a
-    `dc-evidence:` note naming a `ct_fuzz --poison-dc` run (docs/PORTING.md, "Declarations
-    liveness can't prove"). A port stops with `m_stop_at` and its address, and writes the addresses and sets as
-    constants, or from a helper's parameters, locals or a table in the same file, so the check
-    can read them.
-  - Still write the scratch cells the original writes, even ones that look like temporaries:
-    other code may read them, and shadow mode compares memory. Find the reader first. What
-    only shadow mode or still-generated code reads is scaffolding: write its final value once
-    through `ORIGINAL_EFFECT(...)` (`game/original_effects.h`, docs/PORTING.md "Scaffolding"),
-    which the native-shape build compiles out, and never use the cell as working state.
+    them (docs/PORTING.md). `tools/dontcare_check.py` remains a manual diagnostic
+    for calling-convention problems in the development build, outside the gate.
+  - Keep working state in C values. Comparison-only scratch writes retired with
+    the byte-exact gate; do not reintroduce them (docs/PORTING.md, "Scaffolding").
   - Keep the original's index arithmetic, wraparound and odd offsets included, rather than
     tidying it: fuzzing reaches the inputs where it differs, and so can the game.
 - **Writing host-side code** (docs/PLAYING.md, "How the player is built"). `game/` is kept
@@ -335,10 +275,10 @@ worktree under `.claude/worktrees/`. `AGENTS.md` is this file.
   whoever merges runs the long routes on main, once per batch of merges (see "Validation" above).
   A branch runs one long route by hand (`tools/movies/route_check.py`) only when its change is
   aimed at a route. Don't run `--all-movies` on a branch: the whole library runs batched (see
-  "Validation" above). `suite.py` exits 0 even when it fails, so read its last
-  line: only `suite OK` is a pass.
+  "Validation" above). Read the last line: only `suite OK` is a pass. Timing and vblank checks
+  belong only to the whole-library batch.
 - **Ratchets and exceptions.** Never add a line to a baseline or exceptions file
-  (`tools/*_baseline.txt`, `tools/*_exceptions.txt`, `tools/refusal_allowlist.txt`)
+  (`tools/*_baseline.txt`, `tools/*_exceptions.txt`)
   to get a check to pass without a reason on the line that a reviewer would
   accept; fix the cause where it can be fixed. Never claim a fix the diff
   doesn't contain.

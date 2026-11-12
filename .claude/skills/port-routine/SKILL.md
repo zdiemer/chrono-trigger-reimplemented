@@ -162,8 +162,8 @@ qualitative review:
   rounds of rotate-and-subtract. Write `n / d` and `a * b`. Derive any carry,
   overflow or leftover the callers read in the wrapper, from the results.
 - **Using RAM cells as registers.** A loop that stores its counter in a cell and
-  reads it back. Keep the loop's state in locals, and write the cells' final
-  values once, as scaffolding.
+  reads it back. Keep the loop's state in locals and retain only writes that
+  later game logic reads.
 
 The pilot `circle.c` did both, while having no `Snes *` in its logic.
 
@@ -201,40 +201,17 @@ call-out or have the guard refuse what reaches it.
 
 ## Scaffolding is marked, not mixed in
 
-A scratch write the original makes, a register or flag its callers might
-read, a hardware register it leaves holding a product: when only shadow mode
-or the original's still-generated code looks at it, it is scaffolding, and it
-goes through `ORIGINAL_EFFECT(...)` (`game/original_effects.h`; docs/PORTING.md,
-"Scaffolding"). Find the reader first -- evidence over the movie library, not
-"other code may read it". Keep working state in locals and write the cell's
-final value once; never read a scratch cell back. Where the value is the same
-every time for a command (a parse position), put it in a table parallel to the
-command table (`event/leaves.c`), never in the language's rows and never an
-argument every return carries. Derive a flag from the
-operands where it is handed back, not with ALU helpers in the logic. The
-native-shape build (`ct_game_native_shape`) compiles your logic with all of it
-switched off, and must still build; `portstyle.py` counts what you marked.
-
-**A value your logic reads is never scaffolding, anywhere.** The trap that got
-past the gate twice in Phase 3's first chunks: a cell a port writes only inside
-`ORIGINAL_EFFECT` (the long arithmetic's leftover high word, a window frame's
-inside size) that the next routine then reads as game input. It builds, it
-matches in shadow mode, and the native build reads it stale.
-`python3 tools/effects_check.py --new` lists every such read in the source that
-the baseline doesn't hold, and the gate also runs the library in the shipping
-mode with `--scaffold-reads`, which catches the read in order. Answer each
-finding before you report: the write is the game's, so make it plain; or the
-read takes what something else sets first (the original's caller, every call),
-and its baseline line says so after a `#`.
+Every subsystem has retired byte-exact comparison. Comparison-only writes,
+`ORIGINAL_EFFECT` and the effects check retired in phase A (docs/PORTING.md,
+"Scaffolding"). Keep working state in locals; retain writes with a game
+reader, and do not recreate the original's scratch or hardware state for a
+comparison. The calibrated timing charges remain part of native play.
 
 An index past a variable's count, bytes, rows or columns is an alias of
 whatever follows it in the original's memory: `ct_dev` counts it (`accessor
-out of range`) and the gate fails. Where the gate needs the original's stray
-access, make it a marked scaffolding function that calls the variable's
-`_unchecked` pair (declare `unchecked = "<why>"` on the variable in
-`re/ram.toml`; `field/sprites.c`'s `leave_stray_fifth_sprite_y` is the
-example). Otherwise guard the state away, and if the movies make it, it is
-unported work (below). `ct_fuzz` lists the accessors random states drive out
+out of range`) and the gate fails. Establish the game's alias or bounds
+contract rather than adding comparison-only stray accesses. If the movies
+make a state the contract refuses, it is unported work (below). `ct_fuzz` lists the accessors random states drive out
 of range: a guard is usually missing there.
 
 A dispatcher over opcodes is a C table of rows -- operation, how each operand
@@ -322,15 +299,13 @@ is the second bar: every function but the entry wrappers should be off it. If yo
 Then the real validation:
 
 ```sh
-cmake -S . -B build/main -G Ninja -DCT_ROM=roms/ct-usa.sfc && cmake --build build/main
+cmake -S . -B build/main -G Ninja -DCT_ROM=roms/ct-usa.sfc && cmake --build build/main -j 2
 # 1. shadow over the movie library: 0 mismatches
 # 2. --native on
 # 3. fuzz every entry you wrote or rewrote:
 build/main/ct_fuzz --load-state <state> --routine <name>
-# 3b. no logic reads what a port writes only as scaffolding (the gate runs it too):
-python3 tools/effects_check.py --new
-# 4. the full gate, which must print "suite OK":
-python3 tools/suite.py --ct-dev build/main/ct_dev -j 3 --long-routes
+# 4. the sampled branch gate, which must print "suite OK":
+python3 tools/suite.py --ct-dev build/main/ct_dev -j 2 --evidence
 python3 -m unittest discover tests
 ```
 

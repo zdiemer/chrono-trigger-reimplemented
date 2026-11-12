@@ -1,98 +1,20 @@
-"""Run the movie suite: every movie in shadow mode, then the gate's checks.
+"""Run the product gate over the movie sample (or --all-movies).
 
-    python3 tools/suite.py --ct-dev build/main/ct_dev [--rom roms/ct-usa.sfc]
-    python3 tools/suite.py --ct-dev build/main/ct_dev --all-movies
-    python3 tools/suite.py --ct-dev build/main/ct_dev --only saves
-    python3 tools/suite.py --ct-dev build/main/ct_dev --movies gato-battle field
-    python3 tools/suite.py --ct-dev build/main/ct_dev --no-trace --no-timing -j 6
+    python3 tools/suite.py --ct-dev build/main/ct_dev -j 2 --evidence
 
-This is the validation gate (CLAUDE.md, "Validation"). It runs the gate's
-sample of the movie library, tools/gate_movies.txt, by default, and the whole
-library with --all-movies (see "The sample" below). Every movie run with
-`--native shadow` must exit 0 with no `mismatched [1-9]` line, no `page
-refused` line (a guard that turned away a call whose direct page is no instance
-re/ram.toml declares, which would otherwise show only as a drop in a shadow
-count) and no `accessor out of range` line (a port that called an accessor with
-an index past what re/ram.toml declares, reaching the next variable in work RAM,
-which only the original's layout makes work; both in docs/DISASSEMBLY.md, "The
-accessors") and no `asset outside the catalogue` line (a cartridge read that
-lands in no resource of re/assets.tsv, which the asset pack wouldn't hold:
-docs/PLATFORM.md, "The assets, as built"). The ports read their resources from
-an asset pack the suite imports from the ROM first (`ct_dev --assets`), as
-ct_play does, and a read whose pack byte isn't the cartridge's prints an
-`asset differs from the cartridge` line, which fails the run too; then the checks
-in CHECKS run, each printing one line: `--native on --generated only` must produce
-a trace identical to `--native off`; every hand port's estimated time must
-stay within the timing gate's limits over the shadow runs' `--timing-report`
-(tools/timing_gate.py); no video write in the shipping mode may land on the
-picture where the reference's doesn't (tools/vblank_check.py); and the route
-scripts must reach their outcomes in the shipping mode, with the C sound driver
-that ships (tools/movies/route_check.py; the fast route by default, all of them
-with --long-routes); and the C sound driver must answer every command, place no
-sample where the echo writes and drop none, the native mixer making the S-DSP's
-every frame, over a short ct_sound_fuzz with and without made-up songs, each
-kind's sound the digest tools/sound_golden.txt keeps (the gate no longer
-compares sound with the original's: docs/REIMPLEMENTATION.md, "The sound
-driver's teardown"); and every
-don't-care declaration in game/ must be one the liveness analysis agrees with
-(tools/dontcare_check.py, static, with the call logs the shadow runs just
-wrote); and no port may transliterate the assembly
-where one didn't before (tools/portstyle.py, static, a ratchet against its
-baseline); and no port's logic may read what some port writes only as
-scaffolding where none did before (tools/effects_check.py, static and over the
-vblank check's shipping-mode runs, a ratchet against its baseline); and no port
-may carry one of the review rubric's mechanical smells where one didn't before
-(tools/portsmell.py, static, a ratchet against its baseline); and, over every
-movie's reference play (the shadow runs, `ct_dev --fallbacks`), no new place
-where the original's code runs in place of a hand port, nor more of it at a
-known one (tools/fallbacks.py --check, a ratchet against its baseline; the
-shipping mode's count over the movies and the routes is reported beside it),
-and no hand port's guard refusing a call real play makes -- in the shadow runs,
-the movies in the shipping mode or the routes -- unless its allowlist says why
-(tools/fallbacks.py --refusals); and the build with the ports' scaffolding
-compiled out (ct_dev_native_shape, ct_drive_native_shape) running every movie
-to its end in the shipping mode with nothing the default build's run doesn't
-show -- a failed exit, a hang, a halted machine, an accessor out of range --
-and its routes reaching their outcomes (the fast set; all of them with
---long-routes); and every row of the catalogue of resources still being a
-region the matching build extracts (tools/assets.py check); and no movie stopping earlier than it did on the hand ports
-alone, with no generated code and no interpreter, nor any reaching its end
-other than as the reference play does (tools/strict_check.py, a ratchet
-against tools/strict_baseline.txt); and every movie in the native program
-(ct_native, the game with no emulator) neither crashing nor ending on a dark
-screen, nor entering fewer of the reference play's places on time than
-tools/places_baseline.txt says (the shadow runs' `--locations`, tools/places.py),
-where each stops and whether it ends as the reference play does being
-reported (tools/native_check.py). Exit status is 0 only when all of
-that holds.
+Shadow movies retain contract, page, accessor and asset diagnostics until a
+checking ct_native replaces them. Strict and native movies protect recorded
+outcomes; shipping, native-shape and native routes check gameplay. Sound,
+source quality, unreached-path evidence and asset checks remain in the gate.
+Timing and vblank checks run only with --all-movies: calibration needs the
+whole library's mix of scenes. Branches run the sample without --long-routes;
+main runs whole-library calibration and long routes in separate merge batches.
 
-The sample. The library grows with long movies made to find code and the
-places ct_native stops, and replaying all of it at every commit costs hours.
-tools/gate_movies.txt names the movies the gate runs by default, one per line
-with a `#` reason: a greedy cover of the library's shadow coverage, most code
-bytes per second of play first, plus what the checks need (the trace
-identity's movie, power-on and save movies, each subsystem, the strict
-baseline's `end` movies that matter). Every check then runs over those
-movies, and the ratchets judge only what the sample can show: a baseline line
-for a movie or routine the sample doesn't reach is neither dropped nor
-reported as gone, and the timing gate judges only its worst cases (maxima,
-which a subset can only lower): its drift and vblank tail are means over the
-library the costs are calibrated to, which a subset's mix of scenes moves, so
-those and its stale exceptions are judged over the whole library only.
---all-movies is the gate as it was before the sample:
-run it before merging a change to timing or to the runtime, and for every
-recalibration and baseline update (timing_gate.py --calibrate, fallbacks.py
---update, strict_check.py --update, effects_check.py --prune), which take
-their numbers from the whole library's runs. --movies names a set by hand.
-
-Each movie's frame count comes from its own `# frames N` header, and a movie
-that starts from a cartridge save finds it by CRC-32 among the committed ones
-(oracle/saves), so nothing here carries a list that can go stale.
-
-Output goes under the build directory (`--out`, default build/suite): a log per
-movie, a one-line status per movie, and the coverage and call files the shadow
-runs collect and their end states (end-<movie>.bin, the strict check's reference),
-which are ROM-derived and stay out of the repository.
+tools/gate_movies.txt names the sample with a reason per movie. Subset runs
+never drop unseen baseline entries. Frame counts and cartridge saves come
+from movie headers. Logs, coverage, calls and reference end states go under
+--out (default build/suite); these derived files stay out of the repository.
+Exit status is zero only on success; the final line is then `suite OK`.
 """
 
 import argparse
@@ -107,7 +29,7 @@ import time
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-from tools import evidence_cache, outcomes
+from tools import outcomes
 from tools.strict_check import SavedGame
 from tools import timing_gate  # noqa: E402
 
@@ -204,8 +126,6 @@ def run_movie(binary, rom, out, name, path, frames):
            "--frames", str(frames), "--native", "shadow", "--timing-report", "--page-report",
            "--coverage", str(out / ("cov-%s.txt" % name)),
            "--calls", str(out / ("calls-%s.txt" % name)),
-           "--fallbacks", str(out / "fallbacks" / "shadow" / ("%s.txt" % name)),
-           "--finish-fallbacks", "120",
            "--end-state", str(out / ("end-%s.bin" % name)), "--locations", "--outcomes"] + PACK_ARGS
     started = time.time()
     with open(log, "wb") as fh:
@@ -224,39 +144,6 @@ def run_movie(binary, rom, out, name, path, frames):
     return name, ok, detail
 
 
-def trace_check(binary, rom, out, movie, frames, jobs=2):
-    """`--generated only` against `--native off` on one movie. Returns (ok, detail).
-
-    The two runs are given their own copy of the binary so they can run at once
-    on hosts that lock a running image. With one job, finish each run before
-    starting the next, just as the movie and route checks do.
-    """
-    movie = ROOT / "oracle/movies" / (movie + ".ctm")
-    if not movie.exists():
-        return True, "skipped (no %s)" % movie.name
-    traces = {}
-    procs = []
-    for tag, extra in (("off", ["--native", "off"]),
-                       ("only", ["--native", "on", "--generated", "only"])):
-        exe = (out / ("ct_dev_%s%s" % (tag, binary.suffix))).resolve()
-        shutil.copy2(binary, exe)
-        traces[tag] = out / ("%s.cttr" % tag)
-        cmd = [str(exe), "--rom", str(rom), "--movie", str(movie),
-               "--frames", str(frames), "--trace", str(traces[tag])] + extra
-        with open(out / ("trace-%s.log" % tag), "wb") as fh:
-            procs.append(subprocess.Popen(cmd, stdout=fh, stderr=subprocess.STDOUT))
-            if jobs == 1:
-                procs[-1].wait()
-    if any(p.wait() != 0 for p in procs):
-        return False, "a trace run failed"
-    diff = subprocess.run([sys.executable, "-m", "tools.trace", "diff",
-                           str(traces["off"]), str(traces["only"])],
-                          cwd=ROOT, capture_output=True, text=True)
-    tail = (diff.stdout or diff.stderr).strip().splitlines()
-    tail = tail[-1] if tail else "(no output)"
-    return diff.returncode == 0 and "no divergence" in tail, tail
-
-
 # ---- the checks after the shadow runs -------------------------------------------
 #
 # Each takes the parsed arguments and the context of the shadow runs and
@@ -264,41 +151,14 @@ def trace_check(binary, rom, out, movie, frames, jobs=2):
 # runs them in order after the shadow runs. Adding a check is a function here
 # and a row in CHECKS, with a --no-<name> switch to skip it while iterating.
 
-def check_trace(args, ctx):
-    """`--generated only` against `--native off` on one movie."""
-    ok, detail = trace_check(ctx["binary"], args.rom, args.out, args.trace_movie, args.trace_frames, ctx["jobs"])
-    return ok, "trace identity (%s)" % args.trace_movie, detail, []
-
-
-# The timing gate's limits that are means over the library, not judged over a subset of it.
-SUBSET_UNJUDGED = ("drift", "vblank-tail")
-
 
 def check_timing(args, ctx):
-    """The hand ports' estimated time against the original's (tools/timing_gate.py)."""
+    """Whole-library calibration against the emulator's measured time."""
     agg = timing_gate.load(args.out / ("shadow-%s.log" % name) for name in ctx["movies"])
     if not agg:
         return False, "timing", "no --timing-report output in the shadow logs", []
     result = timing_gate.check(agg, timing_gate.read_exceptions(timing_gate.EXCEPTIONS))
-    means = []
-    if not ctx["complete"]:
-        # Drift and the vblank tail are shares over every stretch the movies
-        # run, and the costs are calibrated to the whole library's: a subset's
-        # mix of scenes moves them however right the estimates are (the sample
-        # alone put 305 entries past them). The worst cases are maxima, which
-        # a subset can only lower, so those are judged here. And an exception
-        # the subset doesn't reach may still be needed by the rest of the
-        # library, so staleness is judged over all of it too.
-        means = [f for f in result.failures if f[1] in SUBSET_UNJUDGED]
-        result = result._replace(failures=[f for f in result.failures if f[1] not in SUBSET_UNJUDGED], stale=[])
-    lines = timing_gate.failure_lines(result)
-    if not ctx["complete"]:
-        lines.append("note: over %d of the library's %d movies, so only the worst cases are judged; %d entr%s past "
-                     "the drift or vblank-tail limit over these alone, which --all-movies judges, with stale exceptions"
-                     % (len(ctx["movies"]), ctx["library"], len({f[0].name for f in means}),
-                        "y" if len({f[0].name for f in means}) == 1 else "ies"))
-    return not result.failures, "timing", timing_gate.summary(result), lines
-
+    return not result.failures, "timing", timing_gate.summary(result), timing_gate.failure_lines(result)
 
 
 def run_tool(cmd):
@@ -372,12 +232,6 @@ def check_routes(args, ctx):
     # short carries on where it stopped (route_check --resume)
     if args.routes_scratch:
         cmd += ["--scratch", str(args.routes_scratch), "--resume"]
-    # what the original's code runs in place of hand ports, for the fallbacks
-    # check after this one
-    counts = args.out / "fallbacks" / "routes"
-    shutil.rmtree(counts, ignore_errors=True)
-    counts.mkdir(parents=True)
-    cmd += ["--fallbacks", str(counts)]
     cmd += routes
     rc, lines = run_tool(cmd)
     passed = sum(1 for line in lines if re.match(r"^\S+\s+pass", line))
@@ -442,121 +296,15 @@ def check_native_routes(args, ctx):
         "%d of %d route(s) reach their outcome in ct_native; %d excepted" % (passed, len(routes), len(selected) - len(routes)), details
 
 
-# ---- the shipping mode's fallbacks and the native shape -----------------------------
-
-SHIP = ["--native", "on", "--generated", "on"]
-HALTED = re.compile(rb"^halted: .*$", re.M)
-SHIP_PROBLEMS = (OUT_OF_RANGE, HALTED, REFUSED, ASSETS)
-
-
-def ship_seconds(frames):
-    """How long a movie may take in the shipping mode before it counts as hung:
-    far more than any takes (the slowest runs at well over 60 frames a second)."""
-    return 300 + frames // 10
-
-
-def ship_movie(binary, rom, log, path, frames, extra):
-    """One movie in the shipping mode. Returns (exit status or None if it hung,
-    the log's problem lines)."""
-    cmd = [str(binary), "--rom", str(rom), "--movie", str(path), "--frames", str(frames)] + SHIP + PACK_ARGS + extra
-    with open(log, "wb") as fh:
-        try:
-            rc = subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT, timeout=ship_seconds(frames)).returncode
-        except subprocess.TimeoutExpired:
-            rc = None
-    text = log.read_bytes()
-    problems = [m.decode(errors="replace").strip() for pattern in SHIP_PROBLEMS for m in pattern.findall(text)]
-    return rc, problems
-
-
-def ship_all(ctx, binary, rom, out, tag, extra_of):
-    """Every movie in the shipping mode with `binary`, logs as out/<name>-<tag>.log.
-    Returns {name: (rc, problems)}."""
-    movies = ctx["movie_rows"]
-
-    def one(m):
-        name, path, frames = m
-        return name, ship_movie(binary, rom, out / ("%s-%s.log" % (name, tag)), path, frames, extra_of(name))
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=ctx["jobs"]) as pool:
-        return dict(pool.map(one, movies))
-
-
-def shipping_inputs(args):
-    """The shipping mode's fallback files: the movies' and, where the routes
-    check wrote them, the routes'."""
-    out = args.out / "fallbacks"
-    paths = [out / "movies"]
-    routes = out / "routes"
-    if routes.is_dir() and any(routes.rglob("*.txt")):
-        paths.append(routes)
-    return paths
-
-
-def check_fallbacks(args, ctx):
-    """What the original's code runs in place of hand ports. The ratchet
-    (tools/fallbacks.py --check against its baseline) is over the shadow runs,
-    where each movie plays as it was recorded whatever the ports' timing, so it
-    moves only when a port does; the shipping mode's count, over every movie
-    (run here) and the routes (the routes check's runs), drifts with the
-    timing and is reported beside it."""
-    out = args.out / "fallbacks"
-    movies = out / "movies"
-    shutil.rmtree(movies, ignore_errors=True)
-    movies.mkdir(parents=True)
-    # the original's code's reads of scaffolding, for the native-shape check to trace through
-    ctx["ship"] = ship_all(ctx, ctx["binary"], args.rom, out, "ship",
-                           lambda name: ["--fallbacks", str(movies / ("%s.txt" % name)),
-                                         "--scaffold-reads", "original"])
-    shadow = out / "shadow"
-    missing = sorted(name for name in ctx["movies"] if not (shadow / ("%s.txt" % name)).exists())
-    missing += sorted("%s (shipping mode)" % name for name in ctx["ship"] if not (movies / ("%s.txt" % name)).exists())
-    rc, lines = run_tool([sys.executable, str(ROOT / "tools/fallbacks.py"), "--check",
-                          "--report", str(out / "report.txt"), str(shadow)]
-                         + ([] if ctx["complete"] else ["--subset"]))
-    summary = "reference play (the movies in shadow mode): " + (lines[-1] if lines else "no output")
-    paths = shipping_inputs(args)
-    _, totals = run_tool([sys.executable, str(ROOT / "tools/fallbacks.py"), "--totals",
-                          "--report", str(out / "report-shipping.txt")] + [str(p) for p in paths])
-    summary += "; shipping mode (the movies%s): %s" % (" and routes" if len(paths) > 1 else ", no routes",
-                                                       totals[-1] if totals else "no output")
-    # the shipping mode's own ratchet: the backstop for whatever the reference
-    # play's measure counts as a port's that the shipping mode runs as the
-    # original's. Its counts move with timing, so it is judged as a subset:
-    # a routine new to it, or more distinct bytes or past the slack in one, fails
-    ship_rc, ship_lines = run_tool([sys.executable, str(ROOT / "tools/fallbacks.py"), "--check", "--subset",
-                                    "--baseline", str(ROOT / "tools/fallback_shipping_baseline.txt")]
-                                   + [str(p) for p in paths])
-    details = [] if rc == 0 else lines[:-1][-40:]
-    if ship_rc != 0:
-        summary += "; the shipping mode's ratchet failed"
-        details += ["shipping mode: " + l for l in ship_lines[:-1][-40:]]
-    if missing:
-        details.append("no counts from: " + ", ".join(missing))
-    return rc == 0 and ship_rc == 0 and not missing, "fallbacks", summary, details
-
-
-def check_refusals(args, ctx):
-    """Hand ports' guards refusing calls real play makes, over the shadow runs,
-    the movies in the shipping mode and the routes (tools/fallbacks.py
-    --refusals): each fails unless its allowlist line says why."""
-    paths = [args.out / "fallbacks" / "shadow"] + shipping_inputs(args)
-    if not any(p.is_dir() and any(p.glob("*.txt")) for p in paths):
-        return False, "refusals", "no fallback counts (the shadow runs and the fallbacks check make them)", []
-    rc, lines = run_tool([sys.executable, str(ROOT / "tools/fallbacks.py"), "--refusals"] + [str(p) for p in paths])
-    summary = lines[-1] if lines else "no output"
-    return rc == 0, "refusals", summary, [] if rc == 0 else lines[:-1][-60:]
-
+# ---- the native-shape routes, retained until the native route audit ----------------
 
 NATIVE_SHAPE_EXCEPTIONS = ROOT / "tools/native_shape_exceptions.txt"
-# A native-shape route fails in an hour or not at all: the routes take a
-# quarter of that, and one the missing scaffolding loops (a battle that can't
-# end) would otherwise run to route_check's six hours.
+# Bound compatibility-route hangs independently of route_check's six hours.
 NATIVE_SHAPE_ROUTE_SECONDS = 3600
 
 
 def native_shape_exceptions():
-    """{("movie"|"route", name): reason} from tools/native_shape_exceptions.txt,
+    """{("route", name): reason} from tools/native_shape_exceptions.txt,
     and its lines that have no reason."""
     out, bad = {}, []
     if NATIVE_SHAPE_EXCEPTIONS.exists():
@@ -565,51 +313,22 @@ def native_shape_exceptions():
             words = body.split()
             if not words:
                 continue
-            if len(words) != 2 or words[0] not in ("movie", "route") or not reason.strip():
-                bad.append("%s:%d: not `movie|route NAME # reason`" % (NATIVE_SHAPE_EXCEPTIONS.name, number))
+            if len(words) != 2 or words[0] != "route" or not reason.strip():
+                bad.append("%s:%d: not `route NAME # reason`" % (NATIVE_SHAPE_EXCEPTIONS.name, number))
                 continue
             out[(words[0], words[1])] = reason.strip()
     return out, bad
 
 
 def check_native_shape(args, ctx):
-    """The build with the ports' scaffolding compiled out, in the shipping mode:
-    every movie runs to its end with no problem the default build's run of it
-    doesn't show (a failed exit, a hang, a halted machine, an accessor out of
-    range, a refused page), and the routes reach their outcomes (the fast set,
-    all of them with --long-routes). Nothing is compared byte for byte: the
-    scaffolding is what it leaves out. A failure listed in
-    tools/native_shape_exceptions.txt, with its reason, is reported and
-    doesn't fail. The default build's shipping runs (the fallbacks check's)
-    note the original's code's reads of scaffolding (ct_dev --scaffold-reads
-    original), and tools/effects_check.py --originals lists them with the
-    source of each write, in native-shape/originals.txt: what a failure here
-    is traced through."""
-    dev = ctx["binary"].with_name("ct_dev_native_shape" + ctx["binary"].suffix)
+    """Compatibility routes retained until ct_native covers the route set."""
     drive = ctx["binary"].with_name("ct_drive_native_shape" + ctx["binary"].suffix)
-    for exe in (dev, drive):
-        if not exe.exists():
-            return False, "native shape", "%s: not found (build it first)" % exe, []
+    if not drive.exists():
+        return False, "native shape", "%s: not found (build it first)" % drive, []
     out = args.out / "native-shape"
     out.mkdir(parents=True, exist_ok=True)
     exceptions, bad = native_shape_exceptions()
-    shape = ship_all(ctx, dev, args.rom, out, "shape", lambda name: [])
-    default = ctx.get("ship") or ship_all(ctx, ctx["binary"], args.rom, out, "ship",
-                                          lambda name: ["--scaffold-reads", "original"])
-    frames = dict((m[0], m[2]) for m in ctx["movie_rows"])
     failing, excepted = [], []
-    for name in sorted(shape):
-        rc, problems = shape[name]
-        base_rc, base_problems = default.get(name, (0, []))
-        what = []
-        if rc is None:
-            what.append("hung (no end after %ds)" % ship_seconds(frames[name]))
-        elif rc != 0 and base_rc == 0:
-            what.append("exit status %d" % rc)
-        what += [p for p in problems if p not in base_problems]
-        if what:
-            line = "movie %s: %s (log %s)" % (name, "; ".join(what), out / ("%s-shape.log" % name))
-            (excepted if ("movie", name) in exceptions else failing).append(line)
     routes = all_routes() if args.long_routes else FAST_ROUTES
     cmd = [sys.executable, "-m", "tools.movies.route_check", "--drive", str(drive), "--rom", str(args.rom),
            "--mode", "on:on", "-j", str(max(1, min(ctx["jobs"], len(routes)))),
@@ -625,17 +344,8 @@ def check_native_shape(args, ctx):
             (excepted if ("route", m.group(1)) in exceptions else failing).append(entry)
     if rrc != 0 and not failed_routes:
         failing += lines[-10:]
-    originals = [str(p) for p in sorted((args.out / "fallbacks").glob("*-ship.log"))]
-    traced = ""
-    if originals:
-        rc_o, olines = run_tool([sys.executable, str(ROOT / "tools/effects_check.py"), "--originals"] + originals)
-        (out / "originals.txt").write_text("\n".join(olines) + "\n")
-        traced = "; %d read(s) of scaffolding by the original's code in the default build's runs (%s)" % (
-            max(0, len(olines) - 1), out / "originals.txt")
-    summary = ("%d of %d movies run to their end and %d of %d route(s) reach their outcome with the scaffolding "
-               "compiled out, %d failure(s) excepted%s"
-               % (len(shape) - sum(1 for b in failing + excepted if b.startswith("movie ")), len(shape),
-                  passed, passed + len(failed_routes), len(excepted), traced))
+    summary = "%d of %d route(s) reach their outcome; %d failure(s) excepted" % (
+        passed, passed + len(failed_routes), len(excepted))
     details = bad + failing + ["excepted: " + e for e in excepted]
     return not failing and not bad, "native shape", summary, details[:40]
 
@@ -704,39 +414,6 @@ def check_sound_fuzz(args, ctx):
     return not failed and not moved, "sound fuzz", summary, details
 
 
-def check_dontcare(args, ctx):
-    """Every don't-care declaration in game/ against liveness (tools/dontcare_check.py),
-    the analysis fed the call and coverage logs the shadow runs wrote as well as
-    the committed tree's defaults: more call sites only make it more careful."""
-    cmd = [sys.executable, str(ROOT / "tools/dontcare_check.py"), "--rom", str(args.rom)]
-    for name in ctx["movies"]:
-        for kind, flag in (("calls", "--calls"), ("cov", "--coverage")):
-            path = args.out / ("%s-%s.txt" % (kind, name))
-            if path.exists():
-                cmd += [flag, str(path)]
-    rc, lines = run_tool(cmd)
-    summary = lines[-1] if lines else "no output"
-    return rc == 0, "dontcare", summary, [] if rc == 0 else lines[:-1][-40:]
-
-
-def check_uncompared(args, ctx):
-    """No hand port mostly goes uncompared in the shadow runs (interrupted, or
-    abandoned inside another port's stretch) without a reason recorded
-    (tools/uncompared.py, a ratchet against tools/uncompared_baseline.txt)."""
-    logs = [str(args.out / ("shadow-%s.log" % name)) for name in ctx["movies"]]
-    rc, lines = run_tool([sys.executable, str(ROOT / "tools/uncompared.py"), "--check"] + logs)
-    summary = lines[-1] if lines else "no output"
-    command = [sys.executable, str(ROOT / "tools/uncompared_evidence.py"),
-               "--ct-dev", str(ctx["binary"]), "--rom", str(args.rom),
-               "--out", str(args.out / "uncompared-evidence"), "-j", str(ctx["jobs"])]
-    if not args.evidence:
-        command += ["--movies"] + list(ctx["movies"])
-    evidence_rc, evidence = run_tool(command)
-    summary += "; " + (evidence[-1] if evidence else "no isolated comparison evidence")
-    details = ([] if rc == 0 else lines[:-1][-40:]) + ([] if evidence_rc == 0 else evidence)
-    return rc == 0 and evidence_rc == 0, "uncompared", summary, details
-
-
 def check_strict(args, ctx):
     """How far the hand ports alone carry each movie: every movie strict
     (ct_dev --native on --generated off --no-interpreter strict, the C sound
@@ -788,23 +465,6 @@ def check_outcomes(args, ctx):
     return ok, "outcomes", "; ".join(summaries), details
 
 
-def check_effects(args, ctx):
-    """No port reads, as logic, what some port writes only as scaffolding
-    (tools/effects_check.py, a ratchet against its baseline): in the source,
-    and in the shipping-mode runs the vblank check just made, whose logs list
-    the reads it caught (ct_dev --scaffold-reads)."""
-    cmd = [sys.executable, str(ROOT / "tools/effects_check.py"), "--check"]
-    logs = [args.out / "vblank" / ("%s-ship.log" % name) for name in ctx["movies"]]
-    logs = [str(p) for p in logs if p.exists()]
-    if logs:
-        cmd += ["--runs"] + logs
-    rc, lines = run_tool(cmd)
-    summary = lines[-1] if lines else "no output"
-    if not logs:
-        summary += " (no shipping-mode logs: the source only)"
-    return rc == 0, "effects", summary, [] if rc == 0 else lines[:-1][-40:]
-
-
 def check_portstyle(args, ctx):
     """No port transliterates the assembly where one didn't before
     (tools/portstyle.py, static, a ratchet against its baseline)."""
@@ -853,45 +513,31 @@ def check_assets(args, ctx):
     return rc == 0, "assets", summary, [] if rc == 0 else lines[:-1][-40:]
 
 
-def check_evidence(args, ctx):
-    """With --evidence: the library runs the tools/v_readers.py dc-evidence
-    notes cite, made again (tools/dc_evidence.py), so a note can't go stale.
-    Four more runs of every movie, so it is asked for rather than run always;
-    a movie none of whose inputs changed since its runs last passed takes its
-    counts from the build directory's cache (tools/evidence_cache.py)."""
-    if not args.evidence:
-        return True, "evidence", "not run (--evidence runs it)", []
-    cmd = [sys.executable, str(ROOT / "tools/dc_evidence.py"), "--ct-dev", str(ctx["binary"]),
-           "--rom", str(args.rom), "-j", str(max(1, min(ctx["jobs"], 2)))]
-    rc, lines = run_tool(cmd)
-    summary = lines[-1] if lines else "no output"
-    return rc == 0, "evidence", summary, [] if rc == 0 else [l for l in lines if "same:" not in l][-40:]
-
-
 CHECKS = (
     # name, function, what --no-<name> skips
-    ("trace", check_trace, "the --generated only trace comparison"),
     ("timing", check_timing, "the timing gate over the shadow runs"),
     ("vblank", check_vblank, "the check for video writes on the picture in the shipping mode"),
     ("routes", check_routes, "the route scripts in the shipping mode"),
     ("native-routes", check_native_routes, "the route scripts in ct_native"),
-    ("fallbacks", check_fallbacks, "the ratchet on the original's code run in place of hand ports (the movies' "
-                                   "shipping-mode runs)"),
-    ("refusals", check_refusals, "the check of real play's refusals against their allowlist"),
-    ("native-shape", check_native_shape, "the movies and routes with the ports' scaffolding compiled out"),
+    ("native-shape", check_native_shape, "the native-shape routes"),
     ("sound-fuzz", check_sound_fuzz, "the short ct_sound_fuzz runs"),
-    ("dontcare", check_dontcare, "the don't-care declarations against liveness"),
-    ("uncompared", check_uncompared, "the ratchet on hand ports the shadow runs mostly leave uncompared"),
     ("strict", check_strict, "the ratchet on how far the hand ports alone carry each movie"),
     ("native", check_native, "the movies in the native program, none ending dark"),
     ("outcomes", check_outcomes, "recorded end states, checkpoint pictures and places"),
-    ("effects", check_effects, "the ratchet on logic that reads scaffolding"),
     ("portstyle", check_portstyle, "the ratchet on ports that transliterate the assembly"),
     ("portsmell", check_portsmell, "the ratchet on the review rubric's mechanical items"),
     ("unreached", check_unreached, "the full-library unreached inventory and its checked paths"),
     ("assets", check_assets, "the catalogue of resources against the matching build's regions"),
-    ("evidence", check_evidence, "the dc-evidence notes' library runs (only run with --evidence)"),
 )
+
+
+def selected_checks(args, complete):
+    """Calibration checks need both an explicit batch and the whole library."""
+    for name, fn, what in CHECKS:
+        if name in ("timing", "vblank") and not (args.all_movies and complete):
+            continue
+        if not getattr(args, "no_" + name.replace("-", "_")):
+            yield name, fn, what
 
 
 def main():
@@ -902,29 +548,20 @@ def main():
     ap.add_argument("--only", choices=("all", "core", "saves"), default="all")
     ap.add_argument("--movies", nargs="*", default=[], help="run only these, by name")
     ap.add_argument("--all-movies", action="store_true",
-                    help="run the whole library, not the gate's sample (tools/gate_movies.txt): before merging "
-                         "a change to timing or the runtime, and for every recalibration or baseline update")
+                    help="run the whole library, including timing and vblank checks, "
+                         "for the calibration batch and baseline updates")
     ap.add_argument("-j", "--jobs", type=int, default=0,
                     help="concurrent movies (default: half the CPUs, at least 1)")
-    ap.add_argument("--trace-movie", default="new-game")
-    ap.add_argument("--trace-frames", type=int, default=7200)
     ap.add_argument("--routes-scratch", type=pathlib.Path,
                     help="keep the routes' runs here and resume them from their checkpoints where the build is the "
                          "same (route_check --resume): a long run cut short carries on on the next")
     ap.add_argument("--long-routes", action="store_true",
                     help="run every route, the ending ones too (most of an hour), not only the fast one")
     ap.add_argument("--evidence", action="store_true",
-                    help="make the library runs the dc-evidence notes cite again (tools/dc_evidence.py)")
-    ap.add_argument("--no-evidence-cache", action="store_true",
-                    help="make every evidence run again rather than take passing results whose inputs are "
-                         "unchanged from the build directory's cache (tools/evidence_cache.py)")
+                    help="re-run the unreached-path fuzz evidence")
     for name, _fn, what in CHECKS:
         ap.add_argument("--no-%s" % name, action="store_true", help="skip " + what)
-    ap.add_argument("--no-trace-check", action="store_true", help=argparse.SUPPRESS)   # the old spelling
     args = ap.parse_args()
-    if args.no_evidence_cache:
-        os.environ[evidence_cache.ENV] = "off"   # the evidence tools run as children and read it
-
     binary = args.ct_dev.resolve()
     args.out = args.out.resolve()
     if not binary.exists():
@@ -945,8 +582,6 @@ def main():
                   list(args.out.glob("outcome-*.txt"))):
         stale.unlink()
     shutil.rmtree(args.out / "outcomes", ignore_errors=True)
-    shutil.rmtree(args.out / "fallbacks" / "shadow", ignore_errors=True)
-    (args.out / "fallbacks" / "shadow").mkdir(parents=True)
 
     # Longest first: the three endings are more than half the suite, and one
     # started late sets the wall time while the other workers sit idle.
@@ -970,14 +605,11 @@ def main():
     # Wall time per stage, so a gate that has grown slow says where.
     times = [("movies", time.time() - started)]
 
-    args.no_trace |= args.no_trace_check
     library = len(collect("all", set()))
     ctx = {"binary": binary, "jobs": jobs, "movies": [m[0] for m in movies], "movie_rows": movies,
            "library": library, "complete": library == len(movies)}
     failed = ["movies: " + ", ".join(bad_movies)] if bad_movies else []
-    for name, fn, _what in CHECKS:
-        if getattr(args, "no_" + name.replace("-", "_")):
-            continue
+    for name, fn, _what in selected_checks(args, ctx["complete"]):
         started = time.time()
         ok, label, summary, details = fn(args, ctx)
         times.append((name, time.time() - started))

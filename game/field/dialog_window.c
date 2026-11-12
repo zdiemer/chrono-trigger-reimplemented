@@ -34,7 +34,6 @@
 #include "field/bridge.h"
 #include "field/field_data.h"
 #include "menu/typeset.h"
-#include "original_effects.h"
 #include "platform/video.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"

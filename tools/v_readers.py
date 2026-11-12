@@ -22,7 +22,7 @@ past the ASL (dispatch_findings), and A's high byte known clear at the ASL
 (high_byte_findings, tools/disasm/high_byte.py: every path to it clears it,
 a TDC on the battle's direct page $0000 or a 16-bit load of a small number,
 and nothing after sets it), which `ct_dev --index-check` also shows over the
-library (tools/dc_evidence.py runs it): V is dead into a routine when that solve
+library (historical dc-evidence runs): V is dead into a routine when that solve
 has it so. For each routine named it says whether V is dead into it (and for
 each --after, whether V is dead after the routine returns, to any of its
 callers), and with

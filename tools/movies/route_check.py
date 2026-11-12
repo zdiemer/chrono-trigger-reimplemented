@@ -27,8 +27,8 @@ $CT_DRIVE_FALLBACKS) over the frames the run kept, its input played again
 from the start as it ends (not the searches' probes, the attempts a restore
 undid or the frames a load replayed; a replay that doesn't end with the run's
 frame and work RAM fails the run), copied to DIR as `<route>-<mode>/`, for
-tools/fallbacks.py (the gate's fallback measure; docs/REIMPLEMENTATION.md,
-"The fallback measure").
+tools/fallbacks.py's manual inspection of hybrid handbacks. The gate does
+not request these counts.
 
 `--resume` (with `--scratch`) keeps each run's directory where the last run of
 the same route, mode, ct_drive, ROM and route scripts left it, so a run cut short -- a time

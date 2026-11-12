@@ -1,6 +1,0 @@
-# The fallback measure's baseline (tools/fallbacks.py --check; docs/REIMPLEMENTATION.md, "The fallback
-# measure"): every routine whose code the shipping mode (the movies and the routes run with --native on) still
-# runs as the original's in place of hand ports, as `routine instructions bytes # reason`.
-# A port that lands lowers these, and `--update` takes the gain; a new line, or more bytes
-# on one, is a new fallback, and needs its reason. An `open PORT` line is what the original ran
-# under that port's comparisons still open when a run ended, which hides it from the rest.

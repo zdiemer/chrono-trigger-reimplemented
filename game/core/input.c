@@ -24,7 +24,6 @@
 #include "core/input.h"
 
 #include "charge.h"
-#include "original_effects.h"
 #include "platform/timing.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"

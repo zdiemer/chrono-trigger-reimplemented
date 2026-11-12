@@ -1,4 +1,9 @@
-"""Check every don't-care declaration in game/ against the liveness analysis.
+"""Manually diagnose machine calling-convention declarations against liveness.
+
+Development tool outside the gate after every subsystem retired comparison.
+Use it when tracing a register mismatch in ct_dev or a generated draft. Its
+C reader also supplies groundtruth, burndown, v_readers and the unreached audit.
+The historical comparison rules below describe this optional diagnostic.
 
     python3 tools/dontcare_check.py [--rom roms/ct-usa.sfc] [--root DIR] [--calls GLOB...] [--list] [--tree DIR]
 
@@ -77,7 +82,7 @@ and every word it reaches traced code; the call's own site must be among the
 sites the note counts, V among the set, every trace the same as the
 unscrambled run's, and the call's own site must have had V inverted at least
 MIN_SCRAMBLED times -- or, where the note says a site under that rests on the
-static result, some site of the note must have. tools/dc_evidence.py makes the run, with ct_dev
+static result, some site of the note must have. the former dc-evidence replay made the run with ct_dev
 --index-check over the same library for the indexes, and says where a note's
 counts no longer hold (docs/PORTING.md, "Declarations liveness can't prove").
 
@@ -89,8 +94,7 @@ in the comment block just above the entry in game/registry.c:
 
 where liveness has the carry read past the entry's return to a reader whose
 result nothing acts on: the run inverted it there in the shipping mode, M at
-least MIN_SCRAMBLED times, and no trace differed (tools/dc_evidence.py makes it
-again). B, which a note may leave out where it is 0, counts the returns to a
+least MIN_SCRAMBLED times, and no trace differed (formerly replayed by the gate). B, which a note may leave out where it is 0, counts the returns to a
 bridge that ran the entry as C in place of a call (a sibling's,
 native_poison_sibling_return): a bridge may set the registers again at once,
 so those test less than a return to the original's code.

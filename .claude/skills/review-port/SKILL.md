@@ -861,7 +861,8 @@ Each of these is a finding. Every example here comes from this repo.
      cell the logic reads under one name (`battle_jump_lift`) that another
      port's `ORIGINAL_EFFECT` leave writes at its offset (`LEFT_WAY_BACK`):
      the native shape then reads it stale. Check every leave's offset against
-     the map's named cells; a candidate for `tools/effects_check.py`.
+     the map's named cells. Comparison-only writes retired in phase A;
+     reject their reintroduction (docs/PORTING.md, "Scaffolding").
 115. **A register leftover made into vocabulary.** A logic header exporting a
      query whose answer is only what a register held when the original
      returned (`menu_equip_item_described_on_opening`, X left pointing at a

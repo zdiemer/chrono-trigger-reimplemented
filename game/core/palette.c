@@ -24,17 +24,13 @@
  * palette_load_location_animations starts in the first six slots when the location is entered;
  * the modes put their own in the others.
  *
- * The functions here take the game's state; the entries at the end translate
- * the original's registers. What the original leaves behind for nobody but
- * shadow mode -- its scratch cells, its pointer, the multiplier -- is written
- * once, as scaffolding (ORIGINAL_EFFECT). */
+ * The functions here take the game's state; the compatibility entries at
+ * the end translate the original's registers. */
 #include "core/palette.h"
 
 #include "charge.h"
 #include "core/palette_data.h"
 #include "core/program.h"
-#include "cpu_io.h"
-#include "original_effects.h"
 #include "platform/video.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -133,8 +129,6 @@ static void step_frame(GameState *g, unsigned slot)
     set_palette_animations_step(g, slot, step == frame_count(g, slot) ? 0 : step);
 }
 
-static void leave_frame_copy(GameState *g, unsigned slot, uint8_t frame);
-
 // $FD:E437, $FD:E485
 /* Show the frame the slot is on: its colors into the working palette. */
 static void show_frame(GameState *g, unsigned slot, AnimationType type)
@@ -144,12 +138,9 @@ static void show_frame(GameState *g, unsigned slot, AnimationType type)
     uint8_t first = first_color(g, slot), count = color_count(g, slot);
     for (uint8_t i = 0; i < count; i++)
         set_palette_working(g, (unsigned)(first + i), palette_frame_color(g, (uint16_t)(at + 2 * i)));
-    ORIGINAL_EFFECT(leave_frame_copy(g, slot, frame));
 }
 
 /* ---- Rotating ------------------------------------------------------------------------------ */
-
-static void leave_rotation(GameState *g, uint16_t carried_base, uint16_t carried_working, uint8_t end, uint8_t count);
 
 // $FD:E532 (down), $FD:E4E8 (up)
 /* Rotate the colors from the first to the first plus the count, in the
@@ -168,7 +159,6 @@ static void rotate_colors(GameState *g, unsigned slot, AnimationType type)
     }
     set_palette_base(g, to, carried_base);
     set_palette_working(g, to, carried_working);
-    ORIGINAL_EFFECT(leave_rotation(g, carried_base, carried_working, to, color_count(g, slot)));
 }
 
 /* ---- Fading --------------------------------------------------------------------------------- */
@@ -231,7 +221,6 @@ static uint16_t faded(uint16_t color, const FadeChannels *m, uint8_t fraction, b
     return out;
 }
 
-static void leave_fade(GameState *g, bool lighten, uint8_t mode, uint8_t fraction, uint16_t last_color);
 static uint32_t fade_loop_routine(bool lighten, uint8_t mode);
 static void charge_fade(GameState *g, bool lighten, uint8_t mode, uint8_t count);
 
@@ -249,7 +238,7 @@ static void fade_colors(GameState *g, unsigned slot, uint8_t mode, uint8_t fract
             color = (uint16_t)((palette_working(g, at) & m->keeps_working) | (color & ~m->keeps_working));
         set_palette_working(g, at, color);
     }
-    ORIGINAL_EFFECT(leave_fade(g, lighten, mode, fraction, palette_base(g, (unsigned)(first + count - 1))));
+
     charge_fade(g, lighten, mode, count);
 }
 
@@ -332,8 +321,6 @@ static void animate_slot(GameState *g, unsigned slot, AnimationType type)
     }
 }
 
-static void note_last_run(unsigned slot, AnimationType type);
-
 // $FD:E39C
 /* A frame of every slot: each counts a frame toward its period, and one that
  * gets there starts counting again, steps on to its next frame if it plays
@@ -350,8 +337,6 @@ static void run_animations(GameState *g)
         if (steps_through_frames(type))
             step_frame(g, slot);
         animate_slot(g, slot, type);
-        if (type != NO_ANIMATION)
-            ORIGINAL_EFFECT(note_last_run(slot, type));
     }
 }
 
@@ -399,9 +384,7 @@ typedef struct {
 
 static uint8_t next_byte(SetStream *in) { return palette_animation_set_byte(in->g, in->at++); }
 
-static void leave_load(GameState *g, bool any_table, uint8_t table_frames);
-
-static void load_slot(GameState *g, unsigned slot, SetStream *in, uint8_t *table_frames)
+static void load_slot(GameState *g, unsigned slot, SetStream *in)
 {
     uint8_t kind = next_byte(in);
     AnimationType type = (AnimationType)(kind >> TYPE_SHIFT);
@@ -422,8 +405,8 @@ static void load_slot(GameState *g, unsigned slot, SetStream *in, uint8_t *table
     if (type != FRAMES_FROM_TABLE)
         return;
     set_palette_animations_frame_table(g, slot, palette_animation_set_address(in->at));
-    *table_frames = (uint8_t)(kind & FRAMES_LESS_ONE);
-    in->at = (uint16_t)(in->at + *table_frames + 1);
+    uint8_t table_frames = (uint8_t)(kind & FRAMES_LESS_ONE);
+    in->at = (uint16_t)(in->at + table_frames + 1);
 }
 
 // $FD:E292
@@ -433,73 +416,30 @@ void palette_load_location_animations(GameState *g)
 {
     uint8_t set = location_palette_animation_set(g, location_record_offset(g));
     SetStream in = { g, palette_animation_set_start(g, set) };
-    enum { NO_TABLE = 0xFF };
-    uint8_t table_frames = NO_TABLE;
     for (unsigned slot = 0; slot < LOCATION_SLOTS; slot++)
-        load_slot(g, slot, &in, &table_frames);
+        load_slot(g, slot, &in);
     for (unsigned slot = LOCATION_SLOTS; slot < SLOTS; slot++)
         stop(g, slot);
-    ORIGINAL_EFFECT(leave_load(g, table_frames != NO_TABLE, table_frames));
 }
 
-/* ---- What the original leaves: its scratch, its pointer, the multiplier -------------------------
- *
- * The original works in scratch cells of its direct page and through the
- * multiplier, and leaves them as they were at its end; nothing but shadow mode
- * reads them. */
+/* ---- Calibrated fade work -------------------------------------------------------------- */
 
-enum { SCRATCH_COLOR, SCRATCH_GREEN, SCRATCH_END, SCRATCH_LENGTH };
-
-static void leave_scratch_low_byte(GameState *g, unsigned cell, uint8_t v)
-{
-    set_palette_animation_scratch(g, cell, (uint16_t)((palette_animation_scratch(g, cell) & HIGH_BYTE) | v));
-}
-
-static void leave_multiplier(GameState *g, uint8_t first, uint8_t second)
-{
-    hw_set_multiplicand(g, first);
-    hw_multiply_by(g, second);
-}
-
-/* The frame copy leaves its long pointer past the last color it wrote, in
- * the working palette, and the multiplier on the frame's place. */
-static void leave_frame_copy(GameState *g, unsigned slot, uint8_t frame)
-{
-    enum { WORKING_PALETTE = 0x7E2200 };
-    uint16_t past = (uint16_t)(WORKING_PALETTE + (first_color(g, slot) + color_count(g, slot)) * 2);
-    set_palette_animation_pointer(g, (WORKING_PALETTE & 0xFF0000u) | past);
-    leave_multiplier(g, frame, frame_bytes(g, slot));
-}
-
-/* A rotation leaves the two colors it carried round, where it ended (a byte
- * offset) and the run's length in bytes. */
-static void leave_rotation(GameState *g, uint16_t carried_base, uint16_t carried_working, uint8_t end, uint8_t count)
-{
-    set_palette_animation_scratch(g, SCRATCH_COLOR, carried_base);
-    set_palette_animation_scratch(g, SCRATCH_GREEN, carried_working);
-    set_palette_animation_scratch(g, SCRATCH_END, (uint16_t)(end * 2));
-    set_palette_animation_scratch(g, SCRATCH_LENGTH, (uint16_t)(count * 2));
-}
-
-/* Each fade mode's loop in the original, whose time the port's is, and what
- * it leaves of the last color: part of the faded color (a byte of it for
- * the modes that write a byte), and for some the loaded color's green. */
+/* The calibrated routine and access widths for each fade mode's work. */
 typedef struct {
     uint32_t routine;
-    uint16_t scratch_bits;
     uint16_t scratch_byte;   /* 0: the word; LOW_BYTE or HIGH_BYTE: that byte, into the cell's low byte */
     bool keeps_green;
 } FadeLoop;
 
 static const FadeLoop DARKENING_LOOPS[FADE_MODES] = {
-    { 0xFDE64F, RED | BLUE, 0, false }, { 0xFDE7C0, RED | BLUE, 0, false }, { 0xFDE73A, RED | BLUE, 0, false },
-    { 0xFDE6A1, BLUE, 0, false },       { 0xFDE779, RED | BLUE, 0, false }, { 0xFDE6D1, RED | BLUE, 0, false },
-    { 0xFDE708, RED, 0, false },
+    { 0xFDE64F, 0, false }, { 0xFDE7C0, 0, false }, { 0xFDE73A, 0, false },
+    { 0xFDE6A1, 0, false },       { 0xFDE779, 0, false }, { 0xFDE6D1, 0, false },
+    { 0xFDE708, 0, false },
 };
 static const FadeLoop LIGHTENING_LOOPS[FADE_MODES] = {
-    { 0xFDE8D7, RED | BLUE, 0, true },     { 0xFDE962, RED, LOW_BYTE, false }, { 0xFDE98F, GREEN, 0, false },
-    { 0xFDEA5C, RED, 0, true },            { 0xFDE935, BLUE, HIGH_BYTE, false }, { 0xFDE9CA, RED | BLUE, 0, false },
-    { 0xFDEA11, BLUE, 0, true },
+    { 0xFDE8D7, 0, true },     { 0xFDE962, LOW_BYTE, false }, { 0xFDE98F, 0, false },
+    { 0xFDEA5C, 0, true },            { 0xFDE935, HIGH_BYTE, false }, { 0xFDE9CA, 0, false },
+    { 0xFDEA11, 0, true },
 };
 
 static const FadeLoop *fade_loop(bool lighten, uint8_t mode)
@@ -511,8 +451,8 @@ static uint32_t fade_loop_routine(bool lighten, uint8_t mode) { return fade_loop
 
 /* The original spends a color's time on its scratch -- each channel stored
  * there and read back, and what it leaves of the color -- and on the
- * multiplier, a channel's operand and its product, where the port writes the
- * last of them once: charged, so that the estimate follows the count. */
+ * multiplier, a channel's operand and its product. Keep the calibrated charge
+ * after removing those scratch writes, so the estimate follows the count. */
 static void charge_fade(GameState *g, bool lighten, uint8_t mode, uint8_t count)
 {
     enum { ACCESSES_PER_CHANNEL = 4, WORD_ACCESSES = 2, BYTE_ACCESSES = 1 };
@@ -525,47 +465,6 @@ static void charge_fade(GameState *g, bool lighten, uint8_t mode, uint8_t count)
         if (m->scales & CHANNELS[c].bits)
             per_color += ACCESSES_PER_CHANNEL;
     charge_as(g, fade_loop_routine(lighten, mode), per_color * count);
-}
-
-/* The multiplier holds the fraction and the last channel it scaled: the last
- * of blue, red and green the mode changes, of the last color, or for a
- * lightening what that channel lacked of full. */
-static void leave_fade(GameState *g, bool lighten, uint8_t mode, uint8_t fraction, uint16_t last_color)
-{
-    const FadeChannels *m = lighten ? &LIGHTENING[mode] : &DARKENING[mode];
-    const FadeLoop *loop = fade_loop(lighten, mode);
-    uint32_t uncounted = charge_uncounted_begin(g);   /* charge_fade stands for it */
-    uint16_t color = faded(last_color, m, fraction, lighten);
-    if (loop->scratch_byte == LOW_BYTE)
-        leave_scratch_low_byte(g, SCRATCH_COLOR, (uint8_t)(color & loop->scratch_bits));
-    else if (loop->scratch_byte == HIGH_BYTE)
-        leave_scratch_low_byte(g, SCRATCH_COLOR, (uint8_t)((color & loop->scratch_bits) >> 8));
-    else
-        set_palette_animation_scratch(g, SCRATCH_COLOR, color & loop->scratch_bits);
-    if (loop->keeps_green)
-        leave_scratch_low_byte(g, SCRATCH_GREEN, (uint8_t)((last_color & GREEN) >> 2));
-    uint8_t operand = 0;
-    for (unsigned c = 0; c < CHANNEL_COUNT; c++) {
-        if (!(m->scales & CHANNELS[c].bits))
-            continue;
-        uint8_t full = (uint8_t)(CHANNELS[c].bits >> CHANNELS[c].shift);
-        uint8_t v = (uint8_t)((last_color & CHANNELS[c].bits) >> CHANNELS[c].shift);
-        operand = lighten ? (uint8_t)(full - v) : v;
-    }
-    leave_multiplier(g, fraction, operand);
-    charge_uncounted_end(g, uncounted);
-}
-
-/* The loader points the work RAM port at the slots and its long pointer's
- * address at $000C, and a frame table leaves its frame count less one in the
- * scratch. */
-static void leave_load(GameState *g, bool any_table, uint8_t table_frames)
-{
-    enum { SLOTS_IN_WORK_RAM = 0x0520, WORK_RAM_BANK = 0x00, POINTER_LEFT = 0x000C };
-    hw_port_seek(g, SLOTS_IN_WORK_RAM, WORK_RAM_BANK);
-    set_palette_animation_pointer(g, (palette_animation_pointer(g) & 0xFF0000u) | POINTER_LEFT);
-    if (any_table)
-        set_palette_animation_scratch(g, SCRATCH_GREEN, table_frames);
 }
 
 /* ---- The machine form ---------------------------------------------------------------------------
@@ -582,42 +481,6 @@ static void leave_load(GameState *g, bool any_table, uint8_t table_frames)
 
 /* The page, and the slots as the original's Y has them, 12 bytes apart. */
 enum { ANIMATIONS_PAGE = 0x0500, SLOT_BYTES = 12, SLOTS_END = SLOTS * SLOT_BYTES };
-
-static uint16_t run_end_of(const GameState *g, unsigned slot, AnimationType type)
-{
-    uint8_t first = first_color(g, slot), count = color_count(g, slot);
-    if (type == ROTATE_UP)
-        return (uint16_t)(first * 2);
-    if (plays_frames(type))
-        return (uint16_t)(frame_offset(g, slot, current_frame(g, slot, type)) + count * 2);
-    return (uint16_t)((first + count) * 2);
-}
-
-/* Where the last handler left X: past the last color it changed, or for a
- * rotation where it ended, or for a frame past the frame in the ROM's frames.
- * The reads that find it are the wrapper's, not the original's, so they take
- * none of the routine's time. */
-static uint16_t run_end(const GameState *g, unsigned slot, AnimationType type)
-{
-    uint32_t uncounted = native_uncounted_begin(state_snes(g));
-    uint16_t x = run_end_of(g, slot, type);
-    native_uncounted_end(state_snes(g), uncounted);
-    return x;
-}
-
-/* Which slot palette_animate ran last, for the X it leaves. */
-static struct {
-    bool ran;
-    unsigned slot;
-    AnimationType type;
-} last_run;
-
-static void note_last_run(unsigned slot, AnimationType type)
-{
-    last_run.ran = true;
-    last_run.slot = slot;
-    last_run.type = type;
-}
 
 static bool every_slot_fits(const GameState *g)
 {
@@ -659,7 +522,6 @@ bool palette_animate_runs(Snes *s)
  * comparison set and the overflow clear. */
 void palette_animate_a_frame(GameState *g)
 {
-    last_run.ran = false;
     run_animations(g);
 }
 
@@ -669,7 +531,7 @@ void palette_animate(Snes *s)
 {
     GameState *g = state_of(s);
     palette_animate_a_frame(g);
-    s->cpu.x = last_run.ran ? run_end(g, last_run.slot, last_run.type) : ANIMATIONS_PAGE;
+    s->cpu.x = ANIMATIONS_PAGE;
     s->cpu.a = SLOTS_END;
     s->cpu.y = SLOTS_END;
     m_set_flag(s, CPU_FLAG_C, true);

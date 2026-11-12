@@ -53,7 +53,6 @@
 
 #include "charge.h"
 #include "holds.h"
-#include "original_effects.h"
 #include "core/console.h"
 #include "core/program.h"
 #include "core/palette.h"

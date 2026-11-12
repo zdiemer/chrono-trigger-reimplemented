@@ -48,7 +48,6 @@ static void w8(GameState *g, uint32_t a, uint8_t v)
 
 #include "port/machine.h"
 #include "port/native.h"
-#include "port/scaffold_reads.h"
 
 /* A value of the width the map gives, low byte first, as the 65816 stores it. */
 static uint8_t r8(const GameState *g, uint32_t a)
@@ -56,14 +55,12 @@ static uint8_t r8(const GameState *g, uint32_t a)
     if (peeking)
         return snes_bus_peek(&state_snes(g)->bus, a & 0xFFFFFF);
     uint8_t v = m_read8(state_snes(g), a);
-    scaffold_note_read(state_snes(g), a);   /* ct_dev --scaffold-reads */
     return v;
 }
 
 static void w8(GameState *g, uint32_t a, uint8_t v)
 {
     m_write8(state_snes(g), a, v);
-    scaffold_note_write(state_snes(g), a);   /* ct_dev --scaffold-reads */
 }
 
 #endif

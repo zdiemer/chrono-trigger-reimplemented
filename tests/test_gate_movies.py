@@ -9,6 +9,27 @@ import tempfile
 from unittest.mock import patch
 
 from tools import suite
+from types import SimpleNamespace
+
+
+class GateStages(unittest.TestCase):
+    def stages(self, batch=False, complete=False, **overrides):
+        flags = {"no_" + name.replace("-", "_"): False for name, _, _ in suite.CHECKS}
+        flags.update(overrides)
+        args = SimpleNamespace(all_movies=batch, **flags)
+        return {name for name, _, _ in suite.selected_checks(args, complete)}
+
+    def test_calibration_requires_an_explicit_whole_library_batch(self):
+        calibration = {"timing", "vblank"}
+        for batch, complete in ((False, False), (False, True), (True, False)):
+            self.assertFalse(self.stages(batch, complete) & calibration)
+        self.assertTrue(calibration <= self.stages(True, True))
+        self.assertNotIn("timing", self.stages(True, True, no_timing=True))
+
+    def test_sample_keeps_product_checks_and_phase_b_checks(self):
+        self.assertEqual(self.stages(), {"routes", "native-routes", "native-shape",
+                         "sound-fuzz", "strict", "native", "outcomes", "portstyle",
+                         "portsmell", "unreached", "assets"})
 
 
 class NativeRoutesTest(unittest.TestCase):
@@ -56,15 +77,9 @@ class GateMoviesTest(unittest.TestCase):
     def test_the_sample_is_part_of_the_library(self):
         names, _ = suite.gate_movies()
         library = suite.collect("all", set())
-        self.assertEqual(suite.collect("all", None), library)  # dc_evidence's default selection
+        self.assertEqual(suite.collect("all", None), library)
         self.assertLess(len(names), len(library))
         self.assertEqual(sorted(m[0] for m in suite.collect("all", set(names))), sorted(names))
-
-    def test_the_trace_identity_movie_is_sampled(self):
-        """The trace check plays new-game itself, but the sample keeps it so the
-        shadow runs cover the same play."""
-        names, _ = suite.gate_movies()
-        self.assertIn("new-game", names)
 
     def test_preflight_rejects_missing_or_bad_recorded_and_sample_movies(self):
         with tempfile.TemporaryDirectory() as temporary:

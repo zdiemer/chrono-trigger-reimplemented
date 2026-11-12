@@ -7,7 +7,6 @@
 #include "charge.h"
 #include "core/program.h"
 #include "cpu_io.h"
-#include "original_frame.h"
 #include "platform/time_model.h"
 #include "port/time_rates.h"
 #include "rom.h"
@@ -475,8 +474,6 @@ void charge_time_as_end(GameState *g, int was)
     g->timed = (unsigned)was;
     g->rate = g->timed < time_rate_count ? time_rates[g->timed].cost_milli : 0;
 }
-void original_frame_enter(GameState *g, uint16_t bytes) { (void)g, (void)bytes; }
-void original_frame_leave(GameState *g, uint16_t bytes) { (void)g, (void)bytes; }
 
 /* ---- Where the program's C ends (core/program.h) --------------------------------------------- */
 

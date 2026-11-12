@@ -41,7 +41,6 @@ and their ledgers, not as competing snapshots here.
 | Measure | Done when |
 |---|---|
 | `tools/burndown.py`, `tools/unreached.py` | All live code is implemented; unreached paths have execution evidence or explicit safety arguments. |
-| `tools/fallbacks.py` | No original code substitutes for hand ports, no unexplained refusal, and the build without scaffolding reaches the same route outcomes. |
 | `tools/portstyle.py`, `tools/portsmell.py`, qualitative review | The game reads as source; the machine is confined to interfaces awaiting removal. |
 | `tools/census.py`, `tools/machine_joints.py` | No game entry needs the registry, emulated stack, bus, register escapes or comparison scaffolding, and no function in `game/` takes `Snes *`. |
 | Asset catalogue and accessors | Every resource is loaded through the store; no transfer depends on a mapped cartridge. |
@@ -59,91 +58,45 @@ Every subsystem has retired its byte-exact comparison (REIMPLEMENTATION.md,
 the teardown sections). What it leaves behind still holds: each retired
 guard is an assertion (`contract broken:`), a claim that the game never
 produces the state it refused, checked over the movies and routes, where a
-refusal is a bug in the port rather than a call to pass on. The scaffolding
-writes left (`tools/machine_joints.py`) go with the comparisons that read
-them.
+refusal is a bug in the port rather than a call to pass on. The comparison-only
+writes and their gate checks have retired.
+`ct_dev`, its interpreter and generated C stay as development tools for tracing
+divergences against the original and timing calibration, outside the product gate
+after phase B below.
 
 ### Working order
 
 The order to a production native build. Each step's detail is in Phase 4a.
 
-1. **The gate after the comparisons.** Decide which checks the gate keeps
-   now that subsystem comparisons are retired, and what becomes of the
-   generated C, the interpreter and shadow mode.
-2. **Prove `ct_native` plays the game.** A playthrough from a new game to an ending, and the
+1. **Prove `ct_native` plays the game.** A playthrough from a new game to an ending, and the
    open divergences traced. Before the machine is deleted, not after, so the
    deletions have a check that doesn't depend on it.
-3. **The game's state as C structs**, with `.srm` saves still loading.
-4. **The machine out of the product**: wrappers, registry, emulated stack,
+2. **The game's state as C structs**, with `.srm` saves still loading.
+3. **The machine out of the product**: wrappers, registry, emulated stack,
    held waits as C loops, `Snes *` gone from `game/`; `ct_play` becomes
    `ct_native`.
-5. **The player as a product**: what `ct_play` has that `ct_native` lacks,
+4. **The player as a product**: what `ct_play` has that `ct_native` lacks,
    and release builds.
 
-The first two steps can run side by side; state storage and machine removal
-overlap per module. Investigate
+Native play, state storage and machine removal can overlap per module. Investigate
 the first playback divergence before changing a rate or re-recording an
 exception. Independent branches use separate worktrees and a shared process
 budget, with shared-file edits kept local so they merge.
 
 ## The validation gate
 
-Nothing lands without it, and it is the same gate for every phase. It runs
-over the gate's sample of the movie library (`tools/gate_movies.txt`, a greedy
-cover of the library's code per frame played plus what each check needs) by
-default, and over the whole library with `--all-movies`, run batched over
-everything merged since its last run (it takes 8 hours and more), which is
-where recalibration and baseline updates come from; "every movie" below is every movie run:
+Branches pass the sampled gate (`tools/gate_movies.txt`), unit tests and a
+warning-free build. Main runs long routes once per timing/runtime merge batch;
+the whole-library batch (`--all-movies`) alone runs timing and vblank checks
+and supplies calibration and baseline updates. Subsets never prune unseen rows.
 
-- every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines,
-  no `page refused` lines (a guard that turned away a call on a direct
-  page the map declares no instance for) and no `accessor out of range`
-  lines (a port that reached past a variable the map declares, into
-  whatever follows it in work RAM; both in DISASSEMBLY.md, "The accessors");
-- `--native on --generated only` traces identically to `--native off`;
-- every hand port's estimated time stays within the timing gate's limits over
-  the shadow runs, or is on its exceptions list with a reason
-  (`tools/timing_gate.py`; REIMPLEMENTATION.md, "The timing gate");
-- no video write in the shipping mode lands on the picture where the
-  reference's doesn't, unless it is an accepted exception
-  (`tools/vblank_check.py`);
-- the route scripts reach their outcomes in the shipping mode, with the C
-  sound driver (`tools/movies/route_check.py`: the fast route every time, all
-  of them with `--long-routes` on main once per timing/runtime merge batch);
-- the fast routes also reach their outcomes in `ct_native --server`, with
-  the remaining gate routes under `--long-routes` and observed failures
-  explicitly listed in `tools/native_route_exceptions.txt`;
-- the C sound driver, over a short `ct_sound_fuzz` with the game's songs
-  and with made-up ones, answers every command, places no sample where the
-  echo writes and drops none, the native mixer makes the S-DSP's every frame,
-  and each kind of run's sound is the digest `tools/sound_golden.txt` keeps
-  (SOUND.md, "How it is checked"; nothing compares it with the original's
-  any more);
-- every don't-care declaration in `game/` is one liveness agrees with
-  (`tools/dontcare_check.py`; REIMPLEMENTATION.md, "Before the bulk");
-- no port transliterates the assembly where one didn't before
-  (`tools/portstyle.py`, a ratchet against its baseline);
-- no port's logic reads what some port writes only as scaffolding where
-  none did before (`tools/effects_check.py`, a ratchet against its baseline;
-  PORTING.md, "Scaffolding");
-- no port carries one of the review rubric's mechanical smells where one
-  didn't before (`tools/portsmell.py`, a ratchet against its baseline);
-- the original's code runs in place of hand ports nowhere new, and no more of
-  it where it did, over every movie's reference play (`tools/fallbacks.py
-  --check`, a ratchet against its baseline; REIMPLEMENTATION.md, "The fallback
-  measure");
-- no hand port's guard refuses a call real play makes unless its allowlist
-  line says why (`tools/fallbacks.py --refusals`; "After the byte-exact
-  gate", above);
-- the build with the scaffolding compiled out runs every movie to its end and
-  reaches the routes' outcomes in the shipping mode (`ct_dev_native_shape`,
-  `ct_drive_native_shape`; REIMPLEMENTATION.md, "The native shape, run");
-- strict mode and `ct_native` preserve their recorded saved-game, save-RAM,
-  picture and place outcomes (`tools/outcomes.py`); a retired guard reports
-  `contract broken:` rather than silently weakening the contract;
-- `--misses` stays empty;
-- `py -m unittest discover tests` passes and the build is warning-free on
-  all four CI platforms.
+The gate retains shadow movies' contract, page, accessor and asset diagnostics;
+strict and native movies with recorded saved-game, save-RAM, picture and place
+outcomes; shipping, native-shape and native routes; sound fuzz and digests;
+style and smell ratchets; unreached-path evidence; and the asset catalogue.
+Native crashes, unexplained dark screens and unaccepted route failures fail it.
+CLAUDE.md's "Validation" gives the command; REIMPLEMENTATION.md's "The gate
+after the comparisons, phase A" records the retirement and remaining checks.
 
 ## Phase 4a: what still runs on emulation
 
@@ -151,18 +104,6 @@ The remaining work between a finished `game/` and a native build with nothing
 under it is below. None is optional for target 1; the host service backends
 already built are described in PLATFORM.md.
 
-- **The gate after the comparisons.** With subsystem comparisons retired,
-  decide for each check whether it still protects the product: shadow
-  mismatches, `--generated only` against `--native off`, the fallback and
-  refusal measures, the effects check and the don't-care check compare
-  against the original or its scaffolding; the routes, recorded outcomes,
-  strict and native checks, sound digests, style and smell ratchets do not.
-  Delete the checks that are empty, and their ledgers with them. Decide in
-  the same item what the generated C, the interpreter and shadow mode are
-  kept for (the oracle tools, a debugging build) or whether they go.
-  Audit the remaining effects, unreached, timing and uncompared records
-  against the retired comparisons; preserve the evidence still needed by
-  held continuations and native timing.
 - **`ct_native` plays the game, checked in `ct_native`.** Resolve the remaining
   state-driven route divergences listed in TODO.md. Take complete frame-end
   bases during play so slot loads can resume the unfinished route audit
@@ -173,6 +114,13 @@ already built are described in PLATFORM.md.
   ending, the Dino Age interrupt, the tech sweep's wipe near the Core).
   Remaining timing debts (menu-guard accounting, sound timing, line-boundary
   uploads) are settled where a divergence traces to them.
+  Next, **phase B of the gate**: once mid-route snapshots support the audit and
+  native routes reach their outcomes over the route set, move `accessor out of
+  range`, `contract broken` and `page refused` diagnostics into a checking build
+  of `ct_native`. Then retire `ct_drive`'s shipping-mode routes, native-shape's
+  routes, shadow-mode movies and strict mode. Keep `ct_dev` with the interpreter
+  and generated C outside the gate for tracing divergences against the original
+  and timing calibration.
 - **The game's state as C, not a work-RAM image.** Move the remaining
   image-backed variables into module-owned structs through the generated
   backing (STATE.md). Resolve the inventory's shared scratch, internal field
