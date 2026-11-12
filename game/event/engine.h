@@ -5,53 +5,32 @@
 
 #include "event/script.h"
 
-/* How the engine runs each command of a turn. `run` runs the command at `at`
- * and says where the script goes (false: it handed the rest of the turn to
- * another game mode). `state_is_ours`
- * says whether the game's state is still one the port reaches as it expects
- * after what `run` ran; the program's runner (event_runner) always says it
- * is. */
-typedef struct {
-    bool (*run)(void *ctx, uint16_t at, EventStep *step);
-    bool (*state_is_ours)(void *ctx);
-    void *ctx;
-} EventRunner;
-
 typedef enum {
     TURN_OVER,             /* the turn ran its course, and where the script stopped is kept */
-    TURN_HANDED_BACK,      /* a command handed the rest to someone else */
+    TURN_HANDED_BACK,      /* a command handed the rest to someone else, or broke its contract (core/program.h) */
     TURN_OFF_THE_SCRIPT,   /* the script ran to its last offset, which no script reaches */
-    TURN_NOT_OURS,         /* after the commands, the state isn't one the port reaches */
-    TURN_NOT_OURS_BEFORE,  /* the same, before an object's opening */
+    TURN_NOT_OURS,         /* after the commands, no object is running */
+    TURN_NOT_OURS_BEFORE,  /* before the commands, the object or the map's count is out of range */
 } EventTurnEnd;
 
 /* One object's turn this frame: commands from
  * where its script left off until one ends the turn or the turn's budget
  * (event_commands_per_turn) is spent. `stopped_at` is where the script got
  * to. */
-EventTurnEnd event_run_turn(GameState *g, FieldObject object, const EventRunner *r, uint16_t *stopped_at);
+EventTurnEnd event_run_turn(GameState *g, Platform *pf, FieldObject object, uint16_t *stopped_at);
 
 /* A map's openings, as it loads: every object's script up to its first zero
  * byte, all at once. `object` is the one the openings got to. */
-EventTurnEnd event_run_openings(GameState *g, const EventRunner *r, FieldObject *object, uint16_t *stopped_at);
+EventTurnEnd event_run_openings(GameState *g, Platform *pf, FieldObject *object, uint16_t *stopped_at);
 
 /* The running object's script started over, as a character's is after a
  * menu changed the party: its opening up to its first zero byte, and the
  * calls it was in forgotten. */
-EventTurnEnd event_restart_the_running_object(GameState *g, const EventRunner *r, uint16_t *stopped_at);
+EventTurnEnd event_restart_the_running_object(GameState *g, Platform *pf, uint16_t *stopped_at);
 
 /* The map's own script, as the map starts or comes back: object 0's second
  * function, up to its first zero byte, all at once. */
-EventTurnEnd event_run_map_script_commands(GameState *g, const EventRunner *r, uint16_t *stopped_at);
-
-/* The program's runner: each command timed at its retained estimate. An invalid opcode
- * or a state outside its contract reports a broken contract and stops the
- * turn (core/program.h, program_breaks_a_contract). */
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} EventScriptContext;
-EventRunner event_runner(EventScriptContext *c);
+EventTurnEnd event_run_map_script_commands(GameState *g, Platform *pf, uint16_t *stopped_at);
 
 /* The commands whose rows have no operation, which read their operands from
  * the script themselves: each takes the command at `at` and says where the

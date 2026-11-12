@@ -330,7 +330,7 @@ static const uint16_t SAVE_SCREEN_UPLOADS[3] = { MENU_UPLOAD_SLOT_TILEMAP_2, MEN
 /* Show the slot the cursor is on: off the empty slots; on the fourth row, left
  * or right flips between its choices, with a tick; then the slot rows'
  * effect, and the slot's summary drawn and queued. */
-bool menu_show_save_slot_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx)
+bool menu_show_save_slot_with(GameState *g, Platform *pf)
 {
     uint8_t slot = skip_empty_slots(g, menu_cursor_index(g));
     set_menu_cursor_index(g, slot);
@@ -338,8 +338,7 @@ bool menu_show_save_slot_with(GameState *g, Platform *pf, const LoadScreenSteps 
     if (finished && slot == FOURTH_ROW && (menu_cursor_moves(g) & (MOVED_RIGHT | MOVED_LEFT))) {
         uint8_t x = (uint8_t)(menu_cursor_places_x(g, FOURTH_ROW) ^ FOURTH_ROW_CHOICES_APART);
         set_menu_cursor_places_x(g, FOURTH_ROW, x);
-        if (!n->tick(ctx, LOAD_AT_THE_FOURTH_ROW_FLIP_TICK))
-            return false;
+        menu_tick(g, pf);
     }
     set_menu_save_slot_shown(g, slot);
     set_menu_save_slot_marked(g, (uint8_t)((slot + 1) & ROW_MASK));
@@ -368,13 +367,12 @@ static uint8_t show_the_slot_under_the_cursor(GameState *g, uint8_t slot)
  * drawn afresh: a tick where the cursor came to it from another slot, the
  * slot's row marked, its summary drawn when it holds a game, and the whole
  * queued. */
-bool menu_move_among_the_slots_with(GameState *g, Platform *pf, const SavingSteps *n, void *ctx)
+bool menu_move_among_the_slots_with(GameState *g, Platform *pf)
 {
     uint8_t slot = menu_cursor_index(g);
     uint8_t was = show_the_slot_under_the_cursor(g, slot);
     if (slot != was) {
-        if (!n->tick(ctx, SAVING_AT_THE_SLOT_MOVE_TICK))
-            return false;
+        menu_tick(g, pf);
     }
     make_room_for_the_slot(g);
     if (menu_save_slot_in_use(g, slot) != 0)
@@ -540,12 +538,11 @@ enum { DESIGN_BITS = 0x07 };
 /* ---- The labels and summaries as the menus open ------------------------------------------------- */
 
 /* The routines reading the slots call as their own -- a slot's chapter label,
- * its name label, its summary, its window design and chapter -- from the
- * sites given (below), each false where it went no further. */
+ * its name label, its summary, its window design and chapter -- each run
+ * only on the state it handles (slot_routine, below), false where it went
+ * no further. */
 typedef enum { CHAPTER_LABEL, SLOT_NAME, SLOT_SUMMARY, DESIGN_AND_CHAPTER } SlotRoutine;
-typedef struct {
-    bool (*routine)(void *ctx, SlotRoutine routine, uint32_t site);
-} SlotCalls;
+static bool slot_routine(GameState *g, Platform *pf, SlotRoutine routine);
 
 // $C2:D296
 /* A slot's chapter label (or the empty slot's, whichever its caller asked
@@ -575,7 +572,7 @@ static void draw_slot_name(GameState *g)
 // $C2:D266
 /* A slot with a game: the window design it was saved with, and its chapter's
  * label. */
-static bool read_design_and_chapter(GameState *g, Platform *pf, const SlotCalls *c, void *ctx)
+static bool read_design_and_chapter(GameState *g, Platform *pf)
 {
     uint8_t slot = menu_save_slot_shown(g);
     uint16_t game = checked_game(g);
@@ -583,12 +580,12 @@ static bool read_design_and_chapter(GameState *g, Platform *pf, const SlotCalls 
     uint8_t progress = saved_byte(pf, game, SAVED_CHAPTER);
     uint8_t chapter = chapter_of(g, progress);
     set_menu_text_string(g, chapter);
-    return c->routine(ctx, CHAPTER_LABEL, 0xC2D288);
+    return slot_routine(g, pf, CHAPTER_LABEL);
 }
 
 // $C2:D19F
 /* A slot with a game: its summary, then its design and chapter. */
-static bool read_slot_summary(GameState *g, Platform *pf, const SlotCalls *c, void *ctx)
+static bool read_slot_summary(GameState *g, Platform *pf)
 {
     uint8_t slot = menu_save_slot_shown(g);
     read_summary(g, pf, slot);
@@ -596,7 +593,7 @@ static bool read_slot_summary(GameState *g, Platform *pf, const SlotCalls *c, vo
      * where the reading got to: the cell the window lists draw from */
     set_menu_draw_origin(g, (uint16_t)(RAM_ABS(RAM_SAVE_SLOT_SUMMARIES) + slot * SUMMARY_BYTES + SUMMARY_MEMBER_BYTES));
     charge_summary_read(g, pf);
-    return c->routine(ctx, DESIGN_AND_CHAPTER, 0xC2D261);
+    return slot_routine(g, pf, DESIGN_AND_CHAPTER);
 }
 
 enum { NO_FOURTH_ROW_YET = 0xFF };
@@ -604,7 +601,7 @@ enum { NO_FOURTH_ROW_YET = 0xFF };
 // $C2:D156
 /* The three slots, as the menus open: checked, their summaries and labels,
  * and the labels queued. */
-static bool read_save_slots(GameState *g, Platform *pf, const SlotCalls *c, void *ctx)
+static bool read_save_slots(GameState *g, Platform *pf)
 {
     for (uint8_t slot = 0; slot < MENU_SAVE_SLOTS; slot++)
         set_menu_save_slot_design(g, slot, 0);
@@ -617,28 +614,20 @@ static bool read_save_slots(GameState *g, Platform *pf, const SlotCalls *c, void
         bool holds_a_game = check == SAVED_GAME_HELD;
         if (holds_a_game) {
             set_menu_save_slot_in_use(g, slot, 1);
-            if (!c->routine(ctx, SLOT_SUMMARY, 0xC2D182))
+            if (!slot_routine(g, pf, SLOT_SUMMARY))
                 return false;
         } else {
             set_menu_text_string(g, EMPTY_SLOT_LABEL);
-            if (!c->routine(ctx, CHAPTER_LABEL, 0xC2D17A))
+            if (!slot_routine(g, pf, CHAPTER_LABEL))
                 return false;
         }
-        if (!c->routine(ctx, SLOT_NAME, 0xC2D185))
+        if (!slot_routine(g, pf, SLOT_NAME))
             return false;
     }
     set_menu_save_slot_shown(g, MENU_SAVE_SLOTS);   /* past the last, as the count leaves it */
     TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, MENU_UPLOAD_SLOT_NAMES)));
     return true;
 }
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} SaveSlotsContext;
-
-static bool slot_routine(void *ctx, SlotRoutine routine, uint32_t site);
-static const SlotCalls slots = { slot_routine };
 
 static bool chapter_label_drawable(const GameState *g);
 static bool labels_drawable(const GameState *g);
@@ -657,32 +646,30 @@ static const struct {
     [DESIGN_AND_CHAPTER] = { 0xC2D266, "a slot's summary the port doesn't read" },
 };
 
-static bool slot_routine_takes(const SaveSlotsContext *c, SlotRoutine routine)
+static bool slot_routine_takes(const GameState *g, Platform *pf, SlotRoutine routine)
 {
     switch (routine) {
-    case CHAPTER_LABEL: return chapter_label_drawable(c->game);
-    case SLOT_NAME: return labels_drawable(c->game);
+    case CHAPTER_LABEL: return chapter_label_drawable(g);
+    case SLOT_NAME: return labels_drawable(g);
     case SLOT_SUMMARY:
-    case DESIGN_AND_CHAPTER: return summary_readable(c->game, c->pf);
+    case DESIGN_AND_CHAPTER: return summary_readable(g, pf);
     }
     return false;
 }
 
-static bool slot_routine(void *ctx, SlotRoutine routine, uint32_t site)
+static bool slot_routine(GameState *g, Platform *pf, SlotRoutine routine)
 {
-    (void)site;
-    SaveSlotsContext *c = ctx;
-    if (!slot_routine_takes(c, routine)) {
-        program_breaks_a_contract(c->game, slot_routines[routine].routine, slot_routines[routine].what);
+    if (!slot_routine_takes(g, pf, routine)) {
+        program_breaks_a_contract(g, slot_routines[routine].routine, slot_routines[routine].what);
         return false;
     }
     bool back = true;
     switch (routine) {
-    case CHAPTER_LABEL: TIMED_AS(c->game, 0xC2D296, draw_chapter_label(c->game)); break;
-    case SLOT_NAME: TIMED_AS(c->game, 0xC2D2C4, draw_slot_name(c->game)); break;
-    case SLOT_SUMMARY: TIMED_AS(c->game, 0xC2D19F, back = read_slot_summary(c->game, c->pf, &slots, c)); break;
+    case CHAPTER_LABEL: TIMED_AS(g, 0xC2D296, draw_chapter_label(g)); break;
+    case SLOT_NAME: TIMED_AS(g, 0xC2D2C4, draw_slot_name(g)); break;
+    case SLOT_SUMMARY: TIMED_AS(g, 0xC2D19F, back = read_slot_summary(g, pf)); break;
     case DESIGN_AND_CHAPTER:
-        TIMED_AS(c->game, 0xC2D266, back = read_design_and_chapter(c->game, c->pf, &slots, c));
+        TIMED_AS(g, 0xC2D266, back = read_design_and_chapter(g, pf));
         break;
     }
     return back;
@@ -692,8 +679,7 @@ static bool slot_routine(void *ctx, SlotRoutine routine, uint32_t site)
  * handles. */
 bool menu_slot_summary_read_back(GameState *g, Platform *pf)
 {
-    SaveSlotsContext c = { g, pf };
-    return slot_routine(&c, SLOT_SUMMARY, 0xC2CF58);
+    return slot_routine(g, pf, SLOT_SUMMARY);
 }
 
 bool menu_save_slots_read(GameState *g, Platform *pf)
@@ -702,8 +688,7 @@ bool menu_save_slots_read(GameState *g, Platform *pf)
         program_breaks_a_contract(g, 0xC2D156, "save slots the port doesn't read");
         return false;
     }
-    SaveSlotsContext c = { g, pf };
-    return read_save_slots(g, pf, &slots, &c);
+    return read_save_slots(g, pf);
 }
 
 // $C2:D28D

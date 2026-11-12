@@ -1110,12 +1110,11 @@ void menu_techs_panel_show(GameState *g, Platform *pf)
 // $C2:B8DA
 /* The panel: its windows, the sprites' colours, a frame, the records' task,
  * the member rows, the tabs, colours and colour math. */
-bool menu_show_techs_panel_with(GameState *g, Platform *pf, const MainMenuSteps *n, void *ctx)
+bool menu_show_techs_panel(GameState *g, Platform *pf)
 {
     menu_techs_panel_lay_out(g, pf);
     TIMED_AS(g, 0xC2F5A7, menu_load_character_colours(g));
-    if (!n->wait(ctx, MAIN_MENU_AT_THE_TECHS_LAID_OUT))
-        return false;
+    menu_task_waits(g, 1);
     TIMED_AS(g, 0xC2F643, menu_start_the_records(g));
     TIMED_AS(g, 0xC2BA4F, menu_techs_draw_member_rows(g, pf));
     menu_techs_panel_show(g, pf);
@@ -1204,15 +1203,21 @@ bool menu_techs_can_move_among_members(const GameState *g)
            && menu_cursor_index(g) < FIRST_MEMBER_PLACE + MENU_MEMBER_ROWS;
 }
 
+static bool move_among_members(GameState *g, Platform *pf);
+static bool slide_members(GameState *g, Platform *pf);
+static bool show_the_lister(GameState *g, Platform *pf);
+static bool describe_the_kind(GameState *g);
+static bool back_to_the_main_menu(GameState *g, Platform *pf);
+static bool run(GameState *g, Platform *pf, TechsRoutine r);
+
 /* ---- The opening and the members ---------------------------------------------------------------- */
 
 // $C2:B35D, $C2:B979
 /* A tick, the screen's windows, the rocks' triple techs worked out and
  * noted, the scroll bar's task, and the sprites. */
-bool menu_open_techs_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
+bool menu_open_techs_with(GameState *g, Platform *pf)
 {
-    if (!n->tick(ctx, TECHS_AT_THE_OPENING))
-        return false;
+    menu_tick(g, pf);
     menu_techs_open(g, pf);
     TIMED_AS(g, 0xC282E1, party_rocks_teach(g));
     menu_techs_note_rock_techs(g);
@@ -1226,16 +1231,15 @@ bool menu_open_techs_with(GameState *g, Platform *pf, const TechsSteps *n, void 
  * cursor kept on their list, sliding the list past its ends; the member's
  * list made where it is another, the kind's tab, its caption, and the rows
  * sent. */
-bool menu_move_among_tech_members_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
+bool menu_move_among_tech_members_with(GameState *g, Platform *pf)
 {
-    (void)pf;
     menu_techs_switch_kind(g);
     TIMED_AS(g, 0xC2EA53, menu_keep_the_cursor_on_the_list(g));
-    if (menu_techs_push_slides_members(g) && !n->slide_members(ctx))
+    if (menu_techs_push_slides_members(g) && !slide_members(g, pf))
         return false;
     menu_techs_point_at_member(g);
     menu_techs_mark_kind(g);
-    if (!n->describe_the_kind(ctx))
+    if (!describe_the_kind(g))
         return false;
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
     return true;
@@ -1246,27 +1250,30 @@ bool menu_move_among_tech_members_with(GameState *g, Platform *pf, const TechsSt
  * lister, the list) where it has a tech, else is refused; going back leaves
  * for the main menu; else the moves, and a tick where the list is
  * another. */
-bool menu_choose_tech_member_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
+bool menu_choose_tech_member_with(GameState *g, Platform *pf)
 {
     uint8_t before = menu_techs_note_list_shown(g);
-    n->read_cursor(ctx);
+    menu_read_the_cursor_for_a_step(g);
     TechsMemberChoice c = menu_techs_choose_member(g);
     switch (c) {
-    case TECHS_MEMBERS_LEFT: return n->back_to_the_main_menu(ctx);
+    case TECHS_MEMBERS_LEFT: return back_to_the_main_menu(g, pf);
     case TECHS_MEMBER_POINTED_AT: {
-        if (!n->move_among_members(ctx))
+        if (!move_among_members(g, pf))
             return false;
         bool changed = menu_techs_list_changed(g, before);
-        return !changed || n->tick(ctx, TECHS_AT_ANOTHER_LIST);
+        if (changed)
+            menu_tick(g, pf);
+        return true;
     }
     case TECHS_MEMBER_CHOSEN: break;
     }
-    if (!menu_techs_member_has_techs(g))
-        return n->refuse(ctx);
-    if (!n->tick(ctx, TECHS_AT_A_MEMBER_CHOSEN))
-        return false;
+    if (!menu_techs_member_has_techs(g)) {
+        menu_buzz(g, pf);
+        return true;
+    }
+    menu_tick(g, pf);
     menu_techs_go_to_the_list(g);
-    if (!n->show_the_lister(ctx))
+    if (!show_the_lister(g, pf))
         return false;
     TIMED_AS(g, 0xC2BB50, menu_techs_show_the_list(g, pf));
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
@@ -1275,142 +1282,100 @@ bool menu_choose_tech_member_with(GameState *g, Platform *pf, const TechsSteps *
 
 /* ---- The steps' services ----------------------------------------------------------------------- */
 
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} TechScreenContext;
-
-static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((TechScreenContext *)ctx)->game); }
-
-static bool tick(void *ctx, TechsPlace at)
+static bool reject_operation(GameState *g, uint32_t routine, const char *what)
 {
-    (void)at;
-    TechScreenContext *c = ctx;
-    menu_tick(c->game, c->pf);
-    return true;
-}
-
-static bool refuse(void *ctx)
-{
-    TechScreenContext *c = ctx;
-    menu_buzz(c->game, c->pf);
-    return true;
-}
-
-static const TechsSteps the_steps;
-
-static bool reject_operation(TechScreenContext *c, uint32_t routine, const char *what)
-{
-    program_breaks_a_contract(c->game, routine, what);
+    program_breaks_a_contract(g, routine, what);
     return false;
 }
 
-static bool move_among_members(void *ctx)
+static bool move_among_members(GameState *g, Platform *pf)
 {
-    TechScreenContext *c = ctx;
-    if (!menu_techs_can_move_among_members(c->game))
-        return reject_operation(c, 0xC2B520, "a techs screen the port doesn't take");
+    if (!menu_techs_can_move_among_members(g))
+        return reject_operation(g, 0xC2B520, "a techs screen the port doesn't take");
     bool back = false;
-    TIMED_AS(c->game, 0xC2B520, back = menu_move_among_tech_members_with(c->game, c->pf, &the_steps, c));
+    TIMED_AS(g, 0xC2B520, back = menu_move_among_tech_members_with(g, pf));
     return back;
 }
 
 /* A routine, run only on the state it handles, timed as its own. */
-static bool sequence(TechScreenContext *c, uint32_t routine, bool (*takes)(const GameState *),
-                     bool (*run)(GameState *, Platform *, const TechsSteps *, void *))
+static bool sequence(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(const GameState *),
+                     bool (*run)(GameState *, Platform *))
 {
-    if (!takes(c->game))
-        return reject_operation(c, routine, "a techs screen the port doesn't take");
+    if (!takes(g))
+        return reject_operation(g, routine, "a techs screen the port doesn't take");
     bool done = false;
-    TIMED_AS(c->game, routine, done = run(c->game, c->pf, &the_steps, c));
+    TIMED_AS(g, routine, done = run(g, pf));
     return done;
 }
 
-static bool slide_members(void *ctx)
+static bool slide_members(GameState *g, Platform *pf)
 {
-    return sequence(ctx, 0xC2B568, menu_techs_can_move_among_members, menu_slide_tech_members_with);
+    return sequence(g, pf, 0xC2B568, menu_techs_can_move_among_members, menu_slide_tech_members_with);
 }
 
 /* The kind's caption, where the cursor is among the members. */
-static bool describe_the_kind(void *ctx)
+static bool describe_the_kind(GameState *g)
 {
-    TechScreenContext *c = ctx;
-    if (!menu_techs_can_move_among_members(c->game))
-        return reject_operation(c, 0xC2BE16, "a techs screen the port doesn't take");
-    TIMED_AS(c->game, 0xC2BE16, menu_techs_describe_kind(c->game));
+    if (!menu_techs_can_move_among_members(g))
+        return reject_operation(g, 0xC2BE16, "a techs screen the port doesn't take");
+    TIMED_AS(g, 0xC2BE16, menu_techs_describe_kind(g));
     return true;
 }
 
-static bool show_the_lister(void *ctx) { return sequence(ctx, 0xC2B9E1, menu_techs_lister_can_show, menu_show_tech_lister_with); }
+static bool show_the_lister(GameState *g, Platform *pf) { return sequence(g, pf, 0xC2B9E1, menu_techs_lister_can_show, menu_show_tech_lister_with); }
 
-static bool back_to_the_main_menu(void *ctx)
+static bool back_to_the_main_menu(GameState *g, Platform *pf)
 {
-    TechScreenContext *c = ctx;
-    return menu_back_to_the_main_menu(c->game, c->pf);
+    return menu_back_to_the_main_menu(g, pf);
 }
 
-
-static bool wait(void *ctx, TechsPlace at)
+static bool run(GameState *g, Platform *pf, TechsRoutine r)
 {
-    menu_task_waits(((TechScreenContext *)ctx)->game, at == TECHS_AT_THE_CAST ? MENU_TECHS_CAST_FRAMES : 1);
-    return true;
-}
-
-static bool run(void *ctx, TechsRoutine r)
-{
-    TechScreenContext *c = ctx;
     switch (r) {
     case TECHS_SLIDES_THE_ROWS_UP:
     case TECHS_SLIDES_THE_ROWS_DOWN:
-        return sequence(c, 0xC2B5C8, menu_techs_can_move_among_members, menu_slide_tech_member_rows_with);
-    case TECHS_LOADS_THE_LISTER: return sequence(c, 0xC2BA09, menu_techs_lister_can_show, menu_load_tech_lister_sprite_with);
-    case TECHS_LOADS_THE_RECORD_SPRITE: return menu_record_sprite_loaded(c->game, MENU_TECHS_LISTER_RECORD);
-    case TECHS_SLIDES_THE_LIST: return sequence(c, 0xC2B72F, menu_techs_lister_can_show, menu_slide_tech_list_with);
+        return sequence(g, pf, 0xC2B5C8, menu_techs_can_move_among_members, menu_slide_tech_member_rows_with);
+    case TECHS_LOADS_THE_LISTER: return sequence(g, pf, 0xC2BA09, menu_techs_lister_can_show, menu_load_tech_lister_sprite_with);
+    case TECHS_LOADS_THE_RECORD_SPRITE: return menu_record_sprite_loaded(g, MENU_TECHS_LISTER_RECORD);
+    case TECHS_SLIDES_THE_LIST: return sequence(g, pf, 0xC2B72F, menu_techs_lister_can_show, menu_slide_tech_list_with);
     case TECHS_DESCRIBES_THE_POINTED_TECH:
-        return sequence(c, 0xC2BE01, menu_techs_lister_can_show, menu_describe_pointed_tech_with);
+        return sequence(g, pf, 0xC2BE01, menu_techs_lister_can_show, menu_describe_pointed_tech_with);
     case TECHS_DESCRIBES_THE_TECH:
-        if (!menu_techs_lister_can_show(c->game))
-            return reject_operation(c, 0xC2BE33, "a techs screen the port doesn't take");
-        TIMED_AS(c->game, 0xC2BE33, menu_techs_describe_tech(c->game));
+        if (!menu_techs_lister_can_show(g))
+            return reject_operation(g, 0xC2BE33, "a techs screen the port doesn't take");
+        TIMED_AS(g, 0xC2BE33, menu_techs_describe_tech(g));
         return true;
     case TECHS_OPENS_THE_TARGETS:
-    case TECHS_REOPENS_THE_TARGETS: return sequence(c, 0xC2BE79, menu_techs_targets_can_run, menu_open_tech_targets_with);
-    case TECHS_POINTS_AT_A_TARGET: return sequence(c, 0xC2B823, menu_techs_targets_can_run, menu_point_at_tech_target_with);
+    case TECHS_REOPENS_THE_TARGETS: return sequence(g, pf, 0xC2BE79, menu_techs_targets_can_run, menu_open_tech_targets_with);
+    case TECHS_POINTS_AT_A_TARGET: return sequence(g, pf, 0xC2B823, menu_techs_targets_can_run, menu_point_at_tech_target_with);
     case TECHS_POINTS_AT_A_MEMBER_TO_RESTORE: {
         bool done = false;
-        TIMED_AS(c->game, 0xC2B83E, done = menu_point_at_member_to_restore(c->game, c->pf));
+        TIMED_AS(g, 0xC2B83E, done = menu_point_at_member_to_restore(g, pf));
         return done;
     }
     case TECHS_HEALS_AND_SHOWS: {
         bool done = false;
-        TIMED_AS(c->game, 0xC28F55, done = menu_heal_and_show(c->game, c->pf));
+        TIMED_AS(g, 0xC28F55, done = menu_heal_and_show(g, pf));
         return done;
     }
     }
     return false;
 }
-
-static const TechsSteps the_steps = {
-    read_cursor, tick, refuse, move_among_members, slide_members, describe_the_kind, show_the_lister, back_to_the_main_menu,
-    wait, run,
-};
 
 static bool members_step_takes(const GameState *g) { return menu_cursor_can_move(g) && menu_techs_can_move_among_members(g); }
 
 bool menu_open_techs(GameState *g, Platform *pf)
 {
-    TechScreenContext c = { g, pf };
     if (!menu_techs_can_open(g))
-        return reject_operation(&c, 0xC2B35D, "a techs screen the port doesn't take");
-    return menu_open_techs_with(g, pf, &the_steps, &c);
+        return reject_operation(g, 0xC2B35D, "a techs screen the port doesn't take");
+    return menu_open_techs_with(g, pf);
 }
 
 bool menu_choose_tech_member(GameState *g, Platform *pf)
 {
-    TechScreenContext c = { g, pf };
     if (!members_step_takes(g))
-        return reject_operation(&c, 0xC2B36D, "a techs screen the port doesn't take");
-    return menu_choose_tech_member_with(g, pf, &the_steps, &c);
+        return reject_operation(g, 0xC2B36D, "a techs screen the port doesn't take");
+    return menu_choose_tech_member_with(g, pf);
 }
 
 static bool list_step_takes(const GameState *g) { return menu_cursor_can_move(g) && menu_techs_lister_can_show(g); }
@@ -1418,30 +1383,27 @@ static bool targets_step_takes(const GameState *g) { return menu_cursor_can_move
 
 bool menu_choose_tech(GameState *g, Platform *pf)
 {
-    TechScreenContext c = { g, pf };
     if (!list_step_takes(g))
-        return reject_operation(&c, 0xC2B3AE, "a techs screen the port doesn't take");
-    return menu_choose_tech_with(g, pf, &the_steps, &c);
+        return reject_operation(g, 0xC2B3AE, "a techs screen the port doesn't take");
+    return menu_choose_tech_with(g, pf);
 }
 
 bool menu_choose_tech_target(GameState *g, Platform *pf)
 {
-    TechScreenContext c = { g, pf };
     if (!targets_step_takes(g))
-        return reject_operation(&c, 0xC2B48E, "a techs screen the port doesn't take");
-    return menu_choose_tech_target_with(g, pf, &the_steps, &c);
+        return reject_operation(g, 0xC2B48E, "a techs screen the port doesn't take");
+    return menu_choose_tech_target_with(g, pf);
 }
 
 // $C2:B365
 /* The member list's windows, and on among the members this frame. */
 bool menu_lay_out_tech_members(GameState *g, Platform *pf)
 {
-    TechScreenContext c = { g, pf };
     if (!members_step_takes(g))
-        return reject_operation(&c, 0xC2B365, "a techs screen the port doesn't take");
+        return reject_operation(g, 0xC2B365, "a techs screen the port doesn't take");
     menu_techs_lay_out_members(g, pf);
     bool back = false;
-    TIMED_AS(g, 0xC2B36D, back = menu_choose_tech_member_with(g, pf, &the_steps, &c));
+    TIMED_AS(g, 0xC2B36D, back = menu_choose_tech_member_with(g, pf));
     return back;
 }
 
@@ -1450,15 +1412,12 @@ bool menu_lay_out_tech_members(GameState *g, Platform *pf)
 // $C2:B870
 /* The member pointed at noted, a tick where another (one at a time), and
  * whether the restoring helps. */
-bool menu_note_member_to_restore_with(GameState *g, const RestoringSteps *n, void *ctx)
+static void note_member_to_restore(GameState *g, Platform *pf)
 {
     bool another = menu_restoring_point_at_member(g);
-    if (another && !menu_restoring_every_member(g)) {
-        if (!n->tick(ctx))
-            return false;
-    }
+    if (another && !menu_restoring_every_member(g))
+        menu_tick(g, pf);
     menu_restoring_look_for_help(g);
-    return true;
 }
 
 // $C2:B83E
@@ -1466,47 +1425,16 @@ bool menu_note_member_to_restore_with(GameState *g, const RestoringSteps *n, voi
  * then take two blocks a frame. */
 enum { BLOCKS_A_FRAME = 2 };
 
-bool menu_point_at_member_to_restore_with(GameState *g, const RestoringSteps *n, void *ctx)
-{
-    menu_restoring_take_the_cursor_round(g);
-    if (!n->note_the_member(ctx))
-        return false;
-    set_menu_record_block_limit(g, BLOCKS_A_FRAME);
-    return true;
-}
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} RestoringContext;
-
-static bool restoring_tick(void *ctx)
-{
-    RestoringContext *c = ctx;
-    menu_tick(c->game, c->pf);
-    return true;
-}
-
-static const RestoringSteps restoring_steps;
-
-static bool note_the_member(void *ctx)
-{
-    RestoringContext *c = ctx;
-    bool noted = false;
-    TIMED_AS(c->game, 0xC2B870, noted = menu_note_member_to_restore_with(c->game, &restoring_steps, c));
-    return noted;
-}
-
-static const RestoringSteps restoring_steps = { restoring_tick, note_the_member };
-
 bool menu_point_at_member_to_restore(GameState *g, Platform *pf)
 {
     if (!menu_restoring_can_point(g)) {
         program_breaks_a_contract(g, 0xC2B83E, "the members a healing is used on, which the port doesn't take");
         return false;
     }
-    RestoringContext c = { g, pf };
-    return menu_point_at_member_to_restore_with(g, &restoring_steps, &c);
+    menu_restoring_take_the_cursor_round(g);
+    TIMED_AS(g, 0xC2B870, note_member_to_restore(g, pf));
+    set_menu_record_block_limit(g, BLOCKS_A_FRAME);
+    return true;
 }
 
 /* ---- The member list's slide and the lister, one sequence each -------------------------------------- */
@@ -1514,13 +1442,12 @@ bool menu_point_at_member_to_restore(GameState *g, Platform *pf)
 // $C2:B568
 /* A push past the member rows slides the list where there is a member that
  * way. */
-bool menu_slide_tech_members_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
+bool menu_slide_tech_members_with(GameState *g, Platform *pf)
 {
-    (void)pf;
     MemberListSlide slide = menu_techs_slide_members(g);
     if (slide == NO_MEMBER_SLIDE)
         return true;
-    if (!n->run(ctx, slide == MEMBERS_SLIDE_UP ? TECHS_SLIDES_THE_ROWS_UP : TECHS_SLIDES_THE_ROWS_DOWN))
+    if (!run(g, pf, slide == MEMBERS_SLIDE_UP ? TECHS_SLIDES_THE_ROWS_UP : TECHS_SLIDES_THE_ROWS_DOWN))
         return false;
     return true;
 }
@@ -1528,35 +1455,32 @@ bool menu_slide_tech_members_with(GameState *g, Platform *pf, const TechsSteps *
 // $C2:B5C8
 /* The member list's slide: the member coming in, then the frames (each
  * waiting for the next), then the rows at rest. */
-bool menu_slide_tech_member_rows_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
+bool menu_slide_tech_member_rows_with(GameState *g, Platform *pf)
 {
     menu_techs_start_member_slide(g, pf);
     while (menu_techs_slide_members_a_frame(g))
-        if (!n->wait(ctx, TECHS_AT_THE_MEMBERS_SLIDING))
-            return false;
+        menu_task_waits(g, 1);
     menu_techs_finish_member_slide(g);
     return true;
 }
 
 // $C2:B9E1
 /* The lister: the member's figures beside the list, and its sprite. */
-bool menu_show_tech_lister_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
+bool menu_show_tech_lister_with(GameState *g, Platform *pf)
 {
-    (void)pf;
     menu_techs_show_the_lister(g);
-    return n->run(ctx, TECHS_LOADS_THE_LISTER);
+    return run(g, pf, TECHS_LOADS_THE_LISTER);
 }
 
 // $C2:BA09
 /* The lister's record takes the character's sprite where it shows another. */
 
-bool menu_load_tech_lister_sprite_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
+bool menu_load_tech_lister_sprite_with(GameState *g, Platform *pf)
 {
-    (void)pf;
     bool load = menu_techs_put_the_lister_on_its_record(g);
     if (!load)
         return true;
-    return n->run(ctx, TECHS_LOADS_THE_RECORD_SPRITE);
+    return run(g, pf, TECHS_LOADS_THE_RECORD_SPRITE);
 }
 
 /* ---- Choosing a tech and the members it is used on -------------------------------------------------- */
@@ -1568,23 +1492,20 @@ enum { DESCRIPTION_TASK_BIT = 0x04, CURSORS_TASK_BIT = 0x40 };
 // $C2:B72F
 /* The list's slide, a row in: started, the tech brought in and drawn, a
  * tick, the frames (each waiting for the next), and the list at rest. */
-bool menu_slide_tech_list_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
+bool menu_slide_tech_list_with(GameState *g, Platform *pf)
 {
-    (void)pf;
     if (!menu_techs_list_slide_brings_a_tech(g)) {
         return true;
     }
     menu_techs_set_up_list_slide(g);
     TIMED_AS(g, 0xC2EB9B, menu_start_list_slide(g));
     menu_techs_bring_in_a_tech(g);
-    if (!n->tick(ctx, TECHS_AT_A_TECH_BROUGHT_IN))
-        return false;
+    menu_tick(g, pf);
     bool took_frames = menu_techs_list_slide_takes_frames(g);
     if (took_frames)
         while (menu_techs_slide_list_a_frame(g)) {
             TIMED_AS(g, 0xC2EB1F, menu_slide_list_a_frame(g));
-            if (!n->wait(ctx, TECHS_AT_THE_LIST_SLIDING))
-                return false;
+            menu_task_waits(g, 1);
         }
     menu_techs_finish_list_slide(g);
     return true;
@@ -1592,36 +1513,34 @@ bool menu_slide_tech_list_with(GameState *g, Platform *pf, const TechsSteps *n, 
 
 // $C2:BE01
 /* The pointed tech's description, where the window shows another. */
-bool menu_describe_pointed_tech_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
+bool menu_describe_pointed_tech_with(GameState *g, Platform *pf)
 {
-    (void)pf;
     if (!menu_description_shows_another(g, menu_tech_pointed(g)))
         return true;
-    return n->run(ctx, TECHS_DESCRIBES_THE_TECH);
+    return run(g, pf, TECHS_DESCRIBES_THE_TECH);
 }
 
 /* The cursor moved along the list: a page turned and drawn again, a frame
  * waited; or kept on the list's rows, the list slid a row where the push
  * brings one. Then the cursor's row kept, a tick where it moved, the tech on
  * it shown and described, and the list's layer sent. */
-static bool point_along_the_list_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
+static bool point_along_the_list_with(GameState *g, Platform *pf)
 {
     uint8_t top = menu_techs_list_top_for_paging(g), to = top;
     TIMED_AS(g, 0xC293BF, to = menu_turn_page(g, top));
     if (to != top) {
         menu_techs_turn_page(g, to);
-        if (!n->wait(ctx, TECHS_AT_A_PAGE_TURNED))
-            return false;
+        menu_task_waits(g, 1);
     } else {
         TIMED_AS(g, 0xC2EA53, menu_keep_the_cursor_on_the_list(g));
-        if (menu_list_scrolls_a_row(g) && !n->run(ctx, TECHS_SLIDES_THE_LIST))
+        if (menu_list_scrolls_a_row(g) && !run(g, pf, TECHS_SLIDES_THE_LIST))
             return false;
     }
     bool moved = menu_techs_keep_the_cursors_row(g);
-    if (moved && !n->tick(ctx, TECHS_AT_A_TECH_POINTED))
-        return false;
+    if (moved)
+        menu_tick(g, pf);
     TIMED_AS(g, 0xC2BB1F, menu_techs_show_the_pointed_tech(g, pf));
-    if (!n->run(ctx, TECHS_DESCRIBES_THE_POINTED_TECH))
+    if (!run(g, pf, TECHS_DESCRIBES_THE_POINTED_TECH))
         return false;
     menu_techs_show_learning(g, pf);
     menu_queue_fixed_upload(g, MENU_UPLOAD_TEXT_LAYER);
@@ -1630,11 +1549,10 @@ static bool point_along_the_list_with(GameState *g, Platform *pf, const TechsSte
 
 // $C2:BE79
 /* The window a tech is used from: the user's row, a frame, the members. */
-bool menu_open_tech_targets_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
+bool menu_open_tech_targets_with(GameState *g, Platform *pf)
 {
     menu_techs_open_targets(g, pf);
-    if (!n->wait(ctx, TECHS_AT_THE_TARGETS_OPENING))
-        return false;
+    menu_task_waits(g, 1);
     menu_techs_show_targets(g, pf);
     return true;
 }
@@ -1643,17 +1561,18 @@ bool menu_open_tech_targets_with(GameState *g, Platform *pf, const TechsSteps *n
  * the member can't pay; else a tick, the window of members it is used on
  * (with a cursor on each, for every member at once), and the description
  * held a frame. */
-static bool use_the_tech_with(GameState *g, const TechsSteps *n, void *ctx)
+static bool use_the_tech_with(GameState *g, Platform *pf)
 {
     TechsUse use = menu_techs_use(g);
-    if (use != TECH_USED)
-        return n->refuse(ctx);
-    if (!n->tick(ctx, TECHS_AT_A_TECH_CHOSEN))
-        return false;
+    if (use != TECH_USED) {
+        menu_buzz(g, pf);
+        return true;
+    }
+    menu_tick(g, pf);
     menu_techs_choose_targets(g);
     if (menu_techs_heal_every_member(g))
         TIMED_AS(g, 0xC28AD5, menu_put_cursors_on_every_member(g));
-    if (!n->run(ctx, TECHS_OPENS_THE_TARGETS))
+    if (!run(g, pf, TECHS_OPENS_THE_TARGETS))
         return false;
     menu_techs_hold_the_description(g);
     return true;
@@ -1661,11 +1580,10 @@ static bool use_the_tech_with(GameState *g, const TechsSteps *n, void *ctx)
 
 /* Back to the members: the description's task stopped, a tick, the member
  * rows again, the rows sent. */
-static bool back_to_the_members_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
+static bool back_to_the_members_with(GameState *g, Platform *pf)
 {
     TIMED_AS(g, 0xC28255, menu_stop_tasks(g, DESCRIPTION_TASK_BIT));
-    if (!n->tick(ctx, TECHS_AT_THE_LIST_LEFT))
-        return false;
+    menu_tick(g, pf);
     menu_techs_back_to_the_members(g);
     TIMED_AS(g, 0xC2BA4F, menu_techs_draw_member_rows(g, pf));
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
@@ -1674,15 +1592,15 @@ static bool back_to_the_members_with(GameState *g, Platform *pf, const TechsStep
 
 // $C2:B3AE
 /* The list: the cursor along it, back to the members, or a tech chosen. */
-bool menu_choose_tech_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
+bool menu_choose_tech_with(GameState *g, Platform *pf)
 {
     menu_techs_hold_line_effects(g);
-    n->read_cursor(ctx);
+    menu_read_the_cursor_for_a_step(g);
     TechsListChoice c = menu_techs_choose_on_the_list(g);
     switch (c) {
-    case TECH_POINTED_AT: return point_along_the_list_with(g, pf, n, ctx);
-    case TECHS_LEFT: return back_to_the_members_with(g, pf, n, ctx);
-    case TECH_CHOSEN: return use_the_tech_with(g, n, ctx);
+    case TECH_POINTED_AT: return point_along_the_list_with(g, pf);
+    case TECHS_LEFT: return back_to_the_members_with(g, pf);
+    case TECH_CHOSEN: return use_the_tech_with(g, pf);
     }
     return false;
 }
@@ -1690,10 +1608,9 @@ bool menu_choose_tech_with(GameState *g, Platform *pf, const TechsSteps *n, void
 // $C2:B823
 /* The cursor among the members the tech is used on, and the user's MP
  * looked at. */
-bool menu_point_at_tech_target_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
+bool menu_point_at_tech_target_with(GameState *g, Platform *pf)
 {
-    (void)pf;
-    if (!n->run(ctx, TECHS_POINTS_AT_A_MEMBER_TO_RESTORE))
+    if (!run(g, pf, TECHS_POINTS_AT_A_MEMBER_TO_RESTORE))
         return false;
     menu_techs_check_the_users_mp(g);
     return true;
@@ -1704,31 +1621,31 @@ bool menu_point_at_tech_target_with(GameState *g, Platform *pf, const TechsSteps
  * window closed), choosing (the healing used where it helps, else refused:
  * the user casts, the healing shows, the window drawn again), or the cursor
  * among the members. */
-bool menu_choose_tech_target_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx)
+bool menu_choose_tech_target_with(GameState *g, Platform *pf)
 {
-    (void)pf;
-    n->read_cursor(ctx);
-    if (!n->run(ctx, TECHS_POINTS_AT_A_TARGET))
+    menu_read_the_cursor_for_a_step(g);
+    if (!run(g, pf, TECHS_POINTS_AT_A_TARGET))
         return false;
     TechsTargetChoice c = menu_techs_choose_target(g);
     switch (c) {
     case TARGET_POINTED_AT: return true;
     case TARGETS_LEFT:
-        if (!n->tick(ctx, TECHS_AT_THE_TARGETS_LEFT))
-            return false;
+        menu_tick(g, pf);
         menu_techs_back_from_the_targets(g);
         TIMED_AS(g, 0xC28255, menu_stop_tasks(g, CURSORS_TASK_BIT));
         menu_techs_close_targets(g);
         return true;
     case TARGET_CHOSEN:
         if (!menu_techs_use_helps(g)) {
-            return n->refuse(ctx);
+            menu_buzz(g, pf);
+            return true;
         }
         menu_techs_cast(g);
-        if (!n->wait(ctx, TECHS_AT_THE_CAST) || !n->run(ctx, TECHS_HEALS_AND_SHOWS))
+        menu_task_waits(g, MENU_TECHS_CAST_FRAMES);
+        if (!run(g, pf, TECHS_HEALS_AND_SHOWS))
             return false;
         menu_techs_after_casting(g);
-        return n->run(ctx, TECHS_REOPENS_THE_TARGETS);
+        return run(g, pf, TECHS_REOPENS_THE_TARGETS);
     }
     return false;
 }

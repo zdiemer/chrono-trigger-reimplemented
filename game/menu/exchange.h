@@ -115,29 +115,9 @@ void menu_exchange_settle_the_cursor(GameState *g);
 
 /* The main menu's exchange's steps, the gate's choosing of the first, the
  * screen's layout, the cursor's move and the panel are each one sequence,
- * which asks what it needs of the menus through ExchangeSteps.
+ * false where it went no further.
  *
- * The places the sequences tick, wait or move the cursor from. */
-typedef enum {
-    EXCHANGE_AT_THE_OPENING_TICK,       /* the main menu's exchange opened */
-    EXCHANGE_AT_THE_FIRST_MOVE,         /* the screen laid out: the cursor's first move */
-    EXCHANGE_AT_THE_FIRST_S_MOVE,       /* choosing the first: the cursor moved */
-    EXCHANGE_AT_THE_FIRST_S_MOVE_TICK,  /* ... and come to rest elsewhere */
-    EXCHANGE_AT_THE_FIRST_CHOSEN_TICK,  /* the first chosen */
-    EXCHANGE_AT_THE_SECOND_S_MOVE,      /* choosing the second: the cursor moved */
-    EXCHANGE_AT_THE_SECOND_S_MOVE_TICK, /* ... and come to rest elsewhere */
-    EXCHANGE_AT_THE_SECOND_CHOSEN_TICK, /* the second chosen, or the choice let go */
-    EXCHANGE_AT_THE_GATE_S_MOVE,        /* the gate's choosing of the first: the cursor moved */
-    EXCHANGE_AT_THE_GATE_S_MOVE_TICK,   /* ... and come to rest elsewhere */
-    EXCHANGE_AT_THE_SLIDE,              /* a frame of the reserve's slide */
-    EXCHANGE_AT_THE_SLIDE_TICK,         /* the slide's end */
-    EXCHANGE_AT_THE_PANEL_LISTED,       /* the panel: a frame after its rows are listed */
-    EXCHANGE_AT_THE_ROWS_DRAWN,         /* ... and after they are drawn */
-    EXCHANGE_AT_THE_GATE_SONG_WAIT,     /* the gate's screen waiting for its song */
-    EXCHANGE_PLACES
-} ExchangePlace;
-
-/* The routines the gate's screen's opening runs. */
+ * The routines the gate's screen's opening runs. */
 typedef enum {
     EXCHANGE_SWITCHES_TO_THE_GATE_SONG, /* $C2:CB8B */
     EXCHANGE_SHOWS_THE_PANEL,           /* $C2:C9E5 */
@@ -154,33 +134,18 @@ typedef enum {
     EXCHANGE_FADES_IN,  /* the gate's screen opened: its fade in */
 } ExchangeEnd;
 
-/* What the sequences ask: the cursor read, a tick, a frame's wait, the
- * cursor's move ($C2:C805), the gate's sprite loaded onto its record
- * (the panel at the gate), the place's song back (leaving the gate's
- * screen), and the step's end. Each false where it went no further. */
-typedef struct {
-    void (*read_cursor)(void *ctx);
-    bool (*tick)(void *ctx, ExchangePlace at);
-    bool (*wait)(void *ctx, ExchangePlace at);
-    bool (*move_the_cursor)(void *ctx, ExchangePlace at);
-    bool (*gate_sprite)(void *ctx);
-    bool (*place_song_back)(void *ctx);
-    bool (*ends)(void *ctx, ExchangeEnd end);
-    bool (*run)(void *ctx, ExchangeRoutine routine);
-} ExchangeSteps;
-
 /* The steps ($C2:C627 the opening, $C2:C65D the first, $C2:C6B9 the second,
  * $C2:C7E0 the gate's first), the layout ($C2:CAF3), the cursor's move
- * ($C2:C805) and the panel ($C2:C9E5), through `n`. */
-bool menu_open_exchange_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx);
-bool menu_choose_first_to_exchange_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx);
-bool menu_choose_second_to_exchange_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx);
-bool menu_choose_first_at_the_gate_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx);
-bool menu_lay_out_the_exchange_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx);
-bool menu_move_the_exchange_cursor_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx);
-bool menu_show_exchange_panel_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx);
+ * ($C2:C805) and the panel ($C2:C9E5). */
+bool menu_open_exchange_with(GameState *g, Platform *pf);
+bool menu_choose_first_to_exchange_with(GameState *g, Platform *pf);
+bool menu_choose_second_to_exchange_with(GameState *g, Platform *pf);
+bool menu_choose_first_at_the_gate_with(GameState *g, Platform *pf);
+bool menu_lay_out_the_exchange_with(GameState *g, Platform *pf);
+bool menu_move_the_exchange_cursor_with(GameState *g, Platform *pf);
+bool menu_show_exchange_panel_with(GameState *g, Platform *pf);
 /* The gate's screen's opening ($C2:C7AC). */
-bool menu_open_exchange_at_the_gate_with(GameState *g, Platform *pf, const ExchangeSteps *n, void *ctx);
+bool menu_open_exchange_at_the_gate_with(GameState *g, Platform *pf);
 
 /* What the steps need of the state: the
  * opening, the layout, the cursor's move, a choosing step, the panel, and

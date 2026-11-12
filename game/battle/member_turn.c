@@ -23,8 +23,7 @@
  * turn leaves them as they are.
  *
  * The targeting ($C1:C1DD), the showing ($C1:AC57), the attack, the calling
- * off and the messages are routines of their own, which the turn calls out
- * to (MemberCall); they are at the end. */
+ * off and the messages are routines of their own, which the turn calls. */
 #include "battle/effect_parts.h"
 
 #include "battle/bridge.h"
@@ -280,35 +279,62 @@ static void pay_for_tech(GameState *g)
         pay_for_part(g, &t, part);
 }
 
-/* ---- The turn, as one sequence --------------------------------------------------------------- */
+/* ---- The routines the turn calls ------------------------------------------------------------- */
 
 /* The turn's calls, each where the original makes it: the targeting
- * ($C1:C1DD, battle/aim.c), with the flag the code before leaves (`carry`,
- * no longer read), and where what it left is past what the port reads, a
- * refusal; an item used ($C1:BF46, battle/party_work.c), a tech worked out
- * ($C1:BF79), the action shown ($C1:AC57), the messages a steal tells
- * ($CD:0021), and the attack ($C1:BFAA, below). */
-typedef enum {
-    MEMBER_ATTACK, MEMBER_AIM_ITEM, MEMBER_AIM_TECH, MEMBER_ITEM_AIMED_PAST, MEMBER_TECH_AIMED_PAST, MEMBER_USE_ITEM,
-    MEMBER_WORK_OUT_TECH, MEMBER_WORK_OUT_ATTACK, MEMBER_SHOW_ITEM, MEMBER_SHOW_TECH, MEMBER_SHOW_ATTACK,
-    MEMBER_ITEM_TAKEN, MEMBER_NOTHING_TO_TAKE,
-} MemberCall;
-typedef bool (*MemberCalls)(void *ctx, MemberCall call, bool carry);
+ * ($C1:C1DD, battle/aim.c), and where what it left is past what the port
+ * reads, a refusal; an item used ($C1:BF46, battle/party_work.c), a tech
+ * worked out ($C1:BF79), the action shown ($C1:AC57), the messages a steal
+ * tells ($CD:0021), and the attack ($C1:BFAA, below). */
+enum {
+    AIM = 0xC1C1DD,
+    SHOW_MESSAGE = 0xCD0021,
+    SHOWING = 0xC1AC57,
+    MEMBER_ATTACKS = 0xC1BFAA,
+    USE_ITEM = 0xC1BF46,
+    WORK_OUT_TECH = 0xC1BF79,
+};
+
+/* Where the original aims an item and a tech, which a refusal names. */
+enum { ITEM_AIMED_AT = 0xC1BABE, TECH_AIMED_AT = 0xC1BB88 };
+
+static bool show_the_action(GameState *g, Platform *pf)
+{
+    bool done = false;
+    TIMED_AS(g, SHOWING, done = battle_action_shown(g, pf));
+    return done;
+}
+
+static bool work_out_the_tech(GameState *g, Platform *pf)
+{
+    bool done = false;
+    TIMED_AS(g, WORK_OUT_TECH, done = battle_work_out_member_tech(g, pf));
+    return done;
+}
+
+static bool show_a_message(GameState *g, Platform *pf, uint8_t message)
+{
+    bool done = false;
+    TIMED_AS(g, SHOW_MESSAGE, done = battle_show_a_battle_message(g, pf, message));
+    return done;
+}
+
+/* ---- The turn, as one sequence --------------------------------------------------------------- */
 
 /* The messages a steal's outcome tells: the item taken (named in its
  * variable), and nothing to take. */
 enum { MESSAGE_ITEM_TAKEN = 0x03, MESSAGE_NOTHING_TO_TAKE = 0x0D };
 
 // $C1:BC21
-static bool tell_steal(GameState *g, MemberCalls call, void *ctx)
+static bool tell_steal(GameState *g, Platform *pf)
 {
     StealOutcome outcome = effect_last_steal(g);
     if (outcome == STEAL_NOT_TRIED || outcome == STEAL_MISSED)
         return true;
     if (outcome == STEAL_NOTHING)
-        return call(ctx, MEMBER_NOTHING_TO_TAKE, false);
+        return show_a_message(g, pf, MESSAGE_NOTHING_TO_TAKE);
     set_battle_message_item(g, battle_item_taken(g));
-    if (!call(ctx, MEMBER_ITEM_TAKEN, false))
+    if (!show_a_message(g, pf, MESSAGE_ITEM_TAKEN))
         return false;
     set_battle_member_kept_item_waiting(g, battle_actor(g), 1);
     return true;
@@ -356,21 +382,22 @@ static bool members_read_fit(const GameState *g, bool tech)
 
 /* The targeting; where what it left is past what the port reads, the port
  * refuses to go on. */
-static bool aim(GameState *g, bool carry, bool tech, MemberCalls call, void *ctx)
+static bool aim(GameState *g, Platform *pf, bool tech)
 {
-    if (!call(ctx, tech ? MEMBER_AIM_TECH : MEMBER_AIM_ITEM, carry))
+    bool aimed = false;
+    TIMED_AS(g, AIM, aimed = battle_aim_action(g, pf));
+    if (!aimed)
         return false;
     if (targets_fit(g) && members_read_fit(g, tech))
         return true;
-    (void)call(ctx, tech ? MEMBER_TECH_AIMED_PAST : MEMBER_ITEM_AIMED_PAST, false);
-    return false;
+    return battle_contract_broken(g, tech ? TECH_AIMED_AT : ITEM_AIMED_AT, "an aim past what the port reads");
 }
 
 // $C1:BA83
 /* An item: its number is the record's, past the items' first ($BC). Its area
  * rules are none, which the targeting reads in a cell its caller clears. */
 enum { ITEM_TARGETING_CELL = 0x0C };
-static bool use_item(GameState *g, uint8_t member, MemberCalls call, void *ctx)
+static bool use_item(GameState *g, Platform *pf, uint8_t member)
 {
     for (uint8_t place = 0; place < BATTLE_ACTION_TARGETS_COUNT; place++)
         set_battle_action_targets(g, place, NO_TARGET);
@@ -379,7 +406,7 @@ static bool use_item(GameState *g, uint8_t member, MemberCalls call, void *ctx)
     uint8_t what = battle_member_actions_what(g, member);
     set_battle_action_detail(g, (uint8_t)(what - BATTLE_FIRST_ITEM_NUMBER));
     set_battle_action_what(g, (uint8_t)(what - BATTLE_FIRST_ITEM_NUMBER));
-    if (!aim(g, what >= BATTLE_FIRST_ITEM_NUMBER, false, call, ctx))
+    if (!aim(g, pf, false))
         return false;
     if (!battle_action_came_to_nothing(g)) {
         /* the item's performer is recorded first as the last tech's first
@@ -388,11 +415,13 @@ static bool use_item(GameState *g, uint8_t member, MemberCalls call, void *ctx)
         record_before_work(g, tech_performer(g), ACTION_ITEM, chosen);
         battle_keep_byte(g, BATTLE_CLOCK_READS, chosen);
         targets_to_candidates(g);
-        if (!call(ctx, MEMBER_USE_ITEM, false))
+        bool used = false;
+        TIMED_AS(g, USE_ITEM, used = battle_use_item(g, pf));
+        if (!used)
             return false;
         record_for_showing(g, battle_actor(g), ACTION_ITEM, (uint8_t)(battle_action_detail(g) + BATTLE_FIRST_ITEM_NUMBER));
         set_battle_action_extra(g, 0);
-        if (!call(ctx, MEMBER_SHOW_ITEM, false))
+        if (!show_the_action(g, pf))
             return false;
         TIMED_AS(g, 0xFDACEE, battle_clear_numbers_shown(g));
     }
@@ -406,7 +435,7 @@ static bool use_item(GameState *g, uint8_t member, MemberCalls call, void *ctx)
  * (battle_menu_command), or 3, which the menu never sets. */
 enum { COMMAND_TECH = 1, COMMAND_NO_MENU_SETS = 3 };
 
-static bool perform_tech(GameState *g, uint8_t member, MemberCalls call, void *ctx)
+static bool perform_tech(GameState *g, Platform *pf, uint8_t member)
 {
     uint8_t command = battle_member_actions_command(g, member);
     if (command != COMMAND_TECH && command != COMMAND_NO_MENU_SETS) {
@@ -416,7 +445,7 @@ static bool perform_tech(GameState *g, uint8_t member, MemberCalls call, void *c
     aim_at_the_choice(g, member);
     uint8_t tech = battle_member_actions_what(g, member);
     set_battle_action_detail(g, tech);
-    if (!aim(g, true, true, call, ctx))
+    if (!aim(g, pf, true))
         return false;
     bool performed = false;
     if (!battle_action_came_to_nothing(g)) {
@@ -425,14 +454,14 @@ static bool perform_tech(GameState *g, uint8_t member, MemberCalls call, void *c
         record_before_work(g, tech_performer(g), ACTION_TECH,
                            battle_choice_after_targeting(g, battle_low_scratch(g, BATTLE_MEMBER_CELL)));
         targets_to_candidates(g);
-        if (!call(ctx, MEMBER_WORK_OUT_TECH, false))
+        if (!work_out_the_tech(g, pf))
             return false;
         performed = !battle_action_came_to_nothing(g) && !battle_tech_blocked(g);
     }
     if (performed) {
         record_for_showing(g, tech_performer(g), ACTION_TECH, battle_action_detail(g));
         pay_for_tech(g);
-        if (!call(ctx, MEMBER_SHOW_TECH, false) || !tell_steal(g, call, ctx))
+        if (!show_the_action(g, pf) || !tell_steal(g, pf))
             return false;
         note_enemy_hit(g);
         TIMED_AS(g, 0xFDACEE, battle_clear_numbers_shown(g));
@@ -443,7 +472,7 @@ static bool perform_tech(GameState *g, uint8_t member, MemberCalls call, void *c
 }
 
 // $C1:B967
-static bool carry_out_action(GameState *g, MemberCalls call, void *ctx)
+static bool carry_out_action(GameState *g, Platform *pf)
 {
     uint8_t member = take_waiting_member(g);
     mark_those_taking_part(g, member);
@@ -458,12 +487,14 @@ static bool carry_out_action(GameState *g, MemberCalls call, void *ctx)
     set_battle_action_choice(g, choice);
     if (choice & CHOSE_AN_ATTACK) {
         set_battle_action_targets(g, 0, battle_member_actions_target(g, member));
-        if (!call(ctx, MEMBER_ATTACK, false))
+        bool attacked = false;
+        TIMED_AS(g, MEMBER_ATTACKS, attacked = battle_member_attacks(g, pf));
+        if (!attacked)
             return false;
     } else if (choice & CHOSE_AN_ITEM)
-        return use_item(g, member, call, ctx);
+        return use_item(g, pf, member);
     else if (choice & CHOSE_A_TECH)
-        return perform_tech(g, member, call, ctx);
+        return perform_tech(g, pf, member);
     else if (choice & CHOICE_HELD)
         return true;
     TIMED_AS(g, 0xC1BCE1, member_turn_ends(g));
@@ -498,16 +529,16 @@ static void set_up_attack(GameState *g)
     set_battle_action_extra(g, none_first ? NO_CANDIDATE : 0);
 }
 
-static bool attack(GameState *g, MemberCalls call, void *ctx)
+static bool attack(GameState *g, Platform *pf)
 {
     set_up_attack(g);
     uint8_t fighting = combatant_fighting_as(g, battle_actor(g));
     if (fighting != COMBATANT_NONE) {
         set_battle_action_detail(g, character_attack_tech(g, fighting));
-        if (!call(ctx, MEMBER_WORK_OUT_ATTACK, false))
+        if (!work_out_the_tech(g, pf))
             return false;
         if (!battle_action_came_to_nothing(g)) {
-            if (!call(ctx, MEMBER_SHOW_ATTACK, false))
+            if (!show_the_action(g, pf))
                 return false;
             note_enemy_hit(g);
             TIMED_AS(g, 0xFDACEE, battle_clear_numbers_shown(g));
@@ -538,26 +569,6 @@ static bool action_fits(const GameState *g)
 
 static bool attacker_fits(const GameState *g) { return battle_actor(g) < BATTLE_PARTY_SIZE; }
 
-/* ---- The routines the turn calls ------------------------------------------------------------- */
-
-enum {
-    AIM = 0xC1C1DD,
-    SHOW_MESSAGE = 0xCD0021,
-    SHOWING = 0xC1AC57,
-    MEMBER_ATTACKS = 0xC1BFAA,
-    USE_ITEM = 0xC1BF46,
-    WORK_OUT_TECH = 0xC1BF79,
-};
-
-/* Where the original makes each call, which a refusal names. */
-static const uint32_t member_sites[] = {
-    [MEMBER_ATTACK] = 0xC1BA7D, [MEMBER_AIM_ITEM] = 0xC1BABE, [MEMBER_AIM_TECH] = 0xC1BB88,
-    [MEMBER_ITEM_AIMED_PAST] = 0xC1BABE, [MEMBER_TECH_AIMED_PAST] = 0xC1BB88, [MEMBER_USE_ITEM] = 0xC1BB0C,
-    [MEMBER_WORK_OUT_TECH] = 0xC1BBD4, [MEMBER_WORK_OUT_ATTACK] = 0xC1C006, [MEMBER_SHOW_ITEM] = 0xC1BB26,
-    [MEMBER_SHOW_TECH] = 0xC1BC1E, [MEMBER_SHOW_ATTACK] = 0xC1C00E, [MEMBER_ITEM_TAKEN] = 0xC1BC30,
-    [MEMBER_NOTHING_TO_TAKE] = 0xC1BC46,
-};
-
 /* The main loop's end of a member's turn whose status picked its action:
  * the actor, the turn's member and its partners in the party. */
 static bool member_turn_end_fits(const GameState *g)
@@ -577,48 +588,16 @@ bool battle_end_member_turn(GameState *g)
     return true;
 }
 
-/* ---- The turn's calls ------------------------------------------------------------------------- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} MemberTurnContext;
-
-/* Each call, refused where the port doesn't take its state. */
-static bool carry_out_a_part(void *ctx, MemberCall call, bool carry)
-{
-    MemberTurnContext *c = ctx;
-    GameState *g = c->game;
-    bool done = false;
-    switch (call) {
-    case MEMBER_ATTACK: TIMED_AS(g, MEMBER_ATTACKS, done = battle_member_attacks(g, c->pf)); return done;
-    case MEMBER_AIM_ITEM:
-    case MEMBER_AIM_TECH: TIMED_AS(g, AIM, done = battle_aim_action(g, c->pf, carry)); return done;
-    case MEMBER_ITEM_AIMED_PAST:
-    case MEMBER_TECH_AIMED_PAST: return battle_contract_broken(g, member_sites[call], "an aim past what the port reads");
-    case MEMBER_USE_ITEM: TIMED_AS(g, USE_ITEM, done = battle_use_item(g, c->pf)); return done;
-    case MEMBER_WORK_OUT_TECH:
-    case MEMBER_WORK_OUT_ATTACK: TIMED_AS(g, WORK_OUT_TECH, done = battle_work_out_member_tech(g, c->pf)); return done;
-    case MEMBER_SHOW_ITEM:
-    case MEMBER_SHOW_TECH:
-    case MEMBER_SHOW_ATTACK: TIMED_AS(g, SHOWING, done = battle_action_shown(g, c->pf)); return done;
-    case MEMBER_ITEM_TAKEN: TIMED_AS(g, SHOW_MESSAGE, done = battle_show_a_battle_message(g, c->pf, MESSAGE_ITEM_TAKEN)); return done;
-    default: TIMED_AS(g, SHOW_MESSAGE, done = battle_show_a_battle_message(g, c->pf, MESSAGE_NOTHING_TO_TAKE)); return done;
-    }
-}
-
 bool battle_member_attacks(GameState *g, Platform *pf)
 {
     if (!attacker_fits(g))
         return battle_contract_broken(g, MEMBER_ATTACKS, "an attacker past the party");
-    MemberTurnContext c = { g, pf };
-    return attack(g, carry_out_a_part, &c);
+    return attack(g, pf);
 }
 
 bool battle_carry_out_member_action(GameState *g, Platform *pf)
 {
     if (!action_fits(g))
         return battle_contract_broken(g, 0xC1B967, "a member's action the port doesn't carry out");
-    MemberTurnContext c = { g, pf };
-    return carry_out_action(g, carry_out_a_part, &c);
+    return carry_out_action(g, pf);
 }

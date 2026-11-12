@@ -404,16 +404,23 @@ void object_put_drawn_frame_back(GameState *g, FieldObject obj)
 
 /* ---- The queue ------------------------------------------------------------------------------ */
 
-/* How a frame's drawing ended: the queue drawn through, or the frame's time
- * up with objects left in it; or an object's drawing didn't come back to the
- * queue, and it is left as it was (no drawing the program makes does this). */
-typedef enum { QUEUE_DRAWN, QUEUE_OUT_OF_TIME, DRAWING_WENT_ELSEWHERE } QueueDrawn;
-
 /* An object's frame drawn, a part at a time for the larger layouts; or the
  * object first in the queue holding its frame until the next one
- * (FRAME_WAITS), which no further call this frame changes. */
-typedef enum { FRAME_WHOLE, FRAME_HAS_MORE_PARTS, FRAME_HELD_TO_THE_NEXT, FRAME_DRAWING_WENT_ELSEWHERE } FrameDrawing;
-typedef FrameDrawing (*DrawFrame)(void *ctx, FieldObject obj, bool alone);
+ * (FRAME_WAITS), which no further call this frame changes. The queue draws
+ * each object's frame timed as the frame builder's routine, settling its
+ * work before it reads the beam again. */
+typedef enum { FRAME_WHOLE, FRAME_HAS_MORE_PARTS, FRAME_HELD_TO_THE_NEXT } FrameDrawing;
+
+enum { DRAW_A_FRAME = 0xC0CAD9 };
+
+static FrameDrawing draw_the_frame(GameState *g, FieldObject obj)
+{
+    FrameBuild outcome = FRAME_NO_NEXT;
+    TIMED_AS(g, DRAW_A_FRAME, outcome = draw_next_frame(g, obj));
+    if (outcome == FRAME_WAITS)
+        return FRAME_HELD_TO_THE_NEXT;
+    return outcome == FRAME_PART_DRAWN ? FRAME_HAS_MORE_PARTS : FRAME_WHOLE;
+}
 
 // $C0:CA76
 /* Every frame, once the objects' animations have moved on: the queued
@@ -421,27 +428,24 @@ typedef FrameDrawing (*DrawFrame)(void *ctx, FieldObject obj, bool alone);
  * frame has time for them, an object staying first until its frame is whole;
  * what is left waits for the next frame. While what the last frame drew is
  * still waiting to go to VRAM, nothing is drawn. */
-static QueueDrawn draw_queued_frames(GameState *g, Platform *pf, DrawFrame draw, void *ctx)
+void field_queued_frames_drawn(GameState *g, Platform *pf)
 {
     if (field_vram_queue_used(g, 0) != 0)
-        return QUEUE_DRAWN;
+        return;
     set_field_vram_queue_end(g, 0);
     while (tm_frame_time_left(pf, PF_AT(0xC0CA85), field_animation_line_limit(g))) {
         FrameQueueFront front = object_frame_queue_front(g);
         if (!front.queued)
-            return QUEUE_DRAWN;
+            return;
         object_make_current(g, front.first);
-        FrameDrawing drawn = draw(ctx, front.first, front.alone);
-        if (drawn == FRAME_DRAWING_WENT_ELSEWHERE)
-            return DRAWING_WENT_ELSEWHERE;
+        FrameDrawing drawn = draw_the_frame(g, front.first);
         /* A held frame needs the next handler pass before trying again;
          * repeating it here would do no work to advance the host's budget. */
         if (drawn == FRAME_HELD_TO_THE_NEXT)
-            return QUEUE_OUT_OF_TIME;
+            return;
         if (drawn == FRAME_WHOLE)
             object_frame_queue_take_first(g, front.alone);
     }
-    return QUEUE_OUT_OF_TIME;
 }
 
 /* ---- The entry ------------------------------------------------------------------------------ */
@@ -456,23 +460,6 @@ bool field_frame_part_drawn(GameState *g, FieldObject obj)
 {
     return draw_next_frame(g, obj) == FRAME_PART_DRAWN;
 }
-
-/* The queue draws each object's frame timed as the frame builder's routine,
- * settling its work before it reads the beam again. */
-enum { DRAW_A_FRAME = 0xC0CAD9 };
-
-static FrameDrawing draw_the_frame(void *ctx, FieldObject obj, bool alone)
-{
-    (void)alone;
-    GameState *g = ctx;
-    FrameBuild outcome = FRAME_NO_NEXT;
-    TIMED_AS(g, DRAW_A_FRAME, outcome = draw_next_frame(g, obj));
-    if (outcome == FRAME_WAITS)
-        return FRAME_HELD_TO_THE_NEXT;
-    return outcome == FRAME_PART_DRAWN ? FRAME_HAS_MORE_PARTS : FRAME_WHOLE;
-}
-
-void field_queued_frames_drawn(GameState *g, Platform *pf) { (void)draw_queued_frames(g, pf, draw_the_frame, g); }
 
 /* ---- What the port draws -------------------------------------------------------------------- */
 

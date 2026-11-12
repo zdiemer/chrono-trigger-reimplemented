@@ -306,33 +306,20 @@ static void ask_for_the_restart_sound(GameState *g)
 }
 
 // $7E:63D5
-/* The send (`send`, the program's own) waits for the driver to take the
- * sound. */
-static TaskEnd wait_for_a_button_with(GameState *g, Platform *pf, bool (*send)(void *ctx, Platform *pf), void *ctx)
-{
-    if (scene_joypad(g) == 0)
-        return task_goes_on();
-    ask_for_the_restart_sound(g);
-    if (!send(ctx, pf))
-        return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
-    TIMED_AS(g, 0x7E395E, (void)scene_add_task(g, SCENE_FRAME_TASKS, SCENE_TASK_DARKEN));
-    return task_hands_over(COUNT_DOWN_TO_THE_RESTART);
-}
-
-static bool send(void *ctx, Platform *pf)
-{
-    scene_sends_the_command(ctx, pf);
-    return true;
-}
-
-/* The wait, where the frame's list has room for the darkening; otherwise
- * the scene goes no further. */
+/* The wait, where the frame's list has room for the darkening (otherwise the
+ * scene goes no further): at a button, the restart's sound sent, the program
+ * waiting for the driver to take it. */
 TaskEnd scene_wait_for_a_button_to_restart(GameState *g, Platform *pf, unsigned slot)
 {
     (void)slot;
     if (!scene_task_listed(g, SCENE_FRAME_TASKS, NO_TASK))
         return scene_task_goes_no_further(g, 0x7E63D5, "no room on the frame's list for the darkening");
-    return wait_for_a_button_with(g, pf, send, g);
+    if (scene_joypad(g) == 0)
+        return task_goes_on();
+    ask_for_the_restart_sound(g);
+    scene_sends_the_command(g, pf);
+    TIMED_AS(g, 0x7E395E, (void)scene_add_task(g, SCENE_FRAME_TASKS, SCENE_TASK_DARKEN));
+    return task_hands_over(COUNT_DOWN_TO_THE_RESTART);
 }
 
 // $7E:63F5
@@ -385,79 +372,40 @@ static void send_unpacked_words(GameState *g, Platform *pf)
     TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
 }
 
-/* The setup's steps that are other routines: a resource unpacked by the
- * program's unpacker, the scripts' first step and the stars put out. */
-/* What the setup unpacks, in its order, each from its own call of the
- * program's unpacker. */
-typedef enum {
-    UNPACK_LETTERS, UNPACK_STAR_SPRITES, UNPACK_PLANET_TILES, UNPACK_PLANET_MAP, UNPACK_COLOURS, UNPACK_LAST_COLOURS,
-    UNPACK_COLOURS_ON_THE_WAY, UNPACK_LATE_COLOURS, PLANET_UNPACKS
-} PlanetUnpack;
-
-static const struct {
-    uint32_t site;
-    uint16_t resource;
-} planet_unpacks[PLANET_UNPACKS] = {
-    [UNPACK_LETTERS] = { 0x7E6259, LETTERS },
-    [UNPACK_STAR_SPRITES] = { 0x7E626B, STAR_SPRITES },
-    [UNPACK_PLANET_TILES] = { 0x7E627F, PLANET_TILES },
-    [UNPACK_PLANET_MAP] = { 0x7E6295, PLANET_MAP },
-    [UNPACK_COLOURS] = { 0x7E62AA, COLOURS },
-    [UNPACK_LAST_COLOURS] = { 0x7E62B6, LAST_COLOURS_RESOURCE },
-    [UNPACK_COLOURS_ON_THE_WAY] = { 0x7E62C2, COLOURS_ON_THE_WAY_RESOURCE },
-    [UNPACK_LATE_COLOURS] = { 0x7E62D1, LATE_COLOURS },
-};
-
-typedef struct {
-    bool (*unpack)(void *ctx, PlanetUnpack which);
-    bool (*first_step)(void *ctx);
-    bool (*put_out_the_stars)(void *ctx);
-} PlanetSetUpSteps;
-
-static bool load_the_graphics(GameState *g, Platform *pf, const PlanetSetUpSteps *steps, void *ctx)
+static void load_the_graphics(GameState *g, Platform *pf)
 {
     vid_start_vram_uploads(pf, PF_AT(0x7E624A), SCENE_VRAM_WHOLE_WORDS);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     vid_set_vram_address(pf, PF_AT(0x7E6253), LETTERS_VRAM);
-    if (!steps->unpack(ctx, UNPACK_LETTERS))
-        return false;
+    scene_unpacks(g, LETTERS);
     scene_send_letters_widened(g, pf);
     vid_set_vram_address(pf, PF_AT(0x7E6265), STAR_SPRITES_VRAM);
-    if (!steps->unpack(ctx, UNPACK_STAR_SPRITES))
-        return false;
+    scene_unpacks(g, STAR_SPRITES);
     send_unpacked_words(g, pf);
-    if (!steps->unpack(ctx, UNPACK_PLANET_TILES))
-        return false;
+    scene_unpacks(g, PLANET_TILES);
     vid_set_vram_address(pf, PF_AT(0x7E6285), PLANET_TILES_VRAM);
     TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
     vid_set_vram_address(pf, PF_AT(0x7E628F), PLANET_MAP_VRAM);
-    if (!steps->unpack(ctx, UNPACK_PLANET_MAP))
-        return false;
+    scene_unpacks(g, PLANET_MAP);
     TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
-    return true;
 }
 
 /* The original clears the call cells' second byte as it loads the colours,
  * which nothing the setup runs after it reads. */
 
-static bool load_the_colours(GameState *g, const PlanetSetUpSteps *steps, void *ctx)
+static void load_the_colours(GameState *g)
 {
     set_decompress_dest(g, COLOURS_AT);
     charge_accesses(g, 4);
-    if (!steps->unpack(ctx, UNPACK_COLOURS))
-        return false;
+    scene_unpacks(g, COLOURS);
     unpack_at(g, LAST_COLOURS);
-    if (!steps->unpack(ctx, UNPACK_LAST_COLOURS))
-        return false;
+    scene_unpacks(g, LAST_COLOURS_RESOURCE);
     unpack_at(g, COLOURS_ON_THE_WAY);
-    if (!steps->unpack(ctx, UNPACK_COLOURS_ON_THE_WAY))
-        return false;
+    scene_unpacks(g, COLOURS_ON_THE_WAY_RESOURCE);
     scene_set_caption_colours(g);
     unpack_at(g, LATE_COLOURS_AT);
-    if (!steps->unpack(ctx, UNPACK_LATE_COLOURS))
-        return false;
+    scene_unpacks(g, LATE_COLOURS);
     TIMED_AS(g, 0x7E38AF, scene_use_loaded_palette(g));
-    return true;
 }
 
 /* The screen: Mode 3, the planet on BG1 (its map at $7000, its tiles at
@@ -485,62 +433,22 @@ static void set_up_the_screen(Platform *pf)
  * its graphics and colours loaded, the mode's script started, the stars put
  * out, the palette animations stopped and the screen laid out; and the
  * scene's end a few seconds after the button the script's last task waits
- * for. False where a step went no further. */
-static bool set_up_the_planet_with(GameState *g, Platform *pf, const PlanetSetUpSteps *steps, void *ctx)
+ * for. False where the script's first step went no further. */
+enum { PUT_OUT_THE_STARS = 0x7E6598 };
+
+bool scene_planet_set_up(GameState *g, Platform *pf)
 {
-    if (!load_the_graphics(g, pf, steps, ctx))
-        return false;
-    if (!load_the_colours(g, steps, ctx))
-        return false;
+    load_the_graphics(g, pf);
+    load_the_colours(g);
     bool an_ending = (scene_flags(g) & MODE_BITS) == AN_ENDING_S_PLANET;
     set_scene_channels_script(g, SCENE_CAMERA_CHANNEL, an_ending ? ENDING_SCRIPT : LOST_SCRIPT);
-    if (!steps->first_step(ctx) || !steps->put_out_the_stars(ctx))
+    if (!scene_first_step(g, pf, SCENE_CAMERA_CHANNEL))
         return false;
+    TIMED_AS(g, PUT_OUT_THE_STARS, put_out_the_stars(g));
     TIMED_AS(g, 0xFDFFEE, palette_stop_animations(g));
     set_up_the_screen(pf);
     set_scene_end_wait(g, END_WAIT);
     return true;
-}
-
-/* ---- The setup's steps ---- */
-
-/* Putting the stars out, timed as its routine. */
-enum { PUT_OUT_THE_STARS = 0x7E6598 };
-
-/* The setup's steps, for scene/program.c's setups. The scripts' first step
- * is the camera channel's turn. */
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} PlanetContext;
-
-static bool unpack_the_resource(void *ctx, PlanetUnpack which)
-{
-    PlanetContext *c = ctx;
-    TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, planet_unpacks[which].resource));
-    return true;
-}
-
-static bool turn_the_camera_channel(void *ctx)
-{
-    PlanetContext *c = ctx;
-    SceneTurn turn = SCENE_TURN_ENDED;
-    TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, SCENE_CAMERA_CHANNEL));
-    return turn == SCENE_TURN_ENDED;
-}
-
-static bool stars_put_out(void *ctx)
-{
-    PlanetContext *c = ctx;
-    TIMED_AS(c->game, PUT_OUT_THE_STARS, put_out_the_stars(c->game));
-    return true;
-}
-
-bool scene_planet_set_up(GameState *g, Platform *pf)
-{
-    static const PlanetSetUpSteps in_the_program = { unpack_the_resource, turn_the_camera_channel, stars_put_out };
-    PlanetContext c = { g, pf };
-    return set_up_the_planet_with(g, pf, &in_the_program, &c);
 }
 
 /* ---- The rows ------------------------------------------------------------------------------- */

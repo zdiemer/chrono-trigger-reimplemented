@@ -286,70 +286,53 @@ static void begin_the_value(GameState *g)
 
 /* ---- The typing's tasks ------------------------------------------------------------------------- */
 
-/* The task's wait for the next frame between the typing's frames; false
- * where the task never came back. */
-typedef bool (*TypingWait)(void *ctx);
+/* What the typing needs of the state (below): the typing laid where it
+ * fits, and each task's start. */
+static bool typing_goes_on(const GameState *g);
 
 // $C2:FAA8
-/* The text typed to its end, a frame at a time. */
-static bool type_the_text(GameState *g, TypingWait wait, void *ctx)
+/* The text typed to its end, a frame at a time, the task waiting for the
+ * next frame between (from inside its coroutine, menu/tasks.c); refused
+ * where the typing isn't laid where it fits, and the program goes no
+ * further there. */
+static void type_the_text(GameState *g)
 {
     while (type_a_frame(g))
-        if (!wait(ctx))
-            return false;
+        menu_task_waits(g, 1);
+}
+
+static bool type(GameState *g)
+{
+    if (!typing_goes_on(g)) {
+        program_breaks_a_contract(g, 0xC2FAA8, "a description the port doesn't type");
+        return false;
+    }
+    TIMED_AS(g, 0xC2FAA8, type_the_text(g));
     return true;
 }
 
 /* The typing's three tasks, each from its own start: a description typed; a
  * setting's option typed, then its value after it; and a setting's value
- * typed again where it has changed. Each typing is the text typed to its end
- * (above), from the original's call of it at `site`;
- * false where it went no further. The task ends after. */
+ * typed again where it has changed. The task ends after. */
 typedef enum { TYPE_THE_DESCRIPTION, TYPE_THE_SETTING, TYPE_THE_VALUE } TypingTask;
-typedef bool (*Typing)(void *ctx, uint32_t site);
+
+static bool typing_task_can_start(const GameState *g, TypingTask task);
 
 // $C2:FA9F, $C2:F9B2, $C2:FA06
-static bool typing_task_with(GameState *g, TypingTask task, Typing type, void *ctx)
+static void type_by_task(GameState *g, TypingTask task)
 {
     switch (task) {
-    case TYPE_THE_DESCRIPTION: return type(ctx, 0xC2FA9F);
+    case TYPE_THE_DESCRIPTION: (void)type(g); return;
     case TYPE_THE_SETTING:
         begin_the_setting(g);
-        if (!type(ctx, 0xC2F9E8))
-            return false;
+        if (!type(g))
+            return;
         note_where_the_value_goes(g);
         break;
     case TYPE_THE_VALUE: break;
     }
     begin_the_value(g);
-    return type(ctx, 0xC2FA43);
-}
-
-/* The wait, from inside the task's coroutine (menu/tasks.c). */
-static bool wait(void *ctx)
-{
-    menu_task_waits(ctx, 1);
-    return true;
-}
-
-/* What the typing needs of the state (below): the typing laid where it
- * fits, and each task's start. */
-static bool typing_goes_on(const GameState *g);
-static bool typing_task_can_start(const GameState *g, TypingTask task);
-
-/* Each typing and each task, where the state is one it handles; otherwise
- * the program goes no further there. */
-static bool type(void *ctx, uint32_t site)
-{
-    (void)site;
-    GameState *g = ctx;
-    if (!typing_goes_on(g)) {
-        program_breaks_a_contract(g, 0xC2FAA8, "a description the port doesn't type");
-        return false;
-    }
-    bool typed = false;
-    TIMED_AS(g, 0xC2FAA8, typed = type_the_text(g, wait, g));
-    return typed;
+    (void)type(g);
 }
 
 static void typing_task(GameState *g, TypingTask task)
@@ -359,7 +342,7 @@ static void typing_task(GameState *g, TypingTask task)
         program_breaks_a_contract(g, starts[task], "a typing task the port doesn't start");
         return;
     }
-    (void)typing_task_with(g, task, type, g);
+    type_by_task(g, task);
 }
 
 void menu_type_the_description_task(GameState *g, Platform *pf)

@@ -30,65 +30,66 @@
 #include "charge.h"
 #include "vars.h"
 
-/* ---- The calls -------------------------------------------------------------------------------- */
+/* ---- The routines the steps call ------------------------------------------------------------- */
 
-/* The routines the frame's steps call, each where the original makes it:
- * the menu's window drawn, its buttons taken and its cursors placed
- * (battle/menu_window.c, battle/menu_bridge.c) from each of the three places
- * the menu's turn is taken; the frame work's tail ($CD:0009, battle/frame.c);
- * the battle's wait for the next frame ($C1:007E); the combatants' animation
- * step (battle/animation.c); the enemies' effects (battle/animation.c); and
- * the message line's description (battle/message.c). */
-typedef enum { MENU_WINDOW, MENU_BUTTONS, MENU_CURSORS, MENU_PARTS } MenuPart;
-typedef enum { TURN_IN_THE_FRAME_STEP, TURN_IN_THE_WAIT, TURN_IN_THE_WAIT_STEP, TURN_PLACES } MenuTurnPlace;
-typedef enum {
-    STEP_MENU_PART,                    /* + the place's MENU_PARTS */
-    STEP_FRAME_STEP_TAIL = STEP_MENU_PART + TURN_PLACES * MENU_PARTS,
-    STEP_NOT_DUE,                      /* the menu's turn not due: the original tested its count */
-    STEP_REFUSAL_CLEARED, STEP_REFUSAL_SAID,
-    STEP_FIRST_FRAME, STEP_FIRST_TAIL, STEP_ANIMATE, STEP_FIRST_EFFECTS,
-    STEP_SECOND_FRAME, STEP_SECOND_TAIL, STEP_SECOND_EFFECTS,
-} StepCall;
-typedef bool (*StepCalls)(void *ctx, StepCall call);
+enum {
+    MENU_WINDOW_ENTRY = 0xC10C2D,
+    MENU_BUTTONS_ENTRY = 0xC11153,
+    MENU_CURSORS_ENTRY = 0xC117DD,
+    FRAME_TAIL = 0xCD0009,
+    ANIMATIONS = 0xC12D9F,
+    ENEMY_EFFECTS = 0xC13714,
+    WAIT_STEP = 0xC1106E,
+    FRAME_STEP = 0xC110FA,
+};
 
-static StepCall menu_part(MenuTurnPlace place, MenuPart part) { return (StepCall)(STEP_MENU_PART + place * MENU_PARTS + part); }
+/* The frame work's tail ($CD:0009, battle/frame.c). */
+static bool finish_the_frame_work(GameState *g, Platform *pf)
+{
+    bool done = false;
+    TIMED_AS(g, FRAME_TAIL, done = battle_frame_wait_finished(g, pf));
+    return done;
+}
+
+/* The enemies' effects' step (battle/animation.c). */
+static bool step_the_enemy_effects(GameState *g, Platform *pf)
+{
+    bool done = false;
+    TIMED_AS(g, ENEMY_EFFECTS, done = battle_enemy_effects_stepped(g, pf));
+    return done;
+}
 
 /* ---- The menu's turn ------------------------------------------------------------------------- */
 
 /* The menu takes its turn every fourth frame. */
 static bool menu_turn_due(const GameState *g) { return battle_frame_tick_4(g) != 0; }
 
-static bool take_the_menu_turn(GameState *g, MenuTurnPlace place, StepCalls call, void *ctx)
+/* The next party member in line takes the menu, then its window is drawn,
+ * its buttons taken and its cursors placed (battle/menu_window.c,
+ * battle/menu_bridge.c), each a routine of its own. */
+static bool take_the_menu_turn(GameState *g, Platform *pf)
 {
     set_battle_frame_tick_4(g, 0);
     TIMED_AS(g, 0xC11B67, battle_next_member_takes_the_menu(g));
-    for (MenuPart part = MENU_WINDOW; part < MENU_PARTS; part++)
-        if (!call(ctx, menu_part(place, part)))
-            return false;
-    return true;
+    bool done = false;
+    TIMED_AS(g, MENU_WINDOW_ENTRY, done = battle_menu_window_drawn(g, pf));
+    if (!done)
+        return false;
+    TIMED_AS(g, MENU_BUTTONS_ENTRY, done = battle_menu_input_taken(g, pf));
+    if (!done)
+        return false;
+    TIMED_AS(g, MENU_CURSORS_ENTRY, done = battle_menu_cursors_placed(g, pf));
+    return done;
 }
 
 // $C1:10FA
-/* The frame step: the menu's turn, then the frame work's tail. */
-static bool menu_turn_between_steps(GameState *g, MenuTurnPlace place, StepCalls call, void *ctx)
+/* The menu's turn where it is due, between the frame's steps. */
+static bool menu_turn_between_steps(GameState *g, Platform *pf)
 {
     if (!menu_turn_due(g))
-        return call(ctx, STEP_NOT_DUE);
+        return true;
     set_battle_queued_uploads_on(g, 0);
-    return take_the_menu_turn(g, place, call, ctx);
-}
-
-static bool frame_step(GameState *g, StepCalls call, void *ctx)
-{
-    return menu_turn_between_steps(g, TURN_IN_THE_FRAME_STEP, call, ctx) && call(ctx, STEP_FRAME_STEP_TAIL);
-}
-
-// $C1:0012, $C1:10E3
-/* The menu's turn alone, as the frame work's wait for the next frame takes
- * it (battle/wait.c), by a long call that jumps on to it. */
-static bool menu_turn(GameState *g, StepCalls call, void *ctx)
-{
-    return menu_turn_between_steps(g, TURN_IN_THE_WAIT, call, ctx);
+    return take_the_menu_turn(g, pf);
 }
 
 /* ---- The battle's step 3: a frame of waiting ------------------------------------------------- */
@@ -98,7 +99,7 @@ static bool menu_turn(GameState *g, StepCalls call, void *ctx)
  * clears, and says the party can't escape. */
 enum { MESSAGE_CLEARED = 0xFF, MESSAGE_CANT_ESCAPE = 0x75 };
 
-static bool refuse_to_run(GameState *g, StepCalls call, void *ctx)
+static bool refuse_to_run(GameState *g)
 {
     if (!battle_lr_held(g) || !(battle_setup_flags(g) & BATTLE_SETUP_NO_RUNNING))
         return true;
@@ -106,17 +107,18 @@ static bool refuse_to_run(GameState *g, StepCalls call, void *ctx)
     if (battle_lr_state(g))
         return true;
     set_battle_lr_state(g, (uint8_t)(battle_lr_state(g) + 1));
-    return call(ctx, STEP_REFUSAL_CLEARED) && call(ctx, STEP_REFUSAL_SAID);
+    return battle_described(g, MESSAGE_CLEARED) && battle_described(g, MESSAGE_CANT_ESCAPE);
 }
 
 /* The combatants animate a step (a routine of its own), whose group goes by
  * the frame's phase; the phase is kept around it, the animations' step
  * moving it on where it ends a group early. */
-static bool animate_the_combatants(GameState *g, StepCalls call, void *ctx)
+static bool animate_the_combatants(GameState *g)
 {
     set_battle_frame_phase_saved(g, battle_frame_phase(g));
-    if (!call(ctx, STEP_ANIMATE))
-        return false;
+    if (!battle_animations_fit(g))
+        return battle_contract_broken(g, ANIMATIONS, "the combatants' animation outside its look or frame buffers");
+    TIMED_AS(g, ANIMATIONS, battle_step_combatants(g));
     set_battle_frame_phase(g, battle_frame_phase_saved(g));
     return true;
 }
@@ -128,27 +130,28 @@ static bool animate_the_combatants(GameState *g, StepCalls call, void *ctx)
  * the queued uploads held after it, the second turning them back on, giving
  * the menu its turn (the buttons it took forgotten) and the effects another
  * step; the combatants' boxes following where they stand after each. */
-static bool wait_step(GameState *g, StepCalls call, void *ctx)
+static bool wait_step(GameState *g, Platform *pf)
 {
     if (!battle_defeat_showing(g)) {
         set_battle_orbits_held(g, 0);
-        if (!refuse_to_run(g, call, ctx))
+        if (!refuse_to_run(g))
             return false;
     }
-    if (!call(ctx, STEP_FIRST_FRAME) || !call(ctx, STEP_FIRST_TAIL) || !animate_the_combatants(g, call, ctx)
-        || !call(ctx, STEP_FIRST_EFFECTS))
+    battle_wait_for_frame(g, pf);
+    if (!finish_the_frame_work(g, pf) || !animate_the_combatants(g) || !step_the_enemy_effects(g, pf))
         return false;
     TIMED_AS(g, 0xC1283D, battle_update_all_bounds(g));
     set_battle_queued_uploads_on(g, 0);
-    if (!call(ctx, STEP_SECOND_FRAME) || !call(ctx, STEP_SECOND_TAIL))
+    battle_wait_for_frame(g, pf);
+    if (!finish_the_frame_work(g, pf))
         return false;
     set_battle_queued_uploads_on(g, (uint8_t)(battle_queued_uploads_on(g) + 1));
     if (menu_turn_due(g)) {
-        if (!take_the_menu_turn(g, TURN_IN_THE_WAIT_STEP, call, ctx))
+        if (!take_the_menu_turn(g, pf))
             return false;
         set_battle_menu_buttons(g, 0);
     }
-    if (!call(ctx, STEP_SECOND_EFFECTS))
+    if (!step_the_enemy_effects(g, pf))
         return false;
     TIMED_AS(g, 0xC1283D, battle_update_all_bounds(g));
     return true;
@@ -165,74 +168,36 @@ static bool queue_holds_a_member(const GameState *g)
 
 static bool frame_step_fits(const GameState *g) { return !menu_turn_due(g) || queue_holds_a_member(g); }
 
-/* ---- The steps' calls ------------------------------------------------------------------------- */
+/* ---- The steps -------------------------------------------------------------------------------- */
 
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} FrameStepContext;
-
-enum {
-    MENU_WINDOW_ENTRY = 0xC10C2D,
-    MENU_BUTTONS_ENTRY = 0xC11153,
-    MENU_CURSORS_ENTRY = 0xC117DD,
-    FRAME_TAIL = 0xCD0009,
-    FRAME_WAIT = 0xC1007E,
-    ANIMATIONS = 0xC12D9F,
-    ENEMY_EFFECTS = 0xC13714,
-    WAIT_STEP = 0xC1106E,
-};
-
-static bool step_a_part(void *ctx, StepCall call)
-{
-    FrameStepContext *c = ctx;
-    GameState *g = c->game;
-    bool done = false;
-    switch (call) {
-    case STEP_NOT_DUE: return true;
-    case STEP_FRAME_STEP_TAIL:
-    case STEP_FIRST_TAIL:
-    case STEP_SECOND_TAIL: TIMED_AS(g, FRAME_TAIL, done = battle_frame_wait_finished(g, c->pf)); return done;
-    case STEP_FIRST_FRAME:
-    case STEP_SECOND_FRAME: TIMED_AS(g, FRAME_WAIT, done = battle_wait_for_frame(g, c->pf)); return done;
-    case STEP_ANIMATE:
-        if (!battle_animations_fit(g))
-            return battle_contract_broken(g, ANIMATIONS, "the combatants' animation outside its look or frame buffers");
-        TIMED_AS(g, ANIMATIONS, battle_step_combatants(g));
-        return true;
-    case STEP_FIRST_EFFECTS:
-    case STEP_SECOND_EFFECTS: TIMED_AS(g, ENEMY_EFFECTS, done = battle_enemy_effects_stepped(g, c->pf)); return done;
-    case STEP_REFUSAL_CLEARED: return battle_described(g, MESSAGE_CLEARED);
-    case STEP_REFUSAL_SAID: return battle_described(g, MESSAGE_CANT_ESCAPE);
-    default: break;
-    }
-    switch ((MenuPart)((call - STEP_MENU_PART) % MENU_PARTS)) {
-    case MENU_WINDOW: TIMED_AS(g, MENU_WINDOW_ENTRY, done = battle_menu_window_drawn(g, c->pf)); return done;
-    case MENU_BUTTONS: TIMED_AS(g, MENU_BUTTONS_ENTRY, done = battle_menu_input_taken(g, c->pf)); return done;
-    default: TIMED_AS(g, MENU_CURSORS_ENTRY, done = battle_menu_cursors_placed(g, c->pf)); return done;
-    }
-}
-
+// $C1:0012, $C1:10E3
+/* The menu's turn alone, as the frame work's wait for the next frame takes
+ * it (battle/wait.c), by a long call that jumps on to it. */
 bool battle_menu_turn(GameState *g, Platform *pf)
 {
     if (!frame_step_fits(g))
         return battle_contract_broken(g, BATTLE_MENU_TURN_ENTRY, "a menu queue the port doesn't take");
-    FrameStepContext c = { g, pf };
-    return menu_turn(g, step_a_part, &c);
+    return menu_turn_between_steps(g, pf);
+}
+
+/* The frame step: the menu's turn, then the frame work's tail. */
+static bool frame_step(GameState *g, Platform *pf)
+{
+    if (!frame_step_fits(g))
+        return battle_contract_broken(g, FRAME_STEP, "a menu queue the port doesn't take");
+    return menu_turn_between_steps(g, pf) && finish_the_frame_work(g, pf);
 }
 
 bool battle_frame_stepped(GameState *g, Platform *pf)
 {
-    if (!frame_step_fits(g))
-        return battle_contract_broken(g, 0xC110FA, "a menu queue the port doesn't take");
-    FrameStepContext c = { g, pf };
-    return frame_step(g, step_a_part, &c);
+    bool done = false;
+    TIMED_AS(g, FRAME_STEP, done = frame_step(g, pf));
+    return done;
 }
 
 bool battle_waits_a_frame(GameState *g, Platform *pf)
 {
     if (!frame_step_fits(g))
         return battle_contract_broken(g, WAIT_STEP, "a menu queue the port doesn't take");
-    FrameStepContext c = { g, pf };
-    return wait_step(g, step_a_part, &c);
+    return wait_step(g, pf);
 }

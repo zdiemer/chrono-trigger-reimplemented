@@ -26,9 +26,11 @@ it never dispatches to cartridge code.
 ## Converting a subsystem
 
 1. Follow the native caller graph. Wrappers, held continuations, emulated
-   returns and registry rows have been deleted across the tree. Simplify the
-   remaining single-implementation callback adapters into direct calls, keeping
-   real game-state checks and observable ordering.
+   returns and registry rows have been deleted across the tree. A sequence
+   calls the routines it goes on to directly, keeping real game-state checks
+   and observable ordering; a callback through an opaque context is for a real
+   choice of implementations (a coroutine's body, the host's asset provider),
+   and `tools/machine_joints.py` counts them.
 2. Replace register-shaped inputs and leftovers with meaningful parameters and
    results. Delete unused results, code-image guards, CPU-width/decimal-mode
    checks and scratch effects. Preserve index wrapping and deliberate overruns

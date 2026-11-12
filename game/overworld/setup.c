@@ -14,9 +14,8 @@
  * colours in, starts the overworld's own state afresh, puts the camera on
  * the party, draws the map's two planes whole and starts the scene's script.
  *
- * Unpacking is the decompressor's (data/decompress.c): the loads reach it
- * through an Unpacker, which says where the original calls it from.
- * Everything else is the game's state and the video service. */
+ * Unpacking is the decompressor's (data/decompress.c, overworld_unpack);
+ * everything else is the game's state and the video service. */
 #include "overworld/setup.h"
 
 #include "charge.h"
@@ -108,47 +107,41 @@ static uint8_t record_byte(const GameState *g, uint8_t field)
     return overworld_map_record_byte(g, overworld_map_record(g), field);
 }
 
-/* Unpack a stream to `to`; `site` is where the original's call to the
- * unpacker stands. */
-static bool unpack(const Unpacker *u, uint32_t site, uint32_t stream, uint32_t to)
+void overworld_unpack(GameState *g, uint32_t stream, uint32_t to)
 {
-    return u->unpack(u->ctx, site, stream, to);
+    set_decompress_source(g, stream);
+    set_decompress_dest(g, to);
+    (void)unpack_stream(g);
 }
 
 /* One stream the record names, from its table, unpacked to `to`. A record
  * that names none leaves the buffer as it was. */
-static bool load_named(GameState *g, const Unpacker *u, uint32_t site, uint8_t field, OverworldStreamTable table,
-                       uint32_t to)
+static void load_named(GameState *g, uint8_t field, OverworldStreamTable table, uint32_t to)
 {
     uint8_t number = record_byte(g, field);
-    if (number & NO_STREAM) {
+    if (number & NO_STREAM)
         set_decompress_dest(g, to);
-        return true;
-    }
-    return unpack(u, site, overworld_stream(g, table, number), to);
+    else
+        overworld_unpack(g, overworld_stream(g, table, number), to);
 }
 
 /* Several blocks the record names in a row, each to the staging buffer's
  * next $1000 bytes. */
-static bool load_blocks(GameState *g, const Unpacker *u, uint32_t site, uint8_t first_field, unsigned blocks,
-                        OverworldStreamTable table)
+static void load_blocks(GameState *g, uint8_t first_field, unsigned blocks, OverworldStreamTable table)
 {
     for (unsigned b = 0; b < blocks; b++)
-        if (!load_named(g, u, site, (uint8_t)(first_field + b), table, STAGING + b * BLOCK_BYTES))
-            return false;
+        load_named(g, (uint8_t)(first_field + b), table, STAGING + b * BLOCK_BYTES);
     /* the destination is moved on past each block, round the bank */
     set_decompress_dest(g, (STAGING & 0xFF0000u) | (uint16_t)(STAGING + blocks * BLOCK_BYTES));
-
-    return true;
 }
 
 /* ---- The sprites --------------------------------------------------------------------------- */
 
 // $C2:2768
 /* The four pages of the map's sprites. */
-static bool load_the_sprite_pages(GameState *g, const Unpacker *u)
+static void load_the_sprite_pages(GameState *g)
 {
-    return load_blocks(g, u, 0xC227A2, RECORD_SPRITE_PAGES, SPRITE_PAGES, OVERWORLD_SPRITE_GRAPHICS);
+    load_blocks(g, RECORD_SPRITE_PAGES, SPRITE_PAGES, OVERWORLD_SPRITE_GRAPHICS);
 }
 
 /* The party's sprites: every character's are one stream, a $400-byte block
@@ -177,10 +170,9 @@ static void copy_in_bank(GameState *g, uint16_t from, uint32_t to, uint16_t byte
 }
 
 // $C2:2B61 (with $C2:2BBC and $C2:2BCF for each member)
-static bool load_the_party_sprites(GameState *g, const Unpacker *u)
+static void load_the_party_sprites(GameState *g)
 {
-    if (!unpack(u, 0xC22B7C, overworld_stream(g, OVERWORLD_SPRITE_GRAPHICS, PARTY_STREAM), STAGING))
-        return false;
+    overworld_unpack(g, overworld_stream(g, OVERWORLD_SPRITE_GRAPHICS, PARTY_STREAM), STAGING);
     for (unsigned place = 0; place < PARTY_PLACES; place++) {
         uint8_t character = party_members(g, place);
         uint32_t rows_to = PARTY_ROWS + place * CHARACTER_ROW_BYTES;
@@ -188,7 +180,6 @@ static bool load_the_party_sprites(GameState *g, const Unpacker *u)
         copy_in_bank(g, character_rows(character), rows_to, CHARACTER_ROW_BYTES);
         copy_in_bank(g, (uint16_t)(character_rows(character) + SECOND_ROW), rows_to + SECOND_ROW, CHARACTER_ROW_BYTES);
     }
-    return true;
 }
 
 /* ---- The colours ------------------------------------------------------------------------------ */
@@ -208,19 +199,16 @@ static uint16_t character_colours(uint8_t character)
 }
 
 // $C2:2882 (with $C2:28ED for each member)
-static bool load_the_palette(GameState *g, const Unpacker *u)
+static void load_the_palette(GameState *g)
 {
-    if (!load_named(g, u, 0xC228AB, RECORD_PALETTE, OVERWORLD_PALETTES, RAM_MENU_LOADED_PALETTE))
-        return false;
-    if (!unpack(u, 0xC228CC, overworld_stream(g, OVERWORLD_PALETTES, PARTY_COLOURS_STREAM), PARTY_COLOURS))
-        return false;
+    load_named(g, RECORD_PALETTE, OVERWORLD_PALETTES, RAM_MENU_LOADED_PALETTE);
+    overworld_unpack(g, overworld_stream(g, OVERWORLD_PALETTES, PARTY_COLOURS_STREAM), PARTY_COLOURS);
     for (unsigned place = 0; place < PARTY_PLACES; place++)
         copy_in_bank(g, character_colours(party_members(g, place)),
                      RAM_MENU_LOADED_PALETTE + 2u * (FIRST_MEMBER_COLOUR + place * COLOURS_A_PALETTE),
                      MEMBER_COLOUR_BYTES);
     for (unsigned i = 0; i < sizeof FIRST_SPRITE_GREYS / sizeof FIRST_SPRITE_GREYS[0]; i++)
         set_menu_loaded_palette(g, FIRST_SPRITE_COLOUR + i, FIRST_SPRITE_GREYS[i]);
-    return true;
 }
 
 /* The mode shows the loaded palette from its own copy in low RAM, but for
@@ -275,24 +263,22 @@ static const OmenMap *omen_map(const GameState *g)
 }
 
 // $C2:2D91 (with $C2:7B5A, $C2:7B7F and $C2:7B9F)
-static bool load_the_black_omen(GameState *g, const Unpacker *u, Platform *pf)
+static void load_the_black_omen(GameState *g, Platform *pf)
 {
     const OmenMap *m = omen_map(g);
     if (!m)
-        return true;
-    if (!unpack(u, 0xC27B7A, overworld_stream(g, OVERWORLD_SPRITE_GRAPHICS, OMEN_SPRITES), STAGING))
-        return false;
+        return;
+    overworld_unpack(g, overworld_stream(g, OVERWORLD_SPRITE_GRAPHICS, OMEN_SPRITES), STAGING);
     TIMED_AS(g, 0xC22D70, send_staged(pf, m->tiles_vram, STAGING, OMEN_TILES_BYTES));
     if (m->colours) {
         bool other = (menu_story_flags_bytes_byte(g, OMEN_FLAG_BYTE) & OMEN_FLAG_BIT) != 0;
         uint8_t row = other ? m->other_row : m->row;
         /* the mode's own palette, named through bank 0's view of low RAM */
         enum { LOW_RAM_IN_BANK_0 = 0x7E0000 };
-        if (!unpack(u, 0xC27B9A, overworld_stream(g, OVERWORLD_PALETTES, OMEN_COLOURS),
-                    RAM_MENU_OBJECT_PALETTE - LOW_RAM_IN_BANK_0 + (uint32_t)row * ROW_BYTES))
-            return false;
+        overworld_unpack(g, overworld_stream(g, OVERWORLD_PALETTES, OMEN_COLOURS),
+                         RAM_MENU_OBJECT_PALETTE - LOW_RAM_IN_BANK_0 + (uint32_t)row * ROW_BYTES);
     }
-    return unpack(u, 0xC27BBF, overworld_stream(g, OVERWORLD_PALETTES, OMEN_SCENE_COLOURS), LATE_SCENE_COLOURS);
+    overworld_unpack(g, overworld_stream(g, OVERWORLD_PALETTES, OMEN_SCENE_COLOURS), LATE_SCENE_COLOURS);
 }
 
 /* ---- The graphics ------------------------------------------------------------------------- */
@@ -304,12 +290,11 @@ enum { SCENE_SPRITES_STREAM = 1 };
 // $C2:2D47 (with $C2:2D91 and $C2:27BC)
 /* The palette sent to CGRAM, the Black Omen where it shows, and the scene's
  * sprites. */
-static bool finish_the_graphics(GameState *g, const Unpacker *u, Platform *pf)
+static void finish_the_graphics(GameState *g, Platform *pf)
 {
     TIMED_AS(g, 0xC22D47, menu_send_the_loaded_palette(pf));
-    if (!load_the_black_omen(g, u, pf))
-        return false;
-    return unpack(u, 0xC227D9, overworld_stream(g, OVERWORLD_SPRITE_GRAPHICS, SCENE_SPRITES_STREAM), SCENE_SPRITES);
+    load_the_black_omen(g, pf);
+    overworld_unpack(g, overworld_stream(g, OVERWORLD_SPRITE_GRAPHICS, SCENE_SPRITES_STREAM), SCENE_SPRITES);
 }
 
 // $C2:2CC1 (with $C2:2768, $C2:2B61, $C2:27DE, $C2:2826, $C2:2854, $C2:2882 and $C2:2D47)
@@ -317,43 +302,37 @@ static bool finish_the_graphics(GameState *g, const Unpacker *u, Platform *pf)
  * layer's tiles and tilemap, each sent to VRAM from the staging buffer; the
  * palette, kept in low RAM and sent to CGRAM; the Black Omen where it shows;
  * and the scene's sprites. */
-static bool load_the_graphics(GameState *g, const Unpacker *u, Platform *pf)
+static void load_the_graphics(GameState *g, Platform *pf)
 {
-    if (!load_the_sprite_pages(g, u))
-        return false;
+    load_the_sprite_pages(g);
     TIMED_AS(g, 0xC22D70, send_staged(pf, SPRITE_TILES_VRAM, STAGING, SPRITE_PAGES * BLOCK_BYTES));
-    if (!load_the_party_sprites(g, u))
-        return false;
+    load_the_party_sprites(g);
     TIMED_AS(g, 0xC22D70, send_staged(pf, PARTY_TILES_VRAM, PARTY_TILES, PARTY_SPRITES_BYTES));
-    if (!overworld_load_the_map_tiles(g, u))
-        return false;
+    overworld_load_the_map_tiles(g);
     TIMED_AS(g, 0xC22D70, send_staged(pf, MAP_TILES_VRAM, STAGING, MAP_TILE_BLOCKS * BLOCK_BYTES));
-    if (!load_named(g, u, 0xC2284F, RECORD_TOP_LAYER_TILES, OVERWORLD_MAP_GRAPHICS, STAGING))
-        return false;
+    load_named(g, RECORD_TOP_LAYER_TILES, OVERWORLD_MAP_GRAPHICS, STAGING);
     TIMED_AS(g, 0xC22D70, send_staged(pf, TOP_LAYER_TILES_VRAM, STAGING, BLOCK_BYTES));
-    if (!load_named(g, u, 0xC2287D, RECORD_TOP_LAYER_TILEMAP, OVERWORLD_TOP_LAYER_TILEMAPS, STAGING))
-        return false;
+    load_named(g, RECORD_TOP_LAYER_TILEMAP, OVERWORLD_TOP_LAYER_TILEMAPS, STAGING);
     TIMED_AS(g, 0xC22D70, send_staged(pf, TOP_LAYER_TILEMAP_VRAM, STAGING, BLOCK_BYTES));
-    if (!load_the_palette(g, u))
-        return false;
+    load_the_palette(g);
     keep_the_palette(g);
-    return finish_the_graphics(g, u, pf);
+    finish_the_graphics(g, pf);
 }
 
 // $C2:27DE
-bool overworld_load_the_map_tiles(GameState *g, const Unpacker *u)
+void overworld_load_the_map_tiles(GameState *g)
 {
-    return load_blocks(g, u, 0xC2280C, RECORD_MAP_TILES, MAP_TILE_BLOCKS, OVERWORLD_MAP_GRAPHICS);
+    load_blocks(g, RECORD_MAP_TILES, MAP_TILE_BLOCKS, OVERWORLD_MAP_GRAPHICS);
 }
 
 /* ---- The map and its places ------------------------------------------------------------------- */
 
 /* The scene's own graphics and colours, which its script sends as it
  * plays. */
-static bool load_the_scene_graphics(GameState *g, const Unpacker *u)
+static void load_the_scene_graphics(GameState *g)
 {
-    return load_named(g, u, 0xC2292B, RECORD_SCENE_TILES, OVERWORLD_MAP_GRAPHICS, SCENE_TILES)   // $C2:2902
-           && load_named(g, u, 0xC22959, RECORD_SCENE_COLOURS, OVERWORLD_PALETTES, SCENE_COLOURS);   // $C2:2930
+    load_named(g, RECORD_SCENE_TILES, OVERWORLD_MAP_GRAPHICS, SCENE_TILES);   // $C2:2902
+    load_named(g, RECORD_SCENE_COLOURS, OVERWORLD_PALETTES, SCENE_COLOURS);   // $C2:2930
 }
 
 /* The lists of places come unpacked one after another, each its count of
@@ -375,10 +354,9 @@ enum { KEPT_COUNTS = 3 };
 
 // $C2:2A44
 /* The places, unpacked to the scene's stage and spread to their lists. */
-static bool load_the_places(GameState *g, const Unpacker *u)
+static void load_the_places(GameState *g)
 {
-    if (!load_named(g, u, 0xC22A6D, RECORD_PLACE_LISTS, OVERWORLD_PLACE_LISTS, SCENE_STAGE))
-        return false;
+    load_named(g, RECORD_PLACE_LISTS, OVERWORLD_PLACE_LISTS, SCENE_STAGE);
     uint32_t at = SCENE_STAGE;
     for (unsigned list = 0; list < sizeof PLACE_LIST_STREAMS / sizeof PLACE_LIST_STREAMS[0]; list++) {
         const PlaceListStream *l = &PLACE_LIST_STREAMS[list];
@@ -389,33 +367,19 @@ static bool load_the_places(GameState *g, const Unpacker *u)
         wram_copy(g, at + 1, l->to, bytes);
         at += 1u + bytes;
     }
-    return true;
 }
 
 // $C2:295E, $C2:298C, $C2:29BA, $C2:29E8, $C2:2A16
-static bool load_the_tile_groups(GameState *g, const Unpacker *u)
+static void load_the_tile_groups(GameState *g) { load_named(g, RECORD_TILE_GROUPS, OVERWORLD_TILE_GROUPS, TILE_GROUPS); }
+static void load_the_maps(GameState *g) { load_named(g, RECORD_MAPS, OVERWORLD_MAPS, MAPS); }
+static void load_the_ground(GameState *g)
 {
-    return load_named(g, u, 0xC22987, RECORD_TILE_GROUPS, OVERWORLD_TILE_GROUPS, TILE_GROUPS);
+    load_named(g, RECORD_GROUND_KINDS, OVERWORLD_GROUND_KINDS, RAM_OVERWORLD_GROUND_KINDS);
 }
-
-static bool load_the_maps(GameState *g, const Unpacker *u)
+static void load_the_regions(GameState *g) { load_named(g, RECORD_REGIONS, OVERWORLD_REGION_MAPS, RAM_OVERWORLD_REGIONS); }
+static void load_the_scene_script(GameState *g)
 {
-    return load_named(g, u, 0xC229B5, RECORD_MAPS, OVERWORLD_MAPS, MAPS);
-}
-
-static bool load_the_ground(GameState *g, const Unpacker *u)
-{
-    return load_named(g, u, 0xC229E3, RECORD_GROUND_KINDS, OVERWORLD_GROUND_KINDS, RAM_OVERWORLD_GROUND_KINDS);
-}
-
-static bool load_the_regions(GameState *g, const Unpacker *u)
-{
-    return load_named(g, u, 0xC22A11, RECORD_REGIONS, OVERWORLD_REGION_MAPS, RAM_OVERWORLD_REGIONS);
-}
-
-static bool load_the_scene_script(GameState *g, const Unpacker *u)
-{
-    return load_named(g, u, 0xC22A3F, RECORD_SCENE_SCRIPT, OVERWORLD_SCENE_SCRIPTS, SCENE_STAGE);
+    load_named(g, RECORD_SCENE_SCRIPT, OVERWORLD_SCENE_SCRIPTS, SCENE_STAGE);
 }
 
 /* The buffer the sign's name and the map view's sprite graphics share. */
@@ -501,18 +465,21 @@ enum { SCENE_SCRIPT = RAM_TILE_ANIMATION_TABLES };
 /* The overworld started afresh and its map loaded: the graphics, the map and
  * its ground, regions and places, the scene's script and graphics; the sign's
  * buffer cleared; the map drawn; the scene's script started. */
-static bool load_the_world_map(GameState *g, const Unpacker *u, Platform *pf)
+static void load_the_world_map(GameState *g, Platform *pf)
 {
     start_the_overworld_afresh(g);
     note_the_record(g);
-    if (!load_the_graphics(g, u, pf) || !load_the_tile_groups(g, u) || !load_the_maps(g, u)
-        || !load_the_ground(g, u) || !load_the_regions(g, u) || !load_the_places(g, u)
-        || !load_the_scene_script(g, u) || !load_the_scene_graphics(g, u))
-        return false;
+    load_the_graphics(g, pf);
+    load_the_tile_groups(g);
+    load_the_maps(g);
+    load_the_ground(g);
+    load_the_regions(g);
+    load_the_places(g);
+    load_the_scene_script(g);
+    load_the_scene_graphics(g);
     clear_the_sign_buffer(g);
     draw_the_map(g, pf);
     TIMED_AS(g, 0xC204D9, (void)menu_start_script(g, SCENE_SCRIPT, MENU_ORDINARY_SLOT));
-    return true;
 }
 
 // $C2:23C6-$C2:23CE
@@ -526,7 +493,7 @@ static void show_from_the_next_frame(GameState *g, Platform *pf)
 }
 
 // $C2:23A8-$C2:23CE
-bool overworld_set_up(GameState *g, const Unpacker *u, Platform *pf)
+void overworld_set_up(GameState *g, Platform *pf)
 {
     TIMED_AS(g, 0xC226A8, menu_clear_all_of_vram(pf));
     set_menu_random_index(g, 0);
@@ -538,10 +505,8 @@ bool overworld_set_up(GameState *g, const Unpacker *u, Platform *pf)
     take_the_story_flags(g);
     put_the_party_where_it_arrives(g);
     TIMED_AS(g, 0xC22720, menu_map_centre_on_the_party(g));
-    if (!load_the_world_map(g, u, pf))
-        return false;
+    load_the_world_map(g, pf);
     show_from_the_next_frame(g, pf);
-    return true;
 }
 
 // $C2:2C93
@@ -551,32 +516,20 @@ bool overworld_set_up(GameState *g, const Unpacker *u, Platform *pf)
  * map drawn where the camera is. */
 enum { WAVE_STARTS_AT = 0xA925 };
 
-bool overworld_load_the_map_again(GameState *g, const Unpacker *u, Platform *pf)
+void overworld_load_the_map_again(GameState *g, Platform *pf)
 {
     overworld_build_the_sign_script(g);
     clear_the_sign_buffer(g);
     set_menu_top_layer_wave_at(g, WAVE_STARTS_AT);
-    if (!load_the_graphics(g, u, pf) || !load_the_tile_groups(g, u) || !load_the_ground(g, u)
-        || !load_the_scene_graphics(g, u))
-        return false;
+    load_the_graphics(g, pf);
+    load_the_tile_groups(g);
+    load_the_ground(g);
+    load_the_scene_graphics(g);
     draw_the_map(g, pf);
-    return true;
 }
 
 /* ---- The entries ------------------------------------------------------------------------------- */
 
-/* The unpacker, C wherever the loads run (data/decompress.c). */
-static bool unpack_the_stream(void *ctx, uint32_t site, uint32_t stream, uint32_t to)
-{
-    (void)site;
-    GameState *g = ctx;
-    set_decompress_source(g, stream);
-    set_decompress_dest(g, to);
-    (void)unpack_stream(g);
-    return true;
-}
-
-Unpacker overworld_unpacker(GameState *g) { return (Unpacker){ unpack_the_stream, g }; }
 
 /* ---- The contracts ------------------------------------------------------------------------- */
 

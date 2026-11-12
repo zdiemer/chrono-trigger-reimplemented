@@ -265,46 +265,22 @@ static void hold_bg3_for_the_credits(GameState *g)
 /* BG3's tile map two screens wide, or two screens tall (field_bg3_map_size). */
 enum { BG3_TWO_SCREENS_WIDE = 1, BG3_TWO_SCREENS_TALL = 2 };
 
+enum { CHOOSE_CREDITS_LENGTH = 2 };
+
 // $C0:3E84
 /* Choose which of the credits' texts BG3 shows next, and how BG3's tile map
- * is laid out for it: BG3 held for them, its letters loaded (by
- * `load_the_letters`) and the staging blanked. The command's operand is read
- * after the letters' loading, as the original reads it (the letters are
- * unpacked into bank $7F, beside the script). False where the loading went
- * no further. */
-static bool choose_credits_with(GameState *g, Platform *pf, uint16_t at, bool (*load_the_letters)(void *ctx), void *ctx,
-                                EventCommand *chosen)
+ * is laid out for it: BG3 held for them, its letters loaded and the staging
+ * blanked. The command's operand is read after the letters' loading, as the
+ * original reads it (the letters are unpacked into bank $7F, beside the
+ * script). */
+bool event_choose_credits(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     hold_bg3_for_the_credits(g);
-    if (!load_the_letters(ctx))
-        return false;
+    TIMED_AS(g, FIELD_LOAD_THE_CREDITS_LETTERS_ENTRY, field_load_the_credits_letters(g, pf));
     TIMED_AS(g, FIELD_BLANK_THE_STAGING_ENTRY, field_blank_the_staging(g));
     EventCommand c = event_decode(g, pf, event_opcode(0x29), at);
     set_field_bg3_map_size(g, c.two_screens_tall ? BG3_TWO_SCREENS_TALL : BG3_TWO_SCREENS_WIDE);
     set_field_credits_cursor(g, credits_text_start(g, c.credits_text));
-    *chosen = c;
-    return true;
-}
-
-enum { CHOOSE_CREDITS_LENGTH = 2 };
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} CreditsLettersContext;
-
-static bool load_the_letters(void *ctx)
-{
-    CreditsLettersContext *c = ctx;
-    TIMED_AS(c->game, FIELD_LOAD_THE_CREDITS_LETTERS_ENTRY, field_load_the_credits_letters(c->game, c->pf));
-    return true;
-}
-
-bool event_choose_credits(GameState *g, Platform *pf, uint16_t at, EventStep *step)
-{
-    CreditsLettersContext letters = { g, pf };
-    EventCommand c;
-    choose_credits_with(g, pf, at, load_the_letters, &letters, &c);
     *step = (EventStep){ (uint16_t)(at + CHOOSE_CREDITS_LENGTH), true };
     return true;
 }

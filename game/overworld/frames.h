@@ -9,6 +9,7 @@
 #include <stdbool.h>
 
 #include "overworld/overworld.h"
+#include "platform/platform.h"
 
 /* The leader's steps on foot: setting off as the overworld starts (or after
  * the travel or an event changes), standing, and walking a tile; and as it
@@ -39,10 +40,10 @@ enum {
     FOLLOWER_STEPS_BOARDING = 4,
 };
 
-/* The walkers run an event's scripts through `scripts`; each says whether
- * it finished its frame (false: its script handed the frame over). */
-bool overworld_lead(GameState *g, MenuObject self, const WalkerScripts *scripts);
-bool overworld_follow(GameState *g, MenuObject self, const WalkerScripts *scripts);
+/* The walkers run an event's scripts through the script interpreter; each
+ * says whether it finished its frame (false: its script went no further). */
+bool overworld_lead(GameState *g, Platform *pf, MenuObject self);
+bool overworld_follow(GameState *g, Platform *pf, MenuObject self);
 void overworld_watch_the_ground(GameState *g);
 void overworld_play_the_region_song(GameState *g, MenuObject self);
 void overworld_show_the_sign(GameState *g, MenuObject self);

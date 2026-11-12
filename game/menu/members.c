@@ -347,42 +347,19 @@ void menu_draw_member_card(GameState *g, Platform *pf)
 }
 
 // $C2:A21F
-/* The card again, and the member's row drawn at the top of the list's
- * place, from the status record the card's figures were worked out on. */
-typedef struct {
-    bool (*draw_card)(void *ctx);
-} CardRedrawSteps;
-
-static bool redraw_member_card_with(GameState *g, Platform *pf, const CardRedrawSteps *n, void *ctx)
+/* The card again (refused where the port doesn't draw it), and the member's
+ * row drawn at the top of the list's place, from the status record the
+ * card's figures were worked out on. */
+bool menu_redraw_member_card(GameState *g, Platform *pf)
 {
-    if (!n->draw_card(ctx))
+    if (!menu_member_card_can_be_drawn(g)) {
+        program_breaks_a_contract(g, 0xC2A22F, "a member card the port doesn't draw");
         return false;
+    }
+    TIMED_AS(g, 0xC2A22F, menu_draw_member_card(g, pf));
     set_menu_draw_origin(g, FIRST_ROW);
     TIMED_AS(g, 0xC2A216, menu_draw_member_row(g, pf));
     return true;
-}
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} CardInC;
-
-static bool draw_the_card(void *ctx)
-{
-    CardInC *c = ctx;
-    if (!menu_member_card_can_be_drawn(c->game)) {
-        program_breaks_a_contract(c->game, 0xC2A22F, "a member card the port doesn't draw");
-        return false;
-    }
-    TIMED_AS(c->game, 0xC2A22F, menu_draw_member_card(c->game, c->pf));
-    return true;
-}
-
-bool menu_redraw_member_card(GameState *g, Platform *pf)
-{
-    static const CardRedrawSteps in_c = { draw_the_card };
-    CardInC c = { g, pf };
-    return redraw_member_card_with(g, pf, &in_c, &c);
 }
 
 /* A row the original is asked to colour on its own: in the cursor's colour

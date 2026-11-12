@@ -116,32 +116,32 @@ void field_step_screen_changes(GameState *g)
 static bool asked(const GameState *g, uint8_t request) { return (field_requests(g) & request) != 0; }
 static void answered(GameState *g, uint8_t request) { set_field_requests(g, (uint8_t)(field_requests(g) & ~request)); }
 
-/* A step event's and a chest's sounds, each played at the leader, and what
- * follows each answer (nothing, in the program's steps). */
-typedef struct {
-    bool (*switch_sound)(void *ctx, SwitchPress p, uint16_t step);
-    void (*step_answered)(void *ctx, uint16_t step, bool pressed);
-    bool (*chest_sound)(void *ctx);
-    void (*chest_opened)(void *ctx);
-} StepAndChestSteps;
+/* A sound at the leader, played where the leader is one the port reads (the
+ * program reports a broken contract otherwise). */
+static bool sound_at_the_leader(GameState *g, Platform *pf, uint32_t entry, void (*play)(GameState *, Platform *))
+{
+    if (!field_leader_readable(g)) {
+        program_breaks_a_contract(g, entry, "a sound at a leader the port doesn't read");
+        return false;
+    }
+    TIMED_AS(g, entry, play(g, pf));
+    return true;
+}
 
 // $C0:0D45-$C0:16DB
 /* A step event: the step remembered, and a switch stepped onto pressed with
  * its sound and drawn again. False where the sound went no further. */
-static bool answer_step_event_with(GameState *g, const StepAndChestSteps *steps, void *ctx)
+static bool answer_step_event(GameState *g, Platform *pf)
 {
     answered(g, FIELD_REQUEST_STEP_EVENT);
     uint16_t step = field_step_tile(g);
     field_remember_step(g, step);
     SwitchPress p = field_press_switch(g, step);
-    if (!p.pressed) {
-        steps->step_answered(ctx, step, false);
+    if (!p.pressed)
         return true;
-    }
-    if (!steps->switch_sound(ctx, p, step))
+    if (!sound_at_the_leader(g, pf, FIELD_SWITCH_SOUND_ENTRY, field_play_the_switch_sound))
         return false;
     field_queue_switch_redraw(g, p, step);
-    steps->step_answered(ctx, step, true);
     return true;
 }
 
@@ -149,52 +149,14 @@ static bool answer_step_event_with(GameState *g, const StepAndChestSteps *steps,
 /* A chest the leader opened: its sound, and the chest shown open. The
  * chest's kind is forgotten before the sound; opening the chest sets it
  * again. False where the sound went no further. */
-static bool answer_chest_with(GameState *g, const StepAndChestSteps *steps, void *ctx)
+static bool answer_chest(GameState *g, Platform *pf)
 {
     answered(g, FIELD_REQUEST_OPEN_CHEST);
-    if (!steps->chest_sound(ctx))
+    if (!sound_at_the_leader(g, pf, FIELD_CHEST_SOUND_ENTRY, field_play_the_chest_sound))
         return false;
-    if (field_open_chest(g))
-        steps->chest_opened(ctx);
+    (void)field_open_chest(g);
     return true;
 }
-
-/* ---- The sounds ---- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} StepAndChestContext;
-
-/* A sound at the leader, played where the leader is one the port reads (the
- * program reports a broken contract otherwise). */
-static bool sound_at_the_leader(StepAndChestContext *c, uint32_t entry, void (*play)(GameState *, Platform *))
-{
-    if (!field_leader_readable(c->game)) {
-        program_breaks_a_contract(c->game, entry, "a sound at a leader the port doesn't read");
-        return false;
-    }
-    TIMED_AS(c->game, entry, play(c->game, c->pf));
-    return true;
-}
-
-static bool play_the_switch_sound(void *ctx, SwitchPress p, uint16_t step)
-{
-    (void)p, (void)step;
-    return sound_at_the_leader(ctx, FIELD_SWITCH_SOUND_ENTRY, field_play_the_switch_sound);
-}
-
-static bool play_the_chest_sound(void *ctx)
-{
-    return sound_at_the_leader(ctx, FIELD_CHEST_SOUND_ENTRY, field_play_the_chest_sound);
-}
-
-static void nothing_left(void *ctx, uint16_t step, bool pressed) { (void)ctx, (void)step, (void)pressed; }
-static void nothing_left_by_the_chest(void *ctx) { (void)ctx; }
-
-static const StepAndChestSteps step_and_chest_in_the_program = {
-    play_the_switch_sound, nothing_left, play_the_chest_sound, nothing_left_by_the_chest,
-};
 
 /* ---- The routines the answers call -------------------------------------------------------- */
 
@@ -212,6 +174,22 @@ enum {
     DRAW_BG2 = 0xC078EC,
     DRAW_BG3 = 0xC07CB5,
 };
+
+static void wait_for_the_frame(GameState *g, Platform *pf) { TIMED_AS(g, FRAME_WAIT, field_finish_the_frame(g, pf)); }
+
+static bool refresh_the_effects(GameState *g)
+{
+    bool done = false;
+    TIMED_AS(g, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(g));
+    return done;
+}
+
+static bool animate_the_palettes(GameState *g)
+{
+    bool done = false;
+    TIMED_AS(g, PALETTE_ANIMATION, done = palette_animated(g));
+    return done;
+}
 
 /* ---- A location change ($C0:0C8F) --------------------------------------------------------- */
 
@@ -232,72 +210,57 @@ static void keep_where_the_party_was(GameState *g)
 /* ---- A tile copy ($C0:1779) ----------------------------------------------------------------- */
 
 /* The routines a copy calls, each a port: the screen's step back, the frame's
- * work, the tiles' copy, the palettes' animation, a layer's drawing at the
- * map's load, the effects' refresh, the columns right of the view brought
- * in, and the wait for the next frame. */
-typedef enum {
-    TC_RECENTRE, TC_FRAME_WORK, TC_COPY, TC_PALETTES, TC_DRAW_BG1, TC_DRAW_BG2, TC_DRAW_BG3, TC_REFRESH, TC_COLUMNS,
-    TC_WAIT,
-} TileCopyRoutine;
+ * work, the tiles' copy (refused off the map), the palettes' animation, a
+ * layer's drawing at the map's load, the effects' refresh, the columns right
+ * of the view brought in (refused where the layers don't repeat within the
+ * maps), and the wait for the next frame. */
+static bool step_the_screen_back(GameState *g)
+{
+    bool done = true;
+    TIMED_AS(g, RECENTRE, done = field_the_screen_recentres(g));
+    return done;
+}
 
-/* Every call the copy makes, by where the original makes it. A layer sent
- * alone has its own copy of the calls; BG3's ends with a frame wait of its
- * own, the others by jumping to the main loop's (TC_LAST_WAIT). */
-typedef enum {
-    RECENTRING, RECENTRING_FRAME_WORK, RECENTRING_WAIT, COPYING, COPYING_PALETTES, COPYING_WAIT,
-    BG1_DRAWN, BG1_REFRESHED, BG1_WAITED, BG1_REFRESHED_AFTER, BG1_COLUMNS,
-    BG2_DRAWN, BG2_REFRESHED, BG2_WAITED, BG2_REFRESHED_AFTER, BG2_COLUMNS,
-    BG3_DRAWN, BG3_REFRESHED, BG3_WAITED, BG3_REFRESHED_AFTER, BG3_COLUMNS, BG3_LAST_WAIT,
-    BOTH_BG1_DRAWN, BOTH_BG1_REFRESHED, BOTH_BG1_WAITED, BOTH_BG2_DRAWN, BOTH_BG2_REFRESHED, BOTH_BG2_WAITED,
-    BOTH_BG1_DRAWN_AGAIN, BOTH_BG1_REFRESHED_AGAIN, BOTH_BG1_WAITED_AGAIN, BOTH_REFRESHED_AFTER, BOTH_COLUMNS,
-    TILE_COPY_CALLS,
-    TC_LAST_WAIT = TILE_COPY_CALLS,
-} TileCopyCall;
+static bool do_the_frame_work(GameState *g, Platform *pf)
+{
+    bool done = true;
+    TIMED_AS(g, FIELD_FRAME_WORK_ENTRY, done = field_frame_work_done(g, pf));
+    return done;
+}
 
-static const struct {
-    TileCopyRoutine routine;
-    uint32_t site;
-} tile_copy_calls[TILE_COPY_CALLS] = {
-    [RECENTRING] = { TC_RECENTRE, 0xC01781 },          [RECENTRING_FRAME_WORK] = { TC_FRAME_WORK, 0xC01784 },
-    [RECENTRING_WAIT] = { TC_WAIT, 0xC0178B },         [COPYING] = { TC_COPY, 0xC01790 },
-    [COPYING_PALETTES] = { TC_PALETTES, 0xC01793 },    [COPYING_WAIT] = { TC_WAIT, 0xC01797 },
-    [BG1_DRAWN] = { TC_DRAW_BG1, 0xC017A9 },           [BG1_REFRESHED] = { TC_REFRESH, 0xC017B0 },
-    [BG1_WAITED] = { TC_WAIT, 0xC017B9 },              [BG1_REFRESHED_AFTER] = { TC_REFRESH, 0xC017BC },
-    [BG1_COLUMNS] = { TC_COLUMNS, 0xC017BF },
-    [BG2_DRAWN] = { TC_DRAW_BG2, 0xC017D2 },           [BG2_REFRESHED] = { TC_REFRESH, 0xC017D9 },
-    [BG2_WAITED] = { TC_WAIT, 0xC017E2 },              [BG2_REFRESHED_AFTER] = { TC_REFRESH, 0xC017E5 },
-    [BG2_COLUMNS] = { TC_COLUMNS, 0xC017E8 },
-    [BG3_DRAWN] = { TC_DRAW_BG3, 0xC0186F },           [BG3_REFRESHED] = { TC_REFRESH, 0xC01876 },
-    [BG3_WAITED] = { TC_WAIT, 0xC0187F },              [BG3_REFRESHED_AFTER] = { TC_REFRESH, 0xC01882 },
-    [BG3_COLUMNS] = { TC_COLUMNS, 0xC01885 },          [BG3_LAST_WAIT] = { TC_WAIT, 0xC01888 },
-    [BOTH_BG1_DRAWN] = { TC_DRAW_BG1, 0xC017FE },      [BOTH_BG1_REFRESHED] = { TC_REFRESH, 0xC01802 },
-    [BOTH_BG1_WAITED] = { TC_WAIT, 0xC0180B },         [BOTH_BG2_DRAWN] = { TC_DRAW_BG2, 0xC01817 },
-    [BOTH_BG2_REFRESHED] = { TC_REFRESH, 0xC0182B },   [BOTH_BG2_WAITED] = { TC_WAIT, 0xC01832 },
-    [BOTH_BG1_DRAWN_AGAIN] = { TC_DRAW_BG1, 0xC0183E }, [BOTH_BG1_REFRESHED_AGAIN] = { TC_REFRESH, 0xC0184F },
-    [BOTH_BG1_WAITED_AGAIN] = { TC_WAIT, 0xC01856 },   [BOTH_REFRESHED_AFTER] = { TC_REFRESH, 0xC01859 },
-    [BOTH_COLUMNS] = { TC_COLUMNS, 0xC0185C },
-};
+static bool copy_the_tiles_into_the_maps(GameState *g)
+{
+    if (!field_tile_copy_is_on_the_map(g)) {
+        program_breaks_a_contract(g, COPY_TILES, "a tile copy off the map");
+        return false;
+    }
+    TIMED_AS(g, COPY_TILES, map_copy_tiles(g));
+    return true;
+}
 
-/* A call of the copy's (below); false where it went no further. */
-typedef bool (*TileCopyRun)(void *ctx, TileCopyCall call);
+static bool bring_in_the_right_columns(GameState *g)
+{
+    if (!layers_repeat_within_the_maps(g)) {
+        program_breaks_a_contract(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, "layers the port doesn't stream");
+        return false;
+    }
+    TIMED_AS(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, stream_the_right_columns(g));
+    return true;
+}
 
 /* The layers a copy changed (field_tile_copy_queued_maps), drawn again and
  * sent: BG1, BG2 or BG3 alone, or BG1 and BG2 (below). A layer is drawn on the
  * layers' page and put back at its map's start, and the vblank told to move it
  * to the layer's place (field_map_transition); after it the frame's effects
- * are refreshed and the layers' scroll put where the screen is. */
+ * are refreshed and the layers' scroll put where the screen is. BG3's ends
+ * with a frame wait of its own, the others by jumping to the main loop's,
+ * which is the same wait. */
 typedef enum { QUEUED_BG1 = 1, QUEUED_BG2 = 2, QUEUED_BG1_AND_BG2 = 3, QUEUED_BG3 = 4 } QueuedMaps;
 
-static const struct {
-    FieldMapMove move;
-    TileCopyCall drawn, refreshed, waited, refreshed_after, columns, last_wait;
-} alone[FIELD_LAYERS] = {
-    [FIELD_BG1] = { FIELD_MOVE_TO_BG1, BG1_DRAWN, BG1_REFRESHED, BG1_WAITED, BG1_REFRESHED_AFTER, BG1_COLUMNS,
-                    TC_LAST_WAIT },
-    [FIELD_BG2] = { FIELD_MOVE_TO_BG2, BG2_DRAWN, BG2_REFRESHED, BG2_WAITED, BG2_REFRESHED_AFTER, BG2_COLUMNS,
-                    TC_LAST_WAIT },
-    [FIELD_BG3] = { FIELD_MOVE_TO_BG3, BG3_DRAWN, BG3_REFRESHED, BG3_WAITED, BG3_REFRESHED_AFTER, BG3_COLUMNS,
-                    BG3_LAST_WAIT },
+static const FieldMapMove layer_moves[FIELD_LAYERS] = {
+    [FIELD_BG1] = FIELD_MOVE_TO_BG1,
+    [FIELD_BG2] = FIELD_MOVE_TO_BG2,
+    [FIELD_BG3] = FIELD_MOVE_TO_BG3,
 };
 
 /* BG1 and the transition base trade places: the copy's second pass sends
@@ -309,145 +272,106 @@ static void trade_bg1_base(GameState *g)
     set_field_transition_map_base(g, bg1);
 }
 
-// $C0:179A-$C0:17EB, $C0:1867-$C0:188B
-/* One layer alone. */
-static bool finish_one_layer(FieldLayer layer, TileCopyRun run, void *ctx)
+/* The layers' end: the effects refreshed, the right columns brought in, and
+ * the last frame's wait. */
+static bool finish_the_layers(GameState *g, Platform *pf)
 {
-    return run(ctx, alone[layer].refreshed_after) && run(ctx, alone[layer].columns)
-           && run(ctx, alone[layer].last_wait);
+    if (!refresh_the_effects(g) || !bring_in_the_right_columns(g))
+        return false;
+    wait_for_the_frame(g, pf);
+    return true;
 }
 
-static bool send_one_layer(GameState *g, FieldLayer layer, TileCopyRun run, void *ctx)
+// $C0:179A-$C0:17EB, $C0:1867-$C0:188B
+/* One layer alone. */
+static bool send_one_layer(GameState *g, Platform *pf, FieldLayer layer)
 {
-    if (!run(ctx, alone[layer].drawn))
+    if (!field_layer_drawn_at_the_load(g, layer))
         return false;
     field_put_the_layer_at_its_start(g, layer);
-    if (!run(ctx, alone[layer].refreshed))
+    if (!refresh_the_effects(g))
         return false;
-    set_field_map_transition(g, alone[layer].move);
+    set_field_map_transition(g, layer_moves[layer]);
     set_field_tile_copy_queued_maps(g, 0);
-    return run(ctx, alone[layer].waited) && finish_one_layer(layer, run, ctx);
+    wait_for_the_frame(g, pf);
+    return finish_the_layers(g, pf);
 }
 
 // $C0:17EC-$C0:1866
 /* BG1 and BG2: BG1 drawn and sent; then BG2 drawn and sent to BG1's place
  * while BG1 goes again to the transition's; then BG1 drawn and sent back, a
  * frame each. */
-static bool finish_both_layers(TileCopyRun run, void *ctx)
+static bool restore_first_layer(GameState *g, Platform *pf)
 {
-    return run(ctx, BOTH_REFRESHED_AFTER) && run(ctx, BOTH_COLUMNS) && run(ctx, TC_LAST_WAIT);
-}
-
-static bool restore_first_layer(GameState *g, TileCopyRun run, void *ctx)
-{
-    if (!run(ctx, BOTH_BG1_DRAWN_AGAIN))
+    if (!field_layer_drawn_at_the_load(g, FIELD_BG1))
         return false;
     trade_bg1_base(g);
     field_put_the_layer_at_its_start(g, FIELD_BG1);
-    if (!run(ctx, BOTH_BG1_REFRESHED_AGAIN))
+    if (!refresh_the_effects(g))
         return false;
     set_field_map_transition(g, FIELD_MOVE_TO_BG1);
-    return run(ctx, BOTH_BG1_WAITED_AGAIN) && finish_both_layers(run, ctx);
+    wait_for_the_frame(g, pf);
+    return finish_the_layers(g, pf);
 }
 
-static bool send_second_layer(GameState *g, TileCopyRun run, void *ctx)
+static bool send_second_layer(GameState *g, Platform *pf)
 {
-    if (!run(ctx, BOTH_BG2_DRAWN))
+    if (!field_layer_drawn_at_the_load(g, FIELD_BG2))
         return false;
     trade_bg1_base(g);
     field_put_the_layer_at_its_start(g, FIELD_BG1);
     field_put_the_layer_at_its_start(g, FIELD_BG2);
-    if (!run(ctx, BOTH_BG2_REFRESHED))
+    if (!refresh_the_effects(g))
         return false;
     set_field_map_transition(g, FIELD_MOVE_TO_BG2);
-    return run(ctx, BOTH_BG2_WAITED) && restore_first_layer(g, run, ctx);
+    wait_for_the_frame(g, pf);
+    return restore_first_layer(g, pf);
 }
 
-static bool send_bg1_and_bg2(GameState *g, TileCopyRun run, void *ctx)
+static bool send_bg1_and_bg2(GameState *g, Platform *pf)
 {
-    if (!run(ctx, BOTH_BG1_DRAWN) || !run(ctx, BOTH_BG1_REFRESHED))
+    if (!field_layer_drawn_at_the_load(g, FIELD_BG1) || !refresh_the_effects(g))
         return false;
     set_field_map_transition(g, FIELD_MOVE_TO_THE_LOADERS_PLACE);
     set_field_tile_copy_queued_maps(g, 0);
-    return run(ctx, BOTH_BG1_WAITED) && send_second_layer(g, run, ctx);
+    wait_for_the_frame(g, pf);
+    return send_second_layer(g, pf);
 }
 
-static bool send_copied_layers(GameState *g, TileCopyRun run, void *ctx)
+static bool send_copied_layers(GameState *g, Platform *pf)
 {
     switch ((QueuedMaps)field_tile_copy_queued_maps(g)) {
-    case QUEUED_BG1: return send_one_layer(g, FIELD_BG1, run, ctx);
-    case QUEUED_BG2: return send_one_layer(g, FIELD_BG2, run, ctx);
-    case QUEUED_BG3: return send_one_layer(g, FIELD_BG3, run, ctx);
-    case QUEUED_BG1_AND_BG2: return send_bg1_and_bg2(g, run, ctx);
+    case QUEUED_BG1: return send_one_layer(g, pf, FIELD_BG1);
+    case QUEUED_BG2: return send_one_layer(g, pf, FIELD_BG2);
+    case QUEUED_BG3: return send_one_layer(g, pf, FIELD_BG3);
+    case QUEUED_BG1_AND_BG2: return send_bg1_and_bg2(g, pf);
     default: return true;
     }
 }
 
-static bool centre_then_copy(GameState *g, TileCopyRun run, void *ctx)
+static bool centre_then_copy(GameState *g, Platform *pf)
 {
     for (;;) {
-        if (!run(ctx, RECENTRING) || !run(ctx, RECENTRING_FRAME_WORK))
+        if (!step_the_screen_back(g) || !do_the_frame_work(g, pf))
             return false;
         if (screen_is_recentred(g))
             break;
-        if (!run(ctx, RECENTRING_WAIT))
-            return false;
+        wait_for_the_frame(g, pf);
     }
-    return run(ctx, COPYING) && run(ctx, COPYING_PALETTES) && run(ctx, COPYING_WAIT)
-           && send_copied_layers(g, run, ctx);
+    if (!copy_the_tiles_into_the_maps(g) || !animate_the_palettes(g))
+        return false;
+    wait_for_the_frame(g, pf);
+    return send_copied_layers(g, pf);
 }
 
 // $C0:1779
 /* Centre the screen, copy the tiles and send the changed layers. Each
  * transfer ends a frame, so its next stage can also be resumed on its own. */
-static bool copy_the_tiles(GameState *g, TileCopyRun run, void *ctx)
+static bool copy_the_tiles(GameState *g, Platform *pf)
 {
     answered(g, FIELD_REQUEST_TILE_COPY);
     screen_starts_recentring(g);
-    return centre_then_copy(g, run, ctx);
-}
-
-/* ---- The copy's calls ---- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} TileCopyContext;
-
-static bool tile_copy_call(void *ctx, TileCopyCall call)
-{
-    TileCopyContext *c = ctx;
-    GameState *g = c->game;
-    bool done = true;
-    switch (call == TC_LAST_WAIT ? TC_WAIT : tile_copy_calls[call].routine) {
-    case TC_RECENTRE:
-        TIMED_AS(g, RECENTRE, done = field_the_screen_recentres(g));
-        return done;
-    case TC_FRAME_WORK:
-        TIMED_AS(g, FIELD_FRAME_WORK_ENTRY, done = field_frame_work_done(g, c->pf));
-        return done;
-    case TC_COPY:
-        if (!field_tile_copy_is_on_the_map(g)) {
-            program_breaks_a_contract(g, COPY_TILES, "a tile copy off the map");
-            return false;
-        }
-        TIMED_AS(g, COPY_TILES, map_copy_tiles(g));
-        return true;
-    case TC_PALETTES: TIMED_AS(g, PALETTE_ANIMATION, done = palette_animated(g)); return done;
-    case TC_DRAW_BG1: return field_layer_drawn_at_the_load(g, FIELD_BG1);
-    case TC_DRAW_BG2: return field_layer_drawn_at_the_load(g, FIELD_BG2);
-    case TC_DRAW_BG3: return field_layer_drawn_at_the_load(g, FIELD_BG3);
-    case TC_REFRESH: TIMED_AS(g, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(g)); return done;
-    case TC_COLUMNS:
-        if (!layers_repeat_within_the_maps(g)) {
-            program_breaks_a_contract(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, "layers the port doesn't stream");
-            return false;
-        }
-        TIMED_AS(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, stream_the_right_columns(g));
-        return true;
-    case TC_WAIT: TIMED_AS(g, FRAME_WAIT, field_finish_the_frame(g, c->pf)); return true;
-    default: return false;
-    }
+    return centre_then_copy(g, pf);
 }
 
 /* ---- A battle ($C0:188C) ------------------------------------------------------------------- */
@@ -459,109 +383,10 @@ static void battle_over(GameState *g)
     set_field_effect_status(g, (uint8_t)(field_effect_status(g) | FIELD_BATTLE_OVER));
 }
 
-/* The battle's steps that are other routines: the battle's start on the
- * field (field/battle_start.c), which finds none to fight or puts the field
- * aside; the field's turn where it found none; the layers scrolled into
- * place and the effects built with the field's setup's values, a frame; the
- * battle (bank $C1's); the field taken up again (field/battle_return.c); the
- * switches the party stood on pressed again and the sprites' areas freed;
- * and the field's turn after it. */
-typedef struct {
-    FieldBattleStart (*begins)(void *ctx);
-    bool (*no_battle_turn)(void *ctx);
-    bool (*scroll_the_layers)(void *ctx);
-    bool (*effects_refreshed)(void *ctx);
-    bool (*wait_a_frame)(void *ctx);
-    bool (*fight)(void *ctx);
-    bool (*take_up_the_field)(void *ctx);
-    bool (*press_the_switches)(void *ctx);
-    bool (*free_the_sprite_areas)(void *ctx);
-    bool (*field_turn)(void *ctx);
-} BattleSteps;
-
-// $C0:188C
-/* The battle fought, and the field taken up again: its interrupts, its
- * objects and its turn. False where a step went no further. */
-static bool fight_a_battle(GameState *g, const BattleSteps *steps, void *ctx)
+/* The switches the party stood on pressed again, where they are on the
+ * map. */
+static bool press_the_switches(GameState *g)
 {
-    FieldBattleStart start = steps->begins(ctx);
-    if (start == FIELD_BATTLE_START_STOPPED)
-        return false;
-    if (start == FIELD_NO_BATTLE) {
-        battle_over(g);
-        return steps->no_battle_turn(ctx);
-    }
-    if (!steps->scroll_the_layers(ctx))
-        return false;
-    set_field_display_flags(g, (uint8_t)(field_display_flags(g) | FIELD_DISPLAY_SETUP));
-    if (!steps->effects_refreshed(ctx))
-        return false;
-    set_field_display_flags(g, (uint8_t)(field_display_flags(g) & ~FIELD_DISPLAY_SETUP));
-    if (!steps->wait_a_frame(ctx) || !steps->fight(ctx))
-        return false;
-    TIMED_AS(g, FIELD_INSTALL_NMI_ENTRY, field_take_the_vblank_interrupt(g));
-    TIMED_AS(g, FIELD_INSTALL_IRQ_ENTRY, field_take_the_line_interrupt(g));
-    battle_over(g);
-    return steps->take_up_the_field(ctx) && steps->press_the_switches(ctx) && steps->free_the_sprite_areas(ctx) &&
-           steps->field_turn(ctx);
-}
-
-/* The steps, each checking first that the port can make it. */
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} RequestedBattleContext;
-
-static FieldBattleStart battle_begins(void *ctx)
-{
-    RequestedBattleContext *c = ctx;
-    FieldBattleStart start = FIELD_BATTLE_START_STOPPED;
-    TIMED_AS(c->game, FIELD_BATTLE_BEGINS_ENTRY, start = field_battle_set_up(c->game, c->pf));
-    return start;
-}
-
-static bool walk_a_frame(void *ctx)
-{
-    RequestedBattleContext *c = ctx;
-    return field_walked_a_frame(c->game, c->pf);
-}
-
-static bool scroll_the_layers(void *ctx)
-{
-    TIMED_AS(((RequestedBattleContext *)ctx)->game, SCROLL_LAYERS, field_scroll_layers_by_themselves(((RequestedBattleContext *)ctx)->game));
-    return true;
-}
-
-static bool refresh_the_effects(void *ctx)
-{
-    RequestedBattleContext *c = ctx;
-    bool done = false;
-    TIMED_AS(c->game, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(c->game));
-    return done;
-}
-
-static bool wait_for_the_frame(void *ctx)
-{
-    RequestedBattleContext *c = ctx;
-    TIMED_AS(c->game, FRAME_WAIT, field_finish_the_frame(c->game, c->pf));
-    return true;
-}
-
-static bool fight(void *ctx)
-{
-    RequestedBattleContext *c = ctx;
-    return battle_fought(c->game, c->pf);
-}
-
-static bool take_up_the_field(void *ctx)
-{
-    RequestedBattleContext *c = ctx;
-    return field_taken_up_after_battle(c->game, c->pf);
-}
-
-static bool press_the_switches(void *ctx)
-{
-    GameState *g = ((RequestedBattleContext *)ctx)->game;
     if (!field_remembered_switches_on_the_map(g)) {
         program_breaks_a_contract(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, "remembered switches off the map");
         return false;
@@ -570,21 +395,40 @@ static bool press_the_switches(void *ctx)
     return true;
 }
 
-static bool free_the_sprite_areas(void *ctx)
+// $C0:188C
+/* The battle fought, and the field taken up again: the battle's start on the
+ * field (field/battle_start.c), which finds none to fight (the field's turn
+ * then) or puts the field aside; the layers scrolled into place and the
+ * effects built with the field's setup's values, a frame; the battle (bank
+ * $C1's); the field's interrupts; the field taken up again
+ * (field/battle_return.c); the switches the party stood on pressed again and
+ * the sprites' areas freed; and the field's turn after it. False where a
+ * step went no further. */
+static bool fight_a_battle(GameState *g, Platform *pf)
 {
-    GameState *g = ((RequestedBattleContext *)ctx)->game;
+    FieldBattleStart start = FIELD_BATTLE_START_STOPPED;
+    TIMED_AS(g, FIELD_BATTLE_BEGINS_ENTRY, start = field_battle_set_up(g, pf));
+    if (start == FIELD_BATTLE_START_STOPPED)
+        return false;
+    if (start == FIELD_NO_BATTLE) {
+        battle_over(g);
+        return field_walked_a_frame(g, pf);
+    }
+    TIMED_AS(g, SCROLL_LAYERS, field_scroll_layers_by_themselves(g));
+    set_field_display_flags(g, (uint8_t)(field_display_flags(g) | FIELD_DISPLAY_SETUP));
+    if (!refresh_the_effects(g))
+        return false;
+    set_field_display_flags(g, (uint8_t)(field_display_flags(g) & ~FIELD_DISPLAY_SETUP));
+    wait_for_the_frame(g, pf);
+    if (!battle_fought(g, pf))
+        return false;
+    TIMED_AS(g, FIELD_INSTALL_NMI_ENTRY, field_take_the_vblank_interrupt(g));
+    TIMED_AS(g, FIELD_INSTALL_IRQ_ENTRY, field_take_the_line_interrupt(g));
+    battle_over(g);
+    if (!field_taken_up_after_battle(g, pf) || !press_the_switches(g))
+        return false;
     TIMED_AS(g, FREE_SPRITE_AREAS, sprites_free_every_frame_area(g));
-    return true;
-}
-
-static FieldPass a_battle_fought(GameState *g, Platform *pf)
-{
-    static const BattleSteps in_the_program = {
-        battle_begins, walk_a_frame, scroll_the_layers, refresh_the_effects, wait_for_the_frame, fight,
-        take_up_the_field, press_the_switches, free_the_sprite_areas, walk_a_frame,
-    };
-    RequestedBattleContext c = { g, pf };
-    return fight_a_battle(g, &in_the_program, &c) ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS;
+    return field_walked_a_frame(g, pf);
 }
 
 /* ---- The requests answered ------------------------------------------------------------------ */
@@ -613,17 +457,14 @@ FieldPass field_requests_handled(GameState *g, Platform *pf)
         return change_location(g, pf);
     if (asked(g, FIELD_REQUEST_MENUS))
         return field_script_menu_opened(g, pf);
-    StepAndChestContext sc = { g, pf };
-    if (asked(g, FIELD_REQUEST_STEP_EVENT) && !answer_step_event_with(g, &step_and_chest_in_the_program, &sc))
+    if (asked(g, FIELD_REQUEST_STEP_EVENT) && !answer_step_event(g, pf))
         return FIELD_PASS_STOPS;
-    if (asked(g, FIELD_REQUEST_OPEN_CHEST) && !answer_chest_with(g, &step_and_chest_in_the_program, &sc))
+    if (asked(g, FIELD_REQUEST_OPEN_CHEST) && !answer_chest(g, pf))
         return FIELD_PASS_STOPS;
-    if (asked(g, FIELD_REQUEST_TILE_COPY)) {
-        TileCopyContext c = { g, pf };
-        return copy_the_tiles(g, tile_copy_call, &c) ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS;
-    }
+    if (asked(g, FIELD_REQUEST_TILE_COPY))
+        return copy_the_tiles(g, pf) ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS;
     if (asked(g, FIELD_REQUEST_BATTLE))
-        return a_battle_fought(g, pf);
+        return fight_a_battle(g, pf) ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS;
     return FIELD_PASS_GOES_ON;
 }
 

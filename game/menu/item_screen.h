@@ -227,31 +227,9 @@ void menu_items_describe_the_cursors_item(GameState *g);
 /* The screen's opening ($C2:AA40), its commands ($C2:AA4A), its list
  * ($C2:AA86), an item picked up moved ($C2:AAC8) and the pointing along the
  * list ($C2:AC3A, $C2:AC59), and the sort ($C2:AB4A) are each one
- * sequence, asking the menus for what it needs through ItemsSteps.
+ * sequence, false where it went no further.
  *
- * The places the sequences tick or wait from. */
-typedef enum {
-    ITEMS_AT_THE_OPENING,         /* the screen opening */
-    ITEMS_AT_A_COMMAND_POINTED,   /* the cursor moved among the commands */
-    ITEMS_AT_A_COMMAND_CHOSEN,    /* a command chosen */
-    ITEMS_AT_AN_ITEM_PICKED_UP,   /* an item picked up off the list */
-    ITEMS_AT_THE_LIST_LEFT,       /* back from the list to the commands */
-    ITEMS_AT_A_LISTED_ITEM_POINTED, /* the cursor moved to another row */
-    ITEMS_AT_THE_SORT,            /* the sort made, a frame's wait */
-    ITEMS_AT_THE_PICKED_ITEM_PUT, /* the item in hand put down, or on itself */
-    ITEMS_AT_THE_LIST_PUT_BACK,   /* ... the list drawn again a frame on */
-    ITEMS_AT_THE_TONIC_S_MEMBERS, /* the member window a healing is used from */
-    ITEMS_AT_THE_TAB_S_MEMBERS,   /* the member window a tab is used from */
-    ITEMS_AT_THE_MEMBER_WINDOW_LEFT, /* back from the member window */
-    ITEMS_AT_THE_MEMBER_WINDOW_OPENING, /* the member window opening, a frame on */
-    ITEMS_AT_THE_MEMBER_WINDOW_DRAWN, /* ... its members drawn, a frame on */
-    ITEMS_AT_A_TAB_MEMBER_POINTED, /* the cursor on another member for a tab */
-    ITEMS_AT_THE_USERS_CLOSED,    /* who can equip the item put away */
-    ITEMS_AT_THE_SLIDE,           /* the list sliding a row along */
-    ITEMS_AT_A_SLIDE_FRAME,       /* ... a frame of the slide */
-} ItemsPlace;
-
-/* The routines an item's use goes on to. */
+ * The routines an item's use goes on to. */
 typedef enum {
     ITEMS_USES_THE_ITEM,                   /* $C2:B0AB */
     ITEMS_USES_A_RESTORING_ITEM,           /* $C2:B17F */
@@ -270,33 +248,17 @@ typedef enum {
     ITEMS_USES_ONE_MORE_TAB,
 } ItemsRoutine;
 
-/* What the sequences ask: the cursor read, a tick, a frame's wait, the
- * item on the cursor described, the item pointed at after a slide, the way back to the
- * main menu, the refusal's buzz, and a routine run. Each false where it went
- * no further. */
-typedef struct {
-    void (*read_cursor)(void *ctx);
-    void (*read_cursor_held)(void *ctx);
-    bool (*tick)(void *ctx, ItemsPlace at);
-    bool (*wait)(void *ctx, ItemsPlace at);
-    bool (*describe)(void *ctx);
-    bool (*point_after_sliding)(void *ctx);
-    bool (*back_to_the_main_menu)(void *ctx);
-    bool (*refuse)(void *ctx, ItemsPlace at);
-    bool (*run)(void *ctx, ItemsRoutine routine);
-} ItemsSteps;
-
 /* One input frame in the member window, after its task wait. */
 typedef enum { MENU_ITEM_CHOICE_WAITING, MENU_ITEM_CHOICE_CLOSED, MENU_ITEM_CHOICE_STOPPED } MenuItemChoiceStep;
-MenuItemChoiceStep menu_item_member_choice_frame_with(GameState *g, ItemUseKind kind, const ItemsSteps *n, void *ctx);
+MenuItemChoiceStep menu_item_member_choice_frame_with(GameState *g, Platform *pf, ItemUseKind kind);
 
-bool menu_open_items_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
-bool menu_choose_item_command_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
-bool menu_choose_on_item_list_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
-bool menu_move_picked_item_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
-bool menu_close_item_users_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
+bool menu_open_items_with(GameState *g, Platform *pf);
+bool menu_choose_item_command_with(GameState *g, Platform *pf);
+bool menu_choose_on_item_list_with(GameState *g, Platform *pf);
+bool menu_move_picked_item_with(GameState *g, Platform *pf);
+bool menu_close_item_users_with(GameState *g, Platform *pf);
 /* An item used from the menu ($C2:B0AB) and the routines of its use. */
-typedef bool ItemsSequence(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
+typedef bool ItemsSequence(GameState *g, Platform *pf);
 ItemsSequence menu_use_item_with, menu_use_restoring_item_with, menu_use_item_by_chance_with, menu_rest_the_party_with,
     menu_use_tab_with, menu_open_member_window_with, menu_point_at_tab_member_with, menu_look_at_tab_member_with,
     menu_raise_figure_with;
@@ -308,9 +270,9 @@ bool menu_items_use_can_run(const GameState *g);
 bool menu_items_member_window_can_run(const GameState *g);
 bool menu_items_tab_member_can_be_pointed(const GameState *g);
 bool menu_items_figure_can_be_raised(const GameState *g);
-bool menu_point_along_the_item_list_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
-bool menu_point_at_listed_item_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
-bool menu_sort_items_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
+bool menu_point_along_the_item_list_with(GameState *g, Platform *pf);
+bool menu_point_at_listed_item_with(GameState *g, Platform *pf);
+bool menu_sort_items_with(GameState *g, Platform *pf);
 
 /* From the menus' main task; false where the program went no
  * further. */

@@ -76,10 +76,18 @@ console vectors, entry macros, machine access helpers, CPU shell headers and
 `no_machine.c`. Native C tables retain their real operations and timing keys.
 Machine-only cost APIs and their dead calculations were removed too. These
 deletions do not finish the vocabulary and storage work in every subsystem:
-single-implementation adapters and some register-shaped results still need
-simplification. The video escapes have named services (PLATFORM.md, "Memory
-moves and VRAM read-backs"); the sound driver's register write is the one
-escape left.
+the video escapes have named services (PLATFORM.md, "Memory moves and VRAM
+read-backs"); the sound driver's register write is the one escape left.
+
+The callback tables that stood between a sequence and its one implementation
+went next, a module at a time (event, overworld, scene, battle, field, menu):
+the menus' main menu, for one, asked a `MainMenuSteps` table for its tick, its
+wait, its panel and its end, and now calls `menu_tick`, `menu_task_waits`, its
+`show_the_panel` and `menu_close` itself, each timed where the table's entry
+was. Callbacks through an opaque context went from 312 to 2 (a coroutine's
+body and the host's asset provider, each with several implementations), and
+carry-shaped values from 12 to 0 (`tools/machine_joints.py`), with every gate
+movie's timing report the same as before.
 
 ### Time without a machine
 

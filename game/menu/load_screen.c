@@ -23,8 +23,9 @@
  * (menu/saves.c); leaving the menus for the game is the menus' own exit
  * ($C2:8320).
  *
- * Each step is one sequence (LoadScreenSteps, load_screen.h) that asks what
- * it needs of the menus through its steps (below). */
+ * Each step is one sequence (load_screen.h), calling the menus' cursor,
+ * ticks and waits and the routines it goes on to, each of those run only on
+ * the state it handles (below). */
 #include "menu/load_screen.h"
 
 #include "charge.h"
@@ -185,10 +186,18 @@ static void finish_screen(GameState *g, Platform *pf)
     menu_queue_fixed_upload(g, MENU_UPLOAD_TEXT_LAYER_WHOLE);
 }
 
+static bool show_the_slot(GameState *g, Platform *pf);
+static bool draw(GameState *g, Platform *pf);
+static void ask_which_to_carry_on_from(GameState *g);
+static bool load(GameState *g, Platform *pf);
+static bool carry_on(GameState *g, Platform *pf);
+static bool empty_label(GameState *g);
+static void ends(GameState *g, Platform *pf, LoadScreenEnd end);
+
 // $C2:E7C3
 /* Draw the load screen: its windows, the slots' rows, the summary of the slot
  * the cursor starts on, the panel around it, and the rest. */
-bool menu_draw_load_screen_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx)
+bool menu_draw_load_screen_with(GameState *g, Platform *pf)
 {
     menu_draw_the_slots(g, pf);
     uint8_t slot = slot_to_start_on(g, pf);
@@ -197,7 +206,7 @@ bool menu_draw_load_screen_with(GameState *g, Platform *pf, const LoadScreenStep
     TIMED_AS(g, 0xC2D36C, menu_draw_the_slot_shown(g, pf));
     set_menu_text_attribute(g, 0);
     menu_draw_windows(g, pf, SUMMARY_PANEL);
-    if (!n->show_the_slot(ctx, LOAD_AT_THE_OPENING_SHOW))
+    if (!show_the_slot(g, pf))
         return false;
     finish_screen(g, pf);
     return true;
@@ -205,13 +214,13 @@ bool menu_draw_load_screen_with(GameState *g, Platform *pf, const LoadScreenStep
 
 // $C2:E613
 /* The screen's first step: drawn, then on to choosing as it fades in. */
-bool menu_open_load_screen_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx)
+bool menu_open_load_screen_with(GameState *g, Platform *pf)
 {
-    (void)pf;
-    if (!n->draw(ctx))
+    if (!draw(g, pf))
         return false;
     set_menu_screen_step(g, (uint8_t)(menu_screen_step(g) + 1));
-    return n->ends(ctx, LOAD_FADES_IN);
+    ends(g, pf, LOAD_FADES_IN);
+    return true;
 }
 
 /* ---- Choosing ---------------------------------------------------------------------------------- */
@@ -309,24 +318,23 @@ void menu_send_the_sound_output(GameState *g, Platform *pf)
                (AudioCommand){ .command = SOUND_OUTPUT, .p1 = (uint8_t)(game_settings(g, 0) & STEREO_SETTING), .count = 1 });
 }
 
-static bool leave_for_the_game(GameState *g, const LoadScreenSteps *n, void *ctx)
+static bool leave_for_the_game(GameState *g, Platform *pf)
 {
-    if (!n->sound_output_sent(ctx))
-        return false;
+    menu_send_the_sound_output(g, pf);
     set_frames_at_leaving(g, menu_frame_counter(g));
-    return n->ends(ctx, LOAD_LEAVES_FOR_THE_GAME);
+    ends(g, pf, LOAD_LEAVES_FOR_THE_GAME);
+    return true;
 }
 
 /* No choice this frame: the slot the cursor is on shown, and a tick where it
  * moved. */
-static bool show_and_tick(GameState *g, const LoadScreenSteps *n, void *ctx, LoadScreenPlace show_at,
-                          LoadScreenPlace tick_at)
+static bool show_and_tick(GameState *g, Platform *pf)
 {
-    if (!n->show_the_slot(ctx, show_at))
+    if (!show_the_slot(g, pf))
         return false;
-    if (menu_cursor_frame_start(g) == menu_cursor_index(g))
-        return true;
-    return n->tick(ctx, tick_at);
+    if (menu_cursor_frame_start(g) != menu_cursor_index(g))
+        menu_tick(g, pf);
+    return true;
 }
 
 /* A slot chosen: the game goes on in it. */
@@ -337,38 +345,37 @@ static void choose_slot(GameState *g, uint8_t slot)
 }
 
 /* Its game loaded; then out to the game. */
-static bool load_and_leave(GameState *g, const LoadScreenSteps *n, void *ctx, uint8_t slot)
+static bool load_and_leave(GameState *g, Platform *pf, uint8_t slot)
 {
     choose_slot(g, slot);
-    if (!n->load(ctx))
+    if (!load(g, pf))
         return false;
-    return leave_for_the_game(g, n, ctx);
+    return leave_for_the_game(g, pf);
 }
 
 /* A New Game+ carries on from the slot's game; then out to the game. */
-static bool carry_on_and_leave(GameState *g, const LoadScreenSteps *n, void *ctx, uint8_t slot)
+static bool carry_on_and_leave(GameState *g, Platform *pf, uint8_t slot)
 {
     choose_slot(g, slot);
-    return n->carry_on(ctx) && leave_for_the_game(g, n, ctx);
+    return carry_on(g, pf) && leave_for_the_game(g, pf);
 }
 
 /* A new game, saved later in the first slot with no game: out to it. */
-static bool leave_for_a_new_game(GameState *g, const LoadScreenSteps *n, void *ctx)
+static bool leave_for_a_new_game(GameState *g, Platform *pf)
 {
     set_save_slot_chosen(g, slot_for_a_new_game(g));
-    return leave_for_the_game(g, n, ctx);
+    return leave_for_the_game(g, pf);
 }
 
 /* The fourth row chosen: a new game's state, marked new; then a New Game+
  * asks which game to carry on from, and a new game leaves for the game. */
-static bool start_new_game(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx)
+static bool start_new_game(GameState *g, Platform *pf)
 {
     start_the_new_game(g, pf);
     if (!new_game_plus_chosen(g, pf))
-        return leave_for_a_new_game(g, n, ctx);
+        return leave_for_a_new_game(g, pf);
     set_menu_save_slot_in_use(g, FOURTH_ROW, 0);
-    if (!n->ask_which_to_carry_on_from(ctx))
-        return false;
+    ask_which_to_carry_on_from(g);
     set_menu_screen_step(g, (uint8_t)(menu_screen_step(g) + 1));
     return true;
 }
@@ -377,22 +384,20 @@ static bool start_new_game(GameState *g, Platform *pf, const LoadScreenSteps *n,
 /* Choosing: Select and Start held on the second controller ask to erase the
  * slot the cursor is on; otherwise the cursor moves and shows each slot, and
  * a choice loads the slot's game or starts a new one. */
-bool menu_choose_on_load_screen_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx)
+bool menu_choose_on_load_screen_with(GameState *g, Platform *pf)
 {
     if (erase_asked(g) && menu_cursor_index(g) < FOURTH_ROW) {
         set_menu_screen_step(g, STEP_ERASING);
-        if (!n->tick(ctx, LOAD_AT_THE_ERASE_ASKED_TICK))
-            return false;
+        menu_tick(g, pf);
         ask_to_erase(g, pf);
         return true;
     }
-    n->read_cursor(ctx);
+    menu_read_the_cursor_for_a_step(g);
     if (!menu_asked(g, MENU_CHOOSE))
-        return show_and_tick(g, n, ctx, LOAD_AT_THE_CHOOSING_SHOW, LOAD_AT_THE_CHOOSING_MOVE_TICK);
-    if (!n->tick(ctx, LOAD_AT_THE_CHOSEN_TICK))
-        return false;
+        return show_and_tick(g, pf);
+    menu_tick(g, pf);
     uint8_t slot = menu_cursor_index(g);
-    return slot < FOURTH_ROW ? load_and_leave(g, n, ctx, slot) : start_new_game(g, pf, n, ctx);
+    return slot < FOURTH_ROW ? load_and_leave(g, pf, slot) : start_new_game(g, pf);
 }
 
 // $C2:E6AE
@@ -412,47 +417,45 @@ static void back_to_choosing(GameState *g)
     menu_queue_fixed_upload(g, MENU_UPLOAD_TEXT_LAYER);
 }
 
-bool menu_choose_game_to_carry_on_from_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx)
+bool menu_choose_game_to_carry_on_from_with(GameState *g, Platform *pf)
 {
-    (void)pf;
-    n->read_cursor(ctx);
+    menu_read_the_cursor_for_a_step(g);
     bool chose = menu_asked(g, MENU_CHOOSE);
     if (!chose && !menu_asked(g, MENU_GO_BACK))
-        return show_and_tick(g, n, ctx, LOAD_AT_THE_CARRY_ON_SHOW, LOAD_AT_THE_CARRY_ON_MOVE_TICK);
-    if (!n->tick(ctx, chose ? LOAD_AT_THE_CARRY_ON_CHOSEN_TICK : LOAD_AT_THE_CARRY_ON_BACK_TICK))
-        return false;
+        return show_and_tick(g, pf);
+    menu_tick(g, pf);
     if (!chose) {
         back_to_choosing(g);
         return true;
     }
     uint8_t slot = menu_cursor_index(g);
-    return slot < FOURTH_ROW ? carry_on_and_leave(g, n, ctx, slot) : leave_for_a_new_game(g, n, ctx);
+    return slot < FOURTH_ROW ? carry_on_and_leave(g, pf, slot) : leave_for_a_new_game(g, pf);
 }
 
 // $C2:E705
 /* Erasing: yes or no to the question; going back is a no. Either way the
  * question closes and the cursor goes back to the slot. */
-bool menu_answer_erase_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx)
+bool menu_answer_erase_with(GameState *g, Platform *pf)
 {
-    n->read_cursor(ctx);
+    menu_read_the_cursor_for_a_step(g);
     bool chose = menu_asked(g, MENU_CHOOSE);
     if (!chose && !menu_asked(g, MENU_GO_BACK)) {
         if (menu_cursor_index(g) == menu_cursor_frame_start(g))
             return true;
-        return n->tick(ctx, LOAD_AT_THE_ERASE_MOVE_TICK);
+        menu_tick(g, pf);
+        return true;
     }
     if (!chose)
         set_menu_cursor_index(g, ERASE_NO);
     menu_draw_windows(g, pf, ERASE_QUESTION_CLOSED);
     if (menu_cursor_index(g) == ERASE_YES) {
-        if (!n->erase(ctx))
+        if (!menu_erase_slot(g, pf))
             return false;
     }
     set_menu_line_effects(g, ANSWERED_LINE_EFFECTS);
     set_menu_cursor_index(g, menu_kept_cursor(g));
     set_menu_screen_step(g, STEP_CHOOSING);
-    if (!n->tick(ctx, LOAD_AT_THE_ERASE_ANSWERED_TICK))
-        return false;
+    menu_tick(g, pf);
     menu_queue_fixed_upload(g, MENU_UPLOAD_SLOT_TILEMAP_2);
     return true;
 }
@@ -479,12 +482,13 @@ void menu_forget_slot(GameState *g, Platform *pf, uint8_t slot)
 /* The slot's game forgotten, its row drawn empty and, a frame on, its
  * label (the slot's chapter's two rows of graphic, menu_data.h) queued and
  * its window drawn again. */
-bool menu_erase_slot_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx)
+bool menu_erase_slot_with(GameState *g, Platform *pf)
 {
     uint8_t slot = menu_save_slot_shown(g);
     menu_forget_slot(g, pf, slot);
-    if (!n->empty_label(ctx) || !n->wait_a_frame(ctx))
+    if (!empty_label(g))
         return false;
+    menu_task_waits(g, 1);
     MenuUpload label = menu_slot_label_upload(slot);
     TIMED_AS(g, 0xC2838E, menu_queue_upload(g, label));
     TIMED_AS(g, 0xC2D32C, menu_redraw_slot_window(g, slot));
@@ -565,23 +569,6 @@ bool menu_erase_can_be_answered(const GameState *g)
 
 /* ---- The steps' services ----------------------------------------------------------------------- */
 
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} LoadScreenContext;
-
-static const LoadScreenSteps the_steps;
-
-static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((LoadScreenContext *)ctx)->game); }
-
-static bool tick(void *ctx, LoadScreenPlace at)
-{
-    (void)at;
-    LoadScreenContext *c = ctx;
-    menu_tick(c->game, c->pf);
-    return true;
-}
-
 /* The routines the steps reach, each run only on the state it handles;
  * otherwise the program goes no further. */
 static bool takes(GameState *g, bool ok, uint32_t routine, const char *what)
@@ -591,104 +578,69 @@ static bool takes(GameState *g, bool ok, uint32_t routine, const char *what)
     return ok;
 }
 
-static bool show_the_slot(void *ctx, LoadScreenPlace at)
+static bool show_the_slot(GameState *g, Platform *pf)
 {
-    (void)at;
-    LoadScreenContext *c = ctx;
-    if (!takes(c->game, menu_load_screen_slot_can_show(c->game), 0xC2E743, "a save slot the port doesn't show"))
+    if (!takes(g, menu_load_screen_slot_can_show(g), 0xC2E743, "a save slot the port doesn't show"))
         return false;
     bool back = false;
-    TIMED_AS(c->game, 0xC2E743, back = menu_show_save_slot_with(c->game, c->pf, &the_steps, c));
+    TIMED_AS(g, 0xC2E743, back = menu_show_save_slot_with(g, pf));
     return back;
 }
 
-static bool draw(void *ctx)
+static bool draw(GameState *g, Platform *pf)
 {
-    LoadScreenContext *c = ctx;
-    if (!takes(c->game, menu_load_screen_can_draw(c->game, c->pf), 0xC2E7C3, "a load screen the port doesn't draw"))
+    if (!takes(g, menu_load_screen_can_draw(g, pf), 0xC2E7C3, "a load screen the port doesn't draw"))
         return false;
     bool back = false;
-    TIMED_AS(c->game, 0xC2E7C3, back = menu_draw_load_screen_with(c->game, c->pf, &the_steps, c));
+    TIMED_AS(g, 0xC2E7C3, back = menu_draw_load_screen_with(g, pf));
     return back;
 }
 
-static bool ask_which_to_carry_on_from(void *ctx)
+static void ask_which_to_carry_on_from(GameState *g)
 {
-    LoadScreenContext *c = ctx;
-    TIMED_AS(c->game, 0xC2E841, menu_ask_which_game_to_carry_on_from(c->game));
-    return true;
+    TIMED_AS(g, 0xC2E841, menu_ask_which_game_to_carry_on_from(g));
 }
 
-static bool load(void *ctx)
+static bool load(GameState *g, Platform *pf)
 {
-    LoadScreenContext *c = ctx;
-    if (!takes(c->game, menu_save_code_can_run(c->game), 0xFFFAA3, "a saved game the port doesn't load"))
+    if (!takes(g, menu_save_code_can_run(g), 0xFFFAA3, "a saved game the port doesn't load"))
         return false;
-    TIMED_AS(c->game, 0xFFFAA3, saves_load_game(c->game, c->pf, menu_save_slot_shown(c->game)));
+    TIMED_AS(g, 0xFFFAA3, saves_load_game(g, pf, menu_save_slot_shown(g)));
     return true;
 }
 
-static bool carry_on(void *ctx)
+static bool carry_on(GameState *g, Platform *pf)
 {
-    LoadScreenContext *c = ctx;
-    if (!takes(c->game, menu_carry_over_can_run(c->game), 0xFFFAED, "a New Game+ the port doesn't carry over"))
+    if (!takes(g, menu_carry_over_can_run(g), 0xFFFAED, "a New Game+ the port doesn't carry over"))
         return false;
-    TIMED_AS(c->game, 0xFFFAED, saves_carry_over(c->game, c->pf, menu_save_slot_shown(c->game)));
+    TIMED_AS(g, 0xFFFAED, saves_carry_over(g, pf, menu_save_slot_shown(g)));
     return true;
 }
 
-static bool erase(void *ctx)
+static bool empty_label(GameState *g)
 {
-    LoadScreenContext *c = ctx;
-    return menu_erase_slot(c->game, c->pf);
-}
-
-static bool empty_label(void *ctx)
-{
-    LoadScreenContext *c = ctx;
     bool drawn = false;
-    TIMED_AS(c->game, 0xC2D28D, drawn = menu_draw_empty_label(c->game));
+    TIMED_AS(g, 0xC2D28D, drawn = menu_draw_empty_label(g));
     return drawn;
-}
-
-static bool wait_a_frame(void *ctx)
-{
-    LoadScreenContext *c = ctx;
-    menu_task_waits(c->game, 1);
-    return true;
-}
-
-static bool sound_output_sent(void *ctx)
-{
-    LoadScreenContext *c = ctx;
-    menu_send_the_sound_output(c->game, c->pf);
-    return true;
 }
 
 /* The steps' ends: the fade in's task started, or
  * the menus closed for the game (which never comes back to the screen). */
-static bool ends(void *ctx, LoadScreenEnd end)
+static void ends(GameState *g, Platform *pf, LoadScreenEnd end)
 {
-    LoadScreenContext *c = ctx;
     switch (end) {
-    case LOAD_FADES_IN: TIMED_AS(c->game, 0xC283B2, menu_start_the_fade_in(c->game)); break;
-    case LOAD_LEAVES_FOR_THE_GAME: menu_close(c->game, c->pf, true); break;
+    case LOAD_FADES_IN: TIMED_AS(g, 0xC283B2, menu_start_the_fade_in(g)); break;
+    case LOAD_LEAVES_FOR_THE_GAME: menu_close(g, pf, true); break;
     }
-    return true;
 }
-
-static const LoadScreenSteps the_steps = { read_cursor, tick, show_the_slot, draw, ask_which_to_carry_on_from, load,
-                                      carry_on, erase, empty_label, wait_a_frame, sound_output_sent,
-                                      ends };
 
 /* A step, run only on the state it handles. */
 static bool step(GameState *g, Platform *pf, bool ok, uint32_t routine,
-                 bool (*run)(GameState *, Platform *, const LoadScreenSteps *, void *))
+                 bool (*run)(GameState *, Platform *))
 {
     if (!takes(g, ok, routine, "a load screen the port doesn't take"))
         return false;
-    LoadScreenContext c = { g, pf };
-    return run(g, pf, &the_steps, &c);
+    return run(g, pf);
 }
 
 bool menu_open_load_screen(GameState *g, Platform *pf)

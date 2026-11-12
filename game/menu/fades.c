@@ -38,83 +38,57 @@ static void start_fade(GameState *g, int8_t step)
 }
 
 /* A fade's steps, in the task it runs in: the brightness moved a step and
- * held for a frame, until it is full or black. A fade that reached black has
- * its last frame still to wait; one stopped is where the port stops (the
- * task never came back from a wait). With the end, the brightness the last
- * step started from. The frame's wait between the steps is the task's
- * (below); false where the task never came back. */
-typedef enum { FADE_DONE, FADE_AT_BLACK, FADE_STOPPED, FADE_NEXT_FRAME } FadeEnd;
-typedef struct {
-    FadeEnd end;
-    uint8_t last_from;
-} Fade;
-typedef bool (*FadeWait)(void *ctx);
+ * held for its frames, until it is full or black. */
+typedef enum { FADE_DONE, FADE_AT_BLACK, FADE_NEXT_FRAME } FadeEnd;
 
 /* One step of the fade: the brightness moved by `step`, held at full or
  * black. */
-static Fade fade_step(GameState *g, int8_t step)
+static FadeEnd fade_step(GameState *g, int8_t step)
 {
-    uint8_t before = brightness(g);
-    int level = before + step;
+    int level = brightness(g) + step;
     if (level <= BLACK) {
         set_brightness(g, BLACK);
-        return (Fade){ FADE_AT_BLACK, before };
+        return FADE_AT_BLACK;
     }
     if (level >= FULL_BRIGHTNESS) {
         set_brightness(g, FULL_BRIGHTNESS);
-        return (Fade){ FADE_DONE, before };
+        return FADE_DONE;
     }
     set_brightness(g, (uint8_t)level);
-    return (Fade){ FADE_NEXT_FRAME, before };
+    return FADE_NEXT_FRAME;
 }
 
-static Fade fade(GameState *g, int8_t step, FadeWait wait, void *ctx)
+static FadeEnd fade(GameState *g, int8_t step)
 {
     start_fade(g, step);
     for (;;) {
-        Fade f = fade_step(g, step);
-        if (f.end != FADE_NEXT_FRAME)
-            return f;
-        if (!wait(ctx))
-            return (Fade){ FADE_STOPPED, f.last_from };
+        FadeEnd end = fade_step(g, step);
+        if (end != FADE_NEXT_FRAME)
+            return end;
+        menu_task_waits(g, FRAMES_A_STEP);
     }
-}
-
-/* The fade out ($C2:83CA): the steps down to black. At black its last
- * frame's wait, which hands the screen on, is the caller's. */
-// $C2:83CA
-static Fade fade_out(GameState *g, FadeWait between, void *ctx) { return fade(g, FADE_OUT_STEP, between, ctx); }
-
-/* The fade in's task: a frame for the screen to be drawn, then the fade up
- * to full brightness, called as the routine's; the task ends after. */
-// $C2:83BD
-static bool fade_in_task(GameState *g, FadeWait first_frame, FadeWait between, void *ctx)
-{
-    if (!first_frame(ctx))
-        return false;
-    Fade f;
-    f = fade(g, FADE_IN_STEP, between, ctx);
-    return f.end == FADE_DONE;
 }
 
 /* ---- From inside a task (menu/tasks.c's coroutines) ----------------------------------------- */
 
-static bool wait(void *ctx)
-{
-    menu_task_waits(ctx, FRAMES_A_STEP);
-    return true;
-}
-
+// $C2:83CA
+/* The fade out: the steps down to black, and at black its last frame's
+ * wait, which hands the screen on. */
 void menu_fade_to_black(GameState *g)
 {
-    if (fade_out(g, wait, g).end == FADE_AT_BLACK)
+    if (fade(g, FADE_OUT_STEP) == FADE_AT_BLACK)
         menu_task_waits(g, 1);
 }
 
+// $C2:83BD
+/* The fade in's task: a step's frames for the screen to be drawn, then the
+ * fade up to full brightness, called as the routine's; the task ends
+ * after. */
 void menu_fade_in_task(GameState *g, Platform *pf)
 {
     (void)pf;
-    (void)fade_in_task(g, wait, wait, g);
+    menu_task_waits(g, FRAMES_A_STEP);
+    (void)fade(g, FADE_IN_STEP);
 }
 
 /* ---- The fade in, a task of its own ---------------------------------------------------------- */

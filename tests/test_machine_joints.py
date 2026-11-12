@@ -177,3 +177,22 @@ class MachineBoundaries(unittest.TestCase):
         text = 'm_hold_at_own \n (s, head, dc, hold); native_hand_entry_at \t (s, at);'
         self.assertEqual(machine_boundaries(text),
                          {"stops at the original's addresses": 1, "siblings found in the registry": 1})
+
+
+class Adapters(unittest.TestCase):
+    def test_context_callbacks_are_counted_wherever_declared(self):
+        text = """
+            typedef bool (*Steps)(void *ctx, Place at);
+            typedef struct { bool (*tick)(void *ctx); void *ctx; } Host;
+            static bool run(GameState *g, bool (*wait)(void *), void *ctx);
+            // bool (*commented)(void *ctx);
+        """
+        self.assertEqual(machine_joints.context_callbacks(text), 3)
+
+    def test_dispatch_tables_are_not_adapters(self):
+        text = "typedef EventFlow (*EventOperation)(GameState *g, const EventCommand *command);"
+        self.assertEqual(machine_joints.context_callbacks(text), 0)
+
+    def test_carry_parameters_and_fields(self):
+        text = "bool aim(GameState *g, bool carry); struct { bool carry; }; /* bool carry; */"
+        self.assertEqual(machine_joints.carry_values(text), 2)

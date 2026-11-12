@@ -463,36 +463,16 @@ const SceneTaskPort scene_palace_tasks[] = {
 };
 const unsigned scene_palace_task_count = sizeof scene_palace_tasks / sizeof scene_palace_tasks[0];
 
-/* The setup: the scene started, the scripts' first step by `first_step`,
- * then the rest. False where the step went no further. */
-static bool set_up_the_palace_with(GameState *g, Platform *pf, bool (*first_step)(void *ctx), void *ctx)
+/* The setup: the scene started, the scripts' first step (channel 0's turn,
+ * which runs channel 1's first command too), then the rest. False where the
+ * step went no further. */
+bool scene_palace_set_up(GameState *g, Platform *pf)
 {
     start_the_palace(g, pf);
-    if (!first_step(ctx))
+    if (!scene_first_step(g, pf, TURN_CHANNEL))
         return false;
     finish_the_palace(g, pf);
     return true;
-}
-
-/* The setup's step that is another routine (for scene/program.c's setups):
- * channel 0's turn, which runs channel 1's first command too. */
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} PalaceContext;
-
-static bool turn_the_first_channel(void *ctx)
-{
-    PalaceContext *c = ctx;
-    SceneTurn turn = SCENE_TURN_ENDED;
-    TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, TURN_CHANNEL));
-    return turn == SCENE_TURN_ENDED;
-}
-
-bool scene_palace_set_up(GameState *g, Platform *pf)
-{
-    PalaceContext c = { g, pf };
-    return set_up_the_palace_with(g, pf, turn_the_first_channel, &c);
 }
 
 /* ---- The curtain ------------------------------------------------------------------------------- */
@@ -516,35 +496,14 @@ static void show_the_curtain_step(const GameState *g, Platform *pf)
 }
 
 // $7E:6844
-/* A frame of the sweep: the curtain's step, by `step`, then the window's
- * edge shown from the half it didn't write. False where the step went no
- * further. */
-static bool sweep_the_curtain_with(GameState *g, Platform *pf, bool (*step)(void *ctx), void *ctx)
-{
-    if (!step(ctx))
-        return false;
-    show_the_curtain_step(g, pf);
-    return true;
-}
-
-/* The curtain's step (scene/curtain.c), which goes no further where its
- * table is not one it sweeps, its stir taking the slot's place in the list. */
-typedef struct {
-    GameState *game;
-    Platform *pf;
-    uint16_t salt;
-} CurtainContext;
-
-static bool curtain_step(void *ctx)
-{
-    CurtainContext *c = ctx;
-    return scene_curtain_stepped(c->game, c->pf, c->salt);
-}
-
+/* A frame of the sweep: the curtain's step (scene/curtain.c), which goes no
+ * further where its table is not one it sweeps, its stir taking the slot's
+ * place in the list; then the window's edge shown from the half it didn't
+ * write. */
 TaskEnd scene_sweep_the_palace_curtain(GameState *g, Platform *pf, unsigned slot)
 {
-    CurtainContext c = { g, pf, (uint16_t)(slot * 2) };
-    if (!sweep_the_curtain_with(g, pf, curtain_step, &c))
+    if (!scene_curtain_stepped(g, pf, (uint16_t)(slot * 2)))
         return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
+    show_the_curtain_step(g, pf);
     return task_goes_on();
 }

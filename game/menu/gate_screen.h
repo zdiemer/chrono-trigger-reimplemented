@@ -15,10 +15,9 @@
 void menu_draw_gate_swirl(GameState *g);
 void menu_turn_gate_swirl(GameState *g);
 
-/* The swirl's graphics unpacked and the swirl drawn ($FF:F677; false
- * where the unpacking stopped); the screen started ($C2:CE9D); its frame
+/* The swirl's graphics unpacked and the swirl drawn ($FF:F677); the screen started ($C2:CE9D); its frame
  * task ($C2:CECE), which the menus' tasks run (menu/tasks.c). */
-bool menu_draw_gate_screen(GameState *g);
+void menu_draw_gate_screen(GameState *g);
 void menu_start_gate_screen(GameState *g, Platform *pf);
 enum { MENU_GATE_SCREEN_TASK_START = 0xCECE };
 void menu_gate_screen_task(GameState *g, Platform *pf);

@@ -171,12 +171,19 @@ enum { BATTLE_SPRITES_SHOWN = 4 };
 
 // $C0:0715
 /* The enemies and the party put back, the sprite table built at once (a
- * routine of its own, `table`), and a beaten party holding its frames. */
-static bool return_from_battle(GameState *g, bool (*table)(void *ctx), void *ctx)
+ * routine of its own, refused where the port doesn't build it), and a
+ * beaten party holding its frames. */
+enum { BUILD_SPRITE_TABLE = 0xC0B271 };
+
+static bool return_from_battle(GameState *g)
 {
     put_back_after_battle(g);
-    if (!table(ctx))
+    bool built = false;
+    TIMED_AS(g, BUILD_SPRITE_TABLE, built = field_sprite_table_built(g));
+    if (!built) {
+        program_breaks_a_contract(g, BUILD_SPRITE_TABLE, "a sprite table the port doesn't build");
         return false;
+    }
     party_hold_frames_if_defeated(g);
     return true;
 }
@@ -201,127 +208,6 @@ static AfterBattle how_the_game_goes_on(const GameState *g)
     }
 }
 
-/* The after battle's calls, each where the original makes it: a frame of the
- * leader's walk alone ($C0:00EB), the fade out's walk, palettes and frame
- * wait, the field's pieces as it is taken up again -- the party and the
- * enemies put back (above), the map unpacked, the dialog window's tile maps,
- * the tile looks, the script and its start, the chests, the text area -- the
- * party back together (event/party.c), and the starts afresh the game over
- * and the place put aside make. */
-/* The fade out's two ways: the game over's and the place put aside's. */
-typedef enum { GAME_OVER_FADE, PLACE_PUT_ASIDE_FADE } FadeOut;
-
-typedef enum {
-    AFTER_GAME_OVER_WALK, AFTER_FADE_WALK, AFTER_FADE_PALETTES, AFTER_FADE_WAIT,
-    AFTER_PUT_BACK, AFTER_UNPACK_THE_MAP, AFTER_FIRST_WALK, AFTER_WINDOW_FRAME, AFTER_TILE_LOOKS, AFTER_SECOND_WALK,
-    AFTER_BG3_TILE_LOOKS, AFTER_SCRIPT, AFTER_MAP_SCRIPT, AFTER_CHESTS, AFTER_THIRD_WALK, AFTER_TEXT_AREA,
-    AFTER_BACK_TOGETHER, AFTER_THE_TITLE, AFTER_THE_FIELD_AGAIN,
-} AfterCall;
-typedef bool (*AfterCalls)(void *ctx, AfterCall call, FadeOut way);
-
-/* A button pressed, the game's or an assignment's. */
-static bool a_button_pressed(const GameState *g)
-{
-    return (uint8_t)input_mapped(g, ASSIGNED_PRESSED) != 0 || (uint8_t)input_pressed(g) != 0;
-}
-
-/* The picture fading out a step a frame, the leader walking and the palettes
- * animating. */
-static bool fade_out(GameState *g, FadeOut way, AfterCalls call, void *ctx)
-{
-    while (field_dims_a_step(g))
-        if (!call(ctx, AFTER_FADE_WALK, way) || !call(ctx, AFTER_FADE_PALETTES, way) || !call(ctx, AFTER_FADE_WAIT, way))
-            return false;
-    return true;
-}
-
-// $C0:02A0
-/* The game over: the leader walks on its own until a button is pressed, the
- * picture fades out, and the game starts again from the title. */
-static bool game_over(GameState *g, AfterCalls call, void *ctx)
-{
-    while (!a_button_pressed(g))
-        if (!call(ctx, AFTER_GAME_OVER_WALK, GAME_OVER_FADE))
-            return false;
-    return fade_out(g, GAME_OVER_FADE, call, ctx) && call(ctx, AFTER_THE_TITLE, GAME_OVER_FADE);
-}
-
-/* The party goes back to the place put aside (event $DC's), where the field
- * starts again. */
-static void party_goes_to_the_place_put_aside(GameState *g)
-{
-    set_location_id(g, location_stored_id(g));
-    set_location_x(g, location_stored_x(g));
-    set_location_y(g, location_stored_y(g));
-    set_location_flags(g, location_stored_flags(g));
-}
-
-// $C0:02CD
-static bool back_to_the_place_put_aside(GameState *g, AfterCalls call, void *ctx)
-{
-    if (!fade_out(g, PLACE_PUT_ASIDE_FADE, call, ctx))
-        return false;
-    party_goes_to_the_place_put_aside(g);
-    return call(ctx, AFTER_THE_FIELD_AGAIN, PLACE_PUT_ASIDE_FADE);
-}
-
-static bool after(AfterCalls call, void *ctx, AfterCall what) { return call(ctx, what, GAME_OVER_FADE); }
-
-// $C0:0304
-/* The field taken up again on its map, a frame at a time: the party and the
- * enemies put back, the map, the dialog window's tile maps and the tile
- * looks again, the script and its start, the layers; then the party comes
- * back together. */
-static bool finish_restoring_the_field(GameState *g, AfterCalls call, void *ctx)
-{
-    if (!after(call, ctx, AFTER_TEXT_AREA))
-        return false;
-    field_send_screen_jobs(g, FIELD_SEND_STAGED_MAP_SECOND);
-    return after(call, ctx, AFTER_BACK_TOGETHER);
-}
-
-static bool restore_the_field_script(GameState *g, AfterCalls call, void *ctx)
-{
-    return after(call, ctx, AFTER_BG3_TILE_LOOKS) && after(call, ctx, AFTER_SCRIPT)
-           && after(call, ctx, AFTER_MAP_SCRIPT) && after(call, ctx, AFTER_CHESTS)
-           && after(call, ctx, AFTER_THIRD_WALK) && finish_restoring_the_field(g, call, ctx);
-}
-
-static bool restore_the_field_picture(GameState *g, AfterCalls call, void *ctx)
-{
-    if (!after(call, ctx, AFTER_WINDOW_FRAME))
-        return false;
-    field_send_screen_jobs(g, FIELD_SEND_STAGED_MAP_FIRST | FIELD_SEND_FOUR_TILES);
-    return after(call, ctx, AFTER_TILE_LOOKS) && after(call, ctx, AFTER_SECOND_WALK)
-           && restore_the_field_script(g, call, ctx);
-}
-
-static bool go_on_on_the_field(GameState *g, AfterCalls call, void *ctx)
-{
-    sprites_hide_all_next_frame(g);
-    return after(call, ctx, AFTER_PUT_BACK) && after(call, ctx, AFTER_UNPACK_THE_MAP)
-           && after(call, ctx, AFTER_FIRST_WALK) && restore_the_field_picture(g, call, ctx);
-}
-
-// $C0:0283
-/* The battle's sprites hidden, the field's state back from where the
- * battle's start put it, and the game goes on as the battle ended. */
-static bool take_up_after_battle(GameState *g, AfterCalls call, void *ctx)
-{
-    sprites_hide_the_first(g, BATTLE_SPRITES_SHOWN);
-    field_bring_the_state_back(g);
-    switch (how_the_game_goes_on(g)) {
-    case GAME_OVER: return game_over(g, call, ctx);
-    case BACK_TO_THE_PLACE_PUT_ASIDE: return back_to_the_place_put_aside(g, call, ctx);
-    default: return go_on_on_the_field(g, call, ctx);
-    }
-}
-
-/* ---- The routines it calls ------------------------------------------------------------------ */
-
-enum { BUILD_SPRITE_TABLE = 0xC0B271 };
-
-// $C0:072E
 /* The original's routines it calls, and the field's own that run frames. */
 enum {
     SCRIPT_UNPACKED = 0xC056D4,     /* the location's event script unpacked */
@@ -335,6 +221,72 @@ enum {
 /* Where the field is taken up again, the party comes back together
  * ($C0:034B), which the original goes on to. */
 enum { PARTY_BACK_TOGETHER = 0xC0034B };
+
+/* A button pressed, the game's or an assignment's. */
+static bool a_button_pressed(const GameState *g)
+{
+    return (uint8_t)input_mapped(g, ASSIGNED_PRESSED) != 0 || (uint8_t)input_pressed(g) != 0;
+}
+
+/* The picture fading out a step a frame, the leader walking ($C0:00EB's
+ * walk) and the palettes animating, and the frame's wait. */
+static bool fade_out(GameState *g, Platform *pf)
+{
+    while (field_dims_a_step(g)) {
+        bool done = false;
+        TIMED_AS(g, WALK, done = field_the_leader_walks(g));
+        if (!done)
+            return false;
+        TIMED_AS(g, PALETTE_ANIMATION, done = palette_animated(g));
+        if (!done)
+            return false;
+        TIMED_AS(g, FIELD_FRAME_WAIT, field_finish_the_frame(g, pf));
+    }
+    return true;
+}
+
+/* The game over and the place put aside start the field afresh, which is the
+ * program's to do: the picture blanked first. */
+static void blank_and_stop(GameState *g, Platform *pf)
+{
+    TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(pf));
+}
+
+// $C0:02A0
+/* The game over: the leader walks on its own until a button is pressed, the
+ * picture fades out, and the game starts again from the title. */
+static bool game_over(GameState *g, Platform *pf)
+{
+    while (!a_button_pressed(g))
+        if (!field_walked_a_frame(g, pf))
+            return false;
+    if (!fade_out(g, pf))
+        return false;
+    blank_and_stop(g, pf);
+    program_starts_afresh_from_the_title(g);
+    return false;
+}
+
+/* The party goes back to the place put aside (event $DC's), where the field
+ * starts again. */
+static void party_goes_to_the_place_put_aside(GameState *g)
+{
+    set_location_id(g, location_stored_id(g));
+    set_location_x(g, location_stored_x(g));
+    set_location_y(g, location_stored_y(g));
+    set_location_flags(g, location_stored_flags(g));
+}
+
+// $C0:02CD
+static bool back_to_the_place_put_aside(GameState *g, Platform *pf)
+{
+    if (!fade_out(g, pf))
+        return false;
+    party_goes_to_the_place_put_aside(g);
+    blank_and_stop(g, pf);
+    program_starts_the_field_again(g);
+    return false;
+}
 
 /* What the port puts back after a battle: the leader's place
  * an object (the original takes it without looking, so the party's loop
@@ -364,94 +316,90 @@ static bool battle_return_fits(const GameState *g)
     return ok;
 }
 
-/* ---- The steps ------------------------------------------------------------------------------- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} AfterBattleContext;
-
-static bool build_the_sprite_table(void *ctx)
+/* The party and the enemies put back (above), refused where the port
+ * doesn't take the objects; the map unpacked; the script unpacked (refused
+ * where it doesn't fit) and the map's own script run to its first return. */
+static bool put_the_fight_back(GameState *g)
 {
-    GameState *g = ctx;
-    bool built = false;
-    TIMED_AS(g, BUILD_SPRITE_TABLE, built = field_sprite_table_built(g));
-    if (!built)
-        program_breaks_a_contract(g, BUILD_SPRITE_TABLE, "a sprite table the port doesn't build");
-    return built;
+    if (!battle_return_fits(g)) {
+        program_breaks_a_contract(g, RETURN_FROM_BATTLE, "a party or enemies the port doesn't put back");
+        return false;
+    }
+    bool done = false;
+    TIMED_AS(g, RETURN_FROM_BATTLE, done = return_from_battle(g));
+    return done;
 }
 
-static bool map_script(AfterBattleContext *c)
+static bool unpack_the_map(GameState *g)
 {
-    EventScriptContext e = { c->game, c->pf };
-    EventRunner r = event_runner(&e);
+    bool done = false;
+    TIMED_AS(g, FIELD_UNPACK_THE_MAP_ENTRY, done = field_load_the_map(g));
+    return done;
+}
+
+static bool load_the_script(GameState *g)
+{
+    bool done = false;
+    TIMED_AS(g, SCRIPT_UNPACKED, done = field_load_the_script(g));
+    if (!done)
+        program_breaks_a_contract(g, SCRIPT_UNPACKED, "a location's script that doesn't fit");
+    return done;
+}
+
+static bool map_script(GameState *g, Platform *pf)
+{
     uint16_t at;
     EventTurnEnd end = TURN_OVER;
-    TIMED_AS(c->game, MAP_SCRIPT_STARTS, end = event_run_map_script_commands(c->game, &r, &at));
+    TIMED_AS(g, MAP_SCRIPT_STARTS, end = event_run_map_script_commands(g, pf, &at));
     if (end == TURN_OVER)
         return true;
     if (end != TURN_HANDED_BACK)
-        program_breaks_a_contract(c->game, MAP_SCRIPT_STARTS, "a map's script the event engine hands to the original");
+        program_breaks_a_contract(g, MAP_SCRIPT_STARTS, "a map's script the event engine hands to the original");
     return false;
 }
 
-/* Each checking first that the port takes it: the putting back, objects the
- * rows take and frames that can go back; the party's coming back together, a
- * party it brings back. The game over and the place put aside start the
- * field afresh, which is the program's to do. */
-static bool after_battle_call(void *ctx, AfterCall call, FadeOut way)
+// $C0:0304
+/* The field taken up again on its map, a frame at a time: the party and the
+ * enemies put back, the map, the dialog window's tile maps and the tile
+ * looks again, the script and its start, the chests, the text area; then the
+ * party comes back together (event/party.c), refused where it is not one
+ * the port brings back. */
+static bool go_on_on_the_field(GameState *g, Platform *pf)
 {
-    (void)way;
-    AfterBattleContext *c = ctx;
-    GameState *g = c->game;
-    bool done = false;
-    switch (call) {
-    case AFTER_GAME_OVER_WALK:
-    case AFTER_FIRST_WALK:
-    case AFTER_SECOND_WALK:
-    case AFTER_THIRD_WALK: return field_walked_a_frame(g, c->pf);
-    case AFTER_FADE_WALK: TIMED_AS(g, WALK, done = field_the_leader_walks(g)); return done;
-    case AFTER_FADE_PALETTES: TIMED_AS(g, PALETTE_ANIMATION, done = palette_animated(g)); return done;
-    case AFTER_FADE_WAIT: TIMED_AS(g, FIELD_FRAME_WAIT, field_finish_the_frame(g, c->pf)); return true;
-    case AFTER_PUT_BACK:
-        if (!battle_return_fits(g)) {
-            program_breaks_a_contract(g, RETURN_FROM_BATTLE, "a party or enemies the port doesn't put back");
-            return false;
-        }
-        TIMED_AS(g, RETURN_FROM_BATTLE, done = return_from_battle(g, build_the_sprite_table, g));
-        return done;
-    case AFTER_UNPACK_THE_MAP: TIMED_AS(g, FIELD_UNPACK_THE_MAP_ENTRY, done = field_load_the_map(g)); return done;
-    case AFTER_WINDOW_FRAME: TIMED_AS(g, FIELD_BUILD_WINDOW_FRAME_ENTRY, field_build_the_window_frame(g)); return true;
-    case AFTER_TILE_LOOKS: TIMED_AS(g, TILE_LOOKS, field_load_tile_looks(g)); return true;
-    case AFTER_BG3_TILE_LOOKS: TIMED_AS(g, BG3_TILE_LOOKS, field_load_bg3_tile_looks(g)); return true;
-    case AFTER_SCRIPT:
-        TIMED_AS(g, SCRIPT_UNPACKED, done = field_load_the_script(g));
-        if (!done)
-            program_breaks_a_contract(g, SCRIPT_UNPACKED, "a location's script that doesn't fit");
-        return done;
-    case AFTER_MAP_SCRIPT: return map_script(c);
-    case AFTER_CHESTS: TIMED_AS(g, CHESTS_MARK_THE_MAP_ENTRY, chests_mark_the_map(g)); return true;
-    case AFTER_TEXT_AREA: TIMED_AS(g, FIELD_BUILD_TEXT_AREA_ENTRY, field_build_the_text_area(g)); return true;
-    case AFTER_BACK_TOGETHER:
-        if (!party_can_come_back_together(g)) {
-            program_breaks_a_contract(g, PARTY_BACK_TOGETHER, "a party the port doesn't bring back together");
-            return false;
-        }
-        TIMED_AS(g, PARTY_BACK_TOGETHER, party_back_together(g));
-        return true;
-    case AFTER_THE_TITLE:
-        TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(c->pf));
-        program_starts_afresh_from_the_title(g);
+    sprites_hide_all_next_frame(g);
+    if (!put_the_fight_back(g) || !unpack_the_map(g) || !field_walked_a_frame(g, pf))
         return false;
-    default:
-        TIMED_AS(g, DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(c->pf));
-        program_starts_the_field_again(g);
+    TIMED_AS(g, FIELD_BUILD_WINDOW_FRAME_ENTRY, field_build_the_window_frame(g));
+    field_send_screen_jobs(g, FIELD_SEND_STAGED_MAP_FIRST | FIELD_SEND_FOUR_TILES);
+    TIMED_AS(g, TILE_LOOKS, field_load_tile_looks(g));
+    if (!field_walked_a_frame(g, pf))
+        return false;
+    TIMED_AS(g, BG3_TILE_LOOKS, field_load_bg3_tile_looks(g));
+    if (!load_the_script(g) || !map_script(g, pf))
+        return false;
+    TIMED_AS(g, CHESTS_MARK_THE_MAP_ENTRY, chests_mark_the_map(g));
+    if (!field_walked_a_frame(g, pf))
+        return false;
+    TIMED_AS(g, FIELD_BUILD_TEXT_AREA_ENTRY, field_build_the_text_area(g));
+    field_send_screen_jobs(g, FIELD_SEND_STAGED_MAP_SECOND);
+    if (!party_can_come_back_together(g)) {
+        program_breaks_a_contract(g, PARTY_BACK_TOGETHER, "a party the port doesn't bring back together");
         return false;
     }
+    TIMED_AS(g, PARTY_BACK_TOGETHER, party_back_together(g));
+    return true;
 }
 
+// $C0:0283
+/* The battle's sprites hidden, the field's state back from where the
+ * battle's start put it, and the game goes on as the battle ended. */
 bool field_taken_up_after_battle(GameState *g, Platform *pf)
 {
-    AfterBattleContext c = { g, pf };
-    return take_up_after_battle(g, after_battle_call, &c);
+    sprites_hide_the_first(g, BATTLE_SPRITES_SHOWN);
+    field_bring_the_state_back(g);
+    switch (how_the_game_goes_on(g)) {
+    case GAME_OVER: return game_over(g, pf);
+    case BACK_TO_THE_PLACE_PUT_ASIDE: return back_to_the_place_put_aside(g, pf);
+    default: return go_on_on_the_field(g, pf);
+    }
 }

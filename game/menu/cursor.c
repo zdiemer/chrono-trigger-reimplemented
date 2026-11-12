@@ -314,49 +314,24 @@ static void send_the_sound(Platform *pf, SoundEffectVoices voices, uint8_t sound
 }
 
 /* A sound played where it goes out (sound_goes_out); one that doesn't is
- * dropped. False where the send went no further. */
-typedef struct {
-    bool (*sent)(void *ctx, SoundEffectVoices voices, uint8_t sound);
-} SoundCalls;
-
-static bool play_a_sound(GameState *g, SoundEffectVoices voices, uint8_t sound, const SoundCalls *c, void *ctx)
+ * dropped. */
+static void play_a_sound(GameState *g, Platform *pf, SoundEffectVoices voices, uint8_t sound)
 {
     if (sound_goes_out(g, voices, sound))
-        return c->sent(ctx, voices, sound);
-    return true;
-}
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} MenuSoundContext;
-
-static bool sent(void *ctx, SoundEffectVoices voices, uint8_t sound)
-{
-    send_the_sound(((MenuSoundContext *)ctx)->pf, voices, sound);
-    return true;
+        send_the_sound(pf, voices, sound);
 }
 
 void menu_sound_played(GameState *g, Platform *pf, uint8_t sound)
 {
-    static const SoundCalls the_steps = { sent };
-    MenuSoundContext c = { g, pf };
-    (void)play_a_sound(g, SOUND_EFFECT_ON_VOICES_6_7, sound, &the_steps, &c);
+    play_a_sound(g, pf, SOUND_EFFECT_ON_VOICES_6_7, sound);
 }
 
 // $C2:EAF9
 /* A sound on the effects' other voices, sent whatever the wait. */
-static bool play_on_other_voices(GameState *g, uint8_t sound, const SoundCalls *c, void *ctx)
-{
-    set_menu_wait_frames(g, 0);
-    return play_a_sound(g, SOUND_EFFECT_ON_VOICES_4_5, sound, c, ctx);
-}
-
 void menu_sound_played_on_other_voices(GameState *g, Platform *pf, uint8_t sound)
 {
-    static const SoundCalls the_steps = { sent };
-    MenuSoundContext c = { g, pf };
-    (void)play_on_other_voices(g, sound, &the_steps, &c);
+    set_menu_wait_frames(g, 0);
+    play_a_sound(g, pf, SOUND_EFFECT_ON_VOICES_4_5, sound);
 }
 
 void menu_read_the_cursor_for_a_step(GameState *g) { TIMED_AS(g, 0xC2E984, menu_read_cursor(g)); }

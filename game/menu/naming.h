@@ -77,19 +77,6 @@ typedef enum {
  * the screen's fade in started, the screen faded out, or the menus left. */
 typedef enum { NAMING_FADES_IN, NAMING_FADES_OUT, NAMING_LEAVES_THE_MENUS } NamingEnd;
 
-/* What the steps do that is the menus' own: the cursor read; a sound, from
- * the call at `site`; a routine of the naming run as its own call; and the
- * step's end. Each false where it went no further. */
-typedef struct {
-    void (*read_cursor)(void *ctx);
-    bool (*sound)(void *ctx, uint32_t site, MenuSound sound);
-    bool (*routine)(void *ctx, NamingRoutine routine);
-    bool (*ends)(void *ctx, NamingEnd end);
-} NamingSteps;
-
-/* A step or a routine, through `n`; true where it came back. */
-bool menu_naming_step_with(GameState *g, Platform *pf, NamingStep step, const NamingSteps *n, void *ctx);
-bool menu_naming_routine(GameState *g, Platform *pf, NamingRoutine routine, const NamingSteps *n, void *ctx);
 /* The screen's step it is on, from inside the menus' main task: false
  * where it went no further (a state the port doesn't take). */
 bool menu_naming_step(GameState *g, Platform *pf);

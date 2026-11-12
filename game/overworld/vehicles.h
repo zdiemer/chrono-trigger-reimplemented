@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "menu/script.h"
+#include "platform/platform.h"
 #include "overworld/overworld.h"
 #include "overworld/overworld_data.h"
 
@@ -100,13 +100,9 @@ void overworld_epoch_opens_the_time_gate(GameState *g, MenuObject epoch);
 bool overworld_epoch_takes_the_party_into_the_omen(GameState *g);
 
 /* The Epoch on the world map, a frame (epoch.c). It runs its scenes' scripts
- * through `scripts`, as the walkers run theirs (overworld.h); false where the
- * script handed the frame over. */
-typedef struct {
-    ScriptEnd (*run)(void *ctx);
-    void *ctx;
-} EpochScripts;
-bool overworld_fly_the_epoch(GameState *g, MenuObject self, const EpochScripts *scripts);
+ * through the script interpreter, as the walkers run theirs; false where the
+ * script went no further. */
+bool overworld_fly_the_epoch(GameState *g, Platform *pf, MenuObject self);
 
 /* The Epoch's step through its handler. */
 typedef enum {

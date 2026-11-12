@@ -343,8 +343,7 @@ add_library(ct_game STATIC
   game/battle/uploads.c
   game/battle/timers.c
   game/battle/wait.c
-  game/battle/window.c
-  game/battle/window_leaves.c)
+  game/battle/window.c)
 target_link_libraries(ct_game PUBLIC ct_state_host)
 add_executable(ct_native frontend/ct_native.c frontend/route_driver.c frontend/snapshot.c
   frontend/storage.c frontend/asset_files.c frontend/track.c frontend/sram_find.c

@@ -24,6 +24,7 @@
 #include "overworld/overworld.h"
 
 #include "charge.h"
+#include "menu/handlers.h"
 #include "overworld/terrain.h"
 #include "ram.h"
 #include "vars.h"
@@ -338,7 +339,7 @@ static void set_off(GameState *g, MenuObject self)
 /* Once the event has given the follower its script, it takes it up and runs
  * it a frame at a time; where the script moves it, its place in the party
  * is where it is. */
-static bool take_part_in_the_event(GameState *g, MenuObject self, const WalkerScripts *scripts)
+static bool take_part_in_the_event(GameState *g, Platform *pf, MenuObject self)
 {
     PartyPlace place = place_of(g, self);
     switch (overworld_step(g, self)) {
@@ -347,13 +348,13 @@ static bool take_part_in_the_event(GameState *g, MenuObject self, const WalkerSc
         if (script == 0)
             return true;
         overworld_take_up_script(g, self, script);
-        return scripts->run(scripts->ctx, WALKER_STARTS_ITS_SCRIPT) != WALKER_SCRIPT_HANDED_OVER;
+        return menu_run_object_script(g, pf, self) != MENU_TURN_WENT_NO_FURTHER;
     }
     case WALKER_RUNS_ITS_SCRIPT: {
-        WalkerScriptEnd end = scripts->run(scripts->ctx, WALKER_GOES_ON_WITH_ITS_SCRIPT);
-        if (end == WALKER_SCRIPT_HANDED_OVER)
+        MenuTurn end = menu_run_object_script(g, pf, self);
+        if (end == MENU_TURN_WENT_NO_FURTHER)
             return false;
-        if (end == WALKER_SCRIPT_DONE)
+        if (end == MENU_TURN_DONE)
             overworld_set_step(g, self, WALKER_HAS_RUN_ITS_SCRIPT);
         overworld_set_party_spot(g, place, overworld_walker_spot(g, self));
         return true;
@@ -366,7 +367,7 @@ static bool take_part_in_the_event(GameState *g, MenuObject self, const WalkerSc
 // $C2:3B1B
 /* On foot: while the overworld isn't on the map (a screen is opening) the
  * follower stands; while an event runs, it takes part in it. */
-static bool walk_on_foot(GameState *g, MenuObject self, const WalkerScripts *scripts)
+static bool walk_on_foot(GameState *g, Platform *pf, MenuObject self)
 {
     if (!overworld_on_the_map(g)) {
         overworld_stand(g, self, character_of(g, self));
@@ -374,7 +375,7 @@ static bool walk_on_foot(GameState *g, MenuObject self, const WalkerScripts *scr
         return true;
     }
     if (overworld_event_running(g))
-        return take_part_in_the_event(g, self, scripts);
+        return take_part_in_the_event(g, pf, self);
     switch (overworld_step(g, self)) {
     case FOLLOWER_SETS_OFF:
         set_off(g, self);
@@ -469,14 +470,14 @@ static void get_off(GameState *g, MenuObject self)
 /* ---- The follower's frame ------------------------------------------------------------------ */
 
 // $C2:3AE2
-bool overworld_follow(GameState *g, MenuObject self, const WalkerScripts *scripts)
+bool overworld_follow(GameState *g, Platform *pf, MenuObject self)
 {
     if (!overworld_place_taken(g, place_of(g, self)))
         return true;
     overworld_start_over_if_asked(g, self);
     switch (overworld_party_travel(g)) {
     case TRAVEL_ON_FOOT:
-        return walk_on_foot(g, self, scripts);
+        return walk_on_foot(g, pf, self);
     case TRAVEL_BOARDING:
         board(g, self);
         break;
