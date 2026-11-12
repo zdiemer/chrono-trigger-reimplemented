@@ -22,6 +22,13 @@ OUTCOME = re.compile(r"^outcome (reached|failed) (.*)$")
 CHECKPOINT = re.compile(r"^checkpoint (\S+) frame (\d+)")
 
 
+def all_routes():
+    """Public route modules; underscore-prefixed files are shared helpers."""
+    from pathlib import Path
+    return sorted(p.stem for p in (Path(REPO) / 'tools/movies/routes').glob('*.py')
+                  if not p.stem.startswith('_'))
+
+
 def file_digest(path):
     """The SHA-256 of a file, or of nothing where there is none."""
     digest = hashlib.sha256()

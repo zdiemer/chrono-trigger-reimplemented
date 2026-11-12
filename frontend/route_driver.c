@@ -14,7 +14,6 @@ typedef struct {
     uint32_t address[WATCHES], length[WATCHES];
     unsigned watches;
     bool diagnostic, failed;
-    unsigned long replays;
 } Driver;
 
 static bool reserve(Record *r, size_t count)
@@ -81,7 +80,6 @@ static bool restore(Driver *s, const Record *r)
     for (size_t i = s->live.count; i < r->count; i++)
         if (!advance(s, r->pads[i])) return false;
     if (accelerated && !s->host->replay->end(s->host->ctx, r->extra)) { s->failed = true; return false; }
-    s->replays++;
     if (digest(s) != r->digest) {
         fprintf(stderr, "native replay differs at frame %zu\n", r->count);
         s->failed = true;

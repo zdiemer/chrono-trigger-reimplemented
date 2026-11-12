@@ -24,7 +24,11 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
   Only the last line `suite OK` passes. The final `times:` and `wall time:` lines
   include unit tests; the gate fails at 600 seconds. Use `.exe` on Windows.
   `--movies <name>...` narrows iteration without pruning unseen outcome rows.
-  Longer routes and the full movie library run explicitly outside the branch gate.
+- Non-blocking batch: `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long`
+  runs the whole movie library and every native route, outside the gate budget.
+  Logs and `findings.json` go in `build/suite-long` (or `--out`). Findings become
+  fixes; this batch never blocks a commit, merge or push and is not required CI.
+  It reports findings with exit status 0, never `suite OK`; setup errors still fail.
 - ROM-free tests: `python3 -m unittest discover tests` and
   `ctest --test-dir build/main --output-on-failure --no-tests=error -j 2`.
   CI builds ct_native and these tests with warnings as errors on Linux gcc/clang,
@@ -81,7 +85,7 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
     form, a constant against an operand, 8- and 16-bit) are one operation and several table
     rows, and the table decodes operands into typed, named parameters, so a handler reads
     `play_animation(g, obj, animation, frames)`, not `operand(g, c, 1)`. Inlined handlers
-    keep their time with `NATIVE_TIME_AS` and stay registered, so each can be fuzzed alone.
+    keep their existing time with `NATIVE_TIME_AS` and have native tests for their behavior.
   - **Comments say what a function is for, in the game's terms**: what it does to the game,
     when and why it happens, what it changes. Not the function's name again, not the opcode's
     encoding, not the original's mechanics. The mechanics belong in a comment only where the
@@ -136,7 +140,7 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
   portable by the platform services; what a host that isn't a desktop runs into instead is
   the frontend, so hold the line there too. A host that calls back once a frame, with no
   filesystem and no stack of its own, is the case these are for:
-  - The loop belongs to the driver (`frontend/window.c`, `frontend/headless.c`).
+  - The loop belongs to the driver (`frontend/window.c`, `frontend/ct_native.c`).
     Below it nothing sleeps, spins on a clock, polls an event queue or blocks on a device:
     the game advances one frame per call, and input arrives through `in_host_set`.
   - Persistence moves bytes under a name, not a path. A new runtime or player function takes
@@ -153,8 +157,6 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
   dumps, traces, disassembly listings with data bytes, save states.
   Cartridge saves (`.srm` battery saves: game progress, not assets) are fine and
   live in `saves/`; emulator save states are not.
-- Reference emulator cores are supplied locally under `cores/` and never
-  vendored.
 - Every ported routine carries its original address in a `// $BB:AAAA` comment; code ported
   from the sound program (`game/sound/`) uses `// SPC $AAAA`, with every address where one
   function stands for several routines.

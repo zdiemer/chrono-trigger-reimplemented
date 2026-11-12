@@ -1,9 +1,6 @@
 """Native place sequences compared with recorded targets."""
-import pathlib
 import re
-import sys
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
 PLACE = re.compile(r"^location: frame (\d+) \$([0-9A-Fa-f]+)", re.M)
 # A place entered this near the reference's frame is entered on time: half a
 # second, about what a load or a fade the time model gets wrong by moves it.

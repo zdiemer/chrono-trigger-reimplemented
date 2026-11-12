@@ -11,6 +11,7 @@ from unittest.mock import patch
 from tools import suite, outcomes
 from types import SimpleNamespace
 import contextlib
+import json
 import io
 
 
@@ -69,6 +70,50 @@ class GateFailureTest(unittest.TestCase):
                 path.write_text(text)
                 with patch.object(suite, 'GATE_MOVIES', path):
                     self.assertTrue(suite.gate_movies()[1])
+
+
+class LongBatchTest(unittest.TestCase):
+    def test_findings_continue_without_becoming_a_gate_failure(self):
+        with tempfile.TemporaryDirectory() as where:
+            root = pathlib.Path(where)
+            binary = root / 'ct_native'
+            binary.touch()
+            out = root / 'batch'
+            output = io.StringIO()
+            with patch.object(suite, 'gate_movies', side_effect=AssertionError('no sample')), \
+                    patch.object(suite.shutil, 'which', side_effect=AssertionError('no CTest')), \
+                    patch.object(suite, 'all_routes', return_value=['first', 'last']), \
+                    patch.object(suite.subprocess, 'run', return_value=SimpleNamespace(returncode=1)) as run, \
+                    patch.object(suite.time, 'monotonic', side_effect=[0, 0, 1, 2, 3, 4, 5, 6, 7200]), \
+                    contextlib.redirect_stdout(output):
+                rc = suite.main(['--ct-native', str(binary), '--out', str(out), '--long'])
+            self.assertEqual(rc, 0)
+            self.assertEqual(run.call_count, 3)
+            commands = [call.args[0] for call in run.call_args_list]
+            self.assertNotIn('--movies', commands[0])
+            self.assertNotIn('--movies', commands[1])
+            self.assertEqual(commands[2][-2:], ['first', 'last'])
+            self.assertNotIn('--timeout', commands[2])  # Keep the batch route timeout, not the fast gate's.
+            report = json.loads((out / 'findings.json').read_text())
+            self.assertEqual([r['status'] for r in report], [1, 1, 1])
+            self.assertTrue(all((out / r['log']).exists() for r in report))
+            self.assertIn('7200.0s', output.getvalue())
+            self.assertIn('batch complete: 3 stage(s) with findings', output.getvalue())
+            self.assertNotIn('suite OK', output.getvalue())
+
+    def test_long_cannot_silently_narrow_the_library(self):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+            suite.main(['--ct-native', 'unused', '--long', '--movies', 'sample'])
+        self.assertEqual(error.exception.code, 2)
+
+    def test_all_routes_are_runnable_and_include_the_fast_routes(self):
+        routes = suite.all_routes()
+        root = suite.ROOT / 'tools/movies/routes'
+        self.assertTrue(routes)
+        self.assertEqual(routes, sorted(p.stem for p in root.glob('*.py') if not p.stem.startswith('_')))
+        self.assertTrue({'new_game_plus', 'menu_sweep', 'beyond_time', 'telepod_lavos'} <= set(routes))
+        for name in routes:
+            self.assertIn('__main__', (root / (name + '.py')).read_text())
 
 
 if __name__ == "__main__":

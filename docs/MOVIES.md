@@ -24,7 +24,11 @@ python3 -m tools.movies.route_check beyond_time --drive build/main/ct_native --s
 
 The default fast set is `new_game_plus` and `menu_sweep:items`: the first checks
 New Game+ and erasure, the second loads cartridge progress and uses an item.
-Other routes run explicitly, outside the branch gate. At most two run at once.
+`python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
+whole library and every public route module as a non-blocking batch. Findings
+become fixes; the batch never blocks a commit, merge or push. Its stage logs,
+route logs and `findings.json` live under `build/suite-long`. At most two native
+processes run at once; individual routes retain their six-hour timeout.
 A route must report its reached outcome and exit successfully. Timeouts stop
 only that route's process tree. `--protocol-log` records requests and replies.
 

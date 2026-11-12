@@ -95,7 +95,6 @@ def main(argv=None):
     ap.add_argument('--assets', type=pathlib.Path)
     ap.add_argument('--movies', nargs='*', default=[])
     ap.add_argument('--outcomes', type=pathlib.Path, required=True)
-    ap.add_argument('--check', action='store_true')
     ap.add_argument('-j', '--jobs', type=int, default=2)
     args = ap.parse_args(argv)
     try:

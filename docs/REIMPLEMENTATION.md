@@ -9,7 +9,10 @@ ct_native is the product. The last commit containing the emulator and oracle too
 portsmell, Python unit tests and the native CTest tests. Every sampled movie
 must reach its declared frame count, exit successfully and avoid an unexplained
 dark ending. `suite OK` is the final pass line; wall time includes every stage
-and must be below 600 seconds. Longer routes remain explicit manual/batch work.
+and must be below 600 seconds. The separate `--long` batch runs the whole library and every public route
+module at `-j 2`, with stage logs and `findings.json` under `build/suite-long`.
+It reports findings without a failing gate status or time budget; fixes follow
+from those findings, and commits, merges and pushes never wait for the batch.
 
 Recorded outcomes protect the selected saved-game bytes, cartridge save RAM
 and ordered place visits. The ledger records the movie hash and projection
@@ -26,13 +29,12 @@ trips, asset loading, route protocol, audio replay, persistence and bindings.
 
 ## Validation receipt
 
-The sampled native gate finished `suite OK` in **337.4 seconds** at `-j 2`:
-192 Python tests (85.1 s), 12 native C tests (1.4 s), 58 movies (171.7 s),
-58 outcome ratchets (0.2 s), both fast routes (0.6 s), portstyle (0.2 s) and
-portsmell (78.0 s). No native save/place baseline value or exception changed.
+The sampled native gate finished `suite OK` in **320.3 seconds** at `-j 2`:
+195 Python tests (83.4 s), 12 native C tests (0.9 s), 58 movies (159.8 s),
+58 outcome ratchets (0.2 s), both fast routes (0.5 s), portstyle (0.2 s) and
+portsmell (75.4 s). No native save/place baseline value or exception changed.
 Windows MinGW GCC and WSL GCC/Clang built with warnings as errors; both Linux
-builds passed all 12 C tests, and Linux Python passed all 192 tests. The CI
-matrix also configures macOS Clang; that platform was not run locally.
+builds passed all 12 C tests. The CI matrix also configures macOS Clang; that platform was not run locally.
 
 ## Game and host
 

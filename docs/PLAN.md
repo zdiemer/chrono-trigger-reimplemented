@@ -6,31 +6,36 @@ C. Observable divergence is accepted where the game stays structurally the same.
 
 ## Working order
 
-1. Make native routes reach their outcomes. Complete frame-end snapshots come
-   first: restore the game, coroutine stacks, services, sound and timing debt
-   without replaying from power-on. Then finish the route audit, resolve the
-   native divergences in TODO.md, and add a new-game-to-ending route.
-2. Move the game's state into module-owned C structs (STATE.md), preserving
-   cartridge saves, native route queries and the recorded save/place ratchets.
-   Resolve aliases, shared scratch and page instances before moving each group.
-3. Remove the machine remnants from game/: entry wrappers, registry, held-wait
-   rows, emulated stack operations, register escapes and `Snes *` parameters.
-   Keep game contracts, timing charges and saveable task state. Use
-   `tools/machine_joints.py` to measure the source and the lean native gate to
-   validate each change. State conversion and machine removal can proceed in
-   separate modules, with the same gate.
-4. Finish the native player: persistence, bindings, recording and release
-   packaging. Recheck audio stalls and performance on the native program.
-5. Decode assets one resource at a time into named, editable data. Then widen
-   the renderer and add GPU/controller backends. Keep the portability subset
-   for smaller targets; measure stacks and memory before the GBA experiment.
-6. Build a relocatable asset layout and a SNES target from the C logic. This
-   needs symbolic references and target glue, not an emulation backend.
+1. **The lean gate and a minutes-per-change landing loop.** Agents iterate on
+   the sampled native gate, including unit tests, within ten minutes at `-j 2`.
+   Land coherent changes with current docs; one qualitative review per merge,
+   then push and CI. The full-library/every-route batch is non-blocking: findings
+   become fixes and never hold up a commit, merge or push.
+2. **The machine out of game/ and the state as C, side by side.** Work module
+   by module under the lean gate. Remove wrappers, registry, held-wait rows,
+   emulated stack operations, register escapes and `Snes *` parameters while
+   moving image-backed state into module-owned structs (STATE.md). Preserve
+   contracts, timing charges, cartridge saves, route queries and recorded
+   save/place protections. Resolve aliases and shared scratch before moving
+   each group; measure progress with the source and storage inventories.
+3. **ct_native plays the game by its own checks.** Add complete mid-route
+   snapshots of game/task state, services, sound and timing debt, so restores
+   no longer replay from power-on. Exercise every native route, turn findings
+   into fixes, and add a playthrough from a new game to an ending. The broad
+   batch informs this work without becoming a landing gate.
 
-## The gate
+## Phase 4b: platform milestones
 
-The sampled movies must finish in ct_native with no crash or unexplained dark
-ending and preserve their native save/place protections. New Game+ and inventory
-item use are the fast routes. Source style/smell and all ROM-free Python/native
-unit tests are included in the ten-minute wall budget at `-j 2`. Longer routes
-run manually or in a separate batch. See CLAUDE.md for the command.
+Decode assets one resource at a time into named, editable data. Widen the
+renderer and add GPU/controller backends. Keep the portability subset for
+smaller targets; measure stacks and memory before the GBA experiment.
+
+A relocatable asset layout and a SNES target follow from the C logic, with
+symbolic references and target glue. See TODO.md for the remaining work.
+
+## Validation
+
+CLAUDE.md gives the blocking gate and the separate `suite.py --long` command.
+Only the lean gate reports `suite OK`. The batch retains its logs and findings
+for follow-up fixes; it has no ten-minute threshold and is never a prerequisite
+for landing work.

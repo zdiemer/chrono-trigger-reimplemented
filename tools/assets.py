@@ -11,7 +11,6 @@ from tools.cartridge import bus_to_offset, fmt, parse
 TSV = ROOT / "re" / "assets.tsv"
 C_OUT = ROOT / "game" / "data" / "asset_catalogue.c"
 VIEWS = ROOT / "re" / "asset_views.toml"
-HEADERS = ["game/**/*_data.h", "game/data/packed_graphics.h"]
 
 # The types re/assets.tsv spells, MD2's and the analysis' jump tables, in the
 # order game/data/assets.h's indices take them.

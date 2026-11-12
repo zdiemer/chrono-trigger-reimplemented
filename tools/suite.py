@@ -1,5 +1,6 @@
 """The native product gate: sampled movies, fast routes, source checks and unit tests."""
 import argparse
+import json
 import os
 import pathlib
 import shutil
@@ -9,6 +10,10 @@ import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BUDGET = 600
+
+if __package__ in (None, ""):
+    sys.path.insert(0, str(ROOT))
+from tools.movies.route_check import all_routes
 
 GATE_MOVIES = ROOT / "tools/gate_movies.txt"
 
@@ -36,21 +41,63 @@ def gate_movies():
     return names, bad
 
 
+def long_batch(args, binary):
+    """Collect gameplay findings without making them a landing requirement."""
+    args.out.mkdir(parents=True, exist_ok=True)
+    runs = args.out / 'outcomes'
+    py = sys.executable
+    stages = [
+        ('movies', [py, 'tools/native_check.py', '--ct-native', str(binary), '--rom', str(args.rom),
+                    '--outcomes', str(runs), '-j', str(args.jobs)]),
+        ('outcomes', [py, 'tools/outcomes.py', '--check', '--runs', str(runs)]),
+        ('routes', [py, '-m', 'tools.movies.route_check', '--drive', str(binary), '--rom', str(args.rom),
+                    '--scratch', str(args.out / 'routes'), '--protocol-log', '-j', str(args.jobs), *all_routes()]),
+    ]
+    started = time.monotonic()
+    findings = []
+    print('Non-blocking batch: findings become fixes; never a commit, merge or push requirement.', flush=True)
+    for name, command in stages:
+        log = args.out / (name + '.log')
+        print(name + ': ' + str(log), flush=True)
+        before = time.monotonic()
+        with log.open('w', encoding='utf-8') as output:
+            try:
+                status = subprocess.run(command, cwd=ROOT, stdout=output, stderr=subprocess.STDOUT).returncode
+            except OSError as error:
+                output.write(str(error) + '\n')
+                status = 1
+        findings.append(dict(stage=name, status=status, seconds=time.monotonic() - before, log=log.name))
+    report = args.out / 'findings.json'
+    report.write_text(json.dumps(findings, indent=2) + '\n')
+    print('times: ' + ', '.join('%s %.1fs' % (r['stage'], r['seconds']) for r in findings))
+    print('wall time: %.1fs (non-blocking batch; no gate budget)' % (time.monotonic() - started))
+    print('batch complete: %d stage(s) with findings; %s' % (sum(r['status'] != 0 for r in findings), report))
+    return 0
+
+
 def main(argv=None):
     started = time.monotonic()
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--ct-native', type=pathlib.Path, required=True)
     ap.add_argument('--rom', type=pathlib.Path, default=ROOT / 'roms/ct-usa.sfc')
-    ap.add_argument('--out', type=pathlib.Path, default=ROOT / 'build/suite')
+    ap.add_argument('--out', type=pathlib.Path)
+    ap.add_argument('--long', action='store_true', help='non-blocking whole-library and every-route batch')
     ap.add_argument('--movies', nargs='+')
     ap.add_argument('-j', '--jobs', type=int, choices=(1, 2), default=2)
     args = ap.parse_args(argv)
+    if args.long and args.movies:
+        ap.error('--long runs the whole library; omit --movies')
+    args.out = args.out or ROOT / ('build/suite-long' if args.long else 'build/suite')
+    binary = args.ct_native.resolve()
+    if args.long:
+        if not binary.is_file():
+            ap.error('build ct_native first')
+        return long_batch(args, binary)
     sample, bad = gate_movies()
     names = args.movies or sample
     if bad:
         print('\n'.join(bad))
         return 1
-    binary = args.ct_native.resolve()
     ctest = shutil.which('ctest')
     cache = binary.parent / 'CMakeCache.txt'
     if not ctest and cache.exists():
