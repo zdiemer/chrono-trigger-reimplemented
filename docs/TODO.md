@@ -3594,9 +3594,9 @@ persistence seams; game-side representation changes still need explicit work.
   its list the search reads and writes any word of `$7E`/`$7F` from
   `RAM_SCENE_TASKS`/`RAM_SCENE_EARLY_TASKS` through `wram_read16`/`wram_write16`,
   as the original's search does (mode 10's script clears a word of itself).
-  Once the scene's storage leaves the RAM image this finds nothing; the stray
-  wants a decision in game terms (which words a script's command can reach)
-  before then.
+  The address projection now reaches the scene's struct owners too. Retiring
+  this address dependency still needs a decision in game terms about which
+  words a script command may reach, including unnamed residual cells.
 - **The palace's turn writes its matrix by bare index** (`rising_palace.c`,
   `work_out_the_turn_task`: `set_scene_turn_matrix(g, 0..3, ...)`): the four
   entries want names (which is the cosine, which the sine and its negation),
@@ -3608,47 +3608,16 @@ persistence seams; game-side representation changes still need explicit work.
   (`credit_pages.c`: `next_page`'s `scene_credits_page(g) & 0x00FF`,
   `write_the_jobs`'s `scene_sprite_offset_x(g) & 0xFF00`): narrow the
   declarations in `re/ram.toml` so the masks leave the port.
-- **The RAM map can't say two variables alias.** `ram_map.py check` rejects
-  overlap inside a subsystem, but the ROM overlaps: the map planes' last column
-  word is the first plane's row word (`$7E:00E7`), which had to be modelled as
-  two arrays of different lengths with the alias explained in prose. An
-  `aliases` field would let an entry say what is true.
 - CI: the macOS job costs 10x minutes on a private repo.
+
 ## State storage ownership
 
-The remaining image-backed variables are measured by `tools/ram_map.py storage`;
-the per-site and per-pair inventory is in [STATE.md](STATE.md). Before moving
-another module, resolve its listed aliases and raw clients, including shared
-initial contents on mode transitions. Do not give two struct fields one cell.
+`tools/ram_map.py storage` reports 27 image-backed variables, all retired
+sound-driver state. [STATE.md](STATE.md) describes ownership and the measure.
 
-- **Owners spanning several existing records:** most of the remaining 1,921
-  overlapping variables cannot name a single containing owner. Define semantic storage
-  covering their shared bytes, or views composed from several owners; retain
-  mode-transition contents and page-instance aliases. The five largest connected
-  groups contain 1,839 variables (STATE.md). Do not turn their address spans into
-  anonymous replacement RAM arrays just to lower the measure.
-- **Core:** controller/clock, story and palette scratch still overlap other uses.
-  The 25 isolated retired sound-driver variables remain image-backed; determine
-  which compatibility clients still require them before deleting their storage.
-  Assess the vector-stub and old sound-pointer/list alias groups with the
-  machine/driver removal rather than allocating new compatibility owners.
-- **Event:** story memory, event variables and field script storage overlap;
-  replace arbitrary-address script operations with owned views where possible.
-- **Field:** map/graphics/scratch reuse and interleaved row tables need owners;
-  video queues, unpack destinations and unchecked object/table tails need views
-  of those owners rather than independent storage.
-- **Menu:** direct-page records and shared screen scratch need ownership across
-  screens; remaining unchecked text/list tails and tilemap/DMA sources need
-  explicit views.
-- **Menu objects:** all 39 variables overlap another module; resolve object
-  records, menu pages and overworld sharing before moving them.
-- **Overworld:** object-mode sharing, map scratch, unchecked tails and video
-  staging must be separated or assigned one owner.
-- **Battle:** resolve the remaining combatant/scratch aliases, whole-record field
-  views, unchecked tables and graphics sources in slices.
-- **Scene:** own/channel page instances, shared mode scratch, line-effect and
-  upload buffers need ownership; retain initial values across mode changes.
-- **Warp:** the remaining 12 variables include plane/light graphics and
-  line-effect sources sharing scene memory; resolve those aliases and their
-  unchecked table.
-
+- Remove obsolete driver cells with their compatibility clients during
+  machine/driver removal; do not add native structs for the retired driver.
+- Audit the 1,707 addresses outside named owner storage before removing the
+  residual image: 257 bytes of driver variables and 1,450 unnamed bytes/padding.
+  Dynamic script operations, bulk clears and unchecked tails may reach them.
+  Preserve cartridge saves and route peek/watch through the address projection.

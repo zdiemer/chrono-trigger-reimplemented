@@ -28,8 +28,10 @@ fails when one is out of date:
 - `runtime/port/vars_host.h` and `vars_host.c`, module-owned native fields and
   their address projection. `host_module` selects variables whose ownership
   is resolved; `host_alias` selects views of that storage, never another copy.
-  CT_VARS_HOST accessors reach owners directly and aliases through named owner
-  byte views. The compatibility projection uses indexed page/byte dispatch.
+  Lists compose views across owners; [[owner]] declares storage without adding
+  game API variables. Page owners allocate records in instance order.
+  CT_VARS_HOST accessors reach owners directly, fixed aliases through named
+  byte views, and composed/page views through indexed struct projection.
 
 **Coverage** answers "how much of what game/ touches has a name". It counts,
 over game/ with comments stripped:
@@ -109,6 +111,18 @@ def fmt_addr(a):
 
 def camel(name):
     return "".join(w.capitalize() for w in name.split("_"))
+
+
+def alias_names(value):
+    """A view names one owner, or several owners in its serialized layout."""
+    return [value] if isinstance(value, str) else (value or [])
+
+
+def valid_alias(value):
+    names = alias_names(value)
+    return (bool(names) and isinstance(names, list) and
+            all(isinstance(n, str) and NAME.fullmatch(n) for n in names) and
+            len(names) == len(set(names)))
 
 
 # The highest D a page of work RAM can have: its 256 bytes end at $1FFF.
@@ -321,7 +335,7 @@ class Field:
         self.size = raw.get("size", 1)
         self.meaning = raw["meaning"]
         self.host_alias = raw.get("host_alias")
-        if self.host_alias is not None and not (isinstance(self.host_alias, str) and NAME.fullmatch(self.host_alias)):
+        if self.host_alias is not None and not valid_alias(self.host_alias):
             raise MapError("%s: host_alias must name an owning field" % where)
         if not (isinstance(self.offset, int) and isinstance(self.size, int) and self.size > 0
                 and 0 <= self.offset and self.offset + self.size <= var.stride):
@@ -355,8 +369,9 @@ class Var:
             raise MapError("%s: host_module must name its C storage owner" % where)
         self.host_alias = raw.get("host_alias")
         self.host_owner = None
+        self.host_owners = []
         if self.host_alias is not None:
-            if not (isinstance(self.host_alias, str) and NAME.fullmatch(self.host_alias)):
+            if not valid_alias(self.host_alias):
                 raise MapError("%s: host_alias must name an owning variable" % where)
             if self.host_module:
                 raise MapError("%s: an alias has no independent host_module" % where)
@@ -507,7 +522,7 @@ class Var:
 class RamMap:
     def __init__(self, path=MAP, text=None):
         doc = tomllib.loads(text if text is not None else path.read_text(encoding="utf-8"))
-        unknown = set(doc) - {"page", "var", "image", "not_ram", "offset"}
+        unknown = set(doc) - {"page", "var", "owner", "image", "not_ram", "offset"}
         if unknown:
             raise MapError("unknown top-level keys %s" % sorted(unknown))
         self.pages = {}
@@ -517,6 +532,12 @@ class RamMap:
                 raise MapError("page %r twice" % p.name)
             self.pages[p.name] = p
         self.vars = [Var(raw, self.pages) for raw in doc.get("var", [])]
+        # Storage records can serve several existing API views without adding
+        # a new game accessor or changing the variable-count denominator.
+        self.owners = [Var(raw, self.pages) for raw in doc.get("owner", [])]
+        for v in self.owners:
+            if not v.host_module or v.host_alias:
+                raise MapError("%s: an owner needs host_module and cannot alias a variable" % v.name)
         self.images = [Image(raw) for raw in doc.get("image", [])]
         self.not_ram = collections.defaultdict(set)
         for raw in doc.get("not_ram", []):
@@ -529,7 +550,7 @@ class RamMap:
                 if v in self.not_ram[n.file]:
                     raise MapError("offset %r: $%04X is also listed as not work RAM" % (n.file, v))
                 self.offsets[n.file][v] = n.bank
-        names = collections.Counter(v.name for v in self.vars)
+        names = collections.Counter(v.name for v in self.vars + self.owners)
         dup = [n for n, c in names.items() if c > 1]
         if dup:
             raise MapError("names used twice: %s" % ", ".join(sorted(dup)))
@@ -550,30 +571,34 @@ class RamMap:
         return [v.name for v in self.vars if any(ADDRESS_WORD.match(w) for w in v.name.split("_"))]
 
     def _check_host_owners(self):
-        by_name = {v.name: v for v in self.vars}
+        by_name = {v.name: v for v in self.vars + self.owners}
         cells = {}
-        for v in self.vars:
+        for v in self.vars + self.owners:
             if v.host_alias:
-                owner = by_name.get(v.host_alias)
-                if owner is None or not owner.host_module or owner.host_alias:
-                    raise MapError("%s: host_alias needs a direct, selected owner" % v.name)
-                v.host_owner = owner
+                for name in alias_names(v.host_alias):
+                    owner = by_name.get(name)
+                    if owner is None or not owner.host_module or owner.host_alias:
+                        raise MapError("%s: host_alias needs a direct, selected owner" % v.name)
+                    v.host_owners.append(owner)
+                v.host_owner = v.host_owners[0]
             elif v.host_module:
                 v.host_owner = v
-            if v.host_owner and v.on_instances():
-                raise MapError("%s: resolve page instances before moving storage" % v.name)
+                v.host_owners = [v]
             fields = {f.name: f for f in v.fields}
             for f in v.fields:
                 if not f.host_alias:
                     continue
-                owner = fields.get(f.host_alias)
-                if not v.host_module or owner is None or owner.host_alias:
-                    raise MapError("%s.%s: host_alias needs a direct, selected owning field" % (v.name, f.name))
-                if not (owner.offset <= f.offset and f.offset + f.size <= owner.offset + owner.size):
+                covered = set()
+                for name in alias_names(f.host_alias):
+                    owner = fields.get(name)
+                    if not v.host_module or owner is None or owner.host_alias:
+                        raise MapError("%s.%s: host_alias needs a direct, selected owning field" % (v.name, f.name))
+                    covered.update(range(owner.offset, owner.offset + owner.size))
+                if not set(range(f.offset, f.offset + f.size)) <= covered:
                     raise MapError("%s.%s: alias lies outside its owning field" % (v.name, f.name))
             cells[v.name] = set(variable_bytes(v))
         owned = {}
-        for v in self.vars:
+        for v in self.vars + self.owners:
             if not v.host_module:
                 continue
             seen = set()
@@ -583,10 +608,12 @@ class RamMap:
                 seen.add(addr)
                 owned[addr] = v
         for v in self.vars:
-            if v.host_alias and not cells[v.name] <= cells[v.host_owner.name]:
-                raise MapError("%s: alias lies outside its owning variable" % v.name)
+            if v.host_alias:
+                covered = set().union(*(cells[o.name] for o in v.host_owners))
+                if not cells[v.name] <= covered:
+                    raise MapError("%s: alias lies outside its owning variable" % v.name)
             for addr in cells[v.name]:
-                if addr in owned and v.host_owner is not owned[addr]:
+                if addr in owned and owned[addr] not in v.host_owners:
                     raise MapError("%s: struct storage needs one owner at %s; declare its alias" % (v.name, fmt_addr(addr)))
 
     def _check_overlaps(self):
@@ -629,8 +656,8 @@ class RamMap:
             for b_base, b in placed[i + 1:]:
                 if b_base >= a_end:
                     break
-                shared_owner = (a.host_alias == b.name or b.host_alias == a.name
-                                or (a.host_alias and a.host_alias == b.host_alias))
+                shared_owner = (b.name in alias_names(a.host_alias) or a.name in alias_names(b.host_alias)
+                                or bool(set(alias_names(a.host_alias)) & set(alias_names(b.host_alias))))
                 if a.subsystem != b.subsystem or a is b or shared_owner or b.name in reused(a) or a.name in reused(b):
                     continue
                 if any(claims(a, x, b) and claims(b, x, a)
@@ -1193,9 +1220,22 @@ def render_backing(m):
     return "\n".join(out)
 
 
-def host_member(a, root="h", element=None, row="row", byte="at"):
+def page_ordinal(p):
+    if p.shape() != "mixed":
+        return "(unsigned)" + p.param()
+    offset = 0
+    terms = []
+    for i in p.instances:
+        terms.append("page.kind == %s ? %du + page.index : " % (p.constant(i), offset))
+        offset += len(i.ds())
+    return "(" + "".join(terms) + "0u)"
+
+
+def host_member(a, root="h", element=None, row="row", byte="at", instance=None):
     v = a.var
     member = "%s->%s.%s" % (root, v.host_module, v.name)
+    if v.on_instances():
+        member += "[%s]" % (instance if instance is not None else page_ordinal(v.page))
     if v.rows:
         member += "[%s]" % row
     if v.count > 1:
@@ -1219,13 +1259,34 @@ def render_host_accessor(a, ids):
         # Invalid indices keep the address-view behavior, never index a C array
         # out of bounds. Deliberate unchecked tails take that same path, silently.
         bad = " || ".join("%s >= %s" % (arg, limit) for arg, limit, _ in Accessor(a.var, a.field).bounds())
+        if a.var.on_instances() and a.var.page.shape() == "named":
+            page_bad = "(unsigned)page >= %du" % len(a.var.page.instances)
+            bad = page_bad + (" || " + bad if bad else "")
         if bad:
             fallback = ("w%d(g, %s, v); return;" if write else "return r%d(g, %s);") % (width * 8, a.address())
             out += ["    if (%s) { %s }" % (bad, fallback)]
         out += ["    if (!peeking)", "        state_host_game_access(g, %d);" % (width * 8)]
         out += ["    %sVarsHost *h = state_host_vars%s(g);" % ("" if write else "const ", "" if write else "_const")]
+        # Composed and page views use only the struct projection. Validation
+        # proves that every byte has one of the explicitly named owners.
+        complex_view = (len(a.var.host_owners) > 1 or a.var.on_instances() or
+                        a.var.host_owner.on_instances())
         if a.var.host_alias or (a.field and a.field.host_alias):
             owner = a.var.host_owner
+            if complex_view:
+                out += ["    uint32_t address = %s;" % a.address()]
+                if not write:
+                    out += ["    %s value = 0;" % a.type, "    uint8_t byte = 0;"]
+                for byte in range(width):
+                    if write:
+                        out += ["    vars_host_write8(h, address + %du, (uint8_t)(v >> %d));" % (byte, byte * 8)]
+                    else:
+                        out += ["    vars_host_read8(h, address + %du, &byte);" % byte,
+                                "    value |= (%s)((%s)byte << %d);" % (a.type, a.type, byte * 8)]
+                if not write:
+                    out += ["    return value;"]
+                out += ["}"]
+                continue
             offset = "%du" % (a.addr - owner.addr)
             if a.var.count > 1:
                 offset += " + (uint32_t)%s * %du" % (index_param(a.var.index), a.var.stride)
@@ -1253,7 +1314,7 @@ def render_host_accessor(a, ids):
 
 def host_groups(m):
     groups = collections.defaultdict(list)
-    for v in m.vars:
+    for v in m.vars + m.owners:
         if v.host_module:
             groups[v.host_module].append(v)
     return sorted(groups.items())
@@ -1269,7 +1330,8 @@ def render_host_header(m):
     for module, vs in groups:
         out += ["typedef struct {"]
         for v in vs:
-            dims = ("[%d]" % v.rows if v.rows else "") + ("[%d]" % v.count if v.count > 1 else "")
+            dims = ("[%d]" % len(v.bases()) if v.on_instances() else "")
+            dims += ("[%d]" % v.rows if v.rows else "") + ("[%d]" % v.count if v.count > 1 else "")
             if v.fields:
                 out += ["    struct {"]
                 for f in v.fields:
@@ -1300,17 +1362,21 @@ def render_host_header(m):
 
 
 def owner_accessors(m):
-    return [a for _, vs in accessors(m) for v, _, aa in vs if v.host_module for a in aa
-            if not a.unchecked and not (a.field and a.field.host_alias)]
+    return ([a for _, vs in accessors(m) for v, _, aa in vs if v.host_module for a in aa
+             if not a.unchecked and not (a.field and a.field.host_alias)] +
+            [Accessor(v, f) for v in m.owners for f in (v.fields or [None])
+             if not (f and f.host_alias)])
 
 
 def alias_owners(m):
-    names = {v.host_owner.name for v in m.vars if v.host_alias or any(f.host_alias for f in v.fields)}
-    return sorted((v for v in m.vars if v.name in names), key=lambda v: v.name)
+    names = {v.host_owner.name for v in m.vars
+             if (v.host_alias or any(f.host_alias for f in v.fields)) and
+             len(v.host_owners) == 1 and not v.on_instances() and not v.host_owner.on_instances()}
+    return sorted((v for v in m.vars + m.owners if v.name in names), key=lambda v: v.name)
 
 
-def projection_statement(a, write, byte="offset"):
-    member = host_member(a, element="element", byte=byte)
+def projection_statement(a, write, byte="offset", instance=None):
+    member = host_member(a, element="element", byte=byte, instance=instance)
     if a.blob or a.table:
         return "%s = value;" % member if write else "*value = %s;" % member
     if write:
@@ -1336,9 +1402,11 @@ def render_host_backing(m):
     # 24-bit values live in uint32_t, whose unused high byte is always zero.
     for a in groups:
         if a.size == 3 and not a.table:
+            if a.var.on_instances():
+                out += ["    for (unsigned instance = 0; instance < %d; instance++)" % len(a.var.bases())]
             if a.var.count > 1:
                 out += ["    for (unsigned i = 0; i < %d; i++)" % a.var.count]
-            out += ["    %s%s = 0x555555u;" % ("    " if a.var.count > 1 else "", host_member(a, element="i"))]
+            out += ["    %s%s = 0x555555u;" % ("    " if a.var.count > 1 or a.var.on_instances() else "", host_member(a, element="i", instance="instance"))]
     out += ["}", ""]
     # Aliases use named owners, with offsets in the owner's serialized layout.
     # No host pointer cast, union type punning, padding or endian assumption.
@@ -1347,7 +1415,8 @@ def render_host_backing(m):
         for write in (False, True):
             out += [("void vars_host_%s_write8(VarsHost *h, uint32_t offset, uint8_t value)" if write else
                      "uint8_t vars_host_%s_read8(const VarsHost *h, uint32_t offset)") % v.name, "{"]
-            # An owner cannot have page instances yet; rows and strided arrays can.
+            # Page owners use the projection; these helpers are for fixed
+            # owners, including rows and strided arrays.
             if v.rows:
                 out += ["    unsigned row = offset / %du;" % v.row_stride, "    offset %%= %du;" % v.row_stride]
             if v.count > 1:
@@ -1366,10 +1435,11 @@ def render_host_backing(m):
     # Two indexed loads choose the field. Only populated pages get a byte table;
     # zero selects the residual image. Stride/record holes have no owner.
     pages = {}
-    for number, a in enumerate(groups, 1):
+    placed = [(a, instance, base + a.offset) for a in groups for instance, base in enumerate(a.var.bases())]
+    for number, (a, instance, base) in enumerate(placed, 1):
         for row in range(a.var.rows or 1):
             for element in range(a.var.count):
-                start = a.addr + row * (a.var.row_stride or 0) + element * a.var.stride
+                start = base + row * (a.var.row_stride or 0) + element * a.var.stride
                 for addr in range(start, start + a.size):
                     page, byte = (addr - 0x7E0000) >> 8, addr & 255
                     pages.setdefault(page, [0] * 256)[byte] = number
@@ -1392,10 +1462,10 @@ def render_host_backing(m):
             out += ["    (void)h; (void)addr; (void)value;"]
         if groups:
             out += ["    switch (projection_at(addr)) {"]
-        for number, a in enumerate(groups, 1):
-            out += ["    case %d: {" % number, "        uint32_t offset = addr - 0x%06Xu;" % a.addr]
+        for number, (a, instance, base) in enumerate(placed, 1):
+            out += ["    case %d: {" % number, "        uint32_t offset = addr - 0x%06Xu;" % base]
             out += ["        " + line for line in projection_indices(a)]
-            out += ["        " + projection_statement(a, write), "        return true;", "    }"]
+            out += ["        " + projection_statement(a, write, instance=str(instance)), "        return true;", "    }"]
         if groups:
             out += ["    default: break;", "    }"]
         out += ["    return false;", "}", ""]
@@ -1460,13 +1530,18 @@ def render_range_checks(m, checked):
             "}"]
     counted = [p for p in page_kinds(m) if p.shape() == "mixed"
                and any(v.on_instances() and v.page is p for v in m.vars)]
+    counts = []
     for p in counted:
-        out += ["", "/* How many instances the kind of a %s handle has. */" % p.name,
+        guard = "#if defined(CT_ACCESSOR_CHECKS)"
+        if any(v.host_owner and v.on_instances() and v.page is p for v in m.vars):
+            guard += " || defined(CT_VARS_HOST)"
+        counts += [guard]
+        counts += ["", "/* How many instances the kind of a %s handle has. */" % p.name,
                 "static unsigned %s(%s %s)" % (page_count_name(p), p.type_name(), p.param()), "{",
                 "    switch (%s.kind) {" % p.param()]
         for i in p.instances:
-            out += ["    case %s:" % p.constant(i), "        return %du;" % (i.count if i.array else 1)]
-        out += ["    }", "    return 0u;", "}"]
+            counts += ["    case %s:" % p.constant(i), "        return %du;" % (i.count if i.array else 1)]
+        counts += ["    }", "    return 0u;", "}", "#endif"]
     out += ["",
             "#else",
             "",
@@ -1481,6 +1556,7 @@ def render_range_checks(m, checked):
             "void vars_range_reset(void) {}",
             "",
             "#endif"]
+    out += counts
     return out
 
 

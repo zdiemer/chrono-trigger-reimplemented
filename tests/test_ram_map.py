@@ -100,6 +100,48 @@ class TestCommittedMap(unittest.TestCase):
 
 
 class TestRules(unittest.TestCase):
+    def test_composed_view_requires_complete_explicit_ownership(self):
+        owners = (var("first", 'addr = "7E:1000"\nsize = 2\nhost_module = "items"') +
+                  var("second", 'addr = "7E:1002"\nsize = 2\nhost_module = "items"'))
+        view = var("whole", 'addr = "7E:1000"\nsize = 4\nhost_alias = ["first", "second"]', "menu")
+        m = ram_map.RamMap(text=owners + view)
+        self.assertEqual(ram_map.storage_counts(m), (0, 3))
+        self.assertNotIn("whole;", ram_map.render_host_header(m))
+        self.assertIn("vars_host_read8(h, address + 3u, &byte)", ram_map.render_backing(m))
+        for bad in ('["first"]', '["first", "first"]', '["first", "whole"]'):
+            with self.subTest(bad=bad), self.assertRaises(ram_map.MapError):
+                ram_map.RamMap(text=owners + view.replace('["first", "second"]', bad))
+
+    def test_whole_record_view_composes_named_fields(self):
+        text = var("pair", '''addr = "7E:1000"
+stride = 4
+host_module = "items"
+field = [{name = "low", offset = 0, size = 2, meaning = "m"},
+         {name = "high", offset = 2, size = 2, meaning = "m"},
+         {name = "whole", offset = 0, size = 4, meaning = "m", host_alias = ["low", "high"]}]''')
+        m = ram_map.RamMap(text=text)
+        self.assertEqual(len(ram_map.owner_accessors(m)), 2)
+        self.assertNotIn("whole;", ram_map.render_host_header(m))
+        with self.assertRaisesRegex(ram_map.MapError, "outside"):
+            ram_map.RamMap(text=text.replace('host_alias = ["low", "high"]', 'host_alias = ["low"]'))
+
+    def test_page_storage_records_and_external_views(self):
+        for page, count in (("input", 2), ("record", 8), ("math", 3)):
+            with self.subTest(page=page):
+                owner = var("records", f'''page = "{page}"
+dp = 0
+stride = 4
+host_module = "records"
+field = [{{name = "value", offset = 0, size = 3, meaning = "m"}}]''').replace("[[var]]", "[[owner]]")
+                view = var("value", f'page = "{page}"\ndp = 0\nsize = 3\nhost_alias = "records"')
+                m = ram_map.RamMap(text=KINDS + owner + view)
+                self.assertEqual(ram_map.storage_counts(m), (0, 1))
+                self.assertIn(f"records[{count}]", ram_map.render_host_header(m))
+                backing = ram_map.render_host_backing(m)
+                self.assertIn(f"h->records.records[{count - 1}].value", backing)
+                self.assertIn("h->records.records[instance].value = 0x555555u", backing)
+                self.assertNotIn("records_value(", ram_map.render_vars_header(m))
+
     def test_struct_owners_reject_shared_bytes_across_subsystems(self):
         text = var("one", 'addr = "7E:1000"\nsize = 2\nhost_module = "places"')
         with self.assertRaisesRegex(ram_map.MapError, "one owner"):

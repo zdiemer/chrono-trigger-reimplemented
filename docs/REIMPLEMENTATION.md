@@ -1666,32 +1666,37 @@ pages and aliasing require the map mechanisms below.
 
 ### Native state owned by modules
 
-`tools/ram_map.py` generates module structs and an address projection alongside
-RAM backing. `host_module` selects owner storage under `CT_VARS_HOST`;
-`host_alias` declares a variable or internal field view with no storage of its
-own. Owners cannot overlap, and every view must be fully covered by its named
-owner. Emulator-backed builds retain their byte layout. Indexed native
-accessors keep their diagnostics and use the address view on invalid indices,
-including deliberate unchecked tails, rather than indexing outside C objects.
+`tools/ram_map.py` generates native module structs and an address projection.
+`host_module` selects owner storage under `CT_VARS_HOST`; `host_alias` names
+one or several owners covering a variable or field view. `[[owner]]` declares
+a native record without adding game accessors. Owners never overlap, and views
+must be fully covered. Page owners allocate an array in instance order;
+original addresses, strides and padding remain projection metadata.
 
-The palette animation's frame word and fade bytes share storage; warp pixel
-masks view those same records, preserving the masks left for the next field.
-Character HP/MP views likewise share their whole-record buffers, which the
-cartridge save projection reads and writes. The generated projection uses
-indexed page/byte dispatch, explicit little-endian extraction, and no duplicate
-values in the residual image. Saves, raw helpers, streaming writes, video
-sources, native route `peek`/`watch` and end-state reads all use it.
+Combatants own typed HP, MP, statuses and equipment; whole-block script views
+serialize those fields. Menu direct pages own nine sprite/animation records;
+scene arithmetic owns its own and two channel records. Shared map, graphics,
+palette and scratch views compose these and the remaining named resource
+portions, preserving cross-mode initial contents without duplicate storage.
+The projection uses indexed page/byte dispatch and explicit little-endian
+extraction. Cartridge saves, streaming writes, bulk helpers, video sources,
+route `peek`/`watch` and end-state reads all use it. Invalid and unchecked
+indices take that same view, never an out-of-bounds C array access.
 
-The measure is 1,946/2,263 variables still image-backed (85.99%), down from
-2,259/2,263: 249 owner variables and 68 aliases now represent 4,072 serialized
-bytes. The denominator counts variables, not fields or bytes; the residual
-allocation remains 128 KiB. `vars_host_test` checks checked/unchecked indices,
-internal and cross-mode aliases, full-address projection, video sourcing and
-the real save/load/checksum routines with a committed `.srm`, without a ROM.
-`unpack_time_test` checks decompression into owner storage and residual storage.
-[STATE.md](STATE.md) holds the per-module measure, raw-client audit and mechanism;
-TODO.md lists remaining ownership work. The first slice's account is in
-[history/state-storage-first-slice.md](history/state-storage-first-slice.md).
+The measure is **27/2,263 variables image-backed (1.19%)**, down from 1,946:
+278 owner variables, 1,958 views and 48 storage-only records hold 129,365
+serialized bytes. All non-Core modules have zero image-backed variables.
+The remaining variables belong to the retired sound driver. The residual
+128 KiB allocation remains pending that driver's removal and an audit of
+1,707 addresses outside named ownership, including unnamed bytes/padding.
+
+`vars_host_test` checks whole-record and field views, all page instances,
+compositions across owners, checked/unchecked tails, full-address projection,
+video sourcing and real save/load/checksum routines with a committed `.srm`.
+`unpack_time_test` checks decompression through the same projection.
+[STATE.md](STATE.md) holds the per-module measure, validation and raw-client
+audit. Prior slice measurements are in
+[history/state-storage-second-slice.md](history/state-storage-second-slice.md).
 
 ### Page kinds: cells on a page the caller chooses
 

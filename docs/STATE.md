@@ -69,7 +69,7 @@ Unchecked tables are explicit overrun dependencies, not permission to allocate
 independent arrays: the map's `unchecked` reasons and the source ledger identify
 their destination cells. Checked accessors also preserve the original address
 on an invalid index; the gate diagnoses those. Shared scratch and page instances
-stay in the image until ownership is resolved. Raw operations include bulk boot
+use the explicit owners described below. Raw operations include bulk boot
 and mode clears, unpacking, event-selected memory, save projection, copying and
 DMA staging; replacing only typed accessors without routing these paths loses
 writes. `hw_port_read/write` is a separate path and must use the address view too.
@@ -116,18 +116,30 @@ element indices, not the original stride; record padding is not state.
 
 With `CT_VARS_HOST`, an owner's accessors read/write its fields directly.
 A variable's `host_alias = "owner_variable"` declares a view of another
-selected variable's storage, with no field of its own. A record field's
-`host_alias = "owner_field"` does the same within its record. All of a view's
-declared bytes must belong to that owner, excluding padding. The generator
-rejects missing owners, alias chains/cycles, partial coverage, duplicate
-owners and overlaps without explicit aliases. `reuses` still documents when
-one game mode takes over another's cells; it does not allocate storage.
+selected variable's storage, with no field of its own. A list of owner names
+composes a view across several owners. A record field's `host_alias` likewise
+names one or several fields in that record. All declared bytes must be covered,
+excluding padding; missing owners, chains/cycles, partial coverage and duplicate
+owners are errors. `reuses` documents mode reuse, not independent storage.
+
+`[[owner]]` declares storage with the same layout schema as a variable, but
+without generating game accessors. It separates the native model from existing
+API views: `battle_combatants` owns typed stats while `battle_stats.block` and
+the named stat accessors view those fields. Owner-only records are excluded
+from the variable measure and checked for duplicate names and storage.
+
+A page owner's storage is an array in the declared instance order. A named
+page handle, array index or mixed handle selects an ordinal; the projection
+maps each instance's original addresses to that record. Padding and distance
+between direct pages allocate no storage. Bounds fallbacks remain available
+even when `CT_ACCESSOR_CHECKS` is disabled, so safety never depends on diagnostics.
 
 For example, the 12 palette-animation records own their `frames` words.
 `fade_mode` and `fade_level` view the two bytes of those words. The warp's
 pixel masks view these same records: the masks deliberately survive the warp
-and seed the next location's animations. Generated alias accessors call the
-named owner's byte-view functions with a relative offset; these extract/merge
+and seed the next location's animations. Single-owner fixed-address aliases call the
+named owner's byte-view functions with a relative offset; composed and page
+views use the indexed struct projection. Both paths extract/merge
 typed fields explicitly in little-endian order. They never cast a host struct
 to the cartridge's layout. The character record similarly owns its `record`
 buffer, with HP, MP and stat views sharing it. These are persistent record
@@ -139,11 +151,10 @@ index outside a C object. `_unchecked` accessors take that same safe path
 without reporting a fault. The inventory's fourteen tail cells belong to the
 menu arrays; the demo's eighth character record reaches the tech storage.
 The map's existing `unchecked` reasons remain the contracts for those reaches.
-Page-instance variables still wait for ownership to be resolved. Emulator
-builds compile the original RAM accessor bodies; no game logic changed.
+Emulator builds compile the original RAM accessor bodies; no game logic changed.
 
 The address projection selects a field with two indexed table reads (page,
-then byte), followed by a field switch. Only the 23 populated pages have byte
+then byte), followed by a field switch. Only the 510 populated pages have byte
 tables; holes select the residual image. It does not search all fields for each
 byte of a bulk transfer. `state_host_read8` and `state_host_write8` canonicalize
 WRAM mirrors and use this projection. The WRAM streaming port uses them too.
@@ -165,92 +176,80 @@ pattern fill/read checks dispatch boundaries and holes. `unpack_time_test`
 unpacks a synthetic stream into both residual storage and the sprite owner,
 checking literal/overlapping-backreference writes and equal native time.
 
-## Migrated slices and remaining clients
+## Migrated modules and remaining clients
 
-The second slice moves 313 variables: 245 additional owners and 68 alias views.
-Together with the four location records, there are **249 owner variables and
-68 aliases**, with nine internal field aliases and **4,072 serialized bytes**.
-The owner-module grouping is finer than the map's subsystem grouping: live
-sound has four variables; palette owners and their views have nine, and the
-sprite buffer and its views have five. These counts include compatibility
-cells that no longer carry live computation; they do not measure live logic.
+The third slice moves 1,919 more variables, leaving **27/2,263 (1.19%)**
+image-backed. The 2,236 migrated variables comprise 278 owner variables and
+1,958 views. Another 48 storage-only records supply semantic owners without
+adding game accessors or changing the variable-count denominator. Together
+these owners hold **129,365 serialized bytes**, with 207 internal field views.
+The counts include compatibility state; they do not measure live computation.
 
 | Map subsystem | Image-backed before | Image-backed after | Total variables |
 |---|---:|---:|---:|
-| core | 85 | 51 | 89 |
-| data | 8 | 0 | 8 |
-| event | 20 | 11 | 20 |
-| field | 308 | 178 | 308 |
-| menu | 467 | 415 | 467 |
-| menu_object | 39 | 39 | 39 |
-| overworld | 42 | 29 | 42 |
-| battle | 922 | 904 | 922 |
-| scene | 346 | 307 | 346 |
-| warp | 22 | 12 | 22 |
-| **Total** | **2,259 (99.82%)** | **1,946 (85.99%)** | **2,263** |
+| battle | 904 | 0 | 922 |
+| menu | 415 | 0 | 467 |
+| scene | 307 | 0 | 346 |
+| field | 178 | 0 | 308 |
+| menu_object | 39 | 0 | 39 |
+| core | 51 | 27 | 89 |
+| overworld | 29 | 0 | 42 |
+| event | 11 | 0 | 20 |
+| warp | 12 | 0 | 22 |
+| data | 0 | 0 | 8 |
+| **Total** | **1,946 (85.99%)** | **27 (1.19%)** | **2,263** |
 
-The map's explicit metadata is the per-variable ledger. The selected slices
-include field/dialog control, menu controls and glyph state, overworld vehicle
-state, battle setup and remembered state, scene controls, and warp's palette
-reuse. Field screen/movement cells share the battle's X/Y owners, and scene
-fade cells share the field's window-corner owner. Shared initial contents are
-preserved immediately, without a mode-transition copy.
+Ownership follows game records and resources, including their reuse by other
+modes. Combatants have typed HP, MP, status, experience and equipment fields;
+script-selected stat offsets serialize those same fields. Nine menu records
+hold sprite/animation state, and the scene arithmetic record has its own and
+two channel instances. Menu task records own their task fields. The scratch
+views retain shared initial contents immediately, without transition copies.
 
-Data's eight cells are decompression inputs, its output length, and retired
-decoder scratch. Its output buffers belong to the callers, not to those cells:
+Large resources crossing those records are composed views, with separately
+owned portions where needed. For example, field map rows before and after the
+combatants own their layer bytes; two boundary portions retain the map bytes
+on either side of the combatant array. The rows through the array view the
+combatants themselves. The physical stride remains projection metadata, while
+the C arrays omit the intervening cells owned by other resources. This does
+not create a replacement array spanning an entire overlap component.
 
-| Output family | Classification and storage boundary |
-|---|---|
-| Field map tables, scripts and object graphics | Decoded resources and mutable map/script buffers, still in the large field/event overlap groups |
-| Battle animation and screen buffers, menu/overworld staging | Decoded graphics, still in shared resource scratch |
-| Scene programs, text, pictures and staging | Decoded programs/resources; shared buffers remain image-backed |
-| Palettes and sprite output | Mutable rendering data; selected owners are reached through the same output view |
+The same rule covers battle item rows around menu direct pages, object records
+around scene channels, shared screen/palette scratch and interleaved field
+attributes. Resource buffers remain buffers: event scripts, decoded graphics,
+map rows and staging bytes do not become invented scalar fields. Unchecked
+inventory, combatant and table tails still reach the next owner through the
+address projection, with the original index arithmetic and diagnostics.
 
-`data/decompress.c` writes literals through `hw_port_write` and backreferences
-through `wram_read8/write8`; both already reach the address view. Moving its
-parameter cells does not claim that all decoded buffers have moved. The live
-sound slice is `current_song`, `sound_command`, `sound_command_parameters` and
-`sound_driver_effects_asked`; obsolete upload-driver state stays separate.
+The raw-client audit retains format/dynamic clients as address views:
+`menu/saves.c`'s projection, new-game initialization and bulk clears;
+decompression and palette streaming; video's `read_game` callback;
+`rom_host.c`'s RAM-selected resource pointers; and native route and end-state
+reads. All already reach `state_host_read8/write8`; the private residual image
+has no game client bypassing the projection. No game algorithm needed a new
+raw-address escape or an accessor conversion to make this migration coherent.
+Their remaining address dependence is separate from their storage ownership.
 
-The raw-client audit retains format/dynamic clients as compatibility views:
-`menu/saves.c`'s projection, new-game initialization and bulk clears; palette
-streaming writes; video's `read_game` callback (including low-bank sprite
-sources); `rom_host.c`'s RAM-selected resource pointers; and native route and
-end-state reads. Each reaches `state_host_read8/write8`, with no direct read of
-a migrated cell in the residual image. Typed game callers need no edits.
-This resolves their storage coherence, not their dependence on addresses.
-
-Of the remaining variables, **1,921 overlap others** and 25 are isolated
-retired sound-driver cells. The small vector-stub and old sound-pointer/list
-alias groups are retained for the machine/driver removal rather than given
-new compatibility owners. The five largest overlap components contain 1,839
-variables: battle/menu graphics scratch (965), object/menu pages (381), shared
-low scratch (299), scene/field buffers (99), and bank-$7F resources (95).
-None has an existing variable containing every declared byte. They need
-semantic owners or views composed from several owners, including page
-instances, rather than an anonymous array replacing each address span.
-
-The residual 128 KiB allocation remains; migrated addresses in it are unused,
-not mirrors. This measures ownership moved, not memory saved. Removing the
-allocation also requires the remaining unnamed address clients to move.
+The remaining 27 variables are retired sound-driver state, covering 257
+bytes. They include the old pointer/list group as well as isolated driver
+cells. Resolve their compatibility clients with driver/machine removal rather
+than allocating new native owners for the obsolete driver. The residual
+128 KiB allocation remains: 1,707 addresses have no owner, including these
+257 bytes and 1,450 unnamed bytes/padding. Removing that allocation requires
+an audit of dynamic clears, script-selected accesses and unchecked tails into
+those holes; zero named variables alone is insufficient.
 
 ## Validation
 
-The warning-as-error build passed. `ram_map.py header --check` and
-`ram_map.py accessors --check`, `vars_host_test`, `native_time_test`,
-`unpack_time_test` and the emulator-backed `vars_test` passed. Both
-`portstyle.py --check` and `portsmell.py --check` passed. No baseline or
-exception was added. The Python unit suite passed all 626 tests without skips.
-The sampled gate's 58 shadow movies were clean; the 7,200-frame generated-only
-trace matched the reference, and the timing, video-write, fallback and refusal
-checks passed. Both fast routes reached their outcomes in the shipping build
-and in `ct_native`, including Lavos's shell and Beyond Time's second form.
-All 58 movies and both routes passed with scaffolding compiled out. All 58
-movies reached their end in strict mode and in `ct_native` with visible output;
-both recorded-outcome ratchets passed. These are baseline checks, not a claim
-that every final state or picture equals the reference (28 strict and 23 native
-end states matched). Sound fuzzing retained both expected digests.
-The sampled `tools/suite.py --ct-dev build/main/ct_dev.exe -j 2 --evidence`
-gate ended `suite OK`; neither the whole-library nor long-route option was used.
-Gate logs and derived artifacts remain under the ignored
-build directory; the evidence cache is local to the worktree.
+`vars_host_test` checks typed combatants against whole-record script views,
+all menu and scene page instances, 24-bit initialization/truncation, a view
+crossing two owners and a view crossing two fields, independent instances,
+invalid-index fallbacks, full-address projection, video sourcing and the real
+save/load/checksum routines with a committed cartridge `.srm`. The Python
+map tests reject missing owners, chains, duplicate ownership and incomplete
+compositions, and verify storage-only records do not add API variables.
+
+Build, unit and sampled-gate results are recorded after the final validation.
+The prior slices' measurements are in
+[history/state-storage-second-slice.md](history/state-storage-second-slice.md)
+and [history/state-storage-first-slice.md](history/state-storage-first-slice.md).

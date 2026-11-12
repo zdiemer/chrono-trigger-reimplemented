@@ -238,9 +238,14 @@ An optional variable `host_module = "locations"` selects its C storage module
 in the native build. A variable with `host_alias = "owner_variable"` instead
 views that selected owner's storage, with no independent field. Its declared
 bytes must be fully covered by the owner; every overlapping variable must
-declare the same owner. Within a record, a field's `host_alias = "owner_field"`
-likewise selects a containing field. Alias chains, missing owners, coverage of
-padding and duplicate owners are errors. Page-instance ownership remains open.
+declare the same owner. A list of owner names composes a view across several
+owners. Within a record, a field's `host_alias` likewise selects one or several
+covering fields. Alias chains, missing owners, coverage of padding and duplicate
+owners are errors. A `[[owner]]` uses the variable layout schema to declare
+storage without adding game accessors or variables to the storage measure.
+Page-instance owners allocate an array of records in declared instance order;
+named, array and mixed page handles select those records without using C padding
+or the original distance between pages as storage.
 Checked indices retain their diagnostics; invalid indices, including deliberate
 unchecked tails, use the address view without indexing outside a C object.
 This metadata changes neither original addresses nor emulator backing.
