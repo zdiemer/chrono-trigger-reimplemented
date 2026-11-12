@@ -321,15 +321,13 @@ void menu_equip_start_member_slide(GameState *g, Platform *pf)
     set_menu_scroll_frames(g, SLIDE_FRAMES);
 }
 
-/* The thumb follows the rows a line a frame, up for a slide up. Its place is
- * kept a word wide, with the byte after it, which the bar's own task counts
- * with between frames. (The original takes the way from whether the rows'
- * line carried as it moved, which for the lines a slide starts from is the
- * step's sign; the slide runs only from those.) */
+/* The thumb follows the rows a line a frame, up for a slide up. (The
+ * original takes the way from whether the rows' line carried as it moved,
+ * which for the lines a slide starts from is the step's sign; the slide runs
+ * only from those.) */
 static void move_thumb(GameState *g, bool up)
 {
-    uint16_t thumb = menu_scroll_bar_thumb_word(g);
-    set_menu_scroll_bar_thumb_word(g, (uint16_t)(up ? thumb - 1 : thumb + 1));
+    menu_scroll_bar_move_thumb(g, up ? -1 : 1);
 }
 
 static bool sliding_up(const GameState *g) { return (int16_t)menu_scroll_step(g) < 0; }

@@ -282,7 +282,7 @@ static bool flies_from(const GameState *g, uint16_t first)
 static bool flies_after_the_captions(const GameState *g)
 {
     uint16_t first = scene_sprite_index(g), high = scene_sprite_high_pointer(g);
-    return first < CAPTIONED_FIRST_STAR ? high >= SCENE_SPRITE_HIGH_TABLE && high < SCENE_SPRITE_HIGH_TABLE + SCENE_SPRITE_HIGH_TABLE_BYTES &&
+    return first < CAPTIONED_FIRST_STAR ? high >= SCENE_SPRITE_HIGH_TABLE && high < SCENE_SPRITE_HIGH_TABLE + OAM_HIGH_TABLE_BYTES &&
                                               flies_from(g, CAPTIONED_FIRST_STAR)
                                         : flies_from(g, first);
 }

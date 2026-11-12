@@ -1339,12 +1339,6 @@ void set_field_window_shape_top(GameState *g, uint16_t v);
 uint16_t field_window_shape_right_start(const GameState *g);
 void set_field_window_shape_right_start(GameState *g, uint16_t v);
 
-/* The OAM image as the field's sprite table builds it, reached by byte offset: 128 entries of X,
- * Y, tile and attributes, then the high table's 32 bytes [544 bytes, one at a time] */
-enum { FIELD_SPRITE_TABLE_BYTES = 544 };
-uint8_t field_sprite_table_byte(const GameState *g, unsigned at);
-void set_field_sprite_table_byte(GameState *g, unsigned at, uint8_t v);
-
 enum { FIELD_SHARED_GRAPHICS_COUNT = 16 };   /* by shared graphics entry */
 /* The graphics sets the map's people, creatures and enemies have unpacked into bank $7F (events
  * $82, $83), $FF for an unused entry, as the map's setup leaves them ($C0:5929): an object of a
@@ -2190,19 +2184,16 @@ void set_field_layer_position_x(GameState *g, unsigned layer, uint8_t v);
 uint8_t field_layer_position_y(const GameState *g, unsigned layer);
 void set_field_layer_position_y(GameState *g, unsigned layer, uint8_t v);
 
-enum { FIELD_LAYER_EDGE_VRAM_COUNT = 3 };   /* by layer (BG1-BG3) */
+enum { FIELD_LAYER_EDGE_VRAM_COUNT = 30 };   /* by layer (BG1-BG3) * 10 + the run part's word (game/field/layers.h) */
 /* VRAM addresses (10 words) of the tile map runs at the screen's edges around the layer's
- * position, where the deferred uploads send new rows and columns [20 bytes, one at a time] */
-enum { FIELD_LAYER_EDGE_VRAM_BYTES = 20 };
-uint8_t field_layer_edge_vram_byte(const GameState *g, unsigned layer, unsigned at);
-void set_field_layer_edge_vram_byte(GameState *g, unsigned layer, unsigned at, uint8_t v);
+ * position, where the deferred uploads send new rows and columns */
+uint16_t field_layer_edge_vram(const GameState *g, unsigned layer);
+void set_field_layer_edge_vram(GameState *g, unsigned layer, uint16_t v);
 
-enum { FIELD_LAYER_EDGE_SIZES_COUNT = 3 };   /* by layer (BG1-BG3) */
-/* Sizes (5 words) of the edge runs' parts the deferred uploads send (0: nothing) [10 bytes, one
- * at a time] */
-enum { FIELD_LAYER_EDGE_SIZES_BYTES = 10 };
-uint8_t field_layer_edge_sizes_byte(const GameState *g, unsigned layer, unsigned at);
-void set_field_layer_edge_sizes_byte(GameState *g, unsigned layer, unsigned at, uint8_t v);
+enum { FIELD_LAYER_EDGE_SIZES_COUNT = 15 };   /* by layer (BG1-BG3) * 5 + the run part's word (game/field/layers.h) */
+/* Sizes (5 words) of the edge runs' parts the deferred uploads send (0: nothing) */
+uint16_t field_layer_edge_sizes(const GameState *g, unsigned layer);
+void set_field_layer_edge_sizes(GameState *g, unsigned layer, uint16_t v);
 
 /* Nonzero: BG3 waves, its scroll table pointing at field_line_wave every 16 lines (the table
  * builders test the low byte, the scroll update the word) */
@@ -3610,10 +3601,6 @@ void set_menu_text_tile_limit(GameState *g, uint8_t v);
 uint8_t menu_text_flags(const GameState *g);
 void set_menu_text_flags(GameState *g, uint8_t v);
 
-/* The number being drawn: eight decimal digits, four bits each, the units in the low bits (a hex
- * number's four bytes as they are) */
-uint32_t menu_text_work_number(const GameState *g);
-void set_menu_text_work_number(GameState *g, uint32_t v);
 /* The last control code's handler, which its dispatch jumps through; nothing else reads it */
 uint16_t menu_text_work_code_handler(const GameState *g);
 void set_menu_text_work_code_handler(GameState *g, uint16_t v);
@@ -3625,9 +3612,14 @@ void set_menu_text_work_window_columns(GameState *g, uint16_t v);
  * command leaves at 0 or at a frame's inside rows */
 uint16_t menu_text_work_window_rows(const GameState *g);
 void set_menu_text_work_window_rows(GameState *g, uint16_t v);
-/* The number's low four digits, which the healing's rising numbers read as a word */
+/* The number being drawn, its low four digits: eight decimal digits in all, four bits each, the
+ * units in the low bits (a hex number's four bytes as they are); the healing's rising numbers
+ * read these as a word */
 uint16_t menu_text_work_number_low(const GameState *g);
 void set_menu_text_work_number_low(GameState *g, uint16_t v);
+/* The number being drawn, its high four digits */
+uint16_t menu_text_work_number_high(const GameState *g);
+void set_menu_text_work_number_high(GameState *g, uint16_t v);
 
 /* How many digits of the number to write (also the byte being converted while converting) */
 uint8_t menu_number_digits(const GameState *g);
@@ -4380,9 +4372,6 @@ void set_menu_scroll_bar_span(GameState *g, uint8_t v);
 /* The thumb's place along the bar, in lines */
 uint8_t menu_scroll_bar_thumb(const GameState *g);
 void set_menu_scroll_bar_thumb(GameState *g, uint8_t v);
-/* The same as a word with the byte after it, as a sliding list moves the thumb a line a frame */
-uint16_t menu_scroll_bar_thumb_word(const GameState *g);
-void set_menu_scroll_bar_thumb_word(GameState *g, uint16_t v);
 /* The thumb's move a row of the list */
 uint16_t menu_scroll_bar_step(const GameState *g);
 void set_menu_scroll_bar_step(GameState *g, uint16_t v);
@@ -5358,13 +5347,13 @@ void set_menu_palette_unchecked(GameState *g, unsigned i, uint16_t v);
 /* Window mask settings of BG1/BG2, BG3/BG4 and sprites/color */
 uint32_t menu_window_shadows_window_masks(const GameState *g);
 void set_menu_window_shadows_window_masks(GameState *g, uint32_t v);
-/* Window 1 left and right, window 2 left and right */
-uint32_t menu_window_shadows_window_edges(const GameState *g);
-void set_menu_window_shadows_window_edges(GameState *g, uint32_t v);
-/* Window 1's left and right alone, which the party exchange sets where it draws the active party
+/* Window 1's left and right, which the party exchange sets alone where it draws the active party
  * in the middle */
 uint16_t menu_window_shadows_window1_edges(const GameState *g);
 void set_menu_window_shadows_window1_edges(GameState *g, uint16_t v);
+/* Window 2's left and right */
+uint16_t menu_window_shadows_window2_edges(const GameState *g);
+void set_menu_window_shadows_window2_edges(GameState *g, uint16_t v);
 /* Window logic of the layers, and of sprites and color */
 uint16_t menu_window_shadows_window_logic(const GameState *g);
 void set_menu_window_shadows_window_logic(GameState *g, uint16_t v);
@@ -6300,14 +6289,6 @@ void set_menu_object_shadows_bg_mode(GameState *g, uint8_t v);
 /* Mosaic: layers in the low nibble, size less one in the high */
 uint8_t menu_object_shadows_mosaic(const GameState *g);
 void set_menu_object_shadows_mosaic(GameState *g, uint8_t v);
-/* Horizontal scroll of BG1, BG2 and BG3, a word each [6 bytes, one at a time] */
-enum { MENU_OBJECT_SHADOWS_SCROLL_X_BYTES = 6 };
-uint8_t menu_object_shadows_scroll_x_byte(const GameState *g, unsigned at);
-void set_menu_object_shadows_scroll_x_byte(GameState *g, unsigned at, uint8_t v);
-/* Vertical scroll of BG1, BG2 and BG3, a word each [6 bytes, one at a time] */
-enum { MENU_OBJECT_SHADOWS_SCROLL_Y_BYTES = 6 };
-uint8_t menu_object_shadows_scroll_y_byte(const GameState *g, unsigned at);
-void set_menu_object_shadows_scroll_y_byte(GameState *g, unsigned at, uint8_t v);
 /* BG1's horizontal scroll: the map's first plane */
 uint16_t menu_object_shadows_bg1_scroll_x(const GameState *g);
 void set_menu_object_shadows_bg1_scroll_x(GameState *g, uint16_t v);
@@ -6333,10 +6314,18 @@ void set_menu_object_shadows_mode7_matrix_byte(GameState *g, unsigned at, uint8_
 /* Mode 7 center X and Y, a word each */
 uint32_t menu_object_shadows_mode7_center(const GameState *g);
 void set_menu_object_shadows_mode7_center(GameState *g, uint32_t v);
-/* Window masks, edges and logic, in register order $2123-$212B [9 bytes, one at a time] */
-enum { MENU_OBJECT_SHADOWS_WINDOWS_BYTES = 9 };
-uint8_t menu_object_shadows_windows_byte(const GameState *g, unsigned at);
-void set_menu_object_shadows_windows_byte(GameState *g, unsigned at, uint8_t v);
+/* The windows' mask settings, $2123-$2125 [3 bytes, one at a time] */
+enum { MENU_OBJECT_SHADOWS_WINDOW_MASKS_BYTES = 3 };
+uint8_t menu_object_shadows_window_masks_byte(const GameState *g, unsigned at);
+void set_menu_object_shadows_window_masks_byte(GameState *g, unsigned at, uint8_t v);
+/* The windows' edges, $2126-$2129 [4 bytes, one at a time] */
+enum { MENU_OBJECT_SHADOWS_WINDOW_EDGES_BYTES = 4 };
+uint8_t menu_object_shadows_window_edges_byte(const GameState *g, unsigned at);
+void set_menu_object_shadows_window_edges_byte(GameState *g, unsigned at, uint8_t v);
+/* The windows' logic, $212A-$212B [2 bytes, one at a time] */
+enum { MENU_OBJECT_SHADOWS_WINDOW_LOGIC_BYTES = 2 };
+uint8_t menu_object_shadows_window_logic_byte(const GameState *g, unsigned at);
+void set_menu_object_shadows_window_logic_byte(GameState *g, unsigned at, uint8_t v);
 /* Layers on the main screen */
 uint8_t menu_object_shadows_main_screen(const GameState *g);
 void set_menu_object_shadows_main_screen(GameState *g, uint8_t v);
@@ -7165,10 +7154,6 @@ void set_overworld_exits_name(GameState *g, unsigned i, uint8_t v);
  * entry in the next byte), with how the party arrives in the high byte's bits 1-7 */
 uint16_t overworld_exits_location(const GameState *g, unsigned i);
 void set_overworld_exits_location(GameState *g, unsigned i, uint16_t v);
-/* The location word's high byte: bits 1-7 how the party arrives (the location's flags, shifted
- * down a bit; bits 0-1 of those the way the party faces) */
-uint8_t overworld_exits_arrival(const GameState *g, unsigned i);
-void set_overworld_exits_arrival(GameState *g, unsigned i, uint8_t v);
 /* Where the location is $1FF: the event script's entry in overworld_event_scripts */
 uint8_t overworld_exits_event(const GameState *g, unsigned i);
 void set_overworld_exits_event(GameState *g, unsigned i, uint8_t v);
@@ -8294,11 +8279,6 @@ uint8_t battle_choice_after_targeting(const GameState *g, unsigned i);
 void set_battle_choice_after_targeting(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_MEMBER_ACTIONS_COUNT = 3 };   /* by party slot */
-/* The whole record a byte at a time, as a demo battle's party has its records copied in
- * ($C1:B725) [7 bytes, one at a time] */
-enum { BATTLE_MEMBER_ACTIONS_RECORD_BYTES = 7 };
-uint8_t battle_member_actions_record_byte(const GameState *g, unsigned slot, unsigned at);
-void set_battle_member_actions_record_byte(GameState *g, unsigned slot, unsigned at, uint8_t v);
 /* Where the member is in choosing its action: 0 nothing yet, 1 its command menu open, bit 7 an
  * action chosen */
 uint8_t battle_member_actions_state(const GameState *g, unsigned slot);
@@ -13822,20 +13802,6 @@ void set_scene_irq_stub_jump(GameState *g, uint8_t v);
 /* The handler's long address */
 uint32_t scene_irq_stub_handler(const GameState *g);
 void set_scene_irq_stub_handler(GameState *g, uint32_t v);
-
-/* The OAM buffer's entries as the scene's sprite writers see them: 128 four-byte entries (X, Y,
- * tile, attributes), reached by the byte offset the scene's cursor holds [512 bytes, one at a
- * time] */
-enum { SCENE_SPRITE_TABLE_BYTES = 512 };
-uint8_t scene_sprite_table_byte(const GameState *g, unsigned at);
-void set_scene_sprite_table_byte(GameState *g, unsigned at, uint8_t v);
-
-/* The OAM buffer's high table as the scene's sprite writers see it: 32 bytes of four sprites'
- * two bits each (X's 9th bit, large), a sprite shifting a byte right two bits and putting its
- * own at the top [32 bytes, one at a time] */
-enum { SCENE_SPRITE_HIGH_TABLE_BYTES = 32 };
-uint8_t scene_sprite_high_table_byte(const GameState *g, unsigned at);
-void set_scene_sprite_high_table_byte(GameState *g, unsigned at, uint8_t v);
 
 enum { SCENE_TASKS_COUNT = 16 };   /* by task slot */
 /* The scene's task list: addresses of routines in the program (0 = empty slot) that sequence

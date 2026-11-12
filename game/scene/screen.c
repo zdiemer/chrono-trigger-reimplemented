@@ -21,6 +21,7 @@
 #include "scene/scene.h"
 
 #include "charge.h"
+#include "core/sprite_table.h"
 #include "core/palette.h"
 #include "cpu_io.h"
 #include "platform/audio.h"
@@ -148,8 +149,8 @@ void scene_hide_every_sprite(GameState *g, Platform *pf)
 {
     vid_set_mode7(pf, PF_AT(0x7E3845), &(VidMode7){ .a = 1 }, VID_M7_MATRIX_A);
     vid_set_mode7(pf, PF_AT(0x7E384D), &(VidMode7){ .b = BELOW_THE_PICTURE * 256 }, VID_M7_MATRIX_B_HIGH);
-    wram_fill8(g, LOW_RAM | SCENE_SPRITE_TABLE, SCENE_SPRITE_TABLE_BYTES, (uint8_t)BELOW_THE_PICTURE);
-    tm_charge_transfer(pf, PF_AT(0x7E3850), SCENE_SPRITE_TABLE_BYTES);
+    wram_fill8(g, LOW_RAM | SCENE_SPRITE_TABLE, SPRITE_TABLE_ENTRIES_BYTES, (uint8_t)BELOW_THE_PICTURE);
+    tm_charge_transfer(pf, PF_AT(0x7E3850), SPRITE_TABLE_ENTRIES_BYTES);
     vid_set_mode7(pf, PF_AT(0x7E386C), &(VidMode7){ .b = 0 }, VID_M7_MATRIX_B_HIGH);
 }
 

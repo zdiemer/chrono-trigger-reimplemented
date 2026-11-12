@@ -496,25 +496,6 @@ meaning = "The byte after a sprite list's count, which the program's list of lar
 source = "game/scene/sprites.c $7E:A03D"
 
 [[var]]
-name = "scene_sprite_table"
-host_module = "scene"
-overlays = "oam_buffer_values"
-addr = "7E:0700"
-size = 0x200
-subsystem = "scene"
-meaning = "The OAM buffer's entries as the scene's sprite writers see them: 128 four-byte entries (X, Y, tile, attributes), reached by the byte offset the scene's cursor holds"
-source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E, scene_add_sprite $C3:0DBC (the entry cursor is a byte offset, not a sprite number)"
-
-[[var]]
-name = "scene_sprite_high_table"
-host_module = "scene"
-addr = "7E:0900"
-size = 0x20
-subsystem = "scene"
-meaning = "The OAM buffer's high table as the scene's sprite writers see it: 32 bytes of four sprites' two bits each (X's 9th bit, large), a sprite shifting a byte right two bits and putting its own at the top"
-source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E, scene_add_sprite $C3:0DBC"
-
-[[var]]
 name = "scene_scaler_pairs"
 host_module = "scene"
 overlays = "menu_object_shadows_values"
@@ -1690,6 +1671,7 @@ source = "the cartridge format and docs/STATE.md's parser table; game/scene/titl
 
 [[var.field]]
 name = "registers"
+elements = { name = "registers", size = 2, meaning = "A script register, a word." }
 offset = 0
 size = 32
 meaning = "Sixteen word registers the script commands $00-$7F assign and add; channel 0's $0A02/$0A04 are the Mode 7 plane's scroll in the pendulum scene"
@@ -1702,6 +1684,7 @@ meaning = "Pointer to the channel's next script command in bank $7E; a store to 
 
 [[var.field]]
 name = "loop_counters"
+elements = { name = "counters", size = 2, meaning = "A loop command's counter, a word (the eighth the return address)." }
 offset = 34
 size = 32
 meaning = "Counters of the loop commands $80-$9F, a word each at $22 + 2n (n = 7 is the return address)"
@@ -1782,6 +1765,7 @@ source = "game/scene/screen.c, scene_upload_palette $7E:388B"
 
 [[var]]
 name = "scene_race_plane_column"
+elements = { name = "tiles", size = 1, meaning = "A Mode 7 tile number, a byte a tile." }
 host_module = "scene"
 overlays = "field_layer_staging_head"
 addr = "7E:C995"
@@ -1991,6 +1975,7 @@ source = "game/scene/staff_roll.c, the credits' roll $7E:9E7B"
 
 [[var]]
 name = "scene_credits_row"
+elements = { name = "tiles", size = 1, meaning = "A map tile number, a byte a column." }
 host_module = "scene"
 overlays = "field_object_colours_values"
 addr = "7E:1414"
@@ -3560,8 +3545,8 @@ meaning = "Attributes: palette, priority, flips, tile high bit"
 
 [[var]]
 name = "oam_high_table"
+elements = { name = "sprite_bits", size = 1, meaning = "Four sprites' X bit 8 and size bits, two bits a sprite, the first sprite in the low bits." }
 host_module = "core"
-overlays = "scene_sprite_high_table"
 addr = "7E:0900"
 size = 0x20
 subsystem = "core"
@@ -4855,16 +4840,6 @@ index = "sprite range (0 priority bits clear, 1 bit 2 set, 2 bit 3 set)"
 subsystem = "field"
 meaning = "A word beside each range's high table pointer, cleared as the sprite table is built; nothing in the field reads it, and the field keeps the original's last value there"
 source = "game/field/sprites.c, field_build_sprite_table $C0:B271"
-
-[[var]]
-name = "field_sprite_table"
-host_module = "field"
-overlays = ["oam_buffer_values", "scene_sprite_high_table"]
-addr = "7E:0700"
-size = 0x220
-subsystem = "field"
-meaning = "The OAM image as the field's sprite table builds it, reached by byte offset: 128 entries of X, Y, tile and attributes, then the high table's 32 bytes"
-source = "game/field/sprites.c, field_build_sprite_table $C0:B271, field_draw_object_sprites $C0:B309"
 
 [[var]]
 name = "field_sprite_range_end"
@@ -6889,9 +6864,9 @@ host_module = "field"
 overlays = ["battle_afterimage_object", "battle_draw_list", "battle_draw_list_depth", "battle_draw_list_position", "battle_draw_object", "battle_draw_part_count", "battle_draw_tile_groups", "battle_oam_next", "field_layer_edge_vram_storage_part_2", "battle_draw_list_work"]
 addr = "7E:1D9F"
 page = "field_layers"
-size = 0x14
-count = 3
-index = "layer (BG1-BG3)"
+size = 2
+count = 30
+index = "layer (BG1-BG3) * 10 + the run part's word (game/field/layers.h)"
 subsystem = "field"
 meaning = "VRAM addresses (10 words) of the tile map runs at the screen's edges around the layer's position, where the deferred uploads send new rows and columns"
 source = "game/field/layers.c field_compute_layer_edges $C0:7F9A; game/field/display.c the upload sets $C0:8445-$C0:87BF"
@@ -6902,9 +6877,9 @@ host_module = "field"
 overlays = "battle_draw_page_tail"
 addr = "7E:1DDB"
 page = "field_layers"
-size = 0x0A
-count = 3
-index = "layer (BG1-BG3)"
+size = 2
+count = 15
+index = "layer (BG1-BG3) * 5 + the run part's word (game/field/layers.h)"
 subsystem = "field"
 meaning = "Sizes (5 words) of the edge runs' parts the deferred uploads send (0: nothing)"
 source = "game/field/layers.c field_compute_layer_edges $C0:7F9A; game/field/display.c the upload sets $C0:8445-$C0:87BF"
@@ -8006,6 +7981,7 @@ source = "emulator-oracle:game:event:bridge.c event_run_init_scripts $C0:58DE; t
 
 [[var]]
 name = "event_script"
+elements = { name = "instructions", size = 1, meaning = "Encoded event opcodes and operands in the loaded script stream." }
 host_module = "event"
 overlays = ["event_script_storage", "field_auto_scroll", "field_auto_scroll_accumulator_values", "field_auto_scroll_position_values", "field_auto_scroll_speed_values", "field_bg1_scroll_position_values", "field_color_math_layers_override", "field_object_sprite_high", "field_object_sprite_high_last", "field_object_sprite_high_more", "menu_loaded_palette", "scene_plane_line_above_a", "scene_plane_line_above_d", "scene_planet_tiles_left", "warp_circle_half_widths", "warp_circle_window_list_values", "warp_circle_windows", "warp_plane_centres_values", "warp_plane_lists_values", "warp_plane_matrix_first_row_values", "warp_plane_matrix_second_row_values", "warp_plane_scrolls_values"]
 addr = "7F:2001"
@@ -8478,11 +8454,13 @@ meaning = "Per-slot animation tables of the animated background tiles"
 source = "game/core/tile_animation.c, tile_animation_upload $FD:E022"
   [[var.field]]
   name = "steps"
+  elements = { name = "steps", size = 2, meaning = "A frame's accumulator step." }
   offset = 0
   size = 0x10
   meaning = "Accumulator step for each of the eight frames, one word per frame"
   [[var.field]]
   name = "sources"
+  elements = { name = "sources", size = 2, meaning = "Where a frame's tiles come from in their bank." }
   offset = 0x10
   size = 0x10
   meaning = "Source address of each of the eight frames' tiles, one word per frame"
@@ -9957,6 +9935,7 @@ source = "game/menu/naming.c, $C2:E4B8; game/menu/description.c"
 
 [[var]]
 name = "menu_name_typed"
+elements = { name = "letters", size = 1, meaning = "Game-text glyph codes including the name terminator." }
 host_module = "menu"
 overlays = ["field_object_frame_drawn_values", "field_object_in_view_values"]
 addr = "7E:0F00"
@@ -11277,11 +11256,6 @@ subsystem = "menu"
 meaning = "Work cells the text drawer and the window command lists share: the number being drawn, in decimal digits; the control codes' dispatch leaves the handler's address in its first word; a window's columns and rows"
 source = "game/menu/text.c, menu_number_to_bcd $C2:F13F, the control code dispatch $C2:EFBE"
   [[var.field]]
-  name = "number"
-  offset = 0
-  size = 4
-  meaning = "The number being drawn: eight decimal digits, four bits each, the units in the low bits (a hex number's four bytes as they are)"
-  [[var.field]]
   name = "code_handler"
   offset = 0
   size = 2
@@ -11300,7 +11274,12 @@ source = "game/menu/text.c, menu_number_to_bcd $C2:F13F, the control code dispat
   name = "number_low"
   offset = 0
   size = 2
-  meaning = "The number's low four digits, which the healing's rising numbers read as a word"
+  meaning = "The number being drawn, its low four digits: eight decimal digits in all, four bits each, the units in the low bits (a hex number's four bytes as they are); the healing's rising numbers read these as a word"
+  [[var.field]]
+  name = "number_high"
+  offset = 2
+  size = 2
+  meaning = "The number being drawn, its high four digits"
 
 [[var]]
 name = "menu_draw_origin"
@@ -11425,6 +11404,7 @@ source = "game/menu/objects.c, menu_draw_record_sprites $C2:F871"
 
 [[var]]
 name = "menu_record_sprite_offsets"
+elements = { name = "offsets", size = 1, meaning = "A sprite's offset from the record's place, a signed byte." }
 host_module = "menu"
 overlays = ["field_object_speed_values", "field_object_steps_left_values", "field_object_velocity_x_values", "field_object_velocity_y_values", "field_object_x_values", "field_object_y_values"]
 page = "menu_record"
@@ -11808,15 +11788,15 @@ source = "game/menu/display.c, menu_vblank_upload $C2:85D6; docs/PLATFORM.md, Wh
   size = 3
   meaning = "Window mask settings of BG1/BG2, BG3/BG4 and sprites/color"
   [[var.field]]
-  name = "window_edges"
-  offset = 3
-  size = 4
-  meaning = "Window 1 left and right, window 2 left and right"
-  [[var.field]]
   name = "window1_edges"
   offset = 3
   size = 2
-  meaning = "Window 1's left and right alone, which the party exchange sets where it draws the active party in the middle"
+  meaning = "Window 1's left and right, which the party exchange sets alone where it draws the active party in the middle"
+  [[var.field]]
+  name = "window2_edges"
+  offset = 5
+  size = 2
+  meaning = "Window 2's left and right"
   [[var.field]]
   name = "window_logic"
   offset = 7
@@ -11966,6 +11946,7 @@ source = "game/menu/save_screen.c, menu_show_save_slot $C2:E743, menu_draw_save_
 
 [[var]]
 name = "menu_era_label_tiles"
+elements = { name = "tiles", size = 2, meaning = "Tilemap entries: tile number, palette, priority and flips." }
 host_module = "menu"
 overlays = ["field_map_rows_before_combatants_part_17", "scene_race_crono_frames"]
 addr = "7E:5248"
@@ -12304,15 +12285,8 @@ meaning = "The lines the bar's thumb travels over the whole list"
 
 [[var.field]]
 name = "thumb"
-host_alias = "thumb_word"
 offset = 3
 meaning = "The thumb's place along the bar, in lines"
-
-[[var.field]]
-name = "thumb_word"
-offset = 3
-size = 2
-meaning = "The same as a word with the byte after it, as a sliding list moves the thumb a line a frame"
 
 [[var.field]]
 name = "step"
@@ -12327,7 +12301,6 @@ meaning = "Which half of their blink the bar's arrows are in, which the bar's ta
 
 [[var.field]]
 name = "blink_count"
-host_alias = "thumb_word"
 offset = 4
 meaning = "The frames until the bar's arrows' blink turns, its low three bits (the byte after the thumb, which a slide's move of the thumb as a word can carry into)"
 
@@ -13189,6 +13162,7 @@ source = "game/menu/tech_screen.c, $C2:B36D"
 
 [[var]]
 name = "menu_tech_parts"
+elements = { name = "parts", size = 1, meaning = "The character's part number in the tech (the MP table's numbering)." }
 host_module = "menu"
 overlays = ["field_object_animation_frame_values", "field_object_animation_mode_values", "field_object_facing_values", "field_object_frame_delay_values", "field_object_looped_animation_values", "field_object_one_off_animation_values", "field_object_sprite_records_values"]
 addr = "7E:1640"
@@ -13386,6 +13360,7 @@ source = "game/menu/description.c; game/menu/tech_screen.c, $C2:BE33"
 
 [[var]]
 name = "menu_name_grid_text"
+elements = { name = "text", size = 1, meaning = "Game-text codes: letters, blanks, line breaks and the end." }
 host_module = "menu"
 overlays = ["battle_anim_held", "battle_anim_order", "battle_attack_up_close", "battle_effect_steps_start", "battle_enemy_drift_from_x", "battle_enemy_drift_from_y", "battle_enemy_drifting", "battle_enemy_effect_period", "battle_enemy_kind_counts", "battle_enemy_kinds", "battle_frame_tick", "battle_graphics_built", "battle_graphics_load_step", "battle_item_arrows_shown", "battle_item_cursor_shown", "battle_object_frame_shown", "battle_orbit_radius_step", "battle_remembered_command", "battle_search_range", "field_tile_exits_storage_part_26", "field_upper_attributes_after_sound_part_4", "menu_built_upload_values"]
 addr = "7E:9890"
@@ -13409,6 +13384,7 @@ source = "game/menu/naming.c, $C2:E390, $C2:E3E0"
 
 [[var]]
 name = "menu_name_trimmed"
+elements = { name = "letters", size = 1, meaning = "Game-text glyph codes including the name terminator." }
 host_module = "menu"
 overlays = "battle_enemy_effect_period"
 addr = "7E:98A0"
@@ -13787,48 +13763,32 @@ source = "game/menu/display.c, menu_object_copy_shadows ($C2:01CE-$C2:02AF); doc
   offset = 0x01
   meaning = "Mosaic: layers in the low nibble, size less one in the high"
   [[var.field]]
-  name = "scroll_x"
-  offset = 0x02
-  size = 6
-  meaning = "Horizontal scroll of BG1, BG2 and BG3, a word each"
-  [[var.field]]
-  name = "scroll_y"
-  offset = 0x08
-  size = 6
-  meaning = "Vertical scroll of BG1, BG2 and BG3, a word each"
-  [[var.field]]
   name = "bg1_scroll_x"
-  host_alias = "scroll_x"
   offset = 0x02
   size = 2
   meaning = "BG1's horizontal scroll: the map's first plane"
   [[var.field]]
   name = "bg2_scroll_x"
-  host_alias = "scroll_x"
   offset = 0x04
   size = 2
   meaning = "BG2's horizontal scroll: the map's second plane, which the objects on the map move with"
   [[var.field]]
   name = "bg3_scroll_x"
-  host_alias = "scroll_x"
   offset = 0x06
   size = 2
   meaning = "BG3's horizontal scroll"
   [[var.field]]
   name = "bg1_scroll_y"
-  host_alias = "scroll_y"
   offset = 0x08
   size = 2
   meaning = "BG1's vertical scroll"
   [[var.field]]
   name = "bg2_scroll_y"
-  host_alias = "scroll_y"
   offset = 0x0A
   size = 2
   meaning = "BG2's vertical scroll"
   [[var.field]]
   name = "bg3_scroll_y"
-  host_alias = "scroll_y"
   offset = 0x0C
   size = 2
   meaning = "BG3's vertical scroll"
@@ -13836,6 +13796,7 @@ source = "game/menu/display.c, menu_object_copy_shadows ($C2:01CE-$C2:02AF); doc
   name = "mode7_matrix"
   offset = 0x0E
   size = 8
+  elements = { name = "parameters", size = 2, meaning = "A Mode 7 matrix parameter (A, B, C, D in turn), signed 8.8 fixed point." }
   meaning = "Mode 7 matrix A, B, C, D, a word each"
   [[var.field]]
   name = "mode7_center"
@@ -13843,10 +13804,26 @@ source = "game/menu/display.c, menu_object_copy_shadows ($C2:01CE-$C2:02AF); doc
   size = 4
   meaning = "Mode 7 center X and Y, a word each"
   [[var.field]]
-  name = "windows"
+  name = "window_masks"
+  buffer = true
   offset = 0x1A
-  size = 9
-  meaning = "Window masks, edges and logic, in register order $2123-$212B"
+  size = 3
+  elements = { name = "masks", size = 1, meaning = "Which windows mask a pair of layers (BG1/BG2, BG3/BG4, sprites/colour), and how." }
+  meaning = "The windows' mask settings, $2123-$2125"
+  [[var.field]]
+  name = "window_edges"
+  buffer = true
+  offset = 0x1D
+  size = 4
+  elements = { name = "edges", size = 1, meaning = "A window's edge in pixels: window 1's left and right, then window 2's." }
+  meaning = "The windows' edges, $2126-$2129"
+  [[var.field]]
+  name = "window_logic"
+  buffer = true
+  offset = 0x21
+  size = 2
+  elements = { name = "logic", size = 1, meaning = "How the two windows combine, for the layers and for the sprites and colour." }
+  meaning = "The windows' logic, $212A-$212B"
   [[var.field]]
   name = "main_screen"
   offset = 0x23
@@ -14655,6 +14632,7 @@ source = "$C2:26D6, $C2:26F0; game/menu/object_script.c; game/menu/epoch.c"
 
 [[var.field]]
 name = "bytes"
+elements = { name = "story_flags", size = 1, meaning = "Story flag groups, as the event memory holds them." }
 offset = 0
 size = 16
 meaning = "The sixteen bytes"
@@ -17260,48 +17238,37 @@ subsystem = "battle"
 meaning = "Per party member action records"
 source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; game/battle/stats.c battle_update_combo_members $C1:B575"
   [[var.field]]
-  name = "record"
-  offset = 0
-  size = 7
-  meaning = "The whole record a byte at a time, as a demo battle's party has its records copied in ($C1:B725)"
-  [[var.field]]
   name = "state"
-  host_alias = "record"
   offset = 0
   meaning = "Where the member is in choosing its action: 0 nothing yet, 1 its command menu open, bit 7 an action chosen"
   [[var.field]]
   name = "choice_flags"
-  host_alias = "record"
   offset = 1
   meaning = "Bits of the member's choosing; a member knocked out drops bit 4 ($C1:B2F3), whose meaning isn't worked out"
   [[var.field]]
   name = "command"
-  host_alias = "record"
   offset = 2
   meaning = "The command the member chose from its menu: 0 Attack, 1 Tech, 2 Item (battle_menu_command; game/battle/menu_input.c, $C1:16FD); the turn carries a tech out where it is 1, or 3, which the menu never sets ($C1:BB56)"
   [[var.field]]
   name = "target"
-  host_alias = "record"
   offset = 3
   meaning = "The combatant the member chose to aim at"
   [[var.field]]
   name = "spare"
-  host_alias = "record"
   offset = 4
   meaning = "A byte the fight's start clears with the rest; no code traced reads it"
   [[var.field]]
   name = "partners"
-  host_alias = "record"
   offset = 5
   meaning = "Combination tech pairing: a partner's party slot in each nibble ($F: none)"
   [[var.field]]
   name = "what"
-  host_alias = "record"
   offset = 6
   meaning = "The tech's number, or the item's"
 
 [[var]]
 name = "battle_party_names"
+elements = { name = "letters", size = 1, meaning = "A name character." }
 host_module = "battle"
 overlays = "menu_cursor_places_values"
 addr = "7E:9403"
@@ -17325,6 +17292,7 @@ source = "game/battle/setup_names.c setup_name_to_convert in battle_setup_state 
 
 [[var]]
 name = "battle_character_names"
+elements = { name = "letters", size = 1, meaning = "A name character." }
 host_module = "battle"
 overlays = "menu_cursor_places_values"
 addr = "7E:9430"
@@ -24879,6 +24847,7 @@ meaning = "0: the list's end"
 
 [[var]]
 name = "warp_kept_event_memory"
+elements = { name = "story_flags", size = 1, meaning = "Event variables and story flag groups, as the event memory holds them." }
 host_module = "warp"
 overlays = "event_script_storage"
 addr = "7F:74B3"
@@ -25331,11 +25300,6 @@ source = "game/overworld/places.c ($C2:32CD), main_loop.c ($C2:2402)"
   offset = 3
   size = 2
   meaning = "The location it leads to (bits 0-8; $1FF: an event script instead, overworld_event_scripts' entry in the next byte), with how the party arrives in the high byte's bits 1-7"
-  [[var.field]]
-  name = "arrival"
-  host_alias = "location"
-  offset = 4
-  meaning = "The location word's high byte: bits 1-7 how the party arrives (the location's flags, shifted down a bit; bits 0-1 of those the way the party faces)"
   [[var.field]]
   name = "event"
   offset = 5
@@ -26796,6 +26760,7 @@ source = "game/battle/inventory.c ($C1:D023)"
 
 [[var]]
 name = "battle_timer_runs_left"
+elements = { name = "counts", size = 1, meaning = "A battle slot's runs left for this timer." }
 host_module = "battle"
 overlays = "field_tile_looks"
 addr = "7E:B045"
@@ -26810,6 +26775,7 @@ source = "game/battle/status_timers.c, the kinds' handlers ($C1:8876-$C1:8C08)"
 
 [[var]]
 name = "battle_timer_lengths"
+elements = { name = "lengths", size = 1, meaning = "A battle slot's length for this timer." }
 host_module = "battle"
 overlays = "field_tile_looks"
 addr = "7E:B0D4"
@@ -28286,10 +28252,16 @@ source = "game/menu/text.c, menu_number_to_bcd $C2:F13F, the control code dispat
 host_module = "menu"
 
 [[owner.field]]
-name = "number"
+name = "low"
 offset = 0
-size = 4
-meaning = "The number being drawn: eight decimal digits, four bits each, the units in the low bits (a hex number's four bytes as they are)"
+size = 2
+meaning = "The number's low four digits; the handler's address; a window's columns"
+
+[[owner.field]]
+name = "high"
+offset = 2
+size = 2
+meaning = "The number's high four digits; a window's rows"
 
 [[owner]]
 name = "menu_window_shadows_values"
@@ -28301,10 +28273,16 @@ source = "game/menu/display.c, menu_vblank_upload $C2:85D6; docs/PLATFORM.md, Wh
 host_module = "menu"
 
 [[owner.field]]
-name = "window_edges"
+name = "window1_edges"
 offset = 3
-size = 4
-meaning = "Window 1 left and right, window 2 left and right"
+size = 2
+meaning = "Window 1 left and right"
+
+[[owner.field]]
+name = "window2_edges"
+offset = 5
+size = 2
+meaning = "Window 2 left and right"
 
 [[owner.field]]
 name = "window_masks"

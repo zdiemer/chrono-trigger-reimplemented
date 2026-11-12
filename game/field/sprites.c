@@ -1,6 +1,6 @@
 /* Field objects' sprites: the frame's sprite table.
  *
- * Every frame the field builds the OAM image (field_sprite_table, which the
+ * Every frame the field builds the OAM image (oam_buffer and oam_high_table, which the
  * vblank uploads) from the objects in view, walking the rows from the bottom
  * of the screen up (field/object_update.c) so that nearer objects come first
  * and are drawn over the ones behind them. The table is kept in three ranges
@@ -33,6 +33,7 @@
 #include "platform/video.h"
 
 #include "charge.h"
+#include "core/sprite_table.h"
 #include "cpu_io.h"
 #include "field/bridge.h"
 #include "port/vars_ram.h"
@@ -88,8 +89,8 @@ static void open_table_stream(GameState *g) { hw_port_seek_bank(g, 0); }
 
 static void set_high_bits(GameState *g, uint16_t at, uint8_t bits)
 {
-    if (at < FIELD_SPRITE_TABLE_BYTES)
-        set_field_sprite_table_byte(g, at, bits);
+    if (at < SPRITE_TABLE_BYTES)
+        sprite_table_set_byte(g, at, bits);
 }
 
 /* Write an object's sprites into its range: their high table bits at the
@@ -129,7 +130,7 @@ static void hide_leftovers(GameState *g)
         uint16_t next = field_sprite_range_next(g, r);
         uint16_t limit = (uint16_t)(range_limit[r] + FIELD_SPRITE_TABLE_ADDRESS);
         for (uint16_t entry = next; entry < field_sprite_range_end(g, r); entry = (uint16_t)(entry + OAM_ENTRY)) {
-            set_field_sprite_table_byte(g, (uint16_t)(entry - FIELD_SPRITE_TABLE_ADDRESS + VID_OAM_ENTRY_Y), VID_OAM_HIDDEN_Y);
+            sprite_table_set_byte(g, (uint16_t)(entry - FIELD_SPRITE_TABLE_ADDRESS + VID_OAM_ENTRY_Y), VID_OAM_HIDDEN_Y);
             if ((uint16_t)(entry + OAM_ENTRY) >= limit)
                 break;
         }
@@ -143,7 +144,7 @@ static void hide_leftovers(GameState *g)
 void sprites_hide_the_first(GameState *g, unsigned count)
 {
     for (unsigned n = 0; n < count; n++)
-        set_field_sprite_table_byte(g, n * OAM_ENTRY + VID_OAM_ENTRY_Y, VID_OAM_HIDDEN_Y);
+        sprite_table_set_byte(g, n * OAM_ENTRY + VID_OAM_ENTRY_Y, VID_OAM_HIDDEN_Y);
 }
 
 /* A fresh start (the field's): each range taken as having used all its

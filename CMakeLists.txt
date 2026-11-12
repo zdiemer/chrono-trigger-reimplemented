@@ -55,6 +55,7 @@ add_library(ct_game STATIC
   game/core/palette.c
   game/core/sound_commands.c
   game/core/tile_animation.c
+  game/core/sprite_table.c
   game/data/assets.c
   game/data/asset_catalogue.c
   game/data/decompress.c

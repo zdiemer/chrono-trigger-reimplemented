@@ -372,6 +372,20 @@ void battle_demo_party_ready(GameState *g)
  * members' gauges stand empty, and their records are the demo's again. */
 enum { DEMO_GAUGE_FULL = 0x30 };
 
+/* A member's action record as the demo gives it, in the record's order. */
+enum { ACTION_STATE, ACTION_CHOICE_FLAGS, ACTION_COMMAND, ACTION_TARGET, ACTION_SPARE, ACTION_PARTNERS, ACTION_WHAT };
+
+static void take_the_demos_action(GameState *g, uint8_t demo, uint8_t member)
+{
+    set_battle_member_actions_state(g, member, demo_member_action_byte(g, demo, member, ACTION_STATE));
+    set_battle_member_actions_choice_flags(g, member, demo_member_action_byte(g, demo, member, ACTION_CHOICE_FLAGS));
+    set_battle_member_actions_command(g, member, demo_member_action_byte(g, demo, member, ACTION_COMMAND));
+    set_battle_member_actions_target(g, member, demo_member_action_byte(g, demo, member, ACTION_TARGET));
+    set_battle_member_actions_spare(g, member, demo_member_action_byte(g, demo, member, ACTION_SPARE));
+    set_battle_member_actions_partners(g, member, demo_member_action_byte(g, demo, member, ACTION_PARTNERS));
+    set_battle_member_actions_what(g, member, demo_member_action_byte(g, demo, member, ACTION_WHAT));
+}
+
 // $C1:B725
 void battle_demo_next_turn(GameState *g)
 {
@@ -383,8 +397,7 @@ void battle_demo_next_turn(GameState *g)
         set_battle_gauge_wait_full(g, member, DEMO_GAUGE_FULL);
     uint8_t demo = battle_demo(g);
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
-        for (unsigned at = 0; at < MEMBER_ACTION_RECORD_BYTES; at++)
-            set_battle_member_actions_record_byte(g, member, at, demo_member_action_byte(g, demo, member, at));
+        take_the_demos_action(g, demo, member);
 }
 
 // $C1:B7F2

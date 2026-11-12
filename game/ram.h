@@ -990,9 +990,6 @@
  * upward. The lines below it are filled as empty [2 bytes] */
 #define RAM_FIELD_WINDOW_SHAPE_RIGHT_START 0x7E036Au
 #define RAM_FIELD_WINDOW_SHAPE_RIGHT_START_DP 0x6Au /* page field_window_shape */
-/* The OAM image as the field's sprite table builds it, reached by byte offset: 128 entries of X,
- * Y, tile and attributes, then the high table's 32 bytes [544 bytes] */
-#define RAM_FIELD_SPRITE_TABLE 0x7E0700u
 /* The graphics sets the map's people, creatures and enemies have unpacked into bank $7F (events
  * $82, $83), $FF for an unused entry, as the map's setup leaves them ($C0:5929): an object of a
  * set already there shares it rather than unpacking it again ($C0:5C90) [16 x $1 bytes, by
@@ -1617,17 +1614,17 @@
 #define RAM_FIELD_LAYER_POSITION_X 0x7E1D99u /* Column */
 #define RAM_FIELD_LAYER_POSITION_Y 0x7E1D9Au /* Row */
 /* VRAM addresses (10 words) of the tile map runs at the screen's edges around the layer's
- * position, where the deferred uploads send new rows and columns [3 x $14 bytes, by layer
- * (BG1-BG3)] */
+ * position, where the deferred uploads send new rows and columns [30 x $2 bytes, by layer
+ * (BG1-BG3) * 10 + the run part's word (game/field/layers.h)] */
 #define RAM_FIELD_LAYER_EDGE_VRAM 0x7E1D9Fu
-#define RAM_FIELD_LAYER_EDGE_VRAM_COUNT 3u
-#define RAM_FIELD_LAYER_EDGE_VRAM_STRIDE 0x14u
+#define RAM_FIELD_LAYER_EDGE_VRAM_COUNT 30u
+#define RAM_FIELD_LAYER_EDGE_VRAM_STRIDE 0x02u
 #define RAM_FIELD_LAYER_EDGE_VRAM_DP 0x9Fu   /* page field_layers */
-/* Sizes (5 words) of the edge runs' parts the deferred uploads send (0: nothing) [3 x $A bytes,
- * by layer (BG1-BG3)] */
+/* Sizes (5 words) of the edge runs' parts the deferred uploads send (0: nothing) [15 x $2 bytes,
+ * by layer (BG1-BG3) * 5 + the run part's word (game/field/layers.h)] */
 #define RAM_FIELD_LAYER_EDGE_SIZES 0x7E1DDBu
-#define RAM_FIELD_LAYER_EDGE_SIZES_COUNT 3u
-#define RAM_FIELD_LAYER_EDGE_SIZES_STRIDE 0x0Au
+#define RAM_FIELD_LAYER_EDGE_SIZES_COUNT 15u
+#define RAM_FIELD_LAYER_EDGE_SIZES_STRIDE 0x02u
 #define RAM_FIELD_LAYER_EDGE_SIZES_DP 0xDBu  /* page field_layers */
 /* Nonzero: BG3 waves, its scroll table pointing at field_line_wave every 16 lines (the table
  * builders test the low byte, the scroll update the word) [2 bytes] */
@@ -2459,11 +2456,11 @@
  * window's columns and rows [4 bytes] */
 #define RAM_MENU_TEXT_WORK 0x7E008Au
 #define RAM_MENU_TEXT_WORK_DP 0x8Au          /* page menu */
-#define RAM_MENU_TEXT_WORK_NUMBER 0x7E008Au  /* The number being drawn: eight decimal digits, four bits each, the units in the low bits (a hex number's four bytes as they are) */
 #define RAM_MENU_TEXT_WORK_CODE_HANDLER 0x7E008Au /* The last control code's handler, which its dispatch jumps through; nothing else reads it */
 #define RAM_MENU_TEXT_WORK_WINDOW_COLUMNS 0x7E008Au /* The window command lists' drawing: how many columns wide (or bytes, less one, of a row it copies) what it draws is, as the last command left it */
 #define RAM_MENU_TEXT_WORK_WINDOW_ROWS 0x7E008Cu /* The window command lists' drawing: the rows it has left to draw or copy, which the last command leaves at 0 or at a frame's inside rows */
-#define RAM_MENU_TEXT_WORK_NUMBER_LOW 0x7E008Au /* The number's low four digits, which the healing's rising numbers read as a word */
+#define RAM_MENU_TEXT_WORK_NUMBER_LOW 0x7E008Au /* The number being drawn, its low four digits: eight decimal digits in all, four bits each, the units in the low bits (a hex number's four bytes as they are); the healing's rising numbers read these as a word */
+#define RAM_MENU_TEXT_WORK_NUMBER_HIGH 0x7E008Cu /* The number being drawn, its high four digits */
 /* How many digits of the number to write (also the byte being converted while converting) */
 #define RAM_MENU_NUMBER_DIGITS 0x7E008Eu
 #define RAM_MENU_NUMBER_DIGITS_DP 0x8Eu      /* page menu */
@@ -2938,7 +2935,6 @@
 #define RAM_MENU_SCROLL_BAR_PLACE 0x7E0D92u  /* Where the bar is on the screen */
 #define RAM_MENU_SCROLL_BAR_SPAN 0x7E0D94u   /* The lines the bar's thumb travels over the whole list */
 #define RAM_MENU_SCROLL_BAR_THUMB 0x7E0D95u  /* The thumb's place along the bar, in lines */
-#define RAM_MENU_SCROLL_BAR_THUMB_WORD 0x7E0D95u /* The same as a word with the byte after it, as a sliding list moves the thumb a line a frame */
 #define RAM_MENU_SCROLL_BAR_STEP 0x7E0D98u   /* The thumb's move a row of the list */
 #define RAM_MENU_SCROLL_BAR_BLINK 0x7E0D97u  /* Which half of their blink the bar's arrows are in, which the bar's task flips */
 #define RAM_MENU_SCROLL_BAR_BLINK_COUNT 0x7E0D96u /* The frames until the bar's arrows' blink turns, its low three bits (the byte after the thumb, which a slide's move of the thumb as a word can carry into) */
@@ -3606,8 +3602,8 @@
  * each vblank [16 bytes] */
 #define RAM_MENU_WINDOW_SHADOWS 0x7E9680u
 #define RAM_MENU_WINDOW_SHADOWS_WINDOW_MASKS 0x7E9680u /* Window mask settings of BG1/BG2, BG3/BG4 and sprites/color */
-#define RAM_MENU_WINDOW_SHADOWS_WINDOW_EDGES 0x7E9683u /* Window 1 left and right, window 2 left and right */
-#define RAM_MENU_WINDOW_SHADOWS_WINDOW1_EDGES 0x7E9683u /* Window 1's left and right alone, which the party exchange sets where it draws the active party in the middle */
+#define RAM_MENU_WINDOW_SHADOWS_WINDOW1_EDGES 0x7E9683u /* Window 1's left and right, which the party exchange sets alone where it draws the active party in the middle */
+#define RAM_MENU_WINDOW_SHADOWS_WINDOW2_EDGES 0x7E9685u /* Window 2's left and right */
 #define RAM_MENU_WINDOW_SHADOWS_WINDOW_LOGIC 0x7E9687u /* Window logic of the layers, and of sprites and color */
 #define RAM_MENU_WINDOW_SHADOWS_MAIN_SCREEN 0x7E9689u /* Layers on the main screen */
 #define RAM_MENU_WINDOW_SHADOWS_SUB_SCREEN 0x7E968Au /* Layers on the sub screen */
@@ -4098,8 +4094,6 @@
 #define RAM_MENU_OBJECT_SHADOWS_DP 0x1Eu     /* page menu */
 #define RAM_MENU_OBJECT_SHADOWS_BG_MODE 0x7E001Eu /* BG mode */
 #define RAM_MENU_OBJECT_SHADOWS_MOSAIC 0x7E001Fu /* Mosaic: layers in the low nibble, size less one in the high */
-#define RAM_MENU_OBJECT_SHADOWS_SCROLL_X 0x7E0020u /* Horizontal scroll of BG1, BG2 and BG3, a word each */
-#define RAM_MENU_OBJECT_SHADOWS_SCROLL_Y 0x7E0026u /* Vertical scroll of BG1, BG2 and BG3, a word each */
 #define RAM_MENU_OBJECT_SHADOWS_BG1_SCROLL_X 0x7E0020u /* BG1's horizontal scroll: the map's first plane */
 #define RAM_MENU_OBJECT_SHADOWS_BG2_SCROLL_X 0x7E0022u /* BG2's horizontal scroll: the map's second plane, which the objects on the map move with */
 #define RAM_MENU_OBJECT_SHADOWS_BG3_SCROLL_X 0x7E0024u /* BG3's horizontal scroll */
@@ -4108,7 +4102,9 @@
 #define RAM_MENU_OBJECT_SHADOWS_BG3_SCROLL_Y 0x7E002Au /* BG3's vertical scroll */
 #define RAM_MENU_OBJECT_SHADOWS_MODE7_MATRIX 0x7E002Cu /* Mode 7 matrix A, B, C, D, a word each */
 #define RAM_MENU_OBJECT_SHADOWS_MODE7_CENTER 0x7E0034u /* Mode 7 center X and Y, a word each */
-#define RAM_MENU_OBJECT_SHADOWS_WINDOWS 0x7E0038u /* Window masks, edges and logic, in register order $2123-$212B */
+#define RAM_MENU_OBJECT_SHADOWS_WINDOW_MASKS 0x7E0038u /* The windows' mask settings, $2123-$2125 */
+#define RAM_MENU_OBJECT_SHADOWS_WINDOW_EDGES 0x7E003Bu /* The windows' edges, $2126-$2129 */
+#define RAM_MENU_OBJECT_SHADOWS_WINDOW_LOGIC 0x7E003Fu /* The windows' logic, $212A-$212B */
 #define RAM_MENU_OBJECT_SHADOWS_MAIN_SCREEN 0x7E0041u /* Layers on the main screen */
 #define RAM_MENU_OBJECT_SHADOWS_SUB_SCREEN 0x7E0042u /* Layers on the sub screen */
 #define RAM_MENU_OBJECT_SHADOWS_MAIN_WINDOW_MASK 0x7E0043u /* Layers the windows mask on the main screen */
@@ -4540,7 +4536,6 @@
 #define RAM_OVERWORLD_EXITS_ROW 0x7E7E01u    /* Bits 0-5 its map tile's row */
 #define RAM_OVERWORLD_EXITS_NAME 0x7E7E02u   /* The place whose name the sign shows there */
 #define RAM_OVERWORLD_EXITS_LOCATION 0x7E7E03u /* The location it leads to (bits 0-8; $1FF: an event script instead, overworld_event_scripts' entry in the next byte), with how the party arrives in the high byte's bits 1-7 */
-#define RAM_OVERWORLD_EXITS_ARRIVAL 0x7E7E04u /* The location word's high byte: bits 1-7 how the party arrives (the location's flags, shifted down a bit; bits 0-1 of those the way the party faces) */
 #define RAM_OVERWORLD_EXITS_EVENT 0x7E7E05u  /* Where the location is $1FF: the event script's entry in overworld_event_scripts */
 #define RAM_OVERWORLD_EXITS_X 0x7E7E05u      /* The 8x8 tile column the party arrives at in the location */
 #define RAM_OVERWORLD_EXITS_Y 0x7E7E06u      /* And the row */
@@ -5338,7 +5333,6 @@
 #define RAM_BATTLE_MEMBER_ACTIONS 0x7E93EEu
 #define RAM_BATTLE_MEMBER_ACTIONS_COUNT 3u
 #define RAM_BATTLE_MEMBER_ACTIONS_STRIDE 0x07u
-#define RAM_BATTLE_MEMBER_ACTIONS_RECORD 0x7E93EEu /* The whole record a byte at a time, as a demo battle's party has its records copied in ($C1:B725) */
 #define RAM_BATTLE_MEMBER_ACTIONS_STATE 0x7E93EEu /* Where the member is in choosing its action: 0 nothing yet, 1 its command menu open, bit 7 an action chosen */
 #define RAM_BATTLE_MEMBER_ACTIONS_CHOICE_FLAGS 0x7E93EFu /* Bits of the member's choosing; a member knocked out drops bit 4 ($C1:B2F3), whose meaning isn't worked out */
 #define RAM_BATTLE_MEMBER_ACTIONS_COMMAND 0x7E93F0u /* The command the member chose from its menu: 0 Attack, 1 Tech, 2 Item (battle_menu_command; game/battle/menu_input.c, $C1:16FD); the turn carries a tech out where it is 1, or 3, which the menu never sets ($C1:BB56) */
@@ -9141,13 +9135,6 @@
 #define RAM_SCENE_IRQ_STUB 0x7E0504u
 #define RAM_SCENE_IRQ_STUB_JUMP 0x7E0504u    /* The jump's opcode, which installing a handler writes */
 #define RAM_SCENE_IRQ_STUB_HANDLER 0x7E0505u /* The handler's long address */
-/* The OAM buffer's entries as the scene's sprite writers see them: 128 four-byte entries (X, Y,
- * tile, attributes), reached by the byte offset the scene's cursor holds [512 bytes] */
-#define RAM_SCENE_SPRITE_TABLE 0x7E0700u
-/* The OAM buffer's high table as the scene's sprite writers see it: 32 bytes of four sprites'
- * two bits each (X's 9th bit, large), a sprite shifting a byte right two bits and putting its
- * own at the top [32 bytes] */
-#define RAM_SCENE_SPRITE_HIGH_TABLE 0x7E0900u
 /* The scene's task list: addresses of routines in the program (0 = empty slot) that sequence
  * scripts add and remove; the NMI copies it to $0950 and runs the copy each frame [16 x $2
  * bytes, by task slot] */

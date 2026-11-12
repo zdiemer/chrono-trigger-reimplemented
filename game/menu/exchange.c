@@ -691,7 +691,7 @@ bool menu_exchange_slide_a_frame(GameState *g, ExchangeSlide *slide)
     int8_t toward = slide->step < 0 ? -1 : 1;
     slide->from.row = (uint8_t)(slide->from.row + toward);
     set_menu_held_cursor_shift(g, (uint16_t)(menu_held_cursor_shift(g) - slide->step));
-    set_menu_scroll_bar_thumb_word(g, (uint16_t)(menu_scroll_bar_thumb_word(g) + toward));
+    menu_scroll_bar_move_thumb(g, toward);
     move_the_reserve(g, slide->step);
     set_menu_draw_origin(g, MENU_FRONT_LAYER_AT);
     menu_copy_tile_area(g, slide->from, RESERVE_COLUMN, RESERVE_COLUMN_SIZE);

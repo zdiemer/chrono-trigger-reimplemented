@@ -307,11 +307,12 @@ static void send_menu_scroll(GameState *g, Platform *pf)
 
 static void send_menu_screen_shadows(GameState *g, Platform *pf)
 {
-    uint32_t masks = menu_window_shadows_window_masks(g), edges = menu_window_shadows_window_edges(g);
+    uint32_t masks = menu_window_shadows_window_masks(g);
+    uint16_t window1 = menu_window_shadows_window1_edges(g), window2 = menu_window_shadows_window2_edges(g);
     uint16_t logic = menu_window_shadows_window_logic(g);
     ScreenShadows v = {
         { (uint8_t)masks, (uint8_t)(masks >> 8), (uint8_t)(masks >> 16) },
-        { (uint8_t)edges, (uint8_t)(edges >> 8), (uint8_t)(edges >> 16), (uint8_t)(edges >> 24) },
+        { (uint8_t)window1, (uint8_t)(window1 >> 8), (uint8_t)window2, (uint8_t)(window2 >> 8) },
         { (uint8_t)logic, (uint8_t)(logic >> 8) },
         menu_window_shadows_main_screen(g), menu_window_shadows_sub_screen(g),
         menu_window_shadows_main_window_mask(g), menu_window_shadows_sub_window_mask(g),
@@ -551,7 +552,7 @@ void menu_object_set_up_the_screen(GameState *g, Platform *pf)
  * on the main screen, BG1, BG2 and the sprites on the sub screen. */
 enum { MODE_PAGE_BYTES = 0xF0, SCREEN_OFF = 0x80, MODE_1_BG3_IN_FRONT = 0x09 };
 enum { MATRIX_A_HIGH = 1, MATRIX_D_HIGH = 7, IDENTITY_HIGH = 0x01 };
-enum { WINDOW_1_OPENS = 3, WINDOW_2_OPENS = 5, A_PIXEL_PAST_SHUT = 0x01 };
+enum { WINDOW_1_LEFT = 0, WINDOW_2_LEFT = 2, A_PIXEL_PAST_SHUT = 0x01 };
 enum { MAIN_LAYERS = 0x17, SUB_LAYERS = 0x13 };
 
 void menu_object_reset_the_mode(GameState *g)
@@ -562,8 +563,8 @@ void menu_object_reset_the_mode(GameState *g)
     set_menu_object_shadows_bg_mode(g, MODE_1_BG3_IN_FRONT);
     set_menu_object_shadows_mode7_matrix_byte(g, MATRIX_A_HIGH, IDENTITY_HIGH);
     set_menu_object_shadows_mode7_matrix_byte(g, MATRIX_D_HIGH, IDENTITY_HIGH);
-    set_menu_object_shadows_windows_byte(g, WINDOW_1_OPENS, A_PIXEL_PAST_SHUT);
-    set_menu_object_shadows_windows_byte(g, WINDOW_2_OPENS, A_PIXEL_PAST_SHUT);
+    set_menu_object_shadows_window_edges_byte(g, WINDOW_1_LEFT, A_PIXEL_PAST_SHUT);
+    set_menu_object_shadows_window_edges_byte(g, WINDOW_2_LEFT, A_PIXEL_PAST_SHUT);
     set_menu_object_shadows_main_screen(g, MAIN_LAYERS);
     set_menu_object_shadows_sub_screen(g, SUB_LAYERS);
 }
@@ -634,11 +635,11 @@ static void send_object_shadows(GameState *g, Platform *pf)
     m7.cy = (int16_t)(uint16_t)(centre >> 16);
     vid_set_mode7(pf, PF_AT(0xC2023C), &m7, VID_M7_CENTER);
     ScreenShadows v = {
-        { menu_object_shadows_windows_byte(g, 0), menu_object_shadows_windows_byte(g, 1),
-          menu_object_shadows_windows_byte(g, 2) },
-        { menu_object_shadows_windows_byte(g, 3), menu_object_shadows_windows_byte(g, 4),
-          menu_object_shadows_windows_byte(g, 5), menu_object_shadows_windows_byte(g, 6) },
-        { menu_object_shadows_windows_byte(g, 7), menu_object_shadows_windows_byte(g, 8) },
+        { menu_object_shadows_window_masks_byte(g, 0), menu_object_shadows_window_masks_byte(g, 1),
+          menu_object_shadows_window_masks_byte(g, 2) },
+        { menu_object_shadows_window_edges_byte(g, 0), menu_object_shadows_window_edges_byte(g, 1),
+          menu_object_shadows_window_edges_byte(g, 2), menu_object_shadows_window_edges_byte(g, 3) },
+        { menu_object_shadows_window_logic_byte(g, 0), menu_object_shadows_window_logic_byte(g, 1) },
         menu_object_shadows_main_screen(g), menu_object_shadows_sub_screen(g),
         menu_object_shadows_main_window_mask(g), menu_object_shadows_sub_window_mask(g),
         menu_object_shadows_math_control(g), menu_object_shadows_math_layers(g),

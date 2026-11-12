@@ -109,7 +109,7 @@ enum { NO_HIGH_BITS = 0x00, SPRITE_ENTRIES_BYTES = 0x0200 };
 
 static void hide_the_sprites(Platform *pf)
 {
-    vid_send_oam_fill(pf, PF_AT(0x7E6B44), VID_OAM_HIGH_BITS_WORD, NO_HIGH_BITS, SCENE_SPRITE_HIGH_TABLE_BYTES);
+    vid_send_oam_fill(pf, PF_AT(0x7E6B44), VID_OAM_HIGH_BITS_WORD, NO_HIGH_BITS, OAM_HIGH_TABLE_BYTES);
     vid_send_oam_fill(pf, PF_AT(0x7E6B66), 0x0000, VID_OAM_HIDDEN_Y, SPRITE_ENTRIES_BYTES);
 }
 

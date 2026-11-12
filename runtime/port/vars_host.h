@@ -260,7 +260,8 @@ typedef struct {
 /* The menu window being drawn and its layer, mask and color settings. */
 typedef struct {
     uint16_t place;
-    uint32_t window_edges;
+    uint16_t window1_edges;
+    uint16_t window2_edges;
     uint32_t window_masks;
     uint16_t window_logic;
     uint8_t fixed_color;
@@ -376,10 +377,16 @@ typedef struct {
     } battle_number_sprites[44];
     uint8_t battle_number_sprite_high[11];
     struct {
-        uint8_t record[7];
+        uint8_t state;
+        uint8_t choice_flags;
+        uint8_t command;
+        uint8_t target;
+        uint8_t spare;
+        uint8_t partners;
+        uint8_t what;
     } battle_member_actions[3];
-    uint8_t battle_party_names[3][5];
-    uint8_t battle_character_names[7][5];
+    struct { uint8_t letters[5]; } battle_party_names[3];
+    struct { uint8_t letters[5]; } battle_character_names[7];
     uint16_t battle_number;
     uint8_t battle_digits[5];
     uint8_t battle_tech_list_ids[129];
@@ -1101,8 +1108,8 @@ typedef struct {
     uint16_t battle_inventory_item;
     uint16_t battle_inventory_free_place;
     uint8_t battle_inventory_free_seen;
-    uint8_t battle_timer_runs_left[13][11];
-    uint8_t battle_timer_lengths[12][11];
+    struct { uint8_t counts[11]; } battle_timer_runs_left[13];
+    struct { uint8_t lengths[11]; } battle_timer_lengths[12];
     uint8_t battle_action_elements;
     uint8_t battle_shrugged_off_mark;
     uint8_t battle_beaten_marks_low[2];
@@ -1319,7 +1326,7 @@ typedef struct {
 typedef struct {
     Character characters[7];
     SceneSpriteState sprites[128];
-    uint8_t oam_high_table[32];
+    struct { uint8_t sprite_bits[32]; } oam_high_table;
     uint32_t nmi_vector;
     uint32_t irq_vector;
     uint8_t party_members[3];
@@ -1353,8 +1360,8 @@ typedef struct {
         uint8_t bank;
     } tile_animations[12];
     struct {
-        uint8_t steps[16];
-        uint8_t sources[16];
+        struct { uint16_t steps[8]; } steps;
+        struct { uint16_t sources[8]; } sources;
     } tile_animation_tables[12];
     struct {
         uint8_t members[48];
@@ -1420,7 +1427,7 @@ typedef struct {
     uint8_t event_call_waiting[64];
     uint16_t event_object_result[64];
     uint8_t event_object_count;
-    uint8_t event_script[57343];
+    struct { uint8_t instructions[57343]; } event_script;
     struct {
         uint8_t level;
         uint8_t refusing;
@@ -1508,7 +1515,6 @@ typedef struct {
     uint16_t field_unpacked_graphics_end;
     uint8_t field_npc_graphics_count;
     uint16_t field_sprite_range_spare[3];
-    uint8_t field_sprite_table[544];
     uint16_t field_sprite_range_end[3];
     uint16_t field_sprite_range_high[3];
     uint8_t field_party_objects[3];
@@ -1604,8 +1610,8 @@ typedef struct {
     uint8_t field_line_wave_phase;
     uint16_t field_line_wave_bg2;
     uint8_t field_ripple_frames_left;
-    uint8_t field_layer_edge_vram[3][20];
-    uint8_t field_layer_edge_sizes[3][10];
+    uint16_t field_layer_edge_vram[30];
+    uint16_t field_layer_edge_sizes[15];
     struct {
         uint8_t width;
         uint8_t width_high;
@@ -2528,7 +2534,7 @@ typedef struct {
     uint8_t menu_screen_step;
     uint8_t menu_save_slot_design[3];
     uint16_t menu_glyph_tiles[1024];
-    uint8_t menu_name_typed[6];
+    struct { uint8_t letters[6]; } menu_name_typed;
     uint16_t menu_name_letters;
     uint16_t menu_name_grid_line;
     uint16_t menu_name_record_at;
@@ -2632,7 +2638,7 @@ typedef struct {
     uint8_t menu_record_sprite_count[9];
     uint8_t menu_record_y[9];
     uint8_t menu_record_x_low[9];
-    uint8_t menu_record_sprite_offsets[9][30];
+    struct { uint8_t offsets[30]; } menu_record_sprite_offsets[9];
     uint8_t menu_record_sprite[9];
     uint8_t menu_record_sprite_set[9];
     uint8_t menu_record_frame_shown[9];
@@ -2680,7 +2686,7 @@ typedef struct {
     uint16_t menu_math_line_table_offset;
     uint16_t menu_loaded_palette[256];
     struct { uint16_t tiles[288]; } menu_save_slot_tilemap;
-    uint8_t menu_era_label_tiles[2][18];
+    struct { uint16_t tiles[9]; } menu_era_label_tiles[2];
     struct {
         uint8_t bytes[80];
     } menu_status_record;
@@ -2703,9 +2709,10 @@ typedef struct {
     struct {
         uint16_t place;
         uint8_t span;
-        uint16_t thumb_word;
+        uint8_t thumb;
         uint16_t step;
         uint8_t blink;
+        uint8_t blink_count;
         uint8_t hidden;
     } menu_scroll_bar;
     uint8_t menu_service_character;
@@ -2766,7 +2773,7 @@ typedef struct {
     uint8_t menu_tech_members[3];
     uint8_t menu_tech_list_shown;
     uint8_t menu_tech_list_shown_before;
-    uint8_t menu_tech_parts[7][60];
+    struct { uint8_t parts[60]; } menu_tech_parts[7];
     uint8_t menu_record_origin_y_high;
     uint8_t menu_tech_cost_needed;
     uint8_t menu_tech_member_groups[16];
@@ -2774,9 +2781,9 @@ typedef struct {
     uint16_t menu_tech_target_lines[12];
     uint16_t menu_description_line;
     uint8_t menu_description_pace;
-    uint8_t menu_name_grid_text[169];
+    struct { uint8_t text[169]; } menu_name_grid_text;
     struct { uint8_t letters[6]; } menu_name_kept;
-    uint8_t menu_name_trimmed[6];
+    struct { uint8_t letters[6]; } menu_name_trimmed;
     struct {
         uint16_t vram;
         uint16_t source;
@@ -2828,7 +2835,7 @@ typedef struct {
     uint16_t menu_travel_location;
     uint16_t menu_epoch_location;
     struct {
-        uint8_t bytes[16];
+        struct { uint8_t story_flags[16]; } bytes;
     } menu_story_flags;
     struct {
         uint8_t string;
@@ -2875,7 +2882,8 @@ typedef struct {
     uint32_t menu_block_move_stub;
     uint8_t menu_window_line_table[149];
     struct {
-        uint32_t number;
+        uint16_t low;
+        uint16_t high;
     } menu_text_work_values;
     struct {
         uint16_t size;
@@ -2926,11 +2934,17 @@ typedef struct {
     struct {
         uint8_t bg_mode;
         uint8_t mosaic;
-        uint8_t scroll_x[6];
-        uint8_t scroll_y[6];
-        uint8_t mode7_matrix[8];
+        uint16_t bg1_scroll_x;
+        uint16_t bg2_scroll_x;
+        uint16_t bg3_scroll_x;
+        uint16_t bg1_scroll_y;
+        uint16_t bg2_scroll_y;
+        uint16_t bg3_scroll_y;
+        struct { uint16_t parameters[4]; } mode7_matrix;
         uint32_t mode7_center;
-        uint8_t windows[9];
+        struct { uint8_t masks[3]; } window_masks;
+        struct { uint8_t edges[4]; } window_edges;
+        struct { uint8_t logic[2]; } window_logic;
         uint8_t main_screen;
         uint8_t sub_screen;
         uint8_t main_window_mask;
@@ -3433,8 +3447,6 @@ typedef struct {
     uint8_t scene_sprite_list_attributes;
     uint8_t scene_sprite_list_left;
     uint8_t scene_sprite_list_left_high;
-    uint8_t scene_sprite_table[512];
-    uint8_t scene_sprite_high_table[32];
     uint16_t scene_scaler_pairs;
     uint16_t scene_scaler_request_state;
     uint16_t scene_scaler_source_base;
@@ -3532,13 +3544,13 @@ typedef struct {
     uint16_t scene_tasks[16];
     uint16_t scene_tasks_running[16];
     struct {
-        uint8_t registers[32];
+        struct { uint16_t registers[16]; } registers;
         uint16_t script;
-        uint8_t loop_counters[32];
+        struct { uint16_t counters[16]; } loop_counters;
     } scene_channels[2];
     struct { uint16_t tiles[1024]; } scene_tilemap_buffer;
     struct { uint16_t colors[256]; } scene_palette;
-    uint8_t scene_race_plane_column[20];
+    struct { uint8_t tiles[20]; } scene_race_plane_column;
     uint8_t scene_race_road_strip[64];
     uint8_t scene_race_line_tables[4096];
     uint16_t scene_plane_line_above_a;
@@ -3551,7 +3563,7 @@ typedef struct {
     uint8_t scene_credits_over;
     uint8_t scene_credits_fast;
     uint8_t scene_credits_fast_high;
-    uint8_t scene_credits_row[32];
+    struct { uint8_t tiles[32]; } scene_credits_row;
     uint16_t scene_stars_depth_branch;
     uint16_t scene_random_seed;
     struct {
@@ -3827,7 +3839,7 @@ typedef struct {
     uint8_t warp_light_tiles[8192];
     uint8_t warp_circle_half_widths[128];
     uint16_t warp_circle_windows[512];
-    uint8_t warp_kept_event_memory[512];
+    struct { uint8_t story_flags[512]; } warp_kept_event_memory;
     struct {
         uint16_t bottom_values;
         uint16_t top_values;
@@ -3877,7 +3889,7 @@ typedef struct {
     VarsHostWarp warp;
     /* For each byte owners keep beside each other, the owner that wrote it
      * last, which the address view reads; 0 when every owner holds it. */
-    uint16_t overlay_writer[119808];
+    uint16_t overlay_writer[119296];
 } VarsHost;
 
 /* Byte views of battle_acting_for_itself's storage; no independent alias fields. */
@@ -3913,9 +3925,6 @@ void vars_host_battle_load_tilemap_write8(VarsHost *h, uint32_t offset, uint8_t 
 /* Byte views of battle_map_buffer's storage; no independent alias fields. */
 uint8_t vars_host_battle_map_buffer_read8(const VarsHost *h, uint32_t offset);
 void vars_host_battle_map_buffer_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of battle_member_actions's storage; no independent alias fields. */
-uint8_t vars_host_battle_member_actions_read8(const VarsHost *h, uint32_t offset);
-void vars_host_battle_member_actions_write8(VarsHost *h, uint32_t offset, uint8_t value);
 /* Byte views of battle_member_kept_item_values's storage; no independent alias fields. */
 uint8_t vars_host_battle_member_kept_item_values_read8(const VarsHost *h, uint32_t offset);
 void vars_host_battle_member_kept_item_values_write8(VarsHost *h, uint32_t offset, uint8_t value);
@@ -4267,9 +4276,6 @@ void vars_host_menu_object_line_slots_values_write8(VarsHost *h, uint32_t offset
 /* Byte views of menu_object_scratch_values's storage; no independent alias fields. */
 uint8_t vars_host_menu_object_scratch_values_read8(const VarsHost *h, uint32_t offset);
 void vars_host_menu_object_scratch_values_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of menu_object_shadows's storage; no independent alias fields. */
-uint8_t vars_host_menu_object_shadows_read8(const VarsHost *h, uint32_t offset);
-void vars_host_menu_object_shadows_write8(VarsHost *h, uint32_t offset, uint8_t value);
 /* Byte views of menu_object_shadows_values's storage; no independent alias fields. */
 uint8_t vars_host_menu_object_shadows_values_read8(const VarsHost *h, uint32_t offset);
 void vars_host_menu_object_shadows_values_write8(VarsHost *h, uint32_t offset, uint8_t value);
@@ -4282,9 +4288,6 @@ void vars_host_menu_scratch_storage_write8(VarsHost *h, uint32_t offset, uint8_t
 /* Byte views of menu_screen_argument's storage; no independent alias fields. */
 uint8_t vars_host_menu_screen_argument_read8(const VarsHost *h, uint32_t offset);
 void vars_host_menu_screen_argument_write8(VarsHost *h, uint32_t offset, uint8_t value);
-/* Byte views of menu_scroll_bar's storage; no independent alias fields. */
-uint8_t vars_host_menu_scroll_bar_read8(const VarsHost *h, uint32_t offset);
-void vars_host_menu_scroll_bar_write8(VarsHost *h, uint32_t offset, uint8_t value);
 /* Byte views of menu_slide_bands_values's storage; no independent alias fields. */
 uint8_t vars_host_menu_slide_bands_values_read8(const VarsHost *h, uint32_t offset);
 void vars_host_menu_slide_bands_values_write8(VarsHost *h, uint32_t offset, uint8_t value);

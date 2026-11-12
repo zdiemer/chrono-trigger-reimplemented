@@ -232,6 +232,18 @@ static unsigned thumb_line(const GameState *g)
     return (unsigned)(at >> 8) + (unsigned)(menu_scroll_bar_thumb(g) * menu_scroll_bar_step(g) >> 8);
 }
 
+/* A sliding list moves the thumb a line a frame (`lines` is 1 or -1). The
+ * original moves it as a word with the blink's count after it, so a thumb
+ * moved past either end of its byte carries into the count, and the port
+ * keeps that carry. */
+void menu_scroll_bar_move_thumb(GameState *g, int lines)
+{
+    uint16_t thumb = (uint16_t)(menu_scroll_bar_thumb(g) | menu_scroll_bar_blink_count(g) << 8);
+    thumb = (uint16_t)(thumb + lines);
+    set_menu_scroll_bar_thumb(g, (uint8_t)thumb);
+    set_menu_scroll_bar_blink_count(g, (uint8_t)(thumb >> 8));
+}
+
 /* A frame of the blink: its count runs out every eighth frame, and turns
  * it. */
 static bool blink_lit(GameState *g)

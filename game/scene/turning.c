@@ -69,8 +69,8 @@ void scene_draw_figure_pose(GameState *g, unsigned character, uint16_t pose_offs
         uint16_t looks = (uint16_t)(appearance + sprite * 2);
         unsigned high = scene_sprite_high_pointer(g) - SCENE_SPRITE_HIGH_TABLE;
         scene_place_sprite(g, (uint16_t)(first + sprite * 4), (SceneSprite){ (uint8_t)x, y, (uint8_t)looks, (uint8_t)(looks >> 8) });
-        set_scene_sprite_high_table_byte(g, high, (uint8_t)(LARGE_SPRITE | (x & 0x8000 ? LEFT_OF_SCREEN : 0) |
-                                                          scene_sprite_high_table_byte(g, high) >> 2));
+        set_oam_high_table_byte(g, high, (uint8_t)(LARGE_SPRITE | (x & 0x8000 ? LEFT_OF_SCREEN : 0) |
+                                                          oam_high_table_byte(g, high) >> 2));
         unsigned next = first + (sprite + 1) * 4;
         if (next % 16 == 0)
             set_scene_sprite_high_pointer(g, (uint16_t)(scene_sprite_high_pointer(g) + 1));

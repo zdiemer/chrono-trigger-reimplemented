@@ -2,8 +2,8 @@
  *
  * The scene programs build each frame's sprites in the sprite table the frame
  * work uploads: 128 four-byte entries -- X, Y, tile, attributes
- * (scene_sprite_table) -- and a high table of two bits a sprite, X's 9th bit
- * and the large size (scene_sprite_high_table). A scene places its sprites
+ * (oam_buffer) -- and a high table of two bits a sprite, X's 9th bit
+ * and the large size (oam_high_table). A scene places its sprites
  * through a cursor: the next free entry, and the high-table byte the next
  * sprite's bits go into. Each sprite shifts that byte right two bits and puts
  * its own bits at the top, so four sprites fill a byte and the first ends in
@@ -26,6 +26,7 @@
  * edge or below the picture is put out of sight. */
 #include "scene/scene.h"
 #include "charge.h"
+#include "core/sprite_table.h"
 
 #include "cpu_io.h"
 #include "port/vars_ram.h"
@@ -67,21 +68,21 @@ static void set_cursor(GameState *g, SpriteCursor c)
 
 static void set_entry(GameState *g, uint16_t entry, uint8_t field, uint8_t v)
 {
-    set_scene_sprite_table_byte(g, (unsigned)entry + field, v);
+    sprite_table_set_byte(g, (unsigned)entry + field, v);
 }
 
 /* A sprite that is small with X's 9th bit clear: its bits are 0, so a byte
  * that is 0 already stays as it is. */
 static void shift_in_small(GameState *g, uint8_t high)
 {
-    uint8_t bits = scene_sprite_high_table_byte(g, high);
+    uint8_t bits = oam_high_table_byte(g, high);
     if (bits)
-        set_scene_sprite_high_table_byte(g, high, (uint8_t)(bits >> 2));
+        set_oam_high_table_byte(g, high, (uint8_t)(bits >> 2));
 }
 
 static void shift_in(GameState *g, uint8_t high, uint8_t sprite_bits)
 {
-    set_scene_sprite_high_table_byte(g, high, (uint8_t)(sprite_bits | scene_sprite_high_table_byte(g, high) >> 2));
+    set_oam_high_table_byte(g, high, (uint8_t)(sprite_bits | oam_high_table_byte(g, high) >> 2));
 }
 
 /* On to the next entry, and the next high-table byte after every fourth. */
@@ -342,10 +343,10 @@ void scene_add_sprite_at_cursor(GameState *g, SceneSprite sprite, bool large)
 void scene_hide_rest_of_group(GameState *g)
 {
     SpriteCursor c = cursor(g);
-    uint8_t bits = scene_sprite_high_table_byte(g, c.high);
+    uint8_t bits = oam_high_table_byte(g, c.high);
     for (unsigned n = (c.entry / ENTRY_BYTES) % SPRITES_PER_HIGH_BYTE; n < SPRITES_PER_HIGH_BYTE; n++)
         bits = (uint8_t)(HIGH_X9 | bits >> 2);
-    set_scene_sprite_high_table_byte(g, c.high, bits);
+    set_oam_high_table_byte(g, c.high, bits);
 }
 
 /* How many sprites a list in the program holds. */
@@ -404,8 +405,8 @@ static bool fits_in_table(uint16_t entry, uint16_t high, unsigned sprites)
     unsigned last_high = high;
     if (entry % ENTRY_BYTES == 0)
         last_high += (entry / ENTRY_BYTES % SPRITES_PER_HIGH_BYTE + sprites - 1) / SPRITES_PER_HIGH_BYTE;
-    return (unsigned)entry + sprites * ENTRY_BYTES <= SCENE_SPRITE_TABLE_BYTES && high >= SCENE_SPRITE_HIGH_TABLE &&
-           last_high < SCENE_SPRITE_HIGH_TABLE + SCENE_SPRITE_HIGH_TABLE_BYTES;
+    return (unsigned)entry + sprites * ENTRY_BYTES <= SPRITE_TABLE_ENTRIES_BYTES && high >= SCENE_SPRITE_HIGH_TABLE &&
+           last_high < SCENE_SPRITE_HIGH_TABLE + OAM_HIGH_TABLE_BYTES;
 }
 
 /* Whether `sprites` more fit in the tables from the cursor, for the scenes
@@ -419,7 +420,7 @@ bool scene_sprites_fit(const GameState *g, unsigned sprites)
  * sprite cells before it, and the end of the high table. */
 enum {
     COUNT_CELL = RAM_SCENE_SPRITE_LIST_LEFT & 0xFFFF,
-    SPRITE_TABLES_END = SCENE_SPRITE_HIGH_TABLE + SCENE_SPRITE_HIGH_TABLE_BYTES,
+    SPRITE_TABLES_END = SCENE_SPRITE_HIGH_TABLE + OAM_HIGH_TABLE_BYTES,
 };
 
 /* The two forms of the program's list of large sprites, as its code holds
