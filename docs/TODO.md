@@ -2526,9 +2526,7 @@ and preserve their diagnostics as the remaining machine wrappers leave.
 
 ## Review follow-ups for native interfaces
 
-- **What the machine's removal left** (review of machine-core). CLAUDE.md's
-  Rules still describe the registry, `NATIVE_TIME_AS`, shadow mode and entry
-  wrappers: rewrite them for the machine-free game. About 390 comments and names
+- **What the machine's removal left** (review of machine-core). About 390 comments and names
   still describe the machine (`state.h:10`, `race.h:85`, `battle/bridge.h`, the
   "On the machine" sections, `scene_task_needs_the_machine`, `machine_tasks`,
   `*_on_the_machine`). Leftovers of the mechanical rewrite: an empty

@@ -20,7 +20,7 @@ where the code still reads as a translation, not to confirm that it doesn't.
   python3 tools/portsmell.py --files    # the rubric items a machine can settle
   python3 tools/portsmell.py --list     # which items those are
   ```
-  Thirteen of the items below are decidable from the source -- quoted assembly, a
+  Several of the items below are decidable from the source -- quoted assembly, a
   "presumably", a sibling port called through its ROM address, a `Trace *`
   out-parameter, an enum nothing takes as a type, a flag noted inside a game
   branch, a return frame pushed by hand -- and `tools/portsmell.py`
@@ -313,26 +313,18 @@ Why this reads as hand-written:
 - **There is still a setter sequence in each operation, and that's fine.** It
   sits inside the operation that means it, in one place per concept, not
   scattered through every caller in the original's order. It is also where
-  the storage changes when the gate retires.
-- **The gate is still satisfied.** The operations write the same bytes the
-  original writes, so shadow mode compares them as before. Nothing in the
-  shape needs a machine.
+  the storage changes.
 - **Short forms are table rows**, not functions. `$B3` and `$B4` are the same
   operation as `$AA`, and `$AB` the same as `$B7` with its count fixed; the
   reader sees that at a glance.
-- **What's absent is as telling:** no `Snes *`, no `m_*`, no register or flag
-  values carried through, no positional `operand(g, c, 1)`, no `SCRATCH_D9`, no
+- **What's absent is as telling:** no register or flag values carried through, no positional `operand(g, c, 1)`, no `SCRATCH_D9`, no
   "presumably".
-
-A registered entry around such code stays the thin shape the rubric describes:
-it reads the original's registers into these parameters, calls the operation,
-and derives any register a caller reads from the state afterwards, beside the
-other derivations (`game/field/leaves.c`). Anything it can't derive is
-recorded through the scaffolding mechanism, in one marked line.
 
 ## What reads as a translation
 
-Each of these is a finding. Every example here comes from this repo.
+Each of these is a finding. Every example here comes from this repo. The numbers
+are stable (portsmell cites them); the gaps are items that retired with the
+emulated machine.
 
 1. **Setter chains in the original's order.** Four `set_field_object_*` calls
    in a row is the original's stores with names on them. A hand-written version
@@ -342,7 +334,7 @@ Each of these is a finding. Every example here comes from this repo.
    an operand is encoded (`loop_animation`, `loop_animation_0`,
    `loop_animation_1`): machine-checked, `portsmell.py twin-functions`. What it
    can't see is the cause -- an interpreter dispatching through the ROM's
-   pointer table and an emulated `JSR` instead of a C table -- so read the table.
+   pointer table instead of a C table -- so read the table.
 3. **Positional or offset access to data that has meaning.** `operand(g, c, 1)`
    for "the animation"; a byte offset into a record; `at + 2`. A hand-written
    version decodes once into named, typed values.
@@ -356,8 +348,8 @@ Each of these is a finding. Every example here comes from this repo.
    with no name. These want an enum, a bool or a named state.
 6. **The original's registers and flags in the logic.** A result carrying the
    original's Y or V flag, a "parse position" threaded through every return,
-   carry-chained arithmetic, width checks. These belong in the entry wrapper or
-   a bridge, or in marked scaffolding, not in what a function means.
+   carry-chained arithmetic, width checks. Nothing reads them any more: delete
+   them.
 7. **Control flow that mirrors the original's branches.** Flags that exist to
    reproduce a `BRA`; duplicated tails where the original jumped into shared
    code; an early `return` exactly where the original had an `RTS`, when the
@@ -369,16 +361,13 @@ Each of these is a finding. Every example here comes from this repo.
    reaction) and hold the script until it finishes." Also a finding: a file
    without a header saying what part of the game it is and how its pieces fit
    together.
-9. **Scaffolding mixed into the logic.** A write that exists only because
-   still-generated code or shadow mode reads it, inline and unmarked among the
-   writes that are the game's.
 10. **The wrong types.** `uint8_t` where the value is a bool, an enum, a state,
     a slot handle or a count with a unit. Types are part of the vocabulary.
 11. **The wrong level.** A file whose functions operate on tables and bytes when
     the game concept exists (or should) one level up.
 12. **The arithmetic unit emulated in the logic.** A hand-written version writes
     `quotient = n / d`, `product = a * b`, and any carry, overflow or leftover
-    the callers read is derived *in the wrapper* from those results. Named
+    the game reads is worked out from those results. Named
     emulations (`add_carry`, `rotate_left`, `adc`/`sbc`) are machine-checked,
     `portsmell.py cpu-arithmetic`; an unnamed one -- a divide as 32 rounds of
     rotate-and-subtract, a multiply as partial products with a chained carry, a
@@ -389,8 +378,7 @@ Each of these is a finding. Every example here comes from this repo.
     shape of the whole routine. One exception, accepted by the owner
     (2026-10-17): the carry chains in `game/scene/stars.c`, `race_rules.c` and
     `race_projection.c` stay, because the original never clears the carry
-    between its adds and the spilled bit moves positions, which shadow mode
-    and fuzzing compare; so do those in `game/battle/screen_sides.c` and
+    between its adds and the spilled bit moves positions on screen; so do those in `game/battle/screen_sides.c` and
     `screen_window.c` (accepted 2026-10-18), where the spilled bit moves a
     window's edges a column; and so do `game/scene/random.c`'s add with the
     carry fed back in, and `game/menu/epoch.c`'s `on_the_screen`, whose y
@@ -404,9 +392,7 @@ Each of these is a finding. Every example here comes from this repo.
     tracks them as follow-ups.
 13. **Memory used as registers.** A loop counter or temporary kept in a RAM cell
     and read back (`set_scene_circle_count(g, x); ... x = scene_circle_count(g);`),
-    or bytes shifted in place in scratch. CLAUDE.md requires writing the cells the
-    original leaves, but only their *final values*, once, in marked scaffolding.
-    The working state belongs in locals.
+    or bytes shifted in place in scratch. The working state belongs in locals.
 14. **Semantic values built by decoding the original's literal bytes.**
     `vid_mode_decode(0x07)`, `vid_set_screens(pf, at, 0x13, 0x04, ...)`,
     `vid_windows_decode(&w, field, 0x00)`. The decoders exist for bytes the game
@@ -442,20 +428,13 @@ Each of these is a finding. Every example here comes from this repo.
     the comparison the logic means (`(int16_t)(x - LIMIT) < 0`, or `x < LIMIT`
     where the range allows it), with a comment only where wraparound really
     changes the result.
-20. **Scaffolding as table data.** `ORIGINAL_EFFECT` compiles out *writes*, not
-    *columns*. A language's row struct carrying the original's Y, scratch
-    layout or flags (`.parse`, `.keeps = 0x80|n`, `.overflow`) is smell 9 even
-    when every use is marked. The original's leftovers go in a parallel table
-    that compiles out with the mechanism.
 21. **Two vocabularies, or dead address columns.** Registered entry names that
     disagree with the operation names for the same command (`reset_animation`
     and `stop_animating`), or a column holding ROM addresses that no code reads.
 22. **Calling a sibling through its ROM address.** A table, key or lookup that
     finds another operation by its original address instead of calling it as C
     (item 61 is the same finding from the callee's side).
-23. **The scaffolding switch used as a value.** `return ORIGINAL_EFFECTS &&
-    overflows16(...)`: the switch has leaked into what a function means.
-    Machine-checked, `portsmell.py scaffolding-as-value`.
+23. **A build switch used as a value**: machine-checked, `portsmell.py scaffolding-as-value`.
 24. **Adapters that reorder positional arguments.** A dispatch table whose rows
     list operands in one order while the operation takes them in another
     (`(arg[2], arg[0], arg[1], arg[3])`). This is smell 3 moved into the
@@ -467,12 +446,10 @@ Each of these is a finding. Every example here comes from this repo.
 26. **Traces as out-parameters, with twin functions.** Machine-checked in its
     named form, `portsmell.py register-out-params`. A public logic function
     that wraps a private one taking `SomethingTrace *` or `bool *x_for_wrapper`
-    only so the entry wrapper can rebuild registers (`FrameTrace { plays_counted
+    only to report what the original's registers held (`FrameTrace { plays_counted
     /* A */, started_over /* V */ }`). This is smell 6 moved into a parameter, and
-    it counts as a register-shaped struct for the verdict threshold. Wrappers
-    derive registers from the state after the call. Anything they can't derive
-    is recorded through the scaffolding mechanism, not through the logic's
-    signature.
+    it counts as a register-shaped struct for the verdict threshold. Delete the
+    out-parameter, or name the game reader its value has.
 27. **A domain module with no callers.** A header of good operations beside
     code that still reaches the same bytes directly. Grep for each operation's
     callers; don't only read the header.
@@ -480,21 +457,14 @@ Each of these is a finding. Every example here comes from this repo.
     accessor, "the word after BG3's", a loop running to `& 0x7F` over a
     64-entry table. It works only because of the original's memory layout, it
     hides behind a clean accessor name, and it breaks the moment storage goes
-    native. A deliberate stray write the gate needs is an explicit, marked
-    scaffolding write, through the variable's `_unchecked` accessors (the map
-    says why) or `game/wram.h`. Native bounds-check tests exercise indexed
-    accessors (docs/STATE.md).
+    native. A deliberate stray write the game can see goes through the
+    variable's `_unchecked` accessors (the map says why). Native bounds-check
+    tests exercise indexed accessors (docs/STATE.md).
     The movie gate rejects reported accessor faults; paths neither check
     reaches are still the reviewer's to read for.
-29. **Guards that duplicate the logic.** A guard that re-runs the routine to
-    predict it (`field_view_unchanged`, `draws`) is shadow mode's structure
-    leaking into the file's shape.
 30. **Call-site arithmetic.** `first + 3`, `site + 3`, "the party's copy of the
     loop": the ROM's code layout used as control data. Name each target for
     what it does.
-31. **Registers or RAM cells as a bridge's own loop variables.** A row counter
-    in `s->cpu.y`, or `field_current_object` as the loop index. A bridge's own
-    loop runs on locals and sets the machine only at the call.
 32. **Operations that take a bag.** An operation whose signature is
     `(GameState *g, const EventCommand *c)`, where `EventCommand` holds every
     parameter of the language (about 80 fields). Its fields are named, but the
@@ -507,20 +477,13 @@ Each of these is a finding. Every example here comes from this repo.
     enum-types-nothing`, for an enum nothing takes as a type at all.
 34. **Emulating inputs no game state produces.** A bit-serial division kept
     "for a divisor of 0, or one with its top bit set, which no scene uses". The
-    remedy is a guard that refuses those inputs, so the original runs them;
-    the logic keeps only the arithmetic the game actually needs (`n / d`). An
+    logic keeps only the arithmetic the game actually needs (`n / d`), and an
+    input no game state produces is `program_fail`'s. An
     emulation with a comment explaining that nothing reaches it is still an
     emulation. The same holds for a carry or borrow that is constant over
     every input the game produces (a subtraction that can't borrow on any
-    real camera): the guard refuses the rest and the sum is written plainly,
-    rather than the bit worked out and handed on.
-35. **Leftover records that carry the CPU.** A file-static `*_leaves` record is
-    acceptable for a value the wrapper can't derive from the inputs and the
-    final state. A register-shaped record (carry, overflow, A) that the logic
-    writes all the way through, even inside `ORIGINAL_EFFECT`, is item 26
-    moved into a global: the signatures look clean and the CPU is still
-    threaded through. For each field of a leftover record, the review asks
-    whether the wrapper could derive it.
+    real camera): the sum is written plainly, rather than the bit worked out
+    and handed on.
 36. **Timing shaping the logic.** A loop kept byte by byte, or a step kept in
     the original's order, because that shape is what the timing estimate
     charges. Time is charged through `TIMED_AS` or an explicit
@@ -528,35 +491,19 @@ Each of these is a finding. Every example here comes from this repo.
 37. **Hardware helpers used as the computation.** The divider, the
     multiplier or the work RAM port used to *compute* (`quotient =
     hw_quotient_by(...)`, a list read through the port with a word's high byte
-    "dropped"). Compute in C, and leave the hardware's final state as
-    scaffolding.
+    "dropped"). Compute in C.
 38. **Machine counting conventions as parameters.** A block move's "count
     minus one", or "A + 1 bytes", passed into logic as a parameter. Say how
     many bytes, or which range, in the game's terms.
-39. **A scaffolding global that doubles as a parameter.** A record the machine
-    wrapper sets and the logic reads (the command's offset out of
-    `event_leaves->at`), so the "portable" code only works under the wrapper.
-    Pass the value explicitly.
-40. **Game work inside an expression only scaffolding reads.** `bool animated =
-    style == WALKING && object_animate_movement(...)`, where the result goes only
-    into `ORIGINAL_EFFECT`: the walk starts as a side effect of scaffolding. Do
-    the work as a statement of its own.
-41. **Comments that contradict the code.** "A wandering townsperson" on a bridge
+41. **Comments that contradict the code.** "A wandering townsperson" on a function
     that only serves party members; "its copy" for a table that is the other
     half of another; `NO_BATTLE_PLACE` and `BATTLE_PLACES_IT` for the same byte.
     A wrong comment is worse than none.
 42. **Enum values used as indices into tables of ROM addresses**
     (`sites[role.kind]`). Name the table's rows by role.
-43. **The same decision written several times in one file**, and scaffolding
-    helpers duplicated across files. This is item 18 for logic and for
-    scaffolding, not only for bit definitions.
-44. **Flag derivations exported from a logic file.** `field_step_start_overflow`
-    and the like, living in `motion.c` and re-running its internals so a
-    wrapper can rebuild a flag. Derivations belong beside the wrappers, so the
-    logic file holds only the game.
-45. **Locals and return values that exist only for scaffolding.** A return
-    value the game ignores, or locals that only shape a `leave_*` call. This is
-    item 26 in the return-value form.
+43. **The same decision written several times in one file**, or helpers
+    duplicated across files. This is item 18 for logic, not only for bit
+    definitions.
 46. **One buffer read as two tables through an offset**, with no named view.
     Name the view, or declare the second table in the map.
 47. **Service headers that invite a smell.** A header ports rely on whose
@@ -568,15 +515,11 @@ Each of these is a finding. Every example here comes from this repo.
     if the game can observe it, and say so where the type is defined.
 49. **Handler identity as a type tag.** `row->run == run_loop` used to tell
     rows apart. The table is missing a column; give it a kind.
-50. **Leftover round-trips that do nothing.** A leftover field that writes back
-    what the register already held (`a_high = list >> 8` restored into A's high
-    byte). Check each leftover field for identity with the input, as well as for
-    whether the wrapper could derive it.
 51. **Origin tags computed or tabled.** `PF_AT(0x7E3124 + 8 * bg)`,
     `map_sites[bg]`. `PF_AT`/`PF_CALL` tags are legitimate as literals at the
     call they describe, not as arithmetic on the ROM's code layout.
-52. **Counting conventions in scaffolding too.** `charge_block_move(g,
-    bytes - 1)` with no reason given is item 38 inside scaffolding.
+52. **Counting conventions in charges too.** `charge_block_move(g,
+    bytes - 1)` with no reason given is item 38 inside a work charge.
 53. **Fixed-point claims without a named unit.** A comment saying "1/256 of a
     row" that can't be checked, and was wrong (it was 1/128). Wherever a comment
     states a fraction, name the unit as a constant.
@@ -591,7 +534,7 @@ Each of these is a finding. Every example here comes from this repo.
 56. **A machine idiom's side effect used as the computation.** An overlapping
     block move that copies a buffer onto itself one byte on, so its first byte
     repeats (`repeat_forward(g, row, row + 1, n)`), stands for "fill these
-    lines with X". Write the fill; keep the idiom only where the gate needs
+    lines with X". Write the fill; keep the idiom only where the game can see
     its exact bytes, and say so.
 
 57. **A quirk parameter or constant named for one of its uses.** A flag that is the add's
@@ -601,10 +544,6 @@ Each of these is a finding. Every example here comes from this repo.
 58. **A declaration wider than its meaning.** A word accessor for a cell of
     which one byte means something forces `& 0xFF00` and `(uint8_t)` into
     the port. Narrow it in `re/ram.toml` (a map fix, not the port's).
-59. **A bridge's runs between call-outs left in the `Snes *` body.** A
-    bridge may call out mid-body, but the stretches without call-outs (a
-    screen's setup, a table's fill) are logic, and belong in `GameState`/
-    `Platform` functions the bridge calls.
 
 60. **A member of a finer enum passed to select a coarser case.** A callee
     that only branches on a family (`slot_fits(s, ROTATE_DOWN)` covering both
@@ -614,10 +553,8 @@ Each of these is a finding. Every example here comes from this repo.
 61. **A lookup that is really a call.** A list headed "the original's
     routines", keyed by address, that quietly holds the subsystem's own
     operations, reached by lookup where a direct C call would do.
-62. **Register setup the call's own declaration marks dead.** A carry set
-    before a call whose don't-care set includes `DC_C`.
 63. **An increment where the value is a bool or a state.** `x + 1` written to
-    a cell the guards keep at 0 is `true`, or a named step.
+    a cell that is only ever 0 or 1 is `true`, or a named step.
 64. **Data accessors that take byte offsets.** `setup_rule(at)`,
     `layout * 14`: item 3 moved into the asset seam, where it looks
     legitimate. Accessors take the index and return a record.
@@ -625,74 +562,32 @@ Each of these is a finding. Every example here comes from this repo.
     buffer place as a literal in two files (item 18 is bits, 43 decisions).
 66. **Porting status in the game's vocabulary.** "Which are still the
     original's" in a type's meaning, or an API like `..._filled_here()`:
-    what is ported belongs to the guards and entries, not to the logic.
-67. **A leaves file not used everywhere.** Where a subsystem derives
-    registers from state in one place, a register derived inline in a bridge
-    elsewhere is a finding.
+    porting history belongs in the docs, not in the logic.
 
 68. **A value of one enum used as another's.** `ObjectKind place =
     object_role(g, self).kind` passed as a party place, working only because
     `ROLE_PARTY_1 == 1`. One concept, one type, and a conversion that says so.
-69. **Scaffolding written through an accessor named for something else.**
-    Marked, but the name still lies about what the cell holds then
-    (`set_field_own_tile_x` receiving a table address). Name the cell's
-    second use in the map, or use the scaffolding's own writer.
 70. **Script data patched by offset.** A command overwriting another script's
     operands (`PUSH_SCRIPT + PUSH_TILE + 1`) is item 3 aimed at code: one
     named operation per patch, beside where the script is defined.
 
-71. **Game state written only in scaffolding.** A cell the logic reads back
-    (a quirk the game can see) written only inside `ORIGINAL_EFFECT`: the
-    native-shape build then behaves differently. Grep every scaffolding
-    cell for readers in logic; a value something reads is game state,
-    written as a plain statement and named as such. This is a bug, not style.
-72. **Guards that know their entry by `s->cpu.pc`.** Scanning a table's ROM
-    address column for the PC is handler identity by machine position, and
-    makes routine columns in logic tables look necessary. Generate a guard
-    per entry with its kind as a constant. Machine-checked, `portsmell.py
-    pc-identity`, which reads the PC but not the ports that *set* it (how an
-    idle loop's port says where the machine resumes).
+72. **Handlers that know themselves by a program counter**: machine-checked,
+    `portsmell.py pc-identity`. Give each handler its kind as a constant.
 73. **A handler that calls the continuation.** A condition that itself
-    "chooses the block's actions", as the original's `JSR` did, instead of
+    "chooses the block's actions", as the original's subroutine call did, instead of
     returning a result the interpreter's loop acts on.
 74. **A header that admits its state is the original's cells** ("the state
     the choosing keeps is the original's, in its cells"). Not a disclosure
     that excuses item 13; a flag to check it.
 
-75. **Logic re-run inside `ORIGINAL_EFFECT` for the cells it records.** Item
-    40 turned round: the function then serves the game and the scaffolding,
-    and its signature grows to carry the leftover. Scaffolding works its
-    values out in a leaves helper from the state, never by re-running logic.
 76. **A header naming vocabulary nobody wrote.** A comment pointing at a type
     ("walk.c, `TileShape`") where the code kept a bare `uint8_t`.
 77. **A map array whose indices are different variables.**
     `field_chests[0]` the game's list, `[1]` the location's: item 42 in the
     RAM map. Split them there.
 
-78. **A don't-care that rests on a new analysis hint.** When a change adds a
-    hint to the liveness analysis (`re/hints.toml`), check the hint against
-    the ROM: which registers the routine saves, restores, reads and leaves
-    to whatever runs next. A wrong hint kills a live register everywhere the
-    routine is called, and every declaration that leans on it passes the
-    check. Ask for a test that ties the hint to the disassembly. Read also
-    what the hint makes live: an `[[entry]]` hint on a routine reached by
-    fall-through marks every register live after its return ("entered as
-    hint"), and that is not a reader. A register a port leaves "because
-    liveness says so" there needs its reader named past the hint.
 79. **A file named for something it doesn't contain.** `save_screen.c`
     holding the slots' summaries while the load screen lives elsewhere.
-80. **A shared mechanism whose header states a rule its callers break.**
-    `menu_run`'s header says pure-C siblings are called as C; a caller runs
-    one through an emulated `JSR`. Item 41 aimed at a bridge's contract.
-
-81. **A guard replaced by scaffolding that reaches game state.** Where a port
-    stops refusing rare real inputs and reproduces the original's quirk only
-    under `ORIGINAL_EFFECT` (reads past a table), the two builds may diverge
-    on game-visible state. That is allowed only as the absent party member
-    and the walk's search past the tables do it: the logic stays typed in the
-    game's terms, the quirk's effect is applied by one marked line (never a
-    local the logic branches on), the library is shown not to reach a
-    visible difference, and the divergence is listed in docs/TODO.md.
 
 82. **A table keyed by which original routine runs.** Rows that reproduce
     the differences between near-copies of a routine (`y_rules(layout,
@@ -702,32 +597,22 @@ Each of these is a finding. Every example here comes from this repo.
     that carries a game's rule (`vid_oam_y` holding one layout's hiding rule
     while its siblings live in the port). The platform keeps the plain
     encoding; the game's rule stays in the port with its siblings.
-84. **Result fields that only say which registers are defined.** `placed`,
-    `rebuilt`, `overflow`: plain bools with game-sounding names that exist
-    to tell a wrapper which flags to set. Items 26 and 45 in their most
-    easily missed form; the wrapper asks the state instead.
 
 85. **The original's call stack mirrored in the logic.** A return frame
-    pushed by hand outside a bridge is machine-checked, `portsmell.py
-    return-address-pushed`. What needs a reader is the frame kept another
-    way: an enum of `JSR` sites with a "stopped" check after each call, so
-    that a call-out can rebuild the original's frames. It pins the logic to
-    the ROM's call graph. Port the call-outs that need it, or have the guard
-    refuse what reaches them.
+    pushed by hand is machine-checked, `portsmell.py return-address-pushed`.
+    What needs a reader is the frame kept another way: an enum of the
+    original's call sites with a "stopped" check after each call. It pins the
+    logic to the ROM's call graph; the logic's signatures carry only what the
+    game decides.
 86. **A CPU-flag parameter on a shared service whose only effect is a
     leftover cell** (`battle_multiply_words_carrying(..., carry)`). Once the
     service writes the cell plainly the flag looks like game input.
-87. **Scaffolding promoted to game state without naming it.** Item 71's fix
-    is to write a value plainly, but the reader must say what the value is in
-    the game's terms; a run of "kept plainly" across unrelated files to
-    satisfy one reader is the original's register traffic by another name.
 
 88. **An out-parameter dressed as an outcome enum.** Game-sounding members
     that only separate cases the game's own result merges. The check: if
     every member maps onto the same game-state value, it is the registers.
-    The tell-tales are a `(void)local;` in an entry whose only other use is
-    inside `ORIGINAL_EFFECT`, and public `void` twins of a private function
-    that returns the struct.
+    The tell-tales are a `(void)local;` and public `void` twins of a private
+    function that returns the struct.
 89. **Cells as the calling convention between two C functions.** A ported
     caller writes cells and a ported callee reads them back as its
     parameters (`menu_set_label(g, menu_load_destination(g))`). Pass them.
@@ -736,43 +621,28 @@ Each of these is a finding. Every example here comes from this repo.
 
 91. **Twin functions that differ only in the order they read cells**, kept
     for the open-bus value on an input no game state produces. Item 34 in
-    the form of read order: a guard refuses the input and one function takes
-    the difference as a parameter.
-92. **A hardware cursor as the parameter between two ported functions.** Item
-    89 with a register (the work RAM port's address) in place of a cell. Pass
-    the destination; leave the cursor's final place as scaffolding.
+    the form of read order: one function takes the difference as a
+    parameter.
 
 93. **Flag notes interleaved with the logic's arithmetic.** A note of a flag
     inside a loop or under a game branch is machine-checked, `portsmell.py
     flag-note-in-logic`. What needs a reader is the straight-line form: a
     note beside each add pins the logic to the original's order of
     operations. The test: would reordering two independent adds in a formula
-    break the gate? The legitimate form is one leaves helper that works the
-    flag out from the final state (`event/contact.c`).
+    change the game? If not, the note is the original's order of operations;
+    write the formula.
 
-94. **A leaves derivation that decodes state differently from the logic.** A
-    helper that works a register out must read the state through the logic
-    file's own storage functions, never re-decode the layout with raw
-    accessors, or it quietly diverges at the edges (a tile map's column 63
-    read as BG1's column 0 in one file and BG2's in the other).
 95. **Origin tags passed into a logic helper's signature.** A drawing
     function that takes a table of sites and an index only to tag its writes
-    (`redraw_tile(..., RedrawSites at, unsigned n)`): item 45 for tags. Tag
+    (`redraw_tile(..., RedrawSites at, unsigned n)`): a parameter for the tag alone. Tag
     once, with a literal, where the branch starts its uploads.
-
-96. **A justification that contradicts what shadow mode compares.** A comment
-    keeping scaffolding or a register derivation "because shadow mode
-    compares X" where docs/PORTING.md says it doesn't. The code may be right
-    while its stated reason is wrong, which misleads whoever next decides
-    whether it can go. Check the claim against PORTING.md.
 
 97. **Timing fudge dressed as block-move bytes.** `charge_block_move(g, N)`
     where N is a cycle estimate turned into "bytes", not a real fill or copy,
     gets round "a tag, never a number". A port charges only the bytes it
-    actually fills or copies; calibration and the timing exceptions take the
-    rest.
-98. **Aliasing guards that list offenders instead of stating the invariant.**
-    A guard that exists because the port keeps a cell in hand checks "nothing
+    actually fills or copies.
+98. **Aliasing checks that list offenders instead of stating the invariant.**
+    A check that exists because the port keeps a cell in hand tests "nothing
     the call reads or writes touches that cell" on every path, not a list of
     the known ways in.
 99. **Two cells read as one machine word.** `(lo | hi << 8) << 1 & 0xFF00`
@@ -782,60 +652,22 @@ Each of these is a finding. Every example here comes from this repo.
 100. **A dispatch column inside the game model.** A table that says what the
      game does (a `TimerEffect` per status) with the ROM's routine addresses
      in a column beside it makes the ROM's layout look like part of the
-     game. Keep routine and entry columns in a parallel dispatch table beside
-     the entries.
-101. **An inlined subroutine's frame, chosen by a game condition.** Outside
-     a bridge, machine-checked, `portsmell.py return-address-pushed`. In a
-     bridge (`m_push16(... POISON ? A : B)`) it is acceptable, but prefer
-     registering the inlined subroutine as its own entry so `battle_run` or
-     its sibling supplies the frame.
-
-102. **A sibling port reached through the machine only so its guard runs.**
-     The code gives another reason; the real one is that a C call would skip
-     the entry's guard. Call it as C behind a helper that tests the guard
-     itself and calls out where it refuses (`event_call_bridge`, the field's
-     palette give-up), under a pushed frame where the sibling's call-outs
-     need one.
+     game. Drop the column, or keep what still needs it in a table of its
+     own.
+101. **An inlined subroutine's frame, chosen by a game condition**:
+     machine-checked, `portsmell.py return-address-pushed`.
 
 103. **A sentinel the port handles by reaching past the tables in plain
-     logic.** A guard dropped so that a "nobody" (`$FF`, one past the list)
-     flows through as a bare byte and reads or writes stray cells identically
-     in both builds. It isn't item 81's build divergence, so it is easy to
-     argue away, but it still needs a typed "nobody", the stray effects in
-     one marked place (or the guard back), and a docs/TODO.md entry: native
+     logic.** A "nobody" (`$FF`, one past the list) that flows through as a
+     bare byte and reads or writes stray cells. It needs a typed "nobody",
+     the stray effects in one marked place, and a docs/TODO.md entry: native
      storage breaks it.
 
-104. **One decision through two bridge mechanisms in one file.** One sibling
-     run through `battle_run` (its guard, then a call-out, the turn carrying
-     on in C) and another's guard asked with the whole routine stopping where
-     it refuses. Use one: the helper that tests the guard and calls out
-     keeps the rest of the routine C either way.
-
-105. **A scaffolding note run only on the original's path through a branch.**
-     Machine-checked for flags, `portsmell.py flag-note-in-logic`; a cell's
-     note under a game branch (`if (!(moves & X)) ORIGINAL_EFFECT(bit_test(...))`)
-     still needs a reader: item 7 inside scaffolding.
 106. **A game-sounding bool that is really the carry of an unsigned add.**
      `past_the_top = was + step > 0xFFFF` for a negative step. If the name
      matches the carry only on the inputs that occur, it is the register:
      write the game test (`step < 0`).
 
-107. **A register derived right after a call-out that already leaves it.**
-     Before writing a register back after a call-out, check whether the
-     callee is still the original's; if it is, the machine already holds its
-     value and the derivation is a round trip (item 50).
-108. **An operation in game vocabulary observed only by shadow mode's compare
-     at the next call-out.** Something written just before a call and always
-     overwritten after it is scaffolding however it is named (item 87's
-     sibling): put it in `ORIGINAL_EFFECT`, or name the reader while the
-     call waits.
-109. **A cell "kept plainly" whose only later writer is a sibling piece of the
-     same ported routine.** Item 108 when the overwrite is C, not a call-out:
-     a piece with its own registered entry looks as though someone might call
-     it alone. List the ROM callers of the piece's routine; where the only one
-     is a ported routine that overwrites the cell, the keep is scaffolding,
-     and the routine's last writer of each surviving cell keeps it plainly,
-     named where the routine is described.
 110. **One table read through a record named for another use.** The same
      bytes read two ways (a modifier record's routine number read as a stat
      block's offset) want two named views, each with its own accessor.
@@ -844,26 +676,7 @@ Each of these is a finding. Every example here comes from this repo.
      word at a time: give the record a wide accessor, add in one expression,
      and put the original's way of capping in one named function whose
      comment says how it differs from a plain minimum.
-112. **Scaffolding written on every pass of a loop.** Where only the loop's
-     last value is observed, work the final values out after it and write
-     them once (a leaves helper), rather than mirroring the original's cell
-     updates pass by pass.
-113. **A guard that exists only because the logic loops for ever on an
-     input.** Where the game never produces the input, make the loop end on
-     it (equivalent on every input the game produces) and drop the guard's
-     condition; fuzzing then counts the original's endless run as skipped.
 
-114. **A named game cell that other routines' scaffolding also writes.** A
-     cell the logic reads under one name (`battle_jump_lift`) that another
-     port's `ORIGINAL_EFFECT` leave writes at its offset (`LEFT_WAY_BACK`):
-     the native shape then reads it stale. Check every leave's offset against
-     the map's named cells. Comparison-only writes retired in phase A;
-     reject their reintroduction (docs/PORTING.md, "Scaffolding").
-115. **A register leftover made into vocabulary.** A logic header exporting a
-     query whose answer is only what a register held when the original
-     returned (`menu_equip_item_described_on_opening`, X left pointing at a
-     place): it is a register derivation and belongs in the subsystem's
-     leaves, worked out from the state, not named as a game concept.
 116. **One parameter list for a whole language.** An interpreter whose table
      decodes every command into one shared set of fields (`value`, `which`,
      `kind`) has items 55 and 10 at once: the names can't say what each
@@ -879,63 +692,14 @@ Each of these is a finding. Every example here comes from this repo.
 118. **A service result in the hardware's layout.** A call added to a
      portable service (`runtime/platform/*.h`) whose result keeps the SNES
      register's bits (`tm_picture_status`: `$213E` low, `$213F` high, bit 15
-     the field) so a wrapper can rebuild A. The service answers the game's
-     question (`tm_odd_frame`); what the original's register held is
-     scaffolding the SNES backend hands the wrapper, never part of the
-     portable interface.
+     the field). The service answers the game's question (`tm_odd_frame`);
+     what the original's register held is never part of the portable
+     interface.
 119. **A carry explained for one sign only.** A kept carry from adding a
      step that can be negative (a two's-complement slope) means a carry for
      one sign and a no-borrow for the other, so it is set on nearly every
      line in one direction. A comment that calls it an occasional rounding
      misleads; say what it does for both signs, and name the step for it.
-120. **A leftover kept plainly on another variable's bytes.** A logic file
-     working out what the original leaves (a divider's remainder) and
-     writing it plainly into a cell that another named variable reuses
-     (`battle_direction_work` over `battle_party_defeated`). Writing it
-     plainly is right while a reader may exist, since `ORIGINAL_EFFECT` could
-     split the two builds (item 71); but then the work belongs in a leaves
-     helper, the overlap is named in the map, and TODO says which reader is
-     still to be found or ruled out.
-121. **A sibling's time charged to the caller.** A bridge that calls another
-     port's registered entry directly as C, so that entry's time lands on the
-     caller, then answers the drift with a timing exception. Wrap the call in
-     `TIMED_AS` with the sibling's key, so its own calibrated value
-     is charged, and drop the exception.
-122. **A dispatcher kept as the calling convention between ports.** A C
-     function that takes the original's dispatch number and its registers'
-     contents (`party_run_service(g, pf, service, character, item)`, A/X/Y
-     in, A out), which other ports call instead of the operations it picks
-     among, passing whatever their registers held so a leaves helper can
-     record it. Nothing goes through the machine, so item 102 doesn't see it,
-     but the original's convention is now the interface between two ports.
-     Callers call the operations; the dispatch stays at the registered entry
-     for the original's callers, and the cells the dispatcher leaves are one
-     leaves helper the caller runs under `ORIGINAL_EFFECT`.
-123. **A C sibling run through the machine.** A bridge that runs a port it
-     could call as C through `menu_run` (or another bridge), so the callee's
-     entry pushes the caller's flags and the stacks match the original's.
-     `bridge.h`'s rule is that C siblings are called as C, timed with
-     `TIMED_AS`; what the original's frame left on the stack is a leaves
-     helper's, not a reason to go through the machine.
-124. **A guard that re-decodes the logic's encoding.** A guard with its own
-     copies of a logic file's in-band constants (`NO_ONE`, `STAYS`) and its
-     own decoding of the rows they mark. Item 94 says leaves helpers use the
-     logic's decoders; so do guards, or the two drift apart and the guard
-     admits a state the logic reads differently. Export the decoder and call
-     it.
-125. **A call site dressed as a game concept.** An enum with game-sounding
-     names (`TargetsWhy`) whose members map one to one onto the original's
-     call sites of a routine, passed through the logic only so the bridge can
-     rebuild the stack at that site. It is item 85 under another name. The
-     bridge remembers the context it set up, or the frame is declared don't
-     care; the logic's signatures carry only what the game decides.
-
-**Items 75 and 88 together.** When the wrapper needs to tell apart cases the
-game merges (to derive a flag) and working them out from the state would mean
-re-running the logic: identify the actual native reader before retaining a register derivation. If the flag survives, a status
-enum is acceptable when every member is a real game condition and everything
-that derives registers from it lives outside the logic file (the subsystem's
-leaves), never in the logic's own header.
 
 **Re-reviews are scoped.** After a round that fixes files rated translation, the
 fresh review reads those files (and anything their fixes touched), not the
@@ -960,25 +724,16 @@ Batching does not weaken the bar: it is the same reading of the same files, done
 when there is more to read. What it drops is re-reading the rubric and the
 subsystem's headers for each chunk in a run.
 
-## What is legitimately machine-shaped
+## What may stay mechanical
 
-Existing wrappers are deferred to machine removal. Do not add comparison-only
-writes; those have retired. For the remaining forms, check that each is thin,
-isolated and says why it exists:
+Check that each is isolated and says why it exists:
 
-- a registered entry's wrapper, which translates the original's registers to
-  the logic and back;
-- guards;
-- existing bridges awaiting machine removal;
-- a deliberate reproduction of an original quirk the gate or the game can see
-  (a wraparound, an odd order, a scratch write), with a comment saying why;
+- a deliberate reproduction of an original quirk the game can see (a
+  wraparound, an odd order, a stray write), with a comment saying why;
 - `// $BB:AAAA` origin comments, and `PF_AT(...)` / `PF_CALL(...)` origin tags
   on service calls.
 
-A wrapper that has grown logic, or a "deliberate reproduction" with no comment
-saying why, **is** a finding. So is a bridge that builds fake register state
-beyond what its call needs (`c->a = 0xFFFF; c->x = 0x0940; ...` "the registers
-the block move leaves").
+A "deliberate reproduction" with no comment saying why **is** a finding.
 
 ## The subsystem as a whole
 
