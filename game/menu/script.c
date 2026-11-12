@@ -31,12 +31,15 @@ void script_set_byte_at(GameState *g, MenuObject self, ByteRef b, uint8_t v)
         wram_write8(g, cell_address(b.at), v);
 }
 
-/* A register of the picture's a command sets, the SNES escape (an ending's
- * scripts set the sprites' sizes so): written as the command's handler at
- * `handler` writes it. */
+/* A setting of the picture's a command changes, which the scripts name by
+ * the address that holds it: only the sprites' sizes and their tiles' place,
+ * which an ending's scripts set (menu_script_runs_here takes no other). */
 void script_set_the_consoles_byte(Platform *pf, uint32_t handler, uint16_t at, uint8_t v)
 {
-    vid_snes_write_register(pf, PF_AT(handler), at, v);
+    if (vid_setting_at(at) != VID_SETTING_SPRITES)
+        return;
+    VidObjConfig sprites = vid_obj_config_decode(v);
+    vid_set_obj_config(pf, PF_AT(handler), &sprites);
 }
 
 /* ---- Reading a command -------------------------------------------------------------------------- */
@@ -117,13 +120,13 @@ static bool names_low_ram(ScriptArg spec, ByteRef b)
     return spec.kind != ARG_CELL || (b.at < LOW_RAM_END && (b.at < INTERPRETER_CELLS || b.at >= INTERPRETER_CELLS_END));
 }
 
-/* ... or a register of the picture's the console takes from a script, which
- * a command changing a byte sets without reading it first (an ending's
- * scripts set the sprites' sizes so). */
+/* ... or the setting of the picture's a script may change, which a command
+ * changing a byte sets without reading it first (an ending's scripts set the
+ * sprites' sizes so). */
 static bool sets_a_register(const ScriptOpcode *row, const ScriptCommand *c)
 {
     return row->change.kind != ARG_NONE && row->byte.kind == ARG_CELL && !menu_byte_change_reads(c->change)
-           && script_byte_is_the_consoles(c->byte) && vid_snes_takes_register(c->byte.at);
+           && script_byte_is_the_consoles(c->byte) && vid_setting_at(c->byte.at) == VID_SETTING_SPRITES;
 }
 
 /* The commands that queue an upload write their records at the queue's end,

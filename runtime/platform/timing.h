@@ -57,6 +57,12 @@ PF_API uint8_t tm_reset_beam_latch(Platform *pf, PfOrigin o);
 /* Before I/O another processor watches (the APU): let the time the native
  * routine has taken so far pass first. */
 PF_API void tm_sync(Platform *pf);
+/* A move of `bytes` (1-65536) of the game's own memory, made in one go -- a
+ * buffer cleared or filled, a table copied, a map read back out of VRAM --
+ * holds the main thread for as long as the SNES's transfer of as many bytes
+ * did; a handler's moves are the frame's own time. The caller makes the move
+ * itself; this is its time. */
+PF_API void tm_charge_transfer(Platform *pf, PfOrigin o, uint32_t bytes);
 
 /* The main thread's wait for the next frame: it gives the frame up, and goes
  * on once the next frame's vblank handler has run. `o` names the call of the

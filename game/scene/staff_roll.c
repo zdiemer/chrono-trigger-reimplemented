@@ -261,23 +261,20 @@ void scene_set_letter_colors(GameState *g)
 }
 
 /* The credits' map blanked: every tile the blank one, in front. The program
- * fills the low bytes from its blank tile and the high bytes from the byte
- * before the roll's code, $20, the priority bit; a fill of one half of each
- * word is what the upload calls don't model, so both go through the SNES-only
- * escape. The high bytes' fill is the caller's own code, at `in_front_site`. */
+ * fills the low bytes from its blank tile, then the high bytes from the byte
+ * before the roll's code, $20, the priority bit. The high bytes' fill is the
+ * caller's own code, at `in_front_site`. */
 enum { IN_FRONT = 0x7E9E7A };
 
 // $7E:90A7
 void scene_blank_credits_map(Platform *pf, PfOrigin in_front_site)
 {
-    const VidSnesTransfer tiles = { .dest = VID_SNES_VRAM_DATA_LOW, .source = SCENE_BLANK_TILE,
-                                    .size = CREDITS_MAP_ROWS_BYTES, .target_reg = VID_SNES_VRAM_ADDRESS,
-                                    .target = CREDITS_MAP_VRAM, .port = SCENE_VRAM_LOW_BYTES };
-    vid_snes_copy(pf, PF_AT(0x7E90BD), &tiles);
-    const VidSnesTransfer attributes = { .dest = VID_SNES_VRAM_DATA_HIGH, .source = IN_FRONT,
-                                         .size = CREDITS_MAP_ROWS_BYTES, .target_reg = VID_SNES_VRAM_ADDRESS,
-                                         .target = CREDITS_MAP_VRAM, .port = SCENE_VRAM_WHOLE_WORDS };
-    vid_snes_copy(pf, in_front_site, &attributes);
+    vid_set_vram_address(pf, PF_AT(0x7E90BD), CREDITS_MAP_VRAM);
+    vid_start_vram_uploads(pf, PF_AT(0x7E90BD), SCENE_VRAM_LOW_BYTES);
+    vid_fill_vram_half(pf, PF_AT(0x7E90BD), PF_GAME(SCENE_BLANK_TILE), CREDITS_MAP_ROWS_BYTES, VID_VRAM_LOW_BYTES);
+    vid_set_vram_address(pf, in_front_site, CREDITS_MAP_VRAM);
+    vid_start_vram_uploads(pf, in_front_site, SCENE_VRAM_WHOLE_WORDS);
+    vid_fill_vram_half(pf, in_front_site, PF_GAME(IN_FRONT), CREDITS_MAP_ROWS_BYTES, VID_VRAM_HIGH_BYTES);
 }
 
 /* The scene's layers: the picture on BG1, scrolled to where it shows, its map
@@ -340,7 +337,7 @@ static void scatter_the_stars(GameState *g, Platform *pf)
 static void send_unpacked_as_words(GameState *g)
 {
     set_scene_call_transfer_control(g, scene_program_own(), SCENE_TRANSFER_WORDS);
-    set_scene_call_transfer_register(g, scene_program_own(), VID_SNES_VRAM_DATA_LOW);
+    set_scene_call_transfer_register(g, scene_program_own(), SCENE_INTO_LOW_BYTES);
 }
 
 static void load_graphics(GameState *g, Platform *pf, const StaffRollGraphics *gr)

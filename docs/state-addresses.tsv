@@ -516,27 +516,27 @@ game/battle/timers.c	176	unchecked-accessor	battle_timer_runs_left_byte_unchecke
 game/battle/timers.c	177	unchecked-accessor	set_battle_timer_runs_left_byte_unchecked(g, kind, nobody, left == 0 ? RUNS_A_CYCLE : left);
 game/battle/timers.c	181	unchecked-accessor	set_battle_timer_flags_byte_unchecked(g, kind, nobody, TIMER_STOPPED);
 game/battle/uploads.c	49	video-source	PF_GAME(RAM_PALETTE_WORKING), PALETTE_COLORS);
-game/battle/uploads.c	202	video-source	PF_GAME((uint16_t)RAM_BATTLE_WINDOW_FRAMES_TILEMAP),
-game/battle/uploads.c	213	video-source	PF_GAME((uint32_t)BLOCK_BANK << 16 | first.source),
-game/battle/uploads.c	216	video-source	PF_GAME((uint32_t)BLOCK_BANK << 16 | second.source), second.size, NULL);
-game/battle/uploads.c	247	video-source	PF_GAME((uint32_t)BLOCK_BANK << 16 | battle_upload_source(g, upload)),
-game/battle/uploads.c	267	video-source	PF_GAME((uint16_t)RAM_OAM_BUFFER));
-game/battle/uploads.c	271	video-source	PF_GAME(RAM_PALETTE_WORKING), PALETTE_COLORS);
+game/battle/uploads.c	200	video-source	PF_GAME((uint16_t)RAM_BATTLE_WINDOW_FRAMES_TILEMAP),
+game/battle/uploads.c	211	video-source	PF_GAME((uint32_t)BLOCK_BANK << 16 | first.source),
+game/battle/uploads.c	214	video-source	PF_GAME((uint32_t)BLOCK_BANK << 16 | second.source), second.size, NULL);
+game/battle/uploads.c	245	video-source	PF_GAME((uint32_t)BLOCK_BANK << 16 | battle_upload_source(g, upload)),
+game/battle/uploads.c	265	video-source	PF_GAME((uint16_t)RAM_OAM_BUFFER));
+game/battle/uploads.c	269	video-source	PF_GAME(RAM_PALETTE_WORKING), PALETTE_COLORS);
 game/battle/uploads.c	49	layout-expression	RAM_PALETTE_WORKING), PALETTE_COLORS);
 game/battle/uploads.c	68	layout-expression	<< 16 | battle_vram_request_source(g), bytes);
 game/battle/uploads.c	82	layout-expression	& 0xFF0000u) | (uint16_t)(source + TILE_BYTES * tile);
 game/battle/uploads.c	106	layout-expression	<< 16 | source, battle_block_vram(g, offset));
 game/battle/uploads.c	122	layout-expression	RAM_BATTLE_MESSAGE_TILES + (odd ? 0 : RAM_BATTLE_MESSAGE_TILES_STRIDE),
 game/battle/uploads.c	122	layout-expression	RAM_BATTLE_MESSAGE_TILES_STRIDE),
-game/battle/uploads.c	154	layout-expression	<< 16 | (uint16_t)(v[3] << 8 | v[2]),
-game/battle/uploads.c	191	layout-expression	RAM_BATTLE_WINDOW_TILEMAP + offset); }
-game/battle/uploads.c	202	layout-expression	RAM_BATTLE_WINDOW_FRAMES_TILEMAP),
-game/battle/uploads.c	213	layout-expression	<< 16 | first.source),
-game/battle/uploads.c	216	layout-expression	<< 16 | second.source), second.size, NULL);
-game/battle/uploads.c	247	layout-expression	<< 16 | battle_upload_source(g, upload)),
-game/battle/uploads.c	267	layout-expression	RAM_OAM_BUFFER));
-game/battle/uploads.c	271	layout-expression	RAM_PALETTE_WORKING), PALETTE_COLORS);
-game/battle/uploads.c	308	layout-expression	RAM_BATTLE_MENU_TILEMAP); }
+game/battle/uploads.c	153	layout-expression	<< 16 | (uint16_t)(v[3] << 8 | v[2]),
+game/battle/uploads.c	189	layout-expression	RAM_BATTLE_WINDOW_TILEMAP + offset); }
+game/battle/uploads.c	200	layout-expression	RAM_BATTLE_WINDOW_FRAMES_TILEMAP),
+game/battle/uploads.c	211	layout-expression	<< 16 | first.source),
+game/battle/uploads.c	214	layout-expression	<< 16 | second.source), second.size, NULL);
+game/battle/uploads.c	245	layout-expression	<< 16 | battle_upload_source(g, upload)),
+game/battle/uploads.c	265	layout-expression	RAM_OAM_BUFFER));
+game/battle/uploads.c	269	layout-expression	RAM_PALETTE_WORKING), PALETTE_COLORS);
+game/battle/uploads.c	306	layout-expression	RAM_BATTLE_MENU_TILEMAP); }
 game/battle/window.h	217	unchecked-accessor	battle_menu_slot_members_unchecked(g, slot));
 game/battle/window.h	231	unchecked-accessor	battle_cursor_offset_x_unchecked(g, slot);
 game/battle/window.h	236	unchecked-accessor	battle_cursor_offset_y_unchecked(g, slot);
@@ -911,7 +911,9 @@ game/menu/display.c	424	raw-helper	wram_copy(g, 0x7E0000u | from, 0x7E0000u | to
 game/menu/display.c	652	raw-helper	wram_fill8(g, RAM_MENU_OBJECT_SCRATCH, MODE_PAGE_BYTES, 0);
 game/menu/display.c	685	raw-helper	wram_fill8(g, RAM_MENU_OBJECT_VRAM_QUEUE, MENU_OBJECT_VRAM_QUEUE_COUNT * MENU_OBJECT_UPLOAD_BYTES, 0);
 game/menu/display.c	1000	raw-helper	hw_port_seek(g, at, 0);
-game/menu/display.c	1022	raw-helper	hw_port_seek(g, at, 0);
+game/menu/display.c	1001	raw-helper	wram_port_fill(g, at, count, 0);
+game/menu/display.c	1021	raw-helper	hw_port_seek(g, at, 0);
+game/menu/display.c	1022	raw-helper	wram_port_copy(g, menu_screen_graphics_data(from, count), at, count);
 game/menu/display.c	434	video-source	PF_GAME(RAM_MENU_PALETTE), 256);
 game/menu/display.c	446	video-source	PF_GAME(RAM_OAM_BUFFER));
 game/menu/display.c	571	video-source	PF_GAME(RAM_MENU_MATH_LINE_TABLES),
@@ -1385,9 +1387,9 @@ game/menu/screen_objects.c	527	layout-expression	& 0xFF0000u) | (uint16_t)(sourc
 game/menu/script.c	19	raw-helper	wram_read8(g, cell_address(b.at));
 game/menu/script.c	31	raw-helper	wram_write8(g, cell_address(b.at), v);
 game/menu/script.c	15	layout-expression	0x7E0000u + at; }
-game/menu/script.c	65	layout-expression	<< 16 | operand_word(g, at, a.operand);
-game/menu/script.c	66	layout-expression	<< 16 | operand_word(g, at, a.operand);
-game/menu/script.c	180	layout-expression	& 0xFF0000u;
+game/menu/script.c	68	layout-expression	<< 16 | operand_word(g, at, a.operand);
+game/menu/script.c	69	layout-expression	<< 16 | operand_word(g, at, a.operand);
+game/menu/script.c	183	layout-expression	& 0xFF0000u;
 game/menu/settings_screen.c	336	unchecked-accessor	menu_settings_buttons_unchecked(g, other) == button)
 game/menu/settings_screen.c	337	unchecked-accessor	set_menu_settings_buttons_unchecked(g, other, replacement);
 game/menu/shop.c	59	layout-expression	<< 16; }
@@ -1648,187 +1650,187 @@ game/scene/curtain.c	150	raw-helper	hw_port_write(g, edge);
 game/scene/curtain.c	151	raw-helper	wram_write8(g, at, edge);
 game/scene/curtain.c	47	layout-expression	<< 16 | edges, CURTAIN_LINES, fill);
 game/scene/curtain.c	148	layout-expression	<< 16 | (uint16_t)(edges + line);
-game/scene/endings.c	287	raw-helper	wram_read16(g, from + tile * TILE_2BPP_BYTES + row * 2));
-game/scene/endings.c	316	raw-helper	wram_read8(g, MOSAIC_NUMBERS + i);
-game/scene/endings.c	317	raw-helper	wram_copy(g, MOSAIC_TILESET + (uint32_t)tile * MOSAIC_TILE_BYTES, MOSAIC + i * MOSAIC_TILE_BYTES, MOSAIC_TILE_BYTES);
-game/scene/endings.c	367	raw-helper	wram_fill8(g, WORKING_PALETTE + 1, DARKENED_BYTES, wram_read8(g, WORKING_PALETTE));
-game/scene/endings.c	367	raw-helper	wram_read8(g, WORKING_PALETTE));
-game/scene/endings.c	804	raw-helper	wram_write16(g, at, tile);
-game/scene/endings.c	1043	raw-helper	wram_fill8(g, black, BLACKENED_BYTES, 0);
-game/scene/endings.c	1135	raw-helper	wram_read8(g, packed_pixel_address(i));
-game/scene/endings.c	1363	raw-helper	wram_copy(g, bank | ground_color_sets[0], bank | WORKING_PALETTE_PAGE, GROUND_COLORS_MOVED);
-game/scene/endings.c	270	video-source	PF_GAME(SCENE_TILEMAP_BUFFER), scene_scaler_source_limit(g),
-game/scene/endings.c	543	video-source	PF_GAME(MOSAIC_SENT), MOSAIC_SENT_BYTES, NULL);
-game/scene/endings.c	858	video-source	PF_GAME(CREDITS_BLANK_TILES), BLANK_TILES_BYTES,
-game/scene/endings.c	899	video-source	PF_GAME(p->from), p->bytes, SCENE_VRAM_WHOLE_WORDS);
-game/scene/endings.c	1013	video-source	PF_GAME((uint32_t)SCENE_UPPER_WORK_RAM << 16 | f->tiles),
-game/scene/endings.c	1024	video-source	PF_GAME(SCENE_BLANK_TILE), BLANKED_MAP_BYTES,
-game/scene/endings.c	1168	video-source	PF_GAME(SCENE_BLANK_TILE), layers[i].padding, NULL);
-game/scene/endings.c	1176	video-source	PF_GAME(SCENE_PLANE_MAP), 0x2000,
+game/scene/endings.c	286	raw-helper	wram_read16(g, from + tile * TILE_2BPP_BYTES + row * 2));
+game/scene/endings.c	315	raw-helper	wram_read8(g, MOSAIC_NUMBERS + i);
+game/scene/endings.c	316	raw-helper	wram_copy(g, MOSAIC_TILESET + (uint32_t)tile * MOSAIC_TILE_BYTES, MOSAIC + i * MOSAIC_TILE_BYTES, MOSAIC_TILE_BYTES);
+game/scene/endings.c	366	raw-helper	wram_fill8(g, WORKING_PALETTE + 1, DARKENED_BYTES, wram_read8(g, WORKING_PALETTE));
+game/scene/endings.c	366	raw-helper	wram_read8(g, WORKING_PALETTE));
+game/scene/endings.c	803	raw-helper	wram_write16(g, at, tile);
+game/scene/endings.c	1042	raw-helper	wram_fill8(g, black, BLACKENED_BYTES, 0);
+game/scene/endings.c	1134	raw-helper	wram_read8(g, packed_pixel_address(i));
+game/scene/endings.c	1362	raw-helper	wram_copy(g, bank | ground_color_sets[0], bank | WORKING_PALETTE_PAGE, GROUND_COLORS_MOVED);
+game/scene/endings.c	269	video-source	PF_GAME(SCENE_TILEMAP_BUFFER), scene_scaler_source_limit(g),
+game/scene/endings.c	542	video-source	PF_GAME(MOSAIC_SENT), MOSAIC_SENT_BYTES, NULL);
+game/scene/endings.c	857	video-source	PF_GAME(CREDITS_BLANK_TILES), BLANK_TILES_BYTES,
+game/scene/endings.c	898	video-source	PF_GAME(p->from), p->bytes, SCENE_VRAM_WHOLE_WORDS);
+game/scene/endings.c	1012	video-source	PF_GAME((uint32_t)SCENE_UPPER_WORK_RAM << 16 | f->tiles),
+game/scene/endings.c	1023	video-source	PF_GAME(SCENE_BLANK_TILE), BLANKED_MAP_BYTES,
+game/scene/endings.c	1167	video-source	PF_GAME(SCENE_BLANK_TILE), layers[i].padding, NULL);
+game/scene/endings.c	1175	video-source	PF_GAME(SCENE_PLANE_MAP), 0x2000,
 game/scene/endings.c	69	layout-expression	& 0xFF0000) | at); }
 game/scene/endings.c	70	layout-expression	& 0xFFFF); }
-game/scene/endings.c	83	layout-expression	0x7E38E7, scene_send_unpacked(g, pf)); }
-game/scene/endings.c	198	layout-expression	0x7EB574, scene_gather_picture_into_tiles(g));
-game/scene/endings.c	270	layout-expression	0x7E89E7), PICTURE_TILES_VRAM, PF_GAME(SCENE_TILEMAP_BUFFER), scene_scaler_source_limit(g),
-game/scene/endings.c	284	layout-expression	<< 16 | (uint16_t)decompress_dest(g);
-game/scene/endings.c	287	layout-expression	0x7E66C3), wram_read16(g, from + tile * TILE_2BPP_BYTES + row * 2));
-game/scene/endings.c	289	layout-expression	0x7E66C8), 0);
-game/scene/endings.c	307	layout-expression	0x7F2200,
-game/scene/endings.c	309	layout-expression	0x7FD800, MOSAIC_SENT = 0x7FE000, MOSAIC_SENT_BYTES = 0x800, MOSAIC_VRAM = 0x5C00 };
-game/scene/endings.c	309	layout-expression	0x7FE000, MOSAIC_SENT_BYTES = 0x800, MOSAIC_VRAM = 0x5C00 };
-game/scene/endings.c	363	layout-expression	0x7E2200 };
-game/scene/endings.c	410	layout-expression	0x7E8724), &(VidMode7){ .outside = VID_M7_TILE0 }, VID_M7_SELECT);
-game/scene/endings.c	411	layout-expression	0x7E8729), &(VidMode){ .mode = 7 });
-game/scene/endings.c	412	layout-expression	0x7E872E), &sprites_outside_window, VID_WINDOWS_OBJ_BACK);
-game/scene/endings.c	413	layout-expression	0x7E8733), &(VidWindows){ .win_main = VID_BG1_BIT | VID_OBJ_BIT }, VID_WINDOWS_MAIN);
-game/scene/endings.c	414	layout-expression	0x7E8739), VID_BG1_BIT, VID_OBJ_BIT, VID_SCREEN_MAIN | VID_SCREEN_SUB);
-game/scene/endings.c	415	layout-expression	0x7E873F), &sprites_added, VID_MATH_CONTROL | VID_MATH_LAYERS);
-game/scene/endings.c	416	layout-expression	0x7E8744), VID_BG1, &ground_bg1);
-game/scene/endings.c	417	layout-expression	0x7E8749), VID_BG2, &ground_bg2);
-game/scene/endings.c	418	layout-expression	0x7E874E), VID_BG1, GROUND_TILES_VRAM, GROUND_TILES_VRAM);
-game/scene/endings.c	464	layout-expression	0x7E8549, LETTERS },
-game/scene/endings.c	465	layout-expression	0x7E857B, GROUND_PIXELS },
-game/scene/endings.c	466	layout-expression	0x7E8598, GROUND_MAP_FIRST },
-game/scene/endings.c	467	layout-expression	0x7E85A5, GROUND_MAP_SECOND },
-game/scene/endings.c	468	layout-expression	0x7E85C3, MORE_SPRITE_TILES },
-game/scene/endings.c	469	layout-expression	0x7E85E4, MOSAIC_TILESET_RESOURCE },
-game/scene/endings.c	470	layout-expression	0x7E85F0, MOSAIC_NUMBERS_RESOURCE },
-game/scene/endings.c	471	layout-expression	0x7E869B, ENDING_PALETTE },
-game/scene/endings.c	472	layout-expression	0x7E87E9, PICTURE_FRAMES },
-game/scene/endings.c	473	layout-expression	0x7E87B0, NEW_GROUND },
-game/scene/endings.c	474	layout-expression	0x7E8BE4, STAR_TILES },
-game/scene/endings.c	475	layout-expression	0x7E8C48, PLANE_TILES },
-game/scene/endings.c	476	layout-expression	0x7E8C76, PLANE_MAP },
-game/scene/endings.c	477	layout-expression	0x7E8C8E, PLANE_COLORS },
-game/scene/endings.c	478	layout-expression	0x7E8CF8, CREDITS_LETTERS },
-game/scene/endings.c	479	layout-expression	0x7E8D04, CREDITS_PICTURE },
-game/scene/endings.c	480	layout-expression	0x7E8D10, CREDITS_PATTERN },
-game/scene/endings.c	497	layout-expression	0x7E853A), SCENE_VRAM_WHOLE_WORDS);
-game/scene/endings.c	499	layout-expression	0x7E8543), LETTER_TILES_VRAM);
-game/scene/endings.c	506	layout-expression	0x7E856F), SCENE_VRAM_WHOLE_WORDS);
-game/scene/endings.c	507	layout-expression	0x7E8575), 0x0000);
-game/scene/endings.c	513	layout-expression	0x7E858C), SCENE_VRAM_LOW_BYTES);
-game/scene/endings.c	514	layout-expression	0x7E8592), 0x0000);
-game/scene/endings.c	518	layout-expression	0x7E8752, scene_upload_plane_half(pf));
-game/scene/endings.c	522	layout-expression	0x7E8752, scene_upload_plane_half(pf));
-game/scene/endings.c	523	layout-expression	0x7E85B2), BLANKED_PAST_THE_PLANE);
-game/scene/endings.c	525	layout-expression	0x7E85B7), SCENE_VRAM_WHOLE_WORDS);
-game/scene/endings.c	526	layout-expression	0x7E85BD), MORE_SPRITE_TILES_VRAM);
-game/scene/endings.c	543	layout-expression	0x7E864C), MOSAIC_VRAM, PF_GAME(MOSAIC_SENT), MOSAIC_SENT_BYTES, NULL);
-game/scene/endings.c	554	layout-expression	& 0xFF0000) | ENDING_PALETTE_AT);
-game/scene/endings.c	598	layout-expression	0x7E9BB8, scene_set_the_fireworks_up(g));
-game/scene/endings.c	601	layout-expression	0x7E36CC, descriptors_end = scene_set_up_line_effects(g, pf, ENDING_LINE_EFFECTS));
-game/scene/endings.c	615	layout-expression	0x7F5600,
-game/scene/endings.c	639	layout-expression	<< 16 | run, MIRROR_LAST, RUN_ROWS);
-game/scene/endings.c	692	layout-expression	0x7E87B8), SCENE_VRAM_LOW_BYTES);
-game/scene/endings.c	693	layout-expression	0x7E87BB), 0x0000);
-game/scene/endings.c	694	layout-expression	0x7E87C1), &(VidMode7){ .outside = VID_M7_WRAP }, VID_M7_SELECT);
+game/scene/endings.c	82	layout-expression	0x7E38E7, scene_send_unpacked(g, pf)); }
+game/scene/endings.c	197	layout-expression	0x7EB574, scene_gather_picture_into_tiles(g));
+game/scene/endings.c	269	layout-expression	0x7E89E7), PICTURE_TILES_VRAM, PF_GAME(SCENE_TILEMAP_BUFFER), scene_scaler_source_limit(g),
+game/scene/endings.c	283	layout-expression	<< 16 | (uint16_t)decompress_dest(g);
+game/scene/endings.c	286	layout-expression	0x7E66C3), wram_read16(g, from + tile * TILE_2BPP_BYTES + row * 2));
+game/scene/endings.c	288	layout-expression	0x7E66C8), 0);
+game/scene/endings.c	306	layout-expression	0x7F2200,
+game/scene/endings.c	308	layout-expression	0x7FD800, MOSAIC_SENT = 0x7FE000, MOSAIC_SENT_BYTES = 0x800, MOSAIC_VRAM = 0x5C00 };
+game/scene/endings.c	308	layout-expression	0x7FE000, MOSAIC_SENT_BYTES = 0x800, MOSAIC_VRAM = 0x5C00 };
+game/scene/endings.c	362	layout-expression	0x7E2200 };
+game/scene/endings.c	409	layout-expression	0x7E8724), &(VidMode7){ .outside = VID_M7_TILE0 }, VID_M7_SELECT);
+game/scene/endings.c	410	layout-expression	0x7E8729), &(VidMode){ .mode = 7 });
+game/scene/endings.c	411	layout-expression	0x7E872E), &sprites_outside_window, VID_WINDOWS_OBJ_BACK);
+game/scene/endings.c	412	layout-expression	0x7E8733), &(VidWindows){ .win_main = VID_BG1_BIT | VID_OBJ_BIT }, VID_WINDOWS_MAIN);
+game/scene/endings.c	413	layout-expression	0x7E8739), VID_BG1_BIT, VID_OBJ_BIT, VID_SCREEN_MAIN | VID_SCREEN_SUB);
+game/scene/endings.c	414	layout-expression	0x7E873F), &sprites_added, VID_MATH_CONTROL | VID_MATH_LAYERS);
+game/scene/endings.c	415	layout-expression	0x7E8744), VID_BG1, &ground_bg1);
+game/scene/endings.c	416	layout-expression	0x7E8749), VID_BG2, &ground_bg2);
+game/scene/endings.c	417	layout-expression	0x7E874E), VID_BG1, GROUND_TILES_VRAM, GROUND_TILES_VRAM);
+game/scene/endings.c	463	layout-expression	0x7E8549, LETTERS },
+game/scene/endings.c	464	layout-expression	0x7E857B, GROUND_PIXELS },
+game/scene/endings.c	465	layout-expression	0x7E8598, GROUND_MAP_FIRST },
+game/scene/endings.c	466	layout-expression	0x7E85A5, GROUND_MAP_SECOND },
+game/scene/endings.c	467	layout-expression	0x7E85C3, MORE_SPRITE_TILES },
+game/scene/endings.c	468	layout-expression	0x7E85E4, MOSAIC_TILESET_RESOURCE },
+game/scene/endings.c	469	layout-expression	0x7E85F0, MOSAIC_NUMBERS_RESOURCE },
+game/scene/endings.c	470	layout-expression	0x7E869B, ENDING_PALETTE },
+game/scene/endings.c	471	layout-expression	0x7E87E9, PICTURE_FRAMES },
+game/scene/endings.c	472	layout-expression	0x7E87B0, NEW_GROUND },
+game/scene/endings.c	473	layout-expression	0x7E8BE4, STAR_TILES },
+game/scene/endings.c	474	layout-expression	0x7E8C48, PLANE_TILES },
+game/scene/endings.c	475	layout-expression	0x7E8C76, PLANE_MAP },
+game/scene/endings.c	476	layout-expression	0x7E8C8E, PLANE_COLORS },
+game/scene/endings.c	477	layout-expression	0x7E8CF8, CREDITS_LETTERS },
+game/scene/endings.c	478	layout-expression	0x7E8D04, CREDITS_PICTURE },
+game/scene/endings.c	479	layout-expression	0x7E8D10, CREDITS_PATTERN },
+game/scene/endings.c	496	layout-expression	0x7E853A), SCENE_VRAM_WHOLE_WORDS);
+game/scene/endings.c	498	layout-expression	0x7E8543), LETTER_TILES_VRAM);
+game/scene/endings.c	505	layout-expression	0x7E856F), SCENE_VRAM_WHOLE_WORDS);
+game/scene/endings.c	506	layout-expression	0x7E8575), 0x0000);
+game/scene/endings.c	512	layout-expression	0x7E858C), SCENE_VRAM_LOW_BYTES);
+game/scene/endings.c	513	layout-expression	0x7E8592), 0x0000);
+game/scene/endings.c	517	layout-expression	0x7E8752, scene_upload_plane_half(pf));
+game/scene/endings.c	521	layout-expression	0x7E8752, scene_upload_plane_half(pf));
+game/scene/endings.c	522	layout-expression	0x7E85B2), BLANKED_PAST_THE_PLANE);
+game/scene/endings.c	524	layout-expression	0x7E85B7), SCENE_VRAM_WHOLE_WORDS);
+game/scene/endings.c	525	layout-expression	0x7E85BD), MORE_SPRITE_TILES_VRAM);
+game/scene/endings.c	542	layout-expression	0x7E864C), MOSAIC_VRAM, PF_GAME(MOSAIC_SENT), MOSAIC_SENT_BYTES, NULL);
+game/scene/endings.c	553	layout-expression	& 0xFF0000) | ENDING_PALETTE_AT);
+game/scene/endings.c	597	layout-expression	0x7E9BB8, scene_set_the_fireworks_up(g));
+game/scene/endings.c	600	layout-expression	0x7E36CC, descriptors_end = scene_set_up_line_effects(g, pf, ENDING_LINE_EFFECTS));
+game/scene/endings.c	614	layout-expression	0x7F5600,
+game/scene/endings.c	638	layout-expression	<< 16 | run, MIRROR_LAST, RUN_ROWS);
+game/scene/endings.c	691	layout-expression	0x7E87B8), SCENE_VRAM_LOW_BYTES);
+game/scene/endings.c	692	layout-expression	0x7E87BB), 0x0000);
+game/scene/endings.c	693	layout-expression	0x7E87C1), &(VidMode7){ .outside = VID_M7_WRAP }, VID_M7_SELECT);
+game/scene/endings.c	694	layout-expression	0x7E8752, scene_upload_plane_half(pf));
 game/scene/endings.c	695	layout-expression	0x7E8752, scene_upload_plane_half(pf));
-game/scene/endings.c	696	layout-expression	0x7E8752, scene_upload_plane_half(pf));
-game/scene/endings.c	704	layout-expression	0x7E87DA);
-game/scene/endings.c	711	layout-expression	0x7E879E);
-game/scene/endings.c	724	layout-expression	0x7E8BC0, 0x7E8BC8);
-game/scene/endings.c	724	layout-expression	0x7E8BC8);
-game/scene/endings.c	728	layout-expression	0x7E8BDE), STAR_TILES_VRAM);
-game/scene/endings.c	763	layout-expression	0x7E8C25, 0x7E8C2D);
-game/scene/endings.c	763	layout-expression	0x7E8C2D);
-game/scene/endings.c	764	layout-expression	0x7E8C30), &(VidMode7){ .outside = VID_M7_TRANSPARENT }, VID_M7_SELECT);
-game/scene/endings.c	767	layout-expression	0x7E8C42), SCENE_VRAM_WHOLE_WORDS);
-game/scene/endings.c	770	layout-expression	0x7E8C4E), PLANE_TILES_VRAM);
-game/scene/endings.c	772	layout-expression	0x7E8C58), 0x0000);
-game/scene/endings.c	778	layout-expression	0x7E8C7C), PLANE_MAP_VRAM);
-game/scene/endings.c	780	layout-expression	0x7E5AB6, scene_load_plane_map(g, pf, scene_unpacked_bank(g)));
-game/scene/endings.c	786	layout-expression	0x7E388B, scene_send_palette(pf));
-game/scene/endings.c	787	layout-expression	0x7E8CA1), VID_BG1_BIT, VID_OBJ_BIT, VID_SCREEN_MAIN | VID_SCREEN_SUB);
-game/scene/endings.c	788	layout-expression	0x7E8CA7), &(VidWindows){ 0 }, VID_WINDOWS_MAIN | VID_WINDOWS_SUB);
-game/scene/endings.c	789	layout-expression	0x7E8CAC), &(VidMode){ .mode = 7 });
-game/scene/endings.c	800	layout-expression	<< 16 | PATTERN_MAP;
-game/scene/endings.c	825	layout-expression	0x7E8CDD), 0);
-game/scene/endings.c	858	layout-expression	0x7E8D7A), CREDITS_TILES_VRAM, PF_GAME(CREDITS_BLANK_TILES), BLANK_TILES_BYTES,
-game/scene/endings.c	860	layout-expression	0x7E8DA9));
-game/scene/endings.c	861	layout-expression	0x7E36CC, scene_set_up_line_effects(g, pf, CREDITS_LINE_EFFECTS));
-game/scene/endings.c	865	layout-expression	0x7E8DC8), VID_BG2, 0, 0, VID_SCROLL_H);
-game/scene/endings.c	866	layout-expression	0x7E8DCC), VID_BG1, 0x6000, 0x4000);
-game/scene/endings.c	867	layout-expression	0x7E8DD0), VID_BG3, 0x0000, 0x0000);
-game/scene/endings.c	868	layout-expression	0x7E8DD4), VID_BG1, &credits_pattern_bg);
-game/scene/endings.c	869	layout-expression	0x7E8DD8), VID_BG2, &credits_bg);
-game/scene/endings.c	870	layout-expression	0x7E8DDC), VID_BG3, &credits_bg3);
-game/scene/endings.c	871	layout-expression	0x7E8DE0), &(VidMode){ .mode = 4 });
-game/scene/endings.c	872	layout-expression	0x7E8DE4), &credits_subtracted, VID_MATH_LAYERS);
-game/scene/endings.c	873	layout-expression	0x7E8DE9), VID_BG1_BIT | VID_BG2_BIT | VID_OBJ_BIT, 0, VID_SCREEN_MAIN | VID_SCREEN_SUB);
-game/scene/endings.c	874	layout-expression	0x7E8DEE), &(VidWindows){ 0 }, VID_WINDOWS_MAIN | VID_WINDOWS_SUB);
-game/scene/endings.c	890	layout-expression	0x7F0000 | CREDITS_PICTURE_AT, 0x0A00, 0x7E9F2B },
-game/scene/endings.c	890	layout-expression	0x7E9F2B },
-game/scene/endings.c	891	layout-expression	0x7F0000 | PATTERN_MAP, 0x0800, 0x7E9F39 },
-game/scene/endings.c	891	layout-expression	0x7E9F39 },
-game/scene/endings.c	892	layout-expression	0x7F0000 | CREDITS_PATTERN_AT, 0x0100, 0x7E9F47 },
-game/scene/endings.c	892	layout-expression	0x7E9F47 },
-game/scene/endings.c	992	layout-expression	0x7EA03D, scene_draw_large_sprite_list(g, sprites, scene_large_list_form_written(g)));
-game/scene/endings.c	1013	layout-expression	0x7E9CE2), MOSAIC_FRAME_VRAM, PF_GAME((uint32_t)SCENE_UPPER_WORK_RAM << 16 | f->tiles),
-game/scene/endings.c	1013	layout-expression	<< 16 | f->tiles),
-game/scene/endings.c	1024	layout-expression	0x7E9F73), BLANKED_MAP_VRAM, PF_GAME(SCENE_BLANK_TILE), BLANKED_MAP_BYTES,
-game/scene/endings.c	1042	layout-expression	<< 16 | (uint16_t)(WORKING_PALETTE_PAGE + BLACKENED_COLOR * COLOR_BYTES);
-game/scene/endings.c	1065	layout-expression	0x7E8E4A), &sweep_math, VID_MATH_LAYERS);
-game/scene/endings.c	1066	layout-expression	0x7E8E4E), VID_ALL_CHANNELS, 0);
-game/scene/endings.c	1067	layout-expression	0x7E8E52), VID_BG1_BIT, 0, VID_SCREEN_MAIN);
-game/scene/endings.c	1068	layout-expression	0x7E8E56), 0, VID_BG2_BIT | VID_OBJ_BIT, VID_SCREEN_SUB);
-game/scene/endings.c	1069	layout-expression	0x7E8E5A), &(VidMode){ .mode = 4 });
-game/scene/endings.c	1070	layout-expression	0x7E8E5E), VID_BG2, &sweep_bg2);
-game/scene/endings.c	1071	layout-expression	0x7E8E62), VID_BG1, 0x6000, 0x0000);
-game/scene/endings.c	1072	layout-expression	0x7E8E66), VID_BG3, &sweep_bg3);
-game/scene/endings.c	1073	layout-expression	0x7E8E6A), &sweep_window, VID_WINDOWS_BG1_BG2);
-game/scene/endings.c	1074	layout-expression	0x7E8E6E), &sweep_window, VID_WINDOWS_SUB);
-game/scene/endings.c	1075	layout-expression	0x7E8E72), &sweep_window, VID_WINDOWS_W1_LEFT);
-game/scene/endings.c	1076	layout-expression	0x7E8E74), &sweep_window, VID_WINDOWS_W2_LEFT);
-game/scene/endings.c	1077	layout-expression	0x7E8E78), &(VidVideoConfig){ 0 });
-game/scene/endings.c	1078	layout-expression	0x7E36CC, scene_set_up_line_effects(g, pf, SWEEP_LINE_EFFECTS));
-game/scene/endings.c	1111	layout-expression	0x7E5777 };
-game/scene/endings.c	1128	layout-expression	<< 16) | ((SCENE_UNPACK_BUFFER + byte) & 0x1FFFF);
-game/scene/endings.c	1136	layout-expression	0x7E3551), true, pair & 15);
-game/scene/endings.c	1137	layout-expression	0x7E3558), true, pair >> 4);
-game/scene/endings.c	1152	layout-expression	0x7E8A14), &(VidDisplay){ .blank = true });
-game/scene/endings.c	1153	layout-expression	0x7E8A18), 0);
-game/scene/endings.c	1154	layout-expression	0x7E8A1D), SCENE_VRAM_WHOLE_WORDS);
-game/scene/endings.c	1158	layout-expression	0x7E8A26 },
-game/scene/endings.c	1159	layout-expression	0x7E8A40 },
-game/scene/endings.c	1160	layout-expression	0x7E8A59 },
-game/scene/endings.c	1164	layout-expression	0x7E3691, scene_unpacks(g, layers[i].resource));
-game/scene/endings.c	1167	layout-expression	0x7E90AA), (uint16_t)(layers[i].vram + decompress_length(g) / 2),
-game/scene/endings.c	1170	layout-expression	0x7E8A72), 0);
-game/scene/endings.c	1171	layout-expression	0x7E3691, scene_unpacks(g, PANORAMA_PACKED_PIXELS));
-game/scene/endings.c	1172	layout-expression	0x7E353C, expand_packed_pixels(g, pf, decompress_length(g)));
-game/scene/endings.c	1173	layout-expression	0x7E8A84), 0);
-game/scene/endings.c	1174	layout-expression	0x7E3691, scene_unpacks(g, PANORAMA_PLANE_MAP));
-game/scene/endings.c	1175	layout-expression	0x7E37CA, scene_widen_the_plane_map(g));
-game/scene/endings.c	1176	layout-expression	0x7E8A92), 0, PF_GAME(SCENE_PLANE_MAP), 0x2000,
-game/scene/endings.c	1181	layout-expression	0x7E388B, scene_send_palette(pf));
-game/scene/endings.c	1182	layout-expression	0x7E36CC, scene_set_up_line_effects(g, pf, 0x9003));
-game/scene/endings.c	1184	layout-expression	0x7E8AD7), &(VidMode7){ .outside = VID_M7_TRANSPARENT }, VID_M7_SELECT);
-game/scene/endings.c	1185	layout-expression	0x7E8ADC), &(VidMode){ .mode = 7 });
-game/scene/endings.c	1186	layout-expression	0x7E8AE2),
-game/scene/endings.c	1189	layout-expression	0x7E8AE8), VID_BG1_BIT | VID_OBJ_BIT, VID_OBJ_BIT, VID_SCREEN_MAIN | VID_SCREEN_SUB);
-game/scene/endings.c	1190	layout-expression	0x7E8AED), &(VidColorMath){ .layers = VID_BG1_BIT | VID_BACK_BIT }, VID_MATH_LAYERS);
-game/scene/endings.c	1209	layout-expression	0x7E8B08), &(VidDisplay){ .blank = true });
-game/scene/endings.c	1210	layout-expression	0x7E8B0C), 0);
-game/scene/endings.c	1211	layout-expression	0x7E36CC, scene_set_up_line_effects(g, pf, 0x900E));
-game/scene/endings.c	1213	layout-expression	0x7E8B1D), VID_BG1_BIT | VID_BG2_BIT | VID_OBJ_BIT, VID_OBJ_BIT,
-game/scene/endings.c	1215	layout-expression	0x7E8B22), &(VidWindows){ 0 }, VID_WINDOWS_OBJ_BACK);
-game/scene/endings.c	1218	layout-expression	0x7E8B44), VID_BG2, 0, 0xFF70, VID_SCROLL_V);
-game/scene/endings.c	1235	layout-expression	0x7E8B90), VID_BG2, 0, sent, VID_SCROLL_V);
-game/scene/endings.c	1247	layout-expression	0x7E8538 };
-game/scene/endings.c	1362	layout-expression	<< 16;
-game/scene/endings.c	1509	layout-expression	0x7E9A9C), 0, 0);
-game/scene/endings.c	1510	layout-expression	0x7E9A9C), &(VidVideoConfig){ 0 });
-game/scene/endings.c	1515	layout-expression	0x7E9AB3))) {
-game/scene/endings.c	1536	layout-expression	0x7E8E8B), VID_BG2, 0, scene_channel_register(g, STEERING_CHANNEL, CREDITS_SCROLL), VID_SCROLL_V);
-game/scene/endings.c	1575	layout-expression	0x7E3A97, scene_draw_signed_sprite_list(g, RIDER));
-game/scene/endings.c	1596	layout-expression	0x7E8850, "an ending's picture with no room for its sprites");
-game/scene/endings.c	1613	layout-expression	0x7E89C0, "an ending's picture of no size");
-game/scene/endings.c	1645	layout-expression	0x7E9C58, "a picture of mode 10's whose sprites the port doesn't draw");
-game/scene/endings.c	1693	layout-expression	0x7E99FA, "The End with no room for its sprites");
-game/scene/endings.c	1702	layout-expression	0x7E9A0C, "a last scene's window the port doesn't sweep");
-game/scene/endings.c	1716	layout-expression	0x7E8930, GATHER_PICTURE = 0x7E8983 };
-game/scene/endings.c	1716	layout-expression	0x7E8983 };
+game/scene/endings.c	703	layout-expression	0x7E87DA);
+game/scene/endings.c	710	layout-expression	0x7E879E);
+game/scene/endings.c	723	layout-expression	0x7E8BC0, 0x7E8BC8);
+game/scene/endings.c	723	layout-expression	0x7E8BC8);
+game/scene/endings.c	727	layout-expression	0x7E8BDE), STAR_TILES_VRAM);
+game/scene/endings.c	762	layout-expression	0x7E8C25, 0x7E8C2D);
+game/scene/endings.c	762	layout-expression	0x7E8C2D);
+game/scene/endings.c	763	layout-expression	0x7E8C30), &(VidMode7){ .outside = VID_M7_TRANSPARENT }, VID_M7_SELECT);
+game/scene/endings.c	766	layout-expression	0x7E8C42), SCENE_VRAM_WHOLE_WORDS);
+game/scene/endings.c	769	layout-expression	0x7E8C4E), PLANE_TILES_VRAM);
+game/scene/endings.c	771	layout-expression	0x7E8C58), 0x0000);
+game/scene/endings.c	777	layout-expression	0x7E8C7C), PLANE_MAP_VRAM);
+game/scene/endings.c	779	layout-expression	0x7E5AB6, scene_load_plane_map(g, pf, scene_unpacked_bank(g)));
+game/scene/endings.c	785	layout-expression	0x7E388B, scene_send_palette(pf));
+game/scene/endings.c	786	layout-expression	0x7E8CA1), VID_BG1_BIT, VID_OBJ_BIT, VID_SCREEN_MAIN | VID_SCREEN_SUB);
+game/scene/endings.c	787	layout-expression	0x7E8CA7), &(VidWindows){ 0 }, VID_WINDOWS_MAIN | VID_WINDOWS_SUB);
+game/scene/endings.c	788	layout-expression	0x7E8CAC), &(VidMode){ .mode = 7 });
+game/scene/endings.c	799	layout-expression	<< 16 | PATTERN_MAP;
+game/scene/endings.c	824	layout-expression	0x7E8CDD), 0);
+game/scene/endings.c	857	layout-expression	0x7E8D7A), CREDITS_TILES_VRAM, PF_GAME(CREDITS_BLANK_TILES), BLANK_TILES_BYTES,
+game/scene/endings.c	859	layout-expression	0x7E8DA9));
+game/scene/endings.c	860	layout-expression	0x7E36CC, scene_set_up_line_effects(g, pf, CREDITS_LINE_EFFECTS));
+game/scene/endings.c	864	layout-expression	0x7E8DC8), VID_BG2, 0, 0, VID_SCROLL_H);
+game/scene/endings.c	865	layout-expression	0x7E8DCC), VID_BG1, 0x6000, 0x4000);
+game/scene/endings.c	866	layout-expression	0x7E8DD0), VID_BG3, 0x0000, 0x0000);
+game/scene/endings.c	867	layout-expression	0x7E8DD4), VID_BG1, &credits_pattern_bg);
+game/scene/endings.c	868	layout-expression	0x7E8DD8), VID_BG2, &credits_bg);
+game/scene/endings.c	869	layout-expression	0x7E8DDC), VID_BG3, &credits_bg3);
+game/scene/endings.c	870	layout-expression	0x7E8DE0), &(VidMode){ .mode = 4 });
+game/scene/endings.c	871	layout-expression	0x7E8DE4), &credits_subtracted, VID_MATH_LAYERS);
+game/scene/endings.c	872	layout-expression	0x7E8DE9), VID_BG1_BIT | VID_BG2_BIT | VID_OBJ_BIT, 0, VID_SCREEN_MAIN | VID_SCREEN_SUB);
+game/scene/endings.c	873	layout-expression	0x7E8DEE), &(VidWindows){ 0 }, VID_WINDOWS_MAIN | VID_WINDOWS_SUB);
+game/scene/endings.c	889	layout-expression	0x7F0000 | CREDITS_PICTURE_AT, 0x0A00, 0x7E9F2B },
+game/scene/endings.c	889	layout-expression	0x7E9F2B },
+game/scene/endings.c	890	layout-expression	0x7F0000 | PATTERN_MAP, 0x0800, 0x7E9F39 },
+game/scene/endings.c	890	layout-expression	0x7E9F39 },
+game/scene/endings.c	891	layout-expression	0x7F0000 | CREDITS_PATTERN_AT, 0x0100, 0x7E9F47 },
+game/scene/endings.c	891	layout-expression	0x7E9F47 },
+game/scene/endings.c	991	layout-expression	0x7EA03D, scene_draw_large_sprite_list(g, sprites, scene_large_list_form_written(g)));
+game/scene/endings.c	1012	layout-expression	0x7E9CE2), MOSAIC_FRAME_VRAM, PF_GAME((uint32_t)SCENE_UPPER_WORK_RAM << 16 | f->tiles),
+game/scene/endings.c	1012	layout-expression	<< 16 | f->tiles),
+game/scene/endings.c	1023	layout-expression	0x7E9F73), BLANKED_MAP_VRAM, PF_GAME(SCENE_BLANK_TILE), BLANKED_MAP_BYTES,
+game/scene/endings.c	1041	layout-expression	<< 16 | (uint16_t)(WORKING_PALETTE_PAGE + BLACKENED_COLOR * COLOR_BYTES);
+game/scene/endings.c	1064	layout-expression	0x7E8E4A), &sweep_math, VID_MATH_LAYERS);
+game/scene/endings.c	1065	layout-expression	0x7E8E4E), VID_ALL_CHANNELS, 0);
+game/scene/endings.c	1066	layout-expression	0x7E8E52), VID_BG1_BIT, 0, VID_SCREEN_MAIN);
+game/scene/endings.c	1067	layout-expression	0x7E8E56), 0, VID_BG2_BIT | VID_OBJ_BIT, VID_SCREEN_SUB);
+game/scene/endings.c	1068	layout-expression	0x7E8E5A), &(VidMode){ .mode = 4 });
+game/scene/endings.c	1069	layout-expression	0x7E8E5E), VID_BG2, &sweep_bg2);
+game/scene/endings.c	1070	layout-expression	0x7E8E62), VID_BG1, 0x6000, 0x0000);
+game/scene/endings.c	1071	layout-expression	0x7E8E66), VID_BG3, &sweep_bg3);
+game/scene/endings.c	1072	layout-expression	0x7E8E6A), &sweep_window, VID_WINDOWS_BG1_BG2);
+game/scene/endings.c	1073	layout-expression	0x7E8E6E), &sweep_window, VID_WINDOWS_SUB);
+game/scene/endings.c	1074	layout-expression	0x7E8E72), &sweep_window, VID_WINDOWS_W1_LEFT);
+game/scene/endings.c	1075	layout-expression	0x7E8E74), &sweep_window, VID_WINDOWS_W2_LEFT);
+game/scene/endings.c	1076	layout-expression	0x7E8E78), &(VidVideoConfig){ 0 });
+game/scene/endings.c	1077	layout-expression	0x7E36CC, scene_set_up_line_effects(g, pf, SWEEP_LINE_EFFECTS));
+game/scene/endings.c	1110	layout-expression	0x7E5777 };
+game/scene/endings.c	1127	layout-expression	<< 16) | ((SCENE_UNPACK_BUFFER + byte) & 0x1FFFF);
+game/scene/endings.c	1135	layout-expression	0x7E3551), true, pair & 15);
+game/scene/endings.c	1136	layout-expression	0x7E3558), true, pair >> 4);
+game/scene/endings.c	1151	layout-expression	0x7E8A14), &(VidDisplay){ .blank = true });
+game/scene/endings.c	1152	layout-expression	0x7E8A18), 0);
+game/scene/endings.c	1153	layout-expression	0x7E8A1D), SCENE_VRAM_WHOLE_WORDS);
+game/scene/endings.c	1157	layout-expression	0x7E8A26 },
+game/scene/endings.c	1158	layout-expression	0x7E8A40 },
+game/scene/endings.c	1159	layout-expression	0x7E8A59 },
+game/scene/endings.c	1163	layout-expression	0x7E3691, scene_unpacks(g, layers[i].resource));
+game/scene/endings.c	1166	layout-expression	0x7E90AA), (uint16_t)(layers[i].vram + decompress_length(g) / 2),
+game/scene/endings.c	1169	layout-expression	0x7E8A72), 0);
+game/scene/endings.c	1170	layout-expression	0x7E3691, scene_unpacks(g, PANORAMA_PACKED_PIXELS));
+game/scene/endings.c	1171	layout-expression	0x7E353C, expand_packed_pixels(g, pf, decompress_length(g)));
+game/scene/endings.c	1172	layout-expression	0x7E8A84), 0);
+game/scene/endings.c	1173	layout-expression	0x7E3691, scene_unpacks(g, PANORAMA_PLANE_MAP));
+game/scene/endings.c	1174	layout-expression	0x7E37CA, scene_widen_the_plane_map(g));
+game/scene/endings.c	1175	layout-expression	0x7E8A92), 0, PF_GAME(SCENE_PLANE_MAP), 0x2000,
+game/scene/endings.c	1180	layout-expression	0x7E388B, scene_send_palette(pf));
+game/scene/endings.c	1181	layout-expression	0x7E36CC, scene_set_up_line_effects(g, pf, 0x9003));
+game/scene/endings.c	1183	layout-expression	0x7E8AD7), &(VidMode7){ .outside = VID_M7_TRANSPARENT }, VID_M7_SELECT);
+game/scene/endings.c	1184	layout-expression	0x7E8ADC), &(VidMode){ .mode = 7 });
+game/scene/endings.c	1185	layout-expression	0x7E8AE2),
+game/scene/endings.c	1188	layout-expression	0x7E8AE8), VID_BG1_BIT | VID_OBJ_BIT, VID_OBJ_BIT, VID_SCREEN_MAIN | VID_SCREEN_SUB);
+game/scene/endings.c	1189	layout-expression	0x7E8AED), &(VidColorMath){ .layers = VID_BG1_BIT | VID_BACK_BIT }, VID_MATH_LAYERS);
+game/scene/endings.c	1208	layout-expression	0x7E8B08), &(VidDisplay){ .blank = true });
+game/scene/endings.c	1209	layout-expression	0x7E8B0C), 0);
+game/scene/endings.c	1210	layout-expression	0x7E36CC, scene_set_up_line_effects(g, pf, 0x900E));
+game/scene/endings.c	1212	layout-expression	0x7E8B1D), VID_BG1_BIT | VID_BG2_BIT | VID_OBJ_BIT, VID_OBJ_BIT,
+game/scene/endings.c	1214	layout-expression	0x7E8B22), &(VidWindows){ 0 }, VID_WINDOWS_OBJ_BACK);
+game/scene/endings.c	1217	layout-expression	0x7E8B44), VID_BG2, 0, 0xFF70, VID_SCROLL_V);
+game/scene/endings.c	1234	layout-expression	0x7E8B90), VID_BG2, 0, sent, VID_SCROLL_V);
+game/scene/endings.c	1246	layout-expression	0x7E8538 };
+game/scene/endings.c	1361	layout-expression	<< 16;
+game/scene/endings.c	1508	layout-expression	0x7E9A9C), 0, 0);
+game/scene/endings.c	1509	layout-expression	0x7E9A9C), &(VidVideoConfig){ 0 });
+game/scene/endings.c	1514	layout-expression	0x7E9AB3))) {
+game/scene/endings.c	1535	layout-expression	0x7E8E8B), VID_BG2, 0, scene_channel_register(g, STEERING_CHANNEL, CREDITS_SCROLL), VID_SCROLL_V);
+game/scene/endings.c	1574	layout-expression	0x7E3A97, scene_draw_signed_sprite_list(g, RIDER));
+game/scene/endings.c	1595	layout-expression	0x7E8850, "an ending's picture with no room for its sprites");
+game/scene/endings.c	1612	layout-expression	0x7E89C0, "an ending's picture of no size");
+game/scene/endings.c	1644	layout-expression	0x7E9C58, "a picture of mode 10's whose sprites the port doesn't draw");
+game/scene/endings.c	1692	layout-expression	0x7E99FA, "The End with no room for its sprites");
+game/scene/endings.c	1701	layout-expression	0x7E9A0C, "a last scene's window the port doesn't sweep");
+game/scene/endings.c	1715	layout-expression	0x7E8930, GATHER_PICTURE = 0x7E8983 };
+game/scene/endings.c	1715	layout-expression	0x7E8983 };
 game/scene/epoch_dive.c	748	raw-helper	wram_read8(g, attributes++) << 8 | (uint8_t)(first + n)));
 game/scene/epoch_dive.c	750	raw-helper	wram_read8(g, attributes++) << 8 | (uint8_t)(first + n)));
 game/scene/epoch_dive.c	174	video-source	PF_GAME(SCENE_TILEMAP_BUFFER), EPOCH_TILES_BYTES,
@@ -1901,102 +1903,102 @@ game/scene/frame.c	93	layout-expression	RAM_SCENE_TASKS;
 game/scene/frame.c	99	layout-expression	<< 16 | (list_start(list) & 0xFFFF);
 game/scene/frame.c	99	layout-expression	& 0xFFFF);
 game/scene/frame.c	286	layout-expression	0x7E0000 };
-game/scene/frame.c	358	layout-expression	0x7E3176, nothing_this_frame },
-game/scene/frame.c	359	layout-expression	0x7E3749, channel_0_turn },
-game/scene/frame.c	360	layout-expression	0x7E3754, channel_1_turn },
-game/scene/frame.c	361	layout-expression	0x7E3843, hide_every_sprite },
-game/scene/frame.c	362	layout-expression	0x7E388B, send_palette },
-game/scene/frame.c	364	layout-expression	0x7E3D72, scene_race_sweep_curtain },
-game/scene/frame.c	365	layout-expression	0x7E416D, scene_race_settle_camera },
-game/scene/frame.c	366	layout-expression	0x7E424D, scene_race_wait_to_leave },
-game/scene/frame.c	367	layout-expression	0x7E4283, scene_race_leave },
-game/scene/frame.c	368	layout-expression	0x7E428B, scene_race_move_along },
-game/scene/frame.c	369	layout-expression	0x7E42BD, scene_race_keep_controller },
-game/scene/frame.c	370	layout-expression	0x7E42CE, scene_race_check_perspective },
-game/scene/frame.c	371	layout-expression	0x7E4339, scene_race_turn_camera },
-game/scene/frame.c	372	layout-expression	0x7E43F2, scene_race_move_camera },
-game/scene/frame.c	373	layout-expression	0x7E4447, scene_race_aim_camera },
-game/scene/frame.c	374	layout-expression	0x7E449C, scene_race_follow_finish },
-game/scene/frame.c	375	layout-expression	0x7E44CE, scene_race_drain_score },
-game/scene/frame.c	376	layout-expression	0x7E44FE, scene_race_set_horizon },
-game/scene/frame.c	377	layout-expression	0x7E4643, scene_race_upload_column_rom },
-game/scene/frame.c	378	layout-expression	0x7E464D, scene_race_upload_column_ram },
-game/scene/frame.c	379	layout-expression	0x7E4677, scene_race_coast },
-game/scene/frame.c	380	layout-expression	0x7E4755, scene_race_await_victory_song },
-game/scene/frame.c	381	layout-expression	0x7E485D, scene_race_ride },
-game/scene/frame.c	382	layout-expression	0x7E4D0D, scene_race_place_bikes },
-game/scene/frame.c	383	layout-expression	0x7E4F54, scene_race_draw },
-game/scene/frame.c	384	layout-expression	0x7E5221, scene_race_upload_tilemap },
-game/scene/frame.c	386	layout-expression	0x7E55F9, scene_turn_the_field_s_angle },
-game/scene/frame.c	387	layout-expression	0x7E5654, send_the_flat_plane },
-game/scene/frame.c	388	layout-expression	0x7E56A9, scene_turn_lavos },
-game/scene/frame.c	389	layout-expression	0x7E56EB, scene_draw_the_planet },
-game/scene/frame.c	390	layout-expression	0x7E579B, scene_stars_fly },
-game/scene/frame.c	391	layout-expression	0x7E5855, scene_swing_the_field },
-game/scene/frame.c	393	layout-expression	0x7E63D5, scene_wait_for_a_button_to_restart },
-game/scene/frame.c	394	layout-expression	0x7E63F5, scene_count_down_to_the_restart },
-game/scene/frame.c	395	layout-expression	0x7E64BF, scene_show_the_planet_s_caption },
-game/scene/frame.c	396	layout-expression	0x7E6844, scene_sweep_the_palace_curtain },
-game/scene/frame.c	398	layout-expression	0x7E7193, scene_step_turn_mosaic },
-game/scene/frame.c	399	layout-expression	0x7E72FF, scene_spread_turn_figures },
-game/scene/frame.c	400	layout-expression	0x7E7325, scene_size_turn_windows },
-game/scene/frame.c	401	layout-expression	0x7E737E, scene_show_turn_mosaic },
-game/scene/frame.c	402	layout-expression	0x7E73AA, scene_scroll_turn_wave },
-game/scene/frame.c	403	layout-expression	0x7E76A5, scene_orbit_turn_figures },
-game/scene/frame.c	404	layout-expression	0x7E7721, scene_update_turn_figures },
-game/scene/frame.c	405	layout-expression	0x7E7868, scene_send_turn_figure },
-game/scene/frame.c	406	layout-expression	0x7E78AB, scene_cycle_turn_colors },
-game/scene/frame.c	408	layout-expression	0x7E79F8, scene_set_the_screen_outside },
-game/scene/frame.c	409	layout-expression	0x7E7A35, scene_set_the_screen_in_the_cockpit },
-game/scene/frame.c	410	layout-expression	0x7E7BF2, scene_open_the_light },
-game/scene/frame.c	411	layout-expression	0x7E7F12, scene_pass_the_shell_across },
-game/scene/frame.c	412	layout-expression	0x7E7F35, scene_pass_the_shell_down },
-game/scene/frame.c	413	layout-expression	0x7E7F58, scene_follow_the_panel },
-game/scene/frame.c	414	layout-expression	0x7E7F7D, scene_shake_the_cockpit },
-game/scene/frame.c	415	layout-expression	0x7E7FC4, scene_size_the_trail },
-game/scene/frame.c	416	layout-expression	0x7E7FCB, scene_draw_the_trail },
-game/scene/frame.c	417	layout-expression	0x7E8079, scene_flicker_the_lights },
-game/scene/frame.c	418	layout-expression	0x7E81C4, send_the_plane_s_place },
-game/scene/frame.c	419	layout-expression	0x7E81F1, scene_let_the_shell_fall_away },
-game/scene/frame.c	420	layout-expression	0x7E8205, scene_draw_the_epoch },
-game/scene/frame.c	421	layout-expression	0x7E824A, scene_send_the_epoch },
-game/scene/frame.c	422	layout-expression	0x7E82D1, scene_check_the_shell },
-game/scene/frame.c	423	layout-expression	0x7E835B, scene_fly_the_epoch_on },
-game/scene/frame.c	425	layout-expression	0x7E8850, scene_ending_place_picture },
-game/scene/frame.c	426	layout-expression	0x7E891B, scene_ending_pick_picture_frame },
-game/scene/frame.c	427	layout-expression	0x7E89C0, scene_ending_upload_picture },
-game/scene/frame.c	428	layout-expression	0x7E8C05, scene_clear_sprite_high_bits },
-game/scene/frame.c	429	layout-expression	0x7E8D56, scene_ending_show_credits },
-game/scene/frame.c	430	layout-expression	0x7E8B52, scene_ending_panorama_horizon },
-game/scene/frame.c	431	layout-expression	0x7E8E44, scene_ending_show_last_scene },
-game/scene/frame.c	432	layout-expression	0x7E8E88, scene_ending_scroll_bg2 },
-game/scene/frame.c	434	layout-expression	0x7E9080, scene_set_the_flight_horizon },
-game/scene/frame.c	435	layout-expression	0x7E90C1, scene_pass_the_map },
-game/scene/frame.c	436	layout-expression	0x7E9897, scene_stars_start_drift },
-game/scene/frame.c	437	layout-expression	0x7E98AC, scene_stars_keep_drifting },
-game/scene/frame.c	438	layout-expression	0x7E992A, scene_circle_the_epoch },
-game/scene/frame.c	439	layout-expression	0x7E997D, scene_sway_the_epoch },
-game/scene/frame.c	440	layout-expression	0x7E999C, scene_stars_fly_after_captions },
-game/scene/frame.c	441	layout-expression	0x7E99B5, scene_keep_the_orbit },
-game/scene/frame.c	442	layout-expression	0x7E99FA, scene_ending_draw_the_end },
-game/scene/frame.c	443	layout-expression	0x7E9A0C, scene_ending_sweep_window },
-game/scene/frame.c	444	layout-expression	0x7E9ABD, scene_check_the_flight_view },
-game/scene/frame.c	445	layout-expression	0x7E9AF3, scene_place_the_flight_view },
-game/scene/frame.c	446	layout-expression	0x7E9B4F, scene_turn_captions },
-game/scene/frame.c	447	layout-expression	0x7E9BF9, scene_burst_the_fireworks },
-game/scene/frame.c	448	layout-expression	0x7E9C58, scene_show_the_mosaic },
-game/scene/frame.c	449	layout-expression	0x7E9CE2, scene_send_the_mosaic_frame },
-game/scene/frame.c	450	layout-expression	0x7E9D45, scene_turn_back_and_twinkle },
-game/scene/frame.c	451	layout-expression	0x7E9D48, scene_twinkle_the_lights },
-game/scene/frame.c	452	layout-expression	0x7E9DBC, scene_send_the_flight_view },
-game/scene/frame.c	453	layout-expression	0x7E9E19, scene_send_the_picture_and_bg2 },
-game/scene/frame.c	454	layout-expression	0x7E9E2B, scene_send_the_picture },
-game/scene/frame.c	455	layout-expression	0x7E9E7B, scene_roll_credits },
-game/scene/frame.c	456	layout-expression	0x7E9EFC, scene_upload_credits },
-game/scene/frame.c	457	layout-expression	0x7E9F2B, scene_send_the_credits_picture },
-game/scene/frame.c	458	layout-expression	0x7E9F39, scene_send_the_pattern_s_map },
-game/scene/frame.c	459	layout-expression	0x7E9F47, scene_send_the_pattern_s_tiles },
-game/scene/frame.c	460	layout-expression	0x7E9F73, scene_blank_the_map },
+game/scene/frame.c	357	layout-expression	0x7E3176, nothing_this_frame },
+game/scene/frame.c	358	layout-expression	0x7E3749, channel_0_turn },
+game/scene/frame.c	359	layout-expression	0x7E3754, channel_1_turn },
+game/scene/frame.c	360	layout-expression	0x7E3843, hide_every_sprite },
+game/scene/frame.c	361	layout-expression	0x7E388B, send_palette },
+game/scene/frame.c	363	layout-expression	0x7E3D72, scene_race_sweep_curtain },
+game/scene/frame.c	364	layout-expression	0x7E416D, scene_race_settle_camera },
+game/scene/frame.c	365	layout-expression	0x7E424D, scene_race_wait_to_leave },
+game/scene/frame.c	366	layout-expression	0x7E4283, scene_race_leave },
+game/scene/frame.c	367	layout-expression	0x7E428B, scene_race_move_along },
+game/scene/frame.c	368	layout-expression	0x7E42BD, scene_race_keep_controller },
+game/scene/frame.c	369	layout-expression	0x7E42CE, scene_race_check_perspective },
+game/scene/frame.c	370	layout-expression	0x7E4339, scene_race_turn_camera },
+game/scene/frame.c	371	layout-expression	0x7E43F2, scene_race_move_camera },
+game/scene/frame.c	372	layout-expression	0x7E4447, scene_race_aim_camera },
+game/scene/frame.c	373	layout-expression	0x7E449C, scene_race_follow_finish },
+game/scene/frame.c	374	layout-expression	0x7E44CE, scene_race_drain_score },
+game/scene/frame.c	375	layout-expression	0x7E44FE, scene_race_set_horizon },
+game/scene/frame.c	376	layout-expression	0x7E4643, scene_race_upload_column_rom },
+game/scene/frame.c	377	layout-expression	0x7E464D, scene_race_upload_column_ram },
+game/scene/frame.c	378	layout-expression	0x7E4677, scene_race_coast },
+game/scene/frame.c	379	layout-expression	0x7E4755, scene_race_await_victory_song },
+game/scene/frame.c	380	layout-expression	0x7E485D, scene_race_ride },
+game/scene/frame.c	381	layout-expression	0x7E4D0D, scene_race_place_bikes },
+game/scene/frame.c	382	layout-expression	0x7E4F54, scene_race_draw },
+game/scene/frame.c	383	layout-expression	0x7E5221, scene_race_upload_tilemap },
+game/scene/frame.c	385	layout-expression	0x7E55F9, scene_turn_the_field_s_angle },
+game/scene/frame.c	386	layout-expression	0x7E5654, send_the_flat_plane },
+game/scene/frame.c	387	layout-expression	0x7E56A9, scene_turn_lavos },
+game/scene/frame.c	388	layout-expression	0x7E56EB, scene_draw_the_planet },
+game/scene/frame.c	389	layout-expression	0x7E579B, scene_stars_fly },
+game/scene/frame.c	390	layout-expression	0x7E5855, scene_swing_the_field },
+game/scene/frame.c	392	layout-expression	0x7E63D5, scene_wait_for_a_button_to_restart },
+game/scene/frame.c	393	layout-expression	0x7E63F5, scene_count_down_to_the_restart },
+game/scene/frame.c	394	layout-expression	0x7E64BF, scene_show_the_planet_s_caption },
+game/scene/frame.c	395	layout-expression	0x7E6844, scene_sweep_the_palace_curtain },
+game/scene/frame.c	397	layout-expression	0x7E7193, scene_step_turn_mosaic },
+game/scene/frame.c	398	layout-expression	0x7E72FF, scene_spread_turn_figures },
+game/scene/frame.c	399	layout-expression	0x7E7325, scene_size_turn_windows },
+game/scene/frame.c	400	layout-expression	0x7E737E, scene_show_turn_mosaic },
+game/scene/frame.c	401	layout-expression	0x7E73AA, scene_scroll_turn_wave },
+game/scene/frame.c	402	layout-expression	0x7E76A5, scene_orbit_turn_figures },
+game/scene/frame.c	403	layout-expression	0x7E7721, scene_update_turn_figures },
+game/scene/frame.c	404	layout-expression	0x7E7868, scene_send_turn_figure },
+game/scene/frame.c	405	layout-expression	0x7E78AB, scene_cycle_turn_colors },
+game/scene/frame.c	407	layout-expression	0x7E79F8, scene_set_the_screen_outside },
+game/scene/frame.c	408	layout-expression	0x7E7A35, scene_set_the_screen_in_the_cockpit },
+game/scene/frame.c	409	layout-expression	0x7E7BF2, scene_open_the_light },
+game/scene/frame.c	410	layout-expression	0x7E7F12, scene_pass_the_shell_across },
+game/scene/frame.c	411	layout-expression	0x7E7F35, scene_pass_the_shell_down },
+game/scene/frame.c	412	layout-expression	0x7E7F58, scene_follow_the_panel },
+game/scene/frame.c	413	layout-expression	0x7E7F7D, scene_shake_the_cockpit },
+game/scene/frame.c	414	layout-expression	0x7E7FC4, scene_size_the_trail },
+game/scene/frame.c	415	layout-expression	0x7E7FCB, scene_draw_the_trail },
+game/scene/frame.c	416	layout-expression	0x7E8079, scene_flicker_the_lights },
+game/scene/frame.c	417	layout-expression	0x7E81C4, send_the_plane_s_place },
+game/scene/frame.c	418	layout-expression	0x7E81F1, scene_let_the_shell_fall_away },
+game/scene/frame.c	419	layout-expression	0x7E8205, scene_draw_the_epoch },
+game/scene/frame.c	420	layout-expression	0x7E824A, scene_send_the_epoch },
+game/scene/frame.c	421	layout-expression	0x7E82D1, scene_check_the_shell },
+game/scene/frame.c	422	layout-expression	0x7E835B, scene_fly_the_epoch_on },
+game/scene/frame.c	424	layout-expression	0x7E8850, scene_ending_place_picture },
+game/scene/frame.c	425	layout-expression	0x7E891B, scene_ending_pick_picture_frame },
+game/scene/frame.c	426	layout-expression	0x7E89C0, scene_ending_upload_picture },
+game/scene/frame.c	427	layout-expression	0x7E8C05, scene_clear_sprite_high_bits },
+game/scene/frame.c	428	layout-expression	0x7E8D56, scene_ending_show_credits },
+game/scene/frame.c	429	layout-expression	0x7E8B52, scene_ending_panorama_horizon },
+game/scene/frame.c	430	layout-expression	0x7E8E44, scene_ending_show_last_scene },
+game/scene/frame.c	431	layout-expression	0x7E8E88, scene_ending_scroll_bg2 },
+game/scene/frame.c	433	layout-expression	0x7E9080, scene_set_the_flight_horizon },
+game/scene/frame.c	434	layout-expression	0x7E90C1, scene_pass_the_map },
+game/scene/frame.c	435	layout-expression	0x7E9897, scene_stars_start_drift },
+game/scene/frame.c	436	layout-expression	0x7E98AC, scene_stars_keep_drifting },
+game/scene/frame.c	437	layout-expression	0x7E992A, scene_circle_the_epoch },
+game/scene/frame.c	438	layout-expression	0x7E997D, scene_sway_the_epoch },
+game/scene/frame.c	439	layout-expression	0x7E999C, scene_stars_fly_after_captions },
+game/scene/frame.c	440	layout-expression	0x7E99B5, scene_keep_the_orbit },
+game/scene/frame.c	441	layout-expression	0x7E99FA, scene_ending_draw_the_end },
+game/scene/frame.c	442	layout-expression	0x7E9A0C, scene_ending_sweep_window },
+game/scene/frame.c	443	layout-expression	0x7E9ABD, scene_check_the_flight_view },
+game/scene/frame.c	444	layout-expression	0x7E9AF3, scene_place_the_flight_view },
+game/scene/frame.c	445	layout-expression	0x7E9B4F, scene_turn_captions },
+game/scene/frame.c	446	layout-expression	0x7E9BF9, scene_burst_the_fireworks },
+game/scene/frame.c	447	layout-expression	0x7E9C58, scene_show_the_mosaic },
+game/scene/frame.c	448	layout-expression	0x7E9CE2, scene_send_the_mosaic_frame },
+game/scene/frame.c	449	layout-expression	0x7E9D45, scene_turn_back_and_twinkle },
+game/scene/frame.c	450	layout-expression	0x7E9D48, scene_twinkle_the_lights },
+game/scene/frame.c	451	layout-expression	0x7E9DBC, scene_send_the_flight_view },
+game/scene/frame.c	452	layout-expression	0x7E9E19, scene_send_the_picture_and_bg2 },
+game/scene/frame.c	453	layout-expression	0x7E9E2B, scene_send_the_picture },
+game/scene/frame.c	454	layout-expression	0x7E9E7B, scene_roll_credits },
+game/scene/frame.c	455	layout-expression	0x7E9EFC, scene_upload_credits },
+game/scene/frame.c	456	layout-expression	0x7E9F2B, scene_send_the_credits_picture },
+game/scene/frame.c	457	layout-expression	0x7E9F39, scene_send_the_pattern_s_map },
+game/scene/frame.c	458	layout-expression	0x7E9F47, scene_send_the_pattern_s_tiles },
+game/scene/frame.c	459	layout-expression	0x7E9F73, scene_blank_the_map },
 game/scene/lavos_falls.c	149	raw-helper	wram_read8(g, PACKED_PIXELS + n);
 game/scene/lavos_falls.c	150	raw-helper	wram_write8(g, SCENE_UNPACK_BUFFER + 2u * n, (uint8_t)(two & 0x0F));
 game/scene/lavos_falls.c	151	raw-helper	wram_write8(g, SCENE_UNPACK_BUFFER + 2u * n + 1, (uint8_t)(two >> 4));
@@ -2073,7 +2075,7 @@ game/scene/planet.c	477	layout-expression	0x7E6327), &sprites_added, VID_MATH_CO
 game/scene/planet.c	478	layout-expression	0x7E632D), VID_BG1_BIT, VID_OBJ_BIT, VID_SCREEN_MAIN | VID_SCREEN_SUB);
 game/scene/planet.c	479	layout-expression	0x7E6333), &(VidWindows){ .win_main = EVERY_WINDOW, .win_sub = EVERY_WINDOW },
 game/scene/planet.c	508	layout-expression	0x7E6598 };
-game/scene/program.c	57	layout-expression	0x7E3843, scene_hide_every_sprite(pf));
+game/scene/program.c	57	layout-expression	0x7E3843, scene_hide_every_sprite(g, pf));
 game/scene/program.c	58	layout-expression	0x7E30F9, scene_set_up_first_screen(g, pf));
 game/scene/program.c	71	layout-expression	0x7E0000 };
 game/scene/program.c	75	layout-expression	0x7E3B48, CREDIT_PAGES_SET_UP = 0x7E6B04, TITLE_SET_UP = 0x7E5978, PALACE_SET_UP = 0x7E671F,
@@ -2095,81 +2097,84 @@ game/scene/program.c	86	layout-expression	0x7E3177 };
 game/scene/program.c	147	layout-expression	0x7E5AAA };
 game/scene/program.c	152	layout-expression	0x7E388B, scene_send_palette(pf));
 game/scene/program.c	158	layout-expression	0x7E3019), TM_INT_VBLANK | TM_INT_LINE | TM_INT_AUTO_JOYPAD);
-game/scene/race.c	231	raw-helper	wram_copy(g, from, to, PLANE_ROW_BYTES);
-game/scene/race.c	232	raw-helper	wram_copy(g, from, to + PLANE_ROW_BYTES, PLANE_ROW_BYTES);
-game/scene/race.c	247	raw-helper	wram_copy(g, (uint32_t)SCENE_LOWER_WORK_RAM << 16 | UNPACKED_PALETTE, SCENE_PALETTE, PALETTE_BYTES);
-game/scene/race.c	284	raw-helper	wram_fill8(g, ROAD_STRIP, ROAD_STRIP_BYTES, 0);
-game/scene/race.c	318	raw-helper	wram_copy(g, from + row * BLOCK_PIXELS, to + row * PICTURE_ROW, BLOCK_PIXELS);
-game/scene/race.c	345	raw-helper	wram_write8(g, to + i, wram_read8(g, (from & 0xFF0000) | (uint16_t)(from + last - i)));
-game/scene/race.c	345	raw-helper	wram_read8(g, (from & 0xFF0000) | (uint16_t)(from + last - i)));
-game/scene/race.c	346	raw-helper	wram_fill8(g, to + MIRRORED_PIXELS, PICTURE_ROW - MIRRORED_PIXELS, 0);
-game/scene/race.c	385	raw-helper	wram_copy(g, PICTURES, CRONO_PICTURES_COPY, CRONO_PICTURES_COPY_BYTES);
-game/scene/race.c	115	video-source	PF_GAME(SCENE_BLANK_TILE), RACERS_MAP_BYTES, NULL);
-game/scene/race.c	688	video-source	PF_GAME(SCENE_TILEMAP_BUFFER), TILEMAP_HALF_BYTES, SCENE_VRAM_WHOLE_WORDS);
-game/scene/race.c	704	video-source	PF_GAME(ROAD_STRIP), ROAD_STRIP_BYTES, SCENE_VRAM_WHOLE_WORDS);
-game/scene/race.c	55	layout-expression	0x7EF000, LINE_TABLES_BYTES = 0x1000,
-game/scene/race.c	57	layout-expression	0x7EE100, ROAD_STRIP_BYTES = 0x0040,
-game/scene/race.c	58	layout-expression	0x7F0300, SCALER_OUTPUT_BYTES = 0x0700,
-game/scene/race.c	59	layout-expression	0x7EC995, PLANE_COLUMN_BYTES = 0x0013, PLANE_COLUMN_READ_BYTES = 0x0014,
-game/scene/race.c	75	layout-expression	0x7E3C22);
-game/scene/race.c	76	layout-expression	<< 16 | SCENE_TILEMAP_BUFFER, TILEMAP_BUFFER_BYTES, 0x7E3C3E);
-game/scene/race.c	76	layout-expression	0x7E3C3E);
-game/scene/race.c	93	layout-expression	0x7E3D02), VID_BG1, &race_bg1);
-game/scene/race.c	94	layout-expression	0x7E3D02), VID_BG2, &race_bg2);
-game/scene/race.c	95	layout-expression	0x7E3D07), VID_BG3, &race_bg3);
-game/scene/race.c	96	layout-expression	0x7E3D0C), VID_BG1, LAYER_TILES_VRAM, LAYER_TILES_VRAM);
-game/scene/race.c	97	layout-expression	0x7E3D0F), VID_BG3, LAYER_TILES_VRAM, LAYER_TILES_VRAM);
-game/scene/race.c	98	layout-expression	0x7E3D14), &race_math, VID_MATH_CONTROL);
-game/scene/race.c	99	layout-expression	0x7E3D1A),
-game/scene/race.c	101	layout-expression	0x7E3D1F), &down_a_column);
-game/scene/race.c	102	layout-expression	0x7E3D25), PLANE_COLUMN_VRAM);
-game/scene/race.c	106	layout-expression	0x7E3D41), &t);
-game/scene/race.c	114	layout-expression	0x7E3D8E), SCENE_VRAM_WHOLE_WORDS);
-game/scene/race.c	115	layout-expression	0x7E3DB0), RACERS_MAP_A_VRAM, PF_GAME(SCENE_BLANK_TILE), RACERS_MAP_BYTES, NULL);
-game/scene/race.c	126	layout-expression	0x7E8752), SCENE_VRAM_LOW_BYTES);
-game/scene/race.c	128	layout-expression	0x7E876E), &t);
-game/scene/race.c	151	layout-expression	0x7E3691 };
-game/scene/race.c	155	layout-expression	0x7E3749 };
-game/scene/race.c	163	layout-expression	0x7E2200, PALETTE_BYTES = 0x200,
-game/scene/race.c	173	layout-expression	0x7F0A00, PICTURE_ROW = 0x40,
-game/scene/race.c	174	layout-expression	0x7F8A00,
-game/scene/race.c	175	layout-expression	0x7F3800, CRONO_PICTURES_COPY_BYTES = 0x2E00,
-game/scene/race.c	177	layout-expression	0x7F5A00, MIRRORED_SECOND = 0x7F7800, MIRRORED_THIRD = 0x7FAE00,
-game/scene/race.c	177	layout-expression	0x7F7800, MIRRORED_THIRD = 0x7FAE00,
-game/scene/race.c	177	layout-expression	0x7FAE00,
-game/scene/race.c	196	layout-expression	0x7E3DCB },
-game/scene/race.c	197	layout-expression	0x7E3DE4 },
-game/scene/race.c	199	layout-expression	0x7E3E13 },
-game/scene/race.c	200	layout-expression	0x7E3E23 },
-game/scene/race.c	201	layout-expression	0x7E3E33 },
-game/scene/race.c	202	layout-expression	0x7E3E77 },
-game/scene/race.c	203	layout-expression	0x7E3E8D },
-game/scene/race.c	204	layout-expression	0x7E3EA3 },
-game/scene/race.c	247	layout-expression	<< 16 | UNPACKED_PALETTE, SCENE_PALETTE, PALETTE_BYTES);
-game/scene/race.c	252	layout-expression	0x7E38E7, scene_send_unpacked(g, pf));
-game/scene/race.c	256	layout-expression	0x7E8752, scene_upload_plane_half(pf));
-game/scene/race.c	260	layout-expression	0x7E38E7, scene_send_unpacked(g, pf));
-game/scene/race.c	263	layout-expression	0x7E38E7, scene_send_unpacked(g, pf));
-game/scene/race.c	280	layout-expression	0x7E3E03), SCENE_VRAM_WHOLE_WORDS);
-game/scene/race.c	286	layout-expression	0x7E3E71);
-game/scene/race.c	333	layout-expression	<< 16 | crono_blocks[i]);
-game/scene/race.c	345	layout-expression	& 0xFF0000) | (uint16_t)(from + last - i)));
-game/scene/race.c	348	layout-expression	& 0xFF0000) | (uint16_t)(from + PICTURE_ROW);
-game/scene/race.c	360	layout-expression	0x7F2C00 };
-game/scene/race.c	436	layout-expression	0x7E3C9E), &race_curtain,
-game/scene/race.c	504	layout-expression	0x7E36CC, scene_set_up_line_effects(g, pf, LINE_EFFECT_DESCRIPTORS));
-game/scene/race.c	564	layout-expression	0x7E3D81 : 0x7E3D88), CURTAIN_WINDOW_SLOT, curtain_table(g));
-game/scene/race.c	564	layout-expression	0x7E3D88), CURTAIN_WINDOW_SLOT, curtain_table(g));
-game/scene/race.c	606	layout-expression	0x7E43F5),
-game/scene/race.c	609	layout-expression	0x7E440D), VID_BG2, scene_race_bg2_scroll_x(g), 0, VID_SCROLL_H);
-game/scene/race.c	610	layout-expression	0x7E4419), VID_BG3, scene_race_bg3_scroll_x(g), scene_race_bg3_scroll_y(g),
-game/scene/race.c	642	layout-expression	0x7E4671), &t);
-game/scene/race.c	688	layout-expression	0x7E525B), vram, PF_GAME(SCENE_TILEMAP_BUFFER), TILEMAP_HALF_BYTES, SCENE_VRAM_WHOLE_WORDS);
-game/scene/race.c	704	layout-expression	0x7E5287), ROAD_STRIP_VRAM, PF_GAME(ROAD_STRIP), ROAD_STRIP_BYTES, SCENE_VRAM_WHOLE_WORDS);
-game/scene/race.c	722	layout-expression	0x7E4BD4), 1, engine_pitch(g));
-game/scene/race.c	723	layout-expression	0x7E4BD9), 0, EFFECT_PITCH);
-game/scene/race.c	735	layout-expression	0x7E4BC8 },
-game/scene/race.c	736	layout-expression	0x7E426D },
+game/scene/race.c	102	raw-helper	wram_fill8(g, PLANE_COLUMN_COPY + i, 1, (uint8_t)word);
+game/scene/race.c	243	raw-helper	wram_copy(g, from, to, PLANE_ROW_BYTES);
+game/scene/race.c	244	raw-helper	wram_copy(g, from, to + PLANE_ROW_BYTES, PLANE_ROW_BYTES);
+game/scene/race.c	259	raw-helper	wram_copy(g, (uint32_t)SCENE_LOWER_WORK_RAM << 16 | UNPACKED_PALETTE, SCENE_PALETTE, PALETTE_BYTES);
+game/scene/race.c	296	raw-helper	wram_fill8(g, ROAD_STRIP, ROAD_STRIP_BYTES, 0);
+game/scene/race.c	330	raw-helper	wram_copy(g, from + row * BLOCK_PIXELS, to + row * PICTURE_ROW, BLOCK_PIXELS);
+game/scene/race.c	357	raw-helper	wram_write8(g, to + i, wram_read8(g, (from & 0xFF0000) | (uint16_t)(from + last - i)));
+game/scene/race.c	357	raw-helper	wram_read8(g, (from & 0xFF0000) | (uint16_t)(from + last - i)));
+game/scene/race.c	358	raw-helper	wram_fill8(g, to + MIRRORED_PIXELS, PICTURE_ROW - MIRRORED_PIXELS, 0);
+game/scene/race.c	397	raw-helper	wram_copy(g, PICTURES, CRONO_PICTURES_COPY, CRONO_PICTURES_COPY_BYTES);
+game/scene/race.c	132	video-source	PF_GAME(SCENE_BLANK_TILE), RACERS_MAP_BYTES, NULL);
+game/scene/race.c	142	video-source	PF_GAME(SCENE_PLANE_MAP), PLANE_MAP_HALF_BYTES, VID_VRAM_LOW_BYTES);
+game/scene/race.c	696	video-source	PF_GAME(SCENE_TILEMAP_BUFFER), TILEMAP_HALF_BYTES, SCENE_VRAM_WHOLE_WORDS);
+game/scene/race.c	712	video-source	PF_GAME(ROAD_STRIP), ROAD_STRIP_BYTES, SCENE_VRAM_WHOLE_WORDS);
+game/scene/race.c	56	layout-expression	0x7EF000, LINE_TABLES_BYTES = 0x1000,
+game/scene/race.c	58	layout-expression	0x7EE100, ROAD_STRIP_BYTES = 0x0040,
+game/scene/race.c	59	layout-expression	0x7F0300, SCALER_OUTPUT_BYTES = 0x0700,
+game/scene/race.c	60	layout-expression	0x7EC995, PLANE_COLUMN_BYTES = 0x0013, PLANE_COLUMN_READ_BYTES = 0x0014,
+game/scene/race.c	76	layout-expression	0x7E3C22);
+game/scene/race.c	77	layout-expression	<< 16 | SCENE_TILEMAP_BUFFER, TILEMAP_BUFFER_BYTES, 0x7E3C3E);
+game/scene/race.c	77	layout-expression	0x7E3C3E);
+game/scene/race.c	101	layout-expression	0x7E3D41), (uint16_t)(PLANE_COLUMN_VRAM + row * PLANE_ROW_WORDS));
+game/scene/race.c	104	layout-expression	0x7E3D41), PLANE_COLUMN_READ_BYTES);
+game/scene/race.c	113	layout-expression	0x7E3D02), VID_BG1, &race_bg1);
+game/scene/race.c	114	layout-expression	0x7E3D02), VID_BG2, &race_bg2);
+game/scene/race.c	115	layout-expression	0x7E3D07), VID_BG3, &race_bg3);
+game/scene/race.c	116	layout-expression	0x7E3D0C), VID_BG1, LAYER_TILES_VRAM, LAYER_TILES_VRAM);
+game/scene/race.c	117	layout-expression	0x7E3D0F), VID_BG3, LAYER_TILES_VRAM, LAYER_TILES_VRAM);
+game/scene/race.c	118	layout-expression	0x7E3D14), &race_math, VID_MATH_CONTROL);
+game/scene/race.c	119	layout-expression	0x7E3D1A),
+game/scene/race.c	121	layout-expression	0x7E3D1F), &down_a_column);
+game/scene/race.c	122	layout-expression	0x7E3D25), PLANE_COLUMN_VRAM);
+game/scene/race.c	131	layout-expression	0x7E3D8E), SCENE_VRAM_WHOLE_WORDS);
+game/scene/race.c	132	layout-expression	0x7E3DB0), RACERS_MAP_A_VRAM, PF_GAME(SCENE_BLANK_TILE), RACERS_MAP_BYTES, NULL);
+game/scene/race.c	141	layout-expression	0x7E8752), SCENE_VRAM_LOW_BYTES);
+game/scene/race.c	142	layout-expression	0x7E876E), PF_GAME(SCENE_PLANE_MAP), PLANE_MAP_HALF_BYTES, VID_VRAM_LOW_BYTES);
+game/scene/race.c	165	layout-expression	0x7E3691 };
+game/scene/race.c	169	layout-expression	0x7E3749 };
+game/scene/race.c	177	layout-expression	0x7E2200, PALETTE_BYTES = 0x200,
+game/scene/race.c	187	layout-expression	0x7F0A00, PICTURE_ROW = 0x40,
+game/scene/race.c	188	layout-expression	0x7F8A00,
+game/scene/race.c	189	layout-expression	0x7F3800, CRONO_PICTURES_COPY_BYTES = 0x2E00,
+game/scene/race.c	191	layout-expression	0x7F5A00, MIRRORED_SECOND = 0x7F7800, MIRRORED_THIRD = 0x7FAE00,
+game/scene/race.c	191	layout-expression	0x7F7800, MIRRORED_THIRD = 0x7FAE00,
+game/scene/race.c	191	layout-expression	0x7FAE00,
+game/scene/race.c	210	layout-expression	0x7E3DCB },
+game/scene/race.c	211	layout-expression	0x7E3DE4 },
+game/scene/race.c	213	layout-expression	0x7E3E13 },
+game/scene/race.c	214	layout-expression	0x7E3E23 },
+game/scene/race.c	215	layout-expression	0x7E3E33 },
+game/scene/race.c	216	layout-expression	0x7E3E77 },
+game/scene/race.c	217	layout-expression	0x7E3E8D },
+game/scene/race.c	218	layout-expression	0x7E3EA3 },
+game/scene/race.c	259	layout-expression	<< 16 | UNPACKED_PALETTE, SCENE_PALETTE, PALETTE_BYTES);
+game/scene/race.c	264	layout-expression	0x7E38E7, scene_send_unpacked(g, pf));
+game/scene/race.c	268	layout-expression	0x7E8752, scene_upload_plane_half(pf));
+game/scene/race.c	272	layout-expression	0x7E38E7, scene_send_unpacked(g, pf));
+game/scene/race.c	275	layout-expression	0x7E38E7, scene_send_unpacked(g, pf));
+game/scene/race.c	292	layout-expression	0x7E3E03), SCENE_VRAM_WHOLE_WORDS);
+game/scene/race.c	298	layout-expression	0x7E3E71);
+game/scene/race.c	345	layout-expression	<< 16 | crono_blocks[i]);
+game/scene/race.c	357	layout-expression	& 0xFF0000) | (uint16_t)(from + last - i)));
+game/scene/race.c	360	layout-expression	& 0xFF0000) | (uint16_t)(from + PICTURE_ROW);
+game/scene/race.c	372	layout-expression	0x7F2C00 };
+game/scene/race.c	448	layout-expression	0x7E3C9E), &race_curtain,
+game/scene/race.c	516	layout-expression	0x7E36CC, scene_set_up_line_effects(g, pf, LINE_EFFECT_DESCRIPTORS));
+game/scene/race.c	576	layout-expression	0x7E3D81 : 0x7E3D88), CURTAIN_WINDOW_SLOT, curtain_table(g));
+game/scene/race.c	576	layout-expression	0x7E3D88), CURTAIN_WINDOW_SLOT, curtain_table(g));
+game/scene/race.c	618	layout-expression	0x7E43F5),
+game/scene/race.c	621	layout-expression	0x7E440D), VID_BG2, scene_race_bg2_scroll_x(g), 0, VID_SCROLL_H);
+game/scene/race.c	622	layout-expression	0x7E4419), VID_BG3, scene_race_bg3_scroll_x(g), scene_race_bg3_scroll_y(g),
+game/scene/race.c	649	layout-expression	0x7E4671), PLANE_COLUMN_VRAM, scene_race_column_data(column, PLANE_COLUMN_BYTES),
+game/scene/race.c	696	layout-expression	0x7E525B), vram, PF_GAME(SCENE_TILEMAP_BUFFER), TILEMAP_HALF_BYTES, SCENE_VRAM_WHOLE_WORDS);
+game/scene/race.c	712	layout-expression	0x7E5287), ROAD_STRIP_VRAM, PF_GAME(ROAD_STRIP), ROAD_STRIP_BYTES, SCENE_VRAM_WHOLE_WORDS);
+game/scene/race.c	730	layout-expression	0x7E4BD4), 1, engine_pitch(g));
+game/scene/race.c	731	layout-expression	0x7E4BD9), 0, EFFECT_PITCH);
+game/scene/race.c	743	layout-expression	0x7E4BC8 },
+game/scene/race.c	744	layout-expression	0x7E426D },
 game/scene/race.h	82	layout-expression	0x7E34E3,
 game/scene/race.h	83	layout-expression	0x7E416D,
 game/scene/race.h	84	layout-expression	0x7E4283,
@@ -2206,35 +2211,38 @@ game/scene/race_rules.c	944	layout-expression	0x7E41A6 };
 game/scene/race_rules.c	948	layout-expression	0x7E475C)) == 0)
 game/scene/race_rules.c	1090	layout-expression	0x7E485D, "a race's frame whose list changes the port doesn't make");
 game/scene/race_rules.c	1098	layout-expression	0x7E4677, "a race's coast whose list changes the port doesn't make");
-game/scene/rising_palace.c	120	video-source	PF_GAME(MAP_BUFFER), MAP_BYTES, SCENE_VRAM_WHOLE_WORDS);
-game/scene/rising_palace.c	427	video-source	PF_GAME(OFFSETS), OFFSETS_BYTES, SCENE_VRAM_WHOLE_WORDS);
-game/scene/rising_palace.c	93	layout-expression	0x7E7441, "a turned map larger than its buffer");
-game/scene/rising_palace.c	120	layout-expression	0x7E7843), vram, PF_GAME(MAP_BUFFER), MAP_BYTES, SCENE_VRAM_WHOLE_WORDS);
-game/scene/rising_palace.c	150	layout-expression	0x7E6721), &(VidMode7){ .a = BLANK_TILE_WORD }, VID_M7_MATRIX_A);
-game/scene/rising_palace.c	151	layout-expression	0x7E6729), &(VidMode7){ .b = 1 * 256 }, VID_M7_MATRIX_B_HIGH);
-game/scene/rising_palace.c	153	layout-expression	0x7E672C), &blank);
-game/scene/rising_palace.c	157	layout-expression	0x7E674D), &rest);
-game/scene/rising_palace.c	178	layout-expression	0x7E67B2), &edges, VID_WINDOWS_BG1_BG2);
-game/scene/rising_palace.c	181	layout-expression	0x7E67C1), &edges, VID_WINDOWS_BG1_BG2);
-game/scene/rising_palace.c	183	layout-expression	0x7E67DF), &(VidMode){ .mode = 2 });
-game/scene/rising_palace.c	184	layout-expression	0x7E67E4), VID_BG1, &palace_bg);
-game/scene/rising_palace.c	185	layout-expression	0x7E67E9), VID_BG3, &offsets_bg);
-game/scene/rising_palace.c	186	layout-expression	0x7E67EF), VID_BG1_BIT | VID_BG2_BIT | VID_OBJ_BIT, VID_BG2_BIT | VID_OBJ_BIT,
-game/scene/rising_palace.c	188	layout-expression	0x7E67F5), &palace_math, VID_MATH_CONTROL | VID_MATH_LAYERS);
-game/scene/rising_palace.c	189	layout-expression	0x7E67FA), &(VidWindows){ .win_main = VID_ALL_LAYERS }, VID_WINDOWS_MAIN);
-game/scene/rising_palace.c	190	layout-expression	0x7E6800), &(VidWindows){ .w1_left = EDGE_LEFT, .w1_right = EDGE_RIGHT },
-game/scene/rising_palace.c	192	layout-expression	0x7E6805), &(VidWindows){ .w2_right = CURTAIN_RIGHT }, VID_WINDOWS_W2_RIGHT);
-game/scene/rising_palace.c	243	layout-expression	0x7E6772), VID_BG1, LAYER_TILES_VRAM, LAYER_TILES_VRAM);
-game/scene/rising_palace.c	260	layout-expression	0x7E783C, set_scene_map_buffer_waiting(g, 0));
-game/scene/rising_palace.c	262	layout-expression	0x7E783C, send_the_map(g, pf, PALACE_MAP_VRAM));
-game/scene/rising_palace.c	264	layout-expression	0x7E36CC, (void)scene_set_up_line_effects(g, pf, PALACE_LINE_EFFECTS));
-game/scene/rising_palace.c	353	layout-expression	0x7E6A1B), VID_BG1_BIT, (uint8_t)(mosaic + 1));
-game/scene/rising_palace.c	413	layout-expression	0x7E6AA2), VID_BG1_BIT | VID_BG2_BIT | VID_OBJ_BIT, 0, VID_SCREEN_MAIN | VID_SCREEN_SUB);
-game/scene/rising_palace.c	427	layout-expression	0x7E66E0), OFFSETS_MAP_VRAM, PF_GAME(OFFSETS), OFFSETS_BYTES, SCENE_VRAM_WHOLE_WORDS);
-game/scene/rising_palace.c	428	layout-expression	0x7E6709), VID_BG3, scene_palace_ripple_scroll(g), 0, VID_SCROLL_H);
-game/scene/rising_palace.c	429	layout-expression	0x7E6715), VID_BG1, 0, scene_channel_register(g, PALACE_CHANNEL, PALACE_SCROLL_Y),
-game/scene/rising_palace.c	508	layout-expression	0x7E6853 : 0x7E685A), CURTAIN_WINDOW_SLOT, curtain_runs(g));
-game/scene/rising_palace.c	508	layout-expression	0x7E685A), CURTAIN_WINDOW_SLOT, curtain_runs(g));
+game/scene/rising_palace.c	157	raw-helper	wram_fill16(g, MAP_BUFFER, BLANK_ROWS_BYTES / WORD_BYTES, BLANK_TILE_WORD);
+game/scene/rising_palace.c	162	raw-helper	wram_fill16(g, MAP_BUFFER + BLANK_ROWS_BYTES + i * WORD_BYTES, 1, word);
+game/scene/rising_palace.c	121	video-source	PF_GAME(MAP_BUFFER), MAP_BYTES, SCENE_VRAM_WHOLE_WORDS);
+game/scene/rising_palace.c	434	video-source	PF_GAME(OFFSETS), OFFSETS_BYTES, SCENE_VRAM_WHOLE_WORDS);
+game/scene/rising_palace.c	94	layout-expression	0x7E7441, "a turned map larger than its buffer");
+game/scene/rising_palace.c	121	layout-expression	0x7E7843), vram, PF_GAME(MAP_BUFFER), MAP_BYTES, SCENE_VRAM_WHOLE_WORDS);
+game/scene/rising_palace.c	155	layout-expression	0x7E6721), &(VidMode7){ .a = BLANK_TILE_WORD }, VID_M7_MATRIX_A);
+game/scene/rising_palace.c	156	layout-expression	0x7E6729), &(VidMode7){ .b = 1 * 256 }, VID_M7_MATRIX_B_HIGH);
+game/scene/rising_palace.c	158	layout-expression	0x7E672C), BLANK_ROWS_BYTES);
+game/scene/rising_palace.c	161	layout-expression	0x7E674D), (uint16_t)(BELOW_THE_BLANK_ROWS_VRAM + from));
+game/scene/rising_palace.c	164	layout-expression	0x7E674D), REST_OF_THE_MAP_BYTES);
+game/scene/rising_palace.c	185	layout-expression	0x7E67B2), &edges, VID_WINDOWS_BG1_BG2);
+game/scene/rising_palace.c	188	layout-expression	0x7E67C1), &edges, VID_WINDOWS_BG1_BG2);
+game/scene/rising_palace.c	190	layout-expression	0x7E67DF), &(VidMode){ .mode = 2 });
+game/scene/rising_palace.c	191	layout-expression	0x7E67E4), VID_BG1, &palace_bg);
+game/scene/rising_palace.c	192	layout-expression	0x7E67E9), VID_BG3, &offsets_bg);
+game/scene/rising_palace.c	193	layout-expression	0x7E67EF), VID_BG1_BIT | VID_BG2_BIT | VID_OBJ_BIT, VID_BG2_BIT | VID_OBJ_BIT,
+game/scene/rising_palace.c	195	layout-expression	0x7E67F5), &palace_math, VID_MATH_CONTROL | VID_MATH_LAYERS);
+game/scene/rising_palace.c	196	layout-expression	0x7E67FA), &(VidWindows){ .win_main = VID_ALL_LAYERS }, VID_WINDOWS_MAIN);
+game/scene/rising_palace.c	197	layout-expression	0x7E6800), &(VidWindows){ .w1_left = EDGE_LEFT, .w1_right = EDGE_RIGHT },
+game/scene/rising_palace.c	199	layout-expression	0x7E6805), &(VidWindows){ .w2_right = CURTAIN_RIGHT }, VID_WINDOWS_W2_RIGHT);
+game/scene/rising_palace.c	250	layout-expression	0x7E6772), VID_BG1, LAYER_TILES_VRAM, LAYER_TILES_VRAM);
+game/scene/rising_palace.c	267	layout-expression	0x7E783C, set_scene_map_buffer_waiting(g, 0));
+game/scene/rising_palace.c	269	layout-expression	0x7E783C, send_the_map(g, pf, PALACE_MAP_VRAM));
+game/scene/rising_palace.c	271	layout-expression	0x7E36CC, (void)scene_set_up_line_effects(g, pf, PALACE_LINE_EFFECTS));
+game/scene/rising_palace.c	360	layout-expression	0x7E6A1B), VID_BG1_BIT, (uint8_t)(mosaic + 1));
+game/scene/rising_palace.c	420	layout-expression	0x7E6AA2), VID_BG1_BIT | VID_BG2_BIT | VID_OBJ_BIT, 0, VID_SCREEN_MAIN | VID_SCREEN_SUB);
+game/scene/rising_palace.c	434	layout-expression	0x7E66E0), OFFSETS_MAP_VRAM, PF_GAME(OFFSETS), OFFSETS_BYTES, SCENE_VRAM_WHOLE_WORDS);
+game/scene/rising_palace.c	435	layout-expression	0x7E6709), VID_BG3, scene_palace_ripple_scroll(g), 0, VID_SCROLL_H);
+game/scene/rising_palace.c	436	layout-expression	0x7E6715), VID_BG1, 0, scene_channel_register(g, PALACE_CHANNEL, PALACE_SCROLL_Y),
+game/scene/rising_palace.c	515	layout-expression	0x7E6853 : 0x7E685A), CURTAIN_WINDOW_SLOT, curtain_runs(g));
+game/scene/rising_palace.c	515	layout-expression	0x7E685A), CURTAIN_WINDOW_SLOT, curtain_runs(g));
 game/scene/scaler.c	76	raw-helper	wram_read8(g, in_scaler_bank(source, (uint16_t)(position / PIXEL_UNITS)));
 game/scene/scaler.c	87	raw-helper	wram_write8(g, in_scaler_bank(plane, planes), bits);
 game/scene/scaler.c	135	raw-helper	wram_copy(g, in_scaler_bank(0, (uint16_t)(output - ROW_BYTES)), in_scaler_bank(0, output), ROW_BYTES);
@@ -2268,43 +2276,48 @@ game/scene/scene_data.h	38	layout-expression	<< 16;
 game/scene/scene_data.h	44	layout-expression	<< 16;
 game/scene/scene_data.h	83	layout-expression	<< 16;
 game/scene/scene_data.h	88	layout-expression	<< 16 | addr);
-game/scene/screen.c	401	raw-helper	wram_copy(g, SCENE_UNPACK_BUFFER + row * UNPACKED_ROW_BYTES, to, UNPACKED_ROW_BYTES);
-game/scene/screen.c	402	raw-helper	wram_fill8(g, to + UNPACKED_ROW_BYTES, UNPACKED_ROW_BYTES, 0);
-game/scene/screen.c	425	raw-helper	wram_copy(g, LOADED_PALETTE, WORKING_PALETTE, PALETTE_BYTES);
-game/scene/screen.c	449	raw-helper	wram_read16(g, descriptor_at(at, 0));
-game/scene/screen.c	450	raw-helper	wram_read16(g, descriptor_at(at, 2));
-game/scene/screen.c	451	raw-helper	wram_read16(g, descriptor_at(at, 4));
-game/scene/screen.c	123	video-source	PF_GAME(SCENE_SPRITE_TABLE));
-game/scene/screen.c	159	video-source	PF_GAME(WORKING_PALETTE), COLORS);
-game/scene/screen.c	415	video-source	PF_GAME(SCENE_BLANK_TILE), bytes ? bytes : 0x10000u, VID_VRAM_LOW_BYTES);
-game/scene/screen.c	468	video-source	PF_GAME((uint32_t)d.bank << 16 | d.table);
-game/scene/screen.c	36	layout-expression	0x7E2200 };
-game/scene/screen.c	60	layout-expression	0x7E302F), 0);
-game/scene/screen.c	61	layout-expression	0x7E3032), 0);
-game/scene/screen.c	62	layout-expression	0x7E3035), &(VidDisplay){ .blank = true });
-game/scene/screen.c	82	layout-expression	0x7E3096), &(VidMode7){ .a = (int16_t)(matrix_left << 8 | matrix_left) }, VID_M7_MATRIX_A);
-game/scene/screen.c	83	layout-expression	0x7E309D), &(VidMode7){ .b = 0 }, VID_M7_MATRIX_B);
-game/scene/screen.c	85	layout-expression	0x7E30B6), &scene_cells);
-game/scene/screen.c	89	layout-expression	0x7E30D2 : 0x7E30E6), &rest);
-game/scene/screen.c	89	layout-expression	0x7E30E6), &rest);
-game/scene/screen.c	114	layout-expression	0x7E30F9), &first_screen);
-game/scene/screen.c	123	layout-expression	0x7E3811), PF_GAME(SCENE_SPRITE_TABLE));
-game/scene/screen.c	124	layout-expression	0x7E3830), scene_sprite_priority_start(g), true);
-game/scene/screen.c	134	layout-expression	0x7E3870, scene_hide_rest_of_group(g));
-game/scene/screen.c	148	layout-expression	0x7E3845), &(VidMode7){ .a = 1 }, VID_M7_MATRIX_A);
-game/scene/screen.c	149	layout-expression	0x7E384D), &(VidMode7){ .b = BELOW_THE_PICTURE * 256 }, VID_M7_MATRIX_B_HIGH);
-game/scene/screen.c	151	layout-expression	0x7E3850), &t);
-game/scene/screen.c	152	layout-expression	0x7E386C), &(VidMode7){ .b = 0 }, VID_M7_MATRIX_B_HIGH);
-game/scene/screen.c	159	layout-expression	0x7E388D), 0, PF_GAME(WORKING_PALETTE), COLORS);
-game/scene/screen.c	264	layout-expression	0x7E34B8, DRIVER), AU_FADE_MUSIC, MUSIC_FADE_STEPS, SILENT);
-game/scene/screen.c	273	layout-expression	0x7E34DA, DRIVER),
-game/scene/screen.c	313	layout-expression	0x7E38EA), &t);
-game/scene/screen.c	335	layout-expression	0x7E38E3), &t);
-game/scene/screen.c	358	layout-expression	0x7E38E7, scene_send_unpacked_as(g, pf, t.mode, t.vram_register));
-game/scene/screen.c	419	layout-expression	0x7E2000, PALETTE_BYTES = 0x200 };
-game/scene/screen.c	445	layout-expression	<< 16 | (uint16_t)(at + offset); }
-game/scene/screen.c	468	layout-expression	<< 16 | d.table);
-game/scene/screen.c	471	layout-expression	0x7E36E8), channel, &e);
+game/scene/screen.c	83	raw-helper	wram_fill8(g, LOW_RAM, SCENE_CELLS_BYTES, 0);
+game/scene/screen.c	87	raw-helper	wram_fill8(g, LOW_RAM | from, SOUND_PAGE - from, 0);
+game/scene/screen.c	151	raw-helper	wram_fill8(g, LOW_RAM | SCENE_SPRITE_TABLE, SCENE_SPRITE_TABLE_BYTES, (uint8_t)BELOW_THE_PICTURE);
+game/scene/screen.c	354	raw-helper	wram_fill8(g, buffer, count, 0);
+game/scene/screen.c	412	raw-helper	wram_copy(g, SCENE_UNPACK_BUFFER + row * UNPACKED_ROW_BYTES, to, UNPACKED_ROW_BYTES);
+game/scene/screen.c	413	raw-helper	wram_fill8(g, to + UNPACKED_ROW_BYTES, UNPACKED_ROW_BYTES, 0);
+game/scene/screen.c	436	raw-helper	wram_copy(g, LOADED_PALETTE, WORKING_PALETTE, PALETTE_BYTES);
+game/scene/screen.c	460	raw-helper	wram_read16(g, descriptor_at(at, 0));
+game/scene/screen.c	461	raw-helper	wram_read16(g, descriptor_at(at, 2));
+game/scene/screen.c	462	raw-helper	wram_read16(g, descriptor_at(at, 4));
+game/scene/screen.c	122	video-source	PF_GAME(SCENE_SPRITE_TABLE));
+game/scene/screen.c	160	video-source	PF_GAME(WORKING_PALETTE), COLORS);
+game/scene/screen.c	426	video-source	PF_GAME(SCENE_BLANK_TILE), bytes ? bytes : 0x10000u, VID_VRAM_LOW_BYTES);
+game/scene/screen.c	479	video-source	PF_GAME((uint32_t)d.bank << 16 | d.table);
+game/scene/screen.c	35	layout-expression	0x7E2200 };
+game/scene/screen.c	59	layout-expression	0x7E302F), 0);
+game/scene/screen.c	60	layout-expression	0x7E3032), 0);
+game/scene/screen.c	61	layout-expression	0x7E3035), &(VidDisplay){ .blank = true });
+game/scene/screen.c	71	layout-expression	0x7E0000 };
+game/scene/screen.c	81	layout-expression	0x7E3096), &(VidMode7){ .a = (int16_t)(matrix_left << 8 | matrix_left) }, VID_M7_MATRIX_A);
+game/scene/screen.c	82	layout-expression	0x7E309D), &(VidMode7){ .b = 0 }, VID_M7_MATRIX_B);
+game/scene/screen.c	84	layout-expression	0x7E30B6), SCENE_CELLS_BYTES);
+game/scene/screen.c	88	layout-expression	0x7E30D2 : 0x7E30E6), SOUND_PAGE - from);
+game/scene/screen.c	88	layout-expression	0x7E30E6), SOUND_PAGE - from);
+game/scene/screen.c	113	layout-expression	0x7E30F9), &first_screen);
+game/scene/screen.c	122	layout-expression	0x7E3811), PF_GAME(SCENE_SPRITE_TABLE));
+game/scene/screen.c	123	layout-expression	0x7E3830), scene_sprite_priority_start(g), true);
+game/scene/screen.c	133	layout-expression	0x7E3870, scene_hide_rest_of_group(g));
+game/scene/screen.c	149	layout-expression	0x7E3845), &(VidMode7){ .a = 1 }, VID_M7_MATRIX_A);
+game/scene/screen.c	150	layout-expression	0x7E384D), &(VidMode7){ .b = BELOW_THE_PICTURE * 256 }, VID_M7_MATRIX_B_HIGH);
+game/scene/screen.c	152	layout-expression	0x7E3850), SCENE_SPRITE_TABLE_BYTES);
+game/scene/screen.c	153	layout-expression	0x7E386C), &(VidMode7){ .b = 0 }, VID_M7_MATRIX_B_HIGH);
+game/scene/screen.c	160	layout-expression	0x7E388D), 0, PF_GAME(WORKING_PALETTE), COLORS);
+game/scene/screen.c	265	layout-expression	0x7E34B8, DRIVER), AU_FADE_MUSIC, MUSIC_FADE_STEPS, SILENT);
+game/scene/screen.c	274	layout-expression	0x7E34DA, DRIVER),
+game/scene/screen.c	324	layout-expression	0x7E38EA), scene_upload_data(decompress_dest(g), bytes, mode), bytes, mode, port_register);
+game/scene/screen.c	346	layout-expression	0x7E38E3), scene_upload_data(source, count, mode), count, mode, port_register);
+game/scene/screen.c	369	layout-expression	0x7E38E7, scene_send_unpacked_as(g, pf, t.mode, t.vram_register));
+game/scene/screen.c	430	layout-expression	0x7E2000, PALETTE_BYTES = 0x200 };
+game/scene/screen.c	456	layout-expression	<< 16 | (uint16_t)(at + offset); }
+game/scene/screen.c	479	layout-expression	<< 16 | d.table);
+game/scene/screen.c	482	layout-expression	0x7E36E8), channel, &e);
 game/scene/script.c	80	raw-helper	wram_read8(g, (uint32_t)SCRIPT_BANK << 16 | at); }
 game/scene/script.c	84	raw-helper	wram_read16(g, (uint32_t)SCRIPT_BANK << 16 | at);
 game/scene/script.c	138	raw-helper	wram_write16(g, to, value);
@@ -2334,6 +2347,8 @@ game/scene/sprites.c	421	layout-expression	RAM_SCENE_SPRITE_LIST_LEFT & 0xFFFF,
 game/scene/sprites.c	421	layout-expression	& 0xFFFF,
 game/scene/staff_roll.c	60	raw-helper	wram_read8(g, (uint32_t)SCENE_LOWER_WORK_RAM << 16 | at); }
 game/scene/staff_roll.c	168	video-source	PF_GAME(CREDITS_ROW), CREDITS_ROW_BYTES,
+game/scene/staff_roll.c	274	video-source	PF_GAME(SCENE_BLANK_TILE), CREDITS_MAP_ROWS_BYTES, VID_VRAM_LOW_BYTES);
+game/scene/staff_roll.c	277	video-source	PF_GAME(IN_FRONT), CREDITS_MAP_ROWS_BYTES, VID_VRAM_HIGH_BYTES);
 game/scene/staff_roll.c	60	layout-expression	<< 16 | at); }
 game/scene/staff_roll.c	168	layout-expression	0x7E9F1D), scene_credits_row_vram(g), PF_GAME(CREDITS_ROW), CREDITS_ROW_BYTES,
 game/scene/staff_roll.c	170	layout-expression	0x7E9F22), credits_layer(g), 0, scene_credits_scroll(g), VID_SCROLL_V);
@@ -2341,27 +2356,29 @@ game/scene/staff_roll.c	224	layout-expression	0x7E8EEE, 0 },
 game/scene/staff_roll.c	225	layout-expression	0x7E8EFE, 0 },
 game/scene/staff_roll.c	226	layout-expression	0x7E8F0E, BLANK_TILES_BYTES },
 game/scene/staff_roll.c	227	layout-expression	0x7E8F24, 0 },
-game/scene/staff_roll.c	268	layout-expression	0x7E9E7A };
-game/scene/staff_roll.c	276	layout-expression	0x7E90BD), &tiles);
-game/scene/staff_roll.c	295	layout-expression	0x7E8FA8), VID_BG1, PICTURE_SCROLL_X, PICTURE_SCROLL_Y, VID_SCROLL_H | VID_SCROLL_V);
-game/scene/staff_roll.c	296	layout-expression	0x7E8FB4), VID_BG1, PICTURE_TILES_VRAM, 0x0000);
-game/scene/staff_roll.c	297	layout-expression	0x7E8FB8), VID_BG3, CREDITS_TILES_VRAM, 0x0000);
-game/scene/staff_roll.c	298	layout-expression	0x7E8FBC), VID_BG1, &picture_bg);
-game/scene/staff_roll.c	299	layout-expression	0x7E8FC0), VID_BG3, &credits_bg);
-game/scene/staff_roll.c	300	layout-expression	0x7E8FC4), &(VidMode){ .mode = 1 });
-game/scene/staff_roll.c	301	layout-expression	0x7E8FC8), &credits_math, VID_MATH_LAYERS);
-game/scene/staff_roll.c	302	layout-expression	0x7E8FCD), VID_BG3_BIT | VID_OBJ_BIT, 0, VID_SCREEN_MAIN | VID_SCREEN_SUB);
-game/scene/staff_roll.c	303	layout-expression	0x7E8FD2), &(VidWindows){ .win_main = 0, .win_sub = 0 }, VID_WINDOWS_MAIN | VID_WINDOWS_SUB);
-game/scene/staff_roll.c	359	layout-expression	0x7E38E7, scene_send_unpacked(g, pf));
-game/scene/staff_roll.c	375	layout-expression	0x7E8E9D), &(VidVideoConfig){ .interlace = true });
-game/scene/staff_roll.c	398	layout-expression	0x7E8EE8), SCENE_VRAM_WHOLE_WORDS);
-game/scene/staff_roll.c	406	layout-expression	0x7E8F77));
-game/scene/staff_roll.c	408	layout-expression	0x7E36CC, descriptors_end = scene_set_up_line_effects(g, pf, STAFF_ROLL_LINE_EFFECTS));
-game/scene/staff_roll.c	441	layout-expression	0x7E5777 };
-game/scene/staff_roll.c	511	layout-expression	0x7E9ED6 };
-game/scene/staff_roll.c	549	layout-expression	0x7E9E7B, UPLOAD_CREDITS = 0x7E9EFC };
-game/scene/staff_roll.c	549	layout-expression	0x7E9EFC };
-game/scene/staff_roll.c	560	layout-expression	0x7E9EDF));
+game/scene/staff_roll.c	267	layout-expression	0x7E9E7A };
+game/scene/staff_roll.c	272	layout-expression	0x7E90BD), CREDITS_MAP_VRAM);
+game/scene/staff_roll.c	273	layout-expression	0x7E90BD), SCENE_VRAM_LOW_BYTES);
+game/scene/staff_roll.c	274	layout-expression	0x7E90BD), PF_GAME(SCENE_BLANK_TILE), CREDITS_MAP_ROWS_BYTES, VID_VRAM_LOW_BYTES);
+game/scene/staff_roll.c	292	layout-expression	0x7E8FA8), VID_BG1, PICTURE_SCROLL_X, PICTURE_SCROLL_Y, VID_SCROLL_H | VID_SCROLL_V);
+game/scene/staff_roll.c	293	layout-expression	0x7E8FB4), VID_BG1, PICTURE_TILES_VRAM, 0x0000);
+game/scene/staff_roll.c	294	layout-expression	0x7E8FB8), VID_BG3, CREDITS_TILES_VRAM, 0x0000);
+game/scene/staff_roll.c	295	layout-expression	0x7E8FBC), VID_BG1, &picture_bg);
+game/scene/staff_roll.c	296	layout-expression	0x7E8FC0), VID_BG3, &credits_bg);
+game/scene/staff_roll.c	297	layout-expression	0x7E8FC4), &(VidMode){ .mode = 1 });
+game/scene/staff_roll.c	298	layout-expression	0x7E8FC8), &credits_math, VID_MATH_LAYERS);
+game/scene/staff_roll.c	299	layout-expression	0x7E8FCD), VID_BG3_BIT | VID_OBJ_BIT, 0, VID_SCREEN_MAIN | VID_SCREEN_SUB);
+game/scene/staff_roll.c	300	layout-expression	0x7E8FD2), &(VidWindows){ .win_main = 0, .win_sub = 0 }, VID_WINDOWS_MAIN | VID_WINDOWS_SUB);
+game/scene/staff_roll.c	356	layout-expression	0x7E38E7, scene_send_unpacked(g, pf));
+game/scene/staff_roll.c	372	layout-expression	0x7E8E9D), &(VidVideoConfig){ .interlace = true });
+game/scene/staff_roll.c	395	layout-expression	0x7E8EE8), SCENE_VRAM_WHOLE_WORDS);
+game/scene/staff_roll.c	403	layout-expression	0x7E8F77));
+game/scene/staff_roll.c	405	layout-expression	0x7E36CC, descriptors_end = scene_set_up_line_effects(g, pf, STAFF_ROLL_LINE_EFFECTS));
+game/scene/staff_roll.c	438	layout-expression	0x7E5777 };
+game/scene/staff_roll.c	508	layout-expression	0x7E9ED6 };
+game/scene/staff_roll.c	546	layout-expression	0x7E9E7B, UPLOAD_CREDITS = 0x7E9EFC };
+game/scene/staff_roll.c	546	layout-expression	0x7E9EFC };
+game/scene/staff_roll.c	557	layout-expression	0x7E9EDF));
 game/scene/stars.c	62	layout-expression	0x7E577A), d, entry, TM_ENTROPY_BYTES);
 game/scene/stars.c	64	layout-expression	0x7E5780), d, entry, TM_ENTROPY_BYTES);
 game/scene/stars.c	66	layout-expression	0x7E5786), d, entry, TM_ENTROPY_BYTES);
@@ -2503,3 +2520,5 @@ game/wram.h	33	raw-helper	wram_fill8(GameState *g, uint32_t at, uint32_t bytes, 
 game/wram.h	34	raw-helper	wram_fill16(GameState *g, uint32_t at, uint32_t words, uint16_t v);
 game/wram.h	35	raw-helper	wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes);
 game/wram.h	41	raw-helper	wram_clear(GameState *g, PfOrigin o, uint32_t at, uint32_t bytes);
+game/wram.h	48	raw-helper	wram_port_fill(GameState *g, uint32_t at, uint32_t bytes, uint8_t v);
+game/wram.h	49	raw-helper	wram_port_copy(GameState *g, PfData from, uint32_t at, uint32_t bytes);

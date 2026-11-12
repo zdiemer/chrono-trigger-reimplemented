@@ -65,7 +65,7 @@ static void start_loading_the_letters(GameState *g, Platform *pf, uint16_t vram)
         set_palette_working(g, SPRITE_COLORS + i, letter_colors[i]);
     }
     set_scene_call_transfer_control(g, scene_program_own(), SCENE_TRANSFER_WORDS);
-    set_scene_call_transfer_register(g, scene_program_own(), VID_SNES_VRAM_DATA_LOW);
+    set_scene_call_transfer_register(g, scene_program_own(), SCENE_INTO_LOW_BYTES);
     vid_start_vram_uploads(pf, PF_AT(0x7E6C2E), SCENE_VRAM_WHOLE_WORDS);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
 }

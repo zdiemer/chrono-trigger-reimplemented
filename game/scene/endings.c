@@ -71,7 +71,6 @@ static void unpack_into_first_bank(GameState *g) { set_decompress_dest(g, decomp
 /* The program's transfer of what the unpacker made: a word at a time into
  * VRAM, or a byte at a time into the high halves of VRAM's words (the Mode 7
  * plane's pixels). */
-enum { BYTES_ONE_REGISTER = 0x00 };
 
 static void send_unpacked_as(GameState *g, uint8_t mode, uint8_t port_register)
 {
@@ -463,7 +462,7 @@ static void load_letters_and_ground(GameState *g, Platform *pf)
     vid_start_vram_uploads(pf, PF_AT(0x7E856F), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E8575), 0x0000);
     scene_unpacks(g, GROUND_PIXELS);
-    send_unpacked_as(g, BYTES_ONE_REGISTER, VID_SNES_VRAM_DATA_HIGH);
+    send_unpacked_as(g, SCENE_TRANSFER_BYTES, SCENE_INTO_HIGH_BYTES);
     send_unpacked(g, pf);
 
     vid_start_vram_uploads(pf, PF_AT(0x7E858C), SCENE_VRAM_LOW_BYTES);
@@ -479,7 +478,7 @@ static void load_letters_and_ground(GameState *g, Platform *pf)
     vid_start_vram_uploads(pf, PF_AT(0x7E85B7), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E85BD), MORE_SPRITE_TILES_VRAM);
     scene_unpacks(g, MORE_SPRITE_TILES);
-    send_unpacked_as(g, SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW);
+    send_unpacked_as(g, SCENE_TRANSFER_WORDS, SCENE_INTO_LOW_BYTES);
     send_unpacked(g, pf);
 }
 
@@ -655,7 +654,7 @@ static void start_stars(GameState *g, Platform *pf)
     blank_the_screen(g, pf, 0x7E8BC0, 0x7E8BC8);
     scatter_the_stars(g, pf);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    send_unpacked_as(g, SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW);
+    send_unpacked_as(g, SCENE_TRANSFER_WORDS, SCENE_INTO_LOW_BYTES);
     vid_set_vram_address(pf, PF_AT(0x7E8BDE), STAR_TILES_VRAM);
     scene_unpacks(g, STAR_TILES);
     send_unpacked(g, pf);
@@ -692,7 +691,7 @@ static void start_mode7_picture(GameState *g, Platform *pf)
     blank_the_screen(g, pf, 0x7E8C25, 0x7E8C2D);
     vid_set_mode7(pf, PF_AT(0x7E8C30), &(VidMode7){ .outside = VID_M7_TRANSPARENT }, VID_M7_SELECT);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    send_unpacked_as(g, SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW);
+    send_unpacked_as(g, SCENE_TRANSFER_WORDS, SCENE_INTO_LOW_BYTES);
     vid_start_vram_uploads(pf, PF_AT(0x7E8C42), SCENE_VRAM_WHOLE_WORDS);
     scene_unpacks(g, PLANE_TILES);
     vid_set_vram_address(pf, PF_AT(0x7E8C4E), PLANE_TILES_VRAM);
@@ -1032,7 +1031,7 @@ static void load_the_panorama(GameState *g, Platform *pf, uint8_t channel)
     vid_enable_line_effects(pf, PF_AT(0x7E8A18), 0);
     vid_start_vram_uploads(pf, PF_AT(0x7E8A1D), SCENE_VRAM_WHOLE_WORDS);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    send_unpacked_as(g, SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW);
+    send_unpacked_as(g, SCENE_TRANSFER_WORDS, SCENE_INTO_LOW_BYTES);
     static const struct { uint16_t resource, vram, padding; uint32_t site; } layers[] = {
         { 0xC6, 0x6000, 0, 0x7E8A26 },
         { 0xC9, 0x7000, 0x700, 0x7E8A40 },

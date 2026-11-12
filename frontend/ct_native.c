@@ -87,7 +87,6 @@ static uint8_t *read_file(const char *path, long want, long *got)
 }
 
 static uint8_t read_game(void *ctx, uint32_t addr) { return state_host_read8(ctx, addr); }
-static void write_game(void *ctx, uint32_t addr, uint8_t v) { state_host_write8(ctx, addr, v); }
 
 static void run_main_thread(Platform *pf, void *ctx) { program_main_thread(ctx, pf); }
 static void run_vblank(Platform *pf, void *ctx) { program_vblank(ctx, pf); }
@@ -162,7 +161,7 @@ static void report_crossing(const char *reader, const char *writer, uint32_t tim
     fprintf(stderr, "overlay crossed: %s read bytes %s wrote, %lu time(s)\n", reader, writer, (unsigned long)times);
 }
 
-static void report_strays(const GameState *g, const Platform *pf)
+static void report_strays(const GameState *g)
 {
     /* Owners the reimplementation keeps apart where the original shares bytes
      * (re/ram.toml's `overlays`): a read of bytes another owner wrote last is
@@ -177,10 +176,6 @@ static void report_strays(const GameState *g, const Platform *pf)
             fprintf(stderr, " $%02X:%04X", (unsigned)(first[i] >> 16), (unsigned)(first[i] & 0xFFFF));
         fprintf(stderr, "\n");
     }
-    const VidHost *v = &pf->video;
-    if (v->escapes)
-        fprintf(stderr, "escapes: %lu video call(s) only the SNES has a meaning for, the first at $%02X:%04X\n",
-                (unsigned long)v->escapes, (unsigned)(v->first_escape >> 16), (unsigned)(v->first_escape & 0xFFFF));
     const AssetFault *out = asset_outside_reads();
     if (out->count)
         fprintf(stderr, "strays: %lu cartridge read(s) outside the catalogue of resources, the first at $%02X:%04X\n",
@@ -792,7 +787,7 @@ int main(int argc, char **argv)
     pf.save.bytes = state_host_sram(g);
     for (unsigned n = 0; n < scenes; n++)
         program_starts_in_a_scene(g, scene[n], song[n]);
-    vid_host_start(&pf, read_game, write_game, g);
+    vid_host_start(&pf, read_game, g);
     SoundNative *sound = sound_native_create(g, &pf);
     if (!sound) {
         fprintf(stderr, "ct_native: out of memory\n");
@@ -886,7 +881,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "picture: longest dark run %lu frame(s), from frame %lu\n", picture.longest, picture.longest_from);
     if (check_every)
         fprintf(stderr, "snapshots: %lu put back and played again, each frame the same\n", driver.checks);
-    report_strays(g, &pf);
+    report_strays(g);
     if (end_state && write_end_state(end_state, g) != 0) {
         fprintf(stderr, "ct_native: cannot write %s\n", end_state);
         rc = 2;

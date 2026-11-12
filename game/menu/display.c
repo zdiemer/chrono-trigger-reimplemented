@@ -887,18 +887,17 @@ void menu_video_set_up(GameState *g, Platform *pf)
     clear_the_screens_memory(g, pf);
 }
 
-/* A stretch of work RAM cleared through the work RAM port, with the
- * per-line effects off first (the transfer runs on one of
- * their channels). The destination is memory, not video, so the transfer goes through
- * the SNES-only escape; the port's address is its input. */
+/* A stretch of work RAM cleared through the work RAM port (from `at` in
+ * bank $7E, running on into $7F), with the per-line effects off first: the
+ * original's transfer runs on one of their channels. */
 // $C2:9512
 void menu_clear_memory(GameState *g, Platform *pf, uint16_t at, uint16_t bytes)
 {
+    uint32_t count = bytes ? bytes : 0x10000u;
     vid_enable_line_effects(pf, PF_AT(0xC2951B), 0x00);
     hw_port_seek(g, at, 0);
-    const VidSnesTransfer t = { .dest = VID_SNES_WRAM_DATA, .data = PF_VALUE(0), .size = bytes,
-                                .wram_at = at, .repeats = true };
-    vid_snes_copy(pf, PF_AT(0xC29526), &t);
+    wram_port_fill(g, at, count, 0);
+    tm_charge_transfer(pf, PF_AT(0xC29526), count);
 }
 
 // $C2:94D5
@@ -912,13 +911,14 @@ static void clear_the_screens_memory(GameState *g, Platform *pf)
 }
 
 // $C2:9542
-/* Copy Y bytes from $FF:A into work RAM at $7E:X through the work RAM port:
- * memory again, so the SNES-only escape. */
+/* Copy `bytes` of the menus' screen graphics, from `from` in their bank,
+ * into work RAM at `at` through the work RAM port. */
 void menu_copy_rom_to_memory(GameState *g, Platform *pf, uint16_t from, uint16_t at, uint16_t bytes)
 {
-    const VidSnesTransfer t = { .dest = VID_SNES_WRAM_DATA, .data = menu_screen_graphics_data(from, bytes ? bytes : 0x10000u), .size = bytes, .wram_at = at };
+    uint32_t count = bytes ? bytes : 0x10000u;
     hw_port_seek(g, at, 0);
-    vid_snes_copy(pf, PF_AT(0xC2954B), &t);
+    wram_port_copy(g, menu_screen_graphics_data(from, count), at, count);
+    tm_charge_transfer(pf, PF_AT(0xC2954B), count);
 }
 
 /* ---- The window line table ----------------------------------------------------------------------- */

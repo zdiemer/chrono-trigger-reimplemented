@@ -54,7 +54,7 @@ static void reset_the_program(GameState *g)
 /* Every sprite hidden, and the screen every scene starts from. */
 static void start_from_the_first_screen(GameState *g, Platform *pf)
 {
-    TIMED_AS(g, 0x7E3843, scene_hide_every_sprite(pf));
+    TIMED_AS(g, 0x7E3843, scene_hide_every_sprite(g, pf));
     TIMED_AS(g, 0x7E30F9, scene_set_up_first_screen(g, pf));
 }
 
