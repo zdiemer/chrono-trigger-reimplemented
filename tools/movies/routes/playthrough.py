@@ -9,11 +9,21 @@ on only past checkpoints that succeeded; where it stops is recorded in
 docs/TODO.md.
 """
 from .. import addresses as A
+from .. import policies
+from .menu_sweep import count_of
 from ..campaign import Run, route_arguments, run_route
-from ._trial_walk import field_exit, world_enter
+from ._trial_walk import field_exit, toward, world_enter
 from . import _trial_party as early
+from . import _trial_cathedral as cathedral
+from . import cronos_trial
 
-PHASES = ["named", "home", "fair", "collided", "marle", "exhibit", "gate"]
+OPENING = ["named", "home", "fair", "collided", "joined", "exhibit", "gate", "truce_canyon", "guardia",
+           "upstairs", "chamber", "kidnapped"]
+# Then the pieces other routes play from saves: the Cathedral (after its
+# save's loading) and Crono's trial.
+CATHEDRAL = cathedral.PHASES[1:]
+PHASES = OPENING + CATHEDRAL + cronos_trial.PHASES
+assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # A playthrough from a new game (route playthrough), on a blank cartridge.
 # frames {FRAMES}
@@ -27,8 +37,15 @@ MARLE_AT_THE_BELL = 3       # an object of the bell's plaza
 FAIR_FLAGS, PENDANT_FOUND = 0x7F0054, 0x20
 TRUCE_CANYON_600 = "7100"
 MARLE_AT_THE_EXHIBIT = 4
+GUARDIA_FOREST_600, GUARDIA_CASTLE_600 = 0x077, 0x078
+CATHEDRAL_SAVE_SPOT = (200, 272)
+TRUCE_600, TRUCE_600_SHOP = (384, 288), 0x076
+SHOP_COUNTER = (896, 150)      # below the merchant, in the village shop
+TONIC_ROW, REVIVE_ROW = 4, 6   # of its list: Iron Blade, Dart Gun, Karate Gi, Bronze Helm, Tonic, Heal, Revive, Shelter
+CHANCELLOR = 9                 # in the queen's tower
 FAIR_NEWS, SHOW_STARTED = 0x7F0055, 0x80
 LOWER_SQUARE_FAIRGOERS = (17, 16, 22, 24)   # who tell of Lucca's show
+SHOP_SCREEN, SHOP_BUY, SHOP_COUNT = 12, 8, 10
 WAIT_MODE = 1               # the battle mode question's second row: Wait
 
 
@@ -39,19 +56,130 @@ def naming(run):
             and not machine.b(A.FIELD_PLAYER_CONTROL))
 
 
-def in_hand(run, max_frames=12000):
-    """Play the scene on until the pad walks the party again: windows closed with
-    confirm, and each name the game asks for accepted as offered (Start)."""
+def in_hand(run, max_frames=12000, seed=1):
+    """Play on until the pad walks the party again: windows closed with
+    confirm, each name the game asks for accepted as offered (Start), and any
+    fight that starts on the way won. True once it is."""
     machine = run.machine
     start = machine.frame
+    found = held = 0
     while machine.frame - start < max_frames:
+        if early.battle_ready(run):
+            early.fight(run, seed=seed, party=party_size(run), after=False)
+            found = held = 0
+            continue
         if naming(run):
             machine.run(3, "START")
             machine.run(40)
             continue
-        if run.wait_control(min(1200, max_frames)):
-            return True
+        if run.dialog():
+            machine.run(3, "A")
+            machine.run(37)
+            found = held = 0
+            continue
+        # The field gives the pad back. find_player's probe finds the party
+        # moving; one hemmed in on both sides of an axis doesn't pass it, so
+        # the field's control held for a while will do too.
+        if machine.b(A.FIELD_PLAYER_CONTROL):
+            if run.find_player() is not None:
+                found += 1
+                if found >= 4:
+                    return True
+            else:
+                held += 1
+                if held >= 8:
+                    return True
+        else:
+            found = held = 0
+        machine.run(30)
     return False
+
+
+def leave_fighting(run, want, max_rounds=12, seed=1):
+    """Walk until the screen is map `want`, winning the fights on the way (the
+    field's encounters take control from the walk) and closing windows."""
+    machine = run.machine
+    for _ in range(max_rounds):
+        assert in_hand(run), "the field in hand"
+        if run.map_id() == want:
+            return True
+        moves = run.walk(lambda m, px, py: m.peek(A.MAP_ID, 2).hex() == want
+                         or not m.b(A.FIELD_PLAYER_CONTROL) or m.b(A.DIALOG_OPEN))
+        run.say("leave_fighting", want, "steps", moves and len(moves), "now", run.map_id(), "at", run.me())
+        if run.map_id() == want:
+            return True
+        if moves is None:
+            return False
+        machine.run(30)
+        if early.battle_ready(run) or run.dialogs_until(lambda: early.battle_ready(run) or bool(
+                machine.b(A.FIELD_PLAYER_CONTROL)), 3000) and early.battle_ready(run):
+            early.fight(run, seed=seed, party=party_size(run), after=False)
+    return run.map_id() == want
+
+
+def through(run, x, y, arrived, seed=1, rounds=10):
+    """Head for (x, y) by the biased search (_trial_walk.toward) until
+    `arrived()`, settling the fights and scenes that stop the walk."""
+    machine = run.machine
+    for _ in range(rounds):
+        assert in_hand(run), "the field in hand"
+        if arrived():
+            return
+        toward(run, x, y, lambda: arrived() or not machine.b(A.FIELD_PLAYER_CONTROL) or run.dialog())
+        if arrived():
+            return
+        assert in_hand(run, 30000, seed), "the scene or fight ends"
+    raise AssertionError(("too many stops on the way to", (x, y)))
+
+
+def buy(run, merchant_spot, purchases):
+    """At a shop's counter: speak to the merchant from `merchant_spot` (below
+    the counter, facing it), and buy each (row of the shop's list, how many):
+    the count starts at one, Up adds ten and Right one. The shop's screens
+    are told apart by the menus' cursor: the Buy/Sell row (8), the list (the
+    row) and the count (10)."""
+    machine = run.machine
+    assert in_hand(run)
+    assert run.go(*merchant_spot, tolerance=3), "at the counter"
+    machine.run(2, "UP")
+    machine.run(8)
+
+    def press_until(button, done, tries=4):
+        for _ in range(tries):
+            machine.run(3, button)
+            machine.run(60)
+            if done():
+                return True
+        return False
+
+    cursor = lambda: machine.b(CURSOR)
+    assert press_until("A", lambda: machine.b(MENU_SCREEN) == SHOP_SCREEN and cursor() == SHOP_BUY), "the shop opens"
+    assert press_until("A", lambda: cursor() == 0), "its list"
+    for row, count in purchases:
+        for _ in range(12):
+            if cursor() == row:
+                break
+            machine.run(3, "DOWN" if cursor() < row else "UP")
+            machine.run(30)
+        assert cursor() == row, "the list's row %d" % row
+        assert press_until("A", lambda: cursor() == SHOP_COUNT), "the count"
+        for _ in range((count - 1) // 10):
+            machine.run(3, "UP")
+            machine.run(20)
+        for _ in range((count - 1) % 10):
+            machine.run(3, "RIGHT")
+            machine.run(20)
+        assert press_until("A", lambda: cursor() == row), "bought"
+    for _ in range(6):
+        if run.dialog() or machine.b(A.FIELD_PLAYER_CONTROL):
+            break
+        machine.run(3, "B")
+        machine.run(60)
+    assert in_hand(run)
+
+
+def party_size(run):
+    return sum(1 for i in range(3) if run.machine.b(A.PARTY_MEMBERS + i) < 0x80)
 
 
 def new_game(run):
@@ -142,7 +270,7 @@ def main():
             assert joined(), "Marle joins"
             run.say("Marle", hex(story()), "party", machine.peek(A.PARTY_MEMBERS, 3).hex())
             machine.screenshot(run.prefix + "_plaza.png")
-            run.checkpoint("marle")
+            run.checkpoint("joined")
         if start <= 5:
             # Two fairgoers stand on the steps up to Lucca's exhibit until
             # someone in the lower square has told Crono that her show has
@@ -185,6 +313,73 @@ def main():
             assert run.map_id() == TRUCE_CANYON_600, "600 A.D."
             assert in_hand(run, 20000)
             run.checkpoint("gate")
+        if start <= 7:
+            # Truce Canyon to the 600 A.D. world map, Crono alone.
+            assert leave_fighting(run, "7000"), "the canyon's lower part"
+            assert leave_fighting(run, "f101"), "the 600 A.D. world map"
+            run.checkpoint("truce_canyon")
+        if start <= 8:
+            # Through Guardia Forest, south to north, to the castle.
+            run.wait_world_control()
+            world_enter(run, GUARDIA_FOREST_600)
+            through(run, 296, 24, lambda: run.map_id() == "f101")
+            run.wait_world_control()
+            world_enter(run, GUARDIA_CASTLE_600)
+            assert in_hand(run)
+            run.say("castle", run.map_id(), run.me(), "story", hex(machine.b(A.EVENT_MEMORY)))
+            run.checkpoint("guardia")
+        if start <= 9:
+            # Up the spiral stair to the queen's chamber (the way cronos_trial
+            # goes, as Leene is restored), where Marle, taken for the queen,
+            # vanishes, and Lucca arrives.
+            story = lambda: machine.b(A.EVENT_MEMORY)
+            assert in_hand(run)
+            through(run, 616, 136, lambda: run.map_id() == "d401")
+            cronos_trial.spiral(run, "RIGHT", "7a00")
+            assert in_hand(run)
+            run.say("chamber", run.me(), "story", hex(story()))
+            run.checkpoint("upstairs")
+        if start <= 10:
+            # The chancellor stands in the doorway down to the queen's
+            # chamber and steps aside once spoken to.
+            story = lambda: machine.b(A.EVENT_MEMORY)
+            assert in_hand(run)
+            assert run.talk(CHANCELLOR), "the chancellor"
+            assert in_hand(run)
+            through(run, 648, 696, lambda: story() > 0x0F)
+            assert in_hand(run, 20000)
+            run.say("after", run.map_id(), run.me(), "story", hex(story()), "party", machine.peek(A.PARTY_MEMBERS, 3).hex())
+            run.checkpoint("chamber")
+        if start <= 11:
+            # Lucca comes, and the two leave the castle for the Cathedral.
+            story = lambda: machine.b(A.EVENT_MEMORY)
+            assert in_hand(run)
+            run.say("Lucca?", hex(story()), "party", machine.peek(A.PARTY_MEMBERS, 3).hex(), run.me())
+            through(run, 872, 728, lambda: run.map_id() == "d401")
+            cronos_trial.spiral(run, "LEFT", "7800")
+            assert in_hand(run)
+            through(run, 504, 888, lambda: run.map_id() == "f101")
+            run.say("out", hex(story()), "party", machine.peek(A.PARTY_MEMBERS, 3).hex(), run.world_pos())
+            run.checkpoint("kidnapped")
+        if start <= len(OPENING):
+            # Back south through the forest to where the Cathedral's save
+            # stands, beside its door (the nearest door is the one its piece
+            # takes).
+            run.wait_world_control()
+            world_enter(run, GUARDIA_FOREST_600, row=15)
+            through(run, 296, 760, lambda: run.map_id() == "f101" and run.me()[1] > 700)
+            # Supplies for the Cathedral from the village's shop by the canyon:
+            # the bot heals with Tonics and raises the fallen with Revives.
+            assert run.world_go(*TRUCE_600), "the village"
+            world_enter(run, TRUCE_600_SHOP)
+            buy(run, SHOP_COUNTER, [(TONIC_ROW, 30), (REVIVE_ROW, 2)])
+            run.say("supplies", "tonics", count_of(machine, policies.TONIC), "revives", count_of(machine, policies.REVIVE))
+            assert leave_fighting(run, "f101"), "out of the shop"
+            run.wait_world_control()
+            assert run.world_go(*CATHEDRAL_SAVE_SPOT), "beside the Cathedral"
+        if start < len(OPENING) + len(CATHEDRAL):
+            cathedral.play(run, max(1, start - len(OPENING) + 1), args.seed)
+        cronos_trial.play(run, max(0, start - len(OPENING) - len(CATHEDRAL)), args.seed)
         run.finish("the playthrough's last checkpoint")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())

@@ -10,10 +10,18 @@ PHASES = ["loaded", "settings", "cathedral", "nun", "nagas", "frog", "organ", "h
 
 
 def cathedral(run, seed=1):
+    """From the cartridge save outside the Cathedral."""
     start = run.start_at(PHASES)
     if start <= 0:
         early.load(run, SLOT, "f101", 0x12)
         run.checkpoint("loaded")
+    play(run, start, seed)
+
+
+def play(run, start=1, seed=1):
+    """The Cathedral from the 600 A.D. world map, Crono and Lucca at story
+    $12, whether the save put them there or a playthrough did; `start` is the
+    index in PHASES of the first phase to run."""
     if start <= 1:
         early.fast_settings(run)
         run.checkpoint("settings")
@@ -70,7 +78,8 @@ def cathedral(run, seed=1):
     if start <= 9:
         # Bias the encounter-aware search toward the right staircase.
         early.walk_through(run, "RIGHT", lambda: run.me()[0] >= 432, seed=seed)
-        early.search_through(run, lambda m, x, y: x > 500 and y < 355, seed=seed)
+        # on this map: a door back to the hall lies that way too
+        early.search_through(run, lambda m, x, y: x > 500 and y < 355 and run.map_id() == "8300", seed=seed)
         # This switch clears the spikes before the inner organ.
         if run.me()[0] < 552:
             early.walk_through(run, "RIGHT", lambda: run.me()[0] >= 552, seed=seed)
