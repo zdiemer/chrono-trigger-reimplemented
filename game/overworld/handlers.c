@@ -92,8 +92,12 @@ static bool walker_runs(const GameState *g, MenuObject walker, PartyPlace place,
     Vehicle vehicle = overworld_vehicle_boarded(g);
     bool boards_the_game_s = vehicle == NO_VEHICLE || vehicle == VEHICLE_EPOCH || vehicle == VEHICLE_DACTYL;
     bool sets_off = travel == TRAVEL_ON_FOOT && overworld_on_the_map(g) && step == 0;
-    bool walks = !(menu_object_slots_facing(g, walker) & NOT_FACING_BITS) && overworld_trail_is_kept(g)
-                 && animates(g, walker, place, sets_off) && (!tables.moves_the_map || the_map_can_follow(g, walker));
+    /* A leader setting off lays the trail afresh, so the index the trail
+     * held before (out of the trail's range after some maps) isn't read. */
+    bool lays_the_trail = sets_off && place == PARTY_LEADER;
+    bool walks = !(menu_object_slots_facing(g, walker) & NOT_FACING_BITS)
+                 && (lays_the_trail || overworld_trail_is_kept(g)) && animates(g, walker, place, sets_off)
+                 && (!tables.moves_the_map || the_map_can_follow(g, walker));
     switch (travel) {
     case TRAVEL_ON_FOOT:
         if (!overworld_on_the_map(g))
