@@ -122,38 +122,7 @@ static uint16_t task_starts(GameState *g, unsigned task)
     return menu_tasks_start(g, task);
 }
 
-/* ---- The entries ------------------------------------------------------------------------------- */
-
-/* Each task's stack lies below the next's: the first's top at $0A3F, 64
- * bytes a task. */
-enum { FIRST_TASK_STACK = 0x0A3F, TASK_STACK_BYTES = 64 };
-enum { MENUS_BANK = 0xC2, THE_MAIN_STACK = 0x09FF, MENUS_DATA_BANK = 0x7E };
-
-/* Where the menus wait for the vblank handler to have sent the frame's
- * uploads (menu/frame.c's idle entry), which reads none of the registers, and
- * where the frame's turns start once it has. */
-enum { WAIT_FOR_THE_UPLOADS = 0xC281CA, THE_UPLOADS_SENT = 0xC281CF };
-
-/* Where the game's tasks start (the menus' screen, the cursor's sprite, a
- * fade's wait, the description's typing, the scroll bar, the held cursors, the records, the
- * healing's numbers, the gate's song): what each reads of the registers the
- * scheduler's jump leaves is its page, its data bank and, two of them, A's
- * high byte, which the start's address leaves there. The rest are dead
- * (the calling convention checks each row). */
-static const uint16_t task_starts_known[] = {
-    0x826F, 0x83BD, 0x89F2, 0x8A45, 0x8AB2, 0x8AF5, 0x8BB8, 0x9016, 0xCBBF, 0xCECE, 0xE91B, 0xF657, 0xF9B2, 0xFA06, 0xFA9F,
-};
-enum { TASK_STARTS_KNOWN = sizeof task_starts_known / sizeof task_starts_known[0] };
-
-/* For the runtime, of a port that waits in the middle of a task's work
- * (menu_yield): whether the task that waited with the wait's return just
- * above `s_after` can still go on from there. It can while it waits there --
- * its record says so, and keeps the stack under the registers the wait kept
- * -- and while it is the task the scheduler is taking back into it, below the
- * wait. A task stopped (as every task is when the menus close) or started
- * afresh, which runs from its stack's top over the wait, never goes on from
- * it. Only peeks. */
-enum { RETURN_BYTES = 2, KEPT_WITH_BYTE_INDEXES = 5, KEPT_WITH_WORD_INDEXES = 7 };
+enum { MENUS_BANK = 0xC2 };
 
 /* ---- The tasks as the menus open ------------------------------------------------------------ */
 

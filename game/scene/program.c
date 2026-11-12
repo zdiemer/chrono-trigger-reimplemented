@@ -44,7 +44,6 @@
 enum { FADE_PACE = 4, DARK = 0, NO_LINE_EFFECTS = 0, NO_SONG = 0, LAST_CORNER = 3 };
 
 /* The scene's own direct page, where the program's cells are. */
-enum { SCENE_PAGE = 0x0000 };
 
 // $7E:3063
 static void reset_the_program(GameState *g)
@@ -80,42 +79,18 @@ static void start_from_the_first_screen(GameState *g, Platform *pf)
  * the planet's (scene/planet.c), the shared endings' (scene/endings.c)
  * and the staff roll's, fast and slow (scene/staff_roll.c). All sixteen
  * modes have C setups, including the ones no movie reaches. */
-enum { SCENE_MODE_BITS = 0x1F, SCENE_MODES = 16, PROGRAM_BANK = 0x7E0000 };
+enum { SCENE_MODE_BITS = 0x1F, PROGRAM_BANK = 0x7E0000 };
 
 /* The setups' routines, by which their time is reckoned. */
 enum { RACE_SET_UP = 0x7E3B48, CREDIT_PAGES_SET_UP = 0x7E6B04, TITLE_SET_UP = 0x7E5978, PALACE_SET_UP = 0x7E671F, ENDINGS_SET_UP = 0x7E8538, STAFF_ROLL_SET_UP = 0x7E8EA8, LAVOS_FALLS_SET_UP = 0x7E53BB, EPOCH_DIVE_SET_UP = 0x7E78DD, TURN_SET_UP = 0x7E7092, PLANET_SET_UP = 0x7E6248, SLOW_STAFF_ROLL_SET_UP = 0x7E8E95,  };
 
-static const struct { SceneMode mode; uint32_t routine; } setups[] = {
-    { SCENE_MODE_TURNING_MAP, TURN_SET_UP },
-    { SCENE_MODE_RACE, RACE_SET_UP },
-    { SCENE_MODE_CREDITS_PAGE, CREDIT_PAGES_SET_UP },
-    { SCENE_MODE_TITLE, TITLE_SET_UP },
-    { SCENE_MODE_RISING_PALACE, PALACE_SET_UP },
-    { SCENE_MODE_LAVOS_FALLS, LAVOS_FALLS_SET_UP },
-    { SCENE_MODE_EPOCH_DIVE, EPOCH_DIVE_SET_UP },
-    { SCENE_MODE_PLANET_LOST, PLANET_SET_UP },
-    { SCENE_MODE_PLANET_ENDING, PLANET_SET_UP },
-    { SCENE_MODE_ATTRACT_RACE, RACE_SET_UP },
-    { SCENE_MODE_ENDING_CAPTIONED, ENDINGS_SET_UP },
-    { SCENE_MODE_ENDING_CAPTIONED_TOO, ENDINGS_SET_UP },
-    { SCENE_MODE_STAFF_ROLL, STAFF_ROLL_SET_UP },
-    { SCENE_MODE_SLOW_STAFF_ROLL, SLOW_STAFF_ROLL_SET_UP },
-    { SCENE_MODE_ENDING_AGAIN, ENDINGS_SET_UP },
-    { SCENE_MODE_ENDING_WITHOUT_CREDITS, ENDINGS_SET_UP },
-};
-
-enum { SETUP_PORTS = sizeof setups / sizeof setups[0] };
-
-/* The dispatch's return frame, retained across a setup's held wait. */
-enum { SETUP_DISPATCH = 0x7E300A, THE_SETUPS_MAY_READ_ANYTHING = 0 };
-
 /* ---- The scene's first frame ------------------------------------------------------------------- */
 
-enum { FIRST_WAIT = 0x7E3010, FRAME_WAIT = 0x7E31B0, FRAME_WORK_CALL = 0x7E3013, FRAME_WORK = 0xC308D0, MAIN_LOOP = 0x7E3023,  };
+enum { FIRST_WAIT = 0x7E3010, FRAME_WAIT = 0x7E31B0, FRAME_WORK = 0xC308D0, MAIN_LOOP = 0x7E3023 };
 
-/* ---- The program's start, on the machine ------------------------------------------------------- */
+/* ---- The program's start ------------------------------------------------------------------------- */
 
-enum { PROGRAM_START = 0x7E3000, CLEAR_WORK_RAM = 0x7E3092, SOUND_BACK_TO_NORMAL = 0x7E3177 };
+enum { CLEAR_WORK_RAM = 0x7E3092, SOUND_BACK_TO_NORMAL = 0x7E3177 };
 
 /* The sound put back to normal as a scene starts, unless the scene has no
  * songs: no song on its way, then the driver's commands (scene/sound.c). */
@@ -129,29 +104,17 @@ static void put_the_sound_back(GameState *g, Platform *pf)
 
 /* ---- The main loop ---------------------------------------------------------------------------- */
 
-/* The routines a pass calls (main_loop_pass, below). */
-
-static const struct { ScenePass call; } PASS_ENTRIES[] = {
-    { SCENE_PASS_ENDING_SCALING },
-    { SCENE_PASS_DIVE_SCALING },
-    { SCENE_PASS_TURN_MAP },
-};
-
-enum { PASS_ENTRY_COUNT = sizeof PASS_ENTRIES / sizeof PASS_ENTRIES[0] };
-
 static bool main_loop_pass(GameState *g, Platform *pf);
 
 /* The program's end ($7E:302A, and its hand-back $7E:303B): its code in
  * place, and the field's location a number for the field's start the game
  * goes back to. */
-enum { PROGRAM_END = 0x7E302A, FIELD_STARTS = 0xC00000 };
 
 /* The continuations' guards: the program's loop -- its call, and its test
  * after it -- on the scene's page; the idle pass where there is nothing to
  * call and the scene isn't over, the other everywhere else. Each is a claim
  * the game keeps, which the refusal measure checks over real play
  * (the original hand-back paths --refusals). */
-enum { JSR = 0x20 };
 
 /* ---- The program as C, with no machine ------------------------------------------------------------ */
 
