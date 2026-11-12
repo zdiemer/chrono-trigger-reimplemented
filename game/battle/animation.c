@@ -645,9 +645,11 @@ static bool movement_runs(const GameState *g, unsigned enemy, uint8_t movement)
 // $C1:3714
 /* Run the enemies' animation effects that are due, unless they stand still
  * for the battle menu: each enemy's animation's movement where it runs
- * (movement_runs), or else `handler`, which refuses the movement. */
-static bool step_enemy_effects(GameState *g, bool (*handler)(void *ctx, uint8_t movement), void *ctx)
+ * (movement_runs); a movement the table names none for is one the port
+ * doesn't run. */
+bool battle_enemy_effects_stepped(GameState *g, Platform *pf)
 {
+    (void)pf;
     if (battle_timers_held(g))
         return true;
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
@@ -664,23 +666,8 @@ static bool step_enemy_effects(GameState *g, bool (*handler)(void *ctx, uint8_t 
         uint8_t movement = battle_enemy_animation_effect(g, animation);
         if (movement_runs(g, enemy, movement))
             TIMED_AS(g, movement_routines[movement], battle_move_enemy(g, enemy, (EnemyMovement)movement, animation));
-        else if (!handler(ctx, movement))
-            return false;
+        else
+            return battle_contract_broken(g, 0xC13760, "an enemy's movement the port doesn't run");
     }
     return true;
-}
-
-/* ---- The enemies' effects, a frame on --------------------------------------------------------- */
-
-/* A movement the table names none for is one the port doesn't run. */
-static bool movement_with_no_port(void *ctx, uint8_t movement)
-{
-    (void)movement;
-    return battle_contract_broken(ctx, 0xC13760, "an enemy's movement the port doesn't run");
-}
-
-bool battle_enemy_effects_stepped(GameState *g, Platform *pf)
-{
-    (void)pf;
-    return step_enemy_effects(g, movement_with_no_port, g);
 }

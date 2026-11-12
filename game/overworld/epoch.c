@@ -31,6 +31,7 @@
 
 #include "charge.h"
 #include "menu/epoch.h"
+#include "menu/handlers.h"
 #include "menu/sprites.h"
 #include "overworld/music.h"
 #include "vars.h"
@@ -317,12 +318,12 @@ bool overworld_epoch_takes_the_party_into_the_omen(GameState *g)
 /* A frame of the scene it leaves or arrives in. Over, it is the party's in
  * the air again, or, without its wings, stands where it arrived with the
  * party getting out. */
-static bool play_its_scene(GameState *g, MenuObject self, const EpochScripts *scripts)
+static bool play_its_scene(GameState *g, Platform *pf, MenuObject self)
 {
-    ScriptEnd end = scripts->run(scripts->ctx);
-    if (end == SCRIPT_GAVE_BACK)
+    MenuTurn end = menu_run_object_script(g, pf, self);
+    if (end == MENU_TURN_WENT_NO_FURTHER)
         return false;
-    if (end == SCRIPT_DONE) {
+    if (end == MENU_TURN_DONE) {
         mark_epoch(g, EPOCH_LEAVING_THROUGH_TIME, false);
         if (has_its_wings(g)) {
             set_step(g, self, EPOCH_FLIES);
@@ -341,7 +342,7 @@ static bool play_its_scene(GameState *g, MenuObject self, const EpochScripts *sc
 }
 
 // $C2:42DD
-bool overworld_fly_the_epoch(GameState *g, MenuObject self, const EpochScripts *scripts)
+bool overworld_fly_the_epoch(GameState *g, Platform *pf, MenuObject self)
 {
     switch (overworld_epoch_step(g, self)) {
     case EPOCH_SETS_DOWN: set_down(g, self); break;
@@ -351,7 +352,7 @@ bool overworld_fly_the_epoch(GameState *g, MenuObject self, const EpochScripts *
     case EPOCH_FLIES_A_TILE: overworld_vehicle_flies_a_tile(g, VEHICLE_EPOCH, self); break;
     case EPOCH_COMES_DOWN: overworld_vehicle_comes_down(g, VEHICLE_EPOCH, self); break;
     case EPOCH_AT_THE_TIME_GATE: wait_at_the_time_gate(g, self); break;
-    case EPOCH_RUNS_A_SCENE: return play_its_scene(g, self, scripts);
+    case EPOCH_RUNS_A_SCENE: return play_its_scene(g, pf, self);
     default: wait_for_the_party_to_get_off(g, self); break;
     }
     return true;

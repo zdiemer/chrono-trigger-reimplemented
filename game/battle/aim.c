@@ -621,7 +621,7 @@ enum {
     NO_MEMBER_BIT = 0x80,
 };
 
-static uint8_t record_no_target_showing(GameState *g)
+static void record_no_target_showing(GameState *g)
 {
     set_battle_action_actor(g, battle_actor(g));
     set_battle_action_type(g, ACTION_TECH);
@@ -631,7 +631,6 @@ static uint8_t record_no_target_showing(GameState *g)
                    : battle_tech_members(g, 1) != NO_MEMBER ? NO_TARGET_PAIR
                                                             : NO_TARGET_ALONE;
     set_battle_action_what(g, what);
-    return what;
 }
 
 /* The chosen target after the area's finds, in the first free place. */
@@ -715,10 +714,9 @@ static void place_the_area(GameState *g, Aiming *a)
 }
 
 /* Steps 1 and 2, and the area placed for step 3. The aim starts by looking
- * up the action's tech members. `carry` is no longer read. */
-static AimProgress aim_up_to_the_area(GameState *g, Aiming *a, bool carry)
+ * up the action's tech members. */
+static AimProgress aim_up_to_the_area(GameState *g, Aiming *a)
 {
-    (void)carry;
     set_battle_action_came_to_nothing(g, 0);
     effect_take_tech_members(g, battle_action_detail(g));
     a->aim = action_aim(g);
@@ -776,30 +774,31 @@ static void search_the_area(GameState *g, const Aiming *a)
 
 // $C1:C1DD
 /* Aim the action; a party tech's area that finds nobody shows its "no
- * target" showing (the action shown, `show`, a routine of its own, handed
- * the showing). */
-typedef enum { AIM_STOPPED, AIM_DONE, AIM_SHOWN_NO_TARGET } AimEnds;
-
-static AimEnds aim_the_action(GameState *g, bool carry, bool (*show)(void *ctx, uint8_t showing), void *ctx)
+ * target" showing (the action shown, a routine of its own). False where the
+ * showing went no further. */
+static bool aim_the_action(GameState *g, Platform *pf)
 {
     Aiming a = { 0 };
-    AimProgress progress = aim_up_to_the_area(g, &a, carry);
+    AimProgress progress = aim_up_to_the_area(g, &a);
     leave_aim_cells(g, &a);
     if (progress == SEARCH_THE_AREA) {
         if (a.placed)
             search_the_area(g, &a);
         AreaOutcome outcome = settle_after_search(g, &a);
         if (outcome == SHOW_NO_TARGET) {
-            if (!show(ctx, record_no_target_showing(g)))
-                return AIM_STOPPED;
+            record_no_target_showing(g);
+            bool shown = false;
+            TIMED_AS(g, SHOWING, shown = battle_action_shown(g, pf));
+            if (!shown)
+                return false;
             came_to_nothing(g);
-            return AIM_SHOWN_NO_TARGET;
+            return true;
         }
         progress = outcome == SETTLED ? AIMED : CAME_TO_NOTHING;
     }
     if (progress == CAME_TO_NOTHING)
         came_to_nothing(g);
-    return AIM_DONE;
+    return true;
 }
 
 /* ---- What the port aims ------------------------------------------------------------------------- */
@@ -873,27 +872,12 @@ static bool aim_fits(const GameState *g)
     return rules_fit(g, aim.area, party);
 }
 
-/* ---- Aiming, with its showing ------------------------------------------------------------------- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} AimContext;
-
-static bool show_the_aimed_action(void *ctx, uint8_t showing)
-{
-    (void)showing;
-    AimContext *c = ctx;
-    bool done = false;
-    TIMED_AS(c->game, SHOWING, done = battle_action_shown(c->game, c->pf));
-    return done;
-}
+/* ---- Aiming ------------------------------------------------------------------------------------- */
 
 /* Refused where the aim is one the port doesn't make (aim_fits). */
-bool battle_aim_action(GameState *g, Platform *pf, bool carry)
+bool battle_aim_action(GameState *g, Platform *pf)
 {
     if (!aim_fits(g))
         return battle_contract_broken(g, 0xC1C1DD, "an action's aim the port doesn't make");
-    AimContext c = { g, pf };
-    return aim_the_action(g, carry, show_the_aimed_action, &c) != AIM_STOPPED;
+    return aim_the_action(g, pf);
 }

@@ -72,14 +72,10 @@ typedef struct {
  * (platform/observe.h), which keeps VRAM, the palette, the sprite table and
  * the settings as the calls leave them, reading what a call names of the
  * game's memory through the driver's reader; a driver draws the frame it
- * makes (vid_host_picture) with the native renderer. The SNES's escapes a host
- * has no meaning for are counted, and the first one's site kept. */
+ * makes (vid_host_picture) with the native renderer. */
 enum { VID_HOST_LAST_LINE = 224 };
 typedef struct {
     VidObserver *observer;
-    uint8_t (*read)(void *ctx, uint32_t addr);            /* the game's memory, for the escapes that write it */
-    void (*write)(void *ctx, uint32_t addr, uint8_t v);
-    void *ctx;
     VidDisplay display;          /* the picture's from its top line */
     uint8_t line_effects;        /* vid_enable_line_effects' slots, from the top line */
     /* What the line handler changed of the display and the line effects
@@ -94,10 +90,6 @@ typedef struct {
     VidDisplay display_below;
     uint8_t line_effects_below;
     uint32_t screens_applied;
-    int16_t multiplicand;        /* the Mode 7 matrix's a, and b's high byte: the multiplier's operands */
-    int8_t multiplier;
-    uint32_t escapes;
-    uint32_t first_escape;
 } VidHost;
 
 /* The sound: the C sound driver (game/sound/) played in the SPC700's place,
@@ -137,11 +129,9 @@ struct Platform {
     SvHost save;
 };
 
-/* The picture's state from the game's memory, read and (for the escape that
- * clears it) written through the driver's callbacks; and the frame it makes,
- * its line effects run down the picture. */
-void vid_host_start(Platform *pf, uint8_t (*read)(void *ctx, uint32_t addr),
-                    void (*write)(void *ctx, uint32_t addr, uint8_t v), void *ctx);
+/* The picture's state from the game's memory, read through the driver's
+ * callback; and the frame it makes, its line effects run down the picture. */
+void vid_host_start(Platform *pf, uint8_t (*read)(void *ctx, uint32_t addr), void *ctx);
 void vid_host_stop(Platform *pf);
 const VidFrame *vid_host_picture(Platform *pf);
 /* A new frame begins: what the last one changed below a line holds from its

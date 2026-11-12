@@ -128,10 +128,11 @@ enum { SCENE_BLANK_TILE = 0x7E350B };
  * (half of its 128 rows at a time). */
 enum { SCENE_UNPACK_BUFFER = 0x7F0200, SCENE_PLANE_MAP = 0x7F2200 };
 
-/* How the loaders' transfer (scene_transfer) moves its bytes, as the program
- * keeps it for the SNES-only escape: into one register, a byte at a time, or
- * into a register pair, a word at a time. */
+/* How the loaders' transfer moves its bytes into VRAM, as the program keeps
+ * it in its call cells (the channel's mode and the port it feeds): a byte at
+ * a time, into the low or the high byte of each word, or a word at a time. */
 enum { SCENE_TRANSFER_BYTES = 0x00, SCENE_TRANSFER_WORDS = 0x01 };
+enum { SCENE_INTO_LOW_BYTES = 0x18, SCENE_INTO_HIGH_BYTES = 0x19 };
 
 /* How VRAM writes step: a word at a time, stepping after the high byte (whole
  * words), or after the low byte (the low bytes alone, as the Mode 7 plane's
@@ -389,6 +390,9 @@ void set_scene_channel_register(GameState *g, SceneChannel ch, unsigned n, uint1
  * take, where the program goes no further (core/program.h). */
 typedef enum { SCENE_TURN_ENDED, SCENE_TURN_GOES_NO_FURTHER } SceneTurn;
 SceneTurn scene_channel_turn(GameState *g, Platform *pf, SceneChannel ch);
+/* A channel's script's first step, which a setup takes at once, timed as the
+ * program's routine for it; false where it went no further. */
+bool scene_first_step(GameState *g, Platform *pf, SceneChannel ch);
 
 /* scene/sound.c: how far the music has got. The sound driver shows it on a
  * port, which two reads that agree say is steady (not being changed as it is
@@ -471,11 +475,10 @@ extern const SceneTransfer scene_pixels_into_high_bytes, scene_whole_words;
 void scene_choose_transfer(GameState *g, SceneTransfer t);
 void scene_send_unpacked_by(GameState *g, Platform *pf, SceneTransfer t);
 /* scene/screen.c: the program's transfer from its call cells: `bytes` from
- * `source` into a register in a mode; and a buffer cleared by a transfer out
- * of the Mode 7 multiplier's product (0 where the scenes do it), by the
- * program's code at `site`. */
+ * `source` into VRAM in a mode; and a buffer cleared, by the program's code
+ * at `site`. */
 void scene_send_from(GameState *g, Platform *pf, uint8_t mode, uint8_t port_register, uint32_t source, uint16_t bytes);
-void scene_clear_buffer(Platform *pf, uint32_t buffer, uint16_t bytes, uint32_t site);
+void scene_clear_buffer(GameState *g, Platform *pf, uint32_t buffer, uint16_t bytes, uint32_t site);
 uint16_t scene_set_up_line_effects(const GameState *g, Platform *pf, uint16_t at);
 /* scene/screen.c: the working palette sent; the bank the unpacker's
  * destination names; `bytes` of a resource copied as they are to `to` in that
@@ -489,7 +492,7 @@ void scene_animate_the_palettes_for(GameState *g, SceneChannel ch);
  * clear, which keeps what lies below the task lists), every sprite hidden, and
  * the screen every scene starts from. */
 bool scene_clear_the_work_ram(GameState *g, Platform *pf, uint8_t matrix_left);
-void scene_hide_every_sprite(Platform *pf);
+void scene_hide_every_sprite(GameState *g, Platform *pf);
 void scene_set_up_first_screen(GameState *g, Platform *pf);
 uint8_t scene_unpacked_bank(const GameState *g);
 void scene_copy_resource_to(GameState *g, SceneProgramPage page, unsigned resource, uint16_t to, uint16_t bytes);
@@ -585,7 +588,7 @@ void scene_look_at_the_shell_from_the_cockpit(GameState *g);
 /* The boot with its flags,
  * the program unpacked into work RAM (true where the scene runs with the line
  * interrupt); the boot's two handlers; and a resource unpacked by its place
- * in the program's table. */
+ * in the program's table, timed as the program's unpacker. */
 bool scene_boots(GameState *g, Platform *pf, uint8_t flags);
 void scene_boot_vblank(GameState *g, Platform *pf);
 void scene_boot_line(GameState *g, Platform *pf);
@@ -628,11 +631,6 @@ bool scene_perspective_fits(const GameState *g, SceneChannel ch);
 /* scene/bridge.c: a scene's song started, as the program's call of the sound
  * driver starts it. */
 void scene_start_song(Platform *pf, uint8_t song);
-/* The routines the setups' steps are timed as: the program's unpacker
- * ($7E:3691), a resource unpacked by its place in the program's list, and a
- * script's first step ($7E:3749). */
-enum { SCENE_UNPACK = 0x7E3691 };
-enum { SCENE_FIRST_STEP = 0x7E3749 };
 
 /* scene/program.c: the scene program: booted with its flags, started, set
  * up, its frames run until a script ends it, and ended, the game going back

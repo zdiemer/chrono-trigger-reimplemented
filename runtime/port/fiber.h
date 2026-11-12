@@ -36,8 +36,11 @@ Fiber *fiber_current(void);
  * (0: not on the thread's own stack). A restore puts every slot back as the
  * snapshot had it, the slots it didn't use dropped; it is good only in a
  * process whose fiber stacks are where the snapshot's were (port/arena.h),
- * and false, changing nothing, otherwise or for bytes that aren't one. */
+ * and false, changing nothing, otherwise or for bytes that aren't one.
+ * fiber_restorable answers whether fiber_restore would succeed, changing
+ * nothing, for a caller that has more to restore before the fibers switch. */
 size_t fiber_snapshot(uint8_t *out, size_t room);
+bool fiber_restorable(const uint8_t *in, size_t len);
 bool fiber_restore(const uint8_t *in, size_t len);
 
 #endif

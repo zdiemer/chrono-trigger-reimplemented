@@ -21,15 +21,11 @@
 #include "platform/time_model.h"
 #include "platform/timing.h"
 
-void vid_host_start(Platform *pf, uint8_t (*read)(void *ctx, uint32_t addr),
-                    void (*write)(void *ctx, uint32_t addr, uint8_t v), void *ctx)
+void vid_host_start(Platform *pf, uint8_t (*read)(void *ctx, uint32_t addr), void *ctx)
 {
     VidHost *v = &pf->video;
     vid_obs_destroy(v->observer);
     v->observer = vid_obs_create(read, ctx);
-    v->read = read;
-    v->write = write;
-    v->ctx = ctx;
 }
 
 void vid_host_stop(Platform *pf)
@@ -134,16 +130,9 @@ void vid_set_scroll(Platform *pf, PfOrigin o, VidLayer bg, uint16_t hofs, uint16
 
 void vid_set_mosaic(Platform *pf, PfOrigin o, uint8_t bgs, uint8_t size) { (void)o; vid_obs_mosaic(ob(pf), bgs, size); }
 
-/* The matrix's first two values double as the signed multiplier, whose
- * product a SNES escape copies (vid_snes_copy, below). */
 void vid_set_mode7(Platform *pf, PfOrigin o, const VidMode7 *m7, uint32_t fields)
 {
     (void)o;
-    VidHost *v = &pf->video;
-    if (fields & (VID_M7_MATRIX | VID_M7_MATRIX_AB | VID_M7_MATRIX_A))
-        v->multiplicand = m7->a;
-    if (fields & (VID_M7_MATRIX | VID_M7_MATRIX_AB | VID_M7_MATRIX_B | VID_M7_MATRIX_B_HIGH))
-        v->multiplier = (int8_t)((uint16_t)m7->b >> 8);
     vid_obs_mode7(ob(pf), m7, fields);
 }
 
@@ -181,12 +170,6 @@ void vid_set_line_slot(Platform *pf, PfOrigin o, uint8_t slot, const VidLineEffe
 {
     (void)o;
     vid_obs_line_effect(ob(pf), slot, e);
-}
-
-void vid_set_line_effect(Platform *pf, PfOrigin o, uint8_t slot, const VidLineEffect *e, const uint8_t *write_order)
-{
-    (void)write_order;
-    vid_set_line_slot(pf, o, slot, e);
 }
 
 void vid_set_line_table(Platform *pf, PfOrigin o, uint8_t slot, uint16_t table)
@@ -288,6 +271,26 @@ void vid_fill_vram_half(Platform *pf, PfOrigin o, PfData value, uint32_t len, Vi
     vid_obs_fill_vram_half(ob(pf), value, len, half);
 }
 
+void vid_continue_vram(Platform *pf, PfOrigin o, PfData src, uint32_t len)
+{
+    (void)o;
+    charge_send(pf, len);
+    vid_obs_continue_vram(ob(pf), src, len, -1);
+}
+
+void vid_continue_vram_half(Platform *pf, PfOrigin o, PfData src, uint32_t len, VidVramHalf half)
+{
+    (void)o;
+    charge_send(pf, len);
+    vid_obs_continue_vram(ob(pf), src, len, half == VID_VRAM_HIGH_BYTES ? 1 : 0);
+}
+
+uint16_t vid_vram_word(Platform *pf, PfOrigin o, uint16_t vram_addr)
+{
+    (void)o;
+    return vid_obs_vram_word(ob(pf), vram_addr);
+}
+
 void vid_send_oam(Platform *pf, PfOrigin o, PfData oam) { (void)o; vid_obs_upload_oam(ob(pf), oam); }
 
 void vid_send_oam_fill(Platform *pf, PfOrigin o, uint16_t word_addr, uint8_t value, uint16_t len)
@@ -349,13 +352,7 @@ void vid_apply_screen(Platform *pf, PfOrigin o, const VidScreen *sc)
     pf->video.screens_applied++;
 }
 
-/* ---- The older forms, with the SNES's write order at the call, which a host ignores ----------- */
-
-void vid_begin_vram_uploads(Platform *pf, PfOrigin o, const VidVramPort *port, PfData source, const VidSnesXfer *x)
-{
-    (void)source, (void)x;
-    vid_start_vram_uploads(pf, o, port);
-}
+/* ---- Writes through the cursors -------------------------------------------------------------- */
 
 void vid_set_vram_address(Platform *pf, PfOrigin o, uint16_t vram_addr) { (void)o; vid_obs_vram_address(ob(pf), vram_addr); }
 void vid_write_vram(Platform *pf, PfOrigin o, uint16_t value) { (void)o; vid_obs_write_vram(ob(pf), value, -1); }
@@ -364,22 +361,6 @@ void vid_write_vram_byte(Platform *pf, PfOrigin o, bool high, uint8_t value)
 {
     (void)o;
     vid_obs_write_vram(ob(pf), value, high ? 1 : 0);
-}
-
-void vid_upload_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len, const VidSnesXfer *x)
-{
-    vid_send_vram(pf, o, vram_addr, src, len, x->port);
-}
-
-void vid_upload_vram_half(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len, VidVramHalf half,
-                          const VidSnesXfer *x)
-{
-    vid_send_vram_half(pf, o, vram_addr, src, len, half, x->port);
-}
-
-void vid_fill_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData value, uint32_t len, const VidSnesXfer *x)
-{
-    vid_send_vram_fill(pf, o, vram_addr, value, len, x->port);
 }
 
 void vid_set_palette_address(Platform *pf, PfOrigin o, uint8_t first) { (void)o; vid_obs_palette_address(ob(pf), first); }
@@ -395,16 +376,4 @@ void vid_set_oam_address(Platform *pf, PfOrigin o, uint16_t word_addr, bool prio
 {
     (void)o;
     vid_obs_oam_address(ob(pf), word_addr, priority_rotation);
-}
-
-void vid_upload_palette(Platform *pf, PfOrigin o, uint8_t first, PfData src, uint16_t count, const VidSnesXfer *x)
-{
-    (void)x;
-    vid_send_palette(pf, o, first, src, count);
-}
-
-void vid_upload_oam(Platform *pf, PfOrigin o, PfData oam, const VidSnesXfer *x)
-{
-    (void)x;
-    vid_send_oam(pf, o, oam);
 }

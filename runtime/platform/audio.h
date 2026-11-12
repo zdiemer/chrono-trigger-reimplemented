@@ -134,13 +134,9 @@ PF_API bool au_driver_command_taken(Platform *pf, AudioCommand c, uint8_t effect
  * modulation of a voice by the one below it. A key on starts the voices' notes
  * with what they are set to, a key off releases them.
  *
- * No register numbers and no write order: a call says what changes. The first
- * implementation (platform/voices_dsp.h) makes each change as the S-DSP
- * register writes that make it, so the C driver can be checked register for
- * register (the native mixer is checked against it frame by frame, ct_sound_fuzz
- * --mixer check) and can play through the emulated S-DSP; a native mixer is
- * the second (docs/PLAN.md, Phase 4a).
- * An AuVoices is whichever of them the driver was given. */
+ * No register numbers and no write order: a call says what changes. The
+ * native mixer (platform/native/mixer.h) is the implementation; an AuVoices
+ * is whichever one the driver was given. */
 #include "platform/voice_types.h"
 
 /* Ready the voices for a driver: they find their samples in the directory
@@ -164,8 +160,12 @@ int8_t au_voice_output(AuVoices *v, uint8_t voice);
 void au_master_volume(AuVoices *v, int8_t left, int8_t right);
 /* The clock the noise voices play at, 0-31. */
 void au_noise_clock(AuVoices *v, uint8_t clock);
-/* The whole output stopped (true): nothing is heard, and every voice is keyed
- * off and held there until it is started again (false). */
+/* The output muted (true: nothing is heard, the voices play on unheard). */
+void au_output_muted(AuVoices *v, bool muted);
+/* Every voice keyed off and held there (true) until let go again (false). */
+void au_voices_reset(AuVoices *v, bool reset);
+/* The whole output stopped (true): muted and the voices reset, until it is
+ * started again (false). */
 void au_output_stopped(AuVoices *v, bool stopped);
 void au_noise_voices(AuVoices *v, AuVoiceSet voices);
 void au_pitch_modulation(AuVoices *v, AuVoiceSet voices);
@@ -179,6 +179,9 @@ void au_echo_filter(AuVoices *v, const int8_t taps[8]);
  * off (au_echo_writes), or the old delay's writes land where the new buffer
  * isn't. */
 void au_echo_delay(AuVoices *v, uint8_t delay);
+/* The echo's buffer placed by hand: starting at a page of sound memory, with
+ * a delay, wherever that leaves it. */
+void au_echo_buffer(AuVoices *v, uint8_t page, uint8_t delay);
 void au_echo_writes(AuVoices *v, bool on);
 
 /* A sample of the driver's own: its BRR bytes, which loop from `loop` on, as
@@ -197,9 +200,10 @@ void au_sample_memory_write(AuVoices *v, uint16_t at, uint8_t byte);
 void au_sample_memory_move(AuVoices *v, uint16_t to, uint16_t from, uint16_t length);
 void au_sample_place(AuVoices *v, uint8_t sample, uint16_t start, uint16_t loop);
 
-/* The SNES escape: an S-DSP register written as it is, for the driver's
- * command that asks for exactly that ($FD). */
-void au_voices_snes_register(AuVoices *v, uint8_t reg, uint8_t value);
+/* What a voice and the mix are set to now (platform/voice_types.h): for a
+ * change to part of a setting, which keeps the rest. */
+AuVoiceSettings au_voice_settings(AuVoices *v, uint8_t voice);
+AuMixSettings au_mix_settings(AuVoices *v);
 
 
 #endif

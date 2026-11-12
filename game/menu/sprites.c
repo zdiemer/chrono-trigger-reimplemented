@@ -1235,34 +1235,13 @@ static void load_the_record_sprite(GameState *g, unsigned record)
 
 // $C2:F69B
 
-/* A record's sprite loaded; false where it went no further. */
-typedef bool (*LoadRecord)(void *ctx, unsigned record);
-
-// $C2:F3CA
-/* The records as the menus open: each set up, its sprite loaded and its
- * animation started; the records past them emptied. */
-static bool load_record_sprites(GameState *g, LoadRecord load, void *ctx)
-{
-    count_record_loaded(g, 0);
-    for (unsigned record = 0; record < OPENING_RECORDS_SHOWING; record++) {
-        set_up_opening_record(g, record, menu_opening_record_tile(g, record));
-        if (!load(ctx, record))
-            return false;
-        TIMED_AS(g, 0xC2F69D, animate_record(g, record));
-        count_record_loaded(g, (uint8_t)(record + 1));
-    }
-    empty_the_last_records(g);
-    return true;
-}
-
 static bool record_sprite_loadable(GameState *g, unsigned record);
 static bool opening_records_fit(GameState *g);
 
-/* Each load, where the state is one it handles; otherwise the program goes
- * no further there. */
-static bool load(void *ctx, unsigned record)
+/* A record's sprite loaded, where the state is one the load handles;
+ * otherwise the program goes no further there. */
+bool menu_record_sprite_loaded(GameState *g, unsigned record)
 {
-    GameState *g = ctx;
     if (!record_sprite_loadable(g, record)) {
         program_breaks_a_contract(g, 0xC2F422, "a record's sprite the port doesn't load");
         return false;
@@ -1271,15 +1250,25 @@ static bool load(void *ctx, unsigned record)
     return true;
 }
 
-bool menu_record_sprite_loaded(GameState *g, unsigned record) { return load(g, record); }
-
+// $C2:F3CA
+/* The records as the menus open: each set up, its sprite loaded and its
+ * animation started; the records past them emptied. */
 bool menu_record_sprites_loaded(GameState *g)
 {
     if (!opening_records_fit(g)) {
         program_breaks_a_contract(g, 0xC2F3CA, "records' sprites the port doesn't load");
         return false;
     }
-    return load_record_sprites(g, load, g);
+    count_record_loaded(g, 0);
+    for (unsigned record = 0; record < OPENING_RECORDS_SHOWING; record++) {
+        set_up_opening_record(g, record, menu_opening_record_tile(g, record));
+        if (!menu_record_sprite_loaded(g, record))
+            return false;
+        TIMED_AS(g, 0xC2F69D, animate_record(g, record));
+        count_record_loaded(g, (uint8_t)(record + 1));
+    }
+    empty_the_last_records(g);
+    return true;
 }
 
 /* ---- What the records need ---- */

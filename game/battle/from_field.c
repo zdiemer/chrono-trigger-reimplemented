@@ -191,57 +191,54 @@ enum { LAST_PHASE = 3, HIDDEN_SPRITES = 0xFF };
  * is closed down ($CD:0006, battle/closing.c). */
 enum { SET_UP_SCREEN = 0xCD0000, MAIN_LOOP = 0xC18000, WAIT_FOR_FRAME = 0xCFFCFB, RETURN_TO_THE_FIELD = 0xC10006 };
 
-/* ---- The way in and the way out, as one sequence each ---------------------------------------- */
+/* ---- The way in and the way out --------------------------------------------------------------- */
 
 // $C1:0000
 /* The battle's memory and screen set up (the screen's a routine of its own,
- * battle/screen_setup.c), and what the field and the story say about the
- * fight taken in. False where the screen's setup went no further. */
-static bool come_in_from_the_field(GameState *g, bool (*set_the_screen_up)(void *ctx), void *ctx)
+ * battle/screen_setup.c, $CD:0000 through to $D1:F1B0), and what the field
+ * and the story say about the fight taken in. False where the screen's setup
+ * went no further. */
+static bool come_in_from_the_field(GameState *g, Platform *pf)
 {
     before_the_screen(g);
-    if (!set_the_screen_up(ctx))
+    bool done = false;
+    TIMED_AS(g, SET_UP_SCREEN, done = battle_screen_set_up(g, pf));
+    if (!done)
         return false;
     take_in_the_fight(g);
     return true;
 }
 
-/* The way out waits for its frames and closes the display (battle/closing.c),
- * each a routine of its own. */
-typedef enum { LAST_FRAME_UPLOADS_OFF, LAST_FRAME_UPLOADS_ON, LAST_FRAME_SPRITES_HIDDEN, LAST_FRAMES } LastFrame;
-typedef struct {
-    bool (*frame_passes)(void *ctx, LastFrame frame);
-    bool (*close_the_display)(void *ctx);
-} WayOutCalls;
+/* A frame waited for with the battle's last frame wait, which the vblank's
+ * work ends. */
+static void a_last_frame(GameState *g, Platform *pf) { TIMED_AS(g, WAIT_FOR_FRAME, battle_wait_for_a_last_frame(g, pf)); }
 
 /* The last frames: the rotating graphics uploads are let run every other
  * frame until the frame's phase comes round to the last of the four, then
  * stopped, and the first sprites hidden for one more frame. */
-static bool last_frames(GameState *g, const WayOutCalls *calls, void *ctx)
+static void last_frames(GameState *g, Platform *pf)
 {
     do {
         set_battle_queued_uploads_on(g, 0);
-        if (!calls->frame_passes(ctx, LAST_FRAME_UPLOADS_OFF))
-            return false;
+        a_last_frame(g, pf);
         set_battle_queued_uploads_on(g, 1);
-        if (!calls->frame_passes(ctx, LAST_FRAME_UPLOADS_ON))
-            return false;
+        a_last_frame(g, pf);
     } while (battle_frame_phase(g) != LAST_PHASE);
     set_battle_queued_uploads_on(g, 0);
     set_oam_high_table_byte(g, 0, HIDDEN_SPRITES);
-    return calls->frame_passes(ctx, LAST_FRAME_SPRITES_HIDDEN);
+    a_last_frame(g, pf);
 }
 
 // $C1:0006
 /* What the field keeps handed back, the last frames, everyone with some HP,
- * and the display closed. False where a call went no further. */
-static bool go_back_to_the_field(GameState *g, const WayOutCalls *calls, void *ctx)
+ * and the display closed (battle/closing.c). False where its closing went no
+ * further. */
+static bool go_back_to_the_field(GameState *g, Platform *pf)
 {
     hand_back_to_the_field(g);
-    if (!last_frames(g, calls, ctx))
-        return false;
+    last_frames(g, pf);
     stand_characters_up(g);
-    return calls->close_the_display(ctx);
+    return battle_display_closed(g, pf);
 }
 
 /* What the way back takes: the party as the game has it, each
@@ -265,47 +262,17 @@ static bool party_as_the_game_has_it(const GameState *g)
 
 /* ---- The battle fought ------------------------------------------------------------------------ */
 
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} FightContext;
-
 bool battle_contract_broken(GameState *g, uint32_t routine, const char *what)
 {
     program_breaks_a_contract(g, routine, what);
     return false;
 }
 
-/* The screen's setup ($CD:0000, through to $D1:F1B0). */
-static bool screen_set_up(void *ctx)
-{
-    FightContext *c = ctx;
-    bool done = false;
-    TIMED_AS(c->game, SET_UP_SCREEN, done = battle_screen_set_up(c->game, c->pf));
-    return done;
-}
-
-static bool frame_passes(void *ctx, LastFrame frame)
-{
-    (void)frame;
-    FightContext *c = ctx;
-    TIMED_AS(c->game, WAIT_FOR_FRAME, battle_wait_for_a_last_frame(c->game, c->pf));
-    return true;
-}
-
-static bool display_closed(void *ctx)
-{
-    FightContext *c = ctx;
-    return battle_display_closed(c->game, c->pf);
-}
-
 bool battle_fought(GameState *g, Platform *pf)
 {
-    static const WayOutCalls in_the_program = { frame_passes, display_closed };
-    FightContext c = { g, pf };
-    if (!come_in_from_the_field(g, screen_set_up, &c) || !battle_main_loop_runs(g, pf))
+    if (!come_in_from_the_field(g, pf) || !battle_main_loop_runs(g, pf))
         return false;
     if (!party_as_the_game_has_it(g))
         return battle_contract_broken(g, RETURN_TO_THE_FIELD, "a battle's end with a party the port doesn't hand back");
-    return go_back_to_the_field(g, &in_the_program, &c);
+    return go_back_to_the_field(g, pf);
 }

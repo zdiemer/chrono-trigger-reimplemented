@@ -386,37 +386,18 @@ void combatants_after_update(GameState *g)
 // $C1:B223
 /* Update every combatant for the turn, a combatant at a time with its place
  * in the loop in its cell. A member that comes back is updated by its own
- * routine (`coming_back`, $C1:B279), whose coming back is shown by the
- * action's showing and a message. False where that went no further. */
-static bool update_all_combatants(GameState *g, bool (*coming_back)(void *ctx, unsigned slot), void *ctx)
+ * routine ($C1:B279); one coming back once, which the action's showing and a
+ * message would show, is one the port refuses. */
+bool battle_update_all_combatants(GameState *g)
 {
     for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++) {
-        if (combatant_update_comes_back(g, slot)) {
-            if (!coming_back(ctx, slot))
-                return false;
-        } else {
-            TIMED_AS(g, 0xC1B279, combatant_update(g, slot));
-        }
+        bool comes_back = combatant_update_comes_back(g, slot);
+        UpdateEnd update = UPDATED;
+        TIMED_AS(g, 0xC1B279, update = combatant_update(g, slot));
+        if (comes_back && update == COMES_BACK_ONCE)
+            return battle_contract_broken(g, 0xC1B316, "a member coming back, shown");
         combatant_after_update(g, slot);
     }
     combatants_after_update(g);
     return true;
-}
-
-/* ---- The combatants updated --------------------------------------------------------------------- */
-
-/* A member coming back once, shown, is one the port refuses. */
-static bool comeback_with_no_port(void *ctx, unsigned slot)
-{
-    GameState *g = ctx;
-    UpdateEnd update = UPDATED;
-    TIMED_AS(g, 0xC1B279, update = combatant_update(g, slot));
-    if (update == COMES_BACK_ONCE)
-        return battle_contract_broken(g, 0xC1B316, "a member coming back, shown");
-    return true;
-}
-
-bool battle_update_all_combatants(GameState *g)
-{
-    return update_all_combatants(g, comeback_with_no_port, g);
 }

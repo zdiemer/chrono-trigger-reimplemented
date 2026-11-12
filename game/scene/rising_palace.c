@@ -32,6 +32,7 @@
 #include "core/palette.h"
 #include "core/program.h"
 #include "cpu_io.h"
+#include "platform/timing.h"
 #include "platform/video.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -134,27 +135,33 @@ static void send_the_map_if_waiting(GameState *g, Platform *pf)
 
 /* The map the field left at $6000 moved to BG1's at 0, its first ten rows
  * blank (tile $100). The original fills the buffer's top with the Mode 7
- * multiplier's product, $100 times 1, copied out of the product's registers,
- * and reads the rest back out of VRAM, after a read of the port that steps
- * the address on a word first: the buffer's rows from the eleventh are the
- * map's from its 322nd word, one word on from where they were. Both are
- * transfers out of the registers, which go through the SNES-only escape. */
+ * multiplier's product, $100 times 1, a word at a time, so the matrix keeps
+ * those values; and reads the rest back out of VRAM through its port, whose
+ * first read after the address is set hands back the word the setting
+ * fetched and fetches that same word again (the read the original makes
+ * first doesn't step the port, which steps after the low byte until the copy
+ * sets it to whole words): the buffer's eleventh row starts with the map's
+ * 321st word twice, and every word after it lands a place further on. Both
+ * are moves the program makes in one go, in a transfer's time. */
 enum { BLANK_ROWS_BYTES = 0x0280, BLANK_TILE_WORD = 0x0100, FIELD_MAP_VRAM = 0x6000 };
 enum {
     BELOW_THE_BLANK_ROWS_VRAM = FIELD_MAP_VRAM + BLANK_ROWS_BYTES / 2,
     REST_OF_THE_MAP_BYTES = MAP_BYTES - BLANK_ROWS_BYTES,
+    WORD_BYTES = 2,
 };
 
-static void build_the_map(Platform *pf)
+static void build_the_map(GameState *g, Platform *pf)
 {
     vid_set_mode7(pf, PF_AT(0x7E6721), &(VidMode7){ .a = BLANK_TILE_WORD }, VID_M7_MATRIX_A);
     vid_set_mode7(pf, PF_AT(0x7E6729), &(VidMode7){ .b = 1 * 256 }, VID_M7_MATRIX_B_HIGH);
-    const VidSnesTransfer blank = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = MAP_BUFFER, .size = BLANK_ROWS_BYTES };
-    vid_snes_copy(pf, PF_AT(0x7E672C), &blank);
-    const VidSnesTransfer rest = { .dest = VID_SNES_VRAM_READ, .source = MAP_BUFFER + BLANK_ROWS_BYTES,
-                                   .size = REST_OF_THE_MAP_BYTES, .target_reg = VID_SNES_VRAM_ADDRESS,
-                                   .target = BELOW_THE_BLANK_ROWS_VRAM, .port = SCENE_VRAM_WHOLE_WORDS };
-    vid_snes_copy(pf, PF_AT(0x7E674D), &rest);
+    wram_fill16(g, MAP_BUFFER, BLANK_ROWS_BYTES / WORD_BYTES, BLANK_TILE_WORD);
+    tm_charge_transfer(pf, PF_AT(0x7E672C), BLANK_ROWS_BYTES);
+    for (unsigned i = 0; i < REST_OF_THE_MAP_BYTES / WORD_BYTES; i++) {
+        unsigned from = i ? i - 1 : 0;
+        uint16_t word = vid_vram_word(pf, PF_AT(0x7E674D), (uint16_t)(BELOW_THE_BLANK_ROWS_VRAM + from));
+        wram_fill16(g, MAP_BUFFER + BLANK_ROWS_BYTES + i * WORD_BYTES, 1, word);
+    }
+    tm_charge_transfer(pf, PF_AT(0x7E674D), REST_OF_THE_MAP_BYTES);
 }
 
 /* The layers: BG1 the palace and BG2 the sky and the sea, both with their
@@ -239,7 +246,7 @@ static bool attract_showing(const GameState *g) { return scene_flags(g) & SCENE_
  * scripts' first step: the map, the layers' tiles and the two scripts. */
 static void start_the_palace(GameState *g, Platform *pf)
 {
-    build_the_map(pf);
+    build_the_map(g, pf);
     vid_set_bg_chars(pf, PF_AT(0x7E6772), VID_BG1, LAYER_TILES_VRAM, LAYER_TILES_VRAM);
     set_scene_channels_script(g, TURN_CHANNEL, attract_showing(g) ? CURTAIN_TURN_SCRIPT : TURN_SCRIPT);
     set_scene_channels_script(g, PALACE_CHANNEL, attract_showing(g) ? CURTAIN_PALACE_SCRIPT : PALACE_SCRIPT);
@@ -456,36 +463,16 @@ const SceneTaskPort scene_palace_tasks[] = {
 };
 const unsigned scene_palace_task_count = sizeof scene_palace_tasks / sizeof scene_palace_tasks[0];
 
-/* The setup: the scene started, the scripts' first step by `first_step`,
- * then the rest. False where the step went no further. */
-static bool set_up_the_palace_with(GameState *g, Platform *pf, bool (*first_step)(void *ctx), void *ctx)
+/* The setup: the scene started, the scripts' first step (channel 0's turn,
+ * which runs channel 1's first command too), then the rest. False where the
+ * step went no further. */
+bool scene_palace_set_up(GameState *g, Platform *pf)
 {
     start_the_palace(g, pf);
-    if (!first_step(ctx))
+    if (!scene_first_step(g, pf, TURN_CHANNEL))
         return false;
     finish_the_palace(g, pf);
     return true;
-}
-
-/* The setup's step that is another routine (for scene/program.c's setups):
- * channel 0's turn, which runs channel 1's first command too. */
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} PalaceContext;
-
-static bool turn_the_first_channel(void *ctx)
-{
-    PalaceContext *c = ctx;
-    SceneTurn turn = SCENE_TURN_ENDED;
-    TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, TURN_CHANNEL));
-    return turn == SCENE_TURN_ENDED;
-}
-
-bool scene_palace_set_up(GameState *g, Platform *pf)
-{
-    PalaceContext c = { g, pf };
-    return set_up_the_palace_with(g, pf, turn_the_first_channel, &c);
 }
 
 /* ---- The curtain ------------------------------------------------------------------------------- */
@@ -509,35 +496,14 @@ static void show_the_curtain_step(const GameState *g, Platform *pf)
 }
 
 // $7E:6844
-/* A frame of the sweep: the curtain's step, by `step`, then the window's
- * edge shown from the half it didn't write. False where the step went no
- * further. */
-static bool sweep_the_curtain_with(GameState *g, Platform *pf, bool (*step)(void *ctx), void *ctx)
-{
-    if (!step(ctx))
-        return false;
-    show_the_curtain_step(g, pf);
-    return true;
-}
-
-/* The curtain's step (scene/curtain.c), which goes no further where its
- * table is not one it sweeps, its stir taking the slot's place in the list. */
-typedef struct {
-    GameState *game;
-    Platform *pf;
-    uint16_t salt;
-} CurtainContext;
-
-static bool curtain_step(void *ctx)
-{
-    CurtainContext *c = ctx;
-    return scene_curtain_stepped(c->game, c->pf, c->salt);
-}
-
+/* A frame of the sweep: the curtain's step (scene/curtain.c), which goes no
+ * further where its table is not one it sweeps, its stir taking the slot's
+ * place in the list; then the window's edge shown from the half it didn't
+ * write. */
 TaskEnd scene_sweep_the_palace_curtain(GameState *g, Platform *pf, unsigned slot)
 {
-    CurtainContext c = { g, pf, (uint16_t)(slot * 2) };
-    if (!sweep_the_curtain_with(g, pf, curtain_step, &c))
+    if (!scene_curtain_stepped(g, pf, (uint16_t)(slot * 2)))
         return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
+    show_the_curtain_step(g, pf);
     return task_goes_on();
 }

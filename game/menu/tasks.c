@@ -154,26 +154,25 @@ static void start_the_tasks(GameState *g)
 
 /* ---- The tasks that run all the time ------------------------------------------------------- */
 
-/* A loop's turn takes a wait for the next frame; false where the task never
- * came back to it. */
-typedef bool (*LoopWait)(void *ctx);
-
 // $C2:826F
-/* The main task's turn, from its start and from its wait: the screen's step,
- * then the wait. The step is the screen's (menu/screens.c); false where
- * either went no further. */
-static bool main_task_turn(bool (*screen_step)(void *ctx), LoopWait wait, void *ctx)
+/* The main task's turn, from its start and from its wait: the screen's step
+ * (menu/screens.c), then the wait for the next frame; false where the step
+ * went no further. */
+static bool main_task_turn(GameState *g, Platform *pf)
 {
-    return screen_step(ctx) && wait(ctx);
+    if (!menu_run_the_screen_step(g, pf))
+        return false;
+    menu_task_waits(g, 1);
+    return true;
 }
 
 // $C2:E91B, $C2:E921
 /* The cursor's task's turn: the menus' sprites hidden and the cursor placed,
- * then the wait. */
-static bool cursor_task_turn(GameState *g, LoopWait wait, void *ctx)
+ * then the wait for the next frame. */
+static void cursor_task_turn(GameState *g)
 {
     TIMED_AS(g, 0xC2E92D, menu_reset_sprites_and_cursor(g));
-    return wait(ctx);
+    menu_task_waits(g, 1);
 }
 
 /* ---- The tasks' coroutines ------------------------------------------------------------------ */
@@ -290,28 +289,9 @@ void menu_tasks_end(GameState *g) { tasks_end(&menu_coroutines(g)->tasks); }
 
 /* The two tasks that run all the time: their turns over and over, the
  * wait coming back each next frame, until a step goes no further. */
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} MenuTasksContext;
-
-static bool screen_step(void *ctx)
-{
-    MenuTasksContext *c = ctx;
-    return menu_run_the_screen_step(c->game, c->pf);
-}
-
-static bool loop_waits(void *ctx)
-{
-    MenuTasksContext *c = ctx;
-    menu_task_waits(c->game, 1);
-    return true;
-}
-
 static void main_task(GameState *g, Platform *pf)
 {
-    MenuTasksContext c = { g, pf };
-    while (main_task_turn(screen_step, loop_waits, &c))
+    while (main_task_turn(g, pf))
         ;
 }
 
@@ -319,9 +299,9 @@ static void main_task(GameState *g, Platform *pf)
  * further there. */
 static void cursor_task(GameState *g, Platform *pf)
 {
-    MenuTasksContext c = { g, pf };
-    while (menu_cursor_can_be_placed(g) && cursor_task_turn(g, loop_waits, &c))
-        ;
+    (void)pf;
+    while (menu_cursor_can_be_placed(g))
+        cursor_task_turn(g);
     if (!menu_cursor_can_be_placed(g))
         program_breaks_a_contract(g, (uint32_t)MENUS_BANK << 16 | CURSOR_TASK_HEAD, "a cursor the port doesn't place");
 }

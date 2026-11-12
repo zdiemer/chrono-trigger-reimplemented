@@ -117,73 +117,38 @@ enum { SCRATCH_BYTES = 43, SCRATCH_ASIDE = 0xCC65 };
 /* The game's per-frame work, the map's layers scrolled. */
 enum { GAME_FRAME = BATTLE_SCROLL_MAP_LAYERS_ENTRY };
 
-/* The handler's calls on the battle's other routines: the scratch moved aside
- * and back, the frame work for the battle's mode (battle/frame.c), and the
- * game's per-frame work, the map's layers scrolled. */
-typedef struct {
-    void (*set_the_scratch_aside)(void *ctx);
-    bool (*frame_work)(void *ctx);
-    bool (*map_layers)(void *ctx);
-    void (*put_the_scratch_back)(void *ctx);
-} VblankCalls;
+enum { PAGE_CELLS = 0x7E0000 | BATTLE_PAGE, CELLS_ASIDE = 0x7E0000 | SCRATCH_ASIDE };
 
-static bool take_the_vblank(GameState *g, Platform *pf, const VblankCalls *calls, void *ctx)
+/* The battle's vblank handler: the scratch moved aside and back around the
+ * frame work for the battle's mode (battle/frame.c) and, unless paused, the
+ * game's per-frame work, the map's layers scrolled; then the pause and the
+ * frame advance taken. Where the frame work goes no further, so does the
+ * handler. */
+void battle_vblank(GameState *g, Platform *pf)
 {
     vid_enable_line_effects(pf, PF_AT(0xD1E78A), 0);
     tm_ack_vblank(pf, PF_AT(0xD1E78E));
     tm_enable_interrupts(pf, PF_AT(0xD1E794), TM_INT_VBLANK | TM_INT_LINE | TM_INT_AUTO_JOYPAD);
     if (battle_interrupt_busy(g))
-        return true;
+        return;
     set_battle_interrupt_busy(g, (uint8_t)(battle_interrupt_busy(g) + 1));
-    calls->set_the_scratch_aside(ctx);
+    wram_copy(g, PAGE_CELLS, CELLS_ASIDE, SCRATCH_BYTES);
     latch_split_lines(g);
     vid_enable_line_effects(pf, PF_AT(0xD1E7CC), 0);
     tm_reset_beam_latch(pf, PF_AT(0xD1E7CF));
     vid_set_display(pf, PF_AT(0xD1E7D4), &(VidDisplay){ .blank = true });
     vid_start_vram_uploads(pf, PF_AT(0xD1E7D7), VID_VRAM_WORD_PORT);
-    if (!calls->frame_work(ctx))
-        return false;
+    if (!battle_frame_dispatched(g, pf))
+        return;
     if (!battle_paused(g)) {
-        if (!calls->map_layers(ctx))
-            return false;
+        TIMED_AS(g, GAME_FRAME, battle_scroll_the_map_layers(g));
         count_frame(g);
     }
     take_pause(g, pf);
     take_frame_advance(g, pf);
-    calls->put_the_scratch_back(ctx);
+    wram_copy(g, CELLS_ASIDE, PAGE_CELLS, SCRATCH_BYTES);
     set_battle_interrupt_busy(g, 0);
     set_battle_nmi_pending(g, 0);
-    return true;
-}
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} BattleHandlerContext;
-
-enum { PAGE_CELLS = 0x7E0000 | BATTLE_PAGE, CELLS_ASIDE = 0x7E0000 | SCRATCH_ASIDE };
-
-static void scratch_aside(void *ctx) { wram_copy(((BattleHandlerContext *)ctx)->game, PAGE_CELLS, CELLS_ASIDE, SCRATCH_BYTES); }
-static void scratch_back(void *ctx) { wram_copy(((BattleHandlerContext *)ctx)->game, CELLS_ASIDE, PAGE_CELLS, SCRATCH_BYTES); }
-
-static bool frame_work(void *ctx)
-{
-    BattleHandlerContext *c = ctx;
-    return battle_frame_dispatched(c->game, c->pf);
-}
-
-static bool map_layers(void *ctx)
-{
-    GameState *g = ((BattleHandlerContext *)ctx)->game;
-    TIMED_AS(g, GAME_FRAME, battle_scroll_the_map_layers(g));
-    return true;
-}
-
-void battle_vblank(GameState *g, Platform *pf)
-{
-    static const VblankCalls in_the_program = { scratch_aside, frame_work, map_layers, scratch_back };
-    BattleHandlerContext c = { g, pf };
-    (void)take_the_vblank(g, pf, &in_the_program, &c);
 }
 
 /* ---- The line handler ------------------------------------------------------------------- */
@@ -235,28 +200,13 @@ static void begin_line_handler(GameState *g, Platform *pf)
  * ended (begin_line_handler); then on even frames the alternating-frame
  * setting and on odd ones, unless paused, the tile animation uploads (a
  * routine of all the modes', core/tile_animation.c); then the math operands
- * back. False where the uploads went no further. */
-static bool take_the_line(GameState *g, Platform *pf, bool (*tile_animation_uploads)(void *ctx), void *ctx)
+ * back. */
+void battle_line(GameState *g, Platform *pf)
 {
     begin_line_handler(g, pf);
     if (!(battle_frame_count(g) & 0x01))
         TIMED_AS(g, 0xD1FE4C, apply_the_alternate_frame(g));
-    else if (!battle_paused(g) && !tile_animation_uploads(ctx))
-        return false;
+    else if (!battle_paused(g))
+        TIMED_AS(g, TILE_ANIMATION_UPLOADS, tile_animations_send(g, pf));
     set_battle_interrupt_busy(g, 0);
-    return true;
-}
-
-/* The tile animations' uploads. */
-static bool tile_animation_uploads(void *ctx)
-{
-    BattleHandlerContext *c = ctx;
-    TIMED_AS(c->game, TILE_ANIMATION_UPLOADS, tile_animations_send(c->game, c->pf));
-    return true;
-}
-
-void battle_line(GameState *g, Platform *pf)
-{
-    BattleHandlerContext c = { g, pf };
-    (void)take_the_line(g, pf, tile_animation_uploads, &c);
 }

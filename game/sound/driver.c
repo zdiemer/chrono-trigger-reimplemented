@@ -326,12 +326,113 @@ void sound_echo_ready(SoundDriver *d)
     }
 }
 
+/* $FD: one of the voices' settings set by hand, a script's way to reach what
+ * no other command does. The setting is named by its number on the sound
+ * chip: a voice in the high bits and which of its settings in the low (each
+ * side's volume, the pitch's low or high byte, the sample, the envelope's two
+ * halves, the gain), or past the voices' settings, one of the mix's (a tap of
+ * the echo's filter, the volumes, the keys, the switches, the voices that
+ * echo or take noise or modulation, the echo's buffer). A value that sets
+ * part of a setting keeps the rest as the voices have it. What the chip only
+ * reports (an envelope's level, a voice's output, the notes that ended) and
+ * where its sample directory lies, which the voices keep for themselves,
+ * take nothing. */
+enum {
+    VOLUME_LEFT, VOLUME_RIGHT, PITCH_LOW, PITCH_HIGH, SAMPLE, ENVELOPE_RATES, ENVELOPE_SUSTAIN, GAIN,
+    MIX_VOLUMES = 0x0C, MIX_SENDS = 0x0D, ECHO_TAP = 0x0F
+};
+enum { MASTER_LEFT, MASTER_RIGHT, ECHO_LEFT, ECHO_RIGHT, KEY_ON, KEY_OFF, SWITCHES };
+enum { FEEDBACK, MODULATION = 2, NOISE, ECHOING, ECHO_PAGE = 6, ECHO_DELAY };
+/* The switches: every voice reset, the output muted, the echo's writes off,
+ * and the noise's clock. */
+enum { SWITCH_RESET = 0x80, SWITCH_MUTE = 0x40, SWITCH_NO_ECHO_WRITES = 0x20, SWITCH_NOISE_CLOCK = 0x1F };
+
+/* A gain as the chip takes it: a level held, or with the top bit a rate of
+ * one of four kinds of slide (bits 5-6). */
+static AuGain gain_of(uint8_t value)
+{
+    if (value & 0x80)
+        return (AuGain){ (AuGainMode)(AU_GAIN_DECREASE_LINEAR + ((value >> 5) & 3)), value };
+    return (AuGain){ AU_GAIN_DIRECT, value };
+}
+
+static void set_voice_setting(AuVoices *v, uint8_t voice, uint8_t setting, uint8_t value)
+{
+    AuVoiceSettings now = au_voice_settings(v, voice);
+    AuEnvelope e = now.envelope;
+    switch (setting) {
+    case VOLUME_LEFT: au_voice_volume(v, voice, (int8_t)value, now.volume_right); break;
+    case VOLUME_RIGHT: au_voice_volume(v, voice, now.volume_left, (int8_t)value); break;
+    case PITCH_LOW: au_voice_pitch(v, voice, (uint16_t)((now.pitch & 0xFF00) | value)); break;
+    case PITCH_HIGH: au_voice_pitch(v, voice, (uint16_t)((now.pitch & 0x00FF) | value << 8)); break;
+    case SAMPLE: au_voice_sample(v, voice, value); break;
+    case ENVELOPE_RATES:
+        e.adsr = value >> 7;
+        e.decay = (value >> 4) & 7;
+        e.attack = value & 0x0F;
+        au_voice_envelope(v, voice, e);
+        break;
+    case ENVELOPE_SUSTAIN:
+        e.sustain_level = value >> 5;
+        e.sustain_rate = value & 0x1F;
+        au_voice_envelope(v, voice, e);
+        break;
+    case GAIN: au_voice_gain(v, voice, gain_of(value)); break;
+    }
+}
+
+static void set_mix_volume(AuVoices *v, uint8_t which, uint8_t value)
+{
+    AuMixSettings now = au_mix_settings(v);
+    switch (which) {
+    case MASTER_LEFT: au_master_volume(v, (int8_t)value, now.master_right); break;
+    case MASTER_RIGHT: au_master_volume(v, now.master_left, (int8_t)value); break;
+    case ECHO_LEFT: au_echo_volume(v, (int8_t)value, now.echo_right); break;
+    case ECHO_RIGHT: au_echo_volume(v, now.echo_left, (int8_t)value); break;
+    case KEY_ON: au_voices_key_on(v, value); break;
+    case KEY_OFF: au_voices_key_off(v, value); break;
+    case SWITCHES:
+        au_voices_reset(v, value & SWITCH_RESET);
+        au_output_muted(v, value & SWITCH_MUTE);
+        au_echo_writes(v, !(value & SWITCH_NO_ECHO_WRITES));
+        au_noise_clock(v, value & SWITCH_NOISE_CLOCK);
+        break;
+    }
+}
+
+static void set_mix_send(AuVoices *v, uint8_t which, uint8_t value)
+{
+    AuMixSettings now = au_mix_settings(v);
+    switch (which) {
+    case FEEDBACK: au_echo_feedback(v, (int8_t)value); break;
+    case MODULATION: au_pitch_modulation(v, value); break;
+    case NOISE: au_noise_voices(v, value); break;
+    case ECHOING: au_echo_voices(v, value); break;
+    case ECHO_PAGE: au_echo_buffer(v, value, now.echo_delay); break;
+    case ECHO_DELAY: au_echo_buffer(v, now.echo_page, value); break;
+    }
+}
+
+static void set_echo_tap(AuVoices *v, uint8_t tap, uint8_t value)
+{
+    AuMixSettings now = au_mix_settings(v);
+    now.taps[tap] = (int8_t)value;
+    au_echo_filter(v, now.taps);
+}
+
 // SPC $12F2
-static void write_register(SoundDriver *d, const CommandRow *row, SoundCommand c)
+static void set_by_hand(SoundDriver *d, const CommandRow *row, SoundCommand c)
 {
     (void)row;
-    uint8_t reg = c.p1, value = c.p2;
-    au_voices_snes_register(d->voices, reg, value);
+    uint8_t index = (uint8_t)((c.p1 >> 4) & 7), setting = c.p1 & 0x0F, value = c.p2;
+    if (setting <= GAIN)
+        set_voice_setting(d->voices, index, setting, value);
+    else if (setting == MIX_VOLUMES)
+        set_mix_volume(d->voices, index, value);
+    else if (setting == MIX_SENDS)
+        set_mix_send(d->voices, index, value);
+    else if (setting == ECHO_TAP)
+        set_echo_tap(d->voices, index, value);
 }
 
 /* $FF: the voices' levels on the status in place of the status (p1 1, on
@@ -395,7 +496,7 @@ static const CommandRow commands[] = {
     { 0xF8, RUN(mute), .mute = MUTE_NO_LONGER }, // SPC $0FAC
     { 0xF9, RUN(mute), .mute = MUTE_ALSO }, // SPC $0FB5
     { 0xFC, RUN(echo_delay) }, // SPC $132E
-    { 0xFD, RUN(write_register) }, // SPC $12F2
+    { 0xFD, RUN(set_by_hand) }, // SPC $12F2
     { 0xFE, RUN(loading) }, // SPC $100E
     { 0xFF, RUN(meter_or_reload) }, // SPC $12BD
 };

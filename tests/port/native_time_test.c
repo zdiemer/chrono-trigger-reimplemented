@@ -71,9 +71,48 @@ static void transition_clear(void)
     state_host_destroy(g);
 }
 
+/* Moves through the work RAM port run on from bank $7E into $7F, and from the
+ * end of $7F round to the start of $7E; a copy reads its resource's bytes, or
+ * the game's where the resource is work RAM. Neither takes the game's own
+ * time (the caller charges the transfer's). */
+static const uint8_t *resource_byte(uint32_t at)
+{
+    static const uint8_t bytes[] = { 0xA1, 0xB2, 0xC3 };
+    return &bytes[(uint16_t)at % 3];
+}
+
+static void port_moves(void)
+{
+    GameState *g = state_host_create(NULL);
+    CHECK(g);
+    if (!g)
+        return;
+    state_host_write8(g, 0x7F0002, 0x99);
+    wram_port_fill(g, 0xFFFE, 4, 0x5A);
+    CHECK(state_host_read8(g, 0x7EFFFE) == 0x5A && state_host_read8(g, 0x7EFFFF) == 0x5A);
+    CHECK(state_host_read8(g, 0x7F0000) == 0x5A && state_host_read8(g, 0x7F0001) == 0x5A);
+    CHECK(state_host_read8(g, 0x7F0002) == 0x99);
+    wram_port_fill(g, 0x1FFFF, 2, 0x11);
+    CHECK(state_host_read8(g, 0x7FFFFF) == 0x11 && state_host_read8(g, 0x7E0000) == 0x11);
+
+    const uint8_t tiles[] = { 1, 2, 3, 4 };
+    wram_port_copy(g, (PfData){ .ptr = tiles }, 0xFFFE, sizeof tiles);
+    CHECK(state_host_read8(g, 0x7EFFFE) == 1 && state_host_read8(g, 0x7EFFFF) == 2);
+    CHECK(state_host_read8(g, 0x7F0000) == 3 && state_host_read8(g, 0x7F0001) == 4);
+    wram_port_copy(g, (PfData){ .addr = 0xFFFFFF, .byte_at = resource_byte }, 0x0100, 2);
+    CHECK(state_host_read8(g, 0x7E0100) == resource_byte(0xFFFFFF)[0]);
+    CHECK(state_host_read8(g, 0x7E0101) == resource_byte(0xFF0000)[0]);   /* within its bank */
+    state_host_write8(g, 0x7E0200, 0x42);
+    wram_port_copy(g, PF_GAME(0x7E0200), 0x0300, 1);
+    CHECK(state_host_read8(g, 0x7E0300) == 0x42);
+    CHECK(state_host_take_owed(g) == 0);
+    state_host_destroy(g);
+}
+
 int main(void)
 {
     transition_clear();
+    port_moves();
     GameState *plain = state_host_create(NULL), *reported = state_host_create(NULL);
     if (!plain || !reported || !state_host_record_time(reported))
         return 1;

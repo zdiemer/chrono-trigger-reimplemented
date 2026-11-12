@@ -305,57 +305,23 @@ void overworld_start_the_location_song(GameState *g, Platform *pf)
     au_command(pf, PF_CALL(LOCATION_SONG_SENT, SOUND_DRIVER), overworld_song_command(song.song));
 }
 
-/* ---- The scripts ------------------------------------------------------------------------------ */
-
-/* A walker's or the Epoch's script, run by the interpreter. */
-typedef struct {
-    GameState *game;
-    Platform *pf;
-    MenuObject self;
-} ScriptOf;
-
-static WalkerScriptEnd walker_script(void *ctx, WalkerScriptRun run)
-{
-    (void)run;
-    ScriptOf *o = ctx;
-    switch (menu_run_object_script(o->game, o->pf, o->self)) {
-    case MENU_TURN_DONE: return WALKER_SCRIPT_DONE;
-    case MENU_TURN_GOES_ON: return WALKER_SCRIPT_WAITS;
-    default: return WALKER_SCRIPT_HANDED_OVER;
-    }
-}
-
-static ScriptEnd epoch_scene(void *ctx)
-{
-    ScriptOf *o = ctx;
-    switch (menu_run_object_script(o->game, o->pf, o->self)) {
-    case MENU_TURN_DONE: return SCRIPT_DONE;
-    case MENU_TURN_GOES_ON: return SCRIPT_WAITING;
-    default: return SCRIPT_GAVE_BACK;
-    }
-}
+/* ---- The walkers and the Epoch ------------------------------------------------------------------ */
 
 static MenuTurn goes_on_unless(bool went_no_further) { return went_no_further ? MENU_TURN_WENT_NO_FURTHER : MENU_TURN_GOES_ON; }
 
 static MenuTurn lead(GameState *g, Platform *pf, MenuObject self)
 {
-    ScriptOf o = { g, pf, self };
-    WalkerScripts scripts = { walker_script, &o };
-    return goes_on_unless(!overworld_lead(g, self, &scripts));
+    return goes_on_unless(!overworld_lead(g, pf, self));
 }
 
 static MenuTurn follow(GameState *g, Platform *pf, MenuObject self)
 {
-    ScriptOf o = { g, pf, self };
-    WalkerScripts scripts = { walker_script, &o };
-    return goes_on_unless(!overworld_follow(g, self, &scripts));
+    return goes_on_unless(!overworld_follow(g, pf, self));
 }
 
 static MenuTurn fly_the_epoch(GameState *g, Platform *pf, MenuObject self)
 {
-    ScriptOf o = { g, pf, self };
-    EpochScripts scripts = { epoch_scene, &o };
-    return goes_on_unless(!overworld_fly_the_epoch(g, self, &scripts));
+    return goes_on_unless(!overworld_fly_the_epoch(g, pf, self));
 }
 
 /* The handlers that never finish of themselves. */
@@ -440,8 +406,8 @@ static bool map_tiles_load(const GameState *g, MenuObject self)
 static bool load_the_map_tiles(GameState *g, Platform *pf, MenuObject self, bool far)
 {
     (void)pf, (void)self, (void)far;
-    Unpacker u = overworld_unpacker(g);
-    return overworld_load_the_map_tiles(g, &u);
+    overworld_load_the_map_tiles(g);
+    return true;
 }
 
 MENU_SCRIPT_ROUTINES(overworld_routines,

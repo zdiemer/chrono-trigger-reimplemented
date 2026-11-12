@@ -198,84 +198,10 @@ static UpdateKind update_kind(const GameState *g, FieldObject obj)
     return !role.disabled && role.kind == ROLE_WINDOW_ONLY ? UPDATE_WINDOW_ONLY : UPDATE_OBJECT;
 }
 
-/* Which of the update's calls a step is made from: an object's update, a
- * party member's, or the party's re-sort, for its second member or its
- * first. */
-typedef enum { OBJECTS_UPDATE, PARTY_UPDATE, RESORT_SECOND, RESORT_FIRST } UpdateCall;
-
-/* The update's steps (below): the object's move,
- * its view, its animation's tick, its row left or joined, its place on the
- * screen, and the screen's own check for an object that matters only on it.
- * The view, the tick and the rows are false where they didn't come back. */
-typedef struct {
-    void (*move)(void *ctx, FieldObject obj, bool party_member);
-    bool (*view)(void *ctx, UpdateCall call, FieldObject obj);
-    bool (*tick)(void *ctx, UpdateCall call, FieldObject obj);
-    bool (*rows)(void *ctx, UpdateCall call, FieldObject obj, bool join);
-    void (*place)(void *ctx, FieldObject obj);
-    void (*window_only)(void *ctx, FieldObject obj);
-} UpdateSteps;
-
-/* An object's step and, in view, the rest of its update. */
-static bool update_object(GameState *g, const UpdateSteps *steps, void *ctx, UpdateCall call, FieldObject obj)
-{
-    steps->move(ctx, obj, call == PARTY_UPDATE);
-    if (!steps->view(ctx, call, obj))
-        return false;
-    if (!object_in_view(g, obj))
-        return true;
-    if (!steps->tick(ctx, call, obj) || !steps->rows(ctx, call, obj, false))
-        return false;
-    steps->place(ctx, obj);
-    return steps->rows(ctx, call, obj, true);
-}
-
-/* After everyone has moved: the second party member and then the first,
- * where in view, are put back at the front of their rows, so that they are
- * drawn over the other objects on the same row. */
-static bool resort_party(GameState *g, const UpdateSteps *steps, void *ctx)
-{
-    static const struct {
-        unsigned member;
-        UpdateCall call;
-    } order[2] = { { 1, RESORT_SECOND }, { 0, RESORT_FIRST } };
-    for (unsigned i = 0; i < 2; i++) {
-        FieldLink link = party_member_link(g, order[i].member);
-        if (!field_link_is_object(link) || object_view(g, field_linked_object(link)) == OUT_OF_VIEW)
-            continue;
-        FieldObject obj = field_linked_object(link);
-        object_make_current(g, obj);
-        if (!steps->rows(ctx, order[i].call, obj, false) || !steps->rows(ctx, order[i].call, obj, true))
-            return false;
-    }
-    return true;
-}
-
-// $C0:A810
-/* Every frame: update each object slot up to the event's object count, and
- * re-sort the party. A map whose last object is a party member leaves the
- * party as it is: the original's party members' update returns from the
- * loop without the re-sort. False where a step didn't come back. */
-static bool update_objects(GameState *g, const UpdateSteps *steps, void *ctx)
-{
-    uint8_t count = event_object_count(g);
-    charge_accesses(g, 4); /* loop bound's former word read/write */
-    UpdateKind kind;
-    for (FieldObject obj = 0;; obj++) {
-        object_make_current(g, obj);
-        kind = update_kind(g, obj);
-        if (kind == UPDATE_WINDOW_ONLY)
-            steps->window_only(ctx, obj);
-        else if (kind != UPDATE_SKIP &&
-                 !update_object(g, steps, ctx, kind == UPDATE_PARTY ? PARTY_UPDATE : OBJECTS_UPDATE, obj))
-            return false;
-        if (obj + 1 >= count)
-            break;
-    }
-    return kind == UPDATE_PARTY || resort_party(g, steps, ctx);
-}
-
-/* The steps' entries, which the update runs inline, and calls where it can't. */
+/* The update's steps, each the routine it is, which the update runs inline:
+ * the object's move, its view, its animation's tick, its row left or joined,
+ * its place on the screen, and the screen's own check for an object that
+ * matters only on it. */
 enum {
     MOVE = 0xC0AA07,
     MOVE_PARTY_MEMBER = 0xC0AAFD,
@@ -307,30 +233,11 @@ bool object_rows_step(GameState *g, FieldObject obj, bool join)
     return false;
 }
 
-/* ---- The steps ------------------------------------------------------------------------------- */
+/* ---- An object's update ---------------------------------------------------------------------- */
 
-static void move(void *ctx, FieldObject obj, bool party_member)
+/* The animation's tick, where the port takes it. */
+static bool tick(GameState *g, FieldObject obj)
 {
-    GameState *g = ctx;
-    if (party_member)
-        TIMED_AS(g, MOVE_PARTY_MEMBER, (void)party_member_take_step(g, obj));
-    else
-        TIMED_AS(g, MOVE, (void)object_take_step(g, obj));
-}
-
-static bool view(void *ctx, UpdateCall call, FieldObject obj)
-{
-    (void)call;
-    GameState *g = ctx;
-    bool viewed = false;
-    TIMED_AS(g, VIEW, viewed = object_view_updated(g, obj));
-    return viewed;
-}
-
-static bool tick(void *ctx, UpdateCall call, FieldObject obj)
-{
-    (void)call;
-    GameState *g = ctx;
     if (!field_tick_is_exact(g, obj)) {
         program_breaks_a_contract(g, TICK, "an animation tick the port doesn't take");
         return false;
@@ -339,28 +246,65 @@ static bool tick(void *ctx, UpdateCall call, FieldObject obj)
     return true;
 }
 
-static bool rows(void *ctx, UpdateCall call, FieldObject obj, bool join)
+/* An object's step and, in view, the rest of its update. False where a step
+ * didn't come back. */
+static bool update_object(GameState *g, FieldObject obj, bool party_member)
 {
-    (void)call;
-    return object_rows_step(ctx, obj, join);
-}
-
-static void place(void *ctx, FieldObject obj)
-{
-    GameState *g = ctx;
+    if (party_member)
+        TIMED_AS(g, MOVE_PARTY_MEMBER, (void)party_member_take_step(g, obj));
+    else
+        TIMED_AS(g, MOVE, (void)object_take_step(g, obj));
+    bool viewed = false;
+    TIMED_AS(g, VIEW, viewed = object_view_updated(g, obj));
+    if (!viewed)
+        return false;
+    if (!object_in_view(g, obj))
+        return true;
+    if (!tick(g, obj) || !object_rows_step(g, obj, false))
+        return false;
     TIMED_AS(g, PLACE_ON_SCREEN, object_update_screen_position(g, obj));
+    return object_rows_step(g, obj, true);
 }
 
-static void window_only(void *ctx, FieldObject obj)
+/* After everyone has moved: the second party member and then the first,
+ * where in view, are put back at the front of their rows, so that they are
+ * drawn over the other objects on the same row. */
+static bool resort_party(GameState *g)
 {
-    GameState *g = ctx;
-    TIMED_AS(g, WINDOW_ONLY, object_window_only_checked(g, obj));
+    static const unsigned order[2] = { 1, 0 };
+    for (unsigned i = 0; i < 2; i++) {
+        FieldLink link = party_member_link(g, order[i]);
+        if (!field_link_is_object(link) || object_view(g, field_linked_object(link)) == OUT_OF_VIEW)
+            continue;
+        FieldObject obj = field_linked_object(link);
+        object_make_current(g, obj);
+        if (!object_rows_step(g, obj, false) || !object_rows_step(g, obj, true))
+            return false;
+    }
+    return true;
 }
 
+// $C0:A810
+/* Every frame: update each object slot up to the event's object count, and
+ * re-sort the party. A map whose last object is a party member leaves the
+ * party as it is: the original's party members' update returns from the
+ * loop without the re-sort. False where a step didn't come back. */
 bool field_objects_updated(GameState *g)
 {
-    static const UpdateSteps in_the_program = { move, view, tick, rows, place, window_only };
-    return update_objects(g, &in_the_program, g);
+    uint8_t count = event_object_count(g);
+    charge_accesses(g, 4); /* loop bound's former word read/write */
+    UpdateKind kind;
+    for (FieldObject obj = 0;; obj++) {
+        object_make_current(g, obj);
+        kind = update_kind(g, obj);
+        if (kind == UPDATE_WINDOW_ONLY)
+            TIMED_AS(g, WINDOW_ONLY, object_window_only_checked(g, obj));
+        else if (kind != UPDATE_SKIP && !update_object(g, obj, kind == UPDATE_PARTY))
+            return false;
+        if (obj + 1 >= count)
+            break;
+    }
+    return kind == UPDATE_PARTY || resort_party(g);
 }
 
 /* The rows the port takes: the object and the objects it is linked to are named by

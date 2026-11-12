@@ -16,9 +16,8 @@
  * paths and objects (battle/effect_paths.c, battle/object_motion.c,
  * battle/draw_objects.c).
  *
- * Each step is a call out of the frame work (WorkCall, UpdateCall,
- * TailCall), charged at its routine's rate and refused where the port
- * doesn't take its state. */
+ * Each step is a routine of its own, charged at its rate and refused where
+ * the port doesn't take its state. */
 #include "battle/frame.h"
 
 #include "battle/battle.h"
@@ -387,53 +386,56 @@ static void bring_the_upload_forward(GameState *g)
 }
 
 /* The frame update's object work, each a routine of its own (battle/
- * effect_paths.c, battle/object_motion.c, battle/draw_objects.c), and the
- * points where the original saves and restores the effect sprites'
- * attributes around it (UPDATE_KEEP_THE_ATTRIBUTES, UPDATE_ATTRIBUTES_BACK),
- * which the port passes over. */
-typedef enum {
-    UPDATE_PARTY_COLORS, UPDATE_EFFECT_SLOTS, UPDATE_SCRIPTED_MOVES, UPDATE_ANCHORS, UPDATE_TRAILS, UPDATE_NUMBERS,
-    UPDATE_FORMATION, UPDATE_DRAW_OBJECTS, UPDATE_KEEP_THE_ATTRIBUTES, UPDATE_ATTRIBUTES_BACK, UPDATE_CALLS
-} UpdateCall;
+ * effect_paths.c, battle/object_motion.c, battle/draw_objects.c). */
+enum {
+    CYCLE_PARTY_COLORS = 0xCFE7D7, STEP_EFFECT_SLOTS = 0xCFEFAF, STEP_SCRIPTED_MOVES = 0xCFEC78,
+    UPDATE_ANCHORS = 0xCFECC2, RECORD_TRAILS = 0xCFED18, RAISE_NUMBERS = 0xCFE781, PLACE_FORMATION = 0xCFF9D3,
+    DRAW_OBJECTS = 0xCFE83A,
+};
 
 /* How the frame update ends: on with the frame, gone no further, or a demo
  * battle's end, which leaves for the title. */
 typedef enum { UPDATE_DONE, UPDATE_STOPPED, UPDATE_DEMO_ENDS } UpdateEnds;
 
 // $CF:E58A
-static UpdateEnds update_the_frame(GameState *g, Platform *pf, bool (*call)(void *ctx, UpdateCall call), void *ctx)
+/* Refused where the port doesn't take the object work's state: the
+ * effects' paths of a kind the game doesn't give; the draw pass, nobody on
+ * the battlefield. */
+static UpdateEnds update_the_frame(GameState *g, Platform *pf)
 {
     count_the_blink(g);
     mirror_the_flicker(g);
-    if (!call(ctx, UPDATE_PARTY_COLORS))
-        return UPDATE_STOPPED;
+    TIMED_AS(g, CYCLE_PARTY_COLORS, battle_cycle_party_colors(g));
     cycle_the_cursor_color(g);
     set_battle_frames(g, battle_frames(g) + 1);
     rotate_the_colors(g);
     color_the_cursors(g);
     uint8_t kept = battle_effect_sprite_attributes(g);
-    if (!call(ctx, UPDATE_KEEP_THE_ATTRIBUTES))
-        return UPDATE_STOPPED;
     if (end_the_demo(g, pf))
         return UPDATE_DEMO_ENDS;
     hold_to_run(g, pf);
     tick(g);
-    if (!call(ctx, UPDATE_EFFECT_SLOTS))
+    if (!battle_effect_paths_known(g)) {
+        (void)battle_contract_broken(g, STEP_EFFECT_SLOTS, "an effect's path of a kind the port doesn't know");
         return UPDATE_STOPPED;
-    if (battle_effects_running(g)
-        && (!call(ctx, UPDATE_SCRIPTED_MOVES) || !call(ctx, UPDATE_ANCHORS) || !call(ctx, UPDATE_TRAILS)
-            || !call(ctx, UPDATE_NUMBERS)))
-        return UPDATE_STOPPED;
-    if (battle_formation(g) && !call(ctx, UPDATE_FORMATION))
-        return UPDATE_STOPPED;
+    }
+    TIMED_AS(g, STEP_EFFECT_SLOTS, battle_step_effect_slots(g));
+    if (battle_effects_running(g)) {
+        TIMED_AS(g, STEP_SCRIPTED_MOVES, battle_step_scripted_moves(g));
+        TIMED_AS(g, UPDATE_ANCHORS, battle_update_anchors(g));
+        TIMED_AS(g, RECORD_TRAILS, battle_record_trails(g));
+        TIMED_AS(g, RAISE_NUMBERS, battle_raise_numbers(g));
+    }
+    if (battle_formation(g))
+        TIMED_AS(g, PLACE_FORMATION, battle_place_formation(g));
     if (!battle_sprites_frozen(g)) {
         bring_the_upload_forward(g);
-        if (!call(ctx, UPDATE_DRAW_OBJECTS))
+        bool drawn = true;
+        TIMED_AS(g, DRAW_OBJECTS, drawn = battle_objects_drawn(g));
+        if (!drawn)
             return UPDATE_STOPPED;
     }
     set_battle_frame_pending(g, 0);
-    if (!call(ctx, UPDATE_ATTRIBUTES_BACK))
-        return UPDATE_STOPPED;
     set_battle_effect_sprite_attributes(g, kept);
     return UPDATE_DONE;
 }
@@ -465,18 +467,24 @@ static void send_the_frame(GameState *g, Platform *pf)
 }
 
 /* The frame work's calls on the battle's other routines, each where the
- * original makes it: the window's slide (twice), the buttons read and their
- * repeat counted (paused, and at the frame's end), the layers' scroll and
- * the screen's shake (battle/scroll.c), the HP gradient's step
- * (battle/screen_gradient.c), the sprites hidden, the frame update (above),
- * the wait for the line the animation scripts start at, the screen scripts
- * (battle/screen_script.c), and the palettes paused with the battle and
- * animated. */
-typedef enum {
-    WORK_SLIDE_FIRST, WORK_SLIDE_SECOND, WORK_READ_PAUSED, WORK_REPEAT_PAUSED, WORK_SCROLL, WORK_SHAKE,
-    WORK_GRADIENT, WORK_HIDE_SPRITES, WORK_UPDATE, WORK_WAIT_FOR_THE_LINE, WORK_SCREEN_SCRIPTS,
-    WORK_PAUSE_PALETTES, WORK_ANIMATE_PALETTES, WORK_READ, WORK_REPEAT,
-} WorkCall;
+ * original makes it and refused where the port doesn't take its state: the
+ * window's slide (twice), the buttons read (a controller not read or a reset
+ * held refused) and their repeat counted (paused, and at the frame's end),
+ * the layers' scroll and the screen's shake (battle/scroll.c), the HP
+ * gradient's step (battle/screen_gradient.c; its phase out of range
+ * refused), the sprites hidden, the frame update (above; a rotation it
+ * doesn't take refused), the wait for the line the animation scripts start
+ * at, the screen scripts (battle/screen_script.c), and the palettes paused
+ * with the battle and animated. */
+enum {
+    FRAMES_INPUT = 0xC28002,
+    BUTTON_REPEAT = 0xCD0340,
+    HP_GRADIENT = 0xD1EA4B,
+    FRAME_UPDATE = 0xCFE58A,
+    LINE_WAIT = 0xCD3B82,
+    SCREEN_SCRIPTS = 0xCD1609,
+    PALETTE_ANIMATION = 0xFDFFF7,
+};
 
 /* While effects run, the animation scripts' frame starts once the beam is at
  * line 64, unless a script said not to wait. */
@@ -487,44 +495,85 @@ static bool waits_for_the_line(const GameState *g)
     return !battle_effect_line_wait_off(g) && battle_effects_running(g) && !battle_sprites_frozen(g);
 }
 
+static void slide_the_window_on(GameState *g) { TIMED_AS(g, 0xCD05B2, (void)slide_the_window(g)); }
+
+/* The buttons read, and their repeat counted. */
+static bool read_the_input(GameState *g, Platform *pf)
+{
+    bool read = false;
+    TIMED_AS(g, FRAMES_INPUT, read = input_take_frame(g, pf));
+    if (!read)
+        return battle_contract_broken(g, FRAMES_INPUT, "the controller not read, or the reset buttons held");
+    TIMED_AS(g, BUTTON_REPEAT, battle_update_button_repeat(g));
+    return true;
+}
+
+static bool step_the_hp_gradient(GameState *g)
+{
+    if (!battle_hp_gradient_steps(g))
+        return battle_contract_broken(g, HP_GRADIENT, "an HP gradient's phase out of range");
+    TIMED_AS(g, HP_GRADIENT, battle_step_hp_gradient(g));
+    return true;
+}
+
+static bool rotation_in_range(const GameState *g);
+
+static bool update_the_objects(GameState *g, Platform *pf)
+{
+    if (!rotation_in_range(g))
+        return battle_contract_broken(g, FRAME_UPDATE, "a background colors' rotation the port doesn't make");
+    UpdateEnds ends = UPDATE_STOPPED;
+    TIMED_AS(g, FRAME_UPDATE, ends = update_the_frame(g, pf));
+    if (ends == UPDATE_DEMO_ENDS)
+        return battle_contract_broken(g, DEMO_LEAVES, "a demo battle's end");
+    return ends == UPDATE_DONE;
+}
+
 // $CD:088D
-static bool work_the_frame(GameState *g, Platform *pf, bool (*call)(void *ctx, WorkCall call), void *ctx)
+bool battle_frame_worked(GameState *g, Platform *pf)
 {
     send_the_frame(g, pf);
     set_the_windows(g, pf);
     color_below_the_split(g);
     square_the_window_top(g);
     TIMED_AS(g, 0xCD0AEE, battle_show_window_table(g, pf));
-    if (!call(ctx, WORK_SLIDE_FIRST) || !call(ctx, WORK_SLIDE_SECOND))
-        return false;
+    slide_the_window_on(g);
+    slide_the_window_on(g);
     vid_enable_line_effects(pf, PF_AT(0xCD08FE), battle_line_effects_on(g));
     if (battle_paused(g)) {
         VidDisplay dimmed = vid_display_decode(paused_brightness(g));
         vid_set_display(pf, PF_AT(0xCD0916), &dimmed);
-        return call(ctx, WORK_READ_PAUSED) && call(ctx, WORK_REPEAT_PAUSED);
+        return read_the_input(g, pf);
     }
     VidDisplay display = vid_display_decode(battle_brightness(g));
     vid_set_display(pf, PF_AT(0xCD0925), &display);
-    if (!call(ctx, WORK_SCROLL) || !call(ctx, WORK_SHAKE))
-        return false;
+    battle_scroll_by_the_mode(g);
+    TIMED_AS(g, 0xCD0B51, battle_shake_screen(g));
     if (!(battle_frame_count(g) & 1) && battle_window_slide(g) == BATTLE_SLIDE_STILL)
         choose_the_arrangement(g);
     if (battle_background_flags(g) & BATTLE_BACKGROUND_HAS_GRADIENT) {
         TIMED_AS(g, 0xCEE18E, battle_ripple_background(g));
-        if (!((uint8_t)battle_frame_count(g) & battle_gradient_frame_mask(g)) && !call(ctx, WORK_GRADIENT))
+        if (!((uint8_t)battle_frame_count(g) & battle_gradient_frame_mask(g)) && !step_the_hp_gradient(g))
             return false;
     }
-    if (!battle_keep_sprites(g) && !battle_sprites_frozen(g) && !call(ctx, WORK_HIDE_SPRITES))
+    if (!battle_keep_sprites(g) && !battle_sprites_frozen(g))
+        TIMED_AS(g, 0xCEF066, battle_hide_sprites(g));
+    if (!update_the_objects(g, pf))
         return false;
-    if (!call(ctx, WORK_UPDATE) || (waits_for_the_line(g) && !call(ctx, WORK_WAIT_FOR_THE_LINE))
-        || !call(ctx, WORK_SCREEN_SCRIPTS))
+    if (waits_for_the_line(g))
+        tm_wait_line(pf, PF_CALL(0xCD09AC, LINE_WAIT), LINE_TO_WAIT_FOR);
+    bool done = false;
+    TIMED_AS(g, SCREEN_SCRIPTS, done = battle_screen_scripts_run(g, pf));
+    if (!done)
         return false;
     set_battle_sprites_frozen(g, battle_sprites_frozen_setting(g));
     TIMED_AS(g, 0xCD0B1E, battle_keep_animations_off_the_cycle(g));
-    if (!call(ctx, WORK_PAUSE_PALETTES) || !call(ctx, WORK_ANIMATE_PALETTES))
+    TIMED_AS(g, 0xD1F426, battle_pause_palette_animation(g));
+    TIMED_AS(g, PALETTE_ANIMATION, done = palette_animated(g));
+    if (!done)
         return false;
     TIMED_AS(g, 0xCD0ADE, battle_turn_the_gradient(g));
-    return call(ctx, WORK_READ) && call(ctx, WORK_REPEAT);
+    return read_the_input(g, pf);
 }
 
 /* An enemy's rule that cycles the background's colors (battle_enemy_rule,
@@ -552,34 +601,38 @@ void battle_keep_animations_off_the_cycle(GameState *g)
 
 /* ---- The frame wait's tail ---------------------------------------------------------------- */
 
-/* The tail's calls: the script's sound and the pause's turn
- * (battle/sound.c), the battlefield put back (battle/battlefield_restore.c),
- * an effect's graphics loaded (battle/screen_graphics.c), and the message's
- * next letter (battle/message.c). */
-typedef enum { TAIL_SCRIPT_SOUND, TAIL_PAUSE, TAIL_BATTLEFIELD_BACK, TAIL_EFFECT_GRAPHICS, TAIL_MESSAGE } TailCall;
-
 // $CD:04AA
 /* After the main loop's wait for the frame: unless paused, a sound a screen
- * script asked for; the pause's turn; then, unless a routine is
- * waiting on a queued transfer, the battlefield put back once the effects
- * stop, and an effect's graphics loaded where a script asked for them and
- * none are loading; and the next letter of a battle message. */
-static bool finish_the_wait(GameState *g, bool (*call)(void *ctx, TailCall call), void *ctx)
+ * script asked for (battle/sound.c); the pause's turn; then, unless a routine
+ * is waiting on a queued transfer, the battlefield put back once the effects
+ * stop (battle/battlefield_restore.c), and an effect's graphics loaded where
+ * a script asked for them and none are loading (battle/screen_graphics.c);
+ * and the next letter of a battle message (battle/message.c), refused where
+ * the menus' text code doesn't go on from it. */
+bool battle_frame_wait_finished(GameState *g, Platform *pf)
 {
-    if (!battle_paused(g) && !call(ctx, TAIL_SCRIPT_SOUND))
-        return false;
-    if (battle_paused(g) && !call(ctx, TAIL_PAUSE))
-        return false;
+    if (!battle_paused(g))
+        TIMED_AS(g, BATTLE_SCRIPT_SOUND_ENTRY, battle_play_the_script_sound(g, pf));
+    if (battle_paused(g))
+        TIMED_AS(g, BATTLE_PAUSE_ENTRY, battle_sit_out_the_pause(g, pf));
     if (!battle_vram_request_busy(g)) {
-        if (battle_background_restore_request(g) && !battle_effects_running(g) && !call(ctx, TAIL_BATTLEFIELD_BACK))
-            return false;
+        bool done = true;
+        if (battle_background_restore_request(g) && !battle_effects_running(g)) {
+            TIMED_AS(g, 0xCD0453, done = battle_put_the_battlefield_back(g, pf));
+            if (!done)
+                return false;
+        }
         if (battle_effect_graphics_wanted(g) && !battle_effect_graphics_loading(g)) {
-            if (!call(ctx, TAIL_EFFECT_GRAPHICS))
+            TIMED_AS(g, 0xD1ECF3, done = battle_load_effect_graphics(g, pf, battle_effect_graphics_effect(g)));
+            if (!done)
                 return false;
             set_battle_effect_graphics_wanted(g, 0);
         }
     }
-    return call(ctx, TAIL_MESSAGE);
+    if (!battle_message_typing_fits(g))
+        return battle_contract_broken(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, "a message the menus' text code doesn't go on from");
+    TIMED_AS(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, battle_type_the_message(g));
+    return true;
 }
 
 /* ---- The frame work by the battle's mode ------------------------------------------------- */
@@ -615,8 +668,6 @@ static bool frame_work_fits(const GameState *g)
     return battle_vblank_uploads_in_range(g) && rotation_in_range(g) && battle_scroll_mode(g) < BATTLE_SCROLL_MODES;
 }
 
-/* ---- The frame work's calls ------------------------------------------------------------------- */
-
 /* The frame dispatch's work, as measured: both request flags looked at
  * seventeen times, plus five bytes per queued transfer and two per block. */
 static bool frame_work_takes(GameState *g)
@@ -646,148 +697,4 @@ bool battle_frame_dispatched(GameState *g, Platform *pf)
     else
         TIMED_AS(g, frame_work_of[mode].routine, done = battle_frame_worked(g, pf));
     return done;
-}
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} BattleFrameContext;
-
-/* The object work, refused where the port doesn't take its state: the
- * effects' paths of a kind the game doesn't give; the draw pass, nobody on
- * the battlefield. */
-
-static const struct { uint32_t site, routine; } object_work[UPDATE_KEEP_THE_ATTRIBUTES] = {
-    [UPDATE_PARTY_COLORS] = { 0xCFE5A7, 0xCFE7D7 }, [UPDATE_EFFECT_SLOTS] = { 0xCFE748, 0xCFEFAF },
-    [UPDATE_SCRIPTED_MOVES] = { 0xCFE750, 0xCFEC78 }, [UPDATE_ANCHORS] = { 0xCFE753, 0xCFECC2 },
-    [UPDATE_TRAILS] = { 0xCFE756, 0xCFED18 }, [UPDATE_NUMBERS] = { 0xCFE759, 0xCFE781 },
-    [UPDATE_FORMATION] = { 0xCFE761, 0xCFF9D3 }, [UPDATE_DRAW_OBJECTS] = { 0xCFE778, 0xCFE83A },
-};
-
-static bool update_a_part(void *ctx, UpdateCall call)
-{
-    GameState *g = ((BattleFrameContext *)ctx)->game;
-    bool done = true;
-    switch (call) {
-    case UPDATE_PARTY_COLORS: TIMED_AS(g, object_work[call].routine, battle_cycle_party_colors(g)); return true;
-    case UPDATE_EFFECT_SLOTS:
-        if (!battle_effect_paths_known(g))
-            return battle_contract_broken(g, object_work[call].routine, "an effect's path of a kind the port doesn't know");
-        TIMED_AS(g, object_work[call].routine, battle_step_effect_slots(g));
-        return true;
-    case UPDATE_SCRIPTED_MOVES: TIMED_AS(g, object_work[call].routine, battle_step_scripted_moves(g)); return true;
-    case UPDATE_ANCHORS: TIMED_AS(g, object_work[call].routine, battle_update_anchors(g)); return true;
-    case UPDATE_TRAILS: TIMED_AS(g, object_work[call].routine, battle_record_trails(g)); return true;
-    case UPDATE_NUMBERS: TIMED_AS(g, object_work[call].routine, battle_raise_numbers(g)); return true;
-    case UPDATE_FORMATION: TIMED_AS(g, object_work[call].routine, battle_place_formation(g)); return true;
-    case UPDATE_DRAW_OBJECTS: TIMED_AS(g, object_work[call].routine, done = battle_objects_drawn(g)); return done;
-    default: return true;
-    }
-}
-
-/* The frame work's calls, each refused where the port doesn't take its
- * state: the HP gradient's step, its phase out of range; the frame update, a
- * rotation it doesn't take; the input, a controller not read or a reset
- * held. */
-enum {
-    FRAMES_INPUT = 0xC28002,
-    BUTTON_REPEAT = 0xCD0340,
-    HP_GRADIENT = 0xD1EA4B,
-    FRAME_UPDATE = 0xCFE58A,
-    LINE_WAIT = 0xCD3B82,
-    SCREEN_SCRIPTS = 0xCD1609,
-    PALETTE_ANIMATION = 0xFDFFF7,
-};
-
-static bool read_the_input(BattleFrameContext *c)
-{
-    bool read = false;
-    TIMED_AS(c->game, FRAMES_INPUT, read = input_take_frame(c->game, c->pf));
-    if (!read)
-        return battle_contract_broken(c->game, FRAMES_INPUT, "the controller not read, or the reset buttons held");
-    return true;
-}
-
-static bool work_a_part(void *ctx, WorkCall call)
-{
-    BattleFrameContext *c = ctx;
-    GameState *g = c->game;
-    bool done = false;
-    switch (call) {
-    case WORK_SLIDE_FIRST:
-    case WORK_SLIDE_SECOND: TIMED_AS(g, 0xCD05B2, (void)slide_the_window(g)); return true;
-    case WORK_READ_PAUSED:
-    case WORK_READ: return read_the_input(c);
-    case WORK_REPEAT_PAUSED:
-    case WORK_REPEAT: TIMED_AS(g, BUTTON_REPEAT, battle_update_button_repeat(g)); return true;
-    case WORK_SCROLL: battle_scroll_by_the_mode(g); return true;
-    case WORK_SHAKE: TIMED_AS(g, 0xCD0B51, battle_shake_screen(g)); return true;
-    case WORK_GRADIENT:
-        if (!battle_hp_gradient_steps(g))
-            return battle_contract_broken(g, HP_GRADIENT, "an HP gradient's phase out of range");
-        TIMED_AS(g, HP_GRADIENT, battle_step_hp_gradient(g));
-        return true;
-    case WORK_HIDE_SPRITES: TIMED_AS(g, 0xCEF066, battle_hide_sprites(g)); return true;
-    case WORK_UPDATE: {
-        if (!rotation_in_range(g))
-            return battle_contract_broken(g, FRAME_UPDATE, "a background colors' rotation the port doesn't make");
-        UpdateEnds ends = UPDATE_STOPPED;
-        TIMED_AS(g, FRAME_UPDATE, ends = update_the_frame(g, c->pf, update_a_part, c));
-        if (ends == UPDATE_DEMO_ENDS)
-            return battle_contract_broken(g, DEMO_LEAVES, "a demo battle's end");
-        return ends == UPDATE_DONE;
-    }
-    case WORK_WAIT_FOR_THE_LINE:
-        tm_wait_line(c->pf, PF_CALL(0xCD09AC, LINE_WAIT), LINE_TO_WAIT_FOR);
-        return true;
-    case WORK_SCREEN_SCRIPTS: TIMED_AS(g, SCREEN_SCRIPTS, done = battle_screen_scripts_run(g, c->pf)); return done;
-    case WORK_PAUSE_PALETTES: TIMED_AS(g, 0xD1F426, battle_pause_palette_animation(g)); return true;
-    case WORK_ANIMATE_PALETTES: TIMED_AS(g, PALETTE_ANIMATION, done = palette_animated(g)); return done;
-    default: return false;
-    }
-}
-
-bool battle_frame_worked(GameState *g, Platform *pf)
-{
-    BattleFrameContext c = { g, pf };
-    return work_the_frame(g, pf, work_a_part, &c);
-}
-
-/* The tail's calls: the sounds, the pause, the battlefield put back, the
- * effect's graphics, and the message, refused where the menus' text code
- * doesn't go on from it. */
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} FrameTailContext;
-
-static bool finish_a_part(void *ctx, TailCall call)
-{
-    FrameTailContext *c = ctx;
-    GameState *g = c->game;
-    switch (call) {
-    case TAIL_SCRIPT_SOUND: TIMED_AS(g, BATTLE_SCRIPT_SOUND_ENTRY, battle_play_the_script_sound(g, c->pf)); return true;
-    case TAIL_PAUSE: TIMED_AS(g, BATTLE_PAUSE_ENTRY, battle_sit_out_the_pause(g, c->pf)); return true;
-    case TAIL_BATTLEFIELD_BACK: {
-        bool done = false;
-        TIMED_AS(g, 0xCD0453, done = battle_put_the_battlefield_back(g, c->pf));
-        return done;
-    }
-    case TAIL_EFFECT_GRAPHICS: {
-        bool done = false;
-        TIMED_AS(g, 0xD1ECF3, done = battle_load_effect_graphics(g, c->pf, battle_effect_graphics_effect(g)));
-        return done;
-    }
-    default:
-        if (!battle_message_typing_fits(g))
-            return battle_contract_broken(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, "a message the menus' text code doesn't go on from");
-        TIMED_AS(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, battle_type_the_message(g));
-        return true;
-    }
-}
-
-bool battle_frame_wait_finished(GameState *g, Platform *pf)
-{
-    FrameTailContext c = { g, pf };
-    return finish_the_wait(g, finish_a_part, &c);
 }

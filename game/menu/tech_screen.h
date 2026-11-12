@@ -183,16 +183,8 @@ void menu_restoring_look_for_help(GameState *g);
 bool menu_restoring_every_member(const GameState *g);
 
 /* The cursor among the members a healing (a tonic's or a tech's) is used on
- * ($C2:B83E) and the member it is on noted ($C2:B870), one sequence each,
- * asking for a tick and for the noting as its own routine. */
-typedef struct {
-    bool (*tick)(void *ctx);
-    bool (*note_the_member)(void *ctx);
-} RestoringSteps;
-bool menu_point_at_member_to_restore_with(GameState *g, const RestoringSteps *n, void *ctx);
-bool menu_note_member_to_restore_with(GameState *g, const RestoringSteps *n, void *ctx);
-/* Where the state is one the pointing handles; false where the program went
- * no further. */
+ * ($C2:B83E) and the member it is on noted ($C2:B870), where the state is
+ * one the pointing handles; false where the program went no further. */
 bool menu_point_at_member_to_restore(GameState *g, Platform *pf);
 bool menu_restoring_can_point(const GameState *g);
 
@@ -221,23 +213,7 @@ bool menu_techs_can_move_among_members(const GameState *g);
 
 /* The screen's opening ($C2:B35D), its member list laid out ($C2:B365), the
  * choice among the members ($C2:B36D) and the moves among them ($C2:B520)
- * are each one sequence, asking the menus for what it needs through
- * TechsSteps.
- *
- * The places the sequences tick from. */
-typedef enum {
-    TECHS_AT_THE_OPENING, TECHS_AT_ANOTHER_LIST, TECHS_AT_A_MEMBER_CHOSEN,
-    TECHS_AT_THE_MEMBERS_SLIDING,   /* the member rows sliding, a frame at a time */
-    TECHS_AT_A_PAGE_TURNED,         /* the list paged, a frame on */
-    TECHS_AT_A_TECH_POINTED,        /* the cursor on another tech */
-    TECHS_AT_A_TECH_BROUGHT_IN,     /* a tech brought in past the list's end */
-    TECHS_AT_THE_LIST_SLIDING,      /* ... the list sliding a frame at a time */
-    TECHS_AT_A_TECH_CHOSEN,         /* a tech chosen to use */
-    TECHS_AT_THE_LIST_LEFT,         /* back from the list to the members */
-    TECHS_AT_THE_TARGETS_OPENING,   /* the window of the members it is used on, a frame on */
-    TECHS_AT_THE_TARGETS_LEFT,      /* back from that window */
-    TECHS_AT_THE_CAST,              /* the user casting, the cast's frames */
-} TechsPlace;
+ * are each one sequence, false where it went no further. */
 
 /* The frames the user's casting takes before the healing. */
 enum { MENU_TECHS_CAST_FRAMES = 10 };
@@ -255,42 +231,25 @@ typedef enum {
     TECHS_REOPENS_THE_TARGETS,         /* $C2:BE79, run on into after the healing */
 } TechsRoutine;
 
-/* What the sequences ask: the cursor read, a tick, the refusal the step ends
- * on, the moves among the members, the member list slid, the kind's caption,
- * the lister shown, the way back to the main menu, a frame's wait, a routine
- * run. Each false where it went no further. */
-typedef struct {
-    void (*read_cursor)(void *ctx);
-    bool (*tick)(void *ctx, TechsPlace at);
-    bool (*refuse)(void *ctx);
-    bool (*move_among_members)(void *ctx);
-    bool (*slide_members)(void *ctx);
-    bool (*describe_the_kind)(void *ctx);
-    bool (*show_the_lister)(void *ctx);
-    bool (*back_to_the_main_menu)(void *ctx);
-    bool (*wait)(void *ctx, TechsPlace at);
-    bool (*run)(void *ctx, TechsRoutine routine);
-} TechsSteps;
-
-bool menu_open_techs_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
-bool menu_choose_tech_member_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
-bool menu_move_among_tech_members_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
+bool menu_open_techs_with(GameState *g, Platform *pf);
+bool menu_choose_tech_member_with(GameState *g, Platform *pf);
+bool menu_move_among_tech_members_with(GameState *g, Platform *pf);
 /* The member list slid ($C2:B568), its rows' slide ($C2:B5C8), the lister
  * shown ($C2:B9E1) and its sprite ($C2:BA09). */
-bool menu_slide_tech_members_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
-bool menu_slide_tech_member_rows_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
-bool menu_show_tech_lister_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
-bool menu_load_tech_lister_sprite_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
+bool menu_slide_tech_members_with(GameState *g, Platform *pf);
+bool menu_slide_tech_member_rows_with(GameState *g, Platform *pf);
+bool menu_show_tech_lister_with(GameState *g, Platform *pf);
+bool menu_load_tech_lister_sprite_with(GameState *g, Platform *pf);
 /* Choosing a tech ($C2:B3AE) and the members it is used on ($C2:B48E), and
  * their routines: the list slid ($C2:B72F), the tech described ($C2:BE01),
  * the window of members it is used on ($C2:BE79), the cursor among them
  * ($C2:B823). */
-bool menu_choose_tech_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
-bool menu_choose_tech_target_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
-bool menu_slide_tech_list_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
-bool menu_describe_pointed_tech_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
-bool menu_open_tech_targets_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
-bool menu_point_at_tech_target_with(GameState *g, Platform *pf, const TechsSteps *n, void *ctx);
+bool menu_choose_tech_with(GameState *g, Platform *pf);
+bool menu_choose_tech_target_with(GameState *g, Platform *pf);
+bool menu_slide_tech_list_with(GameState *g, Platform *pf);
+bool menu_describe_pointed_tech_with(GameState *g, Platform *pf);
+bool menu_open_tech_targets_with(GameState *g, Platform *pf);
+bool menu_point_at_tech_target_with(GameState *g, Platform *pf);
 bool menu_choose_tech(GameState *g, Platform *pf);
 bool menu_choose_tech_target(GameState *g, Platform *pf);
 /* What the targets need of the state (tech_screen_bridge.c). */

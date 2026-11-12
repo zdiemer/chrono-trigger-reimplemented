@@ -56,9 +56,6 @@ void vid_obs_seed(VidObserver *ob, const VidLineState *state, const uint8_t *vra
  * does is the machine's and no call produces it. */
 void vid_obs_seed_memory(VidObserver *ob, const uint8_t *vram, const uint16_t *cgram, const uint8_t *oam);
 
-/* How many calls the observer could not model (vid_snes_transfer). */
-uint32_t vid_obs_unmodelled(const VidObserver *ob);
-
 /* The first difference between the decoded frame `a` and the command-built
  * frame `b`: `kind` names the part that differs (a static string, for counting
  * them), `text` describes it. Returns false when the frames agree.

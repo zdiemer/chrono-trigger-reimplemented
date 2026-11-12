@@ -261,23 +261,20 @@ void scene_set_letter_colors(GameState *g)
 }
 
 /* The credits' map blanked: every tile the blank one, in front. The program
- * fills the low bytes from its blank tile and the high bytes from the byte
- * before the roll's code, $20, the priority bit; a fill of one half of each
- * word is what the upload calls don't model, so both go through the SNES-only
- * escape. The high bytes' fill is the caller's own code, at `in_front_site`. */
+ * fills the low bytes from its blank tile, then the high bytes from the byte
+ * before the roll's code, $20, the priority bit. The high bytes' fill is the
+ * caller's own code, at `in_front_site`. */
 enum { IN_FRONT = 0x7E9E7A };
 
 // $7E:90A7
 void scene_blank_credits_map(Platform *pf, PfOrigin in_front_site)
 {
-    const VidSnesTransfer tiles = { .dest = VID_SNES_VRAM_DATA_LOW, .source = SCENE_BLANK_TILE,
-                                    .size = CREDITS_MAP_ROWS_BYTES, .target_reg = VID_SNES_VRAM_ADDRESS,
-                                    .target = CREDITS_MAP_VRAM, .port = SCENE_VRAM_LOW_BYTES };
-    vid_snes_copy(pf, PF_AT(0x7E90BD), &tiles);
-    const VidSnesTransfer attributes = { .dest = VID_SNES_VRAM_DATA_HIGH, .source = IN_FRONT,
-                                         .size = CREDITS_MAP_ROWS_BYTES, .target_reg = VID_SNES_VRAM_ADDRESS,
-                                         .target = CREDITS_MAP_VRAM, .port = SCENE_VRAM_WHOLE_WORDS };
-    vid_snes_copy(pf, in_front_site, &attributes);
+    vid_set_vram_address(pf, PF_AT(0x7E90BD), CREDITS_MAP_VRAM);
+    vid_start_vram_uploads(pf, PF_AT(0x7E90BD), SCENE_VRAM_LOW_BYTES);
+    vid_fill_vram_half(pf, PF_AT(0x7E90BD), PF_GAME(SCENE_BLANK_TILE), CREDITS_MAP_ROWS_BYTES, VID_VRAM_LOW_BYTES);
+    vid_set_vram_address(pf, in_front_site, CREDITS_MAP_VRAM);
+    vid_start_vram_uploads(pf, in_front_site, SCENE_VRAM_WHOLE_WORDS);
+    vid_fill_vram_half(pf, in_front_site, PF_GAME(IN_FRONT), CREDITS_MAP_ROWS_BYTES, VID_VRAM_HIGH_BYTES);
 }
 
 /* The scene's layers: the picture on BG1, scrolled to where it shows, its map
@@ -317,27 +314,22 @@ enum { CREDITS_TEXT = 0xAB1A, ROW_BEFORE_THE_MAP = 0xFFE0 };
 /* The scene's script, on channel 0, and its song. */
 enum { STAFF_ROLL_SCRIPT = 0x93E3, STAFF_ROLL_SONG = 0x1B };
 
-/* ---- The setup's steps that are the program's other routines --------------------------------------- */
-
-/* The setup's steps that are other routines of the program's: its send of the
- * sound command it has put in the buffer, the stars' scatter (which goes on
- * from what the send leaves), a graphic unpacked, the script's first step
- * (which reads where the per-line effects' descriptors ended), and the song's
- * start. */
-typedef struct {
-    bool (*send_the_command)(void *ctx);
-    void (*scatter_the_stars)(void *ctx);
-    bool (*unpack)(void *ctx, unsigned graphic);
-    bool (*first_step)(void *ctx, uint16_t descriptors_end);
-    void (*start_the_song)(void *ctx, uint8_t song);
-} StaffRollSteps;
-
 /* The music played fast: the sound driver's command in the buffer, sent. */
-static bool play_music_fast(GameState *g, const StaffRollSteps *steps, void *ctx)
+static void play_music_fast(GameState *g, Platform *pf)
 {
     set_sound_command(g, AU_FAST_FORWARD);
     set_sound_command_parameters(g, 0, 1);
-    return steps->send_the_command(ctx);
+    scene_sends_the_command(g, pf);
+}
+
+/* The stars scattered. A host's draws take its own noise, so the stars'
+ * first starts from nothing in particular where the original's goes on from
+ * what the send left. */
+enum { SCATTER_STARS = 0x7E5777 };
+
+static void scatter_the_stars(GameState *g, Platform *pf)
+{
+    TIMED_AS(g, SCATTER_STARS, scene_scatter_stars(g, pf, scene_draw_from(0, false, TM_ENTROPY_BYTES)));
 }
 
 /* The program's transfer of what the unpacker made, a word at a time into
@@ -345,19 +337,16 @@ static bool play_music_fast(GameState *g, const StaffRollSteps *steps, void *ctx
 static void send_unpacked_as_words(GameState *g)
 {
     set_scene_call_transfer_control(g, scene_program_own(), SCENE_TRANSFER_WORDS);
-    set_scene_call_transfer_register(g, scene_program_own(), VID_SNES_VRAM_DATA_LOW);
+    set_scene_call_transfer_register(g, scene_program_own(), SCENE_INTO_LOW_BYTES);
 }
 
-static bool load_graphics(GameState *g, Platform *pf, unsigned graphic, const StaffRollSteps *steps, void *ctx)
+static void load_graphics(GameState *g, Platform *pf, const StaffRollGraphics *gr)
 {
-    const StaffRollGraphics *gr = &staff_roll_graphics[graphic];
     vid_set_vram_address(pf, PF_AT(gr->vram_site), gr->vram);
-    if (!steps->unpack(ctx, graphic))
-        return false;
+    scene_unpacks(g, gr->resource);
     if (gr->bytes)
         set_decompress_length(g, gr->bytes);
     TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
-    return true;
 }
 
 /* How the roll is played: fast, closing the telepod ending (mode 13), or
@@ -378,18 +367,17 @@ static void start_slowly(GameState *g, Platform *pf)
 
 // $7E:8EA8
 /* The staff roll's setup, from the program's mode table (modes 12 and 13).
- * False where a step went no further. */
-static bool set_up_staff_roll_with(GameState *g, Platform *pf, StaffRollPace pace, const StaffRollSteps *steps, void *ctx)
+ * False where the script's first step went no further. */
+static bool set_up_staff_roll(GameState *g, Platform *pf, StaffRollPace pace)
 {
     if (pace == STAFF_ROLL_FAST) {
-        if (!play_music_fast(g, steps, ctx))
-            return false;
+        play_music_fast(g, pf);
         set_scene_credits_fast(g, (uint8_t)(scene_credits_fast(g) + 1));
         set_scene_channel_register(g, SCENE_STAR_FIELD_CHANNEL, SCENE_STAR_FIELD_SPEED, STARS_COMING);
     } else {
         start_slowly(g, pf);
     }
-    steps->scatter_the_stars(ctx);
+    scatter_the_stars(g, pf);
     TIMED_AS(g, 0xFDE275, palette_stop_animations(g));
     copy_colors(g, PICTURE_COLORS, PICTURE_PALETTE);
 
@@ -397,20 +385,18 @@ static bool set_up_staff_roll_with(GameState *g, Platform *pf, StaffRollPace pac
     send_unpacked_as_words(g);
     vid_start_vram_uploads(pf, PF_AT(0x7E8EE8), SCENE_VRAM_WHOLE_WORDS);
     for (unsigned i = 0; i < STAFF_ROLL_GRAPHICS; i++)
-        if (!load_graphics(g, pf, i, steps, ctx))
-            return false;
+        load_graphics(g, pf, &staff_roll_graphics[i]);
 
     copy_colors(g, STARS_COLORS, STARS_PALETTE);
     scene_set_letter_colors(g);
     scene_use_loaded_palette(g);
     scene_blank_credits_map(pf, PF_AT(0x7E8F77));
-    uint16_t descriptors_end = 0;
-    TIMED_AS(g, 0x7E36CC, descriptors_end = scene_set_up_line_effects(g, pf, STAFF_ROLL_LINE_EFFECTS));
+    TIMED_AS(g, 0x7E36CC, (void)scene_set_up_line_effects(g, pf, STAFF_ROLL_LINE_EFFECTS));
     set_scene_line_effects(g, STAFF_ROLL_LINE_CHANNELS);
 
     set_scene_stars_depth_branch(g, SCENE_EVERY_STAR_BEHIND);
     set_scene_channels_script(g, 0, STAFF_ROLL_SCRIPT);
-    if (!steps->first_step(ctx, descriptors_end))
+    if (!scene_first_step(g, pf, 0))
         return false;
     scroll_credits_on(g, VID_BG3);
     set_up_layers(pf);
@@ -418,67 +404,13 @@ static bool set_up_staff_roll_with(GameState *g, Platform *pf, StaffRollPace pac
     set_scene_credits_row_vram(g, ROW_BEFORE_THE_MAP);
     set_scene_song(g, STAFF_ROLL_SONG);
     set_scene_song_playing(g, STAFF_ROLL_SONG);
-    steps->start_the_song(ctx, STAFF_ROLL_SONG);
+    scene_start_song(pf, STAFF_ROLL_SONG);
     return true;
 }
 
-/* ---- The setup's steps ---- */
+bool scene_staff_roll_set_up(GameState *g, Platform *pf) { return set_up_staff_roll(g, pf, STAFF_ROLL_FAST); }
 
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} StaffRollContext;
-
-static bool send_the_command(void *ctx)
-{
-    StaffRollContext *c = ctx;
-    scene_sends_the_command(c->game, c->pf);
-    return true;
-}
-
-/* A host's draws take its own noise, so the stars' first starts from nothing
- * in particular where the original's goes on from what the send left. */
-enum { SCATTER_STARS = 0x7E5777 };
-
-static void scatter_the_stars(void *ctx)
-{
-    StaffRollContext *c = ctx;
-    TIMED_AS(c->game, SCATTER_STARS, scene_scatter_stars(c->game, c->pf, scene_draw_from(0, false, TM_ENTROPY_BYTES)));
-}
-
-static bool unpack_the_graphic(void *ctx, unsigned graphic)
-{
-    StaffRollContext *c = ctx;
-    TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, staff_roll_graphics[graphic].resource));
-    return true;
-}
-
-static bool turn_the_credits_channel(void *ctx, uint16_t descriptors_end)
-{
-    StaffRollContext *c = ctx;
-    (void)descriptors_end;
-    SceneTurn turn = SCENE_TURN_ENDED;
-    TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, 0));
-    return turn == SCENE_TURN_ENDED;
-}
-
-static void start_the_song(void *ctx, uint8_t song)
-{
-    StaffRollContext *c = ctx;
-    scene_start_song(c->pf, song);
-}
-
-static bool set_up_in_the_program(GameState *g, Platform *pf, StaffRollPace pace)
-{
-    static const StaffRollSteps in_the_program = { send_the_command, scatter_the_stars, unpack_the_graphic, turn_the_credits_channel,
-                                         start_the_song };
-    StaffRollContext c = { g, pf };
-    return set_up_staff_roll_with(g, pf, pace, &in_the_program, &c);
-}
-
-bool scene_staff_roll_set_up(GameState *g, Platform *pf) { return set_up_in_the_program(g, pf, STAFF_ROLL_FAST); }
-
-bool scene_slow_staff_roll_set_up(GameState *g, Platform *pf) { return set_up_in_the_program(g, pf, STAFF_ROLL_SLOW); }
+bool scene_slow_staff_roll_set_up(GameState *g, Platform *pf) { return set_up_staff_roll(g, pf, STAFF_ROLL_SLOW); }
 
 /* The roll and its scroll run from the frame's list. A line must fit its
  * row: the port reads the next line as the roll will, to its end or the credits', within the

@@ -284,26 +284,20 @@ static void beside_charges_main(Platform *p, void *ctx)
 }
 
 
-/* Supported native escapes bypass the emulated bus, but their transfers
- * still take time. A zero length means a full 64 KiB transfer. */
+/* The game's own moves of memory (tm_charge_transfer) and the sends from
+ * where VRAM's address stands take a transfer's time on the main thread. */
 static unsigned dma_main_calls;
-static uint32_t dma_reads, dma_writes;
+static uint32_t dma_reads;
 static uint8_t dma_read(void *ctx, uint32_t at) { (void)ctx; (void)at; dma_reads++; return 0x5A; }
-static void dma_write(void *ctx, uint32_t at, uint8_t v) { (void)ctx; (void)at; (void)v; dma_writes++; }
 static void dma_main(Platform *p, void *ctx)
 {
     (void)ctx;
     for (;;) {
         if (!dma_main_calls) {
-            VidSnesTransfer transfer = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = 0x7E0000, .size = 0 };
-            vid_snes_copy(p, PF_AT(0), &transfer);
-            transfer.dest = VID_SNES_WRAM_DATA;
-            vid_snes_copy(p, PF_AT(0), &transfer);
-            transfer.dest = VID_SNES_VRAM_DATA_LOW;
-            transfer.target_reg = VID_SNES_VRAM_ADDRESS;
-            transfer.mode_from_data = true;
-            transfer.mode = 1;
-            vid_snes_copy(p, PF_AT(0), &transfer);
+            tm_charge_transfer(p, PF_AT(0), 0x10000u);
+            tm_charge_transfer(p, PF_AT(0), 0x10000u);
+            vid_set_vram_address(p, PF_AT(0), 0);
+            vid_continue_vram(p, PF_AT(0), PF_GAME(0x7E0000), 0x10000u);
         }
         dma_main_calls++;
         tm_wait_frame(p, PF_AT(0));
@@ -385,7 +379,6 @@ static void test_second_layer_wave(void)
         CHECK(state->bg[0].hofs == 71 && state->bg[0].vofs == 83 && state->bg[1].vofs == 29,
               "the horizontal wave preserves other scroll coordinates");
     }
-    CHECK(vid_obs_unmodelled(ob) == 0, "the wave has a native video implementation");
     vid_obs_destroy(ob);
 }
 
@@ -477,7 +470,7 @@ int main(void)
     static Platform asking;
     TmHostProgram ask = { asking_main, asking_vblank, NULL, NULL, NULL, NULL, NULL };
     order_len = 0;
-    vid_host_start(&asking, NULL, NULL, NULL);
+    vid_host_start(&asking, NULL, NULL);
     tm_host_start(&asking, &ask, 1);
     for (int i = 0; i < 6; i++) {
         tm_host_frame(&asking);
@@ -556,15 +549,14 @@ int main(void)
 
 
     static Platform transfers;
-    vid_host_start(&transfers, dma_read, dma_write, NULL);
+    vid_host_start(&transfers, dma_read, NULL);
     TmHostProgram dma = { dma_main, NULL, NULL, NULL, NULL, NULL, NULL };
     tm_host_start(&transfers, &dma, 1);
     for (unsigned frame = 0; frame < 6; frame++)
         tm_host_frame(&transfers);
     CHECK(dma_main_calls == 2 && tm_host_lag_frames(&transfers) == 4,
           "three 64 KiB transfers fill four lag frames (%u calls, %u lag)", dma_main_calls, tm_host_lag_frames(&transfers));
-    CHECK(dma_reads == 2 * 0x10000u && dma_writes == 2 * 0x10000u,
-          "encoded zero length transfers all 64 KiB (%u reads, %u writes)", dma_reads, dma_writes);
+    CHECK(dma_reads == 0x10000u, "the send reads all 64 KiB (%u reads)", dma_reads);
     CHECK(vid_host_picture(&transfers)->vram[0] == 0x5A, "the timed VRAM transfer writes its data");
     vid_host_stop(&transfers);
 

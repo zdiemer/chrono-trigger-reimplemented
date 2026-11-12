@@ -147,33 +147,42 @@ static bool step_the_poses(GameState *g)
 
 /* ---- The poses' frames -------------------------------------------------------------------- */
 
-/* The poses' calls, each where the original makes it: the battle's wait for
+/* The poses' waits, each where the original makes it: the battle's wait for
  * the next frame ($C1:007E) and the frame work's tail ($CD:0009,
  * battle/frame.c), for each of the poses' frames, the victory's and the
- * defeat's; and the menu window drawn as nobody's (battle/menu_window.c). */
-typedef enum {
-    POSES_FRAME, POSES_TAIL,
-    VICTORY_TAIL, VICTORY_FIRST_MENU_GONE, VICTORY_SECOND_MENU_GONE, VICTORY_THIRD_MENU_GONE, VICTORY_WINDOW,
-    DEFEAT_TAIL, DEFEAT_FRAME,
-    POSES_STRUCK,   /* the poses themselves, a routine of their own */
-} PoseCall;
-typedef bool (*PoseCalls)(void *ctx, PoseCall call);
+ * defeat's. */
+enum { FRAME_TAIL = 0xCD0009, MENU_WINDOW = 0xC10C2D, STRIKE_THE_POSES = 0xC135DD };
+
+static bool finish_the_frame(GameState *g, Platform *pf)
+{
+    bool done = false;
+    TIMED_AS(g, FRAME_TAIL, done = battle_frame_wait_finished(g, pf));
+    return done;
+}
 
 // $C1:35DD
 /* The poses as a whole: loaded, then 64 frames of the battle's, each the
  * frame waited for, the frame work's tail, and the poses' step. */
-
-static bool strike_the_poses(GameState *g, PoseCalls call, void *ctx)
+static bool strike_the_poses(GameState *g, Platform *pf)
 {
     load_the_poses(g);
     for (uint8_t left = POSES_FRAMES; left > 0; left--) {
-        if (!call(ctx, POSES_FRAME) || !call(ctx, POSES_TAIL))
+        battle_wait_for_frame(g, pf);
+        if (!finish_the_frame(g, pf))
             return false;
         TIMED_AS(g, 0xC1369A, (void)step_the_poses(g));
     }
     set_battle_queued_uploads_on(g, 0);
     set_battle_frame_phase(g, NO_PHASE);
     return true;
+}
+
+/* The poses, a routine of their own. */
+static bool the_poses_struck(GameState *g, Platform *pf)
+{
+    bool done = false;
+    TIMED_AS(g, STRIKE_THE_POSES, done = strike_the_poses(g, pf));
+    return done;
 }
 
 /* ---- Which poses ---------------------------------------------------------------------------- */
@@ -203,11 +212,12 @@ static void hold_the_markers(GameState *g) { set_battle_markers_held(g, (uint8_t
 // $C1:356D
 /* The victory: the fight's leftovers seen off -- the markers held back, the
  * enemies' drift stopped, each member's look taken off -- each member's menu
- * taken away a frame apart, and the menu window drawn as nobody's; then the
- * party's victory poses, unless the battle was set up without them. */
-static bool see_the_fight_off(GameState *g, PoseCalls call, void *ctx)
+ * taken away a frame apart, and the menu window drawn as nobody's
+ * (battle/menu_window.c); then the party's victory poses, unless the battle
+ * was set up without them. */
+static bool see_the_fight_off(GameState *g, Platform *pf)
 {
-    if (!call(ctx, VICTORY_TAIL))
+    if (!finish_the_frame(g, pf))
         return false;
     hold_the_markers(g);
     for (unsigned enemy = 0; enemy < BATTLE_ENEMY_DRIFTING_COUNT; enemy++)
@@ -217,35 +227,35 @@ static bool see_the_fight_off(GameState *g, PoseCalls call, void *ctx)
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         set_battle_step_member(g, member);
         TIMED_AS(g, 0xC11BAA, battle_call_off_the_menu(g, member));
-        if (!call(ctx, (PoseCall)(VICTORY_FIRST_MENU_GONE + member)))
-            return false;
+        battle_wait_for_frame(g, pf);
     }
     set_battle_menu_member(g, MENU_NONE);
-    return call(ctx, VICTORY_WINDOW);
+    bool drawn = false;
+    TIMED_AS(g, MENU_WINDOW, drawn = battle_menu_window_drawn(g, pf));
+    return drawn;
 }
 
-static bool win(GameState *g, PoseCalls call, void *ctx)
+static bool win(GameState *g, Platform *pf)
 {
-    if (!see_the_fight_off(g, call, ctx))
+    if (!see_the_fight_off(g, pf))
         return false;
     if (battle_setup_flags(g) & BATTLE_SETUP_NO_VICTORY_POSE)
         return true;
     battle_give_the_party_poses(g, PARTY_POSE_VICTORY);
-    return call(ctx, POSES_STRUCK);
+    return the_poses_struck(g, pf);
 }
 
 // $C1:354D
 /* The defeat: the markers held back, a frame waited, and the party's defeat
  * poses, all three of them. */
-static bool lose(GameState *g, PoseCalls call, void *ctx)
+static bool lose(GameState *g, Platform *pf)
 {
-    if (!call(ctx, DEFEAT_TAIL))
+    if (!finish_the_frame(g, pf))
         return false;
     hold_the_markers(g);
-    if (!call(ctx, DEFEAT_FRAME))
-        return false;
+    battle_wait_for_frame(g, pf);
     battle_give_the_party_poses(g, PARTY_POSE_DEFEAT);
-    return call(ctx, POSES_STRUCK);
+    return the_poses_struck(g, pf);
 }
 
 /* What the poses take: the graphics' object a battle slot, as the
@@ -261,53 +271,26 @@ static bool members_graphics_known(GameState *g)
 
 static bool poses_fit(GameState *g) { return (battle_graphics_object(g) >> 8) == 0 && members_graphics_known(g); }
 
-/* ---- The poses' calls ------------------------------------------------------------------------- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} PartyPosesContext;
-
-enum { FRAME_WAIT = 0xC1007E, FRAME_TAIL = 0xCD0009, MENU_WINDOW = 0xC10C2D, STRIKE_THE_POSES = 0xC135DD };
-
-static bool pose_call(void *ctx, PoseCall call)
-{
-    PartyPosesContext *c = ctx;
-    GameState *g = c->game;
-    bool done = false;
-    switch (call) {
-    case POSES_TAIL:
-    case VICTORY_TAIL:
-    case DEFEAT_TAIL: TIMED_AS(g, FRAME_TAIL, done = battle_frame_wait_finished(g, c->pf)); return done;
-    case VICTORY_WINDOW:
-        TIMED_AS(g, MENU_WINDOW, done = battle_menu_window_drawn(g, c->pf));
-        return done;
-    case POSES_STRUCK: TIMED_AS(g, STRIKE_THE_POSES, done = strike_the_poses(g, pose_call, ctx)); return done;
-    default: TIMED_AS(g, FRAME_WAIT, done = battle_wait_for_frame(g, c->pf)); return done;
-    }
-}
+/* ---- The poses, the victory and the defeat ------------------------------------------------- */
 
 bool battle_party_strikes_its_poses(GameState *g, Platform *pf)
 {
     if (!poses_fit(g))
         return battle_contract_broken(g, 0xC135DD, "poses on graphics the builders don't know");
-    PartyPosesContext c = { g, pf };
-    return pose_call(&c, POSES_STRUCK);
+    return the_poses_struck(g, pf);
 }
 
 bool battle_wins_the_fight(GameState *g, Platform *pf)
 {
     if (!poses_fit(g) || !battle_pose_looks_fit(g))
         return battle_contract_broken(g, 0xC1356D, "a victory with looks or graphics the port doesn't take");
-    PartyPosesContext c = { g, pf };
-    return win(g, pose_call, &c);
+    return win(g, pf);
 }
 
 bool battle_loses_the_fight(GameState *g, Platform *pf)
 {
     if (!poses_fit(g))
         return battle_contract_broken(g, 0xC1354D, "a defeat with graphics the port doesn't take");
-    PartyPosesContext c = { g, pf };
-    return lose(g, pose_call, &c);
+    return lose(g, pf);
 }
 

@@ -19,63 +19,26 @@ void menu_redraw_slot_window(GameState *g, uint8_t slot);
 /* ---- The steps ------------------------------------------------------------------------------------ */
 
 /* The screen's steps, its drawing and its showing of the slot under the
- * cursor ($C2:E743, save_screen.c) are each one sequence, which asks what it
- * needs of the menus through LoadScreenSteps.
- *
- * The places the sequences tick or show the slot from. */
-typedef enum {
-    LOAD_AT_THE_OPENING_SHOW,      /* the slot the screen opens on shown */
-    LOAD_AT_THE_ERASE_ASKED_TICK,  /* Select and Start held over a slot */
-    LOAD_AT_THE_CHOOSING_SHOW,     /* choosing: no choice this frame, the slot shown */
-    LOAD_AT_THE_CHOOSING_MOVE_TICK, /* ... and the cursor moved */
-    LOAD_AT_THE_CHOSEN_TICK,       /* a row chosen */
-    LOAD_AT_THE_CARRY_ON_SHOW,     /* which game a New Game+ carries on from: the slot shown */
-    LOAD_AT_THE_CARRY_ON_MOVE_TICK, /* ... and the cursor moved */
-    LOAD_AT_THE_CARRY_ON_CHOSEN_TICK, /* ... a slot chosen */
-    LOAD_AT_THE_CARRY_ON_BACK_TICK, /* ... going back */
-    LOAD_AT_THE_ERASE_MOVE_TICK,   /* the erase question: the cursor moved */
-    LOAD_AT_THE_ERASE_ANSWERED_TICK, /* ... answered */
-    LOAD_AT_THE_FOURTH_ROW_FLIP_TICK, /* the fourth row's choice flipped as the slot is shown */
-    LOAD_PLACES
-} LoadScreenPlace;
+ * cursor ($C2:E743, save_screen.c) are each one sequence, false where it
+ * went no further. */
 
 /* How a step ends: on to choosing as the screen fades in, or out of the
  * menus to the game loaded or begun. */
 typedef enum { LOAD_FADES_IN, LOAD_LEAVES_FOR_THE_GAME } LoadScreenEnd;
 
-/* What the sequences ask: the cursor read, a tick, the slot under the cursor
- * shown, the screen drawn, a New Game+'s question asked, the slot shown's
- * game loaded or carried over by a New Game+, a slot erased, the empty
- * slot's label drawn, a frame's wait, the sound output told to the driver,
- * and the step's end. Each false where it went no further. */
-typedef struct {
-    void (*read_cursor)(void *ctx);
-    bool (*tick)(void *ctx, LoadScreenPlace at);
-    bool (*show_the_slot)(void *ctx, LoadScreenPlace at);
-    bool (*draw)(void *ctx);
-    bool (*ask_which_to_carry_on_from)(void *ctx);
-    bool (*load)(void *ctx);
-    bool (*carry_on)(void *ctx);
-    bool (*erase)(void *ctx);
-    bool (*empty_label)(void *ctx);
-    bool (*wait_a_frame)(void *ctx);
-    bool (*sound_output_sent)(void *ctx);
-    bool (*ends)(void *ctx, LoadScreenEnd end);
-} LoadScreenSteps;
-
 /* The steps ($C2:E613 the opening, $C2:E61B choosing, $C2:E6AE which game a
  * New Game+ carries on from, $C2:E705 the erase question's answer), the
  * screen's drawing ($C2:E7C3) and the slot under the cursor shown
- * ($C2:E743, menu/save_screen.c), through `n`. */
-bool menu_open_load_screen_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx);
-bool menu_choose_on_load_screen_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx);
-bool menu_choose_game_to_carry_on_from_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx);
-bool menu_answer_erase_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx);
-bool menu_draw_load_screen_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx);
-bool menu_show_save_slot_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx);
+ * ($C2:E743, menu/save_screen.c). */
+bool menu_open_load_screen_with(GameState *g, Platform *pf);
+bool menu_choose_on_load_screen_with(GameState *g, Platform *pf);
+bool menu_choose_game_to_carry_on_from_with(GameState *g, Platform *pf);
+bool menu_answer_erase_with(GameState *g, Platform *pf);
+bool menu_draw_load_screen_with(GameState *g, Platform *pf);
+bool menu_show_save_slot_with(GameState *g, Platform *pf);
 /* A slot's erasing ($C2:E8B7): its game forgotten, its row drawn empty and,
  * a frame on, its label queued and its window drawn again. */
-bool menu_erase_slot_with(GameState *g, Platform *pf, const LoadScreenSteps *n, void *ctx);
+bool menu_erase_slot_with(GameState *g, Platform *pf);
 
 /* A New Game+'s question: which game it carries on from, the slot's header
  * given way to its label ($C2:E841). */

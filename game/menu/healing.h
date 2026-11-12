@@ -40,36 +40,10 @@ uint8_t menu_amounts_path_start(MenuAmountKind kind);
 uint8_t menu_amounts_digits(MenuAmountKind kind);
 uint8_t menu_amounts_shown_from(MenuAmountKind kind);
 
-/* The healing shown ($C2:8F55), the amounts shown ($C2:8F6C), their task
- * ($C2:9016) and a kind's rise in it ($C2:9047) are one sequence each,
- * asking for what they need through HealingSteps.
- *
- * The places they wait from. */
-typedef enum {
-    HEALING_AT_THE_AMOUNTS_SHOWN,  /* the showing waiting for its task */
-    HEALING_AT_THE_RISING_WAIT,    /* a kind's rise waiting for the next frame */
-} HealingPlace;
-
-/* The routines they go on to: the amounts shown, a kind's rise (its kind the
- * value), the kind's sound (its sound the value). */
-typedef enum { HEALING_SHOWS_THE_AMOUNTS, HEALING_RAISES_A_KIND, HEALING_SENDS_THE_KIND_S_SOUND } HealingRoutine;
-
-/* What the sequences ask: a frame's wait, a routine run, the task's end.
- * Each false where it went no further. */
-typedef struct {
-    bool (*wait)(void *ctx, HealingPlace at);
-    bool (*run)(void *ctx, HealingRoutine routine, uint8_t value);
-    bool (*ends)(void *ctx);
-} HealingSteps;
-
-bool menu_heal_and_show_with(GameState *g, const HealingSteps *n, void *ctx);
-bool menu_show_amounts_with(GameState *g, const HealingSteps *n, void *ctx);
-bool menu_raise_amounts_with(GameState *g, const HealingSteps *n, void *ctx);
-bool menu_raise_amount_kind_with(GameState *g, const HealingSteps *n, void *ctx);
-
-/* The healing shown, the amounts shown, where the state is one they
- * handle; the numbers' task, which the menus' tasks
- * run (menu/tasks.c). False where the program went no further. */
+/* The healing shown ($C2:8F55), the amounts shown ($C2:8F6C), where the
+ * state is one they handle; the numbers' task ($C2:9016, each kind's rise
+ * $C2:9047), which the menus' tasks run (menu/tasks.c). False where the
+ * program went no further. */
 bool menu_heal_and_show(GameState *g, Platform *pf);
 bool menu_show_amounts(GameState *g, Platform *pf);
 void menu_raise_amounts_task(GameState *g, Platform *pf);

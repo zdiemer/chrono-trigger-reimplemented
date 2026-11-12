@@ -1125,9 +1125,6 @@ bool menu_epoch_kept_off_the_ground(GameState *g, MenuObject epoch) { return in_
 
 /* ---- The screens, as one sequence each -------------------------------------------------------- */
 
-/* Which screen a step is for, where the two make it at different places. */
-typedef enum { THE_MAP_VIEW, THE_TIME_DIAL } EpochScreen;
-
 /* The waits the screens make while the sound's requests go on: the map view
  * as it closes, the dial as it opens and as it closes. */
 typedef enum { MAP_VIEW_CLOSING, DIAL_OPENING, DIAL_CLOSING } EpochWait;
@@ -1140,41 +1137,32 @@ typedef enum { GATE_TILES_STREAM, GATE_PALETTE_STREAM, GATE_ROWS_STREAM } GateSt
 static const uint8_t gate_stream_bank[] = { [GATE_TILES_STREAM] = 0xC3, [GATE_PALETTE_STREAM] = 0xC6,
                                             [GATE_ROWS_STREAM] = 0xC6 };
 
-/* The screen services: graphics and text, then waits while the objects
- * and sound advance. Each checks the game state it needs first; false means
- * the screen stopped before its next step. */
-typedef struct {
-    bool (*clear_vram)(void *ctx, EpochScreen screen);
-    bool (*load_markers)(void *ctx);
-    bool (*build_map)(void *ctx);
-    bool (*build_gate)(void *ctx);
-    bool (*load_stream)(void *ctx, GateStream stream);
-    bool (*start_text)(void *ctx);
-    bool (*set_glyphs)(void *ctx);
-    bool (*wait_a_frame)(void *ctx, EpochScreen screen);
-    bool (*wait_frames)(void *ctx, EpochWait wait);
-} EpochScreenSteps;
+/* The screens' services (below): graphics and text, each checking the game
+ * state it needs first, false where the screen stopped before its next
+ * step; and the waits while the objects and sound advance. */
+static bool load_the_markers(GameState *g, Platform *pf);
+static bool build_the_map(GameState *g, Platform *pf);
+static bool build_the_gate(GameState *g, Platform *pf);
+static void load_a_stream(GameState *g, GateStream stream);
+static bool start_the_text(GameState *g);
+static bool set_the_glyphs(GameState *g);
+static void wait_frames(GameState *g, Platform *pf, EpochWait wait);
 
 /* What both screens do first: the menus' VRAM cleared, the mode's upload
  * queue reset and every object slot freed. */
-static bool clear_the_screen_with(GameState *g, EpochScreen screen, const EpochScreenSteps *steps, void *ctx)
+static void clear_the_screen(GameState *g, Platform *pf)
 {
-    if (!steps->clear_vram(ctx, screen))
-        return false;
+    TIMED_AS(g, 0xC226A8, menu_clear_all_of_vram(pf));
     TIMED_AS(g, 0xC203EF, menu_object_reset_the_upload_queue(g));
     TIMED_AS(g, 0xC20471, menu_free_every_object(g));
-    return true;
 }
 
 /* The screen runs until the menus' mode leaves `mode`, a frame at a time. */
-static bool run_until_the_mode_changes_with(GameState *g, EpochScreen screen, uint8_t mode,
-                                            const EpochScreenSteps *steps, void *ctx)
+static void run_until_the_mode_changes(GameState *g, Platform *pf, uint8_t mode)
 {
     do
-        if (!steps->wait_a_frame(ctx, screen))
-            return false;
+        menu_wait_for_the_next_frame(g, pf);
     while (menu_mode(g) == mode);
-    return true;
 }
 
 static void start_a_script(GameState *g, uint32_t script)
@@ -1215,14 +1203,14 @@ static void finish_the_time_dial(GameState *g, Platform *pf)
 // $C2:6965
 /* Set the view's marker glyphs (the typesetter's start and a call), and send
  * them to VRAM $6200. */
-static bool load_map_view_graphics_with(GameState *g, Platform *pf, const EpochScreenSteps *steps, void *ctx)
+static bool load_map_view_graphics(GameState *g, Platform *pf)
 {
     TIMED_AS(g, 0xC25798, overworld_clear_the_sign_label(g));   /* clear the loader's buffer */
     request_map_view_graphics(g);
-    if (!steps->start_text(ctx))
+    if (!start_the_text(g))
         return false;
     set_menu_text_budget(g, MAP_VIEW_GLYPHS);
-    if (!steps->set_glyphs(ctx))
+    if (!set_the_glyphs(g))
         return false;
     vid_send_vram(pf, PF_AT(0xC269C8), 0x6200, PF_GAME(RAM_MENU_MAP_GRAPHICS), 0x0400, &after_high);
     return true;
@@ -1230,15 +1218,11 @@ static bool load_map_view_graphics_with(GameState *g, Platform *pf, const EpochS
 
 // $C2:63DF
 /* Load the world map's tiles (overworld/setup.c), then build the view's
- * plane from them. False where the unpacker stopped. */
-static bool build_map_view_from(GameState *g, Platform *pf, const Unpacker *u)
+ * plane from them. */
+static void build_map_view_from_the_tiles(GameState *g, Platform *pf)
 {
-    bool loaded = false;
-    TIMED_AS(g, 0xC227DE, loaded = overworld_load_the_map_tiles(g, u));
-    if (!loaded)
-        return false;
+    TIMED_AS(g, 0xC227DE, overworld_load_the_map_tiles(g));
     build_map_view(g, pf);
-    return true;
 }
 
 // $C2:631F
@@ -1247,19 +1231,18 @@ static bool build_map_view_from(GameState *g, Platform *pf, const Unpacker *u)
  * its script started, and the screen run until the menus' mode leaves it. */
 enum { MAP_VIEW_MODE = 0x06, BACKDROP = 0x20, MAP_VIEW_CURSOR = 0x666C, MAP_VIEW_SCRIPT = 0xC269F8 };
 
-static bool show_the_map_view_with(GameState *g, Platform *pf, const EpochScreenSteps *steps, void *ctx)
+static bool show_the_map_view(GameState *g, Platform *pf)
 {
     set_menu_object_shadows_bg_mode(g, MODE_7);
     const VidObjConfig sprites = { .size_select = 3, .base = 0x6000, .name_select = 0 };
     vid_set_obj_config(pf, PF_AT(0xC26325), &sprites);
     set_menu_object_shadows_math_control(g, 0);
     set_menu_object_shadows_math_layers(g, BACKDROP);
-    if (!clear_the_screen_with(g, THE_MAP_VIEW, steps, ctx))
-        return false;
-    if (!steps->load_markers(ctx))
+    clear_the_screen(g, pf);
+    if (!load_the_markers(g, pf))
         return false;
     TIMED_AS(g, 0xC268F4, map_view_gradient(g, pf));
-    if (!steps->build_map(ctx))
+    if (!build_the_map(g, pf))
         return false;
 
     vid_send_vram(pf, PF_AT(0xC26340), 0x6000, menu_map_view_tiles(false), 0x0020, &after_high);
@@ -1277,17 +1260,16 @@ static bool show_the_map_view_with(GameState *g, Platform *pf, const EpochScreen
     TIMED_AS(g, 0xC2048A, (void)menu_start_object(g, MAP_VIEW_CURSOR, MENU_ORDINARY_SLOT, &cursor));
     start_a_script(g, MAP_VIEW_SCRIPT);
     show_from_the_next_frame(g, pf, 0xC263B7);
-    if (!run_until_the_mode_changes_with(g, THE_MAP_VIEW, MAP_VIEW_MODE, steps, ctx)
-        || !steps->wait_frames(ctx, MAP_VIEW_CLOSING))
-        return false;
+    run_until_the_mode_changes(g, pf, MAP_VIEW_MODE);
+    wait_frames(g, pf, MAP_VIEW_CLOSING);
     finish_the_map_view(g, pf);
     return true;
 }
 
 // $C2:71F9
-static bool load_gate_stream_from(GameState *g, const Unpacker *u, uint8_t stream, uint8_t bank)
+static void load_gate_stream(GameState *g, uint8_t stream, uint8_t bank)
 {
-    return u->unpack(u->ctx, 0xC2721B, (uint32_t)bank << 16 | menu_gate_stream_source(g, stream),
+    overworld_unpack(g, (uint32_t)bank << 16 | menu_gate_stream_source(g, stream),
                      (uint32_t)EXTRA_RAM_BANK << 16 | menu_gate_stream_dest(g, stream));
 }
 
@@ -1296,23 +1278,19 @@ static bool load_gate_stream_from(GameState *g, const Unpacker *u, uint8_t strea
  * its picture, and the objects that drive it. */
 enum { GATE_TILE_VRAM = 0x6400, GATE_TILEMAP_VRAM = 0x6000, GATE_TILEMAP_ROWS = 0x40, GATE_TILES_BYTES = 0x800 };
 
-static bool build_the_dial_with(GameState *g, Platform *pf, const EpochScreenSteps *steps, void *ctx)
+static void build_the_dial(GameState *g, Platform *pf)
 {
-    if (!steps->load_stream(ctx, GATE_TILES_STREAM))
-        return false;
+    load_a_stream(g, GATE_TILES_STREAM);
     vid_send_vram(pf, PF_AT(0xC27393), GATE_TILE_VRAM, PF_GAME(RAM_MENU_GATE_TILES), GATE_TILES_BYTES, &after_high);
     TIMED_AS(g, 0xC272D8, upload_gate_rows(g, pf, GATE_TILEMAP_ROWS, MENU_GATE_TILEMAP_ROWS, RAM_MENU_MODE7_PLANE,
                                            GATE_TILEMAP_VRAM));
-    if (!steps->load_stream(ctx, GATE_PALETTE_STREAM))
-        return false;
+    load_a_stream(g, GATE_PALETTE_STREAM);
     keep_dial_palette(g);
-    if (!steps->load_stream(ctx, GATE_ROWS_STREAM))
-        return false;
+    load_a_stream(g, GATE_ROWS_STREAM);
     TIMED_AS(g, 0xC27254, upload_gate_tiles(g, pf));
     TIMED_AS(g, 0xC27361, unpack_gate_pixels(g));
     TIMED_AS(g, 0xC2722C, upload_gate_pixels(pf));
     start_dial_objects(g);
-    return true;
 }
 
 // $C2:6A34
@@ -1324,10 +1302,9 @@ enum { DIAL_MODE = 0x08, DIAL_SCROLL_X = 0xFF80, DIAL_SCROLL_Y = 0xFF90, UNIT_HI
 enum { WINDOW1_ON_COLOUR = 0x20, BG1_AND_SPRITES = 0x11, MATH_INSIDE_THE_WINDOW = 0x10, MATH_LAYERS = 0x17 };
 enum { FIXED_LEVEL = 0x0F };
 
-static bool show_the_time_dial_with(GameState *g, Platform *pf, const EpochScreenSteps *steps, void *ctx)
+static bool show_the_time_dial(GameState *g, Platform *pf)
 {
-    if (!clear_the_screen_with(g, THE_TIME_DIAL, steps, ctx))
-        return false;
+    clear_the_screen(g, pf);
     set_menu_object_shadows_bg_mode(g, MODE_7);
     const VidObjConfig sprites = { .size_select = 0, .base = 0x6000, .name_select = 0 };
     vid_set_obj_config(pf, PF_AT(0xC26A43), &sprites);
@@ -1355,129 +1332,84 @@ static bool show_the_time_dial_with(GameState *g, Platform *pf, const EpochScree
     set_menu_object_shadows_fixed_red(g, FIXED_LEVEL);
     set_menu_object_shadows_fixed_green(g, FIXED_LEVEL);
     set_menu_gate_flags(g, 0);
-    if (!steps->build_gate(ctx))
+    if (!build_the_gate(g, pf))
         return false;
     show_from_the_next_frame(g, pf, 0xC26A93);
-    if (!steps->wait_frames(ctx, DIAL_OPENING) || !run_until_the_mode_changes_with(g, THE_TIME_DIAL, DIAL_MODE, steps, ctx))
-        return false;
+    wait_frames(g, pf, DIAL_OPENING);
+    run_until_the_mode_changes(g, pf, DIAL_MODE);
     start_a_script(g, DIAL_ENDING_SCRIPT);
-    if (!steps->wait_frames(ctx, DIAL_CLOSING))
-        return false;
+    wait_frames(g, pf, DIAL_CLOSING);
     finish_the_time_dial(g, pf);
     return true;
 }
 
 /* ---- The screens' services -------------------------------------------------------------------- */
 
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} EpochScreenContext;
-
-static bool clear_all_of_vram(void *ctx, EpochScreen screen)
+static bool load_the_markers(GameState *g, Platform *pf)
 {
-    (void)screen;
-    EpochScreenContext *c = ctx;
-    TIMED_AS(c->game, 0xC226A8, menu_clear_all_of_vram(c->pf));
-    return true;
-}
-
-static const EpochScreenSteps epoch_screen_steps;
-
-static bool load_the_markers(void *ctx)
-{
-    EpochScreenContext *c = ctx;
     bool loaded = false;
-    TIMED_AS(c->game, 0xC26965, loaded = load_map_view_graphics_with(c->game, c->pf, &epoch_screen_steps, c));
+    TIMED_AS(g, 0xC26965, loaded = load_map_view_graphics(g, pf));
     return loaded;
 }
 
-static bool build_the_map(void *ctx)
+static bool build_the_map(GameState *g, Platform *pf)
 {
-    EpochScreenContext *c = ctx;
-    if (!overworld_map_tiles_can_load(c->game) || !map_picture_buffer_fits(c->game)) {
-        program_breaks_a_contract(c->game, 0xC263DF, "a map view without its map record or a strip buffer clear of low RAM");
+    if (!overworld_map_tiles_can_load(g) || !map_picture_buffer_fits(g)) {
+        program_breaks_a_contract(g, 0xC263DF, "a map view without its map record or a strip buffer clear of low RAM");
         return false;
     }
-    Unpacker u = overworld_unpacker(c->game);
-    bool built = false;
-    TIMED_AS(c->game, 0xC263DF, built = build_map_view_from(c->game, c->pf, &u));
-    return built;
-}
-
-static bool build_the_gate(void *ctx)
-{
-    EpochScreenContext *c = ctx;
-    if (!menu_object_address_names_one(menu_object_current(c->game))) {
-        program_breaks_a_contract(c->game, 0xC27389, "a time dial built with no object running");
-        return false;
-    }
-    bool built = false;
-    TIMED_AS(c->game, 0xC27389, built = build_the_dial_with(c->game, c->pf, &epoch_screen_steps, c));
-    return built;
-}
-
-static bool load_a_stream(void *ctx, GateStream stream)
-{
-    EpochScreenContext *c = ctx;
-    Unpacker u = overworld_unpacker(c->game);
-    bool loaded = false;
-    TIMED_AS(c->game, 0xC271F9, loaded = load_gate_stream_from(c->game, &u, (uint8_t)stream, gate_stream_bank[stream]));
-    return loaded;
-}
-
-static bool start_the_text(void *ctx)
-{
-    EpochScreenContext *c = ctx;
-    if (!menu_text_can_start(c->game)) {
-        program_breaks_a_contract(c->game, 0xC257DF, "a text the typesetter doesn't start");
-        return false;
-    }
-    TIMED_AS(c->game, 0xC257DF, menu_text_start(c->game));
+    TIMED_AS(g, 0xC263DF, build_map_view_from_the_tiles(g, pf));
     return true;
 }
 
-static bool set_the_glyphs(void *ctx)
+static bool build_the_gate(GameState *g, Platform *pf)
 {
-    EpochScreenContext *c = ctx;
-    if (!menu_text_can_carry_on(c->game)) {
-        program_breaks_a_contract(c->game, 0xC25823, "a text the typesetter doesn't go on with");
+    if (!menu_object_address_names_one(menu_object_current(g))) {
+        program_breaks_a_contract(g, 0xC27389, "a time dial built with no object running");
         return false;
     }
-    TIMED_AS(c->game, 0xC25823, menu_text_go_on(c->game));
+    TIMED_AS(g, 0xC27389, build_the_dial(g, pf));
     return true;
 }
 
-static bool wait_for_the_next_frame(void *ctx, EpochScreen screen)
+static void load_a_stream(GameState *g, GateStream stream)
 {
-    (void)screen;
-    EpochScreenContext *c = ctx;
-    menu_wait_for_the_next_frame(c->game, c->pf);
-    return true;
+    TIMED_AS(g, 0xC271F9, load_gate_stream(g, (uint8_t)stream, gate_stream_bank[stream]));
 }
 
-static bool wait_frames_sending_the_sound(void *ctx, EpochWait wait)
+static bool start_the_text(GameState *g)
 {
-    EpochScreenContext *c = ctx;
-    menu_wait_frames_sending_the_sound(c->game, c->pf, epoch_wait_frames[wait]);
+    if (!menu_text_can_start(g)) {
+        program_breaks_a_contract(g, 0xC257DF, "a text the typesetter doesn't start");
+        return false;
+    }
+    TIMED_AS(g, 0xC257DF, menu_text_start(g));
     return true;
 }
 
-static const EpochScreenSteps epoch_screen_steps = {
-    clear_all_of_vram, load_the_markers, build_the_map, build_the_gate, load_a_stream, start_the_text,
-    set_the_glyphs, wait_for_the_next_frame, wait_frames_sending_the_sound,
-};
+static bool set_the_glyphs(GameState *g)
+{
+    if (!menu_text_can_carry_on(g)) {
+        program_breaks_a_contract(g, 0xC25823, "a text the typesetter doesn't go on with");
+        return false;
+    }
+    TIMED_AS(g, 0xC25823, menu_text_go_on(g));
+    return true;
+}
+
+static void wait_frames(GameState *g, Platform *pf, EpochWait wait)
+{
+    menu_wait_frames_sending_the_sound(g, pf, epoch_wait_frames[wait]);
+}
 
 bool menu_epoch_map_view_shown(GameState *g, Platform *pf)
 {
-    EpochScreenContext c = { g, pf };
-    return show_the_map_view_with(g, pf, &epoch_screen_steps, &c);
+    return show_the_map_view(g, pf);
 }
 
 bool menu_epoch_time_dial_shown(GameState *g, Platform *pf)
 {
-    EpochScreenContext c = { g, pf };
-    return show_the_time_dial_with(g, pf, &epoch_screen_steps, &c);
+    return show_the_time_dial(g, pf);
 }
 
 /* The objects whose handlers go by steps are on one of theirs: the original

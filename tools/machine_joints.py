@@ -37,6 +37,8 @@ JOINTS = [
     ("cartridge reads by address", None, "named resource accessors serving the store's bytes"),
     ("scaffolding writes", r"\bORIGINAL_EFFECT\(", "its subsystem retiring the gate"),
     ("functions that take the machine", None, "the game's state and plain values as parameters"),
+    ("callbacks through an opaque context", None, "the callee called directly with typed values"),
+    ("carry-shaped values", None, "a parameter or result named for what it means"),
 ]
 
 ENTRY = re.compile(r"0x[0-9A-Fa-f]{6}")
@@ -126,6 +128,11 @@ def count(per_file):
             name = "cartridge reads by address"
             totals[name] += n
             by_file[path.relative_to(ROOT).as_posix()][name] += n
+        for name, n in (("callbacks through an opaque context", context_callbacks(text)),
+                        ("carry-shaped values", carry_values(text))):
+            if n:
+                totals[name] += n
+                by_file[path.relative_to(ROOT).as_posix()][name] += n
         n = machine_functions(text)
         if n:
             name = "functions that take the machine"
@@ -146,6 +153,25 @@ def count(per_file):
     totals["registered entries"] = dispatch_rows("game_natives")
     totals["held waits' continuations"] = dispatch_rows("game_held_waits")
     return totals, by_file
+
+
+def context_callbacks(text):
+    """Function-pointer declarators (types, members, parameters) that take a
+    `void *` context: the adapter a machine half once implemented, through
+    which a sequence asks its one caller for each step instead of calling it.
+    A dispatch table's operations take the game's state and typed operands,
+    not `void *`, and are not counted."""
+    text = without_comments(text)
+    return sum(1 for m in re.finditer(r"\(\s*\*\s*\w*\s*\)\s*\(([^()]*)\)", text)
+               if re.search(r"\bvoid\s*\*", m.group(1)))
+
+
+def carry_values(text):
+    """Parameters and fields named for the 65816's carry flag: an input or
+    result shaped by the original's register convention rather than by what
+    it says about the game."""
+    text = without_comments(text)
+    return len(re.findall(r"\b(?:bool|uint8_t|unsigned)\s+carry\s*[,;)]", text))
 
 
 # A function definition: a return type and name at the start of a line, its

@@ -62,9 +62,8 @@ EVENT_CHECK_TAKING_NOTHING(tables_in_the_rom)
 enum { NPC_TOO_FAR = 0xC046D1 };
 enum { ENEMY_TOO_FAR = 0xC0483A };
 
-/* A set unpacked (below): false where it went no further, a set that runs
- * past the bank's end stopping the game, which the original does at its
- * error's start. */
+/* The two kinds of set the casting unpacks, each with where the original
+ * stops the game for it. */
 typedef enum { NPC_SET, ENEMY_SET, SET_KINDS } SetKind;
 static const struct {
     uint32_t too_far;
@@ -73,39 +72,10 @@ static const struct {
     [ENEMY_SET] = { ENEMY_TOO_FAR },
 };
 
-typedef struct {
-    bool (*unpack)(void *ctx, FieldSpriteRecord r, SetKind kind);
-    void *ctx;
-} SetUnpacker;
-
-/* The casting's two halves either side of the unpacking: the object takes
- * on the one it is cast as, and the graphics, where no object of the map
- * shares them, are unpacked. */
-static bool cast_npc(GameState *g, FieldObject self, uint8_t npc, const SetUnpacker *u, CastGraphics *graphics)
+/* A set's graphics unpacked: false where a set that runs past the bank's
+ * end stops the game, which the original does at its error's start. */
+static bool unpack_set(GameState *g, FieldSpriteRecord r, SetKind kind)
 {
-    *graphics = object_cast_as_npc(g, self, npc);
-    if (graphics->source == GRAPHICS_TO_UNPACK && !u->unpack(u->ctx, graphics->record, NPC_SET))
-        return false;
-    npc_loaded(g);
-    return true;
-}
-
-static bool cast_enemy(GameState *g, Platform *pf, FieldObject self, uint8_t enemy, uint8_t slot, const SetUnpacker *u,
-                       CastGraphics *graphics, void (*between)(void *ctx, CastGraphics graphics))
-{
-    *graphics = object_cast_as_enemy(g, self, enemy);
-    if (graphics->source == GRAPHICS_TO_UNPACK
-        && !u->unpack(u->ctx, graphics->record, ENEMY_SET))
-        return false;
-    between(u->ctx, *graphics);
-    enemy_takes_its_place(g, pf, self, slot);
-    return true;
-}
-
-/* The unpacker. */
-static bool unpack(void *ctx, FieldSpriteRecord r, SetKind kind)
-{
-    GameState *g = ctx;
     ask_to_unpack(g, r.graphics);
     (void)unpack_stream(g);
     if (graphics_unpacked(g))
@@ -114,16 +84,33 @@ static bool unpack(void *ctx, FieldSpriteRecord r, SetKind kind)
     return false;
 }
 
-static void nothing_between(void *ctx, CastGraphics graphics) { (void)ctx, (void)graphics; }
+/* The casting's two halves either side of the unpacking: the object takes
+ * on the one it is cast as, and the graphics, where no object of the map
+ * shares them, are unpacked. */
+static bool cast_npc(GameState *g, FieldObject self, uint8_t npc)
+{
+    CastGraphics graphics = object_cast_as_npc(g, self, npc);
+    if (graphics.source == GRAPHICS_TO_UNPACK && !unpack_set(g, graphics.record, NPC_SET))
+        return false;
+    npc_loaded(g);
+    return true;
+}
+
+static bool cast_enemy(GameState *g, Platform *pf, FieldObject self, uint8_t enemy, uint8_t slot)
+{
+    CastGraphics graphics = object_cast_as_enemy(g, self, enemy);
+    if (graphics.source == GRAPHICS_TO_UNPACK && !unpack_set(g, graphics.record, ENEMY_SET))
+        return false;
+    enemy_takes_its_place(g, pf, self, slot);
+    return true;
+}
 
 enum { CAST_NPC_LENGTH = 2, CAST_ENEMY_LENGTH = 3 };
 
 bool event_cast_npc(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     EventCommand c = event_decode(g, pf, event_opcode(0x82), at);
-    SetUnpacker u = { unpack, g };
-    CastGraphics graphics;
-    if (!cast_npc(g, c.self, c.npc, &u, &graphics))
+    if (!cast_npc(g, c.self, c.npc))
         return false;
     *step = (EventStep){ (uint16_t)(at + CAST_NPC_LENGTH), true };
     return true;
@@ -132,9 +119,7 @@ bool event_cast_npc(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 bool event_cast_enemy(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     EventCommand c = event_decode(g, pf, event_opcode(0x83), at);
-    SetUnpacker u = { unpack, g };
-    CastGraphics graphics;
-    if (!cast_enemy(g, pf, c.self, c.enemy, c.slot, &u, &graphics, nothing_between))
+    if (!cast_enemy(g, pf, c.self, c.enemy, c.slot))
         return false;
     *step = (EventStep){ (uint16_t)(at + CAST_ENEMY_LENGTH), true };
     return true;

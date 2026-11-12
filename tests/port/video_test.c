@@ -11,17 +11,11 @@ static int failures;
 #define CHECK(c) do { if (!(c)) { fprintf(stderr, "line %d: %s\n", __LINE__, #c); failures++; } } while (0)
 
 static unsigned fallback_reads;
-static uint8_t copied[8];
 static uint8_t unexpected_read(void *ctx, uint32_t at)
 {
     (void)ctx; (void)at;
     fallback_reads++;
     return 0xEE;
-}
-static void copy_byte(void *ctx, uint32_t at, uint8_t value)
-{
-    (void)ctx;
-    copied[at & 7] = value;
 }
 static const uint8_t *split_bytes(uint32_t at)
 {
@@ -33,7 +27,7 @@ static void resource_transfers(void)
 {
     Platform pf = {0};
     const uint8_t tiles[] = { 0x12, 0x34, 0x56, 0x78 };
-    vid_host_start(&pf, unexpected_read, copy_byte, NULL);
+    vid_host_start(&pf, unexpected_read, NULL);
     vid_send_vram(&pf, PF_AT(0), 0, (PfData){ .addr = 0xC01000, .ptr = tiles }, 4,
                   &(VidVramPort){ .step = 1, .after_high = true });
     vid_send_vram(&pf, PF_AT(0), 2, (PfData){ .addr = 0xC0FFFF, .byte_at = split_bytes }, 2, NULL);
@@ -42,18 +36,9 @@ static void resource_transfers(void)
     CHECK(f->vram[0] == 0x12 && f->vram[3] == 0x78);
     CHECK(f->vram[4] == 0x35 && f->vram[5] == 0x71);
     CHECK(f->vram[6] == 0xA5 && f->vram[7] == 0xA5 && f->vram[8] == 0xA5);
-    VidSnesTransfer transfer = { .dest = VID_SNES_WRAM_DATA, .data = { .ptr = tiles }, .size = 4 };
-    vid_snes_copy(&pf, PF_AT(0), &transfer);
-    CHECK(copied[0] == 0x12 && copied[3] == 0x78);
-    transfer.data = PF_VALUE(0);
-    transfer.repeats = true;
-    vid_snes_copy(&pf, PF_AT(0), &transfer);
-    CHECK(copied[0] == 0 && copied[3] == 0);
-    transfer.repeats = false;
-    transfer.mode_from_data = true;
-    transfer.mode = 0x08;
-    vid_snes_copy(&pf, PF_AT(0), &transfer);
-    CHECK(copied[0] == 0 && copied[3] == 0);
+    /* What was sent reads back as words, at their plain addresses. */
+    CHECK(vid_vram_word(&pf, PF_AT(0), 0) == 0x3412 && vid_vram_word(&pf, PF_AT(0), 1) == 0x7856);
+    CHECK(vid_vram_word(&pf, PF_AT(0), 2) == 0x7135 && vid_vram_word(&pf, PF_AT(0), 0x8000) == 0x3412);
     CHECK(fallback_reads == 0);
     vid_host_stop(&pf);
 }
@@ -68,7 +53,7 @@ static void fill_half_from_cursor(void)
 {
     Platform pf = {0};
     const uint8_t original[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
-    vid_host_start(&pf, unexpected_read, copy_byte, NULL);
+    vid_host_start(&pf, unexpected_read, NULL);
     vid_send_vram(&pf, PF_AT(0), 0, (PfData){ .ptr = original }, sizeof original,
                   &(VidVramPort){ .step = 1, .after_high = true });
     vid_start_vram_uploads(&pf, PF_AT(0), &(VidVramPort){ .step = 1 });
@@ -96,7 +81,21 @@ static void fill_half_from_cursor(void)
                        &(VidVramPort){ .step = 1, .after_high = true });
     f = vid_host_picture(&pf);
     CHECK(f->vram[0] == 1 && f->vram[1] == 1 && f->vram[2] == 1 && f->vram[3] == 1);
-    CHECK(pf.video.escapes == 0);
+
+    /* A send from where the address stands goes on from there: whole words,
+     * then one half of each word, stepping as the port says. */
+    vid_start_vram_uploads(&pf, PF_AT(0), &(VidVramPort){ .step = 1, .after_high = true });
+    vid_set_vram_address(&pf, PF_AT(0), 0x10);
+    vid_continue_vram(&pf, PF_AT(0), (PfData){ .ptr = original }, 4);
+    vid_continue_vram(&pf, PF_AT(0), (PfData){ .ptr = original + 4 }, 2);
+    vid_continue_vram_half(&pf, PF_AT(0), (PfData){ .ptr = original }, 2, VID_VRAM_HIGH_BYTES);
+    vid_start_vram_uploads(&pf, PF_AT(0), &(VidVramPort){ .step = 32, .after_high = false });
+    vid_continue_vram_half(&pf, PF_AT(0), (PfData){ .ptr = original + 6 }, 2, VID_VRAM_LOW_BYTES);
+    f = vid_host_picture(&pf);
+    CHECK(f->vram[0x20] == 1 && f->vram[0x21] == 2 && f->vram[0x22] == 3 && f->vram[0x23] == 4);
+    CHECK(f->vram[0x24] == 5 && f->vram[0x25] == 6);
+    CHECK(f->vram[0x27] == 1 && f->vram[0x29] == 2);
+    CHECK(f->vram[0x2A] == 7 && f->vram[0x6A] == 8 && f->vram[0x2B] == 0);
     CHECK(fallback_reads == 0);
     vid_host_stop(&pf);
 }
@@ -112,7 +111,7 @@ static const VidLineState *line_state(const VidFrame *f, unsigned line)
 static void raster_changes(void)
 {
     Platform pf = {0};
-    vid_host_start(&pf, effect_byte, NULL, NULL);
+    vid_host_start(&pf, effect_byte, NULL);
     vid_set_display(&pf, PF_AT(0), &(VidDisplay){ .brightness = 15 });
     pf.timing.part = TM_HOST_IN_LINE;
     pf.timing.line = VID_HOST_LAST_LINE;
@@ -170,7 +169,7 @@ static void picture_line(Platform *pf, void *ctx)
 static void handler_uploads(uint16_t line)
 {
     Platform pf = {0};
-    vid_host_start(&pf, NULL, NULL, NULL);
+    vid_host_start(&pf, NULL, NULL);
     TmHostProgram program = { .main_thread = picture_main, .line = picture_line, .ctx = &line };
     tm_host_start(&pf, &program, 1);
     tm_host_frame(&pf);
@@ -199,7 +198,7 @@ static void handler_uploads(uint16_t line)
 static void changing_picture(void)
 {
     Platform pf = {0};
-    vid_host_start(&pf, NULL, NULL, NULL);
+    vid_host_start(&pf, NULL, NULL);
     VidObserver *ob = pf.video.observer;
     VidRenderer *r = vid_render_create();
     uint32_t *pixels = calloc(VID_RENDER_WIDTH * VID_RENDER_HEIGHT, sizeof *pixels);

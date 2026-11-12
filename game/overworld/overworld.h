@@ -264,17 +264,6 @@ uint16_t overworld_event_script_for(const GameState *g, PartyPlace place);
 /* The walker takes up its script, from its start, and runs it. */
 void overworld_take_up_script(GameState *g, MenuObject walker, uint16_t script);
 
-/* How a walker runs its script for a frame: through the script interpreter
- * (overworld/handlers.c). It says how the frame's run ended: waiting for the
- * next frame, the script done, or the frame handed over (the interpreter
- * stopped), after which the walker does nothing more this frame. */
-typedef enum { WALKER_STARTS_ITS_SCRIPT, WALKER_GOES_ON_WITH_ITS_SCRIPT } WalkerScriptRun;
-typedef enum { WALKER_SCRIPT_WAITS, WALKER_SCRIPT_DONE, WALKER_SCRIPT_HANDED_OVER } WalkerScriptEnd;
-typedef struct {
-    WalkerScriptEnd (*run)(void *ctx, WalkerScriptRun run);
-    void *ctx;
-} WalkerScripts;
-
 /* ---- The leader's trail ------------------------------------------------------------------ */
 
 /* The leader's trail: where each of its last sixteen steps ended, which the

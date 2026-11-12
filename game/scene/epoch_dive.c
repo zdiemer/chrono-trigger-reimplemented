@@ -635,47 +635,20 @@ enum {
  * plane. */
 enum { PLANE_HALF_BYTES = 0x2000 };
 
-/* The setup's steps that are the program's other routines: a resource
- * unpacked by its unpacker, the camera's script's first step, and the
- * Epoch's first drawing with the main loop's call passed once. */
-typedef enum {
-    UNPACK_SHELL_PIXELS, UNPACK_SHELL_MAP, UNPACK_DIVE_COLOURS, UNPACK_SPRITE_TILES, UNPACK_MORE_SPRITE_TILES,
-    UNPACK_PANEL_MAP, UNPACK_EPOCH_PICTURE, DIVE_UNPACKS
-} DiveUnpack;
-
-static const struct {
-    uint32_t site;
-    uint16_t resource;
-} dive_unpacks[DIVE_UNPACKS] = {
-    [UNPACK_SHELL_PIXELS] = { 0x7E78F2, SHELL_PIXELS },   [UNPACK_SHELL_MAP] = { 0x7E7905, SHELL_MAP },
-    [UNPACK_DIVE_COLOURS] = { 0x7E7945, DIVE_COLOURS },   [UNPACK_SPRITE_TILES] = { 0x7E7ADE, SPRITE_TILES },
-    [UNPACK_MORE_SPRITE_TILES] = { 0x7E7AFD, MORE_SPRITE_TILES }, [UNPACK_PANEL_MAP] = { 0x7E7B0D, PANEL_MAP },
-    [UNPACK_EPOCH_PICTURE] = { 0x7E7987, EPOCH_PICTURE },
-};
-
-typedef struct {
-    bool (*unpack)(void *ctx, DiveUnpack which);
-    bool (*first_step)(void *ctx);
-    bool (*draw_and_scale_once)(void *ctx);
-} DiveSetUpSteps;
-
-static bool load_the_shell(GameState *g, Platform *pf, const DiveSetUpSteps *steps, void *ctx)
+static void load_the_shell(GameState *g, Platform *pf)
 {
     vid_set_vram_address(pf, PF_AT(0x7E78E4), SHELL_PIXELS_VRAM);
     vid_start_vram_uploads(pf, PF_AT(0x7E78E9), SCENE_VRAM_WHOLE_WORDS);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    if (!steps->unpack(ctx, UNPACK_SHELL_PIXELS))
-        return false;
+    scene_unpacks(g, SHELL_PIXELS);
     scene_choose_transfer(g, scene_pixels_into_high_bytes);
     scene_send_unpacked_by(g, pf, scene_pixels_into_high_bytes);
-    if (!steps->unpack(ctx, UNPACK_SHELL_MAP))
-        return false;
+    scene_unpacks(g, SHELL_MAP);
     scene_double_plane_rows(g);
     vid_set_vram_address(pf, PF_AT(0x7E790F), SHELL_MAP_VRAM);
     vid_start_vram_uploads(pf, PF_AT(0x7E7913), SCENE_VRAM_LOW_BYTES);
     for (unsigned half = 0; half < 2; half++)
-        scene_send_from(g, pf, SCENE_TRANSFER_BYTES, VID_SNES_VRAM_DATA_LOW, SCENE_PLANE_MAP, PLANE_HALF_BYTES);
-    return true;
+        scene_send_from(g, pf, SCENE_TRANSFER_BYTES, SCENE_INTO_LOW_BYTES, SCENE_PLANE_MAP, PLANE_HALF_BYTES);
 }
 
 /* The colors: the scene's, colors 80 to 111 of them copied into the sprites'
@@ -684,11 +657,10 @@ static bool load_the_shell(GameState *g, Platform *pf, const DiveSetUpSteps *ste
  * running. */
 enum { COPIED_FROM = 0x50, COPIED_TO = 0xA0, COPIED_COLOURS = 0x20, PALE_CYAN = 0x6F69 };
 
-static bool load_the_colours(GameState *g, const DiveSetUpSteps *steps, void *ctx)
+static void load_the_colours(GameState *g)
 {
     set_decompress_dest(g, DIVE_COLOURS_AT);
-    if (!steps->unpack(ctx, UNPACK_DIVE_COLOURS))
-        return false;
+    scene_unpacks(g, DIVE_COLOURS);
     for (unsigned n = 0; n < COPIED_COLOURS; n++)
         set_palette_base(g, COPIED_TO + n, palette_base(g, COPIED_FROM + n));
     charge_block_move(g, 2 * COPIED_COLOURS);
@@ -696,7 +668,6 @@ static bool load_the_colours(GameState *g, const DiveSetUpSteps *steps, void *ct
     set_palette_base(g, 0, PALE_CYAN);
     scene_use_loaded_palette(g);
     TIMED_AS(g, 0xFDE275, palette_stop_animations(g));
-    return true;
 }
 
 /* The shell's curve seen from outside: each screen line's distance onto the
@@ -767,7 +738,7 @@ enum { SCALER_OUTPUT = 0x7F0200, SCALER_OUTPUT_BYTES = 0x0800, SCALER_OUTPUT_END
 /* The rest of the scene's pieces: the trail's circle's table, the Epoch's
  * first frame of animation to take at once, the shell's curve and the fog,
  * the sprites' tiles and the panel's map. */
-static bool make_the_pieces(GameState *g, Platform *pf, const DiveSetUpSteps *steps, void *ctx)
+static void make_the_pieces(GameState *g, Platform *pf)
 {
     set_scene_scaler_output_end(g, SCALER_OUTPUT_END);
     set_scene_circle_table(g, TRAIL_CIRCLE);
@@ -781,23 +752,19 @@ static bool make_the_pieces(GameState *g, Platform *pf, const DiveSetUpSteps *st
     charge_io_accesses(g, 3);
 
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    if (!steps->unpack(ctx, UNPACK_SPRITE_TILES))
-        return false;
+    scene_unpacks(g, SPRITE_TILES);
     vid_start_vram_uploads(pf, PF_AT(0x7E7AE3), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E7AE9), SPRITE_TILES_VRAM);
     scene_choose_transfer(g, scene_whole_words);
     scene_send_unpacked_by(g, pf, scene_whole_words);
-    if (!steps->unpack(ctx, UNPACK_MORE_SPRITE_TILES))
-        return false;
+    scene_unpacks(g, MORE_SPRITE_TILES);
     vid_set_vram_address(pf, PF_AT(0x7E7B03), MORE_SPRITE_TILES_VRAM);
     scene_send_unpacked_by(g, pf, scene_whole_words);
-    if (!steps->unpack(ctx, UNPACK_PANEL_MAP))
-        return false;
+    scene_unpacks(g, PANEL_MAP);
     vid_set_vram_address(pf, PF_AT(0x7E7B13), PANEL_MAP_VRAM);
     lay_out_the_panel(g, pf);
     charge_accesses(g, 1);
-    scene_clear_buffer(pf, SCALER_OUTPUT, SCALER_OUTPUT_BYTES, 0x7E7B98);
-    return true;
+    scene_clear_buffer(g, pf, SCALER_OUTPUT, SCALER_OUTPUT_BYTES, 0x7E7B98);
 }
 
 /* The Epoch's bitmap, and the routine that regroups its scaled picture into
@@ -805,13 +772,11 @@ static bool make_the_pieces(GameState *g, Platform *pf, const DiveSetUpSteps *st
  * second bank into the tilemap buffer. */
 enum { MATRIX_DESTINATION = 0x0C00, MATRIX_SOURCE = 0x0200 };
 
-static bool load_the_epoch(GameState *g, const DiveSetUpSteps *steps, void *ctx)
+static void load_the_epoch(GameState *g)
 {
     set_decompress_dest(g, EPOCH_BITMAP_AT);
-    if (!steps->unpack(ctx, UNPACK_EPOCH_PICTURE))
-        return false;
+    scene_unpacks(g, EPOCH_PICTURE);
     TIMED_AS(g, 0xC309E9, scene_write_matrix_code_for(g, MATRIX_DESTINATION, MATRIX_SOURCE));
-    return true;
 }
 
 /* The two channels' scripts: channel 0's moves the camera, channel 1's runs
@@ -851,56 +816,24 @@ static void set_up_the_screen(Platform *pf)
  * the panel at rest, the Epoch drawn from outside once, and the screen set
  * up. The setup ends with a picture marked waiting, so the main loop's call
  * it passes once scales none yet. False where a step went no further. */
-static bool set_up_the_dive_with(GameState *g, Platform *pf, const DiveSetUpSteps *steps, void *ctx)
+static bool set_up_the_dive(GameState *g, Platform *pf)
 {
-    if (!load_the_shell(g, pf, steps, ctx))
-        return false;
-    if (!load_the_colours(g, steps, ctx))
-        return false;
-    if (!make_the_pieces(g, pf, steps, ctx))
-        return false;
-    if (!load_the_epoch(g, steps, ctx))
-        return false;
+    load_the_shell(g, pf);
+    load_the_colours(g);
+    make_the_pieces(g, pf);
+    load_the_epoch(g);
     set_scene_channels_script(g, SCENE_CAMERA_CHANNEL, CAMERA_SCRIPT);
-    if (!steps->first_step(ctx))
+    if (!scene_first_step(g, pf, SCENE_CAMERA_CHANNEL))
         return false;
     set_scene_channels_script(g, EPOCH, DIVE_SCRIPT);
     set_scene_main_loop_call(g, MAIN_LOOP_SCALES_THE_EPOCH);
     set_scene_shell_below_end(g, PANEL_AT_REST);
     set_epoch(g, PANEL_LINE, PANEL_AT_REST);
     mark_the_picture(g, true);
-    if (!steps->draw_and_scale_once(ctx))
+    if (scene_draw_the_epoch(g, pf, 0).outcome != TASK_GOES_ON || !scene_scale_the_epoch(g, pf))
         return false;
     set_up_the_screen(pf);
     return true;
-}
-
-/* ---- The setup's steps ---- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} DiveContext;
-
-static bool unpack_the_resource(void *ctx, DiveUnpack which)
-{
-    DiveContext *c = ctx;
-    TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, dive_unpacks[which].resource));
-    return true;
-}
-
-static bool turn_the_camera_channel(void *ctx)
-{
-    DiveContext *c = ctx;
-    SceneTurn turn = SCENE_TURN_ENDED;
-    TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, SCENE_CAMERA_CHANNEL));
-    return turn == SCENE_TURN_ENDED;
-}
-
-static bool draw_and_scale_once(void *ctx)
-{
-    DiveContext *c = ctx;
-    return scene_draw_the_epoch(c->game, c->pf, 0).outcome == TASK_GOES_ON && scene_scale_the_epoch(c->game, c->pf);
 }
 
 /* Where a picture waits already, or the mark isn't the word the setup's
@@ -914,9 +847,7 @@ bool scene_dive_set_up(GameState *g, Platform *pf)
         program_fail(g, DIVE_SET_UP, "an Epoch's dive with a picture waiting already");
         return false;
     }
-    static const DiveSetUpSteps in_the_program = { unpack_the_resource, turn_the_camera_channel, draw_and_scale_once };
-    DiveContext c = { g, pf };
-    return set_up_the_dive_with(g, pf, &in_the_program, &c);
+    return set_up_the_dive(g, pf);
 }
 
 /* ---- The routines the scripts call --------------------------------------------------------------- */

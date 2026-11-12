@@ -792,11 +792,10 @@ void menu_settings_panel_show(GameState *g, Platform *pf)
 
 // $C2:C2FF
 /* The panel's frame, a frame's wait, then the rest of it. */
-bool menu_show_settings_panel_with(GameState *g, Platform *pf, const MainMenuSteps *n, void *ctx)
+bool menu_show_settings_panel(GameState *g, Platform *pf)
 {
     menu_settings_panel_frame(g, pf);
-    if (!n->wait(ctx, MAIN_MENU_AT_THE_SETTINGS_FRAMED))
-        return false;
+    menu_task_waits(g, 1);
     menu_settings_panel_show(g, pf);
     return true;
 }
@@ -816,17 +815,22 @@ void menu_settings_panel_put_away(GameState *g)
 /* ---- The opening and the options ---------------------------------------------------------------- */
 
 // $C2:C017
-bool menu_settings_set_sound_output(GameState *g, bool (*send)(void *ctx), void *ctx)
+void menu_settings_set_sound_output(GameState *g, Platform *pf)
 {
-    return !menu_settings_flip_option(g, SETTINGS_STEREO) || send(ctx);
+    if (menu_settings_flip_option(g, SETTINGS_STEREO))
+        menu_settings_send_sound_output(g, pf);
 }
+
+static bool take_the_option(GameState *g, Platform *pf);
+static bool handle(GameState *g, Platform *pf, SettingsOption option);
+static bool back_to_the_main_menu(GameState *g, Platform *pf);
+static void ends_with_a_tick(GameState *g, Platform *pf);
 
 // $C2:BF3D
 /* A tick, then the screen. */
-bool menu_open_settings_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx)
+bool menu_open_settings_with(GameState *g, Platform *pf)
 {
-    if (!n->tick(ctx, SETTINGS_AT_THE_OPENING))
-        return false;
+    menu_tick(g, pf);
     menu_settings_open(g, pf);
     return true;
 }
@@ -835,51 +839,54 @@ bool menu_open_settings_with(GameState *g, Platform *pf, const SettingsSteps *n,
 /* Going back leaves for the main menu, unless a speed or the design is
  * being set: then the option takes it back, as it takes every other input;
  * a tick where the cursor moved. */
-bool menu_choose_setting_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx)
+bool menu_choose_setting_with(GameState *g, Platform *pf)
 {
-    (void)pf;
     menu_settings_hold_line_effects(g);
-    n->read_cursor(ctx);
+    menu_read_the_cursor_for_a_step(g);
     if (menu_settings_leaving(g)) {
         menu_settings_leave(g);
-        return n->back_to_the_main_menu(ctx);
+        return back_to_the_main_menu(g, pf);
     }
-    if (!n->take_the_option(ctx))
+    if (!take_the_option(g, pf))
         return false;
     bool moved = menu_cursor_index(g) != menu_cursor_frame_start(g);
-    return !moved || n->tick(ctx, SETTINGS_AT_THE_CURSOR_MOVED);
+    if (moved)
+        menu_tick(g, pf);
+    return true;
 }
 
 // $C2:BFD4
 /* The option the cursor is on handled, then shown; a tick where the player
  * chose. */
-bool menu_take_setting_option_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx)
+bool menu_take_setting_option_with(GameState *g, Platform *pf)
 {
-    (void)pf;
     SettingsOption option = menu_settings_take_option(g);
-    if (!n->handle(ctx, option))
+    if (!handle(g, pf, option))
         return false;
     menu_settings_show_option(g);
-    return !menu_asked(g, MENU_CHOOSE) || n->tick(ctx, SETTINGS_AT_AN_OPTION_CHOSEN);
+    if (menu_asked(g, MENU_CHOOSE))
+        menu_tick(g, pf);
+    return true;
 }
 
 // $C2:C164
 /* A push left or right steps the meter, with a tick. */
-bool menu_step_setting_meter_with(GameState *g, SettingsOption meter, const SettingsSteps *n, void *ctx)
+bool menu_step_setting_meter_with(GameState *g, Platform *pf, SettingsOption meter)
 {
     bool stepped = meter == SETTINGS_WINDOW_DESIGN ? menu_settings_step_design(g) : menu_settings_step_meter(g, meter);
-    if (!stepped) {
-        return true;
-    }
-    return n->tick(ctx, SETTINGS_AT_A_METER_STEPPED);
+    if (stepped)
+        menu_tick(g, pf);
+    return true;
 }
+
+static bool a_meter_stepped(GameState *g, Platform *pf, SettingsOption meter);
 
 // $C2:C0B9, $C2:C0D1
 /* A speed's meter stepped; choosing or going back leaves it for the speeds'
  * box. */
-bool menu_step_speed_with(GameState *g, SettingsOption speed, const SettingsSteps *n, void *ctx)
+bool menu_step_speed_with(GameState *g, Platform *pf, SettingsOption speed)
 {
-    if (!n->step_meter(ctx, speed))
+    if (!a_meter_stepped(g, pf, speed))
         return false;
     menu_settings_leave_the_meters(g);
     return true;
@@ -888,17 +895,16 @@ bool menu_step_speed_with(GameState *g, SettingsOption speed, const SettingsStep
 // $C2:C12C
 /* While the design is being chosen its meter steps and the windows take
  * it; choosing or going back starts or ends the choosing, with a tick. */
-bool menu_step_window_design_with(GameState *g, const SettingsSteps *n, void *ctx)
+bool menu_step_window_design_with(GameState *g, Platform *pf)
 {
     bool was_choosing = menu_settings_choosing_design(g);
     if (was_choosing) {
-        if (!n->step_meter(ctx, SETTINGS_WINDOW_DESIGN))
+        if (!a_meter_stepped(g, pf, SETTINGS_WINDOW_DESIGN))
             return false;
         menu_settings_show_design(g);
     }
     if (menu_settings_toggle_design_choice(g)) {
-        if (!n->tick(ctx, SETTINGS_AT_THE_DESIGN_TOGGLED))
-            return false;
+        menu_tick(g, pf);
     }
     menu_settings_hold_cursor_on_the_design(g);
     return true;
@@ -907,18 +913,19 @@ bool menu_step_window_design_with(GameState *g, const SettingsSteps *n, void *ct
 // $C2:BF9F
 /* Choosing or going back returns to the options with a tick; a move to
  * another layout takes it, with a tick. */
-bool menu_choose_gauge_layout_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx)
+bool menu_choose_gauge_layout_with(GameState *g, Platform *pf)
 {
-    (void)pf;
-    n->read_cursor(ctx);
+    menu_read_the_cursor_for_a_step(g);
     switch (menu_settings_choose_gauge_layout(g)) {
     case GAUGE_CHOSEN:
         menu_settings_back_from_the_gauge(g);
-        return n->ends_with_a_tick(ctx);
+        ends_with_a_tick(g, pf);
+        return true;
     case GAUGE_POINTED_AT: return true;
     case GAUGE_MOVED:
         menu_settings_take_gauge_layout(g);
-        return n->tick(ctx, SETTINGS_AT_A_GAUGE_TAKEN);
+        menu_tick(g, pf);
+        return true;
     }
     return false;
 }
@@ -927,32 +934,27 @@ bool menu_choose_gauge_layout_with(GameState *g, Platform *pf, const SettingsSte
 /* Leaving the rows (with a tick) goes back to the controls. Otherwise
  * Start or a push up or down (with a tick) puts back or keeps; then the
  * row's button steps with a push left or right, with a tick. */
-bool menu_choose_buttons_with(GameState *g, Platform *pf, const SettingsSteps *n, void *ctx)
+bool menu_choose_buttons_with(GameState *g, Platform *pf)
 {
-    (void)pf;
-    n->read_cursor(ctx);
+    menu_read_the_cursor_for_a_step(g);
     SettingsButtonsInput input = menu_settings_take_buttons_input(g);
     if (input == BUTTONS_KEPT_AND_LEFT || input == BUTTONS_LEFT) {
         if (input == BUTTONS_KEPT_AND_LEFT)
             menu_settings_keep_the_rows(g);
-        if (!n->tick(ctx, SETTINGS_AT_THE_BUTTONS_LEFT))
-            return false;
+        menu_tick(g, pf);
         menu_settings_leave_the_buttons(g);
         return true;
     }
     if (input == BUTTONS_RESET) {
-        if (!n->tick(ctx, SETTINGS_AT_THE_BUTTONS_RESET))
-            return false;
+        menu_tick(g, pf);
         menu_settings_reset_buttons(g);
     } else if (input == BUTTONS_KEPT) {
-        if (!n->tick(ctx, SETTINGS_AT_THE_BUTTONS_KEPT))
-            return false;
+        menu_tick(g, pf);
         menu_settings_keep_buttons(g);
     }
     if (menu_settings_give_row_button(g)) {
         menu_settings_show_row_change(g);
-        if (!n->tick(ctx, SETTINGS_AT_A_ROW_CHANGED))
-            return false;
+        menu_tick(g, pf);
     }
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
     return true;
@@ -960,40 +962,15 @@ bool menu_choose_buttons_with(GameState *g, Platform *pf, const SettingsSteps *n
 
 /* ---- The steps' services ------------------------------------------------------------------------ */
 
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} SettingsContext;
-
-static void read_cursor(void *ctx) { menu_read_the_cursor_for_a_step(((SettingsContext *)ctx)->game); }
-
-static bool tick(void *ctx, SettingsPlace at)
+static bool take_the_option(GameState *g, Platform *pf)
 {
-    (void)at;
-    SettingsContext *c = ctx;
-    menu_tick(c->game, c->pf);
-    return true;
-}
-
-static const SettingsSteps the_steps;
-
-static bool take_the_option(void *ctx)
-{
-    SettingsContext *c = ctx;
-    if (!menu_settings_option_can_be_taken(c->game)) {
-        program_breaks_a_contract(c->game, 0xC2BFD4, "a setting the port doesn't take");
+    if (!menu_settings_option_can_be_taken(g)) {
+        program_breaks_a_contract(g, 0xC2BFD4, "a setting the port doesn't take");
         return false;
     }
     bool back = false;
-    TIMED_AS(c->game, 0xC2BFD4, back = menu_take_setting_option_with(c->game, c->pf, &the_steps, c));
+    TIMED_AS(g, 0xC2BFD4, back = menu_take_setting_option_with(g, pf));
     return back;
-}
-
-static bool send(void *ctx)
-{
-    SettingsContext *c = ctx;
-    menu_settings_send_sound_output(c->game, c->pf);
-    return true;
 }
 
 /* Each option's handler, timed as its routine. */
@@ -1024,64 +1001,53 @@ static const struct {
     [SETTINGS_MESSAGE_SPEED] = { 0xC2C0D1, HANDLER_METER },
 };
 
-static bool run_the_handler(SettingsContext *c, SettingsOption option)
+static bool run_the_handler(GameState *g, Platform *pf, SettingsOption option)
 {
-    GameState *g = c->game;
     switch (handlers[option].kind) {
-    case HANDLER_STEREO: (void)menu_settings_set_sound_output(g, send, c); break;
+    case HANDLER_STEREO: menu_settings_set_sound_output(g, pf); break;
     case HANDLER_FLIP: (void)menu_settings_flip_option(g, option); break;
     case HANDLER_SPEEDS: menu_settings_take_speeds(g); break;
     case HANDLER_GAUGE: menu_settings_take_gauge(g); break;
     case HANDLER_CONTROLS: (void)menu_settings_take_controls(g); break;
-    case HANDLER_METER: return menu_step_speed_with(g, option, &the_steps, c);
-    case HANDLER_DESIGN: return menu_step_window_design_with(g, &the_steps, c);
+    case HANDLER_METER: return menu_step_speed_with(g, pf, option);
+    case HANDLER_DESIGN: return menu_step_window_design_with(g, pf);
     }
     return true;
 }
 
-static bool handle(void *ctx, SettingsOption option)
+static bool handle(GameState *g, Platform *pf, SettingsOption option)
 {
-    SettingsContext *c = ctx;
     bool handled = false;
-    TIMED_AS(c->game, handlers[option].routine, handled = run_the_handler(c, option));
+    TIMED_AS(g, handlers[option].routine, handled = run_the_handler(g, pf, option));
     return handled;
 }
 
 /* A meter stepped, timed as its routine. */
-static bool a_meter_stepped(void *ctx, SettingsOption meter)
+static bool a_meter_stepped(GameState *g, Platform *pf, SettingsOption meter)
 {
-    SettingsContext *c = ctx;
     bool stepped = false;
-    TIMED_AS(c->game, 0xC2C164, stepped = menu_step_setting_meter_with(c->game, meter, &the_steps, c));
+    TIMED_AS(g, 0xC2C164, stepped = menu_step_setting_meter_with(g, pf, meter));
     return stepped;
 }
 
-static bool back_to_the_main_menu(void *ctx)
+static bool back_to_the_main_menu(GameState *g, Platform *pf)
 {
-    SettingsContext *c = ctx;
-    return menu_back_to_the_main_menu(c->game, c->pf);
+    return menu_back_to_the_main_menu(g, pf);
 }
 
-static bool ends_with_a_tick(void *ctx)
+static void ends_with_a_tick(GameState *g, Platform *pf)
 {
-    SettingsContext *c = ctx;
-    menu_tick(c->game, c->pf);
-    return true;
+    menu_tick(g, pf);
 }
-
-static const SettingsSteps the_steps = {
-    read_cursor, tick, take_the_option, handle, back_to_the_main_menu, a_meter_stepped, ends_with_a_tick,
-};
 
 static bool step(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(const GameState *),
-                 bool (*run)(GameState *, Platform *, const SettingsSteps *, void *))
+                 bool (*run)(GameState *, Platform *))
 {
     if (!takes(g)) {
         program_breaks_a_contract(g, routine, "a settings screen the port doesn't take");
         return false;
     }
-    SettingsContext c = { g, pf };
-    return run(g, pf, &the_steps, &c);
+    return run(g, pf);
 }
 
 bool menu_open_settings(GameState *g, Platform *pf)

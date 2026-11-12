@@ -54,11 +54,6 @@ enum { TILE_ROWS = 8 };
 enum { SPRITE_COLORS = 128 };
 static const uint16_t letter_colors[] = { 0x0000, 0x77BD, 0x4631, 0x1CE7 };
 
-/* The program's unpacker ($7E:3691): a resource, by its place in the list,
- * unpacked into the destination set. The letters' loader is a routine of the
- * setup's (called from $7E:6B0A). */
-enum { UNPACK = 0x7E3691 };
-
 // $7E:6BF9
 /* The letters' colors, and VRAM made ready at `vram`, a word at a time, for
  * the letters' first part, which is unpacked next ... */
@@ -70,7 +65,7 @@ static void start_loading_the_letters(GameState *g, Platform *pf, uint16_t vram)
         set_palette_working(g, SPRITE_COLORS + i, letter_colors[i]);
     }
     set_scene_call_transfer_control(g, scene_program_own(), SCENE_TRANSFER_WORDS);
-    set_scene_call_transfer_register(g, scene_program_own(), VID_SNES_VRAM_DATA_LOW);
+    set_scene_call_transfer_register(g, scene_program_own(), SCENE_INTO_LOW_BYTES);
     vid_start_vram_uploads(pf, PF_AT(0x7E6C2E), SCENE_VRAM_WHOLE_WORDS);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
 }
@@ -194,16 +189,15 @@ static void charge_page_text_scan(GameState *g, uint16_t page);
 // $7E:6B04
 /* The page's setup, from the program's mode table (mode 1): the letters'
  * first part on its way to VRAM's start and unpacked by the program's
- * unpacker (`unpack`); then the letters sent, the rest widened, a
+ * unpacker; then the letters sent, the rest widened, a
  * clear screen, the next page written, BG1 and the sprites shown, and the
  * page's fade in and its task. The original hands the widening its source in
  * the unpacker's destination, which the program's loaders all set before
  * they use it, and leaves it there. */
-static bool set_up_the_page(GameState *g, Platform *pf, bool (*unpack)(void *ctx), void *ctx)
+bool scene_credit_pages_set_up(GameState *g, Platform *pf)
 {
     start_loading_the_letters(g, pf, LETTERS_AS_THEY_ARE_VRAM);
-    if (!unpack(ctx))
-        return false;
+    scene_unpacks(g, LETTERS);
     send_the_letters_as_they_are(g, pf);
     set_decompress_dest(g, NARROW_LETTERS);
     widen_letters(g, pf, WIDE_LETTERS_VRAM, NARROW_LETTERS, NARROW_LETTER_TILES);
@@ -224,18 +218,6 @@ static bool set_up_the_page(GameState *g, Platform *pf, bool (*unpack)(void *ctx
     scene_add_task(g, SCENE_FRAME_TASKS, SCENE_TASK_BRIGHTEN);
     scene_add_task(g, SCENE_FRAME_TASKS, SCENE_TASK_SHOW_THE_CREDITS_PAGE);
     return true;
-}
-
-/* The letters unpacked by the program's unpacker. */
-static bool unpack_the_letters(void *ctx)
-{
-    TIMED_AS((GameState *)ctx, UNPACK, scene_unpacks(ctx, LETTERS));
-    return true;
-}
-
-bool scene_credit_pages_set_up(GameState *g, Platform *pf)
-{
-    return set_up_the_page(g, pf, unpack_the_letters, g);
 }
 
 /* ---- The page's task --------------------------------------------------------------------------- */

@@ -131,18 +131,10 @@ enum { SWIRL_GRAPHICS_UNPACKED_TO = 0x7EB000 };
 
 // $FF:F677
 /* The swirl's graphics unpacked, then the swirl drawn. */
-static bool draw_the_gate_screen_with(GameState *g, const Unpacker *u)
+void menu_draw_gate_screen(GameState *g)
 {
-    if (!u->unpack(u->ctx, 0xFFF690, MENU_GATE_PACKED_GRAPHICS, SWIRL_GRAPHICS_UNPACKED_TO))
-        return false;
+    overworld_unpack(g, MENU_GATE_PACKED_GRAPHICS, SWIRL_GRAPHICS_UNPACKED_TO);
     menu_draw_gate_swirl(g);
-    return true;
-}
-
-bool menu_draw_gate_screen(GameState *g)
-{
-    Unpacker u = overworld_unpacker(g);
-    return draw_the_gate_screen_with(g, &u);
 }
 
 // $C2:CE9D

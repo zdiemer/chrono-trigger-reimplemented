@@ -303,99 +303,39 @@ static bool still_brightening(uint8_t brightness) { return (int8_t)(brightness -
  * coming back from a menu, the effects only. */
 typedef enum { WITH_THE_FRAMES_WORK, WITH_THE_EFFECTS_ONLY } FadeInKind;
 
-/* Its steps (below): the screen set up, the
- * leader's walk under the control the fade took away, the frame's work and
- * the wait for the next frame; each false where it went no further. */
-typedef struct {
-    bool (*set_up)(void *ctx, FadeInKind kind);
-    bool (*walk)(void *ctx, FadeInKind kind, uint8_t control);
-    bool (*work)(void *ctx, FadeInKind kind);
-    bool (*wait)(void *ctx, FadeInKind kind);
-} FadeInSteps;
-
 // $C0:2848, $C0:2824
 /* The screen set up, then, unless the location starts dark, brightened a
  * step a frame; the play time's clock runs again. False where a step went
- * no further; `shown` the brightness it ends at, or the dark setting. */
-static bool fade_in(GameState *g, FadeInKind kind, const FadeInSteps *steps, void *ctx, uint8_t *shown)
+ * no further. */
+static bool fade_in(GameState *g, Platform *pf, FadeInKind kind)
 {
-    if (!steps->set_up(ctx, kind))
+    bool done = false;
+    TIMED_AS(g, FIELD_SET_THE_SCREEN_UP_ENTRY, done = field_screen_set_up(g, pf));
+    if (!done)
         return false;
-    *shown = field_setting_1e(g);
-    if (*shown == 0) {
+    if (field_setting_1e(g) == 0) {
         do {
             set_field_brightness(g, (uint8_t)(field_brightness(g) + 1));
             uint8_t control = field_player_control(g);
             hand_the_party_to_the_player(g, false);
-            if (!steps->walk(ctx, kind, control))
+            TIMED_AS(g, WALK, done = field_the_leader_walks(g));
+            if (!done)
                 return false;
             set_field_player_control(g, control);
-            if (!steps->work(ctx, kind) || !steps->wait(ctx, kind))
+            if (kind == WITH_THE_FRAMES_WORK)
+                TIMED_AS(g, FIELD_FRAME_WORK_ENTRY, done = field_frame_work_done(g, pf));
+            else
+                TIMED_AS(g, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(g));
+            if (!done)
                 return false;
-            *shown = field_brightness(g);
-        } while (still_brightening(*shown));
+            TIMED_AS(g, FIELD_FRAME_WAIT, field_finish_the_frame(g, pf));
+        } while (still_brightening(field_brightness(g)));
     }
     set_field_setting_1e(g, 0);
     start_play_clock(g);
     return true;
 }
 
-/* ---- The steps ------------------------------------------------------------------------------ */
+bool field_fade_in(GameState *g, Platform *pf) { return fade_in(g, pf, WITH_THE_FRAMES_WORK); }
 
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} FadeInContext;
-
-static bool set_up(void *ctx, FadeInKind kind)
-{
-    (void)kind;
-    FadeInContext *c = ctx;
-    bool done = false;
-    TIMED_AS(c->game, FIELD_SET_THE_SCREEN_UP_ENTRY, done = field_screen_set_up(c->game, c->pf));
-    return done;
-}
-
-static bool walk(void *ctx, FadeInKind kind, uint8_t control)
-{
-    (void)kind, (void)control;
-    FadeInContext *c = ctx;
-    bool done = false;
-    TIMED_AS(c->game, WALK, done = field_the_leader_walks(c->game));
-    return done;
-}
-
-static bool work(void *ctx, FadeInKind kind)
-{
-    FadeInContext *c = ctx;
-    bool done = true;
-    if (kind == WITH_THE_FRAMES_WORK)
-        TIMED_AS(c->game, FIELD_FRAME_WORK_ENTRY, done = field_frame_work_done(c->game, c->pf));
-    else
-        TIMED_AS(c->game, FIELD_REFRESH_EFFECTS_ENTRY, done = field_effects_refreshed(c->game));
-    return done;
-}
-
-static bool wait(void *ctx, FadeInKind kind)
-{
-    (void)kind;
-    FadeInContext *c = ctx;
-    TIMED_AS(c->game, FIELD_FRAME_WAIT, field_finish_the_frame(c->game, c->pf));
-    return true;
-}
-
-static const FadeInSteps in_the_program = { set_up, walk, work, wait };
-
-bool field_fade_in(GameState *g, Platform *pf)
-{
-    FadeInContext c = { g, pf };
-    uint8_t shown;
-    return fade_in(g, WITH_THE_FRAMES_WORK, &in_the_program, &c, &shown);
-}
-
-bool field_fade_in_after_a_menu(GameState *g, Platform *pf)
-{
-    FadeInContext c = { g, pf };
-    uint8_t shown;
-    return fade_in(g, WITH_THE_EFFECTS_ONLY, &in_the_program, &c, &shown);
-}
+bool field_fade_in_after_a_menu(GameState *g, Platform *pf) { return fade_in(g, pf, WITH_THE_EFFECTS_ONLY); }

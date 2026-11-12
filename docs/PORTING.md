@@ -26,9 +26,11 @@ it never dispatches to cartridge code.
 ## Converting a subsystem
 
 1. Follow the native caller graph. Wrappers, held continuations, emulated
-   returns and registry rows have been deleted across the tree. Simplify the
-   remaining single-implementation callback adapters into direct calls, keeping
-   real game-state checks and observable ordering.
+   returns and registry rows have been deleted across the tree. A sequence
+   calls the routines it goes on to directly, keeping real game-state checks
+   and observable ordering; a callback through an opaque context is for a real
+   choice of implementations (a coroutine's body, the host's asset provider),
+   and `tools/machine_joints.py` counts them.
 2. Replace register-shaped inputs and leftovers with meaningful parameters and
    results. Delete unused results, code-image guards, CPU-width/decimal-mode
    checks and scratch effects. Preserve index wrapping and deliberate overruns
@@ -39,10 +41,9 @@ it never dispatches to cartridge code.
    address. Removing reads can remove time even when their values are unused:
    preserve counted work with an explicit charge and explain its derivation.
    Never keep dummy register writes or change rates to make an outcome pass.
-4. Use named resource and platform operations. The remaining video escapes
-   need services expressing their effects. Core and warp have none; changes
-   to field, battle, menu, scene and overworld can stay inside those modules
-   and their service implementations without changing core dispatch.
+4. Use named resource and platform operations. Changes to field, battle,
+   menu, scene and overworld can stay inside those modules and their service
+   implementations without changing core dispatch.
 5. Delete the old helper, declaration, test or exception with its last caller.
    Run source inventories and the lean gate, including outcomes and picture
    fingerprints. A clean build alone cannot establish unchanged frame pacing.

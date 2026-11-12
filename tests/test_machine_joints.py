@@ -45,14 +45,14 @@ class CartridgeJoints(unittest.TestCase):
         for expression in ("source + offset", "(uint32_t)bank << 16 | pointer", "0x7E0000u | unknown"):
             for call in (f"m_read8(s, {expression})", f"rom_read16(g, {expression})",
                          f"rom_data({expression}, bytes)", f"PF_GAME({expression})",
-                         f"VidSnesTransfer t = {{ .source = {expression}, .size = 10 }}"):
+                         f"SceneUpload t = {{ .source = {expression}, .size = 10 }}"):
                 with self.subTest(call=call):
                     self.assertEqual(self.count("new_port.c", call), 1)
 
     def test_proven_ram_constants(self):
         for address in ("0x7E2000u", "0x7FFFFFu", "0x000100u", "0x3F1FFFu"):
             for call in (f"m_read8(s, {address})", f"PF_GAME({address})",
-                         f"VidSnesTransfer t = {{ .source = {address} }}"):
+                         f"SceneUpload t = {{ .source = {address} }}"):
                 self.assertEqual(self.count("new_port.c", call), 0)
         self.assertEqual(self.count("new_port.c", "#define BUFFER 0x7E0000u\nPF_GAME(BUFFER + 16);"), 0)
         self.assertEqual(self.count("new_port.c", "enum { BANK = 0x7E, BUFFER = BANK << 16 }; PF_GAME(BUFFER);"), 0)
@@ -177,3 +177,22 @@ class MachineBoundaries(unittest.TestCase):
         text = 'm_hold_at_own \n (s, head, dc, hold); native_hand_entry_at \t (s, at);'
         self.assertEqual(machine_boundaries(text),
                          {"stops at the original's addresses": 1, "siblings found in the registry": 1})
+
+
+class Adapters(unittest.TestCase):
+    def test_context_callbacks_are_counted_wherever_declared(self):
+        text = """
+            typedef bool (*Steps)(void *ctx, Place at);
+            typedef struct { bool (*tick)(void *ctx); void *ctx; } Host;
+            static bool run(GameState *g, bool (*wait)(void *), void *ctx);
+            // bool (*commented)(void *ctx);
+        """
+        self.assertEqual(machine_joints.context_callbacks(text), 3)
+
+    def test_dispatch_tables_are_not_adapters(self):
+        text = "typedef EventFlow (*EventOperation)(GameState *g, const EventCommand *command);"
+        self.assertEqual(machine_joints.context_callbacks(text), 0)
+
+    def test_carry_parameters_and_fields(self):
+        text = "bool aim(GameState *g, bool carry); struct { bool carry; }; /* bool carry; */"
+        self.assertEqual(machine_joints.carry_values(text), 2)

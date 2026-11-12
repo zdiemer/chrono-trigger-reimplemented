@@ -8,20 +8,16 @@
 #include "platform/platform.h"
 #include "state.h"
 
-/* Unpack the stream at `stream` to `to`, as the original's call at `site`
- * does; false where the unpacking didn't come back (the caller then stops),
- * which the program's unpacker (overworld_unpacker) never is. */
-typedef struct {
-    bool (*unpack)(void *ctx, uint32_t site, uint32_t stream, uint32_t to);
-    void *ctx;
-} Unpacker;
+/* The stream at `stream` unpacked to `to` (data/decompress.h), as the map
+ * screens' loads unpack theirs. */
+void overworld_unpack(GameState *g, uint32_t stream, uint32_t to);
 
 /* The world map set up after the mode's own start, up to its main loop; its
  * map loaded again after the menus or the map view; and the map's tiles,
- * which the map view loads too. Each false where an unpacking stopped. */
-bool overworld_set_up(GameState *g, const Unpacker *u, Platform *pf);
-bool overworld_load_the_map_again(GameState *g, const Unpacker *u, Platform *pf);
-bool overworld_load_the_map_tiles(GameState *g, const Unpacker *u);
+ * which the map view loads too. */
+void overworld_set_up(GameState *g, Platform *pf);
+void overworld_load_the_map_again(GameState *g, Platform *pf);
+void overworld_load_the_map_tiles(GameState *g);
 
 /* Whether the map can be loaded again as it stands: on a world map whose
  * record is noted, the camera on the map and the upload buffer in work RAM
@@ -38,7 +34,5 @@ bool overworld_map_tiles_can_load(const GameState *g);
  * sets its markers too. */
 void overworld_clear_the_sign_label(GameState *g);
 
-/* The program's unpacker (data/decompress.h). */
-Unpacker overworld_unpacker(GameState *g);
 
 #endif

@@ -29,8 +29,8 @@
  * calls the operation, which says what happens next with a ScriptFlow and
  * never sees the bytes. What a few commands reach that isn't the language's
  * -- the map's scrolling and redrawing, the sound queue, a routine a script
- * names -- they reach through services (ScriptServices), which the
- * interpreter's runner supplies. Offsets in a script wrap in its bank. */
+ * names -- they reach through the handlers' services (menu/handlers.c).
+ * Offsets in a script wrap in its bank. */
 #ifndef CT_GAME_MENU_SCRIPT_H
 #define CT_GAME_MENU_SCRIPT_H
 
@@ -71,8 +71,8 @@ typedef struct {
 
 uint8_t script_byte_at(const GameState *g, MenuObject self, ByteRef b);
 void script_set_byte_at(GameState *g, MenuObject self, ByteRef b, uint8_t v);
-/* Whether a cell is the console's own rather than low RAM: a register of the
- * picture's, which the scripts set through the services. */
+/* Whether a cell is the console's own rather than low RAM: a setting of the
+ * picture's, which the scripts change through the video service. */
 bool script_byte_is_the_consoles(ByteRef b);
 /* Set it, as the command's handler at `handler` writes it. */
 void script_set_the_consoles_byte(Platform *pf, uint32_t handler, uint16_t at, uint8_t v);
@@ -112,32 +112,29 @@ enum { BOTH_PLANES = 0 };
     X(bool, unless_kept) X(uint8_t, command) X(uint8_t, first) X(uint8_t, second) X(uint8_t, third)  \
     X(uint32_t, routine) X(bool, far)
 
-/* What a few commands reach that isn't the game's state: the original's code
- * on the development system, the game's own elsewhere. Each says whether the
- * port still has the game after it (false: the call handed the rest of the
- * frame to someone else, and the command stops there). */
-typedef struct {
-    /* Scroll one of the map's planes by a number of whole map tiles (menu/map.c). */
-    bool (*scroll_map)(void *ctx, MenuAxis axis, uint8_t plane, int8_t step);
-    /* Redraw a plane whole. */
-    bool (*redraw_map)(void *ctx, uint8_t plane);
-    /* Pass the sound request on to the driver when it is free ($C2:2ED9). */
-    bool (*pass_on_sound)(void *ctx);
-    /* Run a routine a script names, in bank C2 or anywhere. */
-    bool (*call_routine)(void *ctx, uint32_t routine, bool far);
-    /* Set a byte of the console's own a command names by its address: a
-     * register of the picture's. */
-    void (*set_console_byte)(void *ctx, uint16_t at, uint8_t v);
-    void *ctx;
-} ScriptServices;
+/* What a few commands reach that isn't the language's (menu/handlers.c).
+ * Each that can fail says whether the port still has the game after it
+ * (false: the call went no further, and the command stops there). */
+/* One of the map's planes scrolled by a number of whole map tiles
+ * (menu/map.c), or redrawn whole. */
+bool menu_script_scroll_map(GameState *g, MenuAxis axis, uint8_t plane, int8_t step);
+bool menu_script_redraw_map(GameState *g, Platform *pf, uint8_t plane);
+/* The sound request passed on to the driver when it is free ($C2:2ED9). */
+void menu_script_pass_on_sound(GameState *g);
+/* A routine a script names run, in bank C2 or anywhere. */
+bool menu_script_call_routine(GameState *g, Platform *pf, uint32_t routine, bool far);
+/* A byte of the console's own a command names by its address set: a
+ * register of the picture's, as the command's handler sets it. */
+void menu_script_set_console_byte(GameState *g, Platform *pf, uint8_t opcode, uint16_t at, uint8_t v);
 
 /* A command, decoded by its row: the object whose script is running, where
- * the command is, the services, and every parameter of the language, of which
- * an operation takes the ones it names. */
+ * the command is and its opcode, the platform the services reach, and every
+ * parameter of the language, of which an operation takes the ones it names. */
 typedef struct {
     MenuObject self;
     uint32_t at;   /* the command's opcode byte, 24-bit */
-    const ScriptServices *services;
+    uint8_t opcode;
+    Platform *pf;
 #define SCRIPT_PARAMETER_FIELD(type, name) type name;
     SCRIPT_PARAMETERS(SCRIPT_PARAMETER_FIELD)
 #undef SCRIPT_PARAMETER_FIELD
@@ -163,7 +160,7 @@ typedef ScriptFlow (*ScriptOperation)(GameState *g, const ScriptCommand *command
  * hands it the running object and the decoded parameters it names, in that
  * order. SCRIPT_OPERATION_OF_THE_OBJECT(op) for one that takes nothing else,
  * SCRIPT_OPERATION_TAKING_NOTHING(op) for one that takes neither,
- * SCRIPT_SERVED_OPERATION(op, parameter...) for one that takes the services
+ * SCRIPT_SERVED_OPERATION(op, parameter...) for one that takes the platform
  * after the object, and SCRIPT_PLACED_OPERATION(op, parameter...) for one
  * that takes where the command is. */
 #define SCRIPT_OPERATION(op, ...)                                                               \
@@ -174,7 +171,7 @@ typedef ScriptFlow (*ScriptOperation)(GameState *g, const ScriptCommand *command
 #define SCRIPT_SERVED_OPERATION(op, ...)                                                        \
     static ScriptFlow op##_command(GameState *g, const ScriptCommand *command)                 \
     {                                                                                          \
-        return op(g, command->self, command->services                                         \
+        return op(g, command->self, command->pf                                               \
                   SCRIPT_GLUE(SCRIPT_TAKE_, SCRIPT_COUNT(__VA_ARGS__))(__VA_ARGS__));           \
     }
 #define SCRIPT_PLACED_OPERATION(op, ...)                                                        \
@@ -254,7 +251,7 @@ const ScriptOpcode *menu_script_opcode(uint8_t opcode);
 
 /* The command at `at`, decoded by its row. */
 ScriptCommand menu_script_decode(const GameState *g, const ScriptOpcode *row, MenuObject self, uint32_t at,
-                                 const ScriptServices *services);
+                                 Platform *pf);
 
 /* Whether the command is one the port runs as the original does: every cell
  * it names is low RAM, and every table it indexes is one it has (a script the
@@ -263,13 +260,9 @@ bool menu_script_runs_here(const GameState *g, const ScriptOpcode *row, const Sc
 
 /* ---- The interpreter ---------------------------------------------------------------------- */
 
-/* How the interpreter runs each command: `run` runs the command at `at` for
- * the object and says what happens next (on the development system, it may
- * hand the rest to the original: SCRIPT_HANDED_BACK). */
-typedef struct {
-    ScriptFlow (*run)(void *ctx, MenuObject self, uint32_t at);
-    void *ctx;
-} ScriptRunner;
+/* The command at `at` run for the object, saying what happens next
+ * (menu/handlers.c): SCRIPT_HANDED_BACK where it went no further. */
+ScriptFlow menu_script_run_command(GameState *g, Platform *pf, MenuObject self, uint32_t at);
 
 typedef enum {
     SCRIPT_WAITING,       /* the object waits for next frame */
@@ -280,7 +273,7 @@ typedef enum {
 /* Run the object's script for this frame: commands from where it left off,
  * until one makes it wait or ends it. `stopped` is where the command it
  * stopped on is. */
-ScriptEnd menu_run_script(GameState *g, MenuObject self, const ScriptRunner *r, uint32_t *stopped);
+ScriptEnd menu_run_script(GameState *g, Platform *pf, MenuObject self, uint32_t *stopped);
 
 /* Where the script goes on from the command at `at` after `flow`. */
 uint32_t menu_script_follow(const ScriptOpcode *row, uint32_t at, ScriptFlow flow);

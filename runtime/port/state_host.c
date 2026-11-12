@@ -308,6 +308,24 @@ void wram_fill16(GameState *g, uint32_t at, uint32_t words, uint16_t v)
     }
 }
 
+/* Work RAM's two banks as the port steps through them. */
+enum { WORK_RAM = 0x7E0000, WORK_RAM_SPAN = 0x20000 };
+static uint32_t through_the_port(uint32_t at, uint32_t i) { return WORK_RAM + (at + i) % WORK_RAM_SPAN; }
+
+void wram_port_fill(GameState *g, uint32_t at, uint32_t bytes, uint8_t v)
+{
+    for (uint32_t i = 0; i < bytes; i++)
+        state_host_write8(g, through_the_port(at, i), v);
+}
+
+void wram_port_copy(GameState *g, PfData from, uint32_t at, uint32_t bytes)
+{
+    for (uint32_t i = 0; i < bytes; i++) {
+        const uint8_t *byte = pf_data_pointer(from, i);
+        state_host_write8(g, through_the_port(at, i), byte ? *byte : state_host_read8(g, pf_data_address(from, i)));
+    }
+}
+
 void wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes)
 {
     for (uint32_t i = 0; i < bytes; i++)

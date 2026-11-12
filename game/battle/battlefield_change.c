@@ -19,8 +19,7 @@
  * those they mark. Its colors and its screen scripts come last (the scripts
  * start in screen_script.c).
  *
- * The transfers and the frame waits are calls out of the work (FieldCall),
- * each made where the original makes it. */
+ * The transfers and the frame waits are made where the original makes them. */
 #include "battle/animation_data.h"
 #include "battle/bridge.h"
 #include "battle/program.h"
@@ -445,109 +444,74 @@ static void build_the_map(GameState *g, uint16_t tile_set)
 
 /* ---- Loading the battlefield ------------------------------------------------------------------ */
 
-/* The loading's calls, each where the original makes it: a buffer of work
- * RAM sent to VRAM from the main thread, which waits for it to go; the frame
- * work's waits, for a number of frames and for the next (battle/wait.c); and
- * where the original saves and restores a word around them (the battlefield,
- * the tile set, the set it decodes: FIELD_KEEP, FIELD_DROP), which the port
- * passes over. */
-typedef enum {
-    FIELD_FADE_WAIT_GRADIENT, FIELD_FADE_WAIT_LAYER, FIELD_WINDOWS_OFF_FRAME, FIELD_COLOR_MATH_OFF_FRAME,
-    FIELD_SET_SENT, FIELD_MAP_SENT, FIELD_ROWS_FRAME, FIELD_ROWS_SENT, FIELD_KEEP, FIELD_DROP,
-} FieldCall;
-typedef struct {
-    uint16_t word;           /* FIELD_KEEP's */
-    uint16_t buffer, vram, bytes;   /* the sends' */
-    uint8_t frames;          /* the waits for frames' */
-} FieldCallArgs;
-typedef bool (*FieldCalls)(void *ctx, FieldCall call, FieldCallArgs args);
-
+/* The loading sends buffers of work RAM to VRAM from the main thread, which
+ * waits for each to go (tagged with the place the original sends it from),
+ * and waits on the frame work between its steps (battle/wait.c). */
 enum { DECODE_BUFFER = 0x2D00, MAP_VRAM = 0x7C00, MAP_BYTES = 0x800 };
 
-static bool keep(FieldCalls call, void *ctx, uint16_t word) { return call(ctx, FIELD_KEEP, (FieldCallArgs){ .word = word }); }
-static bool drop(FieldCalls call, void *ctx) { return call(ctx, FIELD_DROP, (FieldCallArgs){ 0 }); }
-static bool send(FieldCalls call, void *ctx, FieldCall at, uint16_t buffer, uint16_t vram, uint16_t bytes)
+static void send(Platform *pf, uint32_t site, uint16_t buffer, uint16_t vram, uint16_t bytes)
 {
-    return call(ctx, at, (FieldCallArgs){ .buffer = buffer, .vram = vram, .bytes = bytes });
+    vid_send_vram_and_wait(pf, PF_CALL(site, BATTLE_SEND), vram, PF_GAME((uint32_t)WORK_RAM_BANK << 16 | buffer), bytes);
 }
-static bool wait_frames(FieldCalls call, void *ctx, FieldCall at, uint8_t frames)
-{
-    return call(ctx, at, (FieldCallArgs){ .frames = frames });
-}
-static bool next_frame(FieldCalls call, void *ctx, FieldCall at) { return call(ctx, at, (FieldCallArgs){ 0 }); }
 
 // $CD:0EF8-$CD:0F3F
 /* Take the old layer away: fade its colors out where the battle shows it,
  * take it (with the gradient's BG2, where the battlefield has one) off the
  * main screen, and then over two frames the windows' masking and the color
  * math off. */
-static bool take_the_old_layer_away(GameState *g, FieldCalls call, void *ctx)
+static bool take_the_old_layer_away(GameState *g, Platform *pf)
 {
     if (battle_background_flags(g) & BATTLE_BACKGROUND_HAS_GRADIENT) {
         TIMED_AS(g, 0xCD0E79, fade_the_old_layer_out(g));
-        if (!wait_frames(call, ctx, FIELD_FADE_WAIT_GRADIENT, GRADIENT_FADE_FRAMES))
+        if (!battle_wait_some_frames(g, pf, GRADIENT_FADE_FRAMES))
             return false;
         set_battle_screen_settings(g, MAIN_SCREEN, battle_screen_settings(g, MAIN_SCREEN) & (uint8_t)~BG2);
     } else {
         if ((battle_start_screens_main(g) | battle_start_screens_sub(g)) & BG3) {
             TIMED_AS(g, 0xCD0E79, fade_the_old_layer_out(g));
-            if (!wait_frames(call, ctx, FIELD_FADE_WAIT_LAYER, LAYER_FADE_FRAMES))
+            if (!battle_wait_some_frames(g, pf, LAYER_FADE_FRAMES))
                 return false;
         }
         set_battle_screen_settings(g, MAIN_SCREEN, BG1 | BG2 | OBJ);
     }
     set_battle_screen_settings(g, MAIN_WINDOWED, 0);
     set_battle_screen_settings(g, SUB_WINDOWED, 0);
-    if (!next_frame(call, ctx, FIELD_WINDOWS_OFF_FRAME))
+    if (!battle_wait_for_the_next_frame(g, pf))
         return false;
     set_battle_split_line_values(g, FIXED_COLOR_VALUE, 0);
     for (unsigned i = 0; i < COLOR_MATH_SETTINGS; i++)
         set_battle_color_math_settings(g, i, 0);
-    return next_frame(call, ctx, FIELD_COLOR_MATH_OFF_FRAME);
+    return battle_wait_for_the_next_frame(g, pf);
 }
 
 /* The original counts the sets in a cell as it goes ($CACE). */
-static bool load_the_tile_sets(GameState *g, uint16_t tile_set, FieldCalls call, void *ctx)
+static void load_the_tile_sets(GameState *g, Platform *pf, uint16_t tile_set)
 {
-    if (!keep(call, ctx, tile_set))
-        return false;
     for (uint8_t set = 0; set < LAYER_SETS; set++) {
         uint16_t of_set = (uint16_t)(tile_set + set * 2);
-        if (!keep(call, ctx, of_set))
-            return false;
         TIMED_AS(g, 0xCD11E4, decode_tile_set(g, of_set));
         if (set == LAST_SET)
             blank_the_empty_tile(g);
-        if (!send(call, ctx, FIELD_SET_SENT, DECODE_BUFFER, battlefield_tile_set_vram(g, set), SET_BYTES))
-            return false;
+        send(pf, 0xCD0FDA, DECODE_BUFFER, battlefield_tile_set_vram(g, set), SET_BYTES);
         set_battle_battlefield_tiles_replaced(g, (uint8_t)(battle_battlefield_tiles_replaced(g) + 1));
-        if (!drop(call, ctx))
-            return false;
     }
-    return true;
 }
 
 // $CD:0EBD
-static bool load_the_battlefield(GameState *g, uint16_t asked, FieldCalls call, void *ctx)
+static bool load_the_battlefield(GameState *g, Platform *pf, uint16_t asked)
 {
     uint16_t battlefield = battlefield_to_show(g, asked);
     set_battle_background(g, battlefield);
     stop_the_old_effects(g);
-    if (!keep(call, ctx, battlefield))
-        return false;
-    if (!battle_bg3_stays_still(g) && !take_the_old_layer_away(g, call, ctx))
-        return false;
-    if (!drop(call, ctx))
+    if (!battle_bg3_stays_still(g) && !take_the_old_layer_away(g, pf))
         return false;
     uint16_t tile_set = take_the_look_and_layout(g, battlefield);
     if (battle_bg3_stays_still(g))
         return true;
     set_up_the_new_layer(g);
-    if (!load_the_tile_sets(g, tile_set, call, ctx))
-        return false;
+    load_the_tile_sets(g, pf, tile_set);
     TIMED_AS(g, 0xCD1052, clear_the_map(g));
-    if (!send(call, ctx, FIELD_MAP_SENT, MAP_BUFFER, MAP_VRAM, MAP_BYTES) || !drop(call, ctx))
-        return false;
+    send(pf, 0xCD0FFD, MAP_BUFFER, MAP_VRAM, MAP_BYTES);
     TIMED_AS(g, 0xCD107D, build_the_map(g, tile_set));
     battle_show_background_sets(g);
     return true;
@@ -562,101 +526,52 @@ static bool load_the_battlefield(GameState *g, uint16_t asked, FieldCalls call, 
 enum { FIRST_SET_SLOTS = 4, SECOND_SET_FIRST_SLOT = 4, SECOND_SET_SLOTS = 2, ROW_TILES = 32, ROW_BYTES = 0x400 };
 
 // $CD:1323 (through $CD:0015), $CD:1314 (through $CD:002A)
-static bool load_effect_tile_rows(GameState *g, uint8_t first_row_set, uint8_t first_slot, uint8_t slots,
-                                  FieldCalls call, void *ctx)
+static bool load_effect_tile_rows(GameState *g, Platform *pf, uint8_t first_row_set, uint8_t first_slot, uint8_t slots)
 {
     uint8_t end = (uint8_t)(first_slot + slots);
-    if (!next_frame(call, ctx, FIELD_ROWS_FRAME))
+    if (!battle_wait_for_the_next_frame(g, pf))
         return false;
     for (uint8_t slot = first_slot; slot != end; slot++) {
         uint8_t row_set = (uint8_t)(first_row_set + (slot - first_slot));
         TIMED_AS(g, 0xCD1368, battle_decode_tiles(g, row_set, ROW_TILES));
-        if (!send(call, ctx, FIELD_ROWS_SENT, DECODE_BUFFER, effect_tile_rows_vram(g, slot), ROW_BYTES))
-            return false;
+        send(pf, 0xCD1356, DECODE_BUFFER, effect_tile_rows_vram(g, slot), ROW_BYTES);
     }
     return true;
+}
+
+bool battle_load_effect_tile_rows(GameState *g, Platform *pf, uint8_t first_row_set, bool second)
+{
+    return second ? load_effect_tile_rows(g, pf, first_row_set, SECOND_SET_FIRST_SLOT, SECOND_SET_SLOTS)
+                  : load_effect_tile_rows(g, pf, first_row_set, 0, FIRST_SET_SLOTS);
 }
 
 /* ---- Changing the battlefield ---------------------------------------------------------------- */
-
-/* The battlefield's change loads it ($CD:0EBD, `load`, a routine of its own),
- * and its own scripts start. */
-// $CD:0D28 (through $CD:0018)
-static bool change_the_battlefield(GameState *g, bool (*load)(void *ctx, uint16_t battlefield), void *ctx, uint16_t battlefield)
-{
-    set_battle_screen_scripts_running(g, 0);
-    if (!load(ctx, battlefield))
-        return false;
-    TIMED_AS(g, 0xCD0D33, battle_start_battlefield_scripts(g));
-    return true;
-}
-
-/* Send a part of the new battlefield to VRAM, tagged with the place the original sends it from. */
-static void send_a_part(Platform *pf, FieldCall call, FieldCallArgs args)
-{
-    PfData from = PF_GAME((uint32_t)WORK_RAM_BANK << 16 | args.buffer);
-    switch (call) {
-    case FIELD_SET_SENT: vid_send_vram_and_wait(pf, PF_CALL(0xCD0FDA, BATTLE_SEND), args.vram, from, args.bytes); return;
-    case FIELD_MAP_SENT: vid_send_vram_and_wait(pf, PF_CALL(0xCD0FFD, BATTLE_SEND), args.vram, from, args.bytes); return;
-    default: vid_send_vram_and_wait(pf, PF_CALL(0xCD1356, BATTLE_SEND), args.vram, from, args.bytes); return;
-    }
-}
-
-/* ---- The loading's calls -------------------------------------------------------------------- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} BattlefieldChangeContext;
-
-static bool change_a_part(void *ctx, FieldCall call, FieldCallArgs args)
-{
-    BattlefieldChangeContext *c = ctx;
-    GameState *g = c->game;
-    bool done = false;
-    switch (call) {
-    case FIELD_KEEP:
-    case FIELD_DROP: return true;
-    case FIELD_FADE_WAIT_GRADIENT:
-    case FIELD_FADE_WAIT_LAYER:
-        TIMED_AS(g, BATTLE_SOME_FRAMES_WAIT, done = battle_wait_some_frames(g, c->pf, args.frames));
-        return done;
-    case FIELD_SET_SENT:
-    case FIELD_MAP_SENT:
-    case FIELD_ROWS_SENT:
-        send_a_part(c->pf, call, args);
-        return true;
-    default: TIMED_AS(g, BATTLE_NEXT_FRAME_WAIT, done = battle_wait_for_the_next_frame(g, c->pf)); return done;
-    }
-}
 
 /* The loads, refused unless the battlefield's layout, as the ROM has it,
  * fits (or it keeps BG3 still and builds no map). */
 static bool fits(const GameState *g, uint16_t asked);
 
-static bool load_and_run_it(void *ctx, uint16_t battlefield)
+static bool load_it(GameState *g, Platform *pf, uint16_t battlefield)
 {
-    BattlefieldChangeContext *c = ctx;
-    if (!fits(c->game, battlefield))
-        return battle_contract_broken(c->game, 0xCD0EBD, "a battlefield whose layout the port doesn't build");
+    if (!fits(g, battlefield))
+        return battle_contract_broken(g, 0xCD0EBD, "a battlefield whose layout the port doesn't build");
     bool done = false;
-    TIMED_AS(c->game, 0xCD0EBD, done = load_the_battlefield(c->game, battlefield, change_a_part, ctx));
+    TIMED_AS(g, 0xCD0EBD, done = load_the_battlefield(g, pf, battlefield));
     return done;
 }
 
+// $CD:0D28 (through $CD:0018)
+/* The battlefield's change loads it ($CD:0EBD, a routine of its own), and
+ * its own scripts start. */
 bool battle_change_battlefield(GameState *g, Platform *pf, uint16_t battlefield)
 {
     if (!fits(g, battlefield))
         return battle_contract_broken(g, 0xCD0018, "a battlefield whose layout the port doesn't build");
-    BattlefieldChangeContext c = { g, pf };
-    return change_the_battlefield(g, load_and_run_it, &c, battlefield);
-}
-
-bool battle_load_effect_tile_rows(GameState *g, Platform *pf, uint8_t first_row_set, bool second)
-{
-    BattlefieldChangeContext c = { g, pf };
-    return second ? load_effect_tile_rows(g, first_row_set, SECOND_SET_FIRST_SLOT, SECOND_SET_SLOTS, change_a_part, &c)
-                  : load_effect_tile_rows(g, first_row_set, 0, FIRST_SET_SLOTS, change_a_part, &c);
+    set_battle_screen_scripts_running(g, 0);
+    if (!load_it(g, pf, battlefield))
+        return false;
+    TIMED_AS(g, 0xCD0D33, battle_start_battlefield_scripts(g));
+    return true;
 }
 
 /* ---- The layouts the port builds -------------------------------------------------------------- */
@@ -683,8 +598,7 @@ static bool fits(const GameState *g, uint16_t asked)
 
 bool battle_load_and_run_battlefield(GameState *g, Platform *pf, uint16_t battlefield)
 {
-    BattlefieldChangeContext c = { g, pf };
-    if (!load_and_run_it(&c, battlefield))
+    if (!load_it(g, pf, battlefield))
         return false;
     TIMED_AS(g, 0xCD0D33, battle_start_battlefield_scripts(g));
     set_battle_screen_scripts_running(g, true);

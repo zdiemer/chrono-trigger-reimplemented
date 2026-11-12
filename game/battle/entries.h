@@ -30,8 +30,8 @@ bool battle_enemy_action_worked_out(const GameState *g, bool tech);
 void battle_work_out_enemy_action(GameState *g, Platform *pf, bool tech);
 /* battle/aim.c: whom a tech or an item aims at, and its call to the area
  * search. */
-/* The action aimed ($C1:C1DD). `carry` is no longer read. */
-bool battle_aim_action(GameState *g, Platform *pf, bool carry);
+/* The action aimed ($C1:C1DD). */
+bool battle_aim_action(GameState *g, Platform *pf);
 /* battle/member_turn.c: a party member's chosen action carried out, its
  * attack, the end of its turn, and the battle's step for a called-off
  * action. */

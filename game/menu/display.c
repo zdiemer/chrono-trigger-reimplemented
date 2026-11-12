@@ -157,151 +157,83 @@ static const uint32_t start_sites[4] = { 0xC28025, 0xC2802B, 0xC28031, 0xC28035 
 static const uint32_t return_sites[4] = { 0xC282C3, 0xC282C9, 0xC282CF, 0xC282D3 };
 static const uint32_t restart_sites[4] = { 0xC28331, 0xC28337, 0xC2833D, 0xC28341 };
 
-/* The mode's steps that are routines of their own: the game started again from its reset ($C2:832F); the
- * menus opened ($C2:8096), false where that went no further; and the tasks
- * started and their turns taken until a screen closes the menus ($C2:8190). */
-typedef struct {
-    void (*start_again)(void *ctx);
-    bool (*opened)(void *ctx);
-    void (*tasks)(void *ctx);
-} ModeSteps;
+/* The mode running, and how it ended: the task closing the menus says, back
+ * to their caller or the game started again from its reset. */
+struct MenuModeContext {
+    MenuModeEnd end;
+};
+
+/* Each frame's turns once the vblank handler has sent what the last frame
+ * queued, until a task closes the menus or goes no further. */
+static void run_the_tasks(GameState *g, Platform *pf, MenuModeContext *mode)
+{
+    menu_tasks_open(g, pf);
+    MenuTurns turns;
+    do {
+        while (!menu_vblank_done(g))
+            tm_wait_frame(pf, PF_AT(0xC281CA));
+        TIMED_AS(g, 0xC281CF, turns = menu_tasks_take_the_turns(g));
+    } while (turns == MENU_TURNS_TAKEN);
+    menu_tasks_end(g);
+    if (turns != MENU_TURNS_CLOSED)
+        mode->end = MENUS_WENT_NO_FURTHER;
+}
 
 // $C2:800E
 /* Entering the menus: what the caller asked for kept, and the screen blanked
- * while it is set up. Then the menus open on the screen asked for and start
- * their tasks, which run until a screen closes them -- or the game starts
- * afresh. */
-static void run_the_mode(GameState *g, Platform *pf, uint8_t asked_for, uint16_t asked_with, const ModeSteps *steps,
-                         void *ctx)
+ * while it is set up. Then the menus open on the screen asked for ($C2:8096)
+ * and start their tasks ($C2:8190), which run until a screen closes them --
+ * or the game starts afresh from its reset ($C2:832F). */
+static void run_the_mode(GameState *g, Platform *pf, uint8_t asked_for, uint16_t asked_with, MenuModeContext *mode)
 {
     set_menu_asked_for(g, asked_for);
     set_menu_asked_with(g, asked_with);
     blank_and_stop(pf, start_sites);
     if (starts_afresh(g)) {
         start_a_game_afresh(g, pf);
-        steps->start_again(ctx);
+        TIMED_AS(g, 0xC2832F, blank_and_stop(pf, restart_sites));
+        mode->end = MENUS_START_THE_GAME_AGAIN;
         return;
     }
-    if (!steps->opened(ctx))
+    bool opened = false;
+    TIMED_AS(g, 0xC28096, opened = menu_opens(g, pf));
+    if (!opened)
         return;
     open_on_the_screen(g, pf);
-    steps->tasks(ctx);
-}
-
-/* The mode run by the program, and how it ended: the task closing the menus
- * says, back to their caller or the game started again from its reset. */
-struct MenuModeContext {
-    GameState *game;
-    Platform *pf;
-    MenuModeEnd end;
-};
-
-static void start_again(void *ctx)
-{
-    MenuModeContext *c = ctx;
-    TIMED_AS(c->game, 0xC2832F, blank_and_stop(c->pf, restart_sites));
-    c->end = MENUS_START_THE_GAME_AGAIN;
-}
-
-static bool opened(void *ctx)
-{
-    MenuModeContext *c = ctx;
-    bool opened = false;
-    TIMED_AS(c->game, 0xC28096, opened = menu_opens(c->game, c->pf));
-    return opened;
-}
-
-/* Each frame's turns once the vblank handler has sent what the last frame
- * queued, until a task closes the menus or goes no further. */
-static void tasks(void *ctx)
-{
-    MenuModeContext *c = ctx;
-    menu_tasks_open(c->game, c->pf);
-    MenuTurns turns;
-    do {
-        while (!menu_vblank_done(c->game))
-            tm_wait_frame(c->pf, PF_AT(0xC281CA));
-        TIMED_AS(c->game, 0xC281CF, turns = menu_tasks_take_the_turns(c->game));
-    } while (turns == MENU_TURNS_TAKEN);
-    menu_tasks_end(c->game);
-    if (turns != MENU_TURNS_CLOSED)
-        c->end = MENUS_WENT_NO_FURTHER;
+    run_the_tasks(g, pf, mode);
 }
 
 MenuModeEnd menu_mode_runs(GameState *g, Platform *pf, uint8_t asked_for, uint16_t asked_with)
 {
-    static const ModeSteps the_steps = { start_again, opened, tasks };
-    MenuModeContext c = { g, pf, MENUS_WENT_NO_FURTHER };
-    menu_coroutines(g)->running = &c;
-    run_the_mode(g, pf, asked_for, asked_with, &the_steps, &c);
+    MenuModeContext mode = { MENUS_WENT_NO_FURTHER };
+    menu_coroutines(g)->running = &mode;
+    run_the_mode(g, pf, asked_for, asked_with, &mode);
     menu_coroutines(g)->running = NULL;
-    return c.end;
+    return mode.end;
 }
 
 /* Closing the menus, from whichever screen closes them: every task stopped
  * but the one closing them, which goes on; what the party wears shown on the
  * field's sprites again; and the screen faded out. Then either back to the
- * caller (menu_mode_return) or, from the load screen, on to the game, which
- * starts again from its reset with the game loaded (menu_mode_restart). */
+ * caller or, from the load screen, on to the game, which starts again from
+ * its reset with the game loaded. The menus' mode returns to its caller, the
+ * program, saying how they closed, and the closing task never goes on. */
 enum { EVERY_TASK = 0xFF };
 
-/* The wear shown, the fade out and the leaving, the first two each false
- * where it went no further. */
-typedef struct {
-    bool (*wear_shown)(void *ctx);
-    bool (*faded_out)(void *ctx);
-    void (*leave)(void *ctx);
-} CloseCalls;
-
 // $C2:82B2, $C2:8320
-static void close_the_menus(GameState *g, const CloseCalls *c, void *ctx)
-{
-    TIMED_AS(g, 0xC28255, menu_stop_tasks(g, EVERY_TASK));
-    if (c->wear_shown(ctx) && c->faded_out(ctx))
-        c->leave(ctx);
-}
-
-/* From inside the task that closes them: the menus' mode returns to
- * its caller, the program, saying how they closed, and the task never goes
- * on. */
-typedef struct {
-    GameState *game;
-    Platform *pf;
-    bool for_the_game;
-} MenuCloseContext;
-
-static bool wear_shown(void *ctx)
-{
-    MenuCloseContext *c = ctx;
-    TIMED_AS(c->game, 0xC2834D, party_wear_it_shows(c->game));
-    return true;
-}
-
-static bool faded_out(void *ctx)
-{
-    MenuCloseContext *c = ctx;
-    TIMED_AS(c->game, 0xC283CA, menu_fade_to_black(c->game));
-    return true;
-}
-
-static void leave(void *ctx)
-{
-    MenuCloseContext *c = ctx;
-    if (c->for_the_game)
-        TIMED_AS(c->game, 0xC2832F, blank_and_stop(c->pf, restart_sites));
-    else
-        TIMED_AS(c->game, 0xC282C1, blank_and_stop(c->pf, return_sites));
-    MenuModeContext *running = menu_coroutines(c->game)->running;
-    if (running)
-        running->end = c->for_the_game ? MENUS_START_THE_GAME_AGAIN : MENUS_CLOSED;
-    menu_tasks_closed(c->game);
-}
-
 void menu_close(GameState *g, Platform *pf, bool for_the_game)
 {
-    static const CloseCalls the_steps = { wear_shown, faded_out, leave };
-    MenuCloseContext c = { g, pf, for_the_game };
-    close_the_menus(g, &the_steps, &c);
+    TIMED_AS(g, 0xC28255, menu_stop_tasks(g, EVERY_TASK));
+    TIMED_AS(g, 0xC2834D, party_wear_it_shows(g));
+    TIMED_AS(g, 0xC283CA, menu_fade_to_black(g));
+    if (for_the_game)
+        TIMED_AS(g, 0xC2832F, blank_and_stop(pf, restart_sites));
+    else
+        TIMED_AS(g, 0xC282C1, blank_and_stop(pf, return_sites));
+    MenuModeContext *running = menu_coroutines(g)->running;
+    if (running)
+        running->end = for_the_game ? MENUS_START_THE_GAME_AGAIN : MENUS_CLOSED;
+    menu_tasks_closed(g);
 }
 
 /* The mode's frame: the screen blanked while it sends what the frame built,
@@ -312,75 +244,50 @@ void menu_ask_for_the_block_move(GameState *g) { set_menu_line_effects(g, (uint8
 
 /* ---- The menus' vblank handler ------------------------------------------------------------------ */
 
-/* The vblank's two calls: the frame's work sent, and the frame's input taken; each false where it went no
- * further. */
-typedef struct {
-    bool (*frame_sent)(void *ctx);
-    bool (*input_taken)(void *ctx);
-} VblankCalls;
+static void send_the_frame(GameState *g, Platform *pf);
+
+/* The frame's work and the upload queue, each sent when it holds what the
+ * port can send; the program goes no further otherwise. */
+static bool frame_sent(GameState *g, Platform *pf)
+{
+    if (!menu_block_move_is_a_buffer(g)) {
+        program_breaks_a_contract(g, 0xC285D6, "a block move over the code the menus' vblank runs it through");
+        return false;
+    }
+    TIMED_AS(g, 0xC285D6, (void)send_the_frame(g, pf));
+    return menu_upload_queue_sent(g, pf);
+}
 
 // $C2:842A
 /* The menus' vblank: counts the frame, sends the frame's work ($C2:85D6) with
  * the per-line effects off and turns them back on after, reads the input and
  * the timers ($C2:8473), and sets the BG mode and the brightness (0 is forced
- * blank). */
-static bool menus_vblank(GameState *g, Platform *pf, const VblankCalls *c, void *ctx)
+ * blank). Each of the two calls is false where it went no further. */
+static void menus_vblank(GameState *g, Platform *pf)
 {
     (void)tm_ack_vblank(pf, PF_AT(0xC2842A));
     set_menu_frame_counter(g, (uint8_t)(menu_frame_counter(g) + 1));
     vid_set_display(pf, PF_AT(0xC28431), &BLANK);
     if (!(menu_vblank_done(g) & FRAME_READY_BIT)) {
         vid_enable_line_effects(pf, PF_AT(0xC2843C), 0x00);
-        if (!c->frame_sent(ctx))
-            return false;
+        if (!frame_sent(g, pf))
+            return;
         vid_enable_line_effects(pf, PF_AT(0xC28446), (uint8_t)(menu_line_effects(g) & LINE_EFFECTS));
         set_menu_vblank_done(g, FRAME_SENT);
     }
-    if (!c->input_taken(ctx))
-        return false;
+    bool taken = false;
+    TIMED_AS(g, 0xC28473, taken = menu_frame_input_taken(g, pf));
+    if (!taken)
+        return;
     vid_set_mode(pf, PF_AT(0xC28452), &(VidMode){ .mode = 1, .bg3_priority = true });
     uint8_t brightness = menu_brightness(g);
     VidDisplay display = brightness != 0 ? vid_display_decode(brightness) : BLANK;
     vid_set_display(pf, PF_AT(0xC2845B), &display);
     if (menu_wait_frames(g) != 0)
         set_menu_wait_frames(g, (uint8_t)(menu_wait_frames(g) - 1));
-    return true;
 }
 
-static void send_the_frame(GameState *g, Platform *pf);
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} MenuVblankContext;
-
-/* The frame's work and the upload queue, each sent when it holds what the
- * port can send; the program goes no further otherwise. */
-static bool frame_sent(void *ctx)
-{
-    MenuVblankContext *c = ctx;
-    if (!menu_block_move_is_a_buffer(c->game)) {
-        program_breaks_a_contract(c->game, 0xC285D6, "a block move over the code the menus' vblank runs it through");
-        return false;
-    }
-    TIMED_AS(c->game, 0xC285D6, (void)send_the_frame(c->game, c->pf));
-    return menu_upload_queue_sent(c->game, c->pf);
-}
-
-static bool input_taken(void *ctx)
-{
-    MenuVblankContext *c = ctx;
-    bool taken = false;
-    TIMED_AS(c->game, 0xC28473, taken = menu_frame_input_taken(c->game, c->pf));
-    return taken;
-}
-
-void menu_vblank(GameState *g, Platform *pf)
-{
-    static const VblankCalls the_steps = { frame_sent, input_taken };
-    MenuVblankContext c = { g, pf };
-    TIMED_AS(g, 0xC2842A, (void)menus_vblank(g, pf, &the_steps, &c));
-}
+void menu_vblank(GameState *g, Platform *pf) { TIMED_AS(g, 0xC2842A, menus_vblank(g, pf)); }
 
 /* The menus' line handler returns at once. */
 void menu_line(GameState *g, Platform *pf) { (void)g, (void)pf; }
@@ -787,7 +694,7 @@ typedef enum {
     SEND_THE_QUEUE, TAKE_THE_INPUT, EMPTY_THE_SPRITE_LIST, HIDE_THE_SPRITES, RUN_THE_OBJECTS, DRAW_THE_SPRITE_LIST,
     OBJECT_FRAME_STEPS,
 } ObjectFrameStep;
-typedef bool (*ObjectFrameRun)(void *ctx, ObjectFrameStep step);
+static bool object_frame_step(GameState *g, Platform *pf, ObjectFrameStep step);
 
 // $C2:015E
 /* The sprite-object mode's vblank: counts the frame and, when the main loop
@@ -796,26 +703,26 @@ typedef bool (*ObjectFrameRun)(void *ctx, ObjectFrameStep step);
  * brightness and the per-line effects the frame left, and the objects'
  * turns, each showing its sprites on the list the frame starts empty, drawn
  * into the sprite table after them. */
-static bool object_mode_vblank(GameState *g, Platform *pf, ObjectFrameRun run, void *ctx)
+static bool object_mode_vblank(GameState *g, Platform *pf)
 {
     (void)tm_ack_vblank(pf, PF_AT(0xC2016D));
     set_menu_object_frame_counter(g, (uint8_t)(menu_object_frame_counter(g) + 1));
     if (!(menu_object_frame_state(g) & FRAME_TO_SHOW))
         return true;
     send_object_frame(g, pf);
-    if (!run(ctx, SEND_THE_QUEUE) || !run(ctx, TAKE_THE_INPUT))
+    if (!object_frame_step(g, pf, SEND_THE_QUEUE) || !object_frame_step(g, pf, TAKE_THE_INPUT))
         return false;
     VidDisplay display = vid_display_decode(menu_screen_display(g));
     vid_set_display(pf, PF_AT(0xC20323), &display);
     vid_enable_line_effects(pf, PF_AT(0xC20328), menu_object_line_effects(g));
-    if (!run(ctx, EMPTY_THE_SPRITE_LIST))
+    if (!object_frame_step(g, pf, EMPTY_THE_SPRITE_LIST))
         return false;
     /* the sprites' count is cleared a word wide, as the original clears it,
      * over the running object's low byte */
     set_menu_object_sprite_index(g, 0);
     set_menu_object_current(g, (uint16_t)(menu_object_current(g) & 0xFF00));
     for (ObjectFrameStep step = HIDE_THE_SPRITES; step < OBJECT_FRAME_STEPS; step++)
-        if (!run(ctx, step))
+        if (!object_frame_step(g, pf, step))
             return false;
     set_menu_object_frame_state(g, (uint8_t)(menu_object_frame_state(g) | FRAME_TO_SHOW));
     return true;
@@ -823,18 +730,10 @@ static bool object_mode_vblank(GameState *g, Platform *pf, ObjectFrameRun run, v
 
 static void send_object_queue(GameState *g, Platform *pf);
 
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} ObjectVblankContext;
-
 /* Each step, when what it works on is one the port handles; the program goes
  * no further otherwise. */
-static bool object_frame_step(void *ctx, ObjectFrameStep step)
+static bool object_frame_step(GameState *g, Platform *pf, ObjectFrameStep step)
 {
-    ObjectVblankContext *c = ctx;
-    GameState *g = c->game;
-    Platform *pf = c->pf;
     bool done = true;
     switch (step) {
     case SEND_THE_QUEUE:
@@ -876,8 +775,7 @@ static bool object_frame_step(void *ctx, ObjectFrameStep step)
 
 void menu_object_vblank(GameState *g, Platform *pf)
 {
-    ObjectVblankContext c = { g, pf };
-    TIMED_AS(g, MENU_OBJECT_VBLANK_HANDLER, (void)object_mode_vblank(g, pf, object_frame_step, &c));
+    TIMED_AS(g, MENU_OBJECT_VBLANK_HANDLER, (void)object_mode_vblank(g, pf));
 }
 
 /* The mode has no line handler: the line interrupt only returns. */
@@ -989,18 +887,17 @@ void menu_video_set_up(GameState *g, Platform *pf)
     clear_the_screens_memory(g, pf);
 }
 
-/* A stretch of work RAM cleared through the work RAM port, with the
- * per-line effects off first (the transfer runs on one of
- * their channels). The destination is memory, not video, so the transfer goes through
- * the SNES-only escape; the port's address is its input. */
+/* A stretch of work RAM cleared through the work RAM port (from `at` in
+ * bank $7E, running on into $7F), with the per-line effects off first: the
+ * original's transfer runs on one of their channels. */
 // $C2:9512
 void menu_clear_memory(GameState *g, Platform *pf, uint16_t at, uint16_t bytes)
 {
+    uint32_t count = bytes ? bytes : 0x10000u;
     vid_enable_line_effects(pf, PF_AT(0xC2951B), 0x00);
     hw_port_seek(g, at, 0);
-    const VidSnesTransfer t = { .dest = VID_SNES_WRAM_DATA, .data = PF_VALUE(0), .size = bytes,
-                                .wram_at = at, .repeats = true };
-    vid_snes_copy(pf, PF_AT(0xC29526), &t);
+    wram_port_fill(g, at, count, 0);
+    tm_charge_transfer(pf, PF_AT(0xC29526), count);
 }
 
 // $C2:94D5
@@ -1014,13 +911,14 @@ static void clear_the_screens_memory(GameState *g, Platform *pf)
 }
 
 // $C2:9542
-/* Copy Y bytes from $FF:A into work RAM at $7E:X through the work RAM port:
- * memory again, so the SNES-only escape. */
+/* Copy `bytes` of the menus' screen graphics, from `from` in their bank,
+ * into work RAM at `at` through the work RAM port. */
 void menu_copy_rom_to_memory(GameState *g, Platform *pf, uint16_t from, uint16_t at, uint16_t bytes)
 {
-    const VidSnesTransfer t = { .dest = VID_SNES_WRAM_DATA, .data = menu_screen_graphics_data(from, bytes ? bytes : 0x10000u), .size = bytes, .wram_at = at };
+    uint32_t count = bytes ? bytes : 0x10000u;
     hw_port_seek(g, at, 0);
-    vid_snes_copy(pf, PF_AT(0xC2954B), &t);
+    wram_port_copy(g, menu_screen_graphics_data(from, count), at, count);
+    tm_charge_transfer(pf, PF_AT(0xC2954B), count);
 }
 
 /* ---- The window line table ----------------------------------------------------------------------- */

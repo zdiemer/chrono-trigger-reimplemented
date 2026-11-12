@@ -121,19 +121,17 @@ static void queue_due_turns(GameState *g)
  * turn left it. */
 typedef enum { TURNS_ALL_RUN, TURNS_OUT_OF_TIME, TURN_WENT_ELSEWHERE } TurnsEnd;
 
-/* An object's turn: its script run by the event engine. False if the turn
- * didn't come back. */
-typedef bool (*TakeTurn)(void *ctx, FieldObject obj);
-
 // $C0:5A46
 /* Every frame, after the turns are queued: the queued objects take their
  * turns, the first in the queue first, while the frame has time for them. */
-static TurnsEnd run_queued_turns(GameState *g, Platform *pf, TakeTurn take, void *ctx)
+static bool take_turn(GameState *g, Platform *pf, FieldObject obj);
+
+static TurnsEnd run_queued_turns(GameState *g, Platform *pf)
 {
     while (tm_frame_time_left(pf, PF_AT(0xC05A49), field_script_line_limit(g))) {
         if (!field_link_is_object(queue_head(g)))
             return TURNS_ALL_RUN;
-        if (!take(ctx, take_the_first(g)))
+        if (!take_turn(g, pf, take_the_first(g)))
             return TURN_WENT_ELSEWHERE;
     }
     return TURNS_OUT_OF_TIME;
@@ -146,18 +144,17 @@ enum { RUN_A_TURN = 0xC05A93 };
 
 /* ---- The turns ------------------------------------------------------------------------------ */
 
-/* Each turn the event engine's (event/engine.h). */
-static bool take_turn(void *ctx, FieldObject obj)
+/* An object's turn, its script run by the event engine (event/engine.h).
+ * False if the turn didn't come back. */
+static bool take_turn(GameState *g, Platform *pf, FieldObject obj)
 {
-    EventScriptContext *c = ctx;
-    EventRunner r = event_runner(c);
     uint16_t at;
     EventTurnEnd end = TURN_OVER;
-    TIMED_AS(c->game, RUN_A_TURN, end = event_run_turn(c->game, obj, &r, &at));
+    TIMED_AS(g, RUN_A_TURN, end = event_run_turn(g, pf, obj, &at));
     if (end == TURN_OVER)
         return true;
     if (end != TURN_HANDED_BACK)
-        program_breaks_a_contract(c->game, RUN_A_TURN, "a turn the event engine hands to the original");
+        program_breaks_a_contract(g, RUN_A_TURN, "a turn the event engine hands to the original");
     return false;
 }
 
@@ -165,8 +162,7 @@ void field_queue_the_due_turns(GameState *g) { queue_due_turns(g); }
 
 bool field_queued_turns_run(GameState *g, Platform *pf)
 {
-    EventScriptContext c = { g, pf };
-    return run_queued_turns(g, pf, take_turn, &c) != TURN_WENT_ELSEWHERE;
+    return run_queued_turns(g, pf) != TURN_WENT_ELSEWHERE;
 }
 
 /* ---- What the port runs ------------------------------------------------------------------------ */

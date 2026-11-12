@@ -16,9 +16,7 @@
  * - halted (the leader stepped onto a halt, places.c), it stops the game.
  *
  * A pass of the loop is one sequence (run_a_pass), which overworld_runs
- * repeats from the mode's start until the world map leaves for the field;
- * the steps that are other routines -- the fades' waits, the map's loading
- * again, the screens the loop opens -- it calls through LoopSteps. A mode
+ * repeats from the mode's start until the world map leaves for the field. A mode
  * the loop doesn't know, or entering a place past the map's lists (neither
  * a state the game makes), breaks the loop's contract, and the program goes
  * no further. */
@@ -135,48 +133,20 @@ static void set_the_sign_again(GameState *g)
 typedef enum { PASS_GOES_ON, PASS_LEAVES, PASS_HALTS, PASS_STOPS } Pass;
 
 /* The loop's waits while a screen of its own fades the map out or in, each
- * its call's site and its frames; and the map's loads again, each its call's
- * site. */
-typedef enum {
-    WAIT_INTO_THE_MENUS, WAIT_BACK_FROM_THE_MENUS, WAIT_INTO_THE_MAP_VIEW, WAIT_BACK_FROM_THE_MAP_VIEW,
-    WAIT_INTO_THE_DIAL, WAIT_BACK_FROM_THE_DIAL, LOOP_WAITS,
-} LoopWait;
-static const struct {
-    uint32_t site;
-    uint16_t frames;
-} loop_waits[LOOP_WAITS] = {
-    [WAIT_INTO_THE_MENUS] = { 0xC22532, 0x11 },    [WAIT_BACK_FROM_THE_MENUS] = { 0xC22582, 0x11 },
-    [WAIT_INTO_THE_MAP_VIEW] = { 0xC225A1, 0x22 }, [WAIT_BACK_FROM_THE_MAP_VIEW] = { 0xC22612, 0x29 },
-    [WAIT_INTO_THE_DIAL] = { 0xC22631, 0x12 },     [WAIT_BACK_FROM_THE_DIAL] = { 0xC2269D, 0x11 },
+ * its frames, the sound sent meanwhile. */
+enum {
+    WAIT_INTO_THE_MENUS = 0x11, WAIT_BACK_FROM_THE_MENUS = 0x11, WAIT_INTO_THE_MAP_VIEW = 0x22,
+    WAIT_BACK_FROM_THE_MAP_VIEW = 0x29, WAIT_INTO_THE_DIAL = 0x12, WAIT_BACK_FROM_THE_DIAL = 0x11,
 };
 
-typedef enum { LOAD_BACK_FROM_THE_MENUS, LOAD_BACK_FROM_THE_MAP_VIEW, LOAD_BACK_FROM_THE_DIAL, MAP_LOADS } MapLoad;
-
-/* The loop's steps that are other routines (below): each false where it went
- * no further. */
-typedef struct {
-    bool (*frames)(void *ctx, LoopWait wait);                  /* frames waited, the sound sent meanwhile */
-    bool (*a_fade_frame)(void *ctx, uint16_t left);            /* a frame of the fade into a place */
-    void (*arm_entered)(void *ctx, OverworldMode mode);
-    void (*script_started)(void *ctx, uint32_t script);
-    void (*cpu_stilled)(void *ctx);                            /* the CPU's interrupts masked */
-    bool (*map_loaded)(void *ctx, MapLoad load);               /* the map loaded again */
-    Pass (*menus)(void *ctx, OverworldMode mode);              /* the menus run, the overworld put aside */
-    bool (*map_view)(void *ctx);
-    bool (*time_dial)(void *ctx);
-    void (*handed_over)(void *ctx);                            /* a mode the loop doesn't know */
-} LoopSteps;
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-    const LoopSteps *steps;
-    void *ctx;
-} Loop;
-
-static void interrupts(const Loop *l, uint32_t site, bool on)
+static void wait_frames(GameState *g, Platform *pf, uint16_t frames)
 {
-    tm_enable_interrupts(l->pf, PF_AT(site), on ? TM_INT_VBLANK | TM_INT_AUTO_JOYPAD : 0);
+    menu_wait_frames_sending_the_sound(g, pf, frames);
+}
+
+static void interrupts(Platform *pf, uint32_t site, bool on)
+{
+    tm_enable_interrupts(pf, PF_AT(site), on ? TM_INT_VBLANK | TM_INT_AUTO_JOYPAD : 0);
 }
 
 /* The scripts that fade the map out and in, and the map view's own. */
@@ -187,19 +157,18 @@ enum {
     FADE_IN_FROM_THE_MAP_VIEW = 0xC22ED0,
 };
 
-static void start_a_script(const Loop *l, uint32_t script)
+static void start_a_script(GameState *g, uint32_t script)
 {
-    TIMED_AS(l->game, 0xC204D9, (void)menu_start_script(l->game, script, MENU_ORDINARY_SLOT));
-    l->steps->script_started(l->ctx, script);
+    TIMED_AS(g, 0xC204D9, (void)menu_start_script(g, script, MENU_ORDINARY_SLOT));
 }
 
 /* The map fades out over a script of its own, the interrupts back on while
  * it plays. */
-static void fade_out_with(const Loop *l, uint32_t off, uint32_t script, uint32_t on)
+static void fade_out_with(GameState *g, Platform *pf, uint32_t off, uint32_t script, uint32_t on)
 {
-    interrupts(l, off, false);
-    start_a_script(l, script);
-    interrupts(l, on, true);
+    interrupts(pf, off, false);
+    start_a_script(g, script);
+    interrupts(pf, on, true);
 }
 
 /* The screen still before a screen of its own takes over: the interrupts,
@@ -208,55 +177,64 @@ typedef struct {
     uint32_t interrupts, uploads, line_effects;
 } StopSites;
 
-static void stop_the_screen(const Loop *l, StopSites at, bool its_line_effects)
+static void stop_the_screen(GameState *g, Platform *pf, StopSites at, bool its_line_effects)
 {
-    l->steps->cpu_stilled(l->ctx);
-    tm_enable_interrupts(l->pf, PF_AT(at.interrupts), 0);
-    vid_stop_uploads(l->pf, PF_AT(at.uploads));
-    vid_enable_line_effects(l->pf, PF_AT(at.line_effects), 0);
+    tm_enable_interrupts(pf, PF_AT(at.interrupts), 0);
+    vid_stop_uploads(pf, PF_AT(at.uploads));
+    vid_enable_line_effects(pf, PF_AT(at.line_effects), 0);
     if (its_line_effects)
-        set_menu_object_line_effects(l->game, 0);
+        set_menu_object_line_effects(g, 0);
 }
 
 /* The screen shows again from the next frame: the mode sends its frame and
  * palette, and the interrupts are on. */
-static void show_again(const Loop *l, uint32_t site)
+static void show_again(GameState *g, Platform *pf, uint32_t site)
 {
     enum { SEND_FRAME_AND_PALETTE = 0x03 };
-    set_menu_object_frame_state(l->game, (uint8_t)(menu_object_frame_state(l->game) | SEND_FRAME_AND_PALETTE));
-    interrupts(l, site, true);
+    set_menu_object_frame_state(g, (uint8_t)(menu_object_frame_state(g) | SEND_FRAME_AND_PALETTE));
+    interrupts(pf, site, true);
 }
 
-/* The map's screen set up again: the upload queue reset and the map loaded
- * (setup.c). */
-static bool load_the_map(const Loop *l, MapLoad load)
+/* The map loaded again (setup.c), where it is one the port loads. */
+static bool map_loaded(GameState *g, Platform *pf)
 {
-    TIMED_AS(l->game, 0xC203EF, menu_object_reset_the_upload_queue(l->game));
-    return l->steps->map_loaded(l->ctx, load);
+    if (!overworld_map_can_be_loaded_again(g)) {
+        program_fail(g, 0xC22C93, "a world map loaded again that the port doesn't take");
+        return false;
+    }
+    TIMED_AS(g, 0xC22C93, overworld_load_the_map_again(g, pf));
+    return true;
+}
+
+/* The map's screen set up again: the upload queue reset and the map loaded. */
+static bool load_the_map(GameState *g, Platform *pf)
+{
+    TIMED_AS(g, 0xC203EF, menu_object_reset_the_upload_queue(g));
+    return map_loaded(g, pf);
 }
 
 /* ---- The arms --------------------------------------------------------------------------- */
 
 // $C2:23EF
 /* On the map: a sound command a request left waiting goes to the driver. */
-static void send_the_waiting_sound(const Loop *l)
+static void send_the_waiting_sound(GameState *g, Platform *pf)
 {
     AudioCommand waiting;
-    if (!overworld_take_the_waiting_sound(l->game, &waiting))
+    if (!overworld_take_the_waiting_sound(g, &waiting))
         return;
-    au_command(l->pf, PF_CALL(0xC223F9, 0xC70004), waiting);
-    overworld_waiting_sound_sent(l->game);
+    au_command(pf, PF_CALL(0xC223F9, 0xC70004), waiting);
+    overworld_waiting_sound_sent(g);
 }
 
 // $C2:24D5
 /* Leave the world map for the location set: the screen stilled, the story's
  * flags given back, the effects brought back up, and the field takes over. */
-static Pass leave_the_world_map(const Loop *l)
+static Pass leave_the_world_map(GameState *g, Platform *pf)
 {
-    stop_the_screen(l, (StopSites){ 0xC224D7, 0xC224DA, 0xC224DD }, false);
-    give_the_story_flags_back(l->game);
-    au_fade(l->pf, PF_CALL(0xC224F0, 0xC70004), AU_FADE_EFFECTS, 0, AU_FULL_VOLUME);
-    au_fade(l->pf, PF_CALL(0xC22501, 0xC70004), AU_FADE_MORE_EFFECTS, 0, AU_FULL_VOLUME);
+    stop_the_screen(g, pf, (StopSites){ 0xC224D7, 0xC224DA, 0xC224DD }, false);
+    give_the_story_flags_back(g);
+    au_fade(pf, PF_CALL(0xC224F0, 0xC70004), AU_FADE_EFFECTS, 0, AU_FULL_VOLUME);
+    au_fade(pf, PF_CALL(0xC22501, 0xC70004), AU_FADE_MORE_EFFECTS, 0, AU_FULL_VOLUME);
     return PASS_LEAVES;
 }
 
@@ -264,11 +242,10 @@ static Pass leave_the_world_map(const Loop *l)
 /* Enter the place whose exit the leader stands on: an exit to an event starts
  * the event's script on the map; any other fades the map out over eighteen
  * frames and leaves for its location. */
-static Pass enter_the_place(const Loop *l)
+static Pass enter_the_place(GameState *g, Platform *pf)
 {
     enum { FADE_FRAMES = 0x12 };
-    GameState *g = l->game;
-    interrupts(l, 0xC22403, false);
+    interrupts(pf, 0xC22403, false);
     ExitTo to = overworld_exit_here(g);
     if (to.location == EXIT_TO_AN_EVENT) {
         uint16_t script = overworld_exit_here_event_script(g);
@@ -277,137 +254,140 @@ static Pass enter_the_place(const Loop *l)
         set_overworld_event_over(g, 0);
         set_overworld_event(g, 1);
         overworld_set_mode(g, OVERWORLD_ON_THE_MAP);
-        interrupts(l, 0xC2244C, true);
+        interrupts(pf, 0xC2244C, true);
         return PASS_GOES_ON;
     }
-    start_a_script(l, FADE_OUT);
-    interrupts(l, 0xC2245E, true);
+    start_a_script(g, FADE_OUT);
+    interrupts(pf, 0xC2245E, true);
     for (uint16_t frames = FADE_FRAMES; frames > 0; frames--)
-        if (!l->steps->a_fade_frame(l->ctx, frames))
-            return PASS_STOPS;
-    interrupts(l, 0xC2246D, false);
+        menu_wait_for_the_next_frame(g, pf);
+    interrupts(pf, 0xC2246D, false);
     overworld_leave_for(g, to.location, to.arrival, to.x, to.y);
-    return leave_the_world_map(l);
+    return leave_the_world_map(g, pf);
 }
 
 // $C2:255A
 /* Back from the menus: the map's screen, the overworld and its streams
  * brought back, and the map faded in, its sign set again. */
-static Pass come_back_from_the_menus(const Loop *l)
+static Pass come_back_from_the_menus(GameState *g, Platform *pf)
 {
-    GameState *g = l->game;
     TIMED_AS(g, 0xC20110, menu_object_take_the_interrupts(g));
     bring_back(g, OVERWORLD_ASIDE, OVERWORLD_PIECES);
-    if (!load_the_map(l, LOAD_BACK_FROM_THE_MENUS))
+    if (!load_the_map(g, pf))
         return PASS_STOPS;
-    start_a_script(l, FADE_IN);
+    start_a_script(g, FADE_IN);
     set_the_sign_again(g);
-    show_again(l, 0xC2257C);
-    if (!l->steps->frames(l->ctx, WAIT_BACK_FROM_THE_MENUS))
-        return PASS_STOPS;
+    show_again(g, pf, 0xC2257C);
+    wait_frames(g, pf, WAIT_BACK_FROM_THE_MENUS);
     overworld_set_mode(g, OVERWORLD_ON_THE_MAP);
     return PASS_GOES_ON;
 }
 
-/* Screen transitions are phases around their display waits, called in
- * sequence. */
-static Pass enter_the_menus(const Loop *l, OverworldMode mode)
+/* The screen the menus open on: the main menu, or the party's exchange. */
+enum { MAIN_MENU = 1, EXCHANGE_SCREEN = 5 };
+static uint8_t the_menus_screen(OverworldMode mode) { return mode == OVERWORLD_OPENING_THE_MENUS ? MAIN_MENU : EXCHANGE_SCREEN; }
+
+/* The menus as the program runs them (menu/display.c), the mode's screen set
+ * up again when they close, and the overworld back. */
+static Pass enter_the_menus(GameState *g, Platform *pf, OverworldMode mode)
 {
-    stop_the_screen(l, (StopSites){ 0xC22537, 0xC2253A, 0xC2253D }, true);
-    put_aside(l->game, OVERWORLD_ASIDE, OVERWORLD_PIECES);
-    return l->steps->menus(l->ctx, mode);
+    stop_the_screen(g, pf, (StopSites){ 0xC22537, 0xC2253A, 0xC2253D }, true);
+    put_aside(g, OVERWORLD_ASIDE, OVERWORLD_PIECES);
+    if (menu_mode_runs(g, pf, the_menus_screen(mode), 0) != MENUS_CLOSED)
+        return PASS_STOPS;
+    TIMED_AS(g, 0xC20043, menu_object_set_up_the_screen(g, pf));
+    Pass p = PASS_STOPS;
+    TIMED_AS(g, 0xC2255A, p = come_back_from_the_menus(g, pf));
+    return p;
 }
 
 // $C2:251E
-static Pass open_the_menus(const Loop *l, OverworldMode mode)
+static Pass open_the_menus(GameState *g, Platform *pf, OverworldMode mode)
 {
-    fade_out_with(l, 0xC2251F, FADE_OUT, 0xC2252C);
-    if (!l->steps->frames(l->ctx, WAIT_INTO_THE_MENUS))
-        return PASS_STOPS;
-    return enter_the_menus(l, mode);
+    fade_out_with(g, pf, 0xC2251F, FADE_OUT, 0xC2252C);
+    wait_frames(g, pf, WAIT_INTO_THE_MENUS);
+    return enter_the_menus(g, pf, mode);
 }
 
-static Pass come_back_from_the_map_view(const Loop *l)
+static Pass come_back_from_the_map_view(GameState *g, Platform *pf)
 {
-    GameState *g = l->game;
     bring_back(g, MAP_VIEW_ASIDE, MAP_VIEW_PIECES);
-    if (!load_the_map(l, LOAD_BACK_FROM_THE_MAP_VIEW))
+    if (!load_the_map(g, pf))
         return PASS_STOPS;
-    start_a_script(l, FADE_IN_FROM_THE_MAP_VIEW);
+    start_a_script(g, FADE_IN_FROM_THE_MAP_VIEW);
     set_the_sign_again(g);
-    show_again(l, 0xC2260C);
-    if (!l->steps->frames(l->ctx, WAIT_BACK_FROM_THE_MAP_VIEW))
-        return PASS_STOPS;
+    show_again(g, pf, 0xC2260C);
+    wait_frames(g, pf, WAIT_BACK_FROM_THE_MAP_VIEW);
     overworld_set_mode(g, OVERWORLD_ON_THE_MAP);
     return PASS_GOES_ON;
 }
 
-static Pass enter_the_map_view(const Loop *l)
+static Pass enter_the_map_view(GameState *g, Platform *pf)
 {
-    stop_the_screen(l, (StopSites){ 0xC225A6, 0xC225A9, 0xC225AC }, true);
-    put_aside(l->game, MAP_VIEW_ASIDE, MAP_VIEW_PIECES);
-    if (!l->steps->map_view(l->ctx))
+    stop_the_screen(g, pf, (StopSites){ 0xC225A6, 0xC225A9, 0xC225AC }, true);
+    put_aside(g, MAP_VIEW_ASIDE, MAP_VIEW_PIECES);
+    bool shown = false;
+    TIMED_AS(g, 0xC2631F, shown = menu_epoch_map_view_shown(g, pf));
+    if (!shown)
         return PASS_STOPS;
-    return come_back_from_the_map_view(l);
+    return come_back_from_the_map_view(g, pf);
 }
 
 // $C2:258D
-static Pass open_the_map_view(const Loop *l)
+static Pass open_the_map_view(GameState *g, Platform *pf)
 {
-    fade_out_with(l, 0xC2258E, FADE_OUT_TO_THE_MAP_VIEW, 0xC2259B);
-    if (!l->steps->frames(l->ctx, WAIT_INTO_THE_MAP_VIEW))
-        return PASS_STOPS;
-    return enter_the_map_view(l);
+    fade_out_with(g, pf, 0xC2258E, FADE_OUT_TO_THE_MAP_VIEW, 0xC2259B);
+    wait_frames(g, pf, WAIT_INTO_THE_MAP_VIEW);
+    return enter_the_map_view(g, pf);
 }
 
-static Pass come_back_from_the_time_dial(const Loop *l)
+static Pass come_back_from_the_time_dial(GameState *g, Platform *pf)
 {
-    GameState *g = l->game;
     bring_back(g, OVERWORLD_ASIDE, OVERWORLD_PIECES);
     TIMED_AS(g, 0xC203EF, menu_object_reset_the_upload_queue(g));
     bool sent_on = the_dial_sent_the_party_on(g);
     if (!sent_on) {
-        if (!l->steps->map_loaded(l->ctx, LOAD_BACK_FROM_THE_DIAL))
+        if (!map_loaded(g, pf))
             return PASS_STOPS;
-        start_a_script(l, FADE_IN);
+        start_a_script(g, FADE_IN);
         set_the_sign_again(g);
     }
-    show_again(l, 0xC22687);
+    show_again(g, pf, 0xC22687);
     if (sent_on)
         return PASS_GOES_ON;
-    if (!l->steps->frames(l->ctx, WAIT_BACK_FROM_THE_DIAL))
-        return PASS_STOPS;
+    wait_frames(g, pf, WAIT_BACK_FROM_THE_DIAL);
     overworld_set_mode(g, OVERWORLD_ON_THE_MAP);
     return PASS_GOES_ON;
 }
 
-static Pass enter_the_time_dial(const Loop *l)
+static Pass enter_the_time_dial(GameState *g, Platform *pf)
 {
-    stop_the_screen(l, (StopSites){ 0xC22636, 0xC22639, 0xC2263C }, true);
-    au_fade(l->pf, PF_CALL(0xC2264E, 0xC70004), AU_FADE_EFFECTS, 0, AU_FULL_VOLUME);
-    put_aside(l->game, OVERWORLD_ASIDE, OVERWORLD_PIECES);
-    if (!l->steps->time_dial(l->ctx))
+    stop_the_screen(g, pf, (StopSites){ 0xC22636, 0xC22639, 0xC2263C }, true);
+    au_fade(pf, PF_CALL(0xC2264E, 0xC70004), AU_FADE_EFFECTS, 0, AU_FULL_VOLUME);
+    put_aside(g, OVERWORLD_ASIDE, OVERWORLD_PIECES);
+    bool shown = false;
+    TIMED_AS(g, 0xC26A34, shown = menu_epoch_time_dial_shown(g, pf));
+    if (!shown)
         return PASS_STOPS;
-    return come_back_from_the_time_dial(l);
+    return come_back_from_the_time_dial(g, pf);
 }
 
 // $C2:261D
-static Pass run_the_time_dial(const Loop *l)
+static Pass run_the_time_dial(GameState *g, Platform *pf)
 {
-    fade_out_with(l, 0xC2261E, FADE_OUT, 0xC2262B);
-    if (!l->steps->frames(l->ctx, WAIT_INTO_THE_DIAL))
-        return PASS_STOPS;
-    return enter_the_time_dial(l);
+    fade_out_with(g, pf, 0xC2261E, FADE_OUT, 0xC2262B);
+    wait_frames(g, pf, WAIT_INTO_THE_DIAL);
+    return enter_the_time_dial(g, pf);
 }
 
 // $C2:250D
 /* Halted: the game stops for good. The screen is stilled with no interrupt
  * left to wake it and the story's flags are given back, over and over.
  * Nothing the player does gets out of it but a reset. */
-static Pass halt_the_game(const Loop *l)
+static Pass halt_the_game(GameState *g, Platform *pf)
 {
-    stop_the_screen(l, (StopSites){ 0xC2250F, 0xC22512, 0xC22515 }, false);
-    give_the_story_flags_back(l->game);
+    stop_the_screen(g, pf, (StopSites){ 0xC2250F, 0xC22512, 0xC22515 }, false);
+    give_the_story_flags_back(g);
     return PASS_HALTS;
 }
 
@@ -415,129 +395,37 @@ static Pass halt_the_game(const Loop *l)
 
 // $C2:23D2
 /* What a pass of the loop does once the next frame has come: the mode's arm. */
-static Pass after_the_frame(const Loop *l)
+static Pass after_the_frame(GameState *g, Platform *pf)
 {
-    GameState *g = l->game;
     OverworldMode mode = overworld_mode(g);
     if (mode >= OVERWORLD_MODES || (mode == OVERWORLD_ENTERING_A_PLACE && !overworld_exit_here_is_in_range(g))) {
-        l->steps->handed_over(l->ctx);
+        program_fail(g, 0xC223D2, "a world map's mode the loop doesn't know");
         return PASS_STOPS;
     }
-    l->steps->arm_entered(l->ctx, mode);
     switch (mode) {
     case OVERWORLD_STARTING:
     case OVERWORLD_ON_THE_MAP:
     case OVERWORLD_BACK_ON_THE_MAP:
-        send_the_waiting_sound(l);
+        send_the_waiting_sound(g, pf);
         return PASS_GOES_ON;
-    case OVERWORLD_LEAVING: return leave_the_world_map(l);
-    case OVERWORLD_HALTED: return halt_the_game(l);
-    case OVERWORLD_ENTERING_A_PLACE: return enter_the_place(l);
+    case OVERWORLD_LEAVING: return leave_the_world_map(g, pf);
+    case OVERWORLD_HALTED: return halt_the_game(g, pf);
+    case OVERWORLD_ENTERING_A_PLACE: return enter_the_place(g, pf);
     case OVERWORLD_OPENING_THE_MENUS:
-    case OVERWORLD_EXCHANGING_THE_PARTY: return open_the_menus(l, mode);
-    case OVERWORLD_OPENING_THE_MAP_VIEW: return open_the_map_view(l);
-    case OVERWORLD_TRAVELLING_THROUGH_TIME: return run_the_time_dial(l);
+    case OVERWORLD_EXCHANGING_THE_PARTY: return open_the_menus(g, pf, mode);
+    case OVERWORLD_OPENING_THE_MAP_VIEW: return open_the_map_view(g, pf);
+    case OVERWORLD_TRAVELLING_THROUGH_TIME: return run_the_time_dial(g, pf);
     default: return PASS_GOES_ON;
     }
 }
 
-/* The screen the menus open on: the main menu, or the party's exchange. */
-enum { MAIN_MENU = 1, EXCHANGE_SCREEN = 5 };
-static uint8_t the_menus_screen(OverworldMode mode) { return mode == OVERWORLD_OPENING_THE_MENUS ? MAIN_MENU : EXCHANGE_SCREEN; }
-
-/* ---- The steps ---- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-    const Loop *loop;
-} OverworldLoopContext;
-
-static bool next_frame(void *ctx)
-{
-    OverworldLoopContext *c = ctx;
-    menu_wait_for_the_next_frame(c->game, c->pf);
-    return true;
-}
-
 // $C2:23CF
 /* A pass of the loop: the wait for the next frame, then the mode's arm. */
-static Pass run_a_pass(const Loop *l)
+static Pass run_a_pass(GameState *g, Platform *pf)
 {
-    next_frame(l->ctx);
-    return after_the_frame(l);
+    menu_wait_for_the_next_frame(g, pf);
+    return after_the_frame(g, pf);
 }
-
-static bool frames(void *ctx, LoopWait wait)
-{
-    OverworldLoopContext *c = ctx;
-    menu_wait_frames_sending_the_sound(c->game, c->pf, loop_waits[wait].frames);
-    return true;
-}
-
-static bool a_fade_frame(void *ctx, uint16_t left)
-{
-    (void)left;
-    return next_frame(ctx);
-}
-
-static void nothing_left(void *ctx, OverworldMode mode) { (void)ctx, (void)mode; }
-static void no_script_left(void *ctx, uint32_t script) { (void)ctx, (void)script; }
-static void nothing_to_leave(void *ctx) { (void)ctx; }
-
-static bool map_loaded(void *ctx, MapLoad load)
-{
-    (void)load;
-    OverworldLoopContext *c = ctx;
-    if (!overworld_map_can_be_loaded_again(c->game)) {
-        program_fail(c->game, 0xC22C93, "a world map loaded again that the port doesn't take");
-        return false;
-    }
-    Unpacker u = overworld_unpacker(c->game);
-    bool loaded = false;
-    TIMED_AS(c->game, 0xC22C93, loaded = overworld_load_the_map_again(c->game, &u, c->pf));
-    return loaded;
-}
-
-/* The menus as the program runs them (menu/display.c), the mode's screen set
- * up again when they close, and the overworld back. */
-static Pass menus(void *ctx, OverworldMode mode)
-{
-    OverworldLoopContext *c = ctx;
-    if (menu_mode_runs(c->game, c->pf, the_menus_screen(mode), 0) != MENUS_CLOSED)
-        return PASS_STOPS;
-    TIMED_AS(c->game, 0xC20043, menu_object_set_up_the_screen(c->game, c->pf));
-    Pass p = PASS_STOPS;
-    TIMED_AS(c->game, 0xC2255A, p = come_back_from_the_menus(c->loop));
-    return p;
-}
-
-static bool map_view(void *ctx)
-{
-    OverworldLoopContext *c = ctx;
-    bool shown = false;
-    TIMED_AS(c->game, 0xC2631F, shown = menu_epoch_map_view_shown(c->game, c->pf));
-    return shown;
-}
-
-static bool time_dial(void *ctx)
-{
-    OverworldLoopContext *c = ctx;
-    bool shown = false;
-    TIMED_AS(c->game, 0xC26A34, shown = menu_epoch_time_dial_shown(c->game, c->pf));
-    return shown;
-}
-
-static void handed_over(void *ctx)
-{
-    OverworldLoopContext *c = ctx;
-    program_fail(c->game, 0xC223D2, "a world map's mode the loop doesn't know");
-}
-
-static const LoopSteps in_the_program = {
-    frames, a_fade_frame, nothing_left, no_script_left, nothing_to_leave, map_loaded, menus, map_view, time_dial,
-    handed_over,
-};
 
 // $C2:0000 (the mode's start, $C2:000F, the world map's setup, $C2:23A8, and its loop)
 OverworldEnd overworld_runs(GameState *g, Platform *pf)
@@ -547,24 +435,17 @@ OverworldEnd overworld_runs(GameState *g, Platform *pf)
         program_fail(g, 0xC223A8, "a world map the port doesn't set up");
         return OVERWORLD_WENT_NO_FURTHER;
     }
-    Unpacker u = overworld_unpacker(g);
-    bool set_up = false;
-    TIMED_AS(g, 0xC223A8, set_up = overworld_set_up(g, &u, pf));
-    if (!set_up)
-        return OVERWORLD_WENT_NO_FURTHER;
-    OverworldLoopContext c = { g, pf, NULL };
-    Loop l = { g, pf, &in_the_program, &c };
-    c.loop = &l;
+    TIMED_AS(g, 0xC223A8, overworld_set_up(g, pf));
     Pass p = PASS_STOPS;
     do
-        TIMED_AS(g, 0xC223CF, p = run_a_pass(&l));
+        TIMED_AS(g, 0xC223CF, p = run_a_pass(g, pf));
     while (p == PASS_GOES_ON);
     if (p == PASS_LEAVES)
         return OVERWORLD_LEFT;
     /* halted, the game stops for good: the halt again every frame */
     while (p == PASS_HALTS) {
         tm_wait_frame(pf, PF_AT(0xC2250D));
-        p = halt_the_game(&l);
+        p = halt_the_game(g, pf);
     }
     return OVERWORLD_WENT_NO_FURTHER;
 }

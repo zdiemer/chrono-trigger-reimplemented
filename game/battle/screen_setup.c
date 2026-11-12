@@ -305,25 +305,17 @@ static void keep_the_row_colors(GameState *g)
         set_battle_kept_row_colors(g, i, palette_base(g, KEPT_FROM_COLOR + i));
 }
 
-/* The routines the setup calls: the map's layers that scroll by themselves
- * (the field's, battle/frame.c), the message's tiles cleared
- * (battle/message.c), and the battle's song (field/sounds.c). */
-typedef struct {
-    bool (*scroll_the_map_layers)(void *ctx);
-    bool (*clear_the_message_tiles)(void *ctx);
-    bool (*start_the_song)(void *ctx);
-} ScreenSetUpCalls;
-
 // $D1:F1B0
-/* Set the screen up as a battle starts. False where a call went no further. */
-static bool set_the_screen_up(GameState *g, Platform *pf, const ScreenSetUpCalls *calls, void *ctx)
+/* Set the screen up as a battle starts, calling the map's layers that scroll
+ * by themselves (the field's, battle/frame.c), the message's tiles cleared
+ * (battle/message.c), and the battle's song (field/sounds.c). */
+bool battle_screen_set_up(GameState *g, Platform *pf)
 {
     program_install_vblank_handler(g, battle_vblank);
     charge_accesses(g, 4);
     program_install_line_handler(g, battle_line);
     charge_accesses(g, 4);
-    if (!calls->scroll_the_map_layers(ctx))
-        return false;
+    TIMED_AS(g, BATTLE_SCROLL_MAP_LAYERS_ENTRY, battle_scroll_the_map_layers(g));
     TIMED_AS(g, 0xCD0C9D, battle_take_the_start_settings(g));
     start_the_frame_work(g);
     start_the_effects(g);
@@ -337,44 +329,8 @@ static bool set_the_screen_up(GameState *g, Platform *pf, const ScreenSetUpCalls
     keep_the_row_colors(g);
     TIMED_AS(g, 0xCEEE6E, battle_arrange_line_effects(g, BATTLEFIELD_ARRANGEMENT));
     TIMED_AS(g, 0xD1F83D, build_fade_tables(g));
-    if (!calls->clear_the_message_tiles(ctx) || !calls->start_the_song(ctx))
-        return false;
+    TIMED_AS(g, BATTLE_CLEAR_THE_MESSAGE_TILES_ENTRY, battle_clear_the_message_tiles(g));
+    TIMED_AS(g, FIELD_BATTLE_SONG_ENTRY, field_start_the_battle_song(g, pf));
     set_battle_graphics_load_in_vblank(g, 1);
     return true;
-}
-
-/* ---- The setup's calls ------------------------------------------------------------------------ */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} ScreenSetUpContext;
-
-/* None of the three asks anything of the game's state. */
-static bool scroll_the_map_layers(void *ctx)
-{
-    GameState *g = ((ScreenSetUpContext *)ctx)->game;
-    TIMED_AS(g, BATTLE_SCROLL_MAP_LAYERS_ENTRY, battle_scroll_the_map_layers(g));
-    return true;
-}
-
-static bool clear_the_message_tiles(void *ctx)
-{
-    GameState *g = ((ScreenSetUpContext *)ctx)->game;
-    TIMED_AS(g, BATTLE_CLEAR_THE_MESSAGE_TILES_ENTRY, battle_clear_the_message_tiles(g));
-    return true;
-}
-
-static bool start_the_song(void *ctx)
-{
-    ScreenSetUpContext *c = ctx;
-    TIMED_AS(c->game, FIELD_BATTLE_SONG_ENTRY, field_start_the_battle_song(c->game, c->pf));
-    return true;
-}
-
-bool battle_screen_set_up(GameState *g, Platform *pf)
-{
-    static const ScreenSetUpCalls in_the_program = { scroll_the_map_layers, clear_the_message_tiles, start_the_song };
-    ScreenSetUpContext c = { g, pf };
-    return set_the_screen_up(g, pf, &in_the_program, &c);
 }

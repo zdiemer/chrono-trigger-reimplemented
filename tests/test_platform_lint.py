@@ -4,12 +4,10 @@ Rule 1 of docs/PLATFORM.md: no register constants for $2100-$217F, $4016-$4017,
 $4200-$421F (except the multiplier and divider) or $4300-$437F in game/, outside
 the files not converted yet. A constant counts as a register address when it
 fits in 16 bits, or when its bank byte is one where those addresses are I/O
-($00-$3F, $80-$BF). Comments and strings are skipped. The SNES-only escapes
-(vid_snes_*) are allowed only where registered, and so are the audio service's
-calls below the command interface (au_driver_*), which only the CPU half of the
-sound driver and the scene code that sends it messages may use. The SNES
-backend's write orders for transfers and line effects (VID_STEP_*, VidSnesXfer)
-are left only in the files that haven't moved to the calls that look them up.
+($00-$3F, $80-$BF). Comments and strings are skipped. The audio service's
+calls below the command interface (au_driver_*) are allowed only where
+registered: the CPU half of the sound driver and the scene code that sends it
+messages.
 """
 import pathlib
 import re
@@ -21,32 +19,6 @@ GAME = ROOT / "game"
 # Files whose ports still write registers themselves. Remove a file once it is
 # converted; the test fails if a listed file no longer has register constants.
 UNCONVERTED = set()
-
-# Uses of the SNES-only escapes, per file.
-ESCAPES = {
-    "battle/uploads.c": 1, # $CF:E338, the transfer described by the table at $9EEA
-    "menu/display.c": 2,   # $C2:9512 and $C2:9542, which fill and copy memory through the work RAM port
-    "menu/script.c": 2,    # the object scripts' byte commands, which name a register of the picture's by its
-                           # address (an ending's sets the sprites' sizes, $2101): whether the console takes it,
-                           # and the write, which both the scripts' runners make
-    "scene/race.c": 3,     # the read back out of VRAM at $7E:3D41, and the column at $7E:4671 and the
-                           # plane at $7E:876E, which write the data port's low half alone
-    "scene/screen.c": 6,   # $7E:3843 and the two clears at $7E:3092, whose transfers no call expresses,
-                           # $7E:38E7 and $7E:38C3, whose modes and destinations are game data, and the
-                           # buffer clears through the multiplier (one call, the race's three sites and
-                           # the Epoch's dive's)
-    "scene/staff_roll.c": 2,  # $7E:90A7 and $7E:8F77, which fill the data port's low half and its high half
-                              # alone
-    "scene/rising_palace.c": 2,  # $7E:672C, the map's top filled through the multiplier, and $7E:674D, the
-                                 # rest read back out of VRAM after a read of the port that steps it on
-}
-
-# Files whose calls still spell out the SNES backend's write order for a transfer
-# or a line effect (VID_STEP_*, VidSnesXfer), which the vid_send_* uploads,
-# vid_set_line_slot and vid_snes_copy take from the backend instead
-# (platform/snes/encodings.c; docs/TODO.md, Platform). Remove a file once it
-# moves; the test fails if a listed file no longer does, and nothing may be added.
-WRITE_ORDER = set()
 
 # Files allowed to use the driver-level audio calls (au_driver_*).
 AUDIO_DRIVER = {
@@ -102,22 +74,6 @@ class PlatformLint(unittest.TestCase):
             path = GAME / name
             self.assertTrue(path.exists(), f"{name} is listed as unconverted but doesn't exist")
             self.assertTrue(register_constants(path), f"{name} has no register constants: remove it from UNCONVERTED")
-
-    def test_escapes_only_where_registered(self):
-        counts = {}
-        for path in self.sources():
-            n = len(re.findall(r"\bvid_snes_\w+\s*\(", strip(path.read_text(encoding="utf-8"))))
-            if n:
-                counts[path.relative_to(GAME).as_posix()] = n
-        self.assertEqual(counts, ESCAPES)
-
-    def test_write_order_only_where_left(self):
-        users = set()
-        for path in self.sources():
-            if re.search(r"\bVID_STEP_\w+|\bVidSnesXfer\b", strip(path.read_text(encoding="utf-8"))):
-                users.add(path.relative_to(GAME).as_posix())
-        self.assertEqual(users, WRITE_ORDER)
-
 
     def test_audio_driver_calls_only_where_allowed(self):
         users = set()

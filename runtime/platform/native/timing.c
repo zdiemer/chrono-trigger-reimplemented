@@ -85,6 +85,13 @@ void tm_host_charge(Platform *pf, uint32_t clocks)
         t->owed = sum(t->owed, clocks);
 }
 
+void tm_charge_transfer(Platform *pf, PfOrigin o, uint32_t bytes)
+{
+    (void)o;
+    if (pf->timing.part == TM_HOST_IN_MAIN)
+        tm_host_charge(pf, time_of_transfer(bytes));
+}
+
 uint32_t tm_host_lag_frames(const Platform *pf) { return pf->timing.lag_frames; }
 
 void tm_host_game_access(Platform *pf, uint32_t clocks)

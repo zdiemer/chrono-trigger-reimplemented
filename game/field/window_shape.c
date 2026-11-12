@@ -46,10 +46,6 @@ static Point corner(const GameState *g, unsigned c)
     return (Point){ field_window_shape_corners_x(g, c), field_window_shape_corners_y(g, c) };
 }
 
-/* Whether the shape had a sloped edge, whose drawing takes the original more
- * work, which the shape's time keeps. */
-static bool drew_sloped_edge;
-
 /* ---- The rasterizer ----------------------------------------------------------------------- */
 
 /* The column the edges write: the table's address, a byte on for the right
@@ -100,20 +96,21 @@ static void draw_sloped_edge(GameState *g, Column column, Edge e)
         wram_write8(g, (uint32_t)column.bank << 16 | at, (uint8_t)x);
         at = (uint16_t)(at + LINE_BYTES);
     }
-    drew_sloped_edge = true;
 }
 
-/* An edge, upper end first (a level edge as it comes). Returns it as drawn. */
-static Edge draw_edge(GameState *g, Column column, Edge e)
+/* An edge, upper end first (a level edge as it comes). Returns whether it was
+ * sloped, whose drawing takes the original more work, which the shape's time
+ * keeps. */
+static bool draw_edge(GameState *g, Column column, Edge e)
 {
     if (e.to.y == e.from.y) {
         draw_level_edge(g, column, e);
-        return e;
+        return false;
     }
     if (e.to.y < e.from.y)
         e = (Edge){ e.to, e.from };
     draw_sloped_edge(g, column, e);
-    return e;
+    return true;
 }
 
 /* The corner the drawing starts from: the topmost, the last of equals. */
@@ -173,8 +170,7 @@ static void rasterize_quad(GameState *g)
     set_field_window_shape_top(g, top);
     uint16_t right_start = field_window_shape_right_start(g);
     Column column = { field_window_shape_table_bank(g), field_window_shape_table_address(g) };
-    bool right_side_found = false;
-    Edge last = { { 0, 0 }, { 0, 0 } };
+    bool right_side_found = false, sloped = false;
     for (unsigned k = 0; k < EDGES; k++) {
         Edge e = { corner(g, (first + k) % CORNERS), corner(g, (first + k + 1) % CORNERS) };
         if (e.to.y < e.from.y && !right_side_found) {
@@ -183,12 +179,12 @@ static void rasterize_quad(GameState *g)
             set_field_window_shape_right_start(g, right_start);
             right_side_found = true;
         }
-        last = draw_edge(g, column, e);
+        if (draw_edge(g, column, e))
+            sloped = true;
     }
     uint16_t fill_length = empty_outside_lines(g, column, top, right_start);
     if (column.bank == FILL_BANK)
-        charge_accesses(g, drew_sloped_edge ? 21 : 15);
-    (void)last;
+        charge_accesses(g, sloped ? 21 : 15);
     (void)fill_length;
 }
 
@@ -234,7 +230,6 @@ void field_draw_window_shape(GameState *g)
         program_breaks_a_contract(g, 0xC30EFA, "window shape outside its table");
         return;
     }
-    drew_sloped_edge = false;
     rasterize_quad(g);
 }
 

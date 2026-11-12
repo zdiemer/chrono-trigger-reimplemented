@@ -82,132 +82,67 @@ AudioCommand menu_fade_the_place_song_in(const GameState *g)
     return fade_music(FADE_IN_STEPS, volume != 0 ? volume : AU_FULL_VOLUME);
 }
 
-/* ---- The changes and the task, one sequence each ------------------------------------------------- */
+/* ---- The changes and the task --------------------------------------------------------------------- */
 
-/* Where the waits for a fade ask the driver how many steps it has left. */
-static const uint32_t FADE_ASKED_AT[] = { [GATE_SONG_AT_THE_GATE_S_FADE] = 0xC2CBC1, [GATE_SONG_AT_THE_PLACE_S_FADE] = 0xC2CC28 };
+/* The driver's calls, from the song's start's and the fade's routines. */
+enum { SOUND_DRIVER = 0xC70004, SEND_THE_SONG = 0xC2CBF3, SEND_THE_FADE = 0xC2CC09 };
 
-/* The music's fade run out, a frame at a time. */
-static bool fade_waited_out(Platform *pf, GateSongPlace at, const GateSongSteps *n, void *ctx)
+static void send_the_fade(Platform *pf, AudioCommand fade) { au_command(pf, PF_CALL(SEND_THE_FADE, SOUND_DRIVER), fade); }
+
+static void send_the_song_and_fade(Platform *pf, AudioCommand song, AudioCommand fade)
 {
-    for (;;) {
-        if (au_music_fade_left(pf, PF_AT(FADE_ASKED_AT[at])) == 0)
-            return true;
-        if (!n->wait(ctx, at))
-            return false;
-    }
+    au_command(pf, PF_CALL(SEND_THE_SONG, SOUND_DRIVER), song);
+    send_the_fade(pf, fade);
+}
+
+/* The music's fade run out, a frame at a time, the driver asked from the
+ * gate's wait or the place's. */
+enum { THE_GATE_S_FADE_ASKED = 0xC2CBC1, THE_PLACE_S_FADE_ASKED = 0xC2CC28 };
+
+static void fade_waited_out(GameState *g, Platform *pf, uint32_t asked_at)
+{
+    while (au_music_fade_left(pf, PF_AT(asked_at)) != 0)
+        menu_task_waits(g, 1);
 }
 
 // $C2:CB8B
 /* The place's song faded out, and the task started that brings the gate's
  * in. */
-bool menu_switch_to_the_gate_song_with(GameState *g, Platform *pf, const GateSongSteps *n, void *ctx)
+void menu_switch_to_the_gate_song(GameState *g, Platform *pf)
 {
-    (void)pf;
     if (menu_gate_song_wanted(g)) {
-        if (!n->send(ctx, GATE_SONG_FADED_OUT, menu_fade_the_song_out()))
-            return false;
+        send_the_fade(pf, menu_fade_the_song_out());
         menu_start_task(g, MENU_DESCRIPTION_TASK, MENU_GATE_SONG_TASK_START);
     }
-    return true;
 }
 
 // $C2:CBBF, $C2:CBE0
 /* The task: once the fade has run out, the gate's song, its volume brought
- * up at once; then the wait for it to be playing, which ends the task. */
-bool menu_play_the_gate_song_with(GameState *g, Platform *pf, const GateSongSteps *n, void *ctx)
+ * up at once; then the wait for it to be playing, which ends the task. The
+ * original spins on the driver's status without letting a frame go by, so
+ * it waits as long as the driver takes to start the song. Nothing here may
+ * spin on a device: the driver a host plays passes its time with the
+ * frames, so the task looks again once a frame, until the song's tracks are
+ * playing. */
+void menu_play_the_gate_song(GameState *g, Platform *pf)
 {
-    (void)g;
-    return fade_waited_out(pf, GATE_SONG_AT_THE_GATE_S_FADE, n, ctx)
-           && n->send_song_and_fade(ctx, GATE_SONG_STARTED, menu_start_the_gate_song(), menu_bring_the_song_up())
-           && n->wait_for_the_music(ctx);
+    fade_waited_out(g, pf, THE_GATE_S_FADE_ASKED);
+    send_the_song_and_fade(pf, menu_start_the_gate_song(), menu_bring_the_song_up());
+    while (au_music_playing(pf, PF_AT(0xC2CBE0)) == 0)
+        menu_task_waits(g, 1);
 }
 
 // $C2:CC0E
 /* The gate's song faded out with the screen, and the place's back from
  * where the driver saved it, fading in. */
-bool menu_switch_back_to_the_field_song_with(GameState *g, Platform *pf, const GateSongSteps *n, void *ctx)
+void menu_switch_back_to_the_field_song(GameState *g, Platform *pf)
 {
     bool played = menu_gate_song_played(g);
-    if (played && !n->send(ctx, GATE_SONG_FADED_OUT_AGAIN, menu_fade_the_song_out()))
-        return false;
-    if (!n->fade_the_screen_out(ctx))
-        return false;
-    return !played
-           || (fade_waited_out(pf, GATE_SONG_AT_THE_PLACE_S_FADE, n, ctx)
-               && n->send_song_and_fade(ctx, PLACE_SONG_STARTED_AGAIN, menu_start_the_place_song_again(g),
-                                        menu_fade_the_place_song_in(g)));
-}
-
-/* The driver's calls, from the song's start's and the fade's routines. */
-enum { SOUND_DRIVER = 0xC70004, SEND_THE_SONG = 0xC2CBF3, SEND_THE_FADE = 0xC2CC09 };
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} GateSongContext;
-
-static bool sent(void *ctx, GateSongSend at, AudioCommand c)
-{
-    (void)at;
-    GateSongContext *n = ctx;
-    au_command(n->pf, PF_CALL(SEND_THE_FADE, SOUND_DRIVER), c);
-    return true;
-}
-
-static bool song_and_fade_sent(void *ctx, GateSongSend at, AudioCommand song, AudioCommand fade)
-{
-    (void)at;
-    GateSongContext *n = ctx;
-    au_command(n->pf, PF_CALL(SEND_THE_SONG, SOUND_DRIVER), song);
-    au_command(n->pf, PF_CALL(SEND_THE_FADE, SOUND_DRIVER), fade);
-    return true;
-}
-
-static bool a_frame_waited(void *ctx, GateSongPlace at)
-{
-    (void)at;
-    menu_task_waits(((GateSongContext *)ctx)->game, 1);
-    return true;
-}
-
-static bool screen_faded_out(void *ctx)
-{
-    menu_fade_to_black(((GateSongContext *)ctx)->game);
-    return true;
-}
-
-/* The original spins on the driver's status without letting a frame go by,
- * so it waits as long as the driver takes to start the song. Nothing here
- * may spin on a device: the driver a host plays passes its time with the
- * frames, so the task looks again once a frame, until the song's tracks are
- * playing. */
-static bool music_waited_for(void *ctx)
-{
-    GateSongContext *n = ctx;
-    while (au_music_playing(n->pf, PF_AT(0xC2CBE0)) == 0)
-        menu_task_waits(n->game, 1);
-    return true;
-}
-
-static const GateSongSteps gate_song_steps = {
-    sent, song_and_fade_sent, a_frame_waited, screen_faded_out, music_waited_for,
-};
-
-bool menu_switch_to_the_gate_song(GameState *g, Platform *pf)
-{
-    GateSongContext c = { g, pf };
-    return menu_switch_to_the_gate_song_with(g, pf, &gate_song_steps, &c);
-}
-
-bool menu_switch_back_to_the_field_song(GameState *g, Platform *pf)
-{
-    GateSongContext c = { g, pf };
-    return menu_switch_back_to_the_field_song_with(g, pf, &gate_song_steps, &c);
-}
-
-void menu_play_the_gate_song(GameState *g, Platform *pf)
-{
-    GateSongContext c = { g, pf };
-    (void)menu_play_the_gate_song_with(g, pf, &gate_song_steps, &c);
+    if (played)
+        send_the_fade(pf, menu_fade_the_song_out());
+    menu_fade_to_black(g);
+    if (!played)
+        return;
+    fade_waited_out(g, pf, THE_PLACE_S_FADE_ASKED);
+    send_the_song_and_fade(pf, menu_start_the_place_song_again(g), menu_fade_the_place_song_in(g));
 }

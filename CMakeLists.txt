@@ -38,7 +38,7 @@ target_include_directories(ct_media PUBLIC frontend)
 add_library(ct_platform_native STATIC
   runtime/platform/native/timing.c runtime/platform/native/input.c
   runtime/platform/native/video.c runtime/platform/native/audio.c runtime/platform/native/save.c
-  runtime/platform/native_escapes.c runtime/platform/observe.c runtime/platform/voices.c
+  runtime/platform/observe.c runtime/platform/voices.c
   runtime/platform/native/mixer.c runtime/platform/native/snapshot.c runtime/port/fiber.c runtime/port/arena.c)
 target_include_directories(ct_platform_native PUBLIC runtime)
 add_library(ct_state_host STATIC runtime/port/vars_ram.c runtime/port/vars_host.c
@@ -343,8 +343,7 @@ add_library(ct_game STATIC
   game/battle/uploads.c
   game/battle/timers.c
   game/battle/wait.c
-  game/battle/window.c
-  game/battle/window_leaves.c)
+  game/battle/window.c)
 target_link_libraries(ct_game PUBLIC ct_state_host)
 add_executable(ct_native frontend/ct_native.c frontend/route_driver.c frontend/snapshot.c
   frontend/storage.c frontend/asset_files.c frontend/track.c frontend/sram_find.c
@@ -423,7 +422,9 @@ if(BUILD_TESTING)
   target_include_directories(player_files_test PRIVATE frontend)
   add_executable(recorder_test tests/frontend/recorder_test.c frontend/track.c)
   target_link_libraries(recorder_test PRIVATE ct_media)
-  foreach(test player_files recorder fiber route_driver file_store timing video tasks native_time program vars_host unpack_time assets)
+  add_executable(sound_setting_test tests/port/sound_setting_test.c)
+  target_link_libraries(sound_setting_test PRIVATE ct_game)
+  foreach(test player_files recorder fiber route_driver file_store timing video tasks native_time program vars_host unpack_time assets sound_setting)
     if(test STREQUAL "file_store")
       add_test(NAME file_store COMMAND file_store_test ${CMAKE_CURRENT_BINARY_DIR}/file-store-test.bin)
     else()

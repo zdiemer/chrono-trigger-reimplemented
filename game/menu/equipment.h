@@ -224,36 +224,10 @@ void menu_equip_set_up(GameState *g, Platform *pf);
 
 /* Each of the screen's steps -- the opening ($C2:9C31), choosing a member
  * ($C2:9C39), a slot ($C2:9C70) or an item ($C2:9CA5) -- and the routines
- * they go on to is one sequence, which asks the menus for what it needs
- * through EquipmentSteps.
+ * they go on to is one sequence, each false where it went no further.
  *
- * The places the sequences tick or wait from. */
-typedef enum {
-    EQUIPMENT_AT_THE_OPENING,       /* the screen opening */
-    EQUIPMENT_AT_THE_MEMBER_CHOSEN, /* a member chosen */
-    EQUIPMENT_AT_THE_SLOTS_DRAWN,   /* ... the slots drawn, a frame on */
-    EQUIPMENT_AT_THE_MEMBER_POINTED, /* another member pointed at */
-    EQUIPMENT_AT_THE_SLOTS_SLIDING, /* the slots' window sliding in, a frame at a time */
-    EQUIPMENT_AT_THE_SLOTS_LEFT,    /* back from the slots to the members */
-    EQUIPMENT_AT_THE_SLOT_CHOSEN,   /* a slot chosen */
-    EQUIPMENT_AT_THE_SLOT_MOVED,    /* the cursor on another slot */
-    EQUIPMENT_AT_THE_SLOT_POINTED,  /* ... the list of what fits it drawn a frame on */
-    EQUIPMENT_AT_THE_MEMBER_SWITCHED, /* the shoulder assignments' next member */
-    EQUIPMENT_AT_THE_SLOTS_GOING,   /* the slots' window going: a frame, */
-    EQUIPMENT_AT_THE_SLOTS_GONE,    /* ... and another, */
-    EQUIPMENT_AT_THE_MEMBERS_SLIDING_BACK, /* ... then the member rows back down */
-    EQUIPMENT_AT_THE_LIST_SLIDING_IN, /* the list's window sliding in */
-    EQUIPMENT_AT_THE_LIST_SLIDING_OUT, /* ... and out */
-    EQUIPMENT_AT_THE_SLOTS_REDRAWN, /* back on the slots, a frame on */
-    EQUIPMENT_AT_THE_ITEM_LEFT,     /* back from the list to the slots */
-    EQUIPMENT_AT_THE_ITEM_POINTED,  /* the cursor along the list */
-    EQUIPMENT_AT_THE_PAGE_TURNED,   /* the list paged */
-    EQUIPMENT_AT_THE_ROW_BROUGHT_IN, /* a row brought in past the list's end */
-    EQUIPMENT_AT_THE_LIST_ROWS_SLIDING, /* ... and the rows sliding a frame at a time */
-    EQUIPMENT_AT_THE_MEMBERS_SLIDING, /* the member rows sliding, a frame at a time */
-} EquipmentPlace;
-
-/* The operations a screen step calls and returns from. */
+ * The routines a step runs and goes on to, each run only on the state it
+ * handles. */
 typedef enum {
     EQUIPMENT_SLIDES_MEMBERS,              /* the member list slid by a member ($C2:9D5B) */
     EQUIPMENT_SLIDES_THE_MEMBER_ROWS_UP,   /* its rows' slide ($C2:9DAF) */
@@ -286,17 +260,7 @@ typedef enum {
     EQUIPMENT_TICKS_ON_THE_LIST,
 } EquipmentEnd;
 
-/* What the sequences ask: the cursor read, a tick, a frame's wait, a routine
- * run, the end. Each false where it went no further. */
-typedef struct {
-    void (*read_cursor)(void *ctx);
-    bool (*tick)(void *ctx, EquipmentPlace at);
-    bool (*wait)(void *ctx, EquipmentPlace at);
-    bool (*run)(void *ctx, EquipmentRoutine routine);
-    bool (*ends)(void *ctx, EquipmentEnd end);
-} EquipmentSteps;
-
-typedef bool EquipmentSequence(GameState *g, Platform *pf, const EquipmentSteps *n, void *ctx);
+typedef bool EquipmentSequence(GameState *g, Platform *pf);
 EquipmentSequence menu_open_equipment_with, menu_choose_equipment_member_with, menu_point_at_equipment_member_with,
     menu_open_the_slots_window_with, menu_close_the_slots_window_with, menu_choose_equipment_slot_with,
     menu_point_at_equipment_slot_with, menu_switch_equipment_member_with, menu_choose_equipment_item_with,

@@ -317,9 +317,8 @@ static TaskEnd channel_1_turn(GameState *g, Platform *pf, unsigned slot) { (void
 
 static TaskEnd hide_every_sprite(GameState *g, Platform *pf, unsigned slot)
 {
-    (void)g;
     (void)slot;
-    scene_hide_every_sprite(pf);
+    scene_hide_every_sprite(g, pf);
     return task_goes_on();
 }
 

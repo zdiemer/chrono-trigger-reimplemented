@@ -95,12 +95,10 @@ enum {
  * (Crono's speed's high byte), and the effects it sends from its own calls,
  * which wait for the driver to take them -- and the road strip to VRAM.
  *
- * An effect is put in the sound command buffer by race_send_sound and sent
- * by a step the caller passes: the program's send (race_sound, no context). */
+ * An effect is put in the sound command buffer and sent by the program's
+ * send ($7E:377E), which waits for the driver to take it. */
 typedef enum { RACE_BUMP_SOUND, RACE_LEAVING_SOUND } RaceSound;
-typedef bool (*RaceSends)(void *ctx, GameState *g, Platform *pf, RaceSound sound);
-bool race_send_sound(GameState *g, Platform *pf, RaceSound sound, RaceSends send, void *ctx);
-bool race_sound(void *ctx, GameState *g, Platform *pf, RaceSound sound);
+void race_send_sound(GameState *g, Platform *pf, RaceSound sound);
 void race_send_engine_pitch(const GameState *g, Platform *pf);
 void race_upload_road_strip(Platform *pf);
 

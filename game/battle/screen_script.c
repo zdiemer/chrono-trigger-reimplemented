@@ -486,11 +486,27 @@ static bool runs_past_its_table(const GameState *g, uint8_t byte, uint16_t at)
            && (screen_script_byte_at(g, (uint16_t)(at + 1)) & 0x7F) >= SWING_WORDS;
 }
 
+/* A command the port runs, or the program goes no further at its handler.
+ * The wait for a line is the timing service's own. */
+static bool run_a_command(GameState *g, Platform *pf, uint8_t opcode, ScreenChannel channel)
+{
+    ScreenCommand c;
+    const ScreenOpcode *row;
+    CommandRun run = COMMAND_NOT_OURS;
+    TIMED_AS(g, 0xCD16A6, run = run_command(g, opcode, channel, &c, &row));
+    if (run == COMMAND_WAITS_FOR_LINE) {
+        tm_wait_line(pf, PF_CALL(DISPATCH_CALL, WAIT_FOR_LINE), c.line);
+        return true;
+    }
+    if (run != COMMAND_RAN)
+        return battle_contract_broken(g, handler_of(opcode), "a screen script's command the port doesn't run");
+    return true;
+}
+
 // $CD:1654
-/* Take a channel's step: run its commands (each a routine of its own,
- * `command`) until it shows a frame, ends its step or ends its script. */
-static ChannelStep step_channel(GameState *g, ScreenChannel channel,
-                                bool (*command)(void *ctx, uint8_t opcode, ScreenChannel channel), void *ctx)
+/* Take a channel's step: run its commands (each a routine of its own) until
+ * it shows a frame, ends its step or ends its script. */
+static ChannelStep step_channel(GameState *g, Platform *pf, ScreenChannel channel)
 {
     set_battle_screen_script(g, battle_screen_channels_place(g, channel));
     for (;;) {
@@ -504,7 +520,7 @@ static ChannelStep step_channel(GameState *g, ScreenChannel channel,
         case NEXT_COMMAND:
             if (runs_past_its_table(g, byte, at))
                 return CHANNEL_COMMAND_PAST_ITS_TABLE;
-            if (!command(ctx, byte, channel))
+            if (!run_a_command(g, pf, byte, channel))
                 return CHANNEL_STOPPED;
             set_battle_screen_script(g, (battle_screen_script(g) & 0xFF0000u) | (uint16_t)(screen_place(g) + 1));
             break;
@@ -540,12 +556,22 @@ static bool step_comes_round(GameState *g, ScreenChannel channel)
     return true;
 }
 
+/* A channel's step, a routine of its own; a byte past the language, or a
+ * command past its table, is one the port refuses. */
+static bool step_a_channel(GameState *g, Platform *pf, ScreenChannel channel)
+{
+    ChannelStep step = CHANNEL_STOPPED;
+    TIMED_AS(g, 0xCD1654, step = step_channel(g, pf, channel));
+    if (step == CHANNEL_BYTE_PAST_THE_LANGUAGE || step == CHANNEL_COMMAND_PAST_ITS_TABLE)
+        return battle_contract_broken(g, 0xCD1654, "a screen script's byte past the language");
+    return step == CHANNEL_STEPPED;
+}
+
 // $CD:1609
 /* Run the screen scripts for a frame: step each running channel whose step
- * comes round (each a routine of its own, `step`), and when both have ended,
- * end the scripts and ask for the battlefield back. Nothing runs while the
- * battlefield is being put back. */
-static bool run_screen_scripts(GameState *g, bool (*step)(void *ctx, ScreenChannel channel, uint16_t ended), void *ctx)
+ * comes round, and when both have ended, end the scripts and ask for the
+ * battlefield back. Nothing runs while the battlefield is being put back. */
+bool battle_screen_scripts_run(GameState *g, Platform *pf)
 {
     if (battle_background_restore_request(g) || !battle_screen_scripts_running(g))
         return true;
@@ -554,7 +580,7 @@ static bool run_screen_scripts(GameState *g, bool (*step)(void *ctx, ScreenChann
     for (ScreenChannel channel = 0; channel < SCREEN_CHANNELS; channel++) {
         if (!battle_screen_channels_running(g, channel))
             ended++;
-        else if (step_comes_round(g, channel) && !step(ctx, channel, ended))
+        else if (step_comes_round(g, channel) && !step_a_channel(g, pf, channel))
             return false;
     }
     if (ended == SCREEN_CHANNELS) {
@@ -605,49 +631,4 @@ void battle_start_battlefield_scripts(GameState *g)
         if (script != NO_BATTLEFIELD_SCRIPT)
             start_battlefield_script(g, channel, script);
     }
-}
-
-/* ---- The scripts run ---------------------------------------------------------------------------- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} ScreenScriptsContext;
-
-/* A command the port runs, or the program goes no further at its handler.
- * The wait for a line is the timing service's own. */
-
-static bool run_a_command(void *ctx, uint8_t opcode, ScreenChannel channel)
-{
-    ScreenScriptsContext *a = ctx;
-    GameState *g = a->game;
-    ScreenCommand c;
-    const ScreenOpcode *row;
-    CommandRun run = COMMAND_NOT_OURS;
-    TIMED_AS(g, 0xCD16A6, run = run_command(g, opcode, channel, &c, &row));
-    if (run == COMMAND_WAITS_FOR_LINE) {
-        tm_wait_line(a->pf, PF_CALL(DISPATCH_CALL, WAIT_FOR_LINE), c.line);
-        return true;
-    }
-    if (run != COMMAND_RAN)
-        return battle_contract_broken(g, handler_of(opcode), "a screen script's command the port doesn't run");
-    return true;
-}
-
-static bool step_a_channel(void *ctx, ScreenChannel channel, uint16_t ended)
-{
-    (void)ended;
-    ScreenScriptsContext *a = ctx;
-    GameState *g = a->game;
-    ChannelStep step = CHANNEL_STOPPED;
-    TIMED_AS(g, 0xCD1654, step = step_channel(g, channel, run_a_command, a));
-    if (step == CHANNEL_BYTE_PAST_THE_LANGUAGE || step == CHANNEL_COMMAND_PAST_ITS_TABLE)
-        return battle_contract_broken(g, 0xCD1654, "a screen script's byte past the language");
-    return step == CHANNEL_STEPPED;
-}
-
-bool battle_screen_scripts_run(GameState *g, Platform *pf)
-{
-    ScreenScriptsContext a = { g, pf };
-    return run_screen_scripts(g, step_a_channel, &a);
 }
