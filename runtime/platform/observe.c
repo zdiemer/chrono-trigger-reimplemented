@@ -469,7 +469,7 @@ void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32
         return;
     ob->vram_addr = vram_addr;
     for (uint32_t i = 0; i < len; i++)
-        vram_put(ob, (i & 1) != 0, data_byte(ob, src, fill ? (i & 1) : i));
+        vram_put(ob, (i & 1) != 0, data_byte(ob, src, fill ? 0 : i));
 }
 
 void vid_obs_upload_vram_half(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len,
@@ -482,6 +482,15 @@ void vid_obs_upload_vram_half(VidObserver *ob, uint16_t vram_addr, PfData src, u
     ob->vram_addr = vram_addr;
     for (uint32_t i = 0; i < len; i++)
         vram_put(ob, half == VID_VRAM_HIGH_BYTES, data_byte(ob, src, i));
+}
+
+void vid_obs_fill_vram_half(VidObserver *ob, PfData value, uint32_t len, VidVramHalf half)
+{
+    if (len == 0)
+        return;
+    uint8_t byte = data_byte(ob, value, 0);
+    for (uint32_t i = 0; i < len; i++)
+        vram_put(ob, half == VID_VRAM_HIGH_BYTES, byte);
 }
 
 void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t count)

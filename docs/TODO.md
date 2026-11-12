@@ -2840,11 +2840,6 @@ list, by kind, is what `game/` still asks of one.
     original-timed end-state proofs match game and save RAM while reporting
     sound-queue overruns. State agreement is evidence about that state,
     not a passing run; keep the fault visible in the diagnostic verdict.
-  - *Dialog presses.* In `events-ocean-palace-lavos`, recorded presses still
-    land on different dialog states. After the whole-library rate fit, the
-    native replay misses the reference's Mammon Machine room visit (`$19F`
-    at frame 16965). Follow the first shifted dialog before adjusting the
-    later scene's timing.
 
   Meanwhile drive the long movies' native runs by their routes (`ct_drive`'s
   scripts react to the game's state, MOVIES.md) rather than recorded presses,
@@ -2908,16 +2903,6 @@ list, by kind, is what `game/` still asks of one.
   field's events' work `ct_native` still times short there ("Where the game's
   work is still timed short or long", above), not a port's difference. The
   native run also reports two SNES-only video escapes, first at `$7E:5AEB`.
-- **Ocean Palace movie playback.** `battle-golem-twins` and
-  `events-ocean-palace-lavos` run for their full 20216 and 30364 frames in
-  `ct_native` (exit 0), without a missing-C stop, but both report unsupported video
-  calls: four and two respectively, first at `$7E:5AEB`. The finale ends with
-  the screen blanked (the Twins run ends showing), so frame completion is not
-  evidence that the native program plays these scenes correctly. Diagnose its
-  playback and video escapes. Strict `ct_dev --native on --generated off
-  --no-interpreter strict` also reaches both ends, with
-  58 saved-game bytes differing from reference in each, plus 224 SRAM bytes
-  for the Twins; these are `drifts` entries in `tools/strict_baseline.txt`.
 - **Yakra's native replay ends with the screen blanked.** The hand movie
   `battle-yakra` (ctsave01 slot 2, 71287 frames) originally stopped at frame
   4032, `$F9:B006`, because the Cathedral's dialogue table was missing from
@@ -2972,11 +2957,11 @@ list, by kind, is what `game/` still asks of one.
   (a host's draws take its own noise). The C reads the program's data where
   the boot unpacks it, and doesn't check, as the entries' guards do on the
   machine, that the unpacked code is the one the ports were written for. The
-  plane's map halves (`scene_upload_plane_half`, `$7E:876E`), its rest
-  blanked (`$7E:5476`, `$7E:5AEB`) and the credits' map blanked (`$7E:90BD`)
-  are `vid_snes_copy` escapes the host counts: a send of one byte of each
-  VRAM word, from a cursor or a fixed byte, which the video service has no
-  call for yet. The scene teardown's census finds no ordinary scene entry
+  plane's map halves (`scene_upload_plane_half`, `$7E:876E`) and the
+  credits' map blanked (`$7E:90BD`) still use `vid_snes_copy` escapes.
+  Convert these remaining callers to semantic half-word uploads and fills;
+  the title and unused-plane fills now use `vid_fill_vram_half` (PLATFORM.md).
+  The scene teardown's census finds no ordinary scene entry
   entered by the machine; these host gaps are separate from its retired
   byte-exact comparisons.
 - **A meaningful native run of mode 5.** Its setup, map and figure animation

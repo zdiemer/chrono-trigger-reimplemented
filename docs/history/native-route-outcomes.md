@@ -172,6 +172,41 @@ that discard, and the shell checkpoint requires location $1D3. Native enters
 the shell at frame 5162 and reaches the loss ending at 15637; shipping uses
 5102 and 16332. [TODO.md](../TODO.md) holds the open game and restore-cost debts.
 
+## Ocean Palace playback investigation
+
+Per-frame replay of the unchanged recordings in native and shipping first
+differs at the load-screen transition (1668 versus 1669). After loading,
+the first party movement differs at 3215 in `battle-golem-twins` (native
+X=217, shipping 216) and 3305 in `events-ocean-palace-lavos` (native
+Y=110.9375, shipping 111.9375). The first finale dialogue opens at 4355
+versus 4356; recorded A presses subsequently see different dialogue states,
+first at 4929. The native Mammon room return is 16966, shipping 16967;
+the older claim that this visit is missing no longer describes this build.
+
+The video escapes are title-map fills at `$7E:5AEB` and `$7E:59DD`, before the palace.
+The Twins recording loses its battle and returns to the title at 15493,
+accounting for its second pair of escapes. The new `vid_fill_vram_half`
+service preserves the pixel half and continues the tile-map cursor in both
+backends; it replaces that fill and the shared unused-plane fill. The next
+BG1 fill retains the source that both callers have just supplied, the blank
+tile, and now uses `vid_send_vram_fill` instead of a channel-state escape.
+
+The finale's black ending is a timed fade, not a missing display-enable
+call. Without changing input, native goes dark at 29819 and leaves the
+scene for `$10F` at 30767; shipping leaves at 30724. Both are beyond the
+recording's 30364-frame end and its last two B presses (30088 and 30181).
+Continuing dialogue from there reaches the Last Village, whose party
+exchange needs B. The focused native continuation accepts it and regains
+visible field control at 37213. No fade duration, recording, or exception
+was changed.
+
+The shipping routes pass the finale at 30549 and the Twins with slot 3
+saved at 21361. A fresh native Twins route wins at 15247 and regains field
+control at 18257; its subsequent exit search was stopped after minutes of
+power-on replays. The native finale rerun was likewise stopped during its
+early Mammon-room exit search. These are bounded continuations, not new
+full-route passes; the original audit's full native passes remain above.
+
 ## Validation
 
 The sampled gate (`tools/suite.py --ct-dev build/main/ct_dev.exe -j 2

@@ -281,6 +281,13 @@ void vid_send_palette(Platform *pf, PfOrigin o, uint8_t first, PfData src, uint1
     vid_obs_upload_palette(ob(pf), first, src, count);
 }
 
+void vid_fill_vram_half(Platform *pf, PfOrigin o, PfData value, uint32_t len, VidVramHalf half)
+{
+    (void)o;
+    charge_send(pf, len);
+    vid_obs_fill_vram_half(ob(pf), value, len, half);
+}
+
 void vid_send_oam(Platform *pf, PfOrigin o, PfData oam) { (void)o; vid_obs_upload_oam(ob(pf), oam); }
 
 void vid_send_oam_fill(Platform *pf, PfOrigin o, uint16_t word_addr, uint8_t value, uint16_t len)

@@ -64,6 +64,43 @@ static uint8_t effect_byte(void *ctx, uint32_t at)
     return at == 0 ? 255 : at <= 127 ? 15 : 0;
 }
 
+static void fill_half_from_cursor(void)
+{
+    Platform pf = {0};
+    const uint8_t original[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+    vid_host_start(&pf, unexpected_read, copy_byte, NULL);
+    vid_send_vram(&pf, PF_AT(0), 0, (PfData){ .ptr = original }, sizeof original,
+                  &(VidVramPort){ .step = 1, .after_high = true });
+    vid_start_vram_uploads(&pf, PF_AT(0), &(VidVramPort){ .step = 1 });
+    vid_set_vram_address(&pf, PF_AT(0), 1);
+    vid_fill_vram_half(&pf, PF_AT(0), PF_VALUE(0xA5), 2, VID_VRAM_LOW_BYTES);
+    vid_write_vram_byte(&pf, PF_AT(0), false, 0x33);
+    const VidFrame *f = vid_host_picture(&pf);
+    CHECK(f->vram[0] == 1 && f->vram[1] == 2);
+    CHECK(f->vram[2] == 0xA5 && f->vram[3] == 4);
+    CHECK(f->vram[4] == 0xA5 && f->vram[5] == 6);
+    CHECK(f->vram[6] == 0x33 && f->vram[7] == 8);
+
+    /* The high-half form obeys the active stride and wraps the VRAM cursor. */
+    vid_start_vram_uploads(&pf, PF_AT(0), &(VidVramPort){ .step = 32, .after_high = true });
+    vid_set_vram_address(&pf, PF_AT(0), 0x7FE0);
+    vid_fill_vram_half(&pf, PF_AT(0), PF_VALUE(0x5A), 2, VID_VRAM_HIGH_BYTES);
+    vid_fill_vram_half(&pf, PF_AT(0), PF_VALUE(0xEE), 0, VID_VRAM_HIGH_BYTES);
+    vid_write_vram_byte(&pf, PF_AT(0), true, 0x77);
+    f = vid_host_picture(&pf);
+    CHECK(f->vram[0xFFC1] == 0x5A && f->vram[1] == 0x5A);
+    CHECK(f->vram[0] == 1 && f->vram[0x41] == 0x77);
+    /* A whole-word fill repeats one source byte too, even when the next
+     * source byte differs. It does not alternate a two-byte pattern. */
+    vid_send_vram_fill(&pf, PF_AT(0), 0, (PfData){ .ptr = original }, 4,
+                       &(VidVramPort){ .step = 1, .after_high = true });
+    f = vid_host_picture(&pf);
+    CHECK(f->vram[0] == 1 && f->vram[1] == 1 && f->vram[2] == 1 && f->vram[3] == 1);
+    CHECK(pf.video.escapes == 0);
+    CHECK(fallback_reads == 0);
+    vid_host_stop(&pf);
+}
+
 static const VidLineState *line_state(const VidFrame *f, unsigned line)
 {
     const VidLineState *s = NULL;
@@ -222,6 +259,7 @@ static void changing_picture(void)
 int main(void)
 {
     resource_transfers();
+    fill_half_from_cursor();
     changing_picture();
     raster_changes();
     handler_uploads(99);
