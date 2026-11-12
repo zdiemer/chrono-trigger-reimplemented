@@ -267,7 +267,7 @@ def main():
             # leads out to the 1000 A.D. world map.
             assert run.exit_to("0100"), "downstairs"
             assert in_hand(run)
-            assert run.talk(15, done=lambda: naming(run)) or True
+            run.talk(15, done=lambda: naming(run))   # Lucca's name: in_hand below checks it was given
             assert in_hand(run)
             assert run.exit_other({"0200"}), "out of the house"
             assert run.map_id() == "f001", "the 1000 A.D. world map"
