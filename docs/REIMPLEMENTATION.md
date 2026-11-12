@@ -150,6 +150,19 @@ after the first Queen Zeal fight. These distinguish missed fixed-movie inputs
 from a timing-model defect; they do not justify changing work rates. Keep the
 Sun Stone and Queen Zeal continuations reproducible as route checks (TODO.md).
 
+With slot loads as snapshots every route runs in minutes. `motherbrain`'s
+escort-pod charge and `telepod_lavos`'s reaper statue were route assumptions,
+not game faults: the escort counts the charge down a step a turn (every four
+frames, the same in the last emulator build) while it stands by the party, so
+the axis-only dash round Geno Dome's floor (about 750 frames) arrived a count
+or two either side of the limit; the route now dashes on the diagonals as
+well (about 600 frames). The reaper statue is reached by a jump off the
+platform's edge, which the route now waits out instead of searching for a
+point inside it. The new-game `playthrough` route found a refusal: the
+overworld leader's guard required the trail index to be in range even for a
+leader setting off, which lays the trail afresh, and leaving Guardia Castle in
+600 A.D. leaves the index at `$80` (fixed in `game/overworld/handlers.c`).
+
 All 2,236 live variables now have module-owned storage, and 1,511 of them
 typed storage, counting a value as typed only when it is exactly one owner field
 or element of its own width; 725 remain blob-backed, nearly all overlays where

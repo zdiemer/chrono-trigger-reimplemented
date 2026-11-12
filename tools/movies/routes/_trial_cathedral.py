@@ -118,7 +118,8 @@ def play(run, start=1, seed=1):
         assert run.wait_control()
         run.checkpoint("corridor")
     if start <= 13:
-        early.walk_through(run, "UP", lambda: run.map_id() == "c600", seed=seed)
+        # a fight on the corridor can leave the party beside its straight way up
+        early.search_through(run, lambda m, x, y: m.peek(A.MAP_ID, 2).hex() == "c600", seed=seed)
         assert run.wait_control()
         run.checkpoint("room")
     if start <= 14:

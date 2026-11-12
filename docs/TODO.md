@@ -4,15 +4,17 @@ PLAN.md gives the work order; the lean native gate protects each change.
 
 ## Correctness and accuracy
 
-- **Native routes still failing with snapshot loads.** With slot loads as
-  snapshots the routes once too slow to finish run in seconds to minutes:
-  `beyond_time`, `bucket_lavos`, `nizbel_ii`, `r_series`, `sun_stone_finish`,
-  `tech_sweep_spekkio`, `trial`, `unequipped_armor`, `zeal_palace` and
-  `zombor` reach their outcomes. Two fail on gameplay rather than time:
-  `motherbrain` exhausts its escort-pod charge search in Geno Dome (last
-  checkpoint `robot_room_open`, frame 41441; stops at 44669; shipping completes
-  at 155522), and `telepod_lavos` passes its ending (checkpoint `devroom`,
-  frame 137171) but fails "the reaper statue" at frame 147027. The six unstarted full routes in `docs/movies-wanted.md` remain to be run.
+- **The playthrough route stops after the Dragon Tank.** `playthrough` plays a
+  new game on a blank cartridge through the fair, 600 A.D., the Cathedral,
+  the trial, the prison escape and the Dragon Tank (frame 283167, checkpoint
+  `tank_won`), composing `_trial_cathedral`, `cronos_trial` and
+  `dragon_tank`. Next: the castle exit (bridge's left end to `$1E9`, then
+  `$015` and the world map), Guardia Forest's back (`$013` to `$014`) and
+  the Gate to 2300 A.D., then on to Arris Dome where `guardian` starts. The
+  bot spends its MP and Tonics on ordinary fights; the route buys Tonics in
+  600 and 1000 A.D. to reach the bosses with enough. All other native routes
+  pass with snapshot loads (`motherbrain` at 157107, `telepod_lavos` at
+  154681, `son_of_sun`, `dragon_tank`, `cronos_trial`).
 
 - **Out-of-contract script states.** The event loops at `$C0:58ED`, `$C0:5967`, `$C0:5990` and
   `$C0:5AA3` already run as C for valid scripts; their hand-backs preserve

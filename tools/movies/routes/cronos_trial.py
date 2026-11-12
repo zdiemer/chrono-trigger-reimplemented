@@ -56,9 +56,11 @@ def save_before_trial(run):
     run.say("cartridge save", path)
 
 
-def play(run, start=0, seed=1):
+def play(run, start=0, seed=1, errand=None):
     """From the Cathedral won (Yakra beaten, Leene rescued) to Crono in his
-    cell; `start` is the index in PHASES of the first phase to run."""
+    cell; `start` is the index in PHASES of the first phase to run. An
+    `errand(run)` runs on the 1000 A.D. world map, home, before the walk on
+    through the forest to the castle."""
     if start <= 0:
         assert early.advance(run, "DOWN", lambda: run.me()[1] >= 350)
         run.machine.run(8)
@@ -129,6 +131,8 @@ def play(run, start=0, seed=1):
         field_exit(run, 392, 760, "f001")
         run.machine.run(120)
         run.checkpoint("home_world")
+        if errand:
+            errand(run)
     if start <= 13:
         world_enter(run, 0x13, row=17)
         run.checkpoint("forest1000")

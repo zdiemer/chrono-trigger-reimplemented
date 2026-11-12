@@ -10,19 +10,22 @@ docs/TODO.md.
 """
 from .. import addresses as A
 from .. import policies
-from .menu_sweep import count_of
+from .menu_sweep import SHELTER, count_of
 from ..campaign import Run, route_arguments, run_route
 from ._trial_walk import field_exit, toward, world_enter
 from . import _trial_party as early
 from . import _trial_cathedral as cathedral
 from . import cronos_trial
+from . import dragon_tank
 
 OPENING = ["named", "home", "fair", "collided", "joined", "exhibit", "gate", "truce_canyon", "guardia",
            "upstairs", "chamber", "kidnapped"]
 # Then the pieces other routes play from saves: the Cathedral (after its
 # save's loading) and Crono's trial.
 CATHEDRAL = cathedral.PHASES[1:]
-PHASES = OPENING + CATHEDRAL + cronos_trial.PHASES
+ESCAPE = ["rescued", "escaped"]
+TANK = dragon_tank.PHASES[2:]
+PHASES = OPENING + CATHEDRAL + cronos_trial.PHASES + ESCAPE + TANK
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # A playthrough from a new game (route playthrough), on a blank cartridge.
@@ -32,6 +35,7 @@ HEADER = """\
 MENU_SCREEN = 0x7E0067      # which of the menus' screens is open
 NAMING_SCREEN = 0x0D        # name entry (and, on a new game, the battle mode first)
 CURSOR = 0x7E0054
+GOLD = 0x7E2C53             # three bytes
 LEENE_SQUARE = 0x005        # the Millennial Fair's lower square
 MARLE_AT_THE_BELL = 3       # an object of the bell's plaza
 FAIR_FLAGS, PENDANT_FOUND = 0x7F0054, 0x20
@@ -40,8 +44,10 @@ MARLE_AT_THE_EXHIBIT = 4
 GUARDIA_FOREST_600, GUARDIA_CASTLE_600 = 0x077, 0x078
 CATHEDRAL_SAVE_SPOT = (200, 272)
 TRUCE_600, TRUCE_600_SHOP = (384, 288), 0x076
+TRUCE_MARKET, TRUCE_MARKET_COUNTER = 0x011, (360, 680)   # 1000 A.D.
+TRUCE_TONIC_ROW, TRUCE_REVIVE_ROW = 5, 7
 SHOP_COUNTER = (896, 150)      # below the merchant, in the village shop
-TONIC_ROW, REVIVE_ROW = 4, 6   # of its list: Iron Blade, Dart Gun, Karate Gi, Bronze Helm, Tonic, Heal, Revive, Shelter
+TONIC_ROW, REVIVE_ROW, SHELTER_ROW = 4, 6, 7   # of its list: Iron Blade, Dart Gun, Karate Gi, Bronze Helm, Tonic, Heal, Revive, Shelter
 CHANCELLOR = 9                 # in the queen's tower
 FAIR_NEWS, SHOW_STARTED = 0x7F0055, 0x80
 LOWER_SQUARE_FAIRGOERS = (17, 16, 22, 24)   # who tell of Lucca's show
@@ -56,6 +62,25 @@ def naming(run):
             and not machine.b(A.FIELD_PLAYER_CONTROL))
 
 
+def win(run, seed=1):
+    """Fight the battle that is open to its end: every enemy down, or the
+    field given back (a fight a scene ends, as the prison's guards' does,
+    leaves its enemies standing)."""
+    machine = run.machine
+    seen, field_frames = [], [0]
+
+    def over(r, state):
+        living = policies.enemies(state)
+        if living:
+            seen.append(True)
+        if seen and not living and any(state.hp(slot) for slot in range(party_size(r))):
+            return True
+        field_frames[0] = field_frames[0] + 1 if machine.b(A.FIELD_PLAYER_CONTROL) else 0
+        return field_frames[0] >= 60
+
+    run.fight(early.early_party, over, party=party_size(run), seed=seed, max_frames=35000, max_tries=300)
+
+
 def in_hand(run, max_frames=12000, seed=1):
     """Play on until the pad walks the party again: windows closed with
     confirm, each name the game asks for accepted as offered (Start), and any
@@ -65,7 +90,7 @@ def in_hand(run, max_frames=12000, seed=1):
     found = held = 0
     while machine.frame - start < max_frames:
         if early.battle_ready(run):
-            early.fight(run, seed=seed, party=party_size(run), after=False)
+            win(run, seed)
             found = held = 0
             continue
         if naming(run):
@@ -113,7 +138,7 @@ def leave_fighting(run, want, max_rounds=12, seed=1):
         machine.run(30)
         if early.battle_ready(run) or run.dialogs_until(lambda: early.battle_ready(run) or bool(
                 machine.b(A.FIELD_PLAYER_CONTROL)), 3000) and early.battle_ready(run):
-            early.fight(run, seed=seed, party=party_size(run), after=False)
+            win(run, seed)
     return run.map_id() == want
 
 
@@ -132,12 +157,17 @@ def through(run, x, y, arrived, seed=1, rounds=10):
     raise AssertionError(("too many stops on the way to", (x, y)))
 
 
+def gold(machine):
+    return machine.b(GOLD) | machine.b(GOLD + 1) << 8 | machine.b(GOLD + 2) << 16
+
+
 def buy(run, merchant_spot, purchases):
     """At a shop's counter: speak to the merchant from `merchant_spot` (below
-    the counter, facing it), and buy each (row of the shop's list, how many):
-    the count starts at one, Up adds ten and Right one. The shop's screens
-    are told apart by the menus' cursor: the Buy/Sell row (8), the list (the
-    row) and the count (10)."""
+    the counter, facing it), and buy each (row of the shop's list, how many,
+    the price), as many as the party's gold pays for: the count starts at
+    one, Up adds ten and Right one. The shop's screens are told apart by the
+    menus' cursor: the Buy/Sell row (8), the list (the row) and the count
+    (10)."""
     machine = run.machine
     assert in_hand(run)
     assert run.go(*merchant_spot, tolerance=3), "at the counter"
@@ -153,9 +183,12 @@ def buy(run, merchant_spot, purchases):
         return False
 
     cursor = lambda: machine.b(CURSOR)
-    assert press_until("A", lambda: machine.b(MENU_SCREEN) == SHOP_SCREEN and cursor() == SHOP_BUY), "the shop opens"
+    assert press_until("A", lambda: machine.b(MENU_SCREEN) == SHOP_SCREEN and cursor() == SHOP_BUY, 10), "the shop opens"
     assert press_until("A", lambda: cursor() == 0), "its list"
-    for row, count in purchases:
+    for row, count, price in purchases:
+        count = min(count, gold(machine) // price)
+        if count == 0:
+            continue
         for _ in range(12):
             if cursor() == row:
                 break
@@ -176,6 +209,18 @@ def buy(run, merchant_spot, purchases):
         machine.run(3, "B")
         machine.run(60)
     assert in_hand(run)
+
+
+def shop_at_home(run):
+    """Back in 1000 A.D. before the trial: Tonics and Revives from Truce's
+    market for the prison and the Dragon Tank after it."""
+    machine = run.machine
+    run.wait_world_control()
+    world_enter(run, TRUCE_MARKET)
+    buy(run, TRUCE_MARKET_COUNTER, [(TRUCE_TONIC_ROW, 60, 10), (TRUCE_REVIVE_ROW, 2, 200)])
+    run.say("supplies", "tonics", count_of(machine, policies.TONIC), "revives", count_of(machine, policies.REVIVE))
+    assert leave_fighting(run, "f001"), "out of the market"
+    run.wait_world_control()
 
 
 def party_size(run):
@@ -368,18 +413,47 @@ def main():
             run.wait_world_control()
             world_enter(run, GUARDIA_FOREST_600, row=15)
             through(run, 296, 760, lambda: run.map_id() == "f101" and run.me()[1] > 700)
-            # Supplies for the Cathedral from the village's shop by the canyon:
-            # the bot heals with Tonics and raises the fallen with Revives.
+            # Supplies from the village's shop by the canyon: the bot heals
+            # with Tonics and raises the fallen with Revives, and a Shelter
+            # at a save point restores the whole party.
             assert run.world_go(*TRUCE_600), "the village"
             world_enter(run, TRUCE_600_SHOP)
-            buy(run, SHOP_COUNTER, [(TONIC_ROW, 30), (REVIVE_ROW, 2)])
-            run.say("supplies", "tonics", count_of(machine, policies.TONIC), "revives", count_of(machine, policies.REVIVE))
+            buy(run, SHOP_COUNTER, [(TONIC_ROW, 40, 10), (REVIVE_ROW, 1, 200), (SHELTER_ROW, 2, 150)])
+            run.say("supplies", "tonics", count_of(machine, policies.TONIC), "revives", count_of(machine, policies.REVIVE),
+                    "shelters", count_of(machine, SHELTER))
             assert leave_fighting(run, "f101"), "out of the shop"
             run.wait_world_control()
             assert run.world_go(*CATHEDRAL_SAVE_SPOT), "beside the Cathedral"
         if start < len(OPENING) + len(CATHEDRAL):
             cathedral.play(run, max(1, start - len(OPENING) + 1), args.seed)
-        cronos_trial.play(run, max(0, start - len(OPENING) - len(CATHEDRAL)), args.seed)
+        if start < len(OPENING) + len(CATHEDRAL) + len(cronos_trial.PHASES):
+            cronos_trial.play(run, max(0, start - len(OPENING) - len(CATHEDRAL)), args.seed, errand=shop_at_home)
+        later = start - len(OPENING) - len(CATHEDRAL) - len(cronos_trial.PHASES)
+        if later <= 0:
+            # Three days in the cell, the march to the guillotine and Lucca's
+            # rescue; then out through the prison.
+            story = lambda: machine.b(A.EVENT_MEMORY)
+            assert run.dialogs_until(lambda: story() >= 0x2E and machine.b(A.FIELD_PLAYER_CONTROL), 30000), "Lucca's rescue"
+            assert in_hand(run)
+            run.say("rescued", run.map_id(), run.me(), "party", machine.peek(A.PARTY_MEMBERS, 3).hex())
+            run.checkpoint("rescued")
+        if later <= 1:
+            assert in_hand(run)
+            # The prison's exits (from the location's exit records): the
+            # execution room's door to the right tower; down it to the lower
+            # bridge (1c00); across to the left tower, past its guards, and
+            # up its stair (an exit to its own map) to the room by the upper
+            # bridge (1d00), where the escape's save is, and out onto it.
+            assert leave_fighting(run, "4800"), "the right tower"
+            assert leave_fighting(run, "1c00"), "the lower bridge"
+            through(run, 32, 408, lambda: run.map_id() == "4800")
+            through(run, 400, 470, lambda: run.map_id() == "4800" and run.me()[0] > 850)
+            through(run, 880, 88, lambda: run.map_id() == "1d00")
+            through(run, 80, 88, lambda: run.map_id() == "1c00")   # out on the upper bridge
+            assert in_hand(run)
+            run.checkpoint("escaped")
+        if later <= len(ESCAPE) + len(TANK) - 1:
+            dragon_tank.play(run, max(2, later - len(ESCAPE) + 2), args.seed)
         run.finish("the playthrough's last checkpoint")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())
