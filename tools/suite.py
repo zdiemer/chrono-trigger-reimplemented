@@ -6,6 +6,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import threading
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -127,18 +128,36 @@ def main(argv=None):
         ('portstyle', [py, 'tools/portstyle.py', '--check']),
         ('portsmell', [py, 'tools/portsmell.py', '--check']),
     ]
-    times, failed = [], []
-    for name, command in stages:
-        print('\n=== ' + name + ' ===', flush=True)
-        before = time.monotonic()
-        try:
-            status = subprocess.run(command, cwd=ROOT, env=dict(os.environ, CT_TEST_BUILD=str(binary.parent))).returncode
-        except OSError as error:
-            print(error)
-            status = 1
-        times.append((name, time.monotonic() - before))
-        if status:
-            failed.append(name)
+    # Two lanes: the stages that run ct_native take turns (movies already uses
+    # both of its -j processes), while the source checks and unit tests, which
+    # don't, run beside them. Each stage's output is printed whole as it ends.
+    plays = {'movies', 'outcomes', 'routes', 'snapshots'}
+    lanes = [[s for s in stages if s[0] in plays], [s for s in stages if s[0] not in plays]]
+    results, printing = {}, threading.Lock()
+
+    def run_lane(lane):
+        for name, command in lane:
+            log = args.out / (name + '.log')
+            before = time.monotonic()
+            with log.open('wb') as out:
+                try:
+                    status = subprocess.run(command, cwd=ROOT, stdout=out, stderr=subprocess.STDOUT,
+                                            env=dict(os.environ, CT_TEST_BUILD=str(binary.parent))).returncode
+                except OSError as error:
+                    out.write(str(error).encode() + b'\n')
+                    status = 1
+            results[name] = (time.monotonic() - before, status)
+            with printing:
+                print('\n=== ' + name + ' ===')
+                print(log.read_text(encoding='utf-8', errors='replace'), end='', flush=True)
+
+    threads = [threading.Thread(target=run_lane, args=(lane,)) for lane in lanes]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    times = [(name, results[name][0]) for name, _ in stages]
+    failed = [name for name, _ in stages if results[name][1]]
     elapsed = time.monotonic() - started
     print('times: ' + ', '.join('%s %.1fs' % item for item in times))
     print('wall time: %.1fs (budget < %ds, unit tests included)' % (elapsed, BUDGET))
