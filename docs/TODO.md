@@ -2526,6 +2526,23 @@ and preserve their diagnostics as the remaining machine wrappers leave.
 
 ## Review follow-ups for native interfaces
 
+- **What the machine's removal left** (review of machine-core). CLAUDE.md's
+  Rules still describe the registry, `NATIVE_TIME_AS`, shadow mode and entry
+  wrappers: rewrite them for the machine-free game. About 390 comments and names
+  still describe the machine (`state.h:10`, `race.h:85`, `battle/bridge.h`, the
+  "On the machine" sections, `scene_task_needs_the_machine`, `machine_tasks`,
+  `*_on_the_machine`). Leftovers of the mechanical rewrite: an empty
+  `for (...) ;` at `battle/draw_objects.c:499`, statements like
+  `(void)(mover_is_anchor(m));` (effect_paths, the enemy selector, equipment's
+  `a_member`) and `(void)stopped_at;     ;`; dead declarations
+  (`battle_transfers_apart` in `battle/frame.h`, `BattleFrame`/`BattleCarry`/
+  `battle_keeping_*` in `battle/bridge.h` and `wait.h`), orphaned address
+  comments in `fight_entries.c`, and multi-line enums flattened onto one line
+  (`menu_data.h`, `field/main_loop.c`, `battle.h`). About 215
+  `charge_legacy_*` and 142 `charge_block_move` calls still put per-path access
+  counts in `game/`, against "ports don't carry cycle costs". `core/program.c:124`:
+  if the first scenes fail the main thread just returns, relying on the callee
+  having called `program_fail`.
 - **What the second state-storage slice's review left.** The save test
   should compare the complete serialized payload, allowing for the counter
   and checksum changes a save makes on purpose.
