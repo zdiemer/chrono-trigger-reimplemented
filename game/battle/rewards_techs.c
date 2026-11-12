@@ -118,7 +118,7 @@ static void add_tech_points(GameState *g, uint8_t member, uint16_t points)
  * reach, noted in the messages' list from `at`. Where a tech is learned, the
  * points it left over go on to the next, whose cost is its count now; where
  * they don't reach it, the next is paid the battle's points again, as the
- * original does (TODO.md). */
+ * original does (issue #57). */
 void rewards_count_tech_points(GameState *g, uint8_t member, uint8_t character, uint8_t *at)
 {
     uint16_t won = battle_tech_points_won_low(g), points = won;

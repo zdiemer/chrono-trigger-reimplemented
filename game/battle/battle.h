@@ -121,7 +121,7 @@ enum {
 
 /* Its choice: the
  * first set of these bits decides what the member does; bit 4, whose meaning
- * isn't worked out (docs/TODO.md), is dropped when the member is knocked out,
+ * isn't worked out (issue #31), is dropped when the member is knocked out,
  * and a choice of it alone leaves the member's turn as it is. Its partners:
  * a partner's party slot in each nibble, $F for none, and $FF for no
  * partners at all. */

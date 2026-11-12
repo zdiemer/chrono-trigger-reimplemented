@@ -57,7 +57,7 @@ static uint8_t direction_between(const GameState *g, Run across, Run down)
 /* The original works the direction out in the cells $23-$2A, which the
  * battle uses for other things between effects (battle_direction_work), and
  * leaves its last values there. They are written plainly until a reader of
- * them is found or ruled out (docs/TODO.md, "What battle's rewrite left"). */
+ * them is found or ruled out (issue #23). */
 static void keep_direction_work(GameState *g, Run across, Run down)
 {
     const uint8_t work[] = { across.from, down.from, across.to, down.to, (uint8_t)(across.from - across.to),

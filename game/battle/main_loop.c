@@ -870,7 +870,7 @@ static bool react(GameState *g, unsigned entry, uint8_t target, Platform *pf)
             set_battle_foes(g, enemy, battle_last_actor(g));
             /* the turn takes the reaction's actions from the cells, and its
              * outcome and how far it read the script come back through them
-             * (docs/TODO.md) */
+             * (issue #41) */
             enemy_hand_back_choosing(g, &c);
             if (!carry_out_reaction(g, pf))
                 return false;

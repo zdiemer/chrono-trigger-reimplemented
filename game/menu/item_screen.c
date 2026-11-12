@@ -262,7 +262,7 @@ static void list_users(GameState *g, uint8_t item)
 /* The item's attack or defence, and its label from the category's: the
  * label copied whole, then an end. An accessory has no power of its own: the
  * original reads the byte past the table the menus build, as it stands
- * (docs/TODO.md). */
+ * (issue #82). */
 enum { LABEL_BYTES = 11, LABEL_END = 0xFF };
 
 // $C2:AF0B

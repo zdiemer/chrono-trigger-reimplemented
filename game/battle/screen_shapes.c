@@ -524,7 +524,7 @@ static bool names_a_shape_whose_center_divides(const GameState *g, const ScreenC
 /* The original hands the models' rotation the triangle's size as a word, in
  * the battle page's cells $21-$22, and its high byte, 0, lands on the low byte
  * of the slot whose turn it is ($22). The game reads that cell (it is the
- * battle's), so the store is kept, here, as what it is (docs/TODO.md). */
+ * battle's), so the store is kept, here, as what it is (issue #24). */
 static void clear_the_turn_slots_low_byte(GameState *g)
 {
     set_battle_turn_slot(g, battle_turn_slot(g) & 0xFF00);

@@ -123,9 +123,10 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
     runs at the defaults.
   - Where the original waits on beam position or depends on exact timing, don't reproduce
     the wait silently: port what it computes, say so in a comment at its `// $BB:AAAA`, and
-    add it to docs/TODO.md. Those routines are what block the platform milestones.
-  - Keep the logic suitable for the 65816 as well as the host (docs/TODO.md, "A SNES ROM
-    compiled from the hand ports"). Put what the routine does in a C function with real
+    open an issue labelled `kind: timing`. Those routines are what block the platform
+    milestones.
+  - Keep the logic suitable for the 65816 as well as the host (issue #234). Put
+    what the routine does in a C function with real
     parameters and results. Target-specific glue belongs outside the game logic.
     Use 8- and 16-bit types where the value fits; no floating point, 64-bit integers,
     recursion or large locals; no C library beyond `memcpy`, `memset` and `memcmp`.
@@ -167,19 +168,19 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
 - Keep the docs current as work lands, in the same commit as the work: the
   milestone docs (docs/APPROACH.md, REIMPLEMENTATION.md, STATE.md,
   PLATFORM.md, PORTING.md) say what was built and how it was measured,
-  docs/TODO.md holds the open follow-ups, and docs/PLAN.md says what to do next
-  and why the rest waits.
+  GitHub issues hold the open follow-ups ("Follow-ups" below), and docs/PLAN.md
+  says what to do next and why the rest waits.
 - **A milestone doc is a document, not a log.** It holds the mechanisms, the
   measurements and one worked example of each kind of work; the run of per-chunk
   accounts behind them goes to docs/history/, and a ledger (a row per port, per
   entry, per exception) goes to a file made to be `grep`ed -- `tools/*_baseline.txt`, `tools/*_exceptions.txt`. Both are written for a reader
   who arrives with no context, and every agent pays to read them again, so what
   earns its place there is what is still true and still needed.
-- **Delete finished work from the plan and the follow-ups rather than marking it
-  done.** A completed item leaves docs/PLAN.md and docs/TODO.md entirely; what
-  it produced belongs in its milestone doc's "as built" section, which is where
-  the history lives. No "(done)" annotations, no struck-through lines, no
-  completed-work sections.
+- **Delete finished work from the plan and close finished follow-ups rather than
+  marking them done.** A completed item leaves docs/PLAN.md entirely, and the PR
+  that finishes an issue closes it (`Closes #N`); what it produced belongs in its
+  milestone doc's "as built" section, which is where the history lives. No
+  "(done)" annotations, no struck-through lines, no completed-work sections.
 
 ## Working in this repo as an agent
 
@@ -222,6 +223,18 @@ worktree under `.claude/worktrees/`. `AGENTS.md` is this file.
     builds and runs it beside the cartridge, so the coordinator reads the whole
     diff first, above all `tools/`, `tests/`, `CMakeLists.txt`, `cmake/` and
     `.github/`, and gates it only once nothing there is unexplained.
+- **Follow-ups.** Open follow-ups are GitHub issues
+  (<https://github.com/zdiemer/chrono-trigger-reimplemented/issues>), not a file
+  in the repo. Issue #268 explains the labels and milestones.
+  - File one with an imperative, specific title under 80 characters; one or more
+    `area: ...` labels (the subsystem) and one `kind: ...` label (bug, divergence,
+    port-quality, state, timing, contract, measurement, target, enhancement); the
+    milestone from docs/PLAN.md it advances; and a body that keeps the specifics
+    (files, functions, `$BB:AAAA` addresses, movies, routes, frames) and ends with a
+    **Done when:** line. Nothing machine-specific and nothing derived from ROM bytes.
+  - A comment or doc that leaves something open names its issue (`issue #N`), or
+    "an issue labelled kind: X" where the rule is generic.
+  - The PR that finishes the work closes its issue (`Closes #N` in the body).
 - **Worktrees.** Before `git worktree remove --force`, check the worktree for links
   into the main checkout (on Windows,
   `Get-ChildItem -Recurse -Force -Attributes ReparsePoint <worktree>`): removing

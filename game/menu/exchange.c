@@ -264,7 +264,7 @@ static const DimmedWindows ACTIVE_WINDOWS = { 0x2E84, 14 }, MIDDLE_WINDOWS = { 0
 /* An emptied place keeps the byte of whoever left it with its top bit set,
  * which the original takes for a character all the same: its colours' place
  * lies past the palette, in the field's tables the menus lay their own over
- * (docs/TODO.md). */
+ * (issue #78). */
 static void dim_the_colours_at(GameState *g, uint8_t character)
 {
     if (!party_place_is_empty(character))
@@ -735,7 +735,7 @@ static void step_off(GameState *g)
  * which shows the active party alone, holding a reserve count another
  * screen left, with the cursor pushed across into the reserve's empty
  * column -- the original searches for ever and the game hangs; the port
- * stops after MOST_STEPS with nobody under the cursor (docs/TODO.md). */
+ * stops after MOST_STEPS with nobody under the cursor (issue #100). */
 enum { MOST_STEPS = 64 };
 
 // $C2:C805 (from $C2:C819)

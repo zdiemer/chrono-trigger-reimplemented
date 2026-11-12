@@ -343,7 +343,7 @@ static void pick_enemies_with_stray(GameState *g, uint8_t self, StatusTest test)
  *
  * Where some draw the aim and the first candidate found doesn't, the original
  * never leaves its loop and the game hangs; the port takes that candidate (an
- * accepted divergence: docs/TODO.md). */
+ * accepted divergence: issue #26). */
 static void narrow_by_aim(GameState *g, uint8_t self)
 {
     uint8_t count = battle_candidate_count(g);

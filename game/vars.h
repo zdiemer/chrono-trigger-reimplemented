@@ -1312,7 +1312,7 @@ uint16_t world_position_y(const GameState *g);
 void set_world_position_y(GameState *g, uint16_t v);
 
 /* Cleared when the field opens its own message (a chest's) and when the battle opens one
- * ($CD:0264); what reads it isn't found in the banks read so far (docs/TODO.md) */
+ * ($CD:0264); what reads it isn't found in the banks read so far (issue #141) */
 uint8_t field_message_mark(const GameState *g);
 void set_field_message_mark(GameState *g, uint8_t v);
 
@@ -5258,7 +5258,7 @@ void set_menu_item_powers(GameState *g, unsigned i, uint8_t v);
 /* The first byte of each weapon's, armour's and helmet's figures: its attack or defence
  * Unchecked, reaching past the variable into what follows it: the items screen's window of who
  * can equip an accessory reads the byte past the table for its power, as the original does
- * (docs/TODO.md) */
+ * (issue #82) */
 uint8_t menu_item_powers_unchecked(const GameState *g, unsigned i);
 void set_menu_item_powers_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -7593,7 +7593,7 @@ enum { BATTLE_TECH_RECORDS_COUNT = 60 };   /* by party member * 20 + the entry t
 uint8_t battle_tech_records_id(const GameState *g, unsigned member);
 void set_battle_tech_records_id(GameState *g, unsigned member, uint8_t v);
 /* A byte the tech menu copies with the rest of the record; nothing in the ported code reads it,
- * and what it is isn't worked out (docs/TODO.md) */
+ * and what it is isn't worked out (issue #25) */
 uint8_t battle_tech_records_menu_detail(const GameState *g, unsigned member);
 void set_battle_tech_records_menu_detail(GameState *g, unsigned member, uint8_t v);
 /* Bit 7 set while the tech is dimmed (can't be used now) */
@@ -9074,7 +9074,7 @@ void set_battle_menu_list_attributes(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_selected_tech_id(const GameState *g);
 void set_battle_selected_tech_id(GameState *g, uint8_t v);
 /* A byte the tech menu copies with the rest of the record; nothing in the ported code reads it,
- * and what it is isn't worked out (docs/TODO.md) */
+ * and what it is isn't worked out (issue #25) */
 uint8_t battle_selected_tech_menu_detail(const GameState *g);
 void set_battle_selected_tech_menu_detail(GameState *g, uint8_t v);
 /* Bit 7 set while the tech is dimmed (can't be used now) */
@@ -9214,7 +9214,7 @@ uint8_t battle_script_subjects_unchecked(const GameState *g, unsigned channel);
 void set_battle_script_subjects_unchecked(GameState *g, unsigned channel, uint8_t v);
 
 /* Counted each time a requested block of rows goes to VRAM (nothing in the banks disassembled
- * reads it: docs/TODO.md) */
+ * reads it: issue #25) */
 uint8_t battle_block_uploads_made(const GameState *g);
 void set_battle_block_uploads_made(GameState *g, uint8_t v);
 

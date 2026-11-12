@@ -159,7 +159,7 @@ Son of Sun nor Epoch Lavos has a route exception. Native continuations reach
 Fiona's location 424, Sun Stone's rewards, Dalton's outcome and Mammon Machine
 after the first Queen Zeal fight. These distinguish missed fixed-movie inputs
 from a timing-model defect; they do not justify changing work rates. Keep the
-Sun Stone and Queen Zeal continuations reproducible as route checks (TODO.md).
+Sun Stone and Queen Zeal continuations reproducible as route checks (issue #215).
 
 With slot loads as snapshots every route runs in minutes. `motherbrain`'s
 escort-pod charge and `telepod_lavos`'s reaper statue were route assumptions,
