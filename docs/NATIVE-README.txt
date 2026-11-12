@@ -33,12 +33,11 @@ In-game saves use an 8 KiB .srm beside the pack/ROM (or in --save-dir).
 --sram FILE opens another cartridge save; window play writes completed saves
 back to it. Movie playback/recording and headless checks never overwrite it.
 
-F5 saves the current frame to .native-state; F7 loads it. Native checkpoints
-include the starting save and input history, and reconstruct the full game,
-sound and suspended C routines on load. Loading takes longer after longer
-sessions; the window remains responsive and shows restoration progress.
-Checkpoints require the same execution build and are separate from emulator
-.state files. Keep in-game .srm saves for progress across build updates.
+F5 saves the current frame to .native-state; F7 loads it at once. The state
+holds the whole game, its sound and its suspended routines. It loads only in
+the same build of ct_native (on macOS, only in the session that saved it) and
+is separate from emulator .state files. Keep in-game .srm saves for progress
+across build updates.
 
 --record FILE.ctm records from power-on with empty SRAM, or the --sram save.
 Recordings use the .ctm input format described in docs/MOVIES.md.

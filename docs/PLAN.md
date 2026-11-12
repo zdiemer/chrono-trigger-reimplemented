@@ -17,11 +17,10 @@ C. Observable divergence is accepted where the game stays structurally the same.
    the native function and callback pattern. Preserve real state contracts,
    timing charges, cartridge saves, route queries and recorded save/place
    protections. Measure progress with the source and storage inventories.
-3. **ct_native plays the game by its own checks.** Add complete mid-route
-   snapshots of game/task state, services, sound and timing debt, so restores
-   no longer replay from power-on. Exercise every native route, turn findings
-   into fixes, and add a playthrough from a new game to an ending. The broad
-   batch informs this work without becoming a landing gate.
+3. **ct_native plays the game by its own checks.** Exercise every native
+   route, now that slot loads are snapshots, turn findings into fixes, and add
+   a playthrough from a new game to an ending. The broad batch informs this
+   work without becoming a landing gate.
 
 ## Phase 4b: platform milestones
 

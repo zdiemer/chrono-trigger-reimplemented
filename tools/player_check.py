@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check native checkpoints and recording with a local ROM, one process at a time.
+"""Check native snapshots and recording with a local ROM, one process at a time.
 
     python3 tools/player_check.py --build build/main --rom roms/ct-usa.sfc
 
@@ -56,8 +56,7 @@ def main():
             raise RuntimeError(f"{name}: continued audio differs")
         print(f"{name}: continued state, picture and audio identical", flush=True)
 
-    # Route slots reuse exact audio-host replies; file loads reconstruct sound
-    # normally. Both go through the player's incremental checkpoint engine.
+    # Route slots and state files are the same snapshots as the player's.
     route_state = out / "route.state"
     commands = [f"movie {root / 'movies/menu.ctm'} 7400", "save 0", f"savefile {route_state}"]
     for kind, restore in (("whole", None), ("slot", "load 0"), ("file", f"loadfile {route_state}")):
@@ -74,7 +73,16 @@ def main():
         for kind in ("slot", "file"):
             if (out / f"route-{kind}.{extension}").read_bytes() != expected:
                 raise RuntimeError(f"route {kind}: continued {extension} differs")
-    print("route: slot/audio and file restores preserve continued state and picture", flush=True)
+    print("route: slot and file restores preserve continued state and picture", flush=True)
+
+    # Snapshots taken and put back often, through the field, the menus' tasks,
+    # a battle and the scene program: every frame played again must match.
+    for name, movie, frames in (("field", "field", 6000), ("menu", "menu", 9000),
+                                ("battle", "saves/battle-magus", 6000), ("scene", "saves/events-epoch-lavos", 6000)):
+        run("ct_native", "check-" + name, "--movie", root / "movies" / (movie + ".ctm"), "--frames", frames,
+            "--check-snapshots", "211,60")
+        print(f"{name}: " + next(line for line in (out / f"check-{name}.log").read_text().splitlines()
+                                 if line.startswith("snapshots:")), flush=True)
 
     source = root / "movies/new-game.ctm"
     recording = out / "recorded.ctm"

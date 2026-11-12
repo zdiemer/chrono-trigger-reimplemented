@@ -69,23 +69,56 @@ D-pad/left stick, shoulders, Start/Back and right trigger for fast-forward.
 `--bind INPUT=ACTION` override them. `--scale`, `--fullscreen` and `--mute`
 control the window.
 
-F5 quick-saves the completed frame; F7 restores it incrementally while the
-window stays responsive. `--save-state` and `--load-state` do the same headlessly.
-These checkpoints require the same execution-source fingerprint; use cartridge
-`.srm` saves for progress across builds. `ResumeReplay` in `frontend/resume.c`
-reconstructs continuations from power-on input for both quick loads and route
-checkpoints. Route slots can reuse exact audio-host replies. Mid-route bases
-remain planned because replay cost grows with the session.
+F5 saves a snapshot of the completed frame; F7 loads it at once.
+`--save-state` and `--load-state` do the same headlessly. Snapshots belong to
+one build and memory layout (below); use cartridge `.srm` saves for progress
+across builds.
 
 `--record FILE.ctm` records native input from power-on, including starting-save
 metadata and trailing idle frames. During recording only a checkpoint from that
 recording can load; it rewinds the recorded input. Recording cannot start with
 `--scene`, `--load-state` or a two-controller movie. `frontend/track.c` owns the
 input history, while the frontend owns names and atomic writes.
-`python3 tools/player_check.py --build build/main --rom roms/ct-usa.sfc` manually
-checks opening, menu and battle continuations (state, picture and PCM), route
-slot/file restores and recording playback, one process at a time. Outputs stay
-under the ignored `build/player-check` directory.
+`python3 tools/player_check.py --build build/main --rom roms/ct-usa.sfc` checks
+opening, menu and battle continuations from a state file loaded by another
+process (state, picture and PCM), route slot/file restores, recording playback
+and `--check-snapshots` over a field, menu, battle and scene movie, one process
+at a time; the gate runs it. Outputs stay under the ignored
+`build/player-check` directory.
+
+## Snapshots
+
+A snapshot (`frontend/snapshot.h`) is the whole program at a frame's end, so
+loading one costs its size (a few hundred KiB, well under a millisecond) and
+not the frames that led to it. It holds the game's state record
+(`runtime/port/state_host.c`, which also keeps the program's handlers and the
+open menus' coroutines), the services' state (the timing service's waits, debt
+and generator, the pads, the video observer's memory and last frame,
+`runtime/platform/native/snapshot.c`), the C sound driver with its mixer and
+unplayed samples, and the suspended fibers. The driver adds its frame count
+and picture statistics; on a load the renderer starts afresh and redraws the
+restored frame.
+
+The main thread's waits and the menus' tasks stay where they are, deep in
+their C calls; the fibers make that state data instead of rewriting it as
+state machines (`runtime/port/fiber.c`). Every fiber runs on a stack from a
+fixed pool, and a suspended fiber is its stack's bytes from where it stopped
+to the top and its context: on Windows x86-64 a stack pointer, the registers
+pushed by a short assembly switch; elsewhere the `ucontext_t` kept in the
+slot. A snapshot copies those bytes and a restore copies them back to the same
+addresses. The bytes hold pointers -- return addresses, frames, the game's
+state, the asset pack's data -- so the pool, the game's state and the pack are
+taken from an arena reserved at a fixed address (`runtime/port/arena.h`), and
+ct_native links at a fixed image base on Windows and Linux. A run that makes
+the same allocations lays them out the same, so a snapshot file loads in a
+later run of the same build. Each snapshot records the addresses it depends
+on and a run laid out otherwise refuses it, changing nothing; on macOS, whose
+images move, a file loads only in the run that wrote it.
+
+`ct_native --check-snapshots EVERY[,SPAN]` (headless) takes a snapshot every
+EVERY frames, plays SPAN frames, loads the snapshot through a file's bytes and
+plays them again, failing on the first frame whose game state, picture or
+sound differs. Over the whole movie library at 1009,90 every frame matched.
 
 ## Native build artifacts
 

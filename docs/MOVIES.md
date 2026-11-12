@@ -34,17 +34,15 @@ only that route's process tree. `--protocol-log` records requests and replies.
 
 ## Native program checkpoints
 
-The native driver currently rebuilds coroutine state by replaying input from
-power-on. Searches with many restores can be very slow. `--resume` keeps route
-checkpoints only when the route scripts, binary and cartridge hashes agree.
-Frame-end snapshots that resume the complete native state are the next step;
-a work-RAM copy alone cannot restore suspended C calls.
+Route slots and state files are complete frame-end snapshots of the native
+program (docs/PLAYING.md, "Snapshots"), so a restore costs the snapshot's size
+whatever the frame. `--resume` keeps route checkpoints only when the route
+scripts, binary and cartridge hashes agree.
 
 A route can write its kept input as a movie. Unrestored probes and state files
 without their `.pads` sidecar cannot silently become recorded input. Add short
 regression movies for new failures and retain a concrete reason in the sample.
 
-Player quick loads and route restores use the same `ResumeReplay` engine in
-`frontend/resume.c`. Both reconstruct native continuations one frame at a time
-from input; route slots additionally retain audio-host replies. `--record`
-produces the same `.ctm` format, including the starting cartridge-save checksum.
+Player quick loads and route restores use the same snapshots
+(`frontend/snapshot.c`). `--record` produces the same `.ctm` format, including
+the starting cartridge-save checksum.

@@ -1,19 +1,23 @@
-/* Route protocol over host callbacks. Checkpoints keep input rather than
- * pretending that the memory visible through peek includes C continuations. */
+/* The route protocol over host callbacks. A slot is the host's snapshot of
+ * the program at a frame end, with the frame it was taken at; a state file
+ * is the same, behind the seed and catalogue it belongs to. */
 #include "route_driver.h"
+#include "checksum.h"
 #include "movie.h"
-#include "resume.h"
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
 enum { SLOTS = 4096, WATCHES = 32, LINE_BYTES = 8192, WRAM = 0x7E0000, WRAM_BYTES = 0x20000 };
-typedef struct { Resume state; bool present; void *extra; } Record;
+typedef struct { uint8_t *bytes; size_t len; uint32_t frames; } Record;
 typedef struct {
     const RouteHost *host;
-    Record live, slots[SLOTS];
+    uint32_t frames;
+    Record slots[SLOTS];
     uint32_t address[WATCHES], length[WATCHES];
     unsigned watches;
+    /* poked: the program is where no input takes it, so neither a slot nor a
+     * file may keep it as a route's state, which a movie must reproduce */
     bool diagnostic, failed;
 } Driver;
 
@@ -30,65 +34,30 @@ static bool number(const char *word, unsigned base, uint32_t limit, uint32_t *ou
 
 static bool advance(Driver *s, uint32_t pads)
 {
-    if (s->failed || s->live.state.frames == UINT32_MAX || !resume_reserve(&s->live.state, s->live.state.frames + 1)) return false;
+    if (s->failed || s->frames == UINT32_MAX) return false;
     if (!s->host->step(s->host->ctx, pads)) {
         s->failed = true;
         return false;
     }
-    s->live.state.input[s->live.state.frames++] = pads;
+    s->frames++;
     return true;
 }
 
-/* Check the observable state after rebuilding its hidden continuations. */
-static uint32_t digest(void *ctx)
+static bool take(Driver *s, Record *r)
 {
-    const Driver *s = ctx;
-    uint32_t value = 2166136261u;
-    for (uint32_t i = 0; i < WRAM_BYTES; i++)
-        value = (value ^ s->host->read(s->host->ctx, WRAM + i)) * 16777619u;
-    for (uint32_t i = 0; i < 0x2000; i++)
-        value = (value ^ s->host->read(s->host->ctx, 0x306000 + i)) * 16777619u;
-    return value;
+    size_t len = 0;
+    uint8_t *bytes = s->host->snapshot(s->host->ctx, &len);
+    if (!bytes) return false;
+    free(r->bytes);
+    *r = (Record){ bytes, len, s->frames };
+    return true;
 }
 
-static bool replay_reset(void *ctx, const Resume *base)
+static bool put_back(Driver *s, const uint8_t *bytes, size_t len, uint32_t frames)
 {
-    Driver *s = ctx;
-    (void)base; /* Route files validate their fixed seed before starting replay. */
-    if (!s->host->reset(s->host->ctx)) return false;
-    s->live.state.frames = 0;
+    if (!s->host->restore(s->host->ctx, bytes, len)) return false;
+    s->frames = frames;
     s->failed = s->diagnostic = false;
-    return true;
-}
-static bool replay_frame(void *ctx, uint32_t pads) { return advance(ctx, pads); }
-static bool replay_begin(void *ctx, const void *extra)
-{
-    Driver *s = ctx;
-    return s->host->replay->begin(s->host->ctx, extra);
-}
-static bool replay_end(void *ctx, const void *extra)
-{
-    Driver *s = ctx;
-    return s->host->replay->end(s->host->ctx, extra);
-}
-static bool restore(Driver *s, const Record *r)
-{
-    if (!resume_reserve(&s->live.state, r->state.frames)) return false;
-    /* A load ahead on precisely the same input branch already has its live
-     * continuations. Both drivers otherwise use the shared frame replay. */
-    bool prefix = !s->failed && !s->diagnostic && s->live.state.frames <= r->state.frames
-        && (!s->live.state.frames || !memcmp(s->live.state.input, r->state.input,
-                                            s->live.state.frames * sizeof *r->state.input));
-    ResumeReplay replay;
-    ResumeHost host = { s, replay_reset, replay_frame, digest, replay_begin, replay_end };
-    bool ok = resume_start(&replay, host, &r->state, prefix ? s->live.state.frames : 0,
-                           !prefix, prefix ? NULL : r->extra);
-    while (ok && replay.active) ok = resume_advance(&replay);
-    if (!ok) {
-        fprintf(stderr, "native replay differs at frame %u\n", r->state.frames);
-        s->failed = true;
-        return false;
-    }
     return true;
 }
 
@@ -97,28 +66,36 @@ static void bytes(Driver *s, FILE *out, uint32_t addr, uint32_t n)
     for (uint32_t i = 0; i < n; i++) fprintf(out, "%02x", s->host->read(s->host->ctx, addr + i));
 }
 
-static bool word_write(FILE *f, uint32_t v)
+static void put32(uint8_t *p, uint32_t v)
 {
-    uint8_t b[4] = { (uint8_t)v, (uint8_t)(v >> 8), (uint8_t)(v >> 16), (uint8_t)(v >> 24) };
-    return fwrite(b, 1, 4, f) == 4;
+    for (unsigned i = 0; i < 4; i++) p[i] = (uint8_t)(v >> (i * 8));
 }
-static bool word_read(FILE *f, uint32_t *v)
+static uint32_t get32(const uint8_t *p)
 {
-    uint8_t b[4];
-    if (fread(b, 1, 4, f) != 4) return false;
-    *v = (uint32_t)b[0] | (uint32_t)b[1] << 8 | (uint32_t)b[2] << 16 | (uint32_t)b[3] << 24;
-    return true;
+    return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
 }
+
+/* A state file: the magic, the catalogue and seed it belongs to, then its
+ * frame, the snapshot's length and checksum, and the snapshot. */
+enum { FILE_HEAD = 8 + 4 + 4, FILE_TAIL = 12 };
+static const uint8_t FILE_MAGIC[8] = { 'C', 'T', 'N', 'R', 2, 0, 0, 0 };
 
 static bool save_file(Driver *s, const char *path, const uint8_t *seed, size_t size, uint32_t identity)
 {
+    Record r = { 0 };
+    if (!take(s, &r)) return false;
+    uint8_t head[FILE_HEAD], tail[FILE_TAIL];
+    memcpy(head, FILE_MAGIC, 8);
+    put32(head + 8, identity);
+    put32(head + 12, (uint32_t)size);
+    put32(tail, r.frames);
+    put32(tail + 4, (uint32_t)r.len);
+    put32(tail + 8, ct_crc32(r.bytes, r.len));
     FILE *f = fopen(path, "wb");
-    if (!f) return false;
-    bool ok = fwrite("CTNR\1\0\0\0", 1, 8, f) == 8 && word_write(f, identity)
-        && word_write(f, (uint32_t)size) && fwrite(seed, 1, size, f) == size
-        && word_write(f, (uint32_t)s->live.state.frames) && word_write(f, digest(s));
-    for (uint32_t i = 0; ok && i < s->live.state.frames; i++) ok = word_write(f, s->live.state.input[i]);
-    if (fclose(f) != 0) ok = false;
+    bool ok = f && fwrite(head, 1, sizeof head, f) == sizeof head && fwrite(seed, 1, size, f) == size
+        && fwrite(tail, 1, sizeof tail, f) == sizeof tail && fwrite(r.bytes, 1, r.len, f) == r.len;
+    if (f && fclose(f) != 0) ok = false;
+    free(r.bytes);
     return ok;
 }
 
@@ -126,26 +103,21 @@ static bool load_file(Driver *s, const char *path, const uint8_t *seed, size_t s
 {
     FILE *f = fopen(path, "rb");
     if (!f) return false;
-    char magic[8];
-    uint32_t id, nseed, count = 0;
-    bool ok = fread(magic, 1, 8, f) == 8 && !memcmp(magic, "CTNR\1\0\0\0", 8)
-        && word_read(f, &id) && id == identity && word_read(f, &nseed) && nseed == size;
-    for (size_t i = 0; ok && i < size; i++) ok = fgetc(f) == seed[i];
-    uint32_t expected = 0;
-    ok = ok && word_read(f, &count) && word_read(f, &expected);
-    /* Check the file length before allocating from an untrusted count. */
-    long start = ftell(f), end = -1;
-    if (ok && start >= 0 && fseek(f, 0, SEEK_END) == 0) end = ftell(f);
-    ok = ok && end >= start && (uint64_t)(end - start) == (uint64_t)count * 4
-        && fseek(f, start, SEEK_SET) == 0;
-    Record r = {0};
-    ok = ok && resume_reserve(&r.state, count);
-    for (uint32_t i = 0; ok && i < count; i++) ok = word_read(f, &r.state.input[i]);
+    long length = -1;
+    if (fseek(f, 0, SEEK_END) == 0) length = ftell(f);
+    uint8_t *data = length > 0 && fseek(f, 0, SEEK_SET) == 0 ? malloc((size_t)length) : NULL;
+    bool ok = data && fread(data, 1, (size_t)length, f) == (size_t)length;
     fclose(f);
-    r.state.frames = count;
-    r.state.outcome = expected;
-    if (ok) ok = restore(s, &r);
-    free(r.state.input);
+    size_t at = FILE_HEAD + size + FILE_TAIL;
+    ok = ok && (size_t)length >= at && !memcmp(data, FILE_MAGIC, 8) && get32(data + 8) == identity
+        && get32(data + 12) == size && !memcmp(data + FILE_HEAD, seed, size);
+    if (ok) {
+        const uint8_t *tail = data + FILE_HEAD + size;
+        size_t len = get32(tail + 4);
+        ok = (size_t)length - at == len && ct_crc32(data + at, len) == get32(tail + 8)
+            && put_back(s, data + at, len, get32(tail));
+    }
+    free(data);
     return ok;
 }
 
@@ -182,9 +154,9 @@ int route_driver(const RouteHost *host, const uint8_t *seed, size_t seed_size,
                  && (!c || number(c, 10, 65535, &pad2))) {
             bool ok = true;
             for (uint32_t i = 0; ok && i < n; i++) ok = advance(s, pad | pad2 << 16);
-            if (!ok) fprintf(out, "err frame %u\n", s->live.state.frames);
+            if (!ok) fprintf(out, "err frame %u\n", s->frames);
             else {
-                fprintf(out, "ok %u", s->live.state.frames);
+                fprintf(out, "ok %u", s->frames);
                 if (!strcmp(cmd, "runw")) {
                     fputc(' ', out);
                     for (unsigned i = 0; i < s->watches; i++) bytes(s, out, s->address[i], s->length[i]);
@@ -216,39 +188,29 @@ int route_driver(const RouteHost *host, const uint8_t *seed, size_t seed_size,
                    && !b && number(a, 10, SLOTS - 1, &n)) {
             Record *r = &s->slots[n];
             if (!strcmp(cmd, "drop")) {
-                if (r->extra) host->replay->drop(r->extra);
-                free(r->state.input); *r = (Record){0}; fprintf(out, "ok\n");
+                free(r->bytes); *r = (Record){0}; fprintf(out, "ok\n");
             } else if (!strcmp(cmd, "save")) {
                 if (s->diagnostic || s->failed) fprintf(out, "err unreplayable\n");
-                else if (!resume_reserve(&r->state, s->live.state.frames)) fprintf(out, "err memory\n");
-                else {
-                    void *extra_state = host->replay ? host->replay->save(host->ctx) : NULL;
-                    if (host->replay && !extra_state) { fprintf(out, "err memory\n"); fflush(out); continue; }
-                    if (r->extra) host->replay->drop(r->extra);
-                    r->extra = extra_state;
-                    (void)resume_copy(&r->state, &s->live.state); /* capacity was reserved above */
-                    r->present = true;
-                    r->state.outcome = digest(s);
-                    fprintf(out, "ok %u\n", s->live.state.frames);
-                }
-            } else if (!r->present) fprintf(out, "err empty\n");
-            else if (!restore(s, r)) fprintf(out, "err replay\n");
-            else fprintf(out, "ok %u\n", s->live.state.frames);
+                else if (!take(s, r)) fprintf(out, "err memory\n");
+                else fprintf(out, "ok %u\n", s->frames);
+            } else if (!r->bytes) fprintf(out, "err empty\n");
+            else if (!put_back(s, r->bytes, r->len, r->frames)) fprintf(out, "err restore\n");
+            else fprintf(out, "ok %u\n", s->frames);
         } else if (!strcmp(cmd, "movie") && a) {
             char *to = strrchr(a, ' ');
-            bool ok = to && number(to + 1, 10, UINT32_MAX, &n) && n >= s->live.state.frames;
+            bool ok = to && number(to + 1, 10, UINT32_MAX, &n) && n >= s->frames;
             ct_movie movie;
             if (to) *to = 0;
             ok = ok && ct_movie_load(&movie, a) == 0;
             if (ok) {
-                while (ok && s->live.state.frames < n) {
-                    uint32_t frame = (uint32_t)s->live.state.frames;
+                while (ok && s->frames < n) {
+                    uint32_t frame = s->frames;
                     ok = advance(s, (uint32_t)ct_movie_buttons(&movie, frame)
                                  | (uint32_t)ct_movie_buttons2(&movie, frame) << 16);
                 }
                 ct_movie_free(&movie);
             }
-            fprintf(out, ok ? "ok %u\n" : "err movie %u\n", s->live.state.frames);
+            fprintf(out, ok ? "ok %u\n" : "err movie %u\n", s->frames);
         } else if (file_command && a) {
             bool ok = false;
             if (!strcmp(cmd, "shot")) ok = host->shot(host->ctx, a);
@@ -264,7 +226,7 @@ int route_driver(const RouteHost *host, const uint8_t *seed, size_t seed_size,
                 }
             }
             if (!ok) fprintf(out, "err file\n");
-            else if (!strcmp(cmd, "savefile") || !strcmp(cmd, "loadfile")) fprintf(out, "ok %u\n", s->live.state.frames);
+            else if (!strcmp(cmd, "savefile") || !strcmp(cmd, "loadfile")) fprintf(out, "ok %u\n", s->frames);
             else fprintf(out, "ok\n");
         } else if (!strcmp(cmd, "poke") && !c && number(a, 16, 0x7FFFFF, &pad)
                    && pad >= WRAM && b && strlen(b) % 2 == 0 && strlen(b) / 2 <= 0x800000 - pad) {
@@ -281,16 +243,14 @@ int route_driver(const RouteHost *host, const uint8_t *seed, size_t seed_size,
                 s->diagnostic = true;
             }
             fprintf(out, ok ? "ok\n" : "err hex\n");
-        } else if (!strcmp(cmd, "frame") && !a) fprintf(out, "ok %u\n", s->live.state.frames);
+        } else if (!strcmp(cmd, "frame") && !a) fprintf(out, "ok %u\n", s->frames);
         else if (!strcmp(cmd, "quit") && !a) { fprintf(out, "ok\n"); fflush(out); break; }
         else fprintf(out, "err command\n");
         fflush(out);
     }
     int result = s->failed ? 1 : 0;
-    for (unsigned i = 0; i < SLOTS; i++) {
-        if (s->slots[i].extra) host->replay->drop(s->slots[i].extra);
-        free(s->slots[i].state.input);
-    }
-    free(s->live.state.input); free(s);
+    for (unsigned i = 0; i < SLOTS; i++)
+        free(s->slots[i].bytes);
+    free(s);
     return result;
 }

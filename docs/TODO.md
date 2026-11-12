@@ -2462,7 +2462,7 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
   descriptors; a VRAM-only replacement needs that guard contract settled.
 - **Native audio interface.** `au_driver_call` stops on a machine-wrapper
   call; remove that interface with its remaining callers. Preserve command
-  queues and exact audio-host reply reuse during route restores.
+  queues.
 
 - **Reads past a table's end, as the original's glitches make them.** The
   original reads and writes past its tables where a player can push it there
@@ -2549,9 +2549,6 @@ and preserve their diagnostics as the remaining machine wrappers leave.
 - **What the native divergences' review left.** Keep the Sun Stone and Queen
   Zeal state-driven continuation scripts as reproducible route checks rather
   than one-off evidence.
-- **What the native route driver's review left.** `route_driver_test` has no
-  deliberately divergent replay, asserting `err replay` and a nonzero exit;
-  Extend protocol failure coverage when snapshot work changes replay.
 - **What the cartridge-address audit's review left.** Each work-RAM proof in
   the allowlist holds for the code as it stands, but the consistency test
   catches only a removed expression, not a changed helper or producer behind
