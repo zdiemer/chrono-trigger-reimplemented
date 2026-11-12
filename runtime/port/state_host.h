@@ -19,6 +19,7 @@
 #define CT_PORT_STATE_HOST_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "state.h"
@@ -28,7 +29,18 @@
  * the chips; $55 throughout here, as the reference emulator has it) and save
  * RAM from `sram` (8 KiB), or erased. */
 GameState *state_host_create(const uint8_t *sram);
+/* The same, placed in the arena (port/arena.h) for a run that snapshots it:
+ * at the same address in every run that makes the same allocations first. */
+GameState *state_host_create_lasting(const uint8_t *sram);
 void state_host_destroy(GameState *g);
+
+/* The state as bytes for a snapshot, and put back from them: the game's
+ * records, save RAM, the program's own state (its handlers, the menus'
+ * coroutines), the time owed. Pointers in it are the run's own; a restore is
+ * good in a run laid out as the snapshot's was (port/arena.h). */
+size_t state_host_snapshot_bytes(void);
+void state_host_snapshot(const GameState *g, uint8_t *out);
+void state_host_restore(GameState *g, const uint8_t *in);
 
 /* Generated accessors only: module storage, never exposed to game logic. */
 VarsHost *state_host_vars(GameState *g);

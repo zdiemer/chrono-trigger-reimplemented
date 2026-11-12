@@ -215,13 +215,11 @@ static void run_the_mode(GameState *g, Platform *pf, uint8_t asked_for, uint16_t
 
 /* The mode run by the program, and how it ended: the task closing the menus
  * says, back to their caller or the game started again from its reset. */
-typedef struct {
+struct MenuModeContext {
     GameState *game;
     Platform *pf;
     MenuModeEnd end;
-} MenuModeContext;
-
-static MenuModeContext *running;
+};
 
 static void start_again(void *ctx)
 {
@@ -250,7 +248,7 @@ static void tasks(void *ctx)
             tm_wait_frame(c->pf, PF_AT(0xC281CA));
         TIMED_AS(c->game, 0xC281CF, turns = menu_tasks_take_the_turns(c->game));
     } while (turns == MENU_TURNS_TAKEN);
-    menu_tasks_end();
+    menu_tasks_end(c->game);
     if (turns != MENU_TURNS_CLOSED)
         c->end = MENUS_WENT_NO_FURTHER;
 }
@@ -259,9 +257,9 @@ MenuModeEnd menu_mode_runs(GameState *g, Platform *pf, uint8_t asked_for, uint16
 {
     static const ModeSteps in_the_program = { start_again, opened, tasks };
     MenuModeContext c = { g, pf, MENUS_WENT_NO_FURTHER };
-    running = &c;
+    menu_coroutines(g)->running = &c;
     run_the_mode(g, pf, asked_for, asked_with, &in_the_program, &c);
-    running = NULL;
+    menu_coroutines(g)->running = NULL;
     return c.end;
 }
 
@@ -318,9 +316,10 @@ static void leave(void *ctx)
         TIMED_AS(c->game, 0xC2832F, blank_and_stop(c->pf, restart_sites));
     else
         TIMED_AS(c->game, 0xC282C1, blank_and_stop(c->pf, return_sites));
+    MenuModeContext *running = menu_coroutines(c->game)->running;
     if (running)
         running->end = c->for_the_game ? MENUS_START_THE_GAME_AGAIN : MENUS_CLOSED;
-    menu_tasks_closed();
+    menu_tasks_closed(c->game);
 }
 
 void menu_close(GameState *g, Platform *pf, bool for_the_game)

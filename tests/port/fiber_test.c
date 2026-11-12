@@ -1,11 +1,14 @@
 /* Checks the fiber switches the native runtime relies on (runtime/port/fiber.c):
  * ping-pong between a fiber and the main stack with state kept in locals on
- * both sides, deep stacks, switching between two fibers directly, and freeing
- * a fiber suspended mid-stack. Exits non-zero on failure.
+ * both sides, deep stacks, switching between two fibers directly, freeing a
+ * fiber suspended mid-stack, and snapshots: fibers suspended deep in their
+ * calls taken as bytes and put back, which must go on exactly as they did
+ * from the snapshot. Exits non-zero on failure.
  *
  *   fiber_test */
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "port/fiber.h"
@@ -168,12 +171,122 @@ static void test_abandon(void)
     fiber_destroy(fiber_main());   /* a no-op */
 }
 
+/* ---- snapshots ------------------------------------------------------------------ */
+
+static uint32_t produced;
+
+/* A generator whose whole state is on its stack, deep in its calls: each
+ * switch back leaves the next value of a sequence that depends on every
+ * frame's locals. */
+static uint32_t generate(uint32_t seed, int depth)
+{
+    if (depth < 0)
+        return seed;
+    volatile uint32_t mine = seed * 2654435761u + (uint32_t)depth;
+    double scale = 1.0 + depth / 64.0;
+    if (depth)
+        return generate(mine, depth - 1) ^ mine;
+    for (;;) {
+        mine = mine * 1103515245u + 12345u;
+        scale *= 1.0000003;
+        produced = mine ^ (uint32_t)(scale * 4096.0);
+        fiber_switch(fiber_main());
+    }
+}
+
+static void generator_body(void *arg)
+{
+    generate(*(uint32_t *)arg, 40);
+}
+
+static void relay_body(void *arg)
+{
+    Fiber *gen = arg;
+    uint32_t total = 0;
+    for (;;) {
+        fiber_switch(gen);
+        total = total * 31u + produced;
+        produced = total;
+        fiber_switch(fiber_main());
+    }
+}
+
+static uint8_t *take(size_t *len)
+{
+    *len = fiber_snapshot(NULL, 0);
+    uint8_t *bytes = malloc(*len);
+    CHECK(bytes && fiber_snapshot(bytes, *len) == *len, "snapshot: could not take one");
+    return bytes;
+}
+
+static void test_snapshots(void)
+{
+    uint32_t seed = 7;
+    Fiber *gen = fiber_create(generator_body, &seed);
+    for (int i = 0; i < 10; i++)
+        fiber_switch(gen);
+    size_t len;
+    uint8_t *snap = take(&len);
+    uint32_t first[50];
+    for (int i = 0; i < 50; i++) {
+        fiber_switch(gen);
+        first[i] = produced;
+    }
+    /* go further, and make and drop another fiber, then put the snapshot back */
+    for (int i = 0; i < 1000; i++)
+        fiber_switch(gen);
+    Fiber *other = fiber_create(generator_body, &seed);
+    fiber_switch(other);
+    CHECK(fiber_restore(snap, len), "snapshot: restore refused");
+    int bad = 0;
+    for (int round = 0; round < 3; round++) {
+        for (int i = 0; i < 50; i++) {
+            fiber_switch(gen);
+            bad += produced != first[i];
+        }
+        CHECK(fiber_restore(snap, len), "snapshot: second restore refused");
+    }
+    CHECK(bad == 0, "snapshot: %d of 150 values differ after restores", bad);
+    CHECK(!fiber_restore(snap, len - 1), "snapshot: a short one was taken");
+    free(snap);
+    fiber_destroy(gen);
+
+    /* two fibers that switch to each other, one created after the snapshot's
+     * own fibers were gone */
+    Fiber *g2 = fiber_create(generator_body, &seed);
+    Fiber *relay = fiber_create(relay_body, g2);
+    for (int i = 0; i < 5; i++)
+        fiber_switch(relay);
+    snap = take(&len);
+    uint32_t produced_then = produced;   /* the test's own state, outside the fibers */
+    uint32_t second[20];
+    for (int i = 0; i < 20; i++) {
+        fiber_switch(relay);
+        second[i] = produced;
+    }
+    fiber_destroy(relay);
+    fiber_destroy(g2);
+    CHECK(fiber_restore(snap, len), "snapshot: restore of a pair refused");
+    produced = produced_then;
+    bad = 0;
+    for (int i = 0; i < 20; i++) {
+        fiber_switch(relay);
+        bad += produced != second[i];
+    }
+    CHECK(bad == 0, "snapshot: %d of 20 relayed values differ", bad);
+    free(snap);
+    fiber_destroy(relay);
+    fiber_destroy(g2);
+    fiber_destroy(other);
+}
+
 int main(void)
 {
     test_ping_pong();
     test_deep_stack();
     test_fiber_to_fiber();
     test_abandon();
+    test_snapshots();
     for (int i = 0; i < 10; i++) {
         Fiber *f = fiber_create(abandoned_body, NULL);
         fiber_switch(f);

@@ -1,6 +1,7 @@
 /* Video observer: the command-built VidFrame (platform/observe.h). */
 #include "platform/observe.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -151,6 +152,96 @@ static void keep_sprites(VidObserver *ob)
     for (unsigned i = 0; i < ob->frame.span_count; i++)
         if (!ob->frame.spans[i].sprites)
             ob->frame.spans[i].sprites = *slot;
+}
+
+/* ---- snapshots ------------------------------------------------------------- */
+
+/* Where the snapshot's observer was, then the observer, then the copies of
+ * memory its frame's spans read, in slot order. */
+size_t vid_obs_snapshot(const VidObserver *ob, uint8_t *out, size_t room)
+{
+    size_t need = sizeof(uintptr_t) + sizeof *ob + ob->vram_used * sizeof ob->vram +
+                  ob->cgram_used * sizeof ob->cgram + ob->sprites_used * sizeof(VidSpriteSet);
+    if (!out || room < need)
+        return need;
+    uintptr_t self = (uintptr_t)ob;
+    memcpy(out, &self, sizeof self);
+    size_t at = sizeof self;
+    memcpy(out + at, ob, sizeof *ob);
+    at += sizeof *ob;
+    for (unsigned i = 0; i < ob->vram_used; i++, at += sizeof ob->vram)
+        memcpy(out + at, ob->vram_snap[i], sizeof ob->vram);
+    for (unsigned i = 0; i < ob->cgram_used; i++, at += sizeof ob->cgram)
+        memcpy(out + at, ob->cgram_snap[i], sizeof ob->cgram);
+    for (unsigned i = 0; i < ob->sprites_used; i++, at += sizeof(VidSpriteSet))
+        memcpy(out + at, ob->sprite_snap[i], sizeof(VidSpriteSet));
+    return need;
+}
+
+/* A span's pointer into the snapshot's observer, as the same place in `ob`. */
+static const void *same_place(const void *p, uintptr_t self, const VidObserver *was, VidObserver *ob)
+{
+    if (!p)
+        return NULL;
+    if ((uintptr_t)p == self + offsetof(VidObserver, vram))
+        return ob->vram;
+    if ((uintptr_t)p == self + offsetof(VidObserver, cgram))
+        return ob->cgram;
+    for (unsigned i = 0; i < VID_MAX_SPANS; i++) {
+        if (p == was->vram_snap[i])
+            return ob->vram_snap[i];
+        if (p == was->cgram_snap[i])
+            return ob->cgram_snap[i];
+        if (p == was->sprite_snap[i])
+            return ob->sprite_snap[i];
+    }
+    return NULL;
+}
+
+bool vid_obs_restore(VidObserver *ob, const uint8_t *in, size_t len)
+{
+    uintptr_t self;
+    static VidObserver was;   /* too large for some hosts' stacks */
+    if (len < sizeof self + sizeof was)
+        return false;
+    memcpy(&self, in, sizeof self);
+    memcpy(&was, in + sizeof self, sizeof was);
+    if (was.vram_used > VID_MAX_SPANS || was.cgram_used > VID_MAX_SPANS || was.sprites_used > VID_MAX_SPANS ||
+        was.frame.span_count > VID_MAX_SPANS ||
+        len != sizeof self + sizeof was + was.vram_used * sizeof was.vram + was.cgram_used * sizeof was.cgram +
+                   was.sprites_used * sizeof(VidSpriteSet))
+        return false;
+    for (unsigned i = 0; i < was.vram_used; i++)
+        if (!ob->vram_snap[i] && !(ob->vram_snap[i] = malloc(sizeof ob->vram)))
+            return false;
+    for (unsigned i = 0; i < was.cgram_used; i++)
+        if (!ob->cgram_snap[i] && !(ob->cgram_snap[i] = malloc(sizeof ob->cgram)))
+            return false;
+    for (unsigned i = 0; i < was.sprites_used; i++)
+        if (!ob->sprite_snap[i] && !(ob->sprite_snap[i] = malloc(sizeof(VidSpriteSet))))
+            return false;
+    size_t at = sizeof self + sizeof was;
+    for (unsigned i = 0; i < was.vram_used; i++, at += sizeof ob->vram)
+        memcpy(ob->vram_snap[i], in + at, sizeof ob->vram);
+    for (unsigned i = 0; i < was.cgram_used; i++, at += sizeof ob->cgram)
+        memcpy(ob->cgram_snap[i], in + at, sizeof ob->cgram);
+    for (unsigned i = 0; i < was.sprites_used; i++, at += sizeof(VidSpriteSet))
+        memcpy(ob->sprite_snap[i], in + at, sizeof(VidSpriteSet));
+    for (unsigned i = 0; i < was.frame.span_count; i++) {
+        VidSpan *sp = &was.frame.spans[i];
+        sp->vram = same_place(sp->vram, self, &was, ob);
+        sp->cgram = same_place(sp->cgram, self, &was, ob);
+        sp->sprites = same_place(sp->sprites, self, &was, ob);
+    }
+    was.read = ob->read;
+    was.ctx = ob->ctx;
+    memcpy(was.vram_snap, ob->vram_snap, sizeof was.vram_snap);
+    memcpy(was.cgram_snap, ob->cgram_snap, sizeof was.cgram_snap);
+    memcpy(was.sprite_snap, ob->sprite_snap, sizeof was.sprite_snap);
+    was.frame.vram = ob->vram;
+    was.frame.cgram = ob->cgram;
+    *ob = was;
+    return true;
 }
 
 uint32_t vid_obs_unmodelled(const VidObserver *ob) { return ob->unmodelled; }
