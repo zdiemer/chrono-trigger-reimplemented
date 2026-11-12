@@ -2893,3 +2893,12 @@ and submitted-sprite records are declared in `re/ram.toml`; see
   earlier frame followed by different input, then verify the rewritten movie
   and final state. Automate restore while paused and repeated live quick loads;
   compare continued RAM, pictures and sound with uninterrupted play.
+- **Snapshot review follow-ups (native-bases).** Confirm the mutable statics
+  outside GameState (game/scene/planet.c `colours_stepped`/`last_star_frame`,
+  game/field/window_shape.c `drew_sloped_edge`) never carry from one frame to
+  the next, or move them into GameState. Check that no suspended game frame
+  caches a Platform heap pointer (observer, sound driver, asset pack), which a
+  restore keeps live. `snapshot_restore` can switch the fibers and then fail in
+  `pf_host_restore` out of memory, leaving the program half restored: restore
+  the services first or make the failure fatal. `route_driver_test`'s movie case
+  no longer checks a resulting value.
