@@ -112,7 +112,9 @@ class PlatformLint(unittest.TestCase):
         include = re.compile(r'#\s*include\s*([<"])([^>"]*)[>"]')
         for path in self.sources():
             for kind, name in include.findall(path.read_text(encoding="utf-8")):
-                if kind == "<":
+                if ".." in name.split("/"):
+                    ok = False   # a relative climb could reach a backend or frontend
+                elif kind == "<":
                     ok = name in SYSTEM_HEADERS
                 else:
                     ok = ((GAME / name).exists() or (path.parent / name).exists()
