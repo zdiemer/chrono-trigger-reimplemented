@@ -109,11 +109,15 @@ slot. A snapshot copies those bytes and a restore copies them back to the same
 addresses. The bytes hold pointers -- return addresses, frames, the game's
 state, the asset pack's data -- so the pool, the game's state and the pack are
 taken from an arena reserved at a fixed address (`runtime/port/arena.h`), and
-ct_native links at a fixed image base on Windows and Linux. A run that makes
-the same allocations lays them out the same, so a snapshot file loads in a
-later run of the same build. Each snapshot records the addresses it depends
-on and a run laid out otherwise refuses it, changing nothing; on macOS, whose
-images move, a file loads only in the run that wrote it.
+on Windows ct_native links at a fixed image base. A run that makes the same
+allocations lays them out the same, so on Windows a snapshot file loads in a
+later run of the same build; `tools/player_check.py` proves it there. Each
+snapshot records the addresses it depends on and a run laid out otherwise
+refuses it, changing nothing. On Linux and macOS a suspended stack also holds
+what only its own process can vouch for -- return addresses into libc's and
+SDL's moved images (the `ucontext` trampoline), and stack-protector canaries
+-- so a snapshot there also records its run, and a file loads only in the run
+that wrote it.
 
 `ct_native --check-snapshots EVERY[,SPAN]` (headless) takes a snapshot every
 EVERY frames, plays SPAN frames, loads the snapshot through a file's bytes and

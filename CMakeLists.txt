@@ -379,12 +379,10 @@ if(MINGW)
 endif()
 # A snapshot file holds the fibers' stacks, whose return addresses and
 # pointers name the program's code and statics: loaded in another run, they
-# hold only where the image is where it was (frontend/snapshot.h). macOS keeps
-# its images movable; there a snapshot file loads only in the run that wrote it.
+# hold only where the image is where it was (frontend/snapshot.h). Elsewhere a
+# snapshot file loads only in the run that wrote it.
 if(MINGW)
   target_link_options(ct_native PRIVATE -Wl,--disable-dynamicbase,--disable-high-entropy-va)
-elseif(UNIX AND NOT APPLE AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-  target_link_options(ct_native PRIVATE -no-pie)
 endif()
 install(TARGETS ct_native RUNTIME DESTINATION .)
 if(WIN32 AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)

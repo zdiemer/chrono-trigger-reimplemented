@@ -35,7 +35,7 @@ back to it. Movie playback/recording and headless checks never overwrite it.
 
 F5 saves the current frame to .native-state; F7 loads it at once. The state
 holds the whole game, its sound and its suspended routines. It loads only in
-the same build of ct_native (on macOS, only in the session that saved it) and
+the same build of ct_native (on Linux and macOS, only in the session that saved it) and
 is separate from emulator .state files. Keep in-game .srm saves for progress
 across build updates.
 

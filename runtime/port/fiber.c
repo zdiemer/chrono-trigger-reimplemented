@@ -25,6 +25,7 @@
 #include "fiber.h"
 #include "arena.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -217,8 +218,10 @@ void fiber_switch(Fiber *to)
 
 Fiber *fiber_create(void (*fn)(void *), void *arg)
 {
-    if (!stacks && !(stacks = arena_take((size_t)FIBER_STACK_SIZE * FIBER_SLOTS)))
-        return NULL;
+    if (!stacks && !(stacks = arena_take((size_t)FIBER_STACK_SIZE * FIBER_SLOTS))) {
+        fputs("fiber: no memory for the fibers' stacks\n", stderr);
+        abort();
+    }
     for (unsigned i = 0; i < FIBER_SLOTS; i++) {
         Fiber *f = &pool[i];
         if (f->used)
@@ -228,7 +231,9 @@ Fiber *fiber_create(void (*fn)(void *), void *arg)
         prepare(f);
         return f;
     }
-    return NULL;
+    /* A task that silently never ran would leave the game where no input takes it. */
+    fprintf(stderr, "fiber: all %u fiber slots are in use\n", (unsigned)FIBER_SLOTS);
+    abort();
 }
 
 void fiber_destroy(Fiber *f)

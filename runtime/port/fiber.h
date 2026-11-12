@@ -10,8 +10,9 @@
 
 typedef struct Fiber Fiber;
 
-/* Create a fiber that runs fn(arg) when first switched to, or NULL when the
- * pool's slots are all in use. fn must never return; switch away instead. */
+/* Create a fiber that runs fn(arg) when first switched to; the program stops,
+ * saying so, when the pool's slots are all in use. fn must never return;
+ * switch away instead. */
 Fiber *fiber_create(void (*fn)(void *arg), void *arg);
 /* Give back a suspended fiber's slot; its continuation is dropped. */
 void fiber_destroy(Fiber *f);

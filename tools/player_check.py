@@ -34,7 +34,9 @@ def main():
         with wave.open(str(out / (label + ".wav")), "rb") as stream:
             return stream.readframes(stream.getnframes())
 
-    for name, movie, cut, end in (
+    # A state file loads in a later process only on Windows (docs/PLAYING.md,
+    # "Snapshots"); elsewhere these continuations aren't offered.
+    for name, movie, cut, end in () if os.name != "nt" else (
         ("opening", "new-game", 5200, 7200),
         ("menu", "menu", 7400, 8000),
         ("battle", "saves/battle-magus", 5000, 5600),

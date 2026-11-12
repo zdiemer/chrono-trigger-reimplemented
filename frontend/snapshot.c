@@ -12,13 +12,33 @@
  * of its own stands for the image), the game's state, the services, the
  * asset pack. The fiber stacks' place the fiber snapshot checks itself. */
 typedef struct {
-    uint64_t code, game, pf, pack;
+    uint64_t code, game, pf, pack, run;
 } Layout;
+
+/* Off Windows a suspended stack also holds what only its own process can
+ * vouch for: return addresses into libc's and SDL's moved images (the
+ * ucontext trampoline) and stack-protector canaries. There a snapshot is
+ * good only in the run that took it, which `run` names: the process and the
+ * time it first took or restored one. On Windows it is 0, and a file loads in
+ * any run laid out the same. */
+#ifdef _WIN32
+static uint64_t this_run(void) { return 0; }
+#else
+#include <time.h>
+#include <unistd.h>
+static uint64_t this_run(void)
+{
+    static uint64_t run;
+    if (!run)
+        run = (uint64_t)getpid() << 32 ^ (uint64_t)time(NULL) ^ (uint64_t)(uintptr_t)&run;
+    return run;
+}
+#endif
 
 static Layout layout_of(const SnapshotParts *p)
 {
     return (Layout){ (uint64_t)(uintptr_t)&snapshot_take, (uint64_t)(uintptr_t)p->game,
-                     (uint64_t)(uintptr_t)p->pf, (uint64_t)(uintptr_t)p->pack };
+                     (uint64_t)(uintptr_t)p->pf, (uint64_t)(uintptr_t)p->pack, this_run() };
 }
 
 enum { PARTS = 5 };   /* the game, the services, the sound, the fibers, the driver's */
