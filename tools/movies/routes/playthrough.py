@@ -5,8 +5,8 @@ house, the Millennial Fair, Marle and Lucca's telepod. From the 600 A.D.
 world map on, the route goes on with the pieces other routes play from
 cartridge saves (the Cathedral, the trial, ...), from the state this route
 reached instead of a save. Each phase ends at a checkpoint and the route goes
-on only past checkpoints that succeeded; where it stops is recorded in
-issue #4.
+on only past checkpoints that succeeded. It ends with the Guardian beaten in
+Arris Dome, 2300 A.D.
 """
 from .. import addresses as A
 from .. import policies
@@ -17,6 +17,7 @@ from . import _trial_party as early
 from . import _trial_cathedral as cathedral
 from . import cronos_trial
 from . import dragon_tank
+from . import guardian
 
 OPENING = ["named", "home", "fair", "collided", "joined", "exhibit", "gate", "truce_canyon", "guardia",
            "upstairs", "chamber", "kidnapped"]
@@ -25,7 +26,11 @@ OPENING = ["named", "home", "fair", "collided", "joined", "exhibit", "gate", "tr
 CATHEDRAL = cathedral.PHASES[1:]
 ESCAPE = ["rescued", "escaped"]
 TANK = dragon_tank.PHASES[2:]
-PHASES = OPENING + CATHEDRAL + cronos_trial.PHASES + ESCAPE + TANK
+# Out of the castle and through the forest's Gate to 2300 A.D., across Lab 16
+# to Arris Dome, and the Guardian there (its piece, after its save's loading).
+FUTURE = ["castle_gate", "forest_chase", "forest_back", "future", "lab16", "lab16_east", "arris"]
+GUARDIAN = guardian.PHASES[1:]
+PHASES = OPENING + CATHEDRAL + cronos_trial.PHASES + ESCAPE + TANK + FUTURE + GUARDIAN
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # A playthrough from a new game (route playthrough), on a blank cartridge.
@@ -52,7 +57,18 @@ CHANCELLOR = 9                 # in the queen's tower
 FAIR_NEWS, SHOW_STARTED = 0x7F0055, 0x80
 LOWER_SQUARE_FAIRGOERS = (17, 16, 22, 24)   # who tell of Lucca's show
 SHOP_SCREEN, SHOP_BUY, SHOP_COUNT = 12, 8, 10
-WAIT_MODE = 1               # the battle mode question's second row: Wait
+OPENING_FLYOVER = "f001"    # the 1000 A.D. world map, which the opening flies over
+CRONOS_ROOM = "0200"
+GUARDIA_CASTLE_1000, GUARDIA_FOREST_1000, FOREST_GATE = "1500", "1300", "1400"
+GATE_IN_THE_FOREST = 9      # an object of the forest's back, where the Gate opens
+BANGOR_DOME, WORLD_2300 = "d000", "f201"
+LAB16_WEST, LAB16_EAST = "d400", "d500"
+LAB16_DOOR = (264, 368)     # on the 2300 A.D. map, north of Bangor Dome
+LAB16_WEST_EXIT = (504, 120)   # tile column 31, rows 5-9, to the east part
+LAB16_EAST_EXIT = (952, 536)   # tile columns 57-61, row 33, out by Arris Dome
+ARRIS_DOME = 0x0D6
+FIELD_PARTY_OBJECTS = 0x7E0197   # the members' object slots, times two
+WAIT_MODE = 1              # the battle mode question's second row: Wait
 
 
 def naming(run):
@@ -62,11 +78,38 @@ def naming(run):
             and not machine.b(A.FIELD_PLAYER_CONTROL))
 
 
+def foes_with_hit_points(machine):
+    """Whether the open battle has an enemy the bot can wear down: Lab 16's
+    Shadows have 1 HP, as the battle's empty slots do, and take no harm from
+    a weapon, so policies.enemies counts none of them."""
+    for slot in range(3, 11):
+        base = A.BATTLE_STATS + slot * A.BATTLE_STAT_STRIDE
+        if 1 < machine.w(base + 2) < 65000 and machine.w(base) > 0:
+            return True
+    return False
+
+
+def flee(run, max_frames=3000):
+    """Hold L and R until the party has run from the fight."""
+    machine = run.machine
+    start = machine.frame
+    while machine.frame - start < max_frames:
+        machine.run(20, "L+R")
+        if machine.b(A.FIELD_PLAYER_CONTROL) and not A.battle_menu_open(machine):
+            run.say("fled", machine.frame - start, "frames")
+            return
+    raise AssertionError("the party could not run")
+
+
 def win(run, seed=1):
     """Fight the battle that is open to its end: every enemy down, or the
     field given back (a fight a scene ends, as the prison's guards' does,
-    leaves its enemies standing)."""
+    leaves its enemies standing). A fight with nothing the bot can hurt is
+    run from."""
     machine = run.machine
+    if not foes_with_hit_points(machine):
+        flee(run)
+        return
     seen, field_frames = [], [0]
 
     def over(r, state):
@@ -120,18 +163,37 @@ def in_hand(run, max_frames=12000, seed=1):
     return False
 
 
-def leave_fighting(run, want, max_rounds=12, seed=1):
-    """Walk until the screen is map `want`, winning the fights on the way (the
-    field's encounters take control from the walk) and closing windows."""
-    machine = run.machine
+def walking(run, max_rounds=8):
+    """in_hand, and the walker set to the party's leader. find_player's probe
+    finds the leader moving; one hemmed in (the soldiers round the party in
+    Guardia Forest) doesn't pass it, and the field's own record of the
+    party's objects names it instead."""
     for _ in range(max_rounds):
         assert in_hand(run), "the field in hand"
-        if run.map_id() == want:
+        if run.find_player() is not None:
+            return
+        run.machine.run(30)
+    leader = run.machine.w(FIELD_PARTY_OBJECTS)
+    assert leader < 0x80, "a leader on the field"
+    run.player = leader // 2
+    run.say("the leader is object", run.player)
+
+
+def leave_fighting(run, want, max_rounds=12, seed=1, ends=()):
+    """Walk until the screen is map `want`, winning the fights on the way (the
+    field's encounters take control from the walk) and closing windows. A
+    scene that carries the party on to one of the maps in `ends` ends the
+    walk there too."""
+    machine = run.machine
+    done = lambda: run.map_id() == want or run.map_id() in ends
+    for _ in range(max_rounds):
+        assert in_hand(run), "the field in hand"
+        if done():
             return True
         moves = run.walk(lambda m, px, py: m.peek(A.MAP_ID, 2).hex() == want
                          or not m.b(A.FIELD_PLAYER_CONTROL) or m.b(A.DIALOG_OPEN))
         run.say("leave_fighting", want, "steps", moves and len(moves), "now", run.map_id(), "at", run.me())
-        if run.map_id() == want:
+        if done():
             return True
         if moves is None:
             return False
@@ -139,7 +201,7 @@ def leave_fighting(run, want, max_rounds=12, seed=1):
         if early.battle_ready(run) or run.dialogs_until(lambda: early.battle_ready(run) or bool(
                 machine.b(A.FIELD_PLAYER_CONTROL)), 3000) and early.battle_ready(run):
             win(run, seed)
-    return run.map_id() == want
+    return done()
 
 
 def through(run, x, y, arrived, seed=1, rounds=10):
@@ -249,7 +311,15 @@ def new_game(run):
             break
         machine.run(3, "START")
         machine.run(30)
+    # The opening flies over the kingdom with the field's control byte set
+    # and no one to walk: in_hand would take that for the party in hand.
+    for _ in range(200):
+        if run.map_id() != OPENING_FLYOVER:
+            break
+        machine.run(30)
+    assert run.map_id() != OPENING_FLYOVER, "the opening's flight over the kingdom"
     assert in_hand(run, 20000), "Crono awake in his room"
+    assert run.map_id() == CRONOS_ROOM, "Crono's room"
     run.say("Crono's room", run.map_id(), "story", hex(machine.b(A.EVENT_MEMORY)))
 
 
@@ -454,6 +524,76 @@ def main():
             run.checkpoint("escaped")
         if later <= len(ESCAPE) + len(TANK) - 1:
             dragon_tank.play(run, max(2, later - len(ESCAPE) + 2), args.seed)
+        later -= len(ESCAPE) + len(TANK)
+        if later <= 0:
+            # Left along the bridge to the castle's front. The chancellor's
+            # taunt opens again while the party stands where it is spoken,
+            # so the party walks on through it.
+            for _ in range(400):
+                if run.map_id() == GUARDIA_CASTLE_1000:
+                    break
+                if run.dialog():
+                    machine.run(3, "A")
+                    machine.run(5, "LEFT")
+                else:
+                    machine.run(8, "LEFT")
+            assert run.map_id() == GUARDIA_CASTLE_1000, "the castle's front hall"
+            assert in_hand(run)
+            run.checkpoint("castle_gate")
+        if later <= 1:
+            # Out of the door, Marle runs to join them, and the guards chase
+            # the three into Guardia Forest.
+            assert leave_fighting(run, "f001", ends=(GUARDIA_FOREST_1000,)), "chased out"
+            assert run.map_id() == GUARDIA_FOREST_1000, "into the forest"
+            assert in_hand(run)
+            run.say("chased", run.me(), "story", hex(machine.b(A.EVENT_MEMORY)),
+                    "party", machine.peek(A.PARTY_MEMBERS, 3).hex())
+            run.checkpoint("forest_chase")
+        if later <= 2:
+            # Soldiers close the way back west ("There's no escape!" each
+            # time the party turns to them): on into the forest's back. The
+            # walk ends at a window only as a dead end, not as a goal.
+            walking(run)
+            moves = run.walk(lambda m, px, py: m.peek(A.MAP_ID, 2).hex() != GUARDIA_FOREST_1000,
+                             max_nodes=6000)
+            assert moves is not None and run.map_id() == FOREST_GATE, "the forest's back"
+            assert in_hand(run)
+            run.checkpoint("forest_back")
+        if later <= 3:
+            # Cornered, Lucca finds the Gate: confirming beside it takes the
+            # three to 2300 A.D., in Bangor Dome.
+            walking(run)
+            assert run.talk(GATE_IN_THE_FOREST, done=lambda: run.map_id() != FOREST_GATE
+                            or not machine.b(A.FIELD_PLAYER_CONTROL)), "the Gate"
+            assert in_hand(run, 30000)
+            assert run.map_id() == BANGOR_DOME, "2300 A.D."
+            run.checkpoint("future")
+        if later <= 4:
+            # Out onto the 2300 A.D. map and north into Lab 16's ruins.
+            assert leave_fighting(run, WORLD_2300), "out of Bangor Dome"
+            assert run.world_go(*LAB16_DOOR), "Lab 16's door"
+            machine.run(3, "A")
+            machine.run(90)
+            assert run.map_id() == LAB16_WEST, "Lab 16"
+            assert in_hand(run)
+            run.checkpoint("lab16")
+        if later <= 5:
+            # Across the ruins (their Shadows, which no weapon hurts, run
+            # from) and out by Arris Dome.
+            through(run, *LAB16_WEST_EXIT, lambda: run.map_id() == LAB16_EAST, rounds=20)
+            through(run, *LAB16_EAST_EXIT, lambda: run.map_id() == WORLD_2300, rounds=20)
+            machine.screenshot(run.prefix + "_lab16.png")
+            run.checkpoint("lab16_east")
+        if later <= 6:
+            run.wait_world_control()
+            world_enter(run, ARRIS_DOME)
+            assert in_hand(run, 20000)
+            assert run.map_id() == guardian.HALL, "Arris Dome"
+            run.say("Arris Dome", run.me(), "story", hex(machine.b(A.EVENT_MEMORY)))
+            run.checkpoint("arris")
+        if later <= len(FUTURE) + len(GUARDIAN) - 1:
+            walking(run)
+            guardian.play(run, max(1, later - len(FUTURE) + 1), args.seed)
         run.finish("the playthrough's last checkpoint")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())

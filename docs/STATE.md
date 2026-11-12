@@ -1,7 +1,7 @@
 # Native state storage
 
-Every live map variable has module-owned C storage, and 2,145 of the 2,213 have
-typed storage; the other 68 are still blob-backed. `GameState` has no work-RAM
+Every live map variable has module-owned C storage, and 2,144 of the 2,213 have
+typed storage; the other 69 are still blob-backed. `GameState` has no work-RAM
 image; the generated address view serializes the owning fields directly. Generated
 files come only from `tools/ram_map.py` and `re/ram.toml`.
 
@@ -29,7 +29,7 @@ owner fields it depends on.
 |---|---:|---:|
 | battle | 21 | 901 / 922 |
 | menu | 19 | 443 / 462 |
-| field | 10 | 289 / 299 |
+| field | 11 | 288 / 299 |
 | menu_object | 6 | 33 / 39 |
 | scene | 4 | 336 / 340 |
 | core | 3 | 59 / 62 |
@@ -37,7 +37,7 @@ owner fields it depends on.
 | event | 2 | 17 / 19 |
 | overworld | 0 | 41 / 41 |
 | data | 0 | 8 / 8 |
-| all | 68 | 2,145 / 2,213 |
+| all | 69 | 2,144 / 2,213 |
 
 Before overlays every mode read another's owner fields at its own widths
 (725 blob-backed); 632 owners then got fields of their own beside other
@@ -56,7 +56,7 @@ through their owners; the scenes and the field write the sprite table through
 the core's records (`core/sprite_table.c`) instead of byte copies of it; and
 20 declarations that nothing read or wrote, by accessor or address (scratch
 the original's routines kept last values in, which the reconstruction had
-retired), were deleted. The 68 left, by `storage --list`, are honestly blobs
+retired), were deleted. The 69 left, by `storage --list`, are honestly blobs
 until their work is done:
 
 - 20 buffers in a hardware or script format, kept as the byte streams they
@@ -79,7 +79,7 @@ until their work is done:
   level and target, by its kind: one record, two layouts), the battle trail's
   positions split into low- and high-byte tables at separate addresses, and
   the battle window lines read as words and as edges.
-- 30 variables that share another mode's bytes at the same time or hand data
+- 31 variables that share another mode's bytes at the same time or hand data
   across a mode change, kept as `host_alias` views (examples under
   "Overlays"); each needs its hand-off written where the mode changes.
 
@@ -205,8 +205,10 @@ back to a view:
   the party's gold (`menu_past_the_names`); the rewards' level and tech marks
   share a byte.
 - Modes running together over the same memory: the menus' sprite nodes over the
-  field's tile looks, the field's layer maps under the battle's decoded tiles
-  and the load screen's tilemap, the menus' top-layer wave over battle effect
+  field's tile looks, the field's layer maps and tile properties under the battle's decoded tiles
+  and the load screen's tilemap (a map narrower than the tables leaves the
+  columns past it as the battle wrote them, and the field streams in the
+  column off the map's left edge, column 63, from them), the menus' top-layer wave over battle effect
   and field attribute cells, the field's line waves over the battle's drawing
   page, and within one mode the record coordinate and tile words read as bytes.
 
