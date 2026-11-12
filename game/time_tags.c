@@ -5,15 +5,15 @@
  * (NATIVE_TIME_AS, TIMED_AS, the charges). A port's time is estimated at the
  * rate of the routine it names, so each keeps the rate it was last calibrated
  * to: a retired routine's time is charged as before. No shadow run measures
- * one any more (it has no calls of its own), so tools/timing_gate.py's
+ * one any more (it has no calls of its own), so the frozen timing estimates's
  * calibration leaves these alone; the error they make is the callers', which
  * the gate still measures.
  *
  * The runtime puts them in its table beside game/registry.c's entries
- * (frontend/natives.c), marked time_only: the machine finds the original's
+ * (the former entry dispatcher), marked time_only: the machine finds the original's
  * code there, as it does at any address no port is registered at. The table
  * is also the list of what retired, a row for each entry the registry had:
- * tools/unreached.py ends its walks at them as it did at the entries. */
+ * the path audit ends its walks at them as it did at the entries. */
 #include "registry.h"
 
 const NativeEntry game_time_tags[] = {

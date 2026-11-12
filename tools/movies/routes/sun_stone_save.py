@@ -12,7 +12,7 @@ PHASES = stone.PHASES + ["return_epoch", "end_of_time", "saved"]
 HEADER = """\
 # Hand-run Sun Stone preparation: win Son of Sun, plant the Moon Stone in prehistory,
 # then write slot 1 at the End of Time's save point (route sun_stone_save).
-# Save: ctsave13 slot 3 (oracle/saves/fantasyanime).
+# Save: ctsave13 slot 3 (saves/fantasyanime).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -35,7 +35,7 @@ def board(run):
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     m = run.machine
     start = run.start_at(PHASES)
     if start < len(stone.PHASES):

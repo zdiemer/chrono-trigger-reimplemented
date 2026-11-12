@@ -34,8 +34,5 @@ PF_API void in_set_io_lines(Platform *pf, PfOrigin o, uint8_t lines);
 /* Host side, once per frame. */
 PF_API void in_host_set(Platform *pf, uint8_t pad, PadBits buttons);
 
-#ifdef CT_PLATFORM_SNES
-#include "platform/snes/input.h"
-#endif
 
 #endif

@@ -62,7 +62,7 @@ enum {
     CURSOR_SOUND = 0xC2EAC2,
 };
 
-/* What they read (tools/dontcare_check.py checks each): most nothing but the
+/* What they read (the calling convention checks each): most nothing but the
  * page and the data bank; the refusal's sound A's high byte, and the cursor
  * sound as a step's last A and the carry. */
 enum {

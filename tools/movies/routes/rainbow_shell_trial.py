@@ -2,10 +2,10 @@
 from ..campaign import Run, route_arguments, run_route
 from .. import policies
 
-SAVE = "oracle/saves/fantasyanime/ctsave13-side_quests2.srm"
+SAVE = "saves/fantasyanime/ctsave13-side_quests2.srm"
 HEADER = """\
 # The full Rainbow Shell trial at Guardia Castle, 1000 A.D. (route rainbow_shell_trial).
-# Save: ctsave13 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave13 slot 2 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -70,7 +70,7 @@ def fast_messages(machine):
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = TrialRun(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     m = run.machine
     try:
         start = run.start_at(PHASES)

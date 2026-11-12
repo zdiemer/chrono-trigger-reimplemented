@@ -50,7 +50,7 @@ enum {
     A_SOUND = 0xC2EABA,
 };
 
-/* What they read (tools/dontcare_check.py checks each): nothing but the
+/* What they read (the calling convention checks each): nothing but the
  * page, the data bank and memory; the description A's low byte. */
 enum {
     READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,

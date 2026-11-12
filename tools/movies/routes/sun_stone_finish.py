@@ -6,14 +6,14 @@ from .sun_stone_save import board
 from .epoch_lavos import DIAL_PERIOD, wait_until
 from .save_point import press
 
-SAVE = "oracle/saves/routes/sun-stone-planted.srm"
+SAVE = "saves/routes/sun-stone-planted.srm"
 PHASES = ["loaded", "future", "missing", "present", "recovered", "replaced", "charged", "rewards"]
 HEADER = """\
 # Sun Stone: discover the theft in 2300 A.D., recover the Moon Stone from Porre's
 # mayor in 1000 A.D., replace it in the Sun Keep, and collect it in 2300 A.D.
 # Lucca returns home and Taban makes the Wondershot and Sunshades; stop back in control.
 # The starting save already includes the Jerky gift to the mayor's ancestor.
-# Save: sun-stone-planted slot 1 (oracle/saves/routes), written by sun_stone_save.
+# Save: sun-stone-planted slot 1 (saves/routes), written by sun_stone_save.
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -95,7 +95,7 @@ def walk_after_rewards(run):
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     m = run.machine
     start = run.start_at(PHASES)
     if start <= 0:

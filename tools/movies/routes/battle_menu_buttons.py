@@ -17,7 +17,7 @@ HEADER = """\
 # fight, then at the first menu go right and left to the other members waiting, page the item list with L and R and
 # leave it with B, move across the tech list and leave it, and attack with X; the movie stops in the fight (route
 # battle_menu_buttons).
-# Save: zophar chrono slot 1 (oracle/saves/zophar, zophar.net Chrono Trigger saves).
+# Save: zophar chrono slot 1 (saves/zophar, zophar.net Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -42,8 +42,7 @@ def menu_open(machine):
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 

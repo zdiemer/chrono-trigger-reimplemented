@@ -64,7 +64,7 @@ static inline BridgeMachine on_the_field_page(const Snes *s, bool x8)
 enum { JSR_SIZE = 3, JSL_SIZE = 4 };
 
 /* Call the original's routine from the JSR (JSL) at `site`, declaring what it
- * doesn't read of the registers (checked by tools/dontcare_check.py, which
+ * doesn't read of the registers (checked by the calling convention, which
  * knows these two as it knows m_jsr_dc). True if it came back as `m`. */
 bool bridge_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, BridgeMachine m);
 bool bridge_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, BridgeMachine m);

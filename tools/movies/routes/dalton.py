@@ -3,11 +3,11 @@ from ..campaign import Run, route_arguments, run_route
 from .. import policies
 from .blackbird_save import travel
 
-SAVE = "oracle/saves/recorded/blackbird-before-dalton.srm"
+SAVE = "saves/recorded/blackbird-before-dalton.srm"
 PHASES = ["loaded", "ducts", "corridor", "wing", "golem", "dalton", "won", "wings", "field"]
 HEADER = """\
 # Dalton Plus, the Blackbird's destruction and the Epoch's wings (route dalton).
-# Save: blackbird-before-dalton slot 1 (oracle/saves/recorded), made by normal play from ctsave11 slot 1.
+# Save: blackbird-before-dalton slot 1 (saves/recorded), made by normal play from ctsave11 slot 1.
 # Starts after events-blackbird's opening, with the party's equipment and inventory recovered.
 # frames {FRAMES}
 # sram crc32 {CRC}
@@ -58,7 +58,7 @@ def fight(run, boss=False):
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = DaltonRun(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-                    native=args.native, generated=args.generated, until=args.until)
+                    until=args.until)
     m = run.machine
     try:
         start = run.start_at(PHASES)

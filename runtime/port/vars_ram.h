@@ -1,17 +1,8 @@
-/* The machine as a GameState: the bridge a registered entry's wrapper crosses.
+/* Native accessor diagnostics and legacy wrapper conversions.
  *
- * While the game's state lives in emulated work RAM (runtime/port/vars_ram.c),
- * a GameState is the machine that holds it, and nothing more -- the handle is
- * never dereferenced, in game/ or here, so `struct GameState` has no definition
- * and one machine is one state. A wrapper takes the `Snes *` the runtime calls
- * it with, turns it into a GameState and calls the port's logic, which is where
- * the machine stops. Where the routine's cells are on a page the caller
- * chooses, the wrapper also turns the caller's D into the instance of that page
- * kind the accessors take (port/vars_pages.h, generated with them).
- *
- * The native backing uses state_host.h instead of this machine conversion.
- * The accessor diagnostics below are shared by both backings; game/ uses
- * this conversion only at its machine boundary. */
+ * Native GameState storage is defined privately by state_host.c. The conversion
+ * helpers remain for legacy machine wrappers; native accessors never use them.
+ * Page handles and the address projection are described in docs/STATE.md. */
 #ifndef CT_PORT_VARS_RAM_H
 #define CT_PORT_VARS_RAM_H
 
@@ -26,33 +17,19 @@ static inline GameState *state_of(Snes *s) { return (GameState *)s; }
  * machine comes back unqualified. */
 static inline Snes *state_snes(const GameState *g) { return (Snes *)(void *)g; }
 
-/* A registry guard runs between the original's instructions, in the
- * machine's time, and may look at the game's state to decide whether the
- * port is the same routine there. While it does (vars_peek(true) ... false),
- * the accessors' reads take none of that time and leave the bus as it was
- * (snes_bus_peek): otherwise the time would land in shadow mode's record of
- * the original's run, which the generated blocks are checked against. The
- * cartridge's accessors (game/rom.h) peek too, so an entry's wrapper can
- * look again at ROM data its logic read. */
+/* Inspection reads (including ROM inspection) do not charge game time. */
 void vars_peek(bool on);
 bool vars_peeking(void);
 
-/* Accessors called with an index past what re/ram.toml declares: an element
- * past an array's count, a byte past a buffer's, a row or column past a
- * table's, an instance past a page kind's. Such an access reaches whatever
- * variable follows in work RAM, which works only while the storage is the
- * original's layout, so the backing counts it, per variable, and lets it
- * happen as it did. Only a build with CT_ACCESSOR_CHECKS counts (ct_dev,
- * ct_fuzz and the tests; not ct_play): without it vars_range_faults gives
- * none. ct_dev prints an `accessor out of range` line for each variable with
- * a count, and tools/suite.py fails a movie that prints one (docs/DISASSEMBLY.md,
- * "The accessors"). */
+/* Indexed accessors retain the original address on an invalid index and use
+ * the native projection, without indexing outside C storage. Builds with
+ * CT_ACCESSOR_CHECKS record these reaches for tests. */
 typedef struct {
     const char *accessor;   /* the accessor called, e.g. "set_field_object_role" */
     const char *bound;      /* which limit: "count", "bytes", "rows", "columns", "instances" */
     unsigned index;
     unsigned limit;
-    uint32_t pc;            /* the running entry's address, or the machine's PC; 0 on the host */
+    uint32_t pc;            /* reserved diagnostic address; native accessors record zero */
 } VarsRangeHit;
 enum { VARS_RANGE_HITS_KEPT = 4 };
 typedef struct {

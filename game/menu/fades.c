@@ -44,7 +44,7 @@ static void start_fade(GameState *g, int8_t step)
 
 /* The waits: the task switch's, for the frames in A ($C2:822B) between the
  * steps, from the fade's loop, which sets the flags again after its wait
- * (tools/dontcare_check.py checks it), and for a frame ($C2:821E) at a fade
+ * (the calling convention checks it), and for a frame ($C2:821E) at a fade
  * out's end, which the original jumps to so that it returns to the fade's
  * caller. The task's frame keeps what the last step leaves in A and the flags
  * for that caller: the sum that reached black. */

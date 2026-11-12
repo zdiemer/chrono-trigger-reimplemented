@@ -11,12 +11,12 @@ from .. import addresses as A, bfs, policies
 from ..campaign import Run, route_arguments, run_route
 from . import menu_sweep, save_point
 
-SAVE = "oracle/saves/fantasyanime/ctsave13-side_quests2.srm"
+SAVE = "saves/fantasyanime/ctsave13-side_quests2.srm"
 CONTROL = 0x7E011F
 HEADER = """# Giant's Claw approach: Epoch to 600 A.D., the ruined throne, encounters,
 # floor switches and pits, then a Shelter and a cartridge save near Rust Tyrano.
 # Hand-run route rainbow_shell; keep this long movie outside the library.
-# Save: ctsave13 slot 1 (oracle/saves/fantasyanime/ctsave13-side_quests2.srm).
+# Save: ctsave13 slot 1 (saves/fantasyanime/ctsave13-side_quests2.srm).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -225,7 +225,7 @@ def approach(run):
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     try:
         approach(run)
         # This is cartridge SRAM read after the game's own save operation,

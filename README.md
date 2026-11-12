@@ -1,42 +1,10 @@
 # chrono-trigger-reimplemented
 
-A native PC port of *Chrono Trigger* (SNES, USA), reimplemented in C and
-validated frame by frame against the original ROM.
+A native C reimplementation of Chrono Trigger (SNES, USA). The product is
+`ct_native`, with native rendering, sound and platform services. See
+[Playing](docs/PLAYING.md) to build and run it, [Plan](docs/PLAN.md) for remaining
+work, and [Validation](docs/REIMPLEMENTATION.md) for the lean native gate.
 
-The goal is readable, hand-written C, not an emulator. Until every routine is
-ported, the original code runs on a development hardware model and a 65816
-interpreter, with each ported routine checked against it. A C generator
-([docs/GENERATED.md](docs/GENERATED.md)) is being built as scaffolding: it turns the
-remaining original code into mechanical C at build time from your ROM, as a
-starting point for hand ports. See [docs/APPROACH.md](docs/APPROACH.md) for the
-strategy and roadmap.
-
-## Status
-
-Porting: the attract sequence, field, menu, event and battle systems are
-partly native, validated in shadow mode over 26 input movies
-([docs/PORTING.md](docs/PORTING.md)). The development runtime plays the game
-with sound ([docs/PLAYING.md](docs/PLAYING.md)). The C generator writes C for
-all statically found code at build time, with the original's timing exactly,
-and it runs every instruction of the movie library, leaving the interpreter
-nothing ([docs/GENERATED.md](docs/GENERATED.md)); turning the generated code into
-readable hand-written C is the remaining bulk of the work
-([docs/REIMPLEMENTATION.md](docs/REIMPLEMENTATION.md), [docs/PLAN.md](docs/PLAN.md)).
-[docs/PLATFORM.md](docs/PLATFORM.md) designs the platform services
-(video, audio, timing, input, saves) that let the game run on backends other
-than the SNES hardware model: a native renderer, widescreen, and possibly GBA.
-
-## ROM
-
-You need your own copy of *Chrono Trigger (USA)*
-(CRC32 `2D206BF7`, SHA-1 `de5822f4f2f7a55acb8926d4c0eaa63d5d989312`).
-This repository contains no game data.
-
-```sh
-python3 tools/rom.py verify path/to/ct.sfc
-python3 tools/rom.py stage  path/to/ct.zip   # copies to roms/ct-usa.sfc
-```
-
-`.sfc`, `.smc` (copier header is stripped) and `.zip` are accepted.
-
-To play in a window with the keyboard, see [docs/PLAYING.md](docs/PLAYING.md).
+You need your own USA cartridge, CRC32 `2D206BF7`. No game data is distributed.
+`python3 tools/rom.py stage <path>` verifies and copies it to `roms/ct-usa.sfc`.
+The native program and its unit tests build without a ROM.

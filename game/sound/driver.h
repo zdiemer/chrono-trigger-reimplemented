@@ -4,7 +4,7 @@
  * Each function that stands for code of the original carries its address on
  * the sound CPU, `// SPC $xxxx`, several where it stands for more than one
  * routine (docs/SOUND.md, "The driver in a paragraph", and the listing
- * tools/spc700dis.py prints). The command and event tables name each row's
+ * the sound instruction listing prints). The command and event tables name each row's
  * handler the same way. */
 #ifndef CT_GAME_SOUND_DRIVER_H
 #define CT_GAME_SOUND_DRIVER_H

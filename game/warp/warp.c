@@ -488,7 +488,7 @@ void warp_takes_the_frame_on_the_machine(Snes *s)
 /* The held wait's continuations' guards: on the warp's page with its zero,
  * and the frame taken, with the wait's call returning to a kind's loop, or
  * not yet taken. Each is a claim the game keeps, which the refusal measure
- * checks over real play (tools/fallbacks.py --refusals). */
+ * checks over real play (the original hand-back paths --refusals). */
 static bool on_its_page(Snes *s)
 {
     if (m_direct_page(s) != WARP_PAGE || !m_bank_reaches_io(s))

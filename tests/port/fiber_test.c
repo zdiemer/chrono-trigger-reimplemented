@@ -174,6 +174,13 @@ int main(void)
     test_deep_stack();
     test_fiber_to_fiber();
     test_abandon();
+    for (int i = 0; i < 10; i++) {
+        Fiber *f = fiber_create(abandoned_body, NULL);
+        fiber_switch(f);
+        fiber_destroy_tree(f);
+    }
+    CHECK(!resumed, "tree teardown resumed an abandoned stack");
+    test_ping_pong();
     if (failures) {
         printf("fiber_test: %d failures\n", failures);
         return 1;

@@ -506,7 +506,7 @@ static unsigned draw_with_effects(GameState *g, unsigned slot, unsigned sprite, 
  * order of its writes shows (it writes each part's tile back as it sets the
  * part's attributes, and sets high bits between); the port's order is its
  * own. No battle draws more sprites than the buffer holds; random states do
- * (tools/fuzz_routines.toml, the pass's loose variant). */
+ * (the original input constraints, the pass's loose variant). */
 static void draw_objects(GameState *g)
 {
     DrawList list = build_draw_list(g);

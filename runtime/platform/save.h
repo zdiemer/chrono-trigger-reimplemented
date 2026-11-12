@@ -15,8 +15,5 @@ PF_API uint8_t sv_peek8(Platform *pf, uint16_t offset);
  * changed since the last call (the SNES backend doesn't track writes: always). */
 PF_API const uint8_t *sv_host_bytes(Platform *pf, bool *dirty);
 
-#ifdef CT_PLATFORM_SNES
-#include "platform/snes/save.h"
-#endif
 
 #endif

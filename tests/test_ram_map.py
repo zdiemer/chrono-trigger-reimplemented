@@ -210,7 +210,7 @@ index = "slot"
 host_module = "items"
 unchecked = "The next cell is shared."'''))
         c = ram_map.render_backing(m)
-        checked = c[c.index("void set_items(GameState *g"):c.index("#else", c.index("void set_items(GameState *g"))]
+        checked = c[c.index("void set_items(GameState *g"):]
         self.assertIn('IN_RANGE(g, 0, "set_items", "count", slot, 3u);', checked)
         self.assertIn('if (slot >= 3u) { w8(g, 0x7E1000u + (uint32_t)slot * 0x01u, v); return; }', checked)
         unchecked = checked[checked.index("void set_items_unchecked"):]

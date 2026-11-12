@@ -10,7 +10,7 @@ QUEST = 0x7F013A
 HEADER = """\
 # Hand-run Sun Stone route: Son of Sun, the Moon Stone recovered, then placed in the Sun Keep in 65,000,000 B.C.
 # Kept outside the movie library: repeats battle-son-of-sun's fight (route sun_stone).
-# Save: ctsave13 slot 3 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave13 slot 3 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -96,7 +96,7 @@ def play(run, seed=1):
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     play(run, args.seed)
     m = run.machine
     m.screenshot(run.prefix + "_end.png")

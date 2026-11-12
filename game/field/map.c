@@ -23,7 +23,6 @@
 #include "core/program.h"
 #include "field/field_data.h"
 #include "field/scratch.h"
-#include "original_effects.h"
 #include "platform/video.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"

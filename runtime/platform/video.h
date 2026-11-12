@@ -650,6 +650,10 @@ PF_API void vid_begin_vram_uploads(Platform *pf, PfOrigin o, const VidVramPort *
 PF_API void vid_set_vram_address(Platform *pf, PfOrigin o, uint16_t vram_addr);
 PF_API void vid_write_vram(Platform *pf, PfOrigin o, uint16_t value);
 PF_API void vid_write_vram_byte(Platform *pf, PfOrigin o, bool high, uint8_t value);
+/* Fill one half of each word from the current VRAM cursor, preserving the
+ * other half. The active port supplies the stride and which half advances
+ * the cursor. A zero length leaves the cursor and memory unchanged. */
+PF_API void vid_fill_vram_half(Platform *pf, PfOrigin o, PfData value, uint32_t len, VidVramHalf half);
 /* Copy `len` bytes (1-65536) from `src` into VRAM at word address `vram_addr`
  * (as the VRAM address register holds it). A `len` of 0 uploads nothing: the
  * SNES backend performs the steps before the first size step, as the original
@@ -780,6 +784,7 @@ void vid_obs_oam_address(VidObserver *ob, uint16_t word_addr, bool priority_rota
 void vid_obs_write_vram(VidObserver *ob, uint16_t value, int half);   /* half: -1 word, 0 low, 1 high */
 void vid_obs_upload_vram_half(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len,
                               VidVramHalf half, const VidVramPort *port);
+void vid_obs_fill_vram_half(VidObserver *ob, PfData value, uint32_t len, VidVramHalf half);
 void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len, bool fill,
                          const VidVramPort *port);
 void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t count);
@@ -788,8 +793,5 @@ void vid_obs_fill_oam(VidObserver *ob, uint16_t word_addr, uint8_t value, uint32
 void vid_obs_write_oam(VidObserver *ob, uint8_t v);
 void vid_obs_snes_transfer(VidObserver *ob, const VidSnesTransfer *t, uint8_t control);
 
-#ifdef CT_PLATFORM_SNES
-#include "platform/snes/video.h"
-#endif
 
 #endif

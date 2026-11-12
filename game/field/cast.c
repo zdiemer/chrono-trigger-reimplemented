@@ -28,7 +28,6 @@
 #include "field/party.h"
 #include "field/bridge.h"
 #include "field/scratch.h"
-#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"

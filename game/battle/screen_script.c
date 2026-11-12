@@ -494,7 +494,7 @@ static bool run_command_on_the_machine(Snes *s, uint8_t opcode, ScreenChannel ch
     switch (run_command(state_of(s), opcode, channel, &c, &row)) {
     case COMMAND_NOT_OURS:
         enter_as_the_dispatch_does(s, opcode);
-        /* no handler reads the overflow (tools/v_readers.py), which the
+        /* no handler reads the overflow (the flag-reader analysis), which the
            command before it left */
         return battle_call(s, 0xCD16AF, handler_of(opcode), DC_V);
     case COMMAND_BRIDGED: return row->bridge(s, &c);

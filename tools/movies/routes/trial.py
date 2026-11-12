@@ -3,12 +3,12 @@ from ..campaign import Run, route_arguments, run_route
 from . import _trial_party as early
 from ._trial_walk import world_enter
 
-SAVE = "oracle/saves/routes/cronos-trial.srm"
+SAVE = "saves/routes/cronos-trial.srm"
 TRIAL_PHASES = ["castle1000", "courtroom", "prison", "cell"]
 PHASES = ["loaded"] + TRIAL_PHASES
 HEADER = """# Crono brings Marle home: the arrest, trial and jury's verdict, then the prison sentence.
 # Ends with Crono in his cell and the field in hand.
-# Save: cronos-trial slot 1 (oracle/saves/routes/cronos-trial.srm), saved by the game outside Guardia Castle.
+# Save: cronos-trial slot 1 (saves/routes/cronos-trial.srm), saved by the game outside Guardia Castle.
 # Route: trial
 # frames {FRAMES}
 # sram crc32 {CRC}
@@ -38,7 +38,7 @@ def play(run, start=0):
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     try:
         start = run.start_at(PHASES)
         if start <= 0:

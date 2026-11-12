@@ -19,12 +19,12 @@ HEADER = """\
 # stairs) into the throne room; Azala's challenge and the battle with Azala and the Black Tyrano, fought by the battle bot;
 # Azala's last words, then Lavos's fall, the scene program's mode 4 (event $FF $24), until the field is back (route
 # black_tyrano).
-# Save: ctsave08 slot 1 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave08 slot 1 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
-SAVE = "oracle/saves/fantasyanime/ctsave08-zeal.srm"
+SAVE = "saves/fantasyanime/ctsave08-zeal.srm"
 SLOT = 0
 PHASES = ["loaded", "hall", "corridor", "throne", "battle", "won", "scene", "after"]
 
@@ -38,8 +38,7 @@ BATTLE_MENU_MEMBER = 0x7E95D5   # whose battle menu is open, $80 and up for none
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 

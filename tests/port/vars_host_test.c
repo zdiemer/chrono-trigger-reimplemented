@@ -390,7 +390,7 @@ int main(int argc, char **argv)
     records_and_composed_views();
     projection_boundaries();
     promoted_scalar_storage();
-    cartridge_save(argc > 1 ? argv[1] : "oracle/saves/fantasyanime/ctsave12-side_quests1.srm");
+    cartridge_save(argc > 1 ? argv[1] : "saves/fantasyanime/ctsave12-side_quests1.srm");
     printf("vars_host_test: %d failures\n", failures);
     return failures ? 1 : 0;
 }

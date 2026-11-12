@@ -12,12 +12,12 @@ from ..campaign import Run, route_arguments, run_route
 from . import menu_sweep as menu
 from . import tech_sweep_spekkio as spekkio
 
-SAVE = "oracle/saves/fantasyanime/ctsave04-masamune.srm"
+SAVE = "saves/fantasyanime/ctsave04-masamune.srm"
 HEADER = """\
 # Unequip glitch: from Denadoro's world-map save, leave Marle's armor and helmet empty with R+Up in the equipment
 # screen. Cross Zenan Bridge and Truce Canyon to the End of Time, then cast Ice and take Spekkio's elemental magic.
 # End with the field back in hand (route unequipped_armor).
-# Save: ctsave04 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave04 slot 2 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -145,7 +145,7 @@ def fight_spekkio(run, seed=1):
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     machine = run.machine
     try:
         phases = ["loaded", "empty", "bridge", "north", "canyon", "lower", "upper", "gate", "spekkio", "won"]

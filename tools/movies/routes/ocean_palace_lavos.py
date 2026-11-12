@@ -1,12 +1,12 @@
 """Play the Ocean Palace finale from the cartridge save made by golem_twins."""
 from ..campaign import Run, route_arguments, run_route
 
-SAVE = "oracle/saves/recorded/ocean-palace-after-twins.srm"
+SAVE = "saves/recorded/ocean-palace-after-twins.srm"
 HEADER = """\
-# Ocean Palace after the Golem Twins: reach the Mammon Machine and play Lavos's scripted battle,
+# Ocean Palace after the Golem Twins: reach the Mammon Driver and play Lavos's scripted battle,
 # Crono's fall and Zeal's destruction, ending with the party in hand in the Last Village.
 # Route: ocean_palace_lavos.
-# Save: ocean-palace-after-twins slot 3 (oracle/saves/recorded; made by route golem_twins from ctsave10).
+# Save: ocean-palace-after-twins slot 3 (saves/recorded; made by route golem_twins from ctsave10).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -19,7 +19,7 @@ STORY = 0x7F0000
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     machine = run.machine
     try:
         start = run.start_at(PHASES)
@@ -38,7 +38,7 @@ def main():
             assert run.wait_control(), "the party through the cleared room"
             run.checkpoint("after_twins")
         if start <= 2:
-            assert run.exit_to("9f01"), "the Mammon Machine's room"
+            assert run.exit_to("9f01"), "the Mammon Driver's room"
             assert run.wait_control(), "the party before the machine"
             run.say("Mammon", run.me())
             run.checkpoint("mammon")

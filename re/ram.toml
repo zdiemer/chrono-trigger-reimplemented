@@ -1,7 +1,7 @@
 # The RAM map: what the game's variables in work RAM mean. The code/data half
-# of the knowledge base is re/hints.toml; this is the other half (docs/APPROACH.md,
+# of the knowledge base is the retired instruction map; this is the other half (docs/APPROACH.md,
 # roadmap step 1). tools/ram_map.py validates it, generates game/ram.h from it
-# and reports how much of what game/ touches it names (docs/DISASSEMBLY.md,
+# and reports how much of what game/ touches it names (docs/STATE.md,
 # "The RAM map").
 #
 # Everything here is knowledge about the console's work RAM -- where a variable
@@ -25,7 +25,7 @@
 #       `source` says which. Variables on a page kind have an offset (dp) and no
 #       address, and their accessors take the instance: an enum of the named
 #       ones, an index for a lone array, or a {kind, index} pair for a mix
-#       (docs/DISASSEMBLY.md, "The accessors").
+#       (docs/STATE.md, "The accessors").
 #
 #   [[var]]    name, addr | dp, [size], [count, stride, index], [rows, row_stride],
 #              [page], [unchecked], [reuses], [host_module | host_alias], subsystem, meaning, source, [[var.field]]
@@ -44,11 +44,14 @@
 #       takes the original's reach into the next variable as the game's, so
 #       the native storage must keep that layout; it generates a second
 #       pair of accessors, `<name>_unchecked`, without the bounds check the
-#       others make (docs/DISASSEMBLY.md, "The accessors"). `reuses` names a
+#       others make (docs/STATE.md, "The accessors"). `reuses` names a
 #       variable (or a list of them) of the same subsystem whose bytes this
 #       one takes over at another time (the map's data, decompressed where the tiles' looks go
 #       once it is unpacked), which the overlap check otherwise refuses.
-#       `host_module` selects a C storage owner for CT_VARS_HOST only.
+#       `buffer = true` on an owner field retains unstructured bytes at any width.
+#       `host_blob` explains opaque byte-indexed storage with scalar public accessors.
+#       The storage report separates typed, blob-backed and image-backed variables.
+#       `host_module` selects a native C storage owner.
 #       `host_alias` instead names one owner or a list of owners: all declared
 #       bytes must lie in those owners' fields, and get no storage of their own.
 #       Every variable overlapping an owner must name it. Alias chains, partial
@@ -98,7 +101,7 @@
 # ==============================================================================
 # Measured: every ported routine's D and data bank at entry, logged over the
 # whole movie library (26 movies) with a probe in entry_applies
-# (runtime/port/native.c, not committed), agree with the constant TCDs and
+# (the former machine dispatcher, not committed), agree with the constant TCDs and
 # PEA/PLD pairs in the disassembly listed with each page. The I/O pages the
 # game also puts D on ($2100, $4200, $4300: M_DP_PPU, M_DP_DMA in
 # runtime/port/machine.h) are registers, not work RAM, and are not here.
@@ -236,7 +239,7 @@ start = "7E:3000"
 end = "7E:B573"
 subsystem = ["scene", "attract"]
 meaning = "The attract, title and jet bike race program, decompressed from $C3:1313 and run in place"
-source = "re/hints.toml [[ramcode]] attract_program (34175 bytes)"
+source = "cartridge RAM program attract_program (34175 bytes)"
 
 [[image]]
 name = "race_matrix_code"
@@ -244,7 +247,7 @@ start = "7E:B574"
 end = "7E:C994"
 subsystem = ["scene"]
 meaning = "Code $C3:09E9 generates for the jet bike race's matrix"
-source = "re/hints.toml [[ramcode]] race_matrix_code (5153 bytes)"
+source = "cartridge RAM program race_matrix_code (5153 bytes)"
 
 [[image]]
 name = "block_move_stub"
@@ -252,7 +255,7 @@ start = "7E:9690"
 end = "7E:9693"
 subsystem = ["core", "menu"]
 meaning = "MVN : RTL the menus and save code patch and call"
-source = "re/hints.toml [[ramcode]] mvn_stub"
+source = "cartridge RAM program mvn_stub"
 
 # ==============================================================================
 # Scenes, the attract program and the decompressor
@@ -1608,7 +1611,7 @@ count = 16
 index = "task slot"
 subsystem = "scene"
 meaning = "The scene's task list: addresses of routines in the program (0 = empty slot) that sequence scripts add and remove; the NMI copies it to $0950 and runs the copy each frame"
-source = "game/scene/frame.c, scene_frame_work $C3:08D0 (MVN of $20 bytes); docs/DISASSEMBLY.md parser table and tools/disasm/seqscript.py (commands $A9, $AA)"
+source = "game/scene/frame.c, scene_frame_work $C3:08D0 (MVN of $20 bytes); docs/STATE.md parser table and the cartridge format (commands $A9, $AA)"
 
 [[var]]
 name = "scene_early_tasks"
@@ -1619,7 +1622,7 @@ count = 8
 index = "task slot"
 subsystem = "scene"
 meaning = "The scene's second task list (0 = empty slot), run early in the NMI work unless paused, each task called with 8-bit A and the direct page in A"
-source = "game/scene/frame.c, scene_run_vblank_tasks $7E:39BE, scene_frame_work $C3:08D0; tools/disasm/seqscript.py (commands $A7, $A8)"
+source = "game/scene/frame.c, scene_run_vblank_tasks $7E:39BE, scene_frame_work $C3:08D0; the cartridge format (commands $A7, $A8)"
 
 [[var]]
 name = "scene_tasks_running"
@@ -1641,7 +1644,7 @@ count = 2
 index = "sequence channel (0 at $0A00, 1 at $0B00)"
 subsystem = "scene"
 meaning = "The attract program's two sequence channels, each run by $C3:0B03 with the direct page on its record; the rest of each page is the channel code's own scratch"
-source = "tools/disasm/seqscript.py and docs/DISASSEMBLY.md's parser table; game/scene/title.c, scene_title_move_logo $7E:5C98, scene_title_place_pendulum $7E:5C57, scene_title_start_ripple $7E:5DA7"
+source = "the cartridge format and docs/STATE.md's parser table; game/scene/title.c, scene_title_move_logo $7E:5C98, scene_title_place_pendulum $7E:5C57, scene_title_start_ripple $7E:5DA7"
 [[var.field]]
 name = "registers"
 offset = 0x00
@@ -21782,7 +21785,7 @@ page = "battle"
 reuses = ["battle_scratch", "battle_screen_effect_settings", "battle_message_window_kind"]
 subsystem = "battle"
 meaning = "The size in bytes of a buffer a caller has the main thread's transfer send to VRAM ($CD:3ED2), as it hands it over"
-source = "game/battle/uploads.c battle_send_vram_and_wait $CD:3ED2; runtime/platform/snes/video.h vid_send_vram_and_wait"
+source = "game/battle/uploads.c battle_send_vram_and_wait $CD:3ED2"
 
 [[var]]
 name = "battle_block_upload_row"
@@ -30627,7 +30630,7 @@ stride = 256
 subsystem = "scene"
 host_module = "scene"
 meaning = "Unstructured portions and unchanged fields of scene_channels; named scalar state has separate typed owners."
-source = "tools/disasm/seqscript.py and docs/DISASSEMBLY.md's parser table; game/scene/title.c, scene_title_move_logo $7E:5C98, scene_title_place_pendulum $7E:5C57, scene_title_start_ripple $7E:5DA7"
+source = "game/scene/script.c register and loop-counter helpers; game/scene/title.c, scene_title_move_logo $7E:5C98, scene_title_place_pendulum $7E:5C57, scene_title_start_ripple $7E:5DA7"
 
 [[owner.field]]
 name = "registers"
@@ -30663,7 +30666,7 @@ stride = 256
 subsystem = "scene"
 host_module = "scene"
 meaning = "Unstructured portions and unchanged fields of scene_channels; named scalar state has separate typed owners."
-source = "tools/disasm/seqscript.py and docs/DISASSEMBLY.md's parser table; game/scene/title.c, scene_title_move_logo $7E:5C98, scene_title_place_pendulum $7E:5C57, scene_title_start_ripple $7E:5DA7"
+source = "game/scene/script.c register and loop-counter helpers; game/scene/title.c, scene_title_move_logo $7E:5C98, scene_title_place_pendulum $7E:5C57, scene_title_start_ripple $7E:5DA7"
 
 [[owner.field]]
 name = "registers"

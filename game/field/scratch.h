@@ -9,7 +9,6 @@
 #include "field/cast.h"
 #include "field/field_data.h"
 #include "field/object.h"
-#include "original_effects.h"
 #include "state.h"
 #include "vars.h"
 

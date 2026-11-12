@@ -3,11 +3,11 @@ from .. import bfs, policies
 from ..campaign import Run, route_arguments, run_route
 from . import _early_bosses as early
 
-SAVE = "oracle/saves/fantasyanime/ctsave04-masamune.srm"
+SAVE = "saves/fantasyanime/ctsave04-masamune.srm"
 SLOT = 0
 PHASES = ["loaded", "settings", "bridge", "supplies", "defense", "first", "second", "battle", "after"]
 HEADER = """# Zenan Bridge: deliver the supplies, defeat Ozzie's troops and Zombor, regain the field.
-# Save: ctsave04 slot 1 (oracle/saves/fantasyanime/ctsave04-masamune.srm).
+# Save: ctsave04 slot 1 (saves/fantasyanime/ctsave04-masamune.srm).
 # Route: zombor
 # frames {FRAMES}
 # sram crc32 {CRC}
@@ -62,7 +62,7 @@ def zombor_party(bot, state, rng, inventory):
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     try:
         start = run.start_at(PHASES)
         if start <= 0:

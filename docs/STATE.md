@@ -80,6 +80,9 @@ residual image. Save/load, raw bulk operations, resource reads targeting RAM,
 video callbacks, route peek/watch and end-state queries use the same view.
 Invalid or unchecked indices fall back to this address view rather than index
 outside a C object. Accessor timing remains independent of storage choice.
+The generator emits only native accessors. The emulator read/write branches,
+alternate per-variable backing and `CT_VARS_HOST` build switch were removed
+when merging the native-only main branch.
 
 The source inventories in [state-addresses.tsv](state-addresses.tsv),
 [state-overlaps.tsv](state-overlaps.tsv) and
@@ -124,7 +127,16 @@ buffers, composed ownership and page-instance arrays. Regression tests inspect
 the five review examples' generated native fields directly. `vars_host_test`
 checks byte views, all-address projection, partial writes, independent states,
 page instances, unchecked tails, video sources and the real cartridge save/load
-and checksum routines. The pre-merge targeted build and these tests pass.
+and checksum routines. The Windows MinGW Release build passes with warnings
+treated as errors. All 211 Python tests and 15 native C tests pass. A generated
+accessor sweep also passes 713,158 read/write comparisons against the serialized
+address view. Generated-file checks confirm the committed outputs are current.
 
-Historical ownership-only results are in
-[history/state-storage-third-slice.md](history/state-storage-third-slice.md).
+After merging native-only main, `tools/suite.py --ct-native build/main/ct_native.exe
+-j 2` ends `suite OK` in 354.8 seconds, including unit tests. All 58 sampled
+movies complete, recorded outcomes and picture checks pass, and both fast
+routes reach their outcomes. Portstyle and portsmell pass without baseline or
+exception changes.
+
+The ownership-only results from the retired emulator gate are superseded by
+the typed/blob/image measure above and the native gate.

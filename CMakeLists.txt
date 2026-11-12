@@ -30,51 +30,25 @@ else()
   endif()
 endif()
 
-# Development runtime: interpreter CPU and modeled hardware.
-add_library(ct_runtime STATIC
-  runtime/cpu/cpu65816.c
-  runtime/cpu/cpu_entry.c
-  runtime/apu/spc700.c
-  runtime/apu/apu.c
-  runtime/apu/dsp.c
-  runtime/snes/bus.c
-  runtime/snes/ppu.c
-  runtime/snes/render.c
-  runtime/snes/system.c
-  runtime/snes/state.c
-  runtime/snes/zst.c
-  runtime/port/fiber.c
-  runtime/port/native.c
-  runtime/port/scaffold_reads.c
-  runtime/platform/snes/backend.c
-  runtime/platform/observe.c
-  runtime/platform/voices.c
-  runtime/platform/voices_dsp.c
-  runtime/platform/snes/decode.c
-  runtime/platform/snes/encodings.c
-  runtime/platform/native/mixer.c
-  runtime/platform/native/render.c)
-target_include_directories(ct_runtime PUBLIC runtime PRIVATE game)
+find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
+include(CTest)
 
-# The game's state interface (game/vars.h, game/state.h, game/cpu_io.h,
-# game/rom.h) is game/'s, and runtime/port/vars_ram.c and state_io.c are the
-# backing that satisfies it against emulated work RAM -- the seam the platform
-# services use, for state rather than hardware. It is built twice: ct_vars_checked
-# counts every accessor called with an index past what re/ram.toml declares
-# (CT_ACCESSOR_CHECKS; docs/DISASSEMBLY.md, "The accessors"), for ct_dev, ct_fuzz
-# and the tests; ct_vars has no check at all, for ct_play and ct_drive. Every
-# executable that links ct_game links one of them.
-foreach(vars ct_vars ct_vars_checked)
-  add_library(${vars} STATIC runtime/port/vars_ram.c runtime/port/state_io.c)
-  target_include_directories(${vars} PRIVATE game)
-  target_link_libraries(${vars} PUBLIC ct_runtime)
-endforeach()
-target_compile_definitions(ct_vars_checked PRIVATE CT_ACCESSOR_CHECKS)
+add_library(ct_media STATIC frontend/movie.c frontend/media.c frontend/checksum.c)
+target_include_directories(ct_media PUBLIC frontend)
+add_library(ct_platform_native STATIC
+  runtime/platform/native/timing.c runtime/platform/native/input.c
+  runtime/platform/native/video.c runtime/platform/native/audio.c runtime/platform/native/save.c
+  runtime/platform/native_escapes.c runtime/platform/observe.c runtime/platform/voices.c
+  runtime/platform/native/mixer.c runtime/port/fiber.c)
+target_include_directories(ct_platform_native PUBLIC runtime)
+add_library(ct_state_host STATIC runtime/port/vars_ram.c runtime/port/vars_host.c
+  runtime/port/state_host.c runtime/port/rom_host.c runtime/port/time_rates.c)
+target_include_directories(ct_state_host PUBLIC game)
+target_link_libraries(ct_state_host PUBLIC ct_platform_native)
 
-# Ported game code, organized by subsystem.
+# Machine entry wrappers remain in these files until the machine-removal branch.
+# The registry and held-wait tables are not build inputs.
 add_library(ct_game STATIC
-  game/registry.c
-  game/time_tags.c
   game/core/console.c
   game/core/program.c
   game/core/tasks.c
@@ -396,241 +370,14 @@ add_library(ct_game STATIC
   game/battle/wait.c
   game/battle/window.c
   game/battle/window_leaves.c)
-target_include_directories(ct_game PUBLIC game)
-target_link_libraries(ct_game PUBLIC ct_runtime)
-
-# The ports' scaffolding (game/original_effects.h): what they write only because
-# the original does and shadow mode or the original's still-generated code
-# looks. -DCT_ORIGINAL_EFFECTS=OFF builds without it, which is the shape of a
-# native build and is not expected to pass the gate. Either way the game's code
-# is also compiled once without it (ct_game_native_shape), so a port whose
-# logic leans on its scaffolding fails to build, and linked into
-# ct_dev_native_shape and ct_drive_native_shape, which the gate runs in the
-# shipping mode over the movies and the routes (tools/suite.py, "native-shape").
-option(CT_ORIGINAL_EFFECTS "Reproduce the original's effects the gate compares (scaffolding)" ON)
-if(NOT CT_ORIGINAL_EFFECTS)
-  target_compile_definitions(ct_game PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
-endif()
-get_target_property(CT_GAME_SOURCES ct_game SOURCES)
-add_library(ct_game_native_shape STATIC ${CT_GAME_SOURCES})
-target_compile_definitions(ct_game_native_shape PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
-target_include_directories(ct_game_native_shape PUBLIC game)
-target_link_libraries(ct_game_native_shape PUBLIC ct_runtime)
-
-# Trace and movie formats and PNG/WAV capture, shared with the oracle harness.
-add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/media.c oracle/src/sram_find.c)
-target_include_directories(ct_trace PUBLIC oracle/src)
-
-set(CT_DEV_SOURCES dev/ct_dev.c dev/asset_report.c dev/as_port.c dev/census.c dev/event_reads.c dev/fallbacks.c dev/io_log.c dev/misses.c
-  dev/px_check.c dev/range_report.c dev/mixer_check.c dev/vid_check.c frontend/assets.c frontend/natives.c frontend/sound_host.c)
-add_executable(ct_dev ${CT_DEV_SOURCES})
-target_include_directories(ct_dev PRIVATE frontend)
-target_link_libraries(ct_dev PRIVATE ct_game ct_vars_checked ct_generated ct_runtime ct_trace)
-
-add_executable(ct_fuzz dev/ct_fuzz.c dev/fuzz.c dev/range_report.c)
-target_link_libraries(ct_fuzz PRIVATE ct_game ct_vars_checked ct_runtime)
-
-# The C sound driver on random command streams, its sound's digest kept in
-# tools/sound_golden.txt (docs/SOUND.md, "Validating the port").
-add_executable(ct_sound_fuzz dev/ct_sound_fuzz.c dev/mixer_check.c frontend/sound_host.c)
-target_include_directories(ct_sound_fuzz PRIVATE frontend)
-target_link_libraries(ct_sound_fuzz PRIVATE ct_game ct_vars_checked ct_runtime ct_trace)
-
-# The machine as a scriptable server, for authoring input movies from game state
-# and testing the shipping mode with the routes that do (tools/movies,
-# docs/MOVIES.md). The interpreter by default, like ct_dev --native off; --native
-# and --generated choose native code the way ct_play does (frontend/natives.c).
-set(CT_DRIVE_SOURCES dev/ct_drive.c dev/fallbacks.c dev/misses.c dev/mixer_check.c frontend/natives.c
-  frontend/sound_host.c)
-add_executable(ct_drive ${CT_DRIVE_SOURCES})
-target_include_directories(ct_drive PRIVATE frontend)
-target_link_libraries(ct_drive PRIVATE ct_game ct_vars ct_generated ct_runtime ct_trace)
-
-# The same two with the ports' scaffolding compiled out (ct_game_native_shape):
-# the native build's shape, run by the gate's native-shape check in the
-# shipping mode, where nothing compares bytes and only outcomes are checked.
-add_executable(ct_dev_native_shape ${CT_DEV_SOURCES})
-target_include_directories(ct_dev_native_shape PRIVATE frontend)
-target_link_libraries(ct_dev_native_shape PRIVATE ct_game_native_shape ct_vars_checked ct_generated ct_runtime ct_trace)
-add_executable(ct_drive_native_shape ${CT_DRIVE_SOURCES})
-target_include_directories(ct_drive_native_shape PRIVATE frontend)
-target_link_libraries(ct_drive_native_shape PRIVATE ct_game_native_shape ct_vars ct_generated ct_runtime ct_trace)
-
-# CPU conformance runners (test data: tests/cpu/fetch_sst.py, tests/apu/fetch_sst_spc700.py).
-add_executable(sst_runner tests/cpu/sst_runner.c runtime/cpu/cpu65816.c runtime/cpu/cpu_entry.c)
-add_executable(spc700_runner tests/apu/spc700_runner.c runtime/apu/spc700.c)
-add_executable(dsp_test tests/apu/dsp_test.c runtime/apu/dsp.c runtime/platform/voices.c runtime/platform/voices_dsp.c
-  runtime/platform/native/mixer.c)
-target_include_directories(dsp_test PRIVATE runtime)
-add_executable(fiber_test tests/port/fiber_test.c runtime/port/fiber.c)
-target_include_directories(fiber_test PRIVATE runtime)
-# The platform services' host backends (runtime/platform/native/host.h): timing and
-# input as a build with no emulator has them, the services' calls declared
-# (CT_PLATFORM_EXTERN) rather than the SNES backend's. timing_test runs a made-up
-# game's frames on them.
-add_library(ct_platform_native STATIC runtime/platform/native/timing.c runtime/platform/native/input.c
-  runtime/platform/native/video.c runtime/platform/native/audio.c runtime/platform/native/save.c
-  runtime/platform/native_escapes.c
-  runtime/platform/observe.c runtime/platform/voices.c runtime/platform/native/mixer.c runtime/port/fiber.c)
-target_compile_definitions(ct_platform_native PUBLIC CT_PLATFORM_EXTERN)
-target_include_directories(ct_platform_native PUBLIC runtime)
-add_executable(timing_test tests/port/timing_test.c)
-target_link_libraries(timing_test PRIVATE ct_platform_native)
-
-add_executable(video_test tests/port/video_test.c runtime/platform/native/render.c)
-target_link_libraries(video_test PRIVATE ct_platform_native)
-add_executable(tasks_test tests/port/tasks_test.c game/core/tasks.c)
-target_include_directories(tasks_test PRIVATE game)
-target_link_libraries(tasks_test PRIVATE ct_platform_native)
-
-# The native program (docs/PLAYING.md, "The native program"): the whole of game/
-# with the platform services' host backends under it, and none of the CPU, the
-# PPU, the APU, the generated code or the registry. The game's state is held in
-# the host's memory: the accessors' backing built with CT_VARS_HOST, beside
-# state_host.c, and the game's data read from the asset pack through the store
-# (frontend/assets.c, game/data/assets.h; rom_host.c the cartridge's backing,
-# with no ROM image mapped). Built, like the shipping shape, without
-# the ports' scaffolding. Nothing in it makes a machine, so the entry wrappers
-# and bridges game/ still has are never reached; what they call of the machine
-# is no_machine.c, the list of what game/ still asks of one (docs/TODO.md,
-# "The native program").
-# The game's work is timed at the rates the machine calibrated (runtime/port/time_rates.h):
-# the registry's, time tags' and retired entries' cost_milli, written as a table at build time, so the
-# program keeps no registry and the rates are always the last calibration's.
-find_package(Python3 3.11 COMPONENTS Interpreter)
-set(CT_TIME_RATES ${CMAKE_CURRENT_BINARY_DIR}/time_rates.c)
-if(Python3_Interpreter_FOUND)
-  add_custom_command(OUTPUT ${CT_TIME_RATES}
-    COMMAND ${Python3_EXECUTABLE} tools/time_rates.py game/registry.c game/time_tags.c runtime/port/retired_time_rates.h -o ${CT_TIME_RATES}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    DEPENDS tools/time_rates.py game/registry.c game/time_tags.c runtime/port/retired_time_rates.h
-    COMMENT "Writing the calibrated rates for the native program")
-else()
-  message(WARNING "No Python 3.11: ct_native keeps only the retired rates; other ports' own work is untimed")
-  file(WRITE ${CT_TIME_RATES} "#include \"port/time_rates.h\"\n#include \"port/retired_time_rates.h\"\n#define RATE(addr, name, cost) { addr, cost },\nconst TimeRate time_rates[] = { CT_RETIRED_TIME_RATES(RATE) };\nconst unsigned time_rate_count = sizeof time_rates / sizeof time_rates[0];\n")
-endif()
-add_library(ct_state_host STATIC runtime/port/vars_ram.c runtime/port/vars_host.c runtime/port/state_host.c runtime/port/rom_host.c ${CT_TIME_RATES})
-target_compile_definitions(ct_state_host PRIVATE CT_VARS_HOST CT_WITHOUT_ORIGINAL_EFFECTS)
-target_include_directories(ct_state_host PUBLIC game)
-target_link_libraries(ct_state_host PUBLIC ct_platform_native)
-add_executable(native_time_test tests/port/native_time_test.c runtime/port/state_host.c runtime/port/vars_host.c)
-target_include_directories(native_time_test PRIVATE game runtime)
-add_executable(vars_host_test tests/port/vars_host_test.c game/menu/saves.c runtime/port/no_machine.c)
-target_compile_definitions(vars_host_test PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
-# Compile the native backing's diagnostics too: the player omits them, but
-# migrating an indexed variable must not silently remove its bounds checks.
-add_library(ct_state_host_checked STATIC runtime/port/vars_ram.c runtime/port/vars_host.c runtime/port/state_host.c runtime/port/rom_host.c ${CT_TIME_RATES})
-target_compile_definitions(ct_state_host_checked PRIVATE CT_VARS_HOST CT_ACCESSOR_CHECKS CT_WITHOUT_ORIGINAL_EFFECTS)
-target_include_directories(ct_state_host_checked PUBLIC game)
-target_link_libraries(ct_state_host_checked PUBLIC ct_platform_native)
-target_link_libraries(vars_host_test PRIVATE ct_state_host_checked)
-add_executable(unpack_time_test tests/port/unpack_time_test.c game/data/decompress.c)
-target_link_libraries(unpack_time_test PRIVATE ct_state_host)
-set(CT_NATIVE_GAME_SOURCES ${CT_GAME_SOURCES})
-# What the machine alone runs: the registry (docs/PLAN.md, "The machine out of the
-# product").
-list(REMOVE_ITEM CT_NATIVE_GAME_SOURCES game/registry.c game/time_tags.c)
-add_executable(ct_native frontend/ct_native.c frontend/route_server.c frontend/audio_replay.c frontend/file_store.c frontend/assets.c frontend/sound_native.c runtime/port/no_machine.c
-  runtime/platform/native/render.c ${CT_NATIVE_GAME_SOURCES})
-target_compile_definitions(ct_native PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
+target_link_libraries(ct_game PUBLIC ct_state_host)
+add_executable(ct_native frontend/ct_native.c frontend/route_driver.c frontend/audio_replay.c
+  frontend/resume.c frontend/storage.c frontend/asset_files.c frontend/track.c frontend/sram_find.c
+  frontend/file_store.c frontend/assets.c frontend/sound_native.c runtime/port/no_machine.c
+  runtime/platform/native/render.c)
 target_include_directories(ct_native PRIVATE frontend)
-target_link_libraries(ct_native PRIVATE ct_state_host ct_platform_native ct_trace)
-add_executable(file_store_test tests/frontend/file_store_test.c)
-add_executable(route_server_test tests/frontend/route_server_test.c frontend/route_server.c runtime/port/fiber.c)
-target_include_directories(route_server_test PRIVATE frontend runtime)
-target_link_libraries(route_server_test PRIVATE ct_trace)
-add_executable(audio_replay_test tests/frontend/audio_replay_test.c frontend/audio_replay.c)
-target_include_directories(audio_replay_test PRIVATE frontend runtime game)
-add_executable(state_test tests/port/state_test.c)
-target_link_libraries(state_test PRIVATE ct_runtime)
-add_executable(shadow_test tests/port/shadow_test.c dev/fallbacks.c dev/misses.c runtime/port/generated_table_stub.c)
-target_include_directories(shadow_test PRIVATE dev)
-target_link_libraries(shadow_test PRIVATE ct_runtime)
-# How the shipping mode pays a port's time around interrupts (runtime/port/native.c).
-add_executable(debt_test tests/port/debt_test.c)
-target_link_libraries(debt_test PRIVATE ct_runtime)
-# How the runtime holds a port that waits across a task switch or a frame's end, and the
-# menus' answer whether a task goes on from such a wait.
-add_executable(suspend_test tests/port/suspend_test.c)
-target_link_libraries(suspend_test PRIVATE ct_game ct_vars_checked ct_runtime)
-# The fuzzer's core (dev/fuzz.c) on made-up routines and ports.
-add_executable(fuzz_test tests/port/fuzz_test.c dev/fuzz.c)
-target_include_directories(fuzz_test PRIVATE dev)
-target_link_libraries(fuzz_test PRIVATE ct_runtime)
-# Time attribution (native_time_as) in shadow mode, on a made-up program.
-add_executable(time_parts_test tests/port/time_parts_test.c)
-target_link_libraries(time_parts_test PRIVATE ct_runtime)
-# The C sound driver on a made-up cartridge, its voices as S-DSP registers, the
-# host's saved state, and the host's sound and its digest (docs/SOUND.md).
-add_executable(sound_test tests/port/sound_test.c dev/mixer_check.c frontend/sound_host.c)
-target_include_directories(sound_test PRIVATE dev frontend)
-target_link_libraries(sound_test PRIVATE ct_game ct_vars_checked ct_runtime)
-# The unpacker on streams made up here, with no ROM: what replaced its
-# comparison with the original's when the data subsystem retired the gate.
-add_executable(unpack_test tests/port/unpack_test.c)
-target_link_libraries(unpack_test PRIVATE ct_game ct_vars_checked ct_runtime)
-# The accessors generated from re/ram.toml, and the page kinds' D mapping.
-# The asset pack and the reads through a store, with no ROM and no machine
-# (tests/frontend/assets_test.c is the backing of game/rom.h a build without
-# one gives).
-add_executable(assets_test tests/frontend/assets_test.c frontend/assets.c game/data/assets.c
-  game/data/asset_catalogue.c)
-target_include_directories(assets_test PRIVATE frontend game runtime)
-target_link_libraries(assets_test PRIVATE ct_platform_native)
+target_link_libraries(ct_native PRIVATE ct_game ct_media)
 
-add_executable(vars_test tests/port/vars_test.c)
-target_include_directories(vars_test PRIVATE game)
-target_link_libraries(vars_test PRIVATE ct_vars_checked ct_runtime)
-
-# Field visibility must survive with all comparison scaffolding removed.
-add_executable(event_contract_test tests/port/event_contract_test.c)
-target_link_libraries(event_contract_test PRIVATE ct_game_native_shape ct_vars_checked ct_runtime)
-add_executable(scene_contract_test tests/port/scene_contract_test.c)
-target_link_libraries(scene_contract_test PRIVATE ct_game_native_shape ct_vars_checked ct_runtime)
-add_executable(field_test tests/port/field_test.c)
-target_link_libraries(field_test PRIVATE ct_game_native_shape ct_vars_checked ct_runtime)
-add_executable(battle_contract_test tests/port/battle_contract_test.c)
-target_link_libraries(battle_contract_test PRIVATE ct_game_native_shape ct_vars_checked ct_runtime)
-
-# Instruction translation (tools/generate, docs/GENERATED.md), with C generated into
-# the build tree for every opcode and context: sst_generated_runner runs it on the
-# same test data as sst_runner; generated_bus_diff binds it to the development
-# system's bus and compares it with the interpreter there.
-find_package(Python3 3.11 COMPONENTS Interpreter)
-if(Python3_Interpreter_FOUND)
-  set(GENERATED_SST_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated_sst)
-  set(GENERATED_SST_SOURCES ${GENERATED_SST_DIR}/table.c)
-  foreach(i 0 1 2 3 4 5 6 7 8 9 a b c d e f)
-    list(APPEND GENERATED_SST_SOURCES ${GENERATED_SST_DIR}/ops_${i}.c)
-  endforeach()
-  file(GLOB GENERATED_TOOL_SOURCES CONFIGURE_DEPENDS tools/generate/*.py)
-  add_custom_command(OUTPUT ${GENERATED_SST_SOURCES}
-    COMMAND ${Python3_EXECUTABLE} -m tools.generate.sst --out ${GENERATED_SST_DIR}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    DEPENDS ${GENERATED_TOOL_SOURCES} tools/disasm/cpu.py
-    COMMENT "Translating every opcode for sst_generated_runner")
-  add_executable(sst_generated_runner tests/cpu/sst_runner.c runtime/cpu/cpu65816.c runtime/cpu/cpu_entry.c ${GENERATED_SST_SOURCES})
-  target_compile_definitions(sst_generated_runner PRIVATE SST_GENERATED)
-  target_include_directories(sst_generated_runner PRIVATE runtime tests/cpu)
-  add_executable(generated_bus_diff tests/cpu/generated_bus_diff.c ${GENERATED_SST_SOURCES})
-  target_compile_definitions(generated_bus_diff PRIVATE SST_GENERATED_SNES)
-  target_include_directories(generated_bus_diff PRIVATE tests/cpu)
-  target_link_libraries(generated_bus_diff PRIVATE ct_runtime)
-else()
-  message(STATUS "Python 3.11+ not found: not building sst_generated_runner and generated_bus_diff")
-endif()
-
-# Blocks generated from the ROM for ct_dev and ct_play (cmake/generated.cmake).
-include(cmake/generated.cmake)
-
-# Matching source reassembled from the ROM and checked against it (cmake/matching.cmake).
-include(cmake/matching.cmake)
-
-if(MINGW)
-  target_link_options(ct_dev PRIVATE -static)
-endif()
-
-# Player frontend (docs/PLAYING.md). Needs SDL2; skipped when it isn't found.
 find_package(SDL2 CONFIG QUIET)
 if(TARGET SDL2::SDL2)
   set(CT_SDL2 SDL2::SDL2)
@@ -643,48 +390,83 @@ else()
     set(CT_SDL2 PkgConfig::SDL2)
   endif()
 endif()
-
-# CT_PLAYER_INTERPRETER: what ct_play does with the 65816 interpreter (docs/PLAYING.md,
-# "Without the interpreter"). ON: linked and used as in ct_dev (every --native mode).
-# FALLBACK: generated code runs everything; the interpreter is linked but runs only
-# instructions nothing was generated for, which are logged to <rom name>.misses.txt.
-# OFF: not linked at all; such an instruction stops the game. ct_dev, ct_fuzz and the
-# test runners always have the interpreter, the reference they check against.
-set(CT_PLAYER_INTERPRETER ON CACHE STRING "ct_play's 65816 interpreter: ON, FALLBACK (misses only, logged) or OFF")
-set_property(CACHE CT_PLAYER_INTERPRETER PROPERTY STRINGS ON FALLBACK OFF)
-string(TOUPPER "${CT_PLAYER_INTERPRETER}" CT_PLAYER_INTERPRETER_MODE)
-if(NOT CT_PLAYER_INTERPRETER_MODE MATCHES "^(ON|FALLBACK|OFF)$")
-  message(FATAL_ERROR "CT_PLAYER_INTERPRETER must be ON, FALLBACK or OFF, not ${CT_PLAYER_INTERPRETER}")
-endif()
-
 if(CT_SDL2)
-  target_sources(ct_native PRIVATE frontend/window.c frontend/audio_fill.c frontend/bindings.c)
+  target_sources(ct_native PRIVATE frontend/window.c frontend/audio_fill.c frontend/bindings.c frontend/bindings_config.c)
   target_compile_definitions(ct_native PRIVATE CT_HAVE_SDL)
   target_link_libraries(ct_native PRIVATE ${CT_SDL2})
-  add_executable(ct_play frontend/ct_play.c frontend/player.c frontend/natives.c frontend/assets.c frontend/audio_fill.c frontend/window.c
-    frontend/window_player.c frontend/headless.c frontend/files.c frontend/file_store.c frontend/bindings.c frontend/sound_host.c)
-  # The miss report (dev/misses.h) is the player's log of misses, and of what
-  # --interpreted finds.
-  target_sources(ct_play PRIVATE dev/misses.c)
-  target_include_directories(ct_play PRIVATE dev)
-  if(NOT CT_PLAYER_INTERPRETER_MODE STREQUAL "ON")
-    target_compile_definitions(ct_play PRIVATE
-      CT_PLAYER_NO_INTERPRETER=$<IF:$<STREQUAL:${CT_PLAYER_INTERPRETER_MODE},OFF>,2,1>)
-  endif()
-  message(STATUS "ct_play: interpreter ${CT_PLAYER_INTERPRETER_MODE} (CT_PLAYER_INTERPRETER)")
-  target_link_libraries(ct_play PRIVATE ct_game ct_vars ct_generated ct_runtime ct_trace ${CT_SDL2})
-  if(MINGW)
-    target_link_options(ct_play PRIVATE -static-libgcc)
-    target_link_options(ct_native PRIVATE -static-libgcc)
-  endif()
-  # The window driver's bindings on a virtual game controller.
-  add_executable(bindings_test tests/frontend/bindings_test.c frontend/bindings.c)
-  target_include_directories(bindings_test PRIVATE frontend oracle/src)
-  target_link_libraries(bindings_test PRIVATE ${CT_SDL2})
-  install(TARGETS ct_play RUNTIME DESTINATION .)
-  if(WIN32 AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
-    install(FILES $<TARGET_RUNTIME_DLLS:ct_play> DESTINATION .)
-  endif()
 else()
-  message(STATUS "SDL2 not found: ct_native is headless; not building ct_play")
+  message(STATUS "SDL2 not found: ct_native is headless")
 endif()
+if(MINGW)
+  target_link_options(ct_native PRIVATE -static-libgcc)
+endif()
+install(TARGETS ct_native RUNTIME DESTINATION .)
+if(WIN32 AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
+  install(FILES $<TARGET_RUNTIME_DLLS:ct_native> DESTINATION .)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(fiber_test tests/port/fiber_test.c runtime/port/fiber.c)
+  target_include_directories(fiber_test PRIVATE runtime)
+  add_executable(route_driver_test tests/frontend/route_driver_test.c frontend/route_driver.c frontend/resume.c runtime/port/fiber.c)
+  target_include_directories(route_driver_test PRIVATE frontend runtime)
+  target_link_libraries(route_driver_test PRIVATE ct_media)
+  add_executable(audio_replay_test tests/frontend/audio_replay_test.c frontend/audio_replay.c)
+  target_include_directories(audio_replay_test PRIVATE frontend runtime game)
+  add_executable(file_store_test tests/frontend/file_store_test.c)
+  add_executable(timing_test tests/port/timing_test.c)
+  target_link_libraries(timing_test PRIVATE ct_platform_native)
+  add_executable(video_test tests/port/video_test.c runtime/platform/native/render.c)
+  target_link_libraries(video_test PRIVATE ct_platform_native)
+  add_executable(tasks_test tests/port/tasks_test.c game/core/tasks.c)
+  target_include_directories(tasks_test PRIVATE game)
+  target_link_libraries(tasks_test PRIVATE ct_platform_native)
+  add_executable(native_time_test tests/port/native_time_test.c runtime/port/state_host.c runtime/port/vars_host.c)
+  target_include_directories(native_time_test PRIVATE game runtime)
+  add_executable(vars_host_test tests/port/vars_host_test.c game/menu/saves.c runtime/port/no_machine.c)
+  # Preserve bounds diagnostics when an indexed variable moves into a struct.
+  add_library(ct_state_host_checked STATIC runtime/port/vars_ram.c runtime/port/vars_host.c
+    runtime/port/state_host.c runtime/port/rom_host.c runtime/port/time_rates.c)
+  target_compile_definitions(ct_state_host_checked PRIVATE CT_ACCESSOR_CHECKS)
+  target_include_directories(ct_state_host_checked PUBLIC game)
+  target_link_libraries(ct_state_host_checked PUBLIC ct_platform_native)
+  target_link_libraries(vars_host_test PRIVATE ct_state_host_checked)
+  add_executable(unpack_time_test tests/port/unpack_time_test.c game/data/decompress.c)
+  target_link_libraries(unpack_time_test PRIVATE ct_state_host)
+  add_executable(assets_test tests/frontend/assets_test.c frontend/assets.c game/data/assets.c game/data/asset_catalogue.c)
+  target_include_directories(assets_test PRIVATE frontend game runtime)
+  target_link_libraries(assets_test PRIVATE ct_platform_native)
+  add_executable(player_files_test tests/frontend/player_files_test.c frontend/storage.c)
+  target_include_directories(player_files_test PRIVATE frontend)
+  add_executable(recorder_test tests/frontend/recorder_test.c frontend/track.c)
+  target_link_libraries(recorder_test PRIVATE ct_media)
+  add_executable(resume_test tests/frontend/resume_test.c frontend/resume.c)
+  target_link_libraries(resume_test PRIVATE ct_media)
+  foreach(test player_files recorder resume fiber route_driver audio_replay file_store timing video tasks native_time vars_host unpack_time assets)
+    if(test STREQUAL "file_store")
+      add_test(NAME file_store COMMAND file_store_test ${CMAKE_CURRENT_BINARY_DIR}/file-store-test.bin)
+    else()
+      add_test(NAME ${test} COMMAND ${test}_test)
+    endif()
+    set_tests_properties(${test} PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  endforeach()
+  if(CT_SDL2)
+    add_executable(bindings_test tests/frontend/bindings_test.c frontend/bindings.c frontend/bindings_config.c frontend/storage.c)
+    target_include_directories(bindings_test PRIVATE frontend)
+    target_link_libraries(bindings_test PRIVATE ${CT_SDL2})
+    add_test(NAME bindings COMMAND bindings_test)
+  endif()
+endif()
+
+file(GLOB_RECURSE CT_RESUME_SOURCES CONFIGURE_DEPENDS game/*.c game/*.h runtime/*.c runtime/*.h frontend/*.c frontend/*.h)
+set(CT_RESUME_HASHES "")
+foreach(source IN LISTS CT_RESUME_SOURCES)
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${source}")
+  file(MD5 "${source}" digest)
+  string(APPEND CT_RESUME_HASHES "${digest}")
+endforeach()
+file(MD5 "${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt" digest)
+string(APPEND CT_RESUME_HASHES "${digest}")
+string(MD5 CT_RESUME_BUILD "${CT_RESUME_HASHES}")
+configure_file(cmake/native_build.h.in native_build.h @ONLY)
+target_include_directories(ct_native PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")

@@ -9,7 +9,7 @@ from ._trial_walk import toward, field_exit, world_enter
 
 SAVE = cathedral.SAVE
 HEADER = """# The Cathedral, Leene restored, home to 1000 A.D., Crono's arrest and trial.
-# Save: ctsave01 slot 2 (oracle/saves/fantasyanime/ctsave01-kidnapping.srm).
+# Save: ctsave01 slot 2 (saves/fantasyanime/ctsave01-kidnapping.srm).
 # Route: cronos_trial (hand-run; keep this long movie outside the library).
 # frames {FRAMES}
 # sram crc32 {CRC}
@@ -59,7 +59,7 @@ def save_before_trial(run):
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     try:
         start = run.start_at(PHASES)
         if start == 0:

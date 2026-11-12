@@ -29,7 +29,7 @@ void battle_refuse_long_call(Snes *s, uint32_t site, uint32_t routine);
 /* ---- Calling the original's code ------------------------------------------------------ */
 
 /* Call the original's routine from the JSR (JSL) at `site`, declaring what it
- * doesn't read of the registers (checked by tools/dontcare_check.py, which
+ * doesn't read of the registers (checked by the calling convention, which
  * knows these two as it knows m_jsr_dc). The battle's code runs with 8-bit A,
  * 16-bit index registers and binary arithmetic, on its page and data bank; a
  * callee must hand those back for the port to go on. True if it did;
@@ -71,7 +71,7 @@ enum { BATTLE_STEP = 0xC10003 };
  * dispatch's hand port (its guard taking the call); otherwise the original's
  * dispatch called, with `dont_care` what it doesn't
  * read of the asker's registers (checked as a call-out's declaration by
- * tools/dontcare_check.py; battle/steps.c). True if it came back to the call's return. */
+ * the calling convention; battle/steps.c). True if it came back to the call's return. */
 bool battle_take_step(Snes *s, uint32_t site, BattleStep step, uint16_t dont_care);
 
 /* After a call made some other way (a service's call-out), returning to

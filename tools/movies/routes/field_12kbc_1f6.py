@@ -7,20 +7,19 @@ from ..campaign import Run, route_arguments, run_route
 HEADER = """\
 # Walk the 12,000 B.C. world map at location $1F6: load the save (standing on the world map), walk
 # until a location's door is found and step through it, then walk back out onto the world map.
-# Save: zophar chrono-6 slot 2 (oracle/saves/zophar, zophar.net Chrono Trigger saves).
+# Save: zophar chrono-6 slot 2 (saves/zophar, zophar.net Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
-SAVE = "oracle/saves/zophar/chrono-6.srm"
+SAVE = "saves/zophar/chrono-6.srm"
 SLOT = 1
 PHASES = ["loaded", "entered", "left"]
 
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 

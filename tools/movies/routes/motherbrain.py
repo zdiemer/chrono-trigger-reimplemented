@@ -6,7 +6,7 @@ from ..campaign import Run, route_arguments, run_route
 from .epoch_lavos import wait_until, DIAL_PERIOD
 from .menu_sweep import press
 
-SAVE = "oracle/saves/fantasyanime/ctsave14-side_quests3.srm"
+SAVE = "saves/fantasyanime/ctsave14-side_quests3.srm"
 PHASES = ["loaded", "boarded", "future", "entrance", "robo", "console",
           "conveyor_entry", "conveyor_won", "main_floor", "code_open", "doll2",
           "upper", "far_lift", "robot_room_open", "robot_following", "dolls",
@@ -15,7 +15,7 @@ HEADER = """\
 # Geno Dome, 2300 A.D. (route motherbrain).
 # Epoch from 600 A.D.; conveyor, charged pods, dolls and escort; Atropos and MotherBrain.
 # Ends with control in Geno Dome's entrance after the shutdown and return to the world map.
-# Save: ctsave14 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave14 slot 2 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -198,7 +198,7 @@ def escort_robot(run):
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     m = run.machine
     try:
         start = run.start_at(PHASES)

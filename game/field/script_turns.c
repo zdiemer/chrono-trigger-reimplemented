@@ -19,7 +19,6 @@
 #include "field/object.h"
 #include "platform/timing.h"
 
-#include "original_effects.h"
 #include "charge.h"
 #include "core/program.h"
 #include "event/engine.h"

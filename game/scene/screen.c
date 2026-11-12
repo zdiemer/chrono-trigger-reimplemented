@@ -526,13 +526,11 @@ void scene_widen_the_plane_map(GameState *g)
 }
 
 // $7E:90A7
-/* The plane's name table blank past where VRAM's address is: the low bytes of
- * the next `bytes` words the blank tile. A fill of one half of each word is
- * what the upload calls don't model, so it goes through the SNES-only escape. */
+/* Blank the unused part of the plane's name table, keeping the pixels in
+ * the high bytes. Continue immediately after the picture just uploaded. */
 void scene_blank_past_the_plane(Platform *pf, PfOrigin site, uint16_t bytes)
 {
-    const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .source = SCENE_BLANK_TILE, .size = bytes };
-    vid_snes_copy(pf, site, &t);
+    vid_fill_vram_half(pf, site, PF_GAME(SCENE_BLANK_TILE), bytes ? bytes : 0x10000u, VID_VRAM_LOW_BYTES);
 }
 
 /* The loaded palette and the working one the frame sends, in the first bank. */

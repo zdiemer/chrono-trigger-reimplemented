@@ -6,12 +6,12 @@ ctsave03 slot 3. Story $4E is below the boss script's $51 threshold.
 from .. import policies
 from ..campaign import Run, route_arguments, run_route
 
-SAVE = "oracle/saves/routes/pre-heckran.srm"
+SAVE = "saves/routes/pre-heckran.srm"
 PHASES = ["loaded", "battle", "won", "after"]
 HEADER = """\
 # Heckran's Cave, 1000 A.D.: load the cave save point, defeat Heckran with magic,
 # wait out its water counterattack stance, and end with the field back in hand (route heckran).
-# Save: pre-heckran slot 3 (oracle/saves/routes; normal play from ctsave03 slot 3 via heckran_prepare).
+# Save: pre-heckran slot 3 (saves/routes; normal play from ctsave03 slot 3 via heckran_prepare).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -80,7 +80,7 @@ def fight(run, seed, boss=False):
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     m = run.machine
     try:
         start = run.start_at(PHASES)

@@ -24,7 +24,7 @@ enum { BATTLE_WAIT_READS = DC_AL | DC_X | DC_Y | DC_FLAGS, BATTLE_COUNTING_WAIT_
 
 /* The handler's and the next frame's wait from the original's JSR at `site`,
  * with nothing the bridge keeps; for the rest, battle_wait_under and
- * battle_wait_frames_under (battle/bridge.h) with these. tools/dontcare_check.py
+ * battle_wait_frames_under (battle/bridge.h) with these. the calling convention
  * reads the two as the waits they make. */
 bool battle_wait_for_the_handler_from(Snes *s, uint32_t site);
 bool battle_wait_for_the_next_frame_from(Snes *s, uint32_t site);

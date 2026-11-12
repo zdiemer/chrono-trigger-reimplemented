@@ -25,7 +25,7 @@ import time
 from . import addresses as A
 from . import bfs, mkmovie, policies
 from .bot import Bot
-from .ctdrv import Machine
+from .driver import Driver
 
 PLAYER_SLOT = 4090      # in-memory slot used by find_player
 PATH_SLOT = 4089        # in-memory slot used by object_path
@@ -40,19 +40,15 @@ class RouteDone(Exception):
 
 def route_arguments(description, save=None):
     """The command line every route script takes. `save` is the route's cartridge
-    save, relative to the repo (oracle/saves), the default for --sram."""
+    save, relative to the repo (saves), the default for --sram."""
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--sram", required=save is None, default=save and os.path.join(REPO, save),
                         help="cartridge save the route starts from" + (" (default %s)" % save if save else ""))
     parser.add_argument("--prefix", default="route", help="where checkpoints, the log and shots go")
     parser.add_argument("--rom", help="ROM (default roms/ct-usa.sfc, or $CT_ROM)")
-    parser.add_argument("--drive", help="ct_drive binary (default build/main/ct_drive, or $CT_DRIVE)")
+    parser.add_argument("--drive", help="ct_native binary (default build/main/ct_native, or $CT_NATIVE)")
     parser.add_argument("--movie", help="write the finished run as this .ctm")
     parser.add_argument("--seed", type=int, default=1, help="seed for the fights' choices")
-    parser.add_argument("--native", choices=("off", "shadow", "on", "native"),
-                        help="ct_drive --native, or native for ct_native --server (default off; or $CT_DRIVE_NATIVE)")
-    parser.add_argument("--generated", choices=("off", "on", "only"),
-                        help="ct_drive --generated with --native (default on; or $CT_DRIVE_GENERATED)")
     parser.add_argument("--until", metavar="PHASE", help="stop once this phase's checkpoint is written")
     return parser.parse_args()
 
@@ -77,11 +73,11 @@ class Run:
 
     cell = 6            # BFS cell size in pixels for field maps
 
-    def __init__(self, prefix, rom=None, sram=None, drive=None, native=None, generated=None, until=None):
+    def __init__(self, prefix, rom=None, sram=None, drive=None, until=None):
         self.until = until
         self.prefix = str(prefix)
         os.makedirs(os.path.dirname(self.prefix) or ".", exist_ok=True)
-        self.machine = Machine(rom=rom, sram=sram, drive=drive, native=native, generated=generated)
+        self.machine = Driver(rom=rom, sram=sram, drive=drive)
         self.logfile = open(self.prefix + ".log", "a", encoding="utf-8")
         self.player = 1
 
@@ -154,18 +150,14 @@ class Run:
         Tested against a no-input baseline in both directions, so an object the
         script happens to walk in a cutscene doesn't pass for the player.
 
-        Not while native routines are suspended (a battle's native code spans
-        its frames): no pad moves an object then, and each probe's restore
-        would replay from the last base, before the battle (ct_drive), about 20
-        seconds each, which made the end of a long fight take hours.
+        Wait for script-controlled movement to release the party before probing.
+        Restoring a native checkpoint replays input, so a futile search is costly.
         """
         machine = self.machine
         # The standalone program has no suspended machine call-out to report.
         # While a script owns the party, rebuilding every live C stack merely
         # to prove the pad cannot walk it costs five whole-run replays.
-        if machine.native == "native" and not machine.b(A.FIELD_PLAYER_CONTROL):
-            return None
-        if machine.native != "off" and machine.native_status().get("suspended", 0):
+        if not machine.b(A.FIELD_PLAYER_CONTROL):
             return None
         machine.mark(PLAYER_SLOT)
         machine.probe(12)
@@ -554,9 +546,6 @@ class Run:
 
     def write_movie(self, path, header_lines=(), frames=None):
         """Write the run's input as a movie, filling {FRAMES} and {CRC} in the header."""
-        if self.machine.native != "off":
-            self.say("warning: this run was on native code (--native %s); its movie replays only in that mode "
-                     "and build, not with ct_dev --native shadow" % self.machine.native)
         count = frames if frames is not None else self.machine.frame
         crc = mkmovie.sram_crc32(self.machine.sram) if self.machine.sram else ""
         header = [line.replace("{FRAMES}", str(count)).replace("{CRC}", crc) for line in header_lines]

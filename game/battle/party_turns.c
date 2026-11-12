@@ -487,7 +487,7 @@ bool battle_call_off_waiting_combination(GameState *g, Platform *pf)
 /* ---- On the machine ------------------------------------------------------------------------ */
 
 /* The battle's steps read A alone: the overflow flag they save with the flags
- * across their frame waits is read by nothing after (tools/v_readers.py
+ * across their frame waits is read by nothing after (the flag-reader analysis
  * C1:0003), which each call's dc-evidence shows over the states its routine
  * is fuzzed with. A step indexes its table with the whole of A, so A's high
  * byte is part of what the ask hands it (battle_take_step puts the step's

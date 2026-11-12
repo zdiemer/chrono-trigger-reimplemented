@@ -36,10 +36,10 @@ that take the game's own state (PORTING.md, "Writing a port").
 
 Two more counts are reported, neither of them a failure yet. Scaffolding: the
 writes and values a port reproduces only for shadow mode or for the
-original's still-generated code, which go through ORIGINAL_EFFECT
-(game/original_effects.h) so that they are marked, counted here, and removed
-by a switch (docs/PORTING.md, "Scaffolding"); a port whose scaffolding isn't
-marked is what a review has to find by reading, which this number is for.
+original's still-generated code. The historical ORIGINAL_EFFECT marker is
+counted here to catch its reintroduction after those writes retired
+(docs/PORTING.md, "Scaffolding"). Unmarked comparison-only work still needs
+a reader to identify it.
 And names taken from addresses or from the original's layout (`SCRATCH_D9`,
 `cmd_6C`, `set_1c80`): identifiers with a part that is a hex number with both a
 digit and a letter in it. That test is rough -- it misses names whose hex
@@ -94,7 +94,7 @@ MACHINE = re.compile(r"\bSnes\s*\*")
 
 SKIP = {"game/registry.c", "game/time_tags.c", "game/data/asset_catalogue.c"}
 
-# Scaffolding, marked (game/original_effects.h).
+# Retired scaffolding marker; retain the count to catch reintroduction.
 SCAFFOLDING = re.compile(r"\bORIGINAL_EFFECT\s*\(")
 
 # A name with a part that is a hex number, a digit and a letter in it: an

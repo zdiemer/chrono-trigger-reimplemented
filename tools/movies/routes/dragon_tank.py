@@ -3,11 +3,11 @@ from .. import policies
 from ..campaign import Run, route_arguments, run_route
 from . import _early_bosses as early
 
-SAVE = "oracle/saves/fantasyanime/ctsave02-future.srm"
+SAVE = "saves/fantasyanime/ctsave02-future.srm"
 SLOT = 0
 PHASES = ["loaded", "settings", "bridge", "battle", "after"]
 HEADER = """# Guardia Castle escape: Crono and Lucca defeat the Dragon Tank, then regain the field.
-# Save: ctsave02 slot 1 (oracle/saves/fantasyanime/ctsave02-future.srm).
+# Save: ctsave02 slot 1 (saves/fantasyanime/ctsave02-future.srm).
 # Route: dragon_tank
 # frames {FRAMES}
 # sram crc32 {CRC}
@@ -26,7 +26,7 @@ def tank_party(bot, state, rng, inventory):
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     try:
         start = run.start_at(PHASES)
         if start <= 0:

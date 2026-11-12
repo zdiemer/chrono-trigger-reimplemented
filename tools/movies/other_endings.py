@@ -111,7 +111,7 @@ def play_ending(*, save, title, ending, entry="telepod", party=2, story=None,
                 core_seed_offset=0, core_policy=None):
     args = route_arguments(title, save=save)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     try:
         start = run.start_at(TELEPOD_PHASES if entry == "telepod" else BUCKET_PHASES)
         (to_the_shell if entry == "telepod" else bucket_to_shell)(run, start)

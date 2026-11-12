@@ -12,12 +12,12 @@ from ..campaign import Run, route_arguments, run_route
 HEADER = """\
 # 12000 B.C. after the fall: out of the Earthbound Village onto the frozen world map ($1F6), the winged Epoch parked
 # beside it; into the nearest location and back out onto the map (route last_village_12kbc).
-# Save: ctsave11 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave11 slot 2 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
-SAVE = "oracle/saves/fantasyanime/ctsave11-crono_gone.srm"
+SAVE = "saves/fantasyanime/ctsave11-crono_gone.srm"
 SLOT = 1
 PHASES = ["loaded", "map", "entered", "left"]
 WORLD = "f601"
@@ -25,8 +25,7 @@ WORLD = "f601"
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 

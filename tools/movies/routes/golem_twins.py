@@ -4,11 +4,11 @@ from .save_point import press, to_slot
 from .. import policies
 from ..campaign import Run, route_arguments, run_route
 
-SAVE = "oracle/saves/fantasyanime/ctsave10-ocean_palace.srm"
+SAVE = "saves/fantasyanime/ctsave10-ocean_palace.srm"
 HEADER = """\
 # Ocean Palace: Crono, Marle and Lucca win the Golem Twins with alternating Lightning 2, Ice 2 and Fire 2.
 # Dalton leaves; return to the nearby save point and save slot 3, then close the menus (route golem_twins).
-# Save: ctsave10 slot 3 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave10 slot 3 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -38,7 +38,7 @@ def twins(bot, state, rng, inventory):
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     machine = run.machine
     try:
         start = run.start_at(PHASES)

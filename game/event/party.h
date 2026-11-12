@@ -62,7 +62,7 @@ bool member_place_readable(const GameState *g, PartyPlace place);
 static inline uint8_t party_leader(const GameState *g) { return party_members(g, 0); }
 
 /* The party's own scripts, which every map load puts after the map's own
- * ($C0:5CEC; tools/disasm/eventscript.py reads them): a member walks up to
+ * ($C0:5CEC; the cartridge format reads them): a member walks up to
  * the leader and, once the gathering count says all are there, hands the
  * party back to the player; a member walks to its place in a formation (one
  * script a place of the party), faces its way and counts itself in the

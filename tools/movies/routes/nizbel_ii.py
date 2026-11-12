@@ -7,7 +7,7 @@ from .. import addresses as A, bfs, policies
 from ..campaign import Run, route_arguments, run_route
 from . import menu_sweep as menus
 
-SAVE = "oracle/saves/fantasyanime/ctsave07-azala.srm"
+SAVE = "saves/fantasyanime/ctsave07-azala.srm"
 SLOT = 2
 PHASES = ["loaded", "entrance", "prison", "kino_room", "guards", "kino", "door",
           "switches", "upper_hall", "maze", "lower_stairs", "lower_hall", "door_switch",
@@ -15,7 +15,7 @@ PHASES = ["loaded", "entrance", "prison", "kino_room", "guards", "kino", "door",
 
 HEADER = """\
 # Tyrano Lair: free Kino, work through the lair, and beat Nizbel II (route nizbel_ii).
-# Save: ctsave07 slot 3 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave07 slot 3 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
@@ -93,7 +93,7 @@ def control(run):
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-              native=args.native, generated=args.generated, until=args.until)
+              until=args.until)
     m = run.machine
     start = run.start_at(PHASES)
     if start > 1 and start != PHASES.index("won"):

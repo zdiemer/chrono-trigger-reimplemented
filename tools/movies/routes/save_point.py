@@ -14,12 +14,12 @@ HEADER = """\
 # Save at the End of Time's save point, from its own save screen: load the save (the party stands on the save point), press
 # confirm on it, choose the first slot and answer no to erasing its game, choose the third and answer yes, then go back to
 # the field (route save_point).
-# Save: ctsave12 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave12 slot 2 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
-SAVE = "oracle/saves/fantasyanime/ctsave12-side_quests1.srm"
+SAVE = "saves/fantasyanime/ctsave12-side_quests1.srm"
 SLOT = 1
 PHASES = ["loaded", "opened", "saved", "back"]
 
@@ -44,8 +44,7 @@ def to_slot(machine, slot):
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 

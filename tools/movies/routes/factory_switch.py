@@ -14,12 +14,12 @@ HEADER = """\
 # The factory's floor switch, 2300 A.D.: load the save (on the world map beside the factory), go in, change the active
 # party's order from the main menu, check the entrance hall's console (its security robots attack), win the fight, take
 # the left door to the lab side and step on its two-by-three floor switch (route factory_switch).
-# Save: ctsave03 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# Save: ctsave03 slot 2 (saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
-SAVE = "oracle/saves/fantasyanime/ctsave03-future_more.srm"
+SAVE = "saves/fantasyanime/ctsave03-future_more.srm"
 SLOT = 1
 WORLD_MAP, HALL, LAB_SIDE = "f201", "e400", "e500"
 PHASES = ["loaded", "hall", "reordered", "console", "won", "lab", "pressed"]
@@ -43,8 +43,7 @@ def tile_at(machine, column, row):
 
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              generated=args.generated, until=args.until)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 

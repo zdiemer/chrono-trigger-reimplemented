@@ -32,13 +32,10 @@ ESCAPES = {
                            # and the write, which both the scripts' runners make
     "scene/race.c": 3,     # the read back out of VRAM at $7E:3D41, and the column at $7E:4671 and the
                            # plane at $7E:876E, which write the data port's low half alone
-    "scene/screen.c": 7,   # $7E:3843 and the two clears at $7E:3092, whose transfers no call expresses,
-                           # $7E:38E7 and $7E:38C3, whose modes and destinations are game data, $7E:90A7,
-                           # which fills the data port's low half alone past a Mode 7 plane's map, and the
+    "scene/screen.c": 6,   # $7E:3843 and the two clears at $7E:3092, whose transfers no call expresses,
+                           # $7E:38E7 and $7E:38C3, whose modes and destinations are game data, and the
                            # buffer clears through the multiplier (one call, the race's three sites and
                            # the Epoch's dive's)
-    "scene/title.c": 2,    # $7E:5AEB, which writes the data port's low half alone, and $7E:59D5, which
-                           # carries on from what the channel holds
     "scene/staff_roll.c": 2,  # $7E:90A7 and $7E:8F77, which fill the data port's low half and its high half
                               # alone
     "scene/rising_palace.c": 2,  # $7E:672C, the map's top filled through the multiplier, and $7E:674D, the
@@ -122,25 +119,6 @@ class PlatformLint(unittest.TestCase):
                 users.add(path.relative_to(GAME).as_posix())
         self.assertEqual(users, WRITE_ORDER)
 
-    def test_sites_have_encodings(self):
-        """A call that takes its write order from the SNES backend at a literal
-        site has that site in the backend's table, so no movie is needed to find
-        one missing (the backend stops the program on an unknown site)."""
-        table = (ROOT / "runtime/platform/snes/encodings.c").read_text(encoding="utf-8")
-        known = {int(m, 16) for m in re.findall(r"\b0x([0-9A-Fa-f]{6})\b", table)}
-        runs = [(int(a, 16), int(n), int(st, 16)) for a, n, st in
-                re.findall(r"\{ 0x([0-9A-Fa-f]{6}), ([1-9]\d*), 0x([0-9A-Fa-f]+),", table)]
-        call = re.compile(r"\bvid_(?:send_\w+|set_line_slot|set_line_table|snes_copy|apply_screen|start_vram_uploads)"
-                          r"\s*\([^,]+,\s*PF_AT\(0x([0-9A-Fa-f]{6})\)")
-        missing = []
-        for path in self.sources():
-            for m in call.finditer(strip(path.read_text(encoding="utf-8"))):
-                site = int(m.group(1), 16)
-                if "start_vram_uploads" in m.group(0):
-                    continue   # a VRAM port on its own needs no encoding
-                if site not in known and not any(a <= site < a + n * st and (site - a) % st == 0 for a, n, st in runs):
-                    missing.append(f"{path.relative_to(ROOT).as_posix()}: ${site >> 16:02X}:{site & 0xFFFF:04X}")
-        self.assertEqual(missing, [], "calls whose site has no encoding in runtime/platform/snes/encodings.c")
 
     def test_audio_driver_calls_only_where_allowed(self):
         users = set()
