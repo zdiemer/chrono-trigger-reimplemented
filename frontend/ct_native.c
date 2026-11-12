@@ -19,7 +19,8 @@
  * (frontend/assets.h; game/data/assets.h, the store): <rom name>.assets beside
  * the ROM unless --assets names it, imported from the ROM where there is none
  * or it is of another catalogue. The ROM is read only to import it, and isn't
- * kept.
+ * kept. The palettes are served from the text beside the pack, <pack
+ * name>.palettes (frontend/palettes.h), written from the pack where there is none.
  *
  * It plays in the shared SDL window, or runs headless measurements with
  * --frames. It reports invalid game state with its frame and source origin, and what it
@@ -42,6 +43,7 @@
 
 #include "assets.h"
 #include "file_store.h"
+#include "palettes.h"
 #include "storage.h"
 #include "track.h"
 #include "snapshot.h"
@@ -196,6 +198,52 @@ static uint8_t *lasting(uint8_t *bytes, size_t len, AssetPack **pack)
     return *pack ? copy : NULL;
 }
 
+/* The pack made again with its palettes as the text beside it says
+ * (frontend/palettes.h), the text written from the pack first where there is
+ * none, once each palette is seen to read back as the bytes it was written
+ * from. False after saying why not; the old pack and its bytes are gone. */
+static bool serve_palettes(const char *path, uint8_t **bytes, size_t *len, AssetPack **pack)
+{
+    AssetStore raw;
+    asset_pack_store(*pack, &raw);
+    const char *why = "";
+    bool missing = false;
+    size_t text_len = 0, made_len = 0;
+    uint8_t *made = NULL;
+    char *text = (char *)files_read(path, &text_len, true, &missing);
+    if (!text && !missing) {
+        fprintf(stderr, "ct_native: cannot read %s\n", path);
+    } else if (!text) {
+        if (!palettes_round_trip(&raw, &why))
+            fprintf(stderr, "ct_native: palette %s doesn't read back as its bytes\n", why);
+        else if ((text = palettes_export(&raw, &text_len, &why)) && file_store_replace(path, text, text_len) == 0)
+            fprintf(stderr, "wrote the palettes into %s\n", path);
+        else
+            free(text), text = NULL;
+    }
+    unsigned line = 0;
+    AssetPalettes *palettes = text ? palettes_import(text, text_len, &raw, &line, &why) : NULL;
+    if (text && !palettes)
+        fprintf(stderr, "ct_native: %s:%u: %s\n", path, line, why);
+    if (palettes) {
+        AssetStore served;
+        palettes_store(palettes, &served);
+        made = asset_pack_build(&served, ASSET_ROM_CRC32, &made_len, &why);
+    }
+    palettes_close(palettes);
+    free(text);
+    asset_pack_close(*pack);
+    free(*bytes);
+    *bytes = made;
+    *len = made_len;
+    *pack = made ? asset_pack_open(made, made_len, &why) : NULL;
+    if (made && !*pack) {
+        free(made);
+        *bytes = NULL;
+    }
+    return *pack != NULL;
+}
+
 /* Read the shared pack, importing only when missing or incompatible. */
 static uint8_t *load_pack(const Files *files, const char *rom_path, bool fresh, AssetPack **pack)
 {
@@ -203,7 +251,7 @@ static uint8_t *load_pack(const Files *files, const char *rom_path, bool fresh, 
     const char *why = "";
     uint8_t *bytes = fresh ? NULL : files_read(files->assets, &len, false, NULL);
     *pack = bytes ? asset_pack_open(bytes, len, &why) : NULL;
-    if (*pack) return lasting(bytes, len, pack);
+    if (*pack) return serve_palettes(files->palettes, &bytes, &len, pack) ? lasting(bytes, len, pack) : NULL;
     if (bytes) fprintf(stderr, "ct_native: %s: %s; importing again\n", files->assets, why);
     free(bytes);
     uint8_t *rom = rom_path ? files_read(rom_path, &len, false, NULL) : NULL;
@@ -217,6 +265,7 @@ static uint8_t *load_pack(const Files *files, const char *rom_path, bool fresh, 
     free(rom);
     *pack = bytes ? asset_pack_open(bytes, len, &why) : NULL;
     if (!*pack) { free(bytes); return NULL; }
+    if (!serve_palettes(files->palettes, &bytes, &len, pack)) return NULL;
     return lasting(bytes, len, pack);
 }
 
@@ -731,6 +780,7 @@ int main(int argc, char **argv)
     const char *identity = rom_path ? rom_path : pack_path ? pack_path : "ct-usa";
     files_side_path(files.assets, sizeof files.assets, identity, identity, save_dir, ".assets");
     if (pack_path) snprintf(files.assets, sizeof files.assets, "%s", pack_path);
+    files_side_path(files.palettes, sizeof files.palettes, files.assets, files.assets, NULL, ".palettes");
     files_side_path(files.sram, sizeof files.sram, identity, identity, save_dir, ".srm");
     if (remembered_sram && !save_dir) snprintf(files.sram, sizeof files.sram, "%s", remembered_sram);
     files_side_path(files.state, sizeof files.state, record_path ? record_path : files.sram, files.sram, save_dir, ".native-state");

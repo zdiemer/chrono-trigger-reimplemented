@@ -1,7 +1,8 @@
 # The catalogue of resources: every one the ports' accessors read from the cartridge.
 # Written by tools/assets.py build, read by tools/assets.py check, the pack's import and
 # game/data/asset_catalogue.c (docs/PLATFORM.md, "The assets, as built"). Locations and types
-# only: no ROM bytes. `end` is inclusive; `codec` is what decodes it (`raw`: nothing).
+# only: no ROM bytes. `end` is inclusive; `codec` is what decodes it (`raw`: nothing;
+# `palette:N[xM]`: BGR555 colors, N a row and M rows a palette, as frontend/palettes.h's text).
 # name	type	at	end	codec	found by
 menu_scene_scroll_pattern	bytes	C0:0000	C0:01BF	raw	accessor menu_scene_scroll_pattern_byte
 built_in_command_byte	script	C0:5D37	C0:5D6D	script:event-commands	accessor built_in_command_byte
@@ -652,7 +653,8 @@ battle_debug_frame_advance	mixed	CD:3F9E	CD:6E0B	raw	accessor battle_debug_frame
 battle_animations_cd	script	CD:6E0C	CD:EE22	script:battle-animation	read
 mixed_cdee23	mixed	CD:EE23	CD:FFFF	raw	read
 battle_animation_calls	script	CE:0000	CE:009B	script:battle-animation	accessor battle_script_subroutine
-battle_color_cycle_color	mixed	CE:0100	CE:037F	raw	accessor battle_color_cycle_color
+battle_color_cycle_color	words	CE:0100	CE:036B	palette:16	accessor battle_color_cycle_color
+padding_ce036c	padding	CE:036C	CE:037F	raw	read
 battle_animations_ce	script	CE:0380	CE:886F	script:battle-animation	read
 mixed_ce8870	mixed	CE:8870	CE:D427	raw	read
 battle_animation_subroutines	script	CE:D428	CE:DC19	script:battle-animation	read
@@ -669,8 +671,13 @@ effect_tilemap_graphics_address.2	lz	D0:E578	D0:EAFF	lz	effect_tilemap_graphics_
 effect_tilemap_graphics_address.3	lz	D0:EB00	D0:ED8A	lz	effect_tilemap_graphics_address entry
 effect_tilemap_graphics_address.4	lz	D0:ED8B	D0:F197	lz	effect_tilemap_graphics_address entry
 effect_tilemap_graphics_address.5	lz	D0:F198	D0:F98E	lz	effect_tilemap_graphics_address entry
-effect_color	untyped	D0:F98F	D0:FFFF	raw	accessor effect_color
-battle_animation_tiles_place	mixed	D1:0000	D1:E709	raw	accessor battle_animation_tiles_place
+untyped_d0f98f	untyped	D0:F98F	D0:F9FF	raw	read
+battle_screen_colors	words	D0:FA00	D0:FD5F	palette:16	accessor effect_color
+untyped_d0fd60	untyped	D0:FD60	D0:FFFF	raw	read
+battle_animation_tiles_place	mixed	D1:0000	D1:40FF	raw	accessor battle_animation_tiles_place
+battle_sprite_color_sets	words	D1:4100	D1:43FF	palette:3	accessor battle_palette_set_color
+battle_sprite_large_color_sets	words	D1:4400	D1:4AFF	palette:7	accessor battle_palette_set_color
+mixed_d14b00	mixed	D1:4B00	D1:E709	raw	read
 gradient_set_color	words	D1:E9EF	D1:EA00	raw	accessor gradient_set_color
 gradient_row_turn	bytes	D1:EA21	D1:EA4A	raw	accessor gradient_row_turn
 shape_model_point	words	D1:EC5F	D1:ECF2	raw	accessor shape_model_point
@@ -1895,7 +1902,7 @@ setup_tile_lists.220	bytes	E3:EB28	E3:ED07	raw	setup_tile_lists entry
 setup_tile_lists.223	bytes	E3:ED08	E3:ED7F	raw	read
 setup_tile_lists.224	bytes	E3:ED80	E3:F13F	raw	read
 setup_tile_lists.50	bytes	E3:F140	E3:F8C0	raw	read
-untyped_e40000	untyped	E4:0000	E4:1FFF	raw	read
+field_sprite_palettes	words	E4:0000	E4:1FFF	palette:12	accessor field_sprite_colour
 setup_character_graphics	ptr24	E4:2000	E4:22E7	raw	accessor setup_character_graphics
 setup_tile_lists	ptr24	E4:2300	E4:25B4	raw	accessor setup_tile_lists
 setup_frame_lists	ptr16	E4:2600	E4:27FF	raw	accessor setup_frame_lists
@@ -2763,7 +2770,9 @@ field_packed_map	ptr24	F6:1E00	F6:205D	raw	accessor field_packed_map
 tile_looks_address	ptr24	F6:2100	F6:21BF	raw	accessor tile_looks_address
 bg3_tile_looks_address	ptr24	F6:21C0	F6:2204	raw	accessor bg3_tile_looks_address
 graphics_block_address	ptr24	F6:2220	F6:24B0	raw	accessor graphics_block_address
-untyped_f624b1	untyped	F6:24B1	F6:7FFF	raw	read
+untyped_f624b1	untyped	F6:24B1	F6:24BF	raw	read
+location_palettes	words	F6:24C0	F6:6CEF	palette:15x7	accessor location_palette_colour
+untyped_f66cf0	untyped	F6:6CF0	F6:7FFF	raw	read
 field_packed_script.0	lz	F6:8000	F6:8D58	lz:event	field_packed_script entry
 field_packed_script.1	lz	F6:8D59	F6:9039	lz:event	field_packed_script entry
 field_packed_script.2	lz	F6:903A	F6:9089	lz:event	field_packed_script entry
