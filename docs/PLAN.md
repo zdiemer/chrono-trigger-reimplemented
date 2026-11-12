@@ -173,8 +173,8 @@ already built are described in PLATFORM.md.
   uploads) are settled where a divergence traces to them.
 - **The game's state as C, not a work-RAM image.** Move the remaining
   image-backed variables into module-owned structs through the generated
-  backing (STATE.md). Resolve the inventory's shared scratch, internal field
-  aliases, page instances and table overruns before selecting each module;
+  backing (STATE.md). Resolve the remaining shared scratch groups that need
+  several owners or new semantic records, page instances and table overruns;
   retire its raw-address clients and keep cartridge saves and native route
   address queries working through the projection. `tools/ram_map.py storage`
   measures the share of `re/ram.toml`'s variables still backed by the image;

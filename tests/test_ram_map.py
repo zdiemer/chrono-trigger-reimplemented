@@ -120,13 +120,78 @@ name = "high"
 offset = 1
 meaning = "m"'''))
 
-    def test_struct_owners_reject_overruns(self):
-        with self.assertRaisesRegex(ram_map.MapError, "unchecked"):
-            ram_map.RamMap(text=var("items", '''addr = "7E:1000"
+    def test_struct_overruns_keep_checks_and_use_the_address_view(self):
+        m = ram_map.RamMap(text=var("items", '''addr = "7E:1000"
 count = 3
 index = "slot"
 host_module = "items"
 unchecked = "The next cell is shared."'''))
+        c = ram_map.render_backing(m)
+        checked = c[c.index("void set_items(GameState *g"):c.index("#else", c.index("void set_items(GameState *g"))]
+        self.assertIn('IN_RANGE(g, 0, "set_items", "count", slot, 3u);', checked)
+        self.assertIn('if (slot >= 3u) { w8(g, 0x7E1000u + (uint32_t)slot * 0x01u, v); return; }', checked)
+        unchecked = checked[checked.index("void set_items_unchecked"):]
+        self.assertNotIn("IN_RANGE", unchecked)
+        self.assertIn("if (slot >= 3u)", unchecked)
+
+    def test_aliases_have_no_storage_and_reach_a_named_owner(self):
+        m = ram_map.RamMap(text=var("items", '''addr = "7E:1000"
+size = 2
+count = 3
+index = "slot"
+stride = 4
+host_module = "items"''') + var("high", '''addr = "7E:1001"
+count = 3
+stride = 4
+index = "slot"
+host_alias = "items"''', "menu"))
+        h, c = ram_map.render_host_header(m), ram_map.render_backing(m)
+        self.assertNotIn(" high[", h)
+        self.assertIn("vars_host_items_read8(h, offset + 0u)", c)
+        self.assertIn("uint32_t offset = 1u + (uint32_t)slot * 4u;", c)
+        self.assertEqual(ram_map.storage_counts(m), (0, 2))
+        projection = ram_map.render_host_backing(m)
+        self.assertIn("projection_fields[projection_pages[", projection)
+        self.assertIn("1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0", projection)
+        self.assertEqual(len(ram_map.owner_accessors(m)), 1)
+
+    def test_alias_owner_validation(self):
+        owner = var("items", 'addr = "7E:1000"\nsize = 2\nhost_module = "items"')
+        for why, tail in {
+            "missing owner": var("view", 'addr = "7E:1000"\nhost_alias = "missing"', "menu"),
+            "independent alias storage": var("view", 'addr = "7E:1000"\nhost_alias = "items"\nhost_module = "menu"', "menu"),
+            "partial coverage": var("view", 'addr = "7E:1001"\nsize = 2\nhost_alias = "items"', "menu"),
+            "two owners": var("view", 'addr = "7E:1000"\nhost_module = "menu"', "menu"),
+            "alias chain": var("view", 'addr = "7E:1000"\nhost_alias = "items"', "menu")
+                           + var("chain", 'addr = "7E:1000"\nhost_alias = "view"', "scene"),
+        }.items():
+            with self.subTest(why=why), self.assertRaises(ram_map.MapError):
+                ram_map.RamMap(text=owner + tail)
+        with self.assertRaises(ram_map.MapError):
+            ram_map.RamMap(text=var("a", 'addr = "7E:1000"\nhost_alias = "b"')
+                          + var("b", 'addr = "7E:1000"\nhost_alias = "a"', "menu"))
+
+    def test_internal_alias_uses_one_field_and_cannot_reach_padding(self):
+        text = var("record", '''addr = "7E:1000"
+stride = 4
+host_module = "records"
+[[var.field]]
+name = "whole"
+offset = 0
+size = 2
+meaning = "m"
+[[var.field]]
+name = "high"
+host_alias = "whole"
+offset = 1
+meaning = "m"''')
+        m = ram_map.RamMap(text=text)
+        self.assertNotIn("uint8_t high;", ram_map.render_host_header(m))
+        self.assertEqual(len(ram_map.owner_accessors(m)), 1)
+        with self.assertRaisesRegex(ram_map.MapError, "outside"):
+            ram_map.RamMap(text=text.replace("offset = 1", "offset = 2"))
+        with self.assertRaises(ram_map.MapError):
+            ram_map.RamMap(text=text.replace('host_alias = "whole"', 'host_alias = "high"'))
 
     def test_struct_layout_ignores_original_stride_and_uses_typed_fields(self):
         m = ram_map.RamMap(text=var("items", '''addr = "7E:1000"

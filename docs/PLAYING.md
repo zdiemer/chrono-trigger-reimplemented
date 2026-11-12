@@ -742,8 +742,9 @@ ROM is read only to import it; no image of it is mapped
 (`runtime/port/rom_host.c`). Like the shipping shape, it is built without the
 ports' scaffolding, and it builds without a ROM.
 
-The location module's state lives in generated C structs behind those same
-accessors. Other variables still use a residual work-RAM image. The native
+Selected module state lives in generated C structs behind those same
+accessors, with alias views sharing each owner's fields. Other variables
+still use a residual work-RAM image. The native
 address view projects struct fields for save/load, video sources, end states
 and route queries, including the original's low-bank mirrors; it does not
 keep a second copy of moved fields. Cartridge `.srm` files retain their

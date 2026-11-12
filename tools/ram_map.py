@@ -27,7 +27,9 @@ fails when one is out of date:
   with `unchecked` also gets an `_unchecked` pair for marked scaffolding.
 - `runtime/port/vars_host.h` and `vars_host.c`, module-owned native fields and
   their address projection. `host_module` selects variables whose ownership
-  is resolved; CT_VARS_HOST accessors reach those fields directly.
+  is resolved; `host_alias` selects views of that storage, never another copy.
+  CT_VARS_HOST accessors reach owners directly and aliases through named owner
+  byte views. The compatibility projection uses indexed page/byte dispatch.
 
 **Coverage** answers "how much of what game/ touches has a name". It counts,
 over game/ with comments stripped:
@@ -309,7 +311,7 @@ class Field:
         for key in ("name", "offset", "meaning"):
             if key not in raw:
                 raise MapError("%s: missing %s" % (where, key))
-        unknown = set(raw) - {"name", "offset", "size", "meaning"}
+        unknown = set(raw) - {"name", "offset", "size", "meaning", "host_alias"}
         if unknown:
             raise MapError("%s: unknown keys %s" % (where, sorted(unknown)))
         self.name = raw["name"]
@@ -318,6 +320,9 @@ class Field:
         self.offset = raw["offset"]
         self.size = raw.get("size", 1)
         self.meaning = raw["meaning"]
+        self.host_alias = raw.get("host_alias")
+        if self.host_alias is not None and not (isinstance(self.host_alias, str) and NAME.fullmatch(self.host_alias)):
+            raise MapError("%s: host_alias must name an owning field" % where)
         if not (isinstance(self.offset, int) and isinstance(self.size, int) and self.size > 0
                 and 0 <= self.offset and self.offset + self.size <= var.stride):
             raise MapError("%s: offset/size must lie inside the element's stride ($%X)" % (where, var.stride))
@@ -327,7 +332,7 @@ class Var:
     """A variable, an array of them, or an array of records."""
 
     KEYS = {"name", "addr", "size", "count", "stride", "index", "page", "dp",
-            "subsystem", "meaning", "source", "field", "rows", "row_stride", "unchecked", "reuses", "host_module"}
+            "subsystem", "meaning", "source", "field", "rows", "row_stride", "unchecked", "reuses", "host_module", "host_alias"}
 
     def __init__(self, raw, pages):
         where = "var %r" % raw.get("name")
@@ -348,6 +353,13 @@ class Var:
         self.host_module = raw.get("host_module")
         if self.host_module is not None and not (isinstance(self.host_module, str) and NAME.fullmatch(self.host_module)):
             raise MapError("%s: host_module must name its C storage owner" % where)
+        self.host_alias = raw.get("host_alias")
+        self.host_owner = None
+        if self.host_alias is not None:
+            if not (isinstance(self.host_alias, str) and NAME.fullmatch(self.host_alias)):
+                raise MapError("%s: host_alias must name an owning variable" % where)
+            if self.host_module:
+                raise MapError("%s: an alias has no independent host_module" % where)
         self.index = raw.get("index")
         self.size = raw.get("size", 1)
         self.count = raw.get("count", 1)
@@ -538,26 +550,50 @@ class RamMap:
         return [v.name for v in self.vars if any(ADDRESS_WORD.match(w) for w in v.name.split("_"))]
 
     def _check_host_owners(self):
-        moved = [v for v in self.vars if v.host_module]
-        if not moved:
-            return
-        owners = collections.defaultdict(set)
+        by_name = {v.name: v for v in self.vars}
+        cells = {}
         for v in self.vars:
-            for addr in variable_bytes(v):
-                owners[addr].add(v.name)
-        for v in moved:
-            if v.on_instances() or v.unchecked or v.reuses:
-                raise MapError("%s: resolve page instances, unchecked access and reuse before moving storage" % v.name)
+            if v.host_alias:
+                owner = by_name.get(v.host_alias)
+                if owner is None or not owner.host_module or owner.host_alias:
+                    raise MapError("%s: host_alias needs a direct, selected owner" % v.name)
+                v.host_owner = owner
+            elif v.host_module:
+                v.host_owner = v
+            if v.host_owner and v.on_instances():
+                raise MapError("%s: resolve page instances before moving storage" % v.name)
+            fields = {f.name: f for f in v.fields}
+            for f in v.fields:
+                if not f.host_alias:
+                    continue
+                owner = fields.get(f.host_alias)
+                if not v.host_module or owner is None or owner.host_alias:
+                    raise MapError("%s.%s: host_alias needs a direct, selected owning field" % (v.name, f.name))
+                if not (owner.offset <= f.offset and f.offset + f.size <= owner.offset + owner.size):
+                    raise MapError("%s.%s: alias lies outside its owning field" % (v.name, f.name))
+            cells[v.name] = set(variable_bytes(v))
+        owned = {}
+        for v in self.vars:
+            if not v.host_module:
+                continue
             seen = set()
-            for addr in variable_bytes(v):
-                if addr in seen or owners[addr] != {v.name}:
+            for addr in variable_bytes(v, owners_only=True):
+                if addr in seen or addr in owned:
                     raise MapError("%s: struct storage needs one owner at %s" % (v.name, fmt_addr(addr)))
                 seen.add(addr)
+                owned[addr] = v
+        for v in self.vars:
+            if v.host_alias and not cells[v.name] <= cells[v.host_owner.name]:
+                raise MapError("%s: alias lies outside its owning variable" % v.name)
+            for addr in cells[v.name]:
+                if addr in owned and v.host_owner is not owned[addr]:
+                    raise MapError("%s: struct storage needs one owner at %s; declare its alias" % (v.name, fmt_addr(addr)))
 
     def _check_overlaps(self):
         """Work RAM is reused from one game mode to the next, so two entries may
         cover the same bytes when their subsystems differ (the battle's use of
-        $7E:2000 is not the field's). Within one subsystem that is a mistake.
+        $7E:2000 is not the field's). Within one subsystem, name the reuse or
+        explicitly share a selected host owner (validated separately).
 
         A variable on a page kind is at its offset in every instance. Those
         instances may be the elements of a record array of the same subsystem
@@ -593,7 +629,9 @@ class RamMap:
             for b_base, b in placed[i + 1:]:
                 if b_base >= a_end:
                     break
-                if a.subsystem != b.subsystem or a is b or b.name in reused(a) or a.name in reused(b):
+                shared_owner = (a.host_alias == b.name or b.host_alias == a.name
+                                or (a.host_alias and a.host_alias == b.host_alias))
+                if a.subsystem != b.subsystem or a is b or shared_owner or b.name in reused(a) or a.name in reused(b):
                     continue
                 if any(claims(a, x, b) and claims(b, x, a)
                        for x in range(b_base, min(a_end, b_base + b.span()))):
@@ -606,19 +644,20 @@ class RamMap:
         return hits
 
 
-def variable_bytes(v):
+def variable_bytes(v, owners_only=False):
     """Declared bytes, including every page instance but excluding record padding."""
     for base in v.bases():
         for row in range(v.rows or 1):
             for element in range(v.count):
                 at = base + row * (v.row_stride or 0) + element * v.stride
-                for offset, size in ([(f.offset, f.size) for f in v.fields] if v.fields else [(0, v.size)]):
+                for offset, size in ([(f.offset, f.size) for f in v.fields if not owners_only or not f.host_alias]
+                                     if v.fields else [(0, v.size)]):
                     yield from range(at + offset, at + offset + size)
 
 
 def storage_counts(m):
     """Count map variables, not accessors, instances, fields or allocated bytes."""
-    moved = sum(bool(getattr(v, "host_module", None)) for v in m.vars)
+    moved = sum(bool(v.host_module or v.host_alias) for v in m.vars)
     return len(m.vars) - moved, moved
 
 
@@ -627,6 +666,11 @@ def storage_report(m, out=sys.stdout):
     total = image + moved
     print("native state: %d/%d variables image-backed (%.2f%%); %d struct-backed"
           % (image, total, 100 * image / total if total else 0, moved), file=out)
+    for sub in SUBSYSTEMS:
+        vs = [v for v in m.vars if v.subsystem == sub]
+        if vs:
+            moved = sum(bool(v.host_module or v.host_alias) for v in vs)
+            print("  %-12s %4d/%4d image-backed; %4d struct-backed" % (sub, len(vs) - moved, len(vs), moved), file=out)
 
 
 # ---- the header -----------------------------------------------------------------------------
@@ -781,6 +825,7 @@ class Accessor:
 
     def __init__(self, var, field=None, unchecked=False):
         self.var = var
+        self.field = field
         base = var.name if field is None else "%s_%s" % (var.name, field.name)
         self.unchecked = unchecked
         self.offset = field.offset if field else 0
@@ -1128,10 +1173,10 @@ def render_backing(m):
     for sub, groups in accessors(m):
         out += ["", "/* ---- %s %s */" % (sub, "-" * (86 - len(sub))), ""]
         for _, _, group in groups:
-            if group[0].var.host_module:
+            if group[0].var.host_owner:
                 out.append("#ifdef CT_VARS_HOST")
                 for a in group:
-                    out += render_host_accessor(a)
+                    out += render_host_accessor(a, ids)
                 out.append("#else")
             for a in group:
                 w = 8 if a.blob or a.table else a.size * 8
@@ -1142,7 +1187,7 @@ def render_backing(m):
                                      for arg, limit, what in a.bounds())
                     body = ("w%d(g, %s, v);" if write else "return r%d(g, %s);") % (w, a.address())
                     out.append("%s { %s%s }" % (a.signature(write), checks, body))
-            if group[0].var.host_module:
+            if group[0].var.host_owner:
                 out.append("#endif")
     out.append("")
     return "\n".join(out)
@@ -1157,26 +1202,50 @@ def host_member(a, root="h", element=None, row="row", byte="at"):
         member += "[%s]" % (element or index_param(v.index))
     if v.fields:
         # Accessor names are unique and derived from the field name.
-        field = next(f for f in v.fields if f.offset == a.offset)
-        member += "." + field.name
+        member += "." + a.field.name
     if a.blob or a.table:
         member += "[%s]" % byte
     return member
 
 
-def render_host_accessor(a):
+def render_host_accessor(a, ids):
     out = []
     width = 1 if a.blob or a.table else a.size
     for write in (False, True):
         out += [a.signature(write), "{"]
+        name = ("set_" if write else "") + a.name
+        out += ['    IN_RANGE(g, %d, "%s", "%s", %s, %s);' % (ids[a.var.name], name, what, arg, limit)
+                for arg, limit, what in a.bounds()]
         # Invalid indices keep the address-view behavior, never index a C array
-        # out of bounds. Unchecked variables cannot move in the first place.
-        bad = " || ".join("%s >= %s" % (arg, limit) for arg, limit, _ in a.bounds())
+        # out of bounds. Deliberate unchecked tails take that same path, silently.
+        bad = " || ".join("%s >= %s" % (arg, limit) for arg, limit, _ in Accessor(a.var, a.field).bounds())
         if bad:
             fallback = ("w%d(g, %s, v); return;" if write else "return r%d(g, %s);") % (width * 8, a.address())
             out += ["    if (%s) { %s }" % (bad, fallback)]
         out += ["    if (!peeking)", "        state_host_game_access(g, %d);" % (width * 8)]
         out += ["    %sVarsHost *h = state_host_vars%s(g);" % ("" if write else "const ", "" if write else "_const")]
+        if a.var.host_alias or (a.field and a.field.host_alias):
+            owner = a.var.host_owner
+            offset = "%du" % (a.addr - owner.addr)
+            if a.var.count > 1:
+                offset += " + (uint32_t)%s * %du" % (index_param(a.var.index), a.var.stride)
+            if a.table:
+                offset += " + (uint32_t)row * %du + column" % a.var.row_stride
+            elif a.blob:
+                offset += " + at"
+            out += ["    uint32_t offset = %s;" % offset]
+            if not write:
+                out += ["    %s value = 0;" % a.type]
+            for byte in range(width):
+                if write:
+                    out += ["    vars_host_%s_write8(h, offset + %du, (uint8_t)(v >> %d));" % (owner.name, byte, byte * 8)]
+                else:
+                    out += ["    value |= (%s)((%s)vars_host_%s_read8(h, offset + %du) << %d);" %
+                            (a.type, a.type, owner.name, byte, byte * 8)]
+            if not write:
+                out += ["    return value;"]
+            out += ["}"]
+            continue
         member = host_member(a, byte="column" if a.table else "at")
         out += ["    %s" % (member + " = " + ("v & 0xFFFFFFu" if width == 3 else "v") + ";" if write else "return " + member + ";"), "}"]
     return out
@@ -1204,6 +1273,8 @@ def render_host_header(m):
             if v.fields:
                 out += ["    struct {"]
                 for f in v.fields:
+                    if f.host_alias:
+                        continue
                     out += ["        %s %s%s;" % (C_TYPE.get(f.size, "uint8_t"), f.name,
                                                    "[%d]" % f.size if f.size > WIDEST else "")]
                 out += ["    } %s%s;" % (v.name, dims)]
@@ -1217,17 +1288,51 @@ def render_host_header(m):
         out += ["    VarsHost%s %s;" % (camel(module), module)]
     if not groups:
         out += ["    uint8_t unused; /* C has no empty structs. */"]
-    out += ["} VarsHost;", "", "void vars_host_init(VarsHost *h);",
+    out += ["} VarsHost;", ""]
+    for v in alias_owners(m):
+        out += ["/* Byte views of %s's storage; no independent alias fields. */" % v.name,
+                "uint8_t vars_host_%s_read8(const VarsHost *h, uint32_t offset);" % v.name,
+                "void vars_host_%s_write8(VarsHost *h, uint32_t offset, uint8_t value);" % v.name]
+    out += ["", "void vars_host_init(VarsHost *h);",
             "bool vars_host_read8(const VarsHost *h, uint32_t addr, uint8_t *value);",
             "bool vars_host_write8(VarsHost *h, uint32_t addr, uint8_t value);", "", "#endif", ""]
     return "\n".join(out)
+
+
+def owner_accessors(m):
+    return [a for _, vs in accessors(m) for v, _, aa in vs if v.host_module for a in aa
+            if not a.unchecked and not (a.field and a.field.host_alias)]
+
+
+def alias_owners(m):
+    names = {v.host_owner.name for v in m.vars if v.host_alias or any(f.host_alias for f in v.fields)}
+    return sorted((v for v in m.vars if v.name in names), key=lambda v: v.name)
+
+
+def projection_statement(a, write, byte="offset"):
+    member = host_member(a, element="element", byte=byte)
+    if a.blob or a.table:
+        return "%s = value;" % member if write else "*value = %s;" % member
+    if write:
+        return "%s = (%s)((%s & ~((uint32_t)0xFFu << (%s * 8))) | (uint32_t)value << (%s * 8));" % (
+            member, a.type, member, byte, byte)
+    return "*value = (uint8_t)(%s >> (%s * 8));" % (member, byte)
+
+
+def projection_indices(a):
+    out = []
+    if a.var.rows:
+        out += ["unsigned row = offset / %du;" % a.var.row_stride, "offset %%= %du;" % a.var.row_stride]
+    if a.var.count > 1:
+        out += ["unsigned element = offset / %du;" % a.var.stride, "offset %%= %du;" % a.var.stride]
+    return out
 
 
 def render_host_backing(m):
     out = ["/* Address projection of module fields; generated by tools/ram_map.py accessors. */",
            '#include "port/vars_host.h"', "#include <string.h>", "",
            "void vars_host_init(VarsHost *h)", "{", "    memset(h, 0x55, sizeof *h);"]
-    groups = [a for _, vs in accessors(m) for v, _, aa in vs if v.host_module for a in aa]
+    groups = owner_accessors(m)
     # 24-bit values live in uint32_t, whose unused high byte is always zero.
     for a in groups:
         if a.size == 3 and not a.table:
@@ -1235,33 +1340,64 @@ def render_host_backing(m):
                 out += ["    for (unsigned i = 0; i < %d; i++)" % a.var.count]
             out += ["    %s%s = 0x555555u;" % ("    " if a.var.count > 1 else "", host_member(a, element="i"))]
     out += ["}", ""]
+    # Aliases use named owners, with offsets in the owner's serialized layout.
+    # No host pointer cast, union type punning, padding or endian assumption.
+    for v in alias_owners(m):
+        aa = [a for a in groups if a.var is v]
+        for write in (False, True):
+            out += [("void vars_host_%s_write8(VarsHost *h, uint32_t offset, uint8_t value)" if write else
+                     "uint8_t vars_host_%s_read8(const VarsHost *h, uint32_t offset)") % v.name, "{"]
+            # An owner cannot have page instances yet; rows and strided arrays can.
+            if v.rows:
+                out += ["    unsigned row = offset / %du;" % v.row_stride, "    offset %%= %du;" % v.row_stride]
+            if v.count > 1:
+                out += ["    unsigned element = offset / %du;" % v.stride, "    offset %%= %du;" % v.stride]
+            for a in aa:
+                out += ["    if (offset >= %du && offset < %du) {" % (a.offset, a.offset + a.size)] if a.offset else ["    if (offset < %du) {" % a.size]
+                out += ["        unsigned byte = offset - %du;" % a.offset]
+                statement = projection_statement(a, write, "byte")
+                if not write:
+                    statement = statement.replace("*value = ", "return ")
+                out += ["        " + statement]
+                if write:
+                    out += ["        return;"]
+                out += ["    }"]
+            out += ["    return;" if write else "    return 0;", "}", ""]
+    # Two indexed loads choose the field. Only populated pages get a byte table;
+    # zero selects the residual image. Stride/record holes have no owner.
+    pages = {}
+    for number, a in enumerate(groups, 1):
+        for row in range(a.var.rows or 1):
+            for element in range(a.var.count):
+                start = a.addr + row * (a.var.row_stride or 0) + element * a.var.stride
+                for addr in range(start, start + a.size):
+                    page, byte = (addr - 0x7E0000) >> 8, addr & 255
+                    pages.setdefault(page, [0] * 256)[byte] = number
+    if pages:
+        out += ["static const uint16_t projection_pages[512] = {"]
+        out += ["    [%d] = %d," % (page, i) for i, page in enumerate(sorted(pages), 1)]
+        out += ["};", "", "static const uint16_t projection_fields[][256] = {", "    { 0 },"]
+        for page in sorted(pages):
+            out += ["    { /* $%06X */" % (0x7E0000 + page * 256)]
+            for start in range(0, 256, 16):
+                out += ["        " + ", ".join(str(n) for n in pages[page][start:start + 16]) + ","]
+            out += ["    },"]
+        out += ["};", "", "static unsigned projection_at(uint32_t addr)", "{",
+                "    if (addr < 0x7E0000u || addr >= 0x800000u)", "        return 0;",
+                "    return projection_fields[projection_pages[(addr - 0x7E0000u) >> 8]][addr & 255u];", "}", ""]
     for write in (False, True):
         out += ["bool vars_host_%s8(%sVarsHost *h, uint32_t addr, uint8_t %svalue)" %
                 ("write" if write else "read", "" if write else "const ", "" if write else "*"), "{"]
         if not groups:
             out += ["    (void)h; (void)addr; (void)value;"]
-        for a in groups:
-            v = a.var
-            span = (v.rows - 1) * v.row_stride if v.rows else 0
-            span += (v.count - 1) * v.stride + a.size
-            out += ["    if (addr >= 0x%06Xu && addr < 0x%06Xu) {" % (a.addr, a.addr + span),
-                    "        uint32_t offset = addr - 0x%06Xu;" % a.addr]
-            if v.rows:
-                out += ["        unsigned row = offset / %du;" % v.row_stride,
-                        "        offset %%= %du;" % v.row_stride]
-            if v.count > 1:
-                out += ["        unsigned element = offset / %du;" % v.stride,
-                        "        offset %%= %du;" % v.stride]
-            condition = ("element < %du && " % v.count if v.count > 1 else "") + "offset < %du" % a.size
-            member = host_member(a, element="element", byte="offset")
-            out += ["        if (%s) {" % condition]
-            if a.blob or a.table:
-                statement = "%s = value;" % member if write else "*value = %s;" % member
-            elif write:
-                statement = "%s = (%s)((%s & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));" % (member, a.type, member)
-            else:
-                statement = "*value = (uint8_t)(%s >> (offset * 8));" % member
-            out += ["            " + statement, "            return true;", "        }", "    }"]
+        if groups:
+            out += ["    switch (projection_at(addr)) {"]
+        for number, a in enumerate(groups, 1):
+            out += ["    case %d: {" % number, "        uint32_t offset = addr - 0x%06Xu;" % a.addr]
+            out += ["        " + line for line in projection_indices(a)]
+            out += ["        " + projection_statement(a, write), "        return true;", "    }"]
+        if groups:
+            out += ["    default: break;", "    }"]
         out += ["    return false;", "}", ""]
     return "\n".join(out)
 
@@ -1293,8 +1429,13 @@ def render_range_checks(m, checked):
             "{",
             "    VarsRangeFault *f = &range_faults[var];",
             "    if (f->kept < VARS_RANGE_HITS_KEPT) {",
+            "#ifdef CT_VARS_HOST",
+            "        uint32_t pc = 0; /* Native state has no emulated program counter. */",
+            "        (void)g;",
+            "#else",
             "        const NativeEntry *e = native_running_entry();",
             "        uint32_t pc = e ? e->addr : cpu_pc24(&state_snes(g)->cpu);",
+            "#endif",
             "        f->first[f->kept++] = (VarsRangeHit){ accessor, bound, index, limit, pc };",
             "    }",
             "    f->count++;",
