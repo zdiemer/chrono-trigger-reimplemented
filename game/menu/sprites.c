@@ -81,7 +81,8 @@ typedef uint16_t NodeLink;
 static unsigned node_of(NodeLink l) { return (unsigned)(l - FIRST_NODE) / NODE_BYTES; }
 
 /* Every link the list's code follows is a node or a head in the game, as the
- * mode's start lays them out; the guards of the list's own entries see to it.
+ * mode's start lays them out; the checks before the list's own routines see
+ * to it.
  * A link that is neither -- which a list the game never makes could hold -- is
  * reached as the original reaches every link, as a record at that address in
  * bank $7E: its fields at the offsets a node has them. */
@@ -555,7 +556,7 @@ static SpriteStep perform_sprite_command(GameState *g, MenuObject o, const Sprit
  * stops, and keep where it got to for next frame. A command past the
  * language's eight stops the script here, where the original jumps through
  * the words after its table into code: the game's sprite scripts have none,
- * and the guards hand a script that has one to the original
+ * and a script that has one goes no further
  * (menu_sprite_script_is_well_formed). */
 static void run_sprite_script(GameState *g)
 {
@@ -954,7 +955,7 @@ static void queue_frame(GameState *g, uint16_t vram, uint32_t source, uint8_t bl
 }
 
 /* A frame's tiles: 16 a block, as many as the record's sprite has blocks (a
- * record of none builds one), three blocks at most (the guards'). */
+ * record of none builds one), three blocks at most (as the loading checks). */
 enum { TILES_A_BLOCK = 16, MOST_BLOCKS = 3, MOST_FRAME_TILES = MOST_BLOCKS * TILES_A_BLOCK };
 typedef struct {
     uint16_t tile[MOST_FRAME_TILES];
@@ -1219,23 +1220,22 @@ void menu_hide_the_sprites(GameState *g) { hide_all_sprites(g); }
 // $C2:0CEA
 void menu_draw_the_sprite_list(GameState *g) { draw_the_list(g); }
 
-/* A record's sprite loaded, its graphics unpacked where it needs them
- * (data/decompress.c), `called` as the machine's entry called the unpacker. */
 // $C2:F422
-static void load_the_record_sprite(GameState *g, unsigned record, bool called)
+/* A record's sprite loaded, its graphics unpacked where it needs them
+ * (data/decompress.c). */
+static void load_the_record_sprite(GameState *g, unsigned record)
 {
     Unpacking u = load_record_sprite(g, record);
     if (!u.unpack)
         return;
     set_decompress_source(g, u.from);
     set_decompress_dest(g, WORK_RAM_BANK | u.to);
-    (void)(called ? unpack_stream_called(g, false) : unpack_stream(g));
+    (void)unpack_stream(g);
 }
 
 // $C2:F69B
 
-/* A record's sprite loaded, as C or on the machine; false where it went no
- * further. */
+/* A record's sprite loaded; false where it went no further. */
 typedef bool (*LoadRecord)(void *ctx, unsigned record);
 
 // $C2:F3CA
@@ -1258,7 +1258,7 @@ static bool load_record_sprites(GameState *g, LoadRecord load, void *ctx)
 static bool record_sprite_loadable(GameState *g, unsigned record);
 static bool opening_records_fit(GameState *g);
 
-/* Each load where its guard's state half takes it; otherwise the program goes
+/* Each load, where the state is one it handles; otherwise the program goes
  * no further there. */
 static bool load(void *ctx, unsigned record)
 {
@@ -1267,7 +1267,7 @@ static bool load(void *ctx, unsigned record)
         program_breaks_a_contract(g, 0xC2F422, "a record's sprite the port doesn't load");
         return false;
     }
-    TIMED_AS(g, 0xC2F422, load_the_record_sprite(g, record, false));
+    TIMED_AS(g, 0xC2F422, load_the_record_sprite(g, record));
     return true;
 }
 
@@ -1282,11 +1282,11 @@ bool menu_record_sprites_loaded(GameState *g)
     return load_record_sprites(g, load, g);
 }
 
-/* ---- The records' guards ---- */
+/* ---- What the records need ---- */
 
 /* What a record reads is the ROM or work RAM throughout the bank its
  * pointers name (a tile, a frame or an animation's place goes anywhere in
- * it), never a bank the I/O registers or open bus take part of. */
+ * it), never a bank the console's I/O or open bus take part of. */
 static bool readable(uint32_t at) { return ((uint8_t)(at >> 16) & 0x7F) >= 0x40; }
 
 /* A frame's blocks go in the frame buffer clear of the block move's stub
@@ -1352,7 +1352,7 @@ bool menu_records_can_run(const GameState *g)
 }
 
 /* A packed sprite must stop before the decode buffer reaches the end of its
- * work RAM bank: wrapping there would overwrite the menus' state and stack. */
+ * work RAM bank: wrapping there would overwrite the menus' state. */
 static bool sprite_graphics_fit(GameState *g, unsigned record, uint8_t set, uint8_t sprite)
 {
     if (set >= SPRITE_SETS)
@@ -1436,11 +1436,6 @@ void menu_start_the_records(GameState *g)
     set_menu_record_origin_y_high(g, 0);
     menu_start_task(g, MENU_RECORDS_TASK, RUN_THE_RECORDS);
 }
-
-/* For the original's code and shadow mode: the weapon whose colours it
- * looked up, and the multiplier left with the record found ($50 bytes a
- * record). */
-enum { CHARACTER_RECORD_BYTES = 0x50 };
 
 // $C2:F5ED
 MenuWeaponColours menu_weapon_colours(GameState *g, uint8_t character)

@@ -198,7 +198,7 @@ void menu_put_the_list_bands_back(GameState *g)
     menu_ask_for_the_block_move(g);
 }
 
-/* ---- The slide's entries ------------------------------------------------------------------------- */
+/* ---- What the slide takes ------------------------------------------------------------------------ */
 
 // $C2:EB1F
 

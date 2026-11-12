@@ -3,12 +3,9 @@
  * and a screen effect (a shake, or a palette preset's flash).
  *
  * The sound commands hand the sound driver a command through the audio
- * service (platform/audio.h), which on the development system runs the
- * driver's CPU half, the original's code at $C7:0004: they are bridges
- * (battle/scripts.c's table names them by command), which check that the
- * driver came back as the battle runs before the channel goes on. The effects play on one of the
- * driver's two pairs of effect voices, which the command names, panned to
- * where the sound comes from.
+ * service (platform/audio.h); battle/scripts.c runs them by command. The
+ * effects play on one of the driver's two pairs of effect voices, which the
+ * command names, panned to where the sound comes from.
  *
  * A screen effect is five settings bytes, which the command gives (as many
  * of them as its first byte says, the rest kept from the last it set);

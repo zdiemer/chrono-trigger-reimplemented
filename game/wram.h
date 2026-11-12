@@ -9,7 +9,7 @@
  * Every use is a buffer the RAM map hasn't typed, so every use is a finding, and
  * the list is meant to empty: `grep -rn wram_ game/` is the list. Prefer a name
  * in re/ram.toml whenever the address is fixed. What keeps this from being a
- * hole in the abstraction is that it names no machine: a backing that keeps the
+ * hole in the abstraction is that it names no hardware: a backing that keeps the
  * game's state in its own storage still has work RAM to put these buffers in
  * (docs/PLAN.md, "The game's state as C"). */
 #ifndef CT_GAME_WRAM_H
@@ -34,11 +34,10 @@ void wram_fill8(GameState *g, uint32_t at, uint32_t bytes, uint8_t v);
 void wram_fill16(GameState *g, uint32_t at, uint32_t words, uint16_t v);
 void wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes);
 
-/* Clear a transition's buffer, wrapping within its bank. The SNES backing
- * retains the transfer at `o` (and its elapsed time); the caller has set
- * the shared Mode 7 multiplier to zero. The host clears the buffer and keeps
- * the transfer's elapsed time in the state's work account.
- * Unlike the old transfer descriptor, bytes is a count: 65536 is a full bank. */
+/* Clear a transition's buffer, wrapping within its bank, as the original's
+ * transfer at `o` does from the Mode 7 multiplier the caller has set to zero:
+ * the buffer cleared, and the transfer's time kept in the state's work
+ * account. `bytes` is a count: 65536 is a full bank. */
 void wram_clear(GameState *g, PfOrigin o, uint32_t at, uint32_t bytes);
 
 #endif

@@ -16,9 +16,9 @@
  * paths and objects (battle/effect_paths.c, battle/object_motion.c,
  * battle/draw_objects.c).
  *
- * The steps call those services as C. Their machine adapters preserve the
- * call contracts and time boundaries while their callers remain under the
- * byte-exact gate; the native program uses the state/platform operations. */
+ * Each step is a call out of the frame work (WorkCall, UpdateCall,
+ * TailCall), charged at its routine's rate and refused where the port
+ * doesn't take its state. */
 #include "battle/frame.h"
 
 #include "battle/battle.h"
@@ -388,8 +388,9 @@ static void bring_the_upload_forward(GameState *g)
 
 /* The frame update's object work, each a routine of its own (battle/
  * effect_paths.c, battle/object_motion.c, battle/draw_objects.c), and the
- * effect sprites' attributes kept across it, where the original keeps them on
- * the stack. */
+ * points where the original saves and restores the effect sprites'
+ * attributes around it (UPDATE_KEEP_THE_ATTRIBUTES, UPDATE_ATTRIBUTES_BACK),
+ * which the port passes over. */
 typedef enum {
     UPDATE_PARTY_COLORS, UPDATE_EFFECT_SLOTS, UPDATE_SCRIPTED_MOVES, UPDATE_ANCHORS, UPDATE_TRAILS, UPDATE_NUMBERS,
     UPDATE_FORMATION, UPDATE_DRAW_OBJECTS, UPDATE_KEEP_THE_ATTRIBUTES, UPDATE_ATTRIBUTES_BACK, UPDATE_CALLS
@@ -581,7 +582,7 @@ static bool finish_the_wait(GameState *g, bool (*call)(void *ctx, TailCall call)
     return call(ctx, TAIL_MESSAGE);
 }
 
-/* ---- The entries ------------------------------------------------------------------------ */
+/* ---- The frame work by the battle's mode ------------------------------------------------- */
 
 /* The battle's modes, as the frame work runs them: the display's setup, then
  * the fight (and its end, which runs the same frame work). */
@@ -595,12 +596,10 @@ enum { FRAME_DISPATCH = 0xCD0C95 };
  * its routine. */
 void battle_scroll_the_map_layers(GameState *g) { TIMED_AS(g, 0xC02C41, field_scroll_layers_by_themselves(g)); }
 
-/* The guards. The frame update rotates a background palette's colors from
- * one below its last, as the game names them: the original's count of colors
- * to move runs round from none to 65536 for its last color. The dispatch
- * runs on the battle's page with A's high byte clear (its index takes it
- * along) and a mode its table has; the frame work with A's high byte clear too
- * (the block upload's table index takes it along), a scroll mode the
+/* What the frame work takes. The frame update rotates a background palette's
+ * colors from one below its last, as the game names them: the original's
+ * count of colors to move runs round from none to 65536 for its last color.
+ * The dispatch takes a mode its table has; the frame work a scroll mode the
  * dispatch's table has, and what the uploads and the frame update read in
  * range. */
 enum { LAST_COLOR = 0x0F };
@@ -616,12 +615,10 @@ static bool frame_work_fits(const GameState *g)
     return battle_vblank_uploads_in_range(g) && rotation_in_range(g) && battle_scroll_mode(g) < BATTLE_SCROLL_MODES;
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The frame work's calls ------------------------------------------------------------------- */
 
-/* Retain the established frame-dispatch work estimate when removing the
- * old upload/stack guard. It sampled both request flags seventeen times,
- * plus five bytes per queued transfer and two per block. The C stack is
- * independent of these uploads; only that measured work remains. */
+/* The frame dispatch's work, as measured: both request flags looked at
+ * seventeen times, plus five bytes per queued transfer and two per block. */
 static bool frame_work_takes(GameState *g)
 {
     if (!frame_work_fits(g))
@@ -656,9 +653,9 @@ typedef struct {
     Platform *pf;
 } BattleFrameContext;
 
-/* The object work, each with its guard's state half: the effects' paths of
- * a kind the game gives; the draw pass, someone on the battlefield; the rest
- * turn away only the page. */
+/* The object work, refused where the port doesn't take its state: the
+ * effects' paths of a kind the game doesn't give; the draw pass, nobody on
+ * the battlefield. */
 
 static const struct { uint32_t site, routine; } object_work[UPDATE_KEEP_THE_ATTRIBUTES] = {
     [UPDATE_PARTY_COLORS] = { 0xCFE5A7, 0xCFE7D7 }, [UPDATE_EFFECT_SLOTS] = { 0xCFE748, 0xCFEFAF },
@@ -688,9 +685,10 @@ static bool update_a_part(void *ctx, UpdateCall call)
     }
 }
 
-/* The frame work's calls, each with its guard's state half where it has
- * one: the HP gradient's step, its phase in range; the frame update, a
- * rotation it takes; the input, a controller read and no reset held. */
+/* The frame work's calls, each refused where the port doesn't take its
+ * state: the HP gradient's step, its phase out of range; the frame update, a
+ * rotation it doesn't take; the input, a controller not read or a reset
+ * held. */
 enum {
     FRAMES_INPUT = 0xC28002,
     BUTTON_REPEAT = 0xCD0340,
@@ -755,8 +753,9 @@ bool battle_frame_worked(GameState *g, Platform *pf)
     return work_the_frame(g, pf, work_a_part, &c);
 }
 
-/* The tail as C: the sounds and the message with their guards' state halves
- * (the sound's and the pause's turn away only a page). */
+/* The tail's calls: the sounds, the pause, the battlefield put back, the
+ * effect's graphics, and the message, refused where the menus' text code
+ * doesn't go on from it. */
 typedef struct {
     GameState *game;
     Platform *pf;

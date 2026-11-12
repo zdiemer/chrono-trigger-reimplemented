@@ -6,8 +6,8 @@
  * whom it will act on, the pose it shows -- and carried out on the enemy's
  * turn:
  *
- *   - its attacks and techs, worked out and shown by the effect code, which is
- *     the original's still (battle/enemy_turn.c);
+ *   - its attacks and techs, worked out and shown by the effect code
+ *     (battle/enemy_turn.c);
  *   - changing its own stats, or a combatant's turn wait;
  *   - leaving the fight, or dying, or changing into an enemy waiting in
  *     reserve, or bringing back enemies that were beaten;
@@ -65,7 +65,7 @@ void enemy_note_pose_kind(GameState *g);
  * choosing goes through the enemy's actions that many times and once more. */
 void enemy_choose_again(GameState *g, ScriptChoosing *c, ScriptPlace at);
 
-/* ---- Carrying out: the parts between the original's calls ---------------------------------- */
+/* ---- Carrying out: the parts between the turn's calls -------------------------------------- */
 
 /* $C1:ACF2: the action record the effect code reads: the actor, the action
  * and its number. */
@@ -109,19 +109,19 @@ void enemy_keep_message_before_tech(GameState *g, ScriptPlace at);
 void enemy_change_own_stat(GameState *g, StatChange change, bool adding);
 
 /* The stat changes, the counter and flags, the turn waits, leaving and dying:
- * the actions with no call of the original's but their message's, which it
+ * the actions with no call of their own but their message's, which it
  * returns (0 for none). */
 uint8_t enemy_carry_out(GameState *g, uint8_t enemy, EnemyAction action, ScriptPlace at);
 
 /* $C1:9B8D: change into the enemy waiting in reserve the action names. It
- * takes the actor's HP, or where the action says so, it is brought in by the
- * original's code. */
+ * takes the actor's HP, or where the action says so, it is brought in as an
+ * arrival (battle/enemy_turn.c). */
 typedef enum { NONE_TO_CHANGE_INTO, CHANGED, CHANGED_TO_BRING_IN } ChangeInto;
 ChangeInto enemy_change_into(GameState *g, ScriptPlace at);
 void enemy_change_ends(GameState *g);
 
-/* $C1:9E78: the enemies that were beaten come back, each brought in by the
- * original's code: the next to bring in, from `enemy`, or BATTLE_ENEMIES. */
+/* $C1:9E78: the enemies that were beaten come back, each brought in as an
+ * arrival: the next to bring in, from `enemy`, or BATTLE_ENEMIES. */
 uint8_t enemy_next_to_bring_back(const GameState *g, uint8_t enemy);
 void enemy_bring_back_starts(GameState *g, ScriptPlace at);
 void enemy_bring_back(GameState *g, uint8_t enemy, uint8_t count);

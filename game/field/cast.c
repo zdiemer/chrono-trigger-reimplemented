@@ -27,7 +27,6 @@
 #include "field/graphics.h"
 #include "field/party.h"
 #include "field/bridge.h"
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -35,7 +34,7 @@
 
 /* The four tables a record's fields pick from (field_data.h), where
  * field_sprite_data_tables points them. The game points them all into bank
- * $E4; the guards leave any other place to the original. */
+ * $E4; the port refuses any other place. */
 enum { SPRITE_TABLES_BANK = 0xE4 };
 
 static uint32_t sprite_table(const GameState *g, FieldSpriteTable table) { return field_sprite_data_tables(g, table); }
@@ -350,7 +349,7 @@ static SharedEntry entry_holding(const GameState *g, uint8_t set)
     return (SharedEntry){ false, 0 };
 }
 
-/* The guards': an entry for the set, its unpacker an object the tables hold. */
+/* What the port checks: an entry for the set, its unpacker an object the tables hold. */
 bool cast_graphics_entry_for(const GameState *g, uint8_t set)
 {
     SharedEntry held = entry_holding(g, set);
@@ -361,7 +360,7 @@ bool cast_graphics_entry_for(const GameState *g, uint8_t set)
 
 // $C0:5C90
 /* The set an object of the map has unpacked already, or the first free entry
- * taken for this object's (the guards see there is one). */
+ * taken for this object's (the port has checked there is one). */
 static bool share_graphics(GameState *g, FieldObject obj, uint8_t set)
 {
     SharedEntry held = entry_holding(g, set);
@@ -489,7 +488,7 @@ void enemy_takes_its_place(GameState *g, Platform *pf, FieldObject obj, uint8_t 
         object_become(g, obj, ROLE_ENEMY_SET_APART);
 }
 
-/* The guard's: the block among the blocks, and a figure's drawing one the
+/* What the port checks: the block among the blocks, and a figure's drawing one the
  * port does, with the graphics the enemy will have. */
 bool cast_enemy_fits(const GameState *g, uint8_t enemy, uint8_t slot)
 {

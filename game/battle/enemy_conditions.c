@@ -661,8 +661,7 @@ typedef struct {
     /* How far the original reads the script for it, the operand whose place
      * it leaves (0 for the kind's own): past where a nobody-picked stops. */
     uint8_t reads_to;
-    /* Its third operand names a side, a search past the searches (the
-     * guards'). */
+    /* Its third operand names a side, a search past the searches. */
     bool names_side;
     uint32_t timed_as; /* the original's routine, whose time it is */
 } ConditionRow;

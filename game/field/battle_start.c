@@ -33,7 +33,6 @@
 #include "cpu_io.h"
 #include "event/party.h"
 #include "field/bridge.h"
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -75,9 +74,9 @@ static bool on_the_battlefield(const GameState *g, FieldObject obj, MapTile corn
 /* The search starts at the map's object count, which on a map of all 64 is
  * the slot one past the tables (field/object.h, "Past the tables"). Nobody
  * stands there: its bytes are object 0's in the next tables, and they read
- * as an enemy on the screen only by chance, which the guard leaves to the
- * original; otherwise the search finds nothing there, and starts at the
- * last object. */
+ * as an enemy on the screen only by chance, which the port refuses;
+ * otherwise the search finds nothing there, and starts at the last
+ * object. */
 static FieldObject last_searched(const GameState *g)
 {
     uint8_t count = event_object_count(g);
@@ -212,10 +211,6 @@ static uint8_t battle_kind(const GameState *g, FieldObject obj)
     return (uint8_t)(kind | (object_has_no_sprite(g, obj) ? KIND_HIDDEN : 0));
 }
 
-/* For the original's code and shadow mode: what it worked out last for an
- * enemy, in the cells it keeps it in, and its place on the multiplier. */
-enum { PLACE_BYTES = 12 };
-
 // $C0:0557
 static void keep_the_enemy(GameState *g, FieldObject obj, MapTile corner)
 {
@@ -308,8 +303,7 @@ void field_hand_over_to_a_battle(GameState *g)
 /* ---- The start, as one sequence --------------------------------------------------------------- */
 
 /* With no enemy on the screen the party comes back together and walks a
- * frame (event/party.c, field/main_loop.c), which the machine runs from the
- * original's call and the program as C. */
+ * frame (event/party.c, field/main_loop.c). */
 typedef bool (*BackTogether)(void *ctx);
 
 // $C0:024C
@@ -327,7 +321,7 @@ static FieldBattleStart battle_begins(GameState *g, BackTogether back_together, 
 
 static bool battle_fits(const GameState *g);
 
-/* As C, each with its guard's state half first. */
+/* The steps, each checking first that the port takes it. */
 typedef struct {
     GameState *game;
     Platform *pf;
@@ -356,9 +350,9 @@ FieldBattleStart field_battle_set_up(GameState *g, Platform *pf)
     return battle_begins(g, come_back_together, &c);
 }
 
-/* ---- The entry ------------------------------------------------------------------------------- */
+/* ---- What the port takes ---------------------------------------------------------------------- */
 
-/* The guard: on the field's page with the data bank $00; the party's places
+/* The battle's start the port takes: the party's places
  * objects or none, the leader's an object whose word is clear above its link
  * (the original reads its place through the word); the map's object count
  * inside the tables, or all of them with the slot past them no enemy (the

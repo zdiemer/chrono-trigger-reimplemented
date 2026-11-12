@@ -65,7 +65,7 @@ void effect_take_tech_members(GameState *g, uint8_t tech);
 
 void effect_use_item(GameState *g, Platform *pf);
 
-/* For the entries' guards: whether the port works out an effect of a kind
+/* For the checks of what the port takes: whether it works out an effect of a kind
  * with these flags and modifier for this actor, and whether the action's
  * targets are combatants (battle/effect_work.c). */
 bool effect_kind_ported(const GameState *g, uint8_t actor, uint8_t kind, uint8_t flags, uint8_t more_flags,

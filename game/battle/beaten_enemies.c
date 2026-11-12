@@ -20,12 +20,9 @@
  * changes to the rule's own and BG1 leaves the main screen; on a battlefield
  * the screen effects made, it dissolves with the sound as any other.
  *
- * The work is C on the game's state: which way an enemy leaves, a dissolve's
- * step, the palette. The rest is the bridge around the waits between frames
- * and the transfers, which are the battle's (battle/wait.c, battle/uploads.c):
- * each is made where the original makes it, with what the original keeps on
- * the stack there, since shadow mode pairs a call with the original's by its
- * site and its stack. */
+ * The waits between frames and the transfers (battle/wait.c,
+ * battle/uploads.c) are calls out of the work (BeatenCall), each made where
+ * the original makes it. */
 #include "battle/animation_data.h"
 #include "battle/battle.h"
 #include "battle/bridge.h"
@@ -129,9 +126,6 @@ static void leave_the_step_over_the_effect_settings(GameState *g, uint8_t slot)
  * steps each. */
 enum { DISSOLVE_PACE = 7, STILL_FRAMES = 10, DISSOLVE_FRAMES = 32, STEPS_A_FRAME = 2, FIRST_UPLOAD = 0 };
 
-/* Where the original keeps a dissolve's state across its frames, for its own
- * step's routine and for shadow mode: the frames gone and the place come to. */
-
 static uint32_t tiles_of(const GameState *g, uint8_t slot)
 {
     return (uint32_t)TILE_BUFFER_BANK << 16 | battle_object_tile_buffer(g, slot);
@@ -142,8 +136,9 @@ static uint32_t tiles_of(const GameState *g, uint8_t slot)
  * sound.c), the dissolve's steps sent to VRAM and waited for, the
  * battlefield loaded and its scripts run (battle/battlefield_change.c), the
  * dissolve and the battlefield's change as routines of their own under a
- * rule, and what the original keeps on the stack around the battlefield's
- * wait for the old scripts. */
+ * rule, and where the original saves and restores a word around the
+ * battlefield's wait for the old scripts (BEATEN_OLD_SCRIPTS_BEGIN and
+ * _GONE), which the port passes over. */
 typedef enum {
     BEATEN_STILL_FRAMES, BEATEN_STEPS_SENT, BEATEN_DISSOLVE_TAIL, BEATEN_SOUND,
     BEATEN_OLD_SCRIPTS_BEGIN, BEATEN_OLD_SCRIPTS_FRAME, BEATEN_OLD_SCRIPTS_GONE, BEATEN_LOAD_THE_BATTLEFIELD,
@@ -319,8 +314,8 @@ typedef bool (*SeeOff)(void *ctx, uint8_t slot);
 
 /* After the search, where the last enemy it found drawn stayed on the field
  * (none seen off after it), the record's place it worked out stays in its
- * cell, and its slot in A, which leaves A's high byte clear for the step's
- * asker. Otherwise the last call to see an enemy off left them. */
+ * cell, with its slot. Otherwise the last call to see an enemy off left
+ * them. */
 typedef struct {
     bool any;
     uint8_t slot;
@@ -353,7 +348,7 @@ static bool see_the_beaten_enemies_off(GameState *g, SeeOff see_off_an_enemy, vo
     return true;
 }
 
-/* ---- The guards ------------------------------------------------------------------------------- */
+/* ---- What the port sees off ------------------------------------------------------------------- */
 
 static bool an_enemy(uint8_t slot) { return slot >= BATTLE_FIRST_ENEMY && slot < BATTLE_COMBATANTS; }
 
@@ -363,8 +358,8 @@ static bool dissolves(const GameState *g, uint8_t slot)
     return an_enemy(slot) && dissolve_layout(g, slot) < BATTLE_DISSOLVE_LAYOUTS;
 }
 
-/* The beaten enemies: on the battle's page, every beaten enemy's palette one
- * of the eight sprite palettes, as the game keeps it (doubled); the original
+/* The beaten enemies: every beaten enemy's palette one of the eight sprite
+ * palettes, as the game keeps it (doubled); the original
  * finds the colors of any other in a byte's reach, past the palettes. */
 enum { SPRITE_PALETTES = 8 };
 
@@ -379,15 +374,15 @@ static bool palettes_as_kept(const GameState *g)
     return true;
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- Seeing them off ---------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
     Platform *pf;
 } BeatenEnemiesContext;
 
-/* Each with its guard's state half: the dissolve's, an enemy whose tiles'
- * layout the dissolve's runs have. */
+/* Each call; the dissolve is refused for an enemy whose tiles' layout the
+ * dissolve's runs don't have. */
 static bool see_to_a_part(void *ctx, BeatenCall call, BeatenArgs a)
 {
     BeatenEnemiesContext *c = ctx;

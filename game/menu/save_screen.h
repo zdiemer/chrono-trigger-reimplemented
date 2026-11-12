@@ -26,16 +26,14 @@ void menu_put_slot_rows_effect(GameState *g);
  * era label, its members' rows and portraits ($C2:D36C). */
 void menu_draw_the_slot_shown(GameState *g, Platform *pf);
 
-/* The same as C ($C2:D156): the three slots read as the menus open; false
- * where a guard's state half doesn't take a slot, the program going no
- * further there. */
+/* The three slots read as the menus open ($C2:D156); false where a slot is
+ * none the reading handles, the program going no further there. */
 bool menu_save_slots_read(GameState *g, Platform *pf);
-/* A slot's summary read back once its game is saved ($C2:D19F), as C; false
- * where its guard's state half doesn't take it, the program going no
- * further there. */
+/* A slot's summary read back once its game is saved ($C2:D19F); false where
+ * it is none the reading handles, the program going no further there. */
 bool menu_slot_summary_read_back(GameState *g, Platform *pf);
-/* The empty slot's label drawn in the place of the slot shown's, as C;
- * false where the program went no further. */
+/* The empty slot's label drawn in the place of the slot shown's; false
+ * where the program went no further. */
 bool menu_draw_empty_label(GameState *g);
 
 #endif

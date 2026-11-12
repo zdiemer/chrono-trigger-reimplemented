@@ -11,14 +11,13 @@
  * The commands are the language's rows (battle/script_language.h, the
  * script_*.c files and battle/numbers.c hold them), one for every command
  * byte. A command whose row's operation can run in the state runs it, timed
- * as the original's handler; a command with a bridge (the sound commands,
- * the table below) runs as its handler's entry, called as the original's
- * runner calls it. What a row's
- * needs turn away calls the original's handler, found through its dispatch
- * table (battle/script_data.h), with the channel's place in the script in
- * battle_script_pointer, which the handler reads its operands through and
- * moves on past them; a command that lets the channel go on within the frame
- * sets battle_script_continue. */
+ * as the original's handler (found through its dispatch table, battle/
+ * script_data.h); the sound commands play their sound (battle/
+ * script_sound.c). A command whose row's needs the state doesn't meet goes
+ * no further. The channel's place in the script is battle_script_pointer,
+ * which a command reads its operands through and moves on past them; a
+ * command that lets the channel go on within the frame sets
+ * battle_script_continue. */
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/effects.h"
@@ -32,8 +31,8 @@
 /* The last command byte the language has: a byte past it holds the channel. */
 enum { LAST_COMMAND = 0xDA };
 
-/* The original's handler for a command, which the call-outs and the
- * commands' timing go by (battle/script_data.h). The runner's read of its
+/* The original's handler for a command, which a refusal names and the
+ * commands' timing goes by (battle/script_data.h). The runner's read of its
  * dispatch table is the runner's own time, which the channels' estimate was
  * calibrated without, so it is left out of it. */
 static uint32_t handler_of(GameState *g, uint8_t command)
@@ -82,9 +81,9 @@ static void run_operation(GameState *g, uint8_t command, const ScriptOpcode *row
     TIMED_AS(g, handler_of(g, command), script_move_on(g, row, script_operate(g, row)));
 }
 
-/* How a command the channel comes to runs: its operation, its bridge (the
- * sound commands, run as their handler's entry), or the original's handler;
- * and, told after it, that the operation ran. */
+/* How a command the channel comes to runs: its operation, its sound (the
+ * sound commands), or, where the port doesn't run it, its handler (a
+ * refusal); and, told after it, that the operation ran. */
 typedef enum { RUN_THE_OPERATION, RUN_THE_SOUND, RUN_THE_HANDLER, THE_OPERATION_RAN } CommandRuns;
 
 static CommandRuns how_it_runs(const GameState *g, uint8_t command, const ScriptOpcode *row)
@@ -148,15 +147,15 @@ static bool run_scripts(GameState *g, bool (*run)(void *ctx, unsigned channel), 
     return true;
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The scripts run -------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
     Platform *pf;
 } BattleScriptsContext;
 
-/* A bridge's command, the sounds, as C; a command whose handler is the
- * original's goes no further. */
+/* A command run outside its operation: the sounds, played here; any other
+ * command the port doesn't run goes no further. */
 static bool command_elsewhere(void *ctx, uint8_t command, const ScriptOpcode *row, CommandRuns runs)
 {
     BattleScriptsContext *c = ctx;

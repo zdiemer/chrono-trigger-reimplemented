@@ -273,7 +273,7 @@ static bool someone_has_it(GameState *g)
 // $C2:E363
 /* Accepting: the character's own name loses its first letter, so that the
  * check never finds it, and the name typed is kept with its spaces
- * dropped; then it is checked (the bridge buzzes where someone has it). */
+ * dropped; then it is checked (a buzz where someone has it). */
 void menu_naming_keep_the_name(GameState *g)
 {
     set_name_letter(g, named(g), 0, END_OF_NAME);
@@ -559,7 +559,6 @@ static bool wait_to_name(GameState *g, Platform *pf, const NamingSteps *n, void 
     (void)pf;
     if (menu_naming_waits(g))
         return true;
-    n->note(ctx, NAMING_NOTE_PRESSED_LOADED, 0);
     if (!n->sound(ctx, 0xC2E20E, MENU_SOUND_CURSOR))
         return false;
     menu_naming_take_the_cursor(g);
@@ -573,16 +572,12 @@ static bool choose_battle_mode(GameState *g, Platform *pf, const NamingSteps *n,
 {
     (void)pf;
     n->read_cursor(ctx);
-    uint8_t shown = menu_description_item(g);
     TIMED_AS(g, 0xC2E5D3, menu_naming_describe_the_battle_mode(g));
-    n->note(ctx, NAMING_NOTE_MODE_DESCRIBED, shown);
-    n->note(ctx, NAMING_NOTE_BUTTONS_TESTED, 0);
     if (menu_asked(g, MENU_CHOOSE)) {
         menu_naming_choose_the_battle_mode(g);
         return n->ends(ctx, NAMING_FADES_OUT);
     }
     bool moved = menu_cursor_index(g) != menu_cursor_frame_start(g);
-    n->note(ctx, NAMING_NOTE_CURSOR_COMPARED, 0);
     return !moved || n->sound(ctx, 0xC2E248, MENU_SOUND_CURSOR);
 }
 
@@ -590,10 +585,7 @@ static bool choose_battle_mode(GameState *g, Platform *pf, const NamingSteps *n,
 /* A letter typed or taken back, with a tick; the name drawn again. */
 static bool type_on_the_name_grid(GameState *g, Platform *pf, const NamingSteps *n, void *ctx)
 {
-    n->note(ctx, NAMING_NOTE_BUTTONS_TESTED, 0);
     NamingTyped t = menu_naming_type(g);
-    if (t == NAMING_LETTER_TAKEN_BACK)
-        n->note(ctx, NAMING_NOTE_LETTERS_LOADED, (uint8_t)menu_name_letters(g));
     if (t != NAMING_NOTHING_TYPED && !n->sound(ctx, 0xC2E30D, MENU_SOUND_CURSOR))
         return false;
     menu_naming_draw_the_name(g, pf);
@@ -607,14 +599,11 @@ static bool move_on_the_name_grid(GameState *g, Platform *pf, const NamingSteps 
 {
     (void)pf;
     bool moved = menu_naming_move_on_the_grid(g);
-    n->note(ctx, NAMING_NOTE_MOVED_ON_THE_GRID, 0);
     if (moved && !n->sound(ctx, 0xC2E287, MENU_SOUND_CURSOR))
         return false;
-    n->note(ctx, NAMING_NOTE_BUTTONS_TESTED, 0);
     if (!n->routine(ctx, NAMING_TYPE_ON_THE_GRID))
         return false;
     menu_naming_show_the_name(g);
-    n->note(ctx, NAMING_NOTE_NAME_QUEUED, 0);
     return true;
 }
 
@@ -626,11 +615,9 @@ static bool check_the_name(GameState *g, Platform *pf, const NamingSteps *n, voi
     (void)pf;
     bool someone = menu_naming_someone_has_it(g);
     if (someone) {
-        n->note(ctx, NAMING_NOTE_NAME_FOUND, 0);
         if (!n->sound(ctx, 0xC2E3FB, MENU_SOUND_REFUSAL))
             return false;
     }
-    n->note(ctx, NAMING_NOTE_ANSWERED, !someone);
     return true;
 }
 
@@ -640,11 +627,10 @@ static bool accept_the_name(GameState *g, Platform *pf, const NamingSteps *n, vo
 {
     (void)pf;
     menu_naming_keep_the_name(g);
-    n->note(ctx, NAMING_NOTE_NAME_KEPT, 0);
     if (!n->routine(ctx, NAMING_CHECK_THE_NAME))
         return false;
-    bool given = !menu_naming_someone_has_it(g) && menu_naming_give_the_name(g);
-    n->note(ctx, NAMING_NOTE_ANSWERED, given);
+    if (!menu_naming_someone_has_it(g))
+        (void)menu_naming_give_the_name(g);
     return true;
 }
 
@@ -659,7 +645,6 @@ static bool name_the_character(GameState *g, Platform *pf, const NamingSteps *n,
         return false;
     if (!menu_naming_started(g))
         return true;
-    n->note(ctx, NAMING_NOTE_START_PRESSED, 0);
     if (!n->routine(ctx, NAMING_ACCEPT_THE_NAME))
         return false;
     return !menu_naming_name_given(g) || n->ends(ctx, NAMING_LEAVES_THE_MENUS);
@@ -667,8 +652,7 @@ static bool name_the_character(GameState *g, Platform *pf, const NamingSteps *n,
 
 typedef bool (*NamingStepRun)(GameState *g, Platform *pf, const NamingSteps *n, void *ctx);
 
-/* The steps and the routines, with what each takes of the state as the port
- * does (its entry's guard on the machine): a named one, the naming whole, the
+/* The steps and the routines, with what each needs of the state: a named one, the naming whole, the
  * cursor movable. */
 typedef enum {
     TAKES_NOTHING_MORE = 0,
@@ -716,9 +700,7 @@ bool menu_naming_routine(GameState *g, Platform *pf, NamingRoutine routine, cons
     return routines[routine].run(g, pf, n, ctx);
 }
 
-uint32_t menu_naming_routine_address(NamingRoutine routine) { return routines[routine].routine; }
-
-/* ---- The steps as C ------------------------------------------------------------------------------- */
+/* ---- The steps' services ------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
@@ -741,10 +723,8 @@ static bool sound(void *ctx, uint32_t site, MenuSound sound)
 
 static bool routine(void *ctx, NamingRoutine routine);
 
-static void note(void *ctx, NamingNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
-
-/* The steps' ends, as the menus' own as C: the fade in's task started, the
- * screen faded out, or the menus closed, which never comes back. */
+/* The steps' ends: the fade in's task started, the screen faded out, or the
+ * menus closed, which never comes back. */
 static bool ends(void *ctx, NamingEnd end)
 {
     NamingContext *c = ctx;
@@ -756,7 +736,7 @@ static bool ends(void *ctx, NamingEnd end)
     return true;
 }
 
-static const NamingSteps in_the_program = { read_cursor, sound, routine, note, ends };
+static const NamingSteps the_steps = { read_cursor, sound, routine, ends };
 
 static bool routine(void *ctx, NamingRoutine routine)
 {
@@ -766,7 +746,7 @@ static bool routine(void *ctx, NamingRoutine routine)
         return false;
     }
     bool back = false;
-    TIMED_AS(c->game, routines[routine].routine, back = routines[routine].run(c->game, c->pf, &in_the_program, c));
+    TIMED_AS(c->game, routines[routine].routine, back = routines[routine].run(c->game, c->pf, &the_steps, c));
     return back;
 }
 
@@ -778,5 +758,5 @@ bool menu_naming_step(GameState *g, Platform *pf)
         return false;
     }
     NamingContext c = { g, pf };
-    return steps[step].run(g, pf, &in_the_program, &c);
+    return steps[step].run(g, pf, &the_steps, &c);
 }

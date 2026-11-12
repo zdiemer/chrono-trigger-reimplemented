@@ -12,17 +12,14 @@
  * it (battle/sound.c's pause). */
 void battle_sit_out_a_paused_frame(GameState *g, Platform *pf);
 
-/* ---- The frame work's waits, from the original's calls ---------------------------------------- */
+/* ---- The frame work's waits ----------------------------------------------------------------- */
 
 /* The frame work's waits: for its vblank handler's frame ($CD:3E7D), for the
  * next frame, with the menu's turn after ($CD:3E75), and for a number of
- * frames ($CD:3E3B). They carry A's high byte on to the battle's pause, which
- * reads it; the low byte the first two keep for their caller, and the frames'
- * wait takes its count in it, as do the loops that count in A across the
- * others. */
+ * frames ($CD:3E3B). */
 enum { BATTLE_HANDLER_WAIT = 0xCD3E7D, BATTLE_NEXT_FRAME_WAIT = 0xCD3E75, BATTLE_SOME_FRAMES_WAIT = 0xCD3E3B };
 
-/* ---- The waits as C ------------------------------------------------------------------------- */
+/* ---- The waits ------------------------------------------------------------------------------ */
 
 /* The battle's wait for the next frame ($C1:007E); a frame as the battle
  * hands back to the field ($CF:FCFB); the frame work's waits for its

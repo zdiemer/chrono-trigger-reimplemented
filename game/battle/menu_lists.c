@@ -12,9 +12,9 @@
  * with its name, how many there are, and a word after them. An item only
  * some members may use is shaded for the others.
  *
- * Laying out works in the original's direct-page cells, and converts names in
- * its name buffer; their final values are left as scaffolding at the end of
- * each (the leave_* functions). */
+ * Laying out works in the original's work cells, and converts names in
+ * its name buffer; their final values are left as the original leaves them
+ * at the end of each (the leave_* functions). */
 #include "charge.h"
 #include "battle/choosing.h"
 

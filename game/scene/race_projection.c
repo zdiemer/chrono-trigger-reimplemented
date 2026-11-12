@@ -24,7 +24,8 @@
  * right at his nearest. Each rule has one term for its unit, and "The units
  * the placing hands on" works them out from the values the sums before used.
  * The sums whose carry is the same wherever the horizon is above the plane's
- * top are plain arithmetic, and the entry's guard keeps the horizon there. */
+ * top are plain arithmetic, and the task goes no further with the horizon
+ * anywhere else (bikes_placeable). */
 #include "charge.h"
 #include "scene/race.h"
 
@@ -161,7 +162,7 @@ static uint8_t divisor_for(GameState *g, uint16_t distance)
     return kept;
 }
 
-/* The lines from the horizon down to the plane's top, less one (the guard
+/* The lines from the horizon down to the plane's top, less one (the task
  * keeps the horizon above the plane's top, and the gap on the screen); for a
  * bike at the camera whose place down the plane wrapped (DistanceUnits'
  * farther), not less one. */
@@ -412,7 +413,7 @@ static void hand_over_working_cells(GameState *g, Racer last, uint16_t gap)
 
 /* A bike right at the camera (nothing of it ahead) has no distance to look a
  * divisor up for, and stands where the bike placed before it this frame does
- * (the guard turns away a first bike at the camera). Returns the horizon's gap
+ * (the task goes no further with a first bike at the camera). Returns the horizon's gap
  * the bike was placed over. */
 static uint16_t place_one(GameState *g, Places p, Racer r)
 {
@@ -465,9 +466,7 @@ static void place_bikes(GameState *g)
  * whose search for a divisor ends (one the program has kept, or one some
  * divisor brings the camera's height under; with none the original searches
  * forever), or right at the camera after another bike was placed (a first
- * bike there takes whatever the turn's arithmetic left as its divisor). The
- * data bank reaches the CPU's divider, which the program reaches through
- * it. */
+ * bike there takes whatever the turn's arithmetic left as its divisor). */
 enum { LARGEST_DIVISOR = 0xFF };
 
 static bool horizon_fits(const GameState *g)
@@ -493,13 +492,13 @@ static bool placeable(const GameState *g, uint16_t down, DistanceUnits u, bool a
 }
 
 /* A bike placed after another takes a unit from how the first was placed,
- * which the guard can't know before either is: it takes both. */
+ * which can't be known before either is: both must be placeable. */
 static bool placeable_whatever_the_unit(const GameState *g, uint16_t down)
 {
     return placeable(g, down, units_with(g, down, false), true) && placeable(g, down, units_with(g, down, true), true);
 }
 
-/* The guard's state half, which the C path checks too. */
+/* Whether the port places the bikes; otherwise the scene goes no further. */
 static bool bikes_placeable(const GameState *g)
 {
     Places p = places_of(g);
@@ -523,7 +522,7 @@ TaskEnd scene_race_place_bikes(GameState *g, Platform *pf, unsigned slot)
     (void)pf;
     (void)slot;
     if (!bikes_placeable(g))
-        return scene_task_needs_the_machine(g, 0x7E4D0D, "bikes placed where the port's sums don't reach");
+        return scene_task_goes_no_further(g, 0x7E4D0D, "bikes placed where the port's sums don't reach");
     place_bikes(g);
     return task_goes_on();
 }

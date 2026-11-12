@@ -64,7 +64,7 @@ typedef enum {
 
 /* Whether the movement goes by the enemy's target (battle_enemy_target_seen),
  * so runs only where the enemy has one: waiting for the target to move goes
- * on with none, as its entry's guard takes it. */
+ * on with none. */
 bool battle_enemy_movement_needs_target(EnemyMovement movement);
 
 /* A step of the enemy's movement, the variant its animation picks. */
@@ -109,9 +109,7 @@ void battle_step_palette_animations(GameState *g);
 void battle_find_effect_animations(GameState *g);
 
 /* The combatants' animations step a frame: the party's, or a group of
- * enemies', by the frame's phase (battle/animation.c, $C1:2D9F). The
- * original indexes the enemies' order with A's high byte along, which the
- * game keeps clear. */
+ * enemies', by the frame's phase (battle/animation.c, $C1:2D9F). */
 void battle_step_combatants(GameState *g);
 /* The current group's looks and frame-part buffers can hold its animation. */
 bool battle_animations_fit(GameState *g);
@@ -138,7 +136,8 @@ void battle_show_pose_look(GameState *g, unsigned slot);
 void battle_take_off_the_look(GameState *g, unsigned slot);
 
 /* Whether the party's palettes keep the colours a look puts back among the
- * sprites', as the game's do (the looks' guards, and the animations' step's). */
+ * sprites', as the game's do (checked before the looks and the animations'
+ * step run). */
 bool battle_pose_looks_fit(const GameState *g);
 
 /* The poses' round: the next combatant takes the pose its statuses give it,
@@ -169,8 +168,8 @@ void battle_mark_combatants_on_grid(GameState *g);
  * $C1:283D). */
 void battle_update_all_bounds(GameState *g);
 
-/* The enemies' animation effects that are due run their step ($C1:3714),
- * as C: false where one went no further. */
+/* The enemies' animation effects that are due run their step ($C1:3714):
+ * false where one went no further. */
 bool battle_enemy_effects_stepped(GameState *g, Platform *pf);
 
 static inline unsigned battle_combatant_object(unsigned slot) { return BATTLE_COMBATANT_FIRST_OBJECT + slot; }

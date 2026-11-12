@@ -22,7 +22,6 @@
 #include "field/object.h"
 
 #include "field/bridge.h"
-#include "field/scratch.h"
 #include "platform/video.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -122,14 +121,15 @@ static uint16_t switch_tile_at(uint16_t step, unsigned step_column, unsigned col
     return (uint16_t)(step + column - step_column - up * MAP_ROW);
 }
 
-/* The one-by-two switch's upper tile, as the guard asks. */
+/* The one-by-two switch's upper tile, which the main loop's requests check
+ * (field/requests.c). */
 uint16_t field_switch_upper_tile(uint16_t step) { return switch_tile_at(step, 0, 0, 1); }
 
 // $C0:0D45-$C0:16DB (the step event's switches)
 /* Press the switch the leader stepped on, if the tile is one: its tiles move
  * on in the map. (The original moves the one-by-two switch's upper tile on
- * as a word with the tile to its right, which only a tile of $FF would carry
- * into; the guard refuses one.) */
+ * as a word with the tile to its right, which only a tile of $FF would run
+ * into; the port refuses one.) */
 SwitchPress field_press_switch(GameState *g, uint16_t step)
 {
     SwitchPress p = { false, SWITCH_ONE_BY_TWO, 0 };
@@ -347,7 +347,7 @@ void field_press_the_remembered_switches(GameState *g)
     }
 }
 
-/* Its guard's part: each step remembered is on the map, and so is each tile
+/* What the port checks: each step remembered is on the map, and so is each tile
  * of the switch it presses. */
 bool field_remembered_switches_on_the_map(const GameState *g)
 {
@@ -360,19 +360,3 @@ bool field_remembered_switches_on_the_map(const GameState *g)
     }
     return true;
 }
-
-uint16_t field_step_kept_at(const GameState *g, uint16_t step)
-{
-    for (unsigned i = 0; i < FIELD_PRESSED_TILES_COUNT; i++)
-        if (field_pressed_tiles(g, i) == step)
-            return step;
-    return field_pressed_tiles(g, FIELD_PRESSED_TILES_COUNT - 1);
-}
-
-unsigned field_switch_entry_count(const GameState *g)
-{
-    const SwitchShapeTiles *s = pressed_shape(g);
-    return (unsigned)s->columns * s->rows * 4u;
-}
-
-unsigned field_switch_rows(SwitchShape shape) { return shapes[shape].rows; }

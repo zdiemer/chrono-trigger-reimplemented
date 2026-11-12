@@ -17,9 +17,9 @@
  * The list window's rows show what fits, from the list's first row, its
  * name only; it ends at the first place of the list that holds nothing.
  *
- * The windows' slides wait a frame between their steps, so equipment_
- * bridge.c runs them, a frame at a time, waiting for the next frame between
- * the steps here. */
+ * The windows' slides wait a frame between their steps, so their sequences
+ * (menu/equipment.c) run them a frame at a time, waiting for the next frame
+ * between the steps here. */
 #include "menu/equipment.h"
 
 #include "charge.h"
@@ -598,11 +598,6 @@ void menu_equip_open_the_list(GameState *g)
 {
     schedule_table_copy(g, STAGED_TABLE, LIVE_TABLE, WHOLE_TABLE_BYTES);
     TIMED_AS(g, 0xC2F2F3, menu_describe_item(g, menu_list_items(g, DESCRIBED_PLACE)));
-}
-
-bool menu_equip_opening_starts_typing(const GameState *g)
-{
-    return menu_description_shows_another(g, menu_list_items(g, DESCRIBED_PLACE));
 }
 
 void menu_equip_settle_the_list(GameState *g)

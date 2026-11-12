@@ -105,8 +105,8 @@ void fight_take_member_record(GameState *g, uint8_t member)
 
 // $C1:FDAE
 /* Ayla's fists, the weapon she fights with: a better one every 24 levels, from
- * the first ($44). The original divides with the carry its caller's test for
- * Ayla left set. */
+ * the first ($44). The original divides with the top bit of the leftover
+ * high word set (battle_divide_leftover_marked). */
 enum { FIRST_FISTS = 0x44, LEVELS_A_FIST = 24 };
 
 uint8_t fight_aylas_fists(GameState *g, uint8_t level)
@@ -280,8 +280,8 @@ void fight_ward_off_confusion(GameState *g)
 
 /* ---- The weapons -------------------------------------------------------------------------------- */
 
-/* The marks the battle keeps beside a carried weapon, which nothing reads
- * (scaffolding): $80, 1, and the party-slot bit of the character the weapon
+/* The marks the battle keeps beside a carried weapon, which nothing reads:
+ * $80, 1, and the party-slot bit of the character the weapon
  * is made for, where that character is in the party. The character is the
  * first of the weapon's bits from the top; a weapon made for none reads past
  * the characters' slots, as the original does. */
@@ -290,7 +290,7 @@ enum { WEAPON_MARK = 0x80, WEAPON_COUNT = 1, CARRIED_BYTES = 5, OWNERS = 8 };
 /* The cells the original counts in: each member's weapon and the carried
  * bytes' place, which later work reads as it finds them (battle.h; the
  * weapons are also noted outside the fight's start), and the weapon's record
- * and the member (scaffolding). */
+ * and the member, which nothing reads after. */
 enum { WEAPON_AT = BATTLE_MEMBER_CELL, RECORD_AT = 0x04, MEMBER_AT = 0x02, CARRIED_AT = BATTLE_STAT_OFFSET_LOW };
 
 void fight_note_weapons(GameState *g)
@@ -314,7 +314,7 @@ void fight_note_weapons(GameState *g)
 enum { MOST_DEFENCE = 0xFF, MARLE = 1, LUCCA = 2 };
 
 /* The cells the original adds in: the member's block's place, and what it
- * hands the boost: the block (scaffolding: the start overwrites it), and the
+ * hands the boost: the block (the start overwrites it), and the
  * boosts' table, which later work reads as it finds it (battle.h) and which
  * nothing in the start writes after. */
 enum { BOOST_TABLE_AT = BATTLE_TECH_HITS_LEFT };

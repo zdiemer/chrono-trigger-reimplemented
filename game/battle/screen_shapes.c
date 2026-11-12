@@ -16,8 +16,8 @@
  *
  * Angles are 256 a turn. The original works with the sine table's magnitudes
  * (battle_sine_magnitude) through the hardware multiplier, keeping the high
- * byte of each product; the port does the same arithmetic in C, and leaves
- * what the original leaves in the multiplier and its cells as scaffolding. */
+ * byte of each product; the port does the same arithmetic, and leaves what
+ * the original leaves in the multiplier and its cells. */
 #include "charge.h"
 #include "battle/screen_script.h"
 

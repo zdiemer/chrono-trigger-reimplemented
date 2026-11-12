@@ -20,9 +20,8 @@
  * the members in it can no longer act.
  *
  * The description and the target's name are battle messages (battle/
- * message.c), run as the original calls them; the item page's list and
- * asking for the tilemaps' uploads are still the original's, which the
- * entries call between their own parts. */
+ * message.c), and the window's rows are sent by battle/uploads.c, called
+ * where the original calls them. */
 #include "battle/window.h"
 
 #include "battle/bridge.h"
@@ -78,7 +77,7 @@ static uint8_t list_entry(const GameState *g, unsigned member, unsigned row)
 
 /* The record a member's list entry names. (The original finds its place in
  * a table of the records' offsets, which an entry past the twenty would read
- * past its end; no list has one, and the entry's guard holds to that.) */
+ * past its end; no list has one, and tech_lists_kept holds to that.) */
 static unsigned tech_record(unsigned member, uint8_t entry) { return member * TECHS_PER_MEMBER + entry; }
 
 /* What the tech costs the member in each party slot. */
@@ -339,28 +338,28 @@ void battle_reset_frames(GameState *g)
     }
 }
 
-/* ---- The pages, with the original's parts ------------------------------------------------ */
+/* ---- The pages ----------------------------------------------------------------------------- */
 
 /* The settings' bit that asks for the descriptions. */
 enum { DESCRIPTIONS_ON = 0x80 };
 
 /* The menu window's calls: the window's rows sent ($CF:FD02, the saved rows
  * $CF:FD36, battle/uploads.c), and a tech's description ($CD:0027,
- * battle/message.c), each with the carry the original has there, which the
- * request passes on to the menu's callers, and the description with the
- * tech. */
+ * battle/message.c), the description with the tech. Each is handed the flag
+ * the original's drawing leaves there (`carry`), which nothing reads now. */
 typedef enum { WINDOW_ROWS, WINDOW_SAVED_ROWS, WINDOW_DESCRIPTION } WindowCall;
 typedef bool (*WindowCalls)(void *ctx, WindowCall call, uint8_t tech, bool carry);
 
-/* What the window leaves for the original's callers: the carry, where the
- * drawing set it last, and A cleared where the frames were reloaded. */
+/* What the original's drawing leaves its callers, which nothing reads now:
+ * its last flag, where the drawing set it, and whether it cleared its
+ * result where the frames were reloaded. */
 typedef struct {
     bool carry_set, carry, a_cleared;
 } WindowLeaves;
 
 // $C1:0C49
-/* The carry the request is handed is the redraw's, the party status's, or
- * the command cursor's (clear) (window_leaves.h). */
+/* The flag the rows' request is handed is the redraw's, the party
+ * status's, or the command cursor's (clear) (window_leaves.h). */
 static bool show_command_page(GameState *g, WindowCalls call, void *ctx)
 {
     bool carry;
@@ -384,7 +383,7 @@ static bool show_command_page(GameState *g, WindowCalls call, void *ctx)
             carry = false;
         }
     }
-    /* the frames' reset ends on a compare that leaves the carry set */
+    /* the frames' reset ends on a compare that leaves the flag set */
     if (menu_nobody(battle_menu_member(g))) {
         TIMED_AS(g, 0xC11C3A, battle_reset_frames(g));
         carry = true;
@@ -395,8 +394,8 @@ static bool show_command_page(GameState *g, WindowCalls call, void *ctx)
     return true;
 }
 
-/* The carry the original has after the page's own drawing, which the
- * description and the upload request pass on: clear from placing the hand,
+/* The flag the original has after the page's own drawing, which the
+ * description and the upload request are handed: clear from placing the hand,
  * or where a target is being chosen, set on a blank row and else the last
  * cost's tens compared with the zero (clear where no cost shows). */
 static bool tech_page_carry(const GameState *g, unsigned member)
@@ -431,14 +430,14 @@ static bool show_tech_page(GameState *g, WindowCalls call, void *ctx, WindowLeav
         return false;
     if (battle_frames_reload_request(g)) {
         reload_tech_page_frames(g);
-        *left = (WindowLeaves){ true, true, true };   /* the reload's last count, and its A */
+        *left = (WindowLeaves){ true, true, true };   /* the reload's last count, and its result */
     }
     return true;
 }
 
 // $C1:0C2D
 /* Draw the menu window for the page that is open, the member's stat block
- * noted first. A page past the techs leaves the carry of comparing it with
+ * noted first. A page past the techs leaves the flag of comparing it with
  * the tech page's. */
 static bool draw_menu_window(GameState *g, WindowCalls call, void *ctx, WindowLeaves *left)
 {
@@ -679,10 +678,10 @@ static bool show_item_cursor(GameState *g)
     return drawn != 0;
 }
 
-/* How the cursors were placed: the path through the placing, which the
- * machine's wrapper works the registers it hands back out from. */
+/* How the cursors were placed: the path through the placing, which nothing
+ * reads now. */
 typedef enum {
-    PLACED_AS_THEY_WERE,    /* nobody choosing, or no targets: the registers as they came */
+    PLACED_AS_THEY_WERE,    /* nobody choosing, or no targets */
     PLACED_ON_A_GROUP,      /* a group's cursors, which may have gone round */
     PLACED_ON_A_LONE_TARGET,
     PLACED_ON_A_NAMED_ENEMY,
@@ -840,7 +839,7 @@ static bool update_combo_members(GameState *g, bool (*call_off)(void *ctx), void
     return call_off(ctx);
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The window's calls ----------------------------------------------------------------------- */
 
 static bool window_call(void *ctx, WindowCall call, uint8_t tech, bool carry)
 {
@@ -853,8 +852,8 @@ static bool window_call(void *ctx, WindowCall call, uint8_t tech, bool carry)
     }
 }
 
-/* The window's guard's state half: the menu's state as the game keeps it,
- * and the tech lists. */
+/* Refused unless the menu's state and the tech lists are as the game keeps
+ * them. */
 bool battle_menu_window_drawn(GameState *g, Platform *pf)
 {
     (void)pf;
@@ -877,7 +876,7 @@ static bool call_off_the_combination(void *ctx)
     return done;
 }
 
-/* The guard's state half: a menu state the window's port takes. */
+/* Refused unless the menu's state is one the window's port takes. */
 bool battle_update_combo_members(GameState *g, Platform *pf)
 {
     if (!battle_window_fits(g))

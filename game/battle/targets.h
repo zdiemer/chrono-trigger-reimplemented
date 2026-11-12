@@ -79,7 +79,8 @@ void battle_mark_other_targets(GameState *g);
 Candidate battle_candidate(const GameState *g, unsigned place);
 uint8_t battle_candidates_held(const GameState *g);
 
-/* The candidates are counted as the battle counts them (the guards'). */
+/* The candidates are counted as the battle counts them (a check of what the
+ * port takes). */
 bool battle_candidates_counted(const GameState *g);
 
 #endif

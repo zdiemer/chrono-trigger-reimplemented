@@ -2,8 +2,7 @@
  * followers (followers.c), the watcher of the ground under the leader
  * (places.c), the region's music (music.c) and the place's sign (sign.c).
  * Each is an object's handler in the sprite-object mode, run once a frame and
- * never done; the registered entries that run them on the original's machine
- * are entries.c's. */
+ * never done (overworld/handlers.c). */
 #ifndef CT_GAME_OVERWORLD_FRAMES_H
 #define CT_GAME_OVERWORLD_FRAMES_H
 

@@ -24,10 +24,9 @@
  * table; the battle keeps tables of which high-table byte and bit go with
  * each sprite.
  *
- * Each part of the drawing is a routine of the original's, which the
- * original's pass calls with the combatant and the next free sprite in cells
- * of the objects' page; the port's pass runs them as C, each in its routine's
- * own time (native_time_as), and they stay entries of their own. */
+ * Each part of the drawing is a routine of its own in the original, called
+ * with the combatant and the next free sprite; the pass here calls them in
+ * turn, each charged at its routine's own rate (TIMED_AS). */
 #include "battle/effects.h"
 
 #include "battle/bridge.h"
@@ -85,9 +84,10 @@ static void put_sprite(GameState *g, unsigned sprite, uint8_t x, uint8_t y, uint
 
 /* ---- What the original leaves in its cells -------------------------------------------- */
 
-/* The original keeps its working values in cells of the objects' page
- * ($2E-$44) and of the battle's ($A1, $C6-$D1); the ports leave there what
- * it leaves, for shadow mode. `cell` is the original's direct-page address. */
+/* The original keeps its working values in cells of the objects' work area
+ * ($2E-$44) and of the battle's ($A1, $C6-$D1); the drawing leaves there
+ * what it leaves, which the grid reads (below). `cell` is the cell's
+ * address as the original spells it. */
 static void leave_draw_cell16(GameState *g, uint8_t cell, uint16_t v)
 {
     set_battle_draw_scratch(g, (unsigned)(cell - 0x2E), (uint8_t)v);
@@ -592,7 +592,7 @@ static bool draw_pass_fits(const GameState *g)
     return true;
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The draw pass ------------------------------------------------------------------------------ */
 
 /* The presence check is game work charged at the drawing's rate. The
  * deeper resource audit below is a preflight: extending it must neither

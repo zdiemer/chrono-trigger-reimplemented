@@ -19,7 +19,7 @@
  * effect's anchor.
  *
  * The original works out a place in the battle's first work cells; what it
- * leaves there is scaffolding, each kind's in its own leaves helper. */
+ * leaves there is kept as it leaves it, each kind's by its own leave helper. */
 #include "charge.h"
 #include "battle/script_language.h"
 

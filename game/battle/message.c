@@ -17,10 +17,9 @@
  *     once all set, stay up for as long as the player's message speed says,
  *     which the vblank handler counts down before it closes them.
  *
- * The same message isn't opened twice running. The logic is C on the game's
- * state; what reaches the machine is the bridge that makes the frame work's
- * waits from the original's sites, each with what the original keeps on the
- * stack and leaves in the carry there (battle/bridge.h, BattleFrame). */
+ * The same message isn't opened twice running. The frame work's waits
+ * (battle/wait.c) are calls out of the messages' logic, made where the
+ * original makes them. */
 #include "battle/message.h"
 
 #include "battle/bridge.h"
@@ -84,8 +83,8 @@ enum { MESSAGE_SHOWN = 0x10, MESSAGE_HIDDEN = 0x00 };
 
 // $CD:025E
 /* Open a message: its string of the table already named, its tiles cleared,
- * and the setting started (the original leaves the field's message mark clear, as the field
- * does when it opens one). */
+ * and the setting started (the original leaves the field's message mark
+ * clear, as the field does when it opens one). */
 static void open_the_message(GameState *g, uint8_t string)
 {
     set_menu_text_string(g, string);
@@ -116,10 +115,8 @@ static uint8_t frames_up(const GameState *g) { return battle_message_frames_at_s
 
 /* The battle's own message's calls, each where the original makes it: its
  * sound (battle/sound.c), its whole text set out ($CD:027F, above), the
- * pauses around it ($CD:020A, below), the hold's frames (battle/wait.c), and
- * what the original keeps on the stack and in the carry at each (the
- * message, as many copies as are still to be used; the carry of its last
- * compare). */
+ * pauses around it ($CD:020A, below), and the hold's frames
+ * (battle/wait.c). */
 typedef enum { HELD_SOUND, HELD_SETTING_OUT, HELD_PAUSE, HELD_ESCAPE_FRAMES, HELD_FRAME, HELD_PAUSE_AFTER } HeldCall;
 typedef struct {
     uint8_t message, sound, left;
@@ -140,11 +137,6 @@ static bool set_out_the_message(GameState *g, uint8_t letters, bool (*frame)(voi
 // $CD:020A
 /* A pause of 16 frames around a message the battle holds for. */
 enum { MESSAGE_PAUSE = 0x10 };
-
-/* What the setting out and the pause don't read of the registers where they
- * are called: the index registers and the flags but the carry, which they
- * hand on to the waits (battle/wait.h); the pause loads its own count into A
- * too, where the setting out takes the letters to set. */
 
 static bool pause_on_the_message(bool (*frame)(void *ctx, uint8_t left), void *ctx)
 {
@@ -272,17 +264,17 @@ static bool describe(GameState *g, uint8_t description)
     return true;
 }
 
-/* ---- The guard --------------------------------------------------------------------------------- */
+/* ---- What the menus' text code takes ----------------------------------------------------------- */
 
 /* The menus' text code takes a message being set up only where it can go on
- * from (menu/typeset.c); the battle's page has the message's cells. */
+ * from (menu/typeset.c). */
 bool battle_message_typing_fits(const GameState *g) { return !battle_message_drawing(g) || menu_text_can_carry_on(g); }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The messages shown ------------------------------------------------------------------------ */
 
 /* The windows naming a combatant ($CD:0030, $CD:002D) and the descriptions
- * ($CD:0027), each with its guard's state half: a string the menus' text
- * code can type into the message's tiles. False where the program went no
+ * ($CD:0027), each refused unless its string is one the menus' text code
+ * can type into the message's tiles. False where the program went no
  * further. */
 static bool can_be_typed(const GameState *g, uint32_t strings, uint8_t string)
 {
@@ -334,7 +326,7 @@ static bool enemy_message_call(void *ctx, EnemyMessageCall call, uint8_t message
     }
 }
 
-/* Its guard's state half: a string the menus' text code types. */
+/* Refused unless the menus' text code types the string. */
 bool battle_show_an_enemy_message(GameState *g, Platform *pf, uint8_t message)
 {
     if (!can_be_typed(g, ENEMY_MESSAGES, message))
@@ -367,7 +359,7 @@ static bool hold_a_part(void *ctx, HeldCall call, HeldArgs a)
     }
 }
 
-/* Its guard's state half: a string the menus' text code types. */
+/* Refused unless the menus' text code types the string. */
 bool battle_show_a_battle_message(GameState *g, Platform *pf, uint8_t message)
 {
     if (!can_be_typed(g, BATTLE_MESSAGES, message))

@@ -25,7 +25,6 @@
 #include "field/display.h"
 #include "field/field.h"
 #include "field/field_data.h"
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
@@ -156,19 +155,18 @@ enum { LETTERS_VRAM = 0x5000, LETTERS_BYTES = 0x400 };
 
 // $C0:6E27
 /* The letters the credits are written in, loaded as event $29 chooses a text
- * (game/event/screen.c): unpacked (data/decompress.c; at the pace the
- * machine's entry had, which ran the unpacker's entry in place, where
- * `on_the_machine`), then sent to BG3's tiles. */
-static void load_the_credits_letters(GameState *g, Platform *pf, bool on_the_machine)
+ * (game/event/screen.c): unpacked (data/decompress.c), then sent to BG3's
+ * tiles. */
+static void load_the_credits_letters(GameState *g, Platform *pf)
 {
     set_decompress_source(g, FIELD_CREDITS_LETTERS_PACKED);
     set_decompress_dest(g, RAM_FIELD_BG3_TILES_UNPACKED);
-    (void)(on_the_machine ? unpack_stream_run(g, false) : unpack_stream(g));
+    (void)unpack_stream(g);
     FieldTransfer letters = { LETTERS_VRAM, FIELD_TRANSFER_WORDS, RAM_FIELD_BG3_TILES_UNPACKED, LETTERS_BYTES };
     TIMED_AS(g, FIELD_VRAM_TRANSFER_ENTRY, field_send_transfer(g, pf, letters));
 }
 
-void field_load_the_credits_letters(GameState *g, Platform *pf) { load_the_credits_letters(g, pf, false); }
+void field_load_the_credits_letters(GameState *g, Platform *pf) { load_the_credits_letters(g, pf); }
 
 /* ---- The chest's message ------------------------------------------------------------------------- */
 
@@ -204,10 +202,7 @@ static void do_the_layer_work(GameState *g)
         close_the_chests_message(g);
 }
 
-/* ---- Where it meets the original ----------------------------------------------------------------- */
+/* ---- The main loop's turn ------------------------------------------------------------------------ */
 
-/* On the field's page, with 8-bit A and 16-bit index registers. A, X, Y and
- * the flags but V are dead after it; a credits line leaves V clear (the
- * sum its send's size is worked out with never overflows), and the rest,
- * the staging's blank among them, as it came. */
+/* The scripts' layer work for the frame. */
 void field_script_layers_worked(GameState *g) { do_the_layer_work(g); }

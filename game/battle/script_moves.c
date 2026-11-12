@@ -21,7 +21,7 @@
  * nothing on that channel. Each is said where it is.
  *
  * The original works in the battle's first work cells as it goes; what it
- * leaves there is scaffolding, written by the leaves helpers. */
+ * leaves there is kept as it leaves it, by the leave helpers. */
 #include "charge.h"
 #include "battle/script_language.h"
 

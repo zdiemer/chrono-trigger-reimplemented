@@ -56,7 +56,7 @@ void battle_clear_candidates(GameState *g)
 
 /* ---- What the selectors leave in their cells ---------------------------------------------- */
 
-/* The direct-page cells the selectors work in (battle_low_scratch). They keep
+/* The work cells the selectors work in (battle_low_scratch). They keep
  * a word at $0A too -- the enemy's own battle slot, or the stat block's byte a
  * selection by status looks at -- whose high byte is kept (battle.h). */
 enum {
@@ -292,7 +292,7 @@ static uint8_t stray_status_byte(const GameState *g, uint16_t place, uint8_t sta
     return wram_read8(g, 0x7E0000u | (uint16_t)(battle_stat_block_place_stray(g, place) + stat));
 }
 
-/* What the original's consideration leaves in A: the last byte it read, or
+/* What the original's consideration hands back: the last byte it read, or
  * the mark it added. */
 static uint8_t consider_stray(GameState *g, uint8_t slot, uint16_t place, StatusTest test)
 {
@@ -569,7 +569,7 @@ bool battle_take_marked_candidate(GameState *g)
 
 static uint16_t slot_bit(uint8_t slot) { return slot < 16 ? (uint16_t)(0x8000u >> slot) : 0; }
 
-/* The marking works the bits out by shifting in the direct page's first word. */
+/* The marking works the bits out by shifting in the battle's first work word. */
 enum { SHIFT_CELL = 0x00 };
 
 // $C1:AD09
@@ -600,30 +600,7 @@ void battle_mark_other_targets(GameState *g)
         battle_keep_word(g, SHIFT_CELL, 0);
 }
 
-/* The bits' routines hand A back clear, and the carry of the last shift that
- * made a bit (set where the slot shifted it right out), or of what they
- * tested before, or as it came. */
-enum { SLOT_SHIFTED_OUT = 16 };
-
-static bool shift_carry(Candidate slot, bool carry) { return slot != 0 ? slot == SLOT_SHIFTED_OUT : carry; }
-
-bool battle_first_mark_carry(const GameState *g, bool carry)
-{
-    if (battle_candidate_count(g) == 0)
-        return carry;
-    Candidate first = battle_candidates(g, 0);
-    return first == NO_CANDIDATE || first == SLOT_SHIFTED_OUT;
-}
-
-bool battle_other_marks_carry(const GameState *g, bool carry)
-{
-    uint8_t count = battle_candidate_count(g);
-    for (uint8_t place = (uint8_t)(count ? count - 1 : 0); place != 0; place--)
-        carry = shift_carry(battle_candidates(g, place), carry);
-    return carry;
-}
-
-/* ---- The guards ------------------------------------------------------------------------- */
+/* ---- The count's check -------------------------------------------------------------------- */
 
 /* The candidates are counted as the battle counts them: at most one a
  * combatant. */

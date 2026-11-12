@@ -1,11 +1,10 @@
-/* Battle: the battle as the program fights it, with no machine under it
- * (core/program.c, docs/PLAYING.md, "The native program").
+/* Battle: the battle as the program fights it (core/program.c,
+ * docs/PLAYING.md, "The native program").
  *
  * The field asks for a battle (field/requests.c) and the battle runs to its
  * end on the main thread, its frames paced by its own vblank and line
- * handlers, which the program's table sends the interrupts to. Each is the
- * same sequence the machine's entries run, with its calls on the battle's
- * other routines made as C; a broken state contract stops the program there
+ * handlers, which the program's table sends the interrupts to. A state the
+ * port doesn't take is a broken contract, which stops the program there
  * (program_breaks_a_contract). */
 #ifndef CT_GAME_BATTLE_PROGRAM_H
 #define CT_GAME_BATTLE_PROGRAM_H

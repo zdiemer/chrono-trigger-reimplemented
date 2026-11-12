@@ -11,7 +11,7 @@
 #include "state.h"
 #include "vars.h"
 
-/* The battle's direct page, where its working cells start. */
+/* Where the battle's low work cells start in work RAM. */
 enum { BATTLE_PAGE = 0x0000 };
 
 /* The battle's send of a buffer of work RAM to VRAM from the main thread

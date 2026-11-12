@@ -17,7 +17,8 @@
  * it has already started it.
  *
  * The original works in the battle's first work cells as it goes; what it
- * leaves there is scaffolding, each command's in its own leaves helper. */
+ * leaves there is kept as it leaves it, each command's by its own leave
+ * helper. */
 #include "charge.h"
 #include "battle/script_language.h"
 

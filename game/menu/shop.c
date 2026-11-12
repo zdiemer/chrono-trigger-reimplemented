@@ -1137,7 +1137,7 @@ void menu_shop_back_on_the_tabs(GameState *g, Platform *pf)
     go_to_step(g, SHOP_ON_THE_TABS);
 }
 
-/* ---- What the steps can run on (the guards') ----------------------------------------------------- */
+/* ---- What the steps can run on ------------------------------------------------------------------ */
 
 /* The shop's goods end within its list, its members are characters with
  * records, and the members it lets the cursor reach are some of them. */

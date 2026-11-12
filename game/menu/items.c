@@ -319,7 +319,7 @@ void menu_build_item_tables(GameState *g)
 }
 
 /* The copy the menus take of the bytes after the characters' names. */
-void menu_copy_past_the_names_now(GameState *g) { set_menu_copy_past_the_names(g, menu_past_the_names(g)); }
+void menu_take_the_bytes_past_the_names(GameState *g) { set_menu_copy_past_the_names(g, menu_past_the_names(g)); }
 
 // $C2:9875
 /* The menus' item tables built as they open, the party's techs and
@@ -329,15 +329,14 @@ void menu_build_the_items(GameState *g)
     menu_build_item_tables(g);
     TIMED_AS(g, 0xFFF813, menu_note_party_techs(g));
     TIMED_AS(g, 0xC299B2, menu_note_everyones_figures(g));
-    menu_copy_past_the_names_now(g);
+    menu_take_the_bytes_past_the_names(g);
 }
 
 // $C2:88D8
 
-/* The tables run on the menus' page with the data bank on work RAM's, their
- * name places counted from the zero word the menus keep 0; every
- * character's figures and the party's techs are noted after them
- * (menu/figures.c and menu/techs.c, whose guards this takes). */
+/* The tables' name places are counted from the zero word the menus keep 0;
+ * every character's figures and the party's techs are noted after them
+ * (menu/figures.c and menu/techs.c, whose checks this takes). */
 bool menu_items_can_be_built(const GameState *g)
 {
     return menu_everyones_figures_can_be_noted(g) && menu_party_techs_can_be_noted(g) && menu_zero(g) == 0;

@@ -120,7 +120,7 @@ void battle_show_gauge(GameState *g, unsigned member);
  * numbers and the gauges (status.c, $C1:05A7). The numbers are left alone
  * while a command window covers them. */
 void battle_redraw_window(GameState *g);
-/* Its guard's state half: the menu's state as the game keeps it. */
+/* Whether the menu's state is as the game keeps it. */
 bool battle_window_fits(const GameState *g);
 /* ... and the tech lists as the game keeps them, which the menu window's
  * tech page takes on trust (battle/menu_window.c). */
@@ -172,7 +172,7 @@ Digits battle_digits_blanked(GameState *g, Digits d);
 enum { BATTLE_WORK_CELLS = 0x80 };
 
 /* The menu window drawn for the page that is open ($C1:0C2D), and the
- * cursors over the battlefield placed ($C1:17DD), as C: false where they went
+ * cursors over the battlefield placed ($C1:17DD): false where they went
  * no further. */
 bool battle_menu_window_drawn(GameState *g, Platform *pf);
 bool battle_menu_cursors_placed(GameState *g, Platform *pf);

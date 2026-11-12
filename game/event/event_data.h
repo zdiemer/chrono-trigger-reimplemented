@@ -1,6 +1,5 @@
 /* What the event commands read from the ROM: small tables in bank $C0, which
- * the original reaches through a data bank of $00 (its upper half is the
- * start of the ROM's first bank). Every read goes through an accessor named
+ * the original reads where the ROM's first bank starts. Every read goes through an accessor named
  * for what the table is, so a build that loads them from elsewhere changes
  * this file and nothing that uses it. */
 #ifndef CT_GAME_EVENT_DATA_H

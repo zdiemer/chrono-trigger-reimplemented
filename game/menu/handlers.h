@@ -15,8 +15,8 @@
  * free), or a contract prevented it from continuing. */
 typedef enum { MENU_TURN_GOES_ON, MENU_TURN_DONE, MENU_TURN_WENT_NO_FURTHER } MenuTurn;
 
-/* A handler: the address the slots name it by, what it is, the guard's state
- * half (none where the guard's only check is the machine's), and its turn. */
+/* A handler: the address the slots name it by, what it is, what it needs of
+ * the state (none where it needs nothing), and its turn. */
 typedef struct {
     uint16_t handler;
     const char *name;
@@ -27,7 +27,7 @@ typedef struct {
 /* The row of a handler, or NULL where it has none. */
 const MenuHandler *menu_handler(uint16_t handler);
 
-/* A file's handlers, which it lists beside its entries. */
+/* A file's handlers, which it lists beside their turns. */
 typedef struct {
     const MenuHandler *rows;
     unsigned count;
@@ -36,12 +36,12 @@ typedef struct {
     static const MenuHandler name##_rows[] = { __VA_ARGS__ };       \
     const MenuHandlers name = { name##_rows, sizeof name##_rows / sizeof name##_rows[0] }
 
-/* Every object's turn this frame as C (menu/objects.c): false where one went
+/* Every object's turn this frame (menu/objects.c): false where one went
  * no further. */
 bool menu_objects_run(GameState *g, Platform *pf);
 
 /* A routine a command script calls by its address (24-bit, `far` where the
- * command named its bank): the guard's state half, which takes the running
+ * command named its bank): what it needs of the state, for the running
  * object, and the routine, false where it went no further. */
 typedef struct {
     uint32_t routine;
@@ -78,10 +78,9 @@ extern const MenuHandlers menu_epoch_handlers;
 extern const MenuHandlers overworld_handlers;
 extern const MenuScriptRoutines overworld_routines;
 
-/* The object's command script for this frame, each command as C, with the
- * services as C: whether the object waits for the next frame or is done. A
- * command the port doesn't run, or a service that meets a step only the
- * machine runs, goes no further. */
+/* The object's command script for this frame: whether the object waits for
+ * the next frame or is done. A command the port doesn't run, or a service
+ * that meets a state the port doesn't handle, goes no further. */
 MenuTurn menu_run_object_script(GameState *g, Platform *pf, MenuObject self);
 
 static inline MenuTurn menu_turn_done_if(bool done) { return done ? MENU_TURN_DONE : MENU_TURN_GOES_ON; }

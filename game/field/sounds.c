@@ -14,9 +14,7 @@
  * says the music goes on as after any other. The battle's setup and its
  * close call these (battle/screen_setup.c, battle/closing.c).
  *
- * Everything goes through the audio service's commands to the driver. The
- * original runs the battle's two on the field's page with the data bank $00,
- * which the legacy battle caller establishes before the ordinary C call. */
+ * Everything goes through the audio service's commands to the driver. */
 #include "field/sounds.h"
 
 #include "battle/battle.h"
@@ -27,8 +25,7 @@
 #include "platform/audio.h"
 #include "vars.h"
 
-/* The driver's command entry, called from each of the original's sites; it
- * reads nothing of the registers but A's high byte, which it hands back. */
+/* The driver's command entry, called from each of the original's sites. */
 enum { DRIVER = 0xC70004 };
 
 static void send(Platform *pf, uint32_t site, AudioCommand c) { au_command(pf, PF_CALL(site, DRIVER), c); }

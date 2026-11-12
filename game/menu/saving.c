@@ -18,9 +18,8 @@
  * summary back and shows it, the slot's window drawn afresh in the design it
  * was saved with.
  *
- * Each step is one sequence (SavingSteps, saving.h) that the program runs
- * as C, below, and the machine's entries run with the original's calls
- * (saving_bridge.c). */
+ * Each step is one sequence (SavingSteps, saving.h) that asks what it needs
+ * of the menus through its steps (below). */
 #include "menu/saving.h"
 
 #include "charge.h"
@@ -105,7 +104,7 @@ static void finish_the_screen(GameState *g, Platform *pf)
 }
 
 // $C2:D0DB
-void menu_put_save_panel_away_now(GameState *g) { set_menu_line_effects(g, SAVE_SCREEN_LINE_EFFECTS); }
+void menu_put_save_panel_away(GameState *g) { set_menu_line_effects(g, SAVE_SCREEN_LINE_EFFECTS); }
 
 /* A save point's save screen: its windows over the panel, the slots' rows'
  * effect with the cursor on the slot shown, and the cursor's sprite. */
@@ -200,7 +199,7 @@ static void show_the_slot_saved(GameState *g)
 enum { SLOT_HOLDS_A_GAME = 0xFF };
 
 // $C2:CF21
-void menu_show_the_slot_saved_now(GameState *g) { show_the_slot_saved(g); }
+void menu_show_the_slot_saved(GameState *g) { show_the_slot_saved(g); }
 
 /* The saved sound: the effect on the effects' second pair of voices, from
  * the middle, sent from the save's own call to the driver. */
@@ -272,13 +271,11 @@ bool menu_open_saving_with(GameState *g, Platform *pf, const SavingSteps *n, voi
         back_to_the_main_menu(g);
         return n->ends(ctx, SAVING_BUZZES);
     }
-    n->note(ctx, SAVING_NOTE_NOT_REFUSED, 0);
     if (!n->tick(ctx, SAVING_AT_THE_OPENING_TICK))
         return false;
     next_step(g);
     if (!n->lay_out(ctx))
         return false;
-    n->note(ctx, SAVING_NOTE_LAID_OUT, 0);
     return true;
 }
 
@@ -321,11 +318,9 @@ bool menu_save_in_the_slot_with(GameState *g, Platform *pf, const SavingSteps *n
 {
     uint8_t holds = menu_save_slot_in_use(g, menu_save_slot_shown(g));
     if (holds != 0) {
-        n->note(ctx, SAVING_NOTE_SLOT_HOLDS, holds);
         if (!n->tick(ctx, SAVING_AT_THE_QUESTION_TICK))
             return false;
         about_to_save_over(g, pf);
-        n->note(ctx, SAVING_NOTE_QUESTION_ASKED, 0);
         return true;
     }
     return n->save(ctx, SAVING_AT_THE_SAVE_IN_AN_EMPTY_SLOT) && n->show_the_slot_saved(ctx);
@@ -339,7 +334,6 @@ static bool answer_no(GameState *g, Platform *pf, const SavingSteps *n, void *ct
         return false;
     set_menu_screen_step(g, CHOOSING_A_SLOT);
     put_the_question_away(g, pf);
-    n->note(ctx, SAVING_NOTE_QUESTION_PUT_AWAY, 0);
     return true;
 }
 
@@ -351,7 +345,6 @@ bool menu_answer_whether_to_save_over_with(GameState *g, Platform *pf, const Sav
 {
     n->read_cursor(ctx);
     if (menu_asked(g, MENU_CHOOSE)) {
-        n->note(ctx, SAVING_NOTE_ANSWER_COMPARED, 0);
         if (menu_cursor_index(g) != ANSWER_YES)
             return answer_no(g, pf, n, ctx);
         if (!n->save(ctx, SAVING_AT_THE_SAVE_OVER))
@@ -362,7 +355,6 @@ bool menu_answer_whether_to_save_over_with(GameState *g, Platform *pf, const Sav
     }
     if (menu_asked(g, MENU_GO_BACK))
         return answer_no(g, pf, n, ctx);
-    n->note(ctx, SAVING_NOTE_ANSWER_MOVED, 0);
     return menu_cursor_index(g) == menu_cursor_frame_start(g) || n->tick(ctx, SAVING_AT_THE_ANSWER_MOVE_TICK);
 }
 
@@ -401,17 +393,17 @@ bool menu_slot_saved_can_show(const GameState *g)
     return menu_slot_can_be_saved(g) && menu_palette_changes_have_room(g);
 }
 
-/* ---- The steps as C ------------------------------------------------------------------------------- */
+/* ---- The steps' services ------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
     Platform *pf;
 } SavingContext;
 
-static const SavingSteps in_the_program;
+static const SavingSteps the_steps;
 
-/* The routines the steps reach, each where its entry's guard would take the
- * state as the step has left it; otherwise the program goes no further. */
+/* The routines the steps reach, each run only on the state it handles;
+ * otherwise the program goes no further. */
 static bool takes(GameState *g, bool ok, uint32_t routine, const char *what)
 {
     if (!ok)
@@ -462,7 +454,7 @@ static bool save(void *ctx, SavingPlace at)
                "a save the port doesn't make"))
         return false;
     bool saved = false;
-    TIMED_AS(c->game, 0xC2CF37, saved = menu_save_the_game_with(c->game, c->pf, &in_the_program, c));
+    TIMED_AS(c->game, 0xC2CF37, saved = menu_save_the_game_with(c->game, c->pf, &the_steps, c));
     if (saved)
         menu_task_waits(c->game, 1);
     return saved;
@@ -485,16 +477,13 @@ static bool show_the_saved_slot(void *ctx)
     SavingContext *c = ctx;
     if (!takes(c->game, menu_slot_saved_can_show(c->game), 0xC2CF21, "a slot saved the port doesn't show"))
         return false;
-    TIMED_AS(c->game, 0xC2CF21, menu_show_the_slot_saved_now(c->game));
+    TIMED_AS(c->game, 0xC2CF21, menu_show_the_slot_saved(c->game));
     return true;
 }
 
-static void note(void *ctx, SavingNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
-
-/* The steps' ends, as the menus' own as C: the fade in's task started, the
- * menus closed (which never comes back), the main menu chosen on again, the
- * save in the slot or the slots' frame (each where its entry's guard takes
- * the state), or the buzz. */
+/* The steps' ends: the fade in's task started, the menus closed (which never
+ * comes back), the main menu chosen on again, the save in the slot or the
+ * slots' frame (each where the state is one it handles), or the buzz. */
 static bool ends(void *ctx, SavingEnd end)
 {
     SavingContext *c = ctx;
@@ -508,38 +497,38 @@ static bool ends(void *ctx, SavingEnd end)
     case SAVING_SAVES_IN_THE_SLOT:
         if (!takes(g, menu_slot_can_be_saved(g), 0xC2CF0A, "a slot the port doesn't save in"))
             return false;
-        TIMED_AS(g, 0xC2CF0A, back = menu_save_in_the_slot_with(g, c->pf, &in_the_program, c));
+        TIMED_AS(g, 0xC2CF0A, back = menu_save_in_the_slot_with(g, c->pf, &the_steps, c));
         break;
     case SAVING_MOVES_AMONG_THE_SLOTS:
         if (!takes(g, menu_slot_under_the_cursor_shows(g), 0xC2CFA2, "a save slot the port doesn't show"))
             return false;
-        TIMED_AS(g, 0xC2CFA2, back = menu_move_among_the_slots_with(g, c->pf, &in_the_program, c));
+        TIMED_AS(g, 0xC2CFA2, back = menu_move_among_the_slots_with(g, c->pf, &the_steps, c));
         break;
     case SAVING_BUZZES: menu_buzz(g, c->pf); break;
     }
     return back;
 }
 
-static const SavingSteps in_the_program = { read_cursor, tick, wait, panel, lay_out, save, saved_sound, summary_read_back,
-                                  show_the_saved_slot, note, ends };
+static const SavingSteps the_steps = { read_cursor, tick, wait, panel, lay_out, save, saved_sound, summary_read_back,
+                                  show_the_saved_slot, ends };
 
-/* The panel as C, where its entry's guard would take the state. */
+/* The panel, where the state is one it handles. */
 bool menu_show_save_panel(GameState *g, Platform *pf)
 {
     if (!takes(g, menu_save_panel_can_show(g), 0xC2D065, "a save panel the port doesn't show"))
         return false;
     SavingContext c = { g, pf };
-    return menu_show_save_panel_with(g, pf, &in_the_program, &c);
+    return menu_show_save_panel_with(g, pf, &the_steps, &c);
 }
 
-/* A step as C where its entry's guard would take the state. */
+/* A step, run only on the state it handles. */
 static bool step(GameState *g, Platform *pf, bool ok, uint32_t routine,
                  bool (*run)(GameState *, Platform *, const SavingSteps *, void *))
 {
     if (!takes(g, ok, routine, "a save screen the port doesn't take"))
         return false;
     SavingContext c = { g, pf };
-    return run(g, pf, &in_the_program, &c);
+    return run(g, pf, &the_steps, &c);
 }
 
 bool menu_open_save_screen(GameState *g, Platform *pf)

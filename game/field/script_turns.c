@@ -139,15 +139,14 @@ static TurnsEnd run_queued_turns(GameState *g, Platform *pf, TakeTurn take, void
     return TURNS_OUT_OF_TIME;
 }
 
-/* Run a queued object's turn directly. Its entry contract is checked with
- * the call's return in place, and a refused turn is left at that entry.
- * A location change or battle can abandon the turn instead of returning:
- * the caller then leaves the machine exactly where the turn stopped. */
+/* A queued object's turn, timed as the routine that runs one. A turn the
+ * port refuses breaks the contract and stops the program; a location change
+ * or a battle ends the turn with the field. */
 enum { RUN_A_TURN = 0xC05A93 };
 
-/* ---- As C, with no machine ------------------------------------------------------------------ */
+/* ---- The turns ------------------------------------------------------------------------------ */
 
-/* Each turn the event engine's, its commands as C (event/engine.h). */
+/* Each turn the event engine's (event/engine.h). */
 static bool take_turn(void *ctx, FieldObject obj)
 {
     EventScriptContext *c = ctx;
@@ -170,7 +169,7 @@ bool field_queued_turns_run(GameState *g, Platform *pf)
     return run_queued_turns(g, pf, take_turn, &c) != TURN_WENT_ELSEWHERE;
 }
 
-/* ---- The guards ------------------------------------------------------------------------------- */
+/* ---- What the port runs ------------------------------------------------------------------------ */
 
 /* A queue the port reads as the original does: empty, or each object in it
  * named by its slot doubled, from the head to the tail. */

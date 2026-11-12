@@ -33,7 +33,6 @@
 #include "field/bridge.h"
 #include "field/field.h"
 #include "field/parts.h"
-#include "field/scratch.h"
 #include "vars.h"
 
 /* ---- Storage: the trail, and what the walk leaves for the party ----------------------- */

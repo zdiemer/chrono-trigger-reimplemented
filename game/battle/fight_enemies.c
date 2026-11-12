@@ -150,8 +150,8 @@ void fight_mark_what_enemies_carry(GameState *g)
         uint8_t id = battle_combatant_fighting(g, slot);
         if (id == COMBATANT_NONE)
             continue;
-        /* the original finds the enemy's rewards by a multiply, and keeps
-         * their place in a cell (scaffolding) */
+        /* the original finds the enemy's rewards by a multiply, whose cells
+         * keep what it leaves */
         battle_multiply_words(g, id, ENEMY_REWARD_BYTES);
         EnemyItems items = enemy_items(g, id);
         uint8_t marks = 0;

@@ -54,10 +54,9 @@ enum { TILE_ROWS = 8 };
 enum { SPRITE_COLORS = 128 };
 static const uint16_t letter_colors[] = { 0x0000, 0x77BD, 0x4631, 0x1CE7 };
 
-/* The program's unpacker ($7E:3691): the resource's place in its list in X,
- * the unpacking into the destination set. The letters' loader is a routine of
- * the setup's (called from $7E:6B0A), whose return is under the unpacker's
- * call, as shadow mode pairs the call with the original's. */
+/* The program's unpacker ($7E:3691): a resource, by its place in the list,
+ * unpacked into the destination set. The letters' loader is a routine of the
+ * setup's (called from $7E:6B0A). */
 enum { UNPACK = 0x7E3691 };
 
 // $7E:6BF9
@@ -199,9 +198,7 @@ static void charge_page_text_scan(GameState *g, uint16_t page);
  * clear screen, the next page written, BG1 and the sprites shown, and the
  * page's fade in and its task. The original hands the widening its source in
  * the unpacker's destination, which the program's loaders all set before
- * they use it, and leaves it there; and it points the sprite table's port at
- * its start before the jobs, as the first job's sprite does (scaffolding: the
- * port's address is compared). */
+ * they use it, and leaves it there. */
 static bool set_up_the_page(GameState *g, Platform *pf, bool (*unpack)(void *ctx), void *ctx)
 {
     start_loading_the_letters(g, pf, LETTERS_AS_THEY_ARE_VRAM);
@@ -229,7 +226,7 @@ static bool set_up_the_page(GameState *g, Platform *pf, bool (*unpack)(void *ctx
     return true;
 }
 
-/* As C, the letters unpacked by the unpacker as C. */
+/* The letters unpacked by the program's unpacker. */
 static bool unpack_the_letters(void *ctx)
 {
     TIMED_AS((GameState *)ctx, UNPACK, scene_unpacks(ctx, LETTERS));
@@ -267,10 +264,10 @@ const SceneTaskPort scene_credit_pages_tasks[] = {
 };
 const unsigned scene_credit_pages_task_count = sizeof scene_credit_pages_tasks / sizeof scene_credit_pages_tasks[0];
 
-/* ---- What the setup leaves ------------------------------------------------------------------- */
+/* ---- The setup's time ------------------------------------------------------------------------ */
 
-/* The original reads the page's text through the work RAM port, which it
- * leaves past the jobs' list. */
+/* The time the original spends reading the page's text through the work RAM
+ * port, a byte at a time to past the jobs' list. */
 static void charge_page_text_scan(GameState *g, uint16_t page)
 {
     uint32_t mark = charge_uncounted_begin(g);

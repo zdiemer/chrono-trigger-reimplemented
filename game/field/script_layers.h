@@ -26,8 +26,8 @@ void field_blank_the_staging(GameState *g);
 enum { FIELD_BLANK_THE_STAGING_ENTRY = 0xC075A0, FIELD_LOAD_THE_CREDITS_LETTERS_ENTRY = 0xC06E27 };
 void field_load_the_credits_letters(GameState *g, Platform *pf);
 
-/* The main loop's turn at it ($C0:274D), and its guard. */
-/* The scripts' layer work for the frame, as C. */
+/* The main loop's turn at it ($C0:274D): the scripts' layer work for the
+ * frame. */
 void field_script_layers_worked(GameState *g);
 
 #endif

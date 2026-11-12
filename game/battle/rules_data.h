@@ -20,8 +20,8 @@ typedef uint16_t ScriptPlace;
  * ($CC:8D08, $CC:8D1E). */
 enum { SCRIPT_ATTACK_NEAREST = 0x8D08, SCRIPT_ATTACK_ANYONE = 0x8D1E };
 
-/* Where the scripts are, for the guards: the first enemy's script to the
- * table that follows the last ($CC:CBC9). */
+/* Where the scripts are, for the checks of what the port takes: the first
+ * enemy's script to the table that follows the last ($CC:CBC9). */
 enum { ENEMY_SCRIPTS_START = 0x8D08, ENEMY_SCRIPTS_END = 0xCBC9 };
 
 /* Whether the battle's debugging path at the end of a pass is on: the bank's

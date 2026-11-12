@@ -165,8 +165,8 @@ enum { BATTLE_FIRST_COMBATANT_OBJECT = 0x0C };
  *     the member's turn, which clears it and then puts the used item's
  *     number there (battle/member_turn.c);
  *   - $06 holds the place of the member's action record as its turn or its
- *     update reaches it (battle/member_turn.c, battle/combatants.c: for the
- *     original's code), and after a steal the item it took
+ *     update reaches it (battle/member_turn.c, battle/combatants.c), and
+ *     after a steal the item it took
  *     (battle/effect_steal.c), which the member's turn names in its message
  *     (battle_item_taken);
  *   - $08 (a number a condition tests), $0A and $0E are read as stats: a
@@ -242,7 +242,7 @@ static inline uint8_t combatant_y(const GameState *g, unsigned slot)
     return object < BATTLE_OBJECT_Y_COUNT ? battle_object_y(g, object) : battle_object_y_unchecked(g, object);
 }
 
-/* ---- The direct page's working cells (battle_low_scratch) --------------------------------- */
+/* ---- The battle's low work cells (battle_low_scratch) ------------------------------------- */
 
 static inline void battle_leave_word(GameState *g, unsigned at, uint16_t v)
 {

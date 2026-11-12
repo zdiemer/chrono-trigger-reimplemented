@@ -14,8 +14,8 @@
  * Nobody has a status: in the game nothing happens but the kind being seen
  * to, and for a status that wears off the original's writes past the tables
  * are made in one place (battle_timer_wears_off_past_the_rows); the other
- * kinds of nobody's the entries' guards leave to the original, and the game
- * makes none of them (docs/TODO.md). */
+ * kinds of nobody's the port refuses (handler_takes), and the game makes
+ * none of them (docs/TODO.md). */
 #include "battle/status_timers.h"
 
 #include "battle/battle.h"
@@ -194,12 +194,9 @@ static void set_up_status_showing(GameState *g, uint8_t showing)
     set_battle_action_target_bits(g, FIRST_SLOT_BIT);
 }
 
-/* ---- The entries ----------------------------------------------------------------------- */
+/* ---- A status's number shown -------------------------------------------------------------- */
 
-/* The showing a status's number asks for ($C1:AC57, a sibling), from
- * $C1:895B's call. */
-enum { SHOWING_CALL = 0xC18971 };
-
+/* The showing a status's number asks for ($C1:AC57). */
 bool battle_show_status_number(GameState *g, Platform *pf, uint8_t showing)
 {
     set_up_status_showing(g, showing);
@@ -231,15 +228,14 @@ static bool see_to_the_timer(GameState *g, BattleTimer kind, bool (*show)(void *
     return true;
 }
 
-/* The guard's state half: a timer of nobody's that does anything but wear
- * off is the original's: its handler works past every table it touches
- * (battle/timers.h). */
+/* A timer of nobody's that does anything but wear off is one the port
+ * refuses: its handler works past every table it touches (battle/timers.h). */
 static bool handler_takes(const GameState *g, BattleTimer kind)
 {
     return !battle_timer_found_run_out(g, kind).nobody || timed_statuses[kind].effect == WEARS_OFF;
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The handlers --------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;

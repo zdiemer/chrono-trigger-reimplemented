@@ -177,10 +177,10 @@ static CaptionTurn turn_captions(GameState *g)
     return CAPTION_GOES;
 }
 
-/* As C, from a task of a scene's own (the planet's caption, scene/planet.c). */
+/* A caption drawn from a task of a scene's own (the planet's, scene/planet.c). */
 void scene_draw_caption(GameState *g, uint16_t text) { (void)draw_caption(g, text); }
 
-/* The longest caption the guards follow to its end. */
+/* The longest caption the check follows to its end. */
 enum { LONGEST_CAPTION = 0x200 };
 
 /* A caption the port draws: its text ends inside the program's bank, and its
@@ -192,9 +192,8 @@ bool scene_caption_fits(const GameState *g, uint16_t text)
            scene_sprites_fit(g, sprites);
 }
 
-/* The task's code and the drawing's, a data bank on low RAM, the scene's
- * page; where a caption is up, it is one the port draws, and its text is in
- * the program, past the start of the bank, so the captions' end is a plain
+/* Where a caption is up, it is one the port draws, and its text is in the
+ * program, past the start of the bank, so the captions' end is a plain
  * compare. */
 enum { PROGRAM_START = 0x3000 };
 
@@ -204,15 +203,16 @@ static bool captions_as_ported(const GameState *g)
     return !scene_ending_captions_left(g) || !caption_is_up(g) || (text >= PROGRAM_START && scene_caption_fits(g, text));
 }
 
-/* As C, for a program with no machine: done once the last caption has gone. */
 enum { TURN_CAPTIONS = 0x7E9B4F };
 
+// $7E:9B4F
+/* The captions' task: done once the last caption has gone. */
 TaskEnd scene_turn_captions(GameState *g, Platform *pf, unsigned slot)
 {
     (void)pf;
     (void)slot;
     if (!captions_as_ported(g))
-        return scene_task_needs_the_machine(g, TURN_CAPTIONS, "a caption the port doesn't draw");
+        return scene_task_goes_no_further(g, TURN_CAPTIONS, "a caption the port doesn't draw");
     return turn_captions(g) == CAPTIONS_OVER ? task_is_done() : task_goes_on();
 }
 

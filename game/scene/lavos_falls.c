@@ -22,8 +22,7 @@
  * a list gives; the stars' tiles; the colours; then the two channels' scripts
  * started and the stars scattered. The setup is one sequence, whose steps
  * that are the program's other routines (its unpacker, a script's first step)
- * the machine's entry takes as calls of the original's and the native
- * program as C. */
+ * come in as calls. */
 #include "scene/scene.h"
 
 #include "charge.h"
@@ -195,8 +194,7 @@ static void copy_into_the_first_bank(GameState *g, unsigned resource, uint16_t t
 }
 
 /* The setup's steps that are other routines of the program's: a resource
- * unpacked by its unpacker, and the scripts' first step. The program takes
- * them as C, the machine's entry as calls of the original's. */
+ * unpacked by its unpacker, and the scripts' first step. */
 typedef enum {
     UNPACK_LAVOS_PIXELS,
     UNPACK_PLANET_TILES,
@@ -332,23 +330,23 @@ static bool set_up_lavos_falls_with(GameState *g, Platform *pf, const LavosFalls
     return true;
 }
 
-/* ---- As C ---- */
+/* ---- The setup's steps ---- */
 
 typedef struct {
     GameState *game;
     Platform *pf;
-} LavosInC;
+} LavosContext;
 
 static bool unpack_the_resource(void *ctx, LavosUnpack which)
 {
-    LavosInC *c = ctx;
+    LavosContext *c = ctx;
     TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, lavos_unpacks[which].resource));
     return true;
 }
 
 static void spread(void *ctx, uint16_t packed)
 {
-    LavosInC *c = ctx;
+    LavosContext *c = ctx;
     spread_the_pixels(c->game, packed);
 }
 
@@ -359,7 +357,7 @@ enum { SCATTER_STARS = 0x7E5777 };
 
 static bool turn_and_scatter(void *ctx)
 {
-    LavosInC *c = ctx;
+    LavosContext *c = ctx;
     SceneTurn turn = SCENE_TURN_ENDED;
     TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, SCENE_CAMERA_CHANNEL));
     if (turn != SCENE_TURN_ENDED)
@@ -371,13 +369,13 @@ static bool turn_and_scatter(void *ctx)
 bool scene_lavos_falls_set_up(GameState *g, Platform *pf)
 {
     static const LavosFallsSetUpSteps in_the_program = { unpack_the_resource, spread, turn_and_scatter };
-    LavosInC c = { g, pf };
+    LavosContext c = { g, pf };
     return set_up_lavos_falls_with(g, pf, &in_the_program, &c);
 }
 
-/* ---- Entries ---------------------------------------------------------------------------------- */
+/* ---- The routines and the tasks ----------------------------------------------------------------- */
 
-/* The routines channel 1's script calls, as C (scene/script.c). */
+/* The routines channel 1's script calls (scene/script.c). */
 const SceneScriptRoutine scene_lavos_routines[] = {
     [SCENE_ROW_SEND_LAVOS_BACK] = { SCENE_ROUTINE_SEND_LAVOS_BACK, send_lavos_back },
     [SCENE_ROW_LET_LAVOS_FALL] = { SCENE_ROUTINE_LET_LAVOS_FALL, let_lavos_fall },
@@ -387,8 +385,8 @@ const unsigned scene_lavos_routine_count = sizeof scene_lavos_routines / sizeof 
 /* The planet's list, its 28 sprites with room for them in the tables. */
 enum { PLANET_SPRITES = 28 };
 
-/* The frame's tasks, as C: none ends. The planet's edge is drawn where its
- * sprites have room in the tables, as its entry's guard has it. */
+/* The frame's tasks: none ends. The planet's edge is drawn where its
+ * sprites have room in the tables; otherwise the scene goes no further. */
 TaskEnd scene_turn_lavos(GameState *g, Platform *pf, unsigned slot)
 {
     (void)pf;
@@ -418,7 +416,7 @@ TaskEnd scene_draw_the_planet(GameState *g, Platform *pf, unsigned slot)
     (void)pf;
     (void)slot;
     if (!scene_sprites_fit(g, PLANET_SPRITES))
-        return scene_task_needs_the_machine(g, 0x7E56EB, "a planet's edge with no room for its sprites");
+        return scene_task_goes_no_further(g, 0x7E56EB, "a planet's edge with no room for its sprites");
     draw_the_planet(g);
     return task_goes_on();
 }

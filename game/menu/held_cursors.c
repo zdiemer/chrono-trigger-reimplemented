@@ -278,8 +278,7 @@ bool menu_scroll_bar_can_be_drawn(const GameState *g)
 
 /* ---- Their tasks -------------------------------------------------------------------------------- */
 
-/* The cursors are drawn on the menus' page with the data bank on work
- * RAM's, at places of the cursor's table (its 42); the members' for the
+/* The cursors are drawn at places of the cursor's table (its 42); the members' for the
  * one to three active ones (with none, the original's loop runs round its
  * count's 65536). */
 bool menu_held_cursor_can_be_drawn(const GameState *g) { return menu_held_cursor(g) < MENU_CURSOR_PLACES_COUNT; }

@@ -1,25 +1,7 @@
-/* The equipment screen on the original's machine: its checked legacy adapters,
- * the bridges that run what game/menu/equipment.c decides between the calls
- * to what is still the original's, and their guards.
- *
- * Each step reads the cursor, asks equipment.c what the frame's input does,
- * and carries that out: the sounds, the member's card and the member list's
- * slide are siblings, run as the original's JSRs reach them (menu_run; the
- * slide where its own guard holds, menu_run_or_call); the trying on of what
- * is no item of the game's is the original's, called out to, and so are the
- * low-HP marks where theirs can't be worked out as C; the member list's scroll
- * bar, the marks otherwise and the list's frame are C, called as C; a step
- * that waits for the next frame
- * waits in the menus' task switch, parked until its task goes on
- * (menu_wait_a_frame_from); where a step jumps on to another routine (the
- * member list's move, the slots' pointing, the list's step, back to the
- * main menu), it calls the sibling as C where its guard holds.
- *
- * Shadow mode compares the machine at every call out, the flags a sibling
- * saves as it starts (on the stack under its own calls out) among it. So
- * after each decision a bridge leaves the flags the original's own tests
- * left, worked out from the state (the leaves at the end of the file):
- * scaffolding, which the native build compiles out. */
+/* What the equipment screen's steps need of the game's state before they
+ * run: a member list the screen can draw, room in the upload queue for what a
+ * step queues, a list of what fits whose every row names one of the game's
+ * items. The steps (game/menu/equipment.c) go no further where one fails. */
 #include "menu/equipment.h"
 
 #include "charge.h"
@@ -41,28 +23,9 @@
 #include "ram.h"
 #include "vars.h"
 
-/* ---- The calls out ----------------------------------------------------------------------------- */
+/* ---- The steps --------------------------------------------------------------------------------- */
 
-/* The original's routines the steps call, by what they do. */
-enum { LOW_HP_MARKS = 0xC2813C, /* each character's low-HP mark worked out */ };
-
-/* Where a step jumps on to: the member list's move and the slots' pointing,
- * the screen's set-up, the card, back to the members, on to the list (ports
- * of these files), back to the main menu, the refusal's sound and the cursor
- * sound as a step's last. */
-enum {
-    SET_UP_SCREEN = 0xC2A11A,
-    MEMBER_CARD = 0xC2A22F,
-    MAIN_MENU = 0xC29A98,
-    REFUSAL_SOUND = 0xC2EACC,
-    CURSOR_SOUND = 0xC2EAC2,
-};
-
-/* ---- The guards -------------------------------------------------------------------------------- */
-
-/* The steps run on the menus' page with the data bank on work RAM's, play
- * their sounds there, and queue whole uploads with room for what a step
- * queues. */
+/* The steps queue whole uploads, with room for what a step queues. */
 static bool queue_takes(const GameState *g, unsigned uploads) { return menu_upload_queue_takes(g, uploads); }
 
 /* The members the screen reaches: at least one and no more than the list's
@@ -126,7 +89,7 @@ static bool item_step_runs(const GameState *g)
 
 static bool weapon_is_forgettable(const GameState *g) { return menu_member_row(g) < MENU_MEMBERS_COUNT; }
 
-/* ---- The windows' guards ----------------------------------------------------------------------- */
+/* ---- The windows ------------------------------------------------------------------------------- */
 
 /* The slots: one of four, the cursor's for its label; the items a member has
  * on, each one of the game's. */
@@ -185,7 +148,7 @@ static bool slots_come_back(const GameState *g) { return queue_takes(g, 4) && me
 static bool window_slides(const GameState *g) { return queue_takes(g, 3) && member_shows(g) && menu_member_rows_can_be_drawn(g); }
 static bool slots_show(const GameState *g) { return queue_takes(g, 3) && member_shows(g); }
 
-/* The guards' state halves, for the program as C. */
+/* What each step needs, for equipment.c. */
 bool menu_equip_slots_window_can_slide(const GameState *g) { return window_slides(g); }
 bool menu_equip_can_point_at_a_slot(const GameState *g) { return slot_is_pointable(g); }
 bool menu_equip_members_can_come_back(const GameState *g) { return members_come_back(g); }

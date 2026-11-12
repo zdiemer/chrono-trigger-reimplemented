@@ -66,8 +66,6 @@ void menu_scene_drift_the_map(GameState *g, MenuObject self)
  * answer it too. */
 void menu_scene_note_the_epoch_s_arrival(GameState *g) { set_story_epoch_arrivals(g, menu_object_scratch_answer(g)); }
 
-/* ---- As C ---------------------------------------------------------------------------------------- */
-
 /* A routine a script calls to take a decision answers in the mode's first
  * cell, which the script's next command tests. */
 static bool answer_whether_in_view(GameState *g, Platform *pf, MenuObject self, bool far)

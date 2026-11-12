@@ -16,10 +16,7 @@
  *
  * The per-line effects the scenes start are menu/line_effects.c's, and the
  * Epoch's area check, which its map screen calls, is beside the Epoch's
- * screens in menu/epoch.c.
- *
- * After them the scripts read only X and the carry, so each entry says what
- * it leaves in those and declares the rest dead. */
+ * screens in menu/epoch.c. */
 #include "menu/effect_noise.h"
 #include "menu/object_commands.h"
 
@@ -418,18 +415,11 @@ static void place_on_scene_edge(GameState *g, MenuObject self)
     menu_note_effect_noise(g, offset);
 }
 
-/* ---- the entries ----------------------------------------------------------------------------- */
-
-/* They run on the mode's page, reaching the object and the scene's cells
- * through a data bank on low RAM; the object's routines are run by an object.
- * The loaders reach the decompressor's cells through the data bank alone, and
- * the story flags and the staged line values are reached by long address. */
-enum { MODE_PAGE = 0x0000 };
+/* ---- what the routines need ----------------------------------------------------------------- */
 
 /* -- objects put on the map at random -- */
 
-/* They run on the mode's page with the data bank on the I/O banks, and the
- * view is on the map: its top-left column well under $2000 (the original
+/* The view is on the map: its top-left column well under $2000 (the original
  * carries the multiply's top bit into the sum). */
 static bool view_is_on_the_map(const GameState *g, MenuObject self)
 {
@@ -536,10 +526,7 @@ static void lay_out_scene_pattern(GameState *g, MenuObject self)
     }
 }
 
-/* ---- As C ----------------------------------------------------------------------------------- */
-
-/* The routines as the program calls them from a script (menu/handlers.h): the
- * same work as the entries above, with nothing of the machine's to leave. */
+/* The routines as a script calls them (menu/handlers.h). */
 #define ROUTINE(name)                                                                \
     static bool name##_routine(GameState *g, Platform *pf, MenuObject self, bool far) \
     {                                                                                \

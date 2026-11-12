@@ -33,7 +33,6 @@
 #include "field/bridge.h"
 #include "field/field_data.h"
 #include "field/parts.h"
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -354,23 +353,6 @@ void object_frame_queue_take_first(GameState *g, bool alone)
     set_queued_after(g, first, field_no_link());
 }
 
-enum { LONGEST_QUEUE = FIELD_OBJECTS };
-
-bool object_frame_queue_in_the_tables(const GameState *g)
-{
-    FieldLink at = queue_head(g);
-    if (!field_link_is_object(at))
-        return true;
-    for (unsigned n = 0; n < LONGEST_QUEUE; n++) {
-        if (!field_link_names_object(at))
-            return false;
-        if (field_same_link(at, queue_tail(g)))
-            return true;
-        at = queued_after(g, field_linked_object(at));
-    }
-    return false;
-}
-
 /* A character joining the party (event $D3) marks the queue's front for the
  * member it becomes; that member's load (field/cast.c) turns the mark into
  * the asking, and the next of the party due a frame comes first, once. */
@@ -439,7 +421,7 @@ static uint8_t current_animation(const GameState *g, FieldObject obj, AnimationP
 }
 
 /* Where the animation's times start in the object's table of times, without
- * the 16 bits' wrap (for the guard, below). */
+ * the 16 bits' wrap (for the check, below). */
 static uint32_t first_time_entry(const GameState *g, FieldObject obj)
 {
     return (uint32_t)current_animation(g, obj, ITS_TIMES) * FIELD_FRAMES_A_ANIMATION + field_object_delay_table(g, obj);
@@ -518,19 +500,6 @@ static NextFrame find_next_frame(const GameState *g, FieldObject obj, uint8_t ta
     return (NextFrame){ STARTING_OVER, 0, (uint16_t)(place - frame) };
 }
 
-/* The frame the object would take next, without taking it: for a guard that
- * looks ahead at what the frame builder will draw. */
-ObjectFrame object_next_frame(const GameState *g, FieldObject obj, uint8_t tables_bank)
-{
-    NextFrame next = find_next_frame(g, obj, tables_bank);
-    switch (next.found) {
-    case END_OF_A_ONE_OFF: return (ObjectFrame){ false, 0 };
-    case STARTING_OVER:
-        return (ObjectFrame){ true, field_animation_frame_number(g, facing_frame_table(g, obj, tables_bank), next.place) };
-    default: return (ObjectFrame){ true, next.frame };
-    }
-}
-
 // $C0:CB3A
 /* The frame builder takes the object's next frame to draw, and goes on
  * reading the frame table from where it is (field_frame_entry_address, which
@@ -556,29 +525,11 @@ ObjectFrame object_take_next_frame(GameState *g, FieldObject obj, uint8_t tables
     }
 }
 
-/* For the derivations (field/parts.h, field/leaves.c): the start of the
- * object's frame table for its facing, where its current animation's first
- * frame is in it, and whether it was put a frame before its first. */
-uint16_t field_facing_frame_table(const GameState *g, FieldObject obj) { return facing_table_offset(g, obj); }
+/* ---- What the port ticks ---------------------------------------------------------------- */
 
-uint16_t field_first_frame_place(const GameState *g, FieldObject obj)
-{
-    return field_animation_place(facing_table_offset(g, obj), current_animation(g, obj, ITS_FRAMES), 0);
-}
-
-bool field_frame_before_the_first(uint8_t frame) { return frame == BEFORE_THE_FIRST_FRAME; }
-
-bool field_animation_rewound(const GameState *g, FieldObject obj)
-{
-    return field_frame_before_the_first(field_object_animation_frame(g, obj));
-}
-
-/* ---- Entries --------------------------------------------------------------------------- */
-
-/* The guards of the tick and the frame read: the object is one, the frame
- * builder's queue holds objects, and the object's animation tables add up
- * without carrying past 16 bits, where the original carries each sum into
- * the next and the port doesn't. A frame table three facing tables on, or a
+/* The tick the port takes: the frame builder's queue holds objects, and the
+ * object's animation tables add up without carrying past 16 bits, where the
+ * original carries each sum into the next and the port doesn't. A frame table three facing tables on, or a
  * table of times at the top of bank $E4, would; no object the game makes has
  * one. */
 enum { BANK_SIZE = 0x10000 };

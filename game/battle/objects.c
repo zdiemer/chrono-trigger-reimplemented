@@ -195,22 +195,9 @@ static void keep_found_position(GameState *g, unsigned slot, BattlePoint at)
     set_battle_animation_positions(g, slot, (uint16_t)(at.x | at.y << 8));
 }
 
-/* ---- The entries ------------------------------------------------------------------------ */
+/* ---- The animations' scheduler ---------------------------------------------------------- */
 
-/* Each takes the object as the original's callers give it, in X. The box's
- * last sum leaves the carry for the callers: the bottom's, or the top's
- * when the box has none below; and a bound clamped at the near edge leaves A's
- * high byte clear (the original clamps with its direct page, 0). */
-bool battle_bounds_carry(const GameState *g, unsigned slot)
-{
-    uint8_t y = battle_bounds_y(g, slot);
-    if (!(battle_setup_flags(g) & BATTLE_SETUP_PARTY_OFF_GRID))
-        return y + BOX_BELOW > 0xFF;
-    return y >= battle_object_half_height(g, slot);
-}
-
-/* The scheduler's pass: the object due, if any, takes its step. It leaves A's
- * high byte clear. */
+/* The scheduler's pass: the object due, if any, takes its step. */
 void battle_take_due_animation_step(GameState *g)
 {
     unsigned slot = find_due_animation(g);

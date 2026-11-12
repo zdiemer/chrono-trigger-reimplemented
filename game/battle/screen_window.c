@@ -327,7 +327,8 @@ static Edges inside_out(Edges e) { return (Edges)(((uint16_t)~e & 0xFF) << 8 | (
 
 // $D1:FD7E
 /* Screen command $CF: as $DB, with window 1 turned inside out. The operand
- * shifts the lines taken, which the guard keeps to no shift. */
+ * shifts the lines taken, which the command's needs keep to no shift
+ * (unshifted). */
 enum { NO_SHIFT = 0x7F };
 
 static void copy_window_1_inside_out(GameState *g)

@@ -237,18 +237,15 @@ void battle_shake_screen(GameState *g)
     start_requested_presets(g);
 }
 
-/* ---- The entries ------------------------------------------------------------------------ */
+/* ---- The frame's scroll by the mode ----------------------------------------------------------- */
 
 /* The scroll modes' routines, which the original's dispatch jumps to through
  * its table at $CD:06BC, whose time each mode's fill takes. */
 static const uint32_t scroll_routines[BATTLE_SCROLL_MODES] = { 0xCD06C4, 0xCD076C, 0xCD07E2, 0xCD07B9 };
 
-/* The fills finish as the original's do: A's high byte the page's (0), which
- * their callers read, and 8-bit A with 16-bit index registers. */
-
 static BattleScrollMode scroll_mode(const GameState *g) { return (BattleScrollMode)battle_scroll_mode(g); }
 
-/* The frame's scroll by the mode, as C. */
+/* The frame's scroll by the mode. */
 void battle_scroll_by_the_mode(GameState *g)
 {
     BattleScrollMode mode = scroll_mode(g);

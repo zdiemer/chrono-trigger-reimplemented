@@ -20,7 +20,7 @@
 /* The effect code's routines hand each other their numbers in the direct
  * page's cells $16-$21, two bytes each (the first, the second, ... the
  * sixth), and keep working numbers in a few more. The port hands them over as
- * C values; what the original leaves in the cells is scaffolding. */
+ * parameters; the cells keep what the original leaves in them. */
 enum {
     EFFECT_ARG_1 = 0x16,
     EFFECT_ARG_2 = 0x18,

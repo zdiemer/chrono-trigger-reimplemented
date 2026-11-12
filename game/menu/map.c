@@ -495,10 +495,7 @@ void menu_map_draw_plane(GameState *g, Platform *pf, uint8_t plane)
     menu_note_effect_noise(g, r.column);
 }
 
-/* ---- the entries ----------------------------------------------------------------------------- */
-
-/* The mode's direct page, where its cells are. */
-enum { MODE_PAGE = 0x0000 };
+/* ---- what a scroll and a redraw need ------------------------------------------------------- */
 
 static bool plane_is_on_the_map(const GameState *g, uint8_t plane)
 {

@@ -361,15 +361,14 @@ static void draw(GameState *g, Platform *pf)
  * markers, three boosts, the panel's lists and two numbers. */
 enum { MOST_SPRITES = 16 + 9 + 2 + 3 + 6 + 3 + 2 * DIGITS, MOST_BOOSTS = 3, MOST_LEAN = 2 };
 
-/* The drawing's code, guarded by hashes that leave out the operands the race
- * and its setup write (the bar's ends, the markers' stop, the distance's lag);
- * the race keeps those as variables. It takes the states the race makes: its
- * boosts at most three, Crono leaning one of his three ways, a sprite
- * table with room, and a markers' stop that is either the original's load or
- * the return Johnny's win writes. */
+/* The drawing takes the states the race makes: its boosts at most three,
+ * Crono leaning one of his three ways, a sprite table with room, and a
+ * markers' stop that is either the original's load or the return Johnny's win
+ * writes. */
 enum { MARKERS_DRAWN = 0xA5 };
 
-/* The guard's state half, which the C path checks too. */
+/* Whether the drawing takes the race's state; otherwise the scene goes no
+ * further. */
 static bool drawing_fits(const GameState *g)
 {
     uint8_t stop = scene_race_markers_shown(g);
@@ -381,7 +380,7 @@ TaskEnd scene_race_draw(GameState *g, Platform *pf, unsigned slot)
 {
     (void)slot;
     if (!drawing_fits(g))
-        return scene_task_needs_the_machine(g, 0x7E4F54, "a race's frame the port's drawing doesn't take");
+        return scene_task_goes_no_further(g, 0x7E4F54, "a race's frame the port's drawing doesn't take");
     draw(g, pf);
     return task_goes_on();
 }

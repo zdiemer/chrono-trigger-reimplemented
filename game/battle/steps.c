@@ -4,11 +4,10 @@
  * frame's work and the wait for the next, an action's showing, a target or an
  * area searched for, the enemies beaten seen to, the victory and the defeat.
  *
- * Each step is a routine of its own, most of which wait for frames, and the
- * asker's registers are kept across it, so that a turn can ask for a step in
- * the middle of its own work. The steps are found through a C table; those
- * that are hand ports are run as the original's call reaches them
- * (battle_run), the others are still the original's. */
+ * Each step is a routine of its own, most of which wait for frames, so that
+ * a turn can ask for a step in the middle of its own work. The steps are
+ * found through a table; a step the port has no routine for (the searches,
+ * which the turns make directly) is refused. */
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
@@ -16,11 +15,7 @@
 #include "battle/steps.h"
 #include "charge.h"
 
-/* The routine of each step, its hand port where the dispatch runs it on the
- * machine, what it doesn't read of what the dispatch hands it, and the step
- * as C. Setup leaves saveable waits; its return continuation restores the
- * scheduler's kept registers before resuming the main loop. */
-
+/* The routine of each step, whose time it is charged at, and its port. */
 static const struct { uint32_t routine; bool (*run)(GameState *, Platform *); } STEPS[] = {
     [BATTLE_STEP_SET_UP] = { 0xC10023, battle_set_up_runs },
     [BATTLE_STEP_OPEN_MENU] = { 0xC11B19, battle_turn_comes },
@@ -36,7 +31,7 @@ static const struct { uint32_t routine; bool (*run)(GameState *, Platform *); } 
 
 enum { STEP_COUNT = sizeof STEPS / sizeof STEPS[0] };
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- A step taken ----------------------------------------------------------------------------- */
 
 bool battle_step_taken(GameState *g, Platform *pf, BattleStep step)
 {

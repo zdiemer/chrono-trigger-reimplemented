@@ -17,8 +17,8 @@
  * Every line outside the circle is closed: left 1, right 0, nothing inside.
  *
  * The original keeps its loop state in cells high on the decompressor's page;
- * the port keeps it in locals. The retired menu callers need only the window
- * table; the discarded scratch writes retain their timing charges. */
+ * the port keeps it in locals, and charges the time the original spends on
+ * them. Its callers need only the window table. */
 #include "scene/scene.h"
 
 #include "charge.h"
@@ -211,7 +211,7 @@ static void draw_circle(GameState *g, uint8_t mode)
     }
 }
 
-/* The iris as a C call, for the menus' sprite objects, which draw one. */
+/* The iris drawn, for the menus' sprite objects, which draw one. */
 void scene_circle_draw(GameState *g, uint8_t mode) { draw_circle(g, mode); }
 
 /* The port keeps its loop state in locals, where the original reads the

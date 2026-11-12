@@ -307,7 +307,7 @@ static bool next_actions_in_table(const GameState *g, uint8_t enemy, uint8_t blo
  * $0A first, whose second the stat test reads (battle.h). */
 static void choose_by_script(GameState *g, ScriptChoosing *c, uint8_t id)
 {
-    /* The former guard inspected state without charging the search. */
+    /* The contract's check of the state is not charged to the search. */
     uint32_t contract_mark = charge_uncounted_begin(g);
     bool ready = c->enemy < BATTLE_ENEMIES && c->pair == PAIR_NONE && no_member_comes_back(g)
                  && next_actions_in_table(g, c->enemy, battle_enemy_script_block(g, c->enemy));
@@ -365,21 +365,7 @@ void enemy_scripts_choose(GameState *g)
     enemy_leave_choosing(g, &c);
 }
 
-/* ---- The entries ------------------------------------------------------------------------ */
-
-/* The enemy's id comes in A. */
-
-enum { CHOSEN_MARK = 1 };
-
-uint8_t enemy_choosing_result(const GameState *g, uint8_t enemy)
-{
-    uint8_t action = battle_action_kind(g);
-    if (action >= SCRIPT_ACTIONS)
-        return action;
-    return enemy >= BATTLE_ENEMIES ? enemy : CHOSEN_MARK;
-}
-
-/* ---- The guards ------------------------------------------------------------------------- */
+/* ---- What the port takes ---------------------------------------------------------------- */
 
 /* A party member picked at random is updated in C, which is every call the
  * game makes but where a knocked-out member would come back (the battle's
@@ -475,7 +461,7 @@ static bool action_entry_fits_the_tables(const GameState *g, uint8_t action, Scr
     return action_entry_in_tables(g, action, at) && (action != ACTION_CHOOSE_AGAIN || choosing_actions_in_table(g));
 }
 
-bool enemy_action_entry_fits(const GameState *g, uint8_t action)
+bool enemy_action_turn_fits(const GameState *g, uint8_t action)
 {
     return working_on_an_enemy(g) && action_entry_fits_the_tables(g, action, battle_script_place(g));
 }

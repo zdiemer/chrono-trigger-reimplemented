@@ -61,11 +61,3 @@ void scene_send_the_plane_s_place(const GameState *g, Platform *pf)
     vid_set_mode7(pf, PF_AT(0x7E81CA), &m7, VID_M7_SCROLL);
     vid_set_mode7(pf, PF_AT(0x7E81DE), &m7, VID_M7_CENTER);
 }
-
-/* ---- Entries ---------------------------------------------------------------------------------- */
-
-/* Vblank tasks (the flat plane's of Lavos's fall, which the Beyond Time
- * ending's vblank calls too; the plane's place of the Epoch's dive): each
- * moves the direct page to channel 0's, which it leaves there, and nothing
- * they leave is read. */
-enum { CAMERA_PAGE = 0x0A00 };

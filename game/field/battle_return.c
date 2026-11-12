@@ -39,7 +39,6 @@
 #include "field/sprites.h"
 #include "field/walk.h"
 #include "field/bridge.h"
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -318,7 +317,7 @@ static bool take_up_after_battle(GameState *g, AfterCalls call, void *ctx)
     }
 }
 
-/* ---- On the machine ------------------------------------------------------------------------ */
+/* ---- The routines it calls ------------------------------------------------------------------ */
 
 enum { BUILD_SPRITE_TABLE = 0xC0B271 };
 
@@ -333,15 +332,11 @@ enum {
     RETURN_FROM_BATTLE = 0xC00715,
 };
 
-/* Where the game starts again: the field's first start (the title) after a
- * game over, the field's entry for the place put aside; each on the game's
- * fresh stack. What each reads of the registers first it sets. Where the
- * field is taken up again, the party comes back together ($C0:034B), which
- * the original goes on to. */
-enum { ENTER = 0xC0005D };
+/* Where the field is taken up again, the party comes back together
+ * ($C0:034B), which the original goes on to. */
 enum { PARTY_BACK_TOGETHER = 0xC0034B };
 
-/* The guard: on the field's page with the data bank $00; the leader's place
+/* What the port puts back after a battle: the leader's place
  * an object (the original takes it without looking, so the party's loop
  * needn't); the current object's word clear above its link, which the frame
  * put-back's layouts read whole (field/frames.c); each object it brings back
@@ -369,7 +364,7 @@ static bool battle_return_fits(const GameState *g)
     return ok;
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The steps ------------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
@@ -400,8 +395,8 @@ static bool map_script(AfterBattleContext *c)
     return false;
 }
 
-/* Each with its guard's state half: the putting back's, objects the rows
- * take and frames that can go back; the party's coming back together, a
+/* Each checking first that the port takes it: the putting back, objects the
+ * rows take and frames that can go back; the party's coming back together, a
  * party it brings back. The game over and the place put aside start the
  * field afresh, which is the program's to do. */
 static bool after_battle_call(void *ctx, AfterCall call, FadeOut way)

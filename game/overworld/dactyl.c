@@ -27,8 +27,8 @@
  * Epoch's (overworld_vehicle_spot), the others' spots in
  * overworld_following_dactyls, which their second sprites follow. The
  * original works the following dactyls' headings and glides out in the
- * mode's cells and the divider; those it leaves are left once, as
- * scaffolding, where each piece of work ends (the leave_* functions). */
+ * mode's cells and the divider; the port works them out in values of its
+ * own. */
 #include "overworld/vehicles.h"
 
 #include "charge.h"

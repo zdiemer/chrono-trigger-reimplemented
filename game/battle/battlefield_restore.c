@@ -18,9 +18,8 @@
  * forgotten (the next effect loads its own), and background row 1's last
  * colors go back to the start's.
  *
- * The work is C on the game's state; what reaches the machine is the bridge
- * around the transfer and the waits, which run the frame work's waits as the
- * original calls them (battle/wait.c). */
+ * The transfer and the frame work's waits (battle/wait.c) are calls out of
+ * the work (BackCall), made where the original makes them. */
 #include "battle/bridge.h"
 #include "battle/program.h"
 #include "battle/entries.h"
@@ -150,17 +149,11 @@ enum { TILES_VRAM = 0x5000, TILES_BYTES = 0x0F80 };
 enum { SETTLING_FRAMES = 15 };
 
 /* The putting back's calls: the kept tiles sent and waited for, and the
- * frame work's waits (battle/wait.c); with what the original leaves in A and
- * the carry before the first wait (below). */
+ * frame work's waits (battle/wait.c). BACK_TESTS_LEFT marks where the
+ * original's tests of the battlefield's layer and its fade end, which the
+ * port passes over. */
 typedef enum { BACK_TILES_SENT, BACK_TESTS_LEFT, BACK_FADED_FRAME, BACK_SETTLING_FRAMES, BACK_LAST_FRAME } BackCall;
 typedef bool (*BackCalls)(void *ctx, BackCall call, bool own_layer, bool faded);
-
-/* The waits pass the carry on to the menu's turn, which reads it, so the port
- * leaves it there as the original's tests do: the battlefield's test sets it
- * for one with a layer of its own, and the fade back in leaves it set as its
- * copy of the preset ends, clear where halved colors left nothing to copy; the
- * colors' copy leaves it set. The tests and the fade also clear A. */
-enum { HALVED_MATH = 0x40 };
 
 // $CD:0453
 /* Put the battlefield back. */

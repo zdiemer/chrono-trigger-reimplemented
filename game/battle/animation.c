@@ -475,7 +475,7 @@ static void note_target(GameState *g, unsigned enemy)
     set_battle_enemy_target_seen(g, enemy, battle_enemy_target(g, enemy));
 }
 
-/* ---- The bridges and the entries ------------------------------------------------------- */
+/* ---- The party's and the enemies' frames ----------------------------------------------- */
 
 // $C1:2F22
 /* The member faces its nearest enemy, when it has the turn to; true if it
@@ -631,7 +631,7 @@ static const uint32_t movement_routines[ENEMY_MOVEMENTS] = {
     0xC13772, 0xC1379A, 0xC138BF, 0xC13959, 0xC13A3D, 0xC13BC2, 0xC13E33, 0xC13F5A, 0xC14021,
 };
 
-/* The movement runs as C unless the table names none for the animation (an
+/* The movement runs unless the table names none for the animation (an
  * animation past those the battle gives, where the original's table runs on
  * into other code), or it goes by a target the enemy hasn't got. */
 static bool movement_runs(const GameState *g, unsigned enemy, uint8_t movement)
@@ -644,9 +644,8 @@ static bool movement_runs(const GameState *g, unsigned enemy, uint8_t movement)
 
 // $C1:3714
 /* Run the enemies' animation effects that are due, unless they stand still
- * for the battle menu: each enemy's animation's movement, as C where it
- * runs (movement_runs), or else (a routine of the original's, `handler`)
- * the handler the ROM's table names, which finds the enemy in its cell. */
+ * for the battle menu: each enemy's animation's movement where it runs
+ * (movement_runs), or else `handler`, which refuses the movement. */
 static bool step_enemy_effects(GameState *g, bool (*handler)(void *ctx, uint8_t movement), void *ctx)
 {
     if (battle_timers_held(g))
@@ -671,9 +670,9 @@ static bool step_enemy_effects(GameState *g, bool (*handler)(void *ctx, uint8_t 
     return true;
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The enemies' effects, a frame on --------------------------------------------------------- */
 
-/* A movement the table names none for is the original's. */
+/* A movement the table names none for is one the port doesn't run. */
 static bool movement_with_no_port(void *ctx, uint8_t movement)
 {
     (void)movement;

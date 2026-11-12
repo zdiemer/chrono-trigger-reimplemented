@@ -16,9 +16,9 @@ void menu_build_math_table(GameState *g, Platform *pf);
 /* Send the queued VRAM uploads now, emptying the queue; send the working
  * palette now if it has changed. */
 void menu_send_upload_queue(GameState *g, Platform *pf);
-/* The guards' state halves: the upload queue's entries whole and from memory,
- * and a block move the frame asked for a buffer's. And the queue sent as C
- * where it is whole, the program going no further otherwise. */
+/* What the vblank needs to send the frame: the upload queue's entries whole
+ * and from memory, and a block move the frame asked for a buffer's. And the
+ * queue sent where it is whole, the program going no further otherwise. */
 bool menu_upload_queue_is_whole(const GameState *g);
 bool menu_block_move_is_a_buffer(const GameState *g);
 bool menu_upload_queue_sent(GameState *g, Platform *pf);
@@ -34,10 +34,9 @@ void menu_ask_for_the_block_move(GameState *g);
 void menu_clear_memory(GameState *g, Platform *pf, uint16_t at, uint16_t bytes);
 void menu_copy_rom_to_memory(GameState *g, Platform *pf, uint16_t from, uint16_t at, uint16_t bytes);
 
-/* The mode at $C2:800E (the menus proper) as the program runs it, with no
- * machine: asked for `asked_for` with `asked_with` (the screen's argument),
- * until a screen closes them; false where a step is the machine's yet, the
- * program going no further there. Its vblank and line handlers, and the
+/* The mode at $C2:800E (the menus proper): asked for `asked_for` with
+ * `asked_with` (the screen's argument), until a screen closes them, or no
+ * further where a step meets a state the port doesn't handle. Its vblank and line handlers, and the
  * menus closed from inside the task that closes them (which never comes
  * back). */
 typedef enum { MENUS_WENT_NO_FURTHER, MENUS_CLOSED, MENUS_START_THE_GAME_AGAIN } MenuModeEnd;
@@ -46,15 +45,14 @@ void menu_vblank(GameState *g, Platform *pf);
 void menu_line(GameState *g, Platform *pf);
 void menu_close(GameState *g, Platform *pf, bool for_the_game);
 
-/* The mode on the machine */
 /* The mode at $C2:0000 (sprite objects): its own state started over (its
- * direct page cleared and the shadows of its display set as the screen
+ * scratch cleared and the shadows of its display set as the screen
  * starts), its vblank handler taken, and its upload queue emptied. */
 void menu_object_reset_the_mode(GameState *g);
 void menu_object_take_the_interrupts(GameState *g);
 void menu_object_reset_the_upload_queue(GameState *g);
 
-/* The mode's start as C ($C2:000F): the screen blanked and everything
+/* The mode's start ($C2:000F): the screen blanked and everything
  * stopped, then the screen, the mode's own state, its handlers and its upload
  * queue set up and its palette cleared. The world map is set up after it
  * (overworld/setup.c). */
@@ -63,12 +61,12 @@ void menu_object_mode_starts(GameState *g, Platform *pf);
  * comes back from the menus. */
 void menu_object_set_up_the_screen(GameState *g, Platform *pf);
 
-/* The mode's vblank handler as C, and its line handler, which only returns. */
+/* The mode's vblank handler, and its line handler, which only returns. */
 enum { MENU_OBJECT_VBLANK_HANDLER = 0xC2015E };
 void menu_object_vblank(GameState *g, Platform *pf);
 void menu_object_line(GameState *g, Platform *pf);
 
-/* The guard's state half for the mode's upload queue: whole, from memory. */
+/* Whether the mode's upload queue can be sent: whole, from memory. */
 bool menu_object_queue_can_be_sent(const GameState *g);
 
 /* Loading a screen's graphics: all of VRAM cleared; graphics sent from the
@@ -77,12 +75,11 @@ void menu_clear_all_of_vram(Platform *pf);
 void menu_send_loaded_graphics(Platform *pf, uint16_t vram, uint16_t from, uint16_t bytes);
 void menu_send_the_loaded_palette(Platform *pf);
 
-/* The same as C. */
+/* The loader's screen set up, with the console stopped, and all of VRAM and
+ * the screen's buffers in work RAM cleared ($C2:940D). */
 void menu_video_set_up(GameState *g, Platform *pf);
-/* The window line table: built, and the per-line slot pointed at it; its
- * entry, which leaves its counts in the menus' first cells (FC04 runs on
- * the menus' page from every caller). */
+/* The window line table: built, and the per-line slot pointed at it
+ * ($FF:FC04). */
 void menu_put_window_line_table(GameState *g, Platform *pf);
-/* Guards */
 
 #endif

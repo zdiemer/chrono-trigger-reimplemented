@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include "state.h"
 
-/* The field taken up again after a battle ($C0:0283), as C: on its map, a
+/* The field taken up again after a battle ($C0:0283): on its map, a
  * frame at a time, or the game over, or back at the place put aside. False
  * where it went no further. */
 bool field_taken_up_after_battle(GameState *g, Platform *pf);

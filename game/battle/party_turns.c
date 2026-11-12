@@ -25,8 +25,7 @@
  * member's menu closes in turn.
  *
  * The decisions are made on the game's state; the battle's steps and a
- * member's attack run between them, and the functions that reach those are
- * the bridges at the end of the file's sections. */
+ * member's attack run between them, as calls out of the turns (PartyCall). */
 #include "battle/party_turns.h"
 
 #include "battle/battle.h"
@@ -49,8 +48,7 @@
  * battle's steps -- an action called off (step 2), the enemies beaten seen to
  * (step 6), each member's menu closed as the party stands down -- and a
  * waiting member's menu closed ($C1:B961), and a member of a combination
- * called off while it waited ($FD:A8FE, below). The program makes them as C,
- * and the machine's entries from the original's calls. */
+ * called off while it waited ($FD:A8FE, below). */
 typedef enum {
     PARTY_ATTACK_DRIVEN, PARTY_ATTACK_CONFUSED, PARTY_COUNTER_ATTACK,
     PARTY_CALLED_OFF_STEP, PARTY_BEATEN_STEP, PARTY_STAND_DOWN_STEP,
@@ -209,7 +207,8 @@ static bool counter_the_attack(GameState *g, PartyCalls call, void *ctx)
 
 /* The original reads the members hit as stat blocks by the whole slot, so a
  * target past the combatants (none, for an enemy's action on the party, which
- * leaves its first three targets party members or none) is the original's. */
+ * leaves its first three targets party members or none) is one the port
+ * refuses. */
 static bool members_hit_are_combatants(const GameState *g)
 {
     for (unsigned entry = 0; entry < MEMBERS_HIT; entry++) {
@@ -393,7 +392,7 @@ static bool stand_down(GameState *g, PartyCalls call, void *ctx)
     return true;
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The turns' calls ------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
@@ -423,8 +422,8 @@ static bool party_call(void *ctx, PartyCall call, uint8_t member)
     }
 }
 
-/* Each with its guard's state half: the slot a combatant, the members
- * hit and the reactions' targets combatants or none. */
+/* Each refused unless the slot is a combatant, and the members hit and the
+ * reactions' targets combatants or none. */
 bool battle_member_status_turn(GameState *g, Platform *pf, uint8_t member)
 {
     if (member >= BATTLE_COMBATANTS)

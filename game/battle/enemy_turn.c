@@ -6,10 +6,9 @@
  * out its reaction's action at once. The action does its part (battle/
  * enemy_actions.c) and says what the turn does after it: work its effect out
  * on its targets and show it, only show it, or nothing more. Its effect is
- * worked out in C (battle/effect_work.c); a tech's targeting, messages, an
+ * worked out by battle/effect_work.c; a tech's targeting, messages, an
  * enemy's stat block loaded as it comes in and the showing are routines of
- * their own, which the machine's side of the turn calls as the original's
- * code and the program's side as C.
+ * their own, which the turn calls out to (ActCall, TurnCall).
  *
  * After the turn the enemy has nothing chosen, and where its action was aimed
  * at an enemy (and doesn't say otherwise) the enemies react. */
@@ -32,7 +31,7 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-/* ---- The turn, as C ------------------------------------------------------------------------ */
+/* ---- The turn's start and end ----------------------------------------------------------------- */
 
 static uint8_t acting(const GameState *g) { return battle_enemy_acting(g); }
 static bool reacting(const GameState *g) { return battle_action_hit_enemy(g) != 0; }
@@ -40,7 +39,7 @@ static bool reacting(const GameState *g) { return battle_action_hit_enemy(g) != 
 /* How far the turn has read the script: it starts at the action, and each
  * action's turn reads its operands. This is the turn's result as much as the
  * choosing's: a reaction's search for its next block goes on from it
- * (battle/main_loop.c), and so does the original's calling in. */
+ * (battle/main_loop.c), and so does the calling in. */
 static void script_read_to(GameState *g, ScriptPlace at) { set_battle_script_place(g, at); }
 
 /* The turn starts with the action record blank, its further targets none. */
@@ -178,8 +177,9 @@ static bool effect_shown(GameState *g)
  * tech's body ($C1:9A3D, below), its targeting ($C1:C1DD, battle/aim.c), an
  * enemy's message ($CD:0033, battle/message.c), an enemy coming into the
  * battle loaded ($FD:B438, battle/fight_enemies.c), and enemies called in
- * ($FD:A990, below). `arg` is the message or the enemy; the targeting takes
- * the carry the code before it leaves. */
+ * ($FD:A990, below). `arg` is the message or the enemy; `carry` follows the
+ * flag the original's code before the targeting leaves, which the targeting
+ * no longer reads. */
 typedef enum {
     ACT_TECH_BODY,
     ACT_AIM_TECH, ACT_AIM_SET_STATS_THEN_TECH, ACT_AIM_ADD_TO_STATS_THEN_TECH,
@@ -214,12 +214,7 @@ static bool attack_turn(GameState *g, ScriptPlace at, ActCalls call, void *ctx)
     (void)call;
     (void)ctx;
     enemy_attack_begins(g, at);
-    /* the attack noted for its targets takes the carry the original's test
-     * of the attack's number leaves: set for a number past the one that takes
-     * the enemy's own detail */
     TIMED_AS(g, 0xFDAB01, effect_note_enemy_action(g, ENEMY_ATTACKS));
-    /* its multiply takes the carry of the test of the attack's number: set for
-     * a number past the one that takes the enemy's own detail */
     enemy_attack_ends(g);
     return true;
 }
@@ -234,7 +229,6 @@ static bool tech_after_targets(GameState *g, ActCall aim, ActCall message_at, bo
     charge_legacy_accesses(g, 1);
     if (enemy_tech_aimed(g)) {
         TIMED_AS(g, 0xFDAAD2, effect_note_enemy_action(g, ENEMY_TECHS));
-        /* its multiply takes the carry of the marking of the targets */
         enemy_tech_ends(g);
         if (!show_message(message_at, stats_first ? battle_action_message(g) : message, call, ctx))
             return false;
@@ -246,7 +240,6 @@ static bool tech_after_targets(GameState *g, ActCall aim, ActCall message_at, bo
 static bool tech_body(GameState *g, ScriptPlace at, ActCalls call, void *ctx)
 {
     enemy_tech_begins(g, battle_enemy_turn(g), at, true);
-    /* the targeting takes the carry of the test for no third target */
     bool no_third = battle_action_further_targets(g, 1) == NO_CANDIDATE;
     return tech_after_targets(g, ACT_AIM_TECH, ACT_MESSAGE_TECH, false, no_third, enemy_tech_at(g, at).message, call, ctx);
 }
@@ -259,8 +252,8 @@ static bool tech_turn(GameState *g, ScriptPlace at, ActCalls call, void *ctx)
     return call(ctx, ACT_TECH_BODY, 0, false);
 }
 
-/* Whether adding `amount` to `stat` carries past a byte, or taking it away
- * leaves something: the carry the original's change leaves. */
+/* Whether adding `amount` to `stat` goes past a byte, or taking it away
+ * leaves something. */
 enum { TAKE_AWAY = 0x80 };
 
 static bool change_carries(uint8_t stat, uint8_t amount)
@@ -271,8 +264,9 @@ static bool change_carries(uint8_t stat, uint8_t amount)
 }
 
 /* The stats set or added to first, then the tech (its message the one they
- * kept). The targeting after takes the carry a further target's selection
- * leaves (set), or where there is none the last stat change's. */
+ * kept). Returns the flag the original hands the targeting after: set where
+ * a further target is selected, or else the last stat change's carry past a
+ * byte. */
 static bool stats_before_tech(GameState *g, ScriptPlace at, bool adding)
 {
     enemy_keep_message_before_tech(g, at);
@@ -304,8 +298,8 @@ static bool add_to_stats_then_tech_turn(GameState *g, ScriptPlace at, ActCalls c
 }
 
 // $C1:9B48
-/* The choosing is a machine entry's here: it is taken from the cells and
- * handed back, the script read as far as it read. */
+/* The choosing again is taken from the cells and handed back, the script
+ * read as far as it read. */
 static bool choose_again_turn(GameState *g, ScriptPlace at, ActCalls call, void *ctx)
 {
     (void)call;
@@ -472,7 +466,7 @@ static bool run_action_turn(GameState *g, ActionTurn turn, uint8_t reads, ActCal
 
 /* The actions' turns, by action, with the original's routine for each, whose
  * time is its own; the actions with no turn share one, as their routines do
- * nothing alike. Each is an entry on the machine (below). */
+ * nothing alike. */
 typedef struct {
     ActionTurn turn;
     uint8_t reads;
@@ -505,8 +499,8 @@ static const ActionTurnRow turns[ACTION_KINDS] = {
     [ACTION_CALL_IN] = { call_in_turn, READS_NOTHING_MORE, 0xC1A396 },
 };
 
-/* The scripts hold no action past the table, and the turn's guard
- * (battle_enemy_turn_ready) takes none: the original would take a word past
+/* The scripts hold no action past the table, and the turn's check
+ * (enemy_action_turn_fits) takes none: the original would take a word past
  * its table for a routine. One would do nothing here. */
 static const ActionTurnRow no_turn = { nothing_turn, READS_NOTHING_MORE, 0xC19B46 };
 
@@ -566,26 +560,20 @@ static bool enemy_turn(GameState *g, TurnCalls call, void *ctx)
 
 enum { TECH_BODY = 0xC19A3D, AIM = 0xC1C1DD, ENEMY_MESSAGE = 0xCD0033, ARRIVAL = 0xFDB438, CALL_IN = 0xFDA990 };
 
-/* An entry and its guard, which knows the action it carries out. */
-/* The action's dispatch, which the original makes with the action doubled in
- * X and A. */
-enum { DISPATCH = 0xC18D88 };
-
-/* The action shown, from the turn's JSR at $C1:8E47, with A's high byte as
- * the test of the actor's statuses leaves it, clear. */
+/* The action shown ($C1:AC57), called from the turn at $C1:8E47. */
 enum { SHOWING = 0xC1AC57 };
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The turn's calls ------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
     Platform *pf;
 } EnemyTurnContext;
 
-/* The action turns' calls, each with its guard's state half: the
- * targeting's, an aim the port makes; the message's, one the menus' text code
- * types; an arrival, an enemy the fight's start loads; the calling in, each
- * of its arrivals'. */
+/* The action turns' calls, each refused where the port doesn't take its
+ * state: the targeting, an aim the port doesn't make; the message, one the
+ * menus' text code doesn't type; an arrival, an enemy past the eight; the
+ * calling in, any of its arrivals'. */
 static bool act_out(void *ctx, ActCall call, uint8_t arg, bool carry)
 {
     EnemyTurnContext *c = ctx;
@@ -593,7 +581,7 @@ static bool act_out(void *ctx, ActCall call, uint8_t arg, bool carry)
     bool done = false;
     switch (call) {
     case ACT_TECH_BODY:
-        if (!enemy_action_entry_fits(g, ACTION_TECH))
+        if (!enemy_action_turn_fits(g, ACTION_TECH))
             return battle_contract_broken(g, TECH_BODY, "an enemy's tech the port doesn't take");
         TIMED_AS(g, TECH_BODY, done = run_action_turn(g, tech_body, TECH_READS, act_out, ctx));
         return done;
@@ -604,18 +592,12 @@ static bool act_out(void *ctx, ActCall call, uint8_t arg, bool carry)
     case ACT_ARRIVAL_BRING_BACK:
     case ACT_ARRIVAL_CALL_IN:
         /* the enemy's stat block filled from its record, as at the fight's
-         * start. fight_load_enemy_ready also wants the enemy in the cell $02,
-         * which the original's arrivals store from X just before the call
-         * ($C1:9C2E, $C1:9ED8, $FD:AA2C), so it holds by construction; its
-         * state half is the enemy being one of the eight */
+         * start, for one of the eight enemies */
         if (arg >= BATTLE_ENEMIES)
             return battle_contract_broken(g, ARRIVAL, "an enemy coming into the battle past the eight");
         TIMED_AS(g, ARRIVAL, fight_load_enemy(g, arg));
         return true;
     case ACT_CALL_IN:
-        /* the calling in's guard's state half, the effect code's tech number
-         * where the original reads it, holds by construction: the turn's
-         * start leaves it there */
         TIMED_AS(g, CALL_IN, done = call_enemies_in(g, act_out, ctx));
         return done;
     default: TIMED_AS(g, ENEMY_MESSAGE, done = battle_show_an_enemy_message(g, c->pf, arg)); return done;
@@ -630,7 +612,7 @@ static bool take_a_part_of_the_turn(void *ctx, TurnCall call)
     switch (call) {
     case TURN_ACTION: {
         const ActionTurnRow *row = turn_of(battle_action_kind(g));
-        if (!enemy_action_entry_fits(g, battle_action_kind(g)))
+        if (!enemy_action_turn_fits(g, battle_action_kind(g)))
             return battle_contract_broken(g, row->routine, "an enemy's action the port doesn't take");
         TIMED_AS(g, row->routine, done = run_action_turn(g, row->turn, row->reads, act_out, ctx));
         return done;
@@ -646,7 +628,7 @@ static bool take_a_part_of_the_turn(void *ctx, TurnCall call)
     }
 }
 
-/* The turn's guard's state half (battle_enemy_turn_ready's). */
+/* Refused where the port doesn't take the turn (battle_enemy_turn_fits). */
 bool battle_enemy_takes_turn(GameState *g, Platform *pf)
 {
     if (!battle_enemy_turn_fits(g))

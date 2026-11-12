@@ -3,7 +3,7 @@
  * Every such read goes through an accessor here, named for what the data is,
  * so a build that loads it from somewhere other than the ROM image changes
  * this file and nothing that uses it. The accessors take the game's state
- * (game/rom.h), not the machine. */
+ * (game/rom.h). */
 #ifndef CT_GAME_MENU_DATA_H
 #define CT_GAME_MENU_DATA_H
 
@@ -222,7 +222,7 @@ enum { MENU_SINE_STEPS = 0x400 };
 
 /* The tilts the Day of Lavos's turning world leans back by
  * (menu/turning_world.c): how much its distances grow a line pair down the
- * screen, in 256ths ($C6:EB23, the steeper the later). The frame's guard
+ * screen, in 256ths ($C6:EB23, the steeper the later). The frame's check
  * keeps the tilt among them; the original's index would read on into the
  * code after the table. */
 enum { MENU_WORLD_TILTS = 24 };
@@ -731,7 +731,7 @@ static inline uint8_t menu_sprite_script_byte(const GameState *g, uint32_t at) {
 static inline uint8_t menu_sprite_group_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
 
 /* The address in bank C2 of each object script command's handler ($C2:0F91),
- * which names the command's time and its checked legacy adapter. */
+ * by which the port finds the command's own handler and its time. */
 static inline uint16_t menu_script_handler(const GameState *g, uint8_t opcode)
 {
     return rom_read16(g, 0xC20F91u + 2u * opcode);
@@ -789,7 +789,7 @@ static inline uint8_t menu_world_tilt_step(const GameState *g, uint16_t tilt) { 
 
 /* A sine wave of 256 steps a turn ($C0:F800), as signed bytes: the table the
  * field reads as its directions' velocity factors, read whole by the scenes'
- * objects, through the data bank. */
+ * objects. */
 static inline int8_t menu_sine_step(const GameState *g, uint8_t angle) { return (int8_t)rom_read8(g, 0xC0F800u + angle); }
 
 static inline uint8_t menu_equipment_figure_shown(const GameState *g, unsigned i)
@@ -1086,8 +1086,8 @@ static inline MenuCarriedRun menu_carried_run(const GameState *g, unsigned run)
                              rom_read16(g, at + 5) };
 }
 
-/* Where each slot's game is in save memory, as the original's code addresses
- * it on the bus ($FF:FBE1, a word a slot). */
+/* Where each slot's game is in save memory, as the original addresses it on
+ * the bus ($FF:FBE1, a word a slot). */
 static inline uint16_t menu_saved_game_on_the_bus(const GameState *g, uint8_t slot) { return rom_read16(g, 0xFFFBE1u + 2u * slot); }
 
 static inline uint8_t menu_starting_record_byte(const GameState *g, uint8_t character, uint8_t at)

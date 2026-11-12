@@ -184,13 +184,13 @@ void battle_step_hp_gradient(GameState *g)
         follow_hp(g);
 }
 
-/* ---- The entries ------------------------------------------------------------------------ */
+/* ---- The gradient's step ------------------------------------------------------------------ */
 
 /* The phase picks a turn from 14; the rows start within the colors' repeat. */
 bool battle_hp_gradient_steps(const GameState *g) { return battle_gradient_phase(g) < GRADIENT_PHASES; }
 
-/* A row is one of the three (Y its first color's byte offset from color $51),
- * and its start (A) within the repeat. */
+/* A row is one of the three (its first color's byte offset from color $51),
+ * and its start within the repeat. */
 enum { ROW_BYTES = 2 * ROW_COLORS };
 
 void battle_start_gradient_phase(GameState *g) { set_battle_gradient_phase(g, starting_phase(g)); }

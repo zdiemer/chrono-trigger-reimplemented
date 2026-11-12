@@ -200,7 +200,7 @@ uint16_t scene_radius_from_area(GameState *g, uint32_t area)
     return (uint16_t)low;
 }
 
-/* ---- The arithmetic as C calls -------------------------------------------------------------- */
+/* ---- The arithmetic -------------------------------------------------------------------------- */
 
 /* A product of two 16-bit operands whose middle partial sums fit
  * (multiplies_exactly), as every caller here gives it. */
@@ -345,9 +345,8 @@ uint8_t scene_find_divisor_from(GameState *g, uint16_t dividend, uint8_t from, u
         program_breaks_a_contract(g, FIND_DIVISOR, "a scene divisor search without a solution");
         return from;
     }
-    /* These divider polls were part of the machine's comparison bookkeeping.
-     * Preserve that estimate without adding work to the native program,
-     * which has always computed the divisor directly. */
+    /* The time the original spends trying each divisor on the divider: the
+     * port works the divisor out directly. */
     TIMED_AS(g, FIND_DIVISOR, charge_legacy_accesses(g, f.tried * ACCESSES_PER_PASS));
     charge_legacy_io_accesses(g, 1);
     return f.divisor;

@@ -217,7 +217,7 @@ static void draw_header(GameState *g, Platform *pf)
  * command list draws it from, and the portrait, one row of tilemap below the
  * other. The list draws at the drawing origin; the loop keeps its own place,
  * where the original reads it back from the origin's cell after each row. */
-/* The row's cells, which the portrait's own entry ($C2:D466) takes its row
+/* The row's cells, which the portrait's own routine ($C2:D466) takes its row
  * and member from. */
 static void note_member_row(GameState *g, unsigned row, uint8_t member)
 {
@@ -335,12 +335,9 @@ bool menu_show_save_slot_with(GameState *g, Platform *pf, const LoadScreenSteps 
     uint8_t slot = skip_empty_slots(g, menu_cursor_index(g));
     set_menu_cursor_index(g, slot);
     bool finished = saves_finished(pf, PF_AT(0xC2E75D));
-    if (finished)
-        n->note(ctx, LOAD_NOTE_FOURTH_ROW_COMPARED, slot);
     if (finished && slot == FOURTH_ROW && (menu_cursor_moves(g) & (MOVED_RIGHT | MOVED_LEFT))) {
         uint8_t x = (uint8_t)(menu_cursor_places_x(g, FOURTH_ROW) ^ FOURTH_ROW_CHOICES_APART);
         set_menu_cursor_places_x(g, FOURTH_ROW, x);
-        n->note(ctx, LOAD_NOTE_FOURTH_ROW_FLIPPED, x);
         if (!n->tick(ctx, LOAD_AT_THE_FOURTH_ROW_FLIP_TICK))
             return false;
     }
@@ -376,7 +373,6 @@ bool menu_move_among_the_slots_with(GameState *g, Platform *pf, const SavingStep
     uint8_t slot = menu_cursor_index(g);
     uint8_t was = show_the_slot_under_the_cursor(g, slot);
     if (slot != was) {
-        n->note(ctx, SAVING_NOTE_MOVED_AMONG, was);
         if (!n->tick(ctx, SAVING_AT_THE_SLOT_MOVE_TICK))
             return false;
     }
@@ -405,8 +401,8 @@ enum { LOCATION_BITS = 0x01FF, MOST_TIMES_SAVED = 999, NO_GOLD_SHOWN = 0x80, EMP
 
 /* Where the slot the save code has just checked keeps its game, in the save
  * memory: the check leaves it for the summary's reading. */
-/* The span of a game the summary reads from, which the guard keeps in save
- * memory. */
+/* The span of a game the summary reads from, which its check keeps within
+ * save memory. */
 enum { SUMMARY_SPAN = 0x800 };
 
 static uint16_t checked_game(const GameState *g) { return saves_game_in_memory(menu_slot_game_at(g)); }
@@ -545,14 +541,10 @@ enum { DESIGN_BITS = 0x07 };
 
 /* The routines reading the slots call as their own -- a slot's chapter label,
  * its name label, its summary, its window design and chapter -- from the
- * original's JSRs at the sites given; and where the original's code leaves
- * the flags a call reads (scaffolding, only the machine's). Run as C or on
- * the machine (below), each false where it went no further. */
+ * sites given (below), each false where it went no further. */
 typedef enum { CHAPTER_LABEL, SLOT_NAME, SLOT_SUMMARY, DESIGN_AND_CHAPTER } SlotRoutine;
-typedef enum { NOTE_SLOT_COUNTED, NOTE_SLOT_DONE, NOTE_SUMMARY_READ, NOTE_CHAPTER_FOUND } SlotNote;
 typedef struct {
     bool (*routine)(void *ctx, SlotRoutine routine, uint32_t site);
-    void (*note)(void *ctx, SlotNote note, uint8_t a, uint8_t b);
 } SlotCalls;
 
 // $C2:D296
@@ -591,7 +583,6 @@ static bool read_design_and_chapter(GameState *g, Platform *pf, const SlotCalls 
     uint8_t progress = saved_byte(pf, game, SAVED_CHAPTER);
     uint8_t chapter = chapter_of(g, progress);
     set_menu_text_string(g, chapter);
-    c->note(ctx, NOTE_CHAPTER_FOUND, progress, menu_chapter_start(g, chapter));
     return c->routine(ctx, CHAPTER_LABEL, 0xC2D288);
 }
 
@@ -605,7 +596,6 @@ static bool read_slot_summary(GameState *g, Platform *pf, const SlotCalls *c, vo
      * where the reading got to: the cell the window lists draw from */
     set_menu_draw_origin(g, (uint16_t)(RAM_ABS(RAM_SAVE_SLOT_SUMMARIES) + slot * SUMMARY_BYTES + SUMMARY_MEMBER_BYTES));
     charge_summary_read(g, pf);
-    c->note(ctx, NOTE_SUMMARY_READ, 0, 0);
     return c->routine(ctx, DESIGN_AND_CHAPTER, 0xC2D261);
 }
 
@@ -625,7 +615,6 @@ static bool read_save_slots(GameState *g, Platform *pf, const SlotCalls *c, void
         SavedGameCheck check = SAVED_GAME_NONE;
         TIMED_AS(g, 0xFFF9C4, check = saves_check_slot_noting(g, pf, SAVE_CHECK_MENU, slot));
         bool holds_a_game = check == SAVED_GAME_HELD;
-        c->note(ctx, NOTE_SLOT_COUNTED, 0, 0);
         if (holds_a_game) {
             set_menu_save_slot_in_use(g, slot, 1);
             if (!c->routine(ctx, SLOT_SUMMARY, 0xC2D182))
@@ -637,14 +626,11 @@ static bool read_save_slots(GameState *g, Platform *pf, const SlotCalls *c, void
         }
         if (!c->routine(ctx, SLOT_NAME, 0xC2D185))
             return false;
-        c->note(ctx, NOTE_SLOT_DONE, 0, 0);
     }
     set_menu_save_slot_shown(g, MENU_SAVE_SLOTS);   /* past the last, as the count leaves it */
     TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, MENU_UPLOAD_SLOT_NAMES)));
     return true;
 }
-
-/* ---- As C --------------------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
@@ -652,15 +638,14 @@ typedef struct {
 } SaveSlotsContext;
 
 static bool slot_routine(void *ctx, SlotRoutine routine, uint32_t site);
-static void slot_note(void *ctx, SlotNote note, uint8_t a, uint8_t b) { (void)ctx, (void)note, (void)a, (void)b; }
-static const SlotCalls slots = { slot_routine, slot_note };
+static const SlotCalls slots = { slot_routine };
 
 static bool chapter_label_drawable(const GameState *g);
 static bool labels_drawable(const GameState *g);
 static bool summary_readable(const GameState *g, Platform *pf);
 static bool slots_readable(const GameState *g);
 
-/* Each routine where its guard's state half takes it, timed as its own;
+/* Each routine, run only on the state it handles, timed as its own;
  * otherwise the program goes no further there. */
 static const struct {
     uint32_t routine;
@@ -703,8 +688,8 @@ static bool slot_routine(void *ctx, SlotRoutine routine, uint32_t site)
     return back;
 }
 
-/* A slot's summary read back as C after a save, where its guard's state
- * half takes it. */
+/* A slot's summary read back after a save, where the state is one it
+ * handles. */
 bool menu_slot_summary_read_back(GameState *g, Platform *pf)
 {
     SaveSlotsContext c = { g, pf };
@@ -723,8 +708,7 @@ bool menu_save_slots_read(GameState *g, Platform *pf)
 
 // $C2:D28D
 /* The empty slot's label, drawn in the chapter label's place; false where
- * its entry's guard wouldn't take the slot shown, the program going no
- * further there. */
+ * the slot shown is none it handles, the program going no further there. */
 bool menu_draw_empty_label(GameState *g)
 {
     if (!labels_drawable(g)) {
@@ -736,17 +720,15 @@ bool menu_draw_empty_label(GameState *g)
     return true;
 }
 
-/* ---- The guards ------------------------------------------------------------------------------- */
+/* ---- What the steps need ----------------------------------------------------------------------- */
 
-/* The load screen's routines run on the menus' page, reaching the slot flags
- * and the queue through a data bank on low RAM. What the game gives them
- * besides: a cursor on one of the four rows and at least one slot with a game
+/* What the game gives the load screen's routines: a cursor on one of the four rows and at least one slot with a game
  * (else the skip of empty slots goes round for ever), whole records in the
  * upload queue, a palette change the drawing can count, numbers converted
  * from the first power of two (the word the conversion starts from is 0
  * whenever the menus draw, menu/text.c), and summaries whose members are
  * characters and whose time played is in decimal digits. Looked at without
- * the machine's time. */
+ * charging time. */
 
 static bool members_are_characters(const GameState *g, uint8_t slot)
 {
@@ -814,9 +796,8 @@ bool menu_slot_under_the_cursor_shows(const GameState *g)
     return ok;
 }
 
-/* The slots' reading runs on the menus' page with the data bank on work
- * RAM's, and starts its count of the slots from the menus' zero word (which
- * the game keeps 0); each label and summary is of one of the three slots. */
+/* The slots' reading starts its count of the slots from the menus' zero
+ * word (which the game keeps 0); each label and summary is of one of the three slots. */
 static bool slots_readable(const GameState *g) { return menu_zero(g) == 0; }
 
 static bool labels_drawable(const GameState *g) { return menu_save_slot_shown(g) < SAVE_SLOTS; }
@@ -829,8 +810,8 @@ static bool chapter_label_drawable(const GameState *g)
 }
 
 /* A summary is read from a game the check found within the save memory,
- * whose party holds characters (the save memory looked at where the bus has
- * it, without the machine's time), and with the menus' zero word 0: the gold
+ * whose party holds characters (the save memory looked at without charging
+ * time), and with the menus' zero word 0: the gold
  * a summary hides is written from it. */
 static bool saved_party_is_characters(Platform *pf, uint16_t at)
 {

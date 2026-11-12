@@ -4,7 +4,7 @@
  * choosing: how it is chosen, and which of its operands name selectors. Each
  * choice decodes its operands, and says how far it read the script and what
  * it does to the block's outcome; the choosing (battle/enemy_scripts.c) goes
- * on from that. Carrying an action out runs beside the original's code for
+ * on from that. Carrying an action out calls on routines of their own for
  * its attacks and techs, its messages and its bringing enemies in
  * (battle/enemy_turn.c); what an action does between those calls is here. */
 #include "battle/enemy_actions.h"
@@ -611,7 +611,7 @@ static bool may_change_into(const GameState *g, uint8_t slot, uint8_t id)
     return (place == slot || place == actor(g)) && (battle_enemy_standing(g, slot - BATTLE_FIRST_ENEMY) & ENEMY_IN_RESERVE);
 }
 
-/* Not brought in by the original's code: the enemy takes the actor's HP. */
+/* Not brought in as an arrival: the enemy takes the actor's HP. */
 static void take_actors_hp(GameState *g, uint8_t slot)
 {
     set_combatant_stat_byte_by_place(g, slot, STAT_HP, own_stat(g, STAT_HP));
@@ -620,7 +620,8 @@ static void take_actors_hp(GameState *g, uint8_t slot)
 
 // $C1:9B8D
 /* The action names the id to change into, the effect code's tech number,
- * and whether the original's code brings it in. */
+ * and whether it is brought in as an arrival (its stat block loaded afresh,
+ * battle/enemy_turn.c). */
 ChangeInto enemy_change_into(GameState *g, ScriptPlace at)
 {
     uint8_t id = byte_at(g, at, 1), brought_in = byte_at(g, at, 3);
@@ -688,9 +689,9 @@ void enemy_bring_back_starts(GameState *g, ScriptPlace at)
 }
 
 /* The enemy is back in the fight with its turn wait, choosing afresh, not yet
- * counted beaten, the `count`th of those brought back; the original's code
- * brings it in. Its place in the formation is set by its enemy number, as the
- * original indexes the places there. */
+ * counted beaten, the `count`th of those brought back; its arrival
+ * (battle/enemy_turn.c) brings it in. Its place in the formation is set by
+ * its enemy number, as the original indexes the places there. */
 void enemy_bring_back(GameState *g, uint8_t enemy, uint8_t count)
 {
     uint8_t slot = (uint8_t)(BATTLE_FIRST_ENEMY + enemy);
@@ -745,7 +746,7 @@ enum { CALL_IN_CHANGES = 3, CALL_IN_MESSAGE = 11 };
 void enemy_call_in_starts(GameState *g, ScriptPlace at)
 {
     battle_keep_byte(g, BATTLE_TECH_HITS_LEFT, byte_at(g, at, 1));
-    /* kept where the calling in's entry reads it (battle_call_enemies_in_ready) */
+    /* kept in the work cell the original's calling in reads it from */
     battle_keep_word(g, 0x12, byte_at(g, at, 2));
     set_battle_action_message(g, byte_at(g, at, CALL_IN_MESSAGE));
     battle_clear_candidates(g);

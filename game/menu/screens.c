@@ -12,9 +12,8 @@
  *
  * The menus' main task (menu/tasks.c) runs the screen's step once a frame
  * and then waits for the next frame, for as long as the menus are open; this
- * file is how it finds and runs the step. The steps are found through a C
- * table by screen and called as C after checking their complete contracts.
- * A rejected state reports the broken contract at the original boundary.
+ * file is how it finds and runs the step: through a table by screen. A step
+ * the port doesn't have, or a state it doesn't handle, goes no further.
  */
 #include "menu/menu.h"
 
@@ -147,7 +146,7 @@ static const Step *running_step(const GameState *g)
     return &screens[screen].steps[step];
 }
 
-/* ---- The entry ------------------------------------------------------------------------------ */
+/* ---- Running the step ----------------------------------------------------------------------- */
 
 enum { MENUS_BANK = 0xC20000 };
 
@@ -157,13 +156,13 @@ enum { MENUS_BANK = 0xC20000 };
  * a call. */
 enum { THE_JUMP_TO_THE_STEP = 0xC2828E };
 
-/* As C, from inside the main task, timed as the step's own routine. */
+/* From inside the main task, timed as the step's own routine. */
 bool menu_run_the_screen_step(GameState *g, Platform *pf)
 {
     const Step *step = running_step(g);
     if (!step || !step->run) {
         program_breaks_a_contract(g, step ? MENUS_BANK | step->routine : THE_JUMP_TO_THE_STEP,
-                                  "a menu screen's step only the machine runs");
+                                  "a menu screen's step the port doesn't have");
         return false;
     }
     bool back = false;

@@ -10,13 +10,12 @@
  * party, as one of the map's own objects ($81). The people, creatures and
  * enemies have graphics to unpack into bank $7F unless an object of the map
  * shares theirs, which the unpacker (data/decompress.c) does between the
- * casting's two halves; their commands ($82, $83) are bridges on the
- * machine, one sequence with the program's. */
+ * casting's two halves; their commands ($82, $83) read their own operands
+ * (event/engine.h, EVENT_UNDECODED_COMMANDS). */
 #include "charge.h"
 #include "core/program.h"
 #include "data/decompress.h"
 #include "event/engine.h"
-#include "field/scratch.h"
 #include "event/script.h"
 #include "field/cast.h"
 #include "field/frames.h"
@@ -40,7 +39,7 @@ static EventFlow cast_character_apart(GameState *g, FieldObject self, uint8_t ch
 }
 EVENT_OPERATION(cast_character_apart, self, character)
 
-/* The guards': the record tables where the game points them; a character
+/* What the port checks: the record tables where the game points them; a character
  * among the seven (each has a cell for the object it is on the map); and a
  * leader the members can stand on, or none: an object the tables hold, kept
  * as the game keeps it (a word whose high byte is clear, which the original
@@ -57,15 +56,15 @@ EVENT_CHECK(character_castable, character)
 static bool tables_in_the_rom(const GameState *g) { return cast_tables_in_the_rom(g); }
 EVENT_CHECK_TAKING_NOTHING(tables_in_the_rom)
 
-/* ---- The bridges: graphics to unpack ----------------------------------------------------------- */
+/* ---- Casting with graphics to unpack ---------------------------------------------------------- */
 
 /* Where the original stops the game when a set runs past the bank's end. */
 enum { NPC_TOO_FAR = 0xC046D1 };
 enum { ENEMY_TOO_FAR = 0xC0483A };
 
-/* A set unpacked, as C or on the machine (below): false where it went no
- * further, a set that runs past the bank's end stopping the game, which the
- * original does at its error's start. */
+/* A set unpacked (below): false where it went no further, a set that runs
+ * past the bank's end stopping the game, which the original does at its
+ * error's start. */
 typedef enum { NPC_SET, ENEMY_SET, SET_KINDS } SetKind;
 static const struct {
     uint32_t too_far;
@@ -103,7 +102,7 @@ static bool cast_enemy(GameState *g, Platform *pf, FieldObject self, uint8_t ene
     return true;
 }
 
-/* As C: the unpacker as C. */
+/* The unpacker. */
 static bool unpack(void *ctx, FieldSpriteRecord r, SetKind kind)
 {
     GameState *g = ctx;
@@ -141,7 +140,7 @@ bool event_cast_enemy(GameState *g, Platform *pf, uint16_t at, EventStep *step)
     return true;
 }
 
-/* The guards': the record tables where the game points them, and an entry of
+/* What the port checks: the record tables where the game points them, and an entry of
  * the shared graphics for the set (the original stops the game with none);
  * for an enemy, its block among the blocks and a figure the port draws. */
 static bool npc_castable(const GameState *g, uint8_t npc)

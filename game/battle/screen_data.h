@@ -3,9 +3,9 @@
  * Every read the screen effects make of cartridge data goes through here, by
  * what the data is, so a build that loads these tables from somewhere else
  * changes this file and nothing that uses it. The accessors take the game's
- * state (game/rom.h), not the machine. Where the original indexes a table
- * with a byte-wide offset that wraps, the accessor takes the value the offset
- * is made from and says how it wraps. */
+ * state (game/rom.h). Where the original indexes a table with a byte-wide
+ * offset that wraps, the accessor takes the value the offset is made from
+ * and says how it wraps. */
 #ifndef CT_GAME_BATTLE_SCREEN_DATA_H
 #define CT_GAME_BATTLE_SCREEN_DATA_H
 

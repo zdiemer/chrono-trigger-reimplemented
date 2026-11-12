@@ -3,14 +3,11 @@
  * equipping from the shop (the members, a member's slots, the list of what
  * fits them).
  *
- * Each step, and each routine a step goes on to that waits or calls out, is
- * one sequence of what game/menu/shop.c and shop_equipment.c do, asking
- * ShopSteps for what differs between the original's machine and the program
- * as C: the cursor read, a tick, a frame's wait, a routine run, the end. On
- * the machine (shop_bridge.c) those are the original's calls from its own
- * sites and the leaves of what its tests left; as C (the end of this file)
- * they are the menus' sounds, the task's wait for the next frame, and each
- * routine's sequence behind its entry's guard. */
+ * Each step, and each routine a step goes on to that waits, is one sequence
+ * of what game/menu/shop.c and shop_equipment.c do, asking ShopSteps for the
+ * cursor read, a tick, a frame's wait, a routine run and the end: the menus'
+ * sounds, the task's wait for the next frame, and each routine's sequence,
+ * run only on the state it handles (the end of this file). */
 #include "menu/shop.h"
 
 #include "charge.h"
@@ -51,13 +48,9 @@ bool menu_open_shop_with(GameState *g, Platform *pf, const ShopSteps *n, void *c
 bool menu_set_up_shop_with(GameState *g, Platform *pf, const ShopSteps *n, void *ctx)
 {
     menu_shop_open(g, pf);
-    n->registers_at(ctx, SHOP_AT_THE_SET_UP_DRAWN);
-    n->note(ctx, SHOP_NOTE_GOODS_TAKEN, 0);
     TIMED_AS(g, 0xC2E012, menu_shop_describe_nothing(g));
     menu_shop_open_colours(g);
     menu_shop_open_members(g);
-    n->registers_at(ctx, SHOP_AT_THE_SET_UP_STANDING);
-    n->note(ctx, SHOP_NOTE_LOADED, 0x13);
     if (!n->run(ctx, SHOP_SHOWS_THE_PANEL_AS_IT_OPENS))
         return false;
     menu_shop_open_last(g, pf);
@@ -71,20 +64,16 @@ bool menu_set_up_shop_with(GameState *g, Platform *pf, const ShopSteps *n, void 
  * the item worked out where it could use it, and drawn. */
 bool menu_show_shop_item_panel_with(GameState *g, Platform *pf, const ShopSteps *n, void *ctx)
 {
-    (void)pf;
+    (void)pf, (void)n, (void)ctx;
     menu_shop_start_panel(g);
-    n->registers_at(ctx, SHOP_AT_THE_PANEL_MEMBERS);
     unsigned m = 0;
     bool usable = false;
-    uint16_t left_by_the_last = 0;
     for (; menu_shop_panel_member(g, m, &usable); m++) {
         if (usable) {
             TIMED_AS(g, 0xC2916E, menu_work_out_figures(g));
-            (void)0;
         }
         menu_shop_panel_member_shown(g, m);
     }
-    n->note(ctx, SHOP_NOTE_PANEL_DONE, left_by_the_last);
     return true;
 }
 
@@ -96,31 +85,25 @@ bool menu_show_shop_item_panel_with(GameState *g, Platform *pf, const ShopSteps 
 bool menu_choose_shop_tab_with(GameState *g, Platform *pf, const ShopSteps *n, void *ctx)
 {
     menu_shop_on_the_tabs_frame(g);
-    n->note(ctx, SHOP_NOTE_LOADED, 1);
     n->read_cursor(ctx);
-    n->note(ctx, SHOP_NOTE_BUTTONS_TESTED, 0);
     switch (menu_shop_choose_tab(g)) {
     case TAB_CHOSEN: {
         menu_shop_leave_the_tabs(g);
-        n->note(ctx, SHOP_NOTE_TAB_CHOSEN, 0);
         if (!n->tick(ctx, SHOP_AT_THE_TAB_CHOSEN))
             return false;
         bool buying = menu_shop_buying_chosen(g);
         ShopStep list = buying ? SHOP_BUYING : SHOP_SELLING;
         menu_shop_go_to(g, list);
-        n->note(ctx, SHOP_NOTE_STEP_SET, list);
         return n->ends(ctx, buying ? SHOP_OPENS_THE_GOODS : SHOP_OPENS_THE_LIST_FOR_SALE);
     }
     case SHOP_LEFT: return n->ends(ctx, SHOP_LEAVES);
     case TO_THE_MEMBERS:
         menu_shop_stop_holding(g);
         TIMED_AS(g, 0xC2E017, menu_shop_go_down_to_the_members(g, pf));
-        n->note(ctx, SHOP_NOTE_FRONT_LAYER_QUEUED, 0);
         break;
     case TAB_POINTED_AT: break;
     }
     bool moved = cursor_moved(g);
-    n->note(ctx, SHOP_NOTE_CURSOR_COMPARED, 0);
     return !moved || n->tick(ctx, SHOP_AT_THE_TABS_POINTED);
 }
 
@@ -132,21 +115,15 @@ static ShopPlace for_the_list(ShopPlace buying, bool selling) { return (ShopPlac
  * is another; a tick where the cursor moved; the list queued. */
 static bool take_the_row(GameState *g, const ShopSteps *n, void *ctx, bool selling)
 {
-    n->registers_at(ctx, SHOP_AT_THE_POINTING);
     menu_shop_take_the_row(g, selling);
-    n->note(ctx, SHOP_NOTE_PLACE_ADDED, selling);
     TIMED_AS(g, 0xC2F2F3, menu_describe_item(g, menu_item_operand(g)));
-    uint8_t shown_before = menu_shop_place_shown(g);
     bool another = menu_shop_another_place(g);
-    n->note(ctx, SHOP_NOTE_PLACE_COMPARED, shown_before);
     if (another && !n->run(ctx, selling ? SHOP_SHOWS_THE_PANEL_FOR_A_SALE : SHOP_SHOWS_THE_PANEL_FOR_A_GOOD))
         return false;
     bool moved = cursor_moved(g);
-    n->note(ctx, SHOP_NOTE_CURSOR_COMPARED_WITH_THE_START, 0);
     if (moved && !n->tick(ctx, for_the_list(SHOP_AT_THE_ROW_TAKEN, selling)))
         return false;
     menu_shop_queue_the_list(g);
-    n->note(ctx, SHOP_NOTE_FRONT_LAYER_QUEUED, 0);
     return true;
 }
 
@@ -155,15 +132,11 @@ static bool take_the_row(GameState *g, const ShopSteps *n, void *ctx, bool selli
 static bool slide_the_list(GameState *g, const ShopSteps *n, void *ctx, bool selling)
 {
     menu_shop_set_up_list_slide(g);
-    n->note(ctx, SHOP_NOTE_SLIDE_TESTED, selling);
     TIMED_AS(g, 0xC2EB9B, menu_start_list_slide(g));
     menu_shop_bring_in_a_row(g, selling);
-    n->note(ctx, SHOP_NOTE_FRONT_LAYER_QUEUED, 0);
-    n->note(ctx, SHOP_NOTE_LOADED, 0x80);
     if (!n->tick(ctx, for_the_list(SHOP_AT_THE_ROW_BROUGHT_IN, selling)))
         return false;
     ShopPlace sliding = for_the_list(SHOP_AT_THE_LIST_SLIDING, selling);
-    n->registers_at(ctx, sliding);
     if (menu_shop_list_slide_takes_frames(g))
         while (menu_shop_slide_list_a_frame(g)) {
             TIMED_AS(g, 0xC2EB1F, menu_slide_list_a_frame(g));
@@ -180,7 +153,6 @@ static bool slide_the_list(GameState *g, const ShopSteps *n, void *ctx, bool sel
  * list. Then the row. */
 static bool point_along(GameState *g, const ShopSteps *n, void *ctx, bool selling)
 {
-    n->registers_at(ctx, SHOP_AT_THE_POINTING);
     uint8_t top = menu_shop_list_top(g, selling), to = top;
     TIMED_AS(g, 0xC293BF, to = menu_turn_page(g, top));
     if (to != top) {
@@ -188,7 +160,6 @@ static bool point_along(GameState *g, const ShopSteps *n, void *ctx, bool sellin
         return n->wait(ctx, for_the_list(SHOP_AT_THE_PAGE_TURNED, selling)) && take_the_row(g, n, ctx, selling);
     }
     TIMED_AS(g, 0xC2EA53, menu_keep_the_cursor_on_the_list(g));
-    n->note(ctx, SHOP_NOTE_CURSOR_KEPT, 0);
     if (menu_shop_list_slide_brings_a_row(g, selling))
         return slide_the_list(g, n, ctx, selling);
     return take_the_row(g, n, ctx, selling);
@@ -200,7 +171,6 @@ static bool point_along(GameState *g, const ShopSteps *n, void *ctx, bool sellin
 static bool back_to_the_tabs(GameState *g, Platform *pf, const ShopSteps *n, void *ctx, bool selling)
 {
     menu_shop_back_from_the_list(g, selling);
-    n->note(ctx, SHOP_NOTE_BACK_FROM_THE_LIST, 0);
     if (!n->run(ctx, SHOP_SHOWS_THE_PANEL_FOR_NOTHING) || !n->tick(ctx, SHOP_AT_THE_TABS_AGAIN))
         return false;
     menu_shop_back_on_the_tabs(g, pf);
@@ -215,20 +185,14 @@ static bool back_to_the_tabs(GameState *g, Platform *pf, const ShopSteps *n, voi
 bool menu_choose_goods_with(GameState *g, Platform *pf, const ShopSteps *n, void *ctx)
 {
     n->read_cursor(ctx);
-    n->note(ctx, SHOP_NOTE_BUTTONS_TESTED, 0);
     switch (menu_shop_choose_on_the_list(g)) {
     case SHOP_ROW_CHOSEN: {
-        uint8_t held = menu_shop_held_and_worn(g);
         if (!menu_shop_room_to_buy(g)) {
-            n->note(ctx, SHOP_NOTE_ROOM_REFUSED, held);
             return n->ends(ctx, SHOP_REFUSES);
         }
-        uint8_t room = menu_item_operand_count(g);
         if (!menu_shop_gold_buys_some(g)) {
-            n->note(ctx, SHOP_NOTE_GOLD_REFUSED, held);
             return n->ends(ctx, SHOP_REFUSES);
         }
-        n->note(ctx, SHOP_NOTE_OFFER_TO_BUY, (uint32_t)room | (uint32_t)held << 8);
         if (!n->tick(ctx, SHOP_AT_THE_OFFER))
             return false;
         menu_shop_open_quantity(g, pf, SHOP_BUYING_HOW_MANY);
@@ -247,19 +211,14 @@ bool menu_choose_goods_with(GameState *g, Platform *pf, const ShopSteps *n, void
 bool menu_choose_for_sale_with(GameState *g, Platform *pf, const ShopSteps *n, void *ctx)
 {
     n->read_cursor(ctx);
-    n->note(ctx, SHOP_NOTE_BUTTONS_TESTED, 0);
     switch (menu_shop_choose_on_the_list(g)) {
     case SHOP_ROW_CHOSEN: {
         if (!menu_shop_some_to_sell(g)) {
-            n->note(ctx, SHOP_NOTE_SALE_REFUSED, true);
             return n->ends(ctx, SHOP_REFUSES);
         }
-        uint8_t held = menu_item_operand_count(g);
         if (!menu_shop_room_for_the_gold(g)) {
-            n->note(ctx, SHOP_NOTE_SALE_REFUSED, false);
             return n->ends(ctx, SHOP_REFUSES);
         }
-        n->note(ctx, SHOP_NOTE_OFFER_TO_SELL, held);
         if (!n->tick(ctx, SHOP_AT_THE_OFFER_FOR_SALE))
             return false;
         menu_shop_open_quantity(g, pf, SHOP_SELLING_HOW_MANY);
@@ -277,20 +236,13 @@ bool menu_choose_for_sale_with(GameState *g, Platform *pf, const ShopSteps *n, v
 /* A push changes the quantity, with a tick where it changed. */
 static bool change_the_quantity(GameState *g, Platform *pf, const ShopSteps *n, void *ctx)
 {
-    n->registers_at(ctx, SHOP_AT_THE_QUANTITY_CHANGING);
-    uint8_t before = menu_item_operand_quantity(g);
-    uint32_t total_before = menu_shop_total(g) & 0xFFFFFF;
     bool changed = menu_shop_change_quantity(g, pf);
     if (menu_shop_quantity_pushed(g)) {
-        n->note(ctx, SHOP_NOTE_QUANTITY_QUEUED, 0);
-        n->note(ctx, SHOP_NOTE_QUANTITY_COMPARED, before);
         if (changed) {
-            n->note(ctx, SHOP_NOTE_TOTAL_ADDED, total_before);
             if (!n->tick(ctx, SHOP_AT_THE_QUANTITY_CHANGING))
                 return false;
         }
     }
-    n->registers_at(ctx, SHOP_AT_THE_QUANTITY_CHANGED);
     return true;
 }
 
@@ -301,15 +253,12 @@ static bool deal_or_change(GameState *g, Platform *pf, const ShopSteps *n, void 
     *closed = false;
     menu_shop_hold_the_quantity(g);
     n->read_cursor(ctx);
-    n->note(ctx, SHOP_NOTE_BUTTONS_TESTED, 0);
     switch (menu_shop_choose_quantity(g)) {
     case QUANTITY_TAKEN:
         if (selling)
             menu_shop_sold(g);
         else
             menu_shop_bought(g);
-        n->note(ctx, SHOP_NOTE_INVENTORY_CHANGED, 0);
-        n->note(ctx, SHOP_NOTE_GOLD_WORD, 0);
         if (!n->run(ctx, selling ? SHOP_PLAYS_THE_DEAL_SOUND_FOR_SALE : SHOP_PLAYS_THE_DEAL_SOUND))
             return false;
         break;
@@ -352,7 +301,6 @@ bool menu_choose_how_many_to_sell_with(GameState *g, Platform *pf, const ShopSte
     if (!n->tick(ctx, SHOP_AT_THE_QUANTITY_CLOSED_FOR_SALE))
         return false;
     menu_shop_back_to_selling(g);
-    n->note(ctx, SHOP_NOTE_LOADED, SHOP_SELLING);
     TIMED_AS(g, 0xC2DECC, menu_shop_make_the_list_for_sale(g));
     menu_shop_draw_for_sale(g);
     return true;
@@ -368,7 +316,6 @@ bool menu_choose_shop_member_with(GameState *g, Platform *pf, const ShopSteps *n
 {
     n->read_cursor(ctx);
     ShopMembersChoice c = menu_shop_choose_a_member(g);
-    n->note(ctx, SHOP_NOTE_BUTTONS_TESTED, 0);
     switch (c) {
     case SHOP_MEMBER_CHOSEN:
         if (!n->tick(ctx, SHOP_AT_THE_MEMBER_CHOSEN) || !n->run(ctx, SHOP_OPENS_THE_MEMBER))
@@ -376,15 +323,12 @@ bool menu_choose_shop_member_with(GameState *g, Platform *pf, const ShopSteps *n
         menu_shop_go_to(g, SHOP_ON_A_MEMBERS_SLOTS);
         return true;
     case SHOP_MEMBERS_LEFT:
-        n->note(ctx, SHOP_NOTE_PUSHED_UP_OR_DOWN, 0);
         if (!n->tick(ctx, SHOP_AT_THE_MEMBERS_LEFT))
             return false;
         menu_shop_back_up_to_the_tabs(g, pf);
-        n->note(ctx, SHOP_NOTE_FRONT_LAYER_QUEUED, 0);
         return true;
     case SHOP_MEMBER_POINTED_AT: {
         bool moved = cursor_moved(g);
-        n->note(ctx, SHOP_NOTE_CURSOR_COMPARED, 0);
         return !moved || n->tick(ctx, SHOP_AT_THE_MEMBER_POINTED);
     }
     }
@@ -413,11 +357,9 @@ bool menu_show_shop_member_slots_with(GameState *g, Platform *pf, const ShopStep
     (void)pf;
     TIMED_AS(g, 0xC2E150, menu_shop_mark_the_slot(g));
     menu_shop_place_the_lists_bar(g);
-    n->note(ctx, SHOP_NOTE_BAR_PLACE_LOADED, 0);
     if (!n->run(ctx, SHOP_MAKES_THE_LIST))
         return false;
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER_STRIPS);
-    n->note(ctx, SHOP_NOTE_STRIPS_QUEUED, 0);
     return true;
 }
 
@@ -430,8 +372,6 @@ bool menu_switch_shop_member_with(GameState *g, Platform *pf, const ShopSteps *n
     if (member == was)
         return true;
     menu_work_on_member(g, member);
-    n->registers_at(ctx, SHOP_AT_THE_MEMBER_SWITCHING);
-    n->note(ctx, SHOP_NOTE_MEMBERS_COMPARED, (uint32_t)member | (uint32_t)was << 8);
     if (!n->tick(ctx, SHOP_AT_THE_MEMBER_SWITCHING))
         return false;
     menu_shop_switch_member(g, pf);
@@ -448,15 +388,12 @@ bool menu_choose_shop_slot_with(GameState *g, Platform *pf, const ShopSteps *n, 
     (void)pf;
     n->read_cursor(ctx);
     ShopSlotsChoice c = menu_shop_choose_a_slot(g);
-    n->note(ctx, SHOP_NOTE_BUTTONS_TESTED, 0);
     switch (c) {
     case SHOP_SLOT_WITH_NOTHING_TO_FIT:
         set_menu_cursor_index(g, menu_cursor_frame_start(g));
-        n->note(ctx, SHOP_NOTE_LOADED, 0);
         return n->ends(ctx, SHOP_REFUSES_A_SLOT);
     case SHOP_SLOT_CHOSEN:
         set_menu_cursor_index(g, menu_cursor_frame_start(g));
-        n->note(ctx, SHOP_NOTE_LOADED, menu_equip_choices(g));
         if (!n->tick(ctx, SHOP_AT_THE_SLOT_CHOSEN))
             return false;
         menu_shop_into_the_list(g);
@@ -470,7 +407,6 @@ bool menu_choose_shop_slot_with(GameState *g, Platform *pf, const ShopSteps *n, 
         if (!n->run(ctx, SHOP_SWITCHES_THE_MEMBER) || !n->run(ctx, SHOP_SHOWS_THE_SLOTS))
             return false;
         bool moved = cursor_moved(g);
-        n->note(ctx, SHOP_NOTE_CURSOR_COMPARED, 0);
         return !moved || n->tick(ctx, SHOP_AT_THE_SLOT_POINTED);
     }
     }
@@ -478,12 +414,12 @@ bool menu_choose_shop_slot_with(GameState *g, Platform *pf, const ShopSteps *n, 
 }
 
 /* Where the move along the equipment list has slid it a row (its first row
- * moved, and no page turned), the original makes the cursor's test with the
- * accumulator 16-bit, as the slide leaves it: each place with the byte after
- * it, where the cursor last moved from beside a byte the menus never write.
+ * moved, and no page turned), the original compares the cursor's places a
+ * word at a time, as the slide leaves its arithmetic: each place with the
+ * byte after it, where the cursor last moved from beside a byte the menus never write.
  * So the shop's cursor ticks again as its list's slide ends wherever those
- * two differ, whether or not the cursor moved (the equipment screen makes
- * the same test 8-bit). */
+ * two differ, whether or not the cursor moved (the equipment screen compares
+ * them a byte at a time). */
 static bool cursor_moved_or_slid(const GameState *g)
 {
     return cursor_moved(g) || menu_cursor_left_from(g) != menu_byte_the_mode_before_left(g);
@@ -497,7 +433,6 @@ static bool cursor_moved_or_slid(const GameState *g)
 bool menu_choose_shop_equipment_with(GameState *g, Platform *pf, const ShopSteps *n, void *ctx)
 {
     n->read_cursor(ctx);
-    n->note(ctx, SHOP_NOTE_BUTTONS_TESTED, 0);
     if (!menu_asked(g, MENU_CHOOSE) && !menu_asked(g, MENU_GO_BACK)) {
         uint8_t top = menu_equip_list_top(g);
         bool pages = menu_page_turns(g, top);
@@ -505,9 +440,7 @@ bool menu_choose_shop_equipment_with(GameState *g, Platform *pf, const ShopSteps
             return false;
         bool slid = !pages && menu_equip_list_top(g) != top;
         TIMED_AS(g, 0xC2E162, menu_shop_try_on(g, pf));
-        n->note(ctx, SHOP_NOTE_STRIPS_QUEUED, 0);
         bool moved = slid ? cursor_moved_or_slid(g) : cursor_moved(g);
-        n->note(ctx, slid ? SHOP_NOTE_CURSOR_COMPARED_AS_WORDS : SHOP_NOTE_CURSOR_COMPARED, 0);
         return !moved || n->tick(ctx, SHOP_AT_THE_ITEM_POINTED);
     }
     if (menu_asked(g, MENU_CHOOSE)) {
@@ -522,7 +455,7 @@ bool menu_choose_shop_equipment_with(GameState *g, Platform *pf, const ShopSteps
     return true;
 }
 
-/* ---- The steps as C ------------------------------------------------------------------------------ */
+/* ---- The steps' services ------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
@@ -546,26 +479,21 @@ static bool wait(void *ctx, ShopPlace at)
     return true;
 }
 
-static void registers_at(void *ctx, ShopPlace at) { (void)ctx, (void)at; }
-
-static void note(void *ctx, ShopNote note, uint32_t value) { (void)ctx, (void)note, (void)value; }
-
 static bool not_taken(ShopContext *c, uint32_t routine)
 {
     program_breaks_a_contract(c->game, routine, "a shop the port doesn't take");
     return false;
 }
 
-static const ShopSteps in_the_program;
+static const ShopSteps the_steps;
 
-/* A routine as C where its entry's guard would take the state, timed as its
- * own. */
+/* A routine, run only on the state it handles, timed as its own. */
 static bool sequence(ShopContext *c, uint32_t routine, bool takes, ShopSequence *run)
 {
     if (!takes)
         return not_taken(c, routine);
     bool done = false;
-    TIMED_AS(c->game, routine, done = run(c->game, c->pf, &in_the_program, c));
+    TIMED_AS(c->game, routine, done = run(c->game, c->pf, &the_steps, c));
     return done;
 }
 
@@ -604,9 +532,8 @@ static bool run(void *ctx, ShopRoutine r)
     return false;
 }
 
-/* The steps' ends, as the menus' own as C: the fade in's task started, the
- * menus closed, a list opened where its entry's guard takes the state, or
- * the buzz. */
+/* The steps' ends: the fade in's task started, the menus closed, a list
+ * opened where the state is one it handles, or the buzz. */
 static bool ends(void *ctx, ShopEnd end)
 {
     ShopContext *c = ctx;
@@ -630,15 +557,15 @@ static bool ends(void *ctx, ShopEnd end)
     return false;
 }
 
-static const ShopSteps in_the_program = { read_cursor, tick, wait, registers_at, run, note, ends };
+static const ShopSteps the_steps = { read_cursor, tick, wait, run, ends };
 
-/* A step as C where its entry's guard would take the state. */
+/* A step, run only on the state it handles. */
 static bool step(GameState *g, Platform *pf, bool takes, uint32_t routine, ShopSequence *run)
 {
     ShopContext c = { g, pf };
     if (!takes)
         return not_taken(&c, routine);
-    return run(g, pf, &in_the_program, &c);
+    return run(g, pf, &the_steps, &c);
 }
 
 static bool movable(const GameState *g) { return menu_cursor_can_move(g); }

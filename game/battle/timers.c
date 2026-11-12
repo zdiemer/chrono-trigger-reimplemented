@@ -223,20 +223,18 @@ void battle_find_run_out_timers(GameState *g, bool look)
     }
 }
 
-/* ---- The entries ------------------------------------------------------------------------ */
+/* ---- The search, a stretch of the main loop ----------------------------------------------- */
 
-/* Both are stretches of the main loop, which each hands on to the next: the
- * count-down to the search ($C1:8290), and the search, with the handlers of
- * the kinds due, to the rest of the pass ($C1:8345). */
-enum { SEARCH = 0xC18290, REST_OF_PASS = 0xC18345 };
+/* The search, with the handlers of the kinds due ($C1:8290), which goes on
+ * to the rest of the pass ($C1:8345). */
+enum { SEARCH = 0xC18290 };
 
 /* The main loop counts its passes; the search looks on the odd ones. */
 static bool pass_looks(const GameState *g) { return battle_loop_count(g) & 0x01; }
 
 /* Each due kind's handler run: the timed statuses' (battle/status_timers.c),
- * the turn's the main loop's (battle/main_loop.c), each a routine of its own
- * that the program calls as C and the machine's entry from the original's
- * loop. */
+ * the turn's the main loop's (battle/main_loop.c), each a routine of its
+ * own. */
 typedef struct {
     void (*handlers_begin)(void *ctx);
     bool (*see_to)(void *ctx, BattleTimer kind);
@@ -264,7 +262,7 @@ static bool see_to_the_timers(GameState *g, const DueCalls *calls, void *ctx)
     return !look || run_due_handlers(g, calls, ctx);
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The handlers' calls ---------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;

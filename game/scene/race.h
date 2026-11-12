@@ -96,24 +96,19 @@ enum {
  * which wait for the driver to take them -- and the road strip to VRAM.
  *
  * An effect is put in the sound command buffer by race_send_sound and sent
- * by a step the caller passes: on the machine the program's send from the
- * race's own call (race_sound_on_the_machine, its context the Snes), as C
- * the send's port (race_sound, no context). */
+ * by a step the caller passes: the program's send (race_sound, no context). */
 typedef enum { RACE_BUMP_SOUND, RACE_LEAVING_SOUND } RaceSound;
 typedef bool (*RaceSends)(void *ctx, GameState *g, Platform *pf, RaceSound sound);
 bool race_send_sound(GameState *g, Platform *pf, RaceSound sound, RaceSends send, void *ctx);
-bool race_sound_on_the_machine(void *ctx, GameState *g, Platform *pf, RaceSound sound);
 bool race_sound(void *ctx, GameState *g, Platform *pf, RaceSound sound);
 void race_send_engine_pitch(const GameState *g, Platform *pf);
 void race_upload_road_strip(Platform *pf);
 
-/* scene/sprites.c: the scene's sprites as C calls (small sprites from a
- * source, a list small or large and clipped), whether more fit in the tables,
- * and the A a clipped list leaves. */
+/* scene/sprites.c: the scene's sprites (small sprites from a source, a list
+ * small or large and clipped), and whether more fit in the tables. */
 void scene_draw_sprite(GameState *g, uint16_t source);
 void scene_draw_sprite_list(GameState *g, uint16_t list, bool clipped);
 bool scene_sprites_fit(const GameState *g, unsigned sprites);
-uint16_t scene_clipped_list_leaves_a(const GameState *g, uint16_t list, uint16_t a);
 
 /* scene/race_rules.c: the bikes as the race starts. */
 void race_start(GameState *g);

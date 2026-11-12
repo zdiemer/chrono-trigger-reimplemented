@@ -19,11 +19,4 @@ enum { BATTLE_SCRIPT_SOUND_ENTRY = 0xCD3B5F };
 void battle_play_a_sound(Platform *pf, uint8_t effect, uint8_t pan);
 enum { BATTLE_PLAY_A_SOUND_ENTRY = 0xCD3B71 };
 
-/* Play a sound effect from the frame work (the window's, a battle message's),
- * panned at `pan`, as the original's JSR at `site` calls $CD:3B71 with what it
- * keeps (`kept`): the work as C, under the call's return, where it makes its
- * call to the sound driver; where the entry's own preconditions don't hold
- * (the battle's page, its widths), the original's call instead. Leaves the
- * registers as the original's routine does: the pan in A's low byte and in X.
- * False where the call stopped and the original has the machine. */
 #endif

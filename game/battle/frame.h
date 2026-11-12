@@ -24,9 +24,8 @@
  *   closing.c   the window's opening and closing, and the display closed
  *               down as the battle ends
  *
- * Their logic takes the game's state and the platform; what reaches the
- * original's code (the battle's routines still generated from the ROM) is in
- * the bridges and entry wrappers at the end of each file. */
+ * Their logic takes the game's state and the platform; the calls each makes
+ * on the battle's other routines are at the end of each file. */
 #ifndef CT_GAME_BATTLE_FRAME_H
 #define CT_GAME_BATTLE_FRAME_H
 
@@ -93,8 +92,8 @@ void battle_send_block_and_message_tiles(GameState *g, Platform *pf);
  * sprites, the palette, the window's rows and frames, and the objects'
  * graphics. */
 void battle_send_vblank_uploads(GameState *g, Platform *pf);
-/* What those uploads read is inside the tables they read (the guards'
- * part: the graphics object is a combatant's). */
+/* What those uploads read is inside the tables they read (the graphics
+ * object is a combatant's). */
 bool battle_vblank_uploads_in_range(const GameState *g);
 
 /* ---- display.c ----------------------------------------------------------------------------- */
@@ -147,15 +146,13 @@ void battle_fade_battlefield_layer(GameState *g, bool back_in);
 /* Load another battlefield and start its own screen scripts, marked running
  * from the next frame: a battle ending on the victory's battlefield
  * (closing.c), and an enemy leaving on its family's or its rule's
- * (beaten_enemies.c). The load is the call at `site`, the battlefield in X,
- * a word, as the caller's TAX leaves it. */
-/* ... as C. */
+ * (beaten_enemies.c). */
 bool battle_load_and_run_battlefield(GameState *g, Platform *pf, uint16_t battlefield);
 /* The layers' maps and scroll and the screen's settings below the split, as
  * the field hands them to the battle. */
 void battle_take_the_start_settings(GameState *g);
 
-/* ---- As C (frame.c, display.c) ---------------------------------------------------------------- */
+/* ---- The frame work (frame.c, display.c) ------------------------------------------------------- */
 
 /* The vblank's frame work for the battle's mode ($CD:0C95): the display's
  * setup while the battle is set up ($CD:09F1), the frame work in the fight
@@ -165,22 +162,22 @@ bool battle_display_set_up(GameState *g, Platform *pf);
 bool battle_frame_worked(GameState *g, Platform *pf);
 
 /* The menu's turn between two steps of another wait ($C1:0012,
- * battle/frame_step.c), as C. */
+ * battle/frame_step.c). */
 enum { BATTLE_MENU_TURN_ENTRY = 0xC10012 };
 bool battle_menu_turn(GameState *g, Platform *pf);
 
-/* The frame wait's tail ($CD:04AA, through $CD:0009), as C. */
+/* The frame wait's tail ($CD:04AA, through $CD:0009). */
 bool battle_frame_wait_finished(GameState *g, Platform *pf);
 /* The battlefield put back once the effects are over ($CD:0453,
- * battle/battlefield_restore.c), as C. */
+ * battle/battlefield_restore.c). */
 bool battle_put_the_battlefield_back(GameState *g, Platform *pf);
 
 /* The frame step: the menu's turn and the frame work's tail ($C1:10FA,
- * battle/frame_step.c), as C. */
+ * battle/frame_step.c). */
 bool battle_frame_stepped(GameState *g, Platform *pf);
 
 /* The layers' scroll for the frame by the battle's scroll mode ($CD:06B4,
- * battle/scroll.c), as C; the mode one the table has. */
+ * battle/scroll.c); the mode one the table has. */
 void battle_scroll_by_the_mode(GameState *g);
 
 // $CD:0534

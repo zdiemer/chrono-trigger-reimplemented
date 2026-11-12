@@ -277,6 +277,5 @@ void menu_load_window_design(GameState *g)
     TIMED_AS(g, 0xC2ED08, menu_load_window_colours(g, menu_window_style(g)));
 }
 
-/* Both write work RAM's buffers through a data bank on it or its mirrors,
- * with the queue empty enough for what they queue. */
-enum { QUEUE_BYTES = 0x100 };
+/* Both write work RAM's buffers, with the queue empty enough for what they
+ * queue. */

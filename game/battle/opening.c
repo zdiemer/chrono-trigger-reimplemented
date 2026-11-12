@@ -102,9 +102,7 @@ void battle_start_the_frame_work(GameState *g) { set_battle_mode(g, FIGHTING); }
  * (battle/window.c), the objects' bounds (battle/objects.c), the objects'
  * graphics (battle/setup.c), after which it waits for the vblank handler to
  * load them; then the window opened (battle/closing.c), after which it waits
- * for the window's slide; then the poses (battle/party_poses.c). The program
- * makes them as C, and on the machine they are the setup's entries, each
- * going on from the wait it stops at. */
+ * for the window's slide; then the poses (battle/party_poses.c). */
 typedef enum { SET_UP_STATE, SET_UP_WINDOW, SET_UP_BOUNDS, SET_UP_GRAPHICS, SET_UP_CALLS } SetUpCall;
 
 // $C1:0023
@@ -131,7 +129,7 @@ static bool set_up_after_the_graphics(GameState *g, bool (*open_the_window)(void
  * fourth. */
 enum { GRAPHICS_LOADED = 4 };
 
-/* The guards' state halves: the graphics built on combatants the builder
+/* What the setup takes: the graphics built on combatants the builder
  * knows; the opening's search's other combatants, and the target it last
  * found, which it keeps where it finds nobody, combatants. */
 static bool combatants_graphics_known(GameState *g)
@@ -148,7 +146,7 @@ static bool opening_fits(const GameState *g)
            && battle_names_combatant(battle_target_found(g));
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The setup's calls ------------------------------------------------------------------------ */
 
 typedef struct {
     GameState *game;
@@ -185,6 +183,8 @@ static bool set_up_a_part(void *ctx, SetUpCall call)
         if (!setup_objects_parts_fit(g))
             return battle_contract_broken(g, SET_UP_GRAPHICS_ENTRY, "a combatant's parts the port doesn't fit");
         TIMED_AS(g, SET_UP_GRAPHICS_ENTRY, battle_setup_graphics(g));
+        // $CC:F05B (in the battle's setup, $CC:ED87)
+        /* wait for the vblank handler to load the graphics, a step a frame */
         while (battle_graphics_load_step(g) != GRAPHICS_LOADED)
             tm_wait_for_handlers(c->pf, PF_LOOP(0xCCF05B, 0xCCF062));
         return true;

@@ -14,7 +14,7 @@
 
 /* ---- What the searches leave in their cells ---------------------------------------------- */
 
-/* The direct-page cells the searches work in (battle_work, from $80). */
+/* The work cells the searches work in (battle_work, from $80). */
 enum {
     LEFT_FIRST = 0x00, /* the reach test's vertical distance, a word ($80); the walker, a word */
     LEFT_SECOND = 0x02, /* the reach test's horizontal distance squared, a word ($82) */
@@ -34,7 +34,7 @@ static uint16_t distance_squared(GameState *g, BattlePoint a, BattlePoint b)
     uint8_t dx = apart(a.x, b.x), dy = apart(a.y, b.y);
     uint16_t dx_squared = battle_multiply(g, dx, dx);
     uint16_t sum = (uint16_t)(dx_squared + battle_multiply(g, dy, dy));
-    set_battle_product(g, sum); /* the reach tests' callers take their carry from it */
+    set_battle_product(g, sum); /* the product's cell keeps the sum, as the original leaves it */
     return sum;
 }
 

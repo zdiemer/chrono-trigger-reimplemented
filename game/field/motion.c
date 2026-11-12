@@ -26,7 +26,6 @@
 #include "field/field_data.h"
 #include "field/layers.h"
 #include "field/parts.h"
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -298,8 +297,8 @@ StepStart object_start_step(GameState *g, FieldObject obj, Direction direction)
         take_priorities_for_the_step(g, obj, look.tile);
     set_step_x(g, obj, steps.x);
     set_step_y(g, obj, steps.y);
-    /* The old result recorded the two steps and their signs, the last
-     * ground probe, and the multiplier's operands and result. */
+    /* The original records the two steps and their signs, the last ground
+     * probe, and the multiplier's operands and result. */
     charge_legacy_accesses(g, 4 + (moves(first) ? 5 : 0));
     charge_legacy_rom_accesses(g, 1);
     charge_legacy_io_accesses(g, 4);
@@ -345,8 +344,8 @@ static bool can_block_in_view(const GameState *g, FieldObject other, FieldObject
  * starts on the slots past them, which hold nobody but read as slots all the
  * same: the leader's walk (field/walk.c, met_past_the_tables) and the
  * look for an object in the way (below) look at them before the map's
- * objects; the confirm button's guard still leaves such a start to the
- * original. A start of 0 would go round into those slots from slot 0
+ * objects; the port refuses such a start for the confirm button. A start
+ * of 0 would go round into those slots from slot 0
  * (it counts round 128), which no map makes. */
 enum { SEARCH_COUNT_BITS = 0x7F };
 

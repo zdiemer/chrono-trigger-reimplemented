@@ -26,7 +26,6 @@
 #include "cpu_io.h"
 #include "charge.h"
 #include "event/contact.h"
-#include "field/scratch.h"
 #include "event/party.h"
 #include "event/script.h"
 #include "field/party.h"
@@ -37,9 +36,9 @@
  * sixteenths of a turn (directions being a byte to a turn). */
 enum { TURN_ASIDE = 0x30 };
 
-/* Work the old adapter spent deriving a move's register result. Keep its
- * calibrated estimate, without deriving dead registers or saving operands.
- * Looking up the branch of that estimate is itself uncounted. */
+/* The work the original spends finishing a move's command, kept as part of
+ * the command's time by the way the move started. Looking up which way that
+ * was is itself uncounted. */
 static void charge_move_result(GameState *g, FieldObject self, StepStart start, bool walking)
 {
     uint32_t mark = charge_uncounted_begin(g);
@@ -390,7 +389,7 @@ static EventFlow step_with_the_party(GameState *g, FieldObject self, bool once)
 }
 EVENT_OPERATION(step_with_the_party, self, once)
 
-/* Its guard: a member steps the object in its place of the party, which
+/* What the port checks: a member steps the object in its place of the party, which
  * names an object or none (field/party.h); the trail's places are its footprints; and what
  * the leader walks into, the touch can reach (event/contact.h). */
 static bool party_can_step(const GameState *g, FieldObject self)
@@ -414,14 +413,14 @@ EVENT_CHECK_TAKING_NOTHING(can_look_its_way)
 
 /* A sliding move looks the way the object faces, which the original looks
  * up in a table of the four facings: an object facing none of them would
- * read past it, which the guard leaves to the original. */
+ * read past it, which the port refuses. */
 static bool can_slide_its_way(const GameState *g, FieldObject self)
 {
     return object_facing_is_one(g, self) && object_search_starts(g);
 }
 EVENT_CHECK(can_slide_its_way, self)
 
-/* The moves' guards are their operands': an object, or a place of the party
+/* What the port checks of the moves is their operands: an object, or a place of the party
  * (event/party.h, member_place_readable). */
 #define TO_A_TILE .tile_x = OPERAND(1), .tile_y = OPERAND(2)
 #define TO_A_TILE_FROM_VARIABLES .tile_x = VARIABLE_BYTE(1), .tile_y = VARIABLE_BYTE(2)

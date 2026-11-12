@@ -1,9 +1,7 @@
 /* Battle: coming in from the field, and going back to it.
  *
- * The field starts a battle with a long call to the battle's first entry
- * ($C1:0000), and the battle's last step ends with its second ($C1:0006),
- * which returns from that call: the field's registers wait on the stack the
- * whole battle long, put there on the way in and taken back on the way out.
+ * The field starts a battle at $C1:0000, and the battle's last step ends at
+ * $C1:0006, which hands the game back to the field.
  *
  * On the way in the battle's memory is cleared, the battle's screen set up,
  * and what the field and the story say about the fight taken in: the window
@@ -42,15 +40,15 @@ enum { SETUP_ALTERNATE_ARRANGEMENT = 0x02, SETUP_SPRITES_HIGHER = 0x10, SPRITES_
 enum { STORY_SITTING_OUT = 0xB4 };
 enum { RULES_SOME_SIT_OUT = 0x01, RULES_UNMARKED_FIGHT = 0x02, CHARACTER_BITS = 0x07 };
 
-/* The battle's memory: its direct page from its work cells on, and its
+/* The battle's memory: its low work cells from $80 on, and its
  * tables from $2D01 to $ACEC. Each is every battle variable there rather than
  * one the RAM map names, so it is cleared by address (game/wram.h). */
 enum { PAGE_CELLS_AT = 0x7E0080, PAGE_CELLS_WORDS = 0x36, TABLES_AT = 0x7E2D01, TABLES_WORDS = 0x3FF6 };
 
 /* The fill takes none of the port's own time, and the original's, a store a
  * word over 32 KiB, is nearly all of the way in's own (about four frames):
- * charged at the way in's rate, a byte cleared an access. Plainly, not as
- * scaffolding: the native-shape build keeps the battle's pace (charge.h). */
+ * charged at the way in's rate, a byte cleared an access, so the battle
+ * keeps its pace (charge.h). */
 enum { THE_WAY_IN = 0xC10000 };
 
 static void clear_battle_memory(GameState *g)
@@ -246,7 +244,7 @@ static bool go_back_to_the_field(GameState *g, const WayOutCalls *calls, void *c
     return calls->close_the_display(ctx);
 }
 
-/* The way back's guard's state half: the party as the game has it, each
+/* What the way back takes: the party as the game has it, each
  * member a character or no one, and its colors in the sprite palettes (the
  * party's are the sixth to the eighth). */
 static bool member_colors_in_palette(const GameState *g, unsigned member)
@@ -265,7 +263,7 @@ static bool party_as_the_game_has_it(const GameState *g)
     return characters;
 }
 
-/* ---- As C ---------------------------------------------------------------------------------- */
+/* ---- The battle fought ------------------------------------------------------------------------ */
 
 typedef struct {
     GameState *game;
@@ -278,8 +276,7 @@ bool battle_contract_broken(GameState *g, uint32_t routine, const char *what)
     return false;
 }
 
-/* The screen's setup ($CD:0000, through to $D1:F1B0); neither entry has a
- * guard. */
+/* The screen's setup ($CD:0000, through to $D1:F1B0). */
 static bool screen_set_up(void *ctx)
 {
     FightContext *c = ctx;

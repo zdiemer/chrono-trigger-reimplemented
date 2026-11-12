@@ -10,10 +10,7 @@
  * list it, the player's settings unpacked into a cell each, the characters'
  * sprites, the items and the characters' figures, and last each character's
  * low-HP mark (menu/members.c). The screen itself is picked after (the
- * caller's mode), and the menus' tasks start ($C2:8190).
- *
- * Several of those are still the original's; the opening is a bridge that
- * calls them, and the ones in C are run as C. */
+ * caller's mode), and the menus' tasks start ($C2:8190). */
 #include "menu/opening.h"
 
 #include "charge.h"
@@ -156,17 +153,15 @@ static void clear_the_menus_cells(GameState *g)
         set_menu_members(g, i, BLANK);
 }
 
-/* What the opening does that is a routine of the menus' own, run as C or on
- * the machine (below): a quietening command sent, the screen set up, the
- * save slots read, the upload queue sent, the records' sprites loaded, the
- * item tables built, and the low-HP marks worked out where the port takes
- * them; and where the graphics' building leaves what the original's code
- * reads (scaffolding). Each false where it went no further. */
+/* What the opening does that is a routine of the menus' own: a quietening
+ * command sent, the screen set up, the save slots read, the upload queue
+ * sent, the records' sprites loaded, the item tables built, and the low-HP
+ * marks worked out where the port takes them. Each false where it went no
+ * further. */
 typedef enum { OPENING_SCREEN, OPENING_SAVE_SLOTS, OPENING_UPLOADS, OPENING_RECORDS, OPENING_ITEMS } OpeningCall;
 typedef struct {
     bool (*quieten)(void *ctx, unsigned command);
     bool (*call)(void *ctx, OpeningCall call);
-    void (*graphics_built)(void *ctx);
     bool (*low_hp_marks)(void *ctx);
 } OpeningCalls;
 
@@ -189,7 +184,6 @@ static bool open_the_menus(GameState *g, Platform *pf, const OpeningCalls *c, vo
         return false;
     clear_the_menus_cells(g);
     TIMED_AS(g, 0xC2968D, menu_build_graphics(g, pf));
-    c->graphics_built(ctx);
     if (!c->call(ctx, OPENING_SAVE_SLOTS))
         return false;
     TIMED_AS(g, 0xC2984A, menu_clear_sprites(g));
@@ -203,8 +197,6 @@ static bool open_the_menus(GameState *g, Platform *pf, const OpeningCalls *c, vo
     return true;
 }
 
-/* ---- As C ------------------------------------------------------------------------------------- */
-
 typedef struct {
     GameState *game;
     Platform *pf;
@@ -217,8 +209,8 @@ static bool quieten(void *ctx, unsigned command)
     return true;
 }
 
-/* Each where its guard takes it; false where it doesn't, the program going
- * no further there. */
+/* Each where the state is one it handles; false where it isn't, the program
+ * going no further there. */
 static bool call(void *ctx, OpeningCall call)
 {
     MenuOpeningContext *c = ctx;
@@ -234,8 +226,6 @@ static bool call(void *ctx, OpeningCall call)
     return back;
 }
 
-static void graphics_built(void *ctx) { (void)ctx; }
-
 /* The opening clears the zero word the marks' walk starts from. */
 static bool low_hp_marks(void *ctx)
 {
@@ -245,7 +235,7 @@ static bool low_hp_marks(void *ctx)
 
 bool menu_opens(GameState *g, Platform *pf)
 {
-    static const OpeningCalls in_the_program = { quieten, call, graphics_built, low_hp_marks };
+    static const OpeningCalls the_steps = { quieten, call, low_hp_marks };
     MenuOpeningContext c = { g, pf };
-    return open_the_menus(g, pf, &in_the_program, &c);
+    return open_the_menus(g, pf, &the_steps, &c);
 }

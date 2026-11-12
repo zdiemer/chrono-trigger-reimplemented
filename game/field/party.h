@@ -86,12 +86,8 @@ void party_trail_catch_up(GameState *g);
 void party_place_layered(GameState *g, PartyPlace place, uint8_t upper, uint8_t lower);
 
 /* Whether the trail's places are its footprints: the game's always are (the
- * guards'). */
+ * port checks it). */
 bool party_trail_places_hold(const GameState *g);
-
-/* The registered entries (field/party_trail.c): the leader's step ($C0:9E29)
- * and each member's ($C0:A26B, $C0:A2CE), as event $B0's handler calls them,
- * with the current object the one stepping and 8-bit index registers. */
 
 static inline GroundKind ground_kind(LeaderGround ground)
 {

@@ -36,7 +36,7 @@ enum { MENU_CLOCK_DIGITS = 0x0402 };
 void menu_draw_the_clock(GameState *g);
 
 /* Whether the time's digits at `digits` are ones the clock keeps: each 0-9,
- * unless the clock has run past them. For the guards of whatever draws it. */
+ * unless the clock has run past them. For the checks of whatever draws it. */
 bool menu_time_digits_are_decimal(const GameState *g, uint16_t digits);
 
 /* A number of `bytes` bytes (the value's low ones) as decimal digits, four

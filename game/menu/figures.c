@@ -242,8 +242,7 @@ void menu_put_items_back(GameState *g)
 
 // $C2:9121
 
-/* The working out runs on the menus' page with the data bank on work RAM's,
- * for a loaded record whose weapon, armour and helmet have a power in the
+/* The working out runs for a loaded record whose weapon, armour and helmet have a power in the
  * menus' table (menu_item_powers) and whose equipment has data
  * (menu_item_amounts): the game's always have. */
 static bool an_item_of_the_games(uint8_t item, MenuItemCategory slot)

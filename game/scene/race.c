@@ -128,14 +128,13 @@ void scene_upload_plane_half(Platform *pf)
     vid_snes_copy(pf, PF_AT(0x7E876E), &t);
 }
 
-/* ---- Where the setup calls the original's code ------------------------------------------------- */
+/* ---- The setup's calls ------------------------------------------------------------------------ */
 
 /* The setup's calls: the race's song started (the program's call of the
- * driver), the graphics' loading entered and left as a call of the program's
- * own (on the machine, its return on the stack), a resource unpacked by the
+ * driver), the graphics' loading entered and left, a resource unpacked by the
  * program's unpacker (scene/boot.c) from the setup's call (`unpacking`, its
- * place in unpacked_at, below), or with the data bank and direct page kept
- * across it, and the camera script's first step. False where one went no
+ * place in unpacked_at, below), or while the racers' pictures are worked
+ * on, and the camera script's first step. False where one went no
  * further. */
 typedef enum {
     RACE_SONG_STARTS,
@@ -147,17 +146,13 @@ typedef enum {
 } RaceCall;
 typedef bool (*RaceCalls)(void *ctx, RaceCall call, unsigned unpacking, uint16_t resource);
 
-/* The program's unpacker ($7E:3691): the resource's place in the program's
- * resource list in X, and the unpacking into the destination the caller has
- * set; it reads nothing else but the overflow, the data bank and the direct
- * page, which it hands back. */
+/* The program's unpacker ($7E:3691): a resource, by its place in the
+ * program's resource list, unpacked into the destination the caller has set. */
 enum { UNPACK = 0x7E3691 };
 
 /* The camera script's first step: the program's routine for channel 0's
- * ($7E:3749), called with 16-bit A and its data bank kept on the stack. It
- * reads Y and the overflow: Y as the divisors' clear left it, past the table
- * (scene_race_divisors' 256 bytes from $1446, and one), and the overflow clear. */
-enum { CHANNEL_0_STEP = 0x7E3749, DIVISORS_CLEARED_TO = 0x1546 };
+ * ($7E:3749). */
+enum { CHANNEL_0_STEP = 0x7E3749 };
 
 /* ---- Setting the race up ------------------------------------------------------------------------- */
 
@@ -239,9 +234,8 @@ void scene_double_plane_rows(GameState *g)
     }
 }
 
-/* One of the race's graphics: VRAM pointed at it, unpacked (a call-out: the
- * unpacker is still the original's, from the program's call at
- * `unpack_site`), and sent or kept. */
+/* One of the race's graphics: VRAM pointed at it, unpacked, and sent or
+ * kept. */
 static bool load_graphics(GameState *g, Platform *pf, unsigned unpacking, const RaceGraphics *r, RaceCalls call, void *ctx)
 {
     if (r->vram_site)
@@ -377,8 +371,7 @@ enum { THIRD_RESOURCE = 0x0C, THIRD_LAST = 0x18, THIRD_RUNS = 12 };
 
 /* The racers' pictures: Crono's unpacked in two parts and the first copied on,
  * the second's blocks placed in it, Johnny's mirrored from them, and the last
- * part unpacked and mirrored. The program keeps the data bank and the direct
- * page on the stack while it works on them, through the last part's unpacking. */
+ * part unpacked and mirrored. */
 enum { CRONO_FIRST_RESOURCE = 0x06, CRONO_SECOND_RESOURCE = 0x09 };
 
 static bool load_racers_pictures(GameState *g, RaceCalls call, void *ctx)
@@ -521,7 +514,8 @@ static bool set_up_the_race(GameState *g, Platform *pf, RaceCalls call, void *ct
     return true;
 }
 
-/* As C: the unpacker and the camera script's turn are the program's as C. */
+/* The setup's calls made: the song, the unpacker and the camera script's
+ * turn. */
 typedef struct {
     GameState *game;
     Platform *pf;
@@ -570,11 +564,6 @@ static void show_curtain_step(const GameState *g, Platform *pf)
     vid_set_line_table(pf, PF_AT(odd ? 0x7E3D81 : 0x7E3D88), CURTAIN_WINDOW_SLOT, curtain_table(g));
 }
 
-/* The curtain's step saves every register and puts them back, and reads
- * none but X, which it saves where the analysis counts it read: the task's
- * own, handed it as it is. */
-enum { CURTAIN_STEP = 0xC3000E };
-
 /* A frame of the sweep: the curtain's step, by `step`, then the window's
  * edges shown from the table it filled. False where the step went no
  * further. */
@@ -586,26 +575,26 @@ static bool sweep_curtain_with(GameState *g, Platform *pf, bool (*step)(void *ct
     return true;
 }
 
-/* As C, the step's port, with its guard's state half (scene/curtain.c). Its
- * stir takes X as the list called the task with, the slot's place in the
+/* The curtain's step (scene/curtain.c), which goes no further where its
+ * table is not one it sweeps. Its stir takes the slot's place in the task
  * list. */
 typedef struct {
     GameState *game;
     Platform *pf;
     uint16_t salt;
-} CurtainInC;
+} CurtainContext;
 
 static bool curtain_step(void *ctx)
 {
-    CurtainInC *c = ctx;
+    CurtainContext *c = ctx;
     return scene_curtain_stepped(c->game, c->pf, c->salt);
 }
 
 TaskEnd scene_race_sweep_curtain(GameState *g, Platform *pf, unsigned slot)
 {
-    CurtainInC c = { g, pf, (uint16_t)(slot * 2) };
+    CurtainContext c = { g, pf, (uint16_t)(slot * 2) };
     if (!sweep_curtain_with(g, pf, curtain_step, &c))
-        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+        return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
     return task_goes_on();
 }
 
@@ -633,8 +622,6 @@ static void keep_camera_sent(GameState *g)
     set_scene_race_view_sent(g, 3, scene_race_view_position(g, 1));
 }
 
-/* The display's tasks below are guarded by their code and the page alone:
- * as C there is nothing of their guards to check. */
 TaskEnd scene_race_move_camera(GameState *g, Platform *pf, unsigned slot)
 {
     (void)slot;
@@ -655,8 +642,8 @@ static void upload_column(Platform *pf, uint32_t column)
     vid_snes_copy(pf, PF_AT(0x7E4671), &t);
 }
 
-/* A column is sent once: the task is done, and both entries end by jumping
- * into the vblank list's exit that takes it off. */
+/* A column is sent once: the task is done, and takes itself off the vblank
+ * list. */
 static TaskEnd send_column_once(Platform *pf, uint32_t column)
 {
     upload_column(pf, column);
@@ -757,13 +744,8 @@ bool race_send_sound(GameState *g, Platform *pf, RaceSound sound, RaceSends send
     return send(ctx, g, pf, sound);
 }
 
-/* On the machine, the program's send ($7E:377E), which waits for the driver
- * to take the command: called with 8-bit A, and the caller's width put back
- * after. It reads none of the registers but Y and the data bank, which it
- * leaves (and nothing after these calls reads A or the flags it changes). */
-enum { SCENE_SEND = 0x7E377E };
-
-/* As C, the send's port, timed as the program's send. */
+// $7E:377E
+/* The program's send, which waits for the driver to take the command. */
 bool race_sound(void *ctx, GameState *g, Platform *pf, RaceSound sound)
 {
     (void)ctx;

@@ -12,18 +12,16 @@
  * calibrated rate. */
 void charge_as(GameState *g, uint32_t routine, uint32_t accesses);
 
-/* Work formerly counted through a retired port's temporary memory accesses
- * on the legacy machine. Keep its calibrated beam-budget estimate without
- * reconstructing those cells, at the current operation's rate. The native
- * program charges the same work: removing comparison scaffolding must not
- * remove work from the calibrated estimate. */
+/* Work the original spends on temporary memory accesses the port keeps as C
+ * values instead: the calibrated beam-budget estimate kept without the cells,
+ * at the current operation's rate, so that the port charges the same work. */
 void charge_legacy_accesses(GameState *g, uint32_t accesses);
 
-/* The same estimate for former multiplier or upload-cursor accesses,
- * whose machine bus price differs from work RAM's. */
+/* The same estimate for the original's multiplier or upload-cursor accesses,
+ * which cost a different time from work RAM's. */
 void charge_legacy_io_accesses(GameState *g, uint32_t accesses);
 
-/* Reads of the retired operation's cartridge tables, at the selected
+/* Reads of the original's cartridge tables the port no longer makes, at the selected
  * cartridge speed. No table bytes are read or retained. */
 void charge_legacy_rom_accesses(GameState *g, uint32_t accesses);
 
@@ -39,7 +37,7 @@ uint32_t charge_retired_begin(GameState *g);
 void charge_retired_end(GameState *g, uint32_t mark, uint32_t routine, uint32_t accesses);
 
 
-/* Accesses left out of the estimate: scaffolding that writes once what the
+/* Accesses left out of the estimate: a port that writes once what the
  * original writes over and over, whose time a charge already stands for. */
 uint32_t charge_uncounted_begin(GameState *g);
 void charge_uncounted_end(GameState *g, uint32_t mark);

@@ -127,11 +127,11 @@ static void set_part_offset(GameState *g, unsigned object, unsigned i, int8_t of
 enum { LEFT_OBJECT = 0x08, LAYOUT_BANK = 0xCC };
 
 // $C1:1C55
-/* The original counts its rows and tiles in the battle's direct-page cells
- * as it builds, which this leaves once at the end, and keeps the data bank on
- * the stack meanwhile: a graphics set placed over those cells or the stack
- * would read other bytes here. The resource-bank contract excludes that
- * aliasing: graphics are cartridge data or the field's unpacked sets. */
+/* The original counts its rows and tiles in the battle's work cells as it
+ * builds, which this leaves once at the end: a graphics set placed over
+ * those cells would read other bytes here. The resource-bank contract
+ * excludes that aliasing: graphics are cartridge data or the field's
+ * unpacked sets. */
 void battle_build_frame_graphics(GameState *g, unsigned object, uint8_t frame)
 {
     set_battle_anim_held(g, object, 0);
@@ -362,13 +362,12 @@ static void build_bitmap_shapes(GameState *g)
     }
 }
 
-/* ---- The entries ------------------------------------------------------------------------ */
+/* ---- What the builders know ------------------------------------------------------------- */
 
 /* Only an object whose graphics kind has a layout, as every object the
  * battle builds has, and whose frame's part offsets stay in the table (a
  * large kind's run on into the next objects', and the last objects are the
- * smallest); and A's high byte clear, as the game has it, since the original
- * picks the kind's sizes with the whole of A as its index. */
+ * smallest). */
 enum { GRAPHICS_KINDS = 5, PART_OFFSET_WORDS = BATTLE_COMBATANTS * PARTS_PER_OBJECT * OFFSETS_PER_PART };
 
 bool battle_object_graphics_known(GameState *g, unsigned object)

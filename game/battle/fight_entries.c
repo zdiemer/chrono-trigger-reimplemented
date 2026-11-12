@@ -1,7 +1,5 @@
-/* Battle: the fight's start's machine side -- each piece's registered entry,
- * taking what the original's callers hand it in the registers and the
- * direct page's cells, and the guards that turn away what the game never
- * hands it (battle/fight_start.c says what the pieces are). */
+/* Battle: whether the port takes the fight's start (battle/fight_start.c
+ * says what its pieces are). */
 #include "battle/fight.h"
 
 #include "battle/battle.h"

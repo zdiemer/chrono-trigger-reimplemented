@@ -293,7 +293,7 @@ void battle_redraw_command_cursor(GameState *g)
 }
 
 /* The first menu slot with a member, which becomes the menu's when its own
- * slot has none (the entries' guard keeps one). */
+ * slot has none (battle_window_fits keeps one). */
 static unsigned first_slot_with_member(const GameState *g)
 {
     unsigned slot = 0;
@@ -348,7 +348,7 @@ void battle_redraw_window(GameState *g)
         show_command_windows(g, layout);
 }
 
-/* ---- The guards ------------------------------------------------------------------------ */
+/* ---- What the window's routines take --------------------------------------------------- */
 
 static bool names_member_or_nobody(uint8_t v) { return v < BATTLE_PARTY_SIZE || menu_nobody(v); }
 static bool names_combatant_or_nobody(uint8_t v) { return v < BATTLE_COMBATANTS || menu_nobody(v); }

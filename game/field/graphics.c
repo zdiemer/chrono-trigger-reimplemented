@@ -3,17 +3,14 @@
  * The frame builder (field/frames.c) assembles an object's sprite tiles, 32
  * bytes each, in bank $7F, from the object's graphics set (the ROM's banks
  * $D2-$D5, or graphics built in $7F). A tile is copied straight, or mirrored
- * left to right. These are the builder's two tile copies; each is also an
- * entry of its own, which the original's code calls with the set in
- * field_sprite_graphics and the place in field_sprite_tile_offset (the
- * straight copy) or the work RAM port's cursor (the mirrored one). */
+ * left to right. These are the builder's two tile copies
+ * (field_draw_frame_tile). */
 #include "field/graphics.h"
 
 #include "charge.h"
 #include "cpu_io.h"
 #include "field/bridge.h"
 #include "field/field_data.h"
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
@@ -64,12 +61,3 @@ void field_draw_frame_tile(GameState *g, ObjectGraphics set, uint16_t tile, uint
     else
         TIMED_AS(g, 0xC0E687, copy_sprite_tile(g, set, tile, to));
 }
-
-/* ---- Entries: the frame builder's calls, on the field's page ------------------------------ */
-
-/* The mirrored copy's guard: on the field's page with the data bank $00, the
- * tile's 32 bytes in banks where every address answers (elsewhere the copy
- * would read what the bus last held; the set's address carries into the next
- * bank, the last bank's into bank $00), and the port's 32 bytes inside the
- * build bank, where the frame builder places it. */
-enum { BANK_END = 0x10000 };

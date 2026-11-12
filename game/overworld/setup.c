@@ -15,8 +15,7 @@
  * the party, draws the map's two planes whole and starts the scene's script.
  *
  * Unpacking is the decompressor's (data/decompress.c): the loads reach it
- * through an Unpacker, which says where the original calls it from, and which
- * is C on the machine as off it since the decompressor's gate retired.
+ * through an Unpacker, which says where the original calls it from.
  * Everything else is the game's state and the video service. */
 #include "overworld/setup.h"
 
@@ -110,7 +109,7 @@ static uint8_t record_byte(const GameState *g, uint8_t field)
 }
 
 /* Unpack a stream to `to`; `site` is where the original's call to the
- * unpacker stands, which the machine's unpacker makes its call from. */
+ * unpacker stands. */
 static bool unpack(const Unpacker *u, uint32_t site, uint32_t stream, uint32_t to)
 {
     return u->unpack(u->ctx, site, stream, to);
@@ -579,14 +578,10 @@ static bool unpack_the_stream(void *ctx, uint32_t site, uint32_t stream, uint32_
 
 Unpacker overworld_unpacker(GameState *g) { return (Unpacker){ unpack_the_stream, g }; }
 
-/* Where the set up starts; the original's code from there reads nothing of
- * the registers but the mode's page and bank. */
-enum { SET_UP = 0xC223A8 };
-
 /* ---- The contracts ------------------------------------------------------------------------- */
 
-/* The loads run on the mode's page with the data bank on low RAM, on a world
- * map whose record is in the ROM; the record noted where they read it. */
+/* The loads run on a world map whose record is in the ROM; the record noted
+ * where they read it. */
 static bool on_a_world_map(const GameState *g)
 {
     uint16_t location = (uint16_t)(location_id(g) & 0x1FF);

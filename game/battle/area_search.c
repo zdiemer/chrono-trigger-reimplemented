@@ -23,9 +23,9 @@
  *
  * The finds go in battle_area_found in slot order, after a first place kept
  * for the combatant the area is placed on, where it is on the side searched;
- * where it isn't, the list closes up. The original works in the direct
- * page's cells; what it leaves there is scaffolding (leave_*), except the
- * direction's and the multiply's cells, which their own functions keep. */
+ * where it isn't, the list closes up. The original works in the battle's
+ * work cells; what it leaves there is kept as it leaves it (leave_*), the
+ * direction's and the multiply's cells by their own functions. */
 #include "charge.h"
 #include "battle/choosing.h"
 
@@ -349,20 +349,4 @@ void battle_find_area(GameState *g, uint8_t shape, const AreaAsked *a)
 {
     if (shape_known(shape))
         battle_find_in(g, SHAPE_KIND[shape], a);
-}
-
-/* ---- The entries --------------------------------------------------------------------------------- */
-
-/* The carry the search leaves its callers (the targeting's multiply takes it,
- * aim.c): set, but where a beam or a circle among the party put the member it
- * is placed on first, the compare that put it there clear. */
-bool battle_area_search_carry(uint8_t shape, bool among_party, uint8_t centre, uint8_t toward)
-{
-    if (!shape_known(shape) || !among_party)
-        return true;
-    switch (SHAPE_KIND[shape]) {
-    case AREA_BEAM: return !battle_slot_is_party(toward);
-    case AREA_CIRCLE: return !battle_slot_is_party(centre);
-    default: return true;
-    }
 }

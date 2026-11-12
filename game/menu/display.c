@@ -6,15 +6,13 @@
  * windows, screens and color math, the sprite table, the palette -- and sends
  * them in vblank, with the uploads it has queued and a block move a frame may
  * ask for. The mode at $C2:0000 (the Epoch's screens, the End of Time's gate,
- * the menus' map scenes) keeps the same state on the direct page and sends it
+ * the menus' map scenes) keeps the same state in its own cells and sends it
  * the same way, then runs its objects (menu/objects.c).
  *
  * Both set the screen up by a fixed recipe as they start, and a graphics
  * loader shared by the screens fills VRAM, the palette and work RAM for them.
  *
- * Everything reaches the hardware through the video and timing services; the
- * few entries that switch stacks or return from an interrupt do that in their
- * wrappers and nowhere else. */
+ * Everything reaches the hardware through the video and timing services. */
 #include "menu/display.h"
 
 #include "charge.h"
@@ -52,7 +50,7 @@ static const VidDisplay BLANK = { .blank = true };
 
 /* ---- The windows, the screens and color math, as both modes keep them --------------------------- */
 
-/* The sixteen register values in register order: the window masks, edges and
+/* The sixteen values in the order the console takes them: the window masks, edges and
  * logic, the main and sub screens and their window masks, color math's
  * control and layers, and the fixed color, one channel byte at a time. */
 typedef struct {
@@ -102,7 +100,7 @@ static void blank_and_stop(Platform *pf, const uint32_t site[4])
     vid_enable_line_effects(pf, PF_AT(site[3]), 0x00);
 }
 
-/* The openings the menus' callers ask for, in A as they enter: the screen
+/* The openings the menus' callers ask for as they enter: the screen
  * each opens on is the ROM's (menu_screen_opened_on). One opens on a screen
  * whose only step closes the menus again, for what opening and closing them
  * do to the party's records and the field's sprites. The first entry for the
@@ -159,8 +157,7 @@ static const uint32_t start_sites[4] = { 0xC28025, 0xC2802B, 0xC28031, 0xC28035 
 static const uint32_t return_sites[4] = { 0xC282C3, 0xC282C9, 0xC282CF, 0xC282D3 };
 static const uint32_t restart_sites[4] = { 0xC28331, 0xC28337, 0xC2833D, 0xC28341 };
 
-/* The mode's steps that are routines of their own, run as C or on the
- * machine (below): the game started again from its reset ($C2:832F); the
+/* The mode's steps that are routines of their own: the game started again from its reset ($C2:832F); the
  * menus opened ($C2:8096), false where that went no further; and the tasks
  * started and their turns taken until a screen closes the menus ($C2:8190). */
 typedef struct {
@@ -190,8 +187,6 @@ static void run_the_mode(GameState *g, Platform *pf, uint8_t asked_for, uint16_t
     open_on_the_screen(g, pf);
     steps->tasks(ctx);
 }
-
-/* ---- As C ---- */
 
 /* The mode run by the program, and how it ended: the task closing the menus
  * says, back to their caller or the game started again from its reset. */
@@ -237,10 +232,10 @@ static void tasks(void *ctx)
 
 MenuModeEnd menu_mode_runs(GameState *g, Platform *pf, uint8_t asked_for, uint16_t asked_with)
 {
-    static const ModeSteps in_the_program = { start_again, opened, tasks };
+    static const ModeSteps the_steps = { start_again, opened, tasks };
     MenuModeContext c = { g, pf, MENUS_WENT_NO_FURTHER };
     running = &c;
-    run_the_mode(g, pf, asked_for, asked_with, &in_the_program, &c);
+    run_the_mode(g, pf, asked_for, asked_with, &the_steps, &c);
     running = NULL;
     return c.end;
 }
@@ -252,8 +247,8 @@ MenuModeEnd menu_mode_runs(GameState *g, Platform *pf, uint8_t asked_for, uint16
  * starts again from its reset with the game loaded (menu_mode_restart). */
 enum { EVERY_TASK = 0xFF };
 
-/* The wear shown, the fade out and the leaving, run as C or on the machine
- * (below), the first two each false where it went no further. */
+/* The wear shown, the fade out and the leaving, the first two each false
+ * where it went no further. */
 typedef struct {
     bool (*wear_shown)(void *ctx);
     bool (*faded_out)(void *ctx);
@@ -268,7 +263,7 @@ static void close_the_menus(GameState *g, const CloseCalls *c, void *ctx)
         c->leave(ctx);
 }
 
-/* As C, from inside the task that closes them: the menus' mode returns to
+/* From inside the task that closes them: the menus' mode returns to
  * its caller, the program, saying how they closed, and the task never goes
  * on. */
 typedef struct {
@@ -305,9 +300,9 @@ static void leave(void *ctx)
 
 void menu_close(GameState *g, Platform *pf, bool for_the_game)
 {
-    static const CloseCalls in_the_program = { wear_shown, faded_out, leave };
+    static const CloseCalls the_steps = { wear_shown, faded_out, leave };
     MenuCloseContext c = { g, pf, for_the_game };
-    close_the_menus(g, &in_the_program, &c);
+    close_the_menus(g, &the_steps, &c);
 }
 
 /* The mode's frame: the screen blanked while it sends what the frame built,
@@ -318,15 +313,14 @@ void menu_ask_for_the_block_move(GameState *g) { set_menu_line_effects(g, (uint8
 
 /* ---- The menus' vblank handler ------------------------------------------------------------------ */
 
-/* The vblank's two calls, run as C or on the machine (below): the frame's
- * work sent, and the frame's input taken; each false where it went no
+/* The vblank's two calls: the frame's work sent, and the frame's input taken; each false where it went no
  * further. */
 typedef struct {
     bool (*frame_sent)(void *ctx);
     bool (*input_taken)(void *ctx);
 } VblankCalls;
 
-// $C2:842A (the handler's work, after its entry at $C2:840E)
+// $C2:842A
 /* The menus' vblank: counts the frame, sends the frame's work ($C2:85D6) with
  * the per-line effects off and turns them back on after, reads the input and
  * the timers ($C2:8473), and sets the BG mode and the brightness (0 is forced
@@ -361,8 +355,8 @@ typedef struct {
     Platform *pf;
 } MenuVblankContext;
 
-/* As C, the frame's work and the queue each where its guard takes them; the
- * program goes no further otherwise. */
+/* The frame's work and the upload queue, each sent when it holds what the
+ * port can send; the program goes no further otherwise. */
 static bool frame_sent(void *ctx)
 {
     MenuVblankContext *c = ctx;
@@ -384,9 +378,9 @@ static bool input_taken(void *ctx)
 
 void menu_vblank(GameState *g, Platform *pf)
 {
-    static const VblankCalls in_the_program = { frame_sent, input_taken };
+    static const VblankCalls the_steps = { frame_sent, input_taken };
     MenuVblankContext c = { g, pf };
-    TIMED_AS(g, 0xC2842A, (void)menus_vblank(g, pf, &in_the_program, &c));
+    TIMED_AS(g, 0xC2842A, (void)menus_vblank(g, pf, &the_steps, &c));
 }
 
 /* The menus' line handler returns at once. */
@@ -423,9 +417,7 @@ static void send_menu_screen_shadows(GameState *g, Platform *pf)
     vid_set_fixed_color(pf, PF_AT(0xC28601), (uint8_t)(fixed >> 5), (uint8_t)(fixed & 0x1F));
 }
 
-/* The block move a frame asks for: the original writes an MVN and an RTL
- * into work RAM and calls them. What it leaves in Y, the destination past
- * the bytes moved, the vblank's caller reads. */
+/* The block move a frame asks for, within work RAM's first bank. */
 static void move_the_block(GameState *g)
 {
     uint16_t from = menu_block_move_source(g), to = menu_block_move_dest(g), size = menu_block_move_size(g);
@@ -447,9 +439,7 @@ void menu_send_palette(GameState *g, Platform *pf)
 /* The menus' vblank work: the layers' scroll, the windows, screens and color
  * math, the sprite table, a block move the frame asked for, the palette, and
  * the color math table the frame built (menu_build_math_line_table). It falls
- * through into the VRAM upload queue at $C2:8663. The block move the shadows
- * went out through leaves Y past the register block, and a block move of the
- * frame's past its destination, which is returned. */
+ * through into the VRAM upload queue at $C2:8663. */
 static void send_the_frame(GameState *g, Platform *pf)
 {
     send_menu_scroll(g, pf);
@@ -465,8 +455,8 @@ static void send_the_frame(GameState *g, Platform *pf)
     vid_set_line_table(pf, PF_AT(0xC28660), 0, table);
 }
 
-/* A block move the game asks for moves a buffer, not the code the original
- * runs it through (the stub in low RAM). */
+/* A block move the game asks for moves a buffer, never the four bytes in low
+ * RAM the original runs the move through. */
 enum { BLOCK_MOVE_STUB = 0x9690, BLOCK_MOVE_STUB_END = 0x9694 };
 
 /* The bytes the move asked for covers from `at` on, which runs round its
@@ -489,8 +479,7 @@ bool menu_block_move_is_a_buffer(const GameState *g)
 
 // $C2:8663
 /* The queued VRAM uploads, the last queued first, which empties the queue.
- * A size of 0 is a whole 64 KiB, as the transfer registers read it. It leaves
- * the first entry's bank in Y. */
+ * A size of 0 is a whole 64 KiB. */
 void menu_send_upload_queue(GameState *g, Platform *pf)
 {
     unsigned entries = menu_vram_queue_bytes(g) / MENU_UPLOAD_BYTES;
@@ -517,8 +506,8 @@ bool menu_upload_queue_sent(GameState *g, Platform *pf)
 }
 
 /* What the game uploads comes from work RAM's banks or the ROM's, never
- * through the banks that mirror the I/O registers, where what a transfer reads
- * depends on when it reads it. */
+ * through the banks that mirror the console's I/O, where what a transfer
+ * reads depends on when it reads it. */
 static bool uploads_from_memory(uint8_t bank) { return bank == 0x7E || bank == 0x7F || (bank & 0x7F) >= 0x40; }
 
 /* The queue's entries are whole, no more than it holds, and from memory. */
@@ -638,8 +627,8 @@ static const VidScreen object_mode_screen = {
 enum { IO_LINES_RELEASED = 0xFF };
 
 // $C2:0043
-/* Set the mode's screen up, and the console's own registers as the mode
- * starts them: the controller port's lines released, the arithmetic unit
+/* Set the mode's screen up, and the console's own state as the mode starts
+ * it: the controller port's lines released, the arithmetic unit
  * cleared, the timers back at the frame's start. */
 void menu_object_set_up_the_screen(GameState *g, Platform *pf)
 {
@@ -649,7 +638,7 @@ void menu_object_set_up_the_screen(GameState *g, Platform *pf)
     tm_reset_timers(pf, PF_AT(0xC2010C));
 }
 
-/* The mode's own state starts from nothing: its direct page cleared, the
+/* The mode's own state starts from nothing: its scratch cleared, the
  * screen off, and the display it sends each frame as the screen starts --
  * mode 1 with BG3 in front, the Mode 7 plane at its identity, both windows
  * shut (each opening a pixel past where it closes), BG1-BG3 and the sprites
@@ -791,7 +780,7 @@ static void send_object_frame(GameState *g, Platform *pf)
 }
 
 /* The mode's own work after its frame is sent, each a routine of its own,
- * run as C or on the machine (below), each false where it went no further:
+ * each false where it went no further:
  * the uploads it queued, the frame's input (the controller, the button
  * assignments and the play time, $C2:8002), and around the objects' turns
  * the sprite list emptied, the sprites hidden and the list drawn. */
@@ -801,7 +790,7 @@ typedef enum {
 } ObjectFrameStep;
 typedef bool (*ObjectFrameRun)(void *ctx, ObjectFrameStep step);
 
-// $C2:015E (the work, after the handler keeps the interrupted code's registers)
+// $C2:015E
 /* The sprite-object mode's vblank: counts the frame and, when the main loop
  * has finished one, sends it (the sprite table, the palette when it changed,
  * the shadows) and does the mode's own work: the uploads and the input, the
@@ -822,9 +811,8 @@ static bool object_mode_vblank(GameState *g, Platform *pf, ObjectFrameRun run, v
     vid_enable_line_effects(pf, PF_AT(0xC20328), menu_object_line_effects(g));
     if (!run(ctx, EMPTY_THE_SPRITE_LIST))
         return false;
-    /* the list's emptying comes back with a 16-bit accumulator, so the
-     * sprites' count is cleared a word wide, over the running object's low
-     * byte */
+    /* the sprites' count is cleared a word wide, as the original clears it,
+     * over the running object's low byte */
     set_menu_object_sprite_index(g, 0);
     set_menu_object_current(g, (uint16_t)(menu_object_current(g) & 0xFF00));
     for (ObjectFrameStep step = HIDE_THE_SPRITES; step < OBJECT_FRAME_STEPS; step++)
@@ -834,8 +822,6 @@ static bool object_mode_vblank(GameState *g, Platform *pf, ObjectFrameRun run, v
     return true;
 }
 
-/* ---- As C ---- */
-
 static void send_object_queue(GameState *g, Platform *pf);
 
 typedef struct {
@@ -843,8 +829,8 @@ typedef struct {
     Platform *pf;
 } ObjectVblankContext;
 
-/* Each step where its guard's state half takes it; the program goes no
- * further otherwise. */
+/* Each step, when what it works on is one the port handles; the program goes
+ * no further otherwise. */
 static bool object_frame_step(void *ctx, ObjectFrameStep step)
 {
     ObjectVblankContext *c = ctx;
@@ -898,7 +884,7 @@ void menu_object_vblank(GameState *g, Platform *pf)
 /* The mode has no line handler: the line interrupt only returns. */
 void menu_object_line(GameState *g, Platform *pf) { (void)g, (void)pf; }
 
-/* ---- On the machine ---- */
+/* ---- The mode's upload queue -------------------------------------------------------------------- */
 
 // $C2:0405
 /* The sprite-object mode's VRAM upload queue, unless something is queueing
@@ -948,8 +934,7 @@ void menu_clear_all_of_vram(Platform *pf)
 
 // $C2:2D70
 /* The graphics loader's transfer: `bytes` from bank $7F at `from` to VRAM
- * word `vram`, a word at a time. A size of 0 is a whole 64 KiB, as the
- * registers read it. */
+ * word `vram`, a word at a time. A size of 0 is a whole 64 KiB. */
 void menu_send_loaded_graphics(Platform *pf, uint16_t vram, uint16_t from, uint16_t bytes)
 {
     vid_send_vram(pf, PF_AT(0xC22D70), vram, PF_GAME(0x7F0000 | from), bytes ? bytes : 0x10000, &word_port);

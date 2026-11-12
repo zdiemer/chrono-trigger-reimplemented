@@ -110,8 +110,7 @@ static void fill_triple(GameState *g, uint8_t member, uint8_t tech)
     for (unsigned part = 0; part < TECH_MEMBERS; part++)
         set_slot_cost(g, record, battle_tech_members(g, part), party_effect_mp_cost(g, t.effects[part]));
     /* the original finds each part's cost by a multiply (the tech's record's
-     * place), the last entered with the carry the second member's
-     * accessory's test left (scaffolding) */
+     * place), whose cells keep what it leaves */
     battle_leave_multiply(g, tech, PARTY_TECH_BYTES);
     uint8_t high = (uint8_t)(partner_slot(g, 2, member) << 4);
     /* the original works the partners out in the search's first cell */
@@ -158,11 +157,11 @@ static uint8_t doubles_learned_byte(const GameState *g, unsigned n)
     return n < PARTY_DOUBLE_TECHS_LEARNED_COUNT ? party_double_techs_learned(g, n) : party_double_techs_learned_unchecked(g, n);
 }
 
-/* ---- What the builders leave in the direct page's cells ---------------------------------------- */
+/* ---- What the builders leave in the battle's work cells ---------------------------------------- */
 
-/* The original builds the records in the direct page's cells, which the rest
- * of the fight's start overwrites before anything reads them: scaffolding,
- * worked out here from where each builder ended. The cells: the character or
+/* The original builds the records in the battle's work cells, which the rest
+ * of the fight's start overwrites before anything reads them; what they
+ * hold is worked out here from where each builder ended. The cells: the character or
  * the learned byte's number, twice the tech, the records' place, the tech,
  * the learned byte it was at, where the techs end, the bit in the byte, the
  * doubles filled, and a word the double techs' builder steps by twelve a tech

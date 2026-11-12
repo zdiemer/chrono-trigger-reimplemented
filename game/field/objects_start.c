@@ -13,7 +13,7 @@
  *   objects disabled; the script variables, the objects' velocities and the
  *   scripts' saved places cleared;
  * - each object runs its opening, and the party starts on the map
- *   (event/bridge.c, $C0:58DE);
+ *   (event/engine.c, $C0:58DE);
  * - the map's own script starts (event/engine.c, $C0:595C);
  * - and what the party wears shows (menu/party.h).
  *
@@ -26,7 +26,6 @@
 #include "field/object.h"
 #include "field/object_update.h"
 #include "field/palettes.h"
-#include "field/scratch.h"
 #include "field/sprites.h"
 #include "field/walk.h"
 
@@ -150,12 +149,9 @@ void field_objects_start_afresh(GameState *g, Platform *pf)
     set_field_npc_graphics_count(g, 0);
 }
 
-/* ---- The entries ------------------------------------------------------------------------- */
+/* ---- The routines it calls ----------------------------------------------------------------- */
 
-/* The openings follow the objects' defaults. The entry's object-count and
- * page guard covers both operations. The party's start after them reads the
- * overflow, which the defaults leave clear, and the openings carry Y from
- * the last default byte written ($FF). */
+/* The openings, which follow the objects' defaults. */
 enum { OPENINGS = 0xC058DE };
 
 /* The original's routines it calls: the map's own script, and the menus'
@@ -166,7 +162,7 @@ enum { MAP_SCRIPT_STARTS = 0xC0595C, MENUS_SERVICES = 0xC28004 };
  * frame, as a map starts (a script can move the animation's). */
 enum { SCRIPTS_STOP_AT_LINE = 0x48, ANIMATION_STOPS_AT_LINE = 0x78 };
 
-/* ---- The objects set up, as C ------------------------------------------------------------------ */
+/* ---- The objects set up ------------------------------------------------------------------------ */
 
 /* The party's start on the map after the openings ($C0:9DC3), and the
  * openings' place in the setup ($C0:58DE), which time them. */

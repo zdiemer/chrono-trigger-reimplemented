@@ -8,7 +8,6 @@
 #include "field/field.h"
 #include "charge.h"
 
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 

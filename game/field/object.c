@@ -256,7 +256,7 @@ ObjectGraphics object_frame_descriptions(const GameState *g, FieldObject obj)
 /* ---- Facing ------------------------------------------------------------------------------ */
 
 /* The facing is kept as a byte, which the game only ever sets to one of the
- * four; the guards leave any other to the original (object.h). */
+ * four; the port refuses any other (object.h). */
 enum { FACINGS = 4 };
 Facing object_facing(const GameState *g, FieldObject obj) { return (Facing)(field_object_facing(g, obj) % FACINGS); }
 bool object_facing_is_one(const GameState *g, FieldObject obj) { return field_object_facing(g, obj) < FACINGS; }
@@ -483,9 +483,9 @@ void dialog_set_speaker(GameState *g, FieldObject speaker) { set_dialog_speaker(
 /* ---- The current object ------------------------------------------------------------------ */
 
 /* The word's low byte is the object's link; the high byte is the original's
- * alone (the per-frame turn stores the link with 8-bit index registers, and
- * keeps it; the map's openings store it as a word, which the event engine
- * says where it does). */
+ * alone (the per-frame turn stores the link as a byte, and keeps the high
+ * byte; the map's openings store it as a word, which the event engine says
+ * where it does). */
 FieldObject object_current(const GameState *g) { return field_linked_object(field_link_stored((uint8_t)field_current_object(g))); }
 bool object_current_is_one(const GameState *g) { return field_names_object(field_current_object(g)); }
 

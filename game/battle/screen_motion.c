@@ -278,8 +278,8 @@ static bool passes_the_end(const GameState *g, uint8_t seed, bool overflowed)
 
 // $CD:1A14
 /* Pick the six amounts at random, each from the last, the first from the
- * command's operand. The dispatch always leaves the first pick a step on
- * (battle_screen_command_ready asks it, as for the jitter). */
+ * command's operand. The dispatch always leaves the first pick a step on,
+ * as for the jitter. */
 static void pick_drifts(GameState *g, ScreenChannel channel, uint8_t seed)
 {
     bool overflowed = true;
@@ -364,7 +364,7 @@ SCREEN_OPCODES(screen_motion_opcodes,
     { 0xC0, OPERATION(shake_screen), .length = 8, .stop = TOP_BIT(0), .shake_across = TRIPLE(1), .shake_down = TRIPLE(4), .layers = BYTE(7) },
 );
 
-/* ---- The entries ------------------------------------------------------------------------ */
+/* ---- The screen effect the settings name ---------------------------------------------------- */
 
 // $D1:F67A
 /* Set the screen effect the settings name, each effect's work timed as its

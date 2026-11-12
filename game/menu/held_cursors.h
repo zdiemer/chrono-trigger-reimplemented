@@ -33,12 +33,10 @@ void menu_draw_cursors_on_every_member(GameState *g);
  * arrows. */
 void menu_start_the_scroll_bar(GameState *g);
 void menu_draw_the_scroll_bar(GameState *g);
-/* The scroll bar's thumb on the screen, which drawing it takes (its task's
- * guard's state half). */
+/* The scroll bar's thumb on the screen, which drawing it takes. */
 bool menu_scroll_bar_can_be_drawn(const GameState *g);
 
-/* What the held cursors' tasks take of the state, as their entries' guards
- * do: the held cursor's place one of the cursor's table, the member's too
+/* What the held cursors' tasks need of the state: the held cursor's place one of the cursor's table, the member's too
  * with the reserve's tops among its six places, and the members' cursors
  * for one to three active members. (The list's takes nothing.) */
 bool menu_held_cursor_can_be_drawn(const GameState *g);

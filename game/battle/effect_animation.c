@@ -104,7 +104,7 @@ static TakenFrame take_next_frame(GameState *g, unsigned effect)
     return (TakenFrame){ facing_run, (uint8_t)effect, ended, frame.high_set };
 }
 
-/* ---- The entries ------------------------------------------------------------------------- */
+/* ---- A frame of the effects' animations -------------------------------------------------- */
 
 // $CC:F278
 /* Step the effects' animations a frame: count their frame times down, then

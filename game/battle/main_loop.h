@@ -11,10 +11,10 @@
 /* $FD:A982: the battle's work on its turns cleared, as a battle starts. */
 void battle_clear_the_turn_work(GameState *g);
 
-/* The battle from its start ($C1:8000) to its end, a pass a frame, as C:
+/* The battle from its start ($C1:8000) to its end, a pass a frame:
  * false where it went no further, true once it leaves for the field. */
 bool battle_main_loop_runs(GameState *g, Platform *pf);
-/* The turn's handler ($C1:8461), as C, for the timers'. */
+/* The turn's handler ($C1:8461), for the timers'. */
 bool battle_turn_given(GameState *g, Platform *pf);
 
 #endif

@@ -1,4 +1,4 @@
-/* Battle: the battle's steps (BattleStep, battle.h) as C (battle/steps.c). */
+/* Battle: the battle's steps (BattleStep, battle.h; battle/steps.c). */
 #ifndef CT_GAME_BATTLE_STEPS_H
 #define CT_GAME_BATTLE_STEPS_H
 
@@ -8,11 +8,11 @@
 #include "platform/platform.h"
 #include "state.h"
 
-/* A step the main loop or a turn asks for, run as C through the steps'
- * table: false where it went no further. */
+/* A step the main loop or a turn asks for, run through the steps' table:
+ * false where it went no further. */
 bool battle_step_taken(GameState *g, Platform *pf, BattleStep step);
 
-/* The steps as C, in their files: the setup (battle/opening.c) and a frame
+/* The steps, in their files: the setup (battle/opening.c) and a frame
  * of waiting (battle/frame_step.c). */
 bool battle_set_up_runs(GameState *g, Platform *pf);
 bool battle_waits_a_frame(GameState *g, Platform *pf);

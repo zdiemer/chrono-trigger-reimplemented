@@ -41,8 +41,7 @@ void menu_describe_setting(GameState *g, uint8_t option, uint8_t value_text);
  * laid on the row as far as the pen got. */
 void menu_send_the_typing(GameState *g);
 
-/* The typing's three tasks, by their starts, as C (menu/tasks.c's
- * coroutines): a description, a setting's option and value, a value. */
+/* The typing's three tasks, by their starts (menu/tasks.c's coroutines): a description, a setting's option and value, a value. */
 enum { MENU_TYPE_A_DESCRIPTION = 0xFA9F, MENU_TYPE_A_SETTING = 0xF9B2, MENU_TYPE_A_VALUE = 0xFA06 };
 void menu_type_the_description_task(GameState *g, Platform *pf);
 void menu_type_the_setting_task(GameState *g, Platform *pf);

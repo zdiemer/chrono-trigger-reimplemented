@@ -66,7 +66,7 @@ enum {
 
 /* A place in a string: its bank and where in it. Reading on past the bank's
  * end carries into the next, while the place itself wraps in its bank, as the
- * original's index register does. */
+ * original's does. */
 typedef struct {
     uint8_t bank;
     uint16_t at;
@@ -217,7 +217,7 @@ static uint16_t draw_number(GameState *g, uint32_t at, uint8_t format, uint16_t 
     return draw_value(g, number_at(g, at, number_format(format).bytes), format, pen);
 }
 
-/* Where the number's four bytes are on the menus' page, as the original
+/* Where the number's four bytes are in the menus' cells, as the original
  * reads a hex number's digits. */
 enum { NUMBER_CELLS = 0x7E008A };
 

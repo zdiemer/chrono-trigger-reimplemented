@@ -52,16 +52,16 @@ enum { MENU_TEXT_SIXTEEN_COLOUR_LABEL = MENU_TEXT_LINES_AT_THE_EDGE | 0x01 };
 uint8_t menu_set_label_laid_out(GameState *g, uint32_t strings, uint8_t string, uint16_t tiles, MenuTextLayout layout);
 
 /* Whether a label can be set: from memory, into work RAM, with none of its
- * names or lines on the text page (typeset.c's guards say why). */
+ * names or lines on the text page (typeset.c's checks say why). */
 bool menu_label_can_be_set(const GameState *g, uint32_t strings, uint8_t string, uint16_t tiles);
 
-/* For a C caller's guard: whether string `string` of the table at `strings`
+/* For a caller's check: whether string `string` of the table at `strings`
  * can be typed a few glyphs a call into the tiles at `tiles` (a 24-bit
- * address), and whether the text being typed can carry on (typeset.c's guards
+ * address), and whether the text being typed can carry on (typeset.c's checks
  * say what they keep it from). */
 bool menu_text_can_be_typed(const GameState *g, uint32_t strings, uint8_t string, uint32_t tiles);
 bool menu_text_can_carry_on(const GameState *g);
-/* The text's start's guard, its state half: strings the typesetter reads. */
+/* Whether the text can start: strings the typesetter reads. */
 bool menu_text_can_start(const GameState *g);
 
 #endif

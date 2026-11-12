@@ -6,7 +6,7 @@
  * what the sound driver plays. Each frame the program runs each channel's script
  * from where it stopped until a command ends the channel's turn. A channel has
  * sixteen word registers, sixteen loop counters and a return address, and its
- * routines run on its page, so a script's registers are also the variables of
+ * routines work on its cells, so a script's registers are also the variables of
  * the routines it calls (the title keeps BG1's scroll in channel 0's).
  *
  * A command is an opcode byte and its operands, in the program's bank:
@@ -23,14 +23,13 @@
  *
  * The language is a table: each row says which opcodes it covers and runs
  * them, decoding the command's operands into the named parameters of an
- * operation over the channel. Two operations call the original's code -- a
- * routine of the program, and the sound driver's entry -- so the loop that runs
- * them is a bridge on the machine. A command the port doesn't take (one no
- * script has: a store outside low RAM, a video setting no call expresses, a task
- * to take off that isn't on its list or to put on a list that is full) is handed
- * to the original's code for that command, which carries on with the rest of
- * the turn. A script that never ends its turn hangs the game, in the port as in
- * the original. */
+ * operation over the channel. Two operations reach outside the script -- a
+ * routine of the program, and a command to the sound driver -- and the turn's
+ * loop makes those calls. A command the port doesn't take (one no script has:
+ * a store outside low RAM, a video setting no call expresses, a task to take
+ * off that isn't on its list or to put on a list that is full) stops the scene
+ * there (program_fail). A script that never ends its turn hangs the game, in
+ * the port as in the original. */
 #include "scene/scene.h"
 
 #include "charge.h"
@@ -41,12 +40,12 @@
 #include "vars.h"
 #include "wram.h"
 
-/* The scripts are in the program's bank, which is also the data bank the
- * interpreter runs with. */
+/* The scripts are in the program's bank, which is also the bank the store
+ * commands write to. */
 enum { SCRIPT_BANK = SCENE_LOWER_WORK_RAM };
 
-/* Low RAM, which the store commands write: the rest of bank 0 is the I/O
- * registers and the cartridge. */
+/* Low RAM, which the store commands write: past it lie the console's ports
+ * and the cartridge. */
 enum { LOW_RAM_END = 0x2000 };
 
 /* ---- The channel ------------------------------------------------------------------------------ */
@@ -91,7 +90,7 @@ static uint16_t script_word(const GameState *g, uint16_t at)
 typedef enum {
     GO_ON,          /* on to the next command */
     END_OF_TURN,    /* the interpreter returns */
-    WAITING,        /* waiting for the music ($C3:0C2A, an idle entry of its own) */
+    WAITING,        /* waiting for the music ($C3:0C2A) */
     ROUTINE_CALL,   /* the program's routine to call */
     SOUND_SEND,     /* the sound command buffer to send */
 } ScriptFlowKind;
@@ -266,8 +265,7 @@ typedef bool (*ScriptTakes)(const Command *c, const struct ScriptRow *row);
 /* Where an assignment's value is. */
 typedef enum { VALUE_WORD, VALUE_REGISTER } ValueFrom;
 
-/* What a row's commands are, which the bridge reads for what the original
- * leaves after them. */
+/* What a row's commands are. */
 typedef enum {
     KIND_SET, KIND_ADD, KIND_LOOP, KIND_CALL_ROUTINE, KIND_STORE, KIND_GOSUB, KIND_RETURN, KIND_WAIT_FOR_MUSIC,
     KIND_SOUND, KIND_TASK, KIND_VIDEO, KIND_END_TURN, KIND_JUMP, KIND_STOP,
@@ -283,12 +281,12 @@ typedef struct ScriptRow {
     bool ends_turn;        /* loops, jumps */
     bool word;             /* stores */
     SceneTaskList list;    /* tasks */
-    uint32_t entry;        /* separately measured command families */
+    uint32_t entry;        /* the original's handler the command is timed as, or 0 */
 } ScriptRow;
 
-/* Across a call to the original's code, the script stays on the operand word the
- * command read last -- a routine it calls can move it -- and goes on past that
- * word from wherever the callee left it. */
+/* Across a call of a routine or the sound driver, the script stays on the
+ * operand word the command read last -- a routine can move it -- and goes on
+ * past that word from wherever the call left it. */
 enum { ROUTINE_OPERAND = 1, SOUND_TAIL_OPERAND = 3 };
 
 static ScriptFlow run_assign(const Command *c, const ScriptRow *row)
@@ -462,7 +460,7 @@ static ScriptFlow run_command(const Command *c, const ScriptRow *row)
 
 /* ---- The program's routines the scripts call ------------------------------------------------- */
 
-/* The routines that are C (scene/title.c, scene/lavos_falls.c, scene/endings.c, scene/staff_roll.c,
+/* The routines the scenes have (scene/title.c, scene/lavos_falls.c, scene/endings.c, scene/staff_roll.c,
  * scene/epoch_dive.c, scene/planet.c), by the value the script holds. */
 static const struct {
     const SceneScriptRoutine *routines;
@@ -482,20 +480,15 @@ static const SceneScriptRoutine *routine_port(uint16_t routine)
     return NULL;
 }
 
-/* The call reads the routine's address from the scene's own page, where the
- * interpreter puts it ($7E:37F3), and calls it with A the same. */
+/* The routines' addresses are in the program's bank. */
 enum { PROGRAM_BANK = 0x7E0000 };
 
 /* The call keeps the routine it calls where the scenes' random draws stir it
  * in after it (the Epoch's dive's). */
 static void keep_the_routine_called(GameState *g, uint16_t routine) { scene_leave_for_the_draws(g, routine, TM_ENTROPY_WORDS); }
 
-// $7E:37F3
-
-/* After a command's call-out, the script moves on past the operand word it was
- * on. Where the callee left the machine other than the port expects, the port
- * stops where the call returns and the original's code moves the script on,
- * on whatever page the callee left in D. */
+/* After a command's call, the script moves on past the operand word it was
+ * on. */
 enum { OPERAND_WORD = 2 };
 
 static void past_the_call(GameState *g, SceneChannel ch)
@@ -503,10 +496,10 @@ static void past_the_call(GameState *g, SceneChannel ch)
     set_script(g, ch, (uint16_t)(script(g, ch) + OPERAND_WORD));
 }
 
-/* ---- A command the port hands over -------------------------------------------------------------
+/* ---- A command the port doesn't take ----------------------------------------------------------
  *
- * The original's code for each command the port may hand over (those whose
- * rows have a `takes`): where its dispatch jumps, by the opcode's low nibble. */
+ * The original's handler for each command the port may refuse (those whose
+ * rows have a `takes`), by the opcode's low nibble: where the scene stops. */
 static const uint32_t handlers[] = {
     0xC30C19, 0xC30C41,                       /* the stores, a byte and a word */
     0xC30BCC, 0xC30BC4, 0xC30BBC, 0xC30BAB,   /* the tasks: off and on the vblank list, off and on the frame's */
@@ -535,7 +528,7 @@ static bool advance_music_wait(GameState *g, SceneChannel ch, MusicStatus music)
 /* ---- A channel's turn ----------------------------------------------------------------------- */
 
 /* A routine a script names: the scene's own, or one of the endings' loads. */
-static const SceneScriptRoutine *routine_in_c(uint16_t routine)
+static const SceneScriptRoutine *script_routine(uint16_t routine)
 {
     const SceneScriptRoutine *r = routine_port(routine);
     for (unsigned n = 0; !r && n < scene_ending_loading_routine_count; n++)
@@ -544,11 +537,12 @@ static const SceneScriptRoutine *routine_in_c(uint16_t routine)
     return r;
 }
 
-/* The program's routine a script calls, as C where the port has it; false
- * where it is the original's yet. */
+// $7E:37F3
+/* The program's routine a script calls; false where the port doesn't have
+ * it. */
 static bool routine(GameState *g, Platform *pf, SceneChannel ch, uint16_t routine)
 {
-    const SceneScriptRoutine *r = routine_in_c(routine);
+    const SceneScriptRoutine *r = script_routine(routine);
     if (!r) {
         program_fail(g, PROGRAM_BANK | routine, "a routine a scene's script calls");
         return false;
@@ -576,7 +570,7 @@ SceneTurn scene_channel_turn(GameState *g, Platform *pf, SceneChannel ch)
         const ScriptRow *row = row_of(c.opcode);
         if (row->takes && !row->takes(&c, row)) {
             program_fail(g, handlers[handler_of[low_nibble(&c)]], "a scene command the port doesn't take");
-            return SCENE_TURN_NEEDS_THE_MACHINE;
+            return SCENE_TURN_GOES_NO_FURTHER;
         }
         ScriptFlow flow = run_command(&c, row);
         switch (flow.kind) {
@@ -590,7 +584,7 @@ SceneTurn scene_channel_turn(GameState *g, Platform *pf, SceneChannel ch)
             continue;
         case ROUTINE_CALL:
             if (!routine(g, pf, ch, flow.routine))
-                return SCENE_TURN_NEEDS_THE_MACHINE;
+                return SCENE_TURN_GOES_NO_FURTHER;
             past_the_call(g, ch);
             continue;
         case SOUND_SEND:

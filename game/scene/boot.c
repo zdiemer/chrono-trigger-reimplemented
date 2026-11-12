@@ -2,8 +2,8 @@
 /* Scenes: starting a scene program, and copying its resources.
  *
  * The field starts a scene -- the race, an ending -- and the game comes back
- * to the title the same way: by jumping to $C3:0000 with the scene's flags in
- * A (scene.h). The boot points the interrupts at its own handlers, which keep
+ * to the title the same way: by starting $C3:0000 with the scene's flags
+ * (scene.h). The boot points the interrupts at its own handlers, which keep
  * the screen on until the program installs its frame's work, starts the line
  * interrupt for a scene that uses it, and decompresses the program into work
  * RAM, where it runs.
@@ -55,7 +55,7 @@ static bool boot(GameState *g, Platform *pf, uint8_t flags)
 
 /* The program unpacked into work RAM (the decompressor's call from the boot,
  * $C3:006F): the program's code isn't run, but its data -- the scripts, the
- * sprite lists, the tables -- is what the C reads. */
+ * sprite lists, the tables -- is what the port reads. */
 bool scene_boots(GameState *g, Platform *pf, uint8_t flags)
 {
     bool line_irq = boot(g, pf, flags);
@@ -79,7 +79,7 @@ void scene_boot_vblank(GameState *g, Platform *pf)
     boot_vblank(pf);
 }
 
-/* The line interrupt as C: acknowledged, and the rest of the picture blank
+/* The line interrupt: acknowledged, and the rest of the picture blank
  * below the line it came on (a host has no beam to wait for the hblank on, so
  * the blank is the line handler's, not the whole frame's). */
 void scene_boot_line(GameState *g, Platform *pf)
@@ -103,7 +103,7 @@ void scene_copy_resource_bytes(GameState *g, uint8_t bank, uint16_t from, uint16
 /* ---- Resources unpacked ------------------------------------------------------------------------ */
 
 // $7E:3691
-/* One of the program's resources unpacked as C, by its place in the
+/* One of the program's resources unpacked, by its place in the
  * resource table, to where the caller has set the unpacker's destination. */
 void scene_unpacks(GameState *g, uint16_t resource)
 {

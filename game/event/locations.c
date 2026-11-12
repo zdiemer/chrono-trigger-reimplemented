@@ -86,8 +86,7 @@ static EventFlow go_to_worked_out_location(GameState *g, uint16_t map, uint8_t t
 EVENT_OPERATION(go_to_worked_out_location, map, tile_x, tile_y, how)
 
 // $C0:3AF1
-/* Set where the party is, or put a place aside for later (the map's word is
- * kept in the scratch cell, by event/leaves.c). */
+/* Set where the party is, or put a place aside for later. */
 static EventFlow set_location(GameState *g, LocationRecord record, uint16_t map_and_how, uint16_t tile, bool raise_1e)
 {
     if (raise_1e)
@@ -124,11 +123,9 @@ EVENT_OPERATION(fight, setup, terms)
  * and the change made in the dark -- the screen blank and everything
  * stopped, the place left kept, the place named made the party's -- and the
  * field started again from its start. The wait depends on timing, so the
- * port waits for the next frame instead: the original spins on the vblank
- * interrupt's flag, racing its own vblank handler for it, and the wait's idle
- * entry on the machine (field/frame.c) waits instead for what the loop is for,
- * the vblank, through the timing service (docs/TODO.md, "Frame waits still
- * made on the machine"). */
+ * port waits for the next frame through the timing service instead: the
+ * original spins on the vblank interrupt's flag, racing its own vblank
+ * handler for it (docs/TODO.md, "Frame waits still made on the machine"). */
 enum { GO_NOW = 0xE1, GO_NOW_RAISING_1E = 0xDF };
 
 static void set_the_place_to_go_now(GameState *g, uint8_t opcode, const EventCommand *c)
@@ -154,11 +151,8 @@ static void the_place_changes(GameState *g)
     field_move_to_the_next_place(g);
 }
 
-/* The field starts again from its start, on the game's fresh stack, and
- * loads the place the party is; it reads nothing of the registers. */
-enum { FIELD_STARTS = 0xC00000 };
-
-/* As C: the script's turn goes no further, and the field starts again. */
+/* The script's turn goes no further, and the field starts again from its
+ * start, loading the place the party is. */
 enum { THE_WAIT = 0xC03B71 };
 
 static bool go_now(GameState *g, Platform *pf, uint16_t at, uint8_t opcode)

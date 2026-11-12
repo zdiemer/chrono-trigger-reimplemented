@@ -37,7 +37,7 @@ void menu_draw_windows(GameState *g, Platform *pf, uint16_t list);
 
 /* Whether the list can be drawn from the drawing origin as it is: its
  * commands whole, in the tilemap buffers, and its strings convertible (for a
- * port's guard, before it draws the list as C). */
+ * port's check before it draws the list). */
 bool menu_window_list_drawable(const GameState *g, uint16_t list);
 bool menu_window_list_drawable_from(const GameState *g, uint16_t list, uint16_t origin);
 
@@ -76,8 +76,6 @@ void menu_load_window_colours(GameState *g, MenuWindowStyle style);
 void menu_lay_out_label(GameState *g, uint16_t at, uint16_t columns, uint8_t first);
 uint16_t menu_lay_out_strip(GameState *g, uint16_t at, uint16_t columns, uint16_t tile);
 
-/* The entries: the interpreter, each command's handler (with its guard), and
- * the drawing other screens call. */
 bool menu_palette_changes_have_room(const GameState *g);
 
 static inline unsigned menu_front_tile_of(uint16_t at) { return (uint16_t)(at - MENU_FRONT_LAYER_AT) / MENU_TILE_BYTES; }

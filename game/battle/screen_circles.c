@@ -391,7 +391,7 @@ static ScreenFlow draw_circle(GameState *g, uint8_t circle)
 }
 SCREEN_OPERATION(draw_circle, circle)
 
-/* A circle is drawn as C where it is one of the two, of one of the kinds,
+/* A circle is drawn where it is one of the two, of one of the kinds,
  * and its run is one the original copies. */
 static bool circle_can_be_drawn(const GameState *g, const ScreenCommand *c)
 {

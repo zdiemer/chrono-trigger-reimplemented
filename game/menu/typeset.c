@@ -142,7 +142,8 @@ static void set_glyph(GameState *g, uint16_t glyph)
 
 /* One glyph of the call's budget spent: true while some is left. A budget
  * of 0 is taken as 256 glyphs. A call keeps its budget in hand and leaves
- * what is left on the text page as it stops; the guards keep away the texts
+ * what is left on the text page as it stops; the checks before a call keep
+ * away the texts
  * that would read or draw over the page's budget meanwhile (a name past the
  * table of names' places, a label whose lines wrap round onto the page). */
 static bool spend(uint8_t *budget) { return --*budget != 0; }
@@ -480,7 +481,7 @@ uint8_t menu_set_label_laid_out(GameState *g, uint32_t strings, uint8_t string, 
 
 /* ---- Reading a string without setting it -------------------------------------------------- */
 
-/* A string read a piece at a time without being set, for the guards, which
+/* A string read a piece at a time without being set, for the checks, which
  * read ahead of a call: a glyph; what starts an insert (a word of the
  * dictionary, a number, a name); or a code the setting stops a call at (the
  * end, a wait, a break, a pause, and $12's choices that aren't a name or a
@@ -525,10 +526,10 @@ static Piece piece_at(const GameState *g, uint32_t at)
     return p;
 }
 
-/* ---- The guards -------------------------------------------------------------------------- */
+/* ---- What the typesetter takes ------------------------------------------------------------ */
 
-/* What the game sets text from is the ROM or work RAM, never the I/O
- * registers or open bus, where a read changes what it reads. */
+/* What the game sets text from is the ROM or work RAM, never the console's
+ * I/O or open bus, where a read changes what it reads. */
 static bool readable(uint32_t at)
 {
     uint8_t bank = (uint8_t)(at >> 16);
@@ -559,7 +560,7 @@ bool menu_text_can_start(const GameState *g) { return readable(menu_text_strings
  * never do; one could through a name past the seven places of the table of
  * names ($C2:5FD8, read through the table's neighbours from anywhere), more
  * than 19 arguments' worth of bytes, or a pointer onto the page. So the
- * guards read a text ahead to where its call (or a label's last line) would
+ * checks read a text ahead to where its call (or a label's last line) would
  * stop, and turn away a text that reads the budget's cell, whose label lines
  * come round onto the page, or that doesn't stop within MOST_PIECES_AHEAD of
  * its pieces. A label goes on past a new line, and past a pause, which leaves

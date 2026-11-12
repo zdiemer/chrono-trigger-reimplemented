@@ -19,7 +19,6 @@
 #include "field/bridge.h"
 #include "field/field.h"
 #include "charge.h"
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -469,14 +468,14 @@ static bool fits_the_tables(MapSize s)
     return s.rows <= FIELD_LAYER_MAPS_ROWS && s.columns <= FIELD_LAYER_MAPS_COLUMNS;
 }
 
-/* The unpacking's guard: every layer it unpacks fits the tables, and a map
+/* The unpacking the port takes: every layer it unpacks fits the tables, and a map
  * whose data can't come round the banks to the layers' page before it is
  * unpacked. The data starts at MAP_DATA in bank
  * $7E and the stream runs on through bank $7F and back into $7E; the port
  * leaves its cells on the layers' page when it is done, where the original
  * writes them as it goes, so a stream long enough to read them back would
  * differ. A tile takes a byte of each layer's map and at most four of
- * attributes (a run of one). The guard is a claim about every map the game
+ * attributes (a run of one). The check is a claim about every map the game
  * loads, which the movies check: none is turned away. */
 enum { STREAM_REACHES_LAYERS_PAGE = 0x10000 - MAP_DATA + 0x10000 + 0x1D50 };
 
@@ -493,16 +492,5 @@ bool field_tile_maps_fit(const GameState *g)
     return fits && bytes < STREAM_REACHES_LAYERS_PAGE;
 }
 
-/* The overflow of BG3's right column's address, the last sum, is the one
- * thing its callers read; and it leaves A 8-bit, whatever it came with. */
-bool field_layer_edges_overflow(const GameState *g)
-{
-    uint16_t base = field_layer_map_base(g, FIELD_BG3);
-    uint16_t sum = (uint16_t)(field_layer_edge_vram_byte(g, FIELD_BG3, 2 * EDGE_RIGHT_COLUMN) |
-                              field_layer_edge_vram_byte(g, FIELD_BG3, 2 * EDGE_RIGHT_COLUMN + 1) << 8);
-    return field_add_overflows16((uint16_t)(sum - base), base);
-}
-
-/* Nothing they leave in the registers is read after (the entries' don't-care
- * sets). */
+/* The layers' scroll moved on for the frame. */
 void field_layer_scroll_updated(GameState *g) { update_layer_scroll(g); }

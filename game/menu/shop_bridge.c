@@ -1,23 +1,7 @@
-/* A shop on the original's machine: its checked legacy adapters, the steps that
- * run the shop's sequences (game/menu/shop_steps.c) between the calls that
- * are still the original's, and their guards.
- *
- * The sequences' ticks and sounds are siblings, run as the original's JSRs
- * reach them (menu_run): each saves P as it starts and calls the sound
- * driver, so the flags the original has at a sound are on the stack there,
- * where shadow mode compares them, and A's high byte goes to the driver. The
- * panel, the set-up and the equipping's own routines (a member chosen, its
- * slots, the shoulders' switch) are entries of their own, run the same way,
- * and so are the equipment screen's list of what fits and its move along. A
- * frame's wait waits in the menus' task switch, parked until its task goes
- * on (menu_wait_a_frame_from). The shop's way out, its fade in and the
- * refusal's sound, like the lists' openings, are C continuations.
- *
- * Before each of those calls the sequence's note leaves the registers and
- * flags the original's own instructions left there, worked out from the
- * state (the leaves at the end of the file): scaffolding, which the native
- * build compiles out. After a call out the machine is the original's again,
- * so a leave covers only what the original did since. */
+/* What a shop's steps need of the game's state before they run: the menus'
+ * zero cell clear, the members shown, the cursor on a list within it, the
+ * party's gold within the most it may hold. The steps
+ * (game/menu/shop_steps.c) go no further where one fails. */
 #include "menu/shop.h"
 
 #include "charge.h"
@@ -36,20 +20,6 @@
 #include "menu/windows.h"
 #include "port/vars_ram.h"
 #include "vars.h"
-
-/* ---- The calls out ------------------------------------------------------------------------------- */
-
-enum {
-    FADE_IN = 0xC283B2, /* the screen's fade in started */
-    CURSOR_SOUND = 0xC2EAC2, REFUSAL_SOUND = 0xC2EACC,
-};
-
-/* The sounds by their number, loaded into A as the original's call does
- * (the load's flags are the P the sound saves). */
-enum { DEAL_SOUND = 0x55 };
-
-/* The quantity window's rows' upload. */
-enum { UPLOAD_QUANTITY = 0xFBEA };
 
 // $C2:E001
 
@@ -91,7 +61,7 @@ static bool choosing_a_member(const GameState *g)
            && menu_cursor_index(g) < SHOP_FIRST_MEMBER + menu_members_reachable(g);
 }
 
-/* The guards' state halves, for the program as C. */
+/* What each step needs, for shop_steps.c. */
 bool menu_shop_can_be_opened(const GameState *g) { return opens(g); }
 bool menu_shop_is_on_the_tabs(const GameState *g) { return on_the_tabs(g); }
 bool menu_shop_is_on_a_list(const GameState *g, bool selling_from_it) { return on_a_list(g, selling_from_it); }

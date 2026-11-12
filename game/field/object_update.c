@@ -22,7 +22,6 @@
 #include "core/program.h"
 #include "field/bridge.h"
 #include "field/field.h"
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -64,8 +63,8 @@ ScreenPoint object_screen_position(const GameState *g, FieldObject obj)
 void object_update_screen_position(GameState *g, FieldObject obj)
 {
     ScreenOrigin o = screen_origin(g);
-    /* Four temporary words became local coordinates. Their eight accesses
-     * remain in the screen-position estimate before the frame budget. */
+    /* The original works the place out in four words of scratch memory;
+     * their eight accesses stay in the screen position's time. */
     charge_legacy_accesses(g, 8);
     FieldPosition at = object_position(g, obj);
     set_field_object_screen_x(g, obj, stored_screen_coordinate(on_screen(at.x, o.x)));
@@ -201,11 +200,10 @@ static UpdateKind update_kind(const GameState *g, FieldObject obj)
 
 /* Which of the update's calls a step is made from: an object's update, a
  * party member's, or the party's re-sort, for its second member or its
- * first. On the machine each is the original's call of the step, which a
- * step the port doesn't take is made from. */
+ * first. */
 typedef enum { OBJECTS_UPDATE, PARTY_UPDATE, RESORT_SECOND, RESORT_FIRST } UpdateCall;
 
-/* The update's steps, run as C or on the machine (below): the object's move,
+/* The update's steps (below): the object's move,
  * its view, its animation's tick, its row left or joined, its place on the
  * screen, and the screen's own check for an object that matters only on it.
  * The view, the tick and the rows are false where they didn't come back. */
@@ -289,8 +287,8 @@ enum {
 
 /* ---- The rows' step ------------------------------------------------------------------------- */
 
-/* The rows' step inline, timed as the routine it is, where the rows' links
- * are ones its entry's guard takes; false where they aren't. */
+/* The rows' step inline, timed as the routine it is, where the port takes
+ * the rows' links (field_rows_are_exact); false where it doesn't. */
 static bool rows_step_taken(GameState *g, FieldObject obj, bool join)
 {
     if (!field_rows_are_exact(g, obj))
@@ -309,7 +307,7 @@ bool object_rows_step(GameState *g, FieldObject obj, bool join)
     return false;
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The steps ------------------------------------------------------------------------------- */
 
 static void move(void *ctx, FieldObject obj, bool party_member)
 {
@@ -365,7 +363,7 @@ bool field_objects_updated(GameState *g)
     return update_objects(g, &in_the_program, g);
 }
 
-/* The rows' guard: the object and the objects it is linked to are named by
+/* The rows the port takes: the object and the objects it is linked to are named by
  * their slots doubled, and a none link is even too: the original indexes the
  * tables with a none link where there is no object after (the stray write,
  * above), and an odd one would index a byte the port doesn't. */

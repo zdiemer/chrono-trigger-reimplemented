@@ -42,7 +42,6 @@
 #include "event/variables.h"
 #include "field/bridge.h"
 #include "field/display.h"
-#include "field/scratch.h"
 #include "platform/audio.h"
 #include "platform/timing.h"
 #include "port/vars_ram.h"
@@ -294,9 +293,8 @@ void field_load_bg3_tile_looks(GameState *g)
 static const AudioCommand full_volume = { .command = AU_FADE_MUSIC, .p1 = 0, .p2 = AU_FULL_VOLUME,
                                           .p3 = AU_FULL_VOLUME, .count = 3 };
 
-/* The driver ($C7:0004, through the audio service) reads nothing of the
- * registers, and hands A's high byte back as it found it, which the loading
- * after it ANDs away. */
+/* The sound driver ($C7:0004), reached through the audio service, and where
+ * the loading calls it and goes on. */
 enum {
     SOUND_DRIVER = 0xC70004,
     SONG_SITE = 0xC01B8B,
@@ -327,8 +325,7 @@ static bool keep_the_locations_song(GameState *g)
 }
 
 /* Whether a call to the sound driver came back to the song's start, at
- * `returns`: always as C; on the machine, the driver's call is a call-out
- * whose return the bridge checks. */
+ * `returns` (the program's always does). */
 typedef bool (*DriverCameBack)(void *ctx, uint32_t returns);
 
 // $C0:1B53
@@ -484,13 +481,11 @@ static void load_the_animations(GameState *g)
     TIMED_AS(g, PALETTE_ANIMATIONS, palette_load_location_animations(g));
 }
 
-/* The location's loading, entering it and after a menu, whose steps that
- * are entries of their own run as C or on the machine (below): the song, the
- * map and the script; and after a menu the line effects' tables built and
- * set up, the map's script started and the figure an event command built
- * drawn again. Each is false where it went no further: as C, a step the port
- * doesn't take; on the machine, a call that didn't come back as the field
- * runs. */
+/* The location's loading, entering it and after a menu, whose steps are
+ * routines of their own (below): the song, the map and the script; and
+ * after a menu the line effects' tables built and set up, the map's script
+ * started and the figure an event command built drawn again. Each is false
+ * where it went no further: a step the port doesn't take. */
 typedef enum { ENTERING, AFTER_A_MENU } Loading;
 typedef struct {
     bool (*song)(void *ctx);
@@ -558,7 +553,7 @@ static bool set_up_after_a_menu(GameState *g, Platform *pf, const LoadSteps *ste
  * for. */
 enum { LINE_EFFECTS = 0xFDC2C1, LINE_EFFECTS_SET_UP = 0xFDC1EE, WHOLE_FIGURE = 0xC0E12A, MAP_SCRIPT_STARTS = 0xC0595C };
 
-/* ---- As C ------------------------------------------------------------------------------------- */
+/* ---- The steps -------------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
@@ -649,9 +644,9 @@ bool field_set_up_again(GameState *g, Platform *pf)
     return set_up_after_a_menu(g, pf, &in_the_program, &c);
 }
 
-/* ---- The routines it calls on the machine ---------------------------------------------------- */
+/* ---- What the port keeps -------------------------------------------------------------------- */
 
-/* The guards: on the field's page with the data bank $00, the party's places
+/* The party the port keeps for a menu: the party's places
  * objects or none (the leader's an object or none, its word's high byte clear); and,
  * after a menu, a gathering cut short with both members there, their words'
  * high bytes clear too (the original moves them through the words). */

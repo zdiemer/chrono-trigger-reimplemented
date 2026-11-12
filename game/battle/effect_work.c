@@ -9,7 +9,7 @@
  *
  * The kinds' pieces are battle/effect_amounts.c (healing, draining, a hit's
  * landing and damage), battle/effect_statuses.c, battle/effect_modifiers.c
- * and battle/effect_steal.c. The entries and their guards are at the end. */
+ * and battle/effect_steal.c. What the port works out is checked at the end. */
 #include "battle/effect_parts.h"
 
 #include "battle/bridge.h"
@@ -54,9 +54,7 @@ static void take_target(GameState *g)
     set_battle_effect_target_block(g, effect_times(g, STAT_BLOCK_BYTES, target));
 }
 
-/* A target after the first: the original takes it with the carry the note
- * before leaves (set), which the multiply keeps in its cell (scaffolding: the
- * last target's shows, where its work multiplies nothing). */
+/* A target after the first, taken as the first is. */
 static void take_next_target(GameState *g)
 {
     take_target(g);
@@ -198,7 +196,7 @@ static void inflict(GameState *g, const EffectRecord *e) { each_target(g, e, inf
 // $C1:D2DE
 /* A hit on one target: turned away by its kind, or missing it, unless the
  * effect says it can't be; its damage worked out and applied; then its chance
- * of a status. (A hit that steals as well the entries turn away.) */
+ * of a status. (A hit that steals as well is refused.) */
 static void hit_target(GameState *g, Platform *pf, const EffectRecord *e)
 {
     if (!(effect_flags(g) & EFFECT_CANT_BE_TURNED_AWAY) && effect_turned_away(g, e->kinds_turned_away)) {
@@ -322,7 +320,6 @@ static void hit_repeatedly(GameState *g, Platform *pf, const EffectRecord *e)
     } while (battle_hits_left(g) != 0);
     set_battle_effect_amount(g, battle_effect_total(g));
     effect_record_damage(g, battle_effect_target(g), DAMAGE_PLAIN);
-    /* made with the carry of the count's compare, set */
     note_acted_on(g);
 }
 
@@ -452,13 +449,8 @@ static void add_number_into(GameState *g, unsigned from, unsigned to)
         set_number_kind_word(g, to, kind);
 }
 
-/* What the original leaves in the multiply's cell after adding the hits up
- * (scaffolding): the carry of the compare that chose the last kind to move,
- * the second set's into the first at the last enemy's place, which its last
- * multiply takes. The compare is set where the second set's number was none or
- * a miss, or the first's was a miss or past the kinds: the one the second set
- * ends with, and the one the first began with. */
-
+/* Each later set's numbers added into the first's, enemy place by place, and
+ * each capped at what can be shown. */
 void effect_add_up_hits(GameState *g, uint8_t sets)
 {
     charge_legacy_accesses(g, 2);
@@ -472,8 +464,7 @@ void effect_add_up_hits(GameState *g, uint8_t sets)
             set_number_value(g, place / RECORD_BYTES, MOST_SHOWN);
 }
 
-/* The work's start: the damage table clear, nothing done yet. The clearing
- * leaves the carry set, which the record's multiply takes. */
+/* The work's start: the damage table clear, nothing done yet. */
 static ActionRecord start_work(GameState *g, ActionTable table)
 {
     TIMED_AS(g, 0xFDACFD, battle_clear_damage_table(g));
@@ -548,18 +539,18 @@ void effect_note_enemy_action(GameState *g, ActionTable table)
     set_battle_action_step(g, 0);
 }
 
-/* ---- The entries --------------------------------------------------------------------------- */
+/* ---- What the port works out -------------------------------------------------------------- */
 
 /* What the port works out: a kind in the table; a hit that doesn't steal as
  * well (no record has one: its chance would be whatever the hit's work left
- * in the direct page's first cell), with modifiers the port has
+ * in the battle's first work cell), with modifiers the port has
  * (battle/effect_modifiers.c); a steal by a party member, whose modifier is
  * a charm's chance (as both of the party's steals are: another routine would
- * leave the charm to what it leaves in the direct page); and a drain whose
+ * leave the charm to what it leaves in the work cells); and a drain whose
  * stat offset's high byte is clear -- the original reads the offset as a
  * word from the cell it hands the drain's kind over in, whose high byte
  * ($1B) nothing in the effect code sets and the game leaves clear. The rest
- * is turned away to the original. */
+ * is refused. */
 enum { DRAIN_KIND_HIGH = EFFECT_ARG_3 + 1, WEAPON_MODIFIER_ON = 0x01 };
 
 static bool modifiers_ported(const GameState *g, uint8_t actor, uint8_t own, uint8_t more_flags)
@@ -631,26 +622,4 @@ bool battle_enemy_action_worked_out(const GameState *g, bool tech) { return acti
 void battle_work_out_enemy_action(GameState *g, Platform *pf, bool tech)
 {
     effect_work_out_enemy_action(g, pf, tech ? ENEMY_TECHS : ENEMY_ATTACKS);
-}
-
-/* The kinds hand back A clear but its low byte, and the carry of the last
- * note's loop (set), or the last number's place, which is found without
- * one; the one that loses a condition's bit, the carry of its multiply
- * (clear), and takes its target with the carry its caller had. A hit leaves Y
- * past the note's bytes, which the party's code reads. */
-bool battle_kind_leaves_carry(uint8_t kind)
-{
-    switch (kind) {
-    case EFFECT_RESTORE:
-    case EFFECT_CURE:
-    case EFFECT_INFLICT:
-    case EFFECT_HIT:
-    case EFFECT_DRAIN:
-    case EFFECT_STEAL:
-    case EFFECT_HIT_REPEATEDLY:
-    case EFFECT_ITEM_RESTORE:
-    case EFFECT_ITEM_CURE:
-    case EFFECT_ITEM_STATUS: return true;
-    default: return false;
-    }
 }

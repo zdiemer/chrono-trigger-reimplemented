@@ -14,8 +14,8 @@ enum { FIELD_SPRITE_TABLE_ADDRESS = 0x0700 };
 /* field/sprites.c */
 void sprites_hide_all_next_frame(GameState *g);
 void sprites_hide_the_first(GameState *g, unsigned count);
-/* The same as C, where every draw is one the port makes (false otherwise,
- * with nothing built). */
+/* The frame's sprite table built ($C0:B271), where every draw is one the
+ * port makes (false otherwise, with nothing built). */
 bool field_sprite_table_built(GameState *g);
 /* A finite row list whose objects' sprite records fit in their tables. */
 /* A map's start frees every frame area ($C0:E935). */

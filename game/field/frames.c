@@ -43,7 +43,6 @@
 
 #include "charge.h"
 #include "field/bridge.h"
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -183,8 +182,8 @@ static void draw_run(GameState *g, FieldObject obj, ObjectGraphics set, uint32_t
     uint16_t at = (uint16_t)(field_object_frame_staging(g, obj) + run.to);
     for (unsigned t = 0; t < run.count; t++)
         field_draw_frame_tile(g, set, tile_name(g, description, run.first + t), (uint16_t)(at + t * TILE_BYTES));
-    /* Count the former count, saved offset, tile offset and upload cursor
-     * (2 + 2 + 2 + 3 byte accesses) at the builder's calibrated rate. */
+    /* The builder's bookkeeping for a run -- its count, the saved offset, the
+     * tile offset and the upload cursor -- at its calibrated rate. */
     charge_legacy_accesses(g, 6);
     charge_legacy_io_accesses(g, 3);
 }
@@ -292,8 +291,8 @@ static FrameBuild draw_next_frame(GameState *g, FieldObject obj)
     if (layout == LAYOUT_24)
         return FRAME_NOT_DUE;
     ObjectGraphics set = object_graphics(g, obj);
-    /* The calibrated builder includes selecting its graphics and frame
-     * tables (five byte accesses). Those selections are now plain values. */
+    /* Choosing the graphics and frame tables, at the builder's calibrated
+     * rate. */
     charge_legacy_accesses(g, 5);
     bool holding = object_holds_frame(g, obj);
     if (holding && layout == LAYOUT_12)
@@ -308,15 +307,15 @@ static FrameBuild draw_next_frame(GameState *g, FieldObject obj)
             return FRAME_NO_NEXT;
         if (f.frame == object_frame_drawn(g, obj))
             return FRAME_ALREADY_DRAWN;
-        charge_legacy_accesses(g, 4); /* frame selection's former word read/write */
+        charge_legacy_accesses(g, 4); /* choosing the frame */
         if (!sprites_claim_frame_areas(g, obj, layout))
             return FRAME_NO_ROOM;
         object_set_frame_drawn(g, obj, f.frame);
     }
     uint8_t frame = object_frame_drawn(g, obj);
     uint32_t description = frame_description(g, obj, plan, frame);
-    /* Description selection used four multiplier accesses and a three-byte
-     * pointer. Keep that work in the beam-budgeted queue's estimate. */
+    /* Finding the frame's description, kept in the beam-budgeted queue's
+     * estimate. */
     charge_legacy_accesses(g, 3);
     charge_legacy_io_accesses(g, 4);
     for (unsigned p = first; p <= last; p++)
@@ -407,11 +406,11 @@ void object_put_drawn_frame_back(GameState *g, FieldObject obj)
 
 /* How a frame's drawing ended: the queue drawn through, or the frame's time
  * up with objects left in it; or an object's drawing didn't come back to the
- * queue (the original's code went on elsewhere), and it is left as it was. */
+ * queue, and it is left as it was (no drawing the program makes does this). */
 typedef enum { QUEUE_DRAWN, QUEUE_OUT_OF_TIME, DRAWING_WENT_ELSEWHERE } QueueDrawn;
 
-/* An object's frame drawn, a part at a time for the larger layouts; or, as
- * C, the object first in the queue holding its frame until the next one
+/* An object's frame drawn, a part at a time for the larger layouts; or the
+ * object first in the queue holding its frame until the next one
  * (FRAME_WAITS), which no further call this frame changes. */
 typedef enum { FRAME_WHOLE, FRAME_HAS_MORE_PARTS, FRAME_HELD_TO_THE_NEXT, FRAME_DRAWING_WENT_ELSEWHERE } FrameDrawing;
 typedef FrameDrawing (*DrawFrame)(void *ctx, FieldObject obj, bool alone);
@@ -445,42 +444,21 @@ static QueueDrawn draw_queued_frames(GameState *g, Platform *pf, DrawFrame draw,
     return QUEUE_OUT_OF_TIME;
 }
 
-/* ---- For the derivations (field/parts.h, field/leaves.c) ------------------------------------ */
-
-FieldDrawnTile field_frame_part_last_tile(const GameState *g, FieldObject obj, unsigned part)
-{
-    const FramePlan *plan = plan_for(g, obj, object_sprite_layout(g, obj));
-    const FramePart *p = &plan->part[part];
-    TileRun run = p->run[p->runs - 1];
-    uint32_t description = frame_description(g, obj, plan, object_frame_drawn(g, obj));
-    uint16_t at = (uint16_t)(field_object_frame_staging(g, obj) + run.to + (run.count - 1) * TILE_BYTES);
-    return (FieldDrawnTile){ at, (tile_name(g, description, run.first + run.count - 1u) & FIELD_TILE_MIRRORED) != 0 };
-}
-
-FieldFrameSent field_frame_sent(const GameState *g, FieldObject obj)
-{
-    const FramePlan *plan = plan_for(g, obj, object_sprite_layout(g, obj));
-    uint8_t before_the_skip = (uint8_t)((uint8_t)object_sprite_tiles(g, obj) + plan->row_break * NEXT_SPRITE_TILE);
-    return (FieldFrameSent){ plan->upload[1].from, plan->row_break != NO_ROW_BREAK, before_the_skip, NEXT_TILE_ROW };
-}
-
 /* ---- The entry ------------------------------------------------------------------------------ */
 
-/* A part of the object's next frame drawn, as C: true while more of its
+/* A part of the object's next frame drawn: true while more of its
  * frame is to draw. An object holding a 12-sprite frame never draws it, and
  * the original's screen setup, which asks again until the frame is whole,
  * would ask for ever (nothing moves the object on while the screen is set
- * up, so no movie reaches it); as C the drawing ends there, as the frame
- * queue's does on a host (FRAME_HELD_TO_THE_NEXT). */
+ * up, so no movie reaches it); here the drawing ends there, as the frame
+ * queue's does (FRAME_HELD_TO_THE_NEXT). */
 bool field_frame_part_drawn(GameState *g, FieldObject obj)
 {
     return draw_next_frame(g, obj) == FRAME_PART_DRAWN;
 }
 
-/* The legacy frame queue calls the checked builder form directly, settling
- * its work at the old call boundary before reading the beam again. The
- * native program calls the state operation. The legacy result in carry
- * says whether the frame has more parts to draw. */
+/* The queue draws each object's frame timed as the frame builder's routine,
+ * settling its work before it reads the beam again. */
 enum { DRAW_A_FRAME = 0xC0CAD9 };
 
 static FrameDrawing draw_the_frame(void *ctx, FieldObject obj, bool alone)
@@ -496,31 +474,25 @@ static FrameDrawing draw_the_frame(void *ctx, FieldObject obj, bool alone)
 
 void field_queued_frames_drawn(GameState *g, Platform *pf) { (void)draw_queued_frames(g, pf, draw_the_frame, g); }
 
-// $C0:CB0A
-/* The guard: the current object's pictures where the port reads them as the
- * original does -- its frame tables in their bank for the frame read, its
- * descriptions in the ROM, its graphics in the ROM below its last bank
- * (whose tiles would carry into bank $00, where nothing answers) or built in
- * bank $7F (elsewhere the mirrored copy would read the I/O registers), and
- * built graphics whose tiles the frame names inside the bank (past it the
- * copies would read low RAM, the builder's own cells among it), its records
- * inside their tables for the frame's
- * data -- the areas it goes on drawing into clear of the bank's end (a
- * frame's first part claims its own), and room in the VRAM queue for its
- * entry and the end after it. */
-enum { FIRST_ROM_BANK = 0xC0, LAST_BANK = 0xFF, MOST_AREA_BYTES = 0x600, QUEUE_ENTRIES = 8 };
+/* ---- What the port draws -------------------------------------------------------------------- */
+
+/* The port draws an object's pictures where it reads them as the original
+ * does: its descriptions in the ROM, its graphics in the ROM below its last
+ * bank (whose tiles would run on past the bank) or built in bank $7F, each
+ * tile the frame names inside the bank, and its records inside their
+ * tables. */
+enum { FIRST_ROM_BANK = 0xC0, LAST_BANK = 0xFF };
 #define BANK_BYTES 0x10000u
 
-/* Its guard: the object's descriptions in the ROM and its records inside
- * their tables. */
+/* Whether an object's drawn frame can be put back onto its records: its
+ * descriptions in the ROM and its records inside their tables. */
 bool object_drawn_frame_can_go_back(const GameState *g, FieldObject obj)
 {
     return object_frame_descriptions(g, obj).bank >= FIRST_ROM_BANK &&
            sprites_records_in_the_tables(g, obj, object_sprite_layout(g, obj));
 }
 
-/* The figure's guard: the current object on the field's page with the data
- * bank $00, the same object in X, its description in the ROM, its records
+/* Whether the port draws a figure: its description in the ROM, its records
  * inside their tables, and its graphics set in the ROM or built in bank $7F
  * (as the figures the game loads are), each tile there inside the bank and
  * clear of the build place the figure is drawn into. */

@@ -11,7 +11,7 @@
  *
  * The screen effects darken or brighten the battlefield line by line through
  * color math: a per-line table gives, for each band of lines, the value the
- * color-math register takes, all color channels at an intensity of 0-31. The
+ * color math takes, all color channels at an intensity of 0-31. The
  * battle builds four such tables at the start, two pairs: in each pair one
  * falls from intensity 8 to nothing down the screen and the other rises from
  * nothing, in steps a third of an intensity apart over 24 lines, or two
@@ -307,8 +307,7 @@ static void keep_the_row_colors(GameState *g)
 
 /* The routines the setup calls: the map's layers that scroll by themselves
  * (the field's, battle/frame.c), the message's tiles cleared
- * (battle/message.c), and the battle's song (field/sounds.c). The program
- * makes them as C, and the machine's entry from the original's calls. */
+ * (battle/message.c), and the battle's song (field/sounds.c). */
 typedef struct {
     bool (*scroll_the_map_layers)(void *ctx);
     bool (*clear_the_message_tiles)(void *ctx);
@@ -344,15 +343,14 @@ static bool set_the_screen_up(GameState *g, Platform *pf, const ScreenSetUpCalls
     return true;
 }
 
-/* ---- As C ---------------------------------------------------------------------------------- */
+/* ---- The setup's calls ------------------------------------------------------------------------ */
 
 typedef struct {
     GameState *game;
     Platform *pf;
 } ScreenSetUpContext;
 
-/* None of the three has a guard of the game's state: the message's clear
- * and the scroll's turn away only a page or a bank the program has none of. */
+/* None of the three asks anything of the game's state. */
 static bool scroll_the_map_layers(void *ctx)
 {
     GameState *g = ((ScreenSetUpContext *)ctx)->game;

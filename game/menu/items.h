@@ -63,18 +63,19 @@ uint16_t menu_item_figures_at_of_last(GameState *g);
 /* As the menus open: the inventory cleaned up, the story's and the place's
  * notes, the items' tables; and the copy of the bytes after the names. */
 void menu_build_item_tables(GameState *g);
-void menu_copy_past_the_names_now(GameState *g);
+void menu_take_the_bytes_past_the_names(GameState *g);
 
 /* The place's second note, as the menus open: the party on one of the
  * locations, not a map of the world, where the story doesn't hold the
  * place's items back. There item $C8's kind loses the bit the place takes,
- * and the main menu doesn't save (menu/saving.c). And, for a guard, whether
+ * and the main menu doesn't save (menu/saving.c). And, for a check, whether
  * the note is one the menus' opening makes. */
 bool menu_place_is_noted_as_a_location(const GameState *g);
 bool menu_place_note_is_known(const GameState *g);
 
-/* The same as C; and as C where the guard's state half takes it, false
- * where it doesn't, the program going no further there. */
+/* The item tables built as the menus open ($C2:9875); whether they can be;
+ * and built where they can, false where they can't, the program going no
+ * further there. */
 void menu_build_the_items(GameState *g);
 bool menu_items_can_be_built(const GameState *g);
 bool menu_items_built(GameState *g);

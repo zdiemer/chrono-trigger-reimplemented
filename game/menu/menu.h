@@ -51,9 +51,9 @@ enum { MENU_TASK_STARTING = 1 };
  * them takes another turn ($C2:8255, menu/frame.c). */
 enum { MENU_TASKS = 8 };
 void menu_stop_tasks(GameState *g, uint8_t tasks);
-/* The same as C, each task a coroutine (core/tasks.h): the tasks started as
- * the menus open; a frame's turns, which end where a task closes the menus or
- * is one only the machine runs yet; the running task's wait for `frames`
+/* The tasks, each a coroutine (core/tasks.h): the tasks started as the menus
+ * open; a frame's turns, which end where a task closes the menus or is one
+ * the port doesn't run; the running task's wait for `frames`
  * frames, from inside it; the menus closed from inside a task, which never
  * comes back; and the tasks' coroutines given back once the menus are. */
 void menu_tasks_open(GameState *g, Platform *pf);
@@ -64,14 +64,12 @@ void menu_tasks_closed(void);
 void menu_tasks_end(void);
 
 /* menu/screens.c: the running screen's step, as the main task's turn runs
- * it; true if it came back to the turn. And the turn's guard: the screen on a
- * step it has. */
-/* The same as C, from inside the main task: false where the step is one the
- * port doesn't have as C, the program going no further there. */
+ * it, from inside the main task: false where the step is one the port
+ * doesn't have, the program going no further there. */
 bool menu_run_the_screen_step(GameState *g, Platform *pf);
 
 /* menu/frame.c */
-/* The sprite-object mode's main loop waits, as C: for the vblank handler to
+/* The sprite-object mode's main loop waits: for the vblank handler to
  * count the next frame, and for `frames` frames (0 is 65,536), sending after
  * each the sound command a request left waiting. */
 void menu_wait_for_the_next_frame(GameState *g, Platform *pf);

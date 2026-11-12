@@ -15,7 +15,7 @@
  * combatant on channels 5-7, as on 0-3 (battle/script_language.h).
  *
  * The original works in the battle's first work cells as it goes; what it
- * leaves there is scaffolding, written by the leaves helpers. */
+ * leaves there is kept as it leaves it, by the leave helpers. */
 #include "charge.h"
 #include "battle/script_language.h"
 

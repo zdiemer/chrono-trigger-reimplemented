@@ -54,14 +54,12 @@ void menu_main_menu_open_option(GameState *g, Platform *pf);
 /* Back from an option's screen to choosing, its tasks stopped. */
 void menu_main_menu_come_back(GameState *g);
 
-/* ---- The steps, one sequence for the machine and for C ---------------------------------------- */
+/* ---- The steps --------------------------------------------------------------------------------- */
 
 /* The main menu's steps and the options' panels are each one sequence, which
- * the machine's entries (main_menu_bridge.c) and the program as C both run;
- * what differs is what they ask of the menus, through MainMenuSteps.
+ * asks what it needs of the menus through MainMenuSteps.
  *
- * The places the sequences call out or wait from (the machine's table gives
- * the original's call at each). */
+ * The places the sequences tick, wait or show a panel from. */
 typedef enum {
     MAIN_MENU_AT_THE_OPENING_PANEL,      /* the panel the menu opens on */
     MAIN_MENU_AT_THE_NEW_OPTION_PANEL,   /* the panel of the option the cursor moved to */
@@ -79,23 +77,9 @@ typedef enum {
  * or the cursor's tick as the step's last. */
 typedef enum { MAIN_MENU_FADES_IN, MAIN_MENU_LEAVES_THE_MENUS, MAIN_MENU_TICKS_AS_IT_ENDS } MainMenuEnd;
 
-/* Where the machine leaves what the original's own tests left (scaffolding),
- * with the value the sequence had then. */
-typedef enum {
-    MAIN_MENU_NOTE_OPENING,             /* before the menu opens */
-    MAIN_MENU_NOTE_TECHS_ROW_FOLDED,    /* the techs' row folded into its three */
-    MAIN_MENU_NOTE_MOVED_FROM,          /* the cursor moved, from this option */
-    MAIN_MENU_NOTE_OPTION_PICKED,       /* this option's panel picked */
-    MAIN_MENU_NOTE_DRAWN,               /* the main menu drawn over its panel */
-    MAIN_MENU_NOTE_PANEL_PUT_AWAY,      /* this option's panel put away */
-    MAIN_MENU_NOTE_EQUIPMENT_TESTED,    /* the equipment's panel, its member row before */
-    MAIN_MENU_NOTE_TECHS_MEMBER_CHOSEN, /* the techs' panel laid out, its member row before */
-    MAIN_MENU_NOTE_SETTINGS_FRAMED,     /* the settings' panel framed */
-} MainMenuNote;
-
 /* What the sequences ask: the cursor read, a tick, a frame's wait, the
  * panel shown with the main menu over it, an option's own panel, the
- * equipment's member card, a note, and the step's end. Each false where it
+ * equipment's member card, and the step's end. Each false where it
  * went no further. */
 typedef struct {
     void (*read_cursor)(void *ctx);
@@ -104,7 +88,6 @@ typedef struct {
     bool (*show_the_panel)(void *ctx, MainMenuPlace at);
     bool (*option_panel)(void *ctx, MainMenuOption option);
     bool (*member_card)(void *ctx);
-    void (*note)(void *ctx, MainMenuNote note, uint8_t value);
     bool (*ends)(void *ctx, MainMenuEnd end);
 } MainMenuSteps;
 
@@ -116,7 +99,7 @@ bool menu_back_to_the_main_menu_with(GameState *g, Platform *pf, const MainMenuS
 bool menu_show_main_menu_panel_with(GameState *g, Platform *pf, const MainMenuSteps *n, void *ctx);
 
 /* The options' panels, each its screen's (menu/<screen>.c), and what each
- * takes of the state (its entry's guard's state half). */
+ * needs of the state. */
 bool menu_show_equipment_panel_with(GameState *g, Platform *pf, const MainMenuSteps *n, void *ctx);
 bool menu_show_items_panel_with(GameState *g, Platform *pf, const MainMenuSteps *n, void *ctx);
 bool menu_show_techs_panel_with(GameState *g, Platform *pf, const MainMenuSteps *n, void *ctx);
@@ -127,21 +110,16 @@ bool menu_techs_panel_can_show(const GameState *g);
 bool menu_techs_panel_can_go(const GameState *g);
 bool menu_settings_panel_can_show(const GameState *g);
 
-/* What the steps take of the state, as their entries' guards do. */
+/* What the steps need of the state. */
 bool menu_main_menu_can_open(const GameState *g);
 bool menu_main_menu_can_choose(const GameState *g);
 bool menu_main_menu_can_come_back(const GameState *g);
 bool menu_main_menu_panel_can_show(const GameState *g);
 
-/* As C, from the menus' main task: the steps, and the way back to the main
+/* From the menus' main task: the steps, and the way back to the main
  * menu a screen's step takes; false where the program went no further. */
 bool menu_open_main_menu(GameState *g, Platform *pf);
 bool menu_choose_on_main_menu(GameState *g, Platform *pf);
 bool menu_back_to_the_main_menu(GameState *g, Platform *pf);
-
-/* The machine's side (main_menu_bridge.c): its answers to the sequences,
- * which the panels' entries run with too, on a context of this shape. */
-
-extern const MainMenuSteps menu_main_menu_on_the_machine;
 
 #endif

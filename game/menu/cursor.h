@@ -13,14 +13,13 @@
  * cursor's tick as it moves, the buzz of a choice refused, and the two a
  * screen can queue (menu_queued_sounds). */
 typedef enum { MENU_SOUND_CURSOR = 0, MENU_SOUND_REFUSAL = 1, MENU_SOUND_6 = 6, MENU_SOUND_7 = 7 } MenuSound;
-/* A menu's sound on the effects' voices, as C: sent where it goes out (as
- * the routines that play one do on the machine). */
+/* A menu's sound on the effects' voices: sent where it goes out (a sound
+ * asked for within three frames of the last is dropped). */
 void menu_sound_played(GameState *g, Platform *pf, uint8_t sound);
 /* A sound on the effects' other voices, sent whatever the wait ($C2:EAF9). */
 void menu_sound_played_on_other_voices(GameState *g, Platform *pf, uint8_t sound);
 
-/* What a screen's step does as C, each timed as the routine the machine
- * calls for it: the cursor read for the frame, the cursor's tick, and the
+/* What a screen's step does, each timed as the original's routine for it: the cursor read for the frame, the cursor's tick, and the
  * buzz of a choice refused. */
 void menu_read_the_cursor_for_a_step(GameState *g);
 void menu_tick(GameState *g, Platform *pf);
@@ -29,8 +28,7 @@ void menu_buzz(GameState *g, Platform *pf);
 /* Whether the cursor stands on one of its menu's places, and the neighbour
  * the pad pushes it to is one too (what the screens that move it take). */
 bool menu_cursor_can_move(const GameState *g);
-/* The cursor's placing's guard, its state half: the cursor on one of its
- * menu's places. */
+/* Whether the cursor can be placed: on one of its menu's places. */
 bool menu_cursor_can_be_placed(const GameState *g);
 
 /* What the frame's input asks for, as the cursor's reading leaves it
@@ -59,8 +57,8 @@ bool menu_pushed(const GameState *g, MenuPush way);
 
 /* Whether the cursor is on one of `count` places from `first`, and every
  * neighbour a push could take it to is one too (a push that leaves the menu
- * keeps it where it is); the left one, where `left_free`, any. For a
- * screen's guard. */
+ * keeps it where it is); the left one, where `left_free`, any. What a
+ * screen's step needs of the cursor. */
 bool menu_cursor_kept_among(const GameState *g, uint8_t first, uint8_t count, bool left_free);
 
 /* Every sprite out of sight; the menus' own hidden and the cursor placed, as
@@ -87,27 +85,13 @@ void menu_put_cursor_places_back(GameState *g);
  * (menu_cursor_frame_start), the screen counts the cursor moved and ticks. */
 enum { MENU_CURSOR_MOVED_ANYWAY = 0xFF };
 
-/* What the original's reading leaves in the registers and its loop's cell,
- * noted before a read and left after it, for a caller that runs the read as
- * C (scaffolding: ORIGINAL_EFFECT). */
-typedef struct {
-    bool new_step, pushed, moved;
-    uint8_t push, from;
-} MenuCursorRead;
-MenuCursorRead menu_note_cursor_read(const GameState *g);
-
-/* A screen's step reading the cursor as C (menu_read_cursor, timed as the
- * original's reading), and what the original's reading leaves; and the same
- * with the flags of the test of the buttons the original's steps make after
- * it (a BIT of menu_cursor_buttons against the accumulator it leaves). */
 /* The cursor read held (a step that waits on any button): the hold counted
- * and the cursor read, as C; and on the machine, leaving what the read
- * leaves, noted before the hold. */
+ * and the cursor read. */
 void menu_hold_and_read_the_cursor(GameState *g);
 
-/* The entries. */
-/* The same as C: false where the controller's read is none the port takes,
- * the program going no further there. */
+/* The menus' input for the frame, from their vblank ($C2:8473): false where
+ * the controller's read is none the port takes, the program going no
+ * further there. */
 bool menu_frame_input_taken(GameState *g, Platform *pf);
 
 #endif

@@ -17,9 +17,9 @@
  * wins. The defeat (the battle's step 9) holds the markers back and waits a
  * frame.
  *
- * The poses wait for frames, so they are a bridge: the waits, the frame
- * work's tail and the menu window are the original's calls as it makes them
- * (battle_wait_frame, battle_run), the rest C. The poses' tables are kept in
+ * The poses wait for frames: the waits, the frame work's tail and the menu
+ * window are calls out of them (PoseCall), made where the original makes
+ * them. The poses' tables are kept in
  * cells the script channels and the numbers use at other times
  * (battle_party_pose_*). */
 #include "battle/animation.h"
@@ -248,9 +248,9 @@ static bool lose(GameState *g, PoseCalls call, void *ctx)
     return call(ctx, POSES_STRUCK);
 }
 
-/* The guards' state halves: the graphics' object a battle slot, as the
+/* What the poses take: the graphics' object a battle slot, as the
  * animations keep its high byte clear, and the members' graphics ones the
- * builders know; the victory's looks as the looks' guard keeps them. */
+ * builders know; the victory's looks as battle_pose_looks_fit keeps them. */
 static bool members_graphics_known(GameState *g)
 {
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
@@ -261,7 +261,7 @@ static bool members_graphics_known(GameState *g)
 
 static bool poses_fit(GameState *g) { return (battle_graphics_object(g) >> 8) == 0 && members_graphics_known(g); }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The poses' calls ------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;

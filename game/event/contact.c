@@ -26,7 +26,6 @@
 #include "event/calls.h"
 #include "event/chests.h"
 #include "event/dialog.h"
-#include "field/scratch.h"
 #include "event/party.h"
 #include "event/script.h"
 #include "field/bridge.h"
@@ -230,7 +229,7 @@ ChestGift press_confirm(GameState *g)
     return open_the_chest_before_the_leader(g);
 }
 
-/* ---- The confirm button, called by the still-gated field ----------------------------- */
+/* ---- The confirm button ---------------------------------------------------------------- */
 
 /* A chest's gift goes to the party: the item into its inventory, or the gold
  * to its own (battle/inventory.h), each timed as the battle's routine that
@@ -260,7 +259,7 @@ void field_confirm_pressed(GameState *g)
         give_the_gift(g, gift);
 }
 
-/* The guards: the object is one the tables hold, as the game keeps it (the
+/* What the port checks: the object is one the tables hold, as the game keeps it (the
  * original adds its whole word to a place's offset), and runs at one of the
  * levels the places hold; the leader, whose facing a push goes by, faces one
  * of its four ways; and a push looks at a tile of the map. */

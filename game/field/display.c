@@ -134,7 +134,7 @@ void field_upload_layer_edge(GameState *g, Platform *pf, unsigned upload)
     }
 }
 
-/* The uploads' guard: the parts are the size of an edge run, whose sources
+/* The uploads the port sends: the parts are the size of an edge run, whose sources
  * can't reach round the bank to the stack page (where the original's
  * transfer would copy the return address its call left there, which the
  * port doesn't reproduce). The game's parts are a row or a column of tiles. */
@@ -292,14 +292,6 @@ static void end_picture(Platform *pf)
     vid_enable_line_effects(pf, PF_AT(0xC0ECF9), 0x00);
 }
 
-uint16_t field_queue_last_second_size(const GameState *g, uint16_t none)
-{
-    unsigned entries = 0;
-    while (field_vram_queue_used(g, entries) != 0)
-        entries++;
-    return entries != 0 ? field_vram_queue_size2(g, entries - 1) : none;
-}
-
 /* ---- After the picture ---------------------------------------------------------------------- */
 
 // $C0:ED15
@@ -316,7 +308,7 @@ static void redraw_after_the_picture(GameState *g, Platform *pf)
 /* ---- The line interrupt ----------------------------------------------------------------------- */
 
 /* The animated tiles' uploads, through the original's jump to them at
- * $FD:FFFD; the handler puts every register back after them. */
+ * $FD:FFFD. */
 enum { TILE_ANIMATION_UPLOADS = 0xFDFFFD };
 
 /* The line handler's start, where the line interrupt is the field's (false
@@ -333,7 +325,8 @@ static bool begin_line_handler(const GameState *g, Platform *pf)
 }
 
 // $C0:ECCC
-/* The handler as C, for a program with no machine under it. */
+/* The line interrupt's handler: the picture ended, then the work of the time
+ * after it. */
 void field_line(GameState *g, Platform *pf)
 {
     if (!begin_line_handler(g, pf))

@@ -5,7 +5,6 @@
  * its sprite is layered against the map, and whether it has a sprite at all;
  * and asking where an object stands. Each is the field's object's
  * (field/object.h). */
-#include "field/scratch.h"
 #include "charge.h"
 #include "event/party.h"
 #include "event/script.h"
@@ -64,17 +63,13 @@ EVENT_OPERATION(set_move_length, self, move_length)
 
 // $C0:4B74
 /* Put the object on a tile, at its bottom edge -- centred across it, or where
- * it was across -- layered as the map is there if it follows the map. (The
- * original keeps the tile in its scratch cell, before the map's priority
- * takes the low byte's place.) */
+ * it was across -- layered as the map is there if it follows the map. */
 static EventFlow stand_on_tile(GameState *g, FieldObject self, uint8_t tile_x, uint8_t tile_y, bool centred)
 {
     MapTile tile = { tile_x, tile_y };
     object_put_on_tile(g, self, tile, centred);
-    if (object_follows_the_map(g, self)) {
+    if (object_follows_the_map(g, self))
         object_layer_as_the_map(g, self, tile);
-    } else {
-    }
     return next_command();
 }
 EVENT_OPERATION(stand_on_tile, self, tile_x, tile_y, centred)
@@ -105,7 +100,7 @@ static EventFlow set_layering(GameState *g, FieldObject self, uint8_t layering)
 }
 EVENT_OPERATION(set_layering, self, layering)
 
-/* The layering's guard: the byte is a layering (field/object.h). */
+/* What the port checks of the layering: the byte is a layering (field/object.h). */
 static bool a_layering(const GameState *g, uint8_t layering)
 {
     (void)g;

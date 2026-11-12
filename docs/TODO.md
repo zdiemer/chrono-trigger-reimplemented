@@ -2517,10 +2517,16 @@ and preserve their diagnostics as the remaining machine wrappers leave.
 
 ## Review follow-ups for native interfaces
 
-- **What the machine's removal left** (review of machine-core). About 390 comments and names
-  still describe the machine (`state.h:10`, `race.h:85`, `battle/bridge.h`, the
-  "On the machine" sections, `scene_task_needs_the_machine`, `machine_tasks`,
-  `*_on_the_machine`). About 215
+- **What the machine's removal left** (review of machine-core). Dead carry
+  plumbing the comment cleanup left as code because it changes signatures:
+  `battle_aim_action`'s `carry` and the carry arguments of `ActCalls`,
+  `MemberCalls` and `WindowCalls`; `enemy_turn.c`'s `change_carries` and
+  `aim_carry`; `menu_window.c`'s `WindowLeaves`, `CursorsPlaced` and
+  `tech_page_carry`; `battle/window_leaves.[ch]`; the battle's do-nothing calls
+  (`FIELD_KEEP`/`DROP`, `SONG_KEEP`/`KEPT`, `UPDATE_KEEP_THE_ATTRIBUTES`/
+  `ATTRIBUTES_BACK`, `CALL_CHECKS_BEGIN`/`END`); the event runner's
+  `state_is_ours`/`always_ours`; and the `*_bridge.c`/`bridge.h` file names,
+  which now hold state checks. About 215
   `charge_legacy_*` and 142 `charge_block_move` calls still put per-path access
   counts in `game/`, against "ports don't carry cycle costs". `core/program.c:124`:
   if the first scenes fail the main thread just returns, relying on the callee

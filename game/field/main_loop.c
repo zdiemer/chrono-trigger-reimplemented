@@ -101,7 +101,7 @@ static void finish_frame(GameState *g)
     set_field_frame_pending(g, (uint8_t)(field_frame_pending(g) + 1));
 }
 
-/* The frame done, as C: the vblank handler takes it, and the main loop waits
+/* The frame done: the vblank handler takes it, and the main loop waits
  * for it to. */
 void field_finish_the_frame(GameState *g, Platform *pf)
 {
@@ -163,7 +163,7 @@ static void take_the_interrupts(GameState *g)
 /* ---- The field's start ---------------------------------------------------------------------------- */
 
 /* The timing keys of the field's start, its main loop and its frame wait. */
-enum { ENTER = 0xC0005D, MAIN_LOOP = 0xC00097 };
+enum { ENTER = 0xC0005D };
 
 /* At power-on, before the sound driver starts: the field's handlers on the
  * interrupts, the screen dark, and work RAM cleared. */
@@ -372,7 +372,7 @@ bool field_frame_work_done(GameState *g, Platform *pf)
 
 /* ---- The main loop's pass ------------------------------------------------------------------- */
 
-/* Its steps, as C: where the pass goes after each. */
+/* Its steps: where the pass goes after each. */
 static FieldPass goes_on(bool back) { return back ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS; }
 
 static FieldPass walk(GameState *g, Platform *pf)
@@ -381,9 +381,7 @@ static FieldPass walk(GameState *g, Platform *pf)
     return goes_on(field_the_leader_walks(g));
 }
 
-/* The pass's steps in order, each called from its site. The dialog
- * window's step is reached by a long call. A's high byte and the overflow
- * pass from each step to the next as the steps leave them. */
+/* The pass's steps, in order. */
 typedef enum {
     PAUSE_AND_MENUS_STEP, REQUESTS_STEP, WALK_STEP, CONFIRM_STEP, DIALOG_WINDOW_STEP, SCREEN_EFFECT_STEP,
     SCRIPT_LAYERS_STEP, FRAME_WORK_STEP, PASS_STEPS,
@@ -457,7 +455,7 @@ static FieldPass pass_step(void *ctx, PassStep step)
     return after;
 }
 
-/* As C the pass goes through the wait for the next frame, unless a step
+/* The pass goes through the wait for the next frame, unless a step
  * sent it round the main loop itself. */
 FieldPass field_runs_a_pass(GameState *g, Platform *pf)
 {
@@ -487,8 +485,8 @@ void field_runs(GameState *g, Platform *pf)
 
 // $C0:00DE
 /* The effects refreshed for the next frame: the line effects' tables built
- * and the palettes animated, each a routine of its own, run as C or on the
- * machine; false where one went no further. */
+ * and the palettes animated, each a routine of its own; false where one went
+ * no further. */
 typedef struct {
     bool (*line_effects)(void *ctx);
     bool (*palettes)(void *ctx);
@@ -520,8 +518,7 @@ bool field_effects_refreshed(GameState *g)
 
 // $C0:00EB
 /* A frame of the leader's walk alone, while the field waits on something of
- * its own: the walk, the effects refreshed, and the wait for the next frame,
- * which returns for this routine (and sets A and its flags first). */
+ * its own: the walk, the effects refreshed, and the wait for the next frame. */
 typedef struct {
     bool (*walk)(void *ctx);
     bool (*refresh)(void *ctx);
@@ -563,19 +560,13 @@ bool field_walked_a_frame(GameState *g, Platform *pf)
     return walk_a_frame(&in_the_program, &c);
 }
 
-enum { FIELD_STARTS = 0xC00000 };
-
-/* The scenes an event command asks for: below $80 the scene engine's (its
- * flags, scene.h, in A); from $80 the time warp's tunnel (warp/), as long as
- * the trip: the longest for $80, then shorter for $81 and $82, and the one
- * that flickers for the rest. The warp's gate is retired, so in the shipping
- * mode its trip starts as C (warp_starts_on_the_machine), and elsewhere at
- * the original's start for the kind, as the scene engine's does. What each
- * reads first it sets, the flags the look at the scene's number left among
- * it. */
+/* The scenes an event command asks for: below $80 the scene engine's
+ * (scene.h); from $80 the time warp's tunnel (warp/), as long as the trip:
+ * the longest for $80, then shorter for $81 and $82, and the one that
+ * flickers for the rest. */
 enum { SCENE_FIELD_CLOSES_INTO = 0x85 };
 
-/* As C: the scene the field ends into, the scene engine's or a time gate's
+/* The scene the field ends into, the scene engine's or a time gate's
  * tunnel, is the program's next step (core/program.c: scene_runs,
  * warp_runs). */
 void field_scene_starts(GameState *g, uint8_t scene) { program_goes_on_to_a_scene(g, scene); }

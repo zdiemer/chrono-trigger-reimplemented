@@ -9,7 +9,6 @@
  * condition holds, or how long to wait. The conditions on the story, the
  * party, dialog and the controller are with those, in their own files. */
 #include "charge.h"
-#include "field/scratch.h"
 #include "event/variables.h"
 
 // $C0:62B5
@@ -135,7 +134,7 @@ static EventFlow stop_here(GameState *g)
 }
 EVENT_OPERATION_TAKING_NOTHING(stop_here)
 
-/* The comparisons' operator must be one of their table's (the guard's part):
+/* The comparisons' operator must be one of their table's (the port checks it):
  * the byte comparisons' eight, the word comparisons' seven. */
 static bool compares_bytes(const GameState *g, uint8_t comparison)
 {

@@ -270,8 +270,7 @@ typedef struct {
     Platform *pf;
 } DisplaySetUpContext;
 
-/* The pause's guard turns away only a page; the animation's, slots it
- * doesn't take (palette_animated's own). */
+/* The palette animation paused. */
 static bool pause_the_palette_animation(void *ctx)
 {
     GameState *g = ((DisplaySetUpContext *)ctx)->game;
@@ -335,14 +334,15 @@ static bool take_the_closing_vblank(GameState *g, Platform *pf, bool (*call)(voi
     return call(ctx, CLOSING_MAP_LAYERS) && call(ctx, CLOSING_PALETTES);
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The closing handler's calls -------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
     Platform *pf;
 } ClosingVblankContext;
 
-/* The line effects' guard's state half: builders that can build them. */
+/* Each call; the line effects are refused where the builders can't build
+ * them. */
 static bool closing_vblank_call(void *ctx, ClosingVblankCall call)
 {
     ClosingVblankContext *c = ctx;

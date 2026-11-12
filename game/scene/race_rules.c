@@ -20,7 +20,7 @@
  * Then a button ends the scene, and A fades it out first.
  *
  * The rules are plain arithmetic, but for one thing the game does that the
- * gate compares: the original never clears the carry between the sums of a
+ * player can see: the original never clears the carry between the sums of a
  * frame's motion, so several of them take a unit from the comparison or sum
  * before -- a drift a unit longer or slower to die, the lead a 32nd shorter,
  * the touching band a unit wider, a bumped bike a unit farther. Each rule has
@@ -602,8 +602,8 @@ static void boost(GameState *g, bool unit)
 
 /* ---- A frame of the bikes ----------------------------------------------------------------------- */
 
-/* What a frame of the bikes asks of the sound driver, which the entry's
- * wrapper sends: the bump's sound, then, while the race runs, the engine's
+/* What a frame of the bikes asks of the sound driver, which the task's
+ * caller sends: the bump's sound, then, while the race runs, the engine's
  * pitch (each unless a song is on its way to the driver at the time). */
 typedef struct {
     bool bumped;
@@ -1031,7 +1031,7 @@ static TaskEnd ride_with(GameState *g, Platform *pf, RaceSends send, void *ctx)
     case RIDE_ON: break;
     }
     if (!move_and_sound(g, pf, sounds, send, ctx))
-        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+        return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
     return task_goes_on();
 }
 
@@ -1040,7 +1040,7 @@ static TaskEnd coast_with(GameState *g, Platform *pf, RaceSends send, void *ctx)
 {
     coast(g);
     if (!move_and_sound(g, pf, ride_bikes(g), send, ctx))
-        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+        return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
     return task_goes_on();
 }
 
@@ -1057,7 +1057,7 @@ static TaskEnd wait_to_leave_with(GameState *g, Platform *pf, RaceSends send, vo
     if (!begin_ending(g))
         return task_goes_on();
     if (!race_song_sending(g) && !race_send_sound(g, pf, RACE_LEAVING_SOUND, send, ctx))
-        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+        return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
     count_down_to_end(g);
     return task_hands_over(TASK_LEAVE);
 }
@@ -1074,11 +1074,11 @@ static TaskEnd drain_score_task(GameState *g)
     return task_is_done();
 }
 
-/* ---- The tasks as C -------------------------------------------------------------------------------
+/* ---- The tasks ----------------------------------------------------------------------------------
  *
- * Each checks its guard's state half where the guard has one: the ride's and
- * the coast's, room on the lists for what they add and the tasks they take
- * off there. The others are guarded by their code and the page alone. */
+ * The ride and the coast check for room on the lists for what they add and
+ * the tasks they take off there, and go no further without it; the others
+ * take any state the race makes. */
 
 static bool ride_lists_fit(const GameState *g);
 static bool coast_lists_fit(const GameState *g);
@@ -1087,7 +1087,7 @@ TaskEnd scene_race_ride(GameState *g, Platform *pf, unsigned slot)
 {
     (void)slot;
     if (!ride_lists_fit(g))
-        return scene_task_needs_the_machine(g, 0x7E485D, "a race's frame whose list changes the port doesn't make");
+        return scene_task_goes_no_further(g, 0x7E485D, "a race's frame whose list changes the port doesn't make");
     return ride_with(g, pf, race_sound, NULL);
 }
 
@@ -1095,7 +1095,7 @@ TaskEnd scene_race_coast(GameState *g, Platform *pf, unsigned slot)
 {
     (void)slot;
     if (!coast_lists_fit(g))
-        return scene_task_needs_the_machine(g, 0x7E4677, "a race's coast whose list changes the port doesn't make");
+        return scene_task_goes_no_further(g, 0x7E4677, "a race's coast whose list changes the port doesn't make");
     return coast_with(g, pf, race_sound, NULL);
 }
 
@@ -1126,9 +1126,8 @@ TaskEnd scene_race_drain_score(GameState *g, Platform *pf, unsigned slot)
     return drain_score_task(g);
 }
 
-/* The guard hands the task's list changes to the original where the list has
- * no room or lacks the task taken off, which only states the game never makes
- * reach. */
+/* The task's list changes need room on the list and the task taken off on
+ * it, which only states the game never makes lack. */
 static bool ride_lists_fit(const GameState *g)
 {
     if (finished(g, RACER_CRONO))

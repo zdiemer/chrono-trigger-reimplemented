@@ -88,7 +88,7 @@ static void into_the_buffer(GameState *g, unsigned n)
     set_sound_command_parameters(g, 1, back_to_normal[n].p2);
 }
 
-/* As C: the command in the buffer sent, and the driver's echo waited for. */
+/* The command in the buffer sent, and the driver's echo waited for. */
 static uint8_t send_and_wait_for_the_echo(GameState *g, Platform *pf)
 {
     for (;;) {

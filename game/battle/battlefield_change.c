@@ -19,11 +19,8 @@
  * those they mark. Its colors and its screen scripts come last (the scripts
  * start in screen_script.c).
  *
- * The work is C on the game's state. What reaches the machine is the bridge
- * around the transfers and the waits, which are the original's code: each is
- * made where the original makes it, with what it keeps on the stack there,
- * since shadow mode pairs a call with the original's by its site and its
- * stack. */
+ * The transfers and the frame waits are calls out of the work (FieldCall),
+ * each made where the original makes it. */
 #include "battle/animation_data.h"
 #include "battle/bridge.h"
 #include "battle/program.h"
@@ -378,8 +375,8 @@ static uint8_t next_tile(GameState *g, MapBuilder *b)
  * counts, the last tile and its place, attributes and palette. Those up to
  * $61 are where an animation script's screen effect takes the settings its
  * command doesn't give (battle_screen_effect_settings), so what this and the
- * rest of the loading leave there is the game's, and kept plainly; the rest
- * is scaffolding. */
+ * rest of the loading leave there is the game's; the rest keep the
+ * original's values. */
 enum {
     LEFT_STRIP_AT = 0x53,
     LEFT_STRIP_BANK = 0x55,
@@ -451,8 +448,9 @@ static void build_the_map(GameState *g, uint16_t tile_set)
 /* The loading's calls, each where the original makes it: a buffer of work
  * RAM sent to VRAM from the main thread, which waits for it to go; the frame
  * work's waits, for a number of frames and for the next (battle/wait.c); and
- * what the original keeps on the stack around them (a word: the battlefield,
- * the tile set, the set it decodes), which only the machine has. */
+ * where the original saves and restores a word around them (the battlefield,
+ * the tile set, the set it decodes: FIELD_KEEP, FIELD_DROP), which the port
+ * passes over. */
 typedef enum {
     FIELD_FADE_WAIT_GRADIENT, FIELD_FADE_WAIT_LAYER, FIELD_WINDOWS_OFF_FRAME, FIELD_COLOR_MATH_OFF_FRAME,
     FIELD_SET_SENT, FIELD_MAP_SENT, FIELD_ROWS_FRAME, FIELD_ROWS_SENT, FIELD_KEEP, FIELD_DROP,
@@ -593,7 +591,7 @@ static bool change_the_battlefield(GameState *g, bool (*load)(void *ctx, uint16_
     return true;
 }
 
-/* As C, the send from where the original makes it. */
+/* Send a part of the new battlefield to VRAM, tagged with the place the original sends it from. */
 static void send_a_part(Platform *pf, FieldCall call, FieldCallArgs args)
 {
     PfData from = PF_GAME((uint32_t)WORK_RAM_BANK << 16 | args.buffer);
@@ -604,7 +602,7 @@ static void send_a_part(Platform *pf, FieldCall call, FieldCallArgs args)
     }
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The loading's calls -------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
@@ -632,8 +630,8 @@ static bool change_a_part(void *ctx, FieldCall call, FieldCallArgs args)
     }
 }
 
-/* The loads with their guards' state halves: a battlefield whose layout, as
- * the ROM has it, fits (or one that keeps BG3 still and builds no map). */
+/* The loads, refused unless the battlefield's layout, as the ROM has it,
+ * fits (or it keeps BG3 still and builds no map). */
 static bool fits(const GameState *g, uint16_t asked);
 
 static bool load_and_run_it(void *ctx, uint16_t battlefield)
@@ -661,7 +659,7 @@ bool battle_load_effect_tile_rows(GameState *g, Platform *pf, uint8_t first_row_
                   : load_effect_tile_rows(g, first_row_set, 0, FIRST_SET_SLOTS, change_a_part, &c);
 }
 
-/* ---- The guards ------------------------------------------------------------------------------- */
+/* ---- The layouts the port builds -------------------------------------------------------------- */
 
 /* A layout whose map fits the buffer: as many strips as the game's
  * battlefields have, at least one, each of one to sixteen rows (the rows'

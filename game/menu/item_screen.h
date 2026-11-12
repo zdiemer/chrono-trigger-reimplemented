@@ -1,6 +1,6 @@
 /* The items screen and the main menu's panel for it: what the game does
- * (game/menu/item_screen.c) and the entries that run it on the original's
- * machine (game/menu/item_screen_bridge.c). */
+ * (game/menu/item_screen.c) and what each step needs of the state before it
+ * runs (game/menu/item_screen_bridge.c). */
 #ifndef CT_GAME_MENU_ITEM_SCREEN_H
 #define CT_GAME_MENU_ITEM_SCREEN_H
 
@@ -206,12 +206,12 @@ void menu_items_use_one(GameState *g);
 uint8_t menu_items_picked_item(const GameState *g);
 void menu_items_after_one_used(GameState *g);
 
-/* ---- What the steps can run on (the guards') -------------------------------------------------- */
+/* ---- What the steps can run on ---------------------------------------------------------------- */
 
 bool menu_items_list_is_pointable(const GameState *g);
 bool menu_items_rows_can_be_drawn(const GameState *g);
 
-/* What the steps below take of the state, as their entries' guards do: the
+/* What the steps below need of the state: the
  * opening, the list's step (and pointing at an item on it), the sort. */
 bool menu_items_can_open(const GameState *g);
 bool menu_items_can_point_along_the_list(const GameState *g);
@@ -222,13 +222,12 @@ bool menu_items_can_sort(const GameState *g);
 void menu_items_describe(GameState *g, uint8_t item);
 void menu_items_describe_the_cursors_item(GameState *g);
 
-/* ---- The steps, one sequence for the machine and for C ---------------------------------------- */
+/* ---- The steps -------------------------------------------------------------------------------- */
 
 /* The screen's opening ($C2:AA40), its commands ($C2:AA4A), its list
  * ($C2:AA86), an item picked up moved ($C2:AAC8) and the pointing along the
- * list ($C2:AC3A, $C2:AC59), and the sort ($C2:AB4A) are each one sequence, which the machine's entries
- * (item_screen_bridge.c) and the program as C both run, asking the menus for
- * what differs through ItemsSteps.
+ * list ($C2:AC3A, $C2:AC59), and the sort ($C2:AB4A) are each one
+ * sequence, asking the menus for what it needs through ItemsSteps.
  *
  * The places the sequences tick or wait from. */
 typedef enum {
@@ -247,15 +246,12 @@ typedef enum {
     ITEMS_AT_THE_MEMBER_WINDOW_OPENING, /* the member window opening, a frame on */
     ITEMS_AT_THE_MEMBER_WINDOW_DRAWN, /* ... its members drawn, a frame on */
     ITEMS_AT_A_TAB_MEMBER_POINTED, /* the cursor on another member for a tab */
-    ITEMS_AT_THE_TAB_S_FIGURE,    /* a tab's figure noted */
-    ITEMS_AT_THE_FIGURE_RAISED,   /* a tab's figure raised */
     ITEMS_AT_THE_USERS_CLOSED,    /* who can equip the item put away */
     ITEMS_AT_THE_SLIDE,           /* the list sliding a row along */
     ITEMS_AT_A_SLIDE_FRAME,       /* ... a frame of the slide */
 } ItemsPlace;
 
-/* The routines an item's use goes on to (each a checked legacy adapter, run on
- * the machine where the original calls it). */
+/* The routines an item's use goes on to. */
 typedef enum {
     ITEMS_USES_THE_ITEM,                   /* $C2:B0AB */
     ITEMS_USES_A_RESTORING_ITEM,           /* $C2:B17F */
@@ -274,44 +270,10 @@ typedef enum {
     ITEMS_USES_ONE_MORE_TAB,
 } ItemsRoutine;
 
-/* Where the machine does what only it needs (main_menu.h's MainMenuNote
- * says how): the flags the original's tests left, and the P a routine saves
- * and the widths it sets, at these points. */
-typedef enum {
-    ITEMS_NOTE_OPENED,              /* the screen opened, its set-up starting */
-    ITEMS_NOTE_LIST_FRAMED,         /* the list's frame drawn */
-    ITEMS_NOTE_SET_UP,              /* the set-up done */
-    ITEMS_NOTE_BUTTONS_TESTED,      /* the cursor's buttons tested */
-    ITEMS_NOTE_CURSOR_COMPARED,     /* the cursor compared with where it started */
-    ITEMS_NOTE_PICKED_UP,           /* an item picked up, the step ending */
-    ITEMS_NOTE_POINTING,            /* pointing along the list starting */
-    ITEMS_NOTE_PAGING_ANSWERED,     /* the paging's answer: a page turned (1) or not */
-    ITEMS_NOTE_ROWS_REDRAWN,        /* a page's rows drawn again */
-    ITEMS_NOTE_PLACE_COMPARED,      /* the cursor's row kept and compared */
-    ITEMS_NOTE_ROWS_QUEUED,         /* the list's rows queued */
-    ITEMS_NOTE_CURSOR_KEPT,         /* the cursor kept on the list */
-    ITEMS_NOTE_ENDS_COMPARED,       /* the list's ends compared, no slide */
-    ITEMS_NOTE_SLIDE_TICKED,        /* the slide's row brought in, ticked */
-    ITEMS_NOTE_SLIDE_FRAMES_DONE,   /* the slide's frames over: whether it took any (1) */
-    ITEMS_NOTE_SLIDE_DONE,          /* the slide over, the rows moved along */
-    ITEMS_NOTE_EFFECT_TESTED,       /* the item in hand's effect tested, before its use */
-    ITEMS_NOTE_USE_FOUND,           /* the use looked up */
-    ITEMS_NOTE_MEMBER_CHOICE_STARTED, /* the members to use it on: the use's kind */
-    ITEMS_NOTE_HELP_LOADED,         /* whether the use helps, loaded */
-    ITEMS_NOTE_HELD_CURSOR_STOPPED, /* the second cursor's task stopped */
-    ITEMS_NOTE_FIGURES_NOTED,       /* the member's figures worked out again */
-    ITEMS_NOTE_MEMBER_COMPARED,     /* the member pointed at compared with the one before */
-    ITEMS_NOTE_MEMBER_LOOKED_AT,    /* a member looked at */
-    ITEMS_NOTE_BLOCKS_SET,          /* the sprites' blocks a frame */
-    ITEMS_NOTE_ONE_TAKEN,           /* one taken from the party's items */
-    ITEMS_NOTE_USERS_BUTTONS_LOADED, /* the button that put the users away, loaded */
-} ItemsNote;
-
 /* What the sequences ask: the cursor read, a tick, a frame's wait, the
  * item on the cursor described, the item pointed at after a slide, the way back to the
- * main menu, a note, the refusal's buzz, the machine's registers as the
- * original's code sets them, and a routine run. Each false where it went no
- * further. */
+ * main menu, the refusal's buzz, and a routine run. Each false where it went
+ * no further. */
 typedef struct {
     void (*read_cursor)(void *ctx);
     void (*read_cursor_held)(void *ctx);
@@ -320,9 +282,7 @@ typedef struct {
     bool (*describe)(void *ctx);
     bool (*point_after_sliding)(void *ctx);
     bool (*back_to_the_main_menu)(void *ctx);
-    void (*note)(void *ctx, ItemsNote note, uint8_t value);
     bool (*refuse)(void *ctx, ItemsPlace at);
-    void (*registers_at)(void *ctx, ItemsPlace at);
     bool (*run)(void *ctx, ItemsRoutine routine);
 } ItemsSteps;
 
@@ -343,7 +303,7 @@ ItemsSequence menu_use_item_with, menu_use_restoring_item_with, menu_use_item_by
 /* One more used ($C2:B31C): one taken from the party's items, the row drawn
  * again, the description of what is left, the members' rows again. */
 void menu_items_use_one_more(GameState *g, Platform *pf);
-/* The guards' state halves of the use's routines (item_screen_bridge.c). */
+/* What the use's routines need of the state (item_screen_bridge.c). */
 bool menu_items_use_can_run(const GameState *g);
 bool menu_items_member_window_can_run(const GameState *g);
 bool menu_items_tab_member_can_be_pointed(const GameState *g);
@@ -352,15 +312,14 @@ bool menu_point_along_the_item_list_with(GameState *g, Platform *pf, const Items
 bool menu_point_at_listed_item_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
 bool menu_sort_items_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx);
 
-/* As C, from the menus' main task; false where the program went no
+/* From the menus' main task; false where the program went no
  * further. */
 bool menu_open_items(GameState *g, Platform *pf);
 bool menu_choose_item_command(GameState *g, Platform *pf);
 bool menu_choose_on_item_list(GameState *g, Platform *pf);
 bool menu_move_picked_item(GameState *g, Platform *pf);
 bool menu_close_item_users(GameState *g, Platform *pf);
-/* Whether an item in hand can be moved as it stands (the step's guard's
- * state half, item_screen_bridge.c). */
+/* Whether an item in hand can be moved as it stands (item_screen_bridge.c). */
 bool menu_items_can_move_the_picked(const GameState *g);
 bool menu_sort_items(GameState *g, Platform *pf);
 

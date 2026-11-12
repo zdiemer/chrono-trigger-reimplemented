@@ -212,8 +212,7 @@ void field_take_the_vblank_interrupt(GameState *g);
 void field_take_the_line_interrupt(GameState *g);
 enum { FIELD_INSTALL_NMI_ENTRY = 0xC00B64, FIELD_INSTALL_IRQ_ENTRY = 0xC00B75 };
 
-/* The handlers they install, as C for a program with no machine under it:
- * the vblank's (field/nmi.c), which sends the frame's work and takes the
+/* The handlers they install: the vblank's (field/nmi.c), which sends the frame's work and takes the
  * frame's input, and the line's (field/display.c), which ends the picture
  * and sends the dialog's pointer or the animated tiles after it. */
 enum { FIELD_VBLANK_HANDLER = 0xC0EA63 };
@@ -230,14 +229,14 @@ enum { FIELD_FRAME_WAIT_LOOP = 0xC0EC71 };
 void field_queue_the_due_turns(GameState *g);
 bool field_queued_turns_run(GameState *g, Platform *pf);
 
-/* field/object_view.c. The view step as C (false where a row's links are
+/* field/object_view.c. The view step (false where a row's links are
  * none the port takes, the program going no further there), and an object
  * that matters only on the screen checked against it. */
 bool object_view_updated(GameState *g, FieldObject obj);
 void object_window_only_checked(GameState *g, FieldObject obj);
 
 /* field/window_shape.c: the quadrilateral in field_window_shape_corners drawn
- * into the table field_window_shape_table points at, as C, and whether the
+ * into the table field_window_shape_table points at, and whether the
  * table is one the port draws as the original does (in bank $7F, clear of its
  * end, the right side starting on a line, which the rasterizer reads before
  * it finds one of its own). */

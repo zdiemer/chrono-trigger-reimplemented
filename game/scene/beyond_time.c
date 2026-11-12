@@ -28,9 +28,8 @@
  * going, which only another ending's picture follows.
  *
  * The work is C on the game's state, in the scene program's arithmetic
- * (math.c: its multiply, which leaves its cells as the original does). Each
- * task is an entry the lists call on the machine, as the program's routine;
- * the entries at the end say what each leaves for the list. */
+ * (math.c: its multiply, which leaves its cells as the original does). The
+ * tasks at the end are the rows of scene/frame.c's table. */
 #include "scene/race.h"
 
 #include "charge.h"
@@ -402,10 +401,9 @@ static void send_the_picture_and_bg2(GameState *g, Platform *pf)
     send_the_picture(g, pf);
 }
 
-/* Flat, A holds the matrix's last entry the turn wrote; unchanged, the last
- * register compared, the depth. A new perspective is built on channel 0's
- * page; the entry guard checks its lines before the saved camera changes. */
-enum { BUILD_PERSPECTIVE = 0x7E357B, CAMERA_PAGE = 0x0A00 };
+/* A new perspective is built from channel 0's camera; the port checks its
+ * lines before the kept camera changes. */
+enum { BUILD_PERSPECTIVE = 0x7E357B };
 
 /* Whether a firework is at a frame of one of its bursts, or at a burst's
  * start (an entry before its first), where a burst is started on the start's
@@ -463,11 +461,11 @@ static bool fireworks_burst_as_ported(const GameState *g)
     return ok && scene_sprites_fit(g, sprites);
 }
 
-/* ---- The tasks as C ------------------------------------------------------------------------------ */
+/* ---- The tasks ----------------------------------------------------------------------------------- */
 
-/* For a program with no machine (each a column of scene/frame.c's table).
- * The list's carry, which the flat view's sending adds in, is clear at every
- * slot but the first, where no script puts it. */
+/* Each a row of scene/frame.c's table. The bit the list's call spills, which
+ * the flat view's sending adds in, is clear at every slot but the first,
+ * where no script puts it. */
 TaskEnd scene_keep_the_orbit(GameState *g, Platform *pf, unsigned slot)
 {
     (void)pf;
@@ -491,7 +489,7 @@ TaskEnd scene_check_the_flight_view(GameState *g, Platform *pf, unsigned slot)
     if (!update_the_view(g))
         return task_goes_on();
     if (!scene_perspective_fits(g, SCENE_CAMERA_CHANNEL))
-        return scene_task_needs_the_machine(g, BUILD_PERSPECTIVE, "a flight's perspective whose lines the port doesn't build");
+        return scene_task_goes_no_further(g, BUILD_PERSPECTIVE, "a flight's perspective whose lines the port doesn't build");
     TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, SCENE_CAMERA_CHANNEL));
     return task_goes_on();
 }
@@ -558,7 +556,7 @@ TaskEnd scene_burst_the_fireworks(GameState *g, Platform *pf, unsigned slot)
     (void)pf;
     (void)slot;
     if (!fireworks_burst_as_ported(g))
-        return scene_task_needs_the_machine(g, BURST_THE_FIREWORKS, "fireworks the port doesn't burst");
+        return scene_task_goes_no_further(g, BURST_THE_FIREWORKS, "fireworks the port doesn't burst");
     burst_the_fireworks(g);
     return task_goes_on();
 }

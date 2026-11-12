@@ -12,11 +12,11 @@
  *   - the objects' graphics (battle_setup_graphics): their sprites, the small
  *     tiles, the cursors, and where each object's graphics go in VRAM
  *     (battle/setup_screen.c); then it waits for the load steps, which the
- *     frame's interrupt runs, to finish (the wait is its own entry,
+ *     frame's interrupt runs, to finish (the wait is its own routine,
  *     battle/wait.c).
  *
- * All of it is C on the game's state, and this file is its machine side: the
- * entries and the guards. */
+ * This file puts the pieces in order, and says what parties and enemies the
+ * port takes. */
 #include "battle/setup.h"
 
 #include "battle/battle.h"
@@ -55,11 +55,10 @@ static void convert_enemy_names(GameState *g, LastName *last)
     }
 }
 
-/* ---- The entries ---------------------------------------------------------------------------- */
+/* ---- The setup's pieces, in order ------------------------------------------------------------- */
 
 // $CC:E2E4
-/* The battle's state. Nothing the original leaves in the registers is read
- * after it (the registry's dont_care). */
+/* The battle's state. */
 void battle_setup_state(GameState *g)
 {
     setup_reset_for_new_fight(g);
@@ -91,10 +90,10 @@ void battle_setup_graphics(GameState *g)
     setup_uploads(g);
 }
 
-/* ---- The guards ------------------------------------------------------------------------------- */
+/* ---- What the setup takes ---------------------------------------------------------------------- */
 
-/* The setup runs on the battle's page with its data bank, on a party, enemies
- * and remembered cursors the game makes (setup_party.c, setup_enemies.c). */
+/* The setup runs on a party, enemies and remembered cursors the game makes
+ * (setup_party.c, setup_enemies.c). */
 bool battle_setup_inputs_fit(const GameState *g)
 {
     return setup_party_is_real(g) && setup_enemies_are_real(g) && setup_remembered_cursors_real(g);

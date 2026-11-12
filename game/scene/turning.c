@@ -234,10 +234,10 @@ TaskEnd scene_update_turn_figures(GameState *g, Platform *pf, unsigned slot)
     (void)slot;
     if (!scene_sprites_fit(g, FIGURES * FIGURE_SPRITES) || scene_turn_next_upload(g) % FIGURE_RECORD_BYTES ||
         scene_turn_next_upload(g) >= FIGURES * FIGURE_RECORD_BYTES)
-        return scene_task_needs_the_machine(g, 0x7E7721, "turning figures outside their sprite or upload slots");
+        return scene_task_goes_no_further(g, 0x7E7721, "turning figures outside their sprite or upload slots");
     for (unsigned figure = 0; figure < FIGURES; figure++)
         if (figure_character(g, figure) >= 7)
-            return scene_task_needs_the_machine(g, 0x7E7721, "a turning figure outside the party graphics");
+            return scene_task_goes_no_further(g, 0x7E7721, "a turning figure outside the party graphics");
     set_scene_turn_upload_vram(g, NO_POSE_UPLOAD);
     unsigned next = scene_turn_next_upload(g) / FIGURE_RECORD_BYTES;
     unsigned left = FIGURES;
@@ -459,7 +459,7 @@ static void show_turn(GameState *g, Platform *pf)
 
 typedef struct { GameState *game; Platform *pf; } TurnSetup;
 
-static bool turn_scripts_in_c(void *context)
+static bool turn_scripts(void *context)
 {
     TurnSetup *setup = context;
     for (SceneChannel channel = 0; channel < 2; channel++) {
@@ -475,7 +475,7 @@ static bool turn_scripts_in_c(void *context)
 bool scene_turn_set_up(GameState *g, Platform *pf)
 {
     TurnSetup setup = { g, pf };
-    if (!prepare_turn(g, pf, turn_scripts_in_c, &setup))
+    if (!prepare_turn(g, pf, turn_scripts, &setup))
         return false;
     show_turn(g, pf);
     return true;

@@ -147,9 +147,8 @@ static PlaneLines lines_of(const GameState *g, SceneChannel ch, bool shell_above
     return l;
 }
 
-/* The lines the next build makes, and those the last one made. */
+/* The lines the next build makes. */
 static PlaneLines next_lines(const GameState *g, SceneChannel ch) { return lines_of(g, ch, !shell_above_built_last(g)); }
-static PlaneLines lines_built(const GameState *g, SceneChannel ch) { return lines_of(g, ch, shell_above_built_last(g)); }
 
 // $7E:45B0, $7E:9B46, $7E:801F, $7E:8042
 /* The scene's routine at the start of the lines, which sets the program's
@@ -335,8 +334,8 @@ void scene_look_at_the_shell_from_outside(GameState *g)
 
 void scene_look_at_the_shell_from_the_cockpit(GameState *g) { set_scene_perspective_start(g, START_SHELL_FROM_THE_COCKPIT); }
 
-/* The guard's state half: a scene's start of the lines, and the lines the
- * port builds: a step it knows, from a first line on the screen
+/* Whether the port builds the lines: a scene's start of the lines, and
+ * lines a step it knows, from a first line on the screen
  * or the line above it to an end on it that the step reaches (a whole line's
  * place in the tables, and in pairs an even number of lines), and along the
  * curve only from the dive's start that aims the work RAM port at it. Past
@@ -360,27 +359,4 @@ bool scene_perspective_fits(const GameState *g, SceneChannel ch)
     if (l.step.way == DISTANCE_ALONG_THE_CURVE && start != START_SHELL_FROM_OUTSIDE)
         return false;
     return l.step.way != DISTANCE_PAIRED || (l.end - l.first) % 2 == 0;
-}
-
-/* The former result-register reconstruction read the line description,
- * one final matrix entry and the turn. Keep that time without rebuilding
- * register values or reading the discarded scratch operands. */
-void scene_charge_perspective_result(GameState *g, SceneChannel ch)
-{
-    uint32_t mark = charge_uncounted_begin(g);
-    PlaneLines lines = lines_built(g, ch);
-    unsigned accesses = 14; /* line description and final turn */
-    switch (start_routine(g)) {
-    case START_RACE:
-        accesses += 2 + (plane_register(g, ch, SCENE_PLANE_LINES_PAIRED) ? 2 : 0);
-        break;
-    case START_SHELL_FROM_OUTSIDE: accesses++; break;
-    case START_SHELL_FROM_THE_COCKPIT: accesses += shell_above_built_last(g) ? 0 : 2; break;
-    case START_ENDING: break;
-    }
-    if (lines.step.way != DISTANCE_PAIRED)
-        accesses += 2;
-    accesses += lines.step.way == DISTANCE_ALONG_THE_CURVE ? 1 : 2;
-    charge_uncounted_end(g, mark);
-    charge_legacy_accesses(g, accesses);
 }

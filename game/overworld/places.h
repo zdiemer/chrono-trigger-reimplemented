@@ -51,7 +51,7 @@ void overworld_leave_for(GameState *g, uint16_t location, uint8_t arrival, uint8
  * shows, nothing is found under it, and nothing waits to be looked up. */
 void overworld_step_off_the_places(GameState *g);
 
-/* The guard's: whether the lists are as a map's setup loads them (each with
+/* What the port checks: whether the lists are as a map's setup loads them (each with
  * at least one record and no more than its table holds), and whether the
  * exit the leader stands on runs an event whose script is in the table. */
 bool overworld_lists_are_loaded(const GameState *g);

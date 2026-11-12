@@ -18,9 +18,8 @@
  * past its ends, the second cursor moving with the rows. The main menu shows
  * the list beside it while its cursor is on the items (the panel).
  *
- * This file is what the game does; item_screen_bridge.c runs it on the
- * original's machine, waiting for the next frame between the parts here
- * where the screen does. */
+ * This file is what the game does; item_screen_bridge.c says what each step
+ * needs of the state before it runs. */
 #include "menu/item_screen.h"
 #include "menu/tech_screen.h"
 #include "menu/healing.h"
@@ -938,7 +937,7 @@ void menu_items_clear_member_window(GameState *g)
     menu_queue_fixed_upload(g, MENU_UPLOAD_BACK_LAYER);
 }
 
-/* ---- What the steps can run on (the guards') --------------------------------------------------- */
+/* ---- What the steps can run on ----------------------------------------------------------------- */
 
 /* The list's places in the party's items: its first no further than its
  * last ten, the cursor on one of its rows; every place an item of the
@@ -1000,16 +999,13 @@ bool menu_open_items_with(GameState *g, Platform *pf, const ItemsSteps *n, void 
     if (!n->tick(ctx, ITEMS_AT_THE_OPENING))
         return false;
     menu_items_open(g);
-    n->note(ctx, ITEMS_NOTE_OPENED, 0);
     TIMED_AS(g, 0xC290FC, menu_set_items_aside(g));
     menu_items_lay_out(g, pf);
-    n->note(ctx, ITEMS_NOTE_LIST_FRAMED, 0);
     menu_items_show_bar_at_the_list(g);
     TIMED_AS(g, 0xC28B93, menu_start_the_scroll_bar(g));
     menu_items_put_the_cursor_back(g);
     TIMED_AS(g, 0xC2F5A7, menu_load_character_colours(g));
     menu_items_show_screen(g);
-    n->note(ctx, ITEMS_NOTE_SET_UP, 0);
     return true;
 }
 
@@ -1021,11 +1017,9 @@ bool menu_choose_item_command_with(GameState *g, Platform *pf, const ItemsSteps 
     (void)pf;
     n->read_cursor(ctx);
     ItemsCommandChoice c = menu_items_choose_command(g);
-    n->note(ctx, ITEMS_NOTE_BUTTONS_TESTED, 0);
     switch (c) {
     case COMMANDS_LEFT: return n->back_to_the_main_menu(ctx);
     case COMMAND_POINTED_AT:
-        n->note(ctx, ITEMS_NOTE_CURSOR_COMPARED, 0);
         return menu_cursor_frame_start(g) == menu_cursor_index(g) || n->tick(ctx, ITEMS_AT_A_COMMAND_POINTED);
     case COMMAND_LIST_CHOSEN:
     case COMMAND_SORT_CHOSEN:
@@ -1046,11 +1040,9 @@ bool menu_point_at_listed_item_with(GameState *g, Platform *pf, const ItemsSteps
     if (!n->describe(ctx))
         return false;
     bool moved = menu_items_keep_the_cursors_row(g);
-    n->note(ctx, ITEMS_NOTE_PLACE_COMPARED, 0);
     if (moved && !n->tick(ctx, ITEMS_AT_A_LISTED_ITEM_POINTED))
         return false;
     menu_items_queue_rows(g);
-    n->note(ctx, ITEMS_NOTE_ROWS_QUEUED, 0);
     return true;
 }
 
@@ -1063,10 +1055,8 @@ static bool slide_the_list_with(GameState *g, const ItemsSteps *n, void *ctx)
     menu_items_set_up_slide(g);
     TIMED_AS(g, 0xC2EB9B, menu_start_list_slide(g));
     menu_items_bring_in_a_row(g);
-    n->note(ctx, ITEMS_NOTE_ROWS_QUEUED, 0);
     if (!n->tick(ctx, ITEMS_AT_THE_SLIDE))
         return false;
-    n->note(ctx, ITEMS_NOTE_SLIDE_TICKED, 0);
     bool took_frames = menu_items_slide_takes_frames(g);
     if (took_frames)
         while (menu_items_slide_a_frame(g)) {
@@ -1074,12 +1064,10 @@ static bool slide_the_list_with(GameState *g, const ItemsSteps *n, void *ctx)
             if (!n->wait(ctx, ITEMS_AT_A_SLIDE_FRAME))
                 return false;
         }
-    n->note(ctx, ITEMS_NOTE_SLIDE_FRAMES_DONE, took_frames);
     menu_items_end_slide_frames(g);
     if (!n->point_after_sliding(ctx))
         return false;
     menu_items_finish_slide(g);
-    n->note(ctx, ITEMS_NOTE_SLIDE_DONE, 0);
     return true;
 }
 
@@ -1087,26 +1075,19 @@ static bool slide_the_list_with(GameState *g, const ItemsSteps *n, void *ctx)
  * within the rows, the list slid a row where the push brings one. */
 bool menu_point_along_the_item_list_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
 {
-    n->note(ctx, ITEMS_NOTE_POINTING, 0);
     uint8_t top = menu_item_list_top(g), to = top;
     TIMED_AS(g, 0xC293BF, to = menu_turn_page(g, top));
-    n->note(ctx, ITEMS_NOTE_PAGING_ANSWERED, to != top);
     if (to != top) {
         menu_items_turn_page(g, to);
-        n->note(ctx, ITEMS_NOTE_ROWS_REDRAWN, 0);
         bool moved = menu_items_keep_the_cursors_row(g);
-        n->note(ctx, ITEMS_NOTE_PLACE_COMPARED, 0);
         if (moved && !n->tick(ctx, ITEMS_AT_A_LISTED_ITEM_POINTED))
             return false;
         menu_items_queue_rows(g);
-        n->note(ctx, ITEMS_NOTE_ROWS_QUEUED, 0);
         return true;
     }
     TIMED_AS(g, 0xC2EA53, menu_keep_the_cursor_on_the_list(g));
-    n->note(ctx, ITEMS_NOTE_CURSOR_KEPT, 0);
     if (menu_items_slide_brings_a_row(g))
         return slide_the_list_with(g, n, ctx);
-    n->note(ctx, ITEMS_NOTE_ENDS_COMPARED, 0);
     return menu_point_at_listed_item_with(g, pf, n, ctx);
 }
 
@@ -1118,13 +1099,11 @@ bool menu_choose_on_item_list_with(GameState *g, Platform *pf, const ItemsSteps 
     menu_items_put_nothing_in_hand(g);
     n->read_cursor(ctx);
     ItemsListChoice c = menu_items_choose_on_the_list(g);
-    n->note(ctx, ITEMS_NOTE_BUTTONS_TESTED, 0);
     switch (c) {
     case LIST_ITEM_PICKED_UP:
         if (!n->tick(ctx, ITEMS_AT_AN_ITEM_PICKED_UP))
             return false;
         menu_items_pick_up(g);
-        n->note(ctx, ITEMS_NOTE_PICKED_UP, 0);
         return true;
     case LIST_LEFT:
         if (!n->tick(ctx, ITEMS_AT_THE_LIST_LEFT))
@@ -1148,7 +1127,6 @@ bool menu_move_picked_item_with(GameState *g, Platform *pf, const ItemsSteps *n,
 {
     n->read_cursor(ctx);
     ItemsMoveChoice c = menu_items_choose_where(g);
-    n->note(ctx, ITEMS_NOTE_BUTTONS_TESTED, 0);
     switch (c) {
     case MOVE_POINTED_AT: return menu_point_along_the_item_list_with(g, pf, n, ctx);
     case MOVE_PUT_DOWN:
@@ -1160,14 +1138,12 @@ bool menu_move_picked_item_with(GameState *g, Platform *pf, const ItemsSteps *n,
         if (!n->wait(ctx, ITEMS_AT_THE_LIST_PUT_BACK))
             return false;
         menu_items_back_to_the_list(g);
-        n->note(ctx, ITEMS_NOTE_ROWS_QUEUED, 0);
         break;
     case MOVE_ON_ITSELF:
         if (!n->tick(ctx, ITEMS_AT_THE_PICKED_ITEM_PUT))
             return false;
         switch (menu_items_use_of_the_picked(g)) {
         case USING_FROM_THE_MENU:
-            n->note(ctx, ITEMS_NOTE_EFFECT_TESTED, 0);
             if (!n->run(ctx, ITEMS_USES_THE_ITEM))
                 return false;
             menu_items_back_to_the_list_unchanged(g);
@@ -1193,7 +1169,6 @@ bool menu_use_item_with(GameState *g, Platform *pf, const ItemsSteps *n, void *c
 {
     (void)pf;
     ItemUseKind kind = menu_items_look_up_use(g, menu_item_operand(g));
-    n->note(ctx, ITEMS_NOTE_USE_FOUND, 0);
     switch (kind) {
     case USE_RESTORES: return n->run(ctx, ITEMS_USES_A_RESTORING_ITEM);
     case USE_RESTORES_BY_CHANCE: return n->run(ctx, ITEMS_USES_AN_ITEM_BY_CHANCE);
@@ -1213,7 +1188,6 @@ static bool leave_the_member_window_with(GameState *g, const ItemsSteps *n, void
     menu_items_close_member_window(g);
     TIMED_AS(g, 0xC2F566, menu_reset_character_records(g));
     TIMED_AS(g, 0xC28255, menu_stop_tasks(g, HELD_CURSOR_TASK));
-    n->note(ctx, ITEMS_NOTE_HELD_CURSOR_STOPPED, 0);
     menu_items_clear_member_window(g);
     return true;
 }
@@ -1231,12 +1205,10 @@ MenuItemChoiceStep menu_item_member_choice_frame_with(GameState *g, ItemUseKind 
     if (!n->run(ctx, tab ? ITEMS_POINTS_AT_A_TAB_MEMBER : ITEMS_POINTS_AT_A_MEMBER_TO_RESTORE))
         return MENU_ITEM_CHOICE_STOPPED;
     ItemsMemberChoice c = menu_items_choose_member(g);
-    n->note(ctx, ITEMS_NOTE_BUTTONS_TESTED, 0);
     if (c == MEMBERS_LEFT)
         return leave_the_member_window_with(g, n, ctx) ? MENU_ITEM_CHOICE_CLOSED : MENU_ITEM_CHOICE_STOPPED;
     if (c == MEMBER_POINTED_AT_TO_USE_ON)
         return MENU_ITEM_CHOICE_WAITING;
-    n->note(ctx, ITEMS_NOTE_HELP_LOADED, 0);
     if (!menu_items_use_helps(g)) {
         if (!n->refuse(ctx, members))
             return MENU_ITEM_CHOICE_STOPPED;
@@ -1254,7 +1226,6 @@ static bool choose_members_to_use_on_with(GameState *g, ItemUseKind kind, const 
     bool tab = kind == USE_RAISES_A_FIGURE;
     ItemsPlace members = tab ? ITEMS_AT_THE_TAB_S_MEMBERS : ITEMS_AT_THE_TONIC_S_MEMBERS;
     menu_items_start_member_choice(g);
-    n->note(ctx, ITEMS_NOTE_MEMBER_CHOICE_STARTED, (uint8_t)kind);
     if (!n->run(ctx, tab ? ITEMS_OPENS_THE_MEMBER_WINDOW_FOR_A_TAB : ITEMS_OPENS_THE_MEMBER_WINDOW_FOR_A_TONIC))
         return false;
     if (!tab && menu_items_restores_every_member(g))
@@ -1299,9 +1270,7 @@ bool menu_rest_the_party_with(GameState *g, Platform *pf, const ItemsSteps *n, v
 bool menu_use_tab_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
 {
     (void)pf;
-    n->registers_at(ctx, ITEMS_AT_THE_TAB_S_FIGURE);
     menu_items_set_figure_raised(g, menu_item_operand(g));
-    n->registers_at(ctx, ITEMS_AT_THE_TAB_S_MEMBERS);
     return choose_members_to_use_on_with(g, USE_RAISES_A_FIGURE, n, ctx);
 }
 
@@ -1330,13 +1299,10 @@ bool menu_open_member_window_with(GameState *g, Platform *pf, const ItemsSteps *
 bool menu_look_at_tab_member_with(GameState *g, Platform *pf, const ItemsSteps *n, void *ctx)
 {
     (void)pf;
-    uint8_t before = menu_use_member(g);
     bool another = menu_items_point_at_a_member(g);
-    n->note(ctx, ITEMS_NOTE_MEMBER_COMPARED, before);
     if (another && !n->tick(ctx, ITEMS_AT_A_TAB_MEMBER_POINTED))
         return false;
     menu_items_look_at_the_member(g);
-    n->note(ctx, ITEMS_NOTE_MEMBER_LOOKED_AT, 0);
     return true;
 }
 
@@ -1349,7 +1315,6 @@ bool menu_point_at_tab_member_with(GameState *g, Platform *pf, const ItemsSteps 
     if (!n->run(ctx, ITEMS_LOOKS_AT_THE_TAB_MEMBER))
         return false;
     menu_items_after_looking(g);
-    n->note(ctx, ITEMS_NOTE_BLOCKS_SET, 0);
     return true;
 }
 
@@ -1362,10 +1327,8 @@ bool menu_raise_figure_with(GameState *g, Platform *pf, const ItemsSteps *n, voi
     menu_items_show_the_raise(g);
     if (!n->run(ctx, ITEMS_SHOWS_THE_RAISE_S_AMOUNTS))
         return false;
-    n->registers_at(ctx, ITEMS_AT_THE_FIGURE_RAISED);
     menu_items_raise_the_figure(g);
     TIMED_AS(g, 0xC29137, menu_note_member_figures(g));
-    n->note(ctx, ITEMS_NOTE_FIGURES_NOTED, 0);
     return true;
 }
 
@@ -1386,7 +1349,6 @@ bool menu_close_item_users_with(GameState *g, Platform *pf, const ItemsSteps *n,
     n->read_cursor_held(ctx);
     if (!menu_items_users_closed(g))
         return true;
-    n->note(ctx, ITEMS_NOTE_USERS_BUTTONS_LOADED, 0);
     if (!n->tick(ctx, ITEMS_AT_THE_USERS_CLOSED))
         return false;
     menu_items_close_users(g);
@@ -1405,7 +1367,7 @@ bool menu_sort_items_with(GameState *g, Platform *pf, const ItemsSteps *n, void 
     return true;
 }
 
-/* ---- The steps as C ------------------------------------------------------------------------------- */
+/* ---- The steps' services ----------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
@@ -1431,9 +1393,7 @@ static bool wait(void *ctx, ItemsPlace at)
     return true;
 }
 
-/* The item on the cursor described, where its entry's guard would take the
- * state: the cursor kept on the list before it can stand where the guard
- * wouldn't. */
+/* The item on the cursor described, where the cursor is on the list. */
 static bool describe(void *ctx)
 {
     ItemScreenContext *c = ctx;
@@ -1445,13 +1405,13 @@ static bool describe(void *ctx)
     return true;
 }
 
-static const ItemsSteps in_the_program;
+static const ItemsSteps the_steps;
 
 /* The item the list slid to pointed at, as the pointing's own sequence. */
 static bool point_at_the_slid_row(void *ctx)
 {
     ItemScreenContext *c = ctx;
-    return menu_point_at_listed_item_with(c->game, c->pf, &in_the_program, c);
+    return menu_point_at_listed_item_with(c->game, c->pf, &the_steps, c);
 }
 
 static bool back_to_the_main_menu(void *ctx)
@@ -1459,8 +1419,6 @@ static bool back_to_the_main_menu(void *ctx)
     ItemScreenContext *c = ctx;
     return menu_back_to_the_main_menu(c->game, c->pf);
 }
-
-static void note(void *ctx, ItemsNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
 
 static bool refuse(void *ctx, ItemsPlace at)
 {
@@ -1470,22 +1428,19 @@ static bool refuse(void *ctx, ItemsPlace at)
     return true;
 }
 
-static void registers_at(void *ctx, ItemsPlace at) { (void)ctx, (void)at; }
-
 static bool not_taken(ItemScreenContext *c, uint32_t routine)
 {
     program_breaks_a_contract(c->game, routine, "an item's use the port doesn't take");
     return false;
 }
 
-/* A routine of the use as C where its entry's guard would take the state,
- * timed as its own. */
+/* A routine of the use, run only on the state it handles, timed as its own. */
 static bool sequence(ItemScreenContext *c, uint32_t routine, bool (*takes)(const GameState *), ItemsSequence *run)
 {
     if (!takes(c->game))
         return not_taken(c, routine);
     bool done = false;
-    TIMED_AS(c->game, routine, done = run(c->game, c->pf, &in_the_program, c));
+    TIMED_AS(c->game, routine, done = run(c->game, c->pf, &the_steps, c));
     return done;
 }
 
@@ -1523,13 +1478,13 @@ static bool run(void *ctx, ItemsRoutine r)
     return false;
 }
 
-static const ItemsSteps in_the_program = {
-    read_cursor, read_cursor_held, tick, wait, describe, point_at_the_slid_row, back_to_the_main_menu, note, refuse, registers_at,
+static const ItemsSteps the_steps = {
+    read_cursor, read_cursor_held, tick, wait, describe, point_at_the_slid_row, back_to_the_main_menu, refuse,
     run,
 };
 
-/* A step as C where its entry's guard would take the state; otherwise the
- * program goes no further there. */
+/* A step, run only on the state it handles; otherwise the program goes no
+ * further there. */
 static bool step(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(const GameState *),
                  bool (*run)(GameState *, Platform *, const ItemsSteps *, void *))
 {
@@ -1538,7 +1493,7 @@ static bool step(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(con
         return false;
     }
     ItemScreenContext c = { g, pf };
-    return run(g, pf, &in_the_program, &c);
+    return run(g, pf, &the_steps, &c);
 }
 
 bool menu_open_items(GameState *g, Platform *pf) { return step(g, pf, 0xC2AA40, menu_items_can_open, menu_open_items_with); }

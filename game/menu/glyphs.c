@@ -20,7 +20,7 @@
  * below.
  *
  * The typesetter (typeset.c) draws each glyph with menu_put_glyph. The
- * drawer's own entries ($C2:5E36, a whole glyph; $C2:5E89, a line of one)
+ * drawer's own routines ($C2:5E36, a whole glyph; $C2:5E89, a line of one)
  * take the glyph and the pen from the glyph page's cells, as the original's
  * setter leaves them there. */
 #include "menu/glyphs.h"
@@ -75,8 +75,8 @@ static Glyph glyph_numbered(uint16_t glyph)
 
 static Pen pen_at(uint8_t x) { return (Pen){ (uint8_t)(x / TILE_WIDTH), (uint8_t)(x % TILE_WIDTH) }; }
 
-/* A line of the glyph in one bitplane (`byte` of its 24; the drawer's index
- * is a word, which the line entry takes as its caller leaves it), its 12
+/* A line of the glyph in one bitplane (`byte` of its 24, counted in a word
+ * as the original counts it), its 12
  * pixels in the top of 16 bits. */
 static uint16_t glyph_pixels(const GameState *g, Glyph glyph, uint16_t byte)
 {

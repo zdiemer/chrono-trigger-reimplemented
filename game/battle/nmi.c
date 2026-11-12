@@ -8,14 +8,9 @@
  * and, on alternate frames, applies the alternating-frame setting or runs the
  * tile animation uploads.
  *
- * What each handler does to the game is C on the game's state. The entries
- * save and restore the interrupted code's registers around it, and with them
- * the scratch at the bottom of the direct page the frame work reuses and the
- * multiplier's or divider's operands the interrupted code may be relying on:
- * that is the interrupted code's context, not the battle's, so it lives in the
- * entries. The handlers run on the battle's page; the code they call leaves
- * the data bank at $7E, which they rely on, and a call that doesn't hands the
- * rest back to the original. */
+ * The vblank handler moves the battle's low work cells, which the frame work
+ * reuses as scratch, aside around its work and puts them back after, so the
+ * work it interrupted finds them as it left them. */
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
@@ -113,15 +108,14 @@ static void take_frame_advance(GameState *g, Platform *pf)
 
 /* ---- The interrupted code's context --------------------------------------------------------- */
 
-/* The direct page's bottom bytes, which the frame work uses as scratch, are
+/* The battle's low work cells, which the frame work uses as scratch, are
  * moved aside around it. */
 enum { SCRATCH_BYTES = 43, SCRATCH_ASIDE = 0xCC65 };
 
 /* ---- The vblank handler ----------------------------------------------------------------- */
 
-/* The frame work for the battle's mode reads A's high byte and Y (the block
- * move's end); the game's per-frame work reads nothing. */
-enum { FRAME_WORK = 0xCD0C95, GAME_FRAME = BATTLE_SCROLL_MAP_LAYERS_ENTRY };
+/* The game's per-frame work, the map's layers scrolled. */
+enum { GAME_FRAME = BATTLE_SCROLL_MAP_LAYERS_ENTRY };
 
 /* The handler's calls on the battle's other routines: the scratch moved aside
  * and back, the frame work for the battle's mode (battle/frame.c), and the
@@ -162,7 +156,6 @@ static bool take_the_vblank(GameState *g, Platform *pf, const VblankCalls *calls
     return true;
 }
 
-/* As C. */
 typedef struct {
     GameState *game;
     Platform *pf;
@@ -254,7 +247,7 @@ static bool take_the_line(GameState *g, Platform *pf, bool (*tile_animation_uplo
     return true;
 }
 
-/* As C, the uploads' guard turning away only the machine's stack. */
+/* The tile animations' uploads. */
 static bool tile_animation_uploads(void *ctx)
 {
     BattleHandlerContext *c = ctx;

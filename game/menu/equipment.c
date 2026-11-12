@@ -21,10 +21,8 @@
  * menu. The main menu shows the member list and the card dimmed beside it
  * while its cursor is on the equipment (the panel).
  *
- * This file is what the game does; equipment_bridge.c runs it on the
- * original's machine, calling out to what is still the original's between
- * the parts here: the member list's scroll bar, the low-HP marks, the trying
- * on of what is no item of the game's, the frames the screen waits. */
+ * This file is what the game does; equipment_bridge.c says what each step
+ * needs of the state before it runs. */
 #include "menu/equipment.h"
 
 #include "charge.h"
@@ -127,7 +125,7 @@ void menu_list_what_fits(GameState *g)
     }
 }
 
-/* The guard's: a slot of the four, an empty item of no power to end the
+/* Whether the list can be made: a slot of the four, an empty item of no power to end the
  * scan, and room in the list for all that fits and its end. */
 bool menu_list_what_fits_can_be_made(const GameState *g)
 {
@@ -327,7 +325,7 @@ void menu_equip_start_member_slide(GameState *g, Platform *pf)
  * kept a word wide, with the byte after it, which the bar's own task counts
  * with between frames. (The original takes the way from whether the rows'
  * line carried as it moved, which for the lines a slide starts from is the
- * step's sign; the slide's guard holds it to those.) */
+ * step's sign; the slide runs only from those.) */
 static void move_thumb(GameState *g, bool up)
 {
     uint16_t thumb = menu_scroll_bar_thumb_word(g);
@@ -653,7 +651,7 @@ void menu_equip_move_list_rows(GameState *g) { menu_move_list_rows(g, LIST_ROWS_
 /* With the main menu's cursor on the equipment, the member list and the card
  * are drawn beside the main menu, dimmed: the panel's window, the rows' per-
  * line tables at rest, the time played, the rows from the list's first, the
- * card for the cursor's member (the bridge runs it), the highlight's colours
+ * card for the cursor's member, the highlight's colours
  * and the dimmed ones. The list's scroll is brought within the reachable
  * members, and the cursor onto an active member; the menus' fourth task is
  * held a frame longer as the panel starts. */
@@ -736,7 +734,6 @@ void menu_equip_panel_put_away(GameState *g)
  * the colour math and the member's card, then the screen behind dimmed. */
 bool menu_show_equipment_panel_with(GameState *g, Platform *pf, const MainMenuSteps *n, void *ctx)
 {
-    uint8_t row_before = menu_member_row(g);
     menu_equip_panel_lay_out_list(g, pf);
     if (!n->wait(ctx, MAIN_MENU_AT_THE_EQUIPMENT_LAID_OUT))
         return false;
@@ -744,14 +741,13 @@ bool menu_show_equipment_panel_with(GameState *g, Platform *pf, const MainMenuSt
     if (!n->wait(ctx, MAIN_MENU_AT_THE_EQUIPMENT_DRAWN))
         return false;
     menu_equip_panel_set_colour_math(g, pf);
-    n->note(ctx, MAIN_MENU_NOTE_EQUIPMENT_TESTED, row_before);
     if (!n->member_card(ctx))
         return false;
     menu_equip_panel_dim(g);
     return true;
 }
 
-/* ---- What the steps can run on (the guards') --------------------------------------------------- */
+/* ---- What the steps can run on ----------------------------------------------------------------- */
 
 /* The panel's: room for its four uploads and its colours, and the panel
  * drawable. */
@@ -847,7 +843,6 @@ bool menu_choose_equipment_member_with(GameState *g, Platform *pf, const Equipme
 {
     n->read_cursor(ctx);
     MemberChoice c = menu_equip_choose_member(g);
-    n->note(ctx, EQUIPMENT_NOTE_MEMBER_STEP_TESTED, 0);
     switch (c) {
     case MEMBER_LEFT_FOR_THE_MAIN_MENU: return n->ends(ctx, EQUIPMENT_GOES_BACK_TO_THE_MAIN_MENU);
     case MEMBER_POINTED_AT: return n->ends(ctx, EQUIPMENT_POINTS_AT_A_MEMBER);
@@ -874,9 +869,7 @@ bool menu_point_at_equipment_member_with(GameState *g, Platform *pf, const Equip
         menu_equip_take_cursor_round_members(g);
     else if (menu_equip_push_slides_members(g) && !n->run(ctx, EQUIPMENT_SLIDES_MEMBERS))
         return false;
-    uint8_t pointed_before = menu_member_pointed(g);
     bool another = menu_equip_point_at_member(g);
-    n->note(ctx, EQUIPMENT_NOTE_MEMBER_POINTED, pointed_before);
     if (another && !n->tick(ctx, EQUIPMENT_AT_THE_MEMBER_POINTED))
         return false;
     return n->ends(ctx, EQUIPMENT_SHOWS_THE_CARD);
@@ -891,11 +884,8 @@ bool menu_start_sliding_equipment_members_with(GameState *g, Platform *pf, const
     MemberListSlide slide = menu_equip_slide_members(g);
     if (slide == NO_MEMBER_SLIDE)
         return true;
-    n->note(ctx, EQUIPMENT_NOTE_MEMBER_SLIDE_STARTED, (uint8_t)slide);
-    n->registers_at(ctx, EQUIPMENT_AT_THE_MEMBER_SLIDE_STARTING);
     if (!n->run(ctx, slide == MEMBERS_SLIDE_UP ? EQUIPMENT_SLIDES_THE_MEMBER_ROWS_UP : EQUIPMENT_SLIDES_THE_MEMBER_ROWS_DOWN))
         return false;
-    n->registers_at(ctx, EQUIPMENT_AT_THE_MEMBER_SLIDE_ENDED);
     return true;
 }
 
@@ -909,7 +899,6 @@ bool menu_slide_equipment_members_with(GameState *g, Platform *pf, const Equipme
         if (!n->wait(ctx, EQUIPMENT_AT_THE_MEMBERS_SLIDING))
             return false;
     menu_equip_finish_member_slide(g);
-    n->registers_at(ctx, EQUIPMENT_AT_THE_MEMBERS_SLID);
     return true;
 }
 
@@ -920,7 +909,6 @@ bool menu_open_the_slots_window_with(GameState *g, Platform *pf, const Equipment
 {
     MenuWindowSlide w;
     menu_equip_start_slots_slide(g, pf, &w);
-    n->registers_at(ctx, EQUIPMENT_AT_THE_SLOTS_SLIDING);
     do
         if (!n->wait(ctx, EQUIPMENT_AT_THE_SLOTS_SLIDING))
             return false;
@@ -940,7 +928,6 @@ bool menu_close_the_slots_window_with(GameState *g, Platform *pf, const Equipmen
         return false;
     MenuWindowSlide w;
     menu_equip_start_members_slide(g, &w);
-    n->registers_at(ctx, EQUIPMENT_AT_THE_MEMBERS_SLIDING_BACK);
     do
         if (!n->wait(ctx, EQUIPMENT_AT_THE_MEMBERS_SLIDING_BACK))
             return false;
@@ -965,7 +952,6 @@ bool menu_choose_equipment_slot_with(GameState *g, Platform *pf, const Equipment
     (void)pf;
     n->read_cursor(ctx);
     SlotChoice c = menu_equip_choose_slot(g);
-    n->note(ctx, EQUIPMENT_NOTE_SLOT_STEP_TESTED, (uint8_t)c);
     switch (c) {
     case SLOT_LEFT_FOR_THE_MEMBERS:
         if (!n->tick(ctx, EQUIPMENT_AT_THE_SLOTS_LEFT) || !n->run(ctx, EQUIPMENT_CLOSES_THE_SLOTS_WINDOW))
@@ -990,19 +976,14 @@ bool menu_point_at_equipment_slot_with(GameState *g, Platform *pf, const Equipme
 {
     (void)pf;
     TIMED_AS(g, 0xC2A38B, menu_equip_take_slot(g));
-    n->note(ctx, EQUIPMENT_NOTE_LABEL_COPIED, 0);
     if (!n->run(ctx, EQUIPMENT_SWITCHES_MEMBERS))
         return false;
-    uint8_t kept_before = menu_equip_kept_slot(g);
     bool moved = menu_equip_keep_slot(g);
-    n->note(ctx, EQUIPMENT_NOTE_SLOT_KEPT, kept_before);
     if (moved && !n->tick(ctx, EQUIPMENT_AT_THE_SLOT_MOVED))
         return false;
     TIMED_AS(g, 0xC2A3E2, menu_equip_mark_slots(g));
     menu_equip_show_slots(g);
-    uint8_t shown_before = menu_equip_shown(g);
     bool another = menu_equip_list_is_for_another_slot(g);
-    n->note(ctx, EQUIPMENT_NOTE_LIST_SUM, shown_before);
     return !another || (n->wait(ctx, EQUIPMENT_AT_THE_SLOT_POINTED) && n->run(ctx, EQUIPMENT_REDRAWS_THE_LIST_FOR_THE_SLOT));
 }
 
@@ -1013,7 +994,6 @@ bool menu_switch_equipment_member_with(GameState *g, Platform *pf, const Equipme
 {
     (void)pf;
     bool switched = menu_equip_switch_member(g);
-    n->note(ctx, EQUIPMENT_NOTE_MEMBER_SWITCHED, 0);
     if (!switched)
         return true;
     if (!n->tick(ctx, EQUIPMENT_AT_THE_MEMBER_SWITCHED) || !n->run(ctx, EQUIPMENT_REDRAWS_THE_CARD))
@@ -1028,7 +1008,6 @@ bool menu_slide_the_equipment_list_in_with(GameState *g, Platform *pf, const Equ
 {
     MenuListSlide w;
     menu_equip_start_list_slide(g, pf, &w);
-    n->registers_at(ctx, EQUIPMENT_AT_THE_LIST_SLIDING_IN);
     while (menu_equip_slide_list_in_a_frame(g, &w))
         if (!n->wait(ctx, EQUIPMENT_AT_THE_LIST_SLIDING_IN))
             return false;
@@ -1041,7 +1020,6 @@ bool menu_slide_the_equipment_list_out_with(GameState *g, Platform *pf, const Eq
 {
     MenuListSlide w;
     menu_equip_start_list_closing(g, pf, &w);
-    n->registers_at(ctx, EQUIPMENT_AT_THE_LIST_SLIDING_OUT);
     while (menu_equip_slide_list_out_a_frame(g, &w))
         if (!n->wait(ctx, EQUIPMENT_AT_THE_LIST_SLIDING_OUT))
             return false;
@@ -1054,16 +1032,12 @@ bool menu_slide_the_equipment_list_out_with(GameState *g, Platform *pf, const Eq
  * task, and drawn. */
 bool menu_make_the_equipment_list_with(GameState *g, Platform *pf, const EquipmentSteps *n, void *ctx)
 {
-    (void)pf;
-    n->registers_at(ctx, EQUIPMENT_AT_THE_LIST_BEING_MADE);
+    (void)pf, (void)n, (void)ctx;
     TIMED_AS(g, 0xC28953, menu_list_what_fits(g));
     menu_equip_lay_out_list(g);
-    n->registers_at(ctx, EQUIPMENT_AT_THE_LIST_FRAMED);
-    n->note(ctx, EQUIPMENT_NOTE_LIST_FRAMED, 0);
     menu_equip_set_list_bar(g);
     TIMED_AS(g, 0xC28B93, menu_start_the_scroll_bar(g));
     TIMED_AS(g, 0xC2A569, menu_equip_draw_list(g));
-    n->note(ctx, EQUIPMENT_NOTE_LIST_DRAWN, 0);
     return true;
 }
 
@@ -1072,7 +1046,6 @@ bool menu_make_the_equipment_list_with(GameState *g, Platform *pf, const Equipme
 bool menu_redraw_the_equipment_list_with(GameState *g, Platform *pf, const EquipmentSteps *n, void *ctx)
 {
     menu_equip_place_list_bar(g, true);
-    n->note(ctx, EQUIPMENT_NOTE_LIST_BAR_PLACED, 0);
     return menu_make_the_equipment_list_with(g, pf, n, ctx);
 }
 
@@ -1085,14 +1058,10 @@ bool menu_open_the_equipment_list_with(GameState *g, Platform *pf, const Equipme
     if (!n->run(ctx, EQUIPMENT_SLIDES_THE_LIST_IN))
         return false;
     menu_equip_show_list_window(g, pf);
-    n->note(ctx, EQUIPMENT_NOTE_LIST_WINDOW_SHOWN, 0);
     if (!n->run(ctx, EQUIPMENT_MAKES_THE_LIST))
         return false;
-    uint8_t typing_starts = 0;
-    typing_starts = menu_equip_opening_starts_typing(g);
     menu_equip_open_the_list(g);
     menu_equip_settle_the_list(g);
-    n->note(ctx, EQUIPMENT_NOTE_LIST_OPENED, typing_starts);
     return n->ends(ctx, EQUIPMENT_TICKS_ON_THE_LIST);
 }
 
@@ -1107,7 +1076,6 @@ bool menu_back_on_the_equipment_slots_with(GameState *g, Platform *pf, const Equ
     menu_equip_redraw_slots(g, pf);
     if (!n->wait(ctx, EQUIPMENT_AT_THE_SLOTS_REDRAWN))
         return false;
-    n->note(ctx, EQUIPMENT_NOTE_SLOTS_REDRAWN, 0);
     if (!n->run(ctx, EQUIPMENT_SLIDES_THE_LIST_OUT) || !n->run(ctx, EQUIPMENT_REDRAWS_THE_LIST_ON_THE_SLOTS))
         return false;
     menu_equip_slots_at_rest(g);
@@ -1125,7 +1093,6 @@ static bool back_to_the_slots_with(GameState *g, const EquipmentSteps *n, void *
     if (!n->tick(ctx, EQUIPMENT_AT_THE_ITEM_LEFT))
         return false;
     menu_equip_return_to_the_kept_slot(g);
-    n->note(ctx, EQUIPMENT_NOTE_CURSOR_LOADED, 0);
     if (!n->run(ctx, EQUIPMENT_GOES_BACK_ON_THE_SLOTS))
         return false;
     menu_equip_back_to_the_slots(g);
@@ -1143,11 +1110,9 @@ bool menu_choose_equipment_item_with(GameState *g, Platform *pf, const Equipment
     (void)pf;
     n->read_cursor(ctx);
     ItemChoice c = menu_equip_choose_item(g);
-    n->note(ctx, EQUIPMENT_NOTE_BUTTONS_TESTED, 0);
     switch (c) {
     case ITEM_CHOSEN:
         menu_equip_put_on_the_chosen_item(g);
-        n->note(ctx, EQUIPMENT_NOTE_INVENTORY_CHANGED, 0);
         if (!n->run(ctx, EQUIPMENT_PLAYS_THE_PUT_ON_SOUND) || !n->run(ctx, EQUIPMENT_FORGETS_THE_WEAPON))
             return false;
         return back_to_the_slots_with(g, n, ctx);
@@ -1155,8 +1120,6 @@ bool menu_choose_equipment_item_with(GameState *g, Platform *pf, const Equipment
     case ITEM_POINTED_AT:
         if (!n->run(ctx, EQUIPMENT_POINTS_ALONG_THE_LIST) || !n->run(ctx, EQUIPMENT_TRIES_IT_ON))
             return false;
-        n->registers_at(ctx, EQUIPMENT_AT_THE_ITEM_POINTED);
-        n->note(ctx, EQUIPMENT_NOTE_CURSOR_COMPARED, 0);
         return menu_cursor_frame_start(g) == menu_cursor_index(g) || n->tick(ctx, EQUIPMENT_AT_THE_ITEM_POINTED);
     }
     return false;
@@ -1176,31 +1139,24 @@ bool menu_point_along_equipment_list_with(GameState *g, Platform *pf, const Equi
     TIMED_AS(g, 0xC293BF, to = menu_turn_page(g, top));
     if (to != top) {
         menu_equip_turn_list_page(g, to);
-        n->note(ctx, EQUIPMENT_NOTE_PAGE_TURNED, 0);
         TIMED_AS(g, 0xC2A569, menu_equip_draw_list(g));
-        n->note(ctx, EQUIPMENT_NOTE_LIST_DRAWN, 0);
         if (!n->tick(ctx, EQUIPMENT_AT_THE_PAGE_TURNED))
             return false;
         menu_equip_queue_list_rows(g);
         return true;
     }
     TIMED_AS(g, 0xC2EA53, menu_keep_the_cursor_on_the_list(g));
-    n->note(ctx, EQUIPMENT_NOTE_CURSOR_KEPT, 0);
     uint8_t row = menu_equip_list_row(g);
     bool slides = menu_equip_list_slide_brings_a_row(g, row);
-    n->note(ctx, EQUIPMENT_NOTE_ROW_NOTED, row);
     if (!slides)
         return true;
     menu_equip_set_up_list_slide(g);
     TIMED_AS(g, 0xC2EB9B, menu_start_list_slide(g));
     menu_equip_bring_in_list_row(g, row);
-    n->note(ctx, EQUIPMENT_NOTE_ROW_FOUND, 0);
     TIMED_AS(g, 0xC2A59A, menu_equip_draw_list_row(g, NEW_LIST_ROW_AT));
     menu_equip_queue_list_rows(g);
-    n->note(ctx, EQUIPMENT_NOTE_LIST_ROWS_QUEUED, 0);
     if (!n->tick(ctx, EQUIPMENT_AT_THE_ROW_BROUGHT_IN))
         return false;
-    n->registers_at(ctx, EQUIPMENT_AT_THE_LIST_ROWS_SLIDING);
     if (menu_equip_start_list_slide_frames(g)) {
         menu_equip_slide_list_a_frame(g);
         while (menu_equip_list_slide_frames_left(g)) {
@@ -1214,7 +1170,7 @@ bool menu_point_along_equipment_list_with(GameState *g, Platform *pf, const Equi
     return true;
 }
 
-/* ---- The steps as C ------------------------------------------------------------------------------ */
+/* ---- The steps' services ----------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
@@ -1239,10 +1195,6 @@ static bool wait(void *ctx, EquipmentPlace at)
     return true;
 }
 
-static void registers_at(void *ctx, EquipmentPlace at) { (void)ctx, (void)at; }
-
-static void note(void *ctx, EquipmentNote note, uint8_t value) { (void)ctx, (void)note, (void)value; }
-
 static bool reject_operation(EquipmentContext *c, uint32_t routine, const char *what)
 {
     program_breaks_a_contract(c->game, routine, what);
@@ -1254,16 +1206,15 @@ static bool not_taken(EquipmentContext *c, uint32_t routine)
     return reject_operation(c, routine, "an equipment screen the port doesn't take");
 }
 
-static const EquipmentSteps in_the_program;
+static const EquipmentSteps the_steps;
 
-/* A routine as C where its entry's guard would take the state, timed as its
- * own. */
+/* A routine, run only on the state it handles, timed as its own. */
 static bool sequence(EquipmentContext *c, uint32_t routine, bool (*takes)(const GameState *), EquipmentSequence *run)
 {
     if (takes && !takes(c->game))
         return not_taken(c, routine);
     bool done = false;
-    TIMED_AS(c->game, routine, done = run(c->game, c->pf, &in_the_program, c));
+    TIMED_AS(c->game, routine, done = run(c->game, c->pf, &the_steps, c));
     return done;
 }
 
@@ -1324,8 +1275,8 @@ static bool run(void *ctx, EquipmentRoutine r)
     return false;
 }
 
-/* The steps' ends: the routine each goes on in, as C where its entry's
- * guard would take the state, timed as its own. */
+/* The steps' ends: the routine each goes on in, run only on the state it
+ * handles, timed as its own. */
 static bool ends(void *ctx, EquipmentEnd end)
 {
     EquipmentContext *c = ctx;
@@ -1357,12 +1308,12 @@ static bool ends(void *ctx, EquipmentEnd end)
     return false;
 }
 
-static const EquipmentSteps in_the_program = { read_cursor, tick, wait, registers_at, run, note, ends };
+static const EquipmentSteps the_steps = { read_cursor, tick, wait, run, ends };
 
 bool menu_open_equipment(GameState *g, Platform *pf)
 {
     EquipmentContext c = { g, pf };
-    return menu_open_equipment_with(g, pf, &in_the_program, &c);
+    return menu_open_equipment_with(g, pf, &the_steps, &c);
 }
 
 bool menu_choose_equipment_member(GameState *g, Platform *pf)
@@ -1370,7 +1321,7 @@ bool menu_choose_equipment_member(GameState *g, Platform *pf)
     EquipmentContext c = { g, pf };
     if (!menu_equip_can_choose_a_member(g))
         return not_taken(&c, 0xC29C39);
-    return menu_choose_equipment_member_with(g, pf, &in_the_program, &c);
+    return menu_choose_equipment_member_with(g, pf, &the_steps, &c);
 }
 
 bool menu_choose_equipment_slot(GameState *g, Platform *pf)
@@ -1378,7 +1329,7 @@ bool menu_choose_equipment_slot(GameState *g, Platform *pf)
     EquipmentContext c = { g, pf };
     if (!menu_cursor_can_move(g))
         return not_taken(&c, 0xC29C70);
-    return menu_choose_equipment_slot_with(g, pf, &in_the_program, &c);
+    return menu_choose_equipment_slot_with(g, pf, &the_steps, &c);
 }
 
 bool menu_choose_equipment_item(GameState *g, Platform *pf)
@@ -1386,12 +1337,11 @@ bool menu_choose_equipment_item(GameState *g, Platform *pf)
     EquipmentContext c = { g, pf };
     if (!menu_equip_can_choose_an_item(g))
         return not_taken(&c, 0xC29CA5);
-    return menu_choose_equipment_item_with(g, pf, &in_the_program, &c);
+    return menu_choose_equipment_item_with(g, pf, &the_steps, &c);
 }
 
 /* The list of what fits made ($C2:A463), and the cursor moved along it
- * ($C2:9F05), as C for the shop's equipping, where their entries' guards
- * would take the state. */
+ * ($C2:9F05), for the shop's equipping, where the state is one they handle. */
 bool menu_make_equipment_list(GameState *g, Platform *pf)
 {
     EquipmentContext c = { g, pf };

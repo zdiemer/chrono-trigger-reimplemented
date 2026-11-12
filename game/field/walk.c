@@ -40,7 +40,6 @@
 #include "field/layers.h"
 #include "field/parts.h"
 #include "field/party.h"
-#include "field/scratch.h"
 #include "field/streaming.h"
 #include "vars.h"
 
@@ -129,7 +128,7 @@ static uint8_t crossing_byte(uint8_t lower, uint8_t shift) { return (uint8_t)(lo
 
 /* The byte of the layers' page the original notes a climb in is the one the
  * layers' edges keep their wrap in (field/layers.c), which reads it there
- * after the walk: the walk leaves it as the original does. */
+ * after the walk: the walk writes it as the original does. */
 enum { CLIMB_NOTED = 0x04 };
 
 static void note_climb(GameState *g, bool climb)
@@ -728,8 +727,8 @@ static bool screen_follows(GameState *g, FieldLeader leader, Axis axis, bool for
             screen > edge ? false : (uint8_t)(fine_scroll(g, axis) + pixels) < FIELD_MAP_TILE_PIXELS;
         if (axis == AXIS_Y && !follows) {
             work->screen_back = true;
-            /* The old downward check also left a backward check: three
-             * edge reads and, at the edge, one fine-scroll read. */
+            /* The original's downward check makes a backward check too:
+             * three edge reads and, at the edge, one fine-scroll read. */
             charge_legacy_accesses(g, screen == edge ? 4 : 3);
         }
         return follows;
@@ -919,12 +918,11 @@ void party_start_on_the_map(GameState *g)
     charge_walk_work(g, work, 2); /* the initial probe's two fine coordinates */
 }
 
-/* ---- The entries -------------------------------------------------------------------------------- */
+/* ---- The walk and the recentring ---------------------------------------------------------------- */
 
 /* The walk and the screen's step back toward the party, each with the layers
- * scrolled after it -- as C, or on the machine by the original's calls (the
- * recentring's first step from a call of its own) -- false where the scroll
- * went no further. */
+ * scrolled after it (the recentring's first step from a call of its own);
+ * false where the scroll went no further. */
 typedef enum { SCROLL_AFTER_THE_WALK, SCROLL_AS_RECENTRING_STARTS, SCROLL_AS_IT_RECENTRES } LayersScroll;
 typedef bool (*ScrollTheLayers)(void *ctx, LayersScroll after);
 
@@ -947,9 +945,9 @@ static bool recentre(GameState *g, ScrollTheLayers scroll, void *ctx)
     return true;
 }
 
-/* The same as C: the layers scrolled and streamed; false where the layers'
- * maps don't repeat within the map's tables, which only the original streams
- * (the program goes no further). */
+/* The layers scrolled and streamed; false where the layers' maps don't
+ * repeat within the map's tables, which the port doesn't stream (the program
+ * goes no further). */
 enum { LAYER_SCROLL = 0xC091AC, LAYERS_STREAMED = 0xC093E1 };
 
 static bool scroll(void *ctx, LayersScroll after)
@@ -967,7 +965,7 @@ static bool scroll(void *ctx, LayersScroll after)
 
 static bool walk_fits(const GameState *g);
 
-/* As C the walk's guard's state half is checked first. */
+/* The walk, where the port takes it (walk_fits). */
 bool field_the_leader_walks(GameState *g)
 {
     if (!walk_fits(g)) {
@@ -977,7 +975,7 @@ bool field_the_leader_walks(GameState *g)
     return walk_the_leader(g, scroll, g);
 }
 
-/* The guard's state half: the leader an object the tables hold where the
+/* The recentring the port takes: the leader an object the tables hold where the
  * recentring looks at it, as it starts with the screen off the grid. A scene
  * that has taken the party off the map (Zeal's fall, its leader's place the
  * word $FFFE) recentres a screen already on the grid, and reads nobody. */
@@ -998,15 +996,14 @@ bool field_the_screen_recentres(GameState *g)
     return recentre(g, scroll, g);
 }
 
-/* The guards. The walk reads the ROM's tables and the requests through the
- * data bank, on the field's page; the leader is an object the tables hold,
+/* The walk the port takes: the leader is an object the tables hold,
  * or an empty place's marker the original can read as a slot (FieldLeader), as
  * the game keeps its place (a word whose high byte is 0). Only a step that
  * meets the map reads where the leader stands and what is around it: there
  * the search for objects starts somewhere (a count of 0, or 128, would start
  * it on object 0, which no map has); the map's tables are indexed within
  * their 64 by 64; and the leader's box's right side is inside the 16-bit
- * range, past whose end the original's sums carry into the slope's. Down,
+ * range, past whose end the original's sums run on into the slope's. Down,
  * the walk takes any place: a leader above the map's top (Marle jumping
  * onto the Epoch at Dalton's, her place $FFBD) walks as the original
  * does, its looks wrapping round the map's rows. A leader carried past the

@@ -123,7 +123,7 @@ static void set_up_gate_screen(GameState *g)
         set_menu_gate_screen_state(g, GATE_SCREEN_COUNTS + i, menu_gate_screen_setup(g, i));
 }
 
-/* ---- The checked legacy adapters ------------------------------------------------------------------- */
+/* ---- The screen started, and its task --------------------------------------------------------- */
 
 /* The swirl's graphics go where the menus unpack graphics before they send
  * them to VRAM. */
@@ -162,15 +162,14 @@ enum { SWIRL_LINE_EFFECT = 0x10, FRAMES_A_TURN = 2 };
 
 // $C2:CECE (with $C2:CEC2, its wait)
 /* The screen's task: the swirl turned, its line effect kept on, and two
- * frames waited, round and round. The original waits with the turn's last
- * band's scroll in A's high byte. */
+ * frames waited, round and round. */
 static void turn_the_swirl(GameState *g)
 {
     TIMED_AS(g, 0xFFF716, menu_turn_gate_swirl(g));
     set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) | SWIRL_LINE_EFFECT));
 }
 
-/* As C, each turn where the task's guard's state half takes it. */
+/* Each turn, while the swirl can turn as it stands. */
 void menu_gate_screen_task(GameState *g, Platform *pf)
 {
     (void)pf;

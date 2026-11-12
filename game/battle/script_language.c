@@ -82,15 +82,15 @@ static uint8_t script_byte(const GameState *g, uint32_t at)
 
 uint8_t script_operand(const GameState *g, unsigned k) { return script_byte(g, (battle_script_pointer(g) + k) & 0xFFFFFF); }
 
-/* Low RAM, the direct page's among it, is bank $7E's start and mirrored in
- * the first quarter of each half of the banks. */
-enum { WORK_RAM_BANK = 0x7E, HALF_OF_THE_BANKS = 0x7F, LOW_RAM_MIRRORS_END = 0x40, DIRECT_PAGE_END = 0x100 };
+/* Low RAM, the battle's low work cells among it, is bank $7E's start and
+ * mirrored in the first quarter of each half of the banks. */
+enum { WORK_RAM_BANK = 0x7E, HALF_OF_THE_BANKS = 0x7F, LOW_RAM_MIRRORS_END = 0x40, WORK_CELLS_END = 0x100 };
 
-bool script_over_the_direct_page(const GameState *g)
+bool script_over_the_work_cells(const GameState *g)
 {
     uint32_t at = battle_script_pointer(g);
     uint8_t bank = (uint8_t)(at >> 16);
-    return (at & 0xFFFF) < DIRECT_PAGE_END && (bank == WORK_RAM_BANK || (bank & HALF_OF_THE_BANKS) < LOW_RAM_MIRRORS_END);
+    return (at & 0xFFFF) < WORK_CELLS_END && (bank == WORK_RAM_BANK || (bank & HALF_OF_THE_BANKS) < LOW_RAM_MIRRORS_END);
 }
 
 /* ---- What a command in C needs -------------------------------------------------------- */
@@ -178,7 +178,7 @@ static bool names_known_places(const GameState *g, const ScriptOpcode *row)
 
 bool script_runs_here(const GameState *g, const ScriptOpcode *row)
 {
-    if (script_over_the_direct_page(g))
+    if (script_over_the_work_cells(g))
         return false;
     return needs_met(g, row) && names_known_places(g, row);
 }

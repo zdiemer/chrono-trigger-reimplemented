@@ -75,7 +75,7 @@ static bool wave(GameState *g, Platform *pf, MenuObject self)
 }
 
 // $C2:7759
-/* The object's turn as C: it is never done. */
+/* The object's turn: it is never done. */
 MenuTurn menu_shimmer_turn(GameState *g, Platform *pf, MenuObject self)
 {
     (void)wave(g, pf, self);

@@ -16,7 +16,7 @@
  * Choosing Attack, or a tech or an item that can be used, starts choosing its
  * target; confirming the target queues the member's action and the menu goes
  * to the next member waiting. Each move of a cursor clicks, which the menu's
- * host plays (battle/menu_bridge.c on the machine).
+ * host plays (battle/menu_bridge.c).
  *
  * Before the buttons, an item a member has stolen joins the item list, and
  * while no target is being chosen a frame of four sprites surrounds the
@@ -680,17 +680,15 @@ void battle_menu_frame(GameState *g, Buttons buttons, MenuHost *host)
     set_battle_menu_buttons(g, 0);
 }
 
-/* ---- The guards --------------------------------------------------------------------------------- */
+/* ---- What the menu's frame takes ------------------------------------------------------------------ */
 
 /* What the menu's frame takes on trust beside the window's state
- * (battle_menu_window_ready): the menu's slot one of the three or none; a
+ * (battle_menu_window_fits): the menu's slot one of the three or none; a
  * member's tech list no longer than its twenty, its cursor's entry inside
  * them; the queue room for another action; the selected tech's partners
  * party slots; the chosen item's place a record's, and the item list's top no
  * further than the list goes; a stolen item a place to
- * go; and the tech list not being laid out, which no frame sees. The
- * original carries A's high byte into the indexes it finds the member's
- * records with, as the game's is clear. */
+ * go; and the tech list not being laid out, which no frame sees. */
 static bool partners_fit(uint8_t partners)
 {
     return partners == NO_PARTNERS

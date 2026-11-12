@@ -9,14 +9,13 @@
  * whether a character has been recruited (is in any of the nine) or is in the
  * active party, recruits one into the reserve, dismisses one, brings one into
  * the active party, or sends one of the active party to the reserve, through
- * the menus' services, which the original reaches with a long call
- * ($C2:8004) and the port calls as C (menu/party.h). On the map, the
- * characters' objects follow: one joining becomes the next member's, and the
- * members behind one sent away close up, with their palettes.
+ * the menus' services ($C2:8004, menu/party.h). On the map, the characters'
+ * objects follow: one joining becomes the next member's, and the members
+ * behind one sent away close up, with their palettes.
  *
- * The commands are bridges still: what they hand back is the carry the
- * command was entered with, and the Y the menus' services leave, which the
- * original's code after them and shadow mode see. */
+ * These commands read their own operands (event/engine.h,
+ * EVENT_UNDECODED_COMMANDS), and whether the object's turn goes on after
+ * one is worked out as the original's engine decides it. */
 #include "battle/battle.h"
 #include "charge.h"
 #include "event/engine.h"
@@ -240,11 +239,12 @@ static bool goes_on_after_sending(const GameState *g, uint8_t character, bool en
     return at_least;
 }
 
-/* ---- As C, with no machine ------------------------------------------------------------------ */
+/* ---- The commands ------------------------------------------------------------------------- */
 
-/* The commands that call the menus' services, as C: the carry the
- * original's dispatch leaves them is clear. */
-enum { THE_DISPATCH_LEAVES_THE_CARRY = false };
+/* After the commands that call the menus' services the object's turn ends:
+ * the original's dispatch reaches them with the carry clear, which its
+ * engine takes as the turn's end. */
+enum { THE_TURN_GOES_ON_AFTER_THE_MENUS = false };
 
 bool event_bring_into_the_party(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
@@ -252,7 +252,7 @@ bool event_bring_into_the_party(GameState *g, Platform *pf, uint16_t at, EventSt
     uint8_t character = event_decode(g, pf, event_opcode(0xD3), at).character;
     TIMED_AS(g, MENUS_SERVICES, ((void)party_bring_in(g, character), shown(g)));
     object_joins_the_party(g, character);
-    *step = (EventStep){ (uint16_t)(at + LENGTH), THE_DISPATCH_LEAVES_THE_CARRY };
+    *step = (EventStep){ (uint16_t)(at + LENGTH), THE_TURN_GOES_ON_AFTER_THE_MENUS };
     return true;
 }
 
@@ -268,7 +268,7 @@ static bool asked(GameState *g, Platform *pf, uint16_t at, EventStep *step, uint
 static bool filled(GameState *g, uint16_t at, EventStep *step, bool hp, bool mp)
 {
     fill_with(g, hp, mp);
-    *step = (EventStep){ (uint16_t)(at + 1), THE_DISPATCH_LEAVES_THE_CARRY };
+    *step = (EventStep){ (uint16_t)(at + 1), THE_TURN_GOES_ON_AFTER_THE_MENUS };
     return true;
 }
 
@@ -310,7 +310,7 @@ static bool record_changed(GameState *g, Platform *pf, uint16_t at, EventStep *s
         TIMED_AS(g, MENUS_SERVICES, ((void)party_recruit(g, character), shown(g)));
     else
         TIMED_AS(g, MENUS_SERVICES, ((void)party_dismiss(g, character), shown(g)));
-    *step = (EventStep){ (uint16_t)(at + LENGTH), THE_DISPATCH_LEAVES_THE_CARRY };
+    *step = (EventStep){ (uint16_t)(at + LENGTH), THE_TURN_GOES_ON_AFTER_THE_MENUS };
     return true;
 }
 
@@ -342,7 +342,7 @@ bool event_equip(GameState *g, Platform *pf, uint16_t at, EventStep *step)
     EventCommand c = event_decode(g, pf, event_opcode(0xD5), at);
     uint8_t character = (uint8_t)c.first_argument, item = (uint8_t)c.second_argument;
     TIMED_AS(g, MENUS_SERVICES, (party_equip(g, character, item), shown(g)));
-    *step = (EventStep){ (uint16_t)(at + LENGTH), THE_DISPATCH_LEAVES_THE_CARRY };
+    *step = (EventStep){ (uint16_t)(at + LENGTH), THE_TURN_GOES_ON_AFTER_THE_MENUS };
     return true;
 }
 
@@ -350,7 +350,7 @@ bool event_take_out_of_party(GameState *g, Platform *pf, uint16_t at, EventStep 
 {
     enum { LENGTH = 2 };
     uint8_t character = event_decode(g, pf, event_opcode(0xD6), at).character;
-    bool go_on = goes_on_after_leaving(g, character, THE_DISPATCH_LEAVES_THE_CARRY);
+    bool go_on = goes_on_after_leaving(g, character, THE_TURN_GOES_ON_AFTER_THE_MENUS);
     take_out_of_party(g, character);
     *step = (EventStep){ (uint16_t)(at + LENGTH), go_on };
     return true;
@@ -360,14 +360,14 @@ bool event_send_to_the_reserve(GameState *g, Platform *pf, uint16_t at, EventSte
 {
     enum { LENGTH = 2 };
     uint8_t character = event_decode(g, pf, event_opcode(0xD4), at).character;
-    bool go_on = goes_on_after_sending(g, character, THE_DISPATCH_LEAVES_THE_CARRY);
+    bool go_on = goes_on_after_sending(g, character, THE_TURN_GOES_ON_AFTER_THE_MENUS);
     member_steps_out(g, character);
     TIMED_AS(g, MENUS_SERVICES, ((void)party_send_to_the_reserve(g, character), shown(g)));
     *step = (EventStep){ (uint16_t)(at + LENGTH), go_on };
     return true;
 }
 
-/* Their guards: the menus' services read the active party as characters
+/* What the port checks of them: the menus' services read the active party as characters
  * (menu/party.h), and equip one of the characters; one joining has its cell
  * for its object on the map among the seven; the party's places, where
  * taken, are objects the tables hold. */
@@ -462,12 +462,6 @@ Facing formation_facing(bool column_bit, bool row_bit)
         if (facing_bits[f].column == column_bit && facing_bits[f].row == row_bit)
             return (Facing)f;
     return FACING_UP;
-}
-
-void formation_facing_bits(Facing facing, bool *column_bit, bool *row_bit)
-{
-    *column_bit = facing_bits[facing].column;
-    *row_bit = facing_bits[facing].row;
 }
 
 /* The original keeps the operand bytes of the last place it lays out: the
@@ -609,7 +603,8 @@ void party_back_together(GameState *g)
     party_trail_catch_up(g);
 }
 
-/* Its guard: on the field's page; the members there are objects the tables
+/* Whether the port brings the party back together: the leader's contact
+ * cell's high byte clear; the members there are objects the tables
  * hold at levels the places hold, and the cell the original names them in
  * holds only their offsets (it adds its whole word to a place's). */
 bool party_can_come_back_together(const GameState *g)
@@ -623,7 +618,7 @@ bool party_can_come_back_together(const GameState *g)
     return ok;
 }
 
-/* The regrouping's guard: the party's places hold objects the tables do, as
+/* What the port checks of the regrouping: the party's places hold objects the tables do, as
  * the game keeps them (the original adds each one's whole word to a place's
  * offset), at levels the places hold, where they are taken (the leader's always is:
  * the game never regroups a party with nobody leading it), and the trail's
@@ -644,7 +639,7 @@ static bool party_can_regroup(const GameState *g)
 }
 EVENT_CHECK_TAKING_NOTHING(party_can_regroup)
 
-/* $D6's guard: every party member's object is one the port reaches, or there
+/* What the port checks of $D6: every party member's object is one the port reaches, or there
  * is nobody in the place. */
 static bool members_are_objects(const GameState *g)
 {

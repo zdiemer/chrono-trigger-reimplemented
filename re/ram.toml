@@ -5315,7 +5315,7 @@ page = "field"
 size = 8
 subsystem = "field"
 meaning = "Cells the field's object, sprite and graphics routines keep values in on the way: an animation's delay entry ($C1), the view window's edges or an object's screen position ($C3-$C6), the Y a tile copy saves ($C5), the Y the blocking check saves ($C7)"
-source = "game/field/scratch.h; the leave_ helpers of game/field/graphics.c, object_view.c, sprites.c, motion.c and object_update.c"
+source = "the leave_ helpers of game/field/graphics.c, object_view.c, sprites.c, motion.c and object_update.c"
 
 [[var]]
 name = "field_sprite_graphics"
@@ -5417,7 +5417,7 @@ page = "field"
 stride = 2
 subsystem = "field"
 meaning = "Tile the direction is computed from; the tile copy keeps the word here too"
-source = "game/field/motion.c field_direction_to_target $C0:ABA2; game/event/movement.c aim; game/field/leaves.c field_leave_table_copied ($C0:B096)"
+source = "game/field/motion.c field_direction_to_target $C0:ABA2; game/event/movement.c aim"
 [[var.field]]
 name = "x"
 offset = 0
@@ -30076,7 +30076,7 @@ stride = 8
 subsystem = "field"
 host_module = "field"
 meaning = "Remaining portions and unchanged fields of field_work; named scalar state has separate typed owners."
-source = "game/field/scratch.h; the leave_ helpers of game/field/graphics.c, object_view.c, sprites.c, motion.c and object_update.c"
+source = "the leave_ helpers of game/field/graphics.c, object_view.c, sprites.c, motion.c and object_update.c"
 
 [[owner.field]]
 name = "retained"

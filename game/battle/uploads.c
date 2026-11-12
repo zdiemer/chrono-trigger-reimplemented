@@ -301,14 +301,6 @@ bool battle_vblank_uploads_in_range(const GameState *g)
     return object_is_a_combatant && described_from_memory;
 }
 
-/* What the game sends comes from memory apart from the scratch cells and the
- * top of the stack the transfers run on: the original counts a block's tiles
- * in a cell and keeps the data bank on the stack while a transfer goes, which
- * a transfer over them would send instead. The banks that reach the first
- * 8 KiB of work RAM are $7E and the low halves of $00-$3F and $80-$BF; a
- * transfer runs round its bank. */
-enum { COUNT_CELLS = 0x0045, COUNT_CELLS_END = 0x0049, STACK_REACH = 0x20, LOW_RAM_END = 0x2000 };
-
 // $CF:FD02
 void battle_send_window_rows(GameState *g) { request_window_rows(g, window_tilemap_in_bank_0(0)); }
 

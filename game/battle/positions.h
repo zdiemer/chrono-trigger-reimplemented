@@ -23,7 +23,7 @@
 
 #include "state.h"
 
-/* What a search asks, by the number the original's code gives it. */
+/* What a search asks, by the number the game gives it. */
 typedef enum {
     SEARCH_NEAREST_MEMBER = 0,       /* the party member standing nearest the searcher */
     SEARCH_FARTHEST_MEMBER = 1,      /* the party member standing farthest from it */

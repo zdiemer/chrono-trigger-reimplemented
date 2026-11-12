@@ -2,9 +2,9 @@
  * from the ROM.
  *
  * Every read of cartridge data battle/scripts.c, script_places.c,
- * script_walk.c and script_sound.c make goes through here, named for what the data is (the
- * asset seam, docs/PLAN.md Phase 3), at the index the original uses. The
- * accessors take the game's state (game/rom.h), not the machine. */
+ * script_walk.c and script_sound.c make goes through here, named for what
+ * the data is (the asset seam, docs/PLAN.md Phase 3), at the index the
+ * original uses. The accessors take the game's state (game/rom.h). */
 #ifndef CT_GAME_BATTLE_SCRIPT_DATA_H
 #define CT_GAME_BATTLE_SCRIPT_DATA_H
 

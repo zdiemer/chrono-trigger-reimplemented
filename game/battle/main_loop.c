@@ -23,13 +23,11 @@
  * through its script's reactions, and the enemies with nothing chosen choose
  * again (battle/enemy_scripts.h).
  *
- * The loop's own logic is C, one sequence for each stretch of it; its calls
- * on the battle's other routines -- the battle steps (the routine at $C1:0003
- * with the step in A, which waits for frames), the turns, carrying out the
- * party's actions, the rewards -- are a callback (LoopCalls) that the program
- * answers as C (battle_main_loop_runs) and the machine's entries from the
- * original's calls, each stretch an entry of its own there that hands on to
- * the next by the original's jumps. */
+ * The loop's own logic is one sequence for each stretch of it; its calls on
+ * the battle's other routines -- the battle steps ($C1:0003, which wait for
+ * frames), the turns, carrying out the party's actions, the rewards -- go
+ * through a callback (LoopCalls), answered at the end of the file
+ * (battle_main_loop_runs). */
 #include "battle/main_loop.h"
 
 #include "battle/battle.h"
@@ -120,8 +118,8 @@ static void keep_party_records(GameState *g) { TIMED_AS(g, 0xC1B442, battle_keep
 
 static void take_enemies_away(GameState *g) { TIMED_AS(g, 0xC1B3BB, battle_take_enemies_away(g)); }
 
-/* The party member the loop is working on, where the original's code it
- * calls finds it (a word on the direct page). */
+/* The party member the loop is working on, kept as a word in the work cell
+ * where the routines it calls look for it. */
 static void leave_member_for_callees(GameState *g, uint8_t member)
 {
     set_battle_low_scratch(g, 0x14, member);
@@ -147,7 +145,7 @@ void battle_clear_the_turn_work(GameState *g)
 }
 
 /* Where the battle's random numbers are drawn from its table: kept between
- * battles, and on the battle's page while it runs. */
+ * battles, and among the battle's work cells while it runs. */
 static void take_random_position(GameState *g)
 {
     uint8_t kept = battle_random_kept(g);
@@ -279,8 +277,8 @@ static LoopGoesOn finish_battle_start(GameState *g);
 // $C1:8000
 /* Start the battle, then on to the loop's head at $C1:8120. No battle is set
  * up without enemies, or with more than there are places for: the original's
- * lists would run on through memory for one, and such a setup is the
- * original's from the step's return. */
+ * lists would run on through memory for one, and the port refuses such a
+ * setup (LOOP_NOT_OURS). */
 static LoopGoesOn start_battle(GameState *g, LoopCalls call, void *ctx)
 {
     TIMED_AS(g, CLEAR_TURN_WORK, battle_clear_the_turn_work(g));
@@ -492,8 +490,8 @@ static LoopGoesOn run_pass(GameState *g, LoopCalls call, void *ctx)
 
 // $C1:8345
 /* The end of a pass: back to the loop's head, or a demo battle's end. (A
- * debugging path the ROM can turn on, off in the released game, is the
- * original's: the entry's guard.) */
+ * debugging path the ROM can turn on, off in the released game, the port
+ * refuses: debugging_switch_on.) */
 static LoopGoesOn end_pass(GameState *g, LoopCalls call, void *ctx)
 {
     if (!battle_is_demo(g))
@@ -762,9 +760,9 @@ static bool react(GameState *g, unsigned entry, uint8_t target, LoopCalls call, 
         enemy_test_block(g, &c);
         if (c.outcome == OUTCOME_HELD) {
             set_battle_foes(g, enemy, battle_last_actor(g));
-            /* the turn is a machine entry still: it takes the reaction's
-             * actions from the cells, and its outcome and how far it read the
-             * script come back through them (docs/TODO.md) */
+            /* the turn takes the reaction's actions from the cells, and its
+             * outcome and how far it read the script come back through them
+             * (docs/TODO.md) */
             enemy_hand_back_choosing(g, &c);
             if (!carry_out_reaction(g, call, ctx))
                 return false;
@@ -904,22 +902,22 @@ static bool finish_beaten_enemies(GameState *g, LoopCalls call, void *ctx)
     return true;
 }
 
-/* The guards' state halves: the turn is given to the combatant the timers'
+/* What the loop takes: the turn is given to the combatant the timers'
  * order names at the turn's place, as every battle has it; the pass's end has
  * a debugging path the ROM turns on with its last byte, off in the released
- * game, which reads the controller's register. */
+ * game, which the port refuses. */
 static bool turn_names_a_combatant(const GameState *g) { return battle_names_combatant(combatant_whose_turn(g)); }
 static bool debugging_switch_on(const GameState *g) { return battle_debugging_switch(g) != 0; }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The loop's calls ------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
     Platform *pf;
 } BattleLoopContext;
 
-/* The routines the calls stand for, as the program goes no further at them
- * where their guards turn the state away or they are only the machine's. */
+/* The routines the calls stand for, which their work is charged as and a
+ * refusal names. */
 enum {
     START_FIGHT = 0xC1FA8B,
     UPDATE_COMBATANTS = 0xC1B223,
@@ -1102,10 +1100,3 @@ bool battle_main_loop_runs(GameState *g, Platform *pf)
     }
     return on == LOOP_LEFT;
 }
-
-/* Where a stretch goes on on the machine: the loop's head, which starts from
- * A and the flags cleared; the pass's body after the frame's step; the timers
- * (in 16-bit A, as the original's test of the running action leaves it); the
- * rest of the pass ($C1:8345); and the battle's last step into the field
- * ($C1:0006), which takes A's high byte as the noting leaves it, clear. */
-enum { REST_OF_PASS = PASS_END, RETURN_TO_THE_FIELD = 0xC10006 };

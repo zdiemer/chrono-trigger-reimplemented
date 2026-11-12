@@ -16,12 +16,10 @@
  *   - the battle's start and end wait for their own small handler
  *     (battle_nmi_alternate) to finish a frame.
  *
- * Two other waits stay passes of the original's loops, run on the machine,
- * each an idle entry: for the window's slide to have finished, and for the
- * battle's graphics to have loaded at its start. What a pass leaves in A and
- * the flags (the value it tested) is what the original's code after the loop
- * finds. (The line handler's wait for its line to be drawn is the timing
- * service's, battle/nmi.c.) */
+ * Two other waits are loops where they are made: for the window's slide to
+ * have finished (battle/closing.c), and for the battle's graphics to have
+ * loaded at its start (battle/opening.c). (The line handler's wait for its
+ * line to be drawn is the timing service's, battle/nmi.c.) */
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/frame.h"
@@ -46,8 +44,7 @@ void battle_sit_out_a_paused_frame(GameState *g, Platform *pf)
 }
 
 /* The pause's turn (battle/sound.c) and the message's next letter
- * (battle/message.c), each a routine of its own, which the program calls as
- * C and the machine's entries from the original's calls. */
+ * (battle/message.c), each a routine of its own. */
 typedef bool (*WaitCall)(void *ctx);
 
 // $C1:007E
@@ -124,16 +121,16 @@ void battle_wait_for_the_small_handler(GameState *g, Platform *pf)
         tm_wait_for_handlers(pf, PF_LOOP(0xCD044E, 0xCD0452));
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The waits' calls ------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
     Platform *pf;
 } FrameWaitContext;
 
-/* The pause's guard and the menu turn's own guard ask nothing of the game's
- * state that the pause doesn't keep; the message's typing, that the menus'
- * text code can go on from a message being set up. */
+/* The pause and the menu's turn ask nothing of the game's state that the
+ * pause doesn't keep; the message's typing is refused unless the menus' text
+ * code can go on from a message being set up. */
 static bool sit_out_a_pause_frame(void *ctx)
 {
     FrameWaitContext *c = ctx;
@@ -198,9 +195,3 @@ bool battle_wait_some_frames(GameState *g, Platform *pf, uint8_t frames)
     FrameWaitContext c = { g, pf };
     return wait_some_frames(frames, wait_for_a_next_frame, &c);
 }
-
-// $CC:F05B (in the battle's setup, $CC:ED87)
-/* Wait for the battle's graphics to have loaded: the vblank handler loads
- * them a step a frame (battle_load_graphics). Once they have, the setup's
- * graphics return to the setup ($CC:F062). */
-enum { GRAPHICS_LOADED = 4 };

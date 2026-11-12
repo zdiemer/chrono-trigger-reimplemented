@@ -9,13 +9,12 @@
  * message's figures and names go where the menus' text reads them
  * (menu_text_arguments), and an item where the battle's messages look for one.
  *
- * The messages wait for frames, so the telling is a bridge round each: the
- * message's port, run as the original's call makes it. The telling keeps its
- * place in a record of its own (Telling). The original keeps the same place
- * in its cells (whose turn it is, how many levels each member has left to
- * tell, which single tech is next, how many double techs are told), which
- * its code reads again if a message hands back to it, so the place is left
- * there before each message and once the telling is over. */
+ * The messages wait for frames; each is a call out of the telling, made
+ * where the original makes it. The telling keeps its place in a record of
+ * its own (Telling). The original keeps the same place in its cells (whose
+ * turn it is, how many levels each member has left to tell, which single
+ * tech is next, how many double techs are told), so the place is left there
+ * before each message and once the telling is over. */
 #include "battle/rewards.h"
 
 #include "battle/bridge.h"
@@ -50,9 +49,8 @@ typedef struct {
 } Telling;
 
 /* Each message is shown and waited for until it has been read (a routine of
- * its own, battle/message.c), the item's with the item's place in the list,
- * which the original keeps on the stack over it. False where it went no
- * further. */
+ * its own, battle/message.c), the item's with the item's place in the list.
+ * False where it went no further. */
 typedef bool (*TellCalls)(void *ctx, RewardMessage message, unsigned item);
 
 static bool tell(RewardMessage message, TellCalls call, void *ctx)
@@ -197,18 +195,13 @@ static bool tell_the_rewards(GameState *g, TellCalls call, void *ctx)
     return true;
 }
 
-/* ---- The entry ------------------------------------------------------------------------------------- */
+/* ---- The rewards told ------------------------------------------------------------------------------ */
 
-/* The members' count's last compare leaves the carry set, which the main
- * loop's code after the call reads. */
-/* On the machine each from the original's call of it, the message in A,
- * its high byte clear, as every call of the original has it (the guard). The
- * message reads nothing of the registers but which it is. */
+/* Each message is one of the battle's own ($CD:0021). */
 enum { SHOW_A_BATTLE_MESSAGE = 0xCD0021 };
 
-/* The guard: on the battle's page with A's high byte clear, as the main loop
- * calls it, and a member noted with double techs finds the list's end within
- * it (the original reads on past it into the cells after). */
+/* What the rewards take: a member noted with double techs finds the list's
+ * end within it (the original reads on past it into the cells after). */
 static bool rewards_fit(const GameState *g)
 {
     bool double_techs = false, ended = false;
@@ -219,8 +212,6 @@ static bool rewards_fit(const GameState *g)
         ended |= battle_rewards_double_techs(g, i) == NO_TECH;
     return !double_techs || ended;
 }
-
-/* ---- As C ------------------------------------------------------------------------------------ */
 
 typedef struct {
     GameState *game;

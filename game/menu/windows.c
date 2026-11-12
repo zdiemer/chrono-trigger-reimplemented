@@ -18,9 +18,8 @@
  * design's colours go into the upper half of that palette row
  * (menu_load_window_colours).
  *
- * The interpreter runs a list as C, through a table of the commands; each
- * command's handler stays an entry of its own, so the original's calls and
- * fuzzing still find it. */
+ * The interpreter runs a list through a table of the commands, each
+ * command's work charged at its original handler's time. */
 #include "menu/windows.h"
 
 #include "charge.h"
@@ -308,8 +307,8 @@ static void copy_bytes(GameState *g, uint16_t run)
 /* A per-line effect set up on the line-effect slot a channel names, reading
  * its table where the slot's is kept (128 bytes a slot at $7E:9000), and the
  * commands after it drawing that table. The command holds the channel's own
- * two control bytes (vid_line_effect_decode); the guard takes only those a
- * target has. */
+ * two control bytes (vid_line_effect_decode); a list is drawn only with
+ * those a target has (menu_window_list_drawable). */
 enum { LINE_TABLES = 0x9000, LINE_TABLE_BYTES = 0x80, SLOT_BITS = 7, SLOT_SHIFT = 4 };
 
 static uint8_t line_slot_of(uint16_t channel) { return (uint8_t)((channel >> SLOT_SHIFT) & SLOT_BITS); }
@@ -378,9 +377,8 @@ typedef enum { FILL, COPY_AREA, SWAP_AREAS, WINDOW, STRING, SET_ORIGIN, COPY_BYT
 /* Which parts of a window a window command draws. */
 enum { FRAME = 1, INSIDE = 2 };
 
-/* What each command is, how many operand bytes follow it, and the handler
- * (a checked legacy adapter, windows.h) whose calibrated time its work is charged
- * at. */
+/* What each command is, how many operand bytes follow it, and the original's
+ * handler whose time its work is charged at. */
 static const struct {
     WindowOperation operation;
     uint8_t parts;
@@ -453,7 +451,7 @@ void menu_draw_window_list(GameState *g, Platform *pf, uint16_t list)
     uint16_t at = list;
     for (uint8_t command = menu_window_byte(g, at); !(command & END_OF_LIST); command = menu_window_byte(g, at)) {
         if (!is_command(command))
-            return;   /* no list of the game's has one: the guard hands such a list to the original */
+            return;   /* no list of the game's has one, and menu_window_list_drawable turns such a list away */
         Operands o = operands_at(g, (uint16_t)(at + 1), command);
         at = (uint16_t)(at + 1 + LANGUAGE[command / 2].operands);
         TIMED_AS(g, LANGUAGE[command / 2].timed_as, run_command(g, pf, command, &o));

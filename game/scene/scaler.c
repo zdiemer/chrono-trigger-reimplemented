@@ -11,19 +11,18 @@
  * left of the previous bitmap's output beyond this one's is cleared. Both live in
  * the second bank of work RAM, where the scene programs put them.
  *
- * Both entry points draw the whole bitmap in C. Their guards check the
- * complete output extent before drawing, including the initial row's
- * carry-dependent nudge; the runtime schedules any intervening interrupts.
+ * The whole bitmap is drawn at once, after a check of the complete output
+ * extent, the first row's nudge included.
  *
  * The original never clears the carry between its sums, and three of them move
  * what the player sees: a row's samples start 1/256 of a pixel further on when
  * its source row lies further along the bitmap than the last row's, a sample
  * whose position wrapped past the row's 256th pixel moves those after it on by
  * 1/256 (group_positions), and a row's source is picked 1/128
- * of a row further on when the call before left the carry set (the entry's
+ * of a row further on when the call before left the carry set (the caller's
  * `row_nudge`). The rest of its carries come from sums that wrap past the end
- * of the bank, which no scene's bitmap reaches, and the entry's guard hands
- * such bitmaps to the original. */
+ * of the bank, which no scene's bitmap reaches; a scene that hands the scaler
+ * such a bitmap goes no further. */
 #include "scene/scene.h"
 
 #include "charge.h"
@@ -214,18 +213,8 @@ static RowOutcome scale_row(GameState *g, bool row_nudge)
  * and a source limit a row's position can be compared with either way (at
  * most $8000; the original compares by the sign of the difference). Past
  * those the original's carries reach its plane pointer and its reads its own
- * scratch, and the bitmap is the original's to draw. No scene's reaches them. */
+ * scratch, and the port draws no such bitmap. No scene's reaches them. */
 enum { LARGEST_LIMIT = 0x8000, SAMPLES_REACH = 0x0101 };
-
-/* Check a caller's request before it replaces the current scaler workspace.
- * These fixed-size scene pictures fit even if every requested row is drawn. */
-bool scene_scaling_fits(SceneScaling picture)
-{
-    return picture.pairs && picture.rows && picture.limit <= LARGEST_LIMIT &&
-           (!picture.limit || (uint32_t)picture.source + picture.limit - 1 + SAMPLES_REACH <= POSITIONS) &&
-           OUTPUT_START + (uint32_t)(picture.rows - 1) * ROW_BYTES +
-               (uint32_t)picture.pairs * GROUPS_PER_PAIR * PLANES <= POSITIONS;
-}
 
 bool scene_scaler_draws(const GameState *g)
 {
@@ -238,7 +227,7 @@ bool scene_scaler_draws(const GameState *g)
     return planes_fit && limit_compares && source_in_bank;
 }
 
-/* The whole bitmap at once, as a program with no machine draws it: the first
+/* The whole bitmap at once: the first
  * row nudged by `row_nudge`, each after it by the carry of the output's step
  * before it, which only a step past the bank's end leaves. False where a row
  * is one the port doesn't draw, which the program can't go on from. */
@@ -263,8 +252,6 @@ bool scene_scale_the_bitmap(GameState *g, bool row_nudge)
     draw_bitmap(g, row_nudge);
     return true;
 }
-
-/* ---- Entries: 16-bit A and index registers, on the scene's page, bank $7F ------------------- */
 
 /* Follow the output extents without drawing. A short source can end a tall
  * requested picture early, so checking only rows * stride would refuse

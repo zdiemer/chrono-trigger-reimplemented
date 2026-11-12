@@ -44,7 +44,6 @@
 #include "charge.h"
 #include "event/chests.h"
 #include "field/bridge.h"
-#include "field/scratch.h"
 #include "platform/timing.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -123,8 +122,8 @@ static void place_the_layers_maps(GameState *g)
         set_field_layer_map_size(g, layer, FIELD_MAP_TWO_SCREENS_WIDE);
 }
 
-/* A layer's drawing at the load (field/streaming.h), as C where its guard
- * takes the state and the original's otherwise, on the layers' page. */
+/* A layer's drawing at the load (field/streaming.h), on the layers' page,
+ * where the port draws the layer. */
 
 static const struct {
     uint32_t routine, site;
@@ -154,8 +153,7 @@ enum { UPLOAD_THE_QUEUE = 0xC0B1B2 };
 /* Every object that shows and is near enough the screen comes into view and
  * is drawn at once (but those that only matter on the screen itself, which
  * the screen marks as it goes); then the sprite table is built from them,
- * which returns for this routine. On the field's page with 8-bit index
- * registers for the objects. */
+ * which returns for this routine. */
 enum { SPRITE_TABLE = 0xC0B271 };
 
 /* The objects that may come into view: those that show on the map, but those
@@ -169,14 +167,13 @@ static bool may_come_into_view(const GameState *g, FieldObject obj)
 /* ---- The screen back on ----------------------------------------------------------------------- */
 
 /* The line effects readied for the first frame: their values, their tables
- * built (on 8-bit index registers) and set up, each the port it is, from
- * the original's calls in its routine ($C0:0B28). */
+ * built and set up, each the port it is, from the original's calls in its
+ * routine ($C0:0B28). */
 enum { LINE_EFFECT_VALUES = 0xFDC124, LINE_EFFECTS = 0xFDC2C1, LINE_EFFECTS_SET_UP = 0xFDC1EE };
 
 /* The wait for the vblank with the handlers off, after which they come on:
- * the original's routine's own (from $C0:0B38), which the timing service
- * calls on the SNES backend, the screen's setup having called its routine
- * at $C0:28A1 (field/frame.c has its two ports). */
+ * the original's routine's own (from $C0:0B38), the screen's setup having
+ * called its routine at $C0:28A1. */
 enum { SCREEN_ON = 0xC00B38, FIELD_PICTURE_LAST_LINE = 211 };
 
 /* ---- The setup -------------------------------------------------------------------------------- */
@@ -185,8 +182,8 @@ enum { SCREEN_ON = 0xC00B38, FIELD_PICTURE_LAST_LINE = 211 };
  * sprites take. */
 enum { FIRST_SPRITES_HIDDEN = 4 };
 
-/* The original's routines it calls on the machine where a port won't run. */
-enum { FRAME_WAIT = 0xC0EC60, DRAW_THE_OBJECTS = 0xC0B0E6 };
+/* The objects drawn at the start, by their routine's timing key. */
+enum { DRAW_THE_OBJECTS = 0xC0B0E6 };
 
 /* The dialog window's looks, the window design's tiles and colours, the
  * choice pointer's tiles and the field's own sprites. */
@@ -203,11 +200,11 @@ static void put_up_the_window(GameState *g, Platform *pf)
     TIMED_AS(g, FIELD_SEND_CHOICE_POINTER_ENTRY, field_send_the_choice_pointer(g, pf));
 }
 
-/* ---- The screen set up, as C ------------------------------------------------------------------ */
+/* ---- The screen set up ------------------------------------------------------------------------ */
 
-/* Where a step is one only the machine runs yet (its state is none the
- * port takes), the program goes no further (core/program.h). */
-static bool machine_only(GameState *g, uint32_t routine, const char *what)
+/* Where a step's state is none the port takes, the program goes no further
+ * (core/program.h). */
+static bool refused(GameState *g, uint32_t routine, const char *what)
 {
     program_breaks_a_contract(g, routine, what);
     return false;
@@ -216,7 +213,7 @@ static bool machine_only(GameState *g, uint32_t routine, const char *what)
 static bool draw_and_send_a_layer(GameState *g, Platform *pf, unsigned layer)
 {
     if (!layer_drawing_fits(g, layer))
-        return machine_only(g, drawing[layer].routine, "a layer the port doesn't draw");
+        return refused(g, drawing[layer].routine, "a layer the port doesn't draw");
     TIMED_AS(g, drawing[layer].routine, draw_layer_at_the_maps_load(g, layer));
     set_field_transfer_vram(g, field_layer_map_base(g, layer));
     bool whole = layer != FIELD_BG1 && (field_layer_drawn_whole(g) & FIELD_LAYER_BIT(layer));
@@ -238,7 +235,7 @@ static bool draw_the_map(GameState *g, Platform *pf)
     if (draws_bg3(g) && !draw_and_send_a_layer(g, pf, FIELD_BG3))
         return false;
     if (!layers_repeat_within_the_maps(g))
-        return machine_only(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, "columns the port doesn't bring in");
+        return refused(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, "columns the port doesn't bring in");
     TIMED_AS(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, stream_the_right_columns(g));
     if (field_bg3_map_size(g) != 0)
         set_field_layer_map_size(g, FIELD_BG3, field_bg3_map_size(g));
@@ -250,7 +247,7 @@ static bool draw_at_once(GameState *g, Platform *pf, FieldObject obj)
 {
     TIMED_AS(g, FIELD_UPDATE_SCREEN_POSITION_ENTRY, object_update_screen_position(g, obj));
     if (!field_rows_are_exact(g, obj))
-        return machine_only(g, FIELD_JOIN_ROW_ENTRY, "a row the port doesn't join");
+        return refused(g, FIELD_JOIN_ROW_ENTRY, "a row the port doesn't join");
     TIMED_AS(g, FIELD_JOIN_ROW_ENTRY, object_join_row(g, obj));
     set_field_vram_queue_end(g, 0);
     bool more = true;
@@ -271,13 +268,13 @@ static bool draw_the_objects_in_view(GameState *g, Platform *pf)
     }
     bool built = false;
     TIMED_AS(g, SPRITE_TABLE, built = field_sprite_table_built(g));
-    return built || machine_only(g, SPRITE_TABLE, "a sprite table the port doesn't build");
+    return built || refused(g, SPRITE_TABLE, "a sprite table the port doesn't build");
 }
 
 bool field_screen_set_up(GameState *g, Platform *pf)
 {
     if (!field_remembered_switches_on_the_map(g))
-        return machine_only(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, "switches the port doesn't press again");
+        return refused(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, "switches the port doesn't press again");
     TIMED_AS(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, field_press_the_remembered_switches(g));
     if (!draw_the_map(g, pf))
         return false;
@@ -306,7 +303,7 @@ static bool still_brightening(uint8_t brightness) { return (int8_t)(brightness -
  * coming back from a menu, the effects only. */
 typedef enum { WITH_THE_FRAMES_WORK, WITH_THE_EFFECTS_ONLY } FadeInKind;
 
-/* Its steps, run as C or on the machine (below): the screen set up, the
+/* Its steps (below): the screen set up, the
  * leader's walk under the control the fade took away, the frame's work and
  * the wait for the next frame; each false where it went no further. */
 typedef struct {
@@ -343,7 +340,7 @@ static bool fade_in(GameState *g, FadeInKind kind, const FadeInSteps *steps, voi
     return true;
 }
 
-/* ---- As C ----------------------------------------------------------------------------------- */
+/* ---- The steps ------------------------------------------------------------------------------ */
 
 typedef struct {
     GameState *game;

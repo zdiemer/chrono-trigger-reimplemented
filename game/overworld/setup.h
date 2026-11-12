@@ -10,7 +10,7 @@
 
 /* Unpack the stream at `stream` to `to`, as the original's call at `site`
  * does; false where the unpacking didn't come back (the caller then stops),
- * which the unpacker as C (overworld_unpacker) never is. */
+ * which the program's unpacker (overworld_unpacker) never is. */
 typedef struct {
     bool (*unpack)(void *ctx, uint32_t site, uint32_t stream, uint32_t to);
     void *ctx;
@@ -28,23 +28,17 @@ bool overworld_load_the_map_tiles(GameState *g, const Unpacker *u);
  * (the game's always are once the map is set up). */
 bool overworld_map_can_be_loaded_again(const GameState *g);
 /* Whether the world map can be set up as it stands: a world map's location,
- * the camera put on the party on the map (the set up's guard's state half). */
+ * the camera put on the party on the map (which the port checks first). */
 bool overworld_can_be_set_up(const GameState *g);
 /* Whether the map's tiles can be loaded as it stands: on a world map whose
- * record is noted (the tiles' load's guard's state half). */
+ * record is noted (which the port checks first). */
 bool overworld_map_tiles_can_load(const GameState *g);
 
 /* Clear the label the sign's name is set in (sign.c), where the map view
  * sets its markers too. */
 void overworld_clear_the_sign_label(GameState *g);
 
-/* The unpacker as C (data/decompress.h); and for a machine entry, at the pace
- * its reaching the unpacker's entry had while there was one: run in place
- * (unpack_stream_run), or called on the machine (unpack_stream_called). */
+/* The program's unpacker (data/decompress.h). */
 Unpacker overworld_unpacker(GameState *g);
 
-/* The world map set up on the machine where the sprite-object mode's start
- * goes on to it, in the shipping mode: the set up as C and the main loop
- * waiting for its first frame (the original's set up from its start where
- * the state breaks the set up's contract). */
 #endif

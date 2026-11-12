@@ -17,8 +17,8 @@
  *   changed drawn again and sent in the vblank;
  * - a battle: the layers scrolled into place, the battle fought, and the
  *   field taken up again after it.
- * The field starts again on a fresh stack, which is the original's to do; so
- * are the routines the answers call out to. */
+ * Starting the field again after a location change is the program's
+ * (core/program.h). */
 #include "field/field.h"
 #include "field/battle_return.h"
 #include "field/battle_start.h"
@@ -42,7 +42,6 @@
 #include "field/bridge.h"
 #include "field/display.h"
 #include "field/parts.h"
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -117,11 +116,8 @@ void field_step_screen_changes(GameState *g)
 static bool asked(const GameState *g, uint8_t request) { return (field_requests(g) & request) != 0; }
 static void answered(GameState *g, uint8_t request) { set_field_requests(g, (uint8_t)(field_requests(g) & ~request)); }
 
-/* A step event's and a chest's sounds, and what the machine leaves after
- * each answer (the original's registers, which its later calls read): the
- * program plays the sound as C and leaves nothing; the machine's entry calls
- * the sound from the original's own place, and leaves A's high byte and the
- * overflow as the original's code does. */
+/* A step event's and a chest's sounds, each played at the leader, and what
+ * follows each answer (nothing, in the program's steps). */
 typedef struct {
     bool (*switch_sound)(void *ctx, SwitchPress p, uint16_t step);
     void (*step_answered)(void *ctx, uint16_t step, bool pressed);
@@ -151,9 +147,8 @@ static bool answer_step_event_with(GameState *g, const StepAndChestSteps *steps,
 
 // $C0:16DC
 /* A chest the leader opened: its sound, and the chest shown open. The
- * chest's kind is forgotten before the sound, which only shadow mode's
- * comparison at the call sees: opening the chest sets it again. False where
- * the sound went no further. */
+ * chest's kind is forgotten before the sound; opening the chest sets it
+ * again. False where the sound went no further. */
 static bool answer_chest_with(GameState *g, const StepAndChestSteps *steps, void *ctx)
 {
     answered(g, FIELD_REQUEST_OPEN_CHEST);
@@ -164,15 +159,15 @@ static bool answer_chest_with(GameState *g, const StepAndChestSteps *steps, void
     return true;
 }
 
-/* ---- As C ---- */
+/* ---- The sounds ---- */
 
 typedef struct {
     GameState *game;
     Platform *pf;
 } StepAndChestContext;
 
-/* A sound at the leader, where its entry's guard would play it: with the
- * leader one the port reads. */
+/* A sound at the leader, played where the leader is one the port reads (the
+ * program reports a broken contract otherwise). */
 static bool sound_at_the_leader(StepAndChestContext *c, uint32_t entry, void (*play)(GameState *, Platform *))
 {
     if (!field_leader_readable(c->game)) {
@@ -201,14 +196,13 @@ static const StepAndChestSteps step_and_chest_in_the_program = {
     play_the_switch_sound, nothing_left, play_the_chest_sound, nothing_left_by_the_chest,
 };
 
-/* ---- Calling on the machine ----------------------------------------------------------------- */
+/* ---- The routines the answers call -------------------------------------------------------- */
 
-/* The original's routines the answers call. */
+/* Each timed as its own work (TIMED_AS). */
 enum {
     FRAME_WAIT = 0xC0EC60,          /* waits for the next frame */
     PALETTE_ANIMATION = 0xFDFFF7,   /* the palettes' animation */
 };
-/* The ports the answers run as C. */
 enum {
     RECENTRE = 0xC0885A,
     COPY_TILES = 0xC0AF4E,
@@ -284,8 +278,7 @@ static const struct {
     [BOTH_COLUMNS] = { TC_COLUMNS, 0xC0185C },
 };
 
-/* A call of the copy's, as C or on the machine (below); false where it went
- * no further. */
+/* A call of the copy's (below); false where it went no further. */
 typedef bool (*TileCopyRun)(void *ctx, TileCopyCall call);
 
 /* The layers a copy changed (field_tile_copy_queued_maps), drawn again and
@@ -414,7 +407,7 @@ static bool copy_the_tiles(GameState *g, TileCopyRun run, void *ctx)
     return centre_then_copy(g, run, ctx);
 }
 
-/* ---- As C ---- */
+/* ---- The copy's calls ---- */
 
 typedef struct {
     GameState *game;
@@ -472,8 +465,7 @@ static void battle_over(GameState *g)
  * place and the effects built with the field's setup's values, a frame; the
  * battle (bank $C1's); the field taken up again (field/battle_return.c); the
  * switches the party stood on pressed again and the sprites' areas freed;
- * and the field's turn after it. The program makes them as C, and the
- * machine's entry from the original's calls. */
+ * and the field's turn after it. */
 typedef struct {
     FieldBattleStart (*begins)(void *ctx);
     bool (*no_battle_turn)(void *ctx);
@@ -514,7 +506,7 @@ static bool fight_a_battle(GameState *g, const BattleSteps *steps, void *ctx)
            steps->field_turn(ctx);
 }
 
-/* As C, each with its guard's state half first. */
+/* The steps, each checking first that the port can make it. */
 typedef struct {
     GameState *game;
     Platform *pf;
@@ -595,7 +587,7 @@ static FieldPass a_battle_fought(GameState *g, Platform *pf)
     return fight_a_battle(g, &in_the_program, &c) ? FIELD_PASS_GOES_ON : FIELD_PASS_STOPS;
 }
 
-/* ---- As C, with no machine ------------------------------------------------------------------ */
+/* ---- The requests answered ------------------------------------------------------------------ */
 
 // $C0:0C8F
 static FieldPass change_location(GameState *g, Platform *pf)
@@ -635,13 +627,12 @@ FieldPass field_requests_handled(GameState *g, Platform *pf)
     return FIELD_PASS_GOES_ON;
 }
 
-/* The guard: on the field's page with the data bank $00, and the switch a
- * step event names, and each of the switch's tiles, inside the map's rows
+/* The requests the port answers: the switch a step event names, and each of the switch's tiles, inside the map's rows
  * (a switch reaches up to two rows above the tile stepped on, and a column
  * left of it, which from a row's first column is the row above's last), and
  * not a one-by-two switch whose upper tile
- * is the tile set's last (moving it on would carry into the next tile, as
- * the original moves it, a word at a time); and a chest opened inside the
+ * is the tile set's last (the original moves it on a word at a time, into
+ * the next tile); and a chest opened inside the
  * map's rows; for a location change made (the fade done), the leader an
  * object or none, its link a word (the original reads the leader's place
  * with it as a 16-bit index). */

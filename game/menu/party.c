@@ -1,7 +1,6 @@
 /* The party as the menus keep it: the record of who is in it and the
  * services that change it and what its members wear (menu/party.h says how
- * the pieces fit). The services' calling convention, the dispatcher the
- * original's code reaches them through, is menu/party_bridge.c. */
+ * the pieces fit). */
 #include "menu/party.h"
 
 #include "charge.h"
@@ -213,12 +212,6 @@ static void put_in_slot(GameState *g, uint8_t character, unsigned slot, uint8_t 
 {
     set_character_records_record_byte(g, character, menu_category_slot_place(g, (uint8_t)slot), item);
 }
-
-/* For the original's code and shadow mode: the item and how many the
- * equipping keeps, and the record's place found with the multiplier; the
- * place, where it goes on to a slot; and the cell it counts the slots in
- * (the looked-up category's, a word). */
-enum { RECORD_BYTES = 0x50 };
 
 // $C2:8DA7
 static void strip(GameState *g, uint8_t character)

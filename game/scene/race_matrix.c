@@ -106,15 +106,12 @@ static void write_matrix_code(GameState *g, uint16_t destination, uint16_t sourc
 }
 
 /* The scenes' setups have it written into its place in the program
- * (scene_matrix_code); the generator's own entry, wherever its caller pointed
- * the port. */
+ * (scene_matrix_code). */
 void scene_write_matrix_code_for(GameState *g, uint16_t destination, uint16_t source)
 {
     hw_port_seek(g, (uint16_t)RAM_SCENE_MATRIX_CODE, (uint8_t)(RAM_SCENE_MATRIX_CODE >> 16));
     write_matrix_code(g, destination, source);
 }
-
-uint16_t scene_matrix_writer_leaves_y(void) { return STRIPS * 2; }
 
 /* ---- The regrouping --------------------------------------------------------------------------- */
 
@@ -194,7 +191,7 @@ static void gather_scaled_picture(GameState *g)
     TIMED_AS(g, 0x7EB574, scene_gather_picture_into_tiles(g));
 }
 
-/* As C, for a program with no machine: each racer's waiting picture handed
+/* The main loop's call each pass: each racer's waiting picture handed
  * over and drawn whole, the racer's last tiles waited for a frame at a time,
  * and the new picture gathered. False where the program goes no further. */
 enum { TILEMAP_SENT_WAIT = 0x7E5211 };

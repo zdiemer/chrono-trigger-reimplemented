@@ -80,8 +80,7 @@ uint8_t battle_inventory_add(GameState *g, uint8_t item)
 }
 
 // $C1:CFE9
-/* The search as a question: it keeps the item it looked for, as the
- * battle's inventory routines each do (scaffolding). */
+/* The search as a question: whether the inventory holds the item. */
 bool battle_inventory_holds(GameState *g, uint8_t item)
 {
     return item != NO_ITEM && search_for(g, item).found;
@@ -143,8 +142,7 @@ bool battle_give_gold(GameState *g, uint16_t amount)
 
 // $C1:D0ED
 /* The gold taken, where the party has it; nothing taken, and false, where it
- * hasn't. The original works the low word out in the free place's cell first
- * (scaffolding). */
+ * hasn't. */
 bool battle_take_gold(GameState *g, uint16_t amount)
 {
     if (amount == 0)
@@ -164,10 +162,10 @@ bool battle_take_gold(GameState *g, uint16_t amount)
  * record, clear. */
 enum { LIST_RECORDS = BATTLE_ITEM_LIST_COUNT, LIST_RECORD_BYTES = 5 };
 
-/* The direct page's cells the list is built in. The inventory place (twice),
+/* The work cells the list is built in. The inventory place (twice),
  * the item, its number among the other items and how many are held are cells
- * later work reads as it finds them (battle.h), kept plainly; the record's
- * place and the item's battle record's are scaffolding. */
+ * later work reads as it finds them (battle.h); the record's place and the
+ * item's battle record's keep the original's values. */
 enum {
     PLACE_AT = BATTLE_CLOCK_READS,
     ITEM_AT = BATTLE_MEMBER_CELL,
@@ -232,15 +230,9 @@ static void build_item_list(GameState *g)
     battle_keep_word(g, PLACES_LEFT, 0);
 }
 
-/* ---- The entry ------------------------------------------------------------------------------ */
+/* ---- The item list built ------------------------------------------------------------------- */
 
-/* The item list: built whole; and an item given a record, or an empty place
- * passed, by the list's builder or the steal's giving ($C1:F012), with the
- * record's place in its cell ($04), how many are held in its ($0E) and the
- * item in A, whose high byte the original indexes the item's records with
- * (the guard's; it comes back clear, which the steal's giving reads). Each
- * advances the list's place past the record it gave, and the builder's place
- * counts by one. */
+/* The item list, built whole. */
 void battle_list_usable_items(GameState *g) { build_item_list(g); }
 
 /* ---- The items put back at the battle's end ------------------------------------------------ */

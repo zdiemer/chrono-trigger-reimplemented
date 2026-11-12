@@ -1,7 +1,7 @@
 /* Field mode: the pause, and the menus opened from the field.
  *
  * Once a frame the field's main loop looks at the buttons here
- * (field_pause_and_menus_entry):
+ * (field_pause_and_menus):
  * - Start pauses the field while the player has the party (and no script has
  *   locked the pause): the picture dims to half and the play time clock
  *   stops until Start is pressed again.
@@ -13,7 +13,7 @@
  *   buttons.
  * A menu opens only while the player has the party, no choice is waiting and
  * no script has locked the menus. The field fades out a step a frame, keeps
- * the party's places, and hands the machine to the menus; when they are done
+ * the party's places, and hands the screen to the menus; when they are done
  * it sets itself up again, brings back the characters of a party the menu
  * changed (field_bring_the_party_back), and fades in.
  *
@@ -21,16 +21,9 @@
  * open here (field_open_script_menu): the field fades out as the leader walks
  * on, and the menu it names opens as these do.
  *
- * The ports it calls run as C: the blanking and the interrupts' handlers
- * (core/display.c, field/interrupts.c) directly, and the line effects'
- * builder, the Start assignment, the party's return and the leader's walk
- * through field_run, which runs each under the frame the original's call
- * pushes and calls out where the entry's guard would turn the state away. The
- * frame wait and the menus hand off to held continuations: no field port
- * stays suspended while a menu uses its own stack. Its three return sites
- * restore the field and enter the fade in. The palette
- * animation, through the original's jump at $FD:FFF7 to it
- * (PALETTE_ANIMATION), runs as C under its call too (core/machine_forms.c). */
+ * Each step is a call of the routine it is (StopSteps), timed as that
+ * routine; where a step's state is one the port doesn't take, the program
+ * reports it and goes no further. */
 #include "field/menus.h"
 #include "field/dialog_window.h"
 #include "field/field.h"
@@ -124,7 +117,7 @@ static void script_menu_shown(GameState *g)
 
 /* ---- The menus and the field's steps around them ---------------------------------------------- */
 
-/* The menus' modes the field opens, by what A holds as they start: the main
+/* The menus' modes the field opens, by the number they start with: the main
  * menu, the Start assignment's, and the four a script can ask for, named by
  * their numbers until the menus' side names them (the menus turn each into a
  * screen through $C2:808F: 0 into their mode 14, 2 into 12, 3 into 13, 6 into
@@ -162,8 +155,8 @@ static const struct {
     [OPENED_BY_START] = { START_MENU, { true, 0 }, true },
 };
 
-/* The field's steps around the pause and a menu, run as C or on the machine
- * (below), each from the original's call of it for the stop it is in: the
+/* The field's steps around the pause and a menu (below), each for the stop
+ * it is in: the
  * line effects' tables built and the wait for the next frame, a frame of the
  * fade out; the leader's walk under the control the fade keeps and the
  * palettes animated, a frame of a script's fade out; the screen dark; the
@@ -215,7 +208,7 @@ static bool pause(GameState *g, const StopSteps *steps, void *ctx)
 
 /* ---- Opening a menu --------------------------------------------------------------------------- */
 
-/* The field's own interrupt handlers back after a menu had the machine. */
+/* The field's own interrupt handlers back after a menu. */
 static void take_the_interrupts_back(GameState *g)
 {
     TIMED_AS(g, FIELD_INSTALL_NMI_ENTRY, field_take_the_vblank_interrupt(g));
@@ -403,8 +396,7 @@ static bool press_start_with(GameState *g, const StopSteps *steps, void *ctx)
     return !(start_opens_menu(g) && menus_may_open(g)) || open_menu(g, steps, ctx, OPENED_BY_START);
 }
 
-/* The Start assignment's step: as C, or on the machine its entry, from the
- * original's call. */
+/* The Start assignment's step. */
 typedef bool (*PressStart)(void *ctx);
 
 // $C0:18D9
@@ -428,11 +420,11 @@ static bool pause_and_menus(GameState *g, const StopSteps *steps, PressStart sta
     return (!start_pauses(g) || pause(g, steps, ctx)) && menu_input_after_pause(g, steps, start, ctx);
 }
 
-/* ---- As C ------------------------------------------------------------------------------------- */
+/* ---- The steps -------------------------------------------------------------------------------- */
 
 /* The routines the steps stand for, which time them. */
 enum {
-    MENUS = 0xC28000,               /* the menus, at the mode in A */
+    MENUS = 0xC28000,               /* the menus, at the mode they are given */
     FRAME_WAIT = 0xC0EC60,          /* waits for the next frame */
     OBJECT_START = 0xC0597D,        /* the running object starts over in its script */
     LINE_EFFECTS = 0xFDC2C1,
@@ -601,8 +593,8 @@ FieldPass field_script_menu_opened(GameState *g, Platform *pf)
     }
 }
 
-/* The guard: the field's page with the data bank $00, and the party's places
- * objects the tables hold, or none. */
+/* Whether the port keeps the party for a menu: the party's places objects
+ * the tables hold, or none. */
 static bool party_links_readable(const GameState *g)
 {
     for (unsigned place = 0; place < PARTY_PLACES; place++) {

@@ -22,7 +22,6 @@
 #include "core/program.h"
 
 #include "field/bridge.h"
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
@@ -47,8 +46,8 @@ static Point corner(const GameState *g, unsigned c)
     return (Point){ field_window_shape_corners_x(g, c), field_window_shape_corners_y(g, c) };
 }
 
-/* A sloped edge used six additional scratch accesses in the old
- * estimate. Retain that work without retaining the edge's scratch values. */
+/* Whether the shape had a sloped edge, whose drawing takes the original more
+ * work, which the shape's time keeps. */
 static bool drew_sloped_edge;
 
 /* ---- The rasterizer ----------------------------------------------------------------------- */
@@ -193,12 +192,12 @@ static void rasterize_quad(GameState *g)
     (void)fill_length;
 }
 
-/* The guard: the table where the game puts it, in bank $7F, or in bank $7E
- * past low RAM, far enough from the bank's end that neither the table nor
- * the fill leaves it, and the right side starting on a line. Where else a
- * table can be, the fill (which can repeat 64 KiB) runs over the stack the
- * original's registers are saved on, and the port writes the table but
- * doesn't reproduce the registers that would come back from it. The field
+/* The shapes the port draws: the table where the game puts it, in bank $7F,
+ * or in bank $7E past low RAM, far enough from the bank's end that neither
+ * the table nor the fill leaves it, and the right side starting on a line.
+ * Where else a table can be, the fill (which can repeat 64 KiB) runs over
+ * memory the original keeps other things in, which the port doesn't
+ * reproduce. The field
  * points the table at field_window_edge_lines or its copy; the shared
  * endings' swept window ($7E:9A0C) at a table of its own in bank $7E. */
 enum { TABLE_BANK = 0x7F, LOW_TABLE_BANK = 0x7E, PAST_LOW_RAM = 0x2000, TABLE_END = 0xFC00, LINES = 0x100 };
@@ -239,17 +238,3 @@ void field_draw_window_shape(GameState *g)
     rasterize_quad(g);
 }
 
-/* Where the original's fill leaves Y: past the last line it copied down,
- * of the lines above the top where there are any, or else of those below the
- * right side; past the first of those where there are none. */
-uint16_t field_window_shape_leaves_y(const GameState *g)
-{
-    uint16_t table = field_window_shape_table_address(g), right_start = field_window_shape_right_start(g);
-    uint16_t top = field_window_shape_top(g);
-    uint16_t below = (uint16_t)((LAST_LINE - right_start) * LINE_BYTES - 1);
-    if (top)
-        return (uint16_t)(table + LINE_BYTES + top * LINE_BYTES);
-    if (below)
-        return (uint16_t)(table + LINE_BYTES);
-    return (uint16_t)(right_start * LINE_BYTES + table + LINE_BYTES);
-}

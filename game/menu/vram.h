@@ -33,7 +33,7 @@ bool menu_upload_queue_takes(const GameState *g, unsigned uploads);
  * its time that routine's. */
 void menu_queue_fixed_upload(GameState *g, uint16_t record);
 
-/* The sprite-object mode's queue (its own, on its direct page): uploads from
+/* The sprite-object mode's queue (its own, in its own cells): uploads from
  * anywhere in memory, each record holding how the VRAM address steps as it
  * goes -- a word at a time along a tilemap row, or a tilemap row at a time
  * down a column -- as the byte its vblank handler hands the video service

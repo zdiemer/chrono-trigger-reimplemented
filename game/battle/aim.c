@@ -15,9 +15,9 @@
  *      where the chosen one has fallen; one that is knocked out, for a revive.
  *   3. Its area rules, where it has any: each places an area on the
  *      combatants -- around the tech's first member, around the target,
- *      around the actor and reaching toward the target -- and the original's
- *      area search (the battle's step 7, $C1:1FDD, still a call-out) finds
- *      who stands in it, who become the targets. Then the targets are settled
+ *      around the actor and reaching toward the target -- and the area search
+ *      (the battle's step 7, $C1:1FDD, battle/area_search.c) finds who
+ *      stands in it, who become the targets. Then the targets are settled
  *      as the mode says (Finish): the chosen one added, those out of the
  *      fight taken off the list.
  *
@@ -26,12 +26,10 @@
  * tech's area that finds nobody is shown first, as the tech's "no target"
  * showing.
  *
- * The original works in the direct page's first cells as it goes. What it
+ * The original works in the battle's first work cells as it goes. What it
  * leaves there is worked out once, from what the steps decided
- * (leave_aim_cells): the cells a later reader takes as game input (battle.h)
- * plainly, the rest as scaffolding. The logic is in functions of the game's
- * state; the entry at the end runs the two call-outs, the area search and the
- * "no target" showing. */
+ * (leave_aim_cells): some are read later as game input (battle.h), the rest
+ * keep the original's values. */
 #include "battle/aim_data.h"
 #include "battle/arith.h"
 #include "battle/battle.h"
@@ -77,8 +75,8 @@ typedef enum {
 } Finish;
 
 /* A mode's row; `left` is the number the original leaves for its finish in
- * a cell nothing reads after it (battle_aim_finish, scaffolding), which tells
- * apart modes that settle alike. */
+ * a cell nothing reads after it (battle_aim_finish), which tells apart modes
+ * that settle alike. */
 typedef struct {
     uint8_t mode;
     Take take;
@@ -472,8 +470,8 @@ static const AreaPlacing PLACINGS[AREA_PLACINGS] = {
 
 // $C1:C74C
 /* The party places of a party tech's members, which the original looks up
- * again with the tech's members (its multiply entered with the carry clear)
- * and leaves for the effect as the further targets. An enemy's tech has none:
+ * again with the tech's members and leaves for the effect as the further
+ * targets. An enemy's tech has none:
  * its rules are placed without them. */
 static bool placing_needs_members(const AreaPlacing *p)
 {
@@ -521,11 +519,11 @@ static uint8_t anchor(const Anchors *a, Anchor which, uint8_t size)
 
 /* ---- What the original leaves in its cells ------------------------------------------------------- */
 
-/* The direct page's first cells, as the original leaves them. It works in
+/* The battle's first work cells, as the original leaves them. It works in
  * them as it goes, each holding several things in turn; what each holds at
- * the end follows from how far the aim went. Those a later reader takes as
- * game input (battle.h: the clock's word, the member's cell, the cells read
- * as stats) are written plainly; the others are scaffolding. */
+ * the end follows from how far the aim went. Some are read later as game
+ * input (battle.h: the clock's word, the member's cell, the cells read as
+ * stats); the others keep the original's values. */
 enum {
     LEFT_MODE_OR_FIRST = 0x00, /* the aim mode, or a party tech's first member's place once its area is gathered */
     LEFT_SECOND = 0x02, /* a party tech's second member's place */
@@ -696,13 +694,13 @@ static bool settle_targets(GameState *g, Finish finish)
 
 /* ---- The aim ------------------------------------------------------------------------------------ */
 
-/* How far the aim gets before the original's area search: aimed, come to
- * nothing, or with an area to search. */
+/* How far the aim gets before the area search: aimed, come to nothing, or
+ * with an area to search. */
 typedef enum { AIMED, CAME_TO_NOTHING, SEARCH_THE_AREA } AimProgress;
 
 /* Step 3's start: the area's anchors gathered and its rule placed. Every set
- * the ROM has holds one rule (the entry's guard takes no more); a set of
- * none places nothing. */
+ * the ROM has holds one rule (aim_fits takes no more); a set of none places
+ * nothing. */
 static void place_the_area(GameState *g, Aiming *a)
 {
     a->rules = area_rules_place(g, a->aim.area);
@@ -716,13 +714,12 @@ static void place_the_area(GameState *g, Aiming *a)
     a->asked = place_area(g, a, &a->anchors, &a->rule);
 }
 
-/* Steps 1 and 2, and the area placed for step 3. The original starts the aim
- * by looking up the action's tech members, whose multiply takes its caller's
- * carry (`carry`), which it leaves in a cell. */
+/* Steps 1 and 2, and the area placed for step 3. The aim starts by looking
+ * up the action's tech members. `carry` is no longer read. */
 static AimProgress aim_up_to_the_area(GameState *g, Aiming *a, bool carry)
 {
-
-    (void)carry;     set_battle_action_came_to_nothing(g, 0);
+    (void)carry;
+    set_battle_action_came_to_nothing(g, 0);
     effect_take_tech_members(g, battle_action_detail(g));
     a->aim = action_aim(g);
     a->row = aim_row(a->aim.mode);
@@ -755,24 +752,22 @@ static AreaOutcome settle_after_search(GameState *g, const Aiming *a)
     return settle_targets(g, a->row.finish) ? SETTLED : NOTHING_SETTLED;
 }
 
-/* ---- The entry ---------------------------------------------------------------------------------- */
+/* ---- The area searched and the targets settled ---------------------------------------------------- */
 
 static void came_to_nothing(GameState *g) { set_battle_action_came_to_nothing(g, 1); }
 
-enum { SHOWING = 0xC1AC57, SHOWING_CALL = 0xC1C6A3 };
+enum { SHOWING = 0xC1AC57 };
 
 // $C1:C741
 /* The rule's area searched (area_search.c), the shape noted where the
- * original's step 7 takes it. */
+ * battle's step 7 takes it. */
 static void search_area(GameState *g, uint8_t shape, const AreaAsked *asked)
 {
     set_battle_area_shape(g, shape);
     battle_find_area(g, shape, asked);
 }
 
-/* The placed rule's area searched, and its finds taken. The carry the search
- * leaves goes into the original's multiply that finds where its finds
- * start. */
+/* The placed rule's area searched, and its finds taken. */
 static void search_the_area(GameState *g, const Aiming *a)
 {
     TIMED_AS(g, 0xC1C741, search_area(g, a->rule.shape, &a->asked));
@@ -780,9 +775,9 @@ static void search_the_area(GameState *g, const Aiming *a)
 }
 
 // $C1:C1DD
-/* Aim the action, from the carry its caller leaves; a party tech's area that
- * finds nobody shows its "no target" showing (the action shown, `show`, a
- * routine of its own, handed the showing). */
+/* Aim the action; a party tech's area that finds nobody shows its "no
+ * target" showing (the action shown, `show`, a routine of its own, handed
+ * the showing). */
 typedef enum { AIM_STOPPED, AIM_DONE, AIM_SHOWN_NO_TARGET } AimEnds;
 
 static AimEnds aim_the_action(GameState *g, bool carry, bool (*show)(void *ctx, uint8_t showing), void *ctx)
@@ -878,7 +873,7 @@ static bool aim_fits(const GameState *g)
     return rules_fit(g, aim.area, party);
 }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- Aiming, with its showing ------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;
@@ -894,7 +889,7 @@ static bool show_the_aimed_action(void *ctx, uint8_t showing)
     return done;
 }
 
-/* The guard's state half: an aim the port makes. */
+/* Refused where the aim is one the port doesn't make (aim_fits). */
 bool battle_aim_action(GameState *g, Platform *pf, bool carry)
 {
     if (!aim_fits(g))

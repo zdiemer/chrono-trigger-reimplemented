@@ -467,16 +467,16 @@ static bool set_up_the_palace_with(GameState *g, Platform *pf, bool (*first_step
     return true;
 }
 
-/* As C (scene/program.c's setups with no machine): channel 0's turn, which
- * runs channel 1's first command too. The setup's guard is its code alone. */
+/* The setup's step that is another routine (for scene/program.c's setups):
+ * channel 0's turn, which runs channel 1's first command too. */
 typedef struct {
     GameState *game;
     Platform *pf;
-} PalaceInC;
+} PalaceContext;
 
 static bool turn_the_first_channel(void *ctx)
 {
-    PalaceInC *c = ctx;
+    PalaceContext *c = ctx;
     SceneTurn turn = SCENE_TURN_ENDED;
     TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, TURN_CHANNEL));
     return turn == SCENE_TURN_ENDED;
@@ -484,7 +484,7 @@ static bool turn_the_first_channel(void *ctx)
 
 bool scene_palace_set_up(GameState *g, Platform *pf)
 {
-    PalaceInC c = { g, pf };
+    PalaceContext c = { g, pf };
     return set_up_the_palace_with(g, pf, turn_the_first_channel, &c);
 }
 
@@ -493,13 +493,8 @@ bool scene_palace_set_up(GameState *g, Platform *pf)
 /* With the curtain, a frame task sweeps it ($7E:6844): the curtain's step,
  * and its window's edge read from the half of its table the step didn't
  * write -- the table on odd steps, the half after it on even ones -- through
- * the per-line effect's two lists of the table's runs. The step is a port of
- * its own, called through the machine, so that a comparison of it is its own
- * (the stir waits there for the beam the original latches); it reads none of
- * the registers but X, the list's place of the task, which it is handed as
- * the list hands it. The task is the list's original's for the same reason,
- * and runs as C where the list calls it. */
-enum { CURTAIN_STEP = 0xC301E4 };
+ * the per-line effect's two lists of the table's runs. The step's stir takes
+ * the list's place of the task. */
 enum { CURTAIN_RUNS_ODD = 0x688A, CURTAIN_RUNS_EVEN = 0x6891, CURTAIN_WINDOW_SLOT = 0 };
 
 static uint16_t curtain_runs(const GameState *g)
@@ -525,24 +520,24 @@ static bool sweep_the_curtain_with(GameState *g, Platform *pf, bool (*step)(void
     return true;
 }
 
-/* As C, the step's port with its guard's state half (scene/curtain.c), its
- * stir taking the slot's place in the list as the list hands it. */
+/* The curtain's step (scene/curtain.c), which goes no further where its
+ * table is not one it sweeps, its stir taking the slot's place in the list. */
 typedef struct {
     GameState *game;
     Platform *pf;
     uint16_t salt;
-} CurtainInC;
+} CurtainContext;
 
 static bool curtain_step(void *ctx)
 {
-    CurtainInC *c = ctx;
+    CurtainContext *c = ctx;
     return scene_curtain_stepped(c->game, c->pf, c->salt);
 }
 
 TaskEnd scene_sweep_the_palace_curtain(GameState *g, Platform *pf, unsigned slot)
 {
-    CurtainInC c = { g, pf, (uint16_t)(slot * 2) };
+    CurtainContext c = { g, pf, (uint16_t)(slot * 2) };
     if (!sweep_the_curtain_with(g, pf, curtain_step, &c))
-        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+        return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
     return task_goes_on();
 }

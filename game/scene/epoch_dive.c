@@ -397,7 +397,8 @@ static SceneDraw from_the_gauge(uint8_t gauge, bool spilled) { return scene_draw
 // $7E:8079, $7E:80D3, $7E:80A6, $7E:80AF
 /* Each frame from the cockpit: the warning lights and the needles take a
  * picture each at random. The first draw goes on from what the list called
- * the task with -- its own address and the list's carry -- salted with its
+ * the task with -- its own address, and a bit spilled only at the list's
+ * first slot -- salted with its
  * slot; each draw after goes on from the last picture it took (a light's) or
  * the gauge's place (a needle's), salted with where the last picture lies.
  * The right needle's draw starts with nothing spilled: no needle's picture
@@ -636,8 +637,7 @@ enum { PLANE_HALF_BYTES = 0x2000 };
 
 /* The setup's steps that are the program's other routines: a resource
  * unpacked by its unpacker, the camera's script's first step, and the
- * Epoch's first drawing with the main loop's call passed once. The program
- * takes them as C, the machine's entry as calls of the original's. */
+ * Epoch's first drawing with the main loop's call passed once. */
 typedef enum {
     UNPACK_SHELL_PIXELS, UNPACK_SHELL_MAP, UNPACK_DIVE_COLOURS, UNPACK_SPRITE_TILES, UNPACK_MORE_SPRITE_TILES,
     UNPACK_PANEL_MAP, UNPACK_EPOCH_PICTURE, DIVE_UNPACKS
@@ -875,23 +875,23 @@ static bool set_up_the_dive_with(GameState *g, Platform *pf, const DiveSetUpStep
     return true;
 }
 
-/* ---- As C ---- */
+/* ---- The setup's steps ---- */
 
 typedef struct {
     GameState *game;
     Platform *pf;
-} DiveInC;
+} DiveContext;
 
 static bool unpack_the_resource(void *ctx, DiveUnpack which)
 {
-    DiveInC *c = ctx;
+    DiveContext *c = ctx;
     TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, dive_unpacks[which].resource));
     return true;
 }
 
 static bool turn_the_camera_channel(void *ctx)
 {
-    DiveInC *c = ctx;
+    DiveContext *c = ctx;
     SceneTurn turn = SCENE_TURN_ENDED;
     TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, SCENE_CAMERA_CHANNEL));
     return turn == SCENE_TURN_ENDED;
@@ -899,13 +899,12 @@ static bool turn_the_camera_channel(void *ctx)
 
 static bool draw_and_scale_once(void *ctx)
 {
-    DiveInC *c = ctx;
+    DiveContext *c = ctx;
     return scene_draw_the_epoch(c->game, c->pf, 0).outcome == TASK_GOES_ON && scene_scale_the_epoch(c->game, c->pf);
 }
 
-/* As C: where a picture waits already, or the mark isn't the word the
- * setup's increment takes it for, the setup is the machine's, as its entry's
- * guard has it. */
+/* Where a picture waits already, or the mark isn't the word the setup's
+ * increment takes it for, the scene goes no further. */
 static bool no_picture_yet(const GameState *g);
 enum { DIVE_SET_UP = 0x7E78DD };
 
@@ -916,13 +915,13 @@ bool scene_dive_set_up(GameState *g, Platform *pf)
         return false;
     }
     static const DiveSetUpSteps in_the_program = { unpack_the_resource, turn_the_camera_channel, draw_and_scale_once };
-    DiveInC c = { g, pf };
+    DiveContext c = { g, pf };
     return set_up_the_dive_with(g, pf, &in_the_program, &c);
 }
 
-/* ---- Entries ---------------------------------------------------------------------------------- */
+/* ---- The routines the scripts call --------------------------------------------------------------- */
 
-/* The routines the scripts call, as C (scene/script.c). */
+/* The routines the scripts call (scene/script.c). */
 const SceneScriptRoutine scene_dive_routines[] = {
     [SCENE_ROW_LOOK_FROM_OUTSIDE] = { SCENE_ROUTINE_LOOK_FROM_OUTSIDE, look_from_outside },
     [SCENE_ROW_LOOK_FROM_THE_COCKPIT] = { SCENE_ROUTINE_LOOK_FROM_THE_COCKPIT, look_from_the_cockpit },
@@ -931,10 +930,9 @@ const SceneScriptRoutine scene_dive_routines[] = {
 };
 const unsigned scene_dive_routine_count = sizeof scene_dive_routines / sizeof scene_dive_routines[0];
 
-/* Unchanged, A holds the last register compared. A new perspective is built
- * on channel 0's page. The entry guard checks the upcoming half before the
- * saved camera changes. */
-enum { BUILD_PERSPECTIVE = 0x7E357B, CAMERA_PAGE = 0x0A00 };
+/* A new perspective is built from channel 0's camera; the port checks the
+ * coming half before the kept camera changes. */
+enum { BUILD_PERSPECTIVE = 0x7E357B };
 
 /* ---- What the ports take ---------------------------------------------------------------------- */
 
@@ -1032,15 +1030,15 @@ static bool shaking_fits(const GameState *g)
  * line. */
 static bool panel_in_reach(const GameState *g) { return (uint8_t)scene_shell_below_end(g) >= LINES_BEFORE_THE_PANEL; }
 
-/* ---- As C ------------------------------------------------------------------------------------- */
+/* ---- The tasks ---------------------------------------------------------------------------------- */
 
-/* The tasks, for a program with no machine. The list's carry, which some of
- * them add in, is clear at every slot but the first, and none of those is
- * ever at the first; a task called with its own address in A (the lights')
- * goes on from it. */
-static TaskEnd machine_s(GameState *g, uint16_t task, const char *what)
+/* The tasks. The bit the list's call spills, which some of them add in, is
+ * clear at every slot but the first, and none of those is ever at the first;
+ * a task that draws from what it was called with (the lights') goes on from
+ * its own address. */
+static TaskEnd no_further(GameState *g, uint16_t task, const char *what)
 {
-    return scene_task_needs_the_machine(g, PROGRAM_BANK | task, what);
+    return scene_task_goes_no_further(g, PROGRAM_BANK | task, what);
 }
 
 TaskEnd scene_pass_the_shell_across(GameState *g, Platform *pf, unsigned slot)
@@ -1048,7 +1046,7 @@ TaskEnd scene_pass_the_shell_across(GameState *g, Platform *pf, unsigned slot)
     (void)pf;
     (void)slot;
     if (!passes_within_reach(g, ACROSS))
-        return machine_s(g, PASS_THE_SHELL_ACROSS, "the shell passed past where the port keeps it round");
+        return no_further(g, PASS_THE_SHELL_ACROSS, "the shell passed past where the port keeps it round");
     pass_the_shell(g, ACROSS);
     return task_goes_on();
 }
@@ -1058,7 +1056,7 @@ TaskEnd scene_pass_the_shell_down(GameState *g, Platform *pf, unsigned slot)
     (void)pf;
     (void)slot;
     if (!passes_within_reach(g, DOWN))
-        return machine_s(g, PASS_THE_SHELL_DOWN, "the shell passed past where the port keeps it round");
+        return no_further(g, PASS_THE_SHELL_DOWN, "the shell passed past where the port keeps it round");
     pass_the_shell(g, DOWN);
     return task_goes_on();
 }
@@ -1078,7 +1076,7 @@ TaskEnd scene_check_the_shell(GameState *g, Platform *pf, unsigned slot)
     if (!the_camera_moved(g))
         return task_goes_on();
     if (!scene_perspective_fits(g, SCENE_CAMERA_CHANNEL))
-        return scene_task_needs_the_machine(g, BUILD_PERSPECTIVE, "a shell's perspective whose lines the port doesn't build");
+        return scene_task_goes_no_further(g, BUILD_PERSPECTIVE, "a shell's perspective whose lines the port doesn't build");
     TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, SCENE_CAMERA_CHANNEL));
     return task_goes_on();
 }
@@ -1095,7 +1093,7 @@ TaskEnd scene_draw_the_epoch(GameState *g, Platform *pf, unsigned slot)
     (void)pf;
     (void)slot;
     if (!epoch_drawing_fits(g))
-        return machine_s(g, DRAW_THE_EPOCH, "an Epoch the port doesn't draw");
+        return no_further(g, DRAW_THE_EPOCH, "an Epoch the port doesn't draw");
     draw_the_epoch(g);
     return task_goes_on();
 }
@@ -1115,7 +1113,7 @@ TaskEnd scene_draw_the_trail(GameState *g, Platform *pf, unsigned slot)
     (void)pf;
     (void)slot;
     if (!trail_fits(g))
-        return machine_s(g, DRAW_THE_TRAIL, "a trail the port doesn't draw");
+        return no_further(g, DRAW_THE_TRAIL, "a trail the port doesn't draw");
     draw_the_trail(g);
     return task_goes_on();
 }
@@ -1127,7 +1125,7 @@ TaskEnd scene_fly_the_epoch_on(GameState *g, Platform *pf, unsigned slot)
     (void)pf;
     (void)slot;
     if (!flight_fits(g))
-        return machine_s(g, FLY_THE_EPOCH_ON, "an Epoch flying on the port doesn't draw");
+        return no_further(g, FLY_THE_EPOCH_ON, "an Epoch flying on the port doesn't draw");
     fly_the_epoch_on(g);
     return task_goes_on();
 }
@@ -1137,7 +1135,7 @@ enum { SLOT_BYTES = 2 };
 TaskEnd scene_shake_the_cockpit(GameState *g, Platform *pf, unsigned slot)
 {
     if (!shaking_fits(g))
-        return machine_s(g, SHAKE_THE_COCKPIT, "a cockpit the port doesn't shake");
+        return no_further(g, SHAKE_THE_COCKPIT, "a cockpit the port doesn't shake");
     shake_the_cockpit(g, pf, (uint16_t)(slot * SLOT_BYTES));
     return task_goes_on();
 }
@@ -1158,7 +1156,7 @@ TaskEnd scene_follow_the_panel(GameState *g, Platform *pf, unsigned slot)
     (void)pf;
     (void)slot;
     if (!panel_in_reach(g))
-        return machine_s(g, FOLLOW_THE_PANEL, "a panel above the lines the port follows it in");
+        return no_further(g, FOLLOW_THE_PANEL, "a panel above the lines the port follows it in");
     follow_the_panel(g);
     return task_goes_on();
 }
@@ -1207,7 +1205,7 @@ bool scene_scale_the_epoch(GameState *g, Platform *pf)
     return true;
 }
 
-/* The setup's code, and the program's routines it runs as C inline: the
+/* The setup's code, and the program's routines it runs inline: the
  * doubling of the plane's rows, the palette made current, the two transfers,
  * the copy of a resource, the unpacker's destination set; and no picture
  * waiting yet, as the scene's clear leaves the mark, which the setup's word-wide

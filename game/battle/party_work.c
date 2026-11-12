@@ -29,8 +29,8 @@
 
 /* The battle slot a character fights in, none where it isn't in the battle.
  * A part with no member ends the tech: the original reads the slot of the
- * id of none past the table and ends where that byte is none too, which the
- * entry's guard makes sure of (the only place the port reads it). */
+ * id of none past the table and ends where that byte is none too, which
+ * no_member_ends_the_tech makes sure of (the only place the port reads it). */
 enum { NO_SLOT = 0xFF };
 
 static uint8_t slot_of(const GameState *g, uint8_t character) { return battle_character_slot(g, character); }
@@ -65,8 +65,8 @@ uint8_t effect_part_mp_cost(const GameState *g, const PartyTech *t, unsigned par
  * compared, kept in the word the original compares with
  * (battle_tech_mp_compared, which a steal aimed at the party reads as that
  * member's marks), with the multiply the original found the MP's cost by; and
- * as scaffolding, the part it stopped at in the cell the hits repeated count,
- * and that member's slot in the division's remainder. */
+ * the part it stopped at in the cell the hits repeated count, and that
+ * member's slot in the division's remainder, as the original leaves them. */
 enum { WIDE_REMAINDER = 10, NOBODY_COMPARED = 0xFF };
 
 // $C1:CB93
@@ -264,8 +264,8 @@ static uint8_t sure_flags(const PartyTech *t)
 }
 
 // $C1:BF46
-/* The original leaves where it found the item's use in the direct page's
- * first word, which the clock's modifier may read (battle.h). */
+/* The original leaves where it found the item's use in the battle's first
+ * work word, which the clock's modifier may read (battle.h). */
 
 static void clear_action_notes(GameState *g)
 {
@@ -341,15 +341,15 @@ TechOutcome effect_work_out_member_tech(GameState *g, Platform *pf)
     return work_out_tech(g, pf);
 }
 
-/* ---- The entries --------------------------------------------------------------------------- */
+/* ---- What the port works out ------------------------------------------------------------------ */
 
 /* What the port works out of a tech: its members all in the party's slots
  * (the check of whether they can take part reads the party's tables by
  * them), each part's kind as the port has it for the part's member (battle/
  * effect_work.c), targets that are combatants, and for an attack, a first
  * candidate that is one or none, standing in a place that is one (the aim
- * reads where it stands, and takes whoever stands there). The rest is turned
- * away to the original. */
+ * reads where it stands, and takes whoever stands there). The rest is
+ * refused. */
 static bool members_in_party(const GameState *g, const PartyTech *t)
 {
     for (unsigned part = 0; part < TECH_MEMBERS; part++) {
@@ -406,9 +406,9 @@ static bool member_tech_ported(const GameState *g)
  * combatants. */
 static bool item_use_ported(const GameState *g) { return battle_actor(g) < BATTLE_COMBATANTS && effect_targets_named(g); }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- A tech worked out, an item used --------------------------------------------------------- */
 
-/* Each with its guard's state half: a tech, and an item, the port works out. */
+/* Each refused unless it is a tech, or an item, the port works out. */
 bool battle_work_out_member_tech(GameState *g, Platform *pf)
 {
     if (!member_tech_ported(g))

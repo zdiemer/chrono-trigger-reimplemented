@@ -2,13 +2,9 @@
  *
  * Each of bank C2's two modes has a main loop that does a frame's work and
  * then waits for its vblank handler: the sprite-object mode's for the next
- * frame to be counted (game/menu/display.c, menu_object_nmi), the menus'
- * for the handler to have sent the uploads the frame queued
- * (menu_nmi_work). Each mode is in its wait at nearly every frame's end, so
- * their waits run as restartable C loops in shipping mode, with the caller
- * frame held on the saved stack. One-pass entries remain for saved addresses
- * and tools; native_idle_held keeps their polling and exit time.
- * Between its waits the menus' loop runs a turn of each of their tasks
+ * frame to be counted (game/menu/display.c, menu_object_vblank), the menus'
+ * for the handler to have sent the uploads the frame queued (menu_vblank).
+ * Each mode is in its wait at nearly every frame's end. Between its waits the menus' loop runs a turn of each of their tasks
  * (menu/tasks.c), which a screen starts and stops. */
 #include "menu/menu.h"
 
@@ -22,12 +18,7 @@
 
 // $C2:0346, $C2:046E (the wait's start, and the jump to it)
 /* The sprite-object mode's wait for the next frame: until the vblank handler
- * has counted a frame past the one it sees now. The mode is in it at nearly
- * every frame's end, so a saved machine has to hold it: the shipping mode
- * leaves it to the loop's named idle continuation, below, which goes on as
- * this does. Its registry alias keeps shadow comparisons. The loop keeps the
- * count it saw in A, comparing the count with it, and the comparison's flags
- * are dead after it (the entries' set). */
+ * has counted a frame past the one it sees now. */
 enum { FRAME_WAIT = 0xC20346, FRAME_WAIT_LOOP = 0xC20348 };
 
 /* The wait, a frame at a time, past the count it `seen`: `a_frame` lets one
@@ -64,7 +55,6 @@ void menu_wait_for_the_next_frame(GameState *g, Platform *pf)
  * 65,536 frames, as the original counts it down. */
 typedef struct {
     bool (*a_frame)(void *ctx, uint16_t left);
-    void (*frame_done)(void *ctx);
 } FramesLeft;
 
 static bool wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t frames, const FramesLeft *f, void *ctx,
@@ -80,7 +70,6 @@ static bool wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t f
             au_command(pf, PF_CALL(0xC20462, 0xC70004), waiting);
             overworld_waiting_sound_sent(g);
         }
-        f->frame_done(ctx);
         left--;
     } while (left != 0);
     return true;
@@ -94,14 +83,12 @@ static bool a_frame_left(void *ctx, uint16_t left)
     return true;
 }
 
-static void frame_done(void *ctx) { (void)ctx; }
-
 void menu_wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t frames)
 {
-    static const FramesLeft in_the_program = { a_frame_left, frame_done };
+    static const FramesLeft the_steps = { a_frame_left };
     MenuFrameContext c = { g, pf };
     bool sent = false;
-    TIMED_AS(g, 0xC20454, (void)wait_frames_sending_the_sound(g, pf, frames, &in_the_program, &c, &sent));
+    TIMED_AS(g, 0xC20454, (void)wait_frames_sending_the_sound(g, pf, frames, &the_steps, &c, &sent));
 }
 
 void menu_stop_tasks(GameState *g, uint8_t tasks)

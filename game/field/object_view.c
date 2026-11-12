@@ -23,7 +23,6 @@
 #include "cpu_io.h"
 #include "ram.h"
 #include "field/bridge.h"
-#include "field/scratch.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
@@ -213,8 +212,7 @@ static bool check_on_screen(GameState *g, FieldObject obj)
 /* Coming into view, the object takes its palette slot and its block of
  * sprite tiles (field/palettes.c, field/cast.c) and joins its row; leaving,
  * it lets go of its frame areas, its slot and its block, and leaves its row.
- * True where it took colours or a block: either leaves the overflow clear,
- * which the original's callers read where nothing after it sets one. */
+ * True where it took colours or a block. */
 static bool take_what_it_needs(GameState *g, FieldObject obj)
 {
     bool coloured, blocked;
@@ -233,10 +231,9 @@ static void give_up_what_it_had(GameState *g, FieldObject obj)
 /* ---- The view step ------------------------------------------------------------------------ */
 
 /* How the view step's row is joined or left, which is the one step it makes
- * that the port doesn't always take: as C, or on the machine, where the
- * original's routine joins or leaves the rows whose links the port doesn't
- * take. False where it didn't come back. And, on the machine, what taking a
- * palette or a block leaves for the original's callers; none as C. */
+ * that the port doesn't always take: false where it refused. And what
+ * follows taking a palette or a block, if anything (nothing, in the
+ * program's steps). */
 typedef struct {
     bool (*rows)(void *ctx, FieldObject obj, bool join);
     void (*took_what_it_needs)(void *ctx);
@@ -254,9 +251,8 @@ static ViewUpdate update_view(GameState *g, FieldObject obj, const ViewSteps *st
 {
     bool disabled = object_disabled(g, obj);
     bool shown = !disabled && (int8_t)field_object_sprite_flag(g, obj) > 0;
-    /* Visibility used to be evaluated twice, including in the native
-     * program; count that repeated read without performing it again.
-     * Only the machine also read and saved the four temporary edges. */
+    /* The view step's calibrated time counts the visibility's read twice;
+     * the second is charged without being made again. */
     charge_as(g, 0xC0A88D, disabled ? 1 : 2);
     if (shown)
         charge_legacy_accesses(g, 8);
@@ -290,7 +286,7 @@ bool field_view_changes(const GameState *g, unsigned obj)
 
 /* Whether what coming into view or leaving it reads of the tables is in
  * them: the palette slots it looks at, its palette's sharers, its kind and
- * its block (the view's guard). */
+ * its block (which the port checks before the view changes). */
 bool field_view_change_in_the_tables(const GameState *g, FieldObject obj)
 {
     if (object_in_view(g, obj))
@@ -299,7 +295,7 @@ bool field_view_change_in_the_tables(const GameState *g, FieldObject obj)
     return object_takes_a_palette_the_tables_hold(g, obj) && (role.disabled || role.kind <= ROLE_LEFT_ALONE);
 }
 
-/* ---- As C ----------------------------------------------------------------------------------- */
+/* ---- The steps ------------------------------------------------------------------------------ */
 
 static bool rows(void *ctx, FieldObject obj, bool join) { return object_rows_step(ctx, obj, join); }
 

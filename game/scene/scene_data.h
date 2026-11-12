@@ -2,10 +2,7 @@
  * Phase 3). Every read goes through here, so a build that loads the scenes'
  * data from files maps these addresses and nothing else.
  *
- * The scene ports' logic reads the data with the game's state in hand, not the
- * machine (game/rom.h). The menu mode's stream tables are still read by a port
- * on the machine (menu/object_commands.c), so theirs take the machine until
- * that port is rewritten. */
+ * The scenes read the data with the game's state in hand (game/rom.h). */
 #ifndef CT_GAME_SCENE_DATA_H
 #define CT_GAME_SCENE_DATA_H
 

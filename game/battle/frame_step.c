@@ -12,10 +12,10 @@
  * frame step and in the frame work's wait for the next frame: the next
  * party member in line for the menu takes it (battle/menu_line.c), then the
  * menu's window is drawn (battle/menu_window.c), the buttons taken
- * (battle/menu_input.c) and the cursors placed. Those are ports of their own that call the original's
- * code, so they are run as the original's calls make them (battle_run); so
- * are the combatants' and the enemies' animation steps (battle/animation.c)
- * and the frame work's tail ($CD:0009, battle/frame.c). */
+ * (battle/menu_input.c) and the cursors placed. Those are routines of their
+ * own, called where the original calls them (StepCall); so are the
+ * combatants' and the enemies' animation steps (battle/animation.c) and the
+ * frame work's tail ($CD:0009, battle/frame.c). */
 #include "battle/animation.h"
 #include "battle/battle.h"
 #include "battle/bridge.h"
@@ -38,8 +38,7 @@
  * the menu's turn is taken; the frame work's tail ($CD:0009, battle/frame.c);
  * the battle's wait for the next frame ($C1:007E); the combatants' animation
  * step (battle/animation.c); the enemies' effects (battle/animation.c); and
- * the message line's description (battle/message.c). The program makes them
- * as C, and the machine's entries from the original's calls. */
+ * the message line's description (battle/message.c). */
 typedef enum { MENU_WINDOW, MENU_BUTTONS, MENU_CURSORS, MENU_PARTS } MenuPart;
 typedef enum { TURN_IN_THE_FRAME_STEP, TURN_IN_THE_WAIT, TURN_IN_THE_WAIT_STEP, TURN_PLACES } MenuTurnPlace;
 typedef enum {
@@ -155,7 +154,7 @@ static bool wait_step(GameState *g, StepCalls call, void *ctx)
     return true;
 }
 
-/* The guards' state half: the menu's turn finds its member's cells with the
+/* What the steps take: the menu's turn finds its member's cells with the
  * queue's first, so where the turn is due the queue's first is a party
  * member or nobody, as the game has it. */
 static bool queue_holds_a_member(const GameState *g)
@@ -166,7 +165,7 @@ static bool queue_holds_a_member(const GameState *g)
 
 static bool frame_step_fits(const GameState *g) { return !menu_turn_due(g) || queue_holds_a_member(g); }
 
-/* ---- As C ------------------------------------------------------------------------------------ */
+/* ---- The steps' calls ------------------------------------------------------------------------- */
 
 typedef struct {
     GameState *game;

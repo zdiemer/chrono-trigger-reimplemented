@@ -54,7 +54,7 @@ bool overworld_open_ground_kept(const GameState *g, MenuObject vehicle);
 
 /* The region of the map a spot is in. The region map starts at the map's
  * second row of map tiles: a spot in the first row has none, and the original
- * reads before the region map there (the guards keep the party off it). */
+ * reads before the region map there (the port's checks keep the party off it). */
 uint8_t overworld_region_at(GameState *g, WorldSpot at);
 bool overworld_spot_has_a_region(WorldSpot at);
 

@@ -29,8 +29,8 @@
  * Each file of game/event/ ends with its rows. The engine decodes a command
  * once, by its row, and calls the operation with what it takes; an operation
  * says what happens next with an EventFlow and never sees the bytes. A row
- * with no operation is a command that still calls out to the original's code
- * (event/bridge.h): its operands are named the same way.
+ * with no operation is a command that reads its own operands
+ * (event/engine.h, EVENT_UNDECODED_COMMANDS): they are named the same way.
  *
  * Offsets in the script are 16-bit and wrap. */
 #ifndef CT_GAME_EVENT_SCRIPT_H
@@ -220,8 +220,8 @@ typedef EventFlow (*EventOperation)(GameState *g, const EventCommand *command);
 /* What the port needs of the game's state before it runs a command, beyond
  * what its operands' kinds imply (event/engine.c): EVENT_CHECK(check,
  * parameter...) after a check taking the game's state and those parameters,
- * and CHECK(check) in a row. Looked at without the machine's time (a guard's
- * peek). */
+ * and CHECK(check) in a row. Looked at without charging the game's time:
+ * whether the port runs a command is the program's question. */
 typedef bool (*EventCheck)(const GameState *g, const EventCommand *command);
 #define EVENT_CHECK(check, ...)                                                                    \
     static bool check##_check(const GameState *g, const EventCommand *command)                   \
@@ -304,7 +304,7 @@ typedef struct {
 
 typedef struct {
     uint8_t opcode;
-    EventOperation run;    /* the operation, or NULL for a command that still calls out (event/bridge.h) */
+    EventOperation run;    /* the operation, or NULL for a command that reads its own operands (event/engine.h) */
     struct {               /* how each parameter the operation reads is decoded; the rest are ARG_NONE */
 #define EVENT_PARAMETER_SPEC(type, name) EventArg name;
         EVENT_PARAMETERS(EVENT_PARAMETER_SPEC)
@@ -315,7 +315,7 @@ typedef struct {
     uint8_t jump;          /* the operand holding the jump's distance (conditions, jumps), or 0 */
     bool back;             /* the jump goes back */
     bool member_may_be_absent;   /* a party member operand may name an empty place */
-    EventCheck accepts;    /* NULL, or what else the port needs (the guard's part) */
+    EventCheck accepts;    /* NULL, or what else the port needs of the game's state */
 } EventOpcode;
 
 typedef struct {

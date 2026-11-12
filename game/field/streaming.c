@@ -19,8 +19,7 @@
  * are asked for, and the layers' edge runs are worked out afresh.
  *
  * The original writes the lines through the work RAM port, a byte at a time;
- * the port writes the staging buffers directly and leaves the port's cursor
- * where the original's is, as scaffolding (cpu_io.h). */
+ * the port writes the staging buffers directly. */
 #include "field/streaming.h"
 
 #include "charge.h"
@@ -29,7 +28,6 @@
 #include "field/bridge.h"
 #include "field/field.h"
 #include "field/layers.h"
-#include "field/scratch.h"
 #include "vars.h"
 
 /* ---- The map's looks ------------------------------------------------------------------------ */
@@ -338,10 +336,6 @@ static Line line_coming_in(ScreenEdges e, Side side)
     }
 }
 
-/* Where the staging buffers lie, for the work RAM port's cursor the
- * original leaves after its last line. */
-enum { WORK_RAM_LOWER_BANK = 0 };
-
 /* The streaming's time: a steady part, and a part the lines' lengths and the
  * moves' pixels set, which the port's own reads and writes don't follow (it
  * keeps a move in locals, and works a map tile's look out once for its two
@@ -512,15 +506,15 @@ void draw_layer_at_the_maps_load(GameState *g, unsigned layer)
     charge_legacy_io_accesses(g, 3); /* outside the explicitly priced drawing */
 }
 
-/* The guard: on the layers' page, and each layer's map repeats within the
- * map's 64 by 64 tables. */
+/* The layers the port streams: each layer's map repeats within the map's 64
+ * by 64 tables. */
 enum { WITHIN_THE_MAPS = 0x3F3F };
 
 /* BG2's drawing at half the pace draws the rows between its own edges,
  * which for the game are the screen's, its top above its bottom; edges the
  * other way round, or so far apart that the rows would run past the staging
  * buffers (past the bank, as the original's port goes on, or for ever to a
- * bottom of 255), are left to the original. */
+ * bottom of 255), the port refuses. */
 enum { STAGED_ROWS = 3 * FIELD_LAYER_STAGING_BYTES / (2 * DRAWN_TILES * ENTRY_BYTES), LAST_ROW = 0xFF };
 
 bool layers_repeat_within_the_maps(const GameState *g)
@@ -542,9 +536,9 @@ bool layer_drawing_fits(const GameState *g, unsigned layer)
            (own.top <= own.bottom && own.bottom - own.top < STAGED_ROWS && own.bottom != LAST_ROW);
 }
 
-/* The drawings at a map's load as C, each with its entry's guard's state
- * half: BG2's drawing fitting the staging buffers, BG1's and BG3's every
- * layer's map repeating within the map's tables. */
+/* The drawings at a map's load, each where the port draws it: BG2's drawing
+ * fitting the staging buffers, BG1's and BG3's every layer's map repeating
+ * within the map's tables. */
 static const uint32_t drawing_entries[] = { [FIELD_BG1] = 0xC075E9, [FIELD_BG2] = 0xC078EC, [FIELD_BG3] = 0xC07CB5 };
 
 bool field_layer_drawn_at_the_load(GameState *g, unsigned layer)

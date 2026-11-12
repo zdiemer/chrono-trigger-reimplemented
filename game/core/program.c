@@ -19,7 +19,7 @@
  * unflipped with the identity matrix; no window but window 1 on BG3, drawing
  * outside it; no color math; all five layers on both screens; and a black
  * fixed color (its red left as it was). It matters out of proportion to its
- * size: a comparison from power-on starts from the state the calls build. */
+ * size: everything from power-on starts from the state the calls build. */
 static const VidScreen power_on_screen = {
     .display = &(const VidDisplay){ .blank = true },
     .sprites = { .size_select = 3, .base = 0x6000 },
@@ -38,7 +38,7 @@ static const VidScreen power_on_screen = {
 /* The controller port's programmable lines, all high: nothing latched. */
 enum { IO_LINES_RELEASED = 0xFF };
 
-// $FD:C016 (the boot's work, after it sets the stack and the registers' widths)
+// $FD:C016
 void program_boot(GameState *g, Platform *pf)
 {
     (void)g;

@@ -16,7 +16,7 @@
  *
  * Only a combatant walks; on the other targets' channel and an effect's,
  * the command goes on at once. The original works in the battle's first
- * work cells as it goes; what it leaves there is scaffolding. */
+ * work cells as it goes; what it leaves there is kept as it leaves it. */
 #include "battle/script_language.h"
 
 #include "battle/battle.h"

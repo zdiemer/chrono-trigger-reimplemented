@@ -40,7 +40,6 @@
 #include "field/bridge.h"
 #include "field/field.h"
 #include "field/field_data.h"
-#include "field/scratch.h"
 #include "platform/video.h"
 #include "port/vars_ram.h"
 #include "ram.h"

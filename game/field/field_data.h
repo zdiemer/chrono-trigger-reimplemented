@@ -3,7 +3,7 @@
  * Every such read goes through an accessor here, named after what the data is
  * for, so a build that loads the data from somewhere other than the ROM image
  * changes this file and nothing that uses it. The accessors take the game's
- * state (game/rom.h), not the machine. */
+ * state (game/rom.h). */
 #ifndef CT_GAME_FIELD_DATA_H
 #define CT_GAME_FIELD_DATA_H
 

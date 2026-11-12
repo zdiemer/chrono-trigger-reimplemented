@@ -8,7 +8,6 @@
  * from it (event/variables.c), and the conditions test it (event/flow.c). */
 #include "event/event_data.h"
 #include "charge.h"
-#include "field/scratch.h"
 #include "event/script.h"
 #include "event/variables.h"
 
@@ -25,7 +24,7 @@ static EventFlow record(GameState *g, StoryOffset story_at, uint16_t value, Widt
 }
 EVENT_OPERATION(record, story_at, value, width)
 
-/* The guard's part: what it writes is in the story memory (event/variables.h). */
+/* What the port checks: what it writes is in the story memory (event/variables.h). */
 static bool records_in_the_story(const GameState *g, StoryOffset story_at, Width width)
 {
     (void)g;

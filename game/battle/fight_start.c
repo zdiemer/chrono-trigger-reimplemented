@@ -21,13 +21,13 @@
  *   - what each enemy carries to steal, the combatants' places, and the
  *     accessory that wards off confusion.
  *
- * All of it is C; battle/fight_entries.c is its machine side.
+ * battle/fight_entries.c says which parties the port takes.
  *
- * The original works in the direct page's cells throughout and hands several
+ * The original works in the battle's work cells throughout and hands several
  * pieces their member or their numbers there. Most of what it leaves there is
- * overwritten before the start ends, and the pieces only it calls leave that
- * as scaffolding. Five cells hold, when it ends, what later work reads as it
- * finds it (battle.h), and each is written plainly by its last writer: $00 the
+ * overwritten before the start ends. Five cells hold, when it ends, what
+ * later work reads as it finds it (battle.h), and each is written by its
+ * last writer: $00 the
  * enemies counted as their steal marks are set (battle/fight_enemies.c), $06
  * and $08 the accessory's record's copy (below), $0A the same copy's length
  * or, where a member's accessory boosts it, the boost's amount
@@ -106,9 +106,6 @@ static void clear_timer_order(GameState *g)
  * nothing won, the spare turn's member none (3), and no partners. */
 enum { NO_SPARE_TURN = 3 };
 
-/* Six words of the direct page's cells the turns' work leaves behind
- * (scaffolding). */
-
 void fight_clear_turn_state(GameState *g)
 {
     set_battle_action_running(g, 0);
@@ -168,7 +165,7 @@ void fight_number_places(GameState *g)
 
 /* The cells the original counts in and hands its pieces their numbers in:
  * the enemy or the member it is at, the member whose techs are built, and the
- * member whose stats are added up, twice over (scaffolding); and the
+ * member whose stats are added up, twice over; and the
  * equipment records' copies' three numbers, the last of which survive the
  * start (above). */
 enum { WORN_AT = BATTLE_MEMBER_CELL, COPY_TO_AT = BATTLE_NUMBER_TESTED, BYTES_AT = BATTLE_STAT_OFFSET_LOW };
@@ -252,7 +249,7 @@ void battle_start_fight(GameState *g)
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         fight_apply_member_bonuses(g, member);
     set_battle_timer_tick_slot(g, 0);
-    /* The game's own write, not scaffolding: a tech's stop after a missed part
+    /* The game's own write: a tech's stop after a missed part
      * reads this word's high byte as tech $2A's (battle/party_work.c,
      * stops_after_miss), and the clear is what keeps that tech going on. */
     set_battle_timer_tick_spare(g, 0);

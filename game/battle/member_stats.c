@@ -22,10 +22,10 @@
 #include "battle/equipment_data.h"
 #include "battle/rules_data.h"
 
-/* The direct page's cells the setup works in. The stat block's place, the
+/* The work cells the setup works in. The stat block's place, the
  * record's and what the last boost or affinity added are cells later work
- * reads as it finds them (battle.h), kept plainly; the others are
- * scaffolding. */
+ * reads as it finds them (battle.h); the others keep the original's
+ * values. */
 enum {
     BLOCK_AT = BATTLE_CLOCK_READS,
     MEMBER_AT = 0x02,
@@ -138,8 +138,6 @@ static void set_up_member_stats(GameState *g, uint8_t member)
         uint8_t piece = combatant_stat_byte(g, member, worn_pieces[p].worn_at);
         uint8_t number = (uint8_t)(piece - worn_pieces[p].first);
         uint16_t record = (uint16_t)(boost_records_place(worn_pieces[p].kind) + effect_times(g, number, BOOST_RECORD_BYTES));
-        /* the original finds the armor's and the helmet's record with the
-         * carry of its range's test in (scaffolding) */
         /* the original hands the boost the record's place and the boosts'
          * table's in cells, and names another table before the affinities,
          * which don't read it: kept, as later work reads the cells */
@@ -162,8 +160,6 @@ static uint16_t item_record_place(GameState *g, uint8_t item, uint16_t none)
     if (records.bytes == 0)
         return none;
     uint16_t place = (uint16_t)(records.place + effect_times(g, (uint8_t)(item - records.first), records.bytes));
-    /* the original multiplies with the carry of its range's test in: set
-     * past the weapons (scaffolding) */
     return place;
 }
 
@@ -193,7 +189,7 @@ void battle_take_equipment_records(GameState *g, uint8_t worn_at, uint8_t copy_t
     copy_equipment_records(g, worn_at, copy_to, bytes);
 }
 
-/* ---- The entries ------------------------------------------------------------------------------ */
+/* ---- The equipment records copied -------------------------------------------------------------- */
 
 /* The records to copy: where the item is in a block, in its cell ($06); where
  * they go, in its ($08); how many bytes, in its ($0A). */

@@ -70,8 +70,8 @@ static uint16_t game_sum(Platform *pf, uint16_t game)
     return sum;
 }
 
-/* Where a slot's game is: as the original's code addresses it, and in save
- * memory. */
+/* Where a slot's game is: as the original addresses it on the bus, and in
+ * save memory. */
 uint16_t saves_slot_on_the_bus(const GameState *g, uint8_t slot) { return menu_saved_game_on_the_bus(g, slot); }
 
 static uint16_t game_of(const GameState *g, uint8_t slot) { return saves_game_in_memory(saves_slot_on_the_bus(g, slot)); }
@@ -315,8 +315,7 @@ void saves_carry_over(GameState *g, Platform *pf, uint8_t slot)
 
 // $C2:8D6A
 
-/* The save and the loads run on the menus' page with the data bank on work
- * RAM's, for one of the three slots; they start their table of runs from the
+/* The save and the loads run for one of the three slots; they start their table of runs from the
  * menus' zero word, which is 0 whenever the menus run. */
 bool menu_save_code_can_run(const GameState *g) { return menu_save_slot_shown(g) < MENU_SAVE_SLOTS && menu_zero(g) == 0; }
 

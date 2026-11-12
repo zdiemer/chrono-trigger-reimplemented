@@ -280,11 +280,10 @@ const SceneScriptRoutine scene_race_routines[] = {
 };
 const unsigned scene_race_routine_count = sizeof scene_race_routines / sizeof scene_race_routines[0];
 
-/* ---- The tasks as C ---------------------------------------------------------------------------
+/* ---- The tasks ---------------------------------------------------------------------------------
  *
- * The camera's tasks are guarded by their code and the page alone, so as C
- * there is nothing of their guards to check, but for the perspective's build,
- * whose lines the port must know (scene_perspective_fits). */
+ * The camera's tasks take any state the race makes, but for the perspective's
+ * build, whose lines the port must know (scene_perspective_fits). */
 
 TaskEnd scene_race_settle_camera(GameState *g, Platform *pf, unsigned slot)
 {
@@ -353,7 +352,7 @@ TaskEnd scene_race_check_perspective(GameState *g, Platform *pf, unsigned slot)
     if (!camera_changed(g))
         return task_goes_on();
     if (!scene_perspective_fits(g, 0))
-        return scene_task_needs_the_machine(g, BUILD_PERSPECTIVE, "a race's perspective whose lines the port doesn't build");
+        return scene_task_goes_no_further(g, BUILD_PERSPECTIVE, "a race's perspective whose lines the port doesn't build");
     TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, 0));
     return task_goes_on();
 }

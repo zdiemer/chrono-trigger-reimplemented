@@ -188,7 +188,7 @@ void overworld_stand(GameState *g, MenuObject walker, uint8_t character);
 void overworld_show_walking(GameState *g, MenuObject walker, uint8_t character);
 void overworld_walk_facing(GameState *g, MenuObject walker, uint8_t character, Facing facing);
 
-/* The guard's: whether every animation a walker of the place may be given
+/* What the port checks: whether every animation a walker of the place may be given
  * is one the sprite scripts read. */
 bool overworld_animations_are_sound(const GameState *g, PartyPlace place, uint8_t character);
 
@@ -265,11 +265,9 @@ uint16_t overworld_event_script_for(const GameState *g, PartyPlace place);
 void overworld_take_up_script(GameState *g, MenuObject walker, uint16_t script);
 
 /* How a walker runs its script for a frame: through the script interpreter
- * wherever it runs (on the original's machine, the registered entries give
- * it the interpreter's bridge: entries.c). It says how the frame's run ended:
- * waiting for the next frame, the script done, or the frame handed over to
- * the original's interpreter, after which the walker does nothing more this
- * frame. */
+ * (overworld/handlers.c). It says how the frame's run ended: waiting for the
+ * next frame, the script done, or the frame handed over (the interpreter
+ * stopped), after which the walker does nothing more this frame. */
 typedef enum { WALKER_STARTS_ITS_SCRIPT, WALKER_GOES_ON_WITH_ITS_SCRIPT } WalkerScriptRun;
 typedef enum { WALKER_SCRIPT_WAITS, WALKER_SCRIPT_DONE, WALKER_SCRIPT_HANDED_OVER } WalkerScriptEnd;
 typedef struct {
@@ -285,8 +283,8 @@ enum { TRAIL_STEPS = 16, TRAIL_STEP_BYTES = 2 };
 void overworld_lay_trail(GameState *g, WorldSpot at);
 void overworld_leave_footprint(GameState *g, WorldSpot at);
 WorldSpot overworld_trail_back(const GameState *g, unsigned steps);
-/* Whether the trail's next step is one of its sixteen (the guards': the game
- * keeps it so). */
+/* Whether the trail's next step is one of its sixteen (the port checks it;
+ * the game keeps it so). */
 bool overworld_trail_is_kept(const GameState *g);
 
 /* The tile the party stands on, which a location keeps as the place to come

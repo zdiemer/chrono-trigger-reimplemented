@@ -27,7 +27,6 @@
 #include "field/object.h"
 
 #include "charge.h"
-#include "field/scratch.h"
 #include "core/input.h"
 #include "cpu_io.h"
 #include "event/script.h"
