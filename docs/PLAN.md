@@ -173,12 +173,11 @@ already built are described in PLATFORM.md.
   ending, the Dino Age interrupt, the tech sweep's wipe near the Core).
   Remaining timing debts (menu-guard accounting, sound timing, line-boundary
   uploads) are settled where a divergence traces to them.
-- **The game's state as C, not a work-RAM image.** Retire the remaining 27
-  obsolete sound-driver variables with their compatibility clients (STATE.md).
-  Audit dynamic address clients and the 1,707 addresses outside owner storage
-  before removing the residual image. Keep cartridge saves and native route
-  address queries working through the projection. `tools/ram_map.py storage`
-  measures named variables; it does not count unnamed addresses or padding.
+- **The game's state as C, not a work-RAM image.** Resolve remaining scalar
+  views into mixed blob/typed records (STATE.md); the honest measure is 1,953
+  typed, 283 blob-backed and 27 image-backed variables. Retire obsolete driver
+  variables with their clients, and audit unnamed addresses before removing
+  the residual image. Preserve cartridge saves and native route address views.
 - **The machine out of the product.** `game/core/program.c` boots the game
   and dispatches its main thread and handlers; `ct_native` runs it with host
   services (PLAYING.md, "The native program"). What is left, counted by

@@ -100,6 +100,28 @@ class TestCommittedMap(unittest.TestCase):
 
 
 class TestRules(unittest.TestCase):
+    def test_small_buffers_and_byte_indexed_storage_are_not_typed(self):
+        text = var("raw", '''addr = "7E:1000"
+stride = 3
+host_module = "work"
+field = [{name = "bytes", offset = 0, size = 3, buffer = true, meaning = "m"}]''')
+        text += var("view", 'addr = "7E:1000"\nsize = 2\nhost_alias = "raw"', "menu")
+        text += var("memory", 'addr = "7E:2000"\ncount = 16\nindex = "byte"\nhost_module = "work"\nhost_blob = "Opaque saved memory."')
+        m = ram_map.RamMap(text=text)
+        self.assertEqual(ram_map.storage_counts(m), (0, 3, 0))
+        self.assertIn("uint8_t bytes[3]", ram_map.render_host_header(m))
+        self.assertNotIn("bytes = 0x555555u", ram_map.render_host_backing(m))
+
+    def test_review_examples_have_real_typed_owners(self):
+        m = ram_map.RamMap()
+        kinds = ram_map.storage_kinds(m)
+        for name in ("scene_sprite_index", "scene_sprite_high_pointer", "scene_sprite_offset_x",
+                     "scene_sprite_offset_y", "field_kept_party_x"):
+            with self.subTest(name=name):
+                self.assertEqual(kinds[name], ("typed", []))
+                v = next(v for v in m.vars if v.name == name)
+                self.assertTrue(v.host_module)
+
     def test_storage_follows_the_field_not_the_alias_name(self):
         text = var("scratch", 'addr = "7E:1000"\nsize = 16\nhost_module = "work"')
         text += var("word", 'addr = "7E:1002"\nsize = 2\nhost_alias = "scratch"', "menu")

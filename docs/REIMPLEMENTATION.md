@@ -1683,20 +1683,15 @@ extraction. Cartridge saves, streaming writes, bulk helpers, video sources,
 route `peek`/`watch` and end-state reads all use it. Invalid and unchecked
 indices take that same view, never an out-of-bounds C array access.
 
-The measure is **27/2,263 variables image-backed (1.19%)**, down from 1,946:
-278 owner variables, 1,958 views and 48 storage-only records hold 129,365
-serialized bytes. All non-Core modules have zero image-backed variables.
-The remaining variables belong to the retired sound driver. The residual
-128 KiB allocation remains pending that driver's removal and an audit of
-1,707 addresses outside named ownership, including unnamed bytes/padding.
-
-`vars_host_test` checks whole-record and field views, all page instances,
-compositions across owners, checked/unchecked tails, full-address projection,
-video sourcing and real save/load/checksum routines with a committed `.srm`.
-`unpack_time_test` checks decompression through the same projection.
-[STATE.md](STATE.md) holds the per-module measure, validation and raw-client
-audit. Prior slice measurements are in
-[history/state-storage-second-slice.md](history/state-storage-second-slice.md).
+The honest measure distinguishes typed fields from byte-buffer views: **1,953
+of 2,263 variables are typed, 283 blob-backed and 27 image-backed**, compared
+with 785 typed and 1,451 blob-backed before the typed-storage review. Narrow
+anonymous remnants are buffers too. `storage --list` identifies each untyped
+variable's backing. Sprite submission, saved party coordinates, character HP/MP
+and OAM now have named typed storage; their address views serialize those fields.
+[STATE.md](STATE.md) records the per-module counts, mechanisms and validation.
+Earlier ownership-only counts are in
+[history/state-storage-third-slice.md](history/state-storage-third-slice.md).
 
 ### Page kinds: cells on a page the caller chooses
 

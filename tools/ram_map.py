@@ -325,7 +325,7 @@ class Field:
         for key in ("name", "offset", "meaning"):
             if key not in raw:
                 raise MapError("%s: missing %s" % (where, key))
-        unknown = set(raw) - {"name", "offset", "size", "meaning", "host_alias"}
+        unknown = set(raw) - {"name", "offset", "size", "meaning", "host_alias", "buffer"}
         if unknown:
             raise MapError("%s: unknown keys %s" % (where, sorted(unknown)))
         self.name = raw["name"]
@@ -334,6 +334,9 @@ class Field:
         self.offset = raw["offset"]
         self.size = raw.get("size", 1)
         self.meaning = raw["meaning"]
+        self.buffer = raw.get("buffer", False)
+        if not isinstance(self.buffer, bool):
+            raise MapError("%s: buffer must be boolean" % where)
         self.host_alias = raw.get("host_alias")
         if self.host_alias is not None and not valid_alias(self.host_alias):
             raise MapError("%s: host_alias must name an owning field" % where)
@@ -346,7 +349,7 @@ class Var:
     """A variable, an array of them, or an array of records."""
 
     KEYS = {"name", "addr", "size", "count", "stride", "index", "page", "dp",
-            "subsystem", "meaning", "source", "field", "rows", "row_stride", "unchecked", "reuses", "host_module", "host_alias"}
+            "subsystem", "meaning", "source", "field", "rows", "row_stride", "unchecked", "reuses", "host_module", "host_alias", "host_blob"}
 
     def __init__(self, raw, pages):
         where = "var %r" % raw.get("name")
@@ -368,6 +371,9 @@ class Var:
         if self.host_module is not None and not (isinstance(self.host_module, str) and NAME.fullmatch(self.host_module)):
             raise MapError("%s: host_module must name its C storage owner" % where)
         self.host_alias = raw.get("host_alias")
+        self.host_blob = raw.get("host_blob", "")
+        if not isinstance(self.host_blob, str):
+            raise MapError("%s: host_blob must explain its unstructured storage" % where)
         self.host_owner = None
         self.host_owners = []
         if self.host_alias is not None:
@@ -692,7 +698,7 @@ def storage_kinds(m):
     """
     blobs = {}
     for a in owner_accessors(m):
-        if not (a.blob or a.table):
+        if not (a.blob or a.table or a.var.host_blob):
             continue
         label = a.var.name + ("." + a.field.name if a.field else "")
         for base in a.var.bases():
@@ -893,7 +899,7 @@ class Accessor:
         self.meaning = field.meaning if field else var.meaning
         # A table of rows is a byte by row and column, whatever its row's size.
         self.table = var.rows is not None
-        self.blob = self.size > WIDEST and not self.table
+        self.blob = (self.size > WIDEST or (field and field.buffer)) and not self.table
         self.name = (base + "_byte" if self.blob else base) + ("_unchecked" if unchecked else "")
         self.type = "uint8_t" if self.blob or self.table else C_TYPE[self.size]
         # The unchecked pair shares the checked one's constants.
@@ -1369,8 +1375,9 @@ def render_host_header(m):
                 for f in v.fields:
                     if f.host_alias:
                         continue
-                    out += ["        %s %s%s;" % (C_TYPE.get(f.size, "uint8_t"), f.name,
-                                                   "[%d]" % f.size if f.size > WIDEST else "")]
+                    a = Accessor(v, f)
+                    out += ["        %s %s%s;" % (a.type, f.name,
+                                                   "[%d]" % f.size if a.blob or a.table else "")]
                 out += ["    } %s%s;" % (v.name, dims)]
             else:
                 blob = v.size > WIDEST or v.rows
@@ -1433,7 +1440,7 @@ def render_host_backing(m):
     groups = owner_accessors(m)
     # 24-bit values live in uint32_t, whose unused high byte is always zero.
     for a in groups:
-        if a.size == 3 and not a.table:
+        if a.size == 3 and not a.table and not a.blob:
             if a.var.on_instances():
                 out += ["    for (unsigned instance = 0; instance < %d; instance++)" % len(a.var.bases())]
             if a.var.count > 1:

@@ -133,7 +133,7 @@ static void alias_views(void)
     /* Internal views and cross-mode views must share initial contents and
      * partial writes, not just synchronize at a mode transition. */
     set_character_records_hp(g, 2, 0xABCD);
-    CHECK(h->core.character_records[2].record[3] == 0xCD);
+    CHECK(h->core.character_records_values[2].hp == 0xABCD);
     CHECK(character_records_record_byte(g, 2, 4) == 0xAB);
     set_character_records_record_byte(g, 2, 4, 0x12);
     CHECK(character_records_hp(g, 2) == 0x12CD);
@@ -155,7 +155,7 @@ static void alias_views(void)
     set_party_gold_high(g, 0x78);
     CHECK(menu_past_the_names(g) == 0x783412);
     set_oam_buffer_tile(g, 3, 0x9A);
-    CHECK(h->sprites.field_sprite_table[14] == 0x9A);
+    CHECK(h->core.oam_buffer_values[3].tile == 0x9A);
     CHECK(scene_sprite_table_byte(g, 14) == 0x9A);
     hw_port_seek(g, 0x070E, 0);
     hw_port_write(g, 0xBC);
@@ -183,7 +183,7 @@ static void alias_views(void)
     CHECK(h->menu.menu_inventory_past_the_items[0] == 0x73);
     CHECK(range_fault_count() == 1);
     set_character_records_record_byte(g, 0, CHARACTER_RECORDS_RECORD_BYTES, 0xA5);
-    CHECK(h->core.character_records[1].record[0] == 0xA5);
+    CHECK(h->core.character_records_storage[1].record_part_1[0] == 0xA5);
     CHECK(range_fault_count() == 2);
     set_oam_buffer_x(g, OAM_BUFFER_COUNT, 0x5A);
     CHECK(oam_high_table_byte(g, 0) == 0x5A);
@@ -289,6 +289,30 @@ static void projection_boundaries(void)
     state_host_destroy(g);
 }
 
+static void promoted_scalar_storage(void)
+{
+    GameState *g = state_host_create(NULL);
+    CHECK(g);
+    if (!g) return;
+    VarsHost *h = state_host_vars(g);
+    set_scene_sprite_index(g, 0x1234);
+    set_scene_sprite_high_pointer(g, 0x5678);
+    set_scene_sprite_offset_x(g, 0x9ABC);
+    set_scene_sprite_offset_y(g, 0xDE);
+    CHECK(h->scene.scene_sprite_index == 0x1234);
+    CHECK(h->scene.scene_sprite_high_pointer == 0x5678);
+    CHECK(h->scene.scene_sprite_offset_x == 0x9ABC);
+    CHECK(h->scene.scene_sprite_offset_y == 0xDE);
+    for (unsigned member = 0; member < 3; member++) {
+        set_field_kept_party_x(g, member, (uint16_t)(0x1234 + member));
+        CHECK(h->field.field_kept_party_x[member] == 0x1234 + member);
+        h->field.field_kept_party_x[member] = (uint16_t)(0xABCD + member);
+        CHECK(state_host_read8(g, 0x7F1D09 + 2 * member) == 0xCD + member);
+        CHECK(state_host_read8(g, 0x7F1D0A + 2 * member) == 0xAB);
+    }
+    state_host_destroy(g);
+}
+
 static void cartridge_save(const char *path)
 {
     static uint8_t cartridge[STATE_HOST_SRAM_BYTES], exported[STATE_HOST_SRAM_BYTES];
@@ -320,12 +344,13 @@ static void cartridge_save(const char *path)
         CHECK(location_next_id(g) == 0x5678);
         /* The cartridge projection enters actual owner storage, including a
          * whole-record owner whose typed fields are aliases. */
-        CHECK(memcmp(state_host_vars_const(g)->core.character_records[0].record,
-                     cartridge + slot * SAVED_GAME_BYTES + 0x200, CHARACTER_RECORDS_RECORD_BYTES) == 0);
+        for (unsigned byte = 0; byte < CHARACTER_RECORDS_RECORD_BYTES; byte++)
+            CHECK(character_records_record_byte(g, 0, byte) == cartridge[slot * SAVED_GAME_BYTES + 0x200 + byte]);
+        CHECK(state_host_vars_const(g)->core.character_records_values[0].hp ==
+              (uint16_t)(cartridge[slot * SAVED_GAME_BYTES + 0x203] | cartridge[slot * SAVED_GAME_BYTES + 0x204] << 8));
         CHECK(memcmp(state_host_vars_const(g)->core.inventory_items,
                      cartridge + slot * SAVED_GAME_BYTES, INVENTORY_ITEMS_COUNT) == 0);
-        state_host_vars(g)->core.character_records[0].record[3] = 0x34;
-        state_host_vars(g)->core.character_records[0].record[4] = 0x12;
+        state_host_vars(g)->core.character_records_values[0].hp = 0x1234;
         state_host_vars(g)->core.inventory_items[0] = 0x56;
         set_location_id(g, 0x0123);
         set_location_x(g, 0x45);
@@ -364,6 +389,7 @@ int main(int argc, char **argv)
     alias_views();
     records_and_composed_views();
     projection_boundaries();
+    promoted_scalar_storage();
     cartridge_save(argc > 1 ? argv[1] : "oracle/saves/fantasyanime/ctsave12-side_quests1.srm");
     printf("vars_host_test: %d failures\n", failures);
     return failures ? 1 : 0;

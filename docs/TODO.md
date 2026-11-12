@@ -3612,12 +3612,14 @@ persistence seams; game-side representation changes still need explicit work.
 
 ## State storage ownership
 
-`tools/ram_map.py storage` reports 27 image-backed variables, all retired
-sound-driver state. [STATE.md](STATE.md) describes ownership and the measure.
+`tools/ram_map.py storage` reports 283 blob-backed and 27 image-backed variables;
+`storage --list` names their actual buffers. [STATE.md](STATE.md) defines the
+honest typed-storage measure and its before/after counts.
 
-- Remove obsolete driver cells with their compatibility clients during
-  machine/driver removal; do not add native structs for the retired driver.
-- Audit the 1,707 addresses outside named owner storage before removing the
-  residual image: 257 bytes of driver variables and 1,450 unnamed bytes/padding.
-  Dynamic script operations, bulk clears and unchecked tails may reach them.
-  Preserve cartridge saves and route peek/watch through the address projection.
+- Decompose the remaining mixed record/instance arrays so their scalar views
+  can own typed fields; retain true graphics, map, script and saved-mode buffers
+  as explicitly blob-backed storage.
+- Remove obsolete sound-driver variables with their remaining clients.
+- Audit the 1,707 addresses outside ownership (257 driver bytes and 1,450
+  unnamed/padding bytes) before removing the residual image. Preserve cartridge
+  saves and route peek/watch through the address projection.

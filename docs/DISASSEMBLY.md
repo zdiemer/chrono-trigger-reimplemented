@@ -243,6 +243,10 @@ owners. Within a record, a field's `host_alias` likewise selects one or several
 covering fields. Alias chains, missing owners, coverage of padding and duplicate
 owners are errors. A `[[owner]]` uses the variable layout schema to declare
 storage without adding game accessors or variables to the storage measure.
+An owner field's `buffer = true` keeps even a narrow remainder as a byte array.
+`host_blob` records why an opaque array's scalar-element API is still raw
+storage. `storage` reports typed, blob-backed and image-backed variables
+separately; `storage --list` names each untyped view and its backing buffers.
 Page-instance owners allocate an array of records in declared instance order;
 named, array and mixed page handles select those records without using C padding
 or the original distance between pages as storage.
