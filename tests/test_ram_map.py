@@ -100,6 +100,89 @@ class TestCommittedMap(unittest.TestCase):
 
 
 class TestRules(unittest.TestCase):
+    def test_small_buffers_and_byte_indexed_storage_are_not_typed(self):
+        text = var("raw", '''addr = "7E:1000"
+stride = 3
+host_module = "work"
+field = [{name = "bytes", offset = 0, size = 3, buffer = true, meaning = "m"}]''')
+        text += var("view", 'addr = "7E:1000"\nsize = 2\nhost_alias = "raw"', "menu")
+        text += var("memory", 'addr = "7E:2000"\ncount = 16\nindex = "byte"\nhost_module = "work"\nhost_blob = "Opaque saved memory."')
+        m = ram_map.RamMap(text=text)
+        self.assertEqual(ram_map.storage_counts(m), (0, 3, 0))
+        self.assertIn("uint8_t bytes[3]", ram_map.render_host_header(m))
+        self.assertNotIn("bytes = 0x555555u", ram_map.render_host_backing(m))
+
+    def test_review_examples_have_real_typed_owners(self):
+        m = ram_map.RamMap()
+        kinds = ram_map.storage_kinds(m)
+        for name in ("scene_sprite_index", "scene_sprite_high_pointer", "scene_sprite_offset_x",
+                     "scene_sprite_offset_y", "field_kept_party_x"):
+            with self.subTest(name=name):
+                self.assertEqual(kinds[name], ("typed", []))
+                v = next(v for v in m.vars if v.name == name)
+                self.assertTrue(v.host_module)
+
+    def test_storage_follows_the_field_not_the_alias_name(self):
+        text = var("scratch", 'addr = "7E:1000"\nsize = 16\nhost_module = "work"')
+        text += var("word", 'addr = "7E:1002"\nsize = 2\nhost_alias = "scratch"', "menu")
+        text += var("typed", 'addr = "7E:2000"\nsize = 2\nhost_module = "work"')
+        text += var("high", 'addr = "7E:2001"\nhost_alias = "typed"', "menu")
+        m = ram_map.RamMap(text=text)
+        self.assertEqual(ram_map.storage_counts(m), (0, 2, 2))
+        self.assertEqual(ram_map.storage_kinds(m)["word"], ("blob", ["scratch"]))
+
+    def test_partly_typed_record_is_blob_backed(self):
+        text = var("record", '''addr = "7E:1000"
+stride = 16
+host_module = "work"
+field = [{name = "hp", offset = 0, size = 2, meaning = "m"},
+         {name = "payload", offset = 2, size = 14, meaning = "m"}]''')
+        text += var("hp", 'addr = "7E:1000"\nsize = 2\nhost_alias = "record"', "menu")
+        text += var("cross", 'addr = "7E:1001"\nsize = 2\nhost_alias = "record"', "scene")
+        self.assertEqual(ram_map.storage_counts(ram_map.RamMap(text=text)), (0, 2, 1))
+
+    def test_composed_view_requires_complete_explicit_ownership(self):
+        owners = (var("first", 'addr = "7E:1000"\nsize = 2\nhost_module = "items"') +
+                  var("second", 'addr = "7E:1002"\nsize = 2\nhost_module = "items"'))
+        view = var("whole", 'addr = "7E:1000"\nsize = 4\nhost_alias = ["first", "second"]', "menu")
+        m = ram_map.RamMap(text=owners + view)
+        self.assertEqual(ram_map.storage_counts(m), (0, 0, 3))
+        self.assertNotIn("whole;", ram_map.render_host_header(m))
+        self.assertIn("vars_host_read8(h, address + 3u, &byte)", ram_map.render_backing(m))
+        for bad in ('["first"]', '["first", "first"]', '["first", "whole"]'):
+            with self.subTest(bad=bad), self.assertRaises(ram_map.MapError):
+                ram_map.RamMap(text=owners + view.replace('["first", "second"]', bad))
+
+    def test_whole_record_view_composes_named_fields(self):
+        text = var("pair", '''addr = "7E:1000"
+stride = 4
+host_module = "items"
+field = [{name = "low", offset = 0, size = 2, meaning = "m"},
+         {name = "high", offset = 2, size = 2, meaning = "m"},
+         {name = "whole", offset = 0, size = 4, meaning = "m", host_alias = ["low", "high"]}]''')
+        m = ram_map.RamMap(text=text)
+        self.assertEqual(len(ram_map.owner_accessors(m)), 2)
+        self.assertNotIn("whole;", ram_map.render_host_header(m))
+        with self.assertRaisesRegex(ram_map.MapError, "outside"):
+            ram_map.RamMap(text=text.replace('host_alias = ["low", "high"]', 'host_alias = ["low"]'))
+
+    def test_page_storage_records_and_external_views(self):
+        for page, count in (("input", 2), ("record", 8), ("math", 3)):
+            with self.subTest(page=page):
+                owner = var("records", f'''page = "{page}"
+dp = 0
+stride = 4
+host_module = "records"
+field = [{{name = "value", offset = 0, size = 3, meaning = "m"}}]''').replace("[[var]]", "[[owner]]")
+                view = var("value", f'page = "{page}"\ndp = 0\nsize = 3\nhost_alias = "records"')
+                m = ram_map.RamMap(text=KINDS + owner + view)
+                self.assertEqual(ram_map.storage_counts(m), (0, 0, 1))
+                self.assertIn(f"records[{count}]", ram_map.render_host_header(m))
+                backing = ram_map.render_host_backing(m)
+                self.assertIn(f"h->records.records[{count - 1}].value", backing)
+                self.assertIn("h->records.records[instance].value = 0x555555u", backing)
+                self.assertNotIn("records_value(", ram_map.render_vars_header(m))
+
     def test_struct_owners_reject_shared_bytes_across_subsystems(self):
         text = var("one", 'addr = "7E:1000"\nsize = 2\nhost_module = "places"')
         with self.assertRaisesRegex(ram_map.MapError, "one owner"):
@@ -127,7 +210,7 @@ index = "slot"
 host_module = "items"
 unchecked = "The next cell is shared."'''))
         c = ram_map.render_backing(m)
-        checked = c[c.index("void set_items(GameState *g"):c.index("#else", c.index("void set_items(GameState *g"))]
+        checked = c[c.index("void set_items(GameState *g"):]
         self.assertIn('IN_RANGE(g, 0, "set_items", "count", slot, 3u);', checked)
         self.assertIn('if (slot >= 3u) { w8(g, 0x7E1000u + (uint32_t)slot * 0x01u, v); return; }', checked)
         unchecked = checked[checked.index("void set_items_unchecked"):]
@@ -149,7 +232,7 @@ host_alias = "items"''', "menu"))
         self.assertNotIn(" high[", h)
         self.assertIn("vars_host_items_read8(h, offset + 0u)", c)
         self.assertIn("uint32_t offset = 1u + (uint32_t)slot * 4u;", c)
-        self.assertEqual(ram_map.storage_counts(m), (0, 2))
+        self.assertEqual(ram_map.storage_counts(m), (0, 0, 2))
         projection = ram_map.render_host_backing(m)
         self.assertIn("projection_fields[projection_pages[", projection)
         self.assertIn("1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0", projection)
@@ -203,15 +286,15 @@ host_module = "items"'''))
         self.assertIn("uint16_t items[3];", ram_map.render_host_header(m))
         self.assertIn("h->items.items[slot]", ram_map.render_backing(m))
         self.assertIn("offset %= 8u", ram_map.render_host_backing(m))
-        self.assertEqual(ram_map.storage_counts(m), (0, 1))
+        self.assertEqual(ram_map.storage_counts(m), (0, 0, 1))
 
     def test_storage_measure_counts_variables_not_fields_or_elements(self):
         m = ram_map.RamMap(text=var("one", 'addr = "7E:1000"\nsize = 2') +
                           var("many", 'addr = "7E:1100"\ncount = 8\nindex = "slot"'))
-        self.assertEqual(ram_map.storage_counts(m), (2, 0))
+        self.assertEqual(ram_map.storage_counts(m), (2, 0, 0))
         m.vars[1].host_module = "example"
-        self.assertEqual(ram_map.storage_counts(m), (1, 1))
-        self.assertEqual(ram_map.storage_counts(ram_map.RamMap(text="")), (0, 0))
+        self.assertEqual(ram_map.storage_counts(m), (1, 0, 1))
+        self.assertEqual(ram_map.storage_counts(ram_map.RamMap(text="")), (0, 0, 0))
 
     def load(self, text):
         return ram_map.RamMap(text=PAGES + text)

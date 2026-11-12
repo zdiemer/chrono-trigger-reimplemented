@@ -90,6 +90,9 @@ after the first Queen Zeal fight. These distinguish missed fixed-movie inputs
 from a timing-model defect; they do not justify changing work rates. Keep the
 Sun Stone and Queen Zeal continuations reproducible as route checks (TODO.md).
 
-The state migration adds 245 owners and 68 alias views; 1,946 of 2,263 variables
-remain image-backed. Owner byte views preserve shared contents across modes,
-cartridge save projection and address-based route/video clients (STATE.md).
+The typed-state review corrected the ownership-only measure: 1,953 variables
+now have typed storage, 283 are blob-backed and 27 remain image-backed, out of
+2,263. The honest baseline was 785 typed and 1,451 blob-backed. Composed views,
+page-owner arrays and named scalar fields share one address projection; narrow
+anonymous remnants remain explicit buffers. STATE.md gives module counts and
+validation, including cartridge saves and route/video address queries.

@@ -1,77 +1,93 @@
-# State storage and address dependencies
+# Native state storage
 
-`python3 tools/ram_map.py storage` measures Phase 4a by **variables** in
-`re/ram.toml`: each `[[var]]` counts once, regardless of fields, array length,
-page instances or bytes. Before migration all 2,263/2,263 (100%) use the work-RAM
-image in `ct_native`. The lean native gate protects each storage migration.
+`python3 tools/ram_map.py storage` counts each `[[var]]` once, regardless of
+fields, elements or page instances. It reports three mutually exclusive kinds:
 
-## Inventory
+- **Typed struct-backed:** every declared byte belongs to a named scalar field
+  or an array of game elements. Serialized views of these fields share that
+  classification; no separate value is allocated for a view.
+- **Blob-backed:** at least one byte still belongs to a raw buffer. A scalar
+  accessor assembled from buffer offsets remains blob-backed. A partially typed
+  record is counted entirely here, including its whole-record view.
+- **Image-backed:** storage is still in the residual work-RAM image.
 
-`python3 tools/state_inventory.py` reproduces [state-addresses.tsv](state-addresses.tsv)
-and [state-overlaps.tsv](state-overlaps.tsv) without a ROM. The source ledger
-covers `.c` and `.h` in `game/`, excluding generated `ram.h` and `vars.h`, with
-comments removed and original line numbers retained. It includes declarations
-as well as calls; these are **syntactic sites**, not execution counts. Categories
-can overlap. Expressions containing a variable address are candidates, not a
-claim that every value they produce is RAM. Follow the listed helper's callers
-when selecting another module.
+`storage --list` names each untyped variable and the actual buffers behind it.
+The measure follows owning fields, not `host_alias` labels. Fields marked
+`buffer = true` remain byte arrays even when only one to four bytes wide;
+`host_blob` explains opaque byte-indexed arrays whose public API already has
+scalar elements. Neither small size nor moving bytes into a module makes them
+typed state. Arrays of actual game elements (inventory items, party coordinates,
+palette colors) are typed; arrays indexed by opaque byte positions are not.
 
-| Address dependency | Sites |
-|---|---:|
-| Raw WRAM helpers and work-RAM streaming port | 307 |
-| Machine read/write and direct-page/absolute helpers | 4 |
-| Resource reads/transfers whose address interface can fall back to RAM | 713 |
-| Page instance conversion and explicit vars_pages include | 4 |
-| PF_GAME video/DMA sources | 72 |
-| RAM names, long WRAM literals, bank shifts/masks | 2,142 |
-| Unchecked accessor uses/declarations | 163 |
+## Typed migration
 
-The video ledger includes fixed `$7E/$7F` sources, RAM constants, low-bank
-mirrors and computed sources. Computed descriptors (tile animation frame
-sources, queued field transfers, menu tilemaps and line effects) cannot be
-classified solely from a literal. They remain address dependencies even when
-their current data happens to be cartridge data. Native video obtains these
-bytes from `Platform`'s `read_game` callback, which the frontend binds to
-`state_host_read8`; it must see the same values as typed accessors.
+The earlier ownership measure called 2,236 variables struct-backed because they
+had left the residual image. Auditing both wide buffers and narrow anonymous
+remnants gives the honest baseline below. This round promotes 1,168 variables
+to typed storage, without changing the 2,263-variable denominator.
 
-The overlap ledger expands rows, elements, record fields and every declared
-page instance, omitting padding with no accessor. It records **6,535 pairs**,
-**2,011 variables** and **122,208 distinct shared bytes**. A pair's first/last
-addresses bound its shared bytes; holes are possible. Both cross-mode reuse
-and simultaneous aliases count: separate structs would change either one's
-initial contents unless the transition explicitly establishes them. Fields
-within a record can overlap too (e.g. `character_records.record` and `hp`);
-those need a single owner even though the variable count is one.
-[state-field-overlaps.tsv](state-field-overlaps.tsv) lists **6,019 within-record
-field pairs in 21 variables**, counted separately from the variable pairs.
+| Module | Typed before | Typed after | Blob before | Blob after | Image after |
+|---|---:|---:|---:|---:|---:|
+| Core | 43 | 55 | 19 | 7 | 27 |
+| Data | 8 | 8 | 0 | 0 | 0 |
+| Event | 8 | 16 | 12 | 4 | 0 |
+| Field | 167 | 241 | 141 | 67 | 0 |
+| Menu | 243 | 393 | 224 | 74 | 0 |
+| Menu objects | 8 | 26 | 31 | 13 | 0 |
+| Overworld | 31 | 34 | 11 | 8 | 0 |
+| Battle | 186 | 859 | 736 | 63 | 0 |
+| Scene | 81 | 303 | 265 | 43 | 0 |
+| Warp | 10 | 18 | 12 | 4 | 0 |
+| **Total** | **785** | **1,953** | **1,451** | **283** | **27** |
 
-The resource-address sites include named resource accessors and their backend
-declarations; most read cartridge data, but the `rom_cartridge_read` contract
-also serves RAM-selected pointers. Counting all of them avoids silently losing
-that path. `runtime/port/rom_host.c` already delegates RAM reads to
-`state_host_read8`. The inventory makes no claim that all 713 read work RAM.
+Sprite submission now owns `scene_sprite_index`, `scene_sprite_high_pointer`,
+`scene_sprite_offset_x` and `scene_sprite_offset_y` as named integers.
+`field_kept_party_x` and `field_kept_party_y` own three coordinate words each.
+Character records own HP/MP fields and the OAM records own x/y/tile/attributes;
+their byte-oriented consumers serialize the same fields. Battle scratch,
+menu drawing state, scene effects and event controls likewise use named scalar
+owners wherever their overlapping layouts allow a complete field or array.
 
-| Map subsystem | Variables | With another variable's bytes | Unchecked | On page instances |
-|---|---:|---:|---:|---:|
-| core | 89 | 32 | 6 | 0 |
-| data | 8 | 0 | 0 | 0 |
-| event | 20 | 17 | 0 | 0 |
-| field | 308 | 218 | 16 | 0 |
-| menu | 467 | 420 | 8 | 27 |
-| menu_object | 39 | 39 | 1 | 0 |
-| overworld | 42 | 31 | 2 | 0 |
-| battle | 922 | 909 | 53 | 0 |
-| scene | 346 | 327 | 1 | 1 |
-| warp | 22 | 18 | 1 | 0 |
+The 283 remaining blob-backed variables include graphics, map and script
+buffers, saved raw mode memory and record views containing unknown bytes.
+Some scalar arrays span several modes' records: only some instances currently
+have typed ownership, so the entire array remains blob-backed. Converting
+those requires further record/instance decomposition. `storage --list` is the
+current list, including every partial dependency; none is counted as typed.
+The 27 image-backed variables are obsolete sound-driver state (257 bytes).
+Another 1,450 unnamed/padding bytes lack owners. Audit dynamic script writes,
+clears and unchecked tails before removing the residual 128 KiB allocation.
 
-Unchecked tables are explicit overrun dependencies, not permission to allocate
-independent arrays: the map's `unchecked` reasons and the source ledger identify
-their destination cells. Checked accessors also preserve the original address
-on an invalid index; the gate diagnoses those. Shared scratch and page instances
-stay in the image until ownership is resolved. Raw operations include bulk boot
-and mode clears, unpacking, event-selected memory, save projection, copying and
-DMA staging; replacing only typed accessors without routing these paths loses
-writes. `hw_port_read/write` is a separate path and must use the address view too.
+## Owners and address views
+
+`host_module` selects a native owner. `host_alias` names one owner or a list
+composing several owners. `[[owner]]` declares storage without adding a public
+variable or changing the measure. Internal field views can likewise name
+several fields. Every declared byte must be covered exactly once: missing
+owners, partial coverage, alias chains and duplicate storage are errors.
+
+Page owners are arrays in declared instance order. Named, indexed and mixed
+page handles choose records, independently of C padding or the original
+spacing of direct pages. Whole-record accessors and named-field accessors share
+the same owner. When a resource crosses typed state, its remaining unstructured
+portions stay explicit buffers; only those bytes are allocated there. Repeated
+remaining layouts keep an array of records. No duplicate backing is maintained.
+
+The generated projection selects a field by page/byte tables and serializes
+it explicitly in little-endian order. `state_host_read8/write8` canonicalize
+address mirrors and route every owned byte through it; only holes use the
+residual image. Save/load, raw bulk operations, resource reads targeting RAM,
+video callbacks, route peek/watch and end-state queries use the same view.
+Invalid or unchecked indices fall back to this address view rather than index
+outside a C object. Accessor timing remains independent of storage choice.
+The generator emits only native accessors. The emulator read/write branches,
+alternate per-variable backing and `CT_VARS_HOST` build switch were removed
+when merging the native-only main branch.
+
+The source inventories in [state-addresses.tsv](state-addresses.tsv),
+[state-overlaps.tsv](state-overlaps.tsv) and
+[state-field-overlaps.tsv](state-field-overlaps.tsv) describe address dependencies
+and overlapping views; they are distinct from the typed-storage measure.
 
 ## Cartridge save projection
 
@@ -104,138 +120,23 @@ bank-zero mirrors. Route `peek`/`watch`, end-state output, generic clearing,
 copying and video read through that same view. None may read a stale duplicate
 of a moved field in the residual image.
 
-## Native structs and the compatibility view
-
-`host_module` selects storage in a generated module struct, independently of
-the broader map subsystem. `ram_map.py accessors` generates `vars_host.h` and
-`vars_host.c` alongside the existing outputs. Ordinary scalar fields use
-`uint8_t`, `uint16_t` or `uint32_t`; buffers remain byte arrays. There is no
-packed layout, pointer into WRAM, or second copy to synchronize. Arrays use
-element indices, not the original stride; record padding is not state.
-
-With `CT_VARS_HOST`, an owner's accessors read/write its fields directly.
-A variable's `host_alias = "owner_variable"` declares a view of another
-selected variable's storage, with no field of its own. A record field's
-`host_alias = "owner_field"` does the same within its record. All of a view's
-declared bytes must belong to that owner, excluding padding. The generator
-rejects missing owners, alias chains/cycles, partial coverage, duplicate
-owners and overlaps without explicit aliases. `reuses` still documents when
-one game mode takes over another's cells; it does not allocate storage.
-
-For example, the 12 palette-animation records own their `frames` words.
-`fade_mode` and `fade_level` view the two bytes of those words. The warp's
-pixel masks view these same records: the masks deliberately survive the warp
-and seed the next location's animations. Generated alias accessors call the
-named owner's byte-view functions with a relative offset; these extract/merge
-typed fields explicitly in little-endian order. They never cast a host struct
-to the cartridge's layout. The character record similarly owns its `record`
-buffer, with HP, MP and stat views sharing it. These are persistent record
-formats, not independent copies of each typed field.
-
-Indexed accessors retain `CT_ACCESSOR_CHECKS`' `IN_RANGE` diagnostics before
-their host access. Invalid indices take the compatibility path, so they cannot
-index outside a C object. `_unchecked` accessors take that same safe path
-without reporting a fault. The inventory's fourteen tail cells belong to the
-menu arrays; the demo's eighth character record reaches the tech storage.
-The map's existing `unchecked` reasons remain the contracts for those reaches.
-Page-instance variables still wait for ownership to be resolved. No game logic changed.
-
-The address projection selects a field with two indexed table reads (page,
-then byte), followed by a field switch. Only the 23 populated pages have byte
-tables; holes select the residual image. It does not search all fields for each
-byte of a bulk transfer. `state_host_read8` and `state_host_write8` canonicalize
-WRAM mirrors and use this projection. The WRAM streaming port uses them too.
-Native route `peek`/`watch` already call this API: reads are untimed, while game
-accessors charge the same per-byte amount as before. Bulk helpers retain their
-existing timing and bank wrap rules.
-
-Saves therefore read from and load into the struct fields through their
-existing projection. The save code, SRAM file format, video callbacks and
-end-state writer keep their interfaces. `vars_host_test` runs without a ROM:
-it supplies save-layout metadata, loads a committed cartridge `.srm` through
-the actual slot checker and loader, edits struct fields, saves them with the
-actual checksum writer, and loads the exported bytes into a fresh state.
-It also checks independent states, mirrored and partial writes, cross-field
-copy/fill, internal and cross-mode aliases, diagnosed and unchecked tails,
-the streaming port and video transfers sourced from moved fields. Its backing
-is compiled with both `CT_VARS_HOST` and `CT_ACCESSOR_CHECKS`. A full-address
-pattern fill/read checks dispatch boundaries and holes. `unpack_time_test`
-unpacks a synthetic stream into both residual storage and the sprite owner,
-checking literal/overlapping-backreference writes and equal native time.
-
-## Migrated slices and remaining clients
-
-The second slice moves 313 variables: 245 additional owners and 68 alias views.
-Together with the four location records, there are **249 owner variables and
-68 aliases**, with nine internal field aliases and **4,072 serialized bytes**.
-The owner-module grouping is finer than the map's subsystem grouping: live
-sound has four variables; palette owners and their views have nine, and the
-sprite buffer and its views have five. These counts include compatibility
-cells that no longer carry live computation; they do not measure live logic.
-
-| Map subsystem | Image-backed before | Image-backed after | Total variables |
-|---|---:|---:|---:|
-| core | 85 | 51 | 89 |
-| data | 8 | 0 | 8 |
-| event | 20 | 11 | 20 |
-| field | 308 | 178 | 308 |
-| menu | 467 | 415 | 467 |
-| menu_object | 39 | 39 | 39 |
-| overworld | 42 | 29 | 42 |
-| battle | 922 | 904 | 922 |
-| scene | 346 | 307 | 346 |
-| warp | 22 | 12 | 22 |
-| **Total** | **2,259 (99.82%)** | **1,946 (85.99%)** | **2,263** |
-
-The map's explicit metadata is the per-variable ledger. The selected slices
-include field/dialog control, menu controls and glyph state, overworld vehicle
-state, battle setup and remembered state, scene controls, and warp's palette
-reuse. Field screen/movement cells share the battle's X/Y owners, and scene
-fade cells share the field's window-corner owner. Shared initial contents are
-preserved immediately, without a mode-transition copy.
-
-Data's eight cells are decompression inputs, its output length, and retired
-decoder scratch. Its output buffers belong to the callers, not to those cells:
-
-| Output family | Classification and storage boundary |
-|---|---|
-| Field map tables, scripts and object graphics | Decoded resources and mutable map/script buffers, still in the large field/event overlap groups |
-| Battle animation and screen buffers, menu/overworld staging | Decoded graphics, still in shared resource scratch |
-| Scene programs, text, pictures and staging | Decoded programs/resources; shared buffers remain image-backed |
-| Palettes and sprite output | Mutable rendering data; selected owners are reached through the same output view |
-
-`data/decompress.c` writes literals through `hw_port_write` and backreferences
-through `wram_read8/write8`; both already reach the address view. Moving its
-parameter cells does not claim that all decoded buffers have moved. The live
-sound slice is `current_song`, `sound_command`, `sound_command_parameters` and
-`sound_driver_effects_asked`; obsolete upload-driver state stays separate.
-
-The raw-client audit retains format/dynamic clients as compatibility views:
-`menu/saves.c`'s projection, new-game initialization and bulk clears; palette
-streaming writes; video's `read_game` callback (including low-bank sprite
-sources); `rom_host.c`'s RAM-selected resource pointers; and native route and
-end-state reads. Each reaches `state_host_read8/write8`, with no direct read of
-a migrated cell in the residual image. Typed game callers need no edits.
-This resolves their storage coherence, not their dependence on addresses.
-
-Of the remaining variables, **1,921 overlap others** and 25 are isolated
-retired sound-driver cells. The small vector-stub and old sound-pointer/list
-alias groups are retained for the machine/driver removal rather than given
-new compatibility owners. The five largest overlap components contain 1,839
-variables: battle/menu graphics scratch (965), object/menu pages (381), shared
-low scratch (299), scene/field buffers (99), and bank-$7F resources (95).
-None has an existing variable containing every declared byte. They need
-semantic owners or views composed from several owners, including page
-instances, rather than an anonymous array replacing each address span.
-
-The residual 128 KiB allocation remains; migrated addresses in it are unused,
-not mirrors. This measures ownership moved, not memory saved. Removing the
-allocation also requires the remaining unnamed address clients to move.
-
 ## Validation
 
-The ROM-free tests cover owner/alias coherence, bounds diagnostics, cartridge
-save round trips, bulk reads and writes, video sources and decompression timing.
-`ram_map.py header --check` and `ram_map.py accessors --check` check the committed
-generated accessors. The lean gate additionally protects native movie saves,
-places and fast route outcomes. No save/place baseline or exception changed.
+The map tests check typed, blob and partial-record classification, narrow
+buffers, composed ownership and page-instance arrays. Regression tests inspect
+the five review examples' generated native fields directly. `vars_host_test`
+checks byte views, all-address projection, partial writes, independent states,
+page instances, unchecked tails, video sources and the real cartridge save/load
+and checksum routines. The Windows MinGW Release build passes with warnings
+treated as errors. All 211 Python tests and 15 native C tests pass. A generated
+accessor sweep also passes 713,158 read/write comparisons against the serialized
+address view. Generated-file checks confirm the committed outputs are current.
+
+After merging native-only main, `tools/suite.py --ct-native build/main/ct_native.exe
+-j 2` ends `suite OK` in 354.8 seconds, including unit tests. All 58 sampled
+movies complete, recorded outcomes and picture checks pass, and both fast
+routes reach their outcomes. Portstyle and portsmell pass without baseline or
+exception changes.
+
+The ownership-only results from the retired emulator gate are superseded by
+the typed/blob/image measure above and the native gate.
