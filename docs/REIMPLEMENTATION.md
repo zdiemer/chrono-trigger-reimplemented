@@ -90,11 +90,12 @@ after the first Queen Zeal fight. These distinguish missed fixed-movie inputs
 from a timing-model defect; they do not justify changing work rates. Keep the
 Sun Stone and Queen Zeal continuations reproducible as route checks (TODO.md).
 
-All 2,236 live variables now have typed storage, including module-owned graphics
-and script buffers. The 27 retired sound-loader variables and the residual
-128 KiB work-RAM image were removed. The baseline was 1,953 typed, 283
-blob-backed and 27 image-backed variables. The generated address view supports
-cartridge saves, route inspection and remaining dynamic/bulk operations;
-The generator also emits designed field-object, combatant, character, menu
+All 2,236 live variables now have module-owned storage, and 2,121 of them
+typed storage; 115 remain blob-backed, nearly all overlays where one mode's word
+buffer holds another mode's bytes, and none is image-backed. The 27 retired
+sound-loader variables and the residual 128 KiB work-RAM image were removed.
+The baseline was 1,953 typed, 283 blob-backed and 27 image-backed variables.
+The generated address view supports cartridge saves, route inspection and
+remaining dynamic/bulk operations. The generator also emits designed field-object, combatant, character, menu
 and sprite records without changing the public accessors.
 [STATE.md](STATE.md) describes the ownership rules and validation.

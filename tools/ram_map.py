@@ -754,30 +754,90 @@ def variable_bytes(v, owners_only=False):
                     yield from range(at + offset, at + offset + size)
 
 
-def storage_kinds(m):
-    """Classify actual backing, not merely the presence of ownership metadata.
+def access_units(v):
+    """Each value variable `v` names, as (first byte, end, element start, width):
+    a scalar is one value of its size; a buffer or table is a run of its
+    elements, an element cut by the buffer's edge keeping only the bytes inside
+    it. A buffer that names no elements is a run of bytes of width 0: nothing
+    says what they are, so no buffer's label can type them."""
+    for base in v.bases():
+        for row in range(v.rows or 1):
+            for element in range(v.count):
+                at = base + row * (v.row_stride or 0) + element * v.stride
+                for f in v.fields or [None]:
+                    a = Accessor(v, f)
+                    start = at + a.offset
+                    if not (a.blob or a.table):
+                        yield start, start + a.size, start, a.size
+                        continue
+                    unit = a.elements.size if a.elements.name else 1
+                    skip = a.elements.start if a.elements.name else 0
+                    typed = bool(a.elements.name)
+                    x = start - skip
+                    while x < start + a.size:
+                        yield max(x, start), min(x + unit, start + a.size), x, unit if typed else 0
+                        x += unit
 
-    A variable is typed only if every declared byte belongs to scalar owner
-    fields (including arrays of scalar elements). A partial blob dependency
-    makes the whole variable blob-backed. Serialization views of typed fields
-    do not change their storage; naming a scalar view of a blob does not type it.
-    """
-    blobs = {}
+
+def storage_holders(m):
+    """Each owned byte: (owner field, element width or None for a scalar field
+    or 0 for an unlabelled buffer, first byte of its element)."""
+    holder = {}
     for a in owner_accessors(m):
-        if a.elements.name or not (a.blob or a.table or a.var.host_blob):
-            continue
         label = a.var.name + ("." + a.field.name if a.field else "")
+        buffer = a.blob or a.table or a.var.host_blob
+        unit = a.elements.size if a.elements.name else None
         for base in a.var.bases():
             for row in range(a.var.rows or 1):
                 for element in range(a.var.count):
                     start = base + row * (a.var.row_stride or 0) + element * a.var.stride + a.offset
-                    blobs.update((addr, label) for addr in range(start, start + a.size))
-    result = {}
-    for v in m.vars:
-        dependencies = sorted({blobs[a] for a in variable_bytes(v) if a in blobs})
-        kind = "image" if not (v.host_module or v.host_owner) else "blob" if dependencies else "typed"
-        result[v.name] = kind, dependencies
-    return result
+                    for addr in range(start, start + a.size):
+                        if not buffer:
+                            holder[addr] = (label, None, start)
+                        elif unit is None:
+                            holder[addr] = (label, 0, None)
+                        else:
+                            # the element this byte is in, and the element's width
+                            first = addr - (addr - start + a.elements.start) % unit
+                            holder[addr] = (label, unit, first)
+    return holder
+
+
+def storage_kinds(m):
+    """Classify actual backing, not merely the presence of ownership metadata.
+
+    A variable is typed only if each of its values is held by typed storage:
+    a scalar owner field, or one whole element of an owner buffer whose
+    elements are that value's width. A byte buffer with no elements is a blob;
+    so is a labelled buffer whose element is not the value's width or not
+    aligned with it (a word kept in byte elements, a byte read out of half a
+    word), and so is a value split across owner fields or elements. A partial
+    blob dependency makes the whole variable blob-backed. A scalar owner field
+    of one mode read through an alias of another (memory the original reuses)
+    still counts as typed: the bytes live in a typed C field either way.
+    """
+    holder = storage_holders(m)
+    return {v.name: variable_storage(v, holder) for v in m.vars}
+
+
+def variable_storage(v, holder):
+    """One variable's kind and the buffers it depends on, given storage_holders."""
+    if not (v.host_module or v.host_owner):
+        return "image", []
+    dependencies = set()
+    for lo, hi, start, width in access_units(v):
+        held = [holder.get(addr) for addr in range(lo, hi)]
+        if any(h is None for h in held):
+            continue
+        labels = {h[0] for h in held}
+        units = {h[1] for h in held}
+        if units == {None}:
+            continue        # scalar owner fields
+        whole = (len(labels) == 1 and units == {width} and
+                 {h[2] for h in held} == {start})
+        if not whole:
+            dependencies |= {h[0] for h in held if h[1] is not None}
+    return ("blob" if dependencies else "typed"), sorted(dependencies)
 
 
 def storage_counts(m):

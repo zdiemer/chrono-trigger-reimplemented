@@ -207,6 +207,31 @@ field = [{name = "hp", offset = 0, size = 2, meaning = "m"},
         text += var("cross", 'addr = "7E:1001"\nsize = 2\nhost_alias = "record"', "scene")
         self.assertEqual(ram_map.storage_counts(ram_map.RamMap(text=text)), (0, 2, 1))
 
+    def test_a_buffer_label_types_only_values_of_its_width(self):
+        words = var("words", '''addr = "7E:1000"
+stride = 8
+host_module = "work"
+field = [{name = "rest", offset = 0, size = 8, buffer = true, meaning = "m", elements = {name = "speeds", size = 2, meaning = "Speeds."}}]''')
+        aligned = var("speed", 'addr = "7E:1002"\nsize = 2\nhost_alias = "words"', "menu")
+        across = var("across", 'addr = "7E:1003"\nsize = 2\nhost_alias = "words"', "scene")
+        low = var("low", 'addr = "7E:1004"\nhost_alias = "words"', "battle")
+        raw = var("raw", 'addr = "7E:1000"\nsize = 8\nhost_alias = "words"', "field")
+        kinds = ram_map.storage_kinds(ram_map.RamMap(text=words + aligned + across + low + raw))
+        self.assertEqual(kinds["speed"][0], "typed")
+        # a word across two elements, a byte of one, bytes that name no elements
+        for name in ("across", "low", "raw"):
+            with self.subTest(name=name):
+                self.assertEqual(kinds[name], ("blob", ["words.rest"]))
+        # half a word kept in a one-byte field is a slice, not a word
+        half = var("half", '''addr = "7E:2000"
+stride = 2
+host_module = "work"
+field = [{name = "low", offset = 0, size = 1, meaning = "m"},
+         {name = "high", offset = 1, size = 1, buffer = true, meaning = "m", elements = {name = "offsets", size = 2, start = 1, meaning = "Offsets."}}]''')
+        word = var("offset", 'addr = "7E:2000"\nsize = 2\nhost_alias = "half"', "menu")
+        self.assertEqual(ram_map.storage_kinds(ram_map.RamMap(text=half + word))["offset"],
+                         ("blob", ["half.high"]))
+
     def test_composed_view_requires_complete_explicit_ownership(self):
         owners = (var("first", 'addr = "7E:1000"\nsize = 2\nhost_module = "items"') +
                   var("second", 'addr = "7E:1002"\nsize = 2\nhost_module = "items"'))
