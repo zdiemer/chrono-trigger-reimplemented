@@ -81,9 +81,16 @@ class LongBatchTest(unittest.TestCase):
                 binary.touch()
                 out = root / 'batch'
                 output = io.StringIO()
-                results = [SimpleNamespace(returncode=1)] * stage + [OSError('cannot launch')]
+                calls = []
+
+                def launch(command, stdout, **kwargs):
+                    calls.append(command)
+                    if len(calls) > stage:
+                        raise OSError('cannot launch')
+                    stdout.write('a finding\n')
+                    return SimpleNamespace(returncode=1)
                 with patch.object(suite, 'all_routes', return_value=['first']), \
-                        patch.object(suite.subprocess, 'run', side_effect=results) as run, \
+                        patch.object(suite.subprocess, 'run', side_effect=launch) as run, \
                         contextlib.redirect_stdout(output):
                     rc = suite.main(['--ct-native', str(binary), '--out', str(out), '--long'])
                 self.assertEqual(rc, 1)
@@ -102,7 +109,31 @@ class LongBatchTest(unittest.TestCase):
         self.assertEqual(error.exception.code, 2)
         run.assert_not_called()
 
+    def test_a_stage_that_crashes_is_a_setup_error(self):
+        for status, text in ((2, 'usage: native_check.py\n'), (1, 'Traceback (most recent call last):\n'), (1, '')):
+            with self.subTest(status=status, text=text), tempfile.TemporaryDirectory() as where:
+                root = pathlib.Path(where)
+                binary = root / 'ct_native'
+                binary.touch()
+                output = io.StringIO()
+
+                def crash(command, stdout, **kwargs):
+                    stdout.write(text)
+                    return SimpleNamespace(returncode=status)
+                with patch.object(suite, 'all_routes', return_value=['first']), \
+                        patch.object(suite.subprocess, 'run', side_effect=crash) as run, \
+                        contextlib.redirect_stdout(output):
+                    rc = suite.main(['--ct-native', str(binary), '--out', str(root / 'batch'), '--long'])
+                self.assertEqual(rc, 1)
+                self.assertEqual(run.call_count, 1)
+                self.assertIn('batch setup failed:', output.getvalue())
+                self.assertNotIn('batch complete:', output.getvalue())
+
     def test_findings_continue_without_becoming_a_gate_failure(self):
+        def finding(command, stdout, **kwargs):
+            stdout.write('a finding\n')
+            return SimpleNamespace(returncode=1)
+
         with tempfile.TemporaryDirectory() as where:
             root = pathlib.Path(where)
             binary = root / 'ct_native'
@@ -112,7 +143,7 @@ class LongBatchTest(unittest.TestCase):
             with patch.object(suite, 'gate_movies', side_effect=AssertionError('no sample')), \
                     patch.object(suite.shutil, 'which', side_effect=AssertionError('no CTest')), \
                     patch.object(suite, 'all_routes', return_value=['first', 'last']), \
-                    patch.object(suite.subprocess, 'run', return_value=SimpleNamespace(returncode=1)) as run, \
+                    patch.object(suite.subprocess, 'run', side_effect=finding) as run, \
                     patch.object(suite.time, 'monotonic', side_effect=[0, 0, 1, 2, 3, 4, 5, 6, 7200]), \
                     contextlib.redirect_stdout(output):
                 rc = suite.main(['--ct-native', str(binary), '--out', str(out), '--long'])

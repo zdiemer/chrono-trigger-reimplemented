@@ -67,6 +67,12 @@ def long_batch(args, binary):
                 output.write(str(error) + '\n')
                 print('batch setup failed: could not launch %s: %s (log: %s)' % (name, error, log))
                 return 1
+        text = log.read_text(encoding='utf-8', errors='replace')
+        # Each stage exits 0 when clean and 1 with findings; anything else, a crash or an empty
+        # log is the batch failing to run, not a finding.
+        if status not in (0, 1) or 'Traceback (most recent call last)' in text or not text.strip():
+            print('batch setup failed: %s exited %d without its results (log: %s)' % (name, status, log))
+            return 1
         findings.append(dict(stage=name, status=status, seconds=time.monotonic() - before, log=log.name))
     report = args.out / 'findings.json'
     report.write_text(json.dumps(findings, indent=2) + '\n')

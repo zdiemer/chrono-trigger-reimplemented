@@ -1,7 +1,7 @@
 # Recorded with ct_play from power-on with the save ctsave03-future_more.srm.
 # frames 8083
 # sram crc32 3A9BE857
-# Replay: ct_dev --rom <rom> --frames 8083 --movie events-jetbike-race-won.ctm --sram <save> --native shadow
+# Replay: ct_native --rom <rom> --frames 8083 --movie events-jetbike-race-won.ctm --sram <save>
 # <start_frame> <frame_count> <buttons>
 181 9 B
 204 9 A
