@@ -248,6 +248,7 @@ static void test_snapshots(void)
     }
     CHECK(bad == 0, "snapshot: %d of 150 values differ after restores", bad);
     CHECK(!fiber_restore(snap, len - 1), "snapshot: a short one was taken");
+    CHECK(fiber_restorable(snap, len) && !fiber_restorable(snap, len - 1), "snapshot: restorable misjudged");
     free(snap);
     fiber_destroy(gen);
 
