@@ -24,6 +24,10 @@ typedef struct SoundNative SoundNative;
 /* The player for the game `g` on `pf`, its hooks put in pf->audio. */
 SoundNative *sound_native_create(GameState *g, Platform *pf);
 void sound_native_destroy(SoundNative *n);
+/* A complete host-side sound checkpoint, including the mixer. The copy is
+ * owned by the caller (free); restore rebinds its game and voice pointers. */
+SoundNative *sound_native_copy(const SoundNative *n);
+void sound_native_restore(SoundNative *n, const SoundNative *copy);
 
 /* A displayed frame's worth of the driver's time. */
 void sound_native_frame(SoundNative *n);

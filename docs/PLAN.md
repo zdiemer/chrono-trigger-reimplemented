@@ -70,8 +70,7 @@ The order to a production native build. Each step's detail is in Phase 4a.
 1. **The gate after the comparisons.** Decide which checks the gate keeps
    now that subsystem comparisons are retired, and what becomes of the
    generated C, the interpreter and shadow mode.
-2. **Prove `ct_native` plays the game.** Routes driven from state in
-   `ct_native` itself, a playthrough from a new game to an ending, and the
+2. **Prove `ct_native` plays the game.** A playthrough from a new game to an ending, and the
    open divergences traced. Before the machine is deleted, not after, so the
    deletions have a check that doesn't depend on it.
 3. **The game's state as C structs**, with `.srm` saves still loading.
@@ -111,6 +110,9 @@ where recalibration and baseline updates come from; "every movie" below is every
 - the route scripts reach their outcomes in the shipping mode, with the C
   sound driver (`tools/movies/route_check.py`: the fast route every time, all
   of them with `--long-routes` on main once per timing/runtime merge batch);
+- the fast routes also reach their outcomes in `ct_native --server`, with
+  the remaining gate routes under `--long-routes` and observed failures
+  explicitly listed in `tools/native_route_exceptions.txt`;
 - the C sound driver, over a short `ct_sound_fuzz` with the game's songs
   and with made-up ones, answers every command, places no sample where the
   echo writes and drops none, the native mixer makes the S-DSP's every frame,
@@ -161,11 +163,11 @@ already built are described in PLATFORM.md.
   Audit the remaining effects, unreached, timing and uncompared records
   against the retired comparisons; preserve the evidence still needed by
   held continuations and native timing.
-- **`ct_native` plays the game, checked in `ct_native`.** The routes reach
-  their outcomes in `ct_drive`, which still has the emulator under it, and
-  `ct_native` is checked only by replaying recorded input, which a small
-  timing difference sends elsewhere. Drive the routes from game state in
-  `ct_native` itself; add a playthrough route from a new game to an ending;
+- **`ct_native` plays the game, checked in `ct_native`.** Resolve the remaining
+  state-driven route divergences listed in TODO.md. Take complete frame-end
+  bases during play so slot loads can resume the unfinished route audit
+  without replaying from power-on; add a playthrough route
+  from a new game to an ending;
   record the endings not yet recorded and the Reunion route; trace the open
   divergences (TODO.md: the Tyrano Lair walls' saved game, Beyond Time's
   ending, the Dino Age interrupt, the tech sweep's wipe near the Core).

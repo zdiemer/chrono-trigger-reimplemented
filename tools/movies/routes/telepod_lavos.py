@@ -67,8 +67,8 @@ def to_the_shell(run, start):
         assert run.exit_to("0800"), "bell plaza to the telepod exhibit"
         run.checkpoint("exhibit")
     if start <= 2:
-        run.wait_control()                      # Taban's speech
-        run.go(183, 97, tolerance=3)            # onto the right telepod
+        assert run.wait_control(), "Taban's speech ends"
+        assert run.go(183, 97, tolerance=3), "the right telepod is reachable"
         machine.run(2, "UP")
         machine.run(8)
         for _ in range(10):
@@ -76,6 +76,7 @@ def to_the_shell(run, start):
             machine.run(60)
             if run.map_id() != "0800":
                 break
+        assert run.map_id() == "d301", "the Gate reaches Lavos's shell"
         run.checkpoint("shell")
 
 

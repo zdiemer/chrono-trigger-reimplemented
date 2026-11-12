@@ -315,6 +315,24 @@ void sound_native_destroy(SoundNative *n)
     free(n);
 }
 
+SoundNative *sound_native_copy(const SoundNative *n)
+{
+    SoundNative *copy = malloc(sizeof *copy);
+    if (copy) *copy = *n;
+    return copy;
+}
+
+void sound_native_restore(SoundNative *n, const SoundNative *copy)
+{
+    GameState *game = n->game;
+    Platform *pf = n->pf;
+    *n = *copy;
+    n->game = game;
+    n->pf = pf;
+    n->driver.game = game;
+    n->driver.voices = mixer_voices(&n->mixer);
+}
+
 void sound_native_frame(SoundNative *n) { pass(n, SPC_CYCLES_PER_FRAME); }
 
 size_t sound_native_take_audio(SoundNative *n, int16_t *out, size_t frames)
