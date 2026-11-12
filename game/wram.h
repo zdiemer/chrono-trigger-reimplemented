@@ -40,4 +40,12 @@ void wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes);
  * account. `bytes` is a count: 65536 is a full bank. */
 void wram_clear(GameState *g, PfOrigin o, uint32_t at, uint32_t bytes);
 
+/* A run of work RAM written as the work RAM port writes it: from `at` (a
+ * 17-bit place in both banks), running on from bank $7E into $7F and round
+ * to the start: `bytes` of one value, or a resource's `bytes` copied in. Like
+ * the plain fills, they take none of the port's own time; the caller charges
+ * the transfer's (tm_charge_transfer). */
+void wram_port_fill(GameState *g, uint32_t at, uint32_t bytes, uint8_t v);
+void wram_port_copy(GameState *g, PfData from, uint32_t at, uint32_t bytes);
+
 #endif

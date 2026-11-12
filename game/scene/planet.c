@@ -381,7 +381,7 @@ static void unpack_at(GameState *g, uint16_t at) { set_decompress_dest(g, (decom
 static void send_unpacked_words(GameState *g, Platform *pf)
 {
     set_scene_call_transfer_control(g, scene_program_own(), SCENE_TRANSFER_WORDS);
-    set_scene_call_transfer_register(g, scene_program_own(), VID_SNES_VRAM_DATA_LOW);
+    set_scene_call_transfer_register(g, scene_program_own(), SCENE_INTO_LOW_BYTES);
     TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
 }
 

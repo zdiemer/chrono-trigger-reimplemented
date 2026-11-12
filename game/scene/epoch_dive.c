@@ -674,7 +674,7 @@ static bool load_the_shell(GameState *g, Platform *pf, const DiveSetUpSteps *ste
     vid_set_vram_address(pf, PF_AT(0x7E790F), SHELL_MAP_VRAM);
     vid_start_vram_uploads(pf, PF_AT(0x7E7913), SCENE_VRAM_LOW_BYTES);
     for (unsigned half = 0; half < 2; half++)
-        scene_send_from(g, pf, SCENE_TRANSFER_BYTES, VID_SNES_VRAM_DATA_LOW, SCENE_PLANE_MAP, PLANE_HALF_BYTES);
+        scene_send_from(g, pf, SCENE_TRANSFER_BYTES, SCENE_INTO_LOW_BYTES, SCENE_PLANE_MAP, PLANE_HALF_BYTES);
     return true;
 }
 
@@ -796,7 +796,7 @@ static bool make_the_pieces(GameState *g, Platform *pf, const DiveSetUpSteps *st
     vid_set_vram_address(pf, PF_AT(0x7E7B13), PANEL_MAP_VRAM);
     lay_out_the_panel(g, pf);
     charge_accesses(g, 1);
-    scene_clear_buffer(pf, SCALER_OUTPUT, SCALER_OUTPUT_BYTES, 0x7E7B98);
+    scene_clear_buffer(g, pf, SCALER_OUTPUT, SCALER_OUTPUT_BYTES, 0x7E7B98);
     return true;
 }
 

@@ -53,7 +53,6 @@ void party_wear_it_shows(GameState *g) { (void)g; abort(); }
 bool party_record_shows_characters(const GameState *g) { (void)g; abort(); }
 
 static uint8_t read_game(void *ctx, uint32_t at) { return state_host_read8(ctx, at); }
-static void write_game(void *ctx, uint32_t at, uint8_t value) { state_host_write8(ctx, at, value); }
 
 static void address_view(void)
 {
@@ -101,7 +100,7 @@ static void address_view(void)
     set_location_id(g, 0x1234);
     set_location_x(g, 0x56);
     Platform pf = {0};
-    vid_host_start(&pf, read_game, write_game, g);
+    vid_host_start(&pf, read_game, g);
     vid_send_vram(&pf, PF_AT(0), 0, PF_GAME(0x7E0100), 3,
                   &(VidVramPort){ .step = 1, .after_high = true });
     const VidFrame *frame = vid_host_picture(&pf);
@@ -159,7 +158,7 @@ static void alias_views(void)
     hw_port_write(g, 0xBC);
     CHECK(oam_buffer_tile(g, 3) == 0xBC);
     Platform pf = {0};
-    vid_host_start(&pf, read_game, write_game, g);
+    vid_host_start(&pf, read_game, g);
     vid_send_vram(&pf, PF_AT(0), 0, PF_GAME(0x7E070E), 1,
                   &(VidVramPort){ .step = 1, .after_high = true });
     CHECK(vid_host_picture(&pf)->vram[0] == 0xBC);

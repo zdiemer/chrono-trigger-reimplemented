@@ -571,7 +571,7 @@ bool scene_title_set_up(GameState *g, Platform *pf)
     vid_set_vram_address(pf, PF_AT(0x7E5983), SPRITE_TILES_VRAM);
     unpack(g, SPRITE_TILES_RESOURCE);
     set_scene_call_transfer_control(g, scene_program_own(), WORDS_TO_TWO_REGISTERS);
-    set_scene_call_transfer_register(g, scene_program_own(), VID_SNES_VRAM_DATA_LOW);
+    set_scene_call_transfer_register(g, scene_program_own(), SCENE_INTO_LOW_BYTES);
     send_unpacked(g, pf);
     unpack(g, LAYER_TILES_RESOURCE);
     vid_set_vram_address(pf, PF_AT(0x7E59A3), LAYER_TILES_VRAM);

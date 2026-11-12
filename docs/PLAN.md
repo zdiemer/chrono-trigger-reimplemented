@@ -13,7 +13,8 @@ C. Observable divergence is accepted where the game stays structurally the same.
    become fixes and never hold up a commit, merge or push.
 2. **The machine out of game/.** Work module by module under the lean gate.
    Simplify the remaining single-implementation adapters and register-shaped
-   values and replace video register escapes with services. PORTING.md gives
+   values, and give the sound driver's register write a meaning (TODO.md,
+   Platform). PORTING.md gives
    the native function and callback pattern. Preserve real state contracts,
    timing charges, cartridge saves, route queries and recorded save/place
    protections. Measure progress with the source and storage inventories.

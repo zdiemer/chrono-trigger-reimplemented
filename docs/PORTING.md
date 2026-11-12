@@ -39,10 +39,9 @@ it never dispatches to cartridge code.
    address. Removing reads can remove time even when their values are unused:
    preserve counted work with an explicit charge and explain its derivation.
    Never keep dummy register writes or change rates to make an outcome pass.
-4. Use named resource and platform operations. The remaining video escapes
-   need services expressing their effects. Core and warp have none; changes
-   to field, battle, menu, scene and overworld can stay inside those modules
-   and their service implementations without changing core dispatch.
+4. Use named resource and platform operations. Changes to field, battle,
+   menu, scene and overworld can stay inside those modules and their service
+   implementations without changing core dispatch.
 5. Delete the old helper, declaration, test or exception with its last caller.
    Run source inventories and the lean gate, including outcomes and picture
    fingerprints. A clean build alone cannot establish unchanged frame pacing.

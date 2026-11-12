@@ -77,7 +77,9 @@ console vectors, entry macros, machine access helpers, CPU shell headers and
 Machine-only cost APIs and their dead calculations were removed too. These
 deletions do not finish the vocabulary and storage work in every subsystem:
 single-implementation adapters and some register-shaped results still need
-simplification, and nineteen video escapes still need named services.
+simplification. The video escapes have named services (PLATFORM.md, "Memory
+moves and VRAM read-backs"); the sound driver's register write is the one
+escape left.
 
 ### Time without a machine
 
@@ -118,8 +120,8 @@ remains in core or warp. PORTING.md gives the steps for other subsystems.
 | Emulated returns / address stops | 505 / 111 | 0 / 0 |
 | Address call-outs / sibling lookups | 14 / 9 | 0 / 0 |
 | Machine time tags | 8 | 0 |
-| Register escapes | 20 | 19 |
-| Video service calls | 543 | 534 |
+| Register escapes | 20 | 1 |
+| Video service calls | 543 | 551 |
 | Missing video backends / cartridge reads by address / scaffolding | 0 / 0 / 0 | 0 / 0 / 0 |
 
 ## Scaffolding removal

@@ -61,14 +61,13 @@ static void replacing_handler(GameState *g, Platform *pf)
 }
 static void line_handler(GameState *g, Platform *pf) { (void)g; (void)pf; note('L'); }
 static uint8_t read_game(void *g, uint32_t at) { return state_host_read8(g, at); }
-static void write_game(void *g, uint32_t at, uint8_t v) { state_host_write8(g, at, v); }
 static Platform pf;
 
 int main(void)
 {
     GameState *g = state_host_create(NULL), *other = state_host_create(NULL);
     if (!g || !other) return 1;
-    vid_host_start(&pf, read_game, write_game, g);
+    vid_host_start(&pf, read_game, g);
     int rate = charge_time_as_begin(g, 0xC00000);
     program_vblank(g, &pf);
     CHECK(used == 0 && state_host_take_owed(g) == 32);
